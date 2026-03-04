@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "esm-msr"
+version = "0.2.0"
+description = "Epistasis-aware parameter-efficient fine-tuning and ESM3 model utilities."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+authors = [
+    {name = "sareeves"}
+]
+# Core dependencies that don't vary by CUDA version
+dependencies = [
+    "biopython",
+    "esm",
+    "peft",
+    "pandas<3.0.0",
+    "numpy",
+    "tqdm",
+    "scipy>=1.13,<1.15"
+]
+
+[project.optional-dependencies]
+# Optional: includes tools for training and analysis notebooks
+dev = [
+    "ipykernel",
+    "matplotlib",
+    "seaborn",
+    "comet_ml",
+    "pytorch-lightning>=2.0.0"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+# This tells it to find all packages inside the src/ directory
+packages = {find = {where = ["src"]}}

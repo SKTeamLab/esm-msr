@@ -1,0 +1,31 @@
+<BundleInfo name="ChimeraX-ESM_MSR_Visualizer"
+            version="0.2.0"
+            package="chimerax.esm_msr_visualizer"
+            minSessionVersion="1"
+            maxSessionVersion="1">
+
+    <Author>Shawn Reeves</Author>
+    <Email>sareeves@uwaterloo.ca</Email>
+    <URL></URL>
+
+    <Synopsis>Interfaces with ESM-MSR to predict and visualize (multi-)mutant stability effects.</Synopsis>
+    <Description>
+Interfaces with ESM-MSR to predict and visualize (multi-)mutant stability effects.
+    </Description>
+
+    <Categories>
+        <Category name="Utilities"/>
+        <Category name="Visualization"/>
+    </Categories>
+
+    <Dependencies>
+        <Dependency name="ChimeraX-Core" version=">=1.3"/>
+		<Dependency name="pandas" version=">=2.0"/>
+    </Dependencies>
+
+    <Classifiers>
+        <PythonClassifier>Development Status :: 3 - Alpha</PythonClassifier>
+        <PythonClassifier>License :: Freeware</PythonClassifier>
+        <ChimeraXClassifier>ChimeraX :: Tool :: ESM_MSR_Visualizer :: Visualization :: Visualizes ESM-MSR scores</ChimeraXClassifier>
+    </Classifiers>
+</BundleInfo>
