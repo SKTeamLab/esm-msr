@@ -99,7 +99,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
         self.session.logger.info("****** RSVTool __init__ COMPLETED. ******")
 
-# ---------------- UI -----------------
+    # ---------------- UI -----------------
     def _build_ui(self, parent_widget):
         main_layout = QVBoxLayout()
         parent_widget.setLayout(main_layout)
@@ -229,7 +229,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         mutations_layout.addLayout(meth1_line1)
         
         meth1_line2 = QHBoxLayout()
-        meth1_line2.addWidget(QLabel("      Selected residues:"))
+        meth1_line2.addWidget(QLabel("      Selected residues (must match Chain ID!):"))
         self.selected_residues_edit = QLineEdit()
         self.selected_residues_edit.setPlaceholderText("e.g. 11,12,15 (Empty = All)")
         meth1_line2.addWidget(self.selected_residues_edit)

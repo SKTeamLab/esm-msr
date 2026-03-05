@@ -192,15 +192,22 @@ def main(args):
     elif has_screen_args:
         target_positions = []
         if args.screen_residues:
-            req_res = [r.strip() for r in args.screen_residues.split(',')]
+            req_res = [r.strip() for r in args.screen_residues.split(',') if r.strip()]
             for r in req_res:
                 if r in pdb_index_to_one_map:
                     target_positions.append(pdb_index_to_one_map[r])
                 else:
-                    print(f"Warning: residue '{r}' not found in PDB chain.")
+                    raise ValueError(f"\n[!] ERROR: Residue '{r}' requested in --screen_residues was not found in PDB chain '{args.chain_id}'. Ensure you are not including chain IDs and that you selected the correct chain.\n")
+            target_positions = list(set(target_positions))
+            
         elif args.screen_residues_except:
-            exc_res = [r.strip() for r in args.screen_residues_except.split(',')]
-            exc_pos = [pdb_index_to_one_map[r] for r in exc_res if r in pdb_index_to_one_map]
+            exc_res = [r.strip() for r in args.screen_residues_except.split(',') if r.strip()]
+            exc_pos = []
+            for r in exc_res:
+                if r in pdb_index_to_one_map:
+                    exc_pos.append(pdb_index_to_one_map[r])
+                else:
+                    raise ValueError(f"\n[!] ERROR: Residue '{r}' requested in --screen_residues_except was not found in PDB chain '{args.chain_id}'.\n")
             target_positions = [i+1 for i in range(len(original_seq)) if (i+1) not in exc_pos]
         
         mut_list = []
@@ -230,6 +237,9 @@ def main(args):
                         mut_list.append(f"{wt1}{pdb_pos1}{mut1}:{wt2}{pdb_pos2}{mut2}")
 
         subset_df_obj = pd.DataFrame({'mut_type': mut_list})
+        if subset_df_obj.empty:
+            raise ValueError("\n[!] ERROR: The generated mutation list is empty. This often happens if you select '--mode doubles' but provide fewer than 2 valid residues.\n")
+            
         print(f"Created inputs from screen residue arguments with {len(subset_df_obj)} rows.")
 
     if subset_df_obj is not None:
@@ -249,12 +259,18 @@ def main(args):
             wt_col = f'wt{i}'
             
             if pos_col in subset_df_obj.columns:
-                subset_df_obj[f'{pos_col}_pdb'] = subset_df_obj[pos_col]
+                # --- NEW CODE: Catch float casting immediately before mapping ---
+                def clean_pdb_idx(val):
+                    if pd.isna(val): return np.nan
+                    if isinstance(val, float) and val.is_integer():
+                        return str(int(val)).strip()
+                    return str(val).strip()
+
+                subset_df_obj[f'{pos_col}_pdb'] = subset_df_obj[pos_col].apply(clean_pdb_idx)
 
                 def validate_and_convert(row):
-                    if pd.isna(row[pos_col]): return np.nan
-                    
-                    pdb_idx = str(row[pos_col]).strip()
+                    pdb_idx = row[f'{pos_col}_pdb']
+                    if pd.isna(pdb_idx): return np.nan
                     
                     if pdb_idx not in pdb_index_to_one_map:
                         raise ValueError(
@@ -275,6 +291,17 @@ def main(args):
                     return one_based_idx
 
                 subset_df_obj[pos_col] = subset_df_obj.apply(validate_and_convert, axis=1)
+
+        # --- NEW CODE: Overwrite/construct PDB-indexed mut_type in input dataframe ---
+        def build_pdb_mut_type(row):
+            muts = []
+            for i in range(1, 4):
+                pos_col = f'pos{i}_pdb'
+                if pos_col in row and pd.notna(row[pos_col]):
+                    muts.append(f"{row[f'wt{i}']}{row[pos_col]}{row[f'mut{i}']}")
+            return ":".join(muts) if muts else np.nan
+
+        subset_df_obj['mut_type'] = subset_df_obj.apply(build_pdb_mut_type, axis=1)
 
         valid_muts_per_row = subset_df_obj[[c for c in subset_df_obj.columns if str(c).startswith('pos') and not str(c).endswith('_pdb')]].notna().sum(axis=1)
         
@@ -299,13 +326,21 @@ def main(args):
             quiet=False
         )
         
-        # --- NEW CODE: Convert 1-based pos to PDB numbering ---
         pred_singles['pos1_pdb'] = pred_singles['pos1'].map(one_to_pdb_index_map)
+        
+        # --- NEW CODE: Mut_type renaming and PDB construction ---
+        if 'mut_type' in pred_singles.columns:
+            pred_singles.rename(columns={'mut_type': 'mut_info_seq_pos'}, inplace=True)
+        else:
+            # Fallback creation if model didn't output it natively
+            pred_singles['mut_info_seq_pos'] = pred_singles['wt1'] + pred_singles['pos1'].astype(str) + pred_singles['mut1']
+            
+        pred_singles['mut_type'] = pred_singles['wt1'] + pred_singles['pos1_pdb'].astype(str) + pred_singles['mut1']
         
         pred_singles['id'] = (
             args.code + args.chain_id + 
             ('_' + backbone_mutation if backbone_mutation else '') + '_' + 
-            pred_singles['wt1'] + pred_singles['pos1_pdb'].astype(str) + pred_singles['mut1']
+            pred_singles['mut_type']
         )
 
         pred_singles = pred_singles.drop('delta_logit1', axis=1)
@@ -316,11 +351,9 @@ def main(args):
         print("Running doubles...")
 
         if subset_df_obj is not None:
-            # --- FIX 2: Safely assign pos3 to prevent SettingWithCopyWarning ---
             if 'pos3' not in subset_df_obj.columns:
                 subset_df_obj = subset_df_obj.assign(pos3=np.nan)
             
-            # Use .copy() to ensure we have a fully independent dataframe
             subset_df_double = subset_df_obj.loc[~(subset_df_obj['pos2'].isna()) & (subset_df_obj['pos3'].isna())].copy()
         else:
             subset_df_double = None
@@ -334,18 +367,29 @@ def main(args):
             quiet=False
         )
         
-        # --- NEW CODE: Convert 1-based pos to PDB numbering ---
         pred_doubles['pos1_pdb'] = pred_doubles['pos1'].map(one_to_pdb_index_map)
         pred_doubles['pos2_pdb'] = pred_doubles['pos2'].map(one_to_pdb_index_map)
+
+        # --- NEW CODE: Mut_type renaming and PDB construction ---
+        if 'mut_type' in pred_doubles.columns:
+            pred_doubles.rename(columns={'mut_type': 'mut_info_seq_pos'}, inplace=True)
+        else:
+            pred_doubles['mut_info_seq_pos'] = (
+                pred_doubles['wt1'] + pred_doubles['pos1'].astype(str) + pred_doubles['mut1'] + ':' + 
+                pred_doubles['wt2'] + pred_doubles['pos2'].astype(str) + pred_doubles['mut2']
+            )
+
+        pred_doubles['mut_type'] = (
+            pred_doubles['wt1'] + pred_doubles['pos1_pdb'].astype(str) + pred_doubles['mut1'] + ':' + 
+            pred_doubles['wt2'] + pred_doubles['pos2_pdb'].astype(str) + pred_doubles['mut2']
+        )
 
         pred_doubles['id'] = (
             args.code + args.chain_id + 
             ('_' + backbone_mutation if backbone_mutation else '') + '_' + 
-            pred_doubles['wt1'] + pred_doubles['pos1_pdb'].astype(str) + pred_doubles['mut1'] + ':' + 
-            pred_doubles['wt2'] + pred_doubles['pos2_pdb'].astype(str) + pred_doubles['mut2']
+            pred_doubles['mut_type']
         )
         
-        # --- FIX 1: Compute distance only for predicted doubles using the fast cache ---
         if args.calculate_distances:
             pred_doubles['dist'] = pred_doubles.apply(
                 lambda x: get_closest_heavy_atom_distance(x['pos1_pdb'], x['pos2_pdb'], bio_residue_dict), 
@@ -360,7 +404,6 @@ def main(args):
         print("Running multi...")
 
         if subset_df_obj is not None:
-            # --- FIX 2: Use .copy() for safe slicing ---
             subset_df_multi = subset_df_obj.loc[~subset_df_obj['pos3'].isna()].copy()
         else:
             subset_df_multi = None
@@ -373,7 +416,6 @@ def main(args):
             K_paths=args.multi_paths
         )
 
-        # --- NEW CODE: Strictly convert and overwrite mut_type to PDB numbering ---
         def convert_multi_mut_string(mut_str, mapping):
             if pd.isna(mut_str): return mut_str
             converted = []
@@ -394,8 +436,11 @@ def main(args):
                 
             return ":".join(converted)
 
-        # Overwrite mut_type directly to ensure join keys match the original PDB inputs
-        pred_multi['mut_type'] = pred_multi['mut_type'].apply(
+        # --- NEW CODE: Rename original and construct PDB mut_type ---
+        if 'mut_type' in pred_multi.columns:
+            pred_multi.rename(columns={'mut_type': 'mut_info_seq_pos'}, inplace=True)
+            
+        pred_multi['mut_type'] = pred_multi['mut_info_seq_pos'].apply(
             lambda x: convert_multi_mut_string(x, one_to_pdb_index_map)
         )
 
@@ -408,6 +453,7 @@ def main(args):
         pred_combined = pd.concat([pred_combined, pred_multi])
 
     def has_disallowed_mutation(mut_type, disallowed_str):
+        if pd.isna(mut_type): return False
         muts = mut_type.split(':')
         blacklist = disallowed_str.split(',')
         for mut in muts:
@@ -418,23 +464,38 @@ def main(args):
     pred_combined['has_disallowed'] = pred_combined['mut_type'].apply(lambda x: has_disallowed_mutation(x, args.disallow_mutants))
     pred_combined.loc[pred_combined['has_disallowed'], 'ddg_pred'] = np.nan
     
-    # Final cleanup
     if not pred_combined.empty:
 
         if subset_df_obj is not None:
+            
+            if 'id' not in subset_df_obj.columns and 'mut_type' in subset_df_obj.columns:
+                subset_df_obj['id'] = (
+                    args.code + args.chain_id + 
+                    ('_' + backbone_mutation if backbone_mutation else '') + '_' + 
+                    subset_df_obj['mut_type']
+                )
+
             overlap_cols = list(set(subset_df_obj.columns).intersection(set(pred_combined.columns)))
             
-            join_target = 'mut_type' if 'mut_type' in subset_df_obj.columns else 'id'
+            join_target = 'id'
 
             if join_target in overlap_cols:
                 overlap_cols.remove(join_target)
                 
-            pred_combined = subset_df_obj.set_index(join_target).join(pred_combined.set_index(join_target).drop(overlap_cols, axis=1))
+            size_before = len(pred_combined)
+            
+            pred_combined = subset_df_obj.set_index(join_target).join(
+                pred_combined.set_index(join_target).drop(overlap_cols, axis=1),
+                how='inner'
+            ).reset_index()
+            
+            assert len(pred_combined) == size_before, \
+                f"\n[!] ERROR: Assertion failed! Inner join changed dataframe size. Expected {size_before} rows, got {len(pred_combined)} rows. Check for duplicate IDs or dropped rows.\n"
 
         if args.output_csv:
-            pred_combined.to_csv(args.output_csv)
+            pred_combined.to_csv(args.output_csv, index=False)
         else:
-            pred_combined.to_csv(f'./{args.code}_{args.chain_id}_{args.mode}_{args.strategy}.csv')
+            pred_combined.to_csv(f'./{args.code}_{args.chain_id}_{args.mode}_{args.strategy}.csv', index=False)
     else:
         print("No predictions were generated.")
 
