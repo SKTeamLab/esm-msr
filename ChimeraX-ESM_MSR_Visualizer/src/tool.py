@@ -50,7 +50,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         
         self.lora_alpha = 12
         self.lora_rank = 6
-        self.script_input_structure_path = ""
+        #self.script_input_structure_path = ""
         
         self._closing = False
         self._temp_dir_to_cleanup = None
@@ -121,14 +121,24 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         base_repo_layout.addWidget(self.browse_base_repo_button)
         prediction_layout.addLayout(base_repo_layout)
 
-        # Input structure (auto-saved)
-        script_input_struct_layout = QHBoxLayout()
-        script_input_struct_layout.addWidget(QLabel("Input Structure File:"))
-        self.script_input_structure_path_edit = QLineEdit()
-        self.script_input_structure_path_edit.setPlaceholderText("Current model (will be auto-saved)")
-        self.script_input_structure_path_edit.setReadOnly(True)
-        script_input_struct_layout.addWidget(self.script_input_structure_path_edit)
-        prediction_layout.addLayout(script_input_struct_layout)
+        # Env
+        py_env_layout = QHBoxLayout()
+        py_env_layout.addWidget(QLabel("Environment Path or Conda Name:"))
+        self.python_env_edit = QLineEdit()
+        self.python_env_edit.setPlaceholderText("e.g., C:\\...\\msr_venv OR conda_env_name")
+        py_env_layout.addWidget(self.python_env_edit)
+        self.browse_env_button = QPushButton("Browse...")
+        self.browse_env_button.clicked.connect(self._browse_python_env)
+        py_env_layout.addWidget(self.browse_env_button)
+        prediction_layout.addLayout(py_env_layout)
+        
+        # Hardware & Auth
+        hw_layout = QHBoxLayout()
+        hw_layout.addWidget(QLabel("HF Token (if ESM3 weights not downloaded to repo):"))
+        self.hf_token_edit = QLineEdit()
+        self.hf_token_edit.setPlaceholderText("Optional: HuggingFace Token")
+        hw_layout.addWidget(self.hf_token_edit)
+        prediction_layout.addLayout(hw_layout)
 
         # Output CSV
         script_output_csv_layout = QHBoxLayout()
@@ -205,27 +215,33 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         warning_label.setStyleSheet("color: #aa5500; font-style: italic;")
         mutations_layout.addWidget(warning_label)
 
-        # Method 1: Screening Mode & Selected Residues
-        meth1_layout = QHBoxLayout()
-        meth1_layout.addWidget(QLabel("1. Screening mode:"))
+        # Method 1: Screening Mode & Selected Residues (Split into two lines)
+        meth1_line1 = QHBoxLayout()
+        meth1_line1.addWidget(QLabel("1. Screening mode:"))
         self.mode_combobox = QComboBox()
         self.mode_combobox.addItems(['singles', 'doubles'])
-        meth1_layout.addWidget(self.mode_combobox)
+        meth1_line1.addWidget(self.mode_combobox)
         
-        meth1_layout.addSpacing(10)
-        meth1_layout.addWidget(QLabel("Selected residues:"))
+        suggestion_label = QLabel("(Leave the selection boxes below blank to screen all possible mutants)")
+        suggestion_label.setStyleSheet("color: gray;")
+        meth1_line1.addWidget(suggestion_label)
+        meth1_line1.addStretch()
+        mutations_layout.addLayout(meth1_line1)
+        
+        meth1_line2 = QHBoxLayout()
+        meth1_line2.addWidget(QLabel("      Selected residues:"))
         self.selected_residues_edit = QLineEdit()
         self.selected_residues_edit.setPlaceholderText("e.g. 11,12,15 (Empty = All)")
-        meth1_layout.addWidget(self.selected_residues_edit)
+        meth1_line2.addWidget(self.selected_residues_edit)
         
         self.grab_sel_button = QPushButton("Grab Selection")
         self.grab_sel_button.setToolTip("Grab currently selected residues from ChimeraX")
         self.grab_sel_button.clicked.connect(self._grab_selection)
-        meth1_layout.addWidget(self.grab_sel_button)
+        meth1_line2.addWidget(self.grab_sel_button)
         
         self.screen_except_checkbox = QCheckBox("Invert (Except these)")
-        meth1_layout.addWidget(self.screen_except_checkbox)
-        mutations_layout.addLayout(meth1_layout)
+        meth1_line2.addWidget(self.screen_except_checkbox)
+        mutations_layout.addLayout(meth1_line2)
 
         # Method 2: Subset CSV
         meth2_layout = QHBoxLayout()
@@ -248,28 +264,18 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
         prediction_layout.addWidget(mutations_groupbox)
 
-        # Env
-        py_env_layout = QHBoxLayout()
-        py_env_layout.addWidget(QLabel("Environment Path or Conda Name:"))
-        self.python_env_edit = QLineEdit()
-        self.python_env_edit.setPlaceholderText("e.g., C:\\...\\msr_venv OR conda_env_name")
-        py_env_layout.addWidget(self.python_env_edit)
-        self.browse_env_button = QPushButton("Browse...")
-        self.browse_env_button.clicked.connect(self._browse_python_env)
-        py_env_layout.addWidget(self.browse_env_button)
-        prediction_layout.addLayout(py_env_layout)
-        
-        # Hardware & Auth
-        hw_layout = QHBoxLayout()
-        hw_layout.addWidget(QLabel("HF Token (if ESM3 weights not downloaded to repo):"))
-        self.hf_token_edit = QLineEdit()
-        self.hf_token_edit.setPlaceholderText("Optional: HuggingFace Token")
-        hw_layout.addWidget(self.hf_token_edit)
-        prediction_layout.addLayout(hw_layout)
-
+        # Compute Device Selection (Replaces Input Structure File)
+        device_layout = QHBoxLayout()
+        device_layout.addWidget(QLabel("Compute Device:"))
+        self.device_combobox = QComboBox()
+        self.device_combobox.addItems(['gpu', 'cpu'])
+        device_layout.addWidget(self.device_combobox)
+    
         self.run_prediction_button = QPushButton("Run Prediction Script")
         self.run_prediction_button.clicked.connect(self._initiate_run_prediction_script)
-        prediction_layout.addWidget(self.run_prediction_button)
+        device_layout.addWidget(self.run_prediction_button)
+
+        prediction_layout.addLayout(device_layout)
 
         self.prediction_output_label = QLabel("Predicted output file: None")
         prediction_layout.addWidget(self.prediction_output_label)
@@ -503,13 +509,13 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                 self.subset_df_edit.setText(fp)
                 self.session.logger.info(f"Subset DF selected: {fp}")
 
-    def _early_error_ui_reset(self, message):
-        self.status_label.setText(f"Status: {message}")
-        self.run_prediction_button.setEnabled(True)
-        self.load_button.setEnabled(True)
-        self.script_input_structure_path_edit.setText("")
-        self.script_input_structure_path_edit.setPlaceholderText("Current model (will be auto-saved)")
-        self.session.logger.warning(f"Early error occurred: {message}")
+    #def _early_error_ui_reset(self, message):
+    #    self.status_label.setText(f"Status: {message}")
+    #    self.run_prediction_button.setEnabled(True)
+    #    self.load_button.setEnabled(True)
+    #    self.script_input_structure_path_edit.setText("")
+    #    self.script_input_structure_path_edit.setPlaceholderText("Current model (will be auto-saved)")
+    #    self.session.logger.warning(f"Early error occurred: {message}")
 
     # -------------- run prediction (QProcess) --------------
     def _initiate_run_prediction_script(self):
@@ -523,9 +529,9 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                 pass
             finally:
                 self._temp_dir_to_cleanup = None
-                self.script_input_structure_path = ""
-                self.script_input_structure_path_edit.setText("")
-                self.script_input_structure_path_edit.setPlaceholderText("Current model (will be auto-saved)")
+                #self.script_input_structure_path = ""
+                #self.script_input_structure_path_edit.setText("")
+                #self.script_input_structure_path_edit.setPlaceholderText("Current model (will be auto-saved)")
 
         self.base_repo_path = self.base_repo_path_edit.text().strip()
         self.python_script_path = os.path.normpath(os.path.join(self.base_repo_path, "src", "esm_msr", "inference.py"))
@@ -556,7 +562,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             _temp_script_input_structure_path = os.path.join(self._temp_dir_to_cleanup, temp_model_filename)
             run(self.session, f"save \"{_temp_script_input_structure_path}\" models #{current_model.id_string} format pdb")
             self.script_input_structure_path = _temp_script_input_structure_path
-            self.script_input_structure_path_edit.setText(self.script_input_structure_path)
+            #self.script_input_structure_path_edit.setText(self.script_input_structure_path)
         except Exception as e:
             self.session.logger.error(f"Failed to prepare input structure: {e}")
             self._early_error_ui_reset("Error: Failed to save current model.")
@@ -604,17 +610,19 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         else:
             program = 'python'
 
-        device = 'cpu'
-        try:
-            probe_cmd = [program] + (args if program == 'python' else args) + ['-c', 'import torch; print(torch.cuda.is_available())']
-            if program == 'python':
-                r = subprocess.run(probe_cmd, capture_output=True, text=True, check=False)
-                device = 'cuda:0' if r.stdout.strip().lower() == 'true' else 'cpu'
-            else:
-                device = 'cuda:0'
-        except Exception as e:
-            self.session.logger.warning(f"CUDA probe failed: {e}")
-            device = 'cpu'
+        #device = 'cpu'
+        #try:
+        #    probe_cmd = [program] + (args if program == 'python' else args) + ['-c', 'import torch; print(torch.cuda.is_available())']
+        #    if program == 'python':
+        #        r = subprocess.run(probe_cmd, capture_output=True, text=True, check=False)
+        #        device = 'cuda:0' if r.stdout.strip().lower() == 'true' else 'cpu'
+        #    else:
+        #        device = 'cuda:0'
+        #except Exception as e:
+        #    self.session.logger.warning(f"CUDA probe failed: {e}")
+        #    device = 'cpu'
+
+        device = 'cuda:0' if self.device_combobox.currentText() == 'gpu' else 'cpu'
 
         if current_model.name:
             code = os.path.splitext(current_model.name)[0]
@@ -705,9 +713,9 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             except Exception as e:
                 self.session.logger.warning(f"Could not remove temporary directory {self._temp_dir_to_cleanup}: {e}")
             self._temp_dir_to_cleanup = None
-            self.script_input_structure_path_edit.setText("")
-            self.script_input_structure_path_edit.setPlaceholderText("Current model (will be auto-saved)")
-            self.script_input_structure_path = ""
+            #self.script_input_structure_path_edit.setText("")
+            #self.script_input_structure_path_edit.setPlaceholderText("Current model (will be auto-saved)")
+            #self.script_input_structure_path = ""
 
         if exitStatus == QProcess.NormalExit and exitCode == 0:
             self.predicted_output_path = self.script_output_csv_path
@@ -1183,10 +1191,10 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             self.session.logger.warning(f"Could not remove temp dir on delete: {e}")
         finally:
             self._temp_dir_to_cleanup = None
-            if hasattr(self, 'script_input_structure_path_edit'):
-                self.script_input_structure_path_edit.setText("")
-                self.script_input_structure_path_edit.setPlaceholderText("Current model (will be auto-saved)")
-            self.script_input_structure_path = ""
+            #if hasattr(self, 'script_input_structure_path_edit'):
+            #    self.script_input_structure_path_edit.setText("")
+            #    self.script_input_structure_path_edit.setPlaceholderText("Current model (will be auto-saved)")
+            #self.script_input_structure_path = ""
 
         try:
             mid = getattr(self, 'mutated_model_id_string', None)

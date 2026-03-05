@@ -978,13 +978,14 @@ class ESM3LoRAModel(StabilityPredictorBase):
         chain: str | None = "A",
         strategy: str = "parallel",              # {"parallel","masked","direct"}
         device: str | torch.device | None = None,
-        mem_scale: float = 1.0,                  # positions per masked batch
+        mem_scale: float = 1.0,                  # positions per masked batch (add your L-normalization outside)
         use_modeled_context_structs: bool = False,
         mut_structs_root: str | None = None,
         positions: list[int] | None = None,      # optional 1-based restriction for full enumeration
         subset_df: pd.DataFrame | None = None,   # columns: wt1,pos1,mut1, wt2,pos2,mut2 (1-based)
         reuse_singles: str = "recompute",        # {"auto","require_cache","recompute"}
         backbone_mutation: str | None = None,
+        unmask_mut_ctx_id: bool = False,
         quiet: bool = False
     ):
         """
@@ -1066,12 +1067,8 @@ class ESM3LoRAModel(StabilityPredictorBase):
                             pos = int(row['pos1'])
                             expected_wt = row['wt1']
                             actual_wt = wt_seq_map.get(pos, '?')
-                            
                             if expected_wt != actual_wt:
-                                mismatches.append({
-                                    'row': idx, 'position': pos, 'mut_position': 1,
-                                    'expected_wt': expected_wt, 'actual_wt': actual_wt, 'to_aa': row['mut1']
-                                })
+                                mismatches.append({'row': idx, 'position': pos, 'mut_position': 1, 'expected_wt': expected_wt, 'actual_wt': actual_wt, 'to_aa': row['mut1']})
                 
                 if has_wt2:
                     for idx, row in dfq.iterrows():
@@ -1079,12 +1076,8 @@ class ESM3LoRAModel(StabilityPredictorBase):
                             pos = int(row['pos2'])
                             expected_wt = row['wt2']
                             actual_wt = wt_seq_map.get(pos, '?')
-                            
                             if expected_wt != actual_wt:
-                                mismatches.append({
-                                    'row': idx, 'position': pos, 'mut_position': 2,
-                                    'expected_wt': expected_wt, 'actual_wt': actual_wt, 'to_aa': row['mut2']
-                                })
+                                mismatches.append({'row': idx, 'position': pos, 'mut_position': 2, 'expected_wt': expected_wt, 'actual_wt': actual_wt, 'to_aa': row['mut2']})
                 
                 if mismatches:
                     error_lines = [f"ERROR: Wild-type sequence mismatch in subset_df for PDB {pdb_path} chain {ch}"]
@@ -1121,7 +1114,7 @@ class ESM3LoRAModel(StabilityPredictorBase):
 
         if wt_per_pos_logits is None:
             if scheme == "parallel":
-                wt_logits_full = self._forward_raw(seq_tokens_wt, coords_wt, struct_tokens_wt)
+                wt_logits_full = self._forward_raw(seq_tokens_wt, coords_wt, struct_tokens_wt)  # (1, L+2, V)
                 wt_per_pos_logits = wt_logits_full[0, 1:L_seq+1, :].float().cpu()
             else:
                 positions_per_batch = max(1, int(round(mem_scale * (400**3) / (L_seq**3))))
@@ -1135,7 +1128,7 @@ class ESM3LoRAModel(StabilityPredictorBase):
                         seq_batch[row_idx, j] = mask_id
                     coords_batch = coords_wt.repeat(B, 1, 1, 1)
                     struct_batch = struct_tokens_wt.repeat(B, 1)
-                    sl = self._forward_raw(seq_batch, coords_batch, struct_batch)
+                    sl = self._forward_raw(seq_batch, coords_batch, struct_batch)  # (B, L+2, V)
                     for row_idx, j in enumerate(chunk):
                         rows_logits[int(j)] = sl[row_idx, j, :].float().cpu()
                 Vtmp = next(iter(rows_logits.values())).shape[-1]
@@ -1164,9 +1157,11 @@ class ESM3LoRAModel(StabilityPredictorBase):
                 row = wt_per_pos_logits[p-1]
                 singles_delta[(p, to)] = _delta_from_logits_row(row, wt_id, mut_id)
 
+        rows = []  # Universal row collection for all schemes
+        wt_letters_by_pos = {p: id2aa.get(wt_token_ids[p], 'X') for p in range(1, L_seq+1)}
+
         # -------------------- "Direct" Strategy Block --------------------
         if scheme == "direct":
-            rows = []
             jobs = []
             if dfq is not None:
                 for idx, row in dfq.iterrows():
@@ -1207,7 +1202,7 @@ class ESM3LoRAModel(StabilityPredictorBase):
                     seq_batch[b_i, p1] = mask_id
                     seq_batch[b_i, p2] = mask_id
                     
-                logits = self._forward_raw(seq_batch, coords_batch, struct_batch)
+                logits = self._forward_raw(seq_batch, coords_batch, struct_batch) # (B, L+2, V)
                 
                 for b_i, (p1, t1, p2, t2) in enumerate(chunk):
                     wt1_id = wt_token_ids[p1]; mut1_id = aa2id[t1]
@@ -1220,292 +1215,279 @@ class ESM3LoRAModel(StabilityPredictorBase):
                     s1 = singles_delta.get((p1, t1), 0.0)
                     s2 = singles_delta.get((p2, t2), 0.0)
                     
-                    cal_s1 = float(self.calibration_head_shared(torch.tensor(s1, dtype=torch.float32, device=dev)).item())
-                    cal_s2 = float(self.calibration_head_shared(torch.tensor(s2, dtype=torch.float32, device=dev)).item())
-                    cal_direct = float(self.calibration_head_shared(torch.tensor(direct_score, dtype=torch.float32, device=dev)).item())
+                    wt1_letter = wt_letters_by_pos[p1]
+                    wt2_letter = wt_letters_by_pos[p2]
 
                     rows.append({
                         "pdb": pdb_id, "chain_id": ch,
-                        "mut_type": f"{wt1_id}{p1}{t1}:{wt2_id}{p2}{t2}",
-                        "wt1": wt1_id, "pos1": p1, "mut1": t1,
-                        "wt2": wt2_id, "pos2": p2, "mut2": t2,
-                        "ddg_pred": cal_direct,
-                        "ddg_pred_additive": cal_s1 + cal_s2,
-                        "dddg_pred": cal_direct - (cal_s1 + cal_s2),
+                        "mut_type": f"{wt1_letter}{p1}{t1}:{wt2_letter}{p2}{t2}",
+                        "wt1": wt1_letter, "pos1": p1, "mut1": t1,
+                        "wt2": wt2_letter, "pos2": p2, "mut2": t2,
+                        "delta_logit1": s1, "delta_logit2": s2,
+                        "direct_score": direct_score,  # Stored uncalibrated for bulk processing
                         "scheme": "direct"
                     })
-            
-            return pd.DataFrame(rows)
 
-        # -------------------- Parallel/Masked Context Logic (Existing) --------------------
-        
-        ctx_geom_cache = {}  
-        def _get_context_geom(i_pos: int, mut_letter: str, exp_seq_toks = None):
-            wt_letter = id2aa[seq_tokens_wt[0, i_pos].cpu().item()]
-            key = (i_pos, mut_letter)
-            if key in ctx_geom_cache:
-                return ctx_geom_cache[key]
-            seq_tokens_ctx = seq_tokens_wt
-            coords_ctx = coords_wt
-            struct_ctx = struct_tokens_wt
-            if use_modeled_context_structs and (mut_structs_root is not None):
-                base_code = os.path.basename(pdb_path).split('.')[0]
-                dir_lvl1 = f"{base_code}"
-                dir_lvl2 = "pdb_models"
-                fname = f"{chain}[{wt_letter}{i_pos}{mut_letter}].pdb"
-                pdb_ctx = os.path.join(mut_structs_root, dir_lvl1, dir_lvl2, fname)
-                if os.path.exists(pdb_ctx):
-                    seq_tokens_ctx, coords_ctx, plddt_ctx, struct_ctx = self.preprocess_structure(pdb_ctx, chain, dev=dev, backbone_mutation=f'{wt_letter}{i_pos}{mut_letter}', assert_mut=True, mask_ctx=False)
-                    if exp_seq_toks is not None:
-                        assert torch.equal(seq_tokens_ctx, exp_seq_toks)
-                else:
-                    print('Didn\'t find', pdb_ctx)
-
-            ctx_geom_cache[key] = (seq_tokens_ctx, coords_ctx, struct_ctx)
-            return seq_tokens_ctx, coords_ctx, struct_ctx
-
-        per_context_partial: dict[tuple[int, str], dict[int, torch.Tensor]] = {}
-
-        if dfq is not None:
-            if scheme == "parallel":
-                ctx_batch_cap = max(1, int(round(mem_scale * (400**3) / (L_seq**3))))
-                contexts_ordered = [ctx for ctx in sorted(ctx_to_partner_js.keys()) if len(ctx_to_partner_js[ctx]) > 0]
-
-                for start in tqdm(range(0, len(contexts_ordered), ctx_batch_cap), desc="Context forwards (parallel)", disable=quiet):
-                    ctx_chunk = contexts_ordered[start:start+ctx_batch_cap]
-                    Bc = len(ctx_chunk)
-
-                    seq_batch = seq_tokens_wt.repeat(Bc, 1)
-                    coords_list, struct_list = [], []
-                    for row_idx, (i_pos, mut_i) in enumerate(ctx_chunk):
-                        seq_batch[row_idx, i_pos] = aa2id[mut_i]
-                        sq_ctx, c_ctx, st_ctx = _get_context_geom(i_pos, mut_i, seq_batch[row_idx, :].unsqueeze(0))
-                        coords_list.append(c_ctx)
-                        struct_list.append(st_ctx)
-                    coords_batch = torch.cat(coords_list, dim=0)
-                    struct_batch = torch.cat(struct_list, dim=0)
-
-                    sl = self._forward_raw(seq_batch, coords_batch, struct_batch)
-                    per_pos_logits = sl[:, 1:L_seq+1, :].float().cpu()
-
-                    for row_idx, (i_pos, mut_i) in enumerate(ctx_chunk):
-                        partner_js = ctx_to_partner_js[(i_pos, mut_i)]
-                        ctx_map = per_context_partial.setdefault((i_pos, mut_i), {})
-                        for j in partner_js:
-                            ctx_map[j] = per_pos_logits[row_idx, j-1, :]
-            else:
-                row_jobs = [] 
-                for (i_pos, mut_i), js in ctx_to_partner_js.items():
-                    row_jobs.extend([(i_pos, mut_i, j) for j in js])
-
-                row_batch_cap = max(1, int(round(mem_scale * (400**3) / (L_seq**3))))
-                for start in tqdm(range(0, len(row_jobs), row_batch_cap), desc="Context rows (masked)", disable=quiet):
-                    chunk = row_jobs[start:start+row_batch_cap]
-                    B = len(chunk)
-                    seq_batch = seq_tokens_wt.repeat(B, 1)
-                    coords_list, struct_list, js_idx = [], [], []
-
-                    for row_idx, (i_pos, mut_i, j) in enumerate(chunk):
-                        seq_batch[row_idx, i_pos] = aa2id[mut_i]
-                        ctx_check = seq_batch[row_idx, :].clone().unsqueeze(0)
-                        sq_ctx, c_ctx, st_ctx = _get_context_geom(i_pos, mut_i, ctx_check)
-                        coords_list.append(c_ctx)
-                        struct_list.append(st_ctx)
-                        js_idx.append(j)
-
-                    coords_batch = torch.cat(coords_list, dim=0)
-                    struct_batch = torch.cat(struct_list, dim=0)
-
-                    sl = self._forward_raw(seq_batch, coords_batch, struct_batch)
-                    for row_idx, (i_pos, mut_i, j) in enumerate(chunk):
-                        ctx_map = per_context_partial.setdefault((i_pos, mut_i), {})
-                        ctx_map[j] = sl[row_idx, j, :].float().cpu()
-
-        # -------------------- Compose outputs --------------------
-        wt_letters_by_pos = {p: id2aa.get(wt_token_ids[p], 'X') for p in range(1, L_seq+1)}
-        
-        rows = []
-        u_d1, u_d2, u_d1_2, u_d2_1 = [], [], [], []
-
-        if dfq is not None:
-            for k in range(len(dfq)):
-                p1 = int(dfq['pos1'].iloc[k]); t1 = dfq['mut1'].iloc[k]
-                p2 = int(dfq['pos2'].iloc[k]); t2 = dfq['mut2'].iloc[k]
-                if p1 == p2:
-                    continue
-
-                if (p1, t1) not in singles_delta or (p2, t2) not in singles_delta:
-                    continue
-                delta_i = singles_delta[(p1, t1)]
-                delta_j = singles_delta[(p2, t2)]
-
-                row_i = per_context_partial.get((p1, t1), {}).get(p2, None)
-                row_j = per_context_partial.get((p2, t2), {}).get(p1, None)
-                if row_i is None or row_j is None:
-                    continue
-
-                wt_i_id = wt_token_ids[p1]; wt_j_id = wt_token_ids[p2]
-                mut_i_id = aa2id[t1];       mut_j_id = aa2id[t2]
-                dj_i = float(row_i[mut_j_id].item() - row_i[wt_j_id].item())
-                di_j = float(row_j[mut_i_id].item() - row_j[wt_i_id].item())
-
-                u_d1.append(delta_i)
-                u_d2.append(delta_j)
-                u_d1_2.append(di_j)
-                u_d2_1.append(dj_i)
-
-                rows.append({
-                    "pdb": pdb_id, "chain_id": ch,
-                    "mut_type": f"{wt_letters_by_pos[p1]}{p1}{t1}:{wt_letters_by_pos[p2]}{p2}{t2}",
-                    "wt1": wt_letters_by_pos[p1], "pos1": p1, "mut1": t1,
-                    "wt2": wt_letters_by_pos[p2], "pos2": p2, "mut2": t2,
-                    "scheme": scheme,
-                    "ctx_geom_1": bool(use_modeled_context_structs and (p1, t1) in ctx_geom_cache and ctx_geom_cache[(p1, t1)][0] is not coords_wt),
-                    "ctx_geom_2": bool(use_modeled_context_structs and (p2, t2) in ctx_geom_cache and ctx_geom_cache[(p2, t2)][0] is not coords_wt),
-                })
-
-            df = pd.DataFrame(rows)
-
-            if len(df) > 0:
-                uncal_mut1_delta = torch.tensor(u_d1, dtype=torch.float32, device=dev)
-                uncal_mut2_delta = torch.tensor(u_d2, dtype=torch.float32, device=dev)
-                uncal_mut1_2_delta = torch.tensor(u_d1_2, dtype=torch.float32, device=dev)
-                uncal_mut2_1_delta = torch.tensor(u_d2_1, dtype=torch.float32, device=dev)
-
-                cal_mut1_delta = self.calibration_head_shared(uncal_mut1_delta).cpu().numpy()
-                cal_mut2_delta = self.calibration_head_shared(uncal_mut2_delta).cpu().numpy()
-                cal_mut1_2_delta = self.calibration_head_shared(uncal_mut1_2_delta).cpu().numpy()
-                cal_mut2_1_delta = self.calibration_head_shared(uncal_mut2_1_delta).cpu().numpy()
-
-                df['ddg_pred_additive'] = cal_mut1_delta + cal_mut2_delta
-                df['ddg_pred'] = 0.5 * ((cal_mut1_delta + cal_mut2_1_delta) + (cal_mut2_delta + cal_mut1_2_delta))
-                df['dddg_pred'] = df['ddg_pred'] - df['ddg_pred_additive']
-
-            return df
-
-        # -------------------- Full enumeration fallback --------------------
-        pos_list = positions_all
-        
-        for i_pos in pos_list:
-            wt_i_id = wt_token_ids[i_pos]
-            row = wt_per_pos_logits[i_pos-1]
-            for mut_i, mut_i_id in aa_items:
-                if mut_i_id == wt_i_id: continue
-                singles_delta[(i_pos, mut_i)] = _delta_from_logits_row(row, wt_i_id, mut_i_id)
-
-        if scheme == "parallel":
-            ctx_jobs = []
-            for i_pos in pos_list:
-                wt_i_id = wt_token_ids[i_pos]
-                for mut_i, mut_i_id in aa_items:
-                    if mut_i_id == wt_i_id: continue
-                    ctx_jobs.append((i_pos, mut_i))
-            ctx_batch_cap = max(1, int(round(mem_scale * (400**3) / (L_seq**3))))
-            for start in tqdm(range(0, len(ctx_jobs), ctx_batch_cap), desc="All contexts (parallel)", disable=quiet):
-                chunk = ctx_jobs[start:start+ctx_batch_cap]
-                Bc = len(chunk)
-                seq_batch = seq_tokens_wt.repeat(Bc, 1)
-                coords_list, struct_list = [], []
-                for row_idx, (i_pos, mut_i) in enumerate(chunk):
-                    seq_batch[row_idx, i_pos] = aa2id[mut_i]
-                    sq_ctx, c_ctx, st_ctx = _get_context_geom(i_pos, mut_i, seq_batch[row_idx, :].unsqueeze(0))
-                    coords_list.append(c_ctx); struct_list.append(st_ctx)
-                coords_batch = torch.cat(coords_list, dim=0)
-                struct_batch = torch.cat(struct_list, dim=0)
-                sl = self._forward_raw(seq_batch, coords_batch, struct_batch)
-                per_pos_logits = sl[:, 1:L_seq+1, :].float().cpu()
-                for row_idx, (i_pos, mut_i) in enumerate(chunk):
-                    m = per_context_partial.setdefault((i_pos, mut_i), {})
-                    for j in pos_list:
-                        if j == i_pos: continue
-                        m[j] = per_pos_logits[row_idx, j-1, :]
+        # -------------------- Parallel/Masked Context Logic --------------------
         else:
-            row_jobs = []
-            for i_pos in pos_list:
-                wt_i_id = wt_token_ids[i_pos]
-                for mut_i, mut_i_id in aa_items:
-                    if mut_i_id == wt_i_id: continue
-                    for j in pos_list:
-                        if j == i_pos: continue
-                        row_jobs.append((i_pos, mut_i, j))
-            row_batch_cap = max(1, int(round(mem_scale * (400**3) / (L_seq**3))))
-            for start in tqdm(range(0, len(row_jobs), row_batch_cap), desc="All context rows (masked)", disable=quiet):
-                chunk = row_jobs[start:start+row_batch_cap]
-                B = len(chunk)
-                seq_batch = seq_tokens_wt.repeat(B, 1)
-                coords_list, struct_list, js_idx = [], [], []
-                for row_idx, (i_pos, mut_i, j) in enumerate(chunk):
-                    seq_batch[row_idx, i_pos] = aa2id[mut_i]
-                    ctx_check = seq_batch[row_idx, :].clone().unsqueeze(0)
-                    seq_batch[row_idx, j] = mask_id
-                    sq_ctx, c_ctx, st_ctx = _get_context_geom(i_pos, mut_i, ctx_check)
-                    coords_list.append(c_ctx); struct_list.append(st_ctx); js_idx.append((i_pos, mut_i, j))
-                coords_batch = torch.cat(coords_list, dim=0)
-                struct_batch = torch.cat(struct_list, dim=0)
-                sl = self._forward_raw(seq_batch, coords_batch, struct_batch)
-                for row_idx, (i_pos, mut_i, j) in enumerate(chunk):
-                    m = per_context_partial.setdefault((i_pos, mut_i), {})
-                    m[j] = sl[row_idx, j, :].float().cpu()
+            ctx_geom_cache = {}
+            def _get_context_geom(i_pos: int, mut_letter: str, exp_seq_toks = None):
+                wt_letter = id2aa[seq_tokens_wt[0, i_pos].cpu().item()]
+                key = (i_pos, mut_letter)
+                if key in ctx_geom_cache:
+                    return ctx_geom_cache[key]
+                seq_tokens_ctx = seq_tokens_wt
+                coords_ctx = coords_wt
+                struct_ctx = struct_tokens_wt
+                if use_modeled_context_structs and (mut_structs_root is not None):
+                    base_code = os.path.basename(pdb_path).split('.')[0]
+                    dir_lvl1 = f"{base_code}"
+                    dir_lvl2 = "pdb_models"
+                    fname = f"{chain}[{wt_letter}{i_pos}{mut_letter}].pdb"
+                    pdb_ctx = os.path.join(mut_structs_root, dir_lvl1, dir_lvl2, fname)
+                    if os.path.exists(pdb_ctx):
+                        seq_tokens_ctx, coords_ctx, plddt_ctx, struct_ctx = self.preprocess_structure(pdb_ctx, chain, dev=dev, backbone_mutation=f'{wt_letter}{i_pos}{mut_letter}', assert_mut=True, mask_ctx=False)
+                        if exp_seq_toks is not None:
+                            assert torch.equal(seq_tokens_ctx, exp_seq_toks)
+                    else:
+                        print('Didn\'t find', pdb_ctx)
 
-        for idx_i, i_pos in enumerate(pos_list):
-            wt_i_id = wt_token_ids[i_pos]
-            wt_i = id2aa.get(wt_i_id, 'X')
-            if wt_i not in aa2id: continue
-            for j_pos in pos_list[idx_i+1:]:
-                wt_j_id = wt_token_ids[j_pos]
-                wt_j = id2aa.get(wt_j_id, 'X')
-                if wt_j not in aa2id: continue
+                ctx_geom_cache[key] = (seq_tokens_ctx, coords_ctx, struct_ctx)
+                return seq_tokens_ctx, coords_ctx, struct_ctx
 
-                for mut_i, mut_i_id in aa_items:
-                    if mut_i_id == wt_i_id: continue
-                    for mut_j, mut_j_id in aa_items:
-                        if mut_j_id == wt_j_id: continue
+            per_context_partial: dict[tuple[int, str], dict[int, torch.Tensor]] = {}
 
-                        delta_i = singles_delta[(i_pos, mut_i)]
-                        delta_j = singles_delta[(j_pos, mut_j)]
+            if dfq is not None:
+                if scheme == "parallel":
+                    ctx_batch_cap = max(1, int(round(mem_scale * (400**3) / (L_seq**3))))
+                    contexts_ordered = [ctx for ctx in sorted(ctx_to_partner_js.keys()) if len(ctx_to_partner_js[ctx]) > 0]
 
-                        row_i = per_context_partial.get((i_pos, mut_i), {}).get(j_pos, None)
-                        row_j = per_context_partial.get((j_pos, mut_j), {}).get(i_pos, None)
-                        if row_i is None or row_j is None:
-                            continue
+                    for start in tqdm(range(0, len(contexts_ordered), ctx_batch_cap), desc="Context forwards (parallel)", disable=quiet):
+                        ctx_chunk = contexts_ordered[start:start+ctx_batch_cap]
+                        Bc = len(ctx_chunk)
+                        seq_batch = seq_tokens_wt.repeat(Bc, 1)
+                        coords_list, struct_list = [], []
+                        for row_idx, (i_pos, mut_i) in enumerate(ctx_chunk):
+                            seq_batch[row_idx, i_pos] = aa2id[mut_i]
+                            sq_ctx, c_ctx, st_ctx = _get_context_geom(i_pos, mut_i, seq_batch[row_idx, :].unsqueeze(0))
+                            coords_list.append(c_ctx)
+                            struct_list.append(st_ctx)
+                        coords_batch = torch.cat(coords_list, dim=0)
+                        struct_batch = torch.cat(struct_list, dim=0)
+                        sl = self._forward_raw(seq_batch, coords_batch, struct_batch)
+                        per_pos_logits = sl[:, 1:L_seq+1, :].float().cpu()
 
-                        dj_i = float(row_i[mut_j_id].item() - row_i[wt_j_id].item())
-                        di_j = float(row_j[mut_i_id].item() - row_j[wt_i_id].item())
+                        for row_idx, (i_pos, mut_i) in enumerate(ctx_chunk):
+                            partner_js = ctx_to_partner_js[(i_pos, mut_i)]
+                            ctx_map = per_context_partial.setdefault((i_pos, mut_i), {})
+                            for j in partner_js:
+                                ctx_map[j] = per_pos_logits[row_idx, j-1, :]
+                else:
+                    row_jobs = []
+                    for (i_pos, mut_i), js in ctx_to_partner_js.items():
+                        row_jobs.extend([(i_pos, mut_i, j) for j in js])
 
-                        u_d1.append(delta_i)
-                        u_d2.append(delta_j)
-                        u_d1_2.append(di_j)
-                        u_d2_1.append(dj_i)
+                    row_batch_cap = max(1, int(round(mem_scale * (400**3) / (L_seq**3))))
+                    for start in tqdm(range(0, len(row_jobs), row_batch_cap), desc="Context rows (masked)", disable=quiet):
+                        chunk = row_jobs[start:start+row_batch_cap]
+                        B = len(chunk)
+                        seq_batch = seq_tokens_wt.repeat(B, 1)
+                        coords_list, struct_list, js_idx = [], [], []
 
-                        rows.append({
-                            "pdb": pdb_id, "chain_id": ch,
-                            "mut_type": f"{wt_i}{i_pos}{mut_i}:{wt_j}{j_pos}{mut_j}",
-                            "wt1": wt_i, "pos1": i_pos, "mut1": mut_i,
-                            "wt2": wt_j, "pos2": j_pos, "mut2": mut_j,
-                            "scheme": scheme,
-                            "ctx_geom_1": bool(use_modeled_context_structs and (i_pos, mut_i) in ctx_geom_cache and ctx_geom_cache[(i_pos, mut_i)][0] is not coords_wt),
-                            "ctx_geom_2": bool(use_modeled_context_structs and (j_pos, mut_j) in ctx_geom_cache and ctx_geom_cache[(j_pos, mut_j)][0] is not coords_wt),
-                        })
+                        for row_idx, (i_pos, mut_i, j) in enumerate(chunk):
+                            seq_batch[row_idx, i_pos] = aa2id[mut_i]
+                            ctx_check = seq_batch[row_idx, :].clone().unsqueeze(0)
+                            if not unmask_mut_ctx_id:
+                                seq_batch[row_idx, j] = mask_id
+                            sq_ctx, c_ctx, st_ctx = _get_context_geom(i_pos, mut_i, ctx_check)
+                            coords_list.append(c_ctx)
+                            struct_list.append(st_ctx)
+                            js_idx.append(j)
 
+                        coords_batch = torch.cat(coords_list, dim=0)
+                        struct_batch = torch.cat(struct_list, dim=0)
+                        sl = self._forward_raw(seq_batch, coords_batch, struct_batch)
+                        for row_idx, (i_pos, mut_i, j) in enumerate(chunk):
+                            ctx_map = per_context_partial.setdefault((i_pos, mut_i), {})
+                            ctx_map[j] = sl[row_idx, j, :].float().cpu()
+
+                for k in range(len(dfq)):
+                    p1 = int(dfq['pos1'].iloc[k]); t1 = dfq['mut1'].iloc[k]
+                    p2 = int(dfq['pos2'].iloc[k]); t2 = dfq['mut2'].iloc[k]
+                    if p1 == p2: continue
+
+                    if (p1, t1) not in singles_delta or (p2, t2) not in singles_delta:
+                        continue
+                    delta_i = singles_delta[(p1, t1)]
+                    delta_j = singles_delta[(p2, t2)]
+
+                    row_i = per_context_partial.get((p1, t1), {}).get(p2, None)
+                    row_j = per_context_partial.get((p2, t2), {}).get(p1, None)
+                    if row_i is None or row_j is None:
+                        continue
+
+                    wt_i_id = wt_token_ids[p1]; wt_j_id = wt_token_ids[p2]
+                    mut_i_id = aa2id[t1];       mut_j_id = aa2id[t2]
+                    dj_i = float(row_i[mut_j_id].item() - row_i[wt_j_id].item())
+                    di_j = float(row_j[mut_i_id].item() - row_j[wt_i_id].item())
+                    dbl = 0.5 * ((delta_i + dj_i) + (delta_j + di_j))
+                    
+                    rows.append({
+                        "pdb": pdb_id, "chain_id": ch,
+                        "mut_type": f"{wt_letters_by_pos[p1]}{p1}{t1}:{wt_letters_by_pos[p2]}{p2}{t2}",
+                        "wt1": wt_letters_by_pos[p1], "pos1": p1, "mut1": t1,
+                        "wt2": wt_letters_by_pos[p2], "pos2": p2, "mut2": t2,
+                        "delta_logit1": float(delta_i),
+                        "delta_logit2": float(delta_j),
+                        "delta_logit2_given_1": float(dj_i),
+                        "delta_logit1_given_2": float(di_j),
+                        "double_delta_chainrule_avg": float(dbl),
+                        "scheme": scheme,
+                        "ctx_geom_1": bool(use_modeled_context_structs and (p1, t1) in ctx_geom_cache and ctx_geom_cache[(p1, t1)][0] is not coords_wt),
+                        "ctx_geom_2": bool(use_modeled_context_structs and (p2, t2) in ctx_geom_cache and ctx_geom_cache[(p2, t2)][0] is not coords_wt),
+                    })
+
+            else:
+                pos_list = positions_all
+                for i_pos in pos_list:
+                    wt_i_id = wt_token_ids[i_pos]
+                    row = wt_per_pos_logits[i_pos-1]
+                    for mut_i, mut_i_id in aa_items:
+                        if mut_i_id == wt_i_id: continue
+                        singles_delta[(i_pos, mut_i)] = _delta_from_logits_row(row, wt_i_id, mut_i_id)
+
+                if scheme == "parallel":
+                    ctx_jobs = []
+                    for i_pos in pos_list:
+                        wt_i_id = wt_token_ids[i_pos]
+                        for mut_i, mut_i_id in aa_items:
+                            if mut_i_id == wt_i_id: continue
+                            ctx_jobs.append((i_pos, mut_i))
+                    ctx_batch_cap = max(1, int(round(mem_scale * (400**3) / (L_seq**3))))
+                    for start in tqdm(range(0, len(ctx_jobs), ctx_batch_cap), desc="All contexts (parallel)", disable=quiet):
+                        chunk = ctx_jobs[start:start+ctx_batch_cap]
+                        Bc = len(chunk)
+                        seq_batch = seq_tokens_wt.repeat(Bc, 1)
+                        coords_list, struct_list = [], []
+                        for row_idx, (i_pos, mut_i) in enumerate(chunk):
+                            seq_batch[row_idx, i_pos] = aa2id[mut_i]
+                            sq_ctx, c_ctx, st_ctx = _get_context_geom(i_pos, mut_i, seq_batch[row_idx, :].unsqueeze(0))
+                            coords_list.append(c_ctx); struct_list.append(st_ctx)
+                        coords_batch = torch.cat(coords_list, dim=0)
+                        struct_batch = torch.cat(struct_list, dim=0)
+                        sl = self._forward_raw(seq_batch, coords_batch, struct_batch)
+                        per_pos_logits = sl[:, 1:L_seq+1, :].float().cpu()
+                        for row_idx, (i_pos, mut_i) in enumerate(chunk):
+                            m = per_context_partial.setdefault((i_pos, mut_i), {})
+                            for j in pos_list:
+                                if j == i_pos: continue
+                                m[j] = per_pos_logits[row_idx, j-1, :]
+                else:
+                    row_jobs = []
+                    for i_pos in pos_list:
+                        wt_i_id = wt_token_ids[i_pos]
+                        for mut_i, mut_i_id in aa_items:
+                            if mut_i_id == wt_i_id: continue
+                            for j in pos_list:
+                                if j == i_pos: continue
+                                row_jobs.append((i_pos, mut_i, j))
+                    row_batch_cap = max(1, int(round(mem_scale * (400**3) / (L_seq**3))))
+                    for start in tqdm(range(0, len(row_jobs), row_batch_cap), desc="All context rows (masked)", disable=quiet):
+                        chunk = row_jobs[start:start+row_batch_cap]
+                        B = len(chunk)
+                        seq_batch = seq_tokens_wt.repeat(B, 1)
+                        coords_list, struct_list, js_idx = [], [], []
+                        for row_idx, (i_pos, mut_i, j) in enumerate(chunk):
+                            seq_batch[row_idx, i_pos] = aa2id[mut_i]
+                            ctx_check = seq_batch[row_idx, :].clone().unsqueeze(0)
+                            seq_batch[row_idx, j] = mask_id
+                            sq_ctx, c_ctx, st_ctx = _get_context_geom(i_pos, mut_i, ctx_check)
+                            coords_list.append(c_ctx); struct_list.append(st_ctx); js_idx.append((i_pos, mut_i, j))
+                        coords_batch = torch.cat(coords_list, dim=0)
+                        struct_batch = torch.cat(struct_list, dim=0)
+                        sl = self._forward_raw(seq_batch, coords_batch, struct_batch)
+                        for row_idx, (i_pos, mut_i, j) in enumerate(chunk):
+                            m = per_context_partial.setdefault((i_pos, mut_i), {})
+                            m[j] = sl[row_idx, j, :].float().cpu()
+
+                for idx_i, i_pos in enumerate(pos_list):
+                    wt_i_id = wt_token_ids[i_pos]
+                    wt_i = id2aa.get(wt_i_id, 'X')
+                    if wt_i not in aa2id: continue
+                    for j_pos in pos_list[idx_i+1:]:
+                        wt_j_id = wt_token_ids[j_pos]
+                        wt_j = id2aa.get(wt_j_id, 'X')
+                        if wt_j not in aa2id: continue
+
+                        for mut_i, mut_i_id in aa_items:
+                            if mut_i_id == wt_i_id: continue
+                            for mut_j, mut_j_id in aa_items:
+                                if mut_j_id == wt_j_id: continue
+
+                                delta_i = singles_delta[(i_pos, mut_i)]
+                                delta_j = singles_delta[(j_pos, mut_j)]
+
+                                row_i = per_context_partial.get((i_pos, mut_i), {}).get(j_pos, None)
+                                row_j = per_context_partial.get((j_pos, mut_j), {}).get(i_pos, None)
+                                if row_i is None or row_j is None:
+                                    continue
+
+                                dj_i = float(row_i[mut_j_id].item() - row_i[wt_j_id].item())
+                                di_j = float(row_j[mut_i_id].item() - row_j[wt_i_id].item())
+                                dbl = 0.5 * ((delta_i + dj_i) + (delta_j + di_j))
+
+                                rows.append({
+                                    "pdb": pdb_id, "chain_id": ch,
+                                    "mut_type": f"{wt_i}{i_pos}{mut_i}:{wt_j}{j_pos}{mut_j}",
+                                    "wt1": wt_i, "pos1": i_pos, "mut1": mut_i,
+                                    "wt2": wt_j, "pos2": j_pos, "mut2": mut_j,
+                                    "delta_logit1": float(delta_i),
+                                    "delta_logit2": float(delta_j),
+                                    "delta_logit2_given_1": float(dj_i),
+                                    "delta_logit1_given_2": float(di_j),
+                                    "double_delta_chainrule_avg": float(dbl),
+                                    "scheme": scheme,
+                                    "ctx_geom_1": bool(use_modeled_context_structs and (i_pos, mut_i) in ctx_geom_cache and ctx_geom_cache[(i_pos, mut_i)][0] is not coords_wt),
+                                    "ctx_geom_2": bool(use_modeled_context_structs and (j_pos, mut_j) in ctx_geom_cache and ctx_geom_cache[(j_pos, mut_j)][0] is not coords_wt),
+                                })
+
+        # -------------------- Unified Calibration Application --------------------
         df = pd.DataFrame(rows)
+        
+        # Shared setup: singles are present in all schemes
+        uncal_mut1_delta = torch.tensor(df['delta_logit1'].to_numpy(copy=False)).to(dev)
+        uncal_mut2_delta = torch.tensor(df['delta_logit2'].to_numpy(copy=False)).to(dev)
+        
+        cal_mut1_delta = self.calibration_head_shared(uncal_mut1_delta).cpu().numpy()
+        cal_mut2_delta = self.calibration_head_shared(uncal_mut2_delta).cpu().numpy()
 
-        if len(df) > 0:
-            uncal_mut1_delta = torch.tensor(u_d1, dtype=torch.float32, device=dev)
-            uncal_mut2_delta = torch.tensor(u_d2, dtype=torch.float32, device=dev)
-            uncal_mut1_2_delta = torch.tensor(u_d1_2, dtype=torch.float32, device=dev)
-            uncal_mut2_1_delta = torch.tensor(u_d2_1, dtype=torch.float32, device=dev)
-
-            cal_mut1_delta = self.calibration_head_shared(uncal_mut1_delta).cpu().numpy()
-            cal_mut2_delta = self.calibration_head_shared(uncal_mut2_delta).cpu().numpy()
+        if scheme == "direct":
+            uncal_direct = torch.tensor(df['direct_score'].to_numpy(copy=False)).to(dev)
+            cal_direct = self.calibration_head_shared(uncal_direct).cpu().numpy()
+            
+            df['ddg_pred'] = cal_direct
+            df['ddg_pred_additive'] = cal_mut1_delta + cal_mut2_delta
+            
+            # Clean up the uncalibrated direct score column
+            df = df.drop(columns=['direct_score'])
+        else:
+            uncal_mut1_2_delta = torch.tensor(df['delta_logit1_given_2'].to_numpy(copy=False)).to(dev)
+            uncal_mut2_1_delta = torch.tensor(df['delta_logit2_given_1'].to_numpy(copy=False)).to(dev)
+            
             cal_mut1_2_delta = self.calibration_head_shared(uncal_mut1_2_delta).cpu().numpy()
             cal_mut2_1_delta = self.calibration_head_shared(uncal_mut2_1_delta).cpu().numpy()
-
+            
+            df['cal_delta1'] = cal_mut1_delta
+            df['cal_delta2'] = cal_mut2_delta
+            df['cal_delta1_given_2'] = cal_mut1_2_delta
+            df['cal_delta2_given_1'] = cal_mut2_1_delta
+            
             df['ddg_pred_additive'] = cal_mut1_delta + cal_mut2_delta
             df['ddg_pred'] = 0.5 * ((cal_mut1_delta + cal_mut2_1_delta) + (cal_mut2_delta + cal_mut1_2_delta))
-            df['dddg_pred'] = df['ddg_pred'] - df['ddg_pred_additive']
 
+        df['dddg_pred'] = df['ddg_pred'] - df['ddg_pred_additive']
+        
         return df
-
 
     @torch.no_grad()
     def infer_multimutants_sampled(
