@@ -302,7 +302,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         
         threshold_layout.addSpacing(20)
         
-        threshold_layout.addWidget(QLabel("Non-target Chain Alpha (Transparency %):"))
+        threshold_layout.addWidget(QLabel("Non-Target Chain Transparency %:"))
         self.non_target_alpha_spinbox = QSpinBox()
         self.non_target_alpha_spinbox.setRange(0, 100)
         self.non_target_alpha_spinbox.setSingleStep(10)
@@ -313,11 +313,11 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         visualization_layout.addLayout(threshold_layout)
 
         # Standard Visualization Options
-        self.color_backbone_checkbox = QCheckBox("Color Backbone by Score (Red-to-Green)")
+        self.color_backbone_checkbox = QCheckBox("Color Backbone by Highest ΔΔG vs Wild-Type (Mutability, Red-to-Green)")
         self.color_backbone_checkbox.setChecked(False)
         visualization_layout.addWidget(self.color_backbone_checkbox)
 
-        self.show_sticks_checkbox = QCheckBox("Show Sticks for High-Scoring Mutations")
+        self.show_sticks_checkbox = QCheckBox("Show Sticks for Highest-Scoring Mutations per Position")
         self.show_sticks_checkbox.setChecked(True)
         visualization_layout.addWidget(self.show_sticks_checkbox)
 
