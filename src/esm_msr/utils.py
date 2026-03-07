@@ -1258,105 +1258,89 @@ def sort_mutations_by_position(df, input_col, output_col='sorted_mutations'):
 
 def sum_individual_mutation_scores(df, score_column, new_score_column=None):
     """
-    Vectorized version for summing individual mutation scores for combined mutations.
-    
-    For mutations with a colon in the mut_type column (indicating combined mutations),
-    find the rows where both mut_type AND code match, and sum their scores.
-    
-    This implementation is fully vectorized and avoids all row-by-row iterations.
-    
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        DataFrame containing mutation data
-    score_column : str
-        Column name containing the scores to sum
-    new_score_column : str, optional
-        Column name for the summed scores. If None, defaults to f"{score_column}_additive"
-        
-    Returns:
-    --------
-    pandas.DataFrame
-        Copy of input DataFrame with the new score column added
+    Calculates additive scores for higher-order mutations by exploding 
+    constituent mutations and merging with single mutation reference data.
+    Uses an internal ID system to prevent index corruption.
     """
-    
-    # Create a copy of the input dataframe to avoid modifying the original
-    result_df = df.copy()
-    
-    # Set default name for the new score column if not provided
     if new_score_column is None:
         new_score_column = f"{score_column}_additive"
+        
+    result_df = df.copy()
     
-    # Initialize the new column with NaN values
+    # FIX: Generate a strictly unique internal tracking ID to prevent all index broadcasting errors
+    result_df['_internal_row_id'] = range(len(result_df))
     result_df[new_score_column] = np.nan
     
-    # Find rows with a colon in mut_type (combined mutations)
-    combined_mutation_mask = result_df['mut_type'].str.contains(':', na=False)
+    is_combined = result_df['mut_type'].str.contains(':', na=False)
     
-    # Only process rows with combined mutations
-    if combined_mutation_mask.sum() == 0:
-        return result_df  # No combined mutations found
-    
-    # Extract all combined mutations
-    combined_df = result_df[combined_mutation_mask].copy()
-    
-    # Split each combined mutation into exactly 2 parts
-    split_mutations = combined_df['mut_type'].str.split(':', expand=True)
-    
-    # Filter to only process rows with exactly 2 mutations
-    if split_mutations.shape[1] < 2:
-        print("Warning: No valid combined mutations with exactly 2 parts found")
-        return result_df
-    
-    # Keep only rows with exactly 2 mutations (non-null in both columns)
-    valid_mask = split_mutations[0].notna() & split_mutations[1].notna()
-    if split_mutations.shape[1] > 2:
-        # Check that there are no additional mutations beyond the first 2
-        for col in range(2, split_mutations.shape[1]):
-            valid_mask &= split_mutations[col].isna()
-    
-    if not valid_mask.all():
-        n_invalid = (~valid_mask).sum()
-        print(f"Warning: {n_invalid} rows don't have exactly 2 mutations and will be skipped")
-        combined_df = combined_df[valid_mask]
-        split_mutations = split_mutations[valid_mask]
-    
-    if len(combined_df) == 0:
-        return result_df
-    
-    # Create lookup keys for both individual mutations
-    combined_df = combined_df.copy()  # Avoid SettingWithCopyWarning
-    combined_df['mutation1'] = split_mutations[0].values
-    combined_df['mutation2'] = split_mutations[1].values
-    
-    # Create key columns for vectorized lookup
-    combined_df['key1'] = combined_df['mutation1'] + '|' + combined_df['code']
-    combined_df['key2'] = combined_df['mutation2'] + '|' + combined_df['code']
-    
-    # Create lookup dictionary once
-    df_lookup = df.copy()
-    df_lookup['lookup_key'] = df_lookup['mut_type'] + '|' + df_lookup['code']
-    lookup_dict = df_lookup.set_index('lookup_key')[score_column].to_dict()
-    
-    # Vectorized lookup for both mutations
-    score1_series = combined_df['key1'].map(lookup_dict)
-    score2_series = combined_df['key2'].map(lookup_dict)
-    
-    # Calculate sum only where both scores exist
-    both_exist_mask = score1_series.notna() & score2_series.notna()
-    summed_scores = score1_series + score2_series
-    
-    # Update the result dataframe with vectorized assignment
-    valid_indices = combined_df.index[both_exist_mask]
-    result_df.loc[valid_indices, new_score_column] = summed_scores[both_exist_mask]
-    
-    # Optional: Print statistics about missing mutations
-    missing_mask = ~both_exist_mask
-    if missing_mask.any():
-        n_missing = missing_mask.sum()
-        print(f"Warning: {n_missing} combined mutations couldn't be processed due to missing individual mutations")
+    if not is_combined.any():
+        return result_df.drop(columns=['_internal_row_id'])
         
-    return result_df
+    singles_df = result_df[~is_combined]
+    
+    duplicates_mask = singles_df.duplicated(subset=['mut_type', 'code'], keep=False)
+    if duplicates_mask.any():
+        # Fixed logic: Count unique pairs of (mut_type, code), not just mut_type
+        num_dupes = singles_df[duplicates_mask][['mut_type', 'code']].drop_duplicates().shape[0]
+        print(f"Warning: Found {num_dupes} unique single mutation/code pairs with multiple entries. Their scores will be averaged.")
+    
+    lookup_table = singles_df.groupby(['mut_type', 'code'])[score_column].mean().reset_index()
+    lookup_table = lookup_table.rename(columns={'mut_type': 'single_mut_type'})
+    
+    # Isolate subset and track using our guaranteed unique internal ID
+    combined_subset = result_df.loc[is_combined, ['mut_type', 'code', '_internal_row_id']].copy()
+    
+    # Calculate expected counts and map them to the internal ID
+    expected_counts = combined_subset['mut_type'].str.count(':') + 1
+    expected_counts.index = combined_subset['_internal_row_id']
+    
+    combined_subset['constituent'] = combined_subset['mut_type'].str.split(':')
+    
+    # FIX: Explode natively keeps the _internal_row_id attached to every expanded constituent
+    exploded = combined_subset.explode('constituent')
+    
+    # FIX (Additional): Strip accidental whitespace to prevent silent merge failures
+    exploded['constituent'] = exploded['constituent'].str.strip()
+    
+    merged = pd.merge(
+        exploded,
+        lookup_table,
+        left_on=['constituent', 'code'],
+        right_on=['single_mut_type', 'code'],
+        how='left'
+    )
+    
+    # FIX: Group by the explicit, unique internal ID
+    aggregated = merged.groupby('_internal_row_id').agg(
+        total_score=(score_column, 'sum'),
+        found_count=(score_column, 'count') 
+    )
+    
+    # FIX: Align expected_counts strictly to the aggregated index
+    valid_mask = aggregated['found_count'] == expected_counts.loc[aggregated.index]
+    valid_sums = aggregated.loc[valid_mask, 'total_score']
+    
+    # FIX: Map back to the result dataframe using the internal ID, completely ignoring the original index
+    valid_sums_dict = valid_sums.to_dict()
+    assignment_mask = result_df['_internal_row_id'].isin(valid_sums_dict.keys())
+    result_df.loc[assignment_mask, new_score_column] = result_df.loc[assignment_mask, '_internal_row_id'].map(valid_sums_dict)
+    
+    missing_count = (~valid_mask).sum()
+    if missing_count > 0:
+        failed_internal_ids = aggregated[~valid_mask].index
+        failed_exploded = merged[merged['_internal_row_id'].isin(failed_internal_ids)]
+        
+        missing_entirely = failed_exploded['single_mut_type'].isna().sum()
+        present_but_nan = (failed_exploded['single_mut_type'].notna() & failed_exploded[score_column].isna()).sum()
+        
+        print(f"Warning: {missing_count} combined mutations were skipped.")
+        if missing_entirely > 0:
+            print(f"  -> {missing_entirely} constituent single mutations are completely missing from the dataset.")
+        if present_but_nan > 0:
+            print(f"  -> {present_but_nan} constituent single mutations were found but possess NaN scores.")
+            
+    # Clean up the internal tracking column before returning
+    return result_df.drop(columns=['_internal_row_id'])
 
 def parse_mutation_spec(mut_spec: str) -> dict:
     """

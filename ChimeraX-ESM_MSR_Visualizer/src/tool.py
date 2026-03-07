@@ -268,7 +268,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         device_layout = QHBoxLayout()
         device_layout.addWidget(QLabel("Compute Device:"))
         self.device_combobox = QComboBox()
-        self.device_combobox.addItems(['gpu', 'cpu'])
+        self.device_combobox.addItems(['cuda:0 (gpu)', 'cuda:1', 'mps (MAC)', 'cpu'])
         device_layout.addWidget(self.device_combobox)
     
         self.run_prediction_button = QPushButton("Run Prediction Script")
@@ -317,9 +317,26 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         self.color_backbone_checkbox.setChecked(False)
         visualization_layout.addWidget(self.color_backbone_checkbox)
 
+        stick_layout = QHBoxLayout()
         self.show_sticks_checkbox = QCheckBox("Show Sticks for Highest-Scoring Mutations per Position")
         self.show_sticks_checkbox.setChecked(True)
-        visualization_layout.addWidget(self.show_sticks_checkbox)
+        stick_layout.addWidget(self.show_sticks_checkbox)
+
+        stick_layout.addWidget(QLabel("WT Stick Transparency %:"))
+        self.wt_stick_alpha_spinbox = QSpinBox()
+        self.wt_stick_alpha_spinbox.setRange(0, 100)
+        self.wt_stick_alpha_spinbox.setSingleStep(10)
+        self.wt_stick_alpha_spinbox.setValue(70) 
+        stick_layout.addWidget(self.wt_stick_alpha_spinbox)
+
+        stick_layout.addWidget(QLabel("MUT Stick Transparency %:"))
+        self.mut_stick_alpha_spinbox = QSpinBox()
+        self.mut_stick_alpha_spinbox.setRange(0, 100)
+        self.mut_stick_alpha_spinbox.setSingleStep(10)
+        self.mut_stick_alpha_spinbox.setValue(30) # Set a higher default to distinguish from wild-type
+        stick_layout.addWidget(self.mut_stick_alpha_spinbox)
+
+        visualization_layout.addLayout(stick_layout)
 
         self.show_contacts_checkbox = QCheckBox("Visualize Contacts")
         self.show_contacts_checkbox.setChecked(False)
@@ -622,7 +639,13 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         #    self.session.logger.warning(f"CUDA probe failed: {e}")
         #    device = 'cpu'
 
-        device = 'cuda:0' if self.device_combobox.currentText() == 'gpu' else 'cpu'
+        raw_device = self.device_combobox.currentText()
+        if raw_device == 'cuda:0 (gpu)':
+            device = 'cuda:0'
+        elif raw_device == 'mps (MAC)':
+            device = 'mps'
+        else:
+            device = raw_device
 
         if current_model.name:
             code = os.path.splitext(current_model.name)[0]
@@ -834,8 +857,8 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         wt_model = next((m for m in wt_candidates if m.id_string == model_id), None)
         
         # Fallback in case models were shifted around
-        if not wt_model and wt_candidates:
-            wt_model = wt_candidates[0]
+        #if not wt_model and wt_candidates:
+        #    wt_model = wt_candidates[0]
 
         if not wt_model:
             self.status_label.setText("Status: No suitable WT model open.")
@@ -1022,6 +1045,8 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         threshold = self.score_threshold_spinbox.value()
         color_backbone = self.color_backbone_checkbox.isChecked()
         show_sticks = self.show_sticks_checkbox.isChecked()
+        wt_stick_alpha = self.wt_stick_alpha_spinbox.value()
+        mut_stick_alpha = self.mut_stick_alpha_spinbox.value()
 
         if self.mutated_model_id_string and any(m.id_string == self.mutated_model_id_string for m in self.session.models.list()):
             try:
@@ -1100,13 +1125,13 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                     run(self.session, f"color {mut_spec} & ~C & sideonly byelement target a")
                     run(self.session, f"show {mut_spec} atoms")
                     run(self.session, f"style {mut_spec} stick")
-                    run(self.session, f"transparency {mut_spec} 50 target a")
+                    run(self.session, f"transparency {mut_spec} {mut_stick_alpha} target a")
 
                     run(self.session, f"color {wt_spec} & ~C & sideonly white")
                     run(self.session, f"color {wt_spec} & ~C & sideonly byelement")
                     run(self.session, f"show {wt_spec} atoms")
                     run(self.session, f"style {wt_spec} stick")
-                    run(self.session, f"transparency {wt_spec} 50 target a")
+                    run(self.session, f"transparency {wt_spec} {wt_stick_alpha} target a")
 
                 run(self.session, f"match #{self.mutated_model_id_string} to #{wt_model.id_string}")
             except Exception as e:

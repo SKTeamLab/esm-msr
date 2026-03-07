@@ -3,6 +3,9 @@ from typing import Dict, Any, Optional
 import numpy as np
 import os
 import re
+import random
+import math
+from collections import deque
 
 import torch
 import torch.nn as nn
@@ -660,6 +663,8 @@ class ESM3LoRAModel(StabilityPredictorBase):
                 all_preds.append(pred_doubles)
             
             if len(multi) > 0:
+                if strategy == 'parallel':
+                    return pd.DataFrame(columns=['mut_type'])
                 pred_multi = self.infer_multimutants_sampled(
                     pdb, chain=chain, strategy=strategy, subset_df=multi,
                     K_paths=K_paths
@@ -668,7 +673,7 @@ class ESM3LoRAModel(StabilityPredictorBase):
 
         if all_preds:
             return pd.concat(all_preds)
-        return pd.DataFrame()
+        return pd.DataFrame(columns=['mut_type'])
     
     @torch.no_grad()
     def infer_single_mutants(
@@ -1494,39 +1499,30 @@ class ESM3LoRAModel(StabilityPredictorBase):
         self,
         pdb_path: str,
         *,
-        subset_df,                          # REQUIRED. Columns: wt1,pos1,mut1 ... wt10,pos10,mut10 (pos 1-based)
+        subset_df,                          
         chain: str | None = "A",
-        strategy: str = "parallel",         # {"parallel","masked","direct"}
+        strategy: str = "masked",         
         device: str | torch.device | None = None,
-        K_paths: int = 4,                   # number of random paths to sample per mutant
-        apply_calibration: bool = True,     # apply calibration_head_single per-step
-        return_path_summaries: bool = False # include per-path sums in the output dataframe
+        K_paths: int = 4,                   
+        apply_calibration: bool = True,     
+        return_path_summaries: bool = False,
+        batch_size: int = 64               
     ):
         """
-        Estimate Δ for multi-mutants by sampling K random single-mutation paths (NxK total forwards),
-        or by direct simultaneous masking if strategy="direct".
-        Geometry is held fixed to WT coordinates/structure for all steps.
-
-        Output: DataFrame with one row per input mutant set containing:
-            - pdb, chain
-            - N (mut count), K_paths
-            - mut_type (canonical string A24C:D30E:...)
-            - pred_additive (sum of single mutant effects)
-            - pred_mean, pred_std (if sampled)
-            - ddg_pred (if direct)
-            - (optional) path_sums (list[float]) if return_path_summaries=True
+        Estimate Δ for multi-mutants by sampling K random masked single-mutation paths,
+        or by direct simultaneous masking. Computes additive baseline first on
+        unique mutations, and uses a flattened batch queue for accurate ETAs.
         """
 
         dev = torch.device(device) if device is not None else next(self.parameters()).device
         scheme = strategy.lower()
-        if scheme not in ("parallel", "masked", "direct"):
-            raise ValueError("strategy must be one of {'parallel','masked','direct'}")
+        if scheme not in ("masked", "direct"):
+            raise ValueError("strategy must be one of {'masked','direct'}")
 
         def _canonical_mut_string(muts):
-            # muts: list of (fr, pos, to), pos 1-based
             return ':'.join([f"{fr}{pos}{to}" for (fr,pos,to) in muts])
 
-        # ---------- 1) Load WT structure/seq (single use for all steps) ----------
+        # ---------- 1) Load WT structure/seq ----------
         protein_chain = ProteinChain.from_pdb(pdb_path, chain, is_predicted=False)
         seq_wt = protein_chain.sequence
         L_seq = len(seq_wt)
@@ -1535,31 +1531,25 @@ class ESM3LoRAModel(StabilityPredictorBase):
         coords_wt = coords_wt.to(dev); residue_index = residue_index.to(dev)
         _, struct_tokens_wt = self.structure_encoder.encode(coords_wt, residue_index=residue_index)
 
-        # Pad BOS/EOS (structure)
         coords_wt = F.pad(coords_wt, (0,0,0,0,1,1), value=torch.inf)
         struct_tokens_wt = F.pad(struct_tokens_wt, (1,1), value=0)
         if struct_tokens_wt.shape[1] > 0:
             struct_tokens_wt[:, 0] = C.STRUCTURE_BOS_TOKEN
             struct_tokens_wt[:, -1] = C.STRUCTURE_EOS_TOKEN
 
-        # Sequence tokens (BOS/EOS included)
         seq_tokens_wt = torch.tensor(
             np.array(self.sequence_tokenizer.encode(seq_wt), dtype=np.int64)
-        ).unsqueeze(0).to(dev)  # (1, L+2)
+        ).unsqueeze(0).to(dev) 
 
-        # Canonical AA maps
         canonical = self.valid_canonical_aas
         can_ids = self.canonical_aa_token_ids
         aa2id = {a:i for a,i in zip(canonical, can_ids)}
-
         mask_id = C.SEQUENCE_MASK_TOKEN
-
         pdb_id = os.path.basename(pdb_path)
         ch = chain or ""
 
         # ---------- 2) Parse subset_df into per-row mutation lists ----------
-        # Accept up to 10 mutations in columns frk,posk,tok
-        muts_per_row: list[list[tuple[str,int,str]]] = []
+        muts_per_row = []
         max_slots = 10
         cols = subset_df.columns
 
@@ -1576,152 +1566,220 @@ class ESM3LoRAModel(StabilityPredictorBase):
                         muts.append((fr, pos, to))
                 else:
                     break
-            # Filter out empties and validate
+            
             muts = [(fr,pos,to) for (fr,pos,to) in muts if 1 <= pos <= L_seq and fr in aa2id and to in aa2id and fr != to]
-            # Ensure unique positions & consistent FR vs seq_wt
             seen = set()
             valid = True
             for fr, pos, to in muts:
                 if pos in seen: valid = False; break
                 seen.add(pos)
-                if seq_wt[pos-1] != fr:
-                    pass
+                
             if not valid or len(muts) == 0:
                 muts_per_row.append([])
             else:
                 muts_per_row.append(muts)
 
-        # Prepare output rows
-        out_rows = []
+        valid_row_indices = [i for i, muts in enumerate(muts_per_row) if len(muts) > 0]
+        if not valid_row_indices:
+            raise AssertionError('No valid indices.')
 
-        # ---------- 3) Path sampling engine ----------
-        #ctx_batch_cap = max(1, int(round(mem_scale * (400**3) / (L_seq**3))))
-
-        for row_idx, muts in enumerate(muts_per_row):
-            if len(muts) == 0:
-                continue
-
-            N = len(muts)
-            for _, _, to in muts:
-                if to not in aa2id:
-                    raise ValueError(f"Non-canonical mutation 'to={to}' encountered.")
-
-            # --- 3a) Compute Additive Baseline (Singles on WT) ---
-            additive_sum = 0.0
-            for fr, pos, to in muts:
-                pos_tok = pos
-                seq_batch = seq_tokens_wt.clone()
-                seq_batch[0, pos_tok] = mask_id
-                
-                sl = self._forward_raw(seq_batch, coords_wt, struct_tokens_wt)
-                row_logits = sl[0, pos_tok, :].float()
-                
-                wt_id = int(seq_tokens_wt[0, pos_tok].item())
+        # ---------- 3) Compute Additive Baseline (Unique Singles Only) ----------
+        unique_single_muts = set()
+        for i in valid_row_indices:
+            for fr, pos, to in muts_per_row[i]:
+                wt_id = int(seq_tokens_wt[0, pos].item())
                 mut_id = aa2id[to]
-                step_delta = float(row_logits[mut_id].item() - row_logits[wt_id].item())
+                unique_single_muts.add((pos, wt_id, mut_id))
+
+        unique_single_muts = list(unique_single_muts)
+        num_unique = len(unique_single_muts)
+        single_mut_deltas = {}
+
+        if num_unique > 0:
+            additive_seqs = seq_tokens_wt.expand(num_unique, -1).clone()
+            pos_tensor = torch.tensor([m[0] for m in unique_single_muts])
+            additive_seqs[torch.arange(num_unique), pos_tensor] = mask_id
+            
+            deltas = []
+            for i in tqdm(range(0, num_unique, batch_size), desc=f"Additive Baseline (N={num_unique} unique)"):
+                chunk = additive_seqs[i:i+batch_size]
+                b_sz = chunk.size(0)
+                c_chunk = coords_wt.expand(b_sz, *coords_wt.shape[1:])
+                s_chunk = struct_tokens_wt.expand(b_sz, *struct_tokens_wt.shape[1:])
+                
+                logits = self._forward_raw(chunk, c_chunk, s_chunk)
+                
+                chunk_pos = pos_tensor[i:i+batch_size]
+                chunk_wt = torch.tensor([m[1] for m in unique_single_muts[i:i+batch_size]])
+                chunk_mut = torch.tensor([m[2] for m in unique_single_muts[i:i+batch_size]])
+                
+                b_idx = torch.arange(b_sz)
+                chunk_deltas = (logits[b_idx, chunk_pos, chunk_mut] - logits[b_idx, chunk_pos, chunk_wt]).float()
                 
                 if apply_calibration:
-                    try:
-                        step_delta = self.calibration_head_single(step_delta).cpu().numpy()
-                    except AttributeError:
-                        step_delta = self.calibration_head_shared(step_delta).cpu().numpy()
-                
-                additive_sum += step_delta
+                    chunk_deltas = self.calibration_head_shared(chunk_deltas.unsqueeze(-1)).squeeze(-1)
+                deltas.extend(chunk_deltas.cpu().tolist())
 
+            for (pos, wt_id, mut_id), delta in zip(unique_single_muts, deltas):
+                single_mut_deltas[(pos, wt_id, mut_id)] = delta
+
+        additive_sums = {i: 0.0 for i in valid_row_indices}
+        for i in valid_row_indices:
+            for fr, pos, to in muts_per_row[i]:
+                wt_id = int(seq_tokens_wt[0, pos].item())
+                mut_id = aa2id[to]
+                additive_sums[i] += single_mut_deltas.get((pos, wt_id, mut_id), 0.0)
+
+        # ---------- 4) Epistatic / Strategy Processing (Batched, Lazy Eval) ----------
+        direct_scores = {}
+        path_results = {i: [] for i in valid_row_indices}
+
+        if scheme == "direct":
+            num_direct = len(valid_row_indices)
+            for i in tqdm(range(0, num_direct, batch_size), desc="Direct Inference"):
+                chunk_indices = valid_row_indices[i:i+batch_size]
+                b_sz = len(chunk_indices)
+                
+                chunk_seqs = seq_tokens_wt.expand(b_sz, -1).clone()
+                for j, row_i in enumerate(chunk_indices):
+                    for _, pos, _ in muts_per_row[row_i]:
+                        chunk_seqs[j, pos] = mask_id
+                
+                c_chunk = coords_wt.expand(b_sz, *coords_wt.shape[1:])
+                s_chunk = struct_tokens_wt.expand(b_sz, *struct_tokens_wt.shape[1:])
+                logits = self._forward_raw(chunk_seqs, c_chunk, s_chunk)
+                
+                chunk_scores = []
+                for j, row_i in enumerate(chunk_indices):
+                    score = 0.0
+                    for _, pos, to in muts_per_row[row_i]:
+                        wt_id = int(seq_tokens_wt[0, pos].item())
+                        mut_id = aa2id[to]
+                        score += float(logits[j, pos, mut_id] - logits[j, pos, wt_id])
+                    chunk_scores.append(score)
+                    
+                chunk_scores_t = torch.tensor(chunk_scores, device=dev, dtype=torch.float32)
+                if apply_calibration:
+                    try:
+                        chunk_scores_t = self.calibration_head_shared(chunk_scores_t.unsqueeze(-1)).squeeze(-1)
+                    except AttributeError:
+                        pass
+                        
+                for j, score in enumerate(chunk_scores_t.cpu().tolist()):
+                    row_i = chunk_indices[j]
+                    direct_scores[row_i] = score
+
+        else:
+            # Masked Strategy via flat dynamic queue
+            path_states = deque()
+            total_evals = 0
+            
+            for row_i in valid_row_indices:
+                muts = muts_per_row[row_i]
+                N = len(muts)
+                total_evals += N * K_paths
+                for k in range(K_paths):
+                    order = list(range(N))
+                    if N > 1: random.shuffle(order)
+                    path_states.append({
+                        "row_i": row_i, 
+                        "seq": seq_tokens_wt[0].clone(),
+                        "order": order, 
+                        "cum_delta": 0.0, 
+                        "step": 0, 
+                        "N": N
+                    })
+                    
+            total_batches = math.ceil(total_evals / batch_size)
+            
+            with tqdm(total=total_batches, desc="Masked Path Sampling") as pbar:
+                while path_states:
+                    chunk_paths = []
+                    while path_states and len(chunk_paths) < batch_size:
+                        chunk_paths.append(path_states.popleft())
+                        
+                    b_sz = len(chunk_paths)
+                    
+                    # Stack sequences for this specific chunk
+                    chunk_seqs = torch.stack([p["seq"] for p in chunk_paths])
+                    pos_list, wt_list, mut_list = [], [], []
+                    
+                    for j, p in enumerate(chunk_paths):
+                        row_i = p["row_i"]
+                        mut_idx = p["order"][p["step"]]
+                        _, pos, to = muts_per_row[row_i][mut_idx]
+                        
+                        chunk_seqs[j, pos] = mask_id
+                            
+                        pos_list.append(pos)
+                        wt_list.append(int(p["seq"][pos].item()))
+                        mut_list.append(aa2id[to])
+                    
+                    c_chunk = coords_wt.expand(b_sz, *coords_wt.shape[1:])
+                    s_chunk = struct_tokens_wt.expand(b_sz, *struct_tokens_wt.shape[1:])
+                    logits = self._forward_raw(chunk_seqs, c_chunk, s_chunk)
+                    
+                    chunk_pos = torch.tensor(pos_list, device=dev)
+                    chunk_wt = torch.tensor(wt_list, device=dev)
+                    chunk_mut = torch.tensor(mut_list, device=dev)
+                    b_idx = torch.arange(b_sz, device=dev)
+                    
+                    chunk_deltas = (logits[b_idx, chunk_pos, chunk_mut] - logits[b_idx, chunk_pos, chunk_wt]).float()
+                    
+                    if apply_calibration:
+                        try:
+                            calibrated = self.calibration_head_single(chunk_deltas.unsqueeze(-1)).squeeze(-1)
+                        except AttributeError:
+                            calibrated = self.calibration_head_shared(chunk_deltas.unsqueeze(-1)).squeeze(-1)
+                        deltas = calibrated.cpu().tolist()
+                    else:
+                        deltas = chunk_deltas.cpu().tolist()
+                        
+                    for j, p in enumerate(chunk_paths):
+                        p["cum_delta"] += deltas[j]
+                        row_i = p["row_i"]
+                        mut_idx = p["order"][p["step"]]
+                        _, pos, to = muts_per_row[row_i][mut_idx]
+                        
+                        # Apply the mutation for the next step
+                        p["seq"][pos] = aa2id[to] 
+                        p["step"] += 1
+                        
+                        # Route the state back to the queue or into results
+                        if p["step"] < p["N"]:
+                            path_states.append(p)
+                        else:
+                            path_results[p["row_i"]].append(p["cum_delta"])
+                            
+                    pbar.update(1)
+
+        # ---------- 5) Construct Output DataFrame ----------
+        out_rows = []
+        for row_i in valid_row_indices:
+            muts = muts_per_row[row_i]
             rec = {
                 "pdb": pdb_id,
                 "chain_id": ch,
                 "mut_type": _canonical_mut_string(muts),
-                "n_muts": N,
+                "n_muts": len(muts),
                 "K_paths": int(K_paths),
-                "ddg_pred_additive": float(additive_sum),
+                "ddg_pred_additive": float(additive_sums[row_i]),
             }
-
-            if scheme == "direct":
-                # Direct strategy: mask all sites, sum effects
-                seq_batch = seq_tokens_wt.clone()
-                for _, pos, _ in muts:
-                    seq_batch[0, pos] = mask_id
-                
-                sl = self._forward_raw(seq_batch, coords_wt, struct_tokens_wt) # (1, L+2, V)
-                
-                direct_score = 0.0
-                for _, pos, to in muts:
-                    pos_tok = pos
-                    mut_id = aa2id[to]
-                    wt_id = int(seq_tokens_wt[0, pos_tok].item())
-                    
-                    # Sum (Logit(Mut) - Logit(WT)) at masked position
-                    delta = float(sl[0, pos_tok, mut_id].item() - sl[0, pos_tok, wt_id].item())
-                    direct_score += delta
-
-                # Apply calibration if possible (treating the sum as a score)
-                if apply_calibration:
-                    try:
-                        direct_score = float(self.calibration_head_shared(torch.tensor(direct_score).to(dev)).item())
-                    except AttributeError:
-                        pass
-                
-                rec["ddg_pred"] = direct_score
-                #rec["ddg_pred_mean"] = direct_score # Alias for compatibility
-                #rec["ddg_pred_std"] = 0.0
-
-            else:
-                # Path sampling (Parallel or Masked)
-                import random
-                path_sums = []
-                for k_idx in range(K_paths):
-                    order = list(range(N))
-                    random.shuffle(order) if N > 1 else None
-
-                    ctx_seq = seq_tokens_wt.clone()  # (1, L+2)
-                    cum_delta = 0.0
-
-                    for t in range(N):
-                        idx_mut = order[t]
-                        fr, pos, to = muts[idx_mut]
-                        pos_tok = pos 
-
-                        if scheme == "parallel":
-                            seq_batch = ctx_seq              
-                            coords_batch = coords_wt         
-                            struct_batch = struct_tokens_wt  
-                            sl = self._forward_raw(seq_batch, coords_batch, struct_batch) 
-                            row_logits = sl[0, pos_tok, :].float()
-                        else:
-                            seq_batch = ctx_seq.clone()
-                            seq_batch[0, pos_tok] = mask_id
-                            coords_batch = coords_wt
-                            struct_batch = struct_tokens_wt
-                            sl = self._forward_raw(seq_batch, coords_batch, struct_batch)
-                            row_logits = sl[0, pos_tok, :].float()
-
-                        cur_id = int(ctx_seq[0, pos_tok].item())
-                        mut_id = aa2id[to]
-                        step_delta = float(row_logits[mut_id].item() - row_logits[cur_id].item())
-
-                        if apply_calibration:
-                            try:
-                                step_delta = self.calibration_head_single(step_delta).cpu().numpy()
-                            except AttributeError as e:
-                                step_delta = self.calibration_head_shared(step_delta).cpu().numpy()
-
-                        cum_delta += step_delta
-                        ctx_seq[0, pos_tok] = mut_id
-
-                    path_sums.append(cum_delta)
-
-                pred_mean = float(np.mean(path_sums))
-                pred_std  = float(np.std(path_sums, ddof=1)) if len(path_sums) > 1 else 0.0
-                
-                rec[f"ddg_pred"] = pred_mean
-                rec[f"ddg_pred_std_{K_paths}"] = pred_std
-                if return_path_summaries:
-                    rec["path_sums"] = path_sums
             
+            if scheme == "direct":
+                rec["ddg_pred"] = direct_scores[row_i]
+            else:
+                sums = path_results[row_i]
+                rec["ddg_pred"] = float(np.mean(sums))
+                rec[f"ddg_pred_std_{K_paths}"] = float(np.std(sums, ddof=1)) if len(sums) > 1 else 0.0
+                if return_path_summaries:
+                    rec["path_sums"] = sums
+                    
             out_rows.append(rec)
 
-        return pd.DataFrame(out_rows)
+        df = pd.DataFrame(out_rows)
+        df['dddg_pred'] = df['ddg_pred'] - df['ddg_pred_additive']
+        return df
     
     @torch.no_grad()
     def infer_full_seq(
