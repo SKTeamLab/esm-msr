@@ -1,0 +1,762 @@
+import os
+import argparse
+import numpy as np
+import pandas as pd
+import requests
+import urllib
+import tempfile
+
+from tqdm import tqdm
+from quantiprot.metrics import aaindex
+from Bio import ExPASy, SwissProt, AlignIO, pairwise2
+from Bio.PDB import *
+from Bio.PDB.DSSP import DSSP, dssp_dict_from_pdb_file
+from scipy.stats import entropy
+from Bio.SeqUtils import seq1
+
+from Bio import AlignIO
+from Bio import SeqIO 
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.Align import MultipleSeqAlignment
+import argparse # For handling command-line arguments
+
+def remove_lowercase_from_sequence(sequence_str):
+    """Removes lowercase characters from a sequence string."""
+    return "".join(char for char in sequence_str if not char.islower())
+
+def reformat_sequences_remove_insertions(input_file, output_file, input_format, output_format=None):
+    """
+    Reads sequences, removes lowercase letters (insertions) from each sequence.
+    If all resulting sequences are the same length, writes them as an MSA.
+    Otherwise, writes them as a FASTA file of individual processed sequences.
+
+    Args:
+        input_file (str): Path to the input sequence file (e.g., FASTA).
+        output_file (str): Path to the output file.
+        input_format (str): Format of the input file (e.g., "fasta").
+        output_format (str, optional): Format for the output MSA file if possible
+                                       (e.g., "fasta", "clustal"). If None, defaults to input_format
+                                       or "fasta" if an MSA cannot be formed.
+    """
+    if output_format is None:
+        output_format = input_format
+
+    modified_records = []
+    try:
+        # Use SeqIO.parse to read sequences individually.
+        # This does not require sequences to be the same length initially.
+        for record in SeqIO.parse(input_file, input_format):
+            original_sequence = str(record.seq)
+            cleaned_sequence_str = remove_lowercase_from_sequence(original_sequence)
+
+            modified_seq = Seq(cleaned_sequence_str)
+            # Create a new SeqRecord, preserving ID and other relevant info
+            modified_record = SeqRecord(modified_seq,
+                                        id=record.id,
+                                        name=record.name,
+                                        description=record.description,
+                                        dbxrefs=record.dbxrefs,
+                                        features=record.features, # Be cautious, coordinates might be invalid
+                                        annotations=record.annotations,
+                                        letter_annotations={} # Clear per-letter annotations as length changes
+                                       )
+            modified_records.append(modified_record)
+
+        if not modified_records:
+            print(f"No sequences found in {input_file}.")
+            return
+
+        # Check if all modified sequences are now the same length
+        first_len = len(modified_records[0].seq)
+        all_same_length = True
+        if len(modified_records) > 1: # Only check if there's more than one sequence
+            all_same_length = all(len(rec.seq) == first_len for rec in modified_records[1:])
+
+        if all_same_length:
+            # If they are all the same length, we can create and write a MultipleSeqAlignment
+            # Note: Even if they are the same length, they might not be "aligned" in the biological sense
+            # if the removal of lowercase characters was the only step.
+            # This step assumes that making them the same length is the primary goal for MSA construction here.
+            try:
+                processed_alignment = MultipleSeqAlignment(modified_records)
+                AlignIO.write([processed_alignment], output_file, output_format) # AlignIO.write expects an iterable
+                print(f"Successfully processed sequences written as an MSA to {output_file} in '{output_format}' format.")
+                print(f"All {len(modified_records)} sequences have a length of {first_len} after processing.")
+            except ValueError as e:
+                # This might happen if there's only one sequence, and the chosen output format
+                # strictly requires multiple sequences for an "alignment".
+                # Or other subtle issues with MultipleSeqAlignment or AlignIO.write.
+                print(f"Could not write as MSA object due to: {e}")
+                print("Attempting to write as a simple FASTA sequence file instead.")
+                SeqIO.write(modified_records, output_file, "fasta")
+                print(f"Processed sequences written to {output_file} in FASTA format.")
+        else:
+            # If they are not the same length, we cannot create a valid MultipleSeqAlignment.
+            # So, we write them as a simple FASTA file of individual sequences.
+            SeqIO.write(modified_records, output_file, "fasta") # Default to fasta
+            print(f"Warning: Sequences are not all the same length after removing lowercase letters.")
+            print(f"Processed sequences written to {output_file} in FASTA format.")
+            print("Individual sequence lengths after processing:")
+            for i, rec in enumerate(modified_records):
+                print(f"  Sequence {i+1} ('{rec.id}'): {len(rec.seq)}")
+
+    except FileNotFoundError:
+        # This exception handling is now outside the main loop
+        # and will be caught by the calling function's try-except if not handled here.
+        # For a standalone script, it's good to keep it.
+        print(f"Error: Input file '{input_file}' not found.")
+        raise # Re-raise if called as a function, or handle appropriately
+    except ValueError as e: # Catches errors from SeqIO.parse (e.g., bad format)
+        print(f"A Biopython ValueError occurred during parsing or processing: {e}")
+        print(f"Please check the input file '{input_file}' and its format '{input_format}'.")
+        raise
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        # For debugging, you might want to see the full traceback
+        # import traceback
+        # traceback.print_exc()
+        raise
+
+path = '../'
+
+d = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
+    'ILE': 'I', 'PRO': 'P', 'THR': 'T', 'PHE': 'F', 'ASN': 'N', 
+    'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R', 'TRP': 'W', 
+    'ALA': 'A', 'VAL':'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M',
+    'MSE': 'Z', 'UNK': '9', 'X': 'X'} 
+
+
+def get_sprot_raw_with_retry(uniprot_id, max_retries=5, delay=5):
+    for i in range(max_retries):
+        try:
+            handle = ExPASy.get_sprot_raw(uniprot_id)
+            return handle
+        except urllib.request.HTTPError as err:
+            if err.code == 500:  # If the error is an Internal Server Error
+                print(f"Attempt {i+1} of {max_retries} failed with error 500. \
+                    Retrying in {delay} seconds...")
+                time.sleep(delay)  # Wait before retrying
+            else:
+                raise  # If the error is something else, raise it
+    raise Exception("Max retries exceeded with HTTP 500 errors.")
+
+
+def run_alistat(alignment_file, alistat_loc, output_loc, n_lines=0):
+    print(f'Running AliStat on {alignment_file}')
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(mode='w+', delete=True) as temp_file:
+        # Open the original alignment file
+        with open(alignment_file, 'r') as file:
+            if n_lines != 0:
+                # Read and write only the first n_lines if n_lines is specified
+                for _ in range(n_lines):
+                    line = file.readline()
+                    temp_file.write(line)
+                line = file.readline()
+                while not line.startswith('>'):
+                    temp_file.write(line)
+                    line = file.readline()
+            else:
+                # Read and write all lines if n_lines is 0
+                for line in file:
+                    temp_file.write(line)
+        
+        # Flush written content to disk
+        temp_file.flush()
+
+        # Run alistat on the temporary file
+        alistat_command = f'{os.path.join(alistat_loc, "alistat")} {temp_file.name} 6 -t 2 -o {output_loc}'
+        os.system(alistat_command)
+        #print(f'AliStat command: {alistat_command}')
+
+
+def get_column_completeness(filename, column):
+    """
+    Derived using AliStat: https://github.com/thomaskf/AliStat
+    Using (for each MSA): alistat $msa_name.a3m 6 -t 1,2,3 although
+    technically only -t 2 (Table_2.csv) is needed for this function
+    """
+    df = pd.read_csv(filename)
+    return df.at[column, 'Cc']
+
+
+def get_alignment_summary(filename):
+    """
+    Derived using AliStat: https://github.com/thomaskf/AliStat
+    Using (for each MSA): alistat $msa_name.a3m 6 -t 1,2,3 from Summary.txt
+    """
+    with open(filename, 'r') as f:
+        for i, line in enumerate(f.readlines()):
+            if i == 3:
+                n_seqs = int(line[64:].strip())
+            elif i == 6:
+                completeness = float(line[64:].strip())
+    return completeness, n_seqs
+
+
+def get_conservation(alignment_file, residue_index, wild_type):
+    """
+    Obtains the entropy and (related) percent identity at a given position in
+    the provided MSA
+    """
+    alignment = AlignIO.read(alignment_file, 'fasta')
+
+    # obtain only the relevant column
+    residues = [seq[residue_index] for seq in alignment]
+    # the first sequence at this position is necessarily the wild-type
+    #assert residues[0] == wild_type, print('Unexpected residue in alignment')
+
+    # compute the entropy based on the amounts of each residue type
+    count = {aa: residues.count(aa) for aa in set('ACDEFGHIKLMNPQRSTVWY')} #for aa in set(residues)
+    probability = [count[aa]/len(residues) for aa in count]
+    entropy_score = entropy(probability)
+
+    # compute percent residue identity, a.k.a. percent conservation of wild-type
+    pri_score = count[wild_type] / len(residues) * 100
+    return entropy_score, pri_score
+
+
+def get_residue_features(uniprot_id, chain_id, residue_id):
+    """
+    Uses UniProt ID to get residue features from SwissProt
+    Returns a list of features
+    """
+    try:
+        handle = get_sprot_raw_with_retry(uniprot_id)
+        record = SwissProt.read(handle)
+    except Exception as e:
+        print(e)
+        return []
+    
+    features = []
+    # iterate over all features for the given UniProt ID
+    for feature in record.features:
+        site_start = feature.location.start
+        site_end = feature.location.end
+        try:
+            # only use this feature if the residue_id occurs within its range
+            if residue_id >= site_start and residue_id <= site_end and \
+                feature.type not in ['CHAIN', 'DOMAIN', 'REGION']: 
+                features.append(feature.type)
+        except Exception as e:
+            print('Exception in get_residue_features:', e)
+    return features
+
+
+def get_interface_residues(model, target_chain_id, distance_threshold=10.0):
+    """
+    Determine which residues of a given chain are part of an interface based on
+    a distance threshold between CAs of each residue on a target chain and any 
+    residue on another chain
+    """
+
+    # Get the target chain and the list of other chains
+    target_chain = None
+    other_chains = []
+    for chain in model.get_chains():
+        if chain.get_id() == target_chain_id:
+            target_chain = chain
+        else:
+            other_chains.append(chain)
+
+    # Check if the target chain exists
+    if target_chain is None:
+        raise ValueError(f"Chain {target_chain_id} not found")
+
+    # Store the interface residues of the target chain
+    interface_residues = []
+    # Iterate over all residues, (other) chains, and other chains' residues
+    for other_chain in other_chains:
+        for target_residue in target_chain.get_residues():
+            for other_residue in other_chain.get_residues():
+                try:
+                    target_atom = target_residue['CA']
+                    other_atom = other_residue['CA']
+                except KeyError:
+                    continue
+                # distance determination
+                distance = np.linalg.norm(
+                    np.array(target_atom.coord) - np.array(other_atom.coord)
+                    )
+                # only count as interface if within the threshold
+                if distance < distance_threshold:
+                    interface_residues.append(target_residue.get_id()[1])
+                    break
+    return interface_residues
+
+
+def get_residue_accessibility(model, filename, target_chain):
+    """
+    Run DSSP to determine the absolute surface area of each residue
+    """
+    dssp_dict = dict(DSSP(model, filename, dssp='mkdssp'))
+    # get the target chain only
+    df = pd.DataFrame(dssp_dict).T.loc[target_chain, :]
+    df.index = pd.Series(df.index).apply(lambda x: x[1])
+    df = df.rename({1:'wild_type', 2: 'SS', 3: 'rel_ASA'}, axis=1)
+    return df
+
+
+def get_packing_density(model):
+    """Not used (does not work)"""
+    hse = HSExposureCA(model)
+    asa_sum = sum(hse.get_exposed_total_rel())
+    volume = hse.get_volume()
+    print(volume)
+    packing_density = asa_sum / volume
+    return packing_density, asa_sum, volume
+
+
+def get_h_angle(c_atom_coord, o_atom_coord, n_atom_coord):
+    """
+    Used in the determination of hydrogen bonds
+    """
+    a = np.array(c_atom_coord)
+    b = np.array(o_atom_coord)
+    c = np.array(n_atom_coord)
+    
+    ba = a - b
+    bc = c - b
+    
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+    angle = np.arccos(cosine_angle)
+    
+    return np.degrees(angle)
+
+
+def get_residue_interactions(model, target_chain_id, residue_id):
+    """
+    Uses previous functions and internal logic to determine if a target residue
+    is involved in hydrogen bonding or salt bridges (and also extracts the beta-
+    factor)
+    """
+
+    # get the target chain object
+    for chain in model.get_chains():
+        if chain.get_id() == target_chain_id:
+            target_chain = chain
+
+    # get the target residue object
+    target_residue = None
+    for residue in target_chain.get_residues():
+        if residue.get_id()[1] == residue_id:
+            target_residue = residue
+    if target_residue is None:
+        return None, None, None, None
+    
+    h_bonds = 0
+    salt_bridges = 0
+    b_factor = []
+    h_bond_identities = []
+
+    # iterate through all atoms of the target residue
+    for atom in target_residue.get_atoms():
+        # extract beta factor
+        b_factor.append(atom.get_bfactor())
+        try:
+            # detect all atom neighbors within 3.5 Angstrom
+            neighbors = NeighborSearch(Selection.unfold_entities(
+                model[target_chain_id], 'A'
+                ), bucket_size=10).search(atom.coord, radius=3.5, level='A')
+        except Exception as e:
+            print('Exception in NeighborSearch,', e)
+            continue
+        # iterate through neighboring atoms within 3.5 Angstrom
+        for neighbor in neighbors:
+            # exclude niegbors from the same residue
+            if neighbor.parent != atom.parent:
+                # calculate the distance between the two
+                dist = np.linalg.norm(atom.coord - neighbor.coord)
+                try:
+                    # hydrogen bonding logic: based on C/O/N adjacency
+                    # hydrogens are implicit
+                    h_angle = 0
+                    if 'N' in atom.name and 'O' in neighbor.name:
+                        # we want to find the C attached to O in neighbor
+                        # so look for covalently bonded atoms
+                        local = NeighborSearch(
+                            list(neighbor.get_parent().get_atoms())
+                            ).search(neighbor.coord, radius=1.5, level='A')
+                        for l in local:
+                            if 'C' in l.name:
+                                target_atom = l
+                        if target_atom is None:
+                            print('did not find a closeby atom')
+                            continue
+                        # use the previous function to determine the angle
+                        # and ultimately whether this matches h-bond constraints
+                        h_angle = get_h_angle(
+                            target_atom.coord, neighbor.coord, atom.coord
+                            )
+                    # same as above but with ids swapped
+                    elif 'O' in atom.name and 'N' in neighbor.name:
+                        # we want to find the C attached to O in atom
+                        local = NeighborSearch(
+                            list(atom.get_parent().get_atoms())
+                            ).search(atom.coord, radius=1.5, level='A')
+                        target_atom = None
+                        for l in local:
+                            if 'C' in l.name:
+                                target_atom = l
+                        if target_atom is None:
+                            print('did not find a closeby atom')
+                            continue
+                        h_angle = get_h_angle(target_atom.coord, atom.coord, neighbor.coord)
+                    # case where we have a sidechain O (e.g. OD, OE)
+                    elif 'O' in atom.name and 'O' in neighbor.name and \
+                        (atom.name != 'O' or neighbor.name != 'O'):
+                        # neighbor is sidechain
+                        if atom.name == 'O':
+                            h_angle = get_h_angle(
+                                atom.get_parent()['C'].coord, 
+                                atom.coord, neighbor.coord
+                                )
+                        # atom (target) is sidechain O
+                        elif neighbor.name == 'O':
+                            h_angle = get_h_angle(
+                                neighbor.get_parent()['C'].coord, 
+                                atom.coord, neighbor.coord
+                                )
+                        # both are sidechains
+                        else:
+                            local = NeighborSearch(
+                                list(neighbor.get_parent().get_atoms())
+                                ).search(atom.coord, radius=1.5, level='A')
+                            target_atom = None
+                            for l in local:
+                                if 'C' in l.name:
+                                    target_atom = l
+                            if target_atom is None:
+                                print('did not find a closeby atom')
+                                continue
+                            h_angle = get_h_angle(target_atom.coord, 
+                                atom.coord, neighbor.coord
+                                )
+                    else:
+                        continue
+                    # criteria for hydrogen bonding
+                    if 120 < h_angle < 180:
+                        h_bonds += 1
+                        # for debugging
+                        h_bond_identities.append((
+                            f'{atom.name}-{atom.get_parent().id[1]}-H',
+                            f'-{neighbor.name}-{neighbor.get_parent().id[1]}'
+                        ))
+
+                    # salt-bridge criteria
+                    if atom.name in ['NH1', 'NH2', 'NZ'] and \
+                        atom.parent.resname in ['LYS', 'ARG'] and \
+                            neighbor.name in ['OE1', 'OE2', 'OD1', 'OD2'] and \
+                                neighbor.parent.resname in ['ASP', 'GLU']:
+                        salt_bridges += 1
+                    elif neighbor.name in ['NH1', 'NH2', 'NZ'] and \
+                        neighbor.parent.resname in ['LYS', 'ARG'] and \
+                            atom.name in ['OE1', 'OE2', 'OD1', 'OD2'] and \
+                                atom.parent.resname in ['ASP', 'GLU']:
+                        salt_bridges += 1
+                except Exception as e:
+                    print('Exception inside residue interactions,', e)
+
+    # take average over residue
+    b_factor = sum(b_factor) / len(b_factor)
+        
+    return h_bonds, salt_bridges, b_factor, h_bond_identities
+
+
+def extract_features(database_loc, path):
+    """
+    Generate all the features and add them to the dataset_mapped.csv
+    """
+
+    # list for storing DSSP outputs
+    dfs_acc = []
+
+    # get the first instance of a unique mutation only (avoid duplications)
+    db = pd.read_csv(database_loc)
+    db = db.groupby('uid').first()
+    #db['offset_rosetta'] = db['offset_rosetta'].fillna(0)
+    if 'mut_type' in db.columns:
+        db = db.loc[~db['mut_type'].str.contains(':')]
+        db['wild_type'] = db['mut_type'].str[0]
+        db['position'] = db['mut_type'].str[1:-1].astype(int)
+        db['mutation'] = db['mut_type'].str[-1]
+        print(db.head())
+        db['msa_file'] = '/home/sareeves/PSLMs/data/tsuboyama/tsuboyama_msas/' + db['WT_name'].apply(lambda x: x.split('.')[0].replace('|', '_')) + '.a3m'
+        db['reduced_msa_file'] = '/home/sareeves/PSLMs/data/tsuboyama/tsuboyama_msas_reduced/' + db['WT_name'].apply(lambda x: x.split('.')[0].replace('|', '_')) + '.a3m'
+        db['uniprot_seq'] = db['aa_seq']
+        db['offset_up'] = 0
+        for msa in db['msa_file'].unique():
+            reformat_sequences_remove_insertions(msa, msa.replace('_msas', '_msas_reduced'), 'fasta')
+
+    # construct the output dataframe
+    df_out = pd.DataFrame(index=db.index, 
+        columns=['on_interface', 'entropy', 'conservation', 
+                 'column_completeness', 'completeness_score', 'n_seqs', 
+                 'structure_length', 'features', 'hbonds', 'h_bond_ids', 
+                 'saltbrs', 'b_factor']) #, 'residue_depth'])
+
+    df_out['code'] = df_out.index.str[:4]
+    df_out['on_interface'] = False
+
+    # sequence-based features from QuantiProt
+    vol = aaindex.get_aa2volume() # residue total volume
+    kdh = aaindex.get_aa2hydropathy() # Kyte-Doolittle hydrophobicity
+    chg = aaindex.get_aa2charge() # neutral-pH charge
+
+    # compute the sequence-based features
+    df_out['kdh_wt'] = db['wild_type'].apply(lambda x: kdh[x])
+    df_out['kdh_mut'] = db['mutation'].apply(lambda x: kdh[x])
+    df_out['vol_wt'] = db['wild_type'].apply(lambda x: vol[x])
+    df_out['vol_mut'] = db['mutation'].apply(lambda x: vol[x])
+    df_out['chg_wt'] = db['wild_type'].apply(lambda x: chg[x])
+    df_out['chg_mut'] = db['mutation'].apply(lambda x: chg[x])
+     
+    # iterate through each unique wild-type PDB structure
+    for (code, chain), group in tqdm(db.groupby(['code', 'chain'])):
+        if 'ssym' in database_loc.lower():
+            code_ = group['wt_code'].head(1).item()
+        else:
+            code_ = code
+
+        out_loc = os.path.join(path, 'data', 'features', f'{code}_{chain}')
+        if not os.path.exists(out_loc):
+            print('Storing features in new directory')
+            os.makedirs(out_loc)
+        print(code)
+
+        # get the structure and target chain where the mutation is
+        pdb_file = group['pdb_file'].head(1).item()
+        target_chain_id = chain
+        alignment_file = group['reduced_msa_file'].head(1).item()
+
+        # parse the structure and get its high-level model object
+        structure = PDBParser().get_structure('PDB_ID', pdb_file)
+        model = structure[0]
+
+        # according to Bio.PDB
+        #rd = ResidueDepth(model)
+
+        # create a mapping of chain to tuples of (resnum, resname)
+        chains = {chain.id:
+                    [(residue.id[1], residue.resname) for residue in chain] \
+                  for chain in structure.get_chains()
+                 }
+
+        # get interface residues less than 7 Angstrom from another chain
+        interface_residues = get_interface_residues(
+            model, target_chain_id, distance_threshold=7
+            )
+        
+        # get the sequence of the chain of interest
+        pdb_seq = chains[target_chain_id]
+        # indices of this sequence (1...N)
+        indices = [val[0] for val in pdb_seq]
+        # 1 letter code for residues in the sequence
+        aas = [d[val[1]] for val in pdb_seq]
+
+        # convert to 1-based indexing
+        interface_residues_indices = [
+            indices.index(v)+1 for v in interface_residues
+            ]
+        # indexing a list which is 0-based using 1-based indexing
+        interface_residue_identities = [
+            aas[v-1] for v in interface_residues_indices
+            ]
+
+        #try:
+        # according to DSSP
+        df_acc = get_residue_accessibility(
+            model, pdb_file, target_chain=group['chain'].head(1).item()
+            )
+        # add information so that this dataframe can be joined later
+        df_acc['code'] = code
+        df_acc = df_acc.reset_index()
+        # convert to 1-based
+        df_acc['position'] = df_acc['index'].apply(
+            lambda x: indices.index(x)+1
+            )
+        dfs_acc.append(df_acc)
+        #except Exception as e:
+        #    print('Exception inside residue accessibility,', e)
+        
+        # now iterate through each unique mutation
+
+        print(os.path.join(out_loc, ''))
+        
+        if code_ in ['1A0F', '1A5E', '1BA3', '1CEY', '1FH5', '1IGV', '1IHB', '1IOJ', '1JLV', '1LVE', 
+            '1SUP', '1TIT', '1XWS', '2IMM', '2MMX', '2PR5', '2TRX', '3DV0', '3MBP', '451C', '6TQ3']:
+            run_alistat(
+                alignment_file, args.alistat_loc,
+                os.path.join(out_loc, ''), 100000
+                )           
+        else:
+            run_alistat(
+                alignment_file, args.alistat_loc,
+                os.path.join(out_loc, ''), 0
+                )
+
+        for uid, row in group.iterrows():
+            df_out.at[uid, 'structure_length'] = len(pdb_seq)
+            df_out.at[uid, 'sequence_length'] = len(row['uniprot_seq'])
+
+            wt = row['wild_type']
+            target_pos = row['position'] #+ \
+                #row['offset_up'] * (0 if dataset == 's669' else 1)
+            try:
+                target_pos = int(target_pos)
+            except ValueError as e:
+                print(f'Position {row["position"]} does not exist in structure {code}')
+                continue
+
+            res0 = Selection.unfold_entities(model[target_chain_id], 'R')[0]
+            # should always start as 1 following recent changes
+            offset = res0.id[1]
+            # handle unknowns not being parsed
+            if res0.resname == 'UNK':
+                offset += 1
+            # corrected position
+            target_pos += offset - 1
+
+            try:
+                #validation
+                assert d[model[target_chain_id][target_pos].resname] == wt
+                # only assign validated residues
+                #df_out.at[uid, 'residue_depth'] = rd[
+                #    target_chain_id, (' ', target_pos, ' ')][0]
+            except:
+                try:
+                    # indicate what discrepancy occured
+                    print('wt:', wt, 'obs', 
+                        d[model[target_chain_id][target_pos].resname], 
+                        'target_pos', target_pos)
+                    print([e.get_name() for e in Selection.unfold_entities(
+                            model[target_chain_id], 'R'
+                            )])
+                except:
+                    print('Could not find', target_pos)
+                    continue
+
+            # next section uses sequence-features, which are indexed differently
+
+            # -1 for 0-based indexing
+            if 'fireprot' not in args.db_loc.lower():
+                target_pos_up = int(row['position'] + \
+                    -row['offset_up'] - 1)
+            else:
+                target_pos_up = row['position_orig'] - 1
+                assert target_pos_up >= 0
+            
+            try:
+                entropy, pri = get_conservation(
+                    alignment_file, target_pos_up, wild_type=row['wild_type']
+                    )
+                df_out.at[uid, 'entropy'] = entropy
+                df_out.at[uid, 'conservation'] = pri
+
+                # assumes predictions and msa stats from AliStats are saved
+                # in folders within results directory
+                df_out.at[uid, 'column_completeness'] = get_column_completeness(
+                        os.path.join(out_loc, '.Table_2.csv'
+                        ), target_pos_up)
+                
+                completeness, n_seqs = get_alignment_summary(
+                    os.path.join(out_loc, '.Summary.txt'))
+                #print(completeness, n_seqs, 1)
+                df_out.at[uid, 'completeness_score'] = completeness
+                df_out.at[uid, 'n_seqs'] = n_seqs
+
+            except Exception as e:
+                print('Exception inside alignment', e)
+                raise
+
+            if target_pos in interface_residues_indices:
+                # validate again
+                assert wt == interface_residue_identities[
+                    interface_residues_indices.index(target_pos)]
+                df_out.at[uid, 'on_interface'] = True
+                df_out.at[uid, 'target_position'] = target_pos
+
+            #hbonds, saltbrs, b_factor, h_bond_identities = \
+            #    get_residue_interactions(model, target_chain_id, target_pos)
+            #df_out.at[uid, 'hbonds'] = hbonds
+            #df_out.at[uid, 'h_bond_ids'] = h_bond_identities
+            #df_out.at[uid, 'saltbrs'] = saltbrs
+            #df_out.at[uid, 'b_factor'] = b_factor
+
+    os.makedirs(os.path.join(path, 'data', 'features'), exist_ok=True)
+    outloc = os.path.join(path, 'data', 'features', database_loc.replace('.csv', '_feats.csv'))
+    df_out.to_csv(outloc) 
+
+    return df_out.drop('code', axis=1), pd.concat(dfs_acc)
+
+
+if __name__=='__main__':
+    parser = argparse.ArgumentParser(
+                    description = 'Processes features from either s669/\
+                                   FireProtDB/q3421/ssym for downstream analysis'
+                    )
+    parser.add_argument('--dataset', help='name of database (s669/fireprot), '
+                        +'assuming you are in the root of the repository',
+                      default='q3421')
+    parser.add_argument('--db_loc', help='location of database,'
+                        'only specify if you are using a custom DB',
+                       default=None)
+    parser.add_argument('--alistat_loc', help='location of the Alistat repo. \
+                            Do not use the relative path, ~/software... is ok',
+                        required=True)
+    parser.add_argument('-o', '--output_root', 
+                        help='root of folder to store outputs',
+                        default='.')
+
+    args = parser.parse_args()
+    if args.dataset.lower() in ['q3421']:
+        args.db_loc = './data/preprocessed/q3421_mapped.csv'
+    elif args.dataset.lower() in ['fireprot', 'fireprotdb']:
+        args.db_loc = './data/preprocessed/fireprot_mapped.csv'
+    elif args.dataset.lower() in ['s669', 's461']:
+        args.db_loc = './data/preprocessed/s669_mapped.csv'
+        args.dataset = 's669'
+    elif args.dataset.lower() in ['ssym']:
+        args.db_loc = './data/preprocessed/ssym_mapped.csv'
+    elif args.dataset.lower() in ['korpm', 'korpm_reduced', 'k2369', 'k3822']:
+        args.dataset = 'k3822'
+        args.db_loc = './data/preprocessed/k3822_mapped.csv'
+
+    db = pd.read_csv(args.db_loc)
+    db = db.groupby('uid').first()
+    
+    # preserve original columns but compute for completeness
+    db = db.rename({
+        'conservation': 'conservation_fp', 'b_factor': 'b_factor_fp'
+        }, axis=1)
+    if 'mut_type' in db.columns:
+        db = db.loc[~db['mut_type'].str.contains(':')]
+        db['wild_type'] = db['mut_type'].str[0]
+        db['position'] = db['mut_type'].str[1:-1].astype(int)
+        db['mutation'] = db['mut_type'].str[-1]
+        print(db.head())
+        db['msa_file'] = '/home/sareeves/PSLMs/data/tsuboyama/tsuboyama_msas/' + db['WT_name'].apply(lambda x: x.split('.')[0].replace('|', '_')) + '.a3m'
+        db['reduced_msa_file'] = '/home/sareeves/PSLMs/data/tsuboyama/tsuboyama_msas_reduced/' + db['WT_name'].apply(lambda x: x.split('.')[0].replace('|', '_')) + '.a3m'
+        db['uniprot_seq'] = db['aa_seq']
+        db['offset_up'] = 0
+
+    feat, dssp = extract_features(
+        args.db_loc, args.output_root)
+
+    feat_2 = db.join(feat, how='left')
+
+    # cysteines in disulfide bonds have unusual names
+    dssp.loc[dssp['wild_type'].isin(['a','b']), 'wild_type'] = 'C'
+    dssp = dssp[['code', 'wild_type', 'SS', 'rel_ASA', 'position']]
+
+    # combine with DSSP information (SASA and secondary structure)
+    out = feat_2.merge(dssp, on=['code', 'wild_type', 'position'], how='left')
+
+    # applies only to 1 mutant of 1ZNJ where two chains have same wt at mut position
+    out = out.drop_duplicates(subset=['code', 'wild_type', 'position', 'mutation'], keep='last')
+    print(len(out))
+
+    fname = os.path.basename(args.db_loc)
+    outloc = os.path.join(args.output_root, 'data', 'features', fname.replace('.csv', '_feats.csv'))
+    out.to_csv(outloc) 
