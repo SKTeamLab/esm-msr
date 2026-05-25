@@ -13,8 +13,7 @@ from esm_msr import utils
 from esm_msr.data import ( 
     ProteinStructureMutationEpistasisDataset,
     collate_fn_twopass,
-    ProteinCyclingDataLoader,
-    SubsetRestrictedProteinCyclingDataLoader,
+    create_consolidated_dataloader,
     PooledDataLoader
 )
 
@@ -467,24 +466,22 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
 
     # Final Assembly (Train only)
     if args.dataloading == 'cycle':
-        if not args.use_subset_restrict:
-            logging.info("Using ProteinCyclingDataLoader")
-            train_combined_loader = ProteinCyclingDataLoader(
-                train_dataloaders, args.batch_size, train_loader_names, collate_fn_twopass,
-                strategy=args.loader_strategy,
-            )
-        else:
-            subset_configs = getattr(args, 'subset_balance_configs', None)
-            subset_caps = getattr(args, 'subset_caps', None)
-            logging.info("Using SubsetRestrictedProteinCyclingDataLoader")
-            logging.info(f"Subset balance configs: {subset_configs}, Subset caps: {subset_caps}")
-            train_combined_loader = SubsetRestrictedProteinCyclingDataLoader(
-                train_dataloaders, args.batch_size, train_loader_names, collate_fn_twopass,
-                strategy=args.loader_strategy, 
-                subset_balance_configs=subset_configs,        
-                subset_caps=subset_caps
-            )
-        train_dataloaders_final = [train_combined_loader]
+        
+        subset_caps = getattr(args, 'subset_caps', None)
+        subset_balance_configs = getattr(args, 'subset_balance_configs', None)
+
+        consolidated_loader = create_consolidated_dataloader(
+            dataloaders=train_dataloaders,
+            train_list=train_loader_names,
+            batch_size=args.batch_size,
+            collate_fn=collate_fn_twopass,
+            strategy=args.loader_strategy,
+            subset_caps=subset_caps,
+            subset_balance_configs=subset_balance_configs,
+            num_workers=args.num_workers
+        )
+
+        train_dataloaders_final = [consolidated_loader]
         train_loader_names_final = ['cycled_train']
         
     elif args.dataloading == 'pool':

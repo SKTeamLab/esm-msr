@@ -7,7 +7,7 @@ name = "esm-msr"
 version = "0.2.0"
 description = "Epistasis-aware parameter-efficient fine-tuning and ESM3 model utilities."
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.11,<3.13"
 authors = [
     {name = "sareeves"}
 ]

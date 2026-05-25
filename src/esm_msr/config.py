@@ -1,7 +1,7 @@
 import argparse
 import os
 import logging
-from esm_msr.data import SubsetRestrictedProteinCyclingDataLoader
+from esm_msr.data import ProteinCyclingBatchSampler
 
 class ParseSubsetCaps(argparse.Action):
     """
@@ -9,7 +9,7 @@ class ParseSubsetCaps(argparse.Action):
     Defaults keys to 0.0, except 'single' which defaults to None.
     """
     def __call__(self, parser, namespace, values, option_string=None):
-        valid_keys = SubsetRestrictedProteinCyclingDataLoader.SUBSET_ORDER
+        valid_keys = ProteinCyclingBatchSampler.SUBSET_ORDER
         caps = {k: 0.0 for k in valid_keys}
         caps['single'] = None
 
@@ -42,7 +42,7 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train ESM3 Dual-LoRA Stability Model")
 
     # Define the global defaults to be used if the flag is omitted entirely
-    default_caps = {k: 0.0 for k in SubsetRestrictedProteinCyclingDataLoader.SUBSET_ORDER}
+    default_caps = {k: 0.0 for k in ProteinCyclingBatchSampler.SUBSET_ORDER}
     default_caps['single'] = None
     
     arch_group = parser.add_argument_group("Architecture Configuration")
@@ -141,7 +141,7 @@ def parse_arguments() -> argparse.Namespace:
     data_group.add_argument('--score_column', type=str, default='ddG_ML')
     data_group.add_argument('--cache_path', type=str, default='./data_cache')
     data_group.add_argument('--regenerate_cache', action='store_true')
-    data_group.add_argument('--num_workers', type=int, default=-1)
+    data_group.add_argument('--num_workers', type=int, default=4)
     data_group.add_argument('--max_train_proteins', type=int, default=-1)
     
     # These inclusion flags will be automatically updated by subset_caps logic

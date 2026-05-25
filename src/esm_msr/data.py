@@ -6,13 +6,12 @@ import pickle
 import random
 import logging
 from collections import defaultdict
-from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Sampler, ConcatDataset
 from tqdm import tqdm
 
 from esm.utils.structure.protein_chain import ProteinChain
@@ -801,132 +800,105 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-@dataclass
-class ProteinSamplerState:
-    """Tracks simplified sampling state for a single protein dataset."""
-    protein_name: str
-    items: List[Dict[str, Any]]
-    cursor: int = 0
-    batches_allocated: int = 0
-    batches_drawn: int = 0
-    
-    @property
-    def remaining_items(self) -> int:
-        return len(self.items) - self.cursor
-        
-    @property
-    def total_batches_possible(self) -> int:
-        return len(self.items) # Handled externally based on batch size
-
-
-class SubsetRestrictedProteinCyclingDataLoader:
+class ProteinCyclingBatchSampler(Sampler[List[int]]):
     """
-    Cycles through multiple protein datasets.
-    Subsets are pooled globally per-protein and shuffled, with no per-batch constraints.
-    """
+    Consolidated, high-performance BatchSampler for balancing and cycling through 
+    multiple protein datasets. Yields grouped indices for a ConcatDataset.
     
+    Architectural improvements:
+    1. Restores PyTorch asynchronous worker prefetching.
+    2. Caches subset categorizations during __init__ to avoid O(N) epoch stalls.
+    3. Handles 2D sampling and subset caps strictly via integer indices.
+    """
     SUBSET_ORDER = ['single', 'double', 'reversion', 'mut_ctx']
-    
+
     def __init__(
         self,
-        dataloaders: List,
+        datasets: List[Any],
         batch_size: int,
         train_list: List[str],
-        collate_fn: Callable,
         strategy: str = 'all',
         *,
         subset_caps: Optional[Dict[str, Optional[float]]] = None,
-        subset_balance_configs: Optional[Dict[str, Dict[str, Any]]] = None, 
+        subset_balance_configs: Optional[Dict[str, Dict[str, Any]]] = None,
         rng_seed: Optional[int] = None,
         verbose: bool = True,
     ):
-        """
-        Initializes the cycling dataloader.
-
-        Args:
-            dataloaders: List of PyTorch DataLoaders.
-            batch_size: Batch size.
-            train_list: List of protein names corresponding to the dataloaders.
-            collate_fn: Function to collate data items into batches.
-            strategy: Strategy for epoch termination ('min' limits to the shortest dataset, 'all' exhausts all).
-            subset_caps: Mapping of subset names to fractional caps (e.g., {'mut_ctx': 0.1}). 
-                         At least one subset must be unrestricted (value: None).
-            subset_balance_configs: 2D balancing configuration per subset type.
-            rng_seed: Seed for local random number generator to ensure reproducibility.
-            spatial_threshold: Maximum 3D spatial distance for 'over_and_back' subset.
-            min_sequence_distance: Minimum sequence separation for 'over_and_back' subset.
-            pdb_dir: Root path for AlphaFold models used in computing spatial distances.
-            verbose: Enable extensive logging during epoch initialization.
-        """
         if strategy not in ('min', 'all'):
             raise ValueError(f"strategy must be 'min' or 'all', got '{strategy}'")
-        
-        self.dataloaders = list(dataloaders)
+            
+        self.datasets = datasets
         self.batch_size = batch_size
-        self.train_list = list(train_list)
-        self.collate_fn = collate_fn
+        self.train_list = train_list
         self.strategy = strategy
         self.verbose = verbose
-
-        self.subset_balance_configs = subset_balance_configs
-        if self.subset_balance_configs is None:
-            self.subset_balance_configs = {
-                'double': {'bins': 15, 'cap_percentile': 75.0, 'missing_cap_fraction': 0.20},
-            }
-
         self._rng = random.Random(rng_seed)
         
+        self.subset_balance_configs = subset_balance_configs or {
+            'double': {'bins': 15, 'cap_percentile': 75.0, 'missing_cap_fraction': 0.20},
+        }
+
         self.subset_caps: Dict[str, Optional[float]] = {
-            'single': None,
-            'double': None,
-            'mut_ctx': 0.0,
-            'reversion': 0.0
+            'single': None, 'double': None, 'mut_ctx': 0.0, 'reversion': 0.0
         }
         if subset_caps is not None:
             self.subset_caps.update(subset_caps)
-            logging.info(f"Updated subset_caps with user-provided values: {self.subset_caps}")
 
-        # Validate that at least one bucket is unrestricted to serve as the baseline
+        logging.info(f"Using subset cap config: {self.subset_caps}")
+        logging.info(f"Using subset balance config: {self.subset_balance_configs}")
+
         self.unrestricted_keys = [k for k in self.SUBSET_ORDER if self.subset_caps.get(k) is None]
         if not self.unrestricted_keys:
             raise AssertionError(
-                "Invalid subset_caps: At least one category (e.g., 'single') must be mapped to None "
-                "to serve as the unrestricted baseline. Otherwise, the dataset size collapses to 0."
+                "Invalid subset_caps: At least one category (e.g., 'single') must be unrestricted "
+                "(mapped to None). Otherwise, the baseline dataset size drops to 0."
             )
+
+        # 1. Map cumulative offsets for ConcatDataset
+        self.cumulative_sizes = ConcatDataset(self.datasets).cumulative_sizes
+        self.offsets = [0] + self.cumulative_sizes[:-1]
+
+        # 2. Cache subset classifications ONCE during initialization
+        self._cached_buckets: List[Dict[str, List[int]]] = []
         
-        # State
-        self.protein_states: List[ProteinSamplerState] = []
-        self.total_batches_drawn = 0
-        self.target_batches = 0
-        self.current_loader_idx = 0
-        self.epoch_counter = 0  
-        self._initialized = False
-        
-        # Cache for distance matrices to avoid per-epoch recalculation
-        self._dist_matrix_cache: Dict[str, np.ndarray] = {}
+        logging.info("Caching dataset subsets for Sampler...")
+        for ds_idx, ds in enumerate(self.datasets):
+            buckets = {k: [] for k in self.SUBSET_ORDER}
+            first_pdb = ds[0].get('pdb') if len(ds) > 0 else None
+            
+            for i in range(len(ds)):
+                # Avoid loading the full tensor dict if possible; assuming fast dictionary lookup
+                item = ds[i]
+                if item.get('pdb') != first_pdb:
+                    raise AssertionError(f"PDB ID mismatch in {self.train_list[ds_idx]}: item {i} has {item.get('pdb')}, expected {first_pdb}")
+                
+                stype = item.get('subset_type', 'single')
+                if stype not in buckets:
+                    stype = 'single'
+                buckets[stype].append(i)
+                
+            self._cached_buckets.append(buckets)
+
+        # 3. Perform a dry-run to calculate exact batch sizes for the DataLoader __len__
+        self.num_batches = self._calculate_epoch_batches(dry_run=True)
 
     def _get_ddg_stats(self, indices: List[int], dataset: Any) -> Tuple[int, float, float]:
-        """Safely extracts ddG stats for a list of dataset indices."""
         if not indices:
             return 0, float('nan'), float('nan')
+        # Optimized lookup directly from scalar arrays if available
+        if hasattr(dataset, 'ground_truth_arr'):
+            vals = dataset.ground_truth_arr[indices]
+            valid_mask = np.isfinite(vals)
+            vals = vals[valid_mask]
+        else:
+            vals = [dataset[i].get('ddG') for i in indices]
+            vals = [v for v in vals if v is not None and not math.isnan(v) and not math.isinf(v)]
             
-        vals = []
-        for i in indices:
-            val = dataset[i].get('ddG')
-            if val is not None and not math.isnan(val) and not math.isinf(val):
-                vals.append(val)
-                
-        if not vals:
+        if not len(vals):
             return len(indices), float('nan'), float('nan')
-            
-        arr = np.array(vals)
-        return len(indices), float(np.mean(arr)), float(np.std(arr))
-        
+        return len(indices), float(np.mean(vals)), float(np.std(vals))
+
     def _balance_subset_2d(self, indices: List[int], dataset: Any, protein_name: str, config: Dict, subset_name: str) -> List[int]:
-        """
-        Randomly subsamples dense 2D bins based on percentile thresholds.
-        Does not use a rolling window; samples are unseeded and randomly drawn each epoch.
-        """
         if not indices or config is None:
             return indices
             
@@ -935,9 +907,9 @@ class SubsetRestrictedProteinCyclingDataLoader:
         missing_cap_fraction = config.get('missing_cap_fraction', 0.10)
         
         if not hasattr(dataset, 'ddg_additive_arr') or not hasattr(dataset, 'dddg_arr'):
-            raise AttributeError(
+            raise AssertionError(
                 f"Dataset for {protein_name} is missing pre-extracted scalar arrays. "
-                "Ensure `_extract_scalars()` was called during dataset initialization."
+                "Ensure `_extract_scalars()` was called during dataset generation."
             )
             
         idx_arr = np.array(indices, dtype=np.int64)
@@ -945,7 +917,6 @@ class SubsetRestrictedProteinCyclingDataLoader:
         val_dddg = dataset.dddg_arr[idx_arr]
         
         valid_mask = np.isfinite(val_ddg_add) & np.isfinite(val_dddg)
-        
         valid_indices = idx_arr[valid_mask].tolist()
         missing_keys_indices = idx_arr[~valid_mask].tolist()
         
@@ -956,104 +927,73 @@ class SubsetRestrictedProteinCyclingDataLoader:
         dddg_arr = val_dddg[valid_mask]
         
         H, xedges, yedges = np.histogram2d(ddg_add_arr, dddg_arr, bins=bins)
-        
         populated_counts = H[H > 0]
+        
         if len(populated_counts) == 0:
             return indices
             
         cap = int(np.percentile(populated_counts, cap_percentile))
         cap = max(1, cap)
         
-        x_bins = np.digitize(ddg_add_arr, xedges[:-1]) - 1
-        y_bins = np.digitize(dddg_arr, yedges[:-1]) - 1
-        x_bins = np.clip(x_bins, 0, bins - 1)
-        y_bins = np.clip(y_bins, 0, bins - 1)
+        x_bins = np.clip(np.digitize(ddg_add_arr, xedges[:-1]) - 1, 0, bins - 1)
+        y_bins = np.clip(np.digitize(dddg_arr, yedges[:-1]) - 1, 0, bins - 1)
         
         bin_dict: Dict[Tuple[int, int], List[int]] = {}
         for i, idx in enumerate(valid_indices):
             coord = (x_bins[i], y_bins[i])
-            if coord not in bin_dict:
-                bin_dict[coord] = []
-            bin_dict[coord].append(idx)
+            bin_dict.setdefault(coord, []).append(idx)
             
         balanced_indices = []
-        
         for coord, binned_idxs in bin_dict.items():
             if len(binned_idxs) > cap:
-                # Random sampling per epoch
                 self._rng.shuffle(binned_idxs)
                 balanced_indices.extend(binned_idxs[:cap])
             else:
                 balanced_indices.extend(binned_idxs)
                 
-        # Handle the missing/NaN epistasis items with the default cap fraction
         max_missing = int(len(balanced_indices) * missing_cap_fraction)
         self._rng.shuffle(missing_keys_indices)
         missing_to_add = missing_keys_indices[:max_missing]
         
+        logging.info(f"Balanced '{subset_name}' Final Size: {len(indices)} -> {len(balanced_indices) + len(missing_to_add)}")
+
         if self.verbose:
             c_valid, m_valid, s_valid = self._get_ddg_stats(valid_indices, dataset)
             c_bal, m_bal, s_bal = self._get_ddg_stats(balanced_indices, dataset)
             c_miss, m_miss, s_miss = self._get_ddg_stats(missing_keys_indices, dataset)
             
-            logging.debug(f"\n[DEBUG] 2D Balance Stats for {protein_name} - '{subset_name}':")
-            logging.debug(f"  -> Pre-subsample (Valid 2D): Count={c_valid}, Mean(ddG)={m_valid:.3f}, Std(ddG)={s_valid:.3f}")
-            logging.debug(f"  -> Post-subsample (Valid 2D): Count={c_bal}, Mean(ddG)={m_bal:.3f}, Std(ddG)={s_bal:.3f}")
-            logging.debug(f"  -> Missing/NaN Items: Count={c_miss}, Mean(ddG)={m_miss:.3f}, Std(ddG)={s_miss:.3f}")
-            logging.debug(f"  -> Missing Items Capped: {len(missing_keys_indices)} -> {len(missing_to_add)} "
+            logging.info(f"\n[info] 2D Balance Stats for {protein_name} - '{subset_name}':")
+            logging.info(f"  -> Pre-subsample (Valid 2D): Count={c_valid}, Mean(ddG)={m_valid:.3f}, Std(ddG)={s_valid:.3f}")
+            logging.info(f"  -> Post-subsample (Valid 2D): Count={c_bal}, Mean(ddG)={m_bal:.3f}, Std(ddG)={s_bal:.3f}")
+            logging.info(f"  -> Missing/NaN Items: Count={c_miss}, Mean(ddG)={m_miss:.3f}, Std(ddG)={s_miss:.3f}")
+            logging.info(f"  -> Missing Items Capped: {len(missing_keys_indices)} -> {len(missing_to_add)} "
                   f"({missing_cap_fraction*100:.1f}% of {len(balanced_indices)} post-subsampled items)")
-            logging.debug(f"Balanced '{subset_name}' Final Size: {len(indices)} -> {len(balanced_indices) + len(missing_to_add)} "
+            logging.info(f"Balanced '{subset_name}' Final Size: {len(indices)} -> {len(balanced_indices) + len(missing_to_add)} "
                   f"(bins={bins}, random cap={cap} items/bin.)\n")
                   
         balanced_indices.extend(missing_to_add)
         return balanced_indices
 
-    def _initialize_epoch(self) -> None:
-        """Sets up random states, shuffling, and subset sampling for a new epoch."""
-        if self.verbose:
-            logging.info(f"\nInitializing epoch {self.epoch_counter} (strategy='{self.strategy}')...")
+    def _calculate_epoch_batches(self, dry_run: bool = False) -> int:
+        """Core logic to balance, shuffle, and chunk datasets."""
+        self.all_batches = [] # List of dataset batch lists
         
-        combined = list(zip(self.dataloaders, self.train_list))
-        self._rng.shuffle(combined)
-        if combined:
-            self.dataloaders, self.train_list = map(list, zip(*combined))
-        
-        self.protein_states = []
-        
-        for idx in range(len(self.dataloaders)):
-            dl = self.dataloaders[idx]
-            ds = dl.dataset
-            protein_name = self.train_list[idx] if idx < len(self.train_list) else f"protein_{idx}"
+        for idx, ds in enumerate(self.datasets):
+            protein_name = self.train_list[idx]
+            buckets = {k: list(v) for k, v in self._cached_buckets[idx].items()} # copy
             
-            # 1. Sort dataset items into buckets
-            buckets: Dict[str, List[int]] = {k: [] for k in self.SUBSET_ORDER if k != 'over_and_back'}
-            first_pdb = None
-            if len(ds) > 0:
-                first_pdb = ds[0].get('pdb')
-
-            for i in range(len(ds)):
-                item = ds[i]
-                if item.get('pdb') != first_pdb:
-                    raise AssertionError(f"PDB ID mismatch in {protein_name}: item {i} has {item.get('pdb')}, expected {first_pdb}")
-                subset_type = item.get('subset_type', 'single')
-                if subset_type not in buckets:
-                    subset_type = 'single'
-                buckets[subset_type].append(i)
-            
-            # 2. Apply 2D Balance to configurations (e.g. doubles)
+            # Apply 2D balancing
             if self.subset_balance_configs is not None:
                 for subset_name, config in self.subset_balance_configs.items():
                     if subset_name in buckets and len(buckets[subset_name]) > 0:
-                        if subset_name != 'over_and_back':
-                            buckets[subset_name] = self._balance_subset_2d(
-                                buckets[subset_name], ds, protein_name, config, subset_name
-                            )
-                            
-            # 3. Calculate total unrestricted items and apply fraction caps
+                        buckets[subset_name] = self._balance_subset_2d(
+                            buckets[subset_name], ds, protein_name, config, subset_name
+                        )
+
+            # Apply subset capping based on unrestricted size
             total_unrestricted = sum(len(buckets[k]) for k in self.unrestricted_keys if k in buckets)
-            
             if total_unrestricted == 0:
-                raise AssertionError(f"Total unrestricted samples for {protein_name} dropped to 0. Cannot compute caps.")
+                raise AssertionError(f"Total unrestricted samples for {protein_name} dropped to 0.")
             
             for k, items in buckets.items():
                 if k not in self.unrestricted_keys:
@@ -1065,247 +1005,86 @@ class SubsetRestrictedProteinCyclingDataLoader:
                             buckets[k] = items[:max_allowed]
                     elif cap_fraction == 0.0 or cap_fraction == 0:
                         buckets[k] = []
-                        
-            # 4. Flatten completely and pre-fuse items
-            protein_flat_items = []
-            counts = {k: 0 for k in self.SUBSET_ORDER}
-            
+
+            # Flatten and global offset map for ConcatDataset
+            flat_indices = []
             for k, items in buckets.items():
-                for idx in items:
-                    protein_flat_items.append(ds[idx])
-                    counts[k] += 1
-                        
-            self._rng.shuffle(protein_flat_items)
-            
-            state = ProteinSamplerState(
-                protein_name=protein_name,
-                items=protein_flat_items
-            )
-            self.protein_states.append(state)
-            
-            if self.verbose:
-                logging.info(f"[{protein_name}] Flat Pool: {len(protein_flat_items)} total items | {counts}")
-
-        # 5. Set Strategy Constraints
-        if self.strategy == 'min':
-            min_batches = min(len(ps.items) // self.batch_size for ps in self.protein_states)
-            self.target_batches = min_batches * len(self.protein_states)
-            for ps in self.protein_states:
-                ps.batches_allocated = min_batches
-            if self.verbose:
-                logging.info(f"\nStrategy 'min': All proteins truncated to {min_batches} batches.")
+                flat_indices.extend(items)
                 
-        elif self.strategy == 'all':
-            self.target_batches = sum(len(ps.items) // self.batch_size for ps in self.protein_states)
-            for ps in self.protein_states:
-                ps.batches_allocated = len(ps.items) // self.batch_size
-            if self.verbose:
-                logging.info(f"\nStrategy 'all': Target {self.target_batches} total batches.")
-
-        self.total_batches_drawn = 0
-        self.current_loader_idx = 0
-        self._initialized = True
-        self.epoch_counter += 1
-
-    def __len__(self) -> int:
-        return self.target_batches if self._initialized else 0
-    
-    def __iter__(self):
-        self._initialize_epoch()
-        return self
-    
-    def __next__(self):
-        if self.total_batches_drawn >= self.target_batches:
-            raise StopIteration
-        
-        if self.strategy == 'min':
-            num_proteins = len(self.protein_states)
-            for _ in range(num_proteins):
-                ps = self.protein_states[self.current_loader_idx]
-                self.current_loader_idx = (self.current_loader_idx + 1) % num_proteins
-                
-                if ps.batches_drawn < ps.batches_allocated and ps.remaining_items >= self.batch_size:
-                    batch = ps.items[ps.cursor : ps.cursor + self.batch_size]
-                    ps.cursor += self.batch_size
-                    ps.batches_drawn += 1
-                    self.total_batches_drawn += 1
-                    return self.collate_fn(batch)
-            raise StopIteration
+            self._rng.shuffle(flat_indices)
+            offset = self.offsets[idx]
             
-        else: # strategy == 'all'
-            available = [
-                ps for ps in self.protein_states 
-                if ps.batches_drawn < ps.batches_allocated and ps.remaining_items >= self.batch_size
+            # Create batches for this dataset
+            ds_batches = [
+                [i + offset for i in flat_indices[start:start + self.batch_size]]
+                for start in range(0, len(flat_indices), self.batch_size)
             ]
-            if not available:
-                raise StopIteration
-                
-            ps = self._rng.choice(available)
-            batch = ps.items[ps.cursor : ps.cursor + self.batch_size]
-            ps.cursor += self.batch_size
-            ps.batches_drawn += 1
-            self.total_batches_drawn += 1
-            return self.collate_fn(batch)
+            
+            # Filter out undersized batches based on PyTorch default behavior expectations
+            ds_batches = [b for b in ds_batches if len(b) == self.batch_size] 
+            self.all_batches.append(ds_batches)
 
-    def reset_epoch(self) -> None:
-        self._initialize_epoch()
-
-
-class ProteinCyclingDataLoader:
-    """
-    Simpler cycling dataloader wrapper to balance and iterate over multiple
-    DataLoaders based on specified strategies.
-    """
-    def __init__(self, dataloaders, batch_size, train_list, collate_fn, strategy='min', positional=False):
-        self.dataloaders = dataloaders
-        self.batch_size = batch_size
-        self.train_list = train_list
-        self.num_dataloaders = len(dataloaders)
-        self.current_loader_idx = 0
-        self.strategy = strategy
-        self.positional = positional
-        self.collate_fn = collate_fn
-
-        # Store lengths instead of computing them repeatedly
-        self.dataloader_lengths = [len(dl) for dl in self.dataloaders]
-        self.min_length = min(self.dataloader_lengths)
-        self.max_length = max(self.dataloader_lengths)
-        
-        self.batches_drawn = [0] * self.num_dataloaders
-        self.total_batches_drawn = 0
+        # Apply cycling strategy to interleave batches
+        final_batches = []
         if self.strategy == 'min':
-            self.target_batches = self.min_length * self.num_dataloaders
-        elif self.strategy == 'all':
-            self.target_batches = sum(self.dataloader_lengths)
-        else:
-            raise AssertionError('strategy must be one of: min, repeat, all')
-        self.epoch_ended = False
-        
-        # Keep track of iterators separately
-        self.iterators = {}
+            min_len = min(len(b) for b in self.all_batches)
+            for i in range(min_len):
+                for ds_batch_list in self.all_batches:
+                    final_batches.append(ds_batch_list[i])
+        else: # 'all'
+            for ds_batch_list in self.all_batches:
+                final_batches.extend(ds_batch_list)
+            self._rng.shuffle(final_batches)
+            
+        if not dry_run:
+            self._active_batches = final_batches
+            
+        return len(final_batches)
 
-        # Probability weights for selecting dataloaders
-        self.weights = np.array(self.dataloader_lengths, dtype=np.float32) / sum(self.dataloader_lengths)
-
-        logging.info("Dataloader lengths:")
-        for name, length in zip(self.train_list, self.dataloader_lengths):
-            logging.info(f"{name}: {length}")
-        logging.info(f"Min length: {self.min_length}")
-        logging.info(f"Target batches: {self.target_batches}")
+    def __iter__(self) -> Iterator[List[int]]:
+        """Invoked by PyTorch workers at the start of every epoch."""
+        self._calculate_epoch_batches(dry_run=False)
+        yield from self._active_batches
 
     def __len__(self) -> int:
-        return self.target_batches
+        return self.num_batches
 
-    def reset_dataloader(self, idx: int):
-        """Reset a specific dataloader."""
-        if idx in self.iterators:
-            del self.iterators[idx]
-            
-        old_dataloader = self.dataloaders[idx]
-        
-        generator = torch.Generator()
-        
-        # Create new dataloader
-        self.dataloaders[idx] = DataLoader(
-            old_dataloader.dataset,
-            collate_fn=self.collate_fn,
-            generator=generator,
-            batch_size=self.batch_size,
-        )
 
-        gc.collect()
-
-    def shuffle_all(self):
-        """Reset all dataloaders."""
-        logging.info('Shuffling dataloaders.')
-        
-        # Zip dataloaders and train_list to shuffle them in sync
-        combined = list(zip(self.dataloaders, self.train_list))
-        random.shuffle(combined)
-        self.dataloaders, self.train_list = zip(*combined)
-        
-        # Convert back to lists
-        self.dataloaders = list(self.dataloaders)
-        self.train_list = list(self.train_list)
-        
-        self.dataloader_lengths = [len(dl) for dl in self.dataloaders]
-        
-        logging.info('Dataloader lengths:')
-        for name, length in zip(self.train_list, self.dataloader_lengths):
-            logging.info(f"{name}: {length}")
-            
-        self.weights = np.array(self.dataloader_lengths, dtype=np.float32) / sum(self.dataloader_lengths)
-        for idx in tqdm(range(self.num_dataloaders)):
-            self.reset_dataloader(idx)
-        
-        self.iterators.clear()
-        
-        self.total_batches_drawn = 0
-        self.batches_drawn = [0] * self.num_dataloaders
-        self.current_loader_idx = 0
-        
-        gc.collect()
-        logging.info('Shuffled all dataloaders.')
-
-    def reset_epoch(self):
-        """Reset for new epoch."""
-        self.epoch_ended = False
-        self.shuffle_all()
-
-    def __iter__(self):
-        self.reset_epoch()
-        return self
-
-    def get_current_iterator(self):
-        """Get iterator for current loader, creating if necessary and checking for exhaustion."""
-        if self.current_loader_idx not in self.iterators:
-            if self.strategy != 'repeat' and self.batches_drawn[self.current_loader_idx] >= len(self.dataloaders[self.current_loader_idx]):
-                return None
-            self.iterators[self.current_loader_idx] = iter(self.dataloaders[self.current_loader_idx])
-        return self.iterators[self.current_loader_idx]
-
-    def update_weights(self):
-        """Update weights based on remaining batches."""
-        remaining_batches = [max(0, len(dl) - drawn) for dl, drawn in zip(self.dataloaders, self.batches_drawn)]
-        total_remaining = sum(remaining_batches)
-        self.weights = np.array(remaining_batches, dtype=np.float32) / total_remaining if total_remaining > 0 else np.zeros_like(self.weights)
-
-    def __next__(self):
-        if self.total_batches_drawn >= self.target_batches:
-            logging.info('Stopping due to drawing target number of batches')
-            raise StopIteration
-        
-        while True:
-            logging.info(f'Sampling from {self.train_list[self.current_loader_idx]}')
-
-            if self.strategy == 'all':
-                self.update_weights()
-                self.current_loader_idx = np.random.choice(self.num_dataloaders, p=self.weights)
-
-            current_iterator = self.get_current_iterator()
-            
-            if current_iterator is None:
-                if self.strategy != 'all':
-                    self.current_loader_idx = (self.current_loader_idx + 1) % self.num_dataloaders
-                continue
-
-            try:
-                batch = next(current_iterator)
-            except StopIteration:
-                logging.warning(f"Loader {self.train_list[self.current_loader_idx]} unexpectedly exhausted.")
-                self.batches_drawn[self.current_loader_idx] = self.dataloader_lengths[self.current_loader_idx]
-                continue
-                
-            self.batches_drawn[self.current_loader_idx] += 1
-            self.total_batches_drawn += 1
-            if self.strategy != 'all':
-                self.current_loader_idx = (self.current_loader_idx + 1) % self.num_dataloaders
-
-            if len(batch['ddG']) < self.batch_size:
-                logging.info(f'Smaller than expected batch of size {len(batch["ddG"])} / {self.batch_size} detected!')
-                logging.info(f"Loader: {self.train_list[self.current_loader_idx]} has been exhausted")
-                
-            return batch
+def create_consolidated_dataloader(
+    dataloaders: List[DataLoader], 
+    train_list: List[str], 
+    batch_size: int, 
+    collate_fn: Callable, 
+    strategy: str = 'all', 
+    subset_caps: Optional[Dict[str, Optional[float]]] = None,
+    subset_balance_configs: Optional[Dict[str, Dict[str, Any]]] = None,
+    num_workers: int = 4,
+    pin_memory: bool = True
+) -> DataLoader:
+    """
+    Factory function replacing both SubsetRestrictedProteinCyclingDataLoader 
+    and ProteinCyclingDataLoader.
+    """
+    datasets = [dl.dataset for dl in dataloaders]
+    
+    sampler = ProteinCyclingBatchSampler(
+        datasets=datasets,
+        batch_size=batch_size,
+        train_list=train_list,
+        strategy=strategy,
+        subset_caps=subset_caps,
+        subset_balance_configs=subset_balance_configs
+    )
+    
+    concat_dataset = ConcatDataset(datasets)
+    
+    return DataLoader(
+        concat_dataset,
+        batch_sampler=sampler,
+        collate_fn=collate_fn,
+        num_workers=num_workers,
+        pin_memory=pin_memory
+    )
         
 
 class PooledDataLoader:
