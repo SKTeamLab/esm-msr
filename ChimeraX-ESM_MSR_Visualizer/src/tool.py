@@ -13,7 +13,7 @@ from chimerax.atomic import Structure
 from Qt.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog,
     QHBoxLayout, QLineEdit, QFrame, QGroupBox, QCheckBox, QSpinBox, QDoubleSpinBox,
-    QComboBox, QTabWidget
+    QComboBox, QTabWidget, QRadioButton, QButtonGroup
 )
 from Qt.QtCore import QProcess, QSettings
 
@@ -42,6 +42,10 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         # 2. LOAD STATE VARIABLES
         self.base_repo_path = self.settings.value("base_repo_path", "")
         self.python_env = self.settings.value("python_env", "")
+        self.script_output_csv_path = self.settings.value("script_output_csv_path", "")
+        self.checkpoint_path = self.settings.value("checkpoint_path", "")
+        self.config_file = self.settings.value("config_file", "")
+        self.base_model_loc = self.settings.value("base_model_loc", "")
         
         self._closing = False
         self._temp_dir_to_cleanup = None
@@ -61,7 +65,10 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         # 4. POPULATE UI WITH DYNAMIC PATHS
         self._update_paths_from_base_repo(self.base_repo_path, is_init=True)
         
-        # 5. REGISTER CHIMERAX EVENT HOOKS
+        # 5. INITIAL PATH VALIDATION
+        self._validate_file_paths()
+        
+        # 6. REGISTER CHIMERAX EVENT HOOKS
         try:
             self._models_added_handler = self.session.triggers.add_handler('add models', self._refresh_models)
             self._models_removed_handler = self.session.triggers.add_handler('remove models', self._refresh_models)
@@ -89,10 +96,6 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         self._build_screening_tab(self.tab_screening)
         self.tabs.addTab(self.tab_screening, "Screening Config")
 
-        self.tab_advanced = QWidget()
-        self._build_advanced_tab(self.tab_advanced)
-        self.tabs.addTab(self.tab_advanced, "Model & Checkpoint")
-
         self.tab_viz = QWidget()
         self._build_viz_tab(self.tab_viz)
         self.tabs.addTab(self.tab_viz, "Visualization")
@@ -108,6 +111,12 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         self.run_prediction_button.setStyleSheet("font-weight: bold; padding: 5px;")
         self.run_prediction_button.clicked.connect(self._initiate_run_prediction_script)
         global_exec_layout.addWidget(self.run_prediction_button)
+
+        self.stop_prediction_button = QPushButton("STOP")
+        self.stop_prediction_button.setStyleSheet("background-color: red; color: white; font-weight: bold; padding: 5px;")
+        self.stop_prediction_button.clicked.connect(self._stop_prediction_script)
+        self.stop_prediction_button.setVisible(False)
+        global_exec_layout.addWidget(self.stop_prediction_button)
 
         self.load_button = QPushButton("Load CSV + Visualize Scores")
         self.load_button.clicked.connect(self._handle_load_and_visualize)
@@ -150,99 +159,239 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
         out_csv_layout = QHBoxLayout()
         out_csv_layout.addWidget(QLabel("Output CSV:"))
-        self.script_output_csv_path_edit = QLineEdit()
+        self.script_output_csv_path_edit = QLineEdit(self.script_output_csv_path)
         out_csv_layout.addWidget(self.script_output_csv_path_edit)
         btn = QPushButton("Browse...")
         btn.clicked.connect(self._browse_script_output_csv)
         out_csv_layout.addWidget(btn)
         paths_layout.addLayout(out_csv_layout)
-        
+
+        layout.addWidget(paths_group)
+
+        # Model Source Group
+        source_group = QGroupBox("Model Weights Source")
+        source_layout = QVBoxLayout()
+        source_group.setLayout(source_layout)
+
+        self.source_btn_group = QButtonGroup()
+
+        # HF Token Radio
         hf_layout = QHBoxLayout()
-        hf_layout.addWidget(QLabel("HF Token:"))
+        self.radio_hf = QRadioButton("HuggingFace Token:")
+        self.source_btn_group.addButton(self.radio_hf)
+        hf_layout.addWidget(self.radio_hf)
         self.hf_token_edit = QLineEdit()
         self.hf_token_edit.setPlaceholderText("Optional: HuggingFace Token (for ESM3 weights)")
         self.hf_token_edit.setEchoMode(QLineEdit.Password)
         hf_layout.addWidget(self.hf_token_edit)
-        paths_layout.addLayout(hf_layout)
+        source_layout.addLayout(hf_layout)
 
-        layout.addWidget(paths_group)
+        # Base Model Location Radio
+        base_loc_layout = QHBoxLayout()
+        self.radio_base_loc = QRadioButton("Base Model Location (data folder):")
+        self.source_btn_group.addButton(self.radio_base_loc)
+        base_loc_layout.addWidget(self.radio_base_loc)
+        self.base_model_loc_edit = QLineEdit(self.base_model_loc)
+        self.base_model_loc_edit.setPlaceholderText("Path to offline model folder")
+        base_loc_layout.addWidget(self.base_model_loc_edit)
+        btn = QPushButton("Browse...")
+        btn.clicked.connect(lambda: self._browse_generic_dir(self.base_model_loc_edit, "Select Model Directory", "base_model_loc"))
+        base_loc_layout.addWidget(btn)
+        source_layout.addLayout(base_loc_layout)
 
-        # Target Selection Group
-        target_group = QGroupBox("Target Selection")
-        target_layout = QVBoxLayout()
-        target_group.setLayout(target_layout)
+        layout.addWidget(source_group)
 
-        model_chain_layout = QHBoxLayout()
-        model_chain_layout.addWidget(QLabel("Target Model:"))
-        self.pred_model_combobox = QComboBox()
-        self.pred_model_combobox.currentIndexChanged.connect(self._on_model_selected)
-        model_chain_layout.addWidget(self.pred_model_combobox)
-
-        model_chain_layout.addWidget(QLabel("Chain:"))
-        self.pred_chain_id_combobox = QComboBox()
-        self.pred_chain_id_combobox.setEditable(True)
-        model_chain_layout.addWidget(self.pred_chain_id_combobox)
-        target_layout.addLayout(model_chain_layout)
-
+        # Compute Environment (Moved from Model & Checkpoint)
+        device_group = QGroupBox("Compute Environment")
         device_layout = QHBoxLayout()
+        device_group.setLayout(device_layout)
+        
         device_layout.addWidget(QLabel("Compute Device:"))
         self.device_combobox = QComboBox()
         self.device_combobox.addItems(['cuda', 'cuda:0', 'cuda:1', 'mps', 'cpu'])
         device_layout.addWidget(self.device_combobox)
-        target_layout.addLayout(device_layout)
         
-        layout.addWidget(target_group)
+        device_layout.addSpacing(20)
+        
+        device_layout.addWidget(QLabel("Batch Size (lower this if you get CUDA OOM):"))
+        self.batch_size_spinbox = QSpinBox()
+        self.batch_size_spinbox.setRange(1, 512)
+        self.batch_size_spinbox.setValue(16)
+        device_layout.addWidget(self.batch_size_spinbox)
+        
+        layout.addWidget(device_group)
+
+        # Config Files (Moved from Model & Checkpoint)
+        files_group = QGroupBox("Model Configuration Files")
+        files_layout = QVBoxLayout()
+        files_group.setLayout(files_layout)
+        
+        row1 = QHBoxLayout()
+        row1.addWidget(QLabel("Checkpoint (.ckpt):"))
+        self.checkpoint_path_edit = QLineEdit(self.checkpoint_path)
+        self.checkpoint_path_edit.textChanged.connect(self._validate_file_paths)
+        row1.addWidget(self.checkpoint_path_edit)
+        btn = QPushButton("Browse...")
+        btn.clicked.connect(self._browse_checkpoint_path)
+        row1.addWidget(btn)
+        files_layout.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("LoRA Config (JSON/YAML):"))
+        self.config_file_edit = QLineEdit(self.config_file)
+        self.config_file_edit.textChanged.connect(self._validate_file_paths)
+        self.config_file_edit.setPlaceholderText("Optional config or hparams file")
+        row2.addWidget(self.config_file_edit)
+        btn = QPushButton("Browse...")
+        btn.clicked.connect(lambda: self._browse_generic(self.config_file_edit, "Select Config", "JSON/YAML (*.json *.yaml *.yml);;All (*)", "config_file"))
+        row2.addWidget(btn)
+        files_layout.addLayout(row2)
+
+        # File validation warning label
+        self.file_warning_label = QLabel("")
+        self.file_warning_label.setStyleSheet("color: red; font-weight: bold;")
+        files_layout.addWidget(self.file_warning_label)
+
+        layout.addWidget(files_group)
         layout.addStretch()
+
+        # Connect UI logic
+        self.radio_hf.toggled.connect(self._update_source_ui)
+        self.radio_base_loc.toggled.connect(self._update_source_ui)
+        
+        # Set default
+        self.radio_hf.setChecked(True)
+        self._update_source_ui()
+
+    def _validate_file_paths(self):
+        warnings = []
+        ckpt = self.checkpoint_path_edit.text().strip()
+        cfg = self.config_file_edit.text().strip()
+
+        if ckpt and not os.path.exists(ckpt):
+            warnings.append("Checkpoint file does not exist.")
+        if cfg and not os.path.exists(cfg):
+            warnings.append("Config file does not exist.")
+
+        if warnings:
+            self.file_warning_label.setText("WARNING: " + " | ".join(warnings))
+        else:
+            self.file_warning_label.setText("")
+
+    def _update_source_ui(self):
+        is_hf = self.radio_hf.isChecked()
+        self.hf_token_edit.setEnabled(is_hf)
+        
+        is_base_loc = self.radio_base_loc.isChecked()
+        self.base_model_loc_edit.setEnabled(is_base_loc)
+        self.base_model_loc_edit.parent().findChildren(QPushButton)[0].setEnabled(is_base_loc) # Disable browse button if needed
 
     def _build_screening_tab(self, parent_widget):
         layout = QVBoxLayout()
         parent_widget.setLayout(layout)
+
+        # Target Selection Group
+        target_group = QGroupBox("Target Selection")
+        target_layout = QHBoxLayout()
+        target_group.setLayout(target_layout)
+
+        target_layout.addWidget(QLabel("Target Model:"))
+        self.pred_model_combobox = QComboBox()
+        self.pred_model_combobox.currentIndexChanged.connect(self._on_model_selected)
+        target_layout.addWidget(self.pred_model_combobox)
+
+        target_layout.addWidget(QLabel("Chain:"))
+        self.pred_chain_id_combobox = QComboBox()
+        self.pred_chain_id_combobox.setEditable(True)
+        target_layout.addWidget(self.pred_chain_id_combobox)
+        
+        layout.addWidget(target_group)
 
         # Mutations Scope Group
         scope_group = QGroupBox("Mutation Scope (Mutually Exclusive Inputs)")
         scope_layout = QVBoxLayout()
         scope_group.setLayout(scope_layout)
 
+        self.scope_btn_group = QButtonGroup()
+
         # Mode 1: Automated Screening
-        meth1_layout = QHBoxLayout()
-        meth1_layout.addWidget(QLabel("1. Auto Mode:"))
+        meth1_layout = QVBoxLayout()
+        
+        meth1_row1 = QHBoxLayout()
+        self.radio_full = QRadioButton("1. Full Screen:")
+        self.scope_btn_group.addButton(self.radio_full)
+        meth1_row1.addWidget(self.radio_full)
+
         self.mode_combobox = QComboBox()
         self.mode_combobox.addItems(['singles', 'doubles', 'both'])
-        meth1_layout.addWidget(self.mode_combobox)
+        self.mode_combobox.currentTextChanged.connect(self._update_scope_ui)
+        meth1_row1.addWidget(self.mode_combobox)
         
-        meth1_layout.addWidget(QLabel("Positions (CSV):"))
+        meth1_row1.addWidget(QLabel("Positions:"))
         self.selected_residues_edit = QLineEdit()
         self.selected_residues_edit.setPlaceholderText("e.g. 11,12 (Empty=All)")
-        meth1_layout.addWidget(self.selected_residues_edit)
+        meth1_row1.addWidget(self.selected_residues_edit)
 
         self.grab_sel_button = QPushButton("Grab Selection")
         self.grab_sel_button.clicked.connect(self._grab_selection)
-        meth1_layout.addWidget(self.grab_sel_button)
+        meth1_row1.addWidget(self.grab_sel_button)
 
         self.screen_except_checkbox = QCheckBox("Invert (Except)")
-        meth1_layout.addWidget(self.screen_except_checkbox)
+        meth1_row1.addWidget(self.screen_except_checkbox)
+        meth1_layout.addLayout(meth1_row1)
+
+        # Mode 1 - Distance Filter Row
+        meth1_row2 = QHBoxLayout()
+        meth1_row2.addSpacing(20) # Indent to show it belongs to mode 1
+        self.enable_distance_checkbox = QCheckBox("Filter doubles by distance (Å):")
+        self.enable_distance_checkbox.setChecked(False)
+        self.enable_distance_checkbox.toggled.connect(self._toggle_distance_spinbox)
+        meth1_row2.addWidget(self.enable_distance_checkbox)
+
+        self.distance_threshold_spinbox = QDoubleSpinBox()
+        self.distance_threshold_spinbox.setRange(0.0, 100.0)
+        self.distance_threshold_spinbox.setValue(6.0)
+        self.distance_threshold_spinbox.setEnabled(False) # Default off
+        meth1_row2.addWidget(self.distance_threshold_spinbox)
+        meth1_row2.addStretch()
+        meth1_layout.addLayout(meth1_row2)
+
         scope_layout.addLayout(meth1_layout)
 
         # Mode 2: Input CSV
         meth2_layout = QHBoxLayout()
-        meth2_layout.addWidget(QLabel("2. Input CSV:"))
+        self.radio_csv = QRadioButton("2. Specify mutations in CSV:")
+        self.scope_btn_group.addButton(self.radio_csv)
+        meth2_layout.addWidget(self.radio_csv)
+
         self.subset_df_edit = QLineEdit()
         self.subset_df_edit.setPlaceholderText("Path to input DataFrame...")
         meth2_layout.addWidget(self.subset_df_edit)
-        btn = QPushButton("Browse...")
-        btn.clicked.connect(self._browse_subset_df)
-        meth2_layout.addWidget(btn)
+        self.subset_df_btn = QPushButton("Browse...")
+        self.subset_df_btn.clicked.connect(self._browse_subset_df)
+        meth2_layout.addWidget(self.subset_df_btn)
         scope_layout.addLayout(meth2_layout)
 
         # Mode 3: Specific Mutations
         meth3_layout = QHBoxLayout()
-        meth3_layout.addWidget(QLabel("3. Explicit Muts:"))
+        self.radio_explicit = QRadioButton("3. Input Mutations Directly:")
+        self.scope_btn_group.addButton(self.radio_explicit)
+        meth3_layout.addWidget(self.radio_explicit)
+
         self.mutations_edit = QLineEdit()
         self.mutations_edit.setPlaceholderText("e.g., A12C,A12C:D15E")
         meth3_layout.addWidget(self.mutations_edit)
         scope_layout.addLayout(meth3_layout)
         
         layout.addWidget(scope_group)
+
+        # Connect UI logic
+        self.radio_full.toggled.connect(self._update_scope_ui)
+        self.radio_csv.toggled.connect(self._update_scope_ui)
+        self.radio_explicit.toggled.connect(self._update_scope_ui)
+        
+        # Set default
+        self.radio_full.setChecked(True)
 
         # Runtime Options
         runtime_group = QGroupBox("Screening Parameters")
@@ -252,167 +401,74 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         row1 = QHBoxLayout()
         row1.addWidget(QLabel("Mask Strategy:"))
         self.mask_strategy_combobox = QComboBox()
-        self.mask_strategy_combobox.addItems(['None', 'marginal', 'chain'])
+        self.mask_strategy_combobox.addItems(['Default (unmasked)', 'marginal', 'chain'])
         row1.addWidget(self.mask_strategy_combobox)
+        
+        # TODO: Add helper text for Mask Strategy selection here. 
+        # (e.g., replace the stretch below with a QLabel containing your helper text)
+        row1.addStretch()
 
-        row1.addWidget(QLabel("Batch Size:"))
-        self.batch_size_spinbox = QSpinBox()
-        self.batch_size_spinbox.setRange(1, 512)
-        self.batch_size_spinbox.setValue(16)
-        row1.addWidget(self.batch_size_spinbox)
         runtime_layout.addLayout(row1)
 
-        row2 = QHBoxLayout()
-        row2.addWidget(QLabel("Distance Threshold (Å):"))
-        self.distance_threshold_spinbox = QDoubleSpinBox()
-        self.distance_threshold_spinbox.setRange(0.0, 100.0)
-        self.distance_threshold_spinbox.setValue(6.0)
-        row2.addWidget(self.distance_threshold_spinbox)
-
-        self.calculate_distances_checkbox = QCheckBox("Calculate Distances (for CSV)")
-        row2.addWidget(self.calculate_distances_checkbox)
-        runtime_layout.addLayout(row2)
-
         row3 = QHBoxLayout()
-        row3.addWidget(QLabel("Global Backbone Mutation:"))
+        row3.addWidget(QLabel("Artificial Background Mutation:"))
         self.backbone_mutation_edit = QLineEdit()
         self.backbone_mutation_edit.setPlaceholderText("e.g., A15G")
         row3.addWidget(self.backbone_mutation_edit)
         runtime_layout.addLayout(row3)
 
+        # Execution flags moved into Screening Parameters
+        flags_layout = QHBoxLayout()
+        self.skip_additive_checkbox = QCheckBox("Approximate Epistasis (Not Recommended)")
+        flags_layout.addWidget(self.skip_additive_checkbox)
+        self.skip_reverse_checkbox = QCheckBox("Skip MT pass (Additive Approximation)")
+        flags_layout.addWidget(self.skip_reverse_checkbox)
+        flags_layout.addStretch()
+        runtime_layout.addLayout(flags_layout)
+        
+        # Protein Complex Mode
+        complex_layout = QHBoxLayout()
+        complex_layout.addWidget(QLabel("Protein Complex Mode (Experimental):"))
+        self.quaternary_mode_combobox = QComboBox()
+        self.quaternary_mode_combobox.addItems(["single_chain", "complex"])
+        complex_layout.addWidget(self.quaternary_mode_combobox)
+        complex_layout.addStretch()
+        runtime_layout.addLayout(complex_layout)
+
         layout.addWidget(runtime_group)
         layout.addStretch()
 
-    def _build_advanced_tab(self, parent_widget):
-        layout = QVBoxLayout()
-        parent_widget.setLayout(layout)
+    def _update_scope_ui(self):
+        # Enable Full Screen inputs
+        is_full = self.radio_full.isChecked()
+        self.mode_combobox.setEnabled(is_full)
+        self.selected_residues_edit.setEnabled(is_full)
+        self.grab_sel_button.setEnabled(is_full)
+        self.screen_except_checkbox.setEnabled(is_full)
 
-        # Config Files
-        files_group = QGroupBox("Model Configuration Files")
-        files_layout = QVBoxLayout()
-        files_group.setLayout(files_layout)
+        # Handle distance checkbox logic safely
+        current_mode = self.mode_combobox.currentText()
+        is_doubles_mode = current_mode in ['doubles', 'both']
+        should_enable_dist = is_full and is_doubles_mode
         
-        row1 = QHBoxLayout()
-        row1.addWidget(QLabel("Checkpoint (.ckpt):"))
-        self.checkpoint_path_edit = QLineEdit()
-        row1.addWidget(self.checkpoint_path_edit)
-        btn = QPushButton("Browse...")
-        btn.clicked.connect(self._browse_checkpoint_path)
-        row1.addWidget(btn)
-        files_layout.addLayout(row1)
+        self.enable_distance_checkbox.setEnabled(should_enable_dist)
+        if not should_enable_dist:
+            self.enable_distance_checkbox.setChecked(False)
+            self.distance_threshold_spinbox.setEnabled(False)
+        else:
+            self.distance_threshold_spinbox.setEnabled(self.enable_distance_checkbox.isChecked())
 
-        row2 = QHBoxLayout()
-        row2.addWidget(QLabel("LoRA Config (JSON):"))
-        self.lora_config_edit = QLineEdit()
-        self.lora_config_edit.setPlaceholderText("Optional config file")
-        row2.addWidget(self.lora_config_edit)
-        btn = QPushButton("Browse...")
-        btn.clicked.connect(lambda: self._browse_generic(self.lora_config_edit, "Select LoRA JSON", "JSON (*.json);;All (*)"))
-        row2.addWidget(btn)
-        files_layout.addLayout(row2)
+        # Enable CSV inputs
+        is_csv = self.radio_csv.isChecked()
+        self.subset_df_edit.setEnabled(is_csv)
+        self.subset_df_btn.setEnabled(is_csv)
 
-        row3 = QHBoxLayout()
-        row3.addWidget(QLabel("HParams (YAML):"))
-        self.hparams_path_edit = QLineEdit()
-        self.hparams_path_edit.setPlaceholderText("Optional hparams.yaml")
-        row3.addWidget(self.hparams_path_edit)
-        btn = QPushButton("Browse...")
-        btn.clicked.connect(lambda: self._browse_generic(self.hparams_path_edit, "Select HParams", "YAML (*.yaml *.yml);;All (*)"))
-        row3.addWidget(btn)
-        files_layout.addLayout(row3)
+        # Enable Explicit inputs
+        is_explicit = self.radio_explicit.isChecked()
+        self.mutations_edit.setEnabled(is_explicit)
 
-        row4 = QHBoxLayout()
-        row4.addWidget(QLabel("Base Model Location (Folder):"))
-        self.base_model_loc_edit = QLineEdit()
-        self.base_model_loc_edit.setPlaceholderText("Optional path to offline model folder")
-        row4.addWidget(self.base_model_loc_edit)
-        btn = QPushButton("Browse...")
-        btn.clicked.connect(lambda: self._browse_generic_dir(self.base_model_loc_edit, "Select Model Directory"))
-        row4.addWidget(btn)
-        files_layout.addLayout(row4)
-
-        layout.addWidget(files_group)
-
-        # Architectural parameters
-        arch_group = QGroupBox("Architectural Parameters")
-        arch_layout = QVBoxLayout()
-        arch_group.setLayout(arch_layout)
-
-        arow1 = QHBoxLayout()
-        arow1.addWidget(QLabel("Model Dtype:"))
-        self.model_dtype_combobox = QComboBox()
-        self.model_dtype_combobox.addItems(["float32", "bfloat16", "float16"])
-        arow1.addWidget(self.model_dtype_combobox)
-        
-        arow1.addWidget(QLabel("Adapter Mode:"))
-        self.adapter_mode_combobox = QComboBox()
-        self.adapter_mode_combobox.addItems(["dual", "fused"])
-        arow1.addWidget(self.adapter_mode_combobox)
-        
-        arow1.addWidget(QLabel("LoRA Mode:"))
-        self.lora_mode_combobox = QComboBox()
-        self.lora_mode_combobox.addItems(["ensemble", "corrector"])
-        arow1.addWidget(self.lora_mode_combobox)
-
-        #arow2 = QHBoxLayout()
-        arow1.addWidget(QLabel("Quaternary Mode:"))
-        self.quaternary_mode_combobox = QComboBox()
-        self.quaternary_mode_combobox.addItems(["single_chain", "complex"])
-        arow1.addWidget(self.quaternary_mode_combobox)
-
-        arch_layout.addLayout(arow1)
-
-        #arow2.addWidget(QLabel("Shared Scale Init:"))
-        #self.shared_scale_init_spinbox = QDoubleSpinBox()
-        #self.shared_scale_init_spinbox.setRange(-10.0, 10.0)
-        #self.shared_scale_init_spinbox.setValue(0.3)
-        #self.shared_scale_init_spinbox.setSingleStep(0.1)
-        #arow2.addWidget(self.shared_scale_init_spinbox)
-        
-        #arow2.addWidget(QLabel("Shared Bias Init:"))
-        #self.shared_bias_init_spinbox = QDoubleSpinBox()
-        #self.shared_bias_init_spinbox.setRange(-10.0, 10.0)
-        #self.shared_bias_init_spinbox.setValue(0.0)
-        #self.shared_bias_init_spinbox.setSingleStep(0.1)
-        #arow2.addWidget(self.shared_bias_init_spinbox)
-        #arch_layout.addLayout(arow2)
-
-        layout.addWidget(arch_group)
-
-        # Execution Flags
-        flags_group = QGroupBox("Execution Flags")
-        flags_layout = QVBoxLayout()
-        flags_group.setLayout(flags_layout)
-        
-        grid_layout = QHBoxLayout()
-        
-        col1 = QVBoxLayout()
-        self.load_wt_only_checkbox = QCheckBox("Load WT Only")
-        self.freeze_lora_checkbox = QCheckBox("Freeze LoRA Init")
-        col1.addWidget(self.load_wt_only_checkbox)
-        col1.addWidget(self.freeze_lora_checkbox)
-        grid_layout.addLayout(col1)
-
-        col2 = QVBoxLayout()
-        self.no_optimize_wt_pass_checkbox = QCheckBox("No Optimize WT Pass")
-        self.skip_additive_checkbox = QCheckBox("Skip Additive Math")
-        self.skip_reverse_checkbox = QCheckBox("Skip Reverse/MT Pass")
-        self.log_likelihood_checkbox = QCheckBox("Log Likelihoods")
-        col2.addWidget(self.no_optimize_wt_pass_checkbox)
-        col2.addWidget(self.skip_additive_checkbox)
-        col2.addWidget(self.skip_reverse_checkbox)
-        col2.addWidget(self.log_likelihood_checkbox)
-        grid_layout.addLayout(col2)
-        
-        col3 = QVBoxLayout()
-        self.use_plddt_checkbox = QCheckBox("Use pLDDT")
-        col3.addWidget(self.use_plddt_checkbox)
-        col3.addStretch()
-        grid_layout.addLayout(col3)
-
-        flags_layout.addLayout(grid_layout)
-        layout.addWidget(flags_group)
-        layout.addStretch()
+    def _toggle_distance_spinbox(self, checked):
+        self.distance_threshold_spinbox.setEnabled(checked)
 
     def _build_viz_tab(self, parent_widget):
         layout = QVBoxLayout()
@@ -578,14 +634,16 @@ class ESM_MSR_VisualizerTool(ToolInstance):
     def _update_paths_from_base_repo(self, base_path, is_init=False):
         if not base_path:
             self.python_script_path = ""
-            self.checkpoint_path = ""
-            self.script_output_csv_path = ""
             if not is_init:
+                self.checkpoint_path = ""
+                self.script_output_csv_path = ""
                 self.python_env = ""
         else:
             self.python_script_path = os.path.normpath(os.path.join(base_path, "src", "esm_msr", "inference.py"))
-            self.checkpoint_path = os.path.normpath(os.path.join(base_path, "LoRA_models", "msr_singles_only", "seed3_epoch=08-val_rho_avg=0.754.ckpt"))
-            self.script_output_csv_path = os.path.normpath(os.path.join(base_path, "example_inference.csv"))
+            if not is_init or not self.checkpoint_path:
+                self.checkpoint_path = os.path.normpath(os.path.join(base_path, "LoRA_models", "msr_singles_only", "seed3_epoch=08-val_rho_avg=0.754.ckpt"))
+            if not is_init or not self.script_output_csv_path:
+                self.script_output_csv_path = os.path.normpath(os.path.join(base_path, "example_inference.csv"))
             if not is_init or not self.python_env:
                 self.python_env = os.path.normpath(os.path.join(base_path, "msr_venv"))
 
@@ -602,14 +660,24 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         fp, _ = QFileDialog.getSaveFileName(w, "Specify Prediction Output CSV File Path", self.script_output_csv_path_edit.text(), "CSV Files (*.csv);;All Files (*)")
         if fp:
             if not fp.lower().endswith('.csv'): fp += '.csv'
-            self.script_output_csv_path = fp
-            self.script_output_csv_path_edit.setText(fp)
+            norm_fp = os.path.normpath(fp)
+            self.script_output_csv_path = norm_fp
+            self.script_output_csv_path_edit.setText(norm_fp)
+            self.settings.setValue("script_output_csv_path", norm_fp)
 
     def _browse_checkpoint_path(self):
         w = self.session.ui.main_window
         fp, _ = QFileDialog.getOpenFileName(w, "Select Checkpoint File", self.checkpoint_path_edit.text(), "Checkpoint Files (*.ckpt *.pt *.pth *.h5);;All Files (*)")
         if fp:
-            self.checkpoint_path_edit.setText(os.path.normpath(fp))
+            norm_fp = os.path.normpath(fp)
+            self.checkpoint_path_edit.setText(norm_fp)
+            self.settings.setValue("checkpoint_path", norm_fp)
+            
+            # Auto-populate config file using parent directory of the checkpoint
+            parent_dir = os.path.dirname(norm_fp)
+            assumed_config_path = os.path.join(parent_dir, "hparams.yaml")
+            self.config_file_edit.setText(assumed_config_path)
+            self.settings.setValue("config_file", assumed_config_path)
 
     def _browse_python_env(self):
         w = self.session.ui.main_window
@@ -626,21 +694,68 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         if fp:
             self.subset_df_edit.setText(os.path.normpath(fp))
 
-    def _browse_generic(self, line_edit, title, filter_str):
+    def _browse_generic(self, line_edit, title, filter_str, settings_key=None):
         w = self.session.ui.main_window
         fp, _ = QFileDialog.getOpenFileName(w, title, self.base_repo_path, filter_str)
         if fp:
-            line_edit.setText(os.path.normpath(fp))
+            norm_fp = os.path.normpath(fp)
+            line_edit.setText(norm_fp)
+            if settings_key:
+                self.settings.setValue(settings_key, norm_fp)
             
-    def _browse_generic_dir(self, line_edit, title):
+    def _browse_generic_dir(self, line_edit, title, settings_key=None):
         w = self.session.ui.main_window
         folder_path = QFileDialog.getExistingDirectory(w, title, self.base_repo_path)
         if folder_path:
-            line_edit.setText(os.path.normpath(folder_path))
+            norm_fp = os.path.normpath(folder_path)
+            line_edit.setText(norm_fp)
+            if settings_key:
+                self.settings.setValue(settings_key, norm_fp)
+
+    # -------------- process termination --------------
+    def _stop_prediction_script(self):
+        if self.proc and self.proc.state() != QProcess.NotRunning:
+            self.session.logger.warning("Force terminating prediction process tree...")
+            self.status_label.setText("Status: Force terminating process...")
+            
+            try:
+                pid = self.proc.processId()
+                import platform
+                import subprocess
+                
+                # Attempt to aggressively kill process tree to prevent zombie PyTorch workers
+                if platform.system() == "Windows":
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+                else:
+                    # POSIX: pkill -P kills direct children before killing the parent
+                    subprocess.run(["pkill", "-9", "-P", str(pid)], capture_output=True)
+                    subprocess.run(["kill", "-9", str(pid)], capture_output=True)
+                
+                # Fallback to standard QProcess kill to ensure Qt state is updated
+                self.proc.kill()
+                self.proc.waitForFinished(1000)
+            except Exception as e:
+                self.session.logger.error(f"Failed to execute process kill commands: {e}")
+                raise AssertionError(f"Process tree kill failed: {e}")
+            finally:
+                self.run_prediction_button.setVisible(True)
+                self.stop_prediction_button.setVisible(False)
+                self.run_prediction_button.setEnabled(True)
+                self.load_button.setEnabled(True)
+                self.prediction_output_label.setText("Predicted output file: Terminated")
+                self.status_label.setText("Status: Execution Stopped by User.")
 
     # -------------- run prediction (QProcess) --------------
     def _initiate_run_prediction_script(self):
         self.session.logger.info("****** _initiate_run_prediction_script called ******")
+
+        # explicitly save path values to QSettings in case user typed them manually rather than using Browse
+        self.settings.setValue("python_env", self.python_env_edit.text().strip())
+        self.settings.setValue("base_repo_path", self.base_repo_path_edit.text().strip())
+        self.settings.setValue("script_output_csv_path", self.script_output_csv_path_edit.text().strip())
+        self.settings.setValue("checkpoint_path", self.checkpoint_path_edit.text().strip())
+        self.settings.setValue("config_file", self.config_file_edit.text().strip())
+        self.settings.setValue("base_model_loc", self.base_model_loc_edit.text().strip())
 
         # cleanup old temp
         if self._temp_dir_to_cleanup and os.path.isdir(self._temp_dir_to_cleanup):
@@ -653,10 +768,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
         self.base_repo_path = self.base_repo_path_edit.text().strip()
         self.python_script_path = os.path.normpath(os.path.join(self.base_repo_path, "src", "esm_msr", "inference.py"))
-        
         self.python_env = self.python_env_edit.text().strip()
-        self.settings.setValue("python_env", self.python_env)
-        self.settings.setValue("base_repo_path", self.base_repo_path)
 
         model_id = self.pred_model_combobox.currentData()
         models = self.session.models.list(type=Structure)
@@ -717,80 +829,84 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             raise AssertionError("A checkpoint path is required to run inference.")
         script_args += ['--checkpoint_path', self.checkpoint_path_edit.text().strip()]
 
-        # Data Inputs
-        subset_df_val = self.subset_df_edit.text().strip()
-        if subset_df_val:
-            script_args += ['--input_csv', subset_df_val]
-        else:
-            # If no input CSV, fall back to pdb logic
+        # Target Config - Enforced by Radio Buttons
+        if self.radio_full.isChecked():
             script_args += ['--pdb_file', self.script_input_structure_path]
             script_args += ['--code', os.path.splitext(current_model.name)[0] if current_model.name else 'protein']
             script_args += ['--chain', self.pred_chain_id_combobox.currentText().strip()]
-
-        # Target Config
-        script_args += ['--mode', self.mode_combobox.currentText()]
-        
-        mutations_val = self.mutations_edit.text().strip()
-        if mutations_val:
+            script_args += ['--mode', self.mode_combobox.currentText()]
+            selected_res = self.selected_residues_edit.text().strip()
+            if selected_res:
+                if self.screen_except_checkbox.isChecked():
+                    script_args += ['--screen_residues_except', selected_res]
+                else:
+                    script_args += ['--screen_residues', selected_res]
+                    
+        elif self.radio_csv.isChecked():
+            subset_df_val = self.subset_df_edit.text().strip()
+            if not subset_df_val:
+                raise AssertionError("CSV input selected but no path provided.")
+            script_args += ['--input_csv', subset_df_val]
+            # Assumes mode isn't needed if input_csv overrides it, but add it if backend requires it:
+            # script_args += ['--mode', 'singles'] # Uncomment if required as fallback
+            
+        elif self.radio_explicit.isChecked():
+            script_args += ['--pdb_file', self.script_input_structure_path]
+            script_args += ['--code', os.path.splitext(current_model.name)[0] if current_model.name else 'protein']
+            script_args += ['--chain', self.pred_chain_id_combobox.currentText().strip()]
+            mutations_val = self.mutations_edit.text().strip()
+            if not mutations_val:
+                raise AssertionError("Explicit mutations selected but none provided.")
             script_args += ['--mutations', mutations_val]
-
-        selected_res = self.selected_residues_edit.text().strip()
-        if selected_res:
-            if self.screen_except_checkbox.isChecked():
-                script_args += ['--screen_residues_except', selected_res]
-            else:
-                script_args += ['--screen_residues', selected_res]
 
         # Engine Params
         script_args += ['--batch_size', str(self.batch_size_spinbox.value())]
         script_args += ['--device', self.device_combobox.currentText()]
         
         mask_strat = self.mask_strategy_combobox.currentText()
-        if mask_strat != 'None':
+        if mask_strat != 'Default (unmasked)':
             script_args += ['--mask_strategy', mask_strat]
 
-        if self.distance_threshold_spinbox.value() >= 0:
+        # Distance threshold
+        if self.enable_distance_checkbox.isChecked():
             script_args += ['--distance_threshold', str(self.distance_threshold_spinbox.value())]
-
-        if self.calculate_distances_checkbox.isChecked():
             script_args += ['--calculate_distances']
+        else:
+            script_args += ['--distance_threshold', '-1']
 
         backbone_mut = self.backbone_mutation_edit.text().strip()
         if backbone_mut:
             script_args += ['--backbone_mutation', backbone_mut]
 
-        hf_token_val = self.hf_token_edit.text().strip()
-        if hf_token_val:
-            script_args += ['--hf_token', hf_token_val]
-
-        # Model Configs
-        lora_cfg = self.lora_config_edit.text().strip()
-        if lora_cfg:
-            script_args += ['--lora_config', lora_cfg]
-            
-        hparams = self.hparams_path_edit.text().strip()
-        if hparams:
-            script_args += ['--hparams_path', hparams]
-            
-        base_model_loc_val = self.base_model_loc_edit.text().strip()
-        if base_model_loc_val:
+        # Model Source Resolution (HF vs Base Model)
+        if self.radio_hf.isChecked():
+            hf_token_val = self.hf_token_edit.text().strip()
+            if hf_token_val:
+                script_args += ['--hf_token', hf_token_val]
+            else:
+                self.session.logger.warning("HuggingFace Token selected but left empty. Passing without token.")
+        elif self.radio_base_loc.isChecked():
+            base_model_loc_val = self.base_model_loc_edit.text().strip()
+            if not base_model_loc_val:
+                raise AssertionError("Base Model Location selected but no path provided.")
             script_args += ['--base_model_loc', base_model_loc_val]
 
-        script_args += ['--model_dtype', self.model_dtype_combobox.currentText()]
-        script_args += ['--adapter_mode', self.adapter_mode_combobox.currentText()]
-        script_args += ['--lora_mode', self.lora_mode_combobox.currentText()]
+        # Model Configs
+        config_file = self.config_file_edit.text().strip()
+        if config_file:
+            if config_file.lower().endswith('.json'):
+                script_args += ['--lora_config', config_file]
+            elif config_file.lower().endswith(('.yaml', '.yml')):
+                script_args += ['--hparams_path', config_file]
+            else:
+                self.session.logger.warning(f"Unrecognized config extension for {config_file}. Assuming JSON.")
+                script_args += ['--lora_config', config_file]
+
         script_args += ['--quaternary_mode', self.quaternary_mode_combobox.currentText()]
-        #script_args += ['--shared_scale_init', str(self.shared_scale_init_spinbox.value())]
-        #script_args += ['--shared_bias_init', str(self.shared_bias_init_spinbox.value())]
 
         # Flags
-        if self.load_wt_only_checkbox.isChecked(): script_args += ['--load_wt_only']
-        if self.freeze_lora_checkbox.isChecked(): script_args += ['--freeze_lora']
-        if self.no_optimize_wt_pass_checkbox.isChecked(): script_args += ['--no_optimize_wt_pass']
         if self.skip_additive_checkbox.isChecked(): script_args += ['--skip_additive']
         if self.skip_reverse_checkbox.isChecked(): script_args += ['--skip_reverse']
-        if self.log_likelihood_checkbox.isChecked(): script_args += ['--log_likelihood']
-        if self.use_plddt_checkbox.isChecked(): script_args += ['--use_plddt']
 
         full_args = args + script_args if program != 'python' else script_args
 
@@ -805,7 +921,10 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         self.proc.finished.connect(self._on_proc_finished)
 
         self.status_label.setText("Status: Running prediction script...")
-        self.run_prediction_button.setEnabled(False)
+        
+        # Toggle RUN/STOP buttons
+        self.run_prediction_button.setVisible(False)
+        self.stop_prediction_button.setVisible(True)
         self.load_button.setEnabled(False)
         self.prediction_output_label.setText("Predicted output file: Processing...")
 
@@ -824,10 +943,16 @@ class ESM_MSR_VisualizerTool(ToolInstance):
     def _on_proc_error(self, err):
         self.session.logger.error(f"Prediction process encountered QProcess error: {err}")
         self.status_label.setText(f"Status: Process Error ({err}). See Log.")
+        self.run_prediction_button.setVisible(True)
+        self.stop_prediction_button.setVisible(False)
 
     def _on_proc_finished(self, exitCode, exitStatus):
         self.run_prediction_button.setEnabled(True)
+        self.run_prediction_button.setVisible(True)
+        self.stop_prediction_button.setVisible(False)
+        self.stop_prediction_button.setEnabled(True) # Re-enable for next execution
         self.load_button.setEnabled(True)
+        
         if self._temp_dir_to_cleanup and os.path.isdir(self._temp_dir_to_cleanup):
             try:
                 shutil.rmtree(self._temp_dir_to_cleanup)
@@ -840,8 +965,8 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             self.prediction_output_label.setText(f"Predicted output: {os.path.basename(self.predicted_output_path)}")
             self.status_label.setText("Status: Prediction script completed. Load CSV to visualize.")
         else:
-            self.prediction_output_label.setText("Predicted output file: Failed")
-            self.status_label.setText(f"Status: Script Error (exit={exitCode}). See log.")
+            self.prediction_output_label.setText("Predicted output file: Failed/Terminated")
+            self.status_label.setText(f"Status: Script Error/Stop (exit={exitCode}). See log.")
 
         try:
             self.proc.deleteLater()

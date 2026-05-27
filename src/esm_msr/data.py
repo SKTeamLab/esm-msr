@@ -6,7 +6,7 @@ import pickle
 import random
 import logging
 from collections import defaultdict
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union, Iterator
 
 import numpy as np
 import torch

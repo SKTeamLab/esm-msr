@@ -109,7 +109,7 @@ class MSRModel(ESM3PredictorBase):
     strategies (ensemble, corrector).
     """
     def __init__(
-            self, lora_config: dict, freeze_lora: bool = False, shared_scale_init: float | None = None,
+            self, lora_config: dict, shared_scale_init: float | None = None,
             shared_bias_init: float | None = None, inference_mode: bool = False, log_likelihood: bool = False,
             use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
             adapter_mode: str = 'dual', lora_mode: str = 'ensemble'
@@ -145,7 +145,7 @@ class MSRModel(ESM3PredictorBase):
             self.model._structure_encoder.to(torch.float32)
 
         # 4. Optional freezing for strict inference
-        if freeze_lora:
+        if inference_mode:
             for name, p in self.named_parameters():
                 if 'lora' in name or 'peft' in name: p.requires_grad = False
 

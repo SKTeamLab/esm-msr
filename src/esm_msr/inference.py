@@ -76,6 +76,11 @@ def parse_hparams_to_lora_config(hparams_path: str) -> dict:
         if key + '_mt' not in hparams:
             logging.warning(f"Expected base parameter '{key}' missing from hparams. Defaulting to {default_val}.")
 
+    if 'adapter_mode' not in hparams:
+        logging.warning("Expected 'adapter_mode' missing from hparams. Defaulting to 'dual'.")
+    if 'lora_mode' not in hparams:
+        logging.warning("Expected 'lora_mode' missing from hparams. Defaulting to 'ensemble'.")
+
     wt_config = {
         'lora_rank': hparams.get('lora_rank_wt', default_wt['lora_rank']),
         'lora_alpha': hparams.get('lora_alpha_wt', default_wt['lora_alpha']),
@@ -102,7 +107,9 @@ def parse_hparams_to_lora_config(hparams_path: str) -> dict:
 
     return {
         'wt_config': wt_config,
-        'mt_config': mt_config
+        'mt_config': mt_config,
+        'adapter_mode': hparams.get('adapter_mode', 'dual'),
+        'lora_mode': hparams.get('lora_mode', 'ensemble')
     }
 
 
@@ -574,18 +581,15 @@ if __name__ == "__main__":
 
     # Checkpoint configuration
     parser.add_argument("--checkpoint_path", type=str, help="Path to .pt/.ckpt file or a JSON string")
-    parser.add_argument("--load_wt_only", action="store_true", help="Discard mutant adapter weights when loading checkpoints")
+    parser.add_argument("--load_wt_lora_only", action="store_true", help="Discard mutant adapter weights when loading checkpoints")
     parser.add_argument("--lora_config", type=str, default=None, help="Path to JSON file containing LoRA config")
     parser.add_argument("--hparams_path", type=str, default=None, help="Path to lightning hparams.yaml file")
     
     # Model configuration
-    parser.add_argument("--freeze_lora", action="store_true", help="Freeze LoRA weights upon initialization")
     parser.add_argument("--log_likelihood", action="store_true", help="Process raw logits into log likelihoods")
     parser.add_argument("--use_plddt", action="store_true", help="Whether to pass pLDDT values to the model")
     parser.add_argument("--quaternary_mode", type=str, default="single_chain", help="How to handle quaternary structure")
     parser.add_argument("--model_dtype", type=str, default="float32", choices=["float32", "bfloat16", "float16"])
-    parser.add_argument("--adapter_mode", type=str, default="dual", choices=["dual", "fused"])
-    parser.add_argument("--lora_mode", type=str, default="ensemble", choices=["ensemble", "corrector"])
 
     # Model source
     parser.add_argument('--base_model_loc', type=str, default=None)
@@ -636,6 +640,9 @@ if __name__ == "__main__":
     
     # Config loading
     lora_config = None
+    adapter_mode = "dual"
+    lora_mode = "ensemble"
+
     if args.lora_config:
         try:
             if os.path.isfile(args.lora_config):
@@ -643,22 +650,36 @@ if __name__ == "__main__":
                     lora_config = json.load(f)
             else:
                 lora_config = json.loads(args.lora_config)
+                
+            adapter_mode = lora_config.get('adapter_mode', 'dual')
+            lora_mode = lora_config.get('lora_mode', 'ensemble')
+            if 'adapter_mode' not in lora_config:
+                logging.warning("JSON config missing 'adapter_mode'. Defaulting to 'dual'.")
+            if 'lora_mode' not in lora_config:
+                logging.warning("JSON config missing 'lora_mode'. Defaulting to 'ensemble'.")
+                
         except Exception as e:
             raise AssertionError(f"Failed to parse explicitly provided --lora_config: {e}")
     else:
-        assert args.hparams_path
+        if not args.hparams_path:
+             raise AssertionError("Either --lora_config or --hparams_path must be provided.")
         logging.info(f"Extracting LoRA config from hparams file: {args.hparams_path}")
-        lora_config = parse_hparams_to_lora_config(args.hparams_path)
+        parsed_config = parse_hparams_to_lora_config(args.hparams_path)
+        adapter_mode = parsed_config.get('adapter_mode', 'dual')
+        lora_mode = parsed_config.get('lora_mode', 'ensemble')
+        lora_config = {
+            'wt_config': parsed_config['wt_config'],
+            'mt_config': parsed_config['mt_config']
+        }
 
     dtype_map = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}
     model_dtype = dtype_map[args.model_dtype]
     device = torch.device(args.device)
 
-    logging.info(f"Initializing MSRModel on {device} (dtype: {model_dtype})...")
+    logging.info(f"Initializing MSRModel on {device} (dtype: {model_dtype}, adapter: {adapter_mode}, lora: {lora_mode})...")
 
     model = MSRModel(
         lora_config=lora_config,
-        freeze_lora=args.freeze_lora,
         shared_scale_init=1,
         shared_bias_init=0,
         inference_mode=True,
@@ -666,12 +687,12 @@ if __name__ == "__main__":
         use_plddt=args.use_plddt,
         quaternary_mode=args.quaternary_mode,
         model_dtype=model_dtype,
-        adapter_mode=args.adapter_mode,
-        lora_mode=args.lora_mode,
+        adapter_mode=adapter_mode,
+        lora_mode=lora_mode
     )
 
     if args.checkpoint_path is not None:
-        model.load_lora_weights(checkpoint_path=args.checkpoint_path, load_wt_only=args.load_wt_only)
+        model.load_lora_weights(checkpoint_path=args.checkpoint_path, load_wt_only=args.load_wt_lora_only)
 
     model.to(device)
     model.eval()

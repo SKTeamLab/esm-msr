@@ -106,8 +106,7 @@ def main_(args):
     model = models.MSRModel(
         lora_config=lora_config, shared_scale_init=0.3, shared_bias_init=0, adapter_mode=args.adapter_mode,
         lora_mode=args.lora_mode, #residual_features=args.residual_features, use_delta_norm=args.use_delta_norm,
-        model_dtype=torch.float32, inference_mode=True,
-        freeze_lora=True
+        model_dtype=torch.float32, inference_mode=True
     ).to('cuda:0')
 
     # ---------------------------------------------------------

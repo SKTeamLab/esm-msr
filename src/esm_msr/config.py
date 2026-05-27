@@ -136,7 +136,7 @@ def parse_arguments() -> argparse.Namespace:
     data_group.add_argument('--af_model_folder', type=str, required=True)
     data_group.add_argument('--dataloading', type=str, default="cycle", choices=["pool", "cycle"])
     data_group.add_argument('--loader_strategy', type=str, default='all', choices=['equal', 'min', 'all'])
-    data_group.add_argument('--use_subset_restrict', action=argparse.BooleanOptionalAction, default=False)
+    #data_group.add_argument('--use_subset_restrict', action=argparse.BooleanOptionalAction, default=False)
     data_group.add_argument('--split_file', type=str, default=None)
     data_group.add_argument('--score_column', type=str, default='ddG_ML')
     data_group.add_argument('--cache_path', type=str, default='./data_cache')
