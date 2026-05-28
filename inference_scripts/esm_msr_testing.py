@@ -87,26 +87,41 @@ def main_(args):
 
     os.makedirs('tmp', exist_ok=True)
 
-    mt_lora_config = {
-        "lora_rank": args.lora_rank_mt, "lora_alpha": args.lora_alpha_mt, "lora_dropout": 0,
-        "target_mode": args.target_mode_mt, "use_dora": False, "seed": args.seed,
-        "incl_structure_encoder": False, "last_n_layers": args.last_n_layers_mt,
-        "incl_sequence_head": args.incl_sequence_head_mt, "unfreeze_layernorms": False,
-    }
+    if CHECKPOINT_STR != 'zeroshot':
+        hparams_path = os.path.join(MODEL_DIR, os.path.dirname(args.checkpoint), 'hparams.yaml')
+        parsed_config = inference.parse_hparams_to_lora_config(hparams_path)
+        adapter_mode = parsed_config.get('adapter_mode', 'dual')
+        lora_mode = parsed_config.get('lora_mode', 'ensemble')
+        if args.lora_epsilon != 1:
+            parsed_config['wt_config']['lora_alpha'] *= args.lora_epsilon
+            parsed_config['mt_config']['lora_alpha'] *= args.lora_epsilon
+            logging.info(f"New LoRA alphas: WT: {parsed_config['wt_config']['lora_alpha']}, MT: {parsed_config['mt_config']['lora_alpha']}")
 
-    wt_lora_config = {
-        "lora_rank": args.lora_rank_wt, "lora_alpha": args.lora_alpha_wt, "lora_dropout": 0,
-        "target_mode": args.target_mode_wt, "use_dora": False, "seed": args.seed,
-        "incl_structure_encoder": False, "last_n_layers": args.last_n_layers_wt,
-        "incl_sequence_head": args.incl_sequence_head_wt, "unfreeze_layernorms": False,
-    }
-
-    lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': args.seed}
+        lora_config = {
+            'wt_config': parsed_config['wt_config'],
+            'mt_config': parsed_config['mt_config']
+        }
+    
+    else:
+        mt_lora_config = {
+            "lora_rank": 1, "lora_alpha": 0, "lora_dropout": 0,
+            "target_mode": "baseline", "use_dora": False, "seed": args.seed,
+            "incl_structure_encoder": False, "last_n_layers": 1,
+            "incl_sequence_head": False, "unfreeze_layernorms": False,
+        }
+        wt_lora_config = {
+            "lora_rank": 1, "lora_alpha": 0, "lora_dropout": 0,
+            "target_mode": "baseline", "use_dora": False, "seed": args.seed,
+            "incl_structure_encoder": False, "last_n_layers": 1,
+            "incl_sequence_head": False, "unfreeze_layernorms": False,
+        }
+        adapter_mode = 'dual'
+        lora_mode = 'ensemble'
+        lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': args.seed}        
 
     model = models.MSRModel(
-        lora_config=lora_config, shared_scale_init=0.3, shared_bias_init=0, adapter_mode=args.adapter_mode,
-        lora_mode=args.lora_mode, #residual_features=args.residual_features, use_delta_norm=args.use_delta_norm,
-        model_dtype=torch.float32, inference_mode=True
+        lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
+        lora_mode=lora_mode, model_dtype=torch.float32, inference_mode=True
     ).to('cuda:0')
 
     # ---------------------------------------------------------
@@ -172,7 +187,7 @@ def main_(args):
 
             res_df = pd.concat(res_combined)
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/{CHECKPOINT_STR}_alpha{args.lora_alpha_mt}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
 
@@ -184,7 +199,7 @@ def main_(args):
             if 'ptmul' not in name:
                 assert len(df_true) == len(res_df), f"Lost samples during join for {name}!"
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/external/{CHECKPOINT_STR}_alpha{args.lora_alpha_mt}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/external/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
             stats_mt.to_csv(f'{stats_base}_MT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -252,29 +267,15 @@ def main_(args):
                     res_combined.append(res_partial)
                     t_total += t
 
-                    # Preserved Modeled Context Inference
-                    #if not args.skip_ctx:
-                    #    pred_df_ctx, t_ctx = timed_call(inference.infer_mutants, model=model, df=unique_data, batch_size=64, backbone_mutation=backbone_mutation, quiet=True, use_modeled_context_structs=True, mut_structs_root='/home/sareeves/software/esm-msr/data/tsuboyama/FINAL_results', mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None))
-                    #    pred_df_ctx['id'] = code + ('_' if backbone_mutation is None else '_' + str(backbone_mutation) + '_') + pred_df_ctx['mut_type']
-                    #    pred_df_ctx = pred_df_ctx.set_index('id')
-
-                    #    res_partial_ctx = data.join(pred_df_ctx.drop(overlap_cols, axis=1))
-                    #    res_combined_ctx.append(res_partial_ctx)
-                    #    t_total_ctx += t_ctx
-
             # Aggregate DataFrames
             res_df = pd.concat(res_combined)
             #if not args.skip_ctx:
             #    res_df_ctx = pd.concat(res_combined_ctx)
 
             # File Operations
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/{CHECKPOINT_STR}_alpha{args.lora_alpha_mt}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
-            
-            #if not args.skip_ctx:
-            #    ctx_out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/{CHECKPOINT_STR}_alpha{args.lora_alpha_mt}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_ctx_predictions.csv')
-            #    res_df_ctx.to_csv(ctx_out_path)
 
             # Metrics
             for code, group in res_df.groupby('code_wt'):
@@ -282,7 +283,7 @@ def main_(args):
                 stats_mt = update_stats(stats_mt, code, group, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', t_total)
                 stats_cmb = update_stats(stats_cmb, code, group, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', t_total)
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{CHECKPOINT_STR}_alpha{args.lora_alpha_mt}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
             
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -292,16 +293,6 @@ def main_(args):
             stats_wt.mean(axis=0).to_csv(f'{stats_base}_WT_LoRA_avg.csv', na_rep='', float_format='%.6f')
             stats_mt.mean(axis=0).to_csv(f'{stats_base}_MT_LoRA_avg.csv', na_rep='', float_format='%.6f')
             stats_cmb.mean(axis=0).to_csv(f'{stats_base}_Combined_avg.csv', na_rep='', float_format='%.6f')
-
-            #if not args.skip_ctx:
-            #    for code, group in res_df_ctx.groupby('code_wt'):
-            #        stats_wt_ctx = update_stats(stats_wt_ctx, code, group, 'ddG_ML', 'wt_lora_pred', 'dddG_ML', 'wt_lora_dddg_pred', t_total_ctx)
-            #        stats_mt_ctx = update_stats(stats_mt_ctx, code, group, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', t_total_ctx)
-            #        stats_cmb_ctx = update_stats(stats_cmb_ctx, code, group, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', t_total_ctx)
-
-            #    stats_wt_ctx.to_csv(f'{stats_base}_ctx_WT_LoRA.csv', na_rep='', float_format='%.6f')
-            #    stats_mt_ctx.to_csv(f'{stats_base}_ctx_MT_LoRA.csv', na_rep='', float_format='%.6f')
-            #    stats_cmb_ctx.to_csv(f'{stats_base}_ctx_Combined.csv', na_rep='', float_format='%.6f')
 
             torch.cuda.empty_cache()
 
@@ -352,7 +343,7 @@ def main_(args):
             assert len(df_true) == len(res), f"Merge error on DMS {prot}"
             res_combined.append(res)
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_alpha{args.lora_alpha_mt}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv') #{"_complex" if "binding" in prot else ""}
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv') #{"_complex" if "binding" in prot else ""}
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res.to_csv(out_path)
 
@@ -360,7 +351,7 @@ def main_(args):
             stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', t_inf)
             stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', t_inf)
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{CHECKPOINT_STR}_alpha{args.lora_alpha_mt}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
 
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -410,11 +401,11 @@ def main_(args):
 
         res_df = pd.concat(res_combined, axis=0)
 
-        out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/{CHECKPOINT_STR}_alpha{args.lora_alpha_mt}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
+        out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         res_df.to_csv(out_path)
 
-        stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/domainome/{CHECKPOINT_STR}_alpha{args.lora_alpha_mt}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
+        stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/domainome/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
         os.makedirs(os.path.dirname(stats_base), exist_ok=True)
 
         stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -455,7 +446,7 @@ def main_(args):
 
             assert len(df_true) == len(res)
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_alpha{args.lora_alpha_mt}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res.to_csv(out_path)
             
@@ -466,23 +457,7 @@ if __name__ == "__main__":
         parser.add_argument('--checkpoint', type=str, required=False)
         parser.add_argument('--split', type=str)
         parser.add_argument('--seed', type=int, required=False, default=42)
-        parser.add_argument('--lora_alpha_mt', type=float, required=True)
-        parser.add_argument('--lora_alpha_wt', type=float, required=True)
-        parser.add_argument('--lora_rank_mt', type=int, required=True)
-        parser.add_argument('--lora_rank_wt', type=int, required=True)
-        parser.add_argument('--incl_structure_encoder_mt', action='store_true')
-        parser.add_argument('--incl_sequence_head_mt', action='store_true')
-        parser.add_argument('--incl_sequence_head_wt', action='store_true')
-        parser.add_argument('--target_mode_mt', type=str, default='expanded')
-        parser.add_argument('--target_mode_wt', type=str, default='expanded')
-        parser.add_argument('--last_n_layers_mt', type=int, default=0)
-        parser.add_argument('--last_n_layers_wt', type=int, default=0)
-        
-        # New Architecture Arguments
-        parser.add_argument('--adapter_mode', type=str, default='dual', choices=['dual', 'fused'])
-        parser.add_argument('--lora_mode', type=str, default='ensemble', choices=['ensemble', 'residual'])
-        #parser.add_argument('--residual_features', nargs='+', default=['embeddings', 'additive_pred'])
-        #parser.add_argument('--use_delta_norm', action='store_true')
+        parser.add_argument('--lora_epsilon', type=float, required=False, default=1)
         
         # Precision Argument
         parser.add_argument('--precision', type=str, default='bf16-mixed', choices=['16', '16-mixed', '32', 'bf16-mixed'])

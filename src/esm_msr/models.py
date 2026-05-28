@@ -3,6 +3,7 @@ import copy
 from collections import defaultdict
 from typing import Dict, Any, Optional, Tuple, Union
 from tqdm import tqdm
+import re
 
 import torch
 import torch.nn as nn
@@ -112,7 +113,7 @@ class MSRModel(ESM3PredictorBase):
             self, lora_config: dict, shared_scale_init: float | None = None,
             shared_bias_init: float | None = None, inference_mode: bool = False, log_likelihood: bool = False,
             use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
-            adapter_mode: str = 'dual', lora_mode: str = 'ensemble'
+            adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True
         ):
         logging.info("Initializing ESM3 Base Model...")
         base_esm3 = ESM3_sm_open_v0()
@@ -124,6 +125,7 @@ class MSRModel(ESM3PredictorBase):
             
         self.quaternary_mode, self.log_likelihood, self.use_plddt, self.dtype = quaternary_mode, log_likelihood, use_plddt, model_dtype 
         self.adapter_mode, self.lora_mode = adapter_mode, lora_mode
+        self.strict_loading = strict_loading
         
         # 1. Initialize Calibration
         if shared_scale_init is not None or shared_bias_init is not None:
@@ -302,7 +304,7 @@ class MSRModel(ESM3PredictorBase):
 
         logging.info("\n--- Parameter Count Summary ---")
         for group, counts in group_counts.items():
-            if counts["trainable"] > 0 or group.endswith("Adapter"):
+            if counts["trainable"] > 0 or group.endswith("Adapter") or group == "Calibration Heads":
                 logging.info(f" {group:<25} | Trainable: {counts['trainable']:>12,d} | Total: {counts['all']:>12,d}")
         
         pct = 100 * trainable_params / all_param if all_param > 0 else 0
@@ -331,33 +333,32 @@ class MSRModel(ESM3PredictorBase):
             Strips out all nested Lightning and PEFT wrappers to return 
             the clean architectural path + adapter type.
             """
-            # Clean off Lightning module prefixes if present
-            if k.startswith('model.'):
-                k = k.replace('model.model.base_model.model.', '')
-                k = k.replace('model.peft_wt.base_model.model.', '')
-                k = k.replace('model.peft_mt.base_model.model.', '')
-                k = k.replace('model.peft_fused.base_model.model.', '')
-                k = k.replace('model.base_model.model.', '')
-                if k.startswith('model.'): k = k[6:]
-            
-            # Clean off bare PEFT wrapper prefixes
-            for p in ['peft_wt.', 'peft_mt.', 'peft_fused.']:
-                if k.startswith(p): k = k[len(p):]
-            
-            k = k.replace('base_model.model.', '')
-            k = k.replace('.base_layer.', '.').replace('.original_module.', '.')
-            
+            # 1. Identify adapter type
             adapter = 'unknown'
             if 'wt_adapter' in k or 'calibration_head_wt' in k: adapter = 'wt'
             elif 'mt_adapter' in k or 'calibration_head_mt' in k: adapter = 'mt'
             elif 'default' in k or 'calibration_head_fused' in k: adapter = 'default'
                 
+            # 2. Normalize adapter names
             k = k.replace('wt_adapter', '<ADAPT>').replace('mt_adapter', '<ADAPT>').replace('default', '<ADAPT>')
             k = k.replace('calibration_head_wt', 'calibration_head_<ADAPT>')
             k = k.replace('calibration_head_mt', 'calibration_head_<ADAPT>')
             k = k.replace('calibration_head_fused', 'calibration_head_<ADAPT>')
             
+            # 3. Strip PEFT namespace injections
+            k = k.replace('peft_wt.', '').replace('peft_mt.', '').replace('peft_fused.', '')
+            
+            # 4. Strip nested model/base_model wrappers (handles arbitrary Lightning/PEFT nesting)
+            k = re.sub(r'^(model\.|base_model\.)+', '', k)
+            
+            # 5. Clean up PEFT's internal module renaming
+            k = k.replace('.base_layer.', '.').replace('.original_module.', '.')
+            
+            # 6. Final safety strip in case PEFT exposed another base_model prefix
+            k = re.sub(r'^(model\.|base_model\.)+', '', k)
+            
             return k, adapter
+
 
         # Build a reverse-lookup map of our target model parameters
         my_core_map = defaultdict(list)
@@ -426,19 +427,19 @@ class MSRModel(ESM3PredictorBase):
         missing, unexpected = self.load_state_dict(new_state_dict, strict=False)
         
         # Cross-reference with all keys that *should* be trained (ignoring freeze locks)
-        trainable_names = {k for k, p in self.named_parameters() if p.requires_grad or 'lora' in k.lower() or 'dora' in k.lower()}
+        trainable_names = {k for k, p in self.named_parameters() if p.requires_grad or 'lora' in k.lower() or 'dora' in k.lower() or 'calibration' in k.lower()}
         
         loaded_trainable = set(new_state_dict.keys()).intersection(trainable_names)
         missing_trainable = set(missing).intersection(trainable_names)
         
         logging.info(f"Checkpoint Keys Found: {len(new_state_dict) + len(unexpected)}")
         logging.info(f"Keys Mapped to Model: {len(new_state_dict)}")
-        logging.info(f"Loaded Trainable Tensors: {len(loaded_trainable)}")
-        logging.info(f"Missing Trainable Tensors: {len(missing_trainable)}")
+        #logging.info(f"Loaded Parameters: {len(loaded_trainable)}")
+        logging.info(f"Missing Parameters: {len(missing_trainable)}")
         
         if missing_trainable:
-            logging.warning("\n--- Missing Trainable Modules (Not Loaded) ---")
-            logging.warning("These parameters were not found in the checkpoint and retain their random initialization:")
+            logging.error("\n--- Missing Modules (Not Loaded) ---")
+            logging.error("These parameters were not found in the checkpoint and retain their random initialization:")
             
             missing_groups = defaultdict(int)
             for k in missing_trainable:
@@ -449,15 +450,17 @@ class MSRModel(ESM3PredictorBase):
                 else: missing_groups['Other'] += 1
                 
             for group, count in missing_groups.items():
-                logging.warning(f"  > {group:<25}: {count} tensors")
+                logging.error(f"  > {group:<25}: {count} tensors")
                 
             logging.debug("Detailed missing keys:")
             for k in sorted(missing_trainable)[:10]: logging.debug(f"  - {k}")
             if len(missing_trainable) > 10: logging.debug(f"  ... and {len(missing_trainable)-10} more.")
-            logging.warning("---------------------------------------------")
+            logging.error("---------------------------------------------")
+            if self.strict_loading:
+                raise KeyError('Expected parameters were missing from the LoRA, suggesing that the wrong configuration was used.')
 
         if unexpected:
-            logging.info(f"Unexpected Tensors in Checkpoint (Ignored): {len(unexpected)}")
+            logging.error(f"Unexpected Tensors in Checkpoint (Ignored): {len(unexpected)}")
             print(unexpected)
 
         logging.info("=== Checkpoint Loading Complete ===\n")

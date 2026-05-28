@@ -34,7 +34,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
     def __init__(self, session, tool_registered_name):
         super().__init__(session, tool_registered_name)
-        self.session.logger.info(f"****** RSVTool __init__ ({tool_registered_name}) ******")
+        #self.session.logger.info(f"****** RSVTool __init__ ({tool_registered_name}) ******")
 
         # 1. INITIALIZE SETTINGS
         self.settings = QSettings("ESM_MSR_Tools", "ESM_MSR_Visualizer")
@@ -747,7 +747,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
     # -------------- run prediction (QProcess) --------------
     def _initiate_run_prediction_script(self):
-        self.session.logger.info("****** _initiate_run_prediction_script called ******")
+        self.session.logger.info("****** Running prediction ******")
 
         # explicitly save path values to QSettings in case user typed them manually rather than using Browse
         self.settings.setValue("python_env", self.python_env_edit.text().strip())
@@ -826,7 +826,8 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         script_args += ['--output_csv', self.script_output_csv_path_edit.text().strip()]
 
         if not self.checkpoint_path_edit.text().strip():
-            raise AssertionError("A checkpoint path is required to run inference.")
+            #raise AssertionError("A checkpoint path is required to run inference.")
+            self.session.logger.warning("No checkpoint was provided; running in zero-shot mode.")
         script_args += ['--checkpoint_path', self.checkpoint_path_edit.text().strip()]
 
         # Target Config - Enforced by Radio Buttons
@@ -899,8 +900,8 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             elif config_file.lower().endswith(('.yaml', '.yml')):
                 script_args += ['--hparams_path', config_file]
             else:
-                self.session.logger.warning(f"Unrecognized config extension for {config_file}. Assuming JSON.")
-                script_args += ['--lora_config', config_file]
+                self.session.logger.warning(f"Unrecognized config extension for {config_file}. Assuming YAML.")
+                script_args += ['--hparams_path', config_file + '.yaml']
 
         script_args += ['--quaternary_mode', self.quaternary_mode_combobox.currentText()]
 
@@ -928,7 +929,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         self.load_button.setEnabled(False)
         self.prediction_output_label.setText("Predicted output file: Processing...")
 
-        self.session.logger.info(f"QProcess starting: {program} {' '.join(full_args)}")
+        #self.session.logger.info(f"QProcess starting: {program} {' '.join(full_args)}")
         self.proc.start(program, full_args)
 
     # QProcess slots
@@ -976,7 +977,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
     # -------------- CSV parse + viz --------------
     def _handle_load_and_visualize(self):
-        self.session.logger.info("****** _handle_load_and_visualize called ******")
+        self.session.logger.info("****** Running Visualization ******")
         w = self.session.ui.main_window
         initial_dir, default_filename = "", ""
         if self.predicted_output_path and os.path.exists(self.predicted_output_path):
@@ -1049,7 +1050,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                 df['dddg_pred'] = df['combined_dddg_pred']
 
                 self.epistasis_df = df
-                self.session.logger.info(f"Parsed epistasis dataframe with {len(df)} rows.")
+                #self.session.logger.info(f"Parsed epistasis dataframe with {len(df)} rows.")
                 return True
             else:
                 # Isolate single mutations
@@ -1405,7 +1406,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
     # -------------- lifecycle --------------
     def delete(self):
-        self.session.logger.info("****** RSVTool delete CALLED ******")
+        #self.session.logger.info("****** RSVTool delete CALLED ******")
         self._closing = True
 
         try:
