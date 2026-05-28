@@ -183,7 +183,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         self.source_btn_group.addButton(self.radio_hf)
         hf_layout.addWidget(self.radio_hf)
         self.hf_token_edit = QLineEdit()
-        self.hf_token_edit.setPlaceholderText("Optional: HuggingFace Token (for ESM3 weights)")
+        self.hf_token_edit.setPlaceholderText("For ESM3 weights; can leave blank if logged in via cli")
         self.hf_token_edit.setEchoMode(QLineEdit.Password)
         hf_layout.addWidget(self.hf_token_edit)
         source_layout.addLayout(hf_layout)

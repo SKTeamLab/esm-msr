@@ -598,9 +598,19 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # 1. See exactly what HuggingFace detects
+    print(f"DEBUG: args.hf_token type: {type(args.hf_token)}, value: {args.hf_token}")
+    print(f"DEBUG: get_token() cache: {'FOUND' if get_token() else 'NOT FOUND'}")
+
     token = args.hf_token or get_token()
+
     if token:
-        login(args.hf_token)
+        # 2. Catch the boolean trap before it triggers the prompt
+        if not isinstance(token, str):
+            raise TypeError(f"Expected token to be a string, but got {type(token)}. Check your argparse definition.")
+        
+        print("DEBUG: Logging in with detected string token.")
+        login(token)
     elif args.base_model_loc:
         os.environ['INFRA_PROVIDER'] = "1"
         os.chdir(args.base_model_loc)
