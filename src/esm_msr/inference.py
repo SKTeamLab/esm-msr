@@ -14,10 +14,7 @@ from esm.utils.structure.protein_chain import ProteinChain
 from esm.utils.structure.protein_complex import ProteinComplex
 from esm.utils.constants import esm3 as C
 
-try:
-    from Bio.PDB import PDBParser
-except ImportError:
-    raise AssertionError("The 'biopython' package is required for mapping sequence to PDB indices. Please install it using 'pip install biopython'.")
+from Bio.PDB import PDBParser
 
 
 def parse_hparams_to_lora_config(hparams_path: str) -> dict:
@@ -551,6 +548,7 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
 
 if __name__ == "__main__":
     from models import MSRModel
+    from huggingface_hub import login, get_token
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -600,14 +598,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.hf_token:
-        from huggingface_hub import login
+    token = args.hf_token or get_token()
+    if token:
         login(args.hf_token)
-    if args.base_model_loc:
+    elif args.base_model_loc:
         os.environ['INFRA_PROVIDER'] = "1"
         os.chdir(args.base_model_loc)
         print(os.getcwd())
         assert os.path.exists(os.path.join(os.getcwd(), 'data/weights/esm3_sm_open_v1.pth'))
+    else:
+        raise AssertionError('Must provide either a HuggingFace token or have the model installed locally!')
 
     # Pre-execution validation
     if args.screen_residues and args.screen_residues_except:

@@ -316,6 +316,8 @@ class MSRModel(ESM3PredictorBase):
         """
         Intelligently loads LoRA weights, supporting dynamic remapping for independent configurations.
         """
+        import os
+        
         logging.info("\n=== Loading LoRA Checkpoint(s) ===")
         if isinstance(checkpoint_path, dict):
             logging.info(f"Multi-Checkpoint Mode Triggered. Targets: {list(checkpoint_path.keys())}")
@@ -358,7 +360,6 @@ class MSRModel(ESM3PredictorBase):
             k = re.sub(r'^(model\.|base_model\.)+', '', k)
             
             return k, adapter
-
 
         # Build a reverse-lookup map of our target model parameters
         my_core_map = defaultdict(list)
@@ -409,14 +410,38 @@ class MSRModel(ESM3PredictorBase):
                 if not mapped:
                     new_state_dict[ckpt_key] = tensor # fallback for PyTorch to gracefully drop/warn
 
+        def _load_single_checkpoint(path: str) -> dict:
+            """Handles seamless loading for both .safetensors and .ckpt formats."""
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"LoRA checkpoint file does not exist at: {path}")
+
+            if path.endswith('.safetensors'):
+                try:
+                    from safetensors.torch import load_file
+                    return load_file(path, device='cpu')
+                except ImportError:
+                    raise NotImplementedError(
+                        "The 'safetensors' library is required to load this checkpoint. "
+                        "Please install it via 'pip install safetensors'."
+                    )
+                except Exception as e:
+                    raise RuntimeError(f"Failed to parse safetensors file. Ensure the file is not corrupted. Error: {e}")
+            else:
+                try:
+                    # weights_only=True blocks execution of malicious pickle payloads.
+                    ckpt = torch.load(path, map_location='cpu', weights_only=True)
+                    return ckpt.get('state_dict', ckpt)
+                except Exception as e:
+                    raise RuntimeError(f"Failed to load PyTorch .ckpt file. Error: {e}")
+
         # Process the checkpoints
         if isinstance(checkpoint_path, str):
-            ckpt = torch.load(checkpoint_path, map_location='cpu')
-            process_state_dict(ckpt.get('state_dict', ckpt))
+            state_dict = _load_single_checkpoint(checkpoint_path)
+            process_state_dict(state_dict)
         elif isinstance(checkpoint_path, dict):
             for adapter_target, path in checkpoint_path.items():
-                ckpt = torch.load(path, map_location='cpu')
-                process_state_dict(ckpt.get('state_dict', ckpt), override_target=adapter_target)
+                state_dict = _load_single_checkpoint(path)
+                process_state_dict(state_dict, override_target=adapter_target)
 
         if load_wt_only and mt_weights_skipped > 0:
             logging.warning("\n--- Partial Load Triggered ---")
@@ -434,7 +459,6 @@ class MSRModel(ESM3PredictorBase):
         
         logging.info(f"Checkpoint Keys Found: {len(new_state_dict) + len(unexpected)}")
         logging.info(f"Keys Mapped to Model: {len(new_state_dict)}")
-        #logging.info(f"Loaded Parameters: {len(loaded_trainable)}")
         logging.info(f"Missing Parameters: {len(missing_trainable)}")
         
         if missing_trainable:
@@ -457,7 +481,7 @@ class MSRModel(ESM3PredictorBase):
             if len(missing_trainable) > 10: logging.debug(f"  ... and {len(missing_trainable)-10} more.")
             logging.error("---------------------------------------------")
             if self.strict_loading:
-                raise KeyError('Expected parameters were missing from the LoRA, suggesing that the wrong configuration was used.')
+                raise KeyError('Expected parameters were missing from the LoRA, suggesting that the wrong configuration was used.')
 
         if unexpected:
             logging.error(f"Unexpected Tensors in Checkpoint (Ignored): {len(unexpected)}")

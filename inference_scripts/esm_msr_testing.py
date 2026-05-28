@@ -6,7 +6,7 @@ import argparse
 import time
 import logging
 
-from huggingface_hub import login
+from huggingface_hub import login, get_token
 
 from esm_msr import stats, utils, models, preprocessing, inference
 from pathlib import Path
@@ -502,8 +502,10 @@ if __name__ == "__main__":
         if args.split and 'mega' in args.split and not args.remove_spurs_homologs:
             print('Warning: not removing SPURS homologs')
 
-        if args.hf_token:
-            login(args.hf_token)
+        token = args.hf_token or get_token()
+
+        if token:
+            login(token)
         else:
             os.environ['INFRA_PROVIDER'] = "1"
             os.chdir(Path(__file__).resolve().parent.parent)

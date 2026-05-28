@@ -229,7 +229,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         files_group.setLayout(files_layout)
         
         row1 = QHBoxLayout()
-        row1.addWidget(QLabel("Checkpoint (.ckpt):"))
+        row1.addWidget(QLabel("Checkpoint (.ckpt/.safetensors):"))
         self.checkpoint_path_edit = QLineEdit(self.checkpoint_path)
         self.checkpoint_path_edit.textChanged.connect(self._validate_file_paths)
         row1.addWidget(self.checkpoint_path_edit)
@@ -709,7 +709,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
     def _browse_checkpoint_path(self):
         w = self.session.ui.main_window
-        fp, _ = QFileDialog.getOpenFileName(w, "Select Checkpoint File", self.checkpoint_path_edit.text(), "Checkpoint Files (*.ckpt *.pt *.pth *.h5);;All Files (*)")
+        fp, _ = QFileDialog.getOpenFileName(w, "Select Checkpoint File", self.checkpoint_path_edit.text(), "Checkpoint Files (*.ckpt *.safetensors);;All Files (*)")
         if fp:
             norm_fp = os.path.normpath(fp)
             self.checkpoint_path_edit.setText(norm_fp)
