@@ -3,6 +3,8 @@ import os
 import tempfile
 import shutil
 import numpy as np
+import pandas as pd
+import re
 
 from chimerax.ui import MainToolWindow
 from chimerax.core.tools import ToolInstance
@@ -421,7 +423,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         flags_layout = QHBoxLayout()
         self.skip_additive_checkbox = QCheckBox("Approximate Epistasis (Not Recommended)")
         flags_layout.addWidget(self.skip_additive_checkbox)
-        self.skip_reverse_checkbox = QCheckBox("Skip MT pass (Additive Approximation)")
+        self.skip_reverse_checkbox = QCheckBox("Skip MT LoRA Pass (Use Additive Approximation)")
         flags_layout.addWidget(self.skip_reverse_checkbox)
         flags_layout.addStretch()
         runtime_layout.addLayout(flags_layout)
@@ -477,8 +479,31 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         self.csv_label = QLabel("No CSV loaded.")
         layout.addWidget(self.csv_label)
 
+        # --- NEW: Score Selection Group ---
+        score_group = QGroupBox("Score Selection (Single Mutations)")
+        score_layout = QVBoxLayout()
+        score_group.setLayout(score_layout)
+
+        self.viz_score_btn_group = QButtonGroup()
+
+        self.radio_wt_lora = QRadioButton("WT LoRA predictions (additive)")
+        self.viz_score_btn_group.addButton(self.radio_wt_lora)
+        score_layout.addWidget(self.radio_wt_lora)
+
+        self.radio_mt_lora = QRadioButton("MT LoRA predictions (not recommended)")
+        self.viz_score_btn_group.addButton(self.radio_mt_lora)
+        score_layout.addWidget(self.radio_mt_lora)
+
+        self.radio_dual_view = QRadioButton("Dual-view predictions (recommended)")
+        self.viz_score_btn_group.addButton(self.radio_dual_view)
+        score_layout.addWidget(self.radio_dual_view)
+
+        self.radio_dual_view.setChecked(True) # Default
+        layout.addWidget(score_group)
+        # ----------------------------------
+
         threshold_layout = QHBoxLayout()
-        threshold_layout.addWidget(QLabel("Score Threshold:"))
+        threshold_layout.addWidget(QLabel("Score Threshold (kcal/mol, positive=stable):"))
         self.score_threshold_spinbox = QDoubleSpinBox()
         self.score_threshold_spinbox.setRange(-1000.0, 1000.0)
         self.score_threshold_spinbox.setSingleStep(0.05)
@@ -521,9 +546,25 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
         layout.addLayout(stick_layout)
 
-        self.show_contacts_checkbox = QCheckBox("Visualize Contacts")
+        # Contact Selection Group
+        contacts_layout = QHBoxLayout()
+        self.show_contacts_checkbox = QCheckBox("Visualize residues within:")
         self.show_contacts_checkbox.setChecked(False)
-        layout.addWidget(self.show_contacts_checkbox)
+        contacts_layout.addWidget(self.show_contacts_checkbox)
+
+        self.contact_distance_spinbox = QDoubleSpinBox()
+        self.contact_distance_spinbox.setRange(0.0, 50.0)
+        self.contact_distance_spinbox.setSingleStep(0.5)
+        self.contact_distance_spinbox.setValue(3.0)
+        self.contact_distance_spinbox.setEnabled(False)
+        contacts_layout.addWidget(self.contact_distance_spinbox)
+        
+        contacts_layout.addWidget(QLabel("Å of displayed mutants"))
+        contacts_layout.addStretch()
+        layout.addLayout(contacts_layout)
+        
+        # Connect the checkbox to enable/disable the spinbox
+        self.show_contacts_checkbox.toggled.connect(self.contact_distance_spinbox.setEnabled)
 
         epistasis_groupbox = QGroupBox("Epistasis Analysis")
         epistasis_layout = QVBoxLayout()
@@ -545,6 +586,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         epist_thresh_layout.addStretch()
         epistasis_layout.addLayout(epist_thresh_layout)
         layout.addStretch()
+
 
     # ---------------- UI Callbacks -----------------
     def _grab_selection(self):
@@ -641,7 +683,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         else:
             self.python_script_path = os.path.normpath(os.path.join(base_path, "src", "esm_msr", "inference.py"))
             if not is_init or not self.checkpoint_path:
-                self.checkpoint_path = os.path.normpath(os.path.join(base_path, "LoRA_models", "msr_singles_only", "seed3_epoch=08-val_rho_avg=0.754.ckpt"))
+                self.checkpoint_path = os.path.normpath(os.path.join(base_path, "LoRA_models", "esm-msr-small", "epoch=03-val_rho_combined_avg=0.816.ckpt"))
             if not is_init or not self.script_output_csv_path:
                 self.script_output_csv_path = os.path.normpath(os.path.join(base_path, "example_inference.csv"))
             if not is_init or not self.python_env:
@@ -977,15 +1019,15 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
     # -------------- CSV parse + viz --------------
     def _handle_load_and_visualize(self):
-        self.session.logger.info("****** Running Visualization ******")
-        w = self.session.ui.main_window
+        self.session.logger.info("****** _handle_load_and_visualize called ******")
+        w = getattr(self.session.ui, 'main_window', None)
         initial_dir, default_filename = "", ""
-        if self.predicted_output_path and os.path.exists(self.predicted_output_path):
+        if getattr(self, 'predicted_output_path', None) and os.path.exists(self.predicted_output_path):
             initial_dir, default_filename = os.path.dirname(self.predicted_output_path), self.predicted_output_path
-        elif self.script_output_csv_path_edit.text() and os.path.exists(self.script_output_csv_path_edit.text()):
+        elif getattr(self, 'script_output_csv_path_edit', None) and self.script_output_csv_path_edit.text() and os.path.exists(self.script_output_csv_path_edit.text()):
             default_filename = self.script_output_csv_path_edit.text()
             initial_dir = os.path.dirname(default_filename)
-        elif self.loaded_csv_path and os.path.exists(self.loaded_csv_path):
+        elif getattr(self, 'loaded_csv_path', None) and os.path.exists(self.loaded_csv_path):
             initial_dir = os.path.dirname(self.loaded_csv_path)
 
         fp, _ = QFileDialog.getOpenFileName(w, "Open Residue Score CSV", default_filename or initial_dir, "CSV Files (*.csv);;All Files (*)")
@@ -1008,8 +1050,12 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             self.status_label.setText("Status: CSV loading cancelled.")
 
     def _parse_csv(self, filepath, is_epistasis=False):
-        import pandas as pd
-        import re
+        try:
+            import pandas as pd
+        except ImportError:
+            msg = "Pandas is not installed in the ChimeraX Python environment. Please run 'pip install pandas' in the ChimeraX shell."
+            self.session.logger.error(msg)
+            raise AssertionError(msg)
 
         self.residue_scores_data = {}
         self.epistasis_df = None
@@ -1017,13 +1063,6 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             df = pd.read_csv(filepath)
             df.columns = [c.lower().strip() for c in df.columns]
 
-            # 1. Base column validation based on new inference.py outputs
-            if not {'chain', 'mut_type', 'combined_dddg_pred'}.issubset(set(df.columns)):
-                msg = f"Missing columns in CSV. Expected at least: {{'chain', 'mut_type', 'combined_dddg_pred'}}. Found: {list(df.columns)}"
-                self.session.logger.error(msg)
-                raise AssertionError(msg)
-
-            # 2. Robust helper to parse mut_type strings (e.g., "A12C" or "A12C:D15E")
             def parse_mut_string(m_str):
                 muts = []
                 for m in str(m_str).split(':'):
@@ -1037,7 +1076,10 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             df['parsed_muts'] = df['mut_type'].apply(parse_mut_string)
 
             if is_epistasis:
-                # Isolate double mutations
+                # Epistasis validation
+                if not {'chain', 'mut_type', 'combined_dddg_pred'}.issubset(set(df.columns)):
+                    raise AssertionError(f"Epistasis mode missing required columns. Found: {list(df.columns)}")
+
                 df = df[df['parsed_muts'].apply(len) == 2].copy()
                 if df.empty:
                     raise AssertionError("Epistasis mode requested, but no double mutations (e.g., A1C:D2E) were found in the CSV.")
@@ -1050,9 +1092,27 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                 df['dddg_pred'] = df['combined_dddg_pred']
 
                 self.epistasis_df = df
-                #self.session.logger.info(f"Parsed epistasis dataframe with {len(df)} rows.")
+                self.session.logger.info(f"Parsed epistasis dataframe with {len(df)} rows.")
                 return True
+                
             else:
+                # Standard (Single Mutation) validation
+                base_req = {'pdb_file', 'code', 'chain', 'mut_type', 'wt_lora_pred'}
+                if not base_req.issubset(set(df.columns)):
+                    raise AssertionError(f"Missing required base columns in CSV. Expected at least: {base_req}. Found: {list(df.columns)}")
+
+                # Determine target score column based on Radio Button selection
+                if self.radio_wt_lora.isChecked():
+                    target_score_col = 'wt_lora_pred'
+                elif self.radio_mt_lora.isChecked():
+                    target_score_col = 'mt_lora_pred'
+                else:
+                    target_score_col = 'combined_pred'
+
+                # Graceful crash if the required column wasn't generated by inference.py
+                if target_score_col not in df.columns:
+                    raise AssertionError(f"Selected score '{target_score_col}' not found in CSV. Did you skip the MT pass during inference? If so, select 'WT LoRA predictions'.")
+
                 # Isolate single mutations
                 df = df[df['parsed_muts'].apply(len) == 1].copy()
                 if df.empty:
@@ -1061,9 +1121,9 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                 df['chain_id'] = df['chain'].astype(str).str.strip()
                 df['pos1_pdb'] = df['parsed_muts'].apply(lambda x: x[0]['pos'])
                 df['mut1'] = df['parsed_muts'].apply(lambda x: x[0]['mut'])
-                df['ddg_pred'] = df['combined_dddg_pred']
+                df['viz_score'] = df[target_score_col]
 
-                pivot_df = df.pivot_table(index=['chain_id', 'pos1_pdb'], columns='mut1', values='ddg_pred')
+                pivot_df = df.pivot_table(index=['chain_id', 'pos1_pdb'], columns='mut1', values='viz_score')
                 
                 if pivot_df.empty:
                     raise AssertionError("Parsed CSV resulted in an empty pivot table.")
@@ -1089,162 +1149,156 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                 if count == 0:
                     raise AssertionError("Parsed CSV, but no valid non-zero scores found.")
 
-                self.session.logger.info(f"Parsed scores for {len(self.residue_scores_data)} positions across chains.")
+                self.session.logger.info(f"Parsed {count} single-mutation scores using metric: {target_score_col}.")
                 return True
 
         except Exception as e:
             self.session.logger.error(f"Error parsing CSV with Pandas: {e}")
             self.status_label.setText("Status: Error parsing CSV (see log).")
-            # Explicitly raise to prevent silent UI state corruption
             raise AssertionError(f"CSV Parsing failed: {e}")
 
     def _apply_epistasis_visualization(self):
-            """
-            Visualizes epistatic interactions by creating a mutated model and drawing
-            scaled pseudobonds between residues based on their coupling scores.
-            """
-            wt_candidates = [m for m in self.session.models.list(type=Structure)
-                            if not (self.mutated_model_id_string and m.id_string == self.mutated_model_id_string)]
-                            
-            model_id = self.pred_model_combobox.currentData()
-            wt_model = next((m for m in wt_candidates if m.id_string == model_id), None)
+        """
+        Visualizes epistatic interactions by creating a mutated model and drawing
+        scaled pseudobonds between residues based on their coupling scores.
+        """
+        wt_candidates = [m for m in self.session.models.list(type=Structure)
+                        if not (getattr(self, 'mutated_model_id_string', None) and m.id_string == self.mutated_model_id_string)]
+                        
+        model_id = self.pred_model_combobox.currentData()
+        wt_model = next((m for m in wt_candidates if m.id_string == model_id), None)
+        
+        if not wt_model:
+            self.status_label.setText("Status: Error - WT model not found.")
+            raise AssertionError("Cannot apply visualization: Selected WT model is not open.")
+        
+        if getattr(self, 'mutated_model_id_string', None) and any(m.id_string == self.mutated_model_id_string for m in self.session.models.list()):
+            run(self.session, f"close #{self.mutated_model_id_string}")
+            self.mutated_model_id_string = None
+
+        threshold = self.epistasis_threshold_spinbox.value()
+        df = self.epistasis_df
+        if df is None or df.empty:
+            raise AssertionError("No epistasis data loaded. Please load a valid CSV first.")
+
+        filtered_df = df[df['dddg_pred'].abs() >= threshold].copy()
+
+        if filtered_df.empty:
+            self.status_label.setText("Status: No residue pairs found exceeding threshold.")
+            return
+
+        filtered_df['abs_score'] = filtered_df['dddg_pred'].abs()
+        sorted_df = filtered_df.sort_values(by='abs_score', ascending=False)
+        
+        max_abs_score = sorted_df['abs_score'].max()
+        if max_abs_score <= threshold:
+            max_abs_score = threshold + 0.0001 
+
+        mutation_plan = {} 
+        pairs_to_draw = [] 
+
+        for _, row in sorted_df.iterrows():
+            c1, p1, m1 = str(row['chain_id']).strip(), int(row['pos1_pdb']), str(row['mut1']).upper()
+            c2, p2, m2 = str(row['chain_id']).strip(), int(row['pos2_pdb']), str(row['mut2']).upper()
+            score = float(row['dddg_pred'])
             
-            if not wt_model:
-                self.status_label.setText("Status: Error - WT model not found.")
-                raise AssertionError("Cannot apply visualization: Selected WT model is not open.")
+            comp1 = ((c1, p1) not in mutation_plan) or (mutation_plan[(c1, p1)] == m1)
+            comp2 = ((c2, p2) not in mutation_plan) or (mutation_plan[(c2, p2)] == m2)
             
-            # Cleanup previous mutated model visualization
-            if self.mutated_model_id_string and any(m.id_string == self.mutated_model_id_string for m in self.session.models.list()):
-                run(self.session, f"close #{self.mutated_model_id_string}")
-                self.mutated_model_id_string = None
+            if comp1 and comp2:
+                mutation_plan[(c1, p1)] = m1
+                mutation_plan[(c2, p2)] = m2
+                pairs_to_draw.append((c1, p1, m1, c2, p2, m2, score))
 
-            threshold = self.epistasis_threshold_spinbox.value()
-            df = self.epistasis_df
-            if df is None or df.empty:
-                raise AssertionError("No epistasis data loaded. Please load a valid CSV first.")
-
-            filtered_df = df[df['dddg_pred'].abs() >= threshold].copy()
-
-            if filtered_df.empty:
-                self.status_label.setText("Status: No residue pairs found exceeding threshold.")
-                return
-
-            # 1. Scaling Logic: Calculate max for normalization
-            filtered_df['abs_score'] = filtered_df['dddg_pred'].abs()
-            sorted_df = filtered_df.sort_values(by='abs_score', ascending=False)
+        try:
+            # FIX: Use safe PDB clone to preserve polymer metadata instead of combine
+            temp_pdb = os.path.join(tempfile.gettempdir(), f"clone_{wt_model.id_string.replace(':', '_')}.pdb")
+            run(self.session, f"save {temp_pdb} models #{wt_model.id_string} format pdb")
+            run(self.session, f"open {temp_pdb} name \"{wt_model.name}_epistasis_viz\"")
             
-            max_abs_score = sorted_df['abs_score'].max()
-            if max_abs_score <= threshold:
-                max_abs_score = threshold + 0.0001 
+            mutated_model = self.session.models.list()[-1]
+            self.mutated_model_id_string = mutated_model.id_string.split('.')[0]
+            
+            if os.path.exists(temp_pdb):
+                os.remove(temp_pdb)
+            
+            run(self.session, f"color #{self.mutated_model_id_string} white")
+            run(self.session, f"transparency #{self.mutated_model_id_string} 70 target a")
+            run(self.session, f"hide #{self.mutated_model_id_string} atoms")
 
-            # 2. Greedy Conflict Resolution
-            mutation_plan = {} # (chain, pos) -> mut_aa
-            pairs_to_draw = [] # (c1, p1, m1, c2, p2, m2, score)
+            for (chain_val, pos), tgt_aa in mutation_plan.items():
+                res_wt = next((r for r in mutated_model.residues if r.number == pos and r.chain_id == chain_val), None)
+                if res_wt and ONE_TO_THREE_LETTER_AA.get(tgt_aa, '') != res_wt.name:
+                    spec = f"#{self.mutated_model_id_string}/{chain_val}:{pos}"
+                    run(self.session, f"swapaa {spec} {ONE_TO_THREE_LETTER_AA[tgt_aa].lower()} log false")
 
-            for _, row in sorted_df.iterrows():
-                c1, p1, m1 = str(row['chain_id']).strip(), int(row['pos1_pdb']), str(row['mut1']).upper()
-                c2, p2, m2 = str(row['chain_id']).strip(), int(row['pos2_pdb']), str(row['mut2']).upper()
-                score = float(row['dddg_pred'])
+            if mutation_plan:
+                spec_list = [f"#{self.mutated_model_id_string}/{c}:{p}" for (c, p) in mutation_plan.keys()]
+                spec_all = " | ".join(spec_list)
+                run(self.session, f"show {spec_all} atoms; style {spec_all} stick; color {spec_all} byelement")
+                run(self.session, f"transparency {spec_all} 0 target a")
+
+            model_residues = {(r.chain_id, r.number): r for r in mutated_model.residues}
+            count_lines = 0
+            
+            for c1, p1, m1, c2, p2, m2, score in pairs_to_draw:
+                res1, res2 = model_residues.get((c1, p1)), model_residues.get((c2, p2))
+                if not res1 or not res2 or not res1.atoms or not res2.atoms:
+                    continue
+
+                atoms1 = [a for a in res1.atoms if a.name not in ('N', 'CA', 'C', 'O')]
+                atoms2 = [a for a in res2.atoms if a.name not in ('N', 'CA', 'C', 'O')]
+                if not atoms1: atoms1 = list(res1.atoms)
+                if not atoms2: atoms2 = list(res2.atoms)
                 
-                comp1 = ((c1, p1) not in mutation_plan) or (mutation_plan[(c1, p1)] == m1)
-                comp2 = ((c2, p2) not in mutation_plan) or (mutation_plan[(c2, p2)] == m2)
+                coords1 = np.array([a.scene_coord for a in atoms1])
+                coords2 = np.array([a.scene_coord for a in atoms2])
+                diff = coords1[:, np.newaxis, :] - coords2[np.newaxis, :, :]
+                dists = np.sqrt(np.sum(diff**2, axis=2))
                 
-                if comp1 and comp2:
-                    mutation_plan[(c1, p1)] = m1
-                    mutation_plan[(c2, p2)] = m2
-                    pairs_to_draw.append((c1, p1, m1, c2, p2, m2, score))
-
-            # 3. Model Generation & Mutation
-            try:
-                run(self.session, f"combine #{wt_model.id_string} name \"{wt_model.name}_epistasis_viz\"")
-                mutated_model = self.session.models.list()[-1]
-                self.mutated_model_id_string = mutated_model.id_string
+                min_idx = np.unravel_index(np.argmin(dists), dists.shape)
+                a1, a2 = atoms1[min_idx[0]], atoms2[min_idx[1]]
                 
-                run(self.session, f"color #{self.mutated_model_id_string} white")
-                run(self.session, f"transparency #{self.mutated_model_id_string} 70 target a")
-                run(self.session, f"hide #{self.mutated_model_id_string} atoms")
-
-                # Apply Mutations via swapaa
-                for (chain_val, pos), tgt_aa in mutation_plan.items():
-                    res_wt = next((r for r in mutated_model.residues if r.number == pos and r.chain_id == chain_val), None)
-                    if res_wt and ONE_TO_THREE_LETTER_AA.get(tgt_aa, '') != res_wt.name:
-                        spec = f"#{self.mutated_model_id_string}/{chain_val}:{pos}"
-                        run(self.session, f"swapaa {spec} {ONE_TO_THREE_LETTER_AA[tgt_aa].lower()} log false")
-
-                # Display side-chains for all involved positions
-                if mutation_plan:
-                    spec_list = [f"#{self.mutated_model_id_string}/{c}:{p}" for (c, p) in mutation_plan.keys()]
-                    spec_all = " | ".join(spec_list)
-                    run(self.session, f"show {spec_all} atoms; style {spec_all} stick; color {spec_all} byelement")
-                    run(self.session, f"transparency {spec_all} 0 target a")
-
-                # 4. Draw Intuitive Pseudobonds
-                model_residues = {(r.chain_id, r.number): r for r in mutated_model.residues}
-                count_lines = 0
+                norm_score = min(1.0, max(0.0, (abs(score) - threshold) / (max_abs_score - threshold)))
+                radius_val = 0.05 + (0.95 * (norm_score ** 2)) 
+                intensity = int(100 + 155 * norm_score)        
+                alpha = int(30 + 225 * norm_score)             
                 
-                for c1, p1, m1, c2, p2, m2, score in pairs_to_draw:
-                    res1, res2 = model_residues.get((c1, p1)), model_residues.get((c2, p2))
-                    if not res1 or not res2 or not res1.atoms or not res2.atoms:
-                        continue
+                if score > 0:
+                    color_spec = f"0,{intensity},0,{alpha}"
+                else:
+                    color_spec = f"{intensity},0,0,{alpha}"
+                
+                cmd = (f"pbond #{self.mutated_model_id_string}/{c1}:{p1}@{a1.name} "
+                       f"#{self.mutated_model_id_string}/{c2}:{p2}@{a2.name} "
+                       f"reveal true color {color_spec} "
+                       f"radius {radius_val:.3f} name \"{score:.2f}\"")
+                
+                run(self.session, cmd)
+                count_lines += 1
+                
+            target_chain = self.pred_chain_id_combobox.currentText().strip()
+            alpha_val = self.non_target_alpha_spinbox.value()
+            if target_chain:
+                exclude_spec = f"~#{wt_model.id_string}/{target_chain}"
+                if getattr(self, 'mutated_model_id_string', None):
+                    exclude_spec += f" & ~#{self.mutated_model_id_string}"
+                if alpha_val >= 99:
+                    run(self.session, f"hide {exclude_spec}")
+                else:
+                    run(self.session, f"show {exclude_spec} ribbons; transparency {exclude_spec} {alpha_val} target ac")
 
-                    # Find closest side-chain atoms (excluding backbone)
-                    atoms1 = [a for a in res1.atoms if a.name not in ('N', 'CA', 'C', 'O')]
-                    atoms2 = [a for a in res2.atoms if a.name not in ('N', 'CA', 'C', 'O')]
-                    if not atoms1: atoms1 = list(res1.atoms)
-                    if not atoms2: atoms2 = list(res2.atoms)
-                    
-                    coords1 = np.array([a.scene_coord for a in atoms1])
-                    coords2 = np.array([a.scene_coord for a in atoms2])
-                    diff = coords1[:, np.newaxis, :] - coords2[np.newaxis, :, :]
-                    dists = np.sqrt(np.sum(diff**2, axis=2))
-                    
-                    min_idx = np.unravel_index(np.argmin(dists), dists.shape)
-                    a1, a2 = atoms1[min_idx[0]], atoms2[min_idx[1]]
-                    
-                    # Visual Scaling Calculations
-                    norm_score = min(1.0, max(0.0, (abs(score) - threshold) / (max_abs_score - threshold)))
-                    radius_val = 0.05 + (0.95 * (norm_score ** 2)) 
-                    intensity = int(100 + 155 * norm_score)        
-                    alpha = int(30 + 225 * norm_score)             
-                    
-                    # Format color: Use comma-separated RGBA (0-255) to bypass all hex parser issues
-                    # ChimeraX color-spec: R,G,B,A
-                    if score > 0:
-                        color_spec = f"0,{intensity},0,{alpha}" # Green
-                    else:
-                        color_spec = f"{intensity},0,0,{alpha}" # Red
-                    
-                    cmd = (f"pbond #{self.mutated_model_id_string}/{c1}:{p1}@{a1.name} "
-                        f"#{self.mutated_model_id_string}/{c2}:{p2}@{a2.name} "
-                        f"reveal true color {color_spec} "
-                        f"radius {radius_val:.3f} name \"{score:.2f}\"")
-                    
-                    run(self.session, cmd)
-                    count_lines += 1
-                    
-                # Apply Transparency to non-target chains
-                target_chain = self.pred_chain_id_combobox.currentText().strip()
-                alpha_val = self.non_target_alpha_spinbox.value()
-                if target_chain:
-                    exclude_spec = f"~#{wt_model.id_string}/{target_chain}"
-                    if self.mutated_model_id_string:
-                        exclude_spec += f" & ~#{self.mutated_model_id_string}"
-                    if alpha_val >= 99:
-                        run(self.session, f"hide {exclude_spec}")
-                    else:
-                        run(self.session, f"show {exclude_spec} ribbons; transparency {exclude_spec} {alpha_val} target ac")
+            self.status_label.setText(f"Status: Epistasis Viz Complete ({count_lines} interactions).")
 
-                self.status_label.setText(f"Status: Epistasis Viz Complete ({count_lines} interactions).")
-
-            except Exception as e:
-                self.session.logger.error(f"Critical failure in Epistasis Visualization: {e}")
-                self.status_label.setText("Status: Visualization Error.")
-                raise AssertionError(f"Epistasis visualization subroutine failed: {e}")
+        except Exception as e:
+            self.session.logger.error(f"Critical failure in Epistasis Visualization: {e}")
+            self.status_label.setText("Status: Visualization Error.")
+            raise AssertionError(f"Epistasis visualization subroutine failed: {e}")
 
 
     def _apply_visualization(self):
         wt_candidates = [m for m in self.session.models.list(type=Structure)
-                         if not (self.mutated_model_id_string and m.id_string == self.mutated_model_id_string)]
+                         if not (getattr(self, 'mutated_model_id_string', None) and m.id_string == self.mutated_model_id_string)]
                          
         model_id = self.pred_model_combobox.currentData()
         wt_model = next((m for m in wt_candidates if m.id_string == model_id), None)
@@ -1256,7 +1310,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             self.status_label.setText("Status: No suitable WT model open.")
             raise AssertionError("Failed to apply Visualization. No suitable WT model open.")
             
-        if not self.residue_scores_data:
+        if not getattr(self, 'residue_scores_data', None):
             self.status_label.setText("Status: No scores to apply.")
             return
 
@@ -1266,7 +1320,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         wt_stick_alpha = self.wt_stick_alpha_spinbox.value()
         mut_stick_alpha = self.mut_stick_alpha_spinbox.value()
 
-        if self.mutated_model_id_string and any(m.id_string == self.mutated_model_id_string for m in self.session.models.list()):
+        if getattr(self, 'mutated_model_id_string', None) and any(m.id_string == self.mutated_model_id_string for m in self.session.models.list()):
             try:
                 run(self.session, f"close #{self.mutated_model_id_string}")
             except Exception as e:
@@ -1302,9 +1356,17 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         wt_spec = None
         if show_sticks:
             try:
-                run(self.session, f"combine #{wt_model.id_string} name \"{wt_model.name}_mutated_viz\"")
+                # FIX: Use safe PDB clone to preserve polymer metadata instead of combine
+                temp_pdb = os.path.join(tempfile.gettempdir(), f"clone_{wt_model.id_string.replace(':', '_')}.pdb")
+                run(self.session, f"save {temp_pdb} models #{wt_model.id_string} format pdb")
+                run(self.session, f"open {temp_pdb} name \"{wt_model.name}_mutated_viz\"")
+                
                 mut_model = self.session.models.list()[-1]
-                self.mutated_model_id_string = mut_model.id_string 
+                self.mutated_model_id_string = mut_model.id_string.split('.')[0]
+                
+                if os.path.exists(temp_pdb):
+                    os.remove(temp_pdb)
+
                 run(self.session, f"color #{self.mutated_model_id_string} lightgray")
                 run(self.session, f"ribbon style #{self.mutated_model_id_string}")
                 run(self.session, f"hide #{self.mutated_model_id_string} atoms")
@@ -1356,11 +1418,13 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                     run(self.session, f"style {wt_spec} stick")
                     run(self.session, f"transparency {wt_spec} {wt_stick_alpha} target a")
 
+                # The `match` command is now redundant as both structures are perfectly aligned
+                # However we leave it here for safety just in case of slight numerical shift
                 run(self.session, f"match #{self.mutated_model_id_string} to #{wt_model.id_string}")
             except Exception as e:
                 self.status_label.setText("Status: Error showing sticks.")
                 self.session.logger.error(f"Error in stick viz: {e}")
-                if mut_model and any(m.id_string == self.mutated_model_id_string for m in self.session.models.list()):
+                if mut_model and any(m.id_string == getattr(self, 'mutated_model_id_string', None) for m in self.session.models.list()):
                     run(self.session, f"close #{self.mutated_model_id_string}")
                 self.mutated_model_id_string = None
                 raise AssertionError(f"Visualization logic failed mid-execution: {e}")
@@ -1373,16 +1437,26 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         if show_sticks and self.show_contacts_checkbox.isChecked():
             try:
                 if mut_spec:
-                    run(self.session, f"select {mut_spec}")
-                    run(self.session, f"contacts sel restrict #{wt_model.id_string} reveal false makePseudobonds false select true")
-                    run(self.session, f"select subtract {mut_spec}")
-                    run(self.session, f"select subtract {wt_spec}")
-                    run(self.session, f"select subtract backbone")
+                    dist = self.contact_distance_spinbox.value()
+                    
+                    # 1. Zone selection: Distance check explicitly using the exact syntax ordering you requested.
+                    run(self.session, f"select ({mut_spec}) @<{dist} & ~backbone & #{wt_model.id_string} & protein & ~({mut_spec}) & ~({wt_spec})")
+                    run(self.session, "select up")
+                    run(self.session, "select up")
+                    # Style the entire residue context as thin, semi-transparent lines
                     run(self.session, "show sel")
-                    run(self.session, "style sel ball")
+                    run(self.session, "style sel stick")
+                    run(self.session, "size sel stickRadius 0.1") # Increased from 0.05 to ensure visibility
                     run(self.session, "color sel byelement")
-                    run(self.session, f"transparency sel 60 target a")
+                    run(self.session, f"transparency sel {wt_stick_alpha} target ab") # Explicitly target atoms AND bonds for transparency
+                    
+                    run(self.session, f"select ({mut_spec}) @<{dist} & ~backbone & #{wt_model.id_string} & protein & ~({mut_spec}) & ~({wt_spec})")
+                    run(self.session, "style sel ball")
+                    run(self.session, "transparency sel 0 target a")
+
+                    # Clean up view state
                     run(self.session, "hide @h*")
+                    run(self.session, "select clear")
             except Exception as e:
                 self.session.logger.error(f"Error displaying contacts: {e}")
 
@@ -1390,7 +1464,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         alpha_val = self.non_target_alpha_spinbox.value()
         if target_chain:
             exclude_spec = f"~#{wt_model.id_string}/{target_chain}"
-            if self.mutated_model_id_string:
+            if getattr(self, 'mutated_model_id_string', None):
                 exclude_spec += f" & ~#{self.mutated_model_id_string}"
             try:
                 if alpha_val >= 99:
@@ -1403,46 +1477,3 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
         run(self.session, "select clear; hide @H")
         self.status_label.setText("Status: Visualization complete.")
-
-    # -------------- lifecycle --------------
-    def delete(self):
-        #self.session.logger.info("****** RSVTool delete CALLED ******")
-        self._closing = True
-
-        try:
-            if hasattr(self, '_models_added_handler'):
-                self.session.triggers.remove_handler(self._models_added_handler)
-            if hasattr(self, '_models_removed_handler'):
-                self.session.triggers.remove_handler(self._models_removed_handler)
-        except Exception as e:
-            self.session.logger.warning(f"Could not remove event handlers: {e}")
-
-        try:
-            from Qt.QtCore import QProcess
-            if getattr(self, 'proc', None) and self.proc.state() != QProcess.NotRunning:
-                self.proc.kill()
-                self.proc.waitForFinished(200)
-        except Exception as e:
-            self.session.logger.warning(f"Proc kill on delete failed: {e}")
-
-        try:
-            if getattr(self, '_temp_dir_to_cleanup', None) and os.path.isdir(self._temp_dir_to_cleanup):
-                shutil.rmtree(self._temp_dir_to_cleanup)
-        except Exception as e:
-            self.session.logger.warning(f"Could not remove temp dir on delete: {e}")
-        finally:
-            self._temp_dir_to_cleanup = None
-
-        try:
-            mid = getattr(self, 'mutated_model_id_string', None)
-            if mid:
-                if any(m.id_string == mid for m in self.session.models.list()):
-                    run(self.session, f"close #{mid}")
-        except Exception as e:
-            self.session.logger.warning(f"Could not close mutated model on delete: {e}")
-        finally:
-            self.mutated_model_id_string = None
-
-        super().delete()
-
-print("****** ESM_MSR_VisualizerTool class definition COMPLETE ******")

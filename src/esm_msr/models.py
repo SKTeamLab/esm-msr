@@ -484,6 +484,9 @@ class MSRModel(ESM3PredictorBase):
 
         epi_pred = 0.5 * mt_pred_cal - 0.5 * wt_pred_cal
 
+        if skip_reverse:
+            mt_pred_raw, mt_pred_cal, combined_pred, epi_pred = float('nan'), float('nan'), float('nan'), float('nan')
+
         return {'wt_lora_pred': wt_pred_cal, 'mt_lora_pred': mt_pred_cal, 'wt_lora_raw': wt_pred_raw, 'mt_lora_raw': mt_pred_raw, 'combined_pred': combined_pred, 'epi_pred': epi_pred}
 
     def _process_logits(self, logits: torch.Tensor) -> torch.Tensor:

@@ -544,7 +544,10 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
                 
             all_results.append(res_dict)
 
-    return pd.DataFrame(all_results) if all_results else pd.DataFrame()
+    out = pd.DataFrame(all_results) if all_results else pd.DataFrame()
+    out = out.dropna(how='all', axis=1)
+
+    return out
 
 if __name__ == "__main__":
     from models import MSRModel
