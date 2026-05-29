@@ -92,7 +92,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         # Build Sub-Tabs
         self.tab_io = QWidget()
         self._build_io_tab(self.tab_io)
-        self.tabs.addTab(self.tab_io, "Execution & IO")
+        self.tabs.addTab(self.tab_io, "Execution / IO")
 
         self.tab_screening = QWidget()
         self._build_screening_tab(self.tab_screening)
@@ -528,7 +528,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         layout.addWidget(self.color_backbone_checkbox)
 
         stick_layout = QHBoxLayout()
-        self.show_sticks_checkbox = QCheckBox("Show Sticks for Highest-Scoring Mutations")
+        self.show_sticks_checkbox = QCheckBox("Show Highest-Scoring Mutations")
         self.show_sticks_checkbox.setChecked(True)
         stick_layout.addWidget(self.show_sticks_checkbox)
 

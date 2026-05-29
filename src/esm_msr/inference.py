@@ -568,7 +568,7 @@ if __name__ == "__main__":
     parser.add_argument("--screen_residues", type=str, default=None, help="Comma-separated list of PDB indices to screen (mutually exclusive with screen_residues_except)")
     parser.add_argument("--screen_residues_except", type=str, default=None, help="Comma-separated list of PDB indices to exclude from screen (mutually exclusive with screen_residues)")
     parser.add_argument("--mutations", type=str, default=None, help="Comma-separated list of sequence-index mutations (e.g., A12C,A12C:D15E) to score directly.")
-    parser.add_argument("--distance_threshold", type=float, default=6.0, help="Maximum heavy atom distance (Angstroms) for pairing double mutants. <= 0 means all pairs.")
+    parser.add_argument("--distance_threshold", type=float, default=-1.0, help="Maximum heavy atom distance (Angstroms) for pairing double mutants. <= 0 means all pairs.")
     parser.add_argument("--calculate_distances", action="store_true", help="Calculate pairwise heavy atom distance for doubles")
 
     # Runtime configuration
@@ -675,7 +675,11 @@ if __name__ == "__main__":
             raise AssertionError(f"Failed to parse explicitly provided --lora_config: {e}")
     else:
         if not args.hparams_path:
-             raise AssertionError("Either --lora_config or --hparams_path must be provided.")
+            if os.path.exists(os.path.join(os.path.dirname(args.checkpoint_path), 'hparams.yaml')):
+                args.hparams_path = os.path.join(os.path.dirname(args.checkpoint_path), 'hparams.yaml')
+                logging.warning(f"No hparams path was specified, using the default hparams found at {args.hparams_path}")
+            else:
+                raise AssertionError("Either --lora_config or --hparams_path must be provided.")
         logging.info(f"Extracting LoRA config from hparams file: {args.hparams_path}")
         parsed_config = parse_hparams_to_lora_config(args.hparams_path)
         adapter_mode = parsed_config.get('adapter_mode', 'dual')

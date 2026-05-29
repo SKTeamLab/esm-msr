@@ -95,7 +95,7 @@ def main_(args):
         if args.lora_epsilon != 1:
             parsed_config['wt_config']['lora_alpha'] *= args.lora_epsilon
             parsed_config['mt_config']['lora_alpha'] *= args.lora_epsilon
-            logging.info(f"New LoRA alphas: WT: {parsed_config['wt_config']['lora_alpha']}, MT: {parsed_config['mt_config']['lora_alpha']}")
+            #logging.info(f"New LoRA alphas: WT: {parsed_config['wt_config']['lora_alpha']}, MT: {parsed_config['mt_config']['lora_alpha']}")
 
         lora_config = {
             'wt_config': parsed_config['wt_config'],
@@ -409,12 +409,15 @@ def main_(args):
         os.makedirs(os.path.dirname(stats_base), exist_ok=True)
 
         stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
-        stats_mt.to_csv(f'{stats_base}_MT_LoRA.csv', na_rep='', float_format='%.6f')
-        stats_cmb.to_csv(f'{stats_base}_Combined.csv', na_rep='', float_format='%.6f')
-        
         stats_wt.mean(axis=0).to_csv(f'{stats_base}_WT_LoRA_avg.csv', na_rep='', float_format='%.6f')
-        stats_mt.mean(axis=0).to_csv(f'{stats_base}_MT_LoRA_avg.csv', na_rep='', float_format='%.6f')
-        stats_cmb.mean(axis=0).to_csv(f'{stats_base}_Combined_avg.csv', na_rep='', float_format='%.6f')
+
+        if not args.skip_reverse_domainome:
+            stats_mt.to_csv(f'{stats_base}_MT_LoRA.csv', na_rep='', float_format='%.6f')
+            stats_cmb.to_csv(f'{stats_base}_Combined.csv', na_rep='', float_format='%.6f')
+            
+            
+            stats_mt.mean(axis=0).to_csv(f'{stats_base}_MT_LoRA_avg.csv', na_rep='', float_format='%.6f')
+            stats_cmb.mean(axis=0).to_csv(f'{stats_base}_Combined_avg.csv', na_rep='', float_format='%.6f')
 
         torch.cuda.empty_cache()
 
