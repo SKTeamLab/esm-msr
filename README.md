@@ -6,7 +6,7 @@ This mutant stability predictor was created by parameter-efficient fine-tuning o
 
 ## Requirements
 
-Python 3.11-3.13
+Python 3.11-3.13 [Download Python](https://www.python.org/downloads/windows/)
 
 CUDA 12.8 if using GPU-accelerated inference
 
@@ -56,14 +56,10 @@ Weights are available from [HuggingFace](https://huggingface.co/EvolutionaryScal
 
 From here you have two options:
 
-1. Create an access token by going to the user profile icon (top right), selecting Access Tokens, and creating a new Read token. You will be able to pass this token into our CLI or GUI to obtain the weights automatically. It is recommended that you login once in the command line, then you shouldn't need to paste in the token each time:
-```
-huggingface-cli login
-```
-Paste in your username and read token when prompted.
+1. Create an access token by going to the user profile icon (top right), selecting Access Tokens, and creating a new Read token. You will be able to pass this token into our CLI or GUI to obtain the weights automatically. It is recommended that you login once in the command line, then you shouldn't need to paste in the token each time: `huggingface-cli login`. Paste in your username and read token when prompted.
 2. Download all files in this folder into a new folder e.g. `esm-msr/data/weights`. You will need to paste this location into the CLI or GUI.
 
-## Basic Usage - Command Line Interface
+## Basic Usage - Command Line Interface (Skip if using ChimeraX GUI)
 
 You should now have everything you need to make your first predictions from the command line, except for a pdb/mmcif structure of interest, which you should download if following this step.
 
@@ -73,17 +69,17 @@ Inference strategies, performance and compute time are discussed in the paper. T
 
 `python src/esm_msr/inference.py --checkpoint_path LoRA_models/esm-msr-small/epoch\=03-val_rho_combined_avg\=0.816.ckpt --pdb_file path_to_your_structure_file --mode singles --skip_reverse --output_csv ./example_output.csv`
 
-Remove the --skip_reverse flag for a slower screen (proportional to total possible mutations). Change the screening mode to doubles (or both) to screen all double mutants (or both singles and doubles). It is not recommended to use --skip_reverse for doubles because this ignores epistasis. A full double mutant screen on a protein greater than 200 residues is very compute expensive. It is therefore recommended to screen only double mutants with wild-type residues within 6 Angstrom heavy atom distance. This is controlled with the --distance_threshold parameter. Multi-mutants must be screened individually, either by generating an `--input_csv` with columns `pdb_file, code, chain, mut_type` and mutations (`mut_type`) specified like A2C:D3E, or individually passing in comma separated mutations via `--mutations`. Examples can be see in `data/preprocessed`.
+Remove the `--skip_reverse` flag for a much slower, slightly higher accuracy screen (proportional to total possible mutations). Change the screening `--mode` to `doubles` (or to `both`) to screen all double mutants (or both singles and doubles). It is not recommended to use `--skip_reverse` for `--mode doubles` because this ignores epistasis. A full double mutant screen on a protein greater than 200 residues is very compute expensive. It is therefore recommended to screen only double mutants where the wild-type residues are within 6 Angstrom heavy atom distance. This is controlled with the `--distance_threshold` parameter. Multi-mutants must be screened individually, either by generating an `--input_csv` with columns `pdb_file, code, chain, mut_type` and mutations (`mut_type`) specified like A2C:D3E, or individually passing in comma separated mutations via `--mutations`. An example can be seen in `data/preprocessed/ptmul_mapped.csv`; extra columns are allowed.
 
 The visualizer generates predictions using this script. You can read the GUI section to understand how `inference.py` can be used from the command line.
 
 ## Adding the Visualizer to ChimeraX
 
-1. Download, install, and open ChimeraX (free for non-commercial use)
-1. Go to Tools -> Command Line Interface (check box if not checked)
-2. In the command line interface at the bottom, type (replacing the `/path/to/repo`):
+*Note: if using Windows Subsystem for Linux (WSL), it is recommended to install ChimeraX on Windows, not WSL. Everything should work even if you installed ESM-MSR into WSL.*
 
-`devel install /path/to/repo/ChimeraX-ResidueScoreVisualizer`
+1. Download, install, and open [ChimeraX](https://www.cgl.ucsf.edu/chimerax/download.html) (free for non-commercial use):
+1. Go to Tools -> Command Line Interface (check box if not checked)
+2. In the command line interface at the bottom, type (replacing the `/path/to/repo`): `devel install /path/to/repo/ChimeraX-ResidueScoreVisualizer`
 
 ## Using the ChimeraX GUI
 
