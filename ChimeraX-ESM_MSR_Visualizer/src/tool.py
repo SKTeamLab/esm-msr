@@ -5,6 +5,7 @@ import shutil
 import numpy as np
 import pandas as pd
 import re
+from collections import defaultdict
 
 from chimerax.ui import MainToolWindow
 from chimerax.core.tools import ToolInstance
@@ -479,7 +480,18 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         self.csv_label = QLabel("No CSV loaded.")
         layout.addWidget(self.csv_label)
 
-        # --- NEW: Score Selection Group ---
+        # --- NEW: Global Filters Group ---
+        filters_group = QGroupBox("Global Filters")
+        filters_layout = QHBoxLayout()
+        self.exclude_cys_checkbox = QCheckBox("Exclude Cysteine (C)")
+        self.exclude_pro_checkbox = QCheckBox("Exclude Proline (P)")
+        filters_layout.addWidget(self.exclude_cys_checkbox)
+        filters_layout.addWidget(self.exclude_pro_checkbox)
+        filters_layout.addStretch()
+        filters_group.setLayout(filters_layout)
+        layout.addWidget(filters_group)
+
+        # --- Score Selection Group ---
         score_group = QGroupBox("Score Selection (Single Mutations)")
         score_layout = QVBoxLayout()
         score_group.setLayout(score_layout)
@@ -528,7 +540,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         layout.addWidget(self.color_backbone_checkbox)
 
         stick_layout = QHBoxLayout()
-        self.show_sticks_checkbox = QCheckBox("Show Highest-Scoring Mutations")
+        self.show_sticks_checkbox = QCheckBox("Show Sticks for Highest-Scoring Mutations")
         self.show_sticks_checkbox.setChecked(True)
         stick_layout.addWidget(self.show_sticks_checkbox)
 
@@ -566,27 +578,88 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         # Connect the checkbox to enable/disable the spinbox
         self.show_contacts_checkbox.toggled.connect(self.contact_distance_spinbox.setEnabled)
 
-        epistasis_groupbox = QGroupBox("Epistasis Analysis")
+        # --- Epistasis Groupbox ---
+        epistasis_groupbox = QGroupBox("Epistasis Analysis (Double Mutants)")
         epistasis_layout = QVBoxLayout()
         epistasis_groupbox.setLayout(epistasis_layout)
-        layout.addWidget(epistasis_groupbox)
 
-        self.epistasis_checkbox = QCheckBox("Epistasis Mode (Mutually Exclusive UI)")
-        self.epistasis_checkbox.setChecked(False)
-        self.epistasis_checkbox.toggled.connect(self._on_epistasis_toggled)
-        epistasis_layout.addWidget(self.epistasis_checkbox)
+        self.epi_mode_btn_group = QButtonGroup()
+        
+        mode_layout = QHBoxLayout()
+        self.radio_no_epi = QRadioButton("Disable (Use Single Mutations)")
+        self.radio_wt_epi = QRadioButton("Wild-Type Epistasis (Alanine Pairs)")
+        self.radio_mt_epi = QRadioButton("Mutant Epistasis (Top Scoring Pairs)")
+        
+        self.radio_no_epi.setChecked(True)
+        self.epi_mode_btn_group.addButton(self.radio_no_epi)
+        self.epi_mode_btn_group.addButton(self.radio_wt_epi)
+        self.epi_mode_btn_group.addButton(self.radio_mt_epi)
+        
+        mode_layout.addWidget(self.radio_no_epi)
+        mode_layout.addWidget(self.radio_wt_epi)
+        mode_layout.addWidget(self.radio_mt_epi)
+        mode_layout.addStretch()
+        epistasis_layout.addLayout(mode_layout)
+
+        self.radio_no_epi.toggled.connect(self._on_epistasis_toggled)
+        self.radio_wt_epi.toggled.connect(self._on_epistasis_toggled)
+        self.radio_mt_epi.toggled.connect(self._on_epistasis_toggled)
 
         epist_thresh_layout = QHBoxLayout()
-        epist_thresh_layout.addWidget(QLabel("Epistasis dddg_pred Threshold:"))
-        self.epistasis_threshold_spinbox = QDoubleSpinBox()
-        self.epistasis_threshold_spinbox.setRange(0.0, 1000.0) 
-        self.epistasis_threshold_spinbox.setSingleStep(0.1)
-        self.epistasis_threshold_spinbox.setValue(1.0)
-        epist_thresh_layout.addWidget(self.epistasis_threshold_spinbox)
+        epist_thresh_layout.addWidget(QLabel("Pos Threshold:"))
+        self.epi_pos_thresh = QDoubleSpinBox()
+        self.epi_pos_thresh.setRange(0.0, 1000.0) 
+        self.epi_pos_thresh.setSingleStep(0.1)
+        self.epi_pos_thresh.setValue(1.0)
+        self.epi_pos_thresh.setEnabled(False)
+        epist_thresh_layout.addWidget(self.epi_pos_thresh)
+
+        epist_thresh_layout.addWidget(QLabel("Neg Threshold:"))
+        self.epi_neg_thresh = QDoubleSpinBox()
+        self.epi_neg_thresh.setRange(-1000.0, 0.0) 
+        self.epi_neg_thresh.setSingleStep(0.1)
+        self.epi_neg_thresh.setValue(-1.0)
+        self.epi_neg_thresh.setEnabled(False)
+        epist_thresh_layout.addWidget(self.epi_neg_thresh)
+        
+        epist_thresh_layout.addSpacing(20)
+        epist_thresh_layout.addWidget(QLabel("MT Target:"))
+        self.epi_mt_target_combo = QComboBox()
+        self.epi_mt_target_combo.addItems(["Most Positive", "Most Negative"])
+        self.epi_mt_target_combo.setEnabled(False)
+        epist_thresh_layout.addWidget(self.epi_mt_target_combo)
+
         epist_thresh_layout.addStretch()
         epistasis_layout.addLayout(epist_thresh_layout)
+        
+        # New Networking Limits Row
+        epist_net_layout = QHBoxLayout()
+        epist_net_layout.addWidget(QLabel("Max Network Edges per Residue:"))
+        self.epi_max_edges = QSpinBox()
+        self.epi_max_edges.setRange(1, 20)
+        self.epi_max_edges.setValue(1)
+        self.epi_max_edges.setEnabled(False)
+        epist_net_layout.addWidget(self.epi_max_edges)
+        epist_net_layout.addStretch()
+        epistasis_layout.addLayout(epist_net_layout)
+        
+        layout.addWidget(epistasis_groupbox)
         layout.addStretch()
 
+    def _on_epistasis_toggled(self):
+        is_single = self.radio_no_epi.isChecked()
+        self.color_backbone_checkbox.setEnabled(is_single)
+        self.show_sticks_checkbox.setEnabled(is_single)
+        self.show_contacts_checkbox.setEnabled(is_single)
+        self.contact_distance_spinbox.setEnabled(is_single and self.show_contacts_checkbox.isChecked())
+        
+        is_epi = not is_single
+        self.epi_pos_thresh.setEnabled(is_epi)
+        self.epi_neg_thresh.setEnabled(is_epi)
+        
+        is_mt_epi = self.radio_mt_epi.isChecked()
+        self.epi_mt_target_combo.setEnabled(is_mt_epi)
+        self.epi_max_edges.setEnabled(is_mt_epi)
 
     # ---------------- UI Callbacks -----------------
     def _grab_selection(self):
@@ -605,12 +678,6 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         except Exception as e:
             self.session.logger.warning(f"Could not grab selection: {e}")
             self.status_label.setText("Status: Failed to grab selection.")
-
-    def _on_epistasis_toggled(self, checked):
-        self.color_backbone_checkbox.setEnabled(not checked)
-        self.show_sticks_checkbox.setEnabled(not checked)
-        self.show_contacts_checkbox.setEnabled(not checked)
-        self.epistasis_threshold_spinbox.setEnabled(checked)
 
     def _refresh_models(self, trigger_name=None, trigger_data=None):
         if self._closing: return
@@ -1055,7 +1122,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             self.csv_label.setText(f"Loaded: {os.path.basename(fp)}")
             self.status_label.setText("Status: Parsing CSV...")
             
-            is_epistasis = self.epistasis_checkbox.isChecked()
+            is_epistasis = not self.radio_no_epi.isChecked()
             if self._parse_csv(fp, is_epistasis=is_epistasis):
                 self.status_label.setText("Status: Applying visualization...")
                 if is_epistasis:
@@ -1094,6 +1161,21 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
             df['parsed_muts'] = df['mut_type'].apply(parse_mut_string)
 
+            # Apply Global Exclusions
+            def has_excluded_aa(muts, exclude_aas):
+                for m in muts:
+                    if m['mut'] in exclude_aas: return True
+                return False
+
+            excluded = set()
+            if self.exclude_cys_checkbox.isChecked(): excluded.add('C')
+            if self.exclude_pro_checkbox.isChecked(): excluded.add('P')
+            
+            if excluded:
+                df = df[~df['parsed_muts'].apply(lambda x: has_excluded_aa(x, excluded))]
+                if df.empty:
+                    raise AssertionError("Global filters removed all mutations from the loaded CSV.")
+
             if is_epistasis:
                 # Epistasis validation
                 if not {'chain', 'mut_type', 'combined_dddg_pred'}.issubset(set(df.columns)):
@@ -1105,9 +1187,13 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                     
                 df['chain_id'] = df['chain'].astype(str).str.strip()
                 df['pos1_pdb'] = df['parsed_muts'].apply(lambda x: x[0]['pos'])
+                df['wt1'] = df['parsed_muts'].apply(lambda x: x[0]['wt'])
                 df['mut1'] = df['parsed_muts'].apply(lambda x: x[0]['mut'])
+                
                 df['pos2_pdb'] = df['parsed_muts'].apply(lambda x: x[1]['pos'])
+                df['wt2'] = df['parsed_muts'].apply(lambda x: x[1]['wt'])
                 df['mut2'] = df['parsed_muts'].apply(lambda x: x[1]['mut'])
+                
                 df['dddg_pred'] = df['combined_dddg_pred']
 
                 self.epistasis_df = df
@@ -1128,7 +1214,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                 else:
                     target_score_col = 'combined_pred'
 
-                # Graceful crash if the required column wasn't generated by inference.py
+                # Graceful crash if the required column wasnt generated by inference.py
                 if target_score_col not in df.columns:
                     raise AssertionError(f"Selected score '{target_score_col}' not found in CSV. Did you skip the MT pass during inference? If so, select 'WT LoRA predictions'.")
 
@@ -1178,8 +1264,9 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
     def _apply_epistasis_visualization(self):
         """
-        Visualizes epistatic interactions by creating a mutated model and drawing
-        scaled pseudobonds between residues based on their coupling scores.
+        Visualizes epistatic interactions. Supports mutually exclusive modes:
+        1. Wild-Type Epistasis (Alanine scans, substituting Glycine where WT is Alanine)
+        2. Mutant Epistasis (Greedy pairing of top scoring mutations)
         """
         wt_candidates = [m for m in self.session.models.list(type=Structure)
                         if not (getattr(self, 'mutated_model_id_string', None) and m.id_string == self.mutated_model_id_string)]
@@ -1195,67 +1282,143 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             run(self.session, f"close #{self.mutated_model_id_string}")
             self.mutated_model_id_string = None
 
-        threshold = self.epistasis_threshold_spinbox.value()
         df = self.epistasis_df
         if df is None or df.empty:
             raise AssertionError("No epistasis data loaded. Please load a valid CSV first.")
 
-        filtered_df = df[df['dddg_pred'].abs() >= threshold].copy()
+        # Standardize WT model background visibility to match single mutation mode
+        try:
+            run(self.session, f"color #{wt_model.id_string} white")
+            run(self.session, f"ribbon style #{wt_model.id_string}")
+            run(self.session, f"hide #{wt_model.id_string} atoms")
+        except Exception as e:
+            self.session.logger.warning(f"Failed to apply baseline styling to WT model: {e}")
+
+        is_wt_epi = self.radio_wt_epi.isChecked()
+        
+        if is_wt_epi:
+            # WT Epistasis relies on alanine mutations, falling back to Glycine if WT is already Alanine
+            def is_valid_wt_epi(row):
+                valid1 = (row['wt1'] != 'A' and row['mut1'] == 'A') or (row['wt1'] == 'A' and row['mut1'] == 'G')
+                valid2 = (row['wt2'] != 'A' and row['mut2'] == 'A') or (row['wt2'] == 'A' and row['mut2'] == 'G')
+                return valid1 and valid2
+
+            df = df[df.apply(is_valid_wt_epi, axis=1)].copy()
+            if df.empty:
+                raise AssertionError("WT Epistasis Mode requires double mutations to Alanine (or Glycine if WT is Ala), but no such pairs were found in the CSV.")
+
+        thresh_pos = self.epi_pos_thresh.value()
+        thresh_neg = self.epi_neg_thresh.value()
+
+        # Isolate pairs exceeding either threshold
+        filtered_df = df[(df['dddg_pred'] >= thresh_pos) | (df['dddg_pred'] <= thresh_neg)].copy()
 
         if filtered_df.empty:
-            self.status_label.setText("Status: No residue pairs found exceeding threshold.")
+            self.status_label.setText("Status: No residue pairs found outside the specified thresholds.")
             return
-
-        filtered_df['abs_score'] = filtered_df['dddg_pred'].abs()
-        sorted_df = filtered_df.sort_values(by='abs_score', ascending=False)
-        
-        max_abs_score = sorted_df['abs_score'].max()
-        if max_abs_score <= threshold:
-            max_abs_score = threshold + 0.0001 
 
         mutation_plan = {} 
         pairs_to_draw = [] 
+        
+        if is_wt_epi:
+            filtered_df['abs_score'] = filtered_df['dddg_pred'].abs()
+            sorted_df = filtered_df.sort_values(by='abs_score', ascending=False)
+            max_abs_score = sorted_df['abs_score'].max()
+            if max_abs_score == 0: max_abs_score = 1.0
 
-        for _, row in sorted_df.iterrows():
-            c1, p1, m1 = str(row['chain_id']).strip(), int(row['pos1_pdb']), str(row['mut1']).upper()
-            c2, p2, m2 = str(row['chain_id']).strip(), int(row['pos2_pdb']), str(row['mut2']).upper()
-            score = float(row['dddg_pred'])
+            for _, row in sorted_df.iterrows():
+                c1, p1, m1 = str(row['chain_id']).strip(), int(row['pos1_pdb']), str(row['mut1']).upper()
+                c2, p2, m2 = str(row['chain_id']).strip(), int(row['pos2_pdb']), str(row['mut2']).upper()
+                score = float(row['dddg_pred'])
+                # M1 and M2 are tracked but we will not physically swap the sidechains in WT epi mode
+                pairs_to_draw.append((c1, p1, m1, c2, p2, m2, score))
+        else:
+            # Mutant Epistasis Mode - Greedy Selection with Networking Support
+            is_positive_target = self.epi_mt_target_combo.currentText() == "Most Positive"
+            sorted_df = filtered_df.sort_values(by='dddg_pred', ascending=not is_positive_target)
             
-            comp1 = ((c1, p1) not in mutation_plan) or (mutation_plan[(c1, p1)] == m1)
-            comp2 = ((c2, p2) not in mutation_plan) or (mutation_plan[(c2, p2)] == m2)
+            max_abs_score = sorted_df['dddg_pred'].abs().max()
+            if max_abs_score == 0: max_abs_score = 1.0
             
-            if comp1 and comp2:
+            max_edges = self.epi_max_edges.value()
+            connection_counts = defaultdict(int)
+            
+            for _, row in sorted_df.iterrows():
+                c1, p1, m1 = str(row['chain_id']).strip(), int(row['pos1_pdb']), str(row['mut1']).upper()
+                c2, p2, m2 = str(row['chain_id']).strip(), int(row['pos2_pdb']), str(row['mut2']).upper()
+                score = float(row['dddg_pred'])
+                
+                # Exclusivity check: ignore pairs if either position has hit its edge capacity
+                if connection_counts[(c1, p1)] >= max_edges or connection_counts[(c2, p2)] >= max_edges:
+                    continue
+                
+                # Structural check: A single position can only be mutated to ONE target amino acid in the 3D model.
+                # If it's already slated to mutate to something else for a different pair, we must discard this pair.
+                if ((c1, p1) in mutation_plan and mutation_plan[(c1, p1)] != m1) or \
+                   ((c2, p2) in mutation_plan and mutation_plan[(c2, p2)] != m2):
+                    continue
+                
+                connection_counts[(c1, p1)] += 1
+                connection_counts[(c2, p2)] += 1
+                
                 mutation_plan[(c1, p1)] = m1
                 mutation_plan[(c2, p2)] = m2
                 pairs_to_draw.append((c1, p1, m1, c2, p2, m2, score))
 
         try:
-            # FIX: Use safe PDB clone to preserve polymer metadata instead of combine
+            # Use safe PDB clone to preserve polymer metadata instead of combine
             temp_pdb = os.path.join(tempfile.gettempdir(), f"clone_{wt_model.id_string.replace(':', '_')}.pdb")
             run(self.session, f"save {temp_pdb} models #{wt_model.id_string} format pdb")
             run(self.session, f"open {temp_pdb} name \"{wt_model.name}_epistasis_viz\"")
             
-            mutated_model = self.session.models.list()[-1]
+            # Explicitly fetch the atomic structures to avoid capturing PseudobondGroups
+            atomic_models = self.session.models.list(type=Structure)
+            mutated_model = atomic_models[-1]
             self.mutated_model_id_string = mutated_model.id_string.split('.')[0]
             
             if os.path.exists(temp_pdb):
                 os.remove(temp_pdb)
             
+            # Note: We apply transparency to the mutated model's ribbon, not its sticks here.
             run(self.session, f"color #{self.mutated_model_id_string} white")
-            run(self.session, f"transparency #{self.mutated_model_id_string} 70 target a")
+            run(self.session, f"transparency #{self.mutated_model_id_string} {self.wt_stick_alpha_spinbox.value()} target a")
             run(self.session, f"hide #{self.mutated_model_id_string} atoms")
 
-            for (chain_val, pos), tgt_aa in mutation_plan.items():
-                res_wt = next((r for r in mutated_model.residues if r.number == pos and r.chain_id == chain_val), None)
-                if res_wt and ONE_TO_THREE_LETTER_AA.get(tgt_aa, '') != res_wt.name:
-                    spec = f"#{self.mutated_model_id_string}/{chain_val}:{pos}"
-                    run(self.session, f"swapaa {spec} {ONE_TO_THREE_LETTER_AA[tgt_aa].lower()} log false")
+            # Apply Mutations if in Mutant Epistasis Mode
+            if not is_wt_epi:
+                for (chain_val, pos), tgt_aa in mutation_plan.items():
+                    res_wt = next((r for r in mutated_model.residues if r.number == pos and r.chain_id == chain_val), None)
+                    if res_wt and ONE_TO_THREE_LETTER_AA.get(tgt_aa, '') != res_wt.name:
+                        spec = f"#{self.mutated_model_id_string}/{chain_val}:{pos}"
+                        run(self.session, f"swapaa {spec} {ONE_TO_THREE_LETTER_AA[tgt_aa].lower()} log false")
 
-            if mutation_plan:
-                spec_list = [f"#{self.mutated_model_id_string}/{c}:{p}" for (c, p) in mutation_plan.keys()]
-                spec_all = " | ".join(spec_list)
+            # Reveal sticks for interacting residues
+            spec_list = []
+            wt_spec_list = []
+            
+            for c1, p1, m1, c2, p2, m2, score in pairs_to_draw:
+                spec_list.append(f"#{self.mutated_model_id_string}/{c1}:{p1}")
+                spec_list.append(f"#{self.mutated_model_id_string}/{c2}:{p2}")
+                # Track original WT residues for ghost overlay if in Mutant mode
+                if not is_wt_epi:
+                    wt_spec_list.append(f"#{wt_model.id_string}/{c1}:{p1}")
+                    wt_spec_list.append(f"#{wt_model.id_string}/{c2}:{p2}")
+
+            # Render mutated sticks
+            if spec_list:
+                spec_all = " | ".join(set(spec_list))
                 run(self.session, f"show {spec_all} atoms; style {spec_all} stick; color {spec_all} byelement")
-                run(self.session, f"transparency {spec_all} 0 target a")
+                run(self.session, f"transparency {spec_all} {self.mut_stick_alpha_spinbox.value() if not is_wt_epi else 0} target a")
+                
+            # Render wild-type ghost sticks underneath if in Mutant mode
+            if wt_spec_list:
+                wt_spec_all = " | ".join(set(wt_spec_list))
+                wt_stick_alpha = self.wt_stick_alpha_spinbox.value()
+                run(self.session, f"color {wt_spec_all} & ~C & sideonly white")
+                run(self.session, f"color {wt_spec_all} & ~C & sideonly byelement")
+                run(self.session, f"show {wt_spec_all} atoms")
+                run(self.session, f"style {wt_spec_all} stick")
+                run(self.session, f"transparency {wt_spec_all} {wt_stick_alpha} target a")
 
             model_residues = {(r.chain_id, r.number): r for r in mutated_model.residues}
             count_lines = 0
@@ -1278,7 +1441,13 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                 min_idx = np.unravel_index(np.argmin(dists), dists.shape)
                 a1, a2 = atoms1[min_idx[0]], atoms2[min_idx[1]]
                 
-                norm_score = min(1.0, max(0.0, (abs(score) - threshold) / (max_abs_score - threshold)))
+                # Bi-directional threshold scaling
+                rel_thresh = thresh_pos if score > 0 else abs(thresh_neg)
+                if max_abs_score <= rel_thresh:
+                    norm_score = 0.0
+                else:
+                    norm_score = min(1.0, max(0.0, (abs(score) - rel_thresh) / (max_abs_score - rel_thresh)))
+                    
                 radius_val = 0.05 + (0.95 * (norm_score ** 2)) 
                 intensity = int(100 + 155 * norm_score)        
                 alpha = int(30 + 225 * norm_score)             
@@ -1305,7 +1474,8 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                 if alpha_val >= 99:
                     run(self.session, f"hide {exclude_spec}")
                 else:
-                    run(self.session, f"show {exclude_spec} ribbons; transparency {exclude_spec} {alpha_val} target ac")
+                    run(self.session, f"show {exclude_spec} ribbons")
+                    run(self.session, f"transparency {exclude_spec} {alpha_val} target ac")
 
             self.status_label.setText(f"Status: Epistasis Viz Complete ({count_lines} interactions).")
 
@@ -1375,12 +1545,14 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         wt_spec = None
         if show_sticks:
             try:
-                # FIX: Use safe PDB clone to preserve polymer metadata instead of combine
+                # Use safe PDB clone to preserve polymer metadata instead of combine
                 temp_pdb = os.path.join(tempfile.gettempdir(), f"clone_{wt_model.id_string.replace(':', '_')}.pdb")
                 run(self.session, f"save {temp_pdb} models #{wt_model.id_string} format pdb")
                 run(self.session, f"open {temp_pdb} name \"{wt_model.name}_mutated_viz\"")
                 
-                mut_model = self.session.models.list()[-1]
+                # Explicitly fetch the atomic structures to avoid capturing PseudobondGroups
+                atomic_models = self.session.models.list(type=Structure)
+                mut_model = atomic_models[-1]
                 self.mutated_model_id_string = mut_model.id_string.split('.')[0]
                 
                 if os.path.exists(temp_pdb):
@@ -1460,19 +1632,24 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                     
                     # 1. Zone selection: Distance check explicitly using the exact syntax ordering you requested.
                     run(self.session, f"select ({mut_spec}) @<{dist} & ~backbone & #{wt_model.id_string} & protein & ~({mut_spec}) & ~({wt_spec})")
-                    run(self.session, "select up")
-                    run(self.session, "select up")
-                    # Style the entire residue context as thin, semi-transparent lines
-                    run(self.session, "show sel")
-                    run(self.session, "style sel stick")
-                    run(self.session, "size sel stickRadius 0.1") # Increased from 0.05 to ensure visibility
-                    run(self.session, "color sel byelement")
-                    run(self.session, f"transparency sel {wt_stick_alpha} target ab") # Explicitly target atoms AND bonds for transparency
+                    run(self.session, "name my_contact_atoms sel")
                     
-                    run(self.session, f"select ({mut_spec}) @<{dist} & ~backbone & #{wt_model.id_string} & protein & ~({mut_spec}) & ~({wt_spec})")
-                    run(self.session, "style sel ball")
-                    run(self.session, "transparency sel 0 target a")
-
+                    # Pass 1: Promote atom selection to the full residues to establish structural context
+                    run(self.session, "select my_contact_atoms")
+                    run(self.session, "select up")
+                    run(self.session, "name my_contact_residues sel")
+                    
+                    # Style the entire residue context as thin, semi-transparent lines
+                    run(self.session, "show my_contact_residues")
+                    run(self.session, "style my_contact_residues stick")
+                    run(self.session, "size my_contact_residues stickRadius 0.1") # Increased from 0.05 to ensure visibility
+                    run(self.session, "color my_contact_residues byelement")
+                    run(self.session, "transparency my_contact_residues 60 target ab") # Explicitly target atoms AND bonds for transparency
+                    
+                    # Pass 2: Highlight strictly the interacting atoms as solid balls
+                    run(self.session, "style my_contact_atoms ball")
+                    run(self.session, "transparency my_contact_atoms 0 target a")
+                    
                     # Clean up view state
                     run(self.session, "hide @h*")
                     run(self.session, "select clear")
