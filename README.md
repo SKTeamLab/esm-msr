@@ -124,7 +124,7 @@ Select **one** of three methods to define the mutation space. Selecting one meth
 * **Protein Complex Mode (Experimental):** Allows scoring within the context of multiple chains vs a `single_chain`. In our limited testing, this does not appear to be more useful for binding prediction than using the single chain of interest.
 
 **Running Inference:**
-Click **Run Prediction Script** at the bottom of the window. A red **STOP** button will appear, which allows you to forcefully terminate the process tree if you accidentally launch a massive screening run. *Note: Singles screening takes <1 minute on modern GPUs. Doubles screening on a 300AA protein can take hours (`chain`) or days (`unmasked`).*
+Click **Run Prediction Script** at the bottom of the window. A red **STOP** button will appear, which allows you to forcefully terminate the process tree if you accidentally launch a massive screening run. After preliminary setup (~1 minute), you can track the screening progress at the bottom of the GUI, stop, and modify the run parameters if it will take too long. *Note: Singles screening takes <1 minute on modern GPUs. Doubles screening on a 300AA protein can take hours (`chain`) or days (`unmasked`).*
 
 ### 3. Visualization
 
