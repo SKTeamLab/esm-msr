@@ -93,7 +93,7 @@ Load a valid protein structure (PDB, mmCIF) into ChimeraX. You can click and dra
 * **Output CSV:** Where the resulting predictions will be saved.
 
 **Model Weights Source:**
-Choose between downloading weights directly via a **HuggingFace Token** (requires internet) or using a local offline folder via **Base Model Location**, which you should have setup previously.
+Choose between downloading weights directly via a **HuggingFace Token** (requires internet) or using a local offline folder via **Base Model Location**, which you should have setup previously. If you logged in via `huggingface-cli`, you can leave both boxes blank.
 
 **Compute Environment & Model Configuration Files:**
 * **Compute Device & Batch Size:** Select your hardware (`cuda`, `mps`, `cpu`) and batch size. Lower the batch size if you encounter CUDA Out-Of-Memory (OOM) errors. Use `cpu` unless you configured CUDA during setup and have an Nvidia GPU.
