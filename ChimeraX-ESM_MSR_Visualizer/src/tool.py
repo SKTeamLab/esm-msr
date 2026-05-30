@@ -850,14 +850,18 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                 
                 if pyexe:
                     program = pyexe
+                    args.append('-u') # Force unbuffered stdout/stderr
                 else:
                     self.session.logger.warning(f"Could not find python binary inside {env}. Falling back to default 'python'.")
                     program = 'python'
+                    args.append('-u')
             else:
                 program = 'conda'
-                args.extend(['run', '-n', env, 'python'])
+                # Conda explicitly captures output by default. We must disable it and pass -u to python.
+                args.extend(['run', '--no-capture-output', '-n', env, 'python', '-u'])
         else:
             program = 'python'
+            args.append('-u')
 
         # Script Arguments Assembly
         script_args = [self.python_script_path]
@@ -890,8 +894,6 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             if not subset_df_val:
                 raise AssertionError("CSV input selected but no path provided.")
             script_args += ['--input_csv', subset_df_val]
-            # Assumes mode isn't needed if input_csv overrides it, but add it if backend requires it:
-            # script_args += ['--mode', 'singles'] # Uncomment if required as fallback
             
         elif self.radio_explicit.isChecked():
             script_args += ['--pdb_file', self.script_input_structure_path]
@@ -978,8 +980,25 @@ class ESM_MSR_VisualizerTool(ToolInstance):
     def _on_proc_output(self):
         try:
             out = bytes(self.proc.readAllStandardOutput()).decode('utf-8', errors='replace')
-            if out:
-                self.session.logger.info(out.rstrip())
+            if not out:
+                return
+                
+            # tqdm uses \r to overwrite lines. Replace with \n so we can split the stream cleanly.
+            chunks = out.replace('\r', '\n').split('\n')
+            
+            for chunk in chunks:
+                clean_chunk = chunk.strip()
+                if not clean_chunk: 
+                    continue
+                    
+                # Heuristic: Detect tqdm progress bars using common structural markers
+                if '|' in clean_chunk and ('it/s' in clean_chunk or 's/it' in clean_chunk or '%' in clean_chunk):
+                    # Route to the GUI status label to simulate in-place updates
+                    self.status_label.setText(f"Status: {clean_chunk}")
+                else:
+                    # Route standard logging back to the ChimeraX console
+                    self.session.logger.info(clean_chunk)
+                    
         except Exception as e:
             self.session.logger.error(f"Error reading process output: {e}")
 
