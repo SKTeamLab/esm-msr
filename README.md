@@ -69,7 +69,7 @@ Inference strategies, performance and compute time are discussed in the paper. T
 
 `python src/esm_msr/inference.py --checkpoint_path LoRA_models/esm-msr-small/epoch\=03-val_rho_combined_avg\=0.816.ckpt --pdb_file path_to_your_structure_file --mode singles --skip_reverse --output_csv ./example_output.csv`
 
-Remove the `--skip_reverse` flag for a much slower, slightly higher accuracy screen (proportional to total possible mutations). Change the screening `--mode` to `doubles` (or to `both`) to screen all double mutants (or both singles and doubles). It is not recommended to use `--skip_reverse` for `--mode doubles` because this ignores epistasis. A full double mutant screen on a protein greater than 200 residues is very compute expensive. It is therefore recommended to screen only double mutants where the wild-type residues are within 6 Angstrom heavy atom distance. This is controlled with the `--distance_threshold` parameter. Multi-mutants must be screened individually, either by generating an `--input_csv` with columns `pdb_file, code, chain, mut_type` and mutations (`mut_type`) specified like A2C:D3E, or individually passing in comma separated mutations via `--mutations`. An example can be seen in `data/preprocessed/ptmul_mapped.csv`; extra columns are allowed.
+Remove the `--skip_reverse` flag for a much slower, slightly higher accuracy screen (proportional to total possible mutations). Change the screening `--mode` to `singles+doubles` to screen all double and single mutants (the singles are comparatively almost free and useful for visualization later). It is not recommended to use `--skip_reverse` for `--mode doubles` because this ignores epistasis. A full double mutant screen on a protein greater than 200 residues is very compute expensive. It is therefore recommended to screen only double mutants where the wild-type residues are within 6 Angstrom heavy atom distance. This is controlled with the `--distance_threshold` parameter. Multi-mutants must be screened individually, either by generating an `--input_csv` with columns `pdb_file, code, chain, mut_type` and mutations (`mut_type`) specified like A2C:D3E, or individually passing in comma separated mutations via `--mutations`. An example can be seen in `data/preprocessed/ptmul_mapped.csv`; extra columns are allowed.
 
 The visualizer generates predictions using this script. You can read the GUI section to understand how `inference.py` can be used from the command line.
 
@@ -109,9 +109,9 @@ Select which open ChimeraX model and specific chain you want to predict on.
 
 **Mutation Scope (Mutually Exclusive):**
 Select **one** of three methods to define the mutation space. Selecting one method will automatically disable the inputs for the others.
-1. **1. Full Screen:** Exhaustively scores mutations. Choose `singles`, `doubles`, or `both`.
+1. **1. Full Screen:** Exhaustively scores mutations. Choose `singles`, `singles+doubles`.
    * *Positions:* Leave empty for all residues, or type indices manually (e.g., `11,12`). You can also select residues in ChimeraX (ctrl + click + drag) and click **Grab Selection**.
-   * *Filter doubles by distance (Å):* If you are screening `doubles` or `both`, you can check this box to strictly evaluate pairs of residues that are within a certain 3D spatial proximity based on minimum side-chain heavy atom distance.
+   * *Filter doubles by distance (Å):* If you are screening `singles+doubles`, you can check this box to strictly evaluate pairs of residues that are within a certain 3D spatial proximity based on minimum side-chain heavy atom distance.
 2. **2. Specify mutations in CSV:** Upload a predefined CSV list of mutations to score.
 3. **3. Input Mutations Directly:** Manually type a comma-separated list of precise mutations (e.g., `A12C,A12C:D15E`).
 
@@ -130,7 +130,7 @@ Click **Run Prediction Script** at the bottom of the window. A red **STOP** butt
 
 Once inference completes (or if you load an existing output CSV), navigate to the **Visualization** tab to map the stability and epistatic scores onto your 3D structure.
 
-**Note on Requirements:** *Single-mutation data is required for all visualization modes* to properly map additive stability scores onto sidechains. Ensure your inference was run using `--mode both` or `--mode singles` if you plan to visualize the results.
+**Note on Requirements:** *Single-mutation data is required for all visualization modes* to properly map additive stability scores onto sidechains.
 
 #### Core Configuration
 * **Display Mode:** Choose the primary visualization strategy:
@@ -161,5 +161,5 @@ Customize the color, geometry style (stick, ball, sphere, wire), and transparenc
 When using the default styling (leaving the Mut Color blank), the visualizer generates dynamic colorbars mapped to your data:
 * 🟩 **Green (Atoms/Backbone):** Favorable additive single-mutant stability (score > 0).
 * 🟥 **Red (Atoms/Backbone):** Unfavorable additive single-mutant stability (score < 0).
-* 🟧 **Orange (Pseudobonds):** Positive epistasis / Synergistic interaction (score > 0).
-* 🟦 **Blue (Pseudobonds):** Negative epistasis / Antagonistic interaction (score < 0).
+* 🟧 **Orange (Pseudobonds):** Positive epistasis / synergistic interaction (score > 0).
+* 🟦 **Blue (Pseudobonds):** Negative epistasis / antagonistic interaction (score < 0).
