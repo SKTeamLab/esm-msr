@@ -128,24 +128,38 @@ Click **Run Prediction Script** at the bottom of the window. A red **STOP** butt
 
 ### 3. Visualization
 
-Once inference completes (or if you load an existing output CSV), navigate to the **Visualization** tab to map the stability scores onto your 3D structure.
+Once inference completes (or if you load an existing output CSV), navigate to the **Visualization** tab to map the stability and epistatic scores onto your 3D structure.
 
-**Score Selection:**
-If you ran standard inference, choose between visualizing **WT LoRA**, **MT LoRA**, or the recommended **Dual-view predictions**. *Note: If you checked "Skip MT pass" during inference, only WT LoRA predictions will be available in the CSV.*
+**Note on Requirements:** *Single-mutation data is required for all visualization modes* to properly map additive stability scores onto sidechains. Ensure your inference was run using `--mode both` or `--mode singles` if you plan to visualize the results.
 
-**Standard Single-Mutant Mode:**
-*(Requires a CSV generated using `singles` or `both` mode. Ensure "Epistasis Mode" is unchecked.)*
-* **Score Threshold:** Only mutations with a predicted score above this value (positive = stabilizing) will be visualized.
-* **Color Backbone by Highest ΔΔG:** Colors the wild-type backbone on a Red-to-White-to-Green gradient based on the highest-scoring candidate at each position, essentially giving a 'mutability' visualization.
-* **Show Highest-Scoring Mutations:** Physically mutates the residue to the highest-scoring candidate and renders it as sticks. The original wild-type sticks remain visible for structural comparison. Adjust transparency settings to your liking.
-* **Visualize Contacts:** Shows surrounding contextual residues within a specified Angstrom radius of the highest-scoring mutant sidechains. 
-   * The structural context (surrounding non-interacting atoms) is rendered as ghosted thin lines.
-   * Specific contacting atoms are highlighted as balls.
+#### Core Configuration
+* **Display Mode:** Choose the primary visualization strategy:
+  * **Singles:** Visualizes independent single mutations.
+  * **WT Epistasis:** Visualizes epistatic interactions between wild-type residues when truncated to Alanine (or Glycine). Mapped directly onto the native WT geometry.
+  * **MT Epistasis:** Visualizes epistatic interactions between highest-scoring mutant pairs, utilizing dynamically generated structural layers to resolve overlapping geometry.
+* **Select Pairs By:** Determines the metric used to filter and sort interactions (either the raw Epistasis ΔΔΔG score, or the total Double Mutant Stability score).
+* **Display Priority:** Determines which interactions to keep when the "Max Interactions" cap is hit. You can prioritize by High score, Low score, or Magnitude.
+* **Global Filters:** Quickly exclude specific mutations from the visualization (e.g., No WT Cys, No Mut Pro) to clean up the display.
+* **Score Selection (Additive Base):** Select which raw additive score to use as the base metric (Dual-view, WT LoRA, or MT LoRA). *Note: Dual-view is required for epistasis. If you skipped the MT pass during inference, only WT LoRA predictions will be available.*
 
-**Epistasis Mode (Double Mutants):**
-*(Requires a CSV generated using `doubles` mode. Check the "Epistasis Mode" box.)*
-* **Epistasis Threshold:** Filters out weak epistatic interactions based on absolute magnitude.
-* **What it shows:** Turns the active model transparent and replaces residues involved in significant epistatic interactions with their mutated counterparts. Scaled pseudobonds are drawn between interacting pairs:
-    * 🟩 **Green Line:** Positive epistasis (score > 0).
-    * 🟥 **Red Line:** Negative epistasis (score < 0).
-    * Line thickness and brightness are mathematically scaled based on the magnitude of the predicted interaction.
+#### Global Thresholds and Networks
+* **Pos/Neg Thresholds:** Only mutations or epistatic pairs with scores strictly greater than the Positive Threshold or less than the Negative Threshold are visualized.
+* **Non-Target Chain Transp %:** Adjusts the opacity of opposing chains in the complex to reduce visual clutter.
+* **Max Interactions per Position:** (Epistasis modes only). Caps the number of epistatic network edges that can originate from a single residue to prevent visual overload (the "hairball" effect).
+* **Visualize Contacts:** Shows surrounding wild-type contextual residues within a specified Angstrom radius of the visualized mutant sidechains. 
+  * Contacting atoms are explicitly highlighted based on your styling preferences.
+  * *Note: Distances are calculated using sidechain heavy atoms. Backbone-only contacts are excluded.*
+* **Color Backbone by Highest Additive ΔΔG:** (Singles & WT Epistasis mode only). Colors the wild-type ribbon backbone on a Red-to-White-to-Green gradient based on the highest-scoring candidate at each position.
+
+#### Rendering and Styling
+Customize the color, geometry style (stick, ball, sphere, wire), and transparency of the structural components.
+* **WT Style:** Applies to the "ghost" wild-type residues left behind for structural context.
+* **Mut Color / Style:** Applies to the mutated sidechains. **LEAVE BLANK FOR ADDITIVE SCORE** to automatically color the mutant carbons based on their individual stability score (Red-to-White-to-Green gradient).
+* **Contact Style:** Applies explicitly to the surrounding context residues.
+
+#### Color Mapping Guide
+When using the default styling (leaving the Mut Color blank), the visualizer generates dynamic colorbars mapped to your data:
+* 🟩 **Green (Atoms/Backbone):** Favorable additive single-mutant stability (score > 0).
+* 🟥 **Red (Atoms/Backbone):** Unfavorable additive single-mutant stability (score < 0).
+* 🟧 **Orange (Pseudobonds):** Positive epistasis / Synergistic interaction (score > 0).
+* 🟦 **Blue (Pseudobonds):** Negative epistasis / Antagonistic interaction (score < 0).
