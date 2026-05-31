@@ -255,8 +255,10 @@ def generate_screening_df(args) -> pd.DataFrame:
         target_positions = [i+1 for i in range(len(original_seq))]
 
     mut_list = []
+    mut_list_pdb = []
+    
     AAs = list('ACDEFGHIKLMNPQRSTVWY')
-    modes = ['singles', 'doubles'] if args.mode == 'both' else [args.mode]
+    modes = ['singles', 'doubles'] if args.mode in ['singles+doubles', 'both'] else [args.mode]
 
     if 'singles' in modes:
         for pos in target_positions:
@@ -264,6 +266,7 @@ def generate_screening_df(args) -> pd.DataFrame:
             for mut in AAs:
                 if mut != wt:
                     mut_list.append(f"{wt}{pos}{mut}") # Sequence indices used for inference
+                    mut_list_pdb.append(f"{wt}{seq_to_pdb[pos]}{mut}") # PDB mapped string
 
     if 'doubles' in modes:
         pairs = list(itertools.combinations(target_positions, 2))
@@ -302,14 +305,36 @@ def generate_screening_df(args) -> pd.DataFrame:
                 for mut2 in AAs:
                     if mut2 == wt2: continue
                     mut_list.append(f"{wt1}{pos1}{mut1}:{wt2}{pos2}{mut2}")
+                    mut_list_pdb.append(f"{wt1}{seq_to_pdb[pos1]}{mut1}:{wt2}{seq_to_pdb[pos2]}{mut2}")
 
     if args.mutations:
         mut_list = [m.strip() for m in args.mutations.split(',')]
+        mut_list_pdb = []
+        for m_str in mut_list:
+            pdb_parts = []
+            for single_m in m_str.split(':'):
+                if len(single_m) < 3:
+                    raise AssertionError(f"Invalid mutation format: {single_m}")
+                wt = single_m[0]
+                mt = single_m[-1]
+                try:
+                    pos = int(single_m[1:-1])
+                except ValueError:
+                    raise AssertionError(f"Could not parse integer position from mutation string: {single_m}. Must be a sequence index.")
+                
+                if pos not in seq_to_pdb:
+                    raise AssertionError(f"Position {pos} from sequence mutation not found in PDB mapping.")
+                
+                pdb_parts.append(f"{wt}{seq_to_pdb[pos]}{mt}")
+            mut_list_pdb.append(":".join(pdb_parts))
 
     if not mut_list:
         raise AssertionError("The generated mutation list is empty. Ensure you selected valid target residues.")
 
-    df = pd.DataFrame({'mut_type': mut_list})
+    df = pd.DataFrame({
+        'mut_type_renumbered': mut_list,
+        'mut_type_pdb': mut_list_pdb
+    })
     df['pdb_file'] = args.pdb_file
     df['code'] = args.code
     df['chain'] = args.chain
@@ -446,9 +471,18 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
         valid_rows = []
         for _, row in group_df.iterrows():
             muts, is_valid = [], True
-            for m_str in str(row['mut_type']).split(':'):
-                if len(m_str) < 3: is_valid = False; break
-                wt, mt, pos = m_str[0], m_str[-1], int(m_str[1:-1])
+            # Read from the new renumbered sequence-indexed column
+            for m_str in str(row['mut_type_renumbered']).split(':'):
+                if len(m_str) < 3: 
+                    is_valid = False
+                    break
+                
+                wt, mt = m_str[0], m_str[-1]
+                try:
+                    pos = int(m_str[1:-1])
+                except ValueError:
+                    raise AssertionError(f"Could not parse integer position from mutation string: {m_str}. Are you feeding PDB indices into mut_type_renumbered?")
+                
                 if pos < 1 or pos > len(wt_seq_str) or mt not in model.vocab:
                     raise IndexError(f"Invalid mutation {m_str} mapping against sequence len {len(wt_seq_str)}")
                 elif wt_seq_str[pos-1] != wt:
@@ -456,7 +490,16 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
                     if not ignore_mismatch:
                         is_valid = False; break
                 muts.append((wt, pos, mt))
-            if is_valid and muts: valid_rows.append({'mut_type': str(row['mut_type']), 'muts': muts, 'pdb_file': pdb, 'code': code, 'chain': chain})
+            
+            if is_valid and muts: 
+                valid_rows.append({
+                    'mut_type_renumbered': str(row['mut_type_renumbered']), 
+                    'mut_type_pdb': str(row['mut_type_pdb']),
+                    'muts': muts, 
+                    'pdb_file': pdb, 
+                    'code': code, 
+                    'chain': chain
+                })
         
         if not valid_rows: 
             raise AssertionError("No valid rows were produced after checking mutations against the structure.")
@@ -510,7 +553,9 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
             muts_tup = tuple(muts)
             
             res_dict = {
-                'pdb_file': r['pdb_file'], 'code': r['code'], 'chain': r['chain'], 'mut_type': r['mut_type']
+                'pdb_file': r['pdb_file'], 'code': r['code'], 'chain': r['chain'], 
+                'mut_type_renumbered': r['mut_type_renumbered'],
+                'mut_type_pdb': r['mut_type_pdb']
             }
             
             if skip_additive or len(muts) == 1:
@@ -555,7 +600,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run ESM3 mutant stability inference with MSRModel.")
 
     # Data IO and Execution Args
-    parser.add_argument("--input_csv", type=str, default=None, help="Path to input CSV containing: pdb_file, code, chain, mut_type")
+    parser.add_argument("--input_csv", type=str, default=None, help="Path to input CSV containing: pdb_file, code, chain, mut_type_renumbered, mut_type_pdb")
     parser.add_argument("--output_csv", type=str, required=True, help="Path to save output CSV")
     
     # Structure arguments (Used if input_csv is not provided)
@@ -564,7 +609,7 @@ if __name__ == "__main__":
     parser.add_argument("--chain", type=str, default="A", help="Chain ID")
 
     # Screening Arguments
-    parser.add_argument("--mode", type=str, choices=['singles', 'doubles', 'both'], default='singles', help="Mutation screening mode")
+    parser.add_argument("--mode", type=str, choices=['singles', 'doubles', 'both', 'singles+doubles'], default='singles', help="Mutation screening mode")
     parser.add_argument("--screen_residues", type=str, default=None, help="Comma-separated list of PDB indices to screen (mutually exclusive with screen_residues_except)")
     parser.add_argument("--screen_residues_except", type=str, default=None, help="Comma-separated list of PDB indices to exclude from screen (mutually exclusive with screen_residues)")
     parser.add_argument("--mutations", type=str, default=None, help="Comma-separated list of sequence-index mutations (e.g., A12C,A12C:D15E) to score directly.")
@@ -643,8 +688,10 @@ if __name__ == "__main__":
         except Exception as e:
             raise AssertionError(f"Failed to read input CSV: {e}")
             
-        required_cols = {'pdb_file', 'code', 'chain', 'mut_type'}
+        required_cols = {'pdb_file', 'code', 'chain', 'mut_type_renumbered', 'mut_type_pdb'}
         if not required_cols.issubset(input_df.columns):
+            if 'mut_type' in input_df.columns and 'mut_type_renumbered' not in input_df.columns:
+                raise AssertionError("Input CSV is using the deprecated 'mut_type' column format. Please rename this column to 'mut_type_renumbered' and provide a corresponding 'mut_type_pdb' column to continue.")
             raise AssertionError(f"Input CSV missing required columns. Expected: {required_cols}. Found: {set(input_df.columns)}")
     else:
         if not args.pdb_file:

@@ -1,6 +1,6 @@
-<BundleInfo name="ChimeraX-ESM_MSR_Visualizer"
-            version="0.2.0"
-            package="chimerax.esm_msr_visualizer"
+<BundleInfo name="ChimeraX-ESM_MSR"
+            version="0.3.0"
+            package="chimerax.ESM_MSR"
             minSessionVersion="1"
             maxSessionVersion="1">
 
@@ -15,7 +15,7 @@ Interfaces with ESM-MSR to predict and visualize (multi-)mutant stability effect
 
     <Categories>
         <Category name="Utilities"/>
-        <Category name="Visualization"/>
+        <Category name="Stability"/>
     </Categories>
 
     <Dependencies>
@@ -26,6 +26,6 @@ Interfaces with ESM-MSR to predict and visualize (multi-)mutant stability effect
     <Classifiers>
         <PythonClassifier>Development Status :: 3 - Alpha</PythonClassifier>
         <PythonClassifier>License :: Freeware</PythonClassifier>
-        <ChimeraXClassifier>ChimeraX :: Tool :: ESM_MSR_Visualizer :: Visualization :: Visualizes ESM-MSR scores</ChimeraXClassifier>
+        <ChimeraXClassifier>ChimeraX :: Tool :: ESM_MSR :: Stability :: Visualizes ESM-MSR scores</ChimeraXClassifier>
     </Classifiers>
 </BundleInfo>

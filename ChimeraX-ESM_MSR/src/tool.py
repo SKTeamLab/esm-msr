@@ -29,7 +29,7 @@ ONE_TO_THREE_LETTER_AA = {
     'Y': 'TYR', 'V': 'VAL'
 }
 
-class ESM_MSR_VisualizerTool(ToolInstance):
+class ESM_MSR_Tool(ToolInstance):
 
     SESSION_ENDURING = False
     SESSION_SAVE = False
@@ -40,7 +40,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         #self.session.logger.info(f"****** RSVTool __init__ ({tool_registered_name}) ******")
 
         # 1. INITIALIZE SETTINGS
-        self.settings = QSettings("ESM_MSR_Tools", "ESM_MSR_Visualizer")
+        self.settings = QSettings("ESM_MSR_Tools", "ESM_MSR")
         
         # 2. LOAD STATE VARIABLES
         self.base_repo_path = self.settings.value("base_repo_path", "")
@@ -326,7 +326,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         meth1_row1.addWidget(self.radio_full)
 
         self.mode_combobox = QComboBox()
-        self.mode_combobox.addItems(['singles', 'doubles', 'both'])
+        self.mode_combobox.addItems(['singles', 'singles+doubles']) #'doubles',
         self.mode_combobox.currentTextChanged.connect(self._update_scope_ui)
         meth1_row1.addWidget(self.mode_combobox)
         
@@ -451,7 +451,7 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
         # Handle distance checkbox logic safely
         current_mode = self.mode_combobox.currentText()
-        is_doubles_mode = current_mode in ['doubles', 'both']
+        is_doubles_mode = current_mode == 'singles+doubles'
         should_enable_dist = is_full and is_doubles_mode
         
         self.enable_distance_checkbox.setEnabled(should_enable_dist)
@@ -472,194 +472,6 @@ class ESM_MSR_VisualizerTool(ToolInstance):
 
     def _toggle_distance_spinbox(self, checked):
         self.distance_threshold_spinbox.setEnabled(checked)
-
-    def _build_viz_tab(self, parent_widget):
-        layout = QVBoxLayout()
-        parent_widget.setLayout(layout)
-
-        self.csv_label = QLabel("No CSV loaded.")
-        layout.addWidget(self.csv_label)
-
-        # --- NEW: Global Filters Group ---
-        filters_group = QGroupBox("Global Filters")
-        filters_layout = QHBoxLayout()
-        self.exclude_cys_checkbox = QCheckBox("Exclude Cysteine (C)")
-        self.exclude_pro_checkbox = QCheckBox("Exclude Proline (P)")
-        filters_layout.addWidget(self.exclude_cys_checkbox)
-        filters_layout.addWidget(self.exclude_pro_checkbox)
-        filters_layout.addStretch()
-        filters_group.setLayout(filters_layout)
-        layout.addWidget(filters_group)
-
-        # --- Score Selection Group ---
-        score_group = QGroupBox("Score Selection (Single Mutations)")
-        score_layout = QVBoxLayout()
-        score_group.setLayout(score_layout)
-
-        self.viz_score_btn_group = QButtonGroup()
-
-        self.radio_wt_lora = QRadioButton("WT LoRA predictions (additive)")
-        self.viz_score_btn_group.addButton(self.radio_wt_lora)
-        score_layout.addWidget(self.radio_wt_lora)
-
-        self.radio_mt_lora = QRadioButton("MT LoRA predictions (not recommended)")
-        self.viz_score_btn_group.addButton(self.radio_mt_lora)
-        score_layout.addWidget(self.radio_mt_lora)
-
-        self.radio_dual_view = QRadioButton("Dual-view predictions (recommended)")
-        self.viz_score_btn_group.addButton(self.radio_dual_view)
-        score_layout.addWidget(self.radio_dual_view)
-
-        self.radio_dual_view.setChecked(True) # Default
-        layout.addWidget(score_group)
-        # ----------------------------------
-
-        threshold_layout = QHBoxLayout()
-        threshold_layout.addWidget(QLabel("Score Threshold (kcal/mol, positive=stable):"))
-        self.score_threshold_spinbox = QDoubleSpinBox()
-        self.score_threshold_spinbox.setRange(-1000.0, 1000.0)
-        self.score_threshold_spinbox.setSingleStep(0.05)
-        self.score_threshold_spinbox.setValue(0.5)
-        self.score_threshold_spinbox.setDecimals(2)
-        threshold_layout.addWidget(self.score_threshold_spinbox)
-        
-        threshold_layout.addSpacing(20)
-        
-        threshold_layout.addWidget(QLabel("Non-Target Chain Transparency %:"))
-        self.non_target_alpha_spinbox = QSpinBox()
-        self.non_target_alpha_spinbox.setRange(0, 100)
-        self.non_target_alpha_spinbox.setSingleStep(10)
-        self.non_target_alpha_spinbox.setValue(90)
-        threshold_layout.addWidget(self.non_target_alpha_spinbox)
-        threshold_layout.addStretch()
-        
-        layout.addLayout(threshold_layout)
-
-        self.color_backbone_checkbox = QCheckBox("Color Backbone by Highest ΔΔG vs Wild-Type")
-        self.color_backbone_checkbox.setChecked(False)
-        layout.addWidget(self.color_backbone_checkbox)
-
-        stick_layout = QHBoxLayout()
-        self.show_sticks_checkbox = QCheckBox("Show Sticks for Highest-Scoring Mutations")
-        self.show_sticks_checkbox.setChecked(True)
-        stick_layout.addWidget(self.show_sticks_checkbox)
-
-        stick_layout.addWidget(QLabel("WT Stick Transp %:"))
-        self.wt_stick_alpha_spinbox = QSpinBox()
-        self.wt_stick_alpha_spinbox.setRange(0, 100)
-        self.wt_stick_alpha_spinbox.setValue(70) 
-        stick_layout.addWidget(self.wt_stick_alpha_spinbox)
-
-        stick_layout.addWidget(QLabel("MUT Stick Transp %:"))
-        self.mut_stick_alpha_spinbox = QSpinBox()
-        self.mut_stick_alpha_spinbox.setRange(0, 100)
-        self.mut_stick_alpha_spinbox.setValue(30)
-        stick_layout.addWidget(self.mut_stick_alpha_spinbox)
-
-        layout.addLayout(stick_layout)
-
-        # Contact Selection Group
-        contacts_layout = QHBoxLayout()
-        self.show_contacts_checkbox = QCheckBox("Visualize residues within:")
-        self.show_contacts_checkbox.setChecked(False)
-        contacts_layout.addWidget(self.show_contacts_checkbox)
-
-        self.contact_distance_spinbox = QDoubleSpinBox()
-        self.contact_distance_spinbox.setRange(0.0, 50.0)
-        self.contact_distance_spinbox.setSingleStep(0.5)
-        self.contact_distance_spinbox.setValue(3.0)
-        self.contact_distance_spinbox.setEnabled(False)
-        contacts_layout.addWidget(self.contact_distance_spinbox)
-        
-        contacts_layout.addWidget(QLabel("Å of displayed mutants"))
-        contacts_layout.addStretch()
-        layout.addLayout(contacts_layout)
-        
-        # Connect the checkbox to enable/disable the spinbox
-        self.show_contacts_checkbox.toggled.connect(self.contact_distance_spinbox.setEnabled)
-
-        # --- Epistasis Groupbox ---
-        epistasis_groupbox = QGroupBox("Epistasis Analysis (Double Mutants)")
-        epistasis_layout = QVBoxLayout()
-        epistasis_groupbox.setLayout(epistasis_layout)
-
-        self.epi_mode_btn_group = QButtonGroup()
-        
-        mode_layout = QHBoxLayout()
-        self.radio_no_epi = QRadioButton("Disable (Use Single Mutations)")
-        self.radio_wt_epi = QRadioButton("Wild-Type Epistasis (Alanine Pairs)")
-        self.radio_mt_epi = QRadioButton("Mutant Epistasis (Top Scoring Pairs)")
-        
-        self.radio_no_epi.setChecked(True)
-        self.epi_mode_btn_group.addButton(self.radio_no_epi)
-        self.epi_mode_btn_group.addButton(self.radio_wt_epi)
-        self.epi_mode_btn_group.addButton(self.radio_mt_epi)
-        
-        mode_layout.addWidget(self.radio_no_epi)
-        mode_layout.addWidget(self.radio_wt_epi)
-        mode_layout.addWidget(self.radio_mt_epi)
-        mode_layout.addStretch()
-        epistasis_layout.addLayout(mode_layout)
-
-        self.radio_no_epi.toggled.connect(self._on_epistasis_toggled)
-        self.radio_wt_epi.toggled.connect(self._on_epistasis_toggled)
-        self.radio_mt_epi.toggled.connect(self._on_epistasis_toggled)
-
-        epist_thresh_layout = QHBoxLayout()
-        epist_thresh_layout.addWidget(QLabel("Pos Threshold:"))
-        self.epi_pos_thresh = QDoubleSpinBox()
-        self.epi_pos_thresh.setRange(0.0, 1000.0) 
-        self.epi_pos_thresh.setSingleStep(0.1)
-        self.epi_pos_thresh.setValue(1.0)
-        self.epi_pos_thresh.setEnabled(False)
-        epist_thresh_layout.addWidget(self.epi_pos_thresh)
-
-        epist_thresh_layout.addWidget(QLabel("Neg Threshold:"))
-        self.epi_neg_thresh = QDoubleSpinBox()
-        self.epi_neg_thresh.setRange(-1000.0, 0.0) 
-        self.epi_neg_thresh.setSingleStep(0.1)
-        self.epi_neg_thresh.setValue(-1.0)
-        self.epi_neg_thresh.setEnabled(False)
-        epist_thresh_layout.addWidget(self.epi_neg_thresh)
-        
-        epist_thresh_layout.addSpacing(20)
-        epist_thresh_layout.addWidget(QLabel("MT Target:"))
-        self.epi_mt_target_combo = QComboBox()
-        self.epi_mt_target_combo.addItems(["Most Positive", "Most Negative"])
-        self.epi_mt_target_combo.setEnabled(False)
-        epist_thresh_layout.addWidget(self.epi_mt_target_combo)
-
-        epist_thresh_layout.addStretch()
-        epistasis_layout.addLayout(epist_thresh_layout)
-        
-        # New Networking Limits Row
-        epist_net_layout = QHBoxLayout()
-        epist_net_layout.addWidget(QLabel("Max Network Edges per Residue:"))
-        self.epi_max_edges = QSpinBox()
-        self.epi_max_edges.setRange(1, 20)
-        self.epi_max_edges.setValue(1)
-        self.epi_max_edges.setEnabled(False)
-        epist_net_layout.addWidget(self.epi_max_edges)
-        epist_net_layout.addStretch()
-        epistasis_layout.addLayout(epist_net_layout)
-        
-        layout.addWidget(epistasis_groupbox)
-        layout.addStretch()
-
-    def _on_epistasis_toggled(self):
-        is_single = self.radio_no_epi.isChecked()
-        self.color_backbone_checkbox.setEnabled(is_single)
-        self.show_sticks_checkbox.setEnabled(is_single)
-        self.show_contacts_checkbox.setEnabled(is_single)
-        self.contact_distance_spinbox.setEnabled(is_single and self.show_contacts_checkbox.isChecked())
-        
-        is_epi = not is_single
-        self.epi_pos_thresh.setEnabled(is_epi)
-        self.epi_neg_thresh.setEnabled(is_epi)
-        
-        is_mt_epi = self.radio_mt_epi.isChecked()
-        self.epi_mt_target_combo.setEnabled(is_mt_epi)
-        self.epi_max_edges.setEnabled(is_mt_epi)
 
     # ---------------- UI Callbacks -----------------
     def _grab_selection(self):
@@ -1104,6 +916,240 @@ class ESM_MSR_VisualizerTool(ToolInstance):
         self.proc = None
 
     # -------------- CSV parse + viz --------------
+    def _build_viz_tab(self, parent_widget):
+        layout = QVBoxLayout()
+        parent_widget.setLayout(layout)
+
+        self.csv_label = QLabel("No CSV loaded.")
+        layout.addWidget(self.csv_label)
+
+        # --- Display Mode Selection ---
+        mode_group = QGroupBox("Display Mode and Priority")
+        mode_layout = QHBoxLayout()
+        
+        mode_layout.addWidget(QLabel("Mode:"))
+        self.display_mode_combo = QComboBox()
+        self.display_mode_combo.addItems([
+            "Singles", 
+            "WT epistasis", 
+            "MT epistasis"
+        ])
+        self.display_mode_combo.currentTextChanged.connect(self._on_display_mode_changed)
+        mode_layout.addWidget(self.display_mode_combo)
+        
+        mode_layout.addSpacing(10)
+        mode_layout.addWidget(QLabel("Select Pairs By:"))
+        self.pair_selection_combo = QComboBox()
+        self.pair_selection_combo.addItems(["Epistasis", "Stability"])
+        mode_layout.addWidget(self.pair_selection_combo)
+
+        mode_layout.addSpacing(10)
+        mode_layout.addWidget(QLabel("Display Priority:"))
+        self.display_priority_combo = QComboBox()
+        self.display_priority_combo.addItems(["High score", "Low score", "Magnitude"])
+        mode_layout.addWidget(self.display_priority_combo)
+        
+        mode_layout.addStretch()
+        mode_group.setLayout(mode_layout)
+        layout.addWidget(mode_group)
+
+        # --- Global Filters Group ---
+        filters_group = QGroupBox("Global Filters")
+        filters_layout = QHBoxLayout()
+        
+        self.exclude_wt_cys_checkbox = QCheckBox("No WT Cys")
+        self.exclude_wt_pro_checkbox = QCheckBox("No WT Pro")
+        self.exclude_mut_cys_checkbox = QCheckBox("No Mut Cys")
+        self.exclude_mut_pro_checkbox = QCheckBox("No Mut Pro")
+
+        filters_layout.addWidget(self.exclude_wt_cys_checkbox)
+        filters_layout.addWidget(self.exclude_wt_pro_checkbox)
+        filters_layout.addSpacing(10)
+        filters_layout.addWidget(self.exclude_mut_cys_checkbox)
+        filters_layout.addWidget(self.exclude_mut_pro_checkbox)
+        filters_layout.addStretch()
+
+        filters_group.setLayout(filters_layout)
+        layout.addWidget(filters_group)
+
+        # --- Score Selection Group ---
+        score_group = QGroupBox("Score Selection (Additive Base)")
+        score_layout = QVBoxLayout()
+        score_group.setLayout(score_layout)
+
+        self.viz_score_btn_group = QButtonGroup()
+
+        self.radio_dual_view = QRadioButton("Dual-view predictions (recommended) (required for epistasis)")
+        self.viz_score_btn_group.addButton(self.radio_dual_view)
+        score_layout.addWidget(self.radio_dual_view)
+
+        self.radio_wt_lora = QRadioButton("WT LoRA predictions (additive)")
+        self.viz_score_btn_group.addButton(self.radio_wt_lora)
+        score_layout.addWidget(self.radio_wt_lora)
+
+        self.radio_mt_lora = QRadioButton("MT LoRA predictions (not recommended)")
+        self.viz_score_btn_group.addButton(self.radio_mt_lora)
+        score_layout.addWidget(self.radio_mt_lora)
+
+        self.radio_dual_view.setChecked(True) # Default
+        layout.addWidget(score_group)
+
+        # --- Thresholds, Contacts, and Networks Group ---
+        tcn_group = QGroupBox("Global Thresholds and Networks (kcal/mol, positive=stable)")
+        tcn_layout = QVBoxLayout()
+        
+        # Row 1: General Thresholds and Transparency
+        thresh_row = QHBoxLayout()
+        thresh_row.addWidget(QLabel("Pos Threshold:"))
+        self.pos_threshold_spinbox = QDoubleSpinBox()
+        self.pos_threshold_spinbox.setRange(0.0, 1000.0)
+        self.pos_threshold_spinbox.setSingleStep(0.05)
+        self.pos_threshold_spinbox.setValue(0.0)
+        thresh_row.addWidget(self.pos_threshold_spinbox)
+        
+        thresh_row.addWidget(QLabel("Neg Threshold:"))
+        self.neg_threshold_spinbox = QDoubleSpinBox()
+        self.neg_threshold_spinbox.setRange(-1000.0, 0.0)
+        self.neg_threshold_spinbox.setSingleStep(0.05)
+        self.neg_threshold_spinbox.setValue(0.0)
+        thresh_row.addWidget(self.neg_threshold_spinbox)
+
+        thresh_row.addSpacing(20)
+        thresh_row.addWidget(QLabel("Non-Target Chain Transp %:"))
+        self.non_target_alpha_spinbox = QSpinBox()
+        self.non_target_alpha_spinbox.setRange(0, 100)
+        self.non_target_alpha_spinbox.setSingleStep(10)
+        self.non_target_alpha_spinbox.setValue(90)
+        thresh_row.addWidget(self.non_target_alpha_spinbox)
+        
+        thresh_row.addStretch()
+        tcn_layout.addLayout(thresh_row)
+        
+        # Row 2: Network Edges
+        net_row = QHBoxLayout()
+        net_row.addWidget(QLabel("Max Interactions per Position:"))
+        self.epi_max_edges = QSpinBox()
+        self.epi_max_edges.setRange(1, 20)
+        self.epi_max_edges.setValue(1)
+        net_row.addWidget(self.epi_max_edges)
+        net_row.addStretch()
+        tcn_layout.addLayout(net_row)
+        
+        # Row 3: Contacts Visualization
+        contacts_row = QHBoxLayout()
+        self.show_contacts_checkbox = QCheckBox("Visualize residues within:")
+        self.show_contacts_checkbox.setChecked(False)
+        contacts_row.addWidget(self.show_contacts_checkbox)
+
+        self.contact_distance_spinbox = QDoubleSpinBox()
+        self.contact_distance_spinbox.setRange(0.0, 50.0)
+        self.contact_distance_spinbox.setSingleStep(0.5)
+        self.contact_distance_spinbox.setValue(3.0)
+        self.contact_distance_spinbox.setEnabled(False)
+        contacts_row.addWidget(self.contact_distance_spinbox)
+        
+        contacts_row.addWidget(QLabel("Å of displayed mutants"))
+        contacts_row.addStretch()
+        tcn_layout.addLayout(contacts_row)
+        
+        tcn_group.setLayout(tcn_layout)
+        layout.addWidget(tcn_group)
+
+        self.show_contacts_checkbox.toggled.connect(self.contact_distance_spinbox.setEnabled)
+
+        self.color_backbone_checkbox = QCheckBox("Color Backbone by Highest Additive ΔΔG")
+        self.color_backbone_checkbox.setChecked(False)
+        layout.addWidget(self.color_backbone_checkbox)
+
+        # --- Consolidated Styling Group ---
+        styling_group = QGroupBox("Rendering and Styling")
+        styling_layout = QVBoxLayout()
+        
+        wt_row = QHBoxLayout()
+        wt_row.addWidget(QLabel("WT Color (name/RGB):"))
+        self.wt_color_edit = QLineEdit("white")
+        wt_row.addWidget(self.wt_color_edit)
+        wt_row.addWidget(QLabel("Style:"))
+        self.wt_style_combo = QComboBox()
+        self.wt_style_combo.addItems(["stick", "ball", "sphere", "wire"])
+        wt_row.addWidget(self.wt_style_combo)
+        wt_row.addWidget(QLabel("Transp %:"))
+        self.wt_stick_alpha_spinbox = QSpinBox()
+        self.wt_stick_alpha_spinbox.setRange(0, 100)
+        self.wt_stick_alpha_spinbox.setValue(70)
+        wt_row.addWidget(self.wt_stick_alpha_spinbox)
+        styling_layout.addLayout(wt_row)
+
+        mut_row = QHBoxLayout()
+        mut_row.addWidget(QLabel("Mut Color (name/RGB):"))
+        self.mut_color_edit = QLineEdit("")
+        self.mut_color_edit.setPlaceholderText("LEAVE BLANK FOR ADDITIVE SCORE")
+        mut_row.addWidget(self.mut_color_edit)
+        mut_row.addWidget(QLabel("Style:"))
+        self.mut_style_combo = QComboBox()
+        self.mut_style_combo.addItems(["stick", "ball", "sphere", "wire"])
+        mut_row.addWidget(self.mut_style_combo)
+        mut_row.addWidget(QLabel("Transp %:"))
+        self.mut_stick_alpha_spinbox = QSpinBox()
+        self.mut_stick_alpha_spinbox.setRange(0, 100)
+        self.mut_stick_alpha_spinbox.setValue(30)
+        mut_row.addWidget(self.mut_stick_alpha_spinbox)
+        styling_layout.addLayout(mut_row)
+        
+        contact_row = QHBoxLayout()
+        contact_row.addWidget(QLabel("Contact Color:"))
+        self.contact_color_edit = QLineEdit("purple")
+        contact_row.addWidget(self.contact_color_edit)
+        contact_row.addWidget(QLabel("Style:"))
+        self.contact_style_combo = QComboBox()
+        self.contact_style_combo.addItems(["ball", "sphere", "stick", "wire"])
+        contact_row.addWidget(self.contact_style_combo)
+        contact_row.addWidget(QLabel("Transp %:"))
+        self.contact_stick_alpha_spinbox = QSpinBox()
+        self.contact_stick_alpha_spinbox.setRange(0, 100)
+        self.contact_stick_alpha_spinbox.setValue(70)
+        contact_row.addWidget(self.contact_stick_alpha_spinbox)
+        styling_layout.addLayout(contact_row)
+
+        styling_group.setLayout(styling_layout)
+        layout.addWidget(styling_group)
+        layout.addStretch()
+
+        # Initialize UI State
+        self._on_display_mode_changed()
+
+    def _on_display_mode_changed(self):
+        mode = self.display_mode_combo.currentText()
+        
+        if mode == "Singles":
+            self.radio_wt_lora.setEnabled(True)
+            self.radio_mt_lora.setEnabled(True)
+            self.radio_dual_view.setEnabled(True)
+            self.color_backbone_checkbox.setEnabled(True)
+            self.epi_max_edges.setEnabled(False)
+            self.display_priority_combo.setEnabled(False)
+            self.pair_selection_combo.setEnabled(False)
+            
+        elif mode == "WT epistasis":
+            self.radio_dual_view.setChecked(True)
+            self.radio_wt_lora.setEnabled(False)
+            self.radio_mt_lora.setEnabled(False)
+            self.radio_dual_view.setEnabled(True)
+            self.color_backbone_checkbox.setEnabled(True)
+            self.epi_max_edges.setEnabled(True)
+            self.display_priority_combo.setEnabled(True)
+            self.pair_selection_combo.setEnabled(True)
+            
+        elif mode == "MT epistasis":
+            self.radio_dual_view.setChecked(True)
+            self.radio_wt_lora.setEnabled(False)
+            self.radio_mt_lora.setEnabled(False)
+            self.radio_dual_view.setEnabled(True)
+            self.color_backbone_checkbox.setEnabled(False)
+            self.epi_max_edges.setEnabled(True)
+            self.display_priority_combo.setEnabled(True)
+            self.pair_selection_combo.setEnabled(True)
+
     def _handle_load_and_visualize(self):
         self.session.logger.info("****** _handle_load_and_visualize called ******")
         w = getattr(self.session.ui, 'main_window', None)
@@ -1122,20 +1168,20 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             self.csv_label.setText(f"Loaded: {os.path.basename(fp)}")
             self.status_label.setText("Status: Parsing CSV...")
             
-            is_epistasis = not self.radio_no_epi.isChecked()
-            if self._parse_csv(fp, is_epistasis=is_epistasis):
+            if self._parse_csv(fp):
                 self.status_label.setText("Status: Applying visualization...")
-                if is_epistasis:
-                    self._apply_epistasis_visualization()
-                else:
-                    self._apply_visualization()
+                mode = self.display_mode_combo.currentText()
+                if mode == "Singles":
+                    self._apply_singles()
+                elif "epistasis" in mode:
+                    self._apply_epistasis()
             else:
                 if not self.status_label.text().startswith("Status: Error"):
                     self.status_label.setText("Status: Error parsing CSV. Check Log.")
         else:
             self.status_label.setText("Status: CSV loading cancelled.")
 
-    def _parse_csv(self, filepath, is_epistasis=False):
+    def _parse_csv(self, filepath):
         try:
             import pandas as pd
         except ImportError:
@@ -1144,7 +1190,10 @@ class ESM_MSR_VisualizerTool(ToolInstance):
             raise AssertionError(msg)
 
         self.residue_scores_data = {}
+        self.all_singles_scores = {}
         self.epistasis_df = None
+        mode = self.display_mode_combo.currentText()
+
         try:
             df = pd.read_csv(filepath)
             df.columns = [c.lower().strip() for c in df.columns]
@@ -1159,517 +1208,585 @@ class ESM_MSR_VisualizerTool(ToolInstance):
                         muts.append({'wt': wt, 'pos': int(pos), 'mut': mt})
                 return muts
 
-            df['parsed_muts'] = df['mut_type'].apply(parse_mut_string)
+            # REPLACED mut_type with mut_type_pdb as requested
+            if 'mut_type_pdb' not in df.columns:
+                raise AssertionError("Missing required column 'mut_type_pdb'. Ensure your CSV was generated with the updated inference.py script.")
+            df['parsed_muts'] = df['mut_type_pdb'].apply(parse_mut_string)
 
-            # Apply Global Exclusions
-            def has_excluded_aa(muts, exclude_aas):
+            # Apply Global Exclusions explicitly for WT vs Mut
+            def has_excluded_aa(muts, excl_wt, excl_mt):
                 for m in muts:
-                    if m['mut'] in exclude_aas: return True
+                    if m['wt'] in excl_wt or m['mut'] in excl_mt: return True
                 return False
 
-            excluded = set()
-            if self.exclude_cys_checkbox.isChecked(): excluded.add('C')
-            if self.exclude_pro_checkbox.isChecked(): excluded.add('P')
+            ex_wt = set()
+            ex_mt = set()
+            if self.exclude_wt_cys_checkbox.isChecked(): ex_wt.add('C')
+            if self.exclude_mut_cys_checkbox.isChecked(): ex_mt.add('C')
+            if self.exclude_wt_pro_checkbox.isChecked(): ex_wt.add('P')
+            if self.exclude_mut_pro_checkbox.isChecked(): ex_mt.add('P')
             
-            if excluded:
-                df = df[~df['parsed_muts'].apply(lambda x: has_excluded_aa(x, excluded))]
+            if ex_wt or ex_mt:
+                df = df[~df['parsed_muts'].apply(lambda x: has_excluded_aa(x, ex_wt, ex_mt))]
                 if df.empty:
                     raise AssertionError("Global filters removed all mutations from the loaded CSV.")
 
-            if is_epistasis:
-                # Epistasis validation
-                if not {'chain', 'mut_type', 'combined_dddg_pred'}.issubset(set(df.columns)):
-                    raise AssertionError(f"Epistasis mode missing required columns. Found: {list(df.columns)}")
+            # Base check for singles columns, which are always required now
+            base_req = {'pdb_file', 'code', 'chain', 'mut_type_pdb', 'wt_lora_pred'}
+            if not base_req.issubset(set(df.columns)):
+                raise AssertionError(f"Missing required base columns in CSV. Expected at least: {base_req}.")
 
-                df = df[df['parsed_muts'].apply(len) == 2].copy()
-                if df.empty:
-                    raise AssertionError("Epistasis mode requested, but no double mutations (e.g., A1C:D2E) were found in the CSV.")
+            if self.radio_wt_lora.isChecked(): target_score_col = 'wt_lora_pred'
+            elif self.radio_mt_lora.isChecked(): target_score_col = 'mt_lora_pred'
+            else: target_score_col = 'combined_pred'
+
+            if target_score_col not in df.columns:
+                raise AssertionError(f"Selected score '{target_score_col}' not found in CSV.")
+
+            # ALWAYS extract singles logic to support additive atom/backbone coloring
+            singles_df = df[df['parsed_muts'].apply(len) == 1].copy()
+            if singles_df.empty:
+                raise AssertionError("No single mutations found in the CSV. Single mutation data is REQUIRED in all modes to color individual mutant sidechains. Ensure you ran inference with mode 'both' or 'singles'.")
+
+            singles_df['chain_id'] = singles_df['chain'].astype(str).str.strip()
+            singles_df['pos1_pdb'] = singles_df['parsed_muts'].apply(lambda x: x[0]['pos'])
+            singles_df['mut1'] = singles_df['parsed_muts'].apply(lambda x: x[0]['mut'])
+            singles_df['viz_score'] = singles_df[target_score_col]
+
+            # Save full dictionary of individual mutations mapped to scores for exact retrieval
+            for _, row in singles_df.iterrows():
+                c = str(row['chain_id']).strip()
+                p = int(row['pos1_pdb'])
+                m = str(row['mut1']).upper()
+                s = float(row['viz_score'])
+                self.all_singles_scores[(c, p, m)] = s
+
+            pivot_df = singles_df.pivot_table(index=['chain_id', 'pos1_pdb'], columns='mut1', values='viz_score')
+            if pivot_df.empty: raise AssertionError("Parsed CSV resulted in an empty pivot table.")
+
+            max_scores = pivot_df.max(axis=1)
+            top_aas = pivot_df.idxmax(axis=1)
+
+            count = 0
+            for idx in max_scores.index:
+                chain_id_val, pos = idx
+                score = max_scores[idx]
+                if pd.isna(score) or pd.isna(top_aas[idx]): continue
+                if score != 0.0:
+                    self.residue_scores_data[(chain_id_val, int(pos))] = (float(score), str(top_aas[idx]).upper())
+                    count += 1
+            
+            if count == 0: raise AssertionError("Parsed CSV, but no valid non-zero singles scores found.")
+
+            if "epistasis" in mode:
+                if 'combined_dddg_pred' not in df.columns:
+                    raise AssertionError(f"{mode} mode missing 'combined_dddg_pred' column.")
+
+                doubles_df = df[df['parsed_muts'].apply(len) == 2].copy()
+                if doubles_df.empty:
+                    raise AssertionError(f"{mode} mode requested, but no double mutations were found in the CSV.")
                     
-                df['chain_id'] = df['chain'].astype(str).str.strip()
-                df['pos1_pdb'] = df['parsed_muts'].apply(lambda x: x[0]['pos'])
-                df['wt1'] = df['parsed_muts'].apply(lambda x: x[0]['wt'])
-                df['mut1'] = df['parsed_muts'].apply(lambda x: x[0]['mut'])
+                doubles_df['chain_id'] = doubles_df['chain'].astype(str).str.strip()
+                doubles_df['pos1_pdb'] = doubles_df['parsed_muts'].apply(lambda x: x[0]['pos'])
+                doubles_df['wt1'] = doubles_df['parsed_muts'].apply(lambda x: x[0]['wt'])
+                doubles_df['mut1'] = doubles_df['parsed_muts'].apply(lambda x: x[0]['mut'])
                 
-                df['pos2_pdb'] = df['parsed_muts'].apply(lambda x: x[1]['pos'])
-                df['wt2'] = df['parsed_muts'].apply(lambda x: x[1]['wt'])
-                df['mut2'] = df['parsed_muts'].apply(lambda x: x[1]['mut'])
+                doubles_df['pos2_pdb'] = doubles_df['parsed_muts'].apply(lambda x: x[1]['pos'])
+                doubles_df['wt2'] = doubles_df['parsed_muts'].apply(lambda x: x[1]['wt'])
+                doubles_df['mut2'] = doubles_df['parsed_muts'].apply(lambda x: x[1]['mut'])
                 
-                df['dddg_pred'] = df['combined_dddg_pred']
+                doubles_df['dddg_pred'] = doubles_df['combined_dddg_pred']
+                doubles_df['combined_pred'] = doubles_df['combined_pred']
 
-                self.epistasis_df = df
-                self.session.logger.info(f"Parsed epistasis dataframe with {len(df)} rows.")
-                return True
+                self.epistasis_df = doubles_df
+                self.session.logger.info(f"Parsed {mode.split()[0]} dataframe with {len(doubles_df)} double mutation rows.")
                 
-            else:
-                # Standard (Single Mutation) validation
-                base_req = {'pdb_file', 'code', 'chain', 'mut_type', 'wt_lora_pred'}
-                if not base_req.issubset(set(df.columns)):
-                    raise AssertionError(f"Missing required base columns in CSV. Expected at least: {base_req}. Found: {list(df.columns)}")
-
-                # Determine target score column based on Radio Button selection
-                if self.radio_wt_lora.isChecked():
-                    target_score_col = 'wt_lora_pred'
-                elif self.radio_mt_lora.isChecked():
-                    target_score_col = 'mt_lora_pred'
-                else:
-                    target_score_col = 'combined_pred'
-
-                # Graceful crash if the required column wasnt generated by inference.py
-                if target_score_col not in df.columns:
-                    raise AssertionError(f"Selected score '{target_score_col}' not found in CSV. Did you skip the MT pass during inference? If so, select 'WT LoRA predictions'.")
-
-                # Isolate single mutations
-                df = df[df['parsed_muts'].apply(len) == 1].copy()
-                if df.empty:
-                    raise AssertionError("Single mutation mode requested, but no single mutations were found in the CSV.")
-
-                df['chain_id'] = df['chain'].astype(str).str.strip()
-                df['pos1_pdb'] = df['parsed_muts'].apply(lambda x: x[0]['pos'])
-                df['mut1'] = df['parsed_muts'].apply(lambda x: x[0]['mut'])
-                df['viz_score'] = df[target_score_col]
-
-                pivot_df = df.pivot_table(index=['chain_id', 'pos1_pdb'], columns='mut1', values='viz_score')
-                
-                if pivot_df.empty:
-                    raise AssertionError("Parsed CSV resulted in an empty pivot table.")
-
-                max_scores = pivot_df.max(axis=1)
-                top_aas = pivot_df.idxmax(axis=1)
-
-                count = 0
-                for idx in max_scores.index:
-                    chain_id_val, pos = idx
-                    score = max_scores[idx]
-                    if pd.isna(score):
-                        continue
-                    
-                    top_aa = top_aas[idx]
-                    if pd.isna(top_aa):
-                        continue
-
-                    if score != 0.0:
-                        self.residue_scores_data[(chain_id_val, int(pos))] = (float(score), str(top_aa).upper())
-                        count += 1
-                
-                if count == 0:
-                    raise AssertionError("Parsed CSV, but no valid non-zero scores found.")
-
-                self.session.logger.info(f"Parsed {count} single-mutation scores using metric: {target_score_col}.")
-                return True
+            return True
 
         except Exception as e:
             self.session.logger.error(f"Error parsing CSV with Pandas: {e}")
             self.status_label.setText("Status: Error parsing CSV (see log).")
             raise AssertionError(f"CSV Parsing failed: {e}")
 
-    def _apply_epistasis_visualization(self):
-        """
-        Visualizes epistatic interactions. Supports mutually exclusive modes:
-        1. Wild-Type Epistasis (Alanine scans, substituting Glycine where WT is Alanine)
-        2. Mutant Epistasis (Greedy pairing of top scoring mutations)
-        """
-        wt_candidates = [m for m in self.session.models.list(type=Structure)
-                        if not (getattr(self, 'mutated_model_id_string', None) and m.id_string == self.mutated_model_id_string)]
-                        
-        model_id = self.pred_model_combobox.currentData()
-        wt_model = next((m for m in wt_candidates if m.id_string == model_id), None)
+    # --- Unified Rendering Pipeline ---
+
+    def _get_spec(self, model_id_string, res_keys):
+        """Builds a robust ChimeraX spec string from a set of (chain, pos) tuples."""
+        if not res_keys: return "None"
+        by_chain = defaultdict(list)
+        for c, p in res_keys:
+            by_chain[c].append(str(p))
+        specs = []
+        for c, positions in by_chain.items():
+            specs.append(f"#{model_id_string}/{c}:{','.join(positions)}")
+        return " | ".join(specs)
+
+    def _setup_base_wt_model(self):
+        """Fetches the WT model and clears out legacy visualization state across all previous layers."""
         
-        if not wt_model:
-            self.status_label.setText("Status: Error - WT model not found.")
-            raise AssertionError("Cannot apply visualization: Selected WT model is not open.")
-        
-        if getattr(self, 'mutated_model_id_string', None) and any(m.id_string == self.mutated_model_id_string for m in self.session.models.list()):
-            run(self.session, f"close #{self.mutated_model_id_string}")
+        # Ensure mutated tracking list exists to avoid init discrepancies
+        if not hasattr(self, 'mutated_model_id_strings'):
+            self.mutated_model_id_strings = []
+            
+        # Clean up legacy single string if present
+        if getattr(self, 'mutated_model_id_string', None):
+            mid = self.mutated_model_id_string
+            if any(m.id_string == mid for m in self.session.models.list()):
+                run(self.session, f"close #{mid}")
             self.mutated_model_id_string = None
 
-        df = self.epistasis_df
-        if df is None or df.empty:
-            raise AssertionError("No epistasis data loaded. Please load a valid CSV first.")
-
-        # Standardize WT model background visibility to match single mutation mode
-        try:
-            run(self.session, f"color #{wt_model.id_string} white")
-            run(self.session, f"ribbon style #{wt_model.id_string}")
-            run(self.session, f"hide #{wt_model.id_string} atoms")
-        except Exception as e:
-            self.session.logger.warning(f"Failed to apply baseline styling to WT model: {e}")
-
-        is_wt_epi = self.radio_wt_epi.isChecked()
-        
-        if is_wt_epi:
-            # WT Epistasis relies on alanine mutations, falling back to Glycine if WT is already Alanine
-            def is_valid_wt_epi(row):
-                valid1 = (row['wt1'] != 'A' and row['mut1'] == 'A') or (row['wt1'] == 'A' and row['mut1'] == 'G')
-                valid2 = (row['wt2'] != 'A' and row['mut2'] == 'A') or (row['wt2'] == 'A' and row['mut2'] == 'G')
-                return valid1 and valid2
-
-            df = df[df.apply(is_valid_wt_epi, axis=1)].copy()
-            if df.empty:
-                raise AssertionError("WT Epistasis Mode requires double mutations to Alanine (or Glycine if WT is Ala), but no such pairs were found in the CSV.")
-
-        thresh_pos = self.epi_pos_thresh.value()
-        thresh_neg = self.epi_neg_thresh.value()
-
-        # Isolate pairs exceeding either threshold
-        filtered_df = df[(df['dddg_pred'] >= thresh_pos) | (df['dddg_pred'] <= thresh_neg)].copy()
-
-        if filtered_df.empty:
-            self.status_label.setText("Status: No residue pairs found outside the specified thresholds.")
-            return
-
-        mutation_plan = {} 
-        pairs_to_draw = [] 
-        
-        if is_wt_epi:
-            filtered_df['abs_score'] = filtered_df['dddg_pred'].abs()
-            sorted_df = filtered_df.sort_values(by='abs_score', ascending=False)
-            max_abs_score = sorted_df['abs_score'].max()
-            if max_abs_score == 0: max_abs_score = 1.0
-
-            for _, row in sorted_df.iterrows():
-                c1, p1, m1 = str(row['chain_id']).strip(), int(row['pos1_pdb']), str(row['mut1']).upper()
-                c2, p2, m2 = str(row['chain_id']).strip(), int(row['pos2_pdb']), str(row['mut2']).upper()
-                score = float(row['dddg_pred'])
-                # M1 and M2 are tracked but we will not physically swap the sidechains in WT epi mode
-                pairs_to_draw.append((c1, p1, m1, c2, p2, m2, score))
-        else:
-            # Mutant Epistasis Mode - Greedy Selection with Networking Support
-            is_positive_target = self.epi_mt_target_combo.currentText() == "Most Positive"
-            sorted_df = filtered_df.sort_values(by='dddg_pred', ascending=not is_positive_target)
-            
-            max_abs_score = sorted_df['dddg_pred'].abs().max()
-            if max_abs_score == 0: max_abs_score = 1.0
-            
-            max_edges = self.epi_max_edges.value()
-            connection_counts = defaultdict(int)
-            
-            for _, row in sorted_df.iterrows():
-                c1, p1, m1 = str(row['chain_id']).strip(), int(row['pos1_pdb']), str(row['mut1']).upper()
-                c2, p2, m2 = str(row['chain_id']).strip(), int(row['pos2_pdb']), str(row['mut2']).upper()
-                score = float(row['dddg_pred'])
-                
-                # Exclusivity check: ignore pairs if either position has hit its edge capacity
-                if connection_counts[(c1, p1)] >= max_edges or connection_counts[(c2, p2)] >= max_edges:
-                    continue
-                
-                # Structural check: A single position can only be mutated to ONE target amino acid in the 3D model.
-                # If it's already slated to mutate to something else for a different pair, we must discard this pair.
-                if ((c1, p1) in mutation_plan and mutation_plan[(c1, p1)] != m1) or \
-                   ((c2, p2) in mutation_plan and mutation_plan[(c2, p2)] != m2):
-                    continue
-                
-                connection_counts[(c1, p1)] += 1
-                connection_counts[(c2, p2)] += 1
-                
-                mutation_plan[(c1, p1)] = m1
-                mutation_plan[(c2, p2)] = m2
-                pairs_to_draw.append((c1, p1, m1, c2, p2, m2, score))
-
-        try:
-            # Use safe PDB clone to preserve polymer metadata instead of combine
-            temp_pdb = os.path.join(tempfile.gettempdir(), f"clone_{wt_model.id_string.replace(':', '_')}.pdb")
-            run(self.session, f"save {temp_pdb} models #{wt_model.id_string} format pdb")
-            run(self.session, f"open {temp_pdb} name \"{wt_model.name}_epistasis_viz\"")
-            
-            # Explicitly fetch the atomic structures to avoid capturing PseudobondGroups
-            atomic_models = self.session.models.list(type=Structure)
-            mutated_model = atomic_models[-1]
-            self.mutated_model_id_string = mutated_model.id_string.split('.')[0]
-            
-            if os.path.exists(temp_pdb):
-                os.remove(temp_pdb)
-            
-            # Note: We apply transparency to the mutated model's ribbon, not its sticks here.
-            run(self.session, f"color #{self.mutated_model_id_string} white")
-            run(self.session, f"transparency #{self.mutated_model_id_string} {self.wt_stick_alpha_spinbox.value()} target a")
-            run(self.session, f"hide #{self.mutated_model_id_string} atoms")
-
-            # Apply Mutations if in Mutant Epistasis Mode
-            if not is_wt_epi:
-                for (chain_val, pos), tgt_aa in mutation_plan.items():
-                    res_wt = next((r for r in mutated_model.residues if r.number == pos and r.chain_id == chain_val), None)
-                    if res_wt and ONE_TO_THREE_LETTER_AA.get(tgt_aa, '') != res_wt.name:
-                        spec = f"#{self.mutated_model_id_string}/{chain_val}:{pos}"
-                        run(self.session, f"swapaa {spec} {ONE_TO_THREE_LETTER_AA[tgt_aa].lower()} log false")
-
-            # Reveal sticks for interacting residues
-            spec_list = []
-            wt_spec_list = []
-            
-            for c1, p1, m1, c2, p2, m2, score in pairs_to_draw:
-                spec_list.append(f"#{self.mutated_model_id_string}/{c1}:{p1}")
-                spec_list.append(f"#{self.mutated_model_id_string}/{c2}:{p2}")
-                # Track original WT residues for ghost overlay if in Mutant mode
-                if not is_wt_epi:
-                    wt_spec_list.append(f"#{wt_model.id_string}/{c1}:{p1}")
-                    wt_spec_list.append(f"#{wt_model.id_string}/{c2}:{p2}")
-
-            # Render mutated sticks
-            if spec_list:
-                spec_all = " | ".join(set(spec_list))
-                run(self.session, f"show {spec_all} atoms; style {spec_all} stick; color {spec_all} byelement")
-                run(self.session, f"transparency {spec_all} {self.mut_stick_alpha_spinbox.value() if not is_wt_epi else 0} target a")
-                
-            # Render wild-type ghost sticks underneath if in Mutant mode
-            if wt_spec_list:
-                wt_spec_all = " | ".join(set(wt_spec_list))
-                wt_stick_alpha = self.wt_stick_alpha_spinbox.value()
-                run(self.session, f"color {wt_spec_all} & ~C & sideonly white")
-                run(self.session, f"color {wt_spec_all} & ~C & sideonly byelement")
-                run(self.session, f"show {wt_spec_all} atoms")
-                run(self.session, f"style {wt_spec_all} stick")
-                run(self.session, f"transparency {wt_spec_all} {wt_stick_alpha} target a")
-
-            model_residues = {(r.chain_id, r.number): r for r in mutated_model.residues}
-            count_lines = 0
-            
-            for c1, p1, m1, c2, p2, m2, score in pairs_to_draw:
-                res1, res2 = model_residues.get((c1, p1)), model_residues.get((c2, p2))
-                if not res1 or not res2 or not res1.atoms or not res2.atoms:
-                    continue
-
-                atoms1 = [a for a in res1.atoms if a.name not in ('N', 'CA', 'C', 'O')]
-                atoms2 = [a for a in res2.atoms if a.name not in ('N', 'CA', 'C', 'O')]
-                if not atoms1: atoms1 = list(res1.atoms)
-                if not atoms2: atoms2 = list(res2.atoms)
-                
-                coords1 = np.array([a.scene_coord for a in atoms1])
-                coords2 = np.array([a.scene_coord for a in atoms2])
-                diff = coords1[:, np.newaxis, :] - coords2[np.newaxis, :, :]
-                dists = np.sqrt(np.sum(diff**2, axis=2))
-                
-                min_idx = np.unravel_index(np.argmin(dists), dists.shape)
-                a1, a2 = atoms1[min_idx[0]], atoms2[min_idx[1]]
-                
-                # Bi-directional threshold scaling
-                rel_thresh = thresh_pos if score > 0 else abs(thresh_neg)
-                if max_abs_score <= rel_thresh:
-                    norm_score = 0.0
-                else:
-                    norm_score = min(1.0, max(0.0, (abs(score) - rel_thresh) / (max_abs_score - rel_thresh)))
-                    
-                radius_val = 0.05 + (0.95 * (norm_score ** 2)) 
-                intensity = int(100 + 155 * norm_score)        
-                alpha = int(30 + 225 * norm_score)             
-                
-                if score > 0:
-                    color_spec = f"0,{intensity},0,{alpha}"
-                else:
-                    color_spec = f"{intensity},0,0,{alpha}"
-                
-                cmd = (f"pbond #{self.mutated_model_id_string}/{c1}:{p1}@{a1.name} "
-                       f"#{self.mutated_model_id_string}/{c2}:{p2}@{a2.name} "
-                       f"reveal true color {color_spec} "
-                       f"radius {radius_val:.3f} name \"{score:.2f}\"")
-                
-                run(self.session, cmd)
-                count_lines += 1
-                
-            target_chain = self.pred_chain_id_combobox.currentText().strip()
-            alpha_val = self.non_target_alpha_spinbox.value()
-            if target_chain:
-                exclude_spec = f"~#{wt_model.id_string}/{target_chain}"
-                if getattr(self, 'mutated_model_id_string', None):
-                    exclude_spec += f" & ~#{self.mutated_model_id_string}"
-                if alpha_val >= 99:
-                    run(self.session, f"hide {exclude_spec}")
-                else:
-                    run(self.session, f"show {exclude_spec} ribbons")
-                    run(self.session, f"transparency {exclude_spec} {alpha_val} target ac")
-
-            self.status_label.setText(f"Status: Epistasis Viz Complete ({count_lines} interactions).")
-
-        except Exception as e:
-            self.session.logger.error(f"Critical failure in Epistasis Visualization: {e}")
-            self.status_label.setText("Status: Visualization Error.")
-            raise AssertionError(f"Epistasis visualization subroutine failed: {e}")
-
-
-    def _apply_visualization(self):
         wt_candidates = [m for m in self.session.models.list(type=Structure)
-                         if not (getattr(self, 'mutated_model_id_string', None) and m.id_string == self.mutated_model_id_string)]
-                         
+                         if m.id_string not in self.mutated_model_id_strings]
+        
         model_id = self.pred_model_combobox.currentData()
         wt_model = next((m for m in wt_candidates if m.id_string == model_id), None)
+        if not wt_model and wt_candidates: wt_model = wt_candidates[0]
+        if not wt_model: raise AssertionError("No suitable WT model open.")
+
+        for mid in self.mutated_model_id_strings:
+            if any(m.id_string == mid for m in self.session.models.list()):
+                run(self.session, f"close #{mid}")
+        self.mutated_model_id_strings = []
+
+        run(self.session, f"color #{wt_model.id_string} white")
+        run(self.session, f"ribbon style #{wt_model.id_string}")
+        run(self.session, f"hide #{wt_model.id_string} atoms")
         
-        if not wt_model and wt_candidates:
-             wt_model = wt_candidates[0]
-             
-        if not wt_model:
-            self.status_label.setText("Status: No suitable WT model open.")
-            raise AssertionError("Failed to apply Visualization. No suitable WT model open.")
-            
-        if not getattr(self, 'residue_scores_data', None):
-            self.status_label.setText("Status: No scores to apply.")
+        return wt_model
+
+    def _create_mutated_model(self, wt_model, suffix="viz"):
+        """Clones the WT model cleanly via a temporary file to preserve polymer metadata."""
+        temp_pdb = os.path.join(tempfile.gettempdir(), f"clone_{wt_model.id_string.replace(':', '_')}.pdb")
+        run(self.session, f"save {temp_pdb} models #{wt_model.id_string} format pdb")
+        run(self.session, f"open {temp_pdb} name \"{wt_model.name}_{suffix}\"")
+        
+        atomic_models = self.session.models.list(type=Structure)
+        mut_model = atomic_models[-1]
+        
+        if os.path.exists(temp_pdb):
+            os.remove(temp_pdb)
+
+        mut_id = mut_model.id_string.split('.')[0]
+        run(self.session, f"color #{mut_id} white")
+        run(self.session, f"transparency #{mut_id} 100 target a")
+        run(self.session, f"hide #{mut_id} atoms")
+        
+        return mut_model
+
+    def _apply_swapaa(self, mutated_model_id, mutated_model, mutation_plan):
+        """Applies sidechain swaps in the cloned model based on the unified mutation plan."""
+        for (chain_val, pos), tgt_aa in mutation_plan.items():
+            res_wt = next((r for r in mutated_model.residues if r.number == pos and r.chain_id == chain_val), None)
+            if res_wt and ONE_TO_THREE_LETTER_AA.get(tgt_aa, '') != res_wt.name:
+                spec = f"#{mutated_model_id}/{chain_val}:{pos}"
+                run(self.session, f"swapaa {spec} {ONE_TO_THREE_LETTER_AA.get(tgt_aa, 'ALA').lower()} log false")
+
+    def _apply_contacts(self, wt_model, target_keys, target_spec_bare):
+        """Isolates the contact finding and styling logic across any mode."""
+        if not self.show_contacts_checkbox.isChecked() or not target_keys:
             return
 
-        threshold = self.score_threshold_spinbox.value()
-        color_backbone = self.color_backbone_checkbox.isChecked()
-        show_sticks = self.show_sticks_checkbox.isChecked()
-        wt_stick_alpha = self.wt_stick_alpha_spinbox.value()
-        mut_stick_alpha = self.mut_stick_alpha_spinbox.value()
-
-        if getattr(self, 'mutated_model_id_string', None) and any(m.id_string == self.mutated_model_id_string for m in self.session.models.list()):
-            try:
-                run(self.session, f"close #{self.mutated_model_id_string}")
-            except Exception as e:
-                self.session.logger.warning(f"Could not close previous mutated: {e}")
-            finally:
-                self.mutated_model_id_string = None
-
-        try:
-            run(self.session, f"color #{wt_model.id_string} white")
-            run(self.session, f"ribbon style #{wt_model.id_string}")
-            run(self.session, f"hide #{wt_model.id_string} atoms")
-        except Exception as e:
-            self.status_label.setText("Status: Error styling WT model.")
-            raise AssertionError(f"Visualization aborted, failed to style initial WT structure: {e}")
-
-        scores = [s for s, _ in self.residue_scores_data.values()]
-        if not scores:
-            self.status_label.setText("Status: No valid scores in data.")
-            return
+        dist = self.contact_distance_spinbox.value()
+        contact_query = f"({target_spec_bare}) @<{dist} & #{wt_model.id_string} & protein"
+        
+        wt_mut_spec_bare = self._get_spec(wt_model.id_string, target_keys)
+        if wt_mut_spec_bare != "None":
+            contact_query += f" & ~({wt_mut_spec_bare})"
             
-        max_abs = max(abs(min(scores)), abs(max(scores))) or 0.01
-        color_range = f"{-max_abs:.3f},{max_abs:.3f}"
+        from chimerax.atomic import selected_atoms
+        contact_keys = set()
+        run(self.session, f"select {contact_query}")
+        sel_atoms = selected_atoms(self.session)
+        if sel_atoms and len(sel_atoms) > 0:
+            for r in set(sel_atoms.residues):
+                if (r.chain_id, r.number) not in target_keys:
+                    contact_keys.add((r.chain_id, r.number))
+        run(self.session, "select clear")
 
-        for (chain, pos), (score, _) in self.residue_scores_data.items():
-            spec = f"#{wt_model.id_string}/{chain}:{pos}"
-            try:
-                run(self.session, f"setattr {spec} r {SCORE_ATTRIBUTE_NAME} {score} create true")
-            except Exception as e:
-                self.session.logger.warning(f"Failed to set custom residue attribute on WT spec: {spec}")
+        if contact_keys:
+            spec = self._get_spec(wt_model.id_string, contact_keys)
+            c_color = self.contact_color_edit.text().strip() or "purple"
+            c_alpha = self.contact_stick_alpha_spinbox.value()
 
-        mut_model = None
-        mut_spec = None
-        wt_spec = None
-        if show_sticks:
-            try:
-                # Use safe PDB clone to preserve polymer metadata instead of combine
-                temp_pdb = os.path.join(tempfile.gettempdir(), f"clone_{wt_model.id_string.replace(':', '_')}.pdb")
-                run(self.session, f"save {temp_pdb} models #{wt_model.id_string} format pdb")
-                run(self.session, f"open {temp_pdb} name \"{wt_model.name}_mutated_viz\"")
+            try: run(self.session, f"color ({spec}) {c_color} target a")
+            except: run(self.session, f"color ({spec}) purple target a")
+            run(self.session, f"color ({spec}) & ~C byelement target a")
+            run(self.session, f"show ({spec}) atoms")
+            
+            run(self.session, f"style ({spec}) stick")
+            run(self.session, f"size ({spec}) stickRadius 0.15") 
+            run(self.session, f"transparency ({spec}) {c_alpha} target ab")
+            
+        if contact_query:
+            c_style = self.contact_style_combo.currentText()
+            run(self.session, f"style {contact_query} & ~backbone {c_style}")
+            if c_style == "stick":
+                run(self.session, f"size {contact_query} stickRadius 0.25")
+            run(self.session, f"transparency {contact_query} 0 target a")
+
+    def _resolve_and_apply_styles(self, wt_model, mut_model_ids, mutation_plans):
+        """
+        Calculates mutually exclusive rendering sets and apply styles across ALL layers.
+        Priority: Mutants (highest) -> Contacts -> Wild-Type.
+        Mutant colors are optionally overridden via UI, otherwise managed by additive score.
+        """
+        all_mutant_keys = set()
+        for plan in mutation_plans:
+            all_mutant_keys.update(plan.keys())
+
+        wt_color = self.wt_color_edit.text().strip() or "white"
+        wt_style = self.wt_style_combo.currentText()
+        wt_alpha = self.wt_stick_alpha_spinbox.value()
+        
+        mut_color = self.mut_color_edit.text().strip()
+        mut_style = self.mut_style_combo.currentText()
+        mut_alpha = self.mut_stick_alpha_spinbox.value()
+
+        # A. Style the Primary Mutants inside each Mutated Model Layer
+        mut_specs = []
+        for mut_id, plan in zip(mut_model_ids, mutation_plans):
+            mutant_keys = set(plan.keys())
+            if mutant_keys:
+                spec = self._get_spec(mut_id, mutant_keys)
+                mut_specs.append(spec)
+                run(self.session, f"size ({spec}) stickRadius 0.2")
                 
-                # Explicitly fetch the atomic structures to avoid capturing PseudobondGroups
-                atomic_models = self.session.models.list(type=Structure)
-                mut_model = atomic_models[-1]
-                self.mutated_model_id_string = mut_model.id_string.split('.')[0]
+                # Apply explicit user color if provided, else ensure non-carbons format properly for byattribute fallback
+                if mut_color:
+                    try: run(self.session, f"color ({spec}) {mut_color} target a")
+                    except: run(self.session, f"color ({spec}) orange target a")
                 
-                if os.path.exists(temp_pdb):
-                    os.remove(temp_pdb)
+                run(self.session, f"color ({spec}) & ~C byelement target a")
+                run(self.session, f"show ({spec}) atoms")
+                run(self.session, f"style ({spec}) {mut_style}")
+                run(self.session, f"transparency ({spec}) {mut_alpha} target a")
+            
+        # B. Style the corresponding WT Ghost Models underneath the mutants globally
+        if all_mutant_keys:
+            spec = self._get_spec(wt_model.id_string, all_mutant_keys)
+            run(self.session, f"size ({spec}) stickRadius 0.2")
+            try: run(self.session, f"color ({spec}) {wt_color} target a")
+            except: run(self.session, f"color ({spec}) white target a")
+            run(self.session, f"color ({spec}) & ~C byelement target a")
+            run(self.session, f"show ({spec}) atoms")
+            run(self.session, f"style ({spec}) {wt_style}")
+            run(self.session, f"transparency ({spec}) {wt_alpha} target a")
+            
+        # C. Find and Apply Contacts based on total mutant span
+        mut_spec_bare = " | ".join(mut_specs) if mut_specs else "None"
+        self._apply_contacts(wt_model, all_mutant_keys, mut_spec_bare)
 
-                run(self.session, f"color #{self.mutated_model_id_string} lightgray")
-                run(self.session, f"ribbon style #{self.mutated_model_id_string}")
-                run(self.session, f"hide #{self.mutated_model_id_string} atoms")
+    def _draw_epistasis_line(self, mut_model_id, c1, p1, c2, p2, score, max_abs_score, thresh_pos, thresh_neg, model_residues):
+        res1, res2 = model_residues.get((c1, p1)), model_residues.get((c2, p2))
+        if not res1 or not res2 or not res1.atoms or not res2.atoms: return
 
-                muts_by_chain = {}
-                for (chain, pos), (score, tgt_aa) in self.residue_scores_data.items():
-                    if score >= threshold:
-                        res_wt = next((r for r in wt_model.residues if r.number == pos and r.chain_id == chain), None)
-                        if res_wt and tgt_aa != res_wt.one_letter_code:
-                            spec = f"#{self.mutated_model_id_string}/{chain}:{pos}"
-                            try:
-                                aa_code = ONE_TO_THREE_LETTER_AA.get(tgt_aa)
-                                if aa_code:
-                                    run(self.session, f"swapaa {spec} {aa_code.lower()} log true")
-                                    muts_by_chain.setdefault(chain, []).append(pos)
-                                else:
-                                    self.session.logger.warning(f"Unknown target aa {tgt_aa} requested")
-                            except Exception as e:
-                                self.session.logger.error(f"swapaa failed at chain {chain} pos {pos}: {e}")
-                        elif res_wt:
-                            muts_by_chain.setdefault(chain, []).append(pos)
+        # Explicitly exclude all backbone atoms. No fallback.
+        atoms1 = [a for a in res1.atoms if a.name not in ('N', 'CA', 'C', 'O')]
+        atoms2 = [a for a in res2.atoms if a.name not in ('N', 'CA', 'C', 'O')]
+        
+        if not atoms1 or not atoms2:
+            self.session.logger.warning(f"Skipping epistasis line between {c1}:{p1} and {c2}:{p2} because one or both lack sidechain heavy atoms (e.g. Glycine).")
+            return
+        
+        coords1 = np.array([a.scene_coord for a in atoms1])
+        coords2 = np.array([a.scene_coord for a in atoms2])
+        dists = np.sqrt(np.sum((coords1[:, np.newaxis, :] - coords2[np.newaxis, :, :])**2, axis=2))
+        
+        min_idx = np.unravel_index(np.argmin(dists), dists.shape)
+        a1, a2 = atoms1[min_idx[0]], atoms2[min_idx[1]]
+        
+        rel_thresh = thresh_pos if score > 0 else abs(thresh_neg)
+        if max_abs_score <= rel_thresh:
+            norm_score = 0.0
+        else:
+            norm_score = min(1.0, max(0.0, (abs(score) - rel_thresh) / (max_abs_score - rel_thresh)))
+            
+        radius_val = 0.05 + (0.95 * (norm_score ** 2)) 
+        alpha = int(30 + 225 * norm_score)             
+        
+        c_inv = int(255 * (1.0 - norm_score))
+        if score > 0:
+            # Positive Epistasis -> Orange gradient interpolation
+            color_spec = f"255,{int(255 - 90*norm_score)},{c_inv},{alpha}" 
+        else:
+            # Negative Epistasis -> Blue gradient interpolation
+            color_spec = f"{c_inv},{c_inv},255,{alpha}" 
+        
+        cmd = f"pbond #{mut_model_id}/{c1}:{p1}@{a1.name} #{mut_model_id}/{c2}:{p2}@{a2.name} reveal true color {color_spec} radius {radius_val:.3f} name \"{score:.2f}\""
+        run(self.session, cmd)
 
-                if muts_by_chain:
-                    wt_specs = []
-                    mut_specs = []
-                    for chain, muts in muts_by_chain.items():
-                        lst = ",".join(map(str, muts))
-                        wt_specs.append(f"#{wt_model.id_string}/{chain}:{lst}")
-                        mut_specs.append(f"#{self.mutated_model_id_string}/{chain}:{lst}")
-                    
-                    wt_spec = " | ".join(wt_specs)
-                    mut_spec = " | ".join(mut_specs)
-
-                    for chain, muts in muts_by_chain.items():
-                        for pos in muts:
-                            score, _ = self.residue_scores_data[(chain, pos)]
-                            run(self.session, f"setattr #{self.mutated_model_id_string}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {score} create true")
-                            
-                    key_val = 'true' if not color_backbone else 'false'
-                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} {mut_spec} & sideonly palette red:white:green range {color_range} key {key_val} target a")
-                    run(self.session, f"color {mut_spec} & ~C & sideonly byelement target a")
-                    run(self.session, f"show {mut_spec} atoms")
-                    run(self.session, f"style {mut_spec} stick")
-                    run(self.session, f"transparency {mut_spec} {mut_stick_alpha} target a")
-
-                    run(self.session, f"color {wt_spec} & ~C & sideonly white")
-                    run(self.session, f"color {wt_spec} & ~C & sideonly byelement")
-                    run(self.session, f"show {wt_spec} atoms")
-                    run(self.session, f"style {wt_spec} stick")
-                    run(self.session, f"transparency {wt_spec} {wt_stick_alpha} target a")
-
-                # The `match` command is now redundant as both structures are perfectly aligned
-                # However we leave it here for safety just in case of slight numerical shift
-                run(self.session, f"match #{self.mutated_model_id_string} to #{wt_model.id_string}")
-            except Exception as e:
-                self.status_label.setText("Status: Error showing sticks.")
-                self.session.logger.error(f"Error in stick viz: {e}")
-                if mut_model and any(m.id_string == getattr(self, 'mutated_model_id_string', None) for m in self.session.models.list()):
-                    run(self.session, f"close #{self.mutated_model_id_string}")
-                self.mutated_model_id_string = None
-                raise AssertionError(f"Visualization logic failed mid-execution: {e}")
-
-        if self.color_backbone_checkbox.isChecked():
-            chains_present = set(c for c, p in self.residue_scores_data.keys())
-            chain_spec = ",".join(chains_present)
-            run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette red:white:green range {color_range} key true")
-
-        if show_sticks and self.show_contacts_checkbox.isChecked():
-            try:
-                if mut_spec:
-                    dist = self.contact_distance_spinbox.value()
-                    
-                    # 1. Zone selection: Distance check explicitly using the exact syntax ordering you requested.
-                    run(self.session, f"select ({mut_spec}) @<{dist} & ~backbone & #{wt_model.id_string} & protein & ~({mut_spec}) & ~({wt_spec})")
-                    run(self.session, "name my_contact_atoms sel")
-                    
-                    # Pass 1: Promote atom selection to the full residues to establish structural context
-                    run(self.session, "select my_contact_atoms")
-                    run(self.session, "select up")
-                    run(self.session, "name my_contact_residues sel")
-                    
-                    # Style the entire residue context as thin, semi-transparent lines
-                    run(self.session, "show my_contact_residues")
-                    run(self.session, "style my_contact_residues stick")
-                    run(self.session, "size my_contact_residues stickRadius 0.1") # Increased from 0.05 to ensure visibility
-                    run(self.session, "color my_contact_residues byelement")
-                    run(self.session, "transparency my_contact_residues 60 target ab") # Explicitly target atoms AND bonds for transparency
-                    
-                    # Pass 2: Highlight strictly the interacting atoms as solid balls
-                    run(self.session, "style my_contact_atoms ball")
-                    run(self.session, "transparency my_contact_atoms 0 target a")
-                    
-                    # Clean up view state
-                    run(self.session, "hide @h*")
-                    run(self.session, "select clear")
-            except Exception as e:
-                self.session.logger.error(f"Error displaying contacts: {e}")
-
+    def _apply_transparency_isolation(self, wt_model):
+        """Dims non-target chains based on user preferences."""
         target_chain = self.pred_chain_id_combobox.currentText().strip()
         alpha_val = self.non_target_alpha_spinbox.value()
         if target_chain:
             exclude_spec = f"~#{wt_model.id_string}/{target_chain}"
-            if getattr(self, 'mutated_model_id_string', None):
-                exclude_spec += f" & ~#{self.mutated_model_id_string}"
-            try:
-                if alpha_val >= 99:
-                    run(self.session, f"hide {exclude_spec}")
-                else:
-                    run(self.session, f"show {exclude_spec} ribbons")
-                    run(self.session, f"transparency {exclude_spec} {alpha_val} target ac")
-            except Exception as e:
-                self.session.logger.warning(f"Failed setting transparency for isolation: {e}")
+            for mid in getattr(self, 'mutated_model_id_strings', []):
+                exclude_spec += f" & ~#{mid}"
+            if alpha_val >= 99:
+                run(self.session, f"hide {exclude_spec}")
+            else:
+                run(self.session, f"show {exclude_spec} ribbons")
+                run(self.session, f"transparency {exclude_spec} {alpha_val} target ac")
 
-        run(self.session, "select clear; hide @H")
-        self.status_label.setText("Status: Visualization complete.")
+    # --- Execution Subroutines ---
+
+    def _apply_singles(self):
+        try:
+            wt_model = self._setup_base_wt_model()
+            pos_thresh = self.pos_threshold_spinbox.value()
+            neg_thresh = self.neg_threshold_spinbox.value()
+            
+            mutation_plan = {}
+            for (chain, pos), (score, tgt_aa) in self.residue_scores_data.items():
+                if score >= pos_thresh or score <= neg_thresh:
+                    mutation_plan[(chain, pos)] = tgt_aa
+
+            mutated_model = self._create_mutated_model(wt_model, "singles_viz")
+            mut_id = mutated_model.id_string.split('.')[0]
+            self.mutated_model_id_strings.append(mut_id)
+            
+            self._apply_swapaa(mut_id, mutated_model, mutation_plan)
+            self._resolve_and_apply_styles(wt_model, [mut_id], [mutation_plan])
+
+            scores = [s for s, _ in self.residue_scores_data.values()]
+            if scores:
+                scores_abs = [abs(s) for s in scores]
+                max_abs_add = float(np.percentile(scores_abs, 98))
+                if max_abs_add <= 0.05: max_abs_add = max(scores_abs)
+            else:
+                max_abs_add = 0.01
+            color_range = f"{-max_abs_add:.3f},{max_abs_add:.3f}"
+            
+            # Map exact singles scores directly to the mutants using the parsed singles mapping
+            for (chain, pos), tgt_aa in mutation_plan.items():
+                if (chain, pos, tgt_aa) not in self.all_singles_scores:
+                    self.session.logger.warning(f"Single mutant score missing for {chain}:{pos}->{tgt_aa}. Defaulting to 0.0.")
+                    exact_score = 0.0
+                else:
+                    exact_score = self.all_singles_scores[(chain, pos, tgt_aa)]
+                run(self.session, f"setattr #{mut_id}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {exact_score} create true")
+
+            # Map the aggregated max singles scores to the WT backbone
+            for (chain, pos), (score, _) in self.residue_scores_data.items():
+                run(self.session, f"setattr #{wt_model.id_string}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {score} create true")
+
+            if not self.mut_color_edit.text().strip():
+                mut_spec = self._get_spec(mut_id, mutation_plan.keys())
+                if mut_spec != "None":
+                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({mut_spec}) palette red:white:green range {color_range} key false target a")
+                    run(self.session, f"color ({mut_spec}) & ~C byelement target a")
+
+            if self.color_backbone_checkbox.isChecked():
+                chains_present = set(c for c, p in self.residue_scores_data.keys())
+                chain_spec = ",".join(chains_present)
+                run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette red:white:green range {color_range} key false")
+
+            try:
+                run(self.session, f"key red:{-max_abs_add:.2f} white:0 green:{max_abs_add:.2f} pos 0.05,0.05")
+            except Exception as e:
+                self.session.logger.warning(f"Failed to draw colorbar key: {e}")
+
+            self._apply_transparency_isolation(wt_model)
+            self.status_label.setText("Status: Singles Visualization complete.")
+
+        except Exception as e:
+            self.session.logger.error(f"Visualization Error: {e}")
+            self.status_label.setText("Status: Visualization Error.")
+
+    def _apply_epistasis(self):
+        try:
+            wt_model = self._setup_base_wt_model()
+            df = self.epistasis_df
+            is_wt_epi = self.display_mode_combo.currentText() == "WT epistasis"
+            
+            if is_wt_epi:
+                def is_valid_wt_epi(row):
+                    valid1 = (row['wt1'] != 'A' and row['mut1'] == 'A') or (row['wt1'] == 'A' and row['mut1'] == 'G')
+                    valid2 = (row['wt2'] != 'A' and row['mut2'] == 'A') or (row['wt2'] == 'A' and row['mut2'] == 'G')
+                    return valid1 and valid2
+                df = df[df.apply(is_valid_wt_epi, axis=1)].copy()
+                if df.empty: raise AssertionError("WT Epistasis requires mutations to Alanine/Glycine. None found.")
+
+            # Filtering Selection Metric
+            metric_target = self.pair_selection_combo.currentText()
+            if metric_target == "Stability":
+                sort_col = 'combined_pred'
+            else:
+                sort_col = 'dddg_pred'
+
+            pos_thresh = self.pos_threshold_spinbox.value()
+            neg_thresh = self.neg_threshold_spinbox.value()
+            filtered_df = df[(df[sort_col] >= pos_thresh) | (df[sort_col] <= neg_thresh)].copy()
+
+            if filtered_df.empty:
+                self.status_label.setText(f"Status: No residue pairs found outside the specified thresholds using {metric_target}.")
+                return
+
+            priority = self.display_priority_combo.currentText()
+            if priority == "High score":
+                sorted_df = filtered_df.sort_values(by=sort_col, ascending=False)
+            elif priority == "Low score":
+                sorted_df = filtered_df.sort_values(by=sort_col, ascending=True)
+            elif priority == "Magnitude":
+                filtered_df['abs_score_sort'] = filtered_df[sort_col].abs()
+                sorted_df = filtered_df.sort_values(by='abs_score_sort', ascending=False)
+
+            # Epistasis line colorbar is ALWAYS scaled to dddg_pred regardless of filtering metric
+            max_abs_epi = float(sorted_df['dddg_pred'].abs().quantile(0.98))
+            if pd.isna(max_abs_epi) or max_abs_epi <= 0.05:
+                max_abs_epi = float(sorted_df['dddg_pred'].abs().max())
+            if max_abs_epi == 0: max_abs_epi = 1.0
+
+            # --- Base Additive Scoring Extraction ---
+            scores = [s for s, _ in self.residue_scores_data.values()]
+            if scores:
+                scores_abs = [abs(s) for s in scores]
+                max_abs_add = float(np.percentile(scores_abs, 98))
+                if max_abs_add <= 0.05: max_abs_add = max(scores_abs)
+            else:
+                max_abs_add = 0.01
+            color_range = f"{-max_abs_add:.3f},{max_abs_add:.3f}"
+
+            if is_wt_epi:
+                # -------------------------
+                # WT EPISTASIS (NO LAYERS)
+                # -------------------------
+                participating_positions = set()
+                pairs_to_draw = []
+                connection_counts = defaultdict(int)
+                max_edges = self.epi_max_edges.value()
+                mutation_plan = {} # Used only for score lookup mapping
+
+                for _, row in sorted_df.iterrows():
+                    c1, p1, m1 = str(row['chain_id']).strip(), int(row['pos1_pdb']), str(row['mut1']).upper()
+                    c2, p2, m2 = str(row['chain_id']).strip(), int(row['pos2_pdb']), str(row['mut2']).upper()
+                    epi_score = float(row['dddg_pred'])
+                    
+                    if connection_counts[(c1, p1)] >= max_edges or connection_counts[(c2, p2)] >= max_edges: continue
+                    
+                    connection_counts[(c1, p1)] += 1
+                    connection_counts[(c2, p2)] += 1
+                    pairs_to_draw.append((c1, p1, m1, c2, p2, m2, epi_score))
+                    participating_positions.add((c1, p1))
+                    participating_positions.add((c2, p2))
+                    mutation_plan[(c1, p1)] = m1
+                    mutation_plan[(c2, p2)] = m2
+
+                spec = self._get_spec(wt_model.id_string, participating_positions)
+                if spec != "None":
+                    for (chain, pos) in participating_positions:
+                        tgt_aa = mutation_plan[(chain, pos)]
+                        if (chain, pos, tgt_aa) not in self.all_singles_scores:
+                            self.session.logger.warning(f"Single Ala/Gly score missing for {chain}:{pos}. Defaulting to 0.0.")
+                            exact_score = 0.0
+                        else:
+                            exact_score = self.all_singles_scores[(chain, pos, tgt_aa)]
+                        run(self.session, f"setattr #{wt_model.id_string}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {exact_score} create true")
+                    
+                    mut_style = self.mut_style_combo.currentText()
+                    mut_alpha = self.mut_stick_alpha_spinbox.value()
+                    
+                    run(self.session, f"size ({spec}) stickRadius 0.2")
+                    if not self.mut_color_edit.text().strip():
+                        run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({spec}) palette red:white:green range {color_range} key false target a")
+                        run(self.session, f"color ({spec}) & ~C byelement target a")
+                    run(self.session, f"show ({spec}) atoms")
+                    run(self.session, f"style ({spec}) {mut_style}")
+                    run(self.session, f"transparency ({spec}) {mut_alpha} target a")
+                    
+                self._apply_contacts(wt_model, participating_positions, spec)
+                
+                if self.color_backbone_checkbox.isChecked():
+                    chains_present = set(c for c, p in self.residue_scores_data.keys())
+                    chain_spec = ",".join(chains_present)
+                    for (chain, pos), (score, _) in self.residue_scores_data.items():
+                        run(self.session, f"setattr #{wt_model.id_string}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {score} create true")
+                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette red:white:green range {color_range} key false")
+
+                model_residues = {(r.chain_id, r.number): r for r in wt_model.residues}
+                for c1, p1, m1, c2, p2, m2, score in pairs_to_draw:
+                    self._draw_epistasis_line(wt_model.id_string, c1, p1, c2, p2, score, max_abs_epi, pos_thresh, neg_thresh, model_residues)
+
+            else:
+                # -------------------------
+                # MT EPISTASIS (LAYERS)
+                # -------------------------
+                layers = [] 
+                pairs_to_draw = [] 
+                connection_counts = defaultdict(int)
+                max_edges = self.epi_max_edges.value()
+                
+                for _, row in sorted_df.iterrows():
+                    c1, p1, m1 = str(row['chain_id']).strip(), int(row['pos1_pdb']), str(row['mut1']).upper()
+                    c2, p2, m2 = str(row['chain_id']).strip(), int(row['pos2_pdb']), str(row['mut2']).upper()
+                    epi_score = float(row['dddg_pred'])
+                    
+                    if connection_counts[(c1, p1)] >= max_edges or connection_counts[(c2, p2)] >= max_edges: continue
+                    
+                    assigned_layer = -1
+                    for i, layer in enumerate(layers):
+                        if layer.get((c1, p1), m1) == m1 and layer.get((c2, p2), m2) == m2:
+                            assigned_layer = i
+                            break
+                    
+                    if assigned_layer == -1:
+                        assigned_layer = len(layers)
+                        layers.append({})
+                    
+                    layers[assigned_layer][(c1, p1)] = m1
+                    layers[assigned_layer][(c2, p2)] = m2
+                    
+                    connection_counts[(c1, p1)] += 1
+                    connection_counts[(c2, p2)] += 1
+                    pairs_to_draw.append((c1, p1, m1, c2, p2, m2, epi_score, assigned_layer))
+
+                mutated_models_objs = []
+                for i, layer in enumerate(layers):
+                    mut_model = self._create_mutated_model(wt_model, f"epi_layer_{i}")
+                    mut_id = mut_model.id_string.split('.')[0]
+                    self.mutated_model_id_strings.append(mut_id)
+                    self._apply_swapaa(mut_id, mut_model, layer)
+                    mutated_models_objs.append(mut_model)
+                    
+                self._resolve_and_apply_styles(wt_model, self.mutated_model_id_strings, layers)
+                
+                for (chain, pos), (score, _) in self.residue_scores_data.items():
+                    run(self.session, f"setattr #{wt_model.id_string}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {score} create true")
+
+                for i, plan in enumerate(layers):
+                    if not plan: continue
+                    mut_id = self.mutated_model_id_strings[i]
+                    
+                    for (chain, pos), tgt_aa in plan.items():
+                        if (chain, pos, tgt_aa) not in self.all_singles_scores:
+                            self.session.logger.warning(f"Single mutant score missing for {chain}:{pos}->{tgt_aa}. Defaulting to 0.0.")
+                            exact_score = 0.0
+                        else:
+                            exact_score = self.all_singles_scores[(chain, pos, tgt_aa)]
+                        run(self.session, f"setattr #{mut_id}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {exact_score} create true")
+                    
+                    if not self.mut_color_edit.text().strip():
+                        mut_spec = self._get_spec(mut_id, plan.keys())
+                        if mut_spec != "None":
+                            run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({mut_spec}) palette red:white:green range {color_range} key false target a")
+                            run(self.session, f"color ({mut_spec}) & ~C byelement target a")
+
+                for c1, p1, m1, c2, p2, m2, score, layer_idx in pairs_to_draw:
+                    mut_id = self.mutated_model_id_strings[layer_idx]
+                    model_residues = {(r.chain_id, r.number): r for r in mutated_models_objs[layer_idx].residues}
+                    self._draw_epistasis_line(mut_id, c1, p1, c2, p2, score, max_abs_epi, pos_thresh, neg_thresh, model_residues)
+
+            # Unified Colorbars with opposite positions along the bottom
+            try:
+                run(self.session, f"key red:{-max_abs_add:.2f} white:0 green:{max_abs_add:.2f} pos 0.05,0.05")
+                run(self.session, f"key blue:{-max_abs_epi:.2f} white:0 orange:{max_abs_epi:.2f} pos 0.55,0.05")
+            except Exception as e:
+                self.session.logger.warning(f"Failed to draw dual colorbar keys: {e}")
+
+            self._apply_transparency_isolation(wt_model)
+            self.status_label.setText(f"Status: Epistasis Viz Complete ({len(pairs_to_draw)} interactions across {len(layers) if not is_wt_epi else 1} layers).")
+
+        except Exception as e:
+            self.session.logger.error(f"Critical failure in Epistasis Visualization: {e}")
+            self.status_label.setText("Status: Visualization Error.")
