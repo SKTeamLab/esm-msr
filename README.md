@@ -138,7 +138,7 @@ Once inference completes (or if you load an existing output CSV), navigate to th
   * **WT Epistasis:** Visualizes epistatic interactions between wild-type residues when truncated to Alanine (or Glycine). Mapped directly onto the native WT geometry.
   * **MT Epistasis:** Visualizes epistatic interactions between highest-scoring mutant pairs, utilizing dynamically generated structural layers to resolve overlapping geometry.
 * **Select Pairs By:** Determines the metric used to filter and sort interactions (either the raw Epistasis ΔΔΔG score, or the total Double Mutant Stability score).
-* **Display Priority:** Determines which interactions to keep when the "Max Interactions" cap is hit. You can prioritize by High score, Low score, or Magnitude.
+* **Display Priority:** Determines which interactions to keep when the "Max Interactions" cap is hit. You can prioritize by High score (highest predicted stability change), Low score, or Magnitude (absolute value of stability change).
 * **Global Filters:** Quickly exclude specific mutations from the visualization (e.g., No WT Cys, No Mut Pro) to clean up the display.
 * **Score Selection (Additive Base):** Select which raw additive score to use as the base metric (Dual-view, WT LoRA, or MT LoRA). *Note: Dual-view is required for epistasis. If you skipped the MT pass during inference, only WT LoRA predictions will be available.*
 
