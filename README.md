@@ -69,7 +69,7 @@ Inference strategies, performance and compute time are discussed in the paper. T
 
 `python src/esm_msr/inference.py --checkpoint_path LoRA_models/esm-msr-small/epoch\=03-val_rho_combined_avg\=0.816.ckpt --pdb_file path_to_your_structure_file --mode singles --skip_reverse --output_csv ./example_output.csv`
 
-Remove the `--skip_reverse` flag for a much slower, slightly higher accuracy screen (proportional to total possible mutations). Change the screening `--mode` to `doubles` (or to `both`) to screen all double mutants (or both singles and doubles). It is not recommended to use `--skip_reverse` for `--mode doubles` because this ignores epistasis. A full double mutant screen on a protein greater than 200 residues is very compute expensive. It is therefore recommended to screen only double mutants where the wild-type residues are within 6 Angstrom heavy atom distance. This is controlled with the `--distance_threshold` parameter. Multi-mutants must be screened individually, either by generating an `--input_csv` with columns `pdb_file, code, chain, mut_type` and mutations (`mut_type`) specified like A2C:D3E, or individually passing in comma separated mutations via `--mutations`. An example can be seen in `data/preprocessed/ptmul_mapped.csv`; extra columns are allowed.
+Remove the `--skip_reverse` flag for a much slower, slightly higher accuracy screen (proportional to total possible mutations). Change the screening `--mode` to `singles+doubles` to screen all double and single mutants (the singles are comparatively almost free and useful for visualization later). It is not recommended to use `--skip_reverse` for `--mode doubles` because this ignores epistasis. A full double mutant screen on a protein greater than 200 residues is very compute expensive. It is therefore recommended to screen only double mutants where the wild-type residues are within 6 Angstrom heavy atom distance. This is controlled with the `--distance_threshold` parameter. Multi-mutants must be screened individually, either by generating an `--input_csv` with columns `pdb_file, code, chain, mut_type` and mutations (`mut_type`) specified like A2C:D3E, or individually passing in comma separated mutations via `--mutations`. An example can be seen in `data/preprocessed/ptmul_mapped.csv`; extra columns are allowed.
 
 The visualizer generates predictions using this script. You can read the GUI section to understand how `inference.py` can be used from the command line.
 
@@ -109,9 +109,9 @@ Select which open ChimeraX model and specific chain you want to predict on.
 
 **Mutation Scope (Mutually Exclusive):**
 Select **one** of three methods to define the mutation space. Selecting one method will automatically disable the inputs for the others.
-1. **1. Full Screen:** Exhaustively scores mutations. Choose `singles`, `doubles`, or `both`.
+1. **1. Full Screen:** Exhaustively scores mutations. Choose `singles`, `singles+doubles`.
    * *Positions:* Leave empty for all residues, or type indices manually (e.g., `11,12`). You can also select residues in ChimeraX (ctrl + click + drag) and click **Grab Selection**.
-   * *Filter doubles by distance (Å):* If you are screening `doubles` or `both`, you can check this box to strictly evaluate pairs of residues that are within a certain 3D spatial proximity based on minimum side-chain heavy atom distance.
+   * *Filter doubles by distance (Å):* If you are screening `singles+doubles`, you can check this box to strictly evaluate pairs of residues that are within a certain 3D spatial proximity based on minimum side-chain heavy atom distance.
 2. **2. Specify mutations in CSV:** Upload a predefined CSV list of mutations to score.
 3. **3. Input Mutations Directly:** Manually type a comma-separated list of precise mutations (e.g., `A12C,A12C:D15E`).
 
@@ -128,24 +128,38 @@ Click **Run Prediction Script** at the bottom of the window. A red **STOP** butt
 
 ### 3. Visualization
 
-Once inference completes (or if you load an existing output CSV), navigate to the **Visualization** tab to map the stability scores onto your 3D structure.
+Once inference completes (or if you load an existing output CSV), navigate to the **Visualization** tab to map the stability and epistatic scores onto your 3D structure.
 
-**Score Selection:**
-If you ran standard inference, choose between visualizing **WT LoRA**, **MT LoRA**, or the recommended **Dual-view predictions**. *Note: If you checked "Skip MT pass" during inference, only WT LoRA predictions will be available in the CSV.*
+**Note on Requirements:** *Single-mutation data is required for all visualization modes* to properly map additive stability scores onto sidechains.
 
-**Standard Single-Mutant Mode:**
-*(Requires a CSV generated using `singles` or `both` mode. Ensure "Epistasis Mode" is unchecked.)*
-* **Score Threshold:** Only mutations with a predicted score above this value (positive = stabilizing) will be visualized.
-* **Color Backbone by Highest ΔΔG:** Colors the wild-type backbone on a Red-to-White-to-Green gradient based on the highest-scoring candidate at each position, essentially giving a 'mutability' visualization.
-* **Show Highest-Scoring Mutations:** Physically mutates the residue to the highest-scoring candidate and renders it as sticks. The original wild-type sticks remain visible for structural comparison. Adjust transparency settings to your liking.
-* **Visualize Contacts:** Shows surrounding contextual residues within a specified Angstrom radius of the highest-scoring mutant sidechains. 
-   * The structural context (surrounding non-interacting atoms) is rendered as ghosted thin lines.
-   * Specific contacting atoms are highlighted as balls.
+#### Core Configuration
+* **Display Mode:** Choose the primary visualization strategy:
+  * **Singles:** Visualizes independent single mutations.
+  * **WT Epistasis:** Visualizes epistatic interactions between wild-type residues when truncated to Alanine (or Glycine). Mapped directly onto the native WT geometry.
+  * **MT Epistasis:** Visualizes epistatic interactions between highest-scoring mutant pairs, utilizing dynamically generated structural layers to resolve overlapping geometry.
+* **Select Pairs By:** Determines the metric used to filter and sort interactions (either the raw Epistasis ΔΔΔG score, or the total Double Mutant Stability score).
+* **Display Priority:** Determines which interactions to keep when the "Max Interactions" cap is hit. You can prioritize by High score (highest predicted stability change), Low score, or Magnitude (absolute value of stability change).
+* **Global Filters:** Quickly exclude specific mutations from the visualization (e.g., No WT Cys, No Mut Pro) to clean up the display.
+* **Score Selection (Additive Base):** Select which raw additive score to use as the base metric (Dual-view, WT LoRA, or MT LoRA). *Note: Dual-view is required for epistasis. If you skipped the MT pass during inference, only WT LoRA predictions will be available.*
 
-**Epistasis Mode (Double Mutants):**
-*(Requires a CSV generated using `doubles` mode. Check the "Epistasis Mode" box.)*
-* **Epistasis Threshold:** Filters out weak epistatic interactions based on absolute magnitude.
-* **What it shows:** Turns the active model transparent and replaces residues involved in significant epistatic interactions with their mutated counterparts. Scaled pseudobonds are drawn between interacting pairs:
-    * 🟩 **Green Line:** Positive epistasis (score > 0).
-    * 🟥 **Red Line:** Negative epistasis (score < 0).
-    * Line thickness and brightness are mathematically scaled based on the magnitude of the predicted interaction.
+#### Global Thresholds and Networks
+* **Pos/Neg Thresholds:** Only mutations or epistatic pairs with scores strictly greater than the Positive Threshold or less than the Negative Threshold are visualized.
+* **Non-Target Chain Transp %:** Adjusts the opacity of opposing chains in the complex to reduce visual clutter.
+* **Max Interactions per Position:** (Epistasis modes only). Caps the number of epistatic network edges that can originate from a single residue to prevent visual overload (the "hairball" effect).
+* **Visualize Contacts:** Shows surrounding wild-type contextual residues within a specified Angstrom radius of the visualized mutant sidechains. 
+  * Contacting atoms are explicitly highlighted based on your styling preferences.
+  * *Note: Distances are calculated using sidechain heavy atoms. Backbone-only contacts are excluded.*
+* **Color Backbone by Highest Additive ΔΔG:** (Singles & WT Epistasis mode only). Colors the wild-type ribbon backbone on a Red-to-White-to-Green gradient based on the highest-scoring candidate at each position.
+
+#### Rendering and Styling
+Customize the color, geometry style (stick, ball, sphere, wire), and transparency of the structural components.
+* **WT Style:** Applies to the "ghost" wild-type residues left behind for structural context.
+* **Mut Color / Style:** Applies to the mutated sidechains. **LEAVE BLANK FOR ADDITIVE SCORE** to automatically color the mutant carbons based on their individual stability score (Red-to-White-to-Green gradient).
+* **Contact Style:** Applies explicitly to the surrounding context residues.
+
+#### Color Mapping Guide
+When using the default styling (leaving the Mut Color blank), the visualizer generates dynamic colorbars mapped to your data:
+* 🟩 **Green (Atoms/Backbone):** Favorable additive single-mutant stability (score > 0).
+* 🟥 **Red (Atoms/Backbone):** Unfavorable additive single-mutant stability (score < 0).
+* 🟧 **Orange (Pseudobonds):** Positive epistasis / synergistic interaction (score > 0).
+* 🟦 **Blue (Pseudobonds):** Negative epistasis / antagonistic interaction (score < 0).
