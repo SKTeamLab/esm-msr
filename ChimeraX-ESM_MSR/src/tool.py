@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import re
 from collections import defaultdict
+from pathlib import Path
 
 from chimerax.ui import MainToolWindow
 from chimerax.core.tools import ToolInstance
@@ -141,10 +142,12 @@ class ESM_MSR_Tool(ToolInstance):
         paths_group = QGroupBox("Environment & Paths")
         paths_layout = QVBoxLayout()
         paths_group.setLayout(paths_layout)
+        #autofill_path = str(Path(__file__).resolve().parent.parent)
 
         base_repo_layout = QHBoxLayout()
         base_repo_layout.addWidget(QLabel("Base Repo Dir:"))
         self.base_repo_path_edit = QLineEdit(self.base_repo_path)
+        #self.base_repo_path_edit.setText(autofill_path)
         base_repo_layout.addWidget(self.base_repo_path_edit)
         btn = QPushButton("Browse...")
         btn.clicked.connect(self._browse_base_repo)
@@ -493,26 +496,34 @@ class ESM_MSR_Tool(ToolInstance):
 
     def _refresh_models(self, trigger_name=None, trigger_data=None):
         if self._closing: return
+
+        try:
         
-        current_model_id = self.pred_model_combobox.currentData()
-        
-        self.pred_model_combobox.blockSignals(True)
-        self.pred_model_combobox.clear()
-        
-        models = [m for m in self.session.models.list(type=Structure) 
-                  if not (self.mutated_model_id_string and m.id_string == self.mutated_model_id_string)]
-        
-        for m in models:
-            self.pred_model_combobox.addItem(f"#{m.id_string} {m.name}", m.id_string)
+            current_model_id = self.pred_model_combobox.currentData()
             
-        idx = self.pred_model_combobox.findData(current_model_id)
-        if idx >= 0:
-            self.pred_model_combobox.setCurrentIndex(idx)
-        elif self.pred_model_combobox.count() > 0:
-            self.pred_model_combobox.setCurrentIndex(0)
+            self.pred_model_combobox.blockSignals(True)
+            self.pred_model_combobox.clear()
             
-        self.pred_model_combobox.blockSignals(False)
-        self._on_model_selected()
+            models = [m for m in self.session.models.list(type=Structure) 
+                    if not (self.mutated_model_id_string and m.id_string == self.mutated_model_id_string)]
+            
+            for m in models:
+                self.pred_model_combobox.addItem(f"#{m.id_string} {m.name}", m.id_string)
+                
+            idx = self.pred_model_combobox.findData(current_model_id)
+            if idx >= 0:
+                self.pred_model_combobox.setCurrentIndex(idx)
+            elif self.pred_model_combobox.count() > 0:
+                self.pred_model_combobox.setCurrentIndex(0)
+                
+            self.pred_model_combobox.blockSignals(False)
+            self._on_model_selected()
+
+        except RuntimeError as e:
+            if "deleted" in str(e):
+                self.session.logger.warning("Model refresh trigger skipped: UI combobox temporarily locked during batch model generation.")
+                return
+            raise e # Raise other unexpected RuntimeErrors
 
     def _on_model_selected(self, index=None):
         if self._closing: return
@@ -1501,16 +1512,19 @@ class ESM_MSR_Tool(ToolInstance):
         else:
             norm_score = min(1.0, max(0.0, (abs(score) - rel_thresh) / (max_abs_score - rel_thresh)))
             
-        radius_val = 0.05 + (0.95 * (norm_score ** 2)) 
-        alpha = int(30 + 225 * norm_score)             
+        radius_val = 0.05 + (0.35 * norm_score) 
         
-        c_inv = int(255 * (1.0 - norm_score))
+        # Alpha (Opacity) on a 0-100 scale: 30% baseline up to 100% opaque
+        alpha = int(30 + 70 * norm_score)             
+        
+        # Color channels on a 0-100 percentage scale
+        c_inv = int(100 * (1.0 - norm_score))
         if score > 0:
-            # Positive Epistasis -> Orange gradient interpolation
-            color_spec = f"255,{int(255 - 90*norm_score)},{c_inv},{alpha}" 
+            # Orange is ~100% Red, 50% Green, 0% Blue
+            color_spec = f"100,{int(100 - 50*norm_score)},{c_inv},{alpha}" 
         else:
-            # Negative Epistasis -> Blue gradient interpolation
-            color_spec = f"{c_inv},{c_inv},255,{alpha}" 
+            # Blue is 0% Red, 0% Green, 100% Blue
+            color_spec = f"{c_inv},{c_inv},100,{alpha}"
         
         cmd = f"pbond #{mut_model_id}/{c1}:{p1}@{a1.name} #{mut_model_id}/{c2}:{p2}@{a2.name} reveal true color {color_spec} radius {radius_val:.3f} name \"{score:.2f}\""
         run(self.session, cmd)
@@ -1633,17 +1647,18 @@ class ESM_MSR_Tool(ToolInstance):
                 sorted_df = filtered_df.sort_values(by='abs_score_sort', ascending=False)
 
             # Epistasis line colorbar is ALWAYS scaled to dddg_pred regardless of filtering metric
-            max_abs_epi = float(sorted_df['dddg_pred'].abs().quantile(0.98))
-            if pd.isna(max_abs_epi) or max_abs_epi <= 0.05:
-                max_abs_epi = float(sorted_df['dddg_pred'].abs().max())
-            if max_abs_epi == 0: max_abs_epi = 1.0
+            max_abs_epi = float(sorted_df['dddg_pred'].abs().max())
+            if pd.isna(max_abs_epi) or max_abs_epi == 0: 
+                max_abs_epi = 1.0
+
+            print('max_abs_epi', max_abs_epi)
 
             # --- Base Additive Scoring Extraction ---
             scores = [s for s, _ in self.residue_scores_data.values()]
             if scores:
                 scores_abs = [abs(s) for s in scores]
-                max_abs_add = float(np.percentile(scores_abs, 98))
-                if max_abs_add <= 0.05: max_abs_add = max(scores_abs)
+                max_abs_add = float(max(scores_abs))
+                if max_abs_add == 0: max_abs_add = 0.01
             else:
                 max_abs_add = 0.01
             color_range = f"{-max_abs_add:.3f},{max_abs_add:.3f}"

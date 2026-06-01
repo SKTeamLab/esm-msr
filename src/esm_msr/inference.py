@@ -258,7 +258,7 @@ def generate_screening_df(args) -> pd.DataFrame:
     mut_list_pdb = []
     
     AAs = list('ACDEFGHIKLMNPQRSTVWY')
-    modes = ['singles', 'doubles'] if args.mode in ['singles+doubles', 'both'] else [args.mode]
+    modes = ['singles', 'doubles'] if args.mode == 'singles+doubles' else [args.mode]
 
     if 'singles' in modes:
         for pos in target_positions:
@@ -345,25 +345,155 @@ def generate_screening_df(args) -> pd.DataFrame:
 
 def _handle_mutated_backbone(sequence, coords, structure_tokens, backbone_mutation=None, assert_wt=False, assert_mut=False, mask_ctx=False):
     corrected_seq = sequence
-    mutated_backbone_pos: Optional[int] = None
     if backbone_mutation:
-        mutated_backbone_pos = int(backbone_mutation[1:-1])
-        wt, mut = backbone_mutation[0], backbone_mutation[-1]
-        if assert_wt:
-            if corrected_seq[mutated_backbone_pos-1] != wt:
-                raise AssertionError(f"Expected {wt} at pos {mutated_backbone_pos}, found {corrected_seq[mutated_backbone_pos-1]}. Note: Chain breaks ('|') may shift sequence indices.")
-            corrected_seq = list(corrected_seq)
-            corrected_seq[mutated_backbone_pos-1] = mut
-            corrected_seq = "".join(corrected_seq)
-        elif assert_mut:
-            if corrected_seq[mutated_backbone_pos-1] != mut:
-                raise AssertionError(f"Expected {mut} at pos {mutated_backbone_pos}, found {corrected_seq[mutated_backbone_pos-1]}. Note: Chain breaks ('|') may shift sequence indices.")
+        for single_m in backbone_mutation.split(':'):
+            mutated_backbone_pos = int(single_m[1:-1])
+            wt, mut = single_m[0], single_m[-1]
+            if assert_wt:
+                if corrected_seq[mutated_backbone_pos-1] != wt:
+                    raise AssertionError(f"Expected {wt} at pos {mutated_backbone_pos}, found {corrected_seq[mutated_backbone_pos-1]}. Note: Chain breaks ('|') may shift sequence indices.")
+                corrected_seq = list(corrected_seq)
+                corrected_seq[mutated_backbone_pos-1] = mut
+                corrected_seq = "".join(corrected_seq)
+            elif assert_mut:
+                if corrected_seq[mutated_backbone_pos-1] != mut:
+                    raise AssertionError(f"Expected {mut} at pos {mutated_backbone_pos}, found {corrected_seq[mutated_backbone_pos-1]}. Note: Chain breaks ('|') may shift sequence indices.")
 
-    if mask_ctx and mutated_backbone_pos:
-        structure_tokens[:, mutated_backbone_pos] = C.STRUCTURE_MASK_TOKEN
-        coords[:, mutated_backbone_pos, :, :] = np.nan
+            if mask_ctx and mutated_backbone_pos:
+                structure_tokens[:, mutated_backbone_pos] = C.STRUCTURE_MASK_TOKEN
+                coords[:, mutated_backbone_pos, :, :] = np.nan
         
     return corrected_seq, coords, structure_tokens
+
+
+def _parse_and_validate_mut_string(m_str, seq, seq_to_pdb, pdb_to_seq, assume_mode):
+    """
+    Attempts to parse a mutation string (e.g., A12C:D15E) under 'renumbered' or 'pdb' rules.
+    Returns (is_valid, renumbered_str, pdb_str).
+    """
+    renumbered_parts = []
+    pdb_parts = []
+    
+    for single_m in m_str.split(':'):
+        if len(single_m) < 3: return False, None, None
+        wt, mt = single_m[0], single_m[-1]
+        pos_str = single_m[1:-1]
+        
+        if assume_mode == 'renumbered':
+            try:
+                pos = int(pos_str)
+                if pos < 1 or pos > len(seq) or seq[pos-1] != wt:
+                    return False, None, None
+                if pos not in seq_to_pdb:
+                    return False, None, None
+                renumbered_parts.append(single_m)
+                pdb_parts.append(f"{wt}{seq_to_pdb[pos]}{mt}")
+            except ValueError:
+                return False, None, None
+                
+        elif assume_mode == 'pdb':
+            if pos_str not in pdb_to_seq:
+                return False, None, None
+            seq_pos = pdb_to_seq[pos_str]
+            if seq_pos < 1 or seq_pos > len(seq) or seq[seq_pos-1] != wt:
+                return False, None, None
+            pdb_parts.append(single_m)
+            renumbered_parts.append(f"{wt}{seq_pos}{mt}")
+            
+    return True, ":".join(renumbered_parts), ":".join(pdb_parts)
+
+
+def standardize_input_df(df: pd.DataFrame, backbone_mutation: Optional[str] = None, quiet: bool = False) -> pd.DataFrame:
+    """
+    Validates and standardizes mutation columns. Infers mapping if only 'mut_type' is provided.
+    Applies the global backbone_mutation to the sequence prior to validating mutations.
+    Enforces that the input dataframe contains only a single structure (pdb_file + chain).
+    """
+    if df.empty:
+        raise AssertionError("Cannot standardize an empty DataFrame.")
+        
+    has_renum = 'mut_type_renumbered' in df.columns
+    has_pdb = 'mut_type_pdb' in df.columns
+    has_generic = 'mut_type' in df.columns
+    
+    if not (has_renum or has_pdb or has_generic):
+        raise AssertionError("Input CSV must contain at least one of: 'mut_type', 'mut_type_renumbered', 'mut_type_pdb'")
+
+    unique_structures = df[['pdb_file', 'chain']].drop_duplicates()
+    if len(unique_structures) > 1:
+        raise AssertionError(f"This script is strictly designed to process a single structure and chain per execution. Found {len(unique_structures)} unique structure/chain combinations in the input CSV. Please split your dataset.")
+    
+    if not quiet:
+        logging.info("Standardizing mutation mapping columns...")
+    df = df.copy()
+    
+    if 'mut_type_renumbered' not in df.columns: df['mut_type_renumbered'] = None
+    if 'mut_type_pdb' not in df.columns: df['mut_type_pdb'] = None
+    
+    pdb = unique_structures['pdb_file'].iloc[0]
+    chain = unique_structures['chain'].iloc[0]
+    
+    try:
+        chain_obj = ProteinChain.from_pdb(pdb, chain)
+        original_seq = chain_obj.sequence
+        seq_to_pdb, pdb_to_seq = get_pdb_to_seq_mapping(pdb, chain, original_seq)
+    except Exception as e:
+        raise AssertionError(f"Failed to load structure {pdb} chain {chain} to standardize mutations: {e}")
+        
+    current_seq = original_seq
+    
+    # Apply the global backbone_mutation context prior to validation
+    if backbone_mutation:
+        seq_list = list(current_seq)
+        for single_m in backbone_mutation.split(':'):
+            wt, mt = single_m[0], single_m[-1]
+            try:
+                pos = int(single_m[1:-1])
+            except ValueError:
+                raise AssertionError(f"Could not parse integer position from backbone_mutation string: {single_m}.")
+            
+            if pos < 1 or pos > len(seq_list):
+                raise AssertionError(f"Backbone mutation position {pos} out of bounds for sequence length {len(seq_list)}.")
+            if seq_list[pos-1] != wt:
+                raise AssertionError(f"Backbone mutation expected {wt} at pos {pos}, but found {seq_list[pos-1]} in PDB sequence.")
+            
+            seq_list[pos-1] = mt
+        current_seq = "".join(seq_list)
+        
+    for idx, row in df.iterrows():
+        r_str, p_str = None, None
+        
+        if has_renum and pd.notna(row.get('mut_type_renumbered')):
+            valid, r, p = _parse_and_validate_mut_string(str(row['mut_type_renumbered']), current_seq, seq_to_pdb, pdb_to_seq, assume_mode='renumbered')
+            if not valid: raise AssertionError(f"Row {idx}: Invalid renumbered mutation '{row['mut_type_renumbered']}' against background.")
+            r_str, p_str = r, p
+            
+        elif has_pdb and pd.notna(row.get('mut_type_pdb')):
+            valid, r, p = _parse_and_validate_mut_string(str(row['mut_type_pdb']), current_seq, seq_to_pdb, pdb_to_seq, assume_mode='pdb')
+            if not valid: raise AssertionError(f"Row {idx}: Invalid PDB mutation '{row['mut_type_pdb']}' against background.")
+            r_str, p_str = r, p
+            
+        elif has_generic and pd.notna(row.get('mut_type')):
+            m_str = str(row['mut_type'])
+            valid_renum, r_renum, p_renum = _parse_and_validate_mut_string(m_str, current_seq, seq_to_pdb, pdb_to_seq, assume_mode='renumbered')
+            valid_pdb, r_pdb, p_pdb = _parse_and_validate_mut_string(m_str, current_seq, seq_to_pdb, pdb_to_seq, assume_mode='pdb')
+            
+            if valid_renum and valid_pdb:
+                # Ambiguous but structurally identical mappings default to renumbered
+                r_str, p_str = r_renum, p_renum
+            elif valid_renum:
+                r_str, p_str = r_renum, p_renum
+            elif valid_pdb:
+                r_str, p_str = r_pdb, p_pdb
+            else:
+                raise AssertionError(f"Row {idx}: Mutation '{m_str}' for {pdb} chain {chain} failed validation against current background sequence. Matches neither 1-based sequence indexing nor PDB numbering. Verify your wild-type residues.")
+        else:
+            raise AssertionError(f"Row {idx} is missing a mutation definition.")
+            
+        df.at[idx, 'mut_type_renumbered'] = r_str
+        df.at[idx, 'mut_type_pdb'] = p_str
+        
+    return df
 
 
 def preprocess_structure(model, pdb_path, chain, dev, backbone_mutation, assert_wt=False, assert_mut=False, mask_ctx=False):
@@ -443,148 +573,160 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
     """
     A unified, highly interpretable pipeline to evaluate mutational stability.
     Abstracts dense tensor creation, deduplication, and math away from the user.
+    Enforces that the dataframe contains only a single structure context.
     """
+    if df.empty:
+        logging.warning("infer_mutants received an empty DataFrame. Returning an empty result.")
+        return pd.DataFrame()
+
+    unique_structs = df[['pdb_file', 'code', 'chain']].drop_duplicates()
+    if len(unique_structs) > 1:
+        raise AssertionError(f"infer_mutants received multiple structures ({len(unique_structs)}). Execution is restricted to a single structure per run.")
+
     dev = torch.device(device) if device is not None else next(model.parameters()).device
     all_results = []
     
-    for (pdb, code, chain), group_df in df.groupby(['pdb_file', 'code', 'chain'], dropna=False):
-        seq_toks, coords, plddt, struct_toks, wt_seq_str = preprocess_structure(model, pdb, chain, dev, backbone_mutation, assert_wt=True)
+    pdb = unique_structs['pdb_file'].iloc[0]
+    code = unique_structs['code'].iloc[0]
+    chain = unique_structs['chain'].iloc[0]
+    
+    seq_toks, coords, plddt, struct_toks, wt_seq_str = preprocess_structure(model, pdb, chain, dev, backbone_mutation, assert_wt=True)
+    
+    dist_matrix = None
+    if calculate_distances:
+        dist_matrix = compute_pairwise_heavy_atom_dist_matrix(coords)
         
-        dist_matrix = None
-        if calculate_distances:
-            dist_matrix = compute_pairwise_heavy_atom_dist_matrix(coords)
-            
-        cached_wt_esm3 = None
-        if optimize_wt_pass and mask_strategy is None:
-            if dev.type == 'cuda':
-                with torch.autocast(device_type='cuda', dtype=model.dtype):
-                    out = model._get_esm3_outputs(seq_toks, coords, struct_toks, plddt)
-            else:
+    cached_wt_esm3 = None
+    if optimize_wt_pass and mask_strategy is None:
+        if dev.type == 'cuda':
+            with torch.autocast(device_type='cuda', dtype=model.dtype):
                 out = model._get_esm3_outputs(seq_toks, coords, struct_toks, plddt)
-                
-            cached_wt_esm3 = {
-                'seq': seq_toks, 
-                'logits': model._process_logits(out.sequence_logits.float()), 
-                'embeddings': getattr(out, 'embeddings', None)
-            }
+        else:
+            out = model._get_esm3_outputs(seq_toks, coords, struct_toks, plddt)
+            
+        cached_wt_esm3 = {
+            'seq': seq_toks, 
+            'logits': model._process_logits(out.sequence_logits.float()), 
+            'embeddings': getattr(out, 'embeddings', None)
+        }
 
-        valid_rows = []
-        for _, row in group_df.iterrows():
-            muts, is_valid = [], True
-            # Read from the new renumbered sequence-indexed column
-            for m_str in str(row['mut_type_renumbered']).split(':'):
-                if len(m_str) < 3: 
-                    is_valid = False
-                    break
-                
-                wt, mt = m_str[0], m_str[-1]
-                try:
-                    pos = int(m_str[1:-1])
-                except ValueError:
-                    raise AssertionError(f"Could not parse integer position from mutation string: {m_str}. Are you feeding PDB indices into mut_type_renumbered?")
-                
-                if pos < 1 or pos > len(wt_seq_str) or mt not in model.vocab:
-                    raise IndexError(f"Invalid mutation {m_str} mapping against sequence len {len(wt_seq_str)}")
-                elif wt_seq_str[pos-1] != wt:
-                    logging.warning(f'Mismatch in inference.infer_mutants: at position {pos}, expected {wt}, got {wt_seq_str[pos-1]}')
-                    if not ignore_mismatch:
-                        is_valid = False; break
-                muts.append((wt, pos, mt))
+    valid_rows = []
+    for _, row in df.iterrows():
+        muts, is_valid = [], True
+        # Read from the new renumbered sequence-indexed column
+        for m_str in str(row['mut_type_renumbered']).split(':'):
+            if len(m_str) < 3: 
+                is_valid = False
+                break
             
-            if is_valid and muts: 
-                valid_rows.append({
-                    'mut_type_renumbered': str(row['mut_type_renumbered']), 
-                    'mut_type_pdb': str(row['mut_type_pdb']),
-                    'muts': muts, 
-                    'pdb_file': pdb, 
-                    'code': code, 
-                    'chain': chain
-                })
+            wt, mt = m_str[0], m_str[-1]
+            try:
+                pos = int(m_str[1:-1])
+            except ValueError:
+                raise AssertionError(f"Could not parse integer position from mutation string: {m_str}. Are you feeding PDB indices into mut_type_renumbered?")
+            
+            if pos < 1 or pos > len(wt_seq_str) or mt not in model.vocab:
+                raise IndexError(f"Invalid mutation {m_str} mapping against sequence len {len(wt_seq_str)}")
+            elif wt_seq_str[pos-1] != wt:
+                logging.warning(f'Mismatch in inference.infer_mutants: at position {pos}, expected {wt}, got {wt_seq_str[pos-1]}')
+                if not ignore_mismatch:
+                    is_valid = False; break
+            muts.append((wt, pos, mt))
         
-        if not valid_rows: 
-            raise AssertionError("No valid rows were produced after checking mutations against the structure.")
+        if is_valid and muts: 
+            valid_rows.append({
+                'mut_type_renumbered': str(row['mut_type_renumbered']), 
+                'mut_type_pdb': str(row['mut_type_pdb']),
+                'muts': muts, 
+                'pdb_file': pdb, 
+                'code': code, 
+                'chain': chain
+            })
+    
+    if not valid_rows: 
+        raise AssertionError("No valid rows were produced after checking mutations against the structure.")
 
-        # 1. Compile Unified Target List (Including singles for additive math if requested)
-        muts_to_score = set()
-        for r in valid_rows:
-            muts_tup = tuple(r['muts'])
-            muts_to_score.add(muts_tup)
-            if not skip_additive and len(muts_tup) > 1:
-                for single_m in muts_tup:
-                    muts_to_score.add((single_m,))
+    # 1. Compile Unified Target List (Including singles for additive math if requested)
+    muts_to_score = set()
+    for r in valid_rows:
+        muts_tup = tuple(r['muts'])
+        muts_to_score.add(muts_tup)
+        if not skip_additive and len(muts_tup) > 1:
+            for single_m in muts_tup:
+                muts_to_score.add((single_m,))
+    
+    muts_to_score_list = list(muts_to_score)
+    
+    # 2. Extract Memory-Efficient Sparse Indices
+    sparse_batch = _prepare_sparse_batch(model, muts_to_score_list, dev)
+    
+    # 3. Dynamic Execution via Unified API (Takes exactly 1 WT sequence reference)
+    if not quiet:
+        logging.info(f"Scoring {len(muts_to_score_list)} unique mutations via {'DEDUPLICATION' if mask_strategy else 'DENSE'} strategy...")
         
-        muts_to_score_list = list(muts_to_score)
+    out = model.score_screening_batch(
+        wt_sequence_tokens=seq_toks,
+        mut_pos=sparse_batch['mut_pos'],
+        wt_id=sparse_batch['wt_id'],
+        mt_id=sparse_batch['mt_id'],
+        mut_mask=sparse_batch['mut_mask'],
+        coords=coords,
+        structure_tokens=struct_toks,
+        plddt=plddt,
+        mask_strategy=mask_strategy,
+        batch_size=batch_size,
+        skip_reverse=skip_reverse,
+        cached_wt_esm3=cached_wt_esm3,
+        quiet=quiet
+    )
+    
+    # 4. Store Outputs
+    preds = {}
+    for i, mut_tup in enumerate(muts_to_score_list):
+        preds[mut_tup] = {
+            'wt_lora': out['wt_lora_pred'][i].item(),
+            'mt_lora': out['mt_lora_pred'][i].item(),
+            'combined': out['combined_pred'][i].item()
+        }
         
-        # 2. Extract Memory-Efficient Sparse Indices
-        sparse_batch = _prepare_sparse_batch(model, muts_to_score_list, dev)
+    # 5. Format the Final DataFrame
+    for r in tqdm(valid_rows, desc='Constructing output dataframe', disable=quiet):
+        muts = r['muts']
+        muts_tup = tuple(muts)
         
-        # 3. Dynamic Execution via Unified API (Takes exactly 1 WT sequence reference)
-        if not quiet:
-            logging.info(f"Scoring {len(muts_to_score_list)} unique mutations via {'DEDUPLICATION' if mask_strategy else 'DENSE'} strategy...")
-            
-        out = model.score_screening_batch(
-            wt_sequence_tokens=seq_toks,
-            mut_pos=sparse_batch['mut_pos'],
-            wt_id=sparse_batch['wt_id'],
-            mt_id=sparse_batch['mt_id'],
-            mut_mask=sparse_batch['mut_mask'],
-            coords=coords,
-            structure_tokens=struct_toks,
-            plddt=plddt,
-            mask_strategy=mask_strategy,
-            batch_size=batch_size,
-            skip_reverse=skip_reverse,
-            cached_wt_esm3=cached_wt_esm3,
-            quiet=quiet
-        )
+        res_dict = {
+            'pdb_file': r['pdb_file'], 'code': r['code'], 'chain': r['chain'], 
+            'mut_type_renumbered': r['mut_type_renumbered'],
+            'mut_type_pdb': r['mut_type_pdb']
+        }
         
-        # 4. Store Outputs
-        preds = {}
-        for i, mut_tup in enumerate(muts_to_score_list):
-            preds[mut_tup] = {
-                'wt_lora': out['wt_lora_pred'][i].item(),
-                'mt_lora': out['mt_lora_pred'][i].item(),
-                'combined': out['combined_pred'][i].item()
-            }
+        if skip_additive or len(muts) == 1:
+            wt_tot = preds[muts_tup]['wt_lora']
+            mt_tot = preds[muts_tup]['mt_lora']
+            comb_tot = preds[muts_tup]['combined']
+            res_dict.update({
+                'wt_lora_pred': wt_tot, 'mt_lora_pred': mt_tot, 
+                'combined_pred': comb_tot, 'combined_dddg_pred': 0.5 * mt_tot - 0.5 * wt_tot
+            })
+        else:
+            wt_add = sum(preds[(m,)]['wt_lora'] for m in muts)
+            mt_add = sum(preds[(m,)]['mt_lora'] for m in muts)
+            comb_add = sum(preds[(m,)]['combined'] for m in muts)
             
-        # 5. Format the Final DataFrame
-        for r in tqdm(valid_rows, desc='Constructing output dataframe', disable=quiet):
-            muts = r['muts']
-            muts_tup = tuple(muts)
+            wt_tot = preds[muts_tup]['wt_lora']
+            mt_tot = preds[muts_tup]['mt_lora']
+            comb_tot = preds[muts_tup]['combined']
             
-            res_dict = {
-                'pdb_file': r['pdb_file'], 'code': r['code'], 'chain': r['chain'], 
-                'mut_type_renumbered': r['mut_type_renumbered'],
-                'mut_type_pdb': r['mut_type_pdb']
-            }
-            
-            if skip_additive or len(muts) == 1:
-                wt_tot = preds[muts_tup]['wt_lora']
-                mt_tot = preds[muts_tup]['mt_lora']
-                comb_tot = preds[muts_tup]['combined']
-                res_dict.update({
-                    'wt_lora_pred': wt_tot, 'mt_lora_pred': mt_tot, 
-                    'combined_pred': comb_tot, 'combined_dddg_pred': 0.5 * mt_tot - 0.5 * wt_tot
-                })
-            else:
-                wt_add = sum(preds[(m,)]['wt_lora'] for m in muts)
-                mt_add = sum(preds[(m,)]['mt_lora'] for m in muts)
-                comb_add = sum(preds[(m,)]['combined'] for m in muts)
-                
-                wt_tot = preds[muts_tup]['wt_lora']
-                mt_tot = preds[muts_tup]['mt_lora']
-                comb_tot = preds[muts_tup]['combined']
-                
-                res_dict.update({
-                    'wt_lora_pred_additive': wt_add, 'wt_lora_dddg_pred': wt_tot - wt_add, 'wt_lora_pred': wt_tot, 
-                    'mt_lora_pred_additive': mt_add, 'mt_lora_dddg_pred': mt_tot - mt_add, 'mt_lora_pred': mt_tot, 
-                    'combined_pred_additive': comb_add, 'combined_dddg_pred': comb_tot - comb_add, 'combined_pred': comb_tot
-                })
+            res_dict.update({
+                'wt_lora_pred_additive': wt_add, 'wt_lora_dddg_pred': wt_tot - wt_add, 'wt_lora_pred': wt_tot, 
+                'mt_lora_pred_additive': mt_add, 'mt_lora_dddg_pred': mt_tot - mt_add, 'mt_lora_pred': mt_tot, 
+                'combined_pred_additive': comb_add, 'combined_dddg_pred': comb_tot - comb_add, 'combined_pred': comb_tot
+            })
 
-            if calculate_distances and len(muts) == 2:
-                res_dict['dist'] = dist_matrix[muts[0][1], muts[1][1]].item()
-                
-            all_results.append(res_dict)
+        if calculate_distances and len(muts) == 2:
+            res_dict['dist'] = dist_matrix[muts[0][1], muts[1][1]].item()
+            
+        all_results.append(res_dict)
 
     out = pd.DataFrame(all_results) if all_results else pd.DataFrame()
     out = out.dropna(how='all', axis=1)
@@ -597,10 +739,10 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    parser = argparse.ArgumentParser(description="Run ESM3 mutant stability inference with MSRModel.")
+    parser = argparse.ArgumentParser(description="Run ESM3 mutant stability inference with MSRModel. Enforces single-structure processing.")
 
     # Data IO and Execution Args
-    parser.add_argument("--input_csv", type=str, default=None, help="Path to input CSV containing: pdb_file, code, chain, mut_type_renumbered, mut_type_pdb")
+    parser.add_argument("--input_csv", type=str, default=None, help="Path to input CSV. MUST contain only ONE unique pdb_file and chain combination. Must include a mutation column (mut_type, mut_type_renumbered, or mut_type_pdb)")
     parser.add_argument("--output_csv", type=str, required=True, help="Path to save output CSV")
     
     # Structure arguments (Used if input_csv is not provided)
@@ -609,7 +751,7 @@ if __name__ == "__main__":
     parser.add_argument("--chain", type=str, default="A", help="Chain ID")
 
     # Screening Arguments
-    parser.add_argument("--mode", type=str, choices=['singles', 'doubles', 'both', 'singles+doubles'], default='singles', help="Mutation screening mode")
+    parser.add_argument("--mode", type=str, choices=['singles', 'doubles', 'singles+doubles'], default='singles', help="Mutation screening mode")
     parser.add_argument("--screen_residues", type=str, default=None, help="Comma-separated list of PDB indices to screen (mutually exclusive with screen_residues_except)")
     parser.add_argument("--screen_residues_except", type=str, default=None, help="Comma-separated list of PDB indices to exclude from screen (mutually exclusive with screen_residues)")
     parser.add_argument("--mutations", type=str, default=None, help="Comma-separated list of sequence-index mutations (e.g., A12C,A12C:D15E) to score directly.")
@@ -688,11 +830,11 @@ if __name__ == "__main__":
         except Exception as e:
             raise AssertionError(f"Failed to read input CSV: {e}")
             
-        required_cols = {'pdb_file', 'code', 'chain', 'mut_type_renumbered', 'mut_type_pdb'}
+        required_cols = {'pdb_file', 'code', 'chain'}
         if not required_cols.issubset(input_df.columns):
-            if 'mut_type' in input_df.columns and 'mut_type_renumbered' not in input_df.columns:
-                raise AssertionError("Input CSV is using the deprecated 'mut_type' column format. Please rename this column to 'mut_type_renumbered' and provide a corresponding 'mut_type_pdb' column to continue.")
-            raise AssertionError(f"Input CSV missing required columns. Expected: {required_cols}. Found: {set(input_df.columns)}")
+            raise AssertionError(f"Input CSV missing required base columns. Expected: {required_cols}. Found: {set(input_df.columns)}")
+            
+        input_df = standardize_input_df(input_df, args.backbone_mutation)
     else:
         if not args.pdb_file:
             raise AssertionError("Either --input_csv or --pdb_file must be provided.")

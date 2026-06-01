@@ -175,8 +175,9 @@ def main_(args):
                 
                 unique_data = data[~data.index.duplicated(keep='first')]
                 
-                pred_df, t_inf = timed_call(inference.infer_mutants, model=model, df=unique_data, batch_size=1, quiet=True, mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None))
-                pred_df['id'] = code + chain + '_' + pred_df['mut_type']
+                input_data = inference.standardize_input_df(unique_data, quiet=True)
+                pred_df, t_inf = timed_call(inference.infer_mutants, model=model, df=input_data, batch_size=1, quiet=True, mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None))
+                pred_df['id'] = code + chain + '_' + pred_df['mut_type_renumbered']
                 pred_df = pred_df.set_index('id')
 
                 overlap_cols = list(set(data.columns).intersection(set(pred_df.columns)))
@@ -246,7 +247,6 @@ def main_(args):
                 df_true['mut_structure'] = df_true['mut_structure'].fillna('-')
 
                 t_total = 0
-                t_total_ctx = 0
 
                 for mut_structure, data in df_true.groupby('mut_structure'):
                     backbone_mutation = mut_structure if mut_structure != '-' else None
@@ -256,10 +256,11 @@ def main_(args):
                     data['dddG_ML'] = data['ddG_ML'] - data['ddG_additive_ML']
 
                     unique_data = data[~data.index.duplicated(keep='first')]
+                    input_data = inference.standardize_input_df(unique_data, backbone_mutation=backbone_mutation, quiet=True)
 
                     # Unified Inference
-                    pred_df, t = timed_call(inference.infer_mutants, model=model, df=unique_data, batch_size=16, backbone_mutation=backbone_mutation, quiet=True, skip_additive=False, mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None))
-                    pred_df['id'] = code + ('_' if backbone_mutation is None else '_' + str(backbone_mutation) + '_') + pred_df['mut_type']
+                    pred_df, t = timed_call(inference.infer_mutants, model=model, df=input_data, batch_size=16, backbone_mutation=backbone_mutation, quiet=True, skip_additive=False, mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None))
+                    pred_df['id'] = code + ('_' if backbone_mutation is None else '_' + str(backbone_mutation) + '_') + pred_df['mut_type_renumbered']
                     pred_df = pred_df.set_index('id')
 
                     overlap_cols = list(set(data.columns).intersection(set(pred_df.columns)))
@@ -332,9 +333,10 @@ def main_(args):
                 prot_name = 'GB1'
 
             unique_data = df_true[~df_true.index.duplicated(keep='first')]
+            input_data = inference.standardize_input_df(unique_data, quiet=True)
 
-            pred_df, t_inf = timed_call(inference.infer_mutants, model=model, df=unique_data, batch_size=batch_sz, quiet=False, skip_additive=False, mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None))
-            pred_df['id'] = prot_name + '_' + pred_df['mut_type']
+            pred_df, t_inf = timed_call(inference.infer_mutants, model=model, df=input_data, batch_size=batch_sz, quiet=False, skip_additive=False, mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None))
+            pred_df['id'] = prot_name + '_' + pred_df['mut_type_renumbered']
             pred_df = pred_df.set_index('id')
 
             overlap_cols = list(set(df_true.columns).intersection(set(pred_df.columns)))
@@ -384,9 +386,10 @@ def main_(args):
             df_true = df_true.set_index('id')
 
             unique_data = df_true[~df_true.index.duplicated(keep='first')]
+            input_data = inference.standardize_input_df(unique_data, quiet=True)
 
-            pred_df, t_inf = timed_call(inference.infer_mutants, model=model, df=unique_data, batch_size=32, quiet=True, skip_reverse=args.skip_reverse_domainome, mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None))
-            pred_df['id'] = prot + '_' + pred_df['mut_type']
+            pred_df, t_inf = timed_call(inference.infer_mutants, model=model, df=input_data, batch_size=32, quiet=True, skip_reverse=args.skip_reverse_domainome, mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None))
+            pred_df['id'] = prot + '_' + pred_df['mut_type_renumbered']
             pred_df = pred_df.set_index('id')
 
             overlap_cols = list(set(df_true.columns).intersection(set(pred_df.columns)))
@@ -421,39 +424,6 @@ def main_(args):
 
         torch.cuda.empty_cache()
 
-    # =========================================================================
-    # FUNCTIONAL DATASETS
-    # =========================================================================
-    if not args.skip_functional:
-
-        test_list_DMS = ['D7PM05_CLYGR', 'GFP_AEQVI', 'HIS7_YEAST', 'Q6WV12_9MAXI', 'Q8WTC7_9CNID', 'RASK_HUMAN']
-        mem_sizes = [8,8,8,8,8,8]
-
-        for mem_size, prot in zip(mem_sizes, test_list_DMS):
-            batch_sz = mem_size * 16
-
-            df_true = pd.read_csv(f'/home/{"sareeves" if not args.local_cluster else "sreeves"}/PSLMs/data/lora/DMS/csv_formatted/{prot}.csv')
-            df_true['mut_type'] = df_true['MUTS'].apply(lambda x: x.replace(';', ':'))
-            df_true['id'] = df_true['code'] + '_' + df_true['mut_type']
-            df_true = df_true.set_index('id')
-            df_true = utils.parse_multimutant_column(df_true, mut_column='mut_type')
-            
-            unique_data = df_true[~df_true.index.duplicated(keep='first')]
-
-            pred_df, t = timed_call(inference.infer_mutants, model=model, df=unique_data, batch_size=batch_sz, quiet=True, mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None))
-            pred_df['id'] = prot + '_' + pred_df['mut_type']
-            pred_df = pred_df.set_index('id')
-
-            overlap_cols = list(set(df_true.columns).intersection(set(pred_df.columns)))
-            res = df_true.join(pred_df.drop(overlap_cols, axis=1))
-
-            assert len(df_true) == len(res)
-
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive_" if args.skip_additive else "_"}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
-            os.makedirs(os.path.dirname(out_path), exist_ok=True)
-            res.to_csv(out_path)
-            
-            torch.cuda.empty_cache()
 
 if __name__ == "__main__":
         parser = argparse.ArgumentParser()
