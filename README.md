@@ -63,7 +63,7 @@ From here you have two options:
 
 You should now have everything you need to make your first predictions from the command line, except for a pdb/mmcif structure of interest, which you should download if following this step.
 
-We include a small version of our LoRA model in this repository for convenience, which is used in the example below. If you want to use other models, please see our HuggingFace page, download the models to the LoRA_models folder, and change the specified location.
+We include a small version of our LoRA model in this repository for convenience, which is used in the example below. If you want to use other models, please see our [HuggingFace page](https://huggingface.co/sareeves96/esm-msr), download the models to the LoRA_models folder, and change the path specified in the command.
 
 Inference strategies, performance and compute time are discussed in the paper. The below command is a fast approximation of single mutant saturation mutagenesis that should take less than a minute even on a CPU, apart from loading the model weights which is very hardware dependent.
 
