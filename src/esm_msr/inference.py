@@ -3,26 +3,37 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import pandas as pd
-from typing import Optional
 import os
 import json
 import argparse
-import itertools
+import shutil
 from tqdm import tqdm
 
 from esm.utils.structure.protein_chain import ProteinChain
 from esm.utils.structure.protein_complex import ProteinComplex
 from esm.utils.constants import esm3 as C
 
-from Bio.PDB import PDBParser
+# Import structural data handling and prep logic from preprocess
+from preprocess import (
+    download_pdb,
+    fix_noncanonical_residues,
+    repair_pdb,
+    renumber_pdb,
+    generate_screening_df,
+    standardize_input_df
+)
 
 
-def parse_hparams_to_lora_config(hparams_path: str) -> dict:
+def parse_hparams_to_lora_config(hparams_path: str, epsilon: float = 1.0) -> dict:
     """
     Parses a PyTorch Lightning hparams.yaml file to extract LoRA configuration.
     Raises AssertionErrors for clear, non-silent failure conditions.
     Warns if expected hyperparameters are missing from the configuration.
+    Multiplies lora_alpha by epsilon.
     """
+    if epsilon <= 0:
+        raise AssertionError(f"epsilon must be strictly greater than 0. Got: {epsilon}")
+
     if not os.path.isfile(hparams_path):
         raise AssertionError(f"hparams file not found at: {hparams_path}")
         
@@ -64,7 +75,6 @@ def parse_hparams_to_lora_config(hparams_path: str) -> dict:
         'unfreeze_layernorms': False,
     }
 
-    # Warn for missing base keys
     for key, default_val in default_wt.items():
         if key + '_wt' not in hparams:
             logging.warning(f"Expected base parameter '{key}' missing from hparams. Defaulting to {default_val}.")
@@ -80,7 +90,7 @@ def parse_hparams_to_lora_config(hparams_path: str) -> dict:
 
     wt_config = {
         'lora_rank': hparams.get('lora_rank_wt', default_wt['lora_rank']),
-        'lora_alpha': hparams.get('lora_alpha_wt', default_wt['lora_alpha']),
+        'lora_alpha': float(hparams.get('lora_alpha_wt', default_wt['lora_alpha'])) * epsilon,
         'lora_dropout': hparams.get('lora_dropout_wt', default_wt['lora_dropout']),
         'target_mode': hparams.get('target_mode_wt', default_wt['target_mode']),
         'last_n_layers': hparams.get('last_n_layers_wt', default_wt['last_n_layers']),
@@ -92,7 +102,7 @@ def parse_hparams_to_lora_config(hparams_path: str) -> dict:
 
     mt_config = {
         'lora_rank': hparams.get('lora_rank_mt', default_mt['lora_rank']),
-        'lora_alpha': hparams.get('lora_alpha_mt', default_mt['lora_alpha']),
+        'lora_alpha': float(hparams.get('lora_alpha_mt', default_mt['lora_alpha'])) * epsilon,
         'lora_dropout': hparams.get('lora_dropout_mt', default_mt['lora_dropout']),
         'target_mode': hparams.get('target_mode_mt', default_mt['target_mode']),
         'last_n_layers': hparams.get('last_n_layers_mt', default_mt['last_n_layers']),
@@ -108,239 +118,6 @@ def parse_hparams_to_lora_config(hparams_path: str) -> dict:
         'adapter_mode': hparams.get('adapter_mode', 'dual'),
         'lora_mode': hparams.get('lora_mode', 'ensemble')
     }
-
-
-def compute_pairwise_heavy_atom_dist_matrix(coords: torch.Tensor, exclude_backbone: bool = True) -> torch.Tensor:
-    """
-    Computes a fully vectorized pairwise distance matrix between all residues.
-    coords: [L, 37, 3] or [1, L, 37, 3] tensor
-    Returns: [L, L] tensor of minimum heavy atom distances.
-    
-    If exclude_backbone is True, computes distance between side-chain heavy atoms 
-    (CB and beyond). Intelligently falls back to CA for Glycine or residues with 
-    unresolved side-chains to prevent NaN distance failures.
-    """
-    if coords.dim() == 4:
-        if coords.shape[0] == 1:
-            coords = coords.squeeze(0)
-        else:
-            raise AssertionError(f"Expected coords to have a batch size of 1, but got shape {coords.shape}.")
-    elif coords.dim() != 3:
-        raise AssertionError(f"Expected coords to be 3D [L, 37, 3] or 4D [1, L, 37, 3], but got shape {coords.shape}.")
-        
-    L = coords.shape[0]
-    dist_matrix = torch.full((L, L), float('nan'), device=coords.device)
-    
-    # Base mask: only consider atoms with finite (non-NaN/Inf) coordinates
-    is_finite = torch.isfinite(coords).all(dim=-1)
-    
-    if exclude_backbone:
-        # ESM3/AF2 standard atom37 indices: 0:N, 1:CA, 2:C, 3:O, 4:CB.
-        # Side-chain mask: strictly atoms index 4 and above.
-        sc_mask = is_finite & (torch.arange(37, device=coords.device) > 3)
-        
-        # Find which residues actually have valid side-chain atoms
-        has_valid_sc = sc_mask.any(dim=-1) # Shape: [L]
-        
-        # Fallback mask: use CA (index 1) for residues lacking a side-chain (e.g., Glycine)
-        ca_mask = is_finite & (torch.arange(37, device=coords.device) == 1)
-        
-        # Apply side-chain mask normally, but use CA mask where side-chain is missing
-        valid_mask = torch.where(has_valid_sc.unsqueeze(-1), sc_mask, ca_mask)
-    else:
-        # Original behavior: exclude only CA (index 1)
-        valid_mask = is_finite & (torch.arange(37, device=coords.device) != 1)
-
-    # Replace invalid atoms with highly distant proxies to avoid torch.cdist NaN explosion
-    safe_coords = torch.where(
-        valid_mask.unsqueeze(-1), 
-        coords, 
-        torch.tensor(1e9, dtype=coords.dtype, device=coords.device)
-    )
-    
-    for i in range(L):
-        c1 = safe_coords[i][valid_mask[i]] # [N_i, 3]
-        if c1.shape[0] == 0:
-            continue
-            
-        c1_batch = c1.unsqueeze(0).expand(L, -1, -1) # [L, N_i, 3]
-        dists = torch.cdist(c1_batch.to(torch.float32), safe_coords.to(torch.float32)) # [L, N_i, 37]
-        
-        # Minimum distance from valid atoms in res i to all valid atoms in res j
-        min_dists = dists.amin(dim=(1, 2)) # [L]
-        
-        # Re-mask distances that involved fallback 1e9 dummy coordinates
-        min_dists[min_dists >= 1e8] = float('nan')
-        dist_matrix[i] = min_dists
-        
-    return dist_matrix
-
-
-def get_pdb_to_seq_mapping(pdb_file, chain_id, original_seq):
-    """
-    Parses the PDB using BioPython to construct a mapping between 1-based sequence 
-    indices and PDB indices.
-    Raises an AssertionError if the sequences do not align perfectly.
-    """
-    parser = PDBParser(QUIET=True)
-    structure = parser.get_structure("struct", pdb_file)
-    chain = structure[0][chain_id]
-
-    pdb_residues = []
-    pdb_seq_list = []
-
-    # Standard amino acid mapping
-    RESIDUE_MAP = {'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F', 'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L', 'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R', 'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'}
-
-    for residue in chain.get_residues():
-        if residue.get_resname() in RESIDUE_MAP:
-            res_id = residue.get_id()
-            res_num = res_id[1]
-            insertion_code = res_id[2].strip() 
-            
-            pdb_index = f"{res_num}{insertion_code}"
-            pdb_residues.append(pdb_index)
-            pdb_seq_list.append(RESIDUE_MAP[residue.get_resname()])
-
-    pdb_sequence_from_parser = "".join(pdb_seq_list)
-
-    if original_seq != pdb_sequence_from_parser:
-        raise AssertionError(f"Sequence mismatch! ESM3 Sequence (len {len(original_seq)}): {original_seq}\nBioPython Sequence (len {len(pdb_sequence_from_parser)}): {pdb_sequence_from_parser}\nThis is a critical flaw caused by unaligned parsing rules between ESM3 and BioPython. Ensure the structure has no missing residues or unrecognized records.")
-
-    seq_to_pdb = {i+1: pdb_residues[i] for i in range(len(original_seq))}
-    pdb_to_seq = {v: k for k, v in seq_to_pdb.items()}
-    
-    return seq_to_pdb, pdb_to_seq
-
-
-def generate_screening_df(args) -> pd.DataFrame:
-    """Generates a mutation DataFrame programmatically based on screening parameters."""
-    if not os.path.isfile(args.pdb_file):
-        raise AssertionError(f"PDB file not found at: {args.pdb_file}")
-
-    logging.info(f"Generating screening DataFrame for {args.pdb_file} (Chain {args.chain})...")
-    
-    try:
-        chain_obj = ProteinChain.from_pdb(args.pdb_file, args.chain)
-    except Exception as e:
-        raise AssertionError(f"Failed to load chain {args.chain} from {args.pdb_file}: {e}")
-        
-    original_seq = chain_obj.sequence
-    
-    # parse the mapping here just to validate PDB indices requested in args
-    seq_to_pdb, pdb_to_seq = get_pdb_to_seq_mapping(args.pdb_file, args.chain, original_seq)
-
-    target_positions = []
-    
-    if args.screen_residues:
-        req_res = [r.strip() for r in args.screen_residues.split(',') if r.strip()]
-        for r in req_res:
-            if r in pdb_to_seq:
-                target_positions.append(pdb_to_seq[r])
-            else:
-                raise AssertionError(f"Residue '{r}' requested in --screen_residues was not found in PDB chain '{args.chain}'.")
-        target_positions = list(set(target_positions))
-        
-    elif args.screen_residues_except:
-        exc_res = [r.strip() for r in args.screen_residues_except.split(',') if r.strip()]
-        exc_pos = []
-        for r in exc_res:
-            if r in pdb_to_seq:
-                exc_pos.append(pdb_to_seq[r])
-            else:
-                raise AssertionError(f"Residue '{r}' requested in --screen_residues_except was not found in PDB chain '{args.chain}'.")
-        target_positions = [i+1 for i in range(len(original_seq)) if (i+1) not in exc_pos]
-        
-    else:
-        target_positions = [i+1 for i in range(len(original_seq))]
-
-    mut_list = []
-    mut_list_pdb = []
-    
-    AAs = list('ACDEFGHIKLMNPQRSTVWY')
-    modes = ['singles', 'doubles'] if args.mode == 'singles+doubles' else [args.mode]
-
-    if 'singles' in modes:
-        for pos in target_positions:
-            wt = original_seq[pos-1]
-            for mut in AAs:
-                if mut != wt:
-                    mut_list.append(f"{wt}{pos}{mut}") # Sequence indices used for inference
-                    mut_list_pdb.append(f"{wt}{seq_to_pdb[pos]}{mut}") # PDB mapped string
-
-    if 'doubles' in modes:
-        pairs = list(itertools.combinations(target_positions, 2))
-        
-        # Vectorized pair filtering
-        if args.distance_threshold > 0:
-            logging.info(f"Extracting coordinates to filter double mutants within {args.distance_threshold}Å...")
-            coords_tensor, _, _ = chain_obj.to_structure_encoder_inputs()
-            dist_matrix = compute_pairwise_heavy_atom_dist_matrix(coords_tensor)
-            
-            valid_pairs = []
-            dropped_nan = 0
-            for pos1, pos2 in pairs:
-                # Sequence 1-based maps directly to matrix 0-based
-                dist = dist_matrix[pos1-1, pos2-1].item()
-                
-                if not np.isnan(dist) and dist <= args.distance_threshold:
-                    valid_pairs.append((pos1, pos2))
-                elif np.isnan(dist):
-                    dropped_nan += 1
-                    
-            if dropped_nan > 0:
-                logging.warning(f"Silently dropped {dropped_nan} mutation combinations due to unresolved/missing coordinates (NaN distances). If you intended to mutate disordered regions, consider disabling distance filtering.")
-                
-            logging.info(f"Filtered {len(pairs)} theoretical pairs down to {len(valid_pairs)} proximal pairs.")
-            pairs = valid_pairs
-        
-        if len(pairs) > 1000:
-            logging.warning(f"This will create {len(pairs)} unique position pairs ({len(pairs) * 19 * 19} double mutations!).")
-            
-        for pos1, pos2 in pairs:
-            wt1 = original_seq[pos1-1]
-            wt2 = original_seq[pos2-1]
-            for mut1 in AAs:
-                if mut1 == wt1: continue
-                for mut2 in AAs:
-                    if mut2 == wt2: continue
-                    mut_list.append(f"{wt1}{pos1}{mut1}:{wt2}{pos2}{mut2}")
-                    mut_list_pdb.append(f"{wt1}{seq_to_pdb[pos1]}{mut1}:{wt2}{seq_to_pdb[pos2]}{mut2}")
-
-    if args.mutations:
-        mut_list = [m.strip() for m in args.mutations.split(',')]
-        mut_list_pdb = []
-        for m_str in mut_list:
-            pdb_parts = []
-            for single_m in m_str.split(':'):
-                if len(single_m) < 3:
-                    raise AssertionError(f"Invalid mutation format: {single_m}")
-                wt = single_m[0]
-                mt = single_m[-1]
-                try:
-                    pos = int(single_m[1:-1])
-                except ValueError:
-                    raise AssertionError(f"Could not parse integer position from mutation string: {single_m}. Must be a sequence index.")
-                
-                if pos not in seq_to_pdb:
-                    raise AssertionError(f"Position {pos} from sequence mutation not found in PDB mapping.")
-                
-                pdb_parts.append(f"{wt}{seq_to_pdb[pos]}{mt}")
-            mut_list_pdb.append(":".join(pdb_parts))
-
-    if not mut_list:
-        raise AssertionError("The generated mutation list is empty. Ensure you selected valid target residues.")
-
-    df = pd.DataFrame({
-        'mut_type_renumbered': mut_list,
-        'mut_type_pdb': mut_list_pdb
-    })
-    df['pdb_file'] = args.pdb_file
-    df['code'] = args.code
-    df['chain'] = args.chain
-    
-    logging.info(f"Generated {len(df)} mutation strings.")
-    return df
 
 
 def _handle_mutated_backbone(sequence, coords, structure_tokens, backbone_mutation=None, assert_wt=False, assert_mut=False, mask_ctx=False):
@@ -364,136 +141,6 @@ def _handle_mutated_backbone(sequence, coords, structure_tokens, backbone_mutati
                 coords[:, mutated_backbone_pos, :, :] = np.nan
         
     return corrected_seq, coords, structure_tokens
-
-
-def _parse_and_validate_mut_string(m_str, seq, seq_to_pdb, pdb_to_seq, assume_mode):
-    """
-    Attempts to parse a mutation string (e.g., A12C:D15E) under 'renumbered' or 'pdb' rules.
-    Returns (is_valid, renumbered_str, pdb_str).
-    """
-    renumbered_parts = []
-    pdb_parts = []
-    
-    for single_m in m_str.split(':'):
-        if len(single_m) < 3: return False, None, None
-        wt, mt = single_m[0], single_m[-1]
-        pos_str = single_m[1:-1]
-        
-        if assume_mode == 'renumbered':
-            try:
-                pos = int(pos_str)
-                if pos < 1 or pos > len(seq) or seq[pos-1] != wt:
-                    return False, None, None
-                if pos not in seq_to_pdb:
-                    return False, None, None
-                renumbered_parts.append(single_m)
-                pdb_parts.append(f"{wt}{seq_to_pdb[pos]}{mt}")
-            except ValueError:
-                return False, None, None
-                
-        elif assume_mode == 'pdb':
-            if pos_str not in pdb_to_seq:
-                return False, None, None
-            seq_pos = pdb_to_seq[pos_str]
-            if seq_pos < 1 or seq_pos > len(seq) or seq[seq_pos-1] != wt:
-                return False, None, None
-            pdb_parts.append(single_m)
-            renumbered_parts.append(f"{wt}{seq_pos}{mt}")
-            
-    return True, ":".join(renumbered_parts), ":".join(pdb_parts)
-
-
-def standardize_input_df(df: pd.DataFrame, backbone_mutation: Optional[str] = None, quiet: bool = False) -> pd.DataFrame:
-    """
-    Validates and standardizes mutation columns. Infers mapping if only 'mut_type' is provided.
-    Applies the global backbone_mutation to the sequence prior to validating mutations.
-    Enforces that the input dataframe contains only a single structure (pdb_file + chain).
-    """
-    if df.empty:
-        raise AssertionError("Cannot standardize an empty DataFrame.")
-        
-    has_renum = 'mut_type_renumbered' in df.columns
-    has_pdb = 'mut_type_pdb' in df.columns
-    has_generic = 'mut_type' in df.columns
-    
-    if not (has_renum or has_pdb or has_generic):
-        raise AssertionError("Input CSV must contain at least one of: 'mut_type', 'mut_type_renumbered', 'mut_type_pdb'")
-
-    unique_structures = df[['pdb_file', 'chain']].drop_duplicates()
-    if len(unique_structures) > 1:
-        raise AssertionError(f"This script is strictly designed to process a single structure and chain per execution. Found {len(unique_structures)} unique structure/chain combinations in the input CSV. Please split your dataset.")
-    
-    if not quiet:
-        logging.info("Standardizing mutation mapping columns...")
-    df = df.copy()
-    
-    if 'mut_type_renumbered' not in df.columns: df['mut_type_renumbered'] = None
-    if 'mut_type_pdb' not in df.columns: df['mut_type_pdb'] = None
-    
-    pdb = unique_structures['pdb_file'].iloc[0]
-    chain = unique_structures['chain'].iloc[0]
-    
-    try:
-        chain_obj = ProteinChain.from_pdb(pdb, chain)
-        original_seq = chain_obj.sequence
-        seq_to_pdb, pdb_to_seq = get_pdb_to_seq_mapping(pdb, chain, original_seq)
-    except Exception as e:
-        raise AssertionError(f"Failed to load structure {pdb} chain {chain} to standardize mutations: {e}")
-        
-    current_seq = original_seq
-    
-    # Apply the global backbone_mutation context prior to validation
-    if backbone_mutation:
-        seq_list = list(current_seq)
-        for single_m in backbone_mutation.split(':'):
-            wt, mt = single_m[0], single_m[-1]
-            try:
-                pos = int(single_m[1:-1])
-            except ValueError:
-                raise AssertionError(f"Could not parse integer position from backbone_mutation string: {single_m}.")
-            
-            if pos < 1 or pos > len(seq_list):
-                raise AssertionError(f"Backbone mutation position {pos} out of bounds for sequence length {len(seq_list)}.")
-            if seq_list[pos-1] != wt:
-                raise AssertionError(f"Backbone mutation expected {wt} at pos {pos}, but found {seq_list[pos-1]} in PDB sequence.")
-            
-            seq_list[pos-1] = mt
-        current_seq = "".join(seq_list)
-        
-    for idx, row in df.iterrows():
-        r_str, p_str = None, None
-        
-        if has_renum and pd.notna(row.get('mut_type_renumbered')):
-            valid, r, p = _parse_and_validate_mut_string(str(row['mut_type_renumbered']), current_seq, seq_to_pdb, pdb_to_seq, assume_mode='renumbered')
-            if not valid: raise AssertionError(f"Row {idx}: Invalid renumbered mutation '{row['mut_type_renumbered']}' against background.")
-            r_str, p_str = r, p
-            
-        elif has_pdb and pd.notna(row.get('mut_type_pdb')):
-            valid, r, p = _parse_and_validate_mut_string(str(row['mut_type_pdb']), current_seq, seq_to_pdb, pdb_to_seq, assume_mode='pdb')
-            if not valid: raise AssertionError(f"Row {idx}: Invalid PDB mutation '{row['mut_type_pdb']}' against background.")
-            r_str, p_str = r, p
-            
-        elif has_generic and pd.notna(row.get('mut_type')):
-            m_str = str(row['mut_type'])
-            valid_renum, r_renum, p_renum = _parse_and_validate_mut_string(m_str, current_seq, seq_to_pdb, pdb_to_seq, assume_mode='renumbered')
-            valid_pdb, r_pdb, p_pdb = _parse_and_validate_mut_string(m_str, current_seq, seq_to_pdb, pdb_to_seq, assume_mode='pdb')
-            
-            if valid_renum and valid_pdb:
-                # Ambiguous but structurally identical mappings default to renumbered
-                r_str, p_str = r_renum, p_renum
-            elif valid_renum:
-                r_str, p_str = r_renum, p_renum
-            elif valid_pdb:
-                r_str, p_str = r_pdb, p_pdb
-            else:
-                raise AssertionError(f"Row {idx}: Mutation '{m_str}' for {pdb} chain {chain} failed validation against current background sequence. Matches neither 1-based sequence indexing nor PDB numbering. Verify your wild-type residues.")
-        else:
-            raise AssertionError(f"Row {idx} is missing a mutation definition.")
-            
-        df.at[idx, 'mut_type_renumbered'] = r_str
-        df.at[idx, 'mut_type_pdb'] = p_str
-        
-    return df
 
 
 def preprocess_structure(model, pdb_path, chain, dev, backbone_mutation, assert_wt=False, assert_mut=False, mask_ctx=False):
@@ -572,8 +219,6 @@ def _prepare_sparse_batch(model, muts_list, dev):
 def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, backbone_mutation=None, optimize_wt_pass=True, quiet=False, skip_additive=True, skip_reverse=False, mask_strategy=None, calculate_distances=False, ignore_mismatch=True) -> pd.DataFrame:
     """
     A unified, highly interpretable pipeline to evaluate mutational stability.
-    Abstracts dense tensor creation, deduplication, and math away from the user.
-    Enforces that the dataframe contains only a single structure context.
     """
     if df.empty:
         logging.warning("infer_mutants received an empty DataFrame. Returning an empty result.")
@@ -594,6 +239,7 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
     
     dist_matrix = None
     if calculate_distances:
+        from preprocess import compute_pairwise_heavy_atom_dist_matrix
         dist_matrix = compute_pairwise_heavy_atom_dist_matrix(coords)
         
     cached_wt_esm3 = None
@@ -613,7 +259,6 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
     valid_rows = []
     for _, row in df.iterrows():
         muts, is_valid = [], True
-        # Read from the new renumbered sequence-indexed column
         for m_str in str(row['mut_type_renumbered']).split(':'):
             if len(m_str) < 3: 
                 is_valid = False
@@ -646,7 +291,6 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
     if not valid_rows: 
         raise AssertionError("No valid rows were produced after checking mutations against the structure.")
 
-    # 1. Compile Unified Target List (Including singles for additive math if requested)
     muts_to_score = set()
     for r in valid_rows:
         muts_tup = tuple(r['muts'])
@@ -656,11 +300,8 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
                 muts_to_score.add((single_m,))
     
     muts_to_score_list = list(muts_to_score)
-    
-    # 2. Extract Memory-Efficient Sparse Indices
     sparse_batch = _prepare_sparse_batch(model, muts_to_score_list, dev)
     
-    # 3. Dynamic Execution via Unified API (Takes exactly 1 WT sequence reference)
     if not quiet:
         logging.info(f"Scoring {len(muts_to_score_list)} unique mutations via {'DEDUPLICATION' if mask_strategy else 'DENSE'} strategy...")
         
@@ -680,7 +321,6 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
         quiet=quiet
     )
     
-    # 4. Store Outputs
     preds = {}
     for i, mut_tup in enumerate(muts_to_score_list):
         preds[mut_tup] = {
@@ -689,7 +329,6 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
             'combined': out['combined_pred'][i].item()
         }
         
-    # 5. Format the Final DataFrame
     for r in tqdm(valid_rows, desc='Constructing output dataframe', disable=quiet):
         muts = r['muts']
         muts_tup = tuple(muts)
@@ -750,6 +389,11 @@ if __name__ == "__main__":
     parser.add_argument("--code", type=str, default="protein", help="Protein code")
     parser.add_argument("--chain", type=str, default="A", help="Chain ID")
 
+    # Structural Preprocessing Arguments
+    parser.add_argument("--model_missing_regions", action="store_true", help="Use Modeller to repair missing loops/atoms in the PDB.")
+    parser.add_argument("--skip_fix_noncanonical", action="store_true", help="Skip replacing non-canonical residues with canonical equivalents.")
+    parser.add_argument("--renumber_pdb", action="store_true", help="Sequentially renumber the PDB from 1. WARNING: Will break CSV mappings reliant on prior PDB index.")
+
     # Screening Arguments
     parser.add_argument("--mode", type=str, choices=['singles', 'doubles', 'singles+doubles'], default='singles', help="Mutation screening mode")
     parser.add_argument("--screen_residues", type=str, default=None, help="Comma-separated list of PDB indices to screen (mutually exclusive with screen_residues_except)")
@@ -772,6 +416,7 @@ if __name__ == "__main__":
     parser.add_argument("--load_wt_lora_only", action="store_true", help="Discard mutant adapter weights when loading checkpoints")
     parser.add_argument("--lora_config", type=str, default=None, help="Path to JSON file containing LoRA config")
     parser.add_argument("--hparams_path", type=str, default=None, help="Path to lightning hparams.yaml file")
+    parser.add_argument("--epsilon", type=float, default=1.0, help="Multiplier for the LoRA alpha parameters.")
     
     # Model configuration
     parser.add_argument("--log_likelihood", action="store_true", help="Process raw logits into log likelihoods")
@@ -785,28 +430,19 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # 1. See exactly what HuggingFace detects
-    print(f"DEBUG: args.hf_token type: {type(args.hf_token)}, value: {args.hf_token}")
-    print(f"DEBUG: get_token() cache: {'FOUND' if get_token() else 'NOT FOUND'}")
-
     token = args.hf_token or get_token()
 
     if token:
-        # 2. Catch the boolean trap before it triggers the prompt
         if not isinstance(token, str):
             raise TypeError(f"Expected token to be a string, but got {type(token)}. Check your argparse definition.")
-        
-        print("DEBUG: Logging in with detected string token.")
         login(token)
     elif args.base_model_loc:
         os.environ['INFRA_PROVIDER'] = "1"
         os.chdir(args.base_model_loc)
-        print(os.getcwd())
         assert os.path.exists(os.path.join(os.getcwd(), 'data/weights/esm3_sm_open_v1.pth'))
     else:
         raise AssertionError('Must provide either a HuggingFace token or have the model installed locally!')
 
-    # Pre-execution validation
     if args.screen_residues and args.screen_residues_except:
         raise AssertionError("Error: --screen_residues and --screen_residues_except cannot be used at the same time.")
         
@@ -821,7 +457,11 @@ if __name__ == "__main__":
     if has_screen_args and args.input_csv:
         raise AssertionError("Error: --input_csv cannot be used with --screen_residues or --screen_residues_except.")
 
-    # Determine Data Source
+
+    # Extract target structure details
+    target_pdb = args.pdb_file
+    target_chain = args.chain
+
     if args.input_csv:
         if not os.path.isfile(args.input_csv):
             raise AssertionError(f"Input CSV file does not exist: {args.input_csv}")
@@ -834,10 +474,54 @@ if __name__ == "__main__":
         if not required_cols.issubset(input_df.columns):
             raise AssertionError(f"Input CSV missing required base columns. Expected: {required_cols}. Found: {set(input_df.columns)}")
             
+        unique_structs = input_df[['pdb_file', 'chain']].drop_duplicates()
+        if len(unique_structs) > 1:
+            raise AssertionError("This script processes one structure per execution. Found multiple in CSV.")
+            
+        target_pdb = unique_structs['pdb_file'].iloc[0]
+        target_chain = unique_structs['chain'].iloc[0]
+
+    # Handle Downloading if PDB missing
+    if not target_pdb:
+        if args.code and args.chain:
+            logging.info(f"PDB file not specified. Attempting to download {args.code}...")
+            dl_res = download_pdb(args.code, output_dir='./data/structures', file_format='pdb', get_fasta=True)
+            if not dl_res.get('pdb'):
+                raise AssertionError(f"Failed to download PDB {args.code}. Provide a valid --pdb_file.")
+            target_pdb = dl_res['pdb']
+        else:
+            raise AssertionError("Either --input_csv, or --pdb_file, or both --code and --chain must be provided.")
+
+    # Apply Preprocessing Interventions
+    do_prep = (not args.skip_fix_noncanonical) or args.model_missing_regions or args.renumber_pdb
+    if do_prep:
+        prep_pdb = target_pdb.replace('.pdb', '_inference_prep.pdb')
+        shutil.copy(target_pdb, prep_pdb)
+        
+        if not args.skip_fix_noncanonical:
+            logging.info("Replacing non-canonical residues...")
+            fix_noncanonical_residues(prep_pdb, prep_pdb, verbose=False)
+            
+        if args.model_missing_regions:
+            logging.info("Repairing missing regions with Modeller...")
+            success = repair_pdb(prep_pdb, prep_pdb, chain_id=target_chain)
+            if not success:
+                raise AssertionError(f"repair_pdb failed for {prep_pdb} chain {target_chain}.")
+                
+        if args.renumber_pdb:
+            logging.info("Renumbering PDB residues sequentially...")
+            renumber_pdb(prep_pdb, prep_pdb)
+            
+        target_pdb = prep_pdb
+        args.pdb_file = target_pdb
+
+        if args.input_csv:
+            input_df['pdb_file'] = target_pdb
+
+    # Finalize DataFrame
+    if args.input_csv:
         input_df = standardize_input_df(input_df, args.backbone_mutation)
     else:
-        if not args.pdb_file:
-            raise AssertionError("Either --input_csv or --pdb_file must be provided.")
         input_df = generate_screening_df(args)
     
     # Config loading
@@ -855,22 +539,23 @@ if __name__ == "__main__":
                 
             adapter_mode = lora_config.get('adapter_mode', 'dual')
             lora_mode = lora_config.get('lora_mode', 'ensemble')
-            if 'adapter_mode' not in lora_config:
-                logging.warning("JSON config missing 'adapter_mode'. Defaulting to 'dual'.")
-            if 'lora_mode' not in lora_config:
-                logging.warning("JSON config missing 'lora_mode'. Defaulting to 'ensemble'.")
-                
+            
+            # Apply Epsilon
+            if args.epsilon <= 0:
+                raise AssertionError("epsilon must be strictly positive.")
+            lora_config['wt_config']['lora_alpha'] = float(lora_config['wt_config'].get('lora_alpha', 4)) * args.epsilon
+            lora_config['mt_config']['lora_alpha'] = float(lora_config['mt_config'].get('lora_alpha', 16)) * args.epsilon
+
         except Exception as e:
             raise AssertionError(f"Failed to parse explicitly provided --lora_config: {e}")
     else:
         if not args.hparams_path:
             if os.path.exists(os.path.join(os.path.dirname(args.checkpoint_path), 'hparams.yaml')):
                 args.hparams_path = os.path.join(os.path.dirname(args.checkpoint_path), 'hparams.yaml')
-                logging.warning(f"No hparams path was specified, using the default hparams found at {args.hparams_path}")
             else:
                 raise AssertionError("Either --lora_config or --hparams_path must be provided.")
         logging.info(f"Extracting LoRA config from hparams file: {args.hparams_path}")
-        parsed_config = parse_hparams_to_lora_config(args.hparams_path)
+        parsed_config = parse_hparams_to_lora_config(args.hparams_path, epsilon=args.epsilon)
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         lora_mode = parsed_config.get('lora_mode', 'ensemble')
         lora_config = {

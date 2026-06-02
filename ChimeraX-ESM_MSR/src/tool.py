@@ -246,7 +246,7 @@ class ESM_MSR_Tool(ToolInstance):
         row2.addWidget(QLabel("LoRA Config (JSON/YAML):"))
         self.config_file_edit = QLineEdit(self.config_file)
         self.config_file_edit.textChanged.connect(self._validate_file_paths)
-        self.config_file_edit.setPlaceholderText("Optional config or hparams file")
+        self.config_file_edit.setPlaceholderText("Optional hparams file - can leave blank if in checkpoint folder")
         row2.addWidget(self.config_file_edit)
         btn = QPushButton("Browse...")
         btn.clicked.connect(lambda: self._browse_generic(self.config_file_edit, "Select Config", "JSON/YAML (*.json *.yaml *.yml);;All (*)", "config_file"))

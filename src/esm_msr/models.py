@@ -1,7 +1,7 @@
 import logging
 import copy
 from collections import defaultdict
-from typing import Dict, Any, Optional, Tuple, Union
+from typing import Dict, Any, Optional, Union
 from tqdm import tqdm
 import re
 

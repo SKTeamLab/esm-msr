@@ -22,7 +22,7 @@ from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 from esm_msr.models import MSRModel
 from esm_msr import utils
 from esm_msr.losses import ListMLELoss, ListMLELoss_enhanced, AsymmetricHuberLoss
-from esm_msr.preprocessing import setup_dataloaders
+from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
 from esm_msr import stats

@@ -1,5 +1,4 @@
 import os
-import re
 import gc
 import math
 import pickle

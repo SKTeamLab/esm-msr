@@ -20,7 +20,8 @@ dependencies = [
     "numpy",
     "tqdm",
     "scipy>=1.13,<1.15",
-    "httpx"
+    "httpx",
+    "pdbfixer"
 ]
 
 [project.optional-dependencies]

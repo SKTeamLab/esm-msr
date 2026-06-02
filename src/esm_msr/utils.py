@@ -1,9 +1,9 @@
 import pandas as pd
-from sklearn import metrics
 import numpy as np
-
+import re
+import os
+import atexit
 import torch
-import torch.nn as nn
 
 from esm.utils.constants import esm3 as C
 
@@ -13,12 +13,6 @@ from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
 from Bio.PDB import *
 from Bio.PDB.DSSP import DSSP
-
-import logging
-import re
-
-import os
-import atexit
 from Bio.PDB import MMCIFParser, PDBIO, Select
 
 ### Constants
