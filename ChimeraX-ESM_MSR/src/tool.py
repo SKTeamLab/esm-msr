@@ -19,7 +19,7 @@ from Qt.QtWidgets import (
     QHBoxLayout, QLineEdit, QFrame, QGroupBox, QCheckBox, QSpinBox, QDoubleSpinBox,
     QComboBox, QTabWidget, QRadioButton, QButtonGroup
 )
-from Qt.QtCore import QProcess, QSettings
+from Qt.QtCore import QProcess, QSettings, QProcessEnvironment
 
 SCORE_ATTRIBUTE_NAME = "residue_score_viz_score"
 
@@ -849,6 +849,19 @@ class ESM_MSR_Tool(ToolInstance):
             
         self.proc = QProcess()
         self.proc.setProcessChannelMode(QProcess.MergedChannels)
+
+        # --- INJECT PYTHONPATH TO SUPPORT ABSOLUTE NAMESPACE IMPORTS ---
+        process_env = QProcessEnvironment.systemEnvironment()
+        src_path = os.path.normpath(os.path.join(self.base_repo_path, "src"))
+        
+        # Safely append to existing PYTHONPATH if one exists, otherwise initialize it
+        current_pythonpath = process_env.value("PYTHONPATH", "")
+        new_pythonpath = f"{src_path}{os.pathsep}{current_pythonpath}" if current_pythonpath else src_path
+        
+        process_env.insert("PYTHONPATH", new_pythonpath)
+        self.proc.setProcessEnvironment(process_env)
+        # ---------------------------------------------------------------
+
         self.proc.readyReadStandardOutput.connect(self._on_proc_output)
         self.proc.errorOccurred.connect(self._on_proc_error)
         self.proc.finished.connect(self._on_proc_finished)

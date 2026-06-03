@@ -14,7 +14,7 @@ from esm.utils.structure.protein_complex import ProteinComplex
 from esm.utils.constants import esm3 as C
 
 # Import structural data handling and prep logic from preprocess
-from preprocess import (
+from esm_msr.preprocess import (
     download_pdb,
     fix_noncanonical_residues,
     repair_pdb,
