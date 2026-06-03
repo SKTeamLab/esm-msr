@@ -24,15 +24,15 @@ from preprocess import (
 )
 
 
-def parse_hparams_to_lora_config(hparams_path: str, epsilon: float = 1.0) -> dict:
+def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
     """
     Parses a PyTorch Lightning hparams.yaml file to extract LoRA configuration.
     Raises AssertionErrors for clear, non-silent failure conditions.
     Warns if expected hyperparameters are missing from the configuration.
-    Multiplies lora_alpha by epsilon.
+    Multiplies lora_alpha by sigma.
     """
-    if epsilon <= 0:
-        raise AssertionError(f"epsilon must be strictly greater than 0. Got: {epsilon}")
+    if sigma <= 0:
+        raise AssertionError(f"sigma must be strictly greater than 0. Got: {sigma}")
 
     if not os.path.isfile(hparams_path):
         raise AssertionError(f"hparams file not found at: {hparams_path}")
@@ -90,7 +90,7 @@ def parse_hparams_to_lora_config(hparams_path: str, epsilon: float = 1.0) -> dic
 
     wt_config = {
         'lora_rank': hparams.get('lora_rank_wt', default_wt['lora_rank']),
-        'lora_alpha': float(hparams.get('lora_alpha_wt', default_wt['lora_alpha'])) * epsilon,
+        'lora_alpha': round(float(hparams.get('lora_alpha_wt', default_wt['lora_alpha'])) * sigma, 3),
         'lora_dropout': hparams.get('lora_dropout_wt', default_wt['lora_dropout']),
         'target_mode': hparams.get('target_mode_wt', default_wt['target_mode']),
         'last_n_layers': hparams.get('last_n_layers_wt', default_wt['last_n_layers']),
@@ -102,7 +102,7 @@ def parse_hparams_to_lora_config(hparams_path: str, epsilon: float = 1.0) -> dic
 
     mt_config = {
         'lora_rank': hparams.get('lora_rank_mt', default_mt['lora_rank']),
-        'lora_alpha': float(hparams.get('lora_alpha_mt', default_mt['lora_alpha'])) * epsilon,
+        'lora_alpha': round(float(hparams.get('lora_alpha_mt', default_mt['lora_alpha'])) * sigma, 3),
         'lora_dropout': hparams.get('lora_dropout_mt', default_mt['lora_dropout']),
         'target_mode': hparams.get('target_mode_mt', default_mt['target_mode']),
         'last_n_layers': hparams.get('last_n_layers_mt', default_mt['last_n_layers']),
@@ -416,7 +416,7 @@ if __name__ == "__main__":
     parser.add_argument("--load_wt_lora_only", action="store_true", help="Discard mutant adapter weights when loading checkpoints")
     parser.add_argument("--lora_config", type=str, default=None, help="Path to JSON file containing LoRA config")
     parser.add_argument("--hparams_path", type=str, default=None, help="Path to lightning hparams.yaml file")
-    parser.add_argument("--epsilon", type=float, default=1.0, help="Multiplier for the LoRA alpha parameters.")
+    parser.add_argument("--sigma", type=float, default=1.0, help="Multiplier for the LoRA alpha parameters.")
     
     # Model configuration
     parser.add_argument("--log_likelihood", action="store_true", help="Process raw logits into log likelihoods")
@@ -540,11 +540,11 @@ if __name__ == "__main__":
             adapter_mode = lora_config.get('adapter_mode', 'dual')
             lora_mode = lora_config.get('lora_mode', 'ensemble')
             
-            # Apply Epsilon
-            if args.epsilon <= 0:
-                raise AssertionError("epsilon must be strictly positive.")
-            lora_config['wt_config']['lora_alpha'] = float(lora_config['wt_config'].get('lora_alpha', 4)) * args.epsilon
-            lora_config['mt_config']['lora_alpha'] = float(lora_config['mt_config'].get('lora_alpha', 16)) * args.epsilon
+            # Apply sigma
+            if args.sigma <= 0:
+                raise AssertionError("sigma must be strictly positive.")
+            lora_config['wt_config']['lora_alpha'] = round(float(lora_config['wt_config'].get('lora_alpha', 4)) * args.sigma, 3)
+            lora_config['mt_config']['lora_alpha'] = round(float(lora_config['mt_config'].get('lora_alpha', 16)) * args.sigma, 3)
 
         except Exception as e:
             raise AssertionError(f"Failed to parse explicitly provided --lora_config: {e}")
@@ -555,7 +555,7 @@ if __name__ == "__main__":
             else:
                 raise AssertionError("Either --lora_config or --hparams_path must be provided.")
         logging.info(f"Extracting LoRA config from hparams file: {args.hparams_path}")
-        parsed_config = parse_hparams_to_lora_config(args.hparams_path, epsilon=args.epsilon)
+        parsed_config = parse_hparams_to_lora_config(args.hparams_path, sigma=args.sigma)
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         lora_mode = parsed_config.get('lora_mode', 'ensemble')
         lora_config = {

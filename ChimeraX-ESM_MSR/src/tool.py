@@ -142,12 +142,10 @@ class ESM_MSR_Tool(ToolInstance):
         paths_group = QGroupBox("Environment & Paths")
         paths_layout = QVBoxLayout()
         paths_group.setLayout(paths_layout)
-        #autofill_path = str(Path(__file__).resolve().parent.parent)
 
         base_repo_layout = QHBoxLayout()
         base_repo_layout.addWidget(QLabel("Base Repo Dir:"))
         self.base_repo_path_edit = QLineEdit(self.base_repo_path)
-        #self.base_repo_path_edit.setText(autofill_path)
         base_repo_layout.addWidget(self.base_repo_path_edit)
         btn = QPushButton("Browse...")
         btn.clicked.connect(self._browse_base_repo)
@@ -207,7 +205,7 @@ class ESM_MSR_Tool(ToolInstance):
 
         layout.addWidget(source_group)
 
-        # Compute Environment (Moved from Model & Checkpoint)
+        # Compute Environment
         device_group = QGroupBox("Compute Environment")
         device_layout = QHBoxLayout()
         device_group.setLayout(device_layout)
@@ -227,7 +225,7 @@ class ESM_MSR_Tool(ToolInstance):
         
         layout.addWidget(device_group)
 
-        # Config Files (Moved from Model & Checkpoint)
+        # Config Files
         files_group = QGroupBox("Model Configuration Files")
         files_layout = QVBoxLayout()
         files_group.setLayout(files_layout)
@@ -253,7 +251,6 @@ class ESM_MSR_Tool(ToolInstance):
         row2.addWidget(btn)
         files_layout.addLayout(row2)
 
-        # File validation warning label
         self.file_warning_label = QLabel("")
         self.file_warning_label.setStyleSheet("color: red; font-weight: bold;")
         files_layout.addWidget(self.file_warning_label)
@@ -261,11 +258,8 @@ class ESM_MSR_Tool(ToolInstance):
         layout.addWidget(files_group)
         layout.addStretch()
 
-        # Connect UI logic
         self.radio_hf.toggled.connect(self._update_source_ui)
         self.radio_base_loc.toggled.connect(self._update_source_ui)
-        
-        # Set default
         self.radio_hf.setChecked(True)
         self._update_source_ui()
 
@@ -290,7 +284,7 @@ class ESM_MSR_Tool(ToolInstance):
         
         is_base_loc = self.radio_base_loc.isChecked()
         self.base_model_loc_edit.setEnabled(is_base_loc)
-        self.base_model_loc_edit.parent().findChildren(QPushButton)[0].setEnabled(is_base_loc) # Disable browse button if needed
+        self.base_model_loc_edit.parent().findChildren(QPushButton)[0].setEnabled(is_base_loc)
 
     def _build_screening_tab(self, parent_widget):
         layout = QVBoxLayout()
@@ -329,7 +323,7 @@ class ESM_MSR_Tool(ToolInstance):
         meth1_row1.addWidget(self.radio_full)
 
         self.mode_combobox = QComboBox()
-        self.mode_combobox.addItems(['singles', 'singles+doubles']) #'doubles',
+        self.mode_combobox.addItems(['singles', 'singles+doubles'])
         self.mode_combobox.currentTextChanged.connect(self._update_scope_ui)
         meth1_row1.addWidget(self.mode_combobox)
         
@@ -348,7 +342,7 @@ class ESM_MSR_Tool(ToolInstance):
 
         # Mode 1 - Distance Filter Row
         meth1_row2 = QHBoxLayout()
-        meth1_row2.addSpacing(20) # Indent to show it belongs to mode 1
+        meth1_row2.addSpacing(20)
         self.enable_distance_checkbox = QCheckBox("Filter doubles by distance (Å):")
         self.enable_distance_checkbox.setChecked(False)
         self.enable_distance_checkbox.toggled.connect(self._toggle_distance_spinbox)
@@ -357,7 +351,7 @@ class ESM_MSR_Tool(ToolInstance):
         self.distance_threshold_spinbox = QDoubleSpinBox()
         self.distance_threshold_spinbox.setRange(0.0, 100.0)
         self.distance_threshold_spinbox.setValue(6.0)
-        self.distance_threshold_spinbox.setEnabled(False) # Default off
+        self.distance_threshold_spinbox.setEnabled(False) 
         meth1_row2.addWidget(self.distance_threshold_spinbox)
         meth1_row2.addStretch()
         meth1_layout.addLayout(meth1_row2)
@@ -391,12 +385,9 @@ class ESM_MSR_Tool(ToolInstance):
         
         layout.addWidget(scope_group)
 
-        # Connect UI logic
         self.radio_full.toggled.connect(self._update_scope_ui)
         self.radio_csv.toggled.connect(self._update_scope_ui)
         self.radio_explicit.toggled.connect(self._update_scope_ui)
-        
-        # Set default
         self.radio_full.setChecked(True)
 
         # Runtime Options
@@ -410,11 +401,34 @@ class ESM_MSR_Tool(ToolInstance):
         self.mask_strategy_combobox.addItems(['Default (unmasked)', 'marginal', 'chain'])
         row1.addWidget(self.mask_strategy_combobox)
         
-        # TODO: Add helper text for Mask Strategy selection here. 
-        # (e.g., replace the stretch below with a QLabel containing your helper text)
+        row1.addSpacing(10)
+        row1.addWidget(QLabel("Sigma:"))
+        self.sigma_spinbox = QDoubleSpinBox()
+        self.sigma_spinbox.setRange(0.01, 100.0)
+        self.sigma_spinbox.setSingleStep(0.1)
+        self.sigma_spinbox.setValue(1.0)
+        row1.addWidget(self.sigma_spinbox)
+        
         row1.addStretch()
-
         runtime_layout.addLayout(row1)
+
+        # Preprocessing Options
+        prep_layout = QVBoxLayout()
+        prep_layout.addWidget(QLabel("Preprocessing Options:"))
+        
+        self.fix_noncanonical_checkbox = QCheckBox("Replace non-canonical residues")
+        self.fix_noncanonical_checkbox.setChecked(True)
+        prep_layout.addWidget(self.fix_noncanonical_checkbox)
+        
+        self.model_missing_regions_checkbox = QCheckBox("Model missing regions (requires Modeller installation)")
+        self.model_missing_regions_checkbox.setChecked(False)
+        prep_layout.addWidget(self.model_missing_regions_checkbox)
+        
+        self.renumber_pdb_checkbox = QCheckBox("Renumber PDB")
+        self.renumber_pdb_checkbox.setChecked(False)
+        prep_layout.addWidget(self.renumber_pdb_checkbox)
+        
+        runtime_layout.addLayout(prep_layout)
 
         row3 = QHBoxLayout()
         row3.addWidget(QLabel("Artificial Background Mutation:"))
@@ -423,7 +437,6 @@ class ESM_MSR_Tool(ToolInstance):
         row3.addWidget(self.backbone_mutation_edit)
         runtime_layout.addLayout(row3)
 
-        # Execution flags moved into Screening Parameters
         flags_layout = QHBoxLayout()
         self.skip_additive_checkbox = QCheckBox("Approximate Epistasis (Not Recommended)")
         flags_layout.addWidget(self.skip_additive_checkbox)
@@ -432,7 +445,6 @@ class ESM_MSR_Tool(ToolInstance):
         flags_layout.addStretch()
         runtime_layout.addLayout(flags_layout)
         
-        # Protein Complex Mode
         complex_layout = QHBoxLayout()
         complex_layout.addWidget(QLabel("Protein Complex Mode (Experimental):"))
         self.quaternary_mode_combobox = QComboBox()
@@ -445,14 +457,12 @@ class ESM_MSR_Tool(ToolInstance):
         layout.addStretch()
 
     def _update_scope_ui(self):
-        # Enable Full Screen inputs
         is_full = self.radio_full.isChecked()
         self.mode_combobox.setEnabled(is_full)
         self.selected_residues_edit.setEnabled(is_full)
         self.grab_sel_button.setEnabled(is_full)
         self.screen_except_checkbox.setEnabled(is_full)
 
-        # Handle distance checkbox logic safely
         current_mode = self.mode_combobox.currentText()
         is_doubles_mode = current_mode == 'singles+doubles'
         should_enable_dist = is_full and is_doubles_mode
@@ -464,12 +474,10 @@ class ESM_MSR_Tool(ToolInstance):
         else:
             self.distance_threshold_spinbox.setEnabled(self.enable_distance_checkbox.isChecked())
 
-        # Enable CSV inputs
         is_csv = self.radio_csv.isChecked()
         self.subset_df_edit.setEnabled(is_csv)
         self.subset_df_btn.setEnabled(is_csv)
 
-        # Enable Explicit inputs
         is_explicit = self.radio_explicit.isChecked()
         self.mutations_edit.setEnabled(is_explicit)
 
@@ -523,7 +531,7 @@ class ESM_MSR_Tool(ToolInstance):
             if "deleted" in str(e):
                 self.session.logger.warning("Model refresh trigger skipped: UI combobox temporarily locked during batch model generation.")
                 return
-            raise e # Raise other unexpected RuntimeErrors
+            raise e 
 
     def _on_model_selected(self, index=None):
         if self._closing: return
@@ -605,7 +613,6 @@ class ESM_MSR_Tool(ToolInstance):
             self.checkpoint_path_edit.setText(norm_fp)
             self.settings.setValue("checkpoint_path", norm_fp)
             
-            # Auto-populate config file using parent directory of the checkpoint
             parent_dir = os.path.dirname(norm_fp)
             assumed_config_path = os.path.join(parent_dir, "hparams.yaml")
             self.config_file_edit.setText(assumed_config_path)
@@ -655,15 +662,12 @@ class ESM_MSR_Tool(ToolInstance):
                 import platform
                 import subprocess
                 
-                # Attempt to aggressively kill process tree to prevent zombie PyTorch workers
                 if platform.system() == "Windows":
                     subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
                 else:
-                    # POSIX: pkill -P kills direct children before killing the parent
                     subprocess.run(["pkill", "-9", "-P", str(pid)], capture_output=True)
                     subprocess.run(["kill", "-9", str(pid)], capture_output=True)
                 
-                # Fallback to standard QProcess kill to ensure Qt state is updated
                 self.proc.kill()
                 self.proc.waitForFinished(1000)
             except Exception as e:
@@ -681,7 +685,6 @@ class ESM_MSR_Tool(ToolInstance):
     def _initiate_run_prediction_script(self):
         self.session.logger.info("****** Running prediction ******")
 
-        # explicitly save path values to QSettings in case user typed them manually rather than using Browse
         self.settings.setValue("python_env", self.python_env_edit.text().strip())
         self.settings.setValue("base_repo_path", self.base_repo_path_edit.text().strip())
         self.settings.setValue("script_output_csv_path", self.script_output_csv_path_edit.text().strip())
@@ -689,7 +692,6 @@ class ESM_MSR_Tool(ToolInstance):
         self.settings.setValue("config_file", self.config_file_edit.text().strip())
         self.settings.setValue("base_model_loc", self.base_model_loc_edit.text().strip())
 
-        # cleanup old temp
         if self._temp_dir_to_cleanup and os.path.isdir(self._temp_dir_to_cleanup):
             try:
                 shutil.rmtree(self._temp_dir_to_cleanup)
@@ -710,7 +712,6 @@ class ESM_MSR_Tool(ToolInstance):
             self.status_label.setText("Error: Selected model not found. Please ensure a valid model is open.")
             raise AssertionError("Selected model not found. Please ensure a valid model is open.")
 
-        # Create temporary PDB input for the prediction script
         try:
             self._temp_dir_to_cleanup = tempfile.mkdtemp(prefix="chimerax_rsv_input_")
             temp_model_filename = f"current_model_input_{current_model.id_string.replace(':', '_').replace('/', '_')}.pdb"
@@ -724,7 +725,6 @@ class ESM_MSR_Tool(ToolInstance):
                 self._temp_dir_to_cleanup = None
             raise AssertionError(f"Failed to write temporary PDB. Aborting. Trace: {e}")
 
-        # Program selection
         program = None
         args = []
         env = self.python_env
@@ -740,33 +740,28 @@ class ESM_MSR_Tool(ToolInstance):
                 
                 if pyexe:
                     program = pyexe
-                    args.append('-u') # Force unbuffered stdout/stderr
+                    args.append('-u') 
                 else:
                     self.session.logger.warning(f"Could not find python binary inside {env}. Falling back to default 'python'.")
                     program = 'python'
                     args.append('-u')
             else:
                 program = 'conda'
-                # Conda explicitly captures output by default. We must disable it and pass -u to python.
                 args.extend(['run', '--no-capture-output', '-n', env, 'python', '-u'])
         else:
             program = 'python'
             args.append('-u')
 
-        # Script Arguments Assembly
         script_args = [self.python_script_path]
 
-        # Critical Paths
         if not self.script_output_csv_path_edit.text().strip():
             raise AssertionError("An Output CSV path is required to run inference.")
         script_args += ['--output_csv', self.script_output_csv_path_edit.text().strip()]
 
         if not self.checkpoint_path_edit.text().strip():
-            #raise AssertionError("A checkpoint path is required to run inference.")
             self.session.logger.warning("No checkpoint was provided; running in zero-shot mode.")
         script_args += ['--checkpoint_path', self.checkpoint_path_edit.text().strip()]
 
-        # Target Config - Enforced by Radio Buttons
         if self.radio_full.isChecked():
             script_args += ['--pdb_file', self.script_input_structure_path]
             script_args += ['--code', os.path.splitext(current_model.name)[0] if current_model.name else 'protein']
@@ -794,15 +789,21 @@ class ESM_MSR_Tool(ToolInstance):
                 raise AssertionError("Explicit mutations selected but none provided.")
             script_args += ['--mutations', mutations_val]
 
-        # Engine Params
         script_args += ['--batch_size', str(self.batch_size_spinbox.value())]
         script_args += ['--device', self.device_combobox.currentText()]
+        script_args += ['--sigma', str(self.sigma_spinbox.value())]
         
         mask_strat = self.mask_strategy_combobox.currentText()
         if mask_strat != 'Default (unmasked)':
             script_args += ['--mask_strategy', mask_strat]
 
-        # Distance threshold
+        if not self.fix_noncanonical_checkbox.isChecked():
+            script_args += ['--skip_fix_noncanonical']
+        if self.model_missing_regions_checkbox.isChecked():
+            script_args += ['--model_missing_regions']
+        if self.renumber_pdb_checkbox.isChecked():
+            script_args += ['--renumber_pdb']
+
         if self.enable_distance_checkbox.isChecked():
             script_args += ['--distance_threshold', str(self.distance_threshold_spinbox.value())]
             script_args += ['--calculate_distances']
@@ -813,7 +814,6 @@ class ESM_MSR_Tool(ToolInstance):
         if backbone_mut:
             script_args += ['--backbone_mutation', backbone_mut]
 
-        # Model Source Resolution (HF vs Base Model)
         if self.radio_hf.isChecked():
             hf_token_val = self.hf_token_edit.text().strip()
             if hf_token_val:
@@ -826,7 +826,6 @@ class ESM_MSR_Tool(ToolInstance):
                 raise AssertionError("Base Model Location selected but no path provided.")
             script_args += ['--base_model_loc', base_model_loc_val]
 
-        # Model Configs
         config_file = self.config_file_edit.text().strip()
         if config_file:
             if config_file.lower().endswith('.json'):
@@ -839,7 +838,6 @@ class ESM_MSR_Tool(ToolInstance):
 
         script_args += ['--quaternary_mode', self.quaternary_mode_combobox.currentText()]
 
-        # Flags
         if self.skip_additive_checkbox.isChecked(): script_args += ['--skip_additive']
         if self.skip_reverse_checkbox.isChecked(): script_args += ['--skip_reverse']
 
@@ -857,13 +855,11 @@ class ESM_MSR_Tool(ToolInstance):
 
         self.status_label.setText("Status: Running prediction script...")
         
-        # Toggle RUN/STOP buttons
         self.run_prediction_button.setVisible(False)
         self.stop_prediction_button.setVisible(True)
         self.load_button.setEnabled(False)
         self.prediction_output_label.setText("Predicted output file: Processing...")
 
-        #self.session.logger.info(f"QProcess starting: {program} {' '.join(full_args)}")
         self.proc.start(program, full_args)
 
     # QProcess slots
@@ -873,7 +869,6 @@ class ESM_MSR_Tool(ToolInstance):
             if not out:
                 return
                 
-            # tqdm uses \r to overwrite lines. Replace with \n so we can split the stream cleanly.
             chunks = out.replace('\r', '\n').split('\n')
             
             for chunk in chunks:
@@ -881,12 +876,9 @@ class ESM_MSR_Tool(ToolInstance):
                 if not clean_chunk: 
                     continue
                     
-                # Heuristic: Detect tqdm progress bars using common structural markers
                 if '|' in clean_chunk and ('it/s' in clean_chunk or 's/it' in clean_chunk or '%' in clean_chunk):
-                    # Route to the GUI status label to simulate in-place updates
                     self.status_label.setText(f"Status: {clean_chunk}")
                 else:
-                    # Route standard logging back to the ChimeraX console
                     self.session.logger.info(clean_chunk)
                     
         except Exception as e:
@@ -902,7 +894,7 @@ class ESM_MSR_Tool(ToolInstance):
         self.run_prediction_button.setEnabled(True)
         self.run_prediction_button.setVisible(True)
         self.stop_prediction_button.setVisible(False)
-        self.stop_prediction_button.setEnabled(True) # Re-enable for next execution
+        self.stop_prediction_button.setEnabled(True) 
         self.load_button.setEnabled(True)
         
         if self._temp_dir_to_cleanup and os.path.isdir(self._temp_dir_to_cleanup):
@@ -1002,14 +994,13 @@ class ESM_MSR_Tool(ToolInstance):
         self.viz_score_btn_group.addButton(self.radio_mt_lora)
         score_layout.addWidget(self.radio_mt_lora)
 
-        self.radio_dual_view.setChecked(True) # Default
+        self.radio_dual_view.setChecked(True) 
         layout.addWidget(score_group)
 
         # --- Thresholds, Contacts, and Networks Group ---
         tcn_group = QGroupBox("Global Thresholds and Networks (kcal/mol, positive=stable)")
         tcn_layout = QVBoxLayout()
         
-        # Row 1: General Thresholds and Transparency
         thresh_row = QHBoxLayout()
         thresh_row.addWidget(QLabel("Pos Threshold:"))
         self.pos_threshold_spinbox = QDoubleSpinBox()
@@ -1036,7 +1027,6 @@ class ESM_MSR_Tool(ToolInstance):
         thresh_row.addStretch()
         tcn_layout.addLayout(thresh_row)
         
-        # Row 2: Network Edges
         net_row = QHBoxLayout()
         net_row.addWidget(QLabel("Max Interactions per Position:"))
         self.epi_max_edges = QSpinBox()
@@ -1046,7 +1036,6 @@ class ESM_MSR_Tool(ToolInstance):
         net_row.addStretch()
         tcn_layout.addLayout(net_row)
         
-        # Row 3: Contacts Visualization
         contacts_row = QHBoxLayout()
         self.show_contacts_checkbox = QCheckBox("Visualize residues within:")
         self.show_contacts_checkbox.setChecked(False)
@@ -1126,7 +1115,6 @@ class ESM_MSR_Tool(ToolInstance):
         layout.addWidget(styling_group)
         layout.addStretch()
 
-        # Initialize UI State
         self._on_display_mode_changed()
 
     def _on_display_mode_changed(self):
@@ -1219,12 +1207,10 @@ class ESM_MSR_Tool(ToolInstance):
                         muts.append({'wt': wt, 'pos': int(pos), 'mut': mt})
                 return muts
 
-            # REPLACED mut_type with mut_type_pdb as requested
             if 'mut_type_pdb' not in df.columns:
                 raise AssertionError("Missing required column 'mut_type_pdb'. Ensure your CSV was generated with the updated inference.py script.")
             df['parsed_muts'] = df['mut_type_pdb'].apply(parse_mut_string)
 
-            # Apply Global Exclusions explicitly for WT vs Mut
             def has_excluded_aa(muts, excl_wt, excl_mt):
                 for m in muts:
                     if m['wt'] in excl_wt or m['mut'] in excl_mt: return True
@@ -1242,7 +1228,6 @@ class ESM_MSR_Tool(ToolInstance):
                 if df.empty:
                     raise AssertionError("Global filters removed all mutations from the loaded CSV.")
 
-            # Base check for singles columns, which are always required now
             base_req = {'pdb_file', 'code', 'chain', 'mut_type_pdb', 'wt_lora_pred'}
             if not base_req.issubset(set(df.columns)):
                 raise AssertionError(f"Missing required base columns in CSV. Expected at least: {base_req}.")
@@ -1254,7 +1239,6 @@ class ESM_MSR_Tool(ToolInstance):
             if target_score_col not in df.columns:
                 raise AssertionError(f"Selected score '{target_score_col}' not found in CSV.")
 
-            # ALWAYS extract singles logic to support additive atom/backbone coloring
             singles_df = df[df['parsed_muts'].apply(len) == 1].copy()
             if singles_df.empty:
                 raise AssertionError("No single mutations found in the CSV. Single mutation data is REQUIRED in all modes to color individual mutant sidechains. Ensure you ran inference with mode 'both' or 'singles'.")
@@ -1264,7 +1248,6 @@ class ESM_MSR_Tool(ToolInstance):
             singles_df['mut1'] = singles_df['parsed_muts'].apply(lambda x: x[0]['mut'])
             singles_df['viz_score'] = singles_df[target_score_col]
 
-            # Save full dictionary of individual mutations mapped to scores for exact retrieval
             for _, row in singles_df.iterrows():
                 c = str(row['chain_id']).strip()
                 p = int(row['pos1_pdb'])
@@ -1322,7 +1305,6 @@ class ESM_MSR_Tool(ToolInstance):
     # --- Unified Rendering Pipeline ---
 
     def _get_spec(self, model_id_string, res_keys):
-        """Builds a robust ChimeraX spec string from a set of (chain, pos) tuples."""
         if not res_keys: return "None"
         by_chain = defaultdict(list)
         for c, p in res_keys:
@@ -1333,13 +1315,9 @@ class ESM_MSR_Tool(ToolInstance):
         return " | ".join(specs)
 
     def _setup_base_wt_model(self):
-        """Fetches the WT model and clears out legacy visualization state across all previous layers."""
-        
-        # Ensure mutated tracking list exists to avoid init discrepancies
         if not hasattr(self, 'mutated_model_id_strings'):
             self.mutated_model_id_strings = []
             
-        # Clean up legacy single string if present
         if getattr(self, 'mutated_model_id_string', None):
             mid = self.mutated_model_id_string
             if any(m.id_string == mid for m in self.session.models.list()):
@@ -1366,7 +1344,6 @@ class ESM_MSR_Tool(ToolInstance):
         return wt_model
 
     def _create_mutated_model(self, wt_model, suffix="viz"):
-        """Clones the WT model cleanly via a temporary file to preserve polymer metadata."""
         temp_pdb = os.path.join(tempfile.gettempdir(), f"clone_{wt_model.id_string.replace(':', '_')}.pdb")
         run(self.session, f"save {temp_pdb} models #{wt_model.id_string} format pdb")
         run(self.session, f"open {temp_pdb} name \"{wt_model.name}_{suffix}\"")
@@ -1385,7 +1362,6 @@ class ESM_MSR_Tool(ToolInstance):
         return mut_model
 
     def _apply_swapaa(self, mutated_model_id, mutated_model, mutation_plan):
-        """Applies sidechain swaps in the cloned model based on the unified mutation plan."""
         for (chain_val, pos), tgt_aa in mutation_plan.items():
             res_wt = next((r for r in mutated_model.residues if r.number == pos and r.chain_id == chain_val), None)
             if res_wt and ONE_TO_THREE_LETTER_AA.get(tgt_aa, '') != res_wt.name:
@@ -1393,7 +1369,6 @@ class ESM_MSR_Tool(ToolInstance):
                 run(self.session, f"swapaa {spec} {ONE_TO_THREE_LETTER_AA.get(tgt_aa, 'ALA').lower()} log false")
 
     def _apply_contacts(self, wt_model, target_keys, target_spec_bare):
-        """Isolates the contact finding and styling logic across any mode."""
         if not self.show_contacts_checkbox.isChecked() or not target_keys:
             return
 
@@ -1436,11 +1411,6 @@ class ESM_MSR_Tool(ToolInstance):
             run(self.session, f"transparency {contact_query} 0 target a")
 
     def _resolve_and_apply_styles(self, wt_model, mut_model_ids, mutation_plans):
-        """
-        Calculates mutually exclusive rendering sets and apply styles across ALL layers.
-        Priority: Mutants (highest) -> Contacts -> Wild-Type.
-        Mutant colors are optionally overridden via UI, otherwise managed by additive score.
-        """
         all_mutant_keys = set()
         for plan in mutation_plans:
             all_mutant_keys.update(plan.keys())
@@ -1453,7 +1423,6 @@ class ESM_MSR_Tool(ToolInstance):
         mut_style = self.mut_style_combo.currentText()
         mut_alpha = self.mut_stick_alpha_spinbox.value()
 
-        # A. Style the Primary Mutants inside each Mutated Model Layer
         mut_specs = []
         for mut_id, plan in zip(mut_model_ids, mutation_plans):
             mutant_keys = set(plan.keys())
@@ -1462,7 +1431,6 @@ class ESM_MSR_Tool(ToolInstance):
                 mut_specs.append(spec)
                 run(self.session, f"size ({spec}) stickRadius 0.2")
                 
-                # Apply explicit user color if provided, else ensure non-carbons format properly for byattribute fallback
                 if mut_color:
                     try: run(self.session, f"color ({spec}) {mut_color} target a")
                     except: run(self.session, f"color ({spec}) orange target a")
@@ -1472,7 +1440,6 @@ class ESM_MSR_Tool(ToolInstance):
                 run(self.session, f"style ({spec}) {mut_style}")
                 run(self.session, f"transparency ({spec}) {mut_alpha} target a")
             
-        # B. Style the corresponding WT Ghost Models underneath the mutants globally
         if all_mutant_keys:
             spec = self._get_spec(wt_model.id_string, all_mutant_keys)
             run(self.session, f"size ({spec}) stickRadius 0.2")
@@ -1483,7 +1450,6 @@ class ESM_MSR_Tool(ToolInstance):
             run(self.session, f"style ({spec}) {wt_style}")
             run(self.session, f"transparency ({spec}) {wt_alpha} target a")
             
-        # C. Find and Apply Contacts based on total mutant span
         mut_spec_bare = " | ".join(mut_specs) if mut_specs else "None"
         self._apply_contacts(wt_model, all_mutant_keys, mut_spec_bare)
 
@@ -1491,7 +1457,6 @@ class ESM_MSR_Tool(ToolInstance):
         res1, res2 = model_residues.get((c1, p1)), model_residues.get((c2, p2))
         if not res1 or not res2 or not res1.atoms or not res2.atoms: return
 
-        # Explicitly exclude all backbone atoms. No fallback.
         atoms1 = [a for a in res1.atoms if a.name not in ('N', 'CA', 'C', 'O')]
         atoms2 = [a for a in res2.atoms if a.name not in ('N', 'CA', 'C', 'O')]
         
@@ -1514,23 +1479,18 @@ class ESM_MSR_Tool(ToolInstance):
             
         radius_val = 0.05 + (0.35 * norm_score) 
         
-        # Alpha (Opacity) on a 0-100 scale: 30% baseline up to 100% opaque
         alpha = int(30 + 70 * norm_score)             
         
-        # Color channels on a 0-100 percentage scale
         c_inv = int(100 * (1.0 - norm_score))
         if score > 0:
-            # Orange is ~100% Red, 50% Green, 0% Blue
             color_spec = f"100,{int(100 - 50*norm_score)},{c_inv},{alpha}" 
         else:
-            # Blue is 0% Red, 0% Green, 100% Blue
             color_spec = f"{c_inv},{c_inv},100,{alpha}"
         
         cmd = f"pbond #{mut_model_id}/{c1}:{p1}@{a1.name} #{mut_model_id}/{c2}:{p2}@{a2.name} reveal true color {color_spec} radius {radius_val:.3f} name \"{score:.2f}\""
         run(self.session, cmd)
 
     def _apply_transparency_isolation(self, wt_model):
-        """Dims non-target chains based on user preferences."""
         target_chain = self.pred_chain_id_combobox.currentText().strip()
         alpha_val = self.non_target_alpha_spinbox.value()
         if target_chain:
@@ -1572,7 +1532,6 @@ class ESM_MSR_Tool(ToolInstance):
                 max_abs_add = 0.01
             color_range = f"{-max_abs_add:.3f},{max_abs_add:.3f}"
             
-            # Map exact singles scores directly to the mutants using the parsed singles mapping
             for (chain, pos), tgt_aa in mutation_plan.items():
                 if (chain, pos, tgt_aa) not in self.all_singles_scores:
                     self.session.logger.warning(f"Single mutant score missing for {chain}:{pos}->{tgt_aa}. Defaulting to 0.0.")
@@ -1581,7 +1540,6 @@ class ESM_MSR_Tool(ToolInstance):
                     exact_score = self.all_singles_scores[(chain, pos, tgt_aa)]
                 run(self.session, f"setattr #{mut_id}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {exact_score} create true")
 
-            # Map the aggregated max singles scores to the WT backbone
             for (chain, pos), (score, _) in self.residue_scores_data.items():
                 run(self.session, f"setattr #{wt_model.id_string}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {score} create true")
 
@@ -1622,7 +1580,6 @@ class ESM_MSR_Tool(ToolInstance):
                 df = df[df.apply(is_valid_wt_epi, axis=1)].copy()
                 if df.empty: raise AssertionError("WT Epistasis requires mutations to Alanine/Glycine. None found.")
 
-            # Filtering Selection Metric
             metric_target = self.pair_selection_combo.currentText()
             if metric_target == "Stability":
                 sort_col = 'combined_pred'
@@ -1646,14 +1603,12 @@ class ESM_MSR_Tool(ToolInstance):
                 filtered_df['abs_score_sort'] = filtered_df[sort_col].abs()
                 sorted_df = filtered_df.sort_values(by='abs_score_sort', ascending=False)
 
-            # Epistasis line colorbar is ALWAYS scaled to dddg_pred regardless of filtering metric
             max_abs_epi = float(sorted_df['dddg_pred'].abs().max())
             if pd.isna(max_abs_epi) or max_abs_epi == 0: 
                 max_abs_epi = 1.0
 
             print('max_abs_epi', max_abs_epi)
 
-            # --- Base Additive Scoring Extraction ---
             scores = [s for s, _ in self.residue_scores_data.values()]
             if scores:
                 scores_abs = [abs(s) for s in scores]
@@ -1664,14 +1619,11 @@ class ESM_MSR_Tool(ToolInstance):
             color_range = f"{-max_abs_add:.3f},{max_abs_add:.3f}"
 
             if is_wt_epi:
-                # -------------------------
-                # WT EPISTASIS (NO LAYERS)
-                # -------------------------
                 participating_positions = set()
                 pairs_to_draw = []
                 connection_counts = defaultdict(int)
                 max_edges = self.epi_max_edges.value()
-                mutation_plan = {} # Used only for score lookup mapping
+                mutation_plan = {} 
 
                 for _, row in sorted_df.iterrows():
                     c1, p1, m1 = str(row['chain_id']).strip(), int(row['pos1_pdb']), str(row['mut1']).upper()
@@ -1724,9 +1676,6 @@ class ESM_MSR_Tool(ToolInstance):
                     self._draw_epistasis_line(wt_model.id_string, c1, p1, c2, p2, score, max_abs_epi, pos_thresh, neg_thresh, model_residues)
 
             else:
-                # -------------------------
-                # MT EPISTASIS (LAYERS)
-                # -------------------------
                 layers = [] 
                 pairs_to_draw = [] 
                 connection_counts = defaultdict(int)
@@ -1792,7 +1741,6 @@ class ESM_MSR_Tool(ToolInstance):
                     model_residues = {(r.chain_id, r.number): r for r in mutated_models_objs[layer_idx].residues}
                     self._draw_epistasis_line(mut_id, c1, p1, c2, p2, score, max_abs_epi, pos_thresh, neg_thresh, model_residues)
 
-            # Unified Colorbars with opposite positions along the bottom
             try:
                 run(self.session, f"key red:{-max_abs_add:.2f} white:0 green:{max_abs_add:.2f} pos 0.05,0.05")
                 run(self.session, f"key blue:{-max_abs_epi:.2f} white:0 orange:{max_abs_epi:.2f} pos 0.55,0.05")
