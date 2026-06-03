@@ -38,7 +38,6 @@ class ESM_MSR_Tool(ToolInstance):
 
     def __init__(self, session, tool_registered_name):
         super().__init__(session, tool_registered_name)
-        #self.session.logger.info(f"****** RSVTool __init__ ({tool_registered_name}) ******")
 
         # 1. INITIALIZE SETTINGS
         self.settings = QSettings("ESM_MSR_Tools", "ESM_MSR")
@@ -303,6 +302,7 @@ class ESM_MSR_Tool(ToolInstance):
         target_layout.addWidget(QLabel("Chain:"))
         self.pred_chain_id_combobox = QComboBox()
         self.pred_chain_id_combobox.setEditable(True)
+        self.pred_chain_id_combobox.currentTextChanged.connect(self._on_pred_chain_changed)
         target_layout.addWidget(self.pred_chain_id_combobox)
         
         layout.addWidget(target_group)
@@ -484,6 +484,17 @@ class ESM_MSR_Tool(ToolInstance):
     def _toggle_distance_spinbox(self, checked):
         self.distance_threshold_spinbox.setEnabled(checked)
 
+    def _on_transp_changed(self, val):
+        self.hide_non_target_chains_checkbox.blockSignals(True)
+        self.hide_non_target_chains_checkbox.setChecked(val == 100)
+        self.hide_non_target_chains_checkbox.blockSignals(False)
+        
+    def _on_hide_fully_toggled(self, checked):
+        if checked:
+            self.non_target_alpha_spinbox.blockSignals(True)
+            self.non_target_alpha_spinbox.setValue(100)
+            self.non_target_alpha_spinbox.blockSignals(False)
+
     # ---------------- UI Callbacks -----------------
     def _grab_selection(self):
         try:
@@ -506,7 +517,6 @@ class ESM_MSR_Tool(ToolInstance):
         if self._closing: return
 
         try:
-        
             current_model_id = self.pred_model_combobox.currentData()
             
             self.pred_model_combobox.blockSignals(True)
@@ -525,6 +535,15 @@ class ESM_MSR_Tool(ToolInstance):
                 self.pred_model_combobox.setCurrentIndex(0)
                 
             self.pred_model_combobox.blockSignals(False)
+            
+            if hasattr(self, 'viz_model_combobox'):
+                self.viz_model_combobox.blockSignals(True)
+                self.viz_model_combobox.clear()
+                for i in range(self.pred_model_combobox.count()):
+                    self.viz_model_combobox.addItem(self.pred_model_combobox.itemText(i), self.pred_model_combobox.itemData(i))
+                self.viz_model_combobox.setCurrentIndex(self.pred_model_combobox.currentIndex())
+                self.viz_model_combobox.blockSignals(False)
+                
             self._on_model_selected()
 
         except RuntimeError as e:
@@ -537,10 +556,12 @@ class ESM_MSR_Tool(ToolInstance):
         if self._closing: return
         
         current_chain = self.pred_chain_id_combobox.currentText()
+        self.pred_chain_id_combobox.blockSignals(True)
         self.pred_chain_id_combobox.clear()
         
         model_id = self.pred_model_combobox.currentData()
         if not model_id:
+            self.pred_chain_id_combobox.blockSignals(False)
             return
             
         models = self.session.models.list(type=Structure)
@@ -558,6 +579,44 @@ class ESM_MSR_Tool(ToolInstance):
             
         if current_chain in chains:
             self.pred_chain_id_combobox.setCurrentText(current_chain)
+            
+        self.pred_chain_id_combobox.blockSignals(False)
+        
+        if hasattr(self, 'viz_model_combobox'):
+            idx = self.pred_model_combobox.currentIndex()
+            if self.viz_model_combobox.currentIndex() != idx:
+                self.viz_model_combobox.blockSignals(True)
+                self.viz_model_combobox.setCurrentIndex(idx)
+                self.viz_model_combobox.blockSignals(False)
+                
+            self.viz_chain_id_combobox.blockSignals(True)
+            self.viz_chain_id_combobox.clear()
+            self.viz_chain_id_combobox.addItems([self.pred_chain_id_combobox.itemText(i) for i in range(self.pred_chain_id_combobox.count())])
+            self.viz_chain_id_combobox.setCurrentText(self.pred_chain_id_combobox.currentText())
+            self.viz_chain_id_combobox.blockSignals(False)
+
+    def _on_viz_model_selected(self, index=None):
+        if self._closing: return
+        idx = self.viz_model_combobox.currentIndex()
+        if self.pred_model_combobox.currentIndex() != idx:
+            self.pred_model_combobox.blockSignals(True)
+            self.pred_model_combobox.setCurrentIndex(idx)
+            self.pred_model_combobox.blockSignals(False)
+            self._on_model_selected()
+
+    def _on_pred_chain_changed(self, text):
+        if self._closing: return
+        if hasattr(self, 'viz_chain_id_combobox') and self.viz_chain_id_combobox.currentText() != text:
+            self.viz_chain_id_combobox.blockSignals(True)
+            self.viz_chain_id_combobox.setCurrentText(text)
+            self.viz_chain_id_combobox.blockSignals(False)
+
+    def _on_viz_chain_changed(self, text):
+        if self._closing: return
+        if self.pred_chain_id_combobox.currentText() != text:
+            self.pred_chain_id_combobox.blockSignals(True)
+            self.pred_chain_id_combobox.setCurrentText(text)
+            self.pred_chain_id_combobox.blockSignals(False)
 
     def _browse_base_repo(self):
         w = self.session.ui.main_window
@@ -853,11 +912,10 @@ class ESM_MSR_Tool(ToolInstance):
         # --- INJECT PYTHONPATH TO SUPPORT ABSOLUTE NAMESPACE IMPORTS ---
         process_env = QProcessEnvironment.systemEnvironment()
         src_path = os.path.normpath(os.path.join(self.base_repo_path, "src"))
-        
-        # Safely append to existing PYTHONPATH if one exists, otherwise initialize it
+
         current_pythonpath = process_env.value("PYTHONPATH", "")
         new_pythonpath = f"{src_path}{os.pathsep}{current_pythonpath}" if current_pythonpath else src_path
-        
+
         process_env.insert("PYTHONPATH", new_pythonpath)
         self.proc.setProcessEnvironment(process_env)
         # ---------------------------------------------------------------
@@ -938,6 +996,24 @@ class ESM_MSR_Tool(ToolInstance):
 
         self.csv_label = QLabel("No CSV loaded.")
         layout.addWidget(self.csv_label)
+        
+        # --- Target Configuration Group ---
+        target_group = QGroupBox("Target Configuration (Synced with Screening)")
+        target_layout = QHBoxLayout()
+        target_group.setLayout(target_layout)
+
+        target_layout.addWidget(QLabel("Target Model:"))
+        self.viz_model_combobox = QComboBox()
+        self.viz_model_combobox.currentIndexChanged.connect(self._on_viz_model_selected)
+        target_layout.addWidget(self.viz_model_combobox)
+
+        target_layout.addWidget(QLabel("Chain:"))
+        self.viz_chain_id_combobox = QComboBox()
+        self.viz_chain_id_combobox.setEditable(True)
+        self.viz_chain_id_combobox.currentTextChanged.connect(self._on_viz_chain_changed)
+        target_layout.addWidget(self.viz_chain_id_combobox)
+        
+        layout.addWidget(target_group)
 
         # --- Display Mode Selection ---
         mode_group = QGroupBox("Display Mode and Priority")
@@ -1030,12 +1106,17 @@ class ESM_MSR_Tool(ToolInstance):
         thresh_row.addWidget(self.neg_threshold_spinbox)
 
         thresh_row.addSpacing(20)
-        thresh_row.addWidget(QLabel("Non-Target Chain Transp %:"))
+        thresh_row.addWidget(QLabel("Non-Target Transp %:"))
         self.non_target_alpha_spinbox = QSpinBox()
         self.non_target_alpha_spinbox.setRange(0, 100)
         self.non_target_alpha_spinbox.setSingleStep(10)
         self.non_target_alpha_spinbox.setValue(90)
+        self.non_target_alpha_spinbox.valueChanged.connect(self._on_transp_changed)
         thresh_row.addWidget(self.non_target_alpha_spinbox)
+        
+        self.hide_non_target_chains_checkbox = QCheckBox("Hide Fully")
+        self.hide_non_target_chains_checkbox.toggled.connect(self._on_hide_fully_toggled)
+        thresh_row.addWidget(self.hide_non_target_chains_checkbox)
         
         thresh_row.addStretch()
         tcn_layout.addLayout(thresh_row)
@@ -1120,7 +1201,7 @@ class ESM_MSR_Tool(ToolInstance):
         contact_row.addWidget(QLabel("Transp %:"))
         self.contact_stick_alpha_spinbox = QSpinBox()
         self.contact_stick_alpha_spinbox.setRange(0, 100)
-        self.contact_stick_alpha_spinbox.setValue(70)
+        self.contact_stick_alpha_spinbox.setValue(30)
         contact_row.addWidget(self.contact_stick_alpha_spinbox)
         styling_layout.addLayout(contact_row)
 
@@ -1327,6 +1408,23 @@ class ESM_MSR_Tool(ToolInstance):
             specs.append(f"#{model_id_string}/{c}:{','.join(positions)}")
         return " | ".join(specs)
 
+    def _get_spec_with_atoms(self, model_id_string, res_keys, atom_names=None, exclude_atoms=False):
+        if not res_keys: return "None"
+        by_chain = defaultdict(list)
+        for c, p in res_keys:
+            by_chain[c].append(str(p))
+        specs = []
+        for c, positions in by_chain.items():
+            base = f"#{model_id_string}/{c}:{','.join(positions)}"
+            if atom_names:
+                if exclude_atoms:
+                    specs.append(f"({base}) & ~@{','.join(atom_names)}")
+                else:
+                    specs.append(f"({base}) & @{','.join(atom_names)}")
+            else:
+                specs.append(base)
+        return " | ".join(specs)
+
     def _setup_base_wt_model(self):
         if not hasattr(self, 'mutated_model_id_strings'):
             self.mutated_model_id_strings = []
@@ -1340,7 +1438,7 @@ class ESM_MSR_Tool(ToolInstance):
         wt_candidates = [m for m in self.session.models.list(type=Structure)
                          if m.id_string not in self.mutated_model_id_strings]
         
-        model_id = self.pred_model_combobox.currentData()
+        model_id = self.viz_model_combobox.currentData()
         wt_model = next((m for m in wt_candidates if m.id_string == model_id), None)
         if not wt_model and wt_candidates: wt_model = wt_candidates[0]
         if not wt_model: raise AssertionError("No suitable WT model open.")
@@ -1382,46 +1480,59 @@ class ESM_MSR_Tool(ToolInstance):
                 run(self.session, f"swapaa {spec} {ONE_TO_THREE_LETTER_AA.get(tgt_aa, 'ALA').lower()} log false")
 
     def _apply_contacts(self, wt_model, target_keys, target_spec_bare):
-        if not self.show_contacts_checkbox.isChecked() or not target_keys:
+        if not self.show_contacts_checkbox.isChecked() or not target_keys or target_spec_bare == "None":
             return
 
         dist = self.contact_distance_spinbox.value()
-        contact_query = f"({target_spec_bare}) @<{dist} & #{wt_model.id_string} & protein"
+        wt_mut_spec = self._get_spec(wt_model.id_string, target_keys)
         
-        wt_mut_spec_bare = self._get_spec(wt_model.id_string, target_keys)
-        if wt_mut_spec_bare != "None":
-            contact_query += f" & ~({wt_mut_spec_bare})"
-            
+        # 1. select the sidechain atoms of all the mutated residues
+        # 2. select atoms within X angstroms of these (in the WT model, excluding the mutated residues)
+        contact_atoms_query = f"(({target_spec_bare}) & ~@N,CA,C,O,OXT) @<{dist} & #{wt_model.id_string} & protein & ~({wt_mut_spec})"
+        run(self.session, f"select {contact_atoms_query}")
+        
         from chimerax.atomic import selected_atoms
-        contact_keys = set()
-        run(self.session, f"select {contact_query}")
         sel_atoms = selected_atoms(self.session)
-        if sel_atoms and len(sel_atoms) > 0:
-            for r in set(sel_atoms.residues):
-                if (r.chain_id, r.number) not in target_keys:
-                    contact_keys.add((r.chain_id, r.number))
+        if not sel_atoms or len(sel_atoms) == 0:
+            run(self.session, "select clear")
+            return
+            
+        # 3. select up twice to get the full residues.
+        run(self.session, "select up")
+        #run(self.session, "select up")
+        
+        # 4. apply the base style to the selection directly.
+        wt_color = self.wt_color_edit.text().strip() or "white"
+        wt_style = self.wt_style_combo.currentText()
+        wt_alpha = self.wt_stick_alpha_spinbox.value()
+        
+        run(self.session, "show sel atoms")
+        run(self.session, f"style sel {wt_style}")
+        try: run(self.session, f"color sel {wt_color} target a")
+        except: run(self.session, "color sel white target a")
+        run(self.session, "color sel & ~C byelement target a")
+        run(self.session, f"transparency sel {wt_alpha} target a")
+        
+        # 5. AGAIN select the sidechain atoms of all the mutated residues
+        # 6. AGAIN select atoms within X angstroms.
+        run(self.session, f"select {contact_atoms_query}")
+        
+        # 7. Apply the contact styling only to these specifically targeted atoms.
+        c_color = self.contact_color_edit.text().strip() or "purple"
+        c_alpha = self.contact_stick_alpha_spinbox.value()
+        c_style = self.contact_style_combo.currentText()
+        
+        run(self.session, f"style sel {c_style}")
+        if c_style == "stick":
+            run(self.session, "size sel stickRadius 0.25")
+            
+        try: run(self.session, f"color sel {c_color} target a")
+        except: run(self.session, "color sel purple target a")
+        run(self.session, "color sel & ~C byelement target a")
+        run(self.session, f"transparency sel {c_alpha} target ab")
+        
+        # clear selection
         run(self.session, "select clear")
-
-        if contact_keys:
-            spec = self._get_spec(wt_model.id_string, contact_keys)
-            c_color = self.contact_color_edit.text().strip() or "purple"
-            c_alpha = self.contact_stick_alpha_spinbox.value()
-
-            try: run(self.session, f"color ({spec}) {c_color} target a")
-            except: run(self.session, f"color ({spec}) purple target a")
-            run(self.session, f"color ({spec}) & ~C byelement target a")
-            run(self.session, f"show ({spec}) atoms")
-            
-            run(self.session, f"style ({spec}) stick")
-            run(self.session, f"size ({spec}) stickRadius 0.15") 
-            run(self.session, f"transparency ({spec}) {c_alpha} target ab")
-            
-        if contact_query:
-            c_style = self.contact_style_combo.currentText()
-            run(self.session, f"style {contact_query} & ~backbone {c_style}")
-            if c_style == "stick":
-                run(self.session, f"size {contact_query} stickRadius 0.25")
-            run(self.session, f"transparency {contact_query} 0 target a")
 
     def _resolve_and_apply_styles(self, wt_model, mut_model_ids, mutation_plans):
         all_mutant_keys = set()
@@ -1504,18 +1615,58 @@ class ESM_MSR_Tool(ToolInstance):
         run(self.session, cmd)
 
     def _apply_transparency_isolation(self, wt_model):
-        target_chain = self.pred_chain_id_combobox.currentText().strip()
+        target_chain = self.viz_chain_id_combobox.currentText().strip()
         alpha_val = self.non_target_alpha_spinbox.value()
-        if target_chain:
-            exclude_spec = f"~#{wt_model.id_string}/{target_chain}"
-            for mid in getattr(self, 'mutated_model_id_strings', []):
-                exclude_spec += f" & ~#{mid}"
-            if alpha_val >= 99:
-                run(self.session, f"hide {exclude_spec}")
-            else:
-                run(self.session, f"show {exclude_spec} ribbons")
-                run(self.session, f"transparency {exclude_spec} {alpha_val} target ac")
+        hide_fully = self.hide_non_target_chains_checkbox.isChecked()
+        
+        if not target_chain:
+            self.session.logger.info("No target chain selected; aborting isolation.")
+            return
 
+        hide_models = []
+        
+        # 1. Define our strict "Active Ensemble" (The chosen WT + generated mutants)
+        active_model_ids = [wt_model.id_string] + getattr(self, 'mutated_model_id_strings', [])
+        self.session.logger.info(f"Active visualization models: {active_model_ids}")
+        
+        # 2. Partition models
+        for m in self.session.models.list(type=Structure):
+            if m.id_string not in active_model_ids:
+                # This is an unrelated model (e.g. #1.2 through #1.18). Tag it for complete hiding.
+                hide_models.append(f"#{m.id_string}")
+                
+        try:
+            # 3. Completely hide unrelated models
+            if hide_models:
+                for model in hide_models:
+                    cmd = f"hide {model} models"
+                    run(self.session, cmd)
+                
+            # 4. Apply Chain isolation strictly to the Active Ensemble
+            for m in self.session.models.list(type=Structure):
+                if m.id_string in active_model_ids:
+                    # Check if this specific active model actually has non-target chains
+                    has_non_target = any(c.chain_id != target_chain for c in m.chains)
+                    
+                    if has_non_target:
+                        non_target_spec = f"#{m.id_string} & ~#{m.id_string}/{target_chain}"
+                        
+                        if hide_fully or alpha_val >= 99:
+                            cmd1 = f"hide {non_target_spec} atoms"
+                            cmd2 = f"hide {non_target_spec} ribbons"
+                            self.session.logger.info(f"CMD: {cmd1} | {cmd2}")
+                            run(self.session, cmd1)
+                            run(self.session, cmd2)
+                        else:
+                            cmd1 = f"show {non_target_spec} ribbons"
+                            cmd2 = f"transparency {non_target_spec} {alpha_val} target ac"
+                            self.session.logger.info(f"CMD: {cmd1} | {cmd2}")
+                            run(self.session, cmd1)
+                            run(self.session, cmd2)
+                        
+        except Exception as e:
+            raise AssertionError(f"ChimeraX command execution failed in _apply_transparency_isolation: {e}")
+    
     # --- Execution Subroutines ---
 
     def _apply_singles(self):

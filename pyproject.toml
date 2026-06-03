@@ -21,6 +21,7 @@ dependencies = [
     "tqdm",
     "scipy>=1.13,<1.15",
     "httpx",
+    "hf_xet",
     "pdbfixer"
 ]
 
