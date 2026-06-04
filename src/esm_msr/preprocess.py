@@ -242,7 +242,24 @@ def fix_noncanonical_residues(input_pdb, output_pdb, verbose=False):
         for chain in model:
             if chain.id in chain_id_map:
                 chain.id = chain_id_map[chain.id]
+
+    # Restore Original PDB Numbering
+    topo_residues = list(fixer.topology.residues())
+    fixed_residues = list(fixed.get_residues())
     
+    if len(topo_residues) == len(fixed_residues):
+        for t_res, f_res in zip(topo_residues, fixed_residues):
+            # PDBFixer topology preserves the original PDB ID as a string (e.g. '15A')
+            match = re.match(r"(\d+)([a-zA-Z]?)", str(t_res.id))
+            if match:
+                res_seq = int(match.group(1))
+                icode = match.group(2) if match.group(2) else ' '
+                # Safely update the BioPython index, restoring original numbering and insertion codes
+                f_res.id = (f_res.id[0], res_seq, icode)
+    elif verbose:
+        print("Warning: PDBFixer dropped residues; could not perfectly map original PDB indices back to intermediate file.")
+    # -----------------------------------------------
+
     if verbose:
         new_topology = {}
         for model in fixed:

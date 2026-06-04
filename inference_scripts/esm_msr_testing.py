@@ -460,6 +460,7 @@ def main_(args):
         stats_cmb = pd.DataFrame()
 
         for mem_size, prot in zip(mem_sizes, test_list_DMS):
+            print(f'Processing functional dataset {prot}')
             batch_sz = mem_size * 1
 
             df_true = pd.read_csv(f'/home/{"sareeves" if not args.local_cluster else "sreeves"}/PSLMs/data/lora/DMS/csv_formatted/{prot}.csv')

@@ -95,10 +95,6 @@ class ESM_MSR_Tool(ToolInstance):
         self._build_io_tab(self.tab_io)
         self.tabs.addTab(self.tab_io, "Execution / IO")
 
-        self.tab_screening = QWidget()
-        self._build_screening_tab(self.tab_screening)
-        self.tabs.addTab(self.tab_screening, "Screening Config")
-
         self.tab_viz = QWidget()
         self._build_viz_tab(self.tab_viz)
         self.tabs.addTab(self.tab_viz, "Visualization")
@@ -121,9 +117,14 @@ class ESM_MSR_Tool(ToolInstance):
         self.stop_prediction_button.setVisible(False)
         global_exec_layout.addWidget(self.stop_prediction_button)
 
-        self.load_button = QPushButton("Load CSV + Visualize Scores")
+        self.load_button = QPushButton("Load CSV")
         self.load_button.clicked.connect(self._handle_load_and_visualize)
         global_exec_layout.addWidget(self.load_button)
+
+        self.update_viz_button = QPushButton("Update Visualization")
+        self.update_viz_button.clicked.connect(self._update_visualization)
+        self.update_viz_button.setEnabled(False)
+        global_exec_layout.addWidget(self.update_viz_button)
 
         main_layout.addLayout(global_exec_layout)
 
@@ -250,44 +251,19 @@ class ESM_MSR_Tool(ToolInstance):
         row2.addWidget(btn)
         files_layout.addLayout(row2)
 
+        # Clear config if checkpoint is typed/updated
+        self.checkpoint_path_edit.textEdited.connect(self.config_file_edit.clear)
+
         self.file_warning_label = QLabel("")
         self.file_warning_label.setStyleSheet("color: red; font-weight: bold;")
         files_layout.addWidget(self.file_warning_label)
 
         layout.addWidget(files_group)
-        layout.addStretch()
 
-        self.radio_hf.toggled.connect(self._update_source_ui)
-        self.radio_base_loc.toggled.connect(self._update_source_ui)
-        self.radio_hf.setChecked(True)
-        self._update_source_ui()
-
-    def _validate_file_paths(self):
-        warnings = []
-        ckpt = self.checkpoint_path_edit.text().strip()
-        cfg = self.config_file_edit.text().strip()
-
-        if ckpt and not os.path.exists(ckpt):
-            warnings.append("Checkpoint file does not exist.")
-        if cfg and not os.path.exists(cfg):
-            warnings.append("Config file does not exist.")
-
-        if warnings:
-            self.file_warning_label.setText("WARNING: " + " | ".join(warnings))
-        else:
-            self.file_warning_label.setText("")
-
-    def _update_source_ui(self):
-        is_hf = self.radio_hf.isChecked()
-        self.hf_token_edit.setEnabled(is_hf)
-        
-        is_base_loc = self.radio_base_loc.isChecked()
-        self.base_model_loc_edit.setEnabled(is_base_loc)
-        self.base_model_loc_edit.parent().findChildren(QPushButton)[0].setEnabled(is_base_loc)
-
-    def _build_screening_tab(self, parent_widget):
-        layout = QVBoxLayout()
-        parent_widget.setLayout(layout)
+        # Screening Config Group (Moved here per request)
+        screening_config_group = QGroupBox("Screening Config")
+        screening_config_layout = QVBoxLayout()
+        screening_config_group.setLayout(screening_config_layout)
 
         # Target Selection Group
         target_group = QGroupBox("Target Selection")
@@ -305,7 +281,7 @@ class ESM_MSR_Tool(ToolInstance):
         self.pred_chain_id_combobox.currentTextChanged.connect(self._on_pred_chain_changed)
         target_layout.addWidget(self.pred_chain_id_combobox)
         
-        layout.addWidget(target_group)
+        screening_config_layout.addWidget(target_group)
 
         # Mutations Scope Group
         scope_group = QGroupBox("Mutation Scope (Mutually Exclusive Inputs)")
@@ -343,7 +319,7 @@ class ESM_MSR_Tool(ToolInstance):
         # Mode 1 - Distance Filter Row
         meth1_row2 = QHBoxLayout()
         meth1_row2.addSpacing(20)
-        self.enable_distance_checkbox = QCheckBox("Filter doubles by distance (Å):")
+        self.enable_distance_checkbox = QCheckBox("Filter doubles by WT heavy atom distance (Å):")
         self.enable_distance_checkbox.setChecked(False)
         self.enable_distance_checkbox.toggled.connect(self._toggle_distance_spinbox)
         meth1_row2.addWidget(self.enable_distance_checkbox)
@@ -383,7 +359,7 @@ class ESM_MSR_Tool(ToolInstance):
         meth3_layout.addWidget(self.mutations_edit)
         scope_layout.addLayout(meth3_layout)
         
-        layout.addWidget(scope_group)
+        screening_config_layout.addWidget(scope_group)
 
         self.radio_full.toggled.connect(self._update_scope_ui)
         self.radio_csv.toggled.connect(self._update_scope_ui)
@@ -398,7 +374,7 @@ class ESM_MSR_Tool(ToolInstance):
         row1 = QHBoxLayout()
         row1.addWidget(QLabel("Mask Strategy:"))
         self.mask_strategy_combobox = QComboBox()
-        self.mask_strategy_combobox.addItems(['Default (unmasked)', 'marginal', 'chain'])
+        self.mask_strategy_combobox.addItems(['Default (unmasked)', 'marginal', 'independent'])
         row1.addWidget(self.mask_strategy_combobox)
         
         row1.addSpacing(10)
@@ -420,41 +396,46 @@ class ESM_MSR_Tool(ToolInstance):
         self.fix_noncanonical_checkbox.setChecked(True)
         prep_layout.addWidget(self.fix_noncanonical_checkbox)
         
-        self.model_missing_regions_checkbox = QCheckBox("Model missing regions (requires Modeller installation)")
-        self.model_missing_regions_checkbox.setChecked(False)
-        prep_layout.addWidget(self.model_missing_regions_checkbox)
-        
-        self.renumber_pdb_checkbox = QCheckBox("Renumber PDB")
-        self.renumber_pdb_checkbox.setChecked(False)
-        prep_layout.addWidget(self.renumber_pdb_checkbox)
-        
         runtime_layout.addLayout(prep_layout)
 
-        row3 = QHBoxLayout()
-        row3.addWidget(QLabel("Artificial Background Mutation:"))
-        self.backbone_mutation_edit = QLineEdit()
-        self.backbone_mutation_edit.setPlaceholderText("e.g., A15G")
-        row3.addWidget(self.backbone_mutation_edit)
-        runtime_layout.addLayout(row3)
-
         flags_layout = QHBoxLayout()
-        self.skip_additive_checkbox = QCheckBox("Approximate Epistasis (Not Recommended)")
-        flags_layout.addWidget(self.skip_additive_checkbox)
         self.skip_reverse_checkbox = QCheckBox("Skip MT LoRA Pass (Use Additive Approximation)")
         flags_layout.addWidget(self.skip_reverse_checkbox)
         flags_layout.addStretch()
         runtime_layout.addLayout(flags_layout)
-        
-        complex_layout = QHBoxLayout()
-        complex_layout.addWidget(QLabel("Protein Complex Mode (Experimental):"))
-        self.quaternary_mode_combobox = QComboBox()
-        self.quaternary_mode_combobox.addItems(["single_chain", "complex"])
-        complex_layout.addWidget(self.quaternary_mode_combobox)
-        complex_layout.addStretch()
-        runtime_layout.addLayout(complex_layout)
 
-        layout.addWidget(runtime_group)
+        screening_config_layout.addWidget(runtime_group)
+
+        layout.addWidget(screening_config_group)
         layout.addStretch()
+
+        self.radio_hf.toggled.connect(self._update_source_ui)
+        self.radio_base_loc.toggled.connect(self._update_source_ui)
+        self.radio_hf.setChecked(True)
+        self._update_source_ui()
+
+    def _validate_file_paths(self):
+        warnings = []
+        ckpt = self.checkpoint_path_edit.text().strip()
+        cfg = self.config_file_edit.text().strip()
+
+        if ckpt and not os.path.exists(ckpt):
+            warnings.append("Checkpoint file does not exist.")
+        if cfg and not os.path.exists(cfg):
+            warnings.append("Config file does not exist.")
+
+        if warnings:
+            self.file_warning_label.setText("WARNING: " + " | ".join(warnings))
+        else:
+            self.file_warning_label.setText("")
+
+    def _update_source_ui(self):
+        is_hf = self.radio_hf.isChecked()
+        self.hf_token_edit.setEnabled(is_hf)
+        
+        is_base_loc = self.radio_base_loc.isChecked()
+        self.base_model_loc_edit.setEnabled(is_base_loc)
+        self.base_model_loc_edit.parent().findChildren(QPushButton)[0].setEnabled(is_base_loc)
 
     def _update_scope_ui(self):
         is_full = self.radio_full.isChecked()
@@ -494,6 +475,58 @@ class ESM_MSR_Tool(ToolInstance):
             self.non_target_alpha_spinbox.blockSignals(True)
             self.non_target_alpha_spinbox.setValue(100)
             self.non_target_alpha_spinbox.blockSignals(False)
+
+    def _on_wt_transp_changed(self, val):
+        self.wt_hide_checkbox.blockSignals(True)
+        self.wt_hide_checkbox.setChecked(val == 100)
+        self.wt_hide_checkbox.blockSignals(False)
+
+    def _on_wt_hide_toggled(self, checked):
+        if checked:
+            self.wt_stick_alpha_spinbox.blockSignals(True)
+            self.wt_stick_alpha_spinbox.setValue(100)
+            self.wt_stick_alpha_spinbox.blockSignals(False)
+
+    def _on_mut_transp_changed(self, val):
+        self.mut_hide_checkbox.blockSignals(True)
+        self.mut_hide_checkbox.setChecked(val == 100)
+        self.mut_hide_checkbox.blockSignals(False)
+
+    def _on_mut_hide_toggled(self, checked):
+        if checked:
+            self.mut_stick_alpha_spinbox.blockSignals(True)
+            self.mut_stick_alpha_spinbox.setValue(100)
+            self.mut_stick_alpha_spinbox.blockSignals(False)
+
+    def _on_nearby_transp_changed(self, val):
+        if self.nearby_atom_alpha_spinbox.value() == 100 and self.nearby_res_alpha_spinbox.value() == 100:
+            self.nearby_hide_checkbox.blockSignals(True)
+            self.nearby_hide_checkbox.setChecked(True)
+            self.nearby_hide_checkbox.blockSignals(False)
+        else:
+            self.nearby_hide_checkbox.blockSignals(True)
+            self.nearby_hide_checkbox.setChecked(False)
+            self.nearby_hide_checkbox.blockSignals(False)
+
+    def _on_nearby_hide_toggled(self, checked):
+        if checked:
+            self.nearby_atom_alpha_spinbox.blockSignals(True)
+            self.nearby_atom_alpha_spinbox.setValue(100)
+            self.nearby_atom_alpha_spinbox.blockSignals(False)
+            self.nearby_res_alpha_spinbox.blockSignals(True)
+            self.nearby_res_alpha_spinbox.setValue(100)
+            self.nearby_res_alpha_spinbox.blockSignals(False)
+
+    def _on_show_nearby_toggled(self, checked):
+        self.nearby_distance_spinbox.setEnabled(checked)
+        self.exclude_nearby_backbone_checkbox.setEnabled(checked)
+        self.nearby_atom_color_edit.setEnabled(checked)
+        self.nearby_atom_style_combo.setEnabled(checked)
+        self.nearby_atom_alpha_spinbox.setEnabled(checked)
+        self.nearby_res_color_edit.setEnabled(checked)
+        self.nearby_res_style_combo.setEnabled(checked)
+        self.nearby_res_alpha_spinbox.setEnabled(checked)
+        self.nearby_hide_checkbox.setEnabled(checked)
 
     # ---------------- UI Callbacks -----------------
     def _grab_selection(self):
@@ -672,10 +705,9 @@ class ESM_MSR_Tool(ToolInstance):
             self.checkpoint_path_edit.setText(norm_fp)
             self.settings.setValue("checkpoint_path", norm_fp)
             
-            parent_dir = os.path.dirname(norm_fp)
-            assumed_config_path = os.path.join(parent_dir, "hparams.yaml")
-            self.config_file_edit.setText(assumed_config_path)
-            self.settings.setValue("config_file", assumed_config_path)
+            # Clear config file if checkpoint is updated
+            self.config_file_edit.clear()
+            self.settings.setValue("config_file", "")
 
     def _browse_python_env(self):
         w = self.session.ui.main_window
@@ -858,20 +890,12 @@ class ESM_MSR_Tool(ToolInstance):
 
         if not self.fix_noncanonical_checkbox.isChecked():
             script_args += ['--skip_fix_noncanonical']
-        if self.model_missing_regions_checkbox.isChecked():
-            script_args += ['--model_missing_regions']
-        if self.renumber_pdb_checkbox.isChecked():
-            script_args += ['--renumber_pdb']
 
         if self.enable_distance_checkbox.isChecked():
             script_args += ['--distance_threshold', str(self.distance_threshold_spinbox.value())]
             script_args += ['--calculate_distances']
         else:
             script_args += ['--distance_threshold', '-1']
-
-        backbone_mut = self.backbone_mutation_edit.text().strip()
-        if backbone_mut:
-            script_args += ['--backbone_mutation', backbone_mut]
 
         if self.radio_hf.isChecked():
             hf_token_val = self.hf_token_edit.text().strip()
@@ -895,9 +919,6 @@ class ESM_MSR_Tool(ToolInstance):
                 self.session.logger.warning(f"Unrecognized config extension for {config_file}. Assuming YAML.")
                 script_args += ['--hparams_path', config_file + '.yaml']
 
-        script_args += ['--quaternary_mode', self.quaternary_mode_combobox.currentText()]
-
-        if self.skip_additive_checkbox.isChecked(): script_args += ['--skip_additive']
         if self.skip_reverse_checkbox.isChecked(): script_args += ['--skip_reverse']
 
         full_args = args + script_args if program != 'python' else script_args
@@ -1131,25 +1152,31 @@ class ESM_MSR_Tool(ToolInstance):
         tcn_layout.addLayout(net_row)
         
         contacts_row = QHBoxLayout()
-        self.show_contacts_checkbox = QCheckBox("Visualize residues within:")
-        self.show_contacts_checkbox.setChecked(False)
-        contacts_row.addWidget(self.show_contacts_checkbox)
+        self.show_nearby_checkbox = QCheckBox("Visualize nearby atoms within:")
+        self.show_nearby_checkbox.setChecked(False)
+        contacts_row.addWidget(self.show_nearby_checkbox)
 
-        self.contact_distance_spinbox = QDoubleSpinBox()
-        self.contact_distance_spinbox.setRange(0.0, 50.0)
-        self.contact_distance_spinbox.setSingleStep(0.5)
-        self.contact_distance_spinbox.setValue(3.0)
-        self.contact_distance_spinbox.setEnabled(False)
-        contacts_row.addWidget(self.contact_distance_spinbox)
+        self.nearby_distance_spinbox = QDoubleSpinBox()
+        self.nearby_distance_spinbox.setRange(0.0, 50.0)
+        self.nearby_distance_spinbox.setSingleStep(0.5)
+        self.nearby_distance_spinbox.setValue(3.0)
+        self.nearby_distance_spinbox.setEnabled(False)
+        contacts_row.addWidget(self.nearby_distance_spinbox)
         
         contacts_row.addWidget(QLabel("Å of displayed mutants"))
+        contacts_row.addSpacing(10)
+        
+        self.exclude_nearby_backbone_checkbox = QCheckBox("Exclude nearby backbone")
+        self.exclude_nearby_backbone_checkbox.setChecked(True)
+        contacts_row.addWidget(self.exclude_nearby_backbone_checkbox)
+        
         contacts_row.addStretch()
         tcn_layout.addLayout(contacts_row)
         
         tcn_group.setLayout(tcn_layout)
         layout.addWidget(tcn_group)
 
-        self.show_contacts_checkbox.toggled.connect(self.contact_distance_spinbox.setEnabled)
+        self.show_nearby_checkbox.toggled.connect(self._on_show_nearby_toggled)
 
         self.color_backbone_checkbox = QCheckBox("Color Backbone by Highest Additive ΔΔG")
         self.color_backbone_checkbox.setChecked(False)
@@ -1170,8 +1197,11 @@ class ESM_MSR_Tool(ToolInstance):
         wt_row.addWidget(QLabel("Transp %:"))
         self.wt_stick_alpha_spinbox = QSpinBox()
         self.wt_stick_alpha_spinbox.setRange(0, 100)
-        self.wt_stick_alpha_spinbox.setValue(70)
+        self.wt_stick_alpha_spinbox.setValue(100)
         wt_row.addWidget(self.wt_stick_alpha_spinbox)
+        self.wt_hide_checkbox = QCheckBox("Hide Fully")
+        self.wt_hide_checkbox.setChecked(True)
+        wt_row.addWidget(self.wt_hide_checkbox)
         styling_layout.addLayout(wt_row)
 
         mut_row = QHBoxLayout()
@@ -1186,33 +1216,70 @@ class ESM_MSR_Tool(ToolInstance):
         mut_row.addWidget(QLabel("Transp %:"))
         self.mut_stick_alpha_spinbox = QSpinBox()
         self.mut_stick_alpha_spinbox.setRange(0, 100)
-        self.mut_stick_alpha_spinbox.setValue(30)
+        self.mut_stick_alpha_spinbox.setValue(0)
         mut_row.addWidget(self.mut_stick_alpha_spinbox)
+        self.mut_hide_checkbox = QCheckBox("Hide Fully")
+        self.mut_hide_checkbox.setChecked(False)
+        mut_row.addWidget(self.mut_hide_checkbox)
         styling_layout.addLayout(mut_row)
         
-        contact_row = QHBoxLayout()
-        contact_row.addWidget(QLabel("Contact Color:"))
-        self.contact_color_edit = QLineEdit("purple")
-        contact_row.addWidget(self.contact_color_edit)
-        contact_row.addWidget(QLabel("Style:"))
-        self.contact_style_combo = QComboBox()
-        self.contact_style_combo.addItems(["ball", "sphere", "stick", "wire"])
-        contact_row.addWidget(self.contact_style_combo)
-        contact_row.addWidget(QLabel("Transp %:"))
-        self.contact_stick_alpha_spinbox = QSpinBox()
-        self.contact_stick_alpha_spinbox.setRange(0, 100)
-        self.contact_stick_alpha_spinbox.setValue(30)
-        contact_row.addWidget(self.contact_stick_alpha_spinbox)
-        styling_layout.addLayout(contact_row)
+        nearby_row1 = QHBoxLayout()
+        nearby_row1.addWidget(QLabel("Nearby Atom Color:"))
+        self.nearby_atom_color_edit = QLineEdit("purple")
+        nearby_row1.addWidget(self.nearby_atom_color_edit)
+        nearby_row1.addWidget(QLabel("Style:"))
+        self.nearby_atom_style_combo = QComboBox()
+        self.nearby_atom_style_combo.addItems(["ball", "sphere", "stick", "wire"])
+        nearby_row1.addWidget(self.nearby_atom_style_combo)
+        nearby_row1.addWidget(QLabel("Transp %:"))
+        self.nearby_atom_alpha_spinbox = QSpinBox()
+        self.nearby_atom_alpha_spinbox.setRange(0, 100)
+        self.nearby_atom_alpha_spinbox.setValue(0)
+        nearby_row1.addWidget(self.nearby_atom_alpha_spinbox)
+        styling_layout.addLayout(nearby_row1)
+
+        nearby_row2 = QHBoxLayout()
+        nearby_row2.addWidget(QLabel("Nearby Residue Color:"))
+        self.nearby_res_color_edit = QLineEdit("grey")
+        nearby_row2.addWidget(self.nearby_res_color_edit)
+        nearby_row2.addWidget(QLabel("Style:"))
+        self.nearby_res_style_combo = QComboBox()
+        self.nearby_res_style_combo.addItems(["stick", "ball", "sphere", "wire"])
+        nearby_row2.addWidget(self.nearby_res_style_combo)
+        nearby_row2.addWidget(QLabel("Transp %:"))
+        self.nearby_res_alpha_spinbox = QSpinBox()
+        self.nearby_res_alpha_spinbox.setRange(0, 100)
+        self.nearby_res_alpha_spinbox.setValue(80)
+        nearby_row2.addWidget(self.nearby_res_alpha_spinbox)
+        self.nearby_hide_checkbox = QCheckBox("Hide Fully")
+        self.nearby_hide_checkbox.setChecked(False)
+        nearby_row2.addWidget(self.nearby_hide_checkbox)
+        styling_layout.addLayout(nearby_row2)
 
         styling_group.setLayout(styling_layout)
         layout.addWidget(styling_group)
         layout.addStretch()
 
+        # Connections for Styling
+        self.wt_stick_alpha_spinbox.valueChanged.connect(self._on_wt_transp_changed)
+        self.wt_hide_checkbox.toggled.connect(self._on_wt_hide_toggled)
+        self.mut_stick_alpha_spinbox.valueChanged.connect(self._on_mut_transp_changed)
+        self.mut_hide_checkbox.toggled.connect(self._on_mut_hide_toggled)
+        self.nearby_atom_alpha_spinbox.valueChanged.connect(self._on_nearby_transp_changed)
+        self.nearby_res_alpha_spinbox.valueChanged.connect(self._on_nearby_transp_changed)
+        self.nearby_hide_checkbox.toggled.connect(self._on_nearby_hide_toggled)
+
         self._on_display_mode_changed()
+        self._on_show_nearby_toggled(self.show_nearby_checkbox.isChecked())
 
     def _on_display_mode_changed(self):
         mode = self.display_mode_combo.currentText()
+        is_wt_epi = (mode == "WT epistasis")
+        
+        self.wt_color_edit.setEnabled(not is_wt_epi)
+        self.wt_style_combo.setEnabled(not is_wt_epi)
+        self.wt_stick_alpha_spinbox.setEnabled(not is_wt_epi)
+        self.wt_hide_checkbox.setEnabled(not is_wt_epi)
         
         if mode == "Singles":
             self.radio_wt_lora.setEnabled(True)
@@ -1243,6 +1310,24 @@ class ESM_MSR_Tool(ToolInstance):
             self.display_priority_combo.setEnabled(True)
             self.pair_selection_combo.setEnabled(True)
 
+    def _update_visualization(self):
+        if not getattr(self, 'loaded_csv_path', None) or not os.path.exists(self.loaded_csv_path):
+            self.status_label.setText("Status: Error - No valid CSV to update.")
+            raise AssertionError("Update Visualization failed: No valid CSV file currently loaded.")
+            
+        self.status_label.setText("Status: Updating visualization...")
+        
+        if self._parse_csv(self.loaded_csv_path):
+            mode = self.display_mode_combo.currentText()
+            if mode == "Singles":
+                self._apply_singles()
+            elif "epistasis" in mode:
+                self._apply_epistasis()
+        else:
+            if not self.status_label.text().startswith("Status: Error"):
+                self.status_label.setText("Status: Error parsing CSV during update. Check Log.")
+            raise AssertionError("Update Visualization failed during CSV parsing.")
+
     def _handle_load_and_visualize(self):
         self.session.logger.info("****** _handle_load_and_visualize called ******")
         w = getattr(self.session.ui, 'main_window', None)
@@ -1262,6 +1347,7 @@ class ESM_MSR_Tool(ToolInstance):
             self.status_label.setText("Status: Parsing CSV...")
             
             if self._parse_csv(fp):
+                self.update_viz_button.setEnabled(True)
                 self.status_label.setText("Status: Applying visualization...")
                 mode = self.display_mode_combo.currentText()
                 if mode == "Singles":
@@ -1479,17 +1565,28 @@ class ESM_MSR_Tool(ToolInstance):
                 spec = f"#{mutated_model_id}/{chain_val}:{pos}"
                 run(self.session, f"swapaa {spec} {ONE_TO_THREE_LETTER_AA.get(tgt_aa, 'ALA').lower()} log false")
 
-    def _apply_contacts(self, wt_model, target_keys, target_spec_bare):
-        if not self.show_contacts_checkbox.isChecked() or not target_keys or target_spec_bare == "None":
+    def _apply_nearby(self, wt_model, target_keys, target_spec_bare):
+        if not self.show_nearby_checkbox.isChecked() or not target_keys or target_spec_bare == "None":
+            return
+            
+        if self.nearby_hide_checkbox.isChecked():
             return
 
-        dist = self.contact_distance_spinbox.value()
+        dist = self.nearby_distance_spinbox.value()
         wt_mut_spec = self._get_spec(wt_model.id_string, target_keys)
         
-        # 1. select the sidechain atoms of all the mutated residues
-        # 2. select atoms within X angstroms of these (in the WT model, excluding the mutated residues)
-        contact_atoms_query = f"(({target_spec_bare}) & ~@N,CA,C,O,OXT) @<{dist} & #{wt_model.id_string} & protein & ~({wt_mut_spec})"
-        run(self.session, f"select {contact_atoms_query}")
+        # Base query for target mutated sidechains
+        target_sidechains = f"({target_spec_bare}) & ~@N,CA,C,O,OXT"
+        
+        # Base query for potential contacting atoms in the WT model
+        candidate_atoms = f"#{wt_model.id_string} & protein & ~({wt_mut_spec})"
+        
+        # If checked, exclude backbone atoms from the distance calculation entirely
+        if self.exclude_nearby_backbone_checkbox.isChecked():
+            candidate_atoms += " & ~@N,CA,C,O,OXT"
+            
+        nearby_atoms_query = f"({target_sidechains}) @<{dist} & {candidate_atoms}"
+        run(self.session, f"select {nearby_atoms_query}")
         
         from chimerax.atomic import selected_atoms
         sel_atoms = selected_atoms(self.session)
@@ -1497,41 +1594,47 @@ class ESM_MSR_Tool(ToolInstance):
             run(self.session, "select clear")
             return
             
-        # 3. select up twice to get the full residues.
+        # 1. Nearby Residue Styling
         run(self.session, "select up")
-        #run(self.session, "select up")
         
-        # 4. apply the base style to the selection directly.
-        wt_color = self.wt_color_edit.text().strip() or "white"
-        wt_style = self.wt_style_combo.currentText()
-        wt_alpha = self.wt_stick_alpha_spinbox.value()
+        res_color = self.nearby_res_color_edit.text().strip() or "grey"
+        res_style = self.nearby_res_style_combo.currentText()
+        res_alpha = self.nearby_res_alpha_spinbox.value()
         
-        run(self.session, "show sel atoms")
-        run(self.session, f"style sel {wt_style}")
-        try: run(self.session, f"color sel {wt_color} target a")
-        except: run(self.session, "color sel white target a")
-        run(self.session, "color sel & ~C byelement target a")
-        run(self.session, f"transparency sel {wt_alpha} target a")
-        
-        # 5. AGAIN select the sidechain atoms of all the mutated residues
-        # 6. AGAIN select atoms within X angstroms.
-        run(self.session, f"select {contact_atoms_query}")
-        
-        # 7. Apply the contact styling only to these specifically targeted atoms.
-        c_color = self.contact_color_edit.text().strip() or "purple"
-        c_alpha = self.contact_stick_alpha_spinbox.value()
-        c_style = self.contact_style_combo.currentText()
-        
-        run(self.session, f"style sel {c_style}")
-        if c_style == "stick":
-            run(self.session, "size sel stickRadius 0.25")
+        if res_alpha < 100:
+            run(self.session, "show sel atoms")
+            run(self.session, f"style sel {res_style}")
+            if res_style == "stick":
+                run(self.session, "size sel stickRadius 0.25")
+            try: run(self.session, f"color sel {res_color} target a")
+            except: run(self.session, "color sel grey target a")
+            run(self.session, "color sel & ~C byelement target a")
+            run(self.session, f"transparency sel {res_alpha} target a")
+        else:
+            run(self.session, "hide sel atoms")
             
-        try: run(self.session, f"color sel {c_color} target a")
-        except: run(self.session, "color sel purple target a")
-        run(self.session, "color sel & ~C byelement target a")
-        run(self.session, f"transparency sel {c_alpha} target ab")
+        # 2. Nearby Atom Styling
+        run(self.session, f"select {nearby_atoms_query}")
+
+        if self.exclude_nearby_backbone_checkbox.isChecked():
+            run(self.session, "select sel & ~@N,CA,C,O,OXT")
+            
+        atom_color = self.nearby_atom_color_edit.text().strip() or "purple"
+        atom_style = self.nearby_atom_style_combo.currentText()
+        atom_alpha = self.nearby_atom_alpha_spinbox.value()
         
-        # clear selection
+        if atom_alpha < 100:
+            run(self.session, "show sel atoms")
+            run(self.session, f"style sel {atom_style}")
+            if atom_style == "stick":
+                run(self.session, "size sel stickRadius 0.25")
+            try: run(self.session, f"color sel {atom_color} target a")
+            except: run(self.session, "color sel purple target a")
+            run(self.session, "color sel & ~C byelement target a")
+            run(self.session, f"transparency sel {atom_alpha} target ab")
+        else:
+            run(self.session, "hide sel atoms")
+            
         run(self.session, "select clear")
 
     def _resolve_and_apply_styles(self, wt_model, mut_model_ids, mutation_plans):
@@ -1542,10 +1645,12 @@ class ESM_MSR_Tool(ToolInstance):
         wt_color = self.wt_color_edit.text().strip() or "white"
         wt_style = self.wt_style_combo.currentText()
         wt_alpha = self.wt_stick_alpha_spinbox.value()
+        wt_hide = self.wt_hide_checkbox.isChecked()
         
         mut_color = self.mut_color_edit.text().strip()
         mut_style = self.mut_style_combo.currentText()
         mut_alpha = self.mut_stick_alpha_spinbox.value()
+        mut_hide = self.mut_hide_checkbox.isChecked()
 
         mut_specs = []
         for mut_id, plan in zip(mut_model_ids, mutation_plans):
@@ -1553,40 +1658,55 @@ class ESM_MSR_Tool(ToolInstance):
             if mutant_keys:
                 spec = self._get_spec(mut_id, mutant_keys)
                 mut_specs.append(spec)
-                run(self.session, f"size ({spec}) stickRadius 0.2")
                 
-                if mut_color:
-                    try: run(self.session, f"color ({spec}) {mut_color} target a")
-                    except: run(self.session, f"color ({spec}) orange target a")
-                
-                run(self.session, f"color ({spec}) & ~C byelement target a")
-                run(self.session, f"show ({spec}) atoms")
-                run(self.session, f"style ({spec}) {mut_style}")
-                run(self.session, f"transparency ({spec}) {mut_alpha} target a")
+                if mut_hide or mut_alpha >= 99:
+                    run(self.session, f"hide ({spec}) atoms")
+                else:
+                    run(self.session, f"size ({spec}) stickRadius 0.2")
+                    if mut_color:
+                        try: run(self.session, f"color ({spec}) {mut_color} target a")
+                        except: run(self.session, f"color ({spec}) orange target a")
+                    run(self.session, f"color ({spec}) & ~C byelement target a")
+                    run(self.session, f"show ({spec}) atoms")
+                    run(self.session, f"style ({spec}) {mut_style}")
+                    run(self.session, f"transparency ({spec}) {mut_alpha} target a")
             
         if all_mutant_keys:
             spec = self._get_spec(wt_model.id_string, all_mutant_keys)
-            run(self.session, f"size ({spec}) stickRadius 0.2")
-            try: run(self.session, f"color ({spec}) {wt_color} target a")
-            except: run(self.session, f"color ({spec}) white target a")
-            run(self.session, f"color ({spec}) & ~C byelement target a")
-            run(self.session, f"show ({spec}) atoms")
-            run(self.session, f"style ({spec}) {wt_style}")
-            run(self.session, f"transparency ({spec}) {wt_alpha} target a")
+            
+            if wt_hide or wt_alpha >= 99:
+                run(self.session, f"hide ({spec}) atoms")
+            else:
+                run(self.session, f"size ({spec}) stickRadius 0.2")
+                try: run(self.session, f"color ({spec}) {wt_color} target a")
+                except: run(self.session, f"color ({spec}) white target a")
+                run(self.session, f"color ({spec}) & ~C byelement target a")
+                run(self.session, f"show ({spec}) atoms")
+                run(self.session, f"style ({spec}) {wt_style}")
+                run(self.session, f"transparency ({spec}) {wt_alpha} target a")
             
         mut_spec_bare = " | ".join(mut_specs) if mut_specs else "None"
-        self._apply_contacts(wt_model, all_mutant_keys, mut_spec_bare)
+        return all_mutant_keys, mut_spec_bare
 
     def _draw_epistasis_line(self, mut_model_id, c1, p1, c2, p2, score, max_abs_score, thresh_pos, thresh_neg, model_residues):
         res1, res2 = model_residues.get((c1, p1)), model_residues.get((c2, p2))
-        if not res1 or not res2 or not res1.atoms or not res2.atoms: return
+        if not res1 or not res2 or not res1.atoms or not res2.atoms:
+            raise AssertionError(f"Cannot draw epistasis line: Missing residue(s) or atoms for {c1}:{p1} or {c2}:{p2} in model {mut_model_id}.")
 
-        atoms1 = [a for a in res1.atoms if a.name not in ('N', 'CA', 'C', 'O')]
-        atoms2 = [a for a in res2.atoms if a.name not in ('N', 'CA', 'C', 'O')]
+        atoms1 = [a for a in res1.atoms if a.name not in ('N', 'CA', 'C', 'O', 'OXT') and not a.name.startswith('H')]
+        if not atoms1:
+            atoms1 = [a for a in res1.atoms if a.name == 'CA']
+        if not atoms1:
+            atoms1 = res1.atoms
+            
+        atoms2 = [a for a in res2.atoms if a.name not in ('N', 'CA', 'C', 'O', 'OXT') and not a.name.startswith('H')]
+        if not atoms2:
+            atoms2 = [a for a in res2.atoms if a.name == 'CA']
+        if not atoms2:
+            atoms2 = res2.atoms
         
         if not atoms1 or not atoms2:
-            self.session.logger.warning(f"Skipping epistasis line between {c1}:{p1} and {c2}:{p2} because one or both lack sidechain heavy atoms (e.g. Glycine).")
-            return
+            raise AssertionError(f"Cannot draw epistasis line: Residue(s) {c1}:{p1} or {c2}:{p2} have no valid atoms for distance calculation.")
         
         coords1 = np.array([a.scene_coord for a in atoms1])
         coords2 = np.array([a.scene_coord for a in atoms2])
@@ -1607,9 +1727,9 @@ class ESM_MSR_Tool(ToolInstance):
         
         c_inv = int(100 * (1.0 - norm_score))
         if score > 0:
-            color_spec = f"100,{int(100 - 50*norm_score)},{c_inv},{alpha}" 
+            color_spec = f"{c_inv},{c_inv},100,{alpha}" 
         else:
-            color_spec = f"{c_inv},{c_inv},100,{alpha}"
+            color_spec = f"100,{int(100 - 50*norm_score)},{c_inv},{alpha}" 
         
         cmd = f"pbond #{mut_model_id}/{c1}:{p1}@{a1.name} #{mut_model_id}/{c2}:{p2}@{a2.name} reveal true color {color_spec} radius {radius_val:.3f} name \"{score:.2f}\""
         run(self.session, cmd)
@@ -1672,6 +1792,7 @@ class ESM_MSR_Tool(ToolInstance):
     def _apply_singles(self):
         try:
             wt_model = self._setup_base_wt_model()
+            run(self.session, "delete pbonds")
             pos_thresh = self.pos_threshold_spinbox.value()
             neg_thresh = self.neg_threshold_spinbox.value()
             
@@ -1685,8 +1806,7 @@ class ESM_MSR_Tool(ToolInstance):
             self.mutated_model_id_strings.append(mut_id)
             
             self._apply_swapaa(mut_id, mutated_model, mutation_plan)
-            self._resolve_and_apply_styles(wt_model, [mut_id], [mutation_plan])
-
+            
             scores = [s for s, _ in self.residue_scores_data.values()]
             if scores:
                 scores_abs = [abs(s) for s in scores]
@@ -1695,6 +1815,17 @@ class ESM_MSR_Tool(ToolInstance):
             else:
                 max_abs_add = 0.01
             color_range = f"{-max_abs_add:.3f},{max_abs_add:.3f}"
+
+            for (chain, pos), (score, _) in self.residue_scores_data.items():
+                run(self.session, f"setattr #{wt_model.id_string}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {score} create true")
+
+            if self.color_backbone_checkbox.isChecked():
+                chains_present = set(c for c, p in self.residue_scores_data.keys())
+                chain_spec = ",".join(chains_present)
+                run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette pink:white:green range {color_range} key false")
+
+            # Resolving and applying styles AFTER backbone coloring
+            all_mutant_keys, mut_spec_bare = self._resolve_and_apply_styles(wt_model, [mut_id], [mutation_plan])
             
             for (chain, pos), tgt_aa in mutation_plan.items():
                 if (chain, pos, tgt_aa) not in self.all_singles_scores:
@@ -1704,26 +1835,20 @@ class ESM_MSR_Tool(ToolInstance):
                     exact_score = self.all_singles_scores[(chain, pos, tgt_aa)]
                 run(self.session, f"setattr #{mut_id}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {exact_score} create true")
 
-            for (chain, pos), (score, _) in self.residue_scores_data.items():
-                run(self.session, f"setattr #{wt_model.id_string}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {score} create true")
-
             if not self.mut_color_edit.text().strip():
                 mut_spec = self._get_spec(mut_id, mutation_plan.keys())
                 if mut_spec != "None":
-                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({mut_spec}) palette red:white:green range {color_range} key false target a")
+                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({mut_spec}) palette pink:white:green range {color_range} key false target a")
                     run(self.session, f"color ({mut_spec}) & ~C byelement target a")
 
-            if self.color_backbone_checkbox.isChecked():
-                chains_present = set(c for c, p in self.residue_scores_data.keys())
-                chain_spec = ",".join(chains_present)
-                run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette red:white:green range {color_range} key false")
-
             try:
-                run(self.session, f"key red:{-max_abs_add:.2f} white:0 green:{max_abs_add:.2f} pos 0.05,0.05")
+                run(self.session, f"key pink:{-max_abs_add:.2f} white:0 green:{max_abs_add:.2f} pos 0.05,0.05")
             except Exception as e:
                 self.session.logger.warning(f"Failed to draw colorbar key: {e}")
 
+            self._apply_nearby(wt_model, all_mutant_keys, mut_spec_bare)
             self._apply_transparency_isolation(wt_model)
+            run(self.session, "hide H")
             self.status_label.setText("Status: Singles Visualization complete.")
 
         except Exception as e:
@@ -1733,6 +1858,7 @@ class ESM_MSR_Tool(ToolInstance):
     def _apply_epistasis(self):
         try:
             wt_model = self._setup_base_wt_model()
+            run(self.session, "delete pbonds")
             df = self.epistasis_df
             is_wt_epi = self.display_mode_combo.currentText() == "WT epistasis"
             
@@ -1804,6 +1930,14 @@ class ESM_MSR_Tool(ToolInstance):
                     mutation_plan[(c1, p1)] = m1
                     mutation_plan[(c2, p2)] = m2
 
+                # Enforce backbone coloring first
+                if self.color_backbone_checkbox.isChecked():
+                    chains_present = set(c for c, p in self.residue_scores_data.keys())
+                    chain_spec = ",".join(chains_present)
+                    for (chain, pos), (score, _) in self.residue_scores_data.items():
+                        run(self.session, f"setattr #{wt_model.id_string}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {score} create true")
+                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette pink:white:green range {color_range} key false")
+
                 spec = self._get_spec(wt_model.id_string, participating_positions)
                 if spec != "None":
                     for (chain, pos) in participating_positions:
@@ -1820,21 +1954,17 @@ class ESM_MSR_Tool(ToolInstance):
                     
                     run(self.session, f"size ({spec}) stickRadius 0.2")
                     if not self.mut_color_edit.text().strip():
-                        run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({spec}) palette red:white:green range {color_range} key false target a")
+                        run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({spec}) palette pink:white:green range {color_range} key false target a")
                         run(self.session, f"color ({spec}) & ~C byelement target a")
                     run(self.session, f"show ({spec}) atoms")
                     run(self.session, f"style ({spec}) {mut_style}")
                     run(self.session, f"transparency ({spec}) {mut_alpha} target a")
                     
-                self._apply_contacts(wt_model, participating_positions, spec)
-                
-                if self.color_backbone_checkbox.isChecked():
-                    chains_present = set(c for c, p in self.residue_scores_data.keys())
-                    chain_spec = ",".join(chains_present)
-                    for (chain, pos), (score, _) in self.residue_scores_data.items():
-                        run(self.session, f"setattr #{wt_model.id_string}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {score} create true")
-                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette red:white:green range {color_range} key false")
+                all_mutant_keys = participating_positions
+                mut_spec_bare = spec
 
+                self._apply_nearby(wt_model, all_mutant_keys, mut_spec_bare)
+                
                 model_residues = {(r.chain_id, r.number): r for r in wt_model.residues}
                 for c1, p1, m1, c2, p2, m2, score in pairs_to_draw:
                     self._draw_epistasis_line(wt_model.id_string, c1, p1, c2, p2, score, max_abs_epi, pos_thresh, neg_thresh, model_residues)
@@ -1876,11 +2006,18 @@ class ESM_MSR_Tool(ToolInstance):
                     self.mutated_model_id_strings.append(mut_id)
                     self._apply_swapaa(mut_id, mut_model, layer)
                     mutated_models_objs.append(mut_model)
-                    
-                self._resolve_and_apply_styles(wt_model, self.mutated_model_id_strings, layers)
-                
+
                 for (chain, pos), (score, _) in self.residue_scores_data.items():
                     run(self.session, f"setattr #{wt_model.id_string}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {score} create true")
+                    
+                # Enforce backbone coloring first
+                if self.color_backbone_checkbox.isChecked():
+                    chains_present = set(c for c, p in self.residue_scores_data.keys())
+                    chain_spec = ",".join(chains_present)
+                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette pink:white:green range {color_range} key false")
+
+                # Post-backbone styling
+                all_mutant_keys, mut_spec_bare = self._resolve_and_apply_styles(wt_model, self.mutated_model_id_strings, layers)
 
                 for i, plan in enumerate(layers):
                     if not plan: continue
@@ -1897,8 +2034,10 @@ class ESM_MSR_Tool(ToolInstance):
                     if not self.mut_color_edit.text().strip():
                         mut_spec = self._get_spec(mut_id, plan.keys())
                         if mut_spec != "None":
-                            run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({mut_spec}) palette red:white:green range {color_range} key false target a")
+                            run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({mut_spec}) palette pink:white:green range {color_range} key false target a")
                             run(self.session, f"color ({mut_spec}) & ~C byelement target a")
+
+                self._apply_nearby(wt_model, all_mutant_keys, mut_spec_bare)
 
                 for c1, p1, m1, c2, p2, m2, score, layer_idx in pairs_to_draw:
                     mut_id = self.mutated_model_id_strings[layer_idx]
@@ -1906,12 +2045,12 @@ class ESM_MSR_Tool(ToolInstance):
                     self._draw_epistasis_line(mut_id, c1, p1, c2, p2, score, max_abs_epi, pos_thresh, neg_thresh, model_residues)
 
             try:
-                run(self.session, f"key red:{-max_abs_add:.2f} white:0 green:{max_abs_add:.2f} pos 0.05,0.05")
-                run(self.session, f"key blue:{-max_abs_epi:.2f} white:0 orange:{max_abs_epi:.2f} pos 0.55,0.05")
+                run(self.session, f"key orange:{-max_abs_epi:.2f} white:0 blue:{max_abs_epi:.2f} pos 0.05,0.05")
             except Exception as e:
-                self.session.logger.warning(f"Failed to draw dual colorbar keys: {e}")
+                self.session.logger.warning(f"Failed to draw epistasis colorbar key: {e}")
 
             self._apply_transparency_isolation(wt_model)
+            run(self.session, "hide H")
             self.status_label.setText(f"Status: Epistasis Viz Complete ({len(pairs_to_draw)} interactions across {len(layers) if not is_wt_epi else 1} layers).")
 
         except Exception as e:

@@ -535,8 +535,8 @@ class MSRModel(ESM3PredictorBase):
         b_idx = torch.arange(B, device=seq.device).unsqueeze(1).expand(-1, max_muts)
 
         if mask_strategy is not None:
-            if mask_strategy not in ['chain', 'marginal']:
-                raise AssertionError(f"Invalid mask_strategy: '{mask_strategy}'. Expected None, 'chain', or 'marginal'.")
+            if mask_strategy not in ['independent', 'marginal']:
+                raise AssertionError(f"Invalid mask_strategy: '{mask_strategy}'. Expected None, 'independent', or 'marginal'.")
             if cached_wt_esm3 is not None:
                 raise NotImplementedError(f"cached_wt_esm3 cannot be used with mask_strategy='{mask_strategy}'. Each masking pass fundamentally alters the model sequence state.")
             
@@ -549,7 +549,7 @@ class MSRModel(ESM3PredictorBase):
                 
             unsummed_llr = torch.zeros((B, max_muts), dtype=torch.float32, device=seq.device)
             
-            if mask_strategy == 'chain':
+            if mask_strategy == 'independent':
                 for i in range(max_muts):
                     curr_mask = mut_mask[:, i]
                     if not curr_mask.any():
@@ -684,8 +684,8 @@ class MSRModel(ESM3PredictorBase):
 
         else:
             # ROUTE 2: State Deduplication for Masked (Resolves combinatorial explosion)
-            if mask_strategy not in ['chain', 'marginal']:
-                raise AssertionError(f"Invalid mask_strategy: '{mask_strategy}'. Expected 'chain', 'marginal', or None.")
+            if mask_strategy not in ['independent', 'marginal']:
+                raise AssertionError(f"Invalid mask_strategy: '{mask_strategy}'. Expected 'independent', 'marginal', or None.")
             if cached_wt_esm3 is not None:
                 raise NotImplementedError(f"cached_wt_esm3 cannot be used with mask_strategy='{mask_strategy}'.")
             
@@ -705,7 +705,7 @@ class MSRModel(ESM3PredictorBase):
                 for i in valid_indices:
                     base_mt[mut_pos[b, i]] = mt_id[b, i]
                 
-                if mask_strategy == 'chain':
+                if mask_strategy == 'independent':
                     for i in valid_indices:
                         pos = mut_pos[b, i].item()
                         

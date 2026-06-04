@@ -407,7 +407,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device to run inference on")
     parser.add_argument("--backbone_mutation", type=str, default=None, help="Backbone mutation applied across structures")
     parser.add_argument("--no_optimize_wt_pass", action="store_true", help="Disable the caching of the Wild Type pass")
-    parser.add_argument('--mask_strategy', type=str, choices=['marginal', 'chain'], default=None)
+    parser.add_argument('--mask_strategy', type=str, choices=['marginal', 'independent'], default=None)
     parser.add_argument("--skip_additive", action="store_true", help="Skip single mutation sub-calculations for multis")
     parser.add_argument("--skip_reverse", action="store_true", help="Skip the MT pass if predicting purely from WT adapters")
 
