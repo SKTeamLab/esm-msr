@@ -1822,7 +1822,7 @@ class ESM_MSR_Tool(ToolInstance):
             if self.color_backbone_checkbox.isChecked():
                 chains_present = set(c for c, p in self.residue_scores_data.keys())
                 chain_spec = ",".join(chains_present)
-                run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette pink:white:green range {color_range} key false")
+                run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette #FF1493:white:green range {color_range} key false")
 
             # Resolving and applying styles AFTER backbone coloring
             all_mutant_keys, mut_spec_bare = self._resolve_and_apply_styles(wt_model, [mut_id], [mutation_plan])
@@ -1838,11 +1838,11 @@ class ESM_MSR_Tool(ToolInstance):
             if not self.mut_color_edit.text().strip():
                 mut_spec = self._get_spec(mut_id, mutation_plan.keys())
                 if mut_spec != "None":
-                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({mut_spec}) palette pink:white:green range {color_range} key false target a")
+                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({mut_spec}) palette #FF1493:white:green range {color_range} key false target a")
                     run(self.session, f"color ({mut_spec}) & ~C byelement target a")
 
             try:
-                run(self.session, f"key pink:{-max_abs_add:.2f} white:0 green:{max_abs_add:.2f} pos 0.05,0.05")
+                run(self.session, f"key #FF1493:{-max_abs_add:.2f} white:0 green:{max_abs_add:.2f} pos 0.05,0.05")
             except Exception as e:
                 self.session.logger.warning(f"Failed to draw colorbar key: {e}")
 
@@ -1936,7 +1936,7 @@ class ESM_MSR_Tool(ToolInstance):
                     chain_spec = ",".join(chains_present)
                     for (chain, pos), (score, _) in self.residue_scores_data.items():
                         run(self.session, f"setattr #{wt_model.id_string}/{chain}:{pos} r {SCORE_ATTRIBUTE_NAME} {score} create true")
-                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette pink:white:green range {color_range} key false")
+                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette #FF1493:white:green range {color_range} key false")
 
                 spec = self._get_spec(wt_model.id_string, participating_positions)
                 if spec != "None":
@@ -1954,7 +1954,7 @@ class ESM_MSR_Tool(ToolInstance):
                     
                     run(self.session, f"size ({spec}) stickRadius 0.2")
                     if not self.mut_color_edit.text().strip():
-                        run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({spec}) palette pink:white:green range {color_range} key false target a")
+                        run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({spec}) palette #FF1493:white:green range {color_range} key false target a")
                         run(self.session, f"color ({spec}) & ~C byelement target a")
                     run(self.session, f"show ({spec}) atoms")
                     run(self.session, f"style ({spec}) {mut_style}")
@@ -2014,7 +2014,7 @@ class ESM_MSR_Tool(ToolInstance):
                 if self.color_backbone_checkbox.isChecked():
                     chains_present = set(c for c, p in self.residue_scores_data.keys())
                     chain_spec = ",".join(chains_present)
-                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette pink:white:green range {color_range} key false")
+                    run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone palette #FF1493:white:green range {color_range} key false")
 
                 # Post-backbone styling
                 all_mutant_keys, mut_spec_bare = self._resolve_and_apply_styles(wt_model, self.mutated_model_id_strings, layers)
@@ -2034,7 +2034,7 @@ class ESM_MSR_Tool(ToolInstance):
                     if not self.mut_color_edit.text().strip():
                         mut_spec = self._get_spec(mut_id, plan.keys())
                         if mut_spec != "None":
-                            run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({mut_spec}) palette pink:white:green range {color_range} key false target a")
+                            run(self.session, f"color byattribute {SCORE_ATTRIBUTE_NAME} ({mut_spec}) palette #FF1493:white:green range {color_range} key false target a")
                             run(self.session, f"color ({mut_spec}) & ~C byelement target a")
 
                 self._apply_nearby(wt_model, all_mutant_keys, mut_spec_bare)
