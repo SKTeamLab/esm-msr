@@ -138,8 +138,8 @@ class ESM_MSR_Tool(ToolInstance):
         layout = QVBoxLayout()
         parent_widget.setLayout(layout)
 
-        # Paths Group
-        paths_group = QGroupBox("Environment & Paths")
+        # Local Path Configuration
+        paths_group = QGroupBox("Local Path Configuration")
         paths_layout = QVBoxLayout()
         paths_group.setLayout(paths_layout)
 
@@ -170,40 +170,17 @@ class ESM_MSR_Tool(ToolInstance):
         out_csv_layout.addWidget(btn)
         paths_layout.addLayout(out_csv_layout)
 
-        layout.addWidget(paths_group)
-
-        # Model Source Group
-        source_group = QGroupBox("Model Weights Source")
-        source_layout = QVBoxLayout()
-        source_group.setLayout(source_layout)
-
-        self.source_btn_group = QButtonGroup()
-
-        # HF Token Radio
-        hf_layout = QHBoxLayout()
-        self.radio_hf = QRadioButton("HuggingFace Token:")
-        self.source_btn_group.addButton(self.radio_hf)
-        hf_layout.addWidget(self.radio_hf)
-        self.hf_token_edit = QLineEdit()
-        self.hf_token_edit.setPlaceholderText("For ESM3 weights; can leave blank if logged in via cli")
-        self.hf_token_edit.setEchoMode(QLineEdit.Password)
-        hf_layout.addWidget(self.hf_token_edit)
-        source_layout.addLayout(hf_layout)
-
-        # Base Model Location Radio
         base_loc_layout = QHBoxLayout()
-        self.radio_base_loc = QRadioButton("Base Model Location (data folder):")
-        self.source_btn_group.addButton(self.radio_base_loc)
-        base_loc_layout.addWidget(self.radio_base_loc)
+        base_loc_layout.addWidget(QLabel("ESM3 Weights Location:"))
         self.base_model_loc_edit = QLineEdit(self.base_model_loc)
-        self.base_model_loc_edit.setPlaceholderText("Path to offline model folder")
+        self.base_model_loc_edit.setPlaceholderText("Optional: Use if you downloaded weights locally")
         base_loc_layout.addWidget(self.base_model_loc_edit)
         btn = QPushButton("Browse...")
         btn.clicked.connect(lambda: self._browse_generic_dir(self.base_model_loc_edit, "Select Model Directory", "base_model_loc"))
         base_loc_layout.addWidget(btn)
-        source_layout.addLayout(base_loc_layout)
+        paths_layout.addLayout(base_loc_layout)
 
-        layout.addWidget(source_group)
+        layout.addWidget(paths_group)
 
         # Compute Environment
         device_group = QGroupBox("Compute Environment")
@@ -409,11 +386,6 @@ class ESM_MSR_Tool(ToolInstance):
         layout.addWidget(screening_config_group)
         layout.addStretch()
 
-        self.radio_hf.toggled.connect(self._update_source_ui)
-        self.radio_base_loc.toggled.connect(self._update_source_ui)
-        self.radio_hf.setChecked(True)
-        self._update_source_ui()
-
     def _validate_file_paths(self):
         warnings = []
         ckpt = self.checkpoint_path_edit.text().strip()
@@ -428,14 +400,6 @@ class ESM_MSR_Tool(ToolInstance):
             self.file_warning_label.setText("WARNING: " + " | ".join(warnings))
         else:
             self.file_warning_label.setText("")
-
-    def _update_source_ui(self):
-        is_hf = self.radio_hf.isChecked()
-        self.hf_token_edit.setEnabled(is_hf)
-        
-        is_base_loc = self.radio_base_loc.isChecked()
-        self.base_model_loc_edit.setEnabled(is_base_loc)
-        self.base_model_loc_edit.parent().findChildren(QPushButton)[0].setEnabled(is_base_loc)
 
     def _update_scope_ui(self):
         is_full = self.radio_full.isChecked()
@@ -897,16 +861,8 @@ class ESM_MSR_Tool(ToolInstance):
         else:
             script_args += ['--distance_threshold', '-1']
 
-        if self.radio_hf.isChecked():
-            hf_token_val = self.hf_token_edit.text().strip()
-            if hf_token_val:
-                script_args += ['--hf_token', hf_token_val]
-            else:
-                self.session.logger.warning("HuggingFace Token selected but left empty. Passing without token.")
-        elif self.radio_base_loc.isChecked():
-            base_model_loc_val = self.base_model_loc_edit.text().strip()
-            if not base_model_loc_val:
-                raise AssertionError("Base Model Location selected but no path provided.")
+        base_model_loc_val = self.base_model_loc_edit.text().strip()
+        if base_model_loc_val:
             script_args += ['--base_model_loc', base_model_loc_val]
 
         config_file = self.config_file_edit.text().strip()

@@ -8,6 +8,7 @@ import json
 import argparse
 import shutil
 from tqdm import tqdm
+from pathlib import Path
 
 from esm.utils.structure.protein_chain import ProteinChain
 from esm.utils.structure.protein_complex import ProteinComplex
@@ -426,22 +427,43 @@ if __name__ == "__main__":
 
     # Model source
     parser.add_argument('--base_model_loc', type=str, default=None)
-    parser.add_argument('--hf_token', type=str, default=None)
+    #parser.add_argument('--hf_token', type=str, default=None)
 
     args = parser.parse_args()
 
-    token = args.hf_token or get_token()
+    #token = args.hf_token or get_token()
 
-    if token:
-        if not isinstance(token, str):
-            raise TypeError(f"Expected token to be a string, but got {type(token)}. Check your argparse definition.")
-        login(token)
-    elif args.base_model_loc:
+    #if token:
+    #    if not isinstance(token, str):
+    #        raise TypeError(f"Expected token to be a string, but got {type(token)}. Check your argparse definition.")
+    #    login(token)
+    if args.base_model_loc:
         os.environ['INFRA_PROVIDER'] = "1"
-        os.chdir(args.base_model_loc)
-        assert os.path.exists(os.path.join(os.getcwd(), 'data/weights/esm3_sm_open_v1.pth'))
-    else:
-        raise AssertionError('Must provide either a HuggingFace token or have the model installed locally!')
+        base_loc = Path(args.base_model_loc).resolve()
+        
+        target_rel = Path('data/weights/esm3_sm_open_v1.pth')
+        valid_root = None
+
+        if base_loc.is_file() and base_loc.name == 'esm3_sm_open_v1.pth':
+            potential_root = base_loc.parents[2]
+            if (potential_root / target_rel).is_file():
+                valid_root = potential_root
+        elif base_loc.is_dir():
+            for level in range(3):
+                potential_root = base_loc.parents[level-1] if level > 0 else base_loc
+                if (potential_root / target_rel).is_file():
+                    valid_root = potential_root
+                    break
+
+        if not valid_root:
+            raise AssertionError(
+                f"Could not locate ESM3 weights using base_model_loc: '{args.base_model_loc}'. "
+                f"Ensure the path points to the weights file itself, the 'weights' folder, the 'data' folder, or their parent directory."
+            )
+
+        saved_path = os.getcwd()
+        os.chdir(valid_root)
+        assert os.path.exists(os.path.join(os.getcwd(), 'data', 'weights', 'esm3_sm_open_v1.pth')), "Model file verification failed after changing directory."
 
     if args.screen_residues and args.screen_residues_except:
         raise AssertionError("Error: --screen_residues and --screen_residues_except cannot be used at the same time.")
@@ -581,6 +603,9 @@ if __name__ == "__main__":
         adapter_mode=adapter_mode,
         lora_mode=lora_mode
     )
+
+    if args.base_model_loc:
+        os.chdir(saved_path)
 
     if args.checkpoint_path is not None:
         model.load_lora_weights(checkpoint_path=args.checkpoint_path, load_wt_only=args.load_wt_lora_only)
