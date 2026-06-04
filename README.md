@@ -52,12 +52,12 @@ pip install -e .
 
 ## Obtaining ESM3-small-open weights
 
-Weights are available from [HuggingFace](https://huggingface.co/EvolutionaryScale/esm3-sm-open-v1/). You must create a HuggingFace account and agree to the Cambrian Non-Commercial License Agreement in the linked page to get access. Note that the same license applies to our method and can be found in the `LICENSE.md` file. 
+Weights are available from [HuggingFace](https://huggingface.co/biohub/esm3-sm-open-v1).
 
 From here you have two options:
 
 1. Create an access token by going to the user profile icon (top right), selecting Access Tokens, and creating a new Read token. You will be able to pass this token into our CLI or GUI to obtain the weights automatically. It is recommended that you login once in the command line, then you shouldn't need to paste in the token each time: `huggingface-cli login`. Paste in your username and read token when prompted.
-2. Download all files in this folder into a new folder e.g. `esm-msr/data/weights`. You will need to paste this location into the CLI or GUI.
+2. Download all files in the `data/weights` folder into a new folder e.g. `esm-msr/data/weights`. You will need to enter this location into the CLI or GUI.
 
 ## Basic Usage - Command Line Interface (Skip if using ChimeraX GUI)
 
