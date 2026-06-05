@@ -56,8 +56,8 @@ Weights are available from [HuggingFace](https://huggingface.co/biohub/esm3-sm-o
 
 From here you have two options:
 
-1. Create an access token by going to the user profile icon (top right), selecting Access Tokens, and creating a new Read token. You will be able to pass this token into our CLI or GUI to obtain the weights automatically. It is recommended that you login once in the command line, then you shouldn't need to paste in the token each time: `huggingface-cli login`. Paste in your username and read token when prompted.
-2. Download all files in the `data/weights` folder into a new folder e.g. `esm-msr/data/weights`. You will need to enter this location into the CLI or GUI.
+1. Allow the environment package `esm` to handle the model download and possible updates. No action is required unless ESM/Biohub changes this access mechanism.
+2. Alternatively: download all files in the `data/weights` HuggingFace repo to your machine. If you have git installed, the easiest way is to use `git clone https://huggingface.co/biohub/esm3-sm-open-v1`. You will need to enter this location into the CLI or GUI.
 
 ## Basic Usage - Command Line Interface (Skip if using ChimeraX GUI)
 
@@ -68,6 +68,10 @@ We include a small version of our LoRA model in this repository for convenience,
 Inference strategies, performance and compute time are discussed in the paper. The below command is a fast approximation of single mutant saturation mutagenesis that should take less than a minute even on a CPU, apart from loading the model weights which is very hardware dependent.
 
 `python src/esm_msr/inference.py --checkpoint_path LoRA_models/esm-msr-small/epoch\=03-val_rho_combined_avg\=0.816.ckpt --pdb_file path_to_your_structure_file --mode singles --skip_reverse --output_csv ./example_output.csv`
+
+Or, if you want to directly use a PDB structure:
+
+`python src/esm_msr/inference.py --checkpoint_path LoRA_models/esm-msr-small/epoch\=03-val_rho_combined_avg\=0.816.ckpt --code 1A0F --chain A --mode singles --skip_reverse --output_csv ./example_1A0F.csv`
 
 Remove the `--skip_reverse` flag for a much slower, slightly higher accuracy screen (proportional to total possible mutations). Change the screening `--mode` to `singles+doubles` to screen all double and single mutants (the singles are comparatively almost free and useful for visualization later). It is not recommended to use `--skip_reverse` for `--mode doubles` because this ignores epistasis. A full double mutant screen on a protein greater than 200 residues is very compute expensive. It is therefore recommended to screen only double mutants where the wild-type residues are within 6 Angstrom heavy atom distance. This is controlled with the `--distance_threshold` parameter. Multi-mutants must be screened individually, either by generating an `--input_csv` with columns `pdb_file, code, chain, mut_type` and mutations (`mut_type`) specified like A2C:D3E, or individually passing in comma separated mutations via `--mutations`. An example can be seen in `data/preprocessed/ptmul_mapped.csv`; extra columns are allowed.
 
