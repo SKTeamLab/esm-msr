@@ -93,20 +93,19 @@ Load a valid protein structure (PDB, mmCIF) into ChimeraX. You can click and dra
 
 **Environment & Paths:**
 * **Base Repo Dir:** Browse to the root of your cloned `esm-msr` folder. *Note: Setting this automatically populates the Python Env and Output CSV fields if they are currently empty. If you followed the instructions, the paths should be correct.*
-* **Python Env:** The environment used to run inference. *Note: if you used a conda environment, replace the path with just the name e.g. `msr_venv`.*
+* **Python Env:** The environment used to run inference. *WARNING: if you used a conda environment, replace the path with just the name e.g. `msr_venv`.*
 * **Output CSV:** Where the resulting predictions will be saved.
+* **ESM3 Weights Location:** If you want to use locally stored weights, enter the location here.
 
-**Model Weights Source:**
-Choose between downloading weights directly via a **HuggingFace Token** (requires internet) or using a local offline folder via **Base Model Location**, which you should have setup previously. If you logged in via `huggingface-cli`, you can leave both boxes blank.
 
 **Compute Environment & Model Configuration Files:**
 * **Compute Device & Batch Size:** Select your hardware (`cuda`, `mps`, `cpu`) and batch size. Lower the batch size if you encounter CUDA Out-Of-Memory (OOM) errors. Use `cpu` unless you configured CUDA during setup and have an Nvidia GPU.
-* **Checkpoint (.ckpt):** Select the trained LoRA checkpoint, for example the one stored in LoRA_models/esm-msr-small in this repo.
-* **LoRA Config (JSON/YAML):** *Auto-populating.* When you use the "Browse" button to select a Checkpoint, the GUI will automatically assume the configuration file is named `hparams.yaml` and is located in the same parent directory. It will warn you in red text if either file is missing or contains a dangling path reference. Architectural parameters (adapter mode, lora mode, rank, alpha) are automatically parsed from this file during inference.
+* **Checkpoint (.ckpt/.safetensors):** Select the trained LoRA checkpoint, for example the one stored in LoRA_models/esm-msr-small in this repo, or any of the checkpoints available from our HuggingFace page.
+* **LoRA Config (JSON/YAML):**  When you use the "Browse" button to select a Checkpoint, the GUI will automatically assume the configuration file is named `hparams.yaml` and is located in the same parent directory. It will warn you in red text if either file is missing or contains a dangling path reference. Architectural parameters (adapter mode, lora mode, rank, alpha) are automatically parsed from this file during inference.
 
 ### 2. Screening Config
 
-This tab defines exactly which mutations will be evaluated on your structure.
+This section defines exactly which mutations will be evaluated on your structure.
 
 **Target Selection:**
 Select which open ChimeraX model and specific chain you want to predict on.
@@ -121,14 +120,10 @@ Select **one** of three methods to define the mutation space. Selecting one meth
 
 **Screening Parameters:**
 * **Mask Strategy:** Choose between `Default (unmasked)`, `marginal`, or `chain`. `unmasked` tends to perform best, but there are compute savings especially if only specifying a few positions using `chain`. `marginal` is not recommended.
-* **Artificial Background Mutation:** Applies a universal baseline mutation before evaluating specific targets (e.g., `A15G`). Generally leave this blank.
-* **Execution Approximations:**
-    * *Approximate Epistasis (Not Recommended):* Skips rigorous additive sub-calculations for multi-mutants, instead computing their scores as 0.5 * MT_LoRA_prediction - 0.5 * WT_LoRA_prediction.
-    * *Skip MT pass (Additive Approximation):* Fast approximation, especially suitable for single mutants. *Warning: Skips generating `mt_lora` predictions.*
-* **Protein Complex Mode (Experimental):** Allows scoring within the context of multiple chains vs a `single_chain`. In our limited testing, this does not appear to be more useful for binding prediction than using the single chain of interest.
+* **Skip MT pass (Use Additive Approximation):** Fast approximation, especially suitable for single mutants. *Warning: Skips generating `mt_lora` predictions.*
 
 **Running Inference:**
-Click **Run Prediction Script** at the bottom of the window. A red **STOP** button will appear, which allows you to forcefully terminate the process tree if you accidentally launch a massive screening run. After preliminary setup (~1 minute), you can track the screening progress at the bottom of the GUI, stop, and modify the run parameters if it will take too long. *Note: Singles screening takes <1 minute on modern GPUs. Doubles screening on a 300AA protein can take hours (`chain`) or days (`unmasked`).*
+Click **Run Prediction Script** at the bottom of the window. A red **STOP** button will appear, which allows you to forcefully terminate the process tree if you accidentally launch a massive screening run. After preliminary setup (~1 minute or possibly much longer if downloading ESM3 weights for the first time), you can track the screening progress at the bottom of the GUI, stop, and modify the run parameters if it will take too long. *Note: Singles screening or using the additive approximation takes <1 minute on modern GPUs. Doubles screening on a 300AA protein can take hours (`independent` masking) or days (`unmasked`).*
 
 ### 3. Visualization
 
@@ -136,34 +131,38 @@ Once inference completes (or if you load an existing output CSV), navigate to th
 
 **Note on Requirements:** *Single-mutation data is required for all visualization modes* to properly map additive stability scores onto sidechains.
 
+**Target Selection:**
+
+Confirm that you will apply the visualization to the correct chain entity. If you are visualizing a newly created result, this should be auto-populated to the correct value.
+
 #### Core Configuration
+The central paradigm is to visualize either singles, doubles, or interactions that are outside of the thresholds defined in the next section.
 * **Display Mode:** Choose the primary visualization strategy:
   * **Singles:** Visualizes independent single mutations.
-  * **WT Epistasis:** Visualizes epistatic interactions between wild-type residues when truncated to Alanine (or Glycine). Mapped directly onto the native WT geometry.
-  * **MT Epistasis:** Visualizes epistatic interactions between highest-scoring mutant pairs, utilizing dynamically generated structural layers to resolve overlapping geometry.
+  * **WT Epistasis:** Visualizes epistatic interactions between wild-type residues by asssessing truncation to Alanine (or Glycine). Mapped directly onto the native WT geometry; residue colors indicate effects of mutation to alanine.
+  * **MT Epistasis:** Visualizes epistatic interactions between mutant pairs, utilizing dynamically generated structural layers to resolve overlapping geometry.
 * **Select Pairs By:** Determines the metric used to filter and sort interactions (either the raw Epistasis ΔΔΔG score, or the total Double Mutant Stability score).
-* **Display Priority:** Determines which interactions to keep when the "Max Interactions" cap is hit. You can prioritize by High score (highest predicted stability change), Low score, or Magnitude (absolute value of stability change).
-* **Global Filters:** Quickly exclude specific mutations from the visualization (e.g., No WT Cys, No Mut Pro) to clean up the display.
+* **Display Priority:** Determines which interactions to keep when the "Max Interactions" cap is hit. You can prioritize by High score (highest predicted stability change), Low score, or Magnitude (absolute value).
+* **Global Filters:** Quickly exclude specific mutations from the visualization to clean up the display. Note that No MT Cys is especially useful to mitigate false positives caused by assay bias.
 * **Score Selection (Additive Base):** Select which raw additive score to use as the base metric (Dual-view, WT LoRA, or MT LoRA). *Note: Dual-view is required for epistasis. If you skipped the MT pass during inference, only WT LoRA predictions will be available.*
 
 #### Global Thresholds and Networks
-* **Pos/Neg Thresholds:** Only mutations or epistatic pairs with scores strictly greater than the Positive Threshold or less than the Negative Threshold are visualized.
+* **Pos/Neg Thresholds:** Only mutations or epistatic pairs with scores strictly greater than the Positive Threshold or less than the Negative Threshold are visualized. Setting the negative threshold to -10 will effectively filter out al destabilizing mutants.
 * **Non-Target Chain Transp %:** Adjusts the opacity of opposing chains in the complex to reduce visual clutter.
 * **Max Interactions per Position:** (Epistasis modes only). Caps the number of epistatic network edges that can originate from a single residue to prevent visual overload (the "hairball" effect).
 * **Visualize Contacts:** Shows surrounding wild-type contextual residues within a specified Angstrom radius of the visualized mutant sidechains. 
   * Contacting atoms are explicitly highlighted based on your styling preferences.
-  * *Note: Distances are calculated using sidechain heavy atoms. Backbone-only contacts are excluded.*
-* **Color Backbone by Highest Additive ΔΔG:** (Singles & WT Epistasis mode only). Colors the wild-type ribbon backbone on a Red-to-White-to-Green gradient based on the highest-scoring candidate at each position.
+* **Color Backbone by Highest Additive ΔΔG:** (Singles & WT Epistasis mode only). Colors the wild-type ribbon backbone on a Pink-to-White-to-Green gradient based on the highest-scoring candidate at each position.
 
 #### Rendering and Styling
 Customize the color, geometry style (stick, ball, sphere, wire), and transparency of the structural components.
-* **WT Style:** Applies to the "ghost" wild-type residues left behind for structural context.
-* **Mut Color / Style:** Applies to the mutated sidechains. **LEAVE BLANK FOR ADDITIVE SCORE** to automatically color the mutant carbons based on their individual stability score (Red-to-White-to-Green gradient).
+* **WT Style:** Applies to the "ghost" wild-type residues left behind for structural context, so you can assess "is this mutation really a better fit?".
+* **Mut Color / Style:** Applies to the mutated sidechains. **LEAVE BLANK FOR ADDITIVE SCORE** to automatically color the mutant carbons based on their individual stability score (Pink-to-White-to-Green gradient).
 * **Contact Style:** Applies explicitly to the surrounding context residues.
 
 #### Color Mapping Guide
 When using the default styling (leaving the Mut Color blank), the visualizer generates dynamic colorbars mapped to your data:
 * 🟩 **Green (Atoms/Backbone):** Favorable additive single-mutant stability (score > 0).
-* 🟥 **Red (Atoms/Backbone):** Unfavorable additive single-mutant stability (score < 0).
-* 🟧 **Orange (Pseudobonds):** Positive epistasis / synergistic interaction (score > 0).
-* 🟦 **Blue (Pseudobonds):** Negative epistasis / antagonistic interaction (score < 0).
+* 🟥 **Pink (Atoms/Backbone):** Unfavorable additive single-mutant stability (score < 0).
+* 🟦 **Blue (Pseudobonds):** Positive epistasis / synergistic interaction (score > 0).
+* 🟧 **Orange (Pseudobonds):** Negative epistasis / antagonistic interaction (score < 0).
