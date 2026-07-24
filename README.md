@@ -187,4 +187,4 @@ When using the default styling (leaving the Mut Color blank), the visualizer gen
 
 Examples are shown below after loading the CSV under the indicated settings for the structure `1UFM`. The expected runtime for this example is 1 minute for inference on an NVIDIA GPU or 5 minutes on a CPU in addition to up to two minutes to load visual elements in ChimeraX.
 
-![Alt text](_assets/demo_figure.png)
+![Alt text](_assets/tool_pub_alt.png)
