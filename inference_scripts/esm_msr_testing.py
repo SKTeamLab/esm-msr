@@ -16,7 +16,7 @@ warnings.filterwarnings('ignore')
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data" / "preprocessed"
-MODEL_DIR = REPO_ROOT / "logs"
+MODEL_DIR = REPO_ROOT / "LoRA_models"
 
 def timed_call(func, *args, **kwargs):
     start = time.perf_counter()
@@ -153,6 +153,7 @@ def main_(args):
             total_time = 0
 
             df_true = pd.read_csv(DATA_DIR / f"{name}_mapped.csv")
+            df_true['pdb_file'] = df_true['pdb_file'].str.replace('/home/sareeves/software/esm-msr/data/structures', args.local_path_to_structures, regex=False)
             if name in ['s669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 's571', 's783', 's2648', 's8754']:
                 df_true = df_true.reset_index()
                 df_true['position_pdb'] = df_true['position']
@@ -246,6 +247,7 @@ def main_(args):
 
             for code in tqdm(data_scaffold['code_wt'].unique()):
                 df_true = data_scaffold.loc[data_scaffold['code_wt']==code].copy()
+                df_true['pdb_file'] = df_true['pdb_file'].str.replace('/home/sareeves/software/esm-msr/data/structures', args.local_path_to_structures, regex=False)
                 assert len(df_true) > 0
                 df_true['mut_structure'] = df_true['mut_structure'].fillna('-')
 
@@ -327,6 +329,7 @@ def main_(args):
             batch_sz = mem_size * 32
 
             df_true = pd.read_csv(f'/home/{"sareeves" if not args.local_cluster else "sreeves"}/software/esm-msr/data/preprocessed/{prot}.csv')
+            df_true['pdb_file'] = df_true['pdb_file'].str.replace('/home/sareeves/software/esm-msr/data/structures', args.local_path_to_structures, regex=False)
             df_true['id'] = df_true['code'] + '_' + df_true['mut_info']
             df_true = df_true.set_index('id')
             
@@ -380,9 +383,11 @@ def main_(args):
     # =========================================================================
     # DOMAINOME DATASET
     # =========================================================================
+    
     if not args.skip_domainome:
         path = f'/home/{"sareeves" if not args.local_cluster else "sreeves"}/software/esm-msr/data/domainome1/domainome_mapped_2026.csv'
         df = pd.read_csv(path)
+        df['pdb_file'] = df['pdb_file'].str.replace('/home/sareeves/software/esm-msr/data/structures', args.local_path_to_structures, regex=False)
         df['code'] = df['domain_ID'].apply(lambda x: x.replace('/', '_'))
         df['ddG_ML'] = df['scaled_fitness']
         df = df.dropna(subset=['pdb_file', 'position'])
@@ -446,62 +451,6 @@ def main_(args):
 
         torch.cuda.empty_cache()
 
-    # =========================================================================
-    # FUNCTIONAL DATASETS
-    # =========================================================================
-    if not args.skip_functional:
-
-        total_time = 0
-        test_list_DMS = ['D7PM05_CLYGR', 'GFP_AEQVI', 'HIS7_YEAST', 'Q6WV12_9MAXI', 'Q8WTC7_9CNID', 'RASK_HUMAN']
-        mem_sizes = [8,8,8,8,8,8]
-
-        stats_wt = pd.DataFrame()
-        stats_mt = pd.DataFrame()
-        stats_cmb = pd.DataFrame()
-
-        for mem_size, prot in zip(mem_sizes, test_list_DMS):
-            print(f'Processing functional dataset {prot}')
-            batch_sz = mem_size * 1
-
-            df_true = pd.read_csv(f'/home/{"sareeves" if not args.local_cluster else "sreeves"}/PSLMs/data/lora/DMS/csv_formatted/{prot}.csv')
-            df_true['mut_type'] = df_true['MUTS'].apply(lambda x: x.replace(';', ':'))
-            df_true['id'] = prot + '_' + df_true['mut_type']
-            df_true = df_true.set_index('id')
-            df_true = utils.parse_multimutant_column(df_true, mut_column='mut_type')
-            df_true['ddG_ML'] = df_true['ddG_dir']
-            
-            unique_data = df_true[~df_true.index.duplicated(keep='first')]
-            input_data = inference.standardize_input_df(unique_data, quiet=True)
-
-            pred_df, t = timed_call(inference.infer_mutants, model=model, df=input_data, batch_size=batch_sz, quiet=False, mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None), skip_reverse=args.skip_reverse)
-            pred_df['id'] = prot + '_' + pred_df['mut_type_pdb']
-            pred_df = pred_df.set_index('id')
-
-            overlap_cols = list(set(df_true.columns).intersection(set(pred_df.columns)))
-            res = df_true.join(pred_df.drop(overlap_cols, axis=1))
-
-            assert len(df_true) == len(res)
-
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive_" if args.skip_additive else "_"}{"_skip_reverse" if args.skip_reverse else ""}{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
-            os.makedirs(os.path.dirname(out_path), exist_ok=True)
-            res.to_csv(out_path)
-
-            torch.cuda.empty_cache()
-
-            stats_wt = update_stats(stats_wt, prot, res, 'ddG_ML', 'wt_lora_pred', 'dddG_ML', 'wt_lora_dddg_pred', t)
-            if not args.skip_reverse:
-                stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', t)
-                stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', t)
-
-        stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/functional/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
-        os.makedirs(os.path.dirname(stats_base), exist_ok=True)
-
-        stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
-        
-        if not args.skip_reverse:
-            stats_mt.to_csv(f'{stats_base}_MT_LoRA.csv', na_rep='', float_format='%.6f')
-            stats_cmb.to_csv(f'{stats_base}_Combined.csv', na_rep='', float_format='%.6f')
-
 
 if __name__ == "__main__":
         parser = argparse.ArgumentParser()
@@ -529,7 +478,8 @@ if __name__ == "__main__":
         parser.add_argument('--skip_reverse', action='store_true')
         parser.add_argument('--skip_reverse_domainome', action='store_true')
         parser.add_argument('--use_dora', action='store_true')
-
+        
+        parser.add_argument('--local_path_to_structures', type=str, default='/home/sareeves/software/esm-msr/data/structures')
         parser.add_argument('--hf_token', type=str, default=None)
         parser.add_argument('--remove_spurs_homologs', action='store_true', help='Remove homologous sequences to SPURS training data from the Tsuboyama splits to test generalization to non-homologous sequences')
 
@@ -560,8 +510,10 @@ if __name__ == "__main__":
 
         if token:
             login(token)
+            print('Using token')
         else:
             os.environ['INFRA_PROVIDER'] = "1"
             os.chdir(Path(__file__).resolve().parent.parent)
+            print(f'Using local model which should be located at {os.path.join(os.getcwd(), "data/weights/esm3_sm_open_v1.pth")}')
 
         main_(args)
