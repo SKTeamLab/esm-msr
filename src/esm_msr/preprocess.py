@@ -700,7 +700,10 @@ def get_pdb_to_seq_mapping(pdb_file, chain_id, original_seq):
 
 
 def generate_screening_df(args) -> pd.DataFrame:
-    """Generates a mutation DataFrame programmatically based on screening parameters."""
+    """Generates a mutation DataFrame programmatically based on screening parameters.
+    
+    Assumes all residue inputs are in PDB numbering and renumbers them to internal 1-based sequence indices.
+    """
     if not os.path.isfile(args.pdb_file):
         raise AssertionError(f"PDB file not found at: {args.pdb_file}")
 
@@ -744,7 +747,7 @@ def generate_screening_df(args) -> pd.DataFrame:
     AAs = list('ACDEFGHIKLMNPQRSTVWY')
     modes = ['singles', 'doubles'] if args.mode == 'singles+doubles' else [args.mode]
 
-    if 'singles' in modes:
+    if 'singles' in modes and not args.mutations:
         for pos in target_positions:
             wt = original_seq[pos-1]
             for mut in AAs:
@@ -752,7 +755,7 @@ def generate_screening_df(args) -> pd.DataFrame:
                     mut_list.append(f"{wt}{pos}{mut}")
                     mut_list_pdb.append(f"{wt}{seq_to_pdb[pos]}{mut}") 
 
-    if 'doubles' in modes:
+    if 'doubles' in modes and not args.mutations:
         pairs = list(itertools.combinations(target_positions, 2))
         
         if args.distance_threshold > 0:
@@ -789,24 +792,29 @@ def generate_screening_df(args) -> pd.DataFrame:
                     mut_list_pdb.append(f"{wt1}{seq_to_pdb[pos1]}{mut1}:{wt2}{seq_to_pdb[pos2]}{mut2}")
 
     if args.mutations:
-        mut_list = [m.strip() for m in args.mutations.split(',')]
-        mut_list_pdb = []
-        for m_str in mut_list:
+        raw_mutations = [m.strip() for m in args.mutations.split(',')]
+        for m_str in raw_mutations:
+            seq_parts = []
             pdb_parts = []
             for single_m in m_str.split(':'):
                 if len(single_m) < 3:
                     raise AssertionError(f"Invalid mutation format: {single_m}")
                 wt = single_m[0]
                 mt = single_m[-1]
-                try:
-                    pos = int(single_m[1:-1])
-                except ValueError:
-                    raise AssertionError(f"Could not parse integer position from mutation string: {single_m}. Must be a sequence index.")
+                pdb_pos_str = single_m[1:-1]
                 
-                if pos not in seq_to_pdb:
-                    raise AssertionError(f"Position {pos} from sequence mutation not found in PDB mapping.")
+                if pdb_pos_str not in pdb_to_seq:
+                    raise AssertionError(f"PDB position {pdb_pos_str} from target mutation not found in PDB mapping.")
                 
-                pdb_parts.append(f"{wt}{seq_to_pdb[pos]}{mt}")
+                seq_pos = pdb_to_seq[pdb_pos_str]
+                actual_wt = original_seq[seq_pos - 1]
+                if wt != actual_wt:
+                    raise AssertionError(f"Mismatched wild-type residue for PDB position {pdb_pos_str}. Input says {wt}, but structure has {actual_wt}.")
+                
+                seq_parts.append(f"{wt}{seq_pos}{mt}")
+                pdb_parts.append(f"{wt}{pdb_pos_str}{mt}")
+                
+            mut_list.append(":".join(seq_parts))
             mut_list_pdb.append(":".join(pdb_parts))
 
     if not mut_list:

@@ -1458,7 +1458,7 @@ def create_metric_comparison_chart_epistatic(
             if p['right']['n_underlying'] not in (None, consensus_right_n) or \
                p['right']['groups_underlying'] not in (None, consensus_right_g):
                 flag = True
-        if flag: label += "*"
+        #if flag: label += "*"
         xtick_labels.append(label)
 
     # --- Step 3: Setup Plot ---
@@ -1586,11 +1586,11 @@ def create_metric_comparison_chart_epistatic(
             p_val = np.nan
             with np.errstate(all='ignore'):
                 if l['has_replicates'] and r['has_replicates']:
-                    _, p_val = stats.ttest_ind(l['values'], r['values'], equal_var=False)
+                    _, p_val = stats.ttest_ind(l['values'], r['values'], equal_var=False, alternative="greater")
                 elif l['has_replicates'] and not r['has_replicates']:
-                    _, p_val = stats.ttest_1samp(l['values'], r['mean'])
+                    _, p_val = stats.ttest_1samp(l['values'], r['mean'], alternative="greater")
                 elif not l['has_replicates'] and r['has_replicates']:
-                    _, p_val = stats.ttest_1samp(r['values'], l['mean'])
+                    _, p_val = stats.ttest_1samp(r['values'], l['mean'], alternative="greater")
 
             comparisons.append({
                 'idx': i,
@@ -1993,8 +1993,8 @@ def create_pos_neg_overall_chart(
                 
         return f"{base_label} ({', '.join(parts)})" if parts else base_label
 
-    pos_base = f"{'Positive epistasis' if epistasis else 'Stabilizing'}; ΔΔG > 0"
-    neg_base = f"{'Negative epistasis' if epistasis else 'Destabilizing'}; ΔΔG <= 0"
+    pos_base = f"{'Positive epistasis' if epistasis else 'Stabilizing'}; {'δΔΔG > 0' if epistasis else 'ΔΔG > 0'}"
+    neg_base = f"{'Negative epistasis' if epistasis else 'Destabilizing'}; {'δΔΔG <= 0' if epistasis else 'ΔΔG <= 0'}"
     
     pos_lbl = _format_legend(pos_base, stats_cons['pos'])
     neg_lbl = _format_legend(neg_base, stats_cons['neg'])

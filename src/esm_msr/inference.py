@@ -375,7 +375,6 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
 
 if __name__ == "__main__":
     from models import MSRModel
-    from huggingface_hub import login, get_token
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -427,16 +426,9 @@ if __name__ == "__main__":
 
     # Model source
     parser.add_argument('--base_model_loc', type=str, default=None)
-    #parser.add_argument('--hf_token', type=str, default=None)
 
     args = parser.parse_args()
 
-    #token = args.hf_token or get_token()
-
-    #if token:
-    #    if not isinstance(token, str):
-    #        raise TypeError(f"Expected token to be a string, but got {type(token)}. Check your argparse definition.")
-    #    login(token)
     if args.base_model_loc:
         os.environ['INFRA_PROVIDER'] = "1"
         base_loc = Path(args.base_model_loc).resolve()

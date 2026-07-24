@@ -357,7 +357,7 @@ class ESM_MSR_Tool(ToolInstance):
         row1.addSpacing(10)
         row1.addWidget(QLabel("Sigma:"))
         self.sigma_spinbox = QDoubleSpinBox()
-        self.sigma_spinbox.setRange(0.01, 100.0)
+        self.sigma_spinbox.setRange(-0.1, 100.0)
         self.sigma_spinbox.setSingleStep(0.1)
         self.sigma_spinbox.setValue(1.0)
         row1.addWidget(self.sigma_spinbox)
