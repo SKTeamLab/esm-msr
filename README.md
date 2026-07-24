@@ -172,7 +172,7 @@ The central paradigm is to visualize either singles, doubles, or interactions th
 
 #### Rendering and Styling
 Customize the color, geometry style (stick, ball, sphere, wire), and transparency of the structural components.
-* **WT Style:** Applies to the "ghost" wild-type residues left behind for structural context, so you can assess "is this mutation really a better fit?".
+* **WT Style:** Applies to the "ghost" wild-type residues left behind for structural context, so you can assess "is the mutation really a better/worse fit?".
 * **Mut Color / Style:** Applies to the mutated sidechains. **LEAVE BLANK FOR ADDITIVE SCORE** to automatically color the mutant carbons based on their individual stability score (Pink-to-White-to-Green gradient).
 * **Contact Style:** Applies explicitly to the surrounding context residues.
 
