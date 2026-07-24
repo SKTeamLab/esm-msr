@@ -184,6 +184,6 @@ When using the default styling (leaving the Mut Color blank), the visualizer gen
 
 ### Expected Output
 
-An example is shown below after loading the CSV under the indicated settings for the structure `1UFM`, corresponding to a default single mutant screen. The expected runtime is 1 minute for inference on an NVIDIA GPU at a batch size of 16 or 5 minutes on a CPU in addition to up to two minutes to load visual elements in ChimeraX. 
+An example is shown below after loading the CSV under the indicated settings for the structure `1UFM`, corresponding to a default single mutant screen. The expected runtime is 1 minute for inference on an NVIDIA GPU at a batch size of 16 or 5 minutes on a CPU in addition to up to two minutes to load visual elements in ChimeraX. Note that because the example uses a smaller model and crystal rather than predicted structure, the selected mutations are slightly different than those from the paper.
 
 ![Alt text](_assets/tool_github.png)
