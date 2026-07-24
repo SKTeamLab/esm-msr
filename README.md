@@ -10,9 +10,17 @@ Python 3.11-3.13 [Download Python](https://www.python.org/downloads/windows/)
 
 CUDA 12.8 if using GPU-accelerated inference
 
-NVIDIA GPU with 24+ GB VRAM for training, 8GB is likely sufficient for low batch size inference
+NVIDIA GPU with 24+ GB VRAM for training, 8GB is likely sufficient for low batch size inference. Inference can also be done on a CPU (very slowly).
 
 ChimeraX if intending to use the graphical user inference (GUI) and visualization tool: [Download ChimeraX](https://www.cgl.ucsf.edu/chimerax/download.html).
+
+Tested extensively on Python 3.12, CUDA 12.8, ChimeraX 1.10.
+
+Installation time: 10 minutes to clone repository and setup virtual environment. An additional 10 minutes is required to install ChimeraX and the ESM-MSR plugin. Downloading additional LoRAs from HuggingFace can be done concurrently.
+
+## Demo Information
+
+All steps below are required to complete the demo. The end of the README, starting from "Using the ChimeraX GUI", is the demo. The expected output is visually indicated at the end of the file (equivalent to Figure 6 in the manuscript)
 
 ## Recommended Installation
 
@@ -29,7 +37,7 @@ ChimeraX if intending to use the graphical user inference (GUI) and visualizatio
 5. Enter the following commands (you can cut and paste):
 
 ```
-python -m virtualenv msr_venv python=3.12
+python -m venv msr_venv python=3.12
 .\Scripts\activate.bat
 pip install torch
 pip install -e .
@@ -166,3 +174,9 @@ When using the default styling (leaving the Mut Color blank), the visualizer gen
 * 🟥 **Pink (Atoms/Backbone):** Unfavorable additive single-mutant stability (score < 0).
 * 🟦 **Blue (Pseudobonds):** Positive epistasis / synergistic interaction (score > 0).
 * 🟧 **Orange (Pseudobonds):** Negative epistasis / antagonistic interaction (score < 0).
+
+### Expected Output
+
+Examples are shown below after loading the CSV under the indicated settings for the structure `1UFM`. The expected runtime for this example is 1 minute for inference on an NVIDIA GPU or 5 minutes on a CPU in addition to up to two minutes to load visual elements in ChimeraX.
+
+![Alt text](_assets/demo_figure.png)
