@@ -87,7 +87,7 @@ The visualizer generates predictions using this script. You can read the GUI sec
 
 ## Reproducing Benchmarks
 
-If you want to reproduce the benchmarks without running preprocessing, you can download the relevant data from Zenodo (10.5281/zenodo.21539277; `preprocessed_data.tar.gz`), place the contents in the data folder, and then run this command:
+If you want to reproduce the benchmarks without running preprocessing, you can download the relevant data from Zenodo (https://doi.org/10.5281/zenodo.21539277; `preprocessed_data.tar.gz`), place the contents in the data folder, and then run this command:
 
 `python inference_scripts/esm_msr_testing.py --checkpoint esm-msr-small/epoch=03-val_rho_combined_avg=0.816.ckpt --split hyperopt_splits --local_path_to_structures path_to_structures_from_zenodo`
 
