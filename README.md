@@ -91,7 +91,7 @@ If you want to reproduce the benchmarks without running preprocessing, you can d
 
 `python inference_scripts/esm_msr_testing.py --checkpoint esm-msr-small/epoch=03-val_rho_combined_avg=0.816.ckpt --split hyperopt_splits --local_path_to_structures path_to_structures_from_zenodo`
 
-Note that the model used will have very similar performance to the one used in the paper, but the exact models must be downloaded from HuggingFace and the `--checkpoint` argument must be updated accordingly. Benchmarking will take at least an hour even on a powerful GPU.
+Note that the model selected here is included in the repo due to its small size and will have very similar performance to the one used in the paper, but the exact model(s) must be downloaded from HuggingFace and the `--checkpoint` argument must be updated accordingly. Benchmarking will take at least an hour even on a powerful GPU.
 
 ## Adding the Visualizer to ChimeraX
 
