@@ -85,6 +85,14 @@ Remove the `--skip_reverse` flag for a much slower, slightly higher accuracy scr
 
 The visualizer generates predictions using this script. You can read the GUI section to understand how `inference.py` can be used from the command line.
 
+## Reproducing Benchmarks
+
+If you want to reproduce the benchmarks without running preprocessing, you can download the relevant data from Zenodo (`preprocessed_data.tar.gz`), place the contents in the data folder, and then run this command:
+
+`python inference_scripts/esm_msr_testing.py --checkpoint esm-msr-small/epoch=03-val_rho_combined_avg=0.816.ckpt --split hyperopt_splits --local_path_to_structures path_to_structures_from_zenodo`
+
+Note that the model used will have very similar performance to the one used in the paper, but the exact models must be downloaded from HuggingFace and the --checkpoint argument must be updated accordingly. Benchmarking will take at least an hour even on a powerful GPU.
+
 ## Adding the Visualizer to ChimeraX
 
 *Note: if using Windows Subsystem for Linux (WSL), it is recommended to install ChimeraX on Windows, not WSL. Everything should work even if you installed ESM-MSR into WSL.*
