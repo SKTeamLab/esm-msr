@@ -20,7 +20,7 @@ Installation time: 10 minutes to clone repository and setup virtual environment.
 
 ## Demo Information
 
-All steps below are required to complete the demo, except "Basic Usage - Command Line Interface (Skip if using ChimeraX GUI)". The end of the README, starting from "Using the ChimeraX GUI", is the demo. The expected output is visually indicated at the end of the file (equivalent to Figure 6 in the manuscript)
+All steps below are required to complete the demo, except "Basic Usage - Command Line Interface (Skip if using ChimeraX GUI)". The end of the README, starting from "Using the ChimeraX GUI", is the demo; make sure to load the 1UFM structure if trying to check demo files (`open 1ufm`). The expected output is visually indicated at the end of the file (equivalent to Figure 6 in the manuscript). You can also compare your output CSV to the one saved at `data/example/1ufm_example.csv`.
 
 ## Recommended Installation
 
@@ -99,11 +99,11 @@ Note that the model selected here is included in the repo due to its small size 
 
 1. Download, install, and open [ChimeraX](https://www.cgl.ucsf.edu/chimerax/download.html) (free for non-commercial use):
 1. Go to Tools -> Command Line Interface (check box if not checked)
-2. In the command line interface at the bottom, type (replacing the `/path/to/repo`): `devel install /path/to/repo/ChimeraX-ResidueScoreVisualizer`
+2. In the command line interface at the bottom, type (replacing the `/path/to/repo`): `devel install /path/to/repo/ChimeraX-ESM_MSR`
 
 ## Using the ChimeraX GUI
 
-Load a valid protein structure (PDB, mmCIF) into ChimeraX. You can click and drag structure files into the window, or directly open a PDB structure (e.g., `open 1enh`) via the ChimeraX command line. Open the GUI, located in the Tools tab under Visualization (ESM_MSR_Visualizer). The GUI workflow is split into three main tabs: **Execution / IO**, **Screening Config**, and **Visualization**. The tool automatically remembers your most recent paths and configuration settings between sessions. You must fill out the first two tabs before hitting **"Run Prediction Script"**, and you must have a valid output (esp. by running the script) before you can complete the third tab and visualize the predictions with the **"Load CSV + Visualize Scores"** buttom.
+Load a valid protein structure (PDB, mmCIF) into ChimeraX. You can click and drag structure files into the window, or directly open a PDB structure (e.g. for the demo, use `open 1ufm`) via the ChimeraX command line. Open the GUI, located in the Tools tab under Visualization (ESM_MSR_Visualizer). The GUI workflow is split into three main tabs: **Execution / IO**, **Screening Config**, and **Visualization**. The tool automatically remembers your most recent paths and configuration settings between sessions. You must fill out the first two boxes before hitting **"Run Prediction Script"**, and you must have a valid output (esp. by running the script) before you can complete the third tab and visualize the predictions with the **"Load CSV + Visualize Scores"** button. To complete the demo, you can leave all settings at their default values in the Execution I/O tab.
 
 ### 1. Execution & IO (Environment & Models)
 
@@ -112,7 +112,6 @@ Load a valid protein structure (PDB, mmCIF) into ChimeraX. You can click and dra
 * **Python Env:** The environment used to run inference. *WARNING: if you used a conda environment, replace the path with just the name e.g. `msr_venv`.*
 * **Output CSV:** Where the resulting predictions will be saved.
 * **ESM3 Weights Location:** If you want to use locally stored weights, enter the location here.
-
 
 **Compute Environment & Model Configuration Files:**
 * **Compute Device & Batch Size:** Select your hardware (`cuda`, `mps`, `cpu`) and batch size. Lower the batch size if you encounter CUDA Out-Of-Memory (OOM) errors. Use `cpu` unless you configured CUDA during setup and have an Nvidia GPU.
@@ -185,6 +184,6 @@ When using the default styling (leaving the Mut Color blank), the visualizer gen
 
 ### Expected Output
 
-Examples are shown below after loading the CSV under the indicated settings for the structure `1UFM`. The expected runtime for this example is 1 minute for inference on an NVIDIA GPU or 5 minutes on a CPU in addition to up to two minutes to load visual elements in ChimeraX.
+Examples are shown below after loading the CSV under the indicated settings for the structure `1UFM`, corresponding to single (default) and double mutant screens for the top and bottom graphics, respectively. The expected runtime for the top example, which uses only single mutations is 1 minute for inference on an NVIDIA GPU or 5 minutes on a CPU in addition to up to two minutes to load visual elements in ChimeraX. If running doubles, as required for the lower example, the expected GPU runtime is 2-3 hours when computing every pairwise interaction, but it is recommended to set a maximum heavy atom distance of <10 Angstrom to greatly speed up inference by omitting pairs unlikely to interact. Setting the default threshold of 6 Angstroms will give a 20-30 minute compute time on most GPUs at the default batch size of 16.
 
 ![Alt text](_assets/tool_pub_alt.png)
