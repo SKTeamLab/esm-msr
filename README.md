@@ -20,7 +20,7 @@ Installation time: 10 minutes to clone repository and setup virtual environment.
 
 ## Demo Information
 
-All steps below are required to complete the demo. The end of the README, starting from "Using the ChimeraX GUI", is the demo. The expected output is visually indicated at the end of the file (equivalent to Figure 6 in the manuscript)
+All steps below are required to complete the demo, except "Basic Usage - Command Line Interface (Skip if using ChimeraX GUI)". The end of the README, starting from "Using the ChimeraX GUI", is the demo. The expected output is visually indicated at the end of the file (equivalent to Figure 6 in the manuscript)
 
 ## Recommended Installation
 
