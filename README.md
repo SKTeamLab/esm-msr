@@ -184,6 +184,6 @@ When using the default styling (leaving the Mut Color blank), the visualizer gen
 
 ### Expected Output
 
-Examples are shown below after loading the CSV under the indicated settings for the structure `1UFM`, corresponding to single (default) and double mutant screens for the top and bottom graphics, respectively. The expected runtime for the top example, which uses only single mutations is 1 minute for inference on an NVIDIA GPU or 5 minutes on a CPU in addition to up to two minutes to load visual elements in ChimeraX. If running doubles, as required for the lower example, the expected GPU runtime is 2-3 hours when computing every pairwise interaction, but it is recommended to set a maximum heavy atom distance of <10 Angstrom to greatly speed up inference by omitting pairs unlikely to interact. Setting the default threshold of 6 Angstroms will give a 20-30 minute compute time on most GPUs at the default batch size of 16.
+An example is shown below after loading the CSV under the indicated settings for the structure `1UFM`, corresponding to a default single mutant screen. The expected runtime is 1 minute for inference on an NVIDIA GPU at a batch size of 16 or 5 minutes on a CPU in addition to up to two minutes to load visual elements in ChimeraX. 
 
-![Alt text](_assets/tool_pub_alt.png)
+![Alt text](_assets/tool_github.png)
