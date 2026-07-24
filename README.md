@@ -123,7 +123,7 @@ Load a valid protein structure (PDB, mmCIF) into ChimeraX. You can click and dra
 This section defines exactly which mutations will be evaluated on your structure.
 
 **Target Selection:**
-Select which open ChimeraX model and specific chain you want to predict on.
+Select which open ChimeraX model and specific chain you want to predict on. For NMR ensembles, changing the target model allows you to chose a different structural model from the ensemble.
 
 **Mutation Scope (Mutually Exclusive):**
 Select **one** of three methods to define the mutation space. Selecting one method will automatically disable the inputs for the others.
