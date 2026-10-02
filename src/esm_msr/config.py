@@ -104,7 +104,7 @@ def parse_arguments() -> argparse.Namespace:
 
     mask_group = parser.add_argument_group("Masking Strategy")
     mask_group.add_argument('--premask_coords', action=argparse.BooleanOptionalAction, default=False)
-    mask_group.add_argument('--mask_strategy', type=str, choices=["marginal", "chain"], default=None)
+    mask_group.add_argument('--mask_strategy', type=str, choices=["marginal", "independent"], default=None)
 
     train_group = parser.add_argument_group("Training Parameters")
     train_group.add_argument('--num_epochs', type=int, default=20)

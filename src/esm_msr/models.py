@@ -1,4 +1,5 @@
 import logging
+import time
 import copy
 from collections import defaultdict
 from typing import Dict, Any, Optional, Union
@@ -145,6 +146,19 @@ class MSRModel(ESM3PredictorBase):
             self.model.base_model._structure_encoder.to(torch.float32)
         elif hasattr(self.model, '_structure_encoder'):
             self.model._structure_encoder.to(torch.float32)
+
+        # 3b. Re-share the structure encoder across adapters (dual mode only).
+        # The MT copy is dead weight — it is never used for scoring — and
+        # wastes VRAM. The structure encoder is a child module (not a
+        # parameter), so it is NOT covered by the parameter re-share in
+        # add_loras_to_esm3. Pointing the MT reference at the WT module
+        # makes it a single shared copy. Verified numerically lossless
+        # (max |Δ pred| == 0.0) in tmp/autocast_fix_test.py.
+        if self.adapter_mode == 'dual':
+            wt_se = getattr(getattr(self.model, 'base_model', None), '_structure_encoder', None)
+            mt_base = getattr(self.peft_mt, 'base_model', None)
+            if wt_se is not None and mt_base is not None:
+                mt_base._structure_encoder = wt_se
 
         # 4. Optional freezing for strict inference
         if inference_mode:
@@ -535,8 +549,10 @@ class MSRModel(ESM3PredictorBase):
         b_idx = torch.arange(B, device=seq.device).unsqueeze(1).expand(-1, max_muts)
 
         if mask_strategy is not None:
+            if mask_strategy == 'chain':
+                mask_strategy = 'independent'  # legacy alias for old hparams.yaml
             if mask_strategy not in ['independent', 'marginal']:
-                raise AssertionError(f"Invalid mask_strategy: '{mask_strategy}'. Expected None, 'independent', or 'marginal'.")
+                raise AssertionError(f"Invalid mask_strategy: '{mask_strategy}'. Expected None, 'independent', 'chain', or 'marginal'.")
             if cached_wt_esm3 is not None:
                 raise NotImplementedError(f"cached_wt_esm3 cannot be used with mask_strategy='{mask_strategy}'. Each masking pass fundamentally alters the model sequence state.")
             
@@ -589,9 +605,15 @@ class MSRModel(ESM3PredictorBase):
 
         else:
             if pass_type == 'wt' and cached_wt_esm3 is not None:
-                if seq.shape != cached_wt_esm3['seq'].shape or not torch.equal(seq[0], cached_wt_esm3['seq'][0]):
+                ref_seq = cached_wt_esm3['seq']
+                # Fast path: when the cached 'seq' is the same storage (e.g. an
+                # expand view of the chunk sequence), skip the torch.equal
+                # device sync; otherwise fall back to the value check.
+                if seq.shape != ref_seq.shape or (
+                        seq.data_ptr() != ref_seq.data_ptr()
+                        and not torch.equal(seq[0], ref_seq[0])):
                     logging.info(seq[0])
-                    logging.info(cached_wt_esm3['seq'][0])
+                    logging.info(ref_seq[0])
                     raise AssertionError("Sequence mismatch in cache.")
                 logits_B = cached_wt_esm3['logits'].expand(B, -1, -1)
             else:
@@ -623,7 +645,7 @@ class MSRModel(ESM3PredictorBase):
         return output_dict
 
     @torch.no_grad()
-    def score_screening_batch(self, wt_sequence_tokens: torch.Tensor, mut_pos: torch.Tensor, wt_id: torch.Tensor, mt_id: torch.Tensor, mut_mask: torch.Tensor, coords: Optional[torch.Tensor] = None, structure_tokens: Optional[torch.Tensor] = None, plddt: Optional[torch.Tensor] = None, mask_strategy: Optional[str] = None, batch_size: int = 32, skip_reverse: bool = False, cached_wt_esm3: Optional[Dict] = None, quiet: bool = False) -> Dict[str, torch.Tensor]:
+    def score_screening_batch(self, wt_sequence_tokens: torch.Tensor, mut_pos: torch.Tensor, wt_id: torch.Tensor, mt_id: torch.Tensor, mut_mask: torch.Tensor, coords: Optional[torch.Tensor] = None, structure_tokens: Optional[torch.Tensor] = None, plddt: Optional[torch.Tensor] = None, mask_strategy: Optional[str] = None, batch_size: int = 32, skip_reverse: bool = False, cached_wt_esm3: Optional[Dict] = None, quiet: bool = False, auto_batch: Optional["AutoBatchSizer"] = None) -> Dict[str, torch.Tensor]:
         """
         A unified, sparse-input scoring engine. 
         Routes dynamically between dense chunking (for unmasked) and state deduplication (for masked)
@@ -636,6 +658,7 @@ class MSRModel(ESM3PredictorBase):
 
         B, max_muts = mut_pos.shape
         device = wt_sequence_tokens.device
+        _hb = (auto_batch.log if (auto_batch is not None and getattr(auto_batch, 'log', None)) else (lambda m: print(m, flush=True)))
         
         wt_lora_pred = torch.zeros(B, dtype=torch.float32, device=device)
         mt_lora_pred = torch.zeros(B, dtype=torch.float32, device=device)
@@ -643,18 +666,25 @@ class MSRModel(ESM3PredictorBase):
 
         if mask_strategy is None:
             # ROUTE 1: Dense Chunking for Unmasked (Maximum GPU Saturation, No Hashing Overhead)
-            for start_idx in tqdm(range(0, B, batch_size), desc='Computing dense unmasked mutants', disable=quiet):
-                end_idx = min(start_idx + batch_size, B)
+            def _dense_chunk(start_idx, end_idx):
                 curr_B = end_idx - start_idx
 
-                chunk_wt_seq = wt_sequence_tokens.expand(curr_B, -1).clone()
-                chunk_mt_seq = chunk_wt_seq.clone()
+                if skip_reverse and cached_wt_esm3 is not None:
+                    # WT-only cached path: the WT pass is served entirely from
+                    # the cached logits, so neither dense sequence tensor is
+                    # ever read. Skip the O(B) clones and the per-row
+                    # torch.where/setitem reconstruction of chunk_mt_seq.
+                    chunk_wt_seq = wt_sequence_tokens.expand(curr_B, -1)
+                    chunk_mt_seq = chunk_wt_seq
+                else:
+                    chunk_wt_seq = wt_sequence_tokens.expand(curr_B, -1).clone()
+                    chunk_mt_seq = chunk_wt_seq.clone()
 
-                # Reconstruct dense mutant sequences just-in-time
-                for i in range(curr_B):
-                    b = start_idx + i
-                    valid_idx = torch.where(mut_mask[b])[0]
-                    chunk_mt_seq[i, mut_pos[b, valid_idx]] = mt_id[b, valid_idx]
+                    # Reconstruct dense mutant sequences just-in-time
+                    for i in range(curr_B):
+                        b = start_idx + i
+                        valid_idx = torch.where(mut_mask[b])[0]
+                        chunk_mt_seq[i, mut_pos[b, valid_idx]] = mt_id[b, valid_idx]
 
                 chunk_batch = {
                     'wt_sequence_tokens': chunk_wt_seq,
@@ -682,10 +712,18 @@ class MSRModel(ESM3PredictorBase):
                 mt_lora_pred[start_idx:end_idx] = out['mt_lora_pred']
                 combined_pred[start_idx:end_idx] = out['combined_pred']
 
+            if auto_batch is None:
+                for start_idx in tqdm(range(0, B, batch_size), desc='Computing dense unmasked mutants', disable=quiet):
+                    _dense_chunk(start_idx, min(start_idx + batch_size, B))
+            else:
+                auto_batch.run(B, _dense_chunk, label=f'dense-B{B}-L{wt_sequence_tokens.shape[1]}')
+
         else:
             # ROUTE 2: State Deduplication for Masked (Resolves combinatorial explosion)
+            if mask_strategy == 'chain':
+                mask_strategy = 'independent'  # legacy alias for old hparams.yaml
             if mask_strategy not in ['independent', 'marginal']:
-                raise AssertionError(f"Invalid mask_strategy: '{mask_strategy}'. Expected 'independent', 'marginal', or None.")
+                raise AssertionError(f"Invalid mask_strategy: '{mask_strategy}'. Expected 'independent', 'chain', 'marginal', or None.")
             if cached_wt_esm3 is not None:
                 raise NotImplementedError(f"cached_wt_esm3 cannot be used with mask_strategy='{mask_strategy}'.")
             
@@ -696,7 +734,11 @@ class MSRModel(ESM3PredictorBase):
 
             base_wt = wt_sequence_tokens.squeeze(0)
 
+            _tA = time.time()
+            _hb(f"    [PHASE-A] start B={B} L={wt_sequence_tokens.shape[1]}")
             for b in tqdm(range(B), desc='Constructing efficient masked batches to evaluate', disable=quiet):
+                if b and b % 100_000 == 0:
+                    _hb(f"    [PHASE-A] {b}/{B} ({time.time()-_tA:.0f}s)")
                 valid_indices = torch.where(mut_mask[b])[0].tolist()
                 if not valid_indices: continue
                 
@@ -738,11 +780,16 @@ class MSRModel(ESM3PredictorBase):
                         mt_state_reqs[mt_tup].add(pos)
                         state_map[b][i] = (wt_tup, mt_tup)
 
-            def compute_cache(states_reqs, active_model):
+            _hb(f"    [PHASE-A] done in {time.time()-_tA:.0f}s: {len(wt_state_reqs)} unique wt states, {len(mt_state_reqs)} unique mt states")
+
+            def compute_cache(states_reqs, active_model, label):
                 cache = defaultdict(dict)
                 states_list = list(states_reqs.keys())
-                for start_idx in tqdm(range(0, len(states_list), batch_size), desc='Computing cache', disable=quiet):
-                    batch_tuples = states_list[start_idx:start_idx+batch_size]
+                done, t0, next_hb = 0, time.time(), 100_000
+
+                def _state_chunk(start_idx, end_idx):
+                    nonlocal done, next_hb
+                    batch_tuples = states_list[start_idx:end_idx]
                     batch_tensor = torch.tensor(batch_tuples, dtype=torch.long, device=device)
                     
                     curr_b = batch_tensor.shape[0]
@@ -756,24 +803,39 @@ class MSRModel(ESM3PredictorBase):
                     for j, state_tuple in enumerate(batch_tuples):
                         for p in states_reqs[state_tuple]:
                             cache[state_tuple][p] = logits[j, p, :].clone()
+                    done += len(batch_tuples)
+                    if done >= next_hb:
+                        _hb(f"    [CACHE {label}] {done}/{len(states_list)} states ({time.time()-t0:.0f}s)")
+                        next_hb += 100_000
+
+                if auto_batch is None:
+                    for start_idx in tqdm(range(0, len(states_list), batch_size), desc='Computing cache', disable=quiet):
+                        _state_chunk(start_idx, min(start_idx + batch_size, len(states_list)))
+                else:
+                    auto_batch.run(len(states_list), _state_chunk, label=label)
                 return cache
 
             is_dual = getattr(self, 'adapter_mode', 'dual') == 'dual'
-            wt_cache = compute_cache(wt_state_reqs, self.peft_wt if is_dual else self.peft_fused)
-            
+            _L = wt_sequence_tokens.shape[1]
+            wt_cache = compute_cache(wt_state_reqs, self.peft_wt if is_dual else self.peft_fused, label=f'wt-L{_L}')
+
             if not skip_reverse:
                 if is_dual:
-                    mt_cache = compute_cache(mt_state_reqs, self.peft_mt)
+                    mt_cache = compute_cache(mt_state_reqs, self.peft_mt, label=f'mt-L{_L}')
                 else:
                     all_reqs = defaultdict(set)
                     for tup, poses in wt_state_reqs.items(): all_reqs[tup].update(poses)
                     for tup, poses in mt_state_reqs.items(): all_reqs[tup].update(poses)
-                    mt_cache = wt_cache = compute_cache(all_reqs, self.peft_fused)
+                    mt_cache = wt_cache = compute_cache(all_reqs, self.peft_fused, label=f'fused-L{_L}')
 
             unsummed_llr_wt = torch.zeros((B, max_muts), dtype=torch.float32, device=device)
             unsummed_llr_mt = torch.zeros((B, max_muts), dtype=torch.float32, device=device)
 
+            _tC = time.time()
+            _hb(f"    [COLLATE] start B={B}")
             for b in tqdm(range(B), desc='Collating results', disable=quiet):
+                if b and b % 100_000 == 0:
+                    _hb(f"    [COLLATE] {b}/{B} ({time.time()-_tC:.0f}s)")
                 valid_indices = torch.where(mut_mask[b])[0].tolist()
                 for i in valid_indices:
                     wt_tup, mt_tup = state_map[b][i]
@@ -790,6 +852,8 @@ class MSRModel(ESM3PredictorBase):
                         unsummed_llr_mt[b, i] = mt_pass_mt_logit - mt_pass_wt_logit
                     else:
                         unsummed_llr_mt[b, i] = unsummed_llr_wt[b, i]
+
+            _hb(f"    [COLLATE] done in {time.time()-_tC:.0f}s")
 
             wt_llr_sum = unsummed_llr_wt.sum(dim=1)
             mt_llr_sum = unsummed_llr_mt.sum(dim=1)

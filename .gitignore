@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Model weights: the ESM-MSR LoRA models are hosted on HuggingFace
+# (https://huggingface.co/sareeves96/esm-msr); download the ones you
+# need into LoRA_models/ (only the small demo model is committed).
+LoRA_models/esm-msr/
+LoRA_models/esm-msr-chain/
+LoRA_models/esm-msr-singles/
+
+# ProteinGym artifacts (regenerate with preprocessing/pgym_preprocess.py;
+# results can be multi-GB)
+pgym_inputs/
+pgym_results/
+
+# ESM3 weights / tokenizer cache (machine-specific, downloaded on first run)
+data/weights
+data/1utn.pdb
+data/*.npz
+data/*.npy
+data/*.pkl
+data/*.list
+data/*.txt
+data/*.csv
+data/*.json
