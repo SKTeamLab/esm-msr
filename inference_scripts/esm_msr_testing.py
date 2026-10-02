@@ -249,6 +249,7 @@ def main_(args):
         parsed_config = inference.parse_hparams_to_lora_config(hparams_path)
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         lora_mode = parsed_config.get('lora_mode', 'ensemble')
+        combine_rule = parsed_config.get('combine_rule', 'average')
         if args.lora_epsilon != 1:
             parsed_config['wt_config']['lora_alpha'] *= args.lora_epsilon
             parsed_config['mt_config']['lora_alpha'] *= args.lora_epsilon
@@ -273,13 +274,14 @@ def main_(args):
         }
         adapter_mode = 'dual'
         lora_mode = 'ensemble'
+        combine_rule = 'average'
         lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': args.seed}        
 
     model_dtype = torch.bfloat16 if args.dtype == 'bf16' else torch.float32
     print(f"[MODEL] inference dtype = {args.dtype} ({model_dtype})")
     model = models.MSRModel(
         lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
-        lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True
+        lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True, combine_rule=combine_rule
     ).to('cuda:0')
 
     # ---------------------------------------------------------

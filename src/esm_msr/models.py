@@ -1,6 +1,7 @@
 import logging
 import time
 import copy
+import types
 from collections import defaultdict
 from typing import Dict, Any, Optional, Union
 from tqdm import tqdm
@@ -11,8 +12,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from esm.pretrained import ESM3_sm_open_v0
+from esm.models.esm3 import ESMOutput, OutputHeads
 from esm.utils.constants import esm3 as C
 from peft import LoraConfig, get_peft_model
+
+from esm_msr import routing
+
+
+def _sequence_only_output_heads(heads: OutputHeads, x: torch.Tensor, embed: torch.Tensor) -> ESMOutput:
+    """
+    Drop-in replacement for ``OutputHeads.forward`` that evaluates only the sequence head.
+
+    Stability scoring reads ``sequence_logits`` exclusively. The stock forward also
+    runs the structure (4096), function (8x260), residue (1478), SS8 and SASA heads:
+    ~2% of the FLOPs of a forward pass, but B x L x ~7.7k extra logits plus their
+    autograd buffers that sit in memory until the output object is released.
+    """
+    return ESMOutput(
+        sequence_logits=heads.sequence_head(x),
+        structure_logits=None, secondary_structure_logits=None, sasa_logits=None,
+        function_logits=None, residue_logits=None, embeddings=embed,
+    )
 
 
 class ESM3PredictorBase(nn.Module):
@@ -103,18 +123,45 @@ class CalibrationHead(nn.Module):
     
 
 class MSRModel(ESM3PredictorBase):
-    """ 
+    """
     Mutational Stability Regression (MSR) Model.
-    
-    Wraps an ESM3 model with Parameter-Efficient Fine-Tuning (PEFT) adapters to predict 
-    protein stability scores (e.g., ddG). Supports dual/fused adapters and multiple 
-    strategies (ensemble, corrector).
+
+    Wraps ESM3 with LoRA adapters and scores a mutation set as the summed log-likelihood
+    ratio ``sum_i [logit(to_i) - logit(from_i)]`` at the mutated positions, mapped to ddG by
+    a scalar ``CalibrationHead``.
+
+    adapter_mode='dual' keeps two adapters over one shared, frozen backbone:
+
+    * WT adapter (``peft_wt``) reads ``wt_sequence_tokens``: the real wild-type sequence
+      on its real structure. Its domain is single mutations.
+    * MT adapter (``peft_mt``) reads ``mt_sequence_tokens``: a sequence that already
+      carries mutations, on a structure that is *not* that sequence's structure (the WT
+      structure, possibly masked at mutated sites). Its domain is conditional effects
+      ddG(i | other mutations present).
+
+    See ``esm_msr.routing`` for which data subsets train which adapter and why
+    0.5 * WT + 0.5 * MT is the thermodynamically correct estimate for multi-mutants.
+
+    Args (beyond the LoRA configuration):
+        combine_rule: How ``forward_batch`` forms ``combined_pred``.
+            'routed'  - each item uses the head that owns its subset (singles -> WT,
+                        mutant-context items -> MT, multi-mutants -> 0.5*WT + 0.5*MT).
+                        Matches separate-head training (lambda_reg_mt, no combined loss).
+            'average' - 0.5*WT + 0.5*MT for every item. Matches checkpoints trained with
+                        the combined / teacher-forced loss (e.g. the released esm-msr-small).
+        dedup_backbone: Run the backbone once per unique (sequence, structure) row of a
+            batch and gather logits for the duplicates. All single and double items of one
+            protein share their WT input, so the WT pass costs one forward per batch instead
+            of one per mutation. Exact in eval; in training, rows that share an input also
+            share one LoRA-dropout sample.
+        sequence_head_only: Skip ESM3's unused structure/function/residue/SS8/SASA heads.
     """
     def __init__(
             self, lora_config: dict, shared_scale_init: float | None = None,
             shared_bias_init: float | None = None, inference_mode: bool = False, log_likelihood: bool = False,
-            use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
-            adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True
+            use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16,
+            adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
+            combine_rule: str = 'routed', dedup_backbone: bool = True, sequence_head_only: bool = True,
         ):
         logging.info("Initializing ESM3 Base Model...")
         base_esm3 = ESM3_sm_open_v0()
@@ -127,6 +174,12 @@ class MSRModel(ESM3PredictorBase):
         self.quaternary_mode, self.log_likelihood, self.use_plddt, self.dtype = quaternary_mode, log_likelihood, use_plddt, model_dtype 
         self.adapter_mode, self.lora_mode = adapter_mode, lora_mode
         self.strict_loading = strict_loading
+        if combine_rule not in ('routed', 'average'):
+            raise AssertionError(f"Unknown combine_rule '{combine_rule}'. Must be 'routed' or 'average'.")
+        self.combine_rule = combine_rule
+        self.dedup_backbone = dedup_backbone
+        if use_plddt:
+            logging.warning("use_plddt=True has no effect: per-residue pLDDT is not passed to ESM3.")
         
         # 1. Initialize Calibration
         if shared_scale_init is not None or shared_bias_init is not None:
@@ -159,6 +212,15 @@ class MSRModel(ESM3PredictorBase):
             mt_base = getattr(self.peft_mt, 'base_model', None)
             if wt_se is not None and mt_base is not None:
                 mt_base._structure_encoder = wt_se
+
+        # 3c. Only the sequence head is ever read; skip the other output heads.
+        if sequence_head_only:
+            for pm in (getattr(self, 'peft_wt', None), getattr(self, 'peft_mt', None), getattr(self, 'peft_fused', None)):
+                if pm is None:
+                    continue
+                for m in pm.modules():
+                    if isinstance(m, OutputHeads):
+                        m.forward = types.MethodType(_sequence_only_output_heads, m)
 
         # 4. Optional freezing for strict inference
         if inference_mode:
@@ -504,6 +566,15 @@ class MSRModel(ESM3PredictorBase):
         logging.info("=== Checkpoint Loading Complete ===\n")
 
     def forward_batch(self, batch_in: Dict[str, Any], cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, skip_reverse: bool = False, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
+        """
+        Inference forward: runs the WT pass and (unless ``skip_reverse``) the MT pass and
+        forms ``combined_pred`` according to ``self.combine_rule``.
+
+        Under the 'routed' rule items without a ``subset_type`` (screening / benchmark
+        batches) are routed by mutation count: one mutation -> WT head, two or more ->
+        0.5*WT + 0.5*MT. ``epi_pred = 0.5*(MT - WT)`` is the implied pairwise epistasis
+        for multi-mutants (meaningless for single-mutation items).
+        """
         if self.training: raise AssertionError("forward_batch is for inference only. Use forward_partitioned for training.")
 
         wt_out = self.forward_partitioned(batch_in, pass_type='wt', cached_wt_esm3=cached_wt_esm3, mask_strategy=mask_strategy)
@@ -511,31 +582,27 @@ class MSRModel(ESM3PredictorBase):
             mt_out = self.forward_partitioned(batch_in, pass_type='mt', mask_strategy=mask_strategy)
         else:
             mt_out = wt_out
-        
+
         wt_pred_cal, mt_pred_cal = wt_out['pred_calibrated'], mt_out['pred_calibrated']
         wt_pred_raw, mt_pred_raw = wt_out['pred_raw'], mt_out['pred_raw']
 
-        # Item-type-dependent combined prediction (VALIDATION ONLY). The two
-        # heads are trained fully separately (no combined loss), so each item
-        # type is predicted by the head that owns it in training:
-        #   - single            -> WT pass (WT head trains on normal singles)
-        #   - mut_ctx_rev       -> MT pass (MT head trains on mut_ctx)
-        #   - native_mut_ctx    -> MT pass (MT head trains on mut_ctx)
-        #   - double            -> ensemble 0.5*WT + 0.5*MT (doubles are
-        #     EXCLUDED from training, so they are only ever predicted at
-        #     validation time by combining the two heads).
         if self.adapter_mode == 'fused':
             wt_cal = self.calibration_head_fused(wt_pred_raw)
             mt_cal = self.calibration_head_fused(mt_pred_raw)
         else:
             wt_cal, mt_cal = wt_pred_cal, mt_pred_cal
-        subset_type = batch_in.get('subset_type', ['single' for _ in range(wt_pred_cal.shape[0])])
-        is_single = torch.as_tensor([s == 'single' for s in subset_type], device=wt_pred_cal.device)
-        # The MT head owns every mutant-context item (mut_ctx_rev + native_mut_ctx);
-        # only true doubles fall through to the ensemble.
-        is_mt_domain = torch.as_tensor([s in ('mut_ctx_rev', 'native_mut_ctx') for s in subset_type], device=wt_pred_cal.device)
-        avg_cal = 0.5 * wt_cal + 0.5 * mt_cal
-        combined_pred = torch.where(is_single, wt_cal, torch.where(is_mt_domain, mt_cal, avg_cal))
+        combined_pred = 0.5 * wt_cal + 0.5 * mt_cal
+
+        if self.combine_rule == 'routed':
+            dev = wt_cal.device
+            subset_type = batch_in.get('subset_type')
+            if subset_type is None:
+                n_mut = batch_in['mut_mask'].sum(dim=1)
+                use_wt, use_mt = (n_mut == 1).to(dev), torch.zeros_like(n_mut, dtype=torch.bool, device=dev)
+            else:
+                use_wt = routing.subset_mask(subset_type, routing.WT_HEAD_SUBSETS, device=dev)
+                use_mt = routing.subset_mask(subset_type, routing.MT_HEAD_SUBSETS, device=dev)
+            combined_pred = torch.where(use_wt, wt_cal, torch.where(use_mt, mt_cal, combined_pred))
 
         epi_pred = 0.5 * mt_pred_cal - 0.5 * wt_pred_cal
 
@@ -552,7 +619,63 @@ class MSRModel(ESM3PredictorBase):
         full_log_probs[:, :, idx] = log_probs_canonical
         return full_log_probs
 
+    def _active_model(self, pass_type: str) -> nn.Module:
+        if getattr(self, 'adapter_mode', 'dual') == 'dual':
+            return self.peft_wt if pass_type == 'wt' else self.peft_mt
+        return self.peft_fused
+
+    @staticmethod
+    def _unique_rows(seq: torch.Tensor, coords: Optional[torch.Tensor], struct_tokens: Optional[torch.Tensor]):
+        """
+        Group batch rows with identical backbone inputs.
+
+        Returns ``(first, inverse)``: ``first[u]`` is a representative row of unique input
+        ``u`` and ``inverse[b]`` maps row ``b`` to its unique input. Sequence, structure
+        tokens and coordinates (NaN/inf-safe) all enter the key.
+        """
+        B = seq.shape[0]
+        parts = [seq.reshape(B, -1).float()]
+        if torch.is_tensor(struct_tokens) and struct_tokens.dim() > 0 and struct_tokens.shape[0] == B:
+            parts.append(struct_tokens.reshape(B, -1).float())
+        if torch.is_tensor(coords) and coords.dim() > 0 and coords.shape[0] == B:
+            parts.append(torch.nan_to_num(coords.reshape(B, -1).float(), nan=-7.7e7, posinf=8.8e7, neginf=-9.9e7))
+        key = torch.cat(parts, dim=1)
+        _, inverse = torch.unique(key, dim=0, return_inverse=True)
+        n_unique = int(inverse.max().item()) + 1
+        first = torch.full((n_unique,), B, dtype=torch.long, device=seq.device)
+        first = first.scatter_reduce(0, inverse, torch.arange(B, device=seq.device), reduce='amin')
+        return first, inverse
+
+    def _backbone_logits(self, seq: torch.Tensor, coords, struct_tokens, plddt, active_model: nn.Module):
+        """
+        Sequence logits for every row of ``seq``, running the backbone once per unique
+        input row when ``self.dedup_backbone`` is set.
+
+        Returns ``(logits [U, L, V], row_index [B])``; logits for row ``b`` are
+        ``logits[row_index[b]]``.
+        """
+        B = seq.shape[0]
+        if getattr(self, 'dedup_backbone', False) and B > 1:
+            first, row_index = self._unique_rows(seq, coords, struct_tokens)
+            if first.numel() < B:
+                def _take(t):
+                    return t[first] if torch.is_tensor(t) and t.dim() > 0 and t.shape[0] == B else t
+                out = self._get_esm3_outputs(seq[first], _take(coords), _take(struct_tokens), _take(plddt), active_model=active_model)
+                return self._process_logits(out.sequence_logits.float()), row_index
+        out = self._get_esm3_outputs(seq, coords, struct_tokens, plddt, active_model=active_model)
+        return self._process_logits(out.sequence_logits.float()), torch.arange(B, device=seq.device)
+
     def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None, detach_calibration: bool = False) -> Dict[str, torch.Tensor]:
+        """
+        One adapter pass over a batch.
+
+        pass_type='wt' reads ``wt_sequence_tokens`` with the WT adapter; pass_type='mt' reads
+        ``mt_sequence_tokens`` with the MT adapter. Both return per-item
+        ``sum_i [logit(mt_id_i) - logit(wt_id_i)]`` at ``mut_pos`` (``pred_raw``), its
+        calibrated value (``pred_calibrated``), and the per-mutation terms (``unsummed_llr``).
+        ``wt_id``/``mt_id`` are the item's from/to residues, so for reversion-style items
+        (e.g. mut_ctx_rev) "mt_id" is the wild-type residue.
+        """
         if pass_type not in ['wt', 'mt']: raise AssertionError(f"pass_type must be 'wt' or 'mt'. Received: {pass_type}")
 
         seq, mut_pos = batch.get(f'{pass_type}_sequence_tokens'), batch.get('mut_pos')
@@ -560,9 +683,9 @@ class MSRModel(ESM3PredictorBase):
         coords, struct_tokens, plddt = batch.get('coords'), batch.get('structure_tokens'), batch.get('plddt')
 
         B, max_muts = seq.shape[0], mut_pos.shape[1]
-        safe_pos = mut_pos.clone(); safe_pos[~mut_mask] = 0
-        safe_wt_id = wt_id.clone(); safe_wt_id[~mut_mask] = 0
-        safe_mt_id = mt_id.clone(); safe_mt_id[~mut_mask] = 0
+        safe_pos = mut_pos.masked_fill(~mut_mask, 0)
+        safe_wt_id = wt_id.masked_fill(~mut_mask, 0)
+        safe_mt_id = mt_id.masked_fill(~mut_mask, 0)
         b_idx = torch.arange(B, device=seq.device).unsqueeze(1).expand(-1, max_muts)
 
         if mask_strategy is not None:
@@ -572,52 +695,35 @@ class MSRModel(ESM3PredictorBase):
                 raise AssertionError(f"Invalid mask_strategy: '{mask_strategy}'. Expected None, 'independent', 'chain', or 'marginal'.")
             if cached_wt_esm3 is not None:
                 raise NotImplementedError(f"cached_wt_esm3 cannot be used with mask_strategy='{mask_strategy}'. Each masking pass fundamentally alters the model sequence state.")
-            
+
             mask_token_id = C.SEQUENCE_MASK_TOKEN
-            
-            if getattr(self, 'adapter_mode', 'dual') == 'dual':
-                active_model = self.peft_wt if pass_type == 'wt' else self.peft_mt
-            else:
-                active_model = self.peft_fused
-                
+            active_model = self._active_model(pass_type)
             unsummed_llr = torch.zeros((B, max_muts), dtype=torch.float32, device=seq.device)
-            
+
             if mask_strategy == 'independent':
+                # One masked forward per mutation slot, restricted to the rows that have
+                # a mutation in that slot.
                 for i in range(max_muts):
-                    curr_mask = mut_mask[:, i]
-                    if not curr_mask.any():
+                    rows = torch.where(mut_mask[:, i])[0]
+                    if rows.numel() == 0:
                         continue
-                    
-                    masked_seq = seq.clone()
-                    batch_idx_valid = torch.where(curr_mask)[0]
-                    pos_valid = safe_pos[curr_mask, i]
-                    
-                    # Apply the mask locally
-                    masked_seq[batch_idx_valid, pos_valid] = mask_token_id
-                    
-                    out = self._get_esm3_outputs(masked_seq, coords, struct_tokens, plddt, active_model=active_model)
-                    step_logits_B = self._process_logits(out.sequence_logits.float())
-                    
-                    # Regardless of WT or MT pass, logic calculates MT - WT 
-                    # (Equivalent to -(WT - MT) used originally for MT pass)
-                    mt_logits = step_logits_B[batch_idx_valid, pos_valid, safe_mt_id[curr_mask, i]]
-                    wt_logits = step_logits_B[batch_idx_valid, pos_valid, safe_wt_id[curr_mask, i]]
-                    unsummed_llr[batch_idx_valid, i] = mt_logits - wt_logits
+                    pos_valid = safe_pos[rows, i]
+                    masked_seq = seq[rows].clone()
+                    masked_seq[torch.arange(rows.numel(), device=seq.device), pos_valid] = mask_token_id
+
+                    def _rows(t):
+                        return t[rows] if torch.is_tensor(t) and t.dim() > 0 and t.shape[0] == B else t
+                    logits, row_index = self._backbone_logits(masked_seq, _rows(coords), _rows(struct_tokens), _rows(plddt), active_model)
+                    mt_logits = logits[row_index, pos_valid, safe_mt_id[rows, i]]
+                    wt_logits = logits[row_index, pos_valid, safe_wt_id[rows, i]]
+                    unsummed_llr[rows, i] = mt_logits - wt_logits
 
             elif mask_strategy == 'marginal':
                 masked_seq = seq.clone()
-                
-                # Apply all masks simultaneously
-                for i in range(max_muts):
-                    curr_mask = mut_mask[:, i]
-                    batch_idx_valid = torch.where(curr_mask)[0]
-                    pos_valid = safe_pos[curr_mask, i]
-                    masked_seq[batch_idx_valid, pos_valid] = mask_token_id
-                
-                out = self._get_esm3_outputs(masked_seq, coords, struct_tokens, plddt, active_model=active_model)
-                step_logits_B = self._process_logits(out.sequence_logits.float())
-                
-                mt_logits, wt_logits = step_logits_B[b_idx, safe_pos, safe_mt_id], step_logits_B[b_idx, safe_pos, safe_wt_id]
+                masked_seq[b_idx[mut_mask], safe_pos[mut_mask]] = mask_token_id
+                logits, row_index = self._backbone_logits(masked_seq, coords, struct_tokens, plddt, active_model)
+                r = row_index[b_idx]
+                mt_logits, wt_logits = logits[r, safe_pos, safe_mt_id], logits[r, safe_pos, safe_wt_id]
                 unsummed_llr = torch.where(mut_mask, mt_logits - wt_logits, torch.zeros_like(mt_logits))
 
         else:
@@ -632,31 +738,25 @@ class MSRModel(ESM3PredictorBase):
                     logging.info(seq[0])
                     logging.info(ref_seq[0])
                     raise AssertionError("Sequence mismatch in cache.")
-                logits_B = cached_wt_esm3['logits'].expand(B, -1, -1)
+                logits, row_index = cached_wt_esm3['logits'].expand(B, -1, -1), torch.arange(B, device=seq.device)
             else:
-                if getattr(self, 'adapter_mode', 'dual') == 'dual':
-                    active_model = self.peft_wt if pass_type == 'wt' else self.peft_mt
-                else:
-                    active_model = self.peft_fused
+                logits, row_index = self._backbone_logits(seq, coords, struct_tokens, plddt, self._active_model(pass_type))
 
-                out = self._get_esm3_outputs(seq, coords, struct_tokens, plddt, active_model=active_model)
-                logits_B = self._process_logits(out.sequence_logits.float())
-
-            if pass_type == 'wt':
-                mt_logits, wt_logits = logits_B[b_idx, safe_pos, safe_mt_id], logits_B[b_idx, safe_pos, safe_wt_id]
-                unsummed_llr = torch.where(mut_mask, mt_logits - wt_logits, torch.zeros_like(mt_logits))
-            elif pass_type == 'mt':
-                wt_logits, mt_logits = logits_B[b_idx, safe_pos, safe_wt_id], logits_B[b_idx, safe_pos, safe_mt_id]
-                unsummed_llr = -torch.where(mut_mask, wt_logits - mt_logits, torch.zeros_like(wt_logits))
+            # Both passes compute logit(to) - logit(from); they differ only in which
+            # sequence (and adapter) provides the context.
+            r = row_index[b_idx]
+            mt_logits, wt_logits = logits[r, safe_pos, safe_mt_id], logits[r, safe_pos, safe_wt_id]
+            unsummed_llr = torch.where(mut_mask, mt_logits - wt_logits, torch.zeros_like(mt_logits))
 
         # --- Shared Post-Processing & Calibration ---
         llr_sum_raw = unsummed_llr.sum(dim=1)
         llr_sum_for_cal = llr_sum_raw.detach() if detach_calibration else llr_sum_raw
-        
-        if pass_type == 'wt':
-            llr_sum_cal = self.calibration_head_fused(llr_sum_for_cal) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_wt(llr_sum_for_cal) if hasattr(self, 'calibration_head_wt') else llr_sum_raw)
-        elif pass_type == 'mt':
-            llr_sum_cal = self.calibration_head_fused(llr_sum_for_cal) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_mt(llr_sum_for_cal) if hasattr(self, 'calibration_head_mt') else llr_sum_raw)
+
+        if self.adapter_mode == 'fused':
+            head = getattr(self, 'calibration_head_fused', None)
+        else:
+            head = getattr(self, f'calibration_head_{pass_type}', None)
+        llr_sum_cal = head(llr_sum_for_cal) if head is not None else llr_sum_raw
 
         output_dict = {'pred_calibrated': llr_sum_cal, 'pred_raw': llr_sum_raw, 'unsummed_llr': unsummed_llr}
         return output_dict
@@ -882,6 +982,9 @@ class MSRModel(ESM3PredictorBase):
                 wt_lora_pred = self.calibration_head_wt(wt_llr_sum) if hasattr(self, 'calibration_head_wt') else wt_llr_sum
                 mt_lora_pred = self.calibration_head_mt(mt_llr_sum) if hasattr(self, 'calibration_head_mt') else mt_llr_sum
 
-            combined_pred = 0.5 * wt_lora_pred + 0.5 * mt_lora_pred if self.adapter_mode != 'fused' else 0.5 * self.calibration_head_fused(wt_llr_sum) + 0.5 * self.calibration_head_fused(mt_llr_sum)
+            combined_pred = 0.5 * wt_lora_pred + 0.5 * mt_lora_pred
+            if self.combine_rule == 'routed':
+                # Same rule as forward_batch for batches without subset labels.
+                combined_pred = torch.where(mut_mask.sum(dim=1) == 1, wt_lora_pred, combined_pred)
 
         return {'wt_lora_pred': wt_lora_pred, 'mt_lora_pred': mt_lora_pred, 'combined_pred': combined_pred}

@@ -79,7 +79,11 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--lambda_rank_combined', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_wt', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_combined', type=float, default=0.0)
-    loss_group.add_argument('--lambda_reg_mt', type=float, default=0.0)
+    loss_group.add_argument('--lambda_reg_mt', type=float, default=0.0,
+                            help="Regress the MT pass on MT-head subsets (native_mut_ctx, mut_ctx_rev, mut_ctx); see esm_msr.routing.")
+    loss_group.add_argument('--mt_single_anchor_weight', type=float, default=0.0,
+                            help="Per-item weight for also regressing the MT pass on ordinary singles (the zero-background "
+                                 "case of the MT task). 0 disables. Requires --lambda_reg_mt > 0.")
     loss_group.add_argument('--lambda_epi_combined', type=float, default=0.0)
     loss_group.add_argument('--mt_reg_mask', type=str, default='all', choices=['all', 'doubles'])
     loss_group.add_argument('--double_weight', type=float, default=1.0)
@@ -118,6 +122,9 @@ def parse_arguments() -> argparse.Namespace:
     train_group.add_argument('--lr_total_steps', type=int, default=None)
     train_group.add_argument('--batch_size', type=int, default=256)
     train_group.add_argument('--micro_batch_size', type=int, default=16)
+    train_group.add_argument('--dedup_backbone', action=argparse.BooleanOptionalAction, default=True,
+                             help="Run ESM3 once per unique (sequence, structure) row of a micro-batch. All singles of a "
+                                  "protein share their WT input, so the WT pass becomes one forward per protein per batch.")
     train_group.add_argument('--precision', type=str, default="bf16-mixed", choices=["32", "16-mixed", "bf16-mixed", "64"])
     train_group.add_argument('--gpus', type=int, default=1)
     train_group.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'deepspeed_stage_2', 'deepspeed_stage_3', 'fsdp'])
@@ -156,8 +163,12 @@ def parse_arguments() -> argparse.Namespace:
     data_group.add_argument('--incl_native_mut_ctx', action=argparse.BooleanOptionalAction, default=False)
 
     data_group.add_argument('--subset_caps', nargs='*', action=ParseSubsetCaps, default=default_caps,
-                            help="Caps for data subsets (e.g., double=0.6 over_and_back=0.1). Defaults to 0 for all except 'single' (None).")
+                            help="Caps for data subsets as a fraction of the unrestricted subsets (e.g., double=0.6 mut_ctx_rev=None). Defaults to 0 for all except 'single' (None).")
     data_group.add_argument('--mut_structures_root', type=str, default='/home/sareeves/software/esm-msr/data/tsuboyama/FINAL_results/')
+    data_group.add_argument('--censor_margin', type=float, default=None,
+                            help="Drop double-derived training items (double, mut_ctx, mut_ctx_rev) when any state involved "
+                                 "(WT, A, B, AB, or the additive AB estimate) has dG within this many kcal/mol of the assay "
+                                 "floor (-1) or ceiling (+5). Censored doubles carry a spurious positive dddG. None disables.")
     data_group.add_argument('--use_plddt', action=argparse.BooleanOptionalAction, default=False)
     data_group.add_argument('--remove_spurs_homologs', action=argparse.BooleanOptionalAction, default=False)
     data_group.add_argument('--combine_validation', action=argparse.BooleanOptionalAction, default=False)

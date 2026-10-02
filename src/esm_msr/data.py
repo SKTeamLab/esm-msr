@@ -18,6 +18,7 @@ from esm.utils.structure.protein_chain import ProteinChain
 from esm.utils.constants import esm3 as C
 
 from esm_msr.utils import custom_end_gap_alignment, determine_diffs
+from esm_msr.routing import DOUBLE_DERIVED_SUBSETS
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -46,7 +47,9 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
         incl_mut_ctx: bool = False,
         incl_reversions: bool = False,
         incl_mut_ctx_rev: bool = False,
-        incl_native_mut_ctx: bool = False
+        incl_native_mut_ctx: bool = False,
+        dG_wt: Optional[float] = None,
+        censor_margin: Optional[float] = None,
     ):
         """
         Initializes the dataset, loading from cache if available or generating from scratch.
@@ -69,6 +72,10 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
             incl_native_mut_ctx: Include native mutant-context singles (DMS measured in a
                 mutant background; codes carry a mutation suffix). Relabeled in-memory at
                 load time so they can be toggled independently of normal singles.
+            dG_wt: Measured dG of the library's starting sequence (needed for censoring).
+            censor_margin: If set (and dG_wt is known), drop double-derived items whose
+                states come within this many kcal/mol of the assay's dynamic range.
+                See ``_drop_censored``.
         """
         self.score_name = score_name
         self.dms_name = dms_name
@@ -131,6 +138,8 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
 
         # remove unwanted subsets
         self._filter_dataset()
+        if censor_margin is not None:
+            self._drop_censored(dG_wt, censor_margin)
         # to facilitate subsampling      
         self._extract_scalars()
 
@@ -174,6 +183,40 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
         self.data = [item for item in self.data if item.get('subset_type') in allowed_types]
         logging.info(f"Filtered dataset from {original_len} to {len(self.data)} items based on allowed types: {allowed_types}")
 
+    # Dynamic range of the cDNA-display proteolysis dG estimates (dG_ML is clipped to it).
+    DG_FLOOR, DG_CEILING = -1.0, 5.0
+
+    def _drop_censored(self, dG_wt: Optional[float], margin: float) -> None:
+        """
+        Drop double-derived items (double, mut_ctx, mut_ctx_rev) that touch the assay's
+        dynamic-range limits.
+
+        When the additive expectation for AB falls below the floor, the measured dG_AB is
+        clipped there, so dddG = ddG_AB - ddG_A - ddG_B comes out spuriously positive. In
+        the Tsuboyama data about 31% of doubles with both singles have some state within
+        0.5 kcal/mol of the floor; their dddG averages +1.7 kcal/mol (vs +0.5 in range) and
+        does not reproduce between the trypsin and chymotrypsin estimates (r = 0.07 vs
+        0.75). Every derived MT target inherits that artifact.
+        """
+        if dG_wt is None or not np.isfinite(dG_wt):
+            logging.warning(f"[{self.dms_name}] censor_margin set but WT dG unknown; no censoring applied.")
+            return
+        lo, hi = self.DG_FLOOR + margin, self.DG_CEILING - margin
+
+        def _censored(item) -> bool:
+            if item.get('subset_type') not in DOUBLE_DERIVED_SUBSETS:
+                return False
+            a, b, d3 = item.get('ddG_A', np.nan), item.get('ddG_B', np.nan), item.get('dddG', np.nan)
+            ddG_AB = item['ddG'] if item.get('subset_type') == 'double' else a + b + d3
+            states = np.array([0.0, a, b, ddG_AB, a + b], dtype=np.float64) + dG_wt
+            states = states[np.isfinite(states)]
+            return bool(((states < lo) | (states > hi)).any())
+
+        before = len(self.data)
+        self.data = [item for item in self.data if not _censored(item)]
+        logging.info(f"[{self.dms_name}] censor_margin={margin}: dropped {before - len(self.data)} of {before} items "
+                     f"(dG_wt={dG_wt:.2f}, allowed state range [{lo:.2f}, {hi:.2f}])")
+
     def _extract_scalars(self) -> None:
         """Extracts scalar values into contiguous numpy arrays for fast indexing/subsampling."""
         logging.info(f"Pre-extracting scalar arrays for {len(self.data)} items...")
@@ -206,13 +249,17 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
         items are ordinary single/reversion pairs measured in that background. We relabel
         them in-memory at load time (the on-disk cache is left untouched) so the training
         loop can route them to the MT head while the WT head keeps training on normal
-        singles only. The sign convention is identical to normal singles (E = LLR(WT)-LLR(MT)
-        approx ddG), so no target sign is flipped.
+        singles only. The target is the measured ddG(X | background); in the MT pass the
+        sequence is background+X, scored as logit(X) - logit(wt), so no sign is flipped.
+
+        Their 'reversion' twins are NOT relabeled: they repeat the same measurement with
+        the opposite residue visible, and relabeling them used to let them bypass the
+        incl_reversions toggle (doubling every native measurement).
         """
         n = 0
         for item in self.data:
             code = item.get('pdb') or self.dms_name
-            if re.search(r'_[A-Z][0-9]+[A-Z]$', code) and item.get('subset_type') in ('single', 'reversion'):
+            if re.search(r'_[A-Z][0-9]+[A-Z]$', code) and item.get('subset_type') == 'single':
                 item['subset_type'] = 'native_mut_ctx'
                 n += 1
         if n:
@@ -765,7 +812,7 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
             wt_ids.append(w_id)
             mt_ids.append(m_id)
 
-        logging.info(f'Created data item: {code}, {mutations}, {subset_type}, {structure_type}, ddG={ddG}, dddG={dddG}')      
+        logging.debug(f'Created data item: {code}, {mutations}, {subset_type}, {structure_type}, ddG={ddG}, dddG={dddG}')      
         return {
             'pdb': code,
             'mutations': mutations,
