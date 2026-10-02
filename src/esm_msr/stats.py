@@ -97,9 +97,15 @@ def safe_ndcg_t0(preds, targets):
     except Exception as e:
         raise RuntimeError(f"NDCG calculation failed. Underlying error: {str(e)}")
 
-def compute_metrics(wt_scores, comb_scores, epi_scores, epi_scores_full, ground_truths, dddG_truths, idx_singles, idx_doubles, valid_dddG_mask):
+def compute_metrics(wt_scores, comb_scores, epi_scores, epi_scores_full, ground_truths, dddG_truths, idx_singles, idx_doubles, valid_dddG_mask, mt_scores=None, mt_domain_mask=None):
     """
     Consolidated function computing Spearman, NDCG, and RMSE metrics.
+
+    Optional `mt_scores` (standalone mutant-pass predictions) and `mt_domain_mask`
+    (boolean array marking the MT head's primary training domain, i.e. mut_ctx_rev +
+    native_mut_ctx items). When `mt_scores` is provided, standalone MT metrics are added,
+    mirroring the WT pathway, plus domain-restricted MT metrics (the items the MT head is
+    directly trained on).
     """
     metrics = {
         'rho': {
@@ -133,4 +139,25 @@ def compute_metrics(wt_scores, comb_scores, epi_scores, epi_scores_full, ground_
             'combined': np.sqrt(mean_squared_error(ground_truths, comb_scores)) if len(comb_scores) else np.nan
         }
     }
+    if mt_scores is not None and len(mt_scores) > 0:
+        # Standalone MT-head metrics, mirroring the WT/combined pathways.
+        metrics['rho']['mt'] = safe_spearman(mt_scores, ground_truths)
+        metrics['ndcg@k=96']['mt'] = safe_ndcg_k96(mt_scores, ground_truths)
+        metrics['ndcg>0']['mt'] = safe_ndcg_t0(mt_scores, ground_truths)
+        metrics['rho_singles']['mt'] = safe_spearman(mt_scores[idx_singles], ground_truths[idx_singles])
+        metrics['rho_doubles']['mt'] = safe_spearman(mt_scores[idx_doubles], ground_truths[idx_doubles])
+        metrics['rmse']['mt'] = np.sqrt(mean_squared_error(ground_truths, mt_scores))
+        # Domain-restricted: the MT head's primary training domain (mut_ctx_rev + native_mut_ctx).
+        if mt_domain_mask is not None:
+            dom = np.asarray(mt_domain_mask)
+            if dom.shape != np.asarray(ground_truths).shape:
+                dom = None
+        else:
+            dom = None
+        if dom is not None and dom.any():
+            metrics['rho_mt_domain'] = {'mt': safe_spearman(mt_scores[dom], ground_truths[dom])}
+            metrics['rmse_mt_domain'] = {'mt': float(np.sqrt(mean_squared_error(ground_truths[dom], mt_scores[dom])))}
+        else:
+            metrics['rho_mt_domain'] = {'mt': np.nan}
+            metrics['rmse_mt_domain'] = {'mt': np.nan}
     return metrics

@@ -82,8 +82,45 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.val_dataloader_names = self.hparams.get('val_dataloader_names', ['val'])
 
     def on_train_start(self):
+        self._reshare_base_params_on_device()
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
+
+    def _reshare_base_params_on_device(self):
+        """
+        Re-share the frozen ESM3 base weights between the WT and MT PEFT copies on
+        the training device.
+
+        MSRModel.add_loras_to_esm3 (dual mode) re-shares the base parameters on the
+        CPU via `p_mt.data = p_wt.data`, but `nn.Module.to(device)` moves each
+        Parameter object independently, silently breaking that storage sharing and
+        leaving the 1.4B base model duplicated on the GPU (~5.8 GB wasted in fp32).
+        This hook re-applies the name-matched re-share after the device move and
+        after checkpoint restore (which likewise breaks the sharing). Safe because
+        every re-shared parameter is frozen (requires_grad=False, no optimizer
+        updates ever write to it).
+        """
+        peft_wt = getattr(self.model, 'peft_wt', None)
+        peft_mt = getattr(self.model, 'peft_mt', None)
+        if peft_wt is None or peft_mt is None:
+            return  # single-adapter mode: nothing to re-share
+
+        def _clean(n: str) -> str:
+            return n.replace("base_model.model.", "").replace(".base_layer.", ".").replace(".original_module.", ".")
+
+        wt_base = {_clean(n): p for n, p in peft_wt.named_parameters()
+                   if "lora_" not in n and "dora_" not in n}
+        n_shared, dev = 0, None
+        for name, p in peft_mt.named_parameters():
+            if "lora_" in name or "dora_" in name:
+                continue
+            src = wt_base.get(_clean(name))
+            if src is not None:
+                p.data = src.data
+                n_shared += 1
+                dev = src.device
+        logging.info(f"[reshare] dual-adapter base weights re-shared on {dev}: {n_shared} params "
+                     f"deduplicated (~5.8 GB fp32 avoided)")
 
     def _compute_rank_loss(self, pred, targets, mask, list_size, crit_fn):
         valid_len = (pred.shape[0] // list_size) * list_size
@@ -110,25 +147,48 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         idx_mut_ctx_all = torch.as_tensor([i for i, s in enumerate(st_all) if s == 'mut_ctx'], device=device)
         idx_reversion_all = torch.as_tensor([i for i, s in enumerate(st_all) if s == 'reversion'], device=device)
         idx_onb_all = torch.as_tensor([i for i, s in enumerate(st_all) if s == 'over_and_back'], device=device)
-        
+        idx_mcr_all = torch.as_tensor([i for i, s in enumerate(st_all) if s == 'mut_ctx_rev'], device=device)
+        idx_nmc_all = torch.as_tensor([i for i, s in enumerate(st_all) if s == 'native_mut_ctx'], device=device)
+
         if idx_double_all.numel() > 0: w_all[idx_double_all] = self.hparams.double_weight
         if idx_mut_ctx_all.numel() > 0: w_all[idx_mut_ctx_all] = self.hparams.mut_ctx_weight
         if idx_reversion_all.numel() > 0: w_all[idx_reversion_all] = self.hparams.reversion_weight
         if idx_onb_all.numel() > 0: w_all[idx_onb_all] = self.hparams.over_and_back_weight
+        if idx_mcr_all.numel() > 0: w_all[idx_mcr_all] = self.hparams.mut_ctx_rev_weight
+        if idx_nmc_all.numel() > 0: w_all[idx_nmc_all] = getattr(self.hparams, 'native_mut_ctx_weight', 1.0)
 
         global_w_sum = w_all.sum().clamp_min(1e-9)
         global_num_lists = max(1, B // list_size)
 
         sums, cnts = defaultdict(float), defaultdict(float)
 
-        for start in range(0, B, mb):
-            idx = torch.arange(start, min(start + mb, B), device=device)
+        # ------------------------------------------------------------------
+        # Pure-minibatch ordering: WT-trainable items (singles, doubles, etc.)
+        # first, then MT-trainable items (mut_ctx_rev / native_mut_ctx), so each
+        # micro-slice is homogeneous and runs exactly one backbone forward
+        # (plus one mixed tail slice if the counts don't tile evenly). This
+        # avoids the two sequential head-forwards per micro-slice and the
+        # lingering un-backwarded pass graph from the previous iteration.
+        # ------------------------------------------------------------------
+        idx_all = torch.arange(B, device=device)
+        is_mt_type = torch.as_tensor([s in ('mut_ctx_rev', 'native_mut_ctx') for s in st_all], device=device)
+        idx_seq = torch.cat([idx_all[~is_mt_type], idx_all[is_mt_type]])
+        micro_slices = [idx_seq[start:start + mb] for start in range(0, B, mb)]
+
+        for idx in micro_slices:
             micro, w_mb = utils.slice_batch_by_index(batch, idx), w_all[idx]
             ddG_mb = micro['ddG'].float() 
-            is_single, valid_double = micro['mut_mask'].sum(dim=1) == 1, micro.get('valid_dddG_mask', micro['mut_mask'].sum(dim=1) > 1) 
+            is_single, valid_double = micro['mut_mask'].sum(dim=1) == 1, micro.get('valid_dddG_mask', micro['mut_mask'].sum(dim=1) > 1)
             reg_mask = ~is_single if self.hparams.mt_reg_mask == 'doubles' else torch.ones_like(is_single, dtype=torch.bool)
-            
+            st_mb = micro.get('subset_type', ['single'] * int(ddG_mb.shape[0]))
+            is_mcr = torch.as_tensor([s == 'mut_ctx_rev' for s in st_mb], device=device)
+            is_nmc = torch.as_tensor([s == 'native_mut_ctx' for s in st_mb], device=device)
+
             wt_targets, valid_wt_mask = ddG_mb.clone(), torch.ones_like(ddG_mb, dtype=torch.bool)
+            # mut_ctx_rev and native_mut_ctx items are trained via the MT pass (reg_mt); their
+            # WT-pass output is unused, so exclude both from WT regression to avoid polluting
+            # lambda_reg_wt. The WT head therefore trains on normal singles only.
+            valid_wt_mask &= ~is_mcr & ~is_nmc
             
             # Prepare hybrid additive targets for teacher forcing (ddG_additive for multi, true ddG for singles)
             tf_additive_labels = torch.full_like(ddG_mb, float('nan'))
@@ -152,20 +212,26 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 epi_targets[epi_mask & valid_double] = micro['dddG'][epi_mask & valid_double].float()
 
             retain_wt = not self.hparams.detach_ensemble_input
+            mt_mask = is_mcr | is_nmc
+            need_combined = (self.hparams.lambda_rank_combined > 0 or self.hparams.lambda_reg_combined > 0
+                             or self.hparams.lambda_epi_combined > 0)
 
             # =============================================================
-            # PHASE 1: WILD-TYPE PASS
+            # PHASE 1: WILD-TYPE PASS (skipped for pure-MT micro-slices)
             # =============================================================
-            wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.hparams.mask_strategy, detach_calibration=self.hparams.detach_regression)
-            wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
+            run_wt = valid_wt_mask.any() and (self.hparams.lambda_reg_wt > 0 or self.hparams.lambda_rank_wt > 0)
+            wt_pred_cal = wt_pred_raw = None
+            if run_wt:
+                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.hparams.mask_strategy, detach_calibration=self.hparams.detach_regression)
+                wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
 
             wt_losses = []
-            if self.hparams.lambda_reg_wt > 0 and valid_wt_mask.any():
+            if run_wt and self.hparams.lambda_reg_wt > 0 and valid_wt_mask.any():
                 L = self.crit_reg(wt_pred_cal[valid_wt_mask], wt_targets[valid_wt_mask])
                 wt_losses.append(self.hparams.lambda_reg_wt * (L * w_mb[valid_wt_mask]).sum() / global_w_sum)
                 sums['reg_wt'] += float((L * w_mb[valid_wt_mask]).sum().item()); cnts['reg_wt'] += float(w_mb[valid_wt_mask].sum().item())
 
-            if self.hparams.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
+            if run_wt and self.hparams.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
                 L_rank, val, n_list = self._compute_rank_loss(wt_pred_raw, wt_targets, valid_wt_mask, list_size, self.crit_rank_wt)
                 if L_rank is not None:
                     wt_losses.append(self.hparams.lambda_rank_wt * L_rank * (n_list / global_num_lists))
@@ -177,42 +243,50 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if not total_wt.requires_grad: raise AssertionError("WT Loss detached from PyTorch Graph! Cannot call backward.")
                 self.manual_backward(total_wt, retain_graph=retain_wt)
                     
-            if not self.peft_manager.mt_path_is_frozen and (self.hparams.lambda_rank_combined > 0 or self.hparams.lambda_reg_combined > 0 or self.hparams.lambda_epi_combined > 0):
+            if (not self.peft_manager.mt_path_is_frozen and (need_combined or self.hparams.lambda_reg_mt > 0)
+                    and (mt_mask.any() or need_combined)):
                 # =============================================================
-                # PHASE 2: MUTANT & COMBINED PASS
+                # PHASE 2: MUTANT & COMBINED PASS (skipped for pure-WT micro-slices)
                 # =============================================================
+                if wt_pred_cal is None and need_combined:
+                    # Combined/epistasis losses teacher-force on the WT prediction;
+                    # supply it without gradients (WT loss is handled in its own pass above).
+                    with torch.no_grad():
+                        wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.hparams.mask_strategy, detach_calibration=self.hparams.detach_regression)
+                        wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
                 mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=self.hparams.mask_strategy, detach_calibration=self.hparams.detach_regression)
                 mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
-                
-                detach_ens = getattr(self.hparams, 'detach_ensemble_input', True)
-                base_wt_cal = wt_pred_cal.detach() if detach_ens else wt_pred_cal
-                base_wt_raw = wt_pred_raw.detach() if detach_ens else wt_pred_raw
 
-                # Teacher forcing override for ENSEMBLE mode
-                if self.model.lora_mode == 'ensemble':
-                    if not has_add_label.any():
-                        logging.warning("Ensemble mode teacher-forcing enabled, but no additive labels or single mutations are present in the batch.")
+                if need_combined:
+                    detach_ens = getattr(self.hparams, 'detach_ensemble_input', True)
+                    base_wt_cal = wt_pred_cal.detach() if detach_ens else wt_pred_cal
+                    base_wt_raw = wt_pred_raw.detach() if detach_ens else wt_pred_raw
 
-                    # Locate the appropriate calibration head
-                    cal_head = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
-                    if cal_head is None:
-                        raise AssertionError("Ensemble mode failed: Could not locate 'calibration_head_wt' or 'calibration_head_fused' on self.model for de-calibration.")
-                    
-                    # Invert the calibration: raw = (cal - bias) / scale
-                    s = 1.0 if not cal_head.use_scale else cal_head.scale.detach()
-                    b = 0.0 if cal_head.bias is None else cal_head.bias.detach()
-                    decalibrated_label = (tf_additive_labels - b) / s
-                    
-                    forced_wt_cal = torch.where(has_add_label, tf_additive_labels, base_wt_cal)
-                    forced_wt_raw = torch.where(has_add_label, decalibrated_label, base_wt_raw)
-                elif self.model.lora_mode == 'corrector':
-                    forced_wt_cal, forced_wt_raw = base_wt_cal, base_wt_raw
-                else:
-                    raise AssertionError(f"Unknown lora_mode: {self.model.lora_mode}")
+                    # Teacher forcing override for ENSEMBLE mode
+                    if self.model.lora_mode == 'ensemble':
+                        if not has_add_label.any():
+                            logging.warning("Ensemble mode teacher-forcing enabled, but no additive labels or single mutations are present in the batch.")
 
-                combined_pred_raw = 0.5 * forced_wt_raw + 0.5 * mt_pred_raw
-                combined_pred_cal = 0.5 * forced_wt_cal + 0.5 * mt_pred_cal
-                epi_pred = 0.5 * mt_pred_cal - 0.5 * forced_wt_cal
+                        # Locate the appropriate calibration head
+                        cal_head = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
+                        if cal_head is None:
+                            raise AssertionError("Ensemble mode failed: Could not locate 'calibration_head_wt' or 'calibration_head_fused' on self.model for de-calibration.")
+
+                        # Invert the calibration: raw = (cal - bias) / scale
+                        s = 1.0 if not cal_head.use_scale else cal_head.scale.detach()
+                        b = 0.0 if cal_head.bias is None else cal_head.bias.detach()
+                        decalibrated_label = (tf_additive_labels - b) / s
+
+                        forced_wt_cal = torch.where(has_add_label, tf_additive_labels, base_wt_cal)
+                        forced_wt_raw = torch.where(has_add_label, decalibrated_label, base_wt_raw)
+                    elif self.model.lora_mode == 'corrector':
+                        forced_wt_cal, forced_wt_raw = base_wt_cal, base_wt_raw
+                    else:
+                        raise AssertionError(f"Unknown lora_mode: {self.model.lora_mode}")
+
+                    combined_pred_raw = 0.5 * forced_wt_raw + 0.5 * mt_pred_raw
+                    combined_pred_cal = 0.5 * forced_wt_cal + 0.5 * mt_pred_cal
+                    epi_pred = 0.5 * mt_pred_cal - 0.5 * forced_wt_cal
                 
                 mt_losses = []
 
@@ -233,6 +307,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     mt_losses.append(self.hparams.lambda_epi_combined * (L * w_mb[epi_mask]).sum() / global_w_sum)
                     sums['epi_combined'] += float((L * w_mb[epi_mask]).sum().item()); cnts['epi_combined'] += float(w_mb[epi_mask].sum().item())
 
+                # Revert-in-double (mut_ctx_rev) and native mutant-context (native_mut_ctx)
+                # items: regress the MT pass on their ddG target. Both use the same
+                # E = LLR(WT)-LLR(MT) approx ddG sign convention, so the MT pass is trained
+                # on a consistent target (not pulled in opposite directions).
+                if self.hparams.lambda_reg_mt > 0 and mt_mask.any():
+                    L = self.crit_reg(mt_pred_cal[mt_mask], ddG_mb[mt_mask])
+                    mt_losses.append(self.hparams.lambda_reg_mt * (L * w_mb[mt_mask]).sum() / global_w_sum)
+                    sums['reg_mt'] += float((L * w_mb[mt_mask]).sum().item()); cnts['reg_mt'] += float(w_mb[mt_mask].sum().item())
+
                 if mt_losses:
                     total_mt = sum(mt_losses)
                     if not torch.isfinite(total_mt): raise AssertionError("MT Loss evaluated to NaN/Inf.")
@@ -240,7 +323,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     self.manual_backward(total_mt)
 
         logs = {}
-        log_keys = ['reg_wt', 'rank_wt', 'reg_combined', 'rank_combined', 'epi_combined']
+        log_keys = ['reg_wt', 'rank_wt', 'reg_combined', 'rank_combined', 'epi_combined', 'reg_mt']
         for k in log_keys:
             if cnts[k] > 0: logs[f'L_{k}'] = sums[k] / max(1, cnts[k])
         return logs
@@ -330,14 +413,17 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         ddG = utils._get_label(batch, 'ddG', device=batch['ddG'].device)
         dddG = batch.get('dddG', None)
         
+        _n_items = int(out_dict['wt_lora_pred'].shape[0])
         self.validation_step_outputs[dataloader_idx].append({
             'wt_scores': out_dict['wt_lora_pred'].detach().cpu().float().numpy(),
+            'mt_scores': out_dict['mt_lora_pred'].detach().cpu().float().numpy(),
             'comb_scores': out_dict['combined_pred'].detach().cpu().float().numpy(),
             'epi_scores': out_dict['epi_pred'].detach().cpu().float().numpy(),
             'ground_truths': ddG.detach().cpu().float().numpy() if ddG is not None else np.array([]),
             'dddG_truths': dddG.detach().cpu().float().numpy() if dddG is not None else np.array([]),
             'pdb': batch.get('pdb', []),
-            'mutations': batch.get('mutations', [])
+            'mutations': batch.get('mutations', []),
+            'subset_type': list(batch.get('subset_type', ['single'] * _n_items))
         })
 
     def on_validation_epoch_start(self):
@@ -354,6 +440,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
             single_dict_comb = {}
             wt_scores_list, comb_scores_list, epi_scores_list = [], [], []
+            mt_scores_list, subset_type_list = [], []
             ground_truths_list, dddG_truths_list, mut_lens_list = [], [], []
             
             flat_mut_parts, flat_pdb_ids = [], []
@@ -365,10 +452,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     pdb_id = pdb_list[i] if (isinstance(pdb_list, (list, tuple, np.ndarray)) and i < len(pdb_list)) else (pdb_list if isinstance(pdb_list, str) else "unknown")
 
                     wt_scores_list.append(o['wt_scores'][i])
+                    mt_scores_list.append(o['mt_scores'][i])
                     comb_scores_list.append(o['comb_scores'][i])
                     epi_scores_list.append(o['epi_scores'][i])
                     ground_truths_list.append(o['ground_truths'][i] if i < len(o['ground_truths']) else np.nan)
                     dddG_truths_list.append(o['dddG_truths'][i] if i < len(o['dddG_truths']) else np.nan)
+                    subset_type_list.append(o['subset_type'][i] if i < len(o['subset_type']) else 'single')
                     mut_lens_list.append(len(mut_parts))
                     
                     flat_mut_parts.append(mut_parts)
@@ -389,26 +478,31 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     epi_scores_list_full.append(0.0)
                         
             wt_scores, comb_scores = np.array(wt_scores_list), np.array(comb_scores_list)
+            mt_scores_arr = np.array(mt_scores_list)
             epi_scores, epi_scores_full, ground_truths, dddG_truths = np.array(epi_scores_list), np.array(epi_scores_list_full), np.array(ground_truths_list), np.array(dddG_truths_list)
             idx_singles, idx_doubles = np.array(mut_lens_list) == 1, np.array(mut_lens_list) >= 2
-            
+            # MT head's primary training domain: mut_ctx_rev + native_mut_ctx items.
+            mt_domain_mask = np.array([s in ('mut_ctx_rev', 'native_mut_ctx') for s in subset_type_list])
+
             valid_dddG_mask = idx_doubles & ~np.isnan(dddG_truths) & ~np.isnan(epi_scores)
 
             metrics = stats.compute_metrics(
                 wt_scores, comb_scores, epi_scores, epi_scores_full,
-                ground_truths, dddG_truths, idx_singles, idx_doubles, valid_dddG_mask
+                ground_truths, dddG_truths, idx_singles, idx_doubles, valid_dddG_mask,
+                mt_scores=mt_scores_arr, mt_domain_mask=mt_domain_mask
             )
             
             # Aggregate pooled data for ungrouped metric calculation
             pooled_data['wt_scores'].extend(wt_scores_list)
+            pooled_data['mt_scores'].extend(mt_scores_list)
             pooled_data['comb_scores'].extend(comb_scores_list)
             pooled_data['ground_truths'].extend(ground_truths_list)
+            pooled_data['subset_type'].extend(subset_type_list)
 
-            # Log metrics avoiding MUT-specific grouped ones and grouped NDCGs
-            for metric_type in ['rho', 'rho_singles', 'rho_doubles', 'rho_dddG_heuristic', 'rho_dddG', 'rmse', 'ndcg@k=96', 'ndcg>0']: 
+            # Log all head metrics: WT, MT (standalone mutant pass), combined, and MT-domain.
+            for metric_type in ['rho', 'rho_singles', 'rho_doubles', 'rho_dddG_heuristic', 'rho_dddG', 'rmse', 'ndcg@k=96', 'ndcg>0', 'rho_mt_domain', 'rmse_mt_domain']:
                 if metric_type in metrics:
                     for pathway, val in metrics[metric_type].items():
-                        if pathway == 'mt': continue # Skip all standalone mut pass metrics
                         if not np.isnan(val): self.log(f"val_{metric_type}_{pathway}/{val_loader_name}", val, on_epoch=True, sync_dist=True)
 
             for metric_type, pathways in metrics.items(): 
@@ -445,6 +539,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     if not np.isnan(val): self.log(f"val_ndcg@k=96_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
                 for pathway, val in ungrouped_ndcg_t0.items():
                     if not np.isnan(val): self.log(f"val_ndcg@k>0_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
+
+                # Ungrouped MT-head metric on its primary domain (mut_ctx_rev + native_mut_ctx), pooled globally.
+                g_mt = np.array(pooled_data['mt_scores'])
+                g_st = pooled_data['subset_type']
+                if len(g_mt) == len(g_gt):
+                    mt_dom = np.array([s in ('mut_ctx_rev', 'native_mut_ctx') for s in g_st]) & valid_mask
+                    if mt_dom.any():
+                        mt_rho = stats.safe_spearman(g_mt[mt_dom], g_gt[mt_dom])
+                        if not np.isnan(mt_rho): self.log("val_rho_mt_domain_ungrouped", mt_rho, on_epoch=True, sync_dist=True)
 
         if not self.trainer.sanity_checking and self.hparams.freeze_wt_on_convergence and not self.peft_manager.has_transitioned:
             target_metric_key = self.hparams.wt_convergence_metric

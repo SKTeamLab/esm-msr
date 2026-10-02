@@ -79,11 +79,14 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--lambda_rank_combined', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_wt', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_combined', type=float, default=0.0)
+    loss_group.add_argument('--lambda_reg_mt', type=float, default=0.0)
     loss_group.add_argument('--lambda_epi_combined', type=float, default=0.0)
     loss_group.add_argument('--mt_reg_mask', type=str, default='all', choices=['all', 'doubles'])
     loss_group.add_argument('--double_weight', type=float, default=1.0)
     loss_group.add_argument('--reversion_weight', type=float, default=0.5)
     loss_group.add_argument('--mut_ctx_weight', type=float, default=0.5)
+    loss_group.add_argument('--mut_ctx_rev_weight', type=float, default=0.5)
+    loss_group.add_argument('--native_mut_ctx_weight', type=float, default=1.0)
     loss_group.add_argument('--weight_decay', type=float, default=0)
     loss_group.add_argument('--residual_wd', type=float, default=1e-5)
     loss_group.add_argument('--calib_lr_mult', type=float, default=20.0)
@@ -149,8 +152,10 @@ def parse_arguments() -> argparse.Namespace:
     data_group.add_argument('--incl_doubles', action=argparse.BooleanOptionalAction, default=False)
     data_group.add_argument('--incl_mut_ctx', action=argparse.BooleanOptionalAction, default=False)
     data_group.add_argument('--incl_reversions', action=argparse.BooleanOptionalAction, default=False)
-    
-    data_group.add_argument('--subset_caps', nargs='*', action=ParseSubsetCaps, default=default_caps, 
+    data_group.add_argument('--incl_mut_ctx_rev', action=argparse.BooleanOptionalAction, default=False)
+    data_group.add_argument('--incl_native_mut_ctx', action=argparse.BooleanOptionalAction, default=False)
+
+    data_group.add_argument('--subset_caps', nargs='*', action=ParseSubsetCaps, default=default_caps,
                             help="Caps for data subsets (e.g., double=0.6 over_and_back=0.1). Defaults to 0 for all except 'single' (None).")
     data_group.add_argument('--mut_structures_root', type=str, default='/home/sareeves/software/esm-msr/data/tsuboyama/FINAL_results/')
     data_group.add_argument('--use_plddt', action=argparse.BooleanOptionalAction, default=False)
@@ -184,7 +189,9 @@ def parse_arguments() -> argparse.Namespace:
         'single': 'incl_singles',
         'double': 'incl_doubles',
         'mut_ctx': 'incl_mut_ctx',
-        'reversion': 'incl_reversions'
+        'reversion': 'incl_reversions',
+        'mut_ctx_rev': 'incl_mut_ctx_rev',
+        'native_mut_ctx': 'incl_native_mut_ctx'
     }
 
     if args.subset_caps:

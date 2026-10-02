@@ -515,10 +515,27 @@ class MSRModel(ESM3PredictorBase):
         wt_pred_cal, mt_pred_cal = wt_out['pred_calibrated'], mt_out['pred_calibrated']
         wt_pred_raw, mt_pred_raw = wt_out['pred_raw'], mt_out['pred_raw']
 
+        # Item-type-dependent combined prediction (VALIDATION ONLY). The two
+        # heads are trained fully separately (no combined loss), so each item
+        # type is predicted by the head that owns it in training:
+        #   - single            -> WT pass (WT head trains on normal singles)
+        #   - mut_ctx_rev       -> MT pass (MT head trains on mut_ctx)
+        #   - native_mut_ctx    -> MT pass (MT head trains on mut_ctx)
+        #   - double            -> ensemble 0.5*WT + 0.5*MT (doubles are
+        #     EXCLUDED from training, so they are only ever predicted at
+        #     validation time by combining the two heads).
         if self.adapter_mode == 'fused':
-            combined_pred = 0.5 * self.calibration_head_fused(wt_pred_raw) + 0.5 * self.calibration_head_fused(mt_pred_raw)
+            wt_cal = self.calibration_head_fused(wt_pred_raw)
+            mt_cal = self.calibration_head_fused(mt_pred_raw)
         else:
-            combined_pred = 0.5 * wt_pred_cal + 0.5 * mt_pred_cal
+            wt_cal, mt_cal = wt_pred_cal, mt_pred_cal
+        subset_type = batch_in.get('subset_type', ['single' for _ in range(wt_pred_cal.shape[0])])
+        is_single = torch.as_tensor([s == 'single' for s in subset_type], device=wt_pred_cal.device)
+        # The MT head owns every mutant-context item (mut_ctx_rev + native_mut_ctx);
+        # only true doubles fall through to the ensemble.
+        is_mt_domain = torch.as_tensor([s in ('mut_ctx_rev', 'native_mut_ctx') for s in subset_type], device=wt_pred_cal.device)
+        avg_cal = 0.5 * wt_cal + 0.5 * mt_cal
+        combined_pred = torch.where(is_single, wt_cal, torch.where(is_mt_domain, mt_cal, avg_cal))
 
         epi_pred = 0.5 * mt_pred_cal - 0.5 * wt_pred_cal
 

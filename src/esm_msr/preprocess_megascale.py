@@ -329,6 +329,8 @@ class MegaScaleDatasetPreprocessor:
         incl_doubles: bool = False,
         incl_reversions: bool = False,
         incl_mut_ctx: bool = False,
+        incl_mut_ctx_rev: bool = False,
+        incl_native_mut_ctx: bool = False,
         combine_validation: bool = False,
     ) -> Tuple[List[DataLoader], List[str]]:
         """Generates a list of dataloaders for a specific list of protein codes."""
@@ -357,8 +359,10 @@ class MegaScaleDatasetPreprocessor:
                     incl_destab_bb=incl_destab_bb,
                     incl_singles=incl_singles,
                     incl_doubles=incl_doubles,
-                    incl_reversions=incl_reversions, 
+                    incl_reversions=incl_reversions,
                     incl_mut_ctx=incl_mut_ctx,
+                    incl_mut_ctx_rev=incl_mut_ctx_rev,
+                    incl_native_mut_ctx=incl_native_mut_ctx,
                 )
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
@@ -433,14 +437,22 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         mut_structures_root=args.mut_structures_root, combine_validation=args.combine_validation,
         incl_singles=args.incl_singles,
         incl_doubles=args.incl_doubles,
-        incl_mut_ctx=args.incl_mut_ctx, 
+        incl_mut_ctx=args.incl_mut_ctx,
         incl_reversions=args.incl_reversions,
+        incl_mut_ctx_rev=args.incl_mut_ctx_rev,
+        incl_native_mut_ctx=args.incl_native_mut_ctx,
     )
 
     if not train_dataloaders: 
         raise RuntimeError("No valid training dataloaders created.")
 
     # Build Validation Loaders
+    # Validation policy: singles and doubles are ALWAYS unrestricted. Doubles are
+    # never trained (in this prototype the heads are kept fully separate), so they
+    # are only ever predicted at validation time via the 0.5*WT + 0.5*MT ensemble
+    # (see forward_batch routing). The remaining subset families mirror the
+    # training configuration: any mut_ctx family subset (mut_ctx, mut_ctx_rev,
+    # native_mut_ctx) or reversion that is trained is also validated.
     val_dataloaders, val_loader_names = preprocessor.create_protein_dataloaders(
         tokenizer=tokenizer, structure_encoder=struct_enc_arg,
         scaffold='val', batch_size=64, num_workers=args.num_workers, shuffle=False,
@@ -448,8 +460,10 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         generate_cache=args.regenerate_cache,
         incl_singles=True,
         incl_doubles=True,
-        incl_reversions=False,
-        incl_mut_ctx=False,
+        incl_reversions=args.incl_reversions,
+        incl_mut_ctx=args.incl_mut_ctx,
+        incl_mut_ctx_rev=args.incl_mut_ctx_rev,
+        incl_native_mut_ctx=args.incl_native_mut_ctx,
     )
 
     # Add Benchmarks

@@ -1,4 +1,5 @@
 import os
+import re
 import gc
 import math
 import pickle
@@ -43,7 +44,9 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
         incl_singles: bool = True,
         incl_doubles: bool = True,
         incl_mut_ctx: bool = False,
-        incl_reversions: bool = False
+        incl_reversions: bool = False,
+        incl_mut_ctx_rev: bool = False,
+        incl_native_mut_ctx: bool = False
     ):
         """
         Initializes the dataset, loading from cache if available or generating from scratch.
@@ -62,6 +65,10 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
             incl_doubles: Include double mutations.
             incl_mut_ctx: Include synthesized mutant-context singles.
             incl_reversions: Include reversion mutations.
+            incl_mut_ctx_rev: Include revert-in-double mutant-context items.
+            incl_native_mut_ctx: Include native mutant-context singles (DMS measured in a
+                mutant background; codes carry a mutation suffix). Relabeled in-memory at
+                load time so they can be toggled independently of normal singles.
         """
         self.score_name = score_name
         self.dms_name = dms_name
@@ -73,6 +80,8 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
         self.include_doubles = incl_doubles
         self.include_mut_context = incl_mut_ctx
         self.include_reversions = incl_reversions
+        self.include_mut_ctx_rev = incl_mut_ctx_rev
+        self.include_native_mut_ctx = incl_native_mut_ctx
         self.mut_structs_root = mut_structs_root
         
         # Pre-cache the vocabulary mapping for rapid ID lookups
@@ -86,9 +95,12 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
             path = '.'
 
         #self.dms_name = re.sub(r'_[A-Za-z]+[0-9]+[A-Za-z]+$', '', self.dms_name)
+        # Append a suffix when the revert-in-double subset is requested so we never
+        # serve a stale cache that predates the mut_ctx_rev items (block E).
+        cache_suffix = "_MCR" if self.include_mut_ctx_rev else ""
         self.cache_path = os.path.join(
             path,
-            f"{self.dms_name}_{self.score_name}_MAX_Smasked0.pkl" #_StaticWT
+            f"{self.dms_name}_{self.score_name}_MAX_Smasked0{cache_suffix}.pkl" #_StaticWT
         )
 
         logging.info(f"Dataset Cache Path: {self.cache_path}")
@@ -113,8 +125,12 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
             cache_composition[stype] = cache_composition.get(stype, 0) + 1
         logging.info(f"Cache contains: {cache_composition}")
 
+        # Relabel native mutant-context (mutation-suffixed code) items in-memory so they
+        # can be toggled independently of normal singles. Cache on disk is untouched.
+        self._relabel_native_mut_ctx()
+
         # remove unwanted subsets
-        self._filter_dataset()  
+        self._filter_dataset()
         # to facilitate subsampling      
         self._extract_scalars()
 
@@ -149,7 +165,11 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
             allowed_types.add('mut_ctx')
         if self.include_reversions:
             allowed_types.add('reversion')
-            
+        if self.include_mut_ctx_rev:
+            allowed_types.add('mut_ctx_rev')
+        if self.include_native_mut_ctx:
+            allowed_types.add('native_mut_ctx')
+
         original_len = len(self.data)
         self.data = [item for item in self.data if item.get('subset_type') in allowed_types]
         logging.info(f"Filtered dataset from {original_len} to {len(self.data)} items based on allowed types: {allowed_types}")
@@ -174,6 +194,29 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
     def load_data_from_cache(self) -> None:
         with open(self.cache_path, 'rb') as f:
             self.data = pickle.load(f)
+
+    def _relabel_native_mut_ctx(self) -> None:
+        """
+        Relabel items from mutation-suffixed (native mutant-context) codes as
+        'native_mut_ctx' so they can be toggled independently of normal singles.
+
+        A "native mut ctx" protein is one whose DMS was characterized entirely under a
+        mutant background, which the code records as a mutation suffix (e.g. '1A0N_L7S' =
+        1A0N measured in the L7S background). Such codes carry no bare counterpart and their
+        items are ordinary single/reversion pairs measured in that background. We relabel
+        them in-memory at load time (the on-disk cache is left untouched) so the training
+        loop can route them to the MT head while the WT head keeps training on normal
+        singles only. The sign convention is identical to normal singles (E = LLR(WT)-LLR(MT)
+        approx ddG), so no target sign is flipped.
+        """
+        n = 0
+        for item in self.data:
+            code = item.get('pdb') or self.dms_name
+            if re.search(r'_[A-Z][0-9]+[A-Z]$', code) and item.get('subset_type') in ('single', 'reversion'):
+                item['subset_type'] = 'native_mut_ctx'
+                n += 1
+        if n:
+            logging.info(f"[{self.dms_name}] Relabeled {n} items as native_mut_ctx")
 
     def __len__(self) -> int:
         return len(self.data)
@@ -536,6 +579,46 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
                         subset_type='double', structure_type=struct_type
                     ))
 
+                    # (E) Revert-in-double mutant-context items (MT-adapter signal)
+                    # The MT pass conditions on mt_seq (the before-state) and scores the
+                    # reversion, so its LLR = L(after_residue; AB) - L(before_residue; AB),
+                    # structurally identical to the working WT-pass-on-singles, with target
+                    # G(after) - G(before) = G(single) - G(double). Reuses the double's
+                    # backbone structure (c_b, p_b, s_b, r_b) since the context IS the double.
+                    if (posA, mtA) in single_map and (posB, mtB) in single_map:
+                        ddG_A = single_map[(posA, mtA)]
+                        ddG_B = single_map[(posB, mtB)]
+                        ddG_additive = ddG_A + ddG_B
+
+                        # Single-mutant sequences: A = only mutation A; B = only mutation B
+                        seq_A_list = list(corrected_seq)
+                        seq_A_list[posA-1] = mtA
+                        seq_A = ''.join(seq_A_list)
+
+                        seq_B_list = list(corrected_seq)
+                        seq_B_list[posB-1] = mtB
+                        seq_B = ''.join(seq_B_list)
+
+                        # Revert A in AB: context = AB (before), reversion mtA -> wtA at posA,
+                        # after-state = B. Target = G(B) - G(AB) = ddG_B - ddG_val.
+                        data.append(self._create_data_item(
+                            mutations=[(mtA, posA, wtA)], ddG=float(ddG_B - ddG_val), dddG=dddG_val,
+                            ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, code=code,
+                            wt_seq=seq_B, mt_seq=mt_seq,
+                            coords=c_b, plddt=p_b, structure_tokens=s_b, residue_index=r_b,
+                            subset_type='mut_ctx_rev', structure_type=struct_type
+                        ))
+
+                        # Revert B in AB: context = AB (before), reversion mtB -> wtB at posB,
+                        # after-state = A. Target = G(A) - G(AB) = ddG_A - ddG_val.
+                        data.append(self._create_data_item(
+                            mutations=[(mtB, posB, wtB)], ddG=float(ddG_A - ddG_val), dddG=dddG_val,
+                            ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, code=code,
+                            wt_seq=seq_A, mt_seq=mt_seq,
+                            coords=c_b, plddt=p_b, structure_tokens=s_b, residue_index=r_b,
+                            subset_type='mut_ctx_rev', structure_type=struct_type
+                        ))
+
                 # (D) Synthesized mutant-context singles
                 if len(muts) == 2: 
                     (wtA, posA, mtA), (wtB, posB, mtB) = muts
@@ -809,7 +892,7 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
     2. Caches subset categorizations during __init__ to avoid O(N) epoch stalls.
     3. Handles 2D sampling and subset caps strictly via integer indices.
     """
-    SUBSET_ORDER = ['single', 'double', 'reversion', 'mut_ctx']
+    SUBSET_ORDER = ['single', 'double', 'reversion', 'mut_ctx', 'mut_ctx_rev', 'native_mut_ctx']
 
     def __init__(
         self,
@@ -838,7 +921,8 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         }
 
         self.subset_caps: Dict[str, Optional[float]] = {
-            'single': None, 'double': None, 'mut_ctx': 0.0, 'reversion': 0.0
+            'single': None, 'double': None, 'mut_ctx': 0.0, 'reversion': 0.0,
+            'mut_ctx_rev': None, 'native_mut_ctx': 0.0
         }
         if subset_caps is not None:
             self.subset_caps.update(subset_caps)
