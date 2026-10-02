@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 *.egg-info/
 
+.claude/
+
 # Model weights: the ESM-MSR LoRA models are hosted on HuggingFace
 # (https://huggingface.co/sareeves96/esm-msr); download the ones you
 # need into LoRA_models/ (only the small demo model is committed).

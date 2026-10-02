@@ -86,6 +86,36 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
+    def _cast_frozen_linears_bf16(self):
+        """
+        Store the frozen ESM3 transformer Linear weights in bf16 on the training
+        device.
+
+        Under bf16-mixed autocast, F.linear computes in bf16: inputs and fp32
+        weights are cast to bf16 for every call. For frozen (requires_grad=False)
+        base weights autocast does NOT cache that cast, so every forward re-casts
+        ~1.4B params (~300 extra kernels per forward) and a ~2.8 GB bf16 copy of
+        the weights is held per live autograd graph. Storing the frozen weights in
+        bf16 up front removes both: the forward math is numerically identical
+        (autocast would have rounded the fp32 weights to bf16 anyway), the frozen
+        weights are never updated, and the re-share hook runs afterwards so MT
+        ends up pointing at the same bf16 storage. Only the frozen
+        transformer-block Linears are cast; embeddings, layernorms, LoRA params,
+        and the output heads stay fp32.
+        """
+        peft_wt = getattr(self.model, 'peft_wt', None)
+        if peft_wt is None:
+            return
+        n = 0
+        for name, m in peft_wt.named_modules():
+            if 'transformer.blocks.' not in name or 'lora_' in name:
+                continue
+            if isinstance(m, torch.nn.Linear) and m.weight is not None \
+                    and m.weight.dtype == torch.float32 and not m.weight.requires_grad:
+                m.weight.data = m.weight.data.to(torch.bfloat16)
+                n += 1
+        logging.info(f"[bf16] cast {n} frozen transformer Linear weights to bf16 in peft_wt")
+
     def _reshare_base_params_on_device(self):
         """
         Re-share the frozen ESM3 base weights between the WT and MT PEFT copies on
@@ -104,6 +134,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         peft_mt = getattr(self.model, 'peft_mt', None)
         if peft_wt is None or peft_mt is None:
             return  # single-adapter mode: nothing to re-share
+        # Cast the frozen WT transformer Linears to bf16 first so the re-share
+        # below points MT at the same bf16 storage (no extra copy).
+        self._cast_frozen_linears_bf16()
 
         def _clean(n: str) -> str:
             return n.replace("base_model.model.", "").replace(".base_layer.", ".").replace(".original_module.", ".")
@@ -120,7 +153,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 n_shared += 1
                 dev = src.device
         logging.info(f"[reshare] dual-adapter base weights re-shared on {dev}: {n_shared} params "
-                     f"deduplicated (~5.8 GB fp32 avoided)")
+                     f"deduplicated (transformer Linears stored bf16, rest fp32)")
 
     def _compute_rank_loss(self, pred, targets, mask, list_size, crit_fn):
         valid_len = (pred.shape[0] // list_size) * list_size
@@ -164,16 +197,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         # ------------------------------------------------------------------
         # Pure-minibatch ordering: WT-trainable items (singles, doubles, etc.)
-        # first, then MT-trainable items (mut_ctx_rev / native_mut_ctx), so each
-        # micro-slice is homogeneous and runs exactly one backbone forward
-        # (plus one mixed tail slice if the counts don't tile evenly). This
-        # avoids the two sequential head-forwards per micro-slice and the
-        # lingering un-backwarded pass graph from the previous iteration.
+        # first, then MT-trainable items (mut_ctx_rev / native_mut_ctx). Each
+        # type block is sliced independently, so every micro-slice is
+        # homogeneous and runs exactly one backbone forward; when a count
+        # doesn't tile evenly the remainder becomes its own pure-type tail
+        # slice (no slice ever straddles the WT/MT boundary and runs both
+        # backbones on partial passes). This avoids the two sequential
+        # head-forwards per micro-slice and the lingering un-backwarded pass
+        # graph from the previous iteration.
         # ------------------------------------------------------------------
         idx_all = torch.arange(B, device=device)
         is_mt_type = torch.as_tensor([s in ('mut_ctx_rev', 'native_mut_ctx') for s in st_all], device=device)
-        idx_seq = torch.cat([idx_all[~is_mt_type], idx_all[is_mt_type]])
-        micro_slices = [idx_seq[start:start + mb] for start in range(0, B, mb)]
+        wt_idx, mt_idx = idx_all[~is_mt_type], idx_all[is_mt_type]
+        micro_slices = [g[s:s + mb] for g in (wt_idx, mt_idx) for s in range(0, g.numel(), mb)]
 
         for idx in micro_slices:
             micro, w_mb = utils.slice_batch_by_index(batch, idx), w_all[idx]
@@ -374,18 +410,22 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if max_norm and max_norm > 0:
             self.clip_gradients(optim, gradient_clip_val=max_norm, gradient_clip_algorithm="norm")
             
-        param_id_to_name = {id(p): name for name, p in self.model.named_parameters()}
-        for i, g in enumerate(optim.param_groups):
-            group_name = g.get("name", f"group{i}")
-            named_params = [(param_id_to_name.get(id(p), f"param_{j}"), p) for j, p in enumerate(g["params"])]
-            
-            w_norm = utils.l2_weight_norm(named_params)
-            g_norm = utils.l2_grad_norm(named_params)
-            s_norm = utils.group_step_norm(named_params, float(g["lr"]))
-            
-            self.log(f"norm_weight/{group_name}", w_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
-            self.log(f"norm_grad/{group_name}", g_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
-            self.log(f"norm_step/{group_name}", s_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
+        # Norm diagnostics only at the log cadence (log_every_n_steps): the
+        # param->name dict build plus three norm reductions over every parameter
+        # group ran every step and forced host syncs that dominated step time.
+        if self.global_step % self.trainer.log_every_n_steps == 0:
+            param_id_to_name = {id(p): name for name, p in self.model.named_parameters()}
+            for i, g in enumerate(optim.param_groups):
+                group_name = g.get("name", f"group{i}")
+                named_params = [(param_id_to_name.get(id(p), f"param_{j}"), p) for j, p in enumerate(g["params"])]
+
+                w_norm = utils.l2_weight_norm(named_params)
+                g_norm = utils.l2_grad_norm(named_params)
+                s_norm = utils.group_step_norm(named_params, float(g["lr"]))
+
+                self.log(f"norm_weight/{group_name}", w_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
+                self.log(f"norm_grad/{group_name}", g_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
+                self.log(f"norm_step/{group_name}", s_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
 
         optim.step()
         optim.zero_grad(set_to_none=True)
