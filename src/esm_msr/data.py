@@ -5,7 +5,7 @@ import math
 import pickle
 import random
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union, Iterator
 
 import numpy as np
@@ -18,18 +18,45 @@ from esm.utils.structure.protein_chain import ProteinChain
 from esm.utils.constants import esm3 as C
 
 from esm_msr.utils import custom_end_gap_alignment, determine_diffs
-from esm_msr.routing import DOUBLE_DERIVED_SUBSETS
+from esm_msr.routing import DOUBLE_DERIVED_SUBSETS, canonical_subset
+
+# A library code ending in a mutation ('1A0N_L7S') means every measurement in it was
+# made in that mutant background.
+NATIVE_BACKGROUND_CODE_RE = re.compile(r'_[A-Z][0-9]+[A-Z]$')
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
-class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
+class MutationStabilityDataset(torch.utils.data.Dataset):
     """
-    Optimized dataloader for the Vectorized Two-Pass Latent Ensemble architecture.
-    Integrates static WT structural evaluation with modeled mutant contexts and reversions.
+    One protein library (one ``code``) of stability measurements, expanded into the
+    training items of each subset and cached to disk.
+
+    Generation walks the library's rows once and emits, per row:
+
+    * ``single``   - a measured single mutation on its own structure (WT head).
+    * ``double``   - a measured multi-mutant (predicted by the head ensemble).
+    * ``cond``     - the conditional effect of one mutation of a double given the other,
+                     derived as ddG_AB - ddG_B, scored by the MT head.
+    * ``reversion`` - the same measurement as ``single`` read backwards (unrouted).
+
+    ``cond`` replaces the former ``mut_ctx`` / ``mut_ctx_rev`` pair, which encoded the
+    same quantity twice (see ``esm_msr.routing``). ``native_cond`` is assigned at load
+    time by :meth:`_label_native_cond` for libraries whose code carries a mutation
+    suffix, i.e. whose measurements were all made in a mutant background.
+
+    Positions are 1-based with respect to the structure's sequence, which equals the
+    index into the tokenized sequence because the tokenizer prepends BOS.
     """
+
+    # Bump when the emitted items change shape or meaning, so a stale cache is never served.
+    CACHE_VERSION = 'v2cond'
+
+    # Dynamic range of the cDNA-display proteolysis dG estimates; dG_ML is clipped to it.
+    DG_FLOOR, DG_CEILING = -1.0, 5.0
+
     def __init__(
         self,
         dms_df: Any,
@@ -44,53 +71,64 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
         structure_encoder: Optional[Any] = None,
         incl_singles: bool = True,
         incl_doubles: bool = True,
-        incl_mut_ctx: bool = False,
+        incl_cond: bool = False,
         incl_reversions: bool = False,
-        incl_mut_ctx_rev: bool = False,
-        incl_native_mut_ctx: bool = False,
+        incl_native_cond: bool = False,
+        cond_structure: str = 'reuse',
         dG_wt: Optional[float] = None,
         censor_margin: Optional[float] = None,
     ):
         """
-        Initializes the dataset, loading from cache if available or generating from scratch.
-
         Args:
-            dms_df: DataFrame containing Deep Mutational Scanning (DMS) data.
-            tokenizer: Tokenizer for sequence processing.
-            dms_name: Identifier for the DMS dataset.
-            mut_structs_root: Root directory for mutant structure files.
-            score_name: Column name in `dms_df` to use as the target score (default: 'ddG_ML').
-            path: Directory path for caching data. Defaults to current directory.
-            generate: If True, forces regeneration of data bypassing the cache.
-            incl_destab_bb: Whether to include destabilized backbones.
-            structure_encoder: Encoder model for processing 3D structures.
-            incl_singles: Include single mutations.
-            incl_doubles: Include double mutations.
-            incl_mut_ctx: Include synthesized mutant-context singles.
-            incl_reversions: Include reversion mutations.
-            incl_mut_ctx_rev: Include revert-in-double mutant-context items.
-            incl_native_mut_ctx: Include native mutant-context singles (DMS measured in a
-                mutant background; codes carry a mutation suffix). Relabeled in-memory at
-                load time so they can be toggled independently of normal singles.
-            dG_wt: Measured dG of the library's starting sequence (needed for censoring).
-            censor_margin: If set (and dG_wt is known), drop double-derived items whose
-                states come within this many kcal/mol of the assay's dynamic range.
-                See ``_drop_censored``.
+            dms_df: DataFrame of measurements for this library.
+            tokenizer: ESM3 sequence tokenizer.
+            dms_name: The library's ``code`` (e.g. '1A32', or '1A0N_L7S' for a
+                mutant-background library).
+            mut_structs_root: Root of the modeled mutant structures tree
+                (``<root>/<code>/pdb_models/<chain>[<mut>].pdb``).
+            score_name: Target column; 'ddG_ML' for MegaScale, 'ddG' for benchmarks.
+            path: Cache directory.
+            generate: Regenerate instead of reading the cache.
+            incl_destab_bb: Include rows whose backbone is itself a mutant.
+            structure_encoder: ESM3 structure encoder; required to emit structure tokens.
+            incl_singles: Keep ``single`` items.
+            incl_doubles: Keep ``double`` items.
+            incl_cond: Keep ``cond`` items (conditional effects derived from doubles).
+            incl_reversions: Keep ``reversion`` items.
+            incl_native_cond: Keep ``native_cond`` items (measured in a mutant background).
+            cond_structure: Structure a ``cond`` item conditions on.
+                'reuse' uses the structure its parent double uses, i.e. the WT backbone
+                unchanged: the partner's side chain is shown as wild type, which is wrong
+                but is also what the MT adapter sees at inference time.
+                'mask' additionally masks the partner site, which is honest about the
+                unknown side chain but trains on inputs that inference does not reproduce
+                unless masking is used there too.
+                'model' prefers a modeled partner structure when one exists on disk,
+                falling back to 'mask'.
+                Baked into the generated items, so it is part of the cache name.
+            dG_wt: Measured dG of this library's starting sequence; needed for censoring.
+            censor_margin: Drop double-derived items whose states come within this many
+                kcal/mol of the assay's dynamic range. See :meth:`_drop_censored`.
         """
+        if cond_structure not in ('reuse', 'mask', 'model'):
+            raise AssertionError(f"cond_structure must be 'reuse', 'mask' or 'model', got '{cond_structure}'.")
+
         self.score_name = score_name
         self.dms_name = dms_name
         self.tokenizer = tokenizer
         self.structure_encoder = structure_encoder
         self.incl_destab_bb = incl_destab_bb
-
-        self.include_singles = incl_singles
-        self.include_doubles = incl_doubles
-        self.include_mut_context = incl_mut_ctx
-        self.include_reversions = incl_reversions
-        self.include_mut_ctx_rev = incl_mut_ctx_rev
-        self.include_native_mut_ctx = incl_native_mut_ctx
+        self.cond_structure = cond_structure
         self.mut_structs_root = mut_structs_root
-        
+
+        self.include = {
+            'single': incl_singles,
+            'double': incl_doubles,
+            'cond': incl_cond,
+            'reversion': incl_reversions,
+            'native_cond': incl_native_cond,
+        }
+
         # Pre-cache the vocabulary mapping for rapid ID lookups
         self.vocab = self.tokenizer.get_vocab()
 
@@ -98,25 +136,19 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
         dms_df['ddG'] = dms_df[self.score_name]
         dms_df['ground_truth'] = dms_df['ddG']
 
-        if path is None:
-            path = '.'
-
-        #self.dms_name = re.sub(r'_[A-Za-z]+[0-9]+[A-Za-z]+$', '', self.dms_name)
-        # Append a suffix when the revert-in-double subset is requested so we never
-        # serve a stale cache that predates the mut_ctx_rev items (block E).
-        cache_suffix = "_MCR" if self.include_mut_ctx_rev else ""
+        cond_tag = '' if cond_structure == 'reuse' else f'_{cond_structure}'
         self.cache_path = os.path.join(
-            path,
-            f"{self.dms_name}_{self.score_name}_MAX_Smasked0{cache_suffix}.pkl" #_StaticWT
+            path if path is not None else '.',
+            f"{self.dms_name}_{self.score_name}_{self.CACHE_VERSION}{cond_tag}.pkl"
         )
 
         logging.info(f"Dataset Cache Path: {self.cache_path}")
         os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
 
         self.data: List[Dict[str, Any]] = []
-        self._encoded_struct_cache: Dict[Tuple, Tuple] = {} 
-        self._mutant_struct_cache: Dict[str, Tuple] = {}
-        self._parsed_pdb_cache: Dict[str, Tuple] = {} 
+        self._encoded_struct_cache: Dict[Tuple, Tuple] = {}
+        self._mutant_struct_cache: Dict[Tuple, Tuple] = {}
+        self._parsed_pdb_cache: Dict[str, Tuple] = {}
 
         if generate or not os.path.exists(self.cache_path):
             logging.info(f"Generating and caching data for {self.dms_name}")
@@ -126,88 +158,90 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
             logging.info(f"Loading cached data for {self.dms_name}")
             self.load_data_from_cache()
 
-        cache_composition = {}
-        for item in self.data:
-            stype = item.get('subset_type', 'unknown')
-            cache_composition[stype] = cache_composition.get(stype, 0) + 1
-        logging.info(f"Cache contains: {cache_composition}")
+        logging.info(f"Cache contains: {dict(Counter(i.get('subset_type', 'unknown') for i in self.data))}")
 
-        # Relabel native mutant-context (mutation-suffixed code) items in-memory so they
-        # can be toggled independently of normal singles. Cache on disk is untouched.
-        self._relabel_native_mut_ctx()
-
-        # remove unwanted subsets
+        # Mutant-background libraries: their singles are conditional measurements.
+        self._label_native_cond()
         self._filter_dataset()
         if censor_margin is not None:
             self._drop_censored(dG_wt, censor_margin)
-        # to facilitate subsampling      
         self._extract_scalars()
 
+    # ------------------------------------------------------------------ generation
+
     def generate_data(self, dms_df: Any) -> List[Dict[str, Any]]:
-        """
-        Processes raw DMS dataframe into a list of structured data items.
-        """
+        """Expands the raw measurement rows of this library into training items."""
         if self.score_name == 'ddG_ML':
             df = dms_df.loc[dms_df['code'] == self.dms_name].copy()
             if len(df) == 0:
                 raise AssertionError(f"No data found for code {self.dms_name}")
-            info = df.head(1)
             df['mutated_sequence'] = df['aa_seq']
-            data = self._load_data(df, is_predicted=True)
-        else:
-            data = []
-            dms_df['code_wt'] = dms_df['code']
-            for (code, chain), df_sub in dms_df.groupby(['code', 'chain']):
-                df_sub = df_sub.copy()
-                df_sub['mutated_sequence'] = df_sub['mut_seq']
-                data.extend(self._load_data(df_sub, incl_chain_in_code=True, is_predicted=False, benchmark=True))
+            return self._load_data(df, is_predicted=True)
+
+        data = []
+        dms_df['code_wt'] = dms_df['code']
+        for (code, chain), df_sub in dms_df.groupby(['code', 'chain']):
+            df_sub = df_sub.copy()
+            df_sub['mutated_sequence'] = df_sub['mut_seq']
+            data.extend(self._load_data(df_sub, incl_chain_in_code=True, is_predicted=False))
         return data
-    
+
+    # ------------------------------------------------------------------ post-load filters
+
+    def _label_native_cond(self) -> None:
+        """
+        Label items from a mutant-background library as ``native_cond``.
+
+        A library whose code carries a mutation suffix ('1A0N_L7S' = 1A0N measured in the
+        L7S background) has no wild-type counterpart: every measurement in it is already a
+        conditional effect ddG(X | L7S). Its singles therefore belong to the MT head, and
+        are relabeled here so they toggle independently of ordinary singles. The on-disk
+        cache keeps the generic label.
+
+        Reversion items are left as ``reversion`` so they stay behind ``incl_reversions``;
+        they restate the same measurements with the opposite residue visible.
+        """
+        n = 0
+        for item in self.data:
+            code = item.get('pdb') or self.dms_name
+            if NATIVE_BACKGROUND_CODE_RE.search(code) and item.get('subset_type') == 'single':
+                item['subset_type'] = 'native_cond'
+                n += 1
+        if n:
+            logging.info(f"[{self.dms_name}] Labeled {n} items as native_cond (mutant-background library)")
+
     def _filter_dataset(self) -> None:
-        """Filters the in-memory dataset based on subset inclusion flags."""
-        allowed_types = set()
-        if self.include_singles:
-            allowed_types.add('single')
-        if self.include_doubles:
-            allowed_types.add('double')
-        if self.include_mut_context:
-            allowed_types.add('mut_ctx')
-        if self.include_reversions:
-            allowed_types.add('reversion')
-        if self.include_mut_ctx_rev:
-            allowed_types.add('mut_ctx_rev')
-        if self.include_native_mut_ctx:
-            allowed_types.add('native_mut_ctx')
-
-        original_len = len(self.data)
-        self.data = [item for item in self.data if item.get('subset_type') in allowed_types]
-        logging.info(f"Filtered dataset from {original_len} to {len(self.data)} items based on allowed types: {allowed_types}")
-
-    # Dynamic range of the cDNA-display proteolysis dG estimates (dG_ML is clipped to it).
-    DG_FLOOR, DG_CEILING = -1.0, 5.0
+        """Keeps only the subsets this dataset was asked for."""
+        allowed = {k for k, on in self.include.items() if on}
+        before = len(self.data)
+        self.data = [item for item in self.data if item.get('subset_type') in allowed]
+        logging.info(f"Filtered dataset from {before} to {len(self.data)} items based on allowed types: {allowed}")
 
     def _drop_censored(self, dG_wt: Optional[float], margin: float) -> None:
         """
-        Drop double-derived items (double, mut_ctx, mut_ctx_rev) that touch the assay's
-        dynamic-range limits.
+        Drop double-derived items (``double``, ``cond``) that touch the assay's limits.
 
-        When the additive expectation for AB falls below the floor, the measured dG_AB is
-        clipped there, so dddG = ddG_AB - ddG_A - ddG_B comes out spuriously positive. In
-        the Tsuboyama data about 31% of doubles with both singles have some state within
-        0.5 kcal/mol of the floor; their dddG averages +1.7 kcal/mol (vs +0.5 in range) and
-        does not reproduce between the trypsin and chymotrypsin estimates (r = 0.07 vs
-        0.75). Every derived MT target inherits that artifact.
+        dG_ML is clipped to [-1, 5] kcal/mol. When a double's additive expectation falls
+        past the floor the measured dG_AB is clipped there, so
+        dddG = ddG_AB - ddG_A - ddG_B comes out spuriously positive, and ddG(A|B) inherits
+        the same error. Measured on the raw Tsuboyama table: of doubles with both singles,
+        the ~34% with a state within 0.5 kcal/mol of a limit have mean dddG +1.74 kcal/mol
+        and no agreement between the trypsin and chymotrypsin estimates (r = 0.07); the
+        rest have mean +0.51 with r = 0.75.
+
+        A state is the dG of the WT, of each single, of the double, and of the double's
+        additive estimate.
         """
         if dG_wt is None or not np.isfinite(dG_wt):
             logging.warning(f"[{self.dms_name}] censor_margin set but WT dG unknown; no censoring applied.")
             return
         lo, hi = self.DG_FLOOR + margin, self.DG_CEILING - margin
 
-        def _censored(item) -> bool:
+        def _censored(item: Dict[str, Any]) -> bool:
             if item.get('subset_type') not in DOUBLE_DERIVED_SUBSETS:
                 return False
-            a, b, d3 = item.get('ddG_A', np.nan), item.get('ddG_B', np.nan), item.get('dddG', np.nan)
-            ddG_AB = item['ddG'] if item.get('subset_type') == 'double' else a + b + d3
+            a, b = item.get('ddG_A', np.nan), item.get('ddG_B', np.nan)
+            ddG_AB = item.get('ddG_AB', np.nan)
             states = np.array([0.0, a, b, ddG_AB, a + b], dtype=np.float64) + dG_wt
             states = states[np.isfinite(states)]
             return bool(((states < lo) | (states > hi)).any())
@@ -218,17 +252,12 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
                      f"(dG_wt={dG_wt:.2f}, allowed state range [{lo:.2f}, {hi:.2f}])")
 
     def _extract_scalars(self) -> None:
-        """Extracts scalar values into contiguous numpy arrays for fast indexing/subsampling."""
-        logging.info(f"Pre-extracting scalar arrays for {len(self.data)} items...")
-        ddg_add_list = []
-        dddg_list = []
-        
-        for item in self.data:
-            ddg_add_list.append(item.get('ddG_additive', float('nan')))
-            dddg_list.append(item.get('dddG', float('nan')))
-            
-        self.ddg_additive_arr = np.array(ddg_add_list, dtype=np.float32)
-        self.dddg_arr = np.array(dddg_list, dtype=np.float32)
+        """Contiguous scalar arrays for the sampler's balancing passes."""
+        self.ddg_additive_arr = np.array([i.get('ddG_additive', np.nan) for i in self.data], dtype=np.float32)
+        self.dddg_arr = np.array([i.get('dddG', np.nan) for i in self.data], dtype=np.float32)
+        self.ground_truth_arr = np.array([i.get('ddG', np.nan) for i in self.data], dtype=np.float32)
+
+    # ------------------------------------------------------------------ cache / dataset API
 
     def _save_data_to_cache(self) -> None:
         with open(self.cache_path, 'wb') as f:
@@ -238,38 +267,303 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
         with open(self.cache_path, 'rb') as f:
             self.data = pickle.load(f)
 
-    def _relabel_native_mut_ctx(self) -> None:
-        """
-        Relabel items from mutation-suffixed (native mutant-context) codes as
-        'native_mut_ctx' so they can be toggled independently of normal singles.
-
-        A "native mut ctx" protein is one whose DMS was characterized entirely under a
-        mutant background, which the code records as a mutation suffix (e.g. '1A0N_L7S' =
-        1A0N measured in the L7S background). Such codes carry no bare counterpart and their
-        items are ordinary single/reversion pairs measured in that background. We relabel
-        them in-memory at load time (the on-disk cache is left untouched) so the training
-        loop can route them to the MT head while the WT head keeps training on normal
-        singles only. The target is the measured ddG(X | background); in the MT pass the
-        sequence is background+X, scored as logit(X) - logit(wt), so no sign is flipped.
-
-        Their 'reversion' twins are NOT relabeled: they repeat the same measurement with
-        the opposite residue visible, and relabeling them used to let them bypass the
-        incl_reversions toggle (doubling every native measurement).
-        """
-        n = 0
-        for item in self.data:
-            code = item.get('pdb') or self.dms_name
-            if re.search(r'_[A-Z][0-9]+[A-Z]$', code) and item.get('subset_type') == 'single':
-                item['subset_type'] = 'native_mut_ctx'
-                n += 1
-        if n:
-            logging.info(f"[{self.dms_name}] Relabeled {n} items as native_mut_ctx")
-
     def __len__(self) -> int:
         return len(self.data)
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         return self.data[idx]
+
+    # ------------------------------------------------------------------ item construction
+
+    def _parse_mutations(self, row: Any, ref_seq: str, has_mut_type: bool) -> List[Tuple[str, int, str]]:
+        """
+        Mutations of one row as (from_aa, 1-based position, to_aa), relative to ``ref_seq``.
+
+        Entries whose stated wild-type residue disagrees with ``ref_seq`` are dropped, which
+        is how rows that do not apply to this backbone get skipped.
+        """
+        if not has_mut_type:
+            mut_seq = row['mutated_sequence']
+            offset, _, _ = custom_end_gap_alignment(mut_seq, ref_seq)
+            return determine_diffs(mut_seq[offset:len(ref_seq) + offset], ref_seq)
+        return [
+            (m[0], int(m[1:-1]), m[-1])
+            for m in row['mut_type'].split(':')
+            if len(m) >= 3 and ref_seq[int(m[1:-1]) - 1] == m[0]
+        ]
+
+    def _structure_for(
+        self,
+        protein_chain: Any,
+        backbone: str,
+        base_code: str,
+        chain: str,
+        base_masks: List[int],
+        *,
+        modeled_bb: Optional[Tuple[str, int, str]] = None,
+        extra_mask: Optional[int] = None,
+        prefer_model: Optional[Tuple[str, int, str]] = None,
+    ) -> Tuple[str, Tuple]:
+        """
+        Resolve the structure an item conditions on.
+
+        Tries, in order: a modeled structure for ``prefer_model`` (the partner mutation the
+        item conditions on); the library's modeled mutant backbone, masked at
+        ``base_masks + extra_mask``; the backbone structure itself with the same masking.
+
+        Returns ``(structure_type, (coords, plddt, structure_tokens, residue_index))`` where
+        ``structure_type`` is 'model' (a real modeled structure), 'af' (the unmodified
+        predicted WT backbone) or 'fake' (masked at one or more sites).
+        """
+        masks = list(base_masks)
+        if extra_mask is not None and extra_mask not in masks:
+            masks.append(extra_mask)
+
+        if prefer_model is not None:
+            wt_p, pos_p, mt_p = prefer_model
+            seq_expect = list(protein_chain.sequence)
+            if modeled_bb is not None:
+                seq_expect[modeled_bb[1] - 1] = modeled_bb[2]
+            seq_expect[pos_p - 1] = mt_p
+            got = self._try_load_modeled_context(
+                base_code, chain, wt_p, pos_p, mt_p,
+                expected_seq=''.join(seq_expect), target_masks=list(base_masks),
+            )
+            if got is not None:
+                return 'model', got[1:]
+
+        if modeled_bb is not None:
+            seq_expect = list(protein_chain.sequence)
+            seq_expect[modeled_bb[1] - 1] = modeled_bb[2]
+            got = self._try_load_modeled_context(
+                base_code, chain, modeled_bb[0], modeled_bb[1], modeled_bb[2],
+                expected_seq=''.join(seq_expect), target_masks=masks, force_mask=bool(masks),
+            )
+            if got is not None:
+                return ('fake' if masks else 'model'), got[1:]
+
+        encoded = self._get_encoded_structure(protein_chain, backbone, masks, force_mask=bool(masks))
+        return ('fake' if masks else 'af'), encoded
+
+    def _load_data(
+        self,
+        df: Any,
+        is_predicted: bool = False,
+        incl_chain_in_code: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        Expands one library's measurement rows into items, one backbone group at a time.
+
+        A library may span several backbones: the wild-type PDB, plus "destabilized"
+        backbones named by a mutation (e.g. 'L7S'), whose rows were measured in that
+        background. Within a group, single-mutation measurements are indexed so that a
+        double can look up its two singles and derive the additive expectation, dddG, and
+        the conditional effects.
+        """
+        self._mutant_struct_cache.clear()
+        self._encoded_struct_cache.clear()
+        self._parsed_pdb_cache.clear()
+
+        data: List[Dict[str, Any]] = []
+        has_mut_type = 'mut_type' in df.columns
+        if not has_mut_type:
+            logging.warning('Inferring mutations from mutated_sequence column because mut_type column was missing')
+
+        if 'mut_structure' not in df.columns:
+            df['mut_structure'] = df['pdb_file']
+        df['mut_structure'] = df['mut_structure'].fillna(df['pdb_file'])
+
+        for backbone, group in df.groupby('mut_structure'):
+            base_code = group['code'].head(1).item()
+            chain = group['chain'].head(1).item()
+            code = base_code + chain if incl_chain_in_code else base_code
+
+            is_mutant_backbone = not backbone.endswith('.pdb')
+            if is_mutant_backbone and not self.incl_destab_bb:
+                continue
+
+            protein_chain = ProteinChain.from_pdb(
+                group['pdb_file'].head(1).item() if is_mutant_backbone else backbone,
+                chain, is_predicted=is_predicted,
+            )
+
+            # The sequence this backbone's rows are stated against: the structure's own
+            # sequence, with the backbone mutation applied if this is a mutant backbone.
+            seq_chars = list(protein_chain.sequence)
+            base_masks: List[int] = []
+            modeled_bb: Optional[Tuple[str, int, str]] = None
+            if is_mutant_backbone:
+                wt_bb, pos_bb, mt_bb = backbone[0], int(backbone[1:-1]), backbone[-1]
+                seq_chars[pos_bb - 1] = mt_bb
+                # Prefer a modeled structure for the backbone mutation; otherwise mask it,
+                # since the WT structure shows the wrong side chain there.
+                if self._try_load_modeled_context(base_code, chain, wt_bb, pos_bb, mt_bb,
+                                                  expected_seq=''.join(seq_chars), target_masks=[]) is not None:
+                    modeled_bb = (wt_bb, pos_bb, mt_bb)
+                else:
+                    base_masks.append(pos_bb)
+            ref_seq = ''.join(seq_chars)
+
+            def _seq_with(*muts: Tuple[str, int, str]) -> str:
+                chars = list(ref_seq)
+                for _, pos, to_aa in muts:
+                    chars[pos - 1] = to_aa
+                return ''.join(chars)
+
+            parsed_rows = []
+            single_ddG: Dict[Tuple[int, str], float] = {}
+            for _, row in group.iterrows():
+                muts = self._parse_mutations(row, ref_seq, has_mut_type)
+                ddG = float(row['ddG'])
+                parsed_rows.append((muts, ddG))
+                if len(muts) == 1:
+                    single_ddG[(muts[0][1], muts[0][2])] = ddG
+
+            # The structure every row of this group shares (no extra masking).
+            base_struct_type, base_struct = self._structure_for(
+                protein_chain, backbone, base_code, chain, base_masks, modeled_bb=modeled_bb)
+
+            for muts, ddG in tqdm(parsed_rows, desc=f"Expanding {code}", leave=False):
+                if len(muts) == 1:
+                    data.extend(self._single_items(
+                        muts[0], ddG, code, ref_seq, base_code, chain, backbone, protein_chain,
+                        base_masks, modeled_bb, base_struct_type, base_struct, _seq_with))
+                elif len(muts) == 2:
+                    data.extend(self._double_items(
+                        muts, ddG, single_ddG, code, ref_seq, base_code, chain, backbone,
+                        protein_chain, base_masks, modeled_bb, base_struct_type, base_struct, _seq_with))
+
+        return data
+
+    def _single_items(self, mut, ddG, code, ref_seq, base_code, chain, backbone, protein_chain,
+                      base_masks, modeled_bb, base_struct_type, base_struct, _seq_with) -> List[Dict[str, Any]]:
+        """The measured single mutation, and the same measurement read as a reversion."""
+        wt_aa, pos, mt_aa = mut
+        mt_seq = _seq_with(mut)
+        items = [self._create_data_item(
+            mutations=[mut], ddG=ddG, code=code, wt_seq=ref_seq, mt_seq=mt_seq,
+            subset_type='single', structure_type=base_struct_type, structure=base_struct)]
+
+        if self.include['reversion']:
+            # The reverse measurement conditions on the mutant sequence, so it wants the
+            # mutant's structure: the modeled one if it exists, else the WT masked at `pos`.
+            rev_type, rev_struct = self._structure_for(
+                protein_chain, backbone, base_code, chain, base_masks, modeled_bb=modeled_bb,
+                extra_mask=pos, prefer_model=mut)
+            items.append(self._create_data_item(
+                mutations=[(mt_aa, pos, wt_aa)], ddG=-ddG, code=code, wt_seq=mt_seq, mt_seq=ref_seq,
+                subset_type='reversion', structure_type=rev_type, structure=rev_struct))
+        return items
+
+    def _double_items(self, muts, ddG_AB, single_ddG, code, ref_seq, base_code, chain, backbone,
+                      protein_chain, base_masks, modeled_bb, base_struct_type, base_struct,
+                      _seq_with) -> List[Dict[str, Any]]:
+        """
+        The measured double, plus one ``cond`` item per ordered pair.
+
+        For a double AB with both singles measured:
+        ddG_additive = ddG_A + ddG_B, dddG = ddG_AB - ddG_additive, and the conditional
+        effect of A in the B background is ddG(A|B) = ddG_AB - ddG_B.
+
+        A ``cond`` item is scored by the MT pass on the sequence B+A (the "after" state,
+        where both mutations are present) at position A, as logit(A) - logit(wtA). It
+        conditions on the B background, whose true structure is unknown; which structure
+        stands in for it is ``cond_structure``.
+        """
+        (wtA, posA, mtA), (wtB, posB, mtB) = muts
+        ddG_A = single_ddG.get((posA, mtA), np.nan)
+        ddG_B = single_ddG.get((posB, mtB), np.nan)
+        ddG_additive = ddG_A + ddG_B
+        dddG = ddG_AB - ddG_additive if np.isfinite(ddG_additive) else np.nan
+
+        items = [self._create_data_item(
+            mutations=list(muts), ddG=ddG_AB, dddG=dddG, ddG_additive=ddG_additive,
+            ddG_A=ddG_A, ddG_B=ddG_B, ddG_AB=ddG_AB, code=code,
+            wt_seq=ref_seq, mt_seq=_seq_with(*muts),
+            subset_type='double', structure_type=base_struct_type, structure=base_struct)]
+
+        if not self.include['cond'] or not np.isfinite(ddG_additive):
+            return items
+
+        # Two ordered pairs: (target A given background B) and (target B given background A).
+        for (tgt, bg, ddG_bg) in (((wtA, posA, mtA), (wtB, posB, mtB), ddG_B),
+                                  ((wtB, posB, mtB), (wtA, posA, mtA), ddG_A)):
+            if self.cond_structure == 'reuse':
+                s_type, struct = base_struct_type, base_struct
+            else:
+                s_type, struct = self._structure_for(
+                    protein_chain, backbone, base_code, chain, base_masks, modeled_bb=modeled_bb,
+                    extra_mask=bg[1],
+                    prefer_model=bg if self.cond_structure == 'model' else None)
+            items.append(self._create_data_item(
+                mutations=[tgt], ddG=float(ddG_AB - ddG_bg), dddG=dddG,
+                ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, ddG_AB=ddG_AB, code=code,
+                wt_seq=_seq_with(bg), mt_seq=_seq_with(tgt, bg),
+                subset_type='cond', structure_type=s_type, structure=struct))
+        return items
+
+    def _create_data_item(
+        self,
+        mutations: List[Tuple[str, int, str]],
+        ddG: float,
+        code: str,
+        wt_seq: str,
+        mt_seq: str,
+        subset_type: str,
+        structure_type: str,
+        structure: Tuple,
+        dddG: float = np.nan,
+        ddG_additive: float = np.nan,
+        ddG_A: float = np.nan,
+        ddG_B: float = np.nan,
+        ddG_AB: float = np.nan,
+    ) -> Dict[str, Any]:
+        """
+        Builds one cached item.
+
+        ``wt_seq`` is the "before" state (the WT pass's input) and ``mt_seq`` the "after"
+        state (the MT pass's input); ``wt_id``/``mt_id`` are the from/to residues, so for a
+        reversion-style item ``mt_id`` holds a wild-type residue. ``ddG`` is always the
+        effect of going from before to after.
+        """
+        coords, plddt, structure_tokens, residue_index = structure
+
+        mut_pos, wt_ids, mt_ids = [], [], []
+        for (from_aa, pos, to_aa) in mutations:
+            f_id, t_id = self.vocab.get(from_aa), self.vocab.get(to_aa)
+            if f_id is None or t_id is None:
+                raise AssertionError(f"Unknown amino acid token detected: WT={from_aa}, MT={to_aa}")
+            mut_pos.append(pos)
+            wt_ids.append(f_id)
+            mt_ids.append(t_id)
+
+        def _f(x):
+            x = float(x)
+            return x if np.isfinite(x) else np.nan
+
+        logging.debug(f'Created data item: {code}, {mutations}, {subset_type}, {structure_type}, ddG={ddG}, dddG={dddG}')
+        return {
+            'pdb': code,
+            'mutations': mutations,
+            'wt_sequence_tokens': np.array(self.tokenizer.encode(wt_seq), dtype=np.int64),
+            'mt_sequence_tokens': np.array(self.tokenizer.encode(mt_seq), dtype=np.int64),
+            'mut_pos': np.array(mut_pos, dtype=np.int64),
+            'wt_id': np.array(wt_ids, dtype=np.int64),
+            'mt_id': np.array(mt_ids, dtype=np.int64),
+            'coords_orig': coords.clone().cpu().numpy(),
+            'structure_tokens_orig': structure_tokens.clone().cpu().numpy(),
+            'residue_index': residue_index.clone().cpu().numpy() if residue_index is not None else None,
+            'plddt': plddt.clone().cpu().numpy(),
+            'ddG': float(ddG),
+            'dddG': _f(dddG),
+            'ddG_additive': _f(ddG_additive),
+            'ddG_A': _f(ddG_A),
+            'ddG_B': _f(ddG_B),
+            'ddG_AB': _f(ddG_AB),
+            'valid_dddG_mask': bool(np.isfinite(dddG)),
+            'subset_type': subset_type,
+            'structure_type': structure_type,
+        }
 
     def _try_load_modeled_context(
         self, 
@@ -393,447 +687,10 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
         self._encoded_struct_cache[cache_key] = result
         return result
 
-    def _load_data(
-        self, 
-        df: Any, 
-        is_predicted: bool = False, 
-        incl_chain_in_code: bool = False, 
-        benchmark: bool = False
-    ) -> List[Dict[str, Any]]:
-        """
-        Main logic for parsing DMS DataFrames and extracting mutations and wildtype data.
-        """
-        self._mutant_struct_cache.clear()
-        self._encoded_struct_cache.clear() 
-        self._parsed_pdb_cache.clear() 
 
-        data: List[Dict[str, Any]] = []
+# Retired name; kept so external scripts and pickles that reference it still import.
+ProteinStructureMutationEpistasisDataset = MutationStabilityDataset
 
-        if 'mut_structure' not in df.columns:
-            df['mut_structure'] = df['pdb_file']
-        df['mut_structure'] = df['mut_structure'].fillna(df['pdb_file'])
-
-        # === PRE-PASS: Collect WT Singles ===
-        global_wt_single_map = {}
-        global_destab_backbones = []
-        wt_backbone_id = None
-        wt_protein_chain = None
-        wt_canonical_seq = None
-
-        for backbone, group in df.groupby('mut_structure'):
-            if backbone.endswith('.pdb'):
-                chain = group['chain'].head(1).item()
-                wt_backbone_id = backbone
-                wt_protein_chain = ProteinChain.from_pdb(backbone, chain, is_predicted=is_predicted)
-                wt_canonical_seq = ''.join(list(wt_protein_chain.sequence))
-                
-                for uid, row in group.iterrows():
-                    if 'mut_type' not in df.columns:
-                        mut_seq = row['mutated_sequence']
-                        offset, _, _ = custom_end_gap_alignment(mut_seq, wt_canonical_seq)
-                        muts = determine_diffs(mut_seq[offset:len(wt_canonical_seq)+offset], wt_canonical_seq)
-                    else:
-                        muts = [
-                            (m[0], int(m[1:-1]), m[-1]) 
-                            for m in row['mut_type'].split(':') 
-                            if len(m) >= 3 and wt_canonical_seq[int(m[1:-1])-1] == m[0]
-                        ]
-                    
-                    if len(muts) == 1:
-                        global_wt_single_map[(muts[0][1], muts[0][2])] = float(row['ddG'])
-                break
-            else:
-                global_destab_backbones.append(backbone)
-
-        # === MAIN PASS ===
-        for backbone, group in df.groupby('mut_structure'):
-            base_code = group['code'].head(1).item()
-            chain = group['chain'].head(1).item()
-            code = base_code + chain if incl_chain_in_code else base_code
-
-            protein_chain = ProteinChain.from_pdb(
-                group['pdb_file'].head(1).item() if not backbone.endswith('.pdb') else backbone, 
-                chain, 
-                is_predicted=is_predicted
-            )
-            corrected_seq = list(protein_chain.sequence)
-
-            base_mask_positions = []
-            is_destabilized_backbone = not backbone.endswith('.pdb')
-            has_modeled_backbone = False
-            wt_bb, pos_bb, mt_bb = None, None, None
-            
-            if is_destabilized_backbone:
-                if not self.incl_destab_bb:
-                    continue
-                wt_bb, pos_bb, mt_bb = backbone[0], int(backbone[1:-1]), backbone[-1]
-                corrected_seq[pos_bb-1] = mt_bb
-                
-                # Check if the modeled backbone exists for the group
-                probe = self._try_load_modeled_context(
-                    base_code=base_code, chain=chain,
-                    partner_wt=wt_bb, partner_pos=pos_bb, partner_mut=mt_bb,
-                    expected_seq=''.join(corrected_seq),
-                    target_masks=[]
-                )
-                if probe is not None:
-                    has_modeled_backbone = True
-                else:
-                    base_mask_positions.append(pos_bb)
-
-            corrected_seq = ''.join(corrected_seq)
-            single_map, parsed_rows = {}, []
-            warned = False
-
-            for uid, row in tqdm(group.iterrows(), leave=False):
-                if 'mut_type' not in df.columns:
-                    if not warned:
-                        logging.warning('Inferring mutations from mutated_sequence column because mut_type column was missing')
-                        warned = True
-                    mut_seq = row['mutated_sequence']
-                    offset, _, _ = custom_end_gap_alignment(mut_seq, protein_chain.sequence)
-                    muts = determine_diffs(mut_seq[offset:len(corrected_seq)+offset], corrected_seq)
-                else:
-                    muts = [
-                        (m[0], int(m[1:-1]), m[-1]) 
-                        for m in row['mut_type'].split(':') 
-                        if len(m) >= 3 and corrected_seq[int(m[1:-1])-1] == m[0]
-                    ]
-
-                ddG_val = float(row['ddG'])
-                parsed_rows.append((muts, ddG_val, row))
-                if len(muts) == 1: 
-                    single_map[(muts[0][1], muts[0][2])] = ddG_val
-
-            for muts, ddG_val, row in parsed_rows:
-                dddG_val = (
-                    ddG_val - single_map[(muts[0][1], muts[0][2])] - single_map[(muts[1][1], muts[1][2])] 
-                    if len(muts) == 2 and (muts[0][1], muts[0][2]) in single_map and (muts[1][1], muts[1][2]) in single_map 
-                    else np.nan
-                )
-
-                # (A) Singles
-                if len(muts) == 1:
-                    wt, pos, mt = muts[0]
-                    
-                    target_masks = base_mask_positions.copy()
-
-                    maybe_modeled = None
-                    if has_modeled_backbone:
-                        maybe_modeled = self._try_load_modeled_context(
-                            base_code, chain, wt_bb, pos_bb, mt_bb, expected_seq=corrected_seq, target_masks=target_masks, force_mask=False
-                        )
-                        
-                    if maybe_modeled is not None:
-                        struct_type = 'model'
-                        _, c_b, p_b, s_b, r_b = maybe_modeled
-                    else:
-                        struct_type = 'fake' if len(base_mask_positions) > 0 else 'af'
-                        c_b, p_b, s_b, r_b = self._get_encoded_structure(
-                            protein_chain, backbone, target_masks, force_mask=len(base_mask_positions) > 0
-                        )
-
-                    mt_seq_list = list(corrected_seq)
-                    mt_seq_list[pos-1] = mt
-                    mt_seq = ''.join(mt_seq_list)
-                    wt_seq = corrected_seq
-
-                    data.append(self._create_data_item(
-                        mutations=muts, ddG=ddG_val, dddG=dddG_val, code=code, wt_seq=wt_seq, mt_seq=mt_seq, 
-                        coords=c_b, plddt=p_b, structure_tokens=s_b, residue_index=r_b, subset_type='single', 
-                        ddG_A=np.nan, ddG_B=np.nan, ddG_additive=np.nan, structure_type=struct_type
-                    ))
-
-                    # (B) Reversions
-                    rev_mut = [(mt, pos, wt)]
-                    rev_ddG = -float(row['ddG'])
-                    
-                    rev_target_masks = base_mask_positions.copy()
-                            
-                    maybe = self._try_load_modeled_context(
-                        base_code, chain, wt, pos, mt, expected_seq=mt_seq, target_masks=rev_target_masks
-                    )
-                    
-                    if maybe is not None:
-                        struct_type = 'model'
-                        _, coords_m, plddt_m, structure_tokens_m, residue_index_m = maybe
-                    else:
-                        struct_type = 'fake'
-                        # Fallback explicitly appends target `pos` and asserts force_mask=True
-                        fallback_masks = rev_target_masks.copy()
-                        if pos not in fallback_masks:
-                            fallback_masks.append(pos)
-                            
-                        maybe_fallback = None
-                        if has_modeled_backbone:
-                            maybe_fallback = self._try_load_modeled_context(
-                                base_code, chain, wt_bb, pos_bb, mt_bb, expected_seq=corrected_seq, target_masks=fallback_masks, force_mask=True
-                            )
-                            
-                        if maybe_fallback is not None:
-                            _, coords_m, plddt_m, structure_tokens_m, residue_index_m = maybe_fallback
-                        else:
-                            coords_m, plddt_m, structure_tokens_m, residue_index_m = self._get_encoded_structure(
-                                protein_chain, backbone, fallback_masks, force_mask=True
-                            )
-                    
-                    data.append(self._create_data_item(
-                        mutations=rev_mut, ddG=rev_ddG, dddG=np.nan, code=code,
-                        wt_seq=mt_seq, mt_seq=wt_seq, 
-                        coords=coords_m, plddt=plddt_m, structure_tokens=structure_tokens_m, residue_index=residue_index_m,
-                        subset_type='reversion', ddG_A=np.nan, ddG_B=np.nan, ddG_additive=np.nan, structure_type=struct_type
-                    ))
-
-                # (C) Doubles
-                if len(muts) == 2:
-                    (wtA, posA, mtA), (wtB, posB, mtB) = muts
-                    
-                    target_masks = base_mask_positions.copy()
-                            
-                    maybe_modeled = None
-                    if has_modeled_backbone:
-                        maybe_modeled = self._try_load_modeled_context(
-                            base_code, chain, wt_bb, pos_bb, mt_bb, expected_seq=corrected_seq, target_masks=target_masks, force_mask=False
-                        )
-                        
-                    if maybe_modeled is not None:
-                        struct_type = 'model'
-                        _, c_b, p_b, s_b, r_b = maybe_modeled
-                    else:
-                        struct_type = 'fake' if len(base_mask_positions) > 0 else 'af'
-                        c_b, p_b, s_b, r_b = self._get_encoded_structure(
-                            protein_chain, backbone, target_masks, force_mask=len(base_mask_positions) > 0
-                        )
-
-                    if (posA, mtA) in single_map and (posB, mtB) in single_map:
-                        ddG_A = single_map[(posA, mtA)]
-                        ddG_B = single_map[(posB, mtB)]
-                        ddG_additive = ddG_A + ddG_B
-                    else:
-                        ddG_A, ddG_B, ddG_additive = np.nan, np.nan, np.nan
-
-                    wt_seq = corrected_seq
-                    mt_seq_list = list(corrected_seq)
-                    mt_seq_list[posA-1] = mtA
-                    mt_seq_list[posB-1] = mtB
-                    mt_seq = ''.join(mt_seq_list)
-
-                    data.append(self._create_data_item(
-                        mutations=muts, ddG=ddG_val, dddG=dddG_val, 
-                        ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B,
-                        code=code, wt_seq=wt_seq, mt_seq=mt_seq,
-                        coords=c_b, plddt=p_b, structure_tokens=s_b, residue_index=r_b, 
-                        subset_type='double', structure_type=struct_type
-                    ))
-
-                    # (E) Revert-in-double mutant-context items (MT-adapter signal)
-                    # The MT pass conditions on mt_seq (the before-state) and scores the
-                    # reversion, so its LLR = L(after_residue; AB) - L(before_residue; AB),
-                    # structurally identical to the working WT-pass-on-singles, with target
-                    # G(after) - G(before) = G(single) - G(double). Reuses the double's
-                    # backbone structure (c_b, p_b, s_b, r_b) since the context IS the double.
-                    if (posA, mtA) in single_map and (posB, mtB) in single_map:
-                        ddG_A = single_map[(posA, mtA)]
-                        ddG_B = single_map[(posB, mtB)]
-                        ddG_additive = ddG_A + ddG_B
-
-                        # Single-mutant sequences: A = only mutation A; B = only mutation B
-                        seq_A_list = list(corrected_seq)
-                        seq_A_list[posA-1] = mtA
-                        seq_A = ''.join(seq_A_list)
-
-                        seq_B_list = list(corrected_seq)
-                        seq_B_list[posB-1] = mtB
-                        seq_B = ''.join(seq_B_list)
-
-                        # Revert A in AB: context = AB (before), reversion mtA -> wtA at posA,
-                        # after-state = B. Target = G(B) - G(AB) = ddG_B - ddG_val.
-                        data.append(self._create_data_item(
-                            mutations=[(mtA, posA, wtA)], ddG=float(ddG_B - ddG_val), dddG=dddG_val,
-                            ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, code=code,
-                            wt_seq=seq_B, mt_seq=mt_seq,
-                            coords=c_b, plddt=p_b, structure_tokens=s_b, residue_index=r_b,
-                            subset_type='mut_ctx_rev', structure_type=struct_type
-                        ))
-
-                        # Revert B in AB: context = AB (before), reversion mtB -> wtB at posB,
-                        # after-state = A. Target = G(A) - G(AB) = ddG_A - ddG_val.
-                        data.append(self._create_data_item(
-                            mutations=[(mtB, posB, wtB)], ddG=float(ddG_A - ddG_val), dddG=dddG_val,
-                            ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, code=code,
-                            wt_seq=seq_A, mt_seq=mt_seq,
-                            coords=c_b, plddt=p_b, structure_tokens=s_b, residue_index=r_b,
-                            subset_type='mut_ctx_rev', structure_type=struct_type
-                        ))
-
-                # (D) Synthesized mutant-context singles
-                if len(muts) == 2: 
-                    (wtA, posA, mtA), (wtB, posB, mtB) = muts
-                    if (posA, mtA) in single_map and (posB, mtB) in single_map:
-                        ddG_A = single_map[(posA, mtA)]
-                        ddG_B = single_map[(posB, mtB)]
-                        ddG_additive = ddG_A + ddG_B
-                        
-                        t_B_given_A = ddG_val - ddG_A
-                        t_A_given_B = ddG_val - ddG_B
-
-                        # --- "B|A": context with A present
-                        ctx_wt_A_list = list(corrected_seq)
-                        ctx_wt_A_list[posA-1] = mtA
-                        ctx_wt_A = ''.join(ctx_wt_A_list)
-
-                        ctx_mt_A_list = list(ctx_wt_A_list)
-                        ctx_mt_A_list[posB-1] = mtB
-                        ctx_mt_A = ''.join(ctx_mt_A_list)
-
-                        ctx_masks = base_mask_positions.copy()
-
-                        maybe = self._try_load_modeled_context(
-                            base_code=base_code, chain=chain, 
-                            partner_wt=wtA, partner_pos=posA, partner_mut=mtA, 
-                            expected_seq=ctx_wt_A, 
-                            target_masks=ctx_masks
-                        )
-                        
-                        if maybe is not None:
-                            struct_type_A = 'model'
-                            _, coords_ctx_A, plddt_ctx_A, struct_ctx_A, residue_index_ctx_A = maybe
-                        else:
-                            struct_type_A = 'fake'
-                            fallback_masks = ctx_masks.copy()
-                            if posA not in fallback_masks:
-                                fallback_masks.append(posA)
-                                
-                            maybe_fallback = None
-                            if has_modeled_backbone:
-                                maybe_fallback = self._try_load_modeled_context(
-                                    base_code, chain, wt_bb, pos_bb, mt_bb, expected_seq=corrected_seq, target_masks=fallback_masks, force_mask=True
-                                )
-                                
-                            if maybe_fallback is not None:
-                                _, coords_ctx_A, plddt_ctx_A, struct_ctx_A, residue_index_ctx_A = maybe_fallback
-                            else:
-                                coords_ctx_A, plddt_ctx_A, struct_ctx_A, residue_index_ctx_A = self._get_encoded_structure(
-                                    protein_chain, backbone, fallback_masks, force_mask=True
-                                )
-
-                        data.append(self._create_data_item(
-                            mutations=[(wtB, posB, mtB)], ddG=float(t_B_given_A), dddG=dddG_val, 
-                            ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, code=code,
-                            wt_seq=ctx_wt_A, mt_seq=ctx_mt_A, coords=coords_ctx_A, plddt=plddt_ctx_A, 
-                            structure_tokens=struct_ctx_A, residue_index=residue_index_ctx_A, subset_type='mut_ctx', structure_type=struct_type_A
-                        ))
-
-                        # --- "A|B": context with B present
-                        ctx_wt_B_list = list(corrected_seq)
-                        ctx_wt_B_list[posB-1] = mtB
-                        ctx_wt_B = ''.join(ctx_wt_B_list)
-
-                        ctx_mt_B_list = list(ctx_wt_B_list)
-                        ctx_mt_B_list[posA-1] = mtA
-                        ctx_mt_B = ''.join(ctx_mt_B_list)
-
-                        ctx_masks = base_mask_positions.copy()
-
-                        maybe = self._try_load_modeled_context(
-                            base_code=base_code, chain=chain, 
-                            partner_wt=wtB, partner_pos=posB, partner_mut=mtB, 
-                            expected_seq=ctx_wt_B, 
-                            target_masks=ctx_masks
-                        )
-                        
-                        if maybe is not None:
-                            struct_type_B = 'model'
-                            _, coords_ctx_B, plddt_ctx_B, struct_ctx_B, residue_index_ctx_B = maybe
-                        else:
-                            struct_type_B = 'fake'
-                            fallback_masks = ctx_masks.copy()
-                            if posB not in fallback_masks:
-                                fallback_masks.append(posB)
-                                
-                            maybe_fallback = None
-                            if has_modeled_backbone:
-                                maybe_fallback = self._try_load_modeled_context(
-                                    base_code, chain, wt_bb, pos_bb, mt_bb, expected_seq=corrected_seq, target_masks=fallback_masks, force_mask=True
-                                )
-                                
-                            if maybe_fallback is not None:
-                                _, coords_ctx_B, plddt_ctx_B, struct_ctx_B, residue_index_ctx_B = maybe_fallback
-                            else:
-                                coords_ctx_B, plddt_ctx_B, struct_ctx_B, residue_index_ctx_B = self._get_encoded_structure(
-                                    protein_chain, backbone, fallback_masks, force_mask=True
-                                )
-
-                        data.append(self._create_data_item(
-                            mutations=[(wtA, posA, mtA)], ddG=float(t_A_given_B), dddG=dddG_val, 
-                            ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, code=code,
-                            wt_seq=ctx_wt_B, mt_seq=ctx_mt_B, coords=coords_ctx_B, plddt=plddt_ctx_B, 
-                            structure_tokens=struct_ctx_B, residue_index=residue_index_ctx_B, subset_type='mut_ctx', structure_type=struct_type_B
-                        ))
-        return data
-    
-    def _create_data_item(
-        self, 
-        mutations: List[Tuple[str, int, str]], 
-        ddG: float, 
-        dddG: float, 
-        ddG_additive: float, 
-        ddG_A: float, 
-        ddG_B: float, 
-        code: str, 
-        wt_seq: str, 
-        mt_seq: str, 
-        coords: torch.Tensor, 
-        plddt: torch.Tensor, 
-        structure_tokens: torch.Tensor, 
-        residue_index: torch.Tensor, 
-        subset_type: str, 
-        structure_type: str
-    ) -> Dict[str, Any]:
-        """Constructs the fully vectorized dictionary item for the Collate function."""
-        valid_dddG = dddG == dddG and not np.isnan(dddG)
-        
-        wt_sequence_tokens = self.tokenizer.encode(wt_seq)
-        mt_sequence_tokens = self.tokenizer.encode(mt_seq)
-
-        mut_pos = []
-        wt_ids = []
-        mt_ids = []
-
-        for (wt_aa, pos, mt_aa) in mutations:
-            mut_pos.append(pos) 
-            
-            w_id = self.vocab.get(wt_aa)
-            m_id = self.vocab.get(mt_aa)
-            
-            if w_id is None or m_id is None:
-                raise AssertionError(f"Unknown amino acid token detected: WT={wt_aa}, MT={mt_aa}")
-                
-            wt_ids.append(w_id)
-            mt_ids.append(m_id)
-
-        logging.debug(f'Created data item: {code}, {mutations}, {subset_type}, {structure_type}, ddG={ddG}, dddG={dddG}')      
-        return {
-            'pdb': code,
-            'mutations': mutations,
-            'wt_sequence_tokens': np.array(wt_sequence_tokens, dtype=np.int64),
-            'mt_sequence_tokens': np.array(mt_sequence_tokens, dtype=np.int64),
-            'mut_pos': np.array(mut_pos, dtype=np.int64),
-            'wt_id': np.array(wt_ids, dtype=np.int64),
-            'mt_id': np.array(mt_ids, dtype=np.int64),
-            'coords_orig': coords.clone().cpu().numpy(),
-            'structure_tokens_orig': structure_tokens.clone().cpu().numpy(),
-            'residue_index': residue_index.clone().cpu().numpy() if residue_index is not None else None,
-            'plddt': plddt.clone().cpu().numpy(),
-            'ddG': float(ddG),
-            'dddG': float(dddG) if valid_dddG else np.nan,
-            'ddG_additive': float(ddG_additive) if ddG_additive == ddG_additive else np.nan,
-            'ddG_A': float(ddG_A) if ddG_A == ddG_A else np.nan,
-            'ddG_B': float(ddG_B) if ddG_B == ddG_B else np.nan,
-            'valid_dddG_mask': valid_dddG,
-            'subset_type': subset_type,
-            'structure_type': structure_type
-        }
 
 def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
@@ -845,7 +702,7 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     
     pdb = [item['pdb'] for item in batch]
     mutations = [item['mutations'] for item in batch]
-    subset_type = [item.get('subset_type', 'single') for item in batch]
+    subset_type = [canonical_subset(item.get('subset_type', 'single')) for item in batch]
     plddt = [torch.as_tensor(item['plddt'], dtype=torch.float32) for item in batch]
 
     ddG = torch.tensor([float(item.get('ddG', float('nan'))) for item in batch], dtype=torch.float32)
@@ -939,7 +796,7 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
     2. Caches subset categorizations during __init__ to avoid O(N) epoch stalls.
     3. Handles 2D sampling and subset caps strictly via integer indices.
     """
-    SUBSET_ORDER = ['single', 'double', 'reversion', 'mut_ctx', 'mut_ctx_rev', 'native_mut_ctx']
+    SUBSET_ORDER = ['single', 'double', 'reversion', 'cond', 'native_cond']
 
     def __init__(
         self,
@@ -964,12 +821,11 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         self._rng = random.Random(rng_seed)
         
         self.subset_balance_configs = subset_balance_configs or {
-            'double': {'bins': 15, 'cap_percentile': 75.0, 'missing_cap_fraction': 0.20},
+            'cond': {'bins': 15, 'cap_percentile': 75.0, 'missing_cap_fraction': 0.20},
         }
 
         self.subset_caps: Dict[str, Optional[float]] = {
-            'single': None, 'double': None, 'mut_ctx': 0.0, 'reversion': 0.0,
-            'mut_ctx_rev': None, 'native_mut_ctx': 0.0
+            'single': None, 'double': 0.0, 'reversion': 0.0, 'cond': None, 'native_cond': None,
         }
         if subset_caps is not None:
             self.subset_caps.update(subset_caps)
@@ -1002,7 +858,7 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
                 if item.get('pdb') != first_pdb:
                     raise AssertionError(f"PDB ID mismatch in {self.train_list[ds_idx]}: item {i} has {item.get('pdb')}, expected {first_pdb}")
                 
-                stype = item.get('subset_type', 'single')
+                stype = canonical_subset(item.get('subset_type', 'single'))
                 if stype not in buckets:
                     stype = 'single'
                 buckets[stype].append(i)
@@ -1517,7 +1373,7 @@ class PooledDataLoader:
 
         # --- Basic metadata & labels ---
         pdb = [it.get("pdb", f"unk_{i}") for i, it in enumerate(batch)]
-        st = [it.get("subset_type", None) for i, it in enumerate(batch)]
+        st = [canonical_subset(it.get("subset_type", 'single')) for it in batch]
 
         ddG = torch.tensor([float(it.get('ddG', float('nan'))) for it in batch], dtype=torch.float32)
         dddG = torch.tensor([float(it.get('dddG', float('nan'))) for it in batch], dtype=torch.float32)
@@ -1691,7 +1547,7 @@ class PooledDataLoader:
 
         # --- Basic metadata & labels ---
         pdb = [it.get("pdb", f"unk_{i}") for i, it in enumerate(batch)]
-        st = [it.get("subset_type", None) for i, it in enumerate(batch)]
+        st = [canonical_subset(it.get("subset_type", 'single')) for it in batch]
 
         ddG_list = []
         dddG_list = []

@@ -2,25 +2,38 @@ import argparse
 import os
 import logging
 from esm_msr.data import ProteinCyclingBatchSampler
+from esm_msr.routing import LEGACY_SUBSET_ALIASES, canonical_subset
 
 class ParseSubsetCaps(argparse.Action):
     """
     Parses 'key=value' pairs into a dictionary.
     Defaults keys to 0.0, except 'single' which defaults to None.
+    Retired subset names (see esm_msr.routing) are accepted and translated, so older
+    launch scripts keep working; naming both a retired key and its replacement is an error.
     """
     def __call__(self, parser, namespace, values, option_string=None):
         valid_keys = ProteinCyclingBatchSampler.SUBSET_ORDER
         caps = {k: 0.0 for k in valid_keys}
         caps['single'] = None
+        seen = {}
 
         for kv in values:
             if '=' not in kv:
                 raise argparse.ArgumentTypeError(
                     f"Invalid subset_cap format: '{kv}'. Expected 'key=value'."
                 )
-            
+
             k, v = kv.split('=', 1)
-            
+
+            if k in LEGACY_SUBSET_ALIASES:
+                logging.warning(f"subset_caps key '{k}' is retired; using '{canonical_subset(k)}'.")
+                k = canonical_subset(k)
+            if k in seen and seen[k] != kv:
+                raise argparse.ArgumentTypeError(
+                    f"subset_caps names '{k}' more than once (via {seen[k]!r} and {kv!r})."
+                )
+            seen[k] = kv
+
             if k not in valid_keys:
                 raise argparse.ArgumentTypeError(
                     f"Invalid subset key: '{k}'. Must be one of {valid_keys}."
@@ -80,7 +93,7 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--lambda_reg_wt', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_combined', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_mt', type=float, default=0.0,
-                            help="Regress the MT pass on MT-head subsets (native_mut_ctx, mut_ctx_rev, mut_ctx); see esm_msr.routing.")
+                            help="Regress the MT pass on MT-head subsets (cond, native_cond); see esm_msr.routing.")
     loss_group.add_argument('--mt_single_anchor_weight', type=float, default=0.0,
                             help="Per-item weight for also regressing the MT pass on ordinary singles (the zero-background "
                                  "case of the MT task). 0 disables. Requires --lambda_reg_mt > 0.")
@@ -88,9 +101,11 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--mt_reg_mask', type=str, default='all', choices=['all', 'doubles'])
     loss_group.add_argument('--double_weight', type=float, default=1.0)
     loss_group.add_argument('--reversion_weight', type=float, default=0.5)
-    loss_group.add_argument('--mut_ctx_weight', type=float, default=0.5)
-    loss_group.add_argument('--mut_ctx_rev_weight', type=float, default=0.5)
-    loss_group.add_argument('--native_mut_ctx_weight', type=float, default=1.0)
+    loss_group.add_argument('--cond_weight', type=float, default=0.5,
+                            help="Per-item loss weight for derived conditional effects ddG(A|B). Two are emitted per "
+                                 "double, and each is a difference of two measurements, so <1 is appropriate.")
+    loss_group.add_argument('--native_cond_weight', type=float, default=1.0,
+                            help="Per-item loss weight for conditional effects measured directly in a mutant background.")
     loss_group.add_argument('--weight_decay', type=float, default=0)
     loss_group.add_argument('--residual_wd', type=float, default=1e-5)
     loss_group.add_argument('--calib_lr_mult', type=float, default=20.0)
@@ -157,16 +172,21 @@ def parse_arguments() -> argparse.Namespace:
     # These inclusion flags will be automatically updated by subset_caps logic
     data_group.add_argument('--incl_singles', action=argparse.BooleanOptionalAction, default=True)
     data_group.add_argument('--incl_doubles', action=argparse.BooleanOptionalAction, default=False)
-    data_group.add_argument('--incl_mut_ctx', action=argparse.BooleanOptionalAction, default=False)
+    data_group.add_argument('--incl_cond', action=argparse.BooleanOptionalAction, default=False,
+                            help="Conditional effects ddG(A|B) derived from doubles (MT head).")
     data_group.add_argument('--incl_reversions', action=argparse.BooleanOptionalAction, default=False)
-    data_group.add_argument('--incl_mut_ctx_rev', action=argparse.BooleanOptionalAction, default=False)
-    data_group.add_argument('--incl_native_mut_ctx', action=argparse.BooleanOptionalAction, default=False)
+    data_group.add_argument('--incl_native_cond', action=argparse.BooleanOptionalAction, default=False,
+                            help="Measurements from mutant-background libraries, e.g. code '1A0N_L7S' (MT head).")
+    data_group.add_argument('--cond_structure', type=str, default='reuse', choices=['reuse', 'mask', 'model'],
+                            help="Structure a conditional ddG(A|B) item conditions on: 'reuse' the parent double's "
+                                 "(unmodified WT) structure, 'mask' the WT structure masked at the partner site, or "
+                                 "'model' a modeled partner structure when one exists. Baked into the cache.")
 
     data_group.add_argument('--subset_caps', nargs='*', action=ParseSubsetCaps, default=default_caps,
-                            help="Caps for data subsets as a fraction of the unrestricted subsets (e.g., double=0.6 mut_ctx_rev=None). Defaults to 0 for all except 'single' (None).")
+                            help="Caps for data subsets as a fraction of the unrestricted subsets (e.g., double=0.6 cond=None). Defaults to 0 for all except 'single' (None).")
     data_group.add_argument('--mut_structures_root', type=str, default='/home/sareeves/software/esm-msr/data/tsuboyama/FINAL_results/')
     data_group.add_argument('--censor_margin', type=float, default=None,
-                            help="Drop double-derived training items (double, mut_ctx, mut_ctx_rev) when any state involved "
+                            help="Drop double-derived training items (double, cond) when any state involved "
                                  "(WT, A, B, AB, or the additive AB estimate) has dG within this many kcal/mol of the assay "
                                  "floor (-1) or ceiling (+5). Censored doubles carry a spurious positive dddG. None disables.")
     data_group.add_argument('--use_plddt', action=argparse.BooleanOptionalAction, default=False)
@@ -199,10 +219,9 @@ def parse_arguments() -> argparse.Namespace:
     subset_flag_map = {
         'single': 'incl_singles',
         'double': 'incl_doubles',
-        'mut_ctx': 'incl_mut_ctx',
+        'cond': 'incl_cond',
         'reversion': 'incl_reversions',
-        'mut_ctx_rev': 'incl_mut_ctx_rev',
-        'native_mut_ctx': 'incl_native_mut_ctx'
+        'native_cond': 'incl_native_cond',
     }
 
     if args.subset_caps:

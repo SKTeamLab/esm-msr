@@ -180,12 +180,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         hp = self.hparams
         weight_by_subset = {
             'double': hp.double_weight,
-            'mut_ctx': hp.mut_ctx_weight,
             'reversion': hp.reversion_weight,
-            'mut_ctx_rev': hp.mut_ctx_rev_weight,
-            'native_mut_ctx': hp.get('native_mut_ctx_weight', 1.0),
+            'cond': hp.cond_weight,
+            'native_cond': hp.native_cond_weight,
         }
-        return torch.tensor([float(weight_by_subset.get(s, 1.0)) for s in subset_types], dtype=torch.float32, device=device)
+        return torch.tensor([float(weight_by_subset.get(routing.canonical_subset(s), 1.0)) for s in subset_types],
+                            dtype=torch.float32, device=device)
 
     def _compose_losses_streaming_and_backward(self, batch: dict) -> dict:
         """
@@ -197,14 +197,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         * WT block = WT-head subsets (singles) and doubles. WT pass; target ddG for single
           mutations and ddG_A + ddG_B for multi-mutants (the WT pass on a double is a sum of
           wild-type-context effects, so it must not be taught the epistasis).
-        * MT block = MT-head subsets (native_mut_ctx, mut_ctx_rev, mut_ctx). MT pass; target
-          is the item's ddG (``lambda_reg_mt``).
+        * MT block = MT-head subsets (cond, native_cond). MT pass; target is the item's
+          ddG, a conditional effect ddG(X | background) (``lambda_reg_mt``).
         * ``mt_single_anchor_weight > 0`` also runs the MT pass on singles and regresses it on
           ddG (the zero-background case of the MT head's task).
         * Legacy combined losses (``lambda_*_combined``) teacher-force 0.5*label + 0.5*MT on
           the WT block. Algebraically they regress the MT pass of a double onto
           2*ddG_AB - (ddG_A + ddG_B) = ddG(A|B) + ddG(B|A), the sum of the two
-          conditional effects that mut_ctx_rev supervises one at a time.
+          conditional effects that the ``cond`` subset supervises one at a time.
         * Unrouted subsets (reversion) are skipped.
 
         Slices never mix blocks, so each runs at most the backbone passes it needs.
@@ -481,164 +481,75 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             out_dict = self.model.forward_batch(batch, mask_strategy=self.hparams.mask_strategy)
 
         ddG = utils._get_label(batch, 'ddG', device=batch['ddG'].device)
-        dddG = batch.get('dddG', None)
-        
-        _n_items = int(out_dict['wt_lora_pred'].shape[0])
+        n_items = int(out_dict['wt_lora_pred'].shape[0])
+
+        def _np(t):
+            return t.detach().cpu().float().numpy() if torch.is_tensor(t) else np.full(n_items, float(t))
+
         self.validation_step_outputs[dataloader_idx].append({
-            'wt_scores': out_dict['wt_lora_pred'].detach().cpu().float().numpy(),
-            'mt_scores': out_dict['mt_lora_pred'].detach().cpu().float().numpy(),
-            'comb_scores': out_dict['combined_pred'].detach().cpu().float().numpy(),
-            'epi_scores': out_dict['epi_pred'].detach().cpu().float().numpy(),
-            'ground_truths': ddG.detach().cpu().float().numpy() if ddG is not None else np.array([]),
-            'dddG_truths': dddG.detach().cpu().float().numpy() if dddG is not None else np.array([]),
-            'pdb': batch.get('pdb', []),
-            'mutations': batch.get('mutations', []),
-            'subset_type': list(batch.get('subset_type', ['single'] * _n_items))
+            'wt_scores': _np(out_dict['wt_lora_pred']),
+            'mt_scores': _np(out_dict['mt_lora_pred']),
+            'comb_scores': _np(out_dict['combined_pred']),
+            'ground_truths': _np(ddG) if ddG is not None else np.full(n_items, np.nan),
+            'subset_type': list(batch.get('subset_type', ['single'] * n_items)),
         })
 
     def on_validation_epoch_start(self):
         self.validation_step_outputs = defaultdict(list)
 
     def on_validation_epoch_end(self):
-        avg_metrics = defaultdict(list)
-        
-        # Pooled storage to compute ungrouped/global metrics at the end
-        pooled_data = defaultdict(list)
-        
-        for dataloader_idx, valid_outputs in self.validation_step_outputs.items():
-            val_loader_name = self.val_dataloader_names[dataloader_idx] if dataloader_idx < len(self.val_dataloader_names) else f"unknown_dl_{dataloader_idx}"
+        """
+        Logs, per dataloader, the three head metrics and the calibration RMSE from
+        ``stats.compute_metrics``, their means across dataloaders (``*_avg``, which the
+        checkpoint monitor and the plateau scheduler read), and the same metrics pooled
+        over every item of every dataloader (``*_pooled``), which weights proteins by
+        their size instead of equally.
+        """
+        per_loader, pooled = {}, defaultdict(list)
 
-            single_dict_comb = {}
-            wt_scores_list, comb_scores_list, epi_scores_list = [], [], []
-            mt_scores_list, subset_type_list = [], []
-            ground_truths_list, dddG_truths_list, mut_lens_list = [], [], []
-            
-            flat_mut_parts, flat_pdb_ids = [], []
-
-            for o in valid_outputs:
-                pdb_list, muts_list = o.get('pdb', []), o.get('mutations', [])
-                for i, m_val in enumerate(muts_list):
-                    mut_parts = m_val.split(':') if isinstance(m_val, str) else m_val
-                    pdb_id = pdb_list[i] if (isinstance(pdb_list, (list, tuple, np.ndarray)) and i < len(pdb_list)) else (pdb_list if isinstance(pdb_list, str) else "unknown")
-
-                    wt_scores_list.append(o['wt_scores'][i])
-                    mt_scores_list.append(o['mt_scores'][i])
-                    comb_scores_list.append(o['comb_scores'][i])
-                    epi_scores_list.append(o['epi_scores'][i])
-                    ground_truths_list.append(o['ground_truths'][i] if i < len(o['ground_truths']) else np.nan)
-                    dddG_truths_list.append(o['dddG_truths'][i] if i < len(o['dddG_truths']) else np.nan)
-                    subset_type_list.append(o['subset_type'][i] if i < len(o['subset_type']) else 'single')
-                    mut_lens_list.append(len(mut_parts))
-                    
-                    flat_mut_parts.append(mut_parts)
-                    flat_pdb_ids.append(pdb_id)
-                    
-                    if subset_type_list[-1] == 'single':
-                        key = (pdb_id, str(mut_parts[0]))
-                        single_dict_comb[key] = o['comb_scores'][i]
-
-            epi_scores_list_full = []
-
-            for i, mut_parts in enumerate(flat_mut_parts):
-                if len(mut_parts) > 1:
-                    pdb_id = flat_pdb_ids[i]
-                    add_comb = sum([single_dict_comb.get((pdb_id, str(m)), np.nan) for m in mut_parts])
-                    epi_scores_list_full.append(comb_scores_list[i] - add_comb)
-                else:
-                    epi_scores_list_full.append(0.0)
-                        
-            subset_arr = np.array(subset_type_list)
-            # Headline metrics (rho, ndcg, rmse; the checkpoint monitor) use measured items
-            # only. Derived MT items (mut_ctx_rev, mut_ctx) are differences of measurements;
-            # mut_ctx_rev targets are mostly positive (reversions of destabilizing
-            # mutations), so pooling them with singles inflates per-protein Spearman.
-            measured = np.isin(subset_arr, list(routing.MEASURED_SUBSETS))
-            mt_domain_mask = np.isin(subset_arr, list(routing.MT_HEAD_SUBSETS))
-            if not measured.any():
+        for dataloader_idx, outputs in self.validation_step_outputs.items():
+            name = (self.val_dataloader_names[dataloader_idx]
+                    if dataloader_idx < len(self.val_dataloader_names) else f"unknown_dl_{dataloader_idx}")
+            if not outputs:
                 continue
 
-            def _arr(xs):
-                return np.array(xs)[measured]
-            wt_scores, comb_scores, mt_scores_arr = _arr(wt_scores_list), _arr(comb_scores_list), _arr(mt_scores_list)
-            epi_scores, epi_scores_full, ground_truths, dddG_truths = _arr(epi_scores_list), _arr(epi_scores_list_full), _arr(ground_truths_list), _arr(dddG_truths_list)
-            idx_singles, idx_doubles = _arr(mut_lens_list) == 1, _arr(mut_lens_list) >= 2
+            cols = {k: np.concatenate([np.asarray(o[k]).reshape(-1) for o in outputs])
+                    for k in ('wt_scores', 'mt_scores', 'comb_scores', 'ground_truths')}
+            subset_types = [s for o in outputs for s in o['subset_type']]
 
-            valid_dddG_mask = idx_doubles & ~np.isnan(dddG_truths) & ~np.isnan(epi_scores)
+            per_loader[name] = stats.compute_metrics(
+                cols['wt_scores'], cols['mt_scores'], cols['comb_scores'],
+                cols['ground_truths'], subset_types)
 
-            metrics = stats.compute_metrics(
-                wt_scores, comb_scores, epi_scores, epi_scores_full,
-                ground_truths, dddG_truths, idx_singles, idx_doubles, valid_dddG_mask,
-                mt_scores=mt_scores_arr,
-                mt_domain_mask=np.isin(subset_arr[measured], list(routing.MT_HEAD_SUBSETS)),
-            )
-            # The MT head's own domain includes derived items; score it on all of them.
-            if mt_domain_mask.any():
-                g_mt_all, gt_all = np.array(mt_scores_list)[mt_domain_mask], np.array(ground_truths_list)[mt_domain_mask]
-                metrics['rho_mt_domain'] = {'mt': stats.safe_spearman(g_mt_all, gt_all)}
-                metrics['rmse_mt_domain'] = {'mt': float(np.sqrt(np.mean((g_mt_all - gt_all) ** 2)))}
+            for k, v in cols.items():
+                pooled[k].append(v)
+            pooled['subset_type'].extend(subset_types)
 
-            # Aggregate pooled data for ungrouped metric calculation
-            pooled_data['wt_scores'].extend(wt_scores_list)
-            pooled_data['mt_scores'].extend(mt_scores_list)
-            pooled_data['comb_scores'].extend(comb_scores_list)
-            pooled_data['ground_truths'].extend(ground_truths_list)
-            pooled_data['subset_type'].extend(subset_type_list)
+        for name, metrics in per_loader.items():
+            for metric, val in metrics.items():
+                if not np.isnan(val):
+                    self.log(f"val_{metric}/{name}", val, on_epoch=True, sync_dist=True)
 
-            # Log all head metrics: WT, MT (standalone mutant pass), combined, and MT-domain.
-            for metric_type in ['rho', 'rho_singles', 'rho_doubles', 'rho_dddG_heuristic', 'rho_dddG', 'rmse', 'ndcg@k=96', 'ndcg>0', 'rho_mt_domain', 'rmse_mt_domain']:
-                if metric_type in metrics:
-                    for pathway, val in metrics[metric_type].items():
-                        if not np.isnan(val): self.log(f"val_{metric_type}_{pathway}/{val_loader_name}", val, on_epoch=True, sync_dist=True)
+        avg_metrics = {}
+        for metric in ('rho_wt', 'rho_combined', 'rho_mt', 'rmse_combined'):
+            vals = [m[metric] for m in per_loader.values() if not np.isnan(m[metric])]
+            if vals:
+                avg_metrics[metric] = float(np.mean(vals))
+                self.log(f"val_{metric}_avg", avg_metrics[metric], on_epoch=True, prog_bar=True, sync_dist=True)
 
-            for metric_type, pathways in metrics.items(): 
-                for pathway, val in pathways.items():     
-                    if not np.isnan(val): avg_metrics[f"{metric_type}_{pathway}"].append(val)
-
-        for key, values in avg_metrics.items():
-            if values: self.log(f'val_{key}_avg', np.nanmean(values), on_epoch=True, prog_bar=True, sync_dist=True)
-
-        # Compute Ungrouped metrics globally across all valid samples
-        if pooled_data['ground_truths']:
-            g_wt = np.array(pooled_data['wt_scores'])
-            g_comb = np.array(pooled_data['comb_scores'])
-            g_gt = np.array(pooled_data['ground_truths'])
-            
-            g_st_arr = np.array(pooled_data['subset_type'])
-            valid_mask = ~np.isnan(g_gt) & np.isin(g_st_arr, list(routing.MEASURED_SUBSETS))
-            if valid_mask.any():
-                ungrouped_rho = {
-                    'wt': stats.safe_spearman(g_wt[valid_mask], g_gt[valid_mask]),
-                    'combined': stats.safe_spearman(g_comb[valid_mask], g_gt[valid_mask])
-                }
-                ungrouped_ndcg_k96 = {
-                    'wt': stats.safe_ndcg_k96(g_wt[valid_mask], g_gt[valid_mask]),
-                    'combined': stats.safe_ndcg_k96(g_comb[valid_mask], g_gt[valid_mask])
-                }
-                ungrouped_ndcg_t0 = {
-                    'wt': stats.safe_ndcg_t0(g_wt[valid_mask], g_gt[valid_mask]),
-                    'combined': stats.safe_ndcg_t0(g_comb[valid_mask], g_gt[valid_mask])
-                }
-                
-                for pathway, val in ungrouped_rho.items():
-                    if not np.isnan(val): self.log(f"val_rho_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
-                for pathway, val in ungrouped_ndcg_k96.items():
-                    if not np.isnan(val): self.log(f"val_ndcg@k=96_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
-                for pathway, val in ungrouped_ndcg_t0.items():
-                    if not np.isnan(val): self.log(f"val_ndcg@k>0_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
-
-                # Ungrouped MT-head metric on its primary domain (mut_ctx_rev + native_mut_ctx), pooled globally.
-                g_mt = np.array(pooled_data['mt_scores'])
-                g_st = pooled_data['subset_type']
-                if len(g_mt) == len(g_gt):
-                    mt_dom = np.isin(np.array(g_st), list(routing.MT_HEAD_SUBSETS)) & ~np.isnan(g_gt)
-                    if mt_dom.any():
-                        mt_rho = stats.safe_spearman(g_mt[mt_dom], g_gt[mt_dom])
-                        if not np.isnan(mt_rho): self.log("val_rho_mt_domain_ungrouped", mt_rho, on_epoch=True, sync_dist=True)
+        if pooled['subset_type']:
+            pooled_metrics = stats.compute_metrics(
+                np.concatenate(pooled['wt_scores']), np.concatenate(pooled['mt_scores']),
+                np.concatenate(pooled['comb_scores']), np.concatenate(pooled['ground_truths']),
+                pooled['subset_type'])
+            for metric, val in pooled_metrics.items():
+                if not np.isnan(val):
+                    self.log(f"val_{metric}_pooled", val, on_epoch=True, sync_dist=True)
 
         if not self.trainer.sanity_checking and self.hparams.freeze_wt_on_convergence and not self.peft_manager.has_transitioned:
             target_metric_key = self.hparams.wt_convergence_metric
             if target_metric_key in avg_metrics:
-                current_val = float(np.nanmean(avg_metrics[target_metric_key]))
+                current_val = float(avg_metrics[target_metric_key])
                 if current_val > getattr(self.peft_manager, 'wt_best_metric', -float('inf')) + 1e-4:
                     self.peft_manager.wt_best_metric = current_val
                     self.peft_manager.wt_patience_counter = 0
@@ -672,8 +583,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if schedulers is not None:
                 sch_warmup, sch_plateau = schedulers
                 total_warmup_steps = self.hparams.lr_warmup_steps + max(int(getattr(self.hparams, "calib_delay_steps", 0)), int(getattr(self.hparams, "mt_lora_delay_steps", 500)))
-                if self.trainer.global_step >= total_warmup_steps and avg_metrics['rho_combined']:
-                    sch_plateau.step(np.nanmean(avg_metrics['rho_combined']))
+                if self.trainer.global_step >= total_warmup_steps and 'rho_combined' in avg_metrics:
+                    sch_plateau.step(avg_metrics['rho_combined'])
 
         self.validation_step_outputs.clear()
         torch.cuda.empty_cache()

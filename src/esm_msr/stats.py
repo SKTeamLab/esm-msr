@@ -2,18 +2,27 @@ import numpy as np
 from scipy.stats import spearmanr
 from sklearn.metrics import mean_squared_error, ndcg_score
 
+from esm_msr import routing
+
+
 def safe_spearman(preds, targets):
-    if len(preds) < 2 or len(np.unique(targets)) < 2: return np.nan 
-    if len(np.unique(preds)) < 2: return np.nan 
+    if len(preds) < 2 or len(np.unique(targets)) < 2: return np.nan
+    if len(np.unique(preds)) < 2: return np.nan
     rho = spearmanr(preds, targets)[0]
     return np.nan if np.isnan(rho) else float(rho)
+
+
+def safe_rmse(preds, targets):
+    if not len(preds): return np.nan
+    return float(np.sqrt(mean_squared_error(targets, preds)))
+
 
 def compute_ndcg_flexible(pred, true, *,
                           top_n=None, percentile=None, threshold=None,
                           ignore_ties=True, exponential_relevance=False):
     """
     Compute NDCG alongside physical hit-rate metrics for a defined budget (k).
-    
+
     Returns:
         Tuple: (NDCG_score, model_hits_at_k, ideal_hits_at_k, total_hits_in_pool)
     """
@@ -25,10 +34,10 @@ def compute_ndcg_flexible(pred, true, *,
     y_true = true
 
     rel_floor = threshold if threshold is not None else 0.0
-    
+
     # 1. Total Hits in Pool
     total_hits_in_pool = int(np.sum(y_true > rel_floor))
-    
+
     y_true_processed = np.where(y_true <= rel_floor, 0.0, y_true)
 
     if total_hits_in_pool == 0:
@@ -52,10 +61,10 @@ def compute_ndcg_flexible(pred, true, *,
 
     # Calculate NDCG
     ndcg_val = ndcg_score(y_true_processed, y_score, k=k, ignore_ties=ignore_ties)
-    
+
     # 2. Maximum Possible Hits Scored
     ideal_hits_at_k = min(total_hits_in_pool, k) if k is not None else total_hits_in_pool
-    
+
     # 3. The Model's Actual Hits Scored
     # Sort the true relevances based on the model's predicted ranking
     sorted_indices = np.argsort(-y_score[0])
@@ -63,16 +72,16 @@ def compute_ndcg_flexible(pred, true, *,
         model_top_k_relevances = y_true_processed[0][sorted_indices][:k]
     else:
         model_top_k_relevances = y_true_processed[0][sorted_indices]
-        
+
     model_hits_at_k = int(np.sum(model_top_k_relevances > 0))
 
     return ndcg_val, model_hits_at_k, ideal_hits_at_k, total_hits_in_pool
-    
+
 
 def safe_ndcg_k96(preds, targets):
     """
     Computes Normalized Discounted Cumulative Gain.
-    Filters out negative relevance scores (targets < 0). 
+    Filters out negative relevance scores (targets < 0).
     Raises a RuntimeError if it fails rather than silently passing.
     """
     preds = preds.reshape(1, -1)
@@ -82,11 +91,12 @@ def safe_ndcg_k96(preds, targets):
         return ndcg_val
     except Exception as e:
         raise RuntimeError(f"NDCG calculation failed. Underlying error: {str(e)}")
-    
+
+
 def safe_ndcg_t0(preds, targets):
     """
     Computes Normalized Discounted Cumulative Gain.
-    Filters out negative relevance scores (targets < 0). 
+    Filters out negative relevance scores (targets < 0).
     Raises a RuntimeError if it fails rather than silently passing.
     """
     preds = preds.reshape(1, -1)
@@ -97,67 +107,36 @@ def safe_ndcg_t0(preds, targets):
     except Exception as e:
         raise RuntimeError(f"NDCG calculation failed. Underlying error: {str(e)}")
 
-def compute_metrics(wt_scores, comb_scores, epi_scores, epi_scores_full, ground_truths, dddG_truths, idx_singles, idx_doubles, valid_dddG_mask, mt_scores=None, mt_domain_mask=None):
-    """
-    Consolidated function computing Spearman, NDCG, and RMSE metrics.
 
-    Optional `mt_scores` (standalone mutant-pass predictions) and `mt_domain_mask`
-    (boolean array marking the MT head's primary training domain, i.e. mut_ctx_rev +
-    native_mut_ctx items). When `mt_scores` is provided, standalone MT metrics are added,
-    mirroring the WT pathway, plus domain-restricted MT metrics (the items the MT head is
-    directly trained on).
+def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types):
     """
-    metrics = {
-        'rho': {
-            'wt': safe_spearman(wt_scores, ground_truths), 
-            'combined': safe_spearman(comb_scores, ground_truths)
-        },
-        'ndcg@k=96': {
-            'wt': safe_ndcg_k96(wt_scores, ground_truths),
-            'combined': safe_ndcg_k96(comb_scores, ground_truths)
-        },
-        'ndcg>0': {
-            'wt': safe_ndcg_t0(wt_scores, ground_truths),
-            'combined': safe_ndcg_t0(comb_scores, ground_truths)
-        },
-        'rho_singles': {
-            'wt': safe_spearman(wt_scores[idx_singles], ground_truths[idx_singles]), 
-            'combined': safe_spearman(comb_scores[idx_singles], ground_truths[idx_singles])
-        },
-        'rho_doubles': {
-            'wt': safe_spearman(wt_scores[idx_doubles], ground_truths[idx_doubles]), 
-            'combined': safe_spearman(comb_scores[idx_doubles], ground_truths[idx_doubles])
-        },
-        'rho_dddG_heuristic': {
-            'epi': safe_spearman(epi_scores[valid_dddG_mask], dddG_truths[valid_dddG_mask]) if valid_dddG_mask.any() else np.nan
-        },
-        'rho_dddG': {
-            'epi': safe_spearman(epi_scores_full[valid_dddG_mask], dddG_truths[valid_dddG_mask]) if valid_dddG_mask.any() else np.nan
-        },
-        'rmse': {
-            'wt': np.sqrt(mean_squared_error(ground_truths, wt_scores)) if len(wt_scores) else np.nan, 
-            'combined': np.sqrt(mean_squared_error(ground_truths, comb_scores)) if len(comb_scores) else np.nan
-        }
+    The validation metrics for one dataloader (one protein library or benchmark).
+
+    Each head is scored only on what it is responsible for, against measured ddG:
+
+    * ``rho_wt``       - WT head on single mutations in the real wild-type context.
+    * ``rho_combined`` - the routed/ensembled prediction on every measured item
+      (singles and multi-mutants), i.e. what the model actually reports.
+    * ``rho_mt``       - MT head on conditional effects ddG(X | background) only
+      (``cond`` and ``native_cond``); these are the targets it is trained on, and
+      they are a different quantity from a wild-type-context ddG, so they are never
+      pooled with the other two.
+    * ``rmse_combined`` - calibration of the reported prediction, in kcal/mol; rank
+      correlation alone cannot see a scale or offset error.
+
+    Returns a flat ``{name: value}`` dict; missing or undefined entries are NaN.
+    """
+    gt = np.asarray(ground_truths, dtype=np.float64)
+    subset_types = np.asarray([routing.canonical_subset(s) for s in subset_types])
+    finite = np.isfinite(gt)
+
+    is_single = np.isin(subset_types, list(routing.WT_HEAD_SUBSETS)) & finite
+    is_measured = np.isin(subset_types, list(routing.MEASURED_SUBSETS)) & finite
+    is_cond = np.isin(subset_types, list(routing.CONDITIONAL_SUBSETS)) & finite
+
+    return {
+        'rho_wt': safe_spearman(np.asarray(wt_scores)[is_single], gt[is_single]),
+        'rho_combined': safe_spearman(np.asarray(comb_scores)[is_measured], gt[is_measured]),
+        'rho_mt': safe_spearman(np.asarray(mt_scores)[is_cond], gt[is_cond]),
+        'rmse_combined': safe_rmse(np.asarray(comb_scores)[is_measured], gt[is_measured]),
     }
-    if mt_scores is not None and len(mt_scores) > 0:
-        # Standalone MT-head metrics, mirroring the WT/combined pathways.
-        metrics['rho']['mt'] = safe_spearman(mt_scores, ground_truths)
-        metrics['ndcg@k=96']['mt'] = safe_ndcg_k96(mt_scores, ground_truths)
-        metrics['ndcg>0']['mt'] = safe_ndcg_t0(mt_scores, ground_truths)
-        metrics['rho_singles']['mt'] = safe_spearman(mt_scores[idx_singles], ground_truths[idx_singles])
-        metrics['rho_doubles']['mt'] = safe_spearman(mt_scores[idx_doubles], ground_truths[idx_doubles])
-        metrics['rmse']['mt'] = np.sqrt(mean_squared_error(ground_truths, mt_scores))
-        # Domain-restricted: the MT head's primary training domain (mut_ctx_rev + native_mut_ctx).
-        if mt_domain_mask is not None:
-            dom = np.asarray(mt_domain_mask)
-            if dom.shape != np.asarray(ground_truths).shape:
-                dom = None
-        else:
-            dom = None
-        if dom is not None and dom.any():
-            metrics['rho_mt_domain'] = {'mt': safe_spearman(mt_scores[dom], ground_truths[dom])}
-            metrics['rmse_mt_domain'] = {'mt': float(np.sqrt(mean_squared_error(ground_truths[dom], mt_scores[dom])))}
-        else:
-            metrics['rho_mt_domain'] = {'mt': np.nan}
-            metrics['rmse_mt_domain'] = {'mt': np.nan}
-    return metrics

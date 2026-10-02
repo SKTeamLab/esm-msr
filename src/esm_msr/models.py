@@ -674,7 +674,7 @@ class MSRModel(ESM3PredictorBase):
         ``sum_i [logit(mt_id_i) - logit(wt_id_i)]`` at ``mut_pos`` (``pred_raw``), its
         calibrated value (``pred_calibrated``), and the per-mutation terms (``unsummed_llr``).
         ``wt_id``/``mt_id`` are the item's from/to residues, so for reversion-style items
-        (e.g. mut_ctx_rev) "mt_id" is the wild-type residue.
+        (e.g. reversion) "mt_id" is the wild-type residue.
         """
         if pass_type not in ['wt', 'mt']: raise AssertionError(f"pass_type must be 'wt' or 'mt'. Received: {pass_type}")
 

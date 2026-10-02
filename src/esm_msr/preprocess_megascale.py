@@ -10,8 +10,8 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 from esm_msr import utils
-from esm_msr.data import ( 
-    ProteinStructureMutationEpistasisDataset,
+from esm_msr.data import (
+    MutationStabilityDataset,
     collate_fn_twopass,
     create_consolidated_dataloader,
     PooledDataLoader
@@ -344,9 +344,9 @@ class MegaScaleDatasetPreprocessor:
         incl_singles: bool = True,
         incl_doubles: bool = False,
         incl_reversions: bool = False,
-        incl_mut_ctx: bool = False,
-        incl_mut_ctx_rev: bool = False,
-        incl_native_mut_ctx: bool = False,
+        incl_cond: bool = False,
+        incl_native_cond: bool = False,
+        cond_structure: str = 'reuse',
         combine_validation: bool = False,
         censor_margin: Optional[float] = None,
     ) -> Tuple[List[DataLoader], List[str]]:
@@ -369,7 +369,7 @@ class MegaScaleDatasetPreprocessor:
             for code in df_prot['code'].unique():
                 df_prot_ = df_prot.loc[df_prot['code']==code]
        
-                dataset = ProteinStructureMutationEpistasisDataset(
+                dataset = MutationStabilityDataset(
                     dms_df=df_prot_, tokenizer=tokenizer, structure_encoder=structure_encoder,
                     dms_name=code, path=cache_path, score_name=score_name,
                     generate=generate_cache, mut_structs_root=mut_structures_root,
@@ -377,9 +377,9 @@ class MegaScaleDatasetPreprocessor:
                     incl_singles=incl_singles,
                     incl_doubles=incl_doubles,
                     incl_reversions=incl_reversions,
-                    incl_mut_ctx=incl_mut_ctx,
-                    incl_mut_ctx_rev=incl_mut_ctx_rev,
-                    incl_native_mut_ctx=incl_native_mut_ctx,
+                    incl_cond=incl_cond,
+                    incl_native_cond=incl_native_cond,
+                    cond_structure=cond_structure,
                     dG_wt=self.dG_wt.get(code),
                     censor_margin=censor_margin,
                 )
@@ -411,15 +411,15 @@ def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encod
                      logging.warning(f"Benchmark '{name}' missing '{score_name_bench}' column. Skipping.")
                      continue
 
-                dataset = ProteinStructureMutationEpistasisDataset(
+                dataset = MutationStabilityDataset(
                     dms_df=df_bench, tokenizer=tokenizer, structure_encoder=structure_encoder,
                     dms_name=name, path=cache_path, score_name=score_name_bench,
                     generate=generate_cache, mut_structs_root='',
-                    incl_destab_bb=False, 
+                    incl_destab_bb=False,
                     incl_singles=True,
                     incl_doubles=True,
                     incl_reversions=False,
-                    incl_mut_ctx=False
+                    incl_cond=False,
                 )
                 
                 if len(dataset) == 0: continue
@@ -456,10 +456,10 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         mut_structures_root=args.mut_structures_root, combine_validation=args.combine_validation,
         incl_singles=args.incl_singles,
         incl_doubles=args.incl_doubles,
-        incl_mut_ctx=args.incl_mut_ctx,
+        incl_cond=args.incl_cond,
         incl_reversions=args.incl_reversions,
-        incl_mut_ctx_rev=args.incl_mut_ctx_rev,
-        incl_native_mut_ctx=args.incl_native_mut_ctx,
+        incl_native_cond=args.incl_native_cond,
+        cond_structure=args.cond_structure,
         censor_margin=getattr(args, 'censor_margin', None),
     )
 
@@ -467,12 +467,11 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         raise RuntimeError("No valid training dataloaders created.")
 
     # Build Validation Loaders
-    # Validation policy: singles and doubles are ALWAYS unrestricted. Doubles are
-    # never trained (in this prototype the heads are kept fully separate), so they
-    # are only ever predicted at validation time via the 0.5*WT + 0.5*MT ensemble
-    # (see forward_batch routing). The remaining subset families mirror the
-    # training configuration: any mut_ctx family subset (mut_ctx, mut_ctx_rev,
-    # native_mut_ctx) or reversion that is trained is also validated.
+    # Validation policy: singles and doubles are ALWAYS included, so the WT head and the
+    # head ensemble are always scored (doubles need not be trained to be validated - see
+    # forward_batch routing). Conditional subsets are included whenever they are trained,
+    # which is what the MT-head metric is computed on. Reversions are never validated:
+    # no head owns them.
     val_dataloaders, val_loader_names = preprocessor.create_protein_dataloaders(
         tokenizer=tokenizer, structure_encoder=struct_enc_arg,
         scaffold='val', batch_size=64, num_workers=args.num_workers, shuffle=False,
@@ -480,10 +479,10 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         generate_cache=args.regenerate_cache,
         incl_singles=True,
         incl_doubles=True,
-        incl_reversions=args.incl_reversions,
-        incl_mut_ctx=args.incl_mut_ctx,
-        incl_mut_ctx_rev=args.incl_mut_ctx_rev,
-        incl_native_mut_ctx=args.incl_native_mut_ctx,
+        incl_reversions=False,
+        incl_cond=args.incl_cond,
+        incl_native_cond=args.incl_native_cond,
+        cond_structure=args.cond_structure,
     )
 
     # Add Benchmarks
