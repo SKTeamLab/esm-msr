@@ -1,4 +1,6 @@
+import contextlib
 import logging
+import time
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -186,38 +188,56 @@ def _prepare_sparse_batch(model, muts_list, dev):
     if not muts_list: raise AssertionError("muts_list is empty.")
     B, max_muts = len(muts_list), max(1, max(len(m) for m in muts_list))
 
-    mut_pos_list, wt_id_list, mt_id_list = [], [], []
+    # Vectorized build: one numpy allocation per tensor, a single pass over
+    # the mutations, and exactly one tensor construction per output (instead
+    # of O(B) per-row torch.tensor() calls + 3 pad_sequence passes).
+    mut_pos_arr = np.zeros((B, max_muts), dtype=np.int64)
+    wt_id_arr = np.full((B, max_muts), C.SEQUENCE_PAD_TOKEN, dtype=np.int64)
+    mt_id_arr = np.full((B, max_muts), C.SEQUENCE_PAD_TOKEN, dtype=np.int64)
 
-    for muts in muts_list:
-        m_pos, w_id, m_id = [], [], []
-        for (w, p, m) in muts:
+    for i, muts in enumerate(muts_list):
+        for j, (w, p, m) in enumerate(muts):
             m_tid, w_tid = model.vocab.get(m), model.vocab.get(w)
             if m_tid is None or w_tid is None:
                 raise AssertionError(f"Failed to map amino acids '{w}' or '{m}' to the tokenizer vocabulary.")
-            m_pos.append(p); w_id.append(w_tid); m_id.append(m_tid)
-            
-        mut_pos_list.append(torch.tensor(m_pos, dtype=torch.long))
-        wt_id_list.append(torch.tensor(w_id, dtype=torch.long))
-        mt_id_list.append(torch.tensor(m_id, dtype=torch.long))
+            mut_pos_arr[i, j] = p
+            wt_id_arr[i, j] = w_tid
+            mt_id_arr[i, j] = m_tid
 
-    mut_pos_stack = torch.nn.utils.rnn.pad_sequence(mut_pos_list, batch_first=True, padding_value=0).to(dev)
-    if mut_pos_stack.size(1) < max_muts and mut_pos_stack.dim() > 1:
-        pad_size = max_muts - mut_pos_stack.size(1)
-        mut_pos_stack = F.pad(mut_pos_stack, (0, pad_size), value=0)
-        wt_id_stack = F.pad(torch.nn.utils.rnn.pad_sequence(wt_id_list, batch_first=True, padding_value=C.SEQUENCE_PAD_TOKEN).to(dev), (0, pad_size), value=C.SEQUENCE_PAD_TOKEN)
-        mt_id_stack = F.pad(torch.nn.utils.rnn.pad_sequence(mt_id_list, batch_first=True, padding_value=C.SEQUENCE_PAD_TOKEN).to(dev), (0, pad_size), value=C.SEQUENCE_PAD_TOKEN)
+    lengths = np.fromiter(map(len, muts_list), dtype=np.int64, count=B)
+    mut_mask_arr = np.arange(max_muts, dtype=np.int64)[None, :] < lengths[:, None]
+
+    return {
+        'mut_pos': torch.from_numpy(mut_pos_arr).to(dev),
+        'wt_id': torch.from_numpy(wt_id_arr).to(dev),
+        'mt_id': torch.from_numpy(mt_id_arr).to(dev),
+        'mut_mask': torch.from_numpy(mut_mask_arr).to(dev)
+    }
+
+
+@contextlib.contextmanager
+def _dtype_autocast(model, dev):
+    """
+    Context manager that enables CUDA autocast in the model's native dtype.
+
+    Required for the dense MT scoring path: a bf16 ESM3 has a bf16
+    ``pldddt_projection`` linear, so an fp32 ``plddt`` input must be
+    autocast to bf16 or the matmul raises a dtype mismatch.
+
+    It is a no-op (``contextlib.nullcontext()``) when:
+      * the device is not CUDA (no CUDA autocast to enable), or
+      * the model is fp32 — ``torch.autocast`` rejects ``torch.float32``
+        as a target dtype, so fp32 inference must not enter autocast.
+    """
+    if dev.type == 'cuda' and model.dtype != torch.float32:
+        with torch.autocast(device_type='cuda', dtype=model.dtype):
+            yield
     else:
-        wt_id_stack = torch.nn.utils.rnn.pad_sequence(wt_id_list, batch_first=True, padding_value=C.SEQUENCE_PAD_TOKEN).to(dev)
-        mt_id_stack = torch.nn.utils.rnn.pad_sequence(mt_id_list, batch_first=True, padding_value=C.SEQUENCE_PAD_TOKEN).to(dev)
-
-    mut_mask = torch.zeros(B, max_muts, dtype=torch.bool, device=dev)
-    for i, muts in enumerate(muts_list): mut_mask[i, :len(muts)] = True
-
-    return {'mut_pos': mut_pos_stack, 'wt_id': wt_id_stack, 'mt_id': mt_id_stack, 'mut_mask': mut_mask}
+        yield
 
 
 @torch.no_grad()
-def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, backbone_mutation=None, optimize_wt_pass=True, quiet=False, skip_additive=True, skip_reverse=False, mask_strategy=None, calculate_distances=False, ignore_mismatch=True) -> pd.DataFrame:
+def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, backbone_mutation=None, optimize_wt_pass=True, quiet=False, skip_additive=True, skip_reverse=False, mask_strategy=None, calculate_distances=False, ignore_mismatch=True, auto_batch=None) -> pd.DataFrame:
     """
     A unified, highly interpretable pipeline to evaluate mutational stability.
     """
@@ -245,22 +265,28 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
         
     cached_wt_esm3 = None
     if optimize_wt_pass and mask_strategy is None:
-        if dev.type == 'cuda':
-            with torch.autocast(device_type='cuda', dtype=model.dtype):
-                out = model._get_esm3_outputs(seq_toks, coords, struct_toks, plddt)
-        else:
+        with _dtype_autocast(model, dev):
             out = model._get_esm3_outputs(seq_toks, coords, struct_toks, plddt)
-            
+
         cached_wt_esm3 = {
-            'seq': seq_toks, 
-            'logits': model._process_logits(out.sequence_logits.float()), 
+            'seq': seq_toks,
+            'logits': model._process_logits(out.sequence_logits.float()),
             'embeddings': getattr(out, 'embeddings', None)
         }
 
+    _hb = (auto_batch.log if (auto_batch is not None and getattr(auto_batch, 'log', None)) else (lambda m: logging.info(m)))
+    _t = time.time()
     valid_rows = []
-    for _, row in df.iterrows():
+    # Column lists up front: df.iterrows() rebuilds a Series per row (~100x
+    # slower than tolist() + zip for pure string work).
+    renum_col = df['mut_type_renumbered'].astype(str).tolist()
+    pdb_col = df['mut_type_pdb'].astype(str).tolist()
+    wt_len = len(wt_seq_str)
+    for k, (renum_str, pdb_str) in enumerate(zip(renum_col, pdb_col)):
+        if k and k % 100_000 == 0:
+            _hb(f"    [PREP] validating mutations {k}/{len(df)} ({time.time()-_t:.0f}s)")
         muts, is_valid = [], True
-        for m_str in str(row['mut_type_renumbered']).split(':'):
+        for m_str in renum_str.split(':'):
             if len(m_str) < 3: 
                 is_valid = False
                 break
@@ -271,8 +297,8 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
             except ValueError:
                 raise AssertionError(f"Could not parse integer position from mutation string: {m_str}. Are you feeding PDB indices into mut_type_renumbered?")
             
-            if pos < 1 or pos > len(wt_seq_str) or mt not in model.vocab:
-                raise IndexError(f"Invalid mutation {m_str} mapping against sequence len {len(wt_seq_str)}")
+            if pos < 1 or pos > wt_len or mt not in model.vocab:
+                raise IndexError(f"Invalid mutation {m_str} mapping against sequence len {wt_len}")
             elif wt_seq_str[pos-1] != wt:
                 logging.warning(f'Mismatch in inference.infer_mutants: at position {pos}, expected {wt}, got {wt_seq_str[pos-1]}')
                 if not ignore_mismatch:
@@ -281,14 +307,16 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
         
         if is_valid and muts: 
             valid_rows.append({
-                'mut_type_renumbered': str(row['mut_type_renumbered']), 
-                'mut_type_pdb': str(row['mut_type_pdb']),
+                'mut_type_renumbered': renum_str, 
+                'mut_type_pdb': pdb_str,
                 'muts': muts, 
                 'pdb_file': pdb, 
                 'code': code, 
                 'chain': chain
             })
     
+    _hb(f"    [PREP] validated {len(valid_rows)}/{len(df)} rows in {time.time()-_t:.0f}s")
+
     if not valid_rows: 
         raise AssertionError("No valid rows were produced after checking mutations against the structure.")
 
@@ -301,34 +329,44 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
                 muts_to_score.add((single_m,))
     
     muts_to_score_list = list(muts_to_score)
+    _t = time.time()
     sparse_batch = _prepare_sparse_batch(model, muts_to_score_list, dev)
+    _hb(f"    [PREP] sparse batch built for {len(muts_to_score_list)} unique mutations in {time.time()-_t:.0f}s")
     
     if not quiet:
         logging.info(f"Scoring {len(muts_to_score_list)} unique mutations via {'DEDUPLICATION' if mask_strategy else 'DENSE'} strategy...")
         
-    out = model.score_screening_batch(
-        wt_sequence_tokens=seq_toks,
-        mut_pos=sparse_batch['mut_pos'],
-        wt_id=sparse_batch['wt_id'],
-        mt_id=sparse_batch['mt_id'],
-        mut_mask=sparse_batch['mut_mask'],
-        coords=coords,
-        structure_tokens=struct_toks,
-        plddt=plddt,
-        mask_strategy=mask_strategy,
-        batch_size=batch_size,
-        skip_reverse=skip_reverse,
-        cached_wt_esm3=cached_wt_esm3,
-        quiet=quiet
-    )
+    with _dtype_autocast(model, dev):
+        out = model.score_screening_batch(
+            wt_sequence_tokens=seq_toks,
+            mut_pos=sparse_batch['mut_pos'],
+            wt_id=sparse_batch['wt_id'],
+            mt_id=sparse_batch['mt_id'],
+            mut_mask=sparse_batch['mut_mask'],
+            coords=coords,
+            structure_tokens=struct_toks,
+            plddt=plddt,
+            mask_strategy=mask_strategy,
+            batch_size=batch_size,
+            skip_reverse=skip_reverse,
+            cached_wt_esm3=cached_wt_esm3,
+            quiet=quiet,
+            auto_batch=auto_batch
+        )
     
-    preds = {}
-    for i, mut_tup in enumerate(muts_to_score_list):
-        preds[mut_tup] = {
-            'wt_lora': out['wt_lora_pred'][i].item(),
-            'mt_lora': out['mt_lora_pred'][i].item(),
-            'combined': out['combined_pred'][i].item()
+    # Pull all GPU results to host with three bulk copies instead of three
+    # .item() device syncs per mutant.
+    _wt_vals = out['wt_lora_pred'].cpu().tolist()
+    _mt_vals = out['mt_lora_pred'].cpu().tolist()
+    _comb_vals = out['combined_pred'].cpu().tolist()
+    preds = {
+        mut_tup: {
+            'wt_lora': _wt_vals[i],
+            'mt_lora': _mt_vals[i],
+            'combined': _comb_vals[i]
         }
+        for i, mut_tup in enumerate(muts_to_score_list)
+    }
         
     for r in tqdm(valid_rows, desc='Constructing output dataframe', disable=quiet):
         muts = r['muts']

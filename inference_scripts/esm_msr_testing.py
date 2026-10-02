@@ -4,11 +4,12 @@ import torch
 from tqdm import tqdm
 import argparse
 import time
+import json
 import logging
 
 from huggingface_hub import login, get_token
 
-from esm_msr import stats, utils, models, inference, preprocess_megascale
+from esm_msr import stats, utils, models, inference, preprocess_megascale, auto_batch
 from pathlib import Path
 
 import warnings
@@ -79,6 +80,160 @@ def update_stats(stats_df, row_name, res_df, true_col, pred_col, epi_true_col='d
     return stats_df
 
 
+def run_protein_gym(args, model):
+    """Run esm-msr over all (preprocessed) ProteinGym DMS benchmarks.
+
+    Reads per-DMS input CSVs + manifest.csv from --pgym_dir, scores each with
+    infer_mutants (skip_additive default; dense by default, or masked via
+    --mask_strategy independent/marginal), attaches the
+    original DMS_score, writes one output CSV per DMS (resumable), and an
+    incremental summary.csv with per-DMS Spearman(combined_pred, DMS_score).
+    """
+    if not args.pgym_dir:
+        raise AssertionError("--pgym_dir is required with --protein_gym")
+    pgym_dir = Path(args.pgym_dir).resolve()
+    if not pgym_dir.exists():
+        raise AssertionError(f"pgym_dir does not exist: {pgym_dir}")
+    out_dir = Path(args.pgym_out).resolve() if args.pgym_out else (pgym_dir.parent / f"pgym_results_sigma{args.lora_epsilon}")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # WT-only / additive-approximation mode (--skip_reverse): predict from the
+    # WT adapter pass alone. combined_pred / mt_lora_pred are NaN by design in
+    # that mode, so the benchmark scores wt_lora_pred instead of combined_pred.
+    pred_col = "wt_lora_pred" if getattr(args, 'skip_reverse', False) else "combined_pred"
+
+    manifest = pd.read_csv(pgym_dir / "manifest.csv")
+    # pgym_preprocess.py writes per-DMS pdb_file paths relative to the
+    # ProteinGym root; the manifest records that root for resolution.
+    pg_root = (manifest["proteingym_dir"].iloc[0]
+               if "proteingym_dir" in manifest.columns else None)
+    if args.pgym_dms and str(args.pgym_dms).lower() != 'all':
+        dms_list = [d.strip() for d in str(args.pgym_dms).split(',') if d.strip()]
+    else:
+        dms_list = sorted(manifest["DMS_id"].tolist())
+
+    log_path = out_dir / "run.log"
+    def log(msg):
+        line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}"
+        print(line, flush=True)
+        with open(log_path, 'a') as f:
+            f.write(line + "\n")
+
+    batch_map = None
+    if args.batch_map:
+        batch_map = json.load(open(args.batch_map))
+    sizer = None
+    if args.auto_batch_size:
+        sizer = auto_batch.AutoBatchSizer(
+            device=next(model.parameters()).device,
+            headroom=args.auto_batch_headroom,
+            max_batch=args.auto_batch_max,
+            log=log,
+        )
+    log(f"[PGYM] START sigma={args.lora_epsilon} ckpt={args.checkpoint} n_dms={len(dms_list)} "
+        f" pred_col={pred_col} batch={args.batch_size}" + (f" batch_map={args.batch_map} ({len(batch_map)} entries)" if batch_map else "") +
+        (f" auto_batch(headroom={args.auto_batch_headroom}, max={args.auto_batch_max})" if sizer else "") +
+        f" out={out_dir}")
+    # Preserve rows from earlier invocations for DMS not in this run, so
+    # summary.csv accumulates across per-bin invocations. Also keep a lookup
+    # of the previous rows so a SKIP (output CSV already exists) can preserve
+    # the earlier invocation's measured time_s instead of overwriting it with
+    # NaN.
+    summary_rows = []
+    prev_by_dms = {}
+    prev_summary = out_dir / "summary.csv"
+    if prev_summary.exists():
+        old = pd.read_csv(prev_summary)
+        if "DMS_id" in old.columns:
+            prev_by_dms = {row["DMS_id"]: row for _, row in old.iterrows()}
+            old = old[~old["DMS_id"].isin(dms_list)]
+            summary_rows = old.to_dict("records")
+    t_start = time.time()
+    for i, did in enumerate(dms_list, 1):
+        out_csv = out_dir / f"{did}.csv"
+        if out_csv.exists():
+            log(f"[PGYM {i}/{len(dms_list)}] SKIP {did} (output exists)")
+            prev_row = prev_by_dms.get(did)
+            if prev_row is not None and pd.notna(prev_row.get("time_s")):
+                # An earlier invocation measured this DMS's wall time; keep
+                # that row verbatim. A skip must never overwrite a recorded
+                # time_s with NaN.
+                summary_rows.append(dict(prev_row))
+            else:
+                try:
+                    prev = pd.read_csv(out_csv)
+                    rho_prev = stats.safe_spearman(prev[pred_col], prev["DMS_score"])
+                    summary_rows.append({"DMS_id": did, "n": len(prev), "spearman_combined": rho_prev,
+                                         "time_s": None, "units_per_s": None, "status": "skipped"})
+                except Exception:
+                    summary_rows.append({"DMS_id": did, "n": None, "spearman_combined": None,
+                                         "time_s": None, "units_per_s": None, "status": "skipped_bad"})
+            pd.DataFrame(summary_rows).to_csv(out_dir / "summary.csv", index=False)
+            continue
+        dms_batch = (batch_map or {}).get(did, args.batch_size)
+        n_reports_before = len(sizer.reports) if sizer else 0
+        t0 = time.time()
+        try:
+            df = pd.read_csv(pgym_dir / f"{did}.csv")
+            pdb_val = df["pdb_file"].iloc[0]
+            if not os.path.isabs(pdb_val):
+                # Relative path (portable pgym_inputs): resolve against the
+                # ProteinGym root recorded in the manifest.
+                if not pg_root:
+                    raise AssertionError(
+                        f"relative pdb_file '{pdb_val}' but manifest.csv has no "
+                        "'proteingym_dir' column; regenerate pgym_inputs via "
+                        "preprocessing/pgym_preprocess.py")
+                pdb_res = (Path(pg_root) / pdb_val).resolve()
+                if not pdb_res.exists():
+                    raise AssertionError(f"pdb_file not found: {pdb_res}")
+                df["pdb_file"] = pdb_res
+            df = inference.standardize_input_df(df, quiet=True)
+            log(f"[PGYM {i}/{len(dms_list)}] {did}: read_csv+standardize n={len(df)} in {time.time()-t0:.1f}s")
+            res = inference.infer_mutants(
+                model=model, df=df, batch_size=dms_batch,
+                quiet=True, optimize_wt_pass=(args.mask_strategy is None),
+                skip_reverse=args.skip_reverse, mask_strategy=args.mask_strategy,
+                auto_batch=sizer
+            )
+            assert len(res) == len(df), f"len(res)={len(res)} != len(df)={len(df)}"
+            assert (res["mut_type_renumbered"].values == df["mut_type_renumbered"].values).all(), "row misalignment"
+            res = res.copy()
+            res["DMS_id"] = did
+            res["mutant"] = df["mutant"].values
+            res["DMS_score"] = df["DMS_score"].values
+            res.to_csv(out_csv, index=False)
+            rho = stats.safe_spearman(res[pred_col], res["DMS_score"])
+            dt = time.time() - t0
+            summary_rows.append({"DMS_id": did, "n": len(res), "spearman_combined": rho,
+                                 "time_s": dt, "units_per_s": len(res) / dt, "status": "done"})
+            b_used = (max(r.max_batch for r in sizer.reports[n_reports_before:]) if sizer else dms_batch)
+            log(f"[PGYM {i}/{len(dms_list)}] DONE {did}: n={len(res)} b={b_used} rho={rho:.4f} {dt:.1f}s ({len(res)/dt:.1f} u/s)")
+        except Exception as e:
+            dt = time.time() - t0
+            import traceback
+            log(f"[PGYM {i}/{len(dms_list)}] FAIL {did}: {type(e).__name__}: {str(e)[:300]} after {dt:.1f}s")
+            log(traceback.format_exc())
+            summary_rows.append({"DMS_id": did, "n": None, "spearman_combined": None,
+                                 "time_s": dt, "units_per_s": None, "status": "fail", "error": str(e)[:200]})
+        pd.DataFrame(summary_rows).to_csv(out_dir / "summary.csv", index=False)
+        # Per-DMS L×vocab logits tensors and chunk buffers vary in size; return
+        # the caching allocator's hold on freed blocks so VRAM stays flat across
+        # the full DMS sweep (otherwise the footprint grows monotonically and the
+        # largest DMS can push the card past its limit).
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    s = pd.DataFrame(summary_rows)
+    s.to_csv(out_dir / "summary.csv", index=False)
+    valid = s.dropna(subset=["spearman_combined"])
+    t_total = time.time() - t_start
+    log(f"[PGYM] COMPLETE sigma={args.lora_epsilon}: {len(valid)}/{len(s)} DMS scored | "
+        f"mean_rho={valid['spearman_combined'].mean():.4f} median_rho={valid['spearman_combined'].median():.4f} "
+        f"n_pos={(valid['spearman_combined'] > 0).sum()} n_neg={(valid['spearman_combined'] < 0).sum()} "
+        f"wall={t_total/3600:.2f}h")
+    print("\n[PGYM] final summary:\n", s.to_string(index=False))
+
+
 def main_(args):
 
     CHECKPOINT_STR = str(args.checkpoint) if args.checkpoint else "zeroshot"
@@ -120,9 +275,11 @@ def main_(args):
         lora_mode = 'ensemble'
         lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': args.seed}        
 
+    model_dtype = torch.bfloat16 if args.dtype == 'bf16' else torch.float32
+    print(f"[MODEL] inference dtype = {args.dtype} ({model_dtype})")
     model = models.MSRModel(
         lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
-        lora_mode=lora_mode, model_dtype=torch.float32, inference_mode=True
+        lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True
     ).to('cuda:0')
 
     # ---------------------------------------------------------
@@ -135,6 +292,13 @@ def main_(args):
         print('Zero shot mode!')
     
     model.eval()
+
+    # =========================================================================
+    # PROTEINGYM BENCHMARKS (all DMS, preprocessed inputs)
+    # =========================================================================
+    if getattr(args, 'protein_gym', False):
+        run_protein_gym(args, model)
+        return
 
     # =========================================================================
     # EXTERNAL BENCHMARKS
@@ -463,7 +627,7 @@ if __name__ == "__main__":
         parser.add_argument('--precision', type=str, default='bf16-mixed', choices=['16', '16-mixed', '32', 'bf16-mixed'])
 
         parser.add_argument('--local_cluster', action='store_true')
-        parser.add_argument('--mask_strategy', type=str, choices=['marginal', 'chain'], default=None)
+        parser.add_argument('--mask_strategy', type=str, choices=['marginal', 'independent'], default=None)
         parser.add_argument('--mask_structure_pos', action='store_true')
         parser.add_argument('--mask_coords_pos', action='store_true')
         parser.add_argument('--mask_coords', action='store_true')
@@ -475,13 +639,30 @@ if __name__ == "__main__":
         parser.add_argument('--skip_functional', action='store_true')
         parser.add_argument('--skip_domainome', action='store_true')
         parser.add_argument('--skip_additive', action='store_true')
-        parser.add_argument('--skip_reverse', action='store_true')
+        parser.add_argument('--skip_reverse', action='store_true',
+                            help='Skip the MT adapter pass and predict purely from the WT adapters. With --protein_gym, benchmarks score wt_lora_pred (the WT additive-approximation prediction) instead of combined_pred.')
         parser.add_argument('--skip_reverse_domainome', action='store_true')
         parser.add_argument('--use_dora', action='store_true')
         
         parser.add_argument('--local_path_to_structures', type=str, default='/home/sareeves/software/esm-msr/data/structures')
         parser.add_argument('--hf_token', type=str, default=None)
         parser.add_argument('--remove_spurs_homologs', action='store_true', help='Remove homologous sequences to SPURS training data from the Tsuboyama splits to test generalization to non-homologous sequences')
+
+        # ProteinGym (all-DMS) benchmark mode
+        parser.add_argument('--protein_gym', action='store_true', help='Run esm-msr over all preprocessed ProteinGym DMS benchmarks and exit')
+        parser.add_argument('--pgym_dir', type=str, default=None, help='Directory with per-DMS input CSVs + manifest.csv')
+        parser.add_argument('--pgym_out', type=str, default=None, help='Output directory for ProteinGym results (per-DMS CSVs + summary.csv)')
+        parser.add_argument('--pgym_dms', type=str, default='all', help="Comma-separated DMS ids, or 'all'")
+        parser.add_argument('--batch_size', type=int, default=16, help='Inference batch size for ProteinGym scoring')
+        parser.add_argument('--batch_map', type=str, default=None,
+                            help='Optional JSON file {DMS_id: batch_size} for per-DMS batch sizing (e.g. max-fitting per length bin). DMS not in the map use --batch_size.')
+        parser.add_argument('--auto_batch_size', action='store_true',
+                            help='On-the-fly per-DMS batch sizing: start at 1, double while a measured memory model predicts the attempt fits (esm_msr/auto_batch.py). Overrides --batch_size/--batch_map.')
+        parser.add_argument('--auto_batch_headroom', type=float, default=0.90,
+                            help='VRAM fraction a predicted chunk peak may occupy when auto-batching (default 0.90)')
+        parser.add_argument('--auto_batch_max', type=int, default=None,
+                            help='Optional hard cap on the auto-batched batch size')
+        parser.add_argument('--dtype', type=str, default='bf16', choices=['bf16', 'fp32'], help='Model inference dtype (bf16 = native/autocast, lower VRAM)')
 
         args, remaining_argv = parser.parse_known_args()
         current_remaining_argv = list(remaining_argv) 
@@ -509,8 +690,12 @@ if __name__ == "__main__":
         token = args.hf_token or get_token()
 
         if token:
-            login(token)
-            print('Using token')
+            os.environ["HF_TOKEN"] = token  # auth for hub loads even if login() can't reach the API (offline/cache-only)
+            try:
+                login(token)
+                print('Using token (login ok)')
+            except Exception as _e:
+                print(f'Using token (login skipped: {type(_e).__name__}); HF_TOKEN exported, using cache/offline')
         else:
             os.environ['INFRA_PROVIDER'] = "1"
             os.chdir(Path(__file__).resolve().parent.parent)

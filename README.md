@@ -93,6 +93,59 @@ If you want to reproduce the benchmarks without running preprocessing, you can d
 
 Note that the model selected here is included in the repo due to its small size and will have very similar performance to the one used in the paper, but the exact model(s) must be downloaded from HuggingFace and the `--checkpoint` argument must be updated accordingly. Benchmarking will take at least an hour even on a powerful GPU.
 
+## ProteinGym Benchmarking
+
+ESM-MSR can be scored against the full [ProteinGym](https://proteingym.org/) deep mutational scanning (DMS) benchmark (v1.3 release: 217 DMS, over 2.4 million mutants, [Zenodo 15293562](https://zenodo.org/records/15293562)). Two scripts are involved: `preprocessing/pgym_preprocess.py` (one-time setup per machine) and the `--protein_gym` mode of `inference_scripts/esm_msr_testing.py` (the actual scoring, which is resumable).
+
+### 1. Download the official ProteinGym data (~62 MB)
+
+`wget https://zenodo.org/records/15293562/files/DMS_substitutions.csv`
+`wget https://zenodo.org/records/15293562/files/DMS_ProteinGym_substitutions.zip`
+`wget https://zenodo.org/records/15293562/files/ProteinGym_AF2_structures.zip`
+
+`mkdir -p ProteinGym && mv DMS_substitutions.csv ProteinGym/`
+`unzip DMS_ProteinGym_substitutions.zip -d ProteinGym`
+`unzip ProteinGym_AF2_structures.zip -d ProteinGym`
+
+Each zip extracts to a folder of the same name, so you should end up with 217 per-DMS CSVs under `ProteinGym/DMS_ProteinGym_substitutions/` and 199 AlphaFold2 structures under `ProteinGym/ProteinGym_AF2_structures/` (one PDB per protein, shared by the DMS on that protein).
+
+### 2. Preprocess (one-time, a few minutes)
+
+`python preprocessing/pgym_preprocess.py --proteingym_dir ProteinGym --out pgym_inputs`
+
+This aligns each DMS's mutations to the corresponding AlphaFold2 structure (re-numbering positions when the DMS and structure use different numbering schemes) and writes one ready-to-score CSV per DMS plus a `manifest.csv` into `pgym_inputs/`. On the official release you should see `Runnable DMS: 217`, `Total mapped: 2465767`, `Skipped DMS: 0`, and `unmapped total: 0`. A nonzero `wt_mismatch` count (57 on the official release) is expected and harmless. Note that `pgym_inputs/` is machine-specific: the manifest records the absolute path to your `ProteinGym` folder, so if you move the data (or copy `pgym_inputs` to another machine), just re-run the preprocessor.
+
+### 3. Run the benchmark (resumable, ~1 day on a 32 GB GPU)
+
+`python inference_scripts/esm_msr_testing.py --checkpoint esm-msr/lora_seed1.safetensors --protein_gym --pgym_dir pgym_inputs --pgym_out pgym_results --auto_batch_size --dtype bf16 --lora_epsilon 1.0`
+
+* `--checkpoint` is relative to the `LoRA_models/` folder. The full model above is not included in the repo (only the small demo model is); download it once from our [HuggingFace page](https://huggingface.co/sareeves96/esm-msr): `huggingface-cli download sareeves96/esm-msr --local-dir LoRA_models/esm-msr`.
+* `--auto_batch_size` sizes each batch from measured GPU memory, so no manual tuning is needed. If a DMS simply does not fit in GPU memory even at batch size 1, it is logged as a failure and the run continues with the next DMS (on WSL2, very large DMS may instead spill into system RAM and complete very slowly — see [docs/known_issues.md](docs/known_issues.md)).
+* `--dtype bf16` is required for accuracy and speed on modern GPUs.
+* `--lora_epsilon 1.0` runs the trained ESM-MSR model; set it to `0.0` to score with the untrained (zero-shot) ESM3 backbone as a control.
+* `--skip_reverse` scores with the WT pass only (the additive approximation): each DMS runs a single cached WT-context forward, and every mutant is then scored by gathering the per-position local-substitution log-likelihood ratios from it. No mutant-context forward is run, so `mt_lora_pred`/`combined_pred` are NaN (omitted from the CSVs) and the per-DMS correlation is computed on `wt_lora_pred` instead. It is ~10× faster than the full two-pass mode (~17 min vs ~1 day for all 217 DMS on a 32 GB card), and the batch size no longer affects VRAM, since the one forward is always run at batch size 1.
+* The run is resumable: any DMS that already has an output CSV in `--pgym_out` is skipped, so you can interrupt and restart freely. Use `--pgym_dms DMS1,DMS2` to score only a subset (defaults to all).
+* Outputs: one CSV per DMS with the predictions (`combined_pred`) alongside the experimental `DMS_score`, plus a `summary.csv` with the per-DMS Spearman correlation (`spearman_combined`), timing, and status. A DMS that crashes mid-run is recorded in `summary.csv` with `status=fail` and an error message; fix the cause (usually memory) and re-run — only that DMS will be re-attempted.
+
+### Reference run and expected results
+
+Our reference runs score **all 217 of 217 DMS** on a single RTX 5090 (32 GB): the full model at σ=1.0 for all three training seeds (`esm-msr/lora_seed1.safetensors`, `lora_seed2.safetensors`, `lora_seed3.safetensors`) — each also scored in WT-only mode (`--skip_reverse`, the additive approximation, scored on `wt_lora_pred`) — and the small demo model (`esm-msr-small/epoch=03-...ckpt`) at σ=1.0, 0.5, and 0.0 (zero-shot ESM3 control), and the legacy chain model (`esm-msr-chain/epoch=04-...ckpt`) at σ=1.0:
+
+| Model | σ | mean Spearman | median | DMS positive | best DMS (ρ) | worst DMS (ρ) |
+|---|---|---|---|---|---|---|
+| esm-msr seed1 | 1.0 | **0.555** | 0.497 | 215 / 2 | `NUSA_ECOLI_Tsuboyama_2023_1WCL` (0.972) | `TADBP_HUMAN_Bolognesi_2019` (−0.259) |
+| esm-msr seed2 | 1.0 | 0.560 | 0.505 | 215 / 2 | `NUSA_ECOLI_Tsuboyama_2023_1WCL` (0.979) | `TADBP_HUMAN_Bolognesi_2019` (−0.254) |
+| esm-msr seed3 | 1.0 | 0.554 | 0.501 | 215 / 2 | `NUSA_ECOLI_Tsuboyama_2023_1WCL` (0.970) | `TADBP_HUMAN_Bolognesi_2019` (−0.239) |
+| esm-msr seed1, WT-only | 1.0 | 0.550 | 0.509 | 215 / 2 | `NUSA_ECOLI_Tsuboyama_2023_1WCL` (0.950) | `TADBP_HUMAN_Bolognesi_2019` (−0.276) |
+| esm-msr seed2, WT-only | 1.0 | 0.553 | 0.507 | 215 / 2 | `NUSA_ECOLI_Tsuboyama_2023_1WCL` (0.958) | `TADBP_HUMAN_Bolognesi_2019` (−0.244) |
+| esm-msr seed3, WT-only | 1.0 | 0.550 | 0.514 | 215 / 2 | `NUSA_ECOLI_Tsuboyama_2023_1WCL` (0.953) | `TADBP_HUMAN_Bolognesi_2019` (−0.244) |
+| esm-msr-small | 1.0 | 0.552 | 0.496 | 214 / 3 | `NUSA_ECOLI_Tsuboyama_2023_1WCL` (0.971) | `TADBP_HUMAN_Bolognesi_2019` (−0.262) |
+| esm-msr-small | 0.5 | 0.542 | 0.517 | 216 / 1 | `NUSA_ECOLI_Tsuboyama_2023_1WCL` (0.923) | `TADBP_HUMAN_Bolognesi_2019` (−0.031) |
+| esm-msr-small | 0.0 | 0.457 | 0.465 | 216 / 1 | `PR40A_HUMAN_Tsuboyama_2023_1UZC` (0.849) | `SYUA_HUMAN_Newberry_2020` (−0.014) |
+| esm-msr-chain | 1.0 | 0.556 | 0.518 | 215 / 2 | `NUSA_ECOLI_Tsuboyama_2023_1WCL` (0.974) | `B2L11_HUMAN_Dutta_2010_binding-Mcl-1` (−0.125) |
+
+Four of the 217 are size extremes that need special handling on a 32 GB card: `BRCA2_HUMAN_Erwood_2022_HEK293T` (2,832 residues) saturates the GPU at batch size 1 and completes via CPU spill into system RAM (~13 min; needs ~54 GB of free RAM and PyTorch's default allocator), `SCN5A_HUMAN_Glazer_2019` (2,016 residues), `POLG_CXB3N_Mattenberger_2021` (2,185) and `BRCA1_HUMAN_Findlay_2018` (1,863) also need the default allocator (they fit on-card). If any of them fails on a first attempt, retry just that DMS with `PYTORCH_CUDA_ALLOC_CONF=` (empty) set in the environment — see [docs/known_issues.md](docs/known_issues.md). [docs/vram_and_batch_sizes.md](docs/vram_and_batch_sizes.md) tabulates the maximum structure length that fits at each batch size (e.g. ~1,740 residues at batch 1, ~500 at batch 12, ~215 at batch 64 on a 32 GB card in bf16), measured throughput, and the CPU-spill behavior for larger structures.
+
 ## Adding the Visualizer to ChimeraX
 
 *Note: if using Windows Subsystem for Linux (WSL), it is recommended to install ChimeraX on Windows, not WSL. Everything should work even if you installed ESM-MSR into WSL.*
@@ -134,7 +187,7 @@ Select **one** of three methods to define the mutation space. Selecting one meth
 3. **3. Input Mutations Directly:** Manually type a comma-separated list of precise mutations (e.g., `A12C,A12C:D15E`).
 
 **Screening Parameters:**
-* **Mask Strategy:** Choose between `Default (unmasked)`, `marginal`, or `chain`. `unmasked` tends to perform best, but there are compute savings especially if only specifying a few positions using `chain`. `marginal` is not recommended.
+* **Mask Strategy:** Choose between `Default (unmasked)`, `marginal`, or `independent`. `unmasked` tends to perform best, but there are compute savings especially if only specifying a few positions using `independent`. `marginal` is not recommended.
 * **Skip MT pass (Use Additive Approximation):** Fast approximation, especially suitable for single mutants. *Warning: Skips generating `mt_lora` predictions.*
 
 **Running Inference:**
