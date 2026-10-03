@@ -348,7 +348,7 @@ class MegaScaleDatasetPreprocessor:
         incl_native_cond: bool = False,
         cond_structure: str = 'reuse',
         combine_validation: bool = False,
-        censor_margin: Optional[float] = None,
+        min_additive_dG: Optional[float] = -1.0,
     ) -> Tuple[List[DataLoader], List[str]]:
         """Generates a list of dataloaders for a specific list of protein codes."""
         loaders = []
@@ -381,7 +381,7 @@ class MegaScaleDatasetPreprocessor:
                     incl_native_cond=incl_native_cond,
                     cond_structure=cond_structure,
                     dG_wt=self.dG_wt.get(code),
-                    censor_margin=censor_margin,
+                    min_additive_dG=min_additive_dG,
                 )
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
@@ -460,7 +460,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         incl_reversions=args.incl_reversions,
         incl_native_cond=args.incl_native_cond,
         cond_structure=args.cond_structure,
-        censor_margin=getattr(args, 'censor_margin', None),
+        min_additive_dG=getattr(args, 'min_additive_dG', -1.0),
     )
 
     if not train_dataloaders: 

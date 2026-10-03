@@ -118,9 +118,12 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
     }
 
     combine_rule = routing.combine_rule_from_hparams(hparams)
-    logging.info(f"Using combine_rule='{combine_rule}' for combined_pred (see esm_msr.routing).")
+    mask_structure = bool(hparams.get('mask_structure', False))
+    logging.info(f"Using combine_rule='{combine_rule}' for combined_pred (see esm_msr.routing); "
+                 f"mask_structure={mask_structure} (must match training).")
 
     return {
+        'mask_structure': mask_structure,
         'wt_config': wt_config,
         'mt_config': mt_config,
         'adapter_mode': hparams.get('adapter_mode', 'dual'),
@@ -587,6 +590,7 @@ if __name__ == "__main__":
     adapter_mode = "dual"
     lora_mode = "ensemble"
     combine_rule = "average"
+    mask_structure = False
 
     if args.lora_config:
         try:
@@ -599,6 +603,7 @@ if __name__ == "__main__":
             adapter_mode = lora_config.get('adapter_mode', 'dual')
             lora_mode = lora_config.get('lora_mode', 'ensemble')
             combine_rule = lora_config.get('combine_rule', 'average')
+            mask_structure = lora_config.get('mask_structure', False)
             
             # Apply sigma
             if args.sigma <= 0:
@@ -619,6 +624,7 @@ if __name__ == "__main__":
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         lora_mode = parsed_config.get('lora_mode', 'ensemble')
         combine_rule = parsed_config.get('combine_rule', 'average')
+        mask_structure = parsed_config.get('mask_structure', False)
         lora_config = {
             'wt_config': parsed_config['wt_config'],
             'mt_config': parsed_config['mt_config']
@@ -642,6 +648,7 @@ if __name__ == "__main__":
         adapter_mode=adapter_mode,
         lora_mode=lora_mode,
         combine_rule=combine_rule,
+        mask_structure=mask_structure,
     )
 
     if args.base_model_loc:

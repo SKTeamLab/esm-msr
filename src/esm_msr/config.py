@@ -126,7 +126,14 @@ def parse_arguments() -> argparse.Namespace:
 
     mask_group = parser.add_argument_group("Masking Strategy")
     mask_group.add_argument('--premask_coords', action=argparse.BooleanOptionalAction, default=False)
-    mask_group.add_argument('--mask_strategy', type=str, choices=["marginal", "independent"], default=None)
+    mask_group.add_argument('--mask_strategy', type=str, choices=["marginal", "independent"], default=None,
+                            help="SEQUENCE masking of the scored position(s). Off by default: unmasked wt-marginal "
+                                 "scored best on singles and tied on conditionals, and it costs one forward per variant "
+                                 "instead of one per mutation.")
+    mask_group.add_argument('--mask_structure', action=argparse.BooleanOptionalAction, default=False,
+                            help="STRUCTURE masking: blank coordinates and structure tokens at every position the MT-pass "
+                                 "sequence mutates relative to the structure. The WT pass is never masked (its sequence and "
+                                 "structure agree). Saved to hparams.yaml and re-applied at inference.")
 
     train_group = parser.add_argument_group("Training Parameters")
     train_group.add_argument('--num_epochs', type=int, default=20)
@@ -185,10 +192,11 @@ def parse_arguments() -> argparse.Namespace:
     data_group.add_argument('--subset_caps', nargs='*', action=ParseSubsetCaps, default=default_caps,
                             help="Caps for data subsets as a fraction of the unrestricted subsets (e.g., double=0.6 cond=None). Defaults to 0 for all except 'single' (None).")
     data_group.add_argument('--mut_structures_root', type=str, default='/home/sareeves/software/esm-msr/data/tsuboyama/FINAL_results/')
-    data_group.add_argument('--censor_margin', type=float, default=None,
-                            help="Drop double-derived training items (double, cond) when any state involved "
-                                 "(WT, A, B, AB, or the additive AB estimate) has dG within this many kcal/mol of the assay "
-                                 "floor (-1) or ceiling (+5). Censored doubles carry a spurious positive dddG. None disables.")
+    data_group.add_argument('--min_additive_dG', type=float, default=-1.0,
+                            help="Drop double-derived items (double, cond) whose additive dG prediction "
+                                 "dG(wt)+ddG_A+ddG_B falls at or below this value. The assay's bounded fit reports no dG "
+                                 "below -1, so for those doubles the measured value is obliged to be too high and the "
+                                 "error surfaces as spurious stabilising epistasis. None disables.")
     data_group.add_argument('--use_plddt', action=argparse.BooleanOptionalAction, default=False)
     data_group.add_argument('--remove_spurs_homologs', action=argparse.BooleanOptionalAction, default=False)
     data_group.add_argument('--combine_validation', action=argparse.BooleanOptionalAction, default=False)

@@ -460,7 +460,10 @@ def _generate_random_mask(
 # =============================
 # Master masking manager
 # =============================
-def apply_masks(
+def apply_masks(  # DEAD CODE: nothing calls this. Structure masking now lives in
+    # MSRModel._blank_structure, driven by the `mask_structure` hparam so that training and
+    # inference cannot disagree. Kept only until its callers are confirmed gone.
+
     batch: Dict[str, Any],
     tokenizer: Any,
     *,

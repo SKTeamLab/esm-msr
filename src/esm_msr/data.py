@@ -52,9 +52,10 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
     """
 
     # Bump when the emitted items change shape or meaning, so a stale cache is never served.
-    CACHE_VERSION = 'v2cond'
+    CACHE_VERSION = 'v3cond'
 
-    # Dynamic range of the cDNA-display proteolysis dG estimates; dG_ML is clipped to it.
+    # The bounded ML fit reports no dG outside this interval: the measured distribution has
+    # zero mass beyond either end, for singles and doubles alike.
     DG_FLOOR, DG_CEILING = -1.0, 5.0
 
     def __init__(
@@ -76,7 +77,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         incl_native_cond: bool = False,
         cond_structure: str = 'reuse',
         dG_wt: Optional[float] = None,
-        censor_margin: Optional[float] = None,
+        min_additive_dG: Optional[float] = -1.0,
     ):
         """
         Args:
@@ -106,9 +107,11 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 'model' prefers a modeled partner structure when one exists on disk,
                 falling back to 'mask'.
                 Baked into the generated items, so it is part of the cache name.
-            dG_wt: Measured dG of this library's starting sequence; needed for censoring.
-            censor_margin: Drop double-derived items whose states come within this many
-                kcal/mol of the assay's dynamic range. See :meth:`_drop_censored`.
+            dG_wt: Measured dG of this library's starting sequence; needed for the
+                dynamic-range filter.
+            min_additive_dG: Drop double-derived items whose additive dG prediction
+                dG(wt)+ddG_A+ddG_B falls at or below this. See :meth:`_drop_unreachable`.
+                None disables.
         """
         if cond_structure not in ('reuse', 'mask', 'model'):
             raise AssertionError(f"cond_structure must be 'reuse', 'mask' or 'model', got '{cond_structure}'.")
@@ -163,8 +166,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         # Mutant-background libraries: their singles are conditional measurements.
         self._label_native_cond()
         self._filter_dataset()
-        if censor_margin is not None:
-            self._drop_censored(dG_wt, censor_margin)
+        if min_additive_dG is not None:
+            self._drop_unreachable(dG_wt, min_additive_dG)
         self._extract_scalars()
 
     # ------------------------------------------------------------------ generation
@@ -217,39 +220,38 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         self.data = [item for item in self.data if item.get('subset_type') in allowed]
         logging.info(f"Filtered dataset from {before} to {len(self.data)} items based on allowed types: {allowed}")
 
-    def _drop_censored(self, dG_wt: Optional[float], margin: float) -> None:
+    def _drop_unreachable(self, dG_wt: Optional[float], min_additive_dG: float) -> None:
         """
-        Drop double-derived items (``double``, ``cond``) that touch the assay's limits.
+        Drop double-derived items (``double``, ``cond``) whose additive dG prediction the assay
+        cannot reach.
 
-        dG_ML is clipped to [-1, 5] kcal/mol. When a double's additive expectation falls
-        past the floor the measured dG_AB is clipped there, so
-        dddG = ddG_AB - ddG_A - ddG_B comes out spuriously positive, and ddG(A|B) inherits
-        the same error. Measured on the raw Tsuboyama table: of doubles with both singles,
-        the ~34% with a state within 0.5 kcal/mol of a limit have mean dddG +1.74 kcal/mol
-        and no agreement between the trypsin and chymotrypsin estimates (r = 0.07); the
-        rest have mean +0.51 with r = 0.75.
+        The fit is bounded, so a double predicted at or below the floor cannot be reported
+        there: the measured value is obliged to come back higher, and the shortfall surfaces as
+        spurious stabilising epistasis. On the raw table, 21% of doubles predict below -1 and
+        their mean dddG is +2.06 kcal/mol against +0.33 for doubles predicted comfortably in
+        range. The slope of dddG against the additive prediction falls from -0.43 to about
+        -0.23 as this threshold is raised and then stops moving; that residual is the genuine
+        diminishing-returns trend.
 
-        A state is the dG of the WT, of each single, of the double, and of the double's
-        additive estimate.
+        Only double-derived subsets are affected. No single mutant in the dataset sits below
+        the floor, so the WT adapter keeps its full range of destabilisation.
         """
         if dG_wt is None or not np.isfinite(dG_wt):
-            logging.warning(f"[{self.dms_name}] censor_margin set but WT dG unknown; no censoring applied.")
+            logging.warning(f"[{self.dms_name}] min_additive_dG set but WT dG unknown; no filtering applied.")
             return
-        lo, hi = self.DG_FLOOR + margin, self.DG_CEILING - margin
 
-        def _censored(item: Dict[str, Any]) -> bool:
+        def _unreachable(item: Dict[str, Any]) -> bool:
             if item.get('subset_type') not in DOUBLE_DERIVED_SUBSETS:
                 return False
-            a, b = item.get('ddG_A', np.nan), item.get('ddG_B', np.nan)
-            ddG_AB = item.get('ddG_AB', np.nan)
-            states = np.array([0.0, a, b, ddG_AB, a + b], dtype=np.float64) + dG_wt
-            states = states[np.isfinite(states)]
-            return bool(((states < lo) | (states > hi)).any())
+            add = item.get('ddG_A', np.nan) + item.get('ddG_B', np.nan)
+            if not np.isfinite(add):
+                return False
+            return bool(dG_wt + add <= min_additive_dG)
 
         before = len(self.data)
-        self.data = [item for item in self.data if not _censored(item)]
-        logging.info(f"[{self.dms_name}] censor_margin={margin}: dropped {before - len(self.data)} of {before} items "
-                     f"(dG_wt={dG_wt:.2f}, allowed state range [{lo:.2f}, {hi:.2f}])")
+        self.data = [item for item in self.data if not _unreachable(item)]
+        logging.info(f"[{self.dms_name}] min_additive_dG={min_additive_dG}: dropped "
+                     f"{before - len(self.data)} of {before} double-derived items (dG_wt={dG_wt:.2f})")
 
     def _extract_scalars(self) -> None:
         """Contiguous scalar arrays for the sampler's balancing passes."""
@@ -392,6 +394,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             seq_chars = list(protein_chain.sequence)
             base_masks: List[int] = []
             modeled_bb: Optional[Tuple[str, int, str]] = None
+            # Positions where ref_seq already differs from the sequence the structure carries.
+            struct_base: List[int] = []
             if is_mutant_backbone:
                 wt_bb, pos_bb, mt_bb = backbone[0], int(backbone[1:-1]), backbone[-1]
                 seq_chars[pos_bb - 1] = mt_bb
@@ -402,6 +406,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                     modeled_bb = (wt_bb, pos_bb, mt_bb)
                 else:
                     base_masks.append(pos_bb)
+                    # the structure is the plain WT backbone, so ref_seq's own mutation is a mismatch
+                    struct_base.append(pos_bb)
             ref_seq = ''.join(seq_chars)
 
             def _seq_with(*muts: Tuple[str, int, str]) -> str:
@@ -427,22 +433,25 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 if len(muts) == 1:
                     data.extend(self._single_items(
                         muts[0], ddG, code, ref_seq, base_code, chain, backbone, protein_chain,
-                        base_masks, modeled_bb, base_struct_type, base_struct, _seq_with))
+                        base_masks, modeled_bb, base_struct_type, base_struct, _seq_with, struct_base))
                 elif len(muts) == 2:
                     data.extend(self._double_items(
                         muts, ddG, single_ddG, code, ref_seq, base_code, chain, backbone,
-                        protein_chain, base_masks, modeled_bb, base_struct_type, base_struct, _seq_with))
+                        protein_chain, base_masks, modeled_bb, base_struct_type, base_struct,
+                        _seq_with, struct_base))
 
         return data
 
     def _single_items(self, mut, ddG, code, ref_seq, base_code, chain, backbone, protein_chain,
-                      base_masks, modeled_bb, base_struct_type, base_struct, _seq_with) -> List[Dict[str, Any]]:
+                      base_masks, modeled_bb, base_struct_type, base_struct, _seq_with,
+                      struct_base) -> List[Dict[str, Any]]:
         """The measured single mutation, and the same measurement read as a reversion."""
         wt_aa, pos, mt_aa = mut
         mt_seq = _seq_with(mut)
         items = [self._create_data_item(
             mutations=[mut], ddG=ddG, code=code, wt_seq=ref_seq, mt_seq=mt_seq,
-            subset_type='single', structure_type=base_struct_type, structure=base_struct)]
+            subset_type='single', structure_type=base_struct_type, structure=base_struct,
+            struct_mut_pos=struct_base + [pos])]
 
         if self.include['reversion']:
             # The reverse measurement conditions on the mutant sequence, so it wants the
@@ -452,12 +461,15 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 extra_mask=pos, prefer_model=mut)
             items.append(self._create_data_item(
                 mutations=[(mt_aa, pos, wt_aa)], ddG=-ddG, code=code, wt_seq=mt_seq, mt_seq=ref_seq,
-                subset_type='reversion', structure_type=rev_type, structure=rev_struct))
+                # a reversion's MT-pass input is ref_seq itself, so only the backbone
+                # mismatch (if any) is a structure mismatch
+                subset_type='reversion', structure_type=rev_type, structure=rev_struct,
+                struct_mut_pos=list(struct_base)))
         return items
 
     def _double_items(self, muts, ddG_AB, single_ddG, code, ref_seq, base_code, chain, backbone,
                       protein_chain, base_masks, modeled_bb, base_struct_type, base_struct,
-                      _seq_with) -> List[Dict[str, Any]]:
+                      _seq_with, struct_base) -> List[Dict[str, Any]]:
         """
         The measured double, plus one ``cond`` item per ordered pair.
 
@@ -480,7 +492,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             mutations=list(muts), ddG=ddG_AB, dddG=dddG, ddG_additive=ddG_additive,
             ddG_A=ddG_A, ddG_B=ddG_B, ddG_AB=ddG_AB, code=code,
             wt_seq=ref_seq, mt_seq=_seq_with(*muts),
-            subset_type='double', structure_type=base_struct_type, structure=base_struct)]
+            subset_type='double', structure_type=base_struct_type, structure=base_struct,
+            struct_mut_pos=struct_base + [posA, posB])]
 
         if not self.include['cond'] or not np.isfinite(ddG_additive):
             return items
@@ -499,7 +512,9 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 mutations=[tgt], ddG=float(ddG_AB - ddG_bg), dddG=dddG,
                 ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, ddG_AB=ddG_AB, code=code,
                 wt_seq=_seq_with(bg), mt_seq=_seq_with(tgt, bg),
-                subset_type='cond', structure_type=s_type, structure=struct))
+                subset_type='cond', structure_type=s_type, structure=struct,
+                # the MT input carries BOTH mutations, so the background is a mismatch too
+                struct_mut_pos=struct_base + [tgt[1], bg[1]]))
         return items
 
     def _create_data_item(
@@ -512,6 +527,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         subset_type: str,
         structure_type: str,
         structure: Tuple,
+        struct_mut_pos: Optional[List[int]] = None,
         dddG: float = np.nan,
         ddG_additive: float = np.nan,
         ddG_A: float = np.nan,
@@ -525,6 +541,11 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         state (the MT pass's input); ``wt_id``/``mt_id`` are the from/to residues, so for a
         reversion-style item ``mt_id`` holds a wild-type residue. ``ddG`` is always the
         effect of going from before to after.
+
+        ``struct_mut_pos`` lists every 1-based position at which ``mt_seq`` differs from the
+        sequence the stored structure actually represents - the item's own mutations plus any
+        background mutation the structure does not carry. It is what structure masking blanks
+        on the MT pass, and for conditional items it is a superset of ``mut_pos``.
         """
         coords, plddt, structure_tokens, residue_index = structure
 
@@ -541,9 +562,12 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             x = float(x)
             return x if np.isfinite(x) else np.nan
 
+        if struct_mut_pos is None:
+            struct_mut_pos = mut_pos
         logging.debug(f'Created data item: {code}, {mutations}, {subset_type}, {structure_type}, ddG={ddG}, dddG={dddG}')
         return {
             'pdb': code,
+            'struct_mut_pos': np.array(sorted(set(int(p) for p in struct_mut_pos)), dtype=np.int64),
             'mutations': mutations,
             'wt_sequence_tokens': np.array(self.tokenizer.encode(wt_seq), dtype=np.int64),
             'mt_sequence_tokens': np.array(self.tokenizer.encode(mt_seq), dtype=np.int64),
@@ -745,6 +769,9 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     mut_pos_list = [torch.as_tensor(item['mut_pos'], dtype=torch.long) for item in batch]
     wt_id_list = [torch.as_tensor(item['wt_id'], dtype=torch.long) for item in batch]
     mt_id_list = [torch.tensor(item['mt_id'], dtype=torch.long) for item in batch]
+    # Positions the MT-pass sequence mutates relative to the stored structure; a superset of
+    # mut_pos for conditional items. Falls back to mut_pos for caches predating the field.
+    smp_list = [torch.as_tensor(item.get('struct_mut_pos', item['mut_pos']), dtype=torch.long) for item in batch]
 
     lengths = [len(m) for m in mut_pos_list]
     max_len = max(lengths) if lengths else 1
@@ -762,8 +789,17 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         if l > 0:
             mut_mask[i, :l] = True
 
+    smp_stack = torch.nn.utils.rnn.pad_sequence(smp_list, batch_first=True, padding_value=0) \
+        if any(len(t) for t in smp_list) else torch.zeros(B, 1, dtype=torch.long)
+    smp_mask = torch.zeros(B, smp_stack.shape[1], dtype=torch.bool)
+    for i, t in enumerate(smp_list):
+        if len(t) > 0:
+            smp_mask[i, :len(t)] = True
+
     return {
         'pdb': pdb,
+        'struct_mut_pos': smp_stack,
+        'struct_mut_mask': smp_mask,
         'mutations': mutations,
         'ddG': ddG,
         'dddG': dddG,
@@ -820,9 +856,12 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         self.verbose = verbose
         self._rng = random.Random(rng_seed)
         
-        self.subset_balance_configs = subset_balance_configs or {
-            'cond': {'bins': 15, 'cap_percentile': 75.0, 'missing_cap_fraction': 0.20},
-        }
+        # 2D density capping over (additive ddG, dddG) is OFF by default. Measured on the raw
+        # table it removes 34% of doubles and leaves the dynamic-range bias *worse* than no
+        # filter at all (mean dddG +0.96 vs +0.89; unreachable share 24% vs 21%), because
+        # clipped pairs sit in the sparse tail of that histogram and per-bin capping spares
+        # them. Use min_additive_dG instead; pass a dict here to re-enable.
+        self.subset_balance_configs = subset_balance_configs
 
         self.subset_caps: Dict[str, Optional[float]] = {
             'single': None, 'double': 0.0, 'reversion': 0.0, 'cond': None, 'native_cond': None,

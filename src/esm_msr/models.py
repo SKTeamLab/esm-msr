@@ -155,6 +155,13 @@ class MSRModel(ESM3PredictorBase):
             of one per mutation. Exact in eval; in training, rows that share an input also
             share one LoRA-dropout sample.
         sequence_head_only: Skip ESM3's unused structure/function/residue/SS8/SASA heads.
+        mask_structure: Blank the structure at every position the MT-pass sequence mutates
+            relative to the structure (``struct_mut_pos``): coordinates to NaN and structure
+            tokens to the mask token. The WT pass is never masked, because its sequence and
+            its structure agree. Both channels must be blanked - ESM3 builds its affine
+            frames from the coordinates and reads the tokens separately, so masking one
+            leaves the other informative. This setting must match between training and
+            inference, so it is recorded in hparams.yaml and re-applied from there.
     """
     def __init__(
             self, lora_config: dict, shared_scale_init: float | None = None,
@@ -162,6 +169,7 @@ class MSRModel(ESM3PredictorBase):
             use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16,
             adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
             combine_rule: str = 'routed', dedup_backbone: bool = True, sequence_head_only: bool = True,
+            mask_structure: bool = False,
         ):
         logging.info("Initializing ESM3 Base Model...")
         base_esm3 = ESM3_sm_open_v0()
@@ -178,6 +186,7 @@ class MSRModel(ESM3PredictorBase):
             raise AssertionError(f"Unknown combine_rule '{combine_rule}'. Must be 'routed' or 'average'.")
         self.combine_rule = combine_rule
         self.dedup_backbone = dedup_backbone
+        self.mask_structure = mask_structure
         if use_plddt:
             logging.warning("use_plddt=True has no effect: per-residue pLDDT is not passed to ESM3.")
         
@@ -619,6 +628,47 @@ class MSRModel(ESM3PredictorBase):
         full_log_probs[:, :, idx] = log_probs_canonical
         return full_log_probs
 
+    @staticmethod
+    def _blank_structure(coords, struct_tokens, pos, pos_mask):
+        """
+        Remove structural information at ``pos`` (1-based, padded, valid where ``pos_mask``).
+
+        Coordinates go to NaN, which is how ESM3 marks an absent backbone frame, and structure
+        tokens go to the mask token. Both are required: ESM3 builds its affine frames from the
+        coordinates and reads the tokens through a separate embedding, so blanking one leaves
+        the other fully informative.
+
+        Returns new tensors and leaves the inputs untouched, because the same batch also feeds
+        the unmasked WT pass. Collation emits coordinates as [B, L, A, 3] or [B, 1, L, A, 3]
+        and tokens as [B, L] or [B, 1, L], so leading singleton axes are squeezed to put the
+        residue axis second; ``_get_esm3_outputs`` accepts either form.
+        """
+        if pos is None or pos_mask is None or not bool(pos_mask.any()):
+            return coords, struct_tokens
+
+        def _residue_axis_second(t, ndim):
+            while t.dim() > ndim and t.shape[1] == 1:
+                t = t.squeeze(1)
+            return t
+
+        B = pos.shape[0]
+        rows, cols = torch.where(pos_mask)
+        p = pos[rows, cols]
+
+        if torch.is_tensor(coords) and coords.dim() >= 3 and coords.shape[0] == B:
+            coords = _residue_axis_second(coords, 4).clone()
+            if int(p.max()) < coords.shape[1]:
+                coords[rows, p] = float('nan')
+            else:
+                raise AssertionError(
+                    f"struct_mut_pos max {int(p.max())} exceeds the coordinate residue axis "
+                    f"({coords.shape[1]}); positions must be 1-based indices into the padded sequence.")
+        if torch.is_tensor(struct_tokens) and struct_tokens.dim() >= 2 and struct_tokens.shape[0] == B:
+            struct_tokens = _residue_axis_second(struct_tokens, 2).clone()
+            if int(p.max()) < struct_tokens.shape[1]:
+                struct_tokens[rows, p] = C.STRUCTURE_MASK_TOKEN
+        return coords, struct_tokens
+
     def _active_model(self, pass_type: str) -> nn.Module:
         if getattr(self, 'adapter_mode', 'dual') == 'dual':
             return self.peft_wt if pass_type == 'wt' else self.peft_mt
@@ -681,6 +731,13 @@ class MSRModel(ESM3PredictorBase):
         seq, mut_pos = batch.get(f'{pass_type}_sequence_tokens'), batch.get('mut_pos')
         wt_id, mt_id, mut_mask = batch.get('wt_id'), batch.get('mt_id'), batch.get('mut_mask')
         coords, struct_tokens, plddt = batch.get('coords'), batch.get('structure_tokens'), batch.get('plddt')
+
+        if pass_type == 'mt' and getattr(self, 'mask_structure', False):
+            smp = batch.get('struct_mut_pos')
+            smm = batch.get('struct_mut_mask')
+            if smp is None:
+                smp, smm = mut_pos, mut_mask   # caches without the field: mask what we know
+            coords, struct_tokens = self._blank_structure(coords, struct_tokens, smp, smm)
 
         B, max_muts = seq.shape[0], mut_pos.shape[1]
         safe_pos = mut_pos.masked_fill(~mut_mask, 0)
@@ -807,6 +864,10 @@ class MSRModel(ESM3PredictorBase):
                     'wt_sequence_tokens': chunk_wt_seq,
                     'mt_sequence_tokens': chunk_mt_seq,
                     'mut_pos': mut_pos[start_idx:end_idx],
+                    # screening scores against the WT structure, so every mutated position is
+                    # a structure mismatch
+                    'struct_mut_pos': mut_pos[start_idx:end_idx],
+                    'struct_mut_mask': mut_mask[start_idx:end_idx],
                     'wt_id': wt_id[start_idx:end_idx],
                     'mt_id': mt_id[start_idx:end_idx],
                     'mut_mask': mut_mask[start_idx:end_idx],

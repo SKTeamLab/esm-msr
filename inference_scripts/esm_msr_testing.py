@@ -250,6 +250,12 @@ def main_(args):
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         lora_mode = parsed_config.get('lora_mode', 'ensemble')
         combine_rule = parsed_config.get('combine_rule', 'average')
+        mask_structure = parsed_config.get('mask_structure', False)
+        if args.mask_structure_pos or args.mask_coords_pos:
+            if not mask_structure:
+                print('[WARN] --mask_structure_pos set but this checkpoint was trained unmasked; '
+                      'train/inference inputs will not match.')
+            mask_structure = True
         if args.lora_epsilon != 1:
             parsed_config['wt_config']['lora_alpha'] *= args.lora_epsilon
             parsed_config['mt_config']['lora_alpha'] *= args.lora_epsilon
@@ -275,13 +281,15 @@ def main_(args):
         adapter_mode = 'dual'
         lora_mode = 'ensemble'
         combine_rule = 'average'
+        mask_structure = False
         lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': args.seed}        
 
     model_dtype = torch.bfloat16 if args.dtype == 'bf16' else torch.float32
     print(f"[MODEL] inference dtype = {args.dtype} ({model_dtype})")
     model = models.MSRModel(
         lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
-        lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True, combine_rule=combine_rule
+        lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True, combine_rule=combine_rule,
+        mask_structure=mask_structure
     ).to('cuda:0')
 
     # ---------------------------------------------------------
@@ -630,8 +638,14 @@ if __name__ == "__main__":
 
         parser.add_argument('--local_cluster', action='store_true')
         parser.add_argument('--mask_strategy', type=str, choices=['marginal', 'independent'], default=None)
-        parser.add_argument('--mask_structure_pos', action='store_true')
-        parser.add_argument('--mask_coords_pos', action='store_true')
+        # Legacy names. These used to be inert: they printed a message and nothing masked
+        # anything (utils.apply_masks is never called). They now force the model's
+        # mask_structure on, overriding whatever the checkpoint was trained with.
+        parser.add_argument('--mask_structure_pos', action='store_true',
+                            help="Force structure masking on, overriding the checkpoint's hparams.")
+        parser.add_argument('--mask_coords_pos', action='store_true',
+                            help="Alias of --mask_structure_pos (coordinates and structure tokens are "
+                                 "always masked together; masking one leaves the other informative).")
         parser.add_argument('--mask_coords', action='store_true')
         parser.add_argument('--regenerate_results', action='store_true')
         parser.add_argument('--skip_external', action='store_true')
@@ -683,7 +697,7 @@ if __name__ == "__main__":
         if args.skip_reverse:
             print('Skipping all reverse mutational passes!')
         if args.mask_structure_pos or args.mask_coords_pos:
-            print('Masking one or more inputs!')
+            print('Forcing structure masking ON for the MT pass (overrides the checkpoint hparams).')
         if not args.split:
             print('Warning! Not using any specific split file!')
         if args.split and 'mega' in args.split and not args.remove_spurs_homologs:

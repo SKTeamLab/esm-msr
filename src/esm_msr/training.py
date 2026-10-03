@@ -58,6 +58,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             lora_mode=self.hparams.lora_mode, model_dtype=torch.float32,
             combine_rule=routing.combine_rule_from_hparams(dict(self.hparams)),
             dedup_backbone=self.hparams.get('dedup_backbone', True),
+            mask_structure=self.hparams.get('mask_structure', False),
         )
         # Everything trainable at construction (adapters, calibration heads, unfrozen
         # layernorms); used to keep checkpoints adapter-only.
