@@ -19,15 +19,15 @@ with the old command will not reproduce the old numbers.
 Also new, non-behavioural: `val_rho_flip` validation metric, `epistasis_pred` inference
 column, `flip_key` and `reg_ok` fields on cached items.
 
-> **The cache must be rebuilt.** `flip_key` and `reg_ok` are written at item-construction
-> time, so `cache_v4` has neither. Without `flip_key` the new loss silently finds no columns
-> and contributes nothing, and `val_rho_flip` logs NaN. Rebuild takes ~4 minutes
-> (0.4–0.8 s/library) per `docs/training_handoff.md`. Use a new path — `cache_v5` — so the old
-> cache stays available for reproducing previous runs.
+> **The cache must be rebuilt**, and `CACHE_VERSION` was bumped `v4` → `v5` so this happens
+> on its own: the version is part of each cache filename, so a stale `v4` pickle can no longer
+> be loaded silently by a run expecting the new item schema. Point `--cache_path cache_v5` and
+> it regenerates; ~4 minutes for the full 404 libraries (0.4–0.8 s/library). The old `v4`
+> files are untouched and still serve runs on the previous commit.
 >
-> **Verify before launching a long run:** the first epoch's logs must show a non-zero
-> `train/rank_mt` and a finite `val_rho_flip_avg`. If either is missing, the cache is stale
-> and the run is just the old objective with extra arguments.
+> **Verify anyway before a long run:** the first epoch's logs must show a non-zero
+> `train/rank_mt` and a finite `val_rho_flip_avg`. Non-zero `train/rank_mt` is the single
+> check that the new objective is actually active.
 
 ## 2. Canonical command
 
