@@ -83,6 +83,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         mask_mutated_structure: bool = False,
         dG_wt: Optional[float] = None,
         min_additive_dG: Optional[float] = -1.0,
+        subfloor_rank_only: bool = True,
     ):
         """
         Args:
@@ -121,6 +122,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 or re-encode.
             dG_wt: Measured dG of this library's starting sequence; needed for the
                 dynamic-range filter.
+            subfloor_rank_only: Mark sub-floor double-derived items ``reg_ok=False`` instead of
+                dropping them, keeping their ordering for the rank losses.
             min_additive_dG: Drop double-derived items whose additive dG prediction
                 dG(wt)+ddG_A+ddG_B falls at or below this. See :meth:`_drop_unreachable`.
                 None disables.
@@ -180,6 +183,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         # Mutant-background libraries: their singles are conditional measurements.
         self._label_native_cond()
         self._filter_dataset()
+        self.subfloor_rank_only = bool(subfloor_rank_only)
         if min_additive_dG is not None:
             self._drop_unreachable(dG_wt, min_additive_dG)
         self._extract_scalars()
@@ -223,6 +227,10 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             code = item.get('pdb') or self.dms_name
             if NATIVE_BACKGROUND_CODE_RE.search(code) and item.get('subset_type') == 'single':
                 item['subset_type'] = 'native_cond'
+                # One background per library, so the scored position identifies the column.
+                pos = item.get('mut_pos')
+                if pos is not None and len(pos):
+                    item['flip_key'] = f'{code}|{int(pos[0])}|native'
                 n += 1
         if n:
             logging.info(f"[{self.dms_name}] Labeled {n} items as native_cond (mutant-background library)")
@@ -249,6 +257,13 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
 
         Only double-derived subsets are affected. No single mutant in the dataset sits below
         the floor, so the WT adapter keeps its full range of destabilisation.
+
+        With ``subfloor_rank_only`` these items are MARKED rather than dropped: ``reg_ok`` is
+        set False so they are withheld from the regression losses, while they remain available
+        to the rank losses. Their absolute value is untrustworthy but their ordering is not,
+        and about a third of the sub-floor population is genuine compensation - real
+        measurements of doubles that really are stabilised relative to the additive
+        prediction - which dropping discards along with the artefacts.
         """
         if dG_wt is None or not np.isfinite(dG_wt):
             logging.warning(f"[{self.dms_name}] min_additive_dG set but WT dG unknown; no filtering applied.")
@@ -263,9 +278,18 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             return bool(dG_wt + add <= min_additive_dG)
 
         before = len(self.data)
-        self.data = [item for item in self.data if not _unreachable(item)]
-        logging.info(f"[{self.dms_name}] min_additive_dG={min_additive_dG}: dropped "
-                     f"{before - len(self.data)} of {before} double-derived items (dG_wt={dG_wt:.2f})")
+        if self.subfloor_rank_only:
+            n = 0
+            for item in self.data:
+                if _unreachable(item):
+                    item['reg_ok'] = False
+                    n += 1
+            logging.info(f"[{self.dms_name}] min_additive_dG={min_additive_dG}: marked {n} of {before} "
+                         f"double-derived items rank-only (reg_ok=False, dG_wt={dG_wt:.2f})")
+        else:
+            self.data = [item for item in self.data if not _unreachable(item)]
+            logging.info(f"[{self.dms_name}] min_additive_dG={min_additive_dG}: dropped "
+                         f"{before - len(self.data)} of {before} double-derived items (dG_wt={dG_wt:.2f})")
 
     def _extract_scalars(self) -> None:
         """Contiguous scalar arrays for the sampler's balancing passes."""
@@ -532,6 +556,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, ddG_AB=ddG_AB, code=code,
                 wt_seq=_seq_with(bg), mt_seq=_seq_with(tgt, bg),
                 subset_type='cond', structure_type=s_type, structure=struct,
+                flip_key=f'{code}|{tgt[1]}|{bg[1]}{bg[2]}',
                 # the MT input carries BOTH mutations, so the background is a mismatch too
                 struct_mut_pos=struct_base + [tgt[1], bg[1]]))
         return items
@@ -552,6 +577,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         ddG_A: float = np.nan,
         ddG_B: float = np.nan,
         ddG_AB: float = np.nan,
+        flip_key: str = '',
     ) -> Dict[str, Any]:
         """
         Builds one cached item.
@@ -606,6 +632,16 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             'valid_dddG_mask': bool(np.isfinite(dddG)),
             'subset_type': subset_type,
             'structure_type': structure_type,
+            # Groups MT-head items into one *flip column*: same scored position, same
+            # partner identity, varying substitution at the scored position. Within such a
+            # column the conditional target ddG(A|B) differs from ddG_AB only by the
+            # constant ddG_B, so ordering by either is identical - which is what makes the
+            # within-column rank loss (``--lambda_rank_mt``) equivalent to ordering the
+            # double-mutant phenotypes. Empty for items that are not MT-head.
+            'flip_key': flip_key,
+            # False marks an item whose absolute target is untrustworthy (sub-floor); it stays
+            # in the rank losses and is withheld from the regression ones.
+            'reg_ok': True,
         }
 
     def _try_load_modeled_context(
@@ -746,6 +782,8 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     pdb = [item['pdb'] for item in batch]
     mutations = [item['mutations'] for item in batch]
     subset_type = [canonical_subset(item.get('subset_type', 'single')) for item in batch]
+    flip_key = [item.get('flip_key', '') or '' for item in batch]
+    reg_ok = torch.tensor([bool(item.get('reg_ok', True)) for item in batch], dtype=torch.bool)
     plddt = [torch.as_tensor(item['plddt'], dtype=torch.float32) for item in batch]
 
     ddG = torch.tensor([float(item.get('ddG', float('nan'))) for item in batch], dtype=torch.float32)
@@ -837,7 +875,9 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         'structure_tokens': str_stack,
         'residue_index': ri_stack,
         'ground_truth': ddG,
-        'subset_type': subset_type
+        'subset_type': subset_type,
+        'flip_key': flip_key,
+        'reg_ok': reg_ok,
     }
 
 
