@@ -125,7 +125,10 @@ def parse_arguments() -> argparse.Namespace:
     rank_group.add_argument('--invert_list_loss', action=argparse.BooleanOptionalAction, default=False)
 
     mask_group = parser.add_argument_group("Masking Strategy")
-    mask_group.add_argument('--premask_coords', action=argparse.BooleanOptionalAction, default=False)
+    mask_group.add_argument('--mask_mutated_structure', action=argparse.BooleanOptionalAction, default=False,
+                            help="CACHE-BUILD option: blank mutated coordinates before the structure encoder runs, "
+                                 "baking masking into the cache. Off by default so one unmasked cache serves every "
+                                 "masking setting; use --mask_structure to mask at run time instead.")
     mask_group.add_argument('--mask_strategy', type=str, choices=["marginal", "independent"], default=None,
                             help="SEQUENCE masking of the scored position(s). Off by default: unmasked wt-marginal "
                                  "scored best on singles and tied on conditionals, and it costs one forward per variant "

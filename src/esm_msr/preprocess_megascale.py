@@ -347,6 +347,7 @@ class MegaScaleDatasetPreprocessor:
         incl_cond: bool = False,
         incl_native_cond: bool = False,
         cond_structure: str = 'reuse',
+        mask_mutated_structure: bool = False,
         combine_validation: bool = False,
         min_additive_dG: Optional[float] = -1.0,
     ) -> Tuple[List[DataLoader], List[str]]:
@@ -380,6 +381,7 @@ class MegaScaleDatasetPreprocessor:
                     incl_cond=incl_cond,
                     incl_native_cond=incl_native_cond,
                     cond_structure=cond_structure,
+                    mask_mutated_structure=mask_mutated_structure,
                     dG_wt=self.dG_wt.get(code),
                     min_additive_dG=min_additive_dG,
                 )
@@ -460,6 +462,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         incl_reversions=args.incl_reversions,
         incl_native_cond=args.incl_native_cond,
         cond_structure=args.cond_structure,
+        mask_mutated_structure=args.mask_mutated_structure,
         min_additive_dG=getattr(args, 'min_additive_dG', -1.0),
     )
 
@@ -483,6 +486,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         incl_cond=args.incl_cond,
         incl_native_cond=args.incl_native_cond,
         cond_structure=args.cond_structure,
+        mask_mutated_structure=args.mask_mutated_structure,
     )
 
     # Add Benchmarks
@@ -501,7 +505,6 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
     if args.dataloading == 'cycle':
         
         subset_caps = getattr(args, 'subset_caps', None)
-        subset_balance_configs = getattr(args, 'subset_balance_configs', None)
 
         consolidated_loader = create_consolidated_dataloader(
             dataloaders=train_dataloaders,
@@ -510,7 +513,6 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
             collate_fn=collate_fn_twopass,
             strategy=args.loader_strategy,
             subset_caps=subset_caps,
-            subset_balance_configs=subset_balance_configs,
             num_workers=args.num_workers
         )
 
