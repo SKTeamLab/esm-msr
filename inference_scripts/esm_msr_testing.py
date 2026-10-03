@@ -269,13 +269,13 @@ def main_(args):
         mt_lora_config = {
             "lora_rank": 1, "lora_alpha": 0, "lora_dropout": 0,
             "target_mode": "baseline", "use_dora": False, "seed": args.seed,
-            "incl_structure_encoder": False, "last_n_layers": 1,
+            "last_n_layers": 1,
             "incl_sequence_head": False, "unfreeze_layernorms": False,
         }
         wt_lora_config = {
             "lora_rank": 1, "lora_alpha": 0, "lora_dropout": 0,
             "target_mode": "baseline", "use_dora": False, "seed": args.seed,
-            "incl_structure_encoder": False, "last_n_layers": 1,
+            "last_n_layers": 1,
             "incl_sequence_head": False, "unfreeze_layernorms": False,
         }
         adapter_mode = 'dual'

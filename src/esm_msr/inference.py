@@ -63,7 +63,6 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'target_mode': 'expanded',
         'last_n_layers': 0,
         'use_dora': False,
-        'incl_structure_encoder': False,
         'incl_sequence_head': True,
         'unfreeze_layernorms': False,
     }
@@ -75,7 +74,6 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'target_mode': 'expanded',
         'last_n_layers': 0,
         'use_dora': False,
-        'incl_structure_encoder': False,
         'incl_sequence_head': True,
         'unfreeze_layernorms': False,
     }
@@ -100,7 +98,6 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'target_mode': hparams.get('target_mode_wt', default_wt['target_mode']),
         'last_n_layers': hparams.get('last_n_layers_wt', default_wt['last_n_layers']),
         'use_dora': hparams.get('use_dora_wt', default_wt['use_dora']),
-        'incl_structure_encoder': hparams.get('incl_structure_encoder_wt', default_wt['incl_structure_encoder']),
         'incl_sequence_head': hparams.get('incl_sequence_head_wt', default_wt['incl_sequence_head']),
         'unfreeze_layernorms': hparams.get('unfreeze_layernorms_wt', default_wt['unfreeze_layernorms']),
     }
@@ -112,7 +109,6 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'target_mode': hparams.get('target_mode_mt', default_mt['target_mode']),
         'last_n_layers': hparams.get('last_n_layers_mt', default_mt['last_n_layers']),
         'use_dora': hparams.get('use_dora_mt', default_mt['use_dora']),
-        'incl_structure_encoder': hparams.get('incl_structure_encoder_mt', default_mt['incl_structure_encoder']),
         'incl_sequence_head': hparams.get('incl_sequence_head_mt', default_mt['incl_sequence_head']),
         'unfreeze_layernorms': hparams.get('unfreeze_layernorms_mt', default_mt['unfreeze_layernorms']),
     }

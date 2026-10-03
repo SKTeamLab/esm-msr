@@ -247,7 +247,6 @@ class MSRModel(ESM3PredictorBase):
         target_mode = kwargs_dict.get('target_mode', 'expanded')
         last_n_layers = kwargs_dict.get('last_n_layers', 0)
         use_dora = kwargs_dict.get('use_dora', False)
-        incl_structure_encoder = kwargs_dict.get('incl_structure_encoder', False)
         incl_sequence_head = kwargs_dict.get('incl_sequence_head', False)
 
         TOTAL_BLOCKS = 48
@@ -262,7 +261,10 @@ class MSRModel(ESM3PredictorBase):
 
         target_pattern = "|".join(targets)
         block_pattern = r"\d+" if last_n_layers <= 0 or last_n_layers >= TOTAL_BLOCKS else f"({'|'.join([str(i) for i in range(TOTAL_BLOCKS - last_n_layers, TOTAL_BLOCKS)])})"
-        base_regex = f".*(?:transformer|structure_encoder)\\.(?:blocks|layers)\\.{block_pattern}\\.({target_pattern})$" if incl_structure_encoder else f"^(?!.*structure_encoder).*transformer\\.blocks\\.{block_pattern}\\.({target_pattern})$"
+        # The structure encoder is deliberately excluded. ESM3.forward never calls it -- it
+        # consumes precomputed structure tokens -- so adapters placed there could never
+        # receive gradient. Adapting it would require moving encoding into the forward pass.
+        base_regex = f"^(?!.*structure_encoder).*transformer\\.blocks\\.{block_pattern}\\.({target_pattern})$"
         target_modules_regex = f"(?:{base_regex})|(?:.*output_heads\\.sequence_head\\.(?:0|3))$" if incl_sequence_head else base_regex
 
         config_dict = {

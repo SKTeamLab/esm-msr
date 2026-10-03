@@ -447,7 +447,9 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
     if overlap: 
         logging.warning(f"Overlap detected between train/val protein codes: {len(overlap)} proteins.")
 
-    struct_enc_arg = None if args.incl_structure_encoder_mt else structure_encoder
+    # The structure encoder is always needed here: it turns coordinates into the tokens the
+    # cache stores. It is never part of the trainable graph (see models._create_lora_config).
+    struct_enc_arg = structure_encoder
 
     # Build Train Loaders
     train_dataloaders, train_loader_names = preprocessor.create_protein_dataloaders(
