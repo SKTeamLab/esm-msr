@@ -1,7 +1,7 @@
 import os
 import logging
 import warnings
-from collections import defaultdict
+from collections import Counter, defaultdict
 import gc
 
 from typing import List, Dict, Any, Optional, Tuple
@@ -76,6 +76,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         self.crit_rank_wt = _get_rank_loss() if self.hparams.lambda_rank_wt > 0 else None
         self.crit_rank_combined = _get_rank_loss() if self.hparams.lambda_rank_combined > 0 else None
+        self.crit_rank_mt = _get_rank_loss() if self.hparams.lambda_rank_mt > 0 else None
 
         if self.hparams.reg_loss == 'huber':
             self.crit_reg = nn.HuberLoss(reduction='none', delta=self.hparams.huber_delta)
@@ -175,6 +176,53 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             return scaled_loss, L_raw.detach(), num_lists
         return None, 0.0, 0
 
+    def _compute_flip_loss(self, pred, targets, valid, flip_keys, crit_fn, min_len):
+        """Within-column rank loss on the MT pass - the flip-signature objective.
+
+        A *flip column* is one scored position with one fixed partner identity, over the
+        substitutions available at that position. Inside a column the conditional target
+        ddG(A|B) differs from the double's ddG_AB only by the constant ddG_B, so ordering by
+        either is the same ordering; imposing it is therefore equivalent to reproducing the
+        measured ordering of the double-mutant phenotypes.
+
+        Why this and not regression: an ordering within a column is invariant to any monotone
+        function of the underlying stability, so the assay's saturating response and its
+        dynamic-range floor cannot be fitted by it at all. A regression on ddG can, and does.
+
+        One honest caveat, because it decides how to read the metric. Under strict additivity
+        every column shares ONE ordering, so a purely additive model already satisfies much of
+        this loss; what it cannot satisfy is the per-column *deviation* from that consensus,
+        which is the identity-dependent part. So this loss is artifact-immune and includes the
+        interaction term, but is not exclusively about it. The matching validation metric
+        (``val_rho_flip``) double-centres away the consensus and therefore IS exclusive - use
+        the loss to train and the metric to judge.
+
+        Columns are variable length, so they are padded into a [G, L] block with a mask
+        rather than reshaped.
+        """
+        groups = {}
+        for i, k in enumerate(flip_keys):
+            if k and bool(valid[i]):
+                groups.setdefault(k, []).append(i)
+        groups = [g for g in groups.values() if len(g) >= min_len]
+        if not groups:
+            return None, 0.0, 0
+        L = max(len(g) for g in groups)
+        G = len(groups)
+        dev = pred.device
+        p = torch.zeros(G, L, device=dev, dtype=pred.dtype)
+        t = torch.zeros(G, L, device=dev, dtype=pred.dtype)
+        m = torch.zeros(G, L, device=dev, dtype=torch.bool)
+        for gi, g in enumerate(groups):
+            idx = torch.as_tensor(g, device=dev, dtype=torch.long)
+            p[gi, :len(g)] = pred[idx]
+            t[gi, :len(g)] = targets[idx]
+            m[gi, :len(g)] = True
+        L_raw = crit_fn(p, t, mask=m)
+        avg_len = m.float().sum(dim=-1).mean()
+        scaled = L_raw * (L / avg_len.clamp(min=1.0))
+        return scaled, L_raw.detach(), G
+
     def _subset_weights(self, subset_types, device) -> torch.Tensor:
         """Per-item loss weight from its subset type (1.0 for singles and unknown types)."""
         hp = self.hparams
@@ -248,9 +296,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         mb = min(B, max(list_size, (int(hp.get('micro_batch_size', 32)) // list_size) * list_size))
 
         st_all = list(batch.get('subset_type', ['single'] * B))
+        flip_keys = list(batch.get('flip_key', [''] * B))
+        if len(flip_keys) != B:
+            flip_keys = [''] * B
         w_all = self._subset_weights(st_all, device)
         global_w_sum = w_all.sum().clamp_min(1e-9)
         global_num_lists = max(1, B // list_size)
+        # How many flip columns the whole batch offers, so each micro-batch's contribution
+        # is weighted by its share (mirrors global_num_lists for the ListMLE terms).
+        _fk = Counter(k for k in flip_keys if k)
+        global_num_flip = max(1, sum(1 for _, c in _fk.items() if c >= int(hp.flip_list_min)))
 
         need_combined = hp.lambda_rank_combined > 0 or hp.lambda_reg_combined > 0 or hp.lambda_epi_combined > 0
         anchor_w = float(hp.get('mt_single_anchor_weight', 0.0) or 0.0)
@@ -297,6 +352,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 anchor_rows = sampled
             mt_w = torch.where(anchor_rows, w_all * (anchor_w / frac), mt_w)
         mt_ok = (mt_w > 0) & torch.isfinite(ddG)
+
+        # Items whose absolute target is trustworthy enough for the REGRESSION terms.
+        # Double-derived items below the dynamic-range floor are reported by the assay
+        # without any flag and roughly half of them are unidentifiable fits, so with
+        # --subfloor_rank_only their ordering is still used (it is informative) while their
+        # value is withheld from the regression (it is not).
+        # Items whose absolute target is trustworthy enough for the REGRESSION terms. The
+        # dataset marks sub-floor double-derived items reg_ok=False (see
+        # MutationStabilityDataset._drop_unreachable): the assay reports them without any
+        # flag, roughly half are unidentifiable fits, and a third are genuine compensation.
+        # Their ordering is informative, their value is not, so they stay in the rank losses
+        # and are withheld here.
+        reg_keep = batch.get('reg_ok')
+        reg_keep = (reg_keep.to(device) if torch.is_tensor(reg_keep)
+                    else torch.ones(B, dtype=torch.bool, device=device))
 
         # Legacy combined objective.
         tf_labels = torch.where(n_mut == 1, ddG, ddG_add)
@@ -407,12 +477,24 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     sums['epi_combined'] = sums['epi_combined'] + L.sum().detach()
                     cnts['epi_combined'] = cnts['epi_combined'] + w_mb[m_epi].sum()
 
-            elif kind == 'mt' and m_mt_ok.any():
-                w = mt_w[rows]
-                L = self.crit_reg(mt_pred_cal[m_mt_ok], ddG[rows][m_mt_ok]) * w[m_mt_ok]
-                losses_mt.append(hp.lambda_reg_mt * L.sum() / global_w_sum)
-                sums['reg_mt'] = sums['reg_mt'] + L.sum().detach()
-                cnts['reg_mt'] = cnts['reg_mt'] + w[m_mt_ok].sum()
+            elif kind == 'mt':
+                if m_mt_ok.any() and hp.lambda_reg_mt > 0:
+                    w = mt_w[rows]
+                    reg_ok = m_mt_ok & reg_keep[rows] if hp.subfloor_rank_only else m_mt_ok
+                    if reg_ok.any():
+                        L = self.crit_reg(mt_pred_cal[reg_ok], ddG[rows][reg_ok]) * w[reg_ok]
+                        losses_mt.append(hp.lambda_reg_mt * L.sum() / global_w_sum)
+                        sums['reg_mt'] = sums['reg_mt'] + L.sum().detach()
+                        cnts['reg_mt'] = cnts['reg_mt'] + w[reg_ok].sum()
+                if hp.lambda_rank_mt > 0 and self.crit_rank_mt is not None:
+                    fk_rows = [flip_keys[int(r)] for r in rows]
+                    L_flip, val, n_grp = self._compute_flip_loss(
+                        mt_pred_raw, ddG[rows], m_mt_ok, fk_rows,
+                        self.crit_rank_mt, hp.flip_list_min)
+                    if L_flip is not None:
+                        losses_mt.append(hp.lambda_rank_mt * L_flip * (n_grp / max(global_num_flip, 1)))
+                        sums['rank_mt'] = sums['rank_mt'] + val * n_grp
+                        cnts['rank_mt'] = cnts['rank_mt'] + n_grp
 
             if losses_mt:
                 total = sum(losses_mt)
@@ -421,7 +503,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 self.manual_backward(total)
 
         # One host sync for all logged values instead of one per unit and loss term.
-        keys = [k for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined', 'epi_combined', 'reg_mt') if k in cnts]
+        keys = [k for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined', 'epi_combined', 'reg_mt', 'rank_mt') if k in cnts]
         if not keys:
             return {}
         vals = torch.stack([torch.stack([torch.as_tensor(sums[k], device=device, dtype=torch.float32),
@@ -520,12 +602,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         def _np(t):
             return t.detach().cpu().float().numpy() if torch.is_tensor(t) else np.full(n_items, float(t))
 
+        mt_id = batch.get('mt_id')
+        row_id = (mt_id[:, 0].detach().cpu().numpy() if torch.is_tensor(mt_id) and mt_id.ndim == 2
+                  else np.full(n_items, -1))
         self.validation_step_outputs[dataloader_idx].append({
             'wt_scores': _np(out_dict['wt_lora_pred']),
             'mt_scores': _np(out_dict['mt_lora_pred']),
             'comb_scores': _np(out_dict['combined_pred']),
             'ground_truths': _np(ddG) if ddG is not None else np.full(n_items, np.nan),
             'subset_type': list(batch.get('subset_type', ['single'] * n_items)),
+            # For val_rho_flip: the column key, and the substitution identity that indexes
+            # the row within that column.
+            'flip_key': list(batch.get('flip_key', [''] * n_items)),
+            'row_id': row_id,
         })
 
     def on_validation_epoch_start(self):
@@ -555,6 +644,23 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 cols['wt_scores'], cols['mt_scores'], cols['comb_scores'],
                 cols['ground_truths'], subset_types)
 
+            # Identity-dependent interaction, scored on the MT pass. This is the only
+            # validation number that is specific to what the MT adapter exists for: it is
+            # exactly zero for an additive readout and unaffected by the assay's monotone
+            # response, so unlike rho_combined it cannot be satisfied by learning saturation.
+            fk = [k for o in outputs for k in o.get('flip_key', [])]
+            rid = np.concatenate([np.asarray(o['row_id']).reshape(-1) for o in outputs]) \
+                if all('row_id' in o for o in outputs) else np.array([])
+            if len(fk) == len(cols['mt_scores']) and len(rid) == len(fk):
+                rho_flip, n_pairs, n_cells = stats.flip_signature_rho(
+                    cols['mt_scores'], cols['ground_truths'], fk, rid,
+                    min_len=int(self.hparams.flip_list_min))
+                per_loader[name]['rho_flip'] = rho_flip
+                if n_pairs:
+                    self.log(f"val_flip_pairs/{name}", float(n_pairs), on_epoch=True, sync_dist=True)
+            else:
+                per_loader[name]['rho_flip'] = float('nan')
+
             for k, v in cols.items():
                 pooled[k].append(v)
             pooled['subset_type'].extend(subset_types)
@@ -566,7 +672,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         avg_metrics = {}
         for metric in ('rho_wt_valid', 'rho_wt_all', 'rho_mt_valid', 'rho_mt_all',
-                       'rho_combined', 'rmse_combined'):
+                       'rho_combined', 'rmse_combined', 'rho_flip'):
             vals = [m[metric] for m in per_loader.values() if not np.isnan(m[metric])]
             if vals:
                 avg_metrics[metric] = float(np.mean(vals))

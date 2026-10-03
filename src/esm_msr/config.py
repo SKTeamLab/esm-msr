@@ -90,8 +90,27 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--lambda_rank_combined', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_wt', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_combined', type=float, default=0.0)
-    loss_group.add_argument('--lambda_reg_mt', type=float, default=0.0,
-                            help="Regress the MT pass on MT-head subsets (cond, native_cond); see esm_msr.routing.")
+    loss_group.add_argument('--lambda_reg_mt', type=float, default=1.0,
+                            help="Regress the MT pass on MT-head subsets (cond, native_cond); see esm_msr.routing. "
+                                 "Keep > 0: this is the only term that gives the MT pass an absolute scale, and "
+                                 "combined_pred = 0.5*WT + 0.5*MT is uncalibrated without it. Its targets are the "
+                                 "noisy derived conditionals, so down-weight with --cond_weight rather than zeroing.")
+    loss_group.add_argument('--lambda_rank_mt', type=float, default=1.0,
+                            help="Within-column rank loss on the MT pass: for each flip column (same scored position, "
+                                 "same partner identity, varying substitution) impose the measured ordering. Invariant "
+                                 "to the assay's monotone response and to the dynamic-range floor by construction, so "
+                                 "it cannot be satisfied by learning assay saturation - which the regression term can. "
+                                 "This is the loss that targets identity-dependent interaction directly.")
+    loss_group.add_argument('--flip_list_min', type=int, default=4,
+                            help="Minimum members for a flip column to contribute to --lambda_rank_mt. Below ~4 the "
+                                 "ordering carries little information and the gradient is mostly noise.")
+    loss_group.add_argument('--subfloor_rank_only', action=argparse.BooleanOptionalAction, default=True,
+                            help="For double-derived items below --min_additive_dG, mark them rank-only instead of "
+                                 "dropping them: kept in the rank losses, withheld from the regression losses. The "
+                                 "assay reports sub-floor doubles with no flag; roughly half are unidentifiable fits "
+                                 "but a third are genuine compensation, so dropping them discards real data. Their "
+                                 "ordering is informative while their absolute value is not.")
+
     loss_group.add_argument('--mt_single_anchor_weight', type=float, default=0.0,
                             help="Per-item weight for also regressing the MT pass on ordinary singles (the zero-background "
                                  "case of the MT task). 0 disables. Requires --lambda_reg_mt > 0.")

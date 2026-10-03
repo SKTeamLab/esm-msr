@@ -152,3 +152,94 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
         'rho_combined': safe_spearman(comb_scores[is_measured], gt[is_measured]),
         'rmse_combined': safe_rmse(comb_scores[is_measured], gt[is_measured]),
     }
+
+
+def flip_signature_rho(pred, target, flip_keys, row_ids, min_len=4, min_rows=3, min_cols=3):
+    """Identity-dependent interaction agreement: the validation twin of the report's test.
+
+    A *flip column* is one scored position with one fixed partner identity; ``flip_keys``
+    names it and ``row_ids`` is the substitution identity inside it. Columns sharing a
+    position pair form a matrix whose rows are substitutions and columns are partners.
+
+    Two steps make this specific to identity-dependent interaction:
+
+    1. Rank within each column. Any monotone function of the underlying stability leaves
+       within-column order unchanged, so the assay's saturating response and its
+       dynamic-range floor are annihilated rather than corrected for.
+    2. Double-centre. Row means carry each substitution's own average effect, column means
+       the partners', and the grand mean the pair's overall coupling. Removing all three
+       leaves only what depends on the *combination*. Under additivity every column shares
+       one ordering, the matrix is constant along rows, and this is exactly zero.
+
+    The block must be COMPLETE before ranking. Cells go missing because the double failed
+    to measure, so missingness depends on both substitution effects and is shared between
+    the measured and predicted matrix; centring an incomplete matrix admits correlation up
+    to +0.95 with no interaction present at all. Rows and columns are therefore trimmed
+    (most-missing first) until no gaps remain.
+
+    Returns (rho, n_pairs, n_cells); rho is nan when no usable block exists, and 0.0 when
+    the prediction's signature is identically flat - which is what an additive readout gives.
+    """
+    pred, target = np.asarray(pred, float), np.asarray(target, float)
+    row_ids = np.asarray(row_ids)
+    pairs = {}
+    for i, k in enumerate(flip_keys):
+        if not k or not np.isfinite(pred[i]) or not np.isfinite(target[i]):
+            continue
+        parts = str(k).split('|')
+        if len(parts) < 3:
+            continue
+        pair, col = '|'.join(parts[:2]), parts[2]
+        pairs.setdefault(pair, {}).setdefault(col, []).append(i)
+
+    def _sig(M):
+        M = np.asarray(M, float).copy()
+        while True:
+            if M.shape[0] < min_rows or M.shape[1] < min_cols:
+                return None
+            bad = ~np.isfinite(M)
+            if not bad.any():
+                break
+            rb, cb = bad.sum(1), bad.sum(0)
+            if rb.max() / max(1, M.shape[1]) >= cb.max() / max(1, M.shape[0]):
+                M = np.delete(M, int(np.argmax(rb)), axis=0)
+            else:
+                M = np.delete(M, int(np.argmax(cb)), axis=1)
+        from scipy.stats import rankdata as _rd
+        R = np.empty(M.shape)
+        for j in range(M.shape[1]):
+            R[:, j] = (_rd(M[:, j]) - 0.5) / M.shape[0]
+        return R - R.mean(1, keepdims=True) - R.mean(0, keepdims=True) + R.mean()
+
+    A, Bp, n_pairs = [], [], 0
+    for cols in pairs.values():
+        cols = {c: idx for c, idx in cols.items() if len(idx) >= min_len}
+        if len(cols) < min_cols:
+            continue
+        col_names = sorted(cols)
+        rows = sorted({int(row_ids[i]) for idx in cols.values() for i in idx})
+        if len(rows) < min_rows:
+            continue
+        ri = {r: a for a, r in enumerate(rows)}
+        Mt = np.full((len(rows), len(col_names)), np.nan)
+        Mp = np.full((len(rows), len(col_names)), np.nan)
+        for cj, c in enumerate(col_names):
+            for i in cols[c]:
+                r = ri.get(int(row_ids[i]))
+                if r is not None:
+                    Mt[r, cj], Mp[r, cj] = target[i], pred[i]
+        St = _sig(Mt)
+        if St is None:
+            continue
+        Sp = _sig(np.where(np.isfinite(Mt), Mp, np.nan))
+        if Sp is None or Sp.shape != St.shape:
+            continue
+        A.append(St.ravel())
+        Bp.append(Sp.ravel())
+        n_pairs += 1
+    if not A:
+        return float('nan'), 0, 0
+    a, b = np.concatenate(A), np.concatenate(Bp)
+    if np.ptp(b) < 1e-12 or np.ptp(a) < 1e-12:
+        return 0.0, n_pairs, int(len(a))
+    return float(spearmanr(a, b)[0]), n_pairs, int(len(a))
