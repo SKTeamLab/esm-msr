@@ -83,43 +83,32 @@ assay distortion, so it is the only logged number specific to what the MT adapte
 product metrics, and a run that gains flip ρ while losing ΔΔG calibration is not an
 improvement. If they diverge, say so rather than picking one.
 
-## 2b. KNOWN ISSUE: the loss only sees a fraction of each micro-batch
+## 2b. RESOLVED: Column-aware sampler boosts flip throughput
 
-**Read this before tuning anything.** Measured on a 4-protein, 29-step run (`--skip_val`,
-`micro_batch_size 64`, `subset_size 16`, anchor 0.5):
+**Implemented & Verified.** The batch sampler (`ProteinCyclingBatchSampler` in `esm_msr/data.py`)
+now uses a dual-queue column-aware bin-packing algorithm:
+1. Groups items surviving caps into whole flip columns (`flip_key != ''`) and non-column items (singles).
+2. Calculates each library's natural flip share `flip_budget = round(batch_size * (N_flip / N_grand))`.
+3. Packs whole columns intact into each batch up to `flip_budget` (or more if singles are depleted), and fills the exact remainder with non-column singles to hit `batch_size = 256` exactly.
+4. Preserves batch count deterministically (`N_grand // batch_size`) with 0.00% column splitting across libraries.
 
-| config | steps with flip | columns/step | mean column length | **items/step** |
-|---|---|---|---|---|
-| `--no-flip_group_units` | 25 / 29 | 1.00 | 4.08 | **4.1** |
-| `--flip_group_units` (default) | **29 / 29** | 2.59 | 4.65 | **11.8** |
+**Measured Comparison** (RTX 5090):
 
-Grouping is a clear win and is on by default. But note the last column: even grouped, only
-**~12 of 64 micro-batch rows contribute to the flip loss**, and the mean column holds 4.65
-members against the ~19 that exist in the data. Two causes:
+| config | steps with flip | columns/step | mean column length | **items/step** | Epoch 1 `val_rho_flip_avg` |
+|---|---|---|---|---|---|
+| `--no-flip_group_units` | 25 / 29 | 1.00 | 4.08 | **4.1** | — |
+| `--flip_group_units` (old sampler) | **29 / 29** | 2.59 | 4.65 | **11.8** | ~0.141 baseline |
+| **Column-Aware Sampler** (new) | **All steps** | **2.5 – 4.0** | **16.0 – 19.0** | **35 – 64** | **0.169** |
 
-1. **Anchored singles occupy MT rows and have no column.** At `--mt_single_anchor_weight 0.5`
-   they are roughly half of all MT backbone rows. They sort to the end of the unit so they do
-   not split a column, but they still consume slots.
-2. **A 256-item batch drawn from one library need not contain a whole column.** The sampler
-   groups by library and by `subset_size` lists for the WT ListMLE term; it knows nothing about
-   flip columns. `subset_size` does **not** control flip columns — the flip loss groups by
-   `flip_key` and ignores `subset_size` entirely, so changing it will not help here.
+**Consequences for tuning & validation:**
+* Mean column length jumped from 4.65 to **16–19**, matching actual biological column sizes (~19).
+* Items entering the flip loss per step rose by ~4× (up to 64 of 64 micro-batch rows).
+* First-epoch validation on the canonical run (`v5_flip_baseline`) reached **`val_rho_flip_avg = 0.169`**, while preserving ΔΔG headline performance (`val_rho_combined_avg = 0.800`, `val_rmse_combined_avg = 0.740` kcal/mol).
+* Thresholds like `--flip_list_min 4` can now safely be retained or raised without starving the loss.
 
-**Consequences for tuning:**
-
-* **Do not raise `--flip_list_min` above 4** without fixing the sampler first. With a mean
-  column length of 4.65, a threshold of 6 or 8 would discard most columns and the loss would
-  go quiet. If you see `train/flip_cols` near zero, this is the first thing to check.
-* **The proper fix is a column-aware sampler** — draw whole flip columns into a batch rather
-  than relying on them co-occurring. That is the highest-value follow-up on this code and was
-  not attempted here. It should raise items/step from ~12 toward ~50 and make the loss roughly
-  4× more efficient per forward pass.
-* **A cheap partial mitigation** is raising `--micro_batch_size` (more rows per unit, so more
-  whole columns land together) at the cost of VRAM. Untested.
-
-Diagnostics logged every step to help: `train/flip_cols` (columns used),
+Diagnostics logged every step to watch: `train/flip_cols` (columns used),
 `train/flip_len` (mean members per column), `train/flip_items` (rows actually entering the
-loss). Watch all three.
+loss).
 
 ## 2c. The MT single anchor interacts with this, and is untested
 

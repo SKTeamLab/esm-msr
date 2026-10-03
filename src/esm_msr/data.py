@@ -5,7 +5,7 @@ import math
 import pickle
 import random
 import logging
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union, Iterator
 
 import numpy as np
@@ -941,10 +941,15 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
 
         # 2. Cache subset classifications ONCE during initialization
         self._cached_buckets: List[Dict[str, List[int]]] = []
+        # Parallel to _cached_buckets: the flip column key of each item (non-empty for
+        # cond/native_cond items, '' otherwise). Cached once here so _calculate_epoch_batches
+        # can pack whole flip columns into batches without re-reading items every epoch.
+        self._cached_flip_keys: List[List[str]] = []
         
         logging.info("Caching dataset subsets for Sampler...")
         for ds_idx, ds in enumerate(self.datasets):
             buckets = {k: [] for k in self.SUBSET_ORDER}
+            flip_keys = []
             first_pdb = ds[0].get('pdb') if len(ds) > 0 else None
             
             for i in range(len(ds)):
@@ -953,12 +958,19 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
                 if item.get('pdb') != first_pdb:
                     raise AssertionError(f"PDB ID mismatch in {self.train_list[ds_idx]}: item {i} has {item.get('pdb')}, expected {first_pdb}")
                 
+                flip_keys.append(item.get('flip_key', '') or '')
                 stype = canonical_subset(item.get('subset_type', 'single'))
                 if stype not in buckets:
                     stype = 'single'
                 buckets[stype].append(i)
                 
             self._cached_buckets.append(buckets)
+            self._cached_flip_keys.append(flip_keys)
+
+        _n_cols = sum(len(set(k for k in fk if k)) for fk in self._cached_flip_keys)
+        _n_flip = sum(1 for fk in self._cached_flip_keys for k in fk if k)
+        logging.info(f"Sampler: {_n_cols} flip columns, {_n_flip} flip items across "
+                     f"{len(self.datasets)} libraries (column-aware packing active).")
 
         # 3. Perform a dry-run to calculate exact batch sizes for the DataLoader __len__
         self.num_batches = self._calculate_epoch_batches(dry_run=True)
@@ -987,22 +999,75 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
                     elif cap_fraction == 0.0 or cap_fraction == 0:
                         buckets[k] = []
 
-            # Flatten and global offset map for ConcatDataset
-            flat_indices = []
-            for k, items in buckets.items():
-                flat_indices.extend(items)
-                
-            self._rng.shuffle(flat_indices)
+            # Column-aware packing. The MT flip loss groups a micro-batch by flip_key and
+            # drops columns with fewer than flip_list_min members. If items are shuffled
+            # completely independently, members of a ~19-item column scatter across multiple
+            # batches, leading to sparse columns (~4.6 members) and low loss throughput.
+            # Instead, group items by flip_key into whole columns and pack whole columns
+            # into each batch alongside non-column items (singles), preserving the natural
+            # proportion of flip items while keeping column members co-located.
             offset = self.offsets[idx]
-            
-            # Create batches for this dataset
-            ds_batches = [
-                [i + offset for i in flat_indices[start:start + self.batch_size]]
-                for start in range(0, len(flat_indices), self.batch_size)
-            ]
-            
-            # Filter out undersized batches based on PyTorch default behavior expectations
-            ds_batches = [b for b in ds_batches if len(b) == self.batch_size] 
+            flip_keys = self._cached_flip_keys[idx]
+            columns: Dict[str, List[int]] = {}
+            noncolumn: List[int] = []
+            for k, items in buckets.items():
+                for i in items:
+                    fk = flip_keys[i]
+                    if fk:
+                        columns.setdefault(fk, []).append(i)
+                    else:
+                        noncolumn.append(i)
+
+            col_units = list(columns.values())
+            flip_total = sum(len(u) for u in col_units)
+            grand = flip_total + len(noncolumn)
+            if grand == 0:
+                self.all_batches.append([])
+                continue
+
+            self._rng.shuffle(col_units)
+            self._rng.shuffle(noncolumn)
+
+            flip_budget = int(round(self.batch_size * (flip_total / grand)))
+            col_queue = deque(col_units)
+            noncol_queue = deque(noncolumn)
+
+            num_batches = grand // self.batch_size
+            ds_batches = []
+            for _ in range(num_batches):
+                batch: List[int] = []
+                # 1. Fill whole columns up to flip_budget, or more if noncolumn cannot fill remainder
+                while col_queue:
+                    next_col = col_queue[0]
+                    if len(batch) + len(next_col) <= self.batch_size:
+                        rem_noncol = len(noncol_queue)
+                        needed_to_fill = self.batch_size - (len(batch) + len(next_col))
+                        if len(batch) < flip_budget or rem_noncol < needed_to_fill:
+                            batch.extend(col_queue.popleft())
+                        else:
+                            break
+                    else:
+                        break
+
+                # 2. Fill remainder with non-column items up to batch_size
+                while len(batch) < self.batch_size and noncol_queue:
+                    batch.append(noncol_queue.popleft())
+
+                # 3. If noncol is exhausted, fill with remaining columns (splitting boundary if needed)
+                while len(batch) < self.batch_size and col_queue:
+                    needed = self.batch_size - len(batch)
+                    next_col = col_queue.popleft()
+                    if len(next_col) <= needed:
+                        batch.extend(next_col)
+                    else:
+                        batch.extend(next_col[:needed])
+                        col_queue.appendleft(next_col[needed:])
+
+                if len(batch) == self.batch_size:
+                    ds_batches.append([i + offset for i in batch])
+                else:
+                    break
+
             self.all_batches.append(ds_batches)
 
         # Apply cycling strategy to interleave batches
