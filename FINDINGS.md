@@ -179,6 +179,7 @@ measured accuracy, not inflating it.
 | `--subfloor_rank_only` (new, default on) | Sub-floor double-derived items are now **marked** `reg_ok=False` rather than dropped: kept in the rank losses, withheld from the regression. A third of them are real data (§5). |
 | `flip_key` on `cond` / `native_cond` items | Groups items into flip columns. Within a column the conditional target `ddG(A|B)` differs from `ddG_AB` only by the constant `ddG_B`, so ordering by either is identical. |
 | `val_rho_flip` (new metric) | `val_rho_combined_avg` is blind to this channel (§1), so MT hyperparameters were being tuned against a metric indifferent to their purpose. Double-centred, hence exclusive to identity-dependent interaction. |
+| `--flip_group_units` (new, default on) | Orders MT work-unit rows by flip column. Measured 2.9× more items into the loss (11.8 vs 4.1 per step) and the loss fires on every step rather than 86% of them. |
 | `epistasis_pred` (new inference column) | The MT-pass epistasis. `combined_pred` stays the calibrated ΔΔG output (§4). |
 
 **Honest caveat on the loss.** Under strict additivity every column shares one ordering, so a
@@ -186,6 +187,16 @@ purely additive model already satisfies much of `--lambda_rank_mt`; what it cann
 the per-column *deviation* from that consensus. The loss is artifact-immune and contains the
 interaction term but is not exclusively about it. `val_rho_flip` double-centres the consensus
 away and **is** exclusive. Train on the loss; judge on the metric.
+
+## 6b. Known inefficiency in the loss plumbing
+
+Even with column grouping, only ~12 of 64 micro-batch rows reach the flip loss and the mean
+column holds 4.65 members against ~19 available. The sampler groups by library and by
+`subset_size` lists for the WT ListMLE term and knows nothing about flip columns;
+`subset_size` does not control them. A column-aware sampler is the highest-value follow-up
+and should make the loss roughly 4× more efficient per forward. Details and the tuning
+consequences — in particular, do not raise `--flip_list_min` above 4 before fixing this — are
+in `docs/epistasis_training_handoff.md` §2b.
 
 ## 7. Not implemented, and why
 

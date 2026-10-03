@@ -101,6 +101,10 @@ def parse_arguments() -> argparse.Namespace:
                                  "to the assay's monotone response and to the dynamic-range floor by construction, so "
                                  "it cannot be satisfied by learning assay saturation - which the regression term can. "
                                  "This is the loss that targets identity-dependent interaction directly.")
+    loss_group.add_argument('--flip_group_units', action=argparse.BooleanOptionalAction, default=True,
+                            help="Order MT work-unit rows by flip column so each micro-batch holds whole columns "
+                                 "rather than fragments of many. Same items and the same number of forwards; only "
+                                 "the grouping changes. Without it a column of ~19 is scattered across the batch.")
     loss_group.add_argument('--flip_list_min', type=int, default=4,
                             help="Minimum members for a flip column to contribute to --lambda_rank_mt. Below ~4 the "
                                  "ordering carries little information and the gradient is mostly noise.")

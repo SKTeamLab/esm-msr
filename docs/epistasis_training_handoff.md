@@ -14,6 +14,7 @@ with the old command will not reproduce the old numbers.
 | `--lambda_rank_mt` | did not exist | **1.0** | New within-column rank loss on the MT pass. **Changes training at defaults.** |
 | `--lambda_reg_mt` | 0.0 | **1.0** | Was always passed as 1.0 by the canonical command, so this only makes the defaults self-consistent. |
 | `--flip_list_min` | — | 4 | Minimum members for a flip column to contribute. |
+| `--flip_group_units` | — | **on** | Orders MT work-unit rows by flip column so micro-batches hold whole columns. Measured: 2.9× more items reach the loss. |
 | `--subfloor_rank_only` | — | **on** | Sub-floor doubles are now *marked* rather than *dropped*. **Changes the item count**: `min_additive_dG` no longer removes items, so train size goes back up to roughly the unfiltered ~233k. |
 
 Also new, non-behavioural: `val_rho_flip` validation metric, `epistasis_pred` inference
@@ -82,11 +83,80 @@ assay distortion, so it is the only logged number specific to what the MT adapte
 product metrics, and a run that gains flip ρ while losing ΔΔG calibration is not an
 improvement. If they diverge, say so rather than picking one.
 
+## 2b. KNOWN ISSUE: the loss only sees a fraction of each micro-batch
+
+**Read this before tuning anything.** Measured on a 4-protein, 29-step run (`--skip_val`,
+`micro_batch_size 64`, `subset_size 16`, anchor 0.5):
+
+| config | steps with flip | columns/step | mean column length | **items/step** |
+|---|---|---|---|---|
+| `--no-flip_group_units` | 25 / 29 | 1.00 | 4.08 | **4.1** |
+| `--flip_group_units` (default) | **29 / 29** | 2.59 | 4.65 | **11.8** |
+
+Grouping is a clear win and is on by default. But note the last column: even grouped, only
+**~12 of 64 micro-batch rows contribute to the flip loss**, and the mean column holds 4.65
+members against the ~19 that exist in the data. Two causes:
+
+1. **Anchored singles occupy MT rows and have no column.** At `--mt_single_anchor_weight 0.5`
+   they are roughly half of all MT backbone rows. They sort to the end of the unit so they do
+   not split a column, but they still consume slots.
+2. **A 256-item batch drawn from one library need not contain a whole column.** The sampler
+   groups by library and by `subset_size` lists for the WT ListMLE term; it knows nothing about
+   flip columns. `subset_size` does **not** control flip columns — the flip loss groups by
+   `flip_key` and ignores `subset_size` entirely, so changing it will not help here.
+
+**Consequences for tuning:**
+
+* **Do not raise `--flip_list_min` above 4** without fixing the sampler first. With a mean
+  column length of 4.65, a threshold of 6 or 8 would discard most columns and the loss would
+  go quiet. If you see `train/flip_cols` near zero, this is the first thing to check.
+* **The proper fix is a column-aware sampler** — draw whole flip columns into a batch rather
+  than relying on them co-occurring. That is the highest-value follow-up on this code and was
+  not attempted here. It should raise items/step from ~12 toward ~50 and make the loss roughly
+  4× more efficient per forward pass.
+* **A cheap partial mitigation** is raising `--micro_batch_size` (more rows per unit, so more
+  whole columns land together) at the cost of VRAM. Untested.
+
+Diagnostics logged every step to help: `train/flip_cols` (columns used),
+`train/flip_len` (mean members per column), `train/flip_items` (rows actually entering the
+loss). Watch all three.
+
+## 2c. The MT single anchor interacts with this, and is untested
+
+Anchored singles have no `flip_key`, so they never contribute to the flip loss — but they
+occupy roughly half of all MT backbone rows at the canonical
+`--mt_single_anchor_weight 0.5`, which directly reduces items/step above. There is also a
+conceptual tension: the anchor teaches the MT pass to reproduce wild-type-context single
+effects, which is the *additive* component — precisely what the flip metric double-centres
+away. It should not fight the flip objective, but it does spend capacity and slots on
+something the flip objective does not need.
+
+**I did not get to measure this.** The runs were queued and did not finish. The mechanical
+prediction is that lowering the anchor raises `train/flip_items` roughly in proportion to the
+freed slots; whether that converts into better `val_rho_flip_avg` is the open question, and
+whether it costs `val_rho_mt_valid_avg` (which the anchor exists to protect) is the risk.
+
+**Add this to the run matrix** as a first-class sweep rather than treating 0.5 as settled:
+
+| run | override | watch |
+|---|---|---|
+| `v5_anchor050` | `--mt_single_anchor_weight 0.5` (canonical) | the reference |
+| `v5_anchor025` | `--mt_single_anchor_weight 0.25` | `train/flip_items` should rise |
+| `v5_anchor000` | `--mt_single_anchor_weight 0.0` | also ~1.9× faster; check `val_rho_mt_valid_avg` for the cost |
+
+If 0.25 or 0 wins on `val_rho_flip_avg` without hurting `val_rho_mt_valid_avg` or
+`val_rmse_combined_avg`, lower the canonical default. Note `--mt_single_anchor_weight 0`
+requires nothing else to change, but the assertion tying it to `--lambda_reg_mt > 0` means
+you cannot zero both.
+
 ## 3. What to watch
 
 | metric | meaning | expectation |
 |---|---|---|
-| `train/rank_mt` | the new flip loss | must be non-zero from step one. Zero means a stale cache. |
+| `train/rank_mt` | the new flip loss | must be non-zero from step one. Zero means a stale cache, or `flip_list_min` set too high (§2b). |
+| `train/flip_cols` | flip columns used per step | ~2.6 grouped at `micro_batch_size 64`. Falling toward 0 is the alarm. |
+| `train/flip_items` | rows actually entering the flip loss | ~12 of 64 at the canonical settings (§2b). Rises if the anchor is lowered. |
+| `train/flip_len` | mean members per column | ~4.65. If this approaches `flip_list_min` the loss is running on scraps. |
 | `val_flip_pairs/<loader>` | usable position pairs per validation library | 0 for libraries without designed doubles — expected, not a failure |
 | `val_rho_flip_avg` | **the monitored metric** | reference: the released checkpoint scores 0.141 on the test docket and 0.146 on verified held-out proteins. Validation libraries differ, so treat the *first run's* value as the baseline to beat, not these numbers. |
 | `val_rho_combined_avg` | ΔΔG headline | must not regress materially |

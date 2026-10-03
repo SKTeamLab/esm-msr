@@ -221,6 +221,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         L_raw = crit_fn(p, t, mask=m)
         avg_len = m.float().sum(dim=-1).mean()
         scaled = L_raw * (L / avg_len.clamp(min=1.0))
+        self._flip_diag = (G, float(avg_len), int(sum(len(g) for g in groups)))
         return scaled, L_raw.detach(), G
 
     def _subset_weights(self, subset_types, device) -> torch.Tensor:
@@ -266,6 +267,18 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     size = int(len(wt_rows))
             units += [('wt', wt_rows[s:s + size]) for s in range(0, len(wt_rows), size)]
         if len(mt_rows):
+            if getattr(self.hparams, 'flip_group_units', True) and self.hparams.lambda_rank_mt > 0:
+                # Order MT rows so one flip column lands contiguously. The loss groups by
+                # column inside a micro-batch, so without this a column of ~19 is scattered
+                # across the batch and most micro-batches hold only a fragment of each. Same
+                # items and the same number of forwards - only the grouping changes. Items
+                # with no column (anchored singles) sort to the end so they do not split one.
+                keys = getattr(self, '_last_flip_keys', None)
+                if keys is not None and len(keys):
+                    # Reorder in place as a tensor; downstream slicing requires one.
+                    order = sorted(range(len(mt_rows)),
+                                   key=lambda i: (keys[int(mt_rows[i])] == '', keys[int(mt_rows[i])]))
+                    mt_rows = mt_rows[torch.as_tensor(order, dtype=torch.long, device=mt_rows.device)]
             units += [('mt', mt_rows[s:s + mb]) for s in range(0, len(mt_rows), mb)]
         return units
 
@@ -304,6 +317,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         global_num_lists = max(1, B // list_size)
         # How many flip columns the whole batch offers, so each micro-batch's contribution
         # is weighted by its share (mirrors global_num_lists for the ListMLE terms).
+        self._last_flip_keys = flip_keys
         _fk = Counter(k for k in flip_keys if k)
         global_num_flip = max(1, sum(1 for _, c in _fk.items() if c >= int(hp.flip_list_min)))
 
@@ -586,6 +600,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         for k, v in logs.items():
             if v > 0.0: self.log(f"train/{k}", v, on_step=True)
+        if getattr(self, '_flip_diag', None) is not None:
+            g, alen, nitems = self._flip_diag
+            self.log("train/flip_cols", float(g), on_step=True)
+            self.log("train/flip_len", float(alen), on_step=True)
+            self.log("train/flip_items", float(nitems), on_step=True)
+            self._flip_diag = None
             
         if getattr(self.trainer.precision_plugin, "scaler", None) is not None:
             self.log("amp_scale", self.trainer.precision_plugin.scaler.get_scale(), on_step=True)
