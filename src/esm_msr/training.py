@@ -56,7 +56,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.model = MSRModel(
             lora_config=lora_config, shared_scale_init=self.hparams.shared_scale_init, shared_bias_init=self.hparams.shared_bias_init, adapter_mode=self.hparams.adapter_mode,
             lora_mode=self.hparams.lora_mode, model_dtype=torch.float32,
-            combine_rule=routing.combine_rule_from_hparams(dict(self.hparams)),
             dedup_backbone=self.hparams.get('dedup_backbone', True),
             mask_structure=self.hparams.get('mask_structure', False),
         )
@@ -554,7 +553,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     self.log(f"val_{metric}/{name}", val, on_epoch=True, sync_dist=True)
 
         avg_metrics = {}
-        for metric in ('rho_wt', 'rho_combined', 'rho_mt', 'rmse_combined'):
+        for metric in ('rho_wt_valid', 'rho_wt_all', 'rho_mt_valid', 'rho_mt_all',
+                       'rho_combined', 'rmse_combined'):
             vals = [m[metric] for m in per_loader.values() if not np.isnan(m[metric])]
             if vals:
                 avg_metrics[metric] = float(np.mean(vals))

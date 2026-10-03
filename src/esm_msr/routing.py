@@ -44,10 +44,11 @@ Notes:
   pass sees the real wild type") and its after-state is the wild type, which is the WT
   pass's job already. The same physics is available by scoring forward singles in the
   MT pass (``mt_single_anchor_weight`` in training).
-* Doubles are predicted as 0.5 * WT + 0.5 * MT. With WT = sum_i ddG(i | wt) and
-  MT = sum_i ddG(i | all other mutations present), this is the average of the two
-  thermodynamic paths A->AB and B->AB, and for any number of mutations it is exact
-  whenever epistasis is at most pairwise (trapezoid rule on the hypercube).
+* ``forward_batch`` reports 0.5 * WT + 0.5 * MT for every item, whatever owns it in
+  training. With WT = sum_i ddG(i | wt) and MT = sum_i ddG(i | all other mutations
+  present), that is the average of the two thermodynamic paths A->AB and B->AB, and for
+  any number of mutations it is exact whenever epistasis is at most pairwise (trapezoid
+  rule on the hypercube).
 """
 from typing import Iterable, Optional, Sequence
 
@@ -97,17 +98,3 @@ def subset_mask(subset_types: Sequence[str], subsets: Iterable[str], device=None
     subsets = frozenset(subsets)
     return torch.as_tensor([canonical_subset(s) in subsets for s in subset_types],
                            dtype=torch.bool, device=device)
-
-
-def combine_rule_from_hparams(hparams: dict) -> str:
-    """
-    Choose ``MSRModel.combine_rule`` for a checkpoint from its training hparams.
-
-    Checkpoints trained with the combined (teacher-forced 0.5*WT + 0.5*MT) losses expect
-    every item to be averaged ('average'); checkpoints trained with separate heads and no
-    combined loss expect per-subset routing ('routed').
-    """
-    combined = any(float(hparams.get(k, 0.0) or 0.0) > 0 for k in
-                   ('lambda_reg_combined', 'lambda_rank_combined', 'lambda_epi_combined'))
-    separate = float(hparams.get('lambda_reg_mt', 0.0) or 0.0) > 0
-    return 'routed' if separate and not combined else 'average'

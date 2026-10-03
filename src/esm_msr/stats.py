@@ -112,31 +112,43 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     """
     The validation metrics for one dataloader (one protein library or benchmark).
 
-    Each head is scored only on what it is responsible for, against measured ddG:
+    Each head gets two metrics. The ``_valid`` form scores a head only on the items it is
+    responsible for in training, which is the number to judge it by; the ``_all`` form scores
+    it indiscriminately on every item with a finite target, which is always defined and so
+    stays comparable across loaders that lack one subset or another. The gap between them is
+    informative in itself: it says how much a head degrades off its own domain.
 
-    * ``rho_wt``       - WT head on single mutations in the real wild-type context.
-    * ``rho_combined`` - the routed/ensembled prediction on every measured item
-      (singles and multi-mutants), i.e. what the model actually reports.
-    * ``rho_mt``       - MT head on conditional effects ddG(X | background) only
-      (``cond`` and ``native_cond``); these are the targets it is trained on, and
-      they are a different quantity from a wild-type-context ddG, so they are never
-      pooled with the other two.
-    * ``rmse_combined`` - calibration of the reported prediction, in kcal/mol; rank
-      correlation alone cannot see a scale or offset error.
+    * ``rho_wt_valid``   - WT head on plain single mutations in the real wild-type context.
+      NaN for a mutant-background library, whose singles are all ``native_cond``.
+    * ``rho_wt_all``     - WT head on everything, multi-mutants and conditionals included.
+    * ``rho_mt_valid``   - MT head on conditional targets (``cond``, ``native_cond``). NaN for
+      a library with no double mutants to derive them from, and for the external benchmarks,
+      which are loaded without derived items.
+    * ``rho_mt_all``     - MT head on everything.
+    * ``rho_combined``   - the reported two-path average, on measured items only.
+    * ``rmse_combined``  - calibration of that average in kcal/mol; rank correlation cannot
+      see a scale or offset error.
 
-    Returns a flat ``{name: value}`` dict; missing or undefined entries are NaN.
+    ``_all`` deliberately mixes quantities: a conditional ddG(X | background) is not a
+    wild-type-context ddG, so a correlation pooling them answers "does this head rank
+    anything sensibly" rather than "is this head right". Read ``_valid`` first.
+
+    Returns a flat ``{name: value}`` dict; undefined entries are NaN and are not logged.
     """
     gt = np.asarray(ground_truths, dtype=np.float64)
+    wt_scores, mt_scores, comb_scores = (np.asarray(x) for x in (wt_scores, mt_scores, comb_scores))
     subset_types = np.asarray([routing.canonical_subset(s) for s in subset_types])
     finite = np.isfinite(gt)
 
     is_single = np.isin(subset_types, list(routing.WT_HEAD_SUBSETS)) & finite
-    is_measured = np.isin(subset_types, list(routing.MEASURED_SUBSETS)) & finite
     is_cond = np.isin(subset_types, list(routing.CONDITIONAL_SUBSETS)) & finite
+    is_measured = np.isin(subset_types, list(routing.MEASURED_SUBSETS)) & finite
 
     return {
-        'rho_wt': safe_spearman(np.asarray(wt_scores)[is_single], gt[is_single]),
-        'rho_combined': safe_spearman(np.asarray(comb_scores)[is_measured], gt[is_measured]),
-        'rho_mt': safe_spearman(np.asarray(mt_scores)[is_cond], gt[is_cond]),
-        'rmse_combined': safe_rmse(np.asarray(comb_scores)[is_measured], gt[is_measured]),
+        'rho_wt_valid': safe_spearman(wt_scores[is_single], gt[is_single]),
+        'rho_wt_all': safe_spearman(wt_scores[finite], gt[finite]),
+        'rho_mt_valid': safe_spearman(mt_scores[is_cond], gt[is_cond]),
+        'rho_mt_all': safe_spearman(mt_scores[finite], gt[finite]),
+        'rho_combined': safe_spearman(comb_scores[is_measured], gt[is_measured]),
+        'rmse_combined': safe_rmse(comb_scores[is_measured], gt[is_measured]),
     }

@@ -143,12 +143,6 @@ class MSRModel(ESM3PredictorBase):
     0.5 * WT + 0.5 * MT is the thermodynamically correct estimate for multi-mutants.
 
     Args (beyond the LoRA configuration):
-        combine_rule: How ``forward_batch`` forms ``combined_pred``.
-            'routed'  - each item uses the head that owns its subset (singles -> WT,
-                        mutant-context items -> MT, multi-mutants -> 0.5*WT + 0.5*MT).
-                        Matches separate-head training (lambda_reg_mt, no combined loss).
-            'average' - 0.5*WT + 0.5*MT for every item. Matches checkpoints trained with
-                        the combined / teacher-forced loss (e.g. the released esm-msr-small).
         dedup_backbone: Run the backbone once per unique (sequence, structure) row of a
             batch and gather logits for the duplicates. All single and double items of one
             protein share their WT input, so the WT pass costs one forward per batch instead
@@ -168,7 +162,7 @@ class MSRModel(ESM3PredictorBase):
             shared_bias_init: float | None = None, inference_mode: bool = False, log_likelihood: bool = False,
             use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16,
             adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
-            combine_rule: str = 'routed', dedup_backbone: bool = True, sequence_head_only: bool = True,
+            dedup_backbone: bool = True, sequence_head_only: bool = True,
             mask_structure: bool = False,
         ):
         logging.info("Initializing ESM3 Base Model...")
@@ -182,9 +176,6 @@ class MSRModel(ESM3PredictorBase):
         self.quaternary_mode, self.log_likelihood, self.use_plddt, self.dtype = quaternary_mode, log_likelihood, use_plddt, model_dtype 
         self.adapter_mode, self.lora_mode = adapter_mode, lora_mode
         self.strict_loading = strict_loading
-        if combine_rule not in ('routed', 'average'):
-            raise AssertionError(f"Unknown combine_rule '{combine_rule}'. Must be 'routed' or 'average'.")
-        self.combine_rule = combine_rule
         self.dedup_backbone = dedup_backbone
         self.mask_structure = mask_structure
         if use_plddt:
@@ -588,12 +579,10 @@ class MSRModel(ESM3PredictorBase):
     def forward_batch(self, batch_in: Dict[str, Any], cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, skip_reverse: bool = False, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
         """
         Inference forward: runs the WT pass and (unless ``skip_reverse``) the MT pass and
-        forms ``combined_pred`` according to ``self.combine_rule``.
+        reports ``combined_pred`` as 0.5*WT + 0.5*MT for every item.
 
-        Under the 'routed' rule items without a ``subset_type`` (screening / benchmark
-        batches) are routed by mutation count: one mutation -> WT head, two or more ->
-        0.5*WT + 0.5*MT. ``epi_pred = 0.5*(MT - WT)`` is the implied pairwise epistasis
-        for multi-mutants (meaningless for single-mutation items).
+        ``epi_pred = 0.5*(MT - WT)`` is the implied pairwise epistasis for multi-mutants
+        (meaningless for single-mutation items).
         """
         if self.training: raise AssertionError("forward_batch is for inference only. Use forward_partitioned for training.")
 
@@ -611,18 +600,12 @@ class MSRModel(ESM3PredictorBase):
             mt_cal = self.calibration_head_fused(mt_pred_raw)
         else:
             wt_cal, mt_cal = wt_pred_cal, mt_pred_cal
-        combined_pred = 0.5 * wt_cal + 0.5 * mt_cal
 
-        if self.combine_rule == 'routed':
-            dev = wt_cal.device
-            subset_type = batch_in.get('subset_type')
-            if subset_type is None:
-                n_mut = batch_in['mut_mask'].sum(dim=1)
-                use_wt, use_mt = (n_mut == 1).to(dev), torch.zeros_like(n_mut, dtype=torch.bool, device=dev)
-            else:
-                use_wt = routing.subset_mask(subset_type, routing.WT_HEAD_SUBSETS, device=dev)
-                use_mt = routing.subset_mask(subset_type, routing.MT_HEAD_SUBSETS, device=dev)
-            combined_pred = torch.where(use_wt, wt_cal, torch.where(use_mt, mt_cal, combined_pred))
+        # Always the two-path average, for every item type. This is the quantity the
+        # architecture is built around (0.5*WT + 0.5*MT is exact for a double; see
+        # esm_msr.routing), so it stays the reported prediction even where a single head
+        # owns the item in training and would be used alone in practice.
+        combined_pred = 0.5 * wt_cal + 0.5 * mt_cal
 
         epi_pred = 0.5 * mt_pred_cal - 0.5 * wt_pred_cal
 
@@ -1055,8 +1038,5 @@ class MSRModel(ESM3PredictorBase):
                 mt_lora_pred = self.calibration_head_mt(mt_llr_sum) if hasattr(self, 'calibration_head_mt') else mt_llr_sum
 
             combined_pred = 0.5 * wt_lora_pred + 0.5 * mt_lora_pred
-            if self.combine_rule == 'routed':
-                # Same rule as forward_batch for batches without subset labels.
-                combined_pred = torch.where(mut_mask.sum(dim=1) == 1, wt_lora_pred, combined_pred)
 
         return {'wt_lora_pred': wt_lora_pred, 'mt_lora_pred': mt_lora_pred, 'combined_pred': combined_pred}

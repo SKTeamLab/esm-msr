@@ -252,17 +252,38 @@ destroy the conditioning that makes the MT pass informative.
 
 ## 6. Validation metrics
 
-Four, each scoring a head only on what it is responsible for, logged per dataloader plus
-`_avg` (mean over libraries; what the checkpoint monitor reads) and `_pooled` (all items
-pooled, weighting libraries by size).
+Six, logged per dataloader plus `_avg` (mean over libraries; what the checkpoint monitor
+reads) and `_pooled` (all items pooled, so libraries weight by size).
+
+Each head gets two. `_valid` scores it on the items it owns in training, which is the number
+to judge it by. `_all` scores it on every item with a finite target, so it is always defined
+and stays comparable across loaders that happen to lack a subset. The gap between the two
+says how much a head degrades off its own domain.
 
 | metric | computed on |
 |---|---|
-| `val_rho_wt` | WT head, single mutations |
-| `val_rho_combined` | the reported prediction, all measured items |
-| `val_rho_mt` | MT head, conditional targets only (`cond`, `native_cond`) |
-| `val_rmse_combined` | calibration of the reported prediction, kcal/mol |
+| `val_rho_wt_valid` | WT head, plain `single` items |
+| `val_rho_wt_all` | WT head, everything |
+| `val_rho_mt_valid` | MT head, conditional targets (`cond`, `native_cond`) |
+| `val_rho_mt_all` | MT head, everything |
+| `val_rho_combined` | the reported two-path average, measured items |
+| `val_rmse_combined` | calibration of that average, kcal/mol |
 
-Conditional targets are a different physical quantity from a wild-type-context ddG and are
-never pooled with the others. `rho_mt` is deliberately scoped to them: `cond` targets are
-mostly positive, so mixing them with singles inflates a per-library Spearman.
+`_valid` is NaN, and therefore absent from the logs, wherever the subset does not exist:
+
+| loader | `rho_wt_valid` | `rho_mt_valid` | why |
+|---|---|---|---|
+| a library with no doubles (e.g. 1A32) | defined | **NaN** | no doubles, so no `cond` to derive |
+| a mutant-background library (e.g. 1SF0_V59K) | **NaN** | defined | its singles are all `native_cond` |
+| ssym / s461 / ptmuld | defined | **NaN** | benchmarks load without derived items |
+| a library with doubles (e.g. 1GL5) | defined | defined | |
+
+`_all` deliberately mixes quantities — a conditional ddG(X | background) is not a
+wild-type-context ddG — so it answers "does this head rank anything sensibly" rather than
+"is this head right". Read `_valid` first.
+
+**`combined` is always 0.5 * WT + 0.5 * MT**, for every item type, including single
+mutations where one head owns the item in training and would be used alone in practice. It
+is the quantity the architecture is built around, so it stays the reported prediction and
+remains comparable across configurations. (An earlier version routed singles to the WT head
+alone; that was reverted.)

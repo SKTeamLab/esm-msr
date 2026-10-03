@@ -16,7 +16,6 @@ from esm.utils.structure.protein_chain import ProteinChain
 from esm.utils.structure.protein_complex import ProteinComplex
 from esm.utils.constants import esm3 as C
 
-from esm_msr import routing
 
 # Import structural data handling and prep logic from preprocess
 from esm_msr.preprocess import (
@@ -113,10 +112,8 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'unfreeze_layernorms': hparams.get('unfreeze_layernorms_mt', default_mt['unfreeze_layernorms']),
     }
 
-    combine_rule = routing.combine_rule_from_hparams(hparams)
     mask_structure = bool(hparams.get('mask_structure', False))
-    logging.info(f"Using combine_rule='{combine_rule}' for combined_pred (see esm_msr.routing); "
-                 f"mask_structure={mask_structure} (must match training).")
+    logging.info(f"mask_structure={mask_structure} (must match training).")
 
     return {
         'mask_structure': mask_structure,
@@ -124,7 +121,6 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'mt_config': mt_config,
         'adapter_mode': hparams.get('adapter_mode', 'dual'),
         'lora_mode': hparams.get('lora_mode', 'ensemble'),
-        'combine_rule': combine_rule,
     }
 
 
@@ -585,7 +581,6 @@ if __name__ == "__main__":
     lora_config = None
     adapter_mode = "dual"
     lora_mode = "ensemble"
-    combine_rule = "average"
     mask_structure = False
 
     if args.lora_config:
@@ -598,7 +593,6 @@ if __name__ == "__main__":
                 
             adapter_mode = lora_config.get('adapter_mode', 'dual')
             lora_mode = lora_config.get('lora_mode', 'ensemble')
-            combine_rule = lora_config.get('combine_rule', 'average')
             mask_structure = lora_config.get('mask_structure', False)
             
             # Apply sigma
@@ -619,7 +613,6 @@ if __name__ == "__main__":
         parsed_config = parse_hparams_to_lora_config(args.hparams_path, sigma=args.sigma)
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         lora_mode = parsed_config.get('lora_mode', 'ensemble')
-        combine_rule = parsed_config.get('combine_rule', 'average')
         mask_structure = parsed_config.get('mask_structure', False)
         lora_config = {
             'wt_config': parsed_config['wt_config'],
@@ -643,7 +636,6 @@ if __name__ == "__main__":
         model_dtype=model_dtype,
         adapter_mode=adapter_mode,
         lora_mode=lora_mode,
-        combine_rule=combine_rule,
         mask_structure=mask_structure,
     )
 

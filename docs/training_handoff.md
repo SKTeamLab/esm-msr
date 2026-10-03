@@ -120,15 +120,23 @@ longer run afterwards rather than extending all of them.
 
 ## 5. What to watch
 
-Four metrics, each scoring one head on what it is responsible for. Per dataloader, plus
-`_avg` (mean over libraries, what the checkpoint monitor reads) and `_pooled`.
+Six metrics. Per dataloader, plus `_avg` (mean over libraries, what the checkpoint monitor
+reads) and `_pooled`.
 
 | metric | meaning | rough expectation |
 |---|---|---|
-| `val_rho_wt_avg` | WT adapter on single mutations | should rise first and highest |
-| `val_rho_combined_avg` | the reported prediction on all measured items | the headline; monitored metric |
-| `val_rho_mt_avg` | MT adapter on conditional targets **only** | expect lower than WT; a harder task on noisier labels |
-| `val_rmse_combined_avg` | calibration in kcal/mol | should fall; rank metrics cannot see scale error |
+| `val_rho_wt_valid` | WT adapter on plain single mutations — its own domain | should rise first and highest |
+| `val_rho_wt_all` | WT adapter on everything, indiscriminately | lower; the gap shows off-domain degradation |
+| `val_rho_mt_valid` | MT adapter on conditional targets only | expect below WT: harder task, noisier labels |
+| `val_rho_mt_all` | MT adapter on everything | always defined, so use it to compare across loaders |
+| `val_rho_combined` | the reported 0.5*WT + 0.5*MT average, measured items | the headline; monitored metric |
+| `val_rmse_combined` | calibration in kcal/mol | should fall; rank metrics cannot see scale error |
+
+A `_valid` metric going missing from a loader is expected, not a failure: it is NaN wherever
+the subset is absent. A library with no double mutants has no `cond` items so no
+`rho_mt_valid`; a mutant-background library (code like `1SF0_V59K`) has no plain singles so
+no `rho_wt_valid`; the external benchmarks load without derived items so they never have
+`rho_mt_valid`. The `_all` forms are always defined — use those when comparing loaders.
 
 Reference points, so you know when to stop rather than chasing noise:
 

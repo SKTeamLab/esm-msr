@@ -159,7 +159,7 @@ def parse_arguments() -> argparse.Namespace:
     train_group.add_argument('--freeze_wt_after_epoch', type=int, default=1000)
     train_group.add_argument('--freeze_wt_on_convergence', action=argparse.BooleanOptionalAction, default=False)
     train_group.add_argument('--wt_convergence_patience', type=int, default=1)
-    train_group.add_argument('--wt_convergence_metric', type=str, default='rho_wt')
+    train_group.add_argument('--wt_convergence_metric', type=str, default='rho_wt_valid')
     train_group.add_argument('--early_stopping_patience', type=int, default=0)
     train_group.add_argument('--early_stopping_metric', type=str, default='val_rho_combined_avg')
 
