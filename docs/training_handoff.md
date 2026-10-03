@@ -79,7 +79,7 @@ forward; only the MT units scale with `micro_batch_size`. With the anchor on, si
 visited twice — once in a WT unit, once in an MT unit — which is the same two passes as
 before, just not interleaved.
 
-### Expected cost
+### Expected cost, and where it goes
 
 Counted from `cache_v4` against the 120-protein train split:
 
@@ -89,14 +89,48 @@ train: 127 libraries, 233,574 trainable items -> ~217,000 after min_additive_dG
 val:    26 libraries,  ~40,500 items, ~158 batches, plus 3 benchmark loaders
 ```
 
-The smoke run did batch 64 at ~1.08 it/s. **Verify the real rate after the first 50 steps
-and recompute** — do not trust an extrapolation from a 2-library smoke. Budget roughly
-45-70 min/epoch including validation and treat that as unverified until measured.
+Backbone rows per epoch, which is what actually costs time:
 
-VRAM: the project's own earlier note records peak ~16.5 GB at `micro_batch_size 64` on this
-box. I did not capture peak myself. Watch the first few hundred steps; if it approaches 30
-GB, halve `micro_batch_size` (loss values are micro-batch invariant, so this changes speed
-and memory only).
+| | rows/epoch | share |
+|---|---|---|
+| MT pass: `cond` + `native_cond` | ~112,100 | 52% |
+| MT pass: anchored singles | ~104,800 | 48% |
+| WT pass (deduplicated to one forward per batch) | ~850 | 0.4% |
+
+The WT side is effectively free: every item of a library shares one wild-type sequence, so
+`dedup_backbone` collapses the whole WT block to a single forward. **Essentially all the
+cost is MT-pass rows, and the single anchor is about half of it.**
+
+Speed levers, in order of effect:
+
+| lever | effect | cost |
+|---|---|---|
+| `--mt_single_anchor_frac 0.25` | ~1.6x faster overall | anchor variance rises ~4x (expectation unchanged) |
+| `--mt_single_anchor_weight 0` | ~1.9x | loses the anchor entirely |
+| `--subset_caps cond=0.5` | ~1.35x | half the derived conditionals |
+| `--mt_single_anchor_frac 0.25` + `cond=0.5` | ~2.4x | both of the above |
+| `--micro_batch_size` up | modest | better GPU utilisation only; identical row count |
+| `--check_val_every_n_epoch 2` | validation only | coarser monitoring |
+
+**`--subset_size` is not a speed knob.** The micro-batch is
+`min(batch_size, max(subset_size, (micro_batch_size // subset_size) * subset_size))`, so at
+`micro_batch_size 64` any `subset_size` of 16, 32 or 64 gives the same mb of 64. Raising it
+past `micro_batch_size` *increases* mb and memory. It only changes ListMLE list composition,
+and because `_compute_rank_loss` truncates to whole lists, a larger value drops more items
+from the rank loss (a 170-row WT unit loses 10 items at `subset_size 16` and 42 at 64, and a
+unit smaller than `subset_size` contributes no rank loss at all).
+
+### Not yet done: structure deduplication
+
+Every item stores its own copy of its library's structure, and all items of a library share
+one structure (verified: 1 distinct structure per library across a sample of 8). Coordinates
+are essentially the whole cache: 0.55 GiB across 8 libraries against 0.2 MiB if stored once
+each, so `cache_v4` would fall from 31 GB to roughly 11 MB.
+
+This would not reduce GPU forwards, which `dedup_backbone` already collapses. It would cut
+cache size, the RAM held by the in-memory `ConcatDataset` across 127 train libraries, worker
+IPC per batch, and collation CPU. Worth doing if startup time or paging turns out to bound a
+run; measure before assuming it is the bottleneck.
 
 ## 4. Overnight parameter sets
 
@@ -109,7 +143,11 @@ raise `--num_epochs` only if you drop configs.
 | **A** | `v4_baseline` | *(none)* | Does separated-head training beat the old combined-loss model? This is the reference. |
 | **B** | `v4_maskstruct` | `--mask_structure` | Is it better to tell the MT adapter "geometry unknown here" than to show it wild-type geometry at mutated sites? |
 | **C** | `v4_strictfilter` | `--min_additive_dG 0.0` | Is the residual dynamic-range bias still hurting at -1? Costs ~28% more doubles. |
-| **D** | `v4_noanchor` | `--mt_single_anchor_weight 0.0` | How much does the MT adapter rely on clean single-mutant labels to calibrate its readout? |
+| **D** | `v4_noanchor` | `--mt_single_anchor_weight 0.0` | How much does the MT adapter rely on clean single-mutant labels to calibrate its readout? Also ~1.9x faster, so it finishes first. |
+
+If wall-clock is tight, add `--mt_single_anchor_frac 0.25` to A, B and C. It keeps the
+anchor's expected contribution (weights scale by 1/frac) at a quarter of its row cost, and
+leaves D as the clean no-anchor comparison.
 
 Optional fifth if time allows, as a bridge to the released model:
 

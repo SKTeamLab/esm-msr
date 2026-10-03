@@ -95,6 +95,11 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--mt_single_anchor_weight', type=float, default=0.0,
                             help="Per-item weight for also regressing the MT pass on ordinary singles (the zero-background "
                                  "case of the MT task). 0 disables. Requires --lambda_reg_mt > 0.")
+    loss_group.add_argument('--mt_single_anchor_frac', type=float, default=1.0,
+                            help="Fraction of the batch's singles to anchor each step, resampled per step. Anchored "
+                                 "singles are the dominant cost of the MT pass (~48%% of its backbone rows), so 0.25 "
+                                 "cuts total training cost by roughly a third. Weights are scaled by 1/frac so the "
+                                 "anchor's expected contribution is unchanged and only its variance rises.")
     loss_group.add_argument('--lambda_epi_combined', type=float, default=0.0)
     loss_group.add_argument('--mt_reg_mask', type=str, default='all', choices=['all', 'doubles'])
     loss_group.add_argument('--double_weight', type=float, default=1.0)

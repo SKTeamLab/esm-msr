@@ -280,10 +280,22 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         wt_targets = torch.where(n_mut >= 2, ddG_add, ddG)
         wt_ok = wt_block & torch.isfinite(wt_targets)
 
-        # MT head: its own subsets, plus anchored singles.
+        # MT head: its own subsets, plus anchored singles. Anchored singles are the bulk of
+        # the MT pass's backbone rows, so `mt_single_anchor_frac` subsamples them per step;
+        # weights are scaled by 1/frac to leave the anchor's expected contribution unchanged.
         mt_w = torch.where(is_mt_subset, w_all, torch.zeros_like(w_all))
         if anchor_w > 0:
-            mt_w = torch.where(is_wt_subset, w_all * anchor_w, mt_w)
+            anchor_rows = is_wt_subset
+            frac = float(hp.get('mt_single_anchor_frac', 1.0) or 1.0)
+            if not 0.0 < frac <= 1.0:
+                raise AssertionError(f'mt_single_anchor_frac must be in (0, 1]; got {frac}.')
+            if frac < 1.0 and bool(anchor_rows.any()):
+                gen = torch.Generator(device='cpu').manual_seed(int(self.global_step) * 7919 + 13)
+                keep = torch.rand(int(anchor_rows.sum()), generator=gen).to(device) < frac
+                sampled = torch.zeros_like(anchor_rows)
+                sampled[anchor_rows.nonzero(as_tuple=True)[0][keep]] = True
+                anchor_rows = sampled
+            mt_w = torch.where(anchor_rows, w_all * (anchor_w / frac), mt_w)
         mt_ok = (mt_w > 0) & torch.isfinite(ddG)
 
         # Legacy combined objective.
