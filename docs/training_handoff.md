@@ -71,6 +71,14 @@ PY=/home/sareeves/miniconda3/envs/msr_venv/bin/python
   --monitor_metric val_rho_combined_avg --monitor_mode max
 ```
 
+### Why the step count is lower than the item count suggests
+
+Work units are planned so each drives one adapter (`training._plan_units`). All items of a
+library share one wild-type sequence, so the entire WT block of a batch is a single backbone
+forward; only the MT units scale with `micro_batch_size`. With the anchor on, singles are
+visited twice — once in a WT unit, once in an MT unit — which is the same two passes as
+before, just not interleaved.
+
 ### Expected cost
 
 Counted from `cache_v4` against the 120-protein train split:

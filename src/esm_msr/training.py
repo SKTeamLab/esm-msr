@@ -188,27 +188,60 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         return torch.tensor([float(weight_by_subset.get(routing.canonical_subset(s), 1.0)) for s in subset_types],
                             dtype=torch.float32, device=device)
 
+    def _plan_units(self, batch: dict, wt_rows, mt_rows, comb_rows, mb: int):
+        """
+        Group a batch into work units, each of which runs exactly ONE adapter.
+
+        A unit is ``(kind, rows)`` with kind 'wt', 'mt' or 'combined'. 'wt' and 'mt' units
+        touch a single adapter, so no unit alternates between them in the inner loop. Only
+        the legacy combined objective needs both passes on the same rows, because its loss
+        couples them; those rows become 'combined' units.
+
+        Singles can appear in both a 'wt' unit (wild-type-context regression) and an 'mt'
+        unit (the single anchor). That is the same two forward passes as before, just split
+        so each runs alone.
+
+        WT units are sized by how many *distinct* backbone inputs they contain rather than
+        by micro_batch_size: every item of a library shares one wild-type sequence, so with
+        ``dedup_backbone`` the whole WT block is a single forward and splitting it would
+        only repeat that forward.
+        """
+        units = []
+        if len(comb_rows):
+            units += [('combined', comb_rows[s:s + mb]) for s in range(0, len(comb_rows), mb)]
+        if len(wt_rows):
+            size = mb
+            if getattr(self.model, 'dedup_backbone', False):
+                first, _ = self.model._unique_rows(batch['wt_sequence_tokens'][wt_rows],
+                                                   batch['coords'][wt_rows],
+                                                   batch['structure_tokens'][wt_rows])
+                if first.numel() <= mb:
+                    size = int(len(wt_rows))
+            units += [('wt', wt_rows[s:s + size]) for s in range(0, len(wt_rows), size)]
+        if len(mt_rows):
+            units += [('mt', mt_rows[s:s + mb]) for s in range(0, len(mt_rows), mb)]
+        return units
+
     def _compose_losses_streaming_and_backward(self, batch: dict) -> dict:
         """
-        Computes every loss for one batch in micro-slices and back-propagates each slice
-        immediately, so at most one slice's activations are alive at a time.
+        Computes every loss for one batch and back-propagates each work unit immediately, so
+        at most one unit's activations are alive at a time.
 
-        Routing (``esm_msr.routing``):
+        Targets and masks are derived once for the whole batch, then units are planned by
+        :meth:`_plan_units` so that each one drives a single adapter. Routing comes from
+        ``esm_msr.routing``:
 
-        * WT block = WT-head subsets (singles) and doubles. WT pass; target ddG for single
-          mutations and ddG_A + ddG_B for multi-mutants (the WT pass on a double is a sum of
-          wild-type-context effects, so it must not be taught the epistasis).
-        * MT block = MT-head subsets (cond, native_cond). MT pass; target is the item's
-          ddG, a conditional effect ddG(X | background) (``lambda_reg_mt``).
-        * ``mt_single_anchor_weight > 0`` also runs the MT pass on singles and regresses it on
-          ddG (the zero-background case of the MT head's task).
-        * Legacy combined losses (``lambda_*_combined``) teacher-force 0.5*label + 0.5*MT on
-          the WT block. Algebraically they regress the MT pass of a double onto
-          2*ddG_AB - (ddG_A + ddG_B) = ddG(A|B) + ddG(B|A), the sum of the two
-          conditional effects that the ``cond`` subset supervises one at a time.
-        * Unrouted subsets (reversion) are skipped.
-
-        Slices never mix blocks, so each runs at most the backbone passes it needs.
+        * WT head - ``single`` items, plus multi-mutants whose target becomes ddG_A + ddG_B
+          (the WT pass on a double sums wild-type-context effects, so it must not be taught
+          the epistasis).
+        * MT head - ``cond`` and ``native_cond`` on their own ddG, plus, when
+          ``mt_single_anchor_weight > 0``, ordinary singles (the zero-background case of the
+          MT task, with clean measured labels).
+        * Legacy ``lambda_*_combined`` teacher-force 0.5*label + 0.5*MT on the WT block.
+          Algebraically this regresses the MT pass of a double onto
+          2*ddG_AB - (ddG_A + ddG_B) = ddG(A|B) + ddG(B|A), the sum of the two conditional
+          effects that the ``cond`` subset supervises one at a time.
+        * Unrouted subsets (``reversion``) are skipped.
         """
         hp = self.hparams
         device, B = batch['ddG'].device, int(batch['ddG'].shape[0])
@@ -222,172 +255,161 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         need_combined = hp.lambda_rank_combined > 0 or hp.lambda_reg_combined > 0 or hp.lambda_epi_combined > 0
         anchor_w = float(hp.get('mt_single_anchor_weight', 0.0) or 0.0)
-        train_mt_reg = hp.lambda_reg_mt > 0
-        if anchor_w > 0 and not train_mt_reg:
+        if anchor_w > 0 and hp.lambda_reg_mt <= 0:
             raise AssertionError('mt_single_anchor_weight > 0 requires lambda_reg_mt > 0.')
         wt_frozen, mt_frozen = self.peft_manager.wt_path_is_frozen, self.peft_manager.mt_path_is_frozen
 
-        in_wt_block = routing.subset_mask(st_all, routing.WT_HEAD_SUBSETS | routing.ENSEMBLE_SUBSETS, device)
-        in_mt_block = routing.subset_mask(st_all, routing.MT_HEAD_SUBSETS, device)
+        # ---------------- per-item targets and masks, derived once ----------------
+        ddG = batch['ddG'].float()
+        n_mut = batch['mut_mask'].sum(dim=1)
+        nan = torch.full_like(ddG, float('nan'))
+        ddG_add = batch['ddG_additive'].float() if 'ddG_additive' in batch else nan
+        dddG = batch['dddG'].float() if 'dddG' in batch else nan
+
+        is_wt_subset = routing.subset_mask(st_all, routing.WT_HEAD_SUBSETS, device)
+        is_mt_subset = routing.subset_mask(st_all, routing.MT_HEAD_SUBSETS, device)
+        wt_block = is_wt_subset | routing.subset_mask(st_all, routing.ENSEMBLE_SUBSETS, device)
+
         if not self._warned_unrouted:
             unrouted = sorted({s for s in st_all if routing.head_for(s) is None})
             if unrouted:
-                logging.warning(f"Subsets {unrouted} have no head in the dual-adapter design and are excluded from all losses (see esm_msr.routing).")
+                logging.warning(f"Subsets {unrouted} have no head in the dual-adapter design and are "
+                                f"excluded from all losses (see esm_msr.routing).")
                 self._warned_unrouted = True
 
-        idx_all = torch.arange(B, device=device)
-        wt_idx, mt_idx = idx_all[in_wt_block], idx_all[in_mt_block]
+        # WT head: measured ddG for single mutations, additive ddG for multi-mutants.
+        wt_targets = torch.where(n_mut >= 2, ddG_add, ddG)
+        wt_ok = wt_block & torch.isfinite(wt_targets)
 
-        # A WT-pass-only block costs one backbone forward per *unique* input when the model
-        # deduplicates, and every single/double of a protein shares its WT input. In that
-        # case the whole block is a single slice instead of B/mb slices of 1 forward each.
-        wt_mb = mb
-        wt_block_needs_mt = need_combined or anchor_w > 0
-        if (wt_idx.numel() > mb and not wt_block_needs_mt and getattr(self.model, 'dedup_backbone', False)):
-            first, _ = self.model._unique_rows(batch['wt_sequence_tokens'][wt_idx], batch['coords'][wt_idx], batch['structure_tokens'][wt_idx])
-            if first.numel() <= mb:
-                wt_mb = int(wt_idx.numel())
-        micro_slices = ([wt_idx[s:s + wt_mb] for s in range(0, wt_idx.numel(), wt_mb)]
-                        + [mt_idx[s:s + mb] for s in range(0, mt_idx.numel(), mb)])
+        # MT head: its own subsets, plus anchored singles.
+        mt_w = torch.where(is_mt_subset, w_all, torch.zeros_like(w_all))
+        if anchor_w > 0:
+            mt_w = torch.where(is_wt_subset, w_all * anchor_w, mt_w)
+        mt_ok = (mt_w > 0) & torch.isfinite(ddG)
+
+        # Legacy combined objective.
+        tf_labels = torch.where(n_mut == 1, ddG, ddG_add)
+        has_tf_label = torch.isfinite(tf_labels)
+        comb_ok = wt_block & ((n_mut >= 2) if hp.mt_reg_mask == 'doubles' else torch.ones_like(wt_block))
+        epi_ok = wt_block & (n_mut >= 2) & torch.isfinite(dddG)
+        if not hp.zero_epistasis_for_singles:
+            epi_ok = epi_ok | is_wt_subset
+        epi_targets = torch.where(n_mut >= 2, torch.nan_to_num(dddG), torch.zeros_like(dddG))
+
+        # ---------------- plan ----------------
+        idx = torch.arange(B, device=device)
+        train_wt = (not wt_frozen) and (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0)
+        train_mt_reg = (not mt_frozen) and hp.lambda_reg_mt > 0
+        run_combined = (not mt_frozen) and need_combined
+
+        comb_rows = idx[wt_block] if run_combined else idx[:0]
+        wt_rows = idx[:0] if (run_combined or not train_wt) else idx[wt_ok]
+        mt_rows = idx[mt_ok] if train_mt_reg else idx[:0]
+        units = self._plan_units(batch, wt_rows, mt_rows, comb_rows, mb)
 
         zero = torch.zeros((), device=device)
         sums, cnts = defaultdict(lambda: zero), defaultdict(lambda: zero)
 
-        for idx in micro_slices:
-            micro, w_mb = utils.slice_batch_by_index(batch, idx), w_all[idx]
-            st_mb = micro['subset_type']
-            ddG_mb = micro['ddG'].float()
-            n_mut = micro['mut_mask'].sum(dim=1)
-            nan = torch.full_like(ddG_mb, float('nan'))
-            ddG_add = micro['ddG_additive'].float() if 'ddG_additive' in micro else nan
-            dddG = micro['dddG'].float() if 'dddG' in micro else nan
+        for kind, rows in units:
+            micro, w_mb = utils.slice_batch_by_index(batch, rows), w_all[rows]
+            m_wt_ok, m_mt_ok = wt_ok[rows], mt_ok[rows]
+            losses_wt, losses_mt = [], []
 
-            is_wt_subset = routing.subset_mask(st_mb, routing.WT_HEAD_SUBSETS, device)
-            is_wt_block = is_wt_subset | routing.subset_mask(st_mb, routing.ENSEMBLE_SUBSETS, device)
-            is_mt_subset = routing.subset_mask(st_mb, routing.MT_HEAD_SUBSETS, device)
-
-            # WT head: measured ddG for single mutations, additive ddG for multi-mutants.
-            wt_targets = torch.where(n_mut >= 2, ddG_add, ddG_mb)
-            valid_wt_mask = is_wt_block & torch.isfinite(wt_targets)
-
-            # Legacy teacher forcing: the label that stands in for the WT prediction.
-            tf_labels = torch.where(n_mut == 1, ddG_mb, ddG_add)
-            has_tf_label = torch.isfinite(tf_labels)
-            comb_mask = is_wt_block & (n_mut >= 2 if hp.mt_reg_mask == 'doubles' else torch.ones_like(is_wt_block))
-            epi_mask = is_wt_block & (n_mut >= 2) & torch.isfinite(dddG)
-            if not hp.zero_epistasis_for_singles:
-                epi_mask = epi_mask | is_wt_subset
-            epi_targets = torch.where(n_mut >= 2, torch.nan_to_num(dddG), torch.zeros_like(dddG))
-
-            # MT head: its own subsets, plus anchored singles.
-            mt_reg_w = torch.where(is_mt_subset, w_mb, torch.zeros_like(w_mb))
-            if anchor_w > 0:
-                mt_reg_w = torch.where(is_wt_subset, w_mb * anchor_w, mt_reg_w)
-            mt_reg_mask = (mt_reg_w > 0) & torch.isfinite(ddG_mb)
-
-            train_wt = (not wt_frozen and bool(valid_wt_mask.any())
-                        and (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0))
-            has_comb_rows = need_combined and bool((comb_mask | epi_mask).any())
-            run_mt = not mt_frozen and (has_comb_rows or (train_mt_reg and bool(mt_reg_mask.any())))
-            need_wt_pred = run_mt and has_comb_rows
-            # The WT graph is only reused when an un-detached combined loss reads it.
-            retain_wt = need_wt_pred and not hp.detach_ensemble_input
-
-            # =============================================================
-            # PHASE 1: WILD-TYPE PASS
-            # =============================================================
+            # ---- WT pass (for 'wt' and 'combined' units) ----
             wt_pred_cal = wt_pred_raw = None
-            if train_wt:
-                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=hp.mask_strategy, detach_calibration=hp.detach_regression)
+            if kind in ('wt', 'combined'):
+                retain = (kind == 'combined') and not hp.detach_ensemble_input
+                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=hp.mask_strategy,
+                                                        detach_calibration=hp.detach_regression)
                 wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
                 del wt_out
 
-                wt_losses = []
-                if hp.lambda_reg_wt > 0:
-                    L = self.crit_reg(wt_pred_cal[valid_wt_mask], wt_targets[valid_wt_mask]) * w_mb[valid_wt_mask]
-                    wt_losses.append(hp.lambda_reg_wt * L.sum() / global_w_sum)
-                    sums['reg_wt'] = sums['reg_wt'] + L.sum().detach(); cnts['reg_wt'] = cnts['reg_wt'] + w_mb[valid_wt_mask].sum()
+                if train_wt and m_wt_ok.any():
+                    t = wt_targets[rows]
+                    if hp.lambda_reg_wt > 0:
+                        L = self.crit_reg(wt_pred_cal[m_wt_ok], t[m_wt_ok]) * w_mb[m_wt_ok]
+                        losses_wt.append(hp.lambda_reg_wt * L.sum() / global_w_sum)
+                        sums['reg_wt'] = sums['reg_wt'] + L.sum().detach()
+                        cnts['reg_wt'] = cnts['reg_wt'] + w_mb[m_wt_ok].sum()
+                    if hp.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
+                        L_rank, val, n_list = self._compute_rank_loss(
+                            wt_pred_raw, torch.nan_to_num(t), m_wt_ok, list_size, self.crit_rank_wt)
+                        if L_rank is not None:
+                            losses_wt.append(hp.lambda_rank_wt * L_rank * (n_list / global_num_lists))
+                            sums['rank_wt'] = sums['rank_wt'] + val * n_list
+                            cnts['rank_wt'] = cnts['rank_wt'] + n_list
 
-                if hp.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
-                    L_rank, val, n_list = self._compute_rank_loss(wt_pred_raw, torch.nan_to_num(wt_targets), valid_wt_mask, list_size, self.crit_rank_wt)
-                    if L_rank is not None:
-                        wt_losses.append(hp.lambda_rank_wt * L_rank * (n_list / global_num_lists))
-                        sums['rank_wt'] = sums['rank_wt'] + val * n_list; cnts['rank_wt'] = cnts['rank_wt'] + n_list
-
-                if wt_losses:
-                    total_wt = sum(wt_losses)
-                    if not torch.isfinite(total_wt): raise AssertionError("WT Loss evaluated to NaN/Inf.")
-                    if not total_wt.requires_grad: raise AssertionError("WT Loss detached from PyTorch Graph! Cannot call backward.")
-                    self.manual_backward(total_wt, retain_graph=retain_wt)
-                if not retain_wt:
+                if losses_wt:
+                    total = sum(losses_wt)
+                    if not torch.isfinite(total): raise AssertionError("WT Loss evaluated to NaN/Inf.")
+                    if not total.requires_grad: raise AssertionError("WT Loss detached from PyTorch Graph! Cannot call backward.")
+                    self.manual_backward(total, retain_graph=retain)
+                if not retain and wt_pred_cal is not None:
                     wt_pred_cal, wt_pred_raw = wt_pred_cal.detach(), wt_pred_raw.detach()
-            elif need_wt_pred:
-                with torch.no_grad():
-                    wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=hp.mask_strategy, detach_calibration=hp.detach_regression)
-                    wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
-                    del wt_out
 
-            if not run_mt:
+            if kind == 'wt':
                 continue
 
-            # =============================================================
-            # PHASE 2: MUTANT PASS (+ legacy combined losses)
-            # =============================================================
-            mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=hp.mask_strategy, detach_calibration=hp.detach_regression)
+            # ---- MT pass (for 'mt' and 'combined' units) ----
+            mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=hp.mask_strategy,
+                                                    detach_calibration=hp.detach_regression)
             mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
             del mt_out
-            mt_losses = []
 
-            if need_wt_pred:
+            if kind == 'combined':
                 base_wt_cal = wt_pred_cal.detach() if hp.detach_ensemble_input else wt_pred_cal
                 base_wt_raw = wt_pred_raw.detach() if hp.detach_ensemble_input else wt_pred_raw
+                tf, has_tf = tf_labels[rows], has_tf_label[rows]
 
                 if self.model.lora_mode == 'ensemble':
                     cal_head = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
                     if cal_head is None:
-                        raise AssertionError("Ensemble mode failed: Could not locate 'calibration_head_wt' or 'calibration_head_fused' on self.model for de-calibration.")
+                        raise AssertionError("Ensemble mode failed: Could not locate 'calibration_head_wt' or "
+                                             "'calibration_head_fused' on self.model for de-calibration.")
                     # Invert the calibration: raw = (cal - bias) / scale
                     s = 1.0 if not cal_head.use_scale else cal_head.scale.detach()
                     b = 0.0 if cal_head.bias is None else cal_head.bias.detach()
-                    forced_wt_cal = torch.where(has_tf_label, tf_labels, base_wt_cal)
-                    forced_wt_raw = torch.where(has_tf_label, (tf_labels - b) / s, base_wt_raw)
+                    forced_cal = torch.where(has_tf, tf, base_wt_cal)
+                    forced_raw = torch.where(has_tf, (tf - b) / s, base_wt_raw)
                 elif self.model.lora_mode == 'corrector':
-                    forced_wt_cal, forced_wt_raw = base_wt_cal, base_wt_raw
+                    forced_cal, forced_raw = base_wt_cal, base_wt_raw
                 else:
                     raise AssertionError(f"Unknown lora_mode: {self.model.lora_mode}")
 
-                combined_pred_raw = 0.5 * forced_wt_raw + 0.5 * mt_pred_raw
-                combined_pred_cal = 0.5 * forced_wt_cal + 0.5 * mt_pred_cal
-                epi_pred = 0.5 * mt_pred_cal - 0.5 * forced_wt_cal
-
-                if hp.lambda_reg_combined > 0 and comb_mask.any():
-                    L = self.crit_reg(combined_pred_cal[comb_mask], ddG_mb[comb_mask]) * w_mb[comb_mask]
-                    mt_losses.append(hp.lambda_reg_combined * L.sum() / global_w_sum)
-                    sums['reg_combined'] = sums['reg_combined'] + L.sum().detach(); cnts['reg_combined'] = cnts['reg_combined'] + w_mb[comb_mask].sum()
-
+                m_comb, m_epi = comb_ok[rows], epi_ok[rows]
+                if hp.lambda_reg_combined > 0 and m_comb.any():
+                    L = self.crit_reg(0.5 * forced_cal[m_comb] + 0.5 * mt_pred_cal[m_comb], ddG[rows][m_comb]) * w_mb[m_comb]
+                    losses_mt.append(hp.lambda_reg_combined * L.sum() / global_w_sum)
+                    sums['reg_combined'] = sums['reg_combined'] + L.sum().detach()
+                    cnts['reg_combined'] = cnts['reg_combined'] + w_mb[m_comb].sum()
                 if hp.lambda_rank_combined > 0 and self.crit_rank_combined is not None:
-                    L_rank, val, n_list = self._compute_rank_loss(combined_pred_raw, ddG_mb, comb_mask, list_size, self.crit_rank_combined)
+                    L_rank, val, n_list = self._compute_rank_loss(
+                        0.5 * forced_raw + 0.5 * mt_pred_raw, ddG[rows], m_comb, list_size, self.crit_rank_combined)
                     if L_rank is not None:
-                        mt_losses.append(hp.lambda_rank_combined * L_rank * (n_list / global_num_lists))
-                        sums['rank_combined'] = sums['rank_combined'] + val * n_list; cnts['rank_combined'] = cnts['rank_combined'] + n_list
+                        losses_mt.append(hp.lambda_rank_combined * L_rank * (n_list / global_num_lists))
+                        sums['rank_combined'] = sums['rank_combined'] + val * n_list
+                        cnts['rank_combined'] = cnts['rank_combined'] + n_list
+                if hp.lambda_epi_combined > 0 and m_epi.any():
+                    epi_pred = 0.5 * mt_pred_cal - 0.5 * forced_cal
+                    L = self.crit_reg(epi_pred[m_epi], epi_targets[rows][m_epi]) * w_mb[m_epi]
+                    losses_mt.append(hp.lambda_epi_combined * L.sum() / global_w_sum)
+                    sums['epi_combined'] = sums['epi_combined'] + L.sum().detach()
+                    cnts['epi_combined'] = cnts['epi_combined'] + w_mb[m_epi].sum()
 
-                if hp.lambda_epi_combined > 0 and epi_mask.any():
-                    L = self.crit_reg(epi_pred[epi_mask], epi_targets[epi_mask]) * w_mb[epi_mask]
-                    mt_losses.append(hp.lambda_epi_combined * L.sum() / global_w_sum)
-                    sums['epi_combined'] = sums['epi_combined'] + L.sum().detach(); cnts['epi_combined'] = cnts['epi_combined'] + w_mb[epi_mask].sum()
+            elif kind == 'mt' and m_mt_ok.any():
+                w = mt_w[rows]
+                L = self.crit_reg(mt_pred_cal[m_mt_ok], ddG[rows][m_mt_ok]) * w[m_mt_ok]
+                losses_mt.append(hp.lambda_reg_mt * L.sum() / global_w_sum)
+                sums['reg_mt'] = sums['reg_mt'] + L.sum().detach()
+                cnts['reg_mt'] = cnts['reg_mt'] + w[m_mt_ok].sum()
 
-            if train_mt_reg and mt_reg_mask.any():
-                L = self.crit_reg(mt_pred_cal[mt_reg_mask], ddG_mb[mt_reg_mask]) * mt_reg_w[mt_reg_mask]
-                mt_losses.append(hp.lambda_reg_mt * L.sum() / global_w_sum)
-                sums['reg_mt'] = sums['reg_mt'] + L.sum().detach(); cnts['reg_mt'] = cnts['reg_mt'] + mt_reg_w[mt_reg_mask].sum()
+            if losses_mt:
+                total = sum(losses_mt)
+                if not torch.isfinite(total): raise AssertionError("MT Loss evaluated to NaN/Inf.")
+                if not total.requires_grad: raise AssertionError("MT Loss detached from PyTorch Graph! Cannot call backward.")
+                self.manual_backward(total)
 
-            if mt_losses:
-                total_mt = sum(mt_losses)
-                if not torch.isfinite(total_mt): raise AssertionError("MT Loss evaluated to NaN/Inf.")
-                if not total_mt.requires_grad: raise AssertionError("MT Loss detached from PyTorch Graph! Cannot call backward.")
-                self.manual_backward(total_mt)
-
-        # One host sync for all logged values instead of one per slice and loss term.
+        # One host sync for all logged values instead of one per unit and loss term.
         keys = [k for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined', 'epi_combined', 'reg_mt') if k in cnts]
         if not keys:
             return {}

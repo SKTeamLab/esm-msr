@@ -174,6 +174,30 @@ group. A better control exists and is unused — three domains (2K5H, 1H8K, 1OPS
 scanned in wild-type form and in two mutant backgrounds, giving 5,512 single mutations
 measured in both contexts: directly measured conditional effects with a real distance axis.
 
+## 3.5 Batch planning: one adapter per work unit
+
+`training._plan_units` groups a batch into work units of `(kind, rows)`, and each unit
+drives exactly one adapter, so the inner loop never alternates between them:
+
+| kind | pass | rows |
+|---|---|---|
+| `wt` | WT only | WT-head items (and multi-mutants) with a finite additive target |
+| `mt` | MT only | MT-head items, plus anchored singles when `mt_single_anchor_weight > 0` |
+| `combined` | both | only the legacy `lambda_*_combined` objective, whose loss couples the passes |
+
+Singles can appear in both a `wt` unit and an `mt` unit when the anchor is on. That is the
+same two forward passes as before, split so each runs alone.
+
+WT units are sized by how many *distinct* backbone inputs they hold, not by
+`micro_batch_size`. Every item of a library shares one wild-type sequence, so with
+`dedup_backbone` the whole WT block is one forward: 64 singles at `micro_batch_size 8`
+become a single unit rather than eight, saving seven backbone passes. MT units stay at
+`micro_batch_size`, since each mutant sequence is a distinct input.
+
+Verified against the previous implementation: the legacy-combined and no-anchor
+configurations are bit-identical, and the anchored configuration agrees to 8e-7 on
+gradients — float summation order from the regrouped units.
+
 ## 4. Structure handling
 
 Each item stores **one** structure, shared by both passes, so masking happens at forward

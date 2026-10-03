@@ -218,7 +218,7 @@ class MSRModel(ESM3PredictorBase):
         # (max |Δ pred| == 0.0) in tmp/autocast_fix_test.py.
         if self.adapter_mode == 'dual':
             wt_se = getattr(getattr(self.model, 'base_model', None), '_structure_encoder', None)
-            mt_base = getattr(self.peft_mt, 'base_model', None)
+            mt_base = getattr(getattr(self, 'peft_mt', None), 'base_model', None)
             if wt_se is not None and mt_base is not None:
                 mt_base._structure_encoder = wt_se
 
@@ -238,6 +238,16 @@ class MSRModel(ESM3PredictorBase):
 
         # 5. Log final model statistics
         self._log_trainable_parameters()
+
+    @property
+    def peft_wt(self):
+        """The WT-adapter wrapper. An alias for ``self.model``, not a second submodule."""
+        return self.model
+
+    @property
+    def peft_fused(self):
+        """The single wrapper in fused mode. An alias for ``self.model``."""
+        return self.model
 
     def _create_lora_config(self, kwargs_dict: dict) -> LoraConfig:
         """Helper to dynamically construct a LoraConfig dictionary and object."""
@@ -310,14 +320,17 @@ class MSRModel(ESM3PredictorBase):
             
             base_mt = copy.deepcopy(self.model)
             
-            self.peft_wt = get_peft_model(self.model, wt_config, adapter_name="wt_adapter").to(dtype)
+            # Registered as self.model only. Assigning the same module to a second attribute
+            # (self.peft_wt) would register it twice, so every WT parameter appeared twice in
+            # named_parameters and in saved checkpoints. `peft_wt` is a read-only alias below.
+            self.model = get_peft_model(self.model, wt_config, adapter_name="wt_adapter").to(dtype)
             self.peft_mt = get_peft_model(base_mt, mt_config, adapter_name="mt_adapter").to(dtype)
             
             # Re-share the exact underlying memory footprint AFTER .to(dtype) casting!
             def _clean_peft_name(n: str) -> str:
                 return n.replace("base_model.model.", "").replace(".base_layer.", ".").replace(".original_module.", ".")
 
-            wt_base_params = {_clean_peft_name(n): p for n, p in self.peft_wt.named_parameters() if "lora_" not in n and "dora_" not in n}
+            wt_base_params = {_clean_peft_name(n): p for n, p in self.model.named_parameters() if "lora_" not in n and "dora_" not in n}
             for name_mt, p_mt in self.peft_mt.named_parameters():
                 if "lora_" not in name_mt and "dora_" not in name_mt:
                     clean_name = _clean_peft_name(name_mt)
@@ -328,10 +341,7 @@ class MSRModel(ESM3PredictorBase):
             self.mt_adapter_name = "mt_adapter"
             
             active_configs.extend([wt_kwargs, mt_kwargs])
-            peft_models = [self.peft_wt, self.peft_mt]
-            
-            # Maintain self.model pointing to peft_wt for backwards compatibility
-            self.model = self.peft_wt
+            peft_models = [self.model, self.peft_mt]
 
         elif self.adapter_mode == 'fused':
             mt_kwargs = kwargs.get('mt_config', kwargs)
@@ -342,12 +352,11 @@ class MSRModel(ESM3PredictorBase):
             logging.info(f" Fused Adapter | Rank: {config.r:2} | Alpha: {config.lora_alpha:2} | Dropout: {config.lora_dropout} | DoRA: {getattr(config, 'use_dora', False)}")
             logging.debug(f" Target Regex: {config.target_modules}")
             
-            self.peft_fused = get_peft_model(self.model, config).to(dtype)
-            self.wt_adapter_name = self.mt_adapter_name = list(self.peft_fused.peft_config.keys())[0]
-            
+            self.model = get_peft_model(self.model, config).to(dtype)
+            self.wt_adapter_name = self.mt_adapter_name = list(self.model.peft_config.keys())[0]
+
             active_configs.append(mt_kwargs)
-            peft_models = [self.peft_fused]
-            self.model = self.peft_fused
+            peft_models = [self.model]
 
         # Apply requires_grad correctly via independent PEFT wrappers
         for pm, cfg in zip(peft_models, active_configs):
