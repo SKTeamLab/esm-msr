@@ -203,8 +203,8 @@ Systematic evaluation on `cache_v6` (anchor 1.0, seed 1 unless noted) across seq
 
 | Run / Arm | Key Flags | Epochs | Peak `val_rho_flip_avg` | Peak `val_rho_epi_avg` | Best `val_rmse_combined_avg` | Key Finding |
 |---|---|:---:|:---:|:---:|:---:|---|
-| **A' (Uncensored Ref)** | `--lambda_rank_mt 1.0` | 3 | 0.213 (Ep 2) | 0.378 | 0.686 | Beats released model (0.198) with cleaner v6 batching |
-| **B' (No-Flip Control)** | `--lambda_rank_mt 0.0` | 3 | 0.207 (Ep 1) | 0.363 | 0.679 | Confirms 3 epochs is too short to separate representation from loss |
+| **A' (Uncensored Ref)** | `--lambda_rank_mt 1.0` | 3 | 0.213 (Ep 2) | 0.378 | 0.686 | Seed 1. Seed 2 (7 epochs): 0.173 at Ep 2, peak 0.219 (Ep 4), 0.202 at Ep 6 |
+| **B' (No-Flip Control)** | `--lambda_rank_mt 0.0` | 4 | 0.228 (Ep 3) | 0.372 | 0.679 | Seed 1. 0.204 / 0.207 / 0.205 at Ep 0-2, then 0.228 at Ep 3 (the Ep 3 row is in the resumed run's `metrics.csv`; Ep 0-2 are in `metrics_backup_ep2.csv`) |
 | **F0 (Censor Floor 0.0)** | `--censor_floor 0.0` | 8 | **0.227** (Ep 5) | **0.418** (Ep 2) | **0.671** (Ep 6) | 10.3% censored; highest direct epistasis & best RMSE |
 | **F2 (Censor Floor 0.5)** | `--censor_floor 0.5` | 8 | **0.237** (Ep 5) | 0.396 (Ep 1) | 0.682 (Ep 4) | 24.5% censored; **all-time project record on flip metric** |
 
@@ -218,13 +218,53 @@ Systematic evaluation on `cache_v6` (anchor 1.0, seed 1 unless noted) across seq
 > (section 1); `val_rho_flip_avg` does. `esm_msr_testing.py` writes `*_DeltaSingles.csv` with the
 > measured disagreement and a check of this identity.
 
-Key lessons:
-1. **Extended training ($\ge 4$ epochs) is essential**: Across both censored arms, the MT adapter
-   consistently surges past 0.220 at Epoch 4–5 (F0 reached 0.227, F2 reached 0.237). 3 epochs cuts
-   off training before the adapter hits specialization.
-2. **Floor censoring is a decisive win**: Censoring subfloor items eliminates noise-fitting on
-   truncated measurements. F0 achieves the highest direct epistasis correlation (0.418) and best
-   calibration (0.671 RMSE), while F2 achieves the highest conditional rank correlation (0.237).
+> **Correction (earlier wording overclaimed).** This section previously concluded that the flip loss
+> beats the released model and that "floor censoring is a decisive win". The data do not support
+> either, because every comparison was confounded with training length and the control was never
+> run to the same length. What the logs actually show, epoch-matched on `val_rho_flip_avg`:
+>
+> | epoch | B' no-flip (seed 1) | A' flip (seed 1) | A' flip (seed 2) |
+> |---|---|---|---|
+> | 0 | 0.204 | 0.174 | 0.142 |
+> | 1 | 0.207 | 0.176 | 0.162 |
+> | 2 | 0.205 | 0.213 | 0.173 |
+> | 3 | 0.228 | n/a | 0.219 |
+>
+> 1. **The rank loss does not clearly help, and may slow early learning.** The no-flip control is
+>    ahead at epochs 0-1 and level by epochs 2-3. Seed 2 of the flip arm swings by about 0.03 between
+>    consecutive epochs (0.219 then 0.186), the same size as the gaps between arms, and there is one
+>    seed for most arms. Nothing here is a resolved difference.
+> 2. **Censoring is not shown to help.** F0 (0.227) and F2 (0.237) peak at Ep 5. The no-flip control
+>    was never run past Ep 3 (0.228), so there is no matched baseline for those epochs. The F0 versus F2
+>    ordering is within seed noise. The census figures (10.3% and 24.5% of flip items censored) are
+>    descriptive only.
+> 3. **"Beats the released model (0.198)" is not a like-for-like claim.** The 0.198 is the released
+>    checkpoint on its own validation docket and these values are on this split's validation
+>    libraries, which the handoff already says are not comparable.
+> 4. **Training length is the one effect visible in the data**: every arm, including the no-flip
+>    control, improves between Ep 0-2 and Ep 3-5.
+>
+> **Why the flip loss may not add much (diagnosis, not yet tested).**
+> * *Gradient imbalance.* `norm_grad/lora_mt` is about 1-86 (typically about 30) with the rank loss
+>   and about 0.3-0.5 without it, and `L_rank_mt` (about 19-35) dwarfs `L_reg_mt` (about 0.2-1.7). At
+>   `--lambda_rank_mt 1.0` the rank loss dominates the MT adapter's gradient and is noisy, which would
+>   explain an early deficit. The loss itself is working: it starts at chance level (about 35, the
+>   ln(n!) for n about 14) and falls to about 19.
+> * *Redundancy with the regression.* Conditional-target regression already carries the within-column
+>   ordering, and `--subfloor_rank_only` already keeps floor-pinned items out of it, so the rank loss's
+>   original advantage (immunity to the floor) is largely captured. On `cache_v6` (4,225 columns of at
+>   least 6 members) a per-substitution consensus predictor reaches mean Spearman 0.78 with the
+>   within-column order (about two-thirds of the rank variance; an upper bound, since the consensus
+>   includes the column itself and pinned floor values agree). The loss is mostly rewarding the
+>   additive ordering, and the interaction part is the smaller, noisier remainder.
+>
+> **To settle it:** run the no-flip control to 8 epochs, 2-3 seeds per arm, and sweep
+> `--lambda_rank_mt` at 0.03 and 0.1 before concluding the loss or censoring has any effect. If it stays flat, target
+> the interaction-specific part: rank the deviation from the consensus, or up-weight discordant pairs.
+
+Key lessons that do hold:
+1. **Training length matters**: every arm improves from Ep 0-2 to Ep 3-5.
+2. **The loss is active and well-formed**, but its benefit over regression alone is unproven.
 
 
 ## 7. Not implemented, and why
