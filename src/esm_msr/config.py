@@ -260,6 +260,8 @@ def parse_arguments() -> argparse.Namespace:
     log_group.add_argument('--offline', type=bool, default=False, action=argparse.BooleanOptionalAction)
     log_group.add_argument('--skip_val', type=bool, default=False, action=argparse.BooleanOptionalAction)
     log_group.add_argument('--resume_global_step', type=int, default=0)
+    log_group.add_argument('--ckpt_path', type=str, default=None)
+    log_group.add_argument('--comet_experiment_key', type=str, default=None)
 
     args, remaining_argv = parser.parse_known_args()
     

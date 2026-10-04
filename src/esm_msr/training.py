@@ -35,6 +35,7 @@ torch.set_float32_matmul_precision('high')
 class ESM3EpistasisLightningModule(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
+        self.strict_loading = False
         self.save_hyperparameters(ignore=['tokenizer'])
         
         mt_lora_config = {
@@ -962,7 +963,14 @@ def main():
         checkpoint_dir = os.path.join(args.checkpoint_path, args.experiment_name, args.version or "default_version")
 
     if args.comet_api_key:
-        loggers.append(CometLogger(api_key=args.comet_api_key, project=args.comet_project_name, name=f"{args.experiment_name}-{args.version or 'run'}"))
+        comet_kwargs = {
+            "api_key": args.comet_api_key,
+            "project": args.comet_project_name,
+            "name": f"{args.experiment_name}-{args.version or 'run'}",
+        }
+        if getattr(args, "comet_experiment_key", None):
+            comet_kwargs["experiment_key"] = args.comet_experiment_key
+        loggers.append(CometLogger(**comet_kwargs))
 
     os.makedirs(checkpoint_dir, exist_ok=True)
     callbacks = [
@@ -990,8 +998,8 @@ def main():
         logging.error(f"Trainer init failed: {e}", exc_info=True)
         return
 
-    if not args.skip_val: trainer.validate(lightning_model, dataloaders=val_loaders)
-    trainer.fit(lightning_model, train_dataloaders=train_loaders, val_dataloaders=val_loaders)
+    if not args.skip_val: trainer.validate(lightning_model, dataloaders=val_loaders, ckpt_path=args.ckpt_path)
+    trainer.fit(lightning_model, train_dataloaders=train_loaders, val_dataloaders=val_loaders, ckpt_path=args.ckpt_path)
 
 if __name__ == "__main__":
     main()
