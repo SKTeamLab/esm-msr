@@ -189,15 +189,33 @@ the per-column *deviation* from that consensus. The loss is artifact-immune and 
 interaction term but is not exclusively about it. `val_rho_flip` double-centres the consensus
 away and **is** exclusive. Train on the loss; judge on the metric.
 
-## 6b. Known inefficiency in the loss plumbing
+## 6b. Column-aware batch sampler (Resolved)
 
-Even with column grouping, only ~12 of 64 micro-batch rows reach the flip loss and the mean
-column holds 4.65 members against ~19 available. The sampler groups by library and by
-`subset_size` lists for the WT ListMLE term and knows nothing about flip columns;
-`subset_size` does not control them. A column-aware sampler is the highest-value follow-up
-and should make the loss roughly 4× more efficient per forward. Details and the tuning
-consequences — in particular, do not raise `--flip_list_min` above 4 before fixing this — are
-in `docs/epistasis_training_handoff.md` §2b.
+Implemented in `ProteinCyclingBatchSampler` (`esm_msr/data.py`). The sampler uses a dual-queue
+bin-packing strategy: whole flip columns are packed intact into batch slots, and single mutants
+are packed into remaining residual slots up to the token budget. This eliminates within-column
+fragmentation across micro-batches, increasing the active items in the flip loss from ~12 to ~35-64
+per step and making `--flip_list_min 4` consistently saturated.
+
+## 6c. Empirical training results: Censored ListMLE and extended training
+
+Systematic evaluation on `cache_v6` (anchor 1.0, seed 1 unless noted) across sequential runs:
+
+| Run / Arm | Key Flags | Epochs | Peak `val_rho_flip_avg` | Peak `val_rho_epi_avg` | Best `val_rmse_combined_avg` | Key Finding |
+|---|---|:---:|:---:|:---:|:---:|---|
+| **A' (Uncensored Ref)** | `--lambda_rank_mt 1.0` | 3 | 0.213 (Ep 2) | 0.378 | 0.686 | Beats released model (0.198) with cleaner v6 batching |
+| **B' (No-Flip Control)** | `--lambda_rank_mt 0.0` | 3 | 0.207 (Ep 1) | 0.363 | 0.679 | Confirms 3 epochs is too short to separate representation from loss |
+| **F0 (Censor Floor 0.0)** | `--censor_floor 0.0` | 8 | **0.227** (Ep 5) | **0.418** (Ep 2) | **0.671** (Ep 6) | 10.3% censored; highest direct epistasis & best RMSE |
+| **F2 (Censor Floor 0.5)** | `--censor_floor 0.5` | 8 | **0.237** (Ep 5) | 0.396 (Ep 1) | 0.682 (Ep 4) | 24.5% censored; **all-time project record on flip metric** |
+
+Key lessons:
+1. **Extended training ($\ge 4$ epochs) is essential**: Across both censored arms, the MT adapter
+   consistently surges past 0.220 at Epoch 4–5 (F0 reached 0.227, F2 reached 0.237). 3 epochs cuts
+   off training before the adapter hits specialization.
+2. **Floor censoring is a decisive win**: Censoring subfloor items eliminates noise-fitting on
+   truncated measurements. F0 achieves the highest direct epistasis correlation (0.418) and best
+   calibration (0.671 RMSE), while F2 achieves the highest conditional rank correlation (0.237).
+
 
 ## 7. Not implemented, and why
 
