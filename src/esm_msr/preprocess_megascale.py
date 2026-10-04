@@ -351,6 +351,7 @@ class MegaScaleDatasetPreprocessor:
         combine_validation: bool = False,
         min_additive_dG: Optional[float] = -1.0,
         subfloor_rank_only: bool = True,
+        censor_floor: Optional[float] = None,
     ) -> Tuple[List[DataLoader], List[str]]:
         """Generates a list of dataloaders for a specific list of protein codes."""
         loaders = []
@@ -386,6 +387,7 @@ class MegaScaleDatasetPreprocessor:
                     dG_wt=self.dG_wt.get(code),
                     min_additive_dG=min_additive_dG,
                     subfloor_rank_only=subfloor_rank_only,
+                    censor_floor=censor_floor,
                 )
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
@@ -469,6 +471,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         mask_mutated_structure=args.mask_mutated_structure,
         min_additive_dG=getattr(args, 'min_additive_dG', -1.0),
         subfloor_rank_only=getattr(args, 'subfloor_rank_only', True),
+        censor_floor=getattr(args, 'censor_floor', None),
     )
 
     if not train_dataloaders: 

@@ -77,6 +77,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.crit_rank_wt = _get_rank_loss() if self.hparams.lambda_rank_wt > 0 else None
         self.crit_rank_combined = _get_rank_loss() if self.hparams.lambda_rank_combined > 0 else None
         self.crit_rank_mt = _get_rank_loss() if self.hparams.lambda_rank_mt > 0 else None
+        if self.hparams.get('censor_floor', None) is not None and self.hparams.lambda_rank_mt > 0 \
+                and not isinstance(self.crit_rank_mt, ListMLELoss):
+            raise AssertionError("--censor_floor requires --rank_loss listmle (censored Plackett-Luce).")
 
         if self.hparams.reg_loss == 'huber':
             self.crit_reg = nn.HuberLoss(reduction='none', delta=self.hparams.huber_delta)
@@ -176,7 +179,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             return scaled_loss, L_raw.detach(), num_lists
         return None, 0.0, 0
 
-    def _compute_flip_loss(self, pred, targets, valid, flip_keys, crit_fn, min_len):
+    def _compute_flip_loss(self, pred, targets, valid, flip_keys, crit_fn, min_len, censored=None):
         """Within-column rank loss on the MT pass - the flip-signature objective.
 
         A *flip column* is one scored position with one fixed partner identity, over the
@@ -199,12 +202,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         Columns are variable length, so they are padded into a [G, L] block with a mask
         rather than reshaped.
+
+        ``censored`` (optional bool per row) marks items pinned at the assay floor. They stay
+        in their column - every uncensored member is still ranked above them - but their order
+        among themselves is not scored (censored Plackett-Luce, ``ListMLELoss`` ``score_mask``).
+        A column counts toward ``min_len`` by total membership but needs >= 1 uncensored member
+        to carry any information.
         """
         groups = {}
         for i, k in enumerate(flip_keys):
             if k and bool(valid[i]):
                 groups.setdefault(k, []).append(i)
-        groups = [g for g in groups.values() if len(g) >= min_len]
+        groups = [g for g in groups.values() if len(g) >= min_len
+                  and (censored is None or not all(bool(censored[i]) for i in g))]
         if not groups:
             return None, 0.0, 0
         L = max(len(g) for g in groups)
@@ -213,15 +223,22 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         p = torch.zeros(G, L, device=dev, dtype=pred.dtype)
         t = torch.zeros(G, L, device=dev, dtype=pred.dtype)
         m = torch.zeros(G, L, device=dev, dtype=torch.bool)
+        sm = torch.ones(G, L, device=dev, dtype=torch.bool)
         for gi, g in enumerate(groups):
             idx = torch.as_tensor(g, device=dev, dtype=torch.long)
             p[gi, :len(g)] = pred[idx]
             t[gi, :len(g)] = targets[idx]
             m[gi, :len(g)] = True
-        L_raw = crit_fn(p, t, mask=m)
+            if censored is not None:
+                sm[gi, :len(g)] = ~censored[idx]
+        if censored is not None:
+            L_raw = crit_fn(p, t, mask=m, score_mask=sm)
+        else:
+            L_raw = crit_fn(p, t, mask=m)
         avg_len = m.float().sum(dim=-1).mean()
         scaled = L_raw * (L / avg_len.clamp(min=1.0))
-        self._flip_diag = (G, float(avg_len), int(sum(len(g) for g in groups)))
+        n_unc = int((m & sm).sum())
+        self._flip_diag = (G, float(avg_len), int(sum(len(g) for g in groups)), n_unc)
         return scaled, L_raw.detach(), G
 
     def _subset_weights(self, subset_types, device) -> torch.Tensor:
@@ -318,8 +335,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # How many flip columns the whole batch offers, so each micro-batch's contribution
         # is weighted by its share (mirrors global_num_lists for the ListMLE terms).
         self._last_flip_keys = flip_keys
-        _fk = Counter(k for k in flip_keys if k)
-        global_num_flip = max(1, sum(1 for _, c in _fk.items() if c >= int(hp.flip_list_min)))
+        cens_all = batch.get('censored')
+        use_cens = hp.get('censor_floor', None) is not None and torch.is_tensor(cens_all)
+        cens_all = cens_all.to(device) if use_cens else None
+        _fk = Counter(k for i, k in enumerate(flip_keys) if k)
+        _unc = Counter(k for i, k in enumerate(flip_keys) if k and not (use_cens and bool(cens_all[i])))
+        global_num_flip = max(1, sum(1 for k, c in _fk.items() if c >= int(hp.flip_list_min) and _unc[k] > 0))
 
         need_combined = hp.lambda_rank_combined > 0 or hp.lambda_reg_combined > 0 or hp.lambda_epi_combined > 0
         anchor_w = float(hp.get('mt_single_anchor_weight', 0.0) or 0.0)
@@ -504,7 +525,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     fk_rows = [flip_keys[int(r)] for r in rows]
                     L_flip, val, n_grp = self._compute_flip_loss(
                         mt_pred_raw, ddG[rows], m_mt_ok, fk_rows,
-                        self.crit_rank_mt, hp.flip_list_min)
+                        self.crit_rank_mt, hp.flip_list_min,
+                        censored=cens_all[rows] if use_cens else None)
                     if L_flip is not None:
                         losses_mt.append(hp.lambda_rank_mt * L_flip * (n_grp / max(global_num_flip, 1)))
                         sums['rank_mt'] = sums['rank_mt'] + val * n_grp
@@ -601,10 +623,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         for k, v in logs.items():
             if v > 0.0: self.log(f"train/{k}", v, on_step=True)
         if getattr(self, '_flip_diag', None) is not None:
-            g, alen, nitems = self._flip_diag
+            g, alen, nitems, n_unc = self._flip_diag
             self.log("train/flip_cols", float(g), on_step=True)
             self.log("train/flip_len", float(alen), on_step=True)
             self.log("train/flip_items", float(nitems), on_step=True)
+            self.log("train/flip_uncensored", float(n_unc), on_step=True)
             self._flip_diag = None
             
         if getattr(self.trainer.precision_plugin, "scaler", None) is not None:

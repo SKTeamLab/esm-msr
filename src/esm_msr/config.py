@@ -115,6 +115,15 @@ def parse_arguments() -> argparse.Namespace:
                                  "but a third are genuine compensation, so dropping them discards real data. Their "
                                  "ordering is informative while their absolute value is not.")
 
+    loss_group.add_argument('--censor_floor', type=float, default=None,
+                            help="Censored ranking for --lambda_rank_mt. Flip-column items whose MEASURED dG is at or "
+                                 "below this value are pinned at the assay's dynamic-range floor, so their order among "
+                                 "themselves is unknown. They are treated as tied at the bottom: every above-floor item "
+                                 "must still rank above them, but their relative order costs nothing (censored "
+                                 "Plackett-Luce; the WT head's rank loss is untouched). Needs the v6 cache. Typical "
+                                 "values: 0.0, +0.5 (practical floor); -1.0 censors nothing in cache_v6. Default None = off. "
+                                 "Unlike --subfloor_rank_only, which flags on the ADDITIVE prediction, this flags on the "
+                                 "measured value, so genuine compensators (measured above floor) keep their ordering.")
     loss_group.add_argument('--mt_single_anchor_weight', type=float, default=0.0,
                             help="Per-item weight for also regressing the MT pass on ordinary singles (the zero-background "
                                  "case of the MT task). 0 disables. Requires --lambda_reg_mt > 0.")

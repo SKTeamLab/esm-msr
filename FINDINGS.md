@@ -180,6 +180,7 @@ measured accuracy, not inflating it.
 | `flip_key` on `cond` / `native_cond` items | Groups items into flip columns. Within a column the conditional target `ddG(A|B)` differs from `ddG_AB` only by the constant `ddG_B`, so ordering by either is identical. |
 | `val_rho_flip` (new metric) | `val_rho_combined_avg` is blind to this channel (§1), so MT hyperparameters were being tuned against a metric indifferent to their purpose. Double-centred, hence exclusive to identity-dependent interaction. |
 | `--flip_group_units` (new, default on) | Orders MT work-unit rows by flip column. Measured 2.9× more items into the loss (11.8 vs 4.1 per step) and the loss fires on every step rather than 86% of them. |
+| `--censor_floor` (new, default off; needs cache v6) | Censored Plackett–Luce for the flip loss: items measured at/below the floor are tied at the bottom — above-floor items must still beat them, but their order among themselves is free. Training on that order fitted noise (§5). Implemented, awaiting a GPU comparison (handoff §2d). |
 | `epistasis_pred` (new inference column) | The MT-pass epistasis. `combined_pred` stays the calibrated ΔΔG output (§4). |
 
 **Honest caveat on the loss.** Under strict additivity every column shares one ordering, so a

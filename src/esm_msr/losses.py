@@ -19,9 +19,19 @@ class ListMLELoss(torch.nn.Module):
         self.eps = eps
         self.invert = invert
 
-    def forward(self, predictions: torch.Tensor, ground_truths: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(self, predictions: torch.Tensor, ground_truths: torch.Tensor, mask: torch.Tensor | None = None,
+                score_mask: torch.Tensor | None = None) -> torch.Tensor:
         """
         Calculates the masked ListMLE loss.
+
+        ``score_mask`` (opt-in; ``None`` leaves the computation exactly as it always was)
+        turns this into a *censored* Plackett-Luce likelihood. Items with
+        ``mask & ~score_mask`` are censored: their true order among themselves is unknown (e.g.
+        measurements pinned at an assay's dynamic-range floor), but they are known to rank
+        below every scored item. They are placed after all scored items, stay in the
+        denominators - so each scored item is still pushed above every censored one - and
+        contribute no numerator term of their own, so permuting them costs nothing. A list
+        with no scored item carries no information and is skipped.
 
         Args:
             predictions (torch.Tensor): A tensor of scores predicted by the model (Batch, List_Size).
@@ -42,8 +52,17 @@ class ListMLELoss(torch.nn.Module):
         elif mask.shape != predictions.shape:
             raise AssertionError(f"Mask shape {mask.shape} must strictly match predictions shape {predictions.shape}.")
 
+        if score_mask is not None:
+            if score_mask.shape != predictions.shape:
+                raise AssertionError(f"score_mask shape {score_mask.shape} must strictly match predictions shape {predictions.shape}.")
+            if self.invert:
+                raise AssertionError("score_mask (censored ListMLE) is not supported together with invert=True.")
+
         # 1. Push masked ground truths to -infinity so they are sorted to the very end of the list
         gt_masked = ground_truths.clone()
+        if score_mask is not None:
+            # Censored items sort after every scored item but before the masked-out ones.
+            gt_masked[mask & ~score_mask] = torch.finfo(gt_masked.dtype).min
         gt_masked[~mask] = float('-inf')
 
         # `descending=True` means HIGHER ground_truth values are ranked higher.
@@ -83,7 +102,11 @@ class ListMLELoss(torch.nn.Module):
         # 4. --- Loss Calculation ---
         log_probs = ordered_predictions - max_predictions - torch.log(cum_sum_exp_predictions)
         
-        log_probs = log_probs * ordered_mask.float()
+        if score_mask is None:
+            log_probs = log_probs * ordered_mask.float()
+        else:
+            ordered_score = (score_mask & mask).gather(-1, indices)
+            log_probs = log_probs * ordered_score.float()
 
         # Sum the log probabilities per list
         list_loss = -torch.sum(log_probs, dim=-1)
@@ -91,6 +114,8 @@ class ListMLELoss(torch.nn.Module):
         # 5. --- Safe Batch Averaging ---
         # Ranking requires at least 2 valid items to form a meaningful permutation.
         valid_lists = ordered_mask.sum(dim=-1) > 1
+        if score_mask is not None:
+            valid_lists = valid_lists & (score_mask & mask).any(dim=-1)
         
         if valid_lists.sum() == 0:
             # If the entire micro-batch was masked out, return a 0.0 tensor with attached gradients to prevent crashes

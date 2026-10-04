@@ -22,7 +22,7 @@ column, `flip_key` and `reg_ok` fields on cached items.
 
 > **The cache must be rebuilt**, and `CACHE_VERSION` was bumped `v4` → `v5` so this happens
 > on its own: the version is part of each cache filename, so a stale `v4` pickle can no longer
-> be loaded silently by a run expecting the new item schema. Point `--cache_path cache_v5` and
+> be loaded silently by a run expecting the new item schema. Point `--cache_path cache_v6` and
 > it regenerates; ~4 minutes for the full 404 libraries (0.4–0.8 s/library). The old `v4`
 > files are untouched and still serve runs on the previous commit.
 >
@@ -46,7 +46,7 @@ PY=/home/sareeves/miniconda3/envs/msr_venv/bin/python
   --raw_data_file '/home/sareeves/software/esm-msr/data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv' \
   --af_model_folder '/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs' \
   --split_file '/home/sareeves/software/esm-msr/data/hyperopt_splits.pkl' \
-  --cache_path cache_v5 \
+  --cache_path cache_v6 \
   --benchmark_data_path repo/data/preprocessed \
   --checkpoint_path training_checkpoints --log_dir training_logs \
   --num_epochs 8 --seed 1 \
@@ -138,12 +138,47 @@ If 0.25 or 0 wins on `val_rho_flip_avg` without hurting `val_rho_mt_valid_avg` o
 requires nothing else to change, but the assertion tying it to `--lambda_reg_mt > 0` means
 you cannot zero both.
 
+## 2d. Censored ranking (`--censor_floor`) — implemented, NOT yet run on GPU
+
+`--subfloor_rank_only` withholds sub-floor items from the regression but leaves them in the
+flip rank loss, where `ListMLELoss` trains the model to reproduce their mutual order. That order
+is noise (pinned or unidentifiable fits). `--censor_floor F` fixes it with a censored
+Plackett–Luce likelihood:
+
+* A flip-column item is **censored** when its *measured* dG (`dG_meas` = library `dG_wt` +
+  total ddG, cached since **v6**) is `<= F`. Items without a finite `dG_meas` are never censored.
+* Censored items stay in each column's denominators, so every above-floor item is still pushed
+  above every floor item, but they contribute no numerator term: **their order among themselves
+  costs nothing** (exact in the loss; unit-tested by permuting them).
+* A column needs >= `--flip_list_min` members in total *and* >= 1 uncensored member.
+* Measured, not additive: genuine compensators (additive prediction below the floor, measured
+  above it) keep their ordering. `--subfloor_rank_only` is unchanged and independent.
+* Scope: only the MT flip loss. `ListMLELoss.score_mask` is opt-in (default `None`); the WT /
+  combined rank losses never pass it and are bit-identical to before (verified against the
+  previous implementation on loss and gradient, and by a test that only `_compute_flip_loss`
+  passes it). Requires `--rank_loss listmle`.
+* Default is **off** (`None`), so runs without the flag reproduce v5 behaviour on the v6 cache.
+* New diagnostic `train/flip_uncensored`: members that actually carry order information.
+  `train/flip_items` still counts all column members and now overstates signal when censoring.
+
+Floor choice is open. Share of `cond` items censored in cache_v6: **0.0% at -1.0**, **11.8% at 0.0**, **28.0% at +0.5** (practical floor, §5 of
+FINDINGS). Suggested sweep once a GPU slot is free, vs. run **A**:
+
+| run | override | question |
+|---|---|---|
+| **F0** | `--censor_floor 0.0` | Does ignoring floor-pinned order beat A on `val_rho_flip_avg`? |
+| ~~F1~~ | ~~`--censor_floor -1.0`~~ | **Useless**: 0.0% of cond items in cache_v6 have measured dG <= -1.0 (the fit's bound is never reached in the stored values). Use 0.0 and 0.5. |
+| **F2** | `--censor_floor 0.5` | Aggressive: the practical floor. |
+
+Decision rule: F > A on flip with `val_rmse_combined_avg` flat -> adopt the best floor.
+
 ## 3. What to watch
 
 | metric | meaning | expectation |
 |---|---|---|
 | `train/rank_mt` | the new flip loss | must be non-zero from step one. Zero means a stale cache, or `flip_list_min` set too high (§2b). |
 | `train/flip_cols` | flip columns used per step | ~2.6 grouped at `micro_batch_size 64`. Falling toward 0 is the alarm. |
+| `train/flip_uncensored` | of those, rows whose order is scored (only with `--censor_floor`) | Fraction of `flip_items` is the effective-signal share; if tiny, lower the floor. |
 | `train/flip_items` | rows actually entering the flip loss | ~12 of 64 at the canonical settings (§2b). Rises if the anchor is lowered. |
 | `train/flip_len` | mean members per column | ~4.65. If this approaches `flip_list_min` the loss is running on scraps. |
 | `val_flip_pairs/<loader>` | usable position pairs per validation library | 0 for libraries without designed doubles — expected, not a failure |
