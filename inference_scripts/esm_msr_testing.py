@@ -80,6 +80,22 @@ def update_stats(stats_df, row_name, res_df, true_col, pred_col, epi_true_col='d
     return stats_df
 
 
+def update_delta_stats(stats_df, row_name, res_df, epi_true_col):
+    """Per-library MT-vs-WT single-mutant disagreement and its effect on the epistasis readouts
+    (see stats.delta_single_diagnostics). Skipped quietly if the predictions lack the columns."""
+    for col, val in stats.delta_single_diagnostics(res_df, epi_true_col).items():
+        stats_df.at[row_name, col] = val
+    return stats_df
+
+
+def save_delta_stats(stats_df, stats_base):
+    if len(stats_df):
+        stats_df.to_csv(f'{stats_base}_DeltaSingles.csv', na_rep='', float_format='%.6f')
+        stats_df.mean(axis=0).to_csv(f'{stats_base}_DeltaSingles_avg.csv', na_rep='', float_format='%.6f')
+        print("MT-vs-WT single-mutant disagreement (mean over libraries):")
+        print(stats_df.mean(axis=0).to_string(float_format=lambda x: f'{x:.4f}'))
+
+
 def run_protein_gym(args, model):
     """Run esm-msr over all (preprocessed) ProteinGym DMS benchmarks.
 
@@ -316,6 +332,7 @@ def main_(args):
         stats_wt = pd.DataFrame()
         stats_mt = pd.DataFrame()
         stats_cmb = pd.DataFrame()
+        stats_delta = pd.DataFrame()
 
         for name in external_test_dataloaders_names:
             print(f"Processing External Dataset: {name}")
@@ -372,6 +389,7 @@ def main_(args):
             if not args.skip_reverse:
                 stats_mt = update_stats(stats_mt, name, res_df, 'ddG', 'mt_lora_pred', 'dddG', 'mt_lora_dddg_pred', total_time)
                 stats_cmb = update_stats(stats_cmb, name, res_df, 'ddG', 'combined_pred', 'dddG', 'combined_dddg_pred', total_time)
+                stats_delta = update_delta_stats(stats_delta, name, res_df, 'dddG')
 
             if 'ptmul' not in name:
                 assert len(df_true) == len(res_df), f"Lost samples during join for {name}!"
@@ -383,6 +401,7 @@ def main_(args):
             if not args.skip_reverse:
                 stats_mt.to_csv(f'{stats_base}_MT_LoRA.csv', na_rep='', float_format='%.6f')
                 stats_cmb.to_csv(f'{stats_base}_Combined.csv', na_rep='', float_format='%.6f')
+                save_delta_stats(stats_delta, stats_base)
 
     # =========================================================================
     # TSUBOYAMA SPLITS
@@ -406,6 +425,7 @@ def main_(args):
             stats_wt = pd.DataFrame()
             stats_mt = pd.DataFrame()
             stats_cmb = pd.DataFrame()
+            stats_delta = pd.DataFrame()
 
             scaffold_ = {'validation': 'val', 'testing': 'test'}[scaffold]
             data_scaffold = ds.split_dfs[scaffold_]
@@ -466,6 +486,7 @@ def main_(args):
                 if not args.skip_reverse:
                     stats_mt = update_stats(stats_mt, code, group, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', current_time)
                     stats_cmb = update_stats(stats_cmb, code, group, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', current_time)
+                    stats_delta = update_delta_stats(stats_delta, code, group, 'dddG_ML')
 
             stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
@@ -476,6 +497,7 @@ def main_(args):
             if not args.skip_reverse:
                 stats_mt.to_csv(f'{stats_base}_MT_LoRA.csv', na_rep='', float_format='%.6f')
                 stats_cmb.to_csv(f'{stats_base}_Combined.csv', na_rep='', float_format='%.6f')
+                save_delta_stats(stats_delta, stats_base)
                 stats_mt.mean(axis=0).to_csv(f'{stats_base}_MT_LoRA_avg.csv', na_rep='', float_format='%.6f')
                 stats_cmb.mean(axis=0).to_csv(f'{stats_base}_Combined_avg.csv', na_rep='', float_format='%.6f')
 
@@ -493,6 +515,7 @@ def main_(args):
         stats_wt = pd.DataFrame()
         stats_mt = pd.DataFrame()
         stats_cmb = pd.DataFrame()
+        stats_delta = pd.DataFrame()
         
         res_combined = []
 
@@ -539,6 +562,7 @@ def main_(args):
             if not args.skip_reverse:
                 stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', t_inf)
                 stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', t_inf)
+                stats_delta = update_delta_stats(stats_delta, prot, res, 'dddG_ML')
 
             stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
@@ -548,6 +572,7 @@ def main_(args):
             if not args.skip_reverse:
                 stats_mt.to_csv(f'{stats_base}_MT_LoRA.csv', na_rep='', float_format='%.6f')
                 stats_cmb.to_csv(f'{stats_base}_Combined.csv', na_rep='', float_format='%.6f')
+                save_delta_stats(stats_delta, stats_base)
 
             torch.cuda.empty_cache()
 

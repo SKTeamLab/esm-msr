@@ -108,7 +108,111 @@ def safe_ndcg_t0(preds, targets):
         raise RuntimeError(f"NDCG calculation failed. Underlying error: {str(e)}")
 
 
-def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types, dddG=None):
+def epi_full_scores(comb_scores, subset_types, mut_keys):
+    """
+    ``comb_AB - comb_A - comb_B`` for every double whose two singles are in the same set.
+
+    ``mut_keys[i]`` is the tuple of mutations of item i (each a hashable, e.g. (wt, pos, mt)).
+    Singles are items of subset ``single`` with exactly one mutation. Returns an array aligned
+    with the inputs: NaN for anything that is not a double with both singles present.
+    """
+    comb_scores = np.asarray(comb_scores, dtype=np.float64)
+    out = np.full(len(comb_scores), np.nan)
+    if mut_keys is None or len(mut_keys) != len(comb_scores):
+        return out
+    st = np.asarray(subset_types)
+    single = {}
+    for i, k in enumerate(mut_keys):
+        if st[i] in routing.WT_HEAD_SUBSETS and len(k) == 1:
+            single[tuple(k[0])] = comb_scores[i]
+    for i, k in enumerate(mut_keys):
+        if st[i] in routing.ENSEMBLE_SUBSETS and len(k) == 2:
+            a, b = single.get(tuple(k[0])), single.get(tuple(k[1]))
+            if a is not None and b is not None:
+                out[i] = comb_scores[i] - a - b
+    return out
+
+
+def _rho_epi_full(comb_scores, subset_types, mut_keys, dddG, is_double):
+    e = epi_full_scores(comb_scores, subset_types, mut_keys)
+    ok = is_double & np.isfinite(e)
+    return safe_spearman(e[ok], dddG[ok])
+
+
+def delta_single_diagnostics(df, epi_true_col=None):
+    """
+    How much the MT and WT heads disagree on single mutants, and what that does to the two
+    epistasis readouts. Operates on an inference-output DataFrame (``infer_mutants`` columns
+    plus ``mut_type``, ``:`` separating the mutations of a multi-mutant).
+
+    With delta_X = mt_X - wt_X on singles, dW = wt_AB - wt_A - wt_B and
+    dM = mt_AB - mt_A - mt_B on doubles:
+
+        E_fast = 0.5 * (mt_AB - wt_AB) = 0.5 * (dM - dW) + 0.5 * (delta_A + delta_B)
+        E_full = comb_AB - comb_A - comb_B = 0.5 * (dM + dW)
+
+    so E_fast - E_full = 0.5 * (delta_A + delta_B) - dW exactly. ``identity_resid`` checks
+    that on the data (should be ~1e-6); ``dW_sd`` checks the WT head's additivity (a constant
+    dW has sd ~0). ``delta_term_share`` is sd(0.5 * (delta_A + delta_B)) / sd(0.5 * dM): how
+    large the per-substitution contamination of E_fast is relative to the interaction term
+    both readouts share. Doubles need both their singles in ``df``.
+
+    Returns a flat dict; undefined entries are NaN. The double-level entries need the
+    ``*_dddg_pred`` columns, i.e. an inference run without ``--skip_additive``.
+    """
+    import pandas as pd
+    nan = float('nan')
+    keys = ('n_singles', 'delta_mean', 'delta_sd', 'delta_sd_rel_wt', 'slope_mt_on_wt', 'rho_mt_wt_singles',
+            'rho_delta_wt_singles', 'n_doubles_paired', 'dW_sd', 'dM_sd', 'delta_term_share',
+            'identity_resid', 'rho_fast_vs_full', 'rho_epi_fast', 'rho_epi_full', 'rho_epi_delta_term')
+    out = {k: nan for k in keys}
+    need = {'mut_type', 'wt_lora_pred', 'mt_lora_pred'}
+    if not need.issubset(df.columns):
+        return out
+
+    is_dbl = df['mut_type'].astype(str).str.contains(':')
+    s = df.loc[~is_dbl].drop_duplicates('mut_type').set_index('mut_type')
+    s = s[np.isfinite(s['wt_lora_pred'].astype(float)) & np.isfinite(s['mt_lora_pred'].astype(float))]
+    if len(s) < 3:
+        return out
+    w, m = s['wt_lora_pred'].to_numpy(float), s['mt_lora_pred'].to_numpy(float)
+    delta = m - w
+    out.update(n_singles=float(len(s)), delta_mean=float(delta.mean()), delta_sd=float(delta.std()),
+               delta_sd_rel_wt=float(delta.std() / w.std()) if w.std() > 0 else nan,
+               slope_mt_on_wt=float(np.polyfit(w, m, 1)[0]) if w.std() > 0 else nan,
+               rho_mt_wt_singles=safe_spearman(m, w), rho_delta_wt_singles=safe_spearman(delta, w))
+
+    cols = {'wt_lora_dddg_pred', 'mt_lora_dddg_pred', 'combined_dddg_pred'}
+    if not cols.issubset(df.columns):
+        return out
+    d = df.loc[is_dbl].copy()
+    parts = d['mut_type'].astype(str).str.split(':')
+    d = d[parts.str.len() == 2]
+    parts = parts[d.index] if d.index.is_unique else parts.loc[d.index]
+    delta_s = pd.Series(delta, index=s.index)
+    da = parts.str[0].map(delta_s)
+    db = parts.str[1].map(delta_s)
+    ok = (da.notna() & db.notna()).to_numpy()
+    if ok.sum() < 3:
+        return out
+    d, da, db = d[ok], da[ok].to_numpy(float), db[ok].to_numpy(float)
+    dW, dM = d['wt_lora_dddg_pred'].to_numpy(float), d['mt_lora_dddg_pred'].to_numpy(float)
+    e_full = d['combined_dddg_pred'].to_numpy(float)
+    e_fast = 0.5 * (d['mt_lora_pred'].to_numpy(float) - d['wt_lora_pred'].to_numpy(float))
+    dterm = 0.5 * (da + db)
+    out.update(n_doubles_paired=float(len(d)), dW_sd=float(np.std(dW)), dM_sd=float(np.std(dM)),
+               delta_term_share=float(np.std(dterm) / np.std(0.5 * dM)) if np.std(dM) > 0 else nan,
+               identity_resid=float(np.max(np.abs(e_fast - e_full - (dterm - dW)))),
+               rho_fast_vs_full=safe_spearman(e_fast, e_full))
+    if epi_true_col is not None and epi_true_col in d.columns:
+        y = d[epi_true_col].to_numpy(float)
+        out.update(rho_epi_fast=safe_spearman(e_fast[np.isfinite(y)], y[np.isfinite(y)]),
+                   rho_epi_full=safe_spearman(e_full[np.isfinite(y)], y[np.isfinite(y)]),
+                   rho_epi_delta_term=safe_spearman(dterm[np.isfinite(y)], y[np.isfinite(y)]))
+    return out
+
+
+def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types, dddG=None, mut_keys=None):
     """
     The validation metrics for one dataloader (one protein library or benchmark).
 
@@ -128,8 +232,16 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     * ``rho_combined``   - the reported two-path average, on measured items only.
     * ``rmse_combined``  - calibration of that average in kcal/mol; rank correlation cannot
       see a scale or offset error.
-    * ``rho_epi``        - direct Spearman correlation between predicted epistasis
-      (comb_scores - wt_scores = 0.5 * (mt - wt)) and ground truth dddG on double mutants.
+    * ``rho_epi_fast``   - Spearman between predicted epistasis ``comb - wt = 0.5 * (mt - wt)``
+      of a double and its measured dddG. Needs only the double itself. Equals the true
+      interaction only if the two heads agree on every single mutant; otherwise it carries
+      an extra 0.5 * (delta_A + delta_B) per-substitution term, delta_X = mt_X - wt_X.
+    * ``rho_epi_full``   - the same correlation for ``comb_AB - comb_A - comb_B``, the second
+      difference of the combined prediction, which mirrors how dddG is defined and cancels
+      any head-specific single-mutant effect. Needs ``mut_keys`` (one hashable key per item:
+      the tuple of its mutations) and both singles of a double in the same loader; doubles
+      whose singles are absent are skipped. Because the WT head is additive, this is rank-
+      equivalent to the MT-only second difference.
 
     ``_all`` deliberately mixes quantities: a conditional ddG(X | background) is not a
     wild-type-context ddG, so a correlation pooling them answers "does this head rank
@@ -160,9 +272,11 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
         has_dddG = np.isfinite(dddG)
         is_double = np.isin(subset_types, list(routing.ENSEMBLE_SUBSETS)) & has_dddG
         epi_pred = comb_scores - wt_scores
-        metrics['rho_epi'] = safe_spearman(epi_pred[is_double], dddG[is_double])
+        metrics['rho_epi_fast'] = safe_spearman(epi_pred[is_double], dddG[is_double])
+        metrics['rho_epi_full'] = _rho_epi_full(comb_scores, subset_types, mut_keys, dddG, is_double)
     else:
-        metrics['rho_epi'] = float('nan')
+        metrics['rho_epi_fast'] = float('nan')
+        metrics['rho_epi_full'] = float('nan')
 
     return metrics
 

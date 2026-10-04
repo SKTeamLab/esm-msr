@@ -183,6 +183,7 @@ Decision rule: F > A on flip with `val_rmse_combined_avg` flat -> adopt the best
 | `train/flip_len` | mean members per column | ~4.65. If this approaches `flip_list_min` the loss is running on scraps. |
 | `val_flip_pairs/<loader>` | usable position pairs per validation library | 0 for libraries without designed doubles — expected, not a failure |
 | `val_rho_flip_avg` | **the monitored metric** | reference: the released checkpoint scores 0.141 on the test docket and 0.146 on verified held-out proteins. Validation libraries differ, so treat the *first run's* value as the baseline to beat, not these numbers. |
+| `val_rho_epi_fast_avg` / `val_rho_epi_full_avg` | Spearman vs measured ΔΔΔG of `0.5*(mt-wt)` (needs only the double) and of `comb_AB-comb_A-comb_B` (needs both singles in the loader) | `fast` is polluted by MT/WT disagreement on singles, so it moves with `--mt_single_anchor_*`; judge anchor arms on `full`. Neither isolates identity-specific epistasis (FINDINGS §1); `val_rho_flip_avg` does. Formerly logged as `val_rho_epi`. |
 | `val_rho_combined_avg` | ΔΔG headline | must not regress materially |
 | `val_rmse_combined_avg` | ΔΔG calibration, kcal/mol | must not regress; this is what `lambda_reg_mt` protects |
 | `norm_grad/lora_mt` vs `norm_grad/lora_wt` | gradient balance | if the MT group's norm jumps after adding the rank term, lower `--lambda_rank_mt` before touching anything else |

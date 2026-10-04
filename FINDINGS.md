@@ -208,6 +208,16 @@ Systematic evaluation on `cache_v6` (anchor 1.0, seed 1 unless noted) across seq
 | **F0 (Censor Floor 0.0)** | `--censor_floor 0.0` | 8 | **0.227** (Ep 5) | **0.418** (Ep 2) | **0.671** (Ep 6) | 10.3% censored; highest direct epistasis & best RMSE |
 | **F2 (Censor Floor 0.5)** | `--censor_floor 0.5` | 8 | **0.237** (Ep 5) | 0.396 (Ep 1) | 0.682 (Ep 4) | 24.5% censored; **all-time project record on flip metric** |
 
+> **Metric rename.** `val_rho_epi_avg` in this table is the *old* single-head readout
+> `comb - wt = 0.5*(mt - wt)` and is now logged as `val_rho_epi_fast_avg`. The new
+> `val_rho_epi_full_avg` scores `comb_AB - comb_A - comb_B`. They differ by exactly
+> `0.5*(delta_A + delta_B) - dW` (delta_X = mt_X - wt_X on singles, dW the WT head's
+> non-additivity, ~constant), so `fast` is contaminated by any MT/WT disagreement on singles
+> (which `--mt_single_anchor_*` controls) and `full` is not. Compare arms with different anchor
+> settings on `full`. Neither separates identity-specific epistasis from nonspecific saturation
+> (section 1); `val_rho_flip_avg` does. `esm_msr_testing.py` writes `*_DeltaSingles.csv` with the
+> measured disagreement and a check of this identity.
+
 Key lessons:
 1. **Extended training ($\ge 4$ epochs) is essential**: Across both censored arms, the MT adapter
    consistently surges past 0.220 at Epoch 4–5 (F0 reached 0.227, F2 reached 0.237). 3 epochs cuts
