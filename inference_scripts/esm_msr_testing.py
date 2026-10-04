@@ -455,10 +455,9 @@ def main_(args):
                 unique_data = data[~data.index.duplicated(keep='first')]
                 
                 input_data = inference.standardize_input_df(unique_data, quiet=True)
-                ext_batch = min(len(input_data), args.batch_size) if args.batch_size else 16
                 pred_df, t_inf = timed_call(
                     inference.infer_mutants, 
-                    model=model, df=input_data, batch_size=ext_batch, quiet=True, mask_strategy=args.mask_strategy, 
+                    model=model, df=input_data, batch_size=1, quiet=True, mask_strategy=args.mask_strategy, 
                     optimize_wt_pass=(args.mask_strategy is None), skip_reverse=args.skip_reverse
                 )
                 pred_df['id'] = code + chain + '_' + pred_df['mut_type_renumbered']
@@ -469,6 +468,8 @@ def main_(args):
 
                 res_combined.append(res_partial)
                 total_time += t_inf
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
             res_df = pd.concat(res_combined)
 
@@ -566,6 +567,8 @@ def main_(args):
                     t_total += t
                 
                 time_per_code[code] = t_total # Store the accumulated time for this specific code
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
             # Aggregate DataFrames
             res_df = pd.concat(res_combined)
@@ -724,6 +727,9 @@ def main_(args):
             if not should_skip_reverse_dom:
                 stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', time_val=t_inf)
                 stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', time_val=t_inf)
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
         res_df = pd.concat(res_combined, axis=0)
 
