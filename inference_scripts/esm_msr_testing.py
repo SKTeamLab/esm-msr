@@ -1,21 +1,24 @@
 import pandas as pd
 import os
+import sys
 import torch
 from tqdm import tqdm
 import argparse
 import time
 import json
 import logging
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from huggingface_hub import login, get_token
-
 from esm_msr import stats, utils, models, inference, preprocess_megascale, auto_batch
-from pathlib import Path
 
 import warnings
 warnings.filterwarnings('ignore')
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data" / "preprocessed"
 MODEL_DIR = REPO_ROOT / "LoRA_models"
 
@@ -51,21 +54,23 @@ def compute_flip_stats(res_df, pred_col, true_col, code_name=''):
       2) Scored at pos2 (mut2) with partner at pos1 (mut1)
     """
     if pred_col not in res_df.columns or true_col not in res_df.columns:
-        return float('nan'), 0, 0
+        return float('nan'), float('nan'), float('nan')
         
     valid_df = res_df.dropna(subset=[pred_col, true_col])
     if len(valid_df) == 0:
-        return float('nan'), 0, 0
+        return float('nan'), float('nan'), float('nan')
 
     fk_list, rid_list, pred_list, tgt_list = [], [], [], []
-    has_pos_cols = all(c in valid_df.columns for c in ['pos1', 'mut1', 'pos2', 'mut2'])
+    mut1_col = 'mut1' if 'mut1' in valid_df.columns else ('to1' if 'to1' in valid_df.columns else None)
+    mut2_col = 'mut2' if 'mut2' in valid_df.columns else ('to2' if 'to2' in valid_df.columns else None)
+    has_pos_cols = 'pos1' in valid_df.columns and 'pos2' in valid_df.columns and mut1_col and mut2_col
     
     if has_pos_cols:
         doubles = valid_df[valid_df['pos1'].notnull() & valid_df['pos2'].notnull()]
         for _, row in doubles.iterrows():
             try:
-                p1, m1 = int(row['pos1']), str(row['mut1'])
-                p2, m2 = int(row['pos2']), str(row['mut2'])
+                p1, m1 = int(row['pos1']), str(row[mut1_col])
+                p2, m2 = int(row['pos2']), str(row[mut2_col])
                 c = str(row.get('code_wt', row.get('code', code_name)))
                 
                 fk_list.append(f"{c}|{p1}|{p2}{m2[-1]}")
@@ -102,7 +107,7 @@ def compute_flip_stats(res_df, pred_col, true_col, code_name=''):
                 tgt_list.append(float(row[true_col]))
 
     if not fk_list:
-        return float('nan'), 0, 0
+        return float('nan'), float('nan'), float('nan')
 
     return stats.flip_signature_rho(pred_list, tgt_list, fk_list, rid_list, min_len=4, min_rows=2, min_cols=2)
 
@@ -331,8 +336,24 @@ def main_(args):
     os.makedirs('tmp', exist_ok=True)
 
     if CHECKPOINT_STR != 'zeroshot':
-        hparams_path = os.path.join(MODEL_DIR, os.path.dirname(args.checkpoint), 'hparams.yaml')
-        parsed_config = inference.parse_hparams_to_lora_config(hparams_path)
+        ckpt_candidate = Path(args.checkpoint)
+        if ckpt_candidate.is_file():
+            ckpt_path = str(ckpt_candidate.resolve())
+            hparams_path = ckpt_candidate.parent / 'hparams.yaml'
+        elif (MODEL_DIR / args.checkpoint).is_file():
+            ckpt_path = str((MODEL_DIR / args.checkpoint).resolve())
+            hparams_path = (MODEL_DIR / args.checkpoint).parent / 'hparams.yaml'
+        elif (REPO_ROOT / args.checkpoint).is_file():
+            ckpt_path = str((REPO_ROOT / args.checkpoint).resolve())
+            hparams_path = (REPO_ROOT / args.checkpoint).parent / 'hparams.yaml'
+        else:
+            ckpt_path = str(MODEL_DIR / args.checkpoint)
+            hparams_path = Path(os.path.join(MODEL_DIR, os.path.dirname(args.checkpoint), 'hparams.yaml'))
+
+        if not hparams_path.is_file():
+            raise FileNotFoundError(f"Could not find hparams.yaml at {hparams_path}")
+
+        parsed_config = inference.parse_hparams_to_lora_config(str(hparams_path))
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         lora_mode = parsed_config.get('lora_mode', 'ensemble')
         mask_structure = parsed_config.get('mask_structure', False)
@@ -381,7 +402,6 @@ def main_(args):
     # Robust Checkpoint Loading
     # ---------------------------------------------------------
     if args.checkpoint:
-        ckpt_path = str(MODEL_DIR / args.checkpoint)
         model.load_lora_weights(ckpt_path)
     else:
         print('Zero shot mode!')
@@ -435,9 +455,10 @@ def main_(args):
                 unique_data = data[~data.index.duplicated(keep='first')]
                 
                 input_data = inference.standardize_input_df(unique_data, quiet=True)
+                ext_batch = min(len(input_data), args.batch_size) if args.batch_size else 16
                 pred_df, t_inf = timed_call(
                     inference.infer_mutants, 
-                    model=model, df=input_data, batch_size=1, quiet=True, mask_strategy=args.mask_strategy, 
+                    model=model, df=input_data, batch_size=ext_batch, quiet=True, mask_strategy=args.mask_strategy, 
                     optimize_wt_pass=(args.mask_strategy is None), skip_reverse=args.skip_reverse
                 )
                 pred_df['id'] = code + chain + '_' + pred_df['mut_type_renumbered']
@@ -469,11 +490,14 @@ def main_(args):
             stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/external/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
+            stats_wt.mean(axis=0).to_csv(f'{stats_base}_WT_LoRA_avg.csv', na_rep='', float_format='%.6f')
             
             if not args.skip_reverse:
                 stats_mt.to_csv(f'{stats_base}_MT_LoRA.csv', na_rep='', float_format='%.6f')
                 stats_cmb.to_csv(f'{stats_base}_Combined.csv', na_rep='', float_format='%.6f')
                 save_delta_stats(stats_delta, stats_base)
+                stats_mt.mean(axis=0).to_csv(f'{stats_base}_MT_LoRA_avg.csv', na_rep='', float_format='%.6f')
+                stats_cmb.mean(axis=0).to_csv(f'{stats_base}_Combined_avg.csv', na_rep='', float_format='%.6f')
 
     # =========================================================================
     # TSUBOYAMA SPLITS
@@ -640,11 +664,14 @@ def main_(args):
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
 
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
+            stats_wt.mean(axis=0).to_csv(f'{stats_base}_WT_LoRA_avg.csv', na_rep='', float_format='%.6f')
             
             if not args.skip_reverse:
                 stats_mt.to_csv(f'{stats_base}_MT_LoRA.csv', na_rep='', float_format='%.6f')
                 stats_cmb.to_csv(f'{stats_base}_Combined.csv', na_rep='', float_format='%.6f')
                 save_delta_stats(stats_delta, stats_base)
+                stats_mt.mean(axis=0).to_csv(f'{stats_base}_MT_LoRA_avg.csv', na_rep='', float_format='%.6f')
+                stats_cmb.mean(axis=0).to_csv(f'{stats_base}_Combined_avg.csv', na_rep='', float_format='%.6f')
 
             torch.cuda.empty_cache()
 
