@@ -640,6 +640,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             out_dict = self.model.forward_batch(batch, mask_strategy=self.hparams.mask_strategy)
 
         ddG = utils._get_label(batch, 'ddG', device=batch['ddG'].device)
+        dddG = batch.get('dddG')
         n_items = int(out_dict['wt_lora_pred'].shape[0])
 
         def _np(t):
@@ -653,6 +654,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             'mt_scores': _np(out_dict['mt_lora_pred']),
             'comb_scores': _np(out_dict['combined_pred']),
             'ground_truths': _np(ddG) if ddG is not None else np.full(n_items, np.nan),
+            'dddG': _np(dddG) if dddG is not None else np.full(n_items, np.nan),
             'subset_type': list(batch.get('subset_type', ['single'] * n_items)),
             # For val_rho_flip: the column key, and the substitution identity that indexes
             # the row within that column.
@@ -680,12 +682,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 continue
 
             cols = {k: np.concatenate([np.asarray(o[k]).reshape(-1) for o in outputs])
-                    for k in ('wt_scores', 'mt_scores', 'comb_scores', 'ground_truths')}
+                    for k in ('wt_scores', 'mt_scores', 'comb_scores', 'ground_truths', 'dddG')}
             subset_types = [s for o in outputs for s in o['subset_type']]
 
             per_loader[name] = stats.compute_metrics(
                 cols['wt_scores'], cols['mt_scores'], cols['comb_scores'],
-                cols['ground_truths'], subset_types)
+                cols['ground_truths'], subset_types, dddG=cols['dddG'])
 
             # Identity-dependent interaction, scored on the MT pass. This is the only
             # validation number that is specific to what the MT adapter exists for: it is
@@ -715,8 +717,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         avg_metrics = {}
         for metric in ('rho_wt_valid', 'rho_wt_all', 'rho_mt_valid', 'rho_mt_all',
-                       'rho_combined', 'rmse_combined', 'rho_flip'):
-            vals = [m[metric] for m in per_loader.values() if not np.isnan(m[metric])]
+                       'rho_combined', 'rmse_combined', 'rho_flip', 'rho_epi'):
+            vals = [m[metric] for m in per_loader.values() if metric in m and not np.isnan(m[metric])]
             if vals:
                 avg_metrics[metric] = float(np.mean(vals))
                 self.log(f"val_{metric}_avg", avg_metrics[metric], on_epoch=True, prog_bar=True, sync_dist=True)
@@ -725,7 +727,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             pooled_metrics = stats.compute_metrics(
                 np.concatenate(pooled['wt_scores']), np.concatenate(pooled['mt_scores']),
                 np.concatenate(pooled['comb_scores']), np.concatenate(pooled['ground_truths']),
-                pooled['subset_type'])
+                pooled['subset_type'], dddG=np.concatenate(pooled['dddG']))
             for metric, val in pooled_metrics.items():
                 if not np.isnan(val):
                     self.log(f"val_{metric}_pooled", val, on_epoch=True, sync_dist=True)

@@ -108,7 +108,7 @@ def safe_ndcg_t0(preds, targets):
         raise RuntimeError(f"NDCG calculation failed. Underlying error: {str(e)}")
 
 
-def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types):
+def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types, dddG=None):
     """
     The validation metrics for one dataloader (one protein library or benchmark).
 
@@ -128,6 +128,8 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     * ``rho_combined``   - the reported two-path average, on measured items only.
     * ``rmse_combined``  - calibration of that average in kcal/mol; rank correlation cannot
       see a scale or offset error.
+    * ``rho_epi``        - direct Spearman correlation between predicted epistasis
+      (comb_scores - wt_scores = 0.5 * (mt - wt)) and ground truth dddG on double mutants.
 
     ``_all`` deliberately mixes quantities: a conditional ddG(X | background) is not a
     wild-type-context ddG, so a correlation pooling them answers "does this head rank
@@ -144,7 +146,7 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     is_cond = np.isin(subset_types, list(routing.CONDITIONAL_SUBSETS)) & finite
     is_measured = np.isin(subset_types, list(routing.MEASURED_SUBSETS)) & finite
 
-    return {
+    metrics = {
         'rho_wt_valid': safe_spearman(wt_scores[is_single], gt[is_single]),
         'rho_wt_all': safe_spearman(wt_scores[finite], gt[finite]),
         'rho_mt_valid': safe_spearman(mt_scores[is_cond], gt[is_cond]),
@@ -152,6 +154,17 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
         'rho_combined': safe_spearman(comb_scores[is_measured], gt[is_measured]),
         'rmse_combined': safe_rmse(comb_scores[is_measured], gt[is_measured]),
     }
+
+    if dddG is not None:
+        dddG = np.asarray(dddG, dtype=np.float64)
+        has_dddG = np.isfinite(dddG)
+        is_double = np.isin(subset_types, list(routing.ENSEMBLE_SUBSETS)) & has_dddG
+        epi_pred = comb_scores - wt_scores
+        metrics['rho_epi'] = safe_spearman(epi_pred[is_double], dddG[is_double])
+    else:
+        metrics['rho_epi'] = float('nan')
+
+    return metrics
 
 
 def flip_signature_rho(pred, target, flip_keys, row_ids, min_len=4, min_rows=3, min_cols=3):
