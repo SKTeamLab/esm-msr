@@ -974,7 +974,7 @@ def main():
         callbacks.append(EarlyStopping(monitor=args.early_stopping_metric, patience=args.early_stopping_patience, mode=args.monitor_mode, verbose=True))
 
     trainer_kwargs = {
-        "max_epochs": args.num_epochs, "accelerator": accelerator, "devices": devices, "strategy": strategy,
+        "max_epochs": args.num_epochs, "min_epochs": args.min_epochs, "accelerator": accelerator, "devices": devices, "strategy": strategy,
         "logger": loggers if loggers else False, "callbacks": callbacks, "enable_checkpointing": True, 
         "num_sanity_val_steps": args.num_sanity_val_steps, "log_every_n_steps": args.log_every_n_steps, "check_val_every_n_epoch": args.check_val_every_n_epoch,
     }

@@ -175,6 +175,8 @@ def parse_arguments() -> argparse.Namespace:
 
     train_group = parser.add_argument_group("Training Parameters")
     train_group.add_argument('--num_epochs', type=int, default=20)
+    train_group.add_argument('--min_epochs', type=int, default=None,
+                             help="Minimum number of epochs to train before early stopping can trigger.")
     train_group.add_argument('--learning_rate', type=float, default=2e-4)
     train_group.add_argument('--lr_warmup_steps', type=int, default=250)
     train_group.add_argument('--mt_lora_delay_steps', type=int, default=0)
