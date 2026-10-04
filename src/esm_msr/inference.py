@@ -121,6 +121,8 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'mt_config': mt_config,
         'adapter_mode': hparams.get('adapter_mode', 'dual'),
         'lora_mode': hparams.get('lora_mode', 'ensemble'),
+        'shared_bias_init': hparams.get('shared_bias_init', None),
+        'shared_scale_init': hparams.get('shared_scale_init', 1.0),
     }
 
 

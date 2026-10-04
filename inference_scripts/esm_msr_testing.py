@@ -42,6 +42,71 @@ def safe_ndcg(df, col1, col2, top_n=None, threshold=None):
     ndcg_val, model_hits_at_k, ideal_hits_at_k, total_hits_in_pool = stats.compute_ndcg_flexible(preds, truths, top_n=top_n, threshold=threshold)
     return ndcg_val
 
+def compute_flip_stats(res_df, pred_col, true_col, code_name=''):
+    """Extracts double mutant flip columns and computes stats.flip_signature_rho.
+    
+    A flip column is one scored position with one fixed partner identity.
+    Each double mutant (pos1, mut1) : (pos2, mut2) contributes to two flip columns:
+      1) Scored at pos1 (mut1) with partner at pos2 (mut2)
+      2) Scored at pos2 (mut2) with partner at pos1 (mut1)
+    """
+    if pred_col not in res_df.columns or true_col not in res_df.columns:
+        return float('nan'), 0, 0
+        
+    valid_df = res_df.dropna(subset=[pred_col, true_col])
+    if len(valid_df) == 0:
+        return float('nan'), 0, 0
+
+    fk_list, rid_list, pred_list, tgt_list = [], [], [], []
+    has_pos_cols = all(c in valid_df.columns for c in ['pos1', 'mut1', 'pos2', 'mut2'])
+    
+    if has_pos_cols:
+        doubles = valid_df[valid_df['pos1'].notnull() & valid_df['pos2'].notnull()]
+        for _, row in doubles.iterrows():
+            try:
+                p1, m1 = int(row['pos1']), str(row['mut1'])
+                p2, m2 = int(row['pos2']), str(row['mut2'])
+                c = str(row.get('code_wt', row.get('code', code_name)))
+                
+                fk_list.append(f"{c}|{p1}|{p2}{m2[-1]}")
+                rid_list.append(ord(m1[-1]))
+                pred_list.append(float(row[pred_col]))
+                tgt_list.append(float(row[true_col]))
+                
+                fk_list.append(f"{c}|{p2}|{p1}{m1[-1]}")
+                rid_list.append(ord(m2[-1]))
+                pred_list.append(float(row[pred_col]))
+                tgt_list.append(float(row[true_col]))
+            except (ValueError, TypeError):
+                continue
+    elif 'mut_type' in valid_df.columns or 'mut_info' in valid_df.columns:
+        col = 'mut_type' if 'mut_type' in valid_df.columns else 'mut_info'
+        doubles = valid_df[valid_df[col].astype(str).str.contains(':')]
+        import re
+        pat = re.compile(r'^([A-Za-z])(\d+)([A-Za-z]):([A-Za-z])(\d+)([A-Za-z])$')
+        for _, row in doubles.iterrows():
+            m = pat.match(str(row[col]))
+            if m:
+                _, p1, m1, _, p2, m2 = m.groups()
+                p1, p2 = int(p1), int(p2)
+                c = str(row.get('code_wt', row.get('code', code_name)))
+                
+                fk_list.append(f"{c}|{p1}|{p2}{m2}")
+                rid_list.append(ord(m1))
+                pred_list.append(float(row[pred_col]))
+                tgt_list.append(float(row[true_col]))
+                
+                fk_list.append(f"{c}|{p2}|{p1}{m1}")
+                rid_list.append(ord(m2))
+                pred_list.append(float(row[pred_col]))
+                tgt_list.append(float(row[true_col]))
+
+    if not fk_list:
+        return float('nan'), 0, 0
+
+    return stats.flip_signature_rho(pred_list, tgt_list, fk_list, rid_list, min_len=4, min_rows=2, min_cols=2)
+
+
 def update_stats(stats_df, row_name, res_df, true_col, pred_col, epi_true_col='dddG_ML', epi_pred_col=None, time_val=None):
     """Helper to cleanly extract subset metrics for a specific predictive branch."""
     if pred_col not in res_df.columns:
@@ -70,6 +135,11 @@ def update_stats(stats_df, row_name, res_df, true_col, pred_col, epi_true_col='d
         stats_df.at[row_name, 'spearman_doubles_epi'] = safe_spearman(res_df, epi_true_col, epi_pred_col)
     else:
         stats_df.at[row_name, 'spearman_doubles_epi'] = float('nan')
+
+    # Compute flip-ordering rank correlation
+    rho_flip, n_flip_pairs, n_flip_cells = compute_flip_stats(res_df, pred_col, true_col, row_name)
+    stats_df.at[row_name, 'rho_flip'] = rho_flip
+    stats_df.at[row_name, 'n_flip_pairs'] = n_flip_pairs
 
     stats_df.at[row_name, 'ndcg@96'] = safe_ndcg(res_df, pred_col, true_col, top_n=96)
     stats_df.at[row_name, 'ndcg>0'] = safe_ndcg(res_df, pred_col, true_col, threshold=0)
@@ -300,8 +370,10 @@ def main_(args):
 
     model_dtype = torch.bfloat16 if args.dtype == 'bf16' else torch.float32
     print(f"[MODEL] inference dtype = {args.dtype} ({model_dtype})")
+    shared_bias_init = parsed_config.get('shared_bias_init', None) if CHECKPOINT_STR != 'zeroshot' else 0
+    shared_scale_init = parsed_config.get('shared_scale_init', 1.0) if CHECKPOINT_STR != 'zeroshot' else 1.0
     model = models.MSRModel(
-        lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
+        lora_config=lora_config, shared_scale_init=shared_scale_init, shared_bias_init=shared_bias_init, adapter_mode=adapter_mode,
         lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True, mask_structure=mask_structure
     ).to('cuda:0')
 
