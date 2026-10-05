@@ -822,6 +822,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.log_calibration_head(on_step=True)
         if self.link_head is not None:
             for k, v in self.link_head.summary().items():
+                if k in ('floor', 'ceiling'):
+                    continue            # ceiling == hi exactly and floor == lo to within ~1e-3: the same curves under two names
                 self.log(f"link/{k}", v, on_step=True)
 
         if torch.cuda.is_available() and self.global_step % max(int(self.trainer.log_every_n_steps), 1) == 0:

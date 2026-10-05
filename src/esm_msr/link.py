@@ -18,9 +18,9 @@ ranking is done on the latent scale and is unaffected by ``h`` because ``h`` is 
     h(z) = hi - tau_hi * softplus((hi - u) / tau_hi)      # follows u, then levels off at hi
 
 Each stage is increasing, so ``h`` is increasing for any positive temperatures. Inside the range it is close to the identity, so
-latent and observed agree for variants well inside the dynamic range. ``lo`` and ``hi`` are where the knees sit; the plateaus
-themselves are ``h(-inf)`` and ``h(+inf)`` (reported by :meth:`summary` as ``floor`` / ``ceiling``), which differ slightly from
-them when a temperature is not small compared with the span.
+latent and observed agree for variants well inside the dynamic range. ``lo`` and ``hi`` are where the knees sit. The upper plateau ``h(+inf)`` is exactly ``hi``; the lower
+plateau ``h(-inf) = h(lo)`` equals ``lo - tau_hi * softplus(-(hi - lo) / tau_hi)``, which differs from ``lo`` only when ``tau_hi`` is not
+small compared with the span (about 4e-3 at span 5.4, tau_hi 1). :meth:`summary` reports both as ``floor`` / ``ceiling``.
 """
 import math
 
