@@ -46,7 +46,7 @@ fig.tight_layout(); fig.savefig(f'{FIG}/fig1_global_curve.png', dpi=170); plt.cl
 
 # ---- Fig 2: variance partition ----
 cv = R['cv_increment']; g_, p_, rc_ = cv['M1 +global'], cv['M2 +pair mean'], cv['M3 +row/col']; rem = R['cv_resid_share']
-nlo, nhi = R['noise_in_residual_share_opt'], R['noise_in_residual_share_pess']
+nrep, nlo, nhi = R['noise_in_residual_share_rep'], R['noise_in_residual_share_opt'], R['noise_in_residual_share_pess']
 fig, ax = plt.subplots(2, 1, figsize=(11, 4.4), gridspec_kw={'height_ratios': [1.5, 1]})
 left = 0
 segs = [('global saturation', g_, BLUE), ('position-pair mean', p_, ORANGE), ('substitution row + column effects', rc_, AQUA),
@@ -63,11 +63,11 @@ ax[0].set_xlabel('% of the variance in measured dddG explained out-of-sample (5-
 ax[0].set_title('Identity-independent structure explains about 90% of the variance in dddG', loc='left', fontsize=11, color=INK)
 ax[1].barh(0, rem * 100, color=GRAY, edgecolor=SURF, linewidth=2, height=0.5)
 ax[1].text(rem * 100 / 2, 0, f'left over {rem*100:.1f}%', ha='center', va='center', color=INK, fontsize=10, fontweight='bold')
-ax[1].axvspan(nlo * 100, nhi * 100, ymin=0.08, ymax=0.92, color=MAGENTA, alpha=0.28, lw=0)
-ax[1].plot([nlo * 100] * 2, [-0.3, 0.3], color=MAGENTA, lw=2); ax[1].plot([nhi * 100] * 2, [-0.3, 0.3], color=MAGENTA, lw=2)
-ax[1].text((nlo + nhi) * 50, -0.42, f'expected from measurement noise alone: {nlo*100:.1f}% to {nhi*100:.1f}%', ha='center', va='top',
-           color=INK, fontsize=9.5)
-ax[1].set_xlim(0, 20); ax[1].set_ylim(-0.75, 0.45); ax[1].set_yticks([]); ax[1].spines['left'].set_visible(False)
+ax[1].axvspan(nrep * 100, nhi * 100, ymin=0.08, ymax=0.92, color=MAGENTA, alpha=0.2, lw=0)
+for v, lab, dy in ((nrep, 'replicate noise\n%.1f%%' % (nrep * 100), -0.34), (nlo, 'protease noise,\ncombined %.1f%%' % (nlo * 100), -0.34), (nhi, 'protease noise,\nsingle %.1f%%' % (nhi * 100), -0.34)):
+    ax[1].plot([v * 100] * 2, [-0.3, 0.3], color=MAGENTA, lw=2)
+    ax[1].text(v * 100, dy, lab, ha='center', va='top', color=INK, fontsize=9)
+ax[1].set_xlim(0, 20); ax[1].set_ylim(-1.0, 0.45); ax[1].set_yticks([]); ax[1].spines['left'].set_visible(False)
 ax[1].set_xlabel('zoom: % of variance (0-20%)')
 fig.tight_layout(); fig.savefig(f'{FIG}/fig2_variance_partition.png', dpi=170); plt.close(fig)
 

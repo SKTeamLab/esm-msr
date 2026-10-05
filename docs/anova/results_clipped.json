@@ -100,5 +100,8 @@
   "rho_global_only_pooled": 0.7883156797003259,
   "rho_global_only_per_lib_mean": 0.6039941863936964,
   "r2_global_only": 0.5896075782396475
- }
+ },
+ "sigma_replicate": 0.1148,
+ "noise_total_share_rep": 0.03359721348998127,
+ "noise_in_residual_share_rep": 0.011199071163327091
 }

@@ -48,6 +48,10 @@ def build_table():
     s = s[s.dG_ML.between(0, 4) & s.deltaG_t.between(-1, 5) & s.deltaG_c.between(-1, 5)]
     diff = s.deltaG_t - s.deltaG_c
     sigma_single_protease = float(diff.std() / np.sqrt(2))
+    # replicate noise: ΔG spread among synonymous copies of the wild-type sequence within each library
+    w = d[d.mut_type == 'wt'].dropna(subset=['dG_ML']).groupby('WT_name').dG_ML.agg(['count', 'std'])
+    w = w[w['count'] >= 3]
+    sigma_replicate = float(np.sqrt((w['std'] ** 2 * (w['count'] - 1)).sum() / (w['count'] - 1).sum()))
     g = d.groupby(['code', 'mut_type'], as_index=False).agg(dG=('dG_use', 'mean'), ddG=('ddG_use', 'mean'),
                                                           code_wt=('code_wt', 'first'))
     g['nm'] = g.mut_type.str.count(':') + 1
@@ -73,7 +77,7 @@ def build_table():
     T['x'] = T.dG_wt + T.S                      # additive-predicted dG of the double
     T['dddG'] = T.ddG_AB - T.S
     T['pair'] = T.code + '|' + T.p.astype(str) + '|' + T.q.astype(str)
-    return T, sigma_single_protease
+    return T, (sigma_single_protease, sigma_replicate)
 
 
 def fit_rowcol(df, col, n_iter=15):
@@ -121,14 +125,14 @@ def flip_rho(items, pred, target):
 
 
 def main():
-    T, sig1 = build_table()
+    T, (sig1, sig_rep) = build_table()
     T.to_pickle(f'{OUT}/T.pkl')
     res = {'n_doubles': int(len(T)), 'n_libs': int(T.code.nunique()), 'n_pairs': int(T.pair.nunique()),
            'cells_per_pair_median': float(T.groupby('pair').size().median()),
            'var_dddG': float(T.dddG.var()), 'mean_dddG': float(T.dddG.mean()),
-           'sigma_single_protease': sig1, 'sigma_ml_optimistic': sig1 / np.sqrt(2)}
+           'sigma_single_protease': sig1, 'sigma_ml_optimistic': sig1 / np.sqrt(2), 'sigma_replicate': sig_rep}
     V = res['var_dddG']
-    for tag, s in (('opt', sig1 / np.sqrt(2)), ('pess', sig1)):
+    for tag, s in (('rep', sig_rep), ('opt', sig1 / np.sqrt(2)), ('pess', sig1)):
         res[f'noise_total_share_{tag}'] = 3 * s * s / V          # sigma_Y^2 + sigma_A^2 + sigma_B^2
         res[f'noise_in_residual_share_{tag}'] = s * s / V        # only the double's own noise lands in the residual
 
