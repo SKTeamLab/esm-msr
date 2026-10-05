@@ -1171,6 +1171,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 def main():
     args = parse_arguments()
     pl.seed_everything(args.seed)
+    if os.environ.get('MSR_MEM_FRACTION') and torch.cuda.is_available():
+        # hard cap on this process's CUDA memory: the allocator must free cached blocks instead of growing into the shared
+        # (system) memory that WDDM/WSL spills to when the card is full
+        torch.cuda.set_per_process_memory_fraction(float(os.environ['MSR_MEM_FRACTION']))
+        logging.info(f"CUDA memory capped at {float(os.environ['MSR_MEM_FRACTION']):.2f} of the device")
 
     if args.offline_model:
         os.environ['INFRA_PROVIDER'] = "1"
