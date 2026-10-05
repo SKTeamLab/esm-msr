@@ -22,3 +22,4 @@
   * `val_auc_*`: dead_wt 0.961 / 0.964 / 0.962, hyper_wt 0.920 / 0.916 / 0.912, dead_mt 0.761 / 0.757 / 0.759: same as W2.
   * Link (steps 24 -> 2749): floor -0.91 -> -0.71, ceiling 5.05 -> 5.22, tau_hi 0.51 -> 0.82, tau_lo 0.54 -> 0.55: stable, plausible. Peak VRAM 26.9 GB, no errors.
   * Epoch 3 running (flip_pair best-so-far 0.179 at epoch 2, so early stopping has not triggered); I1 waits behind L1 in the queue.
+* 07:52 L1 epoch 3: `val_rho_flip_pair_avg` 0.191 (new best; ep 0-3: 0.159 / 0.158 / 0.179 / 0.191), `val_rho_flip_avg` 0.183, `val_rho_wt_valid_avg` 0.804, `val_rmse_combined_avg` 0.661 (observed scale), `val_rho_epi_full_avg` 0.451, `val_rho_epi_fast_avg` 0.246, `val_auc_dead_wt` 0.963 / `hyper_wt` 0.916 / `dead_mt` 0.746. Early stopping not triggered; epoch 4 runs to ~08:23 (cap 6 epochs: epoch 5 would end ~09:00). **I1 (interaction loss) has not started** because it waits behind L1 in the queue.
