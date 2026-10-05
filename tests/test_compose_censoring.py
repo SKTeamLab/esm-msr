@@ -85,7 +85,7 @@ def run(batch, link_head=None, **hp_kw):
     stub._warned_unrouted = True
     stub.global_step = 0
     stub.manual_backward = lambda loss, retain_graph=False: loss.backward(retain_graph=retain_graph)
-    for name in ('_compute_rank_loss', '_compute_flip_loss', '_subset_weights', '_plan_units'):
+    for name in ('_compute_rank_loss', '_compute_flip_loss', '_compute_int_loss', '_aligned_chunks', '_subset_weights', '_plan_units'):
         setattr(stub, name, types.MethodType(getattr(cls, name), stub))
     out = cls._compose_losses_streaming_and_backward(stub, batch)
     return out, stub

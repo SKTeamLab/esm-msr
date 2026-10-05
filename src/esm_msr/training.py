@@ -23,6 +23,7 @@ from esm_msr.models import MSRModel
 from esm_msr import utils
 from esm_msr.losses import ListMLELoss, ListMLELoss_enhanced, AsymmetricHuberLoss
 from esm_msr import censoring, link as link_mod
+from esm_msr.flipkeys import split_flip_key
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
@@ -260,6 +261,53 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self._flip_diag = (G, float(avg_len), int(sum(len(g) for g in groups)), n_unc)
         return scaled, L_raw.detach(), G
 
+    def _compute_int_loss(self, pred, target, valid, flip_keys, row_ids, cens, min_rows, min_cols):
+        """Interaction-only loss on the MT pass: squared error between DOUBLE-CENTRED predictions and measurements.
+
+        Rows sharing a position pair form a matrix (rows = scored substitutions, columns = partner residues). Each matrix is trimmed to a
+        complete block (the most-missing row or column is dropped until no cell is missing), then predictions and targets are double-centred
+        separately: subtract each row's mean and each column's mean and add back the grand mean. What survives depends only on the specific
+        combination of the two residues. The position-pair offset, each substitution's own effect and each partner's own effect are exactly
+        annihilated on both sides, so this loss neither teaches nor unteaches them; they are learned through the ordinary regression.
+        Censored items are left out. Returns ``(sum of squared differences, its detached value, n_matrices, n_cells)``, with the sum so
+        the caller can normalise by the whole batch; ``(None, 0.0, 0, 0)`` when no usable matrix is present.
+        """
+        groups = {}
+        for i, k in enumerate(flip_keys):
+            if not k or not bool(valid[i]) or (cens is not None and int(cens[i]) != 0):
+                continue
+            pair, res = split_flip_key(k)
+            if res is None:
+                continue
+            groups.setdefault(pair, {}).setdefault(res, {})[int(row_ids[i])] = i
+        total, n_cells, n_mat = None, 0, 0
+        for pair, cols in groups.items():
+            names = sorted(cols)
+            rows = sorted({r for c in cols.values() for r in c})
+            M = [[cols[c].get(r, -1) for c in names] for r in rows]
+            while M and M[0]:
+                miss_r = [sum(1 for v in row if v < 0) for row in M]
+                miss_c = [sum(1 for row in M if row[j] < 0) for j in range(len(M[0]))]
+                if max(miss_r) == 0 and max(miss_c) == 0:
+                    break
+                if max(miss_r) / max(1, len(M[0])) >= max(miss_c) / max(1, len(M)):
+                    M.pop(miss_r.index(max(miss_r)))
+                else:
+                    j = miss_c.index(max(miss_c))
+                    M = [row[:j] + row[j + 1:] for row in M]
+            if len(M) < min_rows or not M or len(M[0]) < min_cols:
+                continue
+            idx = torch.as_tensor(M, device=pred.device, dtype=torch.long)
+            P, Y = pred[idx], target[idx]
+            dc = lambda X: X - X.mean(dim=1, keepdim=True) - X.mean(dim=0, keepdim=True) + X.mean()
+            part = ((dc(P) - dc(Y)) ** 2).sum()
+            total = part if total is None else total + part
+            n_cells += idx.numel()
+            n_mat += 1
+        if total is None:
+            return None, 0.0, 0, 0
+        return total, float(total.detach()), n_mat, n_cells
+
     def _subset_weights(self, subset_types, device) -> torch.Tensor:
         """Per-item loss weight from its subset type (1.0 for singles and unknown types)."""
         hp = self.hparams
@@ -315,8 +363,58 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     order = sorted(range(len(mt_rows)),
                                    key=lambda i: (keys[int(mt_rows[i])] == '', keys[int(mt_rows[i])]))
                     mt_rows = mt_rows[torch.as_tensor(order, dtype=torch.long, device=mt_rows.device)]
-            units += [('mt', mt_rows[s:s + mb]) for s in range(0, len(mt_rows), mb)]
+            if getattr(self.hparams, 'flip_align_units', False) and len(mt_rows):
+                units += [('mt', mt_rows[c]) for c in self._aligned_chunks(mt_rows, mb)]
+            else:
+                units += [('mt', mt_rows[s:s + mb]) for s in range(0, len(mt_rows), mb)]
         return units
+
+    def _aligned_chunks(self, mt_rows, mb):
+        """
+        Index chunks of at most ``mb`` MT rows that never cut a position-pair group.
+
+        Rows are first ordered so each pair's columns are contiguous (rows with no flip key, such as anchored singles, last), then
+        whole pairs are packed greedily into chunks; a pair larger than ``mb`` is cut at column boundaries when it must be. Returns
+        long index tensors into ``mt_rows``.
+        """
+        keys = getattr(self, '_last_flip_keys', None) or []
+        info = []
+        for pos in range(len(mt_rows)):
+            fk = keys[int(mt_rows[pos])] if int(mt_rows[pos]) < len(keys) else ''
+            pair, res = split_flip_key(fk)
+            info.append((fk == '', pair or '', fk, pos))
+        info.sort()
+        groups, cur_key = [], object()
+        for no_key, pair, fk, pos in info:
+            gk = (no_key, pair) if not no_key else (True, pos)          # rows without a key are free-standing
+            if gk != cur_key:
+                groups.append([])
+                cur_key = gk
+            groups[-1].append((fk, pos))
+        chunks, cur = [], []
+        for g in groups:
+            if len(g) > mb:                                            # a pair larger than a micro-batch: cut it at column boundaries
+                cols, last_fk = [], None
+                for fk, pos in g:
+                    if fk != last_fk:
+                        cols.append([])
+                        last_fk = fk
+                    cols[-1].append(pos)
+                for col in cols:
+                    while len(col) > mb:                               # a single column longer than a micro-batch
+                        if cur:
+                            chunks.append(cur); cur = []
+                        chunks.append(col[:mb]); col = col[mb:]
+                    if len(cur) + len(col) > mb:
+                        chunks.append(cur); cur = []
+                    cur.extend(col)
+                continue
+            if len(cur) + len(g) > mb:
+                chunks.append(cur); cur = []
+            cur.extend(p for _, p in g)
+        if cur:
+            chunks.append(cur)
+        return [torch.as_tensor(c, dtype=torch.long, device=mt_rows.device) for c in chunks if c]
 
     def _compose_losses_streaming_and_backward(self, batch: dict) -> dict:
         """
@@ -371,6 +469,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         dGwt_all = batch['dG_wt'].float().to(device) if torch.is_tensor(batch.get('dG_wt')) else torch.full((B,), float('nan'), device=device)
         bg_all = batch['bg_offset'].float().to(device) if torch.is_tensor(batch.get('bg_offset')) else torch.zeros(B, device=device)
         link_ok = torch.isfinite(dGwt_all) if use_link else torch.ones(B, dtype=torch.bool, device=device)
+        global_flip_items = max(1, sum(1 for i, k in enumerate(flip_keys) if k and not (use_cens and int(cens_all[i]) != 0)))
         _fk = Counter(k for i, k in enumerate(flip_keys) if k)
         _unc = Counter(k for i, k in enumerate(flip_keys) if k and not (use_cens and int(cens_all[i]) != 0))
         global_num_flip = max(1, sum(1 for k, c in _fk.items() if c >= int(hp.flip_list_min) and _unc[k] > 0))
@@ -602,6 +701,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         losses_mt.append(hp.lambda_rank_mt * L_flip * (n_grp / max(global_num_flip, 1)))
                         sums['rank_mt'] = sums['rank_mt'] + val * n_grp
                         cnts['rank_mt'] = cnts['rank_mt'] + n_grp
+                if hp.get('lambda_int_mt', 0.0) > 0:
+                    if use_link:
+                        p_int = link.obs_ddG(mt_pred_cal, dGwt_all[rows], bg_all[rows])
+                        t_int = ddG[rows] + bg_all[rows]
+                    else:
+                        p_int, t_int = mt_pred_cal, ddG[rows]
+                    fk_int = [flip_keys[int(r)] for r in rows]
+                    mt_id_rows = batch['mt_id'][rows][:, 0].detach().cpu().numpy()
+                    L_int, val_int, n_mat, n_cells = self._compute_int_loss(
+                        p_int, t_int, m_mt_ok & link_ok[rows], fk_int, mt_id_rows,
+                        cens_all[rows] if use_cens else None, int(hp.get('int_min_rows', 4)), int(hp.get('int_min_cols', 2)))
+                    if L_int is not None:
+                        losses_mt.append(hp.lambda_int_mt * L_int / global_flip_items)
+                        sums['int_mt'] = sums['int_mt'] + val_int
+                        cnts['int_mt'] = cnts['int_mt'] + n_cells
 
             if losses_mt:
                 total = sum(losses_mt)
@@ -610,7 +724,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 self.manual_backward(total)
 
         # One host sync for all logged values instead of one per unit and loss term.
-        keys = [k for k in ('reg_wt', 'rank_wt', 'reg_wt_cens', 'reg_combined', 'rank_combined', 'epi_combined', 'reg_mt', 'reg_mt_cens', 'rank_mt') if k in cnts]
+        keys = [k for k in ('reg_wt', 'rank_wt', 'reg_wt_cens', 'reg_combined', 'rank_combined', 'epi_combined', 'reg_mt', 'reg_mt_cens', 'rank_mt', 'int_mt') if k in cnts]
         if not keys:
             return {}
         vals = torch.stack([torch.stack([torch.as_tensor(sums[k], device=device, dtype=torch.float32),

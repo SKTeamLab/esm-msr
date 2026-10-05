@@ -542,7 +542,8 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
             collate_fn=collate_fn_twopass,
             strategy=args.loader_strategy,
             subset_caps=subset_caps,
-            num_workers=args.num_workers
+            num_workers=args.num_workers,
+            flip_pair_groups=int(getattr(args, 'flip_pair_groups', 0) or 0),
         )
 
         train_dataloaders_final = [consolidated_loader]

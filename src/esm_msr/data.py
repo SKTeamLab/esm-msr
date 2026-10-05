@@ -19,6 +19,7 @@ from esm.utils.constants import esm3 as C
 
 from esm_msr.utils import custom_end_gap_alignment, determine_diffs
 from esm_msr import censoring
+from esm_msr.flipkeys import split_flip_key
 from esm_msr.routing import DOUBLE_DERIVED_SUBSETS, canonical_subset
 
 # A library code ending in a mutation ('1A0N_L7S') means every measurement in it was
@@ -972,7 +973,12 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         subset_caps: Optional[Dict[str, Optional[float]]] = None,
         rng_seed: Optional[int] = None,
         verbose: bool = True,
+        flip_pair_groups: int = 0,
     ):
+        # With flip_pair_groups = N > 0, the flip columns of one position pair travel together in units of up to N columns, so a batch
+        # (and, with --flip_align_units, a micro-batch) holds several columns of the SAME pair matrix. Needed by the interaction-only
+        # loss (--lambda_int_mt), whose double-centring needs more than one column of a pair. 0 keeps whole single columns as units.
+        self.flip_pair_groups = int(flip_pair_groups)
         if strategy not in ('min', 'all'):
             raise ValueError(f"strategy must be 'min' or 'all', got '{strategy}'")
             
@@ -1088,6 +1094,15 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
                         noncolumn.append(i)
 
             col_units = list(columns.values())
+            if self.flip_pair_groups > 0:
+                by_pair: Dict[str, List[List[int]]] = {}
+                for fk, items in columns.items():
+                    by_pair.setdefault(split_flip_key(fk)[0], []).append(items)
+                col_units = []
+                for cols_of_pair in by_pair.values():
+                    self._rng.shuffle(cols_of_pair)
+                    for j in range(0, len(cols_of_pair), self.flip_pair_groups):
+                        col_units.append([i for c in cols_of_pair[j:j + self.flip_pair_groups] for i in c])
             flip_total = sum(len(u) for u in col_units)
             grand = flip_total + len(noncolumn)
             if grand == 0:
@@ -1173,7 +1188,8 @@ def create_consolidated_dataloader(
     strategy: str = 'all', 
     subset_caps: Optional[Dict[str, Optional[float]]] = None,
     num_workers: int = 4,
-    pin_memory: bool = True
+    pin_memory: bool = True,
+    flip_pair_groups: int = 0,
 ) -> DataLoader:
     """
     Factory function replacing both SubsetRestrictedProteinCyclingDataLoader 
@@ -1187,6 +1203,7 @@ def create_consolidated_dataloader(
         train_list=train_list,
         strategy=strategy,
         subset_caps=subset_caps,
+        flip_pair_groups=flip_pair_groups,
     )
     
     concat_dataset = ConcatDataset(datasets)

@@ -3,7 +3,10 @@ import unittest
 import torch
 
 from esm_msr.link import MonotoneLink
-from tests.test_compose_censoring import make_batch, run
+try:
+    from tests.test_compose_censoring import make_batch, run
+except ImportError:  # run from inside tests/
+    from test_compose_censoring import make_batch, run
 
 
 class TestMonotoneLink(unittest.TestCase):

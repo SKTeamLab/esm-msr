@@ -105,6 +105,23 @@ def parse_arguments() -> argparse.Namespace:
                             help="Order MT work-unit rows by flip column so each micro-batch holds whole columns "
                                  "rather than fragments of many. Same items and the same number of forwards; only "
                                  "the grouping changes. Without it a column of ~19 is scattered across the batch.")
+    loss_group.add_argument('--lambda_int_mt', type=float, default=0.0,
+                            help="Interaction-only loss on the MT pass. For each position-pair matrix present in a micro-batch (rows = scored "
+                                 "substitutions, columns = partner residues, trimmed to a complete block), double-centre the predictions and the "
+                                 "measurements (subtract row means, column means, add the grand mean) and regress one on the other. Everything that does not "
+                                 "depend on the specific COMBINATION of the two residues - the position-pair offset, each substitution's own effect, "
+                                 "each partner's effect - is annihilated, so this loss pressures only the interaction and cannot unlearn the "
+                                 "identity-independent effects, which are still learned through the ordinary regression. Needs --flip_pair_groups > 0 and "
+                                 "--flip_align_units so a micro-batch holds several columns of one pair. 0 disables.")
+    loss_group.add_argument('--flip_pair_groups', type=int, default=0,
+                            help="Pack the flip columns of one position pair together in units of up to this many columns (the sampler's "
+                                 "unit is otherwise one column). 3 keeps a unit within one 64-row micro-batch. 0 = one column per unit.")
+    loss_group.add_argument('--flip_align_units', action=argparse.BooleanOptionalAction, default=False,
+                            help="Cut MT micro-batches at position-pair boundaries instead of every micro_batch_size rows, so no pair matrix "
+                                 "(and no flip column) is split across two micro-batches. Also removes the ~10%% of within-column pairs lost to "
+                                 "fixed-size cuts. Same rows, same number of forwards up to rounding.")
+    loss_group.add_argument('--int_min_rows', type=int, default=4, help="Minimum rows (scored substitutions) of the complete block for --lambda_int_mt.")
+    loss_group.add_argument('--int_min_cols', type=int, default=2, help="Minimum columns (partner residues) of the complete block for --lambda_int_mt.")
     loss_group.add_argument('--flip_list_min', type=int, default=4,
                             help="Minimum members for a flip column to contribute to --lambda_rank_mt. Below ~4 the "
                                  "ordering carries little information and the gradient is mostly noise.")
