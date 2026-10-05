@@ -808,6 +808,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             for k, v in self.link_head.summary().items():
                 self.log(f"link/{k}", v, on_step=True)
 
+        if torch.cuda.is_available() and self.global_step % max(int(self.trainer.log_every_n_steps), 1) == 0:
+            # live tensors vs what the caching allocator holds, and the high-water mark since the last log: tells an
+            # activation-bound run (peak tracks the micro-batch) from an allocator-held one (reserved >> peak)
+            gb = 1.0 / 2 ** 30
+            self.log("mem/allocated_gb", torch.cuda.memory_allocated() * gb, on_step=True)
+            self.log("mem/peak_allocated_gb", torch.cuda.max_memory_allocated() * gb, on_step=True)
+            self.log("mem/reserved_gb", torch.cuda.memory_reserved() * gb, on_step=True)
+            torch.cuda.reset_peak_memory_stats()
         for k, v in logs.items():
             if v > 0.0: self.log(f"train/{k}", v, on_step=True)
         if getattr(self, '_cens_diag', None) is not None:
