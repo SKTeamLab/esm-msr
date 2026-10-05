@@ -41,7 +41,19 @@ class TestInteractionLoss(unittest.TestCase):
 
     def _call(self, pred, target, keys, rows, cens=None, valid=None, min_rows=4, min_cols=2):
         valid = torch.ones(len(keys), dtype=torch.bool) if valid is None else valid
-        return self.fn(None, pred, target, valid, keys, rows, cens, min_rows, min_cols)
+        return self.fn(None, pred, target, valid, keys, rows, cens, min_rows, min_cols)[:4]
+
+    def test_target_variance_is_returned_for_the_unexplained_fraction(self):
+        # a perfect prediction has zero loss but the target's double-centred variance is still reported
+        g = torch.Generator().manual_seed(3)
+        target = torch.randn(len(self.keys), generator=g)
+        out = self.fn(None, target.clone(), target, torch.ones(len(self.keys), dtype=torch.bool), self.keys, self.rows, None, 4, 2)
+        total, val, n_mat, n_cells, ss_y = out
+        self.assertAlmostEqual(val, 0.0, places=8)
+        self.assertGreater(ss_y, 0.0)
+        # predicting nothing (all zeros) leaves exactly the target's own double-centred sum of squares
+        out0 = self.fn(None, torch.zeros_like(target), target, torch.ones(len(self.keys), dtype=torch.bool), self.keys, self.rows, None, 4, 2)
+        self.assertAlmostEqual(out0[1], out0[4], places=5)
 
     def setUp(self):
         g = torch.Generator().manual_seed(0)

@@ -269,8 +269,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         separately: subtract each row's mean and each column's mean and add back the grand mean. What survives depends only on the specific
         combination of the two residues. The position-pair offset, each substitution's own effect and each partner's own effect are exactly
         annihilated on both sides, so this loss neither teaches nor unteaches them; they are learned through the ordinary regression.
-        Censored items are left out. Returns ``(sum of squared differences, its detached value, n_matrices, n_cells)``, with the sum so
-        the caller can normalise by the whole batch; ``(None, 0.0, 0, 0)`` when no usable matrix is present.
+        Censored items are left out. Returns ``(sum of squared differences, its detached value, n_matrices, n_cells, sum of squared double-centred targets)``, with the sum so
+        the caller can normalise by the whole batch; ``(None, 0.0, 0, 0, 0.0)`` when no usable matrix is present.
         """
         groups = {}
         for i, k in enumerate(flip_keys):
@@ -280,7 +280,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if res is None:
                 continue
             groups.setdefault(pair, {}).setdefault(res, {})[int(row_ids[i])] = i
-        total, n_cells, n_mat = None, 0, 0
+        total, n_cells, n_mat, ss_y = None, 0, 0, 0.0
         for pair, cols in groups.items():
             names = sorted(cols)
             rows = sorted({r for c in cols.values() for r in c})
@@ -301,12 +301,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             P, Y = pred[idx], target[idx]
             dc = lambda X: X - X.mean(dim=1, keepdim=True) - X.mean(dim=0, keepdim=True) + X.mean()
             part = ((dc(P) - dc(Y)) ** 2).sum()
+            ss_y += float((dc(Y) ** 2).sum())
             total = part if total is None else total + part
             n_cells += idx.numel()
             n_mat += 1
         if total is None:
-            return None, 0.0, 0, 0
-        return total, float(total.detach()), n_mat, n_cells
+            return None, 0.0, 0, 0, 0.0
+        return total, float(total.detach()), n_mat, n_cells, ss_y
 
     def _subset_weights(self, subset_types, device) -> torch.Tensor:
         """Per-item loss weight from its subset type (1.0 for singles and unknown types)."""
@@ -725,13 +726,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         p_int, t_int = mt_pred_cal, ddG[rows]
                     fk_int = [flip_keys[int(r)] for r in rows]
                     mt_id_rows = batch['mt_id'][rows][:, 0].detach().cpu().numpy()
-                    L_int, val_int, n_mat, n_cells = self._compute_int_loss(
+                    L_int, val_int, n_mat, n_cells, ss_tgt = self._compute_int_loss(
                         p_int, t_int, m_mt_ok & link_ok[rows], fk_int, mt_id_rows,
                         cens_all[rows] if use_cens else None, int(hp.get('int_min_rows', 4)), int(hp.get('int_min_cols', 2)))
                     if L_int is not None:
                         losses_mt.append(hp.lambda_int_mt * L_int / global_flip_items)
                         sums['int_mt'] = sums['int_mt'] + val_int
                         cnts['int_mt'] = cnts['int_mt'] + n_cells
+                        sums['int_tgt'] = sums['int_tgt'] + ss_tgt      # with L_int_mt: the share of interaction variance left unexplained
+                        cnts['int_tgt'] = cnts['int_tgt'] + n_cells
 
             if losses_mt:
                 total = sum(losses_mt)
@@ -740,7 +743,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 self.manual_backward(total)
 
         # One host sync for all logged values instead of one per unit and loss term.
-        keys = [k for k in ('reg_wt', 'rank_wt', 'reg_wt_cens', 'reg_combined', 'rank_combined', 'epi_combined', 'reg_mt', 'reg_mt_cens', 'rank_mt', 'int_mt') if k in cnts]
+        keys = [k for k in ('reg_wt', 'rank_wt', 'reg_wt_cens', 'reg_combined', 'rank_combined', 'epi_combined', 'reg_mt', 'reg_mt_cens', 'rank_mt', 'int_mt', 'int_tgt') if k in cnts]
         if not keys:
             return {}
         vals = torch.stack([torch.stack([torch.as_tensor(sums[k], device=device, dtype=torch.float32),
