@@ -183,7 +183,7 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--censor_floor_hinge', action=argparse.BooleanOptionalAction, default=False,
                             help="Also apply the one-sided regression to items made lower-censored by --censor_floor. Off by default: "
                                  "they keep regressing on their measured value, and --censor_floor changes only the rank losses.")
-    loss_group.add_argument('--link', choices=['none', 'softclamp'], default='none',
+    loss_group.add_argument('--link', choices=['none', 'softclamp'], default='softclamp',
                             help="Monotone saturating link between latent stability and the assay's observed dG (esm_msr.link). With "
                                  "'softclamp', the calibrated prediction is treated as a LATENT additive-in-effects ddG and regression is done on "
                                  "the observed scale, observed ddG = h(dG_wt + latent) - dG_wt, with h a soft floor/ceiling shared by all "
@@ -191,7 +191,7 @@ def parse_arguments() -> argparse.Namespace:
                                  "so --min_additive_dG / --subfloor_rank_only (reg_ok) and the one-sided hinge for out-of-range items are no longer "
                                  "needed for regression (reg_ok is ignored while the link is on); ranking is unchanged because h is monotone. Conditional items are "
                                  "scored as the double they came from. Drop --shared_bias_init (the link fixes the zero point) and the legacy "
-                                 "--lambda_*_combined terms are not supported with it. Default 'none' keeps the previous behaviour exactly.")
+                                 "--lambda_*_combined terms are not supported with it. 'none' restores the pre-link behaviour exactly (default since 2026-10-05: softclamp).")
     loss_group.add_argument('--link_lo', type=float, default=-1.0, help="Initial floor of the link (kcal/mol); the assay reports -1.")
     loss_group.add_argument('--link_hi', type=float, default=5.0, help="Initial ceiling of the link (kcal/mol); the assay reports 5.")
     loss_group.add_argument('--link_tau', type=float, default=0.5,
@@ -263,11 +263,6 @@ def parse_arguments() -> argparse.Namespace:
                              help="Early stopping of the WT head alone: after this many consecutive validations without a better "
                                   "val_rho_wt_valid_avg (by 1e-4), restore the WT adapter and its calibration head to their best state, freeze them, "
                                   "and keep training the MT head. 0 = the WT head trains for the whole run.")
-    train_group.add_argument('--lr_plateau_metric', type=str, default='rho_combined',
-                             choices=['rho_combined', 'rho_wt_valid', 'rho_flip_pair'],
-                             help="Validation metric (library-equal mean) that drives ReduceLROnPlateau, which cuts the learning rate of EVERY "
-                                  "parameter group by 10x after two consecutive validations without improvement. The default, rho_combined, is "
-                                  "dominated by the WT head, so it can cut the MT head's rate while the MT metrics are still rising.")
     train_group.add_argument('--early_stopping_patience', type=int, default=0)
     train_group.add_argument('--early_stopping_metric', type=str, default='val_rho_combined_avg')
 
@@ -313,7 +308,7 @@ def parse_arguments() -> argparse.Namespace:
     log_group.add_argument('--load_wt_only', action=argparse.BooleanOptionalAction, default=False)
     log_group.add_argument('--log_dir', type=str, default='./logs')
     log_group.add_argument('--comet_api_key', type=str, default=None)
-    log_group.add_argument('--comet_project_name', type=str, default="esm-msr-agent")
+    log_group.add_argument('--comet_project_name', type=str, default="esm-msr-agent-2")
     log_group.add_argument('--log_every_n_steps', type=int, default=25)
     log_group.add_argument('--check_val_every_n_epoch', type=int, default=1)
     log_group.add_argument('--num_sanity_val_steps', type=int, default=0)

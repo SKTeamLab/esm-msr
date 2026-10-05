@@ -38,6 +38,26 @@ torch.set_float32_matmul_precision('high')
 # leaves nothing to learn from fewer than two of either; four rows keep the row means from being dominated by a single cell.
 INT_MIN_ROWS, INT_MIN_COLS = 4, 2
 
+class GroupPlateau:
+    """ReduceLROnPlateau (mode max, relative threshold 1e-4) for the named parameter groups of one optimizer only. A group whose rate is
+    already 0 (a frozen head) is left at 0 rather than lifted to ``min_lr``."""
+    def __init__(self, optimizer, names, factor=0.1, patience=1, min_lr=1e-7, threshold=1e-4):
+        self.groups = [g for g in optimizer.param_groups if g.get('name') in names]
+        self.factor, self.patience, self.min_lr, self.threshold = factor, patience, min_lr, threshold
+        self.best, self.bad = -float('inf'), 0
+
+    def step(self, value: float):
+        if value > self.best * (1 + self.threshold) if self.best > 0 else value > self.best + self.threshold:
+            self.best, self.bad = value, 0
+            return
+        self.bad += 1
+        if self.bad > self.patience:
+            for g in self.groups:
+                if g['lr'] > 0:
+                    g['lr'] = max(g['lr'] * self.factor, self.min_lr)
+            self.bad = 0
+
+
 class ESM3EpistasisLightningModule(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
@@ -83,7 +103,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # Monotone saturating link (esm_msr.link): latent stability -> the assay's observed dG. Lives on the Lightning module
         # (not the backbone wrapper) so inference and checkpoint loading of the adapters are untouched.
         self.link_head = None
-        if self.hparams.get('link', 'none') != 'none':
+        if self.hparams.get('link', 'softclamp') != 'none':
             self.link_head = link_mod.MonotoneLink(
                 lo=self.hparams.link_lo, hi=self.hparams.link_hi, tau_lo=self.hparams.link_tau, tau_hi=self.hparams.link_tau,
                 learn_bounds=bool(self.hparams.link_learn_bounds))
@@ -696,7 +716,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         optim.step()
         optim.zero_grad(set_to_none=True)
         
-        sch_warmup, sch_plateau = self.lr_schedulers()
+        sch_warmup = self.lr_schedulers()
         total_warmup_steps = self.hparams.lr_warmup_steps + max(int(getattr(self.hparams, "calib_delay_steps", 0)), int(getattr(self.hparams, "mt_lora_delay_steps", 500)))
         if sch_warmup.last_epoch < total_warmup_steps:
             sch_warmup.step()
@@ -912,14 +932,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 and not self.peft_manager.has_transitioned and 'rho_wt_valid' in avg_metrics):
             self._wt_early_stop(float(avg_metrics['rho_wt_valid']))
 
-        if not self.trainer.sanity_checking:
-            schedulers = self.lr_schedulers()
-            if schedulers is not None:
-                sch_warmup, sch_plateau = schedulers
-                total_warmup_steps = self.hparams.lr_warmup_steps + max(int(getattr(self.hparams, "calib_delay_steps", 0)), int(getattr(self.hparams, "mt_lora_delay_steps", 500)))
-                plateau_metric = self.hparams.get('lr_plateau_metric', 'rho_combined')
-                if self.trainer.global_step >= total_warmup_steps and plateau_metric in avg_metrics:
-                    sch_plateau.step(avg_metrics[plateau_metric])
+        if not self.trainer.sanity_checking and getattr(self, '_plateaus', None):
+            total_warmup_steps = self.hparams.lr_warmup_steps + max(int(getattr(self.hparams, "calib_delay_steps", 0)), int(getattr(self.hparams, "mt_lora_delay_steps", 500)))
+            if self.trainer.global_step >= total_warmup_steps:
+                for metric, plateau in self._plateaus:
+                    if metric in avg_metrics:
+                        plateau.step(avg_metrics[metric])
 
         self.validation_step_outputs.clear()
         torch.cuda.empty_cache()
@@ -1025,9 +1043,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 lambdas_main.append(lambda step, delay=self.hparams.calib_delay_steps, warmup=self.hparams.lr_warmup_steps: 0.0 if step < delay else min(1.0, max(1e-4, (step - delay) / max(1, warmup))))
 
         warmup_main = torch.optim.lr_scheduler.LambdaLR(opt_main, lr_lambda=lambdas_main)
-        plateau_main = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_main, mode='max', factor=0.1, patience=1, min_lr=1e-7)
+        # Each head cuts its own learning rate on its own validation metric (10x after two validations without a gain): the WT adapter and its
+        # calibration head on val_rho_wt_valid_avg, the MT adapter and its calibration head on val_rho_flip_pair_avg. The link is never cut.
+        self._plateaus = [('rho_wt_valid', GroupPlateau(opt_main, ('lora_wt', 'calib_wt'))),
+                          ('rho_flip_pair', GroupPlateau(opt_main, ('lora_mt', 'calib_mt')))]
 
-        return [opt_main], [{"scheduler": warmup_main, "interval": "step", "frequency": 1}, {"scheduler": plateau_main, "interval": "epoch", "frequency": 1, "monitor": f"val_{self.hparams.get('lr_plateau_metric', 'rho_combined')}_avg"}]
+        return [opt_main], [{"scheduler": warmup_main, "interval": "step", "frequency": 1}]
 
     def _save_converged_wt_weights(self):
         """Extracts and saves only the WT adapter and calibration head at the moment of convergence."""
