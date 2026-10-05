@@ -19,7 +19,6 @@ SPLITS = '/home/sareeves/software/esm-msr/data/hyperopt_splits.pkl'
 OUT = sys.argv[1] if len(sys.argv) > 1 else 'analysis_notebooks/anova/out'
 CLIP_MISSING = '--clip-missing' in sys.argv      # include '<-1' / '>5' variants at -1 / 5 instead of dropping them
 SKIP_FLIP = '--skip-flip' in sys.argv
-os.makedirs(OUT, exist_ok=True)
 rng = np.random.default_rng(0)
 PAT = re.compile(r'^([A-Z])(\d+)([A-Z])$')
 AA = 'ACDEFGHIKLMNPQRSTVWY'
@@ -125,6 +124,7 @@ def flip_rho(items, pred, target):
 
 
 def main():
+    os.makedirs(OUT, exist_ok=True)
     T, (sig1, sig_rep) = build_table()
     T.to_pickle(f'{OUT}/T.pkl')
     res = {'n_doubles': int(len(T)), 'n_libs': int(T.code.nunique()), 'n_pairs': int(T.pair.nunique()),

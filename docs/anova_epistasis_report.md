@@ -339,6 +339,10 @@ regression moves the validation flip score so little.
 
 ---
 
+**Status.** Steps 1 to 3 are implemented behind flags (training handoff §2f): `val_rho_flip_pair`, `--link softclamp`, and the interaction-only loss
+(`--lambda_int_mt` with `--flip_pair_groups` and `--flip_align_units`), plus `decompose_predictions.py` to check what a model's predictions capture. None has been
+run on a GPU yet. Step 4 is done as far as the table allows (Section 2).
+
 ## 7. Caveats
 
 * **The identity-independent pieces are fitted from measured data**, including the measured cells

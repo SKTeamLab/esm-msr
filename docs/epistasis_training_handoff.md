@@ -231,6 +231,60 @@ protect); the gain to look for is `val_auc_dead_wt` / `val_auc_hyper_wt` above c
 flat or up. Note that dead and hyperstable singles are about 3.9% and 3.2% of training singles, so an average 16-item WT list holds about one
 censored item; the sampler does not oversample them.
 
+## 2f. Changes motivated by the ANOVA report — implemented, not yet run on GPU
+
+All default off; with every flag off nothing changes (tests cover the loss composition, and `forward()` of the rank loss is bit-identical).
+Background and numbers: `docs/anova_epistasis_report.md`.
+
+### Per-pair flip metric: `val_rho_flip_pair`
+`val_rho_flip` builds each matrix from the scored position alone, so its columns pool partners at *different positions*. A predictor that knows the
+scored substitution and the partner **position** but not the partner **residue** earns 0.137 of the models' 0.20-0.21 on validation (measured). `val_rho_flip_pair`
+uses one matrix per (scored position, partner position): rows are scored substitutions, columns partner residues, so double-centring removes everything that
+does not depend on the specific *combination*, and that predictor scores exactly 0. Select checkpoints on it with `--monitor_metric val_rho_flip_pair_avg`
+(and `val_flip_pair_matrices/<loader>` for how many matrices it used). It is also written by `esm_msr_testing.py` as `rho_flip_pair`.
+
+### Monotone saturating link: `--link softclamp`
+The calibrated LLR sum is treated as a **latent** ddG, and regression is done on the observed scale, `h(dG_wt + background + latent) - dG_wt`, with one soft
+floor/ceiling `h` shared by all libraries (`esm_msr/link.py`; four parameters, own optimizer group, `--link_lr`). Saturation (60-66% of the variance of measured
+dddG) lives in `h` instead of being imitated by the adapters. Ranking is untouched (h is monotone). A conditional item is scored as the double it came from.
+Validation reports `rmse_combined` and `rho_epi_*` on the observed scale (so they stay comparable with runs without the link) and the latent versions as `*_latent`.
+
+What it makes redundant, with `--link softclamp`:
+
+| setting | status | why |
+|---|---|---|
+| `--min_additive_dG`, `--subfloor_rank_only` (`reg_ok`) | **ignored** by the regression | they existed to keep floor-pinned values out of a linear regression; `h` absorbs them |
+| `--shared_bias_init` | **redundant, leave unset** | the link fixes the absolute levels; a bias would shift the latent zero point (a no-op mutation must be 0) |
+| calibration-head **scale** | still needed | it is the latent scale; only its bias is redundant |
+| `--censor_floor_hinge` | redundant | `h` already treats floor-pinned values as observations at the plateau |
+| `--censor_floor` (rank tie of floor-pinned items) | still useful | the *order* among pinned items is still noise; the link does not touch ranking |
+| `--censor_reg_weight` / hinge for `<-1`, `>5` | keep | a bound is not a value: the hinge is computed on the observed scale and is still the right treatment |
+| `--lambda_*_combined` (legacy) | **not supported** (raises) | defined on the unsaturated additive target |
+| `--cond_weight`, `--mt_single_anchor_*`, `--lambda_reg_mt` | unchanged | same terms, now on the observed scale |
+
+Items without a known `dG_wt` (four libraries whose wild type is itself out of range) are left out of the regression and keep their rank terms.
+The learned plateaus are logged as `link/floor` and `link/ceiling` (with `link/lo`, `link/hi`, `link/tau_lo`, `link/tau_hi`); without out-of-range items
+the floor settles above -1 because only variants measured above it are kept. Inference is unchanged and returns the latent (unsaturated) ddG.
+
+### Interaction-only loss: `--lambda_int_mt`, `--flip_pair_groups`, `--flip_align_units`
+For each position-pair matrix in a micro-batch (trimmed to a complete block) the predictions and the measurements are **double-centred** separately and regressed on
+each other. The pair offset, each substitution's own effect and each partner's own effect are annihilated on both sides, so the loss pressures only the interaction.
+**It adds to the ordinary regression and does not replace it**, so the identity-independent effects (which can be real biology) keep being learned there:
+saturation by the link, per-substitution severity by the WT head and the MT conditional regression, pair offsets and row/column effects by the MT conditional regression.
+It needs several columns of one pair in a micro-batch: `--flip_pair_groups 3` packs up to 3 columns of a pair together in the sampler, and `--flip_align_units` cuts MT
+micro-batches at pair boundaries (this also fixes the ~10% of within-column pairs lost to fixed-size cuts). Recommended: `--lambda_int_mt 1.0 --flip_pair_groups 3 --flip_align_units`.
+Check what a model captured with `analysis_notebooks/anova/decompose_predictions.py` (Spearman of its predicted dddG with each *measured* component: saturation, pair offset,
+row+column effects, interaction): the first three should stay put and the last should rise.
+
+Suggested arms (3 epochs, same seed and `cache_v7`; monitor `val_rho_flip_pair_avg`, guard `val_rho_wt_valid_avg` and `val_rmse_combined_avg`):
+
+| arm | name | flags beyond the canonical command (no `--shared_bias_init`) | question |
+|---|---|---|---|
+| L0 | `v7_link` | `--link softclamp` | Does the link keep or improve ΔΔG quality and reduce the work the adapters do for saturation? |
+| L1 | `v7_link_oor` | L0 + `--include_out_of_range` | Do dead / hyperstable items help once the link carries saturation? |
+| I0 | `v7_pairgroups` | L1 + `--flip_pair_groups 3 --flip_align_units` | The sampler/micro-batch change alone (no new loss). |
+| I1 | `v7_int` | I0 + `--lambda_int_mt 1.0` | Does the interaction-only loss raise `val_rho_flip_pair_avg`? |
+
 ## 3. What to watch
 
 | metric | meaning | expectation |
