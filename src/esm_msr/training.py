@@ -458,6 +458,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         cens_bound = batch['cens_bound'].float().to(device) if torch.is_tensor(batch.get('cens_bound')) else torch.full((B,), float('nan'), device=device)
         cens_src = batch['cens_src'].to(device) if torch.is_tensor(batch.get('cens_src')) else torch.zeros(B, dtype=torch.long, device=device)
         use_cens = bool((cens_all != 0).any())
+        _dbg = os.environ.get('MSR_CENS_DEBUG', '')       # bisecting a flag-dependent crash: 'ignore' = data only, 'force' = loss-code path only
+        if _dbg == 'ignore':
+            cens_all, use_cens = torch.zeros_like(cens_all), False
+        elif _dbg == 'force':
+            use_cens = True
         self._cens_diag = (int((cens_all < 0).sum()), int((cens_all > 0).sum())) if use_cens else None
         # Regression sees a censored item as a bound (hinge) when it has no usable value (out of range), or if asked for floor items.
         hinge_w = float(hp.get('censor_reg_weight', 1.0))
@@ -813,8 +818,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # activation-bound run (peak tracks the micro-batch) from an allocator-held one (reserved >> peak)
             gb = 1.0 / 2 ** 30
             self.log("mem/allocated_gb", torch.cuda.memory_allocated() * gb, on_step=True)
-            self.log("mem/peak_allocated_gb", torch.cuda.max_memory_allocated() * gb, on_step=True)
-            self.log("mem/reserved_gb", torch.cuda.memory_reserved() * gb, on_step=True)
+            self.log("mem/peak_allocated_gb", torch.cuda.max_memory_allocated() * gb, on_step=True, prog_bar=True)
+            self.log("mem/reserved_gb", torch.cuda.memory_reserved() * gb, on_step=True, prog_bar=True)
             torch.cuda.reset_peak_memory_stats()
         for k, v in logs.items():
             if v > 0.0: self.log(f"train/{k}", v, on_step=True)
