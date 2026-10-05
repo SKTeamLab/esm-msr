@@ -80,7 +80,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.crit_rank_combined = _get_rank_loss() if self.hparams.lambda_rank_combined > 0 else None
         self.crit_rank_mt = _get_rank_loss() if self.hparams.lambda_rank_mt > 0 else None
         _censoring_on = self.hparams.get('censor_floor', None) is not None or bool(self.hparams.get('include_out_of_range', False))
-        if _censoring_on and not isinstance(self.crit_rank_mt or self.crit_rank_wt, ListMLELoss):
+        _crit = self.crit_rank_mt or self.crit_rank_wt
+        if _censoring_on and _crit is not None and not isinstance(_crit, ListMLELoss):
             raise AssertionError("--censor_floor / --include_out_of_range require --rank_loss listmle (censored Plackett-Luce).")
 
         if self.hparams.reg_loss == 'huber':

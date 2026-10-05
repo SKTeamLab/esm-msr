@@ -38,7 +38,7 @@ def range_censoring(dG_raw, dG_wt) -> Tuple[np.ndarray, np.ndarray]:
     ``dG_raw`` is the column as read (numbers and the strings ``<-1`` / ``>5`` / ``-``); ``dG_wt`` is the per-row
     wild-type dG of the row's library (NaN when unknown). Returns ``(cens, ddG)``: ``cens`` is -1 for ``<-1``, +1
     for ``>5`` and 0 otherwise, and ``ddG`` is the numeric ddG for ordinary rows and the *bound* on the ddG scale
-    (-1 - dG_wt, or 5 - dG_wt) for censored ones; NaN where it cannot be computed (``-``, unknown dG_wt).
+    (-1 - dG_wt, or 5 - dG_wt) for censored ones; NaN where it cannot be computed (``-``, or a censored row whose library has no numeric dG_wt: its bound on the ddG scale is unknown, though it still bounds the *ranking* within its library).
     """
     raw = np.asarray(dG_raw, dtype=object)
     wt = np.asarray(dG_wt, dtype=float)

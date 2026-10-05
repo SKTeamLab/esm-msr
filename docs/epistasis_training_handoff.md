@@ -209,6 +209,14 @@ the item's own ddG scale). Losses read only those fields.
 
 Requires `--rank_loss listmle`. Floor censoring (`--censor_floor`) still applies only to MT flip columns.
 
+**What the v7 cache holds** (training libraries, items by censoring): singles 104,775 ordinary, **5,114 dead**, **4,312 hyperstable**;
+conditional items 111,364 ordinary, 6,796 lower-censored, 14 upper-censored (conditional items inherit a double's censoring, with the bound
+shifted by the partner single); native-conditional 17,435 / 254 / 89. Validation: singles 23,759 ordinary, 1,451 dead, 283 hyperstable; doubles
+9,419 ordinary and 3,752 dead.
+Four libraries (2KRS, 2KT8, 2LYP, 5GU9) have a wild type that is itself above the assay range, so there is no numeric `dG_wt` and no bound on the
+ddG scale. Their `>5` variants (3,406 of the hyperstable singles) are kept as **rank-only** anchors: they outrank every numeric variant of their
+library, they get a placeholder label that no loss reads, and they get no hinge (`cens_bound` is NaN).
+
 Suggested arms (3 epochs first, same seed and cache), each differing from the previous by one switch:
 
 | arm | name | flags beyond the canonical command | question |

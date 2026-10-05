@@ -141,8 +141,11 @@ class MegaScaleDatasetPreprocessor:
         self.df['ddG_ML'] = pd.to_numeric(self.df['ddG_ML'], errors='coerce')
         self.df['cens'] = _cens
         if self.include_out_of_range:
-            oor = (_cens != 0) & np.isfinite(_ddG_bound)
-            self.df.loc[oor, 'ddG_ML'] = _ddG_bound[oor]
+            # ddG_ML becomes the bound on the ddG scale. A library whose own wild type is out of range has no dG_wt, so
+            # there is no bound to form; the item is still a valid RANK anchor (a '>5' variant outranks every numeric one
+            # in its library) and gets a placeholder 0.0 that no loss reads (cens_bound is NaN, so it gets no hinge).
+            oor = (_cens != 0)
+            self.df.loc[oor, 'ddG_ML'] = np.where(np.isfinite(_ddG_bound[oor]), _ddG_bound[oor], 0.0)
         self.df = self.df.loc[self.df['ddG_ML'].notna()]
         self.df = self.df.loc[~self.df['mut_type'].str.contains('wt')]
         self.df = self.df.loc[~self.df['mut_type'].str.contains('ins')]
