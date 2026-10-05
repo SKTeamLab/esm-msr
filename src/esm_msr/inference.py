@@ -87,8 +87,6 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
 
     if 'adapter_mode' not in hparams:
         logging.warning("Expected 'adapter_mode' missing from hparams. Defaulting to 'dual'.")
-    if 'lora_mode' not in hparams:
-        logging.warning("Expected 'lora_mode' missing from hparams. Defaulting to 'ensemble'.")
 
     wt_config = {
         'lora_rank': hparams.get('lora_rank_wt', default_wt['lora_rank']),
@@ -120,7 +118,6 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'wt_config': wt_config,
         'mt_config': mt_config,
         'adapter_mode': hparams.get('adapter_mode', 'dual'),
-        'lora_mode': hparams.get('lora_mode', 'ensemble'),
         'shared_bias_init': hparams.get('shared_bias_init', None),
         'shared_scale_init': hparams.get('shared_scale_init', 1.0),
     }
@@ -471,7 +468,7 @@ if __name__ == "__main__":
     
     # Model configuration
     parser.add_argument("--log_likelihood", action="store_true", help="Process raw logits into log likelihoods")
-    parser.add_argument("--use_plddt", action="store_true", help="Whether to pass pLDDT values to the model")
+    parser.add_argument("--use_plddt", action="store_true", help="No effect (pLDDT is never passed to ESM3); accepted so older commands still run")
     parser.add_argument("--quaternary_mode", type=str, default="single_chain", help="How to handle quaternary structure")
     parser.add_argument("--model_dtype", type=str, default="float32", choices=["float32", "bfloat16", "float16"])
 
@@ -592,7 +589,6 @@ if __name__ == "__main__":
     # Config loading
     lora_config = None
     adapter_mode = "dual"
-    lora_mode = "ensemble"
     mask_structure = False
 
     if args.lora_config:
@@ -604,7 +600,6 @@ if __name__ == "__main__":
                 lora_config = json.loads(args.lora_config)
                 
             adapter_mode = lora_config.get('adapter_mode', 'dual')
-            lora_mode = lora_config.get('lora_mode', 'ensemble')
             mask_structure = lora_config.get('mask_structure', False)
             
             # Apply sigma
@@ -624,7 +619,6 @@ if __name__ == "__main__":
         logging.info(f"Extracting LoRA config from hparams file: {args.hparams_path}")
         parsed_config = parse_hparams_to_lora_config(args.hparams_path, sigma=args.sigma)
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
-        lora_mode = parsed_config.get('lora_mode', 'ensemble')
         mask_structure = parsed_config.get('mask_structure', False)
         lora_config = {
             'wt_config': parsed_config['wt_config'],
@@ -635,7 +629,7 @@ if __name__ == "__main__":
     model_dtype = dtype_map[args.model_dtype]
     device = torch.device(args.device)
 
-    logging.info(f"Initializing MSRModel on {device} (dtype: {model_dtype}, adapter: {adapter_mode}, lora: {lora_mode})...")
+    logging.info(f"Initializing MSRModel on {device} (dtype: {model_dtype}, adapter: {adapter_mode})...")
 
     model = MSRModel(
         lora_config=lora_config,
@@ -643,11 +637,9 @@ if __name__ == "__main__":
         shared_bias_init=0,
         inference_mode=True,
         log_likelihood=args.log_likelihood,
-        use_plddt=args.use_plddt,
         quaternary_mode=args.quaternary_mode,
         model_dtype=model_dtype,
         adapter_mode=adapter_mode,
-        lora_mode=lora_mode,
         mask_structure=mask_structure,
     )
 

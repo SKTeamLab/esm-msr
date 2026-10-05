@@ -23,7 +23,7 @@ class TrackingStub(torch.nn.Module):
         self.w = torch.nn.Parameter(torch.tensor([1.0, 1.0]))
         self.refs, self.alive_at_forward = [], []
 
-    def forward_partitioned(self, micro, pass_type, mask_strategy=None, detach_calibration=False, cached_wt_esm3=None):
+    def forward_partitioned(self, micro, pass_type, mask_strategy=None, cached_wt_esm3=None):
         gc.collect()
         self.alive_at_forward.append((pass_type, [r() is not None for r in self.refs]))
         i = 0 if pass_type == 'wt' else 1
@@ -51,7 +51,7 @@ class TestUnitGraphRelease(unittest.TestCase):
         stub.link_head = None
         stub.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
         stub.crit_reg = torch.nn.MSELoss(reduction='none')
-        stub.crit_rank_wt, stub.crit_rank_mt, stub.crit_rank_combined = ListMLELoss(), ListMLELoss(), None
+        stub.crit_rank_wt, stub.crit_rank_mt = ListMLELoss(), ListMLELoss()
         stub._warned_unrouted = True
         stub.global_step = 0
         stub.manual_backward = lambda loss, retain_graph=False: loss.backward(retain_graph=retain_graph)

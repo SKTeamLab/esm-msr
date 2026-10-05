@@ -984,8 +984,9 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         flip_pair_groups: int = 0,
     ):
         # With flip_pair_groups = N > 0, the flip columns of one position pair travel together in units of up to N columns, so a batch
-        # (and, with --flip_align_units, a micro-batch) holds several columns of the SAME pair matrix. Needed by the interaction-only
-        # loss (--lambda_int_mt), whose double-centring needs more than one column of a pair. 0 keeps whole single columns as units.
+        # (and, because MT micro-batches are cut at pair boundaries, a micro-batch) holds several columns of the SAME pair matrix. Needed by
+        # the interaction-only loss (--lambda_int_mt), whose double-centring needs more than one column of a pair. The value is derived in
+        # config.parse_arguments (micro_batch_size // 19 when --lambda_int_mt > 0). 0 keeps whole single columns as units.
         self.flip_pair_groups = int(flip_pair_groups)
         if strategy not in ('min', 'all'):
             raise ValueError(f"strategy must be 'min' or 'all', got '{strategy}'")

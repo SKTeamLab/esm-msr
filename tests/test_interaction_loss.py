@@ -225,14 +225,13 @@ class TestInteractionLossInTheComposition(unittest.TestCase):
     def test_off_by_default_and_present_when_enabled(self):
         out, _ = run(self._batch(), flip_list_min=3)
         self.assertNotIn('L_int_mt', out)
-        out, stub = run(self._batch(), flip_list_min=3, lambda_int_mt=1.0, int_min_rows=4, int_min_cols=2)
+        out, stub = run(self._batch(), flip_list_min=3, lambda_int_mt=1.0)
         self.assertIn('L_int_mt', out)
         self.assertTrue(torch.isfinite(stub.model.w.grad).all())
 
     def test_aligned_micro_batches_keep_the_matrix_whole(self):
         # micro-batch of 16 rows would cut the 18-row matrix; aligned chunking cannot fit it either and cuts at a column boundary
-        out, _ = run(self._batch(), flip_list_min=3, lambda_int_mt=1.0, int_min_rows=4, int_min_cols=1,
-                     flip_align_units=True, micro_batch_size=24)
+        out, _ = run(self._batch(), flip_list_min=3, lambda_int_mt=1.0, micro_batch_size=24)
         self.assertIn('L_int_mt', out)
 
 

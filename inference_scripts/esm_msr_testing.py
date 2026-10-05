@@ -360,7 +360,6 @@ def main_(args):
 
         parsed_config = inference.parse_hparams_to_lora_config(str(hparams_path))
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
-        lora_mode = parsed_config.get('lora_mode', 'ensemble')
         mask_structure = parsed_config.get('mask_structure', False)
         if args.mask_structure_pos or args.mask_coords_pos:
             if not mask_structure:
@@ -390,7 +389,6 @@ def main_(args):
             "incl_sequence_head": False, "unfreeze_layernorms": False,
         }
         adapter_mode = 'dual'
-        lora_mode = 'ensemble'
         mask_structure = False
         lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': args.seed}        
 
@@ -400,7 +398,7 @@ def main_(args):
     shared_scale_init = parsed_config.get('shared_scale_init', 1.0) if CHECKPOINT_STR != 'zeroshot' else 1.0
     model = models.MSRModel(
         lora_config=lora_config, shared_scale_init=shared_scale_init, shared_bias_init=shared_bias_init, adapter_mode=adapter_mode,
-        lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True, mask_structure=mask_structure
+        model_dtype=model_dtype, inference_mode=True, mask_structure=mask_structure
     ).to('cuda:0')
 
     # ---------------------------------------------------------

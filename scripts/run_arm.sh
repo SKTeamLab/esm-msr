@@ -1,8 +1,9 @@
 #!/bin/bash
 # EPOCHS is a cap; early stopping on val_rho_flip_pair_avg (patience 2, min 3 epochs).
 # Usage: scripts/run_arm.sh RUN_NAME EPOCHS SEED [extra training flags...]
-# Canonical command (docs/epistasis_training_handoff.md §2) on THIS worktree's code and cache_v7.
-WT=/home/sareeves/playground/esm-msr-devel/repo/.claude/worktrees/censored-margin-ranking-9b239c
+# Canonical command (docs/epistasis_training_handoff.md §2, minus the flags retired since: see docs/hparam_review.md) on THIS worktree's code and cache_v7.
+# Arm-specific flags go after SEED and are appended last, so they override anything above them (argparse keeps the last value).
+WT=${WT:-/home/sareeves/playground/esm-msr-devel/repo/.claude/worktrees/censored-margin-ranking-9b239c}   # the tree whose code runs
 cd /home/sareeves/playground/esm-msr-devel
 export PYTHONPATH=$WT/src HF_HUB_OFFLINE=1 PYTORCH_CUDA_ALLOC_CONF=${ALLOC_CONF:-expandable_segments:True}
 PY=/home/sareeves/miniconda3/envs/msr_venv/bin/python
@@ -25,14 +26,14 @@ COMET_KEY=$(sed -n 's/^ *api_key *= *//p' ~/.comet.config | head -1)
   --lora_rank_wt 2  --lora_alpha_wt 4  --lora_dropout_wt 0.1 --target_mode_wt expanded \
   --lora_rank_mt 16 --lora_alpha_mt 16 --lora_dropout_mt 0.1 --target_mode_mt expanded \
   --incl_sequence_head_wt --incl_sequence_head_mt \
-  --adapter_mode dual --lora_mode ensemble \
+  --adapter_mode dual \
   --lambda_reg_wt 1.0 --lambda_rank_wt 1.0 \
   --lambda_reg_mt 1.0 --lambda_rank_mt 1.0 --flip_list_min 4 \
   --mt_single_anchor_weight 0.5 --cond_weight 0.5 --native_cond_weight 1.0 \
-  --reg_loss mse --precision bf16-mixed \
-  --batch_size 256 --micro_batch_size 64 --subset_size 16 \
+  --precision bf16-mixed \
+  --batch_size 256 --micro_batch_size 64 --wt_list_size 16 \
   --learning_rate 2e-4 --lr_warmup_steps 500 \
-  --shared_scale_init 0.3 --detach_ensemble_input \
+  --shared_scale_init 0.3 \
   --num_workers 4 --log_every_n_steps 25 --save_top_k 3 \
   --monitor_metric val_rho_flip_pair_avg --monitor_mode max \
   --early_stopping_metric val_rho_flip_pair_avg --early_stopping_patience 2 --min_epochs 3 \

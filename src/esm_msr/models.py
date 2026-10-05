@@ -142,12 +142,13 @@ class MSRModel(ESM3PredictorBase):
     See ``esm_msr.routing`` for which data subsets train which adapter and why
     0.5 * WT + 0.5 * MT is the thermodynamically correct estimate for multi-mutants.
 
+    The backbone runs once per unique (sequence, structure) row of a batch and the logits of the
+    duplicates are gathered (``dedup_backbone``, always on). All single and double items of one
+    protein share their WT input, so the WT pass costs one forward per batch instead of one per
+    mutation. Exact in eval; in training, rows that share an input also share one LoRA-dropout
+    sample.
+
     Args (beyond the LoRA configuration):
-        dedup_backbone: Run the backbone once per unique (sequence, structure) row of a
-            batch and gather logits for the duplicates. All single and double items of one
-            protein share their WT input, so the WT pass costs one forward per batch instead
-            of one per mutation. Exact in eval; in training, rows that share an input also
-            share one LoRA-dropout sample.
         sequence_head_only: Skip ESM3's unused structure/function/residue/SS8/SASA heads.
         mask_structure: Blank the structure at every position the MT-pass sequence mutates
             relative to the structure (``struct_mut_pos``): coordinates to NaN and structure
@@ -157,12 +158,14 @@ class MSRModel(ESM3PredictorBase):
             leaves the other informative. This setting must match between training and
             inference, so it is recorded in hparams.yaml and re-applied from there.
     """
+    dedup_backbone = True
+
     def __init__(
             self, lora_config: dict, shared_scale_init: float | None = None,
             shared_bias_init: float | None = None, inference_mode: bool = False, log_likelihood: bool = False,
-            use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16,
-            adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
-            dedup_backbone: bool = True, sequence_head_only: bool = True,
+            quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16,
+            adapter_mode: str = 'dual', strict_loading: bool = True,
+            sequence_head_only: bool = True,
             mask_structure: bool = False,
         ):
         logging.info("Initializing ESM3 Base Model...")
@@ -170,16 +173,10 @@ class MSRModel(ESM3PredictorBase):
         base_esm3.to(model_dtype)
         super().__init__(esm_model=base_esm3)
         
-        if lora_mode not in ['ensemble', 'corrector']:
-            raise AssertionError(f"Unknown lora_mode '{lora_mode}'. Must be 'ensemble' or 'corrector'.")
-            
-        self.quaternary_mode, self.log_likelihood, self.use_plddt, self.dtype = quaternary_mode, log_likelihood, use_plddt, model_dtype 
-        self.adapter_mode, self.lora_mode = adapter_mode, lora_mode
+        self.quaternary_mode, self.log_likelihood, self.dtype = quaternary_mode, log_likelihood, model_dtype 
+        self.adapter_mode = adapter_mode
         self.strict_loading = strict_loading
-        self.dedup_backbone = dedup_backbone
         self.mask_structure = mask_structure
-        if use_plddt:
-            logging.warning("use_plddt=True has no effect: per-residue pLDDT is not passed to ESM3.")
         
         # 1. Initialize Calibration
         if shared_scale_init is not None or shared_bias_init is not None:
@@ -190,7 +187,7 @@ class MSRModel(ESM3PredictorBase):
                 self.calibration_head_mt = CalibrationHead(init_scale=shared_scale_init, init_bias=shared_bias_init, requires_grad=not inference_mode)
         
         # 2. Add LoRAs using config
-        logging.info(f"Injecting Adapters (Mode: {self.adapter_mode.upper()} | Strategy: {self.lora_mode.upper()})...")
+        logging.info(f"Injecting Adapters (Mode: {self.adapter_mode.upper()})...")
         self.lora_config = lora_config
         self.add_loras_to_esm3(**self.lora_config)
         
@@ -699,7 +696,7 @@ class MSRModel(ESM3PredictorBase):
         ``logits[row_index[b]]``.
         """
         B = seq.shape[0]
-        if getattr(self, 'dedup_backbone', False) and B > 1:
+        if self.dedup_backbone and B > 1:
             first, row_index = self._unique_rows(seq, coords, struct_tokens)
             if first.numel() < B:
                 def _take(t):
@@ -709,7 +706,7 @@ class MSRModel(ESM3PredictorBase):
         out = self._get_esm3_outputs(seq, coords, struct_tokens, plddt, active_model=active_model)
         return self._process_logits(out.sequence_logits.float()), torch.arange(B, device=seq.device)
 
-    def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None, detach_calibration: bool = False) -> Dict[str, torch.Tensor]:
+    def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
         """
         One adapter pass over a batch.
 
@@ -801,13 +798,12 @@ class MSRModel(ESM3PredictorBase):
 
         # --- Shared Post-Processing & Calibration ---
         llr_sum_raw = unsummed_llr.sum(dim=1)
-        llr_sum_for_cal = llr_sum_raw.detach() if detach_calibration else llr_sum_raw
 
         if self.adapter_mode == 'fused':
             head = getattr(self, 'calibration_head_fused', None)
         else:
             head = getattr(self, f'calibration_head_{pass_type}', None)
-        llr_sum_cal = head(llr_sum_for_cal) if head is not None else llr_sum_raw
+        llr_sum_cal = head(llr_sum_raw) if head is not None else llr_sum_raw
 
         output_dict = {'pred_calibrated': llr_sum_cal, 'pred_raw': llr_sum_raw, 'unsummed_llr': unsummed_llr}
         return output_dict

@@ -21,12 +21,10 @@ class HP(dict):
 
 
 def make_hp(**kw):
-    hp = HP(subset_size=4, micro_batch_size=16, lambda_reg_wt=1.0, lambda_rank_wt=1.0, lambda_reg_mt=1.0, lambda_rank_mt=1.0,
-            lambda_reg_combined=0.0, lambda_rank_combined=0.0, lambda_epi_combined=0.0, flip_list_min=3, mask_strategy=None,
-            detach_regression=False, detach_ensemble_input=False, mt_reg_mask='doubles', subfloor_rank_only=True,
-            zero_epistasis_for_singles=True, cond_weight=1.0, double_weight=1.0, reversion_weight=1.0, native_cond_weight=1.0,
+    hp = HP(wt_list_size=4, micro_batch_size=16, lambda_reg_wt=1.0, lambda_rank_wt=1.0, lambda_reg_mt=1.0, lambda_rank_mt=1.0,
+            lambda_int_mt=0.0, flip_list_min=3, mask_strategy=None, subfloor_rank_only=True, cond_weight=1.0, native_cond_weight=1.0,
             mt_single_anchor_weight=0.0, mt_single_anchor_frac=1.0, censor_reg_weight=1.0, censor_floor_hinge=False,
-            flip_group_units=True, include_out_of_range=False, censor_floor=None)
+            include_out_of_range=False, censor_floor=None)
     hp.update(kw)
     return hp
 
@@ -39,7 +37,7 @@ class StubModel(torch.nn.Module):
         super().__init__()
         self.w = torch.nn.Parameter(torch.tensor([1.0, 1.0]))     # wt, mt
 
-    def forward_partitioned(self, micro, pass_type, mask_strategy=None, detach_calibration=False, cached_wt_esm3=None):
+    def forward_partitioned(self, micro, pass_type, mask_strategy=None, cached_wt_esm3=None):
         i = 0 if pass_type == 'wt' else 1
         raw = micro['feat'] * self.w[i]
         return {'pred_calibrated': raw, 'pred_raw': raw}
@@ -81,7 +79,7 @@ def run(batch, link_head=None, **hp_kw):
     stub.link_head = link_head
     stub.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
     stub.crit_reg = torch.nn.MSELoss(reduction='none')
-    stub.crit_rank_wt, stub.crit_rank_mt, stub.crit_rank_combined = ListMLELoss(), ListMLELoss(), None
+    stub.crit_rank_wt, stub.crit_rank_mt = ListMLELoss(), ListMLELoss()
     stub._warned_unrouted = True
     stub.global_step = 0
     stub.manual_backward = lambda loss, retain_graph=False: loss.backward(retain_graph=retain_graph)
@@ -138,3 +136,33 @@ class TestComposeCensoring(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestMtGateAndMicroBatch(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import esm_msr.training  # noqa: F401
+        except Exception as e:  # pragma: no cover
+            raise unittest.SkipTest(f"training module not importable: {e}")
+
+    def test_mt_rank_loss_trains_even_when_the_mt_regression_is_off(self):
+        # the MT unit used to exist only when lambda_reg_mt > 0, so rank-only (or interaction-only) MT training silently trained nothing
+        out, stub = run(make_batch(with_cens=False), lambda_reg_mt=0.0, lambda_rank_mt=1.0)
+        self.assertIn('L_rank_mt', out)
+        self.assertNotIn('L_reg_mt', out)
+        self.assertTrue(stub.model.w.grad[1].abs() > 0)
+
+    def test_micro_batch_size_is_not_rounded_to_the_wt_list_size(self):
+        from unittest import mock
+        sizes = []
+        orig = StubModel.forward_partitioned
+
+        def spy(self, micro, pass_type, mask_strategy=None, cached_wt_esm3=None):
+            if pass_type == 'mt':
+                sizes.append(int(micro['feat'].shape[0]))
+            return orig(self, micro, pass_type, mask_strategy=mask_strategy, cached_wt_esm3=cached_wt_esm3)
+
+        with mock.patch.object(StubModel, 'forward_partitioned', spy):
+            run(make_batch(), lambda_rank_mt=0.0, micro_batch_size=5, wt_list_size=4)       # 6 MT rows: 5 + 1, not 4 + 2
+        self.assertEqual(sizes, [5, 1])

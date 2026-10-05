@@ -51,6 +51,52 @@ class ParseSubsetCaps(argparse.Action):
 
         setattr(namespace, self.dest, caps)
 
+
+# Longest possible flip column: one row per substitution at the scored position (20 residues minus the wild type).
+MAX_COLUMN_LEN = 19
+
+_ANY = object()
+# Flags removed from the training CLI. They are still ACCEPTED, so older launch scripts and the commands in docs/ keep working: a retired
+# flag given the value it used to default to (or any value, when it no longer matters) is ignored with a warning; given a value that used to
+# change behaviour it is an error, because silently ignoring it would train a different model from the one the command describes.
+# name -> (type, value that is harmless to ignore, or _ANY, why it went)
+RETIRED_FLAGS = {
+    'lora_mode': (str, 'ensemble', "the 'corrector' mode was only ever read by the legacy combined objective, which is gone"),
+    'lambda_rank_combined': (float, 0.0, "the legacy combined (teacher-forced ensemble) objective was removed"),
+    'lambda_reg_combined': (float, 0.0, "the legacy combined (teacher-forced ensemble) objective was removed"),
+    'lambda_epi_combined': (float, 0.0, "the legacy combined (teacher-forced ensemble) objective was removed"),
+    'detach_ensemble_input': (bool, _ANY, "it only acted inside the legacy combined objective"),
+    'mt_reg_mask': (str, _ANY, "it only acted inside the legacy combined objective"),
+    'zero_epistasis_for_singles': (bool, _ANY, "it only acted inside the legacy combined objective"),
+    'detach_calibration': (bool, _ANY, "it was never read (--detach_regression was what reached the model)"),
+    'detach_regression': (bool, False, "cutting the adapters off from the regression terms also cuts them off from --lambda_int_mt"),
+    'double_weight': (float, _ANY, "doubles are no longer a training subset: they enter as 'cond' items (see esm_msr.routing)"),
+    'reversion_weight': (float, _ANY, "reversions are no longer a training subset"),
+    'huber_delta': (float, _ANY, "regression is plain MSE; saturation and censoring are handled by the link and the hinge"),
+    'reg_loss': (str, 'mse', "regression is plain MSE; saturation and censoring are handled by the link and the hinge"),
+    'rank_loss': (str, 'listmle', "ListMLE (censored Plackett-Luce) is the only rank loss"),
+    'invert_list_loss': (bool, False, "never used"),
+    'dedup_backbone': (bool, True, "always on: one backbone forward per unique input row"),
+    'flip_group_units': (bool, _ANY, "MT micro-batches are always cut at position-pair boundaries when a flip loss is on"),
+    'flip_align_units': (bool, _ANY, "MT micro-batches are always cut at position-pair boundaries when a flip loss is on"),
+    'flip_pair_groups': (int, _ANY, "derived: with --lambda_int_mt > 0, micro_batch_size // 19 columns of a pair travel together"),
+    'int_min_rows': (int, 4, "fixed at 4"),
+    'int_min_cols': (int, 2, "fixed at 2"),
+    'freeze_wt_after_epoch': (int, 1000, "use --wt_early_stop_patience"),
+    'freeze_wt_on_convergence': (bool, False, "use --wt_early_stop_patience"),
+    'wt_convergence_patience': (int, _ANY, "use --wt_early_stop_patience"),
+    'wt_convergence_metric': (str, 'rho_wt_valid', "the WT head's early stop always reads val_rho_wt_valid_avg"),
+    'use_plddt': (bool, False, "pLDDT is never passed to ESM3"),
+    'residual_wd': (float, _ANY, "never read"),
+    'residual_lr_mult': (float, _ANY, "never read"),
+    # derived from --subset_caps, never an independent choice
+    'incl_singles': (bool, _ANY, "derived from --subset_caps"),
+    'incl_doubles': (bool, _ANY, "derived from --subset_caps"),
+    'incl_cond': (bool, _ANY, "derived from --subset_caps"),
+    'incl_reversions': (bool, _ANY, "derived from --subset_caps"),
+    'incl_native_cond': (bool, _ANY, "derived from --subset_caps"),
+}
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train ESM3 Dual-LoRA Stability Model")
 
@@ -70,7 +116,6 @@ def parse_arguments() -> argparse.Namespace:
     lora_group_mt.add_argument('--target_mode_mt', type=str, default='expanded')
     lora_group_mt.add_argument('--unfreeze_layernorms_mt', action=argparse.BooleanOptionalAction, default=False)
     lora_group_mt.add_argument('--use_dora_mt', action=argparse.BooleanOptionalAction, default=False)
-    lora_group_mt.add_argument('--lora_mode', type=str, default='ensemble', choices=['ensemble', 'corrector'])
 
     lora_group_wt = parser.add_argument_group("WT LoRA Configuration")
     lora_group_wt.add_argument('--lora_rank_wt', type=int, default=6)
@@ -83,13 +128,8 @@ def parse_arguments() -> argparse.Namespace:
     lora_group_wt.add_argument('--use_dora_wt', action=argparse.BooleanOptionalAction, default=False)
     
     loss_group = parser.add_argument_group("Loss Configuration")
-    loss_group.add_argument('--rank_loss', type=str, default='listmle')   
-    loss_group.add_argument('--reg_loss', type=str, default='mse')
-    loss_group.add_argument('--huber_delta', type=float, default=1.0)
     loss_group.add_argument('--lambda_rank_wt', type=float, default=0.0)
-    loss_group.add_argument('--lambda_rank_combined', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_wt', type=float, default=0.0)
-    loss_group.add_argument('--lambda_reg_combined', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_mt', type=float, default=1.0,
                             help="Regress the MT pass on MT-head subsets (cond, native_cond); see esm_msr.routing. "
                                  "Keep > 0: this is the only term that gives the MT pass an absolute scale, and "
@@ -101,27 +141,16 @@ def parse_arguments() -> argparse.Namespace:
                                  "to the assay's monotone response and to the dynamic-range floor by construction, so "
                                  "it cannot be satisfied by learning assay saturation - which the regression term can. "
                                  "This is the loss that targets identity-dependent interaction directly.")
-    loss_group.add_argument('--flip_group_units', action=argparse.BooleanOptionalAction, default=True,
-                            help="Order MT work-unit rows by flip column so each micro-batch holds whole columns "
-                                 "rather than fragments of many. Same items and the same number of forwards; only "
-                                 "the grouping changes. Without it a column of ~19 is scattered across the batch.")
     loss_group.add_argument('--lambda_int_mt', type=float, default=0.0,
                             help="Interaction-only loss on the MT pass. For each position-pair matrix present in a micro-batch (rows = scored "
                                  "substitutions, columns = partner residues, trimmed to a complete block), double-centre the predictions and the "
                                  "measurements (subtract row means, column means, add the grand mean) and regress one on the other. Everything that does not "
                                  "depend on the specific COMBINATION of the two residues - the position-pair offset, each substitution's own effect, "
                                  "each partner's effect - is annihilated, so this loss pressures only the interaction and cannot unlearn the "
-                                 "identity-independent effects, which are still learned through the ordinary regression. Needs --flip_pair_groups > 0 and "
-                                 "--flip_align_units so a micro-batch holds several columns of one pair. 0 disables.")
-    loss_group.add_argument('--flip_pair_groups', type=int, default=0,
-                            help="Pack the flip columns of one position pair together in units of up to this many columns (the sampler's "
-                                 "unit is otherwise one column). 3 keeps a unit within one 64-row micro-batch. 0 = one column per unit.")
-    loss_group.add_argument('--flip_align_units', action=argparse.BooleanOptionalAction, default=False,
-                            help="Cut MT micro-batches at position-pair boundaries instead of every micro_batch_size rows, so no pair matrix "
-                                 "(and no flip column) is split across two micro-batches. Also removes the ~10%% of within-column pairs lost to "
-                                 "fixed-size cuts. Same rows, same number of forwards up to rounding.")
-    loss_group.add_argument('--int_min_rows', type=int, default=4, help="Minimum rows (scored substitutions) of the complete block for --lambda_int_mt.")
-    loss_group.add_argument('--int_min_cols', type=int, default=2, help="Minimum columns (partner residues) of the complete block for --lambda_int_mt.")
+                                 "identity-independent effects, which are still learned through the ordinary regression. When > 0 the sampler packs "
+                                 "micro_batch_size // 19 columns of one position pair together (so micro_batch_size must be >= 38); a complete block needs "
+                                 ">= 4 rows and >= 2 columns. 0 disables. MT micro-batches are always cut at position-pair boundaries when this or "
+                                 "--lambda_rank_mt is on, so no pair matrix and no flip column is split across two micro-batches.")
     loss_group.add_argument('--flip_list_min', type=int, default=4,
                             help="Minimum members for a flip column to contribute to --lambda_rank_mt. Below ~4 the "
                                  "ordering carries little information and the gradient is mostly noise.")
@@ -179,32 +208,23 @@ def parse_arguments() -> argparse.Namespace:
                                  "singles are the dominant cost of the MT pass (~48%% of its backbone rows), so 0.25 "
                                  "cuts total training cost by roughly a third. Weights are scaled by 1/frac so the "
                                  "anchor's expected contribution is unchanged and only its variance rises.")
-    loss_group.add_argument('--lambda_epi_combined', type=float, default=0.0)
-    loss_group.add_argument('--mt_reg_mask', type=str, default='all', choices=['all', 'doubles'])
-    loss_group.add_argument('--double_weight', type=float, default=1.0)
-    loss_group.add_argument('--reversion_weight', type=float, default=0.5)
     loss_group.add_argument('--cond_weight', type=float, default=0.5,
-                            help="Per-item loss weight for derived conditional effects ddG(A|B). Two are emitted per "
-                                 "double, and each is a difference of two measurements, so <1 is appropriate.")
+                            help="Per-item REGRESSION weight for derived conditional effects ddG(A|B) (the rank and interaction losses are "
+                                 "unweighted). Two are emitted per double; each is a difference of two measurements (with --link, a re-scoring of the one double), so each counts half.")
     loss_group.add_argument('--native_cond_weight', type=float, default=1.0,
-                            help="Per-item loss weight for conditional effects measured directly in a mutant background.")
+                            help="Per-item REGRESSION weight for conditional effects measured directly in a mutant background.")
     loss_group.add_argument('--weight_decay', type=float, default=0)
-    loss_group.add_argument('--residual_wd', type=float, default=1e-5)
     loss_group.add_argument('--calib_lr_mult', type=float, default=20.0)
-    loss_group.add_argument('--residual_lr_mult', type=float, default=0.1)
-    loss_group.add_argument('--detach_ensemble_input', action=argparse.BooleanOptionalAction, default=False)
-    loss_group.add_argument('--detach_calibration', action=argparse.BooleanOptionalAction, default=False)
-    loss_group.add_argument('--detach_regression', action=argparse.BooleanOptionalAction, default=False)
-    loss_group.add_argument('--zero_epistasis_for_singles', action=argparse.BooleanOptionalAction, default=True,
-                            help="Hardcode residual epistasis to 0 for single mutations and exclude them from epistasis loss.")
 
     calibration_group = parser.add_argument_group("Calibration Configuration")
     calibration_group.add_argument('--shared_scale_init', type=float, default=0.3)
     calibration_group.add_argument('--shared_bias_init', type=float, default=None)
 
     rank_group = parser.add_argument_group("ListMLE Objective Configuration")
-    rank_group.add_argument('--subset_size', type=int, default=16)
-    rank_group.add_argument('--invert_list_loss', action=argparse.BooleanOptionalAction, default=False)
+    rank_group.add_argument('--wt_list_size', '--subset_size', dest='wt_list_size', type=int, default=16,
+                            help="Length of the lists the WT head's rank loss is computed over: the WT block of a batch (all singles of one protein) "
+                                 "is cut into consecutive lists of this many. It does not affect the MT head, whose lists are flip columns, and it no "
+                                 "longer rounds micro_batch_size. (Formerly --subset_size.)")
 
     mask_group = parser.add_argument_group("Masking Strategy")
     mask_group.add_argument('--mask_mutated_structure', action=argparse.BooleanOptionalAction, default=False,
@@ -231,9 +251,6 @@ def parse_arguments() -> argparse.Namespace:
     train_group.add_argument('--lr_total_steps', type=int, default=None)
     train_group.add_argument('--batch_size', type=int, default=256)
     train_group.add_argument('--micro_batch_size', type=int, default=16)
-    train_group.add_argument('--dedup_backbone', action=argparse.BooleanOptionalAction, default=True,
-                             help="Run ESM3 once per unique (sequence, structure) row of a micro-batch. All singles of a "
-                                  "protein share their WT input, so the WT pass becomes one forward per protein per batch.")
     train_group.add_argument('--precision', type=str, default="bf16-mixed", choices=["32", "16-mixed", "bf16-mixed", "64"])
     train_group.add_argument('--gpus', type=int, default=1)
     train_group.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'deepspeed_stage_2', 'deepspeed_stage_3', 'fsdp'])
@@ -242,10 +259,15 @@ def parse_arguments() -> argparse.Namespace:
     
     train_group.add_argument('--freeze_wt_adapter', action=argparse.BooleanOptionalAction, default=False)
     train_group.add_argument('--freeze_mt_adapter', action=argparse.BooleanOptionalAction, default=False)
-    train_group.add_argument('--freeze_wt_after_epoch', type=int, default=1000)
-    train_group.add_argument('--freeze_wt_on_convergence', action=argparse.BooleanOptionalAction, default=False)
-    train_group.add_argument('--wt_convergence_patience', type=int, default=1)
-    train_group.add_argument('--wt_convergence_metric', type=str, default='rho_wt_valid')
+    train_group.add_argument('--wt_early_stop_patience', type=int, default=0,
+                             help="Early stopping of the WT head alone: after this many consecutive validations without a better "
+                                  "val_rho_wt_valid_avg (by 1e-4), restore the WT adapter and its calibration head to their best state, freeze them, "
+                                  "and keep training the MT head. 0 = the WT head trains for the whole run.")
+    train_group.add_argument('--lr_plateau_metric', type=str, default='rho_combined',
+                             choices=['rho_combined', 'rho_wt_valid', 'rho_flip_pair'],
+                             help="Validation metric (library-equal mean) that drives ReduceLROnPlateau, which cuts the learning rate of EVERY "
+                                  "parameter group by 10x after two consecutive validations without improvement. The default, rho_combined, is "
+                                  "dominated by the WT head, so it can cut the MT head's rate while the MT metrics are still rising.")
     train_group.add_argument('--early_stopping_patience', type=int, default=0)
     train_group.add_argument('--early_stopping_metric', type=str, default='val_rho_combined_avg')
 
@@ -263,14 +285,6 @@ def parse_arguments() -> argparse.Namespace:
     data_group.add_argument('--num_workers', type=int, default=4)
     data_group.add_argument('--max_train_proteins', type=int, default=-1)
     
-    # These inclusion flags will be automatically updated by subset_caps logic
-    data_group.add_argument('--incl_singles', action=argparse.BooleanOptionalAction, default=True)
-    data_group.add_argument('--incl_doubles', action=argparse.BooleanOptionalAction, default=False)
-    data_group.add_argument('--incl_cond', action=argparse.BooleanOptionalAction, default=False,
-                            help="Conditional effects ddG(A|B) derived from doubles (MT head).")
-    data_group.add_argument('--incl_reversions', action=argparse.BooleanOptionalAction, default=False)
-    data_group.add_argument('--incl_native_cond', action=argparse.BooleanOptionalAction, default=False,
-                            help="Measurements from mutant-background libraries, e.g. code '1A0N_L7S' (MT head).")
     data_group.add_argument('--cond_structure', type=str, default='reuse', choices=['reuse', 'mask', 'model'],
                             help="Structure a conditional ddG(A|B) item conditions on: 'reuse' the parent double's "
                                  "(unmodified WT) structure, 'mask' the WT structure masked at the partner site, or "
@@ -280,11 +294,10 @@ def parse_arguments() -> argparse.Namespace:
                             help="Caps for data subsets as a fraction of the unrestricted subsets (e.g., double=0.6 cond=None). Defaults to 0 for all except 'single' (None).")
     data_group.add_argument('--mut_structures_root', type=str, default='/home/sareeves/software/esm-msr/data/tsuboyama/FINAL_results/')
     data_group.add_argument('--min_additive_dG', type=float, default=-1.0,
-                            help="Drop double-derived items (double, cond) whose additive dG prediction "
-                                 "dG(wt)+ddG_A+ddG_B falls at or below this value. The assay's bounded fit reports no dG "
-                                 "below -1, so for those doubles the measured value is obliged to be too high and the "
-                                 "error surfaces as spurious stabilising epistasis. None disables.")
-    data_group.add_argument('--use_plddt', action=argparse.BooleanOptionalAction, default=False)
+                            help="Double-derived items (cond) whose additive dG prediction dG(wt)+ddG_A+ddG_B falls at or below this value "
+                                 "are withheld from the regression (--subfloor_rank_only, the default: they keep their rank terms) or "
+                                 "dropped (--no-subfloor_rank_only). The assay's bounded fit reports no dG below -1, so for those doubles the "
+                                 "measured value is obliged to be too high. NO EFFECT with --link: the link absorbs the saturation.")
     data_group.add_argument('--remove_spurs_homologs', action=argparse.BooleanOptionalAction, default=False)
     data_group.add_argument('--combine_validation', action=argparse.BooleanOptionalAction, default=False)
 
@@ -310,26 +323,44 @@ def parse_arguments() -> argparse.Namespace:
     log_group.add_argument('--ckpt_path', type=str, default=None)
     log_group.add_argument('--comet_experiment_key', type=str, default=None)
 
-    args, remaining_argv = parser.parse_known_args()
-    
-    # Synchronize incl_x flags based on subset_caps
-    subset_flag_map = {
-        'single': 'incl_singles',
-        'double': 'incl_doubles',
-        'cond': 'incl_cond',
-        'reversion': 'incl_reversions',
-        'native_cond': 'incl_native_cond',
-    }
+    retired_group = parser.add_argument_group("Retired flags (accepted so old commands still run; see RETIRED_FLAGS)")
+    for name, (kind, _, _) in RETIRED_FLAGS.items():
+        if kind is bool:
+            retired_group.add_argument(f'--{name}', action=argparse.BooleanOptionalAction, default=None, help=argparse.SUPPRESS)
+        else:
+            retired_group.add_argument(f'--{name}', type=kind, default=None, help=argparse.SUPPRESS)
 
-    if args.subset_caps:
-        for subset_key, flag_name in subset_flag_map.items():
-            cap_val = args.subset_caps.get(subset_key)
-            # If None (unrestricted) or > 0, the subset must be included
-            is_included = (cap_val is None or cap_val > 0)
-            setattr(args, flag_name, is_included)
-    
+    args, remaining_argv = parser.parse_known_args()
     if remaining_argv:
         parser.error(f"unrecognized arguments: {' '.join(remaining_argv)}")
+
+    for name, (_, harmless, why) in RETIRED_FLAGS.items():
+        given = getattr(args, name)
+        delattr(args, name)                       # a retired flag never reaches the model's hparams
+        if given is None:
+            continue
+        if harmless is not _ANY and given != harmless:
+            parser.error(f"--{name} {given} is no longer supported: {why}.")
+        logging.warning(f"--{name} is retired and ignored: {why}.")
+
+    # What the training and validation loaders include follows from --subset_caps (None = every item of the subset, 0 = none).
+    for subset_key, flag_name in {'single': 'incl_singles', 'double': 'incl_doubles', 'cond': 'incl_cond',
+                                  'reversion': 'incl_reversions', 'native_cond': 'incl_native_cond'}.items():
+        cap_val = args.subset_caps.get(subset_key)
+        setattr(args, flag_name, cap_val is None or cap_val > 0)
+    for retired_subset, flag_name in (('double', 'incl_doubles'), ('reversion', 'incl_reversions')):
+        if getattr(args, flag_name):
+            parser.error(f"--subset_caps {retired_subset}=...: {retired_subset} items are no longer a training subset. Doubles enter training "
+                         f"as their two conditional 'cond' items; reversions were never routed to a head (see esm_msr.routing).")
+
+    # Pair-matrix sampling for the interaction loss: columns of one position pair travel together, as many as fit in one micro-batch.
+    if args.lambda_int_mt > 0:
+        if args.micro_batch_size < 2 * MAX_COLUMN_LEN:
+            parser.error(f"--lambda_int_mt needs two flip columns of a pair in one micro-batch: micro_batch_size must be at least "
+                         f"{2 * MAX_COLUMN_LEN}, got {args.micro_batch_size}.")
+        args.flip_pair_groups = args.micro_batch_size // MAX_COLUMN_LEN
+    else:
+        args.flip_pair_groups = 0
 
     if args.num_workers == -1:
         num_cpus = os.cpu_count()
