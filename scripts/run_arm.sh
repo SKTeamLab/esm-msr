@@ -1,4 +1,5 @@
 #!/bin/bash
+# EPOCHS is a cap; early stopping on val_rho_flip_pair_avg (patience 2, min 3 epochs).
 # Usage: scripts/run_arm.sh RUN_NAME EPOCHS SEED [extra training flags...]
 # Canonical command (docs/epistasis_training_handoff.md §2) on THIS worktree's code and cache_v7.
 WT=/home/sareeves/playground/esm-msr-devel/repo/.claude/worktrees/censored-margin-ranking-9b239c
@@ -33,6 +34,7 @@ COMET_KEY=$(sed -n 's/^ *api_key *= *//p' ~/.comet.config | head -1)
   --learning_rate 2e-4 --lr_warmup_steps 500 \
   --shared_scale_init 0.3 --detach_ensemble_input \
   --num_workers 4 --log_every_n_steps 25 --save_top_k 3 \
-  --monitor_metric val_rho_flip_avg --monitor_mode max \
+  --monitor_metric val_rho_flip_pair_avg --monitor_mode max \
+  --early_stopping_metric val_rho_flip_pair_avg --early_stopping_patience 2 --min_epochs 3 \
   --comet_api_key "$COMET_KEY" "$@" > run_logs/$NAME.log 2>&1
 echo "DONE rc=$?" >> run_logs/$NAME.log

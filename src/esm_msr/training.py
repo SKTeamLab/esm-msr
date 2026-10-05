@@ -929,9 +929,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 pooled[k].append(v)
             pooled['subset_type'].extend(subset_types)
             pooled['cens'].append(cens_val)
-            if obs_val is not None:
-                for k, v in obs_val.items():
-                    pooled[f'{k}_obs'].append(v)
+            if self.link_head is not None:
+                # a loader whose batches carry no dG_wt has no observed-scale outputs: pad with NaN so the pooled arrays stay aligned
+                # (those items then drop out of the pooled observed-scale metrics)
+                for k in ('wt', 'mt', 'comb'):
+                    pooled[f'{k}_obs'].append(obs_val[k] if obs_val is not None else np.full(len(subset_types), np.nan))
             # Mutations are numbered per library, so tag them with the loader to keep pooled
             # singles from pairing with another protein's doubles.
             pooled['mut_key'].extend(
