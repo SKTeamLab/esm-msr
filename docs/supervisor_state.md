@@ -3,6 +3,15 @@
 Written 2026-10-04 by the supervising instance. It records what exists, what is only designed or untested, and the traps. Where a statement is a
 measurement it says so and where it came from; where it is inference it says that too. Details live in the documents named in each section.
 
+## 0. Update 2026-10-05 (read `docs/hparam_review.md` first)
+
+The hyper-parameter surface was audited and the dead parts removed on branch **`claude/cleanup-dead-params`** (one commit on top of `3f18100`; **not yet merged** into
+`claude/censored-margin-ranking-devel` because `queue_lam.sh` was still running: bash re-reads a running script and `i3_lam300` loads the code at launch). The training
+numerics are unchanged (bit-identical on 14 of 15 synthetic scenarios); retired flags are still accepted. Everything in sections 1-8 below that names a removed flag
+(`--flip_align_units`, `--flip_pair_groups`, `--lora_mode`, `--detach_*`, `--subset_size`, `--freeze_wt_*`, `--reg_loss`, ...) describes the old CLI; `esm_msr.config.RETIRED_FLAGS`
+says what replaced each one. Facts established since this file was written: GPU runs exist (W0, W2, L1, I1, I2; see §4 of the review), the plateau scheduler cut W2's learning
+rate, and the adapters use rsLoRA (scale = alpha / sqrt(rank)).
+
 ## 1. Where the code is
 
 | item | state |

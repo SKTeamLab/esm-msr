@@ -32,6 +32,9 @@ column, `flip_key` and `reg_ok` fields on cached items.
 
 ## 2. Canonical command
 
+> **Superseded for current runs by `scripts/run_arm.sh` (see `docs/hparam_review.md`).** `--lora_mode`, `--reg_loss`, `--detach_ensemble_input` and `--subset_size` below are
+> retired flags: still accepted (ignored with a warning, `--subset_size` is now `--wt_list_size`), no longer meaningful.
+
 As in `docs/training_handoff.md`, with these changes: new cache path, the two new loss terms
 made explicit, and the monitor switched.
 
