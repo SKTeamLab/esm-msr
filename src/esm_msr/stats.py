@@ -141,6 +141,79 @@ def _rho_epi_full(comb_scores, subset_types, mut_keys, dddG, is_double):
     return safe_spearman(e[ok], dddG[ok])
 
 
+def epi_component_rhos(epi_pred, dddG, mut_keys, is_double, min_pair_cells=20, min_group=3, min_pairs=8):
+    """
+    The identity-INDEPENDENT parts of the epistasis, scored on the measured doubles (the same hierarchy as the ANOVA report).
+
+    ``epi_pred`` is the model's predicted ddd_G for each double (``epi_full_scores``), ``dddG`` the measured one. A position pair is the
+    two mutated positions of a double; its matrix has rows = substitution at the lower position, columns = at the higher one. Only pairs
+    with at least ``min_pair_cells`` doubles count.
+
+    * ``rho_pair_offset``: Spearman, across pairs, of the pair's mean predicted ddd_G against its mean measured ddd_G. The offset is how
+      much the pair as a whole departs from additivity; a pair-level quantity, so only a pooled set of pairs has enough of them.
+    * ``rho_row_effect`` / ``rho_col_effect``: after subtracting each pair's mean, the mean over partners for every (pair, substitution)
+      with at least ``min_group`` cells, Spearman of predicted against measured, pooled over all pairs. Row effects are the lower
+      position's substitutions, column effects the higher's.
+
+    The interaction left once all of these are removed is what ``flip_signature_rho(by_partner_position=True)`` scores. NaN where there are
+    too few pairs. ``mut_keys[i]`` is a tuple of two mutations (..., wt, position, mutant residue); a mutation's position identity is
+    everything but its last element.
+    """
+    nan = float('nan')
+    out = {'rho_pair_offset': nan, 'rho_row_effect': nan, 'rho_col_effect': nan, 'n_epi_pairs': 0}
+    if mut_keys is None or len(mut_keys) != len(epi_pred):
+        return out
+    epi_pred, dddG = np.asarray(epi_pred, float), np.asarray(dddG, float)
+    pairs = {}
+    for i, k in enumerate(mut_keys):
+        if not bool(is_double[i]) or k is None or len(k) != 2 or not (np.isfinite(epi_pred[i]) and np.isfinite(dddG[i])):
+            continue
+        a, b = tuple(k[0]), tuple(k[1])
+        (lo, hi) = (a, b) if a[:-1] <= b[:-1] else (b, a)
+        pairs.setdefault((lo[:-1], hi[:-1]), []).append((lo[-1], hi[-1], epi_pred[i], dddG[i]))
+    pairs = {k: v for k, v in pairs.items() if len(v) >= min_pair_cells}
+    out['n_epi_pairs'] = len(pairs)
+    if len(pairs) >= min_pairs:
+        out['rho_pair_offset'] = safe_spearman(np.array([np.mean([c[2] for c in v]) for v in pairs.values()]),
+                                               np.array([np.mean([c[3] for c in v]) for v in pairs.values()]))
+    for name, idx in (('rho_row_effect', 0), ('rho_col_effect', 1)):
+        xs, ys = [], []
+        for v in pairs.values():
+            pm, tm = np.mean([c[2] for c in v]), np.mean([c[3] for c in v])
+            groups = {}
+            for c in v:
+                groups.setdefault(c[idx], []).append((c[2] - pm, c[3] - tm))
+            for g in groups.values():
+                if len(g) >= min_group:
+                    xs.append(np.mean([t[0] for t in g]))
+                    ys.append(np.mean([t[1] for t in g]))
+        if len(xs) >= 2 * min_pairs:
+            out[name] = safe_spearman(np.array(xs), np.array(ys))
+    return out
+
+
+def colrank_rho(pred, target, flip_keys, min_len=4):
+    """
+    Mean within-column Spearman: for each flip column (one scored position, one fixed partner identity) the rank agreement of the
+    predictions with the measurements across the substitutions, averaged over columns. This is what the within-column rank loss optimises.
+    Unlike ``flip_signature_rho`` nothing is centred, so each substitution's own effect and its pair-specific effect still count; it is
+    saturation-free (rank-based within a column) and sits between the conventional ddd_G correlation and the flip metrics.
+    Returns (rho, n_columns); rho is NaN with no usable column.
+    """
+    pred, target = np.asarray(pred, float), np.asarray(target, float)
+    cols = {}
+    for i, k in enumerate(flip_keys):
+        if k and np.isfinite(pred[i]) and np.isfinite(target[i]):
+            cols.setdefault(k, []).append(i)
+    rhos = []
+    for idx in cols.values():
+        if len(idx) >= min_len:
+            r = safe_spearman(pred[idx], target[idx])
+            if np.isfinite(r):
+                rhos.append(r)
+    return (float(np.mean(rhos)) if rhos else float('nan')), len(rhos)
+
+
 def delta_single_diagnostics(df, epi_true_col=None):
     """
     How much the MT and WT heads disagree on single mutants, and what that does to the two
@@ -301,6 +374,9 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
             d = is_double & np.isfinite(obs['comb']) & np.isfinite(obs['wt'])
             metrics['rho_epi_fast'] = safe_spearman((obs['comb'] - obs['wt'])[d], dddG[d]) if d.any() else float('nan')
             metrics['rho_epi_full'] = _rho_epi_full(obs['comb'], subset_types, mut_keys, dddG, is_double)
+        # identity-independent components (pair offset, row / column effects); the observed scale matches the saturation in the measured dddG
+        _e = epi_full_scores(obs['comb'] if obs is not None else comb_scores, subset_types, mut_keys)
+        metrics.update({k: v for k, v in epi_component_rhos(_e, dddG, mut_keys, is_double).items() if k != 'n_epi_pairs'})
     else:
         metrics['rho_epi_fast'] = float('nan')
         metrics['rho_epi_full'] = float('nan')

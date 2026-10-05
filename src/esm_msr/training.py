@@ -948,11 +948,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, rid,
                     min_len=int(self.hparams.flip_list_min), by_partner_position=True)
                 per_loader[name]['rho_flip_pair'] = rho_pair
+                # Within-column rank agreement, nothing centred: the quantity the rank loss optimises, between rho_epi and the flip metrics.
+                per_loader[name]['rho_colrank'], _ = stats.colrank_rho(
+                    cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, min_len=int(self.hparams.flip_list_min))
                 if n_pp:
                     self.log(f"val_flip_pair_matrices/{name}", float(n_pp), on_epoch=True, sync_dist=True)
             else:
                 per_loader[name]['rho_flip'] = float('nan')
                 per_loader[name]['rho_flip_pair'] = float('nan')
+                per_loader[name]['rho_colrank'] = float('nan')
 
             for k, v in cols.items():
                 pooled[k].append(v)
@@ -976,7 +980,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         avg_metrics = {}
         for metric in ('rho_wt_valid', 'rho_wt_all', 'rho_mt_valid', 'rho_mt_all',
-                       'rho_combined', 'rmse_combined', 'rho_flip', 'rho_flip_pair', 'rho_epi_fast', 'rho_epi_full',
+                       'rho_combined', 'rmse_combined', 'rho_flip', 'rho_flip_pair', 'rho_colrank', 'rho_epi_fast', 'rho_epi_full',
                        'auc_dead_wt', 'auc_hyper_wt', 'auc_dead_mt', 'auc_hyper_mt'):
             vals = [m[metric] for m in per_loader.values() if metric in m and not np.isnan(m[metric])]
             if vals:
