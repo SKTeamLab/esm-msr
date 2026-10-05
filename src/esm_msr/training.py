@@ -568,6 +568,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         sums, cnts = defaultdict(lambda: zero), defaultdict(lambda: zero)
 
         for kind, rows in units:
+            # A unit with no loss term runs no backward, so its activation graph stays alive through these references; drop
+            # them before this unit's forward allocates a second copy (this doubled peak memory and caused OOM / driver errors).
+            wt_pred_cal = wt_pred_raw = mt_pred_cal = mt_pred_raw = None
+            p_wt = p_mt = p_int = base_wt_cal = base_wt_raw = forced_cal = forced_raw = epi_pred = None
+            L = Lh = L_flip = L_int = L_rank = total = None
+            losses_wt, losses_mt = [], []
             micro, w_mb = utils.slice_batch_by_index(batch, rows), w_all[rows]
             if os.environ.get('MSR_MEM_DEBUG') and torch.cuda.is_available():
                 # one line per work unit: the PREVIOUS unit's high-water mark, then this unit's kind / rows / token shape

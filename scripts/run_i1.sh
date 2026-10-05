@@ -2,7 +2,7 @@
 # I1 as designed (micro-batch 64, pair groups of 3, aligned micro-batches); retries ONLY on a crash, always with the same configuration.
 D=/home/sareeves/playground/esm-msr-devel
 R=$D/repo/.claude/worktrees/censored-margin-ranking-9b239c/scripts/run_arm.sh
-export MSR_MEM_FRACTION=${MSR_MEM_FRACTION:-0.82}   # hard cap: the allocator must free cached blocks instead of filling the card
+export MSR_MEM_FRACTION=${MSR_MEM_FRACTION:-0.95}   # hard cap: the allocator must free cached blocks instead of filling the card
 for attempt in 1 2 3; do
   echo "$(date) I1 START(attempt $attempt)" >> $D/queue_history.txt
   rm -rf $D/training_logs/i1_link_cens_int
