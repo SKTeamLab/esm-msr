@@ -334,8 +334,8 @@ regression moves the validation flip score so little.
    deviation-targeted loss), or project the MT head's output onto the interaction subspace.
 4. **Noise: done as far as the table allows.** The table holds replicate rows for 4,552 mutants (Section 2), which settle the noise at about
    0.27 kcal/mol and agree with the protease estimate. Replicates are scarce for doubles specifically, and I found no additional independent replicates in the
-   Zenodo record (its tables hold the same sequences, and the raw sequencing counts are far from a ready replicate set), so a double-specific noise estimate
-   remains open.
+   Zenodo record's file listing (per-library K50/dG tables, the processed datasets, and raw sequencing counts), but I did not open the raw counts, which
+   could in principle give per-experiment replicates. A double-specific noise estimate remains open.
 
 ---
 
