@@ -127,6 +127,18 @@ class TestPairGroupSampler(unittest.TestCase):
             by_pair = Counter(split_flip_key(k)[0] for k in cols)
             self.assertTrue(any(n > 1 for n in by_pair.values()))                   # columns of one pair do co-occur
 
+    def test_groups_are_balanced_so_no_pair_is_left_with_a_lone_column(self):
+        from esm_msr.data import balanced_group_sizes
+        self.assertEqual(balanced_group_sizes(19, 3), [3, 3, 3, 3, 3, 2, 2])
+        self.assertEqual(balanced_group_sizes(7, 3), [3, 2, 2])
+        self.assertEqual(balanced_group_sizes(6, 3), [3, 3])
+        self.assertEqual(balanced_group_sizes(1, 3), [1])
+        self.assertEqual(balanced_group_sizes(0, 3), [])
+        for n in range(2, 40):
+            sizes = balanced_group_sizes(n, 3)
+            self.assertEqual(sum(sizes), n)
+            self.assertTrue(all(2 <= z <= 3 for z in sizes), (n, sizes))
+
     def test_default_keeps_single_column_units(self):
         ds = DummyDataset('LIB', self._items())
         smp = ProteinCyclingBatchSampler([ds], batch_size=50, train_list=['LIB'], strategy='all', rng_seed=1)

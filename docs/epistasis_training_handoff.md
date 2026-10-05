@@ -276,6 +276,12 @@ micro-batches at pair boundaries (this also fixes the ~10% of within-column pair
 Check what a model captured with `analysis_notebooks/anova/decompose_predictions.py` (Spearman of its predicted dddG with each *measured* component: saturation, pair offset,
 row+column effects, interaction): the first three should stay put and the last should rise.
 
+**Measured on real batches** (40 batches from `cache_v7` with `--flip_pair_groups 3 --flip_align_units --censor_floor 0.5`): a micro-batch has about 51 flip rows
+and the interaction loss finds on average **0.74 complete matrices and 30 cells** in it; about 58% of flip rows land in a usable complete block. The rest are
+censored (floor and out-of-range items are left out of the matrices), native-conditional rows (no partner position) or cells trimmed to make a block complete. Columns
+of a pair are grouped in balanced sizes (19 columns become 3,3,3,3,3,2,2, never a lone column). That is a thin signal per step, so expect to need a larger `--lambda_int_mt`
+than the other terms, or to try without `--censor_floor`. `train/L_int_mt` and the cell count tell you what it is getting.
+
 Suggested arms (3 epochs, same seed and `cache_v7`; monitor `val_rho_flip_pair_avg`, guard `val_rho_wt_valid_avg` and `val_rmse_combined_avg`):
 
 | arm | name | flags beyond the canonical command (no `--shared_bias_init`) | question |

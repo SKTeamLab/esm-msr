@@ -951,6 +951,14 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def balanced_group_sizes(n: int, max_size: int) -> List[int]:
+    """Split ``n`` items into the fewest groups of at most ``max_size`` with sizes as equal as possible (19, 3 -> 3,3,3,3,3,2,2)."""
+    if n <= 0:
+        return []
+    k = -(-n // max_size)
+    return [n // k + (1 if g < n % k else 0) for g in range(k)]
+
+
 class ProteinCyclingBatchSampler(Sampler[List[int]]):
     """
     Consolidated, high-performance BatchSampler for balancing and cycling through 
@@ -1101,8 +1109,13 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
                 col_units = []
                 for cols_of_pair in by_pair.values():
                     self._rng.shuffle(cols_of_pair)
-                    for j in range(0, len(cols_of_pair), self.flip_pair_groups):
-                        col_units.append([i for c in cols_of_pair[j:j + self.flip_pair_groups] for i in c])
+                    # balanced groups of at most flip_pair_groups columns: 19 columns in threes would leave a lone column, which can
+                    # never form a matrix; 7 groups of 3,3,3,3,3,2,2... cannot
+                    sizes = balanced_group_sizes(len(cols_of_pair), self.flip_pair_groups)
+                    j = 0
+                    for sz in sizes:
+                        col_units.append([i for c in cols_of_pair[j:j + sz] for i in c])
+                        j += sz
             flip_total = sum(len(u) for u in col_units)
             grand = flip_total + len(noncolumn)
             if grand == 0:
