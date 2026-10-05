@@ -900,10 +900,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
     _VAL_PER_PROTEIN = ('rho_combined', 'rmse_combined', 'rho_flip_pair')
     # Library-equal means. rho_combined and rho_wt_valid are read by the checkpoint name, the plateau scheduler and the convergence logic.
     _VAL_AVG = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_mt_valid',
-                'rho_epi_full', 'rho_colrank', 'rho_flip', 'rho_flip_pair', 'auc_dead_wt', 'auc_dead_mt')
+                'rho_epi_full', 'rho_colrank', 'rho_colrank_wt', 'rho_flip', 'rho_flip_pair', 'auc_dead_wt', 'auc_dead_mt')
     # Pooled over every item of every library: the pair-level components need pooling to have enough pairs.
     _VAL_POOLED = ('rho_combined', 'rmse_combined', 'rho_epi_full', 'rho_pair_offset', 'rho_row_effect', 'rho_col_effect',
-                   'rho_colrank', 'rho_flip', 'rho_flip_pair', 'auc_dead_wt', 'auc_dead_mt')
+                   'rho_colrank', 'rho_colrank_wt', 'rho_flip', 'rho_flip_pair', 'auc_dead_wt', 'auc_dead_mt')
     _VAL_PROGRESS_BAR = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair')
 
     def on_validation_epoch_start(self):
@@ -960,6 +960,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 # Within-column rank agreement, nothing centred: the quantity the rank loss optimises, between rho_epi and the flip metrics.
                 per_loader[name]['rho_colrank'], _ = stats.colrank_rho(
                     cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, min_len=int(self.hparams.flip_list_min))
+                # The same on the WT head's score of the item's own mutation in the wild-type context: it cannot see the partner, so this is
+                # the partner-ignorant baseline for rho_colrank (the part of within-column ordering that needs no knowledge of the other mutation).
+                per_loader[name]['rho_colrank_wt'], _ = stats.colrank_rho(
+                    cols['wt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, min_len=int(self.hparams.flip_list_min))
                 n_flip_matrices += n_pp
                 pooled['flip_key'].extend(fk)
                 pooled['row_id'].append(rid)
@@ -967,6 +971,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 per_loader[name]['rho_flip'] = float('nan')
                 per_loader[name]['rho_flip_pair'] = float('nan')
                 per_loader[name]['rho_colrank'] = float('nan')
+                per_loader[name]['rho_colrank_wt'] = float('nan')
 
             for k, v in cols.items():
                 pooled[k].append(v)
@@ -1016,6 +1021,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     pooled_all['rho_flip_pair'] = stats.flip_signature_rho(mt_all, tgt_all, pooled['flip_key'], rid_all, min_len=min_len,
                                                                            by_partner_position=True)[0]
                     pooled_all['rho_colrank'] = stats.colrank_rho(mt_all, tgt_all, pooled['flip_key'], min_len=min_len)[0]
+                    pooled_all['rho_colrank_wt'] = stats.colrank_rho(np.concatenate(pooled['wt_scores']), tgt_all, pooled['flip_key'], min_len=min_len)[0]
             for metric in self._VAL_POOLED:
                 val = pooled_all.get(metric, float('nan'))
                 if not np.isnan(val):
