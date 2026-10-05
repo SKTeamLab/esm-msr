@@ -4,7 +4,7 @@
 # Canonical command (docs/epistasis_training_handoff.md §2) on THIS worktree's code and cache_v7.
 WT=/home/sareeves/playground/esm-msr-devel/repo/.claude/worktrees/censored-margin-ranking-9b239c
 cd /home/sareeves/playground/esm-msr-devel
-export PYTHONPATH=$WT/src HF_HUB_OFFLINE=1 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PYTHONPATH=$WT/src HF_HUB_OFFLINE=1 PYTORCH_CUDA_ALLOC_CONF=${ALLOC_CONF:-expandable_segments:True}
 PY=/home/sareeves/miniconda3/envs/msr_venv/bin/python
 NAME=$1; EPOCHS=$2; SEED=$3; shift 3
 mkdir -p run_logs

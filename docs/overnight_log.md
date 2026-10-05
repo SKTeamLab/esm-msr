@@ -1,0 +1,5 @@
+# Overnight supervision log (2026-10-05)
+
+* 23:45 W0 (`w0_base`) finished cleanly (3 epochs): flip_pair 0.134 / 0.142 / 0.168 / 0.182 at step 0 / ep 0 / ep 1 / ep 2; wt 0.539 / 0.796 / 0.803 / 0.811.
+* 23:45–00:50 first attempts of W2, L1, I1 all crashed. L1/I1: my bug in `on_validation_epoch_end` (pooled observed-scale arrays misaligned when a loader has no `dG_wt`); fixed in a488417 with a regression test. W2 (and then L1, I1 again): `RuntimeError: CUDA driver error: device not ready` inside training steps (step 10-120), with the arm running at 0.24 it/s instead of 0.66, and `dmesg` showing `dxgkio_make_resident: Ioctl failed: -12` (WSL GPU memory residency failures). Idle GPU passes a 20 GB allocation + matmul stress. Cause not established (suspects: the Windows side competing for VRAM, or `expandable_segments` under WSL; W0 ran fine with the same setting before ~23:50).
+* 00:53 Runner now retries a crashed arm (attempt 2 unchanged; attempt 3 with `--micro_batch_size 32` and no expandable segments); GPU memory sampled every 30 s into `gpu_mon.log`. W2 restarted 00:53.
