@@ -23,3 +23,22 @@
   * Link (steps 24 -> 2749): floor -0.91 -> -0.71, ceiling 5.05 -> 5.22, tau_hi 0.51 -> 0.82, tau_lo 0.54 -> 0.55: stable, plausible. Peak VRAM 26.9 GB, no errors.
   * Epoch 3 running (flip_pair best-so-far 0.179 at epoch 2, so early stopping has not triggered); I1 waits behind L1 in the queue.
 * 07:52 L1 epoch 3: `val_rho_flip_pair_avg` 0.191 (new best; ep 0-3: 0.159 / 0.158 / 0.179 / 0.191), `val_rho_flip_avg` 0.183, `val_rho_wt_valid_avg` 0.804, `val_rmse_combined_avg` 0.661 (observed scale), `val_rho_epi_full_avg` 0.451, `val_rho_epi_fast_avg` 0.246, `val_auc_dead_wt` 0.963 / `hyper_wt` 0.916 / `dead_mt` 0.746. Early stopping not triggered; epoch 4 runs to ~08:23 (cap 6 epochs: epoch 5 would end ~09:00). **I1 (interaction loss) has not started** because it waits behind L1 in the queue.
+
+## Morning summary (08:25, 2026-10-05) — ranked, single seed (seed 1), epoch-to-epoch noise of the flip metric +/-0.02-0.03
+
+| arm | flags (all micro 32 except W0) | epochs | best `val_rho_flip_pair_avg` (epoch) | `val_rho_wt_valid_avg` | `val_rmse_combined_avg` | auc dead_wt / hyper_wt |
+|---|---|---|---|---|---|---|
+| W0 `w0_base` | none (micro 64, no out-of-range items) | 3 (fixed) | 0.182 (ep 2) | 0.811 | 0.694 (latent scale) | not logged |
+| W2 `w2_cens` | `--include_out_of_range` | 6 (cap) | **0.215 (ep 5)**, plateau ~0.21 from ep 4 | 0.808 | 0.702 | 0.963 / 0.913 |
+| L1 `l1_link_cens` | `--link softclamp --include_out_of_range` | 5 of 6 so far (epoch 5 runs to ~09:00) | 0.199 (ep 4), rising every epoch from ep 1 (0.159 / 0.158 / 0.179 / 0.191 / 0.199) | 0.806 | **0.668 (best 0.650 at ep 2)**, observed scale | 0.964 / 0.911 |
+| I1 | link + censoring + pair groups + aligned micro-batches + `--lambda_int_mt 1.0` | **not run** (waits behind L1 in the queue) | — | — | — | — |
+
+What is established, what is not:
+* **WT head: unchanged in every arm** (0.79-0.81 throughout), so the guard holds.
+* **Flip metric: no demonstrated gain.** W2 is +0.03 over W0's best, L1 +0.02; both inside the +/-0.02-0.03 noise of one seed, and the arms differ by micro-batch (32 vs 64) as well as by flags. W2 and L1 both reached 0.20-0.215 late; W0 was stopped at 3 epochs, so its late-epoch behaviour is unknown (earlier no-flip controls and flip arms overlapped at 0.18-0.23). A fair test needs W0 run to the same length and 2+ seeds.
+* **Link: the one clear effect is calibration.** Observed-scale `val_rmse_combined_avg` 0.65-0.67 vs 0.70-0.73 for W2 (about 0.04-0.08 lower). `val_rho_epi_full_avg` is similar (0.46 vs 0.47) and `val_rho_epi_fast_avg` lower (0.24 vs 0.38, not investigated). The learned link floor/ceiling (-0.71 / 5.2) are plausible.
+* **Dead/hyperstable AUCs** rose from their step-0 values (dead_wt 0.90 -> 0.96; hyper_wt 0.79 -> 0.91) with censoring; W0 has no baseline for them. `val_auc_dead_mt_avg` slowly declines in both W2 and L1 (0.77 -> 0.73; unexplained).
+* **Not tested:** the interaction loss, the pair-group sampler, the aligned micro-batches (I1); any lambda / censor-weight sweep; a second seed for any arm.
+* **Infrastructure:** 23:45-01:13 lost to crashes: two were my bug (pooled observed-scale arrays, fixed a488417, with a test); the rest were VRAM exhaustion (WSL reports it as `CUDA driver error: device not ready`), fixed by micro-batch 32 for W2/L1. Micro-batch 32 is slower (0.49 vs 0.66 it/s) and is a confound against W0. I1 is queued at micro 64, where the include-out-of-range arms ran out of VRAM; if it is launched, expect a crash and use 48.
+
+Decisions left for the user: let L1 finish epoch 5 or stop it; launch I1 (micro 48 recommended) and the sweep; run W0 to 6 epochs and a second seed of W0/W2/L1; merge/push the branch; whether to make `--link` the default (calibration gain, no flip gain).
