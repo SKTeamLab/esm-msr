@@ -202,6 +202,9 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         self._label_native_cond()
         self._filter_dataset()
         self._apply_censoring(include_out_of_range, censor_floor)
+        # The library's starting dG, needed to put an item on the assay's observed scale (esm_msr.link). NaN if unknown.
+        for item in self.data:
+            item['dG_wt'] = float(self.dG_wt) if self.dG_wt is not None else float('nan')
         self.subfloor_rank_only = bool(subfloor_rank_only)
         if min_additive_dG is not None:
             self._drop_unreachable(dG_wt, min_additive_dG)
@@ -836,6 +839,12 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     subset_type = [canonical_subset(item.get('subset_type', 'single')) for item in batch]
     flip_key = [item.get('flip_key', '') or '' for item in batch]
     reg_ok = torch.tensor([bool(item.get('reg_ok', True)) for item in batch], dtype=torch.bool)
+    dG_wt = torch.tensor([float(item.get('dG_wt', float('nan'))) for item in batch], dtype=torch.float32)
+    # A conditional item scores ddG(A|B) = ddG_AB - ddG_B; its background's ddG is the offset back to the double it came from.
+    bg_offset = torch.tensor([
+        float(item['ddG_AB']) - float(item['ddG'])
+        if canonical_subset(item.get('subset_type', 'single')) == 'cond' and np.isfinite(item.get('ddG_AB', np.nan)) else 0.0
+        for item in batch], dtype=torch.float32)
     cens = torch.tensor([int(item.get('cens', 0)) for item in batch], dtype=torch.long)
     cens_bound = torch.tensor([float(item.get('cens_bound', float('nan'))) for item in batch], dtype=torch.float32)
     cens_src = torch.tensor([int(item.get('cens_src', 0)) for item in batch], dtype=torch.long)
@@ -933,6 +942,8 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         'subset_type': subset_type,
         'flip_key': flip_key,
         'reg_ok': reg_ok,
+        'dG_wt': dG_wt,
+        'bg_offset': bg_offset,
         'cens': cens,
         'cens_bound': cens_bound,
         'cens_src': cens_src,

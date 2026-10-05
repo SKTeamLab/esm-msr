@@ -68,15 +68,17 @@ def make_batch(n_single=12, with_cens=True):
         'flip_key': [''] * n_single + ['colA'] * 6,
         'reg_ok': torch.ones(B, dtype=torch.bool), 'cens': cens, 'cens_bound': bound, 'cens_src': src,
         'ddG_additive': torch.full((B,), float('nan')), 'dddG': torch.full((B,), float('nan')),
+        'dG_wt': torch.full((B,), 2.0), 'bg_offset': torch.zeros(B),
     }
 
 
-def run(batch, **hp_kw):
+def run(batch, link_head=None, **hp_kw):
     from esm_msr import training
     cls = next(v for v in vars(training).values() if isinstance(v, type) and hasattr(v, '_compose_losses_streaming_and_backward'))
     stub = types.SimpleNamespace()
     stub.hparams = make_hp(**hp_kw)
     stub.model = StubModel()
+    stub.link_head = link_head
     stub.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
     stub.crit_reg = torch.nn.MSELoss(reduction='none')
     stub.crit_rank_wt, stub.crit_rank_mt, stub.crit_rank_combined = ListMLELoss(), ListMLELoss(), None

@@ -181,5 +181,33 @@ class TestPairLevelFlip(unittest.TestCase):
         self.assertEqual(str(rho_a), str(rho_b))
 
 
+class TestObservedScaleMetrics(unittest.TestCase):
+    def _data(self):
+        # two singles and a double; the double is far below the floor, so its LATENT is much lower than what is measured
+        sub = ['single', 'single', 'double']
+        keys = [(('X', 1, 'A'),), (('X', 2, 'B'),), (('X', 1, 'A'), ('X', 2, 'B'))]
+        gt = np.array([-2.0, -2.5, -3.0])             # measured ddG (saturated at dG -1 with dG_wt 2.0 -> -3.0 floor)
+        latent = np.array([-2.0, -2.5, -9.0])         # latent: the double is predicted 9 kcal/mol less stable
+        obs = np.array([-2.0, -2.5, -3.0])            # what the assay would report for those latents
+        return sub, keys, gt, latent, obs
+
+    def test_rmse_uses_the_observed_scale_and_ranks_the_latent_scale(self):
+        sub, keys, gt, latent, obs = self._data()
+        m = stats.compute_metrics(latent, latent, latent, gt, sub, dddG=np.array([np.nan, np.nan, 1.5]), mut_keys=keys,
+                                  obs={'wt': obs, 'mt': obs, 'comb': obs})
+        self.assertAlmostEqual(m['rmse_combined'], 0.0, places=9)           # the saturated measurement is matched
+        plain = stats.compute_metrics(latent, latent, latent, gt, sub)
+        self.assertGreater(plain['rmse_combined'], 3.0)                      # the latent scale is penalised for it
+        self.assertAlmostEqual(m['rho_combined'], plain['rho_combined'])     # rank metrics are untouched
+
+    def test_epistasis_readouts_report_both_scales(self):
+        sub, keys, gt, latent, obs = self._data()
+        dddG = np.array([np.nan, np.nan, 1.5])
+        m = stats.compute_metrics(latent, latent, latent, gt, sub, dddG=dddG, mut_keys=keys, obs={'wt': obs, 'mt': obs, 'comb': obs})
+        self.assertIn('rho_epi_full_latent', m)
+        self.assertIn('rho_epi_fast_latent', m)
+        self.assertNotIn('rho_epi_full_latent', stats.compute_metrics(latent, latent, latent, gt, sub, dddG=dddG, mut_keys=keys))
+
+
 if __name__ == '__main__':
     unittest.main()

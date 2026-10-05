@@ -137,6 +137,23 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--censor_floor_hinge', action=argparse.BooleanOptionalAction, default=False,
                             help="Also apply the one-sided regression to items made lower-censored by --censor_floor. Off by default: "
                                  "they keep regressing on their measured value, and --censor_floor changes only the rank losses.")
+    loss_group.add_argument('--link', choices=['none', 'softclamp'], default='none',
+                            help="Monotone saturating link between latent stability and the assay's observed dG (esm_msr.link). With "
+                                 "'softclamp', the calibrated prediction is treated as a LATENT additive-in-effects ddG and regression is done on "
+                                 "the observed scale, observed ddG = h(dG_wt + latent) - dG_wt, with h a soft floor/ceiling shared by all "
+                                 "libraries. The assay's saturation then lives in h instead of being imitated by the adapters, "
+                                 "so --min_additive_dG / --subfloor_rank_only (reg_ok) and the one-sided hinge for out-of-range items are no longer "
+                                 "needed for regression (reg_ok is ignored while the link is on); ranking is unchanged because h is monotone. Conditional items are "
+                                 "scored as the double they came from. Drop --shared_bias_init (the link fixes the zero point) and the legacy "
+                                 "--lambda_*_combined terms are not supported with it. Default 'none' keeps the previous behaviour exactly.")
+    loss_group.add_argument('--link_lo', type=float, default=-1.0, help="Initial floor of the link (kcal/mol); the assay reports -1.")
+    loss_group.add_argument('--link_hi', type=float, default=5.0, help="Initial ceiling of the link (kcal/mol); the assay reports 5.")
+    loss_group.add_argument('--link_tau', type=float, default=0.5,
+                            help="Initial softness (kcal/mol) of the floor and of the ceiling; smaller = sharper knee. Learned.")
+    loss_group.add_argument('--link_learn_bounds', action=argparse.BooleanOptionalAction, default=True,
+                            help="Let the link's floor and ceiling move off the assay's -1 / 5. The plateau seen by a model trained without "
+                                 "out-of-range items sits above -1 because only variants measured above it are kept.")
+    loss_group.add_argument('--link_lr', type=float, default=5e-3, help="Learning rate of the link's four parameters (no weight decay).")
     loss_group.add_argument('--mt_single_anchor_weight', type=float, default=0.0,
                             help="Per-item weight for also regressing the MT pass on ordinary singles (the zero-background "
                                  "case of the MT task). 0 disables. Requires --lambda_reg_mt > 0.")

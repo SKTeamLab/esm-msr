@@ -22,7 +22,7 @@ from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 from esm_msr.models import MSRModel
 from esm_msr import utils
 from esm_msr.losses import ListMLELoss, ListMLELoss_enhanced, AsymmetricHuberLoss
-from esm_msr import censoring
+from esm_msr import censoring, link as link_mod
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
@@ -90,6 +90,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.crit_reg = nn.MSELoss(reduction='none')
         elif self.hparams.reg_loss == 'asymmetric':
             self.crit_reg = AsymmetricHuberLoss()
+
+        # Monotone saturating link (esm_msr.link): latent stability -> the assay's observed dG. Lives on the Lightning module
+        # (not the backbone wrapper) so inference and checkpoint loading of the adapters are untouched.
+        self.link_head = None
+        if self.hparams.get('link', 'none') != 'none':
+            if (self.hparams.lambda_rank_combined > 0 or self.hparams.lambda_reg_combined > 0 or self.hparams.lambda_epi_combined > 0):
+                raise AssertionError("--link does not support the legacy --lambda_*_combined objectives.")
+            self.link_head = link_mod.MonotoneLink(
+                lo=self.hparams.link_lo, hi=self.hparams.link_hi, tau_lo=self.hparams.link_tau, tau_hi=self.hparams.link_tau,
+                learn_bounds=bool(self.hparams.link_learn_bounds))
 
         self.automatic_optimization = False
         self.validation_step_outputs = defaultdict(list)
@@ -355,6 +365,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         hinge_w = float(hp.get('censor_reg_weight', 1.0))
         hinge_src = (cens_src == censoring.SRC_RANGE) | bool(hp.get('censor_floor_hinge', False))
         reg_cens = torch.where((cens_all != 0) & hinge_src, cens_all, torch.zeros_like(cens_all))
+        # Monotone link (esm_msr.link): regression on the observed scale, observed = h(dG_wt + background + latent) - dG_wt.
+        link = self.link_head
+        use_link = link is not None
+        dGwt_all = batch['dG_wt'].float().to(device) if torch.is_tensor(batch.get('dG_wt')) else torch.full((B,), float('nan'), device=device)
+        bg_all = batch['bg_offset'].float().to(device) if torch.is_tensor(batch.get('bg_offset')) else torch.zeros(B, device=device)
+        link_ok = torch.isfinite(dGwt_all) if use_link else torch.ones(B, dtype=torch.bool, device=device)
         _fk = Counter(k for i, k in enumerate(flip_keys) if k)
         _unc = Counter(k for i, k in enumerate(flip_keys) if k and not (use_cens and int(cens_all[i]) != 0))
         global_num_flip = max(1, sum(1 for k, c in _fk.items() if c >= int(hp.flip_list_min) and _unc[k] > 0))
@@ -465,15 +481,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     t = wt_targets[rows]
                     if hp.lambda_reg_wt > 0:
                         c_reg = wt_reg_cens[rows]
-                        ord_wt = m_wt_ok & (c_reg == 0)
+                        if use_link:
+                            # singles only (a double's WT target is an additive sum of OBSERVED singles), scored on the observed scale
+                            reg_rows = m_wt_ok & is_wt_subset[rows] & link_ok[rows]
+                            p_wt = link.obs_ddG(wt_pred_cal, dGwt_all[rows])
+                        else:
+                            reg_rows, p_wt = m_wt_ok, wt_pred_cal
+                        ord_wt = reg_rows & (c_reg == 0)
                         if ord_wt.any():
-                            L = self.crit_reg(wt_pred_cal[ord_wt], t[ord_wt]) * w_mb[ord_wt]
+                            L = self.crit_reg(p_wt[ord_wt], t[ord_wt]) * w_mb[ord_wt]
                             losses_wt.append(hp.lambda_reg_wt * L.sum() / global_w_sum)
                             sums['reg_wt'] = sums['reg_wt'] + L.sum().detach()
                             cnts['reg_wt'] = cnts['reg_wt'] + w_mb[ord_wt].sum()
-                        cen_wt = m_wt_ok & (c_reg != 0) & torch.isfinite(cens_bound[rows])
+                        cen_wt = reg_rows & (c_reg != 0) & torch.isfinite(cens_bound[rows])
                         if hinge_w > 0 and cen_wt.any():
-                            Lh = censoring.censored_regression_loss(self.crit_reg, wt_pred_cal[cen_wt], cens_bound[rows][cen_wt],
+                            Lh = censoring.censored_regression_loss(self.crit_reg, p_wt[cen_wt], cens_bound[rows][cen_wt],
                                                                     c_reg[cen_wt]) * w_mb[cen_wt] * hinge_w
                             losses_wt.append(hp.lambda_reg_wt * Lh.sum() / global_w_sum)
                             sums['reg_wt_cens'] = sums['reg_wt_cens'] + Lh.sum().detach()
@@ -547,17 +569,25 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             elif kind == 'mt':
                 if m_mt_ok.any() and hp.lambda_reg_mt > 0:
                     w = mt_w[rows]
-                    reg_ok = m_mt_ok & reg_keep[rows] if hp.subfloor_rank_only else m_mt_ok
+                    if use_link:
+                        # the saturation is h's job, so items below the floor need no special handling (reg_ok is ignored); a
+                        # conditional item is scored as the double it came from: observed ddG_AB = h(dG_wt + ddG_B + ddG(A|B)) - dG_wt
+                        reg_ok = m_mt_ok & link_ok[rows]
+                        p_mt = link.obs_ddG(mt_pred_cal, dGwt_all[rows], bg_all[rows])
+                        t_mt, b_mt = ddG[rows] + bg_all[rows], cens_bound[rows] + bg_all[rows]
+                    else:
+                        reg_ok = m_mt_ok & reg_keep[rows] if hp.subfloor_rank_only else m_mt_ok
+                        p_mt, t_mt, b_mt = mt_pred_cal, ddG[rows], cens_bound[rows]
                     c_reg = reg_cens[rows]
                     reg_ord = reg_ok & (c_reg == 0)
                     if reg_ord.any():
-                        L = self.crit_reg(mt_pred_cal[reg_ord], ddG[rows][reg_ord]) * w[reg_ord]
+                        L = self.crit_reg(p_mt[reg_ord], t_mt[reg_ord]) * w[reg_ord]
                         losses_mt.append(hp.lambda_reg_mt * L.sum() / global_w_sum)
                         sums['reg_mt'] = sums['reg_mt'] + L.sum().detach()
                         cnts['reg_mt'] = cnts['reg_mt'] + w[reg_ord].sum()
-                    cen_mt = m_mt_ok & (c_reg != 0) & torch.isfinite(cens_bound[rows])
+                    cen_mt = m_mt_ok & link_ok[rows] & (c_reg != 0) & torch.isfinite(b_mt)
                     if hinge_w > 0 and cen_mt.any():
-                        Lh = censoring.censored_regression_loss(self.crit_reg, mt_pred_cal[cen_mt], cens_bound[rows][cen_mt],
+                        Lh = censoring.censored_regression_loss(self.crit_reg, p_mt[cen_mt], b_mt[cen_mt],
                                                                 c_reg[cen_mt]) * w[cen_mt] * hinge_w
                         losses_mt.append(hp.lambda_reg_mt * Lh.sum() / global_w_sum)
                         sums['reg_mt_cens'] = sums['reg_mt_cens'] + Lh.sum().detach()
@@ -660,6 +690,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         self._log_lrs()
         self.log_calibration_head(on_step=True)
+        if self.link_head is not None:
+            for k, v in self.link_head.summary().items():
+                self.log(f"link/{k}", v, on_step=True)
 
         for k, v in logs.items():
             if v > 0.0: self.log(f"train/{k}", v, on_step=True)
@@ -694,7 +727,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         mt_id = batch.get('mt_id')
         row_id = (mt_id[:, 0].detach().cpu().numpy() if torch.is_tensor(mt_id) and mt_id.ndim == 2
                   else np.full(n_items, -1))
+        extra = {}
+        if self.link_head is not None and torch.is_tensor(batch.get('dG_wt')):
+            # observed-scale predictions, h(dG_wt + latent) - dG_wt, for the absolute-error and ddG-ddG epistasis metrics
+            dgw = batch['dG_wt'].float().to(out_dict['wt_lora_pred'].device)
+            with torch.no_grad():
+                for k, key in (('wt', 'wt_lora_pred'), ('mt', 'mt_lora_pred'), ('comb', 'combined_pred')):
+                    v = out_dict[key]
+                    extra[f'{k}_obs'] = _np(self.link_head.obs_ddG(v.float(), dgw)) if torch.is_tensor(v) else np.full(n_items, float('nan'))
         self.validation_step_outputs[dataloader_idx].append({
+            **extra,
             'wt_scores': _np(out_dict['wt_lora_pred']),
             'mt_scores': _np(out_dict['mt_lora_pred']),
             'comb_scores': _np(out_dict['combined_pred']),
@@ -738,9 +780,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if len(mut_keys) != len(subset_types):
                 mut_keys = None
 
+            obs_val = ({k: np.concatenate([np.asarray(o[f'{k}_obs']).reshape(-1) for o in outputs]) for k in ('wt', 'mt', 'comb')}
+                       if all('comb_obs' in o for o in outputs) else None)
             per_loader[name] = stats.compute_metrics(
                 cols['wt_scores'], cols['mt_scores'], cols['comb_scores'],
-                cols['ground_truths'], subset_types, dddG=cols['dddG'], mut_keys=mut_keys, cens=cens_val)
+                cols['ground_truths'], subset_types, dddG=cols['dddG'], mut_keys=mut_keys, cens=cens_val, obs=obs_val)
 
             # Identity-dependent interaction, scored on the MT pass. This is the only
             # validation number that is specific to what the MT adapter exists for: it is
@@ -771,6 +815,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 pooled[k].append(v)
             pooled['subset_type'].extend(subset_types)
             pooled['cens'].append(cens_val)
+            if obs_val is not None:
+                for k, v in obs_val.items():
+                    pooled[f'{k}_obs'].append(v)
             # Mutations are numbered per library, so tag them with the loader to keep pooled
             # singles from pairing with another protein's doubles.
             pooled['mut_key'].extend(
@@ -797,7 +844,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 np.concatenate(pooled['comb_scores']), np.concatenate(pooled['ground_truths']),
                 pooled['subset_type'], dddG=np.concatenate(pooled['dddG']),
                 mut_keys=None if any(k is None for k in pooled['mut_key']) else pooled['mut_key'],
-                cens=np.concatenate(pooled['cens']))
+                cens=np.concatenate(pooled['cens']),
+                obs=({k: np.concatenate(pooled[f'{k}_obs']) for k in ('wt', 'mt', 'comb')} if pooled.get('comb_obs') else None))
             for metric, val in pooled_metrics.items():
                 if not np.isnan(val):
                     self.log(f"val_{metric}_pooled", val, on_epoch=True, sync_dist=True)
@@ -889,6 +937,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if calib_wt_params: main_groups.append({"params": calib_wt_params, "lr": base_lr * self.hparams.calib_lr_mult, "weight_decay": 0.0, "name": "calib_wt"})
         if calib_mt_params: main_groups.append({"params": calib_mt_params, "lr": base_lr * self.hparams.calib_lr_mult, "weight_decay": 0.0, "name": "calib_mt"})
         if other_params: main_groups.append({"params": other_params, "lr": base_lr, "weight_decay": wd, "name": "other"})
+        if self.link_head is not None:
+            link_params = [p for p in self.link_head.parameters() if p.requires_grad]
+            main_groups.append({"params": link_params, "lr": float(self.hparams.link_lr), "weight_decay": 0.0, "name": "link"})
 
         if not main_groups:
             logging.warning("No param groups found; defaulting to all trainables.")
@@ -898,7 +949,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         lambdas_main = []
         for g in main_groups:
-            if "calib" in g["name"]: lambdas_main.append(lambda step: 1.0)
+            if "calib" in g["name"] or g["name"] == "link": lambdas_main.append(lambda step: 1.0)
             elif g["name"] == "lora_mt":
                 lambdas_main.append(lambda step, delay=self.hparams.mt_lora_delay_steps, warmup=self.hparams.lr_warmup_steps: 0.0 if step < delay else min(1.0, max(1e-4, (step - delay) / max(1, warmup))))
             else:
@@ -949,7 +1000,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         trainable_keys = {f"model.{n}" for n in self._trainable_param_names}
         filtered_state_dict = {
             k: v for k, v in state_dict.items()
-            if 'lora' in k.lower() or 'calibration' in k.lower() or k in trainable_keys
+            if 'lora' in k.lower() or 'calibration' in k.lower() or k in trainable_keys or k.startswith('link_head.')
         }
         
         if not filtered_state_dict:

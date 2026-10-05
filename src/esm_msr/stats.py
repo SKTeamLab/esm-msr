@@ -214,7 +214,7 @@ def delta_single_diagnostics(df, epi_true_col=None):
     return out
 
 
-def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types, dddG=None, mut_keys=None, cens=None):
+def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types, dddG=None, mut_keys=None, cens=None, obs=None):
     """
     The validation metrics for one dataloader (one protein library or benchmark).
 
@@ -252,6 +252,12 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     * ``auc_dead_wt`` / ``auc_hyper_wt`` - WT head, singles: ordinary ranked above dead (``<-1``) / hyperstable (``>5``) above ordinary.
     * ``auc_dead_mt`` / ``auc_hyper_mt`` - the same for the MT head on conditional items.
 
+    ``obs`` (optional dict with ``wt``, ``mt``, ``comb``): predictions on the assay's OBSERVED scale, ``h(dG_wt + latent) - dG_wt``
+    (see ``esm_msr.link``), for a model trained with ``--link``. There the scores above are latent, unsaturated stability changes, which
+    cannot be compared with a saturated measurement in absolute terms, so ``rmse_combined`` and the ddG-ddG epistasis readouts are taken from
+    the observed-scale predictions (this keeps them comparable with a model trained without the link), and the latent versions are
+    also reported as ``rho_epi_fast_latent`` / ``rho_epi_full_latent``. Rank metrics (``rho_*``) always use the latent scores: ``h`` is monotone.
+
     ``_all`` deliberately mixes quantities: a conditional ddG(X | background) is not a
     wild-type-context ddG, so a correlation pooling them answers "does this head rank
     anything sensibly" rather than "is this head right". Read ``_valid`` first.
@@ -277,6 +283,10 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
         'rho_combined': safe_spearman(comb_scores[is_measured], gt[is_measured]),
         'rmse_combined': safe_rmse(comb_scores[is_measured], gt[is_measured]),
     }
+    if obs is not None:
+        obs = {k: np.asarray(v, dtype=np.float64) for k, v in obs.items()}
+        ok = is_measured & np.isfinite(obs['comb'])
+        metrics['rmse_combined'] = safe_rmse(obs['comb'][ok], gt[ok]) if ok.any() else float('nan')
 
     if dddG is not None:
         dddG = np.asarray(dddG, dtype=np.float64)
@@ -285,6 +295,12 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
         epi_pred = comb_scores - wt_scores
         metrics['rho_epi_fast'] = safe_spearman(epi_pred[is_double], dddG[is_double])
         metrics['rho_epi_full'] = _rho_epi_full(comb_scores, subset_types, mut_keys, dddG, is_double)
+        if obs is not None:
+            # measured dddG contains the assay's saturation, so score the observed-scale predictions against it
+            metrics['rho_epi_fast_latent'], metrics['rho_epi_full_latent'] = metrics['rho_epi_fast'], metrics['rho_epi_full']
+            d = is_double & np.isfinite(obs['comb']) & np.isfinite(obs['wt'])
+            metrics['rho_epi_fast'] = safe_spearman((obs['comb'] - obs['wt'])[d], dddG[d]) if d.any() else float('nan')
+            metrics['rho_epi_full'] = _rho_epi_full(obs['comb'], subset_types, mut_keys, dddG, is_double)
     else:
         metrics['rho_epi_fast'] = float('nan')
         metrics['rho_epi_full'] = float('nan')
