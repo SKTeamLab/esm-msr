@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 from scipy.stats import spearmanr
 from sklearn.metrics import mean_squared_error, ndcg_score
@@ -299,7 +301,10 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     return metrics
 
 
-def flip_signature_rho(pred, target, flip_keys, row_ids, min_len=4, min_rows=3, min_cols=3):
+_PARTNER_RE = re.compile(r'^(\d+)(.+)$')
+
+
+def flip_signature_rho(pred, target, flip_keys, row_ids, min_len=4, min_rows=3, min_cols=3, by_partner_position=False):
     """Identity-dependent interaction agreement: the validation twin of the report's test.
 
     A *flip column* is one scored position with one fixed partner identity; ``flip_keys``
@@ -322,6 +327,16 @@ def flip_signature_rho(pred, target, flip_keys, row_ids, min_len=4, min_rows=3, 
     to +0.95 with no interaction present at all. Rows and columns are therefore trimmed
     (most-missing first) until no gaps remain.
 
+    ``by_partner_position`` chooses what a "matrix" is. A flip key is ``code|scored position|partner position + partner
+    residue``. With the default (``False``) the matrix is indexed by the scored position alone, so its columns pool
+    partners at *different positions*, and a substitution's average effect with one partner position versus another counts as signal.
+    A predictor that knows only the scored substitution and the partner position, not the partner residue, therefore earns
+    a positive score (about 0.14 on the validation libraries, against 0.20-0.21 for the trained models; see the ANOVA report).
+    With ``True`` there is one matrix per (scored position, partner position) pair: rows are the scored substitutions, columns
+    the partner residues. Double-centring then removes everything that does not depend on the specific
+    combination of the two residues, and such a predictor scores exactly 0. Keys without a numeric partner position
+    (native-conditional keys) keep the default grouping.
+
     Returns (rho, n_pairs, n_cells); rho is nan when no usable block exists, and 0.0 when
     the prediction's signature is identically flat - which is what an additive readout gives.
     """
@@ -335,6 +350,10 @@ def flip_signature_rho(pred, target, flip_keys, row_ids, min_len=4, min_rows=3, 
         if len(parts) < 3:
             continue
         pair, col = '|'.join(parts[:2]), parts[2]
+        if by_partner_position:
+            m = _PARTNER_RE.match(col)
+            if m:
+                pair, col = pair + '|' + m.group(1), m.group(2)
         pairs.setdefault(pair, {}).setdefault(col, []).append(i)
 
     def _sig(M):

@@ -45,7 +45,7 @@ def safe_ndcg(df, col1, col2, top_n=None, threshold=None):
     ndcg_val, model_hits_at_k, ideal_hits_at_k, total_hits_in_pool = stats.compute_ndcg_flexible(preds, truths, top_n=top_n, threshold=threshold)
     return ndcg_val
 
-def compute_flip_stats(res_df, pred_col, true_col, code_name=''):
+def compute_flip_stats(res_df, pred_col, true_col, code_name='', by_partner_position=False):
     """Extracts double mutant flip columns and computes stats.flip_signature_rho.
     
     A flip column is one scored position with one fixed partner identity.
@@ -109,7 +109,8 @@ def compute_flip_stats(res_df, pred_col, true_col, code_name=''):
     if not fk_list:
         return float('nan'), float('nan'), float('nan')
 
-    return stats.flip_signature_rho(pred_list, tgt_list, fk_list, rid_list, min_len=4, min_rows=2, min_cols=2)
+    return stats.flip_signature_rho(pred_list, tgt_list, fk_list, rid_list, min_len=4, min_rows=2, min_cols=2,
+                                    by_partner_position=by_partner_position)
 
 
 def update_stats(stats_df, row_name, res_df, true_col, pred_col, epi_true_col='dddG_ML', epi_pred_col=None, time_val=None):
@@ -145,6 +146,10 @@ def update_stats(stats_df, row_name, res_df, true_col, pred_col, epi_true_col='d
     rho_flip, n_flip_pairs, n_flip_cells = compute_flip_stats(res_df, pred_col, true_col, row_name)
     stats_df.at[row_name, 'rho_flip'] = rho_flip
     stats_df.at[row_name, 'n_flip_pairs'] = n_flip_pairs
+    # one matrix per position pair: the version nothing that ignores the partner residue can score on
+    rho_pair, n_pair_mat, _ = compute_flip_stats(res_df, pred_col, true_col, row_name, by_partner_position=True)
+    stats_df.at[row_name, 'rho_flip_pair'] = rho_pair
+    stats_df.at[row_name, 'n_flip_pair_matrices'] = n_pair_mat
 
     stats_df.at[row_name, 'ndcg@96'] = safe_ndcg(res_df, pred_col, true_col, top_n=96)
     stats_df.at[row_name, 'ndcg>0'] = safe_ndcg(res_df, pred_col, true_col, threshold=0)
