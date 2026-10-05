@@ -1,0 +1,150 @@
+{
+ "n_doubles": 127476,
+ "n_libs": 153,
+ "n_pairs": 481,
+ "cells_per_pair_median": 313.0,
+ "var_dddG": 0.8297873300255375,
+ "mean_dddG": 0.8757229959953428,
+ "sigma_single_protease": 0.30783949972906915,
+ "sigma_ml_optimistic": 0.21767539777549916,
+ "noise_total_share_opt": 0.17130622660361736,
+ "noise_in_residual_share_opt": 0.057102075534539116,
+ "noise_total_share_pess": 0.3426124532072347,
+ "noise_in_residual_share_pess": 0.11420415106907825,
+ "cv": {
+  "M0 constant": {
+   "r2": -3.5018214810111914e-06,
+   "rho": NaN
+  },
+  "M1 +global": {
+   "r2": 0.6011629174773581,
+   "rho": 0.7027399920430323
+  },
+  "M2 +pair mean": {
+   "r2": 0.7633962731583994,
+   "rho": 0.8575751562183246
+  },
+  "M3 +row/col": {
+   "r2": 0.8963557599621638,
+   "rho": 0.9432078421406056
+  }
+ },
+ "cv_increment": {
+  "M0 constant": -3.5018214810111914e-06,
+  "M1 +global": 0.6011664192988391,
+  "M2 +pair mean": 0.16223335568104136,
+  "M3 +row/col": 0.13295948680376435
+ },
+ "cv_resid_share": 0.10364424003783623,
+ "insample": {
+  "M0 constant": {
+   "r2": 0.0
+  },
+  "M1 +global": {
+   "r2": 0.60252437788998
+  },
+  "M2 +pair mean": {
+   "r2": 0.7663927958101748
+  },
+  "M3 +row/col": {
+   "r2": 0.9283879026092738
+  }
+ },
+ "by_x": {
+  "(-10, -2]": {
+   "n": 8478,
+   "mean_dddG": 2.6956531292785546,
+   "var_dddG": 0.523469565437996,
+   "resid_var_M3": 0.13435751680292574
+  },
+  "(-2, -1]": {
+   "n": 17342,
+   "mean_dddG": 1.712472803273643,
+   "var_dddG": 0.36033189196539694,
+   "resid_var_M3": 0.1003888478598633
+  },
+  "(-1, 0]": {
+   "n": 28717,
+   "mean_dddG": 1.0234049600654775,
+   "var_dddG": 0.39571297990923926,
+   "resid_var_M3": 0.09192091234497962
+  },
+  "(0, 1]": {
+   "n": 34822,
+   "mean_dddG": 0.5677194459038037,
+   "var_dddG": 0.345135881841511,
+   "resid_var_M3": 0.06888545548191163
+  },
+  "(1, 2]": {
+   "n": 23982,
+   "mean_dddG": 0.34899933473649614,
+   "var_dddG": 0.3364494257470785,
+   "resid_var_M3": 0.07092703278884867
+  },
+  "(2, 3]": {
+   "n": 10965,
+   "mean_dddG": 0.16417789072435165,
+   "var_dddG": 0.29739736011106405,
+   "resid_var_M3": 0.07772604862888728
+  },
+  "(3, 10]": {
+   "n": 3170,
+   "mean_dddG": -0.07758528321720433,
+   "var_dddG": 0.3606124930386846,
+   "resid_var_M3": 0.1494704218466547
+  }
+ },
+ "val_split": {
+  "n_doubles": 8537,
+  "n_libs": 16,
+  "rho_global_only_pooled": 0.7023163783149093,
+  "rho_global_only_per_lib_mean": 0.5689074126439766,
+  "r2_global_only": 0.6021547737017554
+ },
+ "flip": {
+  "validation-style (columns pooled over partner positions)": {
+   "measured (perfect)": {
+    "rho": 0.9999999999999999,
+    "n_pairs": 730,
+    "n_cells": 212592
+   },
+   "global only: h(additive)": {
+    "rho": 0.017217339819431035,
+    "n_pairs": 730,
+    "n_cells": 212592
+   },
+   "random": {
+    "rho": -0.0043876533637616875,
+    "n_pairs": 730,
+    "n_cells": 212592
+   },
+   "substitution mean, partner residue ignored (in-sample, biased up)": {
+    "rho": 0.17001336622944493,
+    "n_pairs": 730,
+    "n_cells": 212592
+   }
+  },
+  "pair-level (one matrix per position pair)": {
+   "measured (perfect)": {
+    "rho": 1.0,
+    "n_pairs": 454,
+    "n_cells": 107514
+   },
+   "global only: h(additive)": {
+    "rho": 0.017609498853364814,
+    "n_pairs": 454,
+    "n_cells": 107514
+   },
+   "random": {
+    "rho": 0.003719467279236699,
+    "n_pairs": 454,
+    "n_cells": 107514
+   },
+   "substitution mean, partner residue ignored (in-sample, biased up)": {
+    "rho": 0.0,
+    "n_pairs": 454,
+    "n_cells": 107514
+   }
+  }
+ }
+}
