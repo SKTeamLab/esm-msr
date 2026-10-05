@@ -121,8 +121,17 @@ the same amount. This is why single-mutant noise cannot masquerade as interactio
   independent measurements of the same quantity. Their disagreement, in the well-measured range
   (0 < ΔG < 4), is SD(difference)/√2 = **0.31 kcal/mol per protease**. The project's ΔG is a
   combination of the two, which would reduce the error to about **0.22** if their errors were independent.
-  I use 0.22 (optimistic) and 0.31 (pessimistic) as a bracket. The reported fit confidence intervals
-  imply only about 0.03, but those capture fit uncertainty alone and are a floor.
+  I use 0.22 (optimistic) and 0.31 (pessimistic) as a bracket. The reported 95% confidence intervals
+  (median width 0.14, so SD about 0.04) are a floor, not an estimate: the paper's methods state they reflect only
+  the uncertainty from finite sequencing counts and exclude uncertainty in the unfolded-state baseline K50,U,
+  protease concentrations and the validity of the kinetic model. The protease disagreement includes those
+  protease-specific errors; errors shared by both proteases would not show up in it.
+* **Out-of-range variants are not in this data.** The table stores a variant whose ΔG is confidently below −1 or
+  above 5 as the text `<-1` or `>5`, which numeric parsing (mine, and the training pipeline's) turns into a
+  missing value. Among doubles whose singles are measured, **5.9% (8,356 of 140,846) are missing this way**,
+  and the loss is concentrated where the additive prediction is lowest: **38%** of doubles with additive
+  prediction below −3, 24% for −3 to −2, 14% for −2 to −1, and under 1% above 0. Section 7 explains what that does
+  to the results.
 
 ---
 
@@ -300,6 +309,11 @@ regression moves the validation flip score so little.
   coupling that grows with how damaging a substitution is) as well as single-mutant noise. Calling
   them identity-*independent* means they do not depend on the *partner residue*.
 * **Noise is the least certain input** (Section 4.3).
+* **The low end of the data is truncated.** Doubles that are confidently below the assay floor are absent (Section 2),
+  so the floor region is a survivor sample. The saturation curve and the global share (60%) there are conditioned on survivors and
+  would change if those doubles were included (clipped at −1, as the paper does for its figures). The mid-range results,
+  where 94–99% of doubles are present, including the leftover variance of 0.07 and its comparison with noise, are not affected
+  by this. The same truncation applies to training: the deeply unfolded singles and doubles are never seen.
 * **One data set and a designed experiment.** The doubles are at chosen position pairs, not random
   ones, and the saturation curve was assumed universal across proteins (protein-specific effects end up
   in the pair mean).
