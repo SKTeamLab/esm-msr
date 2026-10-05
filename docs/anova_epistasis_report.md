@@ -30,7 +30,9 @@ Reproduce with `analysis_notebooks/anova/` (scripts listed at the end). Raw numb
 5. **The capability test agrees with the modest gains.** Adding the rank loss raised the flip score
    on *training* libraries by +0.049 (19 of 21 libraries improved) but on validation libraries by only
    +0.015 (6 of 16 improved, indistinguishable from zero).
-6. **What would be a cleaner target:** the per-pair-matrix version of the flip metric, and a loss
+6. **Including the out-of-range variants** (Section 3.5) raises the saturation share to 66% and leaves the leftover at
+   8.6%, still roughly the size of the noise.
+7. **What would be a cleaner target:** the per-pair-matrix version of the flip metric, and a loss
    that works on the residual after the identity-independent terms are removed (Section 6).
 
 ---
@@ -194,6 +196,31 @@ gives ρ = 0.70 pooled and **0.57 averaged per library**, against the old `val_r
 (which also has to predict the singles from sequence).
 
 ---
+
+### 3.5 Sensitivity: including the out-of-range variants
+
+Section 2 notes that variants confidently outside the assay range (`<-1`, `>5`) are missing from the table
+the project uses. I reran the whole analysis with them included at the clipped bounds (−1 and 5), as the paper does for its
+own figures. Doubles that contain a clipped single now enter too, so the sample grows from 127,476 to **166,996 doubles**
+(166 libraries, 504 position pairs). Raw numbers: `docs/anova/results_clipped.json`.
+
+| | survivors only (main analysis) | clipped bounds included |
+|---|---|---|
+| variance of dddG | 0.83 | 1.18 |
+| global saturation | 60.1% | **65.9%** |
+| + position-pair mean | +16.2% | +14.2% |
+| + row and column effects | +13.3% | +11.3% |
+| **left over** | 10.4% | **8.6%** |
+| noise expected in the leftover (σ 0.22 to 0.31) | 5.7% to 11.4% | 4.0% to 8.0% |
+| room for interaction | about 0% to 4.7% | about 0.6% to 4.6% |
+| ρ with dddG: saturation only / + pair mean / + row, col | 0.70 / 0.86 / 0.94 | 0.74 / 0.87 / 0.95 |
+| saturation-only ρ on validation libraries (per-library mean) | 0.57 | 0.60 |
+
+* The share explained by **saturation rises**, as expected: the doubles that were missing are the ones most affected by the floor.
+* The **bottom line is unchanged**: after the identity-independent terms, the leftover is about what noise alone would give,
+  leaving at most about 5% of the variance for identity-specific interaction.
+* Caution: a clipped value is a bound, not a measurement, so cells built from clipped values carry extra structured error.
+  The absolute leftover variance is slightly higher here (0.10 versus 0.086 kcal²/mol²), which is consistent with that.
 
 ## 4. Interpreting the leftover
 

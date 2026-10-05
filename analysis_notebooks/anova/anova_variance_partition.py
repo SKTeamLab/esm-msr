@@ -17,6 +17,8 @@ from sklearn.isotonic import IsotonicRegression
 RAW = '/home/sareeves/software/esm-msr/data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv'
 SPLITS = '/home/sareeves/software/esm-msr/data/hyperopt_splits.pkl'
 OUT = sys.argv[1] if len(sys.argv) > 1 else 'analysis_notebooks/anova/out'
+CLIP_MISSING = '--clip-missing' in sys.argv      # include '<-1' / '>5' variants at -1 / 5 instead of dropping them
+SKIP_FLIP = '--skip-flip' in sys.argv
 os.makedirs(OUT, exist_ok=True)
 rng = np.random.default_rng(0)
 PAT = re.compile(r'^([A-Z])(\d+)([A-Z])$')
@@ -25,19 +27,28 @@ AA = 'ACDEFGHIKLMNPQRSTVWY'
 
 def build_table():
     d = pd.read_csv(RAW, low_memory=False)
+    raw_dG = d['dG_ML'].astype(str)
     for c in ['dG_ML', 'ddG_ML', 'deltaG_t', 'deltaG_c']:
         d[c] = pd.to_numeric(d[c], errors='coerce')
+    d['dG_clipped'] = d['dG_ML'].copy()
+    d.loc[raw_dG == '<-1', 'dG_clipped'] = -1.0          # confidently below the assay range
+    d.loc[raw_dG == '>5', 'dG_clipped'] = 5.0            # confidently above it
     d['code'] = (d['WT_name'].str.replace('.pdb_', '_', regex=False).str.replace('.pdb', '', regex=False)
                  .str.replace('|', '_', regex=False))
     d['code_wt'] = d['WT_name'].str.split('.pdb').str[0].str.replace('|', '_', regex=False)
     wt = d[d.mut_type == 'wt'].groupby('code').dG_ML.mean()
-    d = d[d.ddG_ML.notna() & ~d.mut_type.str.contains('wt|ins|del', na=False) & (d.WT_name != '1UBQ.pdb_L43A')]
+    if CLIP_MISSING:
+        d['ddG_use'] = d['dG_clipped'] - d['code'].map(wt)
+        d['dG_use'] = d['dG_clipped']
+    else:
+        d['ddG_use'], d['dG_use'] = d['ddG_ML'], d['dG_ML']
+    d = d[d.ddG_use.notna() & d.dG_use.notna() & ~d.mut_type.str.contains('wt|ins|del', na=False) & (d.WT_name != '1UBQ.pdb_L43A')]
     # noise: protease-to-protease disagreement in the well-measured range, centred
     s = d[['deltaG_t', 'deltaG_c', 'dG_ML']].dropna()
     s = s[s.dG_ML.between(0, 4) & s.deltaG_t.between(-1, 5) & s.deltaG_c.between(-1, 5)]
     diff = s.deltaG_t - s.deltaG_c
     sigma_single_protease = float(diff.std() / np.sqrt(2))
-    g = d.groupby(['code', 'mut_type'], as_index=False).agg(dG=('dG_ML', 'mean'), ddG=('ddG_ML', 'mean'),
+    g = d.groupby(['code', 'mut_type'], as_index=False).agg(dG=('dG_use', 'mean'), ddG=('ddG_use', 'mean'),
                                                           code_wt=('code_wt', 'first'))
     g['nm'] = g.mut_type.str.count(':') + 1
     S = g[g.nm == 1].set_index(['code', 'mut_type'])
@@ -162,6 +173,10 @@ def main():
                         'rho_global_only_per_lib_mean': float(np.nanmean(per_lib)),
                         'r2_global_only': float(r2(V_.dddG.to_numpy(), V_.g.to_numpy()))}
 
+    if SKIP_FLIP:
+        json.dump(res, open(f'{OUT}/results.json', 'w'), indent=1)
+        print(json.dumps(res, indent=1))
+        return
     # ---- flip metric: what it rewards ----
     aa = {c: i for i, c in enumerate(AA)}
     def expand(df, pair_level):
