@@ -569,6 +569,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         for kind, rows in units:
             micro, w_mb = utils.slice_batch_by_index(batch, rows), w_all[rows]
+            if os.environ.get('MSR_MEM_DEBUG') and torch.cuda.is_available():
+                # one line per work unit: the PREVIOUS unit's high-water mark, then this unit's kind / rows / token shape
+                logging.info(f"UNIT prev_peak={torch.cuda.max_memory_allocated() / 2 ** 30:.2f}GB kind={kind} rows={len(rows)} "
+                             f"tokens={tuple(micro['wt_sequence_tokens'].shape)} alloc={torch.cuda.memory_allocated() / 2 ** 30:.2f}GB")
+                torch.cuda.reset_peak_memory_stats()
             m_wt_ok, m_mt_ok = wt_ok[rows], mt_ok[rows]
             losses_wt, losses_mt = [], []
 
