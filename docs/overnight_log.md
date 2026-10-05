@@ -15,3 +15,10 @@
   * `val_auc_dead_wt_avg` 0.959 -> 0.963; `val_auc_hyper_wt_avg` 0.918 -> 0.913; `val_auc_dead_mt_avg` 0.771 -> 0.734 (slow decline); `val_auc_hyper_mt_avg` ~0.99
   * W0 (3 epochs, micro 64, no out-of-range items): flip_pair 0.142 / 0.168 / 0.182. At matched epochs W2 is +0.04 / -0.005 / +0.024; W2 plateaus around 0.21 from epoch 4. Single seed, epoch noise +/-0.02-0.03: a possible small gain (W2 never fell below W0's epoch-2 value after epoch 2), not a demonstrated one. The WT head is unchanged (guard holds throughout). The dead/hyperstable AUCs rose against their untrained step-0 values (W0 has no baseline for them). Best checkpoint by the monitored metric: epoch 5.
 * 05:08 L1 (`l1_link_cens`: link + out-of-range, micro 32) started.
+* 07:10 L1 (`l1_link_cens`: `--link softclamp --include_out_of_range`, micro 32, seed 1) epochs 0-2 (W2 in brackets):
+  * `val_rho_flip_pair_avg` 0.159 / 0.158 / 0.179 (0.184 / 0.163 / 0.206); `val_rho_flip_avg` 0.148 / 0.186 / 0.175 (0.208 / 0.158 / 0.201). W0: flip_pair 0.142 / 0.168 / 0.182. So no flip gain from the link: L1 sits at or slightly below W2 and level with W0, inside the +/-0.02-0.03 noise.
+  * `val_rmse_combined_avg` (observed scale) 0.695 / 0.683 / **0.650** (0.710 / 0.728 / 0.732; W0 0.719 / 0.736 / 0.694 on the latent scale): the clearest effect of the link, about 0.08 lower absolute error than W2 at epoch 2 (this arm's rmse is on the observed scale, so it is the calibration the link is meant to improve).
+  * `val_rho_wt_valid_avg` 0.793 / 0.808 / 0.808 (WT head guard holds); `val_rho_epi_full_avg` 0.384 / 0.390 / 0.433 (W2 0.411 / 0.426 / 0.432); `val_rho_epi_fast_avg` 0.196 / 0.242 / 0.247 (W2 0.371 / 0.378 / 0.360: lower under the link, not investigated).
+  * `val_auc_*`: dead_wt 0.961 / 0.964 / 0.962, hyper_wt 0.920 / 0.916 / 0.912, dead_mt 0.761 / 0.757 / 0.759: same as W2.
+  * Link (steps 24 -> 2749): floor -0.91 -> -0.71, ceiling 5.05 -> 5.22, tau_hi 0.51 -> 0.82, tau_lo 0.54 -> 0.55: stable, plausible. Peak VRAM 26.9 GB, no errors.
+  * Epoch 3 running (flip_pair best-so-far 0.179 at epoch 2, so early stopping has not triggered); I1 waits behind L1 in the queue.
