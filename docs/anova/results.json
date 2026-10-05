@@ -149,5 +149,8 @@
  },
  "sigma_replicate": 0.1148,
  "noise_total_share_rep": 0.047647292950090236,
- "noise_in_residual_share_rep": 0.015882430983363414
+ "noise_in_residual_share_rep": 0.015882430983363414,
+ "sigma_mutant_replicate": 0.27,
+ "noise_in_residual_share_mutrep": 0.08785383599163467,
+ "noise_total_share_mutrep": 0.263561507974904
 }

@@ -15,12 +15,11 @@ Reproduce with `analysis_notebooks/anova/` (scripts listed at the end). Raw numb
    does not depend on which two amino acids were swapped.** Out-of-sample: 60% by the assay's
    saturation alone, +16% by a per-position-pair offset, +13% by per-substitution row and
    column effects. (Figure 2.)
-2. **What is left (10.4%) is small, and how much of it is real interaction depends on the noise level.**
-   Noise estimated from replicate wild-type measurements (SD 0.115 kcal/mol) would account for only 1.6% of it, leaving up to
-   about 9% of the variance for identity-specific interaction. Noise estimated from trypsin-versus-chymotrypsin disagreement
-   (SD 0.22–0.31) would account for 5.7–11.4%, leaving 0–5%. **The data constrain interaction to between about 0% and 9% of
-   the variance, not more tightly** (Sections 2 and 4.3). An earlier version of this report gave 0–5%; that used only
-   the second estimate.
+2. **What is left (10.4%) is small, and about the size of the measurement noise.** The most direct noise measurement for mutants,
+   replicate rows of the same mutant (SD **0.27** kcal/mol, 4,552 mutants), agrees with the trypsin-versus-chymotrypsin disagreement (0.22–0.31); both put
+   5.7–11.4% of the variance in the leftover as noise, leaving **about 0–5%, most likely about 2%**, for identity-specific interaction. Synonymous
+   wild-type copies give a much lower SD (0.115), which would leave up to 9%, but wild-type sequences are measured at far greater depth than a typical mutant, so
+   that figure understates mutant noise (Sections 2 and 4.3). Earlier versions of this report gave 0–5%, then 0–9%, depending on which estimate was used.
 3. **ΔΔΔG correlation is not a test of interaction.** Predictors with no identity-specific term
    at all reach Spearman 0.70, 0.86 and 0.94 against measured ΔΔΔG (Figure 4). The validation
    metric `val_rho_epi` (about 0.36–0.42) is therefore not evidence of learned interaction.
@@ -121,15 +120,19 @@ the same amount. This is why single-mutant noise cannot masquerade as interactio
 * Hierarchy, each level cross-validated at the cell level (5 folds):
   **M1** isotonic curve of measured ΔG on x. **M2** M1 plus a per-pair mean of what M1 leaves.
   **M3** M2 plus per-pair row and column effects (fitted by alternating averages).
-* **Measurement noise: three estimates, which disagree.**
+* **Measurement noise: four estimates, which disagree.**
   (a) *Replicate noise.* Each library contains several synonymous copies of the wild-type sequence (median 5). Their ΔG spread
   directly measures replicate error: median SD **0.07**, pooled SD **0.115 kcal/mol** across 419 libraries. It misses error that is the same
   for every copy of a sequence, such as an error in the model of the unfolded-state baseline.
-  (b) *Protease disagreement.* The two protease-based ΔG estimates (trypsin, chymotrypsin) are
+  (b) *Mutant replicates.* 4,552 mutants appear in two or more rows of the table (the same amino-acid sequence under different DNA, measured in
+  different library entries). Their dG_ML spread is the most direct measurement of mutant noise: pooled SD **0.27** kcal/mol (median per-mutant SD 0.17), flat across
+  the stability range (0.25 to 0.31 in each bin). It is much higher than the wild-type copies because wild-type sequences are measured many times over
+  and so at far greater depth; it still misses errors shared by all copies of a sequence.
+  (c) *Protease disagreement.* The two protease-based ΔG estimates (trypsin, chymotrypsin) are
   independent measurements of the same quantity. Their disagreement, in the well-measured range
   (0 < ΔG < 4), is SD(difference)/√2 = **0.31 kcal/mol per protease**. The project's ΔG is a
   combination of the two, which would reduce the error to about **0.22** if their errors were independent.
-  I use 0.115 (replicates only), 0.22 and 0.31 as the bracket. (c) The reported 95% confidence intervals
+  I use 0.115 (wild-type copies), 0.22, 0.27 (mutant replicates) and 0.31 as the bracket. (d) The reported 95% confidence intervals
   (median width 0.14, so SD about 0.04) are a floor, not an estimate: the paper's methods state they reflect only
   the uncertainty from finite sequencing counts and exclude uncertainty in the unfolded-state baseline K50,U,
   protease concentrations and the validity of the kinetic model. The protease disagreement includes those
@@ -218,7 +221,7 @@ own figures. Doubles that contain a clipped single now enter too, so the sample 
 | + row and column effects | +13.3% | +11.3% |
 | **left over** | 10.4% | **8.6%** |
 | noise expected in the leftover (σ 0.115 / 0.22 / 0.31) | 1.6% / 5.7% / 11.4% | 1.1% / 4.0% / 8.0% |
-| room for interaction | about 0% to 8.8% | about 0.6% to 7.5% |
+| room for interaction | about 0% to 8.8% (about 1.6% at the mutant-replicate noise) | about 0.6% to 7.5% (about 2.4% at the mutant-replicate noise) |
 | ρ with dddG: saturation only / + pair mean / + row, col | 0.70 / 0.86 / 0.94 | 0.74 / 0.87 / 0.95 |
 | saturation-only ρ on validation libraries (per-library mean) | 0.57 | 0.60 |
 
@@ -232,10 +235,10 @@ own figures. Doubles that contain a clipped single now enter too, so the sample 
 
 ### 4.1 It looks like noise
 
-Section 2 gives three estimates of the measurement error. Total noise in dddG is three times the single-measurement variance
-(the double plus the two singles): 4.8% of the variance for σ = 0.115, 17% for σ = 0.22 and 34% for σ = 0.31. Most of it, the single-mutant part, ends up in the row
+Section 2 gives four estimates of the measurement error. Total noise in dddG is three times the single-measurement variance
+(the double plus the two singles): 4.8% of the variance for σ = 0.115, 17% for σ = 0.22, 26% for σ = 0.27 and 34% for σ = 0.31. Most of it, the single-mutant part, ends up in the row
 and column effects and is already removed. Only the *double's own* measurement error stays in the leftover:
-**1.6%**, **5.7%** or **11.4%** of the variance. The leftover is **10.4%**, which is above the first and inside the range of the other two.
+**1.6%**, **5.7%**, **8.8%** or **11.4%** of the variance. The leftover is **10.4%**: the mutant-replicate estimate (8.8%) accounts for most of it.
 
 ### 4.2 By how far down the additive prediction sits
 
@@ -260,13 +263,13 @@ The leftover minus the expected noise is the most that real interaction could ac
 | assumed noise SD (kcal/mol) | source | noise in leftover | room for interaction |
 |---|---|---|---|
 | 0.31 | pessimistic: one protease's disagreement | 11.4% | about 0% |
+| **0.27** | **replicates of the same mutant (most direct)** | **8.8%** | **about 1.6%** |
 | 0.22 | optimistic: combined estimate, independent protease errors | 5.7% | about 4.7% |
-| **0.115** | **replicate wild-type copies (lower bound on noise)** | **1.6%** | **about 8.8%** |
+| 0.115 | synonymous wild-type copies (deep coverage; understates mutant noise) | 1.6% | about 8.8% |
 
-So the data constrain interaction to a small share of the variance, between about 0% and 9%, and the width of that range is
-the uncertainty about the noise. The replicate estimate is the only *direct* measurement, but it is a lower bound because it
-cannot see errors shared by all copies of a sequence. The protease estimate may overstate the error of the combined ΔG if the
-two proteases differ for real reasons. I cannot choose between them with these data.
+So the data constrain interaction to a small share of the variance. The two measurements most relevant to mutants (replicates of the same mutant, 0.27, and
+protease disagreement, 0.22–0.31) agree and leave about 0–5% (most likely about 2%). The wild-type copies would leave up to 9%, but they overstate how
+well a typical mutant is measured. All of these miss errors shared by every measurement of a sequence, which can only make the noise larger.
 
 ---
 
@@ -329,9 +332,10 @@ regression moves the validation flip score so little.
    censored loss.
 3. **Train the interaction head on the residual** after the identity-independent terms (the
    deviation-targeted loss), or project the MT head's output onto the interaction subspace.
-4. **Pin down the noise that matters.** The replicate-based figure (0.115) and the protease-based figures (0.22–0.31) differ by a
-   factor of two to three, and that gap is the whole uncertainty in the interaction share. Replicates of the *same mutant* measured in
-   independent experiments would settle it; the synonymous wild-type copies only bound it from below.
+4. **Noise: done as far as the table allows.** The table holds replicate rows for 4,552 mutants (Section 2), which settle the noise at about
+   0.27 kcal/mol and agree with the protease estimate. Replicates are scarce for doubles specifically, and I found no additional independent replicates in the
+   Zenodo record (its tables hold the same sequences, and the raw sequencing counts are far from a ready replicate set), so a double-specific noise estimate
+   remains open.
 
 ---
 
