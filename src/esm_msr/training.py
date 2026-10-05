@@ -22,6 +22,7 @@ from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 from esm_msr.models import MSRModel
 from esm_msr import utils
 from esm_msr.losses import ListMLELoss, ListMLELoss_enhanced, AsymmetricHuberLoss
+from esm_msr import censoring
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
@@ -78,9 +79,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.crit_rank_wt = _get_rank_loss() if self.hparams.lambda_rank_wt > 0 else None
         self.crit_rank_combined = _get_rank_loss() if self.hparams.lambda_rank_combined > 0 else None
         self.crit_rank_mt = _get_rank_loss() if self.hparams.lambda_rank_mt > 0 else None
-        if self.hparams.get('censor_floor', None) is not None and self.hparams.lambda_rank_mt > 0 \
-                and not isinstance(self.crit_rank_mt, ListMLELoss):
-            raise AssertionError("--censor_floor requires --rank_loss listmle (censored Plackett-Luce).")
+        _censoring_on = self.hparams.get('censor_floor', None) is not None or bool(self.hparams.get('include_out_of_range', False))
+        if _censoring_on and not isinstance(self.crit_rank_mt or self.crit_rank_wt, ListMLELoss):
+            raise AssertionError("--censor_floor / --include_out_of_range require --rank_loss listmle (censored Plackett-Luce).")
 
         if self.hparams.reg_loss == 'huber':
             self.crit_reg = nn.HuberLoss(reduction='none', delta=self.hparams.huber_delta)
@@ -167,20 +168,26 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         logging.info(f"[reshare] dual-adapter base weights re-shared on {dev}: {n_shared} params "
                      f"deduplicated (transformer Linears stored bf16, rest fp32)")
 
-    def _compute_rank_loss(self, pred, targets, mask, list_size, crit_fn):
+    def _compute_rank_loss(self, pred, targets, mask, list_size, crit_fn, cens=None):
+        """Listwise rank loss over consecutive blocks of ``list_size``. ``cens`` (-1/0/+1 per row, optional) makes the lists
+        two-sided censored (``ListMLELoss.forward_censored``); it is used only when some row of the blocks is censored, so
+        without censored rows the call is exactly the uncensored one."""
         valid_len = (pred.shape[0] // list_size) * list_size
         if valid_len > 0:
             pred_rank = pred[:valid_len].view(-1, list_size)
             targ_rank = targets[:valid_len].view(-1, list_size)
             mask_rank = mask[:valid_len].view(-1, list_size)
-            L_raw = crit_fn(pred_rank, targ_rank, mask=mask_rank)
+            if cens is not None and bool(((cens[:valid_len] != 0) & mask[:valid_len]).any()):
+                L_raw = crit_fn.forward_censored(pred_rank, targ_rank, mask_rank, cens[:valid_len].view(-1, list_size))
+            else:
+                L_raw = crit_fn(pred_rank, targ_rank, mask=mask_rank)
             avg_len = mask_rank.float().sum(dim=-1).mean()
             scaled_loss = L_raw * (list_size / avg_len.clamp(min=1.0))
             num_lists = valid_len // list_size
             return scaled_loss, L_raw.detach(), num_lists
         return None, 0.0, 0
 
-    def _compute_flip_loss(self, pred, targets, valid, flip_keys, crit_fn, min_len, censored=None):
+    def _compute_flip_loss(self, pred, targets, valid, flip_keys, crit_fn, min_len, cens=None):
         """Within-column rank loss on the MT pass - the flip-signature objective.
 
         A *flip column* is one scored position with one fixed partner identity, over the
@@ -204,18 +211,18 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         Columns are variable length, so they are padded into a [G, L] block with a mask
         rather than reshaped.
 
-        ``censored`` (optional bool per row) marks items pinned at the assay floor. They stay
-        in their column - every uncensored member is still ranked above them - but their order
-        among themselves is not scored (censored Plackett-Luce, ``ListMLELoss`` ``score_mask``).
-        A column counts toward ``min_len`` by total membership but needs >= 1 uncensored member
-        to carry any information.
+        ``cens`` (optional -1/0/+1 per row, see ``esm_msr.censoring``) marks items that only bound the true value:
+        lower-censored ones (dead, or pinned at the assay floor) rank below every uncensored member and upper-censored
+        ones (hyperstable) above it, with their order among themselves not scored (two-sided censored Plackett-Luce,
+        ``ListMLELoss.forward_censored``). A column counts toward ``min_len`` by total membership but needs >= 1
+        uncensored member to carry any information.
         """
         groups = {}
         for i, k in enumerate(flip_keys):
             if k and bool(valid[i]):
                 groups.setdefault(k, []).append(i)
         groups = [g for g in groups.values() if len(g) >= min_len
-                  and (censored is None or not all(bool(censored[i]) for i in g))]
+                  and (cens is None or any(int(cens[i]) == 0 for i in g))]
         if not groups:
             return None, 0.0, 0
         L = max(len(g) for g in groups)
@@ -224,21 +231,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         p = torch.zeros(G, L, device=dev, dtype=pred.dtype)
         t = torch.zeros(G, L, device=dev, dtype=pred.dtype)
         m = torch.zeros(G, L, device=dev, dtype=torch.bool)
-        sm = torch.ones(G, L, device=dev, dtype=torch.bool)
+        cb = torch.zeros(G, L, device=dev, dtype=torch.long)
         for gi, g in enumerate(groups):
             idx = torch.as_tensor(g, device=dev, dtype=torch.long)
             p[gi, :len(g)] = pred[idx]
             t[gi, :len(g)] = targets[idx]
             m[gi, :len(g)] = True
-            if censored is not None:
-                sm[gi, :len(g)] = ~censored[idx]
-        if censored is not None:
-            L_raw = crit_fn(p, t, mask=m, score_mask=sm)
+            if cens is not None:
+                cb[gi, :len(g)] = cens[idx]
+        if cens is not None and bool(((cb != 0) & m).any()):
+            L_raw = crit_fn.forward_censored(p, t, m, cb)
         else:
             L_raw = crit_fn(p, t, mask=m)
         avg_len = m.float().sum(dim=-1).mean()
         scaled = L_raw * (L / avg_len.clamp(min=1.0))
-        n_unc = int((m & sm).sum())
+        n_unc = int((m & (cb == 0)).sum())
         self._flip_diag = (G, float(avg_len), int(sum(len(g) for g in groups)), n_unc)
         return scaled, L_raw.detach(), G
 
@@ -336,11 +343,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # How many flip columns the whole batch offers, so each micro-batch's contribution
         # is weighted by its share (mirrors global_num_lists for the ListMLE terms).
         self._last_flip_keys = flip_keys
-        cens_all = batch.get('censored')
-        use_cens = hp.get('censor_floor', None) is not None and torch.is_tensor(cens_all)
-        cens_all = cens_all.to(device) if use_cens else None
+        # Censoring (esm_msr.censoring): -1 lower-bounded, +1 upper-bounded, 0 ordinary. All zeros without
+        # --include_out_of_range / --censor_floor, in which case every path below reduces to the uncensored one.
+        cens_all = batch['cens'].to(device) if torch.is_tensor(batch.get('cens')) else torch.zeros(B, dtype=torch.long, device=device)
+        cens_bound = batch['cens_bound'].float().to(device) if torch.is_tensor(batch.get('cens_bound')) else torch.full((B,), float('nan'), device=device)
+        cens_src = batch['cens_src'].to(device) if torch.is_tensor(batch.get('cens_src')) else torch.zeros(B, dtype=torch.long, device=device)
+        use_cens = bool((cens_all != 0).any())
+        self._cens_diag = (int((cens_all < 0).sum()), int((cens_all > 0).sum())) if use_cens else None
+        # Regression sees a censored item as a bound (hinge) when it has no usable value (out of range), or if asked for floor items.
+        hinge_w = float(hp.get('censor_reg_weight', 1.0))
+        hinge_src = (cens_src == censoring.SRC_RANGE) | bool(hp.get('censor_floor_hinge', False))
+        reg_cens = torch.where((cens_all != 0) & hinge_src, cens_all, torch.zeros_like(cens_all))
         _fk = Counter(k for i, k in enumerate(flip_keys) if k)
-        _unc = Counter(k for i, k in enumerate(flip_keys) if k and not (use_cens and bool(cens_all[i])))
+        _unc = Counter(k for i, k in enumerate(flip_keys) if k and not (use_cens and int(cens_all[i]) != 0))
         global_num_flip = max(1, sum(1 for k, c in _fk.items() if c >= int(hp.flip_list_min) and _unc[k] > 0))
 
         need_combined = hp.lambda_rank_combined > 0 or hp.lambda_reg_combined > 0 or hp.lambda_epi_combined > 0
@@ -370,6 +385,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # WT head: measured ddG for single mutations, additive ddG for multi-mutants.
         wt_targets = torch.where(n_mut >= 2, ddG_add, ddG)
         wt_ok = wt_block & torch.isfinite(wt_targets)
+        # A WT-head target is the item's own measurement only for singles; doubles are scored on the additive sum of their
+        # singles, which are never censored, so a censored double does not censor the WT head's target.
+        wt_cens = torch.where(is_wt_subset, cens_all, torch.zeros_like(cens_all))
+        wt_reg_cens = torch.where(is_wt_subset, reg_cens, torch.zeros_like(reg_cens))
 
         # MT head: its own subsets, plus anchored singles. Anchored singles are the bulk of
         # the MT pass's backbone rows, so `mt_single_anchor_frac` subsamples them per step;
@@ -407,7 +426,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # Legacy combined objective.
         tf_labels = torch.where(n_mut == 1, ddG, ddG_add)
         has_tf_label = torch.isfinite(tf_labels)
-        comb_ok = wt_block & ((n_mut >= 2) if hp.mt_reg_mask == 'doubles' else torch.ones_like(wt_block))
+        comb_ok = wt_block & ((n_mut >= 2) if hp.mt_reg_mask == 'doubles' else torch.ones_like(wt_block)) & (cens_all == 0)
         epi_ok = wt_block & (n_mut >= 2) & torch.isfinite(dddG)
         if not hp.zero_epistasis_for_singles:
             epi_ok = epi_ok | is_wt_subset
@@ -444,13 +463,24 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if train_wt and m_wt_ok.any():
                     t = wt_targets[rows]
                     if hp.lambda_reg_wt > 0:
-                        L = self.crit_reg(wt_pred_cal[m_wt_ok], t[m_wt_ok]) * w_mb[m_wt_ok]
-                        losses_wt.append(hp.lambda_reg_wt * L.sum() / global_w_sum)
-                        sums['reg_wt'] = sums['reg_wt'] + L.sum().detach()
-                        cnts['reg_wt'] = cnts['reg_wt'] + w_mb[m_wt_ok].sum()
+                        c_reg = wt_reg_cens[rows]
+                        ord_wt = m_wt_ok & (c_reg == 0)
+                        if ord_wt.any():
+                            L = self.crit_reg(wt_pred_cal[ord_wt], t[ord_wt]) * w_mb[ord_wt]
+                            losses_wt.append(hp.lambda_reg_wt * L.sum() / global_w_sum)
+                            sums['reg_wt'] = sums['reg_wt'] + L.sum().detach()
+                            cnts['reg_wt'] = cnts['reg_wt'] + w_mb[ord_wt].sum()
+                        cen_wt = m_wt_ok & (c_reg != 0) & torch.isfinite(cens_bound[rows])
+                        if hinge_w > 0 and cen_wt.any():
+                            Lh = censoring.censored_regression_loss(self.crit_reg, wt_pred_cal[cen_wt], cens_bound[rows][cen_wt],
+                                                                    c_reg[cen_wt]) * w_mb[cen_wt] * hinge_w
+                            losses_wt.append(hp.lambda_reg_wt * Lh.sum() / global_w_sum)
+                            sums['reg_wt_cens'] = sums['reg_wt_cens'] + Lh.sum().detach()
+                            cnts['reg_wt_cens'] = cnts['reg_wt_cens'] + w_mb[cen_wt].sum()
                     if hp.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
                         L_rank, val, n_list = self._compute_rank_loss(
-                            wt_pred_raw, torch.nan_to_num(t), m_wt_ok, list_size, self.crit_rank_wt)
+                            wt_pred_raw, torch.nan_to_num(t), m_wt_ok, list_size, self.crit_rank_wt,
+                            cens=wt_cens[rows] if use_cens else None)
                         if L_rank is not None:
                             losses_wt.append(hp.lambda_rank_wt * L_rank * (n_list / global_num_lists))
                             sums['rank_wt'] = sums['rank_wt'] + val * n_list
@@ -517,17 +547,26 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if m_mt_ok.any() and hp.lambda_reg_mt > 0:
                     w = mt_w[rows]
                     reg_ok = m_mt_ok & reg_keep[rows] if hp.subfloor_rank_only else m_mt_ok
-                    if reg_ok.any():
-                        L = self.crit_reg(mt_pred_cal[reg_ok], ddG[rows][reg_ok]) * w[reg_ok]
+                    c_reg = reg_cens[rows]
+                    reg_ord = reg_ok & (c_reg == 0)
+                    if reg_ord.any():
+                        L = self.crit_reg(mt_pred_cal[reg_ord], ddG[rows][reg_ord]) * w[reg_ord]
                         losses_mt.append(hp.lambda_reg_mt * L.sum() / global_w_sum)
                         sums['reg_mt'] = sums['reg_mt'] + L.sum().detach()
-                        cnts['reg_mt'] = cnts['reg_mt'] + w[reg_ok].sum()
+                        cnts['reg_mt'] = cnts['reg_mt'] + w[reg_ord].sum()
+                    cen_mt = m_mt_ok & (c_reg != 0) & torch.isfinite(cens_bound[rows])
+                    if hinge_w > 0 and cen_mt.any():
+                        Lh = censoring.censored_regression_loss(self.crit_reg, mt_pred_cal[cen_mt], cens_bound[rows][cen_mt],
+                                                                c_reg[cen_mt]) * w[cen_mt] * hinge_w
+                        losses_mt.append(hp.lambda_reg_mt * Lh.sum() / global_w_sum)
+                        sums['reg_mt_cens'] = sums['reg_mt_cens'] + Lh.sum().detach()
+                        cnts['reg_mt_cens'] = cnts['reg_mt_cens'] + w[cen_mt].sum()
                 if hp.lambda_rank_mt > 0 and self.crit_rank_mt is not None:
                     fk_rows = [flip_keys[int(r)] for r in rows]
                     L_flip, val, n_grp = self._compute_flip_loss(
                         mt_pred_raw, ddG[rows], m_mt_ok, fk_rows,
                         self.crit_rank_mt, hp.flip_list_min,
-                        censored=cens_all[rows] if use_cens else None)
+                        cens=cens_all[rows] if use_cens else None)
                     if L_flip is not None:
                         losses_mt.append(hp.lambda_rank_mt * L_flip * (n_grp / max(global_num_flip, 1)))
                         sums['rank_mt'] = sums['rank_mt'] + val * n_grp
@@ -540,7 +579,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 self.manual_backward(total)
 
         # One host sync for all logged values instead of one per unit and loss term.
-        keys = [k for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined', 'epi_combined', 'reg_mt', 'rank_mt') if k in cnts]
+        keys = [k for k in ('reg_wt', 'rank_wt', 'reg_wt_cens', 'reg_combined', 'rank_combined', 'epi_combined', 'reg_mt', 'reg_mt_cens', 'rank_mt') if k in cnts]
         if not keys:
             return {}
         vals = torch.stack([torch.stack([torch.as_tensor(sums[k], device=device, dtype=torch.float32),
@@ -623,6 +662,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         for k, v in logs.items():
             if v > 0.0: self.log(f"train/{k}", v, on_step=True)
+        if getattr(self, '_cens_diag', None) is not None:
+            self.log("train/cens_lower_items", float(self._cens_diag[0]), on_step=True)
+            self.log("train/cens_upper_items", float(self._cens_diag[1]), on_step=True)
+            self._cens_diag = None
         if getattr(self, '_flip_diag', None) is not None:
             g, alen, nitems, n_unc = self._flip_diag
             self.log("train/flip_cols", float(g), on_step=True)
@@ -657,6 +700,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             'ground_truths': _np(ddG) if ddG is not None else np.full(n_items, np.nan),
             'dddG': _np(dddG) if dddG is not None else np.full(n_items, np.nan),
             'subset_type': list(batch.get('subset_type', ['single'] * n_items)),
+            'cens': (batch['cens'].detach().cpu().numpy() if torch.is_tensor(batch.get('cens')) else np.zeros(n_items, dtype=int)),
             # For val_rho_flip: the column key, and the substitution identity that indexes
             # the row within that column.
             'flip_key': list(batch.get('flip_key', [''] * n_items)),
@@ -688,13 +732,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             cols = {k: np.concatenate([np.asarray(o[k]).reshape(-1) for o in outputs])
                     for k in ('wt_scores', 'mt_scores', 'comb_scores', 'ground_truths', 'dddG')}
             subset_types = [s for o in outputs for s in o['subset_type']]
+            cens_val = np.concatenate([np.asarray(o['cens']).reshape(-1) for o in outputs])
             mut_keys = [k for o in outputs for k in o.get('mut_key', [])]
             if len(mut_keys) != len(subset_types):
                 mut_keys = None
 
             per_loader[name] = stats.compute_metrics(
                 cols['wt_scores'], cols['mt_scores'], cols['comb_scores'],
-                cols['ground_truths'], subset_types, dddG=cols['dddG'], mut_keys=mut_keys)
+                cols['ground_truths'], subset_types, dddG=cols['dddG'], mut_keys=mut_keys, cens=cens_val)
 
             # Identity-dependent interaction, scored on the MT pass. This is the only
             # validation number that is specific to what the MT adapter exists for: it is
@@ -705,7 +750,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if all('row_id' in o for o in outputs) else np.array([])
             if len(fk) == len(cols['mt_scores']) and len(rid) == len(fk):
                 rho_flip, n_pairs, n_cells = stats.flip_signature_rho(
-                    cols['mt_scores'], cols['ground_truths'], fk, rid,
+                    cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, rid,
                     min_len=int(self.hparams.flip_list_min))
                 per_loader[name]['rho_flip'] = rho_flip
                 if n_pairs:
@@ -716,6 +761,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             for k, v in cols.items():
                 pooled[k].append(v)
             pooled['subset_type'].extend(subset_types)
+            pooled['cens'].append(cens_val)
             # Mutations are numbered per library, so tag them with the loader to keep pooled
             # singles from pairing with another protein's doubles.
             pooled['mut_key'].extend(
@@ -729,7 +775,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         avg_metrics = {}
         for metric in ('rho_wt_valid', 'rho_wt_all', 'rho_mt_valid', 'rho_mt_all',
-                       'rho_combined', 'rmse_combined', 'rho_flip', 'rho_epi_fast', 'rho_epi_full'):
+                       'rho_combined', 'rmse_combined', 'rho_flip', 'rho_epi_fast', 'rho_epi_full',
+                       'auc_dead_wt', 'auc_hyper_wt', 'auc_dead_mt', 'auc_hyper_mt'):
             vals = [m[metric] for m in per_loader.values() if metric in m and not np.isnan(m[metric])]
             if vals:
                 avg_metrics[metric] = float(np.mean(vals))
@@ -740,7 +787,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 np.concatenate(pooled['wt_scores']), np.concatenate(pooled['mt_scores']),
                 np.concatenate(pooled['comb_scores']), np.concatenate(pooled['ground_truths']),
                 pooled['subset_type'], dddG=np.concatenate(pooled['dddG']),
-                mut_keys=None if any(k is None for k in pooled['mut_key']) else pooled['mut_key'])
+                mut_keys=None if any(k is None for k in pooled['mut_key']) else pooled['mut_key'],
+                cens=np.concatenate(pooled['cens']))
             for metric, val in pooled_metrics.items():
                 if not np.isnan(val):
                     self.log(f"val_{metric}_pooled", val, on_epoch=True, sync_dist=True)

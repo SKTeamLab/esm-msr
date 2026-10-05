@@ -47,12 +47,15 @@ class TestListMLEUnchanged(unittest.TestCase):
         b = self.crit(self.pred, self.gt, mask=self.mask, score_mask=torch.ones_like(self.mask))
         self.assertTrue(torch.equal(a, b))
 
-    def test_only_flip_loss_passes_score_mask(self):
+    def test_censored_loss_is_reached_only_through_the_two_rank_helpers(self):
+        # forward_censored may be called from _compute_rank_loss (WT / combined lists, only when a row is censored)
+        # and _compute_flip_loss, and nowhere else in the training module.
         src = (Path(__file__).parents[1] / 'src/esm_msr/training.py').read_text()
-        self.assertEqual(len(re.findall(r'score_mask\s*=', src)), 1)
-        # ...and that one call lives inside _compute_flip_loss, not the WT/combined paths.
-        body = src.split('def _compute_flip_loss')[1].split('def _subset_weights')[0]
-        self.assertIn('score_mask=sm', body)
+        self.assertEqual(len(re.findall(r'forward_censored\(', src)), 2)
+        rank = src.split('def _compute_rank_loss')[1].split('def _compute_flip_loss')[0]
+        flip = src.split('def _compute_flip_loss')[1].split('def _subset_weights')[0]
+        self.assertEqual(rank.count('forward_censored('), 1)
+        self.assertEqual(flip.count('forward_censored('), 1)
 
 
 class TestCensoredListMLE(unittest.TestCase):
@@ -128,13 +131,14 @@ class TestFlipLossCensoring(unittest.TestCase):
             raise unittest.SkipTest(f"training module not importable: {e}")
 
     def _call(self, censored, keys, pred, targets, min_len=3):
+        censored = None if censored is None else censored.long()
         from esm_msr import training
         cls = next(v for v in vars(training).values()
                    if isinstance(v, type) and hasattr(v, '_compute_flip_loss'))
         stub = types.SimpleNamespace()
         valid = torch.ones(len(keys), dtype=torch.bool)
         out = cls._compute_flip_loss(stub, pred, targets, valid, keys, ListMLELoss(), min_len,
-                                     censored=censored)
+                                     cens=censored)
         return out, stub
 
     def test_all_censored_column_is_dropped_and_diag_counts_uncensored(self):
@@ -155,31 +159,28 @@ class TestFlipLossCensoring(unittest.TestCase):
         self.assertAlmostEqual(float(l1), float(l2), places=6)
 
 
-class TestMarkCensored(unittest.TestCase):
-    def _ds(self, items):
-        from esm_msr.data import MutationStabilityDataset
-        ds = object.__new__(MutationStabilityDataset)
-        ds.dms_name = 'X'
-        ds.data = items
-        return ds
-
+class TestFloorCensoring(unittest.TestCase):
     def test_marks_on_measured_dG_only_in_columns(self):
+        from esm_msr import censoring
         items = [
-            {'flip_key': 'c', 'dG_meas': -1.5},      # at/below floor
-            {'flip_key': 'c', 'dG_meas': 0.0},       # exactly at floor -> censored
-            {'flip_key': 'c', 'dG_meas': 0.4},       # above floor: genuine compensator keeps ordering
-            {'flip_key': 'c', 'dG_meas': np.nan},    # unknown -> never censored
-            {'flip_key': '', 'dG_meas': -3.0},       # not a flip item
+            {'flip_key': 'c', 'dG_meas': -1.5, 'ddG': -3.0},      # at/below floor
+            {'flip_key': 'c', 'dG_meas': 0.0, 'ddG': -1.5},       # exactly at floor -> censored
+            {'flip_key': 'c', 'dG_meas': 0.4, 'ddG': -1.1},       # above floor: genuine compensator keeps ordering
+            {'flip_key': 'c', 'dG_meas': np.nan, 'ddG': 0.0},     # unknown -> never censored
+            {'flip_key': '', 'dG_meas': -3.0, 'ddG': -4.0},       # not a flip item
         ]
-        ds = self._ds(items)
-        ds._mark_censored(0.0)
-        self.assertEqual([i['censored'] for i in items], [True, True, False, False, False])
+        kept, counts = censoring.apply_item_censoring(items, include_out_of_range=False, censor_floor=0.0)
+        self.assertEqual([i['cens'] for i in kept], [-1, -1, 0, 0, 0])
+        self.assertEqual(counts['floor'], 2)
+        # the bound sits on the item's own ddG scale: dG_bound + (ddG - dG_meas) = 0.0 + (-1.5 - 0.0)
+        self.assertAlmostEqual(kept[1]['cens_bound'], -1.5)
+        self.assertAlmostEqual(kept[0]['cens_bound'], 0.0 + (-3.0 - -1.5))
 
     def test_disabled_marks_nothing(self):
-        items = [{'flip_key': 'c', 'dG_meas': -9.0}]
-        ds = self._ds(items)
-        ds._mark_censored(None)
-        self.assertFalse(items[0]['censored'])
+        from esm_msr import censoring
+        items = [{'flip_key': 'c', 'dG_meas': -9.0, 'ddG': -9.0}]
+        kept, _ = censoring.apply_item_censoring(items, include_out_of_range=False, censor_floor=None)
+        self.assertEqual(kept[0]['cens'], 0)
 
 
 if __name__ == '__main__':

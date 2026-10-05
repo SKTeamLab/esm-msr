@@ -124,6 +124,75 @@ class ListMLELoss(torch.nn.Module):
         return list_loss[valid_lists].mean()
 
 
+    # ------------------------------------------------------------------ two-sided censoring
+
+    def _per_list(self, predictions: torch.Tensor, ground_truths: torch.Tensor, mask: torch.Tensor,
+                  score: torch.Tensor):
+        """
+        Plackett-Luce NLL of each list, descending order, with a tied block at the bottom.
+
+        ``mask`` marks the list's members; ``score`` (a subset) marks those whose own term counts.
+        Members in ``mask & ~score`` sort after every scored member, stay in the denominators and
+        contribute no term, so their order among themselves is free. Returns ``(loss [B], valid [B])``;
+        a list is valid when it has at least 2 members and at least one scored member.
+        """
+        predictions, ground_truths = predictions.float(), ground_truths.float()
+        gt = ground_truths.clone()
+        gt[mask & ~score] = torch.finfo(gt.dtype).min
+        gt[~mask] = float('-inf')
+        _, idx = gt.sort(descending=True, dim=-1)
+        ordered_pred = predictions.gather(-1, idx)
+        ordered_mask = mask.gather(-1, idx)
+        ordered_score = (score & mask).gather(-1, idx)
+
+        safe = ordered_pred.clone()
+        safe[~ordered_mask] = float('-inf')
+        max_pred, _ = safe.max(dim=-1, keepdim=True)
+        max_pred = torch.where(max_pred == float('-inf'), torch.zeros_like(max_pred), max_pred)
+        exp_pred = torch.exp(ordered_pred - max_pred) * ordered_mask.float()
+        denom = torch.flip(torch.cumsum(torch.flip(exp_pred, dims=(-1,)), dim=-1), dims=(-1,))
+        denom = torch.clamp(denom, min=self.eps)
+        log_probs = (ordered_pred - max_pred - torch.log(denom)) * ordered_score.float()
+        valid = (mask.sum(dim=-1) > 1) & (score & mask).any(dim=-1)
+        return -log_probs.sum(dim=-1), valid
+
+    def forward_censored(self, predictions: torch.Tensor, ground_truths: torch.Tensor,
+                         mask: torch.Tensor, cens: torch.Tensor) -> torch.Tensor:
+        """
+        ListMLE with two-sided censoring. ``cens`` is -1, 0 or +1 per member:
+
+        * ``-1`` lower-censored (true value at or below its bound): ranks below every uncensored
+          member; their order among themselves is not scored.
+        * ``+1`` upper-censored (true value at or above its bound): ranks above every uncensored member.
+        * ``0`` ordinary: ordered by ``ground_truths``.
+
+        A tied block at the bottom is exact in forward Plackett-Luce (drop the block's own terms, keep it in
+        the denominators); a tied block at the top is exact in *reverse* Plackett-Luce (worst first, via negated
+        scores). A list with only lower-censored (or no censored) members uses the forward form, a list
+        with only upper-censored members the reverse form, and a list with both averages the two, each
+        pass leaving out the other pass's censored members. With no censored member this equals ``forward``.
+        """
+        if self.invert:
+            raise AssertionError("forward_censored is not supported together with invert=True.")
+        if mask.shape != predictions.shape or cens.shape != predictions.shape:
+            raise AssertionError("mask and cens must match predictions' shape.")
+        lo, hi = (cens < 0) & mask, (cens > 0) & mask
+        ordinary = mask & ~lo & ~hi
+        lf, vf = self._per_list(predictions, ground_truths, mask & ~hi, ordinary)
+        lr, vr = self._per_list(-predictions, -ground_truths, mask & ~lo, ordinary)
+        has_lo, has_hi = lo.any(dim=-1), hi.any(dim=-1)
+        both = has_lo & has_hi
+        use_rev_only = has_hi & ~has_lo
+        loss = torch.where(use_rev_only, lr, lf)
+        valid = torch.where(use_rev_only, vr, vf)
+        loss = torch.where(both & vf & vr, 0.5 * (lf + lr), loss)
+        loss = torch.where(both & ~vf & vr, lr, loss)
+        valid = torch.where(both, vf | vr, valid)
+        if valid.sum() == 0:
+            return predictions.sum() * 0.0
+        return loss[valid].mean()
+
+
 class AsymmetricHuberLoss(torch.nn.Module):
     def __init__(self, delta=1.0, penalty_factor=3.0, reduction='none'):
         super().__init__()

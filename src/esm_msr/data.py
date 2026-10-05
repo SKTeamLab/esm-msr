@@ -18,6 +18,7 @@ from esm.utils.structure.protein_chain import ProteinChain
 from esm.utils.constants import esm3 as C
 
 from esm_msr.utils import custom_end_gap_alignment, determine_diffs
+from esm_msr import censoring
 from esm_msr.routing import DOUBLE_DERIVED_SUBSETS, canonical_subset
 
 # A library code ending in a mutation ('1A0N_L7S') means every measurement in it was
@@ -59,7 +60,10 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
     # v5 adds flip_key and reg_ok to each item (interaction objective). v6 adds dG_meas, the measured
     # absolute dG of the state the item's measurement describes (library dG_wt + total ddG), which
     # --censor_floor compares against the assay floor; NaN when the library's dG_wt is unknown.
-    CACHE_VERSION = 'v6'
+    # v7 keeps the variants the assay reports only as '<-1' / '>5' (see esm_msr.censoring): each item carries
+    # cens (-1/0/+1), cens_src and dG_bound, with ddG set to the bound on the item's own scale. Loading drops them
+    # unless include_out_of_range, so a v7 cache serves runs with and without them.
+    CACHE_VERSION = 'v7'
 
     # The bounded ML fit reports no dG outside this interval: the measured distribution has
     # zero mass beyond either end, for singles and doubles alike.
@@ -88,6 +92,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         min_additive_dG: Optional[float] = -1.0,
         subfloor_rank_only: bool = True,
         censor_floor: Optional[float] = None,
+        include_out_of_range: bool = False,
     ):
         """
         Args:
@@ -129,9 +134,11 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             subfloor_rank_only: Mark sub-floor double-derived items ``reg_ok=False`` instead of
                 dropping them, keeping their ordering for the rank losses.
             censor_floor: If set, flip-column items whose MEASURED dG (``dG_meas``) is at or below
-                this value are marked ``censored=True``: the assay pins them at its dynamic-range
-                floor, so their order among themselves is unknown (see ``ListMLELoss``
-                ``score_mask``). ``None`` disables censoring.
+                this value become lower-censored (``cens=-1``, ``cens_src=SRC_FLOOR``): the assay pins
+                them near its dynamic-range floor, so their order among themselves is unknown.
+                ``None`` disables it.
+            include_out_of_range: Keep the items whose dG the assay reports only as ``<-1`` (dead) or
+                ``>5`` (hyperstable) as censored items; otherwise they are dropped at load.
             min_additive_dG: Drop double-derived items whose additive dG prediction
                 dG(wt)+ddG_A+ddG_B falls at or below this. See :meth:`_drop_unreachable`.
                 None disables.
@@ -194,10 +201,10 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         # Mutant-background libraries: their singles are conditional measurements.
         self._label_native_cond()
         self._filter_dataset()
+        self._apply_censoring(include_out_of_range, censor_floor)
         self.subfloor_rank_only = bool(subfloor_rank_only)
         if min_additive_dG is not None:
             self._drop_unreachable(dG_wt, min_additive_dG)
-        self._mark_censored(censor_floor)
         self._extract_scalars()
 
     # ------------------------------------------------------------------ generation
@@ -303,32 +310,17 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             logging.info(f"[{self.dms_name}] min_additive_dG={min_additive_dG}: dropped "
                          f"{before - len(self.data)} of {before} double-derived items (dG_wt={dG_wt:.2f})")
 
-    def _mark_censored(self, censor_floor: Optional[float]) -> None:
+    def _apply_censoring(self, include_out_of_range: bool, censor_floor: Optional[float]) -> None:
         """
-        Mark flip-column items whose measured dG sits at or below ``censor_floor``.
-
-        The bounded fit cannot report a dG below the floor, so such values are pinned or
-        unidentifiable and their order among themselves carries no information; what is known
-        is that they lie below every item measured above the floor. This is censoring on the
-        MEASURED value, unlike ``_drop_unreachable`` which flags on the additive prediction
-        and so also catches the genuine compensators (measured above the floor despite a
-        sub-floor prediction). Items without a finite ``dG_meas`` are never censored.
+        Finalise ``cens`` / ``cens_bound`` on every item (see ``esm_msr.censoring``): drop out-of-range items unless
+        asked for them, and with ``censor_floor`` mark flip-column items measured at or below it as lower-censored.
+        Floor censoring uses the MEASURED dG, unlike ``_drop_unreachable`` which flags on the additive prediction
+        and so also catches genuine compensators (measured above the floor despite a sub-floor prediction).
         """
-        for item in self.data:
-            item['censored'] = False
-        if censor_floor is None:
-            return
-        n_flip = n_cens = 0
-        for item in self.data:
-            if not item.get('flip_key'):
-                continue
-            n_flip += 1
-            dG = item.get('dG_meas', np.nan)
-            if np.isfinite(dG) and dG <= censor_floor:
-                item['censored'] = True
-                n_cens += 1
-        logging.info(f"[{self.dms_name}] censor_floor={censor_floor}: censored {n_cens} of {n_flip} "
-                     f"flip-column items (measured dG <= floor)")
+        self.data, c = censoring.apply_item_censoring(self.data, include_out_of_range, censor_floor)
+        if any(c.values()):
+            logging.info(f"[{self.dms_name}] censoring: out-of-range kept {c['range_lo']} dead(<-1) / {c['range_hi']} hyper(>5), "
+                         f"dropped {c['dropped_range']}; floor-censored {c['floor']} (censor_floor={censor_floor})")
 
     def _extract_scalars(self) -> None:
         """Contiguous scalar arrays for the sampler's balancing passes."""
@@ -499,28 +491,30 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             for _, row in group.iterrows():
                 muts = self._parse_mutations(row, ref_seq, has_mut_type)
                 ddG = float(row['ddG'])
-                parsed_rows.append((muts, ddG))
-                if len(muts) == 1:
+                cens = int(row['cens']) if 'cens' in row.index and np.isfinite(row['cens']) else 0
+                parsed_rows.append((muts, ddG, cens))
+                # a censored single is only a bound, so it cannot give a double its additive expectation
+                if len(muts) == 1 and cens == 0:
                     single_ddG[(muts[0][1], muts[0][2])] = ddG
 
             # The structure every row of this group shares (no extra masking).
             base_struct_type, base_struct = self._structure_for(
                 protein_chain, backbone, base_code, chain, base_masks, modeled_bb=modeled_bb)
 
-            for muts, ddG in tqdm(parsed_rows, desc=f"Expanding {code}", leave=False):
+            for muts, ddG, cens in tqdm(parsed_rows, desc=f"Expanding {code}", leave=False):
                 if len(muts) == 1:
                     data.extend(self._single_items(
-                        muts[0], ddG, code, ref_seq, base_code, chain, backbone, protein_chain,
+                        muts[0], ddG, cens, code, ref_seq, base_code, chain, backbone, protein_chain,
                         base_masks, modeled_bb, base_struct_type, base_struct, _seq_with, struct_base))
                 elif len(muts) == 2:
                     data.extend(self._double_items(
-                        muts, ddG, single_ddG, code, ref_seq, base_code, chain, backbone,
+                        muts, ddG, cens, single_ddG, code, ref_seq, base_code, chain, backbone,
                         protein_chain, base_masks, modeled_bb, base_struct_type, base_struct,
                         _seq_with, struct_base))
 
         return data
 
-    def _single_items(self, mut, ddG, code, ref_seq, base_code, chain, backbone, protein_chain,
+    def _single_items(self, mut, ddG, cens, code, ref_seq, base_code, chain, backbone, protein_chain,
                       base_masks, modeled_bb, base_struct_type, base_struct, _seq_with,
                       struct_base) -> List[Dict[str, Any]]:
         """The measured single mutation, and the same measurement read as a reversion."""
@@ -528,11 +522,11 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         mt_seq = _seq_with(mut)
         items = [self._create_data_item(
             mutations=[mut], ddG=ddG, code=code, wt_seq=ref_seq, mt_seq=mt_seq,
-            dG_meas=self._abs_dG(ddG),
+            dG_meas=self._abs_dG(ddG), cens=cens,
             subset_type='single', structure_type=base_struct_type, structure=base_struct,
             struct_mut_pos=struct_base + [pos])]
 
-        if self.include['reversion']:
+        if self.include['reversion'] and cens == 0:
             if self.mask_mutated_structure:
                 # The reverse measurement conditions on the mutant sequence, so it wants the
                 # mutant's structure: the modeled one if it exists, else the WT masked at `pos`.
@@ -550,7 +544,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 struct_mut_pos=list(struct_base)))
         return items
 
-    def _double_items(self, muts, ddG_AB, single_ddG, code, ref_seq, base_code, chain, backbone,
+    def _double_items(self, muts, ddG_AB, cens, single_ddG, code, ref_seq, base_code, chain, backbone,
                       protein_chain, base_masks, modeled_bb, base_struct_type, base_struct,
                       _seq_with, struct_base) -> List[Dict[str, Any]]:
         """
@@ -569,12 +563,13 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         ddG_A = single_ddG.get((posA, mtA), np.nan)
         ddG_B = single_ddG.get((posB, mtB), np.nan)
         ddG_additive = ddG_A + ddG_B
-        dddG = ddG_AB - ddG_additive if np.isfinite(ddG_additive) else np.nan
+        # a censored double only bounds ddG_AB, so its departure from additivity is not defined
+        dddG = ddG_AB - ddG_additive if (np.isfinite(ddG_additive) and cens == 0) else np.nan
 
         items = [self._create_data_item(
             mutations=list(muts), ddG=ddG_AB, dddG=dddG, ddG_additive=ddG_additive,
             ddG_A=ddG_A, ddG_B=ddG_B, ddG_AB=ddG_AB, code=code,
-            wt_seq=ref_seq, mt_seq=_seq_with(*muts), dG_meas=self._abs_dG(ddG_AB),
+            wt_seq=ref_seq, mt_seq=_seq_with(*muts), dG_meas=self._abs_dG(ddG_AB), cens=cens,
             subset_type='double', structure_type=base_struct_type, structure=base_struct,
             struct_mut_pos=struct_base + [posA, posB])]
 
@@ -594,7 +589,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             items.append(self._create_data_item(
                 mutations=[tgt], ddG=float(ddG_AB - ddG_bg), dddG=dddG,
                 ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, ddG_AB=ddG_AB, code=code,
-                dG_meas=self._abs_dG(ddG_AB),
+                dG_meas=self._abs_dG(ddG_AB), cens=cens,
                 wt_seq=_seq_with(bg), mt_seq=_seq_with(tgt, bg),
                 subset_type='cond', structure_type=s_type, structure=struct,
                 flip_key=f'{code}|{tgt[1]}|{bg[1]}{bg[2]}',
@@ -626,6 +621,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         ddG_AB: float = np.nan,
         flip_key: str = '',
         dG_meas: float = np.nan,
+        cens: int = 0,
     ) -> Dict[str, Any]:
         """
         Builds one cached item.
@@ -692,9 +688,12 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             'reg_ok': True,
             # Measured absolute dG of the measured state (see CACHE_VERSION v6); NaN if unknown.
             'dG_meas': _f(dG_meas),
-            # True marks a flip-column item pinned at the assay floor (see _mark_censored);
-            # rank-censored, i.e. known to lie below every uncensored item but unordered.
-            'censored': False,
+            # Censoring (esm_msr.censoring). From an out-of-range row, ``cens`` is -1 ('<-1') or +1 ('>5'), ``dG_meas`` is
+            # the bound itself and ``dG_bound`` repeats it; _apply_censoring adds floor censoring and ``cens_bound``.
+            'cens': int(cens),
+            'cens_src': censoring.SRC_RANGE if cens else censoring.SRC_NONE,
+            'dG_bound': float(dG_meas) if cens else np.nan,
+            'cens_bound': np.nan,
         }
 
     def _try_load_modeled_context(
@@ -837,7 +836,9 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     subset_type = [canonical_subset(item.get('subset_type', 'single')) for item in batch]
     flip_key = [item.get('flip_key', '') or '' for item in batch]
     reg_ok = torch.tensor([bool(item.get('reg_ok', True)) for item in batch], dtype=torch.bool)
-    censored = torch.tensor([bool(item.get('censored', False)) for item in batch], dtype=torch.bool)
+    cens = torch.tensor([int(item.get('cens', 0)) for item in batch], dtype=torch.long)
+    cens_bound = torch.tensor([float(item.get('cens_bound', float('nan'))) for item in batch], dtype=torch.float32)
+    cens_src = torch.tensor([int(item.get('cens_src', 0)) for item in batch], dtype=torch.long)
     plddt = [torch.as_tensor(item['plddt'], dtype=torch.float32) for item in batch]
 
     ddG = torch.tensor([float(item.get('ddG', float('nan'))) for item in batch], dtype=torch.float32)
@@ -932,7 +933,9 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         'subset_type': subset_type,
         'flip_key': flip_key,
         'reg_ok': reg_ok,
-        'censored': censored,
+        'cens': cens,
+        'cens_bound': cens_bound,
+        'cens_src': cens_src,
     }
 
 

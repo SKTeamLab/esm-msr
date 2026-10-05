@@ -22,7 +22,7 @@ column, `flip_key` and `reg_ok` fields on cached items.
 
 > **The cache must be rebuilt**, and `CACHE_VERSION` was bumped `v4` → `v5` so this happens
 > on its own: the version is part of each cache filename, so a stale `v4` pickle can no longer
-> be loaded silently by a run expecting the new item schema. Point `--cache_path cache_v6` and
+> be loaded silently by a run expecting the new item schema. Point `--cache_path cache_v7` and
 > it regenerates; ~4 minutes for the full 404 libraries (0.4–0.8 s/library). The old `v4`
 > files are untouched and still serve runs on the previous commit.
 >
@@ -46,7 +46,7 @@ PY=/home/sareeves/miniconda3/envs/msr_venv/bin/python
   --raw_data_file '/home/sareeves/software/esm-msr/data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv' \
   --af_model_folder '/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs' \
   --split_file '/home/sareeves/software/esm-msr/data/hyperopt_splits.pkl' \
-  --cache_path cache_v6 \
+  --cache_path cache_v7 \
   --benchmark_data_path repo/data/preprocessed \
   --checkpoint_path training_checkpoints --log_dir training_logs \
   --num_epochs 8 --seed 1 \
@@ -171,6 +171,57 @@ FINDINGS). Suggested sweep once a GPU slot is free, vs. run **A**:
 | **F2** | `--censor_floor 0.5` | Aggressive: the practical floor. |
 
 Decision rule: F > A on flip with `val_rmse_combined_avg` flat -> adopt the best floor.
+
+## 2e. Consolidated censoring (`--include_out_of_range`, `--censor_floor`) — implemented, not yet run on GPU
+
+Everything that "only bounds" a measurement now goes through one mechanism, `esm_msr/censoring.py`. Each item carries
+`cens` (-1 lower-bounded, +1 upper-bounded, 0 ordinary), `cens_src` (1 assay range, 2 floor) and `cens_bound` (the bound on
+the item's own ddG scale). Losses read only those fields.
+
+| source | what it is | flag | rank losses | regression |
+|---|---|---|---|---|
+| assay range, `<-1` | variant confidently below the assay range ("dead"); only a bound | `--include_out_of_range` | tied at the bottom of their list | hinge: penalised only if predicted above the bound |
+| assay range, `>5` | variant confidently above it ("hyperstable"); only a bound | `--include_out_of_range` | tied at the top | hinge: penalised only if predicted below the bound |
+| measured floor | numeric dG at or below `F` (flip-column items) | `--censor_floor F` | tied at the bottom of the flip column | unchanged (regresses on the value) unless `--censor_floor_hinge` |
+| additive floor | double predicted below `--min_additive_dG` | `--subfloor_rank_only` (unchanged) | untouched | withheld (`reg_ok=False`) |
+
+* **Rank loss.** `ListMLELoss.forward_censored`: lower-censored members are exact in forward Plackett-Luce (drop their own
+  terms, keep them in the denominators); upper-censored members are exact in *reverse* Plackett-Luce (worst first). A list with
+  both averages the two passes. With no censored member it equals the old loss exactly (verified bit-for-bit on loss and
+  gradient, and by tests). It applies to the WT head's lists (singles only), the MT flip columns, and nothing else.
+* **WT head.** Only single mutants censor the WT head: its target for a double is the additive sum of its singles, and a censored
+  single never contributes to that sum (a censored single is only a bound, so doubles built on it have no additive expectation
+  and no dddG). With the flags off, every WT code path is unchanged.
+* **MT head.** A dead or hyperstable *double* makes its two conditional (`cond`) items censored with the bound shifted by the
+  partner single, so they join the flip columns as tied-bottom / tied-top members.
+* **Weights.** `--censor_reg_weight W` scales the hinge terms relative to ordinary items (0 leaves censored items in the rank
+  losses only).
+* **Cache.** `CACHE_VERSION` is now **v7**; use `--cache_path cache_v7`. It always contains the out-of-range items, and the dataset drops
+  them at load unless `--include_out_of_range`, so one cache serves runs with and without the flag. Evaluation scripts that read
+  `ddG_ML` through `MegaScaleDatasetPreprocessor` are unaffected (its default drops those rows).
+* **Not changed:** `-` (no estimate) and singles with no row at all are *not* treated as dead. Positions with such missing singles
+  are not enriched for dead neighbours (4.5% of their other substitutions are dead vs 4.0% elsewhere).
+* **Validation** scores every existing metric on the uncensored items only, so it stays comparable. New: `val_auc_dead_wt`,
+  `val_auc_hyper_wt` (singles) and `val_auc_dead_mt`, `val_auc_hyper_mt` (conditional items): P(a random ordinary item is
+  scored above a dead one) and P(a random hyperstable item is scored above an ordinary one), 0.5 = chance.
+* **New diagnostics:** `train/cens_lower_items`, `train/cens_upper_items` per batch; `train/L_reg_wt_cens` and `train/L_reg_mt_cens`
+  for the hinge terms.
+
+Requires `--rank_loss listmle`. Floor censoring (`--censor_floor`) still applies only to MT flip columns.
+
+Suggested arms (3 epochs first, same seed and cache), each differing from the previous by one switch:
+
+| arm | name | flags beyond the canonical command | question |
+|---|---|---|---|
+| W0 | `v7_ref` | *(none)* | Reproduces the v6 reference (`v6_anchor100`) on the v7 cache: a pure regression guard. |
+| W1 | `v7_oor_rank` | `--include_out_of_range --censor_reg_weight 0` | Do dead and hyperstable singles help as rank anchors alone? |
+| W2 | `v7_oor_full` | `--include_out_of_range` | Does the one-sided regression add to it (WT scale at the extremes)? |
+| W3 | `v7_oor_full_floor` | W2 + `--censor_floor 0.5` | Does floor censoring of the MT flip columns stack on top? |
+
+Decision rules: `val_rho_wt_valid_avg` and `val_rmse_combined_avg` must not regress against W0 (the WT head is the thing to
+protect); the gain to look for is `val_auc_dead_wt` / `val_auc_hyper_wt` above chance and above W0's, with `val_rho_wt_all_avg`
+flat or up. Note that dead and hyperstable singles are about 3.9% and 3.2% of training singles, so an average 16-item WT list holds about one
+censored item; the sampler does not oversample them.
 
 ## 3. What to watch
 

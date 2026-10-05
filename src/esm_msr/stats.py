@@ -212,7 +212,7 @@ def delta_single_diagnostics(df, epi_true_col=None):
     return out
 
 
-def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types, dddG=None, mut_keys=None):
+def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types, dddG=None, mut_keys=None, cens=None):
     """
     The validation metrics for one dataloader (one protein library or benchmark).
 
@@ -243,6 +243,13 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
       whose singles are absent are skipped. Because the WT head is additive, this is rank-
       equivalent to the MT-only second difference.
 
+    ``cens`` (optional -1/0/+1 per item, see ``esm_msr.censoring``): every metric above is computed on the uncensored items
+    only, so adding censored items to a loader leaves them unchanged. The censored items get their own metrics, each the
+    probability that a random member of one group is scored on the right side of a random member of the other (ties half):
+
+    * ``auc_dead_wt`` / ``auc_hyper_wt`` - WT head, singles: ordinary ranked above dead (``<-1``) / hyperstable (``>5``) above ordinary.
+    * ``auc_dead_mt`` / ``auc_hyper_mt`` - the same for the MT head on conditional items.
+
     ``_all`` deliberately mixes quantities: a conditional ddG(X | background) is not a
     wild-type-context ddG, so a correlation pooling them answers "does this head rank
     anything sensibly" rather than "is this head right". Read ``_valid`` first.
@@ -252,7 +259,9 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     gt = np.asarray(ground_truths, dtype=np.float64)
     wt_scores, mt_scores, comb_scores = (np.asarray(x) for x in (wt_scores, mt_scores, comb_scores))
     subset_types = np.asarray([routing.canonical_subset(s) for s in subset_types])
-    finite = np.isfinite(gt)
+    cens_arr = np.zeros(len(gt), dtype=int) if cens is None else np.asarray(cens, dtype=int)
+    uncens = cens_arr == 0
+    finite = np.isfinite(gt) & uncens
 
     is_single = np.isin(subset_types, list(routing.WT_HEAD_SUBSETS)) & finite
     is_cond = np.isin(subset_types, list(routing.CONDITIONAL_SUBSETS)) & finite
@@ -270,13 +279,22 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     if dddG is not None:
         dddG = np.asarray(dddG, dtype=np.float64)
         has_dddG = np.isfinite(dddG)
-        is_double = np.isin(subset_types, list(routing.ENSEMBLE_SUBSETS)) & has_dddG
+        is_double = np.isin(subset_types, list(routing.ENSEMBLE_SUBSETS)) & has_dddG & uncens
         epi_pred = comb_scores - wt_scores
         metrics['rho_epi_fast'] = safe_spearman(epi_pred[is_double], dddG[is_double])
         metrics['rho_epi_full'] = _rho_epi_full(comb_scores, subset_types, mut_keys, dddG, is_double)
     else:
         metrics['rho_epi_fast'] = float('nan')
         metrics['rho_epi_full'] = float('nan')
+
+    if cens is not None and (cens_arr != 0).any():
+        from esm_msr.censoring import auroc
+        wt_single = np.isin(subset_types, list(routing.WT_HEAD_SUBSETS))
+        mt_cond = np.isin(subset_types, list(routing.CONDITIONAL_SUBSETS))
+        for tag, scores, sel in (('wt', wt_scores, wt_single), ('mt', mt_scores, mt_cond)):
+            alive = scores[sel & uncens & np.isfinite(gt)]
+            metrics[f'auc_dead_{tag}'] = auroc(alive, scores[sel & (cens_arr < 0)])
+            metrics[f'auc_hyper_{tag}'] = auroc(scores[sel & (cens_arr > 0)], alive)
 
     return metrics
 

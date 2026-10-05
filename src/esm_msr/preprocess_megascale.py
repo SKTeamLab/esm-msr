@@ -5,11 +5,12 @@ import logging
 import pickle
 from typing import List, Dict, Any, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
-from esm_msr import utils
+from esm_msr import utils, censoring
 from esm_msr.data import (
     MutationStabilityDataset,
     collate_fn_twopass,
@@ -98,7 +99,12 @@ def is_improper_mutation(mutation_string: str) -> bool:
 
 class MegaScaleDatasetPreprocessor:
     """Handles raw data loading, preprocessing, and dataset creation."""
-    def __init__(self, data_file: str, af_model_folder: str = '/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs/', spurs_override: bool = False):
+    def __init__(self, data_file: str, af_model_folder: str = '/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs/', spurs_override: bool = False,
+                 include_out_of_range: bool = False):
+        # Keep the rows whose dG the assay reports only as '<-1' or '>5' (flagged in the `cens` column, with ddG_ML set to
+        # the bound). Off by default so evaluation code that reads `ddG_ML` as truth sees exactly what it always did;
+        # the training pipeline turns it on so the item cache is complete and the dataset decides what to use.
+        self.include_out_of_range = include_out_of_range
         self.data_file = data_file
         self.af_model_folder = af_model_folder
         self.df = pd.DataFrame()
@@ -128,8 +134,15 @@ class MegaScaleDatasetPreprocessor:
             raise
 
         self.dG_wt = self._wt_dG_by_code(self.df)
+        _code = (self.df['WT_name'].str.replace('.pdb_', '_', regex=False).str.replace('.pdb', '', regex=False)
+                 .str.replace('|', '_', regex=False))
+        _cens, _ddG_bound = censoring.range_censoring(self.df['dG_ML'].to_numpy(), _code.map(self.dG_wt).to_numpy())
         self.df = self.df[['aa_seq', 'mut_type', 'WT_name', 'ddG_ML']]
         self.df['ddG_ML'] = pd.to_numeric(self.df['ddG_ML'], errors='coerce')
+        self.df['cens'] = _cens
+        if self.include_out_of_range:
+            oor = (_cens != 0) & np.isfinite(_ddG_bound)
+            self.df.loc[oor, 'ddG_ML'] = _ddG_bound[oor]
         self.df = self.df.loc[self.df['ddG_ML'].notna()]
         self.df = self.df.loc[~self.df['mut_type'].str.contains('wt')]
         self.df = self.df.loc[~self.df['mut_type'].str.contains('ins')]
@@ -352,6 +365,7 @@ class MegaScaleDatasetPreprocessor:
         min_additive_dG: Optional[float] = -1.0,
         subfloor_rank_only: bool = True,
         censor_floor: Optional[float] = None,
+        include_out_of_range: bool = False,
     ) -> Tuple[List[DataLoader], List[str]]:
         """Generates a list of dataloaders for a specific list of protein codes."""
         loaders = []
@@ -388,6 +402,7 @@ class MegaScaleDatasetPreprocessor:
                     min_additive_dG=min_additive_dG,
                     subfloor_rank_only=subfloor_rank_only,
                     censor_floor=censor_floor,
+                    include_out_of_range=include_out_of_range,
                 )
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
@@ -444,7 +459,8 @@ def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encod
 def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encoder: Any, add_benchmarks_to_val = False) -> Tuple[List[DataLoader], List[DataLoader], List[DataLoader], List[str], List[str], List[str]]:
     """Main orchestrator utilizing MegaScaleDatasetPreprocessor."""
     
-    preprocessor = MegaScaleDatasetPreprocessor(args.raw_data_file, args.af_model_folder, spurs_override=args.remove_spurs_homologs)
+    preprocessor = MegaScaleDatasetPreprocessor(args.raw_data_file, args.af_model_folder, spurs_override=args.remove_spurs_homologs,
+                                                include_out_of_range=True)
     splits = preprocessor.create_training_splits(args.split_file, args.max_train_proteins)
     
     overlap = set(splits.get('train', [])) & set(splits.get('val', []))
@@ -472,6 +488,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         min_additive_dG=getattr(args, 'min_additive_dG', -1.0),
         subfloor_rank_only=getattr(args, 'subfloor_rank_only', True),
         censor_floor=getattr(args, 'censor_floor', None),
+        include_out_of_range=getattr(args, 'include_out_of_range', False),
     )
 
     if not train_dataloaders: 
@@ -495,6 +512,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         incl_native_cond=args.incl_native_cond,
         cond_structure=args.cond_structure,
         mask_mutated_structure=args.mask_mutated_structure,
+        include_out_of_range=getattr(args, 'include_out_of_range', False),
     )
 
     # Add Benchmarks

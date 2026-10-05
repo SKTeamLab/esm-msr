@@ -124,6 +124,19 @@ def parse_arguments() -> argparse.Namespace:
                                  "values: 0.0, +0.5 (practical floor); -1.0 censors nothing in cache_v6. Default None = off. "
                                  "Unlike --subfloor_rank_only, which flags on the ADDITIVE prediction, this flags on the "
                                  "measured value, so genuine compensators (measured above floor) keep their ordering.")
+    loss_group.add_argument('--include_out_of_range', action=argparse.BooleanOptionalAction, default=False,
+                            help="Use the variants whose dG the assay reports only as '<-1' (dead, unfolded beyond measurement) or '>5' "
+                                 "(hyperstable) as CENSORED items: a dead variant is known to rank below every measured one and a "
+                                 ">5 variant above every measured one, even though neither has a usable value. Rank losses tie them at "
+                                 "the bottom / top of their list (two-sided censored Plackett-Luce) and regression losses penalise only a "
+                                 "prediction on the wrong side of the bound (see --censor_reg_weight). Needs the v7 cache and "
+                                 "--rank_loss listmle. Singles feed the WT head, doubles the MT head; validation adds dead/hyperstable AUROCs.")
+    loss_group.add_argument('--censor_reg_weight', type=float, default=1.0,
+                            help="Weight of the one-sided (hinge) regression term for censored items, relative to ordinary items. "
+                                 "0 leaves censored items out of the regression altogether (they still enter the rank losses).")
+    loss_group.add_argument('--censor_floor_hinge', action=argparse.BooleanOptionalAction, default=False,
+                            help="Also apply the one-sided regression to items made lower-censored by --censor_floor. Off by default: "
+                                 "they keep regressing on their measured value, and --censor_floor changes only the rank losses.")
     loss_group.add_argument('--mt_single_anchor_weight', type=float, default=0.0,
                             help="Per-item weight for also regressing the MT pass on ordinary singles (the zero-background "
                                  "case of the MT task). 0 disables. Requires --lambda_reg_mt > 0.")
