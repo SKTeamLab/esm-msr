@@ -896,6 +896,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             'mut_key': [tuple(tuple(m) for m in muts) for muts in batch.get('mutations', [()] * n_items)],
         })
 
+    # What validation logs. Per protein only these three (a library's rank and error, plus its interaction score if it has doubles).
+    _VAL_PER_PROTEIN = ('rho_combined', 'rmse_combined', 'rho_flip_pair')
+    # Library-equal means. rho_combined and rho_wt_valid are read by the checkpoint name, the plateau scheduler and the convergence logic.
+    _VAL_AVG = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_mt_valid',
+                'rho_epi_full', 'rho_colrank', 'rho_flip', 'rho_flip_pair', 'auc_dead_wt', 'auc_dead_mt')
+    # Pooled over every item of every library: the pair-level components need pooling to have enough pairs.
+    _VAL_POOLED = ('rho_combined', 'rmse_combined', 'rho_epi_full', 'rho_pair_offset', 'rho_row_effect', 'rho_col_effect',
+                   'rho_colrank', 'rho_flip', 'rho_flip_pair', 'auc_dead_wt', 'auc_dead_mt')
+    _VAL_PROGRESS_BAR = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair')
+
     def on_validation_epoch_start(self):
         self.validation_step_outputs = defaultdict(list)
 
@@ -908,6 +918,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         their size instead of equally.
         """
         per_loader, pooled = {}, defaultdict(list)
+        n_flip_matrices = 0
 
         for dataloader_idx, outputs in self.validation_step_outputs.items():
             name = (self.val_dataloader_names[dataloader_idx]
@@ -941,8 +952,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, rid,
                     min_len=int(self.hparams.flip_list_min))
                 per_loader[name]['rho_flip'] = rho_flip
-                if n_pairs:
-                    self.log(f"val_flip_pairs/{name}", float(n_pairs), on_epoch=True, sync_dist=True)
                 # The same statistic with one matrix per position pair: nothing that ignores the partner residue can score.
                 rho_pair, n_pp, _ = stats.flip_signature_rho(
                     cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, rid,
@@ -951,8 +960,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 # Within-column rank agreement, nothing centred: the quantity the rank loss optimises, between rho_epi and the flip metrics.
                 per_loader[name]['rho_colrank'], _ = stats.colrank_rho(
                     cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, min_len=int(self.hparams.flip_list_min))
-                if n_pp:
-                    self.log(f"val_flip_pair_matrices/{name}", float(n_pp), on_epoch=True, sync_dist=True)
+                n_flip_matrices += n_pp
+                pooled['flip_key'].extend(fk)
+                pooled['row_id'].append(rid)
             else:
                 per_loader[name]['rho_flip'] = float('nan')
                 per_loader[name]['rho_flip_pair'] = float('nan')
@@ -973,19 +983,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 [tuple((name,) + m for m in k) for k in mut_keys] if mut_keys is not None
                 else [None] * len(subset_types))
 
+        # Per protein: only the three that answer "is this library fine" (rho_flip_pair exists only for libraries with doubles).
         for name, metrics in per_loader.items():
-            for metric, val in metrics.items():
+            for metric in self._VAL_PER_PROTEIN:
+                val = metrics.get(metric, float('nan'))
                 if not np.isnan(val):
                     self.log(f"val_{metric}/{name}", val, on_epoch=True, sync_dist=True)
 
         avg_metrics = {}
-        for metric in ('rho_wt_valid', 'rho_wt_all', 'rho_mt_valid', 'rho_mt_all',
-                       'rho_combined', 'rmse_combined', 'rho_flip', 'rho_flip_pair', 'rho_colrank', 'rho_epi_fast', 'rho_epi_full',
-                       'auc_dead_wt', 'auc_hyper_wt', 'auc_dead_mt', 'auc_hyper_mt'):
+        for metric in self._VAL_AVG:
             vals = [m[metric] for m in per_loader.values() if metric in m and not np.isnan(m[metric])]
             if vals:
                 avg_metrics[metric] = float(np.mean(vals))
-                self.log(f"val_{metric}_avg", avg_metrics[metric], on_epoch=True, prog_bar=True, sync_dist=True)
+                self.log(f"val_{metric}_avg", avg_metrics[metric], on_epoch=True, prog_bar=metric in self._VAL_PROGRESS_BAR, sync_dist=True)
 
         if pooled['subset_type']:
             pooled_metrics = stats.compute_metrics(
@@ -995,9 +1005,22 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 mut_keys=None if any(k is None for k in pooled['mut_key']) else pooled['mut_key'],
                 cens=np.concatenate(pooled['cens']),
                 obs=({k: np.concatenate(pooled[f'{k}_obs']) for k in ('wt', 'mt', 'comb')} if pooled.get('comb_obs') else None))
-            for metric, val in pooled_metrics.items():
+            pooled_all = dict(pooled_metrics)
+            if pooled['row_id'] and len(pooled['flip_key']) == len(np.concatenate(pooled['mt_scores'])):
+                # The flip family over every library at once (flip keys carry the library code, so matrices never mix libraries).
+                mt_all, rid_all = np.concatenate(pooled['mt_scores']), np.concatenate([np.asarray(r).reshape(-1) for r in pooled['row_id']])
+                tgt_all = np.where(np.concatenate(pooled['cens']) == 0, np.concatenate(pooled['ground_truths']), np.nan)
+                min_len = int(self.hparams.flip_list_min)
+                if len(rid_all) == len(mt_all):
+                    pooled_all['rho_flip'] = stats.flip_signature_rho(mt_all, tgt_all, pooled['flip_key'], rid_all, min_len=min_len)[0]
+                    pooled_all['rho_flip_pair'] = stats.flip_signature_rho(mt_all, tgt_all, pooled['flip_key'], rid_all, min_len=min_len,
+                                                                           by_partner_position=True)[0]
+                    pooled_all['rho_colrank'] = stats.colrank_rho(mt_all, tgt_all, pooled['flip_key'], min_len=min_len)[0]
+            for metric in self._VAL_POOLED:
+                val = pooled_all.get(metric, float('nan'))
                 if not np.isnan(val):
                     self.log(f"val_{metric}_pooled", val, on_epoch=True, sync_dist=True)
+            self.log("val_n_flip_pair_matrices", float(n_flip_matrices), on_epoch=True, sync_dist=True)
 
         if not self.trainer.sanity_checking and self.hparams.freeze_wt_on_convergence and not self.peft_manager.has_transitioned:
             target_metric_key = self.hparams.wt_convergence_metric
