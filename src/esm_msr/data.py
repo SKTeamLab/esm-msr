@@ -684,7 +684,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             # partner identity, varying substitution at the scored position. Within such a
             # column the conditional target ddG(A|B) differs from ddG_AB only by the
             # constant ddG_B, so ordering by either is identical - which is what makes the
-            # within-column rank loss (``--lambda_rank_mt``) equivalent to ordering the
+            # within-column rank loss (``--lambda_mt_colrank``) equivalent to ordering the
             # double-mutant phenotypes. Empty for items that are not MT-head.
             'flip_key': flip_key,
             # False marks an item whose absolute target is untrustworthy (sub-floor); it stays
@@ -985,8 +985,8 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
     ):
         # With flip_pair_groups = N > 0, the flip columns of one position pair travel together in units of up to N columns, so a batch
         # (and, because MT micro-batches are cut at pair boundaries, a micro-batch) holds several columns of the SAME pair matrix. Needed by
-        # the interaction-only loss (--lambda_int_mt), whose double-centring needs more than one column of a pair. The value is derived in
-        # config.parse_arguments (micro_batch_size // 19 when --lambda_int_mt > 0). 0 keeps whole single columns as units.
+        # the interaction-only loss (the --mt_comp_* weights), whose block decomposition needs more than one column of a pair. The value is derived in
+        # config.parse_arguments (micro_batch_size // 19 when a --mt_comp_* weight differs from 1). 0 keeps whole single columns as units.
         self.flip_pair_groups = int(flip_pair_groups)
         if strategy not in ('min', 'all'):
             raise ValueError(f"strategy must be 'min' or 'all', got '{strategy}'")

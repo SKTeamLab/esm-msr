@@ -18,7 +18,7 @@ from esm_msr.flipkeys import split_flip_key
 
 def _cls():
     from esm_msr import training
-    return next(v for v in vars(training).values() if isinstance(v, type) and hasattr(v, '_compute_int_loss'))
+    return next(v for v in vars(training).values() if isinstance(v, type) and hasattr(v, '_compute_block_components'))
 
 
 def _matrix(n_rows=8, partners='ACD', pair='LIB|5|7', seed=0):
@@ -31,85 +31,92 @@ def _matrix(n_rows=8, partners='ACD', pair='LIB|5|7', seed=0):
     return keys, np.array(rows)
 
 
-class TestInteractionLoss(unittest.TestCase):
+class TestBlockComponents(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         try:
-            cls.fn = staticmethod(_cls()._compute_int_loss)
+            cls.fn = staticmethod(_cls()._compute_block_components)
         except Exception as e:  # pragma: no cover
             raise unittest.SkipTest(f"training module not importable: {e}")
 
-    def _call(self, pred, target, keys, rows, cens=None, valid=None, min_rows=4, min_cols=2):
-        valid = torch.ones(len(keys), dtype=torch.bool) if valid is None else valid
-        return self.fn(None, pred, target, valid, keys, rows, cens, min_rows, min_cols)[:4]
-
-    def test_target_variance_is_returned_for_the_unexplained_fraction(self):
-        # a perfect prediction has zero loss but the target's double-centred variance is still reported
-        g = torch.Generator().manual_seed(3)
-        target = torch.randn(len(self.keys), generator=g)
-        out = self.fn(None, target.clone(), target, torch.ones(len(self.keys), dtype=torch.bool), self.keys, self.rows, None, 4, 2)
-        total, val, n_mat, n_cells, ss_y = out
-        self.assertAlmostEqual(val, 0.0, places=8)
-        self.assertGreater(ss_y, 0.0)
-        # predicting nothing (all zeros) leaves exactly the target's own double-centred sum of squares
-        out0 = self.fn(None, torch.zeros_like(target), target, torch.ones(len(self.keys), dtype=torch.bool), self.keys, self.rows, None, 4, 2)
-        self.assertAlmostEqual(out0[1], out0[4], places=5)
+    def _call(self, err, keys, rows, target=None, w=None, valid=None, min_rows=4, min_cols=2):
+        n = len(keys)
+        valid = torch.ones(n, dtype=torch.bool) if valid is None else valid
+        target = torch.zeros(n) if target is None else target
+        w = torch.ones(n) if w is None else w
+        return self.fn(None, err, target, w, valid, keys, rows, min_rows, min_cols)
 
     def setUp(self):
         g = torch.Generator().manual_seed(0)
         self.keys, self.rows = _matrix()
         self.eps = torch.randn(24, generator=g)                       # the interaction
+        eps = self.eps.view(8, 3)
+        self.eps = (eps - eps.mean(1, keepdim=True) - eps.mean(0, keepdim=True) + eps.mean()).reshape(-1)
         self.row_eff = torch.randn(8, generator=g)[torch.as_tensor(self.rows)]
         col = torch.randn(3, generator=g)
         self.col_eff = col[torch.arange(24) % 3]
 
-    def test_identity_independent_terms_cost_nothing(self):
-        # Truth = interaction + row + column + constant. A prediction with the SAME interaction but entirely different
-        # row / column / constant terms matches it exactly after double-centring.
-        target = self.eps + self.row_eff + self.col_eff + 3.0
-        pred = self.eps - 2.0 * self.row_eff + 5.0 * self.col_eff - 7.0
-        total, val, n_mat, n_cells = self._call(pred, target, self.keys, self.rows)
-        self.assertEqual((n_mat, n_cells), (1, 24))
-        self.assertLess(val, 1e-9)
+    def test_the_three_parts_add_up_to_the_plain_squared_error(self):
+        err = self.eps + self.row_eff + self.col_eff + 0.7
+        out = self._call(err, self.keys, self.rows)
+        raw = out['raw']
+        self.assertAlmostEqual(raw['off'] + raw['subst'] + raw['int'], float((err ** 2).sum()), places=3)
+        self.assertEqual((out['n_mat'], out['n_cells']), (1, 24))
 
-    def test_a_wrong_interaction_is_charged(self):
-        target = self.eps + self.row_eff
-        pred = -self.eps + self.row_eff
-        _, val, _, _ = self._call(pred, target, self.keys, self.rows)
-        self.assertGreater(val, 1.0)
+    def test_each_kind_of_error_lands_in_its_own_part(self):
+        for err, part in ((torch.full((24,), 0.7), 'off'), (self.row_eff - self.row_eff.mean(), 'subst'), (self.eps, 'int')):
+            raw = self._call(err, self.keys, self.rows)['raw']
+            others = sum(v for k, v in raw.items() if k != part)
+            self.assertGreater(raw[part], 0.1, part)
+            self.assertLess(others, 1e-3 * raw[part] + 1e-6 + (0 if part != 'subst' else 0.0), (part, raw))
 
-    def test_gradient_has_no_component_along_the_additive_directions(self):
-        target = self.eps
-        pred = (0.3 * torch.randn(24)).requires_grad_(True)
-        total, *_ = self._call(pred, target, self.keys, self.rows)
-        total.backward()
-        g = pred.grad.view(8, 3)
-        # the gradient is itself double-centred: its row sums and column sums vanish
+    def test_additive_errors_have_no_interaction_part(self):
+        err = 3.0 + 2.0 * self.row_eff - 4.0 * self.col_eff
+        self.assertLess(self._call(err, self.keys, self.rows)['raw']['int'], 1e-5)
+
+    def test_a_pure_interaction_error_has_no_offset_or_substitution_part(self):
+        raw = self._call(self.eps, self.keys, self.rows)['raw']
+        self.assertLess(raw['off'] + raw['subst'], 1e-5)
+        self.assertGreater(raw['int'], 1.0)
+
+    def test_gradient_of_the_interaction_part_is_itself_double_centred(self):
+        err = (0.3 * torch.randn(24)).requires_grad_(True)
+        out = self._call(err, self.keys, self.rows)
+        out['int'].backward()
+        g = err.grad.view(8, 3)
         self.assertTrue(torch.allclose(g.sum(0), torch.zeros(3), atol=1e-5))
         self.assertTrue(torch.allclose(g.sum(1), torch.zeros(8), atol=1e-5))
 
     def test_a_missing_cell_trims_to_a_complete_block(self):
         valid = torch.ones(24, dtype=torch.bool)
         valid[4] = False                                              # row 1, column 'C' missing
-        total, val, n_mat, n_cells = self._call(self.eps, self.eps + 1.0, self.keys, self.rows, valid=valid)
-        self.assertEqual(n_mat, 1)
-        self.assertIn(n_cells, (21, 16))                              # drop the row (7x3) or the column (8x2)
-        self.assertLess(val, 1e-9)
+        out = self._call(self.eps, self.keys, self.rows, valid=valid)
+        self.assertEqual(out['n_mat'], 1)
+        self.assertIn(out['n_cells'], (21, 16))                       # drop the row (7x3) or the column (8x2)
+        self.assertEqual(len(out['cells']), out['n_cells'])
+        self.assertNotIn(4, out['cells'].tolist())
 
-    def test_censored_cells_are_excluded_and_small_blocks_skipped(self):
-        cens = torch.zeros(24, dtype=torch.long)
-        cens[::3] = -1                                                # column 'A' entirely censored
-        _, _, n_mat, n_cells = self._call(self.eps, self.eps, self.keys, self.rows, cens=cens)
-        self.assertEqual((n_mat, n_cells), (1, 16))
-        out = self._call(self.eps, self.eps, self.keys, self.rows, min_rows=9)
-        self.assertEqual(out[0], None)
+    def test_invalid_cells_and_small_blocks_are_skipped(self):
+        valid = torch.ones(24, dtype=torch.bool)
+        valid[::3] = False                                            # column 'A' entirely out (censored or unusable)
+        out = self._call(self.eps, self.keys, self.rows, valid=valid)
+        self.assertEqual((out['n_mat'], out['n_cells']), (1, 16))
+        self.assertIsNone(self._call(self.eps, self.keys, self.rows, min_rows=9))
 
     def test_columns_of_different_pairs_are_separate_matrices(self):
         k1, r1 = _matrix(pair='LIB|5|7')
         k2, r2 = _matrix(pair='LIB|5|9')
-        keys, rows = k1 + k2, np.concatenate([r1, r2])
-        _, _, n_mat, n_cells = self._call(torch.zeros(48), torch.zeros(48), keys, rows)
-        self.assertEqual((n_mat, n_cells), (2, 48))
+        out = self._call(torch.zeros(48), k1 + k2, np.concatenate([r1, r2]))
+        self.assertEqual((out['n_mat'], out['n_cells']), (2, 48))
+
+    def test_block_weight_is_the_mean_of_its_cells(self):
+        w = torch.full((24,), 0.5)
+        out = self._call(self.eps, self.keys, self.rows, w=w)
+        self.assertAlmostEqual(float(out['int']), 0.5 * out['raw']['int'], places=5)
+
+    def test_target_variance_is_reported(self):
+        out = self._call(torch.zeros(24), self.keys, self.rows, target=self.eps)
+        self.assertAlmostEqual(out['ss_y'], float((self.eps ** 2).sum()), places=4)
 
 
 class TestFlipKeys(unittest.TestCase):
@@ -224,15 +231,29 @@ class TestInteractionLossInTheComposition(unittest.TestCase):
 
     def test_off_by_default_and_present_when_enabled(self):
         out, _ = run(self._batch(), flip_list_min=3)
-        self.assertNotIn('L_int_mt', out)
-        out, stub = run(self._batch(), flip_list_min=3, lambda_int_mt=1.0)
-        self.assertIn('L_int_mt', out)
+        self.assertNotIn('L_comp_int', out)
+        out, stub = run(self._batch(), flip_list_min=3, mt_comp_int=2.0)
+        for k in ('L_comp_off', 'L_comp_subst', 'L_comp_int', 'L_int_tgt'):
+            self.assertIn(k, out)
         self.assertTrue(torch.isfinite(stub.model.w.grad).all())
 
+    def test_all_weights_one_through_the_component_path_is_the_plain_regression(self):
+        plain, sp = run(self._batch(), flip_list_min=3, lambda_mt_colrank=0.0)
+        comp, sc = run(self._batch(), flip_list_min=3, lambda_mt_colrank=0.0, mt_comp_offset=1.0 + 1e-12)   # != (1,1,1): takes the component path
+        self.assertAlmostEqual(plain['L_reg_mt'], comp['L_reg_mt'], places=5)
+        self.assertTrue(torch.allclose(sp.model.w.grad, sc.model.w.grad, rtol=1e-4, atol=1e-6))
+
+    def test_the_interaction_weight_changes_the_gradient_and_zero_drops_the_part(self):
+        _, s1 = run(self._batch(), flip_list_min=3, lambda_mt_colrank=0.0)
+        _, s0 = run(self._batch(), flip_list_min=3, lambda_mt_colrank=0.0, mt_comp_int=0.0)
+        _, s9 = run(self._batch(), flip_list_min=3, lambda_mt_colrank=0.0, mt_comp_int=9.0)
+        self.assertFalse(torch.allclose(s1.model.w.grad, s0.model.w.grad))
+        self.assertFalse(torch.allclose(s1.model.w.grad, s9.model.w.grad))
+
     def test_aligned_micro_batches_keep_the_matrix_whole(self):
-        # micro-batch of 16 rows would cut the 18-row matrix; aligned chunking cannot fit it either and cuts at a column boundary
-        out, _ = run(self._batch(), flip_list_min=3, lambda_int_mt=1.0, micro_batch_size=24)
-        self.assertIn('L_int_mt', out)
+        # a micro-batch of 24 rows holds the 18-row matrix; the block must reach the loss in one piece
+        out, _ = run(self._batch(), flip_list_min=3, mt_comp_int=2.0, micro_batch_size=24)
+        self.assertIn('L_comp_int', out)
 
 
 if __name__ == '__main__':

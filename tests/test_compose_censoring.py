@@ -21,8 +21,8 @@ class HP(dict):
 
 
 def make_hp(**kw):
-    hp = HP(wt_list_size=4, micro_batch_size=16, lambda_reg_wt=1.0, lambda_rank_wt=1.0, lambda_reg_mt=1.0, lambda_rank_mt=1.0,
-            lambda_int_mt=0.0, flip_list_min=3, mask_strategy=None, subfloor_rank_only=True, cond_weight=1.0, native_cond_weight=1.0,
+    hp = HP(wt_list_size=4, micro_batch_size=16, lambda_reg_wt=1.0, lambda_rank_wt=1.0, lambda_mt_cell=1.0, lambda_mt_colrank=1.0,
+            mt_comp_offset=1.0, mt_comp_subst=1.0, mt_comp_int=1.0, flip_list_min=3, mask_strategy=None, subfloor_rank_only=True, cond_weight=1.0, native_cond_weight=1.0,
             mt_single_anchor_weight=0.0, mt_single_anchor_frac=1.0, censor_reg_weight=1.0, censor_floor_hinge=False,
             include_out_of_range=False, censor_floor=None)
     hp.update(kw)
@@ -83,7 +83,7 @@ def run(batch, link_head=None, **hp_kw):
     stub._warned_unrouted = True
     stub.global_step = 0
     stub.manual_backward = lambda loss, retain_graph=False: loss.backward(retain_graph=retain_graph)
-    for name in ('_compute_rank_loss', '_compute_flip_loss', '_compute_int_loss', '_aligned_chunks', '_subset_weights', '_plan_units'):
+    for name in ('_compute_rank_loss', '_compute_flip_loss', '_compute_block_components', '_aligned_chunks', '_subset_weights', '_plan_units'):
         setattr(stub, name, types.MethodType(getattr(cls, name), stub))
     out = cls._compose_losses_streaming_and_backward(stub, batch)
     return out, stub
@@ -147,8 +147,8 @@ class TestMtGateAndMicroBatch(unittest.TestCase):
             raise unittest.SkipTest(f"training module not importable: {e}")
 
     def test_mt_rank_loss_trains_even_when_the_mt_regression_is_off(self):
-        # the MT unit used to exist only when lambda_reg_mt > 0, so rank-only (or interaction-only) MT training silently trained nothing
-        out, stub = run(make_batch(with_cens=False), lambda_reg_mt=0.0, lambda_rank_mt=1.0)
+        # the MT unit used to exist only when lambda_mt_cell > 0, so rank-only (or interaction-only) MT training silently trained nothing
+        out, stub = run(make_batch(with_cens=False), lambda_mt_cell=0.0, lambda_mt_colrank=1.0)
         self.assertIn('L_rank_mt', out)
         self.assertNotIn('L_reg_mt', out)
         self.assertTrue(stub.model.w.grad[1].abs() > 0)
@@ -164,5 +164,5 @@ class TestMtGateAndMicroBatch(unittest.TestCase):
             return orig(self, micro, pass_type, mask_strategy=mask_strategy, cached_wt_esm3=cached_wt_esm3)
 
         with mock.patch.object(StubModel, 'forward_partitioned', spy):
-            run(make_batch(), lambda_rank_mt=0.0, micro_batch_size=5, wt_list_size=4)       # 6 MT rows: 5 + 1, not 4 + 2
+            run(make_batch(), lambda_mt_colrank=0.0, micro_batch_size=5, wt_list_size=4)       # 6 MT rows: 5 + 1, not 4 + 2
         self.assertEqual(sizes, [5, 1])

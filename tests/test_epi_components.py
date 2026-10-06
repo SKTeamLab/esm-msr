@@ -28,7 +28,7 @@ class TestEpiComponents(unittest.TestCase):
     def test_perfect_prediction_scores_one_on_every_component(self):
         keys, truth, _ = make()
         out = stats.epi_component_rhos(truth, truth, keys, np.ones(len(keys), bool))
-        for k in ('rho_pair_offset', 'rho_row_effect', 'rho_col_effect'):
+        for k in ('rho_pair_offset', 'rho_subst_effect'):
             self.assertAlmostEqual(out[k], 1.0, places=6, msg=k)
 
     def test_pair_offset_prediction_scores_only_the_offset(self):
@@ -37,14 +37,15 @@ class TestEpiComponents(unittest.TestCase):
         out = stats.epi_component_rhos(off, truth, keys, np.ones(len(keys), bool))
         self.assertGreater(out['rho_pair_offset'], 0.9)
         # a prediction that is constant within a pair carries no row or column information (it is centred away)
-        self.assertTrue(np.isnan(out['rho_row_effect']) or abs(out['rho_row_effect']) < 0.25)
+        self.assertTrue(np.isnan(out['rho_subst_effect']) or abs(out['rho_subst_effect']) < 0.25)
 
     def test_row_effect_prediction_scores_the_row_effect_not_the_offset(self):
         keys, truth, parts = make(seed=1)
         row = np.array([p[4] for p in parts])
         out = stats.epi_component_rhos(row, truth, keys, np.ones(len(keys), bool))
-        self.assertGreater(out['rho_row_effect'], 0.85)
-        self.assertLess(abs(out['rho_col_effect']), 0.3)
+        # one side's substitution effects are predicted, the other side's are not: the pooled score sits well above zero but below one
+        self.assertGreater(out['rho_subst_effect'], 0.4)
+        self.assertLess(out['rho_subst_effect'], 0.95)
 
     def test_too_few_pairs_gives_nan(self):
         keys, truth, _ = make(n_pairs=3)

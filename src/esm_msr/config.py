@@ -69,7 +69,8 @@ RETIRED_FLAGS = {
     'mt_reg_mask': (str, _ANY, "it only acted inside the legacy combined objective"),
     'zero_epistasis_for_singles': (bool, _ANY, "it only acted inside the legacy combined objective"),
     'detach_calibration': (bool, _ANY, "it was never read (--detach_regression was what reached the model)"),
-    'detach_regression': (bool, False, "cutting the adapters off from the regression terms also cuts them off from --lambda_int_mt"),
+    'detach_regression': (bool, False, "cutting the adapters off from the regression terms also cuts them off from the component losses"),
+    'lambda_int_mt': (float, 0.0, "the interaction loss is now the interaction part of the MT regression: use --mt_comp_int (about 1 + 2.8 * old weight)"),
     'double_weight': (float, _ANY, "doubles are no longer a training subset: they enter as 'cond' items (see esm_msr.routing)"),
     'reversion_weight': (float, _ANY, "reversions are no longer a training subset"),
     'huber_delta': (float, _ANY, "regression is plain MSE; saturation and censoring are handled by the link and the hinge"),
@@ -79,7 +80,7 @@ RETIRED_FLAGS = {
     'dedup_backbone': (bool, True, "always on: one backbone forward per unique input row"),
     'flip_group_units': (bool, _ANY, "MT micro-batches are always cut at position-pair boundaries when a flip loss is on"),
     'flip_align_units': (bool, _ANY, "MT micro-batches are always cut at position-pair boundaries when a flip loss is on"),
-    'flip_pair_groups': (int, _ANY, "derived: with --lambda_int_mt > 0, micro_batch_size // 19 columns of a pair travel together"),
+    'flip_pair_groups': (int, _ANY, "derived: when a --mt_comp_* weight differs from 1, micro_batch_size // 19 columns of a pair travel together"),
     'int_min_rows': (int, 4, "fixed at 4"),
     'int_min_cols': (int, 2, "fixed at 2"),
     'freeze_wt_after_epoch': (int, 1000, "use --wt_early_stop_patience"),
@@ -130,29 +131,32 @@ def parse_arguments() -> argparse.Namespace:
     loss_group = parser.add_argument_group("Loss Configuration")
     loss_group.add_argument('--lambda_rank_wt', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_wt', type=float, default=0.0)
-    loss_group.add_argument('--lambda_reg_mt', type=float, default=1.0,
-                            help="Regress the MT pass on MT-head subsets (cond, native_cond); see esm_msr.routing. "
-                                 "Keep > 0: this is the only term that gives the MT pass an absolute scale, and "
-                                 "combined_pred = 0.5*WT + 0.5*MT is uncalibrated without it. Its targets are the "
-                                 "noisy derived conditionals, so down-weight with --cond_weight rather than zeroing.")
-    loss_group.add_argument('--lambda_rank_mt', type=float, default=1.0,
-                            help="Within-column rank loss on the MT pass: for each flip column (same scored position, "
-                                 "same partner identity, varying substitution) impose the measured ordering. Invariant "
-                                 "to the assay's monotone response and to the dynamic-range floor by construction, so "
-                                 "it cannot be satisfied by learning assay saturation - which the regression term can. "
-                                 "This is the loss that targets identity-dependent interaction directly.")
-    loss_group.add_argument('--lambda_int_mt', type=float, default=0.0,
-                            help="Interaction-only loss on the MT pass. For each position-pair matrix present in a micro-batch (rows = scored "
-                                 "substitutions, columns = partner residues, trimmed to a complete block), double-centre the predictions and the "
-                                 "measurements (subtract row means, column means, add the grand mean) and regress one on the other. Everything that does not "
-                                 "depend on the specific COMBINATION of the two residues - the position-pair offset, each substitution's own effect, "
-                                 "each partner's effect - is annihilated, so this loss pressures only the interaction and cannot unlearn the "
-                                 "identity-independent effects, which are still learned through the ordinary regression. When > 0 the sampler packs "
-                                 "micro_batch_size // 19 columns of one position pair together (so micro_batch_size must be >= 38); a complete block needs "
-                                 ">= 4 rows and >= 2 columns. 0 disables. MT micro-batches are always cut at position-pair boundaries when this or "
-                                 "--lambda_rank_mt is on, so no pair matrix and no flip column is split across two micro-batches.")
+    loss_group.add_argument('--lambda_mt_cell', '--lambda_reg_mt', dest='lambda_mt_cell', type=float, default=1.0,
+                            help="Cell-level regression of the MT pass on the observed scale (formerly --lambda_reg_mt): the single anchors, every cond / "
+                                 "native_cond item outside a complete position-pair block, and, when all three --mt_comp_* weights are 1, every cell. It "
+                                 "scales the component losses below too. Keep > 0: it is the only term that gives the MT pass an absolute scale. Its "
+                                 "targets are the noisy derived conditionals, so down-weight with --cond_weight rather than zeroing.")
+    loss_group.add_argument('--lambda_mt_colrank', '--lambda_rank_mt', dest='lambda_mt_colrank', type=float, default=1.0,
+                            help="Within-column rank loss on the MT pass (formerly --lambda_rank_mt): for each flip column (same scored position, "
+                                 "same partner identity, varying substitution) impose the measured ordering. Invariant to the assay's monotone response "
+                                 "and to the dynamic-range floor by construction, so it cannot be satisfied by learning assay saturation. It sees "
+                                 "each substitution's own effect and the interaction, and nothing that is constant within a column.")
+    loss_group.add_argument('--mt_comp_offset', type=float, default=1.0,
+                            help="Weight of the position-pair OFFSET part of the MT regression error, on complete position-pair blocks. The squared "
+                                 "error of a block (prediction - measurement, observed scale) is split exactly into offset, substitution effects and "
+                                 "interaction; 1 for all three is the plain cell regression. Set any of the three to a value other than 1 and the sampler "
+                                 "packs micro_batch_size // 19 columns of one position pair together (so micro_batch_size must be >= 38) and "
+                                 "micro-batches are cut at pair boundaries. A complete block needs >= 4 rows and >= 2 columns.")
+    loss_group.add_argument('--mt_comp_subst', type=float, default=1.0,
+                            help="Weight of the SUBSTITUTION-EFFECT part (the mean error of each scored substitution over the block's partners, plus the "
+                                 "same for each partner over the block's substitutions). See --mt_comp_offset.")
+    loss_group.add_argument('--mt_comp_int', type=float, default=1.0,
+                            help="Weight of the INTERACTION part (the error left after the offset and both substitution effects are removed). "
+                                 "0 drops the interaction from the regression altogether. See --mt_comp_offset. Replaces --lambda_int_mt, which "
+                                 "was added on top of the regression with a different normalisation: an old weight L is about 1 + 2.8 * L here "
+                                 "(30 ~ 85, 300 ~ 850) for batches like those of the I-series.")
     loss_group.add_argument('--flip_list_min', type=int, default=4,
-                            help="Minimum members for a flip column to contribute to --lambda_rank_mt. Below ~4 the "
+                            help="Minimum members for a flip column to contribute to --lambda_mt_colrank. Below ~4 the "
                                  "ordering carries little information and the gradient is mostly noise.")
     loss_group.add_argument('--subfloor_rank_only', action=argparse.BooleanOptionalAction, default=True,
                             help="For double-derived items below --min_additive_dG, mark them rank-only instead of "
@@ -162,7 +166,7 @@ def parse_arguments() -> argparse.Namespace:
                                  "ordering is informative while their absolute value is not.")
 
     loss_group.add_argument('--censor_floor', type=float, default=None,
-                            help="Censored ranking for --lambda_rank_mt. Flip-column items whose MEASURED dG is at or "
+                            help="Censored ranking for --lambda_mt_colrank. Flip-column items whose MEASURED dG is at or "
                                  "below this value are pinned at the assay's dynamic-range floor, so their order among "
                                  "themselves is unknown. They are treated as tied at the bottom: every above-floor item "
                                  "must still rank above them, but their relative order costs nothing (censored "
@@ -202,7 +206,7 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--link_lr', type=float, default=5e-3, help="Learning rate of the link's four parameters (no weight decay).")
     loss_group.add_argument('--mt_single_anchor_weight', type=float, default=0.0,
                             help="Per-item weight for also regressing the MT pass on ordinary singles (the zero-background "
-                                 "case of the MT task). 0 disables. Requires --lambda_reg_mt > 0.")
+                                 "case of the MT task). 0 disables. Requires --lambda_mt_cell > 0.")
     loss_group.add_argument('--mt_single_anchor_frac', type=float, default=1.0,
                             help="Fraction of the batch's singles to anchor each step, resampled per step. Anchored "
                                  "singles are the dominant cost of the MT pass (~48%% of its backbone rows), so 0.25 "
@@ -348,10 +352,10 @@ def parse_arguments() -> argparse.Namespace:
             parser.error(f"--subset_caps {retired_subset}=...: {retired_subset} items are no longer a training subset. Doubles enter training "
                          f"as their two conditional 'cond' items; reversions were never routed to a head (see esm_msr.routing).")
 
-    # Pair-matrix sampling for the interaction loss: columns of one position pair travel together, as many as fit in one micro-batch.
-    if args.lambda_int_mt > 0:
+    # Pair-matrix sampling for the component losses: columns of one position pair travel together, as many as fit in one micro-batch.
+    if (args.mt_comp_offset, args.mt_comp_subst, args.mt_comp_int) != (1.0, 1.0, 1.0):
         if args.micro_batch_size < 2 * MAX_COLUMN_LEN:
-            parser.error(f"--lambda_int_mt needs two flip columns of a pair in one micro-batch: micro_batch_size must be at least "
+            parser.error(f"the --mt_comp_* weights need two flip columns of a pair in one micro-batch: micro_batch_size must be at least "
                          f"{2 * MAX_COLUMN_LEN}, got {args.micro_batch_size}.")
         args.flip_pair_groups = args.micro_batch_size // MAX_COLUMN_LEN
     else:

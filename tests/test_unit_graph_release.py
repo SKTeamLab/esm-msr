@@ -46,7 +46,7 @@ class TestUnitGraphRelease(unittest.TestCase):
         batch['cens_src'][:4] = 1                      # assay-range censoring: no ordinary regression, and no hinge without a finite bound
         batch['flip_key'] = [''] * B
         stub = types.SimpleNamespace()
-        stub.hparams = make_hp(micro_batch_size=4, include_out_of_range=True, lambda_rank_mt=0.0, lambda_rank_wt=0.0)
+        stub.hparams = make_hp(micro_batch_size=4, include_out_of_range=True, lambda_mt_colrank=0.0, lambda_rank_wt=0.0)
         stub.model = TrackingStub()
         stub.link_head = None
         stub.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
@@ -55,7 +55,7 @@ class TestUnitGraphRelease(unittest.TestCase):
         stub._warned_unrouted = True
         stub.global_step = 0
         stub.manual_backward = lambda loss, retain_graph=False: loss.backward(retain_graph=retain_graph)
-        for name in ('_compute_rank_loss', '_compute_flip_loss', '_compute_int_loss', '_aligned_chunks', '_subset_weights', '_plan_units'):
+        for name in ('_compute_rank_loss', '_compute_flip_loss', '_compute_block_components', '_aligned_chunks', '_subset_weights', '_plan_units'):
             setattr(stub, name, types.MethodType(getattr(cls, name), stub))
         cls._compose_losses_streaming_and_backward(stub, batch)
         calls = stub.model.alive_at_forward

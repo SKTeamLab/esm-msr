@@ -151,16 +151,17 @@ def epi_component_rhos(epi_pred, dddG, mut_keys, is_double, min_pair_cells=20, m
 
     * ``rho_pair_offset``: Spearman, across pairs, of the pair's mean predicted ddd_G against its mean measured ddd_G. The offset is how
       much the pair as a whole departs from additivity; a pair-level quantity, so only a pooled set of pairs has enough of them.
-    * ``rho_row_effect`` / ``rho_col_effect``: after subtracting each pair's mean, the mean over partners for every (pair, substitution)
-      with at least ``min_group`` cells, Spearman of predicted against measured, pooled over all pairs. Row effects are the lower
-      position's substitutions, column effects the higher's.
+    * ``rho_subst_effect``: after subtracting each pair's mean, the mean over partners for every (pair, position, substitution) with at least
+      ``min_group`` cells, Spearman of predicted against measured, pooled over all pairs and over both positions of each pair. A substitution's
+      effect in the presence of a mutation at the other position; which of the two positions comes first in the sequence is arbitrary, so the
+      two sides are pooled (they were scored separately as row and column effects before).
 
     The interaction left once all of these are removed is what ``flip_signature_rho(by_partner_position=True)`` scores. NaN where there are
     too few pairs. ``mut_keys[i]`` is a tuple of two mutations (..., wt, position, mutant residue); a mutation's position identity is
     everything but its last element.
     """
     nan = float('nan')
-    out = {'rho_pair_offset': nan, 'rho_row_effect': nan, 'rho_col_effect': nan, 'n_epi_pairs': 0}
+    out = {'rho_pair_offset': nan, 'rho_subst_effect': nan, 'n_epi_pairs': 0}
     if mut_keys is None or len(mut_keys) != len(epi_pred):
         return out
     epi_pred, dddG = np.asarray(epi_pred, float), np.asarray(dddG, float)
@@ -176,10 +177,10 @@ def epi_component_rhos(epi_pred, dddG, mut_keys, is_double, min_pair_cells=20, m
     if len(pairs) >= min_pairs:
         out['rho_pair_offset'] = safe_spearman(np.array([np.mean([c[2] for c in v]) for v in pairs.values()]),
                                                np.array([np.mean([c[3] for c in v]) for v in pairs.values()]))
-    for name, idx in (('rho_row_effect', 0), ('rho_col_effect', 1)):
-        xs, ys = [], []
-        for v in pairs.values():
-            pm, tm = np.mean([c[2] for c in v]), np.mean([c[3] for c in v])
+    xs, ys = [], []
+    for v in pairs.values():
+        pm, tm = np.mean([c[2] for c in v]), np.mean([c[3] for c in v])
+        for idx in (0, 1):
             groups = {}
             for c in v:
                 groups.setdefault(c[idx], []).append((c[2] - pm, c[3] - tm))
@@ -187,8 +188,8 @@ def epi_component_rhos(epi_pred, dddG, mut_keys, is_double, min_pair_cells=20, m
                 if len(g) >= min_group:
                     xs.append(np.mean([t[0] for t in g]))
                     ys.append(np.mean([t[1] for t in g]))
-        if len(xs) >= 2 * min_pairs:
-            out[name] = safe_spearman(np.array(xs), np.array(ys))
+    if len(xs) >= 2 * min_pairs:
+        out['rho_subst_effect'] = safe_spearman(np.array(xs), np.array(ys))
     return out
 
 

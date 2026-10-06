@@ -53,10 +53,19 @@ class TestRetiredFlags(unittest.TestCase):
 
     def test_pair_groups_follow_the_micro_batch_when_the_interaction_loss_is_on(self):
         self.assertEqual(MAX_COLUMN_LEN, 19)
-        self.assertEqual(parse('--lambda_int_mt', '30', '--micro_batch_size', '64').flip_pair_groups, 3)     # what the I-series used
-        self.assertEqual(parse('--lambda_int_mt', '30', '--micro_batch_size', '128').flip_pair_groups, 6)
-        self.assertEqual(parse('--micro_batch_size', '64').flip_pair_groups, 0)
-        self.assertIsNotNone(parse_fails('--lambda_int_mt', '30', '--micro_batch_size', '32'))                # cannot hold two columns
+        self.assertEqual(parse('--mt_comp_int', '5', '--micro_batch_size', '64').flip_pair_groups, 3)        # what the I-series used
+        self.assertEqual(parse('--mt_comp_subst', '3', '--micro_batch_size', '76').flip_pair_groups, 4)
+        self.assertEqual(parse('--mt_comp_int', '5', '--micro_batch_size', '128').flip_pair_groups, 6)
+        self.assertEqual(parse('--micro_batch_size', '64').flip_pair_groups, 0)                              # plain regression: single-column units
+        self.assertIsNotNone(parse_fails('--mt_comp_int', '5', '--micro_batch_size', '32'))                  # cannot hold two columns
+
+    def test_the_mt_loss_names_and_their_old_aliases(self):
+        a = parse()
+        self.assertEqual((a.lambda_mt_cell, a.lambda_mt_colrank, a.mt_comp_offset, a.mt_comp_subst, a.mt_comp_int), (1.0, 1.0, 1.0, 1.0, 1.0))
+        a = parse('--lambda_reg_mt', '2', '--lambda_rank_mt', '0')
+        self.assertEqual((a.lambda_mt_cell, a.lambda_mt_colrank), (2.0, 0.0))
+        self.assertIsNotNone(parse_fails('--lambda_int_mt', '30'))              # replaced by --mt_comp_int
+        parse('--lambda_int_mt', '0')                                           # harmless
 
 
 if __name__ == '__main__':

@@ -81,9 +81,9 @@ class TestLinkInTheLoss(unittest.TestCase):
         batch = make_batch(with_cens=False)
         batch['ddG'][:12] = -3.0
         batch['feat'][:12] = -9.0               # latent -9 (w = 1)
-        plain, _ = run(batch, lambda_rank_wt=0.0, lambda_rank_mt=0.0, lambda_reg_mt=0.0)
+        plain, _ = run(batch, lambda_rank_wt=0.0, lambda_mt_colrank=0.0, lambda_mt_cell=0.0)
         link = MonotoneLink(lo=-1.0, hi=5.0, tau_lo=0.05, tau_hi=0.05, learn_bounds=False)
-        linked, _ = run(batch, link_head=link, link='softclamp', lambda_rank_wt=0.0, lambda_rank_mt=0.0, lambda_reg_mt=0.0)
+        linked, _ = run(batch, link_head=link, link='softclamp', lambda_rank_wt=0.0, lambda_mt_colrank=0.0, lambda_mt_cell=0.0)
         self.assertGreater(plain['L_reg_wt'], 20.0)
         self.assertLess(linked['L_reg_wt'], 0.05)
 
@@ -113,7 +113,7 @@ class TestLinkInTheLoss(unittest.TestCase):
         batch['ddG'][12:] = -1.0
         batch['feat'][12:] = -1.0                   # MT latent for ddG(A|B)
         link = MonotoneLink(lo=-1.0, hi=5.0, tau_lo=0.05, tau_hi=0.05, learn_bounds=False)
-        out, _ = run(batch, link_head=link, link='softclamp', lambda_rank_wt=0.0, lambda_rank_mt=0.0, lambda_reg_wt=0.0)
+        out, _ = run(batch, link_head=link, link='softclamp', lambda_rank_wt=0.0, lambda_mt_colrank=0.0, lambda_reg_wt=0.0)
         # latent double dG = 2 - 2 - 1 = -1 -> h = -1 -> observed ddG -3 = target ddG_AB: no residual
         self.assertLess(out['L_reg_mt'], 0.01)
 

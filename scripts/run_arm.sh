@@ -28,7 +28,7 @@ COMET_KEY=$(sed -n 's/^ *api_key *= *//p' ~/.comet.config | head -1)
   --incl_sequence_head_wt --incl_sequence_head_mt \
   --adapter_mode dual \
   --lambda_reg_wt 1.0 --lambda_rank_wt 1.0 \
-  --lambda_reg_mt 1.0 --lambda_rank_mt 1.0 --flip_list_min 4 \
+  --lambda_mt_cell 1.0 --lambda_mt_colrank 1.0 --flip_list_min 4 \
   --mt_single_anchor_weight 0.5 --cond_weight 0.5 --native_cond_weight 1.0 \
   --precision bf16-mixed \
   --batch_size 256 --micro_batch_size 64 --wt_list_size 16 \

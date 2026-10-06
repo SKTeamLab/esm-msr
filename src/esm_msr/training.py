@@ -34,9 +34,18 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 warnings.filterwarnings('ignore', category=UserWarning)
 torch.set_float32_matmul_precision('high') 
 
-# A complete block of a position-pair matrix for --lambda_int_mt: rows are scored substitutions, columns are partner residues. Double-centring
+# A complete block of a position-pair matrix for the component losses: rows are scored substitutions, columns are partner residues. Double-centring
 # leaves nothing to learn from fewer than two of either; four rows keep the row means from being dominated by a single cell.
 INT_MIN_ROWS, INT_MIN_COLS = 4, 2
+
+
+def comp_weights(hp):
+    """(pair offset, substitution effects, interaction) multipliers of the MT regression on complete position-pair blocks; 1 each is the plain regression."""
+    return (float(hp.get('mt_comp_offset', 1.0)), float(hp.get('mt_comp_subst', 1.0)), float(hp.get('mt_comp_int', 1.0)))
+
+
+def comp_on(hp):
+    return comp_weights(hp) != (1.0, 1.0, 1.0)
 
 class GroupPlateau:
     """ReduceLROnPlateau (mode max, relative threshold 1e-4) for the named parameter groups of one optimizer only. A group whose rate is
@@ -97,7 +106,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         # ListMLE, which is also the censored Plackett-Luce likelihood when items carry censoring (esm_msr.censoring)
         self.crit_rank_wt = ListMLELoss() if self.hparams.lambda_rank_wt > 0 else None
-        self.crit_rank_mt = ListMLELoss() if self.hparams.lambda_rank_mt > 0 else None
+        self.crit_rank_mt = ListMLELoss() if self.hparams.lambda_mt_colrank > 0 else None
         self.crit_reg = nn.MSELoss(reduction='none')
 
         # Monotone saturating link (esm_msr.link): latent stability -> the assay's observed dG. Lives on the Lightning module
@@ -267,26 +276,35 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self._flip_diag = (G, float(avg_len), int(sum(len(g) for g in groups)), n_unc)
         return scaled, L_raw.detach(), G
 
-    def _compute_int_loss(self, pred, target, valid, flip_keys, row_ids, cens, min_rows, min_cols):
-        """Interaction-only loss on the MT pass: squared error between DOUBLE-CENTRED predictions and measurements.
+    def _compute_block_components(self, err, target, w, valid, flip_keys, row_ids, min_rows, min_cols):
+        """Split the MT regression error of each complete position-pair block into pair offset, substitution effects and interaction.
 
         Rows sharing a position pair form a matrix (rows = scored substitutions, columns = partner residues). Each matrix is trimmed to a
-        complete block (the most-missing row or column is dropped until no cell is missing), then predictions and targets are double-centred
-        separately: subtract each row's mean and each column's mean and add back the grand mean. What survives depends only on the specific
-        combination of the two residues. The position-pair offset, each substitution's own effect and each partner's own effect are exactly
-        annihilated on both sides, so this loss neither teaches nor unteaches them; they are learned through the ordinary regression.
-        Censored items are left out. Returns ``(sum of squared differences, its detached value, n_matrices, n_cells, sum of squared double-centred targets)``, with the sum so
-        the caller can normalise by the whole batch; ``(None, 0.0, 0, 0, 0.0)`` when no usable matrix is present.
+        complete block (the most-missing row or column is dropped until no cell is missing). For the block's error matrix E = prediction - measurement
+        (on the observed scale, so saturation is the link's job) the squared error splits exactly into three parts,
+
+            sum E^2  =  R*C*mean(E)^2                                    pair offset
+                      + C*sum_i (rowmean_i - mean)^2 + R*sum_j (colmean_j - mean)^2     substitution effects (either side of the pair)
+                      + sum (E - rowmean_i - colmean_j + mean)^2          interaction
+
+        so weighting the three parts separately generalises the plain cell regression (all weights 1 gives it back). ``w`` are per-row loss
+        weights (a block uses the mean of its cells'); ``valid`` marks the rows that may enter a block (ordinary, uncensored, regressable).
+        Returns None when no block exists, else a dict: weighted sums ``off`` / ``subst`` / ``int`` (tensors, to be multiplied by the
+        component weights), the flat row indices of every cell used (``cells``), their unweighted detached sums ``raw``, the weighted total of the plain
+        squared error over those cells (``w_total``, detached), ``n_cells``, ``n_mat`` and ``ss_y``, the sum of squared double-centred measurements
+        (the interaction variance there is to be explained).
         """
         groups = {}
         for i, k in enumerate(flip_keys):
-            if not k or not bool(valid[i]) or (cens is not None and int(cens[i]) != 0):
+            if not k or not bool(valid[i]):
                 continue
             pair, res = split_flip_key(k)
             if res is None:
                 continue
             groups.setdefault(pair, {}).setdefault(res, {})[int(row_ids[i])] = i
-        total, n_cells, n_mat, ss_y = None, 0, 0, 0.0
+        acc = {'off': None, 'subst': None, 'int': None}
+        raw = {'off': 0.0, 'subst': 0.0, 'int': 0.0}
+        cells, n_cells, n_mat, ss_y, w_total = [], 0, 0, 0.0, 0.0
         for pair, cols in groups.items():
             names = sorted(cols)
             rows = sorted({r for c in cols.values() for r in c})
@@ -303,17 +321,28 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     M = [row[:j] + row[j + 1:] for row in M]
             if len(M) < min_rows or not M or len(M[0]) < min_cols:
                 continue
-            idx = torch.as_tensor(M, device=pred.device, dtype=torch.long)
-            P, Y = pred[idx], target[idx]
-            dc = lambda X: X - X.mean(dim=1, keepdim=True) - X.mean(dim=0, keepdim=True) + X.mean()
-            part = ((dc(P) - dc(Y)) ** 2).sum()
-            ss_y += float((dc(Y) ** 2).sum())
-            total = part if total is None else total + part
+            idx = torch.as_tensor(M, device=err.device, dtype=torch.long)
+            E, Y = err[idx], target[idx]
+            R, C = E.shape
+            m = E.mean()
+            rm, cm = E.mean(dim=1), E.mean(dim=0)
+            parts = {'off': R * C * m ** 2,
+                     'subst': C * ((rm - m) ** 2).sum() + R * ((cm - m) ** 2).sum(),
+                     'int': ((E - rm[:, None] - cm[None, :] + m) ** 2).sum()}
+            wb = w[idx].mean()
+            for k, v in parts.items():
+                acc[k] = wb * v if acc[k] is None else acc[k] + wb * v
+                raw[k] += float(v.detach())
+            w_total += float(wb) * float(sum(v.detach() for v in parts.values()))
+            Yc = Y - Y.mean(dim=1, keepdim=True) - Y.mean(dim=0, keepdim=True) + Y.mean()
+            ss_y += float((Yc ** 2).sum())
+            cells.append(idx.reshape(-1))
             n_cells += idx.numel()
             n_mat += 1
-        if total is None:
-            return None, 0.0, 0, 0, 0.0
-        return total, float(total.detach()), n_mat, n_cells, ss_y
+        if not n_mat:
+            return None
+        return {'off': acc['off'], 'subst': acc['subst'], 'int': acc['int'], 'cells': torch.cat(cells), 'raw': raw,
+                'w_total': w_total, 'n_cells': n_cells, 'n_mat': n_mat, 'ss_y': ss_y}
 
     def _subset_weights(self, subset_types, device) -> torch.Tensor:
         """Per-item loss weight from its subset type (1.0 for singles and unknown types)."""
@@ -351,7 +380,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     size = int(len(wt_rows))
             units += [('wt', wt_rows[s:s + size]) for s in range(0, len(wt_rows), size)]
         if len(mt_rows):
-            if self.hparams.lambda_rank_mt > 0 or self.hparams.get('lambda_int_mt', 0.0) > 0:
+            if self.hparams.lambda_mt_colrank > 0 or comp_on(self.hparams):
                 units += [('mt', mt_rows[c]) for c in self._aligned_chunks(mt_rows, mb)]
             else:
                 units += [('mt', mt_rows[s:s + mb]) for s in range(0, len(mt_rows), mb)]
@@ -457,14 +486,18 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         dGwt_all = batch['dG_wt'].float().to(device) if torch.is_tensor(batch.get('dG_wt')) else torch.full((B,), float('nan'), device=device)
         bg_all = batch['bg_offset'].float().to(device) if torch.is_tensor(batch.get('bg_offset')) else torch.zeros(B, device=device)
         link_ok = torch.isfinite(dGwt_all) if use_link else torch.ones(B, dtype=torch.bool, device=device)
-        global_flip_items = max(1, sum(1 for i, k in enumerate(flip_keys) if k and not (use_cens and int(cens_all[i]) != 0)))
+        # items with no known wild-type dG are masked out of every loss; give them a finite value so that the masked rows cannot put
+        # NaN into the backward pass (a zero upstream gradient times a NaN local derivative is NaN)
+        dGwt_all = torch.where(link_ok, dGwt_all, torch.zeros_like(dGwt_all))
         _fk = Counter(k for i, k in enumerate(flip_keys) if k)
         _unc = Counter(k for i, k in enumerate(flip_keys) if k and not (use_cens and int(cens_all[i]) != 0))
         global_num_flip = max(1, sum(1 for k, c in _fk.items() if c >= int(hp.flip_list_min) and _unc[k] > 0))
 
         anchor_w = float(hp.get('mt_single_anchor_weight', 0.0) or 0.0)
-        if anchor_w > 0 and hp.lambda_reg_mt <= 0:
-            raise AssertionError('mt_single_anchor_weight > 0 requires lambda_reg_mt > 0.')
+        if anchor_w > 0 and hp.lambda_mt_cell <= 0:
+            raise AssertionError('mt_single_anchor_weight > 0 requires lambda_mt_cell > 0.')
+        comp_w = comp_weights(hp)
+        use_comp = comp_on(hp)
         wt_frozen, mt_frozen = self.peft_manager.wt_path_is_frozen, self.peft_manager.mt_path_is_frozen
 
         # ---------------- per-item targets and masks, derived once ----------------
@@ -513,7 +546,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # ---------------- plan ----------------
         idx = torch.arange(B, device=device)
         train_wt = (not wt_frozen) and (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0)
-        train_mt = (not mt_frozen) and (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0 or hp.get('lambda_int_mt', 0.0) > 0)
+        train_mt = (not mt_frozen) and (hp.lambda_mt_cell > 0 or hp.lambda_mt_colrank > 0)
 
         wt_rows = idx[wt_ok] if train_wt else idx[:0]
         mt_rows = idx[mt_ok] if train_mt else idx[:0]
@@ -587,7 +620,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
             del mt_out
 
-            if m_mt_ok.any() and hp.lambda_reg_mt > 0:
+            if m_mt_ok.any() and hp.lambda_mt_cell > 0:
                 w = mt_w[rows]
                 if use_link:
                     # the saturation is h's job, so items below the floor need no special handling (reg_ok is ignored); a
@@ -600,46 +633,49 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     p_mt, t_mt, b_mt = mt_pred_cal, ddG[rows], cens_bound[rows]
                 c_reg = reg_cens[rows]
                 reg_ord = reg_ok & (c_reg == 0)
-                if reg_ord.any():
-                    L = self.crit_reg(p_mt[reg_ord], t_mt[reg_ord]) * w[reg_ord]
-                    losses_mt.append(hp.lambda_reg_mt * L.sum() / global_w_sum)
+                reg_plain = reg_ord
+                if use_comp:
+                    # cells of complete position-pair blocks: the squared error is split into pair offset, substitution effects and interaction
+                    # and each part is weighted on its own; every other cell keeps the plain regression below
+                    comp = self._compute_block_components(
+                        p_mt - t_mt, t_mt, w, reg_ord, [flip_keys[int(r)] for r in rows],
+                        batch['mt_id'][rows][:, 0].detach().cpu().numpy(), INT_MIN_ROWS, INT_MIN_COLS)
+                    if comp is not None:
+                        blk = comp_w[0] * comp['off'] + comp_w[1] * comp['subst'] + comp_w[2] * comp['int']
+                        losses_mt.append(hp.lambda_mt_cell * blk / global_w_sum)
+                        covered = torch.zeros_like(reg_ord)
+                        covered[comp['cells']] = True
+                        reg_plain = reg_ord & ~covered
+                        # the logged regression loss stays the plain one over every cell, whatever the component weights
+                        sums['reg_mt'] = sums['reg_mt'] + comp['w_total']
+                        cnts['reg_mt'] = cnts['reg_mt'] + w[covered].sum()
+                        for k in ('off', 'subst', 'int'):
+                            sums['comp_' + k] = sums['comp_' + k] + comp['raw'][k]
+                            cnts['comp_' + k] = cnts['comp_' + k] + comp['n_cells']
+                        sums['int_tgt'] = sums['int_tgt'] + comp['ss_y']        # with comp_int: the share of interaction variance left unexplained
+                        cnts['int_tgt'] = cnts['int_tgt'] + comp['n_cells']
+                if reg_plain.any():
+                    L = self.crit_reg(p_mt[reg_plain], t_mt[reg_plain]) * w[reg_plain]
+                    losses_mt.append(hp.lambda_mt_cell * L.sum() / global_w_sum)
                     sums['reg_mt'] = sums['reg_mt'] + L.sum().detach()
-                    cnts['reg_mt'] = cnts['reg_mt'] + w[reg_ord].sum()
+                    cnts['reg_mt'] = cnts['reg_mt'] + w[reg_plain].sum()
                 cen_mt = m_mt_ok & link_ok[rows] & (c_reg != 0) & torch.isfinite(b_mt)
                 if hinge_w > 0 and cen_mt.any():
                     Lh = censoring.censored_regression_loss(self.crit_reg, p_mt[cen_mt], b_mt[cen_mt],
                                                             c_reg[cen_mt]) * w[cen_mt] * hinge_w
-                    losses_mt.append(hp.lambda_reg_mt * Lh.sum() / global_w_sum)
+                    losses_mt.append(hp.lambda_mt_cell * Lh.sum() / global_w_sum)
                     sums['reg_mt_cens'] = sums['reg_mt_cens'] + Lh.sum().detach()
                     cnts['reg_mt_cens'] = cnts['reg_mt_cens'] + w[cen_mt].sum()
-            if hp.lambda_rank_mt > 0 and self.crit_rank_mt is not None:
+            if hp.lambda_mt_colrank > 0 and self.crit_rank_mt is not None:
                 fk_rows = [flip_keys[int(r)] for r in rows]
                 L_flip, val, n_grp = self._compute_flip_loss(
                     mt_pred_raw, ddG[rows], m_mt_ok, fk_rows,
                     self.crit_rank_mt, hp.flip_list_min,
                     cens=cens_all[rows] if use_cens else None)
                 if L_flip is not None:
-                    losses_mt.append(hp.lambda_rank_mt * L_flip * (n_grp / max(global_num_flip, 1)))
+                    losses_mt.append(hp.lambda_mt_colrank * L_flip * (n_grp / max(global_num_flip, 1)))
                     sums['rank_mt'] = sums['rank_mt'] + val * n_grp
                     cnts['rank_mt'] = cnts['rank_mt'] + n_grp
-            if hp.get('lambda_int_mt', 0.0) > 0:
-                if use_link:
-                    p_int = link.obs_ddG(mt_pred_cal, dGwt_all[rows], bg_all[rows])
-                    t_int = ddG[rows] + bg_all[rows]
-                else:
-                    p_int, t_int = mt_pred_cal, ddG[rows]
-                fk_int = [flip_keys[int(r)] for r in rows]
-                mt_id_rows = batch['mt_id'][rows][:, 0].detach().cpu().numpy()
-                L_int, val_int, n_mat, n_cells, ss_tgt = self._compute_int_loss(
-                    p_int, t_int, m_mt_ok & link_ok[rows], fk_int, mt_id_rows,
-                    cens_all[rows] if use_cens else None, INT_MIN_ROWS, INT_MIN_COLS)
-                if L_int is not None:
-                    losses_mt.append(hp.lambda_int_mt * L_int / global_flip_items)
-                    sums['int_mt'] = sums['int_mt'] + val_int
-                    cnts['int_mt'] = cnts['int_mt'] + n_cells
-                    sums['int_tgt'] = sums['int_tgt'] + ss_tgt      # with L_int_mt: the share of interaction variance left unexplained
-                    cnts['int_tgt'] = cnts['int_tgt'] + n_cells
-
             if losses_mt:
                 total = sum(losses_mt)
                 if not torch.isfinite(total): raise AssertionError("MT Loss evaluated to NaN/Inf.")
@@ -647,7 +683,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 self.manual_backward(total)
 
         # One host sync for all logged values instead of one per unit and loss term.
-        keys = [k for k in ('reg_wt', 'rank_wt', 'reg_wt_cens', 'reg_mt', 'reg_mt_cens', 'rank_mt', 'int_mt', 'int_tgt') if k in cnts]
+        keys = [k for k in ('reg_wt', 'rank_wt', 'reg_wt_cens', 'reg_mt', 'reg_mt_cens', 'rank_mt', 'comp_off', 'comp_subst', 'comp_int', 'int_tgt') if k in cnts]
         if not keys:
             return {}
         vals = torch.stack([torch.stack([torch.as_tensor(sums[k], device=device, dtype=torch.float32),
@@ -803,7 +839,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
     _VAL_AVG = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_mt_valid',
                 'rho_epi_full', 'rho_colrank', 'rho_colrank_wt', 'rho_flip', 'rho_flip_pair', 'auc_dead_wt', 'auc_dead_mt')
     # Pooled over every item of every library: the pair-level components need pooling to have enough pairs.
-    _VAL_POOLED = ('rho_combined', 'rmse_combined', 'rho_epi_full', 'rho_pair_offset', 'rho_row_effect', 'rho_col_effect',
+    _VAL_POOLED = ('rho_combined', 'rmse_combined', 'rho_epi_full', 'rho_pair_offset', 'rho_subst_effect',
                    'rho_colrank', 'rho_colrank_wt', 'rho_flip', 'rho_flip_pair', 'auc_dead_wt', 'auc_dead_mt')
     _VAL_PROGRESS_BAR = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair')
 
