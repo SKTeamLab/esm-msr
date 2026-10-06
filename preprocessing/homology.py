@@ -13,10 +13,13 @@ https://mmseqs.com/foldseek/foldseek-linux-avx2.tar.gz.
 import os
 import shutil
 import subprocess
-from typing import Dict, Iterable, List, Optional, Tuple
+from multiprocessing import Pool
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 import networkx as nx
+import numpy as np
 import pandas as pd
+from Bio import Align
 
 from esm.utils.structure.protein_chain import ProteinChain
 
@@ -193,3 +196,106 @@ def cross_set_hits(pairs: pd.DataFrame, membership: Dict[str, str]) -> pd.DataFr
     p['set_b'] = p['b'].map(membership)
     p = p.dropna(subset=['set_a', 'set_b'])
     return p.loc[p['set_a'] != p['set_b']].reset_index(drop=True)
+
+
+_ID_SEQS: Dict[str, str] = {}
+_ID_ALIGNER = None
+
+
+def _init_identity_worker(sequences: Dict[str, str]) -> None:
+    global _ID_SEQS, _ID_ALIGNER
+    _ID_SEQS = sequences
+    _ID_ALIGNER = Align.PairwiseAligner()
+    _ID_ALIGNER.mode = 'local'
+    _ID_ALIGNER.open_gap_score = -10
+    _ID_ALIGNER.extend_gap_score = -1
+    _ID_ALIGNER.substitution_matrix = Align.substitution_matrices.load('BLOSUM62')
+
+
+def _local_identity(pair: Tuple[str, str]) -> Tuple[str, str, float]:
+    a, b = pair
+    s1, s2 = _ID_SEQS[a], _ID_SEQS[b]
+    if not s1 or not s2:
+        return a, b, 0.0
+    try:
+        aln = next(iter(_ID_ALIGNER.align(s1, s2)))
+    except StopIteration:
+        return a, b, 0.0
+    matches = sum(1 for x, y in zip(aln[0], aln[1]) if x == y and x != '-')
+    return a, b, matches / min(len(s1), len(s2))
+
+
+def pairwise_identity(sequences: Dict[str, str], pairs: Iterable[Tuple[str, str]], threads: int = 4) -> pd.DataFrame:
+    """Identity of each pair as BLOSUM62 local-alignment matches / length of the shorter sequence.
+
+    This is the measure split_tsuboyama.py reports in its overlap figures
+    (`calculate_rigorous_identity`), so a cap on it bounds exactly the number a reader sees.
+    It is computed for every pair rather than only for search hits: MMseqs2's prefilter and
+    composition-bias correction drop some highly similar designed sequences entirely.
+    Returns columns a, b (a < b) and identity.
+    """
+    pairs = sorted({(min(a, b), max(a, b)) for a, b in pairs if a != b})
+    with Pool(threads, initializer=_init_identity_worker, initargs=(sequences,)) as pool:
+        rows = pool.map(_local_identity, pairs, chunksize=500)
+    return pd.DataFrame(rows, columns=['a', 'b', 'identity'])
+
+
+def prune_bridges(nodes: Iterable[str], edges: Iterable[Tuple[str, str]], max_component_size: int,
+                  min_family_size: int = 5, max_cut_frac: float = 0.25) -> Set[str]:
+    """Nodes to drop so that oversized components split into their constituent families.
+
+    Single linkage chains distinct families (e.g. designed topologies) into one component
+    through a few borderline members. For each component larger than `max_component_size`,
+    families are found by greedy modularity; a family of at least `min_family_size` members is
+    separated from the rest of its component by a minimum node cut when that cut is at most
+    `max_cut_frac` of the family's size. Repeats until no admissible cut remains. Dropped
+    nodes leave the dataset; no remaining edge crosses the new components.
+    """
+    g = nx.Graph()
+    g.add_nodes_from(nodes)
+    g.add_edges_from(e for e in edges if e[0] in g and e[1] in g)
+    removed: Set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for comp in sorted(nx.connected_components(g), key=len, reverse=True):
+            if len(comp) <= max_component_size:
+                continue
+            sub = g.subgraph(comp)
+            # Greedy modularity is deterministic for a given graph
+            families = nx.community.greedy_modularity_communities(sub)
+            best = None
+            for fam in sorted(families, key=lambda f: sorted(f)):
+                rest = comp - fam
+                if len(fam) < min_family_size or not rest:
+                    continue
+                k = nx.Graph(sub)
+                k.add_edges_from(('__src__', n) for n in fam)
+                k.add_edges_from(('__snk__', n) for n in rest)
+                cut = nx.minimum_node_cut(k, '__src__', '__snk__')
+                if len(cut) <= max_cut_frac * len(fam) and (best is None or len(cut) < len(best)):
+                    best = cut
+            if best:
+                removed |= best
+                g.remove_nodes_from(best)
+                changed = True
+                break
+    return removed
+
+
+def homology_edge_mask(pairs: pd.DataFrame, seq_evalue: float = 1e-3, struct_evalue: float = 1e-3,
+                       max_identity: Optional[float] = 0.40, max_tm: Optional[float] = None,
+                       tm_norm: str = 'max') -> pd.Series:
+    """Pairs that may not be split apart: either search is significant, or an absolute cap is exceeded.
+
+    A pair is an edge when MMseqs2 E <= seq_evalue, Foldseek E <= struct_evalue, identity >
+    max_identity, or Foldseek TM-score > max_tm (normalised by the shorter chain for 'max',
+    the longer for 'min'). Criteria whose columns are absent (search not run) are skipped.
+    """
+    col = lambda c: pairs[c] if c in pairs else pd.Series(np.nan, index=pairs.index)
+    mask = (col('seq_evalue') <= seq_evalue) | (col('struct_evalue') <= struct_evalue)
+    if max_identity is not None:
+        mask |= col('identity') > max_identity
+    if max_tm is not None:
+        mask |= col(f'struct_tm_{tm_norm}') > max_tm
+    return mask.fillna(False)
