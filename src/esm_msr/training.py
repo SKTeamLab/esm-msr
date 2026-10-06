@@ -796,8 +796,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             'mut_key': [tuple(tuple(m) for m in muts) for muts in batch.get('mutations', [()] * n_items)],
         })
 
-    # What validation logs. Per protein only these three (a library's rank and error, plus its interaction score if it has doubles).
-    _VAL_PER_PROTEIN = ('rho_combined', 'rmse_combined', 'rho_flip_pair')
+    # What validation logs. Per protein only these four (a library's rank and error, the WT head's rank on its singles, plus its
+    # interaction score if it has doubles).
+    _VAL_PER_PROTEIN = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair')
     # Library-equal means. rho_combined and rho_wt_valid are read by the checkpoint name, the plateau scheduler and the convergence logic.
     _VAL_AVG = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_mt_valid',
                 'rho_epi_full', 'rho_colrank', 'rho_colrank_wt', 'rho_flip', 'rho_flip_pair', 'auc_dead_wt', 'auc_dead_mt')

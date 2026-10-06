@@ -51,7 +51,7 @@ class TestPooling(unittest.TestCase):
         training.ESM3EpistasisLightningModule.on_validation_epoch_end(s)
         names = set(s.logged)
         per_protein = {n for n in names if '/' in n}
-        self.assertTrue(per_protein <= {f'val_{m}/{lib}' for m in ('rho_combined', 'rmse_combined', 'rho_flip_pair')
+        self.assertTrue(per_protein <= {f'val_{m}/{lib}' for m in ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair')
                                         for lib in ('with_obs', 'without_obs')}, per_protein)
         for banned in ('auc_hyper', 'rho_epi_fast', 'rho_wt_all', 'rho_mt_all', 'val_flip_pairs', 'val_flip_pair_matrices/'):
             self.assertFalse(any(banned in n for n in names), banned)
