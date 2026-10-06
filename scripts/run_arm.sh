@@ -15,7 +15,7 @@ COMET_KEY=$(sed -n 's/^ *api_key *= *//p' ~/.comet.config | head -1)
   --experiment_name $NAME --version 0 \
   --raw_data_file '/home/sareeves/software/esm-msr/data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv' \
   --af_model_folder '/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs' \
-  --split_file '/home/sareeves/software/esm-msr/data/hyperopt_splits.pkl' \
+  --split_file ${SPLIT:-$WT/data/splits_oct06_structure.pkl} \
   --cache_path cache_v7 \
   --benchmark_data_path $WT/data/preprocessed \
   --checkpoint_path training_checkpoints --log_dir training_logs \
@@ -37,5 +37,5 @@ COMET_KEY=$(sed -n 's/^ *api_key *= *//p' ~/.comet.config | head -1)
   --num_workers 4 --log_every_n_steps 25 --save_top_k 3 \
   --monitor_metric val_rho_flip_pair_avg --monitor_mode max \
   --early_stopping_metric val_rho_flip_pair_avg --early_stopping_patience 2 --min_epochs 3 \
-  --comet_api_key "$COMET_KEY" "$@" > run_logs/$NAME.log 2>&1
+  --comet_project_name ${COMET_PROJECT:-esm-msr-agent-oct06} --comet_api_key "$COMET_KEY" "$@" > run_logs/$NAME.log 2>&1
 echo "DONE rc=$?" >> run_logs/$NAME.log

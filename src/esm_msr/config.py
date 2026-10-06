@@ -312,7 +312,7 @@ def parse_arguments() -> argparse.Namespace:
     log_group.add_argument('--load_wt_only', action=argparse.BooleanOptionalAction, default=False)
     log_group.add_argument('--log_dir', type=str, default='./logs')
     log_group.add_argument('--comet_api_key', type=str, default=None)
-    log_group.add_argument('--comet_project_name', type=str, default="esm-msr-agent-2")
+    log_group.add_argument('--comet_project_name', type=str, default="esm-msr-agent-oct06")
     log_group.add_argument('--log_every_n_steps', type=int, default=25)
     log_group.add_argument('--check_val_every_n_epoch', type=int, default=1)
     log_group.add_argument('--num_sanity_val_steps', type=int, default=0)
