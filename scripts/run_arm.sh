@@ -24,7 +24,7 @@ COMET_KEY=$(sed -n 's/^ *api_key *= *//p' ~/.comet.config | head -1)
   --subset_caps single=None cond=None native_cond=None \
   --min_additive_dG -1.0 --subfloor_rank_only \
   --lora_rank_wt 2  --lora_alpha_wt 4  --lora_dropout_wt 0.1 --target_mode_wt expanded \
-  --lora_rank_mt 16 --lora_alpha_mt 16 --lora_dropout_mt 0.1 --target_mode_mt expanded \
+  --lora_rank_mt 2  --lora_alpha_mt 4  --lora_dropout_mt 0.1 --target_mode_mt expanded \
   --incl_sequence_head_wt --incl_sequence_head_mt \
   --adapter_mode dual \
   --lambda_reg_wt 1.0 --lambda_rank_wt 1.0 \
