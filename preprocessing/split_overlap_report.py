@@ -1,15 +1,17 @@
 """Measure sequence and structure homology overlap between the sets of one or more split files.
 
-Reads the pair table written by split_tsuboyama.py (`<homology_dir>/homology_pairs.csv`,
-MMseqs2 + Foldseek evidence for every pair with a hit) and, for each split pickle, reports
-how many libraries in each set have a homolog in each other set, plus the composition of
-each set (natural vs designed libraries, single and double mutation counts).
+Reads the pair table written by split_tsuboyama.py (`data/<output>_homology_pairs.csv`:
+MMseqs2, Foldseek and pairwise identity for every pair with evidence) and, for each split
+pickle, reports how many libraries in each set have a homolog in each other set, the
+strongest identity / TM-score / E-values between sets, and the composition of each set
+(natural vs designed libraries, single and double mutation counts). A pair counts as
+homologous under the same rule split_tsuboyama.py splits by (homology.homology_edge_mask).
 
 Example:
     python split_overlap_report.py \
-        --pairs ../data/tsuboyama/homology/homology_pairs.csv \
-        --library_table ../data/splits_oct06_structure_library_assignment.csv \
-        --splits current=/path/hyperopt_splits.pkl new=../data/splits_oct06_structure.pkl \
+        --pairs ../data/splits_oct06_capped_homology_pairs.csv \
+        --library_table ../data/splits_oct06_capped_library_assignment.csv \
+        --splits current=/path/hyperopt_splits.pkl new=../data/splits_oct06_capped.pkl \
         --out_prefix ../data/visualizations/split_overlap
 """
 import argparse
@@ -22,6 +24,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+from homology import homology_edge_mask
 
 INTERNAL = ['train', 'val', 'test']
 REFERENCE_SETS = ['train', 'val', 'test', 'external', 'functional']
@@ -43,12 +47,6 @@ def membership_from_split(split_file: str, pair_ids) -> Dict[str, str]:
     return mem
 
 
-def homolog_edges(pairs: pd.DataFrame, seq_evalue: float, struct_evalue: float) -> pd.Series:
-    seq = pairs.get('seq_evalue', pd.Series(np.nan, index=pairs.index)) <= seq_evalue
-    struct = pairs.get('struct_evalue', pd.Series(np.nan, index=pairs.index)) <= struct_evalue
-    return seq.fillna(False) | struct.fillna(False)
-
-
 def best_partners(pairs: pd.DataFrame, mem: Dict[str, str]) -> pd.DataFrame:
     """Per internal library and reference set: strongest structural and sequence evidence."""
     p = pairs.copy()
@@ -62,7 +60,7 @@ def best_partners(pairs: pd.DataFrame, mem: Dict[str, str]) -> pd.DataFrame:
     both = both.sort_values('struct_evalue', na_position='last')
     agg = both.groupby(['lib', 'lib_set', 'ref_set']).agg(
         struct_evalue=('struct_evalue', 'min'), struct_tm_max=('struct_tm_max', 'max'),
-        seq_evalue=('seq_evalue', 'min'), seq_fident=('seq_fident', 'max'),
+        seq_evalue=('seq_evalue', 'min'), seq_fident=('seq_fident', 'max'), identity=('identity', 'max'),
         is_homolog=('is_homolog', 'any'), best_struct_partner=('partner', 'first')).reset_index()
     return agg
 
@@ -77,6 +75,17 @@ def overlap_matrix(best: pd.DataFrame, mem: Dict[str, str]) -> pd.DataFrame:
     for s in INTERNAL:
         frac.loc[s, s] = np.nan
     return frac
+
+
+def cross_set_maxima(pairs: pd.DataFrame, mem: Dict[str, str]) -> pd.DataFrame:
+    """Strongest similarity between each pair of sets (internal sets and external proteins)."""
+    sets = INTERNAL + ['external', 'functional']
+    p = pairs.assign(sa=pairs['a'].map(mem), sb=pairs['b'].map(mem)).dropna(subset=['sa', 'sb'])
+    p = p.loc[(p['sa'] != p['sb']) & (p['sa'].isin(INTERNAL) | p['sb'].isin(INTERNAL))]
+    key = p[['sa', 'sb']].apply(lambda r: ' vs '.join(sorted(r, key=sets.index)), axis=1)
+    aggs = {c: f for c, f in [('identity', 'max'), ('struct_tm_max', 'max'), ('struct_tm_min', 'max'),
+                              ('seq_evalue', 'min'), ('struct_evalue', 'min')] if c in p}
+    return p.groupby(key).agg(aggs)
 
 
 def composition(lib: pd.DataFrame, mem: Dict[str, str]) -> pd.DataFrame:
@@ -159,7 +168,11 @@ def plot_report(results: Dict[str, dict], struct_evalue: float, out_prefix: str)
 
 def main(args):
     pairs = pd.read_csv(args.pairs)
-    pairs['is_homolog'] = homolog_edges(pairs, args.seq_evalue, args.struct_evalue)
+    pairs['is_homolog'] = homology_edge_mask(pairs, args.seq_evalue, args.struct_evalue,
+                                             args.max_identity, args.max_tm, args.tm_norm)
+    for col in ['struct_evalue', 'struct_tm_max', 'seq_evalue', 'seq_fident']:
+        if col not in pairs:
+            pairs[col] = np.nan
     lib = pd.read_csv(args.library_table, index_col=0)
     pair_ids = set(pairs['a']) | set(pairs['b'])
 
@@ -168,18 +181,24 @@ def main(args):
         name, path = spec.split('=', 1)
         mem = membership_from_split(path, pair_ids)
         best = best_partners(pairs, mem)
-        res = {'best': best, 'overlap': overlap_matrix(best, mem), 'composition': composition(lib, mem)}
+        res = {'best': best, 'overlap': overlap_matrix(best, mem), 'composition': composition(lib, mem),
+               'maxima': cross_set_maxima(pairs, mem)}
         results[name] = res
         leaks = best.loc[best['is_homolog'] & (best['lib_set'] != best['ref_set'])].sort_values('struct_evalue')
         leaks.to_csv(f'{args.out_prefix}_{name}_homolog_pairs.csv', index=False)
         print(f'\n=== {name} ({path}) ===')
         print(res['composition'].to_string())
-        print('\nFraction of libraries with a homolog (seq E<=%g or struct E<=%g) in:' % (args.seq_evalue, args.struct_evalue))
+        print(f'\nFraction of libraries with a homolog (seq E<={args.seq_evalue:g}, struct E<={args.struct_evalue:g}, '
+              f'identity>{args.max_identity}, TM_{args.tm_norm}>{args.max_tm}) in:')
         print(res['overlap'].round(3).to_string())
+        print('\nStrongest similarity between sets:')
+        print(res['maxima'].round(4).to_string())
+        res['maxima'].to_csv(f'{args.out_prefix}_{name}_cross_set_maxima.csv')
         export[name] = {
             'composition': res['composition'].reset_index().to_dict(orient='records'),
             'overlap': res['overlap'].reset_index().rename(columns={'index': 'set'}).to_dict(orient='records'),
             'best': best.to_dict(orient='records'),
+            'maxima': res['maxima'].reset_index().rename(columns={'index': 'sets'}).to_dict(orient='records'),
         }
     with open(f'{args.out_prefix}_data.json', 'w') as f:
         json.dump(export, f, default=lambda x: None if pd.isna(x) else x)
@@ -193,5 +212,8 @@ if __name__ == '__main__':
     parser.add_argument('--splits', nargs='+', required=True, help='name=path.pkl entries')
     parser.add_argument('--seq_evalue', type=float, default=1e-3)
     parser.add_argument('--struct_evalue', type=float, default=1e-3)
+    parser.add_argument('--max_identity', type=float, default=0.40)
+    parser.add_argument('--max_tm', type=float, default=0.70)
+    parser.add_argument('--tm_norm', choices=['max', 'min'], default='max')
     parser.add_argument('--out_prefix', required=True)
     main(parser.parse_args())
