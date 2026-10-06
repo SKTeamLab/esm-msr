@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import argparse
 import pickle
@@ -23,8 +24,10 @@ from Bio.SeqRecord import SeqRecord
 from Bio import Align
 
 from esm.utils.structure.protein_chain import ProteinChain
-from esm_msr.preprocessing import MegaScaleDatasetPreprocessor
+from esm_msr.preprocess_megascale import MegaScaleDatasetPreprocessor
 import subprocess
+
+import homology as hom
 
 
 def dataframe_to_fasta(df, name_col, seq_col, output_file):
@@ -125,6 +128,156 @@ def generate_splits_from_clusters(candidate_datasets: pd.DataFrame,
     print(f"Split sizes - Training: {len(training_set)}, Validation: {len(validation_set)}, Testing: {len(splits['test'])} candidates, Thermostability: {len(splits['thermostability'])}")
 
     return splits
+
+
+def is_natural_library(code_wt: str) -> bool:
+    """Mega-scale libraries named by PDB id (or `v2_<PDB>`) are natural domains; the rest are designs."""
+    return bool(re.match(r'^[0-9][A-Za-z0-9]{3}$', code_wt)) or code_wt.startswith('v2_')
+
+
+def library_strata(df: pd.DataFrame) -> pd.DataFrame:
+    """Per-library counts used to stratify splits: natural/designed, singles and doubles.
+
+    Mirrors the training-time filters that change counts (PROSS backgrounds are dropped).
+    """
+    d = df.loc[~df['mut_structure'].fillna('').str.startswith('pross'), ['code_wt', 'mut_type']]
+    is_double = d['mut_type'].str.contains(':')
+    lib = pd.DataFrame({
+        'n_single': (~is_double).groupby(d['code_wt']).sum(),
+        'n_double': is_double.groupby(d['code_wt']).sum(),
+    })
+    lib['natural'] = [is_natural_library(c) for c in lib.index]
+    return lib
+
+
+STRATA = ['natural_libs', 'designed_libs', 'libs_with_doubles', 'n_single', 'n_double']
+
+
+def generate_stratified_splits(lib: pd.DataFrame,
+                               clusters: Dict[str, List[str]],
+                               quarantine_ids: Set[str],
+                               test_frac: float = 0.18,
+                               val_frac: float = 0.12,
+                               max_component_frac: float = 0.25,
+                               n_restarts: int = 2000,
+                               seed: int = 42) -> Tuple[Dict[str, List[str]], pd.DataFrame]:
+    """Assign whole homology clusters to train/val/test so that val and test match the pool's composition.
+
+    Clusters containing any quarantined id (external benchmark or functional protein) are
+    excluded entirely. Each remaining cluster is a unit, so no homology edge used to build
+    the clusters crosses a split. Val and test each aim for `frac` of every stratum in STRATA
+    (natural libraries, designed libraries, libraries with doubles, single and double mutation
+    counts); clusters bigger than `max_component_frac` of a split's library target go
+    straight to train. Greedy assignment over `n_restarts` random cluster orders, keeping the
+    order with the lowest summed squared relative deviation from the targets.
+
+    Returns the split dict (same format as generate_splits_from_clusters) and a per-library
+    assignment table.
+    """
+    lib = lib.copy()
+    lib['cluster'] = None
+    for rep, members in clusters.items():
+        for m in members:
+            if m in lib.index:
+                lib.loc[m, 'cluster'] = rep
+    missing = lib['cluster'].isna()
+    if missing.any():
+        # A library absent from the homology graph has no detected homologs: its own cluster
+        lib.loc[missing, 'cluster'] = lib.index[missing]
+
+    quarantined = {rep for rep, members in clusters.items() if any(m in quarantine_ids for m in members)}
+    lib['quarantined'] = lib['cluster'].isin(quarantined)
+    pool = lib.loc[~lib['quarantined']]
+
+    feats = pd.DataFrame({
+        'natural_libs': pool['natural'].astype(int),
+        'designed_libs': (~pool['natural']).astype(int),
+        'libs_with_doubles': (pool['n_double'] > 0).astype(int),
+        'n_single': pool['n_single'],
+        'n_double': pool['n_double'],
+    }).groupby(pool['cluster']).sum()[STRATA]
+    comp_size = pool.groupby('cluster').size()
+
+    totals = feats.sum().to_numpy(dtype=float)
+    targets = {'test': test_frac * totals, 'val': val_frac * totals}
+    eval_splits = ['test', 'val']
+    max_size = {s: max(1, int(max_component_frac * targets[s][:2].sum())) for s in eval_splits}
+
+    def score(alloc):
+        return sum(np.sum(((alloc[s] - targets[s]) / np.maximum(targets[s], 1.0)) ** 2) for s in eval_splits)
+
+    reps = sorted(feats.index)
+    X = feats.loc[reps].to_numpy(dtype=float)
+    rng = np.random.default_rng(seed)
+    best = (np.inf, None)
+    for _ in range(n_restarts):
+        alloc = {s: np.zeros(len(STRATA)) for s in eval_splits}
+        assign = {}
+        for i in rng.permutation(len(reps)):
+            choice, choice_score = 'train', score(alloc)
+            for s in eval_splits:
+                if comp_size[reps[i]] > max_size[s]:
+                    continue
+                alloc[s] += X[i]
+                sc = score(alloc)
+                alloc[s] -= X[i]
+                if sc < choice_score:
+                    choice, choice_score = s, sc
+            if choice != 'train':
+                alloc[choice] += X[i]
+            assign[reps[i]] = choice
+        sc = score(alloc)
+        if sc < best[0]:
+            best = (sc, assign)
+
+    lib['split'] = lib['cluster'].map(best[1]).where(~lib['quarantined'], 'quarantined')
+    summary = feats.groupby(pd.Series(best[1])).sum()
+    summary['frac_libs'] = (summary['natural_libs'] + summary['designed_libs']) / totals[:2].sum()
+    print(f"Stratified split (score {best[0]:.4f}); quarantined libraries: {int(lib['quarantined'].sum())}")
+    print(summary.loc[['train', 'val', 'test']].to_string())
+
+    to_pdb = lambda codes: sorted(c + '.pdb' for c in codes)
+    splits = {s: to_pdb(lib.index[lib['split'] == s]) for s in ['train', 'val', 'test']}
+    return splits, lib
+
+
+def build_homology_clusters(entries: Dict[str, Tuple[str, str]],
+                            sequences: Dict[str, str],
+                            work_dir: str,
+                            homology: str = 'both',
+                            seq_evalue: float = 1e-3,
+                            struct_evalue: float = 1e-3,
+                            tm_threshold: float = None,
+                            foldseek_bin: str = 'foldseek',
+                            mmseqs_bin: str = 'mmseqs',
+                            threads: int = 4) -> Tuple[Dict[str, List[str]], pd.DataFrame]:
+    """Single-linkage clusters over sequence (MMseqs2 E-value) and/or structure (Foldseek) homology edges.
+
+    entries: {name: (pdb_path, chain)} for structure search; sequences: {name: seq}. Returns
+    clusters and a table of every symmetrized pair with both kinds of evidence (NaN = no hit).
+    """
+    ids = sorted(set(entries) | set(sequences))
+    edges, tables = [], []
+    if homology in ('sequence', 'both'):
+        fasta = os.path.join(work_dir, 'homology_search.fasta')
+        SeqIO.write([SeqRecord(Seq(s), id=n, description='') for n, s in sequences.items()], fasta, 'fasta')
+        seq_pairs = hom.symmetrize_sequence_hits(
+            hom.mmseqs_all_vs_all(fasta, work_dir, mmseqs_bin=mmseqs_bin, threads=threads))
+        sel = seq_pairs.loc[seq_pairs['evalue'] <= seq_evalue]
+        edges += list(zip(sel['a'], sel['b']))
+        tables.append(seq_pairs.set_index(['a', 'b']).add_prefix('seq_'))
+    if homology in ('structure', 'both'):
+        pdb_dir = os.path.join(work_dir, 'single_chain_pdbs')
+        hom.write_single_chain_pdbs(entries, pdb_dir)
+        struct_pairs = hom.symmetrize_structure_hits(
+            hom.foldseek_all_vs_all(pdb_dir, work_dir, foldseek_bin=foldseek_bin, threads=threads))
+        edges += hom.homology_edges(struct_pairs, tm_threshold=tm_threshold, evalue_threshold=struct_evalue)
+        tables.append(struct_pairs.set_index(['a', 'b']).add_prefix('struct_'))
+    pairs = pd.concat(tables, axis=1).reset_index()
+    pairs.to_csv(os.path.join(work_dir, 'homology_pairs.csv'), index=False)
+    clusters = hom.connected_component_clusters(ids, edges)
+    print(f"Homology ({homology}): {len(edges)} edges, {len(clusters)} clusters over {len(ids)} entries")
+    return clusters, pairs
 
 
 # ==========================================
@@ -438,6 +591,7 @@ def main(args):
     random.seed(args.seed)
 
     REPO_ROOT = Path(__file__).resolve().parent.parent
+    DATA_ROOT = args.data_root or os.path.join(REPO_ROOT, 'data')
     homology_dir = os.path.join(REPO_ROOT, "data/tsuboyama/homology")
     
     if os.path.exists(homology_dir):
@@ -452,10 +606,15 @@ def main(args):
         'Myo': 'MGLSDGEWQLVLNVWGKVEADIPGHGQEVLIRLFKGHPETLEKFDKFKHLKSEDEMKASEDLKKHGATVLTALGGILKKKGHHEAEIKPLAQSHATKHKIPVKYLEFISECIIQVLQSKHPGDFGADAQGAMNKALELFRKDMASNYKELGFQG',
         'GB1': 'QYKLILNGKTLKGETTTEAVDAATAEKVFKQYANDNGVDGEWTYDDATKTFTVTE'
     }
+    # Structures of the functional proteins, relative to <data_root>/structures
+    functional_structures = {
+        'GRB2': 'GRB2_HUMAN.pdb', 'DLG4': 'DLG4_HUMAN.pdb', 'EstA': 'ESTA_BACSU.pdb',
+        'Myo': 'MYO_HUMAN.pdb', 'GB1': '1PGA_A_processed.pdb',
+    }
 
     ds = MegaScaleDatasetPreprocessor(
-        data_file=os.path.join(REPO_ROOT, 'data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv'), 
-        af_model_folder=os.path.join(REPO_ROOT, 'data/tsuboyama/AlphaFold_model_PDBs')
+        data_file=os.path.join(DATA_ROOT, 'tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv'), 
+        af_model_folder=os.path.join(DATA_ROOT, 'tsuboyama/AlphaFold_model_PDBs')
     )
     df = ds.df
     ref = df.groupby('code_wt').first().reset_index()
@@ -507,7 +666,7 @@ def main(args):
         thermo_raw_df = pd.concat(test_dfs)
         test_df = thermo_raw_df.drop_duplicates(subset=['code', 'chain']).copy().reset_index(drop=True)
 
-    test_df['pdb_seq'] = test_df.apply(lambda x: ProteinChain.from_pdb(os.path.join(REPO_ROOT, 'data/structures', x['pdb_file']), x['chain']).sequence, axis=1)
+    test_df['pdb_seq'] = test_df.apply(lambda x: ProteinChain.from_pdb(os.path.join(DATA_ROOT, 'structures', x['pdb_file']), x['chain']).sequence, axis=1)
     test_df['name'] = 'test_' + test_df['code'] + '_' + test_df['chain']
     dataframe_to_fasta(test_df, 'name', 'pdb_seq', os.path.join(homology_dir, 'test_seqs.fasta'))
 
@@ -520,14 +679,14 @@ def main(args):
             thermo_dict[dset] = {row['name']: row['pdb_seq'] for _, row in merged.iterrows() if pd.notna(row['pdb_seq'])}
 
     # Load Domainome
-    domainome_path = os.path.join(REPO_ROOT, 'data/domainome1/domainome_mapped_2026.csv')
+    domainome_path = os.path.join(DATA_ROOT, 'domainome1/domainome_mapped_2026.csv')
     if not os.path.exists(domainome_path): raise FileNotFoundError(f"Missing essential scaffold dataset at {domainome_path}.")
         
     domainome_raw_df = pd.read_csv(domainome_path).dropna(subset=['position', 'pdb_file', 'scaled_fitness'])
     domainome_raw_df['code'] = domainome_raw_df['domain_ID']
     domainome_raw_df['chain'] = 'A'
     domainome_ref = domainome_raw_df.drop_duplicates(subset=['code', 'chain']).copy()
-    domainome_ref['pdb_seq'] = domainome_ref.apply(lambda x: ProteinChain.from_pdb(os.path.join(REPO_ROOT, 'data/structures', x['pdb_file']), x['chain']).sequence, axis=1)
+    domainome_ref['pdb_seq'] = domainome_ref.apply(lambda x: ProteinChain.from_pdb(os.path.join(DATA_ROOT, 'structures', x['pdb_file']), x['chain']).sequence, axis=1)
     domainome_ref['name'] = 'domainome_' + domainome_ref['code'] + '_' + domainome_ref['chain']
     domainome_proteins = {row['name']: row['pdb_seq'] for _, row in domainome_ref.iterrows()}
 
@@ -542,7 +701,8 @@ def main(args):
         splits = {'train': raw_splits.get('train', []), 'val': raw_splits.get('val', [])}
         splits['test'] = raw_splits.get('test_internal', raw_splits.get('test', []))
         splits['thermostability'] = raw_splits.get('test_external', raw_splits.get('thermostability', []))
-    else:
+    elif args.homology == 'mmseqs_cluster':
+        # Legacy: MMseqs2 greedy clustering at --prescreen_identity, then the --rigorous_identity filter below
         commands = [
             f"cd {homology_dir} && mmseqs createdb combined.fasta DB && " +
             f"mmseqs cluster DB clu tmp --min-seq-id {args.prescreen_identity} -c 0.0 --alignment-mode 2 --threads 1 && " +
@@ -559,9 +719,29 @@ def main(args):
         splits = generate_splits_from_clusters(candidate_datasets, clusters, set(test_df['name'].tolist()), set(functional_proteins.keys()), args.allow_redundancy, args.n_validation, args.n_test_tsuboyama, args.seed)
         pd.Series({k:str(v) for k,v in splits.items()}).to_csv(os.path.join(REPO_ROOT, 'data', f'{args.output}.csv'))
         with open(os.path.join(REPO_ROOT, 'data', f'{args.output}.pkl'), 'wb') as f: pickle.dump(splits, f)
+    else:
+        # Domainome is not quarantined, so it stays out of the graph: it would otherwise bridge
+        # unrelated clusters through its own members.
+        struct_entries = {row['name']: (row['pdb_file'], 'A') for _, row in ref.iterrows()}
+        struct_entries.update({row['name']: (os.path.join(DATA_ROOT, 'structures', row['pdb_file']), row['chain']) for _, row in test_df.iterrows()})
+        struct_entries.update({pid: (os.path.join(DATA_ROOT, 'structures', fname), 'A') for pid, fname in functional_structures.items()})
+        search_seqs = {rec.id: str(rec.seq) for rec in sequences if not rec.id.startswith('domainome_')}
+        clusters, _ = build_homology_clusters(
+            struct_entries, search_seqs, homology_dir, homology=args.homology,
+            seq_evalue=args.seq_evalue, struct_evalue=args.struct_evalue, tm_threshold=args.tm_threshold,
+            foldseek_bin=args.foldseek_bin, mmseqs_bin=args.mmseqs_bin, threads=args.threads)
+        lib = library_strata(df)
+        quarantine_ids = set(test_df['name']) | set(functional_proteins)
+        splits, lib_assign = generate_stratified_splits(
+            lib, clusters, quarantine_ids, test_frac=args.test_frac, val_frac=args.val_frac,
+            max_component_frac=args.max_component_frac, n_restarts=args.n_restarts, seed=args.seed)
+        splits['thermostability'] = sorted(c.replace('|', '_') + '.pdb' for c in test_df['name'])
+        lib_assign.to_csv(os.path.join(REPO_ROOT, 'data', f'{args.output}_library_assignment.csv'))
+        pd.Series({k:str(v) for k,v in splits.items()}).to_csv(os.path.join(REPO_ROOT, 'data', f'{args.output}.csv'))
+        with open(os.path.join(REPO_ROOT, 'data', f'{args.output}.pkl'), 'wb') as f: pickle.dump(splits, f)
 
     split_file_path = args.input_split if args.input_split else os.path.join(REPO_ROOT, 'data', f'{args.output}.pkl')
-    ds_post = MegaScaleDatasetPreprocessor(data_file=os.path.join(REPO_ROOT, 'data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv'), af_model_folder=os.path.join(REPO_ROOT, 'data/tsuboyama/AlphaFold_model_PDBs'))
+    ds_post = MegaScaleDatasetPreprocessor(data_file=os.path.join(DATA_ROOT, 'tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv'), af_model_folder=os.path.join(DATA_ROOT, 'tsuboyama/AlphaFold_model_PDBs'))
     post_processed_splits = ds_post.create_training_splits(str(split_file_path), -1)
     splits.update({k: post_processed_splits[k] for k in ['train', 'val', 'test']})
 
@@ -616,8 +796,12 @@ def main(args):
         alignment_cache[pair_key] = res
         return res
 
+    # Only the legacy clustering needs the post-hoc identity filter. Connected-component
+    # clusters already keep every homology edge inside one split, and this identity measure
+    # (local matches / shorter length) is not length-aware: ~95% of the 40-70 residue designs
+    # reach 30% against at least one of the ~800 external benchmark proteins by chance.
     items_to_drop = {'train': set(), 'val': set()}
-    for tgt_set in ['train', 'val']:
+    for tgt_set in (['train', 'val'] if args.homology == 'mmseqs_cluster' else []):
         for tgt_id, tgt_seq in protein_sets_dict_pooled[tgt_set].items():
             for ref_set in ['test', 'thermostability', 'functional']:
                 for ref_id, ref_seq in protein_sets_dict_pooled[ref_set].items():
@@ -626,7 +810,7 @@ def main(args):
                     if identity >= args.rigorous_identity:
                         items_to_drop[tgt_set].add(tgt_id)
 
-    for tgt_id, tgt_seq in protein_sets_dict_pooled['val'].items():
+    for tgt_id, tgt_seq in (protein_sets_dict_pooled['val'].items() if args.homology == 'mmseqs_cluster' else []):
         for ref_id, ref_seq in protein_sets_dict_pooled['train'].items():
             if tgt_id in items_to_drop['val']: continue
             identity, _ = memoized_calculate_identity(tgt_seq, ref_seq)
@@ -686,7 +870,7 @@ def main(args):
     mds_pooled_internal = {k: protein_sets_dict_pooled[k] for k in ['train', 'val', 'test'] if k in protein_sets_dict_pooled}
     visualize_protein_similarity_mds_improved(mds_pooled_internal, args.rigorous_identity, output_filename=f"{vis_output_prefix}_pooled_mds_internal.png", calculate_identity_func=memoized_calculate_identity)
     mds_pooled_domainome = {k: protein_sets_dict_pooled[k] for k in ['train', 'domainome'] if k in protein_sets_dict_pooled}
-    visualize_protein_similarity_mds_improved(mds_pooled_internal, args.rigorous_identity, output_filename=f"{vis_output_prefix}_pooled_mds_domainome.png", calculate_identity_func=memoized_calculate_identity)
+    visualize_protein_similarity_mds_improved(mds_pooled_domainome, args.rigorous_identity, output_filename=f"{vis_output_prefix}_pooled_mds_domainome.png", calculate_identity_func=memoized_calculate_identity)
     run_intraset_analysis(protein_sets_dict_pooled, mut_counts_pooled, memoized_calculate_identity, f"{vis_output_prefix}_pooled_intraset")
 
     # --- SPLIT EXECUTIONS ---
@@ -709,6 +893,22 @@ if __name__ == "__main__":
         parser.add_argument('--prescreen_identity', type=float, default=0.25)
         parser.add_argument('--rigorous_identity', type=float, default=0.30)
         parser.add_argument('--seed', type=int, default=42)
+        parser.add_argument('--data_root', type=str, default=None,
+                            help='Directory holding tsuboyama/, structures/ and domainome1/ (default: <repo>/data). Outputs always go to <repo>/data.')
+        parser.add_argument('--homology', choices=['both', 'structure', 'sequence', 'mmseqs_cluster'], default='both',
+                            help="Homology edges for clustering: MMseqs2 search and/or Foldseek, single linkage; 'mmseqs_cluster' is the original method.")
+        parser.add_argument('--seq_evalue', type=float, default=1e-3)
+        parser.add_argument('--struct_evalue', type=float, default=1e-3)
+        parser.add_argument('--tm_threshold', type=float, default=None,
+                            help='Optional extra Foldseek edge criterion: TM-score (normalised by the shorter chain) >= this.')
+        parser.add_argument('--foldseek_bin', type=str, default='foldseek')
+        parser.add_argument('--mmseqs_bin', type=str, default='mmseqs')
+        parser.add_argument('--threads', type=int, default=4)
+        parser.add_argument('--test_frac', type=float, default=0.18)
+        parser.add_argument('--val_frac', type=float, default=0.12)
+        parser.add_argument('--max_component_frac', type=float, default=0.25,
+                            help='Clusters with more libraries than this fraction of the val/test library target go to train.')
+        parser.add_argument('--n_restarts', type=int, default=2000)
 
         args = parser.parse_args()
         main(args)
