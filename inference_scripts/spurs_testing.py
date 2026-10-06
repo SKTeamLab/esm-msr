@@ -77,7 +77,7 @@ def mock_esm_context():
 
 with mock_esm_context():
     from esm_msr.utils import parse_multimutant_column, sort_mutations_by_position, sum_individual_mutation_scores
-    from esm_msr.preprocessing import MegaScaleDatasetPreprocessor
+    from esm_msr.preprocess_megascale import MegaScaleDatasetPreprocessor
 
 import pandas as pd
 import os

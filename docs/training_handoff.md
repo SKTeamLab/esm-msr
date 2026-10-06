@@ -25,7 +25,7 @@ subset trains which adapter.
 | cache | `cache_v4/` — 404 libraries, 31 GB, unmasked structures | `ls cache_v4 \| wc -l` -> 404 |
 | raw table | `/home/sareeves/software/esm-msr/data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv` | exists |
 | structures | `.../AlphaFold_model_PDBs` | exists |
-| split | `/home/sareeves/software/esm-msr/data/hyperopt_splits.pkl` — 120 train / 26 val / 34 test | loads |
+| split | `repo/data/splits_oct06_structure.pkl` — 187 train / 30 val / 42 test proteins (192 / 30 / 46 libraries) | loads |
 | benchmarks | `repo/data/preprocessed` — `ptmuld_mapped.csv`, `s461_mapped.csv`, `ssym_mapped.csv` | all three present |
 | venv | `/home/sareeves/miniconda3/envs/msr_venv/bin/python` | never write into it |
 | env | `PYTHONPATH=<repo>/src`, `HF_HUB_OFFLINE=1` | ESM3 base is in the HF cache |
@@ -36,6 +36,17 @@ treat a missing cache as a blocker.
 
 **The cache does not need rebuilding to change masking.** It stores unmasked structures and
 masking is applied at run time.
+
+**The split changed on 2026-10-06** (`hyperopt_splits.pkl` -> `splits_oct06_structure.pkl`).
+The old split had sequence- and structure-level homologs across its boundaries: 5 of its 26
+val proteins had a Foldseek/MMseqs2 homolog in train, and 10 train/val proteins (mostly SH3
+and cold-shock domains) were homologs of the external benchmarks or GRB2. Its test set was
+also 82% designed proteins, and 18 of its 34 proteins came from one design family. The new
+split comes from `preprocessing/split_tsuboyama.py --homology both`. It clusters by MMseqs2
+or Foldseek E <= 1e-3, quarantines clusters that touch an external or functional protein,
+and stratifies val/test by natural vs designed proteins and by single and double counts.
+**Val and test metrics are not comparable to runs on the old split.** The audit is in
+`preprocessing/split_overlap_report.py`.
 
 ## 3. Canonical command
 
@@ -49,7 +60,7 @@ PY=/home/sareeves/miniconda3/envs/msr_venv/bin/python
   --experiment_name RUN_NAME --version 0 \
   --raw_data_file '/home/sareeves/software/esm-msr/data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv' \
   --af_model_folder '/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs' \
-  --split_file '/home/sareeves/software/esm-msr/data/hyperopt_splits.pkl' \
+  --split_file repo/data/splits_oct06_structure.pkl \
   --cache_path cache_v4 \
   --benchmark_data_path repo/data/preprocessed \
   --checkpoint_path training_checkpoints --log_dir training_logs \
@@ -81,7 +92,10 @@ before, just not interleaved.
 
 ### Expected cost, and where it goes
 
-Counted from `cache_v4` against the 120-protein train split:
+Counted from `cache_v4` against the old 120-protein train split. These counts have not been
+recounted for the new split. Its train set has ~237k single + double measurements against
+~191k before, so expect roughly 1.25x the rows and steps per epoch below, and 192 train
+libraries instead of 127:
 
 ```
 train: 127 libraries, 233,574 trainable items -> ~217,000 after min_additive_dG
