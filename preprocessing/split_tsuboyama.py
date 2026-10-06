@@ -870,7 +870,7 @@ def main(args):
     mds_pooled_internal = {k: protein_sets_dict_pooled[k] for k in ['train', 'val', 'test'] if k in protein_sets_dict_pooled}
     visualize_protein_similarity_mds_improved(mds_pooled_internal, args.rigorous_identity, output_filename=f"{vis_output_prefix}_pooled_mds_internal.png", calculate_identity_func=memoized_calculate_identity)
     mds_pooled_domainome = {k: protein_sets_dict_pooled[k] for k in ['train', 'domainome'] if k in protein_sets_dict_pooled}
-    visualize_protein_similarity_mds_improved(mds_pooled_domainome, args.rigorous_identity, output_filename=f"{vis_output_prefix}_pooled_mds_domainome.png", calculate_identity_func=memoized_calculate_identity)
+    visualize_protein_similarity_mds_improved(mds_pooled_internal, args.rigorous_identity, output_filename=f"{vis_output_prefix}_pooled_mds_domainome.png", calculate_identity_func=memoized_calculate_identity)
     run_intraset_analysis(protein_sets_dict_pooled, mut_counts_pooled, memoized_calculate_identity, f"{vis_output_prefix}_pooled_intraset")
 
     # --- SPLIT EXECUTIONS ---
