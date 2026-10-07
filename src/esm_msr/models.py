@@ -723,7 +723,10 @@ class MSRModel(ESM3PredictorBase):
         wt_id, mt_id, mut_mask = batch.get('wt_id'), batch.get('mt_id'), batch.get('mut_mask')
         coords, struct_tokens, plddt = batch.get('coords'), batch.get('structure_tokens'), batch.get('plddt')
 
-        if pass_type == 'mt' and getattr(self, 'mask_structure', False):
+        if pass_type == 'mt' and batch.get('mt_coords') is not None:
+            # hidden BEFORE the structure encoder (data.premask_structure): the item carries the MT pass's own coordinates and re-encoded tokens
+            coords, struct_tokens = batch['mt_coords'], batch['mt_structure_tokens']
+        elif pass_type == 'mt' and getattr(self, 'mask_structure', False):
             smp = batch.get('struct_mut_pos')
             smm = batch.get('struct_mut_mask')
             if smp is None:

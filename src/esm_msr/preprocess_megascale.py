@@ -386,6 +386,7 @@ class MegaScaleDatasetPreprocessor:
         incl_native_cond: bool = False,
         cond_structure: str = 'reuse',
         mask_mutated_structure: bool = False,
+        premask_mt_structure: bool = False,
         combine_validation: bool = False,
         min_additive_dG: Optional[float] = -1.0,
         subfloor_rank_only: bool = True,
@@ -430,6 +431,7 @@ class MegaScaleDatasetPreprocessor:
                     incl_native_cond=incl_native_cond,
                     cond_structure=cond_structure,
                     mask_mutated_structure=mask_mutated_structure,
+                    premask_mt_structure=premask_mt_structure,
                     dG_wt=self.dG_wt.get(code),
                     min_additive_dG=min_additive_dG,
                     subfloor_rank_only=subfloor_rank_only,
@@ -451,7 +453,7 @@ class MegaScaleDatasetPreprocessor:
         return loaders, loader_names
 
 
-def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encoder: Any, cache_path: str, generate_cache: bool) -> Tuple[List[DataLoader], List[str]]:
+def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encoder: Any, cache_path: str, generate_cache: bool, premask_mt_structure: bool = False) -> Tuple[List[DataLoader], List[str]]:
     """Loads static benchmark datasets."""
     val_dataloaders = []
     val_loader_names = []
@@ -476,6 +478,7 @@ def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encod
                     incl_doubles=True,
                     incl_reversions=False,
                     incl_cond=False,
+                    premask_mt_structure=premask_mt_structure,
                 )
                 
                 if len(dataset) == 0: continue
@@ -525,6 +528,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         incl_native_cond=args.incl_native_cond,
         cond_structure=args.cond_structure,
         mask_mutated_structure=args.mask_mutated_structure,
+        premask_mt_structure=getattr(args, 'premask_mt_structure', False),
         min_additive_dG=getattr(args, 'min_additive_dG', -1.0),
         subfloor_rank_only=getattr(args, 'subfloor_rank_only', True),
         censor_floor=getattr(args, 'censor_floor', None),
@@ -552,13 +556,15 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         incl_native_cond=args.incl_native_cond,
         cond_structure=args.cond_structure,
         mask_mutated_structure=args.mask_mutated_structure,
+        premask_mt_structure=getattr(args, 'premask_mt_structure', False),
         include_out_of_range=getattr(args, 'include_out_of_range', False),
         drop_unmeasured=True,
     )
 
     # Add Benchmarks
     bench_loaders, bench_names = load_benchmark_datasets(
-        args.benchmark_data_path, tokenizer, struct_enc_arg, args.cache_path, args.regenerate_cache
+        args.benchmark_data_path, tokenizer, struct_enc_arg, args.cache_path, args.regenerate_cache,
+        premask_mt_structure=getattr(args, 'premask_mt_structure', False),
     )
     
     if add_benchmarks_to_val:

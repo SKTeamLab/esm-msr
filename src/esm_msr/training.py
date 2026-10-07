@@ -114,7 +114,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.model = MSRModel(
             lora_config=lora_config, shared_scale_init=self.hparams.shared_scale_init, shared_bias_init=self.hparams.shared_bias_init, adapter_mode=self.hparams.adapter_mode,
             model_dtype=torch.float32,
-            mask_structure=self.hparams.get('mask_structure', False),
+            # with --premask_mt_structure the items carry their own masked structure; a loader without one (the external benchmarks, which are
+            # re-collated by the pooled loader) falls back to blanking at run time
+            mask_structure=bool(self.hparams.get('mask_structure', False) or self.hparams.get('premask_mt_structure', False)),
         )
         # Everything trainable at construction (adapters, calibration heads, unfrozen
         # layernorms); used to keep checkpoints adapter-only.

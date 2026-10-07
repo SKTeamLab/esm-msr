@@ -247,6 +247,12 @@ def parse_arguments() -> argparse.Namespace:
                             help="SEQUENCE masking of the scored position(s). Off by default: unmasked wt-marginal "
                                  "scored best on singles and tied on conditionals, and it costs one forward per variant "
                                  "instead of one per mutation.")
+    mask_group.add_argument('--premask_mt_structure', action=argparse.BooleanOptionalAction, default=False,
+                            help="CACHE-BUILD option: STRUCTURE masking BEFORE the structure encoder, for the MT pass only. Each item stores a second structure "
+                                 "in which the coordinates of every site its MT-pass sequence mutates (struct_mut_pos: its own mutations and any "
+                                 "background site the structure does not carry) are NaN and the whole chain is re-encoded into structure tokens, "
+                                 "so the neighbours' tokens no longer carry the hidden geometry either. The WT pass keeps the unmasked structure. "
+                                 "Needs its own cache (part of the cache name) and a structure encoder at build time. Exclusive with --mask_structure.")
     mask_group.add_argument('--mask_structure', action=argparse.BooleanOptionalAction, default=False,
                             help="STRUCTURE masking: blank coordinates and structure tokens at every position the MT-pass "
                                  "sequence mutates relative to the structure. The WT pass is never masked (its sequence and "
@@ -359,6 +365,10 @@ def parse_arguments() -> argparse.Namespace:
         if getattr(args, flag_name):
             parser.error(f"--subset_caps {retired_subset}=...: {retired_subset} items are no longer a training subset. Doubles enter training "
                          f"as their two conditional 'cond' items; reversions were never routed to a head (see esm_msr.routing).")
+
+    if args.premask_mt_structure and args.mask_structure:
+        parser.error("--premask_mt_structure (hide the mutated sites before the structure encoder, from the cache) and --mask_structure (blank "
+                     "tokens and coordinates at run time) are two ways of masking the same MT-pass structure: use one.")
 
     # Pair-matrix sampling for the component losses: columns of one position pair travel together, as many as fit in one micro-batch.
     if (args.mt_comp_offset, args.mt_comp_subst, args.mt_comp_int) != (1.0, 1.0, 1.0) or args.reg_balance:

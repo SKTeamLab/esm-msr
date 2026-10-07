@@ -31,6 +31,45 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
+def blank_residues(coords: torch.Tensor, plddt: torch.Tensor, positions_1idx) -> None:
+    """
+    Blanks residues in place: all their atoms' coordinates become NaN (how ESM3 marks an absent backbone frame) and their pLDDT 0.
+
+    ``coords`` is ``[..., L, A, 3]`` and ``plddt`` ``[..., L]``, as returned by ``ProteinChain.to_structure_encoder_inputs``, which has a
+    leading batch axis of 1: the residue axis is addressed from the end, never as axis 0. (Indexing axis 0 masked nothing for every position
+    but the first, and blanked the whole structure for that one.) ``positions_1idx`` are 1-based residue numbers; ones outside the chain are ignored.
+    """
+    n = coords.shape[-3]
+    for pos in positions_1idx:
+        idx = int(pos) - 1
+        if 0 <= idx < n:
+            coords[..., idx, :, :] = float('nan')
+            plddt[..., idx] = 0.0
+
+
+def encode_structure(structure_encoder, coords: torch.Tensor, residue_index: torch.Tensor) -> torch.Tensor:
+    """Structure tokens ``[L + 2]`` (BOS and EOS added) of unpadded ``coords`` ``[1, L, A, 3]``; NaN residues are encoded as absent."""
+    dev = next(structure_encoder.parameters()).device
+    _, tokens = structure_encoder.encode(coords.to(dev), residue_index=residue_index.to(dev))
+    tokens = F.pad(tokens.squeeze(0).cpu(), (1, 1), value=0)
+    tokens[0], tokens[-1] = C.STRUCTURE_BOS_TOKEN, C.STRUCTURE_EOS_TOKEN
+    return tokens
+
+
+def premask_structure(structure_encoder, coords_padded: torch.Tensor, plddt_padded: torch.Tensor, residue_index: torch.Tensor,
+                      positions_1idx) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    The structure an item's MT pass conditions on when the mutated sites' geometry is hidden BEFORE the structure encoder:
+    coordinates at ``positions_1idx`` are blanked (NaN) in the stored (padded) coordinates, the whole chain is re-encoded into structure tokens
+    (so the neighbours' tokens, which are computed from the local geometry, no longer carry the hidden residues either), and both are returned
+    padded the way items store them: ``(coords [1, L + 2, A, 3], tokens [L + 2])``.
+    """
+    inner = coords_padded[..., 1:-1, :, :].clone()
+    blank_residues(inner, plddt_padded[..., 1:-1].clone(), positions_1idx)
+    tokens = encode_structure(structure_encoder, inner, residue_index)
+    return F.pad(inner, (0, 0, 0, 0, 1, 1), value=float('inf')), tokens
+
+
 class MutationStabilityDataset(torch.utils.data.Dataset):
     """
     One protein library (one ``code``) of stability measurements, expanded into the
@@ -89,6 +128,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         incl_native_cond: bool = False,
         cond_structure: str = 'reuse',
         mask_mutated_structure: bool = False,
+        premask_mt_structure: bool = False,
         dG_wt: Optional[float] = None,
         min_additive_dG: Optional[float] = -1.0,
         subfloor_rank_only: bool = True,
@@ -123,6 +163,9 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 'model' prefers a modeled partner structure when one exists on disk,
                 falling back to 'mask'.
                 Baked into the generated items, so it is part of the cache name.
+            premask_mt_structure: Give every item a second structure for its MT pass: coordinates at ``struct_mut_pos`` (the item's own mutated
+                sites and any background site the structure does not carry) blanked BEFORE the structure encoder runs, then re-encoded into tokens
+                (``mt_coords_orig`` / ``mt_structure_tokens_orig``). The WT pass keeps the unmasked structure. Part of the cache name.
             mask_mutated_structure: Bake structure masking into the cache, by blanking the
                 coordinates of mutated sites before the structure encoder runs and re-encoding.
                 Off by default, which makes the cache carry one honest unmasked structure per
@@ -154,6 +197,9 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         self.incl_destab_bb = incl_destab_bb
         self.cond_structure = cond_structure
         self.mask_mutated_structure = mask_mutated_structure
+        self.premask_mt_structure = premask_mt_structure
+        self._premask_cache: Dict[Tuple, Tuple[np.ndarray, np.ndarray]] = {}
+        self._group_key = ''
         self.mut_structs_root = mut_structs_root
 
         self.include = {
@@ -176,6 +222,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
 
         cond_tag = '' if cond_structure == 'reuse' else f'_{cond_structure}'
         cond_tag += '_premasked' if mask_mutated_structure else ''
+        cond_tag += '_mtpremask' if premask_mt_structure else ''
         self.cache_path = os.path.join(
             path if path is not None else '.',
             f"{self.dms_name}_{self.score_name}_{self.CACHE_VERSION}{cond_tag}.pkl"
@@ -434,6 +481,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         the conditional effects.
         """
         self._mutant_struct_cache.clear()
+        self._premask_cache.clear()
         self._encoded_struct_cache.clear()
         self._parsed_pdb_cache.clear()
 
@@ -455,6 +503,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             if is_mutant_backbone and not self.incl_destab_bb:
                 continue
 
+            self._group_key = backbone
             protein_chain = ProteinChain.from_pdb(
                 group['pdb_file'].head(1).item() if is_mutant_backbone else backbone,
                 chain, is_predicted=is_predicted,
@@ -658,7 +707,21 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         if struct_mut_pos is None:
             struct_mut_pos = mut_pos
         logging.debug(f'Created data item: {code}, {mutations}, {subset_type}, {structure_type}, ddG={ddG}, dddG={dddG}')
+        premasked = {}
+        if self.premask_mt_structure:
+            if self.structure_encoder is None:
+                raise AssertionError('premask_mt_structure needs a structure encoder.')
+            # one masked structure per (backbone, set of hidden sites): items share the arrays, so the pickle stores each once
+            key = (self._group_key, structure_type, tuple(sorted(set(int(q) for q in struct_mut_pos))))
+            got = self._premask_cache.get(key) if structure_type == 'af' else None
+            if got is None:
+                mc, mt = premask_structure(self.structure_encoder, coords, plddt, residue_index, key[2])
+                got = (mc.cpu().numpy(), mt.cpu().numpy())
+                if structure_type == 'af':
+                    self._premask_cache[key] = got
+            premasked = {'mt_coords_orig': got[0], 'mt_structure_tokens_orig': got[1]}
         return {
+            **premasked,
             'pdb': code,
             'struct_mut_pos': np.array(sorted(set(int(p) for p in struct_mut_pos)), dtype=np.int64),
             'mutations': mutations,
@@ -795,25 +858,11 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         coords_unpadded, plddt_unpadded, residue_index_unpadded = protein_chain.to_structure_encoder_inputs()
 
         if effective_masking and mask_tuple:
-            for pos in mask_tuple:
-                idx = pos - 1
-                if 0 <= idx < coords_unpadded.shape[0]:
-                    coords_unpadded[idx, :, :] = float('nan') 
-                    plddt_unpadded[idx] = 0.0
+            blank_residues(coords_unpadded, plddt_unpadded, mask_tuple)
 
-        if self.structure_encoder:
-            _, struct_tokens_unpadded = self.structure_encoder.encode(
-                coords_unpadded,
-                residue_index=residue_index_unpadded
-            )
-            struct_tokens_unpadded = struct_tokens_unpadded.squeeze(0)
-        else:
+        if not self.structure_encoder:
             raise AssertionError("Structure encoder is required.")
-
-        struct_tokens_padded = F.pad(struct_tokens_unpadded, (1, 1), value=0)
-        if self.structure_encoder:
-            struct_tokens_padded[0] = C.STRUCTURE_BOS_TOKEN
-            struct_tokens_padded[-1] = C.STRUCTURE_EOS_TOKEN
+        struct_tokens_padded = encode_structure(self.structure_encoder, coords_unpadded, residue_index_unpadded)
 
         coords_padded = F.pad(coords_unpadded, (0, 0, 0, 0, 1, 1), value=torch.inf)
         plddt_padded = F.pad(plddt_unpadded, (1, 1), value=0)
@@ -879,6 +928,12 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     str_stack = torch.stack(str_list, dim=0)
     
     plddt_stack = torch.stack(plddt, dim=0)
+    # the pre-encoder-masked structure of the MT pass, when the cache carries one for every item
+    if batch and all('mt_coords_orig' in item for item in batch):
+        mt_crd_stack = torch.stack([torch.as_tensor(item['mt_coords_orig'], dtype=torch.float32) for item in batch], dim=0)
+        mt_str_stack = torch.stack([torch.as_tensor(item['mt_structure_tokens_orig'], dtype=torch.long) for item in batch], dim=0)
+    else:
+        mt_crd_stack = mt_str_stack = None
 
     try:
         ri_list = [torch.as_tensor(item['residue_index'], dtype=torch.long) for item in batch]
@@ -938,6 +993,8 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         'coords': crd_stack,
         'plddt': plddt_stack,                    
         'structure_tokens': str_stack,
+        'mt_coords': mt_crd_stack,
+        'mt_structure_tokens': mt_str_stack,
         'residue_index': ri_stack,
         'ground_truth': ddG,
         'subset_type': subset_type,
