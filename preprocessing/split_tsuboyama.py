@@ -6,7 +6,7 @@ import pickle
 import random
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, List, Set, Tuple, Any
+from typing import Dict, List, Optional, Set, Tuple, Any
 
 import pandas as pd
 import numpy as np
@@ -155,21 +155,22 @@ STRATA = ['natural_libs', 'designed_libs', 'libs_with_doubles', 'n_single', 'n_d
 
 def generate_stratified_splits(lib: pd.DataFrame,
                                clusters: Dict[str, List[str]],
-                               quarantine_ids: Set[str],
+                               excluded: Dict[str, str],
                                test_frac: float = 0.18,
                                val_frac: float = 0.12,
-                               max_component_frac: float = 0.25,
+                               max_component_size: int = 10,
                                n_restarts: int = 2000,
                                seed: int = 42) -> Tuple[Dict[str, List[str]], pd.DataFrame]:
     """Assign whole homology clusters to train/val/test so that val and test match the pool's composition.
 
-    Clusters containing any quarantined id (external benchmark or functional protein) are
-    excluded entirely. Each remaining cluster is a unit, so no homology edge used to build
-    the clusters crosses a split. Val and test each aim for `frac` of every stratum in STRATA
-    (natural libraries, designed libraries, libraries with doubles, single and double mutation
-    counts); clusters bigger than `max_component_frac` of a split's library target go
-    straight to train. Greedy assignment over `n_restarts` random cluster orders, keeping the
-    order with the lowest summed squared relative deviation from the targets.
+    `excluded` maps libraries left out of every split to the reason (e.g. homolog of an
+    external benchmark); `clusters` partitions the remaining libraries. Each cluster is a
+    unit, so no homology edge used to build the clusters crosses a split. Val and test each
+    aim for `frac` of every stratum in STRATA (natural libraries, designed libraries,
+    libraries with doubles, single and double mutation counts); clusters with more than
+    `max_component_size` libraries go straight to train. Greedy assignment over `n_restarts`
+    random cluster orders, keeping the order with the lowest summed squared relative
+    deviation from the targets.
 
     Returns the split dict (same format as generate_splits_from_clusters) and a per-library
     assignment table.
@@ -180,14 +181,12 @@ def generate_stratified_splits(lib: pd.DataFrame,
         for m in members:
             if m in lib.index:
                 lib.loc[m, 'cluster'] = rep
-    missing = lib['cluster'].isna()
+    lib['excluded'] = pd.Series(excluded).reindex(lib.index)
+    missing = lib['cluster'].isna() & lib['excluded'].isna()
     if missing.any():
         # A library absent from the homology graph has no detected homologs: its own cluster
         lib.loc[missing, 'cluster'] = lib.index[missing]
-
-    quarantined = {rep for rep, members in clusters.items() if any(m in quarantine_ids for m in members)}
-    lib['quarantined'] = lib['cluster'].isin(quarantined)
-    pool = lib.loc[~lib['quarantined']]
+    pool = lib.loc[lib['excluded'].isna()]
 
     feats = pd.DataFrame({
         'natural_libs': pool['natural'].astype(int),
@@ -201,7 +200,6 @@ def generate_stratified_splits(lib: pd.DataFrame,
     totals = feats.sum().to_numpy(dtype=float)
     targets = {'test': test_frac * totals, 'val': val_frac * totals}
     eval_splits = ['test', 'val']
-    max_size = {s: max(1, int(max_component_frac * targets[s][:2].sum())) for s in eval_splits}
 
     def score(alloc):
         return sum(np.sum(((alloc[s] - targets[s]) / np.maximum(targets[s], 1.0)) ** 2) for s in eval_splits)
@@ -215,14 +213,13 @@ def generate_stratified_splits(lib: pd.DataFrame,
         assign = {}
         for i in rng.permutation(len(reps)):
             choice, choice_score = 'train', score(alloc)
-            for s in eval_splits:
-                if comp_size[reps[i]] > max_size[s]:
-                    continue
-                alloc[s] += X[i]
-                sc = score(alloc)
-                alloc[s] -= X[i]
-                if sc < choice_score:
-                    choice, choice_score = s, sc
+            if comp_size[reps[i]] <= max_component_size:
+                for s in eval_splits:
+                    alloc[s] += X[i]
+                    sc = score(alloc)
+                    alloc[s] -= X[i]
+                    if sc < choice_score:
+                        choice, choice_score = s, sc
             if choice != 'train':
                 alloc[choice] += X[i]
             assign[reps[i]] = choice
@@ -230,54 +227,119 @@ def generate_stratified_splits(lib: pd.DataFrame,
         if sc < best[0]:
             best = (sc, assign)
 
-    lib['split'] = lib['cluster'].map(best[1]).where(~lib['quarantined'], 'quarantined')
-    summary = feats.groupby(pd.Series(best[1])).sum()
+    lib['split'] = lib['cluster'].map(best[1]).where(lib['excluded'].isna(), 'excluded')
+    summary = feats.groupby(pd.Series(best[1])).sum().reindex(['train', 'val', 'test'], fill_value=0)
     summary['frac_libs'] = (summary['natural_libs'] + summary['designed_libs']) / totals[:2].sum()
-    print(f"Stratified split (score {best[0]:.4f}); quarantined libraries: {int(lib['quarantined'].sum())}")
-    print(summary.loc[['train', 'val', 'test']].to_string())
+    print(f"Stratified split (score {best[0]:.4f}); excluded libraries: {lib['excluded'].value_counts().to_dict()}")
+    print(summary.to_string())
 
     to_pdb = lambda codes: sorted(c + '.pdb' for c in codes)
     splits = {s: to_pdb(lib.index[lib['split'] == s]) for s in ['train', 'val', 'test']}
     return splits, lib
 
 
-def build_homology_clusters(entries: Dict[str, Tuple[str, str]],
-                            sequences: Dict[str, str],
-                            work_dir: str,
-                            homology: str = 'both',
-                            seq_evalue: float = 1e-3,
-                            struct_evalue: float = 1e-3,
-                            tm_threshold: float = None,
-                            foldseek_bin: str = 'foldseek',
-                            mmseqs_bin: str = 'mmseqs',
-                            threads: int = 4) -> Tuple[Dict[str, List[str]], pd.DataFrame]:
-    """Single-linkage clusters over sequence (MMseqs2 E-value) and/or structure (Foldseek) homology edges.
+def compute_homology_pairs(entries: Dict[str, Tuple[str, str]],
+                           sequences: Dict[str, str],
+                           library_ids: List[str],
+                           work_dir: str,
+                           homology: str = 'both',
+                           foldseek_bin: str = 'foldseek',
+                           mmseqs_bin: str = 'mmseqs',
+                           threads: int = 4) -> pd.DataFrame:
+    """Every pair with any evidence: MMseqs2 (seq_*), Foldseek (struct_*) and pairwise identity.
 
-    entries: {name: (pdb_path, chain)} for structure search; sequences: {name: seq}. Returns
-    clusters and a table of every symmetrized pair with both kinds of evidence (NaN = no hit).
+    entries: {name: (pdb_path, chain)} for the structure search; sequences: {name: seq} for
+    the sequence search and identity. Identity is computed for every library against every
+    other entry (libraries and external proteins), since search tools can miss highly
+    similar low-complexity designs. NaN means the tool reported no hit for that pair.
     """
-    ids = sorted(set(entries) | set(sequences))
-    edges, tables = [], []
+    tables = []
     if homology in ('sequence', 'both'):
         fasta = os.path.join(work_dir, 'homology_search.fasta')
         SeqIO.write([SeqRecord(Seq(s), id=n, description='') for n, s in sequences.items()], fasta, 'fasta')
         seq_pairs = hom.symmetrize_sequence_hits(
             hom.mmseqs_all_vs_all(fasta, work_dir, mmseqs_bin=mmseqs_bin, threads=threads))
-        sel = seq_pairs.loc[seq_pairs['evalue'] <= seq_evalue]
-        edges += list(zip(sel['a'], sel['b']))
         tables.append(seq_pairs.set_index(['a', 'b']).add_prefix('seq_'))
     if homology in ('structure', 'both'):
         pdb_dir = os.path.join(work_dir, 'single_chain_pdbs')
         hom.write_single_chain_pdbs(entries, pdb_dir)
         struct_pairs = hom.symmetrize_structure_hits(
             hom.foldseek_all_vs_all(pdb_dir, work_dir, foldseek_bin=foldseek_bin, threads=threads))
-        edges += hom.homology_edges(struct_pairs, tm_threshold=tm_threshold, evalue_threshold=struct_evalue)
         tables.append(struct_pairs.set_index(['a', 'b']).add_prefix('struct_'))
+    libs = [l for l in library_ids if l in sequences]
+    identity = hom.pairwise_identity(sequences, ((l, o) for l in libs for o in sequences), threads=threads)
+    tables.append(identity.set_index(['a', 'b']))
     pairs = pd.concat(tables, axis=1).reset_index()
     pairs.to_csv(os.path.join(work_dir, 'homology_pairs.csv'), index=False)
-    clusters = hom.connected_component_clusters(ids, edges)
-    print(f"Homology ({homology}): {len(edges)} edges, {len(clusters)} clusters over {len(ids)} entries")
-    return clusters, pairs
+    return pairs
+
+
+def make_homology_split(lib: pd.DataFrame, pairs: pd.DataFrame, external_ids: Set[str],
+                        seq_evalue: float = 1e-3, struct_evalue: float = 1e-3,
+                        max_identity: Optional[float] = 0.40, max_tm: Optional[float] = None,
+                        tm_norm: str = 'max', prune: bool = True, bridge_max_cut_frac: float = 0.25,
+                        bridge_min_family: int = 5, test_frac: float = 0.18, val_frac: float = 0.12,
+                        max_component_frac: float = 0.25, n_restarts: int = 2000,
+                        seed: int = 42) -> Tuple[Dict[str, List[str]], pd.DataFrame]:
+    """Homology-aware split of the mega-scale libraries.
+
+    1. Edges: pairs meeting any criterion of `homology.homology_edge_mask`.
+    2. Libraries with an edge to an external benchmark or functional protein are excluded.
+    3. Oversized single-linkage components are split into families by removing bridge
+       libraries (`homology.prune_bridges`); the bridges are excluded too.
+    4. Remaining components are assigned to train/val/test by `generate_stratified_splits`.
+    5. Every pair is re-checked: no edge may join two different splits, or a split and an
+       external protein. Raises if one does.
+    """
+    edges = pairs.loc[hom.homology_edge_mask(pairs, seq_evalue, struct_evalue, max_identity, max_tm, tm_norm), ['a', 'b']]
+    libs = set(lib.index)
+    to_ext = (edges['a'].isin(libs) & edges['b'].isin(external_ids)) | (edges['b'].isin(libs) & edges['a'].isin(external_ids))
+    direct = set(edges.loc[to_ext, 'a']) | set(edges.loc[to_ext, 'b'])
+    excluded = {l: 'external_homolog' for l in direct & libs}
+    pool = sorted(libs - direct)
+    internal = edges.loc[edges['a'].isin(pool) & edges['b'].isin(pool)]
+    internal = list(zip(internal['a'], internal['b']))
+
+    max_component_size = max(1, int(max_component_frac * test_frac * len(pool)))
+    if prune:
+        bridges = hom.prune_bridges(pool, internal, max_component_size,
+                                    min_family_size=bridge_min_family, max_cut_frac=bridge_max_cut_frac)
+        excluded.update({b: 'bridge' for b in bridges})
+        pool = [l for l in pool if l not in bridges]
+    clusters = hom.connected_component_clusters(pool, internal)
+    splits, lib_assign = generate_stratified_splits(
+        lib, clusters, excluded, test_frac=test_frac, val_frac=val_frac,
+        max_component_size=max_component_size, n_restarts=n_restarts, seed=seed)
+
+    where = lib_assign['split'].to_dict()
+    where.update({e: 'external' for e in external_ids})
+    sa, sb = edges['a'].map(where), edges['b'].map(where)
+    in_split = lambda x: x.isin(['train', 'val', 'test'])
+    bad = edges.loc[(in_split(sa) | in_split(sb)) & sa.notna() & sb.notna() & (sa != sb) & (sa != 'excluded') & (sb != 'excluded')]
+    if len(bad):
+        raise AssertionError(f"{len(bad)} homologous pairs cross split boundaries:\n{bad.head(20)}")
+    return splits, lib_assign
+
+
+def split_overlap_summary(pairs: pd.DataFrame, lib_assign: pd.DataFrame, external_ids: Set[str]) -> pd.DataFrame:
+    """Per set pair, the extreme of each similarity measure taken independently.
+
+    Each column is a separate maximum (or minimum, for E-values) over all pairs joining the
+    two sets, so a row usually describes several different pairs and no single pair is as
+    similar as the row looks. These are reporting bounds, not leaks: whether a pair may
+    straddle two sets is decided by `homology.homology_edge_mask`, which make_homology_split
+    re-checks for every pair. A borderline E-value here (say 0.02) is simply a pair that
+    failed every criterion.
+    """
+    where = lib_assign['split'].to_dict()
+    where.update({e: 'external' for e in external_ids})
+    p = pairs.assign(sa=pairs['a'].map(where), sb=pairs['b'].map(where))
+    p = p.loc[p['sa'].isin(['train', 'val', 'test', 'external']) & p['sb'].isin(['train', 'val', 'test', 'external']) & (p['sa'] != p['sb'])]
+    p = p.loc[~((p['sa'] == 'external') & (p['sb'] == 'external'))]
+    key = p[['sa', 'sb']].apply(lambda r: ' vs '.join(sorted(r)), axis=1)
+    aggs = {c: f for c, f in [('identity', 'max'), ('struct_tm_max', 'max'), ('struct_tm_min', 'max'),
+                              ('seq_evalue', 'min'), ('struct_evalue', 'min')] if c in p}
+    return p.groupby(key).agg(aggs)
 
 
 # ==========================================
@@ -619,6 +681,13 @@ def main(args):
     df = ds.df
     ref = df.groupby('code_wt').first().reset_index()
     ref['name'] = ref['code_wt']
+    # groupby().first() lands on a *mutant* row: the 'wt' rows are filtered out during
+    # preprocessing. Homology searches and the identity cap must see the wild type, which
+    # matches the AlphaFold model the structure search uses.
+    ref['aa_seq'] = ref['code_wt'].map(ds.aa_seq_wt).fillna(ref['aa_seq'])
+    missing_wt = sorted(set(ref.loc[~ref['code_wt'].isin(ds.aa_seq_wt), 'code_wt']))
+    if missing_wt:
+        print(f"No 'wt' row for {len(missing_wt)} libraries; using a mutant sequence for: {missing_wt}")
         
     dataframe_to_fasta(ref.reset_index(), 'name', 'aa_seq', os.path.join(homology_dir, 'tsuboyama_seqs.fasta'))
 
@@ -726,15 +795,21 @@ def main(args):
         struct_entries.update({row['name']: (os.path.join(DATA_ROOT, 'structures', row['pdb_file']), row['chain']) for _, row in test_df.iterrows()})
         struct_entries.update({pid: (os.path.join(DATA_ROOT, 'structures', fname), 'A') for pid, fname in functional_structures.items()})
         search_seqs = {rec.id: str(rec.seq) for rec in sequences if not rec.id.startswith('domainome_')}
-        clusters, _ = build_homology_clusters(
-            struct_entries, search_seqs, homology_dir, homology=args.homology,
-            seq_evalue=args.seq_evalue, struct_evalue=args.struct_evalue, tm_threshold=args.tm_threshold,
-            foldseek_bin=args.foldseek_bin, mmseqs_bin=args.mmseqs_bin, threads=args.threads)
         lib = library_strata(df)
-        quarantine_ids = set(test_df['name']) | set(functional_proteins)
-        splits, lib_assign = generate_stratified_splits(
-            lib, clusters, quarantine_ids, test_frac=args.test_frac, val_frac=args.val_frac,
+        pairs = compute_homology_pairs(
+            struct_entries, search_seqs, list(lib.index), homology_dir, homology=args.homology,
+            foldseek_bin=args.foldseek_bin, mmseqs_bin=args.mmseqs_bin, threads=args.threads)
+        # homology_dir is wiped on every run; keep the pair table next to the split
+        pairs.to_csv(os.path.join(REPO_ROOT, 'data', f'{args.output}_homology_pairs.csv'), index=False)
+        external_ids = set(test_df['name']) | set(functional_proteins)
+        splits, lib_assign = make_homology_split(
+            lib, pairs, external_ids, seq_evalue=args.seq_evalue, struct_evalue=args.struct_evalue,
+            max_identity=args.max_identity, max_tm=args.max_tm, tm_norm=args.tm_norm,
+            prune=not args.no_bridge_pruning, bridge_max_cut_frac=args.bridge_max_cut_frac,
+            bridge_min_family=args.bridge_min_family, test_frac=args.test_frac, val_frac=args.val_frac,
             max_component_frac=args.max_component_frac, n_restarts=args.n_restarts, seed=args.seed)
+        print("Per-measure extremes between sets (each column is a different pair; see split_overlap_summary):")
+        print(split_overlap_summary(pairs, lib_assign, external_ids).to_string())
         splits['thermostability'] = sorted(c.replace('|', '_') + '.pdb' for c in test_df['name'])
         lib_assign.to_csv(os.path.join(REPO_ROOT, 'data', f'{args.output}_library_assignment.csv'))
         pd.Series({k:str(v) for k,v in splits.items()}).to_csv(os.path.join(REPO_ROOT, 'data', f'{args.output}.csv'))
@@ -897,17 +972,25 @@ if __name__ == "__main__":
                             help='Directory holding tsuboyama/, structures/ and domainome1/ (default: <repo>/data). Outputs always go to <repo>/data.')
         parser.add_argument('--homology', choices=['both', 'structure', 'sequence', 'mmseqs_cluster'], default='both',
                             help="Homology edges for clustering: MMseqs2 search and/or Foldseek, single linkage; 'mmseqs_cluster' is the original method.")
-        parser.add_argument('--seq_evalue', type=float, default=1e-3)
-        parser.add_argument('--struct_evalue', type=float, default=1e-3)
-        parser.add_argument('--tm_threshold', type=float, default=None,
-                            help='Optional extra Foldseek edge criterion: TM-score (normalised by the shorter chain) >= this.')
+        parser.add_argument('--seq_evalue', type=float, default=1e-3, help='MMseqs2 E-value at or below which a pair is homologous.')
+        parser.add_argument('--struct_evalue', type=float, default=1e-3, help='Foldseek E-value at or below which a pair is homologous.')
+        parser.add_argument('--max_identity', type=float, default=0.40,
+                            help='Highest identity (local-alignment matches / shorter length) allowed between splits or to an external protein.')
+        parser.add_argument('--max_tm', type=float, default=0.70,
+                            help='Highest Foldseek TM-score allowed between splits or to an external protein.')
+        parser.add_argument('--tm_norm', choices=['max', 'min'], default='max',
+                            help="TM-score normalisation for --max_tm: 'max' = by the shorter chain (stricter), 'min' = by the longer.")
+        parser.add_argument('--no_bridge_pruning', action='store_true',
+                            help='Keep libraries that chain distinct families into one oversized component.')
+        parser.add_argument('--bridge_max_cut_frac', type=float, default=0.25)
+        parser.add_argument('--bridge_min_family', type=int, default=5)
         parser.add_argument('--foldseek_bin', type=str, default='foldseek')
         parser.add_argument('--mmseqs_bin', type=str, default='mmseqs')
         parser.add_argument('--threads', type=int, default=4)
         parser.add_argument('--test_frac', type=float, default=0.18)
         parser.add_argument('--val_frac', type=float, default=0.12)
         parser.add_argument('--max_component_frac', type=float, default=0.25,
-                            help='Clusters with more libraries than this fraction of the val/test library target go to train.')
+                            help='Clusters with more libraries than this fraction of the test library target go to train (and are candidates for bridge pruning).')
         parser.add_argument('--n_restarts', type=int, default=2000)
 
         args = parser.parse_args()

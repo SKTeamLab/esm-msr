@@ -15,7 +15,7 @@ COMET_KEY=$(sed -n 's/^ *api_key *= *//p' ~/.comet.config | head -1)
   --experiment_name $NAME --version 0 \
   --raw_data_file '/home/sareeves/software/esm-msr/data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv' \
   --af_model_folder '/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs' \
-  --split_file ${SPLIT:-$WT/data/splits_oct06_structure.pkl} \
+  --split_file ${SPLIT:-$WT/data/splits_oct06_capped.pkl} \
   --cache_path cache_v7 \
   --benchmark_data_path $WT/data/preprocessed \
   --checkpoint_path training_checkpoints --log_dir training_logs \
