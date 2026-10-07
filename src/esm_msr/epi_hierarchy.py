@@ -64,6 +64,27 @@ def _mean(xs) -> float:
     return float(np.mean(xs)) if xs else NAN
 
 
+def predicted_dddG(values, n_mutations, mut_keys):
+    """
+    Predicted dddG of every double: ``value_AB - value_A - value_B`` of a head's per-item values.
+
+    ``n_mutations[i]`` is item i's number of mutations and ``mut_keys[i]`` the tuple of its mutations (hashable, each ``(..., wt, position, mutant
+    residue)``; a pooled key starts with the library name, so a double only finds its own library's singles). NaN for any item that is not a double
+    with both singles present, or whose value is not finite.
+    """
+    values = np.asarray(values, float)
+    out = np.full(len(values), np.nan)
+    if mut_keys is None or len(mut_keys) != len(values):
+        return out
+    single = {tuple(k[0]): values[i] for i, k in enumerate(mut_keys) if k is not None and int(n_mutations[i]) == 1 and len(k) == 1}
+    for i, k in enumerate(mut_keys):
+        if k is not None and int(n_mutations[i]) == 2 and len(k) == 2:
+            a, b = single.get(tuple(k[0])), single.get(tuple(k[1]))
+            if a is not None and b is not None:
+                out[i] = values[i] - a - b
+    return out
+
+
 def build_matrices(pred, label, mut_keys, is_double, min_pair_cells: int = 20):
     """
     Position-pair matrices of the doubles that have both a prediction and a measurement.

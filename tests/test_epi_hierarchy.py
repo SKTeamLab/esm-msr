@@ -92,3 +92,18 @@ class TestHierarchy(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestPredictedDddG(unittest.TestCase):
+    def test_second_difference_of_a_head_within_a_library(self):
+        m = lambda lib, p, r: (lib, 'X', p, r)
+        keys = [(m('L', 1, 'A'),), (m('L', 2, 'C'),), (m('L', 1, 'A'), m('L', 2, 'C')), (m('M', 1, 'A'), m('M', 2, 'C')), (m('L', 1, 'A'), m('L', 9, 'G'))]
+        n = [1, 1, 2, 2, 2]
+        out = H.predicted_dddG([1.0, 2.0, 5.0, 9.0, 7.0], n, keys)
+        self.assertEqual(out[2], 5.0 - 1.0 - 2.0)
+        self.assertTrue(np.isnan(out[:2]).all())           # singles have none
+        self.assertTrue(np.isnan(out[3]))                  # the library M has no singles
+        self.assertTrue(np.isnan(out[4]))                  # one of its singles is absent
+
+    def test_without_keys_everything_is_nan(self):
+        self.assertTrue(np.isnan(H.predicted_dddG([1.0, 2.0], [1, 2], None)).all())
