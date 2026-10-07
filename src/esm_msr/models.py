@@ -611,6 +611,29 @@ class MSRModel(ESM3PredictorBase):
 
         return {'wt_lora_pred': wt_pred_cal, 'mt_lora_pred': mt_pred_cal, 'wt_lora_raw': wt_pred_raw, 'mt_lora_raw': mt_pred_raw, 'combined_pred': combined_pred, 'epi_pred': epi_pred}
 
+    def forward_cycle(self, batch_in: Dict[str, Any], mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
+        """
+        The two passes forward_batch does not run, both returned as a FORWARD (wild type -> mutant) ddG estimate in kcal/mol-like units:
+
+        * ``wt_rev``: the WT adapter on the MUTATED sequence, asked about the reverse mutation (mutant -> wild type). That is the adapter's
+          native readout (the 'from' residue visible) of the reverse change, so it is calibrated as usual and negated to give the forward ddG.
+        * ``mt_fwd``: the MT adapter on the WILD-TYPE sequence, scoring the forward mutation. This input regime (a 'from' residue visible, no
+          background mutation) is one the MT adapter never trains on, so it is a probe, not a trusted predictor.
+
+        Together with forward_batch's WT pass (``wt_fwd``) and MT pass (``mt_rev``: mutated sequence in, the reverse readout is the forward one
+        up to sign) they make the 2 x 2 of adapters and directions: HEAD_MUT = (X_AB + ~X_AB)/2 for X in {WT, MT}.
+        """
+        if self.training:
+            raise AssertionError("forward_cycle is for inference only.")
+        rev = dict(batch_in)
+        rev['wt_sequence_tokens'] = batch_in['mt_sequence_tokens']
+        rev['wt_id'], rev['mt_id'] = batch_in['mt_id'], batch_in['wt_id']
+        wt_rev = self.forward_partitioned(rev, pass_type='wt', mask_strategy=mask_strategy)['pred_calibrated']
+        fwd = dict(batch_in)
+        fwd['mt_sequence_tokens'] = batch_in['wt_sequence_tokens']
+        mt_fwd = self.forward_partitioned(fwd, pass_type='mt', mask_strategy=mask_strategy)['pred_calibrated']
+        return {'wt_rev': -wt_rev, 'mt_fwd': mt_fwd}
+
     def _process_logits(self, logits: torch.Tensor) -> torch.Tensor:
         if not self.log_likelihood: return logits
         idx = self.canonical_idx_tensor

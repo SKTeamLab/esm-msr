@@ -61,3 +61,52 @@ class TestPooling(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def library_with_doubles(rng, with_cycle):
+    """One position pair, a 5 x 5 matrix of doubles, and the 10 singles they are made of, in the shape validation_step produces."""
+    A, B = list('ACDEF'), list('GHIKL')
+    muts = [(('X', 3, a),) for a in A] + [(('Y', 9, b),) for b in B]
+    sub = ['single'] * 10
+    for a in A:
+        for b in B:
+            muts.append((('X', 3, a), ('Y', 9, b))); sub.append('double')
+    n = len(muts)
+    o = {'wt_scores': rng.normal(size=n), 'mt_scores': rng.normal(size=n), 'comb_scores': rng.normal(size=n),
+         'ground_truths': rng.normal(size=n), 'dddG': np.where(np.array(sub) == 'double', rng.normal(size=n), np.nan),
+         'cens': np.zeros(n, dtype=int), 'subset_type': sub, 'flip_key': [''] * n, 'row_id': np.full(n, -1), 'mut_key': muts}
+    for k in ('wt', 'mt', 'comb'):
+        o[f'{k}_obs'] = rng.normal(size=n)
+    if with_cycle:
+        o['wt_rev_scores'], o['mt_fwd_scores'] = rng.normal(size=n), rng.normal(size=n)
+        o['wt_ctx_obs'], o['mt_ctx_obs'] = rng.normal(size=n), rng.normal(size=n)
+    return o
+
+
+class TestEpistasisHierarchyLogging(unittest.TestCase):
+    def run_epoch(self, with_cycle):
+        rng = np.random.default_rng(1)
+        s = Stub(link=object())
+        s.val_dataloader_names = ['lib']
+        s.hparams = types.SimpleNamespace(flip_list_min=4, val_cycle_passes=with_cycle)
+        s.validation_step_outputs = defaultdict(list, {0: [library_with_doubles(rng, with_cycle)]})
+        training.ESM3EpistasisLightningModule.on_validation_epoch_end(s)
+        return s.logged
+
+    def test_the_always_available_heads_are_logged_without_the_cycle_passes(self):
+        logged = self.run_epoch(False)
+        for head in ('comb', 'wt_add'):
+            self.assertIn(f'val_epi_global_rho_{head}', logged)
+            self.assertIn(f'val_epi_matrix_rank_{head}', logged)
+        self.assertFalse([k for k in logged if k.endswith('_wt_ctx') or k.endswith('_mt_ctx')])
+        self.assertEqual(logged['val_epi_n_doubles'], 25.0)
+
+    def test_the_symmetrised_heads_appear_with_the_cycle_passes(self):
+        logged = self.run_epoch(True)
+        for head in ('comb', 'wt_add', 'wt_ctx', 'mt_ctx'):
+            self.assertIn(f'val_epi_global_rmse_{head}', logged)
+
+    def test_the_retired_epistasis_names_are_gone(self):
+        logged = self.run_epoch(False)
+        for gone in ('val_rho_epi_full_pooled', 'val_rho_epi_full_avg', 'val_rho_pair_offset_pooled', 'val_rho_subst_effect_pooled'):
+            self.assertNotIn(gone, logged)

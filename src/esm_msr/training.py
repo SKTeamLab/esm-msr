@@ -28,7 +28,7 @@ from esm_msr.flipkeys import split_flip_key
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
-from esm_msr import stats
+from esm_msr import stats, epi_hierarchy
 from esm_msr import routing
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -843,8 +843,24 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 for k, key in (('wt', 'wt_lora_pred'), ('mt', 'mt_lora_pred'), ('comb', 'combined_pred')):
                     v = out_dict[key]
                     extra[f'{k}_obs'] = _np(self.link_head.obs_ddG(v.float(), dgw)) if torch.is_tensor(v) else np.full(n_items, float('nan'))
+        cyc = {}
+        if getattr(self.hparams, 'val_cycle_passes', False):
+            # the two non-native passes on singles and doubles (see MSRModel.forward_cycle); NaN for every other item
+            kinds = np.array([routing.canonical_subset(s) for s in batch.get('subset_type', ['single'] * n_items)])
+            rows = np.where(np.isin(kinds, ['single', 'double']))[0]
+            wt_rev, mt_fwd = np.full(n_items, np.nan), np.full(n_items, np.nan)
+            if len(rows):
+                sub = utils.slice_batch_by_index(batch, torch.as_tensor(rows, device=out_dict['wt_lora_pred'].device))
+                with torch.inference_mode():
+                    c = self.model.forward_cycle(sub, mask_strategy=self.hparams.mask_strategy)
+                wt_rev[rows], mt_fwd[rows] = _np(c['wt_rev']), _np(c['mt_fwd'])
+            cyc = {'wt_rev_scores': wt_rev, 'mt_fwd_scores': mt_fwd}
+            if 'comb_obs' in extra:
+                dgw_ = batch['dG_wt'].float().to(out_dict['wt_lora_pred'].device)
+                for k, lat in (('wt_ctx', 0.5 * (_np(out_dict['wt_lora_pred']) + wt_rev)), ('mt_ctx', 0.5 * (mt_fwd + _np(out_dict['mt_lora_pred'])))):
+                    extra[f'{k}_obs'] = _np(self.link_head.obs_ddG(torch.as_tensor(lat, dtype=torch.float32, device=dgw_.device), dgw_))
         self.validation_step_outputs[dataloader_idx].append({
-            **extra,
+            **extra, **cyc,
             'wt_scores': _np(out_dict['wt_lora_pred']),
             'mt_scores': _np(out_dict['mt_lora_pred']),
             'comb_scores': _np(out_dict['combined_pred']),
@@ -866,11 +882,55 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
     _VAL_PER_PROTEIN = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair_mt')
     # Library-equal means. rho_combined and rho_wt_valid are read by the checkpoint name, the plateau scheduler and the convergence logic.
     _VAL_AVG = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_mt_valid',
-                'rho_epi_full', 'rho_colrank_mt', 'rho_colrank_wt', 'rho_colrank_wt_blind', 'rho_flip_mt', 'rho_flip_pair_mt', 'rho_flip_pair_wt', 'auc_dead_wt', 'auc_dead_mt')
+                'rho_colrank_mt', 'rho_colrank_wt', 'rho_colrank_wt_blind', 'rho_flip_mt', 'rho_flip_pair_mt', 'rho_flip_pair_wt', 'auc_dead_wt', 'auc_dead_mt')
     # Pooled over every item of every library: the pair-level components need pooling to have enough pairs.
-    _VAL_POOLED = ('rho_combined', 'rmse_combined', 'rho_epi_full', 'rho_pair_offset', 'rho_subst_effect',
+    _VAL_POOLED = ('rho_combined', 'rmse_combined',
                    'rho_colrank_mt', 'rho_colrank_wt', 'rho_colrank_wt_blind', 'rho_flip_mt', 'rho_flip_pair_mt', 'rho_flip_pair_wt', 'auc_dead_wt', 'auc_dead_mt')
     _VAL_PROGRESS_BAR = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair_mt')
+
+    _EPI_HEADS = ('wt_add', 'wt_ctx', 'mt_ctx', 'comb')
+
+    def _log_epi_hierarchy(self, pooled):
+        """
+        Logs ``val_epi_<level>_<head>`` for the epistasis hierarchy (esm_msr.epi_hierarchy), pooled over every validation library, for the heads
+        wt_add (the WT adapter forward only: additive before the link, so it scores only through saturation: the control), wt_ctx
+        ((WT + ~WT)/2), mt_ctx ((MT + ~MT)/2) and comb ((WT + ~MT)/2, the reported prediction). The ctx heads need --val_cycle_passes. Predicted
+        dddG is comb_AB - comb_A - comb_B of the head's observed-scale values (the latent when there is no link). Never raises.
+        """
+        try:
+            st = np.asarray([routing.canonical_subset(s) for s in pooled['subset_type']])
+            keys = pooled['mut_key']
+            if not len(st) or any(k is None for k in keys):
+                return
+            cat = lambda name: np.concatenate(pooled[name]) if pooled.get(name) else None
+            dddG, cens = cat('dddG'), cat('cens')
+            is_double = (st == 'double') & np.isfinite(dddG) & (cens == 0)
+            if not is_double.any():
+                return
+            have_obs = self.link_head is not None and bool(pooled.get('comb_obs'))
+
+            def values(head):
+                if have_obs:
+                    return cat({'wt_add': 'wt_obs', 'comb': 'comb_obs', 'wt_ctx': 'wt_ctx_obs', 'mt_ctx': 'mt_ctx_obs'}[head])
+                wt, mt, wr, mf = cat('wt_scores'), cat('mt_scores'), cat('wt_rev_scores'), cat('mt_fwd_scores')
+                return {'wt_add': wt, 'comb': cat('comb_scores'), 'wt_ctx': None if wr is None else 0.5 * (wt + wr),
+                        'mt_ctx': None if mf is None else 0.5 * (mf + mt)}[head]
+
+            counted = False
+            for head in ESM3EpistasisLightningModule._EPI_HEADS:
+                v = values(head)
+                if v is None or not np.isfinite(v[is_double]).any():
+                    continue
+                res = epi_hierarchy.compute(stats.epi_full_scores(v, st, keys), dddG, keys, is_double)
+                for lvl in epi_hierarchy.LEVELS:
+                    if np.isfinite(res[lvl]):
+                        self.log(f"val_epi_{lvl}_{head}", float(res[lvl]), on_epoch=True, sync_dist=True)
+                if not counted:
+                    for c in ('n_doubles', 'n_pairs', 'n_columns', 'n_complete_blocks', 'n_identities'):
+                        self.log(f"val_epi_{c}", float(res[c]), on_epoch=True, sync_dist=True)
+                    counted = True
+        except Exception as e:
+            logging.warning(f"epistasis hierarchy skipped: {e}", exc_info=True)
 
     def _dump_validation(self, dump):
         """Writes every validation item's scores to ``<log_dir>/val_dump_<tag>.npz`` (tag ``zs`` before any step), for offline decomposition of the epistasis metrics. Never raises."""
@@ -918,6 +978,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
             obs_val = ({k: np.concatenate([np.asarray(o[f'{k}_obs']).reshape(-1) for o in outputs]) for k in ('wt', 'mt', 'comb')}
                        if all('comb_obs' in o for o in outputs) else None)
+            for k in ('wt_rev_scores', 'mt_fwd_scores'):
+                if all(k in o for o in outputs):
+                    cols[k] = np.concatenate([np.asarray(o[k]).reshape(-1) for o in outputs])
+            ctx_obs = ({k: np.concatenate([np.asarray(o[f'{k}_obs']).reshape(-1) for o in outputs]) for k in ('wt_ctx', 'mt_ctx')}
+                       if all('wt_ctx_obs' in o for o in outputs) else None)
             dump[name] = {**cols, 'subset_type': np.array(subset_types), 'cens': cens_val,
                           'mut_key': np.array([json.dumps(k) for k in (mut_keys or [])]),
                           'flip_key': np.array([k for o in outputs for k in o.get('flip_key', [])]),
@@ -978,6 +1043,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 # (those items then drop out of the pooled observed-scale metrics)
                 for k in ('wt', 'mt', 'comb'):
                     pooled[f'{k}_obs'].append(obs_val[k] if obs_val is not None else np.full(len(subset_types), np.nan))
+                if getattr(self.hparams, 'val_cycle_passes', False):
+                    for k in ('wt_ctx', 'mt_ctx'):
+                        pooled[f'{k}_obs'].append(ctx_obs[k] if ctx_obs is not None else np.full(len(subset_types), np.nan))
             # Mutations are numbered per library, so tag them with the loader to keep pooled
             # singles from pairing with another protein's doubles.
             pooled['mut_key'].extend(
@@ -1029,6 +1097,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if not np.isnan(val):
                     self.log(f"val_{metric}_pooled", val, on_epoch=True, sync_dist=True)
             self.log("val_n_flip_pair_matrices", float(n_flip_matrices), on_epoch=True, sync_dist=True)
+
+        ESM3EpistasisLightningModule._log_epi_hierarchy(self, pooled)       # by class: the tests drive this method with a stand-in object
 
         if (not self.trainer.sanity_checking and self.hparams.get('wt_early_stop_patience', 0) > 0
                 and not self.peft_manager.has_transitioned and 'rho_wt_valid' in avg_metrics):
