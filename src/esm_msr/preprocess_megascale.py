@@ -391,8 +391,15 @@ class MegaScaleDatasetPreprocessor:
         subfloor_rank_only: bool = True,
         censor_floor: Optional[float] = None,
         include_out_of_range: bool = False,
+        drop_unmeasured: bool = False,
     ) -> Tuple[List[DataLoader], List[str]]:
-        """Generates a list of dataloaders for a specific list of protein codes."""
+        """
+        Generates a list of dataloaders for a specific list of protein codes.
+
+        ``drop_unmeasured`` skips a library none of whose items has a numeric ddG (every item is only a bound, as when the library's wild type
+        sits at the assay ceiling and the raw ddG column is '-'). Such a library can score nothing: its rank and error metrics are NaN. It is for
+        validation; training keeps these libraries, whose bounds still feed the censored rank and hinge terms.
+        """
         loaders = []
         loader_names = []
 
@@ -431,6 +438,9 @@ class MegaScaleDatasetPreprocessor:
                 )
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
+                        continue
+                if drop_unmeasured and not has_numeric_values(dataset.data):
+                        logging.info(f"{scaffold.capitalize()} dataset for '{code}' has no numeric ddG (all {len(dataset)} items are bounds). Skipping.")
                         continue
                         
                 loader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn_twopass,
@@ -479,6 +489,11 @@ def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encod
             logging.warning(f'{filepath} could not be found! Skipping this loader.')
             
     return val_dataloaders, val_loader_names
+
+
+def has_numeric_values(items) -> bool:
+    """True when at least one item has a finite ddG that is a measurement, not a bound (``cens == 0``)."""
+    return any(int(it.get('cens', 0)) == 0 and np.isfinite(it.get('ddG', np.nan)) for it in items)
 
 
 def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encoder: Any, add_benchmarks_to_val = False) -> Tuple[List[DataLoader], List[DataLoader], List[DataLoader], List[str], List[str], List[str]]:
@@ -538,6 +553,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         cond_structure=args.cond_structure,
         mask_mutated_structure=args.mask_mutated_structure,
         include_out_of_range=getattr(args, 'include_out_of_range', False),
+        drop_unmeasured=True,
     )
 
     # Add Benchmarks
