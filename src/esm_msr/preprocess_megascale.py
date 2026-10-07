@@ -250,6 +250,9 @@ class MegaScaleDatasetPreprocessor:
         self.af_model_folder = af_model_folder
         self.df = pd.DataFrame()
         self.split_dfs = {}
+        # Wild-type sequence of each library, keyed like `code_wt` (the 'wt' rows are
+        # filtered out of self.df, so this is the only place they survive).
+        self.aa_seq_wt: Dict[str, str] = {}
         self.spurs_override = spurs_override
         self.censor_range = censor_range
         # Measured dG of each library's starting sequence (the WT, or the background for mutation-suffixed codes),
@@ -312,6 +315,7 @@ class MegaScaleDatasetPreprocessor:
             raise
 
         self.dG_wt = self._wt_dG_by_code(self.df)
+        self.aa_seq_wt = self._wt_seq_by_code_wt(self.df)
         keep = ['aa_seq', 'mut_type', 'WT_name'] + [c for c in MEAS_COLUMNS if c in self.df.columns]
         missing = [c for c in MEAS_COLUMNS if c not in self.df.columns]
         if missing:
@@ -408,6 +412,23 @@ class MegaScaleDatasetPreprocessor:
         # orig_index.equals() will fail if duplicates were actually removed
         assert self.df.index.isin(orig_index).all(), "Index mismatch detected: Indices were flattened or lost."
 
+    @staticmethod
+    def _wt_seq_by_code_wt(df: pd.DataFrame) -> Dict[str, str]:
+        """Wild-type `aa_seq` of each library, keyed like `code_wt`.
+
+        The 'wt' rows are dropped from `self.df` below, so anything needing the wild-type
+        sequence must take it here. Grouping the surviving rows instead yields a *mutant*
+        sequence, which differs from the structure at one or two positions.
+        Libraries measured on a mutated background (`WT_name` like `1UBQ.pdb_L43A`) have
+        their own 'wt' row; the unmutated library's row wins when both exist.
+        """
+        if 'aa_seq' not in df.columns or 'mut_type' not in df.columns:
+            return {}
+        wt = df.loc[df['mut_type'] == 'wt', ['WT_name', 'aa_seq']].copy()
+        wt['code_wt'] = wt['WT_name'].str.split('.pdb').str[0].str.replace('|', '_', regex=False)
+        wt['is_background'] = wt['WT_name'].str.contains('.pdb_', regex=False)
+        wt = wt.sort_values('is_background', kind='stable')
+        return wt.drop_duplicates('code_wt').set_index('code_wt')['aa_seq'].to_dict()
     def _filter_data(self, df, scaffold) -> pd.DataFrame:
 
         if self.spurs_override and scaffold != 'test':

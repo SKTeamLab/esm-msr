@@ -78,7 +78,13 @@ def overlap_matrix(best: pd.DataFrame, mem: Dict[str, str]) -> pd.DataFrame:
 
 
 def cross_set_maxima(pairs: pd.DataFrame, mem: Dict[str, str]) -> pd.DataFrame:
-    """Strongest similarity between each pair of sets (internal sets and external proteins)."""
+    """Per set pair, the extreme of each similarity measure taken independently.
+
+    Each column is maximised (E-values minimised) over all pairs joining the two sets, so one
+    row generally describes several different pairs. These are reporting bounds; what may
+    straddle a boundary is decided by `homology_edge_mask`, and the `is_homolog` columns
+    above report actual violations.
+    """
     sets = INTERNAL + ['external', 'functional']
     p = pairs.assign(sa=pairs['a'].map(mem), sb=pairs['b'].map(mem)).dropna(subset=['sa', 'sb'])
     p = p.loc[(p['sa'] != p['sb']) & (p['sa'].isin(INTERNAL) | p['sb'].isin(INTERNAL))]
@@ -191,7 +197,7 @@ def main(args):
         print(f'\nFraction of libraries with a homolog (seq E<={args.seq_evalue:g}, struct E<={args.struct_evalue:g}, '
               f'identity>{args.max_identity}, TM_{args.tm_norm}>{args.max_tm}) in:')
         print(res['overlap'].round(3).to_string())
-        print('\nStrongest similarity between sets:')
+        print('\nPer-measure extremes between sets (each column is a different pair):')
         print(res['maxima'].round(4).to_string())
         res['maxima'].to_csv(f'{args.out_prefix}_{name}_cross_set_maxima.csv')
         export[name] = {
