@@ -215,6 +215,27 @@ def colrank_rho(pred, target, flip_keys, min_len=4):
     return (float(np.mean(rhos)) if rhos else float('nan')), len(rhos)
 
 
+def partner_blind_scores(wt_scores, subset_types, mut_keys):
+    """
+    The WT head's score of each conditional item's own mutation, taken from the PLAIN SINGLE with that mutation in the same loader.
+
+    The WT pass of a ``cond`` or ``native_cond`` item is not blind to the partner: its "before" sequence carries the background mutation, so the
+    score is the WT head applied in the mutant context. The score of the single mutation on the wild-type sequence is the partner-ignorant one. Items
+    whose single is absent from the loader (or that are not conditional) get their own score for non-conditional items and NaN for conditional ones.
+    ``mut_keys[i]`` is the tuple of item i's mutations (hashable); a conditional item has exactly one.
+    """
+    wt_scores = np.asarray(wt_scores, dtype=np.float64)
+    out = wt_scores.copy()
+    if mut_keys is None or len(mut_keys) != len(wt_scores):
+        return np.full(len(wt_scores), np.nan)
+    st = np.asarray([routing.canonical_subset(s) for s in subset_types])
+    single = {tuple(k[0]): wt_scores[i] for i, k in enumerate(mut_keys) if st[i] in routing.WT_HEAD_SUBSETS and len(k) == 1}
+    for i, k in enumerate(mut_keys):
+        if st[i] in routing.CONDITIONAL_SUBSETS:
+            out[i] = single.get(tuple(k[0]), np.nan) if len(k) == 1 else np.nan
+    return out
+
+
 def delta_single_diagnostics(df, epi_true_col=None):
     """
     How much the MT and WT heads disagree on single mutants, and what that does to the two

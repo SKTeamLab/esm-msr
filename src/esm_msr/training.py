@@ -256,7 +256,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         this loss; what it cannot satisfy is the per-column *deviation* from that consensus,
         which is the identity-dependent part. So this loss is artifact-immune and includes the
         interaction term, but is not exclusively about it. The matching validation metric
-        (``val_rho_flip``) double-centres away the consensus and therefore IS exclusive - use
+        (``val_rho_flip_mt``) double-centres away the consensus and therefore IS exclusive - use
         the loss to train and the metric to judge.
 
         Columns are variable length, so they are padded into a [G, L] block with a mask
@@ -852,7 +852,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             'dddG': _np(dddG) if dddG is not None else np.full(n_items, np.nan),
             'subset_type': list(batch.get('subset_type', ['single'] * n_items)),
             'cens': (batch['cens'].detach().cpu().numpy() if torch.is_tensor(batch.get('cens')) else np.zeros(n_items, dtype=int)),
-            # For val_rho_flip: the column key, and the substitution identity that indexes
+            # For val_rho_flip_mt: the column key, and the substitution identity that indexes
             # the row within that column.
             'flip_key': list(batch.get('flip_key', [''] * n_items)),
             'row_id': row_id,
@@ -863,14 +863,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     # What validation logs. Per protein only these four (a library's rank and error, the WT head's rank on its singles, plus its
     # interaction score if it has doubles).
-    _VAL_PER_PROTEIN = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair')
+    _VAL_PER_PROTEIN = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair_mt')
     # Library-equal means. rho_combined and rho_wt_valid are read by the checkpoint name, the plateau scheduler and the convergence logic.
     _VAL_AVG = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_mt_valid',
-                'rho_epi_full', 'rho_colrank', 'rho_colrank_wt', 'rho_flip', 'rho_flip_pair', 'auc_dead_wt', 'auc_dead_mt')
+                'rho_epi_full', 'rho_colrank_mt', 'rho_colrank_wt', 'rho_colrank_wt_blind', 'rho_flip_mt', 'rho_flip_pair_mt', 'auc_dead_wt', 'auc_dead_mt')
     # Pooled over every item of every library: the pair-level components need pooling to have enough pairs.
     _VAL_POOLED = ('rho_combined', 'rmse_combined', 'rho_epi_full', 'rho_pair_offset', 'rho_subst_effect',
-                   'rho_colrank', 'rho_colrank_wt', 'rho_flip', 'rho_flip_pair', 'auc_dead_wt', 'auc_dead_mt')
-    _VAL_PROGRESS_BAR = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair')
+                   'rho_colrank_mt', 'rho_colrank_wt', 'rho_colrank_wt_blind', 'rho_flip_mt', 'rho_flip_pair_mt', 'auc_dead_wt', 'auc_dead_mt')
+    _VAL_PROGRESS_BAR = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair_mt')
 
     def _dump_validation(self, dump):
         """Writes every validation item's scores to ``<log_dir>/val_dump_<tag>.npz`` (tag ``zs`` before any step), for offline decomposition of the epistasis metrics. Never raises."""
@@ -920,6 +920,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                        if all('comb_obs' in o for o in outputs) else None)
             dump[name] = {**cols, 'subset_type': np.array(subset_types), 'cens': cens_val,
                           'mut_key': np.array([json.dumps(k) for k in (mut_keys or [])]),
+                          'flip_key': np.array([k for o in outputs for k in o.get('flip_key', [])]),
                           **({f'{k}_obs': v for k, v in obs_val.items()} if obs_val else {})}
             per_loader[name] = stats.compute_metrics(
                 cols['wt_scores'], cols['mt_scores'], cols['comb_scores'],
@@ -936,27 +937,31 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 rho_flip, n_pairs, n_cells = stats.flip_signature_rho(
                     cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, rid,
                     min_len=int(self.hparams.flip_list_min))
-                per_loader[name]['rho_flip'] = rho_flip
+                per_loader[name]['rho_flip_mt'] = rho_flip
                 # The same statistic with one matrix per position pair: nothing that ignores the partner residue can score.
                 rho_pair, n_pp, _ = stats.flip_signature_rho(
                     cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, rid,
                     min_len=int(self.hparams.flip_list_min), by_partner_position=True)
-                per_loader[name]['rho_flip_pair'] = rho_pair
+                per_loader[name]['rho_flip_pair_mt'] = rho_pair
                 # Within-column rank agreement, nothing centred: the quantity the rank loss optimises, between rho_epi and the flip metrics.
-                per_loader[name]['rho_colrank'], _ = stats.colrank_rho(
+                per_loader[name]['rho_colrank_mt'], _ = stats.colrank_rho(
                     cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, min_len=int(self.hparams.flip_list_min))
-                # The same on the WT head's score of the item's own mutation in the wild-type context: it cannot see the partner, so this is
-                # the partner-ignorant baseline for rho_colrank (the part of within-column ordering that needs no knowledge of the other mutation).
+                # The same on the WT head's score for each item: NOT partner-blind, since the WT pass of a conditional item has the background
+                # mutation in its sequence (the WT head applied in the mutant context). rho_colrank_wt_blind below is the partner-ignorant baseline.
                 per_loader[name]['rho_colrank_wt'], _ = stats.colrank_rho(
                     cols['wt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, min_len=int(self.hparams.flip_list_min))
+                per_loader[name]['rho_colrank_wt_blind'], _ = stats.colrank_rho(
+                    stats.partner_blind_scores(cols['wt_scores'], subset_types, mut_keys), np.where(cens_val == 0, cols['ground_truths'], np.nan), fk,
+                    min_len=int(self.hparams.flip_list_min))
                 n_flip_matrices += n_pp
                 pooled['flip_key'].extend(fk)
                 pooled['row_id'].append(rid)
             else:
-                per_loader[name]['rho_flip'] = float('nan')
-                per_loader[name]['rho_flip_pair'] = float('nan')
-                per_loader[name]['rho_colrank'] = float('nan')
+                per_loader[name]['rho_flip_mt'] = float('nan')
+                per_loader[name]['rho_flip_pair_mt'] = float('nan')
+                per_loader[name]['rho_colrank_mt'] = float('nan')
                 per_loader[name]['rho_colrank_wt'] = float('nan')
+                per_loader[name]['rho_colrank_wt_blind'] = float('nan')
 
             for k, v in cols.items():
                 pooled[k].append(v)
@@ -973,7 +978,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 [tuple((name,) + m for m in k) for k in mut_keys] if mut_keys is not None
                 else [None] * len(subset_types))
 
-        # Per protein: only the three that answer "is this library fine" (rho_flip_pair exists only for libraries with doubles).
+        # Per protein: only the three that answer "is this library fine" (rho_flip_pair_mt exists only for libraries with doubles).
         for name, metrics in per_loader.items():
             for metric in self._VAL_PER_PROTEIN:
                 val = metrics.get(metric, float('nan'))
@@ -1002,11 +1007,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 tgt_all = np.where(np.concatenate(pooled['cens']) == 0, np.concatenate(pooled['ground_truths']), np.nan)
                 min_len = int(self.hparams.flip_list_min)
                 if len(rid_all) == len(mt_all):
-                    pooled_all['rho_flip'] = stats.flip_signature_rho(mt_all, tgt_all, pooled['flip_key'], rid_all, min_len=min_len)[0]
-                    pooled_all['rho_flip_pair'] = stats.flip_signature_rho(mt_all, tgt_all, pooled['flip_key'], rid_all, min_len=min_len,
+                    pooled_all['rho_flip_mt'] = stats.flip_signature_rho(mt_all, tgt_all, pooled['flip_key'], rid_all, min_len=min_len)[0]
+                    pooled_all['rho_flip_pair_mt'] = stats.flip_signature_rho(mt_all, tgt_all, pooled['flip_key'], rid_all, min_len=min_len,
                                                                            by_partner_position=True)[0]
-                    pooled_all['rho_colrank'] = stats.colrank_rho(mt_all, tgt_all, pooled['flip_key'], min_len=min_len)[0]
+                    pooled_all['rho_colrank_mt'] = stats.colrank_rho(mt_all, tgt_all, pooled['flip_key'], min_len=min_len)[0]
                     pooled_all['rho_colrank_wt'] = stats.colrank_rho(np.concatenate(pooled['wt_scores']), tgt_all, pooled['flip_key'], min_len=min_len)[0]
+                    if not any(k is None for k in pooled['mut_key']):
+                        pooled_all['rho_colrank_wt_blind'] = stats.colrank_rho(
+                            stats.partner_blind_scores(np.concatenate(pooled['wt_scores']), pooled['subset_type'], pooled['mut_key']), tgt_all,
+                            pooled['flip_key'], min_len=min_len)[0]
             for metric in self._VAL_POOLED:
                 val = pooled_all.get(metric, float('nan'))
                 if not np.isnan(val):
@@ -1130,9 +1139,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         warmup_main = torch.optim.lr_scheduler.LambdaLR(opt_main, lr_lambda=lambdas_main)
         # Each head cuts its own learning rate on its own validation metric (10x after two validations without a gain): the WT adapter and its
-        # calibration head on val_rho_wt_valid_avg, the MT adapter and its calibration head on val_rho_flip_pair_avg. The link is never cut.
+        # calibration head on val_rho_wt_valid_avg, the MT adapter and its calibration head on val_rho_flip_pair_mt_avg. The link is never cut.
         self._plateaus = [('rho_wt_valid', GroupPlateau(opt_main, ('lora_wt', 'calib_wt'))),
-                          ('rho_flip_pair', GroupPlateau(opt_main, ('lora_mt', 'calib_mt')))]
+                          ('rho_flip_pair_mt', GroupPlateau(opt_main, ('lora_mt', 'calib_mt')))]
 
         return [opt_main], [{"scheduler": warmup_main, "interval": "step", "frequency": 1}]
 

@@ -83,3 +83,18 @@ class TestEpiComponents(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestPartnerBlindScores(unittest.TestCase):
+    def test_conditional_items_take_the_score_of_the_plain_single_with_their_mutation(self):
+        m = lambda p, a: ('L', p, a)
+        keys = [(m(3, 'A'),), (m(5, 'G'),), (m(3, 'A'),), (m(5, 'G'),), (m(7, 'K'),)]
+        sub = ['single', 'single', 'cond', 'cond', 'cond']
+        wt = [0.5, -1.0, 9.0, 9.0, 9.0]                       # the in-context WT scores of the cond items (9.0) must not be used
+        out = stats.partner_blind_scores(wt, sub, keys)
+        self.assertEqual(list(out[:2]), [0.5, -1.0])           # singles keep their own score
+        self.assertEqual(list(out[2:4]), [0.5, -1.0])
+        self.assertTrue(np.isnan(out[4]))                      # no single for L7K in this loader
+
+    def test_without_mutation_keys_everything_is_nan(self):
+        self.assertTrue(np.isnan(stats.partner_blind_scores([1.0, 2.0], ['single', 'cond'], None)).all())
