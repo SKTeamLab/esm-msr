@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 import warnings
 from collections import Counter, defaultdict
@@ -45,7 +46,28 @@ def comp_weights(hp):
 
 
 def comp_on(hp):
-    return comp_weights(hp) != (1.0, 1.0, 1.0)
+    return comp_weights(hp) != (1.0, 1.0, 1.0) or bool(hp.get('reg_balance', False))
+
+
+# --reg_balance: K = (rank-loss gradient norm) / (this term's gradient norm, at unit weight) on the adapter of the same head, as root-mean-square
+# over batches, so that a weight of 1 gives the regression term about as much gradient (in the sense that sets Adam's step) as one rank loss.
+# Measured with scripts/grad_share_probe.py on the o6f1_comp331 checkpoints of epochs 1 and 3 (oct06 split, 24 batches of each kind per checkpoint =
+# 48 WT batches of 96 singles, 48 MT batches of 76 rows with >= 50 conditional items, 40 proteins). Rank gradient norm: WT 31, MT 39 (rms).
+# Per-batch ratios are heavy-tailed (p10-p90 spans 3-6x), the median ratio is 1.2-1.5x larger than the rms one, and the epoch-1 and epoch-3
+# checkpoints differ by up to 2x; so "1" means rank-equal only to within about a factor of 2. The censored hinges use their ordinary term's constant.
+REG_BALANCE = {'reg_wt': 18.0, 'reg_mt': 84.0, 'comp_off': 23.0, 'comp_subst': 63.0, 'comp_int': 521.0}
+
+
+def _tap(obj, name, term):
+    """Records a loss term for the gradient-share probe when one is attached (``obj._probe`` is a list); otherwise returns it untouched."""
+    probe = getattr(obj, '_probe', None)
+    if probe is not None:
+        probe.append((name, term))
+    return term
+
+
+def balance(hp, name):
+    return REG_BALANCE[name] if hp.get('reg_balance', False) else 1.0
 
 class GroupPlateau:
     """ReduceLROnPlateau (mode max, relative threshold 1e-4) for the named parameter groups of one optimizer only. A group whose rate is
@@ -433,6 +455,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             chunks.append(cur)
         return [torch.as_tensor(c, dtype=torch.long, device=mt_rows.device) for c in chunks if c]
 
+    _probe = None      # a list when scripts/grad_share_probe.py is attached: every loss term is recorded under its name as it is built
+
     def _compose_losses_streaming_and_backward(self, batch: dict) -> dict:
         """
         Computes every loss for one batch and back-propagates each work unit immediately, so
@@ -589,14 +613,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         ord_wt = reg_rows & (c_reg == 0)
                         if ord_wt.any():
                             L = self.crit_reg(p_wt[ord_wt], t[ord_wt]) * w_mb[ord_wt]
-                            losses_wt.append(hp.lambda_reg_wt * L.sum() / global_w_sum)
+                            losses_wt.append(_tap(self, 'reg_wt', hp.lambda_reg_wt * balance(hp, 'reg_wt') * L.sum() / global_w_sum))
                             sums['reg_wt'] = sums['reg_wt'] + L.sum().detach()
                             cnts['reg_wt'] = cnts['reg_wt'] + w_mb[ord_wt].sum()
                         cen_wt = reg_rows & (c_reg != 0) & torch.isfinite(cens_bound[rows])
                         if hinge_w > 0 and cen_wt.any():
                             Lh = censoring.censored_regression_loss(self.crit_reg, p_wt[cen_wt], cens_bound[rows][cen_wt],
                                                                     c_reg[cen_wt]) * w_mb[cen_wt] * hinge_w
-                            losses_wt.append(hp.lambda_reg_wt * Lh.sum() / global_w_sum)
+                            losses_wt.append(_tap(self, 'reg_wt_cens', hp.lambda_reg_wt * balance(hp, 'reg_wt') * Lh.sum() / global_w_sum))
                             sums['reg_wt_cens'] = sums['reg_wt_cens'] + Lh.sum().detach()
                             cnts['reg_wt_cens'] = cnts['reg_wt_cens'] + w_mb[cen_wt].sum()
                     if hp.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
@@ -604,7 +628,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                             wt_pred_raw, torch.nan_to_num(t), m_wt_ok, list_size, self.crit_rank_wt,
                             cens=wt_cens[rows] if use_cens else None)
                         if L_rank is not None:
-                            losses_wt.append(hp.lambda_rank_wt * L_rank * (n_list / global_num_lists))
+                            losses_wt.append(_tap(self, 'rank_wt', hp.lambda_rank_wt * L_rank * (n_list / global_num_lists)))
                             sums['rank_wt'] = sums['rank_wt'] + val * n_list
                             cnts['rank_wt'] = cnts['rank_wt'] + n_list
 
@@ -641,8 +665,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         p_mt - t_mt, t_mt, w, reg_ord, [flip_keys[int(r)] for r in rows],
                         batch['mt_id'][rows][:, 0].detach().cpu().numpy(), INT_MIN_ROWS, INT_MIN_COLS)
                     if comp is not None:
-                        blk = comp_w[0] * comp['off'] + comp_w[1] * comp['subst'] + comp_w[2] * comp['int']
+                        blk = (comp_w[0] * balance(hp, 'comp_off') * comp['off'] + comp_w[1] * balance(hp, 'comp_subst') * comp['subst']
+                               + comp_w[2] * balance(hp, 'comp_int') * comp['int'])
                         losses_mt.append(hp.lambda_mt_cell * blk / global_w_sum)
+                        for _k in ('off', 'subst', 'int'):
+                            _tap(self, 'comp_' + _k, hp.lambda_mt_cell * balance(hp, 'comp_' + _k) * comp[_k] / global_w_sum)      # at unit weight, for the gradient-share probe
                         covered = torch.zeros_like(reg_ord)
                         covered[comp['cells']] = True
                         reg_plain = reg_ord & ~covered
@@ -656,14 +683,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         cnts['int_tgt'] = cnts['int_tgt'] + comp['n_cells']
                 if reg_plain.any():
                     L = self.crit_reg(p_mt[reg_plain], t_mt[reg_plain]) * w[reg_plain]
-                    losses_mt.append(hp.lambda_mt_cell * L.sum() / global_w_sum)
+                    losses_mt.append(_tap(self, 'reg_mt', hp.lambda_mt_cell * balance(hp, 'reg_mt') * L.sum() / global_w_sum))
                     sums['reg_mt'] = sums['reg_mt'] + L.sum().detach()
                     cnts['reg_mt'] = cnts['reg_mt'] + w[reg_plain].sum()
                 cen_mt = m_mt_ok & link_ok[rows] & (c_reg != 0) & torch.isfinite(b_mt)
                 if hinge_w > 0 and cen_mt.any():
                     Lh = censoring.censored_regression_loss(self.crit_reg, p_mt[cen_mt], b_mt[cen_mt],
                                                             c_reg[cen_mt]) * w[cen_mt] * hinge_w
-                    losses_mt.append(hp.lambda_mt_cell * Lh.sum() / global_w_sum)
+                    losses_mt.append(_tap(self, 'reg_mt_cens', hp.lambda_mt_cell * balance(hp, 'reg_mt') * Lh.sum() / global_w_sum))
                     sums['reg_mt_cens'] = sums['reg_mt_cens'] + Lh.sum().detach()
                     cnts['reg_mt_cens'] = cnts['reg_mt_cens'] + w[cen_mt].sum()
             if hp.lambda_mt_colrank > 0 and self.crit_rank_mt is not None:
@@ -673,7 +700,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     self.crit_rank_mt, hp.flip_list_min,
                     cens=cens_all[rows] if use_cens else None)
                 if L_flip is not None:
-                    losses_mt.append(hp.lambda_mt_colrank * L_flip * (n_grp / max(global_num_flip, 1)))
+                    losses_mt.append(_tap(self, 'rank_mt', hp.lambda_mt_colrank * L_flip * (n_grp / max(global_num_flip, 1))))
                     sums['rank_mt'] = sums['rank_mt'] + val * n_grp
                     cnts['rank_mt'] = cnts['rank_mt'] + n_grp
             if losses_mt:
@@ -843,6 +870,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                    'rho_colrank', 'rho_colrank_wt', 'rho_flip', 'rho_flip_pair', 'auc_dead_wt', 'auc_dead_mt')
     _VAL_PROGRESS_BAR = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair')
 
+    def _dump_validation(self, dump):
+        """Writes every validation item's scores to ``<log_dir>/val_dump_<tag>.npz`` (tag ``zs`` before any step), for offline decomposition of the epistasis metrics. Never raises."""
+        try:
+            log_dir = getattr(self.logger, 'log_dir', None) or getattr(self.logger, 'save_dir', None)
+            if not log_dir or not dump:
+                return
+            tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
+            arrays = {f'{n}|{k}': v for n, d in dump.items() for k, v in d.items()}
+            if self.link_head is not None:
+                arrays['link_summary'] = np.array(json.dumps(self.link_head.summary()))
+            os.makedirs(log_dir, exist_ok=True)
+            np.savez_compressed(os.path.join(log_dir, f'val_dump_{tag}.npz'), **arrays)
+        except Exception as e:
+            logging.warning(f"validation dump skipped: {e}")
+
     def on_validation_epoch_start(self):
         self.validation_step_outputs = defaultdict(list)
 
@@ -856,6 +898,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         """
         per_loader, pooled = {}, defaultdict(list)
         n_flip_matrices = 0
+        dump = {}
 
         for dataloader_idx, outputs in self.validation_step_outputs.items():
             name = (self.val_dataloader_names[dataloader_idx]
@@ -873,6 +916,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
             obs_val = ({k: np.concatenate([np.asarray(o[f'{k}_obs']).reshape(-1) for o in outputs]) for k in ('wt', 'mt', 'comb')}
                        if all('comb_obs' in o for o in outputs) else None)
+            dump[name] = {**cols, 'subset_type': np.array(subset_types), 'cens': cens_val,
+                          'mut_key': np.array([json.dumps(k) for k in (mut_keys or [])]),
+                          **({f'{k}_obs': v for k, v in obs_val.items()} if obs_val else {})}
             per_loader[name] = stats.compute_metrics(
                 cols['wt_scores'], cols['mt_scores'], cols['comb_scores'],
                 cols['ground_truths'], subset_types, dddG=cols['dddG'], mut_keys=mut_keys, cens=cens_val, obs=obs_val)
@@ -976,6 +1022,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     if metric in avg_metrics:
                         plateau.step(avg_metrics[metric])
 
+        ESM3EpistasisLightningModule._dump_validation(self, dump)       # by class: the tests drive this method with a stand-in object
         self.validation_step_outputs.clear()
         torch.cuda.empty_cache()
         gc.collect()

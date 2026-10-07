@@ -155,6 +155,13 @@ def parse_arguments() -> argparse.Namespace:
                                  "0 drops the interaction from the regression altogether. See --mt_comp_offset. Replaces --lambda_int_mt, which "
                                  "was added on top of the regression with a different normalisation: an old weight L is about 1 + 2.8 * L here "
                                  "(30 ~ 85, 300 ~ 850) for batches like those of the I-series.")
+    loss_group.add_argument('--reg_balance', action=argparse.BooleanOptionalAction, default=False,
+                            help="Express every regression weight in units of the rank loss's gradient. Each regression term (WT regression, MT plain "
+                                 "regression, the offset / substitution / interaction components, and the censored hinges that go with them) is "
+                                 "multiplied by a fixed constant, training.REG_BALANCE, measured with scripts/grad_share_probe.py as the ratio of "
+                                 "the rank loss's gradient norm to that term's gradient norm on the adapter of the same head. A lambda or "
+                                 "--mt_comp_* weight of 1 then means about as much gradient as the rank loss (--lambda_rank_wt / "
+                                 "--lambda_mt_colrank 1). Always takes the component path of the MT regression, so micro_batch_size must be >= 38.")
     loss_group.add_argument('--flip_list_min', type=int, default=4,
                             help="Minimum members for a flip column to contribute to --lambda_mt_colrank. Below ~4 the "
                                  "ordering carries little information and the gradient is mostly noise.")
@@ -353,7 +360,7 @@ def parse_arguments() -> argparse.Namespace:
                          f"as their two conditional 'cond' items; reversions were never routed to a head (see esm_msr.routing).")
 
     # Pair-matrix sampling for the component losses: columns of one position pair travel together, as many as fit in one micro-batch.
-    if (args.mt_comp_offset, args.mt_comp_subst, args.mt_comp_int) != (1.0, 1.0, 1.0):
+    if (args.mt_comp_offset, args.mt_comp_subst, args.mt_comp_int) != (1.0, 1.0, 1.0) or args.reg_balance:
         if args.micro_batch_size < 2 * MAX_COLUMN_LEN:
             parser.error(f"the --mt_comp_* weights need two flip columns of a pair in one micro-batch: micro_batch_size must be at least "
                          f"{2 * MAX_COLUMN_LEN}, got {args.micro_batch_size}.")
