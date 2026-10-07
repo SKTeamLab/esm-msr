@@ -866,10 +866,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
     _VAL_PER_PROTEIN = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair_mt')
     # Library-equal means. rho_combined and rho_wt_valid are read by the checkpoint name, the plateau scheduler and the convergence logic.
     _VAL_AVG = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_mt_valid',
-                'rho_epi_full', 'rho_colrank_mt', 'rho_colrank_wt', 'rho_colrank_wt_blind', 'rho_flip_mt', 'rho_flip_pair_mt', 'auc_dead_wt', 'auc_dead_mt')
+                'rho_epi_full', 'rho_colrank_mt', 'rho_colrank_wt', 'rho_colrank_wt_blind', 'rho_flip_mt', 'rho_flip_pair_mt', 'rho_flip_pair_wt', 'auc_dead_wt', 'auc_dead_mt')
     # Pooled over every item of every library: the pair-level components need pooling to have enough pairs.
     _VAL_POOLED = ('rho_combined', 'rmse_combined', 'rho_epi_full', 'rho_pair_offset', 'rho_subst_effect',
-                   'rho_colrank_mt', 'rho_colrank_wt', 'rho_colrank_wt_blind', 'rho_flip_mt', 'rho_flip_pair_mt', 'auc_dead_wt', 'auc_dead_mt')
+                   'rho_colrank_mt', 'rho_colrank_wt', 'rho_colrank_wt_blind', 'rho_flip_mt', 'rho_flip_pair_mt', 'rho_flip_pair_wt', 'auc_dead_wt', 'auc_dead_mt')
     _VAL_PROGRESS_BAR = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair_mt')
 
     def _dump_validation(self, dump):
@@ -953,6 +953,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 per_loader[name]['rho_colrank_wt_blind'], _ = stats.colrank_rho(
                     stats.partner_blind_scores(cols['wt_scores'], subset_types, mut_keys), np.where(cens_val == 0, cols['ground_truths'], np.nan), fk,
                     min_len=int(self.hparams.flip_list_min))
+                # The flip-pair statistic on the WT head's in-context scores: does the WT head, which never trains on conditional items, predict how
+                # the ordering of substitutions changes with the partner residue? (rho_flip_pair_mt is the MT head's.)
+                per_loader[name]['rho_flip_pair_wt'], _, _ = stats.flip_signature_rho(
+                    cols['wt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, rid,
+                    min_len=int(self.hparams.flip_list_min), by_partner_position=True)
                 n_flip_matrices += n_pp
                 pooled['flip_key'].extend(fk)
                 pooled['row_id'].append(rid)
@@ -962,6 +967,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 per_loader[name]['rho_colrank_mt'] = float('nan')
                 per_loader[name]['rho_colrank_wt'] = float('nan')
                 per_loader[name]['rho_colrank_wt_blind'] = float('nan')
+                per_loader[name]['rho_flip_pair_wt'] = float('nan')
 
             for k, v in cols.items():
                 pooled[k].append(v)
@@ -1011,6 +1017,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     pooled_all['rho_flip_pair_mt'] = stats.flip_signature_rho(mt_all, tgt_all, pooled['flip_key'], rid_all, min_len=min_len,
                                                                            by_partner_position=True)[0]
                     pooled_all['rho_colrank_mt'] = stats.colrank_rho(mt_all, tgt_all, pooled['flip_key'], min_len=min_len)[0]
+                    pooled_all['rho_flip_pair_wt'] = stats.flip_signature_rho(np.concatenate(pooled['wt_scores']), tgt_all, pooled['flip_key'], rid_all,
+                                                                              min_len=min_len, by_partner_position=True)[0]
                     pooled_all['rho_colrank_wt'] = stats.colrank_rho(np.concatenate(pooled['wt_scores']), tgt_all, pooled['flip_key'], min_len=min_len)[0]
                     if not any(k is None for k in pooled['mut_key']):
                         pooled_all['rho_colrank_wt_blind'] = stats.colrank_rho(
