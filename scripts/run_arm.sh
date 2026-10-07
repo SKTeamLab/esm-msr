@@ -2,6 +2,7 @@
 # EPOCHS is a cap; early stopping on val_rho_flip_pair_avg (patience 2, min 3 epochs).
 # Usage: scripts/run_arm.sh RUN_NAME EPOCHS SEED [extra training flags...]
 # Canonical command (docs/epistasis_training_handoff.md §2, minus the flags retired since: see docs/hparam_review.md) on THIS worktree's code and cache_v7.
+# Regression weights (balanced units with --reg_balance; 1 = the rank loss's gradient): WT 0.1, MT master 0.02, components via --mt_comp_*.
 # Arm-specific flags go after SEED and are appended last, so they override anything above them (argparse keeps the last value).
 WT=${WT:-/home/sareeves/playground/esm-msr-devel/repo/.claude/worktrees/censored-margin-ranking-9b239c}   # the tree whose code runs
 cd /home/sareeves/playground/esm-msr-devel
@@ -27,8 +28,8 @@ COMET_KEY=$(sed -n 's/^ *api_key *= *//p' ~/.comet.config | head -1)
   --lora_rank_mt 2  --lora_alpha_mt 4  --lora_dropout_mt 0.1 --target_mode_mt expanded \
   --incl_sequence_head_wt --incl_sequence_head_mt \
   --adapter_mode dual \
-  --lambda_reg_wt 1.0 --lambda_rank_wt 1.0 \
-  --lambda_mt_cell 1.0 --lambda_mt_colrank 1.0 --flip_list_min 4 \
+  --lambda_reg_wt 0.1 --lambda_rank_wt 1.0 \
+  --lambda_reg_mt_master 0.02 --lambda_mt_colrank 1.0 --flip_list_min 4 \
   --mt_single_anchor_weight 0.5 --cond_weight 0.5 --native_cond_weight 1.0 \
   --precision bf16-mixed \
   --batch_size 256 --micro_batch_size 64 --wt_list_size 16 \

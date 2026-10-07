@@ -131,10 +131,11 @@ def parse_arguments() -> argparse.Namespace:
     loss_group = parser.add_argument_group("Loss Configuration")
     loss_group.add_argument('--lambda_rank_wt', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_wt', type=float, default=0.0)
-    loss_group.add_argument('--lambda_mt_cell', '--lambda_reg_mt', dest='lambda_mt_cell', type=float, default=1.0,
-                            help="Cell-level regression of the MT pass on the observed scale (formerly --lambda_reg_mt): the single anchors, every cond / "
-                                 "native_cond item outside a complete position-pair block, and, when all three --mt_comp_* weights are 1, every cell. It "
-                                 "scales the component losses below too. Keep > 0: it is the only term that gives the MT pass an absolute scale. Its "
+    loss_group.add_argument('--lambda_reg_mt_master', '--lambda_mt_cell', '--lambda_reg_mt', dest='lambda_reg_mt_master', type=float, default=1.0,
+                            help="MASTER weight of the MT pass's regression on the observed scale (formerly --lambda_mt_cell, --lambda_reg_mt). It multiplies "
+                                 "every MT regression term: the single anchors, every cond / native_cond item outside a complete position-pair block, and "
+                                 "the three --mt_comp_* parts of the complete blocks, so the weight of a block's offset part is lambda_reg_mt_master * "
+                                 "mt_comp_offset. Keep > 0 unless the other terms give the MT pass its scale: this is the only MT term that does. Its "
                                  "targets are the noisy derived conditionals, so down-weight with --cond_weight rather than zeroing.")
     loss_group.add_argument('--lambda_mt_colrank', '--lambda_rank_mt', dest='lambda_mt_colrank', type=float, default=1.0,
                             help="Within-column rank loss on the MT pass (formerly --lambda_rank_mt): for each flip column (same scored position, "
@@ -213,7 +214,7 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--link_lr', type=float, default=5e-3, help="Learning rate of the link's four parameters (no weight decay).")
     loss_group.add_argument('--mt_single_anchor_weight', type=float, default=0.0,
                             help="Per-item weight for also regressing the MT pass on ordinary singles (the zero-background "
-                                 "case of the MT task). 0 disables. Requires --lambda_mt_cell > 0.")
+                                 "case of the MT task). 0 disables. Requires --lambda_reg_mt_master > 0.")
     loss_group.add_argument('--mt_single_anchor_frac', type=float, default=1.0,
                             help="Fraction of the batch's singles to anchor each step, resampled per step. Anchored "
                                  "singles are the dominant cost of the MT pass (~48%% of its backbone rows), so 0.25 "

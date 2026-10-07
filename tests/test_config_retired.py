@@ -61,9 +61,9 @@ class TestRetiredFlags(unittest.TestCase):
 
     def test_the_mt_loss_names_and_their_old_aliases(self):
         a = parse()
-        self.assertEqual((a.lambda_mt_cell, a.lambda_mt_colrank, a.mt_comp_offset, a.mt_comp_subst, a.mt_comp_int), (1.0, 1.0, 1.0, 1.0, 1.0))
+        self.assertEqual((a.lambda_reg_mt_master, a.lambda_mt_colrank, a.mt_comp_offset, a.mt_comp_subst, a.mt_comp_int), (1.0, 1.0, 1.0, 1.0, 1.0))
         a = parse('--lambda_reg_mt', '2', '--lambda_rank_mt', '0')
-        self.assertEqual((a.lambda_mt_cell, a.lambda_mt_colrank), (2.0, 0.0))
+        self.assertEqual((a.lambda_reg_mt_master, a.lambda_mt_colrank), (2.0, 0.0))
         self.assertIsNotNone(parse_fails('--lambda_int_mt', '30'))              # replaced by --mt_comp_int
         parse('--lambda_int_mt', '0')                                           # harmless
 

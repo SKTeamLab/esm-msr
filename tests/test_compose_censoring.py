@@ -21,7 +21,7 @@ class HP(dict):
 
 
 def make_hp(**kw):
-    hp = HP(wt_list_size=4, micro_batch_size=16, lambda_reg_wt=1.0, lambda_rank_wt=1.0, lambda_mt_cell=1.0, lambda_mt_colrank=1.0,
+    hp = HP(wt_list_size=4, micro_batch_size=16, lambda_reg_wt=1.0, lambda_rank_wt=1.0, lambda_reg_mt_master=1.0, lambda_mt_colrank=1.0,
             mt_comp_offset=1.0, mt_comp_subst=1.0, mt_comp_int=1.0, flip_list_min=3, mask_strategy=None, subfloor_rank_only=True, cond_weight=1.0, native_cond_weight=1.0,
             mt_single_anchor_weight=0.0, mt_single_anchor_frac=1.0, censor_reg_weight=1.0, censor_floor_hinge=False,
             include_out_of_range=False, censor_floor=None)
@@ -147,8 +147,8 @@ class TestMtGateAndMicroBatch(unittest.TestCase):
             raise unittest.SkipTest(f"training module not importable: {e}")
 
     def test_mt_rank_loss_trains_even_when_the_mt_regression_is_off(self):
-        # the MT unit used to exist only when lambda_mt_cell > 0, so rank-only (or interaction-only) MT training silently trained nothing
-        out, stub = run(make_batch(with_cens=False), lambda_mt_cell=0.0, lambda_mt_colrank=1.0)
+        # the MT unit used to exist only when lambda_reg_mt_master > 0, so rank-only (or interaction-only) MT training silently trained nothing
+        out, stub = run(make_batch(with_cens=False), lambda_reg_mt_master=0.0, lambda_mt_colrank=1.0)
         self.assertIn('L_rank_mt', out)
         self.assertNotIn('L_reg_mt', out)
         self.assertTrue(stub.model.w.grad[1].abs() > 0)

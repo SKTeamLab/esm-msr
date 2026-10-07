@@ -518,8 +518,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         global_num_flip = max(1, sum(1 for k, c in _fk.items() if c >= int(hp.flip_list_min) and _unc[k] > 0))
 
         anchor_w = float(hp.get('mt_single_anchor_weight', 0.0) or 0.0)
-        if anchor_w > 0 and hp.lambda_mt_cell <= 0:
-            raise AssertionError('mt_single_anchor_weight > 0 requires lambda_mt_cell > 0.')
+        if anchor_w > 0 and hp.lambda_reg_mt_master <= 0:
+            raise AssertionError('mt_single_anchor_weight > 0 requires lambda_reg_mt_master > 0.')
         comp_w = comp_weights(hp)
         use_comp = comp_on(hp)
         wt_frozen, mt_frozen = self.peft_manager.wt_path_is_frozen, self.peft_manager.mt_path_is_frozen
@@ -570,7 +570,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # ---------------- plan ----------------
         idx = torch.arange(B, device=device)
         train_wt = (not wt_frozen) and (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0)
-        train_mt = (not mt_frozen) and (hp.lambda_mt_cell > 0 or hp.lambda_mt_colrank > 0)
+        train_mt = (not mt_frozen) and (hp.lambda_reg_mt_master > 0 or hp.lambda_mt_colrank > 0)
 
         wt_rows = idx[wt_ok] if train_wt else idx[:0]
         mt_rows = idx[mt_ok] if train_mt else idx[:0]
@@ -644,7 +644,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
             del mt_out
 
-            if m_mt_ok.any() and hp.lambda_mt_cell > 0:
+            if m_mt_ok.any() and hp.lambda_reg_mt_master > 0:
                 w = mt_w[rows]
                 if use_link:
                     # the saturation is h's job, so items below the floor need no special handling (reg_ok is ignored); a
@@ -667,9 +667,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     if comp is not None:
                         blk = (comp_w[0] * balance(hp, 'comp_off') * comp['off'] + comp_w[1] * balance(hp, 'comp_subst') * comp['subst']
                                + comp_w[2] * balance(hp, 'comp_int') * comp['int'])
-                        losses_mt.append(hp.lambda_mt_cell * blk / global_w_sum)
+                        losses_mt.append(hp.lambda_reg_mt_master * blk / global_w_sum)
                         for _k in ('off', 'subst', 'int'):
-                            _tap(self, 'comp_' + _k, hp.lambda_mt_cell * balance(hp, 'comp_' + _k) * comp[_k] / global_w_sum)      # at unit weight, for the gradient-share probe
+                            _tap(self, 'comp_' + _k, hp.lambda_reg_mt_master * balance(hp, 'comp_' + _k) * comp[_k] / global_w_sum)      # at unit weight, for the gradient-share probe
                         covered = torch.zeros_like(reg_ord)
                         covered[comp['cells']] = True
                         reg_plain = reg_ord & ~covered
@@ -683,14 +683,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         cnts['int_tgt'] = cnts['int_tgt'] + comp['n_cells']
                 if reg_plain.any():
                     L = self.crit_reg(p_mt[reg_plain], t_mt[reg_plain]) * w[reg_plain]
-                    losses_mt.append(_tap(self, 'reg_mt', hp.lambda_mt_cell * balance(hp, 'reg_mt') * L.sum() / global_w_sum))
+                    losses_mt.append(_tap(self, 'reg_mt', hp.lambda_reg_mt_master * balance(hp, 'reg_mt') * L.sum() / global_w_sum))
                     sums['reg_mt'] = sums['reg_mt'] + L.sum().detach()
                     cnts['reg_mt'] = cnts['reg_mt'] + w[reg_plain].sum()
                 cen_mt = m_mt_ok & link_ok[rows] & (c_reg != 0) & torch.isfinite(b_mt)
                 if hinge_w > 0 and cen_mt.any():
                     Lh = censoring.censored_regression_loss(self.crit_reg, p_mt[cen_mt], b_mt[cen_mt],
                                                             c_reg[cen_mt]) * w[cen_mt] * hinge_w
-                    losses_mt.append(_tap(self, 'reg_mt_cens', hp.lambda_mt_cell * balance(hp, 'reg_mt') * Lh.sum() / global_w_sum))
+                    losses_mt.append(_tap(self, 'reg_mt_cens', hp.lambda_reg_mt_master * balance(hp, 'reg_mt') * Lh.sum() / global_w_sum))
                     sums['reg_mt_cens'] = sums['reg_mt_cens'] + Lh.sum().detach()
                     cnts['reg_mt_cens'] = cnts['reg_mt_cens'] + w[cen_mt].sum()
             if hp.lambda_mt_colrank > 0 and self.crit_rank_mt is not None:

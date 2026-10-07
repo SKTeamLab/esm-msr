@@ -6,9 +6,9 @@
 # 48 + 48 batches) so that a weight of 1 gives it about as much gradient (rms, on the adapters) as the rank loss (--lambda_rank_wt /
 # --lambda_mt_colrank, both left at 1). Accurate to about a factor of 2: per-batch ratios are heavy-tailed and the two checkpoints measured differ.
 #   weight meaning:  --lambda_reg_wt      WT regression (singles)
-#                    --lambda_mt_cell     ALL of the MT regression (blocks and the remaining cells)
+#                    --lambda_reg_mt_master     ALL of the MT regression (blocks and the remaining cells)
 #                    --mt_comp_offset / _subst / _int   relative weights of the pair offset / substitution effects / interaction parts of the MT
-#                                         block error; they multiply lambda_mt_cell.
+#                                         block error; they multiply lambda_reg_mt_master.
 #   A triplet such as "0.2,0.2,0" means --mt_comp_offset 0.2 --mt_comp_subst 0.2 --mt_comp_int 0; the two lambdas are left at 1.
 #
 # Why the earlier o6b1 / o6f1 runs are not comparable and were weak: their weights in rank-gradient units were tiny. Old (unbalanced) weight w
@@ -20,11 +20,13 @@ S=$(dirname "$(readlink -f "$0")")
 echo "queue_o6g.sh is a menu: copy ONE run_with_retry line into a shell (o6g1 is already running). Not launching anything." >&2; exit 1
 B="--include_out_of_range --reg_balance"
 
-# --- 1. the weight grid (decides the base for the mask arm). Already queued, in this order, with scripts/after.sh -------------------------------------
-# The triplet is (--mt_comp_offset, --mt_comp_subst, --mt_comp_int); --lambda_reg_wt and --lambda_mt_cell stay at their default 1.
-$S/run_with_retry.sh o6g1_bal111      6 1 $B                                                           # 1: 1,1,1: every part worth one rank loss (RUNNING)
-$S/run_with_retry.sh o6g2_c01         6 1 $B --mt_comp_offset 0.1  --mt_comp_subst 0.1  --mt_comp_int 0.1    # 2: 0.1,0.1,0.1 (QUEUED)
-$S/run_with_retry.sh o6g3_c001        6 1 $B --mt_comp_offset 0.01 --mt_comp_subst 0.01 --mt_comp_int 0.01   # 3: 0.01,0.01,0.01 (QUEUED)
+# --- 1. the weight grid (decides the base for the mask arm). Queued with scripts/after.sh, in this order ------------------------------------------
+# Defaults from run_arm.sh: --lambda_reg_wt 0.1, --lambda_reg_mt_master 0.02. The master multiplies all MT regression, components included, so a block
+# part's weight is master x mt_comp_*: 10 -> 0.2, 1 -> 0.02, 0.1 -> 0.002 (rank-gradient units). The triplet is (--mt_comp_offset, _subst, _int).
+$S/run_with_retry.sh o6g1_bal111      6 1 $B --lambda_reg_wt 1 --lambda_reg_mt_master 1                # reference only (old defaults: everything 1, components 1,1,1); RAN FIRST
+$S/run_with_retry.sh o6g2_c10         6 1 $B --mt_comp_offset 10  --mt_comp_subst 10  --mt_comp_int 10  # 10,10,10 (QUEUED)
+$S/run_with_retry.sh o6g3_c1          6 1 $B --mt_comp_offset 1   --mt_comp_subst 1   --mt_comp_int 1   # 1,1,1    (QUEUED)
+$S/run_with_retry.sh o6g4_c01         6 1 $B --mt_comp_offset 0.1 --mt_comp_subst 0.1 --mt_comp_int 0.1 # 0.1,0.1,0.1 (QUEUED)
 
 # --- 2. structure masking on the best of 1-3 (launched when arm 3 is done; weights flags of the winner after $B) -------------------------------
 # $S/run_with_retry.sh o6gm1_maskstruct 6 1 $B --mask_structure <winning weight flags>
