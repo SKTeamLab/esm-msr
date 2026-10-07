@@ -322,7 +322,15 @@ def make_homology_split(lib: pd.DataFrame, pairs: pd.DataFrame, external_ids: Se
 
 
 def split_overlap_summary(pairs: pd.DataFrame, lib_assign: pd.DataFrame, external_ids: Set[str]) -> pd.DataFrame:
-    """Strongest cross-set similarity for each pair of sets (train/val/test/external)."""
+    """Per set pair, the extreme of each similarity measure taken independently.
+
+    Each column is a separate maximum (or minimum, for E-values) over all pairs joining the
+    two sets, so a row usually describes several different pairs and no single pair is as
+    similar as the row looks. These are reporting bounds, not leaks: whether a pair may
+    straddle two sets is decided by `homology.homology_edge_mask`, which make_homology_split
+    re-checks for every pair. A borderline E-value here (say 0.02) is simply a pair that
+    failed every criterion.
+    """
     where = lib_assign['split'].to_dict()
     where.update({e: 'external' for e in external_ids})
     p = pairs.assign(sa=pairs['a'].map(where), sb=pairs['b'].map(where))
@@ -673,6 +681,13 @@ def main(args):
     df = ds.df
     ref = df.groupby('code_wt').first().reset_index()
     ref['name'] = ref['code_wt']
+    # groupby().first() lands on a *mutant* row: the 'wt' rows are filtered out during
+    # preprocessing. Homology searches and the identity cap must see the wild type, which
+    # matches the AlphaFold model the structure search uses.
+    ref['aa_seq'] = ref['code_wt'].map(ds.aa_seq_wt).fillna(ref['aa_seq'])
+    missing_wt = sorted(set(ref.loc[~ref['code_wt'].isin(ds.aa_seq_wt), 'code_wt']))
+    if missing_wt:
+        print(f"No 'wt' row for {len(missing_wt)} libraries; using a mutant sequence for: {missing_wt}")
         
     dataframe_to_fasta(ref.reset_index(), 'name', 'aa_seq', os.path.join(homology_dir, 'tsuboyama_seqs.fasta'))
 
@@ -793,7 +808,7 @@ def main(args):
             prune=not args.no_bridge_pruning, bridge_max_cut_frac=args.bridge_max_cut_frac,
             bridge_min_family=args.bridge_min_family, test_frac=args.test_frac, val_frac=args.val_frac,
             max_component_frac=args.max_component_frac, n_restarts=args.n_restarts, seed=args.seed)
-        print("Strongest similarity between sets:")
+        print("Per-measure extremes between sets (each column is a different pair; see split_overlap_summary):")
         print(split_overlap_summary(pairs, lib_assign, external_ids).to_string())
         splits['thermostability'] = sorted(c.replace('|', '_') + '.pdb' for c in test_df['name'])
         lib_assign.to_csv(os.path.join(REPO_ROOT, 'data', f'{args.output}_library_assignment.csv'))

@@ -25,7 +25,7 @@ subset trains which adapter.
 | cache | `cache_v4/` — 404 libraries, 31 GB, unmasked structures | `ls cache_v4 \| wc -l` -> 404 |
 | raw table | `/home/sareeves/software/esm-msr/data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv` | exists |
 | structures | `.../AlphaFold_model_PDBs` | exists |
-| split | `repo/data/splits_oct06_capped.pkl` — 171 train / 23 val / 34 test proteins | loads |
+| split | `repo/data/splits_oct06_capped.pkl` — 172 train / 23 val / 33 test proteins | loads |
 | benchmarks | `repo/data/preprocessed` — `ptmuld_mapped.csv`, `s461_mapped.csv`, `ssym_mapped.csv` | all three present |
 | venv | `/home/sareeves/miniconda3/envs/msr_venv/bin/python` | never write into it |
 | env | `PYTHONPATH=<repo>/src`, `HF_HUB_OFFLINE=1` | ESM3 base is in the HF cache |
@@ -46,11 +46,13 @@ split comes from `preprocessing/split_tsuboyama.py` with its defaults. No train/
 pair, and no pair between a split and an external or functional protein, has MMseqs2 or
 Foldseek E <= 1e-3, identity > 40% (local-alignment matches / shorter length), or Foldseek
 TM-score > 0.70 (normalised by the shorter chain). The script checks every pair and raises if
-any crosses. Libraries homologous to an external protein are excluded (131). So are 11
+any crosses. Libraries homologous to an external protein are excluded (132). So are 10
 designed libraries that chained distinct design families into one cluster. Val/test are
 stratified by natural vs designed proteins and by single and double counts. An intermediate
 split from earlier the same day, `splits_oct06_structure.pkl`, used only the E-values; it
-reached 55% identity between train and test and should not be used. **Val and test metrics
+reached 55% identity between train and test and should not be used. The highest identity
+between any two sets is now 39.6%; `preprocessing/split_overlap_report.py` prints the full
+table. **Val and test metrics
 are not comparable to runs on the old split.** The audit is in
 `preprocessing/split_overlap_report.py`.
 
@@ -99,7 +101,7 @@ before, just not interleaved.
 ### Expected cost, and where it goes
 
 Counted from `cache_v4` against the old 120-protein train split. These counts have not been
-recounted for the new split. Its train set has ~212k single + double measurements against
+recounted for the new split. Its train set has ~214k single + double measurements against
 ~191k before, so expect roughly 1.1x the rows and steps per epoch below:
 
 ```
