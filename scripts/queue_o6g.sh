@@ -9,7 +9,7 @@
 #                    --lambda_mt_cell     ALL of the MT regression (blocks and the remaining cells)
 #                    --mt_comp_offset / _subst / _int   relative weights of the pair offset / substitution effects / interaction parts of the MT
 #                                         block error; they multiply lambda_mt_cell.
-#   So "0.2,0.2,0.2" = --lambda_reg_wt 0.2 --lambda_mt_cell 0.2 with components 1,1,1; "0.2,0.2,0" = the same with --mt_comp_int 0.
+#   A triplet such as "0.2,0.2,0" means --mt_comp_offset 0.2 --mt_comp_subst 0.2 --mt_comp_int 0; the two lambdas are left at 1.
 #
 # Why the earlier o6b1 / o6f1 runs are not comparable and were weak: their weights in rank-gradient units were tiny. Old (unbalanced) weight w
 # is about w / K here:  WT regression 1 -> 0.06;  MT plain regression 1 -> 0.01;  components 3,3,1 -> 0.13, 0.05, 0.002;  and the old
@@ -21,12 +21,10 @@ echo "queue_o6g.sh is a menu: copy ONE run_with_retry line into a shell (o6g1 is
 B="--include_out_of_range --reg_balance"
 
 # --- 1. the weight grid (decides the base for the mask arm). Already queued, in this order, with scripts/after.sh -------------------------------------
-$S/run_with_retry.sh o6g1_bal111      6 1 $B                                                           # 1: every regression term worth one rank loss (RUNNING)
-$S/run_with_retry.sh o6g2_bal01       6 1 $B --lambda_reg_wt 0.1 --lambda_mt_cell 0.1                  # 2: a tenth of the rank gradient (QUEUED)
-$S/run_with_retry.sh o6g3_bal0        6 1 $B --lambda_reg_wt 0 --lambda_mt_cell 0 --mt_single_anchor_weight 0   # 3: rank losses only (QUEUED). The MT single anchors are regression
-                                                                                                        #    terms and must be off, or the compose step asserts. With no regression the
-                                                                                                        #    calibration scales and the link get no gradient (they stay at their initial
-                                                                                                        #    values), so judge this arm on rank metrics, not RMSE / pair offset.
+# The triplet is (--mt_comp_offset, --mt_comp_subst, --mt_comp_int); --lambda_reg_wt and --lambda_mt_cell stay at their default 1.
+$S/run_with_retry.sh o6g1_bal111      6 1 $B                                                           # 1: 1,1,1: every part worth one rank loss (RUNNING)
+$S/run_with_retry.sh o6g2_c01         6 1 $B --mt_comp_offset 0.1  --mt_comp_subst 0.1  --mt_comp_int 0.1    # 2: 0.1,0.1,0.1 (QUEUED)
+$S/run_with_retry.sh o6g3_c001        6 1 $B --mt_comp_offset 0.01 --mt_comp_subst 0.01 --mt_comp_int 0.01   # 3: 0.01,0.01,0.01 (QUEUED)
 
 # --- 2. structure masking on the best of 1-3 (launched when arm 3 is done; weights flags of the winner after $B) -------------------------------
 # $S/run_with_retry.sh o6gm1_maskstruct 6 1 $B --mask_structure <winning weight flags>
