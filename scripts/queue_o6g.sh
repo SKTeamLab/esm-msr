@@ -15,19 +15,22 @@
 # is about w / K here:  WT regression 1 -> 0.06;  MT plain regression 1 -> 0.01;  components 3,3,1 -> 0.13, 0.05, 0.002;  and the old
 # --mt_comp_int 850 (i3_lam300, the only earlier run that moved the epistasis metrics) -> 1.6. Rank losses, by contrast, were at 1.
 #
-# Reference run (already launched, 2026-10-06 19:21): o6g1_bal111.
+# Reference run: o6g1_bal111 (launched 2026-10-06 21:54 on the capped split).
 S=$(dirname "$(readlink -f "$0")")
 echo "queue_o6g.sh is a menu: copy ONE run_with_retry line into a shell (o6g1 is already running). Not launching anything." >&2; exit 1
 B="--include_out_of_range --reg_balance"
 
-# --- 1. the weight grid (decide the base for everything below) ---------------------------------------------------------------------------
-$S/run_with_retry.sh o6g1_bal111      6 1 $B                                                           # RUNNING: every regression term worth one rank loss
-$S/run_with_retry.sh o6g2_bal02       6 1 $B --lambda_reg_wt 0.2 --lambda_mt_cell 0.2                  # a fifth of the rank gradient
-$S/run_with_retry.sh o6g3_bal02_int0  6 1 $B --lambda_reg_wt 0.2 --lambda_mt_cell 0.2 --mt_comp_int 0  # as 2, interaction part of the regression dropped
+# --- 1. the weight grid (decides the base for the mask arm). Already queued, in this order, with scripts/after.sh -------------------------------------
+$S/run_with_retry.sh o6g1_bal111      6 1 $B                                                           # 1: every regression term worth one rank loss (RUNNING)
+$S/run_with_retry.sh o6g2_bal01       6 1 $B --lambda_reg_wt 0.1 --lambda_mt_cell 0.1                  # 2: a tenth of the rank gradient (QUEUED)
+$S/run_with_retry.sh o6g3_bal0        6 1 $B --lambda_reg_wt 0 --lambda_mt_cell 0 --mt_single_anchor_weight 0   # 3: rank losses only (QUEUED). The MT single anchors are regression
+                                                                                                        #    terms and must be off, or the compose step asserts. With no regression the
+                                                                                                        #    calibration scales and the link get no gradient (they stay at their initial
+                                                                                                        #    values), so judge this arm on rank metrics, not RMSE / pair offset.
 
-# --- 2. structure masking (priority: possible paradigm shift). Run on the better of o6g1 / o6g2 (shown on o6g1's weights) -------------------
-$S/run_with_retry.sh o6gm1_maskstruct 6 1 $B --mask_structure
-# $S/run_with_retry.sh o6gm2_mask_wtsites 6 1 $B --mask_structure --mask_strategy marginal   # only if the plain mask arm is informative: adds sequence masking
+# --- 2. structure masking on the best of 1-3 (launched when arm 3 is done; weights flags of the winner after $B) -------------------------------
+# $S/run_with_retry.sh o6gm1_maskstruct 6 1 $B --mask_structure <winning weight flags>
+#   then: the REMAINDER below, on the better of (mask arm, best non-mask arm); add --mask_structure to each if the mask arm wins.
 
 # --- 3. what the pair offset needs (the o6f1 offset deficit; weights now strong enough to test it) --------------------------------------------
 # $S/run_with_retry.sh o6g_off3         6 1 $B --mt_comp_offset 3                                    # offset part 3x the rank gradient-equivalent
