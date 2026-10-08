@@ -513,6 +513,28 @@ class MSRModel(ESM3PredictorBase):
 
         return {'wt_lora_pred': wt_pred_cal, 'mt_lora_pred': mt_pred_cal, 'wt_lora_raw': wt_pred_raw, 'mt_lora_raw': mt_pred_raw, 'combined_pred': combined_pred, 'epi_pred': epi_pred}
 
+    def forward_cycle(self, batch_in: Dict[str, Any], mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
+        """
+        The two passes forward_batch does not run, both returned as a FORWARD (wild type -> mutant) ddG estimate:
+
+        * wt_rev: the WT adapter on the MUTATED sequence, asked about the reverse mutation (mutant -> wild type): the adapter's native readout of
+          the reverse change, calibrated as usual and negated.
+        * mt_fwd: the MT adapter on the WILD-TYPE sequence, scoring the forward mutation (an input regime it never trains on: a probe).
+
+        With forward_batch's WT pass (wt_fwd) and MT pass (mt_rev: mutated sequence in; its readout is the forward one up to sign) they make
+        the 2 x 2 of adapters and directions behind the symmetrised heads of the epistasis hierarchy, HEAD_MUT = (X + ~X)/2.
+        """
+        if self.training:
+            raise AssertionError("forward_cycle is for inference only.")
+        rev = dict(batch_in)
+        rev['wt_sequence_tokens'] = batch_in['mt_sequence_tokens']
+        rev['wt_id'], rev['mt_id'] = batch_in['mt_id'], batch_in['wt_id']
+        wt_rev = self.forward_partitioned(rev, pass_type='wt', mask_strategy=mask_strategy)['pred_calibrated']
+        fwd = dict(batch_in)
+        fwd['mt_sequence_tokens'] = batch_in['wt_sequence_tokens']
+        mt_fwd = self.forward_partitioned(fwd, pass_type='mt', mask_strategy=mask_strategy)['pred_calibrated']
+        return {'wt_rev': -wt_rev, 'mt_fwd': mt_fwd}
+
     def _process_logits(self, logits: torch.Tensor) -> torch.Tensor:
         if not self.log_likelihood: return logits
         idx = self.canonical_idx_tensor

@@ -1,0 +1,11 @@
+--adapter_mode dual --lora_mode ensemble
+--lora_rank_mt 1 --lora_alpha_mt 4 --lora_dropout_mt 0.1 --target_mode_mt expanded --incl_sequence_head_mt
+--lora_rank_wt 1 --lora_alpha_wt 4 --lora_dropout_wt 0.1 --target_mode_wt expanded --incl_sequence_head_wt
+--lambda_rank_wt 1.0 --lambda_reg_wt 1.0 --lambda_rank_combined 1.0 --lambda_reg_combined 1.0 --lambda_epi_combined 0.0 --detach_ensemble_input
+--double_weight 1.0 --reversion_weight 0.5 --mut_ctx_weight 0.5 --mt_reg_mask all --rank_loss listmle --reg_loss mse
+--shared_scale_init 0.3 --shared_bias_init 0.0 --calib_lr_mult 20.0
+--subset_size 16 --subset_caps single=None double=None mut_ctx=0.0 reversion=0.0
+--learning_rate 2e-4 --lr_warmup_steps 500 --batch_size 256 --micro_batch_size 16 --precision bf16-mixed
+--dataloading cycle --loader_strategy all --score_column ddG_ML
+--monitor_metric val_rho_combined_avg --monitor_mode max --save_top_k 5 --checkpoint_filename {epoch:02d}-{val_rho_combined_avg:.3f}
+--log_every_n_steps 25
