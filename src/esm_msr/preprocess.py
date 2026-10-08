@@ -14,9 +14,6 @@ import itertools
 from esm.utils.structure.protein_chain import ProteinChain
 from esm.utils.constants import esm3 as C
 
-from pdbfixer import PDBFixer
-from openmm.app import PDBFile
-
 from Bio import pairwise2
 from Bio import PDB
 from Bio.PDB import PDBParser, PDBIO
@@ -203,6 +200,10 @@ def fix_noncanonical_residues(input_pdb, output_pdb, verbose=False):
                 res_key = f"{chain.id}:{res_id}"
                 noncanonical_residues[res_key] = resname
     
+    # imported here: only this function needs them, and importing the module should not require pdbfixer / openmm
+    from pdbfixer import PDBFixer
+    from openmm.app import PDBFile
+
     fixer = PDBFixer(input_pdb)
     fixer.findNonstandardResidues()
     
