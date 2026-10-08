@@ -3,89 +3,14 @@ import numpy as np
 from esm_msr import stats
 
 
-class TestStatsEpistasis(unittest.TestCase):
-    def test_compute_metrics_with_and_without_dddG(self):
-        # 2 singles, 2 doubles
-        wt_scores = np.array([1.0, 2.0, 1.5, 3.5])
-        mt_scores = np.array([1.0, 2.0, 2.5, 5.5])
-        comb_scores = 0.5 * wt_scores + 0.5 * mt_scores  # [1.0, 2.0, 2.0, 4.5]
-        ground_truths = np.array([1.1, 1.9, 2.1, 4.4])
-        subset_types = ['single', 'single', 'double', 'double']
-
-        # Without dddG
-        m_no_dddG = stats.compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types)
-        self.assertTrue(np.isnan(m_no_dddG['rho_epi_fast']))
-        self.assertFalse(np.isnan(m_no_dddG['rho_combined']))
-
-        # With dddG:
-        # doubles: epi_pred = comb - wt = [0.5, 1.0]
-        # ground truth dddG = [0.2, 0.4] -> perfect rank correlation = 1.0
-        dddG = np.array([np.nan, np.nan, 0.2, 0.4])
-        m_with_dddG = stats.compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types, dddG=dddG)
-        self.assertAlmostEqual(m_with_dddG['rho_epi_fast'], 1.0, places=5)
-
-    def test_compute_metrics_no_doubles_returns_nan_rho_epi(self):
-        # Only singles
-        wt_scores = np.array([1.0, 2.0])
-        mt_scores = np.array([1.0, 2.0])
-        comb_scores = np.array([1.0, 2.0])
-        ground_truths = np.array([1.1, 1.9])
-        subset_types = ['single', 'single']
-        dddG = np.array([np.nan, np.nan])
-
-        m = stats.compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types, dddG=dddG)
-        self.assertTrue(np.isnan(m['rho_epi_fast']))
-
-
-class TestEpiFull(unittest.TestCase):
-    def _lib(self, delta=0.0):
-        """Singles A1,B1,A2,B2 plus doubles. WT head additive; MT head = WT + delta per single
-        + interaction eps on doubles. Returns arrays in compute_metrics order."""
-        a = {'A1': 1.0, 'A2': 2.5, 'B1': -0.5, 'B2': 0.7}
-        eps = {('A1', 'B1'): 0.3, ('A1', 'B2'): -0.4, ('A2', 'B1'): 0.9, ('A2', 'B2'): 0.1}
-        keys, st, wt, mt, ddd = [], [], [], [], []
-        for n, v in a.items():
-            keys.append((('X', 1, n),)); st.append('single')
-            wt.append(v); mt.append(v + delta); ddd.append(np.nan)
-        for (x, y), e in eps.items():
-            keys.append((('X', 1, x), ('X', 1, y))); st.append('double')
-            wt.append(a[x] + a[y]); mt.append(a[x] + a[y] + 2 * e + delta * 2); ddd.append(e)
-        wt, mt = np.array(wt), np.array(mt)
-        return wt, mt, 0.5 * wt + 0.5 * mt, np.array(ddd), st, keys
-
-    def test_full_recovers_epsilon_exactly(self):
-        wt, mt, comb, ddd, st, keys = self._lib()
-        e = stats.epi_full_scores(comb, st, keys)
-        self.assertTrue(np.all(np.isnan(e[:4])))
-        np.testing.assert_allclose(e[4:], ddd[4:], atol=1e-9)
-
-    def test_full_cancels_single_disagreement_but_fast_does_not(self):
-        # The two heads disagree on singles by a per-substitution delta.
-        wt, mt, comb, ddd, st, keys = self._lib(delta=0.0)
-        mt = mt.copy()
-        bias = {'A1': 3.0, 'A2': -2.0, 'B1': 1.5, 'B2': -1.0}
-        names = ['A1', 'A2', 'B1', 'B2']
-        for i, n in enumerate(names):
-            mt[i] += bias[n]
-        for j, (x, y) in enumerate([('A1', 'B1'), ('A1', 'B2'), ('A2', 'B1'), ('A2', 'B2')]):
-            mt[4 + j] += bias[x] + bias[y]      # MT head carries its own single effects into the double
-        comb = 0.5 * wt + 0.5 * mt
-        e = stats.epi_full_scores(comb, st, keys)
-        np.testing.assert_allclose(e[4:], ddd[4:], atol=1e-9)           # second difference: exact
-        fast = (comb - wt)[4:]
-        self.assertFalse(np.allclose(fast, ddd[4:], atol=1e-3))          # between-head difference: polluted
-        m = stats.compute_metrics(wt, mt, comb, ddd, st, dddG=ddd, mut_keys=keys)
-        self.assertAlmostEqual(m['rho_epi_full'], 1.0, places=6)
-        self.assertLess(m['rho_epi_fast'], 1.0)
-
-    def test_missing_singles_or_keys_are_nan(self):
-        wt, mt, comb, ddd, st, keys = self._lib()
-        m = stats.compute_metrics(wt, mt, comb, ddd, st, dddG=ddd)       # no mut_keys
-        self.assertTrue(np.isnan(m['rho_epi_full']))
-        drop = [i for i, k in enumerate(keys) if st[i] == 'double' or k != (('X', 1, 'A1'),)]   # remove single A1
-        e = stats.epi_full_scores(comb[drop], [st[i] for i in drop], [keys[i] for i in drop])
-        involves_a1 = [any(m[2] == 'A1' for m in keys[i]) for i in drop if st[i] == 'double']
-        self.assertEqual(list(np.isnan(e[-4:])), involves_a1)            # only doubles missing a single are NaN
+class TestComputeMetrics(unittest.TestCase):
+    def test_the_ddG_metrics_and_nothing_epistatic(self):
+        wt = np.array([1.0, 2.0, 1.5, 3.5])
+        mt = np.array([1.0, 2.0, 2.5, 5.5])
+        m = stats.compute_metrics(wt, mt, 0.5 * wt + 0.5 * mt, np.array([1.1, 1.9, 2.1, 4.4]), ['single', 'single', 'double', 'double'])
+        self.assertEqual(set(m), {'rho_wt_valid', 'rho_wt_all', 'rho_mt_valid', 'rho_mt_all', 'rho_combined', 'rmse_combined'})
+        self.assertGreater(m['rho_combined'], 0.9)
+        self.assertTrue(np.isnan(m['rho_mt_valid']))           # no conditional items
 
 
 class TestDeltaSingleDiagnostics(unittest.TestCase):
@@ -182,31 +107,17 @@ class TestPairLevelFlip(unittest.TestCase):
 
 
 class TestObservedScaleMetrics(unittest.TestCase):
-    def _data(self):
+    def test_rmse_uses_the_observed_scale_and_ranks_the_latent_scale(self):
         # two singles and a double; the double is far below the floor, so its LATENT is much lower than what is measured
         sub = ['single', 'single', 'double']
-        keys = [(('X', 1, 'A'),), (('X', 2, 'B'),), (('X', 1, 'A'), ('X', 2, 'B'))]
         gt = np.array([-2.0, -2.5, -3.0])             # measured ddG (saturated at dG -1 with dG_wt 2.0 -> -3.0 floor)
         latent = np.array([-2.0, -2.5, -9.0])         # latent: the double is predicted 9 kcal/mol less stable
         obs = np.array([-2.0, -2.5, -3.0])            # what the assay would report for those latents
-        return sub, keys, gt, latent, obs
-
-    def test_rmse_uses_the_observed_scale_and_ranks_the_latent_scale(self):
-        sub, keys, gt, latent, obs = self._data()
-        m = stats.compute_metrics(latent, latent, latent, gt, sub, dddG=np.array([np.nan, np.nan, 1.5]), mut_keys=keys,
-                                  obs={'wt': obs, 'mt': obs, 'comb': obs})
+        m = stats.compute_metrics(latent, latent, latent, gt, sub, obs={'comb': obs})
         self.assertAlmostEqual(m['rmse_combined'], 0.0, places=9)           # the saturated measurement is matched
         plain = stats.compute_metrics(latent, latent, latent, gt, sub)
         self.assertGreater(plain['rmse_combined'], 3.0)                      # the latent scale is penalised for it
         self.assertAlmostEqual(m['rho_combined'], plain['rho_combined'])     # rank metrics are untouched
-
-    def test_epistasis_readouts_report_both_scales(self):
-        sub, keys, gt, latent, obs = self._data()
-        dddG = np.array([np.nan, np.nan, 1.5])
-        m = stats.compute_metrics(latent, latent, latent, gt, sub, dddG=dddG, mut_keys=keys, obs={'wt': obs, 'mt': obs, 'comb': obs})
-        self.assertIn('rho_epi_full_latent', m)
-        self.assertIn('rho_epi_fast_latent', m)
-        self.assertNotIn('rho_epi_full_latent', stats.compute_metrics(latent, latent, latent, gt, sub, dddG=dddG, mut_keys=keys))
 
 
 if __name__ == '__main__':

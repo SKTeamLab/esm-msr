@@ -253,10 +253,11 @@ def parse_arguments() -> argparse.Namespace:
                                  "background site the structure does not carry) are NaN and the whole chain is re-encoded into structure tokens, "
                                  "so the neighbours' tokens no longer carry the hidden geometry either. The WT pass keeps the unmasked structure. "
                                  "Needs its own cache (part of the cache name) and a structure encoder at build time. Exclusive with --mask_structure.")
-    mask_group.add_argument('--val_cycle_passes', action=argparse.BooleanOptionalAction, default=False,
+    mask_group.add_argument('--val_cycle_passes', action=argparse.BooleanOptionalAction, default=True,
                             help="VALIDATION ONLY: also run the WT adapter on the mutated sequence of every single and double, asked about the reverse mutation, so that "
-                                 "the symmetrised head WT_ctx = (WT + ~WT)/2 of the epistasis hierarchy (val_epi_*_wt_ctx) exists. One extra forward per "
-                                 "single / double; the hierarchy for the combined head and the additive WT head needs no extra pass and is always logged.")
+                                 "the control head ctx = (WT + ~WT)/2 of the epistasis metrics (val_epi_*_ctx: what the backbone plus single-mutant training "
+                                 "already know about epistasis) exists. One extra WT forward per single / double (about 1-2 min per validation); "
+                                 "--no-val_cycle_passes drops the ctx metrics and nothing else.")
     mask_group.add_argument('--mask_structure', action=argparse.BooleanOptionalAction, default=False,
                             help="STRUCTURE masking: blank coordinates and structure tokens at every position the MT-pass "
                                  "sequence mutates relative to the structure. The WT pass is never masked (its sequence and "

@@ -24,6 +24,7 @@ small compared with the span (about 4e-3 at span 5.4, tau_hi 1). :meth:`summary`
 """
 import math
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -31,6 +32,16 @@ from torch import nn
 
 def _inv_softplus(y: float) -> float:
     return math.log(math.expm1(y)) if y < 20.0 else y
+
+
+def numpy_link(lo: float, hi: float, tau_lo: float, tau_hi: float):
+    """The same h as a numpy function of absolute dG, for metrics computed off the GPU (``MonotoneLink.numpy()``, or a dump's
+    ``link_summary``)."""
+    def h(z):
+        z = np.asarray(z, dtype=np.float64)
+        u = lo + tau_lo * np.logaddexp(0.0, (z - lo) / tau_lo)
+        return hi - tau_hi * np.logaddexp(0.0, (hi - u) / tau_hi)
+    return h
 
 
 class MonotoneLink(nn.Module):
@@ -65,6 +76,12 @@ class MonotoneLink(nn.Module):
         NaN wherever ``dG_wt`` is unknown.
         """
         return self(dG_wt + bg_offset + latent) - dG_wt
+
+    @torch.no_grad()
+    def numpy(self):
+        """This link as a numpy function of absolute dG (see ``numpy_link``)."""
+        lo, hi, tl, th = (float(v) for v in self.params())
+        return numpy_link(lo, hi, tl, th)
 
     @torch.no_grad()
     def summary(self) -> dict:

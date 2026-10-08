@@ -1,63 +1,177 @@
 # Validation metrics
 
-Everything is computed on the validation libraries of the split (the capped split: 28 loaders with measured values) after every epoch and once
-before training (the zero-shot row). `*_avg` is the mean over libraries, `*_pooled` pools the items of all libraries first.
+Everything is computed on the validation libraries of the split (the capped split: 9 libraries with designed doubles, 24 position-pair
+matrices, 8,494 doubles with both singles measured) after every epoch and once before training (the zero-shot row, dump tag `zs`).
+The epistasis metrics are defined in `src/esm_msr/epi_metrics.py` (its docstring is the short version of this page); the analysis behind the
+choice is in the epistasis metrics report (`docs/epistasis_metrics_report.html`).
 
-## 1. The epistasis hierarchy (`val_epi_<level>_<head>`)
+## What is logged (20 numbers + 2 per library)
 
-Defined in `src/esm_msr/epi_hierarchy.py`; the full definitions are in its docstring. Target: the measured dddG of each double,
-`ddG_AB - ddG_A - ddG_B`. Prediction: the same difference of a head's **observed-scale** values (`h(dG_wt + latent) - dG_wt`, so saturation is
-modelled), `obs_AB - obs_A - obs_B`. Doubles are grouped as all doubles > position-pair matrix > column (one residue fixed, the other varying)
-> cell. Each nesting level has an EFFECT (variation of group means, minus the parent's mean) and a RANK (ordering inside each group, averaged over groups).
+| group | name | read it as | higher is |
+|---|---|---|---|
+| ddG product | `val_rho_combined_avg` | ranking of all measured items by the reported prediction, mean over libraries | better |
+| | `val_rmse_combined_avg` | calibration of the reported prediction (observed scale under `--link`), kcal/mol | worse |
+| | `val_rho_wt_valid_avg` | the WT head on singles (drives the WT plateau and `--wt_early_stop_patience`) | better |
+| epistasis, holistic | `val_epi_naive_rho_comb` | Spearman of predicted vs measured dddG, all doubles. **Mostly saturation under a link** | (summary only) |
+| | `val_epi_naive_rho_add` | the same for the saturation-only control | (control) |
+| global | `val_epi_global_err_comb` | RMSE of the predicted against the measured E[dddG \| x] curve, kcal/mol | worse |
+| | `val_epi_global_err_add` | the same for the saturation-only control: what the link alone reproduces | (control) |
+| | `val_epi_global_bias_comb` | mean (predicted - measured) of that curve; negative = nonspecific epistasis under-predicted | closer to 0 |
+| beyond global | `val_epi_beyond_rho_comb` | everything above the global level at once (pair offsets dominate it) | better |
+| | `val_epi_beyond_rho_ctx` | the same for the WT-in-context control | (control) |
+| pair | `val_epi_pair_rho_comb` | pair offsets beyond the global curve, across 24 pairs. **Report, do not select on it** | better |
+| line | `val_epi_line_rho_comb` | a substitution's average coupling with the other position, beyond the pair offset | better |
+| | `val_epi_line_rho_ctx` | control | (control) |
+| cell | `val_epi_cell_mag_comb` | double-centred residual magnitudes (the specific combination), per complete block | better |
+| | `val_epi_cell_rank_mt` | **the primary target**: double-centred within-column ranks of the MT pass (saturation-free) | better |
+| | `val_epi_cell_rank_comb` | the same for the reported prediction | better |
+| | `val_epi_cell_rank_ctx` | the same for the WT-in-context control | (control) |
+| | `val_epi_cell_flipacc_mt` | share of confident measured order reversals whose direction the MT pass predicts (0.5 = chance) | better |
+| | `val_epi_cell_flipacc_ctx` | control | (control) |
+| diagnostic | `val_epi_cell_sigsd_mt` | how much partner-dependent order the MT pass predicts at all (0 = additive readout) | (not a skill) |
+| per library | `val_rho_combined/<lib>`, `val_rmse_combined/<lib>` | the ddG product per library | |
 
-| level | what is correlated |
-|---|---|
-| `global_rmse` | RMSE of predicted vs measured dddG, all doubles pooled (global effect, saturation included) |
-| `global_rho` | Spearman over all doubles pooled (global rank) |
-| `pair_effect` | across position pairs: mean predicted vs mean measured dddG of the matrix |
-| `matrix_rank` | Spearman over the cells of one matrix, averaged over matrices |
-| `partner_effect` | across all columns (both orientations): [column mean - matrix mean], predicted vs measured |
-| `partner_context_rank` | Spearman within one column (a fixed partner, the scored substitution varying), averaged over columns |
-| `identity_effect` | each complete matrix double-centred, then averaged per (residue at i, residue at j) over matrices; predicted table vs measured table |
-| `interaction_rank_{ranked,raw}_per_matrix` | double-centre each complete matrix, correlate predicted with measured, average the per-matrix correlations. `ranked`: rank within columns first (immune to monotone distortion of a column's order); `raw`: the values. Strongly correlated across matrices (0.8 on the baseline) but not interchangeable: ranking discards magnitude, so `raw` is systematically higher. The `pooled` variants were dropped (within 0.03 of `per_matrix` everywhere) |
-| `global_rho_beyond_add` | PARTIAL: `global_rho` given the additive observed-scale score of each double (the `wt_add` value of the double itself, not its second difference) |
-| `matrix_rank_beyond_add` | PARTIAL: `matrix_rank` given the same additive score, inside each matrix |
-| `partner_effect_beyond_single` | PARTIAL: `partner_effect` given the measured single ddG of the line's fixed mutation, centred on the matrix's lines like the effects (lines whose fixed mutation has no uncensored single are left out of the partial only) |
+Counts, logged every validation: `val_epi_n_doubles`, `val_epi_n_pairs`, `val_epi_n_blocks`, `val_epi_n_flips` (8,494 / 24 / 24 / 2,509 on
+the capped split; a change means the validation set changed).
 
-Heads (`<head>`), with `WT`/`MT` the adapter and `~` the opposite direction (mutated sequence in, reverse mutation asked, sign flipped):
+The checkpoint name reads `val_rho_combined_avg`; `scripts/run_arm.sh` ranks checkpoints by `val_epi_cell_rank_mt`; the learning-rate
+plateaus read `val_rho_wt_valid_avg` (WT adapter and calibration) and `val_epi_cell_rank_mt` (MT adapter and calibration).
 
-| head | latent score of an item | needs |
+## The hierarchy
+
+A validation double (residue a at position i < j, residue b at j) of a library with wild-type stability c = dG_wt has a measured ddG_AB, both
+measured singles, and dddG = ddG_AB - ddG_A - ddG_B. Its **additive expectation** is x = c + ddG_A + ddG_B: the dG it would have if the two
+substitutions did not interact. The doubles of one position pair form a matrix (rows a, columns b), so dddG divides into
+
+| level | what it is | share of dddG variance (validation, in-sample) |
 |---|---|---|
-| `wt_add` | `WT` (WT adapter, wild-type sequence in). Additive before the link: it scores only through saturation, so it is the CONTROL | nothing extra |
-| `comb` | `(WT + ~MT)/2`: each adapter in its native direction; the reported prediction | nothing extra |
-| `wt_ctx` | `(WT + ~WT)/2`: the WT adapter in both directions. The WT adapter never trains on a mutated sequence, so this is a transfer probe, not a trained predictor | `--val_cycle_passes` |
+| global | E[dddG \| x]: the assay's floor and ceiling and any nonspecific trend, a function of x only | 56% |
+| pair | the matrix mean beyond the global curve (70% of it is between libraries) | 22% |
+| line | a row or column mean beyond the pair mean: one substitution's average coupling with the other position | 14% |
+| cell | the double-centred remainder: what depends on the specific combination | 6% |
 
-`(MT + ~MT)/2` (`mt_ctx`) was dropped: the forward legs of both adapters read the wild-type sequence in one pass and are additive (their second differences are a constant plus rounding), so the non-additive content of `comb` and of `mt_ctx` is the same `~MT` leg and the two have identical ranks (Spearman 1.0000 of their second differences on the released-code baseline; slightly different through the link on devel). The MT forward pass is no longer run in validation.
+The cell level is about the size of the doubles' own measurement noise (SD about 0.2 to 0.27 kcal/mol), and the line level contains the
+measurement noise of the single every cell of the line shares. Both are therefore noisy targets; a model can still correlate with them because
+part of each is real (trained models reach 0.24-0.31 at the cell level on magnitudes and 0.80-0.88 accuracy on confident reversals).
 
-### Partial-correlation columns
+## How each metric keeps saturation and the other levels out
 
-A partial Spearman correlation is the correlation of predicted and measured dddG after both have been rank-regressed on a control; it asks whether the skill survives holding the control fixed.
+Saturation is a monotone measurement h of the latent dG. It adds a term to dddG that is a function of x (large below the floor: a double whose
+additive expectation is below the floor is measured near the practical floor, so its dddG is about floor - x) and it attenuates real epistasis
+where h is flat. On the observed scale h(c + a + b) is not additive in (a, b), so it leaks into every level of raw dddG: the old raw levels gave a
+predictor that knows only the saturation 0.71 (pair), 0.48 (line) and 0.10 (double-centred cell) in simulation, and 0.50, 0.53 and 0.26 on the
+real validation set. Two devices remove it:
 
-* `*_beyond_add` (control: the double's additive observed-scale score). Saturation makes dddG a function of how far the additive prediction already sits from the assay floor (measured dddG correlates about -0.46 with the additive score on the baseline), and a head can score by learning that alone. What is left is skill about the residue pair. On devel the control passes through the link, so it contains the saturation; `wt_add` is then the full saturation control. The additive score is a proxy (a noisy prediction), so the partial under-corrects.
-* `partner_effect_beyond_single` (control: the measured single ddG of the fixed mutation). A line's shift is partly how destabilising its fixed mutation is (their correlation was -0.58 on the baseline) and partly which residue it pairs with; this keeps the second.
+* **Beyond-global residuals** (magnitude metrics: `beyond_rho`, `pair_rho`, `line_rho`, `cell_mag`). Measured: dG_AB - E[dG_AB | x], which equals
+  dddG - E[dddG | x] (a 25-bin piecewise-linear smoother of the measured x). Predicted, for a head: its observed-scale double minus its own
+  additive prediction pushed through its own link, e = P_AB - obs(L_A + L_B + o) (o, the head's median second difference, removes a
+  calibration bias), then minus E[e | x_hat]. A head that is additive before its link has e = 0 and scores exactly 0 at every level here,
+  whatever its link does to the singles. Pair offsets are the matrix means of these residuals, line effects their row and column means centred on
+  the matrix mean, cells the double-centred residuals of a complete block.
+* **Within-column order** (`cell_rank`, `cell_flipacc`, `cell_sigsd`). Inside one column (one library, so one c and one h; one partner) a
+  monotone assay cannot change which of two doubles is more stable, so the order of ddG_AB there is saturation-free on the measured side, exactly.
+  `cell_rank` rank-transforms every column of the measured and of the head's latent ddG_AB on a complete block, double-centres both, and
+  correlates them (both orientations, mean per block, mean over blocks); any predictor whose order inside a column does not depend on the partner
+  scores exactly 0. `cell_flipacc` takes the 2 x 2 sub-blocks whose measured order reverses between two columns by more than 0.6 kcal/mol on both
+  sides (a monotone assay cannot reverse an order, so the reversal fixes the sign of the latent interaction contrast) and scores the share in
+  which the head's latent contrast L_ij - L_i'j - L_ij' + L_i'j' has that sign; pair, line and single effects cancel exactly in the contrast, so
+  an additive head scores 0.5.
 
-Reading them: compare a head's partial with its plain value. A large drop means the plain value was mostly the confounder (on the baseline the global rho of `comb` falls from 0.35 to 0.24 and its lead over `wt_ctx` disappears; the within-matrix leads survive).
+Specificity in simulation (the real validation design, known components, a saturating assay, noise; mean of 16 replicates):
 
-Also logged once: `val_epi_n_doubles`, `val_epi_n_pairs`, `val_epi_n_columns`, `val_epi_n_complete_blocks`, `val_epi_n_identities`. Counts are small
-(about 24 pairs on the capped split): read the pair-level numbers with intervals (bootstrap over pairs), not decimals.
+| predictor knows | naive | beyond | pair | line | cell_mag | cell_rank | flipacc |
+|---|---|---|---|---|---|---|---|
+| saturation only (additive + true link) | 0.58 | -0.04 | -0.05 | -0.03 | 0.01 | 0.00 | 0.55 |
+| saturation imitated with noise, no link | 0.54 | 0.00 | 0.07 | -0.01 | 0.00 | 0.00 | 0.51 |
+| + pair offsets | 0.72 | 0.63 | 0.84 | 0.11 | 0.02 | 0.00 | 0.54 |
+| + line effects | 0.61 | 0.25 | 0.08 | 0.50 | 0.01 | 0.01 | 0.54 |
+| + cell interaction | 0.60 | 0.18 | 0.10 | 0.13 | 0.37 | 0.29 | 0.89 |
+| everything, with the link | 0.75 | 0.70 | 0.83 | 0.54 | 0.36 | 0.29 | 0.89 |
+| everything, no saturation | 0.42 | 0.71 | 0.84 | 0.53 | 0.36 | 0.26 | 0.90 |
 
-How saturation is handled: neither the per-unit correlations nor the parent-mean subtraction can remove saturation that bends dddG inside a
-unit, so read each level against `wt_add`.
+Read across a row: each level credits its own component. The naive metric credits saturation above everything else (a model that knows all of
+the epistasis but not the saturation scores 0.42, one that knows only the saturation 0.58). Residual limits: the flip accuracy gives 0.54-0.55
+to a predictor whose LATENT has a nonspecific curvature (noise reversals happen more often in the floor-compressed column); `cell_mag` can carry a
+little of the line level through a sharp floor (line effects pushed through curvature are non-additive on the observed scale); `cell_rank` has
+neither leak.
 
-## 2. Training-aligned metrics (unchanged, scored on the conditional labels the MT head trains on)
+## Heads and controls
 
-`rho_combined`, `rmse_combined` (measured items: singles, doubles, native-background), `rho_wt_valid` (WT head, singles), `rho_mt_valid`
-(MT head, conditional items), `rho_colrank_{mt,wt,wt_blind}` (within-column Spearman on conditional labels; `wt` is the WT head with the partner in its
-context, `wt_blind` the WT head's score of the plain single), `rho_flip_{mt}`, `rho_flip_pair_{mt,wt}`, `auc_dead_{wt,mt}`. The MT learning-rate
-plateau reads `rho_flip_pair_mt_avg`.
+| head | latent ddG of an item | role |
+|---|---|---|
+| `comb` | (WT + ~MT)/2 | the reported prediction (inference `combined_pred`) |
+| `mt` | ~MT, the MT pass alone | the epistasis readout (inference `epistasis_pred`); its non-additive part is comb's, doubled and without the additive WT half that reorders columns |
+| `ctx` | (WT + ~WT)/2, the WT adapter also read on the mutated sequence | CONTROL: what the backbone plus single-mutant training already know. The MT adapter's contribution is `mt` or `comb` minus `ctx`. Needs `--val_cycle_passes` (now the default; about 1-2 min per validation) |
+| `add` | WT, additive by construction | CONTROL for saturation: through the link it scores only by saturation. Logged for the naive and global metrics only; on every other one it is 0 (exactly at the residual levels, within 0.002 on cell_rank, 0.47-0.53 on the reversal accuracy across 67 past dumps) |
 
-Retired (replaced by section 1): `rho_epi_full`, `rho_pair_offset`, `rho_subst_effect`.
+## Typical values and noise (capped split)
 
-## 3. Offline recomputation
+Mean over the devel arms (link, MT rank 2) and the released baseline (no link, MT rank 16) at epoch 2; `rep SD` is the SD across the three
+runs of the same configuration (two seeds and a rerun), the noise to beat when comparing two configurations.
 
-`PYTHONPATH=src python scripts/epi_from_dump.py training_logs/<run>/0/val_dump_e7.npz ...` recomputes every level for `wt_add`, `wt_ctx` and `comb` from a dump (the baseline's flat format or devel's per-library one) with the current definitions, so the metric set can change without re-running validation.
+| metric | zero-shot | devel e2 | baseline e2 | rep SD | gain / rep SD |
+|---|---|---|---|---|---|
+| `naive_rho_comb` | 0.38 | 0.42 | 0.32 | 0.013 | 0.8 |
+| `global_err_comb` | 0.55 | 0.70 | 0.85 | 0.031 | (worsens) |
+| `global_bias_comb` | -0.35 | -0.52 | -0.65 | 0.030 | |
+| `beyond_rho_comb` | 0.28 | 0.42 | 0.46 | 0.004 | 30 |
+| `pair_rho_comb` | 0.31 | 0.46 | 0.52 | 0.020 | 7 |
+| `line_rho_comb` | 0.21 | 0.39 | 0.39 | 0.013 | 13 |
+| `cell_mag_comb` | 0.16 | 0.24 | 0.31 | 0.007 | 12 |
+| `cell_rank_mt` | 0.12 | 0.16 | 0.20 | 0.005 | 9 |
+| `cell_rank_comb` | 0.09 | 0.13 | 0.16 | 0.004 | 11 |
+| `cell_rank_ctx` | 0.09 | 0.14 | 0.14 | (jitter 0.003) | |
+| `cell_flipacc_mt` | 0.72 | 0.80 | 0.88 | 0.010 | 8 |
+| `cell_flipacc_ctx` | 0.72 | 0.80 | 0.78 | (jitter 0.007) | |
+| `cell_sigsd_mt` | 0.11 | 0.09 | 0.11 | 0.003 | |
+
+Absolute values carry the sampling uncertainty of a 24-matrix validation set (90% pair-bootstrap interval of `cell_rank_mt` about +/-0.05);
+paired comparisons on the same set are far tighter (the rep SD above). A difference between two single-seed runs needs about 2.8 x rep SD to be
+believed (cell_rank_mt 0.014, cell_mag 0.02, flipacc 0.03, beyond 0.011, line 0.04, pair 0.06); averaging the last two or three epochs helps
+(epoch-to-epoch jitter is about the size of the rep SD).
+
+## What to optimise and stop on
+
+1. **Select and early-stop on `val_epi_cell_rank_mt`.** It measures the level only epistasis-specific learning can move, it is exactly immune to
+   saturation and to every higher level, and it has the best noise of the cell-level metrics. It replaces `val_rho_flip_pair_mt_avg` (r = 0.89
+   across past runs).
+2. **Confirm with `val_epi_cell_mag_comb` and `val_epi_cell_flipacc_mt`** (r = 0.80 and 0.82 with it; together they are the cell level seen on
+   magnitudes, in rank space and as reversals). For HPO across many arms, an average of the three, each divided by its rep SD, is less noisy than
+   any one of them.
+3. **Attribute with the controls:** `cell_rank_mt - cell_rank_ctx` is what the MT adapter adds over the WT adapter read in context (about +0.02 in
+   the devel arms, +0.06 in the released baseline).
+4. **Guards:** `val_rmse_combined_avg` and `val_rho_wt_valid_avg` must not regress; `val_epi_beyond_rho_comb` (above the global level overall)
+   should not fall when the cell level rises.
+5. **Do not optimise** `naive_rho` (under the link it is mostly the link; it is uncorrelated or negatively correlated with every clean level
+   across past runs), `pair_rho` (24 pairs from 9 libraries) or `cell_sigsd` (not a skill).
+6. **`global_bias_comb`** tracks the saturation model: every trained model so far under-predicts the nonspecific epistasis by 0.5-0.7 kcal/mol
+   because doubles far below the floor are measured near dG 0 to +0.5 (library-dependent), not at the link's -1. Use it to judge changes to the
+   link or to floor censoring.
+
+## Retired names (old -> new)
+
+| old | now |
+|---|---|
+| `val_rho_flip_pair_mt_{avg,pooled}`, `val_rho_flip_pair_mt/<lib>` | `val_epi_cell_rank_mt` (doubles instead of conditional items, so every head and control is scored on the same cells) |
+| `val_rho_flip_pair_wt_*` | `val_epi_cell_rank_ctx` |
+| `val_rho_flip_mt_*` | retired: pooling partner positions mixed the line and cell levels |
+| `val_rho_colrank_{mt,wt,wt_blind}_*` | retired: the within-column order is mostly the single-effect consensus (an additive head scores 0.58) |
+| `val_epi_global_rho_<head>` | `val_epi_naive_rho_{comb,add}` |
+| `val_epi_global_rmse_*` | `val_epi_global_err_*`, `val_epi_global_bias_comb` |
+| `val_epi_pair_effect_*` | `val_epi_pair_rho_comb` (residualised; the raw version was saturation) |
+| `val_epi_partner_effect_*`, `*_beyond_single` | `val_epi_line_rho_{comb,ctx}` |
+| `val_epi_interaction_rank_raw_per_matrix_*` | `val_epi_cell_mag_comb` (residualised; raw gave the saturation-only control 0.26) |
+| `val_epi_interaction_rank_ranked_per_matrix_*` | `val_epi_cell_rank_*` (ranks ddG_AB, not dddG: ranking dddG inside a column is not saturation-free) |
+| `val_epi_matrix_rank_*`, `val_epi_partner_context_rank_*`, `val_epi_identity_effect_*`, `*_beyond_add` | retired (identity_effect gave the saturation-only control 0.6) |
+| `val_rho_mt_valid_avg`, `val_auc_dead_{wt,mt}_*`, every `*_pooled` ddG metric, `val_rho_wt_valid/<lib>` | no longer logged; `stats.compute_metrics` still returns them, and every validation dump allows recomputing them |
+
+## Offline recomputation
+
+Every validation writes `training_logs/<run>/0/val_dump_<tag>.npz` (all items' latent scores, the reverse leg, dG_wt, the link). Score any dump,
+past runs included, with the current definitions, optionally with pair-bootstrap intervals:
+
+```
+PYTHONPATH=src python scripts/epi_from_dump.py training_logs/<run>/0/val_dump_e5.npz [...] [--boot 200] [--csv out.csv]
+```
+
+Dumps written before this change have no dG_wt; the script then reads it from the library caches (`--cache`, default `cache_v7`).

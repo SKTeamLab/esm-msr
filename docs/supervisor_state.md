@@ -3,6 +3,14 @@
 Written 2026-10-04 by the supervising instance. It records what exists, what is only designed or untested, and the traps. Where a statement is a
 measurement it says so and where it came from; where it is inference it says that too. Details live in the documents named in each section.
 
+## 0a. Update 2026-10-08: the validation metrics were replaced
+
+Branch `claude/epistasis-metrics-logging-cfd318` replaces the validation metric set (the `val_epi_*` hierarchy of `epi_hierarchy.py`, the flip / colrank
+families and the pooled ddG metrics) with 20 numbers from `src/esm_msr/epi_metrics.py`; checkpoints and the MT plateau read `val_epi_cell_rank_mt`
+(the successor of `val_rho_flip_pair_mt_avg`). Definitions, typical values, noise and the old -> new map: `docs/validation_metrics.md`; the analysis:
+`docs/epistasis_metrics_report.html`. Metric names elsewhere in this file and in the handoffs are the old ones. Past runs can be rescored with
+`scripts/epi_from_dump.py`.
+
 ## 0. Update 2026-10-05 (read `docs/hparam_review.md` first)
 
 The hyper-parameter surface was audited and the dead parts removed on branch **`claude/cleanup-dead-params`** (one commit on top of `3f18100`; **not yet merged** into

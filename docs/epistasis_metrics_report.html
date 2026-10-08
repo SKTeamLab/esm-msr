@@ -1,0 +1,706 @@
+<title>ESM-MSR Epistasis Metrics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: one reading column (about 70 characters) with figures and tables allowed to run wider; a lab-notebook register:
+   condensed sans for headings and labels, plain sans for prose, mono for metric names and numbers. */
+:root {
+  --bg: #fbfbfa;
+  --surface: #ffffff;
+  --ink: #15181d;
+  --ink-2: #474d56;
+  --muted: #767d87;
+  --rule: #e2e4e7;
+  --grid: #e9eaec;
+  --axis: #c3c6cb;
+  --accent: #1d5d86;
+  --accent-wash: #e9f1f7;
+  --warn-wash: #fbf1e3;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --ghost: #b9bec5;
+  --band: rgba(42, 120, 214, 0.07);
+  --band-2: rgba(42, 120, 214, 0.035);
+  --font-head: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --step--1: 0.84rem; --step-0: 1rem; --step-1: 1.2rem; --step-2: 1.5rem; --step-3: 2.1rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181a; --surface: #1e2023; --ink: #f1f2f4; --ink-2: #c2c7ce; --muted: #8d939c; --rule: #2f3237; --grid: #2a2d31; --axis: #44484e;
+    --accent: #84b6dd; --accent-wash: #1f2a33; --warn-wash: #2c261c;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --ghost: #5a6068;
+    --band: rgba(57, 135, 229, 0.12); --band-2: rgba(57, 135, 229, 0.06);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17181a; --surface: #1e2023; --ink: #f1f2f4; --ink-2: #c2c7ce; --muted: #8d939c; --rule: #2f3237; --grid: #2a2d31; --axis: #44484e;
+  --accent: #84b6dd; --accent-wash: #1f2a33; --warn-wash: #2c261c;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --ghost: #5a6068;
+  --band: rgba(57, 135, 229, 0.12); --band-2: rgba(57, 135, 229, 0.06);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.6; margin: 0; }
+.page { max-width: 1060px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; }
+.col { max-width: 720px; }
+header.top { display: grid; gap: 10px; padding-bottom: 28px; border-bottom: 1px solid var(--rule); margin-bottom: 8px; }
+.eyebrow { font-family: var(--font-head); font-size: var(--step--1); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+h1 { font-family: var(--font-head); font-size: var(--step-3); line-height: 1.12; margin: 0; font-weight: 700; text-wrap: balance; }
+h2 { font-family: var(--font-head); font-size: var(--step-2); line-height: 1.2; margin: 56px 0 10px; font-weight: 600; text-wrap: balance; }
+h3 { font-family: var(--font-head); font-size: var(--step-1); margin: 30px 0 6px; font-weight: 600; }
+p { margin: 0 0 14px; }
+.lede { font-size: 1.08rem; color: var(--ink-2); }
+.meta { font-size: var(--step--1); color: var(--muted); }
+code, .m { font-family: var(--font-mono); font-size: 0.86em; background: var(--accent-wash); padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere; }
+a { color: var(--accent); }
+ul, ol { padding-left: 1.25em; margin: 0 0 14px; }
+li { margin-bottom: 6px; }
+nav.toc { margin: 22px 0 0; font-size: var(--step--1); color: var(--ink-2); }
+nav.toc ol { columns: 2 260px; column-gap: 32px; margin: 6px 0 0; }
+nav.toc a { color: var(--ink-2); text-decoration: none; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); text-decoration: underline; }
+.keys { display: grid; gap: 0; margin: 26px 0 8px; border-top: 1px solid var(--rule); }
+.key { display: grid; grid-template-columns: 9.5rem 1fr; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+.key b { font-family: var(--font-head); font-weight: 600; font-size: 0.98rem; color: var(--accent); }
+.key p { margin: 0; }
+@media (max-width: 620px) { .key { grid-template-columns: 1fr; gap: 2px; } }
+.callout { background: var(--accent-wash); border-radius: 6px; padding: 14px 18px; margin: 18px 0; }
+.callout.warn { background: var(--warn-wash); }
+.callout p:last-child { margin-bottom: 0; }
+figure { margin: 26px 0 30px; }
+figcaption { font-size: var(--step--1); color: var(--ink-2); margin-top: 8px; max-width: 760px; }
+figcaption b { color: var(--ink); }
+.chart { width: 100%; overflow-x: auto; }
+.chart svg { display: block; width: 100%; height: auto; min-width: 520px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: var(--step--1); color: var(--ink-2); margin: 0 0 6px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 16px; height: 3px; border-radius: 2px; display: inline-block; }
+.legend i.box { height: 10px; width: 12px; border-radius: 2px; }
+.tablewrap { overflow-x: auto; margin: 14px 0 22px; }
+table { border-collapse: collapse; font-size: 0.88rem; min-width: 560px; width: 100%; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: var(--font-head); font-weight: 600; font-size: 0.86rem; color: var(--ink-2); border-bottom: 1px solid var(--axis); }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 0.84rem; white-space: nowrap; }
+tr.group td { font-family: var(--font-head); font-weight: 600; color: var(--accent); background: transparent; padding-top: 14px; border-bottom: 1px solid var(--axis); }
+td .m, td code { white-space: nowrap; }
+.tag { display: inline-block; font-family: var(--font-head); font-size: 0.74rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--axis); color: var(--ink-2); white-space: nowrap; }
+.tag.target { border-color: var(--accent); color: var(--accent); }
+.tag.control { border-style: dashed; }
+.heat td.n { color: var(--ink); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px 28px; }
+.grid2 > * { min-width: 0; }
+.small-title { font-family: var(--font-head); font-weight: 600; font-size: 0.95rem; margin: 0 0 2px; }
+.tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--ink); border: 1px solid var(--rule); box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  border-radius: 6px; padding: 7px 10px; font-size: 0.8rem; line-height: 1.4; max-width: 280px; }
+.tip b { font-family: var(--font-head); }
+svg text { font-family: var(--font-body); }
+.formula { font-family: var(--font-mono); font-size: 0.86rem; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; overflow-x: auto; white-space: pre; line-height: 1.55; margin: 12px 0 18px; }
+@media (prefers-reduced-motion: no-preference) { nav.toc a, a { transition: color 120ms; } }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="page">
+<header class="top">
+  <div class="eyebrow">ESM-MSR · devel · validation metrics review</div>
+  <h1>What the model learns about epistasis, and how to measure it</h1>
+  <p class="lede col">A review of the epistasis hierarchy, the assay's saturation, the mechanisms that are meant to learn each level, and a
+  refreshed set of 20 validation metrics with the evidence behind each one. Every number here comes from the capped split's validation
+  libraries, from validation dumps of eleven past runs, or from simulation on the same validation design.</p>
+  <div class="meta">Branch <code>claude/epistasis-metrics-logging-cfd318</code> (from <code>devel</code> 9823c6b) · code: <code>src/esm_msr/epi_metrics.py</code> ·
+  reference: <code>docs/validation_metrics.md</code> · 2026-10-08</div>
+  <nav class="toc" aria-label="Contents"><ol>
+    <li><a href="#summary">Summary</a></li>
+    <li><a href="#hierarchy">The hierarchy and its variance</a></li>
+    <li><a href="#saturation">Where saturation matters, and where it does not</a></li>
+    <li><a href="#mechanisms">What learns each level</a></li>
+    <li><a href="#metrics">The metric set</a></li>
+    <li><a href="#evidence">Evidence the metrics isolate their level</a></li>
+    <li><a href="#runs">What past runs show</a></li>
+    <li><a href="#optimise">What to optimise and stop on</a></li>
+    <li><a href="#objectives">Training objectives and experiments that follow</a></li>
+    <li><a href="#names">Old names, new names, reproduction</a></li>
+  </ol></nav>
+</header>
+
+<section id="summary" class="col">
+<h2>Summary</h2>
+<div class="keys">
+  <div class="key"><b>Variance</b><p>Of the variance of measured dddG on the validation doubles, 56% is a function of the additive expectation alone (saturation
+  and other nonspecific epistasis), 22% is position-pair offsets, 14% line effects and 6% the specific residue combination. The last two are
+  about the size of measurement noise. The training-set ANOVA agrees (60 / 16 / 13 / 10%, cross-validated).</p></div>
+  <div class="key"><b>Saturation</b><p>It leaks into every level of raw dddG, because on the observed scale the floor makes even an additive
+  model non-additive. A predictor that knows only the saturation scores 0.58 on the naive dddG correlation in simulation, more than one that knows every epistasis
+  component but not the saturation (0.42). Two devices remove it exactly for an additive model: within-column order of ddG_AB, and residuals beyond
+  each side's own global curve. Doubles whose additive expectation lies below the floor carry almost no specific information.
+  Their dddG is the floor minus x, plus a rescue signal.</p></div>
+  <div class="key"><b>The floor is misplaced</b><p>Doubles far below the floor are measured near dG +0.3 on average (median +0.03 across 61 libraries,
+  range -0.55 to +0.70), not at the link's -1. Every trained model under-predicts the nonspecific epistasis by 0.5 to 0.7 kcal/mol. The
+  link alone reproduces about a third of the measured global curve, and the MT head carries part of the rest as nonspecific latent epistasis.</p></div>
+  <div class="key"><b>Metrics</b><p>The new set is 17 epistasis metrics, one or two per level with controls, plus 3 ddG guards. It replaces about 60
+  aggregate series. Each level's metric credits only its own component in simulation (for example cell_rank: 0.29 when the interaction is
+  known, at most 0.012 otherwise). On all 67 real dumps the additive control scores exactly 0 at every residual level and within 0.002 of 0 at the rank level.</p></div>
+  <div class="key"><b>Stop on</b><p><code>val_epi_cell_rank_mt</code>, confirmed by <code>cell_mag_comb</code> and <code>cell_flipacc_mt</code> (r 0.80 to 0.83 among
+  them). Their noise between replicate runs is 0.005, 0.007 and 0.010, and training moves them by 8 to 12 times that. An average of the three, each scaled by its replicate
+  noise, separates configurations best (spread 3.4 replicate SDs).</p></div>
+  <div class="key"><b>Runs so far</b><p>The released baseline (no link, MT rank 16) leads every devel arm at the cell level at matched epoch 2
+  (cell_rank_mt 0.197 vs 0.146 to 0.167, 6 to 11 replicate SDs). The no-link devel arm is no better than the link arms, so the link is not the
+  cause; MT capacity is the leading suspect, which the queued <code>o6h2_mt16</code> arm tests. In the devel arms the MT adapter adds only about
+  +0.02 over the WT-in-context control on cell_rank.</p></div>
+  <div class="key"><b>Objectives</b><p>The data contain 27,000 confident order reversals (2 x 2 sub-blocks whose within-column order flips by more than
+  0.6 kcal/mol on both sides) in the training matrices. Each fixes the sign of a pure interaction contrast and is immune to saturation, which
+  makes a logistic loss on them a candidate interaction-only objective. Separately, the floor misplacement argues for censoring
+  measured values near the practical floor in the MT regression, or for a higher, library-aware floor.</p></div>
+</div>
+</section>
+
+<section id="hierarchy">
+<div class="col">
+<h2>The hierarchy and its variance</h2>
+<p>A double mutant carries residue <i>a</i> at position <i>i</i> and <i>b</i> at <i>j</i> (<i>i</i> &lt; <i>j</i>) in a library whose wild type has stability
+<i>c</i> = dG_wt. It has a measured ddG_AB, both measured singles, and the epistasis score dddG = ddG_AB − ddG_A − ddG_B. Its
+<b>additive expectation</b> <i>x</i> = <i>c</i> + ddG_A + ddG_B is the dG the double would have if the substitutions did not interact. All doubles of one position
+pair form a matrix, rows <i>a</i> and columns <i>b</i> (19 × 19 when complete; the 24 validation matrices are 324 to 361 cells), so dddG divides into four nested levels:</p>
+</div>
+<figure>
+<div class="chart" id="fig-hier"></div>
+<figcaption><b>Figure 1.</b> The four levels. <b>Global</b>: E[dddG | x], a function of the additive expectation alone. <b>Pair</b>: a matrix's mean beyond the
+global curve. <b>Line</b>: one row or column (a "pair column": one residue fixed at one position, the other varying) beyond the pair mean.
+<b>Cell</b>: what is left after double-centring, the part that depends on the specific combination.</figcaption>
+</figure>
+<div class="col">
+<p>The levels are additive in variance when each is computed on what the level above leaves. On the validation doubles (in-sample, complete
+blocks), and in the earlier training-set ANOVA (127,476 doubles, cross-validated so noise fitted by row and column means is not counted as
+explained):</p>
+</div>
+<figure>
+<div class="legend" id="leg-part"></div>
+<div class="chart" id="fig-part"></div>
+<figcaption><b>Figure 2.</b> Share of the variance of dddG at each level. Validation: variance 0.66 (kcal/mol)²; global 0.369, pair 0.146, line 0.090
+(rows 0.037, columns 0.053), cell 0.040. Training (from <code>docs/anova_epistasis_report.md</code>): saturation fitted by isotonic regression, then pair
+mean, then row and column effects, five-fold cross-validated.</figcaption>
+</figure>
+<div class="col">
+<h3>What the noise leaves to learn</h3>
+<p>Measurement noise is about 0.2 to 0.27 kcal/mol per variant (replicate rows of the same mutant give 0.27; protease disagreement 0.22 to 0.31).
+Three facts follow, and they set the ceiling for every metric below:</p>
+<ul>
+<li><b>The cell level is at the noise floor.</b> A double's own noise, double-centred over a 19 × 19 block, contributes 0.9σ², which is 0.036 to
+0.066. The measured cell variance is 0.040. The specific interaction is therefore a small share of the variance (about 0 to 5%, most likely about 2%,
+in the training ANOVA). It is still real: trained models get the direction of 80 to 88% of confident order reversals right, and the
+measured reversals are far more frequent than noise alone produces.</li>
+<li><b>Most of the line level is the singles' noise.</b> dddG subtracts the measured ddG_A from every cell of A's line, so that single's error
+becomes a line effect of variance σ² (0.04 to 0.07). The measured line variance is 0.037 (rows) and 0.053 (columns). A model cannot predict this
+part on new proteins, so line metrics are attenuated by it, not biased.</li>
+<li><b>The pair level is mostly library-level.</b> 70% of the variance of the 24 pair offsets is between the 9 libraries, so the pair level has
+about 9 independent units in validation. It can be reported, not optimised.</li>
+</ul>
+</div>
+</section>
+
+<section id="saturation">
+<div class="col">
+<h2>Where saturation matters, and where it does not</h2>
+<p>The assay reports dG through a monotone, saturating response <i>h</i>: it cannot report much below its floor, where unfolded variants are pinned,
+or above its ceiling. For a double, write the latent epistasis as <i>e</i>. Then</p>
+<div class="formula">dddG_measured  =  [ h(c+a+b) − h(c+a) − h(c+b) + h(c) ]   +   [ h(c+a+b+e) − h(c+a+b) ]   +  noise
+                  saturation term S: a function of the     epistasis, passed through the local
+                  singles only, non-zero wherever h curves   slope h′: attenuated where h is flat</div>
+<p>Saturation therefore acts in two ways. It adds a term that depends only on the singles and is large wherever the double's additive
+expectation reaches the curved part of <i>h</i>. It also hides real epistasis where <i>h</i> is flat. How much of each depends on where the double sits:</p>
+</div>
+<div class="tablewrap"><table id="tab-regimes"></table></div>
+<div class="col">
+<p class="meta">Table 1. Validation doubles by additive expectation x (o6g6_c10_hier, epoch 5, link run). "SS share": the regime's share of the total sum of squares of dddG about its mean.
+"Practical floor": the median measured dG of the double. The last two columns are Spearman correlations with measured dddG inside the regime, for the saturation-only control
+(the WT head through the link) and for the trained model.</p>
+</div>
+<figure>
+<div class="legend" id="leg-curve"></div>
+<div class="chart" id="fig-curve"></div>
+<figcaption><b>Figure 3.</b> The global level: mean dddG in 20 quantile bins of the measured additive expectation x. Measured (ink) against the trained model
+(o6g6_c10_hier epoch 5, link), its saturation-only control (WT head through the learned link: lo −0.99, τ 0.94), and the released baseline without
+a link (epoch 7). The shading marks x below −1 and −1 to 1.</figcaption>
+</figure>
+<div class="col">
+<h3>Where saturation has a meaningful effect</h3>
+<ul>
+<li><b>Doubles below the floor (x &lt; −1; 18% of validation doubles, 34% of the sum of squares of dddG).</b> The measured double sits near the
+practical floor (median dG +0.29), so dddG ≈ floor − x: a deterministic function of the singles. These doubles carry almost no information
+about which residues interact. The exception is <i>rescue</i>: a double measured well above the floor despite x below it, which is real
+compensation (an earlier analysis put a third of such doubles in this class). Every statistic on raw dddG weights these doubles most heavily,
+because their dddG is largest.</li>
+<li><b>The knee (−1 &lt; x &lt; 1, 45%).</b> The saturation term is partial and the attenuation of real epistasis is partial; both depend on the
+library's floor.</li>
+<li><b>Any statistic on raw dddG, at any level.</b> On the observed scale, h(c+a+b) is not additive in a and b, so saturation survives
+centring by pair, by line and even double-centring. The old raw metrics gave the saturation-only control 0.50 (pair), 0.53 (line) and
+0.26 (double-centred cell) on real validation data, and its residue-pair table ("identity effect") 0.6.</li>
+<li><b>Ranking dddG (not ddG_AB) inside a column.</b> dddG subtracts ddG_A, which varies along a column, so its order is not monotone-invariant.
+The old "ranked interaction" metric gave the saturation-only control 0.09.</li>
+</ul>
+<h3>Where it does not</h3>
+<ul>
+<li><b>The order of doubles inside one column.</b> Same library, same partner, one monotone <i>h</i>: the order of ddG_AB is the order of the
+latent stabilities. This is exact. Pinned cells at the floor randomise the order among themselves, which only attenuates. The cell-rank metric
+and the confident-reversal accuracy are built on it.</li>
+<li><b>Residuals beyond each side's own global curve.</b> Subtracting E[dG_AB | x] from the measurement and each head's own additive prediction
+(through its own link) from the prediction removes the saturation term for an additive model exactly. The magnitude metrics are built on it.</li>
+<li><b>Doubles comfortably in range (x &gt; 1).</b> The link is near-linear there, and the link-only control predicts almost no dddG (0.06 kcal/mol).
+But "in range" is not "trend-free": measured dddG still falls from +0.5 at x = 1.5 to 0 above x = 2.5, and inside the bin the control still
+correlates 0.24 by rank. Restricting to in-range doubles is therefore not a clean device on its own, and it would discard about two-thirds
+of the data.</li>
+</ul>
+</div>
+<figure>
+<div class="chart" id="fig-floor"></div>
+<figcaption><b>Figure 4.</b> The practical floor per library: median measured dG of doubles whose additive expectation is below −1.5
+(61 libraries with at least 20 such doubles, training and validation). The learned link floor (−0.99) sits about 1 kcal/mol below the typical library, and the
+floor varies by ±0.27 across libraries (correlation with dG_wt 0.38).</figcaption>
+</figure>
+<div class="col">
+<div class="callout warn">
+<p><b>The model's explicit saturation is incomplete.</b> With the link on, the link alone reproduces only about a third of the measured
+global curve below the floor (0.85 of 2.3 kcal/mol at x ≈ −2.1). Above x = 0 it reproduces almost none of the remaining trend. The
+trained model's global bias is −0.5 kcal/mol, and the MT pass alone (which carries the non-additive part) shows a smaller bias (−0.28) than the
+combined head. The MT head is learning part of the nonspecific curve as latent epistasis, which is capacity spent on the assay rather
+than on residue-specific coupling. Without a link the bias is larger (−0.65 to −0.68).</p>
+</div>
+</div>
+</section>
+
+<section id="mechanisms">
+<div class="col">
+<h2>What learns each level</h2>
+<p>Each architectural piece and loss term reaches particular levels. The metric column says what the new metrics show for it in the eleven
+runs scored here.</p>
+</div>
+<div class="tablewrap"><table>
+<thead><tr><th>mechanism</th><th>what it is</th><th>levels it can learn</th><th>what the metrics show</th></tr></thead>
+<tbody>
+<tr><td>WT adapter (WT pass)</td><td>Wild-type sequence in, LLR at the mutated sites, trained on singles (regression + ListMLE)</td><td>none: additive by construction (its double prediction is the sum of its singles up to a constant)</td><td>Exactly 0 at every residual and rank level (the <code>add</code> control). Through the link it scores 0.44 on naive dddG ρ: saturation only.</td></tr>
+<tr><td>WT adapter read in context (<code>ctx</code>)</td><td>The same adapter on the mutated sequence asked about the reverse mutation: both mutant residues visible</td><td>all, zero-shot: whatever ESM3 and single-mutant training already encode</td><td>Training on singles alone raises it from 0.09 to 0.14 (cell_rank) and 0.72 to 0.80 (reversal accuracy). It is as good as the trained combined head on most levels.</td></tr>
+<tr><td>MT adapter (MT pass, <code>mt</code>)</td><td>Mutated sequence in; trained on conditional items ddG(A|B) of measured doubles, native-background items and anchored singles</td><td>all: the only trained source of epistasis</td><td>cell_rank 0.16 (devel) and 0.20 (released baseline) vs the 0.14 of ctx. The margin over the control is the MT adapter's real contribution: about +0.02 in devel, +0.06 in the baseline.</td></tr>
+<tr><td>Combined head (<code>comb</code>)</td><td>(WT + ~MT)/2: exact ddG_AB under pairwise epistasis</td><td>all, at half amplitude</td><td>Same magnitude-level skill as mt; lower in rank space (0.13 vs 0.16), because the additive WT half reorders columns.</td></tr>
+<tr><td>Link <code>--link softclamp</code></td><td>Regression on the observed scale through one monotone h(dG_wt + latent)</td><td>global</td><td>Takes the global level off the adapters only partly (floor at −0.99 vs a practical floor near 0); no cell-level difference between the link arms and the no-link arm (cell_rank_mt 0.146 to 0.167 vs 0.161 at epoch 2).</td></tr>
+<tr><td>MT regression components (<code>--mt_comp_offset/subst/int</code>, <code>--reg_balance</code>)</td><td>The MT regression error on complete blocks split into pair offset, substitution (line) and interaction (cell) parts, each weighted</td><td>pair, line, cell (magnitudes; the cell part's target is at the noise level)</td><td>Weights 0.1 / 1 / 10 / 30 move the pair level most (pair_rho 0.36 to 0.67 at epoch 2) and the cell level little (cell_rank_mt 0.146 to 0.167, within about 4 replicate SDs).</td></tr>
+<tr><td>Within-column ListMLE (<code>--lambda_mt_colrank</code>)</td><td>Ranks the MT pass's conditional items inside each flip column</td><td>line and cell in rank space, but dominated by the single-effect consensus</td><td>The quantity it optimises (colrank) gives the additive control 0.58, so most of the loss is already satisfied by single effects. <code>o6h3_colrank0</code> (queued) tests whether it matters.</td></tr>
+<tr><td>Censoring (<code>--include_out_of_range</code>, <code>--censor_floor</code>)</td><td>Dead and hyperstable variants as bounds; floor-pinned order tied</td><td>removes noise near the floor (global and sub-floor cells)</td><td>Not separable in the runs scored here (all devel arms include out-of-range items).</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="metrics">
+<div class="col">
+<h2>The metric set</h2>
+<p>Twenty numbers per validation, plus the ddG product per library. Each epistasis metric is computed once, on the doubles of every validation
+library pooled, with the pair matrices as units (<code>src/esm_msr/epi_metrics.py</code>). Four heads give each metric a prediction to score and the
+controls it needs:</p>
+</div>
+<div class="tablewrap"><table>
+<thead><tr><th>head</th><th>latent ddG of a variant</th><th>role</th></tr></thead>
+<tbody>
+<tr><td><code>comb</code></td><td>(WT + ~MT)/2</td><td>the reported prediction (inference <code>combined_pred</code>)</td></tr>
+<tr><td><code>mt</code></td><td>~MT, the MT pass alone</td><td>the epistasis readout (inference <code>epistasis_pred</code>); its non-additive part is comb's, doubled, without the additive half</td></tr>
+<tr><td><code>ctx</code> <span class="tag control">control</span></td><td>(WT + ~WT)/2</td><td>what the backbone plus single-mutant training already know; the MT adapter's contribution is mt (or comb) minus ctx. Needs <code>--val_cycle_passes</code>, now on by default (about 1 to 2 minutes per validation)</td></tr>
+<tr><td><code>add</code> <span class="tag control">control</span></td><td>WT, additive</td><td>scores only by saturation through the link; logged where saturation can enter (naive and global), exactly 0 or 0.5 elsewhere</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table id="tab-metrics"></table></div>
+<div class="col">
+<h3>How the two devices work</h3>
+<p><b>Beyond-global residuals</b> carry the magnitude metrics. The measured residual is dG_AB − E[dG_AB | x], which equals
+dddG − E[dddG | x] (a 25-bin piecewise-linear smoother on the measured x). For a head, the residual is its observed-scale double minus its own
+additive prediction pushed through its own link, e = P_AB − h(c + L_A + L_B + o) + c (<i>o</i> is the head's median second difference, which
+removes a calibration bias), minus E[e | x̂] on the head's own additive expectation. Because each side is measured against its own global curve, a head
+that is additive before its link has e = 0 and scores exactly 0. That holds whatever its link does to the singles and whether or not there is a
+link. Pair offsets, line effects and double-centred cells are then taken from these residuals.</p>
+<p><b>Within-column order</b> carries the rank metrics. <code>cell_rank</code> rank-transforms every column of measured ddG_AB and of the head's latent
+ddG_AB on a complete block, double-centres both rank matrices and correlates them (both orientations, mean per block, mean over 24 blocks).
+<code>cell_flipacc</code> takes every 2 × 2 sub-block (two substitutions × two partners of one matrix) whose measured order reverses by more than
+0.6 kcal/mol on both sides, 2,509 of them in validation. It scores the share in which the head's latent contrast
+L<sub>ij</sub> − L<sub>i′j</sub> − L<sub>ij′</sub> + L<sub>i′j′</sub> has the reversal's sign. Pair, line and single effects cancel exactly in that
+contrast, so the score is 0.5 for any additive head. A monotone assay cannot reverse an order, so the measured side is saturation-free.</p>
+</div>
+</section>
+
+<section id="evidence">
+<div class="col">
+<h2>Evidence the metrics isolate their level</h2>
+<p>The simulation keeps the real validation design: the same 24 matrices, the same dG_wt and the same single effects. It plants pair, line and
+interaction components (calibrated so the measured variance partition matches Figure 2), measures through a saturating assay with a soft
+floor and a nonspecific global term, adds noise of 0.2 kcal/mol and censors below −1. Each row below is a predictor that knows the singles with realistic error
+(SD 0.6) and only the listed components (each with noise). Means of 16 replicates; the replicate SD of the levels used for stopping is 0.01 to 0.02.</p>
+</div>
+<div class="tablewrap"><table id="tab-spec" class="heat"></table></div>
+<div class="col">
+<p class="meta">Table 3. Shading is the share of the column's top value. "Imitated" saturation: a no-link predictor that reproduces the floor with its own noise
+(SD 0.25), as a model fitting observed values without a link would. The three right-hand columns are the old raw definitions, shown for contrast. Flip accuracy is 0.5 at chance.</p>
+<p>Read across each row: the level metrics credit only their own component, whatever the saturation and with or without a link. The residual
+leaks are small and known. Flip accuracy gives 0.54 to 0.55 to a predictor whose latent has a nonspecific curvature, because noise reversals
+happen more often in the floor-compressed column. <code>cell_mag</code> can carry a little of the line level through a sharp floor. <code>cell_rank</code>
+has neither leak. The naive metric ranks the predictors the wrong way round: knowing only the saturation scores 0.58, while knowing every epistasis
+component but not the saturation scores 0.42. A no-link model that imitates the saturation loses about half its cell-level skill to its own
+imitation noise (cell_rank 0.15 vs 0.29).</p>
+<p>On real data the controls behave as designed. Across all eleven runs and 67 dumps the additive head scores exactly 0 at every residual level,
+within 0.002 of 0 on cell_rank (bf16 noise can reorder near-ties) and 0.47 to 0.53 on reversal accuracy, while it scores up to 0.49 on the naive metric whenever a link is on. The new cell-rank
+metric tracks the old conditional-item flip metric (r = 0.89 across 58 run-epochs) but is higher and has controls.</p>
+</div>
+</section>
+
+<section id="runs">
+<div class="col">
+<h2>What past runs show</h2>
+<p>All eleven capped-split runs with dumps were rescored with the shipped code. "Devel" arms: link on, MT rank 2 / α 4, the MT
+component weights listed, out-of-range items included. "Baseline": the released code, no link, MT rank 16 / α 16.</p>
+</div>
+<figure>
+<div class="legend" id="leg-traj"></div>
+<div class="grid2" id="fig-traj"></div>
+<figcaption><b>Figure 5.</b> Four metrics by epoch (epoch −1 is the zero-shot validation). Thin gray lines are the other eight devel arms. The WT-in-context control comes
+from o6g6_c10_hier, the only devel arm with the cycle pass. The naive dddG correlation (last panel) separates the link runs from the no-link runs and says
+nothing about training progress.</figcaption>
+</figure>
+<div class="tablewrap"><table id="tab-runs"></table></div>
+<div class="col">
+<p class="meta">Table 4. Epoch 2, the last epoch every run reached. Bold marks the best value in a column (for the guards and controls no best is marked).</p>
+<ul>
+<li><b>The released baseline leads at the cell level</b> by 6 to 11 replicate SDs on cell_rank_mt and on reversal accuracy at matched epochs. It
+leads by less on cell_mag (0.31 vs 0.23 to 0.26) and not at all on the line level.</li>
+<li><b>The link is not why.</b> The devel no-link arm (o6h1) matches the devel link arms at the cell level and is worse on the global bias.</li>
+<li><b>The devel arms are close together at the cell level.</b> The MT component weights (0.1 to 30) move the pair level, not the cell level. Masking
+the structure (maskstruct, premask) ends nominally highest at epoch 5 (0.176 and 0.181 vs 0.158 to 0.174 for the other arms that reached epoch 5), about two replicate SDs above the c10 arms.</li>
+<li><b>The MT adapter adds little over the WT adapter read in context</b> in devel (comb ≈ ctx; mt +0.02), but +0.06 in the baseline. MT
+capacity (rank 2 vs 16) is the difference the queued <code>o6h2_mt16</code> arm isolates.</li>
+<li><b>Training length matters little after epoch 1</b> at the cell level (jitter 0.006 per epoch; the e0 to e5 gain in o6g6 is about 0.02).</li>
+</ul>
+</div>
+</section>
+
+<section id="optimise">
+<div class="col">
+<h2>What to optimise and stop on</h2>
+</div>
+<div class="tablewrap"><table id="tab-snr"></table></div>
+<div class="col">
+<p class="meta">Table 5. Replicate SD: the SD across three runs of the c10 configuration (two seeds and a rerun of seed 1) at matched epochs, the noise any comparison between
+two configurations must beat. Jitter: epoch-to-epoch SD within a run. Gain: mean over runs of (epochs 1 to 2) minus zero-shot. Config spread: SD across the 11 runs
+of the epoch-1-to-2 mean. Ratios in units of the replicate SD.</p>
+<ol>
+<li><b>Select checkpoints and early-stop on <code>val_epi_cell_rank_mt</code>.</b> It is the level only epistasis-specific learning can move. It is
+exactly immune to saturation and to every level above it, and it has the lowest noise of the cell metrics. <code>scripts/run_arm.sh</code> and the MT
+learning-rate plateau now read it.</li>
+<li><b>For HPO across arms, use the cell score:</b> the mean of cell_rank_mt / 0.0047, cell_mag_comb / 0.0071 and cell_flipacc_mt / 0.0103. Its configuration
+spread is 3.4 replicate SDs, against 2.2 to 3.1 for each part, and its training gain is 12.7. Average the last two or three epochs.</li>
+<li><b>Believe a single-seed difference only above about 2.8 replicate SDs:</b> cell_rank_mt 0.014, cell_mag 0.02, reversal accuracy 0.03, beyond-global
+0.011, line 0.04, pair 0.06. Below that, run a second seed.</li>
+<li><b>Attribute with the control:</b> cell_rank_mt − cell_rank_ctx is the MT adapter's own contribution. An arm that raises both equally has improved
+the shared backbone readout, not the MT objective.</li>
+<li><b>Guards:</b> <code>val_rmse_combined_avg</code> and <code>val_rho_wt_valid_avg</code> must not regress. <code>val_epi_beyond_rho_comb</code> (all levels
+above the global) should not fall when the cell level rises. <code>val_epi_global_bias_comb</code> judges any change to the link or to floor handling.</li>
+<li><b>Do not optimise</b> <code>naive_rho</code> (under the link it mostly measures the link, and across runs it is uncorrelated or negatively
+correlated with every clean level), <code>pair_rho</code> (24 pairs, 9 libraries) or <code>cell_sigsd</code> (expressiveness, not skill).</li>
+</ol>
+</div>
+</section>
+
+<section id="objectives">
+<div class="col">
+<h2>Training objectives and experiments that follow</h2>
+<h3>A confident-reversal loss</h3>
+<p>Each confident reversal in the training matrices fixes the sign of the latent interaction contrast of four doubles, and nothing else. Pair,
+line and single effects cancel, the measured side is immune to saturation, and the 0.6 kcal/mol margin keeps noise reversals rare. A logistic loss on
+the MT pass's latent contrast is therefore an interaction-only objective that uses only the reliable part of the signal:</p>
+<div class="formula">L_flip = mean over confident reversals (i, i′, j, j′) of softplus( −κ · s · (L_ij − L_i′j − L_ij′ + L_i′j′) ),   s = sign(y_ij − y_i′j)</div>
+<p>The training matrices hold 27,259 such reversals (0.4% of 6.4 million 2 × 2 sub-blocks; median 30 per oriented matrix). The current sampler puts
+three columns of a pair in a micro-batch, which holds about 1.4 reversals on average (30% of units hold any). The loss would need either whole
+matrices per step or a detached memory of the other columns' latent predictions to form the contrasts. Zero-shot, the base model gets 87% of the reversals larger than 1 kcal/mol right and 72% of all those larger than 0.6; trained models reach
+93 to 96% and 80 to 88%. Compared with the current
+MT terms, this loss does not reward the single-effect consensus (the within-column ListMLE does) and does not regress on a target at the noise
+floor (the interaction component of the MT regression does).</p>
+<h3>The floor</h3>
+<p>Doubles far below the floor are measured near dG 0 to +0.5, library-dependently, and the link's floor sits at −1. Two existing switches
+address it without new code: <code>--censor_floor 0.5 --censor_floor_hinge</code>. These make measured values at or below 0.5 a bound for the MT
+regression, so neither the link nor the MT head is asked to reproduce pinned values. The alternative is a learned floor initialised near 0, or a
+per-library floor offset for training libraries. Expected signature: <code>global_bias_comb</code> moves toward 0 through the link
+(<code>global_err_add</code> falls) rather than through the MT head, and the cell level is unchanged or better.</p>
+<h3>Experiments, in order of information per GPU-hour</h3>
+<ol>
+<li><b><code>o6h2_mt16</code></b> (queued): MT rank 16 / α 16 on devel. If it closes the gap to the baseline on cell_rank_mt, capacity was the limit.</li>
+<li><b><code>o6h3_colrank0</code></b> (queued): no within-column ListMLE. Expected to change the cell level little if the analysis above is right.</li>
+<li><b>Floor censoring under the link:</b> the best of the above plus <code>--censor_floor 0.5 --censor_floor_hinge</code>. Read global_bias_comb, global_err_add and the cell score.</li>
+<li><b>The reversal loss</b> (needs implementation), weighted against the existing MT terms with <code>scripts/grad_share_probe.py</code>.</li>
+</ol>
+<p>Each of these should be judged on the cell score with the guards. Run two seeds before believing a difference below 0.03 on cell_rank_mt.</p>
+</div>
+</section>
+
+<section id="names">
+<div class="col">
+<h2>Old names, new names, reproduction</h2>
+</div>
+<div class="tablewrap"><table>
+<thead><tr><th>old</th><th>now</th><th>why</th></tr></thead>
+<tbody>
+<tr><td><code>val_rho_flip_pair_mt_{avg,pooled}</code>, <code>…/&lt;lib&gt;</code></td><td><code>val_epi_cell_rank_mt</code></td><td>same construction on the doubles, so every head and control is scored on the same cells (r = 0.89)</td></tr>
+<tr><td><code>val_rho_flip_pair_wt_*</code></td><td><code>val_epi_cell_rank_ctx</code></td><td>the WT adapter in context, on the doubles</td></tr>
+<tr><td><code>val_rho_flip_mt_*</code></td><td>retired</td><td>pooling partner positions mixed the line and cell levels</td></tr>
+<tr><td><code>val_rho_colrank_{mt,wt,wt_blind}_*</code></td><td>retired</td><td>mostly the single-effect consensus: the additive head scores 0.58</td></tr>
+<tr><td><code>val_epi_global_rho_*</code></td><td><code>val_epi_naive_rho_{comb,add}</code></td><td>kept as the naive summary, named for what it is</td></tr>
+<tr><td><code>val_epi_global_rmse_*</code></td><td><code>val_epi_global_err_*</code>, <code>val_epi_global_bias_comb</code></td><td>the global level as a curve, not a pooled error</td></tr>
+<tr><td><code>val_epi_pair_effect_*</code></td><td><code>val_epi_pair_rho_comb</code></td><td>residualised; the raw version gave saturation alone 0.50</td></tr>
+<tr><td><code>val_epi_partner_effect_*</code>, <code>*_beyond_single</code></td><td><code>val_epi_line_rho_{comb,ctx}</code></td><td>residualised; the raw version gave saturation alone 0.53</td></tr>
+<tr><td><code>val_epi_interaction_rank_raw_per_matrix_*</code></td><td><code>val_epi_cell_mag_comb</code></td><td>residualised; the raw version gave saturation alone 0.26</td></tr>
+<tr><td><code>val_epi_interaction_rank_ranked_per_matrix_*</code></td><td><code>val_epi_cell_rank_*</code></td><td>ranks ddG_AB, not dddG, inside a column</td></tr>
+<tr><td><code>val_epi_matrix_rank_*</code>, <code>val_epi_partner_context_rank_*</code>, <code>val_epi_identity_effect_*</code>, <code>*_beyond_add</code></td><td>retired</td><td>saturation-dominated (identity_effect: 0.6 for saturation alone) or superseded by the residuals</td></tr>
+<tr><td><code>val_rho_mt_valid_avg</code>, <code>val_auc_dead_*</code>, <code>*_pooled</code> ddG metrics, <code>val_rho_wt_valid/&lt;lib&gt;</code></td><td>not logged</td><td>not about epistasis; still returned by <code>stats.compute_metrics</code> and recomputable from the dumps</td></tr>
+</tbody></table></div>
+<div class="col">
+<p>Every validation writes <code>training_logs/&lt;run&gt;/0/val_dump_&lt;tag&gt;.npz</code> with all items' latent scores, the reverse leg, dG_wt
+and the link. Any dump, past runs included, can be rescored with the current definitions and pair-bootstrap intervals:</p>
+<div class="formula">PYTHONPATH=src python scripts/epi_from_dump.py training_logs/&lt;run&gt;/0/val_dump_e5.npz [...] --boot 200 --csv out.csv</div>
+<p class="meta">Absolute values carry the sampling uncertainty of a 24-matrix validation set (the 90% pair-bootstrap interval of cell_rank_mt for the baseline is 0.14 to 0.27); paired
+comparisons on the same set are an order of magnitude tighter (Table 5). Simulation and analysis scripts used for this report are described in <code>docs/validation_metrics.md</code>.</p>
+</div>
+</section>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const DATA = {"partition": {"validation": {"global": 0.369, "pair": 0.146, "line": 0.09, "cell": 0.04, "total": 0.659}, "training_cv": {"global": 60.1, "pair": 16.2, "line": 13.3, "cell": 10.4}}, "curve": [{"x": -2.131441784806922, "meas": 2.299119541504804, "add": 0.849270729199615, "comb": 0.8421908997160509, "mt": 0.9948872084577665, "base_comb": 0.4323691274138058, "n": 425}, {"x": -1.648509314236948, "meas": 1.9133502643248614, "add": 0.7378149451931901, "comb": 0.7086671539547013, "mt": 0.7774620794804568, "base_comb": 0.307512629032135, "n": 425}, {"x": -1.3647985926131647, "meas": 1.757669969127988, "add": 0.5087825131322046, "comb": 0.533972752209794, "mt": 0.6306334140105612, "base_comb": 0.22055084054481308, "n": 424}, {"x": -1.0689418080430484, "meas": 1.5803304058663985, "add": 0.4752980419070147, "comb": 0.5750866497703491, "mt": 0.7570684400781093, "base_comb": 0.27834927480010424, "n": 425}, {"x": -0.7340675638136054, "meas": 1.38239095647655, "add": 0.3243446784794474, "comb": 0.5290126333717026, "mt": 0.7917626502602108, "base_comb": 0.2985889087880359, "n": 425}, {"x": -0.4379080970398708, "meas": 1.224663344580891, "add": 0.2368609387557561, "comb": 0.4844576790129896, "mt": 0.7762554318174323, "base_comb": 0.2963138327424256, "n": 424}, {"x": -0.18327555930036457, "meas": 1.147827342389261, "add": 0.15366035160479877, "comb": 0.4155554092937936, "mt": 0.707210366137608, "base_comb": 0.25960810150293745, "n": 425}, {"x": 0.05543071302803145, "meas": 1.0861042573502944, "add": 0.13074093232657655, "comb": 0.42323007892344444, "mt": 0.7374274738668221, "base_comb": 0.2852282672769883, "n": 425}, {"x": 0.2746858434544973, "meas": 0.9392783040552013, "add": 0.10348458427715367, "comb": 0.38500218700754146, "mt": 0.6843774315278932, "base_comb": 0.26141735921912596, "n": 424}, {"x": 0.47400734281619167, "meas": 0.7855076656745309, "add": 0.09028272002868426, "comb": 0.3743850009344672, "mt": 0.6752983170821091, "base_comb": 0.2504412714128985, "n": 425}, {"x": 0.6533093921546019, "meas": 0.7122476019721259, "add": 0.07721960702315, "comb": 0.35161767279055733, "mt": 0.638699568988324, "base_comb": 0.22166221909663256, "n": 425}, {"x": 0.8205129330467349, "meas": 0.6744363247265903, "add": 0.07610362539386316, "comb": 0.33230954726658324, "mt": 0.5977417726467964, "base_comb": 0.19741033354580825, "n": 424}, {"x": 0.9724796341142229, "meas": 0.6066775577531799, "add": 0.06552025748135784, "comb": 0.3029213346999512, "mt": 0.5441208025772211, "base_comb": 0.1585177015995278, "n": 425}, {"x": 1.1199378274866376, "meas": 0.5444731859314967, "add": 0.06156597864855352, "comb": 0.30715856952820975, "mt": 0.561637901722144, "base_comb": 0.1568815842446159, "n": 425}, {"x": 1.2816667918321278, "meas": 0.5373180059568939, "add": 0.06363825769016895, "comb": 0.29099578822721955, "mt": 0.5238748799230404, "base_comb": 0.16046400211821749, "n": 424}, {"x": 1.45878784394256, "meas": 0.48224404569140034, "add": 0.06371806990715345, "comb": 0.2672323999786218, "mt": 0.47436978134324603, "base_comb": 0.13310722060063307, "n": 425}, {"x": 1.6703156269224329, "meas": 0.40736008058740375, "add": 0.06594531768837307, "comb": 0.2819971930552302, "mt": 0.5020814919675927, "base_comb": 0.15707240024471983, "n": 425}, {"x": 1.9191898807583956, "meas": 0.283996613610828, "add": 0.0602523909094934, "comb": 0.24968574993923356, "mt": 0.4424370003912501, "base_comb": 0.13724063736615036, "n": 424}, {"x": 2.2736341630366006, "meas": 0.03399564111468328, "add": 0.05684909856655359, "comb": 0.26227894772501775, "mt": 0.4670458495353811, "base_comb": 0.12954459744779503, "n": 425}, {"x": 2.8342884112584374, "meas": -0.08738989382718608, "add": 0.07314029966534735, "comb": 0.28557195933668406, "mt": 0.4950932105581969, "base_comb": 0.14004994490567377, "n": 425}], "regimes": [{"name": "x < -1", "n": 1571, "share": 0.18495408523663762, "mean": 1.920010562708695, "var": 0.1994634675163911, "ss_share": 0.3392149803610862, "rho_add": 0.20072318841787076, "rho_comb": 0.21579682133089365, "dGAB_med": 0.2858935599685508}, {"name": "-1 to 0", "n": 1509, "share": 0.17765481516364492, "mean": 1.2693076055139585, "var": 0.34930464227950014, "ss_share": 0.12792878190386983, "rho_add": -0.028746700753082475, "rho_comb": 0.3334064612972122, "dGAB_med": 0.6196561040680582}, {"name": "0 to 1", "n": 2313, "share": 0.2723098657876148, "mean": 0.7918502248708787, "var": 0.37038734126767564, "ss_share": 0.15941838774888448, "rho_add": 0.13686341289093223, "rho_comb": 0.4777243687444696, "dGAB_med": 1.236154753188389}, {"name": "1 to 2", "n": 2164, "share": 0.2547680715799388, "mean": 0.46826164584840146, "var": 0.32613826739230756, "ss_share": 0.2034959804373779, "rho_add": 0.23609178328383895, "rho_comb": 0.4884660445689868, "dGAB_med": 1.8254864675965932}, {"name": "x > 2", "n": 937, "share": 0.11031316223216388, "mean": 0.0004520931469780724, "var": 0.17747783808418874, "ss_share": 0.16994186954878154, "rho_add": 0.04884240741157413, "rho_comb": 0.18629806507122174, "dGAB_med": 2.4536813436117795}], "floors": [-0.548, -0.449, -0.386, -0.375, -0.375, -0.342, -0.333, -0.26, -0.231, -0.201, -0.199, -0.19, -0.158, -0.15, -0.143, -0.139, -0.125, -0.119, -0.113, -0.099, -0.097, -0.093, -0.076, -0.054, -0.04, -0.012, -0.006, 0.015, 0.021, 0.026, 0.034, 0.043, 0.049, 0.065, 0.075, 0.087, 0.09, 0.109, 0.158, 0.171, 0.179, 0.192, 0.192, 0.209, 0.212, 0.228, 0.306, 0.325, 0.328, 0.342, 0.345, 0.36, 0.392, 0.417, 0.422, 0.444, 0.453, 0.46, 0.484, 0.525, 0.698], "spec": {"mean": [{"pred": "add_latent", "naive": 0.0, "global_err": 1.038, "beyond": 0.0, "pair": 0.0, "line": 0.0, "cell_mag": 0.0, "cell_rank": 0.0, "flipacc": 0.5, "sigsd": 0.0, "int_raw(old)": 0.0, "line_raw(old)": 0.0, "pair_raw(old)": 0.0}, {"pred": "add_link", "naive": 0.579, "global_err": 0.218, "beyond": -0.037, "pair": -0.052, "line": -0.032, "cell_mag": 0.005, "cell_rank": 0.0, "flipacc": 0.545, "sigsd": 0.0, "int_raw(old)": 0.105, "line_raw(old)": 0.478, "pair_raw(old)": 0.711}, {"pred": "add_imitate", "naive": 0.536, "global_err": 0.214, "beyond": -0.001, "pair": 0.074, "line": -0.014, "cell_mag": -0.002, "cell_rank": 0.003, "flipacc": 0.505, "sigsd": 0.159, "int_raw(old)": 0.051, "line_raw(old)": 0.478, "pair_raw(old)": 0.71}, {"pred": "sev_link", "naive": 0.576, "global_err": 0.363, "beyond": 0.08, "pair": 0.1, "line": -0.015, "cell_mag": -0.017, "cell_rank": 0.0, "flipacc": 0.541, "sigsd": 0.0, "int_raw(old)": 0.1, "line_raw(old)": 0.491, "pair_raw(old)": 0.698}, {"pred": "m_link", "naive": 0.723, "global_err": 0.137, "beyond": 0.63, "pair": 0.836, "line": 0.114, "cell_mag": 0.021, "cell_rank": 0.0, "flipacc": 0.538, "sigsd": 0.0, "int_raw(old)": 0.101, "line_raw(old)": 0.489, "pair_raw(old)": 0.907}, {"pred": "rc_link", "naive": 0.608, "global_err": 0.209, "beyond": 0.246, "pair": 0.081, "line": 0.501, "cell_mag": 0.013, "cell_rank": 0.012, "flipacc": 0.538, "sigsd": 0.026, "int_raw(old)": 0.104, "line_raw(old)": 0.547, "pair_raw(old)": 0.722}, {"pred": "eps_link", "naive": 0.598, "global_err": 0.218, "beyond": 0.18, "pair": 0.1, "line": 0.128, "cell_mag": 0.367, "cell_rank": 0.291, "flipacc": 0.891, "sigsd": 0.105, "int_raw(old)": 0.371, "line_raw(old)": 0.495, "pair_raw(old)": 0.711}, {"pred": "all_link", "naive": 0.747, "global_err": 0.131, "beyond": 0.698, "pair": 0.829, "line": 0.537, "cell_mag": 0.364, "cell_rank": 0.291, "flipacc": 0.888, "sigsd": 0.101, "int_raw(old)": 0.367, "line_raw(old)": 0.552, "pair_raw(old)": 0.909}, {"pred": "eps_latent", "naive": 0.107, "global_err": 1.038, "beyond": 0.179, "pair": 0.086, "line": 0.105, "cell_mag": 0.368, "cell_rank": 0.252, "flipacc": 0.905, "sigsd": 0.063, "int_raw(old)": 0.364, "line_raw(old)": 0.056, "pair_raw(old)": -0.0}, {"pred": "all_latent", "naive": 0.421, "global_err": 1.005, "beyond": 0.71, "pair": 0.839, "line": 0.533, "cell_mag": 0.363, "cell_rank": 0.256, "flipacc": 0.904, "sigsd": 0.063, "int_raw(old)": 0.363, "line_raw(old)": 0.239, "pair_raw(old)": 0.486}, {"pred": "eps_imitate", "naive": 0.552, "global_err": 0.221, "beyond": 0.091, "pair": 0.154, "line": 0.069, "cell_mag": 0.172, "cell_rank": 0.149, "flipacc": 0.725, "sigsd": 0.171, "int_raw(old)": 0.211, "line_raw(old)": 0.49, "pair_raw(old)": 0.707}], "sd": [{"pred": "add_latent", "naive": 0.0, "global_err": 0.136, "beyond": 0.0, "pair": 0.0, "line": 0.0, "cell_mag": 0.0, "cell_rank": 0.0, "flipacc": 0.0, "sigsd": 0.0, "int_raw(old)": 0.0, "line_raw(old)": 0.0, "pair_raw(old)": 0.0}, {"pred": "add_link", "naive": 0.059, "global_err": 0.085, "beyond": 0.016, "pair": 0.124, "line": 0.083, "cell_mag": 0.015, "cell_rank": 0.0, "flipacc": 0.021, "sigsd": 0.0, "int_raw(old)": 0.011, "line_raw(old)": 0.026, "pair_raw(old)": 0.129}, {"pred": "add_imitate", "naive": 0.052, "global_err": 0.084, "beyond": 0.009, "pair": 0.115, "line": 0.023, "cell_mag": 0.014, "cell_rank": 0.012, "flipacc": 0.029, "sigsd": 0.003, "int_raw(old)": 0.015, "line_raw(old)": 0.029, "pair_raw(old)": 0.12}, {"pred": "sev_link", "naive": 0.064, "global_err": 0.144, "beyond": 0.194, "pair": 0.284, "line": 0.082, "cell_mag": 0.023, "cell_rank": 0.0, "flipacc": 0.021, "sigsd": 0.0, "int_raw(old)": 0.012, "line_raw(old)": 0.02, "pair_raw(old)": 0.133}, {"pred": "m_link", "naive": 0.051, "global_err": 0.029, "beyond": 0.108, "pair": 0.07, "line": 0.1, "cell_mag": 0.025, "cell_rank": 0.0, "flipacc": 0.032, "sigsd": 0.0, "int_raw(old)": 0.014, "line_raw(old)": 0.025, "pair_raw(old)": 0.035}, {"pred": "rc_link", "naive": 0.066, "global_err": 0.088, "beyond": 0.057, "pair": 0.199, "line": 0.045, "cell_mag": 0.015, "cell_rank": 0.008, "flipacc": 0.022, "sigsd": 0.002, "int_raw(old)": 0.012, "line_raw(old)": 0.029, "pair_raw(old)": 0.122}, {"pred": "eps_link", "naive": 0.057, "global_err": 0.074, "beyond": 0.028, "pair": 0.194, "line": 0.039, "cell_mag": 0.014, "cell_rank": 0.013, "flipacc": 0.013, "sigsd": 0.003, "int_raw(old)": 0.012, "line_raw(old)": 0.032, "pair_raw(old)": 0.108}, {"pred": "all_link", "naive": 0.043, "global_err": 0.027, "beyond": 0.089, "pair": 0.087, "line": 0.041, "cell_mag": 0.015, "cell_rank": 0.01, "flipacc": 0.017, "sigsd": 0.002, "int_raw(old)": 0.014, "line_raw(old)": 0.033, "pair_raw(old)": 0.027}, {"pred": "eps_latent", "naive": 0.013, "global_err": 0.136, "beyond": 0.031, "pair": 0.24, "line": 0.029, "cell_mag": 0.011, "cell_rank": 0.012, "flipacc": 0.016, "sigsd": 0.001, "int_raw(old)": 0.011, "line_raw(old)": 0.037, "pair_raw(old)": 0.219}, {"pred": "all_latent", "naive": 0.158, "global_err": 0.053, "beyond": 0.084, "pair": 0.07, "line": 0.044, "cell_mag": 0.016, "cell_rank": 0.01, "flipacc": 0.015, "sigsd": 0.002, "int_raw(old)": 0.013, "line_raw(old)": 0.031, "pair_raw(old)": 0.223}, {"pred": "eps_imitate", "naive": 0.059, "global_err": 0.09, "beyond": 0.019, "pair": 0.251, "line": 0.041, "cell_mag": 0.014, "cell_rank": 0.013, "flipacc": 0.023, "sigsd": 0.003, "int_raw(old)": 0.013, "line_raw(old)": 0.028, "pair_raw(old)": 0.126}]}, "traj": {"bl_w2a4_m16a16_capped": {"ep": [-1, 0, 1, 2, 3, 4, 5, 6, 7], "epi_naive_rho_add": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "epi_global_err_add": [1.1033, 0.9257, 1.1305, 1.172, 1.2033, 1.1922, 1.1889, 1.2306, 1.2133], "epi_global_bias_comb": [-0.6572, -0.4833, -0.6562, -0.6455, -0.7052, -0.6709, -0.69, -0.7159, -0.6915], "epi_global_err_comb": [0.8855, 0.7643, 0.8678, 0.8497, 0.9043, 0.8682, 0.88, 0.9052, 0.8821], "epi_pair_rho_comb": [0.3365, 0.4826, 0.467, 0.5235, 0.5661, 0.5687, 0.5974, 0.5948, 0.6078], "epi_beyond_rho_comb": [0.2925, 0.437, 0.4502, 0.4621, 0.4744, 0.4761, 0.4881, 0.47, 0.4867], "epi_cell_rank_comb": [0.0892, 0.1433, 0.1472, 0.1562, 0.15, 0.1587, 0.1554, 0.1555, 0.1563], "epi_naive_rho_comb": [0.2128, 0.2645, 0.3081, 0.3155, 0.3142, 0.3253, 0.3489, 0.3378, 0.35], "epi_line_rho_comb": [0.2021, 0.3211, 0.3698, 0.3898, 0.3764, 0.3835, 0.3967, 0.3825, 0.3988], "epi_cell_mag_comb": [0.1731, 0.2552, 0.2971, 0.3092, 0.3162, 0.3113, 0.3161, 0.304, 0.3192], "epi_cell_flipacc_ctx": [0.7188, 0.7963, 0.7864, 0.7792, 0.7844, 0.7904, 0.7987, 0.8009, 0.8011], "epi_line_rho_ctx": [0.2021, 0.3219, 0.3536, 0.3873, 0.3727, 0.3658, 0.3521, 0.3521, 0.3578], "epi_cell_rank_ctx": [0.09, 0.1319, 0.1373, 0.1377, 0.1425, 0.1398, 0.1412, 0.1453, 0.1462], "epi_beyond_rho_ctx": [0.2925, 0.4466, 0.4513, 0.4444, 0.4387, 0.4298, 0.4112, 0.397, 0.4022], "epi_cell_flipacc_mt": [0.7182, 0.7949, 0.8458, 0.8764, 0.8477, 0.8448, 0.8609, 0.8599, 0.8621], "epi_cell_rank_mt": [0.1186, 0.1681, 0.1849, 0.1979, 0.2023, 0.2103, 0.1976, 0.1994, 0.2046], "epi_cell_sigsd_mt": [0.1095, 0.1006, 0.1034, 0.1121, 0.1108, 0.1198, 0.1247, 0.1255, 0.1253]}, "o6g6_c10_hier": {"ep": [-1, 0, 1, 2, 3, 4, 5], "epi_naive_rho_add": [0.4846, 0.4603, 0.4654, 0.4371, 0.4591, 0.4497, 0.4539], "epi_global_err_add": [0.1946, 0.7224, 0.7248, 0.8079, 0.7649, 0.8416, 0.8162], "epi_global_bias_comb": [-0.2609, -0.5647, -0.5416, -0.5273, -0.5114, -0.5675, -0.5054], "epi_global_err_comb": [0.4469, 0.7425, 0.7122, 0.7094, 0.6901, 0.7604, 0.69], "epi_pair_rho_comb": [0.3374, 0.4835, 0.38, 0.4148, 0.4139, 0.5017, 0.5061], "epi_beyond_rho_comb": [0.2987, 0.4039, 0.3965, 0.4089, 0.4064, 0.4382, 0.4361], "epi_cell_rank_comb": [0.0891, 0.1316, 0.1271, 0.1258, 0.1331, 0.1368, 0.1434], "epi_naive_rho_comb": [0.4392, 0.4328, 0.442, 0.4234, 0.4384, 0.4136, 0.4313], "epi_line_rho_comb": [0.2242, 0.338, 0.3719, 0.3794, 0.3782, 0.3959, 0.3797], "epi_cell_mag_comb": [0.1533, 0.2141, 0.2237, 0.2426, 0.256, 0.2728, 0.2741], "epi_cell_flipacc_ctx": [0.7186, 0.8059, 0.786, 0.7999, 0.7748, 0.7716, 0.7736], "epi_line_rho_ctx": [0.224, 0.3769, 0.3846, 0.3801, 0.3816, 0.3933, 0.399], "epi_cell_rank_ctx": [0.0888, 0.139, 0.1365, 0.1431, 0.1383, 0.1398, 0.1431], "epi_beyond_rho_ctx": [0.2989, 0.4825, 0.477, 0.4632, 0.4632, 0.4584, 0.4587], "epi_cell_flipacc_mt": [0.7182, 0.7878, 0.7916, 0.7935, 0.8009, 0.8157, 0.8151], "epi_cell_rank_mt": [0.1188, 0.1526, 0.1543, 0.1514, 0.1534, 0.1749, 0.1711], "epi_cell_sigsd_mt": [0.1096, 0.0835, 0.0891, 0.0886, 0.0978, 0.0996, 0.1053]}, "o6g2_c10": {"ep": [-1, 0, 1, 2, 3, 4, 5], "epi_naive_rho_add": [0.4846, 0.4248, 0.4304, 0.4516, 0.4518, 0.44, 0.4513], "epi_global_err_add": [0.1946, 0.7891, 0.7595, 0.7476, 0.7521, 0.8612, 0.8134], "epi_global_bias_comb": [-0.2609, -0.4925, -0.5299, -0.519, -0.5155, -0.5764, -0.5102], "epi_global_err_comb": [0.4469, 0.6725, 0.7104, 0.7006, 0.6935, 0.7712, 0.6989], "epi_pair_rho_comb": [0.3374, 0.4617, 0.3991, 0.427, 0.4791, 0.4704, 0.4983], "epi_beyond_rho_comb": [0.2987, 0.4081, 0.3964, 0.4053, 0.4166, 0.4319, 0.4308], "epi_cell_rank_comb": [0.0891, 0.1342, 0.1317, 0.1304, 0.1342, 0.1407, 0.1455], "epi_naive_rho_comb": [0.4392, 0.4253, 0.4119, 0.4257, 0.4246, 0.3867, 0.4237], "epi_line_rho_comb": [0.2242, 0.3537, 0.3716, 0.393, 0.3896, 0.4047, 0.3957], "epi_cell_mag_comb": [0.1533, 0.2178, 0.2191, 0.241, 0.2528, 0.2558, 0.2737], "epi_cell_flipacc_ctx": [null, null, null, null, null, null, null], "epi_line_rho_ctx": [null, null, null, null, null, null, null], "epi_cell_rank_ctx": [null, null, null, null, null, null, null], "epi_beyond_rho_ctx": [null, null, null, null, null, null, null], "epi_cell_flipacc_mt": [0.7182, 0.7728, 0.7902, 0.7953, 0.8115, 0.824, 0.8288], "epi_cell_rank_mt": [0.1188, 0.1453, 0.1504, 0.1649, 0.1573, 0.1606, 0.1742], "epi_cell_sigsd_mt": [0.1096, 0.0896, 0.0918, 0.0946, 0.0947, 0.0999, 0.1025]}, "o6g2s2_c10": {"ep": [-1, 0, 1, 2, 3], "epi_naive_rho_add": [0.4846, 0.4186, 0.4676, 0.4283, 0.4358], "epi_global_err_add": [0.1946, 0.7468, 0.7426, 0.7682, 0.7819], "epi_global_bias_comb": [-0.2609, -0.472, -0.5477, -0.5701, -0.5476], "epi_global_err_comb": [0.4469, 0.6485, 0.7254, 0.7495, 0.7354], "epi_pair_rho_comb": [0.3374, 0.48, 0.4122, 0.4009, 0.4409], "epi_beyond_rho_comb": [0.2987, 0.4009, 0.4019, 0.3982, 0.4132], "epi_cell_rank_comb": [0.0891, 0.1303, 0.1241, 0.1257, 0.1236], "epi_naive_rho_comb": [0.4392, 0.4377, 0.4251, 0.4055, 0.4053], "epi_line_rho_comb": [0.2242, 0.3743, 0.3946, 0.3768, 0.3956], "epi_cell_mag_comb": [0.1533, 0.2174, 0.2447, 0.243, 0.2581], "epi_cell_flipacc_ctx": [null, null, null, null, null], "epi_line_rho_ctx": [null, null, null, null, null], "epi_cell_rank_ctx": [null, null, null, null, null], "epi_beyond_rho_ctx": [null, null, null, null, null], "epi_cell_flipacc_mt": [0.7182, 0.8037, 0.8043, 0.8113, 0.8043], "epi_cell_rank_mt": [0.1188, 0.156, 0.1544, 0.1604, 0.1588], "epi_cell_sigsd_mt": [0.1096, 0.0884, 0.0857, 0.0916, 0.0945]}, "o6h1_linknone": {"ep": [-1, 0, 1, 2, 3], "epi_naive_rho_add": [0.0, 0.0, 0.0, 0.0, 0.0], "epi_global_err_add": [1.1009, 1.1029, 1.1033, 1.1033, 1.1028], "epi_global_bias_comb": [-0.6561, -0.6965, -0.6868, -0.6742, -0.683], "epi_global_err_comb": [0.8843, 0.9235, 0.9115, 0.8993, 0.9056], "epi_pair_rho_comb": [0.34, 0.4426, 0.3852, 0.3539, 0.3713], "epi_beyond_rho_comb": [0.2946, 0.4104, 0.3912, 0.3906, 0.3972], "epi_cell_rank_comb": [0.0891, 0.1198, 0.1247, 0.1362, 0.125], "epi_naive_rho_comb": [0.2157, 0.2036, 0.2221, 0.247, 0.2357], "epi_line_rho_comb": [0.2014, 0.314, 0.3354, 0.3343, 0.3459], "epi_cell_mag_comb": [0.1722, 0.2296, 0.2329, 0.2431, 0.2542], "epi_cell_flipacc_ctx": [0.7186, 0.7764, 0.7627, 0.7734, 0.7744], "epi_line_rho_ctx": [0.2013, 0.314, 0.3406, 0.3225, 0.3371], "epi_cell_rank_ctx": [0.0888, 0.1323, 0.1365, 0.1402, 0.1476], "epi_beyond_rho_ctx": [0.2946, 0.4258, 0.4459, 0.4376, 0.4373], "epi_cell_flipacc_mt": [0.7182, 0.7866, 0.7914, 0.7967, 0.7904], "epi_cell_rank_mt": [0.1188, 0.1513, 0.1541, 0.1607, 0.1571], "epi_cell_sigsd_mt": [0.1096, 0.0869, 0.09, 0.0922, 0.0978]}, "o6g4_c01": {"ep": [-1, 0, 1, 2, 3, 4, 5], "epi_naive_rho_add": [0.4846, 0.3867, 0.4256, 0.4445, 0.4145, 0.4568, 0.316], "epi_global_err_add": [0.1946, 0.8435, 0.8514, 0.8405, 0.9225, 0.8783, 0.8877], "epi_global_bias_comb": [-0.2609, -0.5641, -0.4941, -0.5107, -0.5747, -0.5634, -0.5446], "epi_global_err_comb": [0.4469, 0.7321, 0.6572, 0.6764, 0.7566, 0.7489, 0.7298], "epi_pair_rho_comb": [0.3374, 0.4078, 0.2948, 0.373, 0.3713, 0.3652, 0.4078], "epi_beyond_rho_comb": [0.2987, 0.3804, 0.3493, 0.3867, 0.3997, 0.382, 0.4149], "epi_cell_rank_comb": [0.0891, 0.1327, 0.1287, 0.1277, 0.1224, 0.1286, 0.1258], "epi_naive_rho_comb": [0.4392, 0.3626, 0.3561, 0.3713, 0.3502, 0.3231, 0.3493], "epi_line_rho_comb": [0.2242, 0.3346, 0.3349, 0.357, 0.3554, 0.3604, 0.3789], "epi_cell_mag_comb": [0.1533, 0.2079, 0.2103, 0.2313, 0.2438, 0.2531, 0.2602], "epi_cell_flipacc_ctx": [null, null, null, null, null, null, null], "epi_line_rho_ctx": [null, null, null, null, null, null, null], "epi_cell_rank_ctx": [null, null, null, null, null, null, null], "epi_beyond_rho_ctx": [null, null, null, null, null, null, null], "epi_cell_flipacc_mt": [0.7182, 0.7822, 0.7838, 0.7872, 0.8007, 0.788, 0.7981], "epi_cell_rank_mt": [0.1188, 0.1464, 0.1445, 0.1481, 0.1558, 0.1568, 0.1564], "epi_cell_sigsd_mt": [0.1096, 0.082, 0.0897, 0.0951, 0.0958, 0.0932, 0.1031]}, "o6g3_c1": {"ep": [-1, 0, 1, 2, 3], "epi_naive_rho_add": [0.4846, 0.4658, 0.4502, 0.4196, 0.4571], "epi_global_err_add": [0.1946, 0.7992, 0.831, 0.8341, 0.8857], "epi_global_bias_comb": [-0.2609, -0.5229, -0.5036, -0.5434, -0.5872], "epi_global_err_comb": [0.4469, 0.6785, 0.6704, 0.7159, 0.7733], "epi_pair_rho_comb": [0.3374, 0.4452, 0.3748, 0.3635, 0.3461], "epi_beyond_rho_comb": [0.2987, 0.3888, 0.3933, 0.3911, 0.401], "epi_cell_rank_comb": [0.0891, 0.1294, 0.1299, 0.1258, 0.1308], "epi_naive_rho_comb": [0.4392, 0.4146, 0.3988, 0.3981, 0.3662], "epi_line_rho_comb": [0.2242, 0.3501, 0.3738, 0.3684, 0.3785], "epi_cell_mag_comb": [0.1533, 0.2249, 0.2292, 0.2398, 0.2563], "epi_cell_flipacc_ctx": [null, null, null, null, null], "epi_line_rho_ctx": [null, null, null, null, null], "epi_cell_rank_ctx": [null, null, null, null, null], "epi_beyond_rho_ctx": [null, null, null, null, null], "epi_cell_flipacc_mt": [0.7182, 0.7894, 0.8021, 0.7822, 0.8083], "epi_cell_rank_mt": [0.1188, 0.1458, 0.1548, 0.1529, 0.1602], "epi_cell_sigsd_mt": [0.1096, 0.0894, 0.09, 0.0885, 0.0941]}, "o6g5_c30": {"ep": [-1, 0, 1, 2], "epi_naive_rho_add": [0.4846, 0.447, 0.4644, 0.4575], "epi_global_err_add": [0.1946, 0.7126, 0.7662, 0.7404], "epi_global_bias_comb": [-0.2609, -0.4583, -0.4657, -0.4718], "epi_global_err_comb": [0.4469, 0.6585, 0.6596, 0.6715], "epi_pair_rho_comb": [0.3374, 0.4974, 0.4739, 0.5296], "epi_beyond_rho_comb": [0.2987, 0.4217, 0.4246, 0.4505], "epi_cell_rank_comb": [0.0891, 0.1356, 0.1361, 0.136], "epi_naive_rho_comb": [0.4392, 0.4373, 0.4378, 0.4268], "epi_line_rho_comb": [0.2242, 0.3798, 0.3917, 0.4241], "epi_cell_mag_comb": [0.1533, 0.2235, 0.2267, 0.2502], "epi_cell_flipacc_ctx": [null, null, null, null], "epi_line_rho_ctx": [null, null, null, null], "epi_cell_rank_ctx": [null, null, null, null], "epi_beyond_rho_ctx": [null, null, null, null], "epi_cell_flipacc_mt": [0.7182, 0.782, 0.7919, 0.8238], "epi_cell_rank_mt": [0.1188, 0.1595, 0.1625, 0.169], "epi_cell_sigsd_mt": [0.1096, 0.0966, 0.098, 0.096]}, "o6g1_bal111": {"ep": [-1, 0, 1, 2], "epi_naive_rho_add": [0.4846, 0.415, 0.4786, 0.448], "epi_global_err_add": [0.1946, 0.7473, 0.7033, 0.7811], "epi_global_bias_comb": [-0.2609, -0.5121, -0.4789, -0.5007], "epi_global_err_comb": [0.4469, 0.6278, 0.5967, 0.6409], "epi_pair_rho_comb": [0.3374, 0.5887, 0.6383, 0.6678], "epi_beyond_rho_comb": [0.2987, 0.4429, 0.484, 0.5066], "epi_cell_rank_comb": [0.0891, 0.1328, 0.1411, 0.1431], "epi_naive_rho_comb": [0.4392, 0.4698, 0.5111, 0.504], "epi_line_rho_comb": [0.2242, 0.3629, 0.4188, 0.4413], "epi_cell_mag_comb": [0.1533, 0.2185, 0.2326, 0.2456], "epi_cell_flipacc_ctx": [null, null, null, null], "epi_line_rho_ctx": [null, null, null, null], "epi_cell_rank_ctx": [null, null, null, null], "epi_beyond_rho_ctx": [null, null, null, null], "epi_cell_flipacc_mt": [0.7182, 0.7824, 0.8015, 0.8332], "epi_cell_rank_mt": [0.1188, 0.1476, 0.164, 0.1672], "epi_cell_sigsd_mt": [0.1096, 0.0896, 0.0956, 0.0943]}, "o6gm1_maskstruct": {"ep": [-1, 0, 1, 2, 3, 4, 5], "epi_naive_rho_add": [0.4846, 0.4018, 0.4665, 0.4447, 0.4767, 0.4738, 0.4618], "epi_global_err_add": [0.1946, 0.812, 0.6846, 0.7786, 0.7929, 0.7817, 0.8232], "epi_global_bias_comb": [-0.2681, -0.4763, -0.5109, -0.5398, -0.5482, -0.5334, -0.5256], "epi_global_err_comb": [0.4837, 0.671, 0.6886, 0.725, 0.7392, 0.7138, 0.7155], "epi_pair_rho_comb": [0.1557, 0.4148, 0.4078, 0.46, 0.4739, 0.4904, 0.52], "epi_beyond_rho_comb": [0.2136, 0.3977, 0.3916, 0.425, 0.4138, 0.4252, 0.4394], "epi_cell_rank_comb": [0.0974, 0.1224, 0.1245, 0.1301, 0.1286, 0.1167, 0.1319], "epi_naive_rho_comb": [0.3787, 0.399, 0.4123, 0.4109, 0.394, 0.4117, 0.4055], "epi_line_rho_comb": [0.1938, 0.3548, 0.3772, 0.4067, 0.3838, 0.4039, 0.4077], "epi_cell_mag_comb": [0.1545, 0.2035, 0.2213, 0.2276, 0.2407, 0.2456, 0.2559], "epi_cell_flipacc_ctx": [null, null, null, null, null, null, null], "epi_line_rho_ctx": [null, null, null, null, null, null, null], "epi_cell_rank_ctx": [null, null, null, null, null, null, null], "epi_beyond_rho_ctx": [null, null, null, null, null, null, null], "epi_cell_flipacc_mt": [0.7405, 0.7846, 0.7912, 0.7955, 0.822, 0.8127, 0.8194], "epi_cell_rank_mt": [0.1235, 0.1401, 0.1514, 0.1531, 0.1628, 0.161, 0.1748], "epi_cell_sigsd_mt": [0.1111, 0.0934, 0.0876, 0.0925, 0.0965, 0.0978, 0.1031]}, "o6gp1_premask": {"ep": [-1, 0, 1, 2, 3, 4, 5], "epi_naive_rho_add": [0.4846, 0.4511, 0.4872, 0.4639, 0.4825, 0.4581, 0.4937], "epi_global_err_add": [0.1946, 0.6802, 0.7188, 0.7028, 0.8101, 0.7459, 0.791], "epi_global_bias_comb": [-0.3949, -0.4732, -0.4931, -0.4935, -0.561, -0.4947, -0.5311], "epi_global_err_comb": [0.6441, 0.6746, 0.6927, 0.6892, 0.769, 0.695, 0.736], "epi_pair_rho_comb": [0.2096, 0.5052, 0.4748, 0.4957, 0.5026, 0.52, 0.5643], "epi_beyond_rho_comb": [0.2287, 0.437, 0.4257, 0.4399, 0.4276, 0.4455, 0.4561], "epi_cell_rank_comb": [0.079, 0.1297, 0.125, 0.1319, 0.1325, 0.1334, 0.1329], "epi_naive_rho_comb": [0.3146, 0.3857, 0.3855, 0.3796, 0.3503, 0.4011, 0.3772], "epi_line_rho_comb": [0.1475, 0.3341, 0.3429, 0.3595, 0.3481, 0.3505, 0.3587], "epi_cell_mag_comb": [0.145, 0.2291, 0.2362, 0.2345, 0.2346, 0.2411, 0.2629], "epi_cell_flipacc_ctx": [null, null, null, null, null, null, null], "epi_line_rho_ctx": [null, null, null, null, null, null, null], "epi_cell_rank_ctx": [null, null, null, null, null, null, null], "epi_beyond_rho_ctx": [null, null, null, null, null, null, null], "epi_cell_flipacc_mt": [0.6889, 0.765, 0.7758, 0.7808, 0.8125, 0.7965, 0.8149], "epi_cell_rank_mt": [0.1107, 0.1485, 0.1567, 0.1582, 0.1656, 0.1642, 0.1815], "epi_cell_sigsd_mt": [0.1104, 0.0889, 0.0905, 0.0917, 0.1009, 0.0979, 0.1044]}}, "snr": [{"metric": "epi_naive_rho_add", "zs": 0.3965, "e2_devel": 0.4439, "e2_base": 0.0, "e2_linknone": 0.0, "gain": -0.0269, "rep_sd": 0.0175, "jit_sd": 0.0225, "cfg_sd": 0.1831, "snr_gain": -1.5376, "snr_cfg": 10.4799}, {"metric": "epi_global_err_add", "zs": 0.3596, "e2_devel": 0.7779, "e2_base": 1.172, "e2_linknone": 1.1033, "gain": 0.4718, "rep_sd": 0.0255, "jit_sd": 0.0348, "cfg_sd": 0.152, "snr_gain": 18.4936, "snr_cfg": 5.9582}, {"metric": "epi_global_bias_comb", "zs": -0.3457, "e2_devel": -0.5196, "e2_base": -0.6455, "e2_linknone": -0.6742, "gain": -0.1955, "rep_sd": 0.03, "jit_sd": 0.0254, "cfg_sd": 0.0666, "snr_gain": -6.518, "snr_cfg": 2.2201}, {"metric": "epi_global_err_comb", "zs": 0.5478, "e2_devel": 0.6976, "e2_base": 0.8497, "e2_linknone": 0.8993, "gain": 0.1758, "rep_sd": 0.0307, "jit_sd": 0.0295, "cfg_sd": 0.0848, "snr_gain": 5.7289, "snr_cfg": 2.7621}, {"metric": "epi_pair_rho_comb", "zs": 0.3094, "e2_devel": 0.4591, "e2_base": 0.5235, "e2_linknone": 0.3539, "gain": 0.1323, "rep_sd": 0.0203, "jit_sd": 0.0247, "cfg_sd": 0.089, "snr_gain": 6.5283, "snr_cfg": 4.3916}, {"metric": "epi_beyond_rho_comb", "zs": 0.2837, "e2_devel": 0.4236, "e2_base": 0.4621, "e2_linknone": 0.3906, "gain": 0.1331, "rep_sd": 0.0045, "jit_sd": 0.0119, "cfg_sd": 0.0359, "snr_gain": 29.7772, "snr_cfg": 8.0243}, {"metric": "epi_cell_rank_comb", "zs": 0.0889, "e2_devel": 0.1307, "e2_base": 0.1562, "e2_linknone": 0.1362, "gain": 0.0433, "rep_sd": 0.0039, "jit_sd": 0.0043, "cfg_sd": 0.0081, "snr_gain": 11.2249, "snr_cfg": 2.0985}, {"metric": "epi_naive_rho_comb", "zs": 0.3815, "e2_devel": 0.4161, "e2_base": 0.3155, "e2_linknone": 0.247, "gain": 0.0103, "rep_sd": 0.0129, "jit_sd": 0.0147, "cfg_sd": 0.071, "snr_gain": 0.7959, "snr_cfg": 5.5032}, {"metric": "epi_line_rho_comb", "zs": 0.2104, "e2_devel": 0.3896, "e2_base": 0.3898, "e2_linknone": 0.3343, "gain": 0.1675, "rep_sd": 0.0128, "jit_sd": 0.0111, "cfg_sd": 0.0275, "snr_gain": 13.0353, "snr_cfg": 2.1368}, {"metric": "epi_cell_mag_comb", "zs": 0.1562, "e2_devel": 0.2395, "e2_base": 0.3092, "e2_linknone": 0.2431, "gain": 0.0839, "rep_sd": 0.0071, "jit_sd": 0.009, "cfg_sd": 0.0219, "snr_gain": 11.888, "snr_cfg": 3.1086}, {"metric": "epi_cell_flipacc_ctx", "zs": 0.7187, "e2_devel": 0.7999, "e2_base": 0.7792, "e2_linknone": 0.7734, "gain": 0.0626, "rep_sd": NaN, "jit_sd": 0.0069, "cfg_sd": 0.0125, "snr_gain": NaN, "snr_cfg": NaN}, {"metric": "epi_line_rho_ctx", "zs": 0.2091, "e2_devel": 0.3801, "e2_base": 0.3873, "e2_linknone": 0.3225, "gain": 0.1523, "rep_sd": NaN, "jit_sd": 0.0099, "cfg_sd": 0.0266, "snr_gain": NaN, "snr_cfg": NaN}, {"metric": "epi_cell_rank_ctx", "zs": 0.0892, "e2_devel": 0.1431, "e2_base": 0.1377, "e2_linknone": 0.1402, "gain": 0.0494, "rep_sd": NaN, "jit_sd": 0.0029, "cfg_sd": 0.0011, "snr_gain": NaN, "snr_cfg": NaN}, {"metric": "epi_beyond_rho_ctx", "zs": 0.2953, "e2_devel": 0.4632, "e2_base": 0.4444, "e2_linknone": 0.4376, "gain": 0.1579, "rep_sd": NaN, "jit_sd": 0.0065, "cfg_sd": 0.0149, "snr_gain": NaN, "snr_cfg": NaN}, {"metric": "epi_cell_flipacc_mt", "zs": 0.7176, "e2_devel": 0.8003, "e2_base": 0.8764, "e2_linknone": 0.7967, "gain": 0.0845, "rep_sd": 0.0103, "jit_sd": 0.0115, "cfg_sd": 0.0225, "snr_gain": 8.2078, "snr_cfg": 2.1814}, {"metric": "epi_cell_rank_mt", "zs": 0.1185, "e2_devel": 0.1584, "e2_base": 0.1979, "e2_linknone": 0.1607, "gain": 0.0413, "rep_sd": 0.0047, "jit_sd": 0.0058, "cfg_sd": 0.0119, "snr_gain": 8.7112, "snr_cfg": 2.5064}, {"metric": "epi_cell_sigsd_mt", "zs": 0.1098, "e2_devel": 0.0926, "e2_base": 0.1121, "e2_linknone": 0.0922, "gain": -0.0167, "rep_sd": 0.0028, "jit_sd": 0.0034, "cfg_sd": 0.0055, "snr_gain": -5.8485, "snr_cfg": 1.9368}]};
+const NS = 'http://www.w3.org/2000/svg';
+const tip = document.getElementById('tip');
+function el(name, attrs = {}, parent) { const e = document.createElementNS(NS, name); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function txt(parent, x, y, s, attrs = {}) { const t = el('text', { x, y, fill: 'var(--muted)', 'font-size': 11, ...attrs }, parent); t.textContent = s; return t; }
+function showTip(ev, html) { tip.innerHTML = html; tip.hidden = false; const w = tip.offsetWidth, h = tip.offsetHeight; let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + w > window.innerWidth - 8) x = ev.clientX - w - 14; if (y + h > window.innerHeight - 8) y = ev.clientY - h - 14; tip.style.left = x + 'px'; tip.style.top = y + 'px'; }
+function hideTip() { tip.hidden = true; }
+function hover(node, html) { node.addEventListener('mousemove', e => showTip(e, html)); node.addEventListener('mouseleave', hideTip); node.style.cursor = 'default'; }
+const f2 = v => (v == null || !isFinite(v)) ? '–' : (+v).toFixed(2), f3 = v => (v == null || !isFinite(v)) ? '–' : (+v).toFixed(3);
+function legend(id, items) { const L = document.getElementById(id); L.innerHTML = items.map(([c, n, box]) => `<span><i class="${box ? 'box' : ''}" style="background:${c}"></i>${n}</span>`).join(''); }
+function scale(d0, d1, r0, r1) { return v => r0 + (v - d0) / (d1 - d0) * (r1 - r0); }
+
+/* ---------- Figure 1: the hierarchy ---------- */
+(function () {
+  const W = 960, H = 230, svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Diagram of the four levels: global curve, pair matrix, line, cell' }, document.getElementById('fig-hier'));
+  const panels = [['Global', 'E[dddG | x]'], ['Pair', 'matrix mean'], ['Line', 'row or column mean'], ['Cell', 'double-centred remainder']];
+  const pw = 210, gap = 40;
+  panels.forEach(([t, s], k) => {
+    const x0 = 20 + k * (pw + gap);
+    txt(svg, x0, 20, t, { fill: 'var(--ink)', 'font-size': 14, 'font-weight': 600 });
+    txt(svg, x0, 37, s, { 'font-size': 12 });
+    if (k < 3) { el('path', { d: `M${x0 + pw + 8} 125 l${gap - 16} 0 m-6 -5 l6 5 l-6 5`, stroke: 'var(--axis)', 'stroke-width': 1.5, fill: 'none' }, svg); }
+    if (k === 0) {
+      el('line', { x1: x0 + 10, y1: 210, x2: x0 + pw - 10, y2: 210, stroke: 'var(--axis)' }, svg);
+      el('line', { x1: x0 + 10, y1: 60, x2: x0 + 10, y2: 210, stroke: 'var(--axis)' }, svg);
+      const pts = []; for (let i = 0; i <= 40; i++) { const u = i / 40, xx = x0 + 12 + u * (pw - 26); const yy = 205 - 140 / (1 + Math.exp((u - 0.32) * 9)) - 8; pts.push(`${xx.toFixed(1)},${yy.toFixed(1)}`); }
+      el('polyline', { points: pts.join(' '), fill: 'none', stroke: 'var(--s1)', 'stroke-width': 2, 'stroke-linecap': 'round' }, svg);
+      txt(svg, x0 + pw - 10, 226, 'x →', { 'text-anchor': 'end' }); txt(svg, x0 + 16, 70, 'dddG', {});
+      return;
+    }
+    const n = 6, cs = 22, mx = x0 + 30, my = 60;
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+      let fill = 'var(--grid)';
+      if (k === 1) fill = 'var(--band)';
+      if (k === 2 && c === 3) fill = 'var(--s1)';
+      if (k === 3 && c === 3 && r === 2) fill = 'var(--s2)';
+      el('rect', { x: mx + c * (cs + 2), y: my + r * (cs + 2), width: cs, height: cs, rx: 2, fill, opacity: (k === 2 && c === 3) ? 0.55 : 1 }, svg);
+    }
+    if (k === 1) el('rect', { x: mx - 4, y: my - 4, width: n * (cs + 2) + 6, height: n * (cs + 2) + 6, rx: 4, fill: 'none', stroke: 'var(--s1)', 'stroke-width': 2 }, svg);
+    txt(svg, mx + n * (cs + 2) / 2, my + n * (cs + 2) + 16, 'residues at j →', { 'text-anchor': 'middle', 'font-size': 10 });
+    txt(svg, mx - 10, my + n * (cs + 2) / 2, 'at i', { 'text-anchor': 'end', 'font-size': 10 });
+  });
+})();
+
+/* ---------- Figure 2: variance partition ---------- */
+(function () {
+  const v = DATA.partition.validation, tr = DATA.partition.training_cv;
+  const vs = { global: v.global / v.total * 100, pair: v.pair / v.total * 100, line: v.line / v.total * 100, cell: v.cell / v.total * 100 };
+  const rows = [['Validation, in-sample', vs], ['Training, cross-validated', tr]];
+  const cols = { global: 'var(--s1)', pair: 'var(--s2)', line: 'var(--s3)', cell: 'var(--s4)' };
+  const names = { global: 'global (saturation and nonspecific)', pair: 'position pair', line: 'line (row and column)', cell: 'cell (combination)' };
+  legend('leg-part', Object.keys(cols).map(k => [cols[k], names[k], true]));
+  const W = 960, H = 130, L = 190, R = 30, svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Stacked bars of the variance shares' }, document.getElementById('fig-part'));
+  const sx = scale(0, 100, L, W - R);
+  [0, 25, 50, 75, 100].forEach(t => { el('line', { x1: sx(t), x2: sx(t), y1: 10, y2: 100, stroke: 'var(--grid)' }, svg); txt(svg, sx(t), 118, t + '%', { 'text-anchor': 'middle' }); });
+  rows.forEach(([lab, d], k) => {
+    const y = 22 + k * 42, h = 22; let acc = 0;
+    txt(svg, L - 12, y + 15, lab, { 'text-anchor': 'end', fill: 'var(--ink-2)', 'font-size': 12 });
+    Object.keys(cols).forEach(key => {
+      const w = sx(acc + d[key]) - sx(acc) - 2;
+      const r = el('rect', { x: sx(acc) + (acc > 0 ? 1 : 0), y, width: Math.max(1, w), height: h, fill: cols[key], rx: 2 }, svg);
+      hover(r, `<b>${lab}</b><br>${names[key]}: ${d[key].toFixed(1)}%`);
+      if (w > 44) txt(svg, sx(acc) + w / 2, y + 15, d[key].toFixed(0) + '%', { 'text-anchor': 'middle', fill: key === 'cell' || key === 'line' ? '#15181d' : '#ffffff', 'font-size': 12, 'font-weight': 600 });
+      acc += d[key];
+    });
+    if (acc < 99.5) { const r = el('rect', { x: sx(acc) + 1, y, width: sx(100) - sx(acc) - 1, height: h, fill: 'var(--grid)', rx: 2 }, svg); hover(r, `${lab}: ${(100 - acc).toFixed(1)}% outside complete blocks`); }
+  });
+})();
+
+/* ---------- Table 1: regimes ---------- */
+(function () {
+  const t = document.getElementById('tab-regimes');
+  t.innerHTML = `<thead><tr><th>additive expectation x</th><th class="n">doubles</th><th class="n">share</th><th class="n">mean dddG</th><th class="n">var dddG</th><th class="n">SS share</th><th class="n">practical floor: median dG_AB</th><th class="n">ρ saturation-only</th><th class="n">ρ trained</th></tr></thead><tbody>` +
+    DATA.regimes.map(r => `<tr><td>${r.name.replace('x < -1', 'below −1 (sub-floor)').replace('-1 to 0', '−1 to 0 (knee)').replace('0 to 1', '0 to 1 (knee)').replace('1 to 2', '1 to 2 (in range)').replace('x > 2', 'above 2 (in range)')}</td><td class="n">${r.n}</td><td class="n">${(r.share * 100).toFixed(0)}%</td><td class="n">${f2(r.mean)}</td><td class="n">${f2(r.var)}</td><td class="n">${(r.ss_share * 100).toFixed(0)}%</td><td class="n">${f2(r.dGAB_med)}</td><td class="n">${f2(r.rho_add)}</td><td class="n">${f2(r.rho_comb)}</td></tr>`).join('') + '</tbody>';
+})();
+
+/* ---------- Figure 3: the global curve ---------- */
+(function () {
+  const C = DATA.curve;
+  const series = [['meas', 'measured', 'var(--ink)'], ['comb', 'trained, link (comb)', 'var(--s1)'], ['add', 'saturation-only control (link)', 'var(--s3)'], ['base_comb', 'released baseline, no link', 'var(--s2)']];
+  legend('leg-curve', series.map(([k, n, c]) => [c, n]));
+  const W = 960, H = 360, L = 60, R = 200, T = 16, B = 44, svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Mean dddG against additive expectation for measured data and three models' }, document.getElementById('fig-curve'));
+  const sx = scale(-2.4, 3.0, L, W - R), sy = scale(-0.25, 2.5, H - B, T);
+  el('rect', { x: sx(-2.4), y: T, width: sx(-1) - sx(-2.4), height: H - B - T, fill: 'var(--band)' }, svg);
+  el('rect', { x: sx(-1), y: T, width: sx(1) - sx(-1), height: H - B - T, fill: 'var(--band-2)' }, svg);
+  txt(svg, sx(-1.7), T + 14, 'below the floor', { 'text-anchor': 'middle' }); txt(svg, sx(0), T + 14, 'knee', { 'text-anchor': 'middle' }); txt(svg, sx(2), T + 14, 'in range', { 'text-anchor': 'middle' });
+  [0, 0.5, 1, 1.5, 2, 2.5].forEach(t => { el('line', { x1: L, x2: W - R, y1: sy(t), y2: sy(t), stroke: 'var(--grid)' }, svg); txt(svg, L - 8, sy(t) + 4, t.toFixed(1), { 'text-anchor': 'end' }); });
+  [-2, -1, 0, 1, 2, 3].forEach(t => txt(svg, sx(t), H - B + 18, t, { 'text-anchor': 'middle' }));
+  el('line', { x1: L, x2: W - R, y1: sy(0), y2: sy(0), stroke: 'var(--axis)' }, svg);
+  txt(svg, (L + W - R) / 2, H - 6, 'additive expectation x = dG_wt + ddG_A + ddG_B (kcal/mol)', { 'text-anchor': 'middle' });
+  txt(svg, 14, sy(1.25), 'mean dddG', { transform: `rotate(-90 14 ${sy(1.25)})`, 'text-anchor': 'middle' });
+  const ends = [];
+  series.forEach(([k, n, c]) => {
+    el('polyline', { points: C.map(p => `${sx(p.x).toFixed(1)},${sy(p[k]).toFixed(1)}`).join(' '), fill: 'none', stroke: c, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+    if (k === 'meas') C.forEach(p => el('circle', { cx: sx(p.x), cy: sy(p.meas), r: 3.2, fill: c, stroke: 'var(--bg)', 'stroke-width': 1.5 }, svg));
+    const last = C[C.length - 1]; ends.push([sy(last[k]), n, c]);
+  });
+  ends.sort((a, b) => a[0] - b[0]); for (let i = 1; i < ends.length; i++) if (ends[i][0] - ends[i - 1][0] < 15) ends[i][0] = ends[i - 1][0] + 15;
+  const lx = sx(C[C.length - 1].x);
+  ends.forEach(([y, n, c]) => { el('circle', { cx: lx + 10, cy: y - 4, r: 4, fill: c }, svg); txt(svg, lx + 18, y, n, { fill: 'var(--ink-2)', 'font-size': 11.5 }); });
+  const cross = el('line', { y1: T, y2: H - B, stroke: 'var(--axis)', opacity: 0 }, svg);
+  const hit = el('rect', { x: L, y: T, width: W - R - L, height: H - B - T, fill: 'transparent' }, svg);
+  hit.addEventListener('mousemove', ev => {
+    const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY; const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    let best = C[0]; C.forEach(q => { if (Math.abs(sx(q.x) - p.x) < Math.abs(sx(best.x) - p.x)) best = q; });
+    cross.setAttribute('x1', sx(best.x)); cross.setAttribute('x2', sx(best.x)); cross.setAttribute('opacity', 1);
+    showTip(ev, `<b>x ≈ ${best.x.toFixed(2)}</b> (${best.n} doubles)<br>measured ${f2(best.meas)}<br>trained ${f2(best.comb)} · MT pass ${f2(best.mt)}<br>saturation-only ${f2(best.add)}<br>baseline, no link ${f2(best.base_comb)}`);
+  });
+  hit.addEventListener('mouseleave', () => { cross.setAttribute('opacity', 0); hideTip(); });
+})();
+
+/* ---------- Figure 4: practical floors ---------- */
+(function () {
+  const v = DATA.floors, W = 960, H = 210, L = 60, R = 30, T = 24, B = 40;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Histogram of practical floors per library with the learned link floor marked' }, document.getElementById('fig-floor'));
+  const lo = -1.2, hi = 0.8, bw = 0.1, nb = Math.round((hi - lo) / bw), counts = new Array(nb).fill(0);
+  v.forEach(f => { const k = Math.min(nb - 1, Math.max(0, Math.floor((f - lo) / bw))); counts[k]++; });
+  const sx = scale(lo, hi, L, W - R), maxc = Math.max(...counts), sy = scale(0, maxc + 2, H - B, T);
+  for (let t = 0; t <= maxc + 2; t += 4) { el('line', { x1: L, x2: W - R, y1: sy(t), y2: sy(t), stroke: 'var(--grid)' }, svg); txt(svg, L - 8, sy(t) + 4, t, { 'text-anchor': 'end' }); }
+  counts.forEach((c, k) => { if (!c) return; const x = sx(lo + k * bw) + 1, w = sx(lo + (k + 1) * bw) - sx(lo + k * bw) - 2;
+    const top = sy(c), r = el('path', { d: `M${x} ${sy(0)} L${x} ${top + 4} Q${x} ${top} ${x + 4} ${top} L${x + w - 4} ${top} Q${x + w} ${top} ${x + w} ${top + 4} L${x + w} ${sy(0)} Z`, fill: 'var(--s1)' }, svg);
+    hover(r, `${(lo + k * bw).toFixed(1)} to ${(lo + (k + 1) * bw).toFixed(1)} kcal/mol: ${c} libraries`); });
+  el('line', { x1: L, x2: W - R, y1: sy(0), y2: sy(0), stroke: 'var(--axis)' }, svg);
+  [-1.2, -1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8].forEach(t => txt(svg, sx(t), H - B + 16, t.toFixed(1), { 'text-anchor': 'middle' }));
+  txt(svg, (L + W - R) / 2, H - 4, 'median measured dG of doubles with x < −1.5, per library (kcal/mol)', { 'text-anchor': 'middle' });
+  const fx = sx(-0.99); el('line', { x1: fx, x2: fx, y1: T - 6, y2: sy(0), stroke: 'var(--s2)', 'stroke-width': 2 }, svg);
+  txt(svg, fx + 6, T + 4, 'learned link floor −0.99', { fill: 'var(--ink-2)' });
+  const mx = sx(0.034); el('line', { x1: mx, x2: mx, y1: T - 6, y2: sy(0), stroke: 'var(--ink-2)', 'stroke-width': 1 }, svg);
+  txt(svg, mx + 6, T + 4, 'median +0.03', { fill: 'var(--ink-2)' });
+})();
+
+/* ---------- Table 2: the metric list ---------- */
+(function () {
+  const S = Object.fromEntries(DATA.snr.map(r => [r.metric, r]));
+  const rows = [
+    ['ddG product (guards)'],
+    ['val_rho_combined_avg', 'ranking of every measured item by the reported prediction, mean over libraries', 'guard', null],
+    ['val_rmse_combined_avg', 'calibration of the reported prediction, kcal/mol (observed scale under the link); lower is better', 'guard', null],
+    ['val_rho_wt_valid_avg', 'the WT head on singles; drives the WT plateau and the WT early stop', 'guard', null],
+    ['holistic (naive, confounded)'],
+    ['val_epi_naive_rho_comb', 'Spearman of predicted vs measured dddG over all doubles. Under the link mostly saturation. Summary only', 'summary', 'epi_naive_rho_comb'],
+    ['val_epi_naive_rho_add', 'the same for the saturation-only control; read the two together', 'control', 'epi_naive_rho_add'],
+    ['global'],
+    ['val_epi_global_err_comb', 'RMSE of the predicted vs measured E[dddG | x] curve (20 quantile bins of the measured x), kcal/mol; lower is better', 'diagnostic', 'epi_global_err_comb'],
+    ['val_epi_global_err_add', 'the same for the saturation-only control: how much of the curve the link alone reproduces', 'control', 'epi_global_err_add'],
+    ['val_epi_global_bias_comb', 'bin-weighted mean of (predicted − measured): negative = nonspecific epistasis under-predicted', 'diagnostic', 'epi_global_bias_comb'],
+    ['beyond global (holistic, clean)'],
+    ['val_epi_beyond_rho_comb', 'Spearman of the beyond-global residuals over all doubles: every level above the global at once (pair offsets dominate)', 'guard', 'epi_beyond_rho_comb'],
+    ['val_epi_beyond_rho_ctx', 'the same for the WT-in-context control', 'control', 'epi_beyond_rho_ctx'],
+    ['pair'],
+    ['val_epi_pair_rho_comb', 'Spearman across the 24 matrices of their mean residuals. Report, do not select on it', 'report', 'epi_pair_rho_comb'],
+    ['line'],
+    ['val_epi_line_rho_comb', 'Spearman, pooled over every row and column of every matrix, of the line means of the residuals, centred on the matrix mean', 'secondary', 'epi_line_rho_comb'],
+    ['val_epi_line_rho_ctx', 'control', 'control', 'epi_line_rho_ctx'],
+    ['cell (the specific combination)'],
+    ['val_epi_cell_rank_mt', 'complete blocks, column ranks of measured and of the MT pass\'s ddG_AB, double-centred, Spearman; mean of both orientations and of 24 blocks', 'target', 'epi_cell_rank_mt'],
+    ['val_epi_cell_mag_comb', 'the double-centred beyond-global residuals of each complete block, Spearman, mean over blocks', 'target', 'epi_cell_mag_comb'],
+    ['val_epi_cell_flipacc_mt', 'share of the 2,509 confident measured order reversals whose direction the MT pass\'s latent contrast predicts; 0.5 is chance', 'target', 'epi_cell_flipacc_mt'],
+    ['val_epi_cell_rank_comb', 'cell_rank for the reported prediction', 'secondary', 'epi_cell_rank_comb'],
+    ['val_epi_cell_rank_ctx', 'cell_rank for the WT-in-context control', 'control', 'epi_cell_rank_ctx'],
+    ['val_epi_cell_flipacc_ctx', 'reversal accuracy for the WT-in-context control', 'control', 'epi_cell_flipacc_ctx'],
+    ['val_epi_cell_sigsd_mt', 'SD of the MT pass\'s double-centred column ranks: how much partner-dependent order it predicts at all (0 = additive)', 'diagnostic', 'epi_cell_sigsd_mt'],
+  ];
+  const t = document.getElementById('tab-metrics');
+  t.innerHTML = '<thead><tr><th>metric</th><th>definition</th><th>use</th><th class="n">0-shot</th><th class="n">devel e2</th><th class="n">baseline e2</th><th class="n">replicate SD</th></tr></thead><tbody>' +
+    rows.map(r => r.length === 1 ? `<tr class="group"><td colspan="7">${r[0]}</td></tr>` :
+      `<tr><td><code>${r[0]}</code></td><td>${r[1]}</td><td><span class="tag ${r[2] === 'target' ? 'target' : r[2] === 'control' ? 'control' : ''}">${r[2]}</span></td>` +
+      (r[3] && S[r[3]] ? `<td class="n">${f2(S[r[3]].zs)}</td><td class="n">${f2(S[r[3]].e2_devel)}</td><td class="n">${f2(S[r[3]].e2_base)}</td><td class="n">${isFinite(S[r[3]].rep_sd) && S[r[3]].rep_sd !== null ? f3(S[r[3]].rep_sd) : '–'}</td>` : '<td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td>') + '</tr>').join('') + '</tbody>';
+  t.insertAdjacentHTML('beforebegin', '');
+  t.parentElement.insertAdjacentHTML('afterend', '<div class="col"><p class="meta">Table 2. The logged set. Devel e2: mean over the nine devel link arms at epoch 2; the WT-in-context values come from o6g6_c10_hier, the only one of them that ran the cycle pass. Replicate SD as in Table 5. Counts are also logged: <code>val_epi_n_doubles</code> 8,494, <code>n_pairs</code> 24, <code>n_blocks</code> 24, <code>n_flips</code> 2,509.</p></div>');
+})();
+
+/* ---------- Table 3: specificity ---------- */
+(function () {
+  const M = DATA.spec.mean;
+  const names = { add_latent: 'nothing (additive, no saturation)', add_link: 'saturation only (true link)', add_imitate: 'saturation imitated with noise, no link', sev_link: 'saturation + "severe substitutions couple more"',
+    m_link: 'saturation + pair offsets', rc_link: 'saturation + line effects', eps_link: 'saturation + cell interaction', all_link: 'everything, with the link', eps_latent: 'cell interaction, no saturation', all_latent: 'every component, no saturation', eps_imitate: 'cell interaction, saturation imitated' };
+  const cols = [['naive', 'naive ρ'], ['beyond', 'beyond'], ['pair', 'pair'], ['line', 'line'], ['cell_mag', 'cell mag'], ['cell_rank', 'cell rank'], ['flipacc', 'reversal acc.'], ['pair_raw(old)', 'old raw pair'], ['line_raw(old)', 'old raw line'], ['int_raw(old)', 'old raw cell']];
+  const top = Object.fromEntries(cols.map(([k]) => [k, Math.max(...M.map(r => k === 'flipacc' ? (r[k] - 0.5) * 2 : r[k]))]));
+  const t = document.getElementById('tab-spec');
+  t.innerHTML = '<thead><tr><th>predictor knows</th>' + cols.map(([k, n]) => `<th class="n">${n}</th>`).join('') + '</tr></thead><tbody>' +
+    M.map(r => '<tr><td>' + names[r.pred] + '</td>' + cols.map(([k]) => { const v = r[k], s = k === 'flipacc' ? (v - 0.5) * 2 : v, a = Math.max(0, Math.min(1, s / top[k]));
+      return `<td class="n" style="background: color-mix(in oklab, var(--s1) ${(a * 42).toFixed(0)}%, transparent)">${k === 'flipacc' ? f2(v) : f2(v)}</td>`; }).join('') + '</tr>').join('') + '</tbody>';
+})();
+
+/* ---------- Figure 5: trajectories ---------- */
+(function () {
+  const T = DATA.traj;
+  const main = [['bl_w2a4_m16a16_capped', 'released baseline (no link, MT rank 16)', 'var(--s1)'], ['o6g6_c10_hier', 'devel c10 (link, MT rank 2)', 'var(--s2)'], ['o6h1_linknone', 'devel, no link', 'var(--s3)']];
+  const others = Object.keys(T).filter(k => !main.some(m => m[0] === k) && k.startsWith('o6g'));
+  legend('leg-traj', [...main.map(([k, n, c]) => [c, n]), ['var(--s4)', 'WT-in-context control (o6g6)'], ['var(--ghost)', 'other devel arms']]);
+  const panels = [['epi_cell_rank_mt', 'cell_rank_mt', 'epi_cell_rank_ctx', [0.08, 0.22]], ['epi_cell_flipacc_mt', 'cell_flipacc_mt', 'epi_cell_flipacc_ctx', [0.68, 0.9]],
+                  ['epi_cell_mag_comb', 'cell_mag_comb', null, [0.12, 0.34]], ['epi_naive_rho_comb', 'naive_rho_comb (for contrast)', null, [0.15, 0.55]]];
+  const host = document.getElementById('fig-traj');
+  panels.forEach(([m, title, ctl, [y0, y1]]) => {
+    const div = document.createElement('div'); host.appendChild(div);
+    div.innerHTML = `<p class="small-title">${title}</p>`;
+    const W = 460, H = 230, L = 46, R = 14, Tp = 10, B = 30, svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': title + ' by epoch' }, div);
+    svg.style.minWidth = '280px';
+    const sx = scale(-1, 7, L, W - R), sy = scale(y0, y1, H - B, Tp);
+    const ticks = []; const step = (y1 - y0) > 0.3 ? 0.1 : 0.04; for (let t = Math.ceil(y0 / step) * step; t <= y1 + 1e-9; t += step) ticks.push(+t.toFixed(2));
+    ticks.forEach(t => { el('line', { x1: L, x2: W - R, y1: sy(t), y2: sy(t), stroke: 'var(--grid)' }, svg); txt(svg, L - 6, sy(t) + 4, t.toFixed(2), { 'text-anchor': 'end', 'font-size': 10 }); });
+    [-1, 0, 1, 2, 3, 4, 5, 6, 7].forEach(e => txt(svg, sx(e), H - B + 15, e === -1 ? '0-shot' : e, { 'text-anchor': 'middle', 'font-size': 10 }));
+    txt(svg, (L + W - R) / 2, H - 2, 'epoch', { 'text-anchor': 'middle', 'font-size': 10 });
+    const line = (run, key, color, w, label) => { const d = T[run]; if (!d || !d[key]) return; const pts = d.ep.map((e, i) => [e, d[key][i]]).filter(p => p[1] != null);
+      if (!pts.length) return; el('polyline', { points: pts.map(p => `${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join(' '), fill: 'none', stroke: color, 'stroke-width': w, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+      if (w >= 2) pts.forEach(p => { const c = el('circle', { cx: sx(p[0]), cy: sy(p[1]), r: 3.5, fill: color, stroke: 'var(--bg)', 'stroke-width': 1.5 }, svg);
+        const hitc = el('circle', { cx: sx(p[0]), cy: sy(p[1]), r: 9, fill: 'transparent' }, svg); hover(hitc, `<b>${label}</b><br>epoch ${p[0] === -1 ? '0-shot' : p[0]}: ${f3(p[1])}`); }); };
+    others.forEach(r => line(r, m, 'var(--ghost)', 1, r));
+    main.forEach(([r, n, c]) => line(r, m, c, 2, n));
+    if (ctl) line('o6g6_c10_hier', ctl, 'var(--s4)', 2, 'WT-in-context control (o6g6)');
+  });
+})();
+
+/* ---------- Table 4: runs at epoch 2 ---------- */
+(function () {
+  const runs = [['bl_w2a4_m16a16_capped', 'baseline (released code)', 'no link, MT 16/16'], ['o6h1_linknone', 'o6h1_linknone', 'devel, no link'], ['o6g6_c10_hier', 'o6g6_c10_hier', 'comp 10/10/10, seed 1 rerun'],
+    ['o6g2_c10', 'o6g2_c10', 'comp 10/10/10'], ['o6g2s2_c10', 'o6g2s2_c10', 'comp 10/10/10, seed 2'], ['o6g5_c30', 'o6g5_c30', 'comp 30/30/30'], ['o6g3_c1', 'o6g3_c1', 'comp 1/1/1'], ['o6g4_c01', 'o6g4_c01', 'comp 0.1/0.1/0.1'],
+    ['o6g1_bal111', 'o6g1_bal111', 'comp 1/1/1, default master'], ['o6gm1_maskstruct', 'o6gm1_maskstruct', '+ mask structure'], ['o6gp1_premask', 'o6gp1_premask', '+ premasked structure']];
+  const cols = [['epi_cell_rank_mt', 'cell rank mt', 1], ['epi_cell_mag_comb', 'cell mag', 1], ['epi_cell_flipacc_mt', 'reversal acc.', 1], ['epi_cell_rank_ctx', 'cell rank ctx', 0], ['epi_line_rho_comb', 'line', 1], ['epi_pair_rho_comb', 'pair', 1], ['epi_beyond_rho_comb', 'beyond', 1], ['epi_naive_rho_comb', 'naive', 0], ['epi_global_bias_comb', 'global bias', 0]];
+  const at = (r, m) => { const d = DATA.traj[r]; if (!d) return null; const i = d.ep.indexOf(2); return i < 0 ? null : d[m][i]; };
+  const best = Object.fromEntries(cols.map(([m, , b]) => [m, b ? Math.max(...runs.map(([r]) => at(r, m) ?? -9)) : null]));
+  const t = document.getElementById('tab-runs');
+  t.innerHTML = '<thead><tr><th>run</th><th>change</th>' + cols.map(([, n]) => `<th class="n">${n}</th>`).join('') + '</tr></thead><tbody>' +
+    runs.map(([r, n, d]) => `<tr><td>${n}</td><td>${d}</td>` + cols.map(([m]) => { const v = at(r, m); return `<td class="n">${v != null && best[m] != null && Math.abs(v - best[m]) < 1e-9 ? '<b>' + f3(v) + '</b>' : f3(v)}</td>`; }).join('') + '</tr>').join('') + '</tbody>';
+})();
+
+/* ---------- Table 5: noise ---------- */
+(function () {
+  const order = ['epi_cell_rank_mt', 'epi_cell_mag_comb', 'epi_cell_flipacc_mt', 'epi_cell_rank_comb', 'epi_line_rho_comb', 'epi_pair_rho_comb', 'epi_beyond_rho_comb', 'epi_naive_rho_comb', 'epi_global_err_comb', 'epi_global_bias_comb', 'epi_cell_sigsd_mt'];
+  const S = Object.fromEntries(DATA.snr.map(r => [r.metric, r]));
+  const t = document.getElementById('tab-snr');
+  t.innerHTML = '<thead><tr><th>metric</th><th class="n">replicate SD</th><th class="n">epoch jitter</th><th class="n">gain over 0-shot</th><th class="n">gain / rep SD</th><th class="n">config spread / rep SD</th><th class="n">2.8 × rep SD</th></tr></thead><tbody>' +
+    order.map(m => { const r = S[m]; return `<tr><td><code>val_${m}</code></td><td class="n">${f3(r.rep_sd)}</td><td class="n">${f3(r.jit_sd)}</td><td class="n">${f3(r.gain)}</td><td class="n">${f2(r.snr_gain)}</td><td class="n">${f2(r.snr_cfg)}</td><td class="n">${f3(2.8 * r.rep_sd)}</td></tr>`; }).join('') +
+    '<tr><td>cell score (mean of the first three, each / its rep SD)</td><td class="n">0.754</td><td class="n">–</td><td class="n">–</td><td class="n">12.70</td><td class="n">3.37</td><td class="n">2.11</td></tr></tbody>';
+})();
+</script>

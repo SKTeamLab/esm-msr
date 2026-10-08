@@ -28,7 +28,7 @@ from esm_msr.flipkeys import split_flip_key
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
-from esm_msr import stats, epi_hierarchy
+from esm_msr import stats, epi_metrics
 from esm_msr import routing
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -256,7 +256,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         this loss; what it cannot satisfy is the per-column *deviation* from that consensus,
         which is the identity-dependent part. So this loss is artifact-immune and includes the
         interaction term, but is not exclusively about it. The matching validation metric
-        (``val_rho_flip_mt``) double-centres away the consensus and therefore IS exclusive - use
+        (``val_epi_cell_rank_mt``) double-centres away the consensus and therefore IS exclusive - use
         the loss to train and the metric to judge.
 
         Columns are variable length, so they are padded into a [G, L] block with a mask
@@ -832,21 +832,17 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         def _np(t):
             return t.detach().cpu().float().numpy() if torch.is_tensor(t) else np.full(n_items, float(t))
 
-        mt_id = batch.get('mt_id')
-        row_id = (mt_id[:, 0].detach().cpu().numpy() if torch.is_tensor(mt_id) and mt_id.ndim == 2
-                  else np.full(n_items, -1))
+        dg_wt = _np(batch['dG_wt']) if torch.is_tensor(batch.get('dG_wt')) else np.full(n_items, np.nan)
         extra = {}
         if self.link_head is not None and torch.is_tensor(batch.get('dG_wt')):
-            # observed-scale predictions, h(dG_wt + latent) - dG_wt, for the absolute-error and ddG-ddG epistasis metrics
-            dgw = batch['dG_wt'].float().to(out_dict['wt_lora_pred'].device)
+            # the combined prediction on the observed scale, h(dG_wt + latent) - dG_wt, for rmse_combined (the epistasis metrics apply the link
+            # themselves, from the latent scores and dG_wt)
+            dgw = batch['dG_wt'].float().to(out_dict['combined_pred'].device)
             with torch.no_grad():
-                for k, key in (('wt', 'wt_lora_pred'), ('mt', 'mt_lora_pred'), ('comb', 'combined_pred')):
-                    v = out_dict[key]
-                    extra[f'{k}_obs'] = _np(self.link_head.obs_ddG(v.float(), dgw)) if torch.is_tensor(v) else np.full(n_items, float('nan'))
-        cyc = {}
+                extra['comb_obs'] = _np(self.link_head.obs_ddG(out_dict['combined_pred'].float(), dgw))
         if getattr(self.hparams, 'val_cycle_passes', False):
-            # the WT adapter on the mutated sequence about the reverse mutation, for singles and doubles (see MSRModel.forward_cycle); NaN for every
-            # other item. (The MT adapter's forward leg is not run: mt_ctx duplicated comb.)
+            # the WT adapter on the mutated sequence about the reverse mutation, for singles and doubles (see MSRModel.forward_cycle): the reverse
+            # leg of the ctx control head (WT + ~WT)/2; NaN for every other item
             kinds = np.array([routing.canonical_subset(s) for s in batch.get('subset_type', ['single'] * n_items)])
             rows = np.where(np.isin(kinds, ['single', 'double']))[0]
             wt_rev = np.full(n_items, np.nan)
@@ -855,92 +851,56 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 with torch.inference_mode():
                     c = self.model.forward_cycle(sub, mask_strategy=self.hparams.mask_strategy, legs=('wt_rev',))
                 wt_rev[rows] = _np(c['wt_rev'])
-            cyc = {'wt_rev_scores': wt_rev}
-            if 'comb_obs' in extra:
-                dgw_ = batch['dG_wt'].float().to(out_dict['wt_lora_pred'].device)
-                lat = 0.5 * (_np(out_dict['wt_lora_pred']) + wt_rev)
-                extra['wt_ctx_obs'] = _np(self.link_head.obs_ddG(torch.as_tensor(lat, dtype=torch.float32, device=dgw_.device), dgw_))
+            extra['wt_rev_scores'] = wt_rev
         self.validation_step_outputs[dataloader_idx].append({
-            **extra, **cyc,
+            **extra,
             'wt_scores': _np(out_dict['wt_lora_pred']),
             'mt_scores': _np(out_dict['mt_lora_pred']),
             'comb_scores': _np(out_dict['combined_pred']),
             'ground_truths': _np(ddG) if ddG is not None else np.full(n_items, np.nan),
             'dddG': _np(dddG) if dddG is not None else np.full(n_items, np.nan),
+            'dG_wt': dg_wt,
             'subset_type': list(batch.get('subset_type', ['single'] * n_items)),
             'cens': (batch['cens'].detach().cpu().numpy() if torch.is_tensor(batch.get('cens')) else np.zeros(n_items, dtype=int)),
-            # For val_rho_flip_mt: the column key, and the substitution identity that indexes
-            # the row within that column.
-            'flip_key': list(batch.get('flip_key', [''] * n_items)),
-            'row_id': row_id,
-            # Hashable per-item mutation tuple, so rho_epi_full can pair each double with its
-            # two singles (comb_AB - comb_A - comb_B).
+            'flip_key': list(batch.get('flip_key', [''] * n_items)),           # dumped only (offline analyses of the conditional items)
+            # hashable per-item mutation tuple: the epistasis metrics pair each double with its two singles
             'mut_key': [tuple(tuple(m) for m in muts) for muts in batch.get('mutations', [()] * n_items)],
         })
 
-    # What validation logs. Per protein only these four (a library's rank and error, the WT head's rank on its singles, plus its
-    # interaction score if it has doubles).
-    _VAL_PER_PROTEIN = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair_mt')
-    # Library-equal means. rho_combined and rho_wt_valid are read by the checkpoint name, the plateau scheduler and the convergence logic.
-    _VAL_AVG = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_mt_valid',
-                'rho_colrank_mt', 'rho_colrank_wt', 'rho_colrank_wt_blind', 'rho_flip_mt', 'rho_flip_pair_mt', 'rho_flip_pair_wt', 'auc_dead_wt', 'auc_dead_mt')
-    # Pooled over every item of every library: the pair-level components need pooling to have enough pairs.
-    _VAL_POOLED = ('rho_combined', 'rmse_combined',
-                   'rho_colrank_mt', 'rho_colrank_wt', 'rho_colrank_wt_blind', 'rho_flip_mt', 'rho_flip_pair_mt', 'rho_flip_pair_wt', 'auc_dead_wt', 'auc_dead_mt')
-    _VAL_PROGRESS_BAR = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair_mt')
+    # What validation logs (docs/validation_metrics.md). The ddG product metrics per library and as library-equal means; the epistasis metrics
+    # (esm_msr.epi_metrics) once, on the doubles of every library pooled, as val_epi_*.
+    _VAL_PER_PROTEIN = ('rho_combined', 'rmse_combined')
+    # rho_combined is read by the checkpoint name, rho_wt_valid by the WT plateau and the WT early stop.
+    _VAL_AVG = ('rho_combined', 'rmse_combined', 'rho_wt_valid')
+    _VAL_PROGRESS_BAR = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'epi_cell_rank_mt')
+    # what each learning-rate plateau reads (a name from _VAL_AVG or an epi_metrics name without the val_ prefix)
+    _PLATEAU_WT, _PLATEAU_MT = 'rho_wt_valid', 'epi_cell_rank_mt'
 
-    _EPI_HEADS = ('wt_add', 'wt_ctx', 'comb')
-
-    def _log_epi_hierarchy(self, pooled):
+    def _log_epistasis(self, pooled) -> dict:
         """
-        Logs ``val_epi_<level>_<head>`` for the epistasis hierarchy (esm_msr.epi_hierarchy), pooled over every validation library, for the heads
-        wt_add (the WT adapter forward only: additive before the link, so it scores only through saturation: the control), wt_ctx
-        ((WT + ~WT)/2) and comb ((WT + ~MT)/2, the reported prediction; its non-additive part is the MT adapter's reverse leg alone, so an
-        (MT + ~MT)/2 head would duplicate it). wt_ctx needs --val_cycle_passes. Predicted dddG is comb_AB - comb_A - comb_B of the head's
-        observed-scale values (the latent when there is no link). The partial-correlation levels are controlled by the additive score of each
-        double (the wt_add value) and the measured single ddG of each uncensored single. Never raises.
+        Logs ``val_epi_*`` (esm_msr.epi_metrics) on the doubles of every validation library pooled and returns them (keys without ``val_``).
+        Heads comb, mt and add need nothing extra; ctx needs --val_cycle_passes. Never raises.
         """
         try:
-            st = np.asarray([routing.canonical_subset(s) for s in pooled['subset_type']])
-            keys = pooled['mut_key']
-            if not len(st) or any(k is None for k in keys):
-                return
             cat = lambda name: np.concatenate(pooled[name]) if pooled.get(name) else None
-            dddG, cens = cat('dddG'), cat('cens')
-            is_double = (st == 'double') & np.isfinite(dddG) & (cens == 0)
-            if not is_double.any():
-                return
-            have_obs = self.link_head is not None and bool(pooled.get('comb_obs'))
-
-            def values(head):
-                if have_obs:
-                    return cat({'wt_add': 'wt_obs', 'comb': 'comb_obs', 'wt_ctx': 'wt_ctx_obs'}[head])
-                wt, wr = cat('wt_scores'), cat('wt_rev_scores')
-                return {'wt_add': wt, 'comb': cat('comb_scores'), 'wt_ctx': None if wr is None else 0.5 * (wt + wr)}[head]
-
-            gt = cat('ground_truths')
-            additive = values('wt_add')
-            single_ddG = {tuple(k[0]): float(gt[i]) for i, k in enumerate(keys)
-                          if st[i] in routing.WT_HEAD_SUBSETS and len(k) == 1 and cens[i] == 0 and np.isfinite(gt[i])}
-
-            counted = False
-            for head in ESM3EpistasisLightningModule._EPI_HEADS:
-                v = values(head)
-                if v is None or not np.isfinite(v[is_double]).any():
-                    continue
-                res = epi_hierarchy.compute(stats.epi_full_scores(v, st, keys), dddG, keys, is_double, additive=additive, single_ddG=single_ddG)
-                for lvl in epi_hierarchy.LEVELS:
-                    if np.isfinite(res[lvl]):
-                        self.log(f"val_epi_{lvl}_{head}", float(res[lvl]), on_epoch=True, sync_dist=True)
-                if not counted:
-                    for c in ('n_doubles', 'n_pairs', 'n_columns', 'n_complete_blocks', 'n_identities'):
-                        self.log(f"val_epi_{c}", float(res[c]), on_epoch=True, sync_dist=True)
-                    counted = True
+            if not pooled.get('subset_type') or any(k is None for k in pooled['mut_key']):
+                return {}
+            items = {'mut_key': pooled['mut_key'], 'subset_type': pooled['subset_type'], 'cens': cat('cens'), 'ddG': cat('ground_truths'),
+                     'dddG': cat('dddG'), 'dG_wt': cat('dG_wt'), 'wt': cat('wt_scores'), 'mt': cat('mt_scores'), 'comb': cat('comb_scores'),
+                     'wt_rev': cat('wt_rev_scores')}
+            link = self.link_head.numpy() if self.link_head is not None else None
+            res = epi_metrics.compute(epi_metrics.Table(items, link))
+            for name, val in res.items():
+                if np.isfinite(val):
+                    self.log(f"val_{name}", float(val), on_epoch=True, prog_bar=name in self._VAL_PROGRESS_BAR, sync_dist=True)
+            return res
         except Exception as e:
-            logging.warning(f"epistasis hierarchy skipped: {e}", exc_info=True)
+            logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)
+            return {}
 
     def _dump_validation(self, dump):
-        """Writes every validation item's scores to ``<log_dir>/val_dump_<tag>.npz`` (tag ``zs`` before any step), for offline decomposition of the epistasis metrics. Never raises."""
+        """Writes every validation item's scores to ``<log_dir>/val_dump_<tag>.npz`` (tag ``zs`` before any step), so the metrics can be recomputed
+        offline with scripts/epi_from_dump.py. Never raises."""
         try:
             log_dir = getattr(self.logger, 'log_dir', None) or getattr(self.logger, 'save_dir', None)
             if not log_dir or not dump:
@@ -959,14 +919,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         """
-        Logs, per dataloader, the three head metrics and the calibration RMSE from
-        ``stats.compute_metrics``, their means across dataloaders (``*_avg``, which the
-        checkpoint monitor and the plateau scheduler read), and the same metrics pooled
-        over every item of every dataloader (``*_pooled``), which weights proteins by
-        their size instead of equally.
+        Logs the ddG metrics of ``stats.compute_metrics`` per dataloader (``_VAL_PER_PROTEIN``) and as means across dataloaders (``*_avg``, which
+        the checkpoint name and the WT plateau read), then the epistasis metrics on the pooled doubles (``_log_epistasis``, which the MT plateau
+        reads), steps the plateaus and writes the validation dump.
         """
         per_loader, pooled = {}, defaultdict(list)
-        n_flip_matrices = 0
         dump = {}
 
         for dataloader_idx, outputs in self.validation_step_outputs.items():
@@ -974,92 +931,33 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     if dataloader_idx < len(self.val_dataloader_names) else f"unknown_dl_{dataloader_idx}")
             if not outputs:
                 continue
-
+            n_items = sum(len(o['subset_type']) for o in outputs)
             cols = {k: np.concatenate([np.asarray(o[k]).reshape(-1) for o in outputs])
-                    for k in ('wt_scores', 'mt_scores', 'comb_scores', 'ground_truths', 'dddG')}
+                    for k in ('wt_scores', 'mt_scores', 'comb_scores', 'ground_truths', 'dddG', 'dG_wt')}
+            # optional per-step arrays: present in every batch of a loader or padded with NaN, so pooled arrays stay aligned
+            for k in ('wt_rev_scores', 'comb_obs'):
+                cols[k] = (np.concatenate([np.asarray(o[k]).reshape(-1) for o in outputs]) if all(k in o for o in outputs)
+                           else np.full(n_items, np.nan))
             subset_types = [s for o in outputs for s in o['subset_type']]
             cens_val = np.concatenate([np.asarray(o['cens']).reshape(-1) for o in outputs])
             mut_keys = [k for o in outputs for k in o.get('mut_key', [])]
             if len(mut_keys) != len(subset_types):
                 mut_keys = None
 
-            obs_val = ({k: np.concatenate([np.asarray(o[f'{k}_obs']).reshape(-1) for o in outputs]) for k in ('wt', 'mt', 'comb')}
-                       if all('comb_obs' in o for o in outputs) else None)
-            for k in ('wt_rev_scores',):
-                if all(k in o for o in outputs):
-                    cols[k] = np.concatenate([np.asarray(o[k]).reshape(-1) for o in outputs])
-            ctx_obs = ({k: np.concatenate([np.asarray(o[f'{k}_obs']).reshape(-1) for o in outputs]) for k in ('wt_ctx',)}
-                       if all('wt_ctx_obs' in o for o in outputs) else None)
-            dump[name] = {**cols, 'subset_type': np.array(subset_types), 'cens': cens_val,
+            dump[name] = {**{k: v for k, v in cols.items() if k != 'comb_obs'}, 'subset_type': np.array(subset_types), 'cens': cens_val,
                           'mut_key': np.array([json.dumps(k) for k in (mut_keys or [])]),
-                          'flip_key': np.array([k for o in outputs for k in o.get('flip_key', [])]),
-                          **({f'{k}_obs': v for k, v in obs_val.items()} if obs_val else {}),
-                          **({f'{k}_obs': v for k, v in ctx_obs.items()} if ctx_obs else {})}
-            per_loader[name] = stats.compute_metrics(
-                cols['wt_scores'], cols['mt_scores'], cols['comb_scores'],
-                cols['ground_truths'], subset_types, dddG=cols['dddG'], mut_keys=mut_keys, cens=cens_val, obs=obs_val)
-
-            # Identity-dependent interaction, scored on the MT pass. This is the only
-            # validation number that is specific to what the MT adapter exists for: it is
-            # exactly zero for an additive readout and unaffected by the assay's monotone
-            # response, so unlike rho_combined it cannot be satisfied by learning saturation.
-            fk = [k for o in outputs for k in o.get('flip_key', [])]
-            rid = np.concatenate([np.asarray(o['row_id']).reshape(-1) for o in outputs]) \
-                if all('row_id' in o for o in outputs) else np.array([])
-            if len(fk) == len(cols['mt_scores']) and len(rid) == len(fk):
-                rho_flip, n_pairs, n_cells = stats.flip_signature_rho(
-                    cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, rid,
-                    min_len=int(self.hparams.flip_list_min))
-                per_loader[name]['rho_flip_mt'] = rho_flip
-                # The same statistic with one matrix per position pair: nothing that ignores the partner residue can score.
-                rho_pair, n_pp, _ = stats.flip_signature_rho(
-                    cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, rid,
-                    min_len=int(self.hparams.flip_list_min), by_partner_position=True)
-                per_loader[name]['rho_flip_pair_mt'] = rho_pair
-                # Within-column rank agreement, nothing centred: the quantity the rank loss optimises, between rho_epi and the flip metrics.
-                per_loader[name]['rho_colrank_mt'], _ = stats.colrank_rho(
-                    cols['mt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, min_len=int(self.hparams.flip_list_min))
-                # The same on the WT head's score for each item: NOT partner-blind, since the WT pass of a conditional item has the background
-                # mutation in its sequence (the WT head applied in the mutant context). rho_colrank_wt_blind below is the partner-ignorant baseline.
-                per_loader[name]['rho_colrank_wt'], _ = stats.colrank_rho(
-                    cols['wt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, min_len=int(self.hparams.flip_list_min))
-                per_loader[name]['rho_colrank_wt_blind'], _ = stats.colrank_rho(
-                    stats.partner_blind_scores(cols['wt_scores'], subset_types, mut_keys), np.where(cens_val == 0, cols['ground_truths'], np.nan), fk,
-                    min_len=int(self.hparams.flip_list_min))
-                # The flip-pair statistic on the WT head's in-context scores: does the WT head, which never trains on conditional items, predict how
-                # the ordering of substitutions changes with the partner residue? (rho_flip_pair_mt is the MT head's.)
-                per_loader[name]['rho_flip_pair_wt'], _, _ = stats.flip_signature_rho(
-                    cols['wt_scores'], np.where(cens_val == 0, cols['ground_truths'], np.nan), fk, rid,
-                    min_len=int(self.hparams.flip_list_min), by_partner_position=True)
-                n_flip_matrices += n_pp
-                pooled['flip_key'].extend(fk)
-                pooled['row_id'].append(rid)
-            else:
-                per_loader[name]['rho_flip_mt'] = float('nan')
-                per_loader[name]['rho_flip_pair_mt'] = float('nan')
-                per_loader[name]['rho_colrank_mt'] = float('nan')
-                per_loader[name]['rho_colrank_wt'] = float('nan')
-                per_loader[name]['rho_colrank_wt_blind'] = float('nan')
-                per_loader[name]['rho_flip_pair_wt'] = float('nan')
+                          'flip_key': np.array([k for o in outputs for k in o.get('flip_key', [])])}
+            obs = {'comb': cols['comb_obs']} if all('comb_obs' in o for o in outputs) else None
+            per_loader[name] = stats.compute_metrics(cols['wt_scores'], cols['mt_scores'], cols['comb_scores'], cols['ground_truths'],
+                                                     subset_types, cens=cens_val, obs=obs)
 
             for k, v in cols.items():
                 pooled[k].append(v)
             pooled['subset_type'].extend(subset_types)
             pooled['cens'].append(cens_val)
-            if self.link_head is not None:
-                # a loader whose batches carry no dG_wt has no observed-scale outputs: pad with NaN so the pooled arrays stay aligned
-                # (those items then drop out of the pooled observed-scale metrics)
-                for k in ('wt', 'mt', 'comb'):
-                    pooled[f'{k}_obs'].append(obs_val[k] if obs_val is not None else np.full(len(subset_types), np.nan))
-                if getattr(self.hparams, 'val_cycle_passes', False):
-                    pooled['wt_ctx_obs'].append(ctx_obs['wt_ctx'] if ctx_obs is not None else np.full(len(subset_types), np.nan))
-            # Mutations are numbered per library, so tag them with the loader to keep pooled
-            # singles from pairing with another protein's doubles.
-            pooled['mut_key'].extend(
-                [tuple((name,) + m for m in k) for k in mut_keys] if mut_keys is not None
-                else [None] * len(subset_types))
+            # Mutations are numbered per library, so tag them with the loader to keep pooled singles from pairing with another protein's doubles.
+            pooled['mut_key'].extend([tuple((name,) + m for m in k) for k in mut_keys] if mut_keys is not None else [None] * len(subset_types))
 
-        # Per protein: only the three that answer "is this library fine" (rho_flip_pair_mt exists only for libraries with doubles).
         for name, metrics in per_loader.items():
             for metric in self._VAL_PER_PROTEIN:
                 val = metrics.get(metric, float('nan'))
@@ -1073,39 +971,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 avg_metrics[metric] = float(np.mean(vals))
                 self.log(f"val_{metric}_avg", avg_metrics[metric], on_epoch=True, prog_bar=metric in self._VAL_PROGRESS_BAR, sync_dist=True)
 
-        if pooled['subset_type']:
-            pooled_metrics = stats.compute_metrics(
-                np.concatenate(pooled['wt_scores']), np.concatenate(pooled['mt_scores']),
-                np.concatenate(pooled['comb_scores']), np.concatenate(pooled['ground_truths']),
-                pooled['subset_type'], dddG=np.concatenate(pooled['dddG']),
-                mut_keys=None if any(k is None for k in pooled['mut_key']) else pooled['mut_key'],
-                cens=np.concatenate(pooled['cens']),
-                obs=({k: np.concatenate(pooled[f'{k}_obs']) for k in ('wt', 'mt', 'comb')} if pooled.get('comb_obs') else None))
-            pooled_all = dict(pooled_metrics)
-            if pooled['row_id'] and len(pooled['flip_key']) == len(np.concatenate(pooled['mt_scores'])):
-                # The flip family over every library at once (flip keys carry the library code, so matrices never mix libraries).
-                mt_all, rid_all = np.concatenate(pooled['mt_scores']), np.concatenate([np.asarray(r).reshape(-1) for r in pooled['row_id']])
-                tgt_all = np.where(np.concatenate(pooled['cens']) == 0, np.concatenate(pooled['ground_truths']), np.nan)
-                min_len = int(self.hparams.flip_list_min)
-                if len(rid_all) == len(mt_all):
-                    pooled_all['rho_flip_mt'] = stats.flip_signature_rho(mt_all, tgt_all, pooled['flip_key'], rid_all, min_len=min_len)[0]
-                    pooled_all['rho_flip_pair_mt'] = stats.flip_signature_rho(mt_all, tgt_all, pooled['flip_key'], rid_all, min_len=min_len,
-                                                                           by_partner_position=True)[0]
-                    pooled_all['rho_colrank_mt'] = stats.colrank_rho(mt_all, tgt_all, pooled['flip_key'], min_len=min_len)[0]
-                    pooled_all['rho_flip_pair_wt'] = stats.flip_signature_rho(np.concatenate(pooled['wt_scores']), tgt_all, pooled['flip_key'], rid_all,
-                                                                              min_len=min_len, by_partner_position=True)[0]
-                    pooled_all['rho_colrank_wt'] = stats.colrank_rho(np.concatenate(pooled['wt_scores']), tgt_all, pooled['flip_key'], min_len=min_len)[0]
-                    if not any(k is None for k in pooled['mut_key']):
-                        pooled_all['rho_colrank_wt_blind'] = stats.colrank_rho(
-                            stats.partner_blind_scores(np.concatenate(pooled['wt_scores']), pooled['subset_type'], pooled['mut_key']), tgt_all,
-                            pooled['flip_key'], min_len=min_len)[0]
-            for metric in self._VAL_POOLED:
-                val = pooled_all.get(metric, float('nan'))
-                if not np.isnan(val):
-                    self.log(f"val_{metric}_pooled", val, on_epoch=True, sync_dist=True)
-            self.log("val_n_flip_pair_matrices", float(n_flip_matrices), on_epoch=True, sync_dist=True)
-
-        ESM3EpistasisLightningModule._log_epi_hierarchy(self, pooled)       # by class: the tests drive this method with a stand-in object
+        epi = ESM3EpistasisLightningModule._log_epistasis(self, pooled)       # by class: the tests drive this method with a stand-in object
+        readings = {**avg_metrics, **{k: v for k, v in epi.items() if np.isfinite(v)}}
 
         if (not self.trainer.sanity_checking and self.hparams.get('wt_early_stop_patience', 0) > 0
                 and not self.peft_manager.has_transitioned and 'rho_wt_valid' in avg_metrics):
@@ -1115,8 +982,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             total_warmup_steps = self.hparams.lr_warmup_steps + max(int(getattr(self.hparams, "calib_delay_steps", 0)), int(getattr(self.hparams, "mt_lora_delay_steps", 500)))
             if self.trainer.global_step >= total_warmup_steps:
                 for metric, plateau in self._plateaus:
-                    if metric in avg_metrics:
-                        plateau.step(avg_metrics[metric])
+                    if metric in readings:
+                        plateau.step(readings[metric])
 
         ESM3EpistasisLightningModule._dump_validation(self, dump)       # by class: the tests drive this method with a stand-in object
         self.validation_step_outputs.clear()
@@ -1224,9 +1091,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         warmup_main = torch.optim.lr_scheduler.LambdaLR(opt_main, lr_lambda=lambdas_main)
         # Each head cuts its own learning rate on its own validation metric (10x after two validations without a gain): the WT adapter and its
-        # calibration head on val_rho_wt_valid_avg, the MT adapter and its calibration head on val_rho_flip_pair_mt_avg. The link is never cut.
-        self._plateaus = [('rho_wt_valid', GroupPlateau(opt_main, ('lora_wt', 'calib_wt'))),
-                          ('rho_flip_pair_mt', GroupPlateau(opt_main, ('lora_mt', 'calib_mt')))]
+        # calibration head on val_rho_wt_valid_avg, the MT adapter and its calibration head on val_epi_cell_rank_mt. The link is never cut.
+        self._plateaus = [(self._PLATEAU_WT, GroupPlateau(opt_main, ('lora_wt', 'calib_wt'))),
+                          (self._PLATEAU_MT, GroupPlateau(opt_main, ('lora_mt', 'calib_mt')))]
 
         return [opt_main], [{"scheduler": warmup_main, "interval": "step", "frequency": 1}]
 

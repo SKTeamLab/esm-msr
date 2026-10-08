@@ -1,5 +1,5 @@
 #!/bin/bash
-# EPOCHS is the number of epochs run: early stopping is off. Checkpoints are ranked by val_rho_flip_pair_mt_avg.
+# EPOCHS is the number of epochs run: early stopping is off. Checkpoints are ranked by val_epi_cell_rank_mt (docs/validation_metrics.md).
 # Usage: scripts/run_arm.sh RUN_NAME EPOCHS SEED [extra training flags...]
 # Canonical command (docs/epistasis_training_handoff.md §2, minus the flags retired since: see docs/hparam_review.md) on THIS worktree's code and cache_v7.
 # Regression weights (balanced units with --reg_balance; 1 = the rank loss's gradient): WT 0.1, MT master 0.02, components via --mt_comp_*.
@@ -40,7 +40,7 @@ COMET_KEY=$(sed -n 's/^ *api_key *= *//p' ~/.comet.config | head -1)
   --learning_rate 2e-4 --lr_warmup_steps 500 \
   --shared_scale_init 0.3 \
   --num_workers 4 --log_every_n_steps 25 --save_top_k 3 \
-  --monitor_metric val_rho_flip_pair_mt_avg --monitor_mode max \
+  --monitor_metric val_epi_cell_rank_mt --monitor_mode max \
   --early_stopping_patience 0 \
   --comet_project_name ${COMET_PROJECT:-esm-msr-agent-oct06-capped} --comet_api_key "$COMET_KEY" "$@" > run_logs/$NAME.log 2>&1
 echo "DONE rc=$?" >> run_logs/$NAME.log
