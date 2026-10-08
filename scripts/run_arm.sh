@@ -4,7 +4,7 @@
 # Canonical command (docs/epistasis_training_handoff.md §2, minus the flags retired since: see docs/hparam_review.md) on THIS worktree's code and cache_v7.
 # Regression weights (balanced units with --reg_balance; 1 = the rank loss's gradient): WT 0.1, MT master 0.02, components via --mt_comp_*.
 # Arm-specific flags go after SEED and are appended last, so they override anything above them (argparse keeps the last value).
-WT=${WT:-/home/sareeves/playground/esm-msr-devel/repo/.claude/worktrees/censored-margin-ranking-9b239c}   # the tree whose code runs
+WT=${WT:-$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)}   # the tree whose code runs: this script's own worktree unless WT is set
 cd /home/sareeves/playground/esm-msr-devel
 export PYTHONPATH=$WT/src HF_HUB_OFFLINE=1 PYTORCH_CUDA_ALLOC_CONF=${ALLOC_CONF:-expandable_segments:True}
 PY=/home/sareeves/miniconda3/envs/msr_venv/bin/python

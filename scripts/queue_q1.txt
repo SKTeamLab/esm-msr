@@ -1,0 +1,21 @@
+# Queue q1 (2026-10-08), run by scripts/queue_runner.sh on this worktree's code (validation logs the val_epi_* set of docs/validation_metrics.md).
+# Every arm = the o6g6_c10_hier configuration (link softclamp, out-of-range items, --reg_balance, MT components 10/10/10, MT rank 2 / alpha 4,
+# colrank 1, cycle passes) + the change in its name; 4 epochs (e0..e3, the epochs the three reference replicates o6g2_c10 / o6g6_c10_hier /
+# o6g2s2_c10 share). Judge on the cell score (val_epi_cell_rank_mt, cell_mag_comb, cell_flipacc_mt), mean of epochs 2-3, against those
+# references rescored with scripts/epi_from_dump.py; guards val_rmse_combined_avg, val_rho_wt_valid_avg, val_epi_beyond_rho_comb.
+#
+# 1-4: one change each from the reference (the four open questions)
+o6q01_mt16 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16
+o6q02_mt8 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 8
+o6q03_floor03 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --censor_floor 0.3 --censor_floor_hinge
+o6q04_colrank0 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lambda_mt_colrank 0
+# 5: second seed of the likeliest winner
+o6q05_mt16_s2 4 2 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16
+# 6-8: do the other changes stack on the larger MT adapter?
+o6q06_mt16_floor03 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16 --censor_floor 0.3 --censor_floor_hinge
+o6q07_mt16_colrank0 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16 --lambda_mt_colrank 0
+o6q08_mt16_premask 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16 --premask_mt_structure
+# 9: the capacity curve past 16 (alpha 23: the same adapter scale alpha/sqrt(rank) ~ 4 as mt16)
+o6q09_mt32 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 32 --lora_alpha_mt 23
+# 10: the reference itself, third seed, logged live by the new validation code (noise estimate; check of the offline rescoring)
+o6q10_ref_s3 4 3 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10
