@@ -30,7 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); WT = os.path.dirname(HERE)
 txt = open(os.path.join(HERE, 'run_arm.sh')).read().split('training.py', 1)[1].replace('\\\n', ' ')
 line = [l for l in txt.split('\n') if l.strip()][0]
 line = (line.replace('$WT', WT).replace('${SPLIT:-' + WT + '/data/splits_oct06_capped.pkl}', WT + '/data/splits_oct06_capped.pkl')
-        .replace('${COMET_PROJECT:-esm-msr-agent-oct06}', 'build').replace('$NAME', 'build').replace('$EPOCHS', '1').replace('$SEED', '1'))
+        .replace('${COMET_PROJECT:-esm-msr-agent-oct06-capped}', 'build').replace('$NAME', 'build').replace('$EPOCHS', '1').replace('$SEED', '1'))
 line = re.sub(r'--comet_api_key.*$', '', line)
 line = line.replace('--cache_path cache_v7', '--cache_path /home/sareeves/playground/esm-msr-devel/cache_v7')
 sys.argv = ['build'] + shlex.split(line) + ['--include_out_of_range', '--num_workers', '0', '--log_dir', '/tmp/build_logs', '--checkpoint_path', '/tmp/build_ckpt'] + [a for a in extra if a != '--']

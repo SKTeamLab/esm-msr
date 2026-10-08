@@ -78,8 +78,8 @@ def library_with_doubles(rng, with_cycle):
     for k in ('wt', 'mt', 'comb'):
         o[f'{k}_obs'] = rng.normal(size=n)
     if with_cycle:
-        o['wt_rev_scores'], o['mt_fwd_scores'] = rng.normal(size=n), rng.normal(size=n)
-        o['wt_ctx_obs'], o['mt_ctx_obs'] = rng.normal(size=n), rng.normal(size=n)
+        o['wt_rev_scores'] = rng.normal(size=n)
+        o['wt_ctx_obs'] = rng.normal(size=n)
     return o
 
 
@@ -98,13 +98,20 @@ class TestEpistasisHierarchyLogging(unittest.TestCase):
         for head in ('comb', 'wt_add'):
             self.assertIn(f'val_epi_global_rho_{head}', logged)
             self.assertIn(f'val_epi_matrix_rank_{head}', logged)
-        self.assertFalse([k for k in logged if k.endswith('_wt_ctx') or k.endswith('_mt_ctx')])
+        self.assertFalse([k for k in logged if k.endswith('_wt_ctx')])
         self.assertEqual(logged['val_epi_n_doubles'], 25.0)
 
     def test_the_symmetrised_heads_appear_with_the_cycle_passes(self):
         logged = self.run_epoch(True)
-        for head in ('comb', 'wt_add', 'wt_ctx', 'mt_ctx'):
+        for head in ('comb', 'wt_add', 'wt_ctx'):
             self.assertIn(f'val_epi_global_rmse_{head}', logged)
+        self.assertFalse([k for k in logged if k.endswith('_mt_ctx')])           # (MT + ~MT)/2 duplicated comb and was dropped
+
+    def test_the_partial_levels_and_not_the_pooled_interaction_levels_are_logged(self):
+        logged = self.run_epoch(False)
+        self.assertIn('val_epi_global_rho_beyond_add_comb', logged)
+        self.assertIn('val_epi_matrix_rank_beyond_add_comb', logged)
+        self.assertFalse([k for k in logged if 'interaction_rank' in k and k.split('_')[-2] == 'pooled'])
 
     def test_the_retired_epistasis_names_are_gone(self):
         logged = self.run_epoch(False)

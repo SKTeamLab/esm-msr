@@ -1,5 +1,5 @@
 #!/bin/bash
-# First sweep on the 2026-10-06 structure-homology split (identity- and TM-capped) (data/splits_oct06_capped.pkl; Comet project esm-msr-agent-oct06).
+# First sweep on the 2026-10-06 structure-homology split (identity- and TM-capped) (data/splits_oct06_capped.pkl; Comet project esm-msr-agent-oct06, before the default moved to esm-msr-agent-oct06-capped).
 # MT head matched to the WT head (rank 2, alpha 4: the run_arm.sh defaults). Link on (default), out-of-range items included, micro-batch 64.
 # Results are NOT comparable with runs on the old hyperopt split. o6b1 is the plain-regression reference for everything else.
 S=$(dirname "$(readlink -f "$0")")

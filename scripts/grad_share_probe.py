@@ -51,8 +51,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 WT = os.path.dirname(HERE)
 txt = open(os.path.join(HERE, 'run_arm.sh')).read().split('training.py', 1)[1].replace('\\\n', ' ')
 line = [l for l in txt.split('\n') if l.strip()][0]
-line = (line.replace('$WT', WT).replace('${SPLIT:-' + WT + '/data/splits_oct06_structure.pkl}', WT + '/data/splits_oct06_structure.pkl')
-        .replace('${COMET_PROJECT:-esm-msr-agent-oct06}', 'probe').replace('$NAME', 'probe').replace('$EPOCHS', '1').replace('$SEED', str(pa.seed)))
+line = (line.replace('$WT', WT).replace('${SPLIT:-' + WT + '/data/splits_oct06_capped.pkl}', WT + '/data/splits_oct06_capped.pkl')
+        .replace('${COMET_PROJECT:-esm-msr-agent-oct06-capped}', 'probe').replace('$NAME', 'probe').replace('$EPOCHS', '1').replace('$SEED', str(pa.seed)))
 line = re.sub(r'--comet_api_key.*$', '', line)
 line = re.sub(r'--cache_path cache_v7', '--cache_path /home/sareeves/playground/esm-msr-devel/cache_v7', line)
 argv = shlex.split(line) + ['--include_out_of_range', '--precision', 'bf16-mixed' if pa.gpu else '32', '--batch_size', str(pa.batch_size),

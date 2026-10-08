@@ -845,20 +845,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     extra[f'{k}_obs'] = _np(self.link_head.obs_ddG(v.float(), dgw)) if torch.is_tensor(v) else np.full(n_items, float('nan'))
         cyc = {}
         if getattr(self.hparams, 'val_cycle_passes', False):
-            # the two non-native passes on singles and doubles (see MSRModel.forward_cycle); NaN for every other item
+            # the WT adapter on the mutated sequence about the reverse mutation, for singles and doubles (see MSRModel.forward_cycle); NaN for every
+            # other item. (The MT adapter's forward leg is not run: mt_ctx duplicated comb.)
             kinds = np.array([routing.canonical_subset(s) for s in batch.get('subset_type', ['single'] * n_items)])
             rows = np.where(np.isin(kinds, ['single', 'double']))[0]
-            wt_rev, mt_fwd = np.full(n_items, np.nan), np.full(n_items, np.nan)
+            wt_rev = np.full(n_items, np.nan)
             if len(rows):
                 sub = utils.slice_batch_by_index(batch, torch.as_tensor(rows, device=out_dict['wt_lora_pred'].device))
                 with torch.inference_mode():
-                    c = self.model.forward_cycle(sub, mask_strategy=self.hparams.mask_strategy)
-                wt_rev[rows], mt_fwd[rows] = _np(c['wt_rev']), _np(c['mt_fwd'])
-            cyc = {'wt_rev_scores': wt_rev, 'mt_fwd_scores': mt_fwd}
+                    c = self.model.forward_cycle(sub, mask_strategy=self.hparams.mask_strategy, legs=('wt_rev',))
+                wt_rev[rows] = _np(c['wt_rev'])
+            cyc = {'wt_rev_scores': wt_rev}
             if 'comb_obs' in extra:
                 dgw_ = batch['dG_wt'].float().to(out_dict['wt_lora_pred'].device)
-                for k, lat in (('wt_ctx', 0.5 * (_np(out_dict['wt_lora_pred']) + wt_rev)), ('mt_ctx', 0.5 * (mt_fwd + _np(out_dict['mt_lora_pred'])))):
-                    extra[f'{k}_obs'] = _np(self.link_head.obs_ddG(torch.as_tensor(lat, dtype=torch.float32, device=dgw_.device), dgw_))
+                lat = 0.5 * (_np(out_dict['wt_lora_pred']) + wt_rev)
+                extra['wt_ctx_obs'] = _np(self.link_head.obs_ddG(torch.as_tensor(lat, dtype=torch.float32, device=dgw_.device), dgw_))
         self.validation_step_outputs[dataloader_idx].append({
             **extra, **cyc,
             'wt_scores': _np(out_dict['wt_lora_pred']),
@@ -888,14 +889,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                    'rho_colrank_mt', 'rho_colrank_wt', 'rho_colrank_wt_blind', 'rho_flip_mt', 'rho_flip_pair_mt', 'rho_flip_pair_wt', 'auc_dead_wt', 'auc_dead_mt')
     _VAL_PROGRESS_BAR = ('rho_combined', 'rmse_combined', 'rho_wt_valid', 'rho_flip_pair_mt')
 
-    _EPI_HEADS = ('wt_add', 'wt_ctx', 'mt_ctx', 'comb')
+    _EPI_HEADS = ('wt_add', 'wt_ctx', 'comb')
 
     def _log_epi_hierarchy(self, pooled):
         """
         Logs ``val_epi_<level>_<head>`` for the epistasis hierarchy (esm_msr.epi_hierarchy), pooled over every validation library, for the heads
         wt_add (the WT adapter forward only: additive before the link, so it scores only through saturation: the control), wt_ctx
-        ((WT + ~WT)/2), mt_ctx ((MT + ~MT)/2) and comb ((WT + ~MT)/2, the reported prediction). The ctx heads need --val_cycle_passes. Predicted
-        dddG is comb_AB - comb_A - comb_B of the head's observed-scale values (the latent when there is no link). Never raises.
+        ((WT + ~WT)/2) and comb ((WT + ~MT)/2, the reported prediction; its non-additive part is the MT adapter's reverse leg alone, so an
+        (MT + ~MT)/2 head would duplicate it). wt_ctx needs --val_cycle_passes. Predicted dddG is comb_AB - comb_A - comb_B of the head's
+        observed-scale values (the latent when there is no link). The partial-correlation levels are controlled by the additive score of each
+        double (the wt_add value) and the measured single ddG of each uncensored single. Never raises.
         """
         try:
             st = np.asarray([routing.canonical_subset(s) for s in pooled['subset_type']])
@@ -911,17 +914,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
             def values(head):
                 if have_obs:
-                    return cat({'wt_add': 'wt_obs', 'comb': 'comb_obs', 'wt_ctx': 'wt_ctx_obs', 'mt_ctx': 'mt_ctx_obs'}[head])
-                wt, mt, wr, mf = cat('wt_scores'), cat('mt_scores'), cat('wt_rev_scores'), cat('mt_fwd_scores')
-                return {'wt_add': wt, 'comb': cat('comb_scores'), 'wt_ctx': None if wr is None else 0.5 * (wt + wr),
-                        'mt_ctx': None if mf is None else 0.5 * (mf + mt)}[head]
+                    return cat({'wt_add': 'wt_obs', 'comb': 'comb_obs', 'wt_ctx': 'wt_ctx_obs'}[head])
+                wt, wr = cat('wt_scores'), cat('wt_rev_scores')
+                return {'wt_add': wt, 'comb': cat('comb_scores'), 'wt_ctx': None if wr is None else 0.5 * (wt + wr)}[head]
+
+            gt = cat('ground_truths')
+            additive = values('wt_add')
+            single_ddG = {tuple(k[0]): float(gt[i]) for i, k in enumerate(keys)
+                          if st[i] in routing.WT_HEAD_SUBSETS and len(k) == 1 and cens[i] == 0 and np.isfinite(gt[i])}
 
             counted = False
             for head in ESM3EpistasisLightningModule._EPI_HEADS:
                 v = values(head)
                 if v is None or not np.isfinite(v[is_double]).any():
                     continue
-                res = epi_hierarchy.compute(stats.epi_full_scores(v, st, keys), dddG, keys, is_double)
+                res = epi_hierarchy.compute(stats.epi_full_scores(v, st, keys), dddG, keys, is_double, additive=additive, single_ddG=single_ddG)
                 for lvl in epi_hierarchy.LEVELS:
                     if np.isfinite(res[lvl]):
                         self.log(f"val_epi_{lvl}_{head}", float(res[lvl]), on_epoch=True, sync_dist=True)
@@ -978,15 +985,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
             obs_val = ({k: np.concatenate([np.asarray(o[f'{k}_obs']).reshape(-1) for o in outputs]) for k in ('wt', 'mt', 'comb')}
                        if all('comb_obs' in o for o in outputs) else None)
-            for k in ('wt_rev_scores', 'mt_fwd_scores'):
+            for k in ('wt_rev_scores',):
                 if all(k in o for o in outputs):
                     cols[k] = np.concatenate([np.asarray(o[k]).reshape(-1) for o in outputs])
-            ctx_obs = ({k: np.concatenate([np.asarray(o[f'{k}_obs']).reshape(-1) for o in outputs]) for k in ('wt_ctx', 'mt_ctx')}
+            ctx_obs = ({k: np.concatenate([np.asarray(o[f'{k}_obs']).reshape(-1) for o in outputs]) for k in ('wt_ctx',)}
                        if all('wt_ctx_obs' in o for o in outputs) else None)
             dump[name] = {**cols, 'subset_type': np.array(subset_types), 'cens': cens_val,
                           'mut_key': np.array([json.dumps(k) for k in (mut_keys or [])]),
                           'flip_key': np.array([k for o in outputs for k in o.get('flip_key', [])]),
-                          **({f'{k}_obs': v for k, v in obs_val.items()} if obs_val else {})}
+                          **({f'{k}_obs': v for k, v in obs_val.items()} if obs_val else {}),
+                          **({f'{k}_obs': v for k, v in ctx_obs.items()} if ctx_obs else {})}
             per_loader[name] = stats.compute_metrics(
                 cols['wt_scores'], cols['mt_scores'], cols['comb_scores'],
                 cols['ground_truths'], subset_types, dddG=cols['dddG'], mut_keys=mut_keys, cens=cens_val, obs=obs_val)
@@ -1044,8 +1052,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 for k in ('wt', 'mt', 'comb'):
                     pooled[f'{k}_obs'].append(obs_val[k] if obs_val is not None else np.full(len(subset_types), np.nan))
                 if getattr(self.hparams, 'val_cycle_passes', False):
-                    for k in ('wt_ctx', 'mt_ctx'):
-                        pooled[f'{k}_obs'].append(ctx_obs[k] if ctx_obs is not None else np.full(len(subset_types), np.nan))
+                    pooled['wt_ctx_obs'].append(ctx_obs['wt_ctx'] if ctx_obs is not None else np.full(len(subset_types), np.nan))
             # Mutations are numbered per library, so tag them with the loader to keep pooled
             # singles from pairing with another protein's doubles.
             pooled['mut_key'].extend(

@@ -611,9 +611,10 @@ class MSRModel(ESM3PredictorBase):
 
         return {'wt_lora_pred': wt_pred_cal, 'mt_lora_pred': mt_pred_cal, 'wt_lora_raw': wt_pred_raw, 'mt_lora_raw': mt_pred_raw, 'combined_pred': combined_pred, 'epi_pred': epi_pred}
 
-    def forward_cycle(self, batch_in: Dict[str, Any], mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
+    def forward_cycle(self, batch_in: Dict[str, Any], mask_strategy: Optional[str] = None, legs=('wt_rev', 'mt_fwd')) -> Dict[str, torch.Tensor]:
         """
-        The two passes forward_batch does not run, both returned as a FORWARD (wild type -> mutant) ddG estimate in kcal/mol-like units:
+        The passes forward_batch does not run, each returned as a FORWARD (wild type -> mutant) ddG estimate in kcal/mol-like units. ``legs``
+        picks which to run (validation asks for ``wt_rev`` only):
 
         * ``wt_rev``: the WT adapter on the MUTATED sequence, asked about the reverse mutation (mutant -> wild type). That is the adapter's
           native readout (the 'from' residue visible) of the reverse change, so it is calibrated as usual and negated to give the forward ddG.
@@ -625,14 +626,17 @@ class MSRModel(ESM3PredictorBase):
         """
         if self.training:
             raise AssertionError("forward_cycle is for inference only.")
-        rev = dict(batch_in)
-        rev['wt_sequence_tokens'] = batch_in['mt_sequence_tokens']
-        rev['wt_id'], rev['mt_id'] = batch_in['mt_id'], batch_in['wt_id']
-        wt_rev = self.forward_partitioned(rev, pass_type='wt', mask_strategy=mask_strategy)['pred_calibrated']
-        fwd = dict(batch_in)
-        fwd['mt_sequence_tokens'] = batch_in['wt_sequence_tokens']
-        mt_fwd = self.forward_partitioned(fwd, pass_type='mt', mask_strategy=mask_strategy)['pred_calibrated']
-        return {'wt_rev': -wt_rev, 'mt_fwd': mt_fwd}
+        out = {}
+        if 'wt_rev' in legs:
+            rev = dict(batch_in)
+            rev['wt_sequence_tokens'] = batch_in['mt_sequence_tokens']
+            rev['wt_id'], rev['mt_id'] = batch_in['mt_id'], batch_in['wt_id']
+            out['wt_rev'] = -self.forward_partitioned(rev, pass_type='wt', mask_strategy=mask_strategy)['pred_calibrated']
+        if 'mt_fwd' in legs:
+            fwd = dict(batch_in)
+            fwd['mt_sequence_tokens'] = batch_in['wt_sequence_tokens']
+            out['mt_fwd'] = self.forward_partitioned(fwd, pass_type='mt', mask_strategy=mask_strategy)['pred_calibrated']
+        return out
 
     def _process_logits(self, logits: torch.Tensor) -> torch.Tensor:
         if not self.log_likelihood: return logits

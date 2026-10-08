@@ -43,6 +43,12 @@ class TestForwardCycle(unittest.TestCase):
         self.assertTrue(torch.equal(fwd['wt_id'], b['wt_id'])); self.assertTrue(torch.equal(fwd['mt_id'], b['mt_id']))
         self.assertTrue(torch.equal(out['mt_fwd'], torch.tensor([0.25, 2.0])))
 
+    def test_only_the_requested_legs_are_run(self):
+        r = Recorder(); out = MSRModel.forward_cycle(r, batch(), legs=('wt_rev',))
+        self.assertEqual(list(out), ['wt_rev']); self.assertEqual([c[0] for c in r.calls], ['wt'])
+        r = Recorder(); out = MSRModel.forward_cycle(r, batch(), legs=('mt_fwd',))
+        self.assertEqual(list(out), ['mt_fwd']); self.assertEqual([c[0] for c in r.calls], ['mt'])
+
     def test_the_input_batch_is_not_modified(self):
         r, b = Recorder(), batch(); before = {k: v.clone() for k, v in b.items()}
         MSRModel.forward_cycle(r, b)
