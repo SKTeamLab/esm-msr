@@ -13,10 +13,11 @@ while true; do
   if [ -e "$Q.stop" ]; then echo "$(date) QUEUE $(basename "$Q") stopped ($Q.stop exists)" >> $D/queue_history.txt; exit 0; fi
   line=$(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$Q" | head -1)
   if [ -z "$line" ]; then echo "$(date) QUEUE $(basename "$Q") finished" >> $D/queue_history.txt; exit 0; fi
-  # never start on a busy card (another job, or the previous one still releasing memory)
+  # never start on a busy card (another job, or the previous one still releasing memory). The Windows host's display keeps ~5.3 GB in use on
+  # an idle card; a training job takes 20 GB or more
   for _ in $(seq 1 120); do
     used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1)
-    [ "${used:-0}" -lt 4000 ] && break
+    [ "${used:-0}" -lt 12000 ] && break
     sleep 30
   done
   awk -v d="$(date '+%F %T')" '!done && $0 !~ /^[[:space:]]*#/ && $0 !~ /^[[:space:]]*$/ { print "# started " d ": " $0; done = 1; next } { print }' \
