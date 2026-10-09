@@ -462,10 +462,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         rid = batch['mt_id'][:, 0].detach().cpu().numpy()
         ctx = {'L': L.detach(), 't': t, 'reg_ord': reg_ord, 'rid': rid, 'covered': torch.zeros(B, dtype=torch.bool, device=device),
                'n_rev': 0, 'rev_right': 0.0, 'tet': None}
-        if use_comp and hp.lambda_reg_mt_master > 0:
+        if use_comp:
             with torch.no_grad():
                 p = link.obs_ddG(L, dGwt_all, bg_all) if use_link else L
-                comp = self._compute_block_components(p - t, t, mt_w, reg_ord, flip_keys, rid, INT_MIN_ROWS, INT_MIN_COLS)
+                comp = (self._compute_block_components(p - t, t, mt_w, reg_ord, flip_keys, rid, INT_MIN_ROWS, INT_MIN_COLS)
+                        if hp.lambda_reg_mt_master > 0 else None)
+            ctx['p'] = p.detach()
             if comp is not None:
                 ctx['covered'][comp['cells']] = True
                 sums['reg_mt'] = sums['reg_mt'] + comp['w_total']
@@ -811,10 +813,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 reg_plain = reg_ord
                 if use_comp and mctx is not None:
                     # whole matrices: the unit's rows live, every other matrix row from the cache (gradient reaches the unit's rows only)
-                    L_mix = mctx['L'].index_put((rows,), mt_pred_cal)
-                    p_full = link.obs_ddG(L_mix, dGwt_all, bg_all) if use_link else L_mix
-                    comp = self._compute_block_components(p_full - mctx['t'], mctx['t'], mt_w, mctx['reg_ord'], flip_keys, mctx['rid'],
-                                                          INT_MIN_ROWS, INT_MIN_COLS)
+                    p_full = mctx['p'].index_put((rows,), p_mt)
+                    comp = (self._compute_block_components(p_full - mctx['t'], mctx['t'], mt_w, mctx['reg_ord'], flip_keys, mctx['rid'],
+                                                           INT_MIN_ROWS, INT_MIN_COLS)
+                            if hp.lambda_reg_mt_master > 0 else None)
                     if comp is not None:
                         blk = (comp_w[0] * balance(hp, 'comp_off') * comp['off'] + comp_w[1] * balance(hp, 'comp_subst') * comp['subst']
                                + comp_w[2] * balance(hp, 'comp_int') * comp['int'])

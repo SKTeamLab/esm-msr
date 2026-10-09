@@ -86,6 +86,10 @@ class TestStreamedWholeMatrixGradient(unittest.TestCase):
         self.assertEqual(s1._rev_diag[0], s2._rev_diag[0])
         for p1, p2 in ((s1.model.theta, s2.model.theta), (s1.model.w, s2.model.w)):
             torch.testing.assert_close(p1.grad, p2.grad, atol=1e-5, rtol=1e-4)
+        if link is not None:
+            for p1, p2 in zip(s1.link_head.parameters(), s2.link_head.parameters()):
+                torch.testing.assert_close(p1.grad, p2.grad, atol=1e-5, rtol=1e-4)
+            self.assertGreater(float(s1.link_head.lo.grad.abs().sum()), 0.0)
         self.assertGreater(float(s1.model.theta.grad.abs().sum()), 0.0)
         for k in ('L_comp_off', 'L_comp_subst', 'L_comp_int', 'L_flip_mt', 'L_reg_mt'):      # logged once per batch, whatever the cut
             self.assertAlmostEqual(one[k], many[k], places=5, msg=k)
