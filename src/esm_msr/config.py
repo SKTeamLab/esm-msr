@@ -188,6 +188,10 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--flip_scale', type=float, default=0.25,
                             help="kcal/mol: the logistic temperature of --lambda_mt_flip (a contrast of the right sign and this size costs 0.31, of "
                                  "the wrong sign 1.31).")
+    loss_group.add_argument('--reg_balance_file', type=str, default=None,
+                            help="JSON of --reg_balance constants measured by scripts/grad_share_probe.py + scripts/balance_from_probe.py (keys reg_wt, reg_mt, "
+                                 "comp_off, comp_subst, comp_int, flip_mt, and *_packed for --pack_pair_matrices); replaces training.REG_BALANCE and "
+                                 "is stored in hparams.yaml as reg_balance_values.")
     loss_group.add_argument('--flip_list_min', type=int, default=4,
                             help="Minimum members for a flip column to contribute to --lambda_mt_colrank. Below ~4 the "
                                  "ordering carries little information and the gradient is mostly noise.")
@@ -401,6 +405,13 @@ def parse_arguments() -> argparse.Namespace:
                      "tokens and coordinates at run time) are two ways of masking the same MT-pass structure: use one.")
 
     # Pair-matrix sampling for the component losses: columns of one position pair travel together, as many as fit in one micro-batch.
+    args.reg_balance_values = None
+    if args.reg_balance_file:
+        import json as _json
+        with open(args.reg_balance_file) as _f:
+            args.reg_balance_values = {k: float(v) for k, v in _json.load(_f).get('constants', {}).items()}
+        if not args.reg_balance_values:
+            parser.error(f"--reg_balance_file {args.reg_balance_file}: no 'constants' in it.")
     if args.pack_pair_matrices:
         if args.batch_size < MAX_COLUMN_LEN ** 2:
             parser.error(f"--pack_pair_matrices puts whole position-pair matrices (up to {MAX_COLUMN_LEN ** 2} items) in one batch: --batch_size must "

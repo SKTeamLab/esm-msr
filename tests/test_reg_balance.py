@@ -21,7 +21,7 @@ def parse(*extra):
 
 class TestBalance(unittest.TestCase):
     def test_constants_cover_every_regression_term_and_are_positive(self):
-        self.assertEqual(set(training.REG_BALANCE), {'reg_wt', 'reg_mt', 'comp_off', 'comp_subst', 'comp_int'})
+        self.assertEqual(set(training.REG_BALANCE), {'reg_wt', 'reg_mt', 'comp_off', 'comp_subst', 'comp_int', 'flip_mt'})
         self.assertTrue(all(v > 0 for v in training.REG_BALANCE.values()))
 
     def test_off_is_exactly_one_and_on_is_the_constant(self):
@@ -60,3 +60,15 @@ class TestTap(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestBalanceFile(unittest.TestCase):
+    def test_measured_constants_replace_the_defaults_and_packed_keys_apply_when_packing(self):
+        from esm_msr import training
+        vals = {'reg_wt': 2.0, 'comp_int': 7.0, 'comp_int_packed': 3.0}
+        hp = {'reg_balance': True, 'reg_balance_values': vals}
+        self.assertEqual(training.balance(hp, 'reg_wt'), 2.0)
+        self.assertEqual(training.balance(hp, 'comp_int'), 7.0)
+        self.assertEqual(training.balance({**hp, 'pack_pair_matrices': True}, 'comp_int'), 3.0)
+        self.assertEqual(training.balance(hp, 'reg_mt'), training.REG_BALANCE['reg_mt'])      # a key the file lacks keeps the default
+        self.assertEqual(training.balance({'reg_balance': False, 'reg_balance_values': vals}, 'reg_wt'), 1.0)

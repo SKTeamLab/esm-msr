@@ -55,7 +55,9 @@ def comp_on(hp):
 # 48 WT batches of 96 singles, 48 MT batches of 76 rows with >= 50 conditional items, 40 proteins). Rank gradient norm: WT 31, MT 39 (rms).
 # Per-batch ratios are heavy-tailed (p10-p90 spans 3-6x), the median ratio is 1.2-1.5x larger than the rms one, and the epoch-1 and epoch-3
 # checkpoints differ by up to 2x; so "1" means rank-equal only to within about a factor of 2. The censored hinges use their ordinary term's constant.
-REG_BALANCE = {'reg_wt': 18.0, 'reg_mt': 84.0, 'comp_off': 23.0, 'comp_subst': 63.0, 'comp_int': 521.0}
+REG_BALANCE = {'reg_wt': 18.0, 'reg_mt': 84.0, 'comp_off': 23.0, 'comp_subst': 63.0, 'comp_int': 521.0, 'flip_mt': 1.0}
+# --reg_balance_file replaces these with a probe's measurement (scripts/balance_from_probe.py): the values are stored in hparams as
+# reg_balance_values. Keys '<name>_packed' are used instead of '<name>' under --pack_pair_matrices (whole-matrix components have another scale).
 
 
 def _tap(obj, name, term):
@@ -67,7 +69,12 @@ def _tap(obj, name, term):
 
 
 def balance(hp, name):
-    return REG_BALANCE[name] if hp.get('reg_balance', False) else 1.0
+    if not hp.get('reg_balance', False):
+        return 1.0
+    consts = hp.get('reg_balance_values') or REG_BALANCE
+    if hp.get('pack_pair_matrices', False) and f'{name}_packed' in consts:
+        return float(consts[f'{name}_packed'])
+    return float(consts.get(name, REG_BALANCE.get(name, 1.0)))
 
 class GroupPlateau:
     """ReduceLROnPlateau (mode max, relative threshold 1e-4) for the named parameter groups of one optimizer only. A group whose rate is
@@ -837,13 +844,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 L_mix = mctx['L'].index_put((rows,), mt_pred_cal)
                 con = L_mix[ia] - L_mix[ib] - L_mix[ic] + L_mix[id_]                              # latent; live where the unit's rows are
                 L_rev = torch.nn.functional.softplus(-sign * con / float(hp.flip_scale))
-                losses_mt.append(_tap(self, 'flip_mt', lam_flip * L_rev.sum() / mctx['n_rev']))
+                losses_mt.append(_tap(self, 'flip_mt', lam_flip * balance(hp, 'flip_mt') * L_rev.sum() / mctx['n_rev']))
             tet = rev_units.get(u_idx)
             if tet is not None and len(tet[0]):
                 ia, ib, ic, id_, sign = (torch.as_tensor(v, device=device) for v in tet)
                 con = mt_pred_cal[ia] - mt_pred_cal[ib] - mt_pred_cal[ic] + mt_pred_cal[id_]      # latent: no link, no saturation
                 L_rev = torch.nn.functional.softplus(-sign.to(con.dtype) * con / float(hp.flip_scale))
-                losses_mt.append(_tap(self, 'flip_mt', lam_flip * L_rev.sum() / max(total_rev, 1)))
+                losses_mt.append(_tap(self, 'flip_mt', lam_flip * balance(hp, 'flip_mt') * L_rev.sum() / max(total_rev, 1)))
                 sums['flip_mt'] = sums['flip_mt'] + L_rev.sum().detach()
                 cnts['flip_mt'] = cnts['flip_mt'] + float(len(tet[0]))
                 self._rev_diag = (total_rev, self._rev_diag[1] + float((torch.sign(con.detach()) == sign.to(con.dtype)).sum()))

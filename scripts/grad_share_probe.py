@@ -30,6 +30,7 @@ ap.add_argument('--plain', action='store_true', help='plain MT regression (no co
 ap.add_argument('--micro', type=int, default=38)
 ap.add_argument('--max_len', type=int, default=64, help='only batches whose padded token length is at most this: activation memory scales with it')
 ap.add_argument('--rss_cap_gb', type=float, default=26.0)
+ap.add_argument('--extra', default='', help="training flags appended last (e.g. '--lora_rank_mt 16 --lora_alpha_mt 16 --pack_pair_matrices')")
 pa = ap.parse_args()
 if not pa.gpu:
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
@@ -58,7 +59,9 @@ line = re.sub(r'--cache_path cache_v7', '--cache_path /home/sareeves/playground/
 argv = shlex.split(line) + ['--include_out_of_range', '--precision', 'bf16-mixed' if pa.gpu else '32', '--batch_size', str(pa.batch_size),
                             '--micro_batch_size', '16' if pa.plain else str(pa.micro),
                             '--mt_comp_offset', '1', '--mt_comp_subst', '1', '--mt_comp_int', '1.0' if pa.plain else '1.0001', '--max_train_proteins', str(pa.proteins),
-                            '--num_workers', '0'] + (['--reg_balance'] if pa.balanced else []) + [ '--log_dir', '/tmp/probe_logs', '--checkpoint_path', '/tmp/probe_ckpt']
+                            '--num_workers', '0'] + (['--reg_balance'] if pa.balanced else []) + [ '--log_dir', '/tmp/probe_logs', '--checkpoint_path', '/tmp/probe_ckpt',
+        # every term at UNIT weight, so the measured norms are per unit of lambda (run_arm.sh sets 0.1 / 0.02 for the regressions)
+        '--lambda_reg_wt', '1', '--lambda_rank_wt', '1', '--lambda_reg_mt_master', '1', '--lambda_mt_colrank', '1', '--lambda_mt_flip', '1'] + shlex.split(pa.extra)
 sys.argv = ['probe'] + argv
 
 from esm_msr import training, utils

@@ -1,0 +1,28 @@
+# Queue r2 (2026-10-08), after the grad-share probe (scripts/probe_then_queue.sh): every arm uses the re-measured --reg_balance constants
+# (/home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json; stored in each run's hparams.yaml as reg_balance_values). 6 epochs. Reference (o6s01) = the o6g6_c10_hier
+# configuration (link, out-of-range items, MT components 10/10/10 at master 0.02, MT rank 2 / alpha 4, colrank 1) with the new constants.
+# Judge on the cell score (val_epi_cell_rank_mt, cell_mag_comb, cell_flipacc_mt; mean of the last 2-3 epochs) against o6s01 (and its seed
+# 2, o6s13); guards rmse_combined_avg, rho_wt_valid_avg, beyond_rho_comb. Read docs/handoff_oct08.md before changing anything.
+#
+# --- the reference and the questions with the strongest evidence
+o6s01_ref 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10
+o6s02_mt16 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16
+o6s03_m1 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 1.0
+o6s04_pack 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --pack_pair_matrices --batch_size 400
+o6s05_pack_flip1 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --pack_pair_matrices --batch_size 400 --lambda_mt_flip 1
+o6s06_m3 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 3.0
+# --- combinations of the likely winners
+o6s07_m1_pack_flip1 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 1.0 --pack_pair_matrices --batch_size 400 --lambda_mt_flip 1
+o6s08_mt16_m1 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 1.0 --lora_rank_mt 16 --lora_alpha_mt 16
+# --- remaining single changes
+o6s09_mt8 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 8
+o6s10_floor03 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --censor_floor 0.3 --censor_floor_hinge
+o6s11_colrank0 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lambda_mt_colrank 0
+o6s12_pack_flip3 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --pack_pair_matrices --batch_size 400 --lambda_mt_flip 3
+# --- seeds (noise under the new constants) and the full combination
+o6s13_ref_s2 6 2 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10
+o6s14_mt16_s2 6 2 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16
+o6s15_mt16_m1_pack_flip1 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 1.0 --lora_rank_mt 16 --lora_alpha_mt 16 --pack_pair_matrices --batch_size 400 --lambda_mt_flip 1
+o6s16_mt32 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 32 --lora_alpha_mt 23
+o6s17_m1_s2 6 2 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 1.0
+o6s18_pack_flip1_s2 6 2 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --pack_pair_matrices --batch_size 400 --lambda_mt_flip 1
