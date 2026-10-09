@@ -66,13 +66,13 @@ class TestRetiredFlags(unittest.TestCase):
         self.assertEqual((a.lambda_reg_mt_master, a.lambda_mt_colrank), (2.0, 0.0))
         self.assertIsNotNone(parse_fails('--lambda_int_mt', '30'))              # replaced by --mt_comp_int
         parse('--lambda_int_mt', '0')                                           # harmless
-    def test_pack_pair_matrices_clamps_micro_batch_size_to_prevent_oom(self):
-        # When --pack_pair_matrices is on, a micro_batch_size > 48 (such as default 64) is clamped to 48
+    def test_pack_pair_matrices_allows_micro_batch_size_64(self):
+        # When --pack_pair_matrices is on, default micro_batch_size 64 is preserved
         a = parse('--pack_pair_matrices', '--batch_size', '400', '--micro_batch_size', '64')
-        self.assertEqual(a.micro_batch_size, 48)
+        self.assertEqual(a.micro_batch_size, 64)
         self.assertEqual(a.flip_pair_groups, 19)
 
-        # When --micro_batch_size <= 48 is passed explicitly, it is preserved
+        # When --micro_batch_size is passed explicitly, it is preserved
         a = parse('--pack_pair_matrices', '--batch_size', '400', '--micro_batch_size', '48')
         self.assertEqual(a.micro_batch_size, 48)
         a = parse('--pack_pair_matrices', '--batch_size', '400', '--micro_batch_size', '38')
