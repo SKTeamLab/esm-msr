@@ -450,6 +450,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     out = self.model.forward_partitioned(utils.slice_batch_by_index(batch, chunk), pass_type='mt', mask_strategy=hp.mask_strategy)
                     L[chunk] = out['pred_calibrated'].float()
                     del out
+            # Autocast caches the low-precision copy of every fp32 weight that requires grad (the LoRA matrices) for the whole autocast region
+            # (in training, the whole step). Copies made here, under no_grad, carry no autograd history, and the live forwards of this step would
+            # reuse them: the MT adapter would get no gradient at all (only the calibration head would). Drop them.
+            torch.clear_autocast_cache()
         if use_link:
             reg_ok, t = mt_ok & link_ok, ddG + bg_all
         else:

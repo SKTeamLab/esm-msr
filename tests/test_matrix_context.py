@@ -132,3 +132,50 @@ class TestSamplerPacking(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class LinearModel(torch.nn.Module):
+    """pred = Linear(features): the weight is an fp32 leaf that autocast casts (and caches) like the LoRA matrices."""
+    dedup_backbone = False
+
+    def __init__(self):
+        super().__init__()
+        self.lin = torch.nn.Linear(2, 1)
+
+    def forward_partitioned(self, micro, pass_type, mask_strategy=None, cached_wt_esm3=None):
+        x = torch.stack([micro['feat'], micro['row'].float() / 100.0], dim=1)
+        raw = self.lin(x).float().squeeze(1)
+        return {'pred_calibrated': raw, 'pred_raw': raw}
+
+
+class TestAutocastCache(unittest.TestCase):
+    def test_the_cache_pass_does_not_cut_the_gradient_under_autocast(self):
+        """Regression: the no-grad cache pass under bf16 autocast used to leave cached weight casts without autograd history, so the
+        live forwards of the step gave the adapter no gradient (found by the grad-share probe on the GPU)."""
+        batch = matrix_batch()
+        from esm_msr import training
+        cls = training.ESM3EpistasisLightningModule
+        stub = types.SimpleNamespace()
+        stub.hparams = make_hp(flip_delta=0.6, flip_scale=0.25, mt_comp_offset=10.0, mt_comp_subst=10.0, mt_comp_int=10.0, lambda_mt_flip=1.0,
+                               flip_list_min=3, pack_pair_matrices=True, micro_batch_size=6, mt_single_anchor_weight=0.0)
+        stub.model = LinearModel()
+        stub.link_head = None
+        stub.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
+        stub.crit_reg = torch.nn.MSELoss(reduction='none')
+        stub.crit_rank_wt, stub.crit_rank_mt = ListMLELoss(), ListMLELoss()
+        stub._warned_unrouted = True
+        stub.global_step = 0
+        seen = []
+        def backward(loss, retain_graph=False):
+            seen.append(bool(loss.requires_grad))
+            loss.backward(retain_graph=retain_graph)
+        stub.manual_backward = backward
+        for name in ('_compute_rank_loss', '_compute_flip_loss', '_compute_block_components', '_aligned_chunks', '_subset_weights', '_plan_units',
+                     '_matrix_context'):
+            setattr(stub, name, types.MethodType(getattr(cls, name), stub))
+        stub._reversal_tetrads = cls._reversal_tetrads
+        with torch.autocast('cpu', dtype=torch.bfloat16):
+            cls._compose_losses_streaming_and_backward(stub, batch)
+        self.assertTrue(seen and all(seen))
+        self.assertIsNotNone(stub.model.lin.weight.grad)
+        self.assertGreater(float(stub.model.lin.weight.grad.abs().sum()), 0.0)
