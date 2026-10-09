@@ -668,7 +668,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         mt_w = torch.where(is_mt_subset, w_all, torch.zeros_like(w_all))
         if anchor_w > 0:
             anchor_rows = is_wt_subset
+            if use_link:
+                anchor_rows = anchor_rows & link_ok
             frac = float(hp.get('mt_single_anchor_frac', 1.0) or 1.0)
+
             if not 0.0 < frac <= 1.0:
                 raise AssertionError(f'mt_single_anchor_frac must be in (0, 1]; got {frac}.')
             if frac < 1.0 and bool(anchor_rows.any()):
@@ -720,8 +723,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # A unit with no loss term runs no backward, so its activation graph stays alive through these references; drop
             # them before this unit's forward allocates a second copy (this doubled peak memory and caused OOM / driver errors).
             wt_pred_cal = wt_pred_raw = mt_pred_cal = mt_pred_raw = None
-            p_wt = p_mt = p_int = None
+            p_wt = p_mt = p_int = p_full = None
             L = Lh = L_flip = L_int = L_rank = total = None
+            L_mix = comp = con = L_rev = None
             losses_wt, losses_mt = [], []
             micro, w_mb = utils.slice_batch_by_index(batch, rows), w_all[rows]
             if os.environ.get('MSR_MEM_DEBUG') and torch.cuda.is_available():
@@ -777,9 +781,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 continue
 
             # ---- MT unit ----
+            has_reg = m_mt_ok.any() and hp.lambda_reg_mt_master > 0 and (
+                (m_mt_ok & link_ok[rows]).any() if use_link else (m_mt_ok & reg_keep[rows]).any() if hp.subfloor_rank_only else True
+            )
+            has_comp = use_comp and mctx is not None and mctx['covered'][rows].any()
+            has_rev = (mctx is not None and lam_flip > 0 and mctx['n_rev'] > 0) or (rev_units.get(u_idx) is not None and len(rev_units[u_idx][0]) > 0)
+            has_rank = hp.lambda_mt_colrank > 0 and self.crit_rank_mt is not None and any(flip_keys[int(r)] for r in rows)
+            if not (has_reg or has_comp or has_rev or has_rank):
+                continue
+
             mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=hp.mask_strategy)
             mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
             del mt_out
+
 
             if m_mt_ok.any() and hp.lambda_reg_mt_master > 0:
                 w = mt_w[rows]
@@ -873,6 +887,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if not torch.isfinite(total): raise AssertionError("MT Loss evaluated to NaN/Inf.")
                 if not total.requires_grad: raise AssertionError("MT Loss detached from PyTorch Graph! Cannot call backward.")
                 self.manual_backward(total)
+            wt_pred_cal = wt_pred_raw = mt_pred_cal = mt_pred_raw = None
+            p_wt = p_mt = p_int = p_full = None
+            L = Lh = L_flip = L_int = L_rank = total = None
+            L_mix = comp = con = L_rev = None
+
 
         # One host sync for all logged values instead of one per unit and loss term.
         keys = [k for k in ('reg_wt', 'rank_wt', 'reg_wt_cens', 'reg_mt', 'reg_mt_cens', 'rank_mt', 'flip_mt', 'comp_off', 'comp_subst', 'comp_int', 'int_tgt')

@@ -1053,6 +1053,8 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         self.train_list = train_list
         self.strategy = strategy
         self.verbose = verbose
+        self.rng_seed = rng_seed
+        self.epoch = 0
         self._rng = random.Random(rng_seed)
         
         # 2D density capping over (additive ddG, dddG) is OFF by default. Measured on the raw
@@ -1242,10 +1244,16 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
             
         return len(final_batches)
 
+    def set_epoch(self, epoch: int):
+        self.epoch = epoch
+
     def __iter__(self) -> Iterator[List[int]]:
         """Invoked by PyTorch workers at the start of every epoch."""
+        if self.rng_seed is not None:
+            self._rng = random.Random(self.rng_seed + getattr(self, 'epoch', 0))
         self._calculate_epoch_batches(dry_run=False)
         yield from self._active_batches
+
 
     def __len__(self) -> int:
         return self.num_batches
