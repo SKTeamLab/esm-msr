@@ -177,6 +177,18 @@ saturation-only head scores about 0.71 / 0.48 / 0.10 in simulation and 0.50 / 0.
 the residualised levels. Observed-scale predictions use the checkpoint's link when it has one (inference itself returns the latent ddG). DMS
 scores have no dG scale: there dG_wt is 0, there is no link, and the global curve is the fitness map of the summed singles.
 
+### `--recalibrate linear|nonlinear` (proof of concept)
+
+Replaces the checkpoint's calibration / link with one fitted to each whole evaluated dataset (a MegaScale scaffold, an external benchmark, a DMS,
+the domainome set), per head, before any statistic or prediction file: `linear` is y = s * latent + b; `nonlinear` is
+y = h(dG_wt + s * latent + b) - dG_wt with a freshly fitted monotone link h of the training link's family (floor, ceiling and softness all
+learned; dG_wt = 0 where there is no dG scale). The latent columns are kept as `*_uncal`, the `*_dddg_pred` columns are recomputed on the new
+scale, the fits and the RMSE before / after go to `<stats>_Recalibration.json`, and every output name gets `_recal-<mode>`. The stats files now
+also carry `rmse_all`, `rmse_singles`, `rmse_doubles`, since rank statistics within a library cannot change under a monotone map. Fitted on
+the evaluated data, it is an upper bound on what a recalibration can recover. On the capped validation libraries (o6g6_c10_hier, epoch 5) the
+combined head's RMSE goes 0.745 -> 0.632 (linear) -> 0.585 (nonlinear), and the refitted floor lands at +0.29 kcal/mol, not the training
+link's -0.99: the practical floor of the report, found independently.
+
 ## The training objective that goes with the cell level: `--lambda_mt_flip`
 
 The confident-reversal loss (default off) trains the MT pass on the same information `cell_flipacc` scores: for every 2 x 2 sub-block of one

@@ -18,7 +18,7 @@ if str(REPO_ROOT / "src") not in sys.path:
 
 from huggingface_hub import login, get_token
 from esm_msr import stats, utils, models, inference, preprocess_megascale, auto_batch, epi_metrics
-from esm_msr.link import numpy_link_from_state_dict
+from esm_msr.link import MonotoneLink, numpy_link, numpy_link_from_state_dict
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -38,6 +38,13 @@ def safe_spearman(df, col1, col2):
     if len(valid_df) < 2:
         return float('nan')
     return valid_df.corr('spearman').iloc[0, 1]
+
+def safe_rmse(df, col1, col2):
+    """Root-mean-square difference of two columns over the rows where both are finite; NaN with fewer than 2 such rows."""
+    valid_df = df[[col1, col2]].dropna()
+    if len(valid_df) < 2:
+        return float('nan')
+    return float(np.sqrt(np.mean((valid_df[col1].to_numpy(float) - valid_df[col2].to_numpy(float)) ** 2)))
 
 def safe_ndcg(df, col1, col2, top_n=None, threshold=None):
     """Safely computes NDCG, returning NaN if insufficient valid data."""
@@ -125,15 +132,20 @@ def update_stats(stats_df, row_name, res_df, true_col, pred_col, epi_true_col='d
         return stats_df
         
     stats_df.at[row_name, 'spearman_all'] = safe_spearman(res_df, true_col, pred_col)
+    # calibration: rank metrics cannot see a scale or offset error (and --recalibrate changes nothing else). Without --recalibrate the
+    # predictions of a --link checkpoint are LATENT (unsaturated), so their error against saturated measurements includes the saturation.
+    stats_df.at[row_name, 'rmse_all'] = safe_rmse(res_df, true_col, pred_col)
     
     if 'mut_type' in res_df.columns:
         is_single = ~res_df['mut_type'].str.contains(':')
         is_double = res_df['mut_type'].str.contains(':')
         
         stats_df.at[row_name, 'spearman_singles'] = safe_spearman(res_df[is_single], true_col, pred_col)
+        stats_df.at[row_name, 'rmse_singles'] = safe_rmse(res_df[is_single], true_col, pred_col)
         stats_df.at[row_name, 'n_singles'] = is_single.sum()
         
         stats_df.at[row_name, 'spearman_doubles'] = safe_spearman(res_df[is_double], true_col, pred_col)
+        stats_df.at[row_name, 'rmse_doubles'] = safe_rmse(res_df[is_double], true_col, pred_col)
         stats_df.at[row_name, 'n_doubles'] = is_double.sum()
     else:
         stats_df.at[row_name, 'spearman_singles'] = float('nan')
@@ -223,7 +235,8 @@ def epi_items(res_df, truth_col, epi_true_col, dG_wt=None, lib=''):
     codes = res_df['code'].astype(str).to_numpy() if 'code' in res_df.columns else np.full(len(res_df), str(lib))
     get = lambda c: res_df[c].to_numpy(float) if c in res_df.columns else np.full(len(res_df), np.nan)
     truth, dddg = get(truth_col), (get(epi_true_col) if epi_true_col else np.full(len(res_df), np.nan))
-    preds = {h: get(c) for c, h in EPI_HEADS.items()}
+    # the model's LATENT scores: after --recalibrate the head columns hold the recalibrated values and the latent ones are kept as *_uncal
+    preds = {h: get(c + '_uncal' if c + '_uncal' in res_df.columns else c) for c, h in EPI_HEADS.items()}
     for i, (m, code) in enumerate(zip(res_df[col].astype(str).to_numpy(), codes)):
         parts = [_MUT_RE.match(x.strip()) for x in m.split(':')]
         if not parts or not all(parts):
@@ -242,12 +255,7 @@ def merge_items(items_list):
     return {k: [v for it in items_list for v in it[k]] for k in keys}
 
 
-def epi_scores(items, link):
-    """{head: {'epi_<metric>': value}} for the heads with predictions; empty without doubles."""
-    if not any(s == 'double' for s in items['subset_type']):
-        return {}
-    arr = {k: (v if k in ('mut_key', 'subset_type') else np.asarray(v, float)) for k, v in items.items()}
-    res = epi_metrics.compute(epi_metrics.Table(arr, link, heads=tuple(EPI_HEADS.values())), EPI_TESTING)
+def _by_head(res):
     counts = {k: v for k, v in res.items() if k.startswith('epi_n_')}
     out = {}
     for name, val in res.items():
@@ -256,6 +264,24 @@ def epi_scores(items, link):
         metric, head = name[len('epi_'):].rsplit('_', 1)
         out.setdefault(head, dict(counts))[f'epi_{metric}'] = val
     return out
+
+
+def epi_scores(items, link):
+    """{head: {'epi_<metric>': value}} for the heads with predictions; empty without doubles. ``link``: one numpy link for every head (or
+    None), or, after --recalibrate, a dict head -> (scale, bias, link or None): that head's latent becomes scale * latent + bias, observed
+    through its own fitted link."""
+    if not any(s == 'double' for s in items['subset_type']):
+        return {}
+    arr = {k: (v if k in ('mut_key', 'subset_type') else np.asarray(v, float)) for k, v in items.items()}
+    if isinstance(link, dict):
+        key_of = {'add': 'wt', 'mt': 'mt', 'comb': 'comb'}
+        out = {}
+        for head, (sc, bi, h) in link.items():
+            a = dict(arr)
+            a[key_of[head]] = sc * arr[key_of[head]] + bi
+            out.update(_by_head(epi_metrics.compute(epi_metrics.Table(a, h, heads=(head,)), {m: (head,) for m in EPI_TESTING})))
+        return out
+    return _by_head(epi_metrics.compute(epi_metrics.Table(arr, link, heads=tuple(EPI_HEADS.values())), EPI_TESTING))
 
 
 def update_epi_stats(frames, row_name, items, link):
@@ -277,6 +303,117 @@ def save_epi_pooled(items_list, link, stats_base, label):
     df.to_csv(f'{stats_base}_Epistasis.csv', na_rep='', float_format='%.6f')
     print(f"Epistasis metrics, {label}, all libraries pooled (docs/validation_metrics.md):")
     print(df.T.to_string(float_format=lambda x: f'{x:.3f}'))
+
+
+# =========================================================================
+# RECALIBRATION (--recalibrate linear | nonlinear): a proof of concept
+# =========================================================================
+# Each head's latent prediction (wt_lora_pred, mt_lora_pred, combined_pred) is mapped onto the measured scale by a calibration fitted to the
+# WHOLE dataset it is evaluated on (one MegaScale scaffold, one external benchmark, one DMS, the domainome set), on every row with a finite
+# measurement, before any statistic is computed or any prediction is written; the checkpoint's own calibration head and link are replaced.
+#   linear     y = s * latent + b (least squares).
+#   nonlinear  y = h(c + s * latent + b) - c, with h the training link's family (esm_msr.link.MonotoneLink: a soft floor and a soft ceiling,
+#              both learned here, as are their softness, s and b), c the library's dG_wt (MegaScale) or 0 (no dG scale: then h is a monotone
+#              fitness map of the scaled latent). Fitted by Adam on the squared error from the linear solution.
+# The latent columns are kept as <col>_uncal; *_dddg_pred columns are recomputed on the recalibrated scale (the double minus its singles in
+# the dataset; linear: exactly s * dddg + (1 - k) * b for k mutations). Fitted parameters and the RMSE before / after go to
+# <stats>_Recalibration.json. Rank statistics within a library are unchanged (the map is monotone within a library); calibration (rmse_*),
+# the dddG readouts and the observed-scale epistasis metrics change. Fitting on the evaluated data itself makes this an upper bound on what
+# a recalibration can recover, not an evaluation of a deployable calibration.
+RECAL_COLS = {'wt_lora_pred': 'wt_lora_dddg_pred', 'mt_lora_pred': 'mt_lora_dddg_pred', 'combined_pred': 'combined_dddg_pred'}
+RECAL_HEAD = {'wt_lora_pred': 'add', 'mt_lora_pred': 'mt', 'combined_pred': 'comb'}
+
+
+def _fit_linear(x, y):
+    sl, b = np.polyfit(x, y, 1)
+    return {'kind': 'linear', 's': float(sl), 'b': float(b)}
+
+
+def _fit_nonlinear(x, y, c, steps=2000, lr=0.01):
+    lin = _fit_linear(x, y)
+    z = c + y
+    lo, hi = float(np.quantile(z, 0.005)), float(np.quantile(z, 0.995))
+    span = max(hi - lo, 1e-3)
+    torch.manual_seed(0)
+    h = MonotoneLink(lo=lo, hi=hi, tau_lo=0.1 * span, tau_hi=0.1 * span, learn_bounds=True).double()
+    sl = torch.nn.Parameter(torch.tensor(lin['s'], dtype=torch.float64))
+    b = torch.nn.Parameter(torch.tensor(lin['b'], dtype=torch.float64))
+    X, Y, C = (torch.as_tensor(v, dtype=torch.float64) for v in (x, y, c))
+    opt = torch.optim.Adam(list(h.parameters()) + [sl, b], lr=lr)
+    for _ in range(steps):
+        opt.zero_grad()
+        loss = torch.mean((h(C + sl * X + b) - C - Y) ** 2)
+        loss.backward()
+        opt.step()
+    lo_, hi_, tl, th = (float(v) for v in h.params())
+    return {'kind': 'nonlinear', 's': float(sl), 'b': float(b), 'lo': lo_, 'hi': hi_, 'tau_lo': tl, 'tau_hi': th}
+
+
+def _apply(cal, x, c):
+    if cal['kind'] == 'linear':
+        return cal['s'] * x + cal['b']
+    return numpy_link(cal['lo'], cal['hi'], cal['tau_lo'], cal['tau_hi'])(c + cal['s'] * x + cal['b']) - c
+
+
+def recalibrate(res_df, mode, truth_col, dG_wt=None):
+    """``res_df`` with every head column recalibrated on this whole dataset (see the block comment); returns (res_df, {col: fit})."""
+    res_df = res_df.copy()
+    y = pd.to_numeric(res_df[truth_col], errors='coerce').to_numpy(float) if truth_col in res_df.columns else None
+    if y is None:
+        return res_df, {}
+    if dG_wt and 'code' in res_df.columns:
+        c = res_df['code'].astype(str).map(dG_wt).to_numpy(float)
+        c = np.where(np.isfinite(c), c, np.nanmedian(c) if np.isfinite(c).any() else 0.0)   # a library with unknown dG_wt: the median
+    else:
+        c = np.zeros(len(res_df))
+    mut_col = 'mut_type' if 'mut_type' in res_df.columns else ('mut_info' if 'mut_info' in res_df.columns else None)
+    n_mut = res_df[mut_col].astype(str).str.count(':').to_numpy() + 1 if mut_col else np.ones(len(res_df))
+    fits = {}
+    for col, dcol in RECAL_COLS.items():
+        if col not in res_df.columns:
+            continue
+        x = pd.to_numeric(res_df[col], errors='coerce').to_numpy(float)
+        ok = np.isfinite(x) & np.isfinite(y)
+        if ok.sum() < 10 or np.ptp(x[ok]) < 1e-9:
+            continue
+        cal = _fit_linear(x[ok], y[ok]) if mode == 'linear' else _fit_nonlinear(x[ok], y[ok], c[ok])
+        new = _apply(cal, x, c)
+        cal.update(n=int(ok.sum()), rmse_before=float(np.sqrt(np.mean((x[ok] - y[ok]) ** 2))), rmse_after=float(np.sqrt(np.mean((new[ok] - y[ok]) ** 2))))
+        fits[col] = cal
+        res_df[col + '_uncal'] = x
+        res_df[col] = new
+        if dcol in res_df.columns:
+            res_df[dcol + '_uncal'] = res_df[dcol]
+            if cal['kind'] == 'linear':
+                res_df[dcol] = cal['s'] * pd.to_numeric(res_df[dcol], errors='coerce').to_numpy(float) + (1 - n_mut) * cal['b']
+            elif mut_col and 'code' in res_df.columns:
+                tmp = pd.DataFrame({'mut_type': res_df[mut_col].astype(str).to_numpy(), 'code': res_df['code'].astype(str).to_numpy(), '_r': new})
+                add = utils.sum_individual_mutation_scores(tmp, '_r', new_score_column='_add')['_add'].to_numpy(float)
+                res_df[dcol] = np.where(n_mut > 1, new - add, np.nan)
+            else:
+                res_df[dcol] = np.nan
+    return res_df, fits
+
+
+def recal_links(fits):
+    """The per-head links the epistasis metrics use after recalibration: head -> (scale, bias, numpy link or None)."""
+    out = {}
+    for col, cal in fits.items():
+        h = None if cal['kind'] == 'linear' else numpy_link(cal['lo'], cal['hi'], cal['tau_lo'], cal['tau_hi'])
+        out[RECAL_HEAD[col]] = (cal['s'], cal['b'], h)
+    return out
+
+
+def save_recal(stats_base, label, fits):
+    """Adds this dataset's fits to <stats_base>_Recalibration.json and prints the RMSE before / after."""
+    if not fits:
+        return
+    path = f'{stats_base}_Recalibration.json'
+    allfits = json.load(open(path)) if os.path.exists(path) else {}
+    allfits[label] = fits
+    json.dump(allfits, open(path, 'w'), indent=1)
+    for col, cal in fits.items():
+        print(f"[RECAL] {label} {col}: {cal['kind']} s={cal['s']:.3f} b={cal['b']:.3f} rmse {cal['rmse_before']:.3f} -> {cal['rmse_after']:.3f} (n={cal['n']})")
 
 
 def run_protein_gym(args, model):
@@ -436,6 +573,7 @@ def run_protein_gym(args, model):
 def main_(args):
 
     CHECKPOINT_STR = str(args.checkpoint) if args.checkpoint else "zeroshot"
+    RECAL = f"_recal-{args.recalibrate}" if getattr(args, 'recalibrate', None) else ""        # in every output name, so runs do not overwrite
 
     print('\n\n\n\n\n')
     print(f"Running Inference for Checkpoint: {CHECKPOINT_STR}")
@@ -586,8 +724,11 @@ def main_(args):
                     torch.cuda.empty_cache()
 
             res_df = pd.concat(res_combined)
+            ext_fits = {}
+            if args.recalibrate:
+                res_df, ext_fits = recalibrate(res_df, args.recalibrate, 'ddG')
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}{RECAL}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
 
@@ -602,8 +743,9 @@ def main_(args):
             if 'ptmul' not in name:
                 assert len(df_true) == len(res_df), f"Lost samples during join for {name}!"
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/external/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/external/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}{RECAL}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
+            save_recal(stats_base, name, ext_fits)
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
             stats_wt.mean(axis=0).to_csv(f'{stats_base}_WT_LoRA_avg.csv', na_rep='', float_format='%.6f')
             
@@ -686,9 +828,13 @@ def main_(args):
 
             # Aggregate DataFrames
             res_df = pd.concat(res_combined)
+            scaffold_fits = {}
+            if args.recalibrate:
+                res_df, scaffold_fits = recalibrate(res_df, args.recalibrate, 'ddG_ML', dG_wt=getattr(ds, 'dG_wt', None))
+            scaffold_link = recal_links(scaffold_fits) if args.recalibrate else epi_link
 
             # File Operations
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}{RECAL}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
 
@@ -703,10 +849,10 @@ def main_(args):
                     stats_delta = update_delta_stats(stats_delta, code, group, 'dddG_ML')
                     items = epi_items(group, 'ddG_ML', 'dddG_ML', dG_wt=getattr(ds, 'dG_wt', None))
                     epi_all.append(items)
-                    frames = update_epi_stats({'comb': stats_cmb, 'mt': stats_mt, 'add': stats_wt}, code, items, epi_link)
+                    frames = update_epi_stats({'comb': stats_cmb, 'mt': stats_mt, 'add': stats_wt}, code, items, scaffold_link)
                     stats_cmb, stats_mt, stats_wt = frames['comb'], frames['mt'], frames['add']
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}{RECAL}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
             
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -718,7 +864,8 @@ def main_(args):
                 save_delta_stats(stats_delta, stats_base)
                 stats_mt.mean(axis=0).to_csv(f'{stats_base}_MT_LoRA_avg.csv', na_rep='', float_format='%.6f')
                 stats_cmb.mean(axis=0).to_csv(f'{stats_base}_Combined_avg.csv', na_rep='', float_format='%.6f')
-                save_epi_pooled(epi_all, epi_link, stats_base, f'{split_name} {scaffold}')
+                save_epi_pooled(epi_all, scaffold_link, stats_base, f'{split_name} {scaffold}')
+            save_recal(stats_base, f'{split_name} {scaffold}', scaffold_fits)
 
             torch.cuda.empty_cache()
 
@@ -771,9 +918,12 @@ def main_(args):
             res = df_true.join(pred_df.drop(overlap_cols, axis=1))
 
             assert len(df_true) == len(res), f"Merge error on DMS {prot}"
+            dms_fits = {}
+            if args.recalibrate:
+                res, dms_fits = recalibrate(res, args.recalibrate, 'ddG_ML')
             res_combined.append(res)
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}{RECAL}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res.to_csv(out_path)
 
@@ -785,11 +935,12 @@ def main_(args):
                 if 'dddG_ML' in res.columns:
                     # DMS scores are not dG: no dG_wt, no link (the global curve is the fitness map of the summed singles)
                     frames = update_epi_stats({'comb': stats_cmb, 'mt': stats_mt, 'add': stats_wt}, prot,
-                                              epi_items(res, 'ddG_ML', 'dddG_ML', lib=prot), None)
+                                              epi_items(res, 'ddG_ML', 'dddG_ML', lib=prot), recal_links(dms_fits) if args.recalibrate else None)
                     stats_cmb, stats_mt, stats_wt = frames['comb'], frames['mt'], frames['add']
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}{RECAL}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
+            save_recal(stats_base, prot, dms_fits)
 
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
             stats_wt.mean(axis=0).to_csv(f'{stats_base}_WT_LoRA_avg.csv', na_rep='', float_format='%.6f')
@@ -823,6 +974,7 @@ def main_(args):
         res_combined = []
         
         should_skip_reverse_dom = args.skip_reverse or args.skip_reverse_domainome
+        dom_times = {}
 
         for prot in tqdm(df['code'].unique()):
             df_true = df.loc[df['code']==prot].copy()
@@ -847,23 +999,30 @@ def main_(args):
 
             assert len(df_true) == len(res)
             res_combined.append(res)
-
-            stats_wt = update_stats(stats_wt, prot, res, 'ddG_ML', 'wt_lora_pred', time_val=t_inf)
-            if not should_skip_reverse_dom:
-                stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', time_val=t_inf)
-                stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', time_val=t_inf)
+            dom_times[prot] = t_inf
 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
         res_df = pd.concat(res_combined, axis=0)
+        dom_fits = {}
+        if args.recalibrate:
+            res_df, dom_fits = recalibrate(res_df, args.recalibrate, 'ddG_ML')
+        # per-protein statistics once the whole set is in (a recalibration is fitted to all domains together)
+        for prot, res in res_df.groupby('code', sort=False):
+            t_inf = dom_times.get(prot, float('nan'))
+            stats_wt = update_stats(stats_wt, prot, res, 'ddG_ML', 'wt_lora_pred', time_val=t_inf)
+            if not should_skip_reverse_dom:
+                stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', time_val=t_inf)
+                stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', time_val=t_inf)
 
-        out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
+        out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}{RECAL}_predictions.csv')
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         res_df.to_csv(out_path)
 
-        stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/domainome/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
+        stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/domainome/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}{RECAL}')
         os.makedirs(os.path.dirname(stats_base), exist_ok=True)
+        save_recal(stats_base, 'domainome', dom_fits)
 
         stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
         stats_wt.mean(axis=0).to_csv(f'{stats_base}_WT_LoRA_avg.csv', na_rep='', float_format='%.6f')
@@ -931,6 +1090,13 @@ if __name__ == "__main__":
         parser.add_argument('--auto_batch_max', type=int, default=None,
                             help='Optional hard cap on the auto-batched batch size')
         parser.add_argument('--dtype', type=str, default='bf16', choices=['bf16', 'fp32'], help='Model inference dtype (bf16 = native/autocast, lower VRAM)')
+        parser.add_argument('--recalibrate', type=str, default=None, choices=['linear', 'nonlinear'],
+                            help="Proof of concept: replace the checkpoint's calibration / link by one fitted to each WHOLE evaluated dataset (a MegaScale "
+                                 "scaffold, an external benchmark, a DMS, the domainome set) before any statistic or prediction file: 'linear' "
+                                 "y = s * latent + b, 'nonlinear' y = h(dG_wt + s * latent + b) - dG_wt with a freshly fitted monotone link h (the "
+                                 "training link's family; dG_wt = 0 without a dG scale). Latent columns are kept as *_uncal, fits and RMSE before / "
+                                 "after go to <stats>_Recalibration.json, and every output name gets _recal-<mode>. Fitted on the evaluated data: "
+                                 "an upper bound on what recalibration recovers, not a deployable calibration.")
 
         args, remaining_argv = parser.parse_known_args()
         current_remaining_argv = list(remaining_argv) 
