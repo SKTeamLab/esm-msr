@@ -165,6 +165,29 @@ believed (cell_rank_mt 0.014, cell_mag 0.02, flipacc 0.03, beyond 0.011, line 0.
 | `val_epi_matrix_rank_*`, `val_epi_partner_context_rank_*`, `val_epi_identity_effect_*`, `*_beyond_add` | retired (identity_effect gave the saturation-only control 0.6) |
 | `val_rho_mt_valid_avg`, `val_auc_dead_{wt,mt}_*`, every `*_pooled` ddG metric, `val_rho_wt_valid/<lib>` | no longer logged; `stats.compute_metrics` still returns them, and every validation dump allows recomputing them |
 
+## In `inference_scripts/esm_msr_testing.py`
+
+The same metrics are computed for every evaluated checkpoint on the MegaScale validation and test scaffolds and on the DMS sets, for the
+heads `comb` (combined_pred), `mt` (mt_lora_pred) and `add` (wt_lora_pred, the saturation control); the WT-in-context control needs the
+reverse WT leg, which inference does not run. Per library they are extra `epi_*` columns of the `_Combined`, `_MT_LoRA` and `_WT_LoRA` stats
+files (the pair level is NaN there: one library has too few matrices); pooled over all libraries of a scaffold they go to `<stats>_Epistasis.csv`
+(one row per head). Besides the metrics above, testing reports the three **raw** levels the training set replaced, `epi_pair_raw`,
+`epi_line_raw`, `epi_cell_raw` (pair means, line effects and double-centred cells of raw observed-scale dddG): saturation leaks into them (the
+saturation-only head scores about 0.71 / 0.48 / 0.10 in simulation and 0.50 / 0.53 / 0.23 on the validation doubles), so read them only beside
+the residualised levels. Observed-scale predictions use the checkpoint's link when it has one (inference itself returns the latent ddG). DMS
+scores have no dG scale: there dG_wt is 0, there is no link, and the global curve is the fitness map of the summed singles.
+
+## The training objective that goes with the cell level: `--lambda_mt_flip`
+
+The confident-reversal loss (default off) trains the MT pass on the same information `cell_flipacc` scores: for every 2 x 2 sub-block of one
+position pair inside a micro-batch whose measured within-column order reverses by more than `--flip_delta` (0.6 kcal/mol) on both sides, a
+logistic loss `softplus(-sign * contrast / --flip_scale)` on the MT pass's latent contrast. Pair, line and single effects cancel and the
+assay cannot create a reversal, so it pressures only the interaction, and only where the measurement is reliable. Columns of a pair travel
+together when it is on (as for the `--mt_comp_*` weights). Logged: `train/L_flip_mt` (mean loss per reversal; log 2 = 0.69 for an additive
+prediction), `train/flip_rev` (reversals in the batch) and `train/flip_rev_acc` (the share the MT pass already orders right). Its gradient
+scale against the other terms is uncalibrated: probe it with `scripts/grad_share_probe.py` before choosing a weight. With three columns per
+pair in a micro-batch a unit holds about 1.4 reversals on average (30% of units hold any), so the signal per step is thin.
+
 ## Offline recomputation
 
 Every validation writes `training_logs/<run>/0/val_dump_<tag>.npz` (all items' latent scores, the reverse leg, dG_wt, the link). Score any dump,

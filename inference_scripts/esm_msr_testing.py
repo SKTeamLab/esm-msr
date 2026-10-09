@@ -7,14 +7,18 @@ import argparse
 import time
 import json
 import logging
+import re
 from pathlib import Path
+
+import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from huggingface_hub import login, get_token
-from esm_msr import stats, utils, models, inference, preprocess_megascale, auto_batch
+from esm_msr import stats, utils, models, inference, preprocess_megascale, auto_batch, epi_metrics
+from esm_msr.link import numpy_link_from_state_dict
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -174,6 +178,105 @@ def save_delta_stats(stats_df, stats_base):
         stats_df.mean(axis=0).to_csv(f'{stats_base}_DeltaSingles_avg.csv', na_rep='', float_format='%.6f')
         print("MT-vs-WT single-mutant disagreement (mean over libraries):")
         print(stats_df.mean(axis=0).to_string(float_format=lambda x: f'{x:.4f}'))
+
+
+# =========================================================================
+# EPISTASIS METRICS (esm_msr.epi_metrics; definitions and reading guide: docs/validation_metrics.md)
+# =========================================================================
+# The level-by-level metrics of training validation, plus the raw (saturation-confounded) levels they replaced, for three heads:
+#   comb = combined_pred (the reported prediction), mt = mt_lora_pred (the epistasis readout), add = wt_lora_pred (additive by
+#   construction: through a link it scores only by saturation, the control for naive_rho / global_err / *_raw).
+# The WT-in-context control (ctx) needs the reverse WT leg, which inference does not run; it exists in training validation only.
+#
+#   epi_naive_rho     Spearman of predicted vs measured dddG over all doubles (observed scale). Naive: under a link mostly saturation.
+#   epi_global_err    RMSE (kcal/mol) of the predicted vs measured mean dddG curve against the additive expectation x = dG_wt + ddG_A + ddG_B.
+#   epi_global_bias   mean (predicted - measured) of that curve; negative = nonspecific epistasis under-predicted.
+#   epi_beyond_rho    Spearman of the beyond-global residuals (each side minus its own global curve) over all doubles: everything above
+#                     the global level at once.
+#   epi_pair_rho      position-pair offsets beyond the global curve, Spearman across matrices (needs >= 8 matrices: pooled tables only).
+#   epi_line_rho      line (row / column) effects of the residuals, centred on the matrix mean, Spearman pooled over lines.
+#   epi_cell_mag      double-centred residuals of each complete block, Spearman per block, mean over blocks.
+#   epi_cell_rank     double-centred within-column ranks of ddG_AB (saturation-free; 0 for any additive predictor), mean over blocks.
+#   epi_cell_flipacc  share of confident measured order reversals (> 0.6 kcal/mol each side) whose sign the head's latent interaction
+#                     contrast predicts; 0.5 = chance.
+#   epi_cell_sigsd    SD of the head's double-centred column ranks (0 = additive readout; expressiveness, not skill).
+#   epi_pair_raw, epi_line_raw, epi_cell_raw   the same three levels on RAW observed-scale dddG (the old definitions): saturation leaks in
+#                     (a saturation-only head scores ~0.71 / 0.48 / 0.10 in simulation); report them beside the residualised levels.
+#   epi_n_doubles / epi_n_pairs / epi_n_blocks / epi_n_flips   what the numbers rest on.
+# Absolute values carry the sampling noise of a few dozen matrices; compare checkpoints on the same libraries (docs/validation_metrics.md).
+# The additive expectation needs each library's dG_wt: MegaScale libraries use the preprocessor's; datasets without a dG scale (the DMS sets)
+# use 0, so the global curve is then the fitness map of the summed singles.
+
+EPI_HEADS = {'combined_pred': 'comb', 'mt_lora_pred': 'mt', 'wt_lora_pred': 'add'}
+EPI_TESTING = {m: tuple(EPI_HEADS.values()) for m in list(epi_metrics.METRICS) + list(epi_metrics.RAW_METRICS)}
+_MUT_RE = re.compile(r'^([A-Za-z])(\d+)([A-Za-z])$')
+
+
+def epi_items(res_df, truth_col, epi_true_col, dG_wt=None, lib=''):
+    """The items epi_metrics.Table reads, from a predictions table: one row per variant, mutations in `mut_type` (or `mut_info`) as
+    'A12G' / 'A12G:K30R'. Mutations are tagged with the row's `code` (else ``lib``) so doubles pair only with their own library's singles.
+    ``dG_wt``: a dict code -> dG_wt (missing codes, or None, use 0). Rows whose mutations do not parse are skipped."""
+    col = 'mut_type' if 'mut_type' in res_df.columns else ('mut_info' if 'mut_info' in res_df.columns else None)
+    out = {k: [] for k in ('mut_key', 'subset_type', 'cens', 'ddG', 'dddG', 'dG_wt', 'wt', 'mt', 'comb')}
+    if col is None or truth_col not in res_df.columns:
+        return out
+    codes = res_df['code'].astype(str).to_numpy() if 'code' in res_df.columns else np.full(len(res_df), str(lib))
+    get = lambda c: res_df[c].to_numpy(float) if c in res_df.columns else np.full(len(res_df), np.nan)
+    truth, dddg = get(truth_col), (get(epi_true_col) if epi_true_col else np.full(len(res_df), np.nan))
+    preds = {h: get(c) for c, h in EPI_HEADS.items()}
+    for i, (m, code) in enumerate(zip(res_df[col].astype(str).to_numpy(), codes)):
+        parts = [_MUT_RE.match(x.strip()) for x in m.split(':')]
+        if not parts or not all(parts):
+            continue
+        key = tuple((code, p.group(1), int(p.group(2)), p.group(3)) for p in parts)
+        out['mut_key'].append(key)
+        out['subset_type'].append({1: 'single', 2: 'double'}.get(len(key), 'other'))
+        out['cens'].append(0); out['ddG'].append(truth[i]); out['dddG'].append(dddg[i] if len(key) == 2 else np.nan)
+        out['dG_wt'].append(float((dG_wt or {}).get(code, 0.0)))
+        out['wt'].append(preds['add'][i]); out['mt'].append(preds['mt'][i]); out['comb'].append(preds['comb'][i])
+    return out
+
+
+def merge_items(items_list):
+    keys = ('mut_key', 'subset_type', 'cens', 'ddG', 'dddG', 'dG_wt', 'wt', 'mt', 'comb')
+    return {k: [v for it in items_list for v in it[k]] for k in keys}
+
+
+def epi_scores(items, link):
+    """{head: {'epi_<metric>': value}} for the heads with predictions; empty without doubles."""
+    if not any(s == 'double' for s in items['subset_type']):
+        return {}
+    arr = {k: (v if k in ('mut_key', 'subset_type') else np.asarray(v, float)) for k, v in items.items()}
+    res = epi_metrics.compute(epi_metrics.Table(arr, link, heads=tuple(EPI_HEADS.values())), EPI_TESTING)
+    counts = {k: v for k, v in res.items() if k.startswith('epi_n_')}
+    out = {}
+    for name, val in res.items():
+        if name.startswith('epi_n_'):
+            continue
+        metric, head = name[len('epi_'):].rsplit('_', 1)
+        out.setdefault(head, dict(counts))[f'epi_{metric}'] = val
+    return out
+
+
+def update_epi_stats(frames, row_name, items, link):
+    """Adds the epi_* columns of library ``row_name`` to the per-head stats tables ``frames`` ({'comb': df, 'mt': df, 'add': df})."""
+    for head, vals in epi_scores(items, link).items():
+        if head in frames:
+            for k, v in vals.items():
+                frames[head].at[row_name, k] = v
+    return frames
+
+
+def save_epi_pooled(items_list, link, stats_base, label):
+    """The epistasis metrics over every library of a dataset at once (the pair and line levels need many matrices): one row per head."""
+    scores = epi_scores(merge_items(items_list), link)
+    if not scores:
+        return
+    df = pd.DataFrame(scores).T
+    df.index.name = 'head'
+    df.to_csv(f'{stats_base}_Epistasis.csv', na_rep='', float_format='%.6f')
+    print(f"Epistasis metrics, {label}, all libraries pooled (docs/validation_metrics.md):")
+    print(df.T.to_string(float_format=lambda x: f'{x:.3f}'))
 
 
 def run_protein_gym(args, model):
@@ -410,6 +513,14 @@ def main_(args):
         print('Zero shot mode!')
     
     model.eval()
+    # the link of a --link checkpoint (inference returns the latent ddG): the epistasis metrics put predictions on the observed scale with it
+    epi_link = None
+    if args.checkpoint:
+        try:
+            epi_link = numpy_link_from_state_dict(torch.load(ckpt_path, map_location='cpu', weights_only=False).get('state_dict', {}))
+        except Exception as e:
+            print(f'[WARN] could not read the link from {ckpt_path}: {e}')
+    print(f"[EPI] observed scale for the epistasis metrics: {'the checkpoint link' if epi_link is not None else 'latent (no link)'}")
 
     # =========================================================================
     # PROTEINGYM BENCHMARKS (all DMS, preprocessed inputs)
@@ -582,6 +693,7 @@ def main_(args):
             res_df.to_csv(out_path)
 
             # Metrics
+            epi_all = []
             for code, group in res_df.groupby('code_wt'):
                 current_time = time_per_code.get(code, float('nan'))
                 stats_wt = update_stats(stats_wt, code, group, 'ddG_ML', 'wt_lora_pred', 'dddG_ML', 'wt_lora_dddg_pred', current_time)
@@ -589,6 +701,10 @@ def main_(args):
                     stats_mt = update_stats(stats_mt, code, group, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', current_time)
                     stats_cmb = update_stats(stats_cmb, code, group, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', current_time)
                     stats_delta = update_delta_stats(stats_delta, code, group, 'dddG_ML')
+                    items = epi_items(group, 'ddG_ML', 'dddG_ML', dG_wt=getattr(ds, 'dG_wt', None))
+                    epi_all.append(items)
+                    frames = update_epi_stats({'comb': stats_cmb, 'mt': stats_mt, 'add': stats_wt}, code, items, epi_link)
+                    stats_cmb, stats_mt, stats_wt = frames['comb'], frames['mt'], frames['add']
 
             stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
@@ -602,6 +718,7 @@ def main_(args):
                 save_delta_stats(stats_delta, stats_base)
                 stats_mt.mean(axis=0).to_csv(f'{stats_base}_MT_LoRA_avg.csv', na_rep='', float_format='%.6f')
                 stats_cmb.mean(axis=0).to_csv(f'{stats_base}_Combined_avg.csv', na_rep='', float_format='%.6f')
+                save_epi_pooled(epi_all, epi_link, stats_base, f'{split_name} {scaffold}')
 
             torch.cuda.empty_cache()
 
@@ -665,6 +782,11 @@ def main_(args):
                 stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', t_inf)
                 stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', t_inf)
                 stats_delta = update_delta_stats(stats_delta, prot, res, 'dddG_ML')
+                if 'dddG_ML' in res.columns:
+                    # DMS scores are not dG: no dG_wt, no link (the global curve is the fitness map of the summed singles)
+                    frames = update_epi_stats({'comb': stats_cmb, 'mt': stats_mt, 'add': stats_wt}, prot,
+                                              epi_items(res, 'ddG_ML', 'dddG_ML', lib=prot), None)
+                    stats_cmb, stats_mt, stats_wt = frames['comb'], frames['mt'], frames['add']
 
             stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)

@@ -104,6 +104,9 @@ METRICS = {
     'cell_sigsd': ('mt',),
 }
 COUNTS = ('doubles', 'pairs', 'blocks', 'flips')
+# Not logged in training (saturation leaks into them; docs/validation_metrics.md): the levels computed on RAW observed-scale dddG, the
+# definitions this module replaced. Kept for evaluation reports, beside the residualised levels, to show how much of a number is saturation.
+RAW_METRICS = ('pair_raw', 'line_raw', 'cell_raw')
 
 
 def logged_names():
@@ -336,6 +339,32 @@ def residual_levels(t: Table, h: str) -> Dict[str, float]:
     return out
 
 
+def raw_levels(t: Table, h: str) -> Dict[str, float]:
+    """pair_raw, line_raw, cell_raw: the pair / line / double-centred cell levels on RAW dddG (predicted P_AB - P_A - P_B on the observed
+    scale against measured dddG). Saturation is non-additive on the observed scale, so it enters all three: a saturation-only head scores
+    about 0.71 / 0.48 / 0.10 in simulation. Contrast them with pair_rho / line_rho / cell_mag."""
+    pd_ = t.P[h] - t.PA[h] - t.PB[h]
+    pm, pp, lm, lp, cells = [], [], [], [], []
+    for M in t.matrices():
+        Dm, Dp = _lay(M, t.dddG), _lay(M, pd_)
+        ok = np.isfinite(Dm) & np.isfinite(Dp)
+        if ok.sum() < MIN_PAIR_CELLS:
+            continue
+        Dm, Dp = np.where(ok, Dm, np.nan), np.where(ok, Dp, np.nan)
+        mm, mp = np.nanmean(Dm), np.nanmean(Dp)
+        pm.append(mm); pp.append(mp)
+        for ax in (0, 1):
+            cnt = ok.sum(axis=ax)
+            with np.errstate(invalid='ignore'):
+                lm.extend((np.nanmean(Dm, axis=ax) - mm)[cnt >= MIN_LINE]); lp.extend((np.nanmean(Dp, axis=ax) - mp)[cnt >= MIN_LINE])
+        blk = _complete_block(Dm)
+        if blk is not None:
+            ix = np.ix_(*blk)
+            cells.append(_rho(_dc(Dp[ix]).ravel(), _dc(Dm[ix]).ravel()))
+    return {'pair_raw': _rho(pp, pm) if len(pm) >= MIN_PAIRS else NAN, 'line_raw': _rho(lp, lm) if len(lm) >= 2 * MIN_PAIRS else NAN,
+            'cell_raw': _mean(cells)}
+
+
 def rank_levels(t: Table, h: str) -> Dict[str, float]:
     """cell_rank and cell_sigsd on complete blocks of measured / latent ddG_AB; n_blocks."""
     ranks, sig = [], []
@@ -398,6 +427,8 @@ def compute(t: Table, metrics: Dict[str, Sequence[str]] = METRICS) -> Dict[str, 
             rl = rank_levels(t, h)
             out['epi_n_blocks'] = float(rl.pop('n_blocks'))
             r.update(rl)
+        if want & set(RAW_METRICS):
+            r.update(raw_levels(t, h))
         if 'cell_flipacc' in want:
             r['cell_flipacc'], nf = flip_accuracy(t, h)
             out['epi_n_flips'] = float(nf)

@@ -368,6 +368,57 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         return {'off': acc['off'], 'subst': acc['subst'], 'int': acc['int'], 'cells': torch.cat(cells), 'raw': raw,
                 'w_total': w_total, 'n_cells': n_cells, 'n_mat': n_mat, 'ss_y': ss_y}
 
+    @staticmethod
+    def _reversal_tetrads(target, valid, flip_keys, row_ids, delta):
+        """
+        The confident order reversals among one micro-batch's conditional rows, for --lambda_mt_flip.
+
+        Rows sharing a position pair form a matrix (rows = scored substitutions, by ``row_ids``; columns = partner residues, from the flip
+        key). For two rows i, i' and two columns j, k with all four cells present and ``valid``, the measured within-column differences
+        target(i|j) - target(i'|j) and target(i|k) - target(i'|k) have opposite signs and both exceed ``delta``. Within one column the
+        conditional target ddG(i|j) = ddG_ij - ddG_j orders the substitutions exactly as the double does, so the reversal is a property of the
+        measured doubles and no monotone assay response can produce it.
+
+        Returns (a, b, c, d, sign): flat row indices of the cells (i|j), (i'|j), (i|k), (i'|k) and the sign of target(i|j) - target(i'|j);
+        the latent contrast pred[a] - pred[b] - pred[c] + pred[d] should share that sign. Empty arrays when there is none.
+        """
+        groups = {}
+        for i, k in enumerate(flip_keys):
+            if not k or not bool(valid[i]):
+                continue
+            pair, res = split_flip_key(k)
+            if res is None:
+                continue
+            groups.setdefault(pair, {}).setdefault(res, {})[int(row_ids[i])] = i
+        out = [[], [], [], [], []]
+        for cols in groups.values():
+            names = sorted(cols)
+            if len(names) < 2:
+                continue
+            rows = sorted({r for c in cols.values() for r in c})
+            if len(rows) < 2:
+                continue
+            M = np.full((len(rows), len(names)), -1, dtype=np.int64)
+            for cj, c in enumerate(names):
+                for r, i in cols[c].items():
+                    M[rows.index(r), cj] = i
+            Y = np.where(M >= 0, np.asarray(target)[np.clip(M, 0, None)], np.nan)
+            iu = np.triu_indices(len(rows), 1)
+            dY = (Y[:, None, :] - Y[None, :, :])[iu]                        # (row pairs, columns)
+            j, k = np.triu_indices(len(names), 1)
+            a_, b_ = dY[:, j], dY[:, k]
+            hit = np.isfinite(a_) & np.isfinite(b_) & (np.sign(a_) != np.sign(b_)) & (np.abs(a_) > delta) & (np.abs(b_) > delta)
+            rp, cp = np.nonzero(hit)
+            if not len(rp):
+                continue
+            r1, r2, c1, c2 = iu[0][rp], iu[1][rp], j[cp], k[cp]
+            out[0].append(M[r1, c1]); out[1].append(M[r2, c1]); out[2].append(M[r1, c2]); out[3].append(M[r2, c2])
+            out[4].append(np.sign(a_[rp, cp]))
+        if not out[0]:
+            e = np.zeros(0, dtype=np.int64)
+            return e, e, e, e, np.zeros(0)
+        return tuple(np.concatenate(v) for v in out)
+
     def _subset_weights(self, subset_types, device) -> torch.Tensor:
         """Per-item loss weight from its subset type (1.0 for singles and unknown types)."""
         hp = self.hparams
@@ -404,7 +455,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     size = int(len(wt_rows))
             units += [('wt', wt_rows[s:s + size]) for s in range(0, len(wt_rows), size)]
         if len(mt_rows):
-            if self.hparams.lambda_mt_colrank > 0 or comp_on(self.hparams):
+            if self.hparams.lambda_mt_colrank > 0 or comp_on(self.hparams) or float(self.hparams.get('lambda_mt_flip', 0.0)) > 0:
                 units += [('mt', mt_rows[c]) for c in self._aligned_chunks(mt_rows, mb)]
             else:
                 units += [('mt', mt_rows[s:s + mb]) for s in range(0, len(mt_rows), mb)]
@@ -572,16 +623,28 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # ---------------- plan ----------------
         idx = torch.arange(B, device=device)
         train_wt = (not wt_frozen) and (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0)
-        train_mt = (not mt_frozen) and (hp.lambda_reg_mt_master > 0 or hp.lambda_mt_colrank > 0)
+        lam_flip = float(hp.get('lambda_mt_flip', 0.0) or 0.0)
+        train_mt = (not mt_frozen) and (hp.lambda_reg_mt_master > 0 or hp.lambda_mt_colrank > 0 or lam_flip > 0)
 
         wt_rows = idx[wt_ok] if train_wt else idx[:0]
         mt_rows = idx[mt_ok] if train_mt else idx[:0]
         units = self._plan_units(batch, wt_rows, mt_rows, mb)
+        # --lambda_mt_flip: the confident reversals each MT unit holds (targets only), so every unit's sum is divided by the batch's total
+        rev_units = {}
+        if lam_flip > 0:
+            mt_valid = (mt_ok & (cens_all == 0)).cpu().numpy()
+            ddG_np, rid_np = ddG.detach().cpu().numpy(), batch['mt_id'][:, 0].detach().cpu().numpy()
+            for u, (kind, rows) in enumerate(units):
+                if kind == 'mt':
+                    r = rows.cpu().numpy()
+                    rev_units[u] = self._reversal_tetrads(ddG_np[r], mt_valid[r], [flip_keys[int(x)] for x in r], rid_np[r], float(hp.flip_delta))
+        total_rev = sum(len(t[0]) for t in rev_units.values())
+        self._rev_diag = (total_rev, 0.0)
 
         zero = torch.zeros((), device=device)
         sums, cnts = defaultdict(lambda: zero), defaultdict(lambda: zero)
 
-        for kind, rows in units:
+        for u_idx, (kind, rows) in enumerate(units):
             # A unit with no loss term runs no backward, so its activation graph stays alive through these references; drop
             # them before this unit's forward allocates a second copy (this doubled peak memory and caused OOM / driver errors).
             wt_pred_cal = wt_pred_raw = mt_pred_cal = mt_pred_raw = None
@@ -695,6 +758,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     losses_mt.append(_tap(self, 'reg_mt_cens', hp.lambda_reg_mt_master * balance(hp, 'reg_mt') * Lh.sum() / global_w_sum))
                     sums['reg_mt_cens'] = sums['reg_mt_cens'] + Lh.sum().detach()
                     cnts['reg_mt_cens'] = cnts['reg_mt_cens'] + w[cen_mt].sum()
+            tet = rev_units.get(u_idx)
+            if tet is not None and len(tet[0]):
+                ia, ib, ic, id_, sign = (torch.as_tensor(v, device=device) for v in tet)
+                con = mt_pred_cal[ia] - mt_pred_cal[ib] - mt_pred_cal[ic] + mt_pred_cal[id_]      # latent: no link, no saturation
+                L_rev = torch.nn.functional.softplus(-sign.to(con.dtype) * con / float(hp.flip_scale))
+                losses_mt.append(_tap(self, 'flip_mt', lam_flip * L_rev.sum() / max(total_rev, 1)))
+                sums['flip_mt'] = sums['flip_mt'] + L_rev.sum().detach()
+                cnts['flip_mt'] = cnts['flip_mt'] + float(len(tet[0]))
+                self._rev_diag = (total_rev, self._rev_diag[1] + float((torch.sign(con.detach()) == sign.to(con.dtype)).sum()))
             if hp.lambda_mt_colrank > 0 and self.crit_rank_mt is not None:
                 fk_rows = [flip_keys[int(r)] for r in rows]
                 L_flip, val, n_grp = self._compute_flip_loss(
@@ -712,7 +784,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 self.manual_backward(total)
 
         # One host sync for all logged values instead of one per unit and loss term.
-        keys = [k for k in ('reg_wt', 'rank_wt', 'reg_wt_cens', 'reg_mt', 'reg_mt_cens', 'rank_mt', 'comp_off', 'comp_subst', 'comp_int', 'int_tgt') if k in cnts]
+        keys = [k for k in ('reg_wt', 'rank_wt', 'reg_wt_cens', 'reg_mt', 'reg_mt_cens', 'rank_mt', 'flip_mt', 'comp_off', 'comp_subst', 'comp_int', 'int_tgt')
+                if k in cnts]
         if not keys:
             return {}
         vals = torch.stack([torch.stack([torch.as_tensor(sums[k], device=device, dtype=torch.float32),
@@ -808,6 +881,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.log("train/cens_lower_items", float(self._cens_diag[0]), on_step=True)
             self.log("train/cens_upper_items", float(self._cens_diag[1]), on_step=True)
             self._cens_diag = None
+        if getattr(self, '_rev_diag', None) is not None and float(self.hparams.get('lambda_mt_flip', 0.0) or 0.0) > 0:
+            n_rev, n_right = self._rev_diag
+            self.log("train/flip_rev", float(n_rev), on_step=True)                 # confident reversals in the batch
+            if n_rev:
+                self.log("train/flip_rev_acc", n_right / n_rev, on_step=True)     # share the MT pass already orders right (before the step)
+            self._rev_diag = None
         if getattr(self, '_flip_diag', None) is not None:
             g, alen, nitems, n_unc = self._flip_diag
             self.log("train/flip_cols", float(g), on_step=True)

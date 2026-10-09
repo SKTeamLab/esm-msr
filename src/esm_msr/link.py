@@ -44,6 +44,17 @@ def numpy_link(lo: float, hi: float, tau_lo: float, tau_hi: float):
     return h
 
 
+def numpy_link_from_state_dict(state_dict, prefix: str = 'link_head.'):
+    """The numpy link of a checkpoint trained with --link (its ``link_head.*`` parameters), or None when it has none. Inference returns the
+    latent ddG; evaluation code uses this to put predictions on the assay's observed scale."""
+    keys = [prefix + k for k in ('lo', 'raw_span', 'raw_tau_lo', 'raw_tau_hi')]
+    if not all(k in state_dict for k in keys):
+        return None
+    sp = lambda v: float(F.softplus(torch.as_tensor(v, dtype=torch.float64)))
+    lo = float(state_dict[keys[0]])
+    return numpy_link(lo, lo + sp(state_dict[keys[1]]), sp(state_dict[keys[2]]) + 1e-4, sp(state_dict[keys[3]]) + 1e-4)
+
+
 class MonotoneLink(nn.Module):
     def __init__(self, lo: float = -1.0, hi: float = 5.0, tau_lo: float = 0.5, tau_hi: float = 0.5,
                  learn_bounds: bool = True):

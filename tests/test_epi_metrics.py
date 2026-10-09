@@ -173,3 +173,13 @@ class TestSmoother(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestRawLevels(unittest.TestCase):
+    def test_saturation_alone_scores_on_the_raw_levels_and_not_on_the_residual_ones(self):
+        pairs, meas = synthetic(4)
+        res = E.compute(E.Table(items(pairs, meas, KNOW['nothing']), FLOOR), {m: ('add',) for m in E.RAW_METRICS + ('pair_rho', 'line_rho', 'cell_mag')})
+        self.assertGreater(res['epi_pair_raw_add'], 0.3)
+        self.assertGreater(res['epi_line_raw_add'], 0.3)
+        for m in ('pair_rho', 'line_rho', 'cell_mag'):
+            self.assertEqual(res[f'epi_{m}_add'], 0.0)

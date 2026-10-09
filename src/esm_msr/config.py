@@ -163,6 +163,21 @@ def parse_arguments() -> argparse.Namespace:
                                  "the rank loss's gradient norm to that term's gradient norm on the adapter of the same head. A lambda or "
                                  "--mt_comp_* weight of 1 then means about as much gradient as the rank loss (--lambda_rank_wt / "
                                  "--lambda_mt_colrank 1). Always takes the component path of the MT regression, so micro_batch_size must be >= 38.")
+    loss_group.add_argument('--lambda_mt_flip', type=float, default=0.0,
+                            help="Confident-reversal loss on the MT pass (0 = off). For two scored substitutions i, i' and two partner residues j, k of one "
+                                 "position pair whose measured within-column order REVERSES (ddG(i|j) - ddG(i'|j) and ddG(i|k) - ddG(i'|k) of opposite "
+                                 "signs, both larger than --flip_delta), the sign of the latent interaction contrast is fixed; the loss is "
+                                 "softplus(-sign * contrast / --flip_scale) on the MT pass's latent contrast p(i|j) - p(i'|j) - p(i|k) + p(i'|k). "
+                                 "Pair, line and single effects cancel in the contrast and a monotone assay cannot reverse an order, so the loss "
+                                 "is interaction-only and saturation-free (docs/epistasis_metrics_report.html). Averaged over the batch's reversals. "
+                                 "Columns of a pair travel together (as for the --mt_comp_* weights), so micro_batch_size must be >= 38. Its gradient "
+                                 "scale relative to the other terms is not calibrated (no --reg_balance constant): probe with scripts/grad_share_probe.py.")
+    loss_group.add_argument('--flip_delta', type=float, default=0.6,
+                            help="kcal/mol: a measured order reversal counts for --lambda_mt_flip when both of its differences exceed this (about twice "
+                                 "the noise of a difference; the validation metric val_epi_cell_flipacc_* uses the same 0.6).")
+    loss_group.add_argument('--flip_scale', type=float, default=0.25,
+                            help="kcal/mol: the logistic temperature of --lambda_mt_flip (a contrast of the right sign and this size costs 0.31, of "
+                                 "the wrong sign 1.31).")
     loss_group.add_argument('--flip_list_min', type=int, default=4,
                             help="Minimum members for a flip column to contribute to --lambda_mt_colrank. Below ~4 the "
                                  "ordering carries little information and the gradient is mostly noise.")
@@ -376,9 +391,9 @@ def parse_arguments() -> argparse.Namespace:
                      "tokens and coordinates at run time) are two ways of masking the same MT-pass structure: use one.")
 
     # Pair-matrix sampling for the component losses: columns of one position pair travel together, as many as fit in one micro-batch.
-    if (args.mt_comp_offset, args.mt_comp_subst, args.mt_comp_int) != (1.0, 1.0, 1.0) or args.reg_balance:
+    if (args.mt_comp_offset, args.mt_comp_subst, args.mt_comp_int) != (1.0, 1.0, 1.0) or args.reg_balance or args.lambda_mt_flip > 0:
         if args.micro_batch_size < 2 * MAX_COLUMN_LEN:
-            parser.error(f"the --mt_comp_* weights need two flip columns of a pair in one micro-batch: micro_batch_size must be at least "
+            parser.error(f"the --mt_comp_* weights and --lambda_mt_flip need two flip columns of a pair in one micro-batch: micro_batch_size must be at least "
                          f"{2 * MAX_COLUMN_LEN}, got {args.micro_batch_size}.")
         args.flip_pair_groups = args.micro_batch_size // MAX_COLUMN_LEN
     else:

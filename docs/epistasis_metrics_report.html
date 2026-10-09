@@ -151,7 +151,7 @@ svg text { font-family: var(--font-body); }
   +0.02 over the WT-in-context control on cell_rank.</p></div>
   <div class="key"><b>Objectives</b><p>The data contain 27,000 confident order reversals (2 x 2 sub-blocks whose within-column order flips by more than
   0.6 kcal/mol on both sides) in the training matrices. Each fixes the sign of a pure interaction contrast and is immune to saturation, which
-  makes a logistic loss on them a candidate interaction-only objective. Separately, the floor misplacement argues for censoring
+  makes a logistic loss on them a candidate interaction-only objective (now <code>--lambda_mt_flip</code>, default off). Separately, the floor misplacement argues for censoring
   measured values near the practical floor in the MT regression, or for a higher, library-aware floor.</p></div>
 </div>
 </section>
@@ -428,7 +428,7 @@ per-library floor offset for training libraries. Expected signature: <code>globa
 <li><b><code>o6h2_mt16</code></b> (queued): MT rank 16 / α 16 on devel. If it closes the gap to the baseline on cell_rank_mt, capacity was the limit.</li>
 <li><b><code>o6h3_colrank0</code></b> (queued): no within-column ListMLE. Expected to change the cell level little if the analysis above is right.</li>
 <li><b>Floor censoring under the link:</b> the best of the above plus <code>--censor_floor 0.5 --censor_floor_hinge</code>. Read global_bias_comb, global_err_add and the cell score.</li>
-<li><b>The reversal loss</b> (needs implementation), weighted against the existing MT terms with <code>scripts/grad_share_probe.py</code>.</li>
+<li><b>The reversal loss</b>, now implemented as <code>--lambda_mt_flip</code> (default off; <code>--flip_delta 0.6</code>, <code>--flip_scale 0.25</code>), weighted against the existing MT terms with <code>scripts/grad_share_probe.py</code>.</li>
 </ol>
 <p>Each of these should be judged on the cell score with the guards. Run two seeds before believing a difference below 0.03 on cell_rank_mt.</p>
 </div>
