@@ -19,6 +19,8 @@ o6r06_floor03 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_
 o6r07_colrank0 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lambda_mt_colrank 0
 # 8: second seed of the larger MT adapter
 o6r08_mt16_s2 6 2 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16
-# 9: the confident-reversal loss (--lambda_mt_flip): added once implemented and tested
+# 9: the confident-reversal loss on the reference (weight uncalibrated: the batch-mean loss is O(1) per reversal against ~25 per colrank list;
+#    probe with scripts/grad_share_probe.py when the card is free and adjust before this arm starts)
+o6r09_flip10 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lambda_mt_flip 10
 # 10: capacity past 16 (alpha 23: adapter scale ~4 as mt16)
 o6r10_mt32 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 32 --lora_alpha_mt 23
