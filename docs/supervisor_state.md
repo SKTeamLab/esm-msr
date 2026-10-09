@@ -3,6 +3,8 @@
 Written 2026-10-04 by the supervising instance. It records what exists, what is only designed or untested, and the traps. Where a statement is a
 measurement it says so and where it came from; where it is inference it says that too. Details live in the documents named in each section.
 
+## 0b. 2026-10-08 (later): read `docs/handoff_oct08.md` and `docs/summary_oct08.md` first; queue r2 is running.
+
 ## 0a. Update 2026-10-08: the validation metrics were replaced
 
 Branch `claude/epistasis-metrics-logging-cfd318` replaces the validation metric set (the `val_epi_*` hierarchy of `epi_hierarchy.py`, the flip / colrank
