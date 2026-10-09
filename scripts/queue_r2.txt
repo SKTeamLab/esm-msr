@@ -5,9 +5,9 @@
 # 2, o6s13); guards rmse_combined_avg, rho_wt_valid_avg, beyond_rho_comb. Read docs/handoff_oct08.md before changing anything.
 #
 # --- the reference and the questions with the strongest evidence
-o6s01_ref 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10
-o6s02_mt16 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16
-o6s03_m1 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 1.0
+# started 2026-10-08 22:35:38: o6s01_ref 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10
+# started 2026-10-09 02:09:21: o6s02_mt16 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16
+# started 2026-10-09 05:31:46: o6s03_m1 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 1.0
 o6s04_pack 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --pack_pair_matrices --batch_size 400 --micro_batch_size 48
 o6s05_pack_flip1 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --pack_pair_matrices --batch_size 400 --micro_batch_size 48 --lambda_mt_flip 1
 o6s06_m3 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 3.0
