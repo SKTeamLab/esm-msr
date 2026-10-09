@@ -172,6 +172,16 @@ def parse_arguments() -> argparse.Namespace:
                                  "is interaction-only and saturation-free (docs/epistasis_metrics_report.html). Averaged over the batch's reversals. "
                                  "Columns of a pair travel together (as for the --mt_comp_* weights), so micro_batch_size must be >= 38. Its gradient "
                                  "scale relative to the other terms is not calibrated (no --reg_balance constant): probe with scripts/grad_share_probe.py.")
+    loss_group.add_argument('--pack_pair_matrices', action=argparse.BooleanOptionalAction, default=False,
+                            help="Pack every oriented position-pair matrix (all columns of one scored position x partner position, up to 19 x 19 = 361 "
+                                 "conditional items) WHOLE into one batch (needs --batch_size >= 361; 400 leaves room for singles). When the "
+                                 "--mt_comp_* components or --lambda_mt_flip are on, each batch first runs a no-grad MT forward over its matrix rows, "
+                                 "and every MT micro-batch computes those losses on the WHOLE matrices with its own rows live and the others "
+                                 "from that cache: the gradients summed over micro-batches are the whole-matrix gradients (up to the dropout draw of "
+                                 "the cached rows). The components then are the hierarchy's levels (matrix offset, row / column effects over all "
+                                 "partners, double-centred 19 x 19 interaction) instead of those of 3-column slices, and every confident reversal of "
+                                 "a matrix reaches the reversal loss (median 30 per oriented training matrix, against about 1.4 per 3-column unit). "
+                                 "Costs one extra no-grad MT forward per matrix row. The --reg_balance constants were measured on 3-column blocks.")
     loss_group.add_argument('--flip_delta', type=float, default=0.6,
                             help="kcal/mol: a measured order reversal counts for --lambda_mt_flip when both of its differences exceed this (about twice "
                                  "the noise of a difference; the validation metric val_epi_cell_flipacc_* uses the same 0.6).")
@@ -391,7 +401,12 @@ def parse_arguments() -> argparse.Namespace:
                      "tokens and coordinates at run time) are two ways of masking the same MT-pass structure: use one.")
 
     # Pair-matrix sampling for the component losses: columns of one position pair travel together, as many as fit in one micro-batch.
-    if (args.mt_comp_offset, args.mt_comp_subst, args.mt_comp_int) != (1.0, 1.0, 1.0) or args.reg_balance or args.lambda_mt_flip > 0:
+    if args.pack_pair_matrices:
+        if args.batch_size < MAX_COLUMN_LEN ** 2:
+            parser.error(f"--pack_pair_matrices puts whole position-pair matrices (up to {MAX_COLUMN_LEN ** 2} items) in one batch: --batch_size must "
+                         f"be at least {MAX_COLUMN_LEN ** 2} (400 leaves room for singles), got {args.batch_size}.")
+        args.flip_pair_groups = MAX_COLUMN_LEN       # every column of a pair in one sampler unit
+    elif (args.mt_comp_offset, args.mt_comp_subst, args.mt_comp_int) != (1.0, 1.0, 1.0) or args.reg_balance or args.lambda_mt_flip > 0:
         if args.micro_batch_size < 2 * MAX_COLUMN_LEN:
             parser.error(f"the --mt_comp_* weights and --lambda_mt_flip need two flip columns of a pair in one micro-batch: micro_batch_size must be at least "
                          f"{2 * MAX_COLUMN_LEN}, got {args.micro_batch_size}.")

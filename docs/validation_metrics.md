@@ -200,6 +200,26 @@ prediction), `train/flip_rev` (reversals in the batch) and `train/flip_rev_acc` 
 scale against the other terms is uncalibrated: probe it with `scripts/grad_share_probe.py` before choosing a weight. With three columns per
 pair in a micro-batch a unit holds about 1.4 reversals on average (30% of units hold any), so the signal per step is thin.
 
+## Whole-matrix losses: `--pack_pair_matrices`
+
+Without it, the structured MT losses see only what one 64-row micro-batch holds: about three columns of a pair matrix. The component
+regression then splits the error of a 19 x 3 slice (its "offset" is the pair offset plus three column effects, its "line" effects are means
+over three partners), and the reversal loss finds about 1.4 confident reversals per unit. With `--pack_pair_matrices` (needs `--batch_size`
+>= 361; use 400) every oriented pair matrix (one scored position x one partner position, up to 19 x 19 conditional items) travels whole in one
+batch, and when the `--mt_comp_*` components or `--lambda_mt_flip` are on:
+
+1. each batch first runs a no-grad MT forward over its matrix rows (a cache of latent predictions);
+2. every MT micro-batch computes the components and the reversal loss on the WHOLE matrices of the batch, with its own rows live and the others
+   from the cache. Its gradient reaches only its own rows, so the sum over micro-batches is the gradient of the whole-matrix losses exactly
+   (tested against one micro-batch holding the whole batch), up to the dropout draw of the cached rows;
+3. the logged `train/L_comp_*`, `train/L_flip_mt`, `train/flip_rev` come from the cache once per batch.
+
+The components then are the hierarchy's levels (matrix offset, row and column effects over all partners, double-centred 19 x 19 interaction),
+and every confident reversal of a matrix reaches the reversal loss. Costs: one extra no-grad MT forward per matrix row (about a third of the
+MT pass's training cost on those rows), and fewer, larger steps per epoch (batch 400 instead of 256). The within-column ListMLE is unchanged
+(its columns were already whole). Caveat: the `--reg_balance` constants were measured on 3-column blocks; whole-matrix components have a
+different gradient scale (the offset of a 361-cell block is a mean over many more cells), so re-probe with `scripts/grad_share_probe.py`.
+
 ## Offline recomputation
 
 Every validation writes `training_logs/<run>/0/val_dump_<tag>.npz` (all items' latent scores, the reverse leg, dG_wt, the link). Score any dump,

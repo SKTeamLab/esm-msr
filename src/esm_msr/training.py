@@ -419,6 +419,63 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             return e, e, e, e, np.zeros(0)
         return tuple(np.concatenate(v) for v in out)
 
+    def _matrix_context(self, batch, mt_rows, mb, hp, use_link, link, ddG, dGwt_all, bg_all, link_ok, reg_keep, reg_cens, mt_ok, mt_w,
+                        cens_all, flip_keys, use_comp, lam_flip, sums, cnts, global_w_sum):
+        """
+        --pack_pair_matrices: what every MT micro-batch needs to compute the components and the confident reversals on WHOLE matrices.
+
+        One no-grad MT forward over the batch's matrix rows (conditional items with a partner position) gives a cache ``L`` of latent
+        predictions. A micro-batch then puts its own live predictions in place of its rows (``L.index_put``) and computes the losses over every
+        matrix of the batch: the gradient reaches only its rows, and the sum over micro-batches is the gradient of the whole-matrix losses (the
+        parameters do not change within a batch; only the dropout draw of the cached rows differs from their live one). The quantities that do
+        not depend on the predictions (targets, masks, which cells lie in complete blocks, the reversals) are computed here once, and the
+        logged values of these losses are taken from the cache once per batch, so a matrix spread over several micro-batches is counted once.
+        """
+        device, B = ddG.device, int(ddG.shape[0])
+        rows_np = mt_rows.detach().cpu().numpy()
+        mrows = [int(r) for r in rows_np if split_flip_key(flip_keys[int(r)])[1] is not None]
+        L = torch.zeros(B, device=device)
+        if mrows:
+            mrows_t = torch.as_tensor(mrows, device=device, dtype=torch.long)
+            with torch.no_grad():
+                for s0 in range(0, len(mrows), mb):
+                    chunk = mrows_t[s0:s0 + mb]
+                    out = self.model.forward_partitioned(utils.slice_batch_by_index(batch, chunk), pass_type='mt', mask_strategy=hp.mask_strategy)
+                    L[chunk] = out['pred_calibrated'].float()
+                    del out
+        if use_link:
+            reg_ok, t = mt_ok & link_ok, ddG + bg_all
+        else:
+            reg_ok, t = (mt_ok & reg_keep) if hp.subfloor_rank_only else mt_ok, ddG
+        reg_ord = reg_ok & (reg_cens == 0)
+        rid = batch['mt_id'][:, 0].detach().cpu().numpy()
+        ctx = {'L': L.detach(), 't': t, 'reg_ord': reg_ord, 'rid': rid, 'covered': torch.zeros(B, dtype=torch.bool, device=device),
+               'n_rev': 0, 'rev_right': 0.0, 'tet': None}
+        if use_comp and hp.lambda_reg_mt_master > 0:
+            with torch.no_grad():
+                p = link.obs_ddG(L, dGwt_all, bg_all) if use_link else L
+                comp = self._compute_block_components(p - t, t, mt_w, reg_ord, flip_keys, rid, INT_MIN_ROWS, INT_MIN_COLS)
+            if comp is not None:
+                ctx['covered'][comp['cells']] = True
+                sums['reg_mt'] = sums['reg_mt'] + comp['w_total']
+                cnts['reg_mt'] = cnts['reg_mt'] + mt_w[ctx['covered']].sum()
+                for k in ('off', 'subst', 'int'):
+                    sums['comp_' + k] = sums['comp_' + k] + comp['raw'][k]
+                    cnts['comp_' + k] = cnts['comp_' + k] + comp['n_cells']
+                sums['int_tgt'] = sums['int_tgt'] + comp['ss_y']
+                cnts['int_tgt'] = cnts['int_tgt'] + comp['n_cells']
+        if lam_flip > 0:
+            valid = (mt_ok & (cens_all == 0)).cpu().numpy()
+            a, b, c, d, sg = self._reversal_tetrads(ddG.detach().cpu().numpy(), valid, flip_keys, rid, float(hp.flip_delta))
+            if len(a):
+                tet = tuple(torch.as_tensor(v, device=device) for v in (a, b, c, d)) + (torch.as_tensor(sg, device=device, dtype=torch.float32),)
+                con = L[tet[0]] - L[tet[1]] - L[tet[2]] + L[tet[3]]
+                lv = torch.nn.functional.softplus(-tet[4] * con / float(hp.flip_scale))
+                sums['flip_mt'] = sums['flip_mt'] + lv.sum()
+                cnts['flip_mt'] = cnts['flip_mt'] + float(len(a))
+                ctx.update(tet=tet, n_rev=int(len(a)), rev_right=float((torch.sign(con) == tet[4]).sum()))
+        return ctx
+
     def _subset_weights(self, subset_types, device) -> torch.Tensor:
         """Per-item loss weight from its subset type (1.0 for singles and unknown types)."""
         hp = self.hparams
@@ -629,20 +686,24 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         wt_rows = idx[wt_ok] if train_wt else idx[:0]
         mt_rows = idx[mt_ok] if train_mt else idx[:0]
         units = self._plan_units(batch, wt_rows, mt_rows, mb)
+        zero = torch.zeros((), device=device)
+        sums, cnts = defaultdict(lambda: zero), defaultdict(lambda: zero)
+        # --pack_pair_matrices: whole-matrix context for the structured MT losses (components, reversals); see _matrix_context
+        mctx = (self._matrix_context(batch, mt_rows, mb, hp, use_link, link, ddG, dGwt_all, bg_all, link_ok, reg_keep, reg_cens, mt_ok, mt_w,
+                                     cens_all, flip_keys, use_comp, lam_flip, sums, cnts, global_w_sum)
+                if bool(hp.get('pack_pair_matrices', False)) and train_mt and (use_comp or lam_flip > 0) else None)
         # --lambda_mt_flip: the confident reversals each MT unit holds (targets only), so every unit's sum is divided by the batch's total
         rev_units = {}
-        if lam_flip > 0:
+        if lam_flip > 0 and mctx is None:
             mt_valid = (mt_ok & (cens_all == 0)).cpu().numpy()
             ddG_np, rid_np = ddG.detach().cpu().numpy(), batch['mt_id'][:, 0].detach().cpu().numpy()
             for u, (kind, rows) in enumerate(units):
                 if kind == 'mt':
                     r = rows.cpu().numpy()
                     rev_units[u] = self._reversal_tetrads(ddG_np[r], mt_valid[r], [flip_keys[int(x)] for x in r], rid_np[r], float(hp.flip_delta))
-        total_rev = sum(len(t[0]) for t in rev_units.values())
-        self._rev_diag = (total_rev, 0.0)
+        total_rev = sum(len(t[0]) for t in rev_units.values()) if mctx is None else mctx['n_rev']
+        self._rev_diag = (total_rev, 0.0 if mctx is None else mctx['rev_right'])
 
-        zero = torch.zeros((), device=device)
-        sums, cnts = defaultdict(lambda: zero), defaultdict(lambda: zero)
 
         for u_idx, (kind, rows) in enumerate(units):
             # A unit with no loss term runs no backward, so its activation graph stays alive through these references; drop
@@ -723,7 +784,20 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 c_reg = reg_cens[rows]
                 reg_ord = reg_ok & (c_reg == 0)
                 reg_plain = reg_ord
-                if use_comp:
+                if use_comp and mctx is not None:
+                    # whole matrices: the unit's rows live, every other matrix row from the cache (gradient reaches the unit's rows only)
+                    L_mix = mctx['L'].index_put((rows,), mt_pred_cal)
+                    p_full = link.obs_ddG(L_mix, dGwt_all, bg_all) if use_link else L_mix
+                    comp = self._compute_block_components(p_full - mctx['t'], mctx['t'], mt_w, mctx['reg_ord'], flip_keys, mctx['rid'],
+                                                          INT_MIN_ROWS, INT_MIN_COLS)
+                    if comp is not None:
+                        blk = (comp_w[0] * balance(hp, 'comp_off') * comp['off'] + comp_w[1] * balance(hp, 'comp_subst') * comp['subst']
+                               + comp_w[2] * balance(hp, 'comp_int') * comp['int'])
+                        losses_mt.append(hp.lambda_reg_mt_master * blk / global_w_sum)
+                        for _k in ('off', 'subst', 'int'):
+                            _tap(self, 'comp_' + _k, hp.lambda_reg_mt_master * balance(hp, 'comp_' + _k) * comp[_k] / global_w_sum)
+                    reg_plain = reg_ord & ~mctx['covered'][rows]        # logged once per batch from the cache (_matrix_context)
+                elif use_comp:
                     # cells of complete position-pair blocks: the squared error is split into pair offset, substitution effects and interaction
                     # and each part is weighted on its own; every other cell keeps the plain regression below
                     comp = self._compute_block_components(
@@ -758,6 +832,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     losses_mt.append(_tap(self, 'reg_mt_cens', hp.lambda_reg_mt_master * balance(hp, 'reg_mt') * Lh.sum() / global_w_sum))
                     sums['reg_mt_cens'] = sums['reg_mt_cens'] + Lh.sum().detach()
                     cnts['reg_mt_cens'] = cnts['reg_mt_cens'] + w[cen_mt].sum()
+            if mctx is not None and lam_flip > 0 and mctx['n_rev']:
+                ia, ib, ic, id_, sign = mctx['tet']
+                L_mix = mctx['L'].index_put((rows,), mt_pred_cal)
+                con = L_mix[ia] - L_mix[ib] - L_mix[ic] + L_mix[id_]                              # latent; live where the unit's rows are
+                L_rev = torch.nn.functional.softplus(-sign * con / float(hp.flip_scale))
+                losses_mt.append(_tap(self, 'flip_mt', lam_flip * L_rev.sum() / mctx['n_rev']))
             tet = rev_units.get(u_idx)
             if tet is not None and len(tet[0]):
                 ia, ib, ic, id_, sign = (torch.as_tensor(v, device=device) for v in tet)
