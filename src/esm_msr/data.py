@@ -1251,6 +1251,7 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         """Invoked by PyTorch workers at the start of every epoch."""
         if self.rng_seed is not None:
             self._rng = random.Random(self.rng_seed + getattr(self, 'epoch', 0))
+            self.epoch = getattr(self, 'epoch', 0) + 1
         self._calculate_epoch_batches(dry_run=False)
         yield from self._active_batches
 
