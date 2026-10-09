@@ -1,0 +1,24 @@
+# Queue r1 (2026-10-08 21:30), replaces q1 (4 epochs was too short: o6q01_mt16 gained +0.023 cell_rank_mt in its 4th epoch). 6 epochs, the length
+# of the reference runs o6g6_c10_hier / o6g2_c10 (e0..e5). Run by scripts/queue_runner.sh on this worktree's code; edit freely between arms.
+# Reference = o6g6_c10_hier: link, out-of-range items, --reg_balance, MT components 10/10/10 at master 0.02, MT rank 2 / alpha 4, colrank 1.
+# Judge on the cell score (val_epi_cell_rank_mt, cell_mag_comb, cell_flipacc_mt; mean of the last 2-3 epochs); guards rmse_combined_avg,
+# rho_wt_valid_avg, beyond_rho_comb.
+#
+# 1: finish o6q01_mt16 (MT rank 16 / alpha 16) to 6 epochs
+# started 2026-10-08 21:19:46: resume o6q01_mt16 6 1 2d46a12b3f7841b5b1eb722d5baad69b --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16
+# 2-3: MT regression weight. o6g1_bal111 (components 1/1/1 at master 1.0, WT regression 1.0) beat every other devel arm on nearly every level; the
+# devel arms order by master x component weight (0.002 -> 1.0). r02 = bal111's MT weights with the WT weight at the default 0.1 (separates the two)
+o6r02_m1 6 1 --include_out_of_range --reg_balance --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 1.0
+o6r03_m3 6 1 --include_out_of_range --reg_balance --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 3.0
+# 4: capacity at the reference's adapter scale alpha/sqrt(rank) = 2.83
+o6r04_mt8 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 8
+# 5: do capacity and regression weight stack?
+o6r05_mt16_m1 6 1 --include_out_of_range --reg_balance --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 1.0 --lora_rank_mt 16 --lora_alpha_mt 16
+# 6-7: the floor (pinned doubles become bounds) and the within-column ListMLE
+o6r06_floor03 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --censor_floor 0.3 --censor_floor_hinge
+o6r07_colrank0 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lambda_mt_colrank 0
+# 8: second seed of the larger MT adapter
+o6r08_mt16_s2 6 2 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16
+# 9: the confident-reversal loss (--lambda_mt_flip): added once implemented and tested
+# 10: capacity past 16 (alpha 23: adapter scale ~4 as mt16)
+o6r10_mt32 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 32 --lora_alpha_mt 23

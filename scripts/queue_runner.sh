@@ -4,6 +4,7 @@
 # WAIT_PID (the run currently on the GPU) has exited. One arm per line: NAME EPOCHS SEED [training flags...]; blank lines and '#' lines are
 # skipped. The file is re-read before every arm, so arms can be edited, reordered, added or removed while the queue runs (do NOT edit this
 # script while it runs: bash re-reads it). A started arm is commented out in place ('# started <time>: ...') so it never runs twice.
+# A line 'resume NAME EPOCHS SEED COMET_KEY [flags]' continues a finished run to EPOCHS epochs (scripts/resume_arm.sh).
 # To stop after the current arm: touch QUEUE_FILE.stop
 Q=$(readlink -f "$1"); WAIT_PID=$2
 D=/home/sareeves/playground/esm-msr-devel
@@ -23,6 +24,6 @@ while true; do
   awk -v d="$(date '+%F %T')" '!done && $0 !~ /^[[:space:]]*#/ && $0 !~ /^[[:space:]]*$/ { print "# started " d ": " $0; done = 1; next } { print }' \
     "$Q" > "$Q.tmp" && mv "$Q.tmp" "$Q"
   set -- $line
-  "$HERE/run_with_retry.sh" "$@"
+  if [ "$1" = resume ]; then shift; "$HERE/resume_arm.sh" "$@"; else "$HERE/run_with_retry.sh" "$@"; fi
   sleep 20
 done

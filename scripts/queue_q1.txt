@@ -5,8 +5,8 @@
 # references rescored with scripts/epi_from_dump.py; guards val_rmse_combined_avg, val_rho_wt_valid_avg, val_epi_beyond_rho_comb.
 #
 # 1-4: one change each from the reference (the four open questions)
-o6q01_mt16 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16
-o6q02_mt8 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 8
+# started 2026-10-08 18:46:31: o6q01_mt16 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16
+# started 2026-10-08 21:11:43: o6q02_mt8 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 8
 o6q03_floor03 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --censor_floor 0.3 --censor_floor_hinge
 o6q04_colrank0 4 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lambda_mt_colrank 0
 # 5: second seed of the likeliest winner
