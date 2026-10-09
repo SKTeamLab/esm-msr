@@ -417,9 +417,9 @@ def parse_arguments() -> argparse.Namespace:
             parser.error(f"--pack_pair_matrices puts whole position-pair matrices (up to {MAX_COLUMN_LEN ** 2} items) in one batch: --batch_size must "
                          f"be at least {MAX_COLUMN_LEN ** 2} (400 leaves room for singles), got {args.batch_size}.")
         args.flip_pair_groups = MAX_COLUMN_LEN       # every column of a pair in one sampler unit
-        if args.micro_batch_size > 2 * MAX_COLUMN_LEN:
-            logging.info(f"--pack_pair_matrices: micro_batch_size {args.micro_batch_size} reduced to {2 * MAX_COLUMN_LEN} (38) to prevent GPU OOM on whole matrices.")
-            args.micro_batch_size = 2 * MAX_COLUMN_LEN
+        if args.micro_batch_size > 48:
+            logging.info(f"--pack_pair_matrices: micro_batch_size {args.micro_batch_size} reduced to 48 to prevent GPU OOM on whole matrices.")
+            args.micro_batch_size = 48
     elif (args.mt_comp_offset, args.mt_comp_subst, args.mt_comp_int) != (1.0, 1.0, 1.0) or args.reg_balance or args.lambda_mt_flip > 0:
         if args.micro_batch_size < 2 * MAX_COLUMN_LEN:
             parser.error(f"the --mt_comp_* weights and --lambda_mt_flip need two flip columns of a pair in one micro-batch: micro_batch_size must be at least "
