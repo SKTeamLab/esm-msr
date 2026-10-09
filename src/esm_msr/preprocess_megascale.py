@@ -588,6 +588,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
             subset_caps=subset_caps,
             num_workers=args.num_workers,
             flip_pair_groups=int(getattr(args, 'flip_pair_groups', 0) or 0),
+            rng_seed=getattr(args, 'seed', None),
         )
 
         train_dataloaders_final = [consolidated_loader]

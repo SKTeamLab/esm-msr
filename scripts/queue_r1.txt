@@ -11,8 +11,8 @@
 o6r02_m1 6 1 --include_out_of_range --reg_balance --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 1.0
 # 2b-2c: whole-matrix MT losses (--pack_pair_matrices, batch 400: every oriented pair matrix whole in one batch, components and reversals on
 #    whole matrices through the prediction cache; 76 confident reversals per batch instead of 6). First GPU runs of this path.
-o6r11_pack 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --pack_pair_matrices --batch_size 400
-o6r12_pack_flip10 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --pack_pair_matrices --batch_size 400 --lambda_mt_flip 10
+o6r11_pack 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --pack_pair_matrices --batch_size 400 --micro_batch_size 38
+o6r12_pack_flip10 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --pack_pair_matrices --batch_size 400 --micro_batch_size 38 --lambda_mt_flip 10
 o6r03_m3 6 1 --include_out_of_range --reg_balance --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 3.0
 # 4: capacity at the reference's adapter scale alpha/sqrt(rank) = 2.83
 o6r04_mt8 6 1 --include_out_of_range --reg_balance --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 8

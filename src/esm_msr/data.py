@@ -1261,6 +1261,7 @@ def create_consolidated_dataloader(
     num_workers: int = 4,
     pin_memory: bool = True,
     flip_pair_groups: int = 0,
+    rng_seed: Optional[int] = None,
 ) -> DataLoader:
     """
     Factory function replacing both SubsetRestrictedProteinCyclingDataLoader 
@@ -1275,6 +1276,7 @@ def create_consolidated_dataloader(
         strategy=strategy,
         subset_caps=subset_caps,
         flip_pair_groups=flip_pair_groups,
+        rng_seed=rng_seed,
     )
     
     concat_dataset = ConcatDataset(datasets)
