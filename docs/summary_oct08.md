@@ -52,6 +52,11 @@ with micro-batch slices and packed, the rank-16 checkpoint with slices), constan
 days): the reference under the new constants, MT rank 16 / 8 / 32, MT master weight 1 and 3, whole-matrix packing with and without the reversal
 loss, floor censoring, colrank off, combinations and second seeds.
 
+Later the same evening the packed probe exposed a bug: under bf16 autocast the no-grad cache pass of `--pack_pair_matrices` left cached
+weight casts without autograd history, so packed training would have given the MT adapter no gradient. Fixed (`torch.clear_autocast_cache()`
+after the cache pass, devel `9d629d1`, regression test under autocast) before any packed arm ran; the packed probe is re-run after o6s01_ref by
+`scripts/reprobe_packed_then_queue.sh`, which then continues the queue.
+
 ## 4. Things that could still be implemented
 
 1. **Masked components on incomplete matrices.** On whole matrices every missing or censored cell makes the complete-block trimming drop a row

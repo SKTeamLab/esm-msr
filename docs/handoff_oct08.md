@@ -27,6 +27,14 @@ queue file before every arm, comments it out (`# started <time>: ...`) and runs 
 Check on it: `tail queue_history.txt`; `ps -eo pid,cmd | grep -E "queue_runner|probe_then_queue|training.py --experiment_name"`;
 `tail -c 300 run_logs/<NAME>.log`; `nvidia-smi`.
 
+**Update (2026-10-08, 23:45).** The first packed probe recorded no gradient for the MT rank loss. Cause: under bf16 autocast, the no-grad cache
+pass of `--pack_pair_matrices` left cached weight casts without autograd history, so packed training gave the MT adapter no gradient at all
+(fixed in devel `9d629d1`, regression test under CPU autocast). No packed arm had run. `scripts/reprobe_packed_then_queue.sh` now replaces the
+runner: after o6s01_ref it re-runs the packed probe, rewrites `probes/reg_balance_oct08.json` (plain constants unchanged; `*_packed` added;
+the previous file is kept as `reg_balance_oct08_before_packed_fix.json`) and continues `queue_r2.txt` with o6s02. Constants measured on 2026-10-08
+(plain, geometric mean of the rank-2 and rank-16 probes): reg_wt 28.6, reg_mt 76.5, comp_off 55.3, comp_subst 111.7, comp_int 742.3,
+flip_mt 9.1 (the rank-2 and rank-16 probes agree within about 1.3x, flip_mt 14.4 vs 5.8). Check the packed values in `queue_history.txt`.
+
 ## 3. Operating the queue
 
 * **Change upcoming arms**: edit `scripts/queue_r2.txt` (atomically: write a temp file and `mv`/`os.replace` it). Never edit a bash script
@@ -72,6 +80,8 @@ epoch, peak memory (`mem/peak_allocated_gb`), any crash with 20 log lines around
 ## 6. Traps
 
 * A hook forbids writing files in other worktrees from a session; work inside this worktree.
+* Anything that runs a forward under `torch.no_grad()` inside a training step must call `torch.clear_autocast_cache()` afterwards, or the
+  step's later forwards lose their gradient (see the update in section 2). CPU stub tests without autocast do not catch it.
 * `scripts/run_arm.sh` runs the code of the worktree it lives in (set `WT=` to override).
 * `--pack_pair_matrices` needs `--batch_size` >= 361 (400 in r2); a batch of 400 drops 11.6% of the items each epoch (the per-library remainder).
 * `grad_share_probe.py --extra` takes a value that starts with `--` only as `--extra="--flag ..."`.
