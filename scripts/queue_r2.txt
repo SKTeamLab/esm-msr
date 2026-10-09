@@ -7,7 +7,8 @@
 # started 2026-10-08 22:35:38: o6s01_ref 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10
 # started 2026-10-09 02:09:21: o6s02_mt16 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 16 --lora_alpha_mt 16
 # started 2026-10-09 05:31:46: o6s03_m1 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 1 --mt_comp_subst 1 --mt_comp_int 1 --lambda_reg_mt_master 1.0
-# started 2026-10-09 11:52:09: o6s04_pack 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --pack_pair_matrices --batch_size 400 --micro_batch_size 64
+# started 2026-10-09 11:52:09: o6s04_pack (archived due to link_head gradient accumulation bug)
+o6s04_pack 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --pack_pair_matrices --batch_size 400 --micro_batch_size 64
 #
 # --- PHASE 1: MT LoRA CAPACITY SWEEP (r=2, 4, 8, 16, 32, 64, holding rsLoRA update scale fixed at ~4.0) ---
 o6s19_mt4 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 4 --lora_alpha_mt 8
