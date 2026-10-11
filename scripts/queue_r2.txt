@@ -25,21 +25,27 @@
 # started 2026-10-11 03:38:56: o6s25_flip1_nopack 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --lambda_mt_flip 1
 #
 # --- PHASE 3: SATURATION FLOOR CENSORING (basis: r=8, alpha=11, flip=1, pack B=400) ---
-o6s26_floor03 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1 --censor_floor 0.3 --censor_floor_hinge
-o6s27_floor00 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1 --censor_floor 0.0 --censor_floor_hinge
-o6s28_floor_neg05 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1 --censor_floor -0.5 --censor_floor_hinge
+# started 2026-10-11 07:09:22: o6s26_floor03 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1 --censor_floor 0.3 --censor_floor_hinge
+# started 2026-10-11 10:50:32: o6s27_floor00 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1 --censor_floor 0.0 --censor_floor_hinge
+# started 2026-10-11 14:34:35: o6s28_floor_neg05 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1 --censor_floor -0.5 --censor_floor_hinge
 #
-# --- PHASE 4: COMPONENT LOSSES DOWNWEIGHTING (1/100 of current) ---
-# o6s29_comp_down_int 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 0.1 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1
-# o6s30_comp_down_subst 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 0.1 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1
-# o6s31_comp_down_off 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 0.1 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1
-# o6s32_comp_down_all 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 0.1 --mt_comp_subst 0.1 --mt_comp_int 0.1 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1
+# --- EXTENSION PHASE: RESUME & EXTEND TOP 2 B=256 AND TOP 2 B=400 TO 10 EPOCHS ---
+resume o6s09_mt8 10 1 c443eb508bbe4652bdeb529c9879a1d5 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11
+resume o6s21_mt8_s2 10 2 556036d02e0b4680a045fa4cd8c3c6dc --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11
+resume o6s23_flip1_pack 10 1 524f0ff650d9416e8b1053ec5caca161 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1
+resume o6s22_flip03_pack 10 1 9c71df77bab44e71807e68c9742a4725 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 0.3
 #
-# --- PHASE 5: LOSS ABLATIONS ---
-# o6s33_no_colrank 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1 --lambda_mt_colrank 0
-# o6s34_no_reg 6 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1 --lambda_reg_mt_master 0
+# --- PHASE 4: COMPONENT LOSSES DOWNWEIGHTING (1/100 of current, 10 epochs) ---
+# o6s29_comp_down_int 10 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 0.1 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1
+# o6s30_comp_down_subst 10 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 0.1 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1
+# o6s31_comp_down_off 10 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 0.1 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1
+# o6s32_comp_down_all 10 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 0.1 --mt_comp_subst 0.1 --mt_comp_int 0.1 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1
 #
-# --- PHASE 6: FINAL COMBINATION & CONFIRMATION ---
-# o6s35_final_s1 6 1 ...
-# o6s36_final_s2 6 2 ...
-# o6s37_final_s3 6 3 ...
+# --- PHASE 5: LOSS ABLATIONS (10 epochs) ---
+# o6s33_no_colrank 10 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1 --lambda_mt_colrank 0
+# o6s34_no_reg 10 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --pack_pair_matrices --batch_size 400 --micro_batch_size 64 --lambda_mt_flip 1 --lambda_reg_mt_master 0
+#
+# --- PHASE 6: FINAL COMBINATION & CONFIRMATION (10 epochs) ---
+# o6s35_final_s1 10 1 ...
+# o6s36_final_s2 10 2 ...
+# o6s37_final_s3 10 3 ...
