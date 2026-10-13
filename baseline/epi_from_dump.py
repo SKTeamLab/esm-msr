@@ -46,7 +46,11 @@ def score(path, dgw_map):
     loader = d['loader'].astype(str)
     n_mut = d['n_mut']
     gt = d['ground_truth'].astype(float)
-    dG_wt = d['dG_wt'].astype(float) if 'dG_wt' in d.files else np.array([dgw_map().get(l, np.nan) for l in loader])
+    if 'dG_wt' in d.files:
+        dG_wt = d['dG_wt'].astype(float)
+    else:
+        m = dgw_map()
+        dG_wt = np.array([m.get(l, np.nan) for l in loader])
     st = d['subset_type'].astype(str) if 'subset_type' in d.files else np.where(n_mut == 1, 'single', 'double')
     link = None
     if 'link_summary' in d.files:
@@ -80,7 +84,11 @@ def main():
     ap.add_argument('--raw', default=RAW)
     a = ap.parse_args()
     cache = {}
-    dgw_map = lambda: cache.setdefault('m', wt_dG(a.raw))
+
+    def dgw_map():                                                  # read the raw file once, and only if some dump needs it
+        if 'm' not in cache:
+            cache['m'] = wt_dG(a.raw)
+        return cache['m']
     rows = []
     for p in a.dumps:
         r = score(p, dgw_map)
