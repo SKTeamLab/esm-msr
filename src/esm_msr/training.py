@@ -626,6 +626,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # Regression sees a censored item as a bound (hinge) when it has no usable value (out of range), or if asked for floor items.
         hinge_w = float(hp.get('censor_reg_weight', 1.0))
         hinge_src = (cens_src == censoring.SRC_RANGE) | bool(hp.get('censor_floor_hinge', False))
+        # where the hinge acts: 'observed' (through the link; the link's floor must reach the bound) or 'latent' (the bound through the
+        # link's inverse, detached; the link gets no gradient from censored items)
+        hinge_latent = str(hp.get('censor_hinge_scale', 'observed')) == 'latent'
         reg_cens = torch.where((cens_all != 0) & hinge_src, cens_all, torch.zeros_like(cens_all))
         # Monotone link (esm_msr.link): regression on the observed scale, observed = h(dG_wt + background + latent) - dG_wt.
         link = self.link_head
@@ -761,8 +764,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                             cnts['reg_wt'] = cnts['reg_wt'] + w_mb[ord_wt].sum()
                         cen_wt = reg_rows & (c_reg != 0) & torch.isfinite(cens_bound[rows])
                         if hinge_w > 0 and cen_wt.any():
-                            Lh = censoring.censored_regression_loss(self.crit_reg, p_wt[cen_wt], cens_bound[rows][cen_wt],
-                                                                    c_reg[cen_wt]) * w_mb[cen_wt] * hinge_w
+                            if use_link and hinge_latent:
+                                Lh = censoring.latent_censored_regression_loss(
+                                    self.crit_reg, link, wt_pred_cal[cen_wt], dGwt_all[rows][cen_wt],
+                                    dGwt_all[rows][cen_wt] + cens_bound[rows][cen_wt], c_reg[cen_wt]) * w_mb[cen_wt] * hinge_w
+                            else:
+                                Lh = censoring.censored_regression_loss(self.crit_reg, p_wt[cen_wt], cens_bound[rows][cen_wt],
+                                                                        c_reg[cen_wt]) * w_mb[cen_wt] * hinge_w
                             losses_wt.append(_tap(self, 'reg_wt_cens', hp.lambda_reg_wt * balance(hp, 'reg_wt') * Lh.sum() / global_w_sum))
                             sums['reg_wt_cens'] = sums['reg_wt_cens'] + Lh.sum().detach()
                             cnts['reg_wt_cens'] = cnts['reg_wt_cens'] + w_mb[cen_wt].sum()
@@ -854,8 +862,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     cnts['reg_mt'] = cnts['reg_mt'] + w[reg_plain].sum()
                 cen_mt = m_mt_ok & link_ok[rows] & (c_reg != 0) & torch.isfinite(b_mt)
                 if hinge_w > 0 and cen_mt.any():
-                    Lh = censoring.censored_regression_loss(self.crit_reg, p_mt[cen_mt], b_mt[cen_mt],
-                                                            c_reg[cen_mt]) * w[cen_mt] * hinge_w
+                    if use_link and hinge_latent:
+                        base = dGwt_all[rows][cen_mt] + bg_all[rows][cen_mt]
+                        Lh = censoring.latent_censored_regression_loss(self.crit_reg, link, mt_pred_cal[cen_mt], base,
+                                                                       dGwt_all[rows][cen_mt] + b_mt[cen_mt], c_reg[cen_mt]) * w[cen_mt] * hinge_w
+                    else:
+                        Lh = censoring.censored_regression_loss(self.crit_reg, p_mt[cen_mt], b_mt[cen_mt],
+                                                                c_reg[cen_mt]) * w[cen_mt] * hinge_w
                     losses_mt.append(_tap(self, 'reg_mt_cens', hp.lambda_reg_mt_master * balance(hp, 'reg_mt') * Lh.sum() / global_w_sum))
                     sums['reg_mt_cens'] = sums['reg_mt_cens'] + Lh.sum().detach()
                     cnts['reg_mt_cens'] = cnts['reg_mt_cens'] + w[cen_mt].sum()

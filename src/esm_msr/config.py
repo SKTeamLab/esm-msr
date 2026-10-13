@@ -233,6 +233,12 @@ def parse_arguments() -> argparse.Namespace:
                                  "needed for regression (reg_ok is ignored while the link is on); ranking is unchanged because h is monotone. Conditional items are "
                                  "scored as the double they came from. Drop --shared_bias_init (the link fixes the zero point) and the legacy "
                                  "--lambda_*_combined terms are not supported with it. 'none' restores the pre-link behaviour exactly (default since 2026-10-05: softclamp).")
+    loss_group.add_argument('--censor_hinge_scale', choices=['observed', 'latent'], default='observed',
+                            help="Where the censored hinge acts under --link. 'observed' (default, the behaviour of every run so far): the observed "
+                                 "prediction against the bound, e.g. -1 for a variant reported '<-1'; while the link's floor is above the bound this "
+                                 "cannot be met, and every dead variant drags the floor down and softens it. 'latent': the bound through the link's "
+                                 "inverse (detached), at or below the floor = the floor's knee; the variant's own latent is pushed down and the link "
+                                 "gets no gradient from censored items. No effect without --link.")
     loss_group.add_argument('--link_lo', type=float, default=-1.0, help="Initial floor of the link (kcal/mol); the assay reports -1.")
     loss_group.add_argument('--link_hi', type=float, default=5.0, help="Initial ceiling of the link (kcal/mol); the assay reports 5.")
     loss_group.add_argument('--link_tau', type=float, default=0.5,

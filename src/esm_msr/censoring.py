@@ -107,6 +107,20 @@ def censored_regression_loss(crit, pred: torch.Tensor, bound: torch.Tensor, cens
     return crit(pred, bound) * violated.to(pred.dtype)
 
 
+def latent_censored_regression_loss(crit, link, latent: torch.Tensor, base: torch.Tensor, bound_abs: torch.Tensor,
+                                    cens: torch.Tensor) -> torch.Tensor:
+    """
+    ``--censor_hinge_scale latent``: the censored hinge on the LATENT scale. The bound (an absolute observed dG, e.g. -1 for a variant
+    reported '<-1') goes through the link's inverse, detached: at or below the link's floor it becomes the floor's knee ``lo`` (the variant
+    is at or below the floor), at or above the ceiling the ceiling's knee ``hi``, and inside the range its exact latent value. The
+    absolute latent dG ``base + latent`` is then hinged against it. Unlike the observed-scale hinge, this can always be met by the
+    variant's own prediction, so a dead variant pushes its latent down instead of dragging the link's floor below -1.
+    """
+    with torch.no_grad():
+        zb = link.inverse(bound_abs, below_lo=0.0, above_hi=0.0)
+    return censored_regression_loss(crit, base + latent, zb, cens)
+
+
 def auroc(scores_pos: np.ndarray, scores_neg: np.ndarray) -> float:
     """P(a random positive scores higher than a random negative); ties count half. NaN if either side is empty."""
     p, n = np.asarray(scores_pos, float), np.asarray(scores_neg, float)
