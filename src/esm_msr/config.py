@@ -113,6 +113,15 @@ def parse_arguments() -> argparse.Namespace:
                             help="With --tf_singles latent_link: a single is forced at most this far (kcal/mol) below its measurement, "
                                  "max(h^-1(dG_wt + ddG) - dG_wt, ddG - shift). The inverse is unbounded where h is flat (at or below the floor); "
                                  "the lift test supports about 0.4-0.5 kcal/mol of compression for singles measured at dG 0 to 0.5.")
+    loss_group.add_argument('--nonspecific_term', choices=['none', 'fx'], default='none',
+                            help="Nonspecific epistasis as its own term (needs --link). 'fx': a learned piecewise-linear f(x) added to every "
+                                 "multi-mutant's latent before the link, x = dG_wt + the additive latent ddG (the forced WT half, detached); "
+                                 "singles never get it, so the link keeps modelling the readout. At validation comb gains f and the MT readout 2f. "
+                                 "Kept in checkpoints as ns_head.*; not yet read by inference_scripts.")
+    loss_group.add_argument('--ns_knot_lo', type=float, default=-3.0, help="Lowest knot of f (kcal/mol of additive dG); f is constant below.")
+    loss_group.add_argument('--ns_knot_hi', type=float, default=5.0, help="Highest knot of f; f is constant above.")
+    loss_group.add_argument('--ns_knot_step', type=float, default=0.5, help="Knot spacing of f (kcal/mol).")
+    loss_group.add_argument('--ns_lr', type=float, default=5e-3, help="Learning rate of f (no weight decay, no warm-up, never cut by the plateau).")
     loss_group.add_argument('--link_lo', type=float, default=-1.0, help="Initial floor of the link (kcal/mol); the assay reports -1.")
     loss_group.add_argument('--link_hi', type=float, default=5.0, help="Initial ceiling of the link (kcal/mol); the assay reports 5.")
     loss_group.add_argument('--link_tau', type=float, default=0.5, help="Initial softness (kcal/mol) of both knees of the link.")
@@ -229,6 +238,8 @@ def parse_arguments() -> argparse.Namespace:
         parser.error(f"unrecognized arguments: {' '.join(remaining_argv)}")
     if args.link != 'none' and args.lambda_epi_combined > 0:
         parser.error("--lambda_epi_combined regresses a latent dddG onto the measured (saturated) one; it is not defined with --link")
+    if args.nonspecific_term != 'none' and args.link == 'none':
+        parser.error("--nonspecific_term needs --link (f acts on the latent scale, before the link)")
     if args.tf_singles != 'measured' and (args.link == 'none' or args.lora_mode != 'ensemble'):
         parser.error(f"--tf_singles {args.tf_singles} needs --link (the forcing is on the latent scale) and --lora_mode ensemble")
     if args.link != 'none' and (getattr(args, 'incl_mut_ctx', False) or getattr(args, 'incl_reversions', False)):

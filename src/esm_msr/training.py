@@ -68,6 +68,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # Monotone saturating link (esm_msr.link): latent stability -> the assay's observed dG. Lives on the Lightning module, not on
         # self.model, so the released model's state and inference are unchanged; checkpoints keep it as link_head.*.
         self.link_head = None
+        # --nonspecific_term fx: f(x) added to a multi-mutant's latent before the link (esm_msr.link.NonspecificTerm); kept as ns_head.*
+        self.ns_head = None
+        if self.hparams.get('nonspecific_term', 'none') == 'fx':
+            self.ns_head = link_mod.NonspecificTerm(lo=float(self.hparams.get('ns_knot_lo', -3.0)), hi=float(self.hparams.get('ns_knot_hi', 5.0)),
+                                                    step=float(self.hparams.get('ns_knot_step', 0.5)))
         if self.hparams.get('link', 'none') != 'none':
             self.link_head = link_mod.MonotoneLink(
                 lo=self.hparams.link_lo, hi=self.hparams.link_hi, tau_lo=self.hparams.link_tau, tau_hi=self.hparams.link_tau,
@@ -334,6 +339,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
                 combined_pred_raw = 0.5 * forced_wt_raw + 0.5 * mt_pred_raw
                 combined_pred_cal = 0.5 * forced_wt_cal + 0.5 * mt_pred_cal
+                ns = getattr(self, 'ns_head', None)
+                if ns is not None:
+                    # nonspecific epistasis f(x) on multi-mutants only: x = dG_wt + the additive latent the forcing uses (the forced WT half;
+                    # where that half is the WT pass of the multi-mutant, which carries the calibration bias once, add one bias per extra
+                    # mutation). Detached: f does not train the WT half. Its own gradient comes from the combined losses.
+                    ch = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
+                    s_ns = 1.0 if ch is None or not ch.use_scale else ch.scale.detach()
+                    b_ns = 0.0 if ch is None or ch.bias is None else ch.bias.detach()
+                    n_mut = micro['mut_mask'].sum(dim=1).float()
+                    from_pass = torch.ones_like(n_mut, dtype=torch.bool) if self.model.lora_mode != 'ensemble' else (
+                        torch.zeros_like(n_mut, dtype=torch.bool) if tf_mode == 'predicted' else ~has_add_label)
+                    x_hat = (dGwt_mb + forced_wt_cal + torch.where(from_pass, b_ns * (n_mut - 1.0), torch.zeros_like(n_mut))).detach()
+                    f_ns = torch.where((n_mut > 1) & link_ok, ns(x_hat), torch.zeros_like(x_hat))
+                    combined_pred_cal = combined_pred_cal + f_ns
+                    combined_pred_raw = combined_pred_raw + f_ns / s_ns
                 epi_pred = 0.5 * mt_pred_cal - 0.5 * forced_wt_cal
                 
                 mt_losses = []
@@ -444,6 +464,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.link_head is not None:
             for k, v in self.link_head.summary().items():
                 self.log(f"link/{k}", v, on_step=True)
+        if getattr(self, 'ns_head', None) is not None:
+            with torch.no_grad():
+                for xv in (-1.0, 0.0, 1.0, 2.0, 3.0):
+                    self.log(f"ns/f_at_x{xv:+.0f}", float(self.ns_head(torch.tensor([xv], device=self.ns_head.values.device))[0]), on_step=True)
 
         for k, v in logs.items():
             if v > 0.0: self.log(f"train/{k}", v, on_step=True)
@@ -452,6 +476,28 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.log("amp_scale", self.trainer.precision_plugin.scaler.get_scale(), on_step=True)
 
         return torch.tensor(0.0, device=self.device)
+
+    def _apply_nonspecific(self, out_dict, batch, dG_wt):
+        """With --nonspecific_term: a multi-mutant's combined prediction gains f(x) and its MT readout 2 f(x) (so comb = (WT + MT) / 2 still
+        holds), x = dG_wt + the WT pass (additive) + one calibration bias per extra mutation. Singles and items without dG_wt are untouched."""
+        ns = getattr(self, 'ns_head', None)
+        if ns is None:
+            return out_dict
+        dev = out_dict['combined_pred'].device
+        mm = batch['mut_mask'].to(dev)
+        n_mut = mm.sum(dim=1).float()
+        dgw = dG_wt.to(dev).float()
+        ok = (n_mut > 1) & torch.isfinite(dgw)
+        ch = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
+        b = 0.0 if ch is None or ch.bias is None else ch.bias.detach()
+        with torch.no_grad():
+            x_hat = torch.where(ok, dgw, torch.zeros_like(dgw)) + out_dict['wt_lora_pred'].float() + b * (n_mut - 1.0)
+            f = torch.where(ok, ns(x_hat), torch.zeros_like(x_hat))
+        out = dict(out_dict)
+        out['combined_pred'] = out_dict['combined_pred'].float() + f
+        out['mt_lora_pred'] = out_dict['mt_lora_pred'].float() + 2.0 * f
+        out['epi_pred'] = out_dict['epi_pred'].float() + f
+        return out
 
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         with torch.inference_mode():
@@ -462,6 +508,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         n_items = int(out_dict['wt_lora_pred'].shape[0])
         dG_wt = batch['dG_wt'].float() if torch.is_tensor(batch.get('dG_wt')) else torch.full((n_items,), float('nan'))
+        out_dict = self._apply_nonspecific(out_dict, batch, dG_wt)
         obs = {}
         if self.link_head is not None:
             # observed-scale predictions, h(dG_wt + latent) - dG_wt, for the rmse metrics only (rank metrics read the latent scores; the
@@ -514,6 +561,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
                 os.makedirs(log_dir, exist_ok=True)
                 extra = {'link_summary': np.array(json.dumps(self.link_head.summary()))} if self.link_head is not None else {}
+                if getattr(self, 'ns_head', None) is not None:
+                    extra['ns_term'] = np.array(json.dumps(self.ns_head.table()))
                 np.savez_compressed(os.path.join(log_dir, f'val_dump_{tag}.npz'), wt=items['wt'], mt=items['mt'], comb=items['comb'],
                                     wt_rev=items['wt_rev'], mt_fwd=f('mt_fwd_scores'), dddG=items['dddG'], n_mut=np.asarray(pooled['n_mut']),
                                     ground_truth=items['ddG'], dG_wt=items['dG_wt'], subset_type=np.asarray(items['subset_type'], dtype=str),
@@ -754,12 +803,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.link_head is not None:
             link_params = [p for p in self.link_head.parameters() if p.requires_grad]
             main_groups.append({"params": link_params, "lr": float(self.hparams.link_lr), "weight_decay": 0.0, "name": "link"})
+        if getattr(self, 'ns_head', None) is not None:
+            main_groups.append({"params": list(self.ns_head.parameters()), "lr": float(self.hparams.get('ns_lr', 5e-3)), "weight_decay": 0.0,
+                                "name": "nonspecific"})
 
         opt_main = torch.optim.AdamW(main_groups, lr=base_lr, betas=(0.9, 0.999), fused=True, weight_decay=wd)
 
         lambdas_main = []
         for g in main_groups:
-            if "calib" in g["name"] or g["name"] == "link": lambdas_main.append(lambda step: 1.0)
+            if "calib" in g["name"] or g["name"] in ("link", "nonspecific"): lambdas_main.append(lambda step: 1.0)
             elif g["name"] == "lora_mt":
                 lambdas_main.append(lambda step, delay=self.hparams.mt_lora_delay_steps, warmup=self.hparams.lr_warmup_steps: 0.0 if step < delay else min(1.0, max(1e-4, (step - delay) / max(1, warmup))))
             else:
@@ -767,7 +819,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         warmup_main = torch.optim.lr_scheduler.LambdaLR(opt_main, lr_lambda=lambdas_main)
         # the link's group keeps its learning rate (its min_lr is its lr); every other group as released
-        min_lrs = [float(g["lr"]) if g["name"] == "link" else 1e-7 for g in main_groups]
+        min_lrs = [float(g["lr"]) if g["name"] in ("link", "nonspecific") else 1e-7 for g in main_groups]
         plateau_main = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_main, mode='max', factor=0.1, patience=1, min_lr=min_lrs)
 
         return [opt_main], [{"scheduler": warmup_main, "interval": "step", "frequency": 1}, {"scheduler": plateau_main, "interval": "epoch", "frequency": 1, "monitor": "val_rho_combined_avg"}]
@@ -808,7 +860,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         
         filtered_state_dict = {
             k: v for k, v in state_dict.items()
-            if 'lora' in k.lower() or 'calibration' in k.lower() or k.startswith('link_head.')
+            if 'lora' in k.lower() or 'calibration' in k.lower() or k.startswith('link_head.') or k.startswith('ns_head.')
         }
         
         if not filtered_state_dict:

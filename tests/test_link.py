@@ -69,11 +69,12 @@ def run(batch, link=None, **hp):
              mask_strategy=None, detach_regression=False, lambda_reg_wt=1.0, lambda_rank_wt=0.0, lambda_reg_combined=1.0,
              lambda_rank_combined=0.0, lambda_epi_combined=0.0, double_weight=1.0, mut_ctx_weight=0.5, reversion_weight=0.5)
     bias = h.pop('bias', None) if 'bias' in h else hp.pop('bias', None)
+    ns = hp.pop('ns', None)
     h.update(hp)
     model = StubModel()
     if bias is not None:                                     # a WT calibration bias (the stub's predictions do not add it themselves)
         head = CalHead(); head.bias = torch.tensor(float(bias)); model.calibration_head_wt = head
-    stub = types.SimpleNamespace(hparams=types.SimpleNamespace(**h), model=model, link_head=link,
+    stub = types.SimpleNamespace(hparams=types.SimpleNamespace(**h), model=model, link_head=link, ns_head=ns,
                                  peft_manager=types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False),
                                  crit_reg=torch.nn.MSELoss(reduction='none'), crit_rank_wt=ListMLELoss(), crit_rank_combined=ListMLELoss())
     stub.manual_backward = lambda loss, retain_graph=False: loss.backward(retain_graph=retain_graph)
@@ -201,13 +202,62 @@ class TestTeacherForcingSingles(unittest.TestCase):
         self.assertNotAlmostEqual(m1['L_reg_combined'], m2['L_reg_combined'], places=3)          # the released forcing does read them
 
 
+class TestNonspecificTerm(unittest.TestCase):
+    def test_piecewise_linear_and_constant_beyond_the_knots(self):
+        from esm_msr.link import NonspecificTerm
+        f = NonspecificTerm(lo=-1.0, hi=1.0, step=1.0)
+        with torch.no_grad():
+            f.values.copy_(torch.tensor([0.4, 0.2, 0.0]))
+        torch.testing.assert_close(f(torch.tensor([-5.0, -1.0, -0.5, 0.5, 1.0, 7.0])), torch.tensor([0.4, 0.4, 0.3, 0.1, 0.0, 0.0]))
+
+    def _ns(self, value):
+        from esm_msr.link import NonspecificTerm
+        f = NonspecificTerm(lo=-3.0, hi=5.0, step=0.5)
+        with torch.no_grad():
+            f.values.fill_(value)
+        return f
+
+    def test_it_shifts_doubles_only_and_reads_the_additive_expectation(self):
+        # double: forced WT half = measured additive -1.6, MT = feat -1.5; f = 0.4 everywhere -> combined = -1.55 + 0.4 against ddG_AB -1.9
+        b = tf_batch(-1.2, -0.4, -1.5)
+        out, _ = run(b, link=IDENTITY(), ns=self._ns(0.4), lambda_reg_wt=0.0)
+        self.assertAlmostEqual(out['L_reg_combined'], (-1.55 + 0.4 + 1.9) ** 2, places=4)
+        s = make_batch(ddG=[-0.5], feat=[-0.3], n_mut=[1], dG_wt=[2.0])                     # a single: no f
+        o1, _ = run(s, link=IDENTITY(), ns=self._ns(0.4), lambda_reg_wt=0.0)
+        o0, _ = run(s, link=IDENTITY(), lambda_reg_wt=0.0)
+        self.assertAlmostEqual(o1['L_reg_combined'], o0['L_reg_combined'], places=6)
+
+    def test_f_learns_from_doubles_and_never_trains_the_wt_half(self):
+        ns = self._ns(0.0)
+        b = tf_batch(-1.2, -0.4, -1.5, single_feats=(-0.3, -1.1))
+        _, stub = run(b, link=IDENTITY(), ns=ns, lambda_reg_wt=0.0)
+        self.assertGreater(float(ns.values.grad.abs().sum()), 0.0)
+        ns2 = self._ns(0.0)
+        s = make_batch(ddG=[-0.5, -1.0], feat=[-0.3, -0.8], n_mut=[1, 1], dG_wt=[2.0, 2.0])
+        _, stub2 = run(s, link=IDENTITY(), ns=ns2, lambda_reg_wt=0.0)
+        self.assertTrue(ns2.values.grad is None or float(ns2.values.grad.abs().sum()) == 0.0)
+        self.assertEqual(float(stub2.model.w.grad[0]), 0.0)                                    # the WT pass gets nothing from the combined losses
+
+    def test_validation_adds_f_to_comb_and_twice_f_to_the_mt_readout(self):
+        from esm_msr import training
+        ns = self._ns(0.3)
+        stub = types.SimpleNamespace(ns_head=ns, model=StubModel())
+        out = {'combined_pred': torch.tensor([1.0, 2.0]), 'mt_lora_pred': torch.tensor([1.0, 2.0]), 'wt_lora_pred': torch.tensor([1.0, 2.0]),
+               'epi_pred': torch.tensor([0.0, 0.0])}
+        batch = {'mut_mask': torch.tensor([[True, False], [True, True]])}
+        r = training.ESM3EpistasisLightningModule._apply_nonspecific(stub, out, batch, torch.tensor([2.0, 2.0]))
+        torch.testing.assert_close(r['combined_pred'], torch.tensor([1.0, 2.3]))
+        torch.testing.assert_close(r['mt_lora_pred'], torch.tensor([1.0, 2.6]))
+        torch.testing.assert_close(r['wt_lora_pred'], torch.tensor([1.0, 2.0]))
+
+
 class TestCheckpoint(unittest.TestCase):
     def test_the_link_is_kept_in_the_filtered_checkpoint(self):
         from esm_msr import training
         stub = types.SimpleNamespace(peft_manager=types.SimpleNamespace())
-        ck = {'state_dict': {'link_head.lo': torch.tensor(0.0), 'model.peft_wt.lora_A': torch.zeros(1), 'model.esm.blocks.0.w': torch.zeros(1)}}
+        ck = {'state_dict': {'link_head.lo': torch.tensor(0.0), 'ns_head.values': torch.zeros(3), 'model.peft_wt.lora_A': torch.zeros(1), 'model.esm.blocks.0.w': torch.zeros(1)}}
         training.ESM3EpistasisLightningModule.on_save_checkpoint(stub, ck)
-        self.assertEqual(set(ck['state_dict']), {'link_head.lo', 'model.peft_wt.lora_A'})
+        self.assertEqual(set(ck['state_dict']), {'link_head.lo', 'ns_head.values', 'model.peft_wt.lora_A'})
 
 
 if __name__ == '__main__':
