@@ -109,6 +109,10 @@ def parse_arguments() -> argparse.Namespace:
                                  "double onto the sum of its singles uses the same latent sum. 'predicted' (needs --link): the model's own latent "
                                  "single predictions (the WT pass, detached), summed per mutation (the WT pass of a double plus one calibration "
                                  "bias per extra mutation); no single label is read for the forcing.")
+    loss_group.add_argument('--tf_latent_max_shift', type=float, default=0.5,
+                            help="With --tf_singles latent_link: a single is forced at most this far (kcal/mol) below its measurement, "
+                                 "max(h^-1(dG_wt + ddG) - dG_wt, ddG - shift). The inverse is unbounded where h is flat (at or below the floor); "
+                                 "the lift test supports about 0.4-0.5 kcal/mol of compression for singles measured at dG 0 to 0.5.")
     loss_group.add_argument('--link_lo', type=float, default=-1.0, help="Initial floor of the link (kcal/mol); the assay reports -1.")
     loss_group.add_argument('--link_hi', type=float, default=5.0, help="Initial ceiling of the link (kcal/mol); the assay reports 5.")
     loss_group.add_argument('--link_tau', type=float, default=0.5, help="Initial softness (kcal/mol) of both knees of the link.")

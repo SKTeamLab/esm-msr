@@ -161,16 +161,30 @@ class TestTeacherForcingSingles(unittest.TestCase):
         self.assertAlmostEqual(m['L_reg_combined'], l['L_reg_combined'], places=5)
         torch.testing.assert_close(s0.model.w.grad, s1.model.w.grad, atol=1e-5, rtol=1e-4)
 
-    def test_latent_link_takes_a_near_floor_single_to_its_latent_depth(self):
-        # floor at 0: single A measured at dG -0.9 (below it) -> latent at most lo - 2 = -2, i.e. ddG_A -4; B (dG 1.5) is in range
+    def test_latent_link_takes_a_near_floor_single_deeper_by_at_most_the_cap(self):
+        # floor at 0: single A measured at dG -0.9 (below it, not invertible) -> capped at 0.5 below its measurement, ddG_A -3.4;
+        # B (dG 1.5) is in range and stays where it is
         link = MonotoneLink(lo=0.0, hi=5.0, tau_lo=0.05, tau_hi=0.05)
         b = tf_batch(-2.9, -0.5, -5.0)
-        lat = float(link.inverse(torch.tensor(-0.9)) - 2.0 + link.inverse(torch.tensor(1.5)) - 2.0)
-        self.assertLess(lat, -4.4)
+        lat = -3.4 + float(link.inverse(torch.tensor(1.5)) - 2.0)
+        self.assertAlmostEqual(lat, -3.9, places=3)
         out, _ = run(b, link=link, tf_singles='latent_link', lambda_reg_combined=0.0)
         self.assertAlmostEqual(out['L_reg_wt'], (-5.0 - lat) ** 2, places=4)                    # the WT double target is the latent sum
+        wide, _ = run(b, link=link, tf_singles='latent_link', lambda_reg_combined=0.0, tf_latent_max_shift=1.5)
+        self.assertAlmostEqual(wide['L_reg_wt'], (-5.0 - (lat - 1.0)) ** 2, places=4)          # the cap sets how deep
+
+    def test_inside_the_range_the_inverse_link_sets_the_depth(self):
+        # a soft knee: a single at dG 0.2 is moved by less than the cap, exactly to h^-1
+        link = MonotoneLink(lo=-0.5, hi=5.0, tau_lo=0.5, tau_hi=0.5)
+        b = tf_batch(-1.8, -0.5, -5.0)                                                         # dG_A 0.2, dG_B 1.5
+        inv = lambda dg: float(link.inverse(torch.tensor(dg))) - 2.0
+        lat = inv(0.2) + inv(1.5)
+        self.assertGreater(inv(0.2), -1.8 - 0.5)                                                  # within the cap
+        self.assertLess(inv(0.2), -1.8 - 0.05)                                                    # but deeper than measured
+        out, _ = run(b, link=link, tf_singles='latent_link', lambda_reg_combined=0.0)
+        self.assertAlmostEqual(out['L_reg_wt'], (-5.0 - lat) ** 2, places=4)
         meas, _ = run(b, link=link, tf_singles='measured', lambda_reg_combined=0.0)
-        self.assertAlmostEqual(meas['L_reg_wt'], (-5.0 + 3.4) ** 2, places=4)
+        self.assertAlmostEqual(meas['L_reg_wt'], (-5.0 + 2.3) ** 2, places=4)                    # released: the measured sum
 
     def test_predicted_forcing_reads_no_single_label_and_adds_one_bias_per_extra_mutation(self):
         link = IDENTITY()

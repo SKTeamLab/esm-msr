@@ -241,8 +241,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if tf_mode == 'latent_link' and use_link:
                 # --tf_singles latent_link: each measured single back on the latent scale, h^-1(dG_wt + ddG_X) - dG_wt (detached), so a
                 # near-floor single whose measurement is compressed is forced at its deeper latent value; a double's label is the sum of its two
+                # at most --tf_latent_max_shift below the measurement: where h is flat (at or below the floor) the inverse is unbounded, and
+                # the evidence (lift test, docs/epistasis_metrics_report.html) supports about 0.4-0.5 kcal/mol of compression at dG 0-0.5
+                max_shift = float(getattr(self.hparams, 'tf_latent_max_shift', 0.5))
                 with torch.no_grad():
-                    inv = lambda y: link.inverse(dGwt_mb + y) - dGwt_mb
+                    inv = lambda y: torch.maximum(link.inverse(dGwt_mb + y, below_lo=50.0) - dGwt_mb, y - max_shift)
                     lat = torch.where(is_single, inv(ddG_mb), inv(micro['ddG_A'].float()) + inv(micro['ddG_B'].float()))
                 tf_additive_labels = torch.where(has_add_label & link_ok & torch.isfinite(lat), lat, tf_additive_labels)
 
