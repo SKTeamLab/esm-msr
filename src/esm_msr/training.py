@@ -162,16 +162,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
     def _compute_rank_loss(self, pred, targets, mask, list_size, crit_fn):
+        """
+        Mean over the micro-batch's lists of each list's loss scaled by list_size / (its own valid length); a list with fewer than two valid
+        items contributes 0 and still counts. Weighted by num_lists / global_num_lists by the caller, the sum over micro-batches is then the
+        same whatever --micro_batch_size is (a micro-batch of one list is the released behaviour exactly).
+        """
         valid_len = (pred.shape[0] // list_size) * list_size
         if valid_len > 0:
             pred_rank = pred[:valid_len].view(-1, list_size)
             targ_rank = targets[:valid_len].view(-1, list_size)
             mask_rank = mask[:valid_len].view(-1, list_size)
-            L_raw = crit_fn(pred_rank, targ_rank, mask=mask_rank)
-            avg_len = mask_rank.float().sum(dim=-1).mean()
-            scaled_loss = L_raw * (list_size / avg_len.clamp(min=1.0))
             num_lists = valid_len // list_size
-            return scaled_loss, L_raw.detach().item(), num_lists
+            per_list = torch.stack([crit_fn(pred_rank[i:i + 1], targ_rank[i:i + 1], mask=mask_rank[i:i + 1]) for i in range(num_lists)])
+            n_valid = mask_rank.float().sum(dim=-1).clamp(min=1.0)
+            scaled_loss = (per_list * (list_size / n_valid)).mean()
+            return scaled_loss, per_list.detach().mean().item(), num_lists
         return None, 0.0, 0
 
     def _compose_losses_streaming_and_backward(self, batch: dict) -> dict:
