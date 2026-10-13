@@ -89,6 +89,23 @@ class MonotoneLink(nn.Module):
         return self(dG_wt + bg_offset + latent) - dG_wt
 
     @torch.no_grad()
+    def inverse(self, dG_obs: torch.Tensor, below_lo: float = 2.0, above_hi: float = 2.0) -> torch.Tensor:
+        """
+        h^-1: the latent dG whose observed value is ``dG_obs`` (absolute dG). Exact inside the range; where h is flat it is not invertible, so
+        values at or below the floor map to at most ``below_lo`` kcal/mol below ``lo`` and values at or above the ceiling to at most
+        ``above_hi`` above ``hi``. No gradient (used for teacher-forcing targets, which must not train the link).
+        """
+        lo, hi, tl, th = self.params()
+        sp_inv = lambda v: v + torch.log(-torch.expm1(-v))              # log(exp(v) - 1), stable for large v
+        v = (hi - dG_obs) / th
+        u = hi - th * sp_inv(v.clamp(min=1e-6))
+        w = (u - lo) / tl
+        z = lo + tl * sp_inv(w.clamp(min=1e-6))
+        z = torch.where(w <= 1e-6, lo - below_lo, z)                    # at or below the floor
+        z = torch.where(v <= 1e-6, hi + above_hi, z)                    # at or above the ceiling
+        return torch.minimum(torch.maximum(z, lo - below_lo), hi + above_hi)
+
+    @torch.no_grad()
     def numpy(self):
         """This link as a numpy function of absolute dG (see ``numpy_link``)."""
         lo, hi, tl, th = (float(v) for v in self.params())

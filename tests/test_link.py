@@ -68,8 +68,12 @@ def run(batch, link=None, **hp):
     h = dict(subset_size=4, micro_batch_size=64, mt_reg_mask='all', zero_epistasis_for_singles=True, detach_ensemble_input=True,
              mask_strategy=None, detach_regression=False, lambda_reg_wt=1.0, lambda_rank_wt=0.0, lambda_reg_combined=1.0,
              lambda_rank_combined=0.0, lambda_epi_combined=0.0, double_weight=1.0, mut_ctx_weight=0.5, reversion_weight=0.5)
+    bias = h.pop('bias', None) if 'bias' in h else hp.pop('bias', None)
     h.update(hp)
-    stub = types.SimpleNamespace(hparams=types.SimpleNamespace(**h), model=StubModel(), link_head=link,
+    model = StubModel()
+    if bias is not None:                                     # a WT calibration bias (the stub's predictions do not add it themselves)
+        head = CalHead(); head.bias = torch.tensor(float(bias)); model.calibration_head_wt = head
+    stub = types.SimpleNamespace(hparams=types.SimpleNamespace(**h), model=model, link_head=link,
                                  peft_manager=types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False),
                                  crit_reg=torch.nn.MSELoss(reduction='none'), crit_rank_wt=ListMLELoss(), crit_rank_combined=ListMLELoss())
     stub.manual_backward = lambda loss, retain_graph=False: loss.backward(retain_graph=retain_graph)
@@ -126,6 +130,61 @@ class TestComposition(unittest.TestCase):
         link = MonotoneLink()
         run(self.batch, link=link)
         self.assertGreater(sum(float(p.grad.abs().sum()) for p in link.parameters()), 0.0)
+
+
+class TestInverse(unittest.TestCase):
+    def test_round_trip_inside_the_range_and_clamped_where_h_is_flat(self):
+        link = MonotoneLink(lo=-1.0, hi=5.0, tau_lo=0.5, tau_hi=0.5)
+        z = torch.linspace(-0.5, 4.0, 50)
+        torch.testing.assert_close(link.inverse(link(z)), z, atol=2e-4, rtol=1e-4)
+        self.assertAlmostEqual(float(link.inverse(torch.tensor(-1.5))), -3.0, places=4)          # below the floor: lo - 2
+        self.assertLess(float(link.inverse(torch.tensor(-0.8))), -1.3)                           # compressed near the floor: deeper
+        sharp = MonotoneLink(lo=0.0, hi=5.0, tau_lo=0.05, tau_hi=0.05)
+        self.assertAlmostEqual(float(sharp.inverse(torch.tensor(-0.9))), -2.0, places=4)          # below a sharp floor too
+
+
+def tf_batch(ddG_A, ddG_B, feat, dG_wt=2.0, single_feats=()):
+    """One double (singles ddG_A, ddG_B; measured double ddG_A + ddG_B - 0.3) plus optional singles, all in one library."""
+    n = 1 + len(single_feats)
+    b = make_batch(ddG=[ddG_A + ddG_B - 0.3] + [-0.5] * len(single_feats), feat=[feat] + list(single_feats), n_mut=[2] + [1] * len(single_feats),
+                   dG_wt=[dG_wt] * n, ddG_additive=[ddG_A + ddG_B] + [float('nan')] * len(single_feats))
+    b['ddG_A'] = torch.tensor([ddG_A] + [float('nan')] * len(single_feats))
+    b['ddG_B'] = torch.tensor([ddG_B] + [float('nan')] * len(single_feats))
+    return b
+
+
+class TestTeacherForcingSingles(unittest.TestCase):
+    def test_latent_link_with_an_identity_link_is_the_released_forcing(self):
+        b = tf_batch(-1.2, -0.4, -1.5, single_feats=(-0.3, -1.1, 0.2))
+        m, s0 = run(b, link=IDENTITY(), tf_singles='measured')
+        l, s1 = run(b, link=IDENTITY(), tf_singles='latent_link')
+        self.assertAlmostEqual(m['L_reg_combined'], l['L_reg_combined'], places=5)
+        torch.testing.assert_close(s0.model.w.grad, s1.model.w.grad, atol=1e-5, rtol=1e-4)
+
+    def test_latent_link_takes_a_near_floor_single_to_its_latent_depth(self):
+        # floor at 0: single A measured at dG -0.9 (below it) -> latent at most lo - 2 = -2, i.e. ddG_A -4; B (dG 1.5) is in range
+        link = MonotoneLink(lo=0.0, hi=5.0, tau_lo=0.05, tau_hi=0.05)
+        b = tf_batch(-2.9, -0.5, -5.0)
+        lat = float(link.inverse(torch.tensor(-0.9)) - 2.0 + link.inverse(torch.tensor(1.5)) - 2.0)
+        self.assertLess(lat, -4.4)
+        out, _ = run(b, link=link, tf_singles='latent_link', lambda_reg_combined=0.0)
+        self.assertAlmostEqual(out['L_reg_wt'], (-5.0 - lat) ** 2, places=4)                    # the WT double target is the latent sum
+        meas, _ = run(b, link=link, tf_singles='measured', lambda_reg_combined=0.0)
+        self.assertAlmostEqual(meas['L_reg_wt'], (-5.0 + 3.4) ** 2, places=4)
+
+    def test_predicted_forcing_reads_no_single_label_and_adds_one_bias_per_extra_mutation(self):
+        link = IDENTITY()
+        b1 = tf_batch(-1.2, -0.4, -1.5)
+        b2 = tf_batch(-0.1, 0.3, -1.5)                                                          # other single labels, same double
+        b2['ddG'] = b1['ddG'].clone()
+        o1, s1 = run(b1, link=link, tf_singles='predicted', lambda_reg_wt=0.0, bias=0.5)
+        o2, s2 = run(b2, link=link, tf_singles='predicted', lambda_reg_wt=0.0, bias=0.5)
+        torch.testing.assert_close(s1.model.w.grad, s2.model.w.grad)
+        # WT pass = MT pass = feat (-1.5); forced = WT + bias (0.5); combined = 0.5 (-1.0) + 0.5 (-1.5) = -1.25 against ddG_AB -1.9
+        self.assertAlmostEqual(o1['L_reg_combined'], (-1.25 + 1.9) ** 2, places=4)
+        m1, _ = run(b1, link=link, tf_singles='measured', lambda_reg_wt=0.0, bias=0.5)
+        m2, _ = run(b2, link=link, tf_singles='measured', lambda_reg_wt=0.0, bias=0.5)
+        self.assertNotAlmostEqual(m1['L_reg_combined'], m2['L_reg_combined'], places=3)          # the released forcing does read them
 
 
 class TestCheckpoint(unittest.TestCase):

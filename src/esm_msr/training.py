@@ -236,11 +236,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # Explicitly set singles to use their true ddG as the additive expectation
             tf_additive_labels[is_single] = ddG_mb[is_single]
             has_add_label = ~torch.isnan(tf_additive_labels)
-                
+
+            tf_mode = getattr(self.hparams, 'tf_singles', 'measured')
+            if tf_mode == 'latent_link' and use_link:
+                # --tf_singles latent_link: each measured single back on the latent scale, h^-1(dG_wt + ddG_X) - dG_wt (detached), so a
+                # near-floor single whose measurement is compressed is forced at its deeper latent value; a double's label is the sum of its two
+                with torch.no_grad():
+                    inv = lambda y: link.inverse(dGwt_mb + y) - dGwt_mb
+                    lat = torch.where(is_single, inv(ddG_mb), inv(micro['ddG_A'].float()) + inv(micro['ddG_B'].float()))
+                tf_additive_labels = torch.where(has_add_label & link_ok & torch.isfinite(lat), lat, tf_additive_labels)
+
             if valid_double.any() and 'ddG_additive' in micro:
                 valid_wt_mask[valid_double & torch.isnan(micro['ddG_additive'])] = False
                 valid_add_doubles = valid_double & ~torch.isnan(micro['ddG_additive'])
-                wt_targets[valid_add_doubles] = micro['ddG_additive'][valid_add_doubles].float()
+                # the sum of the two singles: measured, or (latent_link) the same latent sum the forcing uses
+                wt_targets[valid_add_doubles] = tf_additive_labels[valid_add_doubles]
 
             epi_targets = torch.zeros_like(ddG_mb)
             epi_mask = torch.zeros_like(is_single, dtype=torch.bool) if self.hparams.zero_epistasis_for_singles else is_single.clone()
@@ -304,10 +314,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     # Invert the calibration: raw = (cal - bias) / scale
                     s = 1.0 if not cal_head.use_scale else cal_head.scale.detach()
                     b = 0.0 if cal_head.bias is None else cal_head.bias.detach()
-                    decalibrated_label = (tf_additive_labels - b) / s
-                    
-                    forced_wt_cal = torch.where(has_add_label, tf_additive_labels, base_wt_cal)
-                    forced_wt_raw = torch.where(has_add_label, decalibrated_label, base_wt_raw)
+                    if tf_mode == 'predicted':
+                        # --tf_singles predicted: the model's own latent single predictions, no label. The WT pass of a multi-mutant is
+                        # scale * sum(LLR) + bias; the sum of its singles' predictions carries one bias per mutation
+                        n_mut = micro['mut_mask'].sum(dim=1).float()
+                        forced_wt_cal = base_wt_cal.detach() + b * (n_mut - 1.0)
+                        forced_wt_raw = (forced_wt_cal - b) / s
+                    else:
+                        decalibrated_label = (tf_additive_labels - b) / s
+                        forced_wt_cal = torch.where(has_add_label, tf_additive_labels, base_wt_cal)
+                        forced_wt_raw = torch.where(has_add_label, decalibrated_label, base_wt_raw)
                 elif self.model.lora_mode == 'corrector':
                     forced_wt_cal, forced_wt_raw = base_wt_cal, base_wt_raw
                 else:
