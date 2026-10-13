@@ -30,5 +30,8 @@ trusted metrics, and test conservative augmentations of it, starting with devel'
   as in devel: `val_rho_combined_avg`, `val_rmse_combined_avg` (observed scale under the link; benchmarks stay latent), `val_rho_wt_valid_avg`
   (WT on singles, mutant-background libraries left out). The released ddG metrics are still logged unchanged. Full definitions and the
   reading guide: `docs/validation_metrics.md` on devel. This replaces the earlier `epi_hierarchy.py` transplant.
+* **Micro-batch size** changes speed and memory only (since `0330f78`: each ranking list is normalised by its own valid length;
+  before, at more than one list per micro-batch, WT lists with masked doubles were reweighted). Micro 64 runs about 2.9x faster than
+  the released 16 on the RTX 5090 (0.43 vs 0.15 it/s, GPU 88% vs 29%, about 26 GB). `tests/test_microbatch.py` checks 16 vs 64.
 * **Dumps**: `val_dump_<tag>.npz` gains `dG_wt`, `subset_type` and `link_summary`. `baseline/epi_from_dump.py` rescores any dump of this branch
   (old ones get dG_wt from the raw file), e.g. the basis run, for a like-for-like comparison.
