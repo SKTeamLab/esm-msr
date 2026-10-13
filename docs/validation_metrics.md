@@ -31,6 +31,10 @@ choice is in the epistasis metrics report (`docs/epistasis_metrics_report.html`)
 | diagnostic | `val_epi_cell_sigsd_mt` | how much partner-dependent order the MT pass predicts at all (0 = additive readout) | (not a skill) |
 | per library | `val_rho_combined/<lib>`, `val_rmse_combined/<lib>` | the ddG product per library | |
 
+**Since 2026-10-13 every epistasis metric is logged for every trained head** (`_comb`, `_mt`, `_ctx`; the naive and global metrics also for
+`_add`): 33 names in all. The table lists the ones to read first; the rest complete the grid so that each level can be read as mt (or comb)
+against the ctx control. `val_epi_cell_flipacc_comb` equals `_mt` by construction.
+
 Counts, logged every validation: `val_epi_n_doubles`, `val_epi_n_pairs`, `val_epi_n_blocks`, `val_epi_n_flips` (8,494 / 24 / 24 / 2,509 on
 the capped split; a change means the validation set changed).
 
@@ -168,10 +172,17 @@ believed (cell_rank_mt 0.014, cell_mag 0.02, flipacc 0.03, beyond 0.011, line 0.
 ## In `inference_scripts/esm_msr_testing.py`
 
 The same metrics are computed for every evaluated checkpoint on the MegaScale validation and test scaffolds and on the DMS sets, for the
-heads `comb` (combined_pred), `mt` (mt_lora_pred) and `add` (wt_lora_pred, the saturation control); the WT-in-context control needs the
-reverse WT leg, which inference does not run. Per library they are extra `epi_*` columns of the `_Combined`, `_MT_LoRA` and `_WT_LoRA` stats
-files (the pair level is NaN there: one library has too few matrices); pooled over all libraries of a scaffold they go to `<stats>_Epistasis.csv`
-(one row per head). Besides the metrics above, testing reports the three **raw** levels the training set replaced, `epi_pair_raw`,
+heads `comb` (combined_pred), `mt` (mt_lora_pred), `ctx` (ctx_pred = (WT + ~WT)/2, the WT-in-context control) and `add` (wt_lora_pred, the
+saturation control). The ctx head needs the reverse WT leg, which inference runs on those sets unless `--skip_wt_ctx` (`infer_mutants(...,
+wt_reverse=True)`: one more pass per mutant, unmasked inference only; columns `wt_rev_pred`, `ctx_pred`, `ctx_dddg_pred`). Per library they are
+extra `epi_*` columns of the `_Combined`, `_MT_LoRA`, `_WT_ctx` and `_WT_LoRA` stats files (the pair level is NaN there: one library has too
+few matrices); pooled over all libraries of a scaffold they go to `<stats>_Epistasis.csv` (one row per head).
+
+The ddG guards map to: `val_rho_combined_avg` = mean `spearman_all` of `_Combined`; `val_rho_wt_valid_avg` = mean `spearman_singles` of
+`_WT_LoRA` (testing does not drop mutant-background libraries); `val_rmse_combined_avg` = mean `rmse_obs_all` of `_Combined` (MegaScale
+scaffolds): a `--link` checkpoint's inference is latent, so `rmse_*` is on the latent scale and `rmse_obs_{all,singles,doubles}` puts each head
+through the checkpoint's link, h(dG_wt + latent) - dG_wt, as training does (not written with `--recalibrate`, whose columns are already on
+the measured scale). Besides the metrics above, testing reports the three **raw** levels the training set replaced, `epi_pair_raw`,
 `epi_line_raw`, `epi_cell_raw` (pair means, line effects and double-centred cells of raw observed-scale dddG): saturation leaks into them (the
 saturation-only head scores about 0.71 / 0.48 / 0.10 in simulation and 0.50 / 0.53 / 0.23 on the validation doubles), so read them only beside
 the residualised levels. Observed-scale predictions use the checkpoint's link when it has one (inference itself returns the latent ddG). DMS

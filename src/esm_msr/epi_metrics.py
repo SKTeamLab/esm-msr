@@ -42,31 +42,33 @@ Heads (each head is a rule for the latent ddG of a single or a double; observed 
     add   WT: the WT adapter on the wild type, additive by construction. Through the link it scores ONLY by saturation: the CONTROL for the naive
           and global metrics (it is exactly 0 / 0.5 on every other one, so it is not logged there).
 
-The metrics (``METRICS`` below; logged as ``val_epi_<name>``):
+The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``). Every metric is logged for each of the three heads comb, mt and ctx
+(ctx only with --val_cycle_passes), so the MT adapter's contribution is always readable as mt (or comb) minus ctx at the same level; add is
+logged where it is not identically 0 / 0.5 (the naive and global metrics, which saturation alone can earn).
 
-    naive_rho_{comb,add}      Spearman of predicted against measured dddG over all doubles, observed scale. Holistic and naive: under a link
-                              most of it is saturation (add scores about as much as comb). A summary, not a target.
-    global_err_{comb,add}     RMSE (kcal/mol) between the predicted and the measured E[dddG | x] (quantile bins of the measured x). How well the
-                              model reproduces the global curve; add shows how much of it the link alone carries.
-    global_bias_comb          the weighted mean of (predicted - measured) over the same bins: negative = the model under-predicts the
-                              nonspecific (saturation) epistasis, e.g. a link floor below the assay's practical floor.
-    beyond_rho_{comb,ctx}     Spearman of the beyond-global residuals over all doubles: everything above the global level at once (pair offsets
-                              dominate it). The clean holistic number.
-    pair_rho_comb             Spearman across position pairs of the pairs' mean residuals. Only about 24 pairs (9 libraries) in validation:
-                              report it, do not select on it.
-    line_rho_{comb,ctx}       Spearman, pooled over the lines of every matrix (both orientations), of the line means of the residuals centred
-                              on their matrix mean.
-    cell_mag_comb             each matrix trimmed to a complete block, residuals double-centred, Spearman per block, mean over blocks.
-    cell_rank_{comb,mt,ctx}   the same block, but each column of measured ddG_AB and of the head's latent ddG_AB rank-transformed before
-                              double-centring (both orientations, mean per block, mean over blocks). Saturation-free; exactly 0 for any
-                              predictor whose order within a column does not depend on the partner. (The doubles-based successor of
-                              val_rho_flip_pair_mt_avg; r = 0.89 with it across past runs.)
-    cell_flipacc_{mt,ctx}     of the 2 x 2 sub-blocks whose measured order REVERSES between two columns by more than ``FLIP_DELTA`` kcal/mol on
-                              both sides, the share in which the head's predicted interaction contrast (L_ij - L_i'j - L_ij' + L_i'j', latent;
-                              pair, row and column effects cancel exactly) has the reversal's sign; ties count half, so an additive head is
-                              exactly 0.5. comb's contrast is half of mt's, so the two are identical.
-    cell_sigsd_mt             the standard deviation of the head's double-centred column ranks: how much partner-dependent order it predicts
-                              at all (0 = an additive readout; not a skill score).
+    naive_rho_{comb,mt,ctx,add}     Spearman of predicted against measured dddG over all doubles, observed scale. Holistic and naive: under a
+                                    link most of it is saturation (add scores about as much as comb). A summary, not a target.
+    global_err_{comb,mt,ctx,add}    RMSE (kcal/mol) between the predicted and the measured E[dddG | x] (quantile bins of the measured x). How
+                                    well the head reproduces the global curve; add shows how much of it the link alone carries.
+    global_bias_{comb,mt,ctx,add}   the weighted mean of (predicted - measured) over the same bins: negative = the head under-predicts the
+                                    nonspecific (saturation) epistasis, e.g. a link floor below the assay's practical floor.
+    beyond_rho_{comb,mt,ctx}        Spearman of the beyond-global residuals over all doubles: everything above the global level at once (pair
+                                    offsets dominate it). The clean holistic number.
+    pair_rho_{comb,mt,ctx}          Spearman across position pairs of the pairs' mean residuals. Only about 24 pairs (9 libraries) in
+                                    validation: report it, do not select on it.
+    line_rho_{comb,mt,ctx}          Spearman, pooled over the lines of every matrix (both orientations), of the line means of the residuals
+                                    centred on their matrix mean.
+    cell_mag_{comb,mt,ctx}          each matrix trimmed to a complete block, residuals double-centred, Spearman per block, mean over blocks.
+    cell_rank_{comb,mt,ctx}         the same block, but each column of measured ddG_AB and of the head's latent ddG_AB rank-transformed before
+                                    double-centring (both orientations, mean per block, mean over blocks). Saturation-free; exactly 0 for any
+                                    predictor whose order within a column does not depend on the partner.
+    cell_flipacc_{comb,mt,ctx}      of the 2 x 2 sub-blocks whose measured order REVERSES between two columns by more than ``FLIP_DELTA``
+                                    kcal/mol on both sides, the share in which the head's predicted interaction contrast (L_ij - L_i'j -
+                                    L_ij' + L_i'j', latent; pair, row and column effects cancel exactly) has the reversal's sign; ties count
+                                    half, so an additive head is exactly 0.5. comb's contrast is half of mt's, so the two are identical (comb
+                                    is logged anyway, for a uniform table).
+    cell_sigsd_{comb,mt,ctx}        the standard deviation of the head's double-centred column ranks: how much partner-dependent order it
+                                    predicts at all (0 = an additive readout; not a skill score).
 
 Counts (logged as ``val_epi_n_<name>``): doubles, pairs, complete blocks, confident flips.
 """
@@ -90,18 +92,20 @@ MIN_LINE = 3             # a line needs this many cells for its mean
 MIN_BLOCK = 3            # a complete block needs at least this many rows and columns
 
 HEADS = ('comb', 'mt', 'ctx', 'add')
-# name -> heads it is logged for. The order is the reading order of the hierarchy.
+SYM = ('comb', 'mt', 'ctx')
+# name -> heads it is logged for. The order is the reading order of the hierarchy. Every metric for every trained head (symmetric); the
+# additive control only where it is not 0 / 0.5 by construction.
 METRICS = {
-    'naive_rho': ('comb', 'add'),
-    'global_err': ('comb', 'add'),
-    'global_bias': ('comb',),
-    'beyond_rho': ('comb', 'ctx'),
-    'pair_rho': ('comb',),
-    'line_rho': ('comb', 'ctx'),
-    'cell_mag': ('comb',),
-    'cell_rank': ('comb', 'mt', 'ctx'),
-    'cell_flipacc': ('mt', 'ctx'),
-    'cell_sigsd': ('mt',),
+    'naive_rho': SYM + ('add',),
+    'global_err': SYM + ('add',),
+    'global_bias': SYM + ('add',),
+    'beyond_rho': SYM,
+    'pair_rho': SYM,
+    'line_rho': SYM,
+    'cell_mag': SYM,
+    'cell_rank': SYM,
+    'cell_flipacc': SYM,
+    'cell_sigsd': SYM,
 }
 COUNTS = ('doubles', 'pairs', 'blocks', 'flips')
 # Not logged in training (saturation leaks into them; docs/validation_metrics.md): the levels computed on RAW observed-scale dddG, the
@@ -199,7 +203,8 @@ class Table:
           ``mut_key`` (tuple of mutations, each a tuple whose last two elements are position and mutant residue and whose other elements
           identify the library, so keys never pair across libraries), ``subset_type``, ``cens`` (-1/0/+1), ``ddG`` (measured), ``dddG``
           (measured, doubles), ``dG_wt``, and the latent scores ``wt`` (WT pass), ``mt`` (MT pass), ``comb`` and optionally ``wt_rev`` (the WT
-          adapter's reverse leg on the mutated sequence, forward sign; --val_cycle_passes).
+          adapter's reverse leg on the mutated sequence, forward sign; --val_cycle_passes) or ``ctx`` itself ((WT + ~WT)/2,
+          inference's ctx_pred; preferred when given).
         ``link``: the run's monotone link h on ABSOLUTE dG (numpy), or None. Observed = h(dG_wt + latent) - dG_wt.
         """
         keys = list(items['mut_key'])
@@ -209,7 +214,9 @@ class Table:
         gt, dddG = np.asarray(items['ddG'], float), np.asarray(items['dddG'], float)
         c = np.asarray(items['dG_wt'], float) if items.get('dG_wt') is not None else np.full(n, np.nan)
         lat = {'add': np.asarray(items['wt'], float), 'mt': np.asarray(items['mt'], float), 'comb': np.asarray(items['comb'], float)}
-        if items.get('wt_rev') is not None and np.isfinite(np.asarray(items['wt_rev'], float)).any():
+        if items.get('ctx') is not None and np.isfinite(np.asarray(items['ctx'], float)).any():
+            lat['ctx'] = np.asarray(items['ctx'], float)              # given directly (inference's ctx_pred, possibly recalibrated)
+        elif items.get('wt_rev') is not None and np.isfinite(np.asarray(items['wt_rev'], float)).any():
             lat['ctx'] = 0.5 * (lat['add'] + np.asarray(items['wt_rev'], float))
         self.heads = [h for h in heads if h in lat]
 

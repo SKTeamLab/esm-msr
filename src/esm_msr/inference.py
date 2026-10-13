@@ -237,9 +237,13 @@ def _dtype_autocast(model, dev):
 
 
 @torch.no_grad()
-def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, backbone_mutation=None, optimize_wt_pass=True, quiet=False, skip_additive=True, skip_reverse=False, mask_strategy=None, calculate_distances=False, ignore_mismatch=True, auto_batch=None) -> pd.DataFrame:
+def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, backbone_mutation=None, optimize_wt_pass=True, quiet=False, skip_additive=True, skip_reverse=False, mask_strategy=None, calculate_distances=False, ignore_mismatch=True, auto_batch=None, wt_reverse=False) -> pd.DataFrame:
     """
     A unified, highly interpretable pipeline to evaluate mutational stability.
+
+    ``wt_reverse``: also run the reverse WT leg (the WT adapter on the mutated sequence, reverse mutation, negated) and add the columns
+    ``wt_rev_pred`` and ``ctx_pred`` = (wt_lora_pred + wt_rev_pred) / 2, the WT-in-context control head of the epistasis metrics (with
+    ``ctx_dddg_pred`` / ``ctx_pred_additive`` like the other heads). One more pass per mutant; unmasked inference only (NaN otherwise).
     """
     if df.empty:
         logging.warning("infer_mutants received an empty DataFrame. Returning an empty result.")
@@ -351,7 +355,8 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
             skip_reverse=skip_reverse,
             cached_wt_esm3=cached_wt_esm3,
             quiet=quiet,
-            auto_batch=auto_batch
+            auto_batch=auto_batch,
+            wt_reverse=wt_reverse
         )
     
     # Pull all GPU results to host with three bulk copies instead of three
@@ -359,11 +364,14 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
     _wt_vals = out['wt_lora_pred'].cpu().tolist()
     _mt_vals = out['mt_lora_pred'].cpu().tolist()
     _comb_vals = out['combined_pred'].cpu().tolist()
+    _rev_vals = out['wt_rev_pred'].cpu().tolist() if wt_reverse and 'wt_rev_pred' in out else [float('nan')] * len(_wt_vals)
     preds = {
         mut_tup: {
             'wt_lora': _wt_vals[i],
             'mt_lora': _mt_vals[i],
-            'combined': _comb_vals[i]
+            'combined': _comb_vals[i],
+            'wt_rev': _rev_vals[i],
+            'ctx': 0.5 * (_wt_vals[i] + _rev_vals[i]),
         }
         for i, mut_tup in enumerate(muts_to_score_list)
     }
@@ -394,6 +402,9 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
                 # combined_pred remains the calibrated ddG output.
                 'epistasis_pred': mt_tot - wt_tot
             })
+            if wt_reverse:
+                rev_tot, ctx_tot = preds[muts_tup]['wt_rev'], preds[muts_tup]['ctx']
+                res_dict.update({'wt_rev_pred': rev_tot, 'ctx_pred': ctx_tot, 'ctx_dddg_pred': 0.5 * rev_tot - 0.5 * wt_tot})
         else:
             wt_add = sum(preds[(m,)]['wt_lora'] for m in muts)
             mt_add = sum(preds[(m,)]['mt_lora'] for m in muts)
@@ -410,6 +421,11 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
                 # See the note in the skip_additive branch: read epistasis from the MT pass.
                 'epistasis_pred': mt_tot - mt_add
             })
+            if wt_reverse:
+                ctx_add = sum(preds[(m,)]['ctx'] for m in muts)
+                ctx_tot = preds[muts_tup]['ctx']
+                res_dict.update({'wt_rev_pred': preds[muts_tup]['wt_rev'], 'ctx_pred_additive': ctx_add, 'ctx_dddg_pred': ctx_tot - ctx_add,
+                                 'ctx_pred': ctx_tot})
 
         if calculate_distances and len(muts) == 2:
             res_dict['dist'] = dist_matrix[muts[0][1], muts[1][1]].item()

@@ -176,6 +176,22 @@ def update_stats(stats_df, row_name, res_df, true_col, pred_col, epi_true_col='d
     return stats_df
 
 
+def update_obs_rmse(stats_df, row_name, res_df, true_col, pred_col, link, dG_wt):
+    """rmse_obs_{all,singles,doubles}: the head's LATENT predictions put on the assay's observed scale through the checkpoint's link,
+    h(dG_wt + latent) - dG_wt (training's val_rmse_combined_avg for the combined head). Rows of a library without dG_wt are left out."""
+    if link is None or not dG_wt or pred_col not in res_df.columns or true_col not in res_df.columns or 'code' not in res_df.columns:
+        return stats_df
+    c = res_df['code'].astype(str).map(dG_wt).to_numpy(float)
+    x = pd.to_numeric(res_df[pred_col], errors='coerce').to_numpy(float)
+    y = pd.to_numeric(res_df[true_col], errors='coerce').to_numpy(float)
+    obs = link(c + x) - c
+    dbl = res_df['mut_type'].astype(str).str.contains(':').to_numpy() if 'mut_type' in res_df.columns else np.zeros(len(x), bool)
+    for tag, sel in (('all', np.ones(len(x), bool)), ('singles', ~dbl), ('doubles', dbl)):
+        ok = sel & np.isfinite(obs) & np.isfinite(y)
+        stats_df.at[row_name, f'rmse_obs_{tag}'] = float(np.sqrt(np.mean((obs[ok] - y[ok]) ** 2))) if ok.any() else float('nan')
+    return stats_df
+
+
 def update_delta_stats(stats_df, row_name, res_df, epi_true_col):
     """Per-library MT-vs-WT single-mutant disagreement and its effect on the epistasis readouts
     (see stats.delta_single_diagnostics). Skipped quietly if the predictions lack the columns."""
@@ -195,10 +211,15 @@ def save_delta_stats(stats_df, stats_base):
 # =========================================================================
 # EPISTASIS METRICS (esm_msr.epi_metrics; definitions and reading guide: docs/validation_metrics.md)
 # =========================================================================
-# The level-by-level metrics of training validation, plus the raw (saturation-confounded) levels they replaced, for three heads:
-#   comb = combined_pred (the reported prediction), mt = mt_lora_pred (the epistasis readout), add = wt_lora_pred (additive by
-#   construction: through a link it scores only by saturation, the control for naive_rho / global_err / *_raw).
-# The WT-in-context control (ctx) needs the reverse WT leg, which inference does not run; it exists in training validation only.
+# The level-by-level metrics of training validation, plus the raw (saturation-confounded) levels they replaced, for four heads:
+#   comb = combined_pred (the reported prediction), mt = mt_lora_pred (the epistasis readout), ctx = ctx_pred = (WT + ~WT)/2 (the WT adapter
+#   read in context as well, the control for what the MT adapter adds: compare mt / comb with ctx at each level; needs the reverse WT leg,
+#   run unless --skip_wt_ctx, Tsuboyama and DMS sets only), add = wt_lora_pred (additive by construction: through a link it scores only by
+#   saturation, the control for naive_rho / global_err / *_raw). Every metric is reported for every head (<stats>_Epistasis.csv, and the
+#   epi_* columns of _Combined / _MT_LoRA / _WT_ctx / _WT_LoRA).
+# The ddG guards of training validation: rho_combined = spearman_all of _Combined, rho_wt_valid = spearman_singles of _WT_LoRA, and
+# rmse_combined = rmse_obs_all of _Combined: with a --link checkpoint (and no --recalibrate) inference returns LATENT predictions, so
+# rmse_* is latent and rmse_obs_* puts them on the assay's observed scale, h(dG_wt + latent) - dG_wt, as training does (Tsuboyama sets).
 #
 #   epi_naive_rho     Spearman of predicted vs measured dddG over all doubles (observed scale). Naive: under a link mostly saturation.
 #   epi_global_err    RMSE (kcal/mol) of the predicted vs measured mean dddG curve against the additive expectation x = dG_wt + ddG_A + ddG_B.
@@ -219,7 +240,7 @@ def save_delta_stats(stats_df, stats_base):
 # The additive expectation needs each library's dG_wt: MegaScale libraries use the preprocessor's; datasets without a dG scale (the DMS sets)
 # use 0, so the global curve is then the fitness map of the summed singles.
 
-EPI_HEADS = {'combined_pred': 'comb', 'mt_lora_pred': 'mt', 'wt_lora_pred': 'add'}
+EPI_HEADS = {'combined_pred': 'comb', 'mt_lora_pred': 'mt', 'ctx_pred': 'ctx', 'wt_lora_pred': 'add'}
 EPI_TESTING = {m: tuple(EPI_HEADS.values()) for m in list(epi_metrics.METRICS) + list(epi_metrics.RAW_METRICS)}
 _MUT_RE = re.compile(r'^([A-Za-z])(\d+)([A-Za-z])$')
 
@@ -229,7 +250,7 @@ def epi_items(res_df, truth_col, epi_true_col, dG_wt=None, lib=''):
     'A12G' / 'A12G:K30R'. Mutations are tagged with the row's `code` (else ``lib``) so doubles pair only with their own library's singles.
     ``dG_wt``: a dict code -> dG_wt (missing codes, or None, use 0). Rows whose mutations do not parse are skipped."""
     col = 'mut_type' if 'mut_type' in res_df.columns else ('mut_info' if 'mut_info' in res_df.columns else None)
-    out = {k: [] for k in ('mut_key', 'subset_type', 'cens', 'ddG', 'dddG', 'dG_wt', 'wt', 'mt', 'comb')}
+    out = {k: [] for k in ('mut_key', 'subset_type', 'cens', 'ddG', 'dddG', 'dG_wt', 'wt', 'mt', 'comb', 'ctx')}
     if col is None or truth_col not in res_df.columns:
         return out
     codes = res_df['code'].astype(str).to_numpy() if 'code' in res_df.columns else np.full(len(res_df), str(lib))
@@ -247,11 +268,12 @@ def epi_items(res_df, truth_col, epi_true_col, dG_wt=None, lib=''):
         out['cens'].append(0); out['ddG'].append(truth[i]); out['dddG'].append(dddg[i] if len(key) == 2 else np.nan)
         out['dG_wt'].append(float((dG_wt or {}).get(code, 0.0)))
         out['wt'].append(preds['add'][i]); out['mt'].append(preds['mt'][i]); out['comb'].append(preds['comb'][i])
+        out['ctx'].append(preds['ctx'][i])
     return out
 
 
 def merge_items(items_list):
-    keys = ('mut_key', 'subset_type', 'cens', 'ddG', 'dddG', 'dG_wt', 'wt', 'mt', 'comb')
+    keys = ('mut_key', 'subset_type', 'cens', 'ddG', 'dddG', 'dG_wt', 'wt', 'mt', 'comb', 'ctx')
     return {k: [v for it in items_list for v in it[k]] for k in keys}
 
 
@@ -274,7 +296,7 @@ def epi_scores(items, link):
         return {}
     arr = {k: (v if k in ('mut_key', 'subset_type') else np.asarray(v, float)) for k, v in items.items()}
     if isinstance(link, dict):
-        key_of = {'add': 'wt', 'mt': 'mt', 'comb': 'comb'}
+        key_of = {'add': 'wt', 'mt': 'mt', 'comb': 'comb', 'ctx': 'ctx'}
         out = {}
         for head, (sc, bi, h) in link.items():
             a = dict(arr)
@@ -285,7 +307,7 @@ def epi_scores(items, link):
 
 
 def update_epi_stats(frames, row_name, items, link):
-    """Adds the epi_* columns of library ``row_name`` to the per-head stats tables ``frames`` ({'comb': df, 'mt': df, 'add': df})."""
+    """Adds the epi_* columns of library ``row_name`` to the per-head stats tables ``frames`` ({'comb': df, 'mt': df, 'ctx': df, 'add': df})."""
     for head, vals in epi_scores(items, link).items():
         if head in frames:
             for k, v in vals.items():
@@ -320,8 +342,9 @@ def save_epi_pooled(items_list, link, stats_base, label):
 # <stats>_Recalibration.json. Rank statistics within a library are unchanged (the map is monotone within a library); calibration (rmse_*),
 # the dddG readouts and the observed-scale epistasis metrics change. Fitting on the evaluated data itself makes this an upper bound on what
 # a recalibration can recover, not an evaluation of a deployable calibration.
-RECAL_COLS = {'wt_lora_pred': 'wt_lora_dddg_pred', 'mt_lora_pred': 'mt_lora_dddg_pred', 'combined_pred': 'combined_dddg_pred'}
-RECAL_HEAD = {'wt_lora_pred': 'add', 'mt_lora_pred': 'mt', 'combined_pred': 'comb'}
+RECAL_COLS = {'wt_lora_pred': 'wt_lora_dddg_pred', 'mt_lora_pred': 'mt_lora_dddg_pred', 'combined_pred': 'combined_dddg_pred',
+              'ctx_pred': 'ctx_dddg_pred'}
+RECAL_HEAD = {'wt_lora_pred': 'add', 'mt_lora_pred': 'mt', 'combined_pred': 'comb', 'ctx_pred': 'ctx'}
 
 
 def _fit_linear(x, y):
@@ -778,6 +801,7 @@ def main_(args):
             stats_wt = pd.DataFrame()
             stats_mt = pd.DataFrame()
             stats_cmb = pd.DataFrame()
+            stats_ctx = pd.DataFrame()
             stats_delta = pd.DataFrame()
 
             scaffold_ = {'validation': 'val', 'testing': 'test'}[scaffold]
@@ -812,7 +836,7 @@ def main_(args):
                         inference.infer_mutants, 
                         model=model, df=input_data, batch_size=16, backbone_mutation=backbone_mutation, quiet=True, 
                         skip_additive=False, mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None),
-                        skip_reverse=args.skip_reverse
+                        skip_reverse=args.skip_reverse, wt_reverse=not args.skip_wt_ctx
                     )
                     pred_df['id'] = code + ('_' if backbone_mutation is None else '_' + str(backbone_mutation) + '_') + pred_df['mut_type_renumbered']
                     pred_df = pred_df.set_index('id')
@@ -843,14 +867,21 @@ def main_(args):
             for code, group in res_df.groupby('code_wt'):
                 current_time = time_per_code.get(code, float('nan'))
                 stats_wt = update_stats(stats_wt, code, group, 'ddG_ML', 'wt_lora_pred', 'dddG_ML', 'wt_lora_dddg_pred', current_time)
+                obs_link = None if args.recalibrate else epi_link              # recalibrated columns are already on the measured scale
+                stats_wt = update_obs_rmse(stats_wt, code, group, 'ddG_ML', 'wt_lora_pred', obs_link, getattr(ds, 'dG_wt', None))
+                if 'ctx_pred' in group.columns:
+                    stats_ctx = update_stats(stats_ctx, code, group, 'ddG_ML', 'ctx_pred', 'dddG_ML', 'ctx_dddg_pred', current_time)
+                    stats_ctx = update_obs_rmse(stats_ctx, code, group, 'ddG_ML', 'ctx_pred', obs_link, getattr(ds, 'dG_wt', None))
                 if not args.skip_reverse:
                     stats_mt = update_stats(stats_mt, code, group, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', current_time)
                     stats_cmb = update_stats(stats_cmb, code, group, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', current_time)
+                    stats_mt = update_obs_rmse(stats_mt, code, group, 'ddG_ML', 'mt_lora_pred', obs_link, getattr(ds, 'dG_wt', None))
+                    stats_cmb = update_obs_rmse(stats_cmb, code, group, 'ddG_ML', 'combined_pred', obs_link, getattr(ds, 'dG_wt', None))
                     stats_delta = update_delta_stats(stats_delta, code, group, 'dddG_ML')
                     items = epi_items(group, 'ddG_ML', 'dddG_ML', dG_wt=getattr(ds, 'dG_wt', None))
                     epi_all.append(items)
-                    frames = update_epi_stats({'comb': stats_cmb, 'mt': stats_mt, 'add': stats_wt}, code, items, scaffold_link)
-                    stats_cmb, stats_mt, stats_wt = frames['comb'], frames['mt'], frames['add']
+                    frames = update_epi_stats({'comb': stats_cmb, 'mt': stats_mt, 'ctx': stats_ctx, 'add': stats_wt}, code, items, scaffold_link)
+                    stats_cmb, stats_mt, stats_ctx, stats_wt = frames['comb'], frames['mt'], frames['ctx'], frames['add']
 
             stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}{RECAL}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
@@ -865,6 +896,9 @@ def main_(args):
                 stats_mt.mean(axis=0).to_csv(f'{stats_base}_MT_LoRA_avg.csv', na_rep='', float_format='%.6f')
                 stats_cmb.mean(axis=0).to_csv(f'{stats_base}_Combined_avg.csv', na_rep='', float_format='%.6f')
                 save_epi_pooled(epi_all, scaffold_link, stats_base, f'{split_name} {scaffold}')
+            if len(stats_ctx):
+                stats_ctx.to_csv(f'{stats_base}_WT_ctx.csv', na_rep='', float_format='%.6f')
+                stats_ctx.mean(axis=0).to_csv(f'{stats_base}_WT_ctx_avg.csv', na_rep='', float_format='%.6f')
             save_recal(stats_base, f'{split_name} {scaffold}', scaffold_fits)
 
             torch.cuda.empty_cache()
@@ -881,6 +915,7 @@ def main_(args):
         stats_wt = pd.DataFrame()
         stats_mt = pd.DataFrame()
         stats_cmb = pd.DataFrame()
+        stats_ctx = pd.DataFrame()
         stats_delta = pd.DataFrame()
         
         res_combined = []
@@ -907,9 +942,9 @@ def main_(args):
 
             pred_df, t_inf = timed_call(
                 inference.infer_mutants, 
-                model=model, df=input_data, batch_size=batch_sz, quiet=False, skip_additive=False, 
+                model=model, df=input_data, batch_size=batch_sz, quiet=False, skip_additive=False,
                 mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None),
-                skip_reverse=args.skip_reverse
+                skip_reverse=args.skip_reverse, wt_reverse=not args.skip_wt_ctx
             )
             pred_df['id'] = prot_name + '_' + pred_df['mut_type_renumbered']
             pred_df = pred_df.set_index('id')
@@ -928,15 +963,17 @@ def main_(args):
             res.to_csv(out_path)
 
             stats_wt = update_stats(stats_wt, prot, res, 'ddG_ML', 'wt_lora_pred', 'dddG_ML', 'wt_lora_dddg_pred', t_inf)
+            if 'ctx_pred' in res.columns:
+                stats_ctx = update_stats(stats_ctx, prot, res, 'ddG_ML', 'ctx_pred', 'dddG_ML', 'ctx_dddg_pred', t_inf)
             if not args.skip_reverse:
                 stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', t_inf)
                 stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', t_inf)
                 stats_delta = update_delta_stats(stats_delta, prot, res, 'dddG_ML')
                 if 'dddG_ML' in res.columns:
                     # DMS scores are not dG: no dG_wt, no link (the global curve is the fitness map of the summed singles)
-                    frames = update_epi_stats({'comb': stats_cmb, 'mt': stats_mt, 'add': stats_wt}, prot,
+                    frames = update_epi_stats({'comb': stats_cmb, 'mt': stats_mt, 'ctx': stats_ctx, 'add': stats_wt}, prot,
                                               epi_items(res, 'ddG_ML', 'dddG_ML', lib=prot), recal_links(dms_fits) if args.recalibrate else None)
-                    stats_cmb, stats_mt, stats_wt = frames['comb'], frames['mt'], frames['add']
+                    stats_cmb, stats_mt, stats_ctx, stats_wt = frames['comb'], frames['mt'], frames['ctx'], frames['add']
 
             stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}{RECAL}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
@@ -951,6 +988,9 @@ def main_(args):
                 save_delta_stats(stats_delta, stats_base)
                 stats_mt.mean(axis=0).to_csv(f'{stats_base}_MT_LoRA_avg.csv', na_rep='', float_format='%.6f')
                 stats_cmb.mean(axis=0).to_csv(f'{stats_base}_Combined_avg.csv', na_rep='', float_format='%.6f')
+            if len(stats_ctx):
+                stats_ctx.to_csv(f'{stats_base}_WT_ctx.csv', na_rep='', float_format='%.6f')
+                stats_ctx.mean(axis=0).to_csv(f'{stats_base}_WT_ctx_avg.csv', na_rep='', float_format='%.6f')
 
             torch.cuda.empty_cache()
 
@@ -1061,7 +1101,10 @@ if __name__ == "__main__":
         parser.add_argument('--regenerate_results', action='store_true')
         parser.add_argument('--skip_external', action='store_true')
         parser.add_argument('--skip_tsuboyama', action='store_true')
-        parser.add_argument('--skip_ctx', action='store_true')
+        parser.add_argument('--skip_ctx', action='store_true')      # unused (kept so old command lines parse)
+        parser.add_argument('--skip_wt_ctx', action='store_true',
+                            help="Skip the reverse WT leg (one more pass per mutant, Tsuboyama and DMS sets): no ctx_pred, no ctx head in the "
+                                 "epistasis metrics, no _WT_ctx stats.")
         parser.add_argument('--skip_dms', action='store_true')
         parser.add_argument('--skip_functional', action='store_true')
         parser.add_argument('--skip_domainome', action='store_true')

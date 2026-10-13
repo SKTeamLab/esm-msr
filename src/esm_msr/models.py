@@ -839,9 +839,12 @@ class MSRModel(ESM3PredictorBase):
         return output_dict
 
     @torch.no_grad()
-    def score_screening_batch(self, wt_sequence_tokens: torch.Tensor, mut_pos: torch.Tensor, wt_id: torch.Tensor, mt_id: torch.Tensor, mut_mask: torch.Tensor, coords: Optional[torch.Tensor] = None, structure_tokens: Optional[torch.Tensor] = None, plddt: Optional[torch.Tensor] = None, mask_strategy: Optional[str] = None, batch_size: int = 32, skip_reverse: bool = False, cached_wt_esm3: Optional[Dict] = None, quiet: bool = False, auto_batch: Optional["AutoBatchSizer"] = None) -> Dict[str, torch.Tensor]:
+    def score_screening_batch(self, wt_sequence_tokens: torch.Tensor, mut_pos: torch.Tensor, wt_id: torch.Tensor, mt_id: torch.Tensor, mut_mask: torch.Tensor, coords: Optional[torch.Tensor] = None, structure_tokens: Optional[torch.Tensor] = None, plddt: Optional[torch.Tensor] = None, mask_strategy: Optional[str] = None, batch_size: int = 32, skip_reverse: bool = False, cached_wt_esm3: Optional[Dict] = None, quiet: bool = False, auto_batch: Optional["AutoBatchSizer"] = None, wt_reverse: bool = False) -> Dict[str, torch.Tensor]:
         """
         A unified, sparse-input scoring engine. 
+        ``wt_reverse``: also run the reverse WT leg (forward_cycle 'wt_rev': the WT adapter on the mutated sequence, the reverse mutation,
+        negated), returned as ``wt_rev_pred``, the second half of the WT-in-context control head (WT + ~WT)/2. Unmasked route only (NaN
+        with a mask_strategy). Costs one more pass per chunk.
         Routes dynamically between dense chunking (for unmasked) and state deduplication (for masked)
         to prevent VRAM explosions while maintaining maximum throughput.
         """
@@ -857,13 +860,14 @@ class MSRModel(ESM3PredictorBase):
         wt_lora_pred = torch.zeros(B, dtype=torch.float32, device=device)
         mt_lora_pred = torch.zeros(B, dtype=torch.float32, device=device)
         combined_pred = torch.zeros(B, dtype=torch.float32, device=device)
+        wt_rev_pred = torch.full((B,), float('nan'), dtype=torch.float32, device=device)
 
         if mask_strategy is None:
             # ROUTE 1: Dense Chunking for Unmasked (Maximum GPU Saturation, No Hashing Overhead)
             def _dense_chunk(start_idx, end_idx):
                 curr_B = end_idx - start_idx
 
-                if skip_reverse and cached_wt_esm3 is not None:
+                if skip_reverse and cached_wt_esm3 is not None and not wt_reverse:
                     # WT-only cached path: the WT pass is served entirely from
                     # the cached logits, so neither dense sequence tensor is
                     # ever read. Skip the O(B) clones and the per-row
@@ -909,6 +913,8 @@ class MSRModel(ESM3PredictorBase):
                 wt_lora_pred[start_idx:end_idx] = out['wt_lora_pred']
                 mt_lora_pred[start_idx:end_idx] = out['mt_lora_pred']
                 combined_pred[start_idx:end_idx] = out['combined_pred']
+                if wt_reverse:
+                    wt_rev_pred[start_idx:end_idx] = self.forward_cycle(chunk_batch, mask_strategy=None, legs=('wt_rev',))['wt_rev'].float()
 
             if auto_batch is None:
                 for start_idx in tqdm(range(0, B, batch_size), desc='Computing dense unmasked mutants', disable=quiet):
@@ -1065,4 +1071,4 @@ class MSRModel(ESM3PredictorBase):
 
             combined_pred = 0.5 * wt_lora_pred + 0.5 * mt_lora_pred
 
-        return {'wt_lora_pred': wt_lora_pred, 'mt_lora_pred': mt_lora_pred, 'combined_pred': combined_pred}
+        return {'wt_lora_pred': wt_lora_pred, 'mt_lora_pred': mt_lora_pred, 'combined_pred': combined_pred, 'wt_rev_pred': wt_rev_pred}
