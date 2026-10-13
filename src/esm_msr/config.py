@@ -93,6 +93,21 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--detach_regression', action=argparse.BooleanOptionalAction, default=False)
     loss_group.add_argument('--zero_epistasis_for_singles', action=argparse.BooleanOptionalAction, default=True,
                             help="Hardcode residual epistasis to 0 for single mutations and exclude them from epistasis loss.")
+    loss_group.add_argument('--link', choices=['none', 'softclamp'], default='none',
+                            help="Monotone saturating link between latent stability and the assay's observed dG (esm_msr.link, from devel). With "
+                                 "'softclamp' every regression whose target is a measurement of the item itself is done on the observed scale, "
+                                 "observed ddG = h(dG_wt + latent) - dG_wt, with h a soft floor/ceiling shared by all libraries: the WT regression "
+                                 "on singles and the combined (teacher-forced ensemble) regression on singles and doubles. The WT regression of a "
+                                 "double onto the sum of its singles stays latent (that target is a sum of two measurements, not a measurement of "
+                                 "the double). Rank losses are unchanged (h is monotone); items whose library has no measured dG_wt leave the "
+                                 "regressions. 'none' (default) is the released objective exactly.")
+    loss_group.add_argument('--link_lo', type=float, default=-1.0, help="Initial floor of the link (kcal/mol); the assay reports -1.")
+    loss_group.add_argument('--link_hi', type=float, default=5.0, help="Initial ceiling of the link (kcal/mol); the assay reports 5.")
+    loss_group.add_argument('--link_tau', type=float, default=0.5, help="Initial softness (kcal/mol) of both knees of the link.")
+    loss_group.add_argument('--link_learn_bounds', action=argparse.BooleanOptionalAction, default=True,
+                            help="Let the link's floor and ceiling move off the initial values (the temperatures always learn).")
+    loss_group.add_argument('--link_lr', type=float, default=5e-3,
+                            help="Learning rate of the link's four parameters (no weight decay, no warm-up, never cut by the plateau).")
 
     calibration_group = parser.add_argument_group("Calibration Configuration")
     calibration_group.add_argument('--shared_scale_init', type=float, default=0.3)
@@ -106,8 +121,8 @@ def parse_arguments() -> argparse.Namespace:
     mask_group.add_argument('--premask_coords', action=argparse.BooleanOptionalAction, default=False)
     mask_group.add_argument('--val_cycle_passes', action=argparse.BooleanOptionalAction, default=False,
                             help="VALIDATION ONLY: also run the two non-native passes on every validation item (the WT adapter on the mutated sequence asked "
-                                 "about the reverse mutation, the MT adapter on the wild-type sequence), so that the symmetrised heads wt_ctx = (WT + ~WT)/2 and "
-                                 "mt_ctx = (MT + ~MT)/2 of the epistasis hierarchy (val_epi_*) exist. Does not touch training.")
+                                 "about the reverse mutation, the MT adapter on the wild-type sequence), so that the control head ctx = (WT + ~WT)/2 of the "
+                                 "epistasis metrics (val_epi_*_ctx, esm_msr.epi_metrics) exists; both legs are written to the validation dump. Does not touch training.")
     mask_group.add_argument('--mask_strategy', type=str, choices=["marginal", "chain"], default=None)
 
     train_group = parser.add_argument_group("Training Parameters")
@@ -200,6 +215,11 @@ def parse_arguments() -> argparse.Namespace:
     
     if remaining_argv:
         parser.error(f"unrecognized arguments: {' '.join(remaining_argv)}")
+    if args.link != 'none' and args.lambda_epi_combined > 0:
+        parser.error("--lambda_epi_combined regresses a latent dddG onto the measured (saturated) one; it is not defined with --link")
+    if args.link != 'none' and (getattr(args, 'incl_mut_ctx', False) or getattr(args, 'incl_reversions', False)):
+        parser.error("--link scores an item as h(dG_wt + latent) - dG_wt, which holds for singles and doubles measured from the library's "
+                     "starting sequence only; mut_ctx and reversion items are not supported with it")
 
     if args.num_workers == -1:
         num_cpus = os.cpu_count()

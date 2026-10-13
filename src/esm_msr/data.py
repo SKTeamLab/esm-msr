@@ -181,6 +181,13 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         return self.data[idx]
 
+    def set_dG_wt(self, dG_wt: Optional[float]) -> None:
+        """Stamps the measured dG of this library's starting sequence on every item (``dG_wt``; NaN when unknown). Not cached: the
+        preprocessor reads it from the raw data each run. Read by --link and the epistasis metrics."""
+        v = float(dG_wt) if dG_wt is not None and np.isfinite(dG_wt) else float('nan')
+        for item in self.data:
+            item['dG_wt'] = v
+
     def _try_load_modeled_context(
         self, 
         base_code: str, 
@@ -724,6 +731,7 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     ddG_A = torch.tensor([float(item.get('ddG_A', float('nan'))) for item in batch], dtype=torch.float32)
     ddG_B = torch.tensor([float(item.get('ddG_B', float('nan'))) for item in batch], dtype=torch.float32)
     valid_dddG_mask = torch.tensor([bool(item.get('valid_dddG_mask', False)) for item in batch], dtype=torch.bool)
+    dG_wt = torch.tensor([float(item.get('dG_wt', float('nan'))) for item in batch], dtype=torch.float32)
 
     # Sequence stacking. MUST be identical lengths across the batch.
     wt_seq_list = [torch.as_tensor(item['wt_sequence_tokens'], dtype=torch.long) for item in batch]
@@ -784,6 +792,7 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         'ddG_A': ddG_A,
         'ddG_B': ddG_B,
         'valid_dddG_mask': valid_dddG_mask,
+        'dG_wt': dG_wt,
         'wt_sequence_tokens': wt_seq_stack,
         'mt_sequence_tokens': mt_seq_stack,
         'mut_pos': mut_pos_stack,
@@ -1394,6 +1403,7 @@ class PooledDataLoader:
         ddG_A = torch.tensor([float(it.get('ddG_A', float('nan'))) for it in batch], dtype=torch.float32)
         ddG_B = torch.tensor([float(it.get('ddG_B', float('nan'))) for it in batch], dtype=torch.float32)
         valid_dddG_mask = torch.tensor([bool(it.get('valid_dddG_mask', False)) for it in batch], dtype=torch.bool)
+        dG_wt = torch.tensor([float(it.get('dG_wt', float('nan'))) for it in batch], dtype=torch.float32)
 
         # --- Vectorized Mutation Arrays ---
         mutations = [it.get("mutations", []) for it in batch]
@@ -1453,6 +1463,7 @@ class PooledDataLoader:
             "ddG_A": ddG_A,
             "ddG_B": ddG_B,
             "valid_dddG_mask": valid_dddG_mask,
+            "dG_wt": dG_wt,
             "subset_type": st,
         }
         return collated

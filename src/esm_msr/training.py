@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import logging
 import warnings
@@ -26,11 +27,15 @@ from esm_msr.losses import ListMLELoss, ListMLELoss_enhanced, AsymmetricHuberLos
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
-from esm_msr import stats, epi_hierarchy
+from esm_msr import stats, epi_metrics, link as link_mod
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 warnings.filterwarnings('ignore', category=UserWarning)
 torch.set_float32_matmul_precision('high') 
+
+# A library measured in a mutant background ('2KT8_V15A'): its singles are conditional effects, not wild-type-context ddGs, so rho_wt_valid
+# leaves it out (as devel does, where they are 'native_cond').
+NATIVE_BACKGROUND_CODE_RE = re.compile(r'_[A-Z][0-9]+[A-Z]$')
 
 class ESM3EpistasisLightningModule(pl.LightningModule):
     def __init__(self, **kwargs):
@@ -59,6 +64,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         )
         
         self.peft_manager = PEFTStateManager(self.model)
+
+        # Monotone saturating link (esm_msr.link): latent stability -> the assay's observed dG. Lives on the Lightning module, not on
+        # self.model, so the released model's state and inference are unchanged; checkpoints keep it as link_head.*.
+        self.link_head = None
+        if self.hparams.get('link', 'none') != 'none':
+            self.link_head = link_mod.MonotoneLink(
+                lo=self.hparams.link_lo, hi=self.hparams.link_hi, tau_lo=self.hparams.link_tau, tau_hi=self.hparams.link_tau,
+                learn_bounds=bool(self.hparams.link_learn_bounds))
 
         if self.hparams.freeze_wt_adapter: self.peft_manager.freeze_wt_components()
         if self.hparams.freeze_mt_adapter: self.peft_manager.freeze_mt_components()
@@ -190,11 +203,20 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         global_w_sum = w_all.sum().clamp_min(1e-9)
         global_num_lists = max(1, B // list_size)
 
+        # --link: regression on the observed scale, observed ddG = h(dG_wt + latent) - dG_wt. Items without a measured dG_wt leave the
+        # linked regressions (they keep their rank terms).
+        link = self.link_head
+        use_link = link is not None
+        dGwt_all = batch['dG_wt'].float() if torch.is_tensor(batch.get('dG_wt')) else torch.full((B,), float('nan'), device=device)
+        link_ok_all = torch.isfinite(dGwt_all) if use_link else torch.ones(B, dtype=torch.bool, device=device)
+        dGwt_all = torch.where(torch.isfinite(dGwt_all), dGwt_all, torch.zeros_like(dGwt_all))
+
         sums, cnts = defaultdict(float), defaultdict(float)
 
         for start in range(0, B, mb):
             idx = torch.arange(start, min(start + mb, B), device=device)
             micro, w_mb = utils.slice_batch_by_index(batch, idx), w_all[idx]
+            dGwt_mb, link_ok = dGwt_all[idx], link_ok_all[idx]
             ddG_mb = micro['ddG'].float() 
             is_single, valid_double = micro['mut_mask'].sum(dim=1) == 1, micro.get('valid_dddG_mask', micro['mut_mask'].sum(dim=1) > 1) 
             reg_mask = ~is_single if self.hparams.mt_reg_mask == 'doubles' else torch.ones_like(is_single, dtype=torch.bool)
@@ -231,10 +253,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
 
             wt_losses = []
-            if self.hparams.lambda_reg_wt > 0 and valid_wt_mask.any():
-                L = self.crit_reg(wt_pred_cal[valid_wt_mask], wt_targets[valid_wt_mask])
-                wt_losses.append(self.hparams.lambda_reg_wt * (L * w_mb[valid_wt_mask]).sum() / global_w_sum)
-                sums['reg_wt'] += float((L * w_mb[valid_wt_mask]).sum().item()); cnts['reg_wt'] += float(w_mb[valid_wt_mask].sum().item())
+            reg_wt_mask, p_wt = valid_wt_mask, wt_pred_cal
+            if use_link:
+                # singles are measurements of the item: through the link; a double's target is the sum of its singles: latent, as before
+                p_wt = torch.where(is_single, link.obs_ddG(wt_pred_cal, dGwt_mb), wt_pred_cal)
+                reg_wt_mask = valid_wt_mask & (link_ok | ~is_single)
+            if self.hparams.lambda_reg_wt > 0 and reg_wt_mask.any():
+                L = self.crit_reg(p_wt[reg_wt_mask], wt_targets[reg_wt_mask])
+                wt_losses.append(self.hparams.lambda_reg_wt * (L * w_mb[reg_wt_mask]).sum() / global_w_sum)
+                sums['reg_wt'] += float((L * w_mb[reg_wt_mask]).sum().item()); cnts['reg_wt'] += float(w_mb[reg_wt_mask].sum().item())
 
             if self.hparams.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
                 L_rank, val, n_list = self._compute_rank_loss(wt_pred_raw, wt_targets, valid_wt_mask, list_size, self.crit_rank_wt)
@@ -288,10 +315,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 mt_losses = []
 
                 # Mut pass strictly relies on combined losses
-                if self.hparams.lambda_reg_combined > 0 and reg_mask.any():
-                    L = self.crit_reg(combined_pred_cal[reg_mask], ddG_mb[reg_mask])
-                    mt_losses.append(self.hparams.lambda_reg_combined * (L * w_mb[reg_mask]).sum() / global_w_sum)
-                    sums['reg_combined'] += float((L * w_mb[reg_mask]).sum().item()); cnts['reg_combined'] += float(w_mb[reg_mask].sum().item())
+                reg_c_mask, p_comb = reg_mask, combined_pred_cal
+                if use_link:
+                    # the teacher-forced combined latent (measured additive half + MT half) observed through the link
+                    p_comb = link.obs_ddG(combined_pred_cal, dGwt_mb)
+                    reg_c_mask = reg_mask & link_ok
+                if self.hparams.lambda_reg_combined > 0 and reg_c_mask.any():
+                    L = self.crit_reg(p_comb[reg_c_mask], ddG_mb[reg_c_mask])
+                    mt_losses.append(self.hparams.lambda_reg_combined * (L * w_mb[reg_c_mask]).sum() / global_w_sum)
+                    sums['reg_combined'] += float((L * w_mb[reg_c_mask]).sum().item()); cnts['reg_combined'] += float(w_mb[reg_c_mask].sum().item())
 
                 if self.hparams.lambda_rank_combined > 0 and self.crit_rank_combined is not None:
                     L_rank, val, n_list = self._compute_rank_loss(combined_pred_raw, ddG_mb, reg_mask, list_size, self.crit_rank_combined)
@@ -385,6 +417,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         self._log_lrs()
         self.log_calibration_head(on_step=True)
+        if self.link_head is not None:
+            for k, v in self.link_head.summary().items():
+                self.log(f"link/{k}", v, on_step=True)
 
         for k, v in logs.items():
             if v > 0.0: self.log(f"train/{k}", v, on_step=True)
@@ -401,6 +436,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         ddG = utils._get_label(batch, 'ddG', device=batch['ddG'].device)
         dddG = batch.get('dddG', None)
 
+        n_items = int(out_dict['wt_lora_pred'].shape[0])
+        dG_wt = batch['dG_wt'].float() if torch.is_tensor(batch.get('dG_wt')) else torch.full((n_items,), float('nan'))
+        obs = {}
+        if self.link_head is not None:
+            # observed-scale predictions, h(dG_wt + latent) - dG_wt, for the rmse metrics only (rank metrics read the latent scores; the
+            # epistasis metrics apply the link themselves). Items without a dG_wt (the external benchmarks, not measured by this assay) keep
+            # their latent prediction.
+            dgw = dG_wt.to(out_dict['combined_pred'].device)
+            ok = torch.isfinite(dgw)
+            z = torch.where(ok, dgw, torch.zeros_like(dgw))
+            with torch.inference_mode():
+                for k, v in (('wt_obs_scores', out_dict['wt_lora_pred']), ('comb_obs_scores', out_dict['combined_pred'])):
+                    v = v.float()
+                    obs[k] = torch.where(ok, self.link_head.obs_ddG(v, z), v).detach().cpu().numpy()
+
         cyc = {}
         if getattr(self.hparams, 'val_cycle_passes', False):
             with torch.inference_mode():
@@ -408,7 +458,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             cyc = {'wt_rev_scores': c['wt_rev'].detach().cpu().float().numpy(), 'mt_fwd_scores': c['mt_fwd'].detach().cpu().float().numpy()}
 
         self.validation_step_outputs[dataloader_idx].append({
-            **cyc,
+            **cyc, **obs,
+            'dG_wt': dG_wt.detach().cpu().numpy(),
+            'subset_type': list(batch.get('subset_type', ['single'] * n_items)),
             'mt_scores': out_dict['mt_lora_pred'].detach().cpu().float().numpy(),
             'wt_scores': out_dict['wt_lora_pred'].detach().cpu().float().numpy(),
             'comb_scores': out_dict['combined_pred'].detach().cpu().float().numpy(),
@@ -419,44 +471,36 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             'mutations': batch.get('mutations', [])
         })
 
-    _EPI_HEADS = ('wt_add', 'wt_ctx', 'mt_ctx', 'comb')
-
-    def _log_epi_hierarchy(self, pooled):
+    def _log_epistasis(self, pooled):
         """
-        Logs val_epi_<level>_<head> (esm_msr.epi_hierarchy), pooled over every validation library, and writes val_dump_<tag>.npz. Heads:
-        wt_add (the WT adapter forward only: additive, the control), comb ((WT + ~MT)/2, the reported prediction), and with --val_cycle_passes
-        wt_ctx ((WT + ~WT)/2) and mt_ctx ((MT + ~MT)/2). This model has no link, so its predictions are taken as the observed scale. Never raises.
+        Logs val_epi_<metric>_<head> (esm_msr.epi_metrics: every metric for comb, mt and ctx, the naive and global ones also for the additive
+        control add), pooled over every validation library, and writes val_dump_<tag>.npz (rescore offline with baseline/epi_from_dump.py).
+        Heads: comb ((WT + ~MT)/2, the reported prediction), mt (~MT), ctx ((WT + ~WT)/2, needs --val_cycle_passes), add (WT). With --link the
+        metrics put each head on the observed scale through the run's link; without it the predictions are taken as observed. Never raises.
         """
         try:
             keys = pooled['mut_key']
             if not keys or any(k is None for k in keys):
                 return
             f = lambda name: np.asarray(pooled[name], dtype=float)
-            n_mut, dddG = np.asarray(pooled['n_mut']), f('dddG')
-            wt, mt, comb, wr, mf = f('wt_scores'), f('mt_scores'), f('comb_scores'), f('wt_rev_scores'), f('mt_fwd_scores')
-            is_double = (n_mut == 2) & np.isfinite(dddG)
+            items = {'mut_key': keys, 'subset_type': list(pooled['subset_type']), 'cens': None, 'ddG': f('ground_truths'), 'dddG': f('dddG'),
+                     'dG_wt': f('dG_wt'), 'wt': f('wt_scores'), 'mt': f('mt_scores'), 'comb': f('comb_scores'), 'wt_rev': f('wt_rev_scores')}
             log_dir = getattr(self.logger, 'log_dir', None) or getattr(self.logger, 'save_dir', None)
             if log_dir:
                 tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
                 os.makedirs(log_dir, exist_ok=True)
-                np.savez_compressed(os.path.join(log_dir, f'val_dump_{tag}.npz'), wt=wt, mt=mt, comb=comb, wt_rev=wr, mt_fwd=mf, dddG=dddG, n_mut=n_mut,
-                                    ground_truth=f('ground_truths'), loader=np.asarray(pooled['loader']), mut_key=np.asarray([json.dumps(k) for k in keys]))
-            values = {'wt_add': wt, 'comb': comb, 'wt_ctx': 0.5 * (wt + wr), 'mt_ctx': 0.5 * (mf + mt)}
-            counted = False
-            for head in ESM3EpistasisLightningModule._EPI_HEADS:
-                v = values[head]
-                if not np.isfinite(v[is_double]).any():
-                    continue
-                res = epi_hierarchy.compute(epi_hierarchy.predicted_dddG(v, n_mut, keys), dddG, keys, is_double)
-                for lvl in epi_hierarchy.LEVELS:
-                    if np.isfinite(res[lvl]):
-                        self.log(f"val_epi_{lvl}_{head}", float(res[lvl]), on_epoch=True, sync_dist=True)
-                if not counted:
-                    for c in ('n_doubles', 'n_pairs', 'n_columns', 'n_complete_blocks', 'n_identities'):
-                        self.log(f"val_epi_{c}", float(res[c]), on_epoch=True, sync_dist=True)
-                    counted = True
+                extra = {'link_summary': np.array(json.dumps(self.link_head.summary()))} if self.link_head is not None else {}
+                np.savez_compressed(os.path.join(log_dir, f'val_dump_{tag}.npz'), wt=items['wt'], mt=items['mt'], comb=items['comb'],
+                                    wt_rev=items['wt_rev'], mt_fwd=f('mt_fwd_scores'), dddG=items['dddG'], n_mut=np.asarray(pooled['n_mut']),
+                                    ground_truth=items['ddG'], dG_wt=items['dG_wt'], subset_type=np.asarray(items['subset_type'], dtype=str),
+                                    loader=np.asarray(pooled['loader']), mut_key=np.asarray([json.dumps(k) for k in keys]), **extra)
+            link = self.link_head.numpy() if self.link_head is not None else None
+            res = epi_metrics.compute(epi_metrics.Table(items, link))
+            for name, val in res.items():
+                if np.isfinite(val):
+                    self.log(f"val_{name}", float(val), on_epoch=True, prog_bar=name == 'epi_cell_rank_mt', sync_dist=True)
         except Exception as e:
-            logging.warning(f"epistasis hierarchy skipped: {e}", exc_info=True)
+            logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)
 
     def on_validation_epoch_start(self):
         self.validation_step_outputs = defaultdict(list)
@@ -476,6 +520,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             
             flat_mut_parts, flat_pdb_ids = [], []
             mt_scores_list, wt_rev_list, mt_fwd_list = [], [], []
+            dG_wt_list, subset_list, wt_obs_list, comb_obs_list = [], [], [], []
 
             for o in valid_outputs:
                 pdb_list, muts_list = o.get('pdb', []), o.get('mutations', [])
@@ -487,6 +532,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     mt_scores_list.append(o['mt_scores'][i])
                     wt_rev_list.append(o['wt_rev_scores'][i] if 'wt_rev_scores' in o else np.nan)
                     mt_fwd_list.append(o['mt_fwd_scores'][i] if 'mt_fwd_scores' in o else np.nan)
+                    dG_wt_list.append(o['dG_wt'][i] if 'dG_wt' in o else np.nan)
+                    subset_list.append(o['subset_type'][i] if 'subset_type' in o else ('single' if len(mut_parts) == 1 else 'double'))
+                    wt_obs_list.append(o['wt_obs_scores'][i] if 'wt_obs_scores' in o else np.nan)
+                    comb_obs_list.append(o['comb_obs_scores'][i] if 'comb_obs_scores' in o else np.nan)
                     comb_scores_list.append(o['comb_scores'][i])
                     epi_scores_list.append(o['epi_scores'][i])
                     ground_truths_list.append(o['ground_truths'][i] if i < len(o['ground_truths']) else np.nan)
@@ -520,15 +569,28 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 wt_scores, comb_scores, epi_scores, epi_scores_full,
                 ground_truths, dddG_truths, idx_singles, idx_doubles, valid_dddG_mask
             )
+            if self.link_head is not None:
+                # with --link, calibration is judged on the assay's observed scale (rank metrics are unchanged: h is monotone)
+                for pathway, ob in (('wt', np.array(wt_obs_list)), ('combined', np.array(comb_obs_list))):
+                    ok = np.isfinite(ob) & np.isfinite(ground_truths)
+                    metrics['rmse'][pathway] = float(np.sqrt(np.mean((ob[ok] - ground_truths[ok]) ** 2))) if ok.any() else np.nan
+            # the WT head on plain singles in the library's own wild-type context (devel's rho_wt_valid; NaN for a mutant-background library)
+            sel = np.array([st == 'single' for st in subset_list]) & idx_singles & np.isfinite(ground_truths)
+            rho_wt_valid = np.nan if NATIVE_BACKGROUND_CODE_RE.search(str(val_loader_name)) else stats.safe_spearman(wt_scores[sel], ground_truths[sel])
+            if not np.isnan(rho_wt_valid):
+                self.log(f"val_rho_wt_valid/{val_loader_name}", rho_wt_valid, on_epoch=True, sync_dist=True)
+                avg_metrics['rho_wt_valid'].append(rho_wt_valid)
             
             # Aggregate pooled data for ungrouped metric calculation
             pooled_data['wt_scores'].extend(wt_scores_list)
             pooled_data['comb_scores'].extend(comb_scores_list)
             pooled_data['ground_truths'].extend(ground_truths_list)
-            # for the epistasis hierarchy (esm_msr.epi_hierarchy): per-item values of every pass, the mutation count and a library-tagged key
+            # for the epistasis metrics (esm_msr.epi_metrics): per-item values of every pass, the mutation count and a library-tagged key
             pooled_data['mt_scores'].extend(mt_scores_list)
             pooled_data['wt_rev_scores'].extend(wt_rev_list)
             pooled_data['mt_fwd_scores'].extend(mt_fwd_list)
+            pooled_data['dG_wt'].extend(dG_wt_list)
+            pooled_data['subset_type'].extend(subset_list)
             pooled_data['dddG'].extend(dddG_truths_list)
             pooled_data['n_mut'].extend(mut_lens_list)
             pooled_data['loader'].extend([val_loader_name] * len(mut_lens_list))
@@ -577,7 +639,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 for pathway, val in ungrouped_ndcg_t0.items():
                     if not np.isnan(val): self.log(f"val_ndcg@k>0_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
 
-        ESM3EpistasisLightningModule._log_epi_hierarchy(self, pooled_data)
+        ESM3EpistasisLightningModule._log_epistasis(self, pooled_data)
 
         if not self.trainer.sanity_checking and self.hparams.freeze_wt_on_convergence and not self.peft_manager.has_transitioned:
             target_metric_key = self.hparams.wt_convergence_metric
@@ -665,19 +727,24 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if not main_groups:
             logging.warning("No param groups found; defaulting to all trainables.")
             main_groups = [{"params": [p for p in self.parameters() if p.requires_grad], "lr": base_lr, "weight_decay": wd, "name": "all"}]
+        if self.link_head is not None:
+            link_params = [p for p in self.link_head.parameters() if p.requires_grad]
+            main_groups.append({"params": link_params, "lr": float(self.hparams.link_lr), "weight_decay": 0.0, "name": "link"})
 
         opt_main = torch.optim.AdamW(main_groups, lr=base_lr, betas=(0.9, 0.999), fused=True, weight_decay=wd)
 
         lambdas_main = []
         for g in main_groups:
-            if "calib" in g["name"]: lambdas_main.append(lambda step: 1.0)
+            if "calib" in g["name"] or g["name"] == "link": lambdas_main.append(lambda step: 1.0)
             elif g["name"] == "lora_mt":
                 lambdas_main.append(lambda step, delay=self.hparams.mt_lora_delay_steps, warmup=self.hparams.lr_warmup_steps: 0.0 if step < delay else min(1.0, max(1e-4, (step - delay) / max(1, warmup))))
             else:
                 lambdas_main.append(lambda step, delay=self.hparams.calib_delay_steps, warmup=self.hparams.lr_warmup_steps: 0.0 if step < delay else min(1.0, max(1e-4, (step - delay) / max(1, warmup))))
 
         warmup_main = torch.optim.lr_scheduler.LambdaLR(opt_main, lr_lambda=lambdas_main)
-        plateau_main = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_main, mode='max', factor=0.1, patience=1, min_lr=1e-7)
+        # the link's group keeps its learning rate (its min_lr is its lr); every other group as released
+        min_lrs = [float(g["lr"]) if g["name"] == "link" else 1e-7 for g in main_groups]
+        plateau_main = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_main, mode='max', factor=0.1, patience=1, min_lr=min_lrs)
 
         return [opt_main], [{"scheduler": warmup_main, "interval": "step", "frequency": 1}, {"scheduler": plateau_main, "interval": "epoch", "frequency": 1, "monitor": "val_rho_combined_avg"}]
 
@@ -717,7 +784,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         
         filtered_state_dict = {
             k: v for k, v in state_dict.items()
-            if 'lora' in k.lower() or 'calibration' in k.lower()
+            if 'lora' in k.lower() or 'calibration' in k.lower() or k.startswith('link_head.')
         }
         
         if not filtered_state_dict:
