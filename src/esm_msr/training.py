@@ -5,7 +5,7 @@ import warnings
 from collections import defaultdict
 import gc
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List
 
 import numpy as np
 import torch 
@@ -21,7 +21,7 @@ from esm.pretrained import ESM3_structure_encoder_v0
 from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 
 from esm_msr.models import MSRModel
-from esm_msr import routing, stats, utils
+from esm_msr import stats, utils
 from esm_msr.link import FloorLink
 from esm_msr.losses import ListMLELoss, hinge_regression_loss
 from esm_msr.preprocess_megascale import setup_dataloaders
@@ -540,7 +540,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     self.peft_manager.wt_patience_counter = getattr(self.peft_manager, 'wt_patience_counter', 0) + 1
                 
                 if self.peft_manager.wt_patience_counter >= self.hparams.wt_convergence_patience:
-                    logging.info(f"Convergence reached! Transitioning to MT training.")
+                    logging.info("Convergence reached! Transitioning to MT training.")
                     self._transition_to_mt()
 
         if not self.trainer.sanity_checking and self.trainer.current_epoch==self.hparams.freeze_wt_after_epoch and not self.peft_manager.has_transitioned:

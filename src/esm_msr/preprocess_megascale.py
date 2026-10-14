@@ -10,7 +10,6 @@ import pandas as pd
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
-from esm_msr import utils
 from esm_msr.data import (
     MEAS_COLUMNS,
     MutationStabilityDataset,
@@ -283,8 +282,6 @@ class MegaScaleDatasetPreprocessor:
             if len(removed_wt_names) > 0:
                 logging.warning(f"Removed {removed_wt_names} from the dataset")
 
-        orig_len = len(df)
-        
         df = df.loc[df['mut_type'] != 'wt']
         df = df.loc[~df['mut_structure'].fillna('').str.startswith('pross')]
         df = df.loc[~df['mut_type'].apply(is_fake_mutation)]

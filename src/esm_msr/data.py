@@ -17,7 +17,7 @@ from tqdm import tqdm
 from esm.utils.structure.protein_chain import ProteinChain
 from esm.utils.constants import esm3 as C
 
-from esm_msr import censoring, routing
+from esm_msr import censoring
 from esm_msr.utils import custom_end_gap_alignment, determine_diffs
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -271,7 +271,6 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             df = dms_df.loc[dms_df['code'] == self.dms_name].copy()
             if len(df) == 0:
                 raise AssertionError(f"No data found for code {self.dms_name}")
-            info = df.head(1)
             df['mutated_sequence'] = df['aa_seq']
             data = self._load_data(df, is_predicted=True)
         else:
@@ -511,14 +510,12 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         # === PRE-PASS: Collect WT Singles ===
         global_wt_single_map = {}
         global_destab_backbones = []
-        wt_backbone_id = None
         wt_protein_chain = None
         wt_canonical_seq = None
 
         for backbone, group in df.groupby('mut_structure'):
             if backbone.endswith('.pdb'):
                 chain = group['chain'].head(1).item()
-                wt_backbone_id = backbone
                 wt_protein_chain = ProteinChain.from_pdb(backbone, chain, is_predicted=is_predicted)
                 wt_canonical_seq = ''.join(list(wt_protein_chain.sequence))
                 
