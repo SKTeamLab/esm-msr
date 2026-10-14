@@ -41,11 +41,15 @@ class ParseSubsetCaps(argparse.Action):
         setattr(namespace, self.dest, caps)
 
 
-# 'single' and 'double' are the measured wild-type-context subsets and are unrestricted. 'native_cond' is also a
-# direct measurement (a single in a mutant-background library) and is kept, which is the population the released
-# model trained on, where those items were simply labelled 'single'. 'cond' is derived arithmetic - ddG_AB - ddG_B
-# from a double and its singles - so it is off by default and is opted into deliberately.
-DEFAULT_SUBSET_CAPS = {'single': None, 'double': None, 'native_cond': None, 'cond': 0.0}
+# 'single' and 'double' are the measured wild-type-context subsets and are unrestricted.
+#
+# The two conditional subsets are both held out of TRAINING for now, pending the MT-head routing that would do
+# something with them: 'cond' is derived arithmetic (ddG_AB - ddG_B from a double and its singles), and
+# 'native_cond' is a measured conditional effect ddG(X | background) that the WT head has no business being
+# regressed onto. Note that excluding native_cond is a deliberate departure from the released model, which trained
+# on those items because they were simply labelled 'single' there. They are still kept in VALIDATION (where they
+# are a direct measurement and count toward rho_combined), so the headline validation metric stays comparable.
+DEFAULT_SUBSET_CAPS = {'single': None, 'double': None, 'native_cond': 0.0, 'cond': 0.0}
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -162,7 +166,7 @@ def parse_arguments() -> argparse.Namespace:
     data_group.add_argument('--incl_singles', action=argparse.BooleanOptionalAction, default=True)
     data_group.add_argument('--incl_doubles', action=argparse.BooleanOptionalAction, default=True)
     data_group.add_argument('--incl_cond', action=argparse.BooleanOptionalAction, default=False)
-    data_group.add_argument('--incl_native_cond', action=argparse.BooleanOptionalAction, default=True)
+    data_group.add_argument('--incl_native_cond', action=argparse.BooleanOptionalAction, default=False)
 
     data_group.add_argument('--subset_caps', nargs='*', action=ParseSubsetCaps, default=dict(DEFAULT_SUBSET_CAPS),
                             help=f"Caps for data subsets (e.g. double=0.6 cond=0.1). Defaults: {DEFAULT_SUBSET_CAPS}.")
