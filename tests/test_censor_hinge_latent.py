@@ -1,5 +1,5 @@
 """--censor_hinge_scale latent: a variant reported below the range is bounded on the latent scale (at or below the link's floor knee), so it
-can always be satisfied by the variant's own prediction and the link gets no gradient from it. With 'observed' (the default) the bound -1
+can always be satisfied by the variant's own prediction and the link gets no gradient from it. With 'observed' (the default before 2026-10-13) the bound -1
 cannot be met while the link's floor sits above it, and the hinge drags the link."""
 import unittest
 

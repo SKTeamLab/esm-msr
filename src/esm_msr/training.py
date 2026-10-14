@@ -628,7 +628,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         hinge_src = (cens_src == censoring.SRC_RANGE) | bool(hp.get('censor_floor_hinge', False))
         # where the hinge acts: 'observed' (through the link; the link's floor must reach the bound) or 'latent' (the bound through the
         # link's inverse, detached; the link gets no gradient from censored items)
-        hinge_latent = str(hp.get('censor_hinge_scale', 'observed')) == 'latent'
+        hinge_latent = str(hp.get('censor_hinge_scale', 'latent')) == 'latent'
         reg_cens = torch.where((cens_all != 0) & hinge_src, cens_all, torch.zeros_like(cens_all))
         # Monotone link (esm_msr.link): regression on the observed scale, observed = h(dG_wt + background + latent) - dG_wt.
         link = self.link_head
