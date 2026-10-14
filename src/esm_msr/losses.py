@@ -1,19 +1,27 @@
+"""Ranking and regression objectives, both aware of the assay's floor.
+
+A measurement at the assay's floor says "this variant is at most this stable" and nothing more: its value is the floor's, not the variant's,
+and its order among its equally-dead peers is noise. Both objectives here are built to use exactly that much of such an item and no more:
+
+* :meth:`ListMLELoss.forward_censored` ties the censored members of a list at the bottom (or top), keeping them in the denominators - so the
+  model is still taught that they rank below the measurable variants - while never scoring their order among themselves.
+* :func:`hinge_regression_loss` penalises a censored item only when the prediction falls on the wrong side of its bound, so predicting "at or
+  below the floor" for something measured at the floor is free, and only claiming it is *better* than the floor costs anything.
+
+``cens`` is -1 (lower-censored), 0 (ordinary) or +1 (upper-censored) throughout; see ``esm_msr.censoring`` for where it comes from.
+"""
 import torch
-from typing import Optional, Literal
 
 
 class ListMLELoss(torch.nn.Module):
     """
-    Implements the Listwise Maximum Likelihood Estimation (ListMLE) loss function,
-    with support for dynamic boolean masking to handle irregular list sizes.
+    ListMLE (Plackett-Luce listwise NLL) with boolean masking for irregular list sizes.
     """
     def __init__(self, eps: float = 1e-10, invert: bool = False):
         """
-        Initializes the loss module.
-
         Args:
-            eps (float): A small epsilon value to prevent log(0) for numerical stability.
-            invert (bool): If True, inverts the predictions.
+            eps: floor on the Plackett-Luce denominators, for numerical stability.
+            invert: rank ascending instead of descending.
         """
         super().__init__()
         self.eps = eps
@@ -21,340 +29,114 @@ class ListMLELoss(torch.nn.Module):
 
     def forward(self, predictions: torch.Tensor, ground_truths: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
         """
-        Calculates the masked ListMLE loss.
-
         Args:
-            predictions (torch.Tensor): A tensor of scores predicted by the model (Batch, List_Size).
-            ground_truths (torch.Tensor): A tensor of ground-truth values (Batch, List_Size).
-            mask (torch.Tensor, optional): Boolean tensor where False indicates elements to ignore (Batch, List_Size).
-
-        Returns:
-            torch.Tensor: The calculated ListMLE loss as a scalar tensor.
+            predictions: scores, (Batch, List_Size).
+            ground_truths: targets, (Batch, List_Size); higher ranks higher.
+            mask: False marks entries to ignore, (Batch, List_Size).
         """
-        predictions = predictions.float()
-        ground_truths = ground_truths.float()
-        
-        if self.invert:
-            predictions = predictions * -1
-
         if mask is None:
             mask = torch.ones_like(predictions, dtype=torch.bool)
         elif mask.shape != predictions.shape:
             raise AssertionError(f"Mask shape {mask.shape} must strictly match predictions shape {predictions.shape}.")
-
-        # 1. Push masked ground truths to -infinity so they are sorted to the very end of the list
-        gt_masked = ground_truths.clone()
-        gt_masked[~mask] = float('-inf')
-
-        # `descending=True` means HIGHER ground_truth values are ranked higher.
-        _, indices = gt_masked.sort(descending=not self.invert, dim=-1)
-
-        # 2. Reorder predictions and the mask to match the ground-truth permutation
-        ordered_predictions = predictions.gather(-1, indices)
-        ordered_mask = mask.gather(-1, indices)
-
-        # 3. --- Numerically Stable Log-Sum-Exp Calculation ---
-        # Mask out invalid predictions so they do not artificially inflate the max_prediction
-        ordered_preds_safe = ordered_predictions.clone()
-        ordered_preds_safe[~ordered_mask] = float('-inf')
-        
-        max_predictions, _ = ordered_preds_safe.max(dim=-1, keepdim=True)
-        
-        # Guard against rows where ALL elements are masked (max becomes -inf, causing NaN gradients)
-        # Avoid in-place replacement on max_predictions to be safe
-        max_predictions = torch.where(
-            max_predictions == float('-inf'), 
-            torch.zeros_like(max_predictions), 
-            max_predictions
-        )
-
-        exp_predictions = torch.exp(ordered_predictions - max_predictions)
-
-        # This prevents the "modified by an inplace operation" ExpBackward0 RuntimeError.
-        exp_predictions = exp_predictions * ordered_mask.float()
-
-        # Plackett-Luce denominator: cumulative sum from bottom of list to top
-        exp_predictions_rev = torch.flip(exp_predictions, dims=(-1,))
-        cum_sum_exp_predictions_rev = torch.cumsum(exp_predictions_rev, dim=-1)
-        cum_sum_exp_predictions = torch.flip(cum_sum_exp_predictions_rev, dims=(-1,))
-
-        cum_sum_exp_predictions = torch.clamp(cum_sum_exp_predictions, min=self.eps)
-
-        # 4. --- Loss Calculation ---
-        log_probs = ordered_predictions - max_predictions - torch.log(cum_sum_exp_predictions)
-        
-        log_probs = log_probs * ordered_mask.float()
-
-        # Sum the log probabilities per list
-        list_loss = -torch.sum(log_probs, dim=-1)
-        
-        # 5. --- Safe Batch Averaging ---
-        # Ranking requires at least 2 valid items to form a meaningful permutation.
-        valid_lists = ordered_mask.sum(dim=-1) > 1
-        
-        if valid_lists.sum() == 0:
-            # If the entire micro-batch was masked out, return a 0.0 tensor with attached gradients to prevent crashes
-            return (predictions.sum() * 0.0)
-            
-        return list_loss[valid_lists].mean()
-
-
-class AsymmetricHuberLoss(torch.nn.Module):
-    def __init__(self, delta=1.0, penalty_factor=3.0, reduction='none'):
-        super().__init__()
-        self.delta = delta
-        self.penalty_factor = penalty_factor # Penalize "dangerous" errors 3x more
-        self.reduction = reduction
-
-    def forward(self, pred, target):
-        error = pred - target
-        abs_error = torch.abs(error)
-        
-        # Standard Huber Logic
-        quadratic = torch.minimum(abs_error, torch.tensor(self.delta, device=pred.device))
-        linear = abs_error - quadratic
-        base_loss = 0.5 * quadratic**2 + self.delta * linear
-        
-        # Asymmetry Logic (Higher = More Stable):
-        # Case A: Pred > Target (e.g. Pred=5, Truth=-1). 
-        #         We are "Optimistic" (predicting stable when it isn't). HIGH PENALTY.
-        # Case B: Pred < Target (e.g. Pred=-1, Truth=5). 
-        #         We are "Pessimistic" (missing a hit). LOW PENALTY.
-        
-        # mask = 1 where we are "too optimistic" (pred is higher/better than truth)
-        mask = (pred > target).float() 
-        weighted_loss = base_loss * (1.0 + (self.penalty_factor - 1.0) * mask)
-        
-        if self.reduction == 'none':
-            return weighted_loss
-        else:
-            return weighted_loss.mean()
-    
-
-class ListMLELoss_enhanced(torch.nn.Module):
-    """
-    Enhanced ListMLE loss with configurable tie-breaking strategies.
-    
-    This loss function extends the standard ListMLE loss by providing control over
-    how ties in ground truth rankings are handled, including random tie-breaking
-    and tolerance-based grouping of near-equal values.
-    """
-    
-    def __init__(
-        self,
-        eps: float = 1e-10,
-        invert: bool = False,
-        tie_break: Literal["stable", "random", "average"] = "random",
-        tolerance: Optional[float] = 0.05,
-        random_seed: Optional[int] = 1
-    ):
-        """
-        Initialize the enhanced ListMLE loss.
-        
-        Args:
-            eps: Small value for numerical stability
-            invert: Whether to invert rankings (lower is better)
-            tie_break: Strategy for breaking ties:
-                - "stable": Deterministic, preserves original order (default, matches current behavior)
-                - "random": Random shuffling of tied groups
-                - "average": Average loss over all possible orderings (approximated)
-            tolerance: If provided, values within this tolerance are treated as tied
-            random_seed: Optional seed for reproducible randomness in tie-breaking
-        """
-        super().__init__()
-        self.eps = eps
-        self.invert = invert
-        self.tie_break = tie_break
-        self.tolerance = tolerance
-        self.random_seed = random_seed
-        
-    def _identify_tie_groups(self, ground_truths: torch.Tensor) -> torch.Tensor:
-        """
-        Identify groups of tied or near-tied values.
-        
-        Returns a tensor where each element indicates which tie group it belongs to.
-        """
-        # Handle both 1D and 2D inputs
-        if ground_truths.dim() == 1:
-            ground_truths = ground_truths.unsqueeze(0)
-            squeeze_output = True
-        else:
-            squeeze_output = False
-            
-        batch_size, n_items = ground_truths.shape
-        tie_groups = torch.zeros_like(ground_truths, dtype=torch.long)
-        
-        for b in range(batch_size):
-            sorted_vals, sorted_idx = ground_truths[b].sort(descending=not self.invert)
-            
-            group_id = 0
-            tie_groups[b, sorted_idx[0]] = group_id
-            
-            for i in range(1, n_items):
-                if self.tolerance is None:
-                    # Exact equality check
-                    if sorted_vals[i] != sorted_vals[i-1]:
-                        group_id += 1
-                else:
-                    # Tolerance-based check
-                    if abs(sorted_vals[i] - sorted_vals[i-1]) > self.tolerance:
-                        group_id += 1
-                        
-                tie_groups[b, sorted_idx[i]] = group_id
-        
-        if squeeze_output:
-            tie_groups = tie_groups.squeeze(0)
-                
-        return tie_groups
-    
-    def _random_shuffle_within_groups(
-        self, 
-        ground_truths: torch.Tensor, 
-        tie_groups: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Randomly shuffle items within each tie group.
-        """
-        if self.random_seed is not None:
-            gen = torch.Generator(device=ground_truths.device)
-            gen.manual_seed(self.random_seed + self._call_count)
-            self._call_count += 1
-        else:
-            gen = None
-
-        # Handle both 1D and 2D inputs
-        if ground_truths.dim() == 1:
-            ground_truths = ground_truths.unsqueeze(0)
-            tie_groups = tie_groups.unsqueeze(0)
-            squeeze_output = True
-        else:
-            squeeze_output = False
-            
-        batch_size, n_items = ground_truths.shape
-        shuffled = ground_truths.clone()
-            
-        for b in range(batch_size):
-            unique_groups = torch.unique(tie_groups[b])
-            
-            for group in unique_groups:
-                mask = tie_groups[b] == group
-                group_indices = torch.where(mask)[0]
-                
-                if len(group_indices) > 1:
-                    # Add small random noise to break ties
-                    noise = torch.rand(len(group_indices), generator=gen, device=ground_truths.device) * 1e-6
-                    if self.invert:
-                        noise = -noise
-                    shuffled[b, group_indices] = shuffled[b, group_indices] + noise
-        
-        if squeeze_output:
-            shuffled = shuffled.squeeze(0)
-                    
-        return shuffled
-    
-    def _compute_average_loss_approximation(
-        self,
-        predictions: torch.Tensor,
-        ground_truths: torch.Tensor,
-        tie_groups: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Approximate the average loss over all possible orderings of tied items.
-        
-        This is done by computing multiple random permutations and averaging.
-        """
-        n_samples = 5  # Number of random permutations to sample
-        total_loss = 0
-        
-        for _ in range(n_samples):
-            shuffled_gt = self._random_shuffle_within_groups(ground_truths, tie_groups)
-            loss = self._compute_base_loss(predictions, shuffled_gt)
-            total_loss += loss
-            
-        return total_loss / n_samples
-    
-    def _compute_base_loss(
-        self, 
-        predictions: torch.Tensor, 
-        ground_truths: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Compute the base ListMLE loss (extracted from original forward method).
-        """
-        # Get the correct permutation indices
-        _, indices = ground_truths.sort(descending=not self.invert, dim=-1)
-        
-        # Reorder predictions
-        ordered_predictions = predictions.gather(-1, indices)
-        
-        # Numerically stable log-sum-exp
-        max_predictions, _ = ordered_predictions.max(dim=-1, keepdim=True)
-        exp_predictions = torch.exp(ordered_predictions - max_predictions)
-        
-        # Corrected cumulative sum
-        exp_predictions_rev = torch.flip(exp_predictions, dims=(-1,))
-        cum_sum_exp_predictions_rev = torch.cumsum(exp_predictions_rev, dim=-1)
-        cum_sum_exp_predictions = torch.flip(cum_sum_exp_predictions_rev, dims=(-1,))
-        
-        cum_sum_exp_predictions = torch.clamp(cum_sum_exp_predictions, min=self.eps)
-        
-        # Compute log probabilities
-        log_probs = ordered_predictions - max_predictions - torch.log(cum_sum_exp_predictions)
-        
-        # Return mean loss
-        return -torch.sum(log_probs, dim=-1).mean()
-    
-    def forward(
-        self, 
-        predictions: torch.Tensor, 
-        ground_truths: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Calculate the enhanced ListMLE loss.
-        
-        Args:
-            predictions: Model predictions for ranking (1D or 2D tensor)
-            ground_truths: Ground truth values (1D or 2D tensor, higher = better rank by default)
-            
-        Returns:
-            The calculated loss
-        """
-        # Handle 1D inputs by adding batch dimension
-        if predictions.dim() == 1:
-            predictions = predictions.unsqueeze(0)
-            ground_truths = ground_truths.unsqueeze(0)
-            squeeze_batch = True
-        else:
-            squeeze_batch = False
-            
-        # Ensure float tensors
-        predictions = predictions.float()
         if self.invert:
-            predictions =  predictions * -1
-            
-        ground_truths = ground_truths.float()
-        
-        # Handle tie-breaking based on strategy
-        if self.tie_break == "stable":
-            # Default behavior - use stable sort
-            loss = self._compute_base_loss(predictions, ground_truths)
-            
-        elif self.tie_break == "random":
-            # Identify tie groups and shuffle within them
-            tie_groups = self._identify_tie_groups(ground_truths)
-            shuffled_gt = self._random_shuffle_within_groups(ground_truths, tie_groups)
-            loss = self._compute_base_loss(predictions, shuffled_gt)
-            
-        elif self.tie_break == "average":
-            # Approximate average over all permutations
-            tie_groups = self._identify_tie_groups(ground_truths)
-            loss = self._compute_average_loss_approximation(predictions, ground_truths, tie_groups)
-            
-        else:
-            raise ValueError(f"Unknown tie_break strategy: {self.tie_break}")
-            
-        # If input was 1D, return scalar loss
-        if squeeze_batch and loss.numel() == 1:
-            loss = loss.squeeze()
-            
-        return loss
+            predictions, ground_truths = -predictions, -ground_truths
+        loss, valid = self._per_list(predictions, ground_truths, mask, mask)
+        if valid.sum() == 0:
+            # Whole micro-batch masked out: keep a 0.0 with gradients attached so backward does not crash.
+            return predictions.sum() * 0.0
+        return loss[valid].mean()
+
+    def _per_list(self, predictions: torch.Tensor, ground_truths: torch.Tensor, mask: torch.Tensor,
+                  score: torch.Tensor):
+        """
+        Plackett-Luce NLL of each list, descending order, with a tied block at the bottom.
+
+        ``mask`` marks the list's members; ``score`` (a subset) marks those whose own term counts. Members in
+        ``mask & ~score`` sort after every scored member, stay in the denominators and contribute no term of
+        their own, so their order among themselves is free. Returns ``(loss [B], valid [B])``; a list is valid
+        when it has at least 2 members and at least one scored member.
+        """
+        predictions, ground_truths = predictions.float(), ground_truths.float()
+        gt = ground_truths.clone()
+        gt[mask & ~score] = torch.finfo(gt.dtype).min
+        gt[~mask] = float('-inf')
+        _, idx = gt.sort(descending=True, dim=-1)
+        ordered_pred = predictions.gather(-1, idx)
+        ordered_mask = mask.gather(-1, idx)
+        ordered_score = (score & mask).gather(-1, idx)
+
+        # Log-sum-exp over the live members only, so masked entries cannot inflate the max.
+        safe = ordered_pred.clone()
+        safe[~ordered_mask] = float('-inf')
+        max_pred, _ = safe.max(dim=-1, keepdim=True)
+        max_pred = torch.where(max_pred == float('-inf'), torch.zeros_like(max_pred), max_pred)
+        # Zero the masked terms by sending them to -inf BEFORE exp, not by multiplying after: a masked entry's
+        # score is arbitrary, and exp() of it can overflow to inf, which 0 * inf would turn into NaN.
+        shifted = torch.where(ordered_mask, ordered_pred - max_pred, torch.full_like(ordered_pred, float('-inf')))
+        exp_pred = torch.exp(shifted)
+        denom = torch.flip(torch.cumsum(torch.flip(exp_pred, dims=(-1,)), dim=-1), dims=(-1,))
+        denom = torch.clamp(denom, min=self.eps)
+        log_probs = (ordered_pred - max_pred - torch.log(denom)) * ordered_score.float()
+        valid = (mask.sum(dim=-1) > 1) & (score & mask).any(dim=-1)
+        return -log_probs.sum(dim=-1), valid
+
+    def forward_censored(self, predictions: torch.Tensor, ground_truths: torch.Tensor,
+                         mask: torch.Tensor, cens: torch.Tensor) -> torch.Tensor:
+        """
+        ListMLE with the censored members' mutual order left unscored. ``cens`` is -1, 0 or +1 per member:
+
+        * ``-1`` lower-censored (true value at or below its bound): ranks below every uncensored member; the order
+          within the block is not scored, because the assay cannot resolve it.
+        * ``+1`` upper-censored (at or above its bound): ranks above every uncensored member, likewise unresolved.
+        * ``0`` ordinary: ordered by ``ground_truths``.
+
+        A tied block at the bottom is exact in forward Plackett-Luce (drop the block's own terms, keep it in the
+        denominators); a tied block at the top is exact in *reverse* Plackett-Luce (worst first, via negated
+        scores). A list with only lower-censored (or no censored) members uses the forward form, a list with only
+        upper-censored members the reverse form, and a list with both averages the two, each pass leaving out the
+        other pass's censored members. With no censored member this equals :meth:`forward`.
+        """
+        if self.invert:
+            raise AssertionError("forward_censored is not supported together with invert=True.")
+        if mask.shape != predictions.shape or cens.shape != predictions.shape:
+            raise AssertionError("mask and cens must match predictions' shape.")
+        lo, hi = (cens < 0) & mask, (cens > 0) & mask
+        ordinary = mask & ~lo & ~hi
+        lf, vf = self._per_list(predictions, ground_truths, mask & ~hi, ordinary)
+        lr, vr = self._per_list(-predictions, -ground_truths, mask & ~lo, ordinary)
+        has_lo, has_hi = lo.any(dim=-1), hi.any(dim=-1)
+        both = has_lo & has_hi
+        use_rev_only = has_hi & ~has_lo
+        loss = torch.where(use_rev_only, lr, lf)
+        valid = torch.where(use_rev_only, vr, vf)
+        loss = torch.where(both & vf & vr, 0.5 * (lf + lr), loss)
+        loss = torch.where(both & ~vf & vr, lr, loss)
+        valid = torch.where(both, vf | vr, valid)
+        if valid.sum() == 0:
+            return predictions.sum() * 0.0
+        return loss[valid].mean()
+
+
+def hinge_regression_loss(crit, pred: torch.Tensor, target: torch.Tensor, bound: torch.Tensor,
+                          cens: torch.Tensor) -> torch.Tensor:
+    """
+    Regression that treats a censored measurement as a bound, element-wise (same reduction-'none' convention as ``crit``).
+
+    An uncensored item (``cens == 0``) is scored against ``target`` as usual. A lower-censored item - one the assay
+    could only pin at its floor - is scored against ``bound`` and *only when the prediction sits above it*: saying
+    "at or below the floor" about something measured at the floor is free, and only claiming it is better than the
+    floor is penalised. An upper-censored item is the mirror image. No value is ever imposed that was not measured.
+
+    ``bound`` is on the item's own ddG scale (``cens_bound``), so one number serves singles, doubles and conditional
+    items alike; where it is NaN the item contributes nothing rather than poisoning the sum.
+    """
+    censored = cens != 0
+    finite_bound = torch.isfinite(bound)
+    # A censored item with no computable bound is dropped by `keep`; zero it here too, because a NaN target would
+    # survive the multiply (0 * NaN = NaN) and poison the whole sum.
+    safe_bound = torch.where(finite_bound, bound, torch.zeros_like(bound))
+    tgt = torch.where(censored, safe_bound, target)
+    L = crit(pred, tgt)
+    wrong_side = ((cens < 0) & (pred > safe_bound)) | ((cens > 0) & (pred < safe_bound))
+    keep = (~censored) | (wrong_side & finite_bound)
+    return L * keep.to(L.dtype)
