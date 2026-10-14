@@ -374,6 +374,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         # a finite floor leaked through for a library without evidence, it would silently pin the knee and make
         # --learn_global_floor inert for that library, which is hard to notice from the metrics.
         y = float(self.floor_stats.get('y_floor', float('nan'))) if self.has_floor_evidence else float('nan')
+        self.y_floor_used = y        # what the items actually carry, which is what the log must report
         for item in self.data:
             item['y_floor'] = y
             t, c = meas_value(item, 'deltaG_t'), meas_value(item, 'deltaG_c')
@@ -392,7 +393,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         if c['floor'] or c['gap']:
             logging.info(f"[{self.dms_name}] censored {c['floor'] + c['gap']} of {len(self.data)} items: "
                          f"{c['floor']} at the library floor "
-                         f"(y_floor={self.floor_stats.get('y_floor', float('nan')):.3f}) {dict(c['floor_by_subset'])}, "
+                         f"(y_floor={getattr(self, 'y_floor_used', float('nan')):.3f}, "
+                         f"evidence={int(getattr(self, 'has_floor_evidence', False))}) {dict(c['floor_by_subset'])}, "
                          f"{c['gap']} on protease disagreement {dict(c['gap_by_subset'])}")
         else:
             logging.info(f"[{self.dms_name}] nothing censored"
