@@ -680,112 +680,40 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                         row=row, ddG_total=ddG_val
                     ))
 
-                # (D) Conditional items: ddG(B|A) and ddG(A|B), derived from the double and its singles
-                if len(muts) == 2: 
+                # (D) Conditional items: ddG(B|A) and ddG(A|B), derived from the double and its singles.
+                #
+                # Each conditions on the structure its parent double already used - the unchanged WT backbone -
+                # rather than on a modeled or masked structure of the partner mutation alone. The partner's side
+                # chain is therefore shown as wild type, which is wrong, but it is also exactly what the MT adapter
+                # is given at inference time, so training and inference see the same input. It also costs nothing:
+                # loading and re-encoding a modeled partner structure per item ran at about 0.4 s each, which is
+                # ~50 hours over the full dataset, for a subset that is not currently trained on at all.
+                if len(muts) == 2:
                     (wtA, posA, mtA), (wtB, posB, mtB) = muts
                     if (posA, mtA) in single_map and (posB, mtB) in single_map:
                         ddG_A = single_map[(posA, mtA)]
                         ddG_B = single_map[(posB, mtB)]
                         ddG_additive = ddG_A + ddG_B
-                        
-                        t_B_given_A = ddG_val - ddG_A
-                        t_A_given_B = ddG_val - ddG_B
 
-                        # --- "B|A": context with A present
-                        ctx_wt_A_list = list(corrected_seq)
-                        ctx_wt_A_list[posA-1] = mtA
-                        ctx_wt_A = ''.join(ctx_wt_A_list)
+                        for (scored, partner, target) in (
+                            ((wtB, posB, mtB), (wtA, posA, mtA), ddG_val - ddG_A),   # ddG(B | A)
+                            ((wtA, posA, mtA), (wtB, posB, mtB), ddG_val - ddG_B),   # ddG(A | B)
+                        ):
+                            _, p_pos, p_mt = partner
+                            _, s_pos, s_mt = scored
+                            ctx_wt_list = list(corrected_seq)
+                            ctx_wt_list[p_pos - 1] = p_mt                 # the background: the partner present
+                            ctx_mt_list = list(ctx_wt_list)
+                            ctx_mt_list[s_pos - 1] = s_mt                 # plus the scored mutation
 
-                        ctx_mt_A_list = list(ctx_wt_A_list)
-                        ctx_mt_A_list[posB-1] = mtB
-                        ctx_mt_A = ''.join(ctx_mt_A_list)
-
-                        ctx_masks = base_mask_positions.copy()
-
-                        maybe = self._try_load_modeled_context(
-                            base_code=base_code, chain=chain, 
-                            partner_wt=wtA, partner_pos=posA, partner_mut=mtA, 
-                            expected_seq=ctx_wt_A, 
-                            target_masks=ctx_masks
-                        )
-                        
-                        if maybe is not None:
-                            struct_type_A = 'model'
-                            _, coords_ctx_A, plddt_ctx_A, struct_ctx_A, residue_index_ctx_A = maybe
-                        else:
-                            struct_type_A = 'fake'
-                            fallback_masks = ctx_masks.copy()
-                            if posA not in fallback_masks:
-                                fallback_masks.append(posA)
-                                
-                            maybe_fallback = None
-                            if has_modeled_backbone:
-                                maybe_fallback = self._try_load_modeled_context(
-                                    base_code, chain, wt_bb, pos_bb, mt_bb, expected_seq=corrected_seq, target_masks=fallback_masks, force_mask=True
-                                )
-                                
-                            if maybe_fallback is not None:
-                                _, coords_ctx_A, plddt_ctx_A, struct_ctx_A, residue_index_ctx_A = maybe_fallback
-                            else:
-                                coords_ctx_A, plddt_ctx_A, struct_ctx_A, residue_index_ctx_A = self._get_encoded_structure(
-                                    protein_chain, backbone, fallback_masks, force_mask=True
-                                )
-
-                        data.append(self._create_data_item(
-                            mutations=[(wtB, posB, mtB)], ddG=float(t_B_given_A), dddG=dddG_val, 
-                            ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, code=code,
-                            wt_seq=ctx_wt_A, mt_seq=ctx_mt_A, coords=coords_ctx_A, plddt=plddt_ctx_A, 
-                            structure_tokens=struct_ctx_A, residue_index=residue_index_ctx_A, subset_type='cond', structure_type=struct_type_A,
-                            row=row, ddG_total=ddG_val
-                        ))
-
-                        # --- "A|B": context with B present
-                        ctx_wt_B_list = list(corrected_seq)
-                        ctx_wt_B_list[posB-1] = mtB
-                        ctx_wt_B = ''.join(ctx_wt_B_list)
-
-                        ctx_mt_B_list = list(ctx_wt_B_list)
-                        ctx_mt_B_list[posA-1] = mtA
-                        ctx_mt_B = ''.join(ctx_mt_B_list)
-
-                        ctx_masks = base_mask_positions.copy()
-
-                        maybe = self._try_load_modeled_context(
-                            base_code=base_code, chain=chain, 
-                            partner_wt=wtB, partner_pos=posB, partner_mut=mtB, 
-                            expected_seq=ctx_wt_B, 
-                            target_masks=ctx_masks
-                        )
-                        
-                        if maybe is not None:
-                            struct_type_B = 'model'
-                            _, coords_ctx_B, plddt_ctx_B, struct_ctx_B, residue_index_ctx_B = maybe
-                        else:
-                            struct_type_B = 'fake'
-                            fallback_masks = ctx_masks.copy()
-                            if posB not in fallback_masks:
-                                fallback_masks.append(posB)
-                                
-                            maybe_fallback = None
-                            if has_modeled_backbone:
-                                maybe_fallback = self._try_load_modeled_context(
-                                    base_code, chain, wt_bb, pos_bb, mt_bb, expected_seq=corrected_seq, target_masks=fallback_masks, force_mask=True
-                                )
-                                
-                            if maybe_fallback is not None:
-                                _, coords_ctx_B, plddt_ctx_B, struct_ctx_B, residue_index_ctx_B = maybe_fallback
-                            else:
-                                coords_ctx_B, plddt_ctx_B, struct_ctx_B, residue_index_ctx_B = self._get_encoded_structure(
-                                    protein_chain, backbone, fallback_masks, force_mask=True
-                                )
-
-                        data.append(self._create_data_item(
-                            mutations=[(wtA, posA, mtA)], ddG=float(t_A_given_B), dddG=dddG_val, 
-                            ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, code=code,
-                            wt_seq=ctx_wt_B, mt_seq=ctx_mt_B, coords=coords_ctx_B, plddt=plddt_ctx_B, 
-                            structure_tokens=struct_ctx_B, residue_index=residue_index_ctx_B, subset_type='cond', structure_type=struct_type_B,
-                            row=row, ddG_total=ddG_val
-                        ))
+                            data.append(self._create_data_item(
+                                mutations=[scored], ddG=float(target), dddG=dddG_val,
+                                ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, code=code,
+                                wt_seq=''.join(ctx_wt_list), mt_seq=''.join(ctx_mt_list),
+                                coords=c_b, plddt=p_b, structure_tokens=s_b, residue_index=r_b,
+                                subset_type='cond', structure_type=struct_type,
+                                row=row, ddG_total=ddG_val
+                            ))
         return data
     
     def _meas_array(self, row: Any) -> np.ndarray:
