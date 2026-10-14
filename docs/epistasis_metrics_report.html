@@ -556,8 +556,8 @@ predictor that knows only a product-form nonspecific term reaches 0.57 reversal 
 <li><b>The link should model the readout only, and learn its floor freely.</b> Regressing measured doubles through it places the floor near −0.5
 within a few hundred steps. The censoring hinge, as built, works against this: it bounds the observed prediction of a dead variant at −1, which a
 link whose floor is higher can never meet, so dead variants drag the link down instead of pushing their own latents down. The bound belongs on the
-latent scale: <code>--censor_hinge_scale latent</code> (devel, default still <code>observed</code> so past runs reproduce) takes it through the link's
-inverse, so a dead variant must sit at or below the floor's knee and the link gets no gradient from censored items. A per-library or per-protease
+latent scale: <code>--censor_hinge_scale latent</code> (devel's default since 2026-10-13; pass <code>observed</code> to reproduce earlier runs) takes it
+through the link's inverse, so a dead variant must sit at or below the floor's knee and the link gets no gradient from censored items. A per-library or per-protease
 floor offset is a possible refinement (floors vary by ±0.27).</li>
 <li><b>Teacher forcing should use latent singles.</b> The released objective forces the WT half of a double with its measured singles; near the
 floor those readings are compressed (the lift test), so the forced additive part is too stable and the MT head compensates.
@@ -582,15 +582,19 @@ it has learned nonspecific structure, not pair-specific coupling.</li>
 design), one draw per world. Single-mutant predictions: truth plus noise (SD 0.6), shrunk toward the mean as a fitted model's are. Link: one soft floor
 with learned floor and softness. f(x̂): piecewise linear in the predicted additive dG. f(â, b̂): a small MLP of the two predicted singles and dG_wt.
 Flexible link: a monotone piecewise-linear h with 14 knots and no f. Global curve: mean dddG in 20 bins of the measured x.</p>
-<h3>Experiments, in order of information per GPU-hour</h3>
+<h3>Experiments, in queue order</h3>
+<p>One GPU, one arm at a time. The first three and the last are the basis recipe (seed 1, 8 epochs) plus the link at micro-batch 64 on
+claude/main-baseline, about 4.5 h each; each changes one thing and is compared with <code>bl_w2a4_m16a16_capped_link</code>.</p>
 <ol>
-<li><b>Teacher forcing with latent singles</b> (<code>bl_w2a4_m16a16_capped_link_tflatent</code>, queued on claude/main-baseline) and with predicted
-latent singles (<code>…_tfpred</code>): does removing the compression from the forced half lower the global bias and help the cell level?</li>
-<li><b>Regression weight ×5 with the link</b> (<code>…_reg5</code>): heavier regression strengthened the magnitude levels in devel (o6g1_bal111, o6s03_m1).</li>
-<li><b>An explicit nonspecific term f(x̂)</b> on the released objective with the link (<code>…_link_ns</code>, queued fourth): judge on global_err,
-global_bias and the two-stage residual levels; the cell level should not change.</li>
-<li><b>Devel's hinge on the latent scale:</b> rerun the best devel arm with <code>--censor_hinge_scale latent</code>; the link's floor should stop
-drifting below −1 (not queued).</li>
+<li><b>Teacher forcing with latent singles</b> (<code>bl_w2a4_m16a16_capped_link_tflatent</code>, running): the measured singles mapped back through
+the link. Does removing the compression from the forced half lower the global bias and help the cell level?</li>
+<li><b>Teacher forcing with predicted latent singles</b> (<code>…_tfpred</code>): the model's own latent singles, no single label needed.</li>
+<li><b>An explicit nonspecific term f(x̂)</b> (<code>…_link_ns</code>): judge on global_err, global_bias and the two-stage residual levels; the cell
+level should not change.</li>
+<li><b>Devel's hinge on the latent scale</b> (<code>o6s38_mt8_hinge_latent</code>, devel): o6s09_mt8's flags, 10 epochs, with
+<code>--censor_hinge_scale latent</code>. The link's floor (<code>link/lo</code>) should stop drifting below −1; compare with o6s09_mt8 epoch by epoch.</li>
+<li><b>Regression weight ×5 with the link</b> (<code>…_reg5</code>, last): heavier regression strengthened the magnitude levels in devel
+(o6g1_bal111, o6s03_m1). Its flags are to be revised with what the first four show (the forcing mode, the nonspecific term) before it starts.</li>
 </ol>
 <p>Each of these should be judged on the cell score with the guards. Run two seeds before believing a difference below 0.03 on cell_rank_mt.</p>
 </div>
