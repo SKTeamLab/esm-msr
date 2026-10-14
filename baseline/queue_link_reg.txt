@@ -1,0 +1,4 @@
+# Last in line (2026-10-13): runs after baseline/queue_link.txt (tflatent, tfpred, ns) and the devel arm o6s38_mt8_hinge_latent
+# (devel scripts/queue_hinge.txt). Edit the flags before it starts to fold in what those three arms show.
+# Format: NAME EPOCHS SEED [flags]   (flags are appended to baseline/recipe_args.txt and override it)
+bl_w2a4_m16a16_capped_link_reg5 8 1 --val_cycle_passes --link softclamp --micro_batch_size 64 --lambda_reg_wt 5 --lambda_reg_combined 5
