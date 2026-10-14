@@ -150,9 +150,10 @@ def shrink_floors(stats: Dict[str, Dict[str, float]], shrink: float = 5.0) -> fl
 
     A library's floor is measured with a standard error around 0.05 against a between-library spread near 0.3, so a
     well-populated library is essentially untouched by ``shrink`` pseudo-counts of the global value while a library
-    that only just cleared ``min_n`` is pulled most of the way back. Libraries with no evidence are given the global
-    median as their ``y_floor`` so the link still has a sane knee, but keep ``evidence = 0`` so nothing is censored
-    against it - above the floor the link is near-identity, so the knee's exact position barely matters there.
+    that only just cleared ``min_n`` is pulled most of the way back. Libraries with no evidence are left with
+    ``y_floor`` NaN and ``evidence = 0``: nothing in them is censored, and the link covers their knee with its
+    learned ``global_floor`` (``esm_msr.link.FloorLink``) rather than borrowing the global median as if it were
+    data. The returned median is what initialises that parameter.
     """
     accepted = [s['y_floor'] for s in stats.values() if s.get('evidence') and np.isfinite(s['y_floor'])]
     glob = float(np.median(accepted)) if accepted else float('nan')
@@ -367,8 +368,12 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         variant's stability, so a large gap says they do not jointly identify one (``esm_msr.censoring``). It is
         derived here rather than cached in its own right because ``meas`` already carries both channels.
         """
-        y = float(self.floor_stats.get('y_floor', float('nan')))
         self.has_floor_evidence = bool(self.floor_stats.get('evidence', 0.0))
+        # The invariant, enforced here rather than trusted from upstream: an item carries a floor only if its
+        # library actually showed one. Otherwise it carries NaN and the link's learned global_floor covers it. If
+        # a finite floor leaked through for a library without evidence, it would silently pin the knee and make
+        # --learn_global_floor inert for that library, which is hard to notice from the metrics.
+        y = float(self.floor_stats.get('y_floor', float('nan'))) if self.has_floor_evidence else float('nan')
         for item in self.data:
             item['y_floor'] = y
             t, c = meas_value(item, 'deltaG_t'), meas_value(item, 'deltaG_c')

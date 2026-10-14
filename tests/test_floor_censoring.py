@@ -223,3 +223,23 @@ def test_floor_wins_when_both_apply():
 def test_gap_needs_a_measured_dG():
     items, counts = censoring.apply_item_censoring([_gitem(-2.5, float('nan'), 6.0)], censor_floor=False, gap_max=2.0)
     assert items[0]['cens'] == 0 and counts['gap'] == 0
+
+
+def test_a_library_without_evidence_never_carries_a_finite_floor():
+    """Enforced at the point of use: even if a finite floor reached the dataset for a library with no evidence, its
+    items must carry NaN, or the link's learned global floor would be silently bypassed for them."""
+    from esm_msr.data import MutationStabilityDataset as DS
+    ds = DS.__new__(DS)
+    ds.data = [{'meas': None}, {'meas': None}]
+    ds.floor_stats = {'y_floor': -0.139, 'evidence': 0.0}     # a finite floor with no evidence behind it
+    ds.dms_name = 'test'
+    DS._stamp_floor(ds)
+    assert ds.has_floor_evidence is False
+    assert all(not np.isfinite(i['y_floor']) for i in ds.data)
+
+    ds2 = DS.__new__(DS)
+    ds2.data = [{'meas': None}]
+    ds2.floor_stats = {'y_floor': -0.2, 'evidence': 1.0}
+    ds2.dms_name = 'test2'
+    DS._stamp_floor(ds2)
+    assert ds2.data[0]['y_floor'] == pytest.approx(-0.2)
