@@ -1,0 +1,14 @@
+# The honest control for the per-library floor (2026-10-14). Identical to bl_w2a4_m16a16_capped_link_floor except that the floor file holds
+# TRAINING libraries only (probes/link_floors_oct14_trainonly.json: 45 train libraries, no val or test library, verified). Every validation
+# library therefore keeps the shared floor, exactly as in bl_w2a4_m16a16_capped_link.
+#
+# Why it is needed: a library gets an offset only if it HAS doubles deep below the floor, so every one of the 931 deep validation doubles
+# (x < -1.5) is in a covered library and fed its own library's floor estimate. The floor region of the validation global curve is therefore
+# 100% circular in the main arm - and dddG there is close to (floor - x), so the estimate nearly hands the model the answer. This arm has no
+# such path: anything it gains must come from the link being better conditioned during TRAINING.
+#
+# Read this arm on: cell_rank_mt / cell_mag_comb / cell_flipacc_mt (the offsets cannot touch them), the guards, link/lo and link/tau_lo, and
+# the knee and in-range parts of the global curve. Expect global_err/global_bias to improve much LESS than in the main arm; if they improve
+# by the same amount, the main arm's gain was not circularity after all.
+# Format: NAME EPOCHS SEED [flags]   (flags are appended to baseline/recipe_args.txt and override it)
+bl_w2a4_m16a16_capped_link_floor_tr 8 1 --val_cycle_passes --link softclamp --micro_batch_size 64 --link_floor_file /home/sareeves/playground/esm-msr-devel/probes/link_floors_oct14_trainonly.json
