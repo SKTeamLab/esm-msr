@@ -170,11 +170,23 @@ def parse_arguments() -> argparse.Namespace:
 
     data_group.add_argument('--subset_caps', nargs='*', action=ParseSubsetCaps, default=dict(DEFAULT_SUBSET_CAPS),
                             help=f"Caps for data subsets (e.g. double=0.6 cond=0.1). Defaults: {DEFAULT_SUBSET_CAPS}.")
-    data_group.add_argument('--floor_percentile', type=float, default=5.0,
-                            help="N for each library's Nth_percentile_dG floor estimate. Part of the cache name.")
-    data_group.add_argument('--censor_floor', action=argparse.BooleanOptionalAction, default=True,
-                            help="Treat an item measured at or below its library's floor as a bound rather than a "
-                                 "value: regression becomes one-sided and the item's rank is tied at the bottom.")
+    floor_group = parser.add_argument_group("Assay Floor (data.floor_evidence)")
+    floor_group.add_argument('--censor_floor', action=argparse.BooleanOptionalAction, default=True,
+                             help="Treat an item measured at or below its library's floor as a bound rather than a "
+                                  "value: regression becomes one-sided and the item's rank is tied at the bottom. "
+                                  "Only applies to libraries that show evidence of a floor.")
+    floor_group.add_argument('--floor_x_max', type=float, default=-1.5,
+                             help="A variant counts as expected-to-be-pinned when its additive expectation "
+                                  "dG_wt + ddG_A + ddG_B is below this.")
+    floor_group.add_argument('--floor_min_n', type=int, default=20,
+                             help="Expected-pinned variants a library needs before its floor is believed.")
+    floor_group.add_argument('--floor_max_sd', type=float, default=0.5,
+                             help="They must agree to within this SD (kcal/mol) to count as pinned at a common "
+                                  "value rather than merely destabilised.")
+    floor_group.add_argument('--floor_percentile', type=float, default=5.0,
+                             help="Nth_percentile_dG, computed and logged per library for COMPARISON only; it is "
+                                  "a quantile of the library's own sensitivity, not of the readout, and is not "
+                                  "what the link or the censoring use.")
     data_group.add_argument('--mut_structures_root', type=str, default='/home/sareeves/software/esm-msr/data/tsuboyama/FINAL_results/')
     data_group.add_argument('--remove_spurs_homologs', action=argparse.BooleanOptionalAction, default=False)
     data_group.add_argument('--combine_validation', action=argparse.BooleanOptionalAction, default=False)
@@ -197,8 +209,12 @@ def parse_arguments() -> argparse.Namespace:
     log_group.add_argument('--num_sanity_val_steps', type=int, default=0)
     log_group.add_argument('--offline', type=bool, default=False, action=argparse.BooleanOptionalAction)
     log_group.add_argument('--skip_val', type=bool, default=False, action=argparse.BooleanOptionalAction)
-    log_group.add_argument('--val_dump', action=argparse.BooleanOptionalAction, default=False,
-                           help="Write per-item validation predictions to val_dump_<loader>.npz each epoch.")
+    log_group.add_argument('--val_dump', action=argparse.BooleanOptionalAction, default=True,
+                           help="Write per-item validation predictions to val_dump_<tag>.npz each epoch.")
+    log_group.add_argument('--val_cycle_passes', action=argparse.BooleanOptionalAction, default=False,
+                           help="Run the two extra validation passes (WT adapter on the mutated sequence, MT "
+                                "adapter on the wild type). Needed for the 'ctx' control head of the epistasis "
+                                "metrics; costs one extra forward pass per validation batch.")
 
     args, remaining_argv = parser.parse_known_args()
 

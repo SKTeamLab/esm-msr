@@ -4,7 +4,6 @@ from scipy.stats import spearmanr
 from sklearn.metrics import mean_squared_error, ndcg_score
 
 from esm_msr import routing
-from esm_msr.censoring import auroc
 
 
 def safe_spearman(preds, targets):
@@ -129,12 +128,8 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     ``_all`` deliberately mixes quantities (a conditional ddG(X | background) is not a wild-type-context ddG): it
     answers "does this head rank anything sensibly" rather than "is this head right". Read ``_valid`` first.
 
-    ``cens`` (optional -1/0/+1 per item, see ``esm_msr.censoring``): every metric above is computed on the
-    UNCENSORED items only, so a library's score is not inflated by variants whose measured value is only its
-    floor. The censored items get their own metrics instead, each the probability that a random member of one
-    group is scored on the right side of a random member of the other (ties half): ``auc_dead_{wt,mt}``
-    (ordinary ranked above floor-censored) and ``auc_hyper_{wt,mt}``, with the WT head judged on singles and the
-    MT head on conditional items. ``frac_censored`` records how much of the library this moved.
+    ``cens`` (optional -1/0/+1 per item, see ``esm_msr.censoring``): every metric is computed on the UNCENSORED
+    items only, so a library's score is not inflated or deflated by variants whose measured value is only a bound.
 
     Returns a flat ``{name: value}`` dict; undefined entries are NaN.
     """
@@ -156,7 +151,6 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
         'rho_mt_all': safe_spearman(mt_scores[finite], gt[finite]),
         'rho_combined': safe_spearman(comb_scores[is_measured], gt[is_measured]),
         'rmse_combined': safe_rmse(comb_scores[is_measured], gt[is_measured]),
-        'frac_censored': float((~uncens).mean()) if len(cens_arr) else np.nan,
     }
     if obs is not None:
         oc = np.asarray(obs['comb'], dtype=np.float64)
@@ -168,13 +162,5 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
         metrics['ndcg>0'] = safe_ndcg_t0(comb_scores[is_measured], gt[is_measured])
         metrics['ndcg@k=96_wt'] = safe_ndcg_k96(wt_scores[is_measured], gt[is_measured])
         metrics['ndcg>0_wt'] = safe_ndcg_t0(wt_scores[is_measured], gt[is_measured])
-
-    if (cens_arr != 0).any():
-        wt_single = np.isin(subset_types, list(routing.WT_HEAD_SUBSETS))
-        mt_cond = np.isin(subset_types, list(routing.CONDITIONAL_SUBSETS))
-        for tag, scores, sel in (('wt', wt_scores, wt_single), ('mt', mt_scores, mt_cond)):
-            alive = scores[sel & uncens & np.isfinite(gt)]
-            metrics[f'auc_dead_{tag}'] = auroc(alive, scores[sel & (cens_arr < 0)])
-            metrics[f'auc_hyper_{tag}'] = auroc(scores[sel & (cens_arr > 0)], alive)
 
     return metrics

@@ -10,12 +10,12 @@ any configuration, so the starting point is `main` and every addition has to jus
 |---|--------|-------|
 | 1 | 2D subsampling of doubles deleted (it was **on by default**) | `data.py` |
 | 2 | `reversion` gone; `mut_ctx` → `cond`; `native_cond` added; every item carries its raw measurement row | `data.py` |
-| 3 | Per-library floor estimate `Nth_percentile_dG` (N=5), cached per item | `data.py` |
+| 3 | Per-library floor, accepted only on evidence of pinning; `Nth_percentile_dG` kept as a diagnostic | `data.py` |
 | 4 | Floor link `dG_obs = y_floor + τ·softplus((dG_latent − y_floor)/τ)`, τ=0.59 | `link.py` (new) |
 | 5 | Hinge regression: a sub-floor measurement is a bound, not a value | `losses.py` |
 | 6 | Censored ranking: sub-floor items tie at the bottom, their mutual order unscored | `losses.py` |
 | 7 | No non-specific epistasis term; no epistasis loss at all | `config.py`, `training.py` |
-| 8 | Validation stats from `devel`'s flat `compute_metrics`, plus censoring-aware AUCs | `stats.py`, `training.py` |
+| 8 | `devel`'s flat `compute_metrics` + the full `epi_metrics` hierarchy (`epi_cell_*`, `beyond_rho`, …) | `stats.py`, `epi_metrics.py`, `training.py` |
 | 9 | Dead args and dead code removed; no backwards compatibility | everywhere |
 
 ### The 2D subsampler (item 1)
@@ -67,10 +67,37 @@ only report the floor.
 each item carries its library's estimate, so the link adds no per-library parameters. The estimate is clipped into
 `[--link_floor_min, --link_floor_max]` = `[-1.0, 0.2]`, the band the assay's reported floor occupies.
 
-Applied exactly where `main-baseline` applies its link: a single is a measurement of the item, so it is compared
-through `h`; a double's WT target is the *sum of its two singles*, a latent additive expectation that the assay never
-reported, so it stays latent; the combined path always goes through `h`. Items whose library has no measured `dG_wt`
-(the external benchmarks) leave the linked regression and keep their rank terms.
+**Where it is applied.** One rule, everywhere: *every prediction is assembled on the latent scale, and the link is
+applied once, at the very end. Labels are never transformed.*
+
+| path | assembly (latent) | then |
+|---|---|---|
+| WT, single | the pass's LLR for the one mutation | `h` → compare to measured `ddG_X` |
+| WT, double | the pass's LLR **sum** over both positions | `h` → compare to measured `ddG_AB` |
+| combined | `0.5·WT_latent + 0.5·MT_latent` | `h` → compare to measured `ddG_AB` |
+
+So the WT head is regressed onto the item's own measurement whatever the item is. The architecture, not the label,
+is what makes it additive: the WT pass can only emit a sum of per-position terms, so it cannot represent
+pair-specific epistasis even when trained against a double's measurement — the residual stays residual, and with
+many doubles per single the pull on each single term averages out.
+
+This replaced an earlier target of `ddG_A + ddG_B` for doubles, which could not survive the link. Each term of that
+sum is an observed value, but **their sum is not anything the readout can report**: two singles each measured at
+−2.5 give a label of −5.0, while a linked prediction is floored near `y_floor − dG_wt` ≈ −3.3. No prediction could
+ever match it, and the gradient would drive the latent down without limit. The two self-consistent options were
+"latent prediction vs sum-of-singles" (the old behaviour) or "linked prediction vs the measured double" (now); the
+mixture of the two is the one combination that is broken. The old target was also the worse of the two even without
+the link, because `ddG_A` is the *floored* value of single A, so for any floored single it taught the WT head a
+compressed latent — exactly the contamination the link exists to remove.
+
+Items whose library has no measured `dG_wt` (the external benchmarks) leave the linked regression and keep their
+rank terms, which the link would not have changed anyway, since it is monotone.
+
+**One residual impurity, handled.** In `ensemble` mode the WT half of the combined latent is teacher-forced with the
+measured `ddG_A + ddG_B` so the MT head only has to learn the correction. That injects an *observed* sum where a
+*latent* belongs. It is harmless while both singles sit inside the dynamic range (`h` is near-identity there, so
+observed ≈ latent), and wrong exactly when a single is itself floored. Those doubles are therefore excluded from
+teacher forcing and fall back to the WT head's own latent (`train/tf_saturated_dropped` counts them per batch).
 
 There is **no ceiling term**. The `>5` hyperstable end has no numeric value to regress onto, so a second soft clamp
 would be fitting a shape to data that is not there.

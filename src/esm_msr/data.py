@@ -51,39 +51,65 @@ def meas_value(item: Dict[str, Any], name: str) -> float:
     return float(arr[_MEAS_INDEX[name]])
 
 
-def library_floor(df: Any, percentile: float = 5.0, dG_wt: float = float('nan'), name: str = '') -> Dict[str, float]:
+def floor_evidence(dG: np.ndarray, x: np.ndarray, dG_wt: float, *, x_max: float = -1.5, min_n: int = 20,
+                   max_sd: float = 0.5, band=(-1.0, 0.2)) -> Dict[str, float]:
     """
-    One library's floor estimate and the statistics behind it.
+    Is there evidence that this library has a floor, and if so where is it?
 
-    ``y_floor`` is ``Nth_percentile_dG``: the ``percentile`` percentile of the library's numeric measured dG
-    values. It is cheap, needs nothing but this library's own rows, and is defined for every library.
+    The floor is a property of the READOUT, not of the variants: the assay infers dG by comparing a variant's K50
+    against a K50 predicted for its unfolded sequence from composition, so a variant that is unfolded anyway reports
+    the error of that prediction - a constant of the library and the protease. A library only shows us that constant
+    if some of its variants are actually pinned at it. Many libraries contain nothing that destabilised; asking them
+    where their floor is produces a number that is really a quantile of their own mutational sensitivity (see
+    docs/devel_conservative.md for the measurements), and censoring against it discards good measurements.
 
-    What it is a proxy FOR is the assay's practical floor: the dG the fit returns for a sequence that is unfolded
-    anyway, which is the composition model's error for that sequence and so a constant of the library (see
-    ``esm_msr.censoring``). A quantile of the measured distribution is only a good proxy when enough of that
-    distribution is actually sitting on the floor, so this estimate is confounded with how destabilising the
-    library's variants happen to be: a library of mild singles has its 5th percentile well above its true floor,
-    a library saturated with dead doubles has it right at the floor. Two guards against that:
+    So the floor is only accepted when all three hold, on the variants whose ADDITIVE EXPECTATION
+    ``x = dG_wt + ddG_A + ddG_B`` is below ``x_max`` - the ones expected far beneath any floor, and therefore
+    expected to be pinned:
 
-    * The link clips ``y_floor`` into ``[floor_min, floor_max]`` (default -1.0 to 0.2, the band the assay's own
-      reported floor occupies), so a composition-driven overestimate cannot push the knee into the measurable range.
-    * ``floor_cond`` is also recorded: the median measured dG of the doubles whose additive expectation
-      ``dG_wt + ddG_A + ddG_B`` falls below -1.5, i.e. the variants expected far below any floor and therefore
-      pinned at it. That conditions on being dead instead of assuming the tail is dead, so it estimates the floor
-      itself rather than a quantile of the library's sensitivity. It needs doubles with both singles measured, so
-      it is NaN for many libraries - which is why it is recorded alongside rather than used as the default.
+    1. ``n >= min_n``: enough of them to estimate anything.
+    2. ``sd <= max_sd``: they AGREE. Variants predicted to sit at -3 kcal/mol that come back at one common value are
+       pinned at that value; variants that come back spread over 2 kcal/mol are not pinned, they are being measured.
+       This is the test that distinguishes a floor from a coincidence, and a quantile cannot do it.
+    3. the common value lies inside ``band``: the assay's reported floor occupies roughly -1 to 0.2 kcal/mol. A tight
+       cluster of deeply destabilised variants reading +1.5 is not a floor, it is compensation, and conditioning on
+       it would be worse than having no floor at all.
 
-    Non-numeric dG values (the ``<-1`` / ``>5`` tags and ``-``) are excluded from the percentile, so it is the
-    floor of the population the regression loss actually sees. ``frac_cens_lo`` records how much was excluded this
-    way, because a library that reports most of its dead variants as ``<-1`` has a truncated numeric tail and
-    therefore a percentile biased upwards.
+    Returns ``floor`` (NaN without evidence), ``n``, ``sd``, ``median``, and ``evidence`` (1.0/0.0). Shrinkage toward
+    the dataset-wide floor is applied afterwards by :func:`shrink_floors`, which needs every library at once.
     """
-    out = {'y_floor': float('nan'), 'floor_pctl': float('nan'), 'floor_cond': float('nan'),
-           'n_dG': 0.0, 'n_floor_cond': 0.0, 'frac_cens_lo': float('nan'), 'dG_wt': float(dG_wt),
-           'percentile': float(percentile)}
+    out = {'floor': float('nan'), 'n': 0.0, 'sd': float('nan'), 'median': float('nan'), 'evidence': 0.0}
+    if not np.isfinite(dG_wt):
+        return out
+    deep = np.isfinite(dG) & np.isfinite(x) & (x < x_max)
+    out['n'] = float(deep.sum())
+    if out['n'] < min_n:
+        return out
+    v = dG[deep]
+    out['sd'], out['median'] = float(np.std(v)), float(np.median(v))
+    if out['sd'] > max_sd or not (band[0] <= out['median'] <= band[1]):
+        return out
+    out['floor'], out['evidence'] = out['median'], 1.0
+    return out
+
+
+def library_floor(df: Any, percentile: float = 5.0, dG_wt: float = float('nan'), name: str = '',
+                  **evidence_kw) -> Dict[str, float]:
+    """
+    One library's floor statistics.
+
+    ``floor`` / ``evidence`` come from :func:`floor_evidence` and are what training uses. ``floor_pctl``, the
+    ``percentile`` percentile of the library's numeric dG, is computed and logged for comparison only: it is a
+    quantile of the library's own sensitivity rather than of the readout, it is defined even for libraries with no
+    floor population at all, and measured across this dataset it is clipped at the top of the assay's band for 44%
+    of training libraries and correlates only 0.40 with the conditioned estimate. ``frac_cens_lo`` is the share of
+    rows the assay would not give a number to (``<-1``), which truncates the numeric tail the percentile sees.
+    """
+    out = {'y_floor': float('nan'), 'evidence': 0.0, 'floor_pctl': float('nan'), 'floor_cond': float('nan'),
+           'n_dG': 0.0, 'n_deep': 0.0, 'sd_deep': float('nan'), 'frac_cens_lo': float('nan'),
+           'dG_wt': float(dG_wt), 'percentile': float(percentile)}
     if 'dG_ML' not in df.columns:
-        logging.warning(f"[{name}] no dG_ML column; the library has no floor estimate "
-                        f"(the link will fall back to the middle of its clip band).")
+        logging.warning(f"[{name}] no dG_ML column; no floor estimate and no floor censoring.")
         return out
 
     raw = df['dG_ML'].to_numpy(dtype=object)
@@ -95,26 +121,50 @@ def library_floor(df: Any, percentile: float = 5.0, dG_wt: float = float('nan'),
     if finite.any():
         out['floor_pctl'] = float(np.percentile(dG[finite], percentile))
 
-    # The doubles-conditioned alternative, recorded for comparison.
+    # The additive expectation of every double with both singles measured: x = dG_wt + ddG_A + ddG_B.
+    x = np.full(len(dG), np.nan)
     if np.isfinite(dG_wt) and 'mut_type' in df.columns:
         muts = df['mut_type'].astype(str).to_numpy()
         single = {m: d for m, d in zip(muts, dG) if ':' not in m and np.isfinite(d)}
-        deep = []
-        for m, d in zip(muts, dG):
-            if m.count(':') != 1 or not np.isfinite(d):
+        for i, m in enumerate(muts):
+            if m.count(':') != 1:
                 continue
             a, b = m.split(':')
-            if a in single and b in single and single[a] + single[b] - dG_wt < -1.5:
-                deep.append(d)                                  # x = dG_wt + ddG_A + ddG_B = dG_A + dG_B - dG_wt
-        if deep:
-            out['floor_cond'] = float(np.median(deep))
-            out['n_floor_cond'] = float(len(deep))
+            if a in single and b in single:
+                x[i] = single[a] + single[b] - dG_wt
 
-    out['y_floor'] = out['floor_pctl']
-    logging.info(f"[{name}] floor: y_floor({percentile:g}th pctl)={out['floor_pctl']:.3f} from n={out['n_dG']:.0f} "
-                 f"numeric dG ({out['frac_cens_lo']*100:.1f}% reported '<-1'); doubles-conditioned "
-                 f"alternative={out['floor_cond']:.3f} (n={out['n_floor_cond']:.0f}); dG_wt={dG_wt:.2f}")
+    ev = floor_evidence(dG, x, dG_wt, **evidence_kw)
+    out.update(y_floor=ev['floor'], evidence=ev['evidence'], floor_cond=ev['median'],
+               n_deep=ev['n'], sd_deep=ev['sd'])
+    verdict = 'floor accepted' if ev['evidence'] else 'NO floor evidence -> no censoring'
+    logging.info(f"[{name}] {verdict}: floor={ev['floor']:.3f} from n={ev['n']:.0f} deep variants "
+                 f"(sd={ev['sd']:.3f}, median={ev['median']:.3f}); {percentile:g}th-pctl comparison="
+                 f"{out['floor_pctl']:.3f}; dG_wt={dG_wt:.2f}; {out['frac_cens_lo']*100:.1f}% reported '<-1'")
     return out
+
+
+def shrink_floors(stats: Dict[str, Dict[str, float]], shrink: float = 5.0) -> float:
+    """
+    Shrink every accepted floor toward the dataset-wide median of the accepted floors, in place, and return that
+    median (the fallback floor).
+
+    A library's floor is measured with a standard error around 0.05 against a between-library spread near 0.3, so a
+    well-populated library is essentially untouched by ``shrink`` pseudo-counts of the global value while a library
+    that only just cleared ``min_n`` is pulled most of the way back. Libraries with no evidence are given the global
+    median as their ``y_floor`` so the link still has a sane knee, but keep ``evidence = 0`` so nothing is censored
+    against it - above the floor the link is near-identity, so the knee's exact position barely matters there.
+    """
+    accepted = [s['y_floor'] for s in stats.values() if s.get('evidence') and np.isfinite(s['y_floor'])]
+    glob = float(np.median(accepted)) if accepted else float('nan')
+    for s in stats.values():
+        if s.get('evidence') and np.isfinite(s['y_floor']) and np.isfinite(glob):
+            n = max(s.get('n_deep', 0.0), 0.0)
+            s['y_floor'] = float((n * s['y_floor'] + shrink * glob) / (n + shrink))
+        else:
+            s['y_floor'] = glob
+    logging.info(f"floor shrinkage: {len(accepted)} of {len(stats)} libraries have floor evidence; "
+                 f"dataset floor (median of accepted) = {glob:.3f}; the rest take it as a knee without censoring")
+    return glob
 
 
 class MutationStabilityDataset(torch.utils.data.Dataset):
@@ -142,10 +192,10 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
     """
 
     # Bump when the emitted items change shape or meaning, so a stale cache is never served.
-    # c2: first conservative-branch cache. Reversions are gone; the former 'mut_ctx' subset is emitted as 'cond'
+    # c3: first conservative-branch cache. Reversions are gone; the former 'mut_ctx' subset is emitted as 'cond'
     # (same construction, the name ``routing`` uses); every item carries meas / dG_meas / dG_wt / y_floor /
     # cens / cens_src / dG_bound, and the library's floor statistics ride along in `floor_stats`.
-    CACHE_VERSION = 'c2'
+    CACHE_VERSION = 'c3'
 
     # The bounded ML fit reports no dG outside this interval: the measured distribution has zero mass beyond
     # either end, for singles and doubles alike.
@@ -168,9 +218,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         incl_cond: bool = True,
         incl_native_cond: bool = True,
         dG_wt: Optional[float] = None,
-        floor_percentile: float = 5.0,
-        floor_min: float = -1.0,
-        floor_max: float = 0.2,
+        floor_stats: Optional[Dict[str, float]] = None,
         censor_floor: bool = True,
     ):
         """
@@ -191,13 +239,10 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 mutation-suffixed code). The preprocessor reads it from the 'wt' rows, which it filters out of the
                 table before this point. Needed to put an item on the assay's observed scale and to compute the
                 additive expectation the floor's doubles-based estimate conditions on.
-            floor_percentile: N for the library's ``Nth_percentile_dG`` floor estimate (``library_floor``). Part of
-                the cache name, because the raw estimate is baked into each item as ``y_floor_raw``.
-            floor_min / floor_max: the band the raw estimate is clipped into to give each item its working
-                ``y_floor``. The same band the link uses, applied here too so that the floor deciding which items
-                are censored is the floor the link bends at - otherwise a library whose percentile lands above the
-                assay's range would censor a fixed ~N% of perfectly measurable variants. Applied at load time, not
-                baked in, so the band is a free knob that needs no regenerate.
+            floor_stats: This library's floor statistics from ``preprocess_megascale.library_floors`` - ``y_floor``
+                (the knee the link bends at) and ``evidence`` (whether the library actually shows a floor, and so
+                whether anything in it may be censored against one). Computed from the raw table each run rather
+                than baked into the cache, so the floor estimator is a free knob that never needs a regenerate.
             censor_floor: Mark items measured at or below their library's floor as lower-censored, so the losses
                 treat their value as a bound and their mutual order as unknown (``esm_msr.censoring``).
         """
@@ -207,8 +252,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         self.structure_encoder = structure_encoder
         self.incl_destab_bb = incl_destab_bb
         self.mut_structs_root = mut_structs_root
-        self.floor_percentile = float(floor_percentile)
-        self.floor_min, self.floor_max = float(floor_min), float(floor_max)
+        self.floor_stats = dict(floor_stats) if floor_stats else {}
         self.dG_wt = float(dG_wt) if dG_wt is not None and np.isfinite(dG_wt) else float('nan')
 
         self.include = {
@@ -230,25 +274,22 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
 
         self.cache_path = os.path.join(
             path,
-            f"{self.dms_name}_{self.score_name}_{self.CACHE_VERSION}_p{self.floor_percentile:g}.pkl"
+            f"{self.dms_name}_{self.score_name}_{self.CACHE_VERSION}.pkl"
         )
 
         logging.info(f"Dataset Cache Path: {self.cache_path}")
         os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
 
         self.data: List[Dict[str, Any]] = []
-        self.floor_stats: Dict[str, float] = {}
         self._encoded_struct_cache: Dict[Tuple, Tuple] = {}
         self._mutant_struct_cache: Dict[str, Tuple] = {}
         self._parsed_pdb_cache: Dict[str, Tuple] = {}
 
         if generate or not os.path.exists(self.cache_path):
             logging.info(f"Generating and caching data for {self.dms_name}")
-            self.floor_stats = self._library_floor(dms_df)
             self.data = self.generate_data(dms_df)
             for item in self.data:
-                item['y_floor_raw'] = self.floor_stats['y_floor']
-                item['dG_wt'] = self.floor_stats['dG_wt']
+                item['dG_wt'] = self.dG_wt
             self._save_data_to_cache()
         else:
             logging.info(f"Loading cached data for {self.dms_name}")
@@ -259,7 +300,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         # Mutant-background libraries: their singles are conditional measurements.
         self._label_native_cond()
         self._filter_dataset()
-        self._clip_floor()
+        self._stamp_floor()
         self._apply_censoring(censor_floor)
         self._extract_scalars()
 
@@ -282,12 +323,6 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 data.extend(self._load_data(df_sub, incl_chain_in_code=True, is_predicted=False, benchmark=True))
         return data
     
-    # ------------------------------------------------------------------ the library's floor
-
-    def _library_floor(self, df: Any) -> Dict[str, float]:
-        """This library's floor estimate; see :func:`library_floor`."""
-        return library_floor(df, self.floor_percentile, self.dG_wt, self.dms_name)
-
     # ------------------------------------------------------------------ post-load filters
 
     def _label_native_cond(self) -> None:
@@ -317,29 +352,28 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         self.data = [item for item in self.data if item.get('subset_type') in allowed]
         logging.info(f"Filtered dataset from {before} to {len(self.data)} items based on allowed types: {allowed}")
 
-    def _clip_floor(self) -> None:
-        """Give every item its working ``y_floor``: the library's raw estimate clipped into ``[floor_min, floor_max]``.
-
-        The raw percentile is a quantile of this library's own dG distribution, so in a library of mild variants it
-        lands well above anything the assay could be flooring - and then both the link's knee and the censoring
-        rule would sit inside the measurable range, censoring a fixed fraction of good measurements by
-        construction. Clipping into the band the assay's floor actually occupies is what stops that.
-        """
-        raw = self.floor_stats.get('y_floor', float('nan'))
-        clipped = float(min(max(raw, self.floor_min), self.floor_max)) if np.isfinite(raw) else float('nan')
-        self.floor_stats['y_floor_clipped'] = clipped
-        if np.isfinite(raw) and abs(clipped - raw) > 1e-9:
-            logging.info(f"[{self.dms_name}] y_floor {raw:.3f} clipped to {clipped:.3f} "
-                         f"(band [{self.floor_min:g}, {self.floor_max:g}])")
+    def _stamp_floor(self) -> None:
+        """Give every item its library's floor knee, and record whether that floor is backed by evidence."""
+        y = float(self.floor_stats.get('y_floor', float('nan')))
+        self.has_floor_evidence = bool(self.floor_stats.get('evidence', 0.0))
         for item in self.data:
-            item['y_floor'] = clipped
+            item['y_floor'] = y
 
     def _apply_censoring(self, censor_floor: bool) -> None:
-        """Finalise ``cens`` / ``cens_bound`` on every item (see ``esm_msr.censoring``)."""
-        self.data, c = censoring.apply_item_censoring(self.data, censor_floor)
+        """
+        Finalise ``cens`` / ``cens_bound`` on every item (see ``esm_msr.censoring``).
+
+        Censoring requires evidence that this library HAS a floor (``floor_evidence``). Without it the knee is only
+        the dataset-wide fallback, and comparing measurements against it would discard good data from libraries that
+        simply never destabilised anything.
+        """
+        active = bool(censor_floor and getattr(self, 'has_floor_evidence', False))
+        self.data, c = censoring.apply_item_censoring(self.data, active)
         if c['floor']:
             logging.info(f"[{self.dms_name}] floor-censored {c['floor']} of {len(self.data)} items "
-                         f"(y_floor={self.floor_stats.get('y_floor_clipped', float('nan')):.3f}): {dict(c['floor_by_subset'])}")
+                         f"(y_floor={self.floor_stats.get('y_floor', float('nan')):.3f}): {dict(c['floor_by_subset'])}")
+        elif censor_floor and not active:
+            logging.info(f"[{self.dms_name}] no floor evidence: nothing censored")
 
     def _extract_scalars(self) -> None:
         """Contiguous scalar arrays for the sampler's and the metrics' bulk lookups."""

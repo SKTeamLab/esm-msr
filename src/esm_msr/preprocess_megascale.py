@@ -13,6 +13,8 @@ from torch.utils.data import DataLoader
 from esm_msr.data import (
     MEAS_COLUMNS,
     MutationStabilityDataset,
+    library_floor,
+    shrink_floors,
     collate_fn_twopass,
     create_consolidated_dataloader,
     PooledDataLoader
@@ -135,6 +137,11 @@ class MegaScaleDatasetPreprocessor:
         # dataset needs it to put an item on the assay's observed scale (dG_obs = h(dG_wt + latent)) and to compute
         # the additive expectation its doubles-conditioned floor estimate uses.
         self.dG_wt: Dict[str, float] = {}
+        # Per-library floor statistics, keyed by `code`: where the assay's floor is for that library and whether the
+        # library shows any evidence of having one. Computed from the raw table every run (not cached), so the
+        # estimator is a free knob. See data.library_floor / data.floor_evidence.
+        self.floors: Dict[str, Dict[str, float]] = {}
+        self.dataset_floor: float = float('nan')
 
         self.preprocess()
 
@@ -249,6 +256,20 @@ class MegaScaleDatasetPreprocessor:
         # assert that the indices are retained from the pre-concat state
         # orig_index.equals() will fail if duplicates were actually removed
         assert self.df.index.isin(orig_index).all(), "Index mismatch detected: Indices were flattened or lost."
+
+    def compute_floors(self, percentile: float = 5.0, **evidence_kw) -> None:
+        """
+        Estimate every library's assay floor in one pass, then shrink the accepted ones toward their median.
+
+        Done here rather than per-dataset because shrinkage and the fallback knee need all the libraries at once,
+        and because the 'wt' rows this needs (through ``dG_wt``) are filtered out of the per-library frames.
+        """
+        if 'code' not in self.df.columns:
+            return
+        for code, df_c in self.df.groupby('code'):
+            self.floors[code] = library_floor(df_c, percentile, self.dG_wt.get(code, float('nan')), str(code),
+                                              **evidence_kw)
+        self.dataset_floor = shrink_floors(self.floors)
 
     def _filter_data(self, df, scaffold) -> pd.DataFrame:
 
@@ -378,9 +399,6 @@ class MegaScaleDatasetPreprocessor:
         incl_doubles: bool = True,
         incl_cond: bool = True,
         incl_native_cond: bool = True,
-        floor_percentile: float = 5.0,
-        floor_min: float = -1.0,
-        floor_max: float = 0.2,
         censor_floor: bool = True,
         combine_validation: bool = False,
     ) -> Tuple[List[DataLoader], List[str]]:
@@ -414,17 +432,15 @@ class MegaScaleDatasetPreprocessor:
                     incl_cond=incl_cond,
                     incl_native_cond=incl_native_cond,
                     dG_wt=self.dG_wt.get(code),
-                    floor_percentile=floor_percentile,
-                    floor_min=floor_min,
-                    floor_max=floor_max,
+                    floor_stats=self.floors.get(code),
                     censor_floor=censor_floor,
                 )
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
                         continue
                 floors.append((code, dataset.floor_stats.get('y_floor', float('nan')),
-                               dataset.floor_stats.get('floor_cond', float('nan')),
-                               dataset.floor_stats.get('y_floor_clipped', float('nan'))))
+                               dataset.floor_stats.get('floor_pctl', float('nan')),
+                               dataset.floor_stats.get('evidence', 0.0)))
                         
                 loader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn_twopass,
                                     num_workers=num_workers, shuffle=shuffle, pin_memory=True)
@@ -436,25 +452,26 @@ class MegaScaleDatasetPreprocessor:
 
 
 def _log_floor_summary(scaffold: str, floors: List[Tuple[str, float, float, float]]) -> None:
-    """How the per-library floor estimates came out across one split, and how far the percentile estimate sits from
-    the doubles-conditioned one where both exist. A large spread or a large disagreement is the signal that the
-    percentile is tracking the library's mutational sensitivity rather than the assay's floor."""
+    """How many libraries of one split show floor evidence, where their floors sit, and how far the percentile
+    estimate would have put them - the comparison that motivated the evidence gate."""
     if not floors:
         return
     y = np.array([f[1] for f in floors], dtype=float)
-    c = np.array([f[2] for f in floors], dtype=float)
-    ok = np.isfinite(y)
-    both = ok & np.isfinite(c)
-    msg = (f"floor estimates ({scaffold}): {int(ok.sum())}/{len(floors)} libraries estimated, "
-           f"median {np.nanmedian(y):.3f}, IQR [{np.nanpercentile(y, 25):.3f}, {np.nanpercentile(y, 75):.3f}], "
-           f"range [{np.nanmin(y):.3f}, {np.nanmax(y):.3f}]")
+    pc = np.array([f[2] for f in floors], dtype=float)
+    ev = np.array([f[3] for f in floors], dtype=float) > 0
+    msg = f"floors ({scaffold}): {int(ev.sum())}/{len(floors)} libraries have floor evidence (the rest are not censored)"
+    if ev.any():
+        msg += (f"; accepted floors median {np.nanmedian(y[ev]):.3f}, "
+                f"range [{np.nanmin(y[ev]):.3f}, {np.nanmax(y[ev]):.3f}]")
+    both = ev & np.isfinite(pc)
     if both.sum() >= 3:
-        d = y[both] - c[both]
-        msg += (f"; vs doubles-conditioned on {int(both.sum())} libraries: median difference {np.median(d):+.3f}, "
-                f"SD {np.std(d):.3f}, correlation {np.corrcoef(y[both], c[both])[0, 1]:.2f}")
-    clipped = np.array([f[3] for f in floors], dtype=float)
-    n_clipped = int(np.sum(np.isfinite(clipped) & np.isfinite(y) & (np.abs(clipped - y) > 1e-9)))
-    msg += f"; {n_clipped} of {int(ok.sum())} estimates fell outside the clip band and were pulled into it"
+        d = pc[both] - y[both]
+        msg += (f"; the {len(d)} accepted libraries' percentile estimate differs by a median {np.median(d):+.3f} "
+                f"(SD {np.std(d):.3f}, correlation {np.corrcoef(pc[both], y[both])[0, 1]:.2f})")
+    nopc = (~ev) & np.isfinite(pc)
+    if nopc.any():
+        msg += (f"; the {int(nopc.sum())} libraries WITHOUT evidence would have been given a percentile floor of "
+                f"median {np.nanmedian(pc[nopc]):.3f} (max {np.nanmax(pc[nopc]):.3f}) and censored against it")
     logging.info(msg)
 
 
@@ -503,6 +520,8 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
     """Main orchestrator utilizing MegaScaleDatasetPreprocessor."""
     
     preprocessor = MegaScaleDatasetPreprocessor(args.raw_data_file, args.af_model_folder, spurs_override=args.remove_spurs_homologs)
+    preprocessor.compute_floors(percentile=args.floor_percentile, x_max=args.floor_x_max, min_n=args.floor_min_n,
+                                max_sd=args.floor_max_sd, band=(args.link_floor_min, args.link_floor_max))
     splits = preprocessor.create_training_splits(args.split_file, args.max_train_proteins)
     
     overlap = set(splits.get('train', [])) & set(splits.get('val', []))
@@ -522,9 +541,6 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         incl_doubles=args.incl_doubles,
         incl_cond=args.incl_cond,
         incl_native_cond=args.incl_native_cond,
-        floor_percentile=args.floor_percentile,
-        floor_min=args.link_floor_min,
-        floor_max=args.link_floor_max,
         censor_floor=args.censor_floor,
     )
 
@@ -541,9 +557,6 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         incl_doubles=True,
         incl_cond=False,
         incl_native_cond=True,
-        floor_percentile=args.floor_percentile,
-        floor_min=args.link_floor_min,
-        floor_max=args.link_floor_max,
         censor_floor=args.censor_floor,
     )
 
