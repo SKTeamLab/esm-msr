@@ -1,0 +1,6 @@
+# Devel queue (2026-10-13): runs after the main-baseline queue (baseline/queue_link.txt: tflatent, tfpred, ns) and before its reg5 arm.
+# o6s09_mt8's flags exactly (10 epochs, seed 1; the best devel arm) + the censored hinge on the latent scale (the default since 24cc534;
+# passed explicitly so the arm reads the same on any later code). Compare with o6s09_mt8 epoch by epoch: the link's floor (link/lo, link/tau_lo),
+# the guards and the cell score.
+# Format: NAME EPOCHS SEED [flags]   (appended to scripts/run_arm.sh's canonical command and override it)
+o6s38_mt8_hinge_latent 10 1 --reg_balance --reg_balance_file /home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json --include_out_of_range --mt_comp_offset 10 --mt_comp_subst 10 --mt_comp_int 10 --lora_rank_mt 8 --lora_alpha_mt 11 --censor_hinge_scale latent
