@@ -188,6 +188,13 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
         for item in self.data:
             item['dG_wt'] = v
 
+    def set_dG_floor_offset(self, offset: Optional[float]) -> None:
+        """Stamps this library's floor offset on every item (``dG_floor_offset``; 0 when unknown, which is the shared-floor link). Like
+        ``dG_wt`` it is data read from the raw measurements each run, not cached. Read by --link_floor_file."""
+        v = float(offset) if offset is not None and np.isfinite(offset) else 0.0
+        for item in self.data:
+            item['dG_floor_offset'] = v
+
     def _try_load_modeled_context(
         self, 
         base_code: str, 
@@ -732,6 +739,7 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     ddG_B = torch.tensor([float(item.get('ddG_B', float('nan'))) for item in batch], dtype=torch.float32)
     valid_dddG_mask = torch.tensor([bool(item.get('valid_dddG_mask', False)) for item in batch], dtype=torch.bool)
     dG_wt = torch.tensor([float(item.get('dG_wt', float('nan'))) for item in batch], dtype=torch.float32)
+    dG_floor_offset = torch.tensor([float(item.get('dG_floor_offset', 0.0)) for item in batch], dtype=torch.float32)
 
     # Sequence stacking. MUST be identical lengths across the batch.
     wt_seq_list = [torch.as_tensor(item['wt_sequence_tokens'], dtype=torch.long) for item in batch]
@@ -793,6 +801,7 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         'ddG_B': ddG_B,
         'valid_dddG_mask': valid_dddG_mask,
         'dG_wt': dG_wt,
+        'dG_floor_offset': dG_floor_offset,
         'wt_sequence_tokens': wt_seq_stack,
         'mt_sequence_tokens': mt_seq_stack,
         'mut_pos': mut_pos_stack,
@@ -1404,6 +1413,7 @@ class PooledDataLoader:
         ddG_B = torch.tensor([float(it.get('ddG_B', float('nan'))) for it in batch], dtype=torch.float32)
         valid_dddG_mask = torch.tensor([bool(it.get('valid_dddG_mask', False)) for it in batch], dtype=torch.bool)
         dG_wt = torch.tensor([float(it.get('dG_wt', float('nan'))) for it in batch], dtype=torch.float32)
+        dG_floor_offset = torch.tensor([float(it.get('dG_floor_offset', 0.0)) for it in batch], dtype=torch.float32)
 
         # --- Vectorized Mutation Arrays ---
         mutations = [it.get("mutations", []) for it in batch]
@@ -1464,6 +1474,7 @@ class PooledDataLoader:
             "ddG_B": ddG_B,
             "valid_dddG_mask": valid_dddG_mask,
             "dG_wt": dG_wt,
+            "dG_floor_offset": dG_floor_offset,
             "subset_type": st,
         }
         return collated

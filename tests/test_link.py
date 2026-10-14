@@ -50,7 +50,7 @@ class StubModel(torch.nn.Module):
         return {'pred_calibrated': v, 'pred_raw': v}
 
 
-def make_batch(ddG, feat, n_mut, dG_wt, ddG_additive=None):
+def make_batch(ddG, feat, n_mut, dG_wt, ddG_additive=None, floor_offset=None):
     B = len(ddG)
     mm = torch.zeros(B, 2, dtype=torch.bool)
     for i, n in enumerate(n_mut):
@@ -59,7 +59,8 @@ def make_batch(ddG, feat, n_mut, dG_wt, ddG_additive=None):
     return {'ddG': torch.tensor(ddG, dtype=torch.float32), 'feat': torch.tensor(feat, dtype=torch.float32), 'mut_mask': mm,
             'valid_dddG_mask': torch.tensor([n == 2 for n in n_mut]), 'ddG_additive': add,
             'dddG': torch.full((B,), float('nan')), 'subset_type': ['single' if n == 1 else 'double' for n in n_mut],
-            'dG_wt': torch.tensor(dG_wt, dtype=torch.float32), 'mutations': [[('A', i, 'G')] * n for i, n in enumerate(n_mut)]}
+            'dG_wt': torch.tensor(dG_wt, dtype=torch.float32), 'mutations': [[('A', i, 'G')] * n for i, n in enumerate(n_mut)],
+            'dG_floor_offset': torch.tensor(floor_offset if floor_offset is not None else [0.0] * B, dtype=torch.float32)}
 
 
 def run(batch, link=None, **hp):

@@ -57,11 +57,14 @@ def score(path, dgw_map):
         ls = json.loads(str(d['link_summary']))
         link = numpy_link(ls['lo'], ls['hi'], ls['tau_lo'], ls['tau_hi'])
     keys = [tuple(tuple(m) for m in json.loads(k)) for k in d['mut_key']]
+    # --link_floor_file: the per-library floor offset the run used (absent in dumps written before it, where the floor was shared)
+    foff = d['dG_floor_offset'].astype(float) if 'dG_floor_offset' in d.files else np.zeros(len(keys))
     items = {'mut_key': keys, 'subset_type': list(st), 'cens': None, 'ddG': gt, 'dddG': d['dddG'].astype(float), 'dG_wt': dG_wt,
-             'wt': d['wt'].astype(float), 'mt': d['mt'].astype(float), 'comb': d['comb'].astype(float), 'wt_rev': d['wt_rev'].astype(float)}
+             'wt': d['wt'].astype(float), 'mt': d['mt'].astype(float), 'comb': d['comb'].astype(float), 'wt_rev': d['wt_rev'].astype(float),
+             'dG_floor_offset': foff}
     row = epi_metrics.compute(epi_metrics.Table(items, link))
     comb = items['comb']
-    obs = comb if link is None else np.where(np.isfinite(dG_wt), link(np.nan_to_num(dG_wt) + comb) - np.nan_to_num(dG_wt), comb)
+    obs = comb if link is None else np.where(np.isfinite(dG_wt), link(np.nan_to_num(dG_wt) + comb, foff) - np.nan_to_num(dG_wt), comb)
     g = {'rho_combined': [], 'rmse_combined': [], 'rho_wt_valid': []}
     for name in dict.fromkeys(loader):
         s = loader == name

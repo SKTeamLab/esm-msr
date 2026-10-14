@@ -122,6 +122,14 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--ns_knot_hi', type=float, default=5.0, help="Highest knot of f; f is constant above.")
     loss_group.add_argument('--ns_knot_step', type=float, default=0.5, help="Knot spacing of f (kcal/mol).")
     loss_group.add_argument('--ns_lr', type=float, default=5e-3, help="Learning rate of f (no weight decay, no warm-up, never cut by the plateau).")
+    loss_group.add_argument('--link_floor_file', default=None,
+                            help="JSON of per-library floor offsets (baseline/estimate_floors.py), added to the link's floor knee only. The "
+                                 "assay infers dG against a K50 predicted for the UNFOLDED sequence, so an unfolded variant reads the error of "
+                                 "that prediction: a constant of the library and protease (median +0.02, SD 0.31 kcal/mol over 96 libraries, "
+                                 "standard error 0.05, uncorrelated between the two proteases, unpredictable from dG_wt). One shared floor "
+                                 "fitted to that mixture is both too low and too soft. The offsets are data, like dG_wt, and add no "
+                                 "parameters; the learned 'lo' becomes the floor of a typical library. Libraries absent from the file get 0. "
+                                 "No effect without --link.")
     loss_group.add_argument('--link_lo', type=float, default=-1.0, help="Initial floor of the link (kcal/mol); the assay reports -1.")
     loss_group.add_argument('--link_hi', type=float, default=5.0, help="Initial ceiling of the link (kcal/mol); the assay reports 5.")
     loss_group.add_argument('--link_tau', type=float, default=0.5, help="Initial softness (kcal/mol) of both knees of the link.")
@@ -242,6 +250,11 @@ def parse_arguments() -> argparse.Namespace:
         parser.error("--nonspecific_term needs --link (f acts on the latent scale, before the link)")
     if args.tf_singles != 'measured' and (args.link == 'none' or args.lora_mode != 'ensemble'):
         parser.error(f"--tf_singles {args.tf_singles} needs --link (the forcing is on the latent scale) and --lora_mode ensemble")
+    if args.link_floor_file is not None:
+        if args.link == 'none':
+            parser.error("--link_floor_file offsets the link's floor knee; it needs --link")
+        if not os.path.exists(args.link_floor_file):
+            parser.error(f"--link_floor_file not found: {args.link_floor_file} (build it with baseline/estimate_floors.py)")
     if args.link != 'none' and (getattr(args, 'incl_mut_ctx', False) or getattr(args, 'incl_reversions', False)):
         parser.error("--link scores an item as h(dG_wt + latent) - dG_wt, which holds for singles and doubles measured from the library's "
                      "starting sequence only; mut_ctx and reversion items are not supported with it")

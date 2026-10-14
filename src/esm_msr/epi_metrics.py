@@ -163,6 +163,15 @@ def smooth_on(x, v, nbins: int = SMOOTH_BINS):
     return out
 
 
+def _takes_offset(link) -> bool:
+    """True when ``link`` accepts a per-item floor offset as its second argument (``esm_msr.link.numpy_link`` since 2026-10-14)."""
+    try:
+        link(np.zeros(1), np.zeros(1))
+        return True
+    except TypeError:
+        return False
+
+
 def _complete_block(M):
     """Row / column indices of a complete block of M (the most-missing row or column is dropped first), or None below MIN_BLOCK."""
     r, c = np.arange(M.shape[0]), np.arange(M.shape[1])
@@ -245,7 +254,16 @@ class Table:
         self.col = np.array([res_id.setdefault(('c', p, b), len(res_id)) for p, b in zip(self.pair, cols)], int)
         self.y, self.yA, self.yB, self.dddG, self.c = (gt[I], gt[IA], gt[IB], dddG[I], c[I]) if self.n else (np.array([]),) * 5
         self.x = self.c + self.yA + self.yB
-        obs = (lambda v, cc: link(cc + v) - cc) if link is not None else (lambda v, cc: v)
+        # the observed scale: h(dG_wt + latent) - dG_wt, with each double's own floor offset where the run supplied one
+        # (--link_floor_file; 0 elsewhere, which is the shared-floor link). A link built before the offsets existed takes one argument.
+        foff = np.asarray(items['dG_floor_offset'], float)[I] if items.get('dG_floor_offset') is not None and self.n else np.zeros(self.n)
+        self.floor_off = np.where(np.isfinite(foff), foff, 0.0)
+        if link is None:
+            obs = lambda v, cc: v
+        elif _takes_offset(link):
+            obs = lambda v, cc: link(cc + v, self.floor_off) - cc
+        else:
+            obs = lambda v, cc: link(cc + v) - cc
         self.L, self.LA, self.LB, self.P, self.PA, self.PB, self.PX = ({} for _ in range(7))
         for h in self.heads:
             v = lat[h]

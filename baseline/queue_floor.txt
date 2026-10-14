@@ -1,0 +1,10 @@
+# Per-library floor offsets on the link (2026-10-14). The basis recipe + --link exactly as bl_w2a4_m16a16_capped_link (seed 1, 8 epochs,
+# micro-batch 64), plus --link_floor_file: the only change. Compare with that run epoch by epoch.
+# What should move (predicted before the run, analysis/oct14_mainbase/): global_err_add 0.79 -> 0.35-0.45, global_bias_comb -0.56 -> -0.25 to
+# -0.35, the x < -1 share of the bias -0.23 -> near -0.05, link/lo up toward 0, link/tau_lo below 0.4, single calibration gap at predicted
+# dG < 0 smaller. Expected NOT to move: cell_rank_mt (+-0.005). Shipped pair_rho_comb flat or DOWN (part of today's pair credit is the floor
+# artefact), two-stage pair_rho unchanged.
+# Coverage: 45 of 175 training libraries have their own floor, but they hold 68% of the near-floor training items and 74% of the censored
+# ones; 122 training libraries have no doubles at all, so a doubles-based estimate cannot reach them. They keep the shared floor (offset 0).
+# Format: NAME EPOCHS SEED [flags]   (flags are appended to baseline/recipe_args.txt and override it)
+bl_w2a4_m16a16_capped_link_floor 8 1 --val_cycle_passes --link softclamp --micro_batch_size 64 --link_floor_file /home/sareeves/playground/esm-msr-devel/probes/link_floors_oct14.json

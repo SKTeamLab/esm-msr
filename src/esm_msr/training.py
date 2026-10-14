@@ -220,6 +220,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         dGwt_all = batch['dG_wt'].float() if torch.is_tensor(batch.get('dG_wt')) else torch.full((B,), float('nan'), device=device)
         link_ok_all = torch.isfinite(dGwt_all) if use_link else torch.ones(B, dtype=torch.bool, device=device)
         dGwt_all = torch.where(torch.isfinite(dGwt_all), dGwt_all, torch.zeros_like(dGwt_all))
+        # --link_floor_file: the library's own floor knee (0 = the shared floor). Data, like dG_wt; never a parameter.
+        floor_all = batch['dG_floor_offset'].float() if torch.is_tensor(batch.get('dG_floor_offset')) else torch.zeros(B, device=device)
+        floor_all = torch.where(torch.isfinite(floor_all), floor_all, torch.zeros_like(floor_all))
 
         sums, cnts = defaultdict(float), defaultdict(float)
 
@@ -227,6 +230,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             idx = torch.arange(start, min(start + mb, B), device=device)
             micro, w_mb = utils.slice_batch_by_index(batch, idx), w_all[idx]
             dGwt_mb, link_ok = dGwt_all[idx], link_ok_all[idx]
+            floor_mb = floor_all[idx]
             ddG_mb = micro['ddG'].float() 
             is_single, valid_double = micro['mut_mask'].sum(dim=1) == 1, micro.get('valid_dddG_mask', micro['mut_mask'].sum(dim=1) > 1) 
             reg_mask = ~is_single if self.hparams.mt_reg_mask == 'doubles' else torch.ones_like(is_single, dtype=torch.bool)
@@ -250,7 +254,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 # the evidence (lift test, docs/epistasis_metrics_report.html) supports about 0.4-0.5 kcal/mol of compression at dG 0-0.5
                 max_shift = float(getattr(self.hparams, 'tf_latent_max_shift', 0.5))
                 with torch.no_grad():
-                    inv = lambda y: torch.maximum(link.inverse(dGwt_mb + y, below_lo=50.0) - dGwt_mb, y - max_shift)
+                    inv = lambda y: torch.maximum(link.inverse(dGwt_mb + y, below_lo=50.0, lo_offset=floor_mb) - dGwt_mb, y - max_shift)
                     lat = torch.where(is_single, inv(ddG_mb), inv(micro['ddG_A'].float()) + inv(micro['ddG_B'].float()))
                 tf_additive_labels = torch.where(has_add_label & link_ok & torch.isfinite(lat), lat, tf_additive_labels)
 
@@ -279,7 +283,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             reg_wt_mask, p_wt = valid_wt_mask, wt_pred_cal
             if use_link:
                 # singles are measurements of the item: through the link; a double's target is the sum of its singles: latent, as before
-                p_wt = torch.where(is_single, link.obs_ddG(wt_pred_cal, dGwt_mb), wt_pred_cal)
+                p_wt = torch.where(is_single, link.obs_ddG(wt_pred_cal, dGwt_mb, lo_offset=floor_mb), wt_pred_cal)
                 reg_wt_mask = valid_wt_mask & (link_ok | ~is_single)
             if self.hparams.lambda_reg_wt > 0 and reg_wt_mask.any():
                 L = self.crit_reg(p_wt[reg_wt_mask], wt_targets[reg_wt_mask])
@@ -362,7 +366,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 reg_c_mask, p_comb = reg_mask, combined_pred_cal
                 if use_link:
                     # the teacher-forced combined latent (measured additive half + MT half) observed through the link
-                    p_comb = link.obs_ddG(combined_pred_cal, dGwt_mb)
+                    p_comb = link.obs_ddG(combined_pred_cal, dGwt_mb, lo_offset=floor_mb)
                     reg_c_mask = reg_mask & link_ok
                 if self.hparams.lambda_reg_combined > 0 and reg_c_mask.any():
                     L = self.crit_reg(p_comb[reg_c_mask], ddG_mb[reg_c_mask])
@@ -508,6 +512,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         n_items = int(out_dict['wt_lora_pred'].shape[0])
         dG_wt = batch['dG_wt'].float() if torch.is_tensor(batch.get('dG_wt')) else torch.full((n_items,), float('nan'))
+        floor_off = batch['dG_floor_offset'].float() if torch.is_tensor(batch.get('dG_floor_offset')) else torch.zeros(n_items)
         out_dict = self._apply_nonspecific(out_dict, batch, dG_wt)
         obs = {}
         if self.link_head is not None:
@@ -515,12 +520,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # epistasis metrics apply the link themselves). Items without a dG_wt (the external benchmarks, not measured by this assay) keep
             # their latent prediction.
             dgw = dG_wt.to(out_dict['combined_pred'].device)
+            foff = floor_off.to(dgw.device)
             ok = torch.isfinite(dgw)
             z = torch.where(ok, dgw, torch.zeros_like(dgw))
             with torch.inference_mode():
                 for k, v in (('wt_obs_scores', out_dict['wt_lora_pred']), ('comb_obs_scores', out_dict['combined_pred'])):
                     v = v.float()
-                    obs[k] = torch.where(ok, self.link_head.obs_ddG(v, z), v).detach().cpu().numpy()
+                    obs[k] = torch.where(ok, self.link_head.obs_ddG(v, z, lo_offset=foff), v).detach().cpu().numpy()
 
         cyc = {}
         if getattr(self.hparams, 'val_cycle_passes', False):
@@ -531,6 +537,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.validation_step_outputs[dataloader_idx].append({
             **cyc, **obs,
             'dG_wt': dG_wt.detach().cpu().numpy(),
+            'dG_floor_offset': floor_off.detach().cpu().numpy(),
             'subset_type': list(batch.get('subset_type', ['single'] * n_items)),
             'mt_scores': out_dict['mt_lora_pred'].detach().cpu().float().numpy(),
             'wt_scores': out_dict['wt_lora_pred'].detach().cpu().float().numpy(),
@@ -555,7 +562,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 return
             f = lambda name: np.asarray(pooled[name], dtype=float)
             items = {'mut_key': keys, 'subset_type': list(pooled['subset_type']), 'cens': None, 'ddG': f('ground_truths'), 'dddG': f('dddG'),
-                     'dG_wt': f('dG_wt'), 'wt': f('wt_scores'), 'mt': f('mt_scores'), 'comb': f('comb_scores'), 'wt_rev': f('wt_rev_scores')}
+                     'dG_wt': f('dG_wt'), 'wt': f('wt_scores'), 'mt': f('mt_scores'), 'comb': f('comb_scores'), 'wt_rev': f('wt_rev_scores'),
+                     'dG_floor_offset': f('dG_floor_offset')}
             log_dir = getattr(self.logger, 'log_dir', None) or getattr(self.logger, 'save_dir', None)
             if log_dir:
                 tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
@@ -566,7 +574,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 np.savez_compressed(os.path.join(log_dir, f'val_dump_{tag}.npz'), wt=items['wt'], mt=items['mt'], comb=items['comb'],
                                     wt_rev=items['wt_rev'], mt_fwd=f('mt_fwd_scores'), dddG=items['dddG'], n_mut=np.asarray(pooled['n_mut']),
                                     ground_truth=items['ddG'], dG_wt=items['dG_wt'], subset_type=np.asarray(items['subset_type'], dtype=str),
-                                    loader=np.asarray(pooled['loader']), mut_key=np.asarray([json.dumps(k) for k in keys]), **extra)
+                                    loader=np.asarray(pooled['loader']), mut_key=np.asarray([json.dumps(k) for k in keys]),
+                                    dG_floor_offset=items['dG_floor_offset'], **extra)
             link = self.link_head.numpy() if self.link_head is not None else None
             res = epi_metrics.compute(epi_metrics.Table(items, link))
             for name, val in res.items():

@@ -1,6 +1,6 @@
 # Queue after bl_w2a4_m16a16_capped_link (2026-10-13): the basis recipe (seed 1, 8 epochs) + --link, micro-batch 64, one change each.
 # Format: NAME EPOCHS SEED [flags]   (flags are appended to baseline/recipe_args.txt and override it)
 # started 2026-10-13 18:13:59: bl_w2a4_m16a16_capped_link_tflatent 8 1 --val_cycle_passes --link softclamp --micro_batch_size 64 --tf_singles latent_link
-bl_w2a4_m16a16_capped_link_tfpred 8 1 --val_cycle_passes --link softclamp --micro_batch_size 64 --tf_singles predicted
+# started 2026-10-13 22:45:33: bl_w2a4_m16a16_capped_link_tfpred 8 1 --val_cycle_passes --link softclamp --micro_batch_size 64 --tf_singles predicted
 # reg5 moved to baseline/queue_link_reg.txt (2026-10-13 22:09): it runs last, after ns and the devel latent-hinge arm.
-bl_w2a4_m16a16_capped_link_ns 8 1 --val_cycle_passes --link softclamp --micro_batch_size 64 --nonspecific_term fx
+# started 2026-10-14 03:12:17: bl_w2a4_m16a16_capped_link_ns 8 1 --val_cycle_passes --link softclamp --micro_batch_size 64 --nonspecific_term fx

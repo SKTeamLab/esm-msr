@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import argparse
@@ -108,8 +109,22 @@ class MegaScaleDatasetPreprocessor:
         # 'wt' rows are filtered out of self.df, so this is the only place they survive. Read by the --link (observed = h(dG_wt + latent) -
         # dG_wt) and by the epistasis metrics (the additive expectation x = dG_wt + ddG_A + ddG_B).
         self.dG_wt: Dict[str, float] = {}
+        # Per-library floor offsets for the link's floor knee (--link_floor_file, built by baseline/estimate_floors.py). Keyed like `code`,
+        # centred on the global floor; libraries absent from it get 0, which is the shared-floor link.
+        self.dG_floor_offset: Dict[str, float] = {}
 
         self.preprocess()
+
+    def load_floor_offsets(self, path: Optional[str]) -> None:
+        """Reads --link_floor_file into self.dG_floor_offset (keys beginning with '_' are metadata)."""
+        if not path:
+            return
+        with open(path) as fh:
+            raw = json.load(fh)
+        self.dG_floor_offset = {k: float(v) for k, v in raw.items() if not k.startswith('_')}
+        logging.info(f"link floor offsets: {len(self.dG_floor_offset)} libraries from {path}, global floor {raw.get('_global_floor')}, "
+                     f"{raw.get('_n_own_estimate')} from their own estimate. A library absent from the file keeps the shared floor "
+                     f"(offset 0): only libraries with doubles deep below the floor can be estimated this way.")
 
     def preprocess(self) -> None:
         """Adds UID and removes fake/improper mutations."""
@@ -351,6 +366,7 @@ class MegaScaleDatasetPreprocessor:
         """Generates a list of dataloaders for a specific list of protein codes."""
         loaders = []
         loader_names = []
+        floor_hits = []
 
         df = self.split_dfs[scaffold]
         if combine_validation:
@@ -378,6 +394,9 @@ class MegaScaleDatasetPreprocessor:
                     incl_mut_ctx=incl_mut_ctx,
                 )
                 dataset.set_dG_wt(self.dG_wt.get(code))
+                dataset.set_dG_floor_offset(self.dG_floor_offset.get(code, 0.0))
+                if self.dG_floor_offset:
+                    floor_hits.append(code in self.dG_floor_offset)
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
                         continue
@@ -387,6 +406,9 @@ class MegaScaleDatasetPreprocessor:
                 loaders.append(loader)
                 loader_names.append(code)
 
+        if floor_hits:
+            logging.info(f"link floor offsets ({scaffold}): {sum(floor_hits)} of {len(floor_hits)} libraries have their own floor; "
+                         f"the rest keep the shared one")
         return loaders, loader_names
 
 
@@ -434,6 +456,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
     """Main orchestrator utilizing MegaScaleDatasetPreprocessor."""
     
     preprocessor = MegaScaleDatasetPreprocessor(args.raw_data_file, args.af_model_folder, spurs_override=args.remove_spurs_homologs)
+    preprocessor.load_floor_offsets(getattr(args, 'link_floor_file', None))
     splits = preprocessor.create_training_splits(args.split_file, args.max_train_proteins)
     
     overlap = set(splits.get('train', [])) & set(splits.get('val', []))

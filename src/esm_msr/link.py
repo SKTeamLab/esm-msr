@@ -8,7 +8,16 @@ The model here is the standard one for global epistasis:
 
     observed dG  =  h( dG_wt + latent ),       latent = the model's additive-in-effects prediction (the calibrated LLR sum)
 
-with one monotone ``h`` shared by every library. The latent scale is unsaturated: it can say a double is 7 kcal/mol less stable than
+with one monotone ``h`` whose shape is shared by every library, and (with ``--link_floor_file``) a per-library offset on the floor knee alone.
+
+The floor is per-library because of how the assay infers dG: it compares the measured K50 against a K50 predicted for the UNFOLDED sequence
+by a composition model, so an unfolded variant reads dG = the error of that prediction for its sequence, a constant of the library and of the
+protease. Measured over 96 libraries with at least 20 deeply destabilised doubles: median +0.02, SD 0.31 kcal/mol, standard error of one
+library's estimate 0.05 (split-half reliability 0.97), uncorrelated between the two proteases (-0.10) and essentially unpredictable from dG_wt
+(0.16). One shared floor fitted to that mixture comes out both too low and too soft, so ``lo_offset`` supplies the library's own floor as data
+(like ``dG_wt``) and adds no parameters. Only the floor knee moves; the ceiling and the in-range identity are untouched.
+
+The latent scale is unsaturated: it can say a double is 7 kcal/mol less stable than
 the wild type even though the assay can only report that it is at the floor. Regression is done on the observed scale (through ``h``);
 ranking is done on the latent scale and is unaffected by ``h`` because ``h`` is monotone.
 
@@ -30,16 +39,22 @@ import torch.nn.functional as F
 from torch import nn
 
 
+MAX_FLOOR_OFFSET = 2.0       # a per-library floor offset is clamped to +-this (kcal/mol); the measured spread is an SD of 0.31
+MIN_SPAN = 0.5               # and the shifted floor knee is never allowed within this of the ceiling
+
+
 def _inv_softplus(y: float) -> float:
     return math.log(math.expm1(y)) if y < 20.0 else y
 
 
 def numpy_link(lo: float, hi: float, tau_lo: float, tau_hi: float):
     """The same h as a numpy function of absolute dG, for metrics computed off the GPU (``MonotoneLink.numpy()``, or a dump's
-    ``link_summary``)."""
-    def h(z):
+    ``link_summary``). ``lo_offset`` moves the floor knee only (see ``MonotoneLink.forward``); 0 is the shared-floor link."""
+    def h(z, lo_offset=0.0):
         z = np.asarray(z, dtype=np.float64)
-        u = lo + tau_lo * np.logaddexp(0.0, (z - lo) / tau_lo)
+        lo_e = np.minimum(lo + np.nan_to_num(np.clip(np.asarray(lo_offset, dtype=np.float64), -MAX_FLOOR_OFFSET, MAX_FLOOR_OFFSET)),
+                          hi - MIN_SPAN)
+        u = lo_e + tau_lo * np.logaddexp(0.0, (z - lo_e) / tau_lo)
         return hi - tau_hi * np.logaddexp(0.0, (hi - u) / tau_hi)
     return h
 
@@ -73,29 +88,41 @@ class MonotoneLink(nn.Module):
         hi = lo + F.softplus(self.raw_span)
         return lo, hi, F.softplus(self.raw_tau_lo) + 1e-4, F.softplus(self.raw_tau_hi) + 1e-4
 
-    def forward(self, z: torch.Tensor) -> torch.Tensor:
+    def _lo_eff(self, lo, hi, lo_offset):
+        """The floor knee after a per-item offset. Only the floor moves: the ceiling stays at ``hi``, so a library's offset cannot act as a
+        calibration shift for variants inside the range (there h(z) ~ z whatever the offset)."""
+        if lo_offset is None:
+            return lo
+        off = torch.as_tensor(lo_offset, dtype=lo.dtype, device=lo.device)
+        off = torch.nan_to_num(off, nan=0.0).clamp(-MAX_FLOOR_OFFSET, MAX_FLOOR_OFFSET)
+        return torch.minimum(lo + off, hi - MIN_SPAN)
+
+    def forward(self, z: torch.Tensor, lo_offset=None) -> torch.Tensor:
         lo, hi, tl, th = self.params()
+        lo = self._lo_eff(lo, hi, lo_offset)
         u = lo + tl * F.softplus((z - lo) / tl)
         return hi - th * F.softplus((hi - u) / th)
 
-    def obs_ddG(self, latent: torch.Tensor, dG_wt: torch.Tensor, bg_offset=0.0) -> torch.Tensor:
+    def obs_ddG(self, latent: torch.Tensor, dG_wt: torch.Tensor, bg_offset=0.0, lo_offset=None) -> torch.Tensor:
         """
         The ddG the assay would report: ``h(dG_wt + bg_offset + latent) - dG_wt``.
 
         ``dG_wt`` is the dG of the library's starting sequence. ``bg_offset`` is the (observed) ddG of a conditional item's
         background, ``ddG_AB - ddG(A|B)``, so a conditional item is scored as the double it came from; it is 0 for singles.
-        NaN wherever ``dG_wt`` is unknown.
+        ``lo_offset`` is the library's floor offset (``--link_floor_file``). NaN wherever ``dG_wt`` is unknown.
         """
-        return self(dG_wt + bg_offset + latent) - dG_wt
+        return self(dG_wt + bg_offset + latent, lo_offset) - dG_wt
 
     @torch.no_grad()
-    def inverse(self, dG_obs: torch.Tensor, below_lo: float = 2.0, above_hi: float = 2.0) -> torch.Tensor:
+    def inverse(self, dG_obs: torch.Tensor, below_lo: float = 2.0, above_hi: float = 2.0, lo_offset=None) -> torch.Tensor:
         """
         h^-1: the latent dG whose observed value is ``dG_obs`` (absolute dG). Exact inside the range; where h is flat it is not invertible, so
         values at or below the floor map to at most ``below_lo`` kcal/mol below ``lo`` and values at or above the ceiling to at most
-        ``above_hi`` above ``hi``. No gradient (used for teacher-forcing targets, which must not train the link).
+        ``above_hi`` above ``hi``. With ``lo_offset`` the floor knee is the library's own (so a censored variant's bound lands on the knee of
+        the library it belongs to). No gradient (used for teacher-forcing targets, which must not train the link).
         """
         lo, hi, tl, th = self.params()
+        lo = self._lo_eff(lo, hi, lo_offset)
         sp_inv = lambda v: v + torch.log(-torch.expm1(-v))              # log(exp(v) - 1), stable for large v
         v = (hi - dG_obs) / th
         u = hi - th * sp_inv(v.clamp(min=1e-6))
