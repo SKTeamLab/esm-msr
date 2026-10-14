@@ -98,6 +98,48 @@ td .m, td code { white-space: nowrap; }
 .tip b { font-family: var(--font-head); }
 svg text { font-family: var(--font-body); }
 .formula { font-family: var(--font-mono); font-size: 0.86rem; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; overflow-x: auto; white-space: pre; line-height: 1.55; margin: 12px 0 18px; }
+h4 { font-family: var(--font-head); font-size: 1.06rem; margin: 26px 0 6px; font-weight: 600; }
+.widget { border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); padding: 14px 16px 10px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; font-size: var(--step--1); color: var(--ink-2); margin: 0 0 10px; }
+.controls label { display: inline-flex; align-items: center; gap: 8px; }
+.controls input[type=range] { width: 120px; accent-color: var(--accent); }
+.controls input[type=checkbox] { accent-color: var(--accent); }
+.controls output { font-family: var(--font-mono); font-size: 0.8rem; min-width: 2.8em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 5px; margin: 0 0 10px; }
+.controls .seg { margin: 0; }
+.seg button, .btn { font: inherit; font-size: 0.8rem; line-height: 1.3; border: 1px solid var(--axis); background: var(--bg); color: var(--ink-2); border-radius: 14px; padding: 3px 11px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 2px 22px; font-size: 0.85rem; margin-top: 8px; }
+.readout div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dotted var(--rule); padding: 3px 0; }
+.readout b { font-weight: 500; color: var(--ink-2); }
+.readout span { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.readout div.key b, .readout div.key span { color: var(--ink); font-weight: 600; }
+.readout-line { font-size: 0.85rem; color: var(--ink); margin: 8px 0 0; font-variant-numeric: tabular-nums; }
+.explain { font-size: 0.92rem; color: var(--ink-2); margin: 8px 0 4px; max-width: 760px; }
+.cards { display: grid; gap: 16px; margin: 10px 0 18px; }
+.mcard { border-left: 3px solid var(--accent); padding: 2px 0 2px 16px; }
+.mcard h4 { margin: 0 0 6px; font-family: var(--font-mono); font-size: 0.98rem; font-weight: 500; }
+.mcard dl { display: grid; grid-template-columns: 6.5rem 1fr; gap: 5px 14px; margin: 0; font-size: 0.94rem; }
+.mcard dt { font-family: var(--font-head); font-weight: 600; color: var(--ink-2); }
+.mcard dd { margin: 0; min-width: 0; }
+.mcard dd ol { margin: 4px 0; }
+@media (max-width: 620px) { .mcard dl { grid-template-columns: 1fr; gap: 0 0; } .mcard dd { margin-bottom: 6px; } }
+.vs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 20px; margin: 12px 0 18px; max-width: 900px; }
+.vs > div { border: 1px solid var(--rule); border-radius: 6px; padding: 10px 14px 4px; background: var(--surface); min-width: 0; }
+.vs h5 { margin: 0 0 6px; font-family: var(--font-head); font-size: 1rem; }
+.test { border-top: 1px solid var(--rule); margin-top: 22px; }
+.test h4 { margin-top: 16px; }
+.test .q { font-weight: 600; color: var(--accent); }
+.pred2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 14px; font-size: 0.93rem; margin: 6px 0 14px; }
+.pred2 div { background: var(--accent-wash); border-radius: 6px; padding: 8px 12px; min-width: 0; }
+.pred2 div.alt { background: var(--warn-wash); }
+.verdict { font-size: 0.97rem; }
+table.sees td.c, table.sees th.c { text-align: center; font-size: 0.8rem; white-space: nowrap; }
+table.sees td.k-y { background: color-mix(in srgb, var(--s3) 26%, transparent); color: var(--ink); }
+table.sees td.k-s { background: color-mix(in srgb, var(--s4) 18%, transparent); }
+table.sees td.k-x { background: color-mix(in srgb, var(--ghost) 22%, transparent); color: var(--ink-2); font-style: italic; }
+table.sees td.k-n { color: var(--muted); }
+table.sees td i { display: block; font-size: 0.7rem; color: var(--ink-2); font-style: normal; }
 @media (prefers-reduced-motion: no-preference) { nav.toc a, a { transition: color 120ms; } }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
@@ -111,13 +153,15 @@ svg text { font-family: var(--font-body); }
   metrics with the evidence behind each one. Every number comes from the Tsuboyama data (the capped split's validation libraries, or every
   library where noted), from validation dumps of past runs, or from simulation on the real designs.</p>
   <div class="meta">Branch <code>claude/epistasis-metrics-logging-cfd318</code> (from <code>devel</code> 9823c6b) · code: <code>src/esm_msr/epi_metrics.py</code> ·
-  reference: <code>docs/validation_metrics.md</code> · 2026-10-08; revised 2026-10-13 to separate nonspecific epistasis from saturation throughout</div>
+  reference: <code>docs/validation_metrics.md</code> · 2026-10-08; revised 2026-10-13 to separate nonspecific epistasis from saturation throughout, and later that day to explain the metrics from zero and to rebuild the separation as five tests
+  for telling saturation from nonspecific epistasis</div>
   <nav class="toc" aria-label="Contents"><ol>
     <li><a href="#summary">Summary</a></li>
     <li><a href="#hierarchy">The hierarchy and its variance</a></li>
     <li><a href="#saturation">Saturation and nonspecific epistasis</a></li>
     <li><a href="#mechanisms">What learns each level</a></li>
     <li><a href="#metrics">The metric set</a></li>
+    <li><a href="#primer">The metrics, from zero (interactive)</a></li>
     <li><a href="#evidence">Evidence the metrics isolate their level</a></li>
     <li><a href="#runs">What past runs show</a></li>
     <li><a href="#optimise">What to optimise and stop on</a></li>
@@ -134,14 +178,16 @@ svg text { font-family: var(--font-body); }
   that depend on the substitutions only through the sizes of their effects, so they appear in multi-mutants only. <i>Specific epistasis</i>:
   what depends on which residues at which positions. The hierarchy's global level, E[dddG | x], holds most of the first two.</p></div>
   <div class="key"><b>Variance</b><p>56 to 59% of the variance of validation dddG is a function of the additive expectation x alone. A saturation
-  curve built from the singles' own evidence reproduces about three quarters of that level. The rest is a nonspecific hump of +0.3 to +0.5 kcal/mol
-  for doubles whose additive dG lies between −1 and +1.5, the same in both protease readouts. Another 6% depends on the two single effects beyond
+  curve built from the singles' own evidence reproduces about three quarters of that level. The rest is nonspecific epistasis: in range, dddG falls
+  with x by about 0.6 to 0.7 kcal/mol in both protease readouts, even where every variant reads far above the floor. Its level (+0.3 to +0.5 in the
+  combined readout) is uncertain by about ±0.2, because the two readouts disagree about the wild-type reference. Another 6% depends on the two single effects beyond
   x, mostly through the compression of near-floor singles, and comes out of the pair level (23 to 17%). Line effects hold 12%, the specific
   combination 6%.</p></div>
   <div class="key"><b>Telling them apart</b><p>Saturation belongs to the readout: it acts on singles and doubles alike through one monotone curve,
   and it differs between the two proteases (practical floors −0.44 and −0.02). Nonspecific epistasis acts on multi-mutants only and is the same in
-  both readouts. Four diagnostics, calibrated in simulation, use these properties: the two-protease comparison, a saturation curve built from the
-  singles, the lift test, and a self-consistent monotone fit, which can absorb the hump only by turning degenerate.</p></div>
+  both readouts. Five tests use these properties: doubles far above the floor (selected in one protease, scored in the other, so noise
+  cannot bias them), the two readouts, a saturation curve built from the singles, the lift test, and a monotone fit that can absorb nonspecific
+  epistasis only by turning degenerate. The in-range decline is settled; the knee (x from −1 to 0) is still confounded.</p></div>
   <div class="key"><b>The link</b><p>A monotone link can model saturation, not nonspecific epistasis. Its learned floor has not been where the data
   put it. In devel a censoring hinge at the nominal bound −1 drags it down and softens it through training (−0.9 to −1.2, τ 0.54 to 1.1).
   The released objective has no hinge and regresses measured doubles through it, and settles near −0.5 within a few hundred steps. Every trained
@@ -247,6 +293,38 @@ x (Figure 2). The pair level can be reported, not optimised.</li>
 <section id="saturation">
 <div class="col">
 <h2>Saturation and nonspecific epistasis</h2>
+<h3>What the assay can and cannot see</h3>
+<p>Every number here is a stability, dG in kcal/mol: how strongly the folded state is favoured over the unfolded one. Higher means more stable. A
+substitution's ddG is the change it makes to dG (negative = destabilising). The assay (cDNA display proteolysis) does not measure dG directly. It
+measures how much protease a protein survives and converts that into a dG, and the conversion has two limits.</p>
+<ul>
+<li><b>The floor.</b> A protein that is unfolded anyway is cut whether it is a little unstable or very unstable, so every unfolded variant reads about
+the same value. In practice the floor sits between about −0.5 and +0.5 kcal/mol, depending on the protein and the protease (the nominal reporting limit
+is −1).</li>
+<li><b>The ceiling.</b> An extremely stable protein survives everything, so readings stop rising near 5.</li>
+</ul>
+<p>Between the two the reading tracks the true stability. Near the floor it bends: a variant truly at −2 and one truly at −0.5 both read about 0.</p>
+<p>Call the true stability the <b>latent</b> dG, and the curve that turns it into a reading the <b>readout curve</b> <i>h</i>. Figure S1 puts a wild
+type, two single mutants and their double on that curve. Set both kinds of epistasis to zero and the two substitutions do not interact at all. Even
+so, the measured dddG is not zero whenever one of the four variants sits on the bend. That is readout saturation. The presets show the cases this
+report keeps returning to.</p>
+</div>
+<figure>
+<div class="widget">
+<div class="seg" id="w-read-pre" aria-label="Presets"></div>
+<div class="controls" id="w-read-ctl"></div>
+<div class="chart" id="w-read-fig"></div>
+<div class="readout" id="w-read-out"></div>
+<p class="explain" id="w-read-exp"></p>
+</div>
+<figcaption><b>Figure S1.</b> The readout curve (blue) turns a latent stability (horizontal axis) into a reading (vertical axis). The dashed diagonal is
+a readout with no limits. Each variant sits at its latent dG and is read off the curve. <i>a</i> and <i>b</i> are the two singles' true effects.
+<i>n</i> (nonspecific) and <i>e</i> (specific) are the two kinds of true epistasis; both act on the double only. The open circle marks where the double
+would sit with no epistasis at all (latent c + a + b). The panel under the chart splits the measured dddG into a saturation part and the part that
+comes from true epistasis, as in the formula below. The ceiling is fixed at 5.</figcaption>
+</figure>
+<div class="col">
+<h3>The formula</h3>
 <p>Write each variant's latent stability, what the assay would report if it had no limits, as <i>c</i> for the wild type, <i>c</i> + <i>a</i> and
 <i>c</i> + <i>b</i> for the singles and <i>c</i> + <i>a</i> + <i>b</i> + <i>n</i> + <i>e</i> for the double. Here <i>n</i> is nonspecific epistasis
 (a function of <i>a</i>, <i>b</i> and <i>c</i> only) and <i>e</i> is specific epistasis. The assay reports h(latent) plus noise, with <i>h</i>
@@ -279,45 +357,202 @@ The shading marks x below −1 and −1 to 1.</figcaption>
 </figure>
 <div class="col">
 <h3>Telling them apart</h3>
-<p>Four pieces of evidence separate the readout from nonspecific epistasis. Each was checked in simulation on the real training design (53,598
-doubles), in four worlds: saturation only, saturation with a nonspecific hump in the additive latent dG, saturation with a product-form
-nonspecific term, and the hump with no saturation (Table 1b).</p>
+<p>Figure 3 shows the difficulty. Plotted against the additive expectation x, mean dddG rises steadily as x falls, and both causes predict exactly
+that.</p>
 <ul>
-<li><b>Two readouts of the same proteins.</b> Trypsin and chymotrypsin give independent dG estimates with different unfolded-state baselines. Their
-practical floors differ (−0.44 and −0.02 kcal/mol, all libraries), but in range, from x = 0.5 to 3, their global curves fall in parallel by about 0.4
-kcal/mol each (Figure 3b, left). In simulation, moving a readout's floor changes the curve only in the floor region. The in-range decline is
-therefore not readout saturation. (The readouts also differ by a nearly constant 0.4 kcal/mol at every x: a wild-type reference effect, since a
-constant shift of every dG cancels in dddG.)</li>
-<li><b>A saturation curve built from the singles.</b> One soft floor per library, placed at the library's practical floor, with each single taken
-back to its latent value through it (at most 0.5 kcal/mol below its measurement, the size the lift test supports), reproduces 67 to 84% of the
-global level, depending on the softness of the knee; 73% at τ 0.4, the softness the lift test supports. What remains is a hump of +0.3 to +0.5
-kcal/mol between x = −1 and 1.7, falling to +0.18 at x = 2.4 and to about 0 far below the floor (Figure 3b, right). In simulation this remainder
-recovers about three quarters of a planted hump and reads 0.06 when there is none.</li>
-<li><b>The lift test.</b> A stabilising partner that brings a near-floor single back into range shows the single's true depth. Doubles of singles
-reported at dG 0 to 0.5 land 0.53 kcal/mol below their additive expectation, against 0.13 for singles reported at 1.5 to 2.5. Compression of the
-singles makes this negative; a nonspecific hump acting on these pairs makes it positive. The real value (−0.40) shows singles compressed from
-dG ≈ 1 down, more than the simulated soft floor compresses them (−0.37 with saturation alone).</li>
-<li><b>A self-consistent monotone fit.</b> One monotone <i>h</i> fitted to the doubles, with every single passed through it, explains 62% of the
-variance of dddG and reproduces the global curve to 0.16 kcal/mol, but only by turning degenerate: the latent value of a single read at dG 0.5 goes
-to −570, and below dG 1 the observed scale barely moves with the latent. In simulation the same fit stays mild with saturation alone (−0.5) and
-degenerates when nonspecific epistasis is present (−2.3 to −2.8). Absorbing nonspecific epistasis into the link is the wrong model.</li>
+<li><b>Saturation</b> does, because the more destabilised the double, the more of its loss the floor hides (Figure S1, "double below the floor").</li>
+<li><b>Nonspecific epistasis</b> does too, on the usual biophysical account: the more destabilised a protein already is, the less one more
+destabilising substitution costs it.</li>
 </ul>
+<p>A single curve cannot say which cause made it. What can is a property that one cause has and the other lacks. There are four:</p>
 </div>
+<div class="vs">
+<div><h5>Readout saturation</h5><ul>
+<li>A property of the assay, not of the protein.</li>
+<li>Acts on every variant through the same curve: wild type, singles and doubles alike.</li>
+<li>Tied to where the floor is. A second readout with a different floor saturates differently.</li>
+<li>Acts only near the floor (or the ceiling). Between them the readout is a straight line, and a straight line cannot create any dddG.</li></ul></div>
+<div><h5>Nonspecific epistasis</h5><ul>
+<li>A property of the protein's stability.</li>
+<li>Acts on multi-mutants only: a single cannot interact with itself.</li>
+<li>The same in any readout of the same proteins.</li>
+<li>Can act anywhere, including far above the floor.</li></ul></div>
+</div>
+<div class="col">
+<p>Each of the five tests below uses one of these differences. For each: the question, what each cause predicts, what the data show, and how much
+weight the answer can bear. The first two tests rely on a detail of the data. Every variant was measured twice, once with trypsin and once with
+chymotrypsin, and each protease gives its own dG estimate. The two estimates have independent measurement noise and different floors (−0.44 and
+−0.02 kcal/mol, medians over all libraries).</p>
+
+<div class="test">
+<h4>Test 1. Doubles far above the floor</h4>
+<p class="q">Does dddG still change with x when no variant is anywhere near the floor?</p>
+<div class="pred2"><div><b>If saturation:</b> no. Where all four variants read well above the floor, the readout is straight, and a straight readout
+passes additivity through unchanged. dddG would be about 0 at every x.</div>
+<div class="alt"><b>If nonspecific epistasis:</b> yes. It does not need the floor, so the decline with x continues.</div></div>
+<p><b>How.</b> Keep the doubles whose wild type and both singles read at least 2 kcal/mol and whose additive expectation is at least 1, so the double
+itself is also expected well above the floor. There is one trap: choosing doubles by their measured values can manufacture a pattern out of noise. A
+single that happened to read too high is more likely to pass the cut. dddG subtracts that single, so its error then shows up in that double's dddG
+with the opposite sign. To avoid this, select on one protease's readings and compute dddG from the other protease's readings, whose noise has nothing
+to do with the selection.</p>
+<p><b>Result</b> (Figure 3c, left). dddG falls steadily with x whichever protease is scored:</p>
+<ul>
+<li>scored in chymotrypsin, from 0.81 at x ≈ 1.3 to 0.13 at x ≈ 3.2;</li>
+<li>scored in trypsin, from 0.27 to −0.43.</li>
+</ul>
+<p>The selected doubles really are far above the floor: their median reading is 2.6 kcal/mol in chymotrypsin and 2.2 in trypsin, and 95% read above
+1.3 and 1.0.</p>
+<p><b>Could it be the ceiling instead?</b> Near 5 the readout bends the other way, which pushes dddG negative at high x. Restricting to libraries whose
+wild type reads at most 3 kcal/mol, far below 5, leaves the decline in place (Figure 3c, right).</p>
+<p class="verdict"><b>Verdict.</b> In range, the way dddG depends on x is not floor saturation and not ceiling saturation. This is the strongest of
+the five tests.</p>
+</div>
+</div>
+<figure>
+<div class="grid2">
+<div><p class="small-title">Far above the floor (selected in one protease, scored in the other)</p><div class="legend" id="leg-far"></div><div class="chart" id="fig-far"></div></div>
+<div><p class="small-title">Libraries with dG_wt ≤ 3 (far below the ceiling)</p><div class="legend" id="leg-lowc"></div><div class="chart" id="fig-lowc"></div></div>
+</div>
+<figcaption><b>Figure 3c.</b> Median dddG in 0.5 kcal/mol bins of x, every library. x comes from one protease's readings and dddG from the other's.
+Left: only doubles whose wild type and singles read at least 2 kcal/mol in the protease that gives x, with x ≥ 1 (23,454 doubles scored in
+chymotrypsin, 27,118 in trypsin). The faint lines are all doubles. Right: libraries whose wild type reads at most 3 kcal/mol. The vertical gap between
+the proteases is the wild-type reference effect of Test 2.</figcaption>
+</figure>
+<div class="col">
+<div class="test">
+<h4>Test 2. Two readouts of the same proteins</h4>
+<p class="q">Does the curve move when the floor moves?</p>
+<div class="pred2"><div><b>If saturation:</b> the two proteases' curves differ near the floor, because their floors are 0.4 kcal/mol apart, and both
+are flat in range.</div>
+<div class="alt"><b>If nonspecific epistasis:</b> the two curves have the same shape, in range included.</div></div>
+<p><b>How.</b> Compute each protease's own dddG and average it by x. The noise trap appears here in another form. x adds the measured singles and
+dddG subtracts them. A single that reads too low therefore moves its doubles left on the x axis <i>and</i> up in dddG. So binning dddG by an x built
+from the same readings tilts the curve downward even with no epistasis at all. Taking x from one protease and dddG from the other removes the tilt
+(Figure 3d, solid lines).</p>
+<p><b>Result.</b> In range the two proteases' curves fall in parallel, by about 0.7 kcal/mol between x ≈ 0.25 and 3.2. The noise tilt is real
+but modest: binning by the same protease's x (dashed lines) steepens the trypsin curve by about 0.15 over that span and leaves chymotrypsin's
+slope about unchanged. Toward the floor the curves draw apart a little, as their different floors predict.</p>
+<p>The two curves are also offset by about 0.4 to 0.5 kcal/mol at every x. That offset is not epistasis. dddG contains the wild type's reading
+(dddG = dG_AB − dG_A − dG_B + dG_wt), so an error in a library's wild-type reading shifts every double of that library by the same amount, and the two
+proteases disagree about the wild types.</p>
+<p class="verdict"><b>Verdict.</b> The in-range slope belongs to the proteins. Its <i>level</i> has no fixed zero. At x ≈ 1.5 to 2, chymotrypsin puts
+doubles about 0.35 kcal/mol above additive and trypsin about 0, with the combined readout in between. The slope is settled. The level is uncertain by
+about ±0.2.</p>
+</div>
+</div>
+<figure>
+<div class="legend" id="leg-cross"></div>
+<div class="chart" id="fig-cross"></div>
+<figcaption><b>Figure 3d.</b> Median dddG by x for each protease, every library, doubles with both proteases' estimates (144,259). Solid: x from the
+other protease's readings (no noise tilt). Dashed: x from the same protease's readings.</figcaption>
+</figure>
+<div class="col">
+<div class="test">
+<h4>Test 3. How much can saturation explain, built from the singles?</h4>
+<p class="q">If the floor alone made the curve, how large would the curve be?</p>
+<p><b>How.</b> Build the saturation that the data themselves imply, one step at a time:</p>
+<ol>
+<li>Find each library's floor: the median reading of its doubles that are expected far below it (x &lt; −1.5).</li>
+<li>Assume a readout curve that bends at that floor, with softness τ (how gradual the bend is).</li>
+<li>Take every measured single back through the curve to its latent value. A single that reads just above the floor may truly be deeper. The step
+is capped at 0.5 kcal/mol, the size the lift test (Test 4) supports.</li>
+<li>Add the latent singles to get the latent double, push it through the curve, and compute the dddG this pure-saturation world would show.</li>
+<li>Average by x and compare with the measured curve.</li>
+</ol>
+<p><b>Result</b> (Figure 3b, right). Below the floor this reproduces the measured curve almost exactly. In range it gives almost nothing. It
+leaves +0.3 to +0.5 kcal/mol from x ≈ −0.9 to 1.4, falling to 0.18 at x ≈ 2.4. Over the whole curve it accounts for 67 to 84% of the global level's
+variance, depending on τ (73% at τ 0.4). In simulation, the same procedure recovers about three quarters of a planted nonspecific term and reads 0.06
+when there is none.</p>
+<p><b>Sensitivity.</b> The table gives the remainder at several x for three softnesses. In range it hardly depends on τ. At the knee (x −1 to 0) it
+does: a softer bend lets saturation reach further up and leaves less for nonspecific epistasis.</p>
+</div>
+</div>
+<div class="tablewrap"><table id="tab-tau"></table></div>
 <figure>
 <div class="grid2">
   <div><p class="small-title">Two readouts: dddG by protease</p><div class="legend" id="leg-ns-a"></div><div class="chart" id="fig-ns-a"></div></div>
   <div><p class="small-title">Saturation from the singles, and what it leaves</p><div class="legend" id="leg-ns-b"></div><div class="chart" id="fig-ns-b"></div></div>
 </div>
 <figcaption><b>Figure 3b.</b> Left: mean dddG in 0.5 kcal/mol bins of x over every library (144,259 doubles), from the combined dG (numeric doubles
-only) and, as medians, from each protease's own dG estimates (doubles reported "&lt;−1" included through their per-protease values). The curves are
-parallel in range and diverge toward the floor. Right: the measured curve (all libraries, 20 quantile bins of x) against a saturation curve built
-from the singles (one soft floor per library at its practical floor), for three knee softnesses, and the remainder at τ 0.4.</figcaption>
+only) and, as medians, from each protease's own dG estimates, binned by the combined x (doubles reported "&lt;−1" included through their per-protease
+values). Right: the measured curve (all libraries, 20 quantile bins of x) against the saturation curve of Test 3 for three knee softnesses, and the
+remainder at τ 0.4.</figcaption>
 </figure>
+<div class="col">
+<div class="test">
+<h4>Test 4. The lift test</h4>
+<p class="q">How much does the floor compress the singles?</p>
+<p><b>How.</b> A single that reads 0.3 might truly sit at 0.3, or truly at −1.5 and be squashed onto the floor. Pair it with a <i>stabilising</i>
+partner that lifts the double back onto the straight part of the readout. The double is then read correctly, but the additive expectation still uses
+the single's compressed reading. If the single was compressed, the double lands below its additive expectation by the hidden amount (Figure S1, preset
+"lift test"). The test compares doubles of near-floor singles (read at dG 0 to 0.5) with doubles of comfortably folded singles (1.5 to 2.5), both with
+a stabilising partner.</p>
+<div class="pred2"><div><b>If saturation:</b> negative, because the near-floor singles are deeper than they read.</div>
+<div class="alt"><b>If nonspecific epistasis</b> of the simulated kind: positive, because these doubles sit at an x where it pushes dddG up.</div></div>
+<p><b>Result.</b> Doubles of near-floor singles land 0.53 kcal/mol below their additive expectation, against 0.13 for the reference, a difference of
+−0.40. The near-floor singles are about 0.4 kcal/mol deeper than they read, which is why Test 3 caps the step at 0.5.</p>
+<p class="verdict"><b>An unresolved tension.</b> In simulation, saturation alone gives −0.37, and saturation plus the simulated nonspecific term gives
++0.09. The real −0.40 looks like saturation alone. There are two possible readings:</p>
+<ul class="verdict">
+<li>Near-floor singles are compressed more than the simulated floor compresses them. Then saturation explains more of the knee than Test 3 says.</li>
+<li>Nonspecific epistasis is not a function of x alone. A product-form term, for example, gives −0.27.</li>
+</ul>
+<p class="verdict">Either way the knee, x from −1 to 0, is where the two causes cannot yet be separated.</p>
+</div>
+<div class="test">
+<h4>Test 5. Let a flexible readout explain everything</h4>
+<p class="q">Can one readout curve, with no nonspecific term, explain the data?</p>
+<p><b>How.</b> Fit one monotone curve (always rising, otherwise any shape) to every double, pass the singles through the same curve, and see what
+shape it has to take.</p>
+<p><b>Result.</b> It can reproduce the global curve, to within 0.16 kcal/mol, but only by becoming absurd. To make in-range doubles non-additive it
+must bend in range. It then has to treat a single that reads 0.5 as truly at −570 kcal/mol, because below a reading of about 1 the curve is flat. In
+simulation the same fit stays sensible with saturation alone (−0.5). It turns absurd in the same way as soon as nonspecific epistasis is present (−2.3
+to −2.8).</p>
+<p class="verdict"><b>Verdict.</b> A readout alone is not a consistent explanation. A link (the model's readout curve) that is asked to absorb
+nonspecific epistasis will degenerate.</p>
+</div>
+</div>
 <div class="tablewrap"><table id="tab-diag"></table></div>
 <div class="col">
-<p class="meta">Table 1b. The diagnostics on simulated data (real training design; mean of two draws) and on the real data. Hump: +0.45 / (1 + exp((x_latent − 2)
-/ 0.35)), matched to the real in-range shoulder. Product: 0.15 · a · b for two destabilising singles. Readout: a soft floor per library drawn around
-0.1 (SD 0.27), τ 0.5, noise 0.27 kcal/mol, variants read below −1 dropped. The lift test rests on 7 to 24 simulated pairs per draw and is noisy there.</p>
+<p class="meta">Table 1b. The tests on simulated data (real training design; mean of two draws) and on the real data. Simulated nonspecific term (step):
++0.45 / (1 + exp((x_latent − 2) / 0.35)). Product: 0.15 · a · b for two destabilising singles. Readout: a soft floor per library drawn around 0.1 (SD
+0.27), τ 0.5, noise 0.27 kcal/mol, variants read below −1 dropped. The lift test rests on 7 to 24 simulated pairs per draw and is noisy there.</p>
+<h3>The shape of the nonspecific term</h3>
+<p>The simulations model nonspecific epistasis as a <b>step</b>, not a Gaussian hump. It is +0.45 kcal/mol for doubles whose additive latent dG is below
+about 1.3, and it fades to 0 above about 2.7: a logistic curve centred at 2 with width 0.35 (Figure 3e, dashed line). Its parameters were set by eye to
+match the in-range remainder of Test 3. They were not fitted.</p>
+<p>It looks like a hump on the measured scale because the readout is flat below the floor. Whatever the protein does to a double that is unfolded
+anyway, the assay reads the floor. What reaches the measurement is roughly the readout's local slope times the term (Figure S1, preset "nonspecific
+below the floor"). The rising left side of the hump is therefore the readout's slope, not a property of the protein. Below x ≈ −0.5 the data say
+nothing about nonspecific epistasis at all.</p>
+<p>After Test 2, the in-range data fit a <b>tilt</b> as well as they fit a step: dddG falls by about 0.6 to 0.7 kcal/mol between x ≈ 0.5 and 3, and
+crosses zero somewhere between x ≈ 1.5 and above 3, depending on whose wild-type reference is right. The training term in the queue,
+<code>--nonspecific_term fx</code>, is piecewise linear with a free value every 0.5 kcal/mol, so it assumes neither shape.</p>
+</div>
+<figure>
+<div class="legend" id="leg-shape"></div>
+<div class="chart" id="fig-shape"></div>
+<figcaption><b>Figure 3e.</b> The simulated nonspecific term in latent dG (dashed); the readout's slope (grey: 1 on the straight part, 0 on the floor);
+and what the measurement sees, h(z + term) − h(z) (solid), for a floor at 0.1 with softness 0.4. Dots: the real remainder of Test 3 (τ 0.4), placed at
+the measured x. In range the measured x is close to the latent value; below the floor it is not, and there the dots and the curves are not comparable.</figcaption>
+</figure>
+<div class="col">
+<div class="callout">
+<p><b>What is settled, and what is not</b></p>
+<ul>
+<li><b>Settled.</b> In range (x above about 0.5), dddG falls with x by about 0.6 to 0.7 kcal/mol in both readouts. This holds even when every
+variant reads far above the floor and the wild type far below the ceiling. It is not saturation. It is nonspecific epistasis, or some other effect
+that both readouts share.</li>
+<li><b>Not settled.</b>
+<ul>
+<li>Its level, uncertain by about ±0.2 kcal/mol (Test 2).</li>
+<li>Its size and shape at the knee, −1 &lt; x &lt; 0, where saturation and nonspecific epistasis trade off and the lift test disagrees with the
+simple step (Test 4).</li>
+<li>Anything below the floor, which the assay cannot see.</li>
+</ul></li>
+<li><b>For training.</b> f(x̂) is identifiable in range. At the knee it will trade off against the link's floor.</li>
+</ul>
+</div>
 <h3>Nonspecific epistasis beyond x</h3>
 <p>Smoothers fitted on the 156 non-validation libraries and scored on the validation doubles: E[dddG | x] explains 56% of the variance of dddG, a
 surface in the two single effects 64% (dG_wt adds nothing beyond x). The extra 8 points come almost entirely out of the pair level (Figure 2). At
@@ -360,8 +595,9 @@ between the two proteases (trypsin −0.44, chymotrypsin −0.02, medians over a
 <div class="col">
 <div class="callout warn">
 <p><b>What the global level is.</b> About three quarters of it is the readout: a floor near 0 that varies by library and by protease and compresses
-singles as well as doubles. About a quarter is nonspecific epistasis, +0.3 to +0.5 kcal/mol for destabilised doubles in range, shared by both
-readouts and so a property of the stability (or of the dG inference both readouts share). A monotone link can model the first part only; forced to
+singles as well as doubles. About a quarter is nonspecific epistasis: an in-range decline of about 0.6 to 0.7 kcal/mol across x, shared by both
+readouts and so a property of the stability (or of the dG inference both readouts share); +0.3 to +0.5 kcal/mol in the combined readout, a level
+uncertain by about ±0.2. A monotone link can model the first part only; forced to
 fit both, it degenerates. Every model so far leaves most of the hump unexplained (global bias −0.5 to −0.7 kcal/mol), and the MT head carries
 part of what it does explain as latent epistasis (its bias is smaller than the combined head's). Binned by prediction, the released objective
 without a link is miscalibrated near the floor (singles it predicts at dG −0.92 are measured at +0.14 on average); with the link, at epoch 2, only
@@ -396,7 +632,8 @@ runs scored here.</p>
 <h2>The metric set</h2>
 <p>Twenty numbers per validation in the original set (every epistasis metric is now logged for every trained head, 33 names), plus the ddG product per library. Each epistasis metric is computed once, on the doubles of every validation
 library pooled, with the pair matrices as units (<code>src/esm_msr/epi_metrics.py</code>). Four heads give each metric a prediction to score and the
-controls it needs:</p>
+controls it needs. If these numbers are new, start with <a href="#primer">The metrics, from zero</a> below the table, which builds each one up with
+interactive figures.</p>
 </div>
 <div class="tablewrap"><table>
 <thead><tr><th>head</th><th>latent ddG of a variant</th><th>role</th></tr></thead>
@@ -407,33 +644,309 @@ controls it needs:</p>
 <tr><td><code>add</code> <span class="tag control">control</span></td><td>WT, additive</td><td>scores only by saturation through the link; logged where saturation can enter (naive and global), exactly 0 or 0.5 elsewhere</td></tr>
 </tbody></table></div>
 <div class="tablewrap"><table id="tab-metrics"></table></div>
+<div class="col" id="primer">
+<h3>The metrics, from zero</h3>
+<p>This part rebuilds every <code>val_epi_*</code> number from the beginning and assumes nothing beyond averages. Every metric is computed the same
+way for every head (comb, mt, ctx), so "the prediction" below means any one head's prediction. The heads only change which prediction is scored.</p>
+<h4>The raw material</h4>
+<p>For each validation double the data give:</p>
+<ul>
+<li><b>c</b>, the wild type's stability (dG_wt);</li>
+<li><b>ddG_A</b> and <b>ddG_B</b>, how much each single substitution changes it (negative = destabilising);</li>
+<li><b>ddG_AB</b>, how much the double changes it.</li>
+</ul>
+<p>Two quantities are derived from these:</p>
+<ul>
+<li><b>dddG</b> = ddG_AB − ddG_A − ddG_B: how far the double is from the sum of its parts. Positive means the double is more stable than its two
+singles add up to.</li>
+<li>The <b>additive expectation</b> x = c + ddG_A + ddG_B: the stability the double would have if the two substitutions simply added up.</li>
+</ul>
+<p>The model predicts a ddG for every single and double, so it has its own version of each of these numbers.</p>
+<p>All the doubles at one pair of positions (i, j) form a grid. Each row is one substitution at i, each column one substitution at j, and each cell
+is the double that combines them. Validation has 24 such grids from 9 proteins, each about 18 × 18 to 19 × 19: 8,494 doubles that have both singles
+measured.</p>
+<p>Four tools do all the work. Each is shown on its own first, then all four together on one grid.</p>
+<h4>Tool 1. The global curve: averaging along x</h4>
+<p>Sort the doubles by x, cut them into 20 groups of equal size, and take each group's mean dddG. Joined up, these means form a curve: the typical dddG
+of a double with a given x, written E[dddG | x] ("the expected dddG given x").</p>
+<ul>
+<li>Anything that depends only on how destabilised a double is ends up in this curve. That includes saturation, and nonspecific epistasis that is a
+function of x.</li>
+<li>Anything that depends on which residues are involved averages out of it.</li>
+</ul>
+<p>Subtracting the curve from each double's dddG leaves its <b>residual</b>: how much more or less non-additive this double is than a typical double
+with the same x.</p>
+<p>Figure M1 builds a synthetic validation set: 2,400 doubles from 60 made-up proteins, each protein with its own floor, and noise of 0.2 kcal/mol per
+reading. It compares the measured curve with four predictions. The two global metrics summarise the gap between the curves in each group.</p>
+</div>
+<figure>
+<div class="widget">
+<div class="controls"><span class="seg" id="w-glob-pred" aria-label="Prediction"></span></div>
+<div class="controls" id="w-glob-ctl"></div>
+<div class="chart" id="w-glob-fig"></div>
+<div class="readout" id="w-glob-out"></div>
+<p class="explain" id="w-glob-exp"></p>
+</div>
+<figcaption><b>Figure M1.</b> Grey dots: the synthetic doubles' measured dddG against their additive expectation x. Black: the measured global curve
+(mean of 20 equal-size groups of x). Orange: the chosen prediction's mean dddG in the same groups, with its gap to the measured curve drawn in each
+group. The prediction reads its singles through one shared floor at 0.1, while the synthetic proteins' floors vary, as the real ones do. In the
+residual view each double's dddG has its curve subtracted.</figcaption>
+</figure>
 <div class="col">
-<h3>How the two devices work</h3>
-<p><b>Beyond-global residuals</b> carry the magnitude metrics. The measured residual is dG_AB − E[dG_AB | x], which equals
-dddG − E[dddG | x] (a 25-bin piecewise-linear smoother on the measured x). For a head, the residual is its observed-scale double minus its own
-additive prediction pushed through its own link, e = P_AB − h(c + L_A + L_B + o) + c (<i>o</i> is the head's median second difference, which
-removes a calibration bias), minus E[e | x̂] on the head's own additive expectation. Because each side is measured against its own global curve, a head
-that is additive before its link has e = 0 and scores exactly 0. That holds whatever its link does to the singles and whether or not there is a
-link. Pair offsets, line effects and double-centred cells are then taken from these residuals.</p>
-<p><b>Within-column order</b> carries the rank metrics. <code>cell_rank</code> rank-transforms every column of measured ddG_AB and of the head's latent
-ddG_AB on a complete block, double-centres both rank matrices and correlates them (both orientations, mean per block, mean over 24 blocks).
-<code>cell_flipacc</code> takes every 2 × 2 sub-block (two substitutions × two partners of one matrix) whose measured order reverses by more than
-0.6 kcal/mol on both sides, 2,509 of them in validation. It scores the share in which the head's latent contrast
-L<sub>ij</sub> − L<sub>i′j</sub> − L<sub>ij′</sub> + L<sub>i′j′</sub> has the reversal's sign. Pair, line and single effects cancel exactly in that
-contrast, so the score is 0.5 for any additive head. A monotone assay cannot reverse an order, so the measured side is saturation-free.</p>
-<h3>Nonspecific epistasis and the metrics</h3>
-<p>Both devices remove E[· | x] whatever produces it, so a nonspecific term that is a function of x never reaches the residual or rank levels. In
-simulation on the real validation design (Table 6, six draws per world) a predictor that knows only the hump scores exactly 0 on every residual level
-and on cell_rank, and the global metrics credit it (global_err 0.25 → 0.15, bias −0.20 → −0.01). A term that depends on the two single effects
-separately is different. A predictor that knows only the product form earns pair_rho 0.31, beyond_rho 0.16 and reversal accuracy 0.57: a product of
-single effects is a genuine non-additive contrast, so it survives double-centring, though not within-column ranking (cell_rank 0).</p>
-<p>A <b>two-stage device</b> closes this. After each side's residual beyond its own E[· | x], remove a cubic surface in the side's own two single
-effects and x, fitted by least squares with the whole library held out (closed form; holding out only the pair would let a library's dG_wt carry its
-own offset). In simulation it brings the product-only predictor to 0 (pair 0.31 → 0.00, beyond 0.16 → −0.01) and keeps the credit for specific line
-and cell effects (spec pair 0.60 → 0.70, line 0.45 → 0.45, cell_mag 0.27 → 0.26). On the real models it lowers pair_rho by 0.08 to 0.14 and line_rho by
-up to 0.06, and leaves beyond_rho and cell_mag about where they were (Table 7): about a fifth of their pair-level credit is predictable from the sizes
-of the two singles and the stability they act at. It is cheap (one small least-squares solve per library) and worth logging beside the shipped
-residual levels.</p>
+<h4>Tool 2. Spearman correlation: do two lists agree in order?</h4>
+<p>Most of the metrics are Spearman correlations. To compute one:</p>
+<ol>
+<li>Replace each number in the first list by its rank: 1 for the smallest, 2 for the next, and so on.</li>
+<li>Do the same for the second list.</li>
+<li>Measure how well the two rankings agree: +1 when the order is identical, 0 when there is no relation, −1 when it is exactly reversed.</li>
+</ol>
+<p>Spearman looks only at order. It ignores units and scale, and any curve that always rises (a monotone curve, like the readout) leaves it unchanged.
+Pearson correlation, the usual kind, measures agreement in the values themselves, so it does change. In Figure M2, add noise to a prediction and watch
+both fall. Then squash the prediction through a floor and watch only Pearson move.</p>
+</div>
+<figure>
+<div class="widget">
+<div class="controls" id="w-sp-ctl"></div>
+<div class="chart" id="w-sp-fig"></div>
+<div class="readout" id="w-sp-out"></div>
+</div>
+<figcaption><b>Figure M2.</b> Left: 14 items, true value against prediction. Right: the same items as ranks, truth on the left and prediction on the
+right. Parallel lines mean the order agrees; every crossing is a pair of items the prediction puts in the wrong order. Spearman counts crossings,
+in effect. The floor option passes the prediction through a readout curve with its floor at −0.5.</figcaption>
+</figure>
+<div class="col">
+<h4>Tool 3. Double-centring: what is left after rows and columns</h4>
+<p>Take a grid of numbers. Subtract each row's mean, then subtract each column's mean (of what is left). The result is the part of each cell that
+cannot be written as "this row is high" plus "this column is high". A grid that is purely a row effect plus a column effect becomes exactly zero.</p>
+<ul>
+<li>In a double-mutant grid, a <b>row effect</b> means "this substitution at i is generally more (or less) compatible with changes at j, whatever they
+are".</li>
+<li>The double-centred <b>remainder</b> means "this particular pair of residues".</li>
+</ul>
+<p>Step through Figure M3. Watch what happens to one large interaction: it survives, slightly reduced, and leaves a faint negative trace along its row
+and column, because it had raised their means.</p>
+</div>
+<figure>
+<div class="widget">
+<div class="controls"><span class="seg" id="w-dc-step"></span><span id="w-dc-ctl"></span></div>
+<div class="chart" id="w-dc-fig"></div>
+<p class="explain" id="w-dc-exp"></p>
+</div>
+<figcaption><b>Figure M3.</b> A 4 × 4 grid = a constant + a row effect + a column effect + one interaction (row 2, column 3). The margins show each
+row's and each column's current mean. Orange is positive, blue negative.</figcaption>
+</figure>
+<div class="col">
+<h4>Tool 4. Ranks inside one column</h4>
+<p>All the doubles in one column share the same partner substitution and the same protein, so they all pass through the same readout curve. A curve
+that only rises can squash values together, but it can never swap two of them. So the order of the doubles' measured ddG_AB down a column is the order
+of their true stabilities, however much the floor compresses them. Replacing each column by its ranks gives numbers the floor cannot touch.</p>
+<p>A nonspecific term that grows steadily with each single's effect behaves the same way. Down one column the partner is fixed, so on its own
+such a term can stretch the column but cannot reorder it. A prediction that knows only such a term therefore scores exactly 0 on the rank metric.
+(Combined with specific effects in the measured data, it can occasionally shift a close pair, which only adds noise.) Measurement noise can also swap
+two doubles, and does so more easily where the floor has squashed them close together.</p>
+<h4>All four on one grid</h4>
+<p>Figure M4 is a made-up 6 × 6 pair grid built from known parts:</p>
+<ul>
+<li>the two singles' effects;</li>
+<li>a pair offset;</li>
+<li>line effects;</li>
+<li>four planted specific interactions;</li>
+<li>a nonspecific term;</li>
+<li>a readout with a floor.</li>
+</ul>
+<p>Switch the parts on and off, and step through the views. Rows and columns are sorted from the most destabilising substitution (top, left) to the
+mildest. The line under the grid says how well each view, double-centred, recovers the planted interactions. A good place to start: switch everything
+off except the floor, then look at dddG, then at the residual.</p>
+</div>
+<figure>
+<div class="widget">
+<div class="controls"><span class="seg" id="w-m-view" aria-label="View"></span></div>
+<div class="controls" id="w-m-ctl"></div>
+<div class="chart" id="w-m-fig"></div>
+<p class="readout-line" id="w-m-rec"></p>
+<p class="explain" id="w-m-exp"></p>
+</div>
+<figcaption><b>Figure M4.</b> One position pair. Wild type at 2.4 kcal/mol; single effects from −2.4 to +0.4; pair offset +0.35; line effects up to ±0.3;
+interactions +1.0, −0.8, +0.6 and −0.5 in four cells; the simulated nonspecific step; a readout floor at 0.1 (softness 0.4); noise 0.2 per reading when
+switched on. The global curve used for the residuals comes from the synthetic population of Figure M1, built with the same floor and nonspecific
+settings, just as the real curve comes from all validation doubles. Hover a cell for its numbers.</figcaption>
+</figure>
+<div class="col">
+<h4>The metrics, one by one</h4>
+<p>Each card says what question the metric answers, how it is computed, what its values mean, and what can fool it. Current values are in Table 2.</p>
+</div>
+<div class="cards col">
+<div class="mcard"><h4>naive_rho</h4><dl>
+<dt>Question</dt><dd>Does the prediction put all doubles' dddG in the right order?</dd>
+<dt>How</dt><dd>Take the prediction's dddG on the measured scale: its double minus its two singles, each passed through its link. Compute the
+Spearman correlation (Tool 2) with the measured dddG over all 8,494 doubles.</dd>
+<dt>Values</dt><dd>1 = perfect order, 0 = none.</dd>
+<dt>Fooled by</dt><dd>Saturation, which dominates it. A prediction that knows nothing about interactions but has a readout curve scores 0.44 to 0.58
+(the <code>add</code> control). In simulation, one that knows every interaction but has no readout curve scores 0.42.</dd>
+<dt>Use</dt><dd>A summary only. Read it beside <code>naive_rho_add</code>.</dd></dl></div>
+
+<div class="mcard"><h4>global_err</h4><dl>
+<dt>Question</dt><dd>Does the prediction reproduce the global curve?</dd>
+<dt>How</dt><dd>Cut the doubles into 20 equal-size groups by measured x (Tool 1). In each group, the gap is the prediction's mean dddG minus the
+measured mean dddG. global_err is the square root of the mean squared gap, with groups weighted by size: the typical size of a gap, in kcal/mol
+(Figure M1).</dd>
+<dt>Values</dt><dd>0 = the curves coincide. The released objective scores 0.68 with the link at epoch 2 and 0.88 without. The best a readout alone
+can do on real data is about 0.27.</dd>
+<dt>Fooled by</dt><dd>Nothing residue-specific can earn it. It rewards a good readout curve and a nonspecific term.</dd>
+<dt>Use</dt><dd>Judges the link, floor handling and any nonspecific term.</dd></dl></div>
+
+<div class="mcard"><h4>global_bias</h4><dl>
+<dt>Question</dt><dd>On average, does the prediction expect too much or too little non-additivity?</dd>
+<dt>How</dt><dd>The same gaps as global_err, averaged with their signs.</dd>
+<dt>Values</dt><dd>0 = right on average; negative = too little. Every model so far scores −0.5 to −0.7. They miss most of the in-range decline
+(Telling them apart) and, with the devel link, part of the floor.</dd>
+<dt>Use</dt><dd>Read with global_err: its sign says which way to correct. Because the level of the decline is uncertain by about ±0.2 (Test 2),
+read changes in it rather than its absolute value.</dd></dl></div>
+
+<div class="mcard"><h4>beyond_rho</h4><dl>
+<dt>Question</dt><dd>Above the global curve, does the prediction put the doubles in the right order?</dd>
+<dt>How</dt><dd><b>Measured side:</b> each double's residual (Tool 1). <b>Predicted side:</b> the prediction's own non-additive part (its double
+minus what its own two singles give through its own readout curve), minus that part's own average at the same predicted x. Spearman over all doubles.
+The next section explains why the two sides are built differently.</dd>
+<dt>Values</dt><dd>An additive prediction scores exactly 0, whatever its readout curve. Trained models score about 0.5.</dd>
+<dt>Fooled by</dt><dd>Nonspecific epistasis that depends on the two singles separately (see "Nonspecific epistasis and the metrics" below). The
+score is driven mostly by differences between grids and proteins (the pair level).</dd>
+<dt>Use</dt><dd>A guard: it should not fall when the cell-level metrics rise.</dd></dl></div>
+
+<div class="mcard"><h4>pair_rho</h4><dl>
+<dt>Question</dt><dd>Does the prediction know which position pairs interact more?</dd>
+<dt>How</dt><dd>Average the residuals in each grid, giving one measured and one predicted number per grid. Spearman over the 24 grids.</dd>
+<dt>Values</dt><dd>Typical trained models 0.6. Only 24 points from 9 proteins, so the value depends heavily on which proteins are in
+validation.</dd>
+<dt>Fooled by</dt><dd>Wild-type reference errors, which shift all of a protein's grids (Test 2). Nonspecific epistasis beyond x: a prediction
+that knows only a product-form term earns 0.31.</dd>
+<dt>Use</dt><dd>Report it; do not select on it.</dd></dl></div>
+
+<div class="mcard"><h4>line_rho</h4><dl>
+<dt>Question</dt><dd>Does the prediction know which substitutions are generally more, or less, compatible with changes at the other position?</dd>
+<dt>How</dt><dd>In each grid, take the mean residual of each row and of each column, minus the grid's mean. Pool all rows and columns of all grids,
+then compute the Spearman correlation.</dd>
+<dt>Values</dt><dd>Typical trained models 0.4.</dd>
+<dt>Fooled by</dt><dd>Nothing earns it falsely, but measurement noise lowers it for every model. dddG subtracts a single's measured value from every
+cell of that single's line, so the single's measurement error becomes a line effect that no model can predict.</dd>
+<dt>Use</dt><dd>Secondary.</dd></dl></div>
+
+<div class="mcard"><h4>cell_mag</h4><dl>
+<dt>Question</dt><dd>Does the prediction know which specific combinations interact, and how strongly?</dd>
+<dt>How</dt><dd>In each grid, keep a complete block, dropping rows and columns with missing doubles. Double-centre the residuals (Tool 3) and compute
+the Spearman correlation between measured and predicted cells. Average over grids.</dd>
+<dt>Values</dt><dd>Typical trained models 0.23 to 0.32. The measured cell level is about the size of the doubles' own measurement noise, so even a
+perfect model would score well below 1.</dd>
+<dt>Fooled by</dt><dd>Slightly by line effects through a sharp floor, and by product-form nonspecific epistasis (0.04).</dd>
+<dt>Use</dt><dd>One of the three parts of the cell score.</dd></dl></div>
+
+<div class="mcard"><h4>cell_rank</h4><dl>
+<dt>Question</dt><dd>Does the prediction know when the partner changes which substitution is more stable?</dd>
+<dt>How</dt><dd>In each complete block:
+<ol>
+<li>Replace each column of measured ddG_AB by its ranks (Tool 4). Do the same for the prediction's latent ddG_AB.</li>
+<li>Double-centre both rank grids (Tool 3) and compute the Spearman correlation.</li>
+<li>Repeat with rows in place of columns, and average the two.</li>
+</ol>
+Finally, average over grids.</dd>
+<dt>Values</dt><dd>An additive prediction scores exactly 0, because its order down a column never depends on the column. Trained models (MT pass)
+score 0.16 to 0.21.</dd>
+<dt>Fooled by</dt><dd>Nothing tested. It is immune to saturation (a column's order survives the readout) and to every nonspecific form
+simulated.</dd>
+<dt>Use</dt><dd>The stopping and checkpoint metric (<code>cell_rank_mt</code>).</dd></dl></div>
+
+<div class="mcard"><h4>cell_flipacc</h4><dl>
+<dt>Question</dt><dd>When two substitutions swap order depending on the partner, does the prediction get the direction right?</dd>
+<dt>How</dt><dd>Take two rows (i, i′) and two columns (j, j′) of one grid. It is a <b>confident reversal</b> when i is more stable than i′ by more than
+0.6 kcal/mol with partner j, and less stable by more than 0.6 with partner j′. The prediction's contrast (L_ij − L_i′j) − (L_ij′ − L_i′j′) says how
+much more i beats i′ with j than with j′. It is right when it has the same sign as the measured swap (Figure M5). The score is the share right, over
+2,509 reversals.</dd>
+<dt>Values</dt><dd>0.5 is a coin toss. An additive prediction's contrast is exactly 0, because the single effects cancel; it is counted as half right,
+giving 0.5. Trained models score 0.80 to 0.88.</dd>
+<dt>Fooled by</dt><dd>Product-form nonspecific epistasis (0.57). Slightly by saturation (0.54), because noise swaps are commoner in columns the floor
+has compressed.</dd>
+<dt>Use</dt><dd>One of the three parts of the cell score. Read it as secondary.</dd></dl></div>
+
+<div class="mcard"><h4>cell_sigsd</h4><dl>
+<dt>Question</dt><dd>How much partner-dependent order does the prediction contain at all?</dd>
+<dt>How</dt><dd>The spread (standard deviation) of the prediction's double-centred column ranks from cell_rank.</dd>
+<dt>Values</dt><dd>0 = additive. It is not a skill score: random noise also scores high.</dd>
+<dt>Use</dt><dd>A diagnostic. If cell_sigsd rises along with cell_rank, the model expresses more interaction; that is not necessarily more
+correct interaction.</dd></dl></div>
+
+<div class="mcard"><h4>n_doubles, n_pairs, n_blocks, n_flips</h4><dl>
+<dt>What</dt><dd>Counts behind the numbers: 8,494 doubles, 24 grids, 24 complete blocks, 2,509 confident reversals. A change in these means the
+validation set or its filtering changed, not the model.</dd></dl></div>
+</div>
+<figure>
+<div class="chart" id="fig-flip"></div>
+<figcaption><b>Figure M5.</b> A confident reversal. With partner j, substitution i is more stable than i′; with partner j′ the order swaps. The three
+example predictions show how a contrast is scored.</figcaption>
+</figure>
+<div class="col">
+<h4>Why an additive prediction scores exactly zero</h4>
+<p>Saturation makes even an additive model's dddG non-zero (Figure S1). If the metrics compared measured residuals with the prediction's raw dddG, a
+model with a good readout curve would earn credit for saturation alone. So the two sides are built in parallel, each measured against its own curve
+(Figure M6):</p>
+<ul>
+<li><b>Measured side:</b> dddG minus the measured global curve E[dddG | x].</li>
+<li><b>Predicted side:</b> the prediction for the double, minus what the prediction's own singles add up to, passed through the prediction's own
+readout curve. For an additive model this difference is exactly 0 for every double, whatever its readout curve does. Then the prediction's own global
+curve, averaged along its own predicted x, is removed from what remains.</li>
+</ul>
+<p>One correction makes this exact for real models. A model may predict all doubles a little too high or too low by a constant (a calibration
+bias). Passed through a bent readout curve, that constant would become a pattern that varies with x. Subtracting the model's typical (median)
+difference before the curve removes it.</p>
+<p>The measured side still contains the part of saturation that depends on the two singles separately, such as a compressed single (Test 4). No
+prediction's residual contains it, so no model can earn it. It only lowers every model's best possible score at the residual levels.</p>
+</div>
+<figure>
+<div class="chart" id="fig-flow"></div>
+<figcaption><b>Figure M6.</b> The two sides of every magnitude metric (beyond, pair, line, cell_mag). Each side removes its own global curve, so
+saturation, and anything else that is a function of x, cannot earn credit.</figcaption>
+</figure>
+<div class="col">
+<h4>Nonspecific epistasis and the metrics</h4>
+<p>Figure M7 summarises which sources of non-additivity each metric can credit. The two kinds of nonspecific epistasis behave differently.</p>
+<ul>
+<li><b>A function of x</b>, such as the in-range decline of Telling them apart. Both sides remove their global curves, so it vanishes from every
+residual and rank metric. In simulation, a prediction that knows only this term scores exactly 0 at every residual level and on cell_rank, and 0.48
+on reversal accuracy (chance). Only global_err and global_bias credit it: 0.25 → 0.15 and −0.20 → −0.01.</li>
+<li><b>A function of the two singles separately</b>, for example a term that grows with the product of the two effects. Two doubles with the same x
+can then differ: two medium substitutions behave differently from one large and one tiny. So the global curve does not remove the term. Across a
+grid it is also not a sum of a row part and a column part, so some of it survives into the residual levels. A prediction that knows only such a term
+earns pair_rho 0.31, beyond_rho 0.16 and reversal accuracy 0.57. cell_rank stays at 0: down one column the partner is fixed, so the term grows steadily
+with the row's effect and cannot reorder the column.</li>
+</ul>
+<p>The <b>two-stage device</b> removes the second kind (Figure M8). After each side's residual, it fits a smooth surface that predicts the residual
+from three numbers only: the smaller single effect, the larger single effect, and x. Each validation protein is held out in turn and its surface is
+fitted on the other proteins, so the surface learns only what is common to all proteins, which is what "nonspecific" means. Subtracting it leaves
+what cannot be predicted from the sizes of the two substitutions.</p>
+<ul>
+<li>In simulation it brings the product-only prediction to 0 at every level (pair 0.31 → 0.00, beyond 0.16 → −0.01). It keeps the credit for specific
+effects (pair 0.60 → 0.70, line 0.45 → 0.45, cell_mag 0.27 → 0.26).</li>
+<li>On the real models it lowers pair_rho by 0.08 to 0.14 and line_rho by up to 0.06, and leaves beyond_rho and cell_mag about where they were
+(Table 7). About a fifth of the pair-level credit was nonspecific.</li>
+</ul>
+</div>
+<div class="tablewrap"><table id="tab-sees" class="sees"></table></div>
+<div class="col"><p class="meta">Figure M7. Which sources of non-additivity each metric credits, from simulation on the real validation design. Each
+row is a prediction that knows the singles (with error, SD 0.6) and only the named source, read through a link. Green: the metric credits it;
+amber: slightly; grey: noise; dash or a plain 0: no credit. Numbers are that prediction's score;
+"→" gives the score after the two-stage device. "Noise" means the source is present on the measured side only: no prediction can earn it, and it
+lowers every model's best possible score. Rows 1, 5, 6 and 7 come from Table 3; rows 3 and 4 from Table 6.</p></div>
+<figure>
+<div class="grid2">
+<div><p class="small-title">Nonspecific beyond x: smooth in the sizes</p><div class="chart" id="fig-2s-a"></div></div>
+<div><p class="small-title">Specific: no pattern in the sizes</p><div class="chart" id="fig-2s-b"></div></div>
+</div>
+<figcaption><b>Figure M8.</b> Two kinds of residual pattern in a grid whose rows and columns are sorted by the size of the single effect (most
+destabilising at the top and left). Left: a product-form nonspecific term, 0.15 · a · b. It is a smooth function of the two sizes, the same in every
+protein, so a surface fitted on other proteins predicts it and the two-stage device removes it. Right: specific interactions, which depend on the
+residues and not on the sizes. A surface in the sizes cannot predict them, so the device leaves them in place.</figcaption>
+</figure>
+<div class="col">
+<p>Tables 6 and 7 give the numbers behind these statements.</p>
 </div>
 <div class="tablewrap"><table id="tab-simmet"></table></div>
 <div class="col"><p class="meta">Table 6. Metrics of four predictors in the two worlds with nonspecific epistasis (real validation design, one shared link while the
@@ -632,7 +1145,7 @@ comparisons on the same set are an order of magnitude tighter (Table 5). Simulat
 <div class="tip" id="tip" hidden></div>
 
 <script>
-const DATA = {"partition":{"validation":{"global":0.369,"pair":0.146,"line":0.09,"cell":0.04,"total":0.659},"training_cv":{"global":60.1,"pair":16.2,"line":13.3,"cell":10.4},"validation_ns":{"global":59.0,"nsx":6.4,"pair":17.2,"line":11.9,"cell":5.5}},"curve":[{"x":-2.1314,"n":425,"meas":2.2991,"base_comb":0.4324,"base_mt":0.9947,"base_add":-0.13,"link_comb":0.9402,"link_mt":1.1471,"link_add":1.1787,"devel_comb":0.7279,"devel_mt":1.0392,"devel_add":0.7379,"oracle":1.772},{"x":-1.6485,"n":425,"meas":1.9134,"base_comb":0.3075,"base_mt":0.745,"base_add":-0.13,"link_comb":0.8087,"link_mt":0.915,"link_add":1.003,"devel_comb":0.5637,"devel_mt":0.7503,"devel_add":0.5916,"oracle":1.6245},{"x":-1.3648,"n":424,"meas":1.7577,"base_comb":0.2206,"base_mt":0.5711,"base_add":-0.13,"link_comb":0.5761,"link_mt":0.7158,"link_add":0.686,"devel_comb":0.4259,"devel_mt":0.5882,"devel_add":0.4179,"oracle":1.5481},{"x":-1.0689,"n":425,"meas":1.5803,"base_comb":0.2783,"base_mt":0.6867,"base_add":-0.13,"link_comb":0.6046,"link_mt":0.8358,"link_add":0.6266,"devel_comb":0.4889,"devel_mt":0.7342,"devel_add":0.4049,"oracle":1.4318},{"x":-0.7341,"n":425,"meas":1.3824,"base_comb":0.2986,"base_mt":0.7271,"base_add":-0.1299,"link_comb":0.5401,"link_mt":0.8612,"link_add":0.3789,"devel_comb":0.4714,"devel_mt":0.7609,"devel_add":0.286,"oracle":1.1772},{"x":-0.4379,"n":424,"meas":1.2247,"base_comb":0.2963,"base_mt":0.7226,"base_add":-0.1299,"link_comb":0.4902,"link_mt":0.8543,"link_add":0.2428,"devel_comb":0.4344,"devel_mt":0.7247,"devel_add":0.2148,"oracle":0.9757},{"x":-0.1833,"n":425,"meas":1.1478,"base_comb":0.2596,"base_mt":0.6492,"base_add":-0.1299,"link_comb":0.3944,"link_mt":0.7532,"link_add":0.1171,"devel_comb":0.3998,"devel_mt":0.6979,"devel_add":0.1454,"oracle":0.8284},{"x":0.0554,"n":425,"meas":1.0861,"base_comb":0.2852,"base_mt":0.7004,"base_add":-0.13,"link_comb":0.3772,"link_mt":0.755,"link_add":0.0624,"devel_comb":0.4224,"devel_mt":0.7457,"devel_add":0.1294,"oracle":0.7852},{"x":0.2747,"n":424,"meas":0.9393,"base_comb":0.2614,"base_mt":0.6529,"base_add":-0.13,"link_comb":0.3342,"link_mt":0.7029,"link_add":0.0149,"devel_comb":0.3963,"devel_mt":0.7139,"devel_add":0.1011,"oracle":0.6221},{"x":0.474,"n":425,"meas":0.7855,"base_comb":0.2504,"base_mt":0.6309,"base_add":-0.13,"link_comb":0.3218,"link_mt":0.6812,"link_add":0.0054,"devel_comb":0.3795,"devel_mt":0.692,"devel_add":0.0877,"oracle":0.4688},{"x":0.6533,"n":425,"meas":0.7122,"base_comb":0.2217,"base_mt":0.5733,"base_add":-0.13,"link_comb":0.2813,"link_mt":0.6147,"link_add":-0.0219,"devel_comb":0.3554,"devel_mt":0.6513,"devel_add":0.0732,"oracle":0.41},{"x":0.8205,"n":424,"meas":0.6744,"base_comb":0.1974,"base_mt":0.5248,"base_add":-0.13,"link_comb":0.2502,"link_mt":0.5609,"link_add":-0.0399,"devel_comb":0.3308,"devel_mt":0.594,"devel_add":0.0764,"oracle":0.4114},{"x":0.9725,"n":425,"meas":0.6067,"base_comb":0.1585,"base_mt":0.447,"base_add":-0.13,"link_comb":0.2145,"link_mt":0.4958,"link_add":-0.0493,"devel_comb":0.2909,"devel_mt":0.5192,"devel_add":0.065,"oracle":0.3024},{"x":1.1199,"n":425,"meas":0.5445,"base_comb":0.1569,"base_mt":0.4438,"base_add":-0.13,"link_comb":0.2066,"link_mt":0.4893,"link_add":-0.0571,"devel_comb":0.2912,"devel_mt":0.5289,"devel_add":0.0607,"oracle":0.2872},{"x":1.2817,"n":424,"meas":0.5373,"base_comb":0.1605,"base_mt":0.4509,"base_add":-0.13,"link_comb":0.2095,"link_mt":0.4949,"link_add":-0.063,"devel_comb":0.2847,"devel_mt":0.5078,"devel_add":0.0644,"oracle":0.2805},{"x":1.4588,"n":425,"meas":0.4822,"base_comb":0.1331,"base_mt":0.3963,"base_add":-0.1301,"link_comb":0.1829,"link_mt":0.441,"link_add":-0.0662,"devel_comb":0.2639,"devel_mt":0.4641,"devel_add":0.0671,"oracle":0.252},{"x":1.6703,"n":425,"meas":0.4074,"base_comb":0.1571,"base_mt":0.4442,"base_add":-0.13,"link_comb":0.205,"link_mt":0.4886,"link_add":-0.0683,"devel_comb":0.2821,"devel_mt":0.4935,"devel_add":0.0721,"oracle":0.2178},{"x":1.9192,"n":424,"meas":0.284,"base_comb":0.1372,"base_mt":0.4044,"base_add":-0.13,"link_comb":0.1907,"link_mt":0.462,"link_add":-0.0747,"devel_comb":0.2471,"devel_mt":0.428,"devel_add":0.0674,"oracle":0.1603},{"x":2.2736,"n":425,"meas":0.034,"base_comb":0.1295,"base_mt":0.389,"base_add":-0.13,"link_comb":0.1864,"link_mt":0.4575,"link_add":-0.0816,"devel_comb":0.2503,"devel_mt":0.4326,"devel_add":0.0687,"oracle":0.0396},{"x":2.8343,"n":425,"meas":-0.0874,"base_comb":0.14,"base_mt":0.4101,"base_add":-0.13,"link_comb":0.2056,"link_mt":0.4913,"link_add":-0.0792,"devel_comb":0.2574,"devel_mt":0.4223,"devel_add":0.0904,"oracle":0.0017}],"regimes":[{"name":"x < -1","n":1571,"share":0.18495408523663762,"mean":1.920010562708695,"var":0.1994634675163911,"ss_share":0.3392149803610862,"rho_add":0.20072318841787076,"rho_comb":0.21579682133089365,"dGAB_med":0.2858935599685508},{"name":"-1 to 0","n":1509,"share":0.17765481516364492,"mean":1.2693076055139585,"var":0.34930464227950014,"ss_share":0.12792878190386983,"rho_add":-0.028746700753082475,"rho_comb":0.3334064612972122,"dGAB_med":0.6196561040680582},{"name":"0 to 1","n":2313,"share":0.2723098657876148,"mean":0.7918502248708787,"var":0.37038734126767564,"ss_share":0.15941838774888448,"rho_add":0.13686341289093223,"rho_comb":0.4777243687444696,"dGAB_med":1.236154753188389},{"name":"1 to 2","n":2164,"share":0.2547680715799388,"mean":0.46826164584840146,"var":0.32613826739230756,"ss_share":0.2034959804373779,"rho_add":0.23609178328383895,"rho_comb":0.4884660445689868,"dGAB_med":1.8254864675965932},{"name":"x > 2","n":937,"share":0.11031316223216388,"mean":0.0004520931469780724,"var":0.17747783808418874,"ss_share":0.16994186954878154,"rho_add":0.04884240741157413,"rho_comb":0.18629806507122174,"dGAB_med":2.4536813436117795}],"floors":[-0.548,-0.449,-0.386,-0.375,-0.375,-0.342,-0.333,-0.26,-0.231,-0.201,-0.199,-0.19,-0.158,-0.15,-0.143,-0.139,-0.125,-0.119,-0.113,-0.099,-0.097,-0.093,-0.076,-0.054,-0.04,-0.012,-0.006,0.015,0.021,0.026,0.034,0.043,0.049,0.065,0.075,0.087,0.09,0.109,0.158,0.171,0.179,0.192,0.192,0.209,0.212,0.228,0.306,0.325,0.328,0.342,0.345,0.36,0.392,0.417,0.422,0.444,0.453,0.46,0.484,0.525,0.698],"spec":{"mean":[{"pred":"add_latent","naive":0.0,"global_err":1.038,"beyond":0.0,"pair":0.0,"line":0.0,"cell_mag":0.0,"cell_rank":0.0,"flipacc":0.5,"sigsd":0.0,"int_raw(old)":0.0,"line_raw(old)":0.0,"pair_raw(old)":0.0},{"pred":"add_link","naive":0.579,"global_err":0.218,"beyond":-0.037,"pair":-0.052,"line":-0.032,"cell_mag":0.005,"cell_rank":0.0,"flipacc":0.545,"sigsd":0.0,"int_raw(old)":0.105,"line_raw(old)":0.478,"pair_raw(old)":0.711},{"pred":"add_imitate","naive":0.536,"global_err":0.214,"beyond":-0.001,"pair":0.074,"line":-0.014,"cell_mag":-0.002,"cell_rank":0.003,"flipacc":0.505,"sigsd":0.159,"int_raw(old)":0.051,"line_raw(old)":0.478,"pair_raw(old)":0.71},{"pred":"sev_link","naive":0.576,"global_err":0.363,"beyond":0.08,"pair":0.1,"line":-0.015,"cell_mag":-0.017,"cell_rank":0.0,"flipacc":0.541,"sigsd":0.0,"int_raw(old)":0.1,"line_raw(old)":0.491,"pair_raw(old)":0.698},{"pred":"m_link","naive":0.723,"global_err":0.137,"beyond":0.63,"pair":0.836,"line":0.114,"cell_mag":0.021,"cell_rank":0.0,"flipacc":0.538,"sigsd":0.0,"int_raw(old)":0.101,"line_raw(old)":0.489,"pair_raw(old)":0.907},{"pred":"rc_link","naive":0.608,"global_err":0.209,"beyond":0.246,"pair":0.081,"line":0.501,"cell_mag":0.013,"cell_rank":0.012,"flipacc":0.538,"sigsd":0.026,"int_raw(old)":0.104,"line_raw(old)":0.547,"pair_raw(old)":0.722},{"pred":"eps_link","naive":0.598,"global_err":0.218,"beyond":0.18,"pair":0.1,"line":0.128,"cell_mag":0.367,"cell_rank":0.291,"flipacc":0.891,"sigsd":0.105,"int_raw(old)":0.371,"line_raw(old)":0.495,"pair_raw(old)":0.711},{"pred":"all_link","naive":0.747,"global_err":0.131,"beyond":0.698,"pair":0.829,"line":0.537,"cell_mag":0.364,"cell_rank":0.291,"flipacc":0.888,"sigsd":0.101,"int_raw(old)":0.367,"line_raw(old)":0.552,"pair_raw(old)":0.909},{"pred":"eps_latent","naive":0.107,"global_err":1.038,"beyond":0.179,"pair":0.086,"line":0.105,"cell_mag":0.368,"cell_rank":0.252,"flipacc":0.905,"sigsd":0.063,"int_raw(old)":0.364,"line_raw(old)":0.056,"pair_raw(old)":-0.0},{"pred":"all_latent","naive":0.421,"global_err":1.005,"beyond":0.71,"pair":0.839,"line":0.533,"cell_mag":0.363,"cell_rank":0.256,"flipacc":0.904,"sigsd":0.063,"int_raw(old)":0.363,"line_raw(old)":0.239,"pair_raw(old)":0.486},{"pred":"eps_imitate","naive":0.552,"global_err":0.221,"beyond":0.091,"pair":0.154,"line":0.069,"cell_mag":0.172,"cell_rank":0.149,"flipacc":0.725,"sigsd":0.171,"int_raw(old)":0.211,"line_raw(old)":0.49,"pair_raw(old)":0.707}],"sd":[{"pred":"add_latent","naive":0.0,"global_err":0.136,"beyond":0.0,"pair":0.0,"line":0.0,"cell_mag":0.0,"cell_rank":0.0,"flipacc":0.0,"sigsd":0.0,"int_raw(old)":0.0,"line_raw(old)":0.0,"pair_raw(old)":0.0},{"pred":"add_link","naive":0.059,"global_err":0.085,"beyond":0.016,"pair":0.124,"line":0.083,"cell_mag":0.015,"cell_rank":0.0,"flipacc":0.021,"sigsd":0.0,"int_raw(old)":0.011,"line_raw(old)":0.026,"pair_raw(old)":0.129},{"pred":"add_imitate","naive":0.052,"global_err":0.084,"beyond":0.009,"pair":0.115,"line":0.023,"cell_mag":0.014,"cell_rank":0.012,"flipacc":0.029,"sigsd":0.003,"int_raw(old)":0.015,"line_raw(old)":0.029,"pair_raw(old)":0.12},{"pred":"sev_link","naive":0.064,"global_err":0.144,"beyond":0.194,"pair":0.284,"line":0.082,"cell_mag":0.023,"cell_rank":0.0,"flipacc":0.021,"sigsd":0.0,"int_raw(old)":0.012,"line_raw(old)":0.02,"pair_raw(old)":0.133},{"pred":"m_link","naive":0.051,"global_err":0.029,"beyond":0.108,"pair":0.07,"line":0.1,"cell_mag":0.025,"cell_rank":0.0,"flipacc":0.032,"sigsd":0.0,"int_raw(old)":0.014,"line_raw(old)":0.025,"pair_raw(old)":0.035},{"pred":"rc_link","naive":0.066,"global_err":0.088,"beyond":0.057,"pair":0.199,"line":0.045,"cell_mag":0.015,"cell_rank":0.008,"flipacc":0.022,"sigsd":0.002,"int_raw(old)":0.012,"line_raw(old)":0.029,"pair_raw(old)":0.122},{"pred":"eps_link","naive":0.057,"global_err":0.074,"beyond":0.028,"pair":0.194,"line":0.039,"cell_mag":0.014,"cell_rank":0.013,"flipacc":0.013,"sigsd":0.003,"int_raw(old)":0.012,"line_raw(old)":0.032,"pair_raw(old)":0.108},{"pred":"all_link","naive":0.043,"global_err":0.027,"beyond":0.089,"pair":0.087,"line":0.041,"cell_mag":0.015,"cell_rank":0.01,"flipacc":0.017,"sigsd":0.002,"int_raw(old)":0.014,"line_raw(old)":0.033,"pair_raw(old)":0.027},{"pred":"eps_latent","naive":0.013,"global_err":0.136,"beyond":0.031,"pair":0.24,"line":0.029,"cell_mag":0.011,"cell_rank":0.012,"flipacc":0.016,"sigsd":0.001,"int_raw(old)":0.011,"line_raw(old)":0.037,"pair_raw(old)":0.219},{"pred":"all_latent","naive":0.158,"global_err":0.053,"beyond":0.084,"pair":0.07,"line":0.044,"cell_mag":0.016,"cell_rank":0.01,"flipacc":0.015,"sigsd":0.002,"int_raw(old)":0.013,"line_raw(old)":0.031,"pair_raw(old)":0.223},{"pred":"eps_imitate","naive":0.059,"global_err":0.09,"beyond":0.019,"pair":0.251,"line":0.041,"cell_mag":0.014,"cell_rank":0.013,"flipacc":0.023,"sigsd":0.003,"int_raw(old)":0.013,"line_raw(old)":0.028,"pair_raw(old)":0.126}]},"traj":{"bl_w2a4_m16a16_capped":{"ep":[-1,0,1,2,3,4,5,6,7],"epi_naive_rho_add":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],"epi_global_err_add":[1.1033,0.9257,1.1305,1.172,1.2033,1.1922,1.1889,1.2306,1.2133],"epi_global_bias_comb":[-0.6572,-0.4833,-0.6562,-0.6455,-0.7052,-0.6709,-0.69,-0.7159,-0.6915],"epi_global_err_comb":[0.8855,0.7643,0.8678,0.8497,0.9043,0.8682,0.88,0.9052,0.8821],"epi_pair_rho_comb":[0.3365,0.4826,0.467,0.5235,0.5661,0.5687,0.5974,0.5948,0.6078],"epi_beyond_rho_comb":[0.2925,0.437,0.4502,0.4621,0.4744,0.4761,0.4881,0.47,0.4867],"epi_cell_rank_comb":[0.0892,0.1433,0.1472,0.1562,0.15,0.1587,0.1554,0.1555,0.1563],"epi_naive_rho_comb":[0.2128,0.2645,0.3081,0.3155,0.3142,0.3253,0.3489,0.3378,0.35],"epi_line_rho_comb":[0.2021,0.3211,0.3698,0.3898,0.3764,0.3835,0.3967,0.3825,0.3988],"epi_cell_mag_comb":[0.1731,0.2552,0.2971,0.3092,0.3162,0.3113,0.3161,0.304,0.3192],"epi_cell_flipacc_ctx":[0.7188,0.7963,0.7864,0.7792,0.7844,0.7904,0.7987,0.8009,0.8011],"epi_line_rho_ctx":[0.2021,0.3219,0.3536,0.3873,0.3727,0.3658,0.3521,0.3521,0.3578],"epi_cell_rank_ctx":[0.09,0.1319,0.1373,0.1377,0.1425,0.1398,0.1412,0.1453,0.1462],"epi_beyond_rho_ctx":[0.2925,0.4466,0.4513,0.4444,0.4387,0.4298,0.4112,0.397,0.4022],"epi_cell_flipacc_mt":[0.7182,0.7949,0.8458,0.8764,0.8477,0.8448,0.8609,0.8599,0.8621],"epi_cell_rank_mt":[0.1186,0.1681,0.1849,0.1979,0.2023,0.2103,0.1976,0.1994,0.2046],"epi_cell_sigsd_mt":[0.1095,0.1006,0.1034,0.1121,0.1108,0.1198,0.1247,0.1255,0.1253]},"o6g6_c10_hier":{"ep":[-1,0,1,2,3,4,5],"epi_naive_rho_add":[0.4846,0.4603,0.4654,0.4371,0.4591,0.4497,0.4539],"epi_global_err_add":[0.1946,0.7224,0.7248,0.8079,0.7649,0.8416,0.8162],"epi_global_bias_comb":[-0.2609,-0.5647,-0.5416,-0.5273,-0.5114,-0.5675,-0.5054],"epi_global_err_comb":[0.4469,0.7425,0.7122,0.7094,0.6901,0.7604,0.69],"epi_pair_rho_comb":[0.3374,0.4835,0.38,0.4148,0.4139,0.5017,0.5061],"epi_beyond_rho_comb":[0.2987,0.4039,0.3965,0.4089,0.4064,0.4382,0.4361],"epi_cell_rank_comb":[0.0891,0.1316,0.1271,0.1258,0.1331,0.1368,0.1434],"epi_naive_rho_comb":[0.4392,0.4328,0.442,0.4234,0.4384,0.4136,0.4313],"epi_line_rho_comb":[0.2242,0.338,0.3719,0.3794,0.3782,0.3959,0.3797],"epi_cell_mag_comb":[0.1533,0.2141,0.2237,0.2426,0.256,0.2728,0.2741],"epi_cell_flipacc_ctx":[0.7186,0.8059,0.786,0.7999,0.7748,0.7716,0.7736],"epi_line_rho_ctx":[0.224,0.3769,0.3846,0.3801,0.3816,0.3933,0.399],"epi_cell_rank_ctx":[0.0888,0.139,0.1365,0.1431,0.1383,0.1398,0.1431],"epi_beyond_rho_ctx":[0.2989,0.4825,0.477,0.4632,0.4632,0.4584,0.4587],"epi_cell_flipacc_mt":[0.7182,0.7878,0.7916,0.7935,0.8009,0.8157,0.8151],"epi_cell_rank_mt":[0.1188,0.1526,0.1543,0.1514,0.1534,0.1749,0.1711],"epi_cell_sigsd_mt":[0.1096,0.0835,0.0891,0.0886,0.0978,0.0996,0.1053]},"o6g2_c10":{"ep":[-1,0,1,2,3,4,5],"epi_naive_rho_add":[0.4846,0.4248,0.4304,0.4516,0.4518,0.44,0.4513],"epi_global_err_add":[0.1946,0.7891,0.7595,0.7476,0.7521,0.8612,0.8134],"epi_global_bias_comb":[-0.2609,-0.4925,-0.5299,-0.519,-0.5155,-0.5764,-0.5102],"epi_global_err_comb":[0.4469,0.6725,0.7104,0.7006,0.6935,0.7712,0.6989],"epi_pair_rho_comb":[0.3374,0.4617,0.3991,0.427,0.4791,0.4704,0.4983],"epi_beyond_rho_comb":[0.2987,0.4081,0.3964,0.4053,0.4166,0.4319,0.4308],"epi_cell_rank_comb":[0.0891,0.1342,0.1317,0.1304,0.1342,0.1407,0.1455],"epi_naive_rho_comb":[0.4392,0.4253,0.4119,0.4257,0.4246,0.3867,0.4237],"epi_line_rho_comb":[0.2242,0.3537,0.3716,0.393,0.3896,0.4047,0.3957],"epi_cell_mag_comb":[0.1533,0.2178,0.2191,0.241,0.2528,0.2558,0.2737],"epi_cell_flipacc_ctx":[null,null,null,null,null,null,null],"epi_line_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_flipacc_mt":[0.7182,0.7728,0.7902,0.7953,0.8115,0.824,0.8288],"epi_cell_rank_mt":[0.1188,0.1453,0.1504,0.1649,0.1573,0.1606,0.1742],"epi_cell_sigsd_mt":[0.1096,0.0896,0.0918,0.0946,0.0947,0.0999,0.1025]},"o6g2s2_c10":{"ep":[-1,0,1,2,3],"epi_naive_rho_add":[0.4846,0.4186,0.4676,0.4283,0.4358],"epi_global_err_add":[0.1946,0.7468,0.7426,0.7682,0.7819],"epi_global_bias_comb":[-0.2609,-0.472,-0.5477,-0.5701,-0.5476],"epi_global_err_comb":[0.4469,0.6485,0.7254,0.7495,0.7354],"epi_pair_rho_comb":[0.3374,0.48,0.4122,0.4009,0.4409],"epi_beyond_rho_comb":[0.2987,0.4009,0.4019,0.3982,0.4132],"epi_cell_rank_comb":[0.0891,0.1303,0.1241,0.1257,0.1236],"epi_naive_rho_comb":[0.4392,0.4377,0.4251,0.4055,0.4053],"epi_line_rho_comb":[0.2242,0.3743,0.3946,0.3768,0.3956],"epi_cell_mag_comb":[0.1533,0.2174,0.2447,0.243,0.2581],"epi_cell_flipacc_ctx":[null,null,null,null,null],"epi_line_rho_ctx":[null,null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null,null],"epi_cell_flipacc_mt":[0.7182,0.8037,0.8043,0.8113,0.8043],"epi_cell_rank_mt":[0.1188,0.156,0.1544,0.1604,0.1588],"epi_cell_sigsd_mt":[0.1096,0.0884,0.0857,0.0916,0.0945]},"o6h1_linknone":{"ep":[-1,0,1,2,3],"epi_naive_rho_add":[0.0,0.0,0.0,0.0,0.0],"epi_global_err_add":[1.1009,1.1029,1.1033,1.1033,1.1028],"epi_global_bias_comb":[-0.6561,-0.6965,-0.6868,-0.6742,-0.683],"epi_global_err_comb":[0.8843,0.9235,0.9115,0.8993,0.9056],"epi_pair_rho_comb":[0.34,0.4426,0.3852,0.3539,0.3713],"epi_beyond_rho_comb":[0.2946,0.4104,0.3912,0.3906,0.3972],"epi_cell_rank_comb":[0.0891,0.1198,0.1247,0.1362,0.125],"epi_naive_rho_comb":[0.2157,0.2036,0.2221,0.247,0.2357],"epi_line_rho_comb":[0.2014,0.314,0.3354,0.3343,0.3459],"epi_cell_mag_comb":[0.1722,0.2296,0.2329,0.2431,0.2542],"epi_cell_flipacc_ctx":[0.7186,0.7764,0.7627,0.7734,0.7744],"epi_line_rho_ctx":[0.2013,0.314,0.3406,0.3225,0.3371],"epi_cell_rank_ctx":[0.0888,0.1323,0.1365,0.1402,0.1476],"epi_beyond_rho_ctx":[0.2946,0.4258,0.4459,0.4376,0.4373],"epi_cell_flipacc_mt":[0.7182,0.7866,0.7914,0.7967,0.7904],"epi_cell_rank_mt":[0.1188,0.1513,0.1541,0.1607,0.1571],"epi_cell_sigsd_mt":[0.1096,0.0869,0.09,0.0922,0.0978]},"o6g4_c01":{"ep":[-1,0,1,2,3,4,5],"epi_naive_rho_add":[0.4846,0.3867,0.4256,0.4445,0.4145,0.4568,0.316],"epi_global_err_add":[0.1946,0.8435,0.8514,0.8405,0.9225,0.8783,0.8877],"epi_global_bias_comb":[-0.2609,-0.5641,-0.4941,-0.5107,-0.5747,-0.5634,-0.5446],"epi_global_err_comb":[0.4469,0.7321,0.6572,0.6764,0.7566,0.7489,0.7298],"epi_pair_rho_comb":[0.3374,0.4078,0.2948,0.373,0.3713,0.3652,0.4078],"epi_beyond_rho_comb":[0.2987,0.3804,0.3493,0.3867,0.3997,0.382,0.4149],"epi_cell_rank_comb":[0.0891,0.1327,0.1287,0.1277,0.1224,0.1286,0.1258],"epi_naive_rho_comb":[0.4392,0.3626,0.3561,0.3713,0.3502,0.3231,0.3493],"epi_line_rho_comb":[0.2242,0.3346,0.3349,0.357,0.3554,0.3604,0.3789],"epi_cell_mag_comb":[0.1533,0.2079,0.2103,0.2313,0.2438,0.2531,0.2602],"epi_cell_flipacc_ctx":[null,null,null,null,null,null,null],"epi_line_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_flipacc_mt":[0.7182,0.7822,0.7838,0.7872,0.8007,0.788,0.7981],"epi_cell_rank_mt":[0.1188,0.1464,0.1445,0.1481,0.1558,0.1568,0.1564],"epi_cell_sigsd_mt":[0.1096,0.082,0.0897,0.0951,0.0958,0.0932,0.1031]},"o6g3_c1":{"ep":[-1,0,1,2,3],"epi_naive_rho_add":[0.4846,0.4658,0.4502,0.4196,0.4571],"epi_global_err_add":[0.1946,0.7992,0.831,0.8341,0.8857],"epi_global_bias_comb":[-0.2609,-0.5229,-0.5036,-0.5434,-0.5872],"epi_global_err_comb":[0.4469,0.6785,0.6704,0.7159,0.7733],"epi_pair_rho_comb":[0.3374,0.4452,0.3748,0.3635,0.3461],"epi_beyond_rho_comb":[0.2987,0.3888,0.3933,0.3911,0.401],"epi_cell_rank_comb":[0.0891,0.1294,0.1299,0.1258,0.1308],"epi_naive_rho_comb":[0.4392,0.4146,0.3988,0.3981,0.3662],"epi_line_rho_comb":[0.2242,0.3501,0.3738,0.3684,0.3785],"epi_cell_mag_comb":[0.1533,0.2249,0.2292,0.2398,0.2563],"epi_cell_flipacc_ctx":[null,null,null,null,null],"epi_line_rho_ctx":[null,null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null,null],"epi_cell_flipacc_mt":[0.7182,0.7894,0.8021,0.7822,0.8083],"epi_cell_rank_mt":[0.1188,0.1458,0.1548,0.1529,0.1602],"epi_cell_sigsd_mt":[0.1096,0.0894,0.09,0.0885,0.0941]},"o6g5_c30":{"ep":[-1,0,1,2],"epi_naive_rho_add":[0.4846,0.447,0.4644,0.4575],"epi_global_err_add":[0.1946,0.7126,0.7662,0.7404],"epi_global_bias_comb":[-0.2609,-0.4583,-0.4657,-0.4718],"epi_global_err_comb":[0.4469,0.6585,0.6596,0.6715],"epi_pair_rho_comb":[0.3374,0.4974,0.4739,0.5296],"epi_beyond_rho_comb":[0.2987,0.4217,0.4246,0.4505],"epi_cell_rank_comb":[0.0891,0.1356,0.1361,0.136],"epi_naive_rho_comb":[0.4392,0.4373,0.4378,0.4268],"epi_line_rho_comb":[0.2242,0.3798,0.3917,0.4241],"epi_cell_mag_comb":[0.1533,0.2235,0.2267,0.2502],"epi_cell_flipacc_ctx":[null,null,null,null],"epi_line_rho_ctx":[null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null],"epi_cell_flipacc_mt":[0.7182,0.782,0.7919,0.8238],"epi_cell_rank_mt":[0.1188,0.1595,0.1625,0.169],"epi_cell_sigsd_mt":[0.1096,0.0966,0.098,0.096]},"o6g1_bal111":{"ep":[-1,0,1,2],"epi_naive_rho_add":[0.4846,0.415,0.4786,0.448],"epi_global_err_add":[0.1946,0.7473,0.7033,0.7811],"epi_global_bias_comb":[-0.2609,-0.5121,-0.4789,-0.5007],"epi_global_err_comb":[0.4469,0.6278,0.5967,0.6409],"epi_pair_rho_comb":[0.3374,0.5887,0.6383,0.6678],"epi_beyond_rho_comb":[0.2987,0.4429,0.484,0.5066],"epi_cell_rank_comb":[0.0891,0.1328,0.1411,0.1431],"epi_naive_rho_comb":[0.4392,0.4698,0.5111,0.504],"epi_line_rho_comb":[0.2242,0.3629,0.4188,0.4413],"epi_cell_mag_comb":[0.1533,0.2185,0.2326,0.2456],"epi_cell_flipacc_ctx":[null,null,null,null],"epi_line_rho_ctx":[null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null],"epi_cell_flipacc_mt":[0.7182,0.7824,0.8015,0.8332],"epi_cell_rank_mt":[0.1188,0.1476,0.164,0.1672],"epi_cell_sigsd_mt":[0.1096,0.0896,0.0956,0.0943]},"o6gm1_maskstruct":{"ep":[-1,0,1,2,3,4,5],"epi_naive_rho_add":[0.4846,0.4018,0.4665,0.4447,0.4767,0.4738,0.4618],"epi_global_err_add":[0.1946,0.812,0.6846,0.7786,0.7929,0.7817,0.8232],"epi_global_bias_comb":[-0.2681,-0.4763,-0.5109,-0.5398,-0.5482,-0.5334,-0.5256],"epi_global_err_comb":[0.4837,0.671,0.6886,0.725,0.7392,0.7138,0.7155],"epi_pair_rho_comb":[0.1557,0.4148,0.4078,0.46,0.4739,0.4904,0.52],"epi_beyond_rho_comb":[0.2136,0.3977,0.3916,0.425,0.4138,0.4252,0.4394],"epi_cell_rank_comb":[0.0974,0.1224,0.1245,0.1301,0.1286,0.1167,0.1319],"epi_naive_rho_comb":[0.3787,0.399,0.4123,0.4109,0.394,0.4117,0.4055],"epi_line_rho_comb":[0.1938,0.3548,0.3772,0.4067,0.3838,0.4039,0.4077],"epi_cell_mag_comb":[0.1545,0.2035,0.2213,0.2276,0.2407,0.2456,0.2559],"epi_cell_flipacc_ctx":[null,null,null,null,null,null,null],"epi_line_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_flipacc_mt":[0.7405,0.7846,0.7912,0.7955,0.822,0.8127,0.8194],"epi_cell_rank_mt":[0.1235,0.1401,0.1514,0.1531,0.1628,0.161,0.1748],"epi_cell_sigsd_mt":[0.1111,0.0934,0.0876,0.0925,0.0965,0.0978,0.1031]},"o6gp1_premask":{"ep":[-1,0,1,2,3,4,5],"epi_naive_rho_add":[0.4846,0.4511,0.4872,0.4639,0.4825,0.4581,0.4937],"epi_global_err_add":[0.1946,0.6802,0.7188,0.7028,0.8101,0.7459,0.791],"epi_global_bias_comb":[-0.3949,-0.4732,-0.4931,-0.4935,-0.561,-0.4947,-0.5311],"epi_global_err_comb":[0.6441,0.6746,0.6927,0.6892,0.769,0.695,0.736],"epi_pair_rho_comb":[0.2096,0.5052,0.4748,0.4957,0.5026,0.52,0.5643],"epi_beyond_rho_comb":[0.2287,0.437,0.4257,0.4399,0.4276,0.4455,0.4561],"epi_cell_rank_comb":[0.079,0.1297,0.125,0.1319,0.1325,0.1334,0.1329],"epi_naive_rho_comb":[0.3146,0.3857,0.3855,0.3796,0.3503,0.4011,0.3772],"epi_line_rho_comb":[0.1475,0.3341,0.3429,0.3595,0.3481,0.3505,0.3587],"epi_cell_mag_comb":[0.145,0.2291,0.2362,0.2345,0.2346,0.2411,0.2629],"epi_cell_flipacc_ctx":[null,null,null,null,null,null,null],"epi_line_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_flipacc_mt":[0.6889,0.765,0.7758,0.7808,0.8125,0.7965,0.8149],"epi_cell_rank_mt":[0.1107,0.1485,0.1567,0.1582,0.1656,0.1642,0.1815],"epi_cell_sigsd_mt":[0.1104,0.0889,0.0905,0.0917,0.1009,0.0979,0.1044]}},"snr":[{"metric":"epi_naive_rho_add","zs":0.3965,"e2_devel":0.4439,"e2_base":0.0,"e2_linknone":0.0,"gain":-0.0269,"rep_sd":0.0175,"jit_sd":0.0225,"cfg_sd":0.1831,"snr_gain":-1.5376,"snr_cfg":10.4799},{"metric":"epi_global_err_add","zs":0.3596,"e2_devel":0.7779,"e2_base":1.172,"e2_linknone":1.1033,"gain":0.4718,"rep_sd":0.0255,"jit_sd":0.0348,"cfg_sd":0.152,"snr_gain":18.4936,"snr_cfg":5.9582},{"metric":"epi_global_bias_comb","zs":-0.3457,"e2_devel":-0.5196,"e2_base":-0.6455,"e2_linknone":-0.6742,"gain":-0.1955,"rep_sd":0.03,"jit_sd":0.0254,"cfg_sd":0.0666,"snr_gain":-6.518,"snr_cfg":2.2201},{"metric":"epi_global_err_comb","zs":0.5478,"e2_devel":0.6976,"e2_base":0.8497,"e2_linknone":0.8993,"gain":0.1758,"rep_sd":0.0307,"jit_sd":0.0295,"cfg_sd":0.0848,"snr_gain":5.7289,"snr_cfg":2.7621},{"metric":"epi_pair_rho_comb","zs":0.3094,"e2_devel":0.4591,"e2_base":0.5235,"e2_linknone":0.3539,"gain":0.1323,"rep_sd":0.0203,"jit_sd":0.0247,"cfg_sd":0.089,"snr_gain":6.5283,"snr_cfg":4.3916},{"metric":"epi_beyond_rho_comb","zs":0.2837,"e2_devel":0.4236,"e2_base":0.4621,"e2_linknone":0.3906,"gain":0.1331,"rep_sd":0.0045,"jit_sd":0.0119,"cfg_sd":0.0359,"snr_gain":29.7772,"snr_cfg":8.0243},{"metric":"epi_cell_rank_comb","zs":0.0889,"e2_devel":0.1307,"e2_base":0.1562,"e2_linknone":0.1362,"gain":0.0433,"rep_sd":0.0039,"jit_sd":0.0043,"cfg_sd":0.0081,"snr_gain":11.2249,"snr_cfg":2.0985},{"metric":"epi_naive_rho_comb","zs":0.3815,"e2_devel":0.4161,"e2_base":0.3155,"e2_linknone":0.247,"gain":0.0103,"rep_sd":0.0129,"jit_sd":0.0147,"cfg_sd":0.071,"snr_gain":0.7959,"snr_cfg":5.5032},{"metric":"epi_line_rho_comb","zs":0.2104,"e2_devel":0.3896,"e2_base":0.3898,"e2_linknone":0.3343,"gain":0.1675,"rep_sd":0.0128,"jit_sd":0.0111,"cfg_sd":0.0275,"snr_gain":13.0353,"snr_cfg":2.1368},{"metric":"epi_cell_mag_comb","zs":0.1562,"e2_devel":0.2395,"e2_base":0.3092,"e2_linknone":0.2431,"gain":0.0839,"rep_sd":0.0071,"jit_sd":0.009,"cfg_sd":0.0219,"snr_gain":11.888,"snr_cfg":3.1086},{"metric":"epi_cell_flipacc_ctx","zs":0.7187,"e2_devel":0.7999,"e2_base":0.7792,"e2_linknone":0.7734,"gain":0.0626,"rep_sd":NaN,"jit_sd":0.0069,"cfg_sd":0.0125,"snr_gain":NaN,"snr_cfg":NaN},{"metric":"epi_line_rho_ctx","zs":0.2091,"e2_devel":0.3801,"e2_base":0.3873,"e2_linknone":0.3225,"gain":0.1523,"rep_sd":NaN,"jit_sd":0.0099,"cfg_sd":0.0266,"snr_gain":NaN,"snr_cfg":NaN},{"metric":"epi_cell_rank_ctx","zs":0.0892,"e2_devel":0.1431,"e2_base":0.1377,"e2_linknone":0.1402,"gain":0.0494,"rep_sd":NaN,"jit_sd":0.0029,"cfg_sd":0.0011,"snr_gain":NaN,"snr_cfg":NaN},{"metric":"epi_beyond_rho_ctx","zs":0.2953,"e2_devel":0.4632,"e2_base":0.4444,"e2_linknone":0.4376,"gain":0.1579,"rep_sd":NaN,"jit_sd":0.0065,"cfg_sd":0.0149,"snr_gain":NaN,"snr_cfg":NaN},{"metric":"epi_cell_flipacc_mt","zs":0.7176,"e2_devel":0.8003,"e2_base":0.8764,"e2_linknone":0.7967,"gain":0.0845,"rep_sd":0.0103,"jit_sd":0.0115,"cfg_sd":0.0225,"snr_gain":8.2078,"snr_cfg":2.1814},{"metric":"epi_cell_rank_mt","zs":0.1185,"e2_devel":0.1584,"e2_base":0.1979,"e2_linknone":0.1607,"gain":0.0413,"rep_sd":0.0047,"jit_sd":0.0058,"cfg_sd":0.0119,"snr_gain":8.7112,"snr_cfg":2.5064},{"metric":"epi_cell_sigsd_mt","zs":0.1098,"e2_devel":0.0926,"e2_base":0.1121,"e2_linknone":0.0922,"gain":-0.0167,"rep_sd":0.0028,"jit_sd":0.0034,"cfg_sd":0.0055,"snr_gain":-5.8485,"snr_cfg":1.9368}],"nsfig":{"readouts":[{"x":-2.723,"n":3478,"t":1.972,"c":2.576,"comb":2.772},{"x":-2.229,"n":6125,"t":1.72,"c":2.191,"comb":2.306},{"x":-1.738,"n":9213,"t":1.404,"c":1.889,"comb":1.923},{"x":-1.242,"n":11795,"t":1.088,"c":1.502,"comb":1.54},{"x":-0.741,"n":14167,"t":0.81,"c":1.188,"comb":1.191},{"x":-0.241,"n":17308,"t":0.541,"c":0.917,"comb":0.906},{"x":0.249,"n":18907,"t":0.299,"c":0.722,"comb":0.664},{"x":0.743,"n":17246,"t":0.15,"c":0.52,"comb":0.49},{"x":1.24,"n":14546,"t":0.071,"c":0.42,"comb":0.4},{"x":1.735,"n":10797,"t":-0.003,"c":0.346,"comb":0.324},{"x":2.236,"n":7485,"t":-0.128,"c":0.26,"comb":0.216},{"x":2.732,"n":4751,"t":-0.29,"c":0.154,"comb":0.092},{"x":3.218,"n":2507,"t":-0.511,"c":0.07,"comb":-0.037}],"decomp":[{"x":-2.854,"meas":2.877,"s02":2.963,"s04":2.963,"s08":2.971},{"x":-1.944,"meas":2.083,"s02":2.03,"s04":2.031,"s08":2.055},{"x":-1.506,"meas":1.751,"s02":1.586,"s04":1.589,"s08":1.632},{"x":-1.166,"meas":1.477,"s02":1.228,"s04":1.238,"s08":1.304},{"x":-0.87,"meas":1.276,"s02":0.934,"s04":0.955,"s08":1.049},{"x":-0.614,"meas":1.108,"s02":0.691,"s04":0.73,"s08":0.846},{"x":-0.386,"meas":0.989,"s02":0.481,"s04":0.54,"s08":0.676},{"x":-0.182,"meas":0.866,"s02":0.315,"s04":0.391,"s08":0.536},{"x":0.004,"meas":0.783,"s02":0.188,"s04":0.275,"s08":0.417},{"x":0.185,"meas":0.701,"s02":0.104,"s04":0.19,"s08":0.323},{"x":0.363,"meas":0.613,"s02":0.051,"s04":0.126,"s08":0.246},{"x":0.544,"meas":0.544,"s02":0.02,"s04":0.078,"s08":0.182},{"x":0.734,"meas":0.482,"s02":0.006,"s04":0.046,"s08":0.134},{"x":0.936,"meas":0.454,"s02":0.002,"s04":0.026,"s08":0.095},{"x":1.148,"meas":0.416,"s02":-0.001,"s04":0.012,"s08":0.066},{"x":1.381,"meas":0.367,"s02":-0.001,"s04":0.006,"s08":0.043},{"x":1.649,"meas":0.345,"s02":-0.002,"s04":0.001,"s08":0.026},{"x":1.976,"meas":0.271,"s02":-0.001,"s04":-0.001,"s08":0.013},{"x":2.415,"meas":0.176,"s02":-0.0,"s04":-0.001,"s08":0.002},{"x":3.237,"meas":-0.037,"s02":-0.0,"s04":-0.0,"s08":-0.001}]},"diag":{"A: saturation only":{"monotone_r2":0.619,"latent_at_obs_0p5":-0.5,"lift":-0.372,"n_lift":13.5,"unequal_uncompressed":-0.058,"unequal_compressed":0.066,"second_readout_floor_diff":-0.289,"second_readout_inrange_diff":-0.041,"sat_remainder_inrange":0.057,"true_ns_inrange":0.0},"B: saturation + hump":{"monotone_r2":0.501,"latent_at_obs_0p5":-2.75,"lift":0.086,"n_lift":24.0,"unequal_uncompressed":-0.248,"unequal_compressed":0.022,"second_readout_floor_diff":-0.258,"second_readout_inrange_diff":-0.027,"sat_remainder_inrange":0.323,"true_ns_inrange":0.434},"C: saturation + product":{"monotone_r2":0.63,"latent_at_obs_0p5":-2.312,"lift":-0.271,"n_lift":17.0,"unequal_uncompressed":0.093,"unequal_compressed":-0.028,"second_readout_floor_diff":-0.239,"second_readout_inrange_diff":-0.017,"sat_remainder_inrange":0.159,"true_ns_inrange":0.222},"D: hump, no saturation":{"monotone_r2":null,"latent_at_obs_0p5":null,"lift":-0.042,"n_lift":16.0,"unequal_uncompressed":-0.137,"unequal_compressed":0.054,"second_readout_floor_diff":null,"second_readout_inrange_diff":null,"sat_remainder_inrange":0.431,"true_ns_inrange":0.431}},"simmet":[{"world":"none","pred":"add (singles only)","pair_rho":0.0,"line_rho":0.0,"cell_mag":0.0,"beyond_rho":0.0,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.0,"line_rho_2d":0.0,"cell_mag_2d":0.0,"beyond_rho_2d":0.0,"global_err":0.17,"global_bias":0.051},{"world":"none","pred":"ns (+ nonspecific)","pair_rho":0.0,"line_rho":0.0,"cell_mag":0.0,"beyond_rho":0.0,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.0,"line_rho_2d":0.0,"cell_mag_2d":0.0,"beyond_rho_2d":0.0,"global_err":0.17,"global_bias":0.051},{"world":"none","pred":"rc (+ line effects)","pair_rho":0.12,"line_rho":0.388,"cell_mag":0.084,"beyond_rho":0.254,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.199,"line_rho_2d":0.345,"cell_mag_2d":0.081,"beyond_rho_2d":0.248,"global_err":0.181,"global_bias":0.073},{"world":"none","pred":"cell (+ cell effects)","pair_rho":0.0,"line_rho":0.104,"cell_mag":0.26,"beyond_rho":0.173,"cell_flipacc":0.738,"cell_rank":0.184,"pair_rho_2d":0.0,"line_rho_2d":0.093,"cell_mag_2d":0.256,"beyond_rho_2d":0.161,"global_err":0.171,"global_bias":0.056},{"world":"none","pred":"spec (+ all specific)","pair_rho":0.587,"line_rho":0.423,"cell_mag":0.275,"beyond_rho":0.42,"cell_flipacc":0.738,"cell_rank":0.186,"pair_rho_2d":0.63,"line_rho_2d":0.38,"cell_mag_2d":0.266,"beyond_rho_2d":0.452,"global_err":0.189,"global_bias":0.096},{"world":"none","pred":"all (+ specific + nonspecific)","pair_rho":0.587,"line_rho":0.423,"cell_mag":0.275,"beyond_rho":0.42,"cell_flipacc":0.738,"cell_rank":0.186,"pair_rho_2d":0.63,"line_rho_2d":0.38,"cell_mag_2d":0.266,"beyond_rho_2d":0.452,"global_err":0.189,"global_bias":0.096},{"world":"hump","pred":"add (singles only)","pair_rho":0.0,"line_rho":0.0,"cell_mag":0.0,"beyond_rho":0.0,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.0,"line_rho_2d":0.0,"cell_mag_2d":0.0,"beyond_rho_2d":0.0,"global_err":0.254,"global_bias":-0.203},{"world":"hump","pred":"ns (+ nonspecific)","pair_rho":0.0,"line_rho":0.0,"cell_mag":0.0,"beyond_rho":0.0,"cell_flipacc":0.482,"cell_rank":0.0,"pair_rho_2d":0.0,"line_rho_2d":0.0,"cell_mag_2d":-0.001,"beyond_rho_2d":0.0,"global_err":0.149,"global_bias":-0.006},{"world":"hump","pred":"rc (+ line effects)","pair_rho":0.152,"line_rho":0.467,"cell_mag":0.065,"beyond_rho":0.307,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.099,"line_rho_2d":0.444,"cell_mag_2d":0.062,"beyond_rho_2d":0.259,"global_err":0.241,"global_bias":-0.187},{"world":"hump","pred":"cell (+ cell effects)","pair_rho":0.0,"line_rho":0.081,"cell_mag":0.304,"beyond_rho":0.182,"cell_flipacc":0.796,"cell_rank":0.233,"pair_rho_2d":0.0,"line_rho_2d":0.083,"cell_mag_2d":0.301,"beyond_rho_2d":0.151,"global_err":0.249,"global_bias":-0.199},{"world":"hump","pred":"spec (+ all specific)","pair_rho":0.707,"line_rho":0.482,"cell_mag":0.297,"beyond_rho":0.493,"cell_flipacc":0.796,"cell_rank":0.234,"pair_rho_2d":0.758,"line_rho_2d":0.484,"cell_mag_2d":0.291,"beyond_rho_2d":0.558,"global_err":0.205,"global_bias":-0.153},{"world":"hump","pred":"all (+ specific + nonspecific)","pair_rho":0.716,"line_rho":0.495,"cell_mag":0.313,"beyond_rho":0.502,"cell_flipacc":0.785,"cell_rank":0.236,"pair_rho_2d":0.769,"line_rho_2d":0.496,"cell_mag_2d":0.308,"beyond_rho_2d":0.575,"global_err":0.148,"global_bias":0.043},{"world":"product","pred":"add (singles only)","pair_rho":0.0,"line_rho":0.0,"cell_mag":0.0,"beyond_rho":0.0,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.0,"line_rho_2d":0.0,"cell_mag_2d":0.0,"beyond_rho_2d":0.0,"global_err":0.18,"global_bias":-0.031},{"world":"product","pred":"ns (+ nonspecific)","pair_rho":0.307,"line_rho":0.047,"cell_mag":0.036,"beyond_rho":0.163,"cell_flipacc":0.574,"cell_rank":0.0,"pair_rho_2d":0.0,"line_rho_2d":0.02,"cell_mag_2d":0.006,"beyond_rho_2d":-0.008,"global_err":0.175,"global_bias":0.052},{"world":"product","pred":"rc (+ line effects)","pair_rho":0.213,"line_rho":0.429,"cell_mag":0.066,"beyond_rho":0.289,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.227,"line_rho_2d":0.424,"cell_mag_2d":0.059,"beyond_rho_2d":0.26,"global_err":0.176,"global_bias":-0.02},{"world":"product","pred":"cell (+ cell effects)","pair_rho":0.0,"line_rho":0.089,"cell_mag":0.269,"beyond_rho":0.177,"cell_flipacc":0.769,"cell_rank":0.205,"pair_rho_2d":0.0,"line_rho_2d":0.093,"cell_mag_2d":0.265,"beyond_rho_2d":0.15,"global_err":0.179,"global_bias":-0.027},{"world":"product","pred":"spec (+ all specific)","pair_rho":0.602,"line_rho":0.45,"cell_mag":0.27,"beyond_rho":0.452,"cell_flipacc":0.769,"cell_rank":0.206,"pair_rho_2d":0.705,"line_rho_2d":0.453,"cell_mag_2d":0.262,"beyond_rho_2d":0.558,"global_err":0.164,"global_bias":-0.022},{"world":"product","pred":"all (+ specific + nonspecific)","pair_rho":0.714,"line_rho":0.467,"cell_mag":0.289,"beyond_rho":0.488,"cell_flipacc":0.788,"cell_rank":0.214,"pair_rho_2d":0.714,"line_rho_2d":0.468,"cell_mag_2d":0.278,"beyond_rho_2d":0.575,"global_err":0.157,"global_bias":0.064}],"realdev":[{"run":"basis, no link (e7)","head":"comb","beyond_rho":0.487,"pair_rho":0.608,"line_rho":0.399,"cell_mag":0.319,"beyond_rho_2st":0.482,"pair_rho_2st":0.474,"line_rho_2st":0.361,"cell_mag_2st":0.261},{"run":"basis, no link (e7)","head":"mt","beyond_rho":0.511,"pair_rho":0.638,"line_rho":0.413,"cell_mag":0.324,"beyond_rho_2st":0.537,"pair_rho_2st":0.559,"line_rho_2st":0.406,"cell_mag_2st":0.274},{"run":"basis, no link (e7)","head":"ctx","beyond_rho":0.402,"pair_rho":0.381,"line_rho":0.358,"cell_mag":0.248,"beyond_rho_2st":0.388,"pair_rho_2st":0.452,"line_rho_2st":0.264,"cell_mag_2st":0.228},{"run":"basis + link (e6)","head":"comb","beyond_rho":0.487,"pair_rho":0.623,"line_rho":0.418,"cell_mag":0.29,"beyond_rho_2st":0.448,"pair_rho_2st":0.502,"line_rho_2st":0.388,"cell_mag_2st":0.272},{"run":"basis + link (e6)","head":"mt","beyond_rho":0.502,"pair_rho":0.638,"line_rho":0.404,"cell_mag":0.308,"beyond_rho_2st":0.5,"pair_rho_2st":0.503,"line_rho_2st":0.429,"cell_mag_2st":0.272},{"run":"basis + link (e6)","head":"ctx","beyond_rho":0.424,"pair_rho":0.463,"line_rho":0.375,"cell_mag":0.218,"beyond_rho_2st":0.397,"pair_rho_2st":0.473,"line_rho_2st":0.341,"cell_mag_2st":0.236},{"run":"best devel, rank 8 (o6s21 e9)","head":"comb","beyond_rho":0.484,"pair_rho":0.617,"line_rho":0.393,"cell_mag":0.29,"beyond_rho_2st":0.496,"pair_rho_2st":0.483,"line_rho_2st":0.355,"cell_mag_2st":0.251},{"run":"best devel, rank 8 (o6s21 e9)","head":"mt","beyond_rho":0.51,"pair_rho":0.627,"line_rho":0.399,"cell_mag":0.3,"beyond_rho_2st":0.499,"pair_rho_2st":0.503,"line_rho_2st":0.34,"cell_mag_2st":0.242},{"run":"best devel, rank 8 (o6s21 e9)","head":"ctx","beyond_rho":0.402,"pair_rho":0.415,"line_rho":0.392,"cell_mag":0.225,"beyond_rho_2st":0.276,"pair_rho_2st":0.13,"line_rho_2st":0.287,"cell_mag_2st":0.213},{"run":"devel, MT regression x50 (o6s03_m1 e5)","head":"comb","beyond_rho":0.532,"pair_rho":0.687,"line_rho":0.449,"cell_mag":0.269,"beyond_rho_2st":0.51,"pair_rho_2st":0.549,"line_rho_2st":0.395,"cell_mag_2st":0.26},{"run":"devel, MT regression x50 (o6s03_m1 e5)","head":"mt","beyond_rho":0.534,"pair_rho":0.661,"line_rho":0.418,"cell_mag":0.265,"beyond_rho_2st":0.507,"pair_rho_2st":0.517,"line_rho_2st":0.389,"cell_mag_2st":0.255},{"run":"devel, MT regression x50 (o6s03_m1 e5)","head":"ctx","beyond_rho":0.449,"pair_rho":0.534,"line_rho":0.408,"cell_mag":0.223,"beyond_rho_2st":0.37,"pair_rho_2st":0.391,"line_rho_2st":0.32,"cell_mag_2st":0.221}],"models":[{"world":"none","model":"link","global_rmse":0.2366,"global_bias":-0.0626,"rmse_singles":0.5369,"rmse_doubles":0.6231},{"world":"none","model":"link + f(x)","global_rmse":0.209,"global_bias":0.0175,"rmse_singles":0.5393,"rmse_doubles":0.6127},{"world":"none","model":"link + f(a, b)","global_rmse":0.2181,"global_bias":0.0188,"rmse_singles":0.5391,"rmse_doubles":0.6165},{"world":"none","model":"flexible link","global_rmse":0.2461,"global_bias":-0.0324,"rmse_singles":0.5318,"rmse_doubles":0.6101},{"world":"hump","model":"link","global_rmse":0.5373,"global_bias":-0.4883,"rmse_singles":0.5602,"rmse_doubles":0.7506},{"world":"hump","model":"link + f(x)","global_rmse":0.2615,"global_bias":-0.1632,"rmse_singles":0.5457,"rmse_doubles":0.702},{"world":"hump","model":"link + f(a, b)","global_rmse":0.3223,"global_bias":-0.2033,"rmse_singles":0.5462,"rmse_doubles":0.6953},{"world":"hump","model":"flexible link","global_rmse":0.5095,"global_bias":-0.4532,"rmse_singles":0.55,"rmse_doubles":0.7431},{"world":"product","model":"link","global_rmse":0.3306,"global_bias":-0.2083,"rmse_singles":0.5207,"rmse_doubles":0.69},{"world":"product","model":"link + f(x)","global_rmse":0.2416,"global_bias":-0.047,"rmse_singles":0.5191,"rmse_doubles":0.6795},{"world":"product","model":"link + f(a, b)","global_rmse":0.2444,"global_bias":-0.1421,"rmse_singles":0.5192,"rmse_doubles":0.7247},{"world":"product","model":"flexible link","global_rmse":0.3135,"global_bias":-0.1834,"rmse_singles":0.5178,"rmse_doubles":0.6878}],"anova_x":[{"bin":"below \u22121 (sub-floor)","n":26985,"mean":2.0402,"sat":1.9469,"ns":0.0933,"var":0.6395,"v_G":0.2742,"v_N":0.0321,"v_P":0.0994,"v_L":0.135,"v_C":0.077,"cov":0.0217,"noise_ab":0.1307,"noise_dddG":0.2363},{"bin":"\u22121 to 0 (knee)","n":29659,"mean":1.0312,"sat":0.6126,"ns":0.4186,"var":0.3991,"v_G":0.0273,"v_N":0.0349,"v_P":0.1187,"v_L":0.1315,"v_C":0.0654,"cov":0.0213,"noise_ab":0.0625,"noise_dddG":0.107},{"bin":"0 to 1","n":35651,"mean":0.581,"sat":0.1112,"ns":0.4698,"var":0.3506,"v_G":0.0106,"v_N":0.0336,"v_P":0.1219,"v_L":0.1148,"v_C":0.0494,"cov":0.0203,"noise_ab":0.0373,"noise_dddG":0.0589},{"bin":"1 to 2","n":25147,"mean":0.3677,"sat":0.0059,"ns":0.3618,"var":0.3419,"v_G":0.0022,"v_N":0.0341,"v_P":0.1289,"v_L":0.1285,"v_C":0.0517,"cov":-0.0035,"noise_ab":0.0301,"noise_dddG":0.0375},{"bin":"above 2","n":16214,"mean":0.101,"sat":-0.0008,"ns":0.1018,"var":0.346,"v_G":0.0145,"v_N":0.0366,"v_P":0.1151,"v_L":0.1606,"v_C":0.0638,"cov":-0.0446,"noise_ab":0.0265,"noise_dddG":0.0409}]};
+const DATA = {"partition":{"validation":{"global":0.369,"pair":0.146,"line":0.09,"cell":0.04,"total":0.659},"training_cv":{"global":60.1,"pair":16.2,"line":13.3,"cell":10.4},"validation_ns":{"global":59.0,"nsx":6.4,"pair":17.2,"line":11.9,"cell":5.5}},"curve":[{"x":-2.1314,"n":425,"meas":2.2991,"base_comb":0.4324,"base_mt":0.9947,"base_add":-0.13,"link_comb":0.9402,"link_mt":1.1471,"link_add":1.1787,"devel_comb":0.7279,"devel_mt":1.0392,"devel_add":0.7379,"oracle":1.772},{"x":-1.6485,"n":425,"meas":1.9134,"base_comb":0.3075,"base_mt":0.745,"base_add":-0.13,"link_comb":0.8087,"link_mt":0.915,"link_add":1.003,"devel_comb":0.5637,"devel_mt":0.7503,"devel_add":0.5916,"oracle":1.6245},{"x":-1.3648,"n":424,"meas":1.7577,"base_comb":0.2206,"base_mt":0.5711,"base_add":-0.13,"link_comb":0.5761,"link_mt":0.7158,"link_add":0.686,"devel_comb":0.4259,"devel_mt":0.5882,"devel_add":0.4179,"oracle":1.5481},{"x":-1.0689,"n":425,"meas":1.5803,"base_comb":0.2783,"base_mt":0.6867,"base_add":-0.13,"link_comb":0.6046,"link_mt":0.8358,"link_add":0.6266,"devel_comb":0.4889,"devel_mt":0.7342,"devel_add":0.4049,"oracle":1.4318},{"x":-0.7341,"n":425,"meas":1.3824,"base_comb":0.2986,"base_mt":0.7271,"base_add":-0.1299,"link_comb":0.5401,"link_mt":0.8612,"link_add":0.3789,"devel_comb":0.4714,"devel_mt":0.7609,"devel_add":0.286,"oracle":1.1772},{"x":-0.4379,"n":424,"meas":1.2247,"base_comb":0.2963,"base_mt":0.7226,"base_add":-0.1299,"link_comb":0.4902,"link_mt":0.8543,"link_add":0.2428,"devel_comb":0.4344,"devel_mt":0.7247,"devel_add":0.2148,"oracle":0.9757},{"x":-0.1833,"n":425,"meas":1.1478,"base_comb":0.2596,"base_mt":0.6492,"base_add":-0.1299,"link_comb":0.3944,"link_mt":0.7532,"link_add":0.1171,"devel_comb":0.3998,"devel_mt":0.6979,"devel_add":0.1454,"oracle":0.8284},{"x":0.0554,"n":425,"meas":1.0861,"base_comb":0.2852,"base_mt":0.7004,"base_add":-0.13,"link_comb":0.3772,"link_mt":0.755,"link_add":0.0624,"devel_comb":0.4224,"devel_mt":0.7457,"devel_add":0.1294,"oracle":0.7852},{"x":0.2747,"n":424,"meas":0.9393,"base_comb":0.2614,"base_mt":0.6529,"base_add":-0.13,"link_comb":0.3342,"link_mt":0.7029,"link_add":0.0149,"devel_comb":0.3963,"devel_mt":0.7139,"devel_add":0.1011,"oracle":0.6221},{"x":0.474,"n":425,"meas":0.7855,"base_comb":0.2504,"base_mt":0.6309,"base_add":-0.13,"link_comb":0.3218,"link_mt":0.6812,"link_add":0.0054,"devel_comb":0.3795,"devel_mt":0.692,"devel_add":0.0877,"oracle":0.4688},{"x":0.6533,"n":425,"meas":0.7122,"base_comb":0.2217,"base_mt":0.5733,"base_add":-0.13,"link_comb":0.2813,"link_mt":0.6147,"link_add":-0.0219,"devel_comb":0.3554,"devel_mt":0.6513,"devel_add":0.0732,"oracle":0.41},{"x":0.8205,"n":424,"meas":0.6744,"base_comb":0.1974,"base_mt":0.5248,"base_add":-0.13,"link_comb":0.2502,"link_mt":0.5609,"link_add":-0.0399,"devel_comb":0.3308,"devel_mt":0.594,"devel_add":0.0764,"oracle":0.4114},{"x":0.9725,"n":425,"meas":0.6067,"base_comb":0.1585,"base_mt":0.447,"base_add":-0.13,"link_comb":0.2145,"link_mt":0.4958,"link_add":-0.0493,"devel_comb":0.2909,"devel_mt":0.5192,"devel_add":0.065,"oracle":0.3024},{"x":1.1199,"n":425,"meas":0.5445,"base_comb":0.1569,"base_mt":0.4438,"base_add":-0.13,"link_comb":0.2066,"link_mt":0.4893,"link_add":-0.0571,"devel_comb":0.2912,"devel_mt":0.5289,"devel_add":0.0607,"oracle":0.2872},{"x":1.2817,"n":424,"meas":0.5373,"base_comb":0.1605,"base_mt":0.4509,"base_add":-0.13,"link_comb":0.2095,"link_mt":0.4949,"link_add":-0.063,"devel_comb":0.2847,"devel_mt":0.5078,"devel_add":0.0644,"oracle":0.2805},{"x":1.4588,"n":425,"meas":0.4822,"base_comb":0.1331,"base_mt":0.3963,"base_add":-0.1301,"link_comb":0.1829,"link_mt":0.441,"link_add":-0.0662,"devel_comb":0.2639,"devel_mt":0.4641,"devel_add":0.0671,"oracle":0.252},{"x":1.6703,"n":425,"meas":0.4074,"base_comb":0.1571,"base_mt":0.4442,"base_add":-0.13,"link_comb":0.205,"link_mt":0.4886,"link_add":-0.0683,"devel_comb":0.2821,"devel_mt":0.4935,"devel_add":0.0721,"oracle":0.2178},{"x":1.9192,"n":424,"meas":0.284,"base_comb":0.1372,"base_mt":0.4044,"base_add":-0.13,"link_comb":0.1907,"link_mt":0.462,"link_add":-0.0747,"devel_comb":0.2471,"devel_mt":0.428,"devel_add":0.0674,"oracle":0.1603},{"x":2.2736,"n":425,"meas":0.034,"base_comb":0.1295,"base_mt":0.389,"base_add":-0.13,"link_comb":0.1864,"link_mt":0.4575,"link_add":-0.0816,"devel_comb":0.2503,"devel_mt":0.4326,"devel_add":0.0687,"oracle":0.0396},{"x":2.8343,"n":425,"meas":-0.0874,"base_comb":0.14,"base_mt":0.4101,"base_add":-0.13,"link_comb":0.2056,"link_mt":0.4913,"link_add":-0.0792,"devel_comb":0.2574,"devel_mt":0.4223,"devel_add":0.0904,"oracle":0.0017}],"regimes":[{"name":"x < -1","n":1571,"share":0.18495408523663762,"mean":1.920010562708695,"var":0.1994634675163911,"ss_share":0.3392149803610862,"rho_add":0.20072318841787076,"rho_comb":0.21579682133089365,"dGAB_med":0.2858935599685508},{"name":"-1 to 0","n":1509,"share":0.17765481516364492,"mean":1.2693076055139585,"var":0.34930464227950014,"ss_share":0.12792878190386983,"rho_add":-0.028746700753082475,"rho_comb":0.3334064612972122,"dGAB_med":0.6196561040680582},{"name":"0 to 1","n":2313,"share":0.2723098657876148,"mean":0.7918502248708787,"var":0.37038734126767564,"ss_share":0.15941838774888448,"rho_add":0.13686341289093223,"rho_comb":0.4777243687444696,"dGAB_med":1.236154753188389},{"name":"1 to 2","n":2164,"share":0.2547680715799388,"mean":0.46826164584840146,"var":0.32613826739230756,"ss_share":0.2034959804373779,"rho_add":0.23609178328383895,"rho_comb":0.4884660445689868,"dGAB_med":1.8254864675965932},{"name":"x > 2","n":937,"share":0.11031316223216388,"mean":0.0004520931469780724,"var":0.17747783808418874,"ss_share":0.16994186954878154,"rho_add":0.04884240741157413,"rho_comb":0.18629806507122174,"dGAB_med":2.4536813436117795}],"floors":[-0.548,-0.449,-0.386,-0.375,-0.375,-0.342,-0.333,-0.26,-0.231,-0.201,-0.199,-0.19,-0.158,-0.15,-0.143,-0.139,-0.125,-0.119,-0.113,-0.099,-0.097,-0.093,-0.076,-0.054,-0.04,-0.012,-0.006,0.015,0.021,0.026,0.034,0.043,0.049,0.065,0.075,0.087,0.09,0.109,0.158,0.171,0.179,0.192,0.192,0.209,0.212,0.228,0.306,0.325,0.328,0.342,0.345,0.36,0.392,0.417,0.422,0.444,0.453,0.46,0.484,0.525,0.698],"spec":{"mean":[{"pred":"add_latent","naive":0.0,"global_err":1.038,"beyond":0.0,"pair":0.0,"line":0.0,"cell_mag":0.0,"cell_rank":0.0,"flipacc":0.5,"sigsd":0.0,"int_raw(old)":0.0,"line_raw(old)":0.0,"pair_raw(old)":0.0},{"pred":"add_link","naive":0.579,"global_err":0.218,"beyond":-0.037,"pair":-0.052,"line":-0.032,"cell_mag":0.005,"cell_rank":0.0,"flipacc":0.545,"sigsd":0.0,"int_raw(old)":0.105,"line_raw(old)":0.478,"pair_raw(old)":0.711},{"pred":"add_imitate","naive":0.536,"global_err":0.214,"beyond":-0.001,"pair":0.074,"line":-0.014,"cell_mag":-0.002,"cell_rank":0.003,"flipacc":0.505,"sigsd":0.159,"int_raw(old)":0.051,"line_raw(old)":0.478,"pair_raw(old)":0.71},{"pred":"sev_link","naive":0.576,"global_err":0.363,"beyond":0.08,"pair":0.1,"line":-0.015,"cell_mag":-0.017,"cell_rank":0.0,"flipacc":0.541,"sigsd":0.0,"int_raw(old)":0.1,"line_raw(old)":0.491,"pair_raw(old)":0.698},{"pred":"m_link","naive":0.723,"global_err":0.137,"beyond":0.63,"pair":0.836,"line":0.114,"cell_mag":0.021,"cell_rank":0.0,"flipacc":0.538,"sigsd":0.0,"int_raw(old)":0.101,"line_raw(old)":0.489,"pair_raw(old)":0.907},{"pred":"rc_link","naive":0.608,"global_err":0.209,"beyond":0.246,"pair":0.081,"line":0.501,"cell_mag":0.013,"cell_rank":0.012,"flipacc":0.538,"sigsd":0.026,"int_raw(old)":0.104,"line_raw(old)":0.547,"pair_raw(old)":0.722},{"pred":"eps_link","naive":0.598,"global_err":0.218,"beyond":0.18,"pair":0.1,"line":0.128,"cell_mag":0.367,"cell_rank":0.291,"flipacc":0.891,"sigsd":0.105,"int_raw(old)":0.371,"line_raw(old)":0.495,"pair_raw(old)":0.711},{"pred":"all_link","naive":0.747,"global_err":0.131,"beyond":0.698,"pair":0.829,"line":0.537,"cell_mag":0.364,"cell_rank":0.291,"flipacc":0.888,"sigsd":0.101,"int_raw(old)":0.367,"line_raw(old)":0.552,"pair_raw(old)":0.909},{"pred":"eps_latent","naive":0.107,"global_err":1.038,"beyond":0.179,"pair":0.086,"line":0.105,"cell_mag":0.368,"cell_rank":0.252,"flipacc":0.905,"sigsd":0.063,"int_raw(old)":0.364,"line_raw(old)":0.056,"pair_raw(old)":-0.0},{"pred":"all_latent","naive":0.421,"global_err":1.005,"beyond":0.71,"pair":0.839,"line":0.533,"cell_mag":0.363,"cell_rank":0.256,"flipacc":0.904,"sigsd":0.063,"int_raw(old)":0.363,"line_raw(old)":0.239,"pair_raw(old)":0.486},{"pred":"eps_imitate","naive":0.552,"global_err":0.221,"beyond":0.091,"pair":0.154,"line":0.069,"cell_mag":0.172,"cell_rank":0.149,"flipacc":0.725,"sigsd":0.171,"int_raw(old)":0.211,"line_raw(old)":0.49,"pair_raw(old)":0.707}],"sd":[{"pred":"add_latent","naive":0.0,"global_err":0.136,"beyond":0.0,"pair":0.0,"line":0.0,"cell_mag":0.0,"cell_rank":0.0,"flipacc":0.0,"sigsd":0.0,"int_raw(old)":0.0,"line_raw(old)":0.0,"pair_raw(old)":0.0},{"pred":"add_link","naive":0.059,"global_err":0.085,"beyond":0.016,"pair":0.124,"line":0.083,"cell_mag":0.015,"cell_rank":0.0,"flipacc":0.021,"sigsd":0.0,"int_raw(old)":0.011,"line_raw(old)":0.026,"pair_raw(old)":0.129},{"pred":"add_imitate","naive":0.052,"global_err":0.084,"beyond":0.009,"pair":0.115,"line":0.023,"cell_mag":0.014,"cell_rank":0.012,"flipacc":0.029,"sigsd":0.003,"int_raw(old)":0.015,"line_raw(old)":0.029,"pair_raw(old)":0.12},{"pred":"sev_link","naive":0.064,"global_err":0.144,"beyond":0.194,"pair":0.284,"line":0.082,"cell_mag":0.023,"cell_rank":0.0,"flipacc":0.021,"sigsd":0.0,"int_raw(old)":0.012,"line_raw(old)":0.02,"pair_raw(old)":0.133},{"pred":"m_link","naive":0.051,"global_err":0.029,"beyond":0.108,"pair":0.07,"line":0.1,"cell_mag":0.025,"cell_rank":0.0,"flipacc":0.032,"sigsd":0.0,"int_raw(old)":0.014,"line_raw(old)":0.025,"pair_raw(old)":0.035},{"pred":"rc_link","naive":0.066,"global_err":0.088,"beyond":0.057,"pair":0.199,"line":0.045,"cell_mag":0.015,"cell_rank":0.008,"flipacc":0.022,"sigsd":0.002,"int_raw(old)":0.012,"line_raw(old)":0.029,"pair_raw(old)":0.122},{"pred":"eps_link","naive":0.057,"global_err":0.074,"beyond":0.028,"pair":0.194,"line":0.039,"cell_mag":0.014,"cell_rank":0.013,"flipacc":0.013,"sigsd":0.003,"int_raw(old)":0.012,"line_raw(old)":0.032,"pair_raw(old)":0.108},{"pred":"all_link","naive":0.043,"global_err":0.027,"beyond":0.089,"pair":0.087,"line":0.041,"cell_mag":0.015,"cell_rank":0.01,"flipacc":0.017,"sigsd":0.002,"int_raw(old)":0.014,"line_raw(old)":0.033,"pair_raw(old)":0.027},{"pred":"eps_latent","naive":0.013,"global_err":0.136,"beyond":0.031,"pair":0.24,"line":0.029,"cell_mag":0.011,"cell_rank":0.012,"flipacc":0.016,"sigsd":0.001,"int_raw(old)":0.011,"line_raw(old)":0.037,"pair_raw(old)":0.219},{"pred":"all_latent","naive":0.158,"global_err":0.053,"beyond":0.084,"pair":0.07,"line":0.044,"cell_mag":0.016,"cell_rank":0.01,"flipacc":0.015,"sigsd":0.002,"int_raw(old)":0.013,"line_raw(old)":0.031,"pair_raw(old)":0.223},{"pred":"eps_imitate","naive":0.059,"global_err":0.09,"beyond":0.019,"pair":0.251,"line":0.041,"cell_mag":0.014,"cell_rank":0.013,"flipacc":0.023,"sigsd":0.003,"int_raw(old)":0.013,"line_raw(old)":0.028,"pair_raw(old)":0.126}]},"traj":{"bl_w2a4_m16a16_capped":{"ep":[-1,0,1,2,3,4,5,6,7],"epi_naive_rho_add":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],"epi_global_err_add":[1.1033,0.9257,1.1305,1.172,1.2033,1.1922,1.1889,1.2306,1.2133],"epi_global_bias_comb":[-0.6572,-0.4833,-0.6562,-0.6455,-0.7052,-0.6709,-0.69,-0.7159,-0.6915],"epi_global_err_comb":[0.8855,0.7643,0.8678,0.8497,0.9043,0.8682,0.88,0.9052,0.8821],"epi_pair_rho_comb":[0.3365,0.4826,0.467,0.5235,0.5661,0.5687,0.5974,0.5948,0.6078],"epi_beyond_rho_comb":[0.2925,0.437,0.4502,0.4621,0.4744,0.4761,0.4881,0.47,0.4867],"epi_cell_rank_comb":[0.0892,0.1433,0.1472,0.1562,0.15,0.1587,0.1554,0.1555,0.1563],"epi_naive_rho_comb":[0.2128,0.2645,0.3081,0.3155,0.3142,0.3253,0.3489,0.3378,0.35],"epi_line_rho_comb":[0.2021,0.3211,0.3698,0.3898,0.3764,0.3835,0.3967,0.3825,0.3988],"epi_cell_mag_comb":[0.1731,0.2552,0.2971,0.3092,0.3162,0.3113,0.3161,0.304,0.3192],"epi_cell_flipacc_ctx":[0.7188,0.7963,0.7864,0.7792,0.7844,0.7904,0.7987,0.8009,0.8011],"epi_line_rho_ctx":[0.2021,0.3219,0.3536,0.3873,0.3727,0.3658,0.3521,0.3521,0.3578],"epi_cell_rank_ctx":[0.09,0.1319,0.1373,0.1377,0.1425,0.1398,0.1412,0.1453,0.1462],"epi_beyond_rho_ctx":[0.2925,0.4466,0.4513,0.4444,0.4387,0.4298,0.4112,0.397,0.4022],"epi_cell_flipacc_mt":[0.7182,0.7949,0.8458,0.8764,0.8477,0.8448,0.8609,0.8599,0.8621],"epi_cell_rank_mt":[0.1186,0.1681,0.1849,0.1979,0.2023,0.2103,0.1976,0.1994,0.2046],"epi_cell_sigsd_mt":[0.1095,0.1006,0.1034,0.1121,0.1108,0.1198,0.1247,0.1255,0.1253]},"o6g6_c10_hier":{"ep":[-1,0,1,2,3,4,5],"epi_naive_rho_add":[0.4846,0.4603,0.4654,0.4371,0.4591,0.4497,0.4539],"epi_global_err_add":[0.1946,0.7224,0.7248,0.8079,0.7649,0.8416,0.8162],"epi_global_bias_comb":[-0.2609,-0.5647,-0.5416,-0.5273,-0.5114,-0.5675,-0.5054],"epi_global_err_comb":[0.4469,0.7425,0.7122,0.7094,0.6901,0.7604,0.69],"epi_pair_rho_comb":[0.3374,0.4835,0.38,0.4148,0.4139,0.5017,0.5061],"epi_beyond_rho_comb":[0.2987,0.4039,0.3965,0.4089,0.4064,0.4382,0.4361],"epi_cell_rank_comb":[0.0891,0.1316,0.1271,0.1258,0.1331,0.1368,0.1434],"epi_naive_rho_comb":[0.4392,0.4328,0.442,0.4234,0.4384,0.4136,0.4313],"epi_line_rho_comb":[0.2242,0.338,0.3719,0.3794,0.3782,0.3959,0.3797],"epi_cell_mag_comb":[0.1533,0.2141,0.2237,0.2426,0.256,0.2728,0.2741],"epi_cell_flipacc_ctx":[0.7186,0.8059,0.786,0.7999,0.7748,0.7716,0.7736],"epi_line_rho_ctx":[0.224,0.3769,0.3846,0.3801,0.3816,0.3933,0.399],"epi_cell_rank_ctx":[0.0888,0.139,0.1365,0.1431,0.1383,0.1398,0.1431],"epi_beyond_rho_ctx":[0.2989,0.4825,0.477,0.4632,0.4632,0.4584,0.4587],"epi_cell_flipacc_mt":[0.7182,0.7878,0.7916,0.7935,0.8009,0.8157,0.8151],"epi_cell_rank_mt":[0.1188,0.1526,0.1543,0.1514,0.1534,0.1749,0.1711],"epi_cell_sigsd_mt":[0.1096,0.0835,0.0891,0.0886,0.0978,0.0996,0.1053]},"o6g2_c10":{"ep":[-1,0,1,2,3,4,5],"epi_naive_rho_add":[0.4846,0.4248,0.4304,0.4516,0.4518,0.44,0.4513],"epi_global_err_add":[0.1946,0.7891,0.7595,0.7476,0.7521,0.8612,0.8134],"epi_global_bias_comb":[-0.2609,-0.4925,-0.5299,-0.519,-0.5155,-0.5764,-0.5102],"epi_global_err_comb":[0.4469,0.6725,0.7104,0.7006,0.6935,0.7712,0.6989],"epi_pair_rho_comb":[0.3374,0.4617,0.3991,0.427,0.4791,0.4704,0.4983],"epi_beyond_rho_comb":[0.2987,0.4081,0.3964,0.4053,0.4166,0.4319,0.4308],"epi_cell_rank_comb":[0.0891,0.1342,0.1317,0.1304,0.1342,0.1407,0.1455],"epi_naive_rho_comb":[0.4392,0.4253,0.4119,0.4257,0.4246,0.3867,0.4237],"epi_line_rho_comb":[0.2242,0.3537,0.3716,0.393,0.3896,0.4047,0.3957],"epi_cell_mag_comb":[0.1533,0.2178,0.2191,0.241,0.2528,0.2558,0.2737],"epi_cell_flipacc_ctx":[null,null,null,null,null,null,null],"epi_line_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_flipacc_mt":[0.7182,0.7728,0.7902,0.7953,0.8115,0.824,0.8288],"epi_cell_rank_mt":[0.1188,0.1453,0.1504,0.1649,0.1573,0.1606,0.1742],"epi_cell_sigsd_mt":[0.1096,0.0896,0.0918,0.0946,0.0947,0.0999,0.1025]},"o6g2s2_c10":{"ep":[-1,0,1,2,3],"epi_naive_rho_add":[0.4846,0.4186,0.4676,0.4283,0.4358],"epi_global_err_add":[0.1946,0.7468,0.7426,0.7682,0.7819],"epi_global_bias_comb":[-0.2609,-0.472,-0.5477,-0.5701,-0.5476],"epi_global_err_comb":[0.4469,0.6485,0.7254,0.7495,0.7354],"epi_pair_rho_comb":[0.3374,0.48,0.4122,0.4009,0.4409],"epi_beyond_rho_comb":[0.2987,0.4009,0.4019,0.3982,0.4132],"epi_cell_rank_comb":[0.0891,0.1303,0.1241,0.1257,0.1236],"epi_naive_rho_comb":[0.4392,0.4377,0.4251,0.4055,0.4053],"epi_line_rho_comb":[0.2242,0.3743,0.3946,0.3768,0.3956],"epi_cell_mag_comb":[0.1533,0.2174,0.2447,0.243,0.2581],"epi_cell_flipacc_ctx":[null,null,null,null,null],"epi_line_rho_ctx":[null,null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null,null],"epi_cell_flipacc_mt":[0.7182,0.8037,0.8043,0.8113,0.8043],"epi_cell_rank_mt":[0.1188,0.156,0.1544,0.1604,0.1588],"epi_cell_sigsd_mt":[0.1096,0.0884,0.0857,0.0916,0.0945]},"o6h1_linknone":{"ep":[-1,0,1,2,3],"epi_naive_rho_add":[0.0,0.0,0.0,0.0,0.0],"epi_global_err_add":[1.1009,1.1029,1.1033,1.1033,1.1028],"epi_global_bias_comb":[-0.6561,-0.6965,-0.6868,-0.6742,-0.683],"epi_global_err_comb":[0.8843,0.9235,0.9115,0.8993,0.9056],"epi_pair_rho_comb":[0.34,0.4426,0.3852,0.3539,0.3713],"epi_beyond_rho_comb":[0.2946,0.4104,0.3912,0.3906,0.3972],"epi_cell_rank_comb":[0.0891,0.1198,0.1247,0.1362,0.125],"epi_naive_rho_comb":[0.2157,0.2036,0.2221,0.247,0.2357],"epi_line_rho_comb":[0.2014,0.314,0.3354,0.3343,0.3459],"epi_cell_mag_comb":[0.1722,0.2296,0.2329,0.2431,0.2542],"epi_cell_flipacc_ctx":[0.7186,0.7764,0.7627,0.7734,0.7744],"epi_line_rho_ctx":[0.2013,0.314,0.3406,0.3225,0.3371],"epi_cell_rank_ctx":[0.0888,0.1323,0.1365,0.1402,0.1476],"epi_beyond_rho_ctx":[0.2946,0.4258,0.4459,0.4376,0.4373],"epi_cell_flipacc_mt":[0.7182,0.7866,0.7914,0.7967,0.7904],"epi_cell_rank_mt":[0.1188,0.1513,0.1541,0.1607,0.1571],"epi_cell_sigsd_mt":[0.1096,0.0869,0.09,0.0922,0.0978]},"o6g4_c01":{"ep":[-1,0,1,2,3,4,5],"epi_naive_rho_add":[0.4846,0.3867,0.4256,0.4445,0.4145,0.4568,0.316],"epi_global_err_add":[0.1946,0.8435,0.8514,0.8405,0.9225,0.8783,0.8877],"epi_global_bias_comb":[-0.2609,-0.5641,-0.4941,-0.5107,-0.5747,-0.5634,-0.5446],"epi_global_err_comb":[0.4469,0.7321,0.6572,0.6764,0.7566,0.7489,0.7298],"epi_pair_rho_comb":[0.3374,0.4078,0.2948,0.373,0.3713,0.3652,0.4078],"epi_beyond_rho_comb":[0.2987,0.3804,0.3493,0.3867,0.3997,0.382,0.4149],"epi_cell_rank_comb":[0.0891,0.1327,0.1287,0.1277,0.1224,0.1286,0.1258],"epi_naive_rho_comb":[0.4392,0.3626,0.3561,0.3713,0.3502,0.3231,0.3493],"epi_line_rho_comb":[0.2242,0.3346,0.3349,0.357,0.3554,0.3604,0.3789],"epi_cell_mag_comb":[0.1533,0.2079,0.2103,0.2313,0.2438,0.2531,0.2602],"epi_cell_flipacc_ctx":[null,null,null,null,null,null,null],"epi_line_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_flipacc_mt":[0.7182,0.7822,0.7838,0.7872,0.8007,0.788,0.7981],"epi_cell_rank_mt":[0.1188,0.1464,0.1445,0.1481,0.1558,0.1568,0.1564],"epi_cell_sigsd_mt":[0.1096,0.082,0.0897,0.0951,0.0958,0.0932,0.1031]},"o6g3_c1":{"ep":[-1,0,1,2,3],"epi_naive_rho_add":[0.4846,0.4658,0.4502,0.4196,0.4571],"epi_global_err_add":[0.1946,0.7992,0.831,0.8341,0.8857],"epi_global_bias_comb":[-0.2609,-0.5229,-0.5036,-0.5434,-0.5872],"epi_global_err_comb":[0.4469,0.6785,0.6704,0.7159,0.7733],"epi_pair_rho_comb":[0.3374,0.4452,0.3748,0.3635,0.3461],"epi_beyond_rho_comb":[0.2987,0.3888,0.3933,0.3911,0.401],"epi_cell_rank_comb":[0.0891,0.1294,0.1299,0.1258,0.1308],"epi_naive_rho_comb":[0.4392,0.4146,0.3988,0.3981,0.3662],"epi_line_rho_comb":[0.2242,0.3501,0.3738,0.3684,0.3785],"epi_cell_mag_comb":[0.1533,0.2249,0.2292,0.2398,0.2563],"epi_cell_flipacc_ctx":[null,null,null,null,null],"epi_line_rho_ctx":[null,null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null,null],"epi_cell_flipacc_mt":[0.7182,0.7894,0.8021,0.7822,0.8083],"epi_cell_rank_mt":[0.1188,0.1458,0.1548,0.1529,0.1602],"epi_cell_sigsd_mt":[0.1096,0.0894,0.09,0.0885,0.0941]},"o6g5_c30":{"ep":[-1,0,1,2],"epi_naive_rho_add":[0.4846,0.447,0.4644,0.4575],"epi_global_err_add":[0.1946,0.7126,0.7662,0.7404],"epi_global_bias_comb":[-0.2609,-0.4583,-0.4657,-0.4718],"epi_global_err_comb":[0.4469,0.6585,0.6596,0.6715],"epi_pair_rho_comb":[0.3374,0.4974,0.4739,0.5296],"epi_beyond_rho_comb":[0.2987,0.4217,0.4246,0.4505],"epi_cell_rank_comb":[0.0891,0.1356,0.1361,0.136],"epi_naive_rho_comb":[0.4392,0.4373,0.4378,0.4268],"epi_line_rho_comb":[0.2242,0.3798,0.3917,0.4241],"epi_cell_mag_comb":[0.1533,0.2235,0.2267,0.2502],"epi_cell_flipacc_ctx":[null,null,null,null],"epi_line_rho_ctx":[null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null],"epi_cell_flipacc_mt":[0.7182,0.782,0.7919,0.8238],"epi_cell_rank_mt":[0.1188,0.1595,0.1625,0.169],"epi_cell_sigsd_mt":[0.1096,0.0966,0.098,0.096]},"o6g1_bal111":{"ep":[-1,0,1,2],"epi_naive_rho_add":[0.4846,0.415,0.4786,0.448],"epi_global_err_add":[0.1946,0.7473,0.7033,0.7811],"epi_global_bias_comb":[-0.2609,-0.5121,-0.4789,-0.5007],"epi_global_err_comb":[0.4469,0.6278,0.5967,0.6409],"epi_pair_rho_comb":[0.3374,0.5887,0.6383,0.6678],"epi_beyond_rho_comb":[0.2987,0.4429,0.484,0.5066],"epi_cell_rank_comb":[0.0891,0.1328,0.1411,0.1431],"epi_naive_rho_comb":[0.4392,0.4698,0.5111,0.504],"epi_line_rho_comb":[0.2242,0.3629,0.4188,0.4413],"epi_cell_mag_comb":[0.1533,0.2185,0.2326,0.2456],"epi_cell_flipacc_ctx":[null,null,null,null],"epi_line_rho_ctx":[null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null],"epi_cell_flipacc_mt":[0.7182,0.7824,0.8015,0.8332],"epi_cell_rank_mt":[0.1188,0.1476,0.164,0.1672],"epi_cell_sigsd_mt":[0.1096,0.0896,0.0956,0.0943]},"o6gm1_maskstruct":{"ep":[-1,0,1,2,3,4,5],"epi_naive_rho_add":[0.4846,0.4018,0.4665,0.4447,0.4767,0.4738,0.4618],"epi_global_err_add":[0.1946,0.812,0.6846,0.7786,0.7929,0.7817,0.8232],"epi_global_bias_comb":[-0.2681,-0.4763,-0.5109,-0.5398,-0.5482,-0.5334,-0.5256],"epi_global_err_comb":[0.4837,0.671,0.6886,0.725,0.7392,0.7138,0.7155],"epi_pair_rho_comb":[0.1557,0.4148,0.4078,0.46,0.4739,0.4904,0.52],"epi_beyond_rho_comb":[0.2136,0.3977,0.3916,0.425,0.4138,0.4252,0.4394],"epi_cell_rank_comb":[0.0974,0.1224,0.1245,0.1301,0.1286,0.1167,0.1319],"epi_naive_rho_comb":[0.3787,0.399,0.4123,0.4109,0.394,0.4117,0.4055],"epi_line_rho_comb":[0.1938,0.3548,0.3772,0.4067,0.3838,0.4039,0.4077],"epi_cell_mag_comb":[0.1545,0.2035,0.2213,0.2276,0.2407,0.2456,0.2559],"epi_cell_flipacc_ctx":[null,null,null,null,null,null,null],"epi_line_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_flipacc_mt":[0.7405,0.7846,0.7912,0.7955,0.822,0.8127,0.8194],"epi_cell_rank_mt":[0.1235,0.1401,0.1514,0.1531,0.1628,0.161,0.1748],"epi_cell_sigsd_mt":[0.1111,0.0934,0.0876,0.0925,0.0965,0.0978,0.1031]},"o6gp1_premask":{"ep":[-1,0,1,2,3,4,5],"epi_naive_rho_add":[0.4846,0.4511,0.4872,0.4639,0.4825,0.4581,0.4937],"epi_global_err_add":[0.1946,0.6802,0.7188,0.7028,0.8101,0.7459,0.791],"epi_global_bias_comb":[-0.3949,-0.4732,-0.4931,-0.4935,-0.561,-0.4947,-0.5311],"epi_global_err_comb":[0.6441,0.6746,0.6927,0.6892,0.769,0.695,0.736],"epi_pair_rho_comb":[0.2096,0.5052,0.4748,0.4957,0.5026,0.52,0.5643],"epi_beyond_rho_comb":[0.2287,0.437,0.4257,0.4399,0.4276,0.4455,0.4561],"epi_cell_rank_comb":[0.079,0.1297,0.125,0.1319,0.1325,0.1334,0.1329],"epi_naive_rho_comb":[0.3146,0.3857,0.3855,0.3796,0.3503,0.4011,0.3772],"epi_line_rho_comb":[0.1475,0.3341,0.3429,0.3595,0.3481,0.3505,0.3587],"epi_cell_mag_comb":[0.145,0.2291,0.2362,0.2345,0.2346,0.2411,0.2629],"epi_cell_flipacc_ctx":[null,null,null,null,null,null,null],"epi_line_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_rank_ctx":[null,null,null,null,null,null,null],"epi_beyond_rho_ctx":[null,null,null,null,null,null,null],"epi_cell_flipacc_mt":[0.6889,0.765,0.7758,0.7808,0.8125,0.7965,0.8149],"epi_cell_rank_mt":[0.1107,0.1485,0.1567,0.1582,0.1656,0.1642,0.1815],"epi_cell_sigsd_mt":[0.1104,0.0889,0.0905,0.0917,0.1009,0.0979,0.1044]}},"snr":[{"metric":"epi_naive_rho_add","zs":0.3965,"e2_devel":0.4439,"e2_base":0.0,"e2_linknone":0.0,"gain":-0.0269,"rep_sd":0.0175,"jit_sd":0.0225,"cfg_sd":0.1831,"snr_gain":-1.5376,"snr_cfg":10.4799},{"metric":"epi_global_err_add","zs":0.3596,"e2_devel":0.7779,"e2_base":1.172,"e2_linknone":1.1033,"gain":0.4718,"rep_sd":0.0255,"jit_sd":0.0348,"cfg_sd":0.152,"snr_gain":18.4936,"snr_cfg":5.9582},{"metric":"epi_global_bias_comb","zs":-0.3457,"e2_devel":-0.5196,"e2_base":-0.6455,"e2_linknone":-0.6742,"gain":-0.1955,"rep_sd":0.03,"jit_sd":0.0254,"cfg_sd":0.0666,"snr_gain":-6.518,"snr_cfg":2.2201},{"metric":"epi_global_err_comb","zs":0.5478,"e2_devel":0.6976,"e2_base":0.8497,"e2_linknone":0.8993,"gain":0.1758,"rep_sd":0.0307,"jit_sd":0.0295,"cfg_sd":0.0848,"snr_gain":5.7289,"snr_cfg":2.7621},{"metric":"epi_pair_rho_comb","zs":0.3094,"e2_devel":0.4591,"e2_base":0.5235,"e2_linknone":0.3539,"gain":0.1323,"rep_sd":0.0203,"jit_sd":0.0247,"cfg_sd":0.089,"snr_gain":6.5283,"snr_cfg":4.3916},{"metric":"epi_beyond_rho_comb","zs":0.2837,"e2_devel":0.4236,"e2_base":0.4621,"e2_linknone":0.3906,"gain":0.1331,"rep_sd":0.0045,"jit_sd":0.0119,"cfg_sd":0.0359,"snr_gain":29.7772,"snr_cfg":8.0243},{"metric":"epi_cell_rank_comb","zs":0.0889,"e2_devel":0.1307,"e2_base":0.1562,"e2_linknone":0.1362,"gain":0.0433,"rep_sd":0.0039,"jit_sd":0.0043,"cfg_sd":0.0081,"snr_gain":11.2249,"snr_cfg":2.0985},{"metric":"epi_naive_rho_comb","zs":0.3815,"e2_devel":0.4161,"e2_base":0.3155,"e2_linknone":0.247,"gain":0.0103,"rep_sd":0.0129,"jit_sd":0.0147,"cfg_sd":0.071,"snr_gain":0.7959,"snr_cfg":5.5032},{"metric":"epi_line_rho_comb","zs":0.2104,"e2_devel":0.3896,"e2_base":0.3898,"e2_linknone":0.3343,"gain":0.1675,"rep_sd":0.0128,"jit_sd":0.0111,"cfg_sd":0.0275,"snr_gain":13.0353,"snr_cfg":2.1368},{"metric":"epi_cell_mag_comb","zs":0.1562,"e2_devel":0.2395,"e2_base":0.3092,"e2_linknone":0.2431,"gain":0.0839,"rep_sd":0.0071,"jit_sd":0.009,"cfg_sd":0.0219,"snr_gain":11.888,"snr_cfg":3.1086},{"metric":"epi_cell_flipacc_ctx","zs":0.7187,"e2_devel":0.7999,"e2_base":0.7792,"e2_linknone":0.7734,"gain":0.0626,"rep_sd":NaN,"jit_sd":0.0069,"cfg_sd":0.0125,"snr_gain":NaN,"snr_cfg":NaN},{"metric":"epi_line_rho_ctx","zs":0.2091,"e2_devel":0.3801,"e2_base":0.3873,"e2_linknone":0.3225,"gain":0.1523,"rep_sd":NaN,"jit_sd":0.0099,"cfg_sd":0.0266,"snr_gain":NaN,"snr_cfg":NaN},{"metric":"epi_cell_rank_ctx","zs":0.0892,"e2_devel":0.1431,"e2_base":0.1377,"e2_linknone":0.1402,"gain":0.0494,"rep_sd":NaN,"jit_sd":0.0029,"cfg_sd":0.0011,"snr_gain":NaN,"snr_cfg":NaN},{"metric":"epi_beyond_rho_ctx","zs":0.2953,"e2_devel":0.4632,"e2_base":0.4444,"e2_linknone":0.4376,"gain":0.1579,"rep_sd":NaN,"jit_sd":0.0065,"cfg_sd":0.0149,"snr_gain":NaN,"snr_cfg":NaN},{"metric":"epi_cell_flipacc_mt","zs":0.7176,"e2_devel":0.8003,"e2_base":0.8764,"e2_linknone":0.7967,"gain":0.0845,"rep_sd":0.0103,"jit_sd":0.0115,"cfg_sd":0.0225,"snr_gain":8.2078,"snr_cfg":2.1814},{"metric":"epi_cell_rank_mt","zs":0.1185,"e2_devel":0.1584,"e2_base":0.1979,"e2_linknone":0.1607,"gain":0.0413,"rep_sd":0.0047,"jit_sd":0.0058,"cfg_sd":0.0119,"snr_gain":8.7112,"snr_cfg":2.5064},{"metric":"epi_cell_sigsd_mt","zs":0.1098,"e2_devel":0.0926,"e2_base":0.1121,"e2_linknone":0.0922,"gain":-0.0167,"rep_sd":0.0028,"jit_sd":0.0034,"cfg_sd":0.0055,"snr_gain":-5.8485,"snr_cfg":1.9368}],"nsfig":{"readouts":[{"x":-2.723,"n":3478,"t":1.972,"c":2.576,"comb":2.772},{"x":-2.229,"n":6125,"t":1.72,"c":2.191,"comb":2.306},{"x":-1.738,"n":9213,"t":1.404,"c":1.889,"comb":1.923},{"x":-1.242,"n":11795,"t":1.088,"c":1.502,"comb":1.54},{"x":-0.741,"n":14167,"t":0.81,"c":1.188,"comb":1.191},{"x":-0.241,"n":17308,"t":0.541,"c":0.917,"comb":0.906},{"x":0.249,"n":18907,"t":0.299,"c":0.722,"comb":0.664},{"x":0.743,"n":17246,"t":0.15,"c":0.52,"comb":0.49},{"x":1.24,"n":14546,"t":0.071,"c":0.42,"comb":0.4},{"x":1.735,"n":10797,"t":-0.003,"c":0.346,"comb":0.324},{"x":2.236,"n":7485,"t":-0.128,"c":0.26,"comb":0.216},{"x":2.732,"n":4751,"t":-0.29,"c":0.154,"comb":0.092},{"x":3.218,"n":2507,"t":-0.511,"c":0.07,"comb":-0.037}],"decomp":[{"x":-2.854,"meas":2.877,"s02":2.963,"s04":2.963,"s08":2.971},{"x":-1.944,"meas":2.083,"s02":2.03,"s04":2.031,"s08":2.055},{"x":-1.506,"meas":1.751,"s02":1.586,"s04":1.589,"s08":1.632},{"x":-1.166,"meas":1.477,"s02":1.228,"s04":1.238,"s08":1.304},{"x":-0.87,"meas":1.276,"s02":0.934,"s04":0.955,"s08":1.049},{"x":-0.614,"meas":1.108,"s02":0.691,"s04":0.73,"s08":0.846},{"x":-0.386,"meas":0.989,"s02":0.481,"s04":0.54,"s08":0.676},{"x":-0.182,"meas":0.866,"s02":0.315,"s04":0.391,"s08":0.536},{"x":0.004,"meas":0.783,"s02":0.188,"s04":0.275,"s08":0.417},{"x":0.185,"meas":0.701,"s02":0.104,"s04":0.19,"s08":0.323},{"x":0.363,"meas":0.613,"s02":0.051,"s04":0.126,"s08":0.246},{"x":0.544,"meas":0.544,"s02":0.02,"s04":0.078,"s08":0.182},{"x":0.734,"meas":0.482,"s02":0.006,"s04":0.046,"s08":0.134},{"x":0.936,"meas":0.454,"s02":0.002,"s04":0.026,"s08":0.095},{"x":1.148,"meas":0.416,"s02":-0.001,"s04":0.012,"s08":0.066},{"x":1.381,"meas":0.367,"s02":-0.001,"s04":0.006,"s08":0.043},{"x":1.649,"meas":0.345,"s02":-0.002,"s04":0.001,"s08":0.026},{"x":1.976,"meas":0.271,"s02":-0.001,"s04":-0.001,"s08":0.013},{"x":2.415,"meas":0.176,"s02":-0.0,"s04":-0.001,"s08":0.002},{"x":3.237,"meas":-0.037,"s02":-0.0,"s04":-0.0,"s08":-0.001}]},"diag":{"A: saturation only":{"monotone_r2":0.619,"latent_at_obs_0p5":-0.5,"lift":-0.372,"n_lift":13.5,"unequal_uncompressed":-0.058,"unequal_compressed":0.066,"second_readout_floor_diff":-0.289,"second_readout_inrange_diff":-0.041,"sat_remainder_inrange":0.057,"true_ns_inrange":0.0},"B: saturation + hump":{"monotone_r2":0.501,"latent_at_obs_0p5":-2.75,"lift":0.086,"n_lift":24.0,"unequal_uncompressed":-0.248,"unequal_compressed":0.022,"second_readout_floor_diff":-0.258,"second_readout_inrange_diff":-0.027,"sat_remainder_inrange":0.323,"true_ns_inrange":0.434},"C: saturation + product":{"monotone_r2":0.63,"latent_at_obs_0p5":-2.312,"lift":-0.271,"n_lift":17.0,"unequal_uncompressed":0.093,"unequal_compressed":-0.028,"second_readout_floor_diff":-0.239,"second_readout_inrange_diff":-0.017,"sat_remainder_inrange":0.159,"true_ns_inrange":0.222},"D: hump, no saturation":{"monotone_r2":null,"latent_at_obs_0p5":null,"lift":-0.042,"n_lift":16.0,"unequal_uncompressed":-0.137,"unequal_compressed":0.054,"second_readout_floor_diff":null,"second_readout_inrange_diff":null,"sat_remainder_inrange":0.431,"true_ns_inrange":0.431}},"simmet":[{"world":"none","pred":"add (singles only)","pair_rho":0.0,"line_rho":0.0,"cell_mag":0.0,"beyond_rho":0.0,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.0,"line_rho_2d":0.0,"cell_mag_2d":0.0,"beyond_rho_2d":0.0,"global_err":0.17,"global_bias":0.051},{"world":"none","pred":"ns (+ nonspecific)","pair_rho":0.0,"line_rho":0.0,"cell_mag":0.0,"beyond_rho":0.0,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.0,"line_rho_2d":0.0,"cell_mag_2d":0.0,"beyond_rho_2d":0.0,"global_err":0.17,"global_bias":0.051},{"world":"none","pred":"rc (+ line effects)","pair_rho":0.12,"line_rho":0.388,"cell_mag":0.084,"beyond_rho":0.254,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.199,"line_rho_2d":0.345,"cell_mag_2d":0.081,"beyond_rho_2d":0.248,"global_err":0.181,"global_bias":0.073},{"world":"none","pred":"cell (+ cell effects)","pair_rho":0.0,"line_rho":0.104,"cell_mag":0.26,"beyond_rho":0.173,"cell_flipacc":0.738,"cell_rank":0.184,"pair_rho_2d":0.0,"line_rho_2d":0.093,"cell_mag_2d":0.256,"beyond_rho_2d":0.161,"global_err":0.171,"global_bias":0.056},{"world":"none","pred":"spec (+ all specific)","pair_rho":0.587,"line_rho":0.423,"cell_mag":0.275,"beyond_rho":0.42,"cell_flipacc":0.738,"cell_rank":0.186,"pair_rho_2d":0.63,"line_rho_2d":0.38,"cell_mag_2d":0.266,"beyond_rho_2d":0.452,"global_err":0.189,"global_bias":0.096},{"world":"none","pred":"all (+ specific + nonspecific)","pair_rho":0.587,"line_rho":0.423,"cell_mag":0.275,"beyond_rho":0.42,"cell_flipacc":0.738,"cell_rank":0.186,"pair_rho_2d":0.63,"line_rho_2d":0.38,"cell_mag_2d":0.266,"beyond_rho_2d":0.452,"global_err":0.189,"global_bias":0.096},{"world":"hump","pred":"add (singles only)","pair_rho":0.0,"line_rho":0.0,"cell_mag":0.0,"beyond_rho":0.0,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.0,"line_rho_2d":0.0,"cell_mag_2d":0.0,"beyond_rho_2d":0.0,"global_err":0.254,"global_bias":-0.203},{"world":"hump","pred":"ns (+ nonspecific)","pair_rho":0.0,"line_rho":0.0,"cell_mag":0.0,"beyond_rho":0.0,"cell_flipacc":0.482,"cell_rank":0.0,"pair_rho_2d":0.0,"line_rho_2d":0.0,"cell_mag_2d":-0.001,"beyond_rho_2d":0.0,"global_err":0.149,"global_bias":-0.006},{"world":"hump","pred":"rc (+ line effects)","pair_rho":0.152,"line_rho":0.467,"cell_mag":0.065,"beyond_rho":0.307,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.099,"line_rho_2d":0.444,"cell_mag_2d":0.062,"beyond_rho_2d":0.259,"global_err":0.241,"global_bias":-0.187},{"world":"hump","pred":"cell (+ cell effects)","pair_rho":0.0,"line_rho":0.081,"cell_mag":0.304,"beyond_rho":0.182,"cell_flipacc":0.796,"cell_rank":0.233,"pair_rho_2d":0.0,"line_rho_2d":0.083,"cell_mag_2d":0.301,"beyond_rho_2d":0.151,"global_err":0.249,"global_bias":-0.199},{"world":"hump","pred":"spec (+ all specific)","pair_rho":0.707,"line_rho":0.482,"cell_mag":0.297,"beyond_rho":0.493,"cell_flipacc":0.796,"cell_rank":0.234,"pair_rho_2d":0.758,"line_rho_2d":0.484,"cell_mag_2d":0.291,"beyond_rho_2d":0.558,"global_err":0.205,"global_bias":-0.153},{"world":"hump","pred":"all (+ specific + nonspecific)","pair_rho":0.716,"line_rho":0.495,"cell_mag":0.313,"beyond_rho":0.502,"cell_flipacc":0.785,"cell_rank":0.236,"pair_rho_2d":0.769,"line_rho_2d":0.496,"cell_mag_2d":0.308,"beyond_rho_2d":0.575,"global_err":0.148,"global_bias":0.043},{"world":"product","pred":"add (singles only)","pair_rho":0.0,"line_rho":0.0,"cell_mag":0.0,"beyond_rho":0.0,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.0,"line_rho_2d":0.0,"cell_mag_2d":0.0,"beyond_rho_2d":0.0,"global_err":0.18,"global_bias":-0.031},{"world":"product","pred":"ns (+ nonspecific)","pair_rho":0.307,"line_rho":0.047,"cell_mag":0.036,"beyond_rho":0.163,"cell_flipacc":0.574,"cell_rank":0.0,"pair_rho_2d":0.0,"line_rho_2d":0.02,"cell_mag_2d":0.006,"beyond_rho_2d":-0.008,"global_err":0.175,"global_bias":0.052},{"world":"product","pred":"rc (+ line effects)","pair_rho":0.213,"line_rho":0.429,"cell_mag":0.066,"beyond_rho":0.289,"cell_flipacc":0.5,"cell_rank":0.0,"pair_rho_2d":0.227,"line_rho_2d":0.424,"cell_mag_2d":0.059,"beyond_rho_2d":0.26,"global_err":0.176,"global_bias":-0.02},{"world":"product","pred":"cell (+ cell effects)","pair_rho":0.0,"line_rho":0.089,"cell_mag":0.269,"beyond_rho":0.177,"cell_flipacc":0.769,"cell_rank":0.205,"pair_rho_2d":0.0,"line_rho_2d":0.093,"cell_mag_2d":0.265,"beyond_rho_2d":0.15,"global_err":0.179,"global_bias":-0.027},{"world":"product","pred":"spec (+ all specific)","pair_rho":0.602,"line_rho":0.45,"cell_mag":0.27,"beyond_rho":0.452,"cell_flipacc":0.769,"cell_rank":0.206,"pair_rho_2d":0.705,"line_rho_2d":0.453,"cell_mag_2d":0.262,"beyond_rho_2d":0.558,"global_err":0.164,"global_bias":-0.022},{"world":"product","pred":"all (+ specific + nonspecific)","pair_rho":0.714,"line_rho":0.467,"cell_mag":0.289,"beyond_rho":0.488,"cell_flipacc":0.788,"cell_rank":0.214,"pair_rho_2d":0.714,"line_rho_2d":0.468,"cell_mag_2d":0.278,"beyond_rho_2d":0.575,"global_err":0.157,"global_bias":0.064}],"realdev":[{"run":"basis, no link (e7)","head":"comb","beyond_rho":0.487,"pair_rho":0.608,"line_rho":0.399,"cell_mag":0.319,"beyond_rho_2st":0.482,"pair_rho_2st":0.474,"line_rho_2st":0.361,"cell_mag_2st":0.261},{"run":"basis, no link (e7)","head":"mt","beyond_rho":0.511,"pair_rho":0.638,"line_rho":0.413,"cell_mag":0.324,"beyond_rho_2st":0.537,"pair_rho_2st":0.559,"line_rho_2st":0.406,"cell_mag_2st":0.274},{"run":"basis, no link (e7)","head":"ctx","beyond_rho":0.402,"pair_rho":0.381,"line_rho":0.358,"cell_mag":0.248,"beyond_rho_2st":0.388,"pair_rho_2st":0.452,"line_rho_2st":0.264,"cell_mag_2st":0.228},{"run":"basis + link (e6)","head":"comb","beyond_rho":0.487,"pair_rho":0.623,"line_rho":0.418,"cell_mag":0.29,"beyond_rho_2st":0.448,"pair_rho_2st":0.502,"line_rho_2st":0.388,"cell_mag_2st":0.272},{"run":"basis + link (e6)","head":"mt","beyond_rho":0.502,"pair_rho":0.638,"line_rho":0.404,"cell_mag":0.308,"beyond_rho_2st":0.5,"pair_rho_2st":0.503,"line_rho_2st":0.429,"cell_mag_2st":0.272},{"run":"basis + link (e6)","head":"ctx","beyond_rho":0.424,"pair_rho":0.463,"line_rho":0.375,"cell_mag":0.218,"beyond_rho_2st":0.397,"pair_rho_2st":0.473,"line_rho_2st":0.341,"cell_mag_2st":0.236},{"run":"best devel, rank 8 (o6s21 e9)","head":"comb","beyond_rho":0.484,"pair_rho":0.617,"line_rho":0.393,"cell_mag":0.29,"beyond_rho_2st":0.496,"pair_rho_2st":0.483,"line_rho_2st":0.355,"cell_mag_2st":0.251},{"run":"best devel, rank 8 (o6s21 e9)","head":"mt","beyond_rho":0.51,"pair_rho":0.627,"line_rho":0.399,"cell_mag":0.3,"beyond_rho_2st":0.499,"pair_rho_2st":0.503,"line_rho_2st":0.34,"cell_mag_2st":0.242},{"run":"best devel, rank 8 (o6s21 e9)","head":"ctx","beyond_rho":0.402,"pair_rho":0.415,"line_rho":0.392,"cell_mag":0.225,"beyond_rho_2st":0.276,"pair_rho_2st":0.13,"line_rho_2st":0.287,"cell_mag_2st":0.213},{"run":"devel, MT regression x50 (o6s03_m1 e5)","head":"comb","beyond_rho":0.532,"pair_rho":0.687,"line_rho":0.449,"cell_mag":0.269,"beyond_rho_2st":0.51,"pair_rho_2st":0.549,"line_rho_2st":0.395,"cell_mag_2st":0.26},{"run":"devel, MT regression x50 (o6s03_m1 e5)","head":"mt","beyond_rho":0.534,"pair_rho":0.661,"line_rho":0.418,"cell_mag":0.265,"beyond_rho_2st":0.507,"pair_rho_2st":0.517,"line_rho_2st":0.389,"cell_mag_2st":0.255},{"run":"devel, MT regression x50 (o6s03_m1 e5)","head":"ctx","beyond_rho":0.449,"pair_rho":0.534,"line_rho":0.408,"cell_mag":0.223,"beyond_rho_2st":0.37,"pair_rho_2st":0.391,"line_rho_2st":0.32,"cell_mag_2st":0.221}],"models":[{"world":"none","model":"link","global_rmse":0.2366,"global_bias":-0.0626,"rmse_singles":0.5369,"rmse_doubles":0.6231},{"world":"none","model":"link + f(x)","global_rmse":0.209,"global_bias":0.0175,"rmse_singles":0.5393,"rmse_doubles":0.6127},{"world":"none","model":"link + f(a, b)","global_rmse":0.2181,"global_bias":0.0188,"rmse_singles":0.5391,"rmse_doubles":0.6165},{"world":"none","model":"flexible link","global_rmse":0.2461,"global_bias":-0.0324,"rmse_singles":0.5318,"rmse_doubles":0.6101},{"world":"hump","model":"link","global_rmse":0.5373,"global_bias":-0.4883,"rmse_singles":0.5602,"rmse_doubles":0.7506},{"world":"hump","model":"link + f(x)","global_rmse":0.2615,"global_bias":-0.1632,"rmse_singles":0.5457,"rmse_doubles":0.702},{"world":"hump","model":"link + f(a, b)","global_rmse":0.3223,"global_bias":-0.2033,"rmse_singles":0.5462,"rmse_doubles":0.6953},{"world":"hump","model":"flexible link","global_rmse":0.5095,"global_bias":-0.4532,"rmse_singles":0.55,"rmse_doubles":0.7431},{"world":"product","model":"link","global_rmse":0.3306,"global_bias":-0.2083,"rmse_singles":0.5207,"rmse_doubles":0.69},{"world":"product","model":"link + f(x)","global_rmse":0.2416,"global_bias":-0.047,"rmse_singles":0.5191,"rmse_doubles":0.6795},{"world":"product","model":"link + f(a, b)","global_rmse":0.2444,"global_bias":-0.1421,"rmse_singles":0.5192,"rmse_doubles":0.7247},{"world":"product","model":"flexible link","global_rmse":0.3135,"global_bias":-0.1834,"rmse_singles":0.5178,"rmse_doubles":0.6878}],"anova_x":[{"bin":"below \u22121 (sub-floor)","n":26985,"mean":2.0402,"sat":1.9469,"ns":0.0933,"var":0.6395,"v_G":0.2742,"v_N":0.0321,"v_P":0.0994,"v_L":0.135,"v_C":0.077,"cov":0.0217,"noise_ab":0.1307,"noise_dddG":0.2363},{"bin":"\u22121 to 0 (knee)","n":29659,"mean":1.0312,"sat":0.6126,"ns":0.4186,"var":0.3991,"v_G":0.0273,"v_N":0.0349,"v_P":0.1187,"v_L":0.1315,"v_C":0.0654,"cov":0.0213,"noise_ab":0.0625,"noise_dddG":0.107},{"bin":"0 to 1","n":35651,"mean":0.581,"sat":0.1112,"ns":0.4698,"var":0.3506,"v_G":0.0106,"v_N":0.0336,"v_P":0.1219,"v_L":0.1148,"v_C":0.0494,"cov":0.0203,"noise_ab":0.0373,"noise_dddG":0.0589},{"bin":"1 to 2","n":25147,"mean":0.3677,"sat":0.0059,"ns":0.3618,"var":0.3419,"v_G":0.0022,"v_N":0.0341,"v_P":0.1289,"v_L":0.1285,"v_C":0.0517,"cov":-0.0035,"noise_ab":0.0301,"noise_dddG":0.0375},{"bin":"above 2","n":16214,"mean":0.101,"sat":-0.0008,"ns":0.1018,"var":0.346,"v_G":0.0145,"v_N":0.0366,"v_P":0.1151,"v_L":0.1606,"v_C":0.0638,"cov":-0.0446,"noise_ab":0.0265,"noise_dddG":0.0409}],"r7":{"cc":[{"x":-2.71,"v":2.529,"n":3793},{"x":-2.222,"v":2.192,"n":6014},{"x":-1.725,"v":1.889,"n":8889},{"x":-1.237,"v":1.527,"n":11576},{"x":-0.737,"v":1.19,"n":13878},{"x":-0.237,"v":0.917,"n":17447},{"x":0.246,"v":0.694,"n":19037},{"x":0.741,"v":0.502,"n":16421},{"x":1.237,"v":0.42,"n":14069},{"x":1.734,"v":0.34,"n":10902},{"x":2.223,"v":0.254,"n":7418},{"x":2.719,"v":0.133,"n":5043},{"x":3.204,"v":0.036,"n":2708}],"ct":[{"x":-2.713,"v":2.297,"n":2774},{"x":-2.211,"v":2.046,"n":4747},{"x":-1.726,"v":1.831,"n":7650},{"x":-1.232,"v":1.544,"n":10440},{"x":-0.737,"v":1.242,"n":13178},{"x":-0.24,"v":0.988,"n":16374},{"x":0.254,"v":0.8,"n":18303},{"x":0.743,"v":0.602,"n":18367},{"x":1.237,"v":0.454,"n":15631},{"x":1.731,"v":0.366,"n":11758},{"x":2.228,"v":0.303,"n":7822},{"x":2.719,"v":0.25,"n":5210},{"x":3.215,"v":0.123,"n":3034}],"tt":[{"x":-2.713,"v":2.107,"n":2774},{"x":-2.211,"v":1.831,"n":4747},{"x":-1.726,"v":1.482,"n":7650},{"x":-1.232,"v":1.197,"n":10440},{"x":-0.737,"v":0.896,"n":13178},{"x":-0.24,"v":0.609,"n":16374},{"x":0.254,"v":0.377,"n":18303},{"x":0.743,"v":0.181,"n":18367},{"x":1.237,"v":0.076,"n":15631},{"x":1.731,"v":-0.021,"n":11758},{"x":2.228,"v":-0.135,"n":7822},{"x":2.719,"v":-0.284,"n":5210},{"x":3.215,"v":-0.501,"n":3034}],"tc":[{"x":-2.71,"v":1.645,"n":3793},{"x":-2.222,"v":1.462,"n":6014},{"x":-1.725,"v":1.337,"n":8889},{"x":-1.237,"v":1.06,"n":11576},{"x":-0.737,"v":0.776,"n":13878},{"x":-0.237,"v":0.497,"n":17447},{"x":0.246,"v":0.298,"n":19037},{"x":0.741,"v":0.154,"n":16421},{"x":1.237,"v":0.085,"n":14069},{"x":1.734,"v":0.012,"n":10902},{"x":2.223,"v":-0.075,"n":7418},{"x":2.719,"v":-0.247,"n":5043},{"x":3.204,"v":-0.434,"n":2708}],"far_c":[{"x":1.315,"v":0.81,"n":2578},{"x":1.77,"v":0.504,"n":5053},{"x":2.245,"v":0.336,"n":5746},{"x":2.73,"v":0.261,"n":4611},{"x":3.218,"v":0.126,"n":2860}],"far_t":[{"x":1.282,"v":0.268,"n":4647},{"x":1.762,"v":0.063,"n":6989},{"x":2.232,"v":-0.063,"n":6380},{"x":2.724,"v":-0.241,"n":4778},{"x":3.205,"v":-0.432,"n":2656}],"low_c":[{"x":-2.7,"v":2.069,"n":1645},{"x":-2.209,"v":1.92,"n":3193},{"x":-1.725,"v":1.747,"n":5407},{"x":-1.228,"v":1.436,"n":7353},{"x":-0.737,"v":1.139,"n":9065},{"x":-0.243,"v":0.9,"n":10982},{"x":0.249,"v":0.727,"n":11640},{"x":0.734,"v":0.532,"n":10539},{"x":1.224,"v":0.372,"n":7674},{"x":1.713,"v":0.303,"n":4288},{"x":2.2,"v":0.227,"n":2027},{"x":2.717,"v":0.352,"n":1016},{"x":3.177,"v":0.285,"n":349}],"low_t":[{"x":-2.701,"v":1.687,"n":2278},{"x":-2.217,"v":1.501,"n":4003},{"x":-1.722,"v":1.351,"n":6069},{"x":-1.238,"v":1.036,"n":8094},{"x":-0.736,"v":0.756,"n":9496},{"x":-0.238,"v":0.455,"n":11983},{"x":0.239,"v":0.242,"n":12339},{"x":0.729,"v":0.1,"n":9195},{"x":1.224,"v":0.04,"n":6439},{"x":1.718,"v":-0.034,"n":3967},{"x":2.208,"v":-0.098,"n":1830},{"x":2.681,"v":-0.213,"n":733},{"x":3.195,"v":-0.265,"n":265}],"far_ab":{"c_median":2.56,"c_p05":1.28,"c_n":23454,"t_median":2.18,"t_p05":1.01,"t_n":27118}}};
 const NS = 'http://www.w3.org/2000/svg';
 const tip = document.getElementById('tip');
 function el(name, attrs = {}, parent) { const e = document.createElementNS(NS, name); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
@@ -968,4 +1481,441 @@ function lineChart(id, pts, series, y0, y1, xlab, ylab) {
     order.map(m => { const r = S[m]; return `<tr><td><code>val_${m}</code></td><td class="n">${f3(r.rep_sd)}</td><td class="n">${f3(r.jit_sd)}</td><td class="n">${f3(r.gain)}</td><td class="n">${f2(r.snr_gain)}</td><td class="n">${f2(r.snr_cfg)}</td><td class="n">${f3(2.8 * r.rep_sd)}</td></tr>`; }).join('') +
     '<tr><td>cell score (mean of the first three, each / its rep SD)</td><td class="n">0.754</td><td class="n">–</td><td class="n">–</td><td class="n">12.70</td><td class="n">3.37</td><td class="n">2.11</td></tr></tbody>';
 })();
+/* ================= explainer widgets (2026-10-13) ================= */
+function mulberry(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function gauss(r) { let u = 0; while (u === 0) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r()); }
+const softplus = z => z > 30 ? z : Math.log1p(Math.exp(z));
+/* the readout curve: a soft floor at lo (softness tau) and a soft ceiling at 5, as in the simulations */
+function hRead(z, lo = 0.1, tau = 0.4) { const u = lo + tau * softplus((z - lo) / tau); return 5 - 0.4 * softplus((5 - u) / 0.4); }
+const stepNS = z => 0.45 / (1 + Math.exp((z - 2) / 0.35));
+const meanOf = a => a.reduce((s, v) => s + v, 0) / a.length;
+const sdOf = a => { const m = meanOf(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) * (v - m), 0) / a.length); };
+function rankArr(a) {
+  const idx = a.map((v, i) => [v, i]).sort((p, q) => p[0] - q[0]), r = new Array(a.length); let i = 0;
+  while (i < idx.length) { let j = i; while (j + 1 < idx.length && idx[j + 1][0] === idx[i][0]) j++; for (let k = i; k <= j; k++) r[idx[k][1]] = (i + j) / 2 + 1; i = j + 1; }
+  return r;
+}
+function pearson(a, b) {
+  const ma = meanOf(a), mb = meanOf(b); let sab = 0, saa = 0, sbb = 0;
+  for (let i = 0; i < a.length; i++) { sab += (a[i] - ma) * (b[i] - mb); saa += (a[i] - ma) ** 2; sbb += (b[i] - mb) ** 2; }
+  return saa < 1e-12 || sbb < 1e-12 ? 0 : sab / Math.sqrt(saa * sbb);
+}
+const spearman = (a, b) => (sdOf(a) < 0.02 ? 0 : pearson(rankArr(a), rankArr(b)));
+/* equal-size groups of xs (index arrays, in order of x) */
+function groupsOf(xs, nb = 20) { const idx = xs.map((_, i) => i).sort((i, j) => xs[i] - xs[j]), n = idx.length, g = []; for (let k = 0; k < nb; k++) g.push(idx.slice(Math.floor(k * n / nb), Math.floor((k + 1) * n / nb))); return g; }
+/* E[v | x]: piecewise linear through the group means, extended linearly */
+function curveOf(xs, vs, nb = 20) {
+  const g = groupsOf(xs, nb), cx = g.map(s => meanOf(s.map(i => xs[i]))), cv = g.map(s => meanOf(s.map(i => vs[i]))), m = cx.length - 1;
+  const f = x => {
+    if (x <= cx[0]) return cv[0] + (x - cx[0]) * (cv[1] - cv[0]) / Math.max(cx[1] - cx[0], 1e-9);
+    if (x >= cx[m]) return cv[m] + (x - cx[m]) * (cv[m] - cv[m - 1]) / Math.max(cx[m] - cx[m - 1], 1e-9);
+    let k = 0; while (cx[k + 1] < x) k++; return cv[k] + (x - cx[k]) * (cv[k + 1] - cv[k]) / Math.max(cx[k + 1] - cx[k], 1e-9);
+  };
+  return { cx, cv, f, g };
+}
+function dcGrid(M) { const R = M.length, C = M[0].length, rm = M.map(r => meanOf(r)), cm = [...Array(C).keys()].map(j => meanOf(M.map(r => r[j]))), gm = meanOf(rm); return M.map((r, i) => r.map((v, j) => v - rm[i] - cm[j] + gm)); }
+function divCol(v, m) { const p = Math.min(78, Math.abs(v) / m * 78); return `color-mix(in srgb, ${v >= 0 ? 'var(--s2)' : 'var(--s1)'} ${p.toFixed(0)}%, var(--surface))`; }
+function seqCol(v, lo, hi) { const p = Math.max(0, Math.min(1, (v - lo) / (hi - lo))) * 70; return `color-mix(in srgb, var(--s3) ${p.toFixed(0)}%, var(--surface))`; }
+function mkSlider(host, label, min, max, step, val, onInput, fmt) {
+  const lab = document.createElement('label'); lab.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}" value="${val}"><output></output>`;
+  const inp = lab.querySelector('input'), out = lab.querySelector('output'), show = () => { out.textContent = (fmt || (v => (+v).toFixed(2)))(+inp.value); };
+  inp.addEventListener('input', () => { show(); onInput(+inp.value); }); show(); host.appendChild(lab);
+  return { set(v) { inp.value = v; show(); } };
+}
+function mkSeg(host, items, cur, onPick) {
+  host.innerHTML = '';
+  const bs = items.map(([k, lab]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = lab; b.setAttribute('aria-pressed', String(k === cur));
+    b.addEventListener('click', () => { if (b.dataset.momentary) return onPick(k); bs.forEach(x => x.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); onPick(k); }); host.appendChild(b); return b; });
+  return bs;
+}
+function mkToggle(host, label, val, on) { const lab = document.createElement('label'); lab.innerHTML = `<input type="checkbox" ${val ? 'checked' : ''}> <span>${label}</span>`; lab.querySelector('input').addEventListener('change', e => on(e.target.checked)); host.appendChild(lab); }
+function readoutRows(id, rows) { document.getElementById(id).innerHTML = rows.map(([k, v, strong]) => `<div${strong ? ' class="key"' : ''}><b>${k}</b><span>${v}</span></div>`).join(''); }
+const sgn = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+function axisY(svg, sy, y0, y1, step, L, R, fmt) { for (let t = Math.ceil(y0 / step - 1e-9) * step; t <= y1 + 1e-9; t += step) { el('line', { x1: L, x2: R, y1: sy(t), y2: sy(t), stroke: Math.abs(t) < 1e-9 ? 'var(--axis)' : 'var(--grid)' }, svg); txt(svg, L - 6, sy(t) + 4, fmt ? fmt(t) : t.toFixed(1), { 'text-anchor': 'end' }); } }
+function axisX(svg, sx, x0, x1, step, T, B, H) { for (let t = Math.ceil(x0 / step - 1e-9) * step; t <= x1 + 1e-9; t += step) { el('line', { x1: sx(t), x2: sx(t), y1: T, y2: B, stroke: Math.abs(t) < 1e-9 ? 'var(--axis)' : 'var(--grid)' }, svg); txt(svg, sx(t), B + 16, Number.isInteger(t) ? t : t.toFixed(1), { 'text-anchor': 'middle' }); } }
+function yLabel(svg, x, ymid, s) { txt(svg, x, ymid, s, { 'text-anchor': 'middle', transform: `rotate(-90 ${x} ${ymid})` }); }
+
+/* ---------- Figure S1: the readout curve ---------- */
+(function () {
+  const P = { c: 2.5, a: -1.8, b: -1.6, n: 0, e: 0, lo: 0.1, tau: 0.4 };
+  const spec = [['c', 'wild type c', 0.5, 4.5, 0.05], ['a', 'single A: a', -4, 1.5, 0.05], ['b', 'single B: b', -4, 1.5, 0.05], ['n', 'nonspecific n', -0.5, 1, 0.05],
+                ['e', 'specific e', -1.5, 1.5, 0.05], ['lo', 'floor', -0.6, 0.6, 0.05], ['tau', 'floor softness τ', 0.1, 1, 0.05]];
+  const ctl = document.getElementById('w-read-ctl'), S = {};
+  spec.forEach(([k, lab, mn, mx, st]) => { S[k] = mkSlider(ctl, lab, mn, mx, st, P[k], v => { P[k] = v; draw(); }); });
+  const presets = [
+    ['Nothing near the floor', { c: 3.5, a: -0.8, b: -0.6, n: 0, e: 0 }],
+    ['Double below the floor', { c: 2.5, a: -1.8, b: -1.6, n: 0, e: 0 }],
+    ['Lift test', { c: 2.0, a: -2.2, b: 1.4, n: 0, e: 0 }],
+    ['Nonspecific in range', { c: 3.5, a: -1.0, b: -0.9, n: 0.45, e: 0 }],
+    ['Nonspecific below the floor', { c: 2.0, a: -2.0, b: -1.8, n: 0.45, e: 0 }],
+    ['Specific, in range', { c: 3.5, a: -1.2, b: -1.0, n: 0, e: 0.8 }]];
+  const bs = mkSeg(document.getElementById('w-read-pre'), presets.map(([k]) => [k, k]), 'Double below the floor', k => {
+    Object.assign(P, { lo: 0.1, tau: 0.4 }, presets.find(p => p[0] === k)[1]); Object.keys(S).forEach(q => S[q].set(P[q])); draw(); });
+  const host = document.getElementById('w-read-fig');
+  function draw() {
+    host.innerHTML = '';
+    const W = 760, H = 380, L = 50, R = 20, T = 14, B = 44;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Readout curve with the wild type, two singles and their double placed on it' }, host);
+    const sx = scale(-4.5, 6, L, W - R), sy = scale(-1.2, 5.6, H - B, T), h = z => hRead(z, P.lo, P.tau);
+    axisY(svg, sy, -1, 5.5, 1, L, W - R, t => t.toFixed(0)); axisX(svg, sx, -4, 6, 1, T, H - B, H);
+    txt(svg, (L + W - R) / 2, H - 6, 'latent dG (the true stability, kcal/mol)', { 'text-anchor': 'middle' }); yLabel(svg, 13, (T + H - B) / 2, 'reading (kcal/mol)');
+    el('line', { x1: sx(-1.2), y1: sy(-1.2), x2: sx(5.6), y2: sy(5.6), stroke: 'var(--ghost)', 'stroke-dasharray': '5 4' }, svg);
+    txt(svg, sx(-1.0), sy(-1.0) - 8, 'no limits', { 'font-size': 10 });
+    el('line', { x1: L, x2: W - R, y1: sy(P.lo), y2: sy(P.lo), stroke: 'var(--s1)', 'stroke-dasharray': '2 4', opacity: 0.6 }, svg);
+    txt(svg, W - R - 4, sy(P.lo) + 14, 'floor', { 'text-anchor': 'end', fill: 'var(--s1)' });
+    const pts = []; for (let i = 0; i <= 220; i++) { const z = -4.5 + 10.5 * i / 220; pts.push(`${sx(z).toFixed(1)},${sy(h(z)).toFixed(1)}`); }
+    el('polyline', { points: pts.join(' '), fill: 'none', stroke: 'var(--s1)', 'stroke-width': 2.5 }, svg);
+    const V = [['WT', P.c, 'var(--ink)'], ['A', P.c + P.a, 'var(--s2)'], ['B', P.c + P.b, 'var(--s3)'], ['AB', P.c + P.a + P.b + P.n + P.e, 'var(--s4)']];
+    const zadd = P.c + P.a + P.b;
+    V.forEach(([lab, z, col], k) => {
+      const zz = Math.max(-4.5, Math.min(6, z)), y = h(z);
+      el('line', { x1: sx(zz), x2: sx(zz), y1: sy(-1.2), y2: sy(y), stroke: col, 'stroke-dasharray': '2 3', opacity: 0.7 }, svg);
+      el('line', { x1: L, x2: sx(zz), y1: sy(y), y2: sy(y), stroke: col, 'stroke-dasharray': '2 3', opacity: 0.7 }, svg);
+      const d = el('circle', { cx: sx(zz), cy: sy(y), r: 6, fill: col, stroke: 'var(--surface)', 'stroke-width': 1.5 }, svg);
+      hover(d, `<b>${lab}</b><br>latent ${f2(z)}<br>reading ${f2(y)}`);
+      txt(svg, sx(zz) + 9, sy(y) - 8 - (k % 2) * 10, lab, { fill: col, 'font-size': 12, 'font-weight': 600 });
+    });
+    if (Math.abs(P.n + P.e) > 1e-9) {
+      const za = Math.max(-4.5, Math.min(6, zadd)), c0 = el('circle', { cx: sx(za), cy: sy(h(zadd)), r: 6, fill: 'none', stroke: 'var(--ink-2)', 'stroke-width': 1.5 }, svg);
+      hover(c0, `<b>the double with no epistasis</b><br>latent c + a + b = ${f2(zadd)}<br>reading ${f2(h(zadd))}`);
+    }
+    const hw = h(P.c), dA = h(P.c + P.a) - hw, dB = h(P.c + P.b) - hw, dAB = h(P.c + P.a + P.b + P.n + P.e) - hw;
+    const x = hw + dA + dB, ddd = dAB - dA - dB, Ssat = h(zadd) - h(P.c + P.a) - h(P.c + P.b) + hw, Eep = h(zadd + P.n + P.e) - h(zadd), Tt = P.n + P.e;
+    readoutRows('w-read-out', [['measured ddG_A', sgn(dA)], ['measured ddG_B', sgn(dB)], ['measured ddG_AB', sgn(dAB)], ['additive expectation x', f2(x)],
+      ['measured dddG', sgn(ddd), true], ['… saturation part', sgn(Ssat)], ['… epistasis part', sgn(Eep)], ['true epistasis n + e', sgn(Tt)]]);
+    const s = [];
+    if (Math.abs(Ssat) >= 0.1) s.push(Ssat > 0 ? `Saturation adds ${sgn(Ssat)} kcal/mol: the double sits on the flat part of the readout, so the floor hides part of its loss.`
+      : `Saturation adds ${sgn(Ssat)} kcal/mol: a single sits on the flat part of the readout, so it reads less destabilised than it is, and the additive expectation x is too high.`);
+    else s.push('Every variant sits on the straight part of the readout, so saturation adds next to nothing.');
+    if (Math.abs(Tt) > 1e-9) { const sh = Eep / Tt; s.push(sh < 0.6 ? `Only ${Math.round(sh * 100)}% of the true epistasis (${sgn(Tt)}) reaches the measurement: the double sits where the readout is flat.` : `The true epistasis (${sgn(Tt)}) reaches the measurement almost intact (${sgn(Eep)}).`); }
+    else if (Math.abs(Ssat) >= 0.1) s.push('There is no true epistasis here: all of the measured dddG is the readout.');
+    document.getElementById('w-read-exp').textContent = s.join(' ');
+  }
+  draw();
+})();
+
+/* ---------- the synthetic population shared by Figures M1 and M4 ---------- */
+const POP = {};
+function population(floor, ns) {
+  const key = `${floor}|${ns}`; if (POP[key]) return POP[key];
+  const r = mulberry(7), out = [];
+  for (let l = 0; l < 60; l++) {
+    const lo = 0.1 + 0.27 * gauss(r), c = 1.2 + 3.3 * r(), H = floor ? (v => hRead(v, lo, 0.4)) : (v => v);
+    for (let k = 0; k < 40; k++) {
+      const a = 0.5 - 1.4 * Math.abs(gauss(r)) - 0.2 * r(), b = 0.5 - 1.4 * Math.abs(gauss(r)) - 0.2 * r(), e = 0.35 * gauss(r), z = c + a + b, n = ns ? stepNS(z) : 0;
+      const nw = 0.2 * gauss(r), nA = 0.2 * gauss(r), nB = 0.2 * gauss(r), nAB = 0.2 * gauss(r);
+      const w = H(c) + nw, A = H(c + a) + nA, B = H(c + b) + nB, AB = H(z + n + e) + nAB;
+      out.push({ c, a, b, e, z, x: A + B - w, dddG: AB - A - B + w });
+    }
+  }
+  const cur = curveOf(out.map(d => d.x), out.map(d => d.dddG));
+  POP[key] = { d: out, cur }; return POP[key];
+}
+
+/* ---------- Figure M1: the global curve and the two global metrics ---------- */
+(function () {
+  const st = { pred: 'sat', ns: true, view: 'dddG' };
+  const preds = [['add0', 'additive, no readout'], ['sat', 'additive + readout'], ['satns', 'readout + nonspecific term'], ['all', 'readout + nonspecific + specific']];
+  mkSeg(document.getElementById('w-glob-pred'), preds, st.pred, k => { st.pred = k; draw(); });
+  const ctl = document.getElementById('w-glob-ctl');
+  mkToggle(ctl, 'the synthetic proteins have nonspecific epistasis', st.ns, v => { st.ns = v; draw(); });
+  const vs = document.createElement('span'); vs.className = 'seg'; ctl.appendChild(vs);
+  mkSeg(vs, [['dddG', 'dddG'], ['res', 'residual (curve removed)']], st.view, k => { st.view = k; draw(); });
+  const host = document.getElementById('w-glob-fig');
+  const H0 = v => hRead(v, 0.1, 0.4);
+  function predict(d) {   /* the prediction's observed dddG and its own non-additive part e */
+    if (st.pred === 'add0') return { ddd: 0, e: 0 };
+    const extra = st.pred === 'sat' ? 0 : stepNS(d.z) + (st.pred === 'all' ? d.e : 0);
+    const AB = H0(d.z + extra);
+    return { ddd: AB - H0(d.c + d.a) - H0(d.c + d.b) + H0(d.c), e: AB - H0(d.z) };
+  }
+  function draw() {
+    const { d, cur } = population(true, st.ns), P = d.map(predict);
+    const xs = d.map(q => q.x), meas = d.map(q => q.dddG), pd = P.map(p => p.ddd);
+    const gaps = cur.g.map(s => meanOf(s.map(i => pd[i])) - meanOf(s.map(i => meas[i]))), w = cur.g.map(s => s.length), wt = w.reduce((a, b) => a + b, 0);
+    const gerr = Math.sqrt(gaps.reduce((s, g, k) => s + w[k] * g * g, 0) / wt), gbias = gaps.reduce((s, g, k) => s + w[k] * g, 0) / wt;
+    const mres = d.map((q, i) => meas[i] - cur.f(xs[i]));
+    const ee = P.map(p => p.e), xh = d.map(q => q.z);
+    const pres = sdOf(ee) < 0.02 ? ee.map(() => 0) : (() => { const c2 = curveOf(xh, ee); return ee.map((v, i) => v - c2.f(xh[i])); })();
+    const naive = spearman(pd, meas), beyond = spearman(pres, mres);
+    host.innerHTML = '';
+    const W = 760, H = 360, L = 50, R = 20, T = 14, B = 44, res = st.view === 'res';
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Synthetic doubles: dddG against the additive expectation, with the measured and predicted global curves' }, host);
+    const y0 = res ? -2 : -1.5, y1 = res ? 2 : 4, sx = scale(-4, 5.5, L, W - R), sy = scale(y0, y1, H - B, T);
+    axisY(svg, sy, y0, y1, res ? 0.5 : 1, L, W - R); axisX(svg, sx, -4, 5, 1, T, H - B, H);
+    txt(svg, (L + W - R) / 2, H - 6, 'additive expectation x (kcal/mol)', { 'text-anchor': 'middle' }); yLabel(svg, 13, (T + H - B) / 2, res ? 'residual: dddG − curve' : 'dddG (kcal/mol)');
+    const g = el('g', {}, svg);
+    d.forEach((q, i) => { if (i % 2) return; const yv = res ? mres[i] : meas[i]; if (xs[i] < -4 || xs[i] > 5.5 || yv < y0 || yv > y1) return; el('circle', { cx: sx(xs[i]).toFixed(1), cy: sy(yv).toFixed(1), r: 1.7, fill: 'var(--ghost)', opacity: 0.55 }, g); });
+    if (!res) {
+      cur.g.forEach((s, k) => { const xm = cur.cx[k], pm = meanOf(s.map(i => pd[i])); el('line', { x1: sx(xm), x2: sx(xm), y1: sy(cur.cv[k]), y2: sy(pm), stroke: 'var(--s2)', 'stroke-width': 1.5, opacity: 0.8 }, svg); });
+      el('polyline', { points: cur.cx.map((x, k) => `${sx(x).toFixed(1)},${sy(cur.cv[k]).toFixed(1)}`).join(' '), fill: 'none', stroke: 'var(--ink)', 'stroke-width': 2.2 }, svg);
+      el('polyline', { points: cur.cx.map((x, k) => `${sx(x).toFixed(1)},${sy(cur.cv[k] + gaps[k]).toFixed(1)}`).join(' '), fill: 'none', stroke: 'var(--s2)', 'stroke-width': 2.2 }, svg);
+      cur.cx.forEach((x, k) => {
+        const a = el('circle', { cx: sx(x), cy: sy(cur.cv[k]), r: 3.5, fill: 'var(--ink)' }, svg), b = el('circle', { cx: sx(x), cy: sy(cur.cv[k] + gaps[k]), r: 3.5, fill: 'var(--s2)' }, svg);
+        const tip = `<b>group ${k + 1} of 20</b> (x ≈ ${f2(x)})<br>measured mean ${f2(cur.cv[k])}<br>predicted mean ${f2(cur.cv[k] + gaps[k])}<br>gap ${sgn(gaps[k])}`; hover(a, tip); hover(b, tip);
+      });
+    } else el('line', { x1: L, x2: W - R, y1: sy(0), y2: sy(0), stroke: 'var(--ink)', 'stroke-width': 2 }, svg);
+    readoutRows('w-glob-out', [['global_err', f2(gerr), true], ['global_bias', sgn(gbias), true], ['naive_rho', f2(naive)], ['beyond_rho', f2(beyond)]]);
+    const ex = {
+      add0: 'A prediction with no readout curve and no epistasis says dddG = 0 for every double. It misses the whole curve: global_bias is strongly negative, and it scores 0 on everything else.',
+      sat: 'Additive singles read through a readout curve reproduce the floor region (x below about 0) but not the in-range part. That part is the nonspecific term; switch it off above to see the gap close. naive_rho is already well above 0, from saturation alone, yet beyond_rho is exactly 0: this prediction knows nothing beyond the curve.',
+      satns: 'Adding the nonspecific term closes most of the in-range gap, so global_err and global_bias improve. beyond_rho stays at 0: a term that depends only on x is removed together with the curve, so it earns nothing above the global level.',
+      all: 'Knowing the specific interactions as well changes the curve very little: they average out within each group. Their credit appears in beyond_rho and in the level metrics.' }[st.pred];
+    document.getElementById('w-glob-exp').textContent = (res ? 'Residual view: each double\'s dddG minus the measured curve at its x. What is left has no trend along x; the beyond, pair, line and cell metrics are all computed from residuals like these. ' : '') + ex;
+  }
+  draw();
+})();
+
+/* ---------- Figure M2: Spearman vs Pearson ---------- */
+(function () {
+  const N = 14, r0 = mulberry(3), truth = [...Array(N)].map(() => 1.1 * gauss(r0) - 0.3);
+  let seed = 11, z = [], sigma = 0.5, squash = false;
+  const redraw = () => { const r = mulberry(seed); z = truth.map(() => gauss(r)); draw(); };
+  const ctl = document.getElementById('w-sp-ctl');
+  mkSlider(ctl, 'noise in the prediction', 0, 2.5, 0.05, sigma, v => { sigma = v; draw(); });
+  mkToggle(ctl, 'squash the prediction through a floor', squash, v => { squash = v; draw(); });
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = 'new noise draw'; b.addEventListener('click', () => { seed++; redraw(); }); ctl.appendChild(b);
+  const host = document.getElementById('w-sp-fig');
+  function draw() {
+    const raw = truth.map((t, i) => t + sigma * z[i]), pred = squash ? raw.map(v => hRead(v, -0.5, 0.25)) : raw;
+    const rt = rankArr(truth), rp = rankArr(pred);
+    host.innerHTML = '';
+    const W = 760, H = 330, svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Scatter of prediction against truth, and the same items as two rank columns' }, host);
+    const L = 46, PW = 330, T = 14, B = 40, sx = scale(-3.5, 3, L, L + PW), sy = scale(-4, 4.5, H - B, T);
+    axisY(svg, sy, -4, 4, 2, L, L + PW, t => t.toFixed(0)); axisX(svg, sx, -3, 3, 1, T, H - B, H);
+    txt(svg, L + PW / 2, H - 6, 'true value', { 'text-anchor': 'middle' }); yLabel(svg, 12, (T + H - B) / 2, 'prediction');
+    truth.forEach((t, i) => { const c = el('circle', { cx: sx(t), cy: sy(Math.max(-4, Math.min(4.5, pred[i]))), r: 5, fill: 'var(--s1)', opacity: 0.85 }, svg); hover(c, `<b>item ${i + 1}</b><br>truth ${f2(t)}, rank ${rt[i]}<br>prediction ${f2(pred[i])}, rank ${rp[i]}`); });
+    const X1 = 470, X2 = 690, ry = scale(1, N, H - B - 6, T + 16);
+    txt(svg, X1, T + 4, 'rank of truth', { 'text-anchor': 'middle', fill: 'var(--ink-2)' }); txt(svg, X2, T + 4, 'rank of prediction', { 'text-anchor': 'middle', fill: 'var(--ink-2)' });
+    truth.forEach((t, i) => {
+      const crossed = truth.some((u, k) => k !== i && Math.sign(u - t) !== Math.sign(pred[k] - pred[i]));
+      el('line', { x1: X1 + 12, x2: X2 - 12, y1: ry(rt[i]), y2: ry(rp[i]), stroke: crossed ? 'var(--s2)' : 'var(--s3)', 'stroke-width': 1.6, opacity: 0.85 }, svg);
+      txt(svg, X1, ry(rt[i]) + 4, rt[i], { 'text-anchor': 'middle', fill: 'var(--ink)' }); txt(svg, X2, ry(rp[i]) + 4, rp[i], { 'text-anchor': 'middle', fill: 'var(--ink)' });
+    });
+    readoutRows('w-sp-out', [['Spearman (order)', f2(pearson(rt, rp)), true], ['Pearson (values)', f2(pearson(truth, pred))], ['pairs in the wrong order', String(truth.reduce((s, t, i) => s + truth.filter((u, k) => k > i && Math.sign(u - t) !== Math.sign(pred[k] - pred[i])).length, 0)) + ' of ' + (N * (N - 1) / 2)]]);
+  }
+  redraw();
+})();
+
+/* ---------- Figure M3: double-centring, step by step ---------- */
+(function () {
+  const rE = [0.8, 0.1, -0.3, -0.6], cE = [-0.5, 0.4, 0.0, 0.1];
+  let withInt = true, step = 0;
+  const base = () => rE.map((r, i) => cE.map((c, j) => 0.5 + r + c + (withInt && i === 1 && j === 2 ? 0.9 : 0)));
+  const steps = [['0', '1. the grid'], ['1', '2. minus row means'], ['2', '3. minus column means']];
+  mkSeg(document.getElementById('w-dc-step'), steps, '0', k => { step = +k; draw(); });
+  mkToggle(document.getElementById('w-dc-ctl'), 'include the interaction', withInt, v => { withInt = v; draw(); });
+  const host = document.getElementById('w-dc-fig');
+  function draw() {
+    let M = base();
+    if (step >= 1) { const rm = M.map(r => meanOf(r)); M = M.map((r, i) => r.map(v => v - rm[i])); }
+    if (step >= 2) { const cm = [0, 1, 2, 3].map(j => meanOf(M.map(r => r[j]))); M = M.map(r => r.map((v, j) => v - cm[j])); }
+    const rm = M.map(r => meanOf(r)), cm = [0, 1, 2, 3].map(j => meanOf(M.map(r => r[j])));
+    host.innerHTML = '';
+    const cs = 66, x0 = 120, y0 = 34, W = 560, H = y0 + 5 * cs + 20;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'A 4 by 4 grid being double-centred' }, host);
+    ['row 1', 'row 2', 'row 3', 'row 4'].forEach((s, i) => txt(svg, x0 - 10, y0 + i * cs + cs / 2 + 4, s, { 'text-anchor': 'end', fill: 'var(--ink-2)', 'font-size': 12 }));
+    ['col 1', 'col 2', 'col 3', 'col 4'].forEach((s, j) => txt(svg, x0 + j * cs + cs / 2, y0 - 10, s, { 'text-anchor': 'middle', fill: 'var(--ink-2)', 'font-size': 12 }));
+    txt(svg, x0 + 4 * cs + 14 + cs / 2, y0 - 10, 'row mean', { 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11 });
+    txt(svg, x0 - 10, y0 + 4 * cs + 14 + cs / 2 + 4, 'column mean', { 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 11 });
+    const cell = (x, y, v, strong) => { const r = el('rect', { x, y, width: cs - 4, height: cs - 4, rx: 4 }, svg); r.style.fill = divCol(v, 1.2); if (!strong) r.style.opacity = 0.75; txt(svg, x + (cs - 4) / 2, y + cs / 2 + 2, (Math.abs(v) < 0.005 ? 0 : v).toFixed(2), { 'text-anchor': 'middle', fill: 'var(--ink)', 'font-size': 13, 'font-family': 'var(--font-mono)' }); };
+    M.forEach((r, i) => r.forEach((v, j) => cell(x0 + j * cs, y0 + i * cs, v, true)));
+    rm.forEach((v, i) => cell(x0 + 4 * cs + 14, y0 + i * cs, v, false));
+    cm.forEach((v, j) => cell(x0 + j * cs, y0 + 4 * cs + 14, v, false));
+    const ex = [
+      'Each cell = 0.5 + a row effect (rows 0.8, 0.1, −0.3, −0.6) + a column effect (columns −0.5, 0.4, 0.0, 0.1)' + (withInt ? ' + an interaction of 0.9 in row 2, column 3.' : '.') + ' Rows and columns differ a lot, so the interaction is hard to spot.',
+      'Each row\'s mean has been subtracted from its cells, so every row now averages 0. The row effects are gone; the column effects remain, as the column means show.',
+      withInt ? 'Each column\'s mean has been subtracted too. Every row and column now averages 0, and what is left is the interaction: 0.51 in its cell (smaller than 0.9 because it had raised its own row and column means), with a small negative trace along its row and column. This is what the cell-level metrics compare.'
+        : 'Each column\'s mean has been subtracted too. Without an interaction every cell is exactly 0: a grid made only of row and column effects has nothing at the cell level.'];
+    document.getElementById('w-dc-exp').textContent = ex[step];
+  }
+  draw();
+})();
+
+/* ---------- Figure M4: one pair grid, step by step ---------- */
+(function () {
+  const c = 2.4, a = [-2.4, -1.7, -1.1, -0.6, -0.2, 0.3], b = [-2.0, -1.4, -0.9, -0.4, 0.0, 0.4];
+  const rowL = ['W', 'P', 'G', 'D', 'A', 'V'], colL = ['E', 'K', 'P', 'G', 'A', 'L'];
+  const PO = 0.35, rE = [0.25, -0.2, 0.1, -0.3, 0.2, -0.05], cE = [-0.25, 0.3, 0.05, -0.15, 0.2, -0.15];
+  const E = a.map(() => b.map(() => 0)); E[1][3] = 1.0; E[3][1] = -0.8; E[4][4] = 0.6; E[2][5] = -0.5;
+  const rn = mulberry(21), nW = 0.2 * gauss(rn), nA = a.map(() => 0.2 * gauss(rn)), nB = b.map(() => 0.2 * gauss(rn)), nAB = a.map(() => b.map(() => 0.2 * gauss(rn)));
+  const st = { floor: true, ns: true, pair: true, line: true, cell: true, noise: false, view: 'dddG' };
+  const views = [['latent', '1. true stability'], ['meas', '2. measured dG'], ['dddG', '3. dddG'], ['res', '4. residual'], ['lev', '5. pair · line · cell'], ['rank', '6. column ranks']];
+  mkSeg(document.getElementById('w-m-view'), views, st.view, k => { st.view = k; draw(); });
+  const ctl = document.getElementById('w-m-ctl');
+  [['floor', 'readout floor'], ['ns', 'nonspecific term'], ['pair', 'pair offset'], ['line', 'line effects'], ['cell', 'specific interactions'], ['noise', 'measurement noise']]
+    .forEach(([k, lab]) => mkToggle(ctl, lab, st[k], v => { st[k] = v; draw(); }));
+  const host = document.getElementById('w-m-fig');
+  const EXP = {
+    latent: 'The true stability of each double: the wild type (2.4) plus both singles\' effects plus whichever parts are switched on. Nothing has been measured yet. The top-left corner, where both substitutions are strongly destabilising, is deeply unfolded.',
+    meas: 'What the assay reports for each double. With the floor on, the top-left corner is squashed onto the floor: doubles that differ by up to 3 kcal/mol in truth read within a fraction of a kcal/mol of each other.',
+    dddG: 'Measured dddG = ddG_AB − ddG_A − ddG_B. Switch every part off except the floor: the top-left corner is still strongly orange although nothing interacts. The floor hid the doubles\' losses. That is readout saturation, and it is why raw dddG is a poor target.',
+    res: 'dddG minus the global curve at each double\'s x (Tool 1). The saturation corner is mostly gone, and so is the nonspecific term. What remains: the pair offset (every cell shifted together), line effects (whole rows and columns), the planted interactions, and some saturation in cells next to the floor. That leftover depends on the two singles separately, so a curve in x cannot remove it.',
+    lev: 'The residuals split into three levels. Corner: the grid\'s mean residual (the pair level). Right and bottom: each row\'s and each column\'s mean minus the grid mean (the line level). The grid itself, double-centred (Tool 3): the cell level. Across the 24 validation grids, pair_rho, line_rho and cell_mag correlate these three kinds of number, measured against predicted.',
+    rank: 'Each column of measured dG replaced by its ranks (Tool 4), then double-centred. Switch the floor on and off: nothing changes, because a readout cannot reorder a column. With noise on, the squashed top rows swap more easily. This is what cell_rank compares.' };
+  function compute() {
+    const Hh = st.floor ? (v => hRead(v, 0.1, 0.4)) : (v => v), nz = v => (st.noise ? v : 0);
+    const z = a.map((ai, i) => b.map((bj, j) => c + ai + bj + (st.pair ? PO : 0) + (st.line ? rE[i] + cE[j] : 0) + (st.cell ? E[i][j] : 0) + (st.ns ? stepNS(c + ai + bj) : 0)));
+    const w = Hh(c) + nz(nW), A = a.map((ai, i) => Hh(c + ai) + nz(nA[i])), B = b.map((bj, j) => Hh(c + bj) + nz(nB[j]));
+    const AB = z.map((r, i) => r.map((v, j) => Hh(v) + nz(nAB[i][j])));
+    const x = A.map(ai => B.map(bj => ai + bj - w)), ddd = AB.map((r, i) => r.map((v, j) => v - A[i] - B[j] + w));
+    const cur = population(st.floor, st.ns).cur, res = ddd.map((r, i) => r.map((v, j) => v - cur.f(x[i][j])));
+    const colRank = (() => { const R = AB.map(r => r.slice()); for (let j = 0; j < 6; j++) { const rk = rankArr(AB.map(r => r[j])); rk.forEach((v, i) => { R[i][j] = (v - 0.5) / 6; }); } return dcGrid(R); })();
+    return { z, AB, A, B, w, x, ddd, res, dres: dcGrid(res), colRank };
+  }
+  function draw() {
+    const S = compute(), v = st.view, cs = 54, x0 = 96, y0 = 54, n = 6;
+    const vals = { latent: S.z, meas: S.AB, dddG: S.ddd, res: S.res, lev: S.dres, rank: S.colRank }[v];
+    const seq = v === 'latent' || v === 'meas';
+    host.innerHTML = '';
+    const W = 640, H = y0 + n * cs + (v === 'lev' ? 74 : 20);
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'A 6 by 6 double-mutant grid in the chosen view' }, host);
+    txt(svg, x0 + n * cs / 2, 16, 'substitution at j (partner) →', { 'text-anchor': 'middle', fill: 'var(--ink-2)', 'font-size': 12 });
+    b.forEach((bj, j) => { txt(svg, x0 + j * cs + cs / 2, y0 - 22, 'j→' + colL[j], { 'text-anchor': 'middle', fill: 'var(--ink)', 'font-size': 12, 'font-weight': 600 }); txt(svg, x0 + j * cs + cs / 2, y0 - 8, sgn(bj), { 'text-anchor': 'middle', 'font-size': 10 }); });
+    a.forEach((ai, i) => { txt(svg, x0 - 44, y0 + i * cs + cs / 2 + 4, 'i→' + rowL[i], { 'text-anchor': 'end', fill: 'var(--ink)', 'font-size': 12, 'font-weight': 600 }); txt(svg, x0 - 8, y0 + i * cs + cs / 2 + 4, sgn(ai), { 'text-anchor': 'end', 'font-size': 10 }); });
+    const m = seq ? null : (v === 'rank' ? 0.5 : 1.5);
+    vals.forEach((r, i) => r.forEach((val, j) => {
+      const rect = el('rect', { x: x0 + j * cs, y: y0 + i * cs, width: cs - 3, height: cs - 3, rx: 3 }, svg);
+      rect.style.fill = seq ? seqCol(val, -1, 5) : divCol(val, m);
+      const planted = st.cell && Math.abs(E[i][j]) > 0;
+      if (planted) el('rect', { x: x0 + j * cs + 1.5, y: y0 + i * cs + 1.5, width: cs - 6, height: cs - 6, rx: 3, fill: 'none', stroke: 'var(--ink)', 'stroke-width': 1.4, 'stroke-dasharray': '3 2' }, svg);
+      txt(svg, x0 + j * cs + (cs - 3) / 2, y0 + i * cs + cs / 2 + 2, (Math.abs(val) < 0.005 ? 0 : val).toFixed(v === 'rank' ? 2 : 1), { 'text-anchor': 'middle', fill: 'var(--ink)', 'font-size': 12, 'font-family': 'var(--font-mono)' });
+      hover(rect, `<b>i→${rowL[i]} with j→${colL[j]}</b><br>true stability ${f2(S.z[i][j])}<br>measured dG ${f2(S.AB[i][j])}<br>x ${f2(S.x[i][j])}<br>dddG ${sgn(S.ddd[i][j])}<br>residual ${sgn(S.res[i][j])}<br>cell level ${sgn(S.dres[i][j])}` + (planted ? `<br>planted interaction ${sgn(E[i][j])}` : ''));
+    }));
+    if (v === 'lev') {
+      const gm = meanOf(S.res.flat()), rmn = S.res.map(r => meanOf(r) - gm), cmn = [...Array(n).keys()].map(j => meanOf(S.res.map(r => r[j])) - gm);
+      const xr = x0 + n * cs + 14, yb = y0 + n * cs + 12;
+      txt(svg, xr + cs / 2, y0 - 8, 'row line', { 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11 });
+      rmn.forEach((val, i) => { const rr = el('rect', { x: xr, y: y0 + i * cs, width: cs - 3, height: cs - 3, rx: 3 }, svg); rr.style.fill = divCol(val, 1.5); txt(svg, xr + (cs - 3) / 2, y0 + i * cs + cs / 2 + 2, val.toFixed(2), { 'text-anchor': 'middle', fill: 'var(--ink)', 'font-size': 11, 'font-family': 'var(--font-mono)' }); });
+      cmn.forEach((val, j) => { const rr = el('rect', { x: x0 + j * cs, y: yb, width: cs - 3, height: cs - 3, rx: 3 }, svg); rr.style.fill = divCol(val, 1.5); txt(svg, x0 + j * cs + (cs - 3) / 2, yb + cs / 2 + 2, val.toFixed(2), { 'text-anchor': 'middle', fill: 'var(--ink)', 'font-size': 11, 'font-family': 'var(--font-mono)' }); });
+      txt(svg, x0 - 8, yb + cs / 2 + 2, 'column line', { 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 11 });
+      const pr = el('rect', { x: xr, y: yb, width: cs - 3, height: cs - 3, rx: 3, stroke: 'var(--ink)', 'stroke-width': 1.2 }, svg); pr.style.fill = divCol(gm, 1.5);
+      txt(svg, xr + (cs - 3) / 2, yb + cs / 2 - 4, 'pair', { 'text-anchor': 'middle', fill: 'var(--ink-2)', 'font-size': 10 }); txt(svg, xr + (cs - 3) / 2, yb + cs / 2 + 10, gm.toFixed(2), { 'text-anchor': 'middle', fill: 'var(--ink)', 'font-size': 11, 'font-family': 'var(--font-mono)' });
+    }
+    const truth = dcGrid(E).flat();
+    const rec = st.cell ? `Recovery of the planted interactions (Spearman of each view, double-centred, against the double-centred planted interactions): dddG ${f2(spearman(dcGrid(S.ddd).flat(), truth))} · residual ${f2(spearman(S.dres.flat(), truth))} · column ranks ${f2(spearman(S.colRank.flat(), truth))}.`
+      : 'No interactions are planted, so there is nothing for the cell level to find: anything it shows is another part leaking in.';
+    document.getElementById('w-m-rec').textContent = rec;
+    document.getElementById('w-m-exp').textContent = EXP[v];
+  }
+  draw();
+})();
+
+/* ---------- Figure M5: a confident reversal ---------- */
+(function () {
+  const W = 760, H = 270, svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'A two by two block whose order reverses between two partners' }, document.getElementById('fig-flip'));
+  const v = [[1.9, 0.5], [0.8, 1.6]], cs = 72, x0 = 90, y0 = 50;
+  ['partner j', 'partner j′'].forEach((s, j) => txt(svg, x0 + j * cs + cs / 2, y0 - 12, s, { 'text-anchor': 'middle', fill: 'var(--ink)', 'font-size': 12, 'font-weight': 600 }));
+  ['substitution i', 'substitution i′'].forEach((s, i) => txt(svg, x0 - 10, y0 + i * cs + cs / 2 + 4, s, { 'text-anchor': 'end', fill: 'var(--ink)', 'font-size': 12, 'font-weight': 600 }));
+  v.forEach((r, i) => r.forEach((val, j) => { const rr = el('rect', { x: x0 + j * cs, y: y0 + i * cs, width: cs - 4, height: cs - 4, rx: 4 }, svg); rr.style.fill = seqCol(val, -0.5, 3); txt(svg, x0 + j * cs + (cs - 4) / 2, y0 + i * cs + cs / 2 + 3, val.toFixed(1), { 'text-anchor': 'middle', fill: 'var(--ink)', 'font-size': 14, 'font-family': 'var(--font-mono)' }); }));
+  txt(svg, x0 + cs / 2 - 2, y0 + 2 * cs + 18, 'i beats i′ by 1.1', { 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--ink-2)' });
+  txt(svg, x0 + 1.5 * cs - 2, y0 + 2 * cs + 34, 'i′ beats i by 1.1', { 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--ink-2)' });
+  txt(svg, x0 + cs, y0 + 2 * cs + 54, 'measured dG of the four doubles', { 'text-anchor': 'middle', 'font-size': 11 });
+  const tx = 300, lines = [
+    ['Measured contrast', '(1.9 − 0.8) − (0.5 − 1.6) = +2.2', 'both differences exceed 0.6: a confident reversal', 'var(--ink)'],
+    ['An additive prediction', '(a_i − a_i′) − (a_i − a_i′) = 0', 'single effects cancel: counted as half right', 'var(--muted)'],
+    ['A prediction that knows the swap', 'e.g. (1.2 − 0.9) − (0.3 − 1.4) = +1.4', 'same sign as measured: right', 'var(--s3)'],
+    ['A prediction with the swap backwards', 'e.g. (1.0 − 1.1) − (0.9 − 0.4) = −0.6', 'opposite sign: wrong', 'var(--s2)']];
+  lines.forEach(([h, f, n, col], k) => { const y = 30 + k * 62; txt(svg, tx, y, h, { fill: col, 'font-size': 13, 'font-weight': 600 }); txt(svg, tx, y + 18, f, { fill: 'var(--ink)', 'font-size': 12, 'font-family': 'var(--font-mono)' }); txt(svg, tx, y + 35, n, { fill: 'var(--ink-2)', 'font-size': 11 }); });
+})();
+
+/* ---------- Figure M6: the two sides of a magnitude metric ---------- */
+(function () {
+  const W = 960, H = 210, svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Flow diagram: measured and predicted residuals are each built against their own global curve' }, document.getElementById('fig-flow'));
+  const box = (x, y, w, t1, t2, col) => { el('rect', { x, y, width: w, height: 52, rx: 6, fill: 'var(--surface)', stroke: col || 'var(--axis)', 'stroke-width': 1.4 }, svg); txt(svg, x + w / 2, y + 22, t1, { 'text-anchor': 'middle', fill: 'var(--ink)', 'font-size': 12.5, 'font-weight': 600 }); if (t2) txt(svg, x + w / 2, y + 40, t2, { 'text-anchor': 'middle', fill: 'var(--ink-2)', 'font-size': 11 }); };
+  const arrow = (x1, y1, x2, y2) => { el('line', { x1, y1, x2, y2, stroke: 'var(--axis)', 'stroke-width': 1.5 }, svg); const ang = Math.atan2(y2 - y1, x2 - x1), s = 7; el('path', { d: `M${x2} ${y2} L${x2 - s * Math.cos(ang - 0.4)} ${y2 - s * Math.sin(ang - 0.4)} L${x2 - s * Math.cos(ang + 0.4)} ${y2 - s * Math.sin(ang + 0.4)} Z`, fill: 'var(--axis)' }, svg); };
+  txt(svg, 10, 52, 'measured', { fill: 'var(--ink-2)', 'font-size': 12, 'font-weight': 600 }); txt(svg, 10, 152, 'predicted', { fill: 'var(--ink-2)', 'font-size': 12, 'font-weight': 600 });
+  box(84, 26, 170, 'dddG of each double', 'measured', 'var(--ink)');
+  box(300, 26, 220, '− E[dddG | x]', 'the measured global curve');
+  box(566, 26, 170, 'measured residual', '', 'var(--ink)');
+  box(84, 126, 170, 'double − own singles', 'through its own readout curve', 'var(--s2)');
+  box(300, 126, 220, '− E[e | own x̂]', 'its own global curve', 'var(--s2)');
+  box(566, 126, 170, 'predicted residual', 'exactly 0 if additive', 'var(--s2)');
+  box(790, 76, 160, 'Spearman', 'beyond · pair · line · cell', 'var(--accent)');
+  arrow(254, 52, 300, 52); arrow(520, 52, 566, 52); arrow(254, 152, 300, 152); arrow(520, 152, 566, 152); arrow(736, 52, 790, 96); arrow(736, 152, 790, 112);
+})();
+
+/* ---------- Figure M7: who sees what ---------- */
+(function () {
+  const cols = ['naive', 'global', 'beyond', 'pair', 'line', 'cell_mag', 'cell_rank', 'flipacc'];
+  const Y = 'y', N = 'n', Sl = 's', X = 'x';
+  const rows = [
+    ['Readout saturation (its function of x)', [[Y, '0.58'], [Y, '1.04 → 0.22'], [N, '0'], [N, '0'], [N, '0'], [N, '0'], [N, '0'], [Sl, '0.54']]],
+    ['Readout saturation beyond x (compressed singles)', [[Y, ''], [Sl, ''], [X, 'noise'], [X, 'noise'], [X, 'noise'], [X, 'noise'], [N, '0'], [Sl, '']]],
+    ['Nonspecific, a function of x', [[Y, ''], [Y, '0.25 → 0.15'], [N, '0'], [N, '0'], [N, '0'], [N, '0'], [N, '0'], [N, '0.48']]],
+    ['Nonspecific beyond x (product form)', [[Y, ''], [Sl, ''], [Y, '0.16 → 0'], [Y, '0.31 → 0'], [Sl, '0.05 → 0.02'], [Sl, '0.04 → 0.01'], [N, '0'], [Y, '0.57']]],
+    ['Specific: pair offsets', [[Y, ''], [N, ''], [Y, '0.63'], [Y, '0.84'], [Sl, '0.11'], [N, '0.02'], [N, '0'], [Sl, '0.54']]],
+    ['Specific: line effects', [[Y, ''], [N, ''], [Y, '0.25'], [Sl, '0.08'], [Y, '0.50'], [N, '0.01'], [N, '0.01'], [Sl, '0.54']]],
+    ['Specific: the combination (cell)', [[Y, ''], [N, ''], [Y, '0.18'], [Sl, '0.10'], [Sl, '0.13'], [Y, '0.37'], [Y, '0.29'], [Y, '0.89']]],
+    ['Measurement noise of the singles', [[X, ''], [N, ''], [X, 'noise'], [N, ''], [X, 'noise'], [N, ''], [N, ''], [N, '']]],
+    ['Wild-type reference error', [[X, ''], [X, 'noise'], [X, 'noise'], [X, 'noise'], [N, ''], [N, ''], [N, ''], [N, '']]]];
+  const word = { y: 'credited', n: '–', s: 'slightly', x: 'noise' };
+  document.getElementById('tab-sees').innerHTML = `<thead><tr><th>source of non-additivity</th>${cols.map(c => `<th class="c">${c}</th>`).join('')}</tr></thead><tbody>` +
+    rows.map(([lab, cs]) => `<tr><td>${lab}</td>${cs.map(([k, v]) => `<td class="c k-${k}"><span>${k === 'x' ? 'noise' : (v || word[k])}</span>${k === 's' && v ? '<i>slightly</i>' : ''}</td>`).join('')}</tr>`).join('') + '</tbody>';
+})();
+
+/* ---------- Figure M8: smooth in the sizes vs specific ---------- */
+(function () {
+  const n = 10, sz = [...Array(n).keys()].map(k => -3 + 3 * k / (n - 1)), r = mulberry(5);
+  const prod = sz.map(ai => sz.map(bj => 0.15 * ai * bj)), spec = sz.map(() => sz.map(() => 0.45 * gauss(r)));
+  [['fig-2s-a', prod], ['fig-2s-b', spec]].forEach(([id, M]) => {
+    const cs = 28, x0 = 70, y0 = 26, W = x0 + n * cs + 10, H = y0 + n * cs + 30;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Heat map of a residual pattern over the sizes of the two single effects' }, document.getElementById(id));
+    const gm = meanOf(M.flat());
+    M.forEach((row, i) => row.forEach((v, j) => { const rr = el('rect', { x: x0 + j * cs, y: y0 + i * cs, width: cs - 2, height: cs - 2, rx: 2 }, svg); rr.style.fill = divCol(v - gm, 1.0); hover(rr, `effect at i ${f2(sz[i])}, at j ${f2(sz[j])}<br>residual ${sgn(v - gm)}`); }));
+    txt(svg, x0 + n * cs / 2, y0 - 10, 'effect of the substitution at j: −3 → 0', { 'text-anchor': 'middle', 'font-size': 11 });
+    yLabel(svg, x0 - 14, y0 + n * cs / 2, 'effect at i: −3 → 0');
+  });
+})();
+
+/* ---------- Figures 3c, 3d: real data, cross-readout ---------- */
+function seriesChart(id, series, o) {
+  const W = o.W || 470, H = o.H || 300, L = 46, R = 14, T = 12, B = 40;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': o.label }, document.getElementById(id));
+  const sx = scale(o.x0, o.x1, L, W - R), sy = scale(o.y0, o.y1, H - B, T);
+  axisY(svg, sy, o.y0, o.y1, o.ys || 0.5, L, W - R); axisX(svg, sx, o.x0, o.x1, 1, T, H - B, H);
+  txt(svg, (L + W - R) / 2, H - 6, o.xlab, { 'text-anchor': 'middle' }); yLabel(svg, 11, (T + H - B) / 2, o.ylab);
+  series.forEach(s => {
+    const pts = s.pts.filter(p => p.x >= o.x0 && p.x <= o.x1);
+    el('polyline', { points: pts.map(p => `${sx(p.x).toFixed(1)},${sy(p.v).toFixed(1)}`).join(' '), fill: 'none', stroke: s.c, 'stroke-width': s.w || 2, 'stroke-linejoin': 'round', ...(s.dash ? { 'stroke-dasharray': s.dash } : {}), ...(s.op ? { opacity: s.op } : {}) }, svg);
+    if (!s.nodots) pts.forEach(p => { const d = el('circle', { cx: sx(p.x), cy: sy(p.v), r: 2.8, fill: s.c }, svg); hover(d, `<b>${s.n}</b><br>x ≈ ${f2(p.x)}: ${f2(p.v)}${p.n ? `<br>${p.n.toLocaleString()} doubles` : ''}`); });
+  });
+  return { svg, sx, sy };
+}
+(function () {
+  const R = DATA.r7, C = 'var(--s3)', Tc = 'var(--s2)';
+  legend('leg-far', [[C, 'scored in chymotrypsin'], [Tc, 'scored in trypsin'], ['var(--ghost)', 'all doubles']]);
+  seriesChart('fig-far', [{ n: 'all doubles, chymotrypsin', c: C, pts: R.ct, op: 0.3, nodots: true, w: 1.5 }, { n: 'all doubles, trypsin', c: Tc, pts: R.tc, op: 0.3, nodots: true, w: 1.5 },
+    { n: 'far above the floor, chymotrypsin', c: C, pts: R.far_c, w: 2.4 }, { n: 'far above the floor, trypsin', c: Tc, pts: R.far_t, w: 2.4 }],
+    { x0: -0.5, x1: 3.5, y0: -0.75, y1: 1.25, xlab: 'additive expectation x (other protease)', ylab: 'median dddG', label: 'dddG against x for doubles far above the floor' });
+  legend('leg-lowc', [[C, 'chymotrypsin'], [Tc, 'trypsin']]);
+  seriesChart('fig-lowc', [{ n: 'dG_wt ≤ 3, chymotrypsin', c: C, pts: R.low_c }, { n: 'dG_wt ≤ 3, trypsin', c: Tc, pts: R.low_t }],
+    { x0: -3, x1: 3.5, y0: -0.5, y1: 2.5, xlab: 'additive expectation x (other protease)', ylab: 'median dddG', label: 'dddG against x for libraries far below the ceiling' });
+  legend('leg-cross', [[C, 'chymotrypsin dddG'], [Tc, 'trypsin dddG'], ['var(--ink-2)', 'solid: x from the other protease · dashed: x from the same protease']]);
+  seriesChart('fig-cross', [{ n: 'chymotrypsin dddG, x from trypsin', c: C, pts: R.ct, w: 2.4 }, { n: 'chymotrypsin dddG, x from chymotrypsin', c: C, pts: R.cc, dash: '5 4', w: 1.6 },
+    { n: 'trypsin dddG, x from chymotrypsin', c: Tc, pts: R.tc, w: 2.4 }, { n: 'trypsin dddG, x from trypsin', c: Tc, pts: R.tt, dash: '5 4', w: 1.6 }],
+    { W: 960, H: 330, x0: -3, x1: 3.5, y0: -0.75, y1: 2.75, xlab: 'additive expectation x (kcal/mol)', ylab: 'median dddG', label: 'dddG against x per protease, same-readout and cross-readout x' });
+})();
+
+/* ---------- Table: sensitivity of the remainder to the knee's softness ---------- */
+(function () {
+  const Dc = DATA.nsfig.decomp, want = [-1.17, -0.61, 0.0, 0.54, 0.94, 1.38, 1.98, 2.41];
+  const rows = want.map(w => Dc.reduce((best, p) => Math.abs(p.x - w) < Math.abs(best.x - w) ? p : best));
+  const t = document.getElementById('tab-tau');
+  t.innerHTML = '<thead><tr><th class="n">x</th><th class="n">measured mean dddG</th><th class="n">remainder, τ 0.2</th><th class="n">τ 0.4</th><th class="n">τ 0.8</th><th>region</th></tr></thead><tbody>' +
+    rows.map(p => `<tr><td class="n">${f2(p.x)}</td><td class="n">${f2(p.meas)}</td><td class="n">${f2(p.meas - p.s02)}</td><td class="n">${f2(p.meas - p.s04)}</td><td class="n">${f2(p.meas - p.s08)}</td><td>${p.x < -0.1 ? 'knee: depends on τ' : 'in range: robust'}</td></tr>`).join('') + '</tbody>';
+  t.parentElement.insertAdjacentHTML('afterend', '<div class="col"><p class="meta">Table under Test 3. Remainder = measured mean dddG minus the saturation built from the singles, at three softnesses of the knee, all libraries.</p></div>');
+})();
+
+/* ---------- Figure 3e: the shape of the nonspecific term ---------- */
+(function () {
+  const lo = 0.1, tau = 0.4, zs = [...Array(141).keys()].map(k => -3 + 7.5 * k / 140);
+  const ns = zs.map(z => ({ x: z, v: stepNS(z) })), slope = zs.map(z => ({ x: z, v: 1 / (1 + Math.exp(-(z - lo) / tau)) })), seen = zs.map(z => ({ x: z, v: hRead(z + stepNS(z), lo, tau) - hRead(z, lo, tau) }));
+  const real = DATA.nsfig.decomp.map(p => ({ x: p.x, v: p.meas - p.s04 }));
+  legend('leg-shape', [['var(--s4)', 'the term in latent dG (dashed) and what the measurement sees (solid)'], ['var(--ghost)', 'readout slope'], ['var(--ink)', 'real remainder (Test 3)']]);
+  seriesChart('fig-shape', [{ n: 'readout slope', c: 'var(--ghost)', pts: slope, nodots: true, w: 2 }, { n: 'simulated term, latent', c: 'var(--s4)', pts: ns, dash: '6 4', nodots: true, w: 2 },
+    { n: 'what the measurement sees', c: 'var(--s4)', pts: seen, nodots: true, w: 2.6 }, { n: 'real remainder', c: 'var(--ink)', pts: real, w: 0.01 }],
+    { W: 960, H: 300, x0: -3, x1: 4.5, y0: -0.25, y1: 1.05, ys: 0.25, xlab: 'latent dG of the double (dots: measured x)', ylab: 'kcal/mol (slope: 0 to 1)', label: 'The nonspecific step, the readout slope and the hump the measurement sees' });
+})();
+
 </script>
