@@ -238,6 +238,55 @@ upwards. (In the libraries inspected so far this is 0.0%, so it is not currently
 the raw estimate, is what *both* the link's knee and the censoring rule use — they disagreed in the first draft,
 which is how the `1A32` case surfaced.
 
+### The two-protease disagreement
+
+The assay fits dG twice, once per protease. Two independent estimates of one variant's stability means a
+per-variant, doubles-free consistency check — which is what the floor estimate is really missing, since only 63 of
+479 libraries contain enough deeply destabilised doubles to locate a floor at all.
+
+**The obvious version does not work.** Normalising the gap by its confidence intervals (`z = |dG_t − dG_c| / σ`)
+flags *in-range* variants hardest, because the reported CIs are tiny (median 95% width 0.147 kcal/mol) while
+genuine protease-specific differences are ~0.3:
+
+| mean of the two channels | median \|t−c\| | median z | fraction z>3 |
+|---|---|---|---|
+| −0.5 … 0.0 | 0.553 | 2.08 | 36% |
+| 1.0 … 2.0 | **0.312** | **6.28** | 74% |
+| 2.0 … 3.0 | 0.323 | 8.58 | 80% |
+| > 5.0 | 0.740 | 1.71 | 21% |
+
+The *absolute* gap is U-shaped as the mechanism predicts (0.55 at the bottom, 0.31 mid-range, 0.74 at the top), but
+in σ units the systematics swamp it. Likewise `deltaG_95CI` is useless as an unidentifiability flag: **zero**
+numeric rows have a CI wider than 1 kcal/mol.
+
+**The gross gap does work, as an identifier.** Among the numeric rows training actually sees, `|t−c| > 2` flags
+2.53%, and 92% of those sit below dG 0.5 (median dG of the flagged −0.37). The population is bimodal — thresholds
+of 2 and 3 select 17.7k and 15.3k rows — so the cut is not delicate. For reference, the rows the assay already
+refuses to score have a median gap of **13.1** and a maxed-out CI of 20.0, so the signal is unambiguous where we
+can check it against the assay's own verdict.
+
+**But it is a biased locator.** Per-library floors built from the gap-flagged variants have excellent coverage (237
+libraries at n≥10, against 63 for the doubles-conditioned estimator; 183 libraries reachable *only* this way) and
+real per-library signal (**split-half r = 0.912**). They are nonetheless **0.39 kcal/mol below** the
+doubles-conditioned estimate (r = 0.62): gap-based median −0.489 against −0.068. The doubles-conditioned figure is
+the trustworthy one, because it conditions on the *prediction* that a variant should be dead, whereas the gap
+criterion correlates with the fit having landed low — and −0.068 is what the independent published estimate of the
+floor (+0.02, SD 0.31) says it should be.
+
+**So the two signals do different jobs, and both are used:**
+
+| question | signal | why |
+|---|---|---|
+| *which* items are unidentifiable | the two-protease gap (`--censor_gap_max 2.0`) | per-variant, needs no doubles and no floor; reaches every library |
+| *where* the link's knee sits | the doubles-conditioned floor, else the dataset median | conditions on prediction not outcome, so it is unbiased; agrees with the published floor |
+
+A gap-censored item is bounded by **its own reported value** — a fit that cannot identify a stability still bounds
+it from above — so censoring no longer depends on having located a floor at all. The two sources are a union, not
+alternatives: the gap rule is specific but not sensitive (it catches only ~15% of the rows below dG 0.5), while the
+floor rule is sensitive within the libraries where a floor is known. Measured on the generated cache the gap rule
+censors 0.98% of items overall, 0–4.8% per library, and correctly censors **nothing** in `1A32` — the library whose
+5th percentile was +1.005 because it contains nothing destabilised at all.
+
 **Refinements, in the order I would try them.**
 
 1. **Condition on being dead instead of assuming the tail is dead.** Use `floor_cond` — the median measured dG of

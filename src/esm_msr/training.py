@@ -229,13 +229,25 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             is_single = micro['mut_mask'].sum(dim=1) == 1
             reg_mask = ~is_single if self.hparams.mt_reg_mask == 'doubles' else torch.ones_like(is_single, dtype=torch.bool)
             
-            # Every head is regressed onto the item's OWN measurement. The WT pass's latent for a double is already
-            # the additive sum of its per-position terms (that is what the architecture computes), so the link turns
-            # it into the observed ddG the double would have under pure saturation - which is a measured quantity.
-            # The former target, ddG_A + ddG_B, is not: each term is observed but their sum is not anything the
-            # readout can report, so no observed-scale prediction could ever match it.
-            wt_targets = ddG_mb
+            # --wt_double_target: the two self-consistent pairings for a multi-mutant's WT-path target.
+            #
+            #   'linked' - the WT pass's LLR sum through the link, against the item's own measured ddG_AB. The link
+            #              turns the additive latent into the observed ddG the double would have under pure
+            #              saturation, which is a measured quantity. Additivity is still enforced by the
+            #              architecture (the pass can only emit a sum of per-position terms), not by the label.
+            #   'latent' - the unlinked LLR sum against the sum of the measured singles, ddG_A + ddG_B.
+            #
+            # Mixing them is the one broken combination: a sum of two observed singles is not anything the readout
+            # can report (two singles at -2.5 give -5.0, while a linked prediction floors near y_floor - dG_wt), so
+            # a linked prediction could never match it and the gradient would drive the latent down without limit.
+            wt_double_linked = self.hparams.wt_double_target == 'linked'
+            wt_targets = ddG_mb.clone()
             valid_wt_mask = torch.isfinite(ddG_mb)
+            if not wt_double_linked:
+                add = micro['ddG_additive'].float() if 'ddG_additive' in micro else torch.full_like(ddG_mb, float('nan'))
+                multi = ~is_single
+                wt_targets = torch.where(multi, add, wt_targets)
+                valid_wt_mask = valid_wt_mask & (is_single | torch.isfinite(add))
 
             # Teacher forcing for ENSEMBLE mode: the measured additive expectation replaces the WT half of the
             # combined latent, so the MT head only has to learn the correction.
@@ -264,21 +276,25 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.hparams.mask_strategy, detach_calibration=self.hparams.detach_regression)
             wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
 
+            cens_wt_rank = cens_mb if wt_double_linked else torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
             wt_losses = []
             if self.hparams.lambda_reg_wt > 0:
                 if link is not None:
                     # Assembled in latent (the pass's own sum over the item's positions), linked once, at the end.
-                    p_wt = link.obs_ddG(wt_pred_cal, dGwt_mb, floor_mb)
-                    reg_wt_mask = valid_wt_mask & link_ok
+                    # Under 'latent' a multi-mutant's target is itself a latent sum, so it stays off the link.
+                    p_obs = link.obs_ddG(wt_pred_cal, dGwt_mb, floor_mb)
+                    p_wt = p_obs if wt_double_linked else torch.where(is_single, p_obs, wt_pred_cal)
+                    reg_wt_mask = valid_wt_mask & (link_ok | (~is_single & ~wt_double_linked))
                 else:
                     p_wt, reg_wt_mask = wt_pred_cal, valid_wt_mask
+                cens_wt = cens_mb if wt_double_linked else torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
                 if reg_wt_mask.any():
-                    term, val, wsum = self._reg_loss(p_wt, wt_targets, bound_mb, cens_mb, reg_wt_mask, w_mb, global_w_sum)
+                    term, val, wsum = self._reg_loss(p_wt, wt_targets, bound_mb, cens_wt, reg_wt_mask, w_mb, global_w_sum)
                     wt_losses.append(self.hparams.lambda_reg_wt * term)
                     sums['reg_wt'] += val; cnts['reg_wt'] += wsum
 
             if self.hparams.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
-                L_rank, val, n_list = self._compute_rank_loss(wt_pred_raw, wt_targets, valid_wt_mask, cens_mb,
+                L_rank, val, n_list = self._compute_rank_loss(wt_pred_raw, wt_targets, valid_wt_mask, cens_wt_rank,
                                                               list_size, self.crit_rank_wt)
                 if L_rank is not None:
                     wt_losses.append(self.hparams.lambda_rank_wt * L_rank * (n_list / global_num_lists))

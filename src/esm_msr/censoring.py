@@ -6,12 +6,25 @@ An item is *censored* when its measurement only bounds the true value:
 * ``cens = +1``: the true value is at or above ``cens_bound`` (upper-censored).
 * ``cens = 0``: an ordinary measurement.
 
-One source sets it here, recorded in ``cens_src``:
+Two sources set it here, recorded in ``cens_src``:
 
 * ``SRC_FLOOR`` (2): the variant has a number, but that number is at or below its LIBRARY'S OWN FLOOR (``y_floor``, the per-library estimate
   cached on each item; see ``data.MutationStabilityDataset._library_floor``). Such a measurement reports the floor rather than the variant: the
   composition model's error for that sequence, not its stability. Its order among its equally-dead peers is noise and its value is not the
   variant's.
+
+* ``SRC_GAP`` (3): the assay fits dG twice, once per protease, and the two estimates of the SAME variant disagree
+  by more than ``gap_max``. Each channel compares a measured K50 against a K50 predicted for the unfolded sequence
+  from composition, so a folded variant's two channels estimate one physical quantity and agree; a variant that is
+  unfolded anyway returns each protease's own composition error, and those are independent. A gap of several
+  kcal/mol therefore says the fits do not jointly identify a stability, whatever number the combined fit reported.
+  The bound is the variant's OWN reported value: a broken fit still bounds the truth from above, because the
+  reported value is at best the floor the variant pinned at.
+
+  This source needs no doubles and no library floor, which is why it carries the censoring where ``SRC_FLOOR``
+  cannot: the floor can only be located in libraries that happen to contain enough deeply destabilised doubles.
+  Measured on this dataset it is specific but not sensitive - 92% of the numeric rows it flags sit below dG 0.5,
+  but it catches only ~15% of the rows down there - so the two sources are a union, not alternatives.
 
 ``SRC_RANGE`` (1) is reserved for the other half of the same population: the variants the assay declines to give a number to at all, reporting
 only ``<-1`` (dead) or ``>5`` (hyperstable). A library's floor and its rate of ``<-1`` reports are the same quantity seen twice, and which of
@@ -25,12 +38,12 @@ Losses use the same two fields everywhere: ``ListMLELoss.forward_censored`` ties
 so one number serves WT-context singles, doubles and conditional (``ddG(A|B)``) items alike.
 """
 from collections import Counter
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Dict, Iterable, Optional, Tuple
 
 import numpy as np
 
 CENS_LO, CENS_NONE, CENS_HI = -1, 0, 1
-SRC_NONE, SRC_RANGE, SRC_FLOOR = 0, 1, 2
+SRC_NONE, SRC_RANGE, SRC_FLOOR, SRC_GAP = 0, 1, 2, 3
 
 # the assay's reported dynamic range (kcal/mol); see MutationStabilityDataset.DG_FLOOR / DG_CEILING
 DG_RANGE_LOW, DG_RANGE_HIGH = -1.0, 5.0
@@ -49,28 +62,41 @@ def to_numeric(values) -> np.ndarray:
     return np.array([_to_float(x) for x in np.asarray(values, dtype=object)], dtype=float)
 
 
-def apply_item_censoring(data: Iterable[Dict[str, Any]], censor_floor: bool = True) -> Tuple[list, Dict[str, int]]:
+def apply_item_censoring(data: Iterable[Dict[str, Any]], censor_floor: bool = True,
+                         gap_max: Optional[float] = 2.0) -> Tuple[list, Dict[str, int]]:
     """
     Finalise the censoring fields of one library's items and return ``(items, counts)``.
 
-    With ``censor_floor``, an item whose measured dG (``dG_meas``) is at or below its library's floor (``y_floor``) becomes lower-censored.
-    Both must be finite, so a library with no floor estimate simply has no floor censoring.
+    With ``censor_floor``, an item whose measured dG (``dG_meas``) is at or below its library's floor (``y_floor``) becomes lower-censored;
+    both must be finite, so a library with no floor evidence simply has no floor censoring. With ``gap_max``, an item whose two proteases
+    disagree by more than that (``protease_gap``) becomes lower-censored against its own reported value. The floor source is checked first
+    because its bound is the more robust of the two - the library's central pinning value rather than one unreliable reading.
 
     ``cens_bound`` (on the item's own ddG scale) is derived as ``dG_bound + (ddG - dG_meas)``: the offset between an item's label and the
     measured dG it came from is constant, and for a conditional item it already carries the partner's single. So a double measured at the
     floor bounds ``ddG_AB`` at ``y_floor - dG_wt``, while the ``ddG(A|B)`` derived from it is bounded ``ddG_B`` higher - each on its own scale,
     from the one floor.
     """
-    items, counts = list(data), {'floor': 0, 'floor_by_subset': Counter()}
+    items = list(data)
+    counts = {'floor': 0, 'gap': 0, 'floor_by_subset': Counter(), 'gap_by_subset': Counter()}
     for item in items:
         cens = int(item.get('cens', 0))
+        subset = item.get('subset_type', 'unknown')
         if cens == 0 and censor_floor:
             dG, floor = item.get('dG_meas', float('nan')), item.get('y_floor', float('nan'))
             if np.isfinite(dG) and np.isfinite(floor) and dG <= floor:
                 item['cens'], item['cens_src'], item['dG_bound'] = CENS_LO, SRC_FLOOR, float(floor)
                 cens = CENS_LO
                 counts['floor'] += 1
-                counts['floor_by_subset'][item.get('subset_type', 'unknown')] += 1
+                counts['floor_by_subset'][subset] += 1
+        if cens == 0 and gap_max is not None:
+            gap, dG = item.get('protease_gap', float('nan')), item.get('dG_meas', float('nan'))
+            if np.isfinite(gap) and gap > gap_max and np.isfinite(dG):
+                # Its own reading is the bound: dG_bound = dG_meas makes cens_bound come out as the item's own ddG.
+                item['cens'], item['cens_src'], item['dG_bound'] = CENS_LO, SRC_GAP, float(dG)
+                cens = CENS_LO
+                counts['gap'] += 1
+                counts['gap_by_subset'][subset] += 1
         if cens != 0:
             dG_meas, dG_bound = item.get('dG_meas', float('nan')), item.get('dG_bound', float('nan'))
             ddG = item.get('ddG', float('nan'))

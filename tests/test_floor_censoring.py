@@ -172,3 +172,51 @@ def test_auroc_basics():
     assert censoring.auroc([1, 2], [3, 4]) == pytest.approx(0.0)
     assert censoring.auroc([1, 2], [1, 2]) == pytest.approx(0.5)
     assert not np.isfinite(censoring.auroc([], [1]))
+
+
+# --------------------------------------------------------------------------- the two-protease source
+
+def _gitem(ddG, dG_meas, gap, y_floor=float('nan'), subset='single'):
+    return {'ddG': ddG, 'dG_meas': dG_meas, 'y_floor': y_floor, 'protease_gap': gap, 'subset_type': subset}
+
+
+def test_protease_disagreement_censors_against_the_items_own_value():
+    """No library floor is needed: a variant whose two fits disagree is bounded by what it itself reported."""
+    items, counts = censoring.apply_item_censoring([_gitem(-2.5, -0.4, 6.0)], censor_floor=False, gap_max=2.0)
+    assert items[0]['cens'] == censoring.CENS_LO
+    assert items[0]['cens_src'] == censoring.SRC_GAP
+    assert items[0]['cens_bound'] == pytest.approx(-2.5)      # its own ddG
+    assert counts['gap'] == 1
+
+
+def test_agreeing_proteases_are_left_alone():
+    items, counts = censoring.apply_item_censoring([_gitem(-2.5, -0.4, 0.3)], censor_floor=False, gap_max=2.0)
+    assert items[0]['cens'] == 0 and counts['gap'] == 0
+
+
+def test_gap_source_can_be_disabled():
+    items, counts = censoring.apply_item_censoring([_gitem(-2.5, -0.4, 6.0)], censor_floor=False, gap_max=None)
+    assert items[0]['cens'] == 0 and counts['gap'] == 0
+
+
+def test_the_two_sources_are_a_union():
+    """One item reachable only by the floor, one only by the gap."""
+    floor_only = _gitem(-3.0, -0.6, 0.2, y_floor=-0.5)
+    gap_only = _gitem(-2.0, 1.5, 7.0, y_floor=-0.5)
+    items, counts = censoring.apply_item_censoring([floor_only, gap_only], censor_floor=True, gap_max=2.0)
+    assert items[0]['cens_src'] == censoring.SRC_FLOOR
+    assert items[1]['cens_src'] == censoring.SRC_GAP
+    assert counts['floor'] == 1 and counts['gap'] == 1
+
+
+def test_floor_wins_when_both_apply():
+    """The library's central pinning value is the more robust bound, so it is checked first."""
+    both = _gitem(-3.0, -0.6, 7.0, y_floor=-0.5)
+    items, _ = censoring.apply_item_censoring([both], censor_floor=True, gap_max=2.0)
+    assert items[0]['cens_src'] == censoring.SRC_FLOOR
+    assert items[0]['cens_bound'] == pytest.approx(-0.5 + (-3.0 - -0.6))
+
+
+def test_gap_needs_a_measured_dG():
+    items, counts = censoring.apply_item_censoring([_gitem(-2.5, float('nan'), 6.0)], censor_floor=False, gap_max=2.0)
+    assert items[0]['cens'] == 0 and counts['gap'] == 0

@@ -114,6 +114,13 @@ def parse_arguments() -> argparse.Namespace:
     link_group.add_argument('--link_floor_max', type=float, default=0.2,
                             help="Upper clip on a library's cached floor estimate.")
     link_group.add_argument('--learn_link_floor_bounds', action=argparse.BooleanOptionalAction, default=False)
+    link_group.add_argument('--wt_double_target', type=str, default='latent', choices=['latent', 'linked'],
+                            help="What the WT head regresses onto for a MULTI-mutant. 'latent': its unlinked LLR "
+                                 "sum against the sum of the measured singles, ddG_A + ddG_B. 'linked': its LLR sum "
+                                 "through the link against the measured ddG_AB. These are the only two "
+                                 "self-consistent pairings - a linked prediction cannot be compared with a sum of "
+                                 "observed singles, which is not a quantity the readout can report. Singles always "
+                                 "go through the link against their own measurement.")
 
     calibration_group = parser.add_argument_group("Calibration Configuration")
     calibration_group.add_argument('--shared_scale_init', type=float, default=0.3)
@@ -175,6 +182,14 @@ def parse_arguments() -> argparse.Namespace:
                              help="Treat an item measured at or below its library's floor as a bound rather than a "
                                   "value: regression becomes one-sided and the item's rank is tied at the bottom. "
                                   "Only applies to libraries that show evidence of a floor.")
+    floor_group.add_argument('--censor_gap', action=argparse.BooleanOptionalAction, default=True,
+                             help="Also censor an item whose two proteases disagree about its stability by more "
+                                  "than --censor_gap_max, bounded by its own reported value. Needs no doubles and "
+                                  "no library floor, so unlike --censor_floor it reaches every library.")
+    floor_group.add_argument('--censor_gap_max', type=float, default=2.0,
+                             help="|deltaG_t - deltaG_c| above which the two fits are taken not to identify a "
+                                  "stability (kcal/mol). In-range variants sit near 0.31; the flagged population "
+                                  "is bimodal, so 2 and 3 select nearly the same rows.")
     floor_group.add_argument('--floor_x_max', type=float, default=-1.5,
                              help="A variant counts as expected-to-be-pinned when its additive expectation "
                                   "dG_wt + ddG_A + ddG_B is below this.")

@@ -220,6 +220,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         dG_wt: Optional[float] = None,
         floor_stats: Optional[Dict[str, float]] = None,
         censor_floor: bool = True,
+        gap_max: Optional[float] = 2.0,
     ):
         """
         Args:
@@ -245,6 +246,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 than baked into the cache, so the floor estimator is a free knob that never needs a regenerate.
             censor_floor: Mark items measured at or below their library's floor as lower-censored, so the losses
                 treat their value as a bound and their mutual order as unknown (``esm_msr.censoring``).
+            gap_max: Also censor an item whose two proteases disagree by more than this (kcal/mol), bounded by its
+                own reported value. None disables it. This is the source that reaches libraries with no floor.
         """
         self.score_name = score_name
         self.dms_name = dms_name
@@ -301,7 +304,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         self._label_native_cond()
         self._filter_dataset()
         self._stamp_floor()
-        self._apply_censoring(censor_floor)
+        self._apply_censoring(censor_floor, gap_max)
         self._extract_scalars()
 
     def generate_data(self, dms_df: Any) -> List[Dict[str, Any]]:
@@ -353,13 +356,22 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         logging.info(f"Filtered dataset from {before} to {len(self.data)} items based on allowed types: {allowed}")
 
     def _stamp_floor(self) -> None:
-        """Give every item its library's floor knee, and record whether that floor is backed by evidence."""
+        """
+        Give every item its library's floor knee, whether that floor is backed by evidence, and its own
+        two-protease disagreement.
+
+        ``protease_gap`` is |deltaG_t - deltaG_c| from the cached measurement row: two independent fits of the same
+        variant's stability, so a large gap says they do not jointly identify one (``esm_msr.censoring``). It is
+        derived here rather than cached in its own right because ``meas`` already carries both channels.
+        """
         y = float(self.floor_stats.get('y_floor', float('nan')))
         self.has_floor_evidence = bool(self.floor_stats.get('evidence', 0.0))
         for item in self.data:
             item['y_floor'] = y
+            t, c = meas_value(item, 'deltaG_t'), meas_value(item, 'deltaG_c')
+            item['protease_gap'] = abs(t - c) if np.isfinite(t) and np.isfinite(c) else float('nan')
 
-    def _apply_censoring(self, censor_floor: bool) -> None:
+    def _apply_censoring(self, censor_floor: bool, gap_max: Optional[float]) -> None:
         """
         Finalise ``cens`` / ``cens_bound`` on every item (see ``esm_msr.censoring``).
 
@@ -368,12 +380,15 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         simply never destabilised anything.
         """
         active = bool(censor_floor and getattr(self, 'has_floor_evidence', False))
-        self.data, c = censoring.apply_item_censoring(self.data, active)
-        if c['floor']:
-            logging.info(f"[{self.dms_name}] floor-censored {c['floor']} of {len(self.data)} items "
-                         f"(y_floor={self.floor_stats.get('y_floor', float('nan')):.3f}): {dict(c['floor_by_subset'])}")
-        elif censor_floor and not active:
-            logging.info(f"[{self.dms_name}] no floor evidence: nothing censored")
+        self.data, c = censoring.apply_item_censoring(self.data, active, gap_max)
+        if c['floor'] or c['gap']:
+            logging.info(f"[{self.dms_name}] censored {c['floor'] + c['gap']} of {len(self.data)} items: "
+                         f"{c['floor']} at the library floor "
+                         f"(y_floor={self.floor_stats.get('y_floor', float('nan')):.3f}) {dict(c['floor_by_subset'])}, "
+                         f"{c['gap']} on protease disagreement {dict(c['gap_by_subset'])}")
+        else:
+            logging.info(f"[{self.dms_name}] nothing censored"
+                         f"{' (no floor evidence)' if censor_floor and not active else ''}")
 
     def _extract_scalars(self) -> None:
         """Contiguous scalar arrays for the sampler's and the metrics' bulk lookups."""
