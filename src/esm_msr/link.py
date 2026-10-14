@@ -45,12 +45,14 @@ def _inv_softplus(y: float) -> float:
     return math.log(math.expm1(y)) if y < 20.0 else y
 
 
-def numpy_link(tau: float, floor_min: float, floor_max: float):
+def numpy_link(tau: float, floor_min: float, floor_max: float, global_floor: float = 0.0):
     """The same ``h`` as a numpy function of absolute dG, for metrics computed off the GPU (``FloorLink.numpy()``) and for evaluating a
     trained checkpoint. Takes the item's cached ``y_floor`` and clips it exactly as training did."""
     def h(z, y_floor=0.0):
         z = np.asarray(z, dtype=np.float64)
-        f = np.clip(np.nan_to_num(np.asarray(y_floor, dtype=np.float64), nan=0.0), floor_min, floor_max)
+        f = np.where(np.isfinite(np.asarray(y_floor, dtype=np.float64)),
+                     np.asarray(y_floor, dtype=np.float64), global_floor)
+        f = np.clip(f, floor_min, floor_max)
         return f + tau * np.logaddexp(0.0, (z - f) / tau)
     return h
 
@@ -58,20 +60,22 @@ def numpy_link(tau: float, floor_min: float, floor_max: float):
 def numpy_link_from_state_dict(state_dict, prefix: str = 'link_head.'):
     """The numpy link of a checkpoint trained with ``--link`` (its ``link_head.*`` entries), or None when it has none. Inference returns the
     latent ddG; evaluation code uses this to put predictions on the assay's observed scale."""
-    keys = {k: prefix + k for k in ('raw_tau', 'floor_min', 'floor_max')}
+    keys = {k: prefix + k for k in ('raw_tau', 'floor_min', 'floor_max', 'global_floor')}
     if not all(v in state_dict for v in keys.values()):
         return None
     f = lambda k: float(torch.as_tensor(state_dict[keys[k]], dtype=torch.float64))
     tau = float(F.softplus(torch.as_tensor(state_dict[keys['raw_tau']], dtype=torch.float64)))
     lo = f('floor_min')
-    return numpy_link(tau, lo, max(f('floor_max'), lo + 1e-3))     # the same ordering FloorLink.bounds() enforces
+    return numpy_link(tau, lo, max(f('floor_max'), lo + 1e-3),     # the same ordering FloorLink.bounds() enforces
+                      f('global_floor'))
 
 
 class FloorLink(nn.Module):
     """``h(z) = y_floor + tau * softplus((z - y_floor) / tau)``, with ``y_floor`` supplied per item and clipped to a learned-or-fixed band."""
 
     def __init__(self, tau: float = TAU_DEFAULT, floor_min: float = FLOOR_MIN_DEFAULT, floor_max: float = FLOOR_MAX_DEFAULT,
-                 learn_tau: bool = False, learn_floor_bounds: bool = False):
+                 learn_tau: bool = False, learn_floor_bounds: bool = False,
+                 global_floor_init: float = 0.0, learn_global_floor: bool = True):
         super().__init__()
         if not floor_max > floor_min:
             raise ValueError(f"floor_max ({floor_max}) must exceed floor_min ({floor_min})")
@@ -81,6 +85,13 @@ class FloorLink(nn.Module):
         self.raw_tau = nn.Parameter(torch.tensor(_inv_softplus(float(tau))), requires_grad=learn_tau)
         self.floor_min = nn.Parameter(torch.tensor(float(floor_min)), requires_grad=learn_floor_bounds)
         self.floor_max = nn.Parameter(torch.tensor(float(floor_max)), requires_grad=learn_floor_bounds)
+        # The knee for items whose library has no floor of its own. Learned, because it is identifiable: it is the
+        # one value that best explains how far the strongly destabilised predictions have to be compressed to match
+        # what the assay reported, pooled over every library that cannot supply its own. Initialised at the median
+        # of the libraries that CAN (a measured quantity) and clipped to the same band, so it cannot run off to
+        # absorb a calibration bias.
+        gi = float(global_floor_init) if np.isfinite(global_floor_init) else 0.5 * (float(floor_min) + float(floor_max))
+        self.global_floor = nn.Parameter(torch.tensor(gi), requires_grad=learn_global_floor)
 
     def tau(self) -> torch.Tensor:
         """Softplus keeps it positive for any raw value, and round-trips the configured tau exactly."""
@@ -92,11 +103,17 @@ class FloorLink(nn.Module):
         return lo, torch.maximum(self.floor_max, lo + 1e-3)
 
     def effective_floor(self, y_floor) -> torch.Tensor:
-        """The library's cached floor, clipped into the band. NaN (a library with no estimate) falls back to the band's midpoint rather than
-        to an edge, so a missing estimate is neutral rather than maximally permissive."""
+        """
+        The knee this item bends at, clipped into the band.
+
+        A library that showed evidence of a floor supplies its own (``y_floor``, data). One that did not supplies
+        NaN, and those items fall back to the shared ``global_floor``, which is learned from exactly that
+        population. So the floor is measured where it can be and estimated where it cannot, and the two are never
+        mixed: a library with its own floor contributes no gradient to the global one.
+        """
         lo, hi = self.bounds()
         f = torch.as_tensor(y_floor, dtype=lo.dtype, device=lo.device)
-        f = torch.where(torch.isfinite(f), f, 0.5 * (lo + hi).detach().expand_as(f))
+        f = torch.where(torch.isfinite(f), f, self.global_floor.expand_as(f))
         return torch.minimum(torch.maximum(f, lo), hi)
 
     def forward(self, z: torch.Tensor, y_floor) -> torch.Tensor:
@@ -119,9 +136,10 @@ class FloorLink(nn.Module):
     def numpy(self):
         """This link as a numpy function of absolute dG (see ``numpy_link``)."""
         lo, hi = self.bounds()
-        return numpy_link(float(self.tau()), float(lo), float(hi))
+        return numpy_link(float(self.tau()), float(lo), float(hi), float(self.global_floor))
 
     @torch.no_grad()
     def summary(self) -> dict:
         lo, hi = self.bounds()
-        return {'tau': float(self.tau()), 'floor_min': float(lo), 'floor_max': float(hi)}
+        return {'tau': float(self.tau()), 'floor_min': float(lo), 'floor_max': float(hi),
+                'global_floor': float(torch.minimum(torch.maximum(self.global_floor, lo), hi))}

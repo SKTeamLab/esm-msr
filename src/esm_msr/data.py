@@ -161,9 +161,12 @@ def shrink_floors(stats: Dict[str, Dict[str, float]], shrink: float = 5.0) -> fl
             n = max(s.get('n_deep', 0.0), 0.0)
             s['y_floor'] = float((n * s['y_floor'] + shrink * glob) / (n + shrink))
         else:
-            s['y_floor'] = glob
+            # Left NaN on purpose: the link's learned global_floor covers these, and keeping them out of the data
+            # means a library with a measured floor never has its knee moved by one without.
+            s['y_floor'] = float('nan')
     logging.info(f"floor shrinkage: {len(accepted)} of {len(stats)} libraries have floor evidence; "
-                 f"dataset floor (median of accepted) = {glob:.3f}; the rest take it as a knee without censoring")
+                 f"dataset floor (median of accepted) = {glob:.3f}; the rest get no floor and are neither "
+                 f"censored nor given a knee from the data - the link learns one for them")
     return glob
 
 

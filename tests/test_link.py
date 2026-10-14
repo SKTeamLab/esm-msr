@@ -42,10 +42,25 @@ def test_floor_is_clipped_to_band():
     assert float(far_above) == pytest.approx(FLOOR_MAX_DEFAULT, abs=1e-5)
 
 
-def test_nan_floor_falls_back_to_band_midpoint():
-    link = FloorLink()
-    mid = 0.5 * (FLOOR_MIN_DEFAULT + FLOOR_MAX_DEFAULT)
-    assert float(link(torch.tensor(-60.0), torch.tensor(float('nan')))) == pytest.approx(mid, abs=1e-5)
+def test_nan_floor_falls_back_to_the_learned_global_floor():
+    """A library with no floor of its own bends at the shared, learned knee."""
+    link = FloorLink(global_floor_init=-0.4)
+    out = link(torch.tensor(-60.0), torch.tensor(float('nan')))
+    assert float(out.detach()) == pytest.approx(-0.4, abs=1e-5)
+    # ... and it is a real parameter that receives gradient from exactly those items.
+    out.backward()
+    assert link.global_floor.grad is not None and abs(float(link.global_floor.grad)) > 0
+
+
+def test_a_library_with_its_own_floor_does_not_train_the_global_one():
+    link = FloorLink(global_floor_init=-0.4)
+    link(torch.tensor(-60.0), torch.tensor(-0.2)).backward()
+    assert link.global_floor.grad is None or float(link.global_floor.grad) == 0.0
+
+
+def test_global_floor_is_clipped_to_the_band_too():
+    link = FloorLink(global_floor_init=-9.0)
+    assert float(link(torch.tensor(-60.0), torch.tensor(float('nan'))).detach()) == pytest.approx(FLOOR_MIN_DEFAULT, abs=1e-5)
 
 
 def test_obs_ddG_matches_definition():
@@ -79,7 +94,7 @@ def test_numpy_link_matches_torch():
     z = np.linspace(-10, 10, 101)
     y = np.full_like(z, -0.25)
     got = h(z, y)
-    want = link(torch.as_tensor(z, dtype=torch.float32), torch.as_tensor(y, dtype=torch.float32)).numpy()
+    want = link(torch.as_tensor(z, dtype=torch.float32), torch.as_tensor(y, dtype=torch.float32)).detach().numpy()
     assert np.allclose(got, want, atol=1e-5)
 
 

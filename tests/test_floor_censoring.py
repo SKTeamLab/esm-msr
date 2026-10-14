@@ -109,14 +109,17 @@ def test_shrinkage_pulls_thin_estimates_toward_the_dataset_floor():
     assert abs(stats['thin']['y_floor'] - -0.90) > 0.1
 
 
-def test_libraries_without_evidence_take_the_dataset_floor_as_a_knee_only():
+def test_libraries_without_evidence_get_no_floor_at_all():
+    """They are left NaN so the link's learned global floor covers them, and so a library with a measured floor
+    never has its knee moved by one without."""
     stats = {
         'a': {'y_floor': -0.2, 'n_deep': 100.0, 'evidence': 1.0},
         'b': {'y_floor': float('nan'), 'n_deep': 0.0, 'evidence': 0.0},
     }
     glob = shrink_floors(stats)
-    assert stats['b']['y_floor'] == pytest.approx(glob)      # a sane knee for the link
-    assert stats['b']['evidence'] == 0.0                     # but nothing may be censored against it
+    assert np.isfinite(glob)                                 # still returned, to initialise the learned floor
+    assert not np.isfinite(stats['b']['y_floor'])
+    assert stats['b']['evidence'] == 0.0
 
 
 def test_shrinkage_with_no_accepted_floors_leaves_nan():

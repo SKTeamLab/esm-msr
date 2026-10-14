@@ -75,6 +75,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.link_head = FloorLink(
             tau=self.hparams.link_tau, floor_min=self.hparams.link_floor_min, floor_max=self.hparams.link_floor_max,
             learn_tau=self.hparams.learn_link_tau, learn_floor_bounds=self.hparams.learn_link_floor_bounds,
+            global_floor_init=self.hparams.get('dataset_floor', float('nan')),
+            learn_global_floor=self.hparams.learn_global_floor,
         ) if self.hparams.link else None
         if self.link_head is not None:
             logging.info(f"Observed-scale link enabled: {self.link_head.summary()}")
@@ -152,8 +154,35 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         logging.info(f"[reshare] dual-adapter base weights re-shared on {dev}: {n_shared} params "
                      f"deduplicated (transformer Linears stored bf16, rest fp32)")
 
-    def on_train_start(self):
+    def _prepare_device_weights(self):
+        """
+        Deduplicate and down-cast the frozen base weights, once, before ANY forward pass.
+
+        This has to happen before the first forward, not just before training. ``main()`` calls
+        ``trainer.validate`` before ``trainer.fit``, so the hook this used to live in (``on_train_start``) fired too
+        late: that first validation ran with the base weights still duplicated between the two adapters AND still in
+        fp32, which is roughly 11 GB of parameters instead of 3. That sets the CUDA caching allocator's high-water
+        mark at its maximum, and the reshape that follows frees those fp32 storages into the allocator's CACHE
+        rather than back to the driver - so training then allocates its activations inside a large, badly
+        fragmented reservation. The symptom is a monotone slowdown (2.2 s/step rising past 12 s/step by step 260)
+        with the card pinned near 100%, which looks like a leak and is really fragmentation.
+
+        ``empty_cache`` afterwards is what actually returns the freed fp32 storages, so training starts on a clean
+        heap. Both steps are idempotent (the cast only touches fp32 weights), so repeated calls are free.
+        """
+        if getattr(self, '_device_weights_ready', False):
+            return
         self._reshare_base_params_on_device()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.reset_peak_memory_stats()
+        self._device_weights_ready = True
+
+    def on_validation_start(self):
+        self._prepare_device_weights()
+
+    def on_train_start(self):
+        self._prepare_device_weights()
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
@@ -453,6 +482,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.log("train/cens_upper_items", float(self._cens_diag[1]), on_step=True)
             self.log("train/tf_saturated_dropped", float(self._cens_diag[2]), on_step=True)
             
+        if torch.cuda.is_available():
+            gb = 1.0 / (1024 ** 3)
+            self.log("mem/allocated_gb", torch.cuda.memory_allocated() * gb, on_step=True)
+            self.log("mem/reserved_gb", torch.cuda.memory_reserved() * gb, on_step=True, prog_bar=True)
+            self.log("mem/peak_allocated_gb", torch.cuda.max_memory_allocated() * gb, on_step=True)
+
         if getattr(self.trainer.precision_plugin, "scaler", None) is not None:
             self.log("amp_scale", self.trainer.precision_plugin.scaler.get_scale(), on_step=True)
 
@@ -715,6 +750,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if calib_wt_params: main_groups.append({"params": calib_wt_params, "lr": base_lr * self.hparams.calib_lr_mult, "weight_decay": 0.0, "name": "calib_wt"})
         if calib_mt_params: main_groups.append({"params": calib_mt_params, "lr": base_lr * self.hparams.calib_lr_mult, "weight_decay": 0.0, "name": "calib_mt"})
         if other_params: main_groups.append({"params": other_params, "lr": base_lr, "weight_decay": wd, "name": "other"})
+        # The link lives on the LightningModule, not inside self.model, so the loop above never sees it.
+        if self.link_head is not None:
+            link_params = [p for p in self.link_head.parameters() if p.requires_grad]
+            if link_params:
+                main_groups.append({"params": link_params, "lr": float(self.hparams.link_lr),
+                                    "weight_decay": 0.0, "name": "link"})
 
         if not main_groups:
             logging.warning("No param groups found; defaulting to all trainables.")
@@ -724,7 +765,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         lambdas_main = []
         for g in main_groups:
-            if "calib" in g["name"]: lambdas_main.append(lambda step: 1.0)
+            if "calib" in g["name"] or g["name"] == "link": lambdas_main.append(lambda step: 1.0)
             elif g["name"] == "lora_mt":
                 lambdas_main.append(lambda step, delay=self.hparams.mt_lora_delay_steps, warmup=self.hparams.lr_warmup_steps: 0.0 if step < delay else min(1.0, max(1e-4, (step - delay) / max(1, warmup))))
             else:

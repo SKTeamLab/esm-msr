@@ -114,6 +114,13 @@ def parse_arguments() -> argparse.Namespace:
     link_group.add_argument('--link_floor_max', type=float, default=0.2,
                             help="Upper clip on a library's cached floor estimate.")
     link_group.add_argument('--learn_link_floor_bounds', action=argparse.BooleanOptionalAction, default=False)
+    link_group.add_argument('--learn_global_floor', action=argparse.BooleanOptionalAction, default=True,
+                            help="Learn the shared knee used by libraries that show no floor of their own. It is "
+                                 "identifiable from exactly that population and is initialised at the median of "
+                                 "the libraries that do have one.")
+    link_group.add_argument('--link_lr', type=float, default=5e-3,
+                            help="Learning rate of the link's parameters (no weight decay, no warm-up, and not cut "
+                                 "by the plateau scheduler).")
     link_group.add_argument('--wt_double_target', type=str, default='latent', choices=['latent', 'linked'],
                             help="What the WT head regresses onto for a MULTI-mutant. 'latent': its unlinked LLR "
                                  "sum against the sum of the measured singles, ddG_A + ddG_B. 'linked': its LLR sum "

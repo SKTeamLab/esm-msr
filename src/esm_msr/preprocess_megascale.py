@@ -524,6 +524,9 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
     preprocessor = MegaScaleDatasetPreprocessor(args.raw_data_file, args.af_model_folder, spurs_override=args.remove_spurs_homologs)
     preprocessor.compute_floors(percentile=args.floor_percentile, x_max=args.floor_x_max, min_n=args.floor_min_n,
                                 max_sd=args.floor_max_sd, band=(args.link_floor_min, args.link_floor_max))
+    # Initialises the link's learned global floor at the median of the libraries that do have one (a measured
+    # quantity); reaches the module through hparams, since main() builds it from vars(args) after this returns.
+    args.dataset_floor = preprocessor.dataset_floor
     splits = preprocessor.create_training_splits(args.split_file, args.max_train_proteins)
     
     overlap = set(splits.get('train', [])) & set(splits.get('val', []))
