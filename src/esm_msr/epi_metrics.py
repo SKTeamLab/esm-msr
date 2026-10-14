@@ -256,8 +256,12 @@ class Table:
         self.x = self.c + self.yA + self.yB
         # the observed scale: h(dG_wt + latent) - dG_wt, with each double's own floor offset where the run supplied one
         # (--link_floor_file; 0 elsewhere, which is the shared-floor link). A link built before the offsets existed takes one argument.
-        foff = np.asarray(items['dG_floor_offset'], float)[I] if items.get('dG_floor_offset') is not None and self.n else np.zeros(self.n)
-        self.floor_off = np.where(np.isfinite(foff), foff, 0.0)
+        fo = items.get('dG_floor_offset')
+        fo = np.asarray(fo, float) if fo is not None else None
+        if fo is None or len(fo) != n:                     # a run or dump from before the offsets existed, or a field that was not pooled
+            self.floor_off = np.zeros(self.n)
+        else:
+            self.floor_off = np.nan_to_num(fo[I], nan=0.0)
         if link is None:
             obs = lambda v, cc: v
         elif _takes_offset(link):

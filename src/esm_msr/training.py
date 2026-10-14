@@ -561,6 +561,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if not keys or any(k is None for k in keys):
                 return
             f = lambda name: np.asarray(pooled[name], dtype=float)
+            n_items = len(keys)
+            for name in ('dG_wt', 'dG_floor_offset', 'ground_truths', 'dddG', 'wt_scores', 'mt_scores', 'comb_scores'):
+                got = len(np.atleast_1d(np.asarray(pooled.get(name, []))))
+                if got != n_items:        # a field that on_validation_epoch_end did not pool: fail loudly rather than mis-score silently
+                    raise ValueError(f"pooled '{name}' has {got} values for {n_items} items; it is missing from on_validation_epoch_end")
             items = {'mut_key': keys, 'subset_type': list(pooled['subset_type']), 'cens': None, 'ddG': f('ground_truths'), 'dddG': f('dddG'),
                      'dG_wt': f('dG_wt'), 'wt': f('wt_scores'), 'mt': f('mt_scores'), 'comb': f('comb_scores'), 'wt_rev': f('wt_rev_scores'),
                      'dG_floor_offset': f('dG_floor_offset')}
@@ -603,6 +608,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             flat_mut_parts, flat_pdb_ids = [], []
             mt_scores_list, wt_rev_list, mt_fwd_list = [], [], []
             dG_wt_list, subset_list, wt_obs_list, comb_obs_list = [], [], [], []
+            floor_off_list = []
 
             for o in valid_outputs:
                 pdb_list, muts_list = o.get('pdb', []), o.get('mutations', [])
@@ -615,6 +621,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     wt_rev_list.append(o['wt_rev_scores'][i] if 'wt_rev_scores' in o else np.nan)
                     mt_fwd_list.append(o['mt_fwd_scores'][i] if 'mt_fwd_scores' in o else np.nan)
                     dG_wt_list.append(o['dG_wt'][i] if 'dG_wt' in o else np.nan)
+                    floor_off_list.append(o['dG_floor_offset'][i] if 'dG_floor_offset' in o else 0.0)
                     subset_list.append(o['subset_type'][i] if 'subset_type' in o else ('single' if len(mut_parts) == 1 else 'double'))
                     wt_obs_list.append(o['wt_obs_scores'][i] if 'wt_obs_scores' in o else np.nan)
                     comb_obs_list.append(o['comb_obs_scores'][i] if 'comb_obs_scores' in o else np.nan)
@@ -672,6 +679,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             pooled_data['wt_rev_scores'].extend(wt_rev_list)
             pooled_data['mt_fwd_scores'].extend(mt_fwd_list)
             pooled_data['dG_wt'].extend(dG_wt_list)
+            pooled_data['dG_floor_offset'].extend(floor_off_list)
             pooled_data['subset_type'].extend(subset_list)
             pooled_data['dddG'].extend(dddG_truths_list)
             pooled_data['n_mut'].extend(mut_lens_list)

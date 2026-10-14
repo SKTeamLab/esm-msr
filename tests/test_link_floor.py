@@ -162,3 +162,20 @@ class TestTheStepUsesTheOffset(unittest.TestCase):
         for k in a:
             if isinstance(a[k], float):
                 self.assertAlmostEqual(a[k], c[k], places=6, msg=k)
+
+
+class TestOffsetLengthMismatch(unittest.TestCase):
+    """A field that validation did not pool for every item used to reach the Table as a short array and raise IndexError deep inside it,
+    which the metrics' try/except turned into 'epistasis metrics skipped' and no epistasis numbers for the whole run. The Table now ignores
+    an offset array that does not match the items, and training raises a named error before writing a dump."""
+
+    def test_a_short_or_empty_offset_array_is_ignored_not_misapplied(self):
+        h = numpy_link(-0.5, 5.0, 0.3, 0.3)
+        good = epi_metrics.Table(items_for((0.0, 0.0)), h, heads=('comb',))
+        for bad in ([], [0.3], [0.3] * 4):
+            it = items_for((-0.4, 0.4))
+            it['dG_floor_offset'] = np.asarray(bad, float)
+            t = epi_metrics.Table(it, h, heads=('comb',))
+            self.assertEqual(t.n, good.n, bad)
+            self.assertTrue(np.allclose(t.floor_off, 0.0), bad)
+            self.assertTrue(np.allclose(t.P['comb'], good.P['comb']), bad)
