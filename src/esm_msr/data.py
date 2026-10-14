@@ -3,8 +3,9 @@ import gc
 import math
 import pickle
 import random
+import re
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union, Iterator
 
 import numpy as np
@@ -16,18 +17,140 @@ from tqdm import tqdm
 from esm.utils.structure.protein_chain import ProteinChain
 from esm.utils.constants import esm3 as C
 
+from esm_msr import censoring, routing
 from esm_msr.utils import custom_end_gap_alignment, determine_diffs
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+# A library code carrying a mutation suffix ('1A0N_L7S') was measured in a mutant background: its singles are
+# conditional effects, not wild-type-context ones. See MutationStabilityDataset._label_native_cond.
+NATIVE_BACKGROUND_CODE_RE = re.compile(r'_[A-Z]\d+[A-Z]$')
 
-class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
+# The raw measurement columns carried through to every item, in this order, as one float32 array per item
+# (`meas`). Storing the whole row keeps the per-protease values and their confidence intervals available to
+# analysis and to future weighting schemes without regenerating the cache; `meas_value` reads one by name.
+MEAS_COLUMNS: Tuple[str, ...] = (
+    'dG_ML', 'ddG_ML',                                                     # the bounded ML fit used for training
+    'deltaG', 'deltaG_95CI_high', 'deltaG_95CI_low', 'deltaG_95CI',        # the unbounded two-protease fit
+    'deltaG_t', 'deltaG_t_95CI_high', 'deltaG_t_95CI_low', 'deltaG_t_95CI',   # trypsin alone
+    'deltaG_c', 'deltaG_c_95CI_high', 'deltaG_c_95CI_low', 'deltaG_c_95CI',   # chymotrypsin alone
+    'log10_K50_t', 'log10_K50_t_95CI', 'log10_K50unfolded_t', 'fitting_error_t',
+    'log10_K50_c', 'log10_K50_c_95CI', 'log10_K50unfolded_c', 'fitting_error_c',
+    'log10_K50_trypsin_ML', 'log10_K50_chymotrypsin_ML',
+)
+_MEAS_INDEX = {name: i for i, name in enumerate(MEAS_COLUMNS)}
+
+
+def meas_value(item: Dict[str, Any], name: str) -> float:
+    """One raw measurement column of an item (see ``MEAS_COLUMNS``); NaN when the item has no ``meas`` array."""
+    arr = item.get('meas')
+    if arr is None:
+        return float('nan')
+    return float(arr[_MEAS_INDEX[name]])
+
+
+def library_floor(df: Any, percentile: float = 5.0, dG_wt: float = float('nan'), name: str = '') -> Dict[str, float]:
     """
-    Optimized dataloader for the Vectorized Two-Pass Latent Ensemble architecture.
-    Integrates static WT structural evaluation with modeled mutant contexts and reversions.
+    One library's floor estimate and the statistics behind it.
+
+    ``y_floor`` is ``Nth_percentile_dG``: the ``percentile`` percentile of the library's numeric measured dG
+    values. It is cheap, needs nothing but this library's own rows, and is defined for every library.
+
+    What it is a proxy FOR is the assay's practical floor: the dG the fit returns for a sequence that is unfolded
+    anyway, which is the composition model's error for that sequence and so a constant of the library (see
+    ``esm_msr.censoring``). A quantile of the measured distribution is only a good proxy when enough of that
+    distribution is actually sitting on the floor, so this estimate is confounded with how destabilising the
+    library's variants happen to be: a library of mild singles has its 5th percentile well above its true floor,
+    a library saturated with dead doubles has it right at the floor. Two guards against that:
+
+    * The link clips ``y_floor`` into ``[floor_min, floor_max]`` (default -1.0 to 0.2, the band the assay's own
+      reported floor occupies), so a composition-driven overestimate cannot push the knee into the measurable range.
+    * ``floor_cond`` is also recorded: the median measured dG of the doubles whose additive expectation
+      ``dG_wt + ddG_A + ddG_B`` falls below -1.5, i.e. the variants expected far below any floor and therefore
+      pinned at it. That conditions on being dead instead of assuming the tail is dead, so it estimates the floor
+      itself rather than a quantile of the library's sensitivity. It needs doubles with both singles measured, so
+      it is NaN for many libraries - which is why it is recorded alongside rather than used as the default.
+
+    Non-numeric dG values (the ``<-1`` / ``>5`` tags and ``-``) are excluded from the percentile, so it is the
+    floor of the population the regression loss actually sees. ``frac_cens_lo`` records how much was excluded this
+    way, because a library that reports most of its dead variants as ``<-1`` has a truncated numeric tail and
+    therefore a percentile biased upwards.
     """
+    out = {'y_floor': float('nan'), 'floor_pctl': float('nan'), 'floor_cond': float('nan'),
+           'n_dG': 0.0, 'n_floor_cond': 0.0, 'frac_cens_lo': float('nan'), 'dG_wt': float(dG_wt),
+           'percentile': float(percentile)}
+    if 'dG_ML' not in df.columns:
+        logging.warning(f"[{name}] no dG_ML column; the library has no floor estimate "
+                        f"(the link will fall back to the middle of its clip band).")
+        return out
+
+    raw = df['dG_ML'].to_numpy(dtype=object)
+    dG = censoring.to_numeric(raw)
+    tags = np.array([str(x).strip() for x in raw])
+    finite = np.isfinite(dG)
+    out['n_dG'] = float(finite.sum())
+    out['frac_cens_lo'] = float((tags == censoring.LOW_TAG).mean()) if len(tags) else float('nan')
+    if finite.any():
+        out['floor_pctl'] = float(np.percentile(dG[finite], percentile))
+
+    # The doubles-conditioned alternative, recorded for comparison.
+    if np.isfinite(dG_wt) and 'mut_type' in df.columns:
+        muts = df['mut_type'].astype(str).to_numpy()
+        single = {m: d for m, d in zip(muts, dG) if ':' not in m and np.isfinite(d)}
+        deep = []
+        for m, d in zip(muts, dG):
+            if m.count(':') != 1 or not np.isfinite(d):
+                continue
+            a, b = m.split(':')
+            if a in single and b in single and single[a] + single[b] - dG_wt < -1.5:
+                deep.append(d)                                  # x = dG_wt + ddG_A + ddG_B = dG_A + dG_B - dG_wt
+        if deep:
+            out['floor_cond'] = float(np.median(deep))
+            out['n_floor_cond'] = float(len(deep))
+
+    out['y_floor'] = out['floor_pctl']
+    logging.info(f"[{name}] floor: y_floor({percentile:g}th pctl)={out['floor_pctl']:.3f} from n={out['n_dG']:.0f} "
+                 f"numeric dG ({out['frac_cens_lo']*100:.1f}% reported '<-1'); doubles-conditioned "
+                 f"alternative={out['floor_cond']:.3f} (n={out['n_floor_cond']:.0f}); dG_wt={dG_wt:.2f}")
+    return out
+
+
+class MutationStabilityDataset(torch.utils.data.Dataset):
+    """
+    One protein library (one ``code``) of stability measurements, expanded into training items and cached to disk.
+
+    Generation walks the library's rows once and emits, per row:
+
+    * ``single`` - a measured single mutation on its own structure (WT head).
+    * ``double`` - a measured double mutant (predicted by the head ensemble).
+    * ``cond``   - the conditional effect of one mutation of a double given the other, derived as ddG_AB - ddG_B,
+      scored by the MT head. One per ordered pair, so a double with both singles measured yields two.
+
+    ``native_cond`` is assigned after loading by :meth:`_label_native_cond`, for libraries whose code carries a
+    mutation suffix, i.e. whose measurements were all made in a mutant background. See ``esm_msr.routing`` for what
+    each subset means and which head owns it.
+
+    Every item also carries the raw measurement row it came from (``meas``, see ``MEAS_COLUMNS``), the absolute dG
+    that measurement describes (``dG_meas``), its library's starting dG (``dG_wt``) and its library's floor estimate
+    (``y_floor``), which together let the loss put a prediction on the assay's observed scale and recognise a
+    measurement that is only a bound (``esm_msr.censoring``).
+
+    Positions are 1-based with respect to the structure's sequence, which equals the index into the tokenized
+    sequence because the tokenizer prepends BOS.
+    """
+
+    # Bump when the emitted items change shape or meaning, so a stale cache is never served.
+    # c2: first conservative-branch cache. Reversions are gone; the former 'mut_ctx' subset is emitted as 'cond'
+    # (same construction, the name ``routing`` uses); every item carries meas / dG_meas / dG_wt / y_floor /
+    # cens / cens_src / dG_bound, and the library's floor statistics ride along in `floor_stats`.
+    CACHE_VERSION = 'c2'
+
+    # The bounded ML fit reports no dG outside this interval: the measured distribution has zero mass beyond
+    # either end, for singles and doubles alike.
+    DG_FLOOR, DG_CEILING = -1.0, 5.0
+
     def __init__(
         self,
         dms_df: Any,
@@ -42,39 +165,59 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
         structure_encoder: Optional[Any] = None,
         incl_singles: bool = True,
         incl_doubles: bool = True,
-        incl_mut_ctx: bool = False,
-        incl_reversions: bool = False
+        incl_cond: bool = True,
+        incl_native_cond: bool = True,
+        dG_wt: Optional[float] = None,
+        floor_percentile: float = 5.0,
+        floor_min: float = -1.0,
+        floor_max: float = 0.2,
+        censor_floor: bool = True,
     ):
         """
-        Initializes the dataset, loading from cache if available or generating from scratch.
-
         Args:
-            dms_df: DataFrame containing Deep Mutational Scanning (DMS) data.
-            tokenizer: Tokenizer for sequence processing.
-            dms_name: Identifier for the DMS dataset.
-            mut_structs_root: Root directory for mutant structure files.
-            score_name: Column name in `dms_df` to use as the target score (default: 'ddG_ML').
-            path: Directory path for caching data. Defaults to current directory.
-            generate: If True, forces regeneration of data bypassing the cache.
-            incl_destab_bb: Whether to include destabilized backbones.
-            structure_encoder: Encoder model for processing 3D structures.
-            incl_singles: Include single mutations.
-            incl_doubles: Include double mutations.
-            incl_mut_ctx: Include synthesized mutant-context singles.
-            incl_reversions: Include reversion mutations.
+            dms_df: DataFrame of measurements for this library.
+            tokenizer: ESM3 sequence tokenizer.
+            dms_name: The library's ``code`` (e.g. '1A32', or '1A0N_L7S' for a mutant-background library).
+            mut_structs_root: Root of the modeled mutant structures tree
+                (``<root>/<code>/pdb_models/<chain>[<mut>].pdb``).
+            score_name: Target column; 'ddG_ML' for MegaScale, 'ddG' for benchmarks.
+            path: Cache directory.
+            generate: Regenerate instead of reading the cache.
+            incl_destab_bb: Include rows whose backbone is itself a mutant.
+            structure_encoder: ESM3 structure encoder; required to emit structure tokens.
+            incl_singles / incl_doubles / incl_cond / incl_native_cond: which subsets to keep after loading. All
+                four are generated and cached regardless, so toggling them never needs a regenerate.
+            dG_wt: Measured dG of this library's starting sequence (the wild type, or the background for a
+                mutation-suffixed code). The preprocessor reads it from the 'wt' rows, which it filters out of the
+                table before this point. Needed to put an item on the assay's observed scale and to compute the
+                additive expectation the floor's doubles-based estimate conditions on.
+            floor_percentile: N for the library's ``Nth_percentile_dG`` floor estimate (``library_floor``). Part of
+                the cache name, because the raw estimate is baked into each item as ``y_floor_raw``.
+            floor_min / floor_max: the band the raw estimate is clipped into to give each item its working
+                ``y_floor``. The same band the link uses, applied here too so that the floor deciding which items
+                are censored is the floor the link bends at - otherwise a library whose percentile lands above the
+                assay's range would censor a fixed ~N% of perfectly measurable variants. Applied at load time, not
+                baked in, so the band is a free knob that needs no regenerate.
+            censor_floor: Mark items measured at or below their library's floor as lower-censored, so the losses
+                treat their value as a bound and their mutual order as unknown (``esm_msr.censoring``).
         """
         self.score_name = score_name
         self.dms_name = dms_name
         self.tokenizer = tokenizer
         self.structure_encoder = structure_encoder
         self.incl_destab_bb = incl_destab_bb
-
-        self.include_singles = incl_singles
-        self.include_doubles = incl_doubles
-        self.include_mut_context = incl_mut_ctx
-        self.include_reversions = incl_reversions
         self.mut_structs_root = mut_structs_root
-        
+        self.floor_percentile = float(floor_percentile)
+        self.floor_min, self.floor_max = float(floor_min), float(floor_max)
+        self.dG_wt = float(dG_wt) if dG_wt is not None and np.isfinite(dG_wt) else float('nan')
+
+        self.include = {
+            'single': incl_singles,
+            'double': incl_doubles,
+            'cond': incl_cond,
+            'native_cond': incl_native_cond,
+        }
+
         # Pre-cache the vocabulary mapping for rapid ID lookups
         self.vocab = self.tokenizer.get_vocab()
 
@@ -85,37 +228,39 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
         if path is None:
             path = '.'
 
-        #self.dms_name = re.sub(r'_[A-Za-z]+[0-9]+[A-Za-z]+$', '', self.dms_name)
         self.cache_path = os.path.join(
             path,
-            f"{self.dms_name}_{self.score_name}_MAX_Smasked0.pkl" #_StaticWT
+            f"{self.dms_name}_{self.score_name}_{self.CACHE_VERSION}_p{self.floor_percentile:g}.pkl"
         )
 
         logging.info(f"Dataset Cache Path: {self.cache_path}")
         os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
 
         self.data: List[Dict[str, Any]] = []
-        self._encoded_struct_cache: Dict[Tuple, Tuple] = {} 
+        self.floor_stats: Dict[str, float] = {}
+        self._encoded_struct_cache: Dict[Tuple, Tuple] = {}
         self._mutant_struct_cache: Dict[str, Tuple] = {}
-        self._parsed_pdb_cache: Dict[str, Tuple] = {} 
+        self._parsed_pdb_cache: Dict[str, Tuple] = {}
 
         if generate or not os.path.exists(self.cache_path):
             logging.info(f"Generating and caching data for {self.dms_name}")
+            self.floor_stats = self._library_floor(dms_df)
             self.data = self.generate_data(dms_df)
+            for item in self.data:
+                item['y_floor_raw'] = self.floor_stats['y_floor']
+                item['dG_wt'] = self.floor_stats['dG_wt']
             self._save_data_to_cache()
         else:
             logging.info(f"Loading cached data for {self.dms_name}")
             self.load_data_from_cache()
 
-        cache_composition = {}
-        for item in self.data:
-            stype = item.get('subset_type', 'unknown')
-            cache_composition[stype] = cache_composition.get(stype, 0) + 1
-        logging.info(f"Cache contains: {cache_composition}")
+        logging.info(f"Cache contains: {dict(Counter(i.get('subset_type', 'unknown') for i in self.data))}")
 
-        # remove unwanted subsets
-        self._filter_dataset()  
-        # to facilitate subsampling      
+        # Mutant-background libraries: their singles are conditional measurements.
+        self._label_native_cond()
+        self._filter_dataset()
+        self._clip_floor()
+        self._apply_censoring(censor_floor)
         self._extract_scalars()
 
     def generate_data(self, dms_df: Any) -> List[Dict[str, Any]]:
@@ -138,42 +283,82 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
                 data.extend(self._load_data(df_sub, incl_chain_in_code=True, is_predicted=False, benchmark=True))
         return data
     
+    # ------------------------------------------------------------------ the library's floor
+
+    def _library_floor(self, df: Any) -> Dict[str, float]:
+        """This library's floor estimate; see :func:`library_floor`."""
+        return library_floor(df, self.floor_percentile, self.dG_wt, self.dms_name)
+
+    # ------------------------------------------------------------------ post-load filters
+
+    def _label_native_cond(self) -> None:
+        """
+        Label items from a mutant-background library as ``native_cond``.
+
+        A library whose code carries a mutation suffix ('1A0N_L7S' = 1A0N measured in the L7S background) has no
+        wild-type counterpart: every measurement in it is already a conditional effect ddG(X | L7S). Its singles
+        therefore belong to the MT head, and are relabeled here so they toggle independently of ordinary singles.
+        The on-disk cache keeps the generic label, so the same cache serves a run that wants them and one that
+        does not.
+        """
+        if not NATIVE_BACKGROUND_CODE_RE.search(self.dms_name):
+            return
+        n = 0
+        for item in self.data:
+            if item.get('subset_type') == 'single':
+                item['subset_type'] = 'native_cond'
+                n += 1
+        if n:
+            logging.info(f"[{self.dms_name}] Labeled {n} items as native_cond (mutant-background library)")
+
     def _filter_dataset(self) -> None:
-        """Filters the in-memory dataset based on subset inclusion flags."""
-        allowed_types = set()
-        if self.include_singles:
-            allowed_types.add('single')
-        if self.include_doubles:
-            allowed_types.add('double')
-        if self.include_mut_context:
-            allowed_types.add('mut_ctx')
-        if self.include_reversions:
-            allowed_types.add('reversion')
-            
-        original_len = len(self.data)
-        self.data = [item for item in self.data if item.get('subset_type') in allowed_types]
-        logging.info(f"Filtered dataset from {original_len} to {len(self.data)} items based on allowed types: {allowed_types}")
+        """Keeps only the subsets this dataset was asked for."""
+        allowed = {k for k, on in self.include.items() if on}
+        before = len(self.data)
+        self.data = [item for item in self.data if item.get('subset_type') in allowed]
+        logging.info(f"Filtered dataset from {before} to {len(self.data)} items based on allowed types: {allowed}")
+
+    def _clip_floor(self) -> None:
+        """Give every item its working ``y_floor``: the library's raw estimate clipped into ``[floor_min, floor_max]``.
+
+        The raw percentile is a quantile of this library's own dG distribution, so in a library of mild variants it
+        lands well above anything the assay could be flooring - and then both the link's knee and the censoring
+        rule would sit inside the measurable range, censoring a fixed fraction of good measurements by
+        construction. Clipping into the band the assay's floor actually occupies is what stops that.
+        """
+        raw = self.floor_stats.get('y_floor', float('nan'))
+        clipped = float(min(max(raw, self.floor_min), self.floor_max)) if np.isfinite(raw) else float('nan')
+        self.floor_stats['y_floor_clipped'] = clipped
+        if np.isfinite(raw) and abs(clipped - raw) > 1e-9:
+            logging.info(f"[{self.dms_name}] y_floor {raw:.3f} clipped to {clipped:.3f} "
+                         f"(band [{self.floor_min:g}, {self.floor_max:g}])")
+        for item in self.data:
+            item['y_floor'] = clipped
+
+    def _apply_censoring(self, censor_floor: bool) -> None:
+        """Finalise ``cens`` / ``cens_bound`` on every item (see ``esm_msr.censoring``)."""
+        self.data, c = censoring.apply_item_censoring(self.data, censor_floor)
+        if c['floor']:
+            logging.info(f"[{self.dms_name}] floor-censored {c['floor']} of {len(self.data)} items "
+                         f"(y_floor={self.floor_stats.get('y_floor_clipped', float('nan')):.3f}): {dict(c['floor_by_subset'])}")
 
     def _extract_scalars(self) -> None:
-        """Extracts scalar values into contiguous numpy arrays for fast indexing/subsampling."""
-        logging.info(f"Pre-extracting scalar arrays for {len(self.data)} items...")
-        ddg_add_list = []
-        dddg_list = []
-        
-        for item in self.data:
-            ddg_add_list.append(item.get('ddG_additive', float('nan')))
-            dddg_list.append(item.get('dddG', float('nan')))
-            
-        self.ddg_additive_arr = np.array(ddg_add_list, dtype=np.float32)
-        self.dddg_arr = np.array(dddg_list, dtype=np.float32)
+        """Contiguous scalar arrays for the sampler's and the metrics' bulk lookups."""
+        self.ground_truth_arr = np.array([i.get('ddG', np.nan) for i in self.data], dtype=np.float32)
+        self.cens_arr = np.array([i.get('cens', 0) for i in self.data], dtype=np.int8)
+
+    # ------------------------------------------------------------------ cache / dataset API
 
     def _save_data_to_cache(self) -> None:
         with open(self.cache_path, 'wb') as f:
-            pickle.dump(self.data, f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump({'items': self.data, 'floor_stats': self.floor_stats},
+                        f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_data_from_cache(self) -> None:
         with open(self.cache_path, 'rb') as f:
-            self.data = pickle.load(f)
+            blob = pickle.load(f)
+        self.data = blob['items']
+        self.floor_stats = blob.get('floor_stats', {})
 
     def __len__(self) -> int:
         return len(self.data)
@@ -451,47 +636,8 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
                     data.append(self._create_data_item(
                         mutations=muts, ddG=ddG_val, dddG=dddG_val, code=code, wt_seq=wt_seq, mt_seq=mt_seq, 
                         coords=c_b, plddt=p_b, structure_tokens=s_b, residue_index=r_b, subset_type='single', 
-                        ddG_A=np.nan, ddG_B=np.nan, ddG_additive=np.nan, structure_type=struct_type
-                    ))
-
-                    # (B) Reversions
-                    rev_mut = [(mt, pos, wt)]
-                    rev_ddG = -float(row['ddG'])
-                    
-                    rev_target_masks = base_mask_positions.copy()
-                            
-                    maybe = self._try_load_modeled_context(
-                        base_code, chain, wt, pos, mt, expected_seq=mt_seq, target_masks=rev_target_masks
-                    )
-                    
-                    if maybe is not None:
-                        struct_type = 'model'
-                        _, coords_m, plddt_m, structure_tokens_m, residue_index_m = maybe
-                    else:
-                        struct_type = 'fake'
-                        # Fallback explicitly appends target `pos` and asserts force_mask=True
-                        fallback_masks = rev_target_masks.copy()
-                        if pos not in fallback_masks:
-                            fallback_masks.append(pos)
-                            
-                        maybe_fallback = None
-                        if has_modeled_backbone:
-                            maybe_fallback = self._try_load_modeled_context(
-                                base_code, chain, wt_bb, pos_bb, mt_bb, expected_seq=corrected_seq, target_masks=fallback_masks, force_mask=True
-                            )
-                            
-                        if maybe_fallback is not None:
-                            _, coords_m, plddt_m, structure_tokens_m, residue_index_m = maybe_fallback
-                        else:
-                            coords_m, plddt_m, structure_tokens_m, residue_index_m = self._get_encoded_structure(
-                                protein_chain, backbone, fallback_masks, force_mask=True
-                            )
-                    
-                    data.append(self._create_data_item(
-                        mutations=rev_mut, ddG=rev_ddG, dddG=np.nan, code=code,
-                        wt_seq=mt_seq, mt_seq=wt_seq, 
-                        coords=coords_m, plddt=plddt_m, structure_tokens=structure_tokens_m, residue_index=residue_index_m,
-                        subset_type='reversion', ddG_A=np.nan, ddG_B=np.nan, ddG_additive=np.nan, structure_type=struct_type
+                        ddG_A=np.nan, ddG_B=np.nan, ddG_additive=np.nan, structure_type=struct_type,
+                        row=row, ddG_total=ddG_val
                     ))
 
                 # (C) Doubles
@@ -533,10 +679,11 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
                         ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B,
                         code=code, wt_seq=wt_seq, mt_seq=mt_seq,
                         coords=c_b, plddt=p_b, structure_tokens=s_b, residue_index=r_b, 
-                        subset_type='double', structure_type=struct_type
+                        subset_type='double', structure_type=struct_type,
+                        row=row, ddG_total=ddG_val
                     ))
 
-                # (D) Synthesized mutant-context singles
+                # (D) Conditional items: ddG(B|A) and ddG(A|B), derived from the double and its singles
                 if len(muts) == 2: 
                     (wtA, posA, mtA), (wtB, posB, mtB) = muts
                     if (posA, mtA) in single_map and (posB, mtB) in single_map:
@@ -591,7 +738,8 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
                             mutations=[(wtB, posB, mtB)], ddG=float(t_B_given_A), dddG=dddG_val, 
                             ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, code=code,
                             wt_seq=ctx_wt_A, mt_seq=ctx_mt_A, coords=coords_ctx_A, plddt=plddt_ctx_A, 
-                            structure_tokens=struct_ctx_A, residue_index=residue_index_ctx_A, subset_type='mut_ctx', structure_type=struct_type_A
+                            structure_tokens=struct_ctx_A, residue_index=residue_index_ctx_A, subset_type='cond', structure_type=struct_type_A,
+                            row=row, ddG_total=ddG_val
                         ))
 
                         # --- "A|B": context with B present
@@ -638,31 +786,68 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
                             mutations=[(wtA, posA, mtA)], ddG=float(t_A_given_B), dddG=dddG_val, 
                             ddG_additive=ddG_additive, ddG_A=ddG_A, ddG_B=ddG_B, code=code,
                             wt_seq=ctx_wt_B, mt_seq=ctx_mt_B, coords=coords_ctx_B, plddt=plddt_ctx_B, 
-                            structure_tokens=struct_ctx_B, residue_index=residue_index_ctx_B, subset_type='mut_ctx', structure_type=struct_type_B
+                            structure_tokens=struct_ctx_B, residue_index=residue_index_ctx_B, subset_type='cond', structure_type=struct_type_B,
+                            row=row, ddG_total=ddG_val
                         ))
         return data
     
+    def _meas_array(self, row: Any) -> np.ndarray:
+        """The raw measurement columns of one row as a float32 array in ``MEAS_COLUMNS`` order; NaN where a column is
+        absent (benchmarks) or non-numeric (the ``<-1`` / ``>5`` / ``-`` tags)."""
+        out = np.full(len(MEAS_COLUMNS), np.nan, dtype=np.float32)
+        if row is None:
+            return out
+        for i, name in enumerate(MEAS_COLUMNS):
+            if name in row.index:
+                out[i] = censoring.to_numeric([row[name]])[0]
+        return out
+
+    def _dG_meas(self, row: Any, ddG_total: float) -> float:
+        """
+        The measured absolute dG of the state this item's label describes.
+
+        For a single or a double it is that row's own ``dG_ML``. For a ``cond`` item it is its parent double's, which
+        is the same row: ddG(B|A) is a statement about the AB state, and it is the AB state that the assay pinned at
+        the floor. Falls back to ``dG_wt + ddG_total`` where the table has no ``dG_ML`` (the benchmarks), and is NaN
+        when neither is available - which simply means the item can carry no floor censoring.
+        """
+        if row is not None and 'dG_ML' in row.index:
+            dG = censoring.to_numeric([row['dG_ML']])[0]
+            if np.isfinite(dG):
+                return float(dG)
+        if np.isfinite(self.dG_wt) and np.isfinite(ddG_total):
+            return float(self.dG_wt + ddG_total)
+        return float('nan')
+
     def _create_data_item(
-        self, 
-        mutations: List[Tuple[str, int, str]], 
-        ddG: float, 
-        dddG: float, 
-        ddG_additive: float, 
-        ddG_A: float, 
-        ddG_B: float, 
-        code: str, 
-        wt_seq: str, 
-        mt_seq: str, 
-        coords: torch.Tensor, 
-        plddt: torch.Tensor, 
-        structure_tokens: torch.Tensor, 
-        residue_index: torch.Tensor, 
-        subset_type: str, 
-        structure_type: str
+        self,
+        mutations: List[Tuple[str, int, str]],
+        ddG: float,
+        dddG: float,
+        ddG_additive: float,
+        ddG_A: float,
+        ddG_B: float,
+        code: str,
+        wt_seq: str,
+        mt_seq: str,
+        coords: torch.Tensor,
+        plddt: torch.Tensor,
+        structure_tokens: torch.Tensor,
+        residue_index: torch.Tensor,
+        subset_type: str,
+        structure_type: str,
+        row: Any = None,
+        ddG_total: float = float('nan'),
     ) -> Dict[str, Any]:
-        """Constructs the fully vectorized dictionary item for the Collate function."""
+        """
+        Constructs the fully vectorized dictionary item for the Collate function.
+
+        ``row`` is the raw measurement row the label came from (carried through as ``meas``); ``ddG_total`` is the
+        total ddG of the state that row describes, which for a ``cond`` item is the parent double's ddG_AB rather
+        than the item's own conditional label.
+        """
         valid_dddG = dddG == dddG and not np.isnan(dddG)
-        
+
         wt_sequence_tokens = self.tokenizer.encode(wt_seq)
         mt_sequence_tokens = self.tokenizer.encode(mt_seq)
 
@@ -682,10 +867,15 @@ class ProteinStructureMutationEpistasisDataset(torch.utils.data.Dataset):
             wt_ids.append(w_id)
             mt_ids.append(m_id)
 
-        logging.info(f'Created data item: {code}, {mutations}, {subset_type}, {structure_type}, ddG={ddG}, dddG={dddG}')      
+        logging.debug(f'Created data item: {code}, {mutations}, {subset_type}, {structure_type}, ddG={ddG}, dddG={dddG}')
         return {
             'pdb': code,
             'mutations': mutations,
+            'meas': self._meas_array(row),
+            'dG_meas': self._dG_meas(row, ddG_total),
+            'cens': 0,
+            'cens_src': 0,
+            'dG_bound': float('nan'),
             'wt_sequence_tokens': np.array(wt_sequence_tokens, dtype=np.int64),
             'mt_sequence_tokens': np.array(mt_sequence_tokens, dtype=np.int64),
             'mut_pos': np.array(mut_pos, dtype=np.int64),
@@ -724,6 +914,15 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     ddG_A = torch.tensor([float(item.get('ddG_A', float('nan'))) for item in batch], dtype=torch.float32)
     ddG_B = torch.tensor([float(item.get('ddG_B', float('nan'))) for item in batch], dtype=torch.float32)
     valid_dddG_mask = torch.tensor([bool(item.get('valid_dddG_mask', False)) for item in batch], dtype=torch.bool)
+
+    # The assay's own scale: the library's starting dG and floor, and what this item's measurement bounds.
+    dG_wt = torch.tensor([float(item.get('dG_wt', float('nan'))) for item in batch], dtype=torch.float32)
+    y_floor = torch.tensor([float(item.get('y_floor', float('nan'))) for item in batch], dtype=torch.float32)
+    dG_meas = torch.tensor([float(item.get('dG_meas', float('nan'))) for item in batch], dtype=torch.float32)
+    cens = torch.tensor([int(item.get('cens', 0)) for item in batch], dtype=torch.long)
+    cens_bound = torch.tensor([float(item.get('cens_bound', float('nan'))) for item in batch], dtype=torch.float32)
+    meas = torch.stack([torch.as_tensor(item['meas'] if item.get('meas') is not None else np.full(len(MEAS_COLUMNS), np.nan),
+                                        dtype=torch.float32) for item in batch], dim=0)
 
     # Sequence stacking. MUST be identical lengths across the batch.
     wt_seq_list = [torch.as_tensor(item['wt_sequence_tokens'], dtype=torch.long) for item in batch]
@@ -784,6 +983,12 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         'ddG_A': ddG_A,
         'ddG_B': ddG_B,
         'valid_dddG_mask': valid_dddG_mask,
+        'dG_wt': dG_wt,
+        'y_floor': y_floor,
+        'dG_meas': dG_meas,
+        'cens': cens,
+        'cens_bound': cens_bound,
+        'meas': meas,
         'wt_sequence_tokens': wt_seq_stack,
         'mt_sequence_tokens': mt_seq_stack,
         'mut_pos': mut_pos_stack,
@@ -804,12 +1009,17 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
     Consolidated, high-performance BatchSampler for balancing and cycling through 
     multiple protein datasets. Yields grouped indices for a ConcatDataset.
     
-    Architectural improvements:
-    1. Restores PyTorch asynchronous worker prefetching.
-    2. Caches subset categorizations during __init__ to avoid O(N) epoch stalls.
-    3. Handles 2D sampling and subset caps strictly via integer indices.
+    Subset categorizations are cached during __init__ so no epoch pays an O(N) stall, and capping works
+    strictly on integer indices, which keeps PyTorch's asynchronous worker prefetching intact.
+
+    Capping is per-subset and proportional: a subset mapped to None is unrestricted and sets the baseline count,
+    and a subset mapped to a fraction is downsampled to that fraction of the baseline (0.0 excludes it entirely).
+    There is deliberately no density-based subsampling: an earlier version binned the doubles two-dimensionally
+    over (additive expectation, dddG) and capped each bin, which reshapes the ddG distribution the model is
+    trained on - it preferentially discards the common, well-measured, in-range doubles and keeps the sparse bins,
+    which are mostly the saturated ones the floor link now models explicitly.
     """
-    SUBSET_ORDER = ['single', 'double', 'reversion', 'mut_ctx']
+    SUBSET_ORDER = ['single', 'double', 'cond', 'native_cond']
 
     def __init__(
         self,
@@ -819,7 +1029,6 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         strategy: str = 'all',
         *,
         subset_caps: Optional[Dict[str, Optional[float]]] = None,
-        subset_balance_configs: Optional[Dict[str, Dict[str, Any]]] = None,
         rng_seed: Optional[int] = None,
         verbose: bool = True,
     ):
@@ -833,18 +1042,13 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         self.verbose = verbose
         self._rng = random.Random(rng_seed)
         
-        self.subset_balance_configs = subset_balance_configs or {
-            'double': {'bins': 15, 'cap_percentile': 75.0, 'missing_cap_fraction': 0.20},
-        }
-
         self.subset_caps: Dict[str, Optional[float]] = {
-            'single': None, 'double': None, 'mut_ctx': 0.0, 'reversion': 0.0
+            'single': None, 'double': None, 'cond': 0.0, 'native_cond': 0.0
         }
         if subset_caps is not None:
             self.subset_caps.update(subset_caps)
 
         logging.info(f"Using subset cap config: {self.subset_caps}")
-        logging.info(f"Using subset balance config: {self.subset_balance_configs}")
 
         self.unrestricted_keys = [k for k in self.SUBSET_ORDER if self.subset_caps.get(k) is None]
         if not self.unrestricted_keys:
@@ -881,98 +1085,6 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         # 3. Perform a dry-run to calculate exact batch sizes for the DataLoader __len__
         self.num_batches = self._calculate_epoch_batches(dry_run=True)
 
-    def _get_ddg_stats(self, indices: List[int], dataset: Any) -> Tuple[int, float, float]:
-        if not indices:
-            return 0, float('nan'), float('nan')
-        # Optimized lookup directly from scalar arrays if available
-        if hasattr(dataset, 'ground_truth_arr'):
-            vals = dataset.ground_truth_arr[indices]
-            valid_mask = np.isfinite(vals)
-            vals = vals[valid_mask]
-        else:
-            vals = [dataset[i].get('ddG') for i in indices]
-            vals = [v for v in vals if v is not None and not math.isnan(v) and not math.isinf(v)]
-            
-        if not len(vals):
-            return len(indices), float('nan'), float('nan')
-        return len(indices), float(np.mean(vals)), float(np.std(vals))
-
-    def _balance_subset_2d(self, indices: List[int], dataset: Any, protein_name: str, config: Dict, subset_name: str) -> List[int]:
-        if not indices or config is None:
-            return indices
-            
-        bins = config.get('bins', 15)
-        cap_percentile = config.get('cap_percentile', 50.0)
-        missing_cap_fraction = config.get('missing_cap_fraction', 0.10)
-        
-        if not hasattr(dataset, 'ddg_additive_arr') or not hasattr(dataset, 'dddg_arr'):
-            raise AssertionError(
-                f"Dataset for {protein_name} is missing pre-extracted scalar arrays. "
-                "Ensure `_extract_scalars()` was called during dataset generation."
-            )
-            
-        idx_arr = np.array(indices, dtype=np.int64)
-        val_ddg_add = dataset.ddg_additive_arr[idx_arr]
-        val_dddg = dataset.dddg_arr[idx_arr]
-        
-        valid_mask = np.isfinite(val_ddg_add) & np.isfinite(val_dddg)
-        valid_indices = idx_arr[valid_mask].tolist()
-        missing_keys_indices = idx_arr[~valid_mask].tolist()
-        
-        if len(valid_indices) < 3:
-            return indices
-            
-        ddg_add_arr = val_ddg_add[valid_mask]
-        dddg_arr = val_dddg[valid_mask]
-        
-        H, xedges, yedges = np.histogram2d(ddg_add_arr, dddg_arr, bins=bins)
-        populated_counts = H[H > 0]
-        
-        if len(populated_counts) == 0:
-            return indices
-            
-        cap = int(np.percentile(populated_counts, cap_percentile))
-        cap = max(1, cap)
-        
-        x_bins = np.clip(np.digitize(ddg_add_arr, xedges[:-1]) - 1, 0, bins - 1)
-        y_bins = np.clip(np.digitize(dddg_arr, yedges[:-1]) - 1, 0, bins - 1)
-        
-        bin_dict: Dict[Tuple[int, int], List[int]] = {}
-        for i, idx in enumerate(valid_indices):
-            coord = (x_bins[i], y_bins[i])
-            bin_dict.setdefault(coord, []).append(idx)
-            
-        balanced_indices = []
-        for coord, binned_idxs in bin_dict.items():
-            if len(binned_idxs) > cap:
-                self._rng.shuffle(binned_idxs)
-                balanced_indices.extend(binned_idxs[:cap])
-            else:
-                balanced_indices.extend(binned_idxs)
-                
-        max_missing = int(len(balanced_indices) * missing_cap_fraction)
-        self._rng.shuffle(missing_keys_indices)
-        missing_to_add = missing_keys_indices[:max_missing]
-        
-        logging.info(f"Balanced '{subset_name}' Final Size: {len(indices)} -> {len(balanced_indices) + len(missing_to_add)}")
-
-        if self.verbose:
-            c_valid, m_valid, s_valid = self._get_ddg_stats(valid_indices, dataset)
-            c_bal, m_bal, s_bal = self._get_ddg_stats(balanced_indices, dataset)
-            c_miss, m_miss, s_miss = self._get_ddg_stats(missing_keys_indices, dataset)
-            
-            logging.info(f"\n[info] 2D Balance Stats for {protein_name} - '{subset_name}':")
-            logging.info(f"  -> Pre-subsample (Valid 2D): Count={c_valid}, Mean(ddG)={m_valid:.3f}, Std(ddG)={s_valid:.3f}")
-            logging.info(f"  -> Post-subsample (Valid 2D): Count={c_bal}, Mean(ddG)={m_bal:.3f}, Std(ddG)={s_bal:.3f}")
-            logging.info(f"  -> Missing/NaN Items: Count={c_miss}, Mean(ddG)={m_miss:.3f}, Std(ddG)={s_miss:.3f}")
-            logging.info(f"  -> Missing Items Capped: {len(missing_keys_indices)} -> {len(missing_to_add)} "
-                  f"({missing_cap_fraction*100:.1f}% of {len(balanced_indices)} post-subsampled items)")
-            logging.info(f"Balanced '{subset_name}' Final Size: {len(indices)} -> {len(balanced_indices) + len(missing_to_add)} "
-                  f"(bins={bins}, random cap={cap} items/bin.)\n")
-                  
-        balanced_indices.extend(missing_to_add)
-        return balanced_indices
-
     def _calculate_epoch_batches(self, dry_run: bool = False) -> int:
         """Core logic to balance, shuffle, and chunk datasets."""
         self.all_batches = [] # List of dataset batch lists
@@ -981,14 +1093,6 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
             protein_name = self.train_list[idx]
             buckets = {k: list(v) for k, v in self._cached_buckets[idx].items()} # copy
             
-            # Apply 2D balancing
-            if self.subset_balance_configs is not None:
-                for subset_name, config in self.subset_balance_configs.items():
-                    if subset_name in buckets and len(buckets[subset_name]) > 0:
-                        buckets[subset_name] = self._balance_subset_2d(
-                            buckets[subset_name], ds, protein_name, config, subset_name
-                        )
-
             # Apply subset capping based on unrestricted size
             total_unrestricted = sum(len(buckets[k]) for k in self.unrestricted_keys if k in buckets)
             if total_unrestricted == 0:
@@ -1056,14 +1160,11 @@ def create_consolidated_dataloader(
     collate_fn: Callable, 
     strategy: str = 'all', 
     subset_caps: Optional[Dict[str, Optional[float]]] = None,
-    subset_balance_configs: Optional[Dict[str, Dict[str, Any]]] = None,
     num_workers: int = 4,
     pin_memory: bool = True
 ) -> DataLoader:
-    """
-    Factory function replacing both SubsetRestrictedProteinCyclingDataLoader 
-    and ProteinCyclingDataLoader.
-    """
+    """A DataLoader over every library's dataset at once, batched by ProteinCyclingBatchSampler so each batch
+    holds one library (the homogeneous-microbatch assumption the model's collate relies on)."""
     datasets = [dl.dataset for dl in dataloaders]
     
     sampler = ProteinCyclingBatchSampler(
@@ -1072,7 +1173,6 @@ def create_consolidated_dataloader(
         train_list=train_list,
         strategy=strategy,
         subset_caps=subset_caps,
-        subset_balance_configs=subset_balance_configs
     )
     
     concat_dataset = ConcatDataset(datasets)
@@ -1394,6 +1494,13 @@ class PooledDataLoader:
         ddG_A = torch.tensor([float(it.get('ddG_A', float('nan'))) for it in batch], dtype=torch.float32)
         ddG_B = torch.tensor([float(it.get('ddG_B', float('nan'))) for it in batch], dtype=torch.float32)
         valid_dddG_mask = torch.tensor([bool(it.get('valid_dddG_mask', False)) for it in batch], dtype=torch.bool)
+        dG_wt = torch.tensor([float(it.get('dG_wt', float('nan'))) for it in batch], dtype=torch.float32)
+        y_floor = torch.tensor([float(it.get('y_floor', float('nan'))) for it in batch], dtype=torch.float32)
+        dG_meas = torch.tensor([float(it.get('dG_meas', float('nan'))) for it in batch], dtype=torch.float32)
+        cens = torch.tensor([int(it.get('cens', 0)) for it in batch], dtype=torch.long)
+        cens_bound = torch.tensor([float(it.get('cens_bound', float('nan'))) for it in batch], dtype=torch.float32)
+        meas = torch.stack([torch.as_tensor(it['meas'] if it.get('meas') is not None else np.full(len(MEAS_COLUMNS), np.nan),
+                                            dtype=torch.float32) for it in batch], dim=0)
 
         # --- Vectorized Mutation Arrays ---
         mutations = [it.get("mutations", []) for it in batch]
@@ -1453,6 +1560,12 @@ class PooledDataLoader:
             "ddG_A": ddG_A,
             "ddG_B": ddG_B,
             "valid_dddG_mask": valid_dddG_mask,
+            "dG_wt": dG_wt,
+            "y_floor": y_floor,
+            "dG_meas": dG_meas,
+            "cens": cens,
+            "cens_bound": cens_bound,
+            "meas": meas,
             "subset_type": st,
         }
         return collated

@@ -1,3 +1,4 @@
+import json
 import os
 import logging
 import warnings
@@ -20,12 +21,12 @@ from esm.pretrained import ESM3_structure_encoder_v0
 from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 
 from esm_msr.models import MSRModel
-from esm_msr import utils
-from esm_msr.losses import ListMLELoss, ListMLELoss_enhanced, AsymmetricHuberLoss
+from esm_msr import routing, stats, utils
+from esm_msr.link import FloorLink
+from esm_msr.losses import ListMLELoss, hinge_regression_loss
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
-from esm_msr import stats
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -62,20 +63,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.hparams.freeze_wt_adapter: self.peft_manager.freeze_wt_components()
         if self.hparams.freeze_mt_adapter: self.peft_manager.freeze_mt_components()
 
-        def _get_rank_loss():
-            if self.hparams.rank_loss == 'listmle': return ListMLELoss(invert=self.hparams.invert_list_loss)
-            elif self.hparams.rank_loss == 'listmle_enhanced': return ListMLELoss_enhanced()
-            return None
-
-        self.crit_rank_wt = _get_rank_loss() if self.hparams.lambda_rank_wt > 0 else None
-        self.crit_rank_combined = _get_rank_loss() if self.hparams.lambda_rank_combined > 0 else None
+        self.crit_rank_wt = ListMLELoss() if self.hparams.lambda_rank_wt > 0 else None
+        self.crit_rank_combined = ListMLELoss() if self.hparams.lambda_rank_combined > 0 else None
 
         if self.hparams.reg_loss == 'huber':
             self.crit_reg = nn.HuberLoss(reduction='none', delta=self.hparams.huber_delta)
-        elif self.hparams.reg_loss == 'mse':
+        else:
             self.crit_reg = nn.MSELoss(reduction='none')
-        elif self.hparams.reg_loss == 'asymmetric':
-            self.crit_reg = AsymmetricHuberLoss()
+
+        # The observed-scale link. Regression goes through it; ranking does not, because it is monotone.
+        self.link_head = FloorLink(
+            tau=self.hparams.link_tau, floor_min=self.hparams.link_floor_min, floor_max=self.hparams.link_floor_max,
+            learn_tau=self.hparams.learn_link_tau, learn_floor_bounds=self.hparams.learn_link_floor_bounds,
+        ) if self.hparams.link else None
+        if self.link_head is not None:
+            logging.info(f"Observed-scale link enabled: {self.link_head.summary()}")
 
         self.automatic_optimization = False
         self.validation_step_outputs = defaultdict(list)
@@ -155,18 +157,35 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
-    def _compute_rank_loss(self, pred, targets, mask, list_size, crit_fn):
+    def _compute_rank_loss(self, pred, targets, mask, cens, list_size, crit_fn):
+        """
+        ListMLE over the batch chopped into lists of ``list_size``, censored members tied at the bottom.
+
+        The batch is one library (the sampler guarantees it), so a list is a random sample of that library's
+        variants and the ranking is always within-library. The raw loss is rescaled by
+        ``list_size / mean(list length)`` so that masking members out does not quietly shrink the loss.
+        """
         valid_len = (pred.shape[0] // list_size) * list_size
-        if valid_len > 0:
-            pred_rank = pred[:valid_len].view(-1, list_size)
-            targ_rank = targets[:valid_len].view(-1, list_size)
-            mask_rank = mask[:valid_len].view(-1, list_size)
-            L_raw = crit_fn(pred_rank, targ_rank, mask=mask_rank)
-            avg_len = mask_rank.float().sum(dim=-1).mean()
-            scaled_loss = L_raw * (list_size / avg_len.clamp(min=1.0))
-            num_lists = valid_len // list_size
-            return scaled_loss, L_raw.detach().item(), num_lists
-        return None, 0.0, 0
+        if valid_len <= 0:
+            return None, 0.0, 0
+        view = lambda t: t[:valid_len].view(-1, list_size)
+        pred_rank, targ_rank, mask_rank, cens_rank = view(pred), view(targets), view(mask), view(cens)
+        L_raw = crit_fn.forward_censored(pred_rank, targ_rank, mask_rank, cens_rank)
+        avg_len = mask_rank.float().sum(dim=-1).mean()
+        scaled_loss = L_raw * (list_size / avg_len.clamp(min=1.0))
+        return scaled_loss, L_raw.detach().item(), valid_len // list_size
+
+    def _reg_loss(self, pred, target, bound, cens, mask, weights, global_w_sum):
+        """
+        Weighted regression over ``mask``, one-sided wherever the measurement is only a bound.
+
+        Returns ``(loss_term, summed_value, summed_weight)``. A censored item is scored against ``bound`` and only
+        when the prediction sits on the wrong side of it (``losses.hinge_regression_loss``), so a variant the assay
+        pinned at its floor cannot be pushed to a value it never had.
+        """
+        L = hinge_regression_loss(self.crit_reg, pred[mask], target[mask], bound[mask], cens[mask])
+        w = weights[mask]
+        return (L * w).sum() / global_w_sum, float((L * w).sum().item()), float(w.sum().item())
 
     def _compose_losses_streaming_and_backward(self, batch: dict) -> dict:
         device, B = batch['ddG'].device, int(batch['ddG'].shape[0])
@@ -175,26 +194,37 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         
         st_all = batch.get('subset_type', ['single'] * B)
         w_all = torch.ones(B, dtype=torch.float32, device=device)
-        
-        idx_double_all = torch.as_tensor([i for i, s in enumerate(st_all) if s == 'double'], device=device)
-        idx_mut_ctx_all = torch.as_tensor([i for i, s in enumerate(st_all) if s == 'mut_ctx'], device=device)
-        idx_reversion_all = torch.as_tensor([i for i, s in enumerate(st_all) if s == 'reversion'], device=device)
-        idx_onb_all = torch.as_tensor([i for i, s in enumerate(st_all) if s == 'over_and_back'], device=device)
-        
-        if idx_double_all.numel() > 0: w_all[idx_double_all] = self.hparams.double_weight
-        if idx_mut_ctx_all.numel() > 0: w_all[idx_mut_ctx_all] = self.hparams.mut_ctx_weight
-        if idx_reversion_all.numel() > 0: w_all[idx_reversion_all] = self.hparams.reversion_weight
-        if idx_onb_all.numel() > 0: w_all[idx_onb_all] = self.hparams.over_and_back_weight
+        for subset, weight in (('double', self.hparams.double_weight),
+                               ('cond', self.hparams.cond_weight),
+                               ('native_cond', self.hparams.native_cond_weight)):
+            idx = torch.as_tensor([i for i, t in enumerate(st_all) if t == subset], device=device, dtype=torch.long)
+            if idx.numel() > 0:
+                w_all[idx] = weight
 
         global_w_sum = w_all.sum().clamp_min(1e-9)
         global_num_lists = max(1, B // list_size)
 
+        # --link: regression on the observed scale, observed ddG = h(dG_wt + latent) - dG_wt, with the knee at the
+        # item's own library floor. An item whose library has no measured dG_wt (the external benchmarks, which this
+        # assay never measured) cannot be put on that scale, so it leaves the linked regressions but keeps its rank
+        # terms, which the link would not have changed anyway.
+        link = self.link_head
+        dGwt_all = batch.get('dG_wt', torch.full((B,), float('nan'), device=device)).float()
+        floor_all = batch.get('y_floor', torch.full((B,), float('nan'), device=device)).float()
+        link_ok_all = torch.isfinite(dGwt_all) if link is not None else torch.ones(B, dtype=torch.bool, device=device)
+        cens_all = batch.get('cens', torch.zeros(B, dtype=torch.long, device=device)).long()
+        bound_all = batch.get('cens_bound', torch.full((B,), float('nan'), device=device)).float()
+
         sums, cnts = defaultdict(float), defaultdict(float)
+        n_cens_lo = int((cens_all < 0).sum().item())
+        n_cens_hi = int((cens_all > 0).sum().item())
 
         for start in range(0, B, mb):
             idx = torch.arange(start, min(start + mb, B), device=device)
             micro, w_mb = utils.slice_batch_by_index(batch, idx), w_all[idx]
             ddG_mb = micro['ddG'].float() 
+            dGwt_mb, floor_mb, link_ok = dGwt_all[idx], floor_all[idx], link_ok_all[idx]
+            cens_mb, bound_mb = cens_all[idx], bound_all[idx]
             is_single, valid_double = micro['mut_mask'].sum(dim=1) == 1, micro.get('valid_dddG_mask', micro['mut_mask'].sum(dim=1) > 1) 
             reg_mask = ~is_single if self.hparams.mt_reg_mask == 'doubles' else torch.ones_like(is_single, dtype=torch.bool)
             
@@ -214,13 +244,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 valid_add_doubles = valid_double & ~torch.isnan(micro['ddG_additive'])
                 wt_targets[valid_add_doubles] = micro['ddG_additive'][valid_add_doubles].float()
 
-            epi_targets = torch.zeros_like(ddG_mb)
-            epi_mask = torch.zeros_like(is_single, dtype=torch.bool) if self.hparams.zero_epistasis_for_singles else is_single.clone()
-            if valid_double.any() and 'dddG' in micro:
-                valid_epi_doubles = valid_double & ~torch.isnan(micro['dddG'])
-                epi_mask |= valid_epi_doubles
-                epi_targets[epi_mask & valid_double] = micro['dddG'][epi_mask & valid_double].float()
-
             retain_wt = not self.hparams.detach_ensemble_input
 
             # =============================================================
@@ -230,13 +253,26 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
 
             wt_losses = []
-            if self.hparams.lambda_reg_wt > 0 and valid_wt_mask.any():
-                L = self.crit_reg(wt_pred_cal[valid_wt_mask], wt_targets[valid_wt_mask])
-                wt_losses.append(self.hparams.lambda_reg_wt * (L * w_mb[valid_wt_mask]).sum() / global_w_sum)
-                sums['reg_wt'] += float((L * w_mb[valid_wt_mask]).sum().item()); cnts['reg_wt'] += float(w_mb[valid_wt_mask].sum().item())
+            if self.hparams.lambda_reg_wt > 0:
+                if link is not None:
+                    # A single is a measurement of the item itself, so it is compared through the link. A double's
+                    # WT target is the SUM of its two singles, which is a latent additive expectation rather than
+                    # anything the assay reported, so it stays on the latent scale.
+                    p_wt = torch.where(is_single, link.obs_ddG(wt_pred_cal, dGwt_mb, floor_mb), wt_pred_cal)
+                    reg_wt_mask = valid_wt_mask & (link_ok | ~is_single)
+                else:
+                    p_wt, reg_wt_mask = wt_pred_cal, valid_wt_mask
+                # Only a single's own censoring applies here; a double's latent target carries no bound.
+                cens_wt = torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
+                if reg_wt_mask.any():
+                    term, val, wsum = self._reg_loss(p_wt, wt_targets, bound_mb, cens_wt, reg_wt_mask, w_mb, global_w_sum)
+                    wt_losses.append(self.hparams.lambda_reg_wt * term)
+                    sums['reg_wt'] += val; cnts['reg_wt'] += wsum
 
             if self.hparams.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
-                L_rank, val, n_list = self._compute_rank_loss(wt_pred_raw, wt_targets, valid_wt_mask, list_size, self.crit_rank_wt)
+                L_rank, val, n_list = self._compute_rank_loss(wt_pred_raw, wt_targets, valid_wt_mask,
+                                                              torch.where(is_single, cens_mb, torch.zeros_like(cens_mb)),
+                                                              list_size, self.crit_rank_wt)
                 if L_rank is not None:
                     wt_losses.append(self.hparams.lambda_rank_wt * L_rank * (n_list / global_num_lists))
                     sums['rank_wt'] += val * n_list; cnts['rank_wt'] += n_list
@@ -247,7 +283,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if not total_wt.requires_grad: raise AssertionError("WT Loss detached from PyTorch Graph! Cannot call backward.")
                 self.manual_backward(total_wt, retain_graph=retain_wt)
                     
-            if not self.peft_manager.mt_path_is_frozen and (self.hparams.lambda_rank_combined > 0 or self.hparams.lambda_reg_combined > 0 or self.hparams.lambda_epi_combined > 0):
+            if not self.peft_manager.mt_path_is_frozen and (self.hparams.lambda_rank_combined > 0 or self.hparams.lambda_reg_combined > 0):
                 # =============================================================
                 # PHASE 2: MUTANT & COMBINED PASS
                 # =============================================================
@@ -282,26 +318,27 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
                 combined_pred_raw = 0.5 * forced_wt_raw + 0.5 * mt_pred_raw
                 combined_pred_cal = 0.5 * forced_wt_cal + 0.5 * mt_pred_cal
-                epi_pred = 0.5 * mt_pred_cal - 0.5 * forced_wt_cal
                 
                 mt_losses = []
 
                 # Mut pass strictly relies on combined losses
-                if self.hparams.lambda_reg_combined > 0 and reg_mask.any():
-                    L = self.crit_reg(combined_pred_cal[reg_mask], ddG_mb[reg_mask])
-                    mt_losses.append(self.hparams.lambda_reg_combined * (L * w_mb[reg_mask]).sum() / global_w_sum)
-                    sums['reg_combined'] += float((L * w_mb[reg_mask]).sum().item()); cnts['reg_combined'] += float(w_mb[reg_mask].sum().item())
+                if self.hparams.lambda_reg_combined > 0:
+                    if link is not None:
+                        p_comb = link.obs_ddG(combined_pred_cal, dGwt_mb, floor_mb)
+                        reg_c_mask = reg_mask & link_ok
+                    else:
+                        p_comb, reg_c_mask = combined_pred_cal, reg_mask
+                    if reg_c_mask.any():
+                        term, val, wsum = self._reg_loss(p_comb, ddG_mb, bound_mb, cens_mb, reg_c_mask, w_mb, global_w_sum)
+                        mt_losses.append(self.hparams.lambda_reg_combined * term)
+                        sums['reg_combined'] += val; cnts['reg_combined'] += wsum
 
                 if self.hparams.lambda_rank_combined > 0 and self.crit_rank_combined is not None:
-                    L_rank, val, n_list = self._compute_rank_loss(combined_pred_raw, ddG_mb, reg_mask, list_size, self.crit_rank_combined)
+                    L_rank, val, n_list = self._compute_rank_loss(combined_pred_raw, ddG_mb, reg_mask, cens_mb,
+                                                                  list_size, self.crit_rank_combined)
                     if L_rank is not None:
                         mt_losses.append(self.hparams.lambda_rank_combined * L_rank * (n_list / global_num_lists))
                         sums['rank_combined'] += val * n_list; cnts['rank_combined'] += n_list
-
-                if self.hparams.lambda_epi_combined > 0 and epi_mask.any():
-                    L = self.crit_reg(epi_pred[epi_mask], epi_targets[epi_mask])
-                    mt_losses.append(self.hparams.lambda_epi_combined * (L * w_mb[epi_mask]).sum() / global_w_sum)
-                    sums['epi_combined'] += float((L * w_mb[epi_mask]).sum().item()); cnts['epi_combined'] += float(w_mb[epi_mask].sum().item())
 
                 if mt_losses:
                     total_mt = sum(mt_losses)
@@ -310,9 +347,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     self.manual_backward(total_mt)
 
         logs = {}
-        log_keys = ['reg_wt', 'rank_wt', 'reg_combined', 'rank_combined', 'epi_combined']
-        for k in log_keys:
+        for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined'):
             if cnts[k] > 0: logs[f'L_{k}'] = sums[k] / max(1, cnts[k])
+        self._cens_diag = (n_cens_lo, n_cens_hi)
         return logs
     
     def _log_lrs(self):
@@ -387,6 +424,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         for k, v in logs.items():
             if v > 0.0: self.log(f"train/{k}", v, on_step=True)
+
+        if getattr(self, '_cens_diag', None) is not None:
+            self.log("train/cens_lower_items", float(self._cens_diag[0]), on_step=True)
+            self.log("train/cens_upper_items", float(self._cens_diag[1]), on_step=True)
             
         if getattr(self.trainer.precision_plugin, "scaler", None) is not None:
             self.log("amp_scale", self.trainer.precision_plugin.scaler.get_scale(), on_step=True)
@@ -397,124 +438,96 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         with torch.inference_mode():
             out_dict = self.model.forward_batch(batch, mask_strategy=self.hparams.mask_strategy)
 
+        B = int(batch['ddG'].shape[0])
         ddG = utils._get_label(batch, 'ddG', device=batch['ddG'].device)
-        dddG = batch.get('dddG', None)
-        
-        self.validation_step_outputs[dataloader_idx].append({
+        nan_col = lambda: np.full(B, np.nan, dtype=np.float32)
+        get = lambda k: batch[k].detach().cpu().float().numpy() if k in batch else nan_col()
+
+        rec = {
             'wt_scores': out_dict['wt_lora_pred'].detach().cpu().float().numpy(),
+            'mt_scores': out_dict['mt_lora_pred'].detach().cpu().float().numpy(),
             'comb_scores': out_dict['combined_pred'].detach().cpu().float().numpy(),
-            'epi_scores': out_dict['epi_pred'].detach().cpu().float().numpy(),
             'ground_truths': ddG.detach().cpu().float().numpy() if ddG is not None else np.array([]),
-            'dddG_truths': dddG.detach().cpu().float().numpy() if dddG is not None else np.array([]),
+            'subset_types': list(batch.get('subset_type', ['single'] * B)),
+            'cens': batch['cens'].detach().cpu().numpy() if 'cens' in batch else np.zeros(B, dtype=np.int64),
+            'dG_wt': get('dG_wt'),
+            'y_floor': get('y_floor'),
             'pdb': batch.get('pdb', []),
-            'mutations': batch.get('mutations', [])
-        })
+            'mutations': batch.get('mutations', []),
+        }
+
+        # With --link, also carry the predictions on the assay's observed scale, so rmse_combined stays comparable
+        # with a run that has no link. Items with no measured dG_wt keep their latent value.
+        if self.link_head is not None:
+            z = batch.get('dG_wt', None)
+            if z is not None:
+                z, foff = z.float(), batch['y_floor'].float()
+                ok = torch.isfinite(z)
+                obs = {}
+                for key, src in (('comb', out_dict['combined_pred']), ('wt', out_dict['wt_lora_pred'])):
+                    v = src.float()
+                    obs[key] = torch.where(ok, self.link_head.obs_ddG(v, z, foff), v).detach().cpu().numpy()
+                rec['obs'] = obs
+
+        self.validation_step_outputs[dataloader_idx].append(rec)
 
     def on_validation_epoch_start(self):
         self.validation_step_outputs = defaultdict(list)
 
+    _VAL_PROGRESS_BAR = ('rho_combined', 'rho_wt_valid')
+
     def on_validation_epoch_end(self):
         avg_metrics = defaultdict(list)
-        
-        # Pooled storage to compute ungrouped/global metrics at the end
-        pooled_data = defaultdict(list)
-        
+        pooled = defaultdict(list)
+
         for dataloader_idx, valid_outputs in self.validation_step_outputs.items():
-            val_loader_name = self.val_dataloader_names[dataloader_idx] if dataloader_idx < len(self.val_dataloader_names) else f"unknown_dl_{dataloader_idx}"
+            name = (self.val_dataloader_names[dataloader_idx] if dataloader_idx < len(self.val_dataloader_names)
+                    else f"unknown_dl_{dataloader_idx}")
 
-            single_dict_comb = {}
-            wt_scores_list, comb_scores_list, epi_scores_list = [], [], []
-            ground_truths_list, dddG_truths_list, mut_lens_list = [], [], []
-            
-            flat_mut_parts, flat_pdb_ids = [], []
+            cat = lambda key: np.concatenate([o[key] for o in valid_outputs]) if valid_outputs else np.array([])
+            wt = cat('wt_scores'); mt = cat('mt_scores'); comb = cat('comb_scores')
+            gt = cat('ground_truths'); cens = cat('cens')
+            subset_types = [t for o in valid_outputs for t in o['subset_types']]
+            obs = None
+            if valid_outputs and 'obs' in valid_outputs[0]:
+                obs = {k: np.concatenate([o['obs'][k] for o in valid_outputs]) for k in valid_outputs[0]['obs']}
 
-            for o in valid_outputs:
-                pdb_list, muts_list = o.get('pdb', []), o.get('mutations', [])
-                for i, m_val in enumerate(muts_list):
-                    mut_parts = m_val.split(':') if isinstance(m_val, str) else m_val
-                    pdb_id = pdb_list[i] if (isinstance(pdb_list, (list, tuple, np.ndarray)) and i < len(pdb_list)) else (pdb_list if isinstance(pdb_list, str) else "unknown")
+            if not len(gt):
+                continue
 
-                    wt_scores_list.append(o['wt_scores'][i])
-                    comb_scores_list.append(o['comb_scores'][i])
-                    epi_scores_list.append(o['epi_scores'][i])
-                    ground_truths_list.append(o['ground_truths'][i] if i < len(o['ground_truths']) else np.nan)
-                    dddG_truths_list.append(o['dddG_truths'][i] if i < len(o['dddG_truths']) else np.nan)
-                    mut_lens_list.append(len(mut_parts))
-                    
-                    flat_mut_parts.append(mut_parts)
-                    flat_pdb_ids.append(pdb_id)
-                    
-                    if len(mut_parts) == 1:
-                        key = (pdb_id, str(mut_parts[0]))
-                        single_dict_comb[key] = o['comb_scores'][i]
+            metrics = stats.compute_metrics(wt, mt, comb, gt, subset_types, cens=cens, obs=obs)
 
-            epi_scores_list_full = []
+            for metric, val in metrics.items():
+                if val is not None and np.isfinite(val):
+                    self.log(f"val_{metric}/{name}", float(val), on_epoch=True, sync_dist=True)
+                    avg_metrics[metric].append(float(val))
 
-            for i, mut_parts in enumerate(flat_mut_parts):
-                if len(mut_parts) > 1:
-                    pdb_id = flat_pdb_ids[i]
-                    add_comb = sum([single_dict_comb.get((pdb_id, str(m)), np.nan) for m in mut_parts])
-                    epi_scores_list_full.append(comb_scores_list[i] - add_comb)
-                else:
-                    epi_scores_list_full.append(0.0)
-                        
-            wt_scores, comb_scores = np.array(wt_scores_list), np.array(comb_scores_list)
-            epi_scores, epi_scores_full, ground_truths, dddG_truths = np.array(epi_scores_list), np.array(epi_scores_list_full), np.array(ground_truths_list), np.array(dddG_truths_list)
-            idx_singles, idx_doubles = np.array(mut_lens_list) == 1, np.array(mut_lens_list) >= 2
-            
-            valid_dddG_mask = idx_doubles & ~np.isnan(dddG_truths) & ~np.isnan(epi_scores)
+            pooled['wt'].extend(wt.tolist()); pooled['comb'].extend(comb.tolist())
+            pooled['gt'].extend(gt.tolist()); pooled['cens'].extend(np.asarray(cens).tolist())
 
-            metrics = stats.compute_metrics(
-                wt_scores, comb_scores, epi_scores, epi_scores_full,
-                ground_truths, dddG_truths, idx_singles, idx_doubles, valid_dddG_mask
-            )
-            
-            # Aggregate pooled data for ungrouped metric calculation
-            pooled_data['wt_scores'].extend(wt_scores_list)
-            pooled_data['comb_scores'].extend(comb_scores_list)
-            pooled_data['ground_truths'].extend(ground_truths_list)
-
-            # Log metrics avoiding MUT-specific grouped ones and grouped NDCGs
-            for metric_type in ['rho', 'rho_singles', 'rho_doubles', 'rho_dddG_heuristic', 'rho_dddG', 'rmse', 'ndcg@k=96', 'ndcg>0']: 
-                if metric_type in metrics:
-                    for pathway, val in metrics[metric_type].items():
-                        if pathway == 'mt': continue # Skip all standalone mut pass metrics
-                        if not np.isnan(val): self.log(f"val_{metric_type}_{pathway}/{val_loader_name}", val, on_epoch=True, sync_dist=True)
-
-            for metric_type, pathways in metrics.items(): 
-                for pathway, val in pathways.items():     
-                    if not np.isnan(val): avg_metrics[f"{metric_type}_{pathway}"].append(val)
+            if self.hparams.val_dump and not self.trainer.sanity_checking:
+                self._dump_validation(name, valid_outputs)
 
         for key, values in avg_metrics.items():
-            if values: self.log(f'val_{key}_avg', np.nanmean(values), on_epoch=True, prog_bar=True, sync_dist=True)
+            if values:
+                self.log(f'val_{key}_avg', float(np.nanmean(values)), on_epoch=True,
+                         prog_bar=key in self._VAL_PROGRESS_BAR, sync_dist=True)
 
-        # Compute Ungrouped metrics globally across all valid samples
-        if pooled_data['ground_truths']:
-            g_wt = np.array(pooled_data['wt_scores'])
-            g_comb = np.array(pooled_data['comb_scores'])
-            g_gt = np.array(pooled_data['ground_truths'])
-            
-            valid_mask = ~np.isnan(g_gt)
-            if valid_mask.any():
-                ungrouped_rho = {
-                    'wt': stats.safe_spearman(g_wt[valid_mask], g_gt[valid_mask]),
-                    'combined': stats.safe_spearman(g_comb[valid_mask], g_gt[valid_mask])
-                }
-                ungrouped_ndcg_k96 = {
-                    'wt': stats.safe_ndcg_k96(g_wt[valid_mask], g_gt[valid_mask]),
-                    'combined': stats.safe_ndcg_k96(g_comb[valid_mask], g_gt[valid_mask])
-                }
-                ungrouped_ndcg_t0 = {
-                    'wt': stats.safe_ndcg_t0(g_wt[valid_mask], g_gt[valid_mask]),
-                    'combined': stats.safe_ndcg_t0(g_comb[valid_mask], g_gt[valid_mask])
-                }
-                
-                for pathway, val in ungrouped_rho.items():
-                    if not np.isnan(val): self.log(f"val_rho_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
-                for pathway, val in ungrouped_ndcg_k96.items():
-                    if not np.isnan(val): self.log(f"val_ndcg@k=96_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
-                for pathway, val in ungrouped_ndcg_t0.items():
-                    if not np.isnan(val): self.log(f"val_ndcg@k>0_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
+        # Pooled across every library at once: one global ranking, which punishes a model whose per-library scales
+        # disagree even when each library's own ordering is fine.
+        if pooled['gt']:
+            g_wt, g_comb = np.array(pooled['wt']), np.array(pooled['comb'])
+            g_gt, g_cens = np.array(pooled['gt']), np.array(pooled['cens'])
+            ok = np.isfinite(g_gt) & (g_cens == 0)
+            if ok.any():
+                self.log("val_rho_ungrouped_wt", stats.safe_spearman(g_wt[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
+                self.log("val_rho_ungrouped_combined", stats.safe_spearman(g_comb[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
+                self.log("val_ndcg@k=96_ungrouped_combined", stats.safe_ndcg_k96(g_comb[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
+                self.log("val_ndcg@k>0_ungrouped_combined", stats.safe_ndcg_t0(g_comb[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
+
+        if self.link_head is not None:
+            for k, v in self.link_head.summary().items():
+                self.log(f"link/{k}", v, on_epoch=True, sync_dist=True)
 
         if not self.trainer.sanity_checking and self.hparams.freeze_wt_on_convergence and not self.peft_manager.has_transitioned:
             target_metric_key = self.hparams.wt_convergence_metric
@@ -528,25 +541,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 
                 if self.peft_manager.wt_patience_counter >= self.hparams.wt_convergence_patience:
                     logging.info(f"Convergence reached! Transitioning to MT training.")
-                    self._save_converged_wt_weights()
-                    self.peft_manager.freeze_wt_components()
-                    if hasattr(self.peft_manager, 'unfreeze_mt_components'):
-                        self.peft_manager.unfreeze_mt_components()
-                    else:
-                        logging.warning("PEFTStateManager missing 'unfreeze_mt_components'. Please implement this method.")
-                    self.peft_manager.has_transitioned = True
-                    self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
+                    self._transition_to_mt()
 
         if not self.trainer.sanity_checking and self.trainer.current_epoch==self.hparams.freeze_wt_after_epoch and not self.peft_manager.has_transitioned:
             logging.info(f"Epoch {self.hparams.freeze_wt_after_epoch} ended! Transitioning to MT training.")
-            self._save_converged_wt_weights()
-            self.peft_manager.freeze_wt_components()
-            if hasattr(self.peft_manager, 'unfreeze_mt_components'):
-                self.peft_manager.unfreeze_mt_components()
-            else:
-                logging.warning("PEFTStateManager missing 'unfreeze_mt_components'. Please implement this method.")
-            self.peft_manager.has_transitioned = True
-            self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
+            self._transition_to_mt()
 
         if not self.trainer.sanity_checking:
             schedulers = self.lr_schedulers()
@@ -559,6 +558,32 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.validation_step_outputs.clear()
         torch.cuda.empty_cache()
         gc.collect()
+
+    def _transition_to_mt(self):
+        """Freeze the WT path and open the MT path, saving the converged WT weights first."""
+        self._save_converged_wt_weights()
+        self.peft_manager.freeze_wt_components()
+        self.peft_manager.unfreeze_mt_components()
+        self.peft_manager.has_transitioned = True
+        self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
+
+    def _dump_validation(self, name: str, outputs: List[dict]) -> None:
+        """Per-item validation predictions for one loader, for off-line analysis. Never raises."""
+        try:
+            log_dir = getattr(self.logger, 'log_dir', None) or '.'
+            arrays = {}
+            for key in ('wt_scores', 'mt_scores', 'comb_scores', 'ground_truths', 'cens', 'dG_wt', 'y_floor'):
+                arrays[key] = np.concatenate([np.asarray(o[key]) for o in outputs])
+            arrays['subset_types'] = np.array([t for o in outputs for t in o['subset_types']])
+            if 'obs' in outputs[0]:
+                for k in outputs[0]['obs']:
+                    arrays[f'obs_{k}'] = np.concatenate([o['obs'][k] for o in outputs])
+            if self.link_head is not None:
+                arrays['link_summary'] = np.array(json.dumps(self.link_head.summary()))
+            os.makedirs(log_dir, exist_ok=True)
+            np.savez_compressed(os.path.join(log_dir, f'val_dump_{name}.npz'), **arrays)
+        except Exception as e:
+            logging.warning(f"Validation dump for '{name}' failed: {e}")
 
     def on_validation_end(self):
         self.peft_manager.apply_baseline_requires_grad()
@@ -684,10 +709,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.peft_manager.freeze_wt_components()
 
         if self.peft_manager.has_transitioned:
-            if hasattr(self.peft_manager, 'unfreeze_mt_components'):
-                self.peft_manager.unfreeze_mt_components()
-            else:
-                logging.warning("PEFTStateManager missing 'unfreeze_mt_components'. Please implement this method.")
+            self.peft_manager.unfreeze_mt_components()
      
         if self.hparams.freeze_mt_adapter:
             self.peft_manager.freeze_mt_components()

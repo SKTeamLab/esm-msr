@@ -5,17 +5,24 @@ import logging
 import pickle
 from typing import List, Dict, Any, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 from esm_msr import utils
-from esm_msr.data import ( 
-    ProteinStructureMutationEpistasisDataset,
+from esm_msr.data import (
+    MEAS_COLUMNS,
+    MutationStabilityDataset,
     collate_fn_twopass,
     create_consolidated_dataloader,
     PooledDataLoader
 )
+
+# The columns that identify one measured variant. Replicate rows share all of them and are collapsed by taking the
+# mean of every measurement column (`_collapse_replicates`); nothing else may enter the key, or replicates whose
+# confidence intervals differ slightly would stop collapsing.
+IDENTITY_COLS = ['aa_seq', 'mut_type', 'WT_name', 'mut_structure', 'code_wt', 'code', 'chain', 'uid']
 
 
 def is_fake_mutation(mut_string):
@@ -96,6 +103,26 @@ def is_improper_mutation(mutation_string: str) -> bool:
     
     return False
 
+def _collapse_replicates(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Collapse replicate rows of the same variant, averaging every measurement column.
+
+    Replicates are rows agreeing on all of ``IDENTITY_COLS``. The former code grouped by "every column except
+    ddG_ML", which was the same thing while only four columns were kept, but silently stops collapsing once the
+    per-protease values and their confidence intervals are carried along, since replicates differ in those. The
+    original index of the first row of each group is preserved, because the SPURS path filters on raw row indices.
+    """
+    meas_cols = [c for c in MEAS_COLUMNS if c in df.columns]
+    tmp = df.copy()
+    tmp['_orig_idx'] = tmp.index
+    agg = {c: 'mean' for c in meas_cols}
+    agg['_orig_idx'] = 'first'
+    out = tmp.groupby(IDENTITY_COLS, dropna=False).agg(agg).reset_index()
+    out.index = out['_orig_idx']
+    out.index.name = df.index.name
+    return out.drop(columns=['_orig_idx'])
+
+
 class MegaScaleDatasetPreprocessor:
     """Handles raw data loading, preprocessing, and dataset creation."""
     def __init__(self, data_file: str, af_model_folder: str = '/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs/', spurs_override: bool = False):
@@ -104,8 +131,24 @@ class MegaScaleDatasetPreprocessor:
         self.df = pd.DataFrame()
         self.split_dfs = {}
         self.spurs_override = spurs_override
+        # Measured dG of each library's starting sequence (the WT, or the background for mutation-suffixed codes),
+        # keyed by `code`. The 'wt' rows are filtered out of self.df, so this is the only place they survive. Each
+        # dataset needs it to put an item on the assay's observed scale (dG_obs = h(dG_wt + latent)) and to compute
+        # the additive expectation its doubles-conditioned floor estimate uses.
+        self.dG_wt: Dict[str, float] = {}
 
         self.preprocess()
+
+    @staticmethod
+    def _wt_dG_by_code(df: pd.DataFrame) -> Dict[str, float]:
+        """Mean dG_ML of the 'wt' rows of each library, keyed like the `code` column."""
+        if 'dG_ML' not in df.columns or 'mut_type' not in df.columns:
+            return {}
+        wt = df.loc[df['mut_type'] == 'wt', ['WT_name', 'dG_ML']].copy()
+        wt['dG_ML'] = pd.to_numeric(wt['dG_ML'], errors='coerce')
+        wt['code'] = (wt['WT_name'].str.replace('.pdb_', '_', regex=False)
+                      .str.replace('.pdb', '', regex=False).str.replace('|', '_', regex=False))
+        return wt.dropna(subset=['dG_ML']).groupby('code')['dG_ML'].mean().to_dict()
 
     def preprocess(self) -> None:
         """Adds UID and removes fake/improper mutations."""
@@ -124,8 +167,15 @@ class MegaScaleDatasetPreprocessor:
             logging.error(f"Error loading data: {e}")
             raise
 
-        self.df = self.df[['aa_seq', 'mut_type', 'WT_name', 'ddG_ML']]
-        self.df['ddG_ML'] = pd.to_numeric(self.df['ddG_ML'], errors='coerce')
+        self.dG_wt = self._wt_dG_by_code(self.df)
+        keep = ['aa_seq', 'mut_type', 'WT_name'] + [c for c in MEAS_COLUMNS if c in self.df.columns]
+        missing = [c for c in MEAS_COLUMNS if c not in self.df.columns]
+        if missing:
+            logging.warning(f"Raw table is missing measurement columns {missing}; they will be NaN on every item.")
+        self.df = self.df[keep]
+        for c in MEAS_COLUMNS:
+            if c in self.df.columns:
+                self.df[c] = pd.to_numeric(self.df[c], errors='coerce')
         self.df = self.df.loc[self.df['ddG_ML'].notna()]
         self.df = self.df.loc[~self.df['mut_type'].str.contains('wt')]
         self.df = self.df.loc[~self.df['mut_type'].str.contains('ins')]
@@ -143,8 +193,7 @@ class MegaScaleDatasetPreprocessor:
         self.df['chain'] = 'A'
         self.df['uid'] = self.df['code'].astype(str) + '_' + self.df['mut_type'].astype(str)
 
-        groupby_cols = list(self.df.columns.drop(['ddG_ML']))
-        self.df, dup = utils.remove_duplicates_with_mean(self.df, groupby_cols, 'ddG_ML', preserve_index=True)
+        self.df = _collapse_replicates(self.df)
 
         self.df['uid'] = self.df['uid'].str.replace('|', '_', regex=False)
         self.df['code'] = self.df['code'].str.replace('|', '_', regex=False)
@@ -158,7 +207,8 @@ class MegaScaleDatasetPreprocessor:
     def _preprocess_spurs(self) -> None:
         # reproduce preprocessing steps from SPURS with compatibility
 
-        df = pd.read_csv(self.data_file, usecols=["ddG_ML", "mut_type", "WT_name", "aa_seq", "dG_ML"])
+        cols = ["mut_type", "WT_name", "aa_seq"] + list(MEAS_COLUMNS)
+        df = pd.read_csv(self.data_file, usecols=lambda c: c in set(cols), low_memory=False)
         df = df.loc[df.ddG_ML != '-', :].reset_index(drop=True)
 
         df1 = df.loc[~df.mut_type.str.contains("ins") & ~df.mut_type.str.contains("del") & ~df.mut_type.str.contains(":"), :].reset_index(drop=True)
@@ -171,7 +221,10 @@ class MegaScaleDatasetPreprocessor:
 
         self.df = df
 
-        self.df['ddG_ML'] = pd.to_numeric(self.df['ddG_ML'], errors='coerce')
+        self.dG_wt = self._wt_dG_by_code(self.df)
+        for c in MEAS_COLUMNS:
+            if c in self.df.columns:
+                self.df[c] = pd.to_numeric(self.df[c], errors='coerce')
         self.df = self.df.loc[self.df['ddG_ML'].notna()]
 
         self.df['mut_structure'] = self.df['WT_name'].apply(lambda x: x.split('.pdb_')[1] if '.pdb_' in x else None)
@@ -183,8 +236,7 @@ class MegaScaleDatasetPreprocessor:
         self.df['chain'] = 'A'
         self.df['uid'] = self.df['code'].astype(str) + '_' + self.df['mut_type'].astype(str)
 
-        groupby_cols = list(self.df.columns.drop(['ddG_ML']))
-        self.df, dup = utils.remove_duplicates_with_mean(self.df, groupby_cols, 'ddG_ML', preserve_index=True)
+        self.df = _collapse_replicates(self.df)
 
         self.df['uid'] = self.df['uid'].str.replace('|', '_', regex=False)
         self.df['code'] = self.df['code'].str.replace('|', '_', regex=False)
@@ -326,14 +378,19 @@ class MegaScaleDatasetPreprocessor:
         mut_structures_root: str = '',
         incl_destab_bb: bool = True,
         incl_singles: bool = True,
-        incl_doubles: bool = False,
-        incl_reversions: bool = False,
-        incl_mut_ctx: bool = False,
+        incl_doubles: bool = True,
+        incl_cond: bool = True,
+        incl_native_cond: bool = True,
+        floor_percentile: float = 5.0,
+        floor_min: float = -1.0,
+        floor_max: float = 0.2,
+        censor_floor: bool = True,
         combine_validation: bool = False,
     ) -> Tuple[List[DataLoader], List[str]]:
         """Generates a list of dataloaders for a specific list of protein codes."""
         loaders = []
         loader_names = []
+        floors = []
 
         df = self.split_dfs[scaffold]
         if combine_validation:
@@ -350,26 +407,58 @@ class MegaScaleDatasetPreprocessor:
             for code in df_prot['code'].unique():
                 df_prot_ = df_prot.loc[df_prot['code']==code]
        
-                dataset = ProteinStructureMutationEpistasisDataset(
+                dataset = MutationStabilityDataset(
                     dms_df=df_prot_, tokenizer=tokenizer, structure_encoder=structure_encoder,
                     dms_name=code, path=cache_path, score_name=score_name,
                     generate=generate_cache, mut_structs_root=mut_structures_root,
                     incl_destab_bb=incl_destab_bb,
                     incl_singles=incl_singles,
                     incl_doubles=incl_doubles,
-                    incl_reversions=incl_reversions, 
-                    incl_mut_ctx=incl_mut_ctx,
+                    incl_cond=incl_cond,
+                    incl_native_cond=incl_native_cond,
+                    dG_wt=self.dG_wt.get(code),
+                    floor_percentile=floor_percentile,
+                    floor_min=floor_min,
+                    floor_max=floor_max,
+                    censor_floor=censor_floor,
                 )
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
                         continue
+                floors.append((code, dataset.floor_stats.get('y_floor', float('nan')),
+                               dataset.floor_stats.get('floor_cond', float('nan')),
+                               dataset.floor_stats.get('y_floor_clipped', float('nan'))))
                         
                 loader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn_twopass,
                                     num_workers=num_workers, shuffle=shuffle, pin_memory=True)
                 loaders.append(loader)
                 loader_names.append(code)
 
+        _log_floor_summary(scaffold, floors)
         return loaders, loader_names
+
+
+def _log_floor_summary(scaffold: str, floors: List[Tuple[str, float, float, float]]) -> None:
+    """How the per-library floor estimates came out across one split, and how far the percentile estimate sits from
+    the doubles-conditioned one where both exist. A large spread or a large disagreement is the signal that the
+    percentile is tracking the library's mutational sensitivity rather than the assay's floor."""
+    if not floors:
+        return
+    y = np.array([f[1] for f in floors], dtype=float)
+    c = np.array([f[2] for f in floors], dtype=float)
+    ok = np.isfinite(y)
+    both = ok & np.isfinite(c)
+    msg = (f"floor estimates ({scaffold}): {int(ok.sum())}/{len(floors)} libraries estimated, "
+           f"median {np.nanmedian(y):.3f}, IQR [{np.nanpercentile(y, 25):.3f}, {np.nanpercentile(y, 75):.3f}], "
+           f"range [{np.nanmin(y):.3f}, {np.nanmax(y):.3f}]")
+    if both.sum() >= 3:
+        d = y[both] - c[both]
+        msg += (f"; vs doubles-conditioned on {int(both.sum())} libraries: median difference {np.median(d):+.3f}, "
+                f"SD {np.std(d):.3f}, correlation {np.corrcoef(y[both], c[both])[0, 1]:.2f}")
+    clipped = np.array([f[3] for f in floors], dtype=float)
+    n_clipped = int(np.sum(np.isfinite(clipped) & np.isfinite(y) & (np.abs(clipped - y) > 1e-9)))
+    msg += f"; {n_clipped} of {int(ok.sum())} estimates fell outside the clip band and were pulled into it"
+    logging.info(msg)
 
 
 def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encoder: Any, cache_path: str, generate_cache: bool) -> Tuple[List[DataLoader], List[str]]:
@@ -388,15 +477,16 @@ def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encod
                      logging.warning(f"Benchmark '{name}' missing '{score_name_bench}' column. Skipping.")
                      continue
 
-                dataset = ProteinStructureMutationEpistasisDataset(
+                dataset = MutationStabilityDataset(
                     dms_df=df_bench, tokenizer=tokenizer, structure_encoder=structure_encoder,
                     dms_name=name, path=cache_path, score_name=score_name_bench,
                     generate=generate_cache, mut_structs_root='',
                     incl_destab_bb=False, 
                     incl_singles=True,
                     incl_doubles=True,
-                    incl_reversions=False,
-                    incl_mut_ctx=False
+                    incl_cond=False,
+                    incl_native_cond=False,
+                    censor_floor=False,
                 )
                 
                 if len(dataset) == 0: continue
@@ -433,8 +523,12 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         mut_structures_root=args.mut_structures_root, combine_validation=args.combine_validation,
         incl_singles=args.incl_singles,
         incl_doubles=args.incl_doubles,
-        incl_mut_ctx=args.incl_mut_ctx, 
-        incl_reversions=args.incl_reversions,
+        incl_cond=args.incl_cond,
+        incl_native_cond=args.incl_native_cond,
+        floor_percentile=args.floor_percentile,
+        floor_min=args.link_floor_min,
+        floor_max=args.link_floor_max,
+        censor_floor=args.censor_floor,
     )
 
     if not train_dataloaders: 
@@ -448,8 +542,12 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         generate_cache=args.regenerate_cache,
         incl_singles=True,
         incl_doubles=True,
-        incl_reversions=False,
-        incl_mut_ctx=False,
+        incl_cond=False,
+        incl_native_cond=True,
+        floor_percentile=args.floor_percentile,
+        floor_min=args.link_floor_min,
+        floor_max=args.link_floor_max,
+        censor_floor=args.censor_floor,
     )
 
     # Add Benchmarks
@@ -467,17 +565,13 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
     # Final Assembly (Train only)
     if args.dataloading == 'cycle':
         
-        subset_caps = getattr(args, 'subset_caps', None)
-        subset_balance_configs = getattr(args, 'subset_balance_configs', None)
-
         consolidated_loader = create_consolidated_dataloader(
             dataloaders=train_dataloaders,
             train_list=train_loader_names,
             batch_size=args.batch_size,
             collate_fn=collate_fn_twopass,
             strategy=args.loader_strategy,
-            subset_caps=subset_caps,
-            subset_balance_configs=subset_balance_configs,
+            subset_caps=args.subset_caps,
             num_workers=args.num_workers
         )
 
