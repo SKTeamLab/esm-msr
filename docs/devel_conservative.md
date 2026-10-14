@@ -287,6 +287,36 @@ floor rule is sensitive within the libraries where a floor is known. Measured on
 censors 0.98% of items overall, 0–4.8% per library, and correctly censors **nothing** in `1A32` — the library whose
 5th percentile was +1.005 because it contains nothing destabilised at all.
 
+### Where this landed: two mechanisms, two jobs
+
+The floor-evidence gate alone has poor coverage — 18 of 170 training libraries and 1 of 25 validation libraries —
+because locating a floor needs deeply destabilised doubles that most libraries do not have. So censoring and the
+floor are now separate mechanisms answering separate questions, rather than the same question twice:
+
+| mechanism | question | needs | reaches |
+|---|---|---|---|
+| `--censor_gap` | do this variant's two protease fits agree? | nothing but the variant's own row | every library |
+| `--censor_floor` | is this measurement at the floor we located for this library? | ≥20 tight, in-band deep doubles | 18/170 train |
+| learned `global_floor` | where is the knee for a library with no floor of its own? | the population of such libraries | the remainder |
+
+The two censoring sources are a **union**. This is safe in the direction that matters: with a hinge and
+rank-censoring, a *wrong* bound costs little (the model is simply not pulled toward a value it should not trust),
+whereas a *missing* bound means the model is actively fitted to a number that is really the readout's floor.
+
+**The global floor is learned, not borrowed.** A library without evidence is left with no floor at all (`y_floor`
+NaN) and the link covers it with a shared `global_floor` parameter, initialised at the median of the libraries that
+do have one (−0.139, measured) and clipped to the same band. It is identifiable because it is fitted to exactly
+that population: it is the one knee that best explains how far their strongly-destabilised predictions must be
+compressed to match what the assay reported. Leaving it out of the data also keeps the populations separate — a
+library with a measured floor contributes no gradient to the global one, which `test_link.py` pins.
+
+**Validation scoring.** Only one validation library has its own floor, so select on the floor-free metrics:
+`val_rho_combined_avg` is rank-based and immune, and `epi_cell_rank` / `epi_cell_flipacc` are constructed to be
+saturation-free (within-column ranks, double-centred). Treat `global_err`, `global_bias` and `rmse_combined` as
+diagnostics, since they probe the saturation curve and do depend on the knee. Validation uses the model's own link,
+learned global floor included, so predictions are scored under the link they trained with; `link/global_floor` is
+logged each epoch so a moving metric can be attributed.
+
 **Refinements, in the order I would try them.**
 
 1. **Condition on being dead instead of assuming the tail is dead.** Use `floor_cond` — the median measured dG of
@@ -318,3 +348,27 @@ censors 0.98% of items overall, 0–4.8% per library, and correctly censors **no
   machinery is two-sided throughout so that doing it later needs no rework.
 * The cache is ~11 GB (vs 6 GB for `cache_main_capped`) because `cond` items each carry their own copy of their
   library's structure tensors. Deduplicating the structure per library would fix most of that and is orthogonal.
+
+## 6. Performance: the fragmentation trap
+
+`micro_batch_size 64` works on `main-baseline` and `devel` and appeared not to work here: step time degraded
+monotonically from 2.2 s to over 12 s by step 260, with the card pinned at 98% and **no swapping**. It looked like a
+leak. It was fragmentation, and the cause was an ordering bug that `main` shares.
+
+The parameter deduplication was working (`570 params deduplicated`, `202 Linears cast to bf16`). The problem was
+*when*: `main()` calls `trainer.validate` before `trainer.fit`, and the dedup lived in `on_train_start`. So the
+first forward passes ran with the base weights still duplicated between the adapters **and** still fp32 — about
+11 GB of parameters instead of 3. That pins the CUDA caching allocator's high-water mark at its maximum, and the
+reshare that follows frees those fp32 storages into the allocator's *cache* rather than back to the driver, so
+training then allocates its activations inside a large, badly fragmented reservation.
+
+This branch is hit harder than `main-baseline` only because `--val_cycle_passes` makes that pre-dedup validation run
+four forward passes per batch instead of two.
+
+Fixed by preparing the device weights before *any* forward pass (`on_validation_start` as well as `on_train_start`,
+idempotent) and calling `empty_cache()` after the reshare so the freed storages return to the driver.
+`mem/allocated_gb`, `mem/reserved_gb` and `mem/peak_allocated_gb` are logged every step so it cannot recur silently.
+
+A second bug surfaced alongside: the link's parameters never reached the optimizer, because
+`configure_optimizers` walks `self.model` and the link lives on the LightningModule. `--learn_link_tau` and
+`--learn_link_floor_bounds` were therefore inert. They now have their own group at `--link_lr`.
