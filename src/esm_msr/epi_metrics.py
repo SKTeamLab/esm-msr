@@ -212,7 +212,7 @@ class Table:
         """
         ``items``: one entry per validation item, pooled over libraries:
           ``mut_key`` (tuple of mutations, each a tuple whose last two elements are position and mutant residue and whose other elements
-          identify the library, so keys never pair across libraries), ``subset_type``, ``cens`` (-1/0/+1), ``ddG`` (measured), ``dddG``
+          identify the library, so keys never pair across libraries), ``subset_type``, ``ddG`` (measured), ``dddG``
           (measured, doubles), ``dG_wt``, and the latent scores ``wt`` (WT pass), ``mt`` (MT pass), ``comb`` and optionally ``wt_rev`` (the WT
           adapter's reverse leg on the mutated sequence, forward sign; --val_cycle_passes).
         ``link``: the run's monotone link h on ABSOLUTE dG (numpy), or None. Observed = h(dG_wt + latent) - dG_wt.
@@ -220,7 +220,6 @@ class Table:
         keys = list(items['mut_key'])
         st = np.asarray([str(s) for s in items['subset_type']])
         n = len(keys)
-        cens = np.zeros(n, int) if items.get('cens') is None else np.asarray(items['cens'], int)
         gt, dddG = np.asarray(items['ddG'], float), np.asarray(items['dddG'], float)
         c = np.asarray(items['dG_wt'], float) if items.get('dG_wt') is not None else np.full(n, np.nan)
         lat = {'add': np.asarray(items['wt'], float), 'mt': np.asarray(items['mt'], float), 'comb': np.asarray(items['comb'], float)}
@@ -230,12 +229,12 @@ class Table:
 
         single = {}
         for i, k in enumerate(keys):
-            if st[i] in SINGLE_SUBSETS and k is not None and len(k) == 1 and cens[i] == 0 and np.isfinite(gt[i]):
+            if st[i] in SINGLE_SUBSETS and k is not None and len(k) == 1 and np.isfinite(gt[i]):
                 single[tuple(k[0])] = i
         rec = []
         pair_id, res_id = {}, {}
         for i, k in enumerate(keys):
-            if st[i] not in DOUBLE_SUBSETS or k is None or len(k) != 2 or cens[i] != 0:
+            if st[i] not in DOUBLE_SUBSETS or k is None or len(k) != 2:
                 continue
             if not (np.isfinite(dddG[i]) and np.isfinite(gt[i]) and np.isfinite(c[i])):
                 continue

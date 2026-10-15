@@ -47,7 +47,7 @@ def plan(run_dir):
     for i, row in csv.iterrows():
         payload = {c: float(row[c]) for c in other_cols if pd.notna(row[c])}
         if i in dump_for:
-            payload.update(recompute(load_dump(dump_for[i]), use_cens=False))
+            payload.update(recompute(load_dump(dump_for[i])))
         if payload:
             records.append((int(row['step']), int(row['epoch']), payload, dump_for.get(i)))
     return csv, records, dumps

@@ -21,7 +21,7 @@ from esm.pretrained import ESM3_structure_encoder_v0
 from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 
 from esm_msr.models import MSRModel
-from esm_msr import epi_metrics, stats, utils
+from esm_msr import censoring, epi_metrics, stats, utils
 from esm_msr.link import FloorLink
 from esm_msr.losses import ListMLELoss, hinge_regression_loss
 from esm_msr.preprocess_megascale import setup_dataloaders
@@ -605,6 +605,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             'dddG_truths': get('dddG'),
             'subset_types': list(batch.get('subset_type', ['single'] * B)),
             'cens': batch['cens'].detach().cpu().numpy() if torch.is_tensor(batch.get('cens')) else np.zeros(B, dtype=np.int64),
+            'cens_src': (batch['cens_src'].detach().cpu().numpy() if torch.is_tensor(batch.get('cens_src'))
+                         else np.zeros(B, dtype=np.int64)),
             'dG_wt': get('dG_wt'),
             'y_floor': get('y_floor'),
             'pdb': list(batch.get('pdb', [])),
@@ -652,6 +654,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                                if valid_outputs else np.array([]))
             wt, mt, comb = cat('wt_scores'), cat('mt_scores'), cat('comb_scores')
             gt, cens, dddG = cat('ground_truths'), cat('cens'), cat('dddG_truths')
+            cens_src = cat('cens_src')
             subset_types = [t for o in valid_outputs for t in o['subset_types']]
             obs = None
             if valid_outputs and 'obs' in valid_outputs[0]:
@@ -660,7 +663,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if not len(gt):
                 continue
 
-            metrics = stats.compute_metrics(wt, mt, comb, gt, subset_types, cens=cens, obs=obs)
+            # Score the CANONICAL population: every item the assay actually fitted, censored or not. Floor- and
+            # gap-censored items are scored like any other, because censoring belongs in the loss and excluding
+            # them makes the numbers incomparable to a run that censors nothing. The rows the assay only bounded
+            # (--censor_range) are held back instead: their label IS their bound and is a library constant, so
+            # scoring them would compare predictions against a flat line. They are still dumped in full below.
+            canon = cens_src != censoring.SRC_RANGE
+            sub = lambda a: np.asarray(a)[canon]
+            metrics = stats.compute_metrics(
+                sub(wt), sub(mt), sub(comb), sub(gt), [t for t, k in zip(subset_types, canon) if k],
+                obs=None if obs is None else {k: sub(v) for k, v in obs.items()})
             for metric, val in metrics.items():
                 if val is not None and np.isfinite(val):
                     self.log(f"val_{metric}/{name}", float(val), on_epoch=True, sync_dist=True)
@@ -673,7 +685,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             pooled['loader'].extend([name] * len(keys))
             pooled['n_mut'].extend([len(k) if k else 0 for k in keys])
             for field, arr in (('wt_scores', wt), ('mt_scores', mt), ('comb_scores', comb),
-                               ('ground_truths', gt), ('dddG', dddG), ('cens', cens),
+                               ('ground_truths', gt), ('dddG', dddG), ('cens', cens), ('cens_src', cens_src),
                                ('dG_wt', cat('dG_wt')), ('y_floor', cat('y_floor'))):
                 pooled[field].extend(np.asarray(arr).tolist())
             for field in ('wt_rev_scores', 'mt_fwd_scores'):
@@ -689,8 +701,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # disagree even when each library's own ordering is fine.
         if pooled['ground_truths']:
             g_wt = np.array(pooled['wt_scores']); g_comb = np.array(pooled['comb_scores'])
-            g_gt = np.array(pooled['ground_truths']); g_cens = np.array(pooled['cens'])
-            ok = np.isfinite(g_gt) & (g_cens == 0)
+            g_gt = np.array(pooled['ground_truths']); g_src = np.array(pooled['cens_src'])
+            ok = np.isfinite(g_gt) & (g_src != censoring.SRC_RANGE)
             if ok.any():
                 self.log("val_rho_ungrouped_wt", stats.safe_spearman(g_wt[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
                 self.log("val_rho_ungrouped_combined", stats.safe_spearman(g_comb[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
@@ -748,11 +760,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 return
             f = lambda name: np.asarray(pooled[name], dtype=float)
             n_items = len(keys)
-            for field in ('dG_wt', 'y_floor', 'ground_truths', 'dddG', 'wt_scores', 'mt_scores', 'comb_scores', 'cens'):
+            for field in ('dG_wt', 'y_floor', 'ground_truths', 'dddG', 'wt_scores', 'mt_scores', 'comb_scores',
+                          'cens', 'cens_src'):
                 got = len(np.atleast_1d(np.asarray(pooled.get(field, []))))
                 if got != n_items:    # a field on_validation_epoch_end failed to pool: fail loudly, never mis-score quietly
                     raise ValueError(f"pooled '{field}' has {got} values for {n_items} items")
             items = {'mut_key': keys, 'subset_type': list(pooled['subset_type']), 'cens': f('cens').astype(int),
+                     'cens_src': f('cens_src').astype(int),
                      'ddG': f('ground_truths'), 'dddG': f('dddG'), 'dG_wt': f('dG_wt'), 'y_floor': f('y_floor'),
                      'wt': f('wt_scores'), 'mt': f('mt_scores'), 'comb': f('comb_scores'), 'wt_rev': f('wt_rev_scores')}
 
@@ -766,12 +780,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     wt=items['wt'], mt=items['mt'], comb=items['comb'], wt_rev=items['wt_rev'],
                     mt_fwd=f('mt_fwd_scores'), dddG=items['dddG'], ground_truth=items['ddG'],
                     dG_wt=items['dG_wt'], y_floor=items['y_floor'], cens=items['cens'],
+                    cens_src=items['cens_src'],
                     n_mut=np.asarray(pooled['n_mut']), subset_type=np.asarray(items['subset_type'], dtype=str),
                     loader=np.asarray(pooled['loader']),
                     mut_key=np.asarray([json.dumps(k) for k in keys]), **extra)
 
+            # The dump above carries every mutant, so any of this can be rescored offline. The metrics are
+            # computed on the canonical population only - the same one the per-library metrics use - so that a
+            # run with --censor_range stays directly comparable to one without.
+            canon = items['cens_src'] != censoring.SRC_RANGE
+            scored = {k: ([v[i] for i in np.flatnonzero(canon)] if isinstance(v, list) else np.asarray(v)[canon])
+                      for k, v in items.items()}
             link = self.link_head.numpy() if self.link_head is not None else None
-            res = epi_metrics.compute(epi_metrics.Table(items, link))
+            res = epi_metrics.compute(epi_metrics.Table(scored, link))
             for name, val in res.items():
                 if np.isfinite(val):
                     self.log(f"val_{name}", float(val), on_epoch=True,

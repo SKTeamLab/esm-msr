@@ -108,7 +108,7 @@ def safe_ndcg_t0(preds, targets):
     except Exception as e:
         raise RuntimeError(f"NDCG calculation failed. Underlying error: {str(e)}")
 
-def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types, cens=None, obs=None):
+def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_types, obs=None):
     """
     The ddG validation metrics for one dataloader.
 
@@ -128,17 +128,20 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     ``_all`` deliberately mixes quantities (a conditional ddG(X | background) is not a wild-type-context ddG): it
     answers "does this head rank anything sensibly" rather than "is this head right". Read ``_valid`` first.
 
-    ``cens`` (optional -1/0/+1 per item, see ``esm_msr.censoring``): every metric is computed on the UNCENSORED
-    items only, so a library's score is not inflated or deflated by variants whose measured value is only a bound.
+    Every item passed in is scored. Censoring is a property of the LOSS, not of the yardstick: scoring only the
+    uncensored items makes a run's numbers incomparable to a baseline that censors nothing, and biases them by
+    range restriction wherever censoring is common - the mutant-background validation libraries are gap-censored
+    at 4.1% against 0.55% elsewhere, which cost them 0.015 rho and read as a model regression that was not there.
+    Choosing WHICH items to score is therefore the caller's job (see
+    ``ESM3EpistasisLightningModule.on_validation_epoch_end``, which scores the canonical measured population and
+    holds back only the rows the assay never fitted).
 
     Returns a flat ``{name: value}`` dict; undefined entries are NaN.
     """
     gt = np.asarray(ground_truths, dtype=np.float64)
     wt_scores, mt_scores, comb_scores = (np.asarray(x) for x in (wt_scores, mt_scores, comb_scores))
     subset_types = np.asarray(subset_types)
-    cens_arr = np.zeros(len(gt), dtype=int) if cens is None else np.asarray(cens, dtype=int)
-    uncens = cens_arr == 0
-    finite = np.isfinite(gt) & uncens
+    finite = np.isfinite(gt)
 
     is_single = np.isin(subset_types, list(routing.WT_HEAD_SUBSETS)) & finite
     is_cond = np.isin(subset_types, list(routing.CONDITIONAL_SUBSETS)) & finite

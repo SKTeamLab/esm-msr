@@ -949,6 +949,7 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     y_floor = torch.tensor([float(item.get('y_floor', float('nan'))) for item in batch], dtype=torch.float32)
     dG_meas = torch.tensor([float(item.get('dG_meas', float('nan'))) for item in batch], dtype=torch.float32)
     cens = torch.tensor([int(item.get('cens', 0)) for item in batch], dtype=torch.long)
+    cens_src = torch.tensor([int(item.get('cens_src', 0)) for item in batch], dtype=torch.long)
     cens_bound = torch.tensor([float(item.get('cens_bound', float('nan'))) for item in batch], dtype=torch.float32)
     meas = torch.stack([torch.as_tensor(item['meas'] if item.get('meas') is not None else np.full(len(MEAS_COLUMNS), np.nan),
                                         dtype=torch.float32) for item in batch], dim=0)
@@ -1016,6 +1017,7 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         'y_floor': y_floor,
         'dG_meas': dG_meas,
         'cens': cens,
+        'cens_src': cens_src,
         'cens_bound': cens_bound,
         'meas': meas,
         'wt_sequence_tokens': wt_seq_stack,
@@ -1527,6 +1529,7 @@ class PooledDataLoader:
         y_floor = torch.tensor([float(it.get('y_floor', float('nan'))) for it in batch], dtype=torch.float32)
         dG_meas = torch.tensor([float(it.get('dG_meas', float('nan'))) for it in batch], dtype=torch.float32)
         cens = torch.tensor([int(it.get('cens', 0)) for it in batch], dtype=torch.long)
+        cens_src = torch.tensor([int(it.get('cens_src', 0)) for it in batch], dtype=torch.long)
         cens_bound = torch.tensor([float(it.get('cens_bound', float('nan'))) for it in batch], dtype=torch.float32)
         meas = torch.stack([torch.as_tensor(it['meas'] if it.get('meas') is not None else np.full(len(MEAS_COLUMNS), np.nan),
                                             dtype=torch.float32) for it in batch], dim=0)
@@ -1593,6 +1596,7 @@ class PooledDataLoader:
             "y_floor": y_floor,
             "dG_meas": dG_meas,
             "cens": cens,
+            "cens_src": cens_src,
             "cens_bound": cens_bound,
             "meas": meas,
             "subset_type": st,

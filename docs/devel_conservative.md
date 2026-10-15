@@ -413,6 +413,30 @@ the destabilised tail *inside* libraries that have measurements, not to invent l
 
 This needs a cache regeneration (`CACHE_VERSION` `c3` → `c4`).
 
+## 4c. The validation population is fixed, and identical for every run
+
+`stats.compute_metrics` and `epi_metrics` used to drop every `cens != 0` item. That made any censoring run's
+numbers incomparable to a baseline that censors nothing, and biased them downward by range restriction wherever
+censoring was common: the mutant-background validation libraries are gap-censored at 4.1% against 0.55%
+elsewhere, which cost them 0.015 rho and read as a model regression that was not there. On matched populations
+dc3 ties `bl` (0.8390 vs 0.8391) rather than trailing it by 0.004.
+
+Both modules now score every item handed to them, and choosing the population is the caller's job. Validation
+scores the **canonical** population: every item the assay actually fitted, censored or not. The rows it merely
+bounded (`--censor_range`, `cens_src == SRC_RANGE`) are held back, because their label *is* their bound and that
+bound is a library constant (`DG_RANGE_LOW - dG_wt`), so scoring them would compare predictions against a flat
+line and would move the numbers for reasons that have nothing to do with the model.
+
+The `--val_dump` npz still carries **every** mutant, plus `cens` and `cens_src`, so anything held back can be
+scored offline without rerunning the model.
+
+Runs logged before this are brought onto the current definition with `analysis_scripts/comet_reupload.py`, which
+rebuilds the Comet experiment from `metrics.csv` plus the dumps. Comet has no per-metric overwrite - only whole
+experiments can be deleted - so it deletes and re-uploads, which is lossless here: `metrics.csv` holds every
+metric Comet had except `process duration` and the `sys.*` series. `comet_rescore.recompute` mirrors
+`on_validation_epoch_end`, verified at 302/302 metrics against dc3's own `metrics.csv`. Done for dc3 and dc4,
+both tagged `rescored_full_population`.
+
 ## 5. Known gaps
 
 * `cond` and `native_cond` are generated and cached but **not trained on** (`--subset_caps cond=0.0 native_cond=0.0`)
