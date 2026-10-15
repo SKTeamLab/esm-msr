@@ -193,6 +193,11 @@ def parse_arguments() -> argparse.Namespace:
     data_group.add_argument('--split_file', type=str, default=None)
     data_group.add_argument('--score_column', type=str, default='ddG_ML')
     data_group.add_argument('--cache_path', type=str, default='./data_cache')
+    data_group.add_argument('--cache_version', type=str, default=None,
+                            help="Pin the cache version this run reads (e.g. c4), instead of whatever "
+                                 "data.MutationStabilityDataset.CACHE_VERSION currently is. Launch scripts run "
+                                 "from the live worktree, so pinning is what stops a code change handing a queued "
+                                 "job a different dataset under the same name.")
     data_group.add_argument('--regenerate_cache', action='store_true')
     data_group.add_argument('--num_workers', type=int, default=4)
     data_group.add_argument('--max_train_proteins', type=int, default=-1)

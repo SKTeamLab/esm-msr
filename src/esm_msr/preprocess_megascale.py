@@ -247,14 +247,38 @@ class MegaScaleDatasetPreprocessor:
 
     @staticmethod
     def _wt_dG_by_code(df: pd.DataFrame) -> Dict[str, float]:
-        """Mean dG_ML of the 'wt' rows of each library, keyed like the `code` column."""
-        if 'dG_ML' not in df.columns or 'mut_type' not in df.columns:
+        """
+        Each library's wild-type dG, keyed like the `code` column, recovered from the labels themselves.
+
+        ``ddG_ML`` is defined against ONE designated wild-type replicate, not against the mean of them: in 265 of
+        the 412 libraries there is a ``wt`` row whose own ``ddG_ML`` is exactly 0, and in all 265 its ``dG_ML`` is
+        the constant every other row was referenced to. So ``dG_ML - ddG_ML`` returns that constant from any
+        measured row, with a within-library spread of exactly zero, and this is an identity rather than an
+        estimate - the median below merely picks one of many identical values.
+
+        Averaging the ``wt`` rows instead (what this used to do) matched it in only 7 of 412 libraries, with a
+        median error of 0.015 and a maximum of 0.197 kcal/mol; their median matches in 250 but still misses by up
+        to 0.146. Either way ``dG_wt + ddG`` would not equal the item's own ``dG_meas``, which is the axis the
+        link places its knee on - and the error is a per-library constant, so it biases a library's whole knee.
+        """
+        if 'dG_ML' not in df.columns or 'ddG_ML' not in df.columns:
             return {}
-        wt = df.loc[df['mut_type'] == 'wt', ['WT_name', 'dG_ML']].copy()
-        wt['dG_ML'] = pd.to_numeric(wt['dG_ML'], errors='coerce')
-        wt['code'] = (wt['WT_name'].str.replace('.pdb_', '_', regex=False)
-                      .str.replace('.pdb', '', regex=False).str.replace('|', '_', regex=False))
-        return wt.dropna(subset=['dG_ML']).groupby('code')['dG_ML'].mean().to_dict()
+        sub = df[['WT_name', 'dG_ML', 'ddG_ML']].copy()
+        if 'mut_type' in sub.columns or 'mut_type' in df.columns:
+            sub = sub.loc[df['mut_type'] != 'wt'] if 'mut_type' in df.columns else sub
+        dg = pd.to_numeric(sub['dG_ML'], errors='coerce')
+        ddg = pd.to_numeric(sub['ddG_ML'], errors='coerce')
+        ref = (dg - ddg).rename('ref')
+        code = (sub['WT_name'].str.replace('.pdb_', '_', regex=False)
+                .str.replace('.pdb', '', regex=False).str.replace('|', '_', regex=False))
+        ok = ref.notna()
+        grouped = ref[ok].groupby(code[ok])
+        spread = grouped.std().fillna(0.0)
+        loud = spread[spread > 1e-3]
+        if len(loud):
+            logging.warning(f"dG_wt: {len(loud)} libraries disagree about their own reference "
+                            f"(max sd {loud.max():.4f}); the median is used. Worst: {list(loud.nlargest(3).index)}")
+        return grouped.median().to_dict()
 
     def preprocess(self) -> None:
         """Adds UID and removes fake/improper mutations."""
@@ -508,6 +532,7 @@ class MegaScaleDatasetPreprocessor:
         gap_max=2.0,
         native_cond_as_single: bool = False,
         censor_range: bool = True,
+        cache_version: str = None,
         combine_validation: bool = False,
     ) -> Tuple[List[DataLoader], List[str]]:
         """Generates a list of dataloaders for a specific list of protein codes."""
@@ -545,6 +570,7 @@ class MegaScaleDatasetPreprocessor:
                     gap_max=gap_max,
                     native_cond_as_single=native_cond_as_single,
                     censor_range=censor_range,
+                    cache_version=cache_version,
                 )
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
@@ -660,6 +686,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         gap_max=args.censor_gap_max if args.censor_gap else None,
         native_cond_as_single=args.native_cond_as_single,
         censor_range=args.censor_range,
+        cache_version=args.cache_version,
     )
 
     if not train_dataloaders: 
@@ -679,6 +706,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         gap_max=args.censor_gap_max if args.censor_gap else None,
         native_cond_as_single=args.native_cond_as_single,
         censor_range=args.censor_range,
+        cache_version=args.cache_version,
     )
 
     # Add Benchmarks

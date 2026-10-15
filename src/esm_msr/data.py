@@ -214,7 +214,10 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
     # c3: first conservative-branch cache. Reversions are gone; the former 'mut_ctx' subset is emitted as 'cond'
     # (same construction, the name ``routing`` uses); every item carries meas / dG_meas / dG_wt / y_floor /
     # cens / cens_src / dG_bound, and the library's floor statistics ride along in `floor_stats`.
-    CACHE_VERSION = 'c4'
+    # Bumped whenever a cached field changes meaning. c5: dG_wt is the exact per-library reference recovered from
+    # dG_ML - ddG_ML rather than the mean of the 'wt' rows. A run pins this with --cache_version, so a code change
+    # cannot silently hand a queued job a different dataset under the same name.
+    CACHE_VERSION = 'c5'
 
     # The bounded ML fit reports no dG outside this interval: the measured distribution has zero mass beyond
     # either end, for singles and doubles alike.
@@ -242,6 +245,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         gap_max: Optional[float] = 2.0,
         native_cond_as_single: bool = False,
         censor_range: bool = True,
+        cache_version: str = None,
     ):
         """
         Args:
@@ -269,6 +273,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 treat their value as a bound and their mutual order as unknown (``esm_msr.censoring``).
             gap_max: Also censor an item whose two proteases disagree by more than this (kcal/mol), bounded by its
                 own reported value. None disables it. This is the source that reaches libraries with no floor.
+            cache_version: Overrides ``CACHE_VERSION`` in the cache filename, so a run can pin the dataset it was
+                designed against even after the code moves on.
             censor_range: Keep the rows the assay bounded rather than fitted (``<-1`` / ``>5``), which the cache
                 always stores. False drops them, restoring the selected-on-outcome population; see
                 ``esm_msr.censoring``.
@@ -278,6 +284,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 wild-type-context one - but it is the released behaviour and the comparison worth having.
         """
         self.score_name = score_name
+        self.cache_version = cache_version or self.CACHE_VERSION
         self.dms_name = dms_name
         self.tokenizer = tokenizer
         self.structure_encoder = structure_encoder
@@ -305,7 +312,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
 
         self.cache_path = os.path.join(
             path,
-            f"{self.dms_name}_{self.score_name}_{self.CACHE_VERSION}.pkl"
+            f"{self.dms_name}_{self.score_name}_{self.cache_version}.pkl"
         )
 
         logging.info(f"Dataset Cache Path: {self.cache_path}")

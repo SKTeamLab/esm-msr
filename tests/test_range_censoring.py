@@ -151,3 +151,36 @@ def test_a_library_with_no_measured_rows_is_dropped():
     out = _drop_all_bounded_libraries(df)
     assert sorted(out.code.unique()) == ['A']
     assert len(out) == 2                       # A keeps both its measured and its bounded row
+
+
+def test_wt_dG_is_the_exact_reference_the_labels_were_built_against():
+    """ddG_ML is defined against ONE designated wt replicate, not the mean of them: a wt row whose own ddG_ML is 0
+    carries the reference. Averaging the replicates misses it by a per-library constant, which biases the whole
+    library's knee. dG_ML - ddG_ML recovers it exactly from any measured row."""
+    from esm_msr.preprocess_megascale import MegaScaleDatasetPreprocessor
+    df = pd.DataFrame({
+        'WT_name': ['1ABC.pdb'] * 6,
+        'mut_type': ['wt', 'wt', 'wt', 'A1G', 'A2G', 'A3G'],
+        # the designated replicate is the 4.0 one (its own ddG_ML is 0); the others are scored against it
+        'dG_ML': ['4.6', '4.0', '3.4', '3.0', '2.0', '1.0'],
+        'ddG_ML': ['0.6', '0.0', '-0.6', '-1.0', '-2.0', '-3.0'],
+    })
+    got = MegaScaleDatasetPreprocessor._wt_dG_by_code(df)
+    assert got['1ABC'] == pytest.approx(4.0)        # not the mean of the wt rows, which is also 4.0 here...
+    # ...so bias the replicates to make the mean wrong while the reference is unchanged
+    df.loc[0, ['dG_ML', 'ddG_ML']] = ['4.9', '0.9']
+    got = MegaScaleDatasetPreprocessor._wt_dG_by_code(df)
+    assert got['1ABC'] == pytest.approx(4.0)        # the reference, from the variants
+    assert np.mean([4.9, 4.0, 3.4]) == pytest.approx(4.1)   # what the old mean-of-wt-rows would have given
+
+
+def test_wt_dG_makes_dG_wt_plus_ddG_equal_the_measurement():
+    """The identity the link depends on: its knee and the measurement must sit on one axis."""
+    from esm_msr.preprocess_megascale import MegaScaleDatasetPreprocessor
+    df = pd.DataFrame({
+        'WT_name': ['1ABC.pdb'] * 4, 'mut_type': ['wt', 'A1G', 'A2G', 'A3G'],
+        'dG_ML': ['4.9', '3.0', '2.0', '1.0'], 'ddG_ML': ['0.9', '-1.0', '-2.0', '-3.0'],
+    })
+    ref = MegaScaleDatasetPreprocessor._wt_dG_by_code(df)['1ABC']
+    for dg, ddg in ((3.0, -1.0), (2.0, -2.0), (1.0, -3.0)):
+        assert ref + ddg == pytest.approx(dg, abs=1e-9)

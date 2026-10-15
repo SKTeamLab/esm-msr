@@ -500,6 +500,35 @@ Two things do need care:
   exactly what the 23 overshooting items are. Switching `dG_wt` to the implied reference would be exact and
   cheap, but it moves `dG_wt` for every library and so needs a cache rebuild; it is not done here.
 
+### 4d.2 dG_wt is the label's own reference, not the mean of the wild-type rows (cache c5)
+
+`ddG_ML` is defined against **one designated wild-type replicate**, not against the mean of them. In 265 of the
+412 libraries there is a `wt` row whose own `ddG_ML` is exactly 0, and in all 265 its `dG_ML` is the constant
+every other row was referenced to. `r11_1081_TrROS_Hall` shows it plainly - five `wt` rows at dG 4.678, 3.949,
+**4.085**, 4.001, 4.546, of which the 4.085 one carries `ddG_ML = 0` while the other four are scored as variants
+against it (+0.593, -0.136, -0.084, +0.461).
+
+So `dG_ML - ddG_ML` returns that constant from any measured row, with a within-library spread of exactly zero.
+This is an identity, not an estimate; the median only picks one of many identical values.
+
+| estimator | exact | median err | max err | libraries off by >0.1 |
+|---|---|---|---|---|
+| `mean(wt rows)` (c3/c4) | 7/412 | 0.0149 | 0.1969 | 15 |
+| `median(wt rows)` | 250/412 | 0.0000 | 0.1461 | 3 |
+| `median(dG_ML - ddG_ML)` (c5) | **412/412** | 0 | 0 | 0 |
+
+The median of the `wt` rows is much better than their mean - the designated replicate is usually the central one -
+but it is right only 61% of the time. The consequence of being wrong is not cosmetic: the error is a per-library
+CONSTANT (sd exactly 0 in all 198 cached libraries), so it shifts that library's whole knee. On c4,
+`dG_wt + ddG` disagreed with the item's own `dG_meas` by a median of 0.018 and up to 0.197 kcal/mol, in 38
+libraries by more than 0.05 - and that axis is exactly where the link places its knee. Under c5 the identity
+`dG_wt + ddG == dG_meas` holds exactly, and the 23 items that appeared to exceed their library's headroom
+(`5 - dG_wt`) do so no longer, by construction rather than by filtering them out.
+
+`--cache_version` now pins the dataset a run reads. Launch scripts run from the live worktree, so without it a
+`CACHE_VERSION` bump silently hands a queued job a different dataset under the same name - which is exactly what
+happened to the first dc5 when `c4` landed mid-queue.
+
 ## 5. Known gaps
 
 * `cond` and `native_cond` are generated and cached but **not trained on** (`--subset_caps cond=0.0 native_cond=0.0`)
