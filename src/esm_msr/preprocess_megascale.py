@@ -10,6 +10,7 @@ import pandas as pd
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
+from esm_msr.censoring import SRC_NONE, SRC_RANGE, range_tag
 from esm_msr.data import (
     MEAS_COLUMNS,
     MutationStabilityDataset,
@@ -104,6 +105,82 @@ def is_improper_mutation(mutation_string: str) -> bool:
     
     return False
 
+def _tag_range_rows(df: pd.DataFrame, admit: bool) -> pd.DataFrame:
+    """
+    Mark the rows the assay refused to fit but still bounded, and drop the ones it bounded not at all.
+
+    Must run BEFORE the numeric coercion, which is what destroys the ``<-1`` / ``>5`` tags. Keeping these rows is
+    what stops the double set being selected on its own outcome; see ``esm_msr.censoring`` for why that matters and
+    ``--censor_range`` for the switch. With ``admit=False`` the old behaviour is restored exactly: every row the
+    assay declined to fit is dropped.
+    """
+    tags = [range_tag(dg, ddg) for dg, ddg in zip(df.get('dG_ML', pd.Series(index=df.index, dtype=object)),
+                                                  df.get('ddG_ML', pd.Series(index=df.index, dtype=object)))]
+    out = df.copy()
+    out['cens'] = [t[0] for t in tags]
+    out['dG_bound'] = [t[1] for t in tags]
+    out['cens_src'] = np.where(out['cens'] != 0, SRC_RANGE, SRC_NONE)
+    unfitted = out['ddG_ML'].astype(str).str.strip() == '-'
+    if not admit:
+        return out.loc[~unfitted]
+    n_tag, n_nil = int((out['cens'] != 0).sum()), int((unfitted & (out['cens'] == 0)).sum())
+    logging.info(f"range censoring: admitting {n_tag} bounded rows the assay declined to fit "
+                 f"({int((out['cens'] < 0).sum())} '<-1', {int((out['cens'] > 0).sum())} '>5'); "
+                 f"dropping {n_nil} that carry no bound either")
+    return out.loc[~unfitted | (out['cens'] != 0)]
+
+
+def _fill_range_values(df: pd.DataFrame, dG_wt: Dict[str, float]) -> pd.DataFrame:
+    """
+    Give every range-tagged row the numbers the rest of the pipeline needs, derived from its bound.
+
+    ``dG_ML`` becomes the tag's threshold and ``ddG_ML`` that threshold minus the library's wild-type dG, so the
+    row's label IS its bound on its own ddG scale. ``apply_item_censoring`` then derives ``cens_bound`` through the
+    usual ``dG_bound + (ddG - dG_meas)`` offset and gets the label back unchanged, exactly as for ``SRC_GAP``.
+
+    The wild-type dG comes from the library's ``wt`` rows. A library whose wild type is itself off-scale has none,
+    and on this dataset those libraries turn out to have no measured rows at all - every row is a tag - so there is
+    no reference to place them against and nothing to recover: 40k of the 96k tagged rows are dropped here, all of
+    them from such libraries. A tagged row with no wild-type dG keeps NaN and the caller's notna filter removes it.
+    """
+    if 'cens' not in df.columns or not (df['cens'] != 0).any():
+        return df
+    key = (df['WT_name'].str.replace('.pdb_', '_', regex=False)
+           .str.replace('.pdb', '', regex=False).str.replace('|', '_', regex=False))
+    wt = key.map(dG_wt).astype(float)
+    tagged = df['cens'] != 0
+    out = df.copy()
+    out.loc[tagged, 'dG_ML'] = out.loc[tagged, 'dG_bound']
+    out.loc[tagged, 'ddG_ML'] = out.loc[tagged, 'dG_bound'] - wt[tagged]
+    lost = int((tagged & wt.isna()).sum())
+    if lost:
+        logging.info(f"range censoring: dropping {lost} tagged rows whose library has no wild-type dG to place "
+                     f"them against")
+    return out
+
+
+def _drop_all_bounded_libraries(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Drop any library left with no measured rows at all.
+
+    Admitting the bounded rows resurrects a handful of libraries whose every variant the assay declined to fit -
+    on this dataset 22 of them, three of which sit in a split. Every range-censored item of a library carries the
+    same label (its bound is ``DG_RANGE_LOW - dG_wt``, a library constant), so such a library has no label variance:
+    it can teach the hinge nothing it does not already know from the other libraries, and as a validation library
+    it would be scored entirely against a constant. The point of admitting these rows is to restore the missing
+    destabilised tail INSIDE libraries that have measurements, not to invent libraries made only of bounds.
+    """
+    if 'cens' not in df.columns or 'code' not in df.columns:
+        return df
+    measured = df.loc[df['cens'] == 0, 'code'].unique()
+    keep = df['code'].isin(measured)
+    if not keep.all():
+        gone = sorted(set(df.loc[~keep, 'code'].unique()))
+        logging.info(f"range censoring: dropping {len(gone)} libraries with no measured rows "
+                     f"({int((~keep).sum())} items): {gone[:8]}{' ...' if len(gone) > 8 else ''}")
+    return df.loc[keep]
+
+
 def _collapse_replicates(df: pd.DataFrame) -> pd.DataFrame:
     """
     Collapse replicate rows of the same variant, averaging every measurement column.
@@ -114,24 +191,47 @@ def _collapse_replicates(df: pd.DataFrame) -> pd.DataFrame:
     original index of the first row of each group is preserved, because the SPURS path filters on raw row indices.
     """
     meas_cols = [c for c in MEAS_COLUMNS if c in df.columns]
-    tmp = df.copy()
-    tmp['_orig_idx'] = tmp.index
     agg = {c: 'mean' for c in meas_cols}
+    # The censoring a row declares is a property of the variant, not a measurement to average over.
+    agg.update({c: 'first' for c in ('cens', 'cens_src', 'dG_bound') if c in df.columns})
     agg['_orig_idx'] = 'first'
-    out = tmp.groupby(IDENTITY_COLS, dropna=False).agg(agg).reset_index()
-    out.index = out['_orig_idx']
-    out.index.name = df.index.name
-    return out.drop(columns=['_orig_idx'])
+
+    def collapse(frame):
+        tmp = frame.copy()
+        tmp['_orig_idx'] = tmp.index
+        out = tmp.groupby(IDENTITY_COLS, dropna=False).agg(agg).reset_index()
+        out.index = out['_orig_idx']
+        out.index.name = df.index.name
+        return out.drop(columns=['_orig_idx'])
+
+    if 'cens' not in df.columns:
+        return collapse(df)
+
+    # A variant whose replicates disagree about whether it could be fitted at all must not have the two averaged:
+    # the bounded replicate's dG_ML has been overwritten with the bound itself, so averaging it into a real
+    # measurement silently corrupts that measurement (and the mean of -1.0 and a real value is neither). The fitted
+    # replicates win outright, and a variant counts as bounded only when every replicate of it was.
+    measured, bounded = df.loc[df['cens'] == 0], df.loc[df['cens'] != 0]
+    if not len(bounded):
+        return collapse(measured)
+    m_out = collapse(measured) if len(measured) else measured
+    b_out = collapse(bounded)
+    if len(m_out):
+        seen = set(map(tuple, m_out[IDENTITY_COLS].to_numpy()))
+        b_out = b_out.loc[[t not in seen for t in map(tuple, b_out[IDENTITY_COLS].to_numpy())]]
+    return pd.concat([m_out, b_out]) if len(m_out) else b_out
 
 
 class MegaScaleDatasetPreprocessor:
     """Handles raw data loading, preprocessing, and dataset creation."""
-    def __init__(self, data_file: str, af_model_folder: str = '/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs/', spurs_override: bool = False):
+    def __init__(self, data_file: str, af_model_folder: str = '/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs/', spurs_override: bool = False,
+                 censor_range: bool = True):
         self.data_file = data_file
         self.af_model_folder = af_model_folder
         self.df = pd.DataFrame()
         self.split_dfs = {}
         self.spurs_override = spurs_override
+        self.censor_range = censor_range
         # Measured dG of each library's starting sequence (the WT, or the background for mutation-suffixed codes),
         # keyed by `code`. The 'wt' rows are filtered out of self.df, so this is the only place they survive. Each
         # dataset needs it to put an item on the assay's observed scale (dG_obs = h(dG_wt + latent)) and to compute
@@ -179,9 +279,11 @@ class MegaScaleDatasetPreprocessor:
         if missing:
             logging.warning(f"Raw table is missing measurement columns {missing}; they will be NaN on every item.")
         self.df = self.df[keep]
+        self.df = _tag_range_rows(self.df, self.censor_range)
         for c in MEAS_COLUMNS:
             if c in self.df.columns:
                 self.df[c] = pd.to_numeric(self.df[c], errors='coerce')
+        self.df = _fill_range_values(self.df, self.dG_wt)
         self.df = self.df.loc[self.df['ddG_ML'].notna()]
         self.df = self.df.loc[~self.df['mut_type'].str.contains('wt')]
         self.df = self.df.loc[~self.df['mut_type'].str.contains('ins')]
@@ -199,6 +301,7 @@ class MegaScaleDatasetPreprocessor:
         self.df['chain'] = 'A'
         self.df['uid'] = self.df['code'].astype(str) + '_' + self.df['mut_type'].astype(str)
 
+        self.df = _drop_all_bounded_libraries(self.df)
         self.df = _collapse_replicates(self.df)
 
         self.df['uid'] = self.df['uid'].str.replace('|', '_', regex=False)
@@ -215,7 +318,7 @@ class MegaScaleDatasetPreprocessor:
 
         cols = ["mut_type", "WT_name", "aa_seq"] + list(MEAS_COLUMNS)
         df = pd.read_csv(self.data_file, usecols=lambda c: c in set(cols), low_memory=False)
-        df = df.loc[df.ddG_ML != '-', :].reset_index(drop=True)
+        df = _tag_range_rows(df, self.censor_range).reset_index(drop=True)
 
         df1 = df.loc[~df.mut_type.str.contains("ins") & ~df.mut_type.str.contains("del") & ~df.mut_type.str.contains(":"), :].reset_index(drop=True)
         df2 = df.loc[(~df.mut_type.str.contains("ins") & ~df.mut_type.str.contains("del") & df.mut_type.str.contains(":")) | (df.mut_type == 'wt'), :].reset_index(drop=True)
@@ -231,6 +334,7 @@ class MegaScaleDatasetPreprocessor:
         for c in MEAS_COLUMNS:
             if c in self.df.columns:
                 self.df[c] = pd.to_numeric(self.df[c], errors='coerce')
+        self.df = _fill_range_values(self.df, self.dG_wt)
         self.df = self.df.loc[self.df['ddG_ML'].notna()]
 
         self.df['mut_structure'] = self.df['WT_name'].apply(lambda x: x.split('.pdb_')[1] if '.pdb_' in x else None)
@@ -242,6 +346,7 @@ class MegaScaleDatasetPreprocessor:
         self.df['chain'] = 'A'
         self.df['uid'] = self.df['code'].astype(str) + '_' + self.df['mut_type'].astype(str)
 
+        self.df = _drop_all_bounded_libraries(self.df)
         self.df = _collapse_replicates(self.df)
 
         self.df['uid'] = self.df['uid'].str.replace('|', '_', regex=False)
@@ -402,6 +507,7 @@ class MegaScaleDatasetPreprocessor:
         censor_floor: bool = True,
         gap_max=2.0,
         native_cond_as_single: bool = False,
+        censor_range: bool = True,
         combine_validation: bool = False,
     ) -> Tuple[List[DataLoader], List[str]]:
         """Generates a list of dataloaders for a specific list of protein codes."""
@@ -438,6 +544,7 @@ class MegaScaleDatasetPreprocessor:
                     censor_floor=censor_floor,
                     gap_max=gap_max,
                     native_cond_as_single=native_cond_as_single,
+                    censor_range=censor_range,
                 )
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
@@ -523,7 +630,8 @@ def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encod
 def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encoder: Any, add_benchmarks_to_val = False) -> Tuple[List[DataLoader], List[DataLoader], List[DataLoader], List[str], List[str], List[str]]:
     """Main orchestrator utilizing MegaScaleDatasetPreprocessor."""
     
-    preprocessor = MegaScaleDatasetPreprocessor(args.raw_data_file, args.af_model_folder, spurs_override=args.remove_spurs_homologs)
+    preprocessor = MegaScaleDatasetPreprocessor(args.raw_data_file, args.af_model_folder, spurs_override=args.remove_spurs_homologs,
+                                                censor_range=args.censor_range)
     preprocessor.compute_floors(percentile=args.floor_percentile, x_max=args.floor_x_max, min_n=args.floor_min_n,
                                 max_sd=args.floor_max_sd, band=(args.link_floor_min, args.link_floor_max))
     # Initialises the link's learned global floor at the median of the libraries that do have one (a measured
@@ -551,6 +659,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         censor_floor=args.censor_floor,
         gap_max=args.censor_gap_max if args.censor_gap else None,
         native_cond_as_single=args.native_cond_as_single,
+        censor_range=args.censor_range,
     )
 
     if not train_dataloaders: 
@@ -569,6 +678,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         censor_floor=args.censor_floor,
         gap_max=args.censor_gap_max if args.censor_gap else None,
         native_cond_as_single=args.native_cond_as_single,
+        censor_range=args.censor_range,
     )
 
     # Add Benchmarks

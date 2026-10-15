@@ -26,12 +26,19 @@ Two sources set it here, recorded in ``cens_src``:
   Measured on this dataset it is specific but not sensitive - 92% of the numeric rows it flags sit below dG 0.5,
   but it catches only ~15% of the rows down there - so the two sources are a union, not alternatives.
 
-``SRC_RANGE`` (1) is reserved for the other half of the same population: the variants the assay declines to give a number to at all, reporting
-only ``<-1`` (dead) or ``>5`` (hyperstable). A library's floor and its rate of ``<-1`` reports are the same quantity seen twice, and which of
-the two a dead variant lands in is a matter of how far below the floor it fell and how noisy its K50 fit was. Those rows are dropped upstream
-(``preprocess_megascale`` keeps only numeric ``ddG_ML``), so nothing sets ``SRC_RANGE`` on this branch; admitting them is a change to the
-training population, not just to the loss. The machinery below and in ``losses`` is two-sided throughout so that doing so later needs no
-rework here.
+* ``SRC_RANGE`` (1): the assay declined to fit the variant at all and reported only ``<-1`` (dead) or ``>5``
+  (hyperstable). Unlike the other two sources this one is set upstream, in ``preprocess_megascale``, because it
+  decides which ROWS exist rather than how an existing row is scored.
+
+  Admitting these rows is what keeps the training set from being selected on its own outcome. A double's additive
+  expectation is known before the double is measured, and the assay's failure rate rises monotonically with that
+  depth - 0.7% of doubles with a shallow expectation go unfitted against 24% of those below -5 kcal/mol. Drop them
+  and the surviving deep doubles are the ones that happened to come out less destabilised than their additive
+  expectation, so the model sees a population in which deep means rescue. The bound is the tag's own threshold, so
+  such a row says only 'at or below -1', which is exactly what the assay established, and the hinge stops pushing
+  once the prediction clears it. 86% of the doubles dropped this way carry a usable tag, and that share RISES with
+  depth (94% below -5), so the recoverable rows are concentrated where the bias is worst. The remainder report
+  ``-`` for dG as well, carry no bound, and stay dropped.
 
 Losses use the same two fields everywhere: ``ListMLELoss.forward_censored`` ties censored members at the bottom or top of their list, and
 ``losses.hinge_regression_loss`` penalises only a prediction on the wrong side of the bound. Bounds are stored on the item's own ``ddG`` scale,
@@ -62,6 +69,25 @@ def to_numeric(values) -> np.ndarray:
     return np.array([_to_float(x) for x in np.asarray(values, dtype=object)], dtype=float)
 
 
+def range_tag(dG_raw: Any, ddG_raw: Any) -> Tuple[int, float]:
+    """
+    The censoring a raw ``(dG_ML, ddG_ML)`` pair declares by its tag, as ``(cens, dG_bound)``.
+
+    Only a row the assay refused to fit (``ddG_ML == '-'``) can be tagged; a numeric ddG is an ordinary
+    measurement whatever dG says. ``<-1`` and ``>5`` are the only tags the table uses, and each names its own
+    bound. Shared with ``preprocess_megascale`` so one definition decides both which rows are admitted and what
+    they are bounded by.
+    """
+    if str(ddG_raw).strip() != '-':
+        return CENS_NONE, float('nan')
+    tag = str(dG_raw).strip()
+    if tag.startswith('<'):
+        return CENS_LO, DG_RANGE_LOW
+    if tag.startswith('>'):
+        return CENS_HI, DG_RANGE_HIGH
+    return CENS_NONE, float('nan')
+
+
 def apply_item_censoring(data: Iterable[Dict[str, Any]], censor_floor: bool = True,
                          gap_max: Optional[float] = 2.0) -> Tuple[list, Dict[str, int]]:
     """
@@ -70,7 +96,8 @@ def apply_item_censoring(data: Iterable[Dict[str, Any]], censor_floor: bool = Tr
     With ``censor_floor``, an item whose measured dG (``dG_meas``) is at or below its library's floor (``y_floor``) becomes lower-censored;
     both must be finite, so a library with no floor evidence simply has no floor censoring. With ``gap_max``, an item whose two proteases
     disagree by more than that (``protease_gap``) becomes lower-censored against its own reported value. The floor source is checked first
-    because its bound is the more robust of the two - the library's central pinning value rather than one unreliable reading.
+    because its bound is the more robust of the two - the library's central pinning value rather than one unreliable reading. An item that
+    already carries ``SRC_RANGE`` from preprocessing is left as it is.
 
     ``cens_bound`` (on the item's own ddG scale) is derived as ``dG_bound + (ddG - dG_meas)``: the offset between an item's label and the
     measured dG it came from is constant, and for a conditional item it already carries the partner's single. So a double measured at the
@@ -78,10 +105,17 @@ def apply_item_censoring(data: Iterable[Dict[str, Any]], censor_floor: bool = Tr
     from the one floor.
     """
     items = list(data)
-    counts = {'floor': 0, 'gap': 0, 'floor_by_subset': Counter(), 'gap_by_subset': Counter()}
+    counts = {'floor': 0, 'gap': 0, 'range': 0, 'floor_by_subset': Counter(), 'gap_by_subset': Counter(),
+              'range_by_subset': Counter()}
     for item in items:
         cens = int(item.get('cens', 0))
         subset = item.get('subset_type', 'unknown')
+        # SRC_RANGE arrives already set from preprocessing - it is a property of the row, not a decision made here.
+        # Counted so the per-library log reports all three sources, and left alone: the branches below are gated on
+        # cens == 0, so a tagged row keeps the bound the assay stated.
+        if cens != 0 and int(item.get('cens_src', 0)) == SRC_RANGE:
+            counts['range'] += 1
+            counts['range_by_subset'][subset] += 1
         if cens == 0 and censor_floor:
             dG, floor = item.get('dG_meas', float('nan')), item.get('y_floor', float('nan'))
             if np.isfinite(dG) and np.isfinite(floor) and dG <= floor:

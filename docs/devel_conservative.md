@@ -337,6 +337,82 @@ logged each epoch so a moving metric can be attributed.
    distance from the band are all cached; a library with no evidence of any pinning should arguably get no floor
    censoring at all rather than the band's edge.
 
+## 4b. Survivorship bias in the double set, and why subsampling on depth cannot fix it
+
+A double's additive expectation `ddG_A + ddG_B` is known before the double is measured, so the assay's failure
+rate can be read as a function of depth. It is steeply monotonic (doubles with both singles measured, whole table):
+
+| additive expectation | n | unfitted (`ddG_ML == '-'`) | mean `dddG` of the fitted | fitted with `dddG > 0` |
+|---|---|---|---|---|
+| ≤ -5 | 14126 | **24.3%** | +2.45 | 76% |
+| -5 … -4 | 17019 | 13.8% | +1.66 | 85% |
+| -4 … -3 | 27067 | 8.4% | +1.16 | 88% |
+| -3 … -2.5 | 17256 | 4.1% | +0.82 | 88% |
+| -2.5 … -2 | 18217 | 2.5% | +0.62 | 84% |
+| -2 … -1.5 | 16987 | 1.4% | +0.44 | 79% |
+| -1.5 … -1 | 14913 | 0.8% | +0.30 | 75% |
+| -1 … 0 | 13462 | 0.7% | +0.14 | 64% |
+| > 0 | 1799 | 0.8% | -0.19 | 38% |
+
+Two different things are mixed in that last column and only one of them is a bias:
+
+* **Saturation.** A double whose true dG is below the readout's floor reports the floor, so its `dddG` is positive
+  by however much it was compressed. This is a property of the measurement, it is real, and modelling it is
+  exactly what the link is for. It would produce this gradient with zero true epistasis and zero selection.
+* **Survivorship.** The rows the assay could not fit were dropped (`preprocess_megascale`, `ddG_ML != '-'`). Since
+  failure is far likelier at depth, the deep doubles that remain are the ones that happened to come out *less*
+  destabilised than their additive expectation. That is a selection on the outcome.
+
+**Subsampling proportional to additive depth does not remove the second one.** The selection operates on the
+outcome given the depth: within each depth stratum, the survivors are those whose `dddG` was high enough to keep
+dG inside the dynamic range, so the truncation lives in `P(dddG | additive, observed)`. Reweighting on `additive`
+— a pre-selection variable — changes only how much weight each stratum receives and leaves every stratum's
+conditional distribution exactly as truncated as it was. Weighting *towards* depth increases exposure to the
+stratum that is 24% missing; weighting *away* from it discards the only region where epistasis is informative and
+leaves the remainder biased. It would also attenuate the saturation signal the link needs in order to locate the
+floor, which is actively counterproductive.
+
+**What is implemented instead (`--censor_range`, default on).** The missing rows are admitted as censored
+observations rather than reweighted around. 86% of the dropped doubles carry an explicit `dG_ML = '<-1'`, and that
+share *rises* with depth (94% below -5), so the recoverable rows are concentrated exactly where the bias is worst.
+Such a row states `dG ≤ -1`, which becomes `ddG ≤ -1 - dG_wt` on the item's own scale; it enters with
+`cens = -1`, `cens_src = SRC_RANGE` and that bound, so `hinge_regression_loss` penalises only a prediction above
+it and `ListMLELoss.forward_censored` ties it at the bottom of its list. The missing mass is restored at its
+source instead of being compensated for.
+
+Effect on the training population (train+val libraries, `c4` cache):
+
+| | off | on |
+|---|---|---|
+| libraries | 198 | 198 |
+| singles | 180768 | 186954 |
+| doubles | 69000 | 77606 (**+12.5%**) |
+| censored by the assay | 0 | 14792 (14492 lower, 300 upper) |
+| libraries with floor evidence | 47 | 47 |
+| `dataset_floor` | -0.139013857 | -0.139013857 |
+
+Three things had to be got right for those last two rows to hold, and each is a test in
+`tests/test_range_censoring.py`:
+
+* **The floor estimator must not see the bounds.** A tagged row's `dG_ML` is set to the bound itself, so handing
+  those to `floor_evidence` would give it a pile of identical values sitting exactly at the band edge — the very
+  shape it reads as evidence of a floor — and manufacture a spurious floor at -1.0. `library_floor` therefore
+  estimates from measured rows only, and `frac_cens_lo` now comes from `cens` rather than the raw tag.
+* **Replicate collapsing must not average a bound into a measurement.** Replicates can disagree about whether the
+  variant was fittable at all; the mean of -1.0 and a real dG is neither. Fitted replicates win outright, and a
+  variant is bounded only when every replicate of it was.
+* **A bounded single must not define an additive expectation.** Its label is its bound, so admitting it to
+  `single_map` would turn `ddG_additive`, `dddG` and the teacher-forced WT target into bounds passing as values.
+  Its partners simply get no additive expectation.
+
+Also dropped: 40147 tagged rows whose library has no wild-type dG to place them against, and 22 libraries left
+with no measured rows at all (three of which sit in a split). Every range item of a library carries the same
+label, since its bound is `DG_RANGE_LOW - dG_wt`, a library constant — so a library made only of bounds has no
+label variance, and as a validation library would be scored entirely against a constant. The point is to restore
+the destabilised tail *inside* libraries that have measurements, not to invent libraries made only of bounds.
+
+This needs a cache regeneration (`CACHE_VERSION` `c3` → `c4`).
+
 ## 5. Known gaps
 
 * `cond` and `native_cond` are generated and cached but **not trained on** (`--subset_caps cond=0.0 native_cond=0.0`)

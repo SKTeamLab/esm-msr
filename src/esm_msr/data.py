@@ -104,6 +104,11 @@ def library_floor(df: Any, percentile: float = 5.0, dG_wt: float = float('nan'),
     floor population at all, and measured across this dataset it is clipped at the top of the assay's band for 44%
     of training libraries and correlates only 0.40 with the conditioned estimate. ``frac_cens_lo`` is the share of
     rows the assay would not give a number to (``<-1``), which truncates the numeric tail the percentile sees.
+
+    Estimated from MEASURED rows only. With ``--censor_range`` the frame also carries the rows the assay merely
+    bounded, whose ``dG_ML`` has been set to the bound itself (-1.0); feeding those to the estimator would hand
+    it a pile of identical values sitting exactly at the band edge, which is the shape it reads as evidence of a
+    floor, and would manufacture a spurious floor at -1.0 for any library with enough of them.
     """
     out = {'y_floor': float('nan'), 'evidence': 0.0, 'floor_pctl': float('nan'), 'floor_cond': float('nan'),
            'n_dG': 0.0, 'n_deep': 0.0, 'sd_deep': float('nan'), 'frac_cens_lo': float('nan'),
@@ -112,12 +117,22 @@ def library_floor(df: Any, percentile: float = 5.0, dG_wt: float = float('nan'),
         logging.warning(f"[{name}] no dG_ML column; no floor estimate and no floor censoring.")
         return out
 
-    raw = df['dG_ML'].to_numpy(dtype=object)
-    dG = censoring.to_numeric(raw)
-    tags = np.array([str(x).strip() for x in raw])
+    # The share the assay declined to fit downward: from the admitted rows' own censoring where the frame carries
+    # it, else from the raw tag that preprocessing has not yet replaced.
+    if 'cens' in df.columns:
+        cens_col = np.asarray(df['cens'], dtype=float)
+        out['frac_cens_lo'] = float((cens_col < 0).mean()) if len(cens_col) else float('nan')
+        df = df.loc[df['cens'] == 0]
+    else:
+        tags_all = np.array([str(x).strip() for x in df['dG_ML'].to_numpy(dtype=object)])
+        out['frac_cens_lo'] = float((tags_all == censoring.LOW_TAG).mean()) if len(tags_all) else float('nan')
+    if not len(df):
+        logging.warning(f"[{name}] no measured rows; no floor estimate and no floor censoring.")
+        return out
+
+    dG = censoring.to_numeric(df['dG_ML'].to_numpy(dtype=object))
     finite = np.isfinite(dG)
     out['n_dG'] = float(finite.sum())
-    out['frac_cens_lo'] = float((tags == censoring.LOW_TAG).mean()) if len(tags) else float('nan')
     if finite.any():
         out['floor_pctl'] = float(np.percentile(dG[finite], percentile))
 
@@ -199,7 +214,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
     # c3: first conservative-branch cache. Reversions are gone; the former 'mut_ctx' subset is emitted as 'cond'
     # (same construction, the name ``routing`` uses); every item carries meas / dG_meas / dG_wt / y_floor /
     # cens / cens_src / dG_bound, and the library's floor statistics ride along in `floor_stats`.
-    CACHE_VERSION = 'c3'
+    CACHE_VERSION = 'c4'
 
     # The bounded ML fit reports no dG outside this interval: the measured distribution has zero mass beyond
     # either end, for singles and doubles alike.
@@ -226,6 +241,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         censor_floor: bool = True,
         gap_max: Optional[float] = 2.0,
         native_cond_as_single: bool = False,
+        censor_range: bool = True,
     ):
         """
         Args:
@@ -253,6 +269,9 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 treat their value as a bound and their mutual order as unknown (``esm_msr.censoring``).
             gap_max: Also censor an item whose two proteases disagree by more than this (kcal/mol), bounded by its
                 own reported value. None disables it. This is the source that reaches libraries with no floor.
+            censor_range: Keep the rows the assay bounded rather than fitted (``<-1`` / ``>5``), which the cache
+                always stores. False drops them, restoring the selected-on-outcome population; see
+                ``esm_msr.censoring``.
             native_cond_as_single: Leave a mutant-background library's measurements labelled ``single`` instead of
                 ``native_cond``, which is what the released model does. They then train the WT head and count as
                 singles in every metric. Strictly it is wrong - ddG(X | background) is a conditional effect, not a
@@ -311,6 +330,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
 
         # Mutant-background libraries: their singles are conditional measurements, unless we are reproducing the
         # released behaviour of treating them as ordinary singles.
+        if not censor_range:
+            self._drop_range_censored()
         if not native_cond_as_single:
             self._label_native_cond()
         self._filter_dataset()
@@ -338,6 +359,17 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         return data
     
     # ------------------------------------------------------------------ post-load filters
+
+    def _drop_range_censored(self) -> None:
+        """
+        Remove the rows the assay only bounded, putting the training population back as it was before they were
+        admitted. The cache keeps them either way, so one cache serves a run that wants them and one that does not.
+        """
+        before = len(self.data)
+        self.data = [i for i in self.data if int(i.get('cens_src', 0)) != censoring.SRC_RANGE]
+        if len(self.data) != before:
+            logging.info(f"[{self.dms_name}] dropped {before - len(self.data)} range-censored items "
+                         f"(--censor_range off)")
 
     def _label_native_cond(self) -> None:
         """
@@ -397,8 +429,9 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         """
         active = bool(censor_floor and getattr(self, 'has_floor_evidence', False))
         self.data, c = censoring.apply_item_censoring(self.data, active, gap_max)
-        if c['floor'] or c['gap']:
-            logging.info(f"[{self.dms_name}] censored {c['floor'] + c['gap']} of {len(self.data)} items: "
+        if c['floor'] or c['gap'] or c['range']:
+            logging.info(f"[{self.dms_name}] censored {c['floor'] + c['gap'] + c['range']} of {len(self.data)} items: "
+                         f"{c['range']} bounded by the assay {dict(c['range_by_subset'])}, "
                          f"{c['floor']} at the library floor "
                          f"(y_floor={getattr(self, 'y_floor_used', float('nan')):.3f}, "
                          f"evidence={int(getattr(self, 'has_floor_evidence', False))}) {dict(c['floor_by_subset'])}, "
@@ -660,7 +693,10 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
 
                 ddG_val = float(row['ddG'])
                 parsed_rows.append((muts, ddG_val, row))
-                if len(muts) == 1: 
+                # Only a MEASURED single defines an additive expectation. A range-censored single's label is its
+                # bound, so admitting it here would turn ddG_additive, dddG and the teacher-forced WT target into
+                # bounds masquerading as values. Its partners simply get no additive expectation.
+                if len(muts) == 1 and int(row.get('cens', 0) or 0) == 0:
                     single_map[(muts[0][1], muts[0][2])] = ddG_val
 
             for muts, ddG_val, row in parsed_rows:
@@ -864,9 +900,11 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             'mutations': mutations,
             'meas': self._meas_array(row),
             'dG_meas': self._dG_meas(row, ddG_total),
-            'cens': 0,
-            'cens_src': 0,
-            'dG_bound': float('nan'),
+            # A row the assay bounded rather than fitted arrives already censored (``SRC_RANGE``); everything else
+            # starts clean and may be censored later by its library's floor or its protease gap.
+            'cens': int(row.get('cens', 0)) if hasattr(row, 'get') else 0,
+            'cens_src': int(row.get('cens_src', 0)) if hasattr(row, 'get') else 0,
+            'dG_bound': float(row.get('dG_bound', float('nan'))) if hasattr(row, 'get') else float('nan'),
             'wt_sequence_tokens': np.array(wt_sequence_tokens, dtype=np.int64),
             'mt_sequence_tokens': np.array(mt_sequence_tokens, dtype=np.int64),
             'mut_pos': np.array(mut_pos, dtype=np.int64),

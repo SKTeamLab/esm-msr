@@ -207,6 +207,12 @@ def parse_arguments() -> argparse.Namespace:
                              help="Also censor an item whose two proteases disagree about its stability by more "
                                   "than --censor_gap_max, bounded by its own reported value. Needs no doubles and "
                                   "no library floor, so unlike --censor_floor it reaches every library.")
+    floor_group.add_argument('--censor_range', action=argparse.BooleanOptionalAction, default=True,
+                             help="Admit the rows the assay bounded rather than fitted ('<-1' / '>5') as censored "
+                                  "items instead of dropping them. Dropping them selects the double set on its own "
+                                  "outcome: fit failure rises from 0.7%% of shallow doubles to 24%% of those below "
+                                  "-5 kcal/mol, so the survivors at depth are those that came out better than their "
+                                  "additive expectation.")
     floor_group.add_argument('--censor_gap_max', type=float, default=2.0,
                              help="|deltaG_t - deltaG_c| above which the two fits are taken not to identify a "
                                   "stability (kcal/mol). In-range variants sit near 0.31; the flagged population "
