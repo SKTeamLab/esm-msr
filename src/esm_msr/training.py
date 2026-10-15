@@ -194,6 +194,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         variants and the ranking is always within-library. The raw loss is rescaled by
         ``list_size / mean(list length)`` so that masking members out does not quietly shrink the loss.
         """
+        if mask.dtype != torch.bool:
+            raise AssertionError(f"rank mask must be bool, got {mask.dtype}.")
         valid_len = (pred.shape[0] // list_size) * list_size
         if valid_len <= 0:
             return None, 0.0, 0
@@ -212,6 +214,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         when the prediction sits on the wrong side of it (``losses.hinge_regression_loss``), so a variant the assay
         pinned at its floor cannot be pushed to a value it never had.
         """
+        if mask.dtype != torch.bool:
+            raise AssertionError(f"regression mask must be bool, got {mask.dtype}: an integer mask indexes rows "
+                                 f"instead of selecting them, which fails silently.")
         L = hinge_regression_loss(self.crit_reg, pred[mask], target[mask], bound[mask], cens[mask])
         w = weights[mask]
         return (L * w).sum() / global_w_sum, float((L * w).sum().item()), float(w.sum().item())
@@ -243,6 +248,20 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         link_ok_all = torch.isfinite(dGwt_all) if link is not None else torch.ones(B, dtype=torch.bool, device=device)
         cens_all = batch.get('cens', torch.zeros(B, dtype=torch.long, device=device)).long()
         bound_all = batch.get('cens_bound', torch.full((B,), float('nan'), device=device)).float()
+
+        # A bound below what the link can even report is not a bound the model can honour. The floor source already
+        # bounds an item at exactly the link's floor, but the two-protease source bounds it at its OWN reading, and
+        # that reading is frequently BELOW the floor (on 1QP2, 92% of the gap-censored items, by a median 0.41
+        # kcal/mol) - precisely because the fit that produced it was unreliable. Left alone the hinge is then
+        # violated no matter what the model predicts, contributing an irreducible squared error (mean 0.20 there)
+        # and pushing the latent down forever instead of stopping once the prediction saturates.
+        #
+        # Raising the bound to the link's floor makes it satisfiable: the model discharges it by predicting at or
+        # below the floor, the penalty decays to zero as it does, and the two censoring sources end up with
+        # identical semantics. Detached, so a bound never trains the floor it is derived from.
+        if link is not None:
+            floor_ddG = (link.effective_floor(floor_all) - dGwt_all).detach()
+            bound_all = torch.maximum(bound_all, floor_ddG)
 
         sums, cnts = defaultdict(float), defaultdict(float)
         n_tf_drop = 0
@@ -312,8 +331,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     # Assembled in latent (the pass's own sum over the item's positions), linked once, at the end.
                     # Under 'latent' a multi-mutant's target is itself a latent sum, so it stays off the link.
                     p_obs = link.obs_ddG(wt_pred_cal, dGwt_mb, floor_mb)
-                    p_wt = p_obs if wt_double_linked else torch.where(is_single, p_obs, wt_pred_cal)
-                    reg_wt_mask = valid_wt_mask & (link_ok | (~is_single & ~wt_double_linked))
+                    if wt_double_linked:
+                        p_wt, reg_wt_mask = p_obs, valid_wt_mask & link_ok
+                    else:
+                        # Under 'latent' a multi-mutant's target is itself a latent sum, so it stays off the link
+                        # and needs no dG_wt - hence it is kept even where link_ok is False.
+                        p_wt = torch.where(is_single, p_obs, wt_pred_cal)
+                        reg_wt_mask = valid_wt_mask & (link_ok | ~is_single)
                 else:
                     p_wt, reg_wt_mask = wt_pred_cal, valid_wt_mask
                 cens_wt = cens_mb if wt_double_linked else torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
