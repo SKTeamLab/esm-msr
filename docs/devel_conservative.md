@@ -437,6 +437,38 @@ metric Comet had except `process duration` and the `sys.*` series. `comet_rescor
 `on_validation_epoch_end`, verified at 302/302 metrics against dc3's own `metrics.csv`. Done for dc3 and dc4,
 both tagged `rescored_full_population`.
 
+## 4d. The four-parameter link
+
+The floor-only link gained a second soft clamp, the construction `devel` uses:
+
+    u    = f + tau_lo * softplus((z - f) / tau_lo)        # rises from the floor, then follows z
+    h(z) = c - tau_hi * softplus((c - u) / tau_hi)        # follows u, then levels off at the ceiling
+
+Each stage is increasing, so `h` is increasing for any positive temperatures and per-library rank metrics are
+still untouched by it. The four free parameters are `global_floor`, `raw_ceiling_span`, `raw_tau` and
+`raw_tau_hi`; `f` itself remains data, the library's own cached `y_floor` clipped to the band, with the learned
+global floor covering libraries that have no evidence of one.
+
+* **The ceiling** is one learned scalar initialised at 5.0, the top of the assay's reported range (`>5`). There
+  is no per-library counterpart because nothing in the data locates one the way the pile-up at the bottom locates
+  a floor. It is parameterised as `floor_max + softplus(raw) + 1e-3`, so it cannot reach any library's floor
+  whatever the band does - without that margin a learned span underflows to exactly zero in float32 and collapses
+  the link to a constant.
+* **`tau_hi`** starts at 0.59 only because nothing independently locates a value for the top of the range; 0.59
+  is what fits the measured pile-up at the *bottom*. It is free to move away from it.
+* **Both temperatures** are anchored rather than fixed: `--learn_link_tau` frees them and `--link_tau_penalty`
+  adds `lambda * ((tau_lo - 0.59)^2 + (tau_hi - 0.59)^2)` to the loss, applied once per optimizer step rather
+  than once per micro-batch. The penalty only counts temperatures that are actually free, so it never adds a
+  constant to a run with fixed `tau`. `link/tau` and `link/tau_hi` are logged, so the drift is observable and
+  `lambda` can be retuned from the first run that uses it - 1.0 is a starting guess, not a derived value.
+
+`--link_ceiling` defaults to unset, so the floor-only link of dc3-dc5 is unchanged, and a test pins that
+`ceiling=None` reproduces it exactly.
+
+The ceiling also makes the `>5` half of `--censor_range` coherent: an upper-censored item's bound
+`5 - dG_wt` is now reachable, so the hinge can be discharged instead of pulling forever against a link that had
+no upper asymptote.
+
 ## 5. Known gaps
 
 * `cond` and `native_cond` are generated and cached but **not trained on** (`--subset_caps cond=0.0 native_cond=0.0`)

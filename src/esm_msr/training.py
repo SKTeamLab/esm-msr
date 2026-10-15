@@ -22,7 +22,7 @@ from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 
 from esm_msr.models import MSRModel
 from esm_msr import censoring, epi_metrics, stats, utils
-from esm_msr.link import FloorLink
+from esm_msr.link import SaturatingLink
 from esm_msr.losses import ListMLELoss, hinge_regression_loss
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
@@ -72,11 +72,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.crit_reg = nn.MSELoss(reduction='none')
 
         # The observed-scale link. Regression goes through it; ranking does not, because it is monotone.
-        self.link_head = FloorLink(
+        self.link_head = SaturatingLink(
             tau=self.hparams.link_tau, floor_min=self.hparams.link_floor_min, floor_max=self.hparams.link_floor_max,
             learn_tau=self.hparams.learn_link_tau, learn_floor_bounds=self.hparams.learn_link_floor_bounds,
             global_floor_init=self.hparams.get('dataset_floor', float('nan')),
             learn_global_floor=self.hparams.learn_global_floor,
+            ceiling=self.hparams.get('link_ceiling'), learn_ceiling=self.hparams.get('learn_link_ceiling', True),
+            tau_hi=self.hparams.get('link_tau_hi'),
         ) if self.hparams.link else None
         if self.link_head is not None:
             logging.info(f"Observed-scale link enabled: {self.link_head.summary()}")
@@ -515,7 +517,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
     def training_step(self, batch: dict, batch_idx: int):
         self.model.train()
         logs = self._compose_losses_streaming_and_backward(utils._normalize_batch(batch))
-        
+
+        # The temperature anchor is a penalty on two parameters, not a per-item loss, so it is applied once per
+        # optimizer step rather than inside the micro-batch loop (where it would be counted once per micro-batch).
+        if self.link_head is not None and float(self.hparams.get('link_tau_penalty', 0.0) or 0.0) > 0:
+            pen = self.link_head.tau_penalty(float(self.hparams.link_tau_penalty))
+            if pen.requires_grad:
+                self.manual_backward(pen)
+                logs['link_tau_penalty'] = float(pen.detach())
+
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=False)
 

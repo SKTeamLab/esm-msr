@@ -167,7 +167,7 @@ def shrink_floors(stats: Dict[str, Dict[str, float]], shrink: float = 5.0) -> fl
     well-populated library is essentially untouched by ``shrink`` pseudo-counts of the global value while a library
     that only just cleared ``min_n`` is pulled most of the way back. Libraries with no evidence are left with
     ``y_floor`` NaN and ``evidence = 0``: nothing in them is censored, and the link covers their knee with its
-    learned ``global_floor`` (``esm_msr.link.FloorLink``) rather than borrowing the global median as if it were
+    learned ``global_floor`` (``esm_msr.link.SaturatingLink``) rather than borrowing the global median as if it were
     data. The returned median is what initialises that parameter.
     """
     accepted = [s['y_floor'] for s in stats.values() if s.get('evidence') and np.isfinite(s['y_floor'])]

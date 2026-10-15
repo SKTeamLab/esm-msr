@@ -2,7 +2,7 @@
 Epistasis validation metrics: what a model has learned about how two substitutions combine, level by level, with the assay's saturation and the
 other levels kept out of each level's number. Full argument, measurements and reading guide: docs/epistasis_metrics_report.html on the devel branch. This file is devel's, with every metric
 logged for every head (as on claude/main-baseline); the only change here is that the link bends at each library's own floor
-(``esm_msr.link.FloorLink``) rather than at a learned global knee plus a per-library offset.
+(``esm_msr.link.SaturatingLink``) rather than at a learned global knee plus a per-library offset.
 
 The data. Each validation double (residue a at position i < j, residue b at j) of a library with wild-type stability c = dG_wt has a measured
 ddG_AB, both measured singles ddG_A, ddG_B, and the usual epistasis score dddG = ddG_AB - ddG_A - ddG_B. Its ADDITIVE EXPECTATION is
@@ -254,7 +254,7 @@ class Table:
         self.col = np.array([res_id.setdefault(('c', p, b), len(res_id)) for p, b in zip(self.pair, cols)], int)
         self.y, self.yA, self.yB, self.dddG, self.c = (gt[I], gt[IA], gt[IB], dddG[I], c[I]) if self.n else (np.array([]),) * 5
         self.x = self.c + self.yA + self.yB
-        # the observed scale: h(dG_wt + latent) - dG_wt, each double bending at its own library's floor (esm_msr.link.FloorLink; the link
+        # the observed scale: h(dG_wt + latent) - dG_wt, each double bending at its own library's floor (esm_msr.link.SaturatingLink; the link
         # clips a NaN floor to the middle of its band, so a library without one still gets a sane knee).
         fo = items.get('y_floor')
         fo = np.asarray(fo, float) if fo is not None else None

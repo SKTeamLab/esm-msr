@@ -12,7 +12,7 @@ import pytest
 import torch
 from torch import nn
 
-from esm_msr.link import FloorLink
+from esm_msr.link import SaturatingLink
 from esm_msr.losses import hinge_regression_loss
 
 CRIT = nn.MSELoss(reduction='none')
@@ -23,7 +23,7 @@ def _censored_loss(latent, dG_wt=3.0, y_floor=-0.3, link=True):
     wt = torch.tensor([float(dG_wt)])
     fl = torch.tensor([float(y_floor)])
     bound = fl - wt                                   # the floor on this item's ddG scale
-    pred = FloorLink()(wt + lat, fl) - wt if link else lat
+    pred = SaturatingLink()(wt + lat, fl) - wt if link else lat
     return float(hinge_regression_loss(CRIT, pred, torch.tensor([float('nan')]), bound,
                                        torch.tensor([-1]))[0])
 
@@ -52,7 +52,7 @@ def test_without_the_link_the_hinge_is_what_zeroes_it():
 def test_an_uncensored_item_is_untouched_by_either_mechanism():
     lat, wt, fl = torch.tensor([-1.0]), torch.tensor([3.0]), torch.tensor([-0.3])
     target = torch.tensor([-1.0])
-    pred = FloorLink()(wt + lat, fl) - wt
+    pred = SaturatingLink()(wt + lat, fl) - wt
     got = hinge_regression_loss(CRIT, pred, target, fl - wt, torch.tensor([0]))
     assert torch.allclose(got, CRIT(pred, target))
     # Well inside the dynamic range the link is near-identity, so this is ordinary regression on ddG.
@@ -62,7 +62,7 @@ def test_an_uncensored_item_is_untouched_by_either_mechanism():
 def test_gradient_pushes_a_censored_item_down_not_up():
     lat = torch.tensor([-1.0], requires_grad=True)
     wt, fl = torch.tensor([3.0]), torch.tensor([-0.3])
-    pred = FloorLink()(wt + lat, fl) - wt
+    pred = SaturatingLink()(wt + lat, fl) - wt
     hinge_regression_loss(CRIT, pred, torch.tensor([float('nan')]), fl - wt, torch.tensor([-1])).sum().backward()
     assert float(lat.grad) > 0        # descending -grad lowers the latent, i.e. pushes it toward the floor
 

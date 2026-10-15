@@ -118,6 +118,18 @@ def parse_arguments() -> argparse.Namespace:
                             help="Learn the shared knee used by libraries that show no floor of their own. It is "
                                  "identifiable from exactly that population and is initialised at the median of "
                                  "the libraries that do have one.")
+    link_group.add_argument('--link_ceiling', type=float, default=None,
+                            help="Add a second soft clamp at this dG (kcal/mol), the top of the assay's reported "
+                                 "range; 5.0 matches the '>5' tag. Omitted, the link is floor-only.")
+    link_group.add_argument('--learn_link_ceiling', action=argparse.BooleanOptionalAction, default=True,
+                            help="Let --link_ceiling move. It is parameterised as a positive span above "
+                                 "--link_floor_max, so it can never cross a library's floor.")
+    link_group.add_argument('--link_tau_hi', type=float, default=None,
+                            help="Starting knee width for the ceiling. Defaults to --link_tau: nothing locates a "
+                                 "value for the top of the range the way the pile-up at the bottom locates one.")
+    link_group.add_argument('--link_tau_penalty', type=float, default=0.0,
+                            help="Weight on sum (tau - 0.59)^2 over the free temperatures, added to the loss, so "
+                                 "--learn_link_tau drifts from 0.59 only where the data pays for it.")
     link_group.add_argument('--link_lr', type=float, default=5e-3,
                             help="Learning rate of the link's parameters (no weight decay, no warm-up, and not cut "
                                  "by the plateau scheduler).")
