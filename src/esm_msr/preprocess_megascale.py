@@ -401,6 +401,7 @@ class MegaScaleDatasetPreprocessor:
         incl_native_cond: bool = True,
         censor_floor: bool = True,
         gap_max=2.0,
+        native_cond_as_single: bool = False,
         combine_validation: bool = False,
     ) -> Tuple[List[DataLoader], List[str]]:
         """Generates a list of dataloaders for a specific list of protein codes."""
@@ -436,6 +437,7 @@ class MegaScaleDatasetPreprocessor:
                     floor_stats=self.floors.get(code),
                     censor_floor=censor_floor,
                     gap_max=gap_max,
+                    native_cond_as_single=native_cond_as_single,
                 )
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
@@ -548,6 +550,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         incl_native_cond=args.incl_native_cond,
         censor_floor=args.censor_floor,
         gap_max=args.censor_gap_max if args.censor_gap else None,
+        native_cond_as_single=args.native_cond_as_single,
     )
 
     if not train_dataloaders: 
@@ -565,6 +568,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         incl_native_cond=True,
         censor_floor=args.censor_floor,
         gap_max=args.censor_gap_max if args.censor_gap else None,
+        native_cond_as_single=args.native_cond_as_single,
     )
 
     # Add Benchmarks

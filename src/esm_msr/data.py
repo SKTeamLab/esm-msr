@@ -225,6 +225,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         floor_stats: Optional[Dict[str, float]] = None,
         censor_floor: bool = True,
         gap_max: Optional[float] = 2.0,
+        native_cond_as_single: bool = False,
     ):
         """
         Args:
@@ -252,6 +253,10 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 treat their value as a bound and their mutual order as unknown (``esm_msr.censoring``).
             gap_max: Also censor an item whose two proteases disagree by more than this (kcal/mol), bounded by its
                 own reported value. None disables it. This is the source that reaches libraries with no floor.
+            native_cond_as_single: Leave a mutant-background library's measurements labelled ``single`` instead of
+                ``native_cond``, which is what the released model does. They then train the WT head and count as
+                singles in every metric. Strictly it is wrong - ddG(X | background) is a conditional effect, not a
+                wild-type-context one - but it is the released behaviour and the comparison worth having.
         """
         self.score_name = score_name
         self.dms_name = dms_name
@@ -304,8 +309,10 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
 
         logging.info(f"Cache contains: {dict(Counter(i.get('subset_type', 'unknown') for i in self.data))}")
 
-        # Mutant-background libraries: their singles are conditional measurements.
-        self._label_native_cond()
+        # Mutant-background libraries: their singles are conditional measurements, unless we are reproducing the
+        # released behaviour of treating them as ordinary singles.
+        if not native_cond_as_single:
+            self._label_native_cond()
         self._filter_dataset()
         self._stamp_floor()
         self._apply_censoring(censor_floor, gap_max)

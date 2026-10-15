@@ -190,6 +190,11 @@ def parse_arguments() -> argparse.Namespace:
     data_group.add_argument('--incl_doubles', action=argparse.BooleanOptionalAction, default=True)
     data_group.add_argument('--incl_cond', action=argparse.BooleanOptionalAction, default=False)
     data_group.add_argument('--incl_native_cond', action=argparse.BooleanOptionalAction, default=False)
+    data_group.add_argument('--native_cond_as_single', action=argparse.BooleanOptionalAction, default=False,
+                            help="Label a mutant-background library's measurements 'single' rather than "
+                                 "'native_cond', which is what the released model does: they then train the WT "
+                                 "head and count as singles everywhere. Overrides the native_cond subset cap, "
+                                 "since no item carries that label.")
 
     data_group.add_argument('--subset_caps', nargs='*', action=ParseSubsetCaps, default=dict(DEFAULT_SUBSET_CAPS),
                             help=f"Caps for data subsets (e.g. double=0.6 cond=0.1). Defaults: {DEFAULT_SUBSET_CAPS}.")
