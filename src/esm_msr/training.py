@@ -296,6 +296,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # Raising the bound to the link's floor makes it satisfiable: the model discharges it by predicting at or
         # below the floor, the penalty decays to zero as it does, and the two censoring sources end up with
         # identical semantics. Detached, so a bound never trains the floor it is derived from.
+        #
+        # The ceiling needs the mirror image once --link_ceiling is on. A '>5' row is bounded at 5 - dG_wt, but
+        # what the link can actually emit tops out at ceiling - dG_wt, and the ceiling is LEARNED: the moment it
+        # settles below 5 that bound is unreachable for every such item, the hinge is violated whatever the model
+        # predicts, and the only way the gradient can respond is to push the latent up without limit. Clamping
+        # both ways keeps every bound inside the range the link can report.
         if link is not None:
             # The floor on the ITEM'S OWN ddG scale. The offset between an item's label and the absolute dG its
             # measurement describes is a constant of the item, so the same shift that defines cens_bound converts
@@ -305,6 +311,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             floor_ddG = (link.effective_floor(floor_all).detach() + offset)
             # Only where the floor is computable: torch.maximum propagates NaN, which would destroy a good bound.
             bound_all = torch.where(torch.isfinite(floor_ddG), torch.maximum(bound_all, floor_ddG), bound_all)
+            ceil_t = link.ceiling()
+            if ceil_t is not None:
+                ceil_ddG = ceil_t.detach() + offset
+                bound_all = torch.where(torch.isfinite(ceil_ddG), torch.minimum(bound_all, ceil_ddG), bound_all)
 
         sums, cnts = defaultdict(float), defaultdict(float)
         n_tf_drop = 0

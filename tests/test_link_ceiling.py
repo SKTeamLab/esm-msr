@@ -119,3 +119,31 @@ def test_obs_ddG_saturates_upward_for_a_hyperstable_prediction():
     dG_wt = torch.tensor([2.5, 2.5])
     out = link.obs_ddG(torch.tensor([50.0, 500.0]), dG_wt, torch.tensor([float('nan')] * 2))
     assert torch.allclose(out, torch.full_like(out, CEILING_DEFAULT - 2.5), atol=1e-3)
+
+
+def test_an_upper_bound_above_the_link_is_clamped_to_what_it_can_emit():
+    """Mirror of the floor clamp. A '>5' row is bounded at 5 - dG_wt, but the link tops out at ceiling - dG_wt;
+    once the LEARNED ceiling drops below 5 that bound is unreachable and the hinge would push the latent up
+    without limit."""
+    link = _two_sided()
+    with torch.no_grad():                      # ceiling learns down to ~3.0
+        link.raw_ceiling_span.fill_(float(np.log(np.expm1(3.0 - FLOOR_MAX_DEFAULT - 1e-3))))
+    dG_wt = torch.tensor([2.5])
+    offset = -dG_wt                            # a plain single: ddG = dG - dG_wt
+    raw_bound = torch.tensor([5.0]) + offset   # 2.5, what the '>5' tag states
+    ceil_ddG = link.ceiling().detach() + offset
+    clamped = torch.minimum(raw_bound, ceil_ddG)
+    assert float(clamped) == pytest.approx(float(link.ceiling()) - 2.5, abs=1e-4)
+    assert float(clamped) < float(raw_bound)
+    # and the clamped bound is now what the link actually approaches from below
+    reached = link.obs_ddG(torch.tensor([500.0]), dG_wt, torch.tensor([float('nan')]))
+    assert float(reached) == pytest.approx(float(clamped), abs=1e-3)
+
+
+def test_the_clamp_leaves_a_reachable_bound_alone():
+    link = _two_sided()
+    dG_wt = torch.tensor([2.5])
+    offset = -dG_wt
+    raw_bound = torch.tensor([5.0]) + offset
+    ceil_ddG = link.ceiling().detach() + offset
+    assert float(torch.minimum(raw_bound, ceil_ddG)) == pytest.approx(float(raw_bound), abs=1e-3)

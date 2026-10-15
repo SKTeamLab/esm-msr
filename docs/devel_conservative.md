@@ -469,6 +469,37 @@ The ceiling also makes the `>5` half of `--censor_range` coherent: an upper-cens
 `5 - dG_wt` is now reachable, so the hinge can be discharged instead of pulling forever against a link that had
 no upper asymptote.
 
+### 4d.1 What the ceiling does and does not bind on
+
+The cache grows very unevenly, which is the expected shape rather than a surprise: +5.8% overall but a median of
+only +1.1%, with 98 of 198 libraries under 1% and 9 over 25% (2MC5 +53%, 2LQK +50%, 5OAO +50%). Growth is
+anticorrelated with wild-type stability, rho = -0.45: a marginally stable library has least room above the floor,
+so most of its variants fell off the bottom and most come back. The `>5` items mirror it, concentrating in the
+stable libraries (146 of 306 sit in libraries with `dG_wt > 4`).
+
+**No library has `dG_wt > 5`.** The maximum is 4.599. Numeric `dG_ML` is hard-capped at exactly [-1, 5], so a
+wild type above the range is reported as `>5`, is non-numeric, and leaves its library with no `dG_wt` at all.
+Those libraries also turn out to have no measured variants - the implied-reference fallback recovers exactly zero
+rows, because every library it could serve already had a `wt` row - so they contribute nothing and are dropped
+whole (40147 tagged rows dataset-wide, 22 all-bounded libraries).
+
+So the ceiling essentially never binds on measured data: only 23 of 242503 WT-context items exceed their
+library's headroom `5 - dG_wt`, by at most 0.165 kcal/mol, and only 0.069% sit within 0.1 of it.
+
+Two things do need care:
+
+* **A learned ceiling can make an upper bound unreachable.** A `>5` row is bounded at `5 - dG_wt`, but the link
+  tops out at `ceiling - dG_wt`, and the ceiling is a parameter. The moment it settles below 5 that bound cannot
+  be honoured however the model predicts, and the only response available to the gradient is to push the latent
+  up without limit - the mirror of the floor pathology that the bound clamp already fixed. Bounds are now clamped
+  **both** ways, into the range the link can actually report.
+* **`dG_wt` is the mean of the `wt` rows, but `ddG_ML` is referenced to something else.** `dG_ML - ddG_ML` is
+  constant to `sd = 0.000` within every library - an exact per-library reference - and it differs from the
+  wild-type-row mean by up to 0.197 kcal/mol (median 0.005). Since the link places its knee on the absolute dG
+  axis, that is a knee-placement error of the same order as the between-library floor spread (0.31), and it is
+  exactly what the 23 overshooting items are. Switching `dG_wt` to the implied reference would be exact and
+  cheap, but it moves `dG_wt` for every library and so needs a cache rebuild; it is not done here.
+
 ## 5. Known gaps
 
 * `cond` and `native_cond` are generated and cached but **not trained on** (`--subset_caps cond=0.0 native_cond=0.0`)
