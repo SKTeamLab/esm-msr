@@ -167,15 +167,26 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         fragmented reservation. The symptom is a monotone slowdown (2.2 s/step rising past 12 s/step by step 260)
         with the card pinned near 100%, which looks like a leak and is really fragmentation.
 
-        ``empty_cache`` afterwards is what actually returns the freed fp32 storages, so training starts on a clean
-        heap. Both steps are idempotent (the cast only touches fp32 weights), so repeated calls are free.
+        Do NOT call empty_cache here. An earlier version did, on the theory that the freed fp32 storages should go
+        back to the driver. Measured at micro_batch_size 64, with the GPU exclusive, it cost 3.7 GiB of DEVICE
+        memory while changing torch's own accounting not at all:
+
+            main-baseline            torch peak 23.10  reserved 23.61  nvidia-smi 27.38 GiB
+            here, with empty_cache   torch peak 23.10  reserved 23.63  nvidia-smi 31.07 GiB
+            here, without it         torch peak 23.10  reserved 23.61  nvidia-smi 27.38 GiB
+
+        Under PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (which every launcher here sets), empty_cache
+        releases the expandable segment's pages and the next allocation re-expands into fresh mappings; the WSL2
+        driver keeps the released ones, so the process footprint grows by roughly what was freed. The allocator
+        reuses those blocks perfectly well on its own - reserved is 23.61 either way - so the call bought nothing
+        and spent 3.7 GiB of the 31.84 GiB card, which is the difference between 4.4 GiB of headroom at
+        micro_batch_size 64 and 0.8.
+
+        The reshape ordering above is still the point of this method and still necessary.
         """
         if getattr(self, '_device_weights_ready', False):
             return
         self._reshare_base_params_on_device()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.reset_peak_memory_stats()
         self._device_weights_ready = True
 
     def on_validation_start(self):
