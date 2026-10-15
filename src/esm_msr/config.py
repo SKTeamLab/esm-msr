@@ -147,7 +147,14 @@ def parse_arguments() -> argparse.Namespace:
     train_group.add_argument('--calib_delay_steps', type=int, default=0)
     train_group.add_argument('--lr_total_steps', type=int, default=None)
     train_group.add_argument('--batch_size', type=int, default=256)
-    train_group.add_argument('--micro_batch_size', type=int, default=16)
+    train_group.add_argument('--micro_batch_size', type=int, default=16,
+                             help="Upper bound on the items per forward/backward. The binding constraint is "
+                                  "normally --micro_batch_tokens.")
+    train_group.add_argument('--micro_batch_tokens', type=int, default=3700,
+                             help="Token budget per forward/backward (micro batch x sequence length), which is "
+                                  "what activation memory actually tracks. 3700 holds the peak near 23 GB on a "
+                                  "32 GB card at any library length; 0 disables the cap and uses "
+                                  "--micro_batch_size alone.")
     train_group.add_argument('--precision', type=str, default="bf16-mixed", choices=["32", "16-mixed", "bf16-mixed", "64"])
     train_group.add_argument('--gpus', type=int, default=1)
     train_group.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'deepspeed_stage_2', 'deepspeed_stage_3', 'fsdp'])

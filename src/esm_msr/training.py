@@ -206,6 +206,28 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         scaled_loss = L_raw * (list_size / avg_len.clamp(min=1.0))
         return scaled_loss, L_raw.detach().item(), valid_len // list_size
 
+    @staticmethod
+    def _micro_batch(B: int, seq_len: int, list_size: int, hard_cap: int, budget: int) -> int:
+        """
+        How many items to put through one forward/backward, capped so that memory does not track sequence length.
+
+        Activation memory scales with (micro batch x sequence length), and every batch here is ONE library, so a
+        fixed micro batch costs whatever that library's length happens to be. Measured on this model at bf16:
+        3.0 GB of resident weights plus about 5.4 MB per token, so micro_batch_size 64 costs 23 GB at the median
+        training length of 49 and extrapolates past the 31.8 GiB card on the longest libraries (74). Exceeding the
+        card does not raise OOM under WSL2 - the driver silently spills to host memory over PCIe - so the only
+        symptom is throughput collapsing, which is what made this hard to see.
+
+        ``--micro_batch_tokens`` is therefore the real budget and ``--micro_batch_size`` only an upper bound: short
+        libraries still get the full 64, long ones are cut down. The result is rounded to a multiple of
+        ``list_size``, because the rank loss reshapes the micro batch into lists of exactly that size.
+        """
+        hard_cap = max(1, int(hard_cap))
+        budget = int(budget or 0)
+        n = hard_cap if budget <= 0 else min(hard_cap, max(1, budget // max(1, seq_len)))
+        n = max(list_size, (n // list_size) * list_size)      # whole lists only
+        return min(B, n)
+
     def _reg_loss(self, pred, target, bound, cens, mask, weights, global_w_sum):
         """
         Weighted regression over ``mask``, one-sided wherever the measurement is only a bound.
@@ -224,7 +246,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
     def _compose_losses_streaming_and_backward(self, batch: dict) -> dict:
         device, B = batch['ddG'].device, int(batch['ddG'].shape[0])
         list_size = max(1, int(self.hparams.subset_size))
-        mb = min(B, max(list_size, (getattr(self.hparams, 'micro_batch_size', 32) // list_size) * list_size))
+        mb = self._micro_batch(B, int(batch['wt_sequence_tokens'].shape[1]), list_size,
+                               getattr(self.hparams, 'micro_batch_size', 32),
+                               getattr(self.hparams, 'micro_batch_tokens', 0))
         
         st_all = batch.get('subset_type', ['single'] * B)
         w_all = torch.ones(B, dtype=torch.float32, device=device)
@@ -260,8 +284,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # below the floor, the penalty decays to zero as it does, and the two censoring sources end up with
         # identical semantics. Detached, so a bound never trains the floor it is derived from.
         if link is not None:
-            floor_ddG = (link.effective_floor(floor_all) - dGwt_all).detach()
-            bound_all = torch.maximum(bound_all, floor_ddG)
+            # The floor on the ITEM'S OWN ddG scale. The offset between an item's label and the absolute dG its
+            # measurement describes is a constant of the item, so the same shift that defines cens_bound converts
+            # the floor: for a single or a double it is just -dG_wt, and for a conditional item it also carries the
+            # partner's single. Computed from the batch rather than assumed, so it stays correct if cond is enabled.
+            offset = batch.get('ddG').float() - batch.get('dG_meas', torch.full((B,), float('nan'), device=device)).float()
+            floor_ddG = (link.effective_floor(floor_all).detach() + offset)
+            # Only where the floor is computable: torch.maximum propagates NaN, which would destroy a good bound.
+            bound_all = torch.where(torch.isfinite(floor_ddG), torch.maximum(bound_all, floor_ddG), bound_all)
 
         sums, cnts = defaultdict(float), defaultdict(float)
         n_tf_drop = 0

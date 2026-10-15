@@ -124,3 +124,51 @@ def test_hinge_gradient_only_flows_from_violations():
     L.sum().backward()
     assert float(pred.grad[0]) == 0.0
     assert float(pred.grad[1]) > 0
+
+
+# --------------------------------------------------------------------------- micro-batch token budget
+
+def _mb(B, seq_len, list_size, micro_batch_size=64, micro_batch_tokens=3700):
+    """Calls the real function, so the arithmetic is tested rather than re-implemented."""
+    from esm_msr.training import ESM3EpistasisLightningModule as M
+    return M._micro_batch(B, seq_len, list_size, micro_batch_size, micro_batch_tokens)
+
+
+def test_short_libraries_get_the_full_micro_batch():
+    assert _mb(256, 49, 16) == 64          # 3700/49 = 75 -> capped by micro_batch_size
+
+
+def test_long_libraries_are_cut_down_to_stay_in_budget():
+    assert _mb(256, 74, 16) == 48          # 3700/74 = 50 -> 48, the nearest whole number of lists
+    assert _mb(256, 203, 16) == 16         # 3700/203 = 18 -> 16
+
+
+def test_result_is_always_whole_lists():
+    for L in (30, 49, 60, 74, 120, 203):
+        assert _mb(256, L, 16) % 16 == 0
+
+
+def test_never_below_one_list_even_for_an_enormous_sequence():
+    assert _mb(256, 100000, 16) == 16
+
+
+def test_never_exceeds_the_batch():
+    assert _mb(8, 49, 16) == 8
+
+
+def test_budget_of_zero_falls_back_to_the_hard_cap():
+    assert _mb(256, 203, 16, micro_batch_tokens=0) == 64
+
+
+def test_the_budget_is_never_exceeded():
+    """The invariant that keeps the run off the host-spill cliff: tokens per forward never exceed the budget,
+    whatever the library's length - unless a single list already does, which no cap can avoid since the rank loss
+    needs whole lists. Rounding to whole lists makes the total coarse (it varies about 1.8x), but only downwards."""
+    for L in (30, 49, 60, 74, 120, 203):
+        n = _mb(256, L, 16)
+        assert n * L <= 3700 or n == 16, (L, n, n * L)
+
+
+def test_one_list_is_the_floor_even_when_it_blows_the_budget():
+    n = _mb(256, 1000, 16)
+    assert n == 16 and n * 1000 > 3700      # unavoidable: the rank loss cannot take a partial list
