@@ -152,6 +152,14 @@ def parse_arguments() -> argparse.Namespace:
     mask_group.add_argument('--mask_strategy', type=str, choices=["marginal", "independent"], default=None)
 
     train_group = parser.add_argument_group("Training Parameters")
+    train_group.add_argument('--comet_experiment_key', type=str, default=None,
+                             help="Continue logging into an EXISTING Comet experiment instead of creating a "
+                                  "new one. Pair it with --resume_from_checkpoint, or a resumed run's curves "
+                                  "land in a second experiment and the two have to be read side by side.")
+    train_group.add_argument('--resume_from_checkpoint', type=str, default=None,
+                             help="A last.ckpt to resume from: picks up the epoch, optimizer state, both "
+                                  "schedulers and the WT/MT freeze state. Note the run must be relaunched "
+                                  "with the SAME flags - the checkpoint does not carry them.")
     train_group.add_argument('--num_epochs', type=int, default=20)
     train_group.add_argument('--learning_rate', type=float, default=2e-4)
     train_group.add_argument('--lr_warmup_steps', type=int, default=250)

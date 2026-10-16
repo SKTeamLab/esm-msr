@@ -59,6 +59,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         )
         
         self.peft_manager = PEFTStateManager(self.model)
+        # on_save_checkpoint deliberately keeps only the lora / calibration / link_head entries, so a
+        # checkpoint is missing every frozen base weight. Lightning's default strict load would then refuse
+        # to resume from our own checkpoints; the base comes from the pretrained weights either way.
+        self.strict_loading = False
 
         if self.hparams.freeze_wt_adapter: self.peft_manager.freeze_wt_components()
         if self.hparams.freeze_mt_adapter: self.peft_manager.freeze_mt_components()
@@ -1012,7 +1016,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         checkpoint['transition_state'] = {
             'has_transitioned': getattr(self.peft_manager, 'has_transitioned', False),
             'wt_best_metric': getattr(self.peft_manager, 'wt_best_metric', -float('inf')),
-            'wt_patience_counter': getattr(self.peft_manager, 'wt_patience_counter', 0)
+            'wt_patience_counter': getattr(self.peft_manager, 'wt_patience_counter', 0),
+            # _wt_plateau_step's own counters. Without these a resume restarts the WT plateau from scratch, so a
+            # run preempted mid-decay would decay again from a reset patience and follow a different schedule.
+            # Harmless once the WT path has frozen (the step returns early on has_transitioned), but not before.
+            'wt_plateau_best': getattr(self, '_wt_plateau_best', -float('inf')),
+            'wt_plateau_bad': getattr(self, '_wt_plateau_bad', 0),
+            'wt_decays': getattr(self, '_wt_decays', 0),
         }
 
     def on_load_checkpoint(self, checkpoint: dict) -> None:
@@ -1024,6 +1034,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.peft_manager.has_transitioned = transition_state.get('has_transitioned', False)
         self.peft_manager.wt_best_metric = transition_state.get('wt_best_metric', -float('inf'))
         self.peft_manager.wt_patience_counter = transition_state.get('wt_patience_counter', 0)
+        self._wt_plateau_best = transition_state.get('wt_plateau_best', -float('inf'))
+        self._wt_plateau_bad = transition_state.get('wt_plateau_bad', 0)
+        self._wt_decays = transition_state.get('wt_decays', 0)
         
         # Re-apply freezing states if we resumed after convergence
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter:
@@ -1080,7 +1093,13 @@ def main():
         checkpoint_dir = os.path.join(args.checkpoint_path, args.experiment_name, args.version or "default_version")
 
     if args.comet_api_key:
-        loggers.append(CometLogger(api_key=args.comet_api_key, project=args.comet_project_name, name=f"{args.experiment_name}-{args.version or 'run'}"))
+        comet_kwargs = dict(api_key=args.comet_api_key, project=args.comet_project_name,
+                            name=f"{args.experiment_name}-{args.version or 'run'}")
+        if getattr(args, 'comet_experiment_key', None):
+            # Comet has no notion of resuming on its own: without this a resumed run opens a SECOND
+            # experiment, and the run's curves end up split across two of them.
+            comet_kwargs.update(experiment_key=args.comet_experiment_key, mode='get_or_create')
+        loggers.append(CometLogger(**comet_kwargs))
 
     os.makedirs(checkpoint_dir, exist_ok=True)
     callbacks = [
@@ -1109,7 +1128,10 @@ def main():
         return
 
     if not args.skip_val: trainer.validate(lightning_model, dataloaders=val_loaders)
-    trainer.fit(lightning_model, train_dataloaders=train_loaders, val_dataloaders=val_loaders)
+    ckpt = getattr(args, 'resume_from_checkpoint', None)
+    if ckpt:
+        logging.info(f"Resuming from {ckpt}")
+    trainer.fit(lightning_model, train_dataloaders=train_loaders, val_dataloaders=val_loaders, ckpt_path=ckpt)
 
 if __name__ == "__main__":
     main()
