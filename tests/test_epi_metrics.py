@@ -4,10 +4,25 @@ import unittest
 import numpy as np
 
 from esm_msr import epi_metrics as E
-from esm_msr.link import numpy_link
 
 ROWS, COLS = 'ACDEFG', 'HIKLMN'
-FLOOR = numpy_link(-1.0, 5.0, 0.3, 0.3)          # the assay: a soft floor at -1 and ceiling at 5
+
+
+def assay_clamp(lo=-1.0, hi=5.0, tau=0.3):
+    """The assay as two soft clamps in series, a floor at ``lo`` then a ceiling at ``hi``.
+
+    Written out here rather than imported from a branch's link module: this file tests epi_metrics, which takes
+    whatever link the caller hands it, so the test should not care which link module the branch happens to ship.
+    That also keeps this file byte-identical on claude/main-baseline and the devel branches.
+    """
+    def h(z):
+        z = np.asarray(z, dtype=np.float64)
+        u = lo + tau * np.logaddexp(0.0, (z - lo) / tau)
+        return hi - tau * np.logaddexp(0.0, (hi - u) / tau)
+    return h
+
+
+FLOOR = assay_clamp()
 
 
 def synthetic(seed=0, n_pairs=10, measure=FLOOR):
@@ -134,14 +149,28 @@ class TestTable(unittest.TestCase):
                           for k, st in zip(it['mut_key'], it['subset_type'])]
         self.assertEqual(E.Table(it2, FLOOR).n, 5 * len(ROWS) * len(COLS))
 
-    def test_censored_or_unmeasured_doubles_and_singles_are_left_out(self):
+    def test_an_unmeasured_single_takes_its_doubles_with_it(self):
         pairs, meas = synthetic(2)
         it = items(pairs, meas, KNOW['all'])
-        cens = it['cens'].copy()
+        gt = it['ddG'].copy()
         first_single = it['subset_type'].index('single')
-        cens[first_single] = -1                                    # a dead single: its 6 doubles have no additive expectation
-        it['cens'] = cens
+        gt[first_single] = np.nan                                  # a dead single: its 6 doubles have no additive expectation
+        it['ddG'] = gt
         self.assertEqual(E.Table(it, FLOOR).n, 10 * len(ROWS) * len(COLS) - len(COLS))
+
+    def test_the_caller_chooses_the_population_and_cens_is_not_read(self):
+        """Table used to drop cens != 0 items itself. It no longer does: scoring only the uncensored items is a
+        range restriction on the very population a censoring run exists to extend, which biased such runs' metrics
+        down and made them incomparable to a run without censoring. The caller picks the population instead - see
+        training.on_validation_epoch_end, which restricts to the canonical set before pooling."""
+        pairs, meas = synthetic(2)
+        it = items(pairs, meas, KNOW['all'])
+        n_all = E.Table(it, FLOOR).n
+        cens = np.zeros(len(it['ddG']), int)
+        cens[it['subset_type'].index('single')] = -1
+        cens[it['subset_type'].index('double')] = +1
+        it['cens'] = cens
+        self.assertEqual(E.Table(it, FLOOR).n, n_all)
 
     def test_ctx_needs_the_reverse_leg(self):
         pairs, meas = synthetic(3)
