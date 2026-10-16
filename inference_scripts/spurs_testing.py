@@ -3,7 +3,7 @@ import pkg_resources
 from unittest.mock import MagicMock
 import importlib.machinery
 
-sys.path.append('/home/sareeves/software/esm-msr/src')
+sys.path.append(str(__import__('pathlib').Path(__file__).resolve().parent.parent / 'src'))
 
 # 1. Patch pkg_resources for the version check
 mock_dist = MagicMock()
@@ -77,7 +77,7 @@ def mock_esm_context():
 
 with mock_esm_context():
     from esm_msr.utils import parse_multimutant_column, sort_mutations_by_position, sum_individual_mutation_scores
-    from esm_msr.preprocessing import MegaScaleDatasetPreprocessor
+    from esm_msr.preprocess_megascale import MegaScaleDatasetPreprocessor
 
 import pandas as pd
 import os
@@ -90,6 +90,15 @@ import warnings
 import numpy as np
 
 from omegaconf import OmegaConf
+import collections
+import typing
+import omegaconf
+
+# torch>=2.6 loads checkpoints weights-only by default; the SPURS checkpoints also pickle their omegaconf
+# hyperparameters, so allow exactly those container types (and nothing executable)
+torch.serialization.add_safe_globals([
+    omegaconf.listconfig.ListConfig, omegaconf.dictconfig.DictConfig, omegaconf.base.ContainerMetadata,
+    omegaconf.base.Metadata, omegaconf.nodes.AnyNode, typing.Any, list, dict, int, collections.defaultdict])
 
 # SPURS Imports
 from spurs.utils import seed_everything
@@ -160,10 +169,71 @@ def load_spurs_models(checkpoint_single, checkpoint_multi):
 
     return model_single, model_multi, cfg_single, cfg_multi
 
+def run_multi(model_multi, pdb_data, mutation_lists, chunk):
+    """SPURSMulti ddG for each mutation list, grouped by number of mutations (as in main_) and chunked so the
+    per-variant tensors of very large DMS stay bounded; the structure/ESM2 pass is repeated once per chunk."""
+    out = np.full(len(mutation_lists), np.nan)
+    by_len = {}
+    for i, muts in enumerate(mutation_lists):
+        by_len.setdefault(len(muts), []).append(i)
+    for idx in by_len.values():
+        for j in range(0, len(idx), chunk):
+            sub = idx[j:j + chunk]
+            mut_ids, append_tensors = parse_pdb_for_mutation([mutation_lists[i] for i in sub])
+            pdb_data_group = pdb_data.copy()
+            pdb_data_group['mut_ids'] = mut_ids
+            pdb_data_group['append_tensors'] = append_tensors.to('cuda')
+            with torch.no_grad():
+                ddg_multi = model_multi(pdb_data_group)
+            out[sub] = ddg_multi.view(-1).float().cpu().numpy()
+    return out
+
+
+def make_pgym_score_fn(model_single, model_multi, cfg_single, chunk):
+    """score_fn for pgym_runner: the four SPURS readouts of main_ for one ProteinGym DMS, sign-flipped as there
+    (higher = more stable)."""
+    def score_fn(df):
+        code, chain, pdb_path = df['code'].iloc[0], df['chain'].iloc[0], df['pdb_file'].iloc[0]
+        mutation_lists = [s.split(':') for s in df['mut_type_renumbered']]
+        t0 = time.time()
+        with torch.no_grad():
+            pdb_data = parse_pdb(pdb_path, code, chain, cfg_single)
+            ddg_local = model_single(pdb_data, return_logist=True).float().cpu()
+        single_add = np.array([sum(extract_ddg_prediction(m, ddg_local) for m in muts) for muts in mutation_lists])
+        multi = run_multi(model_multi, pdb_data, mutation_lists, chunk)
+        all_singles = sorted({m for muts in mutation_lists for m in muts})
+        multi_single_scores = dict(zip(all_singles, run_multi(model_multi, pdb_data, [[m] for m in all_singles], chunk)))
+        multi_add = np.array([sum(multi_single_scores[m] for m in muts) for muts in mutation_lists])
+        n_muts = np.array([len(muts) for muts in mutation_lists])
+        out = pd.DataFrame({
+            'SPURS_single': np.where(n_muts == 1, -single_add, np.nan),
+            'SPURS_single_additive': -single_add,
+            'SPURS_multi': -multi,
+            'SPURS_multi_additive': -multi_add,
+        })
+        out['runtime'] = (time.time() - t0) / len(df)
+        torch.cuda.empty_cache()
+        return out
+
+    return score_fn
+
+
 def main_(args):
     os.makedirs('tmp', exist_ok=True)
-    
+
     model_single, model_multi, cfg_single, cfg_multi = load_spurs_models(args.checkpoint_single, args.checkpoint_multi)
+
+    # ================= ProteinGym (all DMS, preprocessed inputs) =================
+    if args.protein_gym:
+        if not args.pgym_dir:
+            raise AssertionError("--pgym_dir is required with --protein_gym")
+        import pgym_runner
+        pgym_runner.run_protein_gym(
+            args.pgym_dir, args.pgym_out or (Path(args.pgym_dir).resolve().parent / 'pgym_results' / f'SPURS_{args.checkpoint_single}+{args.checkpoint_multi}'),
+            make_pgym_score_fn(model_single, model_multi, cfg_single, args.pgym_chunk), pred_col='SPURS_multi',
+            dms=args.pgym_dms, tag=f'SPURS {args.checkpoint_single}+{args.checkpoint_multi}',
+            extra_cols=('SPURS_single_additive', 'SPURS_multi_additive'))
+        return
 
     # ================= External Processing =================
     if not args.skip_external:
@@ -738,6 +808,12 @@ if __name__ == "__main__":
     parser.add_argument('--skip_functional', action='store_true')
     parser.add_argument('--skip_domainome', action='store_true')
     parser.add_argument('--remove_spurs_homologs', action='store_true', help='Remove homologous sequences to SPURS training data from the Tsuboyama splits to test generalization to non-homologous sequences')
+    # ProteinGym (all-DMS) benchmark mode
+    parser.add_argument('--protein_gym', action='store_true', help='Score all preprocessed ProteinGym DMS benchmarks and exit')
+    parser.add_argument('--pgym_dir', type=str, default=None, help='Directory with per-DMS input CSVs + manifest.csv (preprocessing/pgym_preprocess.py)')
+    parser.add_argument('--pgym_out', type=str, default=None, help='Output directory for ProteinGym results (per-DMS CSVs + summary.csv)')
+    parser.add_argument('--pgym_dms', type=str, default='all', help="Comma-separated DMS ids, or 'all'")
+    parser.add_argument('--pgym_chunk', type=int, default=4096, help='Variants per SPURS-multi forward call')
 
     args, remaining_argv = parser.parse_known_args()
 
