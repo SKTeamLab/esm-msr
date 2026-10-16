@@ -4711,11 +4711,12 @@ def visualize_model_performance(
     colors=['#3498db', '#2ecc71', '#e74c3c', '#9b59b6', '#f39c12', '#1abc9c', '#d35400', '#34495e'],
     highlighted_model=None, ylim=None, debug=False, 
     additive_offset=0.05, group_spread=0.1, legend_loc='lower left',
-    yscale='linear', symlog_thresh=1e-3
+    yscale='linear', symlog_thresh=1e-3, ax=None
 ):
     """
     Visualize model performance across datasets with automatic grouping.
     Replaces vertical lines with alternating grey background panels.
+    Pass `ax` to draw into an existing axes (e.g. one panel of a multi-panel figure).
     """
     if isinstance(data, np.ndarray):
         data = pd.DataFrame(data)
@@ -4824,8 +4825,11 @@ def visualize_model_performance(
     stripped_markers = {s: markers[i % len(markers)] for i, s in enumerate(stripped_in_order)}
 
     # Plot Setup
-    plt.style.use('default')
-    fig, ax = plt.subplots(figsize=figsize)
+    if ax is None:
+        plt.style.use('default')
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.figure
     ax.set_xlim(-0.5, len(data.index) - 0.5)
     
     # Set Y-axis scale
