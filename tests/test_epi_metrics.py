@@ -4,10 +4,25 @@ import unittest
 import numpy as np
 
 from esm_msr import epi_metrics as E
-from esm_msr.link import numpy_link
 
 ROWS, COLS = 'ACDEFG', 'HIKLMN'
-FLOOR = numpy_link(0.3, -1.0, -1.0, -1.0, 5.0, 0.3)   # the assay: a soft floor at -1 and ceiling at 5 (bit-identical to the old 4-arg call)
+
+
+def assay_clamp(lo=-1.0, hi=5.0, tau=0.3):
+    """The assay as two soft clamps in series, a floor at ``lo`` then a ceiling at ``hi``.
+
+    Written out here rather than imported from a branch's link module: this file tests epi_metrics, which takes
+    whatever link the caller hands it, so the test should not care which link module the branch happens to ship.
+    That also keeps this file byte-identical on claude/main-baseline and the devel branches.
+    """
+    def h(z):
+        z = np.asarray(z, dtype=np.float64)
+        u = lo + tau * np.logaddexp(0.0, (z - lo) / tau)
+        return hi - tau * np.logaddexp(0.0, (hi - u) / tau)
+    return h
+
+
+FLOOR = assay_clamp()
 
 
 def synthetic(seed=0, n_pairs=10, measure=FLOOR):
