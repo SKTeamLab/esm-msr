@@ -104,6 +104,10 @@ class MegaScaleDatasetPreprocessor:
         self.df = pd.DataFrame()
         self.split_dfs = {}
         self.spurs_override = spurs_override
+        # Measured dG of each library's starting sequence (the WT, or the background for mutation-suffixed codes), keyed by `code`. The
+        # 'wt' rows are filtered out of self.df, so this is the only place they survive. Read by the epistasis metrics (the additive
+        # expectation x = dG_wt + ddG_A + ddG_B).
+        self.dG_wt: Dict[str, float] = {}
 
         self.preprocess()
 
@@ -124,6 +128,7 @@ class MegaScaleDatasetPreprocessor:
             logging.error(f"Error loading data: {e}")
             raise
 
+        self.dG_wt = self._wt_dG_by_code(self.df)
         self.df = self.df[['aa_seq', 'mut_type', 'WT_name', 'ddG_ML']]
         self.df['ddG_ML'] = pd.to_numeric(self.df['ddG_ML'], errors='coerce')
         self.df = self.df.loc[self.df['ddG_ML'].notna()]
@@ -170,6 +175,7 @@ class MegaScaleDatasetPreprocessor:
         orig_index = df.index
 
         self.df = df
+        self.dG_wt = self._wt_dG_by_code(self.df)
 
         self.df['ddG_ML'] = pd.to_numeric(self.df['ddG_ML'], errors='coerce')
         self.df = self.df.loc[self.df['ddG_ML'].notna()]
@@ -198,6 +204,17 @@ class MegaScaleDatasetPreprocessor:
         # assert that the indices are retained from the pre-concat state
         # orig_index.equals() will fail if duplicates were actually removed
         assert self.df.index.isin(orig_index).all(), "Index mismatch detected: Indices were flattened or lost."
+
+    @staticmethod
+    def _wt_dG_by_code(df: pd.DataFrame) -> Dict[str, float]:
+        """Mean dG_ML of the 'wt' rows of each library, keyed like the `code` column."""
+        if 'dG_ML' not in df.columns or 'mut_type' not in df.columns:
+            return {}
+        wt = df.loc[df['mut_type'] == 'wt', ['WT_name', 'dG_ML']].copy()
+        wt['dG_ML'] = pd.to_numeric(wt['dG_ML'], errors='coerce')
+        wt['code'] = (wt['WT_name'].str.replace('.pdb_', '_', regex=False)
+                      .str.replace('.pdb', '', regex=False).str.replace('|', '_', regex=False))
+        return wt.dropna(subset=['dG_ML']).groupby('code')['dG_ML'].mean().to_dict()
 
     def _filter_data(self, df, scaffold) -> pd.DataFrame:
 
@@ -360,6 +377,7 @@ class MegaScaleDatasetPreprocessor:
                     incl_reversions=incl_reversions, 
                     incl_mut_ctx=incl_mut_ctx,
                 )
+                dataset.set_dG_wt(self.dG_wt.get(code))
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
                         continue

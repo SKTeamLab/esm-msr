@@ -106,8 +106,8 @@ def parse_arguments() -> argparse.Namespace:
     mask_group.add_argument('--premask_coords', action=argparse.BooleanOptionalAction, default=False)
     mask_group.add_argument('--val_cycle_passes', action=argparse.BooleanOptionalAction, default=False,
                             help="VALIDATION ONLY: also run the two non-native passes on every validation item (the WT adapter on the mutated sequence asked "
-                                 "about the reverse mutation, the MT adapter on the wild-type sequence), so that the symmetrised heads wt_ctx = (WT + ~WT)/2 and "
-                                 "mt_ctx = (MT + ~MT)/2 of the epistasis hierarchy (val_epi_*) exist. Does not touch training.")
+                                 "about the reverse mutation, the MT adapter on the wild-type sequence), so that the control head ctx = (WT + ~WT)/2 of the "
+                                 "epistasis metrics (val_epi_*_ctx, esm_msr.epi_metrics) exists; both legs are written to the validation dump. Does not touch training.")
     mask_group.add_argument('--mask_strategy', type=str, choices=["marginal", "chain"], default=None)
 
     train_group = parser.add_argument_group("Training Parameters")

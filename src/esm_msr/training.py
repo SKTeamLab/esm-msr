@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import logging
 import warnings
@@ -26,11 +27,15 @@ from esm_msr.losses import ListMLELoss, ListMLELoss_enhanced, AsymmetricHuberLos
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
-from esm_msr import stats, epi_hierarchy
+from esm_msr import stats, epi_metrics
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 warnings.filterwarnings('ignore', category=UserWarning)
 torch.set_float32_matmul_precision('high') 
+
+# A library measured in a mutant background ('2KT8_V15A'): its singles are conditional effects, not wild-type-context ddGs, so rho_wt_valid
+# leaves it out (as devel does, where they are 'native_cond').
+NATIVE_BACKGROUND_CODE_RE = re.compile(r'_[A-Z][0-9]+[A-Z]$')
 
 class ESM3EpistasisLightningModule(pl.LightningModule):
     def __init__(self, **kwargs):
@@ -401,6 +406,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         ddG = utils._get_label(batch, 'ddG', device=batch['ddG'].device)
         dddG = batch.get('dddG', None)
 
+        n_items = int(out_dict['wt_lora_pred'].shape[0])
+        dG_wt = batch['dG_wt'].float() if torch.is_tensor(batch.get('dG_wt')) else torch.full((n_items,), float('nan'))
+
         cyc = {}
         if getattr(self.hparams, 'val_cycle_passes', False):
             with torch.inference_mode():
@@ -409,6 +417,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         self.validation_step_outputs[dataloader_idx].append({
             **cyc,
+            'dG_wt': dG_wt.detach().cpu().numpy(),
+            'subset_type': list(batch.get('subset_type', ['single'] * n_items)),
             'mt_scores': out_dict['mt_lora_pred'].detach().cpu().float().numpy(),
             'wt_scores': out_dict['wt_lora_pred'].detach().cpu().float().numpy(),
             'comb_scores': out_dict['combined_pred'].detach().cpu().float().numpy(),
@@ -419,44 +429,34 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             'mutations': batch.get('mutations', [])
         })
 
-    _EPI_HEADS = ('wt_add', 'wt_ctx', 'mt_ctx', 'comb')
-
-    def _log_epi_hierarchy(self, pooled):
+    def _log_epistasis(self, pooled):
         """
-        Logs val_epi_<level>_<head> (esm_msr.epi_hierarchy), pooled over every validation library, and writes val_dump_<tag>.npz. Heads:
-        wt_add (the WT adapter forward only: additive, the control), comb ((WT + ~MT)/2, the reported prediction), and with --val_cycle_passes
-        wt_ctx ((WT + ~WT)/2) and mt_ctx ((MT + ~MT)/2). This model has no link, so its predictions are taken as the observed scale. Never raises.
+        Logs val_epi_<metric>_<head> (esm_msr.epi_metrics: every metric for comb, mt and ctx, the naive and global ones also for the additive
+        control add), pooled over every validation library, and writes val_dump_<tag>.npz (rescore offline with baseline/epi_from_dump.py).
+        Heads: comb ((WT + ~MT)/2, the reported prediction), mt (~MT), ctx ((WT + ~WT)/2, needs --val_cycle_passes), add (WT). This model has
+        no link, so its predictions are taken as the observed scale. Never raises.
         """
         try:
             keys = pooled['mut_key']
             if not keys or any(k is None for k in keys):
                 return
             f = lambda name: np.asarray(pooled[name], dtype=float)
-            n_mut, dddG = np.asarray(pooled['n_mut']), f('dddG')
-            wt, mt, comb, wr, mf = f('wt_scores'), f('mt_scores'), f('comb_scores'), f('wt_rev_scores'), f('mt_fwd_scores')
-            is_double = (n_mut == 2) & np.isfinite(dddG)
+            items = {'mut_key': keys, 'subset_type': list(pooled['subset_type']), 'cens': None, 'ddG': f('ground_truths'), 'dddG': f('dddG'),
+                     'dG_wt': f('dG_wt'), 'wt': f('wt_scores'), 'mt': f('mt_scores'), 'comb': f('comb_scores'), 'wt_rev': f('wt_rev_scores')}
             log_dir = getattr(self.logger, 'log_dir', None) or getattr(self.logger, 'save_dir', None)
             if log_dir:
                 tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
                 os.makedirs(log_dir, exist_ok=True)
-                np.savez_compressed(os.path.join(log_dir, f'val_dump_{tag}.npz'), wt=wt, mt=mt, comb=comb, wt_rev=wr, mt_fwd=mf, dddG=dddG, n_mut=n_mut,
-                                    ground_truth=f('ground_truths'), loader=np.asarray(pooled['loader']), mut_key=np.asarray([json.dumps(k) for k in keys]))
-            values = {'wt_add': wt, 'comb': comb, 'wt_ctx': 0.5 * (wt + wr), 'mt_ctx': 0.5 * (mf + mt)}
-            counted = False
-            for head in ESM3EpistasisLightningModule._EPI_HEADS:
-                v = values[head]
-                if not np.isfinite(v[is_double]).any():
-                    continue
-                res = epi_hierarchy.compute(epi_hierarchy.predicted_dddG(v, n_mut, keys), dddG, keys, is_double)
-                for lvl in epi_hierarchy.LEVELS:
-                    if np.isfinite(res[lvl]):
-                        self.log(f"val_epi_{lvl}_{head}", float(res[lvl]), on_epoch=True, sync_dist=True)
-                if not counted:
-                    for c in ('n_doubles', 'n_pairs', 'n_columns', 'n_complete_blocks', 'n_identities'):
-                        self.log(f"val_epi_{c}", float(res[c]), on_epoch=True, sync_dist=True)
-                    counted = True
+                np.savez_compressed(os.path.join(log_dir, f'val_dump_{tag}.npz'), wt=items['wt'], mt=items['mt'], comb=items['comb'],
+                                    wt_rev=items['wt_rev'], mt_fwd=f('mt_fwd_scores'), dddG=items['dddG'], n_mut=np.asarray(pooled['n_mut']),
+                                    ground_truth=items['ddG'], dG_wt=items['dG_wt'], subset_type=np.asarray(items['subset_type'], dtype=str),
+                                    loader=np.asarray(pooled['loader']), mut_key=np.asarray([json.dumps(k) for k in keys]))
+            res = epi_metrics.compute(epi_metrics.Table(items))
+            for name, val in res.items():
+                if np.isfinite(val):
+                    self.log(f"val_{name}", float(val), on_epoch=True, prog_bar=name == 'epi_cell_rank_mt', sync_dist=True)
         except Exception as e:
-            logging.warning(f"epistasis hierarchy skipped: {e}", exc_info=True)
+            logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)
 
     def on_validation_epoch_start(self):
         self.validation_step_outputs = defaultdict(list)
@@ -476,6 +476,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             
             flat_mut_parts, flat_pdb_ids = [], []
             mt_scores_list, wt_rev_list, mt_fwd_list = [], [], []
+            dG_wt_list, subset_list = [], []
 
             for o in valid_outputs:
                 pdb_list, muts_list = o.get('pdb', []), o.get('mutations', [])
@@ -487,6 +488,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     mt_scores_list.append(o['mt_scores'][i])
                     wt_rev_list.append(o['wt_rev_scores'][i] if 'wt_rev_scores' in o else np.nan)
                     mt_fwd_list.append(o['mt_fwd_scores'][i] if 'mt_fwd_scores' in o else np.nan)
+                    dG_wt_list.append(o['dG_wt'][i] if 'dG_wt' in o else np.nan)
+                    subset_list.append(o['subset_type'][i] if 'subset_type' in o else ('single' if len(mut_parts) == 1 else 'double'))
                     comb_scores_list.append(o['comb_scores'][i])
                     epi_scores_list.append(o['epi_scores'][i])
                     ground_truths_list.append(o['ground_truths'][i] if i < len(o['ground_truths']) else np.nan)
@@ -520,15 +523,23 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 wt_scores, comb_scores, epi_scores, epi_scores_full,
                 ground_truths, dddG_truths, idx_singles, idx_doubles, valid_dddG_mask
             )
+            # the WT head on plain singles in the library's own wild-type context (devel's rho_wt_valid; NaN for a mutant-background library)
+            sel = np.array([st == 'single' for st in subset_list]) & idx_singles & np.isfinite(ground_truths)
+            rho_wt_valid = np.nan if NATIVE_BACKGROUND_CODE_RE.search(str(val_loader_name)) else stats.safe_spearman(wt_scores[sel], ground_truths[sel])
+            if not np.isnan(rho_wt_valid):
+                self.log(f"val_rho_wt_valid/{val_loader_name}", rho_wt_valid, on_epoch=True, sync_dist=True)
+                avg_metrics['rho_wt_valid'].append(rho_wt_valid)
             
             # Aggregate pooled data for ungrouped metric calculation
             pooled_data['wt_scores'].extend(wt_scores_list)
             pooled_data['comb_scores'].extend(comb_scores_list)
             pooled_data['ground_truths'].extend(ground_truths_list)
-            # for the epistasis hierarchy (esm_msr.epi_hierarchy): per-item values of every pass, the mutation count and a library-tagged key
+            # for the epistasis metrics (esm_msr.epi_metrics): per-item values of every pass, the mutation count and a library-tagged key
             pooled_data['mt_scores'].extend(mt_scores_list)
             pooled_data['wt_rev_scores'].extend(wt_rev_list)
             pooled_data['mt_fwd_scores'].extend(mt_fwd_list)
+            pooled_data['dG_wt'].extend(dG_wt_list)
+            pooled_data['subset_type'].extend(subset_list)
             pooled_data['dddG'].extend(dddG_truths_list)
             pooled_data['n_mut'].extend(mut_lens_list)
             pooled_data['loader'].extend([val_loader_name] * len(mut_lens_list))
@@ -577,7 +588,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 for pathway, val in ungrouped_ndcg_t0.items():
                     if not np.isnan(val): self.log(f"val_ndcg@k>0_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
 
-        ESM3EpistasisLightningModule._log_epi_hierarchy(self, pooled_data)
+        ESM3EpistasisLightningModule._log_epistasis(self, pooled_data)
 
         if not self.trainer.sanity_checking and self.hparams.freeze_wt_on_convergence and not self.peft_manager.has_transitioned:
             target_metric_key = self.hparams.wt_convergence_metric
