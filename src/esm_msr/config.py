@@ -181,6 +181,17 @@ def parse_arguments() -> argparse.Namespace:
     train_group.add_argument('--freeze_wt_on_convergence', action=argparse.BooleanOptionalAction, default=False)
     train_group.add_argument('--wt_convergence_patience', type=int, default=1)
     train_group.add_argument('--wt_convergence_metric', type=str, default='rho_wt_valid')
+    train_group.add_argument('--wt_plateau_patience', type=int, default=0,
+                             help="Epochs without improvement in --wt_convergence_metric before the WT path's own "
+                                  "learning rate is cut by --wt_plateau_factor. 0 disables it. The shared plateau "
+                                  "watches val_rho_combined_avg, which the MT path keeps improving long after the "
+                                  "WT head has stopped, so without this the WT adapter keeps taking full-rate "
+                                  "steps on a metric it is no longer improving.")
+    train_group.add_argument('--wt_plateau_factor', type=float, default=0.1)
+    train_group.add_argument('--wt_plateau_min_lr', type=float, default=1e-7)
+    train_group.add_argument('--wt_freeze_after_decays', type=int, default=0,
+                             help="Freeze the WT path after this many --wt_plateau_patience decays, which also "
+                                  "fixes the target the MT path teacher-forces against. 0 never freezes.")
     train_group.add_argument('--early_stopping_patience', type=int, default=0)
     train_group.add_argument('--early_stopping_metric', type=str, default='val_rho_combined_avg')
 

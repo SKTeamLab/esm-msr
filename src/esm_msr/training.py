@@ -759,6 +759,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 total_warmup_steps = self.hparams.lr_warmup_steps + max(int(getattr(self.hparams, "calib_delay_steps", 0)), int(getattr(self.hparams, "mt_lora_delay_steps", 500)))
                 if self.trainer.global_step >= total_warmup_steps and avg_metrics['rho_combined']:
                     sch_plateau.step(np.nanmean(avg_metrics['rho_combined']))
+                # After warmup only: during warmup LambdaLR rewrites every group's lr each step and would
+                # overwrite this decay.
+                if self.trainer.global_step >= total_warmup_steps:
+                    self._wt_plateau_step(avg_metrics)
 
         self.validation_step_outputs.clear()
         torch.cuda.empty_cache()
@@ -819,6 +823,54 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                              prog_bar=name == 'epi_cell_rank_mt', sync_dist=True)
         except Exception as e:
             logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)
+
+    def _wt_plateau_step(self, avg_metrics: dict) -> None:
+        """
+        Decay the WT path's own learning rate when ITS validation metric stops improving, and optionally freeze it.
+
+        The shared ReduceLROnPlateau watches ``val_rho_combined_avg``, which the MT path keeps improving long after
+        the WT head has stopped - ``rho_wt_valid`` typically peaks around epoch 2 while the combined metric climbs
+        for several more. Until now that meant the WT adapter kept taking full-rate steps on a metric it was no
+        longer improving, so it drifted (weakly overfitting), and the target the MT path teacher-forces against
+        moved underneath it. Keyed on the WT metric, both stop.
+
+        Only the ``lora_wt`` and ``calib_wt`` groups are touched, so the MT path and the link are unaffected.
+        """
+        patience = int(getattr(self.hparams, 'wt_plateau_patience', 0) or 0)
+        if patience <= 0 or self.peft_manager.has_transitioned:
+            return
+        key = self.hparams.wt_convergence_metric
+        if not avg_metrics.get(key):
+            return
+        current = float(np.nanmean(avg_metrics[key]))
+        if not np.isfinite(current):
+            return
+
+        best = getattr(self, '_wt_plateau_best', -float('inf'))
+        if current > best + 1e-4:
+            self._wt_plateau_best, self._wt_plateau_bad = current, 0
+            return
+        self._wt_plateau_bad = getattr(self, '_wt_plateau_bad', 0) + 1
+        if self._wt_plateau_bad < patience:
+            return
+
+        self._wt_plateau_bad = 0
+        factor, min_lr = float(self.hparams.wt_plateau_factor), float(self.hparams.wt_plateau_min_lr)
+        touched = []
+        for g in self.optimizers().param_groups:
+            if g.get('name') in ('lora_wt', 'calib_wt'):
+                new = max(min_lr, float(g['lr']) * factor)
+                touched.append(f"{g['name']}: {float(g['lr']):.2e} -> {new:.2e}")
+                g['lr'] = new
+        self._wt_decays = getattr(self, '_wt_decays', 0) + 1
+        logging.info(f"WT plateau on {key} (best={best:.4f}, now={current:.4f}), decay #{self._wt_decays}: "
+                     f"{', '.join(touched)}")
+
+        after = int(getattr(self.hparams, 'wt_freeze_after_decays', 0) or 0)
+        if after and self._wt_decays >= after:
+            logging.info(f"WT path frozen after {self._wt_decays} decays; its predictions are now fixed, so the "
+                         f"teacher-forced target the MT path uses stops moving.")
+            self._transition_to_mt()
 
     def _transition_to_mt(self):
         """Freeze the WT path and open the MT path, saving the converged WT weights first."""
