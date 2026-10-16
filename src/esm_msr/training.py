@@ -926,9 +926,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         """
         state_dict = checkpoint.get('state_dict', {})
         
+        # 'link_head' matters: its parameters (global_floor, raw_tau, and the ceiling when enabled) define the
+        # observed scale, so a checkpoint without them cannot reproduce the predictions the run was scored on, and
+        # link.numpy_link_from_state_dict - which exists for exactly that - returns None for every checkpoint.
         filtered_state_dict = {
             k: v for k, v in state_dict.items()
-            if 'lora' in k.lower() or 'calibration' in k.lower()
+            if 'lora' in k.lower() or 'calibration' in k.lower() or 'link_head' in k.lower()
         }
         
         if not filtered_state_dict:

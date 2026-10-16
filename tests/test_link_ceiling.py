@@ -147,3 +147,20 @@ def test_the_clamp_leaves_a_reachable_bound_alone():
     raw_bound = torch.tensor([5.0]) + offset
     ceil_ddG = link.ceiling().detach() + offset
     assert float(torch.minimum(raw_bound, ceil_ddG)) == pytest.approx(float(raw_bound), abs=1e-3)
+
+
+def test_the_checkpoint_filter_keeps_the_link():
+    """on_save_checkpoint strips the frozen backbone by keeping only 'lora'/'calibration' keys. The link head
+    matched neither, so every checkpoint lost global_floor and raw_tau - and numpy_link_from_state_dict, which
+    exists to rebuild the observed scale from a checkpoint, returned None for all of them."""
+    import inspect
+    from esm_msr.training import ESM3EpistasisLightningModule as M
+    src = inspect.getsource(M.on_save_checkpoint)
+    assert 'link_head' in src, "the checkpoint filter must keep link_head.* parameters"
+
+    link = SaturatingLink(global_floor_init=-0.4)
+    kept = {f'link_head.{k}': v for k, v in link.state_dict().items()}
+    kept.update({'model.some.lora_A': torch.zeros(1)})
+    filtered = {k: v for k, v in kept.items()
+                if 'lora' in k.lower() or 'calibration' in k.lower() or 'link_head' in k.lower()}
+    assert numpy_link_from_state_dict(filtered) is not None, "the filtered dict must still rebuild the link"
