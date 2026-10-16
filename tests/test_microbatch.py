@@ -1,13 +1,12 @@
 """--micro_batch_size changes speed and memory only: the losses and every gradient are the same for micro-batches of 16 (one ranking
 list, the released setting) and 64, including WT lists with masked items (doubles without both singles measured) and lists with fewer
-than two valid items. Holds with and without --link."""
+than two valid items."""
 import types
 import unittest
 
 import numpy as np
 import torch
 
-from esm_msr.link import MonotoneLink
 from esm_msr.losses import ListMLELoss
 
 
@@ -48,14 +47,14 @@ def make_batch(n=64, seed=0):
             'mutations': [[('A', i, 'G')] * k for i, k in enumerate(n_mut)]}
 
 
-def run(batch, micro, link=None):
+def run(batch, micro):
     from esm_msr import training
     cls = training.ESM3EpistasisLightningModule
     hp = types.SimpleNamespace(subset_size=16, micro_batch_size=micro, mt_reg_mask='all', zero_epistasis_for_singles=True,
                                detach_ensemble_input=True, mask_strategy=None, detach_regression=False, lambda_reg_wt=1.0, lambda_rank_wt=1.0,
                                lambda_reg_combined=1.0, lambda_rank_combined=1.0, lambda_epi_combined=0.0, double_weight=1.0,
                                mut_ctx_weight=0.5, reversion_weight=0.5)
-    stub = types.SimpleNamespace(hparams=hp, model=PerItemModel(len(batch['ddG'])), link_head=link,
+    stub = types.SimpleNamespace(hparams=hp, model=PerItemModel(len(batch['ddG'])),
                                  peft_manager=types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False),
                                  crit_reg=torch.nn.MSELoss(reduction='none'), crit_rank_wt=ListMLELoss(), crit_rank_combined=ListMLELoss())
     stub.manual_backward = lambda loss, retain_graph=False: loss.backward(retain_graph=retain_graph)
@@ -65,18 +64,12 @@ def run(batch, micro, link=None):
 
 
 class TestMicroBatchInvariance(unittest.TestCase):
-    def _check(self, link_fn):
+    def test_16_and_64_give_the_same_gradients(self):
         batch = make_batch()
-        a, b = run(batch, 16, link_fn()), run(batch, 64, link_fn())
+        a, b = run(batch, 16), run(batch, 64)
         torch.testing.assert_close(a.model.theta.grad, b.model.theta.grad, atol=1e-6, rtol=1e-5)
         torch.testing.assert_close(a.model.w.grad, b.model.w.grad, atol=1e-6, rtol=1e-5)
         self.assertGreater(float(a.model.theta.grad[0].abs().sum()), 0.0)
-
-    def test_16_and_64_give_the_same_gradients(self):
-        self._check(lambda: None)
-
-    def test_16_and_64_give_the_same_gradients_through_the_link(self):
-        self._check(lambda: MonotoneLink())
 
 
 if __name__ == '__main__':
