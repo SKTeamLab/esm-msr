@@ -431,6 +431,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if getattr(self.trainer.precision_plugin, "scaler", None) is not None:
             self.log("amp_scale", self.trainer.precision_plugin.scaler.get_scale(), on_step=True)
 
+        # GPU memory every step, so allocator fragmentation (reserved climbing away from allocated) shows up in Comet
+        if torch.cuda.is_available():
+            gb = 1.0 / (1024 ** 3)
+            self.log("mem/allocated_gb", torch.cuda.memory_allocated() * gb, on_step=True)
+            self.log("mem/reserved_gb", torch.cuda.memory_reserved() * gb, on_step=True, prog_bar=True)
+            self.log("mem/peak_allocated_gb", torch.cuda.max_memory_allocated() * gb, on_step=True)
+
         return torch.tensor(0.0, device=self.device)
 
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
