@@ -146,6 +146,21 @@ Our reference runs score **all 217 of 217 DMS** on a single RTX 5090 (32 GB): th
 
 Four of the 217 are size extremes that need special handling on a 32 GB card: `BRCA2_HUMAN_Erwood_2022_HEK293T` (2,832 residues) saturates the GPU at batch size 1 and completes via CPU spill into system RAM (~13 min; needs ~54 GB of free RAM and PyTorch's default allocator), `SCN5A_HUMAN_Glazer_2019` (2,016 residues), `POLG_CXB3N_Mattenberger_2021` (2,185) and `BRCA1_HUMAN_Findlay_2018` (1,863) also need the default allocator (they fit on-card). If any of them fails on a first attempt, retry just that DMS with `PYTORCH_CUDA_ALLOC_CONF=` (empty) set in the environment — see [docs/known_issues.md](docs/known_issues.md). [docs/vram_and_batch_sizes.md](docs/vram_and_batch_sizes.md) tabulates the maximum structure length that fits at each batch size (e.g. ~1,740 residues at batch 1, ~500 at batch 12, ~215 at batch 64 on a 32 GB card in bf16), measured throughput, and the CPU-spill behavior for larger structures.
 
+### Baselines on the same inputs
+
+`inference_scripts/proteinmpnn_testing.py`, `spurs_testing.py` and `thermompnnd_testing.py` take the same `--protein_gym --pgym_dir pgym_inputs --pgym_out DIR [--pgym_dms ...]` flags. All four scripts run through one shared loop (`inference_scripts/pgym_runner.py`), so the baselines' per-DMS CSVs, `summary.csv` and resume rule are the same as ESM-MSR's. Every readout is signed so that higher means fitter. `summary.csv` reports `spearman_combined` for the headline column and `spearman_<col>` for each secondary readout:
+
+* **ProteinMPNN** (`v_48_020`, unmasked; set `PROTEINMPNN_DIR` to your ProteinMPNN checkout).
+  * Headline `mpnn_score`: the mean of the log-odds with the wild-type and with the variant sequence as context, each mutated position decoded last.
+  * `mpnn_score_wt_seq`: wild-type context only.
+  * The encoder runs once per structure, and each distinct (position, other mutations) context is decoded once. All 217 DMS take about 2 h on a 24 GB GPU.
+* **SPURS** (the public HuggingFace weights by default).
+  * Headline `SPURS_multi`.
+  * Also `SPURS_single_additive` and `SPURS_multi_additive`.
+* **ThermoMPNN-D** (`--single_checkpoint`, `--epistatic_checkpoint`; set `THERMOMPNN_DIR`).
+  * Headline `pred_combined`: the epistatic model on double mutants, the single-mutant model's additive sum otherwise.
+  * Also `pred_single_additive`.
+
 ## Adding the Visualizer to ChimeraX
 
 *Note: if using Windows Subsystem for Linux (WSL), it is recommended to install ChimeraX on Windows, not WSL. Everything should work even if you installed ESM-MSR into WSL.*
