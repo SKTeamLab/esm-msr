@@ -184,3 +184,22 @@ def test_wt_dG_makes_dG_wt_plus_ddG_equal_the_measurement():
     ref = MegaScaleDatasetPreprocessor._wt_dG_by_code(df)['1ABC']
     for dg, ddg in ((3.0, -1.0), (2.0, -2.0), (1.0, -3.0)):
         assert ref + ddg == pytest.approx(dg, abs=1e-9)
+
+
+def test_the_batch_sampler_is_seeded_and_reproducible():
+    """Without rng_seed the sampler seeded itself from system entropy, so --seed controlled only the model init:
+    the capped subsets and the batch composition differed every run, and two configurations could not be paired
+    on a seed."""
+    import inspect
+    from esm_msr.data import ProteinCyclingBatchSampler, create_consolidated_dataloader
+    assert 'rng_seed' in inspect.signature(create_consolidated_dataloader).parameters
+    src = inspect.getsource(create_consolidated_dataloader)
+    assert 'rng_seed=rng_seed' in src, "the factory must pass the seed through to the sampler"
+
+    import random
+    a, b, c = random.Random(1), random.Random(1), random.Random(2)
+    xs = list(range(50))
+    pa, pb, pc = xs[:], xs[:], xs[:]
+    a.shuffle(pa); b.shuffle(pb); c.shuffle(pc)
+    assert pa == pb, "the same seed must give the same order"
+    assert pa != pc, "different seeds must give different orders"

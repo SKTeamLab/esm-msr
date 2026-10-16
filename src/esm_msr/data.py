@@ -1199,7 +1199,8 @@ def create_consolidated_dataloader(
     strategy: str = 'all', 
     subset_caps: Optional[Dict[str, Optional[float]]] = None,
     num_workers: int = 4,
-    pin_memory: bool = True
+    pin_memory: bool = True,
+    rng_seed: Optional[int] = None
 ) -> DataLoader:
     """A DataLoader over every library's dataset at once, batched by ProteinCyclingBatchSampler so each batch
     holds one library (the homogeneous-microbatch assumption the model's collate relies on)."""
@@ -1211,6 +1212,10 @@ def create_consolidated_dataloader(
         train_list=train_list,
         strategy=strategy,
         subset_caps=subset_caps,
+        # Without this the sampler seeds itself from system entropy, so --seed controlled only the model init:
+        # the capped subsets and the batch composition differed every run, runs were not reproducible, and two
+        # configurations could not be paired on a seed.
+        rng_seed=rng_seed,
     )
     
     concat_dataset = ConcatDataset(datasets)
@@ -1244,7 +1249,8 @@ class PooledDataLoader:
         structure_pad_token_id: int = C.STRUCTURE_PAD_TOKEN,
         coord_pad_value: float = float("inf"),
         debug_first_batches: int = 0,
-        legacy_mode: bool = False
+        legacy_mode: bool = False,
+        rng_seed: Optional[int] = None
     ):
         self.dataloaders = dataloaders
         self.batch_size = int(batch_size)
@@ -1266,7 +1272,7 @@ class PooledDataLoader:
         self.all_batches: List[List[Dict[str, Any]]] = []
         self.current_batch_idx = 0
         self._batch_count = 0
-        self.rng = random.Random()
+        self.rng = random.Random(rng_seed)
 
         # Load data from all dataloaders
         for i, dl in enumerate(self.dataloaders):
