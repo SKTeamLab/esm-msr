@@ -1,0 +1,7 @@
+Set,N Proteins,N Mutations,N Mutations per protein (avg)
+train,172,207546,1206.66
+val,23,34957,1519.87
+test,33,48740,1476.97
+thermostability,771,9735,12.63
+domainome,522,29860,57.20
+functional,5,258612,51722.40

@@ -1,0 +1,21 @@
+Set,N Proteins,N Mutations,N Mutations per protein (avg)
+train,187,230466,1232.44
+val,30,38275,1275.83
+test,42,58170,1385.00
+domainome,522,29860,57.20
+ssym,357,684,1.92
+ptmul,90,914,10.16
+s461,48,461,9.60
+k2369,181,2369,13.09
+q3421,149,3421,22.96
+s571,39,557,14.28
+s783,55,783,14.24
+s2648,132,2648,20.06
+s8754,305,6400,20.98
+DLG4_HUMAN_Faure_2021_abundance_domain,1,6976,6976.00
+DLG4_HUMAN_Faure_2021_binding_domain,1,8251,8251.00
+GRB2_HUMAN_Faure_2021_abundance_domain,1,63366,63366.00
+GRB2_HUMAN_Faure_2021_binding_domain,1,33441,33441.00
+MYO_HUMAN_Kung_2025_display,1,5905,5905.00
+ESTA_BACSU_Nutschel_2020_dTm,1,2172,2172.00
+GB1_Wu_2016_binding_domain,1,149360,149360.00
