@@ -529,6 +529,87 @@ libraries by more than 0.05 - and that axis is exactly where the link places its
 `CACHE_VERSION` bump silently hands a queued job a different dataset under the same name - which is exactly what
 happened to the first dc5 when `c4` landed mid-queue.
 
+## 4e. and back to one: what the data can actually identify (dc8, dc9)
+
+The four-parameter link of §4d was tested and then withdrawn. Two of its parameters were not identified by this
+data and the third was identified only jointly with something that had been removed.
+
+**The ceiling is not demonstrable, so it is gone.** Upper saturation would be visible as doubles whose additive
+expectation runs past the top of the range while their measurement converges on it. Of the double set only 55
+have an additive expectation above 4.5 and 7 above 5.0, and 96.5% of the `>5` rows sit in libraries that have no
+numeric reference at all - so what the top of the range records is *truncation*, a bound at 5, and not a
+compressive readout. `--censor_range` already handles a bound. Confirming the non-identifiability: the learned
+ceiling drifted near-identically in the canonical and range-censored arms, which it would not have done had
+either arm's data been pinning it. `tau_hi` goes with it, having had nothing but the floor's 0.59 to start from.
+
+**The calibration bias is needed, and it is not the floor.** `--shared_bias_init null` was tried, on the
+reasoning that the latent LLR is 0 for the identity substitution by construction and so needs no intercept. The
+construction is right but the inference is not: `bias = 0` asserts that `LLR = 0` coincides with thermodynamic
+neutrality, and the LLR measures evolutionary preference, not stability. The fitted values size the gap -
+`wt_bias` +0.126 (dc7_s1) and +0.113 (dc6_s1), against an `mt_bias` of -0.051 and -0.013. About +0.12 kcal/mol,
+on the additive path only; the MT corrector needs essentially none.
+
+With the bias removed, `global_floor` was co-opted as a surrogate for it and pinned itself at the band edge 0.2,
+where the clip makes its gradient exactly zero. The exchange rate shows the two are not separable here: removing
+a +0.12 intercept moved the floor by more than 0.57 before the clip stopped it, where interchangeable parameters
+would trade 1:1. Asymptotically they do separate - in the linear regime `h(z) ~ z` and only the intercept
+matters, in the saturated regime `h -> f` and the intercept is swamped - but the saturated regime barely exists
+in this data. Of the 178 cached libraries with no floor evidence, 160 have fewer than 20 deep variants and 148
+have exactly zero. Those libraries never reach the asymptote, so they constrain a combination of floor and bias:
+a steep ridge along the bias and a nearly flat direction along the floor.
+
+**So `global_floor` is pinned at the measured dataset floor, -0.1363.** The 20 libraries that can measure a floor
+put it at median -0.108 (IQR -0.217 to +0.018, range -0.377 to +0.196), and the `[-1, 0.2]` band is not
+truncating them - zero of 20 fall outside it, so the pinned value is not a clipping artefact. Nor is the
+evidence gate biasing the accepted set upward, which was the obvious worry: the 18 libraries it rejects that
+still have a measurable estimate sit *higher*, median +0.214. Against that, dc7's learned -0.372 lands at the
+minimum of every library that can measure one and dc6's -0.497 below all of them. That is the weakly-identified
+parameter sliding down the flat direction, not an estimate of a floor.
+
+What remains trainable in the link is `raw_tau`, one parameter, anchored at 0.59 by `--link_tau_penalty`; it has
+not moved off it in any run so far. The per-library floor stays data. `--link_ceiling` and `--learn_link_ceiling`
+remain implemented and tested, since the argument above is about this assay's dynamic range rather than about the
+construction.
+
+### 4e.1 dc9: the regression weights, now that saturation is handled
+
+dc9 is dc8 with `--lambda_reg_wt` and `--lambda_reg_combined` at 5.0 instead of 1.0, and nothing else moved -
+same seed, same 8 epochs, same canonical population, same link. The reasoning is that MSE on the observed ddG was
+previously fitting an artefact: a large part of the label near the floor was a readout bound that no monotone
+function of the latent could reproduce, so weighting it taught the model the assay's compression rather than the
+physics. With the floor absorbed by the link and the bounded rows either censored or excluded, the residual is
+closer to real error and worth fitting. By loss value this moves regression's share from about 2% to 8%
+(`L_reg` runs 0.02-0.55 against `L_rank` 4-34, since ListMLE is a sum over a list of 16 and random is `ln(16!)`
+= 30.7); by gradient per item it is nearer 6% to 25%, because ListMLE's per-item gradient is O(1) while the
+weighted MSE's is about `2*resid/N`.
+
+The learning rate is deliberately left at 2e-4. Adam normalises per parameter, so reweighting two terms is
+step-size-neutral rather than a 5x larger step - `norm_step/*` in dc6/dc7 sits three to four orders below the
+gradient norms, i.e. squarely in the normalised regime - and the only parameters whose gradient comes *solely*
+from the regression term (the calibration heads, `raw_tau`) see no direction change at all, just a rescaling that
+Adam divides back out. There is no gradient clipping to interact with it either (`--grad_clip_norm` is 0.0
+throughout). The decisive argument is comparability: dc8 and dc9 read as one variable only if everything else
+holds, so if a lower rate is wanted later it has to be applied to both arms.
+
+## 4f. The WT path decays on its own metric
+
+`rho_wt_valid` peaks near epoch 2 and then drifts, while `val_rho_combined_avg` - what the shared scheduler and
+the checkpointer watch - keeps improving for several more epochs because the MT path is still learning. So the WT
+adapter was taking full-rate steps on a metric it had stopped improving, which is both a weak overfit and, worse,
+a *moving teacher-forcing target*: the MT head forces against the additive label where it exists and against the
+WT prediction where it does not.
+
+`--wt_plateau_patience` adds a ReduceLROnPlateau on `--wt_convergence_metric` (default `rho_wt_valid`) that
+touches **only** the `lora_wt` and `calib_wt` optimizer groups, leaving MT and the link on their own schedules,
+and `--wt_freeze_after_decays` freezes the WT path outright after N decays via the existing `_transition_to_mt`.
+Both default to off. Two implementation notes: it runs from `on_validation_epoch_end` and only after warmup,
+because `LambdaLR` rewrites every group's `lr` on every step while warmup is active and would overwrite it; and
+the freeze holds across epochs because `freeze_wt_components` updates `baseline_requires_grad` *before*
+re-applying it, so the per-epoch re-apply does not undo it. dc8/dc9 use patience 1, factor 0.1, freeze after 2.
+
+Note that `--freeze_wt_on_convergence` already existed but defaults to False and no dc run set it, and in any
+case it watched the shared metric - so nothing was stopping the WT path before this.
+
 ## 5. Known gaps
 
 * `cond` and `native_cond` are generated and cached but **not trained on** (`--subset_caps cond=0.0 native_cond=0.0`)
