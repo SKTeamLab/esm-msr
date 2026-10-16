@@ -152,8 +152,28 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.validation_step_outputs = defaultdict(list)
         self.val_dataloader_names = self.hparams.get('val_dataloader_names', ['val'])
 
-    def on_train_start(self):
+    def _prepare_device_weights(self):
+        """
+        Deduplicate and down-cast the frozen base weights, once, before ANY forward pass.
+
+        ``main()`` calls ``trainer.validate`` before ``trainer.fit``, so doing this only in ``on_train_start`` is too late:
+        the first validation runs with the base weights still duplicated between the two adapters AND still fp32, roughly
+        11 GB of parameters instead of 3. That sets the CUDA caching allocator's high-water mark at its maximum, and the
+        re-share then frees those fp32 storages into the allocator's cache, so training allocates its activations inside a
+        large, fragmented reservation: a monotone slowdown (2.2 s/step rising past 12 s/step by step 260 on devel-revision)
+        that looks like a leak. Do NOT add empty_cache here: under expandable_segments on WSL2 it cost 3.7 GiB of device
+        memory and changed torch's own accounting not at all (devel-revision 1e0d5b2).
+        """
+        if getattr(self, '_device_weights_ready', False):
+            return
         self._reshare_base_params_on_device()
+        self._device_weights_ready = True
+
+    def on_validation_start(self):
+        self._prepare_device_weights()
+
+    def on_train_start(self):
+        self._prepare_device_weights()
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
