@@ -204,8 +204,20 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         ListMLE over the batch chopped into lists of ``list_size``, censored members tied at the bottom.
 
         The batch is one library (the sampler guarantees it), so a list is a random sample of that library's
-        variants and the ranking is always within-library. The raw loss is rescaled by
-        ``list_size / mean(list length)`` so that masking members out does not quietly shrink the loss.
+        variants and the ranking is always within-library.
+
+        Mean over this micro-batch's lists of each list's loss scaled by ``list_size / its own valid length``; a
+        list with fewer than two valid members contributes 0 and still counts. The caller weights the result by
+        ``n_list / global_num_lists``, so the sum over micro-batches is the batch's rank term whatever
+        ``--micro_batch_size`` is - a micro-batch of one list being the degenerate case.
+
+        Scoring the block in one call and dividing by the micro-batch's MEAN length does not have that property,
+        and it was wrong in two ways at once (tests/test_rank_list_normalisation.py; main-baseline 1ca241e):
+        a list's weight picked up its neighbours' lengths, and ``forward_censored`` averages over VALID lists
+        while ``n_list`` counts all of them, so a micro-batch holding one valid list and three starved ones gave
+        that list four times its share. At ``--micro_batch_size 64`` with ``--subset_size 16`` - four lists per
+        micro-batch, with 27% of training doubles carrying no additive label - that was a 6.7% error in the
+        batch's rank term, and a different one for every chop.
         """
         if mask.dtype != torch.bool:
             raise AssertionError(f"rank mask must be bool, got {mask.dtype}.")
@@ -214,10 +226,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             return None, 0.0, 0
         view = lambda t: t[:valid_len].view(-1, list_size)
         pred_rank, targ_rank, mask_rank, cens_rank = view(pred), view(targets), view(mask), view(cens)
-        L_raw = crit_fn.forward_censored(pred_rank, targ_rank, mask_rank, cens_rank)
-        avg_len = mask_rank.float().sum(dim=-1).mean()
-        scaled_loss = L_raw * (list_size / avg_len.clamp(min=1.0))
-        return scaled_loss, L_raw.detach().item(), valid_len // list_size
+        num_lists = valid_len // list_size
+        # Per list, so that neither the scaling nor forward_censored's own mean can mix lists. A starved list
+        # returns a gradient-attached zero, which is what lets it count in the mean without contributing.
+        per_list = torch.stack([crit_fn.forward_censored(pred_rank[i:i + 1], targ_rank[i:i + 1],
+                                                         mask_rank[i:i + 1], cens_rank[i:i + 1])
+                                for i in range(num_lists)])
+        n_valid = mask_rank.float().sum(dim=-1).clamp(min=1.0)
+        scaled_loss = (per_list * (list_size / n_valid)).mean()
+        return scaled_loss, per_list.detach().mean().item(), num_lists
 
     @staticmethod
     def _micro_batch(B: int, seq_len: int, list_size: int, hard_cap: int, budget: int) -> int:
