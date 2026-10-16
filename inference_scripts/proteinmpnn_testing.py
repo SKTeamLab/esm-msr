@@ -1,9 +1,13 @@
 # adapted from ProteinMPNN/protein_mpnn_utils.py
 
+import os
 import sys
-sys.path.append('/home/sareeves/software/ProteinMPNN/')
+# ProteinMPNN checkout (protein_mpnn_utils.py, vanilla_model_weights/); override with PROTEINMPNN_DIR
+MPNN_DIR = os.environ.get('PROTEINMPNN_DIR', '/home/sareeves/software/ProteinMPNN')
+sys.path.append(MPNN_DIR)
 from protein_mpnn_utils import tied_featurize, parse_PDB
 from protein_mpnn_utils import StructureDatasetPDB, ProteinMPNN
+from protein_mpnn_utils import gather_nodes, cat_neighbors_nodes
 
 import os
 import warnings
@@ -12,9 +16,12 @@ import copy
 import argparse
 import time
 import itertools
+import numpy as np
 import random
 
-from esm_msr import utils, preprocessing
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from esm_msr import utils
 
 from tqdm import tqdm
 from Bio.PDB import PDBParser
@@ -324,88 +331,244 @@ def calculate_rigorous_scores(model, row, X, S_wt, mask, chain_M, residue_idx, c
     return epistatic_score, additive_score, runtime
 
 
-def predict(df, model, K_paths=4, use_masks=False):
+def featurize_structure(code, pdb_path, chain, device):
+    """ProteinMPNN features for one structure, with `chain` (plus identical-sequence chains, tied) as the designed
+    chain(s) and other non-heteroatom chains as fixed context."""
     d = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K', 'ILE': 'I', 'PRO': 'P', 
          'THR': 'T', 'PHE': 'F', 'ASN': 'N', 'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R',
          'TRP': 'W', 'ALA': 'A', 'VAL':'V',  'GLU': 'E', 'TYR': 'Y', 'MET': 'M', 'MSE': 'M'}
-    
     pdbparser = PDBParser()
+    structure = pdbparser.get_structure(code, pdb_path)
+
+    drop_chains = []
+
+    # get chain sequences and remove chains of only heteroatoms (e.g. DNA)
+    for c in structure.get_chains():
+        seq = [r.resname for r in c]
+        seq = ''.join([d[res] if res in d.keys() else 'X' for res in seq])
+        if set(seq) == {'X'}:
+            drop_chains.append(c.id)    
     
+    homomer=1
+    designed_chain_list = []
+    fixed_chain_list = []
+    #target_chain = pdb_path.split('_')[-1].split('.')[0]
+    target_chain = chain
+
+    # identify the target chain and sequence, adding it to the designed chains
+    for c in structure.get_chains():
+        if c.id == target_chain:
+            designed_chain_list.append(target_chain)
+            target_seq = [r.resname for r in c]
+            target_seq = ''.join([d[res] if res in d.keys() else 'X' for res in target_seq])
+            break
+
+    # identify chains with the exact same sequence as the target, adding to designed chains
+    for c in structure.get_chains():
+        if c.id != target_chain:
+            candidate_seq = [r.resname for r in c]
+            candidate_seq = ''.join([d[res] if res in d.keys() else 'X' for res in candidate_seq])
+            #print(f'target_seq\n{target_seq}')
+            #print(f'candid_seq\n{candidate_seq}')
+            if candidate_seq == target_seq:
+                designed_chain_list.append(c.id)
+                homomer += 1
+            elif c.id not in drop_chains:
+                fixed_chain_list.append(c.id)
+    
+    chain_list = list(set(designed_chain_list + fixed_chain_list))
+
+    homomer = bool(homomer-1)
+
+    chain_id_dict = None
+    fixed_positions_dict = None
+    pssm_dict = None
+    omit_AA_dict = None
+    tied_positions_dict = None
+    bias_by_res_dict = None
+
+    pdb_dict_list = parse_PDB(pdb_path, input_chain_list=chain_list)
+    dataset_valid = StructureDatasetPDB(pdb_dict_list, truncate=None, max_length=100000)
+
+    chain_id_dict = {}
+    chain_id_dict[pdb_dict_list[0]['name']]= (designed_chain_list, fixed_chain_list)
+
+    if homomer:
+        tied_positions_dict = make_tied_positions_for_homomers(pdb_dict_list)
+    else:
+        tied_positions_dict = None
+
+    protein = dataset_valid[0]
+    batch_clones = [copy.deepcopy(protein)]
+    X, S, mask, lengths, chain_M, chain_encoding_all, chain_list_list, visible_list_list, masked_list_list,\
+        masked_chain_length_list_list, chain_M_pos, omit_AA_mask, residue_idx, dihedral_mask, \
+        tied_pos_list_of_lists_list, pssm_coef, pssm_bias, pssm_log_odds_all, bias_by_res_all, tied_beta = \
+        tied_featurize(batch_clones, device, chain_id_dict, fixed_positions_dict, omit_AA_dict,
+            tied_positions_dict, pssm_dict, bias_by_res_dict)
+
+    return X, S, mask, chain_M, residue_idx, chain_encoding_all
+
+
+@torch.no_grad()
+def mpnn_encode(model, X, mask, residue_idx, chain_encoding_all):
+    """The structure half of ProteinMPNN.forward (features + encoder), for one structure (batch 1).
+
+    Nothing here depends on the sequence or the decoding order, so it is computed once and shared by every
+    decoder row of that structure. Returns what mpnn_decode_at needs.
+    """
+    E, E_idx = model.features(X, mask, residue_idx, chain_encoding_all)
+    h_V = torch.zeros((E.shape[0], E.shape[1], E.shape[-1]), device=E.device)
+    h_E = model.W_e(E)
+    mask_attend = gather_nodes(mask.unsqueeze(-1), E_idx).squeeze(-1)
+    mask_attend = mask.unsqueeze(-1) * mask_attend
+    for layer in model.encoder_layers:
+        h_V, h_E = layer(h_V, h_E, E_idx, mask, mask_attend)
+    h_EX_encoder = cat_neighbors_nodes(torch.zeros_like(h_V), h_E, E_idx)
+    h_EXV_encoder = cat_neighbors_nodes(h_V, h_EX_encoder, E_idx)
+    return {'h_V': h_V, 'h_E': h_E, 'E_idx': E_idx, 'h_EXV_encoder': h_EXV_encoder, 'mask': mask}
+
+
+@torch.no_grad()
+def mpnn_decode_at(model, enc, S, vals, p):
+    """Log-probs at position p[b] of ProteinMPNN.forward for row b, given the cached encoder output.
+
+    S [B, L] sequences, vals [B, L] decoding-order keys (a position is decoded before another iff its key is smaller;
+    forward's decoding_order is argsort(vals)), p [B] the position read out of each row. Same arithmetic as forward,
+    except (a) the order mask is a key comparison at the K neighbours instead of forward's B x L x L one-hot einsum
+    (identical values for distinct keys) and (b) the last decoder layer is evaluated only at p (layers are per node,
+    so the other nodes' last-layer states are never read). Returns [B, 21] log-probs.
+    """
+    E_idx, mask = enc['E_idx'], enc['mask']
+    B, L = S.shape
+    E_idx_b = E_idx.expand(B, -1, -1)
+    h_S = model.W_s(S)
+    h_ES = cat_neighbors_nodes(h_S, enc['h_E'].expand(B, -1, -1, -1), E_idx_b)
+    # order_mask_backward[b, q, E_idx[q, k]] = 1 iff that neighbour is decoded before q
+    nb_vals = torch.gather(vals, 1, E_idx_b.reshape(B, -1)).view(E_idx_b.shape)
+    mask_attend = (nb_vals < vals.unsqueeze(-1)).float().unsqueeze(-1)
+    mask_1D = mask.view([mask.size(0), mask.size(1), 1, 1])
+    mask_bw = mask_1D * mask_attend
+    mask_fw = mask_1D * (1. - mask_attend)
+    h_EXV_encoder_fw = mask_fw * enc['h_EXV_encoder']
+    h_V = enc['h_V'].expand(B, -1, -1)
+    for layer in model.decoder_layers[:-1]:
+        h_ESV = cat_neighbors_nodes(h_V, h_ES, E_idx_b)
+        h_ESV = mask_bw * h_ESV + h_EXV_encoder_fw
+        h_V = layer(h_V, h_ESV, mask)
+    rows = torch.arange(B, device=S.device)
+    h_ESV_p = torch.cat([h_ES[rows, p], h_V[rows[:, None], E_idx[0, p]]], -1)        # [B, K, 3C]
+    h_ESV_p = mask_bw[rows, p] * h_ESV_p + h_EXV_encoder_fw[rows, p]
+    h_V_p = model.decoder_layers[-1](h_V[rows, p].unsqueeze(1), h_ESV_p.unsqueeze(1), mask[0, p].unsqueeze(1))
+    return torch.log_softmax(model.W_out(h_V_p[:, 0]), dim=-1)
+
+
+def score_unmasked_fast(model, mut_strings, X, S_wt, mask, residue_idx, chain_encoding_all, alphabet,
+                        max_tokens=32768, seed=0):
+    """calculate_unmasked_scores (N_background_orders=1) for every variant of one structure, without the redundant
+    work of scoring them one at a time. Returns (score_wt, score_mut) as numpy arrays.
+
+    For mutation (p, wt->mut) of a variant: log p(mut) - log p(wt) at p, p decoded last after a random background
+    order, on the WT sequence (score_wt) and on the variant's sequence (score_mut), summed over its mutations.
+    Because p is decoded last, nothing reads the residue at p, so the logits at p depend only on p, the background
+    order and the residues at the variant's OTHER mutated positions. Two changes from calculate_unmasked_scores:
+      - the background order is drawn once per position p (shared by every variant mutating p, in both passes)
+        instead of once per variant; same distribution per term, so the same estimator.
+      - with that, a decoder row is identified by (p, the other mutations): the WT pass of every variant at p is one
+        row, the MUT pass of a single mutant IS that row, and multi-mutants sharing a context share a row.
+    Each unique row is one decoder pass on the cached encoder (mpnn_encode / mpnn_decode_at).
+    """
+    device = X.device
+    L = S_wt.shape[1]
+    parsed = [[(int(m[1:-1]) - 1, alphabet.find(m[0]), alphabet.find(m[-1])) for m in s.split(':')] for s in mut_strings]
+    wt_seq = S_wt[0]
+    wt_list = wt_seq.tolist()
+    bad = [s for s, muts in zip(mut_strings, parsed) if any(not (0 <= p < L) or wt_list[p] != wi for p, wi, _ in muts)]
+    if bad:
+        raise ValueError(f"{len(bad)} variants disagree with the structure sequence (first: {bad[0]})")
+
+    key_ids, keys = {}, []
+    terms = []    # (variant, pass 0=WT 1=MUT, row, wt_idx, mut_idx)
+    def row_of(key):
+        k = key_ids.get(key)
+        if k is None:
+            k = key_ids[key] = len(keys); keys.append(key)
+        return k
+    for r, muts in enumerate(parsed):
+        for p, wi, mi in muts:
+            k_wt = row_of((p, ()))
+            k_mut = row_of((p, tuple(sorted((q, mq) for q, _, mq in muts if q != p))))
+            terms.append((r, 0, k_wt, wi, mi)); terms.append((r, 1, k_mut, wi, mi))
+
+    gen = torch.Generator(device=device).manual_seed(seed)
+    noise = torch.randn((L, L), generator=gen, device=device)   # row p: background order for target position p
+    enc = mpnn_encode(model, X, mask, residue_idx, chain_encoding_all)
+    B = max(1, max_tokens // L)
+    lp = torch.empty((len(keys), 21), dtype=torch.float32)
+    for i in range(0, len(keys), B):
+        chunk = keys[i:i + B]
+        n = len(chunk)
+        p_t = torch.tensor([k[0] for k in chunk], device=device)
+        vals = noise[p_t].clone()
+        vals[torch.arange(n, device=device), p_t] = 1000.0   # target forced to end
+        S_chunk = wt_seq.unsqueeze(0).repeat(n, 1)
+        sub = [(b, q, mq) for b, k in enumerate(chunk) for q, mq in k[1]]
+        if sub:
+            b_i, q_i, m_i = (torch.tensor(x, device=device) for x in zip(*sub))
+            S_chunk[b_i, q_i] = m_i
+        lp[i:i + n] = mpnn_decode_at(model, enc, S_chunk, vals, p_t).float().cpu()
+
+    t = np.array(terms, dtype=np.int64).reshape(-1, 5)
+    lp = lp.numpy().astype(np.float64)
+    delta = lp[t[:, 2], t[:, 4]] - lp[t[:, 2], t[:, 3]]
+    score = np.zeros((len(parsed), 2))
+    np.add.at(score, (t[:, 0], t[:, 1]), delta)
+    print(f"  {len(parsed)} variants -> {len(keys)} decoder rows (L={L}, batch {B})", flush=True)
+    return score[:, 0], score[:, 1]
+
+
+def make_pgym_score_fn(model, max_tokens, seed=0):
+    """score_fn for pgym_runner: ProteinMPNN unmasked WT/MUT scores of one ProteinGym DMS (columns as in predict)."""
+    device = next(model.parameters()).device
+    alphabet = 'ACDEFGHIKLMNPQRSTVWYX'
+
+    def score_fn(df):
+        X, S, mask, chain_M, residue_idx, chain_encoding_all = featurize_structure(
+            df['code'].iloc[0], df['pdb_file'].iloc[0], df['chain'].iloc[0], device)
+        t0 = time.time()
+        tokens = max_tokens
+        while True:
+            try:
+                score_wt, score_mut = score_unmasked_fast(model, df['mut_type_renumbered'].tolist(), X, S, mask,
+                                                          residue_idx, chain_encoding_all, alphabet,
+                                                          max_tokens=tokens, seed=seed)
+                break
+            except torch.cuda.OutOfMemoryError:
+                torch.cuda.empty_cache()
+                if tokens <= S.shape[1]:
+                    raise
+                tokens //= 2
+                print(f"OOM; retrying {df['code'].iloc[0]} with max_tokens={tokens}", flush=True)
+        out = pd.DataFrame({'mpnn_score_wt_seq': score_wt, 'mpnn_score_mut_seq': score_mut})
+        out['mpnn_score_additive'] = score_wt
+        out['mpnn_score'] = 0.5 * (score_wt + score_mut)
+        out['mpnn_score_epistasis'] = out['mpnn_score'] - score_wt
+        out['runtime'] = (time.time() - t0) / len(df)
+        torch.cuda.empty_cache()
+        return out
+
+    return score_fn
+
+
+def predict(df, model, K_paths=4, use_masks=False):
     logps = df
     device = torch.device("cuda:0")
 
     with tqdm(total=len(df)) as pbar:
         for (code, chain), group in df.groupby(['code', 'chain']):
     
-            drop_chains = []
-
-            # get chain sequences and remove chains of only heteroatoms (e.g. DNA)
             pdb_path = os.path.join(group['pdb_file'].head(1).item())
-            structure = pdbparser.get_structure(code, pdb_path)
-            for c in structure.get_chains():
-                seq = [r.resname for r in c]
-                seq = ''.join([d[res] if res in d.keys() else 'X' for res in seq])
-                if set(seq) == {'X'}:
-                    drop_chains.append(c.id)    
-            
-            homomer=1
-            designed_chain_list = []
-            fixed_chain_list = []
-            #target_chain = pdb_path.split('_')[-1].split('.')[0]
-            target_chain = chain
-
-            # identify the target chain and sequence, adding it to the designed chains
-            for c in structure.get_chains():
-                if c.id == target_chain:
-                    designed_chain_list.append(target_chain)
-                    target_seq = [r.resname for r in c]
-                    target_seq = ''.join([d[res] if res in d.keys() else 'X' for res in target_seq])
-                    break
-
-            # identify chains with the exact same sequence as the target, adding to designed chains
-            for c in structure.get_chains():
-                if c.id != target_chain:
-                    candidate_seq = [r.resname for r in c]
-                    candidate_seq = ''.join([d[res] if res in d.keys() else 'X' for res in candidate_seq])
-                    #print(f'target_seq\n{target_seq}')
-                    #print(f'candid_seq\n{candidate_seq}')
-                    if candidate_seq == target_seq:
-                        designed_chain_list.append(c.id)
-                        homomer += 1
-                    elif c.id not in drop_chains:
-                        fixed_chain_list.append(c.id)
-            
-            chain_list = list(set(designed_chain_list + fixed_chain_list))
-            
-            homomer = bool(homomer-1)
-
+            X, S, mask, chain_M, residue_idx, chain_encoding_all = featurize_structure(code, pdb_path, chain, device)
             alphabet = 'ACDEFGHIKLMNPQRSTVWYX'
-
-            chain_id_dict = None
-            fixed_positions_dict = None
-            pssm_dict = None
-            omit_AA_dict = None
-            tied_positions_dict = None
-            bias_by_res_dict = None
-
-            pdb_dict_list = parse_PDB(pdb_path, input_chain_list=chain_list)
-            dataset_valid = StructureDatasetPDB(pdb_dict_list, truncate=None, max_length=100000)
-
-            chain_id_dict = {}
-            chain_id_dict[pdb_dict_list[0]['name']]= (designed_chain_list, fixed_chain_list)
-
-            if homomer:
-                tied_positions_dict = make_tied_positions_for_homomers(pdb_dict_list)
-            else:
-                tied_positions_dict = None
-
-            protein = dataset_valid[0]
-            batch_clones = [copy.deepcopy(protein)]
-            X, S, mask, lengths, chain_M, chain_encoding_all, chain_list_list, visible_list_list, masked_list_list,\
-                masked_chain_length_list_list, chain_M_pos, omit_AA_mask, residue_idx, dihedral_mask, \
-                tied_pos_list_of_lists_list, pssm_coef, pssm_bias, pssm_log_odds_all, bias_by_res_all, tied_beta = \
-                tied_featurize(batch_clones, device, chain_id_dict, fixed_positions_dict, omit_AA_dict,
-                    tied_positions_dict, pssm_dict, bias_by_res_dict)
 
             # --- Usage Example ---
             with torch.no_grad():
@@ -455,7 +618,7 @@ def main_(args):
     backbone_noise = 0.00 # Standard deviation of Gaussian noise to add to backbone atoms
     hidden_dim = 128
     num_layers = 3
-    model_folder_path = os.path.join('/home/sareeves/software/ProteinMPNN', 'vanilla_model_weights')
+    model_folder_path = os.path.join(MPNN_DIR, 'vanilla_model_weights')
     if model_folder_path[-1] != '/':
         model_folder_path = model_folder_path + '/'
     checkpoint_path = model_folder_path + f'{model_name}.pt'
@@ -473,6 +636,18 @@ def main_(args):
     
     mode_suffix = '_masked' if args.use_masks else '_unmasked'
     out_name = f"proteinmpnn_020{mode_suffix}.csv"
+
+    if args.protein_gym:
+        if args.use_masks:
+            raise AssertionError("--protein_gym scores the unmasked WT/MUT mode only; drop --use_masks")
+        if not args.pgym_dir:
+            raise AssertionError("--pgym_dir is required with --protein_gym")
+        import pgym_runner
+        pgym_runner.run_protein_gym(
+            args.pgym_dir, args.pgym_out or (Path(args.pgym_dir).resolve().parent / 'pgym_results' / 'proteinmpnn_020_unmasked'),
+            make_pgym_score_fn(model, args.pgym_max_tokens, args.pgym_seed), pred_col='mpnn_score',
+            dms=args.pgym_dms, tag=f'proteinmpnn {model_name} unmasked seed={args.pgym_seed}', extra_cols=('mpnn_score_wt_seq',))
+        return
 
     if not args.skip_external:
         external_test_dataloaders_names = ['s669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 's571', 's783', 's8754', 's2648', 'ptmul', 'ptmuld']
@@ -527,7 +702,8 @@ def main_(args):
         split_file = REPO_ROOT / "data" / f"{args.split}.pkl"
         split_name = args.split
 
-        ds = preprocessing.MegaScaleDatasetPreprocessor(
+        from esm_msr import preprocess_megascale
+        ds = preprocess_megascale.MegaScaleDatasetPreprocessor(
             data_file='/home/sareeves/software/esm-msr/data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv', 
             af_model_folder='/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs')
 
@@ -743,6 +919,14 @@ if __name__ == "__main__":
         parser.add_argument('--skip_dms', action='store_true')
         parser.add_argument('--skip_functional', action='store_true')
         parser.add_argument('--skip_domainome', action='store_true')
+
+        # ProteinGym (all-DMS) benchmark mode
+        parser.add_argument('--protein_gym', action='store_true', help='Score all preprocessed ProteinGym DMS benchmarks (unmasked mode) and exit')
+        parser.add_argument('--pgym_dir', type=str, default=None, help='Directory with per-DMS input CSVs + manifest.csv (preprocessing/pgym_preprocess.py)')
+        parser.add_argument('--pgym_out', type=str, default=None, help='Output directory for ProteinGym results (per-DMS CSVs + summary.csv)')
+        parser.add_argument('--pgym_dms', type=str, default='all', help="Comma-separated DMS ids, or 'all'")
+        parser.add_argument('--pgym_max_tokens', type=int, default=32768, help='Residues per forward batch (batch size = this // length; halved on OOM)')
+        parser.add_argument('--pgym_seed', type=int, default=0, help='Seed for the background decoding orders')
 
         # Parse known args for main parser
         args, remaining_argv = parser.parse_known_args()

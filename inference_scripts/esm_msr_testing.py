@@ -1,15 +1,23 @@
 import pandas as pd
 import os
+import sys
 import torch
 from tqdm import tqdm
 import argparse
 import time
+import json
 import logging
+
+from pathlib import Path
+
+# this repository's src/, ahead of any other installed copy of esm_msr
+_SRC = str(Path(__file__).resolve().parent.parent / "src")
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
 
 from huggingface_hub import login, get_token
 
-from esm_msr import stats, utils, models, inference, preprocess_megascale
-from pathlib import Path
+from esm_msr import stats, utils, models, inference, preprocess_megascale, auto_batch
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -79,6 +87,67 @@ def update_stats(stats_df, row_name, res_df, true_col, pred_col, epi_true_col='d
     return stats_df
 
 
+def run_protein_gym(args, model):
+    """Run esm-msr over all (preprocessed) ProteinGym DMS benchmarks, through the loop every model shares
+    (pgym_runner.run_protein_gym: per-DMS resumable output CSVs, incremental summary.csv, run.log).
+
+    Each DMS is scored with infer_mutants (skip_additive default; dense by default, or masked via --mask_strategy
+    independent/marginal) and correlated with DMS_score on combined_pred, or on wt_lora_pred with --skip_reverse.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import pgym_runner
+    if not args.pgym_dir:
+        raise AssertionError("--pgym_dir is required with --protein_gym")
+    pgym_dir = Path(args.pgym_dir).resolve()
+    out_dir = Path(args.pgym_out).resolve() if args.pgym_out else (pgym_dir.parent / f"pgym_results_sigma{args.lora_epsilon}")
+    # WT-only / additive-approximation mode (--skip_reverse): predict from the
+    # WT adapter pass alone. combined_pred / mt_lora_pred are NaN by design in
+    # that mode, so the benchmark scores wt_lora_pred instead of combined_pred.
+    pred_col = "wt_lora_pred" if getattr(args, 'skip_reverse', False) else "combined_pred"
+    log = pgym_runner.make_log(out_dir)
+
+    batch_map = None
+    if args.batch_map:
+        batch_map = json.load(open(args.batch_map))
+    sizer = None
+    if args.auto_batch_size:
+        sizer = auto_batch.AutoBatchSizer(
+            device=next(model.parameters()).device,
+            headroom=args.auto_batch_headroom,
+            max_batch=args.auto_batch_max,
+            log=log,
+        )
+
+    def score_fn(df):
+        did = df["code"].iloc[0]   # pgym_preprocess.py sets code = DMS_id
+        dms_batch = (batch_map or {}).get(did, args.batch_size)
+        n_reports_before = len(sizer.reports) if sizer else 0
+        t0 = time.time()
+        try:
+            df = inference.standardize_input_df(df, quiet=True)
+            log(f"[PGYM] {did}: standardize n={len(df)} in {time.time()-t0:.1f}s")
+            res = inference.infer_mutants(
+                model=model, df=df, batch_size=dms_batch,
+                quiet=True, optimize_wt_pass=(args.mask_strategy is None),
+                skip_reverse=args.skip_reverse, mask_strategy=args.mask_strategy,
+                auto_batch=sizer
+            )
+        finally:
+            # Per-DMS L x vocab logits tensors and chunk buffers vary in size; return the caching allocator's hold on
+            # freed blocks so VRAM stays flat across the full DMS sweep (otherwise the footprint grows monotonically
+            # and the largest DMS can push the card past its limit).
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        assert len(res) == len(df), f"len(res)={len(res)} != len(df)={len(df)}"
+        assert (res["mut_type_renumbered"].values == df["mut_type_renumbered"].values).all(), "row misalignment"
+        b_used = (max(r.max_batch for r in sizer.reports[n_reports_before:]) if sizer else dms_batch)
+        return res.reset_index(drop=True), {"b": b_used}
+
+    tag = (f"sigma={args.lora_epsilon} ckpt={args.checkpoint} batch={args.batch_size}" +
+           (f" batch_map={args.batch_map} ({len(batch_map)} entries)" if batch_map else "") +
+           (f" auto_batch(headroom={args.auto_batch_headroom}, max={args.auto_batch_max})" if sizer else ""))
+    pgym_runner.run_protein_gym(pgym_dir, out_dir, score_fn, pred_col=pred_col, dms=args.pgym_dms, tag=tag, log=log)
+
 def main_(args):
 
     CHECKPOINT_STR = str(args.checkpoint) if args.checkpoint else "zeroshot"
@@ -120,9 +189,11 @@ def main_(args):
         lora_mode = 'ensemble'
         lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': args.seed}        
 
+    model_dtype = torch.bfloat16 if args.dtype == 'bf16' else torch.float32
+    print(f"[MODEL] inference dtype = {args.dtype} ({model_dtype})")
     model = models.MSRModel(
         lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
-        lora_mode=lora_mode, model_dtype=torch.float32, inference_mode=True
+        lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True
     ).to('cuda:0')
 
     # ---------------------------------------------------------
@@ -135,6 +206,13 @@ def main_(args):
         print('Zero shot mode!')
     
     model.eval()
+
+    # =========================================================================
+    # PROTEINGYM BENCHMARKS (all DMS, preprocessed inputs)
+    # =========================================================================
+    if getattr(args, 'protein_gym', False):
+        run_protein_gym(args, model)
+        return
 
     # =========================================================================
     # EXTERNAL BENCHMARKS
@@ -463,7 +541,7 @@ if __name__ == "__main__":
         parser.add_argument('--precision', type=str, default='bf16-mixed', choices=['16', '16-mixed', '32', 'bf16-mixed'])
 
         parser.add_argument('--local_cluster', action='store_true')
-        parser.add_argument('--mask_strategy', type=str, choices=['marginal', 'chain'], default=None)
+        parser.add_argument('--mask_strategy', type=str, choices=['marginal', 'independent'], default=None)
         parser.add_argument('--mask_structure_pos', action='store_true')
         parser.add_argument('--mask_coords_pos', action='store_true')
         parser.add_argument('--mask_coords', action='store_true')
@@ -475,13 +553,30 @@ if __name__ == "__main__":
         parser.add_argument('--skip_functional', action='store_true')
         parser.add_argument('--skip_domainome', action='store_true')
         parser.add_argument('--skip_additive', action='store_true')
-        parser.add_argument('--skip_reverse', action='store_true')
+        parser.add_argument('--skip_reverse', action='store_true',
+                            help='Skip the MT adapter pass and predict purely from the WT adapters. With --protein_gym, benchmarks score wt_lora_pred (the WT additive-approximation prediction) instead of combined_pred.')
         parser.add_argument('--skip_reverse_domainome', action='store_true')
         parser.add_argument('--use_dora', action='store_true')
         
         parser.add_argument('--local_path_to_structures', type=str, default='/home/sareeves/software/esm-msr/data/structures')
         parser.add_argument('--hf_token', type=str, default=None)
         parser.add_argument('--remove_spurs_homologs', action='store_true', help='Remove homologous sequences to SPURS training data from the Tsuboyama splits to test generalization to non-homologous sequences')
+
+        # ProteinGym (all-DMS) benchmark mode
+        parser.add_argument('--protein_gym', action='store_true', help='Run esm-msr over all preprocessed ProteinGym DMS benchmarks and exit')
+        parser.add_argument('--pgym_dir', type=str, default=None, help='Directory with per-DMS input CSVs + manifest.csv')
+        parser.add_argument('--pgym_out', type=str, default=None, help='Output directory for ProteinGym results (per-DMS CSVs + summary.csv)')
+        parser.add_argument('--pgym_dms', type=str, default='all', help="Comma-separated DMS ids, or 'all'")
+        parser.add_argument('--batch_size', type=int, default=16, help='Inference batch size for ProteinGym scoring')
+        parser.add_argument('--batch_map', type=str, default=None,
+                            help='Optional JSON file {DMS_id: batch_size} for per-DMS batch sizing (e.g. max-fitting per length bin). DMS not in the map use --batch_size.')
+        parser.add_argument('--auto_batch_size', action='store_true',
+                            help='On-the-fly per-DMS batch sizing: start at 1, double while a measured memory model predicts the attempt fits (esm_msr/auto_batch.py). Overrides --batch_size/--batch_map.')
+        parser.add_argument('--auto_batch_headroom', type=float, default=0.90,
+                            help='VRAM fraction a predicted chunk peak may occupy when auto-batching (default 0.90)')
+        parser.add_argument('--auto_batch_max', type=int, default=None,
+                            help='Optional hard cap on the auto-batched batch size')
+        parser.add_argument('--dtype', type=str, default='bf16', choices=['bf16', 'fp32'], help='Model inference dtype (bf16 = native/autocast, lower VRAM)')
 
         args, remaining_argv = parser.parse_known_args()
         current_remaining_argv = list(remaining_argv) 
@@ -509,8 +604,12 @@ if __name__ == "__main__":
         token = args.hf_token or get_token()
 
         if token:
-            login(token)
-            print('Using token')
+            os.environ["HF_TOKEN"] = token  # auth for hub loads even if login() can't reach the API (offline/cache-only)
+            try:
+                login(token)
+                print('Using token (login ok)')
+            except Exception as _e:
+                print(f'Using token (login skipped: {type(_e).__name__}); HF_TOKEN exported, using cache/offline')
         else:
             os.environ['INFRA_PROVIDER'] = "1"
             os.chdir(Path(__file__).resolve().parent.parent)

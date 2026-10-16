@@ -1,8 +1,9 @@
 import sys
-sys.path.append('/home/sareeves/software/ThermoMPNN-D/')
-sys.path.append('/home/sareeves/software/esm-msr/src')
-
 import os
+# ThermoMPNN-D checkout; override with THERMOMPNN_DIR
+THERMOMPNN_DIR = os.environ.get('THERMOMPNN_DIR', '/home/sareeves/software/ThermoMPNN-D/')
+sys.path.append(THERMOMPNN_DIR)
+
 import pandas as pd
 from tqdm.notebook import tqdm
 import numpy as np
@@ -14,7 +15,6 @@ import re
 import torch
 from torch.utils.data import DataLoader
 
-from esm_msr import utils, preprocessing
 
 from omegaconf import OmegaConf
 from thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
@@ -25,7 +25,10 @@ from thermompnn.datasets.v2_datasets import ddgBenchDatasetv2, MegaScaleDatasetv
 from thermompnn.inference.inference_utils import get_metrics_full
 from thermompnn.inference.v2_inference import zero_shot_convert
 
-from thermompnn.datasets.v2_datasets import MegaScaleDatasetv3
+try:
+    from thermompnn.datasets.v2_datasets import MegaScaleDatasetv3
+except ImportError:  # not in upstream ThermoMPNN-D; only main()'s Tsuboyama-split evaluation (--split) needs it
+    MegaScaleDatasetv3 = None
 
 from pathlib import Path
 
@@ -669,6 +672,109 @@ def calculate_and_save_stats(eval_dfs, checkpoint_name, model_type, args):
     print(stats_df)
 
 
+
+# ================= ProteinGym (all DMS, preprocessed inputs) =================
+
+def _length_batches(lengths, batch_size, tokens):
+    """Indices grouped so that (rows x padded length) stays under `tokens`: ProteinGym proteins run to thousands of
+    residues, and a fixed 256-row batch OOMs on them. Sorted by length so padding is minimal and each batch is
+    near-homogeneous."""
+    out, cur = [], []
+    for j in np.argsort(lengths, kind='stable'):
+        trial_max = max([lengths[j]] + [lengths[k] for k in cur])
+        if cur and ((len(cur) + 1) * trial_max > tokens or len(cur) >= batch_size):
+            out.append(cur)
+            cur = []
+        cur.append(int(j))
+    return out + ([cur] if cur else [])
+
+
+@torch.no_grad()
+def predict_items(model_pl, items, siamese=False, batch_size=256, tokens=16000):
+    """Predicted ddG (ThermoMPNN convention, positive = destabilizing) for every item (a parsed structure dict with
+    a 'mutation'), in order. Siamese (ThermoMPNN-D) models average their two passes, as in run_prediction_batched."""
+    model_pl.eval().cuda()
+    lengths = np.array([len(it['seq']) for it in items])
+    preds = np.full(len(items), np.nan, dtype=np.float64)
+    for idx in _length_batches(lengths, batch_size, tokens // (2 if siamese else 1)):
+        batch = tied_featurize_mut([items[j] for j in idx], side_chains=False)
+        X, S, mask, lengths_b, chain_M, chain_enc, res_idx, mut_pos, mut_wt, mut_mt, mut_ddG, atom_mask = batch
+        inputs = [t.cuda() if torch.is_tensor(t) else t for t in
+                  (X, S, mask, chain_M, res_idx, chain_enc, mut_pos, mut_wt, mut_mt, mut_ddG, atom_mask)]
+        if siamese:
+            a, b = model_pl(*inputs)
+            p = (a + b) / 2.
+        else:
+            p, _ = model_pl(*inputs)
+        preds[idx] = p.float().reshape(-1).cpu().numpy()
+        del inputs, batch, p
+    assert not np.isnan(preds).any(), 'some items were never scored'
+    return preds
+
+
+def run_protein_gym(args):
+    """ProteinGym through the loop every model shares (inference_scripts/pgym_runner.py). Readouts, in ESM-MSR's
+    sign convention (positive = stabilizing):
+      pred_single_additive  the single-mutant model's prediction summed over each variant's mutations
+      pred_combined         ThermoMPNN-D (the epistatic model) on rows with exactly two mutations, the additive
+                            prediction otherwise (ThermoMPNN-D scores doubles only)
+    Each distinct single of a DMS is scored once (the large multi-mutant DMS reuse the same singles across hundreds
+    of thousands of rows), and items are built and predicted in chunks so a DMS never holds more than --pgym_chunk
+    structure copies at once."""
+    import pgym_runner
+    from thermompnn.datasets.dataset_utils import Mutation
+    if not args.pgym_dir:
+        raise AssertionError("--pgym_dir is required with --protein_gym")
+    models = {}
+    for kind, config, ckpt, cls in [('single', 'single.yaml', args.single_checkpoint, TransferModelPLv2),
+                                    ('epistatic', 'epistatic.yaml', args.epistatic_checkpoint, TransferModelPLv2Siamese)]:
+        if ckpt is None:
+            raise AssertionError(f"--protein_gym needs --{kind}_checkpoint")
+        cfg = OmegaConf.merge(OmegaConf.load(os.path.join(args.thermompnn_root, 'examples/configs/local.yaml')),
+                              OmegaConf.load(os.path.join(args.thermompnn_root, 'examples/configs', config)))
+        cfg = parse_cfg(cfg)
+        cfg.platform.thermompnn_dir = args.thermompnn_root   # where vanilla_model_weights/ is
+        model_path = os.path.join(args.thermompnn_root, 'thermompnn/checkpoints/', ckpt)
+        models[kind] = cls.load_from_checkpoint(checkpoint_path=model_path, cfg=cfg, map_location='cpu')
+
+    def chunked_predict(model_pl, p, code, muts_list, siamese):
+        out = np.full(len(muts_list), np.nan)
+        for s in range(0, len(muts_list), args.pgym_chunk):
+            items = []
+            for muts in muts_list[s:s + args.pgym_chunk]:
+                it = deepcopy(p)
+                it['mutation'] = Mutation([k for k, _, _ in muts], [w for _, w, _ in muts], [t for _, _, t in muts], 0.0, code)
+                items.append(it)
+            out[s:s + len(items)] = predict_items(model_pl, items, siamese=siamese)
+        return out
+
+    def score_fn(df):
+        code = df['code'].iloc[0]
+        p = alt_parse_PDB(df['pdb_file'].iloc[0], input_chain_list=[df['chain'].iloc[0]])[0]
+        nongap = [k for k, a in enumerate(p['seq']) if a != '-']
+        muts = [[(nongap[int(m[1:-1]) - 1], m[0], m[-1]) for m in s.split(':')] for s in df['mut_type_renumbered']]
+        bad = sum(p['seq'][k] != w for row in muts for k, w, _ in row)
+        assert bad == 0, f'{bad} mutations disagree with the parsed structure'
+        singles = sorted({m for row in muts for m in row})
+        s_pred = dict(zip(singles, chunked_predict(models['single'], p, code, [[m] for m in singles], False)))
+        add = np.array([sum(s_pred[m] for m in row) for row in muts])
+        n_mut = np.array([len(row) for row in muts])
+        epi = np.full(len(df), np.nan)
+        dbl = np.where(n_mut == 2)[0]
+        if len(dbl):
+            epi[dbl] = chunked_predict(models['epistatic'], p, code, [muts[i] for i in dbl], True)
+        torch.cuda.empty_cache()
+        return pd.DataFrame({'pred_single_additive': -add, 'pred_combined': np.where(n_mut == 2, -epi, -add),
+                             'n_mut': n_mut})
+
+    pgym_runner.run_protein_gym(
+        args.pgym_dir, args.pgym_out or (Path(args.pgym_dir).resolve().parent / 'pgym_results' / 'thermompnnd'),
+        score_fn, pred_col='pred_combined', dms=args.pgym_dms,
+        tag=f'ThermoMPNN single={os.path.basename(args.single_checkpoint)} '
+            f'epistatic={os.path.basename(args.epistatic_checkpoint)}',
+        extra_cols=('pred_single_additive',))
+
+
 def main(args):
     data_prefix = REPO_ROOT / 'data'
     
@@ -1104,7 +1210,7 @@ def main(args):
 
 if __name__ == "__main__":
         parser = argparse.ArgumentParser()
-        parser.add_argument('--thermompnn_root', type=str, default='/home/sareeves/software/ThermoMPNN-D/')
+        parser.add_argument('--thermompnn_root', type=str, default=THERMOMPNN_DIR)
         #parser.add_argument('--output', type=str, default='../data/lora/test_scores_final.csv')
         parser.add_argument('--split', type=str) #'/home/sareeves/software/esm-msr/data/lora/Megascale/splits.pkl'
         parser.add_argument('--single_checkpoint', type=str) #single_epoch=99_val_ddG_spearman=0.73.ckpt'
@@ -1112,6 +1218,15 @@ if __name__ == "__main__":
         parser.add_argument('--regenerate_results', action='store_true') 
         parser.add_argument('--excl_destab', action='store_true')
         parser.add_argument('--correct_bb', action='store_true')
+        # ProteinGym (all-DMS) benchmark mode
+        parser.add_argument('--protein_gym', action='store_true', help='Score all preprocessed ProteinGym DMS benchmarks and exit')
+        parser.add_argument('--pgym_dir', type=str, default=None, help='Directory with per-DMS input CSVs + manifest.csv (preprocessing/pgym_preprocess.py)')
+        parser.add_argument('--pgym_out', type=str, default=None, help='Output directory for ProteinGym results (per-DMS CSVs + summary.csv)')
+        parser.add_argument('--pgym_dms', type=str, default='all', help="Comma-separated DMS ids, or 'all'")
+        parser.add_argument('--pgym_chunk', type=int, default=20000, help='Structure copies built per prediction call')
         args = parser.parse_args()
-        
-        main(args)
+
+        if args.protein_gym:
+            run_protein_gym(args)
+        else:
+            main(args)
