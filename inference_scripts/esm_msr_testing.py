@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+import sys
 import torch
 from tqdm import tqdm
 import argparse
@@ -7,10 +8,16 @@ import time
 import json
 import logging
 
+from pathlib import Path
+
+# this repository's src/, ahead of any other installed copy of esm_msr
+_SRC = str(Path(__file__).resolve().parent.parent / "src")
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+
 from huggingface_hub import login, get_token
 
 from esm_msr import stats, utils, models, inference, preprocess_megascale, auto_batch
-from pathlib import Path
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -81,42 +88,23 @@ def update_stats(stats_df, row_name, res_df, true_col, pred_col, epi_true_col='d
 
 
 def run_protein_gym(args, model):
-    """Run esm-msr over all (preprocessed) ProteinGym DMS benchmarks.
+    """Run esm-msr over all (preprocessed) ProteinGym DMS benchmarks, through the loop every model shares
+    (pgym_runner.run_protein_gym: per-DMS resumable output CSVs, incremental summary.csv, run.log).
 
-    Reads per-DMS input CSVs + manifest.csv from --pgym_dir, scores each with
-    infer_mutants (skip_additive default; dense by default, or masked via
-    --mask_strategy independent/marginal), attaches the
-    original DMS_score, writes one output CSV per DMS (resumable), and an
-    incremental summary.csv with per-DMS Spearman(combined_pred, DMS_score).
+    Each DMS is scored with infer_mutants (skip_additive default; dense by default, or masked via --mask_strategy
+    independent/marginal) and correlated with DMS_score on combined_pred, or on wt_lora_pred with --skip_reverse.
     """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import pgym_runner
     if not args.pgym_dir:
         raise AssertionError("--pgym_dir is required with --protein_gym")
     pgym_dir = Path(args.pgym_dir).resolve()
-    if not pgym_dir.exists():
-        raise AssertionError(f"pgym_dir does not exist: {pgym_dir}")
     out_dir = Path(args.pgym_out).resolve() if args.pgym_out else (pgym_dir.parent / f"pgym_results_sigma{args.lora_epsilon}")
-    out_dir.mkdir(parents=True, exist_ok=True)
     # WT-only / additive-approximation mode (--skip_reverse): predict from the
     # WT adapter pass alone. combined_pred / mt_lora_pred are NaN by design in
     # that mode, so the benchmark scores wt_lora_pred instead of combined_pred.
     pred_col = "wt_lora_pred" if getattr(args, 'skip_reverse', False) else "combined_pred"
-
-    manifest = pd.read_csv(pgym_dir / "manifest.csv")
-    # pgym_preprocess.py writes per-DMS pdb_file paths relative to the
-    # ProteinGym root; the manifest records that root for resolution.
-    pg_root = (manifest["proteingym_dir"].iloc[0]
-               if "proteingym_dir" in manifest.columns else None)
-    if args.pgym_dms and str(args.pgym_dms).lower() != 'all':
-        dms_list = [d.strip() for d in str(args.pgym_dms).split(',') if d.strip()]
-    else:
-        dms_list = sorted(manifest["DMS_id"].tolist())
-
-    log_path = out_dir / "run.log"
-    def log(msg):
-        line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}"
-        print(line, flush=True)
-        with open(log_path, 'a') as f:
-            f.write(line + "\n")
+    log = pgym_runner.make_log(out_dir)
 
     batch_map = None
     if args.batch_map:
@@ -129,110 +117,36 @@ def run_protein_gym(args, model):
             max_batch=args.auto_batch_max,
             log=log,
         )
-    log(f"[PGYM] START sigma={args.lora_epsilon} ckpt={args.checkpoint} n_dms={len(dms_list)} "
-        f" pred_col={pred_col} batch={args.batch_size}" + (f" batch_map={args.batch_map} ({len(batch_map)} entries)" if batch_map else "") +
-        (f" auto_batch(headroom={args.auto_batch_headroom}, max={args.auto_batch_max})" if sizer else "") +
-        f" out={out_dir}")
-    # Preserve rows from earlier invocations for DMS not in this run, so
-    # summary.csv accumulates across per-bin invocations. Also keep a lookup
-    # of the previous rows so a SKIP (output CSV already exists) can preserve
-    # the earlier invocation's measured time_s instead of overwriting it with
-    # NaN.
-    summary_rows = []
-    prev_by_dms = {}
-    prev_summary = out_dir / "summary.csv"
-    if prev_summary.exists():
-        old = pd.read_csv(prev_summary)
-        if "DMS_id" in old.columns:
-            prev_by_dms = {row["DMS_id"]: row for _, row in old.iterrows()}
-            old = old[~old["DMS_id"].isin(dms_list)]
-            summary_rows = old.to_dict("records")
-    t_start = time.time()
-    for i, did in enumerate(dms_list, 1):
-        out_csv = out_dir / f"{did}.csv"
-        if out_csv.exists():
-            log(f"[PGYM {i}/{len(dms_list)}] SKIP {did} (output exists)")
-            prev_row = prev_by_dms.get(did)
-            if prev_row is not None and pd.notna(prev_row.get("time_s")):
-                # An earlier invocation measured this DMS's wall time; keep
-                # that row verbatim. A skip must never overwrite a recorded
-                # time_s with NaN.
-                summary_rows.append(dict(prev_row))
-            else:
-                try:
-                    prev = pd.read_csv(out_csv)
-                    rho_prev = stats.safe_spearman(prev[pred_col], prev["DMS_score"])
-                    summary_rows.append({"DMS_id": did, "n": len(prev), "spearman_combined": rho_prev,
-                                         "time_s": None, "units_per_s": None, "status": "skipped"})
-                except Exception:
-                    summary_rows.append({"DMS_id": did, "n": None, "spearman_combined": None,
-                                         "time_s": None, "units_per_s": None, "status": "skipped_bad"})
-            pd.DataFrame(summary_rows).to_csv(out_dir / "summary.csv", index=False)
-            continue
+
+    def score_fn(df):
+        did = df["code"].iloc[0]   # pgym_preprocess.py sets code = DMS_id
         dms_batch = (batch_map or {}).get(did, args.batch_size)
         n_reports_before = len(sizer.reports) if sizer else 0
         t0 = time.time()
         try:
-            df = pd.read_csv(pgym_dir / f"{did}.csv")
-            pdb_val = df["pdb_file"].iloc[0]
-            if not os.path.isabs(pdb_val):
-                # Relative path (portable pgym_inputs): resolve against the
-                # ProteinGym root recorded in the manifest.
-                if not pg_root:
-                    raise AssertionError(
-                        f"relative pdb_file '{pdb_val}' but manifest.csv has no "
-                        "'proteingym_dir' column; regenerate pgym_inputs via "
-                        "preprocessing/pgym_preprocess.py")
-                pdb_res = (Path(pg_root) / pdb_val).resolve()
-                if not pdb_res.exists():
-                    raise AssertionError(f"pdb_file not found: {pdb_res}")
-                df["pdb_file"] = pdb_res
             df = inference.standardize_input_df(df, quiet=True)
-            log(f"[PGYM {i}/{len(dms_list)}] {did}: read_csv+standardize n={len(df)} in {time.time()-t0:.1f}s")
+            log(f"[PGYM] {did}: standardize n={len(df)} in {time.time()-t0:.1f}s")
             res = inference.infer_mutants(
                 model=model, df=df, batch_size=dms_batch,
                 quiet=True, optimize_wt_pass=(args.mask_strategy is None),
                 skip_reverse=args.skip_reverse, mask_strategy=args.mask_strategy,
                 auto_batch=sizer
             )
-            assert len(res) == len(df), f"len(res)={len(res)} != len(df)={len(df)}"
-            assert (res["mut_type_renumbered"].values == df["mut_type_renumbered"].values).all(), "row misalignment"
-            res = res.copy()
-            res["DMS_id"] = did
-            res["mutant"] = df["mutant"].values
-            res["DMS_score"] = df["DMS_score"].values
-            res.to_csv(out_csv, index=False)
-            rho = stats.safe_spearman(res[pred_col], res["DMS_score"])
-            dt = time.time() - t0
-            summary_rows.append({"DMS_id": did, "n": len(res), "spearman_combined": rho,
-                                 "time_s": dt, "units_per_s": len(res) / dt, "status": "done"})
-            b_used = (max(r.max_batch for r in sizer.reports[n_reports_before:]) if sizer else dms_batch)
-            log(f"[PGYM {i}/{len(dms_list)}] DONE {did}: n={len(res)} b={b_used} rho={rho:.4f} {dt:.1f}s ({len(res)/dt:.1f} u/s)")
-        except Exception as e:
-            dt = time.time() - t0
-            import traceback
-            log(f"[PGYM {i}/{len(dms_list)}] FAIL {did}: {type(e).__name__}: {str(e)[:300]} after {dt:.1f}s")
-            log(traceback.format_exc())
-            summary_rows.append({"DMS_id": did, "n": None, "spearman_combined": None,
-                                 "time_s": dt, "units_per_s": None, "status": "fail", "error": str(e)[:200]})
-        pd.DataFrame(summary_rows).to_csv(out_dir / "summary.csv", index=False)
-        # Per-DMS L×vocab logits tensors and chunk buffers vary in size; return
-        # the caching allocator's hold on freed blocks so VRAM stays flat across
-        # the full DMS sweep (otherwise the footprint grows monotonically and the
-        # largest DMS can push the card past its limit).
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        finally:
+            # Per-DMS L x vocab logits tensors and chunk buffers vary in size; return the caching allocator's hold on
+            # freed blocks so VRAM stays flat across the full DMS sweep (otherwise the footprint grows monotonically
+            # and the largest DMS can push the card past its limit).
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        assert len(res) == len(df), f"len(res)={len(res)} != len(df)={len(df)}"
+        assert (res["mut_type_renumbered"].values == df["mut_type_renumbered"].values).all(), "row misalignment"
+        b_used = (max(r.max_batch for r in sizer.reports[n_reports_before:]) if sizer else dms_batch)
+        return res.reset_index(drop=True), {"b": b_used}
 
-    s = pd.DataFrame(summary_rows)
-    s.to_csv(out_dir / "summary.csv", index=False)
-    valid = s.dropna(subset=["spearman_combined"])
-    t_total = time.time() - t_start
-    log(f"[PGYM] COMPLETE sigma={args.lora_epsilon}: {len(valid)}/{len(s)} DMS scored | "
-        f"mean_rho={valid['spearman_combined'].mean():.4f} median_rho={valid['spearman_combined'].median():.4f} "
-        f"n_pos={(valid['spearman_combined'] > 0).sum()} n_neg={(valid['spearman_combined'] < 0).sum()} "
-        f"wall={t_total/3600:.2f}h")
-    print("\n[PGYM] final summary:\n", s.to_string(index=False))
-
+    tag = (f"sigma={args.lora_epsilon} ckpt={args.checkpoint} batch={args.batch_size}" +
+           (f" batch_map={args.batch_map} ({len(batch_map)} entries)" if batch_map else "") +
+           (f" auto_batch(headroom={args.auto_batch_headroom}, max={args.auto_batch_max})" if sizer else ""))
+    pgym_runner.run_protein_gym(pgym_dir, out_dir, score_fn, pred_col=pred_col, dms=args.pgym_dms, tag=tag, log=log)
 
 def main_(args):
 
