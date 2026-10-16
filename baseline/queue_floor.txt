@@ -7,4 +7,4 @@
 # Coverage: 45 of 175 training libraries have their own floor, but they hold 68% of the near-floor training items and 74% of the censored
 # ones; 122 training libraries have no doubles at all, so a doubles-based estimate cannot reach them. They keep the shared floor (offset 0).
 # Format: NAME EPOCHS SEED [flags]   (flags are appended to baseline/recipe_args.txt and override it)
-bl_w2a4_m16a16_capped_link_floor 8 1 --val_cycle_passes --link softclamp --micro_batch_size 64 --link_floor_file /home/sareeves/playground/esm-msr-devel/probes/link_floors_oct14.json
+# started 2026-10-14 10:58:02: bl_w2a4_m16a16_capped_link_floor 8 1 --val_cycle_passes --link softclamp --micro_batch_size 64 --link_floor_file /home/sareeves/playground/esm-msr-devel/probes/link_floors_oct14.json
