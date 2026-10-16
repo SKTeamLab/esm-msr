@@ -223,6 +223,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         sums, cnts = defaultdict(float), defaultdict(float)
 
         for start in range(0, B, mb):
+            # Drop the PREVIOUS micro-batch's tensors before this one's forward allocates. manual_backward frees a graph's saved
+            # activations, so this matters only for a pass that produced no loss and therefore ran no backward: its graph then stays
+            # alive through these names while the next forward allocates a second copy, and peak memory doubles. That happens once
+            # the WT path is frozen (--freeze_wt_after_epoch / --freeze_wt_on_convergence), when both WT lambdas are 0, or when a
+            # unit's masks come up empty. Ported from devel-revision 5c5e9e9 (devel acf6026, where a lossless unit pinned ~20 GB).
+            wt_out = wt_pred_cal = wt_pred_raw = mt_out = mt_pred_cal = mt_pred_raw = epi_pred = None
+            base_wt_cal = base_wt_raw = forced_wt_cal = forced_wt_raw = combined_pred_raw = combined_pred_cal = None
+            total_wt = total_mt = L = L_rank = decalibrated_label = wt_losses = mt_losses = None
+
             idx = torch.arange(start, min(start + mb, B), device=device)
             micro, w_mb = utils.slice_batch_by_index(batch, idx), w_all[idx]
             ddG_mb = micro['ddG'].float() 
