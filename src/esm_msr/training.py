@@ -1400,6 +1400,41 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.peft_manager.freeze_mt_components()
 
 
+def format_validation_results(results) -> str:
+    """
+    The metrics of one validation, once, from ``trainer.validate``'s per-dataloader list of logged dicts.
+
+    Lightning hands every dataloader a copy of everything logged in ``on_validation_epoch_end`` (all of this module's validation metrics)
+    and prints one column per dataloader, so with one loader per protein each value appeared once per protein. Here the dicts are merged
+    (dropping Lightning's ``/dataloader_idx_N`` suffixes): per-protein metrics (``val_<metric>/<protein>``) become one table with a row per
+    protein, and everything else a sorted list of name / value.
+    """
+    merged = {}
+    for d in results or []:
+        for k, v in d.items():
+            merged.setdefault(k.split('/dataloader_idx_')[0], float(v.item() if hasattr(v, 'item') else v))
+    per_protein, scalars = defaultdict(dict), {}
+    for k, v in merged.items():
+        if '/' in k:
+            metric, protein = k.split('/', 1)
+            per_protein[protein][metric] = v
+        else:
+            scalars[k] = v
+    lines = []
+    if per_protein:
+        metrics = sorted({m for row in per_protein.values() for m in row})
+        width = max(len('protein'), *(len(p) for p in per_protein))
+        lines.append('  '.join(['protein'.ljust(width)] + [m.rjust(max(len(m), 8)) for m in metrics]))
+        for protein in sorted(per_protein):
+            row = per_protein[protein]
+            lines.append('  '.join([protein.ljust(width)] + [(f'{row[m]:.4f}' if m in row else '').rjust(max(len(m), 8)) for m in metrics]))
+        lines.append('')
+    if scalars:
+        width = max(len(k) for k in scalars)
+        lines += [f'{k.ljust(width)}  {scalars[k]:.4f}' for k in sorted(scalars)]
+    return '\n'.join(lines)
+
+
 def main():
     args = parse_arguments()
     pl.seed_everything(args.seed)
@@ -1484,7 +1519,12 @@ def main():
         logging.error(f"Trainer init failed: {e}", exc_info=True)
         return
 
-    if not args.skip_val: trainer.validate(lightning_model, dataloaders=val_loaders, ckpt_path=args.ckpt_path)
+    if not args.skip_val:
+        # verbose=False: Lightning's own table repeats every epoch-level metric under every dataloader (one per protein), so the
+        # zero-shot validation is printed once here instead
+        results = trainer.validate(lightning_model, dataloaders=val_loaders, ckpt_path=args.ckpt_path, verbose=False)
+        if trainer.is_global_zero:
+            logging.info("Zero-shot validation:\n" + format_validation_results(results))
     trainer.fit(lightning_model, train_dataloaders=train_loaders, val_dataloaders=val_loaders, ckpt_path=args.ckpt_path)
 
 if __name__ == "__main__":
