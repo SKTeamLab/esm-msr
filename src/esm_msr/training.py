@@ -68,77 +68,31 @@ def _tap(obj, name, term):
     return term
 
 
-def tf_label(ddG, link=None, dG_wt=None, bg=None, cens=None):
-    """
-    The teacher-forced value of the WT half for each item of an MT unit: the item's OWN target, on the scale
-    ``mt_pred_cal`` is on.
-
-    The WT half is whatever the WT pass computes on the item, and the WT pass scores the item's own mutation on its
-    own before-state - for a ``cond`` item ddG(A|B), the target mutation on the B background (``wt_seq`` is
-    ``_seq_with(bg)``), which is what ``forward_batch`` averages with the MT pass at validation. Its label is therefore
-    the item's target, not the double's ``ddG_additive = ddG_A + ddG_B``: that is the label of a DOUBLE's WT pass
-    (both mutations scored on the real wild type), which is what the legacy objective was built on, and on a
-    ``cond`` item it is off by ``ddG_B - dddG`` (median 2.0 kcal/mol on the Tsuboyama doubles).
-
-    Without a link the target is used as it is. With one, ``mt_pred_cal`` is latent and the target observed, so the
-    label is the target taken back through the link: the latent ``z`` with ``h(dG_wt + bg + z) - dG_wt = ddG + bg``,
-    the same convention as the MT regression. It is kept only where it lies strictly between the link's knees, where
-    h's slope is above about 1/2; beyond them the observation pins the latent down only to within its noise times
-    1/slope, and at the plateaus not at all. ``cens`` marks the items whose ``ddG`` the regression treats as a bound
-    (the training step's ``reg_cens``); a bound is not a value, so they have no label. Items without a label take the
-    WT head's prediction (``tf_wt_half``). No gradient.
-    """
-    with torch.no_grad():
-        lbl = ddG.detach().float().clone()
-        if cens is not None:
-            lbl = torch.where(cens != 0, torch.full_like(lbl, float('nan')), lbl)
-        if link is None:
-            return lbl
-        lo, hi, _, _ = link.params()
-        base = dG_wt.float() + bg.float()
-        z_abs = link.inverse(base + lbl, below_lo=0.0, above_hi=0.0)
-        inside = torch.isfinite(lbl) & (z_abs > lo) & (z_abs < hi)
-        return torch.where(inside, z_abs - base, torch.full_like(lbl, float('nan')))
-
-
-def tf_wt_half(label, wt_pred, label_prob, generator=None):
+def tf_wt_half(add_label, wt_pred, label_prob, generator=None):
     """
     The WT half of a teacher-forced combined prediction, chosen PER ITEM.
 
-    With probability ``label_prob`` an item takes its label (``tf_label``); otherwise it takes the WT head's own
-    prediction. An item with no finite label always takes the prediction, whatever the ratio.
+    With probability ``label_prob`` an item takes the measured additive label ``ddG_A + ddG_B``; otherwise it takes
+    the WT head's own prediction. An item with no finite label always takes the prediction, whatever the ratio.
 
-    The reason to go below 1 is that the label is not available at inference, so a head trained only against it
-    learns to correct a quantity it will never be given - while the WT prediction it WILL be given has its own error,
-    which at ratio 1 the MT head never sees. The ratio is resampled every step, so over training an item is seen in
-    both regimes. Note that with the item's own target as the label, a labelled item's combined regression is a
-    quarter-weight copy of the MT regression: the information the option adds is in the predicted half.
+    ``label_prob=1`` is what the legacy combined objective did: always the label where there was one. The reason to
+    go below 1 is that the label is not available at inference, so a head trained only against it learns to
+    correct a quantity it will never be given - while the WT prediction it WILL be given has its own error, which
+    at ratio 1 the MT head never sees. The ratio is resampled every step, so over training an item is seen in both
+    regimes.
 
-    Returns ``(wt_half, took_label)``.
+    Returns ``(wt_half, took_label)``. The label is on the OBSERVED scale and the prediction is latent, which is a
+    real mismatch and the first thing to revisit here - see docs/teacher_forcing.md.
     """
-    finite = torch.isfinite(label)
+    finite = torch.isfinite(add_label)
     if label_prob >= 1.0:
         took = finite
     elif label_prob <= 0.0:
         took = torch.zeros_like(finite)
     else:
-        draw = torch.rand(label.shape, device=label.device, dtype=label.dtype, generator=generator)
+        draw = torch.rand(add_label.shape, device=add_label.device, dtype=add_label.dtype, generator=generator)
         took = finite & (draw < label_prob)
-    return torch.where(took, label, wt_pred), took
-
-
-def tf_label_prob_at(hp, step):
-    """
-    ``--tf_label_prob`` at optimizer step ``step``: fixed, or with ``--tf_label_prob_end`` a linear anneal to it over
-    ``--tf_anneal_steps`` steps, then held. The anneal starts at ``--mt_lora_delay_steps``, where the MT adapter's
-    learning rate starts, so the steps it spends are steps the MT head actually trains in.
-    """
-    p0, p1 = float(hp.tf_label_prob), hp.tf_label_prob_end
-    if p1 is None:
-        return p0
-    start = int(hp.get('mt_lora_delay_steps', 0) or 0)
-    frac = min(1.0, max(0.0, (int(step) - start) / max(1, int(hp.tf_anneal_steps))))
-    return p0 + (float(p1) - p0) * frac
+    return torch.where(took, add_label, wt_pred), took
 
 
 def balance(hp, name):
@@ -815,7 +769,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     rev_units[u] = self._reversal_tetrads(ddG_np[r], mt_valid[r], [flip_keys[int(x)] for x in r], rid_np[r], float(hp.flip_delta))
         total_rev = sum(len(t[0]) for t in rev_units.values()) if mctx is None else mctx['n_rev']
         self._rev_diag = (total_rev, 0.0 if mctx is None else mctx['rev_right'])
-        self._tf_diag = (0.0, 0.0, float('nan'))                 # (items that took the label, items offered one, the ratio asked for)
+        self._tf_diag = (0.0, 0.0)                               # (items that took the label, items offered one)
 
 
         for u_idx, (kind, rows) in enumerate(units):
@@ -992,54 +946,37 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     sums['rank_mt'] = sums['rank_mt'] + val * n_grp
                     cnts['rank_mt'] = cnts['rank_mt'] + n_grp
             # ---- teacher-forced ensemble (--tf_ensemble), a separate objective from the retired one ----
-            # The WT half comes per item from either its label (tf_label: the item's own target, latent under the link) or
-            # the WT head's own prediction, at --tf_label_prob (tf_label_prob_at, when annealed). Devel runs the WT and MT
-            # passes as SEPARATE work units, so unlike the old objective there is no WT prediction already in hand here:
-            # one no-grad WT forward over this unit's rows is the cost of the option, and it is why the option is off by
-            # default. It is skipped when every item takes its label.
+            # The WT half comes per item from either the measured additive label or the WT head's own prediction,
+            # at --tf_label_prob. Devel runs the WT and MT passes as SEPARATE work units, so unlike the old
+            # objective there is no WT prediction already in hand here: one no-grad WT forward over this unit's
+            # rows is the cost of the option, and it is why the option is off by default.
             if hp.tf_ensemble and (hp.lambda_tf_reg > 0 or hp.lambda_tf_rank > 0) and m_mt_ok.any():
-                p_lbl = tf_label_prob_at(hp, self.global_step)
-                lbl = tf_label(ddG[rows], link if use_link else None, dGwt_all[rows], bg_all[rows], cens=reg_cens[rows])
-                reads = m_mt_ok & ((reg_cens[rows] == 0) | (hp.lambda_tf_rank > 0))     # rows whose WT half some term uses
-                if p_lbl >= 1.0 and bool(torch.isfinite(lbl[reads]).all()):
-                    wt_ref_cal = wt_ref_raw = torch.zeros_like(mt_pred_cal)     # never read where it matters: every item takes its label
+                add_lbl = batch['ddG_additive'][rows].float() if 'ddG_additive' in batch else torch.full_like(mt_pred_cal, float('nan'))
+                if float(hp.tf_label_prob) >= 1.0 and bool(torch.isfinite(add_lbl).all()):
+                    wt_ref = torch.zeros_like(mt_pred_cal)            # never read: every item takes its label
                 else:
                     with torch.no_grad():
-                        _o = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=hp.mask_strategy)
-                        wt_ref_cal, wt_ref_raw = _o['pred_calibrated'].float(), _o['pred_raw'].float()
-                        del _o
-                wt_half, took = tf_wt_half(lbl, wt_ref_cal, p_lbl)
-                took = took & m_mt_ok
-                self._tf_diag = (self._tf_diag[0] + float(took.sum()), self._tf_diag[1] + float(m_mt_ok.sum()), p_lbl)
+                        wt_ref = self.model.forward_partitioned(micro, pass_type='wt',
+                                                                mask_strategy=hp.mask_strategy)['pred_calibrated'].float()
+                wt_half, took = tf_wt_half(add_lbl, wt_ref, float(hp.tf_label_prob))
+                self._tf_diag = (self._tf_diag[0] + float(took.sum()), self._tf_diag[1] + float(took.numel()))
                 comb_lat = 0.5 * wt_half + 0.5 * mt_pred_cal          # the WT half is detached either way
-                if hp.lambda_tf_reg > 0:
-                    # the same rows, scale and criterion as the MT regression, so a labelled item's term has the MT regression's minimiser
+                tf_ok = m_mt_ok & torch.isfinite(wt_half)
+                if hp.lambda_tf_reg > 0 and tf_ok.any():
                     if use_link:
-                        tf_rows = m_mt_ok & link_ok[rows]
                         p_tf = link.obs_ddG(comb_lat, dGwt_all[rows], bg_all[rows])
                         t_tf = ddG[rows] + bg_all[rows]
+                        tf_ok = tf_ok & link_ok[rows]
                     else:
-                        tf_rows = m_mt_ok & reg_keep[rows] if hp.subfloor_rank_only else m_mt_ok
                         p_tf, t_tf = comb_lat, ddG[rows]
-                    ord_tf = tf_rows & (reg_cens[rows] == 0)
+                    ord_tf = tf_ok & (reg_cens[rows] == 0)
                     if ord_tf.any():
-                        L = self.crit_reg(p_tf[ord_tf], t_tf[ord_tf]) * mt_w[rows][ord_tf]
-                        losses_mt.append(_tap(self, 'reg_tf', hp.lambda_tf_reg * L.sum() / global_w_sum))
-                        sums['reg_tf'] = sums['reg_tf'] + L.sum().detach()
-                        cnts['reg_tf'] = cnts['reg_tf'] + mt_w[rows][ord_tf].sum()
+                        L_tf = (mt_w[rows][ord_tf] * (p_tf[ord_tf] - t_tf[ord_tf]) ** 2).sum() / global_w_sum
+                        losses_mt.append(_tap(self, 'reg_tf', hp.lambda_tf_reg * L_tf))
+                        sums['reg_tf'] = sums['reg_tf'] + L_tf.detach() * global_w_sum
+                        cnts['reg_tf'] = cnts['reg_tf'] + float(mt_w[rows][ord_tf].sum())
                 if hp.lambda_tf_rank > 0 and self.crit_rank_mt is not None:
-                    # ranked on the raw scale like the MT column rank, so a label is taken back through the WT calibration
-                    # head (as the legacy objective did) rather than added in kcal/mol to an LLR
-                    head = getattr(self.model, 'calibration_head_fused', None)
-                    head = getattr(self.model, 'calibration_head_wt', None) if head is None else head
-                    if head is None:
-                        lbl_raw = lbl
-                    else:
-                        with torch.no_grad():
-                            c_s = head.scale if head.use_scale else 1.0
-                            c_b = head.bias if head.bias is not None else 0.0
-                            lbl_raw = (lbl - c_b) / c_s
-                    comb_raw = 0.5 * torch.where(took, lbl_raw, wt_ref_raw) + 0.5 * mt_pred_raw
+                    comb_raw = 0.5 * wt_half + 0.5 * mt_pred_raw
                     L_tfr, val, n_grp = self._compute_flip_loss(
                         comb_raw, ddG[rows], m_mt_ok, [flip_keys[int(r)] for r in rows],
                         self.crit_rank_mt, hp.flip_list_min, cens=cens_all[rows] if use_cens else None)
@@ -1158,13 +1095,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.log("train/cens_upper_items", float(self._cens_diag[1]), on_step=True)
             self._cens_diag = None
         if getattr(self, '_tf_diag', None) is not None and self.hparams.get('tf_ensemble', False) and self._tf_diag[1] > 0:
-            # the realised ratio, which is what --tf_label_prob asked for only in expectation (and is below it wherever an
-            # item has no usable label): worth logging so a run shows the regime it actually trained in rather than the one
-            # it was configured with. With an anneal, the ratio asked for as well.
+            # the realised ratio, which is what --tf_label_prob asked for only in expectation: worth logging so a
+            # run shows the regime it actually trained in rather than the one it was configured with.
             self.log('train/tf_label_frac', self._tf_diag[0] / self._tf_diag[1], on_step=True)
-            if self.hparams.get('tf_label_prob_end') is not None:
-                self.log('train/tf_label_prob', float(self._tf_diag[2]), on_step=True)
-            self._tf_diag = (0.0, 0.0, float('nan'))
+            self._tf_diag = (0.0, 0.0)
 
         if getattr(self, '_rev_diag', None) is not None and float(self.hparams.get('lambda_mt_flip', 0.0) or 0.0) > 0:
             n_rev, n_right = self._rev_diag

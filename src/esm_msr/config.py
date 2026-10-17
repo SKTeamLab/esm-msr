@@ -166,20 +166,15 @@ def parse_arguments() -> argparse.Namespace:
     tf_group = parser.add_argument_group("Teacher-forced ensemble (reimplemented; off by default)")
     tf_group.add_argument('--tf_ensemble', action=argparse.BooleanOptionalAction, default=False,
                           help="Reinstate a combined (WT + MT)/2 objective. The legacy one was removed - see RETIRED_FLAGS - "
-                               "and this is a separate option, not that one: it takes the WT half per ITEM from either a "
-                               "label or the WT head's own prediction, at a ratio you set, where the old one always used the "
-                               "label when it had one. Costs one extra no-grad WT forward per MT unit. See docs/teacher_forcing.md.")
+                               "and this is a separate option, not that one: it takes the WT half per ITEM from either the "
+                               "measured additive label or the WT head's own prediction, at a ratio you set, where the old "
+                               "one always used the label when it had one. Costs one extra no-grad WT forward per MT unit.")
     tf_group.add_argument('--tf_label_prob', type=float, default=1.0,
-                          help="Probability, per item per step, that the WT half of the combined prediction is the item's LABEL - "
-                               "its own target, taken back through the link to the latent scale when there is one - rather than "
-                               "the WT head's own prediction. 1.0 is pure teacher forcing; 0.0 is fully free-running, so the MT "
-                               "head only ever corrects what the WT head actually says. With --tf_label_prob_end, the start of "
-                               "an anneal.")
-    tf_group.add_argument('--tf_label_prob_end', type=float, default=None,
-                          help="Anneal --tf_label_prob linearly to this value over --tf_anneal_steps optimizer steps, starting "
-                               "where the MT adapter's learning rate starts (--mt_lora_delay_steps), then hold it. Unset: fixed.")
-    tf_group.add_argument('--tf_anneal_steps', type=int, default=0,
-                          help="Length of the --tf_label_prob anneal, in optimizer steps. Required with --tf_label_prob_end.")
+                          help="Probability, per item per step, that the WT half of the combined prediction is the MEASURED "
+                               "additive label (ddG_A + ddG_B) rather than the WT head's own prediction. 1.0 is pure teacher "
+                               "forcing, which is what the legacy objective did; 0.0 is fully free-running, so the MT head "
+                               "only ever corrects what the WT head actually says; in between, the head sees both regimes and "
+                               "cannot come to depend on a label it will not have at inference.")
     tf_group.add_argument('--lambda_tf_reg', type=float, default=1.0,
                           help="Weight of the combined regression. Only read when --tf_ensemble is on.")
     tf_group.add_argument('--lambda_tf_rank', type=float, default=0.0,
@@ -426,15 +421,6 @@ def parse_arguments() -> argparse.Namespace:
         if getattr(args, flag_name):
             parser.error(f"--subset_caps {retired_subset}=...: {retired_subset} items are no longer a training subset. Doubles enter training "
                          f"as their two conditional 'cond' items; reversions were never routed to a head (see esm_msr.routing).")
-
-    for name in ('tf_label_prob', 'tf_label_prob_end'):
-        v = getattr(args, name)
-        if v is not None and not 0.0 <= v <= 1.0:
-            parser.error(f"--{name} is a probability: got {v}.")
-    if args.tf_label_prob_end is not None and args.tf_anneal_steps <= 0:
-        parser.error(f"--tf_label_prob_end anneals over --tf_anneal_steps optimizer steps, which must be positive (got {args.tf_anneal_steps}).")
-    if args.tf_anneal_steps > 0 and args.tf_label_prob_end is None:
-        parser.error("--tf_anneal_steps without --tf_label_prob_end: there is nothing to anneal to.")
 
     if args.premask_mt_structure and args.mask_structure:
         parser.error("--premask_mt_structure (hide the mutated sites before the structure encoder, from the cache) and --mask_structure (blank "

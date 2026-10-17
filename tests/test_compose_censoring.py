@@ -27,7 +27,7 @@ def make_hp(**kw):
             include_out_of_range=False, censor_floor=None,
             # --tf_ensemble is off by default, so the stub says so explicitly rather than relying on a
             # getattr default: a stub that drifts from the CLI should fail loudly, not skip an objective.
-            tf_ensemble=False, tf_label_prob=1.0, tf_label_prob_end=None, tf_anneal_steps=0, lambda_tf_reg=1.0, lambda_tf_rank=0.0)
+            tf_ensemble=False, tf_label_prob=1.0, lambda_tf_reg=1.0, lambda_tf_rank=0.0)
     hp.update(kw)
     return hp
 
