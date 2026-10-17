@@ -80,6 +80,26 @@ class ESM3PredictorBase(nn.Module):
         )
 
 
+MASK_STRATEGIES = ('marginal', 'independent')
+
+
+def pass_mask_strategy(hp, pass_type: str) -> Optional[str]:
+    """
+    The sequence-masking strategy of one pass: ``--mask_strategy_<pass_type>`` when it is set ('none' = unmasked), otherwise
+    ``--mask_strategy``, which applies to both passes. ``hp`` is anything with ``.get`` (hparams, a dict); hparams from before the
+    per-pass flags carry neither key and resolve to ``--mask_strategy`` as they always did.
+    """
+    v = hp.get(f'mask_strategy_{pass_type}', None)
+    if v is None:
+        v = hp.get('mask_strategy', None)
+    return None if v in (None, 'none') else v
+
+
+def _per_pass(mask_strategy, pass_type: str) -> Optional[str]:
+    """``mask_strategy`` as forward_batch / forward_cycle take it: one strategy for both passes, or a dict {'wt': ..., 'mt': ...}."""
+    return mask_strategy.get(pass_type) if isinstance(mask_strategy, dict) else mask_strategy
+
+
 class CalibrationHead(nn.Module):
     """ Scales and biases raw log-likelihood ratios: y_cal = scale * y_raw + bias """
     def __init__(self, init_scale: float | None = 1/3, init_bias: float | None = 0.0, *, min_scale: float = 1e-4, beta: float = 1.0, max_scale: float | None = None, requires_grad: bool = True):
@@ -576,16 +596,17 @@ class MSRModel(ESM3PredictorBase):
     def forward_batch(self, batch_in: Dict[str, Any], cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, skip_reverse: bool = False, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
         """
         Inference forward: runs the WT pass and (unless ``skip_reverse``) the MT pass and
-        reports ``combined_pred`` as 0.5*WT + 0.5*MT for every item.
+        reports ``combined_pred`` as 0.5*WT + 0.5*MT for every item. ``mask_strategy`` is one
+        strategy for both passes or a dict {'wt': ..., 'mt': ...} (``pass_mask_strategy``).
 
         ``epi_pred = 0.5*(MT - WT)`` is the implied pairwise epistasis for multi-mutants
         (meaningless for single-mutation items).
         """
         if self.training: raise AssertionError("forward_batch is for inference only. Use forward_partitioned for training.")
 
-        wt_out = self.forward_partitioned(batch_in, pass_type='wt', cached_wt_esm3=cached_wt_esm3, mask_strategy=mask_strategy)
+        wt_out = self.forward_partitioned(batch_in, pass_type='wt', cached_wt_esm3=cached_wt_esm3, mask_strategy=_per_pass(mask_strategy, 'wt'))
         if not skip_reverse:
-            mt_out = self.forward_partitioned(batch_in, pass_type='mt', mask_strategy=mask_strategy)
+            mt_out = self.forward_partitioned(batch_in, pass_type='mt', mask_strategy=_per_pass(mask_strategy, 'mt'))
         else:
             mt_out = wt_out
 
@@ -631,11 +652,11 @@ class MSRModel(ESM3PredictorBase):
             rev = dict(batch_in)
             rev['wt_sequence_tokens'] = batch_in['mt_sequence_tokens']
             rev['wt_id'], rev['mt_id'] = batch_in['mt_id'], batch_in['wt_id']
-            out['wt_rev'] = -self.forward_partitioned(rev, pass_type='wt', mask_strategy=mask_strategy)['pred_calibrated']
+            out['wt_rev'] = -self.forward_partitioned(rev, pass_type='wt', mask_strategy=_per_pass(mask_strategy, 'wt'))['pred_calibrated']
         if 'mt_fwd' in legs:
             fwd = dict(batch_in)
             fwd['mt_sequence_tokens'] = batch_in['wt_sequence_tokens']
-            out['mt_fwd'] = self.forward_partitioned(fwd, pass_type='mt', mask_strategy=mask_strategy)['pred_calibrated']
+            out['mt_fwd'] = self.forward_partitioned(fwd, pass_type='mt', mask_strategy=_per_pass(mask_strategy, 'mt'))['pred_calibrated']
         return out
 
     def _process_logits(self, logits: torch.Tensor) -> torch.Tensor:
@@ -733,7 +754,7 @@ class MSRModel(ESM3PredictorBase):
         out = self._get_esm3_outputs(seq, coords, struct_tokens, plddt, active_model=active_model)
         return self._process_logits(out.sequence_logits.float()), torch.arange(B, device=seq.device)
 
-    def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
+    def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None, adapter: Optional[str] = None) -> Dict[str, torch.Tensor]:
         """
         One adapter pass over a batch.
 
@@ -743,8 +764,16 @@ class MSRModel(ESM3PredictorBase):
         calibrated value (``pred_calibrated``), and the per-mutation terms (``unsummed_llr``).
         ``wt_id``/``mt_id`` are the item's from/to residues, so for reversion-style items
         (e.g. reversion) "mt_id" is the wild-type residue.
+
+        ``adapter`` reads the pass with the OTHER adapter and its calibration head: ``pass_type`` still picks the
+        sequence (and the MT pass's structure masking), ``adapter`` the LoRA. Unset, the adapter follows the pass.
+        Only the validation pass probe uses it (e.g. the WT adapter on the mutated sequence).
         """
         if pass_type not in ['wt', 'mt']: raise AssertionError(f"pass_type must be 'wt' or 'mt'. Received: {pass_type}")
+        adapter = pass_type if adapter is None else adapter
+        if adapter not in ['wt', 'mt']: raise AssertionError(f"adapter must be 'wt' or 'mt'. Received: {adapter}")
+        if cached_wt_esm3 is not None and adapter != pass_type:
+            raise AssertionError("cached_wt_esm3 holds the WT adapter's logits on the wild type; it cannot serve another adapter.")
 
         seq, mut_pos = batch.get(f'{pass_type}_sequence_tokens'), batch.get('mut_pos')
         wt_id, mt_id, mut_mask = batch.get('wt_id'), batch.get('mt_id'), batch.get('mut_mask')
@@ -775,7 +804,7 @@ class MSRModel(ESM3PredictorBase):
                 raise NotImplementedError(f"cached_wt_esm3 cannot be used with mask_strategy='{mask_strategy}'. Each masking pass fundamentally alters the model sequence state.")
 
             mask_token_id = C.SEQUENCE_MASK_TOKEN
-            active_model = self._active_model(pass_type)
+            active_model = self._active_model(adapter)
             unsummed_llr = torch.zeros((B, max_muts), dtype=torch.float32, device=seq.device)
 
             if mask_strategy == 'independent':
@@ -818,7 +847,7 @@ class MSRModel(ESM3PredictorBase):
                     raise AssertionError("Sequence mismatch in cache.")
                 logits, row_index = cached_wt_esm3['logits'].expand(B, -1, -1), torch.arange(B, device=seq.device)
             else:
-                logits, row_index = self._backbone_logits(seq, coords, struct_tokens, plddt, self._active_model(pass_type))
+                logits, row_index = self._backbone_logits(seq, coords, struct_tokens, plddt, self._active_model(adapter))
 
             # Both passes compute logit(to) - logit(from); they differ only in which
             # sequence (and adapter) provides the context.
@@ -832,7 +861,7 @@ class MSRModel(ESM3PredictorBase):
         if self.adapter_mode == 'fused':
             head = getattr(self, 'calibration_head_fused', None)
         else:
-            head = getattr(self, f'calibration_head_{pass_type}', None)
+            head = getattr(self, f'calibration_head_{adapter}', None)
         llr_sum_cal = head(llr_sum_raw) if head is not None else llr_sum_raw
 
         output_dict = {'pred_calibrated': llr_sum_cal, 'pred_raw': llr_sum_raw, 'unsummed_llr': unsummed_llr}

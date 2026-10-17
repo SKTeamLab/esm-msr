@@ -20,7 +20,7 @@ from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
 from esm.pretrained import ESM3_structure_encoder_v0
 from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 
-from esm_msr.models import MSRModel
+from esm_msr.models import MSRModel, pass_mask_strategy
 from esm_msr import utils
 from esm_msr.losses import ListMLELoss
 from esm_msr import censoring, link as link_mod
@@ -30,6 +30,7 @@ from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
 from esm_msr import stats, epi_metrics
 from esm_msr import routing
+from esm_msr import pass_probe
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -494,7 +495,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             with torch.no_grad():
                 for s0 in range(0, len(mrows), mb):
                     chunk = mrows_t[s0:s0 + mb]
-                    out = self.model.forward_partitioned(utils.slice_batch_by_index(batch, chunk), pass_type='mt', mask_strategy=hp.mask_strategy)
+                    out = self.model.forward_partitioned(utils.slice_batch_by_index(batch, chunk), pass_type='mt', mask_strategy=pass_mask_strategy(hp, 'mt'))
                     L[chunk] = out['pred_calibrated'].float()
                     del out
             # Autocast caches the low-precision copy of every fp32 weight that requires grad (the LoRA matrices) for the whole autocast region
@@ -564,7 +565,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         units = []
         if len(wt_rows):
             size = mb
-            if getattr(self.model, 'dedup_backbone', False):
+            # only while the WT pass reads the wild type UNMASKED: masking makes each scored site its own backbone input
+            if getattr(self.model, 'dedup_backbone', False) and pass_mask_strategy(self.hparams, 'wt') is None:
                 first, _ = self.model._unique_rows(batch['wt_sequence_tokens'][wt_rows],
                                                    batch['coords'][wt_rows],
                                                    batch['structure_tokens'][wt_rows])
@@ -790,7 +792,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
             # ---- WT unit ----
             if kind == 'wt':
-                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=hp.mask_strategy)
+                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=pass_mask_strategy(hp, 'wt'))
                 wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
                 del wt_out
 
@@ -848,7 +850,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if not (has_reg or has_comp or has_rev or has_rank):
                 continue
 
-            mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=hp.mask_strategy)
+            mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=pass_mask_strategy(hp, 'mt'))
             mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
             del mt_out
 
@@ -957,7 +959,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 else:
                     with torch.no_grad():
                         wt_ref = self.model.forward_partitioned(micro, pass_type='wt',
-                                                                mask_strategy=hp.mask_strategy)['pred_calibrated'].float()
+                                                                mask_strategy=pass_mask_strategy(hp, 'wt'))['pred_calibrated'].float()
                 wt_half, took = tf_wt_half(add_lbl, wt_ref, float(hp.tf_label_prob))
                 self._tf_diag = (self._tf_diag[0] + float(took.sum()), self._tf_diag[1] + float(took.numel()))
                 comb_lat = 0.5 * wt_half + 0.5 * mt_pred_cal          # the WT half is detached either way
@@ -1119,9 +1121,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         return torch.tensor(0.0, device=self.device)
 
+    def _pass_masks(self):
+        """{'wt': ..., 'mt': ...}: each pass's sequence masking (``pass_mask_strategy``), for forward_batch / forward_cycle."""
+        return {k: pass_mask_strategy(self.hparams, k) for k in ('wt', 'mt')}
+
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         with torch.inference_mode():
-            out_dict = self.model.forward_batch(batch, mask_strategy=self.hparams.mask_strategy)
+            out_dict = self.model.forward_batch(batch, mask_strategy=self._pass_masks())
 
         ddG = utils._get_label(batch, 'ddG', device=batch['ddG'].device)
         dddG = batch.get('dddG')
@@ -1147,9 +1153,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if len(rows):
                 sub = utils.slice_batch_by_index(batch, torch.as_tensor(rows, device=out_dict['wt_lora_pred'].device))
                 with torch.inference_mode():
-                    c = self.model.forward_cycle(sub, mask_strategy=self.hparams.mask_strategy, legs=('wt_rev',))
+                    c = self.model.forward_cycle(sub, mask_strategy=self._pass_masks(), legs=('wt_rev',))
                 wt_rev[rows] = _np(c['wt_rev'])
             extra['wt_rev_scores'] = wt_rev
+        if getattr(self, '_probe_now', False):
+            # --val_pass_probe: every view of esm_msr.pass_probe on the singles and doubles, NaN elsewhere; the run's own passes are reused
+            kinds = np.array([routing.canonical_subset(s) for s in batch.get('subset_type', ['single'] * n_items)])
+            rows = np.where(np.isin(kinds, ['single', 'double']))[0]
+            if len(rows):
+                known = {('wt', 'wt', pass_mask_strategy(self.hparams, 'wt')): _np(out_dict['wt_lora_pred']),
+                         ('mt', 'mt', pass_mask_strategy(self.hparams, 'mt')): _np(out_dict['mt_lora_pred'])}
+                with torch.inference_mode():
+                    views = pass_probe.run_views(self.model, batch, torch.as_tensor(rows, device=out_dict['wt_lora_pred'].device), known)
+            else:
+                views = {v: np.full(n_items, np.nan) for v in pass_probe.VIEWS}
+            extra.update({f'probe_{v}': a for v, a in views.items()})
         self.validation_step_outputs[dataloader_idx].append({
             **extra,
             'wt_scores': _np(out_dict['wt_lora_pred']),
@@ -1196,6 +1214,29 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)
             return {}
 
+    def _log_probe(self, pooled) -> dict:
+        """Logs ``val_probe_<head>_<metric>`` (esm_msr.pass_probe) on the pooled validation items and returns ``{head: {metric: value}}``.
+        Never raises."""
+        try:
+            cat = lambda name: np.concatenate(pooled[name]) if pooled.get(name) else None
+            if not pooled.get('subset_type') or any(k is None for k in pooled['mut_key']):
+                return {}
+            views = {v: cat(f'probe_{v}') for v in pass_probe.VIEWS}
+            if any(a is None or not np.isfinite(a).any() for a in views.values()):
+                return {}
+            items = {'mut_key': pooled['mut_key'], 'subset_type': pooled['subset_type'], 'cens': cat('cens'), 'ddG': cat('ground_truths'),
+                     'dddG': cat('dddG'), 'dG_wt': cat('dG_wt')}
+            link = self.link_head.numpy() if self.link_head is not None else None
+            res = pass_probe.score(items, views, pooled['loader'], link)
+            for head, row in res.items():
+                for metric, val in row.items():
+                    if np.isfinite(val):
+                        self.log(f"val_{pass_probe.log_name(head, metric)}", float(val), on_epoch=True, sync_dist=True)
+            return res
+        except Exception as e:
+            logging.warning(f"pass probe skipped: {e}", exc_info=True)
+            return {}
+
     def _dump_validation(self, dump):
         """Writes every validation item's scores to ``<log_dir>/val_dump_<tag>.npz`` (tag ``zs`` before any step), so the metrics can be recomputed
         offline with scripts/epi_from_dump.py. Never raises."""
@@ -1214,6 +1255,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def on_validation_epoch_start(self):
         self.validation_step_outputs = defaultdict(list)
+        # --val_pass_probe N: every Nth real validation, the zero-shot one (before any step) counting as the first
+        every = int(self.hparams.get('val_pass_probe', 0) or 0)
+        if self.trainer.sanity_checking:
+            self._probe_now = False
+        else:
+            k = getattr(self, '_val_runs', 0)
+            self._val_runs = k + 1
+            self._probe_now = every > 0 and k % every == 0
 
     def on_validation_epoch_end(self):
         """
@@ -1233,7 +1282,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             cols = {k: np.concatenate([np.asarray(o[k]).reshape(-1) for o in outputs])
                     for k in ('wt_scores', 'mt_scores', 'comb_scores', 'ground_truths', 'dddG', 'dG_wt')}
             # optional per-step arrays: present in every batch of a loader or padded with NaN, so pooled arrays stay aligned
-            for k in ('wt_rev_scores', 'comb_obs'):
+            for k in ('wt_rev_scores', 'comb_obs') + tuple(f'probe_{v}' for v in pass_probe.VIEWS):
                 cols[k] = (np.concatenate([np.asarray(o[k]).reshape(-1) for o in outputs]) if all(k in o for o in outputs)
                            else np.full(n_items, np.nan))
             subset_types = [s for o in outputs for s in o['subset_type']]
@@ -1242,7 +1291,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if len(mut_keys) != len(subset_types):
                 mut_keys = None
 
-            dump[name] = {**{k: v for k, v in cols.items() if k != 'comb_obs'}, 'subset_type': np.array(subset_types), 'cens': cens_val,
+            dump[name] = {**{k: v for k, v in cols.items() if k != 'comb_obs' and not (k.startswith('probe_') and not np.isfinite(v).any())},
+                          'subset_type': np.array(subset_types), 'cens': cens_val,
                           'mut_key': np.array([json.dumps(k) for k in (mut_keys or [])]),
                           'flip_key': np.array([k for o in outputs for k in o.get('flip_key', [])])}
             obs = {'comb': cols['comb_obs']} if all('comb_obs' in o for o in outputs) else None
@@ -1252,6 +1302,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             for k, v in cols.items():
                 pooled[k].append(v)
             pooled['subset_type'].extend(subset_types)
+            pooled['loader'].extend([name] * n_items)
             pooled['cens'].append(cens_val)
             # Mutations are numbered per library, so tag them with the loader to keep pooled singles from pairing with another protein's doubles.
             pooled['mut_key'].extend([tuple((name,) + m for m in k) for k in mut_keys] if mut_keys is not None else [None] * len(subset_types))
@@ -1270,6 +1321,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 self.log(f"val_{metric}_avg", avg_metrics[metric], on_epoch=True, prog_bar=metric in self._VAL_PROGRESS_BAR, sync_dist=True)
 
         epi = ESM3EpistasisLightningModule._log_epistasis(self, pooled)       # by class: the tests drive this method with a stand-in object
+        if getattr(self, '_probe_now', False):
+            ESM3EpistasisLightningModule._log_probe(self, pooled)
         readings = {**avg_metrics, **{k: v for k, v in epi.items() if np.isfinite(v)}}
 
         if (not self.trainer.sanity_checking and self.hparams.get('wt_early_stop_patience', 0) > 0

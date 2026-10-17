@@ -298,6 +298,15 @@ def parse_arguments() -> argparse.Namespace:
                             help="SEQUENCE masking of the scored position(s). Off by default: unmasked wt-marginal "
                                  "scored best on singles and tied on conditionals, and it costs one forward per variant "
                                  "instead of one per mutation.")
+    mask_group.add_argument('--mask_strategy_wt', type=str, choices=['none', 'marginal', 'independent'], default=None,
+                            help="SEQUENCE masking of the WT pass alone, overriding --mask_strategy for it ('none' = unmasked). 'marginal' on a "
+                                 "double masks both sites: the pass then knows WHICH pair is mutated but not to what, so it can carry pair- and "
+                                 "line-level effects and, by construction, no residue-residue interaction. Training and validation only: "
+                                 "inference (inference.py) still takes the single --mask_strategy.")
+    mask_group.add_argument('--mask_strategy_mt', type=str, choices=['none', 'marginal', 'independent'], default=None,
+                            help="SEQUENCE masking of the MT pass alone, overriding --mask_strategy for it ('none' = unmasked). 'independent' on a "
+                                 "double masks one site at a time with the partner's mutant residue visible: the conditional masked marginal, "
+                                 "the readout of ddG(A|B). Training and validation only, as --mask_strategy_wt.")
     mask_group.add_argument('--premask_mt_structure', action=argparse.BooleanOptionalAction, default=False,
                             help="CACHE-BUILD option: STRUCTURE masking BEFORE the structure encoder, for the MT pass only. Each item stores a second structure "
                                  "in which the coordinates of every site its MT-pass sequence mutates (struct_mut_pos: its own mutations and any "
@@ -309,6 +318,13 @@ def parse_arguments() -> argparse.Namespace:
                                  "the control head ctx = (WT + ~WT)/2 of the epistasis metrics (val_epi_*_ctx: what the backbone plus single-mutant training "
                                  "already know about epistasis) exists. One extra WT forward per single / double (about 1-2 min per validation); "
                                  "--no-val_cycle_passes drops the ctx metrics and nothing else.")
+    mask_group.add_argument('--val_pass_probe', type=int, default=0,
+                            help="VALIDATION ONLY: every Nth validation (counting the zero-shot one as the first; 0 = never), read every "
+                                 "single and double with BOTH adapters in four input regimes - unmasked wild type, both sites masked, unmasked "
+                                 "mutant, and one site masked with the partner visible - and log, per view and for the trapezoids that pair a "
+                                 "WT-adapter start view with an MT-adapter end view, the ddG Spearman, the epistasis levels and where the view's "
+                                 "own non-additivity lives (val_probe_*; esm_msr.pass_probe). Six extra forwards per item, about three of them "
+                                 "per double after deduplication. The views go into the validation dump for scripts/pass_probe_from_dump.py.")
     mask_group.add_argument('--mask_structure', action=argparse.BooleanOptionalAction, default=False,
                             help="STRUCTURE masking: blank coordinates and structure tokens at every position the MT-pass "
                                  "sequence mutates relative to the structure. The WT pass is never masked (its sequence and "
@@ -421,6 +437,9 @@ def parse_arguments() -> argparse.Namespace:
         if getattr(args, flag_name):
             parser.error(f"--subset_caps {retired_subset}=...: {retired_subset} items are no longer a training subset. Doubles enter training "
                          f"as their two conditional 'cond' items; reversions were never routed to a head (see esm_msr.routing).")
+
+    if args.val_pass_probe < 0:
+        parser.error(f"--val_pass_probe N runs the probe every Nth validation (0 = never); got {args.val_pass_probe}.")
 
     if args.premask_mt_structure and args.mask_structure:
         parser.error("--premask_mt_structure (hide the mutated sites before the structure encoder, from the cache) and --mask_structure (blank "

@@ -113,8 +113,13 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
     mask_structure = bool(hparams.get('mask_structure', False))
     logging.info(f"mask_structure={mask_structure} (must match training).")
 
+    # the sequence masking each pass trained with (esm_msr.models.pass_mask_strategy); main() checks it against --mask_strategy
+    from esm_msr.models import pass_mask_strategy
+    pass_masks = {k: pass_mask_strategy(hparams, k) for k in ('wt', 'mt')}
+
     return {
         'mask_structure': mask_structure,
+        'pass_masks': pass_masks,
         'wt_config': wt_config,
         'mt_config': mt_config,
         'adapter_mode': hparams.get('adapter_mode', 'dual'),
@@ -636,6 +641,15 @@ if __name__ == "__main__":
         parsed_config = parse_hparams_to_lora_config(args.hparams_path, sigma=args.sigma)
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         mask_structure = parsed_config.get('mask_structure', False)
+        trained = parsed_config.get('pass_masks', {'wt': None, 'mt': None})
+        if trained['wt'] != trained['mt']:
+            # the screening engine (MSRModel.score_screening_batch) applies ONE strategy to both passes; scoring this checkpoint with
+            # either would read one of its adapters in a regime it never trained in
+            raise NotImplementedError(f"This checkpoint trained its passes with different sequence masking (WT: {trained['wt']}, MT: "
+                                      f"{trained['mt']}; --mask_strategy_wt / --mask_strategy_mt). Inference does not support "
+                                      f"per-pass masking yet.")
+        if args.mask_strategy != trained['wt']:
+            logging.warning(f"--mask_strategy {args.mask_strategy} differs from the {trained['wt']} this checkpoint trained with.")
         lora_config = {
             'wt_config': parsed_config['wt_config'],
             'mt_config': parsed_config['mt_config']
