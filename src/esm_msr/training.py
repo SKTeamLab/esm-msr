@@ -32,6 +32,25 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 warnings.filterwarnings('ignore', category=UserWarning)
 torch.set_float32_matmul_precision('high') 
 
+def alternating_phase(batch_idx: int, has_single: bool, has_multi: bool) -> str:
+    """
+    Which head this batch trains when --alternate_heads is on: 'wt' (singles) or 'mt' (multi-mutants).
+
+    Alternates on the batch index so the two heads get equal turns, and falls back to the other head when this
+    batch cannot serve its turn - every batch is ONE library, and the median training library holds no
+    multi-mutants at all, so an unconditional alternation would waste every other step on most libraries.
+    Returns 'none' when the batch has neither, which the caller skips.
+    """
+    if not has_single and not has_multi:
+        return 'none'
+    turn = 'wt' if batch_idx % 2 == 0 else 'mt'
+    if turn == 'mt' and not has_multi:
+        return 'wt'
+    if turn == 'wt' and not has_single:
+        return 'mt'
+    return turn
+
+
 class ESM3EpistasisLightningModule(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
@@ -338,6 +357,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 ceil_ddG = ceil_t.detach() + offset
                 bound_all = torch.where(torch.isfinite(ceil_ddG), torch.minimum(bound_all, ceil_ddG), bound_all)
 
+        # --alternate_heads: one head per batch. Decided once for the whole batch, from the batch's own
+        # composition, so every micro-batch of it takes the same turn.
+        phase = None
+        if getattr(self.hparams, 'alternate_heads', False):
+            _single_all = torch.as_tensor([t in ('single', 'native_cond') for t in st_all], device=device)
+            phase = alternating_phase(getattr(self, '_batch_idx', 0), bool(_single_all.any()), bool((~_single_all).any()))
+            if phase == 'none':
+                return {}
+
         sums, cnts = defaultdict(float), defaultdict(float)
         n_tf_drop = 0
         n_cens_lo = int((cens_all < 0).sum().item())
@@ -396,6 +424,22 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             tf_additive_labels[is_single] = ddG_mb[is_single]
             has_add_label = ~torch.isnan(tf_additive_labels)
 
+            # --tf_delink: the label is on the OBSERVED scale and it is about to be added to a LATENT prediction.
+            # Under --combined_mode sum that mismatch enters at full weight rather than half, so put the label on
+            # the latent scale first. The inverse is NONLINEAR, so a double's label is de-linked ONE SINGLE AT A
+            # TIME and then summed - de-linking ddG_A + ddG_B as a sum is a different and wrong number. Detached:
+            # a label must never train the link it was inverted through. A single at or below its library's floor
+            # has no invertible latent value and returns NaN, which drops it from teacher forcing - the same
+            # population tf_saturated below removes, now by construction rather than by threshold.
+            if link is not None and getattr(self.hparams, 'tf_delink', False):
+                lat = lambda o: link.latent_ddG(o.float(), dGwt_mb, floor_mb).detach()
+                if 'ddG_A' in micro and 'ddG_B' in micro:
+                    tf_lat = lat(micro['ddG_A']) + lat(micro['ddG_B'])
+                else:
+                    tf_lat = torch.full_like(ddG_mb, float('nan'))
+                tf_additive_labels = torch.where(is_single, lat(ddG_mb), tf_lat)
+                has_add_label = torch.isfinite(tf_additive_labels) & link_ok
+
             # ... but only where that measured sum is a usable stand-in for the LATENT sum. A single measured at its
             # library's floor reports the floor, not its own effect, so injecting it into a latent average biases the
             # combined prediction by however much that single was compressed. Such doubles fall back to the WT head's
@@ -414,8 +458,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # =============================================================
             # PHASE 1: WILD-TYPE PASS
             # =============================================================
-            wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.hparams.mask_strategy, detach_calibration=self.hparams.detach_regression)
-            wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
+            # On an 'mt' turn the WT half of the combined prediction comes entirely from the teacher-forcing
+            # label (the MT losses are restricted to labelled items below), so the WT forward is not needed and
+            # is skipped - that is where the saving in --alternate_heads comes from. The zeros are never read.
+            if phase == 'mt':
+                wt_pred_cal = wt_pred_raw = torch.zeros_like(ddG_mb)
+            else:
+                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.hparams.mask_strategy, detach_calibration=self.hparams.detach_regression)
+                wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
 
             cens_wt_rank = cens_mb if wt_double_linked else torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
             wt_losses = []
@@ -446,13 +496,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     wt_losses.append(self.hparams.lambda_rank_wt * L_rank * (n_list / global_num_lists))
                     sums['rank_wt'] += val * n_list; cnts['rank_wt'] += n_list
 
-            if wt_losses and not self.peft_manager.wt_path_is_frozen and (self.hparams.lambda_rank_wt > 0 or self.hparams.lambda_reg_wt > 0):
+            if phase != 'mt' and wt_losses and not self.peft_manager.wt_path_is_frozen and (self.hparams.lambda_rank_wt > 0 or self.hparams.lambda_reg_wt > 0):
                 total_wt = sum(wt_losses)
                 if not torch.isfinite(total_wt): raise AssertionError("WT Loss evaluated to NaN/Inf.")
                 if not total_wt.requires_grad: raise AssertionError("WT Loss detached from PyTorch Graph! Cannot call backward.")
                 self.manual_backward(total_wt, retain_graph=retain_wt)
                     
-            if not self.peft_manager.mt_path_is_frozen and (self.hparams.lambda_rank_mt > 0 or self.hparams.lambda_reg_mt > 0):
+            if phase != 'wt' and not self.peft_manager.mt_path_is_frozen and (self.hparams.lambda_rank_mt > 0 or self.hparams.lambda_reg_mt > 0):
                 # =============================================================
                 # PHASE 2: MUTANT & COMBINED PASS
                 # =============================================================
@@ -493,6 +543,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     raise AssertionError("--combined_mode route requires --mt_reg_mask doubles: a single's "
                                          "combined prediction is the teacher-forced label itself, so its loss is "
                                          "identically zero and must be masked out rather than silently ignored.")
+                if phase == 'mt':
+                    # no WT forward was run, so only items whose WT half is a label can be scored
+                    reg_mask = reg_mask & has_add_label
                 combined_pred_raw = combine_predictions(forced_wt_raw, mt_pred_raw, cmode, is_single)
                 combined_pred_cal = combine_predictions(forced_wt_cal, mt_pred_cal, cmode, is_single)
                 
@@ -563,6 +616,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         continue
 
     def training_step(self, batch: dict, batch_idx: int):
+        self._batch_idx = int(batch_idx)
         self.model.train()
         logs = self._compose_losses_streaming_and_backward(utils._normalize_batch(batch))
 

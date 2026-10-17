@@ -172,6 +172,42 @@ class SaturatingLink(nn.Module):
         th = self.tau_hi()
         return c - th * F.softplus((c - u) / th)
 
+    def inverse(self, y: torch.Tensor, y_floor) -> torch.Tensor:
+        """
+        ``h^-1`` on absolute dG: the latent dG whose readout would be ``y``.
+
+        Inverting the soft floor ``u = f + tau * softplus((z - f) / tau)`` gives
+        ``z = f + tau * log(expm1((y - f) / tau))``.
+
+        The floor is an ASYMPTOTE, so this is defined only for ``y > f``: a reading at or below the library floor
+        is consistent with any sufficiently negative latent value and carries no information about which. Those
+        items return NaN rather than a clamped number, so a caller has to decide what to do with them instead of
+        silently receiving a fabricated latent. That NaN set is essentially the one ``tf_saturated`` already drops.
+        """
+        f = self.effective_floor(y_floor)
+        th, c = self.tau_hi(), self.ceiling()
+        if c is not None:
+            # undo the ceiling stage first: y = c - th * softplus((c - u) / th)
+            vc = (c - y) / th
+            u = c - th * torch.where(vc > 20.0, vc, torch.log(torch.expm1(vc.clamp(min=1e-12))))
+        else:
+            u = y
+        v = (u - f) / self.tau()
+        # v > 20: log(expm1(v)) == v to float precision, and expm1 overflows past ~88 in float32.
+        safe = torch.log(torch.expm1(v.clamp(min=1e-12)))
+        z = f + self.tau() * torch.where(v > 20.0, v, safe)
+        return torch.where(v > 0, z, torch.full_like(z, float('nan')))
+
+    def latent_ddG(self, observed: torch.Tensor, dG_wt: torch.Tensor, y_floor, bg_offset=0.0) -> torch.Tensor:
+        """
+        The exact inverse of :meth:`obs_ddG`: the latent ddG that would be REPORTED as ``observed``.
+
+        Use it to put a measured label on the latent scale before it is added to a latent prediction. Note that
+        the inverse is nonlinear, so ``latent_ddG(a + b) != latent_ddG(a) + latent_ddG(b)``: a sum of two measured
+        singles has to be de-linked ONE SINGLE AT A TIME and then summed, not de-linked as a sum.
+        """
+        return self.inverse(dG_wt + observed, y_floor) - dG_wt - bg_offset
+
     def obs_ddG(self, latent: torch.Tensor, dG_wt: torch.Tensor, y_floor, bg_offset=0.0) -> torch.Tensor:
         """
         The ddG the assay would report: ``h(dG_wt + bg_offset + latent) - dG_wt``.

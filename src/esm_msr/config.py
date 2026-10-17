@@ -96,6 +96,16 @@ def parse_arguments() -> argparse.Namespace:
                                  "path was retired: it is scored through the combined prediction, but it now trains "
                                  "the MT path only. The old name is still accepted.")
     loss_group.add_argument('--mt_reg_mask', type=str, default='all', choices=['all', 'doubles'])
+    loss_group.add_argument('--tf_delink', action=argparse.BooleanOptionalAction, default=False,
+                            help="De-link the teacher-forcing label before it is added to a latent prediction. The "
+                                 "measured ddG_A + ddG_B is a sum of two SATURATED readings; this inverts each "
+                                 "single through the link and sums the results, which is not the same as inverting "
+                                 "the sum. Requires --link. A single measured at or below its library floor has no "
+                                 "invertible latent value, so it drops out of teacher forcing.")
+    loss_group.add_argument('--alternate_heads', action=argparse.BooleanOptionalAction, default=False,
+                            help="Train one head per batch instead of both: the WT head on singles, the MT head on "
+                                 "multi-mutants, alternating by batch. A batch that cannot serve its turn (no "
+                                 "doubles, or no singles) takes the other one, so no batch is wasted.")
     loss_group.add_argument('--combined_mode', type=str, default='mean', choices=['mean', 'sum', 'route'],
                             help="How the WT and MT heads form the reported prediction. 'mean' is 0.5/0.5 "
                                  "(released). 'sum' makes MT the epistasis term. 'route' reports WT for "
