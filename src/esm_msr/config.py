@@ -163,6 +163,22 @@ def parse_arguments() -> argparse.Namespace:
                                  "the rank loss's gradient norm to that term's gradient norm on the adapter of the same head. A lambda or "
                                  "--mt_comp_* weight of 1 then means about as much gradient as the rank loss (--lambda_rank_wt / "
                                  "--lambda_mt_colrank 1). Always takes the component path of the MT regression, so micro_batch_size must be >= 38.")
+    tf_group = parser.add_argument_group("Teacher-forced ensemble (reimplemented; off by default)")
+    tf_group.add_argument('--tf_ensemble', action=argparse.BooleanOptionalAction, default=False,
+                          help="Reinstate a combined (WT + MT)/2 objective. The legacy one was removed - see RETIRED_FLAGS - "
+                               "and this is a separate option, not that one: it takes the WT half per ITEM from either the "
+                               "measured additive label or the WT head's own prediction, at a ratio you set, where the old "
+                               "one always used the label when it had one. Costs one extra no-grad WT forward per MT unit.")
+    tf_group.add_argument('--tf_label_prob', type=float, default=1.0,
+                          help="Probability, per item per step, that the WT half of the combined prediction is the MEASURED "
+                               "additive label (ddG_A + ddG_B) rather than the WT head's own prediction. 1.0 is pure teacher "
+                               "forcing, which is what the legacy objective did; 0.0 is fully free-running, so the MT head "
+                               "only ever corrects what the WT head actually says; in between, the head sees both regimes and "
+                               "cannot come to depend on a label it will not have at inference.")
+    tf_group.add_argument('--lambda_tf_reg', type=float, default=1.0,
+                          help="Weight of the combined regression. Only read when --tf_ensemble is on.")
+    tf_group.add_argument('--lambda_tf_rank', type=float, default=0.0,
+                          help="Weight of a within-list rank loss on the combined prediction. Only read when --tf_ensemble is on.")
     loss_group.add_argument('--lambda_mt_flip', type=float, default=0.0,
                             help="Confident-reversal loss on the MT pass (0 = off). For two scored substitutions i, i' and two partner residues j, k of one "
                                  "position pair whose measured within-column order REVERSES (ddG(i|j) - ddG(i'|j) and ddG(i|k) - ddG(i'|k) of opposite "
