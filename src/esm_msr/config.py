@@ -90,6 +90,13 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--lambda_reg_wt', type=float, default=0.0)
     loss_group.add_argument('--lambda_reg_combined', type=float, default=0.0)
     loss_group.add_argument('--mt_reg_mask', type=str, default='all', choices=['all', 'doubles'])
+    loss_group.add_argument('--combined_mode', type=str, default='mean', choices=['mean', 'sum', 'route'],
+                            help="How the WT and MT heads form the reported prediction. 'mean' is 0.5/0.5 "
+                                 "(released). 'sum' makes MT the epistasis term. 'route' reports WT for "
+                                 "singles and MT for multi-mutants, for a standalone double predictor.")
+    loss_group.add_argument('--wt_trains_doubles', action=argparse.BooleanOptionalAction, default=True,
+                            help="Whether the WT head's own losses see multi-mutants. --no-wt_trains_doubles "
+                                 "leaves doubles to the MT head alone (they still teacher-force the WT half).")
     loss_group.add_argument('--double_weight', type=float, default=1.0)
     loss_group.add_argument('--cond_weight', type=float, default=0.5)
     loss_group.add_argument('--native_cond_weight', type=float, default=1.0)

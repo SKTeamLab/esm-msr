@@ -20,7 +20,7 @@ from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
 from esm.pretrained import ESM3_structure_encoder_v0
 from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 
-from esm_msr.models import MSRModel
+from esm_msr.models import MSRModel, combine_predictions
 from esm_msr import censoring, epi_metrics, stats, utils
 from esm_msr.link import SaturatingLink
 from esm_msr.losses import ListMLELoss, hinge_regression_loss
@@ -55,7 +55,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         self.model = MSRModel(
             lora_config=lora_config, shared_scale_init=self.hparams.shared_scale_init, shared_bias_init=self.hparams.shared_bias_init, adapter_mode=self.hparams.adapter_mode,
-            lora_mode=self.hparams.lora_mode, model_dtype=torch.float32
+            lora_mode=self.hparams.lora_mode, model_dtype=torch.float32,
+            combined_mode=getattr(self.hparams, 'combined_mode', None) or 'mean'
         )
         
         self.peft_manager = PEFTStateManager(self.model)
@@ -381,6 +382,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 wt_targets = torch.where(multi, add, wt_targets)
                 valid_wt_mask = valid_wt_mask & (is_single | torch.isfinite(add))
 
+            # --no-wt_trains_doubles: leave multi-mutants to the MT head entirely. They still teacher-force the
+            # WT half of the combined prediction, so the WT path still SHAPES a double's prediction - it just
+            # takes no gradient from one. The rank mask already drops them when the target is not 'linked'.
+            if not getattr(self.hparams, 'wt_trains_doubles', True):
+                valid_wt_mask = valid_wt_mask & is_single
+
             # Teacher forcing for ENSEMBLE mode: the measured additive expectation replaces the WT half of the
             # combined latent, so the MT head only has to learn the correction.
             tf_additive_labels = torch.full_like(ddG_mb, float('nan'))
@@ -476,8 +483,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 else:
                     raise AssertionError(f"Unknown lora_mode: {self.model.lora_mode}")
 
-                combined_pred_raw = 0.5 * forced_wt_raw + 0.5 * mt_pred_raw
-                combined_pred_cal = 0.5 * forced_wt_cal + 0.5 * mt_pred_cal
+                cmode = getattr(self.hparams, 'combined_mode', None) or 'mean'
+                combined_pred_raw = combine_predictions(forced_wt_raw, mt_pred_raw, cmode, is_single)
+                combined_pred_cal = combine_predictions(forced_wt_cal, mt_pred_cal, cmode, is_single)
                 
                 mt_losses = []
 

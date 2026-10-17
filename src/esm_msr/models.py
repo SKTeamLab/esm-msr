@@ -102,6 +102,35 @@ class CalibrationHead(nn.Module):
         return y_raw * s + b
     
 
+COMBINE_MODES = ('mean', 'sum', 'route')
+
+
+def combine_predictions(wt, mt, mode: str = 'mean', is_single=None):
+    """
+    How the WT (additive) and MT (mutant-context) heads become the reported prediction.
+
+    * ``mean`` - ``0.5 * wt + 0.5 * mt``, the released behaviour and the default. Trained against the measured
+      ddG, this makes MT learn ``2 * ddG - wt``, so it carries both the additive signal and the deviation.
+    * ``sum`` - ``wt + mt``. Against the same target, MT now learns ``ddG - wt``, i.e. the EPISTASIS term, and
+      on a single (where wt already is the answer) it is driven to zero rather than told to be.
+    * ``route`` - ``wt`` for singles, ``mt`` for everything else. For the arm where MT is a standalone double
+      predictor that never sees a single, so there is no ensemble to form.
+
+    ``route`` needs ``is_single``; the others ignore it. Every site that forms a combined prediction - training,
+    validation and screening - must go through here, or an ablation trains one way and is scored another.
+    """
+    mode = mode or 'mean'                       # an unset hparam arrives as None, which means the default
+    if mode not in COMBINE_MODES:
+        raise AssertionError(f"combined_mode must be one of {COMBINE_MODES}, got {mode!r}.")
+    if mode == 'sum':
+        return wt + mt
+    if mode == 'route':
+        if is_single is None:
+            raise AssertionError("combined_mode='route' needs is_single to know which head to report.")
+        return torch.where(is_single, wt, mt)
+    return 0.5 * wt + 0.5 * mt
+
+
 class MSRModel(ESM3PredictorBase):
     """ 
     Mutational Stability Regression (MSR) Model.
@@ -114,8 +143,13 @@ class MSRModel(ESM3PredictorBase):
             self, lora_config: dict, shared_scale_init: float | None = None,
             shared_bias_init: float | None = None, inference_mode: bool = False, log_likelihood: bool = False,
             use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
-            adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True
+            adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
+            combined_mode: str = 'mean'
         ):
+        combined_mode = combined_mode or 'mean'
+        if combined_mode not in COMBINE_MODES:
+            raise AssertionError(f"combined_mode must be one of {COMBINE_MODES}, got {combined_mode!r}.")
+        self.combined_mode = combined_mode
         logging.info("Initializing ESM3 Base Model...")
         base_esm3 = ESM3_sm_open_v0()
         base_esm3.to(model_dtype)
@@ -515,10 +549,14 @@ class MSRModel(ESM3PredictorBase):
         wt_pred_cal, mt_pred_cal = wt_out['pred_calibrated'], mt_out['pred_calibrated']
         wt_pred_raw, mt_pred_raw = wt_out['pred_raw'], mt_out['pred_raw']
 
+        mm = batch_in.get('mut_mask')
+        is_single = (mm.sum(dim=1) == 1) if mm is not None else None
         if self.adapter_mode == 'fused':
-            combined_pred = 0.5 * self.calibration_head_fused(wt_pred_raw) + 0.5 * self.calibration_head_fused(mt_pred_raw)
+            combined_pred = combine_predictions(self.calibration_head_fused(wt_pred_raw),
+                                                self.calibration_head_fused(mt_pred_raw),
+                                                self.combined_mode, is_single)
         else:
-            combined_pred = 0.5 * wt_pred_cal + 0.5 * mt_pred_cal
+            combined_pred = combine_predictions(wt_pred_cal, mt_pred_cal, self.combined_mode, is_single)
 
         epi_pred = 0.5 * mt_pred_cal - 0.5 * wt_pred_cal
 
@@ -887,6 +925,12 @@ class MSRModel(ESM3PredictorBase):
                 wt_lora_pred = self.calibration_head_wt(wt_llr_sum) if hasattr(self, 'calibration_head_wt') else wt_llr_sum
                 mt_lora_pred = self.calibration_head_mt(mt_llr_sum) if hasattr(self, 'calibration_head_mt') else mt_llr_sum
 
-            combined_pred = 0.5 * wt_lora_pred + 0.5 * mt_lora_pred if self.adapter_mode != 'fused' else 0.5 * self.calibration_head_fused(wt_llr_sum) + 0.5 * self.calibration_head_fused(mt_llr_sum)
+            _is_single = mut_mask.sum(dim=1) == 1
+            if self.adapter_mode != 'fused':
+                combined_pred = combine_predictions(wt_lora_pred, mt_lora_pred, self.combined_mode, _is_single)
+            else:
+                combined_pred = combine_predictions(self.calibration_head_fused(wt_llr_sum),
+                                                    self.calibration_head_fused(mt_llr_sum),
+                                                    self.combined_mode, _is_single)
 
         return {'wt_lora_pred': wt_lora_pred, 'mt_lora_pred': mt_lora_pred, 'combined_pred': combined_pred}
