@@ -196,6 +196,17 @@ def parse_arguments() -> argparse.Namespace:
     train_group.add_argument('--freeze_wt_on_convergence', action=argparse.BooleanOptionalAction, default=False)
     train_group.add_argument('--wt_convergence_patience', type=int, default=1)
     train_group.add_argument('--wt_convergence_metric', type=str, default='rho_wt_valid')
+    train_group.add_argument('--mt_plateau_patience', type=int, default=0,
+                             help="Epochs of no improvement in --mt_convergence_metric before the MT path's own lr "
+                                  "is decayed. 0 disables it. Only lora_mt and calib_mt are touched.")
+    train_group.add_argument('--mt_convergence_metric', type=str, default='epi_beyond_rho_mt',
+                             help="What the MT plateau watches. Default is the MT head's correlation on the part of "
+                                  "a double the two singles do not explain - what the MT path exists to learn. It is "
+                                  "noisy epoch to epoch, so pair a patience of 1 with a gentle --mt_plateau_factor.")
+    train_group.add_argument('--mt_plateau_factor', type=float, default=0.3)
+    train_group.add_argument('--mt_plateau_min_lr', type=float, default=1e-7)
+    train_group.add_argument('--mt_freeze_after_decays', type=int, default=0,
+                             help="Freeze the MT path after this many decays. 0 never freezes it.")
     train_group.add_argument('--wt_plateau_patience', type=int, default=0,
                              help="Epochs without improvement in --wt_convergence_metric before the WT path's own "
                                   "learning rate is cut by --wt_plateau_factor. 0 disables it. The shared plateau "

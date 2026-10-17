@@ -766,7 +766,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 self.log("val_rho_ungrouped_combined", stats.safe_spearman(g_comb[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
                 self.log("val_ndcg@k=96_ungrouped_combined", stats.safe_ndcg_k96(g_comb[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
                 self.log("val_ndcg@k>0_ungrouped_combined", stats.safe_ndcg_t0(g_comb[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
-            self._log_epistasis(pooled)
+            # The epistasis scalars are pooled over every library at once, so they are not per-library values and
+            # never entered avg_metrics. Merge them in as single-element lists AFTER the val_<key>_avg logging loop
+            # above - so nothing is logged twice - and the plateau steps can then read any metric by name.
+            for _k, _v in (self._log_epistasis(pooled) or {}).items():
+                if np.isfinite(_v):
+                    avg_metrics[_k].append(float(_v))
 
         if self.link_head is not None:
             for k, v in self.link_head.summary().items():
@@ -801,6 +806,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 # overwrite this decay.
                 if self.trainer.global_step >= total_warmup_steps:
                     self._wt_plateau_step(avg_metrics)
+                    self._mt_plateau_step(avg_metrics)
 
         self.validation_step_outputs.clear()
         torch.cuda.empty_cache()
@@ -819,7 +825,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         try:
             keys = pooled['mut_key']
             if not keys or all(k is None for k in keys):
-                return
+                return {}
             f = lambda name: np.asarray(pooled[name], dtype=float)
             n_items = len(keys)
             for field in ('dG_wt', 'y_floor', 'ground_truths', 'dddG', 'wt_scores', 'mt_scores', 'comb_scores',
@@ -909,6 +915,57 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             logging.info(f"WT path frozen after {self._wt_decays} decays; its predictions are now fixed, so the "
                          f"teacher-forced target the MT path uses stops moving.")
             self._transition_to_mt()
+
+    def _mt_plateau_step(self, avg_metrics: dict) -> None:
+        """
+        Decay the MT path's own learning rate when ITS metric stops improving. The mirror of _wt_plateau_step, and
+        it touches only the ``lora_mt`` and ``calib_mt`` groups, so the WT path and the link are unaffected.
+
+        Keyed by default on ``epi_beyond_rho_mt``, the MT head's correlation on the part of a double that is not
+        explained by the two singles - what the MT path exists to learn. Measured across dc6/dc7/dc8_s1 it peaks
+        early and then falls back without regaining the peak: dc6 peaked at epoch 4 (+0.5395) and ended -0.0190
+        lower, dc8 peaked at epoch 3 (+0.5331) and ended -0.0079 lower.
+
+        BUT it is noisy epoch to epoch, with swings of +-0.03 and no trend, and dc7_s1 is a counter-example: it
+        peaked at its LAST epoch (+0.5367, the highest value of the three runs) after dipping twice on the way. A
+        patience of 1 would have decayed it at epoch 4 and cost it that. So patience 1 wants a gentler
+        --mt_plateau_factor than the WT path's 0.1, or patience 2; see docs/devel_conservative.md.
+        """
+        patience = int(getattr(self.hparams, 'mt_plateau_patience', 0) or 0)
+        if patience <= 0 or self.peft_manager.mt_path_is_frozen:
+            return
+        key = getattr(self.hparams, 'mt_convergence_metric', None) or 'epi_beyond_rho_mt'
+        if not avg_metrics.get(key):
+            return
+        current = float(np.nanmean(avg_metrics[key]))
+        if not np.isfinite(current):
+            return
+
+        best = getattr(self, '_mt_plateau_best', -float('inf'))
+        if current > best + 1e-4:
+            self._mt_plateau_best, self._mt_plateau_bad = current, 0
+            return
+        self._mt_plateau_bad = getattr(self, '_mt_plateau_bad', 0) + 1
+        if self._mt_plateau_bad < patience:
+            return
+
+        self._mt_plateau_bad = 0
+        factor, min_lr = float(self.hparams.mt_plateau_factor), float(self.hparams.mt_plateau_min_lr)
+        touched = []
+        for g in self.optimizers().param_groups:
+            if g.get('name') in ('lora_mt', 'calib_mt'):
+                new = max(min_lr, float(g['lr']) * factor)
+                touched.append(f"{g['name']}: {float(g['lr']):.2e} -> {new:.2e}")
+                g['lr'] = new
+        self._mt_decays = getattr(self, '_mt_decays', 0) + 1
+        logging.info(f"MT plateau on {key} (best={best:.4f}, now={current:.4f}), decay #{self._mt_decays}: "
+                     f"{', '.join(touched)}")
+
+        after = int(getattr(self.hparams, 'mt_freeze_after_decays', 0) or 0)
+        if after and self._mt_decays >= after:
+            logging.info(f"MT path frozen after {self._mt_decays} decays.")
+            self.peft_manager.freeze_mt_components()
+            self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
     def _transition_to_mt(self):
         """Freeze the WT path and open the MT path, saving the converged WT weights first."""
@@ -1048,6 +1105,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             'wt_plateau_best': getattr(self, '_wt_plateau_best', -float('inf')),
             'wt_plateau_bad': getattr(self, '_wt_plateau_bad', 0),
             'wt_decays': getattr(self, '_wt_decays', 0),
+            'mt_plateau_best': getattr(self, '_mt_plateau_best', -float('inf')),
+            'mt_plateau_bad': getattr(self, '_mt_plateau_bad', 0),
+            'mt_decays': getattr(self, '_mt_decays', 0),
         }
 
     def on_load_checkpoint(self, checkpoint: dict) -> None:
@@ -1062,6 +1122,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self._wt_plateau_best = transition_state.get('wt_plateau_best', -float('inf'))
         self._wt_plateau_bad = transition_state.get('wt_plateau_bad', 0)
         self._wt_decays = transition_state.get('wt_decays', 0)
+        self._mt_plateau_best = transition_state.get('mt_plateau_best', -float('inf'))
+        self._mt_plateau_bad = transition_state.get('mt_plateau_bad', 0)
+        self._mt_decays = transition_state.get('mt_decays', 0)
         
         # Re-apply freezing states if we resumed after convergence
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter:
