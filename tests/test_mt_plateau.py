@@ -122,3 +122,23 @@ def test_defaults_leave_it_off():
     assert a.mt_plateau_patience == 0
     assert a.mt_convergence_metric == 'epi_beyond_rho_mt'
     assert a.mt_plateau_factor == 0.3        # gentler than the WT path's 0.1, because this metric is noisy
+
+
+def test_a_missing_metric_warns_instead_of_sitting_silent(caplog):
+    """dc12 burned 8 epochs with an inert plateau because the metric never reached avg_metrics and nothing said so."""
+    import logging
+    s = stub(patience=1)
+    with caplog.at_level(logging.WARNING):
+        for _ in range(5):
+            CLS._mt_plateau_step(s, {'rho_combined': [0.84]})      # the key it wants is absent
+    msgs = [r.message for r in caplog.records]
+    assert len(msgs) == 1, f"expected exactly one warning, got {len(msgs)}"
+    assert 'will never fire' in msgs[0] and 'epi_beyond_rho_mt' in msgs[0]
+    assert getattr(s, '_mt_decays', 0) == 0
+
+
+def test_log_epistasis_returns_its_results():
+    """The bug itself: it logged res and fell off the end, so the caller merged None into avg_metrics."""
+    import inspect
+    src = inspect.getsource(CLS._log_epistasis)
+    assert 'return res' in src, "_log_epistasis must hand its scalars back for the plateaus to see them"

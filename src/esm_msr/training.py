@@ -919,8 +919,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if np.isfinite(val):
                     self.log(f"val_{name}", float(val), on_epoch=True,
                              prog_bar=name == 'epi_cell_rank_mt', sync_dist=True)
+            return res                  # the caller merges these into avg_metrics so a plateau can watch them
         except Exception as e:
             logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)
+        return {}
 
     def _wt_plateau_step(self, avg_metrics: dict) -> None:
         """
@@ -939,6 +941,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             return
         key = self.hparams.wt_convergence_metric
         if not avg_metrics.get(key):
+            # Loudly, and once: a scheduler that is configured but silently inert is worse than one that errors.
+            # dc12 ran 8 epochs with its MT plateau doing nothing, because _log_epistasis returned None and the
+            # epistasis scalars never reached avg_metrics - and not one line said so.
+            if not getattr(self, '_warned_no_wt_metric', False):
+                self._warned_no_wt_metric = True
+                logging.warning(f"--wt_plateau_patience is set but '{key}' is not among the validation "
+                                f"metrics {sorted(avg_metrics)}, so the WT plateau will never fire.")
             return
         current = float(np.nanmean(avg_metrics[key]))
         if not np.isfinite(current):
@@ -990,6 +999,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             return
         key = getattr(self.hparams, 'mt_convergence_metric', None) or 'epi_beyond_rho_mt'
         if not avg_metrics.get(key):
+            # Loudly, and once: a scheduler that is configured but silently inert is worse than one that errors.
+            # dc12 ran 8 epochs with its MT plateau doing nothing, because _log_epistasis returned None and the
+            # epistasis scalars never reached avg_metrics - and not one line said so.
+            if not getattr(self, '_warned_no_mt_metric', False):
+                self._warned_no_mt_metric = True
+                logging.warning(f"--mt_plateau_patience is set but '{key}' is not among the validation "
+                                f"metrics {sorted(avg_metrics)}, so the MT plateau will never fire.")
             return
         current = float(np.nanmean(avg_metrics[key]))
         if not np.isfinite(current):
