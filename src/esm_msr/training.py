@@ -484,6 +484,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     raise AssertionError(f"Unknown lora_mode: {self.model.lora_mode}")
 
                 cmode = getattr(self.hparams, 'combined_mode', None) or 'mean'
+                # Under 'route' a SINGLE's combined prediction is the WT branch alone, and teacher forcing has
+                # already replaced that branch with the measured label (tf_additive_labels[is_single] = ddG). The
+                # single's loss is then identically zero and carries no gradient - harmless only because
+                # --mt_reg_mask doubles masks singles out of the combined losses entirely. Paired with 'all' it
+                # would silently train on nothing but doubles while appearing to train on everything.
+                if cmode == 'route' and self.hparams.mt_reg_mask != 'doubles':
+                    raise AssertionError("--combined_mode route requires --mt_reg_mask doubles: a single's "
+                                         "combined prediction is the teacher-forced label itself, so its loss is "
+                                         "identically zero and must be masked out rather than silently ignored.")
                 combined_pred_raw = combine_predictions(forced_wt_raw, mt_pred_raw, cmode, is_single)
                 combined_pred_cal = combine_predictions(forced_wt_cal, mt_pred_cal, cmode, is_single)
                 
@@ -927,8 +936,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         for name, p in self.model.named_parameters():
             if id(p) in seen: continue
             
-            # Rely on the manager's baseline configuration to determine valid groups
-            if not self.peft_manager.baseline_requires_grad.get(name, True) and not self.hparams.freeze_wt_on_convergence:
+            # Build the SAME groups whatever happens to be frozen right now, keying on what arrived trainable.
+            # A currently-frozen parameter still gets its group: enforce_freezing zeroes that group's lr and
+            # weight_decay and clears the grads, so the group is inert.
+            #
+            # Keying on the CURRENT freeze state is what broke --resume_from_checkpoint. on_load_checkpoint
+            # re-freezes the WT path, and Lightning calls it BEFORE configure_optimizers, so the optimizer came
+            # out with 3 groups where the checkpoint had 5 and the restore died with "loaded state dict has a
+            # different number of parameter groups". For a run that freezes nothing at construction - every dc
+            # run - this selects exactly the same parameters as before.
+            if name not in self.peft_manager.initially_trainable:
                 continue
 
             seen.add(id(p))

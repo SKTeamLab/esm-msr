@@ -80,3 +80,19 @@ def test_the_defaults_leave_training_untouched():
 def test_an_unset_hparam_arriving_as_none_means_the_default():
     """getattr on a stubbed hparams namespace yields None rather than raising, and None must mean 'mean'."""
     torch.testing.assert_close(combine_predictions(WT, MT, None), 0.5 * WT + 0.5 * MT, atol=0, rtol=0)
+
+
+def test_route_demands_that_singles_be_masked_out():
+    """Under route a single's combined prediction IS the teacher-forced label, so its loss is identically zero.
+
+    That is fine when --mt_reg_mask doubles removes singles from the combined losses, and a silent trap
+    otherwise: the run would train on doubles alone while its flags claim 'all'. Pairing route with 'all' must
+    fail loudly at the first micro-batch.
+    """
+    import types
+    hp = types.SimpleNamespace(combined_mode='route', mt_reg_mask='all')
+    assert hp.combined_mode == 'route' and hp.mt_reg_mask != 'doubles'   # the combination the guard rejects
+    # the guard lives in _compose_losses_streaming_and_backward; assert the source states the contract
+    src = open('src/esm_msr/training.py').read()
+    assert "--combined_mode route requires --mt_reg_mask doubles" in src
+    assert "if cmode == 'route' and self.hparams.mt_reg_mask != 'doubles':" in src

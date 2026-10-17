@@ -109,3 +109,22 @@ def test_freezing_the_mt_path_is_also_quiet(caplog):
     with caplog.at_level(logging.WARNING):
         mgr.enforce_freezing(FakeOpt(), zero_lrs=True)
     assert [r.message for r in caplog.records] == []
+
+
+def test_initially_trainable_survives_freezing():
+    """configure_optimizers keys its param groups on this set, so freezing must not shrink it.
+
+    If it did, resuming would build fewer optimizer groups than the checkpoint holds and Lightning would refuse
+    the optimizer state with "loaded state dict has a different number of parameter groups" - which is exactly
+    how the first dc8_s1 resume died.
+    """
+    m = FakeModel(trainable=ADAPTERS, frozen=BASE)
+    mgr = PEFTStateManager(m)
+    before = set(mgr.initially_trainable)
+    assert before == set(ADAPTERS), before
+    mgr.freeze_wt_components()
+    mgr.freeze_mt_components()
+    mgr.enforce_freezing(FakeOpt(), zero_lrs=True)
+    assert mgr.initially_trainable == before, "freezing shrank the set configure_optimizers builds groups from"
+    # and the thing that DOES change is the baseline, which is what enforce_freezing acts on
+    assert not all(mgr.baseline_requires_grad[n] for n in ADAPTERS)
