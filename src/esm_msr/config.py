@@ -234,7 +234,12 @@ def parse_arguments() -> argparse.Namespace:
                                   "watches val_rho_combined_avg, which the MT path keeps improving long after the "
                                   "WT head has stopped, so without this the WT adapter keeps taking full-rate "
                                   "steps on a metric it is no longer improving.")
-    train_group.add_argument('--wt_plateau_factor', type=float, default=0.1)
+    train_group.add_argument('--wt_plateau_factor', type=float, default=0.3,
+                             help="Multiplier applied to the WT groups' lr on each decay. 0.3, matching "
+                                  "--mt_plateau_factor: with a patience of 1 these metrics are noisy enough that a "
+                                  "decay can fire on a wobble, and a gentler step keeps that from being terminal. "
+                                  "The dc8 series and dc12 pin 0.1 explicitly and predate this, so they are "
+                                  "unaffected - a new arm should either drop the flag or pass 0.3.")
     train_group.add_argument('--wt_plateau_min_lr', type=float, default=1e-7)
     train_group.add_argument('--wt_freeze_after_decays', type=int, default=0,
                              help="Freeze the WT path after this many --wt_plateau_patience decays, which also "
