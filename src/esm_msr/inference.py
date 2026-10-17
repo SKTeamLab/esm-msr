@@ -260,7 +260,7 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
     
     dist_matrix = None
     if calculate_distances:
-        from preprocess import compute_pairwise_heavy_atom_dist_matrix
+        from esm_msr.preprocess import compute_pairwise_heavy_atom_dist_matrix
         dist_matrix = compute_pairwise_heavy_atom_dist_matrix(coords)
         
     cached_wt_esm3 = None

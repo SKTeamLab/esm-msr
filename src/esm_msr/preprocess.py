@@ -21,7 +21,7 @@ from Bio.PDB.PDBIO import Select
 
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent  # src/esm_msr/preprocess.py -> repo root
 
 def parse_mutation_column_to_separate_columns(df, column_name):
     """
@@ -1323,32 +1323,37 @@ def main(args):
         grouper = ['code', 'code', 'chain']
     
     db = db.set_index('uid')
-    os.makedirs(os.path.join(REPO_ROOT, 'data/structures/'), exist_ok=True)
-    os.makedirs(os.path.join(REPO_ROOT, 'data/structures/single_chain'), exist_ok=True)
+    struct_dir = os.path.join(REPO_ROOT, 'data/structures')
+    os.makedirs(os.path.join(struct_dir, 'single_chain'), exist_ok=True)
 
     for (code, struct, chain), group in db.groupby(grouper):
         if chain == '':
             chain = 'A'
-        pdb_file = os.path.join(REPO_ROOT, f'data/structures/{struct}_{chain}_processed.pdb')
+        pdb_file = os.path.join(struct_dir, f'{struct}_{chain}_processed.pdb')
+        original_pdb = os.path.join(struct_dir, f'{struct}_{chain}_original.pdb')
+        intermediate_pdb = os.path.join(struct_dir, f'{struct}_{chain}_intermediate.pdb')
         db.loc[(db['code' if not sym else 'structure']==struct) & (db['chain']==chain), 'pdb_file'] = pdb_file
         if not os.path.exists(pdb_file):
             if len(struct) == 4:
-                result = download_pdb(struct, os.path.join(REPO_ROOT, 'esm-msr/data/structures/'), dataset=dataset_outname.upper())
-                os.rename(os.path.join(REPO_ROOT, f'data/structures/{struct.lower()}.pdb'), os.path.join(REPO_ROOT, 'esm-msr/data/structures/{struct}_{chain}_original.pdb'))
+                result = download_pdb(struct, struct_dir, dataset=dataset_outname.upper())
+                downloaded = os.path.join(struct_dir, f'{struct.lower()}.pdb')
             else:
-                result = get_alphafold_structure(struct, os.path.join(REPO_ROOT, 'esm-msr/data/structures/{struct}.pdb'), sequence=group['wt_seq'].head(1).item())
-                os.rename(os.path.join(REPO_ROOT, f'data/structures/{struct}.pdb'), os.path.join(REPO_ROOT, f'data/structures/{struct}_{chain}_original.pdb'))
-            remove_caps(os.path.join(REPO_ROOT, f'data/structures/{struct}_{chain}_original.pdb'))
-            remove_heteroatoms(os.path.join(REPO_ROOT, f'data/structures/{struct}_{chain}_original.pdb'), os.path.join(REPO_ROOT, f'data/structures/{struct}_{chain}_intermediate.pdb'))
-            fix_noncanonical_residues(os.path.join(REPO_ROOT, f'data/structures/{struct}_{chain}_intermediate.pdb'), os.path.join(REPO_ROOT, f'data/structures/{struct}_{chain}_intermediate.pdb'))
-            renumber_pdb(os.path.join(REPO_ROOT, f'data/structures/{struct}_{chain}_intermediate.pdb'), os.path.join(REPO_ROOT, f'data/structures/{struct}_{chain}_intermediate.pdb'))
-            repair_pdb(os.path.join(REPO_ROOT, f'data/structures/{struct}_{chain}_intermediate.pdb'), pdb_file, sequence_file=result['fasta'], chain_id=chain, verbose=True)
+                downloaded = os.path.join(struct_dir, f'{struct}.pdb')
+                result = get_alphafold_structure(struct, downloaded, sequence=group['wt_seq'].head(1).item())
+            if result['pdb'] is None:
+                raise RuntimeError(f'Could not download a structure for {struct}')
+            shutil.move(downloaded, original_pdb)
+            remove_caps(original_pdb)
+            remove_heteroatoms(original_pdb, intermediate_pdb)
+            fix_noncanonical_residues(intermediate_pdb, intermediate_pdb)
+            renumber_pdb(intermediate_pdb, intermediate_pdb)
+            repair_pdb(intermediate_pdb, pdb_file, sequence_file=result['fasta'], chain_id=chain, verbose=True)
             add_lines(pdb_file)
     
     for (code, struct, chain), group in db.groupby(grouper):
         pdb_file = group['pdb_file'].head(1).item()
         wt_seq = get_seq(pdb_file, chain)
-        original_pdb = os.path.join(REPO_ROOT, f'data/structures/{struct}_{chain}_original.pdb')
+        original_pdb = os.path.join(struct_dir, f'{struct}_{chain}_original.pdb')
         repaired_pdb = pdb_file
         single_chain_loc = pdb_file.split('/')
         single_chain_loc.insert(-1, 'single_chain')
@@ -1452,7 +1457,7 @@ def main(args):
         db_full = db_full.reset_index().set_index('uid2')
         db_full = db_full.rename({'ddG': 'ddG_s669'}, axis=1)
 
-        s461 = pd.read_csv(os.path.join(REPO_ROOT, '/data/external_datasets/S461.csv'))
+        s461 = pd.read_csv(os.path.join(REPO_ROOT, 'data/external_datasets/S461.csv'))
         s461['uid2'] = s461['PDB'] + '_' + s461['MUT_D'].str[2:]
         s461 = s461.set_index('uid2')
         s461['ddG_I'] = -s461['ddG_D']
@@ -1465,13 +1470,13 @@ def main(args):
         db.set_index('uid').to_csv(os.path.join(args.output, 's461_mapped.csv'))
 
     if dataset_outname == 'k3822':
-        k2369 = pd.read_csv(os.path.join(REPO_ROOT, '/data/external_datasets/K2369.csv').set_index('uid'))
+        k2369 = pd.read_csv(os.path.join(REPO_ROOT, 'data/external_datasets/K2369.csv')).set_index('uid')
         db = db.loc[k2369.index]
         assert len(db) == 2369
         db.to_csv(os.path.join(args.output, 'k2369_mapped.csv'))
 
     if dataset_outname == 'ptmul_filtered':
-        ptmuld = pd.read_csv(os.path.join(REPO_ROOT, '/data/external_datasets/PTMUL-D.csv'))
+        ptmuld = pd.read_csv(os.path.join(REPO_ROOT, 'data/external_datasets/PTMUL-D.csv'))
         ptmuld = ptmuld.rename({'PDB': 'pdb_id', 'SEQ': 'wt_seq_trunc'}, axis=1)
         ptmuld = ptmuld.merge(db[['pdb_id', 'wt_seq_trunc', 'orig_to_new', 'wt_seq']].drop_duplicates(), on=['pdb_id', 'wt_seq_trunc'], how='left')
         print(ptmuld)
@@ -1505,7 +1510,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str)
-    parser.add_argument('--output', type=str, default='../data/preprocessed/')
+    parser.add_argument('--output', type=str, default=str(REPO_ROOT / 'data/preprocessed'))
     parser.add_argument('--modlib_dir', type=str, default='/usr/lib/modeller10.4/modlib/')
     parser.add_argument('--modeller_dir', type=str, default='/usr/lib/modeller10.4/lib/x86_64-intel8/python3.3/')
     args = parser.parse_args()

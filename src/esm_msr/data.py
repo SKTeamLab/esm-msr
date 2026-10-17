@@ -20,6 +20,18 @@ from esm.utils.constants import esm3 as C
 from esm_msr import censoring
 from esm_msr.utils import custom_end_gap_alignment, determine_diffs
 
+STRUCTURES_DIR = os.environ.get(
+    'ESM_MSR_STRUCTURES_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'structures'))
+
+
+def resolve_structure_path(path: str) -> str:
+    """The benchmark tables record the absolute path of the machine that built them; fall back to the same file
+    name in the repo's data/structures (or $ESM_MSR_STRUCTURES_DIR) when that path does not exist here."""
+    if os.path.exists(path):
+        return path
+    local = os.path.join(STRUCTURES_DIR, os.path.basename(path))
+    return local if os.path.exists(local) else path
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -622,7 +634,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         for backbone, group in df.groupby('mut_structure'):
             if backbone.endswith('.pdb'):
                 chain = group['chain'].head(1).item()
-                wt_protein_chain = ProteinChain.from_pdb(backbone, chain, is_predicted=is_predicted)
+                wt_protein_chain = ProteinChain.from_pdb(resolve_structure_path(backbone), chain, is_predicted=is_predicted)
                 wt_canonical_seq = ''.join(list(wt_protein_chain.sequence))
                 
                 for uid, row in group.iterrows():
@@ -650,7 +662,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             code = base_code + chain if incl_chain_in_code else base_code
 
             protein_chain = ProteinChain.from_pdb(
-                group['pdb_file'].head(1).item() if not backbone.endswith('.pdb') else backbone, 
+                resolve_structure_path(group['pdb_file'].head(1).item() if not backbone.endswith('.pdb') else backbone),
                 chain, 
                 is_predicted=is_predicted
             )

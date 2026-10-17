@@ -328,12 +328,16 @@ class MegaScaleDatasetPreprocessor:
         self.df = _drop_all_bounded_libraries(self.df)
         self.df = _collapse_replicates(self.df)
 
+        # The Zenodo AlphaFold_model_PDBs name a file with ':' where the table's WT_name has '|' (EA|run2_0290_0001
+        # -> EA:run2_0290_0001.pdb), so the structure is looked up under its original name. Everything else (code,
+        # uid, cache names, split lists) uses '_' in place of '|'.
+        pdb_stem = self.df['code_wt'].str.replace('|', ':', regex=False)
         self.df['uid'] = self.df['uid'].str.replace('|', '_', regex=False)
         self.df['code'] = self.df['code'].str.replace('|', '_', regex=False)
         self.df['code_wt'] = self.df['code_wt'].str.replace('|', '_', regex=False)
 
         base_dir = os.path.join(self.af_model_folder, '')
-        self.df['pdb_file'] = base_dir + self.df['code_wt'] + '.pdb'
+        self.df['pdb_file'] = base_dir + pdb_stem + '.pdb'
 
         logging.info(f"Reduced to: {len(self.df)} entries after basic filtering")
 
@@ -373,12 +377,16 @@ class MegaScaleDatasetPreprocessor:
         self.df = _drop_all_bounded_libraries(self.df)
         self.df = _collapse_replicates(self.df)
 
+        # The Zenodo AlphaFold_model_PDBs name a file with ':' where the table's WT_name has '|' (EA|run2_0290_0001
+        # -> EA:run2_0290_0001.pdb), so the structure is looked up under its original name. Everything else (code,
+        # uid, cache names, split lists) uses '_' in place of '|'.
+        pdb_stem = self.df['code_wt'].str.replace('|', ':', regex=False)
         self.df['uid'] = self.df['uid'].str.replace('|', '_', regex=False)
         self.df['code'] = self.df['code'].str.replace('|', '_', regex=False)
         self.df['code_wt'] = self.df['code_wt'].str.replace('|', '_', regex=False)
 
         base_dir = os.path.join(self.af_model_folder, '')
-        self.df['pdb_file'] = base_dir + self.df['code_wt'] + '.pdb'
+        self.df['pdb_file'] = base_dir + pdb_stem + '.pdb'
 
         logging.info(f"Total size: {len(self.df)} according to SPURS preprocessing")
 
