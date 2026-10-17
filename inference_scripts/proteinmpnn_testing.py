@@ -463,7 +463,7 @@ def mpnn_decode_at(model, enc, S, vals, p):
 
 
 def score_unmasked_fast(model, mut_strings, X, S_wt, mask, residue_idx, chain_encoding_all, alphabet,
-                        max_tokens=32768, seed=0):
+                        max_tokens=32768, seed=0, n_samples=1, coord_noise=0.0):
     """calculate_unmasked_scores (N_background_orders=1) for every variant of one structure, without the redundant
     work of scoring them one at a time. Returns (score_wt, score_mut) as numpy arrays.
 
@@ -476,6 +476,12 @@ def score_unmasked_fast(model, mut_strings, X, S_wt, mask, residue_idx, chain_en
       - with that, a decoder row is identified by (p, the other mutations): the WT pass of every variant at p is one
         row, the MUT pass of a single mutant IS that row, and multi-mutants sharing a context share a row.
     Each unique row is one decoder pass on the cached encoder (mpnn_encode / mpnn_decode_at).
+
+    n_samples > 1 averages the scores over that many samples, each with its own background orders and, if
+    coord_noise > 0, its own copy of the structure with N(0, coord_noise) A added to every backbone atom (the
+    augmentation ProteinMPNN was trained with; v_48_020 used 0.20 A). A sample is shared by every variant, in
+    both passes. Also returns the per-sample (score_wt, score_mut), [n_samples, n_variants] each. Sample 0 with
+    coord_noise=0 is the single-sample result for the same seed.
     """
     device = X.device
     L = S_wt.shape[1]
@@ -500,34 +506,40 @@ def score_unmasked_fast(model, mut_strings, X, S_wt, mask, residue_idx, chain_en
             terms.append((r, 0, k_wt, wi, mi)); terms.append((r, 1, k_mut, wi, mi))
 
     gen = torch.Generator(device=device).manual_seed(seed)
-    noise = torch.randn((L, L), generator=gen, device=device)   # row p: background order for target position p
-    enc = mpnn_encode(model, X, mask, residue_idx, chain_encoding_all)
-    B = max(1, max_tokens // L)
-    lp = torch.empty((len(keys), 21), dtype=torch.float32)
-    for i in range(0, len(keys), B):
-        chunk = keys[i:i + B]
-        n = len(chunk)
-        p_t = torch.tensor([k[0] for k in chunk], device=device)
-        vals = noise[p_t].clone()
-        vals[torch.arange(n, device=device), p_t] = 1000.0   # target forced to end
-        S_chunk = wt_seq.unsqueeze(0).repeat(n, 1)
-        sub = [(b, q, mq) for b, k in enumerate(chunk) for q, mq in k[1]]
-        if sub:
-            b_i, q_i, m_i = (torch.tensor(x, device=device) for x in zip(*sub))
-            S_chunk[b_i, q_i] = m_i
-        lp[i:i + n] = mpnn_decode_at(model, enc, S_chunk, vals, p_t).float().cpu()
-
     t = np.array(terms, dtype=np.int64).reshape(-1, 5)
-    lp = lp.numpy().astype(np.float64)
-    delta = lp[t[:, 2], t[:, 4]] - lp[t[:, 2], t[:, 3]]
-    score = np.zeros((len(parsed), 2))
-    np.add.at(score, (t[:, 0], t[:, 1]), delta)
-    print(f"  {len(parsed)} variants -> {len(keys)} decoder rows (L={L}, batch {B})", flush=True)
-    return score[:, 0], score[:, 1]
+    B = max(1, max_tokens // L)
+    scores = np.zeros((n_samples, len(parsed), 2))
+    for s in range(n_samples):
+        noise = torch.randn((L, L), generator=gen, device=device)   # row p: background order for target position p
+        X_s = X + coord_noise * torch.randn(X.shape, generator=gen, device=device) if coord_noise > 0 else X
+        enc = mpnn_encode(model, X_s, mask, residue_idx, chain_encoding_all)
+        lp = torch.empty((len(keys), 21), dtype=torch.float32)
+        for i in range(0, len(keys), B):
+            chunk = keys[i:i + B]
+            n = len(chunk)
+            p_t = torch.tensor([k[0] for k in chunk], device=device)
+            vals = noise[p_t].clone()
+            vals[torch.arange(n, device=device), p_t] = 1000.0   # target forced to end
+            S_chunk = wt_seq.unsqueeze(0).repeat(n, 1)
+            sub = [(b, q, mq) for b, k in enumerate(chunk) for q, mq in k[1]]
+            if sub:
+                b_i, q_i, m_i = (torch.tensor(x, device=device) for x in zip(*sub))
+                S_chunk[b_i, q_i] = m_i
+            lp[i:i + n] = mpnn_decode_at(model, enc, S_chunk, vals, p_t).float().cpu()
+        lp = lp.numpy().astype(np.float64)
+        delta = lp[t[:, 2], t[:, 4]] - lp[t[:, 2], t[:, 3]]
+        np.add.at(scores[s], (t[:, 0], t[:, 1]), delta)
+    print(f"  {len(parsed)} variants -> {len(keys)} decoder rows x {n_samples} sample(s) (L={L}, batch {B})", flush=True)
+    score = scores.mean(0)
+    if n_samples == 1 and coord_noise == 0:
+        return score[:, 0], score[:, 1]
+    return score[:, 0], score[:, 1], scores[:, :, 0], scores[:, :, 1]
 
 
-def make_pgym_score_fn(model, max_tokens, seed=0):
-    """score_fn for pgym_runner: ProteinMPNN unmasked WT/MUT scores of one ProteinGym DMS (columns as in predict)."""
+def make_pgym_score_fn(model, max_tokens, seed=0, n_samples=1, coord_noise=0.0):
+    """score_fn for pgym_runner: ProteinMPNN unmasked WT/MUT scores of one ProteinGym DMS (columns as in predict),
+    averaged over n_samples (orders, plus backbone noise if coord_noise > 0; see score_unmasked_fast), with each
+    sample's mpnn_score as mpnn_score_s<k>."""
     device = next(model.parameters()).device
     alphabet = 'ACDEFGHIKLMNPQRSTVWYX'
 
@@ -538,9 +550,9 @@ def make_pgym_score_fn(model, max_tokens, seed=0):
         tokens = max_tokens
         while True:
             try:
-                score_wt, score_mut = score_unmasked_fast(model, df['mut_type_renumbered'].tolist(), X, S, mask,
-                                                          residue_idx, chain_encoding_all, alphabet,
-                                                          max_tokens=tokens, seed=seed)
+                res = score_unmasked_fast(model, df['mut_type_renumbered'].tolist(), X, S, mask,
+                                          residue_idx, chain_encoding_all, alphabet,
+                                          max_tokens=tokens, seed=seed, n_samples=n_samples, coord_noise=coord_noise)
                 break
             except torch.cuda.OutOfMemoryError:
                 torch.cuda.empty_cache()
@@ -548,10 +560,14 @@ def make_pgym_score_fn(model, max_tokens, seed=0):
                     raise
                 tokens //= 2
                 print(f"OOM; retrying {df['code'].iloc[0]} with max_tokens={tokens}", flush=True)
+        score_wt, score_mut = res[:2]
         out = pd.DataFrame({'mpnn_score_wt_seq': score_wt, 'mpnn_score_mut_seq': score_mut})
         out['mpnn_score_additive'] = score_wt
         out['mpnn_score'] = 0.5 * (score_wt + score_mut)
         out['mpnn_score_epistasis'] = out['mpnn_score'] - score_wt
+        if len(res) == 4:
+            for k, (w, m) in enumerate(zip(res[2], res[3])):
+                out[f'mpnn_score_s{k}'] = 0.5 * (w + m)
         out['runtime'] = (time.time() - t0) / len(df)
         torch.cuda.empty_cache()
         return out
@@ -645,8 +661,10 @@ def main_(args):
         import pgym_runner
         pgym_runner.run_protein_gym(
             args.pgym_dir, args.pgym_out or (Path(args.pgym_dir).resolve().parent / 'pgym_results' / 'proteinmpnn_020_unmasked'),
-            make_pgym_score_fn(model, args.pgym_max_tokens, args.pgym_seed), pred_col='mpnn_score',
-            dms=args.pgym_dms, tag=f'proteinmpnn {model_name} unmasked seed={args.pgym_seed}', extra_cols=('mpnn_score_wt_seq',))
+            make_pgym_score_fn(model, args.pgym_max_tokens, args.pgym_seed, args.pgym_n_samples, args.pgym_coord_noise),
+            pred_col='mpnn_score', dms=args.pgym_dms,
+            tag=f'proteinmpnn {model_name} unmasked seed={args.pgym_seed} n_samples={args.pgym_n_samples} '
+                f'coord_noise={args.pgym_coord_noise}', extra_cols=('mpnn_score_wt_seq',))
         return
 
     if not args.skip_external:
@@ -927,6 +945,8 @@ if __name__ == "__main__":
         parser.add_argument('--pgym_dms', type=str, default='all', help="Comma-separated DMS ids, or 'all'")
         parser.add_argument('--pgym_max_tokens', type=int, default=32768, help='Residues per forward batch (batch size = this // length; halved on OOM)')
         parser.add_argument('--pgym_seed', type=int, default=0, help='Seed for the background decoding orders')
+        parser.add_argument('--pgym_n_samples', type=int, default=1, help='Average scores over this many samples, each with its own background orders (and noisy structure, see --pgym_coord_noise)')
+        parser.add_argument('--pgym_coord_noise', type=float, default=0.0, help='Std (A) of Gaussian noise added to every backbone atom, a fresh draw per sample (0.2 = v_48_020 training noise)')
 
         # Parse known args for main parser
         args, remaining_argv = parser.parse_known_args()
