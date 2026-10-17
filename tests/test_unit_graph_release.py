@@ -64,7 +64,7 @@ def _stub(**hp):
                 double_weight=1.0, cond_weight=1.0, native_cond_weight=1.0,
                 wt_double_target='latent', mt_reg_mask='all', detach_ensemble_input=True,
                 detach_regression=False, mask_strategy=None,
-                lambda_reg_wt=0.0, lambda_rank_wt=0.0, lambda_reg_combined=1.0, lambda_rank_combined=0.0)
+                lambda_reg_wt=0.0, lambda_rank_wt=0.0, lambda_reg_mt=1.0, lambda_rank_mt=0.0)
     base.update(hp)
     s = types.SimpleNamespace()
     s.hparams = _HP(base)
@@ -72,7 +72,7 @@ def _stub(**hp):
     s.link_head = None
     s.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
     s.crit_reg = torch.nn.MSELoss(reduction='none')
-    s.crit_rank_wt = s.crit_rank_combined = ListMLELoss()
+    s.crit_rank_wt = s.crit_rank_mt = ListMLELoss()
     s.manual_backward = lambda loss, retain_graph=False: loss.backward(retain_graph=retain_graph)
     for name in ('_compute_rank_loss', '_reg_loss'):
         setattr(s, name, types.MethodType(getattr(M, name), s))

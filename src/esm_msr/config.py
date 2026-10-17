@@ -86,9 +86,15 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--reg_loss', type=str, default='mse', choices=['mse', 'huber'])
     loss_group.add_argument('--huber_delta', type=float, default=1.0)
     loss_group.add_argument('--lambda_rank_wt', type=float, default=0.0)
-    loss_group.add_argument('--lambda_rank_combined', type=float, default=0.0)
+    loss_group.add_argument('--lambda_rank_mt', '--lambda_rank_combined', dest='lambda_rank_mt', type=float, default=0.0,
+                            help="Weight of the MT path's rank loss. Named --lambda_rank_combined until the joint "
+                                 "path was retired: it is scored through the combined prediction, but it now trains "
+                                 "the MT path only. The old name is still accepted.")
     loss_group.add_argument('--lambda_reg_wt', type=float, default=0.0)
-    loss_group.add_argument('--lambda_reg_combined', type=float, default=0.0)
+    loss_group.add_argument('--lambda_reg_mt', '--lambda_reg_combined', dest='lambda_reg_mt', type=float, default=0.0,
+                            help="Weight of the MT path's regression. Named --lambda_reg_combined until the joint "
+                                 "path was retired: it is scored through the combined prediction, but it now trains "
+                                 "the MT path only. The old name is still accepted.")
     loss_group.add_argument('--mt_reg_mask', type=str, default='all', choices=['all', 'doubles'])
     loss_group.add_argument('--combined_mode', type=str, default='mean', choices=['mean', 'sum', 'route'],
                             help="How the WT and MT heads form the reported prediction. 'mean' is 0.5/0.5 "
@@ -106,7 +112,12 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--residual_lr_mult', type=float, default=0.1)
     loss_group.add_argument('--grad_clip_norm', type=float, default=0.0,
                             help="Clip the gradient norm to this before each step; 0 disables clipping.")
-    loss_group.add_argument('--detach_ensemble_input', action=argparse.BooleanOptionalAction, default=False)
+    # RETIRED, and now always on. It is still ACCEPTED, so the launch scripts and docs that pass it keep working;
+    # passing --no-detach_ensemble_input is an ERROR rather than a silent no-op, because that value used to train a
+    # different model. See the error message below for why the joint path went.
+    loss_group.add_argument('--detach_ensemble_input', action=argparse.BooleanOptionalAction, default=True,
+                            help="Retired and always on: the WT half of the combined prediction is always detached, "
+                                 "so the MT regression and rank terms train the MT path only.")
     loss_group.add_argument('--detach_regression', action=argparse.BooleanOptionalAction, default=False)
 
     link_group = parser.add_argument_group("Observed-Scale Link (esm_msr.link)")
@@ -323,6 +334,18 @@ def parse_arguments() -> argparse.Namespace:
 
     if remaining_argv:
         parser.error(f"unrecognized arguments: {' '.join(remaining_argv)}")
+
+    if not args.detach_ensemble_input:
+        parser.error(
+            "--no-detach_ensemble_input is retired. It let the MT regression and rank terms backpropagate into the "
+            "WT adapter, which is why those weights are still named lambda_*_combined. In ensemble mode it could "
+            "never have helped: the WT half of the combined prediction is replaced by the measured additive label "
+            "wherever one exists (and singles always have one), so the attached path delivered gradient ONLY on "
+            "multi-mutants whose additive label was missing or whose singles were measured at the floor - a subset "
+            "selected for having the worst single measurements. It also set the WT head two targets that differ by "
+            "exactly the epistasis term: its own objective wants ddG_A + ddG_B, the combined objective wants "
+            "ddG_AB, and the WT pass can only reconcile them by distorting its per-position terms."
+        )
 
     if args.num_workers == -1:
         num_cpus = os.cpu_count()

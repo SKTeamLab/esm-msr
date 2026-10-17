@@ -69,7 +69,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.hparams.freeze_mt_adapter: self.peft_manager.freeze_mt_components()
 
         self.crit_rank_wt = ListMLELoss() if self.hparams.lambda_rank_wt > 0 else None
-        self.crit_rank_combined = ListMLELoss() if self.hparams.lambda_rank_combined > 0 else None
+        self.crit_rank_mt = ListMLELoss() if self.hparams.lambda_rank_mt > 0 else None
 
         if self.hparams.reg_loss == 'huber':
             self.crit_reg = nn.HuberLoss(reduction='none', delta=self.hparams.huber_delta)
@@ -407,7 +407,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 n_tf_drop += int(tf_saturated.sum().item())
                 has_add_label = has_add_label & ~tf_saturated
 
-            retain_wt = not self.hparams.detach_ensemble_input
+            # The WT half of the combined prediction is always detached (--no-detach_ensemble_input is retired),
+            # so the WT graph never has to survive its own backward. That also drops a retain_graph.
+            retain_wt = False
 
             # =============================================================
             # PHASE 1: WILD-TYPE PASS
@@ -450,16 +452,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if not total_wt.requires_grad: raise AssertionError("WT Loss detached from PyTorch Graph! Cannot call backward.")
                 self.manual_backward(total_wt, retain_graph=retain_wt)
                     
-            if not self.peft_manager.mt_path_is_frozen and (self.hparams.lambda_rank_combined > 0 or self.hparams.lambda_reg_combined > 0):
+            if not self.peft_manager.mt_path_is_frozen and (self.hparams.lambda_rank_mt > 0 or self.hparams.lambda_reg_mt > 0):
                 # =============================================================
                 # PHASE 2: MUTANT & COMBINED PASS
                 # =============================================================
                 mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=self.hparams.mask_strategy, detach_calibration=self.hparams.detach_regression)
                 mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
                 
-                detach_ens = getattr(self.hparams, 'detach_ensemble_input', True)
-                base_wt_cal = wt_pred_cal.detach() if detach_ens else wt_pred_cal
-                base_wt_raw = wt_pred_raw.detach() if detach_ens else wt_pred_raw
+                base_wt_cal, base_wt_raw = wt_pred_cal.detach(), wt_pred_raw.detach()
 
                 # Teacher forcing override for ENSEMBLE mode
                 if self.model.lora_mode == 'ensemble':
@@ -499,7 +499,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 mt_losses = []
 
                 # Mut pass strictly relies on combined losses
-                if self.hparams.lambda_reg_combined > 0:
+                if self.hparams.lambda_reg_mt > 0:
                     if link is not None:
                         p_comb = link.obs_ddG(combined_pred_cal, dGwt_mb, floor_mb)
                         reg_c_mask = reg_mask & link_ok
@@ -507,14 +507,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         p_comb, reg_c_mask = combined_pred_cal, reg_mask
                     if reg_c_mask.any():
                         term, val, wsum = self._reg_loss(p_comb, ddG_mb, bound_mb, cens_mb, reg_c_mask, w_mb, global_w_sum)
-                        mt_losses.append(self.hparams.lambda_reg_combined * term)
+                        mt_losses.append(self.hparams.lambda_reg_mt * term)
                         sums['reg_combined'] += val; cnts['reg_combined'] += wsum
 
-                if self.hparams.lambda_rank_combined > 0 and self.crit_rank_combined is not None:
+                if self.hparams.lambda_rank_mt > 0 and self.crit_rank_mt is not None:
                     L_rank, val, n_list = self._compute_rank_loss(combined_pred_raw, ddG_mb, reg_mask, cens_mb,
-                                                                  list_size, self.crit_rank_combined)
+                                                                  list_size, self.crit_rank_mt)
                     if L_rank is not None:
-                        mt_losses.append(self.hparams.lambda_rank_combined * L_rank * (n_list / global_num_lists))
+                        mt_losses.append(self.hparams.lambda_rank_mt * L_rank * (n_list / global_num_lists))
                         sums['rank_combined'] += val * n_list; cnts['rank_combined'] += n_list
 
                 if mt_losses:
