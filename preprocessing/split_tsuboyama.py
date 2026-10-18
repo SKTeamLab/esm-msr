@@ -23,7 +23,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio import Align
 
 from esm.utils.structure.protein_chain import ProteinChain
-from esm_msr.preprocessing import MegaScaleDatasetPreprocessor
+from esm_msr.preprocess_megascale import MegaScaleDatasetPreprocessor
 import subprocess
 
 

@@ -30,3 +30,9 @@ data/*.list
 data/*.txt
 data/*.csv
 data/*.json
+
+# Cluster environments, job logs, and downloaded data
+venv_*/
+msr_venv/
+logs/
+data/tsuboyama/

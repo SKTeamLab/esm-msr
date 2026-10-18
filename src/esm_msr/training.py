@@ -1224,6 +1224,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.peft_manager.freeze_mt_components()
 
 
+class OfflineCometLogger(CometLogger):
+    """CometLogger whose experiment is written to disk (COMET_OFFLINE_DIRECTORY) for `comet upload` later.
+
+    Lightning's own ``online=False`` is not that: it sets ``disabled=True`` and the logger silently discards everything.
+    """
+    def _create_experiment(self) -> None:
+        import comet_ml
+        self._experiment = comet_ml.start(api_key=self._api_key, workspace=self._workspace, project=self._project_name,
+                                          online=False, experiment_config=comet_ml.ExperimentConfig(**self._kwargs))
+        self._experiment_key = self._experiment.get_key()
+        self._project_name = self._experiment.project_name
+
+
 def format_validation_results(results) -> str:
     """
     The metrics of one validation, once, from ``trainer.validate``'s per-dataloader list of logged dicts.
@@ -1309,7 +1322,12 @@ def main():
             # Comet has no notion of resuming on its own: without this a resumed run opens a SECOND
             # experiment, and the run's curves end up split across two of them.
             comet_kwargs.update(experiment_key=args.comet_experiment_key, mode='get_or_create')
-        loggers.append(CometLogger(**comet_kwargs))
+        if args.comet_offline:
+            os.environ['COMET_OFFLINE_DIRECTORY'] = os.path.abspath(os.path.join(args.log_dir or '.', 'comet_offline'))
+            comet_logger = OfflineCometLogger(**comet_kwargs)
+        else:
+            comet_logger = CometLogger(**comet_kwargs)
+        loggers.append(comet_logger)
 
     os.makedirs(checkpoint_dir, exist_ok=True)
     callbacks = [
@@ -1347,6 +1365,8 @@ def main():
     if ckpt:
         logging.info(f"Resuming from {ckpt}")
     trainer.fit(lightning_model, train_dataloaders=train_loaders, val_dataloaders=val_loaders, ckpt_path=ckpt)
+    if args.comet_offline and args.comet_api_key and trainer.is_global_zero:
+        comet_logger.experiment.end()  # writes the archive to upload with `comet upload`
 
 if __name__ == "__main__":
     main()

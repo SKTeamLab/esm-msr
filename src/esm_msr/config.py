@@ -59,11 +59,11 @@ def parse_arguments() -> argparse.Namespace:
     arch_group.add_argument('--adapter_mode', type=str, default='dual', choices=['dual', 'fused'])
 
     lora_group_mt = parser.add_argument_group("MT LoRA Configuration")
-    lora_group_mt.add_argument('--lora_rank_mt', type=int, default=6)
-    lora_group_mt.add_argument('--lora_alpha_mt', type=int, default=12)
+    lora_group_mt.add_argument('--lora_rank_mt', type=int, default=16)
+    lora_group_mt.add_argument('--lora_alpha_mt', type=int, default=16)
     lora_group_mt.add_argument('--lora_dropout_mt', type=float, default=0.15)
     lora_group_mt.add_argument('--incl_structure_encoder_mt', action=argparse.BooleanOptionalAction, default=False)
-    lora_group_mt.add_argument('--incl_sequence_head_mt', action=argparse.BooleanOptionalAction, default=False)
+    lora_group_mt.add_argument('--incl_sequence_head_mt', action=argparse.BooleanOptionalAction, default=True)
     lora_group_mt.add_argument('--last_n_layers_mt', type=int, default=0)
     lora_group_mt.add_argument('--target_mode_mt', type=str, default='expanded')
     lora_group_mt.add_argument('--unfreeze_layernorms_mt', action=argparse.BooleanOptionalAction, default=False)
@@ -71,11 +71,11 @@ def parse_arguments() -> argparse.Namespace:
     lora_group_mt.add_argument('--lora_mode', type=str, default='ensemble', choices=['ensemble', 'corrector'])
 
     lora_group_wt = parser.add_argument_group("WT LoRA Configuration")
-    lora_group_wt.add_argument('--lora_rank_wt', type=int, default=6)
-    lora_group_wt.add_argument('--lora_alpha_wt', type=int, default=12)
+    lora_group_wt.add_argument('--lora_rank_wt', type=int, default=2)
+    lora_group_wt.add_argument('--lora_alpha_wt', type=int, default=4)
     lora_group_wt.add_argument('--lora_dropout_wt', type=float, default=0.15)
     lora_group_wt.add_argument('--incl_structure_encoder_wt', action=argparse.BooleanOptionalAction, default=False)
-    lora_group_wt.add_argument('--incl_sequence_head_wt', action=argparse.BooleanOptionalAction, default=False)
+    lora_group_wt.add_argument('--incl_sequence_head_wt', action=argparse.BooleanOptionalAction, default=True)
     lora_group_wt.add_argument('--last_n_layers_wt', type=int, default=0)
     lora_group_wt.add_argument('--target_mode_wt', type=str, default='expanded')
     lora_group_wt.add_argument('--unfreeze_layernorms_wt', action=argparse.BooleanOptionalAction, default=False)
@@ -85,13 +85,13 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--rank_loss', type=str, default='listmle', choices=['listmle'])
     loss_group.add_argument('--reg_loss', type=str, default='mse', choices=['mse', 'huber'])
     loss_group.add_argument('--huber_delta', type=float, default=1.0)
-    loss_group.add_argument('--lambda_rank_wt', type=float, default=0.0)
-    loss_group.add_argument('--lambda_rank_mt', '--lambda_rank_combined', dest='lambda_rank_mt', type=float, default=0.0,
+    loss_group.add_argument('--lambda_rank_wt', type=float, default=1.0)
+    loss_group.add_argument('--lambda_rank_mt', '--lambda_rank_combined', dest='lambda_rank_mt', type=float, default=1.0,
                             help="Weight of the MT path's rank loss. Named --lambda_rank_combined until the joint "
                                  "path was retired: it is scored through the combined prediction, but it now trains "
                                  "the MT path only. The old name is still accepted.")
-    loss_group.add_argument('--lambda_reg_wt', type=float, default=0.0)
-    loss_group.add_argument('--lambda_reg_mt', '--lambda_reg_combined', dest='lambda_reg_mt', type=float, default=0.0,
+    loss_group.add_argument('--lambda_reg_wt', type=float, default=1.0)
+    loss_group.add_argument('--lambda_reg_mt', '--lambda_reg_combined', dest='lambda_reg_mt', type=float, default=1.0,
                             help="Weight of the MT path's regression. Named --lambda_reg_combined until the joint "
                                  "path was retired: it is scored through the combined prediction, but it now trains "
                                  "the MT path only. The old name is still accepted.")
@@ -149,7 +149,7 @@ def parse_arguments() -> argparse.Namespace:
     link_group.add_argument('--link_ceiling', type=float, default=None,
                             help="Add a second soft clamp at this dG (kcal/mol), the top of the assay's reported "
                                  "range; 5.0 matches the '>5' tag. Omitted, the link is floor-only.")
-    link_group.add_argument('--learn_link_ceiling', action=argparse.BooleanOptionalAction, default=True,
+    link_group.add_argument('--learn_link_ceiling', action=argparse.BooleanOptionalAction, default=False,
                             help="Let --link_ceiling move. It is parameterised as a positive span above "
                                  "--link_floor_max, so it can never cross a library's floor.")
     link_group.add_argument('--link_tau_hi', type=float, default=None,
@@ -171,7 +171,7 @@ def parse_arguments() -> argparse.Namespace:
 
     calibration_group = parser.add_argument_group("Calibration Configuration")
     calibration_group.add_argument('--shared_scale_init', type=float, default=0.3)
-    calibration_group.add_argument('--shared_bias_init', type=float, default=None)
+    calibration_group.add_argument('--shared_bias_init', type=float, default=0.0)
 
     rank_group = parser.add_argument_group("ListMLE Objective Configuration")
     rank_group.add_argument('--subset_size', type=int, default=16)
@@ -327,6 +327,10 @@ def parse_arguments() -> argparse.Namespace:
     log_group.add_argument('--log_dir', type=str, default='./logs')
     log_group.add_argument('--comet_api_key', type=str, default=None)
     log_group.add_argument('--comet_project_name', type=str, default="esm-msr-april2026")
+    log_group.add_argument('--comet_offline', action='store_true',
+                           help="Write the Comet experiment to <log_dir>/comet_offline instead of uploading it: for nodes "
+                                "without internet (Alliance compute nodes). Upload afterwards from a node that has it: "
+                                "COMET_API_KEY=... comet upload <log_dir>/comet_offline/*.zip")
     log_group.add_argument('--log_every_n_steps', type=int, default=25)
     log_group.add_argument('--check_val_every_n_epoch', type=int, default=1)
     log_group.add_argument('--num_sanity_val_steps', type=int, default=0)
