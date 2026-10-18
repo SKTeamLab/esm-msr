@@ -537,6 +537,7 @@ class MegaScaleDatasetPreprocessor:
         incl_cond: bool = True,
         incl_native_cond: bool = True,
         censor_floor: bool = True,
+        assay_floor: Optional[float] = None,
         gap_max=2.0,
         native_cond_as_single: bool = False,
         censor_range: bool = True,
@@ -575,6 +576,7 @@ class MegaScaleDatasetPreprocessor:
                     dG_wt=self.dG_wt.get(code),
                     floor_stats=self.floors.get(code),
                     censor_floor=censor_floor,
+                    assay_floor=assay_floor,
                     gap_max=gap_max,
                     native_cond_as_single=native_cond_as_single,
                     censor_range=censor_range,
@@ -646,6 +648,9 @@ def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encod
                     incl_cond=False,
                     incl_native_cond=False,
                     censor_floor=False,
+                    # The knee still has to match the training run even where nothing is censored: the link
+                    # reads y_floor on every item it scores.
+                    assay_floor=assay_floor,
                 )
                 
                 if len(dataset) == 0: continue
@@ -691,6 +696,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         incl_cond=args.incl_cond,
         incl_native_cond=args.incl_native_cond,
         censor_floor=args.censor_floor,
+        assay_floor=args.assay_floor,
         gap_max=args.censor_gap_max if args.censor_gap else None,
         native_cond_as_single=args.native_cond_as_single,
         censor_range=args.censor_range,
@@ -711,6 +717,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         incl_cond=False,
         incl_native_cond=True,
         censor_floor=args.censor_floor,
+        assay_floor=args.assay_floor,
         gap_max=args.censor_gap_max if args.censor_gap else None,
         native_cond_as_single=args.native_cond_as_single,
         censor_range=args.censor_range,

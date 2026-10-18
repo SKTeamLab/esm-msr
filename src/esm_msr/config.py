@@ -299,6 +299,15 @@ def parse_arguments() -> argparse.Namespace:
                              help="Treat an item measured at or below its library's floor as a bound rather than a "
                                   "value: regression becomes one-sided and the item's rank is tied at the bottom. "
                                   "Only applies to libraries that show evidence of a floor.")
+    floor_group.add_argument('--assay_floor', type=float, default=None,
+                             help="Override every library's floor with this one value, for the link AND for "
+                                  "censoring (both read item['y_floor']), and assert floor evidence so it "
+                                  "reaches the 364 of 411 libraries that have none of their own. Unset, each "
+                                  "library uses its own estimate from data.floor_evidence and the rest carry NaN. "
+                                  "0.0 is the physical choice - dG = 0 is the unfolded state - and costs the "
+                                  "per-library estimates, which are mostly BELOW zero (47 with evidence: median "
+                                  "-0.136, min -0.641, 68 percent negative), so it censors about 5 percent more "
+                                  "of the training set. Must sit inside [--link_floor_min, --link_floor_max].")
     floor_group.add_argument('--censor_gap', action=argparse.BooleanOptionalAction, default=True,
                              help="Also censor an item whose two proteases disagree about its stability by more "
                                   "than --censor_gap_max, bounded by its own reported value. Needs no doubles and "

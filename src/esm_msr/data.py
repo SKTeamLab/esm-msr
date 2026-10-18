@@ -254,6 +254,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         dG_wt: Optional[float] = None,
         floor_stats: Optional[Dict[str, float]] = None,
         censor_floor: bool = True,
+        assay_floor: Optional[float] = None,
         gap_max: Optional[float] = 2.0,
         native_cond_as_single: bool = False,
         censor_range: bool = True,
@@ -354,6 +355,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         if not native_cond_as_single:
             self._label_native_cond()
         self._filter_dataset()
+        self.assay_floor = assay_floor
         self._stamp_floor()
         self._apply_censoring(censor_floor, gap_max)
         self._extract_scalars()
@@ -426,6 +428,20 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         variant's stability, so a large gap says they do not jointly identify one (``esm_msr.censoring``). It is
         derived here rather than cached in its own right because ``meas`` already carries both channels.
         """
+        override = getattr(self, 'assay_floor', None)
+        if override is not None:
+            # --assay_floor: ONE knee for every library, asserted rather than measured, and the only floor the run
+            # uses - for the link and for censoring alike, since both read item['y_floor']. Evidence is forced
+            # True so censoring reaches the 364 of 411 libraries that have none of their own; without that the
+            # knee would move while the censored population stayed put, which is the inconsistent half-state.
+            # The link's [floor_min, floor_max] clip still applies, so the value has to sit inside that band.
+            self.has_floor_evidence = True
+            self.y_floor_used = float(override)
+            for item in self.data:
+                item['y_floor'] = float(override)
+                t, c = meas_value(item, 'deltaG_t'), meas_value(item, 'deltaG_c')
+                item['protease_gap'] = abs(t - c) if np.isfinite(t) and np.isfinite(c) else float('nan')
+            return
         self.has_floor_evidence = bool(self.floor_stats.get('evidence', 0.0))
         # The invariant, enforced here rather than trusted from upstream: an item carries a floor only if its
         # library actually showed one. Otherwise it carries NaN and the link's learned global_floor covers it. If
