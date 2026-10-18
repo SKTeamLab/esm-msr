@@ -110,7 +110,7 @@ def test_the_metric_name_is_configurable():
     assert s._mt_decays >= 1
 
 
-def test_defaults_leave_it_off():
+def test_defaults_turn_it_on_with_patience_one():
     from esm_msr import config
     import sys
     argv = sys.argv
@@ -119,7 +119,7 @@ def test_defaults_leave_it_off():
         a = config.parse_arguments()
     finally:
         sys.argv = argv
-    assert a.mt_plateau_patience == 0
+    assert a.mt_plateau_patience == 1
     assert a.mt_convergence_metric == 'epi_beyond_rho_mt'
     assert a.mt_plateau_factor == 0.3        # gentler than the WT path's 0.1, because this metric is noisy
 
