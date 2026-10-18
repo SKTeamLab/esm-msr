@@ -806,6 +806,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
             subset_caps=args.subset_caps,
             num_workers=args.num_workers,
             rng_seed=args.seed,
+            double_batch_frac=getattr(args, 'double_batch_frac', 0.0),
         )
 
         train_dataloaders_final = [consolidated_loader]

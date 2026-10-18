@@ -117,6 +117,13 @@ def parse_arguments() -> argparse.Namespace:
                                  "with everything else equal, about ten times the 0.0005 between-seed SD, and "
                                  "under --wt_double_target latent a double's WT target was ddG_A + ddG_B anyway, "
                                  "a sum of two single measurements the head also sees on their own.")
+    loss_group.add_argument('--double_batch_frac', type=float, default=0.0,
+                            help="Pack at least this fraction of each batch with MULTI-MUTANTS where the library has any (0 = off, "
+                                 "the shuffled packing). A batch is one library and only multi-mutants carry a gradient for the MT "
+                                 "path, so the default spreads the MT signal as thinly as possible - and the median training library "
+                                 "has no doubles at all, so most batches train the MT head on nothing. This regroups the SAME items: "
+                                 "every item is still used exactly once per epoch in the same proportions, so it changes the MT "
+                                 "gradient per step without touching the training distribution.")
     loss_group.add_argument('--double_weight', type=float, default=1.0)
     loss_group.add_argument('--cond_weight', type=float, default=0.5)
     loss_group.add_argument('--native_cond_weight', type=float, default=1.0)

@@ -1097,6 +1097,7 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         subset_caps: Optional[Dict[str, Optional[float]]] = None,
         rng_seed: Optional[int] = None,
         verbose: bool = True,
+        double_batch_frac: float = 0.0,
     ):
         if strategy not in ('min', 'all'):
             raise ValueError(f"strategy must be 'min' or 'all', got '{strategy}'")
@@ -1107,6 +1108,10 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         self.strategy = strategy
         self.verbose = verbose
         self._rng = random.Random(rng_seed)
+        self.double_batch_frac = float(double_batch_frac or 0.0)
+        if not 0.0 <= self.double_batch_frac <= 1.0:
+            raise ValueError(f"double_batch_frac must be in [0, 1], got {self.double_batch_frac}")
+        self._dbl_diag = (0, 0, 0)        # (batches holding >=1 multi-mutant, batches, multi-mutants placed)
         
         self.subset_caps: Dict[str, Optional[float]] = {
             'single': None, 'double': None, 'cond': 0.0, 'native_cond': 0.0
@@ -1151,9 +1156,51 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         # 3. Perform a dry-run to calculate exact batch sizes for the DataLoader __len__
         self.num_batches = self._calculate_epoch_batches(dry_run=True)
 
+    def _pack_doubles_first(self, flat_indices: List[int], double_set: set, offset: int) -> List[List[int]]:
+        """
+        The same items, regrouped so the multi-mutants are CONCENTRATED instead of spread thin
+        (``--double_batch_frac``).
+
+        A batch is one library, and a library's items are otherwise shuffled flat and chunked, so its doubles are
+        spread uniformly over its batches. Only multi-mutants carry a gradient for the MT path, so that spreads
+        the MT signal as thinly as it can go - and the median training library has no doubles at all, so most
+        batches train the MT head on nothing. Concentrating them puts a usable number of doubles in each batch
+        that has any.
+
+        What this does NOT change: every item is still used exactly once per epoch, in the same proportions, so
+        the training distribution is untouched and this is a packing ablation rather than a reweighting. Batches
+        are filled to ``batch_size`` with singles; once the doubles run out the remaining singles batch up as
+        before. The caller drops any undersized tail, as it always did.
+        """
+        want = max(1, int(math.ceil(self.batch_size * self.double_batch_frac)))
+        doubles = [i for i in flat_indices if i in double_set]
+        singles = [i for i in flat_indices if i not in double_set]
+        batches, d, s_i = [], 0, 0
+        while d < len(doubles):
+            take_d = min(want, len(doubles) - d)
+            take_s = min(self.batch_size - take_d, len(singles) - s_i)
+            batch = doubles[d:d + take_d] + singles[s_i:s_i + take_s]
+            d += take_d
+            s_i += take_s
+            if len(batch) < self.batch_size:        # doubles left but no singles to pad with: fill with doubles
+                extra = min(self.batch_size - len(batch), len(doubles) - d)
+                batch += doubles[d:d + extra]
+                d += extra
+            self._rng.shuffle(batch)                # the model must not see position-in-batch as a label
+            batches.append(batch)
+        while s_i < len(singles):
+            batches.append(singles[s_i:s_i + self.batch_size])
+            s_i += self.batch_size
+        full = [b for b in batches if len(b) == self.batch_size]
+        self._dbl_diag = (self._dbl_diag[0] + sum(1 for b in full if any(i in double_set for i in b)),
+                          self._dbl_diag[1] + len(full),
+                          self._dbl_diag[2] + sum(1 for b in full for i in b if i in double_set))
+        return [[i + offset for i in b] for b in batches]
+
     def _calculate_epoch_batches(self, dry_run: bool = False) -> int:
         """Core logic to balance, shuffle, and chunk datasets."""
         self.all_batches = [] # List of dataset batch lists
+        self._dbl_diag = (0, 0, 0)
         
         for idx, ds in enumerate(self.datasets):
             protein_name = self.train_list[idx]
@@ -1182,13 +1229,16 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
                 
             self._rng.shuffle(flat_indices)
             offset = self.offsets[idx]
-            
-            # Create batches for this dataset
-            ds_batches = [
-                [i + offset for i in flat_indices[start:start + self.batch_size]]
-                for start in range(0, len(flat_indices), self.batch_size)
-            ]
-            
+
+            if self.double_batch_frac > 0.0:
+                ds_batches = self._pack_doubles_first(flat_indices, set(buckets.get('double', ())), offset)
+            else:
+                # Create batches for this dataset
+                ds_batches = [
+                    [i + offset for i in flat_indices[start:start + self.batch_size]]
+                    for start in range(0, len(flat_indices), self.batch_size)
+                ]
+
             # Filter out undersized batches based on PyTorch default behavior expectations
             ds_batches = [b for b in ds_batches if len(b) == self.batch_size] 
             self.all_batches.append(ds_batches)
@@ -1207,7 +1257,12 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
             
         if not dry_run:
             self._active_batches = final_batches
-            
+            if self.double_batch_frac > 0.0 and self.verbose:
+                with_d, n_b, n_d = self._dbl_diag
+                logging.info(f"--double_batch_frac {self.double_batch_frac}: {with_d} of {n_b} batches carry a "
+                             f"multi-mutant ({(with_d / max(n_b, 1)):.0%}), {n_d} multi-mutants placed, "
+                             f"{(n_d / max(with_d, 1)):.1f} per such batch.")
+
         return len(final_batches)
 
     def __iter__(self) -> Iterator[List[int]]:
@@ -1228,7 +1283,8 @@ def create_consolidated_dataloader(
     subset_caps: Optional[Dict[str, Optional[float]]] = None,
     num_workers: int = 4,
     pin_memory: bool = True,
-    rng_seed: Optional[int] = None
+    rng_seed: Optional[int] = None,
+    double_batch_frac: float = 0.0,
 ) -> DataLoader:
     """A DataLoader over every library's dataset at once, batched by ProteinCyclingBatchSampler so each batch
     holds one library (the homogeneous-microbatch assumption the model's collate relies on)."""
@@ -1244,6 +1300,7 @@ def create_consolidated_dataloader(
         # the capped subsets and the batch composition differed every run, runs were not reproducible, and two
         # configurations could not be paired on a seed.
         rng_seed=rng_seed,
+        double_batch_frac=double_batch_frac,
     )
     
     concat_dataset = ConcatDataset(datasets)
