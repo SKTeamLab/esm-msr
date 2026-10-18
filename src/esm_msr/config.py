@@ -230,16 +230,17 @@ def parse_arguments() -> argparse.Namespace:
                              help="Freeze the MT path after this many decays. 0 never freezes it.")
     train_group.add_argument('--wt_plateau_patience', type=int, default=0,
                              help="Epochs without improvement in --wt_convergence_metric before the WT path's own "
-                                  "learning rate is cut by --wt_plateau_factor. 0 disables it. The shared plateau "
-                                  "watches val_rho_combined_avg, which the MT path keeps improving long after the "
-                                  "WT head has stopped, so without this the WT adapter keeps taking full-rate "
-                                  "steps on a metric it is no longer improving.")
+                                  "learning rate is cut by --wt_plateau_factor. 0 disables it, and then nothing "
+                                  "decays the WT groups at all: the shared ReduceLROnPlateau that used to, on "
+                                  "val_rho_combined_avg, was removed as redundant once each head got its own "
+                                  "plateau. That metric kept improving long after the WT head had stopped, so the "
+                                  "WT adapter was taking full-rate steps on a metric it was no longer improving.")
     train_group.add_argument('--wt_plateau_factor', type=float, default=0.3,
                              help="Multiplier applied to the WT groups' lr on each decay. 0.3, matching "
                                   "--mt_plateau_factor: with a patience of 1 these metrics are noisy enough that a "
                                   "decay can fire on a wobble, and a gentler step keeps that from being terminal. "
                                   "The dc8 series and dc12 pin 0.1 explicitly and predate this, so they are "
-                                  "unaffected - a new arm should either drop the flag or pass 0.3.")
+                                  "unaffected; dc14 onward pass 0.3 on both heads.")
     train_group.add_argument('--wt_plateau_min_lr', type=float, default=1e-7)
     train_group.add_argument('--wt_freeze_after_decays', type=int, default=0,
                              help="Freeze the WT path after this many --wt_plateau_patience decays, which also "
