@@ -2,7 +2,7 @@ import logging
 import time
 import copy
 from collections import defaultdict
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, TYPE_CHECKING
 from tqdm import tqdm
 import re
 
@@ -13,6 +13,9 @@ import torch.nn.functional as F
 from esm.pretrained import ESM3_sm_open_v0
 from esm.utils.constants import esm3 as C
 from peft import LoraConfig, get_peft_model
+
+if TYPE_CHECKING:  # the annotation on score_screening_batch is a string, but it should still resolve
+    from esm_msr.auto_batch import AutoBatchSizer
 
 
 class ESM3PredictorBase(nn.Module):

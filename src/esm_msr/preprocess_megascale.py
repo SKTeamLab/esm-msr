@@ -622,8 +622,10 @@ def _log_floor_summary(scaffold: str, floors: List[Tuple[str, float, float, floa
     logging.info(msg)
 
 
-def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encoder: Any, cache_path: str, generate_cache: bool) -> Tuple[List[DataLoader], List[str]]:
-    """Loads static benchmark datasets."""
+def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encoder: Any, cache_path: str, generate_cache: bool,
+                            assay_floor: Optional[float] = None) -> Tuple[List[DataLoader], List[str]]:
+    """Loads static benchmark datasets. ``assay_floor`` has to reach them too: nothing here is censored, but the
+    link reads ``y_floor`` on every item it scores, so the knee must match the training run."""
     val_dataloaders = []
     val_loader_names = []
     benchmark_datasets = {'ptmuld': 'ptmuld_mapped.csv', 's461': 's461_mapped.csv', 'ssym': 'ssym_mapped.csv'}
@@ -726,7 +728,8 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
 
     # Add Benchmarks
     bench_loaders, bench_names = load_benchmark_datasets(
-        args.benchmark_data_path, tokenizer, struct_enc_arg, args.cache_path, args.regenerate_cache
+        args.benchmark_data_path, tokenizer, struct_enc_arg, args.cache_path, args.regenerate_cache,
+        assay_floor=args.assay_floor
     )
     
     if add_benchmarks_to_val:
