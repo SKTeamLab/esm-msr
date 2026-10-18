@@ -622,6 +622,52 @@ def _log_floor_summary(scaffold: str, floors: List[Tuple[str, float, float, floa
     logging.info(msg)
 
 
+EXT_SCORE_COLUMNS = ('ddG', 'ddG_ML', 'ddg', 'fitness')
+
+
+def load_external_doubles(paths, tokenizer: Any, structure_encoder: Any, cache_path: str, generate_cache: bool,
+                          assay_floor: Optional[float] = None) -> Tuple[List[DataLoader], List[str]]:
+    """``--ext_val_doubles``: each CSV as its own validation loader, named ``ext_<file stem>``.
+
+    These exist for the CELL level, which the Tsuboyama validation split barely supports - a couple of dozen
+    position pairs over nine libraries, which is why its seed SD is the size of every arm effect measured so far.
+    One external double-mutant assay can contribute hundreds of complete blocks. The score may be a fitness rather
+    than a ddG, so ``training`` logs only the rank-based levels for these loaders and keeps them out of the pooled
+    hierarchy entirely.
+    """
+    loaders, names = [], []
+    for path in paths or []:
+        if not os.path.exists(path):
+            logging.warning(f'--ext_val_doubles {path} could not be found! Skipping this loader.')
+            continue
+        try:
+            df = pd.read_csv(path, low_memory=False)
+            col = next((c for c in EXT_SCORE_COLUMNS if c in df.columns), None)
+            if col is None:
+                logging.warning(f"--ext_val_doubles {path}: no score column among {EXT_SCORE_COLUMNS}. Skipping.")
+                continue
+            if col != 'ddG':
+                df = df.rename(columns={col: 'ddG'})
+                logging.info(f"--ext_val_doubles {os.path.basename(path)}: column '{col}' read as the score "
+                             f"(rank-based metrics only).")
+            name = 'ext_' + os.path.splitext(os.path.basename(path))[0][:40]
+            dataset = MutationStabilityDataset(
+                dms_df=df, tokenizer=tokenizer, structure_encoder=structure_encoder,
+                dms_name=name, path=cache_path, score_name='ddG', generate=generate_cache, mut_structs_root='',
+                incl_destab_bb=False, incl_singles=True, incl_doubles=True, incl_cond=False, incl_native_cond=False,
+                censor_floor=False, assay_floor=assay_floor)
+            if len(dataset) == 0:
+                logging.warning(f'--ext_val_doubles {path}: dataset is empty. Skipping.')
+                continue
+            loaders.append(PooledDataLoader([DataLoader(dataset, batch_size=1, collate_fn=collate_fn_twopass,
+                                                        num_workers=0, shuffle=False, pin_memory=True)], batch_size=3))
+            names.append(name)
+            logging.info(f'Added external doubles validation dataset: {name} ({len(dataset)} items)')
+        except Exception as e:
+            logging.warning(f'Could not load --ext_val_doubles {path}: {e}', exc_info=True)
+    return loaders, names
+
+
 def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encoder: Any, cache_path: str, generate_cache: bool,
                             assay_floor: Optional[float] = None) -> Tuple[List[DataLoader], List[str]]:
     """Loads static benchmark datasets. ``assay_floor`` has to reach them too: nothing here is censored, but the
@@ -732,9 +778,18 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         assay_floor=args.assay_floor
     )
     
+    # --ext_val_doubles: external double-mutant assays, always scored (they exist to be validated against) and
+    # kept separate from the pooled hierarchy by their 'ext_' name prefix (see training._log_epistasis).
+    ext_loaders, ext_names = load_external_doubles(
+        getattr(args, 'ext_val_doubles', None), tokenizer, struct_enc_arg, args.cache_path, args.regenerate_cache,
+        assay_floor=args.assay_floor
+    )
+
     if add_benchmarks_to_val:
         val_dataloaders.extend(bench_loaders)
         val_loader_names.extend(bench_names)
+    val_dataloaders.extend(ext_loaders)
+    val_loader_names.extend(ext_names)
 
     if not val_dataloaders: 
         logging.warning("No validation dataloaders created.")

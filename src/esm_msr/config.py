@@ -266,6 +266,13 @@ def parse_arguments() -> argparse.Namespace:
     data_group = parser.add_argument_group("Data Handling")
     data_group.add_argument('--benchmark_data_path', type=str, default='./data/preprocessed/')
     data_group.add_argument('--raw_data_file', type=str, required=True)
+    data_group.add_argument('--ext_val_doubles', type=str, action='append', default=None,
+                            help="CSV of an EXTERNAL doubles assay to score as its own validation loader (repeatable). Its items are "
+                                 "kept OUT of the pooled epistasis hierarchy - a 60k-double assay would otherwise dominate it, and an "
+                                 "assay on another scale would corrupt the global curve - and are scored on their own as "
+                                 "val_extepi_<metric>_<head>/<loader>. Only the RANK-based levels are logged (cell_rank, cell_flipacc, "
+                                 "cell_sigsd), which no monotone relabelling of the score can change, so a fitness-scale assay is "
+                                 "admissible. Needs wt_seq, mut_seq, mut_type, code, chain, pdb_file and a score column.")
     data_group.add_argument('--af_model_folder', type=str, required=True)
     data_group.add_argument('--dataloading', type=str, default="cycle", choices=["pool", "cycle"])
     data_group.add_argument('--loader_strategy', type=str, default='all', choices=['equal', 'min', 'all'])

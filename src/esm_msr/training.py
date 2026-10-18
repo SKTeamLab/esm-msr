@@ -28,6 +28,10 @@ from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
 
+# --ext_val_doubles loaders carry this name prefix; they are scored on their own, never pooled (see
+# _log_epistasis and _log_ext_epistasis).
+EXT_PREFIX = 'ext_'
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 warnings.filterwarnings('ignore', category=UserWarning)
 torch.set_float32_matmul_precision('high') 
@@ -776,6 +780,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
     def on_validation_epoch_end(self):
         avg_metrics = defaultdict(list)
         pooled = defaultdict(list)
+        ext_pools = {}
 
         for dataloader_idx, valid_outputs in self.validation_step_outputs.items():
             name = (self.val_dataloader_names[dataloader_idx] if dataloader_idx < len(self.val_dataloader_names)
@@ -810,7 +815,17 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     avg_metrics[metric].append(float(val))
 
             # Pool for the global ranking and for the epistasis hierarchy, which needs every library at once.
+            # An --ext_val_doubles loader is NOT pooled: it is usually one library with tens of thousands of
+            # doubles, so it would dominate every pooled level, and its score may be on another scale entirely,
+            # which the global curve and the residual levels cannot absorb. It is scored on its own below.
             keys = [k for o in valid_outputs for k in self._mut_keys(o['pdb'], o['mutations'])]
+            if name.startswith(EXT_PREFIX):
+                ext_pools[name] = {
+                    'mut_key': keys, 'subset_type': subset_types, 'cens': cens, 'cens_src': cens_src,
+                    'ddG': gt, 'dddG': dddG, 'dG_wt': cat('dG_wt'), 'y_floor': cat('y_floor'),
+                    'wt': wt, 'mt': mt, 'comb': comb,
+                }
+                continue
             pooled['mut_key'].extend(keys)
             pooled['subset_type'].extend(subset_types)
             pooled['loader'].extend([name] * len(keys))
@@ -846,6 +861,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if np.isfinite(_v):
                     avg_metrics[_k].append(float(_v))
 
+        for _name, _pool in ext_pools.items():
+            for _k, _v in (self._log_ext_epistasis(_name, _pool) or {}).items():
+                if np.isfinite(_v):
+                    avg_metrics[_k].append(float(_v))
+
         if self.link_head is not None:
             for k, v in self.link_head.summary().items():
                 self.log(f"link/{k}", v, on_epoch=True, sync_dist=True)
@@ -866,6 +886,68 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.validation_step_outputs.clear()
         torch.cuda.empty_cache()
         gc.collect()
+
+    # Which epistasis levels survive an unknown, monotone relabelling of the score. An external assay may report a
+    # fitness rather than a ddG, so only these are logged for it: each is computed from WITHIN-COLUMN ranks of the
+    # measured value, which a monotone function cannot change. The residual levels (global, pair, line, cell_mag)
+    # are magnitudes in kcal/mol and are deliberately absent.
+    EXT_METRICS = ('cell_rank', 'cell_flipacc', 'cell_sigsd')
+
+    @staticmethod
+    def _ext_standardise(y: np.ndarray) -> np.ndarray:
+        """
+        An external score put on a unit robust scale: ``(y - median) / (1.4826 * MAD)``.
+
+        ``cell_rank`` and ``cell_sigsd`` are within-column rank statistics and do not need this. ``cell_flipacc``
+        does: it counts a measured reversal only where BOTH of its differences exceed ``FLIP_DELTA``, an absolute
+        0.6 kcal/mol, so on an assay reported in arbitrary units that threshold would select an arbitrary subset
+        (measured: 121 reversals against 277 for the same data relabelled by a factor of 3.7). Standardising makes
+        the threshold mean 0.6 robust SD for every assay, including the Tsuboyama libraries it was chosen on.
+        The map is affine and increasing, so the two rank levels are unchanged by it.
+        """
+        y = np.asarray(y, dtype=float)
+        ok = np.isfinite(y)
+        if ok.sum() < 2:
+            return y
+        med = float(np.median(y[ok]))
+        sd = 1.4826 * float(np.median(np.abs(y[ok] - med)))
+        return y if sd <= 0 else (y - med) / sd
+
+    def _log_ext_epistasis(self, name: str, pool: dict) -> dict:
+        """
+        The rank-based epistasis levels of ONE external doubles assay (``--ext_val_doubles``), logged as
+        ``val_extepi_<metric>_<head>/<name>`` and returned keyed by ``extepi_<metric>_<head>_<name>`` so a plateau
+        or an early stop can read one by name.
+
+        Scored with no link: these are within-column rank statistics, so the link - a monotone function - cannot
+        change them, and the assay's own saturation is likewise harmless. That is what lets an assay of unknown
+        scale in at all. The one exception is ``cell_flipacc``, whose reversal THRESHOLD is absolute, so the score
+        goes through ``_ext_standardise`` first. Never raises.
+        """
+        try:
+            keys = pool['mut_key']
+            if not keys or all(k is None for k in keys):
+                return {}
+            f = lambda k: np.asarray(pool[k], dtype=float)
+            ddG = self._ext_standardise(f('ddG'))
+            items = {'mut_key': keys, 'subset_type': list(pool['subset_type']), 'cens': f('cens').astype(int),
+                     'cens_src': f('cens_src').astype(int), 'ddG': ddG, 'dddG': f('dddG'),
+                     'dG_wt': f('dG_wt'), 'y_floor': f('y_floor'),
+                     'wt': f('wt'), 'mt': f('mt'), 'comb': f('comb'), 'wt_rev': None}
+            table = epi_metrics.Table(items, link=None)
+            res = epi_metrics.compute(table, {m: epi_metrics.SYM for m in self.EXT_METRICS})
+            out = {}
+            for key, val in res.items():
+                if not np.isfinite(val):
+                    continue
+                self.log(f'val_{key.replace("epi_", "extepi_", 1)}/{name}', float(val), on_epoch=True, sync_dist=True)
+                out[f'{key.replace("epi_", "extepi_", 1)}_{name}'] = float(val)
+            logging.info(f'{name}: {int(table.n)} doubles with both singles, {len(table.matrices())} position-pair '
+                         f'matrices, cell_rank_mt={res.get("epi_cell_rank_mt", float("nan")):.4f}')
+            return out
+        except Exception as exc:
+            logging.warning(f'external epistasis metrics skipped for {name}: {exc}', exc_info=True)
+            return {}
 
     def _log_epistasis(self, pooled):
         """
