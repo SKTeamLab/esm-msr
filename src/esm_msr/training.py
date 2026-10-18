@@ -653,7 +653,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         optim.step()
         optim.zero_grad(set_to_none=True)
         
-        sch_warmup, sch_plateau = self.lr_schedulers()
+        sch_warmup = self.lr_schedulers()   # one config, so Lightning hands back the scheduler itself
         total_warmup_steps = self.hparams.lr_warmup_steps + max(int(getattr(self.hparams, "calib_delay_steps", 0)), int(getattr(self.hparams, "mt_lora_delay_steps", 500)))
         if sch_warmup.last_epoch < total_warmup_steps:
             sch_warmup.step()
@@ -850,17 +850,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self._transition_to_mt()
 
         if not self.trainer.sanity_checking:
-            schedulers = self.lr_schedulers()
-            if schedulers is not None:
-                sch_warmup, sch_plateau = schedulers
-                total_warmup_steps = self.hparams.lr_warmup_steps + max(int(getattr(self.hparams, "calib_delay_steps", 0)), int(getattr(self.hparams, "mt_lora_delay_steps", 500)))
-                if self.trainer.global_step >= total_warmup_steps and avg_metrics['rho_combined']:
-                    sch_plateau.step(np.nanmean(avg_metrics['rho_combined']))
-                # After warmup only: during warmup LambdaLR rewrites every group's lr each step and would
-                # overwrite this decay.
-                if self.trainer.global_step >= total_warmup_steps:
-                    self._wt_plateau_step(avg_metrics)
-                    self._mt_plateau_step(avg_metrics)
+            total_warmup_steps = self.hparams.lr_warmup_steps + max(int(getattr(self.hparams, "calib_delay_steps", 0)), int(getattr(self.hparams, "mt_lora_delay_steps", 500)))
+            # After warmup only: during warmup LambdaLR rewrites every group's lr each step and would
+            # overwrite these decays.
+            if self.trainer.global_step >= total_warmup_steps:
+                self._wt_plateau_step(avg_metrics)
+                self._mt_plateau_step(avg_metrics)
 
         self.validation_step_outputs.clear()
         torch.cuda.empty_cache()
@@ -928,11 +923,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         """
         Decay the WT path's own learning rate when ITS validation metric stops improving, and optionally freeze it.
 
-        The shared ReduceLROnPlateau watches ``val_rho_combined_avg``, which the MT path keeps improving long after
-        the WT head has stopped - ``rho_wt_valid`` typically peaks around epoch 2 while the combined metric climbs
-        for several more. Until now that meant the WT adapter kept taking full-rate steps on a metric it was no
-        longer improving, so it drifted (weakly overfitting), and the target the MT path teacher-forces against
-        moved underneath it. Keyed on the WT metric, both stop.
+        The shared ReduceLROnPlateau this replaced watched ``val_rho_combined_avg``, which the MT path keeps
+        improving long after the WT head has stopped - ``rho_wt_valid`` typically peaks around epoch 2 while the
+        combined metric climbs for several more. That meant the WT adapter kept taking full-rate steps on a metric
+        it was no longer improving, so it drifted (weakly overfitting), and the target the MT path teacher-forces
+        against moved underneath it. Keyed on the WT metric, both stop. (That shared scheduler is gone entirely
+        now; see ``configure_optimizers``.)
 
         Only the ``lora_wt`` and ``calib_wt`` groups are touched, so the MT path and the link are unaffected.
         """
@@ -1113,9 +1109,17 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 lambdas_main.append(lambda step, delay=self.hparams.calib_delay_steps, warmup=self.hparams.lr_warmup_steps: 0.0 if step < delay else min(1.0, max(1e-4, (step - delay) / max(1, warmup))))
 
         warmup_main = torch.optim.lr_scheduler.LambdaLR(opt_main, lr_lambda=lambdas_main)
-        plateau_main = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_main, mode='max', factor=0.1, patience=1, min_lr=1e-7)
-
-        return [opt_main], [{"scheduler": warmup_main, "interval": "step", "frequency": 1}, {"scheduler": plateau_main, "interval": "epoch", "frequency": 1, "monitor": "val_rho_combined_avg"}]
+        # Warmup is the only shared scheduler. The ReduceLROnPlateau that used to sit here watched
+        # val_rho_combined_avg and owned EVERY group in opt_main, so once --wt_plateau_patience and
+        # --mt_plateau_patience gave each head a schedule on its own metric it became a second, redundant
+        # decay on both of them, triggered by a metric neither head is being tuned against. Measured on
+        # dc12r_s2: lora_mt went 2e-4 -> 6e-5 (MT decay 1) -> 1.8e-5 (MT decay 2) -> 1.8e-6 (this scheduler,
+        # on rho_combined wobbling 0.8398 -> 0.8392 -> 0.8393) -> 5.4e-7 (MT decay 3). A factor of 370 in
+        # three epochs, so --mt_plateau_factor 0.3 was never the schedule the MT head actually got.
+        #
+        # The 'other' and 'link' groups consequently hold their warmed-up lr for the whole run: this was
+        # their only decay, and there is no metric specific to them to plateau on.
+        return [opt_main], [{"scheduler": warmup_main, "interval": "step", "frequency": 1}]
 
     def _save_converged_wt_weights(self):
         """Extracts and saves only the WT adapter and calibration head at the moment of convergence."""
