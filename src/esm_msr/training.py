@@ -20,7 +20,7 @@ from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
 from esm.pretrained import ESM3_structure_encoder_v0
 from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 
-from esm_msr.models import MSRModel, combine_predictions
+from esm_msr.models import MSRModel, pass_mask_strategy, combine_predictions
 from esm_msr import censoring, epi_metrics, stats, utils
 from esm_msr.link import SaturatingLink
 from esm_msr.losses import ListMLELoss, hinge_regression_loss
@@ -483,7 +483,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if phase == 'mt':
                 wt_pred_cal = wt_pred_raw = torch.zeros_like(ddG_mb)
             else:
-                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.hparams.mask_strategy)
+                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=pass_mask_strategy(self.hparams, 'wt'))
                 wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
 
             cens_wt_rank = cens_mb if wt_double_linked else torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
@@ -525,7 +525,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 # =============================================================
                 # PHASE 2: MUTANT & COMBINED PASS
                 # =============================================================
-                mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=self.hparams.mask_strategy)
+                mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=pass_mask_strategy(self.hparams, 'mt'))
                 mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
                 
                 base_wt_cal, base_wt_raw = wt_pred_cal.detach(), wt_pred_raw.detach()
@@ -705,7 +705,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         with torch.inference_mode():
-            out_dict = self.model.forward_batch(batch, mask_strategy=self.hparams.mask_strategy)
+            out_dict = self.model.forward_batch(batch, mask_strategy=self._pass_masks())
 
         B = int(out_dict['wt_lora_pred'].shape[0])
         ddG = utils._get_label(batch, 'ddG', device=batch['ddG'].device)
@@ -727,7 +727,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         cyc = {}
         if self.hparams.val_cycle_passes:
             with torch.inference_mode():
-                c = self.model.forward_cycle(batch, mask_strategy=self.hparams.mask_strategy)
+                c = self.model.forward_cycle(batch, mask_strategy=self._pass_masks())
             cyc = {'wt_rev_scores': c['wt_rev'].detach().cpu().float().numpy(),
                    'mt_fwd_scores': c['mt_fwd'].detach().cpu().float().numpy()}
 
@@ -776,6 +776,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             except (ValueError, IndexError, TypeError):
                 keys.append(None)
         return keys
+
+    def _pass_masks(self):
+        """{'wt': ..., 'mt': ...}: each pass's sequence masking, for forward_batch / forward_cycle."""
+        return {k: pass_mask_strategy(self.hparams, k) for k in ('wt', 'mt')}
 
     def on_validation_epoch_end(self):
         avg_metrics = defaultdict(list)

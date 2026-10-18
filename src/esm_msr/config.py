@@ -192,6 +192,19 @@ def parse_arguments() -> argparse.Namespace:
     mask_group = parser.add_argument_group("Masking Strategy")
     mask_group.add_argument('--mask_strategy', type=str, choices=["marginal", "independent"], default=None)
 
+    mask_group.add_argument('--mask_strategy_wt', type=str, choices=['none', 'marginal', 'independent'], default=None,
+                            help="SEQUENCE masking of the WT pass alone, overriding --mask_strategy for it ('none' = unmasked). "
+                                 "'marginal' on a double masks BOTH sites, so the pass knows which pair is mutated but not to what: "
+                                 "it can carry pair- and line-level effects and, by construction, no residue-residue interaction.")
+    mask_group.add_argument('--mask_strategy_mt', type=str, choices=['none', 'marginal', 'independent'], default=None,
+                            help="SEQUENCE masking of the MT pass alone, overriding --mask_strategy for it ('none' = unmasked). "
+                                 "'independent' on a double masks one site at a time with the partner's mutant residue visible - the "
+                                 "conditional masked marginal, the readout of ddG(A|B).")
+    mask_group.add_argument('--val_pass_probe', type=int, default=0,
+                            help="VALIDATION ONLY: every Nth validation (the zero-shot one first; 0 = never), read every single and "
+                                 "double with BOTH adapters in four input regimes and log what each has learned (val_probe_*; "
+                                 "esm_msr.pass_probe). Six extra forwards per item on a probe epoch, and no training change.")
+
     train_group = parser.add_argument_group("Training Parameters")
     train_group.add_argument('--comet_experiment_key', type=str, default=None,
                              help="Continue logging into an EXISTING Comet experiment instead of creating a "

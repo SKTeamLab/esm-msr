@@ -131,6 +131,27 @@ class CalibrationHead(nn.Module):
 
 COMBINE_MODES = ('mean', 'sum', 'route')
 
+MASK_STRATEGIES = ('marginal', 'independent')
+
+
+def pass_mask_strategy(hp, pass_type: str):
+    """
+    One pass's sequence masking: ``--mask_strategy_<pass_type>`` when set ('none' = unmasked), else the shared
+    ``--mask_strategy``. ``hp`` is anything with ``.get`` (hparams, a dict); hparams written before the per-pass
+    flags carry neither key and resolve to ``--mask_strategy``, exactly as they always did.
+    """
+    v = hp.get(f'mask_strategy_{pass_type}', None)
+    if v is None:
+        v = hp.get('mask_strategy', None)
+    return None if v in (None, 'none') else v
+
+
+def _per_pass(mask_strategy, pass_type: str):
+    """``mask_strategy`` as forward_batch / forward_cycle accept it: one value for both passes, or a dict."""
+    return mask_strategy.get(pass_type) if isinstance(mask_strategy, dict) else mask_strategy
+
+
+
 
 def combine_predictions(wt, mt, mode: str = 'mean', is_single=None):
     """
@@ -569,9 +590,9 @@ class MSRModel(ESM3PredictorBase):
     def forward_batch(self, batch_in: Dict[str, Any], cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, skip_reverse: bool = False, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
         if self.training: raise AssertionError("forward_batch is for inference only. Use forward_partitioned for training.")
 
-        wt_out = self.forward_partitioned(batch_in, pass_type='wt', cached_wt_esm3=cached_wt_esm3, mask_strategy=mask_strategy)
+        wt_out = self.forward_partitioned(batch_in, pass_type='wt', cached_wt_esm3=cached_wt_esm3, mask_strategy=_per_pass(mask_strategy, 'wt'))
         if not skip_reverse:
-            mt_out = self.forward_partitioned(batch_in, pass_type='mt', mask_strategy=mask_strategy)
+            mt_out = self.forward_partitioned(batch_in, pass_type='mt', mask_strategy=_per_pass(mask_strategy, 'mt'))
         else:
             mt_out = wt_out
         
@@ -611,10 +632,10 @@ class MSRModel(ESM3PredictorBase):
         rev = dict(batch_in)
         rev['wt_sequence_tokens'] = batch_in['mt_sequence_tokens']
         rev['wt_id'], rev['mt_id'] = batch_in['mt_id'], batch_in['wt_id']
-        wt_rev = self.forward_partitioned(rev, pass_type='wt', mask_strategy=mask_strategy)['pred_calibrated']
+        wt_rev = self.forward_partitioned(rev, pass_type='wt', mask_strategy=_per_pass(mask_strategy, 'wt'))['pred_calibrated']
         fwd = dict(batch_in)
         fwd['mt_sequence_tokens'] = batch_in['wt_sequence_tokens']
-        mt_fwd = self.forward_partitioned(fwd, pass_type='mt', mask_strategy=mask_strategy)['pred_calibrated']
+        mt_fwd = self.forward_partitioned(fwd, pass_type='mt', mask_strategy=_per_pass(mask_strategy, 'mt'))['pred_calibrated']
         return {'wt_rev': -wt_rev, 'mt_fwd': mt_fwd}
 
     def _process_logits(self, logits: torch.Tensor) -> torch.Tensor:
@@ -625,8 +646,15 @@ class MSRModel(ESM3PredictorBase):
         full_log_probs[:, :, idx] = log_probs_canonical
         return full_log_probs
 
-    def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
+    def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None, adapter: Optional[str] = None) -> Dict[str, torch.Tensor]:
+        """One adapter pass. ``pass_type`` picks the SEQUENCE (and the readout's sign convention); ``adapter``, when
+        given, picks the LoRA and calibration head instead of following the pass - the validation pass probe reads
+        each input regime with both adapters. Unset, the adapter follows the pass, as it always did."""
         if pass_type not in ['wt', 'mt']: raise AssertionError(f"pass_type must be 'wt' or 'mt'. Received: {pass_type}")
+        adapter = pass_type if adapter is None else adapter
+        if adapter not in ['wt', 'mt']: raise AssertionError(f"adapter must be 'wt' or 'mt'. Received: {adapter}")
+        if cached_wt_esm3 is not None and adapter != pass_type:
+            raise AssertionError("cached_wt_esm3 holds the WT adapter's logits on the wild type; it cannot serve another adapter.")
 
         seq, mut_pos = batch.get(f'{pass_type}_sequence_tokens'), batch.get('mut_pos')
         wt_id, mt_id, mut_mask = batch.get('wt_id'), batch.get('mt_id'), batch.get('mut_mask')
@@ -649,7 +677,7 @@ class MSRModel(ESM3PredictorBase):
             mask_token_id = C.SEQUENCE_MASK_TOKEN
             
             if getattr(self, 'adapter_mode', 'dual') == 'dual':
-                active_model = self.peft_wt if pass_type == 'wt' else self.peft_mt
+                active_model = self.peft_wt if adapter == 'wt' else self.peft_mt
             else:
                 active_model = self.peft_fused
                 
@@ -708,7 +736,7 @@ class MSRModel(ESM3PredictorBase):
                 logits_B = cached_wt_esm3['logits'].expand(B, -1, -1)
             else:
                 if getattr(self, 'adapter_mode', 'dual') == 'dual':
-                    active_model = self.peft_wt if pass_type == 'wt' else self.peft_mt
+                    active_model = self.peft_wt if adapter == 'wt' else self.peft_mt
                 else:
                     active_model = self.peft_fused
 
@@ -728,10 +756,12 @@ class MSRModel(ESM3PredictorBase):
         # same mask that selected the positions.
         n_mut = mut_mask.sum(dim=1)
 
-        if pass_type == 'wt':
-            llr_sum_cal = self.calibration_head_fused(llr_sum_raw, n_mut) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_wt(llr_sum_raw, n_mut) if hasattr(self, 'calibration_head_wt') else llr_sum_raw)
-        elif pass_type == 'mt':
-            llr_sum_cal = self.calibration_head_fused(llr_sum_raw, n_mut) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_mt(llr_sum_raw, n_mut) if hasattr(self, 'calibration_head_mt') else llr_sum_raw)
+        # the calibration head belongs to the ADAPTER, not to the sequence the pass was shown
+        if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused'):
+            llr_sum_cal = self.calibration_head_fused(llr_sum_raw, n_mut)
+        else:
+            _head = getattr(self, f'calibration_head_{adapter}', None)
+            llr_sum_cal = llr_sum_raw if _head is None else _head(llr_sum_raw, n_mut)
 
         output_dict = {'pred_calibrated': llr_sum_cal, 'pred_raw': llr_sum_raw, 'unsummed_llr': unsummed_llr}
         return output_dict
