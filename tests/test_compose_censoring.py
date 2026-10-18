@@ -24,10 +24,7 @@ def make_hp(**kw):
     hp = HP(wt_list_size=4, micro_batch_size=16, lambda_reg_wt=1.0, lambda_rank_wt=1.0, lambda_reg_mt_master=1.0, lambda_mt_colrank=1.0,
             mt_comp_offset=1.0, mt_comp_subst=1.0, mt_comp_int=1.0, flip_list_min=3, mask_strategy=None, subfloor_rank_only=True, cond_weight=1.0, native_cond_weight=1.0,
             mt_single_anchor_weight=0.0, mt_single_anchor_frac=1.0, censor_reg_weight=1.0, censor_floor_hinge=False,
-            include_out_of_range=False, censor_floor=None,
-            # --tf_ensemble is off by default, so the stub says so explicitly rather than relying on a
-            # getattr default: a stub that drifts from the CLI should fail loudly, not skip an objective.
-            tf_ensemble=False, tf_label_prob=1.0, lambda_tf_reg=1.0, lambda_tf_rank=0.0)
+            include_out_of_range=False, censor_floor=None)
     hp.update(kw)
     return hp
 

@@ -69,33 +69,6 @@ def _tap(obj, name, term):
     return term
 
 
-def tf_wt_half(add_label, wt_pred, label_prob, generator=None):
-    """
-    The WT half of a teacher-forced combined prediction, chosen PER ITEM.
-
-    With probability ``label_prob`` an item takes the measured additive label ``ddG_A + ddG_B``; otherwise it takes
-    the WT head's own prediction. An item with no finite label always takes the prediction, whatever the ratio.
-
-    ``label_prob=1`` is what the legacy combined objective did: always the label where there was one. The reason to
-    go below 1 is that the label is not available at inference, so a head trained only against it learns to
-    correct a quantity it will never be given - while the WT prediction it WILL be given has its own error, which
-    at ratio 1 the MT head never sees. The ratio is resampled every step, so over training an item is seen in both
-    regimes.
-
-    Returns ``(wt_half, took_label)``. The label is on the OBSERVED scale and the prediction is latent, which is a
-    real mismatch and the first thing to revisit here - see docs/teacher_forcing.md.
-    """
-    finite = torch.isfinite(add_label)
-    if label_prob >= 1.0:
-        took = finite
-    elif label_prob <= 0.0:
-        took = torch.zeros_like(finite)
-    else:
-        draw = torch.rand(add_label.shape, device=add_label.device, dtype=add_label.dtype, generator=generator)
-        took = finite & (draw < label_prob)
-    return torch.where(took, add_label, wt_pred), took
-
-
 def balance(hp, name):
     if not hp.get('reg_balance', False):
         return 1.0
@@ -785,7 +758,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     rev_units[u] = self._reversal_tetrads(ddG_np[r], mt_valid[r], [flip_keys[int(x)] for x in r], rid_np[r], float(hp.flip_delta))
         total_rev = sum(len(t[0]) for t in rev_units.values()) if mctx is None else mctx['n_rev']
         self._rev_diag = (total_rev, 0.0 if mctx is None else mctx['rev_right'])
-        self._tf_diag = (0.0, 0.0)                               # (items that took the label, items offered one)
 
 
         for u_idx, (kind, rows) in enumerate(units):
@@ -961,46 +933,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     losses_mt.append(_tap(self, 'rank_mt', hp.lambda_mt_colrank * L_flip * (n_grp / max(global_num_flip, 1))))
                     sums['rank_mt'] = sums['rank_mt'] + val * n_grp
                     cnts['rank_mt'] = cnts['rank_mt'] + n_grp
-            # ---- teacher-forced ensemble (--tf_ensemble), a separate objective from the retired one ----
-            # The WT half comes per item from either the measured additive label or the WT head's own prediction,
-            # at --tf_label_prob. Devel runs the WT and MT passes as SEPARATE work units, so unlike the old
-            # objective there is no WT prediction already in hand here: one no-grad WT forward over this unit's
-            # rows is the cost of the option, and it is why the option is off by default.
-            if hp.tf_ensemble and (hp.lambda_tf_reg > 0 or hp.lambda_tf_rank > 0) and m_mt_ok.any():
-                add_lbl = batch['ddG_additive'][rows].float() if 'ddG_additive' in batch else torch.full_like(mt_pred_cal, float('nan'))
-                if float(hp.tf_label_prob) >= 1.0 and bool(torch.isfinite(add_lbl).all()):
-                    wt_ref = torch.zeros_like(mt_pred_cal)            # never read: every item takes its label
-                else:
-                    with torch.no_grad():
-                        wt_ref = self.model.forward_partitioned(micro, pass_type='wt',
-                                                                mask_strategy=pass_mask_strategy(hp, 'wt'))['pred_calibrated'].float()
-                wt_half, took = tf_wt_half(add_lbl, wt_ref, float(hp.tf_label_prob))
-                self._tf_diag = (self._tf_diag[0] + float(took.sum()), self._tf_diag[1] + float(took.numel()))
-                comb_lat = 0.5 * wt_half + 0.5 * mt_pred_cal          # the WT half is detached either way
-                tf_ok = m_mt_ok & torch.isfinite(wt_half)
-                if hp.lambda_tf_reg > 0 and tf_ok.any():
-                    if use_link:
-                        p_tf = link.obs_ddG(comb_lat, dGwt_all[rows], bg_all[rows])
-                        t_tf = ddG[rows] + bg_all[rows]
-                        tf_ok = tf_ok & link_ok[rows]
-                    else:
-                        p_tf, t_tf = comb_lat, ddG[rows]
-                    ord_tf = tf_ok & (reg_cens[rows] == 0)
-                    if ord_tf.any():
-                        L_tf = (mt_w[rows][ord_tf] * (p_tf[ord_tf] - t_tf[ord_tf]) ** 2).sum() / global_w_sum
-                        losses_mt.append(_tap(self, 'reg_tf', hp.lambda_tf_reg * L_tf))
-                        sums['reg_tf'] = sums['reg_tf'] + L_tf.detach() * global_w_sum
-                        cnts['reg_tf'] = cnts['reg_tf'] + float(mt_w[rows][ord_tf].sum())
-                if hp.lambda_tf_rank > 0 and self.crit_rank_mt is not None:
-                    comb_raw = 0.5 * wt_half + 0.5 * mt_pred_raw
-                    L_tfr, val, n_grp = self._compute_flip_loss(
-                        comb_raw, ddG[rows], m_mt_ok, [flip_keys[int(r)] for r in rows],
-                        self.crit_rank_mt, hp.flip_list_min, cens=cens_all[rows] if use_cens else None)
-                    if L_tfr is not None:
-                        losses_mt.append(_tap(self, 'rank_tf', hp.lambda_tf_rank * L_tfr * (n_grp / max(global_num_flip, 1))))
-                        sums['rank_tf'] = sums['rank_tf'] + val * n_grp
-                        cnts['rank_tf'] = cnts['rank_tf'] + n_grp
-
             if losses_mt:
                 total = sum(losses_mt)
                 if not torch.isfinite(total): raise AssertionError("MT Loss evaluated to NaN/Inf.")
@@ -1110,12 +1042,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.log("train/cens_lower_items", float(self._cens_diag[0]), on_step=True)
             self.log("train/cens_upper_items", float(self._cens_diag[1]), on_step=True)
             self._cens_diag = None
-        if getattr(self, '_tf_diag', None) is not None and self.hparams.get('tf_ensemble', False) and self._tf_diag[1] > 0:
-            # the realised ratio, which is what --tf_label_prob asked for only in expectation: worth logging so a
-            # run shows the regime it actually trained in rather than the one it was configured with.
-            self.log('train/tf_label_frac', self._tf_diag[0] / self._tf_diag[1], on_step=True)
-            self._tf_diag = (0.0, 0.0)
-
         if getattr(self, '_rev_diag', None) is not None and float(self.hparams.get('lambda_mt_flip', 0.0) or 0.0) > 0:
             n_rev, n_right = self._rev_diag
             self.log("train/flip_rev", float(n_rev), on_step=True)                 # confident reversals in the batch
