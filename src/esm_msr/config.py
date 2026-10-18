@@ -109,9 +109,14 @@ def parse_arguments() -> argparse.Namespace:
                             help="How the WT and MT heads form the reported prediction. 'mean' is 0.5/0.5 "
                                  "(released). 'sum' makes MT the epistasis term. 'route' reports WT for "
                                  "singles and MT for multi-mutants, for a standalone double predictor.")
-    loss_group.add_argument('--wt_trains_doubles', action=argparse.BooleanOptionalAction, default=True,
-                            help="Whether the WT head's own losses see multi-mutants. --no-wt_trains_doubles "
-                                 "leaves doubles to the MT head alone (they still teacher-force the WT half).")
+    loss_group.add_argument('--wt_trains_doubles', action=argparse.BooleanOptionalAction, default=False,
+                            help="Whether the WT head's own losses see multi-mutants. The default leaves doubles "
+                                 "to the MT head alone (they still teacher-force the WT half, so the WT path "
+                                 "still shapes a double's prediction - it just takes no gradient from one). Off "
+                                 "by default from dc17 on: dc15 put rho_wt_valid at 0.8397 against dc14's 0.8348 "
+                                 "with everything else equal, about ten times the 0.0005 between-seed SD, and "
+                                 "under --wt_double_target latent a double's WT target was ddG_A + ddG_B anyway, "
+                                 "a sum of two single measurements the head also sees on their own.")
     loss_group.add_argument('--double_weight', type=float, default=1.0)
     loss_group.add_argument('--cond_weight', type=float, default=0.5)
     loss_group.add_argument('--native_cond_weight', type=float, default=1.0)
@@ -138,10 +143,14 @@ def parse_arguments() -> argparse.Namespace:
     link_group.add_argument('--link_floor_max', type=float, default=0.2,
                             help="Upper clip on a library's cached floor estimate.")
     link_group.add_argument('--learn_link_floor_bounds', action=argparse.BooleanOptionalAction, default=False)
-    link_group.add_argument('--learn_global_floor', action=argparse.BooleanOptionalAction, default=True,
+    link_group.add_argument('--learn_global_floor', action=argparse.BooleanOptionalAction, default=False,
                             help="Learn the shared knee used by libraries that show no floor of their own. It is "
                                  "identifiable from exactly that population and is initialised at the median of "
-                                 "the libraries that do have one.")
+                                 "the libraries that do have one. Off by default from dc17 on, with "
+                                 "--learn_link_tau, --learn_link_floor_bounds and --learn_link_ceiling: the link "
+                                 "is then fixed, every one of its numbers comes from the data, and the 'link' "
+                                 "optimizer group disappears (configure_optimizers only adds it for parameters "
+                                 "that require grad).")
     link_group.add_argument('--link_ceiling', type=float, default=None,
                             help="Add a second soft clamp at this dG (kcal/mol), the top of the assay's reported "
                                  "range; 5.0 matches the '>5' tag. Omitted, the link is floor-only.")
@@ -168,6 +177,14 @@ def parse_arguments() -> argparse.Namespace:
     calibration_group = parser.add_argument_group("Calibration Configuration")
     calibration_group.add_argument('--shared_scale_init', type=float, default=0.3)
     calibration_group.add_argument('--shared_bias_init', type=float, default=0.0)
+    calibration_group.add_argument('--per_mutation_bias', action=argparse.BooleanOptionalAction, default=False,
+                                   help="Apply the calibration bias once per MUTATED POSITION (bias * n_mut) "
+                                        "instead of once per item. The LLR sum being calibrated is itself a sum "
+                                        "over the item's positions, so a per-item bias makes a double's "
+                                        "prediction sit one bias below the sum of its own singles - measured at "
+                                        "0.1065 kcal/mol (L_AB - L_A - L_B = -b). Note the offline ceiling on "
+                                        "this: correcting it moved rho_combined by -0.0001 and doubles-only rho "
+                                        "by 0.0000, so it is a consistency fix, not an accuracy one.")
 
     rank_group = parser.add_argument_group("ListMLE Objective Configuration")
     rank_group.add_argument('--subset_size', type=int, default=16)
@@ -219,8 +236,12 @@ def parse_arguments() -> argparse.Namespace:
                                   "noisy epoch to epoch, so pair a patience of 1 with a gentle --mt_plateau_factor.")
     train_group.add_argument('--mt_plateau_factor', type=float, default=0.3)
     train_group.add_argument('--mt_plateau_min_lr', type=float, default=1e-7)
-    train_group.add_argument('--mt_freeze_after_decays', type=int, default=0,
-                             help="Freeze the MT path after this many decays. 0 never freezes it.")
+    train_group.add_argument('--mt_freeze_after_decays', type=int, default=3,
+                             help="Freeze the MT path after this many decays. 0 never freezes it. 3 by default, "
+                                  "matching --wt_freeze_after_decays: at --mt_plateau_factor 0.3 the third decay "
+                                  "leaves the head at 2.7 percent of its base rate, which is not training. Once "
+                                  "both heads are frozen the run stops itself "
+                                  "(ESM3EpistasisLightningModule._stop_if_nothing_is_training).")
     train_group.add_argument('--wt_plateau_patience', type=int, default=0,
                              help="Epochs without improvement in --wt_convergence_metric before the WT path's own "
                                   "learning rate is cut by --wt_plateau_factor. 0 disables it, and then nothing "
@@ -235,9 +256,10 @@ def parse_arguments() -> argparse.Namespace:
                                   "The dc8 series and dc12 pin 0.1 explicitly and predate this, so they are "
                                   "unaffected; dc14 onward pass 0.3 on both heads.")
     train_group.add_argument('--wt_plateau_min_lr', type=float, default=1e-7)
-    train_group.add_argument('--wt_freeze_after_decays', type=int, default=0,
+    train_group.add_argument('--wt_freeze_after_decays', type=int, default=3,
                              help="Freeze the WT path after this many --wt_plateau_patience decays, which also "
-                                  "fixes the target the MT path teacher-forces against. 0 never freezes.")
+                                  "fixes the target the MT path teacher-forces against. 0 never freezes. 3 by "
+                                  "default, matching --mt_freeze_after_decays; the dc8 and dc14 series pin 2.")
     train_group.add_argument('--early_stopping_patience', type=int, default=0)
     train_group.add_argument('--early_stopping_metric', type=str, default='val_rho_combined_avg')
 

@@ -61,8 +61,16 @@ class ESM3PredictorBase(nn.Module):
 
 
 class CalibrationHead(nn.Module):
-    """ Scales and biases raw log-likelihood ratios: y_cal = scale * y_raw + bias """
-    def __init__(self, init_scale: float | None = 1/3, init_bias: float | None = 0.0, *, min_scale: float = 1e-4, beta: float = 1.0, max_scale: float | None = None, requires_grad: bool = True):
+    """
+    Scales and biases raw log-likelihood ratios: ``y_cal = scale * y_raw + bias``.
+
+    With ``per_mutation``, the bias is ``bias * n_mut`` instead: one bias per mutated position rather than one per
+    item. The LLR sum the head calibrates is itself a sum over the item's positions, so a constant offset per
+    position is the form that keeps a double's calibration consistent with its two singles - a single scalar bias
+    makes a double's prediction sit one bias BELOW the sum of its singles (measured at 0.1065 kcal/mol on
+    devel-revision: L_AB - L_A - L_B = -b).
+    """
+    def __init__(self, init_scale: float | None = 1/3, init_bias: float | None = 0.0, *, min_scale: float = 1e-4, beta: float = 1.0, max_scale: float | None = None, requires_grad: bool = True, per_mutation: bool = False):
         super().__init__()
         self.use_scale = True
         if init_scale is None:
@@ -81,6 +89,7 @@ class CalibrationHead(nn.Module):
             self.bias = nn.Parameter(torch.tensor(float(init_bias), dtype=torch.float32), requires_grad=requires_grad)
 
         self.min_scale, self.beta, self.max_scale = float(min_scale), float(beta), float(max_scale) if max_scale is not None else None
+        self.per_mutation = bool(per_mutation)
 
     @staticmethod
     def _inv_softplus(y: torch.Tensor, beta: float = 1.0) -> torch.Tensor:
@@ -96,10 +105,25 @@ class CalibrationHead(nn.Module):
         s = F.softplus(self.raw_scale, beta=self.beta) + self.min_scale
         return torch.clamp(s, max=self.max_scale) if self.max_scale is not None else s
 
-    def forward(self, y_raw: torch.Tensor) -> torch.Tensor:
+    def bias_for(self, n_mut: torch.Tensor | None = None):
+        """
+        The bias this head adds to an item, which is ``bias * n_mut`` for a per-mutation head.
+
+        Anything that INVERTS the calibration has to go through this too - training's teacher-forcing label is
+        de-calibrated as ``(label - bias_for(n_mut)) / scale`` - which is why it is a method and not inlined.
+        """
+        if self.bias is None:
+            return 0.0
+        if not self.per_mutation:
+            return self.bias
+        if n_mut is None:
+            raise AssertionError("per_mutation calibration needs n_mut (the item's mutated-position count); "
+                                 "calling it without one would silently apply a single mutation's bias to a double.")
+        return self.bias * n_mut.to(self.bias.dtype)
+
+    def forward(self, y_raw: torch.Tensor, n_mut: torch.Tensor | None = None) -> torch.Tensor:
         s = 1.0 if not self.use_scale else self.scale
-        b = 0.0 if self.bias is None else self.bias
-        return y_raw * s + b
+        return y_raw * s + self.bias_for(n_mut)
     
 
 COMBINE_MODES = ('mean', 'sum', 'route')
@@ -144,7 +168,7 @@ class MSRModel(ESM3PredictorBase):
             shared_bias_init: float | None = None, inference_mode: bool = False, log_likelihood: bool = False,
             use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
             adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
-            combined_mode: str = 'mean'
+            combined_mode: str = 'mean', per_mutation_bias: bool = False
         ):
         combined_mode = combined_mode or 'mean'
         if combined_mode not in COMBINE_MODES:
@@ -164,11 +188,13 @@ class MSRModel(ESM3PredictorBase):
         
         # 1. Initialize Calibration
         if shared_scale_init is not None or shared_bias_init is not None:
+            cal_kw = dict(init_scale=shared_scale_init, init_bias=shared_bias_init,
+                          requires_grad=not inference_mode, per_mutation=per_mutation_bias)
             if self.adapter_mode == 'fused':
-                self.calibration_head_fused = CalibrationHead(init_scale=shared_scale_init, init_bias=shared_bias_init, requires_grad=not inference_mode)
+                self.calibration_head_fused = CalibrationHead(**cal_kw)
             else:
-                self.calibration_head_wt = CalibrationHead(init_scale=shared_scale_init, init_bias=shared_bias_init, requires_grad=not inference_mode)
-                self.calibration_head_mt = CalibrationHead(init_scale=shared_scale_init, init_bias=shared_bias_init, requires_grad=not inference_mode)
+                self.calibration_head_wt = CalibrationHead(**cal_kw)
+                self.calibration_head_mt = CalibrationHead(**cal_kw)
         
         # 2. Add LoRAs using config
         logging.info(f"Injecting Adapters (Mode: {self.adapter_mode.upper()} | Strategy: {self.lora_mode.upper()})...")
@@ -551,9 +577,10 @@ class MSRModel(ESM3PredictorBase):
 
         mm = batch_in.get('mut_mask')
         is_single = (mm.sum(dim=1) == 1) if mm is not None else None
+        n_mut = mm.sum(dim=1) if mm is not None else None
         if self.adapter_mode == 'fused':
-            combined_pred = combine_predictions(self.calibration_head_fused(wt_pred_raw),
-                                                self.calibration_head_fused(mt_pred_raw),
+            combined_pred = combine_predictions(self.calibration_head_fused(wt_pred_raw, n_mut),
+                                                self.calibration_head_fused(mt_pred_raw, n_mut),
                                                 self.combined_mode, is_single)
         else:
             combined_pred = combine_predictions(wt_pred_cal, mt_pred_cal, self.combined_mode, is_single)
@@ -694,11 +721,14 @@ class MSRModel(ESM3PredictorBase):
 
         # --- Shared Post-Processing & Calibration ---
         llr_sum_raw = unsummed_llr.sum(dim=1)
-        
+        # Both the sum above and a per-mutation bias are per-position quantities, so the count comes from the
+        # same mask that selected the positions.
+        n_mut = mut_mask.sum(dim=1)
+
         if pass_type == 'wt':
-            llr_sum_cal = self.calibration_head_fused(llr_sum_raw) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_wt(llr_sum_raw) if hasattr(self, 'calibration_head_wt') else llr_sum_raw)
+            llr_sum_cal = self.calibration_head_fused(llr_sum_raw, n_mut) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_wt(llr_sum_raw, n_mut) if hasattr(self, 'calibration_head_wt') else llr_sum_raw)
         elif pass_type == 'mt':
-            llr_sum_cal = self.calibration_head_fused(llr_sum_raw) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_mt(llr_sum_raw) if hasattr(self, 'calibration_head_mt') else llr_sum_raw)
+            llr_sum_cal = self.calibration_head_fused(llr_sum_raw, n_mut) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_mt(llr_sum_raw, n_mut) if hasattr(self, 'calibration_head_mt') else llr_sum_raw)
 
         output_dict = {'pred_calibrated': llr_sum_cal, 'pred_raw': llr_sum_raw, 'unsummed_llr': unsummed_llr}
         return output_dict
@@ -917,19 +947,20 @@ class MSRModel(ESM3PredictorBase):
             wt_llr_sum = unsummed_llr_wt.sum(dim=1)
             mt_llr_sum = unsummed_llr_mt.sum(dim=1)
 
+            _n_mut = mut_mask.sum(dim=1)
             if self.adapter_mode == 'fused':
-                wt_lora_pred = self.calibration_head_fused(wt_llr_sum)
-                mt_lora_pred = self.calibration_head_fused(mt_llr_sum)
+                wt_lora_pred = self.calibration_head_fused(wt_llr_sum, _n_mut)
+                mt_lora_pred = self.calibration_head_fused(mt_llr_sum, _n_mut)
             else:
-                wt_lora_pred = self.calibration_head_wt(wt_llr_sum) if hasattr(self, 'calibration_head_wt') else wt_llr_sum
-                mt_lora_pred = self.calibration_head_mt(mt_llr_sum) if hasattr(self, 'calibration_head_mt') else mt_llr_sum
+                wt_lora_pred = self.calibration_head_wt(wt_llr_sum, _n_mut) if hasattr(self, 'calibration_head_wt') else wt_llr_sum
+                mt_lora_pred = self.calibration_head_mt(mt_llr_sum, _n_mut) if hasattr(self, 'calibration_head_mt') else mt_llr_sum
 
             _is_single = mut_mask.sum(dim=1) == 1
             if self.adapter_mode != 'fused':
                 combined_pred = combine_predictions(wt_lora_pred, mt_lora_pred, self.combined_mode, _is_single)
             else:
-                combined_pred = combine_predictions(self.calibration_head_fused(wt_llr_sum),
-                                                    self.calibration_head_fused(mt_llr_sum),
+                combined_pred = combine_predictions(self.calibration_head_fused(wt_llr_sum, _n_mut),
+                                                    self.calibration_head_fused(mt_llr_sum, _n_mut),
                                                     self.combined_mode, _is_single)
 
         return {'wt_lora_pred': wt_lora_pred, 'mt_lora_pred': mt_lora_pred, 'combined_pred': combined_pred}

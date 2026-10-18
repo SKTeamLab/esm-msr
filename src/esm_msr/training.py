@@ -75,7 +75,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.model = MSRModel(
             lora_config=lora_config, shared_scale_init=self.hparams.shared_scale_init, shared_bias_init=self.hparams.shared_bias_init, adapter_mode=self.hparams.adapter_mode,
             lora_mode=self.hparams.lora_mode, model_dtype=torch.float32,
-            combined_mode=getattr(self.hparams, 'combined_mode', None) or 'mean'
+            combined_mode=getattr(self.hparams, 'combined_mode', None) or 'mean',
+            per_mutation_bias=bool(getattr(self.hparams, 'per_mutation_bias', False))
         )
         
         self.peft_manager = PEFTStateManager(self.model)
@@ -400,7 +401,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             ddG_mb = micro['ddG'].float() 
             dGwt_mb, floor_mb, link_ok = dGwt_all[idx], floor_all[idx], link_ok_all[idx]
             cens_mb, bound_mb = cens_all[idx], bound_all[idx]
-            is_single = micro['mut_mask'].sum(dim=1) == 1
+            n_mut_mb = micro['mut_mask'].sum(dim=1)
+            is_single = n_mut_mb == 1
             reg_mask = ~is_single if self.hparams.mt_reg_mask == 'doubles' else torch.ones_like(is_single, dtype=torch.bool)
             
             # --wt_double_target: the two self-consistent pairings for a multi-mutant's WT-path target.
@@ -536,7 +538,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     
                     # Invert the calibration: raw = (cal - bias) / scale
                     s = 1.0 if not cal_head.use_scale else cal_head.scale.detach()
-                    b = 0.0 if cal_head.bias is None else cal_head.bias.detach()
+                    # bias_for, not cal_head.bias: with --per_mutation_bias the head added bias * n_mut, so a
+                    # scalar inverse here would under-correct every multi-mutant and silently bias the label
+                    # the MT head is teacher-forced against.
+                    b = cal_head.bias_for(n_mut_mb)
+                    b = b.detach() if torch.is_tensor(b) else b
                     decalibrated_label = (tf_additive_labels - b) / s
                     
                     forced_wt_cal = torch.where(has_add_label, tf_additive_labels, base_wt_cal)
@@ -855,6 +861,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if self.trainer.global_step >= total_warmup_steps:
                 self._wt_plateau_step(avg_metrics)
                 self._mt_plateau_step(avg_metrics)
+                self._stop_if_nothing_is_training()
 
         self.validation_step_outputs.clear()
         torch.cuda.empty_cache()
@@ -1031,6 +1038,31 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             logging.info(f"MT path frozen after {self._mt_decays} decays.")
             self.peft_manager.freeze_mt_components()
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
+
+    def _stop_if_nothing_is_training(self) -> None:
+        """
+        End the run once every optimizer group that still holds trainable parameters is at lr 0.
+
+        With --wt_freeze_after_decays and --mt_freeze_after_decays both set, each head stops itself after its own
+        decay budget, and the MT head is normally last (rho_wt_valid peaks around epoch 2 while beyond_rho_mt
+        climbs for several more). The remaining epochs would re-run the same weights for the same score, so the
+        epoch budget can be set generously and is spent only where it is used.
+
+        Keyed on the learning rates rather than requires_grad because ``on_validation_end`` re-applies the
+        baseline requires_grad every epoch, while freezing zeroes the group's lr for good
+        (``enforce_freezing(zero_lrs=True)``).
+        """
+        opts = self.optimizers()
+        opts = opts if isinstance(opts, list) else [opts]
+        for opt in opts:
+            for g in getattr(opt, 'optimizer', opt).param_groups:
+                if float(g.get('lr', 0.0)) > 0.0 and any(p.requires_grad for p in g['params']):
+                    return
+        if not self.trainer.should_stop:
+            logging.info(f"Every trainable group is at lr 0 after epoch {self.trainer.current_epoch} "
+                         f"(WT frozen: {self.peft_manager.wt_path_is_frozen}, "
+                         f"MT frozen: {self.peft_manager.mt_path_is_frozen}); stopping early.")
+            self.trainer.should_stop = True
 
     def _transition_to_mt(self):
         """Freeze the WT path and open the MT path, saving the converged WT weights first."""

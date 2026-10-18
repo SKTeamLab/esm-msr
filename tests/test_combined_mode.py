@@ -63,8 +63,10 @@ def test_gradients_flow_to_both_heads_in_every_mode():
             assert bool((wt.grad != 0).all()) and bool((mt.grad != 0).all()), mode
 
 
-def test_the_defaults_leave_training_untouched():
-    """A run that sets neither flag must behave exactly as before."""
+def test_the_canonical_defaults():
+    """--combined_mode stays 'mean'; --wt_trains_doubles is off from dc17 on (dc15 vs dc14: rho_wt_valid
+    0.8397 against 0.8348, ten times the between-seed SD), so a run that sets neither flag leaves the WT
+    head's own losses on singles alone."""
     from esm_msr import config
     import sys
     argv = sys.argv
@@ -74,7 +76,7 @@ def test_the_defaults_leave_training_untouched():
     finally:
         sys.argv = argv
     assert a.combined_mode == 'mean'
-    assert a.wt_trains_doubles is True
+    assert a.wt_trains_doubles is False
 
 
 def test_an_unset_hparam_arriving_as_none_means_the_default():
