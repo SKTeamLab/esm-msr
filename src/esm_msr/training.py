@@ -191,11 +191,20 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         large, fragmented reservation: a monotone slowdown (2.2 s/step rising past 12 s/step by step 260 on devel-revision)
         that looks like a leak. Do NOT add empty_cache here: under expandable_segments on WSL2 it cost 3.7 GiB of device
         memory and changed torch's own accounting not at all (devel-revision 1e0d5b2).
+
+        Called from every stage hook, and deliberately NOT behind a once-only flag. The flag this used to carry made
+        the re-share fire exactly once per process, which is wrong because of the very ``validate``-before-``fit``
+        ordering described above: the re-share ran at ``on_validation_start``, Lightning returned the module to the CPU
+        when that stage tore down, the move back for ``fit`` gave every parameter its own storage again, and the flag
+        then blocked the repair at ``on_train_start``. Measured on devel-revision, dc8_s2 against its own resume (which
+        passes --skip_val and so re-shared at ``on_train_start`` instead, the only path that was ever correct):
+        mem/allocated_gb 5.706 GB against 2.972, with the same 2.73 GB on peak_allocated and on reserved. Confirmed
+        live in dc14, which logs ``570 had been duplicated`` at BOTH hooks and peaks at 24.90 GB reserved where every
+        fresh run before it peaked at 27.607.
+
+        Re-sharing is a dict build and ~570 pointer assignments, so it needs no guard.
         """
-        if getattr(self, '_device_weights_ready', False):
-            return
         self._reshare_base_params_on_device()
-        self._device_weights_ready = True
 
     def on_validation_start(self):
         self._prepare_device_weights()
@@ -262,17 +271,22 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         wt_base = {_clean(n): p for n, p in peft_wt.named_parameters()
                    if "lora_" not in n and "dora_" not in n}
-        n_shared, dev = 0, None
+        n_shared, n_repointed, dev = 0, 0, None
         for name, p in peft_mt.named_parameters():
             if "lora_" in name or "dora_" in name:
                 continue
             src = wt_base.get(_clean(name))
             if src is not None:
+                if p.data.data_ptr() != src.data.data_ptr():
+                    n_repointed += 1
                 p.data = src.data
                 n_shared += 1
                 dev = src.device
-        logging.info(f"[reshare] dual-adapter base weights re-shared on {dev}: {n_shared} params "
-                     f"deduplicated (transformer Linears stored bf16, rest fp32)")
+        # Quiet when the sharing was already intact, so calling this from every stage does not add a line per
+        # validation, and loud when it had to repair something, because that is a 2.7 GB event.
+        msg = (f"[reshare] dual-adapter base weights re-shared on {dev}: {n_shared} params deduplicated "
+               f"({n_repointed} had been duplicated; transformer Linears stored bf16, rest fp32)")
+        logging.info(msg) if n_repointed else logging.debug(msg)
 
     def _compute_rank_loss(self, pred, targets, mask, list_size, crit_fn, cens=None):
         """Listwise rank loss over consecutive blocks of ``list_size``. ``cens`` (-1/0/+1 per row, optional) makes the lists
