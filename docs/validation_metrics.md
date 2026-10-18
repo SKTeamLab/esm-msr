@@ -231,6 +231,32 @@ MT pass's training cost on those rows), and fewer, larger steps per epoch (batch
 (its columns were already whole). Caveat: the `--reg_balance` constants were measured on 3-column blocks; whole-matrix components have a
 different gradient scale (the offset of a 361-cell block is a mean over many more cells), so re-probe with `scripts/grad_share_probe.py`.
 
+## The pass probe: `--val_pass_probe N` (off by default)
+
+What each way of READING a mutation has learned, as opposed to what the reported heads predict. Every Nth validation (the zero-shot one
+first) reads every single and double with both adapters in four input regimes - per scored site A of a double AB:
+
+| view | sequence | site A | site B | sums to about | can carry |
+|---|---|---|---|---|---|
+| `u_wt` | wild type | wt seen | wt | ddG_A + ddG_B | nothing beyond additive (the control) |
+| `pair` | either (`marginal`) | masked | masked | ddG_A + ddG_B + pair context | pair and line effects; no interaction, by construction |
+| `u_mt` | mutated | mutant seen | mutant | ddG(A\|B) + ddG(B\|A) | everything, with the scored residue visible |
+| `i_mt` | mutated (`independent`) | masked | mutant | ddG(A\|B) + ddG(B\|A) | everything: the conditional masked marginal |
+
+so eight views `<adapter>.<view>`, plus the four trapezoids `tz.<start>+<end>` = (WT adapter start view + MT adapter end view) / 2;
+`tz.u_wt+u_mt` is the reported combined prediction of an unmasked run. `independent` on the wild type is not a forward of its own: on a
+double it is exactly the sum of its two singles' `pair` readouts. Per head, `val_probe_<head>_<metric>`:
+
+* `rho_single`, `rho_double`: library-mean Spearman against measured ddG.
+* `beyond_rho` ... `cell_sigsd`: the levels above, with the head in the `comb` slot.
+* `nonadd_sd` and `nonadd_pair` / `_line` / `_cell`: how much non-additivity (L_AB - L_A - L_B, latent) the view predicts on complete
+  blocks, and the share at each level. Label-free: `u_wt` must be ~0, `pair` must put ~nothing in cells, and an end view's cell share
+  is the interaction it carries.
+
+The views go into the dump; `scripts/pass_probe_from_dump.py` scores all 16 start x end pairings offline. The per-pass training flags
+`--mask_strategy_wt` / `--mask_strategy_mt` set which views a run TRAINS (e.g. `marginal` / `independent` trains `wt.pair` and `mt.i_mt`);
+the probe reads all of them regardless. `esm_msr.pass_probe` has the full argument.
+
 ## Offline recomputation
 
 Every validation writes `training_logs/<run>/0/val_dump_<tag>.npz` (all items' latent scores, the reverse leg, dG_wt, the link). Score any dump,

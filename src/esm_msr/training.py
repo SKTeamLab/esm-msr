@@ -20,7 +20,7 @@ from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
 from esm.pretrained import ESM3_structure_encoder_v0
 from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 
-from esm_msr.models import MSRModel
+from esm_msr.models import MSRModel, pass_mask_strategy
 from esm_msr import utils
 from esm_msr.losses import ListMLELoss
 from esm_msr import censoring, link as link_mod
@@ -30,6 +30,7 @@ from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
 from esm_msr import stats, epi_metrics
 from esm_msr import routing
+from esm_msr import pass_probe
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -66,6 +67,33 @@ def _tap(obj, name, term):
     if probe is not None:
         probe.append((name, term))
     return term
+
+
+def tf_wt_half(add_label, wt_pred, label_prob, generator=None):
+    """
+    The WT half of a teacher-forced combined prediction, chosen PER ITEM.
+
+    With probability ``label_prob`` an item takes the measured additive label ``ddG_A + ddG_B``; otherwise it takes
+    the WT head's own prediction. An item with no finite label always takes the prediction, whatever the ratio.
+
+    ``label_prob=1`` is what the legacy combined objective did: always the label where there was one. The reason to
+    go below 1 is that the label is not available at inference, so a head trained only against it learns to
+    correct a quantity it will never be given - while the WT prediction it WILL be given has its own error, which
+    at ratio 1 the MT head never sees. The ratio is resampled every step, so over training an item is seen in both
+    regimes.
+
+    Returns ``(wt_half, took_label)``. The label is on the OBSERVED scale and the prediction is latent, which is a
+    real mismatch and the first thing to revisit here - see docs/teacher_forcing.md.
+    """
+    finite = torch.isfinite(add_label)
+    if label_prob >= 1.0:
+        took = finite
+    elif label_prob <= 0.0:
+        took = torch.zeros_like(finite)
+    else:
+        draw = torch.rand(add_label.shape, device=add_label.device, dtype=add_label.dtype, generator=generator)
+        took = finite & (draw < label_prob)
+    return torch.where(took, add_label, wt_pred), took
 
 
 def balance(hp, name):
@@ -467,7 +495,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             with torch.no_grad():
                 for s0 in range(0, len(mrows), mb):
                     chunk = mrows_t[s0:s0 + mb]
-                    out = self.model.forward_partitioned(utils.slice_batch_by_index(batch, chunk), pass_type='mt', mask_strategy=hp.mask_strategy)
+                    out = self.model.forward_partitioned(utils.slice_batch_by_index(batch, chunk), pass_type='mt', mask_strategy=pass_mask_strategy(hp, 'mt'))
                     L[chunk] = out['pred_calibrated'].float()
                     del out
             # Autocast caches the low-precision copy of every fp32 weight that requires grad (the LoRA matrices) for the whole autocast region
@@ -537,7 +565,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         units = []
         if len(wt_rows):
             size = mb
-            if getattr(self.model, 'dedup_backbone', False):
+            # only while the WT pass reads the wild type UNMASKED: masking makes each scored site its own backbone input
+            if getattr(self.model, 'dedup_backbone', False) and pass_mask_strategy(self.hparams, 'wt') is None:
                 first, _ = self.model._unique_rows(batch['wt_sequence_tokens'][wt_rows],
                                                    batch['coords'][wt_rows],
                                                    batch['structure_tokens'][wt_rows])
@@ -742,6 +771,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     rev_units[u] = self._reversal_tetrads(ddG_np[r], mt_valid[r], [flip_keys[int(x)] for x in r], rid_np[r], float(hp.flip_delta))
         total_rev = sum(len(t[0]) for t in rev_units.values()) if mctx is None else mctx['n_rev']
         self._rev_diag = (total_rev, 0.0 if mctx is None else mctx['rev_right'])
+        self._tf_diag = (0.0, 0.0)                               # (items that took the label, items offered one)
 
 
         for u_idx, (kind, rows) in enumerate(units):
@@ -762,7 +792,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
             # ---- WT unit ----
             if kind == 'wt':
-                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=hp.mask_strategy)
+                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=pass_mask_strategy(hp, 'wt'))
                 wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
                 del wt_out
 
@@ -820,7 +850,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if not (has_reg or has_comp or has_rev or has_rank):
                 continue
 
-            mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=hp.mask_strategy)
+            mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=pass_mask_strategy(hp, 'mt'))
             mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
             del mt_out
 
@@ -917,6 +947,46 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     losses_mt.append(_tap(self, 'rank_mt', hp.lambda_mt_colrank * L_flip * (n_grp / max(global_num_flip, 1))))
                     sums['rank_mt'] = sums['rank_mt'] + val * n_grp
                     cnts['rank_mt'] = cnts['rank_mt'] + n_grp
+            # ---- teacher-forced ensemble (--tf_ensemble), a separate objective from the retired one ----
+            # The WT half comes per item from either the measured additive label or the WT head's own prediction,
+            # at --tf_label_prob. Devel runs the WT and MT passes as SEPARATE work units, so unlike the old
+            # objective there is no WT prediction already in hand here: one no-grad WT forward over this unit's
+            # rows is the cost of the option, and it is why the option is off by default.
+            if hp.tf_ensemble and (hp.lambda_tf_reg > 0 or hp.lambda_tf_rank > 0) and m_mt_ok.any():
+                add_lbl = batch['ddG_additive'][rows].float() if 'ddG_additive' in batch else torch.full_like(mt_pred_cal, float('nan'))
+                if float(hp.tf_label_prob) >= 1.0 and bool(torch.isfinite(add_lbl).all()):
+                    wt_ref = torch.zeros_like(mt_pred_cal)            # never read: every item takes its label
+                else:
+                    with torch.no_grad():
+                        wt_ref = self.model.forward_partitioned(micro, pass_type='wt',
+                                                                mask_strategy=pass_mask_strategy(hp, 'wt'))['pred_calibrated'].float()
+                wt_half, took = tf_wt_half(add_lbl, wt_ref, float(hp.tf_label_prob))
+                self._tf_diag = (self._tf_diag[0] + float(took.sum()), self._tf_diag[1] + float(took.numel()))
+                comb_lat = 0.5 * wt_half + 0.5 * mt_pred_cal          # the WT half is detached either way
+                tf_ok = m_mt_ok & torch.isfinite(wt_half)
+                if hp.lambda_tf_reg > 0 and tf_ok.any():
+                    if use_link:
+                        p_tf = link.obs_ddG(comb_lat, dGwt_all[rows], bg_all[rows])
+                        t_tf = ddG[rows] + bg_all[rows]
+                        tf_ok = tf_ok & link_ok[rows]
+                    else:
+                        p_tf, t_tf = comb_lat, ddG[rows]
+                    ord_tf = tf_ok & (reg_cens[rows] == 0)
+                    if ord_tf.any():
+                        L_tf = (mt_w[rows][ord_tf] * (p_tf[ord_tf] - t_tf[ord_tf]) ** 2).sum() / global_w_sum
+                        losses_mt.append(_tap(self, 'reg_tf', hp.lambda_tf_reg * L_tf))
+                        sums['reg_tf'] = sums['reg_tf'] + L_tf.detach() * global_w_sum
+                        cnts['reg_tf'] = cnts['reg_tf'] + float(mt_w[rows][ord_tf].sum())
+                if hp.lambda_tf_rank > 0 and self.crit_rank_mt is not None:
+                    comb_raw = 0.5 * wt_half + 0.5 * mt_pred_raw
+                    L_tfr, val, n_grp = self._compute_flip_loss(
+                        comb_raw, ddG[rows], m_mt_ok, [flip_keys[int(r)] for r in rows],
+                        self.crit_rank_mt, hp.flip_list_min, cens=cens_all[rows] if use_cens else None)
+                    if L_tfr is not None:
+                        losses_mt.append(_tap(self, 'rank_tf', hp.lambda_tf_rank * L_tfr * (n_grp / max(global_num_flip, 1))))
+                        sums['rank_tf'] = sums['rank_tf'] + val * n_grp
+                        cnts['rank_tf'] = cnts['rank_tf'] + n_grp
+
             if losses_mt:
                 total = sum(losses_mt)
                 if not torch.isfinite(total): raise AssertionError("MT Loss evaluated to NaN/Inf.")
@@ -1026,6 +1096,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.log("train/cens_lower_items", float(self._cens_diag[0]), on_step=True)
             self.log("train/cens_upper_items", float(self._cens_diag[1]), on_step=True)
             self._cens_diag = None
+        if getattr(self, '_tf_diag', None) is not None and self.hparams.get('tf_ensemble', False) and self._tf_diag[1] > 0:
+            # the realised ratio, which is what --tf_label_prob asked for only in expectation: worth logging so a
+            # run shows the regime it actually trained in rather than the one it was configured with.
+            self.log('train/tf_label_frac', self._tf_diag[0] / self._tf_diag[1], on_step=True)
+            self._tf_diag = (0.0, 0.0)
+
         if getattr(self, '_rev_diag', None) is not None and float(self.hparams.get('lambda_mt_flip', 0.0) or 0.0) > 0:
             n_rev, n_right = self._rev_diag
             self.log("train/flip_rev", float(n_rev), on_step=True)                 # confident reversals in the batch
@@ -1045,9 +1121,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         return torch.tensor(0.0, device=self.device)
 
+    def _pass_masks(self):
+        """{'wt': ..., 'mt': ...}: each pass's sequence masking (``pass_mask_strategy``), for forward_batch / forward_cycle."""
+        return {k: pass_mask_strategy(self.hparams, k) for k in ('wt', 'mt')}
+
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         with torch.inference_mode():
-            out_dict = self.model.forward_batch(batch, mask_strategy=self.hparams.mask_strategy)
+            out_dict = self.model.forward_batch(batch, mask_strategy=self._pass_masks())
 
         ddG = utils._get_label(batch, 'ddG', device=batch['ddG'].device)
         dddG = batch.get('dddG')
@@ -1073,9 +1153,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if len(rows):
                 sub = utils.slice_batch_by_index(batch, torch.as_tensor(rows, device=out_dict['wt_lora_pred'].device))
                 with torch.inference_mode():
-                    c = self.model.forward_cycle(sub, mask_strategy=self.hparams.mask_strategy, legs=('wt_rev',))
+                    c = self.model.forward_cycle(sub, mask_strategy=self._pass_masks(), legs=('wt_rev',))
                 wt_rev[rows] = _np(c['wt_rev'])
             extra['wt_rev_scores'] = wt_rev
+        if getattr(self, '_probe_now', False):
+            # --val_pass_probe: every view of esm_msr.pass_probe on the singles and doubles, NaN elsewhere; the run's own passes are reused
+            kinds = np.array([routing.canonical_subset(s) for s in batch.get('subset_type', ['single'] * n_items)])
+            rows = np.where(np.isin(kinds, ['single', 'double']))[0]
+            if len(rows):
+                known = {('wt', 'wt', pass_mask_strategy(self.hparams, 'wt')): _np(out_dict['wt_lora_pred']),
+                         ('mt', 'mt', pass_mask_strategy(self.hparams, 'mt')): _np(out_dict['mt_lora_pred'])}
+                with torch.inference_mode():
+                    views = pass_probe.run_views(self.model, batch, torch.as_tensor(rows, device=out_dict['wt_lora_pred'].device), known)
+            else:
+                views = {v: np.full(n_items, np.nan) for v in pass_probe.VIEWS}
+            extra.update({f'probe_{v}': a for v, a in views.items()})
         self.validation_step_outputs[dataloader_idx].append({
             **extra,
             'wt_scores': _np(out_dict['wt_lora_pred']),
@@ -1122,6 +1214,29 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)
             return {}
 
+    def _log_probe(self, pooled) -> dict:
+        """Logs ``val_probe_<head>_<metric>`` (esm_msr.pass_probe) on the pooled validation items and returns ``{head: {metric: value}}``.
+        Never raises."""
+        try:
+            cat = lambda name: np.concatenate(pooled[name]) if pooled.get(name) else None
+            if not pooled.get('subset_type') or any(k is None for k in pooled['mut_key']):
+                return {}
+            views = {v: cat(f'probe_{v}') for v in pass_probe.VIEWS}
+            if any(a is None or not np.isfinite(a).any() for a in views.values()):
+                return {}
+            items = {'mut_key': pooled['mut_key'], 'subset_type': pooled['subset_type'], 'cens': cat('cens'), 'ddG': cat('ground_truths'),
+                     'dddG': cat('dddG'), 'dG_wt': cat('dG_wt')}
+            link = self.link_head.numpy() if self.link_head is not None else None
+            res = pass_probe.score(items, views, pooled['loader'], link)
+            for head, row in res.items():
+                for metric, val in row.items():
+                    if np.isfinite(val):
+                        self.log(f"val_{pass_probe.log_name(head, metric)}", float(val), on_epoch=True, sync_dist=True)
+            return res
+        except Exception as e:
+            logging.warning(f"pass probe skipped: {e}", exc_info=True)
+            return {}
+
     def _dump_validation(self, dump):
         """Writes every validation item's scores to ``<log_dir>/val_dump_<tag>.npz`` (tag ``zs`` before any step), so the metrics can be recomputed
         offline with scripts/epi_from_dump.py. Never raises."""
@@ -1140,6 +1255,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def on_validation_epoch_start(self):
         self.validation_step_outputs = defaultdict(list)
+        # --val_pass_probe N: every Nth real validation, the zero-shot one (before any step) counting as the first
+        every = int(self.hparams.get('val_pass_probe', 0) or 0)
+        if self.trainer.sanity_checking:
+            self._probe_now = False
+        else:
+            k = getattr(self, '_val_runs', 0)
+            self._val_runs = k + 1
+            self._probe_now = every > 0 and k % every == 0
 
     def on_validation_epoch_end(self):
         """
@@ -1159,7 +1282,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             cols = {k: np.concatenate([np.asarray(o[k]).reshape(-1) for o in outputs])
                     for k in ('wt_scores', 'mt_scores', 'comb_scores', 'ground_truths', 'dddG', 'dG_wt')}
             # optional per-step arrays: present in every batch of a loader or padded with NaN, so pooled arrays stay aligned
-            for k in ('wt_rev_scores', 'comb_obs'):
+            for k in ('wt_rev_scores', 'comb_obs') + tuple(f'probe_{v}' for v in pass_probe.VIEWS):
                 cols[k] = (np.concatenate([np.asarray(o[k]).reshape(-1) for o in outputs]) if all(k in o for o in outputs)
                            else np.full(n_items, np.nan))
             subset_types = [s for o in outputs for s in o['subset_type']]
@@ -1168,7 +1291,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if len(mut_keys) != len(subset_types):
                 mut_keys = None
 
-            dump[name] = {**{k: v for k, v in cols.items() if k != 'comb_obs'}, 'subset_type': np.array(subset_types), 'cens': cens_val,
+            dump[name] = {**{k: v for k, v in cols.items() if k != 'comb_obs' and not (k.startswith('probe_') and not np.isfinite(v).any())},
+                          'subset_type': np.array(subset_types), 'cens': cens_val,
                           'mut_key': np.array([json.dumps(k) for k in (mut_keys or [])]),
                           'flip_key': np.array([k for o in outputs for k in o.get('flip_key', [])])}
             obs = {'comb': cols['comb_obs']} if all('comb_obs' in o for o in outputs) else None
@@ -1178,6 +1302,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             for k, v in cols.items():
                 pooled[k].append(v)
             pooled['subset_type'].extend(subset_types)
+            pooled['loader'].extend([name] * n_items)
             pooled['cens'].append(cens_val)
             # Mutations are numbered per library, so tag them with the loader to keep pooled singles from pairing with another protein's doubles.
             pooled['mut_key'].extend([tuple((name,) + m for m in k) for k in mut_keys] if mut_keys is not None else [None] * len(subset_types))
@@ -1196,6 +1321,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 self.log(f"val_{metric}_avg", avg_metrics[metric], on_epoch=True, prog_bar=metric in self._VAL_PROGRESS_BAR, sync_dist=True)
 
         epi = ESM3EpistasisLightningModule._log_epistasis(self, pooled)       # by class: the tests drive this method with a stand-in object
+        if getattr(self, '_probe_now', False):
+            ESM3EpistasisLightningModule._log_probe(self, pooled)
         readings = {**avg_metrics, **{k: v for k, v in epi.items() if np.isfinite(v)}}
 
         if (not self.trainer.sanity_checking and self.hparams.get('wt_early_stop_patience', 0) > 0
