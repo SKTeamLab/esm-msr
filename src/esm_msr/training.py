@@ -388,7 +388,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # Drop the PREVIOUS micro-batch's tensors before this one's forward allocates. manual_backward frees a
             # graph's saved activations, so this matters only for a micro-batch that produced no loss and therefore
             # ran no backward: its graph then stays alive through these names and peak memory doubles. That happens
-            # once the WT path is frozen (--freeze_wt_after_epoch / --freeze_wt_on_convergence) or when a unit's
+            # once the WT path is frozen (--freeze_wt_after_epoch / --wt_freeze_after_decays) or when a unit's
             # masks come up empty. Fixed on devel as acf6026, where a lossless unit pinned ~20 GB.
             wt_out = wt_pred_cal = wt_pred_raw = mt_out = mt_pred_cal = mt_pred_raw = None
             p_obs = p_wt = p_comb = base_wt_cal = base_wt_raw = forced_wt_cal = forced_wt_raw = None
@@ -477,7 +477,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if phase == 'mt':
                 wt_pred_cal = wt_pred_raw = torch.zeros_like(ddG_mb)
             else:
-                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.hparams.mask_strategy, detach_calibration=self.hparams.detach_regression)
+                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.hparams.mask_strategy)
                 wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
 
             cens_wt_rank = cens_mb if wt_double_linked else torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
@@ -519,7 +519,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 # =============================================================
                 # PHASE 2: MUTANT & COMBINED PASS
                 # =============================================================
-                mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=self.hparams.mask_strategy, detach_calibration=self.hparams.detach_regression)
+                mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=self.hparams.mask_strategy)
                 mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
                 
                 base_wt_cal, base_wt_raw = wt_pred_cal.detach(), wt_pred_raw.detach()
@@ -843,20 +843,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.link_head is not None:
             for k, v in self.link_head.summary().items():
                 self.log(f"link/{k}", v, on_epoch=True, sync_dist=True)
-
-        if not self.trainer.sanity_checking and self.hparams.freeze_wt_on_convergence and not self.peft_manager.has_transitioned:
-            target_metric_key = self.hparams.wt_convergence_metric
-            if target_metric_key in avg_metrics:
-                current_val = float(np.nanmean(avg_metrics[target_metric_key]))
-                if current_val > getattr(self.peft_manager, 'wt_best_metric', -float('inf')) + 1e-4:
-                    self.peft_manager.wt_best_metric = current_val
-                    self.peft_manager.wt_patience_counter = 0
-                else:
-                    self.peft_manager.wt_patience_counter = getattr(self.peft_manager, 'wt_patience_counter', 0) + 1
-                
-                if self.peft_manager.wt_patience_counter >= self.hparams.wt_convergence_patience:
-                    logging.info("Convergence reached! Transitioning to MT training.")
-                    self._transition_to_mt()
 
         if not self.trainer.sanity_checking and self.trainer.current_epoch==self.hparams.freeze_wt_after_epoch and not self.peft_manager.has_transitioned:
             logging.info(f"Epoch {self.hparams.freeze_wt_after_epoch} ended! Transitioning to MT training.")
@@ -1184,8 +1170,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # Save the transition state from the PEFT manager so it persists across preemptions
         checkpoint['transition_state'] = {
             'has_transitioned': getattr(self.peft_manager, 'has_transitioned', False),
-            'wt_best_metric': getattr(self.peft_manager, 'wt_best_metric', -float('inf')),
-            'wt_patience_counter': getattr(self.peft_manager, 'wt_patience_counter', 0),
             # _wt_plateau_step's own counters. Without these a resume restarts the WT plateau from scratch, so a
             # run preempted mid-decay would decay again from a reset patience and follow a different schedule.
             # Harmless once the WT path has frozen (the step returns early on has_transitioned), but not before.
@@ -1204,8 +1188,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         """
         transition_state = checkpoint.get('transition_state', {})
         self.peft_manager.has_transitioned = transition_state.get('has_transitioned', False)
-        self.peft_manager.wt_best_metric = transition_state.get('wt_best_metric', -float('inf'))
-        self.peft_manager.wt_patience_counter = transition_state.get('wt_patience_counter', 0)
         self._wt_plateau_best = transition_state.get('wt_plateau_best', -float('inf'))
         self._wt_plateau_bad = transition_state.get('wt_plateau_bad', 0)
         self._wt_decays = transition_state.get('wt_decays', 0)

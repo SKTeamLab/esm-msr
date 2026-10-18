@@ -18,8 +18,7 @@ CLS = training.ESM3EpistasisLightningModule
 
 def stub(has_transitioned=False, best=0.83, bad=1, decays=2):
     s = types.SimpleNamespace()
-    s.peft_manager = types.SimpleNamespace(has_transitioned=has_transitioned, wt_best_metric=best,
-                                           wt_patience_counter=bad, frozen=[], thawed=[])
+    s.peft_manager = types.SimpleNamespace(has_transitioned=has_transitioned, frozen=[], thawed=[])
     s.peft_manager.freeze_wt_components = lambda: s.peft_manager.frozen.append('wt')
     s.peft_manager.freeze_mt_components = lambda: s.peft_manager.frozen.append('mt')
     s.peft_manager.unfreeze_mt_components = lambda: s.peft_manager.thawed.append('mt')

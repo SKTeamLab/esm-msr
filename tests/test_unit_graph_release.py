@@ -33,8 +33,7 @@ class TrackingStub(torch.nn.Module):
         self.w = torch.nn.Parameter(torch.tensor([1.0, 1.0]))
         self.refs, self.alive_at_forward = [], []
 
-    def forward_partitioned(self, micro, pass_type, mask_strategy=None, detach_calibration=False,
-                            cached_wt_esm3=None):
+    def forward_partitioned(self, micro, pass_type, mask_strategy=None, cached_wt_esm3=None):
         gc.collect()
         self.alive_at_forward.append((pass_type, [r() is not None for r in self.refs]))
         i = 0 if pass_type == 'wt' else 1
@@ -62,8 +61,7 @@ def _batch(B=8):
 def _stub(**hp):
     base = dict(subset_size=4, micro_batch_size=4, micro_batch_tokens=0,
                 double_weight=1.0, cond_weight=1.0, native_cond_weight=1.0,
-                wt_double_target='latent', mt_reg_mask='all', detach_ensemble_input=True,
-                detach_regression=False, mask_strategy=None,
+                wt_double_target='latent', mt_reg_mask='all', mask_strategy=None,
                 lambda_reg_wt=0.0, lambda_rank_wt=0.0, lambda_reg_mt=1.0, lambda_rank_mt=0.0)
     base.update(hp)
     s = types.SimpleNamespace()

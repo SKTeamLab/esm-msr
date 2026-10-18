@@ -595,7 +595,7 @@ class MSRModel(ESM3PredictorBase):
         full_log_probs[:, :, idx] = log_probs_canonical
         return full_log_probs
 
-    def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None, detach_calibration: bool = False) -> Dict[str, torch.Tensor]:
+    def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
         if pass_type not in ['wt', 'mt']: raise AssertionError(f"pass_type must be 'wt' or 'mt'. Received: {pass_type}")
 
         seq, mut_pos = batch.get(f'{pass_type}_sequence_tokens'), batch.get('mut_pos')
@@ -694,12 +694,11 @@ class MSRModel(ESM3PredictorBase):
 
         # --- Shared Post-Processing & Calibration ---
         llr_sum_raw = unsummed_llr.sum(dim=1)
-        llr_sum_for_cal = llr_sum_raw.detach() if detach_calibration else llr_sum_raw
         
         if pass_type == 'wt':
-            llr_sum_cal = self.calibration_head_fused(llr_sum_for_cal) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_wt(llr_sum_for_cal) if hasattr(self, 'calibration_head_wt') else llr_sum_raw)
+            llr_sum_cal = self.calibration_head_fused(llr_sum_raw) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_wt(llr_sum_raw) if hasattr(self, 'calibration_head_wt') else llr_sum_raw)
         elif pass_type == 'mt':
-            llr_sum_cal = self.calibration_head_fused(llr_sum_for_cal) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_mt(llr_sum_for_cal) if hasattr(self, 'calibration_head_mt') else llr_sum_raw)
+            llr_sum_cal = self.calibration_head_fused(llr_sum_raw) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_mt(llr_sum_raw) if hasattr(self, 'calibration_head_mt') else llr_sum_raw)
 
         output_dict = {'pred_calibrated': llr_sum_cal, 'pred_raw': llr_sum_raw, 'unsummed_llr': unsummed_llr}
         return output_dict

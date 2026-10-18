@@ -82,7 +82,6 @@ def parse_arguments() -> argparse.Namespace:
     lora_group_wt.add_argument('--use_dora_wt', action=argparse.BooleanOptionalAction, default=False)
 
     loss_group = parser.add_argument_group("Loss Configuration")
-    loss_group.add_argument('--rank_loss', type=str, default='listmle', choices=['listmle'])
     loss_group.add_argument('--reg_loss', type=str, default='mse', choices=['mse', 'huber'])
     loss_group.add_argument('--huber_delta', type=float, default=1.0)
     loss_group.add_argument('--lambda_rank_wt', type=float, default=1.0)
@@ -117,18 +116,15 @@ def parse_arguments() -> argparse.Namespace:
     loss_group.add_argument('--cond_weight', type=float, default=0.5)
     loss_group.add_argument('--native_cond_weight', type=float, default=1.0)
     loss_group.add_argument('--weight_decay', type=float, default=0)
-    loss_group.add_argument('--residual_wd', type=float, default=1e-5)
     loss_group.add_argument('--calib_lr_mult', type=float, default=20.0)
-    loss_group.add_argument('--residual_lr_mult', type=float, default=0.1)
     loss_group.add_argument('--grad_clip_norm', type=float, default=0.0,
                             help="Clip the gradient norm to this before each step; 0 disables clipping.")
-    # RETIRED, and now always on. It is still ACCEPTED, so the launch scripts and docs that pass it keep working;
-    # passing --no-detach_ensemble_input is an ERROR rather than a silent no-op, because that value used to train a
-    # different model. See the error message below for why the joint path went.
-    loss_group.add_argument('--detach_ensemble_input', action=argparse.BooleanOptionalAction, default=True,
-                            help="Retired and always on: the WT half of the combined prediction is always detached, "
-                                 "so the MT regression and rank terms train the MT path only.")
-    loss_group.add_argument('--detach_regression', action=argparse.BooleanOptionalAction, default=False)
+    # RETIRED flags that launch scripts still pass. They are ACCEPTED so those scripts keep working, warned about, and
+    # removed from the namespace below, so they never reach hparams. --detach_ensemble_input is now always on, and
+    # --no-detach_ensemble_input is an ERROR rather than a silent no-op, because that value used to train a different
+    # model (see the error message below). --rank_loss had one choice, listmle, which is what always runs.
+    loss_group.add_argument('--detach_ensemble_input', action=argparse.BooleanOptionalAction, default=None, help=argparse.SUPPRESS)
+    loss_group.add_argument('--rank_loss', type=str, default=None, help=argparse.SUPPRESS)
 
     link_group = parser.add_argument_group("Observed-Scale Link (esm_msr.link)")
     link_group.add_argument('--link', action=argparse.BooleanOptionalAction, default=True,
@@ -193,7 +189,6 @@ def parse_arguments() -> argparse.Namespace:
     train_group.add_argument('--lr_warmup_steps', type=int, default=250)
     train_group.add_argument('--mt_lora_delay_steps', type=int, default=0)
     train_group.add_argument('--calib_delay_steps', type=int, default=0)
-    train_group.add_argument('--lr_total_steps', type=int, default=None)
     train_group.add_argument('--batch_size', type=int, default=256)
     train_group.add_argument('--micro_batch_size', type=int, default=16,
                              help="Upper bound on the items per forward/backward. The binding constraint is "
@@ -214,8 +209,6 @@ def parse_arguments() -> argparse.Namespace:
     train_group.add_argument('--freeze_wt_adapter', action=argparse.BooleanOptionalAction, default=False)
     train_group.add_argument('--freeze_mt_adapter', action=argparse.BooleanOptionalAction, default=False)
     train_group.add_argument('--freeze_wt_after_epoch', type=int, default=1000)
-    train_group.add_argument('--freeze_wt_on_convergence', action=argparse.BooleanOptionalAction, default=False)
-    train_group.add_argument('--wt_convergence_patience', type=int, default=1)
     train_group.add_argument('--wt_convergence_metric', type=str, default='rho_wt_valid')
     train_group.add_argument('--mt_plateau_patience', type=int, default=0,
                              help="Epochs of no improvement in --mt_convergence_metric before the MT path's own lr "
@@ -355,7 +348,9 @@ def parse_arguments() -> argparse.Namespace:
     if remaining_argv:
         parser.error(f"unrecognized arguments: {' '.join(remaining_argv)}")
 
-    if not args.detach_ensemble_input:
+    if args.rank_loss not in (None, 'listmle'):
+        parser.error(f"--rank_loss {args.rank_loss}: the only rank loss is listmle, and the flag is retired.")
+    if args.detach_ensemble_input is False:
         parser.error(
             "--no-detach_ensemble_input is retired. It let the MT regression and rank terms backpropagate into the "
             "WT adapter, which is why those weights are still named lambda_*_combined. In ensemble mode it could "
@@ -366,6 +361,10 @@ def parse_arguments() -> argparse.Namespace:
             "exactly the epistasis term: its own objective wants ddG_A + ddG_B, the combined objective wants "
             "ddG_AB, and the WT pass can only reconcile them by distorting its per-position terms."
         )
+    for retired in ('detach_ensemble_input', 'rank_loss'):
+        if getattr(args, retired) is not None:
+            logging.warning(f"--{retired} is retired and ignored (detach_ensemble_input is always on; the rank loss is always listmle).")
+        delattr(args, retired)                    # a retired flag never reaches the model's hparams
 
     if args.num_workers == -1:
         num_cpus = os.cpu_count()
