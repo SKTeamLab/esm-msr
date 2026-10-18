@@ -61,7 +61,7 @@ def parse_arguments() -> argparse.Namespace:
     lora_group_mt = parser.add_argument_group("MT LoRA Configuration")
     lora_group_mt.add_argument('--lora_rank_mt', type=int, default=16)
     lora_group_mt.add_argument('--lora_alpha_mt', type=int, default=16)
-    lora_group_mt.add_argument('--lora_dropout_mt', type=float, default=0.15)
+    lora_group_mt.add_argument('--lora_dropout_mt', type=float, default=0.1)
     lora_group_mt.add_argument('--incl_structure_encoder_mt', action=argparse.BooleanOptionalAction, default=False)
     lora_group_mt.add_argument('--incl_sequence_head_mt', action=argparse.BooleanOptionalAction, default=True)
     lora_group_mt.add_argument('--last_n_layers_mt', type=int, default=0)
@@ -73,7 +73,7 @@ def parse_arguments() -> argparse.Namespace:
     lora_group_wt = parser.add_argument_group("WT LoRA Configuration")
     lora_group_wt.add_argument('--lora_rank_wt', type=int, default=2)
     lora_group_wt.add_argument('--lora_alpha_wt', type=int, default=4)
-    lora_group_wt.add_argument('--lora_dropout_wt', type=float, default=0.15)
+    lora_group_wt.add_argument('--lora_dropout_wt', type=float, default=0.1)
     lora_group_wt.add_argument('--incl_structure_encoder_wt', action=argparse.BooleanOptionalAction, default=False)
     lora_group_wt.add_argument('--incl_sequence_head_wt', action=argparse.BooleanOptionalAction, default=True)
     lora_group_wt.add_argument('--last_n_layers_wt', type=int, default=0)
@@ -203,7 +203,7 @@ def parse_arguments() -> argparse.Namespace:
                                   "with the SAME flags - the checkpoint does not carry them.")
     train_group.add_argument('--num_epochs', type=int, default=20)
     train_group.add_argument('--learning_rate', type=float, default=2e-4)
-    train_group.add_argument('--lr_warmup_steps', type=int, default=250)
+    train_group.add_argument('--lr_warmup_steps', type=int, default=500)
     train_group.add_argument('--mt_lora_delay_steps', type=int, default=0)
     train_group.add_argument('--calib_delay_steps', type=int, default=0)
     train_group.add_argument('--batch_size', type=int, default=256)
@@ -220,14 +220,14 @@ def parse_arguments() -> argparse.Namespace:
     train_group.add_argument('--precision', type=str, default="bf16-mixed", choices=["32", "16-mixed", "bf16-mixed", "64"])
     train_group.add_argument('--gpus', type=int, default=1)
     train_group.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'deepspeed_stage_2', 'deepspeed_stage_3', 'fsdp'])
-    train_group.add_argument('--seed', type=int, default=42)
+    train_group.add_argument('--seed', type=int, default=1)
     train_group.add_argument('--offline_model', action=argparse.BooleanOptionalAction, default=False)
 
     train_group.add_argument('--freeze_wt_adapter', action=argparse.BooleanOptionalAction, default=False)
     train_group.add_argument('--freeze_mt_adapter', action=argparse.BooleanOptionalAction, default=False)
     train_group.add_argument('--freeze_wt_after_epoch', type=int, default=1000)
     train_group.add_argument('--wt_convergence_metric', type=str, default='rho_wt_valid')
-    train_group.add_argument('--mt_plateau_patience', type=int, default=0,
+    train_group.add_argument('--mt_plateau_patience', type=int, default=1,
                              help="Epochs of no improvement in --mt_convergence_metric before the MT path's own lr "
                                   "is decayed. 0 disables it. Only lora_mt and calib_mt are touched.")
     train_group.add_argument('--mt_convergence_metric', type=str, default='epi_beyond_rho_mt',
@@ -242,7 +242,7 @@ def parse_arguments() -> argparse.Namespace:
                                   "leaves the head at 2.7 percent of its base rate, which is not training. Once "
                                   "both heads are frozen the run stops itself "
                                   "(ESM3EpistasisLightningModule._stop_if_nothing_is_training).")
-    train_group.add_argument('--wt_plateau_patience', type=int, default=0,
+    train_group.add_argument('--wt_plateau_patience', type=int, default=1,
                              help="Epochs without improvement in --wt_convergence_metric before the WT path's own "
                                   "learning rate is cut by --wt_plateau_factor. 0 disables it, and then nothing "
                                   "decays the WT groups at all: the shared ReduceLROnPlateau that used to, on "
@@ -286,7 +286,7 @@ def parse_arguments() -> argparse.Namespace:
     data_group.add_argument('--incl_doubles', action=argparse.BooleanOptionalAction, default=True)
     data_group.add_argument('--incl_cond', action=argparse.BooleanOptionalAction, default=False)
     data_group.add_argument('--incl_native_cond', action=argparse.BooleanOptionalAction, default=False)
-    data_group.add_argument('--native_cond_as_single', action=argparse.BooleanOptionalAction, default=False,
+    data_group.add_argument('--native_cond_as_single', action=argparse.BooleanOptionalAction, default=True,
                             help="Label a mutant-background library's measurements 'single' rather than "
                                  "'native_cond', which is what the released model does: they then train the WT "
                                  "head and count as singles everywhere. Overrides the native_cond subset cap, "
@@ -303,7 +303,7 @@ def parse_arguments() -> argparse.Namespace:
                              help="Also censor an item whose two proteases disagree about its stability by more "
                                   "than --censor_gap_max, bounded by its own reported value. Needs no doubles and "
                                   "no library floor, so unlike --censor_floor it reaches every library.")
-    floor_group.add_argument('--censor_range', action=argparse.BooleanOptionalAction, default=True,
+    floor_group.add_argument('--censor_range', action=argparse.BooleanOptionalAction, default=False,
                              help="Admit the rows the assay bounded rather than fitted ('<-1' / '>5') as censored "
                                   "items instead of dropping them. Dropping them selects the double set on its own "
                                   "outcome: fit failure rises from 0.7%% of shallow doubles to 24%% of those below "
@@ -353,7 +353,7 @@ def parse_arguments() -> argparse.Namespace:
     log_group.add_argument('--skip_val', type=bool, default=False, action=argparse.BooleanOptionalAction)
     log_group.add_argument('--val_dump', action=argparse.BooleanOptionalAction, default=True,
                            help="Write per-item validation predictions to val_dump_<tag>.npz each epoch.")
-    log_group.add_argument('--val_cycle_passes', action=argparse.BooleanOptionalAction, default=False,
+    log_group.add_argument('--val_cycle_passes', action=argparse.BooleanOptionalAction, default=True,
                            help="Run the two extra validation passes (WT adapter on the mutated sequence, MT "
                                 "adapter on the wild type). Needed for the 'ctx' control head of the epistasis "
                                 "metrics; costs one extra forward pass per validation batch.")
