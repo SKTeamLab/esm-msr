@@ -274,6 +274,15 @@ file even though the checkpoints survived (STATE pitfall 13). The numbers above 
 attempt log, the checkpoint filenames (4 dp) and `val_dump_e0..e4.npz`. `gate_capacity.py` now takes an arm's best as
 the max over `metrics.csv` and the checkpoint names, so the capacity comparison still uses the true 0.8513.
 
+The resumed run then stopped cleanly at **epoch 5 (0.8500)**, the third plateau decay, so the reference's final
+record is 0.8389 / 0.8390 / 0.8504 / 0.8457 / **0.8513** / 0.8500 — best at epoch 4, which is the WT reference the
+capacity arms are compared against on the new basis.
+
+A second parser bug surfaced while recovering the record: once `wt_base_args.txt` stopped carrying the quotes,
+**new** checkpoints are clean-named (`epoch=05-val_rho_wt_valid_avg=0.8500.ckpt`) and the value regex
+`([0-9.]+)` swallowed the dot before `ckpt` (`0.8500.`), which would have crashed the capacity gate at decision
+time. All value parsers now use `(\d+\.\d+)` and are tested against a directory mixing quoted and clean names.
+
 Also note the resume is a **continuation, not a replay**: RNG state is not carried by the checkpoint, so epochs 5+
 can differ from what an uninterrupted run would have produced. Epochs 0–4 are the original measurements.
 
