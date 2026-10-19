@@ -915,6 +915,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
     def on_validation_epoch_end(self):
         avg_metrics = defaultdict(list)
         pooled = defaultdict(list)
+        ext_per_loader = {}          # OOD loaders: kept out of avg_metrics/pooled, survived by _external summaries
 
         for dataloader_idx, valid_outputs in self.validation_step_outputs.items():
             name = (self.val_dataloader_names[dataloader_idx] if dataloader_idx < len(self.val_dataloader_names)
