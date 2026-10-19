@@ -166,6 +166,21 @@ def parse_arguments() -> argparse.Namespace:
     link_group.add_argument('--link_lr', type=float, default=5e-3,
                             help="Learning rate of the link's parameters (no weight decay, no warm-up, and not cut "
                                  "by the plateau scheduler).")
+    link_group.add_argument('--nonspecific_term', choices=['none', 'fx'], default='none',
+                            help="Nonspecific epistasis as its own term (needs --link). 'fx': a learned "
+                                 "piecewise-linear f(x) added to every multi-mutant's latent before the link, "
+                                 "x = dG_wt + the additive latent ddG (the forced WT half, detached); singles never "
+                                 "get it, so the link keeps modelling the readout. At validation comb gains f and the "
+                                 "MT readout 2f, so comb = (WT + MT) / 2 still holds. Kept in checkpoints as "
+                                 "ns_head.*; inference_scripts do not read it yet.")
+    link_group.add_argument('--ns_knot_lo', type=float, default=-3.0,
+                            help="Lowest knot of f (kcal/mol of additive dG); f is constant below.")
+    link_group.add_argument('--ns_knot_hi', type=float, default=5.0,
+                            help="Highest knot of f (kcal/mol); f is constant above.")
+    link_group.add_argument('--ns_knot_step', type=float, default=0.5,
+                            help="Knot spacing of f (kcal/mol).")
+    link_group.add_argument('--ns_lr', type=float, default=5e-3,
+                            help="Learning rate of f (no weight decay, no warm-up, never cut by a plateau).")
     link_group.add_argument('--wt_double_target', type=str, default='latent', choices=['latent', 'linked'],
                             help="What the WT head regresses onto for a MULTI-mutant. 'latent': its unlinked LLR "
                                  "sum against the sum of the measured singles, ddG_A + ddG_B. 'linked': its LLR sum "
@@ -381,6 +396,8 @@ def parse_arguments() -> argparse.Namespace:
 
     if args.rank_loss not in (None, 'listmle'):
         parser.error(f"--rank_loss {args.rank_loss}: the only rank loss is listmle, and the flag is retired.")
+    if args.nonspecific_term != 'none' and not args.link:
+        parser.error("--nonspecific_term needs --link (f acts on the latent scale, before the link)")
     if args.detach_ensemble_input is False:
         parser.error(
             "--no-detach_ensemble_input is retired. It let the MT regression and rank terms backpropagate into the "

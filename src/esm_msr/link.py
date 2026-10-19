@@ -235,3 +235,34 @@ class SaturatingLink(nn.Module):
         if c is not None:
             out.update({'ceiling': float(c), 'tau_hi': float(self.tau_hi())})
         return out
+
+
+class NonspecificTerm(nn.Module):
+    """
+    Nonspecific epistasis of a multi-mutant as a function of its additive expectation (``--nonspecific_term fx``): f(x), with
+    x = dG_wt + the additive latent ddG (the sum of the single effects). Piecewise linear on fixed knots, constant beyond the outer knots,
+    initialised at 0. It is added to a multi-mutant's latent before the link and never to a single, so the link keeps modelling the
+    readout alone.
+
+    The analysis behind it: of the variance of measured dddG, the additive expectation alone explains the largest share and the link's
+    floor makes even a perfectly additive model look epistatic on the observed scale, so this dependence deserves its own term instead of
+    being absorbed implicitly by the link and the MT adapter (docs/nonspecific_epistasis.md, and "Saturation and nonspecific epistasis" in
+    docs/epistasis_metrics_report.html).
+    """
+
+    def __init__(self, lo: float = -3.0, hi: float = 5.0, step: float = 0.5):
+        super().__init__()
+        n = int(round((hi - lo) / step)) + 1
+        self.register_buffer('knots', torch.linspace(lo, hi, n))
+        self.values = nn.Parameter(torch.zeros(n))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        k = self.knots
+        xc = x.clamp(float(k[0]), float(k[-1]))
+        i = torch.clamp(torch.searchsorted(k, xc.contiguous()) - 1, 0, len(k) - 2)
+        t = (xc - k[i]) / (k[i + 1] - k[i])
+        return self.values[i] + t * (self.values[i + 1] - self.values[i])
+
+    @torch.no_grad()
+    def table(self) -> dict:
+        return {'knots': [round(float(v), 4) for v in self.knots], 'values': [round(float(v), 5) for v in self.values]}
