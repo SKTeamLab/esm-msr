@@ -127,7 +127,10 @@ retired sweep; treat them as history, not state.
   (training.py, config.py, `tests/test_external_val_sets.py`).
 * The pin directories remain on disk as the record of what ran before `04c707b`; `PINNED_FROM.txt` says so and lists
 every patch. They are archives now, not inputs, and they (like `feature/nonspecific-term`) still carry the
-`ext_per_loader` bug — harmless only because nothing runs them.
+`ext_per_loader` bug — harmless only because nothing runs them. **The pin's patch list is a checklist, not history:
+one of its patches never made it into the branch.** The 2026-10-18 23:35 guard making `_transition_to_mt()` respect
+`--freeze_mt_adapter` was dropped in the consolidation, so a WT-only arm never stopped after freezing (it ran its
+remaining epochs forward-only at 4.9 GB with the MT groups still at base LR). Fixed `9b73d3a`, STATE pitfall 14.
 * Nothing is pushed. `devel-revision` has never been pushed; `devel-experimental` is ahead 23 / behind 31 of
   `origin/devel-experimental` — a merge is a
   separate decision and has not been attempted.
