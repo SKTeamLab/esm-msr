@@ -52,14 +52,18 @@ Same frozen WT model for all five arms — now the **capacity-ladder gold head**
 not dc17 — so **m is the only variable**. The frozen head's own architecture (WT rank/alpha, knee, censoring) comes
 from its checkpoint's hparams.
 
-**Deviation from the canonical recipe (user, 2026-10-19): the MT head keeps its canonical rank 16 but takes the ALPHA
-that was picked for the WT gold** — e.g. `r16a11` when the WT gold is `r8a11`; the canonical `r16a16` is deliberately
-not used. `make_fwt_block.py` reads `lora_alpha_wt` from the frozen checkpoint and appends `--lora_alpha_mt <that>`,
-and the generated experiment names encode both heads (`_w8a11_m16a11`). Consequence: the MT head's rsLoRA scale is
-`alpha/sqrt(16)`, not the canonical 4.0, so these arms are **not directly comparable to dc17-line r16a16 runs** on
-MT-side magnitudes.
+**The MT head is the canonical r16a16 in the family.** With `use_rslora=True` the adapter scale is `alpha/sqrt(r)`,
+not `alpha/r`. The capacity ladder held that scale at the reference's 4.0, and a scale-preserving MT head at rank 16
+is `16/sqrt(16) = 4.0` — the canonical value. So the tf-mix block keeps r16a16: the mix stays the only variable and
+the block remains comparable with the dc17 line.
 
-Table (names are the launcher/queue names; each experiment is suffixed `_w<WTrank>a<alpha>_m16a<alpha>`):
+**One deviation arm, not the family** (user, 2026-10-19). `gate2_ns` also generates a single arm at the winning mix
+with `--mt-alpha wt`: the MT alpha becomes the frozen WT gold's alpha (`r16a11` for an `r8a11` gold), tagged `_mtaw`
+so it cannot collide with the canonical arm. This is deliberately a **scale** test, not a capacity one — under rsLoRA
+it moves the MT scale to 2.75 — and alpha is entangled with the learning rate, so it should be read as "does a smaller
+MT scale help at this mix", not as a drop-in replacement.
+
+Table (names are the launcher/queue names; each experiment is suffixed `_w<WTrank>a<WTalpha>_m16a<MTalpha>`, e.g. `_w8a11_m16a16` canonical and `_w8a11_m16a11` for the deviation arm):
 
 | arm | m | note |
 |---|---|---|
