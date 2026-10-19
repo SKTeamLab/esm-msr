@@ -70,8 +70,14 @@ reference** for everything after it, and its `val_rho_combined_external` / `val_
 external-set baseline.
 
 **Queued behind it** (same recipe and basis, so rank/alpha is the only variable): `wt_r8a11` then `wt_r4a8` — the
-capacity re-check. If a challenger is not clearly outside the reference's measurement error, it earns a second seed
-for both arms before anything stacks (STATE §5.2).
+capacity re-check — then **`gate_capacity`**, which applies STATE §5.2 (best-epoch `val_rho_wt_valid_avg`, band 0.002,
+symmetric seed-2 pair inside the band, parsimony on the tie) and writes `dc_runs/wt_gold.txt`. `gate1_tfmix` reads
+that file's `ckpt=` (it no longer looks at the retired sweep) and appends the frozen-WT / tf-mix block plus `gate2_ns`
+to the live queue. Both gates append to `$QUEUE` (default `queue_ref.txt`), not `queue_ns.txt`.
+
+The retired queue state is renamed, not deleted, so a stray restart fails loudly instead of re-running the sweep:
+`queue_ns_RETIRED_2026-10-19.txt`, `claude_queue_RETIRED_2026-10-19.txt`, `wt_stack_RETIRED_2026-10-19.txt`,
+`wt_best_RETIRED_2026-10-19.txt` and the two `*_seed_RETIRED_*.txt` files.
 
 Two failed attempts at the reference are archived, not silent: attempt 1 `NameError: ext_per_loader` (code, fixed
 `75d3e34` + test `309c27e`), attempt 2 `PermissionError` on `multiprocessing.SemLock` (the launching shell's sandbox

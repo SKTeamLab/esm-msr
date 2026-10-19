@@ -133,6 +133,12 @@ patch copied between them failed exactly there. `dc_runs/check_pin_val_wt_only.p
   never because it is cheaper on a single seed. The external OOD sets are a **generalization guard**: read
   `val_rho_combined_external` / `val_rmse_combined_external` to see whether a decision travels, and never decide
   anything from them.
+  **Implemented** for the WT head as `dc_runs/gate_capacity.py` (queue entry `gate_capacity`): best-epoch
+  `val_rho_wt_valid_avg`, band 0.002, symmetric seed-2 pair inside the band, parsimony (smaller WT rank) on a tie.
+  The decision is written to `dc_runs/wt_gold.txt`, which `gate1_tfmix` consumes — no stack file, no remembered value.
+  **rsLoRA caveat**: `use_rslora=True`, so the effective scale is `alpha/sqrt(rank)`. A capacity arm must hold that
+  constant: reference r16·a16 = 4.00, r4·a8 = 4.00, r8·a11 = 3.89 (nearest integer to 4·√8). The retired sweep's
+  r16·a32 was 8.00 — twice the reference — so those capacity numbers mixed rank with scale.
 * **Margin before stacking.** The sweep already refuses to stack a gain under 0.001 (~2 between-seed SD on
   `rho_wt_valid`). Do the same for the ns term: `beyond_rho_mt` ≥ 0.03 with guards flat, two seeds, or it does not
   stack.

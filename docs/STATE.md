@@ -170,8 +170,25 @@ Stacking is unchanged — only a winner stacks. What changed is the evidence bar
   to check that a decision travels to out-of-distribution assays; do **not** decide anything from them (they are out
   of distribution and were the source of the "floor0 wins 2/3" misread, which came from a confounded arm).
 
-Applied to the current queue: `wt_r8a11` / `wt_r4a8` are compared with `wt_ref_floor0_r16a16_d02` on
-`val_rho_wt_valid_avg`; a win inside the noise band triggers the second-seed pair before any stack.
+**Concretely** (committed 2026-10-19, implemented in `dc_runs/gate_capacity.py`):
+
+* **Statistic**: best-epoch `val_rho_wt_valid_avg` — the value `save_top_k` selects on, and the one the retired
+  sweep used, so the comparison is like-for-like on the new basis.
+* **Band**: **0.002** (user's choice; the measured WT between-seed SD is ~0.0005, so this is ~4 SD and deliberately
+  stricter than the old 0.001 stacking margin).
+* **Seed 1**: `diff > +band` → clear win, no second seed; `|diff| <= band` → symmetric seed-2 pair of *both* arms;
+  `diff < -band` → challenger rejected.
+* **Seed 2**: pooled mean of each arm's two seeds; same band; a remaining tie goes to the **smaller WT rank**
+  (parsimony).
+* **rsLoRA**: `use_rslora=True`, so the effective adapter scale is `alpha/sqrt(rank)`, not `alpha/rank`. The reference
+  (r16·a16) and r4·a8 are both 4.00; r8·a11 is 3.89 (closest integer to 4·√8). That is why these arms are a clean
+  capacity axis — unlike the retired sweep's r16·a32, whose scale was 8.00 (2× the reference) and is confounded.
+* **Outputs**: `dc_runs/wt_gold.txt` (arm, checkpoint, value, seeds, statistic, band, decision) is the single record
+  of the WT head; `gate1_tfmix` reads its `ckpt=` and no longer looks at the retired sweep.
+
+Applied to the current queue: `wt_r8a11` and `wt_r4a8` are compared with `wt_ref_floor0_r16a16_d02`; the gate runs as
+the queue entry `gate_capacity` after them and appends either `gate1_tfmix` or the seed-2 pair plus
+`gate_capacity_final`.
 
 ## 6. Operating the queue
 

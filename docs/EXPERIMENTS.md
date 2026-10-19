@@ -231,6 +231,30 @@ fails with the exact `NameError` if the initialisation is removed. A second, env
 (`PermissionError` on `multiprocessing.SemLock`: the launching shell's sandbox denies `/dev/shm`) is recorded in
 STATE §4 — it is not a code bug and must not be "fixed" by lowering `num_workers`.
 
+## 6e. 2026-10-19 — the frozen-WT generator was about to freeze the wrong head (three preflight bugs)
+
+`make_fwt_block.py` builds the frozen-WT / tf-mix arms from an explicit checkpoint. A preflight against the new
+reference checkpoint (`--verify`, run before anything was queued) found three defects, all of the stale-pointer or
+silent-override class:
+
+1. **`--verify` imported `esm_msr` from the retired pin** (`dc_runs/pin_fwt_series/src`), which predates
+   `--external_val_sets` and rejected every generated arm. It now imports `TREE/src`, the tree that actually runs.
+2. **The checkpoint's architecture was inserted BEFORE the template's own `--lora_rank_wt 2 / --lora_alpha_wt 4`**, and
+   argparse takes the last value — so the frozen model would have been built at **WT rank 2** while the log printed
+   "frozen WT checkpoint" and the summary showed the gold head's rank 16. Now appended at the END of the command, and
+   `--verify` reports `verified ... rank_wt=16` for all five arms.
+3. **Checkpoint names carry literal single quotes.** `--checkpoint_filename` was passed through
+   `$(cat wt_base_args.txt)`, and command substitution does not strip the shell quoting, so the file is actually named
+   `'epoch=02-val_rho_wt_valid_avg=0.8504'.ckpt`. Consequences: `epoch=*.ckpt` globs match **nothing**, and an
+   unquoted interpolation of the path loses the quotes. Fixed three ways: `gate_capacity.best_ckpt` globs `*.ckpt` and
+   matches the epoch inside the name; `make_fwt_block` `shlex.quote`s the path and its `--verify` parses with
+   `shlex.split(..., comments=True)` while skipping the template's backtick-wrapped comment lines; and
+   `wt_base_args.txt` no longer carries the quotes, so arms launched from now on get clean names.
+
+Any one of them would have produced a frozen-WT block that trained a different architecture against the gold head —
+the "the architecture must travel with the weights" rule broken silently, at the gate that feeds the whole tf-mix/ns
+stage.
+
 ## 7. Open questions (in priority order)
 
 1. **Does the nonspecific term help on the current basis?** The best lead in the project, single seed —
