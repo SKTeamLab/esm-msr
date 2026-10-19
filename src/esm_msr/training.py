@@ -80,8 +80,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         )
         
         self.peft_manager = PEFTStateManager(self.model)
-        # --init_wt_from_checkpoint: copy a pre-trained WT path in BEFORE anything freezes it, so that
-        # --freeze_wt_adapter (or --frozen_wt_mt_only) holds exactly the loaded head fixed for the whole run.
+        # --init_wt_from_checkpoint: copy a pre-trained WT model in BEFORE anything freezes it, so that
+        # --freeze_wt_adapter / --freeze_link (or --frozen_wt_mt_only) hold exactly the loaded model fixed.
         if self.hparams.get('init_wt_from_checkpoint'):
             self._load_wt_weights(self.hparams.init_wt_from_checkpoint)
         # on_save_checkpoint deliberately keeps only the lora / calibration / link_head entries, so a
@@ -111,7 +111,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         ) if self.hparams.link else None
         if self.link_head is not None:
             logging.info(f"Observed-scale link enabled: {self.link_head.summary()}")
-
+            # The link is part of the pre-trained WT model, not a separate piece: a frozen WT adapter paired with a
+            # link that still moves (or with a different floor) is a different model than the one being frozen.
+            if self.hparams.get('init_wt_from_checkpoint'):
+                self._load_link_weights(self.hparams.init_wt_from_checkpoint)
+            if self.hparams.get('freeze_link', False):
+                self._freeze_link()
         # --nonspecific_term fx: nonspecific epistasis as its own learned term, f(x) (esm_msr.link.NonspecificTerm), added to a
         # multi-mutant's combined latent BEFORE the link so the link keeps modelling the readout alone. Lives on the Lightning
         # module, not on self.model, so the released model's state and inference are unchanged; checkpoints keep it as ns_head.*.
@@ -1247,6 +1252,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         src = obj.get('state_dict', obj) if isinstance(obj, dict) else obj
         if not isinstance(src, dict):
             raise RuntimeError(f"--init_wt_from_checkpoint: {path} does not contain a state dict")
+        self._init_wt_src = src            # re-used by _load_link_weights; the file is 225 MB, read it once
         current = {n: p for n, p in self.model.named_parameters()}
         loaded, missing, mismatched = [], [], []
         with torch.no_grad():
@@ -1268,6 +1274,45 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         logging.info(f"WT path warm-started from {path}: {len(loaded)} tensors loaded"
                      + (f", {len(missing)} name(s) not present" if missing else "")
                      + (f", {len(mismatched)} shape mismatch(es) skipped ({', '.join(mismatched[:3])}...)" if mismatched else ""))
+        return loaded
+
+    def _freeze_link(self):
+        """--freeze_link: nothing in the link trains, because the link is the last stage of the pre-trained WT model."""
+        for p in self.link_head.parameters():
+            p.requires_grad = False
+        logging.info("Link frozen (--freeze_link): its parameters are part of the pre-trained WT model")
+
+    def _load_link_weights(self, path):
+        """Copy the link (``link_head.*``) out of the same checkpoint the WT adapter came from.
+
+        The link is the last stage of the WT readout (latent -> observed ddG), so a frozen WT model without its link
+        is not the model that was measured: its floors, temperature and global floor all shape the observed-scale
+        prediction the WT loss and the rmse guard are computed from. A checkpoint that has no ``link_head.*`` keys
+        (the released model, or a ``converged_wt_*.pt``) leaves the link as its own flags configured it - that is
+        logged, not an error.
+        """
+        src = getattr(self, '_init_wt_src', None)
+        if src is None:
+            obj = torch.load(path, map_location='cpu')
+            src = obj.get('state_dict', obj) if isinstance(obj, dict) else obj
+            if not isinstance(src, dict):
+                return []
+        targets = dict(self.link_head.named_parameters())
+        targets.update(self.link_head.named_buffers())
+        loaded = []
+        with torch.no_grad():
+            for name, tensor in targets.items():
+                key = 'link_head.' + name
+                if key not in src:
+                    continue
+                value = src[key]
+                if torch.is_tensor(value) and tuple(value.shape) == tuple(tensor.shape):
+                    tensor.copy_(value.to(device=tensor.device, dtype=tensor.dtype))
+                    loaded.append(name)
+        if loaded:
+            logging.info(f"Link warm-started from {path}: {len(loaded)}/{len(targets)} tensor(s) ({', '.join(loaded)})")
+        else:
+            logging.info(f"Link NOT loaded from {path}: no link_head.* keys in it (the link stays as its flags set it)")
         return loaded
 
     def _save_converged_wt_weights(self):

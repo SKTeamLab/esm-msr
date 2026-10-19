@@ -240,20 +240,27 @@ def parse_arguments() -> argparse.Namespace:
 
     train_group.add_argument('--freeze_wt_adapter', action=argparse.BooleanOptionalAction, default=False)
     train_group.add_argument('--freeze_mt_adapter', action=argparse.BooleanOptionalAction, default=False)
+    train_group.add_argument('--freeze_link', action=argparse.BooleanOptionalAction, default=False,
+                             help="Freeze the link (the WT readout: latent -> observed ddG) for the whole run. It is "
+                                  "part of a pre-trained WT model - a frozen WT adapter paired with a link that still "
+                                  "moves is not the model the MT head is meant to be scored against - so "
+                                  "--frozen_wt_mt_only turns this on.")
     train_group.add_argument('--init_wt_from_checkpoint', type=str, default=None,
-                             help="Warm-start the WT path from an existing checkpoint: its WT adapter and calibration "
-                                  "head are copied in before training. Accepts a full Lightning checkpoint (what the "
-                                  "queue's arms write) or a converged_wt_*.pt file. Nothing else is loaded - the link "
-                                  "and the nonspecific term stay configured by their own flags, and the MT path is "
-                                  "always fresh (use --resume_from_checkpoint for a true resume). Pair with "
-                                  "--freeze_wt_adapter to keep the loaded head fixed for the whole run.")
+                             help="Warm-start the WT model from an existing checkpoint: its WT adapter, its "
+                                  "calibration head AND its link (the whole latent -> observed ddG readout) are "
+                                  "copied in before training. Accepts a full Lightning checkpoint (what the queue's "
+                                  "arms write) or a converged_wt_*.pt file; a checkpoint without link_head keys "
+                                  "leaves the link as configured by its flags. Nothing else is loaded - the MT path "
+                                  "is always fresh and the nonspecific term stays configured by its own flags (use "
+                                  "--resume_from_checkpoint for a true resume). Pair with --freeze_wt_adapter and "
+                                  "--freeze_link to keep the loaded model fixed, or use --frozen_wt_mt_only.")
     train_group.add_argument('--frozen_wt_mt_only', action=argparse.BooleanOptionalAction, default=False,
                              help="The 'frozen WT, MT-only, doubles-only' paradigm: requires "
-                                  "--init_wt_from_checkpoint, and sets --freeze_wt_adapter, --no-incl_singles and "
-                                  "--no-wt_trains_doubles. The WT head is then a fixed additive-expectation oracle, "
-                                  "only the MT path (and the link / nonspecific term) trains, and the training "
-                                  "stream is multi-mutants only. Validation is unaffected: it always keeps singles "
-                                  "and doubles, so rho_wt_valid remains a guard. Cheaper per epoch, and the "
+                                  "--init_wt_from_checkpoint, and sets --freeze_wt_adapter, --freeze_link, "
+                                  "--no-incl_singles and --no-wt_trains_doubles. The WT model (adapter, calibration "
+                                  "head, link) is then fixed, and only the MT path (and the nonspecific term) "
+                                  "trains on multi-mutants. Validation is unaffected: it always keeps singles and "
+                                  "doubles, so rho_wt_valid remains a guard. Cheaper per epoch, and the "
                                   "teacher-forced target stops moving.")
     train_group.add_argument('--freeze_wt_after_epoch', type=int, default=1000)
     train_group.add_argument('--wt_convergence_metric', type=str, default='rho_wt_valid')
@@ -442,9 +449,19 @@ def parse_arguments() -> argparse.Namespace:
         if args.init_wt_from_checkpoint is None:
             parser.error("--frozen_wt_mt_only needs --init_wt_from_checkpoint: the paradigm is a PRE-TRAINED frozen "
                          "WT head, not a randomly initialised one")
+        if not args.link:
+            parser.error("--frozen_wt_mt_only needs --link: the WT model being frozen includes its link (the "
+                         "latent -> observed ddG readout), and the nonspecific term acts before it")
         if not args.freeze_wt_adapter:
             logging.info("--frozen_wt_mt_only: setting --freeze_wt_adapter")
             args.freeze_wt_adapter = True
+        if not args.freeze_link:
+            logging.info("--frozen_wt_mt_only: setting --freeze_link (the WT readout is the adapter, its calibration "
+                         "head AND the link; a moving link would make the frozen WT a different model)")
+            args.freeze_link = True
+        if args.learn_link_tau or args.learn_global_floor:
+            logging.warning("--frozen_wt_mt_only freezes the link, so --learn_link_tau / --learn_global_floor have "
+                            "no effect")
         if args.incl_singles:
             logging.info("--frozen_wt_mt_only: setting --no-incl_singles (the training stream becomes multi-mutants "
                          "only; validation still keeps singles and doubles, so rho_wt_valid stays a guard)")

@@ -9,6 +9,7 @@ What is tested here: the flag combination is derived and validated at parse time
 the WT path - never the MT adapter, the link or the nonspecific term, which must not be smuggled in from the
 checkpoint the WT head came from.
 """
+import inspect
 import sys
 import types
 
@@ -51,11 +52,20 @@ def test_the_paradigm_derives_its_flags(tmp_path):
     torch.save({'state_dict': {}}, ckpt)
     a = parse('--frozen_wt_mt_only', '--init_wt_from_checkpoint', str(ckpt))
     assert a.freeze_wt_adapter is True
+    assert a.freeze_link is True
     assert a.incl_singles is False and a.incl_doubles is True
     assert a.wt_trains_doubles is False
     assert a.lambda_reg_wt == 0.0 and a.lambda_rank_wt == 0.0
     # the MT objective is untouched
     assert a.lambda_reg_mt == pytest.approx(1.0) and a.lambda_rank_mt == pytest.approx(1.0)
+
+
+def test_the_paradigm_needs_the_link(tmp_path):
+    """The WT model being frozen is adapter + calibration head + link; without the link there is no observed scale."""
+    ckpt = tmp_path / 'dc17.ckpt'
+    torch.save({'state_dict': {}}, ckpt)
+    with pytest.raises(SystemExit):
+        parse('--frozen_wt_mt_only', '--init_wt_from_checkpoint', str(ckpt), '--no-link')
 
 
 def test_a_plain_warm_start_is_allowed_and_keeps_the_wt_trainable(tmp_path):
@@ -151,6 +161,57 @@ def test_dtype_and_device_are_followed(tmp_path):
     M._load_wt_weights(stub, _save(tmp_path, src))
     assert stub.model.peft_wt_adapter.dtype == torch.float32
     torch.testing.assert_close(stub.model.peft_wt_adapter, torch.tensor([1.0, 2.0]))
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# the link travels with the WT model
+# ----------------------------------------------------------------------------------------------------------------
+
+class _Link(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.raw_tau = torch.nn.Parameter(torch.tensor([0.59]))
+        self.register_buffer('floor_min', torch.tensor([-1.0]))
+        self.register_buffer('global_floor', torch.tensor([0.0]))
+
+
+def test_the_link_is_loaded_with_the_wt_model(tmp_path):
+    """A frozen WT adapter with a different link is a different model: the floors are the observed-scale readout."""
+    stub = _stub()
+    stub.link_head = _Link()
+    src = {'peft_wt_adapter': torch.tensor([1.0, 2.0]), 'calibration_head_wt': torch.tensor([0.1]),
+           'link_head.raw_tau': torch.tensor([0.8]), 'link_head.floor_min': torch.tensor([-0.5]),
+           'link_head.global_floor': torch.tensor([-0.136])}
+    M._load_wt_weights(stub, _save(tmp_path, src))          # also caches the state dict for the link
+    n = M._load_link_weights(stub, 'cached')
+    assert n == ['raw_tau', 'floor_min', 'global_floor']
+    assert float(stub.link_head.raw_tau) == pytest.approx(0.8)
+    assert float(stub.link_head.floor_min) == pytest.approx(-0.5)
+    assert float(stub.link_head.global_floor) == pytest.approx(-0.136)
+
+
+def test_a_checkpoint_without_a_link_leaves_it_as_configured(tmp_path):
+    """The released checkpoints and converged_wt_*.pt files have no link_head.* - that is not an error."""
+    stub = _stub()
+    stub.link_head = _Link()
+    path = _save(tmp_path, {'peft_wt_adapter': torch.tensor([1.0, 2.0])})
+    M._load_wt_weights(stub, path)
+    assert M._load_link_weights(stub, path) == []
+    assert float(stub.link_head.raw_tau) == pytest.approx(0.59)
+
+
+def test_freezing_the_link_stops_every_one_of_its_parameters():
+    stub = _stub()
+    stub.link_head = _Link()
+    assert all(p.requires_grad for p in stub.link_head.parameters())
+    M._freeze_link(stub)
+    assert all(not p.requires_grad for p in stub.link_head.parameters())
+
+
+def test_the_init_hooks_the_link_to_the_wt_model():
+    """Guard the wiring itself: the loader must run under --init_wt_from_checkpoint and the freeze under --freeze_link."""
+    src = inspect.getsource(M.__init__)
+    assert 'init_wt_from_checkpoint' in src and '_load_link_weights' in src and '_freeze_link' in src
 
 
 # ----------------------------------------------------------------------------------------------------------------
