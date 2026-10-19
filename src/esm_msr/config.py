@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 import logging
 from esm_msr.data import ProteinCyclingBatchSampler
 
@@ -416,10 +417,18 @@ def parse_arguments() -> argparse.Namespace:
     args, remaining_argv = parser.parse_known_args()
 
     # A subset capped to 0 contributes nothing, so don't pay to load it; one left unrestricted must be loaded.
+    # The two spellings are kept in sync in BOTH directions. Without the second direction the flags were silently
+    # discarded: `--no-incl_doubles` alone left incl_doubles True, because the cap (None = unrestricted) then won,
+    # so the documented flag was a no-op unless the cap happened to agree. Only an EXPLICIT --no-incl_* forces the
+    # cap, because incl_cond/incl_native_cond default to False and must not overwrite a requested cap.
     subset_flag_map = {'single': 'incl_singles', 'double': 'incl_doubles',
                        'cond': 'incl_cond', 'native_cond': 'incl_native_cond'}
+    passed = set(sys.argv[1:])
     for subset_key, flag_name in subset_flag_map.items():
         cap_val = args.subset_caps.get(subset_key)
+        if f'--no-{flag_name}' in passed:
+            args.subset_caps[subset_key] = 0.0      # the explicit exclusion wins, and the cap now agrees with it
+            cap_val = 0.0
         setattr(args, flag_name, cap_val is None or cap_val > 0)
 
     if remaining_argv:
@@ -477,10 +486,14 @@ def parse_arguments() -> argparse.Namespace:
         if args.learn_link_tau or args.learn_global_floor:
             logging.warning("--frozen_wt_mt_only freezes the link, so --learn_link_tau / --learn_global_floor have "
                             "no effect")
+        if args.subset_caps.get('double') is not None and args.subset_caps['double'] <= 0:
+            parser.error("--frozen_wt_mt_only trains on multi-mutants only, but --subset_caps double=0 excludes "
+                         "them: nothing would be left to train on")
         if args.incl_singles:
             logging.info("--frozen_wt_mt_only: setting --no-incl_singles (the training stream becomes multi-mutants "
                          "only; validation still keeps singles and doubles, so rho_wt_valid stays a guard)")
             args.incl_singles = False
+            args.subset_caps['single'] = 0.0        # same as passing --no-incl_singles: the two spellings agree
         if args.wt_trains_doubles:
             logging.info("--frozen_wt_mt_only: setting --no-wt_trains_doubles")
             args.wt_trains_doubles = False
