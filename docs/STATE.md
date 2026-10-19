@@ -26,18 +26,24 @@ see `docs/nonspecific_epistasis.md`. Current best *canonical* arm: **dc17**.
 | `claude/ext-val-and-masks` | `.claude/worktrees/ext-val` | external validation, mask strategies |
 | `feature/nonspecific-term` (`7266661` + OOD commit) | `.claude/worktrees/nonspecific-term` | ns term, frozen-WT, `--tf_mix`, `--val_wt_only`, `incl_*` fix, OOD metric exclusion (parent `b34093f`); queue plan written, not run — `docs/queue_takeover_ns.md` |
 
-The trees, their bases, the running pin's patch list and the commit state at handoff are in **`docs/HANDOFF.md` §1, §4**
-(the docs home is `repo/` on `devel-experimental`; the feature worktree's `docs/` is an older, different set).
+**Consolidated 2026-10-19: one branch, no pin.** `devel-revision` (checked out at
+`.claude/worktrees/devel-main-conservative-merge-5e554f`) now carries **both the code and the documentation**:
+`b34093f` (the dc17–dc19 code) + seven campaign commits (ns term, frozen-WT/MT-only, link loading, `--tf_mix`, the
+`--no-incl_*` fix, `--val_wt_only`, the OOD metric exclusion) + the docs. It deliberately excludes `--ext_val_doubles`,
+per-pass masking (`--mask_strategy_wt/mt`) and `--double_batch_frac`, which came from the `claude/ext-val-and-masks`
+side branch.
 
-**Rule: a queued series runs from a pinned snapshot of the code, not from a live worktree.** The worktrees
-are shared and move mid-session. Examples: `/home/sareeves/playground/esm-msr-devel/dc_runs/pin_dc14_series`
-(`e76fbbb`) and `pin_dc17_series` (`b34093f`), each with a `PINNED_FROM.txt`. A run whose log does not name
-its snapshot cannot be reproduced.
+**Why the old rule existed, and what replaces it.** A queue ran from `dc_runs/pin_<series>`, a *directory copy* of a
+snapshot plus hand patches, because worktrees move mid-session and code must not change under a running arm. That had
+two costs: a pin could silently diverge from the branch (it did — it was `devel-revision` + three ext-val commits, not
+`devel-revision`), and hand patches had to be re-applied by hand. Now the launchers `cd` into the branch worktree and
+**log the commit as their first output line** (`tree=... commit=... branch=...`), so every arm is stamped with the code
+that produced it. The rule that keeps it honest: **do not commit to `devel-revision` while the queue is running.**
 
-The **canonical recipe** is not repeated here — it is the argument list of
-`/home/sareeves/playground/esm-msr-devel/dc_runs/launch_dc17_s1.sh`, whose header explains every choice.
-The earlier canonical command (still what `scripts/run_arm.sh` embeds) is in
-`docs/epistasis_training_handoff.md` §2.
+Runs before this consolidation came from the pin lineage; it is tagged `archive/pin-lineage-2026-10-19` and the pin
+directories remain on disk, so they are still reproducible. For the canonical recipe the three excluded commits are
+inert (mask strategies off, `--ext_val_doubles` unused, `--double_batch_frac` off), but that code is **not
+byte-identical** to what ran.
 
 ## 3. Where things live
 
@@ -58,35 +64,22 @@ The earlier canonical command (still what `scripts/run_arm.sh` embeds) is in
 | tests | `PYTHONPATH=src python -m pytest tests -q` — currently **288 passed, 1 skipped**, CPU only, ~17 s. (The parent `b34093f` is 234 passed, 1 skipped; the suite is pytest-style, so `unittest discover` is no longer the right entry point.) |
 | GPU | one RTX 5090, 32.6 GB. The Windows display holds ~5 GB when idle; a training run takes 22-25 GB **reserved**. One job at a time. |
 
-## 4. Running now / queued (2026-10-19 12:00)
+## 4. Running now / queued (2026-10-19 12:15)
 
-Runner `dc_runs/queue_ns.sh` -> `dc_runs/queue_ns.txt`, which holds `wtsweep` and `gate1_tfmix`; the gates append
-everything after that. Full orientation, incl. the trees and commit state: **`docs/HANDOFF.md`**.
+**The WT reference run is live.** `dc_runs/queue_ns.sh queue_ref.txt` -> one arm, **`wt_ref_floor0_r16a16_d02`**:
+floor 0 (`--assay_floor 0.0`, link band 0…0.001), WT rank 16 / alpha 16, dropout 0.2, singles only, under the **new
+metric definition** (OOD sets out of every aggregate). Started 12:15 from `devel-revision` @ `04c707b`; its log's
+first line records the tree and commit. ~1.5 h (≈17 min/epoch, self-stops after three plateau decays).
 
-* **`wtsweep` is running, stage `floor0`, arm `wt_floor0_drop02b`** - WT rank 16 / alpha 32 / dropout 0.2 with the zero
-  knee (`--assay_floor 0.0 --link_floor_min 0.0 --link_floor_max 0.001`), matched against `wt_drop02` (same stack, data
-  knee, 0.8447). It self-stops after three plateau decays (~epoch 5).
-  Completed stages: floor (`wt_floor_data` 0.8391; `wt_floor_zero` died at construction - this pin rejects a 0/0 band),
-  capacity (`wt_r16a32` 0.8435 beat rank 2's 0.8391 by 0.0044; rank 8 tied it), dropout (`wt_drop02` 0.8447, +0.0010).
-  The base-config knee pair showed no cost: `wt_floor_data` 0.8391 vs `wt_floor0_base` 0.8403 (EXPERIMENTS §6b).
-* **Next, automatically:** the `floor0` hook `floor_decide.py` adopts the zero knee by parsimony (seed-1 pair only;
-  `--retest` re-enables a second seed) and rewrites the knee lines of `wt_stack.txt`; then **`capacity2` runs
-  `wt_r16a16` = floor 0 / r16 / alpha16 / dropout 0.2 under the new metric definition - the new WT gold standard**.
-  `wt_best.txt` is `0.0` so that run becomes the standing best rather than being compared to an old-definition 0.8447.
-  Then `lr` -> `balance` -> `reach`.
-* **Metric basis changed 2026-10-19** (§5.1): the OOD sets (`ptmuld`, `s461`, `ssym`) are out of every aggregate and
-  summarised as `val_*_combined_external`; aggregates before and after that date are not comparable. Every run from
-  `wt_r16a16` onward uses the new basis.
-* **After the sweep:** `gate1_tfmix` generates the frozen-WT/tf-mix block from the winner (1 knee A/B arm + 5
-  `--tf_mix` points) and appends `gate2_ns`, which picks the mix (`mix_pick.py`, margin 0.03 on `beyond_rho_mt`, else
-  keeping 1.0) and adds `--nonspecific_term fx` at it with two seeds plus a seed-2 control. `make_fwt_block.py` reads
-  the winner's weights, LoRA shape **and** link/censoring semantics (including `--external_val_sets`) from its
-  checkpoint, so a stack cannot be mistyped or silently lost at the gate.
-* **Deferred, not queued:** the from-scratch ns arms (`ctrl_s2`, `ns1_s1/s2`, `ns1_coarse_s1`, pinned at
-  `pin_ns_series` @ `7db75a7`). `claude_queue.txt` still lists `wtsweep` and `dc19`-`dc23`; they predate the frozen-WT
-  paradigm and both sweeps and must be re-stated before that runner is ever restarted.
-* **Frozen-WT paradigm** (implemented: code `cf2b450`-`71d21fe`, pin `pin_fwt_series`): every future epistasis run is
-  meant to freeze a chosen WT head and train only the MT path on doubles (`docs/frozen_wt_paradigm.md`).
+This is the **new WT gold standard**: its `val_rho_wt_valid_avg` is the reference for every later WT comparison, and its
+`val_rho_combined_external` / `val_rmse_combined_external` are the external-set baseline. It supersedes the 0.8447
+reference, whose aggregate still contained the OOD sets.
+
+Not carried over: the retired sweep's `lr`/`balance`/`reach` stages (designed on the old basis), and any use of
+`wt_stack.txt` / `wt_best.txt` (history now, not state). After this run the next steps are re-stating those arms if
+wanted, then `gate1_tfmix` (frozen-WT block: one knee A/B arm + five `--tf_mix` points) -> `gate2_ns` -> the `fx` arms.
+Deferred/not queued: the from-scratch ns arms (`ctrl_s2`, `ns1_*`, pinned at `pin_ns_series` @ `7db75a7`), and
+`claude_queue.txt`, which still lists `wtsweep` and `dc19`–`dc23` and must be re-stated before that runner is restarted.
 
 ## 5. How to read results
 

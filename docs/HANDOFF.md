@@ -17,65 +17,61 @@ the nonspecific-epistasis term (`--nonspecific_term fx`), which is the best sing
 
 ## 1. Where things live, and which tree runs
 
-**Documentation lives in `repo/` on branch `devel-experimental`** (`/home/sareeves/playground/esm-msr-devel/repo/docs`).
-It is NOT in the feature worktree: `.claude/worktrees/nonspecific-term/docs/` contains an older, different, three-file
-set with no `STATE.md`. Read docs from `repo/docs`.
+**One branch carries both the code and the documentation: `devel-revision`** (`04c707b` at handoff), checked out
+at `repo/.claude/worktrees/devel-main-conservative-merge-5e554f`, which is the **execution tree**. Contents:
 
-**The queue runs an unversioned snapshot, not any branch.** `/home/sareeves/playground/esm-msr-devel/dc_runs/pin_dc20_series`
-is the only code that trains. It is a copy of `claude/ext-val-and-masks e075ed8`, plus **deliberate hand patches recorded
-in `PINNED_FROM.txt`** (that file is authoritative — read it before touching the pin). The current patches are:
+* `b34093f` — devel-revision proper: the dc17–dc19 code;
+* **seven campaign commits**, and nothing else: `--nonspecific_term fx` (ns term), `--frozen_wt_mt_only` +
+  `--init_wt_from_checkpoint` (train MT only against a frozen WT), link loading/freezing for that frozen model,
+  `--tf_mix`, the `--no-incl_*` fix, `--val_wt_only`, and the OOD exclusion from every validation aggregate;
+* `docs/` — this documentation set (imported from `devel-experimental`, which is no longer the docs home).
 
-1. `--val_wt_only` (WT-only validation, 2026-10-18 23:20) — upstream commit `7266661`.
-2. `_transition_to_mt()` respects `--freeze_mt_adapter` (23:35) — this is what lets WT-only arms early-stop.
-3. OOD validation exclusion + `_external` metrics (2026-10-19 12:00) — upstream commit in the feature branch, see §4.
+Deliberately **NOT** in it: `--ext_val_doubles`, per-pass masking (`--mask_strategy_wt/mt`) and `--double_batch_frac`.
+Those came from the `claude/ext-val-and-masks` side branch and were carried into the old pin; none of them belongs to
+this campaign. The *separation* commits are the point: WT/MT separation (frozen WT, MT-only training, WT-only
+validation) and external-vs-in-distribution separation (the `_external` metrics).
 
-Trees:
+**No pinning.** The queue used to run `dc_runs/pin_dc20_series`, a *directory copy* of the `claude/ext-val-and-masks`
+snapshot plus hand-applied patches — because worktrees move mid-session and a running queue must not have code changed
+under it. As of `04c707b` the launchers `cd` straight into the tree above and **log the commit they started from**
+(`tree=... commit=04c707b branch=devel-revision` is the first line of every arm log). The corresponding rule is:
+**do not commit to `devel-revision` while the queue is running.**
 
-| path | branch / state | what it is for |
-|---|---|---|
-| `repo/` | `devel-experimental` @ `006078b` (ahead 23 / behind 31 of origin) | **documentation home**; docs commits land here |
-| `repo/.claude/worktrees/nonspecific-term` | `feature/nonspecific-term` @ `7266661` + one uncommitted-then-committed OOD patch | **code home**: ns term, frozen-WT, `--tf_mix`, `--val_wt_only`, `incl_*` fix, OOD exclusion. Based on `main` (`c34c315`), NOT on `devel-experimental` |
-| `repo/.claude/worktrees/ext-val` | `claude/ext-val-and-masks` @ `e075ed8` | the pin's upstream source |
-| `repo/.claude/worktrees/devel-main-conservative-merge-5e554f` | `devel-revision` @ `b34093f` | the dc17–dc19 code (dc17's results come from here) |
-| `.claude/worktrees/{main-baseline,delink-above-tau,scale-mismatch-improvements-a44582,practical-snyder-52312a,branch-strategy-reorganization-5cfa71}` | assorted `claude/*` | unused by the current campaign |
+Two caveats about past numbers: every run before `04c707b` came from the pin (i.e. from devel-revision **plus** the
+three ext-val commits, plus the hand patches). That lineage is tagged `archive/pin-lineage-2026-10-19` and the pin
+directories are still on disk, so those runs remain reproducible; for the canonical recipe the three dropped commits
+are inert (mask strategies off, `--ext_val_doubles` unused, `--double_batch_frac` off), but the code is not
+byte-identical to what ran. `devel-experimental` still holds a copy of the docs from the same import point.
 
-> **Which tree is which, in one line each.** *Execution* = `dc_runs/pin_dc20_series`, a snapshot of the
-> **`devel-revision`** line (`b34093f` + 3 commits) plus the hand patches in `PINNED_FROM.txt` — not
-> `devel-experimental`. *Code* = the `feature/nonspecific-term` worktree, which is based on **`main` (`c34c315`)** —
-> neither `devel-revision` nor `devel-experimental`. *Docs* = `repo/` on **`devel-experimental`**.
->
-> **`devel-experimental` contains none of this campaign's code.** Verified at handoff: `--nonspecific_term`,
-> `--frozen_wt_mt_only`, `--tf_mix`, `--val_wt_only` and `--external_val_sets` all return zero matches in
-> `repo/src/esm_msr/config.py`, and the pin has only those flags its patches added. So branching or merging from
-> `devel-experimental` gets the documentation with none of the features; the feature branch is the only tree with both
-> the code and the tests, and it does not carry `devel-experimental`'s (longer) history. Reconciling those two lines is
-> a deliberate decision, not a formality.
+Other worktrees exist (`main-baseline`, `delink-above-tau`, `scale-mismatch-improvements`, `practical-snyder`,
+`branch-strategy-reorganization`, `ext-val`) and are **not** used by the campaign.
 
 Working rules that come from this layout:
 
-* Code changes go in the **feature worktree**, with tests (`PYTHONPATH=src python -m pytest tests -q`; currently
-  **288 passed, 1 skipped**), then the same patch is applied to the **pin** deliberately and recorded in `PINNED_FROM.txt`.
-* Never leave the pin and the feature branch silently divergent: that is how a run trains code nobody can reproduce.
-* `dc_runs/` is outside the workspace; writes there need elevated permission.
+* Code and docs both change on **`devel-revision`**, with tests (`PYTHONPATH=src python -m pytest tests -q`; currently
+  **288 passed, 1 skipped**). There is no second tree to keep in sync any more — the old failure mode (pin silently
+  divergent from the branch) is gone by construction.
+* Keep the branch's scope narrow: campaign changes only. Unrelated side-branch work (masking, `--ext_val_doubles`,
+  `--double_batch_frac`) does not belong on it, however harmless it looks — it makes the code that ran ambiguous.
+* `dc_runs/` is outside the workspace; writes there need elevated permission. Launchers live there and point at the
+  execution tree above.
 * **A running bash script must not be edited** (the sweep is read incrementally). Stop the queue, edit, restart.
 
 ## 2. What is running right now
 
-`dc_runs/queue_ns.sh` drives `dc_runs/queue_ns.txt`, which currently contains only `wtsweep` and `gate1_tfmix`; the
-gates append everything after that.
+The reference run. `dc_runs/queue_ns.sh` drives `dc_runs/queue_ref.txt`, which contains one arm:
+**`wt_ref_floor0_r16a16_d02`** — the new WT **gold standard**: floor 0 (`--assay_floor 0.0`, link band 0…0.001),
+WT rank 16 / alpha 16, dropout 0.2, singles only, under the **new metric definition**. Its launcher does not read
+`wt_stack.txt`, so no stale stack can change it, and its log's first line records `commit=04c707b`.
 
-The sweep (`launch_wtsweep.sh`, pid visible in `wt_sweep.log`) is mid-`floor0`: arm **`wt_floor0_drop02b`** =
-WT rank 16 / alpha 32 / dropout 0.2 with the zero knee, matched against `wt_drop02` (same stack, data knee, 0.8447).
-It self-stops after three plateau decays (~epoch 5). Then:
+It started 2026-10-19 12:15 from `devel-revision`; expect ~1.5 h (≈17 min/epoch, self-stopping after three plateau
+decays). When it lands, its `val_rho_wt_valid_avg` **is the WT reference** for everything after it, and its
+`val_rho_combined_external` / `val_rmse_combined_external` are the external-set baseline.
 
-1. `floor_decide.py` runs as a hook. It **adopts the zero knee by parsimony** (seed-1 pair only; `--retest` re-enables
-   the second seed) and rewrites the knee lines of `wt_stack.txt`.
-2. `capacity2` runs **`wt_r16a16`** = floor 0 / rank 16 / alpha 16 / dropout 0.2 under the **new metric definition**.
-   That run is the **new WT gold standard**; `wt_best.txt` is set to `0.0` so it becomes the standing best rather than
-   being compared against an old-definition number.
-3. `lr` → `balance` → `reach` follow, stacking onto the gold standard.
-4. `gate1_tfmix` generates the frozen-WT block from the sweep winner (6 arms: 1 knee A/B + 5 `--tf_mix` points), then
-   `gate2_ns` picks the mix and appends the `fx` arms (2 seeds + a seed-2 control).
+After it: the queue is otherwise empty. The WT sweep's remaining stages (`lr`, `balance`, `reach`) were **not**
+carried over — they were designed against the old metric basis and the old pin. Re-state them if they are still wanted,
+and continue with `gate1_tfmix` (frozen-WT block: 1 knee A/B arm + 5 `--tf_mix` points) → `gate2_ns` → the `fx` arms.
+The current `wt_stack.txt` / `wt_best.txt` belong to the retired sweep; treat them as history, not state.
 
 ## 3. What the last two days established
 
@@ -107,27 +103,29 @@ It self-stops after three plateau decays (~epoch 5). Then:
 
 ## 4. Commit / branch state at handoff
 
-* `devel-experimental` (`repo/`): documentation commits only. HEAD at handoff is `d822891` (this file, the STATE §4
-  rewrite, EXPERIMENTS §6c, the metrics doc and the README index).
+* **`devel-revision` is the single branch**: `b34093f` + seven campaign commits + `04c707b` (docs import and a comment
+  fix). HEAD at handoff is `04c707b`, and `devel-experimental` is no longer the docs home.
 * `feature/nonspecific-term` (`nonspecific-term` worktree): `7db75a7` ns term → `cf2b450` frozen WT → `71d21fe` link
   loading → `18b1ede` `--tf_mix` → `384ec80` `incl_*` fix → `7266661` `--val_wt_only` → the OOD-exclusion commit
   (training.py, config.py, `tests/test_external_val_sets.py`).
-* `pin_dc20_series`: no git history of its own; `PINNED_FROM.txt` is the record and now lists the OOD patch too.
-* Nothing is pushed. `devel-experimental` is ahead 23 / behind 31 of `origin/devel-experimental` — a merge is a
+* The pin directories remain on disk as the record of what ran before `04c707b`; `PINNED_FROM.txt` says so and lists
+every patch. They are archives now, not inputs.
+* Nothing is pushed. `devel-revision` has never been pushed; `devel-experimental` is ahead 23 / behind 31 of
+  `origin/devel-experimental` — a merge is a
   separate decision and has not been attempted.
 
 ## 5. Immediate next actions (in order)
 
-1. **Let `wt_floor0_drop02b` finish** (~13:00–13:30 on 2026-10-19). Do not kill it; it is the last old-definition run
-   and the seed-1 leg of the knee confirmation.
-2. **Verify the new metric on `wt_r16a16`'s `metrics.csv`** (do not trust the diff):
+1. **Let `wt_ref_floor0_r16a16_d02` finish** (~1.5 h from 12:15 on 2026-10-19) and record its `val_rho_wt_valid_avg` as
+   the WT reference.
+2. **Verify the new metric on its `metrics.csv`** (do not trust the diff):
    * `val_rho_combined_external` and `val_rmse_combined_external` exist;
    * `val_rho_combined_avg` equals the `nanmean` over the 25 non-OOD per-library columns;
    * `val_rho_ungrouped_combined` matches a pooled recomputation that excludes the three OOD libraries.
-3. **Confirm the gold standard** is recorded as floor 0 / r16 / alpha16 / dropout 0.2 (arm `wt_r16a16`), and that
-   `wt_best.txt` and `wt_stack.txt` reflect it.
-4. Then let `lr` → `balance` → `reach` run, and check `gate1_tfmix` when the sweep ends (it generates six arms and
-   verifies every command line with `--verify`).
+3. **Confirm the gold standard** is recorded as floor 0 / r16 / alpha16 / dropout 0.2 (arm `wt_ref_floor0_r16a16_d02`),
+   and decide whether the retired `wt_stack.txt` / `wt_best.txt` should be cleared rather than reused.
+4. Then re-state the remaining hyperparameter arms (lr / balance / reach) on the new basis, and run `gate1_tfmix` (it
+   generates six arms and verifies every command line with `--verify`).
 5. Deferred, not queued: the from-scratch ns arms (`ctrl_s2`, `ns1_s1/s2`, `ns1_coarse_s1`); `claude_queue.txt`
    still lists `wtsweep` and dc19–dc23 and must be restated before that runner is ever restarted; and **inference does
    not read `link_head.*` or `ns_head.*`**, so nothing trained with `--link` or `--nonspecific_term` can ship yet.
