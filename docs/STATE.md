@@ -65,20 +65,34 @@ byte-identical** to what ran.
 | tests | `PYTHONPATH=src python -m pytest tests -q` — currently **288 passed, 1 skipped**, CPU only, ~17 s. (The parent `b34093f` is 234 passed, 1 skipped; the suite is pytest-style, so `unittest discover` is no longer the right entry point.) |
 | GPU | one RTX 5090, 32.6 GB. The Windows display holds ~5 GB when idle; a training run takes 22-25 GB **reserved**. One job at a time. |
 
-## 4. Running now / queued (2026-10-19 12:15)
+## 4. Running now / queued (2026-10-19 12:40)
 
-**The WT reference run is live.** `dc_runs/queue_ns.sh queue_ref.txt` -> one arm, **`wt_ref_floor0_r16a16_d02`**:
+**The WT reference run is live** (attempt 3). `dc_runs/queue_ns.sh queue_ref.txt` -> **`wt_ref_floor0_r16a16_d02`**:
 floor 0 (`--assay_floor 0.0`, link band 0…0.001), WT rank 16 / alpha 16, dropout 0.2, singles only, under the **new
-metric definition** (OOD sets out of every aggregate). Started 12:15 from `devel-revision` @ `04c707b`; its log's
-first line records the tree and commit. ~1.5 h (≈17 min/epoch, self-stops after three plateau decays).
+metric definition** (OOD sets out of every aggregate). Started 12:29:48 from `devel-revision` @ `309c27e`; its log's
+first line records the tree and commit. The zero-shot validation gate passed at 12:35:55 (~16 min/epoch, ~4 min
+validation, self-stops after three plateau decays).
 
 This is the **new WT gold standard**: its `val_rho_wt_valid_avg` is the reference for every later WT comparison, and its
 `val_rho_combined_external` / `val_rmse_combined_external` are the external-set baseline. It supersedes the 0.8447
 reference, whose aggregate still contained the OOD sets.
 
-Not carried over: the retired sweep's `lr`/`balance`/`reach` stages (designed on the old basis), and any use of
-`wt_stack.txt` / `wt_best.txt` (history now, not state). After this run the next steps are re-stating those arms if
-wanted, then `gate1_tfmix` (frozen-WT block: one knee A/B arm + five `--tf_mix` points) -> `gate2_ns` -> the `fx` arms.
+**Two failed attempts are on record, not silent.** Attempt 1 died at 12:22 with `NameError: name 'ext_per_loader' is
+not defined` — the OOD patch added the dict's uses but never initialised it, so *no* run on the new basis could pass
+the pre-training zero-shot validation. Fixed in `75d3e34` (one line) with a regression test in `309c27e`.
+Attempt 2 died in 96 s for an environment reason: the launching shell's sandbox denies `/dev/shm`, so DataLoader
+workers cannot create POSIX semaphores (`PermissionError` on `multiprocessing.SemLock`); the queue is relaunched with
+elevated permissions (do **not** "fix" this by lowering `num_workers` — it would change the arm's provenance).
+Archives: `logs/_aborted_wt_ref_floor0_r16a16_d02_{nameerror,semlock}`.
+
+**Queued behind it** (`queue_ref.txt`, same recipe and new basis, so WT rank/alpha is the only variable):
+`wt_r8a11` then `wt_r4a8` — the **capacity re-check** ("capacity is still in doubt"; `r4/a8` is a re-run, its 0.8395
+was old-basis and pre-dropout). If a challenger is not clearly outside the reference's measurement error it earns a
+second seed for **both** arms before anything stacks — see §5.2.
+
+Not carried over: the retired sweep's `lr`/`balance`/`reach` stages (designed on the old basis, old pin), and any use
+of `wt_stack.txt` / `wt_best.txt` (history now, not state). After the capacity re-check: `gate1_tfmix` (frozen-WT
+block: one knee A/B arm + five `--tf_mix` points) -> `gate2_ns` -> the `fx` arms.
 Deferred/not queued: the from-scratch ns arms (`ctrl_s2`, `ns1_*`, pinned at `pin_ns_series` @ `7db75a7`), and
 `claude_queue.txt`, which still lists `wtsweep` and `dc19`–`dc23` and must be re-stated before that runner is restarted.
 
@@ -136,8 +150,28 @@ whole `val_epi_*` hierarchy — now covers in-distribution libraries only. The l
 its `val_*_avg`; a run after does not. When an old run must be compared, recompute from the per-library columns
 (`val_<metric>/<library>`), all of which are still written.
 
-**The new WT gold standard** is the run that establishes the new basis: floor 0, WT rank 16 / alpha 16, dropout 0.2
-(arm `wt_r16a16` in the rescheduled sweep). Future WT comparisons are against it.
+**The new WT gold standard** is the run that establishes the new basis: floor 0, WT rank 16 / alpha 16, dropout 0.2 —
+arm **`wt_ref_floor0_r16a16_d02`** (`dc_runs/launch_wt_ref_floor0_r16a16_d02.sh`, started 2026-10-19 12:29 after the
+`ext_per_loader` fix). Future WT comparisons are against it. The first two attempts at it did not produce a number:
+they are archived, not superseded, and their failure modes are recorded in §4.
+
+### 5.2 Decision rule (2026-10-19): a gain must be real, parsimony wins ties, OOD is a guard
+
+Stacking is unchanged — only a winner stacks. What changed is the evidence bar:
+
+* **A gain that is not clearly outside measurement error does not stack on one seed.** It earns **one extra seed for
+  both the challenger and the incumbent** (a symmetric pair, so the seed is never confounded with the change), and the
+  pooled comparison decides. "Clearly outside" means the difference exceeds the §5 noise and the between-seed SD, not
+  that it is merely positive.
+* **Parsimony is preferred** and is itself a gain worth confirming, not a free win: a smaller WT adapter, or one
+  asserted knee instead of a per-library floor, is adopted when the confirmation is neutral-or-better — never because
+  it is cheaper on a single seed.
+* **The external OOD sets are a generalization guard.** Read `val_rho_combined_external` / `val_rmse_combined_external`
+  to check that a decision travels to out-of-distribution assays; do **not** decide anything from them (they are out
+  of distribution and were the source of the "floor0 wins 2/3" misread, which came from a confounded arm).
+
+Applied to the current queue: `wt_r8a11` / `wt_r4a8` are compared with `wt_ref_floor0_r16a16_d02` on
+`val_rho_wt_valid_avg`; a win inside the noise band triggers the second-seed pair before any stack.
 
 ## 6. Operating the queue
 

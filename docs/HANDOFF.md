@@ -59,19 +59,28 @@ Working rules that come from this layout:
 
 ## 2. What is running right now
 
-The reference run. `dc_runs/queue_ns.sh` drives `dc_runs/queue_ref.txt`, which contains one arm:
+The reference run (attempt 3). `dc_runs/queue_ns.sh` drives `dc_runs/queue_ref.txt`, which contains:
 **`wt_ref_floor0_r16a16_d02`** — the new WT **gold standard**: floor 0 (`--assay_floor 0.0`, link band 0…0.001),
 WT rank 16 / alpha 16, dropout 0.2, singles only, under the **new metric definition**. Its launcher does not read
-`wt_stack.txt`, so no stale stack can change it, and its log's first line records `commit=04c707b`.
+`wt_stack.txt`, so no stale stack can change it, and its log's first line records the tree and `commit=309c27e`.
 
-It started 2026-10-19 12:15 from `devel-revision`; expect ~1.5 h (≈17 min/epoch, self-stopping after three plateau
-decays). When it lands, its `val_rho_wt_valid_avg` **is the WT reference** for everything after it, and its
-`val_rho_combined_external` / `val_rmse_combined_external` are the external-set baseline.
+It started 2026-10-19 12:29:48 from `devel-revision`; ~16 min/epoch + ~4 min validation, self-stopping after three
+plateau decays. The zero-shot validation gate passed at 12:35:55. When it lands, its `val_rho_wt_valid_avg` **is the WT
+reference** for everything after it, and its `val_rho_combined_external` / `val_rmse_combined_external` are the
+external-set baseline.
 
-After it: the queue is otherwise empty. The WT sweep's remaining stages (`lr`, `balance`, `reach`) were **not**
-carried over — they were designed against the old metric basis and the old pin. Re-state them if they are still wanted,
-and continue with `gate1_tfmix` (frozen-WT block: 1 knee A/B arm + 5 `--tf_mix` points) → `gate2_ns` → the `fx` arms.
-The current `wt_stack.txt` / `wt_best.txt` belong to the retired sweep; treat them as history, not state.
+**Queued behind it** (same recipe and basis, so rank/alpha is the only variable): `wt_r8a11` then `wt_r4a8` — the
+capacity re-check. If a challenger is not clearly outside the reference's measurement error, it earns a second seed
+for both arms before anything stacks (STATE §5.2).
+
+Two failed attempts at the reference are archived, not silent: attempt 1 `NameError: ext_per_loader` (code, fixed
+`75d3e34` + test `309c27e`), attempt 2 `PermissionError` on `multiprocessing.SemLock` (the launching shell's sandbox
+denies `/dev/shm`; relaunched with elevated permissions — do not lower `num_workers` to work around it). See STATE §4.
+
+The WT sweep's remaining stages (`lr`, `balance`, `reach`) were **not** carried over — they were designed against the
+old metric basis and the old pin. Re-state them if they are still wanted, then `gate1_tfmix` (frozen-WT block: 1 knee
+A/B arm + 5 `--tf_mix` points) → `gate2_ns` → the `fx` arms. The current `wt_stack.txt` / `wt_best.txt` belong to the
+retired sweep; treat them as history, not state.
 
 ## 3. What the last two days established
 
@@ -104,27 +113,32 @@ The current `wt_stack.txt` / `wt_best.txt` belong to the retired sweep; treat th
 ## 4. Commit / branch state at handoff
 
 * **`devel-revision` is the single branch**: `b34093f` + seven campaign commits + `04c707b` (docs import and a comment
-  fix). HEAD at handoff is `04c707b`, and `devel-experimental` is no longer the docs home.
+  fix), then the takeover commits `75d3e34` (`ext_per_loader` fix), `309c27e` (its regression test) and the docs
+  refresh after them. HEAD now carries the fix; `devel-experimental` is no longer the docs home (it is labelled
+  stale and points here).
 * `feature/nonspecific-term` (`nonspecific-term` worktree): `7db75a7` ns term → `cf2b450` frozen WT → `71d21fe` link
   loading → `18b1ede` `--tf_mix` → `384ec80` `incl_*` fix → `7266661` `--val_wt_only` → the OOD-exclusion commit
   (training.py, config.py, `tests/test_external_val_sets.py`).
 * The pin directories remain on disk as the record of what ran before `04c707b`; `PINNED_FROM.txt` says so and lists
-every patch. They are archives now, not inputs.
+every patch. They are archives now, not inputs, and they (like `feature/nonspecific-term`) still carry the
+`ext_per_loader` bug — harmless only because nothing runs them.
 * Nothing is pushed. `devel-revision` has never been pushed; `devel-experimental` is ahead 23 / behind 31 of
   `origin/devel-experimental` — a merge is a
   separate decision and has not been attempted.
 
 ## 5. Immediate next actions (in order)
 
-1. **Let `wt_ref_floor0_r16a16_d02` finish** (~1.5 h from 12:15 on 2026-10-19) and record its `val_rho_wt_valid_avg` as
-   the WT reference.
-2. **Verify the new metric on its `metrics.csv`** (do not trust the diff):
+1. **Let `wt_ref_floor0_r16a16_d02` finish** (started 12:29:48 on 2026-10-19; ~16 min/epoch + ~4 min validation) and
+   record its `val_rho_wt_valid_avg` as the WT reference. Its two failed attempts are archived; do not re-use them.
+2. **Verify the new metric on its `metrics.csv`** (do not trust the diff) with `dc_runs/check_metric_basis.py`:
    * `val_rho_combined_external` and `val_rmse_combined_external` exist;
    * `val_rho_combined_avg` equals the `nanmean` over the 25 non-OOD per-library columns;
    * `val_rho_ungrouped_combined` matches a pooled recomputation that excludes the three OOD libraries.
 3. **Confirm the gold standard** is recorded as floor 0 / r16 / alpha16 / dropout 0.2 (arm `wt_ref_floor0_r16a16_d02`),
    and decide whether the retired `wt_stack.txt` / `wt_best.txt` should be cleared rather than reused.
-4. Then re-state the remaining hyperparameter arms (lr / balance / reach) on the new basis, and run `gate1_tfmix` (it
+4. **Capacity re-check** (queued in `queue_ref.txt` after the reference): `wt_r8a11`, `wt_r4a8`. Apply STATE §5.2 —
+   a win inside the noise band earns a second seed for the challenger *and* the reference before anything stacks.
+5. Then re-state the remaining hyperparameter arms (lr / balance / reach) on the new basis, and run `gate1_tfmix` (it
    generates six arms and verifies every command line with `--verify`).
 5. Deferred, not queued: the from-scratch ns arms (`ctrl_s2`, `ns1_s1/s2`, `ns1_coarse_s1`); `claude_queue.txt`
    still lists `wtsweep` and dc19–dc23 and must be restated before that runner is ever restarted; and **inference does

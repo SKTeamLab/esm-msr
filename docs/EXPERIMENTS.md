@@ -187,9 +187,14 @@ two more epochs to find its peak. **Conclusion: at matched config, the knee move
 nothing.** That is the empirical support for the parsimony prior (a single asserted knee, no per-library estimate
 needed for 123 of 170 libraries), and it makes the zero knee the default unless something contradicts it.
 
-Consequence for the schedule: the arm now running (`wt_floor0_drop02b`, rank16/a32/dropout0.2 + zero knee) is a
-**confirmation that the knee is still neutral-or-better under the new capacity/dropout stack**, compared against
-`wt_drop02` (0.8447, same stack, data knee) — not first evidence. The unconditional seed-2 pair then sizes the noise.
+Consequence for the schedule: the arm now running (`wt_floor0_drop02b`, rank16/a32/dropout0.2 + zero knee) was meant
+to be a **confirmation that the knee is still neutral-or-better under the new capacity/dropout stack**, compared
+against `wt_drop02` (0.8447, same stack, data knee) — not first evidence. **It never got a verdict:** it was stopped
+at epoch 1 (12:09, `val_rho_wt_valid_avg` 0.8335 / 0.8307) to free the GPU for the reference run, and archived as
+`logs/_aborted_wt_floor0b_oldmetric_38min`. The alpha-32 seed-2 pair was dropped as superseded at 12:00. So the knee
+call rests on the base-config matched pair above plus the parsimony prior; the general evidence rule that governs such
+calls from now on is STATE §5.2 (a change that is not clearly outside measurement error earns one extra seed for both
+arms before it stacks; the external sets are a guard, not a criterion).
 
 ## 6c. 2026-10-19 — the validation metric basis changes (OOD excluded)
 
@@ -201,9 +206,23 @@ in-distribution only. They are still logged per library and summarised as `val_r
 
 **This is a hard boundary for comparisons.** Any aggregate quoted before this date includes the OOD sets and is not
 comparable to one after it — recompute from the per-library columns (`val_<metric>/<library>`), which are unchanged.
-The runs that straddle the boundary: the alpha-32 zero-knee arm (`wt_floor0_drop02b`) finishes under the OLD
-definition, and the alpha-16 gold-standard baseline (`wt_r16a16`, floor 0 / r16 / a16 / dropout 0.2) is the first under
-the NEW one. Comparing those two requires the manual recomputation, which is expected and cheap.
+The runs that straddle the boundary: the alpha-32 zero-knee arm (`wt_floor0_drop02b`) ran under the OLD
+definition (and has no verdict), and the gold-standard baseline (`wt_ref_floor0_r16a16_d02`, floor 0 / r16 / a16 /
+dropout 0.2, started 12:29 on 2026-10-19) is the first under the NEW one. Comparing anything across that line requires
+the manual recomputation from the per-library columns, which is expected and cheap.
+
+## 6d. 2026-10-19 — the new basis could not run at all: `ext_per_loader` was never initialised
+
+The OOD-exclusion commit added both the per-loader assignment
+(`ext_per_loader[name] = {k: metrics[k] for k in EXTERNAL_SUMMARY_METRICS if k in metrics}`) and the
+`summarise_external_benchmarks(ext_per_loader, …)` call, but never initialised the dict. Every run on the new basis
+therefore died at the **pre-training zero-shot validation** — the first `on_validation_epoch_end`, before any training
+— with `NameError: name 'ext_per_loader' is not defined` (first victim: the reference run, 2026-10-19 12:22, 7 min in).
+The pure helper was unit-tested and the calling method was not, which is why the suite was green. Fixed in `75d3e34`
+(one line); `309c27e` adds a test that drives `on_validation_epoch_end` with one in-distribution and one OOD loader and
+fails with the exact `NameError` if the initialisation is removed. A second, environment-only failure in the relaunch
+(`PermissionError` on `multiprocessing.SemLock`: the launching shell's sandbox denies `/dev/shm`) is recorded in
+STATE §4 — it is not a code bug and must not be "fixed" by lowering `num_workers`.
 
 ## 7. Open questions (in priority order)
 

@@ -119,16 +119,20 @@ patch copied between them failed exactly there. `dc_runs/check_pin_val_wt_only.p
   from what.
 * **Parsimony prior for the floor knee** (user, 2026-10-19). Every other stage stacks only on a > 0.001 win, but the
   knee is a *data-derived* hyperparameter — only ~47 of 170 training libraries can measure a floor at all — so one
-  asserted knee for every library is the simpler and more defensible prior, and it wins ties.
-  Rule, implemented in `dc_runs/floor_decide.py` and run as a hook between the floor arm and every later stage:
-  **the seed-2 pair for BOTH knees is always run**, regardless of the seed-1 difference (one seed is not evidence
-  when the deficit is small; the pair is symmetric so the seed is never confounded with the knee). The verdict is
-  pooled over the two seeds: adopt floor0 if `mean(floor0) >= mean(data) - 0.001`, on `val_rho_wt_valid_avg` only.
-  The external benchmark sets are **not** used: an early read of them (floor0 "2/3") came from the confounded
-  base-config arm generation and the user's call is that they should not carry weight in this decision. A pooled
-  deficit beyond the band keeps the measured winner AND logs loudly that parsimony may still justify floor0, with
-  the exact `wt_stack.txt` override to apply — that is a judgement the numbers should not make silently.
-  The hook rewrites the knee lines of `wt_stack.txt`, so every downstream stage inherits the verdict.
+  asserted knee for every library is the simpler and more defensible prior, and it wins ties. The call rests on the
+  **base-config matched pair** (`wt_floor_data` 0.8391 vs `wt_floor0_base` 0.8403, per-epoch curves within 0.0017) plus
+  that prior; the capacity-level confirmation (`wt_floor0_drop02b`) was stopped at epoch 1 and the alpha-32 seed-2 pair
+  was dropped as superseded (STATE §4, EXPERIMENTS §6b). `dc_runs/floor_decide.py` was the sweep's hook; it now
+  defaults to the parsimony call on the seed-1 pair, with `--retest` opt-in. The external benchmark sets are **not** a
+  decision input — the "floor0 wins 2/3" read came from the confounded arm generation.
+* **A gain must be real, and parsimony wins ties** (user, 2026-10-19 — the general rule, which supersedes the
+  knee-specific wording above). Stacking is unchanged: only a winner stacks. But a change that is not **clearly outside
+  measurement error** does not stack on one seed: it earns **one extra seed for both the challenger and the incumbent**
+  (a symmetric pair, so the seed is never confounded with the change), and the pooled comparison decides. A
+  parsimonious change (a smaller WT adapter, one asserted knee) is adopted when that confirmation is neutral-or-better,
+  never because it is cheaper on a single seed. The external OOD sets are a **generalization guard**: read
+  `val_rho_combined_external` / `val_rmse_combined_external` to see whether a decision travels, and never decide
+  anything from them.
 * **Margin before stacking.** The sweep already refuses to stack a gain under 0.001 (~2 between-seed SD on
   `rho_wt_valid`). Do the same for the ns term: `beyond_rho_mt` ≥ 0.03 with guards flat, two seeds, or it does not
   stack.
