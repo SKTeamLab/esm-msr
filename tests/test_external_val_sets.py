@@ -67,3 +67,56 @@ def test_the_external_summary_differs_from_an_all_loader_mean():
     ext = summarise_external_benchmarks(per_loader, {'ptmuld'})['val_rho_combined_external']
     all_mean = np.mean([v['rho_combined'] for v in per_loader.values()])
     assert ext == pytest.approx(0.0) and all_mean == pytest.approx(0.45)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# The end-to-end guard. The pure helper above was tested, but the method that CALLS it was not - which is how a
+# missing `ext_per_loader = {}` reached a 7-minute run and killed it at the end of its first validation epoch with
+# `NameError: name 'ext_per_loader' is not defined` (2026-10-19 12:22, wt_ref_floor0_r16a16_d02). This drives
+# on_validation_epoch_end itself, with one in-distribution and one OOD loader, and asserts the contract both ways.
+def _bare_module():
+    """A LightningModule shell with only the attributes on_validation_epoch_end reads (no ESM3, no GPU)."""
+    import torch
+    from types import SimpleNamespace
+    from esm_msr.training import ESM3EpistasisLightningModule
+
+    obj = object.__new__(ESM3EpistasisLightningModule)
+    torch.nn.Module.__init__(obj)
+    obj.logged = {}
+    obj.log = lambda k, v, **kw: obj.logged.setdefault(k, v)
+    obj._VAL_PROGRESS_BAR = set()
+    obj.external_val_sets = {'ptmuld'}
+    obj.val_dataloader_names = ['LIB1', 'ptmuld']
+    obj._hparams = SimpleNamespace(freeze_wt_after_epoch=99, lr_warmup_steps=0, val_dump=False)
+    obj._trainer = SimpleNamespace(sanity_checking=True, current_epoch=0, global_step=0)
+    obj._fabric = None
+    obj.link_head = None
+    obj._mut_keys = lambda pdb, muts: [('lib', str(i)) for i in range(len(muts))]
+    return obj
+
+
+def _loader_output(pdb, n=24, shift=0.0, seed=0):
+    rng = np.random.default_rng(seed)
+    gt = rng.normal(size=n)
+    wt = gt * 0.8 + shift + rng.normal(scale=0.2, size=n)
+    mt = gt * 0.5 + shift + rng.normal(scale=0.2, size=n)
+    return dict(wt_scores=wt, mt_scores=mt, comb_scores=0.5 * (wt + mt), ground_truths=gt,
+                cens=np.zeros(n), dddG_truths=gt, cens_src=np.zeros(n),
+                subset_types=['single'] * n, pdb=pdb, mutations=['A12G'] * n,
+                dG_wt=np.zeros(n), y_floor=np.zeros(n), wt_rev_scores=wt, mt_fwd_scores=mt)
+
+
+def test_validation_epoch_end_runs_with_an_ood_loader_and_keeps_it_out_of_the_average():
+    from esm_msr.training import ESM3EpistasisLightningModule
+
+    obj = _bare_module()
+    obj.validation_step_outputs = {0: [_loader_output('LIB1', seed=0)],
+                                   1: [_loader_output('ptmuld', shift=0.5, seed=1)]}
+    ESM3EpistasisLightningModule.on_validation_epoch_end(obj)     # raised NameError before the fix
+
+    got = obj.logged
+    assert 'val_rho_combined_external' in got and 'val_rho_combined/LIB1' in got
+    assert got['val_rho_combined_avg'] == pytest.approx(got['val_rho_combined/LIB1'])
+    assert got['val_rho_combined_external'] == pytest.approx(got['val_rho_combined/ptmuld'])
+    # ...and the two are genuinely different here, so the assertion above is not vacuous.
+    assert abs(got['val_rho_combined/LIB1'] - got['val_rho_combined/ptmuld']) > 1e-6
