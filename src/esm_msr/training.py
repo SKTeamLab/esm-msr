@@ -51,6 +51,26 @@ def alternating_phase(batch_idx: int, has_single: bool, has_multi: bool) -> str:
     return turn
 
 
+EXTERNAL_SUMMARY_METRICS = ('rho_combined', 'rmse_combined')
+
+
+def summarise_external_benchmarks(per_loader: dict, external: set) -> dict:
+    """OOD validation loaders summarised as ``val_<metric>_external``: the mean of rho_combined and rmse_combined.
+
+    ``per_loader`` maps loader name -> {metric: value}. These libraries are deliberately kept out of every aggregate
+    (``val_*_avg``, the pooled global ranking, the epistasis levels): they are out of the training distribution, so
+    including them makes the aggregate incomparable across runs and inconsistent with what the model was trained on.
+    Their per-loader columns are still logged by the caller, so nothing diagnostic is lost.
+    """
+    out = {}
+    for metric in EXTERNAL_SUMMARY_METRICS:
+        vals = [v[metric] for name, v in per_loader.items()
+                if name in external and metric in v and np.isfinite(v[metric])]
+        if vals:
+            out[f'val_{metric}_external'] = float(np.mean(vals))
+    return out
+
+
 class ESM3EpistasisLightningModule(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
@@ -138,6 +158,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.automatic_optimization = False
         self.validation_step_outputs = defaultdict(list)
         self.val_dataloader_names = self.hparams.get('val_dataloader_names', ['val'])
+        self.external_val_sets = {s.strip() for s in str(self.hparams.get('external_val_sets', '') or '').split(',')
+                                  if s.strip()}
+        if self.external_val_sets:
+            logging.info(f"OOD validation sets held OUT of every aggregate (diagnostics only): "
+                         f"{sorted(self.external_val_sets)}; summarised as val_rho_combined_external and "
+                         f"val_rmse_combined_external")
 
     def _cast_frozen_linears_bf16(self):
         """
@@ -917,10 +943,18 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             metrics = stats.compute_metrics(
                 sub(wt), sub(mt), sub(comb), sub(gt), [t for t, k in zip(subset_types, canon) if k],
                 obs=None if obs is None else {k: sub(v) for k, v in obs.items()})
+            is_external = name in self.external_val_sets
             for metric, val in metrics.items():
                 if val is not None and np.isfinite(val):
                     self.log(f"val_{metric}/{name}", float(val), on_epoch=True, sync_dist=True)
-                    avg_metrics[metric].append(float(val))
+                    if not is_external:
+                        avg_metrics[metric].append(float(val))
+            if is_external:
+                # OOD benchmark: scored and logged above, but out of every aggregate - avg_metrics, the pooled global
+                # ranking and the epistasis hierarchy - and out of the pooling below, exactly like an --ext_val_doubles
+                # loader. Only its own rho/rmse summary survives (summarise_external_benchmarks).
+                ext_per_loader[name] = {k: metrics[k] for k in EXTERNAL_SUMMARY_METRICS if k in metrics}
+                continue
 
             # Pool for the global ranking and for the epistasis hierarchy, which needs every library at once.
             keys = [k for o in valid_outputs for k in self._mut_keys(o['pdb'], o['mutations'])]
@@ -940,6 +974,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if values:
                 self.log(f'val_{key}_avg', float(np.nanmean(values)), on_epoch=True,
                          prog_bar=key in self._VAL_PROGRESS_BAR, sync_dist=True)
+
+        # OOD benchmarks, as their own section: mean rho/rmse over the external loaders, never inside an aggregate.
+        for _k, _v in summarise_external_benchmarks(ext_per_loader, self.external_val_sets).items():
+            self.log(_k, _v, on_epoch=True, sync_dist=True)
 
         # Pooled across every library at once: one global ranking, which punishes a model whose per-library scales
         # disagree even when each library's own ordering is fine.

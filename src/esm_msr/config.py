@@ -407,6 +407,16 @@ def parse_arguments() -> argparse.Namespace:
     log_group.add_argument('--num_sanity_val_steps', type=int, default=0)
     log_group.add_argument('--offline', type=bool, default=False, action=argparse.BooleanOptionalAction)
     log_group.add_argument('--skip_val', type=bool, default=False, action=argparse.BooleanOptionalAction)
+    log_group.add_argument('--external_val_sets', type=str, default='ptmuld,s461,ssym',
+                           help="Comma-separated validation loaders to score as OUT-OF-DISTRIBUTION benchmarks. They are "
+                                "still scored and logged per loader (val_<metric>/<name>) for diagnostics, but held OUT "
+                                "of every aggregate: val_*_avg, the pooled global ranking and the epistasis levels. They "
+                                "are summarised separately as val_rho_combined_external and "
+                                "val_rmse_combined_external (the mean over these loaders). Keeping OOD libraries out of "
+                                "the aggregate makes it an in-distribution quantity: comparable across runs and "
+                                "consistent with what the training set covers. NOTE this changed on 2026-10-19, so "
+                                "aggregates are NOT comparable to runs before it - recompute from the per-library "
+                                "columns when an old run must be compared.")
     log_group.add_argument('--val_dump', action=argparse.BooleanOptionalAction, default=True,
                            help="Write per-item validation predictions to val_dump_<tag>.npz each epoch.")
     log_group.add_argument('--val_wt_only', action=argparse.BooleanOptionalAction, default=False,
