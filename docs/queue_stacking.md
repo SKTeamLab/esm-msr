@@ -130,9 +130,9 @@ patch copied between them failed exactly there. `dc_runs/check_pin_val_wt_only.p
   decision is a ladder down from the rank-16 reference — **16 → 8 → 4 → 2 → 1** (`r16·a32` is excluded, its rsLoRA
   scale is 8.0 against 4.0). Each level is compared with the reference on best-epoch `val_rho_wt_valid_avg`:
   * degradation within **−0.002** → no test; accept and go down one step;
-  * worse than **−0.002** → **replicate both the reference and the contender** (seed 2 each, a symmetric pair); pool
-    the two seeds per arm. Pooled degradation **> 0.001** → stop at the **next higher** level; otherwise accept and
-    continue down;
+  * worse than **−0.002** → **replicate both the next higher level and the contender** (seed 2 each, a symmetric
+    pair) — the reference is a baseline, not a candidate — and pool the two seeds per arm. Pooled degradation
+    **> 0.001** → stop at the **next higher** level; otherwise accept and continue down;
   * every level acceptable → **rank 1** is the gold head.
   Alpha holds the rsLoRA scale `alpha/sqrt(rank)` constant: r16/a16 = 4.000, r8/a11 = 3.889, r4/a8 = 4.000,
   r2/a6 = 4.243, r1/a4 = 4.000. The external OOD sets are a **generalization guard** only — never a decision input.

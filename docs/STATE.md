@@ -162,8 +162,9 @@ rsLoRA scale is 8.0 against the reference's 4.0, so it is not comparable). Walk 
 compared with the reference on best-epoch `val_rho_wt_valid_avg`:
 
 * degradation within **−0.002** → no test; accept the level and go down one step (parsimony is the default).
-* degradation worse than **−0.002** → **replicate both the reference and that contender** (seed 2 each, a symmetric
-  pair) and pool the two seeds per arm:
+* degradation worse than **−0.002** → **replicate both the next higher level and that contender** (seed 2 each, a
+  symmetric pair) and pool the two seeds per arm. The replication partner is the next higher *level*, not the
+  reference: the reference is a baseline, not a candidate for the gold head (user, 2026-10-19).
   * pooled degradation **> 0.001** → stop at the **next higher** capacity level;
   * otherwise → accept the level and continue down.
 * every level acceptable → the smallest (**rank 1**) is the gold head.
