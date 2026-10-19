@@ -248,6 +248,15 @@ the queue entry `gate_capacity` after them and appends either `gate1_tfmix` or t
     stage. It now initialises from `wt_stack_seed.txt` / `wt_best_seed.txt` when present, so a rescheduled sweep
     inherits what the finished stages won. **After any restart, diff the running arm's `hparams.yaml` against the
     arm it is supposed to be matched to** — that check is what caught this.
+13. **Resuming a run TRUNCATES its `metrics.csv`.** Lightning's `CSVLogger` holds the series in memory and rewrites
+    the file from scratch when the process starts, so `--resume_from_checkpoint` into the same `--experiment_name`
+    and `--version 0` (the right way to keep one series) keeps the *directory* and the checkpoints but **loses every
+    pre-resume row** (2026-10-19, the reference: resumed at epoch 5 and epochs 0–4 vanished, including the best
+    0.8513). What survives: the checkpoint filenames carry the metric to 4 dp (`epoch=04-val_rho_wt_valid_avg=0.8513`),
+    the `val_dump_e*.npz` files carry every item, and Comet has the full series. `gate_capacity.py` therefore takes
+    the arm's best as the max over `metrics.csv` **and** the checkpoint names (and says which). Do not "fix" this by
+    writing reconstructed rows into `metrics.csv` — half-empty rows are worse than an honest gap. If a resume is
+    expected to need its history, copy `metrics.csv` aside first.
 
 ## 8. Design facts a reader would otherwise have to rediscover
 

@@ -255,6 +255,28 @@ Any one of them would have produced a frozen-WT block that trained a different a
 the "the architecture must travel with the weights" rule broken silently, at the gate that feeds the whole tf-mix/ns
 stage.
 
+## 6f. 2026-10-19 — the reference was killed by the driver, then resumed (with one record casualty)
+
+At ~14:24, during epoch 5's validation, the reference process and its queue runner both died abruptly with **no
+traceback in either log** — the signature of a driver-level kill (an exception would have printed). The GPU came back
+idle on its own. Epochs 0–4 had completed:
+
+| epoch | 0 | 1 | 2 | 3 | 4 (best) |
+|---|---|---|---|---|---|
+| `val_rho_wt_valid_avg` | 0.8389 | 0.8390 | 0.8504 | 0.8457 | **0.8513** |
+
+The epoch-4 checkpoint and `last.ckpt` were intact, so the run was **resumed** from end-of-epoch-4 into the same
+experiment name and version 0 (`--skip_val` to avoid a duplicate zero-shot row). The restore is confirmed
+(`Restoring states from the checkpoint path …`, then `Epoch 5`).
+
+**Casualty**: Lightning's `CSVLogger` rewrites `metrics.csv` from scratch on resume, so epochs 0–4 were erased from the
+file even though the checkpoints survived (STATE pitfall 13). The numbers above are recoverable from the archived
+attempt log, the checkpoint filenames (4 dp) and `val_dump_e0..e4.npz`. `gate_capacity.py` now takes an arm's best as
+the max over `metrics.csv` and the checkpoint names, so the capacity comparison still uses the true 0.8513.
+
+Also note the resume is a **continuation, not a replay**: RNG state is not carried by the checkpoint, so epochs 5+
+can differ from what an uninterrupted run would have produced. Epochs 0–4 are the original measurements.
+
 ## 7. Open questions (in priority order)
 
 1. **Does the nonspecific term help on the current basis?** The best lead in the project, single seed —
