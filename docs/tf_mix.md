@@ -48,7 +48,18 @@ the target from "the measured singles" to "one fixed model's prediction", with n
 
 ## 3. The queued sweep
 
-Same frozen dc17 WT model for all five arms (`docs/frozen_wt_paradigm.md`), so **m is the only variable**:
+Same frozen WT model for all five arms — now the **capacity-ladder gold head** (`gate_capacity.py` → `wt_gold.txt`),
+not dc17 — so **m is the only variable**. The frozen head's own architecture (WT rank/alpha, knee, censoring) comes
+from its checkpoint's hparams.
+
+**Deviation from the canonical recipe (user, 2026-10-19): the MT head keeps its canonical rank 16 but takes the ALPHA
+that was picked for the WT gold** — e.g. `r16a11` when the WT gold is `r8a11`; the canonical `r16a16` is deliberately
+not used. `make_fwt_block.py` reads `lora_alpha_wt` from the frozen checkpoint and appends `--lora_alpha_mt <that>`,
+and the generated experiment names encode both heads (`_w8a11_m16a11`). Consequence: the MT head's rsLoRA scale is
+`alpha/sqrt(16)`, not the canonical 4.0, so these arms are **not directly comparable to dc17-line r16a16 runs** on
+MT-side magnitudes.
+
+Table (names are the launcher/queue names; each experiment is suffixed `_w<WTrank>a<alpha>_m16a<alpha>`):
 
 | arm | m | note |
 |---|---|---|
@@ -59,8 +70,8 @@ Same frozen dc17 WT model for all five arms (`docs/frozen_wt_paradigm.md`), so *
 | `tfmix_00_s1` | 0.00 | the WT head alone — the lower bound, and the arm that measures what the measured singles were worth |
 
 Order: the control, then descending away from it, so a mid-queue read always has its reference. Cost ~3-4 h per
-arm (doubles-only stream, ~217 steps/epoch, validation dominating), so **~15-20 h for the block**, after the ns set
-and the WT sweep.
+arm (doubles-only stream, ~217 steps/epoch, validation dominating), so **~15-20 h for the block**, after the capacity
+ladder decides the gold head and before `gate2_ns`.
 
 ## 4. What to read
 
