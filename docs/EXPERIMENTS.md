@@ -204,6 +204,13 @@ in-distribution only. They are still logged per library and summarised as `val_r
 `val_rmse_combined_external`; the list is the `--external_val_sets` flag and is carried into generated frozen-WT blocks
 (STATE §5.1, `docs/validation_metrics.md`).
 
+**Verified on the first run under the new basis** (reference epoch 0, 2026-10-19 12:50, `check_metric_basis.py` exit 0,
+not the diff): `val_rho_combined_avg` = **+0.838533** equals the nanmean over the 25 in-distribution per-library columns
+exactly, and the all-28 mean would have been **+0.822933** — so the three sets are genuinely out of the aggregate.
+`val_rho_combined_external` = +0.692935 / `val_rmse_combined_external` = 1.386. The pooled ranking recomputed from
+`val_dump_e0.npz` (34,957 items, `SRC_RANGE` held back) gives **+0.860621**, matching `val_rho_ungrouped_combined`, and
+the dump contains **zero** OOD items — the external loaders are skipped before pooling, not merely down-weighted.
+
 **This is a hard boundary for comparisons.** Any aggregate quoted before this date includes the OOD sets and is not
 comparable to one after it — recompute from the per-library columns (`val_<metric>/<library>`), which are unchanged.
 The runs that straddle the boundary: the alpha-32 zero-knee arm (`wt_floor0_drop02b`) ran under the OLD
