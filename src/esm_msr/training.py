@@ -792,8 +792,23 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         return out
 
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
-        with torch.inference_mode():
-            out_dict = self.model.forward_batch(batch, mask_strategy=self.hparams.mask_strategy)
+        wt_only = bool(self.hparams.get('val_wt_only', False))
+        if wt_only and not getattr(self, '_warned_val_wt_only', False):
+            self._warned_val_wt_only = True
+            logging.info("validation: WT head only (--val_wt_only) - no MT forward and no MT cycle pass; the mt and "
+                         "comb columns report the WT head")
+        if wt_only:
+            # The MT adapter is untrained in this run (WT-only sweep, MT frozen at init), so an MT forward is a pass
+            # through noise. Report the WT head under all three names rather than leave the columns undefined or fill
+            # them with that noise: mt == comb == wt is then a true statement about this model.
+            with torch.inference_mode():
+                w = self.model.forward_partitioned(batch, pass_type='wt',
+                                                   mask_strategy=self.hparams.mask_strategy)['pred_calibrated'].float()
+            out_dict = {'wt_lora_pred': w, 'mt_lora_pred': w, 'combined_pred': w,
+                        'epi_pred': torch.zeros_like(w)}
+        else:
+            with torch.inference_mode():
+                out_dict = self.model.forward_batch(batch, mask_strategy=self.hparams.mask_strategy)
 
         B = int(out_dict['wt_lora_pred'].shape[0])
         ddG = utils._get_label(batch, 'ddG', device=batch['ddG'].device)
@@ -819,9 +834,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         cyc = {}
         if self.hparams.val_cycle_passes:
             with torch.inference_mode():
-                c = self.model.forward_cycle(batch, mask_strategy=self.hparams.mask_strategy)
-            cyc = {'wt_rev_scores': c['wt_rev'].detach().cpu().float().numpy(),
-                   'mt_fwd_scores': c['mt_fwd'].detach().cpu().float().numpy()}
+                c = self.model.forward_cycle(batch, mask_strategy=self.hparams.mask_strategy,
+                                             include_mt=not wt_only)
+            cyc = {'wt_rev_scores': c['wt_rev'].detach().cpu().float().numpy()}
+            if 'mt_fwd' in c:
+                cyc['mt_fwd_scores'] = c['mt_fwd'].detach().cpu().float().numpy()
 
         rec = {
             **cyc,

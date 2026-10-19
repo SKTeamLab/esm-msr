@@ -409,6 +409,13 @@ def parse_arguments() -> argparse.Namespace:
     log_group.add_argument('--skip_val', type=bool, default=False, action=argparse.BooleanOptionalAction)
     log_group.add_argument('--val_dump', action=argparse.BooleanOptionalAction, default=True,
                            help="Write per-item validation predictions to val_dump_<tag>.npz each epoch.")
+    log_group.add_argument('--val_wt_only', action=argparse.BooleanOptionalAction, default=False,
+                           help="Validate the WT head only: no MT forward and no MT half of the cycle passes. For a run "
+                                "whose MT adapter is not trained (a WT-only sweep), where every MT prediction is a "
+                                "forward through an untrained adapter. The mt and comb columns then report the WT head "
+                                "(documented, not silent), the ctx level still comes from --val_cycle_passes, and "
+                                "validation costs one forward per batch instead of two (plus one cycle pass instead "
+                                "of two).")
     log_group.add_argument('--val_cycle_passes', action=argparse.BooleanOptionalAction, default=True,
                            help="Run the two extra validation passes (WT adapter on the mutated sequence, MT "
                                 "adapter on the wild type). Needed for the 'ctx' control head of the epistasis "

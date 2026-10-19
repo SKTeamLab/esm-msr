@@ -595,7 +595,8 @@ class MSRModel(ESM3PredictorBase):
 
         return {'wt_lora_pred': wt_pred_cal, 'mt_lora_pred': mt_pred_cal, 'wt_lora_raw': wt_pred_raw, 'mt_lora_raw': mt_pred_raw, 'combined_pred': combined_pred, 'epi_pred': epi_pred}
 
-    def forward_cycle(self, batch_in: Dict[str, Any], mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
+    def forward_cycle(self, batch_in: Dict[str, Any], mask_strategy: Optional[str] = None,
+                      include_mt: bool = True) -> Dict[str, torch.Tensor]:
         """
         The two passes forward_batch does not run, both returned as a FORWARD (wild type -> mutant) ddG estimate:
 
@@ -605,6 +606,9 @@ class MSRModel(ESM3PredictorBase):
 
         With forward_batch's WT pass (wt_fwd) and MT pass (mt_rev: mutated sequence in; its readout is the forward one up to sign) they make
         the 2 x 2 of adapters and directions behind the symmetrised heads of the epistasis hierarchy, HEAD_MUT = (X + ~X)/2.
+
+        ``include_mt=False`` returns only ``wt_rev``, for a run whose MT head is not trained (a WT-only sweep): the ctx control is
+        the WT adapter read in reverse and does not need the MT probe, which would only be a forward through an untrained adapter.
         """
         if self.training:
             raise AssertionError("forward_cycle is for inference only.")
@@ -612,6 +616,8 @@ class MSRModel(ESM3PredictorBase):
         rev['wt_sequence_tokens'] = batch_in['mt_sequence_tokens']
         rev['wt_id'], rev['mt_id'] = batch_in['mt_id'], batch_in['wt_id']
         wt_rev = self.forward_partitioned(rev, pass_type='wt', mask_strategy=mask_strategy)['pred_calibrated']
+        if not include_mt:
+            return {'wt_rev': -wt_rev}
         fwd = dict(batch_in)
         fwd['mt_sequence_tokens'] = batch_in['wt_sequence_tokens']
         mt_fwd = self.forward_partitioned(fwd, pass_type='mt', mask_strategy=mask_strategy)['pred_calibrated']
