@@ -35,7 +35,7 @@ validation) and external-vs-in-distribution separation (the `_external` metrics)
 snapshot plus hand-applied patches — because worktrees move mid-session and a running queue must not have code changed
 under it. As of `04c707b` the launchers `cd` straight into the tree above and **log the commit they started from**
 (`tree=... commit=04c707b branch=devel-revision` is the first line of every arm log). The corresponding rule is:
-**do not commit to `devel-revision` while the queue is running.**
+**do not commit to `src/` on `devel-revision` while the queue is running** (a docs-only commit is harmless).
 
 Two caveats about past numbers: every run before `04c707b` came from the pin (i.e. from devel-revision **plus** the
 three ext-val commits, plus the hand patches). That lineage is tagged `archive/pin-lineage-2026-10-19` and the pin

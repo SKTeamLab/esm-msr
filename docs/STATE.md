@@ -38,7 +38,8 @@ snapshot plus hand patches, because worktrees move mid-session and code must not
 two costs: a pin could silently diverge from the branch (it did — it was `devel-revision` + three ext-val commits, not
 `devel-revision`), and hand patches had to be re-applied by hand. Now the launchers `cd` into the branch worktree and
 **log the commit as their first output line** (`tree=... commit=... branch=...`), so every arm is stamped with the code
-that produced it. The rule that keeps it honest: **do not commit to `devel-revision` while the queue is running.**
+that produced it. The rule that keeps it honest: **do not commit to `src/` on `devel-revision` while the queue is running** (docs
+are harmless; a code commit would change the next arm's code while the log stamps the earlier commit).
 
 Runs before this consolidation came from the pin lineage; it is tagged `archive/pin-lineage-2026-10-19` and the pin
 directories remain on disk, so they are still reproducible. For the canonical recipe the three excluded commits are
