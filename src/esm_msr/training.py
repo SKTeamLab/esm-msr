@@ -1219,10 +1219,23 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.trainer.should_stop = True
 
     def _transition_to_mt(self):
-        """Freeze the WT path and open the MT path, saving the converged WT weights first."""
+        """Freeze the WT path and open the MT path, saving the converged WT weights first.
+
+        In a WT-only arm (``--freeze_mt_adapter``, both MT lambdas 0, doubles dropped) the MT path must NOT be
+        reopened: ``enforce_freezing`` below then zeroes the MT groups' learning rates, which is the condition
+        ``_stop_if_nothing_is_training`` reads, so the arm stops at the freeze instead of spending its remaining
+        epoch budget forward-only. It did not, and 2026-10-19 cost an epoch: r8a11 froze the WT after decay #3 and
+        then ran epoch 7 at 4.9 GB with ``lr/lora_mt`` still 2e-4 and no loss. The check existed in the retired
+        ``pin_dc20_series`` as a hand patch but was never upstreamed, so consolidating onto devel-revision dropped
+        it (see docs/STATE.md pitfall 14). The warm-up LambdaLR also rewrites every group's lr, so the zeroing at
+        ``on_train_start`` is undone during warm-up; this transition happens after it and therefore sticks.
+        """
         self._save_converged_wt_weights()
         self.peft_manager.freeze_wt_components()
-        self.peft_manager.unfreeze_mt_components()
+        if self.hparams.freeze_mt_adapter:
+            self.peft_manager.freeze_mt_components()
+        else:
+            self.peft_manager.unfreeze_mt_components()
         self.peft_manager.has_transitioned = True
         self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
