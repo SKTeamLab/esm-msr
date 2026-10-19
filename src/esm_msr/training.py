@@ -80,6 +80,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         )
         
         self.peft_manager = PEFTStateManager(self.model)
+        # --init_wt_from_checkpoint: copy a pre-trained WT path in BEFORE anything freezes it, so that
+        # --freeze_wt_adapter (or --frozen_wt_mt_only) holds exactly the loaded head fixed for the whole run.
+        if self.hparams.get('init_wt_from_checkpoint'):
+            self._load_wt_weights(self.hparams.init_wt_from_checkpoint)
         # on_save_checkpoint deliberately keeps only the lora / calibration / link_head entries, so a
         # checkpoint is missing every frozen base weight. Lightning's default strict load would then refuse
         # to resume from our own checkpoints; the base comes from the pretrained weights either way.
@@ -1228,6 +1232,43 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # The 'other' and 'link' groups consequently hold their warmed-up lr for the whole run: this was
         # their only decay, and there is no metric specific to them to plateau on.
         return [opt_main], [{"scheduler": warmup_main, "interval": "step", "frequency": 1}]
+
+    def _load_wt_weights(self, path):
+        """Copy the WT path (adapter + calibration head) out of a checkpoint, in place.
+
+        Accepts either a full Lightning checkpoint (the queue's arms: ``checkpoint['state_dict']``, keys prefixed
+        ``model.``) or a ``converged_wt_*.pt`` file written by ``_save_converged_wt_weights`` (``{'state_dict': ...}``,
+        bare model-parameter names). Only parameters named by ``peft_manager.wt_parameter_names()`` are touched, so
+        the MT adapter, the link and the nonspecific term are never silently overwritten: the link and the term are
+        configured by their own flags (an old learned link would otherwise be smuggled in), and the MT path must
+        start fresh. Raises when nothing matches, because a path typo must not quietly train a random WT head.
+        """
+        obj = torch.load(path, map_location='cpu')
+        src = obj.get('state_dict', obj) if isinstance(obj, dict) else obj
+        if not isinstance(src, dict):
+            raise RuntimeError(f"--init_wt_from_checkpoint: {path} does not contain a state dict")
+        current = {n: p for n, p in self.model.named_parameters()}
+        loaded, missing, mismatched = [], [], []
+        with torch.no_grad():
+            for name in self.peft_manager.wt_parameter_names():
+                key = name if name in src else ('model.' + name if ('model.' + name) in src else None)
+                if key is None:
+                    missing.append(name)
+                    continue
+                value = src[key]
+                if not torch.is_tensor(value) or tuple(value.shape) != tuple(current[name].shape):
+                    mismatched.append(name)
+                    continue
+                current[name].copy_(value.to(device=current[name].device, dtype=current[name].dtype))
+                loaded.append(name)
+        if not loaded:
+            raise RuntimeError(f"--init_wt_from_checkpoint: no WT parameter of {path} matched this model "
+                               f"({len(missing)} names missing, {len(mismatched)} with a different shape). "
+                               f"Expected keys like 'model.peft_wt...' / 'calibration_head_wt...'.")
+        logging.info(f"WT path warm-started from {path}: {len(loaded)} tensors loaded"
+                     + (f", {len(missing)} name(s) not present" if missing else "")
+                     + (f", {len(mismatched)} shape mismatch(es) skipped ({', '.join(mismatched[:3])}...)" if mismatched else ""))
+        return loaded
 
     def _save_converged_wt_weights(self):
         """Extracts and saves only the WT adapter and calibration head at the moment of convergence."""

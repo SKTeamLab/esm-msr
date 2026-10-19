@@ -22,12 +22,18 @@ class PEFTStateManager:
             if name in self.baseline_requires_grad:
                 p.requires_grad = self.baseline_requires_grad[name]
 
+    def wt_parameter_names(self):
+        """Names of the parameters that make up the WT (additive-predictor) path: its adapter, its calibration head,
+        and the shared 'default' parameters. Single source of truth so freezing a head and loading a pre-trained
+        one can never disagree about what 'the WT path' is."""
+        wt_name = getattr(self.model, 'wt_adapter_name', 'wt_adapter')
+        return [name for name, _ in self.model.named_parameters()
+                if wt_name in name or 'calibration_head_wt' in name or 'calibration_head_fused' in name or 'default' in name]
+
     def freeze_wt_components(self):
         """Freezes the wild-type/additive predictor components."""
-        wt_name = getattr(self.model, 'wt_adapter_name', 'wt_adapter')
-        for name, _ in self.model.named_parameters():
-            if wt_name in name or 'calibration_head_wt' in name or 'calibration_head_fused' in name or 'default' in name:
-                self.baseline_requires_grad[name] = False
+        for name in self.wt_parameter_names():
+            self.baseline_requires_grad[name] = False
         self.apply_baseline_requires_grad()
         print('WT components frozen')
         self.wt_path_is_frozen = True

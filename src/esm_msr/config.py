@@ -240,6 +240,21 @@ def parse_arguments() -> argparse.Namespace:
 
     train_group.add_argument('--freeze_wt_adapter', action=argparse.BooleanOptionalAction, default=False)
     train_group.add_argument('--freeze_mt_adapter', action=argparse.BooleanOptionalAction, default=False)
+    train_group.add_argument('--init_wt_from_checkpoint', type=str, default=None,
+                             help="Warm-start the WT path from an existing checkpoint: its WT adapter and calibration "
+                                  "head are copied in before training. Accepts a full Lightning checkpoint (what the "
+                                  "queue's arms write) or a converged_wt_*.pt file. Nothing else is loaded - the link "
+                                  "and the nonspecific term stay configured by their own flags, and the MT path is "
+                                  "always fresh (use --resume_from_checkpoint for a true resume). Pair with "
+                                  "--freeze_wt_adapter to keep the loaded head fixed for the whole run.")
+    train_group.add_argument('--frozen_wt_mt_only', action=argparse.BooleanOptionalAction, default=False,
+                             help="The 'frozen WT, MT-only, doubles-only' paradigm: requires "
+                                  "--init_wt_from_checkpoint, and sets --freeze_wt_adapter, --no-incl_singles and "
+                                  "--no-wt_trains_doubles. The WT head is then a fixed additive-expectation oracle, "
+                                  "only the MT path (and the link / nonspecific term) trains, and the training "
+                                  "stream is multi-mutants only. Validation is unaffected: it always keeps singles "
+                                  "and doubles, so rho_wt_valid remains a guard. Cheaper per epoch, and the "
+                                  "teacher-forced target stops moving.")
     train_group.add_argument('--freeze_wt_after_epoch', type=int, default=1000)
     train_group.add_argument('--wt_convergence_metric', type=str, default='rho_wt_valid')
     train_group.add_argument('--mt_plateau_patience', type=int, default=1,
@@ -418,5 +433,34 @@ def parse_arguments() -> argparse.Namespace:
         num_cpus = os.cpu_count()
         logging.info(f"Number of CPUs available: {num_cpus}")
         args.num_workers = max(1, num_cpus - 1)
+
+    # The frozen-WT / MT-only / doubles-only paradigm is a named combination of primitive flags. Deriving it here
+    # (rather than branching in the model) means hparams record the EFFECTIVE settings the run used.
+    if args.init_wt_from_checkpoint is not None and not os.path.isfile(args.init_wt_from_checkpoint):
+        parser.error(f"--init_wt_from_checkpoint: no such file: {args.init_wt_from_checkpoint}")
+    if args.frozen_wt_mt_only:
+        if args.init_wt_from_checkpoint is None:
+            parser.error("--frozen_wt_mt_only needs --init_wt_from_checkpoint: the paradigm is a PRE-TRAINED frozen "
+                         "WT head, not a randomly initialised one")
+        if not args.freeze_wt_adapter:
+            logging.info("--frozen_wt_mt_only: setting --freeze_wt_adapter")
+            args.freeze_wt_adapter = True
+        if args.incl_singles:
+            logging.info("--frozen_wt_mt_only: setting --no-incl_singles (the training stream becomes multi-mutants "
+                         "only; validation still keeps singles and doubles, so rho_wt_valid stays a guard)")
+            args.incl_singles = False
+        if args.wt_trains_doubles:
+            logging.info("--frozen_wt_mt_only: setting --no-wt_trains_doubles")
+            args.wt_trains_doubles = False
+        # a frozen WT head trains nothing through a WT loss, and with no singles in the stream there is nothing
+        # for those losses to cover; leaving them on would only mask empty terms.
+        if args.lambda_reg_wt > 0 or args.lambda_rank_wt > 0:
+            logging.info("--frozen_wt_mt_only: setting --lambda_reg_wt 0 --lambda_rank_wt 0 (the WT path is frozen "
+                         "and the stream has no singles)")
+            args.lambda_reg_wt = 0.0
+            args.lambda_rank_wt = 0.0
+    elif args.init_wt_from_checkpoint is not None and not args.freeze_wt_adapter:
+        logging.warning(f"--init_wt_from_checkpoint given without --freeze_wt_adapter: {args.init_wt_from_checkpoint} "
+                        f"is a warm start, and the WT head will keep training from it")
 
     return args
