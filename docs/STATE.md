@@ -257,6 +257,18 @@ the queue entry `gate_capacity` after them and appends either `gate1_tfmix` or t
     the arm's best as the max over `metrics.csv` **and** the checkpoint names (and says which). Do not "fix" this by
     writing reconstructed rows into `metrics.csv` — half-empty rows are worse than an honest gap. If a resume is
     expected to need its history, copy `metrics.csv` aside first.
+14. **A WT-only arm must keep the MT path frozen at the WT→MT handover.** `_transition_to_mt()` unfreezes MT so the
+    normal two-head handover can train it; with `--freeze_mt_adapter` that must be skipped, because
+    `_stop_if_nothing_is_training()` reads **learning rates**: a thawed MT group at its base LR is a live group, so
+    the stop never fires and the arm spends its remaining epochs forward-only with no loss (2026-10-19, `wt_r8a11`:
+    WT frozen after decay #3 at epoch 6, then epoch 7 at 4.9 GB reserved instead of 24.7 and 1.9 it/s instead of
+    0.55, `lr/lora_mt` 2e-4, no gradients). The guard existed in the retired pin as a hand patch and was **never
+    upstreamed**, so consolidating onto `devel-revision` dropped it — fixed in `9b73d3a`, pinned by
+    `tests/test_transition_freeze.py`. Two corollaries: the warm-up `LambdaLR` steps every group's LR, so
+    `on_train_start`'s zeroing is undone during warm-up in a fresh arm (the handover happens later, so its zeroing
+    sticks); and a **resumed** arm skips warm-up, which is why the reference's resume stopped correctly while a
+    fresh WT-only arm did not. Check: a WT-only arm's log must end with "Every trainable group is at lr 0", and
+    `lr/lora_mt` must be 0 in its last epoch.
 
 ## 8. Design facts a reader would otherwise have to rediscover
 

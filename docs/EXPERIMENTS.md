@@ -286,6 +286,21 @@ time. All value parsers now use `(\d+\.\d+)` and are tested against a directory 
 Also note the resume is a **continuation, not a replay**: RNG state is not carried by the checkpoint, so epochs 5+
 can differ from what an uninterrupted run would have produced. Epochs 0–4 are the original measurements.
 
+## 6g. 2026-10-19 — a WT-only arm ran its last epoch with no loss (a pin patch the consolidation dropped)
+
+`wt_r8a11` was caught by the user, not by a check: the WT path converged (best 0.8510 at epoch 4) and froze after its
+third plateau decay at epoch 6, and then epoch 7 started anyway — **4.9 GB reserved instead of 24.7, 1.9 it/s instead
+of 0.55, `lr/lora_mt` 2e-4 and no loss**. The run was spending its epoch budget re-scoring fixed weights.
+
+Cause: `_transition_to_mt()` unfreezes the MT path unconditionally, and `_stop_if_nothing_is_training()` reads
+**learning rates**, not `requires_grad` — a thawed MT group at its base LR looks live forever. The pin had the guard
+(`if freeze_mt_adapter: freeze_mt_components()`) as a recorded hand patch from 2026-10-18 23:35; it was never
+upstreamed, so the consolidation onto `devel-revision` silently lost it. That is why the pin-era WT arms stopped
+correctly and why the **resumed** reference did too (a resume skips warm-up; the warm-up `LambdaLR` had been undoing
+the `on_train_start` zeroing in fresh arms). Fixed in `9b73d3a`, pinned both ways by
+`tests/test_transition_freeze.py`. Cost so far: one wasted epoch on `wt_r8a11`; the same arm would have cost it again
+on `wt_r4a8` and on every frozen-WT / tf-mix arm.
+
 ## 7. Open questions (in priority order)
 
 1. **Does the nonspecific term help on the current basis?** The best lead in the project, single seed —
