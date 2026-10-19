@@ -574,6 +574,22 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     
                     forced_wt_cal = torch.where(has_add_label, tf_additive_labels, base_wt_cal)
                     forced_wt_raw = torch.where(has_add_label, decalibrated_label, base_wt_raw)
+
+                    # --tf_mix: how much of the WT half of a MULTI-mutant's combined prediction comes from the
+                    # measured additive label rather than from the WT head's own prediction. 1.0 (default) is the
+                    # released behaviour - the label wherever one is usable; 0.0 never teacher-forces; 0.5 is the
+                    # arithmetic mean of the two on the calibrated scale. The label carries the measurement noise
+                    # of its two singles (and the floor clipping of either), the WT head is smooth but biased, so
+                    # the mix trades variance for bias. An item with no usable label is unaffected for any mix
+                    # (both terms of the blend are then the WT pass), and SINGLES are never mixed: a single's
+                    # forced half is its own measurement, which is also its target.
+                    _tf_mix = self.hparams.get('tf_mix', 1.0)          # not `or 1.0`: 0.0 is a legal, meaningful mix
+                    tf_mix = 1.0 if _tf_mix is None else float(_tf_mix)
+                    if tf_mix < 1.0:
+                        w_cal = torch.where(is_single, torch.ones_like(forced_wt_cal),
+                                            torch.full_like(forced_wt_cal, tf_mix))
+                        forced_wt_cal = w_cal * forced_wt_cal + (1.0 - w_cal) * base_wt_cal
+                        forced_wt_raw = w_cal * forced_wt_raw + (1.0 - w_cal) * base_wt_raw
                 elif self.model.lora_mode == 'corrector':
                     forced_wt_cal, forced_wt_raw = base_wt_cal, base_wt_raw
                 else:

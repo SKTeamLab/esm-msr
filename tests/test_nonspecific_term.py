@@ -73,7 +73,14 @@ class _Model(torch.nn.Module):
 
 
 class _HP(dict):
-    __getattr__ = dict.get
+    """hparams is read-only on LightningModule; this stub mirrors AttributeDict, which RAISES on a missing key."""
+
+    def __getattr__(self, k):
+        try:
+            return self[k]
+        except KeyError:
+            raise AttributeError(k)
+
 
     def get(self, k, default=None):
         return dict.get(self, k, default)

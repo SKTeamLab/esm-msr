@@ -105,6 +105,15 @@ def parse_arguments() -> argparse.Namespace:
                             help="Train one head per batch instead of both: the WT head on singles, the MT head on "
                                  "multi-mutants, alternating by batch. A batch that cannot serve its turn (no "
                                  "doubles, or no singles) takes the other one, so no batch is wasted.")
+    loss_group.add_argument('--tf_mix', type=float, default=1.0,
+                            help="How much of the WT half of a MULTI-mutant's combined prediction comes from the "
+                                 "measured additive label (ddG_A + ddG_B) rather than from the WT head's own "
+                                 "prediction: 1.0 = the label wherever one is usable (the released behaviour), "
+                                 "0.0 = never teacher-force, 0.5 = the arithmetic mean of the two. The label carries "
+                                 "the measurement noise of its two singles and the floor clipping of either; the WT "
+                                 "head is smooth but biased, so this trades variance for bias. Singles are never "
+                                 "mixed (their forced half is their own measurement), and an item without a usable "
+                                 "label always falls back to the WT head. Needs ensemble lora_mode and --link.")
     loss_group.add_argument('--combined_mode', type=str, default='mean', choices=['mean', 'sum', 'route'],
                             help="How the WT and MT heads form the reported prediction. 'mean' is 0.5/0.5 "
                                  "(released). 'sum' makes MT the epistasis term. 'route' reports WT for "
@@ -420,6 +429,12 @@ def parse_arguments() -> argparse.Namespace:
         parser.error(f"--rank_loss {args.rank_loss}: the only rank loss is listmle, and the flag is retired.")
     if args.nonspecific_term != 'none' and not args.link:
         parser.error("--nonspecific_term needs --link (f acts on the latent scale, before the link)")
+    if not 0.0 <= args.tf_mix <= 1.0:
+        parser.error(f"--tf_mix must be in [0, 1] (0 = never teacher-force, 1 = always use the measured additive "
+                     f"label where one is usable); got {args.tf_mix}")
+    if args.tf_mix < 1.0 and (args.lora_mode != 'ensemble' or not args.link):
+        logging.warning(f"--tf_mix {args.tf_mix} only affects ensemble mode with --link (teacher forcing happens "
+                        f"nowhere else), so it has no effect on this run")
     if args.detach_ensemble_input is False:
         parser.error(
             "--no-detach_ensemble_input is retired. It let the MT regression and rank terms backpropagate into the "
