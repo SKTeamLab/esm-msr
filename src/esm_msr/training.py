@@ -951,8 +951,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         avg_metrics[metric].append(float(val))
             if is_external:
                 # OOD benchmark: scored and logged above, but out of every aggregate - avg_metrics, the pooled global
-                # ranking and the epistasis hierarchy - and out of the pooling below, exactly like an --ext_val_doubles
-                # loader. Only its own rho/rmse summary survives (summarise_external_benchmarks).
+                # ranking and the epistasis hierarchy - and dropped before the pooling below. Only its own rho/rmse
+                # summary survives (summarise_external_benchmarks).
                 ext_per_loader[name] = {k: metrics[k] for k in EXTERNAL_SUMMARY_METRICS if k in metrics}
                 continue
 

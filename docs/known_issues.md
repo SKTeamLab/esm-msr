@@ -128,3 +128,21 @@ The substitutions release is Zenodo record **15293562** (v1.3,
 DOI 10.5281/zenodo.15293562) — 217 DMS. Earlier records (e.g. 11201211)
 are not the substitutions release and will not match this preprocessor's
 expectations.
+
+## 10. The mega-scale `wt` rows are the only source of a library's wild-type sequence
+
+`MegaScaleDatasetPreprocessor.preprocess` drops every `mut_type == 'wt'`
+row, so `self.df` holds mutants only. Taking a per-library sequence from
+it (`groupby('code_wt').first()['aa_seq']`) returns a *mutant*: for all
+371 libraries that sequence differs from the wild type at one or two
+positions. Use `self.aa_seq_wt` (captured before the filter, keyed like
+`code_wt`) when the wild-type sequence is needed; it matches the
+AlphaFold model exactly for all 363 libraries that have a `wt` row.
+
+This affected `preprocessing/split_tsuboyama.py`, whose homology FASTA
+carried mutant sequences. One designed library then measured 40.0%
+identity to an external benchmark instead of its true 42.5%, landing
+exactly on the 40% cap and escaping exclusion. Fixed 2026-10-06; the
+splits in `data/splits_oct06_capped.*` were regenerated from wild-type
+sequences. `aa_seq` is not used as wild-type model context anywhere, so
+training was not affected.

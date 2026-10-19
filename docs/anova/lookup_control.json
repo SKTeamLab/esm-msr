@@ -1,0 +1,53 @@
+{
+ "raw (X,Y) table": {
+  "per-pair, one orientation": [
+   0.030744686635321858,
+   33,
+   7285
+  ],
+  "per-pair, both orientations": [
+   0.035900879436395305,
+   66,
+   14564
+  ],
+  "pooled (validation-style)": [
+   0.034314264941782,
+   53,
+   14449
+  ]
+ },
+ "interaction part + X main effect": {
+  "per-pair, one orientation": [
+   0.030744686635321858,
+   33,
+   7285
+  ],
+  "per-pair, both orientations": [
+   0.035900879436395305,
+   66,
+   14564
+  ],
+  "pooled (validation-style)": [
+   0.034314264941782,
+   53,
+   14449
+  ]
+ },
+ "X-only (control, expect 0)": {
+  "per-pair, one orientation": [
+   0.0,
+   33,
+   7285
+  ],
+  "per-pair, both orientations": [
+   0.0,
+   66,
+   14564
+  ],
+  "pooled (validation-style)": [
+   0.0,
+   53,
+   14449
+  ]
+ }
+}
