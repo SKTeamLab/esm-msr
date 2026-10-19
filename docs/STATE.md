@@ -155,42 +155,31 @@ arm **`wt_ref_floor0_r16a16_d02`** (`dc_runs/launch_wt_ref_floor0_r16a16_d02.sh`
 `ext_per_loader` fix). Future WT comparisons are against it. The first two attempts at it did not produce a number:
 they are archived, not superseded, and their failure modes are recorded in §4.
 
-### 5.2 Decision rule (2026-10-19): parsimony is the default, additions must earn it, OOD is a guard
+### 5.2 Capacity ladder (2026-10-19): shrink until a dropoff, replicate the dropoff
 
-Stacking is unchanged — only a winner stacks. The rule is **asymmetric in complexity** (user, 2026-10-19: "the
-0.002 is required to justify non-parsimony additions"):
+The WT capacity decision is a **ladder**, not one comparison. Reference = **rank 16** (`r16·a32` is excluded: its
+rsLoRA scale is 8.0 against the reference's 4.0, so it is not comparable). Walk **16 → 8 → 4 → 2 → 1**, each level
+compared with the reference on best-epoch `val_rho_wt_valid_avg`:
 
-* **A simpler model is adopted whenever it is not clearly worse.** A smaller WT adapter, or one asserted knee
-  instead of a per-library floor, is the parsimonious default. "Not clearly worse" means `diff >= -band`; accepting
-  it is **not** a gain claim, so it needs **no second seed**. `wt_r8a11` (rank 8) at −0.0003 versus the rank-16
-  reference is adopted for exactly this reason.
-* **A more complex model is an addition and must earn it**: adopted only on a clear gain, `diff > +band` (0.002,
-  ~4× the measured WT between-seed SD). Below that it is not justified yet and is simply not adopted — also without
-  a second seed.
-* **Among the adoptable arms the data decides** (highest best-epoch value). Parsimony is what makes a simpler arm
-  adoptable; it is not a reason to prefer a worse one.
-* **The external OOD sets are a generalization guard.** Read `val_rho_combined_external` / `val_rmse_combined_external`
-  to check that a decision travels to out-of-distribution assays; do **not** decide anything from them (they are out
-  of distribution and were the source of the "floor0 wins 2/3" misread, which came from a confounded arm).
-* A symmetric seed-2 pair is still available (`gate_capacity_final`) for confirming a **non-parsimonious** addition
-  before committing to it, but stage 1 no longer queues it automatically.
+* degradation within **−0.002** → no test; accept the level and go down one step (parsimony is the default).
+* degradation worse than **−0.002** → **replicate both the reference and that contender** (seed 2 each, a symmetric
+  pair) and pool the two seeds per arm:
+  * pooled degradation **> 0.001** → stop at the **next higher** capacity level;
+  * otherwise → accept the level and continue down.
+* every level acceptable → the smallest (**rank 1**) is the gold head.
 
-**Concretely** (implemented in `dc_runs/gate_capacity.py`):
+Worked example (user's): 8 at −0.0003, 4 at −0.0006, 2 at −0.001, 1 at −0.008 → replicate 1; if the pooled
+difference still exceeds 0.001, go with 2, then on to the other hyperparameters, tf_mix, etc.
 
-* **Statistic**: best-epoch `val_rho_wt_valid_avg` — the value `save_top_k` selects on, and the one the retired
-  sweep used, so the comparison is like-for-like on the new basis.
-* **Band**: **0.002** (user's choice; the measured WT between-seed SD is ~0.0005, so this is ~4 SD and deliberately
-  stricter than the old 0.001 stacking margin).
-* **Complexity**: the arm's WT rank, `lora_rank_wt` from its `hparams.yaml`; rank below the reference's is simpler.
-* **Outputs**: `dc_runs/wt_gold.txt` (arm, checkpoint, value, seeds, statistic, band, decision) is the single record
-  of the WT head; `gate1_tfmix` reads its `ckpt=` and no longer looks at the retired sweep.
-* **rsLoRA**: `use_rslora=True`, so the effective adapter scale is `alpha/sqrt(rank)`, not `alpha/rank`. The reference
-  (r16·a16) and r4·a8 are both 4.00; r8·a11 is 3.89 (closest integer to 4·√8). That is why these arms are a clean
-  capacity axis — unlike the retired sweep's r16·a32, whose scale was 8.00 (2× the reference) and is confounded.
+Alpha holds the rsLoRA scale `alpha/sqrt(rank)` at the reference's 4.0: r16/a16 = 4.000, r8/a11 = 3.889,
+r4/a8 = 4.000, r2/a6 = 4.243, r1/a4 = 4.000.
 
-Applied to the current queue: `wt_r8a11` (0.8510, rank 8) has already been shown inside the band; `wt_r4a8` (rank 4)
-runs next, and the `gate_capacity` entry then applies the rule above to both against the rank-16 reference
-(0.8513) and writes `wt_gold.txt`.
+The external OOD sets remain a **generalization guard**: read `val_rho_combined_external` /
+`val_rmse_combined_external` to check that a decision travels, and never decide anything from them.
+
+Implementation: `dc_runs/gate_capacity.py`, as queue entries `gate_capacity_l4` → `_l2` → `_l1` → `gate_capacity_final`
+(the pooled verdict). A stage either queues the next level and its gate, or the seed-2 pair and the pooled gate, or
+writes `dc_runs/wt_gold.txt` and appends `gate1_tfmix`.
 
 ## 6. Operating the queue
 

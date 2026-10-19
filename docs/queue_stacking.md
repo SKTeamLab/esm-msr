@@ -125,23 +125,19 @@ patch copied between them failed exactly there. `dc_runs/check_pin_val_wt_only.p
   was dropped as superseded (STATE §4, EXPERIMENTS §6b). `dc_runs/floor_decide.py` was the sweep's hook; it now
   defaults to the parsimony call on the seed-1 pair, with `--retest` opt-in. The external benchmark sets are **not** a
   decision input — the "floor0 wins 2/3" read came from the confounded arm generation.
-* **Parsimony is the default; an addition must earn its place** (user, 2026-10-19 — the general rule, which
-  supersedes the knee-specific wording above). Stacking is unchanged: only a winner stacks. The bar is **asymmetric
-  in complexity**: "+0.002 is required to justify non-parsimony additions."
-  * A **simpler** change (a smaller WT adapter, one asserted knee) is adopted whenever it is **not clearly worse**
-    (`diff >= -band`). Accepting a model that is not worse is not a gain claim, so it needs **no second seed**.
-  * A **more complex** change is an addition and needs a clear gain (`diff > +band`). Below that it is not adopted.
-  * Among adoptable arms the data decides (highest value); parsimony makes a simpler arm adoptable, it does not
-    prefer a worse one.
-  The external OOD sets are a **generalization guard**: read `val_rho_combined_external` /
-  `val_rmse_combined_external` to see whether a decision travels, and never decide anything from them.
-  **Implemented** for the WT head as `dc_runs/gate_capacity.py` (queue entry `gate_capacity`): best-epoch
-  `val_rho_wt_valid_avg`, band 0.002, complexity = `lora_rank_wt`. The decision is written to `dc_runs/wt_gold.txt`,
-  which `gate1_tfmix` consumes — no stack file, no remembered value. A symmetric seed-2 pair remains available
-  (`gate_capacity_final`) for confirming a *non-parsimonious* addition, but it is not queued automatically.
-  **rsLoRA caveat**: `use_rslora=True`, so the effective scale is `alpha/sqrt(rank)`. A capacity arm must hold that
-  constant: reference r16·a16 = 4.00, r4·a8 = 4.00, r8·a11 = 3.89 (nearest integer to 4·√8). The retired sweep's
-  r16·a32 was 8.00 — twice the reference — so those capacity numbers mixed rank with scale.
+* **The capacity ladder: shrink until a dropoff, replicate the dropoff** (user, 2026-10-19 — the general rule, which
+  supersedes the knee-specific wording above). Stacking is unchanged: only a winner stacks. For WT capacity the
+  decision is a ladder down from the rank-16 reference — **16 → 8 → 4 → 2 → 1** (`r16·a32` is excluded, its rsLoRA
+  scale is 8.0 against 4.0). Each level is compared with the reference on best-epoch `val_rho_wt_valid_avg`:
+  * degradation within **−0.002** → no test; accept and go down one step;
+  * worse than **−0.002** → **replicate both the reference and the contender** (seed 2 each, a symmetric pair); pool
+    the two seeds per arm. Pooled degradation **> 0.001** → stop at the **next higher** level; otherwise accept and
+    continue down;
+  * every level acceptable → **rank 1** is the gold head.
+  Alpha holds the rsLoRA scale `alpha/sqrt(rank)` constant: r16/a16 = 4.000, r8/a11 = 3.889, r4/a8 = 4.000,
+  r2/a6 = 4.243, r1/a4 = 4.000. The external OOD sets are a **generalization guard** only — never a decision input.
+  **Implemented** as `dc_runs/gate_capacity.py` (entries `gate_capacity_l4` → `_l2` → `_l1` → `gate_capacity_final`);
+  the decision is written to `dc_runs/wt_gold.txt`, which `gate1_tfmix` consumes — no stack file, no remembered value.
 * **Margin before stacking.** The sweep already refuses to stack a gain under 0.001 (~2 between-seed SD on
   `rho_wt_valid`). Do the same for the ns term: `beyond_rho_mt` ≥ 0.03 with guards flat, two seeds, or it does not
   stack.
