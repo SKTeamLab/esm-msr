@@ -125,17 +125,20 @@ patch copied between them failed exactly there. `dc_runs/check_pin_val_wt_only.p
   was dropped as superseded (STATE §4, EXPERIMENTS §6b). `dc_runs/floor_decide.py` was the sweep's hook; it now
   defaults to the parsimony call on the seed-1 pair, with `--retest` opt-in. The external benchmark sets are **not** a
   decision input — the "floor0 wins 2/3" read came from the confounded arm generation.
-* **A gain must be real, and parsimony wins ties** (user, 2026-10-19 — the general rule, which supersedes the
-  knee-specific wording above). Stacking is unchanged: only a winner stacks. But a change that is not **clearly outside
-  measurement error** does not stack on one seed: it earns **one extra seed for both the challenger and the incumbent**
-  (a symmetric pair, so the seed is never confounded with the change), and the pooled comparison decides. A
-  parsimonious change (a smaller WT adapter, one asserted knee) is adopted when that confirmation is neutral-or-better,
-  never because it is cheaper on a single seed. The external OOD sets are a **generalization guard**: read
-  `val_rho_combined_external` / `val_rmse_combined_external` to see whether a decision travels, and never decide
-  anything from them.
+* **Parsimony is the default; an addition must earn its place** (user, 2026-10-19 — the general rule, which
+  supersedes the knee-specific wording above). Stacking is unchanged: only a winner stacks. The bar is **asymmetric
+  in complexity**: "+0.002 is required to justify non-parsimony additions."
+  * A **simpler** change (a smaller WT adapter, one asserted knee) is adopted whenever it is **not clearly worse**
+    (`diff >= -band`). Accepting a model that is not worse is not a gain claim, so it needs **no second seed**.
+  * A **more complex** change is an addition and needs a clear gain (`diff > +band`). Below that it is not adopted.
+  * Among adoptable arms the data decides (highest value); parsimony makes a simpler arm adoptable, it does not
+    prefer a worse one.
+  The external OOD sets are a **generalization guard**: read `val_rho_combined_external` /
+  `val_rmse_combined_external` to see whether a decision travels, and never decide anything from them.
   **Implemented** for the WT head as `dc_runs/gate_capacity.py` (queue entry `gate_capacity`): best-epoch
-  `val_rho_wt_valid_avg`, band 0.002, symmetric seed-2 pair inside the band, parsimony (smaller WT rank) on a tie.
-  The decision is written to `dc_runs/wt_gold.txt`, which `gate1_tfmix` consumes — no stack file, no remembered value.
+  `val_rho_wt_valid_avg`, band 0.002, complexity = `lora_rank_wt`. The decision is written to `dc_runs/wt_gold.txt`,
+  which `gate1_tfmix` consumes — no stack file, no remembered value. A symmetric seed-2 pair remains available
+  (`gate_capacity_final`) for confirming a *non-parsimonious* addition, but it is not queued automatically.
   **rsLoRA caveat**: `use_rslora=True`, so the effective scale is `alpha/sqrt(rank)`. A capacity arm must hold that
   constant: reference r16·a16 = 4.00, r4·a8 = 4.00, r8·a11 = 3.89 (nearest integer to 4·√8). The retired sweep's
   r16·a32 was 8.00 — twice the reference — so those capacity numbers mixed rank with scale.
