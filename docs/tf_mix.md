@@ -52,18 +52,32 @@ Same frozen WT model for all five arms — now the **capacity-ladder gold head**
 not dc17 — so **m is the only variable**. The frozen head's own architecture (WT rank/alpha, knee, censoring) comes
 from its checkpoint's hparams.
 
-**The MT head is the canonical r16a16 in the family.** With `use_rslora=True` the adapter scale is `alpha/sqrt(r)`,
-not `alpha/r`. The capacity ladder held that scale at the reference's 4.0, and a scale-preserving MT head at rank 16
-is `16/sqrt(16) = 4.0` — the canonical value. So the tf-mix block keeps r16a16: the mix stays the only variable and
-the block remains comparable with the dc17 line.
+**The MT head is the canonical r16a16 in the family**, and the block now runs the *well-posed* parameterization
+(2026-10-19): `--combined_mode sum`, `--tf_delink`, `--tie_mt_scale`, with `--per_mutation_bias` mandatory.
+
+* **`sum`**: `comb = wt + mt`, so with the teacher-forced WT half the MT head's target is `y − forced` — exactly the
+  epistasis term when the label is in place. Under the released `mean` (`0.5/0.5`) the same target is
+  `2y − forced = additive + 2·epistasis`, dominated by the additive term the MT head would have to relearn, and the
+  mix changes the head's target as well as the baseline. `sum` is the well-posed mode; it is a comparability break
+  against the dc17 line.
+* **`tf_delink`**: the additive label is a sum of two *saturated* single readings, so each single is inverted through
+  the link and summed (the inverse is nonlinear; inverting the sum is a different, wrong number). Singles at or
+  below their library floor have no inverse and drop out of teacher forcing.
+* **`tie_mt_scale`**: the MT calibration shares the frozen WT head's **scale** (bias separate), so both calibrated
+  halves are on one latent scale and the raw-scale rank loss weights the halves as the calibrated combination does.
+* **`per_mutation_bias`** is mandatory: the calibrated LLR sum is a sum over positions, so a scalar bias puts a
+  double one bias *below* the sum of its two singles (0.1065 kcal/mol).
 
 **One deviation arm, not the family** (user, 2026-10-19). `gate2_ns` also generates a single arm at the winning mix
 with `--mt-alpha wt`: the MT alpha becomes the frozen WT gold's alpha (`r16a11` for an `r8a11` gold), tagged `_mtaw`
 so it cannot collide with the canonical arm. This is deliberately a **scale** test, not a capacity one — under rsLoRA
-it moves the MT scale to 2.75 — and alpha is entangled with the learning rate, so it should be read as "does a smaller
-MT scale help at this mix", not as a drop-in replacement.
+it moves the MT scale to 2.75 — and alpha is entangled with the learning rate.
 
-Table (names are the launcher/queue names; each experiment is suffixed `_w<WTrank>a<WTalpha>_m16a<MTalpha>`, e.g. `_w8a11_m16a16` canonical and `_w8a11_m16a11` for the deviation arm):
+**`fx` is not in this block.** `--nonspecific_term fx` asserts `--combined_mode mean` (its `comb = (WT+MT)/2`
+invariant); `gate2_ns` therefore **defers** the fx arms under a `sum` block with a loud message, and runs the
+control seed-2 and the deviation arm as usual. Porting `fx` to `sum` is the prerequisite for the ns stage.
+
+Table (names are the launcher/queue names; experiments are suffixed `_w<WTrank>a<WTalpha>_m16a<MTalpha>_<mode>`, e.g. `_w8a11_m16a16_sum`):
 
 | arm | m | note |
 |---|---|---|
