@@ -71,6 +71,23 @@ def summarise_external_benchmarks(per_loader: dict, external: set) -> dict:
     return out
 
 
+def reachable_bounds(link, bound, y_floor, offset):
+    """Censoring bounds (on each item's own ddG scale) moved inside what the link can report; see the comment at the call site.
+
+    Lower side: raised to the knee's reading h(floor) = floor + tau*ln2, so a lower-censored item's hinge holds exactly when its latent is at
+    or below the floor. Upper side: lowered to the ceiling when one is on. ``offset`` = ddG - dG_meas converts absolute dG to the item's scale.
+    Detached: a bound never trains the link it comes from.
+    """
+    knee_ddG = link(link.effective_floor(y_floor), y_floor).detach() + offset
+    # Only where computable: torch.maximum propagates NaN, which would destroy a good bound.
+    bound = torch.where(torch.isfinite(knee_ddG), torch.maximum(bound, knee_ddG), bound)
+    ceil_t = link.ceiling()
+    if ceil_t is not None:
+        ceil_ddG = ceil_t.detach() + offset
+        bound = torch.where(torch.isfinite(ceil_ddG), torch.minimum(bound, ceil_ddG), bound)
+    return bound
+
+
 class ESM3EpistasisLightningModule(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
@@ -405,9 +422,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # violated no matter what the model predicts, contributing an irreducible squared error (mean 0.20 there)
         # and pushing the latent down forever instead of stopping once the prediction saturates.
         #
-        # Raising the bound to the link's floor makes it satisfiable: the model discharges it by predicting at or
-        # below the floor, the penalty decays to zero as it does, and the two censoring sources end up with
-        # identical semantics. Detached, so a bound never trains the floor it is derived from.
+        # The bound is raised to the link's KNEE, h(floor) = floor + tau*ln2 on the observed scale: the reading of a
+        # variant whose latent dG sits exactly at the floor, i.e. half unfolded. A softplus link only reaches the
+        # floor itself as the latent goes to -inf, so a bound AT the floor was never satisfiable either: every
+        # floor-censored item kept a penalty (mean 0.36 on wt_r8a11 / dc18 validation singles, half of them already
+        # below the knee) and a push toward -inf. At the knee the hinge says exactly what the censoring means - the
+        # latent is at or below the floor - it switches off once that holds, and the two censoring sources end up
+        # with identical semantics. Detached, so a bound never trains the floor it is derived from.
         #
         # The ceiling needs the mirror image once --link_ceiling is on. A '>5' row is bounded at 5 - dG_wt, but
         # what the link can actually emit tops out at ceiling - dG_wt, and the ceiling is LEARNED: the moment it
@@ -420,13 +441,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # the floor: for a single or a double it is just -dG_wt, and for a conditional item it also carries the
             # partner's single. Computed from the batch rather than assumed, so it stays correct if cond is enabled.
             offset = batch.get('ddG').float() - batch.get('dG_meas', torch.full((B,), float('nan'), device=device)).float()
-            floor_ddG = (link.effective_floor(floor_all).detach() + offset)
-            # Only where the floor is computable: torch.maximum propagates NaN, which would destroy a good bound.
-            bound_all = torch.where(torch.isfinite(floor_ddG), torch.maximum(bound_all, floor_ddG), bound_all)
-            ceil_t = link.ceiling()
-            if ceil_t is not None:
-                ceil_ddG = ceil_t.detach() + offset
-                bound_all = torch.where(torch.isfinite(ceil_ddG), torch.minimum(bound_all, ceil_ddG), bound_all)
+            bound_all = reachable_bounds(link, bound_all, floor_all, offset)
 
         # --alternate_heads: one head per batch. Decided once for the whole batch, from the batch's own
         # composition, so every micro-batch of it takes the same turn.
