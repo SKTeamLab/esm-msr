@@ -145,11 +145,14 @@ def test_mix_zero_means_no_teacher_forcing():
     assert _combined_loss(_stub(tf_mix=0.0)) == pytest.approx((0.5 * 2.0 + 1.0) ** 2, abs=1e-6)
 
 
-def test_singles_are_never_mixed():
-    """A single's forced half is its own measurement, which is also its target: mixing it would move the target."""
-    a = _combined_loss(_stub(tf_mix=0.0), _batch(doubles=False))
-    b = _combined_loss(_stub(tf_mix=1.0), _batch(doubles=False))
-    assert a == pytest.approx(b, abs=1e-7)
+def test_singles_are_mixed_like_doubles():
+    """Since 2026-10-19 the mix applies to singles too, so 0.0 really is a no-teacher-forcing arm for the whole
+    stream. A single's label is its own ddG (-1.0); the WT head says 2.0."""
+    for mix in (0.0, 0.25, 0.5, 1.0):
+        forced = mix * -1.0 + (1.0 - mix) * 2.0
+        expected = (0.5 * forced + 0.5 * 0.0 - (-1.0)) ** 2
+        assert _combined_loss(_stub(tf_mix=mix), _batch(doubles=False)) == pytest.approx(expected, abs=1e-6), mix
+    assert _combined_loss(_stub(tf_mix=0.0), _batch(doubles=False)) == pytest.approx(4.0, abs=1e-6)
 
 
 def test_items_without_a_usable_label_fall_back_to_the_wt_head_for_any_mix():

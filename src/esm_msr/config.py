@@ -109,14 +109,16 @@ def parse_arguments() -> argparse.Namespace:
                                  "multi-mutants, alternating by batch. A batch that cannot serve its turn (no "
                                  "doubles, or no singles) takes the other one, so no batch is wasted.")
     loss_group.add_argument('--tf_mix', type=float, default=1.0,
-                            help="How much of the WT half of a MULTI-mutant's combined prediction comes from the "
-                                 "measured additive label (ddG_A + ddG_B) rather than from the WT head's own "
-                                 "prediction: 1.0 = the label wherever one is usable (the released behaviour), "
-                                 "0.0 = never teacher-force, 0.5 = the arithmetic mean of the two. The label carries "
-                                 "the measurement noise of its two singles and the floor clipping of either; the WT "
-                                 "head is smooth but biased, so this trades variance for bias. Singles are never "
-                                 "mixed (their forced half is their own measurement), and an item without a usable "
-                                 "label always falls back to the WT head. Needs ensemble lora_mode and --link.")
+                            help="How much of an item's WT half comes from the measured label rather than from "
+                                 "the WT head's own prediction: 1.0 = the label wherever one is usable (the released "
+                                 "behaviour), 0.0 = never teacher-force, 0.5 = the arithmetic mean of the two. It "
+                                 "applies to SINGLES too (2026-10-19), so 0.0 is a pure non-teacher-forcing arm for "
+                                 "the whole stream: with the label the MT head is a total/interaction predictor, "
+                                 "with the WT pass it compensates the WT head's error. The label carries the "
+                                 "measurement noise of its singles and the floor clipping of either; the WT head is "
+                                 "smooth but biased, so this trades variance for bias. An item with no usable label "
+                                 "(e.g. a single at its library floor) falls back to the WT head for any mix. Needs "
+                                 "ensemble lora_mode and --link.")
     loss_group.add_argument('--combined_mode', type=str, default='mean', choices=['mean', 'route'],
                             help="How the WT and MT heads form the reported prediction. 'mean' is 0.5/0.5 "
                                  "(released). 'sum' was REMOVED 2026-10-19: the MT pass is a sum of per-position "

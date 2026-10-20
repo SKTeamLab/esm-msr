@@ -21,11 +21,13 @@ forced_wt_half = m * (measured additive label)  +  (1 - m) * (WT head prediction
 | 0.75 / 0.5 / 0.25 | a blend; 0.5 is the arithmetic mean |
 | 0.0 | never teacher-force: the WT half is always the WT head |
 
-Not mixed, by design: **singles** (their forced half is their own measurement, which is also their target),
-**items with no usable label** (they fall back to the WT head for any m), and items already dropped because one of
-their singles is measured at the floor. Under `--tf_delink` the labels are de-linked one single at a time first and
-the blend happens after that, and the raw-scale half is derived from the calibrated one, so the regression and rank
-objectives stay consistent.
+Mixed too, since 2026-10-19: **singles**, so `m=0` is a pure no-teacher-forcing arm for the whole stream while
+`m=1` leaves a single's forced half as its own measurement (which is also its target). Without that, a `m<1` sweep
+would still teacher-force the singles and would not measure the compensator/interaction balance it claims. Not
+mixed: **items with no usable label** (they fall back to the WT head for any m), and items already dropped because
+one of their singles is measured at the floor. Under `--tf_delink` the labels are de-linked one single at a time
+first and the blend happens after that, and the raw-scale half is derived from the calibrated one, so the regression
+and rank objectives stay consistent.
 
 ## 2. Why it is worth tuning
 
@@ -44,7 +46,11 @@ the target the MT head is scored against is dominated by a term whose estimator 
 for bias, and where the optimum sits is an empirical question.
 
 Under the **frozen-WT paradigm** the question is sharpest: the WT half is constant for the whole run, so m sweeps
-the target from "the measured singles" to "one fixed model's prediction", with nothing else moving.
+the target from "the measured singles" to "one fixed model's prediction", with nothing else moving. With the mix
+applied to singles, the sweep is also the balance between the MT head as a **compensator** (m=0: it corrects the
+frozen WT head's error on singles and doubles alike) and as a **total/interaction predictor** (m=1: the additive
+half is the measurement, so the MT half supplies the total, and the interaction is what the ensemble's average
+adds beyond the additive expectation).
 
 ## 3. The queued sweep
 
