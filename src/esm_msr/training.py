@@ -459,10 +459,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             n_mut_mb = micro['mut_mask'].sum(dim=1)
             is_single = n_mut_mb == 1
             is_native_cond = is_native_cond_all[idx]
+            nc_for_wt = bool(getattr(self.hparams, 'native_cond_for_wt', True))
+            nc_for_mt = bool(getattr(self.hparams, 'native_cond_for_mt', False))
             reg_mask = ~is_single if self.hparams.mt_reg_mask == 'doubles' else torch.ones_like(is_single, dtype=torch.bool)
-            # native_cond is an MT-head item (routing.py): a mutant-background single belongs in the MT/combined
-            # loss even under --mt_reg_mask doubles, which otherwise keys on the mutation count.
-            reg_mask = reg_mask | is_native_cond
+            # native_cond routing is independent per head: with --native_cond_for_mt the mutant-background item
+            # joins the MT/combined loss even under --mt_reg_mask doubles (which keys on the mutation count);
+            # without it, it is not an MT item at all.
+            reg_mask = (reg_mask | is_native_cond) if nc_for_mt else (reg_mask & ~is_native_cond)
             
             # --wt_double_target: the two self-consistent pairings for a multi-mutant's WT-path target.
             #
@@ -489,9 +492,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # takes no gradient from one. The rank mask already drops them when the target is not 'linked'.
             if not getattr(self.hparams, 'wt_trains_doubles', True):
                 valid_wt_mask = valid_wt_mask & is_single
-            # ... and native_cond never trains the WT head: its sequence is the mutant background, not the real
-            # wild type, so it is a conditional effect the MT head owns.
-            valid_wt_mask = valid_wt_mask & ~is_native_cond
+            # ... and whether the WT head trains on native_cond is its own flag (the released default is on, via
+            # the 'single' label; with --native_cond_for_mt it is a native_cond item and this mask decides).
+            if not nc_for_wt:
+                valid_wt_mask = valid_wt_mask & ~is_native_cond
 
             # Teacher forcing for ENSEMBLE mode: the measured additive expectation replaces the WT half of the
             # combined latent, so the MT head only has to learn the correction.

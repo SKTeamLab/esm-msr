@@ -163,6 +163,8 @@ def test_native_cond_is_an_mt_item_even_under_doubles_only():
     stub = _stub()
     stub.hparams['lambda_reg_wt'] = 1.0
     stub.hparams['mt_reg_mask'] = 'doubles'
+    stub.hparams['native_cond_for_mt'] = True
+    stub.hparams['native_cond_for_wt'] = False
     logs = M._compose_losses_streaming_and_backward(stub, batch)
     assert float(logs.get('L_reg_wt', 0.0)) == 0.0                     # no WT gradient from a conditional item
     assert float(logs['L_reg_combined']) == pytest.approx(0.25, abs=1e-6)   # the MT head still sees it

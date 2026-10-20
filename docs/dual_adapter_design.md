@@ -66,11 +66,16 @@ target. This is what makes one-forward-per-variant inference possible: a single 
 on a k-mutant yields all k conditional terms at once. The alternative — feeding the
 leave-one-out sequence and scoring the held-out mutation — needs k forwards.
 
-**Routing in training.** `--native_cond_for_wt` (the default, and the released behaviour) labels these
-measurements `single`, so the WT head trains on them. `--native_cond_for_mt` labels them `native_cond`, includes the
-subset (overriding its 0.0 cap), keeps them out of the WT-head losses, and puts them in the MT/combined loss even
-under `--mt_reg_mask doubles` (which keys on the mutation count and would otherwise call them singles). The MT pass
-sees background + X — the static mutated-backbone sequence — and predicts ddG(X | bg).
+**Routing in training (four-way).** `--native_cond_for_wt` and `--native_cond_for_mt` are independent:
+
+* **neither**: the items are excluded (the `native_cond` cap 0.0).
+* **WT only** (the released default): labelled `single`; the WT loss trains on them and the combined loss sees them
+  through the ordinary single route (the MT pass input is the fully mutated sequence).
+* **MT only**: labelled `native_cond`; the WT loss is excluded; the combined/MT loss trains on them even under
+  `--mt_reg_mask doubles`. The MT pass gets the **same input the WT pass gets** (the library's starting/background
+  sequence), so the item is a forward conditional mutation from a pseudo-WT context whose sequence already differs
+  from the native structure - the MT head's domain, used as a strong regulariser.
+* **both**: both heads train on the same items and the same input.
 
 **`reversion` has no head, deliberately.** Its before-state is a mutant sequence (so the WT
 pass would violate "the WT pass sees the real wild type") and its after-state is the wild

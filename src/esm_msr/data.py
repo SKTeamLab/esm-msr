@@ -256,7 +256,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         censor_floor: bool = True,
         assay_floor: Optional[float] = None,
         gap_max: Optional[float] = 2.0,
-        native_cond_for_wt: bool = False,
+        label_native_cond: bool = False,
         censor_range: bool = True,
         cache_version: str = None,
     ):
@@ -291,7 +291,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             censor_range: Keep the rows the assay bounded rather than fitted (``<-1`` / ``>5``), which the cache
                 always stores. False drops them, restoring the selected-on-outcome population; see
                 ``esm_msr.censoring``.
-            native_cond_for_wt: Leave a mutant-background library's measurements labelled ``single`` instead of
+            label_native_cond: Label a mutant-background library's measurements ``native_cond`` instead of
                 ``native_cond``, which is what the released model does. They then train the WT head and count as
                 singles in every metric. Strictly it is wrong - ddG(X | background) is a conditional effect, not a
                 wild-type-context one - but it is the released behaviour and the comparison worth having.
@@ -352,7 +352,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         # released behaviour of treating them as ordinary singles.
         if not censor_range:
             self._drop_range_censored()
-        if not native_cond_for_wt:
+        if label_native_cond:
             self._label_native_cond()
         self._filter_dataset()
         self.assay_floor = assay_floor

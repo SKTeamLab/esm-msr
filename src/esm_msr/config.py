@@ -355,11 +355,14 @@ def parse_arguments() -> argparse.Namespace:
                                  "deliberate reproduction of the released model, not the rigorous routing. The old "
                                  "spelling --native_cond_as_single is an alias.")
     data_group.add_argument('--native_cond_for_mt', action=argparse.BooleanOptionalAction, default=False,
-                            help="Route a mutant-background library's singles to the MT head: label them "
-                                 "'native_cond', include the subset (overriding its 0.0 cap), keep them out of the "
-                                 "WT-head losses, and put them in the MT/combined loss. The MT pass sees the static "
-                                 "mutated-backbone sequence (background + X) and predicts ddG(X | bg). Implies "
-                                 "--no-native_cond_for_wt; a data-augmentation arm, not the released behaviour.")
+                            help="Let the MT head train on a mutant-background library's singles: label them "
+                                 "'native_cond', include the subset (overriding its 0.0 cap), and add them to the "
+                                 "MT/combined loss. The MT pass then gets the SAME input the WT pass gets (the "
+                                 "library's starting/background sequence), not the fully mutated one, so the item is "
+                                 "a forward conditional mutation in a pseudo-WT context whose sequence already "
+                                 "differs from the native structure - the MT head's domain, used as a strong "
+                                 "regularizer. Independent of --native_cond_for_wt: both can be on (both heads see "
+                                 "them), either alone, or neither (excluded).")
 
     data_group.add_argument('--subset_caps', nargs='*', action=ParseSubsetCaps, default=dict(DEFAULT_SUBSET_CAPS),
                             help=f"Caps for data subsets (e.g. double=0.6 cond=0.1). Defaults: {DEFAULT_SUBSET_CAPS}.")
@@ -513,12 +516,20 @@ def parse_arguments() -> argparse.Namespace:
     # (rather than branching in the model) means hparams record the EFFECTIVE settings the run used.
     if args.init_wt_from_checkpoint is not None and not os.path.isfile(args.init_wt_from_checkpoint):
         parser.error(f"--init_wt_from_checkpoint: no such file: {args.init_wt_from_checkpoint}")
+    # native_cond is a four-way routing decision (routing.py): each head can see it independently.
+    #   for_wt only  -> the released behaviour: labelled 'single', the WT loss trains on it, and the combined
+    #                   (MT) loss sees it through the ordinary single route.
+    #   for_mt       -> labelled 'native_cond', the MT/combined loss trains on it, and the MT PASS input is the
+    #                   WT pass's sequence (see forward_partitioned) so it is a forward mutation from the
+    #                   background context rather than a second mutation from the true wild type.
+    #   for_wt+for_mt-> both heads train on the same items and the same input.
+    #   neither      -> excluded.
     if args.native_cond_for_mt:
-        if args.native_cond_for_wt:
-            logging.info("--native_cond_for_mt: overriding --native_cond_for_wt (the MT head owns native_cond)")
-        args.native_cond_for_wt = False
         args.incl_native_cond = True
         args.subset_caps['native_cond'] = None           # the 0.0 default would exclude exactly what we want
+    if not args.native_cond_for_wt and not args.native_cond_for_mt:
+        args.incl_native_cond = False
+        args.subset_caps['native_cond'] = 0.0
     if args.frozen_wt_mt_only:
         if args.init_wt_from_checkpoint is None:
             parser.error("--frozen_wt_mt_only needs --init_wt_from_checkpoint: the paradigm is a PRE-TRAINED frozen "

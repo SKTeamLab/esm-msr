@@ -613,9 +613,8 @@ case it watched the shared metric - so nothing was stopping the WT path before t
 ## 5. Known gaps
 
 * `cond` and `native_cond` are generated and cached; `cond` is **not trained on** (`--subset_caps cond=0.0`), while
-  the `native_cond` MT routing is built behind `--native_cond_for_mt` (2026-10-19: labels them, includes the subset,
-  and excludes them from the WT losses). Note that the released recipe instead treats them as singles
-  (`--native_cond_for_wt`, the default); excluding `native_cond` is a deliberate departure from
+  the `native_cond` routing is now four-way and independent per head (`--native_cond_for_wt`, the released default,
+  and `--native_cond_for_mt`, which gives the MT pass the WT pass's input). Excluding `native_cond` is a deliberate departure from
   the released model, which trained on those items because they were labelled `single` there. They remain in
   validation, where they are direct measurements, so `val_rho_combined` stays comparable.
 * The out-of-range rows (`<-1`, `>5`) are still dropped upstream by `preprocess_megascale`, so `cens_src = SRC_RANGE`

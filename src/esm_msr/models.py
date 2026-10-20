@@ -150,6 +150,29 @@ class CalibrationHead(nn.Module):
 COMBINE_MODES = ('mean', 'route')
 
 
+def native_cond_mt_batch(batch: dict) -> dict:
+    """Return ``batch`` with the MT pass's sequence replaced by the WT pass's on native_cond rows.
+
+    A mutant-background library's ``mt_sequence_tokens`` carries the background mutation AND the scored mutation, so
+    it is two steps from the true wild type. The MT head's task on those items is the conditional effect from the
+    LIBRARY'S starting sequence, so it must see the WT pass's input (the background), not the fully mutated one; the
+    remaining sequence/structure mismatch is exactly the MT head's domain. Rows of any other subset, and the input
+    dict, are untouched.
+    """
+    st = batch.get('subset_type')
+    mt_seq, wt_seq = batch.get('mt_sequence_tokens'), batch.get('wt_sequence_tokens')
+    if st is None or mt_seq is None or wt_seq is None:
+        return batch
+    nc = torch.as_tensor([t == 'native_cond' for t in st], device=mt_seq.device)
+    if not bool(nc.any()):
+        return batch
+    out = dict(batch)
+    seq = mt_seq.clone()
+    seq[nc] = wt_seq[nc]
+    out['mt_sequence_tokens'] = seq
+    return out
+
+
 def combine_predictions(wt, mt, mode: str = 'mean', is_single=None):
     """
     How the WT (additive) and MT (mutant-context) heads become the reported prediction.
@@ -661,6 +684,9 @@ class MSRModel(ESM3PredictorBase):
 
     def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
         if pass_type not in ['wt', 'mt']: raise AssertionError(f"pass_type must be 'wt' or 'mt'. Received: {pass_type}")
+
+        if pass_type == 'mt':
+            batch = native_cond_mt_batch(batch)
 
         seq, mut_pos = batch.get(f'{pass_type}_sequence_tokens'), batch.get('mut_pos')
         wt_id, mt_id, mut_mask = batch.get('wt_id'), batch.get('mt_id'), batch.get('mut_mask')

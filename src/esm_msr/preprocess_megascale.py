@@ -539,7 +539,7 @@ class MegaScaleDatasetPreprocessor:
         censor_floor: bool = True,
         assay_floor: Optional[float] = None,
         gap_max=2.0,
-        native_cond_for_wt: bool = False,
+        label_native_cond: bool = False,
         censor_range: bool = True,
         cache_version: str = None,
         combine_validation: bool = False,
@@ -578,7 +578,7 @@ class MegaScaleDatasetPreprocessor:
                     censor_floor=censor_floor,
                     assay_floor=assay_floor,
                     gap_max=gap_max,
-                    native_cond_for_wt=native_cond_for_wt,
+                    label_native_cond=label_native_cond,
                     censor_range=censor_range,
                     cache_version=cache_version,
                 )
@@ -700,7 +700,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         censor_floor=args.censor_floor,
         assay_floor=args.assay_floor,
         gap_max=args.censor_gap_max if args.censor_gap else None,
-        native_cond_for_wt=args.native_cond_for_wt,
+        label_native_cond=(args.native_cond_for_mt or not args.native_cond_for_wt),
         censor_range=args.censor_range,
         cache_version=args.cache_version,
     )
@@ -721,7 +721,7 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         censor_floor=args.censor_floor,
         assay_floor=args.assay_floor,
         gap_max=args.censor_gap_max if args.censor_gap else None,
-        native_cond_for_wt=args.native_cond_for_wt,
+        label_native_cond=(args.native_cond_for_mt or not args.native_cond_for_wt),
         censor_range=args.censor_range,
         cache_version=args.cache_version,
     )

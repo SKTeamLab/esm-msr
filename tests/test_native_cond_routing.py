@@ -27,11 +27,30 @@ def test_the_released_default_treats_them_as_singles():
     assert a.native_cond_for_mt is False
 
 
-def test_for_mt_labels_includes_uncaps_and_takes_precedence():
+def test_for_mt_alone_means_both_heads_see_them():
     a = parse('--native_cond_for_mt')
-    assert a.native_cond_for_wt is False
+    assert a.native_cond_for_wt is True and a.native_cond_for_mt is True
     assert a.incl_native_cond is True
     assert a.subset_caps['native_cond'] is None
+
+
+def test_mt_only_and_neither():
+    mt = parse('--no-native_cond_for_wt', '--native_cond_for_mt')
+    assert mt.native_cond_for_wt is False and mt.native_cond_for_mt is True
+    assert mt.incl_native_cond is True and mt.subset_caps['native_cond'] is None
+    neither = parse('--no-native_cond_for_wt')
+    assert neither.native_cond_for_wt is False and neither.native_cond_for_mt is False
+    assert neither.incl_native_cond is False and neither.subset_caps['native_cond'] == 0.0
+
+
+def test_the_label_condition_covers_all_four_combos():
+    # labelled native_cond iff for_mt, or for_wt is off (the neither case is then excluded by the include flag)
+    assert parse().native_cond_for_mt is False and parse().native_cond_for_wt is True
+    for wt, mt in ((True, False), (True, True), (False, True), (False, False)):
+        a = parse(*(['--native_cond_for_wt'] if wt else ['--no-native_cond_for_wt']),
+                  *(['--native_cond_for_mt'] if mt else []))
+        label = a.native_cond_for_mt or not a.native_cond_for_wt
+        assert label == (mt or not wt), (wt, mt)
 
 
 def test_the_old_spelling_is_an_alias():
