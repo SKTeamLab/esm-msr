@@ -153,3 +153,46 @@ Goal: establish whether the term helps on the *current* canonical basis, and sep
 * `docs/anova_epistasis_report.md` — the variance partition and the saturation simulation behind §5.
 * `docs/epistasis_metrics_report.html` — the report version, with figures.
 * `docs/EXPERIMENTS.md` — where the run sits in the sequence, and the dc-series baselines to compare against.
+
+## 8. Is it just a softer link? (tau replay, 2026-10-20)
+
+The concern: `f(x)` may be doing no more than widening the link's knee (`tau`). The test: hold the latent predictions
+fixed (the validation dumps), sweep the link's floor-knee `tau` over 0.3-2.0, and recompute the full
+`epi_metrics` suite (`dc_runs/tau_replay.py`). The replay reproduces the published control/ns numbers exactly
+(control `beyond_rho_mt` 0.5048, ns 0.5639, etc.), so it is scoring the same thing the training did.
+
+Control (the old softclamp link, `tau_lo` 0.548) versus the ns arm; control values are the last-3-epoch mean at the
+trained tau and the envelope over the tau sweep (last epoch, tau 0.3-2.0):
+
+| metric | control | control, best tau | `+ns fx` |
+|---|---|---|---|
+| `beyond_rho_mt` | 0.505 | 0.515 | **0.564** |
+| `beyond_rho_comb` | 0.483 | 0.485 (falls with tau) | **0.550** |
+| `cell_rank_mt` | 0.202 | **0.205 at every tau** | **0.213** |
+| `cell_flipacc_mt` | 0.865 | **0.869 at every tau** | **0.871** |
+| `cell_mag_comb` | 0.284 | 0.296 | **0.304** |
+| `naive_rho_mt` | 0.360 | 0.351 (0.316 at tau 2) | **0.571** |
+| `global_err_comb` | 0.687 | 0.690 (1.10 at tau 2) | **0.644** |
+| rmse (observed) | 0.552 | 0.493 (tau 1.2) | **0.475** |
+
+Reading:
+
+* **`cell_rank` and `flipacc` are computed on the LATENT and are exactly tau-invariant** (0.205 / 0.869 across the
+  whole sweep). The term moved them (0.213 / 0.871). That is decisive: the term changes the latent predictions; no
+  link/tau change can.
+* The link-dependent target metrics do not follow either: `beyond_rho_mt` is flat at ~0.51 (vs 0.56), `beyond_rho_comb`
+  falls with tau, `naive_rho` peaks at 0.35 and falls (vs 0.57), and `global_err` worsens with tau (vs 0.64 with fx).
+* The one real tau effect is the **plain observed-scale rmse**: on the old link, tau 1.2 lowers it 0.552 -> 0.493 on
+  the full validation, and a held-out library split (choose tau on half the libraries, score the other half) confirms
+  it (0.456 at the chosen 0.9 vs 0.517 at the trained 0.55). But that is a *calibration* gain; it leaves the epistasis
+  metrics flat, and the ns arm is better on rmse too (0.475) while also improving `global_err` / `naive` / `beyond`.
+* On the **current** per-library-floor link (tau 0.59) the same test does not even find that calibration gain: the tau
+  chosen on half the libraries is worse on the other half (0.498 vs 0.483), i.e. the trained tau is already at the
+  held-out optimum.
+
+Conclusion: the term is **not** a tau substitute. The tau is one global curvature on the link; `f` is an item-dependent
+function of the additive expectation added before it, and it changes the latent itself. The tau remains a legitimate
+calibration knob for the plain rmse on some links, but it cannot produce the term's beyond-additive/latent gains; the
+term dominates the tau envelope on every metric the project selects on. (Caveat unchanged: the term's largest raw gain
+is on `naive_rho`, the metric that is not a target; the target gains are the +0.06 `beyond_rho` and +0.011
+`cell_rank`.)
