@@ -163,6 +163,7 @@ def main_(args):
         parsed_config = inference.parse_hparams_to_lora_config(hparams_path)
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         lora_mode = parsed_config.get('lora_mode', 'ensemble')
+        checkpoint_cal = parsed_config.get('calibration')
         if args.lora_epsilon != 1:
             parsed_config['wt_config']['lora_alpha'] *= args.lora_epsilon
             parsed_config['mt_config']['lora_alpha'] *= args.lora_epsilon
@@ -187,13 +188,17 @@ def main_(args):
         }
         adapter_mode = 'dual'
         lora_mode = 'ensemble'
+        checkpoint_cal = None
         lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': args.seed}        
 
     model_dtype = torch.bfloat16 if args.dtype == 'bf16' else torch.float32
     print(f"[MODEL] inference dtype = {args.dtype} ({model_dtype})")
+    cal = inference.resolve_calibration(checkpoint_cal, args.tie_mt_scale, args.per_mutation_bias)
+    print(f"[MODEL] calibration: tie_mt_scale={cal['tie_mt_scale']} per_mutation_bias={cal['per_mutation_bias']}")
     model = models.MSRModel(
         lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
-        lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True
+        lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True,
+        tie_mt_scale=cal['tie_mt_scale'], per_mutation_bias=cal['per_mutation_bias']
     ).to('cuda:0')
 
     # ---------------------------------------------------------
@@ -577,6 +582,12 @@ if __name__ == "__main__":
         parser.add_argument('--auto_batch_max', type=int, default=None,
                             help='Optional hard cap on the auto-batched batch size')
         parser.add_argument('--dtype', type=str, default='bf16', choices=['bf16', 'fp32'], help='Model inference dtype (bf16 = native/autocast, lower VRAM)')
+        parser.add_argument('--tie_mt_scale', action=argparse.BooleanOptionalAction, default=None,
+                            help="Share the WT calibration scale with the MT head. Default: the checkpoint's hparams "
+                                 "(off when the key is missing, as for the released models).")
+        parser.add_argument('--per_mutation_bias', action=argparse.BooleanOptionalAction, default=None,
+                            help="Apply the calibration bias once per mutated position. Default: the checkpoint's "
+                                 "hparams (off when the key is missing, as for the released models).")
 
         args, remaining_argv = parser.parse_known_args()
         current_remaining_argv = list(remaining_argv) 

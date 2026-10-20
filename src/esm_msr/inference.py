@@ -8,6 +8,7 @@ import pandas as pd
 import os
 import json
 import argparse
+from typing import Optional
 import shutil
 from tqdm import tqdm
 from pathlib import Path
@@ -119,8 +120,34 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'wt_config': wt_config,
         'mt_config': mt_config,
         'adapter_mode': hparams.get('adapter_mode', 'dual'),
-        'lora_mode': hparams.get('lora_mode', 'ensemble')
+        'lora_mode': hparams.get('lora_mode', 'ensemble'),
+        'calibration': calibration_from_hparams(hparams),
     }
+
+
+def calibration_from_hparams(hparams: dict) -> dict:
+    """The calibration-head settings a checkpoint was trained with, which inference must reproduce.
+
+    A key missing from ``hparams`` means the checkpoint predates the flag, so it gets the behaviour of that older
+    code: an independent MT scale and one bias per item. The released models are such checkpoints. Reading the
+    current training defaults instead (both on) would score them with a different model: the released small model's
+    MT scale is 0.217 against its WT scale of 0.340.
+    """
+    return {'tie_mt_scale': bool(hparams.get('tie_mt_scale', False)),
+            'per_mutation_bias': bool(hparams.get('per_mutation_bias', False))}
+
+
+def resolve_calibration(checkpoint_cal: Optional[dict], tie_mt_scale: Optional[bool] = None,
+                        per_mutation_bias: Optional[bool] = None) -> dict:
+    """Calibration settings for an inference model: an explicit flag wins, then the checkpoint's own settings, then
+    the released behaviour (untied, one bias per item)."""
+    cal = dict(calibration_from_hparams({}))
+    cal.update(checkpoint_cal or {})
+    if tie_mt_scale is not None:
+        cal['tie_mt_scale'] = bool(tie_mt_scale)
+    if per_mutation_bias is not None:
+        cal['per_mutation_bias'] = bool(per_mutation_bias)
+    return cal
 
 
 def _handle_mutated_backbone(sequence, coords, structure_tokens, backbone_mutation=None, assert_wt=False, assert_mut=False, mask_ctx=False):
@@ -455,6 +482,12 @@ if __name__ == "__main__":
     parser.add_argument("--lora_config", type=str, default=None, help="Path to JSON file containing LoRA config")
     parser.add_argument("--hparams_path", type=str, default=None, help="Path to lightning hparams.yaml file")
     parser.add_argument("--sigma", type=float, default=1.0, help="Multiplier for the LoRA alpha parameters.")
+    parser.add_argument("--tie_mt_scale", action=argparse.BooleanOptionalAction, default=None,
+                        help="Share the WT calibration scale with the MT head. Default: what the checkpoint was trained "
+                             "with (its hparams; off when the key is missing, as for the released models).")
+    parser.add_argument("--per_mutation_bias", action=argparse.BooleanOptionalAction, default=None,
+                        help="Apply the calibration bias once per mutated position. Default: what the checkpoint was "
+                             "trained with (its hparams; off when the key is missing, as for the released models).")
     
     # Model configuration
     parser.add_argument("--log_likelihood", action="store_true", help="Process raw logits into log likelihoods")
@@ -580,6 +613,7 @@ if __name__ == "__main__":
     lora_config = None
     adapter_mode = "dual"
     lora_mode = "ensemble"
+    checkpoint_cal = None
 
     if args.lora_config:
         try:
@@ -591,7 +625,8 @@ if __name__ == "__main__":
                 
             adapter_mode = lora_config.get('adapter_mode', 'dual')
             lora_mode = lora_config.get('lora_mode', 'ensemble')
-            
+            checkpoint_cal = calibration_from_hparams(lora_config)
+
             # Apply sigma
             if args.sigma <= 0:
                 raise AssertionError("sigma must be strictly positive.")
@@ -610,6 +645,7 @@ if __name__ == "__main__":
         parsed_config = parse_hparams_to_lora_config(args.hparams_path, sigma=args.sigma)
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         lora_mode = parsed_config.get('lora_mode', 'ensemble')
+        checkpoint_cal = parsed_config.get('calibration')
         lora_config = {
             'wt_config': parsed_config['wt_config'],
             'mt_config': parsed_config['mt_config']
@@ -619,7 +655,9 @@ if __name__ == "__main__":
     model_dtype = dtype_map[args.model_dtype]
     device = torch.device(args.device)
 
-    logging.info(f"Initializing MSRModel on {device} (dtype: {model_dtype}, adapter: {adapter_mode}, lora: {lora_mode})...")
+    cal = resolve_calibration(checkpoint_cal, args.tie_mt_scale, args.per_mutation_bias)
+    logging.info(f"Initializing MSRModel on {device} (dtype: {model_dtype}, adapter: {adapter_mode}, lora: {lora_mode}, "
+                 f"tie_mt_scale: {cal['tie_mt_scale']}, per_mutation_bias: {cal['per_mutation_bias']})...")
 
     model = MSRModel(
         lora_config=lora_config,
@@ -631,7 +669,9 @@ if __name__ == "__main__":
         quaternary_mode=args.quaternary_mode,
         model_dtype=model_dtype,
         adapter_mode=adapter_mode,
-        lora_mode=lora_mode
+        lora_mode=lora_mode,
+        tie_mt_scale=cal['tie_mt_scale'],
+        per_mutation_bias=cal['per_mutation_bias'],
     )
 
     if args.base_model_loc:

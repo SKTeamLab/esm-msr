@@ -291,10 +291,12 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             censor_range: Keep the rows the assay bounded rather than fitted (``<-1`` / ``>5``), which the cache
                 always stores. False drops them, restoring the selected-on-outcome population; see
                 ``esm_msr.censoring``.
-            label_native_cond: Label a mutant-background library's measurements ``native_cond`` instead of
-                ``native_cond``, which is what the released model does. They then train the WT head and count as
-                singles in every metric. Strictly it is wrong - ddG(X | background) is a conditional effect, not a
-                wild-type-context one - but it is the released behaviour and the comparison worth having.
+            label_native_cond: Label a mutant-background library's measurements ``native_cond`` instead of leaving
+                them ``single``. Off (the released behaviour), they train the WT head as ordinary singles, which is
+                strictly wrong - ddG(X | background) is a conditional effect, not a wild-type-context one - but is the
+                comparison worth having. On, the label lets the training losses route them per head
+                (``--native_cond_for_wt`` / ``--native_cond_for_mt``; setup_dataloaders sets this when either asks
+                for it). Validation scores them as singles either way.
         """
         self.score_name = score_name
         self.cache_version = cache_version or self.CACHE_VERSION

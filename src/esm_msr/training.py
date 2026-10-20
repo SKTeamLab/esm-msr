@@ -97,7 +97,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             lora_mode=self.hparams.lora_mode, model_dtype=torch.float32,
             combined_mode=getattr(self.hparams, 'combined_mode', None) or 'mean',
             per_mutation_bias=bool(getattr(self.hparams, 'per_mutation_bias', False)),
-            tie_mt_scale=bool(getattr(self.hparams, 'tie_mt_scale', True))
+            native_cond_mt_input=bool(getattr(self.hparams, 'native_cond_for_mt', False)),
+            # a checkpoint whose hparams predate the flag was trained untied; new runs always record it
+            tie_mt_scale=bool(getattr(self.hparams, 'tie_mt_scale', False))
         )
         
         self.peft_manager = PEFTStateManager(self.model)
@@ -944,7 +946,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             wt, mt, comb = cat('wt_scores'), cat('mt_scores'), cat('comb_scores')
             gt, cens, dddG = cat('ground_truths'), cat('cens'), cat('dddG_truths')
             cens_src = cat('cens_src')
-            subset_types = [t for o in valid_outputs for t in o['subset_types']]
+            # Score every run on the released labelling, where a mutant-background library's measurements are
+            # singles. --native_cond_for_wt / --native_cond_for_mt relabel them 'native_cond' to decide which head
+            # trains on them and what the MT pass sees, and that routing must not move the yardstick: with the label
+            # left in place rho_wt_valid drops the five mutant-background validation libraries (the frozen gold
+            # head reads 0.8536 on the other 20 against 0.8510 on all 25). The dump and the epistasis pool get the
+            # same canonical label.
+            subset_types = ['single' if t == 'native_cond' else t for o in valid_outputs for t in o['subset_types']]
             obs = None
             if valid_outputs and 'obs' in valid_outputs[0]:
                 obs = {k: np.concatenate([o['obs'][k] for o in valid_outputs]) for k in valid_outputs[0]['obs']}

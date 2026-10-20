@@ -212,12 +212,17 @@ class MSRModel(ESM3PredictorBase):
             shared_bias_init: float | None = None, inference_mode: bool = False, log_likelihood: bool = False,
             use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
             adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
-            combined_mode: str = 'mean', per_mutation_bias: bool = False, tie_mt_scale: bool = True
+            combined_mode: str = 'mean', per_mutation_bias: bool = False, tie_mt_scale: bool = False,
+            native_cond_mt_input: bool = False
         ):
         combined_mode = combined_mode or 'mean'
         if combined_mode not in COMBINE_MODES:
             raise AssertionError(f"combined_mode must be one of {COMBINE_MODES}, got {combined_mode!r}.")
         self.combined_mode = combined_mode
+        # --native_cond_for_mt: the MT pass reads the WT pass's sequence on native_cond rows (native_cond_mt_batch). A
+        # property of the trained model, not of the label alone: a run that only excludes those items keeps the
+        # ordinary MT input.
+        self.native_cond_mt_input = bool(native_cond_mt_input)
         logging.info("Initializing ESM3 Base Model...")
         base_esm3 = ESM3_sm_open_v0()
         base_esm3.to(model_dtype)
@@ -682,11 +687,15 @@ class MSRModel(ESM3PredictorBase):
         full_log_probs[:, :, idx] = log_probs_canonical
         return full_log_probs
 
+    def _mt_pass_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
+        """The MT pass's input: native_cond rows get the WT pass's sequence only in a --native_cond_for_mt model."""
+        return native_cond_mt_batch(batch) if self.native_cond_mt_input else batch
+
     def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
         if pass_type not in ['wt', 'mt']: raise AssertionError(f"pass_type must be 'wt' or 'mt'. Received: {pass_type}")
 
         if pass_type == 'mt':
-            batch = native_cond_mt_batch(batch)
+            batch = self._mt_pass_batch(batch)
 
         seq, mut_pos = batch.get(f'{pass_type}_sequence_tokens'), batch.get('mut_pos')
         wt_id, mt_id, mut_mask = batch.get('wt_id'), batch.get('mt_id'), batch.get('mut_mask')
