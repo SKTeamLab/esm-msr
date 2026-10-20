@@ -86,10 +86,6 @@ with `--mt-alpha wt`: the MT alpha becomes the frozen WT gold's alpha (`r16a11` 
 so it cannot collide with the canonical arm. This is deliberately a **scale** test, not a capacity one — under rsLoRA
 it moves the MT scale to 2.75 — and alpha is entangled with the learning rate.
 
-**`fx` is not in this block.** `--nonspecific_term fx` asserts `--combined_mode mean` (its `comb = (WT+MT)/2`
-invariant); `gate2_ns` therefore **defers** the fx arms under a `sum` block with a loud message, and runs the
-control seed-2 and the deviation arm as usual. Porting `fx` to `sum` is the prerequisite for the ns stage.
-
 Table (names are the launcher/queue names; experiments are suffixed `_w<WTrank>a<WTalpha>_m16a<MTalpha>_<mode>`, e.g. `_w8a11_m16a16_mean`):
 
 | arm | m | note |
@@ -103,6 +99,11 @@ Table (names are the launcher/queue names; experiments are suffixed `_w<WTrank>a
 Order: the control, then descending away from it, so a mid-queue read always has its reference. Cost ~3-4 h per
 arm (full singles+doubles stream, validation dominating), so **~15-20 h for the block**, after the capacity
 ladder decides the gold head and before `gate2_ns`.
+
+After `gate2_ns`, **`gate3_native_cond`** appends the native_cond routing arms at the winning mix: `nc_mt`
+(`--no-native_cond_for_wt --native_cond_for_mt`, MT only, the MT pass given the WT pass's input), `nc_both` (both
+heads on the same input) and `nc_none` (excluded). The winning arm and the gate2 control seed 2 are the baseline.
+See `docs/dual_adapter_design.md` section 2 for the four-way routing.
 
 ## 4. What to read
 
