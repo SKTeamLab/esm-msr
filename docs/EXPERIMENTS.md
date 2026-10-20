@@ -321,3 +321,12 @@ on `wt_r4a8` and on every frozen-WT / tf-mix arm.
    without care.
 6. **Inference plumbing.** Nothing trained with `--link` or `--nonspecific_term` can be shipped until
    `inference_scripts/` reads `link_head.*` and `ns_head.*`.
+7. **Per-item noise weighting at both ends of the assay (idea, 2026-10-20, not scheduled).** Measurement noise is
+   heteroscedastic: the two proteases' estimates of the same single disagree by a median 0.32 kcal/mol in range
+   (dG 1-3) but 0.79 at dG -1..0 and 0.52 at 4.5-5 (15% disagree by more than 1 kcal/mol there, 10% at the floor).
+   Every loss currently weights all uncensored items equally. The data carry per-item uncertainty
+   (`deltaG_95CI`, `deltaG_t_95CI`, `deltaG_c_95CI` in `meas`, see `data.MEAS_COLUMNS`), so the regression could
+   use inverse-variance weights, and the rank loss could down-weight near-noise pairs. This is the principled
+   alternative to adding ceiling parameters: the top of the assay shows rising noise and censoring (`>5` tags), not
+   compression (no pile-up below 5; trypsin and chymotrypsin do not bend apart below 5; the WT head's top-end
+   residual is mostly the selection that drops `>5` rows). Analysis in the 2026-10-20 review session.
