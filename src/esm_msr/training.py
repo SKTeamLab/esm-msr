@@ -96,7 +96,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             lora_config=lora_config, shared_scale_init=self.hparams.shared_scale_init, shared_bias_init=self.hparams.shared_bias_init, adapter_mode=self.hparams.adapter_mode,
             lora_mode=self.hparams.lora_mode, model_dtype=torch.float32,
             combined_mode=getattr(self.hparams, 'combined_mode', None) or 'mean',
-            per_mutation_bias=bool(getattr(self.hparams, 'per_mutation_bias', False))
+            per_mutation_bias=bool(getattr(self.hparams, 'per_mutation_bias', False)),
+            tie_mt_scale=bool(getattr(self.hparams, 'tie_mt_scale', True))
         )
         
         self.peft_manager = PEFTStateManager(self.model)
@@ -505,6 +506,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     tf_lat = lat(micro['ddG_A']) + lat(micro['ddG_B'])
                 else:
                     tf_lat = torch.full_like(ddG_mb, float('nan'))
+                    if not getattr(self, '_warned_tf_delink_missing', False):
+                        self._warned_tf_delink_missing = True
+                        logging.warning("--tf_delink is on but the batch has no ddG_A/ddG_B columns, so the additive "
+                                        "label cannot be de-linked: teacher forcing is unavailable for this batch "
+                                        "and the WT pass is used. (tf_delink is ON by default since 2026-10-19.)")
                 tf_additive_labels = torch.where(is_single, lat(ddG_mb), tf_lat)
                 has_add_label = torch.isfinite(tf_additive_labels) & link_ok
 

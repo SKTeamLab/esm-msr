@@ -63,6 +63,21 @@ class ESM3PredictorBase(nn.Module):
         )
 
 
+class _ScaleSource:
+    """Plain (non-Module) holder for a shared calibration scale.
+
+    ``mt.scale = wt.scale`` cannot be expressed by assigning the WT head to an attribute of the MT head: nn.Module
+    would register it as a submodule, duplicating it in the state dict and in ``parameters()``. This holder is a plain
+    object, so the reference stays a Python pointer and ``CalibrationHead.scale`` reads the WT head's live scale.
+    """
+    def __init__(self, head):
+        self.head = head
+
+    @property
+    def scale(self):
+        return self.head.scale
+
+
 class CalibrationHead(nn.Module):
     """
     Scales and biases raw log-likelihood ratios: ``y_cal = scale * y_raw + bias``.
@@ -76,6 +91,7 @@ class CalibrationHead(nn.Module):
     def __init__(self, init_scale: float | None = 1/3, init_bias: float | None = 0.0, *, min_scale: float = 1e-4, beta: float = 1.0, max_scale: float | None = None, requires_grad: bool = True, per_mutation: bool = False):
         super().__init__()
         self.use_scale = True
+        self.scale_ref = None          # set by MSRModel when --tie_mt_scale: a _ScaleSource on the WT head
         if init_scale is None:
             self.use_scale = False
             init_scale = 1.0
@@ -105,6 +121,8 @@ class CalibrationHead(nn.Module):
 
     @property
     def scale(self) -> torch.Tensor:
+        if self.scale_ref is not None:
+            return self.scale_ref.scale
         s = F.softplus(self.raw_scale, beta=self.beta) + self.min_scale
         return torch.clamp(s, max=self.max_scale) if self.max_scale is not None else s
 
@@ -171,7 +189,7 @@ class MSRModel(ESM3PredictorBase):
             shared_bias_init: float | None = None, inference_mode: bool = False, log_likelihood: bool = False,
             use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
             adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
-            combined_mode: str = 'mean', per_mutation_bias: bool = False
+            combined_mode: str = 'mean', per_mutation_bias: bool = False, tie_mt_scale: bool = True
         ):
         combined_mode = combined_mode or 'mean'
         if combined_mode not in COMBINE_MODES:
@@ -198,6 +216,10 @@ class MSRModel(ESM3PredictorBase):
             else:
                 self.calibration_head_wt = CalibrationHead(**cal_kw)
                 self.calibration_head_mt = CalibrationHead(**cal_kw)
+                if tie_mt_scale:
+                    # The MT head shares the WT's SCALE (its own is unused and frozen) but keeps its own bias.
+                    self.calibration_head_mt.scale_ref = _ScaleSource(self.calibration_head_wt)
+                    self.calibration_head_mt.raw_scale.requires_grad_(False)
         
         # 2. Add LoRAs using config
         logging.info(f"Injecting Adapters (Mode: {self.adapter_mode.upper()} | Strategy: {self.lora_mode.upper()})...")
@@ -588,7 +610,9 @@ class MSRModel(ESM3PredictorBase):
         else:
             combined_pred = combine_predictions(wt_pred_cal, mt_pred_cal, self.combined_mode, is_single)
 
-        epi_pred = 0.5 * mt_pred_cal - 0.5 * wt_pred_cal
+        # The predicted epistasis is whatever the combined prediction adds beyond the WT head: 0.5(mt-wt) under
+        # 'mean', mt under 'sum', mt-wt under 'route' (doubles). Mode-agnostic definition.
+        epi_pred = combined_pred - wt_pred_cal
 
         if skip_reverse:
             mt_pred_raw, mt_pred_cal, combined_pred, epi_pred = float('nan'), float('nan'), float('nan'), float('nan')

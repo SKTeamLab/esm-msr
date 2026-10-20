@@ -96,12 +96,14 @@ def parse_arguments() -> argparse.Namespace:
                                  "path was retired: it is scored through the combined prediction, but it now trains "
                                  "the MT path only. The old name is still accepted.")
     loss_group.add_argument('--mt_reg_mask', type=str, default='all', choices=['all', 'doubles'])
-    loss_group.add_argument('--tf_delink', action=argparse.BooleanOptionalAction, default=False,
+    loss_group.add_argument('--tf_delink', action=argparse.BooleanOptionalAction, default=True,
                             help="De-link the teacher-forcing label before it is added to a latent prediction. The "
                                  "measured ddG_A + ddG_B is a sum of two SATURATED readings; this inverts each "
                                  "single through the link and sums the results, which is not the same as inverting "
                                  "the sum. Requires --link. A single measured at or below its library floor has no "
-                                 "invertible latent value, so it drops out of teacher forcing.")
+                                 "invertible latent value, so it drops out of teacher forcing. DEFAULT ON since "
+                                 "2026-10-19: without it the observed-scale label is injected into a latent "
+                                 "prediction (a scale mismatch; pass --no-tf_delink for the old behaviour).")
     loss_group.add_argument('--alternate_heads', action=argparse.BooleanOptionalAction, default=False,
                             help="Train one head per batch instead of both: the WT head on singles, the MT head on "
                                  "multi-mutants, alternating by batch. A batch that cannot serve its turn (no "
@@ -202,7 +204,13 @@ def parse_arguments() -> argparse.Namespace:
     calibration_group = parser.add_argument_group("Calibration Configuration")
     calibration_group.add_argument('--shared_scale_init', type=float, default=0.3)
     calibration_group.add_argument('--shared_bias_init', type=float, default=0.0)
-    calibration_group.add_argument('--per_mutation_bias', action=argparse.BooleanOptionalAction, default=False,
+    calibration_group.add_argument('--tie_mt_scale', action=argparse.BooleanOptionalAction, default=True,
+                                   help="Tie the MT calibration head's SCALE to the frozen WT head's (the MT head keeps "
+                                        "its own bias). The calibrated outputs are the common latent scale; with an "
+                                        "independent MT scale the raw-scale rank loss weights the two halves "
+                                        "differently from the calibrated combined prediction. Default on; pass "
+                                        "--no-tie_mt_scale for the released independent-scale behaviour.")
+    calibration_group.add_argument('--per_mutation_bias', action=argparse.BooleanOptionalAction, default=True,
                                    help="Apply the calibration bias once per MUTATED POSITION (bias * n_mut) "
                                         "instead of once per item. The LLR sum being calibrated is itself a sum "
                                         "over the item's positions, so a per-item bias makes a double's "
@@ -455,6 +463,11 @@ def parse_arguments() -> argparse.Namespace:
         parser.error(f"--rank_loss {args.rank_loss}: the only rank loss is listmle, and the flag is retired.")
     if args.nonspecific_term != 'none' and not args.link:
         parser.error("--nonspecific_term needs --link (f acts on the latent scale, before the link)")
+    if args.link and args.lora_mode == 'ensemble' and not args.per_mutation_bias:
+        parser.error("--per_mutation_bias is required with --link and --lora_mode ensemble: the calibrated LLR sum is "
+                     "a sum over mutated positions, so a scalar bias makes a double's prediction sit one bias BELOW "
+                     "the sum of its two singles (measured 0.1065 kcal/mol on devel-revision), and the teacher-forced "
+                     "additive half then disagrees with the shared latent scale. Pass --per_mutation_bias.")
     if not 0.0 <= args.tf_mix <= 1.0:
         parser.error(f"--tf_mix must be in [0, 1] (0 = never teacher-force, 1 = always use the measured additive "
                      f"label where one is usable); got {args.tf_mix}")

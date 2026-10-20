@@ -43,4 +43,6 @@ def test_the_flags_default_off():
     finally:
         sys.argv = argv
     assert a.alternate_heads is False
-    assert a.tf_delink is False
+    # tf_delink flipped to ON by default on 2026-10-19: an observed-scale additive label must not be injected into a
+    # latent half (see config's help). --no-tf_delink restores the old behaviour.
+    assert a.tf_delink is True
