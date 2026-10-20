@@ -45,7 +45,8 @@ def test_censored_items_are_still_pushed_below_the_measurable_ones():
     assert float(wrong) > float(right)
 
 
-def test_mixed_censoring_averages_both_directions():
+def test_mixed_censoring_is_one_forward_likelihood():
+    """Upper block, ordinary members and lower block in one list: still finite, positive, and the exact factorisation."""
     crit = ListMLELoss()
     g, cens = [9.0, 3.0, 2.0, -1.0], [1, 0, 0, -1]
     loss = crit.forward_censored(*_list([3.0, 1.0, 0.5, -2.0], g, cens))
@@ -172,3 +173,68 @@ def test_the_budget_is_never_exceeded():
 def test_one_list_is_the_floor_even_when_it_blows_the_budget():
     n = _mb(256, 1000, 16)
     assert n == 16 and n * 1000 > 3700      # unavoidable: the rank loss cannot take a partial list
+
+
+# ---- forward-only treatment of an upper-censored block (2026-10-20) ----
+import itertools
+import math
+
+
+def _pl_nll(scores):
+    """Plain forward Plackett-Luce NLL of scores already in their true order."""
+    return -sum(scores[k] - math.log(sum(math.exp(x) for x in scores[k:])) for k in range(len(scores)))
+
+
+def test_one_upper_censored_item_adds_exactly_its_place_first_probability():
+    crit = ListMLELoss()
+    p, g, c = [1.5, 3.0, 2.0, 1.0], [9.0, 3.0, 2.0, 1.0], [1, 0, 0, 0]
+    got = float(crit.forward_censored(*_list(p, g, c)))
+    rest = [3.0, 2.0, 1.0]
+    expected = _pl_nll(rest) - math.log(math.exp(1.5) / (math.exp(1.5) + sum(math.exp(x) for x in rest)))
+    assert got == pytest.approx(expected, abs=1e-5)
+
+
+def test_the_ordinary_members_keep_forward_top_weighted_gradients():
+    """The old reverse pass put most of the push on the WORST ordinary member; forward PL puts the most on the best."""
+    crit = ListMLELoss()
+    p = torch.tensor([[4.0, 3.0, 2.0, 1.0, 0.5]], requires_grad=True)
+    g = torch.tensor([[9.0, 3.0, 2.0, 1.0, 0.5]])
+    m = torch.ones_like(p, dtype=torch.bool); c = torch.tensor([[1, 0, 0, 0, 0]])
+    crit.forward_censored(p, g, m, c).backward()
+    plain = torch.tensor([[3.0, 2.0, 1.0, 0.5]], requires_grad=True)
+    crit(plain, g[:, 1:], m[:, 1:]).backward()
+    # the best ordinary member is still pushed up the hardest, as in plain forward PL
+    assert float(p.grad[0, 1]) < float(p.grad[0, 2]) < 0 and float(plain.grad[0, 0]) < float(plain.grad[0, 1]) < 0
+
+
+def test_a_low_scored_upper_censored_item_is_pushed_up():
+    crit = ListMLELoss()
+    p = torch.tensor([[-2.0, 3.0, 2.0, 1.0]], requires_grad=True)
+    g = torch.tensor([[9.0, 3.0, 2.0, 1.0]]); m = torch.ones_like(p, dtype=torch.bool); c = torch.tensor([[1, 0, 0, 0]])
+    crit.forward_censored(p, g, m, c).backward()
+    assert float(p.grad[0, 0]) < -0.5
+
+
+def test_top_block_probability_matches_the_exponential_race():
+    """Sum over the block's orders == P(all block clocks ring before any other) by inclusion-exclusion."""
+    crit = ListMLELoss()
+    top, rest = [0.3, -0.2, 1.1], [0.5, 0.0, -1.0, 2.0]
+    p = torch.tensor([top + rest]); hi = torch.tensor([[True] * 3 + [False] * 4]); m = torch.ones_like(hi)
+    got = math.exp(-float(crit._top_block_nll(p, m, hi)[0]))
+    W = sum(math.exp(x) for x in rest)
+    race = sum((-1) ** len(A) * W / (W + sum(math.exp(top[i]) for i in A))
+               for r in range(4) for A in itertools.combinations(range(3), r))
+    assert got == pytest.approx(race, rel=1e-5)
+
+
+def test_a_large_upper_block_falls_back_to_a_bound_and_stays_finite():
+    crit = ListMLELoss()
+    p, g, c = [1.0, 0.5, 0.2, -0.1, -0.3, 2.0, 1.0], [9.0] * 5 + [2.0, 1.0], [1] * 5 + [0, 0]
+    loss = crit.forward_censored(*_list(p, g, c))
+    assert torch.isfinite(loss) and float(loss) > 0
+
+
+def test_only_upper_and_lower_blocks_is_still_informative():
+    crit = ListMLELoss()
+    loss = crit.forward_censored(*_list([2.0, -1.0], [9.0, -1.0], [1, -1]))
+    assert float(loss) > 0                      # "the upper item ranks above the lower one" is a real statement

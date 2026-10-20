@@ -3,13 +3,16 @@
 A measurement at the assay's floor says "this variant is at most this stable" and nothing more: its value is the floor's, not the variant's,
 and its order among its equally-dead peers is noise. Both objectives here are built to use exactly that much of such an item and no more:
 
-* :meth:`ListMLELoss.forward_censored` ties the censored members of a list at the bottom (or top), keeping them in the denominators - so the
-  model is still taught that they rank below the measurable variants - while never scoring their order among themselves.
+* :meth:`ListMLELoss.forward_censored` ties the censored members of a list at the bottom (or top) - the bottom block stays in the
+  denominators, the top block is scored as "placed first in any order" - so the model is still taught where they rank against the
+  measurable variants, while never scoring their order among themselves. Always forward (top-weighted) Plackett-Luce.
 * :func:`hinge_regression_loss` penalises a censored item only when the prediction falls on the wrong side of its bound, so predicting "at or
   below the floor" for something measured at the floor is free, and only claiming it is *better* than the floor costs anything.
 
 ``cens`` is -1 (lower-censored), 0 (ordinary) or +1 (upper-censored) throughout; see ``esm_msr.censoring`` for where it comes from.
 """
+import itertools
+
 import torch
 
 
@@ -90,11 +93,13 @@ class ListMLELoss(torch.nn.Module):
         * ``+1`` upper-censored (at or above its bound): ranks above every uncensored member, likewise unresolved.
         * ``0`` ordinary: ordered by ``ground_truths``.
 
-        A tied block at the bottom is exact in forward Plackett-Luce (drop the block's own terms, keep it in the
-        denominators); a tied block at the top is exact in *reverse* Plackett-Luce (worst first, via negated
-        scores). A list with only lower-censored (or no censored) members uses the forward form, a list with only
-        upper-censored members the reverse form, and a list with both averages the two, each pass leaving out the
-        other pass's censored members. With no censored member this equals :meth:`forward`.
+        Always forward (top-weighted) Plackett-Luce. Under PL the probability of "upper block first in any order, then
+        the rest in this order" factorises exactly into P(upper block before everyone else) x PL(rest), so a list is
+        scored as the forward NLL of its ordinary members (the lower block tied at the bottom: no terms of its own,
+        kept in the denominators) plus ``-log P(upper block first)`` (:meth:`_top_block_nll`). Until 2026-10-20 a list
+        holding any upper-censored member switched to REVERSE Plackett-Luce (and a list with both kinds averaged the
+        two), which is exact for the block but bottom-weights every other member of that list. With no censored
+        member this equals :meth:`forward`.
         """
         if self.invert:
             raise AssertionError("forward_censored is not supported together with invert=True.")
@@ -102,19 +107,51 @@ class ListMLELoss(torch.nn.Module):
             raise AssertionError("mask and cens must match predictions' shape.")
         lo, hi = (cens < 0) & mask, (cens > 0) & mask
         ordinary = mask & ~lo & ~hi
-        lf, vf = self._per_list(predictions, ground_truths, mask & ~hi, ordinary)
-        lr, vr = self._per_list(-predictions, -ground_truths, mask & ~lo, ordinary)
-        has_lo, has_hi = lo.any(dim=-1), hi.any(dim=-1)
-        both = has_lo & has_hi
-        use_rev_only = has_hi & ~has_lo
-        loss = torch.where(use_rev_only, lr, lf)
-        valid = torch.where(use_rev_only, vr, vf)
-        loss = torch.where(both & vf & vr, 0.5 * (lf + lr), loss)
-        loss = torch.where(both & ~vf & vr, lr, loss)
-        valid = torch.where(both, vf | vr, valid)
+        loss, valid = self._per_list(predictions, ground_truths, mask & ~hi, ordinary)
+        has_hi = hi.any(dim=-1)
+        if bool(has_hi.any()):
+            loss = loss + self._top_block_nll(predictions, mask, hi)
+            # a list whose upper block has anything below it is informative even with no ordinary pair
+            valid = valid | (has_hi & (mask & ~hi).any(dim=-1))
         if valid.sum() == 0:
             return predictions.sum() * 0.0
         return loss[valid].mean()
+
+    MAX_EXACT_BLOCK = 4     # 4! = 24 orders; a larger upper block is scored in its current-score order
+
+    def _top_block_nll(self, predictions: torch.Tensor, mask: torch.Tensor, hi: torch.Tensor) -> torch.Tensor:
+        """
+        ``-log P(the upper-censored block occupies the first places, in any order)`` per list, 0 where there is none.
+
+        ``P = sum over the block's orders sigma of prod_k w_sigma(k) / (remaining block weight + W_rest)``, with
+        ``w = exp(score)`` and ``W_rest`` the weight of every other member, ordinary and lower-censored. Summed exactly in
+        log-space for blocks of up to ``MAX_EXACT_BLOCK``; a larger block uses the single order by current score, a lower
+        bound on P (so an upper bound on the loss). Only lists that hold the block are looped over - they are rare.
+        """
+        pf = predictions.float()            # the same precision _per_list scores in, so the two terms add cleanly
+        rows = []
+        for b in range(pf.shape[0]):
+            if not bool(hi[b].any()):
+                rows.append(pf.new_zeros(()))
+                continue
+            s = pf[b]
+            top, rest = s[hi[b]], s[mask[b] & ~hi[b]]
+            if rest.numel() == 0:
+                rows.append(pf.new_zeros(()))
+                continue
+            log_rest = torch.logsumexp(rest, dim=0).reshape(1)
+            m = top.numel()
+            orders = (itertools.permutations(range(m)) if m <= self.MAX_EXACT_BLOCK
+                      else [tuple(torch.argsort(top.detach(), descending=True).tolist())])
+            terms = []
+            for order in orders:
+                order = list(order)
+                lp = top.new_zeros(())
+                for k in range(m):
+                    lp = lp + top[order[k]] - torch.logsumexp(torch.cat([top[order[k:]], log_rest]), dim=0)
+                terms.append(lp)
+            rows.append(-torch.logsumexp(torch.stack(terms), dim=0))
+        return torch.stack(rows)
 
 
 def hinge_regression_loss(crit, pred: torch.Tensor, target: torch.Tensor, bound: torch.Tensor,

@@ -278,8 +278,9 @@ writes `dc_runs/wt_gold.txt` and appends `gate1_tfmix`.
 
 * **Censoring** is one mechanism (`src/esm_msr/censoring.py`): per item `cens` (−1 / 0 / +1), `cens_src`
   (1 assay range, 2 floor), `cens_bound` on the item's own ddG scale. Lower-censored items tie at the bottom
-  of a list in forward Plackett-Luce, upper-censored at the top in reverse Plackett-Luce, both-sided lists
-  average the two. Only plain singles censor the WT head; a censored single never supplies a double's
+  of a list in forward Plackett-Luce (kept in the denominators); an upper-censored block is scored as "placed
+  first in any order", the exact factor P(block first) x PL(rest), so every list stays forward/top-weighted
+  (since 2026-10-20; before, any list with an upper-censored member switched to reverse PL). Only plain singles censor the WT head; a censored single never supplies a double's
   additive expectation.
 * **The link** is `h(z) = hi − tau_hi·softplus((hi−u)/tau_hi)` with `u = lo + tau_lo·softplus((z−lo)/tau_lo)`;
   when a temperature is not small against the span the plateaus differ from `lo`/`hi` (logged as
