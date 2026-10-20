@@ -603,6 +603,10 @@ class MSRModel(ESM3PredictorBase):
         mm = batch_in.get('mut_mask')
         is_single = (mm.sum(dim=1) == 1) if mm is not None else None
         n_mut = mm.sum(dim=1) if mm is not None else None
+        # native_cond is an MT-head item even though it carries one mutation: 'route' must report the MT head.
+        st = batch_in.get('subset_type')
+        if is_single is not None and st is not None:
+            is_single = is_single & torch.as_tensor([t == 'single' for t in st], device=is_single.device)
         if self.adapter_mode == 'fused':
             combined_pred = combine_predictions(self.calibration_head_fused(wt_pred_raw, n_mut),
                                                 self.calibration_head_fused(mt_pred_raw, n_mut),

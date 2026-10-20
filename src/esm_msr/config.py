@@ -345,11 +345,21 @@ def parse_arguments() -> argparse.Namespace:
     data_group.add_argument('--incl_doubles', action=argparse.BooleanOptionalAction, default=True)
     data_group.add_argument('--incl_cond', action=argparse.BooleanOptionalAction, default=False)
     data_group.add_argument('--incl_native_cond', action=argparse.BooleanOptionalAction, default=False)
-    data_group.add_argument('--native_cond_as_single', action=argparse.BooleanOptionalAction, default=True,
+    data_group.add_argument('--native_cond_for_wt', '--native_cond_as_single', dest='native_cond_for_wt',
+                            action=argparse.BooleanOptionalAction, default=True,
                             help="Label a mutant-background library's measurements 'single' rather than "
                                  "'native_cond', which is what the released model does: they then train the WT "
                                  "head and count as singles everywhere. Overrides the native_cond subset cap, "
-                                 "since no item carries that label.")
+                                 "since no item carries that label. A mutant-background sequence differs from its "
+                                 "structure - these are conditional measurements ddG(X | background) - so this is a "
+                                 "deliberate reproduction of the released model, not the rigorous routing. The old "
+                                 "spelling --native_cond_as_single is an alias.")
+    data_group.add_argument('--native_cond_for_mt', action=argparse.BooleanOptionalAction, default=False,
+                            help="Route a mutant-background library's singles to the MT head: label them "
+                                 "'native_cond', include the subset (overriding its 0.0 cap), keep them out of the "
+                                 "WT-head losses, and put them in the MT/combined loss. The MT pass sees the static "
+                                 "mutated-backbone sequence (background + X) and predicts ddG(X | bg). Implies "
+                                 "--no-native_cond_for_wt; a data-augmentation arm, not the released behaviour.")
 
     data_group.add_argument('--subset_caps', nargs='*', action=ParseSubsetCaps, default=dict(DEFAULT_SUBSET_CAPS),
                             help=f"Caps for data subsets (e.g. double=0.6 cond=0.1). Defaults: {DEFAULT_SUBSET_CAPS}.")
@@ -503,6 +513,12 @@ def parse_arguments() -> argparse.Namespace:
     # (rather than branching in the model) means hparams record the EFFECTIVE settings the run used.
     if args.init_wt_from_checkpoint is not None and not os.path.isfile(args.init_wt_from_checkpoint):
         parser.error(f"--init_wt_from_checkpoint: no such file: {args.init_wt_from_checkpoint}")
+    if args.native_cond_for_mt:
+        if args.native_cond_for_wt:
+            logging.info("--native_cond_for_mt: overriding --native_cond_for_wt (the MT head owns native_cond)")
+        args.native_cond_for_wt = False
+        args.incl_native_cond = True
+        args.subset_caps['native_cond'] = None           # the 0.0 default would exclude exactly what we want
     if args.frozen_wt_mt_only:
         if args.init_wt_from_checkpoint is None:
             parser.error("--frozen_wt_mt_only needs --init_wt_from_checkpoint: the paradigm is a PRE-TRAINED frozen "

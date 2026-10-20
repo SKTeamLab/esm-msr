@@ -373,6 +373,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                                getattr(self.hparams, 'micro_batch_tokens', 0))
         
         st_all = batch.get('subset_type', ['single'] * B)
+        is_native_cond_all = torch.as_tensor([t == 'native_cond' for t in st_all], device=device)
         w_all = torch.ones(B, dtype=torch.float32, device=device)
         for subset, weight in (('double', self.hparams.double_weight),
                                ('cond', self.hparams.cond_weight),
@@ -429,7 +430,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # composition, so every micro-batch of it takes the same turn.
         phase = None
         if getattr(self.hparams, 'alternate_heads', False):
-            _single_all = torch.as_tensor([t in ('single', 'native_cond') for t in st_all], device=device)
+            _single_all = torch.as_tensor([t == 'single' for t in st_all], device=device)
             phase = alternating_phase(getattr(self, '_batch_idx', 0), bool(_single_all.any()), bool((~_single_all).any()))
             if phase == 'none':
                 return {}
@@ -457,7 +458,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             cens_mb, bound_mb = cens_all[idx], bound_all[idx]
             n_mut_mb = micro['mut_mask'].sum(dim=1)
             is_single = n_mut_mb == 1
+            is_native_cond = is_native_cond_all[idx]
             reg_mask = ~is_single if self.hparams.mt_reg_mask == 'doubles' else torch.ones_like(is_single, dtype=torch.bool)
+            # native_cond is an MT-head item (routing.py): a mutant-background single belongs in the MT/combined
+            # loss even under --mt_reg_mask doubles, which otherwise keys on the mutation count.
+            reg_mask = reg_mask | is_native_cond
             
             # --wt_double_target: the two self-consistent pairings for a multi-mutant's WT-path target.
             #
@@ -484,6 +489,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # takes no gradient from one. The rank mask already drops them when the target is not 'linked'.
             if not getattr(self.hparams, 'wt_trains_doubles', True):
                 valid_wt_mask = valid_wt_mask & is_single
+            # ... and native_cond never trains the WT head: its sequence is the mutant background, not the real
+            # wild type, so it is a conditional effect the MT head owns.
+            valid_wt_mask = valid_wt_mask & ~is_native_cond
 
             # Teacher forcing for ENSEMBLE mode: the measured additive expectation replaces the WT half of the
             # combined latent, so the MT head only has to learn the correction.
