@@ -68,14 +68,17 @@ def test_a_requested_cap_survives_a_flag_that_defaults_to_false():
     assert a.incl_native_cond is True and a.subset_caps['native_cond'] == 0.3
 
 
-def test_the_frozen_wt_paradigm_excludes_singles_coherently(tmp_path):
-    """--frozen_wt_mt_only trains on multi-mutants: the flag and the cap must both say so."""
+def test_the_frozen_wt_paradigm_keeps_singles_by_default(tmp_path):
+    """--frozen_wt_mt_only no longer forces a doubles-only stream (2026-10-19): singles stay in unless asked out."""
     ckpt = tmp_path / 'wt.ckpt'
     import torch
     torch.save({'state_dict': {}}, ckpt)
     a = parse('--frozen_wt_mt_only', '--init_wt_from_checkpoint', str(ckpt))
-    assert a.incl_singles is False and a.subset_caps['single'] == 0.0
+    assert a.incl_singles is True and a.subset_caps['single'] is None
     assert a.incl_doubles is True and a.subset_caps['double'] is None      # doubles unrestricted, not capped
+    # and the old doubles-only stream is still reachable, coherently: the flag and the cap agree
+    b = parse('--frozen_wt_mt_only', '--init_wt_from_checkpoint', str(ckpt), '--no-incl_singles')
+    assert b.incl_singles is False and b.subset_caps['single'] == 0.0
 
 
 def test_the_paradigm_refuses_a_run_with_nothing_to_train_on(tmp_path):

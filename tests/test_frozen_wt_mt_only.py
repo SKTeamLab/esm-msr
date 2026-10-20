@@ -53,7 +53,9 @@ def test_the_paradigm_derives_its_flags(tmp_path):
     a = parse('--frozen_wt_mt_only', '--init_wt_from_checkpoint', str(ckpt))
     assert a.freeze_wt_adapter is True
     assert a.freeze_link is True
-    assert a.incl_singles is False and a.incl_doubles is True
+    # singles are KEPT since 2026-10-19: a doubles-only stream is floor-limited and not more informative, and the
+    # MT head learns contextual single effects too. --no-incl_singles still gives the old stream.
+    assert a.incl_singles is True and a.incl_doubles is True
     assert a.wt_trains_doubles is False
     assert a.lambda_reg_wt == 0.0 and a.lambda_rank_wt == 0.0
     # the MT objective is untouched

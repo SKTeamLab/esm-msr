@@ -147,7 +147,7 @@ class CalibrationHead(nn.Module):
         return y_raw * s + self.bias_for(n_mut)
     
 
-COMBINE_MODES = ('mean', 'sum', 'route')
+COMBINE_MODES = ('mean', 'route')
 
 
 def combine_predictions(wt, mt, mode: str = 'mean', is_single=None):
@@ -155,11 +155,13 @@ def combine_predictions(wt, mt, mode: str = 'mean', is_single=None):
     How the WT (additive) and MT (mutant-context) heads become the reported prediction.
 
     * ``mean`` - ``0.5 * wt + 0.5 * mt``, the released behaviour and the default. Trained against the measured
-      ddG, this makes MT learn ``2 * ddG - wt``, so it carries both the additive signal and the deviation.
-    * ``sum`` - ``wt + mt``. Against the same target, MT now learns ``ddG - wt``, i.e. the EPISTASIS term, and
-      on a single (where wt already is the answer) it is driven to zero rather than told to be.
+      ddG, this makes MT learn ``2 * ddG - wt``: each head produces a TOTAL ddG-like prediction, which is what the
+      per-position LLR sum it computes actually is, and the ensemble averages the two.
     * ``route`` - ``wt`` for singles, ``mt`` for everything else. For the arm where MT is a standalone double
       predictor that never sees a single, so there is no ensemble to form.
+    (``sum`` existed until 2026-10-19: it asked MT for ``ddG - wt``, a pure difference. The MT pass is a sum of
+    per-position LLRs in the mutant context, i.e. a total; it cannot output the additive part's absence, and on a
+    single the target would be zero while the LLR sum is not. Removed.)
 
     ``route`` needs ``is_single``; the others ignore it. Every site that forms a combined prediction - training,
     validation and screening - must go through here, or an ablation trains one way and is scored another.
@@ -167,8 +169,6 @@ def combine_predictions(wt, mt, mode: str = 'mean', is_single=None):
     mode = mode or 'mean'                       # an unset hparam arrives as None, which means the default
     if mode not in COMBINE_MODES:
         raise AssertionError(f"combined_mode must be one of {COMBINE_MODES}, got {mode!r}.")
-    if mode == 'sum':
-        return wt + mt
     if mode == 'route':
         if is_single is None:
             raise AssertionError("combined_mode='route' needs is_single to know which head to report.")
@@ -611,7 +611,7 @@ class MSRModel(ESM3PredictorBase):
             combined_pred = combine_predictions(wt_pred_cal, mt_pred_cal, self.combined_mode, is_single)
 
         # The predicted epistasis is whatever the combined prediction adds beyond the WT head: 0.5(mt-wt) under
-        # 'mean', mt under 'sum', mt-wt under 'route' (doubles). Mode-agnostic definition.
+        # 'mean', mt-wt under 'route' (doubles). Mode-agnostic definition.
         epi_pred = combined_pred - wt_pred_cal
 
         if skip_reverse:

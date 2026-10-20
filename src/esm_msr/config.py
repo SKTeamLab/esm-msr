@@ -117,9 +117,11 @@ def parse_arguments() -> argparse.Namespace:
                                  "head is smooth but biased, so this trades variance for bias. Singles are never "
                                  "mixed (their forced half is their own measurement), and an item without a usable "
                                  "label always falls back to the WT head. Needs ensemble lora_mode and --link.")
-    loss_group.add_argument('--combined_mode', type=str, default='mean', choices=['mean', 'sum', 'route'],
+    loss_group.add_argument('--combined_mode', type=str, default='mean', choices=['mean', 'route'],
                             help="How the WT and MT heads form the reported prediction. 'mean' is 0.5/0.5 "
-                                 "(released). 'sum' makes MT the epistasis term. 'route' reports WT for "
+                                 "(released). 'sum' was REMOVED 2026-10-19: the MT pass is a sum of per-position "
+                                 "LLRs, i.e. a total ddG-like quantity, so it cannot output a pure difference "
+                                 "(epistasis) and cannot be zero on singles by construction. 'route' reports WT for "
                                  "singles and MT for multi-mutants, for a standalone double predictor.")
     loss_group.add_argument('--wt_trains_doubles', action=argparse.BooleanOptionalAction, default=False,
                             help="Whether the WT head's own losses see multi-mutants. The default leaves doubles "
@@ -273,13 +275,13 @@ def parse_arguments() -> argparse.Namespace:
                                   "--resume_from_checkpoint for a true resume). Pair with --freeze_wt_adapter and "
                                   "--freeze_link to keep the loaded model fixed, or use --frozen_wt_mt_only.")
     train_group.add_argument('--frozen_wt_mt_only', action=argparse.BooleanOptionalAction, default=False,
-                             help="The 'frozen WT, MT-only, doubles-only' paradigm: requires "
-                                  "--init_wt_from_checkpoint, and sets --freeze_wt_adapter, --freeze_link, "
-                                  "--no-incl_singles and --no-wt_trains_doubles. The WT model (adapter, calibration "
-                                  "head, link) is then fixed, and only the MT path (and the nonspecific term) "
-                                  "trains on multi-mutants. Validation is unaffected: it always keeps singles and "
-                                  "doubles, so rho_wt_valid remains a guard. Cheaper per epoch, and the "
-                                  "teacher-forced target stops moving.")
+                             help="The 'frozen WT, MT-only' paradigm: requires --init_wt_from_checkpoint, and sets "
+                                  "--freeze_wt_adapter, --freeze_link and --no-wt_trains_doubles. The WT model "
+                                  "(adapter, calibration head, link) is then fixed and only the MT path (and the "
+                                  "nonspecific term) trains. The training stream is whatever the --incl_* flags say: "
+                                  "SINGLES ARE KEPT by default since 2026-10-19 (doubles alone are floor-limited and "
+                                  "not more informative; pass --no-incl_singles for the old doubles-only stream). "
+                                  "Validation always keeps singles and doubles, so rho_wt_valid stays a guard.")
     train_group.add_argument('--freeze_wt_after_epoch', type=int, default=1000)
     train_group.add_argument('--wt_convergence_metric', type=str, default='rho_wt_valid')
     train_group.add_argument('--mt_plateau_patience', type=int, default=1,
@@ -519,19 +521,12 @@ def parse_arguments() -> argparse.Namespace:
         if args.subset_caps.get('double') is not None and args.subset_caps['double'] <= 0:
             parser.error("--frozen_wt_mt_only trains on multi-mutants only, but --subset_caps double=0 excludes "
                          "them: nothing would be left to train on")
-        if args.incl_singles:
-            logging.info("--frozen_wt_mt_only: setting --no-incl_singles (the training stream becomes multi-mutants "
-                         "only; validation still keeps singles and doubles, so rho_wt_valid stays a guard)")
-            args.incl_singles = False
-            args.subset_caps['single'] = 0.0        # same as passing --no-incl_singles: the two spellings agree
         if args.wt_trains_doubles:
             logging.info("--frozen_wt_mt_only: setting --no-wt_trains_doubles")
             args.wt_trains_doubles = False
-        # a frozen WT head trains nothing through a WT loss, and with no singles in the stream there is nothing
-        # for those losses to cover; leaving them on would only mask empty terms.
+        # a frozen WT head trains nothing: its losses would be computed every step and never backpropagated.
         if args.lambda_reg_wt > 0 or args.lambda_rank_wt > 0:
-            logging.info("--frozen_wt_mt_only: setting --lambda_reg_wt 0 --lambda_rank_wt 0 (the WT path is frozen "
-                         "and the stream has no singles)")
+            logging.info("--frozen_wt_mt_only: setting --lambda_reg_wt 0 --lambda_rank_wt 0 (the WT path is frozen)")
             args.lambda_reg_wt = 0.0
             args.lambda_rank_wt = 0.0
     elif args.init_wt_from_checkpoint is not None and not args.freeze_wt_adapter:

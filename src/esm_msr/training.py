@@ -493,9 +493,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             tf_additive_labels[is_single] = ddG_mb[is_single]
             has_add_label = ~torch.isnan(tf_additive_labels)
 
-            # --tf_delink: the label is on the OBSERVED scale and it is about to be added to a LATENT prediction.
-            # Under --combined_mode sum that mismatch enters at full weight rather than half, so put the label on
-            # the latent scale first. The inverse is NONLINEAR, so a double's label is de-linked ONE SINGLE AT A
+            # --tf_delink: the label is on the OBSERVED scale and it is about to be added to a LATENT prediction,
+            # so put the label on the latent scale first (the inverse is nonlinear: one single at a time). The inverse is NONLINEAR, so a double's label is de-linked ONE SINGLE AT A
             # TIME and then summed - de-linking ddG_A + ddG_B as a sum is a different and wrong number. Detached:
             # a label must never train the link it was inverted through. A single at or below its library's floor
             # has no invertible latent value and returns NaN, which drops it from teacher forcing - the same

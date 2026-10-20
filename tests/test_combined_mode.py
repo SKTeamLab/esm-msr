@@ -4,9 +4,10 @@ between training, validation and screening - all of which now go through ``combi
 default has to be bit-identical to the released 0.5/0.5 behaviour, because a queued run reads the live worktree.
 
 What the modes mean against a measured ddG target:
-  mean  combined = 0.5 wt + 0.5 mt, so MT learns 2*ddG - wt and carries the additive signal too.
-  sum   combined = wt + mt, so MT learns ddG - wt: the EPISTASIS term, driven to 0 on singles rather than told.
+  mean  combined = 0.5 wt + 0.5 mt, so MT learns 2*ddG - wt and carries the additive signal too. Each head is a
+        TOTAL ddG-like prediction, which is what its per-position LLR sum computes.
   route combined = wt for singles, mt otherwise: MT as a standalone double predictor that never sees a single.
+  (sum was removed 2026-10-19: it asked the LLR-sum head for a pure difference.)
 """
 import pytest
 import torch
@@ -21,14 +22,6 @@ SINGLE = torch.tensor([True, False, True, False])
 def test_mean_is_the_released_formula_bit_for_bit():
     torch.testing.assert_close(combine_predictions(WT, MT), 0.5 * WT + 0.5 * MT, atol=0, rtol=0)
     torch.testing.assert_close(combine_predictions(WT, MT, 'mean', SINGLE), 0.5 * WT + 0.5 * MT, atol=0, rtol=0)
-
-
-def test_sum_makes_mt_the_epistasis_term():
-    torch.testing.assert_close(combine_predictions(WT, MT, 'sum'), WT + MT, atol=0, rtol=0)
-    # the property that matters: fitting combined to a target leaves MT holding target - wt
-    target = torch.tensor([-2.0, -1.0, 0.25, 4.0])
-    implied_mt = target - WT
-    torch.testing.assert_close(combine_predictions(WT, implied_mt, 'sum'), target, atol=1e-6, rtol=0)
 
 
 def test_route_reports_wt_for_singles_and_mt_for_the_rest():
@@ -47,8 +40,8 @@ def test_an_unknown_mode_is_rejected():
         combine_predictions(WT, MT, 'average')
 
 
-def test_the_modes_are_the_documented_three():
-    assert COMBINE_MODES == ('mean', 'sum', 'route')
+def test_the_modes_are_the_documented_pair():
+    assert COMBINE_MODES == ('mean', 'route')
 
 
 def test_gradients_flow_to_both_heads_in_every_mode():
