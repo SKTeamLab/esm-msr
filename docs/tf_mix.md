@@ -52,14 +52,18 @@ Same frozen WT model for all five arms — now the **capacity-ladder gold head**
 not dc17 — so **m is the only variable**. The frozen head's own architecture (WT rank/alpha, knee, censoring) comes
 from its checkpoint's hparams.
 
-**The MT head is the canonical r16a16 in the family**, and the block now runs the *well-posed* parameterization
-(2026-10-19): `--combined_mode sum`, `--tf_delink`, `--tie_mt_scale`, with `--per_mutation_bias` mandatory.
+**The MT head is the canonical r16a16 in the family**, and the block runs the **released `mean` ensemble with the
+teacher-forcing corrections** (2026-10-19): `--combined_mode mean`, `--tf_delink`, `--tie_mt_scale`, mandatory
+`--per_mutation_bias`, and **singles are kept in the training stream**.
 
-* **`sum`**: `comb = wt + mt`, so with the teacher-forced WT half the MT head's target is `y − forced` — exactly the
-  epistasis term when the label is in place. Under the released `mean` (`0.5/0.5`) the same target is
-  `2y − forced = additive + 2·epistasis`, dominated by the additive term the MT head would have to relearn, and the
-  mix changes the head's target as well as the baseline. `sum` is the well-posed mode; it is a comparability break
-  against the dc17 line.
+* **`mean`, and why `sum` was removed.** The MT pass produces a *sum of per-position LLRs in the mutant context* —
+  a total ddG-like quantity, not a difference. `mean` averages two such totals, which is a valid ensemble and
+  exactly what each head computes. `sum` asked the MT head for `y − wt` (the epistasis term): a pure difference
+  that the LLR sum cannot produce, and on a single the target would be 0 while the LLR sum is not. `--combined_mode
+  sum` was removed from the branch (2026-10-19); `route` remains the no-ensemble alternative.
+* **singles are included.** `--frozen_wt_mt_only` no longer forces `--no-incl_singles`: the WT head learns
+  contextual effects from singles, doubles are floor-limited and not intrinsically more informative, and the MT
+  head's target on a single is that single's own ddG. `--no-incl_singles` still gives the old doubles-only stream.
 * **`tf_delink`**: the additive label is a sum of two *saturated* single readings, so each single is inverted through
   the link and summed (the inverse is nonlinear; inverting the sum is a different, wrong number). Singles at or
   below their library floor have no inverse and drop out of teacher forcing.
@@ -67,6 +71,9 @@ from its checkpoint's hparams.
   halves are on one latent scale and the raw-scale rank loss weights the halves as the calibrated combination does.
 * **`per_mutation_bias`** is mandatory: the calibrated LLR sum is a sum over positions, so a scalar bias puts a
   double one bias *below* the sum of its two singles (0.1065 kcal/mol).
+
+**`fx` is compatible.** `--nonspecific_term fx` requires `--combined_mode mean`, which this block uses, so `gate2_ns`
+generates the ns arms (control seed-2, ns arms at the winning mix, and the `_mtaw` deviation arm) as before.
 
 **One deviation arm, not the family** (user, 2026-10-19). `gate2_ns` also generates a single arm at the winning mix
 with `--mt-alpha wt`: the MT alpha becomes the frozen WT gold's alpha (`r16a11` for an `r8a11` gold), tagged `_mtaw`
@@ -77,7 +84,7 @@ it moves the MT scale to 2.75 — and alpha is entangled with the learning rate.
 invariant); `gate2_ns` therefore **defers** the fx arms under a `sum` block with a loud message, and runs the
 control seed-2 and the deviation arm as usual. Porting `fx` to `sum` is the prerequisite for the ns stage.
 
-Table (names are the launcher/queue names; experiments are suffixed `_w<WTrank>a<WTalpha>_m16a<MTalpha>_<mode>`, e.g. `_w8a11_m16a16_sum`):
+Table (names are the launcher/queue names; experiments are suffixed `_w<WTrank>a<WTalpha>_m16a<MTalpha>_<mode>`, e.g. `_w8a11_m16a16_mean`):
 
 | arm | m | note |
 |---|---|---|
@@ -88,7 +95,7 @@ Table (names are the launcher/queue names; experiments are suffixed `_w<WTrank>a
 | `tfmix_00_s1` | 0.00 | the WT head alone — the lower bound, and the arm that measures what the measured singles were worth |
 
 Order: the control, then descending away from it, so a mid-queue read always has its reference. Cost ~3-4 h per
-arm (doubles-only stream, ~217 steps/epoch, validation dominating), so **~15-20 h for the block**, after the capacity
+arm (full singles+doubles stream, validation dominating), so **~15-20 h for the block**, after the capacity
 ladder decides the gold head and before `gate2_ns`.
 
 ## 4. What to read

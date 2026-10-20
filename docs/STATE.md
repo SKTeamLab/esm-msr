@@ -266,13 +266,15 @@ writes `dc_runs/wt_gold.txt` and appends `gate1_tfmix`.
 
 * **Teacher forcing (2026-10-19 defaults).** `--tf_delink` is **ON**: the measured additive label is de-linked
   **per single** through the link and summed (the inverse is nonlinear; inverting the sum is a different number), and
-  singles at/below their floor drop out. In a `mean` ensemble the MT head's implicit target is
-  `2y − forced = additive + 2·epistasis`; under `sum` it is `y − forced` = the epistasis term, which is why the
-  current mix block runs `sum`. `--per_mutation_bias` defaults **ON** and is refused with `--link` + ensemble (a
-  scalar bias puts a double one bias below its two singles, 0.1065 kcal/mol). `--tie_mt_scale` defaults **ON**: the
-  MT calibration shares the WT head's scale (bias separate), so the raw and calibrated combinations weight the two
-  halves the same way. `--nonspecific_term fx` still requires `mean`, so the fx arms are deferred under the `sum`
-  block until the term is ported.
+  singles at/below their floor drop out. The ensemble is `mean` — each head is a TOTAL ddG-like prediction, which is
+  what its per-position LLR sum computes; `sum` was **removed** (it asked the LLR-sum head for a pure difference and
+  for zero on singles, which the architecture cannot produce). With the label in place the MT head's target is
+  `2y − label` (a total, not a residual). **Singles are kept** in the frozen-WT training stream by default
+  (`--no-incl_singles` gives the old doubles-only stream). `--per_mutation_bias` defaults **ON** and is refused with
+  `--link` + ensemble (a scalar bias puts a double one bias below its two singles, 0.1065 kcal/mol).
+  `--tie_mt_scale` defaults **ON**: the MT calibration shares the WT head's scale (bias separate), so the raw and
+  calibrated combinations weight the halves identically. `--nonspecific_term fx` requires `mean`, which the block
+  uses, so the ns arms run.
 
 * **Censoring** is one mechanism (`src/esm_msr/censoring.py`): per item `cens` (−1 / 0 / +1), `cens_src`
   (1 assay range, 2 floor), `cens_bound` on the item's own ddG scale. Lower-censored items tie at the bottom

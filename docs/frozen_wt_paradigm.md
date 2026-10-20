@@ -39,10 +39,12 @@ frozen head is the one you think it is.
 3. **The nonspecific term gets a stationary `x`.** `f(x)` is a function of the additive expectation; with the WT
    half fixed, the distribution of `x` does not drift while `f` learns. That removes one confound from the ns test
    (see `fwt_ns_s1` below).
-4. **Cheaper epochs, on the same item coverage.** Measured on the real train split (172 libraries, 170 cached;
+4. **Cheaper epochs are optional, not automatic.** The block keeps singles (2026-10-19: doubles alone are
+   floor-limited), so it pays the dc17-style epoch; restricting the stream with `--no-incl_singles` gives the
+   cheaper column. Measured on the real train split (172 libraries, 170 cached;
    **156,265 singles, 61,331 doubles**, cond excluded as always):
 
-   | batch size | dc17-style (singles+doubles) | doubles-only |
+   | batch size | dc17-style (singles+doubles) | doubles-only (optional, `--no-incl_singles`) |
    |---|---|---|
    | 256 | 771 steps/epoch, **95.0%** of doubles seen | 217 steps/epoch, **90.6%** of doubles seen |
    | 128 | 1601 steps, 97.5% | 454 steps, 94.8% |
@@ -93,12 +95,11 @@ Two independent signals that the WT head actually loaded, both in the first minu
 
 | arm | what it is | what it answers |
 |---|---|---|
-| `fwt_ctrl_s1` | dc17 objective, frozen dc17 WT, MT-only, doubles-only | what the paradigm itself costs or gains against `dc17_s1` |
+| `fwt_ctrl_s1` | dc17 objective, frozen dc17 WT, MT-only | what the paradigm itself costs or gains against `dc17_s1` |
 | `fwt_ns_s1` | + `--nonspecific_term fx` | the ns term against a **fixed** `x` |
 | `fwt_ns_s2` | seed 2 of the above | the replicate; judged against `fwt_ctrl_s1` as `ns1_s2` is against `ctrl_s2` |
 
-**Comparability.** `fwt_ctrl_s1` vs `dc17_s1` changes three things at once (WT head fixed, stream doubles-only,
-WT losses off), so it is a paradigm-level A/B and not an attribution. The clean single-variable comparison is
+**Comparability.** `fwt_ctrl_s1` vs `dc17_s1` changes two things at once (WT head fixed, WT losses off), so it is a paradigm-level A/B and not an attribution. The clean single-variable comparison is
 `fwt_ns_*` vs `fwt_ctrl_s1`. Arms from the two code pins are otherwise comparable: with the new flags off the
 pin's code is behaviourally identical to `pin_ns_series`.
 
