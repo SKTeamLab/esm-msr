@@ -179,6 +179,13 @@ def parse_arguments() -> argparse.Namespace:
     link_group.add_argument('--link_tau_penalty', type=float, default=0.0,
                             help="Weight on sum (tau - 0.59)^2 over the free temperatures, added to the loss, so "
                                  "--learn_link_tau drifts from 0.59 only where the data pays for it.")
+    link_group.add_argument('--link_floor_penalty', type=float, default=0.0,
+                            help="Weight on ((global_floor - anchor) / --link_floor_prior_sd)^2, added once per step, so a "
+                                 "learned global floor (--assay_floor X --learn_global_floor) moves from X only where the "
+                                 "data pays for it. The anchor is --assay_floor.")
+    link_group.add_argument('--link_floor_prior_sd', type=float, default=0.25,
+                            help="Prior SD of the learned global floor around its anchor, kcal/mol (about the "
+                                 "between-library spread of practical floors, 0.27).")
     link_group.add_argument('--link_lr', type=float, default=5e-3,
                             help="Learning rate of the link's parameters (no weight decay, no warm-up, and not cut "
                                  "by the plateau scheduler).")
@@ -380,6 +387,18 @@ def parse_arguments() -> argparse.Namespace:
                                   "per-library estimates, which are mostly BELOW zero (47 with evidence: median "
                                   "-0.136, min -0.641, 68 percent negative), so it censors about 5 percent more "
                                   "of the training set. Must sit inside [--link_floor_min, --link_floor_max].")
+    floor_group.add_argument('--censor_threshold', type=float, default=None,
+                             help="Censor every single (and native_cond item) whose measured dG is at or below this "
+                                  "value, in every library, bounded by it - instead of censoring at the library's "
+                                  "floor. Decouples censoring from the link: dead variants pile up a little ABOVE the "
+                                  "knee, so a threshold of a few tenths ties them in the rank loss and stops "
+                                  "regressing them as values. The bound is raised to the knee's reading wherever it "
+                                  "sits below it (see training.reachable_bounds). A single censored this way also "
+                                  "supplies no teacher-forcing label: its doubles take the WT pass. Unset, censoring "
+                                  "follows the library floor as before. Needs --censor_floor.")
+    floor_group.add_argument('--censor_threshold_double', type=float, default=None,
+                             help="The same for multi-mutants (and cond items). Defaults to --censor_threshold. Only "
+                                  "the MT/combined loss sees doubles, so this belongs to the MT block.")
     floor_group.add_argument('--censor_gap', action=argparse.BooleanOptionalAction, default=True,
                              help="Also censor an item whose two proteases disagree about its stability by more "
                                   "than --censor_gap_max, bounded by its own reported value. Needs no doubles and "
@@ -478,6 +497,34 @@ def parse_arguments() -> argparse.Namespace:
 
     if args.rank_loss not in (None, 'listmle'):
         parser.error(f"--rank_loss {args.rank_loss}: the only rank loss is listmle, and the flag is retired.")
+    # Where every item's floor comes from, recorded in hparams: 'library' (each library's own estimate, NaN where it
+    # has none, those fall back to the link's global_floor), 'assay' (--assay_floor, one fixed value on every item) or
+    # 'global' (--assay_floor X --learn_global_floor: every item carries NaN, so the knee is the link's global_floor,
+    # learned from X - with --link_floor_penalty keeping it near X).
+    if args.assay_floor is None:
+        args.floor_source = 'library'
+    elif args.learn_global_floor:
+        args.floor_source = 'global'
+        if args.link and args.link_floor_max - args.link_floor_min < 0.2:
+            parser.error(f"--learn_global_floor with --assay_floor: the learned floor is clipped to "
+                         f"[--link_floor_min, --link_floor_max] = [{args.link_floor_min}, {args.link_floor_max}], which "
+                         f"leaves it no room to move; widen the band (e.g. -1.0 1.0)")
+        if not args.link_floor_min <= args.assay_floor <= args.link_floor_max:
+            parser.error(f"--assay_floor {args.assay_floor} (the learned floor's start and anchor) must sit inside "
+                         f"[--link_floor_min, --link_floor_max]")
+    else:
+        args.floor_source = 'assay'
+    if args.floor_source == 'global' and args.censor_floor and args.censor_threshold is None:
+        # No item carries a floor in this mode, so floor censoring would silently switch off; keep the population the
+        # fixed-floor recipe censors (read at or below --assay_floor) by deriving the threshold from it.
+        logging.info(f"learned global floor: censoring at --censor_threshold {args.assay_floor} (= --assay_floor)")
+        args.censor_threshold = float(args.assay_floor)
+    if args.link_floor_penalty > 0 and args.floor_source != 'global':
+        logging.warning("--link_floor_penalty only acts on a learned global floor (--assay_floor X --learn_global_floor)")
+    if args.censor_threshold_double is None:
+        args.censor_threshold_double = args.censor_threshold
+    if (args.censor_threshold is not None or args.censor_threshold_double is not None) and not args.censor_floor:
+        parser.error("--censor_threshold / --censor_threshold_double need --censor_floor")
     if args.nonspecific_term != 'none' and not args.link:
         parser.error("--nonspecific_term needs --link (f acts on the latent scale, before the link)")
     if args.link and args.lora_mode == 'ensemble' and not args.per_mutation_bias:

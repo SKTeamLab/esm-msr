@@ -259,6 +259,9 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         label_native_cond: bool = False,
         censor_range: bool = True,
         cache_version: str = None,
+        floor_source: Optional[str] = None,
+        censor_threshold: Optional[float] = None,
+        censor_threshold_double: Optional[float] = None,
     ):
         """
         Args:
@@ -358,6 +361,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             self._label_native_cond()
         self._filter_dataset()
         self.assay_floor = assay_floor
+        self.floor_source = floor_source
+        self.censor_threshold, self.censor_threshold_double = censor_threshold, censor_threshold_double
         self._stamp_floor()
         self._apply_censoring(censor_floor, gap_max)
         self._extract_scalars()
@@ -430,6 +435,15 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         variant's stability, so a large gap says they do not jointly identify one (``esm_msr.censoring``). It is
         derived here rather than cached in its own right because ``meas`` already carries both channels.
         """
+        if getattr(self, 'floor_source', None) == 'global':
+            # --assay_floor X --learn_global_floor: no item carries a floor, so every knee is the link's learned global_floor.
+            self.has_floor_evidence = False
+            self.y_floor_used = float('nan')
+            for item in self.data:
+                item['y_floor'] = float('nan')
+                t, c = meas_value(item, 'deltaG_t'), meas_value(item, 'deltaG_c')
+                item['protease_gap'] = abs(t - c) if np.isfinite(t) and np.isfinite(c) else float('nan')
+            return
         override = getattr(self, 'assay_floor', None)
         if override is not None:
             # --assay_floor: ONE knee for every library, asserted rather than measured, and the only floor the run
@@ -464,8 +478,11 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         the dataset-wide fallback, and comparing measurements against it would discard good data from libraries that
         simply never destabilised anything.
         """
-        active = bool(censor_floor and getattr(self, 'has_floor_evidence', False))
-        self.data, c = censoring.apply_item_censoring(self.data, active, gap_max)
+        t1, t2 = getattr(self, 'censor_threshold', None), getattr(self, 'censor_threshold_double', None)
+        thresholded = t1 is not None or t2 is not None
+        # A threshold reaches every library: it is a statement about the assay's readings, not about this library's floor.
+        active = bool(censor_floor and (thresholded or getattr(self, 'has_floor_evidence', False)))
+        self.data, c = censoring.apply_item_censoring(self.data, active, gap_max, threshold=t1, threshold_multi=t2)
         if c['floor'] or c['gap'] or c['range']:
             logging.info(f"[{self.dms_name}] censored {c['floor'] + c['gap'] + c['range']} of {len(self.data)} items: "
                          f"{c['range']} bounded by the assay {dict(c['range_by_subset'])}, "

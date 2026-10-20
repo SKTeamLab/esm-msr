@@ -543,6 +543,9 @@ class MegaScaleDatasetPreprocessor:
         censor_range: bool = True,
         cache_version: str = None,
         combine_validation: bool = False,
+        floor_source: Optional[str] = None,
+        censor_threshold: Optional[float] = None,
+        censor_threshold_double: Optional[float] = None,
     ) -> Tuple[List[DataLoader], List[str]]:
         """Generates a list of dataloaders for a specific list of protein codes."""
         loaders = []
@@ -581,6 +584,9 @@ class MegaScaleDatasetPreprocessor:
                     label_native_cond=label_native_cond,
                     censor_range=censor_range,
                     cache_version=cache_version,
+                    floor_source=floor_source,
+                    censor_threshold=censor_threshold,
+                    censor_threshold_double=censor_threshold_double,
                 )
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
@@ -703,6 +709,9 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         label_native_cond=(args.native_cond_for_mt or not args.native_cond_for_wt),
         censor_range=args.censor_range,
         cache_version=args.cache_version,
+        floor_source=getattr(args, 'floor_source', None),
+        censor_threshold=getattr(args, 'censor_threshold', None),
+        censor_threshold_double=getattr(args, 'censor_threshold_double', None),
     )
 
     if not train_dataloaders: 
@@ -724,12 +733,16 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         label_native_cond=(args.native_cond_for_mt or not args.native_cond_for_wt),
         censor_range=args.censor_range,
         cache_version=args.cache_version,
+        floor_source=getattr(args, 'floor_source', None),
+        censor_threshold=getattr(args, 'censor_threshold', None),
+        censor_threshold_double=getattr(args, 'censor_threshold_double', None),
     )
 
     # Add Benchmarks
     bench_loaders, bench_names = load_benchmark_datasets(
         args.benchmark_data_path, tokenizer, struct_enc_arg, args.cache_path, args.regenerate_cache,
-        assay_floor=args.assay_floor
+        # a learned global floor: the benchmarks carry NaN like every other item, so the link's global_floor applies
+        assay_floor=None if getattr(args, 'floor_source', None) == 'global' else args.assay_floor
     )
     
     if add_benchmarks_to_val:

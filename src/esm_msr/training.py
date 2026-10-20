@@ -71,6 +71,13 @@ def summarise_external_benchmarks(per_loader: dict, external: set) -> dict:
     return out
 
 
+def teacher_forcing_unusable(dG_wt, ddG_A, ddG_B, cut):
+    """Multi-mutants whose measured additive label cannot stand in for the latent sum: a single read at or below ``cut``
+    (the library floor, the learned global floor, or --censor_threshold) reports where the assay saturates, not its own
+    effect, and de-linking it is undefined at the floor and explosively noisy just above it."""
+    return ((dG_wt + ddG_A) <= cut) | ((dG_wt + ddG_B) <= cut)
+
+
 def reachable_bounds(link, bound, y_floor, offset):
     """Censoring bounds (on each item's own ddG scale) moved inside what the link can report; see the comment at the call site.
 
@@ -144,7 +151,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.link_head = SaturatingLink(
             tau=self.hparams.link_tau, floor_min=self.hparams.link_floor_min, floor_max=self.hparams.link_floor_max,
             learn_tau=self.hparams.learn_link_tau, learn_floor_bounds=self.hparams.learn_link_floor_bounds,
-            global_floor_init=self.hparams.get('dataset_floor', float('nan')),
+            # a learned global floor (floor_source 'global') starts at --assay_floor, its prior's anchor
+            global_floor_init=(float(self.hparams.assay_floor) if self.hparams.get('floor_source') == 'global'
+                               else self.hparams.get('dataset_floor', float('nan'))),
             learn_global_floor=self.hparams.learn_global_floor,
             ceiling=self.hparams.get('link_ceiling'), learn_ceiling=self.hparams.get('learn_link_ceiling', True),
             tau_hi=self.hparams.get('link_tau_hi'),
@@ -546,12 +555,22 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # library's floor reports the floor, not its own effect, so injecting it into a latent average biases the
             # combined prediction by however much that single was compressed. Such doubles fall back to the WT head's
             # own latent.
+            # With --censor_threshold the cut is that threshold, the same one that censored the single, and a censored
+            # single gives no label for ITSELF either (its label is a bound); with a learned global floor it is the
+            # link's current floor, since no item carries one.
+            t_single = self.hparams.get('censor_threshold')
+            if t_single is not None:
+                cut = torch.full_like(floor_mb, float(t_single))
+            elif self.hparams.get('floor_source') == 'global' and link is not None:
+                cut = link.effective_floor(floor_mb).detach().expand_as(floor_mb)
+            else:
+                cut = floor_mb
             if 'ddG_A' in micro and 'ddG_B' in micro:
-                a_floored = (dGwt_mb + micro['ddG_A'].float()) <= floor_mb
-                b_floored = (dGwt_mb + micro['ddG_B'].float()) <= floor_mb
-                tf_saturated = (a_floored | b_floored) & ~is_single
+                tf_saturated = teacher_forcing_unusable(dGwt_mb, micro['ddG_A'].float(), micro['ddG_B'].float(), cut) & ~is_single
                 n_tf_drop += int(tf_saturated.sum().item())
                 has_add_label = has_add_label & ~tf_saturated
+            if t_single is not None:
+                has_add_label = has_add_label & ~(is_single & (cens_mb != 0))
 
             # The WT half of the combined prediction is always detached (--no-detach_ensemble_input is retired),
             # so the WT graph never has to survive its own backward. That also drops a retain_graph.
@@ -769,6 +788,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if pen.requires_grad:
                 self.manual_backward(pen)
                 logs['link_tau_penalty'] = float(pen.detach())
+
+        # The learned global floor's prior (--link_floor_penalty): same once-per-step placement as the tau anchor.
+        if self.link_head is not None and float(self.hparams.get('link_floor_penalty', 0.0) or 0.0) > 0:
+            pen = self.link_head.floor_penalty(float(self.hparams.link_floor_penalty), float(self.hparams.assay_floor or 0.0),
+                                               float(self.hparams.get('link_floor_prior_sd', 0.25)))
+            if pen.requires_grad:
+                self.manual_backward(pen)
+                logs['link_floor_penalty'] = float(pen.detach())
 
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=False)

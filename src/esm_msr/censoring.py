@@ -88,8 +88,18 @@ def range_tag(dG_raw: Any, ddG_raw: Any) -> Tuple[int, float]:
     return CENS_NONE, float('nan')
 
 
+MULTI_SUBSETS = frozenset({'double', 'cond'})
+
+
+def threshold_for(item: Dict[str, Any], single: Optional[float], multi: Optional[float]) -> Optional[float]:
+    """The censoring threshold that applies to an item: ``multi`` for doubles and the cond items derived from them,
+    ``single`` for everything else (singles, native_cond)."""
+    return multi if item.get('subset_type') in MULTI_SUBSETS else single
+
+
 def apply_item_censoring(data: Iterable[Dict[str, Any]], censor_floor: bool = True,
-                         gap_max: Optional[float] = 2.0) -> Tuple[list, Dict[str, int]]:
+                         gap_max: Optional[float] = 2.0, threshold: Optional[float] = None,
+                         threshold_multi: Optional[float] = None) -> Tuple[list, Dict[str, int]]:
     """
     Finalise the censoring fields of one library's items and return ``(items, counts)``.
 
@@ -98,6 +108,10 @@ def apply_item_censoring(data: Iterable[Dict[str, Any]], censor_floor: bool = Tr
     disagree by more than that (``protease_gap``) becomes lower-censored against its own reported value. The floor source is checked first
     because its bound is the more robust of the two - the library's central pinning value rather than one unreliable reading. An item that
     already carries ``SRC_RANGE`` from preprocessing is left as it is.
+
+    With ``threshold`` / ``threshold_multi`` (``--censor_threshold`` / ``--censor_threshold_double``) the floor rule uses that
+    value instead of ``y_floor``: an item measured at or below it is lower-censored, bounded by it, in every library whether or
+    not the library has a floor of its own (still ``SRC_FLOOR``).
 
     ``cens_bound`` (on the item's own ddG scale) is derived as ``dG_bound + (ddG - dG_meas)``: the offset between an item's label and the
     measured dG it came from is constant, and for a conditional item it already carries the partner's single. So a double measured at the
@@ -117,7 +131,9 @@ def apply_item_censoring(data: Iterable[Dict[str, Any]], censor_floor: bool = Tr
             counts['range'] += 1
             counts['range_by_subset'][subset] += 1
         if cens == 0 and censor_floor:
-            dG, floor = item.get('dG_meas', float('nan')), item.get('y_floor', float('nan'))
+            dG = item.get('dG_meas', float('nan'))
+            thr = threshold_for(item, threshold, threshold_multi)
+            floor = float(thr) if thr is not None else item.get('y_floor', float('nan'))
             if np.isfinite(dG) and np.isfinite(floor) and dG <= floor:
                 item['cens'], item['cens_src'], item['dG_bound'] = CENS_LO, SRC_FLOOR, float(floor)
                 cens = CENS_LO

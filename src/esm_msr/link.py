@@ -139,6 +139,12 @@ class SaturatingLink(nn.Module):
             return None
         return self.bounds()[1] + F.softplus(self.raw_ceiling_span) + CEILING_MIN_SPAN
 
+    def floor_penalty(self, weight: float, anchor: float, sd: float) -> torch.Tensor:
+        """``weight * ((global_floor - anchor) / sd)^2`` when the global floor is learned; 0 otherwise."""
+        if not weight or not self.global_floor.requires_grad:
+            return torch.zeros((), device=self.global_floor.device, dtype=self.global_floor.dtype)
+        return weight * ((self.global_floor - float(anchor)) / float(sd)) ** 2
+
     def tau_penalty(self, weight: float) -> torch.Tensor:
         """``weight * sum (tau - 0.59)^2`` over the temperatures that are actually free; 0 when none are."""
         terms = [t for t in (self.raw_tau, self.raw_tau_hi if self.has_ceiling else None)
