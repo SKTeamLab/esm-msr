@@ -143,7 +143,7 @@ def run_protein_gym(args, model):
         b_used = (max(r.max_batch for r in sizer.reports[n_reports_before:]) if sizer else dms_batch)
         return res.reset_index(drop=True), {"b": b_used}
 
-    tag = (f"sigma={args.lora_epsilon} ckpt={args.checkpoint} batch={args.batch_size}" +
+    tag = (f"sigma={args.lora_epsilon} ckpt={args.checkpoint} mt_pass_adapter={args.mt_pass_adapter} batch={args.batch_size}" +
            (f" batch_map={args.batch_map} ({len(batch_map)} entries)" if batch_map else "") +
            (f" auto_batch(headroom={args.auto_batch_headroom}, max={args.auto_batch_max})" if sizer else ""))
     pgym_runner.run_protein_gym(pgym_dir, out_dir, score_fn, pred_col=pred_col, dms=args.pgym_dms, tag=tag, log=log)
@@ -210,6 +210,14 @@ def main_(args):
     else:
         print('Zero shot mode!')
 
+    if args.mt_pass_adapter == 'wt':
+        # Straight swap: the MT pass (mutated sequence in, same LLR readout) runs the WT adapter and its calibration
+        # head instead of the MT ones; the MT adapter is left unused. Everything else, combined_pred included, is unchanged.
+        if adapter_mode != 'dual':
+            raise AssertionError(f"--mt_pass_adapter wt needs a dual-adapter model, got adapter_mode={adapter_mode}")
+        model.peft_mt = model.peft_wt
+        model.calibration_head_mt = model.calibration_head_wt
+        print('[MODEL] MT pass uses the WT adapter and WT calibration head (--mt_pass_adapter wt)')
 
     model.eval()
 
@@ -583,6 +591,8 @@ if __name__ == "__main__":
         parser.add_argument('--skip_reverse', action='store_true',
                             help='Skip the MT adapter pass and predict purely from the WT adapters. With --protein_gym, benchmarks score wt_lora_pred (the WT additive-approximation prediction) instead of combined_pred.')
         parser.add_argument('--skip_reverse_domainome', action='store_true')
+        parser.add_argument('--mt_pass_adapter', type=str, choices=['mt', 'wt'], default='mt',
+                            help='Adapter (with its calibration head) that runs the MT pass on the mutated sequence. wt: the WT adapter sees the mutant context; the MT adapter is unused.')
         parser.add_argument('--use_dora', action='store_true')
         
         parser.add_argument('--local_path_to_structures', type=str, default='/home/sareeves/software/esm-msr/data/structures')
