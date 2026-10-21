@@ -209,7 +209,8 @@ def main_(args):
         model.load_lora_weights(ckpt_path)
     else:
         print('Zero shot mode!')
-    
+
+
     model.eval()
 
     # =========================================================================
@@ -303,9 +304,19 @@ def main_(args):
         split_file = REPO_ROOT / "data" / f"{args.split}.pkl"
         split_name = args.split
 
+        # The raw table and the AF models ship with the repo, so resolve them against REPO_ROOT as `split_file`
+        # above does. They were hardcoded under /home/sareeves, which does not exist on this cluster, so the whole
+        # Tsuboyama block could not run here; --local_cluster already switches the domainome path the same way.
+        tsu = (REPO_ROOT / 'data' / 'tsuboyama') if args.local_cluster else Path(
+            '/home/sareeves/software/esm-msr/data/tsuboyama')
+        # censor_range stays at devel-revision's default (True), so the rows the assay only BOUNDED ('<-1' / '>5')
+        # are predicted too and land in the predictions CSV, flagged in `cens`. They are excluded from the REPORTED
+        # statistics below, because their ddG_ML is that bound rather than a measurement: on the val half they are
+        # 516 rows (475 '<-1', 41 '>5') carrying only 26 distinct ddG_ML values, so scoring against them measures
+        # agreement with a library constant. Predicting them keeps the option open; reporting them does not.
         ds = preprocess_megascale.MegaScaleDatasetPreprocessor(
-            data_file='/home/sareeves/software/esm-msr/data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv', 
-            af_model_folder='/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs')
+            data_file=str(tsu / 'Tsuboyama2023_Dataset2_Dataset3_20230416.csv'),
+            af_model_folder=str(tsu / 'AlphaFold_model_PDBs'))
         splits = ds.create_training_splits(str(split_file), -1)
 
         if args.remove_spurs_homologs:
@@ -371,8 +382,16 @@ def main_(args):
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
 
-            # Metrics
-            for code, group in res_df.groupby('code_wt'):
+            # Metrics -- on MEASURED rows only. A bounded row's ddG_ML is its library's bound ('<-1' / '>5'), not a
+            # measurement, so scoring against it measures agreement with a library constant rather than with the
+            # assay. The predictions CSV written above keeps every row, flagged in `cens`, so the bounded ones stay
+            # available; they are only kept out of what gets reported.
+            scored = res_df[res_df['cens'] == 0] if 'cens' in res_df.columns else res_df
+            if len(scored) != len(res_df):
+                logging.info(f"reported stats exclude {len(res_df) - len(scored)} bounded rows "
+                             f"({int((res_df['cens'] < 0).sum())} '<-1', {int((res_df['cens'] > 0).sum())} '>5'); "
+                             f"the predictions CSV keeps all {len(res_df)}")
+            for code, group in scored.groupby('code_wt'):
                 current_time = time_per_code.get(code, float('nan'))
                 stats_wt = update_stats(stats_wt, code, group, 'ddG_ML', 'wt_lora_pred', 'dddG_ML', 'wt_lora_dddg_pred', current_time)
                 if not args.skip_reverse:
@@ -411,7 +430,10 @@ def main_(args):
         for mem_size, prot in zip(mem_sizes, prots): 
             batch_sz = mem_size * 32
 
-            df_true = pd.read_csv(f'/home/{"sareeves" if not args.local_cluster else "sreeves"}/software/esm-msr/data/preprocessed/{prot}.csv')
+            # the repo's own data/preprocessed, not the software/esm-msr copy: that copy's GB1 is missing V39A/V39C/
+            # V39D (73 of 76 singles of a 4-site saturation library), which costs 152 of its 2,091 scorable doubles,
+            # since a double needs both singles measured. The shared rows are bit-identical.
+            df_true = pd.read_csv(REPO_ROOT / 'data' / 'preprocessed' / f'{prot}.csv', low_memory=False)
             df_true['pdb_file'] = df_true['pdb_file'].str.replace('/home/sareeves/software/esm-msr/data/structures', args.local_path_to_structures, regex=False)
             df_true['id'] = df_true['code'] + '_' + df_true['mut_info']
             df_true = df_true.set_index('id')
