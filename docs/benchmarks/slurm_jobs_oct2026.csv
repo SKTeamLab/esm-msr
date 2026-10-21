@@ -1,0 +1,253 @@
+job,name,model,benchmark,kind,node,gpu,start,elapsed,state
+380281,esmtherm_full,ESMtherm,"gamut (22 sets, hyperopt Tsuboyama)",inference,gpu4,RTX A4500,2026-10-04T17:09,00:14:21,COMPLETED
+380283,esmtherm_s669,ESMtherm,"gamut (22 sets, hyperopt Tsuboyama)",inference,gpu4,RTX A4500,2026-10-04T17:26,00:00:03,FAILED
+380287,esmfold_s0,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-04T17:59,01:31:36,COMPLETED
+380288,esmfold_s1,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-04T17:59,01:32:38,COMPLETED
+380289,esmfold_s2,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-04T17:59,00:02:55,FAILED
+380290,esmfold_s3,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-04T17:59,01:25:35,COMPLETED
+380291,esmfold_s4,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-04T17:59,01:25:41,COMPLETED
+380292,esmfold_s5,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-04T17:59,01:27:03,COMPLETED
+380293,esmfold_s6,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-04T17:59,01:25:50,COMPLETED
+380294,ifum_wt_full,IFUM (WT backbone),gamut (22 sets),inference,gpu2,RTX 6000,2026-10-04T18:02,00:01:43,FAILED
+380296,esmfold_s2b,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-04T18:05,00:00:19,FAILED
+380297,ifum_wt_full,IFUM (WT backbone),gamut (22 sets),inference,gpu4,RTX A4500,2026-10-04T19:25,05:47:19,COMPLETED
+380298,esmfold_s2c,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-04T19:25,01:27:28,COMPLETED
+380302,geoddg_s669,GeoDDG-3D (FASPR),gamut (22 sets),inference,gpu4,RTX A4500,2026-10-04T20:22,00:02:30,COMPLETED
+380304,geoddg_full,GeoDDG-3D (FASPR),gamut (22 sets),inference,gpu4,RTX A4500,2026-10-04T20:40,04:10:07,COMPLETED
+380305,ifum_esmfold_ext,IFUM (ESMFold per variant),gamut scoring on folded structures,inference,gpu4,RTX A4500,2026-10-04T20:53,00:41:59,COMPLETED
+380306,esmtherm_s669,ESMtherm,"gamut (22 sets, hyperopt Tsuboyama)",inference,gpu4,RTX A4500,2026-10-04T21:54,00:00:13,COMPLETED
+380307,geoddg_retry,GeoDDG-3D (FASPR),gamut (22 sets),inference,gpu2,RTX 6000,2026-10-04T23:13,01:22:48,COMPLETED
+380319,ifum_foldbench,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-05T17:01,00:08:22,COMPLETED
+380321,fold_w1,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-05T17:37,03:27:49,COMPLETED
+380322,fold_w2,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-05T17:37,03:30:49,COMPLETED
+380323,fold_w3,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-05T17:37,03:32:34,COMPLETED
+380324,fold_w4,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-05T17:37,03:31:14,COMPLETED
+380325,fold_w5,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-05T17:37,03:26:43,COMPLETED
+380326,fold_w6,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-05T17:37,03:30:51,COMPLETED
+380327,fold_w7,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-05T17:37,03:30:57,COMPLETED
+380328,fold_w8,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-05T17:37,00:00:08,FAILED
+380415,foldS_w1,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-05T21:10,15:00:22,COMPLETED
+380416,foldS_w2,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-05T21:10,15:11:23,COMPLETED
+380417,foldS_w3,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-05T21:10,15:04:03,COMPLETED
+380418,foldS_w4,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu4,RTX A4500,2026-10-05T21:10,15:09:44,COMPLETED
+380419,foldS_w5,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-05T21:10,00:57:32,CANCELLED
+380420,foldS_w6,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-05T21:10,00:57:32,CANCELLED
+380421,foldS_w7,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-05T21:10,00:57:32,CANCELLED
+380422,ifum_multi_A,IFUM (ESMFold per variant),gamut scoring on folded structures,inference,gpu2,RTX 6000,2026-10-05T22:08,04:46:25,COMPLETED
+380423,ifum_multi_B,IFUM (ESMFold per variant),gamut scoring on folded structures,inference,gpu2,RTX 6000,2026-10-05T22:08,02:57:15,COMPLETED
+380424,ifum_multi_C,IFUM (ESMFold per variant),gamut scoring on folded structures,inference,gpu2,RTX 6000,2026-10-05T22:08,02:09:51,COMPLETED
+380435,foldS_w5,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-06T09:18,02:59:53,COMPLETED
+380436,foldS_w6,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-06T09:18,02:54:25,COMPLETED
+380437,foldS_w7,IFUM (ESMFold per variant),ESMFold folding of variant structures,structure prep,gpu2,RTX 6000,2026-10-06T09:18,03:04:41,COMPLETED
+380446,tmpnn_epi_s1,ThermoMPNN / -D,training,training,gpu4,RTX A4500,2026-10-06T13:47,08:30:53,CANCELLED
+380447,tmpnn_single_s1,ThermoMPNN / -D,training,training,gpu4,RTX A4500,2026-10-06T13:47,08:30:53,CANCELLED
+380448,tmpnn_eval_smoke,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu4,RTX A4500,2026-10-06T13:49,00:08:05,FAILED
+380449,tmpnn_ext_smoke,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu4,RTX A4500,2026-10-06T13:59,00:03:23,COMPLETED
+380486,ifum_sing_dom0,IFUM (ESMFold per variant),gamut scoring on folded structures,inference,gpu4,RTX A4500,2026-10-08T10:11,03:50:49,COMPLETED
+380487,ifum_sing_dom1,IFUM (ESMFold per variant),gamut scoring on folded structures,inference,gpu4,RTX A4500,2026-10-08T10:11,03:59:38,COMPLETED
+380488,ifum_sing_dom2,IFUM (ESMFold per variant),gamut scoring on folded structures,inference,gpu4,RTX A4500,2026-10-08T10:11,03:57:57,COMPLETED
+380489,ifum_sing_dom3,IFUM (ESMFold per variant),gamut scoring on folded structures,inference,gpu4,RTX A4500,2026-10-08T10:11,03:52:24,COMPLETED
+380490,ifum_sing_dom4,IFUM (ESMFold per variant),gamut scoring on folded structures,inference,gpu4,RTX A4500,2026-10-08T14:02,03:50:06,COMPLETED
+380491,ifum_sing_dom5,IFUM (ESMFold per variant),gamut scoring on folded structures,inference,gpu4,RTX A4500,2026-10-08T14:04,03:54:26,COMPLETED
+380492,ifum_sing_other,IFUM (ESMFold per variant),gamut scoring on folded structures,inference,gpu4,RTX A4500,2026-10-08T14:09,02:46:24,COMPLETED
+380533,me_oct06,MutateEverything,training (st1+st2),training,gpu2,RTX 6000,2026-10-06T16:05,07:51:09,COMPLETED
+380726,tmpnn_eval_r1,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu2,RTX 6000,2026-10-06T22:19,00:00:01,FAILED
+380727,tmpnn_eval_r1,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu4,RTX A4500,2026-10-06T22:20,00:06:58,COMPLETED
+380728,me_capped,MutateEverything,training (st1+st2),training,gpu2,RTX 6000,2026-10-06T23:57,06:51:09,COMPLETED
+380729,tm_sin_c1,ThermoMPNN / -D,training,training,gpu4,RTX A4500,2026-10-06T22:50,09:03:40,COMPLETED
+380730,tm_epi_c1,ThermoMPNN / -D,training,training,gpu4,RTX A4500,2026-10-06T22:50,10:58:46,COMPLETED
+380731,tm_sin_c2,ThermoMPNN / -D,training,training,gpu4,RTX A4500,2026-10-06T22:50,09:08:31,COMPLETED
+380732,tm_epi_c2,ThermoMPNN / -D,training,training,gpu4,RTX A4500,2026-10-06T22:50,10:51:06,COMPLETED
+380733,tm_sin_c3,ThermoMPNN / -D,training,training,gpu4,RTX A4500,2026-10-07T07:54,09:03:17,COMPLETED
+380734,tm_epi_c3,ThermoMPNN / -D,training,training,gpu4,RTX A4500,2026-10-07T07:59,11:00:15,COMPLETED
+380823,me_eval_d_c1,MutateEverything,Tsuboyama val/test + externals,inference,gpu2,RTX 6000,2026-10-07T09:53,00:34:07,FAILED
+380824,me_eval_s_c1,MutateEverything,Tsuboyama val/test + externals,inference,gpu2,RTX 6000,2026-10-07T10:27,00:33:40,FAILED
+380829,me_ext_d_c1,MutateEverything,Tsuboyama val/test + externals,inference,gpu2,RTX 6000,2026-10-07T11:09,00:11:49,COMPLETED
+380830,me_ext_s_c1,MutateEverything,Tsuboyama val/test + externals,inference,gpu2,RTX 6000,2026-10-07T11:21,00:11:39,COMPLETED
+380831,me_ext2_d_c1,MutateEverything,Tsuboyama val/test + externals,inference,gpu2,RTX 6000,2026-10-07T11:32,01:14:30,COMPLETED
+380832,me_ext2_s_c1,MutateEverything,Tsuboyama val/test + externals,inference,gpu2,RTX 6000,2026-10-07T12:47,01:15:07,COMPLETED
+380833,me_capped_s2,MutateEverything,training (st1+st2),training,gpu2,RTX 6000,2026-10-07T14:02,06:55:04,COMPLETED
+380834,af2ext_0,ColabFold AF2,WT structures for external sets,structure prep,gpu4,RTX A4500,2026-10-07T13:49,04:00:39,COMPLETED
+380835,af2ext_1,ColabFold AF2,WT structures for external sets,structure prep,gpu4,RTX A4500,2026-10-07T13:49,03:59:36,COMPLETED
+380836,af2ext_2,ColabFold AF2,WT structures for external sets,structure prep,gpu4,RTX A4500,2026-10-07T20:46,04:14:42,COMPLETED
+380837,af2ext_3,ColabFold AF2,WT structures for external sets,structure prep,gpu4,RTX A4500,2026-10-07T20:46,04:04:02,COMPLETED
+380838,af2ext_4,ColabFold AF2,WT structures for external sets,structure prep,gpu4,RTX A4500,2026-10-07T20:46,04:08:47,COMPLETED
+380839,af2ext_5,ColabFold AF2,WT structures for external sets,structure prep,gpu4,RTX A4500,2026-10-07T20:46,04:04:43,COMPLETED
+380840,me_capped_s3,MutateEverything,training (st1+st2),training,gpu2,RTX 6000,2026-10-07T20:57,06:56:55,COMPLETED
+380841,tm_eval_c1,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-07T16:16,00:08:37,COMPLETED
+380842,tm_eval_c2,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu1,RTX 6000,2026-10-07T16:21,00:08:55,COMPLETED
+380843,tm_eval_c3,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu4,RTX A4500,2026-10-07T18:59,00:06:21,COMPLETED
+380971,msr_small_af2,ESM-MSR-small (March),"12 external sets, AF2 structures",inference,gpu4,RTX A4500,2026-10-08T01:01,00:00:24,FAILED
+380993,msr_small_af2,ESM-MSR-small (March),"12 external sets, AF2 structures",inference,gpu4,RTX A4500,2026-10-08T08:41,00:00:30,FAILED
+380994,me_eval_d_c2,MutateEverything,Tsuboyama val/test + externals,inference,gpu2,RTX 6000,2026-10-08T08:41,01:51:27,COMPLETED
+380995,me_eval_s_c2,MutateEverything,Tsuboyama val/test + externals,inference,gpu2,RTX 6000,2026-10-08T10:33,01:49:17,COMPLETED
+380996,me_eval_d_c3,MutateEverything,Tsuboyama val/test + externals,inference,gpu2,RTX 6000,2026-10-08T12:22,01:48:51,COMPLETED
+380997,me_eval_s_c3,MutateEverything,Tsuboyama val/test + externals,inference,gpu2,RTX 6000,2026-10-08T14:11,01:48:31,COMPLETED
+380998,msr_small_af2,ESM-MSR-small (March),"12 external sets, AF2 structures",inference,gpu4,RTX A4500,2026-10-08T08:43,00:59:24,COMPLETED
+381096,tm_val_c1,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu4,RTX A4500,2026-10-08T15:07,00:02:19,COMPLETED
+381097,tm_val_c2,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu4,RTX A4500,2026-10-08T15:10,00:02:20,COMPLETED
+381098,tm_val_c3,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu4,RTX A4500,2026-10-08T15:13,00:02:19,COMPLETED
+381103,msr_ext,ESM-MSR capped,gamut (one job per block),inference,gpu2,RTX 6000,2026-10-08T16:39,01:02:11,COMPLETED
+381104,msr_tsu,ESM-MSR capped,gamut (one job per block),inference,gpu2,RTX 6000,2026-10-08T16:39,00:42:47,COMPLETED
+381105,msr_dms,ESM-MSR capped,gamut (one job per block),inference,gpu2,RTX 6000,2026-10-08T16:39,02:00:37,COMPLETED
+381106,msr_dom,ESM-MSR capped,gamut (one job per block),inference,gpu2,RTX 6000,2026-10-08T16:39,04:39:19,COMPLETED
+381107,tm_dms_c1,ThermoMPNN / -D,DMS,inference,gpu4,RTX A4500,2026-10-08T20:07,00:35:54,COMPLETED
+381108,tm_dms_c2,ThermoMPNN / -D,DMS,inference,gpu4,RTX A4500,2026-10-08T20:07,00:35:54,COMPLETED
+381109,tm_dms_c3,ThermoMPNN / -D,DMS,inference,gpu4,RTX A4500,2026-10-08T20:07,00:35:59,COMPLETED
+381110,fx_test,GeoDDG-3D (FoldX),FoldX structure building (CPU),structure prep,gpu2,RTX 6000,2026-10-08T20:43,00:04:44,COMPLETED
+381111,foldx_full,GeoDDG-3D (FoldX),FoldX structure building (CPU),structure prep,gpu2,RTX 6000,2026-10-08T20:49,09:56:34,COMPLETED
+381113,me_dms_d1,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T21:22,00:01:11,FAILED
+381114,me_dms_s1,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T21:22,00:01:11,FAILED
+381115,me_dms_d2,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T21:22,00:01:11,FAILED
+381116,me_dms_s2,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T21:22,00:01:11,FAILED
+381117,me_dms_d3,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T21:24,00:00:37,FAILED
+381118,me_dms_s3,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T21:24,00:00:32,FAILED
+381119,me_dms_d1,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:15,00:00:07,FAILED
+381120,me_dms_s1,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:15,00:00:08,FAILED
+381121,me_dms_d2,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:15,00:00:07,FAILED
+381122,me_dms_s2,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:15,00:00:01,FAILED
+381123,me_dms_d3,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:16,00:00:07,FAILED
+381124,me_dms_s3,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:16,00:00:07,FAILED
+381125,me_dms_probe,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:17,00:00:27,COMPLETED
+381126,me_dms_d1,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:18,00:02:03,COMPLETED
+381127,me_dms_s1,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:18,00:02:02,COMPLETED
+381128,me_dms_d2,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:18,00:01:47,COMPLETED
+381129,me_dms_s2,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:18,00:00:01,FAILED
+381130,me_dms_d3,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:19,00:00:01,FAILED
+381131,me_dms_s3,MutateEverything,DMS,inference,gpu2,RTX 6000,2026-10-08T22:20,00:01:47,COMPLETED
+381133,me_dms_r2,MutateEverything,DMS,inference,gpu4,RTX A4500,2026-10-08T22:23,00:02:31,COMPLETED
+381134,me_dms_r3,MutateEverything,DMS,inference,gpu4,RTX A4500,2026-10-08T22:23,00:02:31,COMPLETED
+381136,me_dom_d1,MutateEverything,Domainome,inference,gpu4,RTX A4500,2026-10-08T23:25,00:17:50,COMPLETED
+381137,me_dom_s1,MutateEverything,Domainome,inference,gpu4,RTX A4500,2026-10-08T23:25,00:17:50,COMPLETED
+381138,me_dom_d2,MutateEverything,Domainome,inference,gpu4,RTX A4500,2026-10-08T23:25,00:17:51,COMPLETED
+381139,me_dom_s2,MutateEverything,Domainome,inference,gpu4,RTX A4500,2026-10-08T23:43,00:16:50,COMPLETED
+381140,me_dom_d3,MutateEverything,Domainome,inference,gpu4,RTX A4500,2026-10-08T23:43,00:16:50,COMPLETED
+381141,me_dom_s3,MutateEverything,Domainome,inference,gpu4,RTX A4500,2026-10-08T23:43,00:17:00,COMPLETED
+381142,tm_dom_c1,ThermoMPNN / -D,Domainome,inference,gpu4,RTX A4500,2026-10-08T23:43,00:23:54,COMPLETED
+381143,tm_dom_c2,ThermoMPNN / -D,Domainome,inference,gpu4,RTX A4500,2026-10-09T00:00,00:23:56,COMPLETED
+381144,tm_dom_c3,ThermoMPNN / -D,Domainome,inference,gpu4,RTX A4500,2026-10-09T00:00,00:23:47,COMPLETED
+383419,me_nobb_s1,MutateEverything,training (st1+st2),training,gpu1,RTX 6000,2026-10-13T21:21,08:36:59,COMPLETED
+383420,me_nobb_s2,MutateEverything,training (st1+st2),training,None assigned,None assigned,2026-10-13T22:11,00:00:00,CANCELLED
+383421,me_nobb_s3,MutateEverything,training (st1+st2),training,None assigned,None assigned,2026-10-13T22:11,00:00:00,CANCELLED
+383422,tm_nobb_single_s1,ThermoMPNN / -D,training,training,gpu1,RTX 6000,2026-10-13T12:21,08:55:44,COMPLETED
+383423,tm_nobb_single_s2,ThermoMPNN / -D,training,training,gpu1,RTX 6000,2026-10-13T12:21,08:59:57,COMPLETED
+383424,tm_nobb_single_s3,ThermoMPNN / -D,training,training,gpu3,RTX 6000,2026-10-13T12:21,09:00:30,COMPLETED
+383438,me_gb1_single1,MutateEverything,DMS,inference,gpu1,RTX 6000,2026-10-13T18:43,00:02:57,COMPLETED
+383439,me_gb1_single2,MutateEverything,DMS,inference,gpu3,RTX 6000,2026-10-13T18:43,00:02:37,COMPLETED
+383440,me_gb1_single3,MutateEverything,DMS,inference,gpu1,RTX 6000,2026-10-13T18:46,00:01:43,COMPLETED
+383441,me_gb1_double1,MutateEverything,DMS,inference,gpu3,RTX 6000,2026-10-13T18:46,00:01:17,COMPLETED
+383442,me_gb1_double2,MutateEverything,DMS,inference,gpu1,RTX 6000,2026-10-13T18:48,00:01:48,COMPLETED
+383443,me_gb1_double3,MutateEverything,DMS,inference,gpu3,RTX 6000,2026-10-13T18:48,00:01:22,COMPLETED
+383444,tm_gb1_s1,ThermoMPNN / -D,DMS,inference,gpu4,RTX A4500,2026-10-13T18:44,00:36:08,COMPLETED
+383445,tm_gb1_s2,ThermoMPNN / -D,DMS,inference,gpu4,RTX A4500,2026-10-13T18:44,00:35:54,COMPLETED
+383446,tm_gb1_s3,ThermoMPNN / -D,DMS,inference,gpu4,RTX A4500,2026-10-13T18:44,00:36:26,COMPLETED
+383447,msr_gb1,ESM-MSR capped,GB1 rerun,inference,gpu4,RTX A4500,2026-10-13T18:47,00:00:34,FAILED
+383448,msr_gb1,ESM-MSR capped,GB1 rerun,inference,gpu4,RTX A4500,2026-10-13T18:49,00:12:58,COMPLETED
+383451,me_nobb_s2,MutateEverything,training (st1+st2),training,gpu4,RTX A4500,2026-10-13T22:11,06:11:25,COMPLETED
+383452,me_nobb_s3,MutateEverything,training (st1+st2),training,gpu3,RTX 6000,2026-10-13T23:32,06:23:00,COMPLETED
+383454,geoddg_fx_full,GeoDDG-3D (FoldX),12 external sets,inference,gpu4,RTX A4500,2026-10-13T22:14,00:12:10,COMPLETED
+383455,tm_nobb_eval_s1,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-13T22:15,00:07:14,COMPLETED
+383456,tm_nobb_eval_s2,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-13T22:15,00:07:16,COMPLETED
+383457,tm_nobb_eval_s3,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-13T22:23,00:06:56,COMPLETED
+383458,me_nobb_eval_single1,MutateEverything,Tsuboyama val/test + externals,inference,gpu1,RTX 6000,2026-10-14T05:58,01:58:17,COMPLETED
+383459,me_nobb_eval_double1,MutateEverything,Tsuboyama val/test + externals,inference,gpu4,RTX A4500,2026-10-14T06:06,01:42:27,COMPLETED
+383460,me_nobb_eval_single2,MutateEverything,Tsuboyama val/test + externals,inference,gpu4,RTX A4500,2026-10-14T04:23,01:43:11,COMPLETED
+383461,me_nobb_eval_double2,MutateEverything,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-14T05:55,02:02:33,COMPLETED
+383462,me_nobb_eval_single3,MutateEverything,Tsuboyama val/test + externals,inference,gpu4,RTX A4500,2026-10-14T07:48,01:41:21,COMPLETED
+383463,me_nobb_eval_double3,MutateEverything,Tsuboyama val/test + externals,inference,gpu1,RTX 6000,2026-10-14T07:57,01:39:35,FAILED
+383468,foldx_fix,GeoDDG-3D (FoldX),FoldX structure building (CPU),structure prep,gpu3,RTX 6000,2026-10-13T23:09,05:38:21,COMPLETED
+383469,geoddg_fx_rescore,GeoDDG-3D (FoldX),12 external sets,inference,gpu3,RTX 6000,2026-10-14T04:50,00:14:37,COMPLETED
+383471,tm_nobb_dms_s1,ThermoMPNN / -D,DMS,inference,gpu4,RTX A4500,2026-10-13T23:39,00:35:33,COMPLETED
+383472,tm_nobb_dms_s2,ThermoMPNN / -D,DMS,inference,gpu3,RTX 6000,2026-10-14T00:09,00:41:34,COMPLETED
+383473,tm_nobb_dms_s3,ThermoMPNN / -D,DMS,inference,gpu4,RTX A4500,2026-10-14T00:14,00:35:29,COMPLETED
+383474,tm_nobb_domainome_s1,ThermoMPNN / -D,Domainome,inference,gpu1,RTX 6000,2026-10-14T00:31,00:31:20,COMPLETED
+383475,tm_nobb_domainome_s2,ThermoMPNN / -D,Domainome,inference,gpu4,RTX A4500,2026-10-14T00:50,00:23:45,COMPLETED
+383476,tm_nobb_domainome_s3,ThermoMPNN / -D,Domainome,inference,gpu3,RTX 6000,2026-10-14T00:51,00:25:35,COMPLETED
+383477,me_nobb_dms_single1,MutateEverything,DMS,inference,gpu1,RTX 6000,2026-10-14T05:58,00:02:58,COMPLETED
+383478,me_nobb_dom_single1,MutateEverything,Domainome,inference,gpu1,RTX 6000,2026-10-14T06:01,00:25:30,COMPLETED
+383479,me_nobb_dms_double1,MutateEverything,DMS,inference,gpu4,RTX A4500,2026-10-14T06:12,00:01:43,COMPLETED
+383480,me_nobb_dom_double1,MutateEverything,Domainome,inference,gpu4,RTX A4500,2026-10-14T06:14,00:16:45,COMPLETED
+383481,me_nobb_dms_single2,MutateEverything,DMS,inference,gpu3,RTX 6000,2026-10-14T04:23,00:02:03,COMPLETED
+383482,me_nobb_dom_single2,MutateEverything,Domainome,inference,gpu3,RTX 6000,2026-10-14T04:26,00:20:19,COMPLETED
+383483,me_nobb_dms_double2,MutateEverything,DMS,inference,gpu3,RTX 6000,2026-10-14T04:47,00:02:03,COMPLETED
+383484,me_nobb_dom_double2,MutateEverything,Domainome,inference,gpu3,RTX 6000,2026-10-14T05:05,00:18:59,COMPLETED
+383485,me_nobb_dms_single3,MutateEverything,DMS,inference,gpu1,RTX 6000,2026-10-14T05:55,00:02:48,COMPLETED
+383486,me_nobb_dom_single3,MutateEverything,Domainome,inference,gpu4,RTX A4500,2026-10-14T05:55,00:17:00,COMPLETED
+383487,me_nobb_dms_double3,MutateEverything,DMS,inference,gpu3,RTX 6000,2026-10-14T05:55,00:01:42,COMPLETED
+383488,me_nobb_dom_double3,MutateEverything,Domainome,inference,gpu3,RTX 6000,2026-10-14T05:57,00:17:44,COMPLETED
+383509,me_nobb_fix_d3,MutateEverything,DMS,inference,gpu3,RTX 6000,2026-10-14T09:50,00:38:56,COMPLETED
+383705,pgym_mpnn,ProteinMPNN,ProteinGym,inference,gpu3,RTX 6000,2026-10-15T09:46,11:43:07,CANCELLED
+383706,pgym_spurs,SPURS,ProteinGym,inference,gpu3,RTX 6000,2026-10-15T09:46,00:05:02,COMPLETED
+383708,pgym_msr_a4500,ESM-MSR capped,ProteinGym full,inference,gpu4,RTX A4500,2026-10-15T12:36,1-07:49:35,COMPLETED
+383713,me_vf_single1,MutateEverything,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-15T13:41,00:01:04,COMPLETED
+383714,me_vf_single2,MutateEverything,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-15T13:42,00:00:42,COMPLETED
+383715,me_vf_single3,MutateEverything,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-15T13:43,00:00:57,COMPLETED
+383716,me_vf_double1,MutateEverything,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-15T13:44,00:00:42,COMPLETED
+383717,me_vf_double2,MutateEverything,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-15T13:45,00:00:57,COMPLETED
+383718,me_vf_double3,MutateEverything,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-15T13:46,00:00:43,COMPLETED
+383719,tm_vf_s1,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-15T13:46,00:03:12,COMPLETED
+383720,tm_vf_s2,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-15T13:46,00:03:11,COMPLETED
+383721,tm_vf_s3,ThermoMPNN / -D,Tsuboyama val/test + externals,inference,gpu3,RTX 6000,2026-10-15T13:46,00:03:05,COMPLETED
+383722,pgym_msr_fp32,ESM-MSR capped,ProteinGym full,inference,gpu3,RTX 6000,2026-10-15T13:49,03:07:11,CANCELLED
+383742,pgym_tmpnn,ThermoMPNN / -D,ProteinGym,inference,gpu4,RTX A4500,2026-10-15T14:02,12:00:01,TIMEOUT
+383760,pgym_msr_fp32,ESM-MSR capped,ProteinGym full,inference,gpu3,RTX 6000,2026-10-16T09:46,00:19:04,CANCELLED
+383895,pgym_mpnn_fast,ProteinMPNN,ProteinGym,inference,gpu3,RTX 6000,2026-10-15T21:30,02:15:10,COMPLETED
+383897,pgym_me_single_s1,MutateEverything,ProteinGym,inference,gpu3,RTX 6000,2026-10-15T21:57,05:38:31,COMPLETED
+383898,pgym_me_single_s2,MutateEverything,ProteinGym,inference,gpu3,RTX 6000,2026-10-15T21:57,05:30:56,COMPLETED
+383899,pgym_me_single_s3,MutateEverything,ProteinGym,inference,gpu3,RTX 6000,2026-10-15T21:57,05:29:20,COMPLETED
+383900,pgym_me_double_s1,MutateEverything,ProteinGym,inference,gpu4,RTX A4500,2026-10-16T02:02,05:17:54,COMPLETED
+383901,pgym_me_double_s2,MutateEverything,ProteinGym,inference,gpu3,RTX 6000,2026-10-16T03:27,05:33:35,COMPLETED
+383902,pgym_me_double_s3,MutateEverything,ProteinGym,inference,gpu3,RTX 6000,2026-10-16T03:28,05:30:49,COMPLETED
+383926,pgym_tmpnn_s2,ThermoMPNN / -D,ProteinGym,inference,gpu3,RTX 6000,2026-10-16T09:46,02:58:59,COMPLETED
+383927,pgym_tmpnn_s3,ThermoMPNN / -D,ProteinGym,inference,gpu3,RTX 6000,2026-10-16T09:46,07:29:40,COMPLETED
+383928,pgym_me_retry,MutateEverything,ProteinGym,inference,gpu3,RTX 6000,2026-10-16T09:46,00:00:47,COMPLETED
+383929,pgym_msr_wtonly,ESM-MSR capped,ProteinGym WT-only ε sweep,inference,gpu3,RTX 6000,2026-10-16T09:53,00:06:54,COMPLETED
+383930,pgym_me_retry,MutateEverything,ProteinGym,inference,gpu3,RTX 6000,2026-10-16T10:00,04:04:12,COMPLETED
+383931,pgym_msr_wtsweep,ESM-MSR capped,ProteinGym WT-only ε sweep,inference,gpu3,RTX 6000,2026-10-16T10:06,00:28:45,COMPLETED
+383932,pgym_msr_fp32,ESM-MSR capped,ProteinGym full,inference,gpu3,RTX 6000,2026-10-16T10:34,11:47:38,COMPLETED
+383981,pgym_mpnn_s1,ProteinMPNN,ProteinGym,inference,gpu3,RTX 6000,2026-10-16T22:03,01:51:42,COMPLETED
+383982,pgym_mpnn_s2,ProteinMPNN,ProteinGym,inference,gpu3,RTX 6000,2026-10-16T22:03,01:47:04,COMPLETED
+383983,pgym_mpnn_tta_0.2,ProteinMPNN,ProteinGym TTA pilot (73 DMS),inference,gpu3,RTX 6000,2026-10-16T22:09,03:16:15,COMPLETED
+383984,pgym_mpnn_tta_0,ProteinMPNN,ProteinGym TTA pilot (73 DMS),inference,gpu3,RTX 6000,2026-10-16T22:23,03:19:00,COMPLETED
+384271,pgym_dc8_s1_e1.0,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-17T15:35,1-09:23:08,COMPLETED
+384272,pgym_dc8_s1_e1.0_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-19T15:57,00:02:02,COMPLETED
+384273,pgym_dc8_s2_e1.0,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-17T15:35,1-09:21:39,COMPLETED
+384274,pgym_dc8_s2_e1.0_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-19T15:59,00:01:38,COMPLETED
+384275,pgym_dc8_s3_e1.0,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-17T15:35,1-09:42:38,COMPLETED
+384276,pgym_dc8_s3_e1.0_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-19T16:01,00:01:44,COMPLETED
+384277,pgym_dc8_s1_e0.75,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-17T15:35,1-09:14:27,COMPLETED
+384278,pgym_dc8_s1_e0.75_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-19T16:03,00:01:40,COMPLETED
+384279,pgym_dc8_s2_e0.75,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-19T00:50,1-09:13:26,COMPLETED
+384280,pgym_dc8_s2_e0.75_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-20T10:04,00:01:46,COMPLETED
+384281,pgym_dc8_s3_e0.75,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-19T00:57,1-09:21:31,COMPLETED
+384282,pgym_dc8_s3_e0.75_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-20T10:19,00:01:35,COMPLETED
+384283,pgym_dc8_s1_e0.5,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-19T00:58,1-09:23:44,COMPLETED
+384284,pgym_dc8_s1_e0.5_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-20T10:22,00:01:35,COMPLETED
+384285,pgym_dc8_s2_e0.5,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-19T01:18,1-09:42:44,COMPLETED
+384286,pgym_dc8_s2_e0.5_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-20T13:15,00:01:37,COMPLETED
+384287,pgym_dc8_s3_e0.5,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-20T10:04,1-02:24:10,RUNNING
+384289,pgym_dc8_s1_e0.25,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-20T10:19,1-02:09:05,RUNNING
+384291,pgym_dc8_s2_e0.25,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-20T10:22,1-02:05:52,RUNNING
+384293,pgym_dc8_s3_e0.25,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-20T11:01,1-01:26:52,RUNNING
+386140,pgym_bigalloc,ESM-MSR dc8,ProteinGym BRCA1/SCN5A retry,inference,gpu3,RTX 6000,2026-10-20T14:25,02:37:30,COMPLETED
+386141,msr_dc8_s1,ESM-MSR dc8,gamut,inference,gpu3,RTX 6000,2026-10-20T14:25,01:05:04,FAILED
+386142,msr_dc8_s2,ESM-MSR dc8,gamut,inference,gpu3,RTX 6000,2026-10-20T14:25,01:01:19,FAILED
+386143,msr_dc8_s3,ESM-MSR dc8,gamut,inference,gpu3,RTX 6000,2026-10-20T14:25,01:01:37,FAILED
+386181,msr_dc8_s1,ESM-MSR dc8,gamut,inference,gpu1,RTX 6000,2026-10-20T17:44,00:02:01,FAILED
+386182,msr_dc8_s2,ESM-MSR dc8,gamut,inference,gpu1,RTX 6000,2026-10-20T17:46,00:01:14,FAILED
+386183,msr_dc8_s3,ESM-MSR dc8,gamut,inference,gpu1,RTX 6000,2026-10-20T17:47,00:01:14,FAILED
+386191,msr_dc8_s1,ESM-MSR dc8,gamut,inference,gpu1,RTX 6000,2026-10-20T18:07,07:41:07,COMPLETED
+386192,msr_dc8_s2,ESM-MSR dc8,gamut,inference,gpu1,RTX 6000,2026-10-20T18:07,07:26:01,COMPLETED
+386193,msr_dc8_s3,ESM-MSR dc8,gamut,inference,gpu3,RTX 6000,2026-10-20T18:07,07:32:22,COMPLETED
+386195,prosst_all,ProSST,gamut (22 sets),inference,gpu3,RTX 6000,2026-10-20T18:07,00:35:23,COMPLETED
+386196,esm3dg_A,ESM3ΔG,"gamut (22 sets, sharded)",inference,gpu3,RTX 6000,2026-10-20T18:07,01:55:14,COMPLETED
+386197,esm3dg_B,ESM3ΔG,"gamut (22 sets, sharded)",inference,gpu3,RTX 6000,2026-10-20T18:07,01:56:13,COMPLETED
+386198,esm3dg_C,ESM3ΔG,"gamut (22 sets, sharded)",inference,gpu3,RTX 6000,2026-10-20T18:42,02:02:51,COMPLETED
+386199,esm3dg_dom0,ESM3ΔG,"gamut (22 sets, sharded)",inference,gpu3,RTX 6000,2026-10-20T20:02,04:05:57,COMPLETED
+386200,esm3dg_dom1,ESM3ΔG,"gamut (22 sets, sharded)",inference,gpu3,RTX 6000,2026-10-20T20:03,04:20:51,COMPLETED
+386255,pgym_dc8_s1_e1.0_mtpass_wt,ESM-MSR dc8,ProteinGym MT-pass ablation,inference,gpu3,RTX 6000,2026-10-21T00:16,12:12:30,RUNNING
+386274,gpu4_esm3dg_cappg,ESM3ΔG,capped Tsuboyama + ProteinGym,inference,None assigned,None assigned,Unknown,00:00:00,PENDING
+386275,gpu4_ifum_cappg,IFUM (WT backbone),capped Tsuboyama + ProteinGym,inference,None assigned,None assigned,Unknown,00:00:00,PENDING
+386277,gpu4_geoddg_cappg,GeoDDG-3D (FASPR),capped Tsuboyama + ProteinGym,inference,None assigned,None assigned,Unknown,00:00:00,PENDING
+386279,gpu4_msr_eps0_gamut,ESM3-small-open (ε=0),gamut,inference,None assigned,None assigned,2026-10-21T12:24,00:00:00,CANCELLED
+386282,gpu4_msr_eps0_gamut,ESM3-small-open (ε=0),gamut,inference,None assigned,None assigned,Unknown,00:00:00,PENDING

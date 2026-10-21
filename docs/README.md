@@ -17,6 +17,8 @@ because something still points at it, or because it records a decision; do not t
 | [`frozen_wt_paradigm.md`](frozen_wt_paradigm.md) | CURRENT | The frozen-WT / MT-only / doubles-only paradigm: `--init_wt_from_checkpoint` + `--frozen_wt_mt_only`, which WT head to freeze and why, the acceptance check, comparability, the prepared `fwt` series, and its risks. |
 | [`tf_mix.md`](tf_mix.md) | CURRENT | `--tf_mix`: blending the measured additive label with the WT head in teacher forcing — the mechanism, why it is worth tuning, the queued five-point sweep, what to read, and the self-reference risk. |
 | [`BENCHMARKS_OCT2026.md`](BENCHMARKS_OCT2026.md) | CURRENT | **Every comparison of ESM-MSR against other models** (cluster, 2026-10-04/21): MutateEverything and ThermoMPNN retrained on our split, the dc8 triplicate gamut, ProteinGym for all models, seven third-party stability predictors; the data/scoring bugs found on the way, and what stayed on the cluster. |
+| [`OUTSTANDING_EXPERIMENTS.md`](OUTSTANDING_EXPERIMENTS.md) | CURRENT | Benchmark runs that are queued, in flight or blocked (with what unblocks each), and the analysis and housekeeping still to do. |
+| [`GPU4_INFERENCE_LEDGER.md`](GPU4_INFERENCE_LEDGER.md) | REFERENCE | Which inference ran on the A4500 node (gpu4) and which on RTX 6000s or remote servers, where per-dataset times are recorded, and what a clean runtime comparison still needs. Job list: `benchmarks/slurm_jobs_oct2026.csv`. |
 | [`validation_metrics.md`](validation_metrics.md) | CURRENT | Definition of every logged validation metric and how to read it. Referenced from `src/esm_msr/epi_metrics.py`, `training.py`, `inference_scripts/esm_msr_testing.py`. |
 
 ## Reference

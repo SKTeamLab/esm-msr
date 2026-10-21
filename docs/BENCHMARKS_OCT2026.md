@@ -19,12 +19,193 @@ All paths below are on the cluster unless they start with a repo-relative path.
 | C. **ProteinGym v1.3** (217 DMS) for ESM-MSR (capped, ε sweep, dc8 × 3 seeds × 4 ε), SPURS, ProteinMPNN, ME, ThermoMPNN | 10-15 → 10-21 | `0e3d7fac` (cwd `~/esm-msr-devel`) | `~/esm-msr-devel/outputs/pgym/` |
 | D. **Third-party stability predictors** run natively: ESMtherm, DDGemb (server), DDMut (server), IFUM, GeoDDG, ProSST, ESM3ΔG; UniMutStab blocked | 10-04 → 10-21 | `796d0b37` (background job) | `~/stability-baselines/results/FINAL_TABLE.md` |
 | E. One ESM-MSR training run on the cluster (`v6_censor0_rank05`, Comet `esm-msr-agent`) | 10-04 | `823e327b` | cancelled at 91 % of epoch 0; **no result** |
+| F. **All-by-all fill-in** (§2): every third-party model on the capped Tsuboyama split and ProteinGym; SPURS, ProteinMPNN and ESM3-small-open (ε = 0) on the thermostability gamut | 10-21 → | this consolidation | queued on gpu4; ledger in `GPU4_INFERENCE_LEDGER.md` |
 
 Common ground for A–C: the ESM-MSR reference checkpoint is `LoRA_models/esm-msr-baseline-w2a4-m16a16-capped`
 ("capped", one seed); dc8 is the three-seed `dc8-floorlink-canon` series (same split, same LoRA config;
 `val_rho_combined_avg` 0.840 / 0.839 / 0.841).
 
-## 2. Retrained baselines vs ESM-MSR on the Tsuboyama split
+## 2. All-by-all: every model on every dataset
+
+One Spearman ρ per model and dataset, positive = stabilizing / fitter for every model. External sets and DMS are a
+pooled ρ per set; Tsuboyama and Domainome are the mean of per-protein ρ (Tsuboyama on measured rows only); ProteinGym
+as in §4. Multi-seed rows are seed means (per-seed values and sds are in the CSV). Regenerate with
+`analysis_scripts/benchmark_matrix.py` (run on the cluster); the long table is
+[`benchmarks/all_by_all_long.csv`](benchmarks/all_by_all_long.csv) (model, dataset, rho, sd, n_seeds, source).
+
+**Legend.** **†** the test set overlaps that model's documented training data (DDGemb trained on S2450 ⊂ S2648;
+DDMut on S9028 ⊃ S2648 + FireProtDB; GeoDDG on S8754 ⊃ S2648, and S783 only has a leakage-excluded column upstream;
+the Megascale-trained models on any Tsuboyama split). The list follows each paper's stated training sets and is
+not exhaustive. **‡** the model was trained on Megascale (Tsuboyama), so none of its Tsuboyama numbers are held
+out. **\*** partial coverage (DDMut: S669 98 %, S461 97 %, Tsuboyama val 26 %, test 4 %). **q** queued on gpu4 on
+2026-10-21 (jobs 386274–386282, see [`GPU4_INFERENCE_LEDGER.md`](GPU4_INFERENCE_LEDGER.md)). **–** not run, with the
+reason in [`OUTSTANDING_EXPERIMENTS.md`](OUTSTANDING_EXPERIMENTS.md).
+
+Which ESM-MSR / baseline numbers are comparable to which: the **capped** Tsuboyama columns are the split every
+October model was trained on (`splits_oct06_capped.pkl`). The **hyperopt** columns are the older split
+(`hyperopt_splits.pkl`) the third-party harness was first run on; it shares only 4 of 23 val and 9 of 33 test
+libraries with capped, so the two are not comparable. The queued runs put every third-party model on capped.
+
+### 2.1 Thermostability: the 12 external sets
+
+| model | s571 | s783 | s2648 | s8754 | s669 | s461 | ssym | q3421 | k3822 | k2369 | ptmul | ptmuld | mean of 12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ESM-MSR capped (combined) | 0.456 | 0.717 | 0.665 | 0.615 | 0.565 | 0.756 | 0.751 | 0.617 | 0.715 | 0.714 | 0.595 | 0.601 | 0.647 |
+| ESM-MSR capped, WT head | 0.442 | 0.703 | 0.657 | 0.606 | 0.547 | 0.748 | 0.752 | 0.613 | 0.714 | 0.711 | 0.568 | 0.586 | 0.637 |
+| ESM-MSR capped, MT head | 0.451 | 0.697 | 0.634 | 0.596 | 0.561 | 0.725 | 0.714 | 0.589 | 0.681 | 0.682 | 0.545 | 0.533 | 0.617 |
+| ESM-MSR dc8 (combined, 3 seeds) | 0.445 | 0.725 | 0.677 | 0.625 | 0.560 | 0.753 | 0.773 | 0.626 | 0.721 | 0.722 | 0.594 | 0.597 | 0.651 |
+| ESM-MSR dc8, WT head | 0.431 | 0.713 | 0.675 | 0.618 | 0.551 | 0.753 | 0.776 | 0.623 | 0.720 | 0.717 | 0.580 | 0.584 | 0.645 |
+| ESM-MSR dc8, MT head | 0.438 | 0.703 | 0.639 | 0.603 | 0.539 | 0.709 | 0.737 | 0.595 | 0.688 | 0.694 | 0.528 | 0.524 | 0.616 |
+| MutateEverything st1 (3 seeds) | 0.439 | 0.706 | 0.701 | 0.623 | 0.559 | 0.721 | 0.674 | 0.638 | 0.696 | 0.674 | 0.472 | 0.480 | 0.615 |
+| MutateEverything st2 (3 seeds) | 0.424 | 0.687 | 0.669 | 0.598 | 0.541 | 0.709 | 0.632 | 0.615 | 0.673 | 0.657 | 0.491 | 0.490 | 0.599 |
+| ThermoMPNN (additive, 3 seeds) | 0.406 | 0.689 | 0.648 | 0.602 | 0.490 | 0.655 | 0.711 | 0.591 | 0.643 | 0.649 | 0.433 | 0.499 | 0.585 |
+| ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.406 | 0.689 | 0.648 | 0.602 | 0.490 | 0.655 | 0.711 | 0.591 | 0.643 | 0.649 | 0.427 | 0.502 | 0.584 |
+| SPURS single-additive ‡ | q | q | q | q | q | q | q | q | q | q | q | q | q |
+| SPURS multi ‡ | q | q | q | q | q | q | q | q | q | q | q | q | q |
+| ESMtherm ‡ | 0.349 | 0.434 | 0.371 | 0.347 | 0.414 | 0.474 | 0.380 | 0.348 | 0.366 | 0.393 | 0.235 | 0.270 | 0.365 |
+| DDGemb (server) | 0.484 | 0.689 | 0.895† | 0.684† | 0.570 | 0.654 | 0.891 | 0.752 | 0.745 | 0.702 | 0.616 | 0.678 | 0.697 |
+| DDMut (server) | 0.350 | 0.687 | 0.731† | 0.638† | 0.402* | 0.534* | 0.363 | 0.653† | 0.709† | 0.681† | 0.725 | 0.718 | – |
+| IFUM, WT backbone ‡ | 0.376 | 0.498 | 0.485 | 0.477 | 0.434 | 0.531 | 0.574 | 0.431 | 0.536 | 0.547 | 0.350 | 0.405 | 0.470 |
+| IFUM, ESMFold per variant ‡ | 0.385 | 0.471 | 0.484 | 0.451 | 0.409 | 0.542 | 0.580 | 0.433 | 0.508 | 0.512 | 0.391 | 0.443 | 0.467 |
+| GeoDDG-3D (FASPR) | 0.526 | 0.865† | 0.892† | 0.841† | 0.615 | 0.664 | 0.914 | 0.822 | 0.852 | 0.831 | 0.717 | 0.669 | 0.767 |
+| ESM3ΔG ‡ | 0.511 | 0.653 | 0.642 | 0.542 | 0.564 | 0.681 | 0.735 | 0.572 | 0.589 | 0.598 | 0.409 | 0.482 | 0.582 |
+| ProSST (zero-shot) | 0.310 | 0.564 | 0.436 | 0.428 | 0.369 | 0.561 | 0.519 | 0.416 | 0.476 | 0.497 | 0.182 | 0.317 | 0.423 |
+| ProteinMPNN (zero-shot) | q | q | q | q | q | q | q | q | q | q | q | q | q |
+| ESM3-small-open, ε = 0 (zero-shot) | q | q | q | q | q | q | q | q | q | q | q | q | q |
+| ESM3-large (Forge, zero-shot) | 0.220 | 0.353 | 0.267 | 0.291 | 0.272 | – | 0.539 | 0.306 | 0.318 | – | 0.146 | – | – |
+| ESM3-medium (Forge, zero-shot) | 0.332 | 0.552 | 0.439 | 0.438 | 0.342 | – | 0.633 | 0.450 | 0.483 | – | 0.295 | – | – |
+| ESM-MSR-small (March reference) | 0.447 | 0.714 | 0.677 | 0.614 | 0.542 | 0.743 | 0.781 | 0.621 | 0.701 | 0.704 | 0.543 | 0.577 | 0.639 |
+
+- **On all 12 sets GeoDDG (0.767) and DDGemb (0.697) lead, then ESM-MSR dc8 (0.651) and capped (0.647).** Most of the
+  gap sits on the flagged sets: GeoDDG scores 0.84–0.89 on S783, S2648 and S8754, which it trained on or next to.
+- **On the six sets with no documented overlap for any model** (S571, S669, S461, Ssym, PTMUL, PTMUL-D) the order is
+  GeoDDG 0.684, DDGemb 0.649, ESM-MSR capped 0.621, dc8 0.620, ESM-MSR-small 0.605, ESM3ΔG 0.564, ME st1 0.557,
+  ThermoMPNN 0.532, IFUM 0.445–0.458, ProSST 0.376, ESMtherm 0.354. GeoDDG and DDGemb are still ahead; both were
+  trained on curated literature ΔΔG (ProTherm-derived), the same source as these sets, so homology to the training
+  proteins is likely even where the exact variants are not shared.
+- **Among the models trained on Tsuboyama/Megascale, ESM-MSR leads 9 of 12 sets.** ME stage 1 leads S2648 (0.701 vs
+  0.677) and Q3421 (0.638 vs 0.626), and ESM3ΔG leads S571 (0.511 vs 0.456).
+
+### 2.2 Tsuboyama
+
+| model | capped val | capped test | hyperopt val | hyperopt test |
+|---|---|---|---|---|
+| ESM-MSR capped (combined) | 0.854 | 0.843 | – | – |
+| ESM-MSR capped, WT head | 0.841 | 0.824 | – | – |
+| ESM-MSR capped, MT head | 0.817 | 0.813 | – | – |
+| ESM-MSR dc8 (combined, 3 seeds) | 0.854 | 0.849 | – | – |
+| ESM-MSR dc8, WT head | 0.836 | 0.827 | – | – |
+| ESM-MSR dc8, MT head | 0.825 | 0.820 | – | – |
+| MutateEverything st1 (3 seeds) | 0.751 | 0.771 | – | – |
+| MutateEverything st2 (3 seeds) | 0.727 | 0.762 | – | – |
+| ThermoMPNN (additive, 3 seeds) | 0.785 | 0.794 | – | – |
+| ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.782 | 0.783 | – | – |
+| SPURS single-additive ‡ | q | q | – | – |
+| SPURS multi ‡ | q | q | – | – |
+| ESMtherm ‡ | q | q | 0.691† | 0.707† |
+| DDGemb (server) | – | – | 0.611 | 0.524 |
+| DDMut (server) | – | – | 0.542* | 0.582* |
+| IFUM, WT backbone ‡ | q | q | 0.746† | 0.697† |
+| IFUM, ESMFold per variant ‡ | – | – | 0.778† | 0.738† |
+| GeoDDG-3D (FASPR) | q | q | 0.610 | 0.557 |
+| ESM3ΔG ‡ | q | q | 0.790† | 0.744† |
+| ProSST (zero-shot) | q | q | 0.607 | 0.594 |
+| ProteinMPNN (zero-shot) | q | q | – | – |
+| ESM3-small-open, ε = 0 (zero-shot) | q | q | – | – |
+
+The published-paper evaluation (below) has ESM-MSR, ProteinMPNN, Rosetta and ESM3 on the hyperopt split. SPURS and
+ProteinMPNN cannot represent a mutant background (they read the sequence from the wild-type PDB), so their capped
+numbers will be on the wild-type-background libraries only; the cell will say so when it lands.
+
+### 2.3 DMS and Domainome
+
+| model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome |
+|---|---|---|---|---|---|---|---|---|
+| ESM-MSR capped (combined) | 0.726 | 0.725 | 0.673 | 0.619 | 0.639 | 0.479 | 0.346 | 0.542 |
+| ESM-MSR capped, WT head | 0.723 | 0.728 | 0.669 | 0.633 | 0.637 | 0.466 | 0.338 | 0.540 |
+| ESM-MSR capped, MT head | 0.705 | 0.696 | 0.627 | 0.560 | 0.622 | 0.467 | 0.302 | 0.520 |
+| ESM-MSR dc8 (combined, 3 seeds) | 0.745 | 0.742 | 0.682 | 0.636 | 0.639 | 0.481 | 0.337 | 0.543 |
+| ESM-MSR dc8, WT head | 0.749 | 0.752 | 0.685 | 0.656 | **0.641** | 0.478 | **0.365** | **0.548** |
+| ESM-MSR dc8, MT head | 0.718 | 0.707 | 0.632 | 0.570 | 0.616 | 0.457 | 0.243 | 0.509 |
+| MutateEverything st1 (3 seeds) | 0.707 | 0.681 | 0.646 | 0.581 | 0.580 | **0.483** | 0.296 | 0.520 |
+| MutateEverything st1, additive | 0.729 | 0.714 | 0.690 | 0.615 | 0.603 | 0.483 | 0.287 | – |
+| MutateEverything st2 (3 seeds) | 0.655 | 0.644 | 0.624 | 0.601 | 0.566 | 0.441 | 0.284 | 0.511 |
+| MutateEverything st2, additive | 0.710 | 0.695 | 0.675 | 0.635 | 0.597 | 0.441 | 0.285 | – |
+| ThermoMPNN (additive, 3 seeds) | 0.626 | 0.632 | 0.613 | 0.569 | 0.570 | 0.405 | 0.319 | 0.450 |
+| ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.574 | 0.588 | 0.565 | 0.561 | 0.540 | 0.405 | 0.318 | – |
+| SPURS single-additive ‡ | q | q | q | q | q | q | q | q |
+| SPURS multi ‡ | q | q | q | q | q | q | q | q |
+| ESMtherm ‡ | 0.093 | 0.136 | 0.484 | 0.466 | 0.229 | −0.000 | 0.214 | 0.201 |
+| DDGemb (server) | 0.103 | 0.123 | 0.457 | 0.469 | 0.475 | 0.188 | 0.154 | 0.351 |
+| IFUM, WT backbone ‡ | 0.766 | 0.768 | 0.648 | 0.565 | 0.507 | 0.190 | 0.262 | 0.464 |
+| IFUM, ESMFold per variant ‡ | 0.762 | 0.747 | 0.697 | 0.575 | 0.523 | 0.217 | 0.284 | 0.473 |
+| GeoDDG-3D (FASPR) | 0.351 | 0.431 | 0.604 | 0.481 | 0.395 | 0.240 | 0.200 | 0.413 |
+| ESM3ΔG ‡ | 0.763 | 0.766 | **0.749** | 0.646 | 0.594 | 0.280 | 0.324 | 0.512 |
+| ProSST (zero-shot) | **0.776** | **0.796** | 0.711 | **0.702** | 0.538 | 0.356 | 0.258 | 0.519 |
+| ProteinMPNN (zero-shot) | q | q | q | q | q | q | q | q |
+| ESM3-small-open, ε = 0 (zero-shot) | q | q | q | q | q | q | q | q |
+| ESM3-large (Forge, zero-shot) | 0.624 | 0.606 | 0.557 | 0.582 | 0.458 | 0.432 | – | – |
+
+- **Mean over the 7 DMS:** ESM-MSR dc8 WT 0.618, dc8 combined 0.609, capped 0.601, ProSST 0.591, ME st1 additive
+  0.589, ESM3ΔG 0.589, IFUM 0.53–0.54, ThermoMPNN 0.533, GeoDDG 0.386, DDGemb 0.281, ESMtherm 0.232.
+- **The literature-ΔΔG models invert here:** GeoDDG and DDGemb, which lead the external sets, are near the bottom on
+  the deep-mutational scans; ProSST, a zero-shot model, leads three of the four Faure assays.
+- **Domainome:** dc8 WT 0.548, ESM-MSR ≈ 0.54, then ME st1 0.520, ProSST 0.519, ESM3ΔG 0.512.
+
+### 2.4 ProteinGym (213 DMS)
+
+| model | PG avg | Stability | DMS mean |
+|---|---|---|---|
+| ESM-MSR dc8 (combined, 3 seeds) | 0.511 | 0.869 | 0.555 |
+| ESM-MSR capped (combined) | 0.510 | **0.870** | **0.556** |
+| ESM-MSR capped, WT head | 0.508 | 0.826 | 0.550 |
+| SPURS single-additive ‡ | 0.483 | 0.837 | 0.525 |
+| MutateEverything st1 (3 seeds) | 0.468 | 0.808 | 0.506 |
+| ESM3-small-open, ε = 0 (WT pass only) | 0.448 | 0.621 | 0.470 |
+| MutateEverything st2 (3 seeds) | 0.445 | 0.806 | 0.491 |
+| ThermoMPNN (additive, 3 seeds) | 0.441 | 0.781 | 0.484 |
+| SPURS multi ‡ | 0.426 | 0.808 | 0.477 |
+| ProteinMPNN (zero-shot) | 0.408 | 0.627 | 0.426 |
+| ESMtherm ‡ | q | q | q |
+| IFUM, WT backbone ‡ | q | q | q |
+| GeoDDG-3D (FASPR) | q | q | q |
+| ESM3ΔG ‡ | q | q | q |
+| ProSST (zero-shot) | q | q | q |
+
+The ε sweep and per-category breakdown are in §4. DDGemb and DDMut cannot be run on ProteinGym (web servers;
+see the outstanding log).
+
+### 2.5 Published-paper evaluation (reference; earlier models and row sets)
+
+From `analysis_notebooks/bootstrap_external_results/rho_all_models_replicate1.csv`: the models of the
+published comparison, trained on the hyperopt split. Its row sets are de-duplicated (S8754 → 6,411 rows) and it has
+neither S669 nor K3822 (it uses their subsets S461 and K2369), so compare within this table only. It adds Rosetta and
+the ESM3 family, which the October runs do not have.
+
+| dataset | ESM-MSR (published) | ProteinMPNN | Rosetta cart. ΔΔG | ESM3-small-open | ESM3-small | ESM3-medium | ESM3-large | ME (hyperopt) | ME additive (hyperopt) | ThermoMPNN (hyperopt) | ThermoMPNN-D (hyperopt) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Ssym | 0.750 | 0.694 | 0.621 | 0.584 | 0.594 | 0.617 | 0.498 | 0.669 | 0.722 | 0.727 | – |
+| S461 | 0.750 | 0.441 | 0.617 | 0.402 | 0.445 | 0.422 | 0.371 | 0.713 | 0.720 | 0.647 | – |
+| S783 | 0.725 | 0.559 | 0.648 | 0.480 | 0.526 | 0.510 | 0.330 | 0.690 | 0.717 | 0.691 | – |
+| K2369 | 0.705 | 0.435 | 0.618 | 0.438 | 0.488 | 0.477 | 0.318 | 0.671 | 0.689 | 0.659 | – |
+| S8754 | 0.617 | 0.437 | 0.571 | 0.379 | 0.410 | 0.409 | 0.268 | 0.630 | 0.657 | 0.611 | – |
+| S2648 | 0.665 | 0.508 | 0.606 | 0.374 | 0.432 | 0.407 | 0.261 | 0.679 | 0.719 | 0.658 | – |
+| Q3421 | 0.613 | 0.495 | 0.554 | 0.377 | 0.429 | 0.414 | 0.282 | 0.622 | 0.654 | 0.604 | – |
+| PTMUL-D | 0.587 | 0.545 | 0.472 | 0.299 | 0.442 | 0.339 | 0.145 | 0.493 | 0.446 | 0.502 | 0.563 |
+| PTMUL | 0.545 | 0.377 | 0.540 | 0.191 | 0.316 | 0.250 | 0.043 | 0.539 | 0.470 | 0.437 | 0.452 |
+| S571 | 0.451 | 0.336 | 0.357 | 0.274 | 0.249 | 0.341 | 0.196 | 0.440 | 0.465 | 0.420 | – |
+| mean of 10 external | 0.641 | 0.483 | 0.561 | 0.380 | 0.433 | 0.418 | 0.271 | 0.615 | 0.626 | 0.595 | 0.507 |
+| Megascale val (per-domain avg.) | 0.835 | 0.595 | 0.666 | 0.561 | 0.592 | 0.583 | 0.516 | 0.744 | 0.744 | 0.768 | 0.763 |
+| Megascale test (per-domain avg.) | 0.804 | 0.529 | 0.634 | 0.551 | 0.606 | 0.590 | 0.553 | 0.673 | 0.678 | 0.740 | 0.732 |
+| DLG4 abundance | 0.721 | 0.621 | – | 0.678 | 0.745 | 0.723 | 0.583 | 0.645 | 0.702 | 0.629 | 0.530 |
+| DLG4 binding | 0.739 | 0.615 | – | 0.731 | 0.755 | 0.762 | 0.562 | 0.638 | 0.722 | 0.651 | 0.545 |
+| GRB2 abundance | 0.734 | 0.668 | – | 0.613 | 0.639 | 0.617 | 0.549 | 0.618 | 0.711 | 0.649 | 0.640 |
+| GRB2 binding | 0.623 | 0.538 | – | 0.709 | 0.717 | 0.680 | 0.520 | 0.593 | 0.571 | 0.592 | 0.587 |
+| MYO display | 0.636 | 0.499 | – | 0.527 | 0.557 | 0.521 | 0.463 | 0.562 | 0.586 | 0.577 | 0.528 |
+| ESTA ΔT50 | 0.517 | 0.546 | – | 0.484 | 0.486 | 0.497 | 0.413 | 0.465 | 0.501 | 0.470 | – |
+| Domainome (per-domain avg.) | 0.548 | 0.548 | – | 0.533 | 0.548 | 0.532 | 0.508 | 0.516 | 0.523 | 0.462 | – |
+
+## 3. Retrained baselines vs ESM-MSR on the Tsuboyama split
 
 **Rule throughout: neither baseline was modified, only its data layer.** ME follows the upstream README
 recipe (stage 1 = singles, 20 epochs; stage 2 = doubles, 100 epochs from stage 1). ThermoMPNN is two
@@ -32,7 +213,7 @@ upstream configs, i.e. two models: `train_single.yaml` (singles) and `train_epis
 siamese, doubles only). The baselines' additive head is their own singles summed; their `mt` head is ME's
 direct double head or ThermoMPNN-D. `comb ≡ mt` for both; `ctx` does not transfer (no separable adapter).
 
-### 2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)
+### 3.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)
 
 Seed means; ESM-MSR capped is one checkpoint. Metric definitions: `validation_metrics.md`.
 
@@ -49,7 +230,7 @@ Seed means; ESM-MSR capped is one checkpoint. Metric definitions: `validation_me
 Additive heads score exactly 0 / 0.5 on every residual and rank metric — the suite's own correctness check —
 and `global_err` 1.105 for both baselines.
 
-### 2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)
+### 3.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)
 
 | model / head | naive ρ | beyond ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | global_err ↓ |
 |---|---|---|---|---|---|---|---|---|
@@ -62,7 +243,7 @@ and `global_err` 1.105 for both baselines.
 Every destabilized-backbone test row is a single, so these columns are identical whether or not those
 libraries are kept (verified: max abs diff 0).
 
-### 2.3 ddG ranking (mean per-protein Spearman)
+### 3.3 ddG ranking (mean per-protein Spearman)
 
 | | ME st1 | ME st2 | TMPNN | TMPNN+D | ESM-MSR capped comb | dc8 comb (3 seeds) |
 |---|---|---|---|---|---|---|
@@ -72,10 +253,10 @@ libraries are kept (verified: max abs diff 0).
 | test `spearman_doubles_epi` (dddG ρ) | 0.020 | 0.434 | — | 0.181 | 0.554 | — |
 
 dc8 vs capped: test combined +0.006, test MT +0.007, val WT −0.005 — a modest gain on test, level on val.
-These dc8 numbers are **on measured rows only** (§6.3); with bounded rows they would read 0.858 and look like
+These dc8 numbers are **on measured rows only** (§7.3); with bounded rows they would read 0.858 and look like
 +0.015.
 
-### 2.4 External sets, DMS, Domainome (baselines = 3-seed means, ESM-MSR = capped)
+### 3.4 External sets, DMS, Domainome (baselines = 3-seed means, ESM-MSR = capped)
 
 - **12 external sets, mean ρ:** ESM-MSR combined **0.647**, MT 0.617, ME stage 1 0.615, ME stage 2 0.599,
   TMPNN 0.585. ESM-MSR combined is best on 9 of 12 (ME stage 1 on s2648, s8754, q3421).
@@ -88,7 +269,7 @@ These dc8 numbers are **on measured rows only** (§6.3); with bounded rows they 
 - **Domainome** (singles): ESM-MSR combined 0.542 ≈ WT 0.540 > ME stage 1 0.520 = ESM-MSR MT 0.520 > ME stage 2
   0.511 > TMPNN 0.450.
 
-### 2.5 Mutant-background ablation (nobb)
+### 3.5 Mutant-background ablation (nobb)
 
 Dropping the 3 train / 5 val mutant-background libraries (all `native_cond` singles; zero doubles) and
 re-scoring on the identical wild-type-backbone test rows:
@@ -102,7 +283,7 @@ re-scoring on the identical wild-type-backbone test rows:
 Those 3,543 training rows buy ME stage 2 a little ddG ranking on wild-type backbones and nothing on the
 interaction metrics. ThermoMPNN-D was not retrained: its training data is byte-identical in both conditions.
 
-## 3. ProteinGym v1.3
+## 4. ProteinGym v1.3
 
 213 DMS that every model scored (BRCA1, BRCA2, POLG_CXB3N and SCN5A excluded: > 1,800 residues, out of
 memory for at least one model). **PG avg** = mean of the five category means (a plain mean over DMS within a
@@ -139,7 +320,7 @@ ProteinGym's own AF2 structures.
 - **ProteinMPNN test-time ensembling:** averaging three decoding orders +0.0003; a 0.2 Å backbone-noise
   ensemble of 8 +0.0017 on a 73-DMS pilot (50/73 up, t = 1.29). Not worth a full run.
 
-## 4. Third-party stability predictors (`~/stability-baselines`)
+## 5. Third-party stability predictors (`~/stability-baselines`)
 
 Mean Spearman, positive = stabilizing. External sets and DMS pooled; Tsuboyama and Domainome are the mean of
 per-protein ρ. "ESM-MSR-small" is the March reference model (crystal / AF2 wild-type structures).
@@ -166,7 +347,7 @@ per-protein ρ. "ESM-MSR-small" is the March reference model (crystal / AF2 wild
 - **Indexing audit:** all 944,018 unique variants over 22 datasets, 0 wild-type mismatches; a shifted-by-one
   negative control flags 94 %.
 
-## 5. Where the code went
+## 6. Where the code went
 
 Committed to `devel-revision` (this consolidation and the 2026-10-16 merge `65e9067`):
 
@@ -191,7 +372,7 @@ Slurm and cluster-specific scripts stay out):
   (conda env `spurs_higher`), ColabFold MSAs.
 - `~/project_oct06_baselines/` — a symlink index over all of workstream A, with `README.md` and `RUNS.md`.
 
-## 6. Data and scoring problems found along the way
+## 7. Data and scoring problems found along the way
 
 These change numbers, so anything scored before the fix date is suspect.
 
@@ -211,7 +392,7 @@ These change numbers, so anything scored before the fix date is suspect.
    table is kept as `epi_val_filtered_DO_NOT_USE.csv`.
 5. **Destabilized backbones in test.** 7 of 37 test libraries carry a background mutation, and only models
    trained with mutant-background rows have seen the pattern. The baseline ddG tables default to
-   `--test_backbones wt_only` (40,866 rows); epistasis columns are unaffected (§2.2).
+   `--test_backbones wt_only` (40,866 rows); epistasis columns are unaffected (§3.2).
 6. **Upstream ME flips the ground-truth sign** when more than half of `ddg` is negative (Ssym, GB1). All
    reported scoring reads `ddG_ML` from ESM-MSR's truth instead.
 7. **Subset relations** used to align external sets: S461 ⊂ S669, K2369 ⊂ K3822, PTMUL-D ⊂ PTMUL.
@@ -222,14 +403,7 @@ These change numbers, so anything scored before the fix date is suspect.
    it, and the file disappeared mid-campaign; it was restored from `devel-experimental` (blob `10c6aec1`). Local
    `devel-revision` tracks the identical blob.
 
-## 7. Open items as of 2026-10-21
+## 8. Open items
 
-- dc8 ProteinGym ε = 0.5 (s3) and ε = 0.25 (s1–s3): 177/213, expected to finish late 10-21. Then a combined
-  dc8 per-DMS CSV still has to be written into `outputs/pgym/`.
-- MT-pass ablation job 386255: ~6 days on gpu3 at the current speed; moving it to an A4500 (~33 h) needs a
-  `scancel` decision.
-- DDMut Tsuboyama doubles: still submitting to the server.
-- The cluster checkout `~/esm-msr-devel` is one commit ahead of `origin/devel-revision` (now consolidated
-  here) with uncommitted edits (also consolidated here) and staged `data/preprocessed/*_mapped.csv` changes that
-  only rewrite structure paths to cluster locations — do not commit those.
-- Cleanup awaiting approval: `~/esm-msr-rev` (old work clone) and `outputs/pgym_verify_rev/`.
+Moved to [`OUTSTANDING_EXPERIMENTS.md`](OUTSTANDING_EXPERIMENTS.md), which tracks what is queued, blocked or
+incomplete; where each inference ran is in [`GPU4_INFERENCE_LEDGER.md`](GPU4_INFERENCE_LEDGER.md).

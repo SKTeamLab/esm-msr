@@ -1,0 +1,468 @@
+model,dataset,rho,sd,n_seeds,source
+ESM-MSR capped,s571,0.45597,,1,esm_msr_testing stats
+ESM-MSR capped,s783,0.71711,,1,esm_msr_testing stats
+ESM-MSR capped,s2648,0.664553,,1,esm_msr_testing stats
+ESM-MSR capped,s8754,0.614592,,1,esm_msr_testing stats
+ESM-MSR capped,s669,0.565399,,1,esm_msr_testing stats
+ESM-MSR capped,s461,0.756357,,1,esm_msr_testing stats
+ESM-MSR capped,ssym,0.750822,,1,esm_msr_testing stats
+ESM-MSR capped,q3421,0.617445,,1,esm_msr_testing stats
+ESM-MSR capped,k3822,0.715247,,1,esm_msr_testing stats
+ESM-MSR capped,k2369,0.714273,,1,esm_msr_testing stats
+ESM-MSR capped,ptmul,0.595371,,1,esm_msr_testing stats
+ESM-MSR capped,ptmuld,0.601495,,1,esm_msr_testing stats
+ESM-MSR capped,DLG4_HUMAN_Faure_2021_abundance_domain,0.726369,,1,esm_msr_testing stats
+ESM-MSR capped,DLG4_HUMAN_Faure_2021_binding_domain,0.725378,,1,esm_msr_testing stats
+ESM-MSR capped,GRB2_HUMAN_Faure_2021_abundance_domain,0.672507,,1,esm_msr_testing stats
+ESM-MSR capped,GRB2_HUMAN_Faure_2021_binding_domain,0.619261,,1,esm_msr_testing stats
+ESM-MSR capped,MYO_HUMAN_Kung_2025_display,0.639345,,1,esm_msr_testing stats
+ESM-MSR capped,ESTA_BACSU_Nutschel_2020_dTm,0.478819,,1,esm_msr_testing stats
+ESM-MSR capped,GB1_Wu_2016_binding_domain,0.346024,,1,esm_msr_testing stats
+ESM-MSR capped,domainome,0.541634,,1,esm_msr_testing stats
+ESM-MSR capped,tsu_capped_val,0.853601,,1,esm_msr_testing stats
+ESM-MSR capped,tsu_capped_test,0.842744,,1,esm_msr_testing stats
+ESM-MSR capped WT,s571,0.441918,,1,esm_msr_testing stats
+ESM-MSR capped WT,s783,0.703122,,1,esm_msr_testing stats
+ESM-MSR capped WT,s2648,0.657401,,1,esm_msr_testing stats
+ESM-MSR capped WT,s8754,0.605708,,1,esm_msr_testing stats
+ESM-MSR capped WT,s669,0.546602,,1,esm_msr_testing stats
+ESM-MSR capped WT,s461,0.748262,,1,esm_msr_testing stats
+ESM-MSR capped WT,ssym,0.752229,,1,esm_msr_testing stats
+ESM-MSR capped WT,q3421,0.613354,,1,esm_msr_testing stats
+ESM-MSR capped WT,k3822,0.713687,,1,esm_msr_testing stats
+ESM-MSR capped WT,k2369,0.710651,,1,esm_msr_testing stats
+ESM-MSR capped WT,ptmul,0.567581,,1,esm_msr_testing stats
+ESM-MSR capped WT,ptmuld,0.586104,,1,esm_msr_testing stats
+ESM-MSR capped WT,DLG4_HUMAN_Faure_2021_abundance_domain,0.722538,,1,esm_msr_testing stats
+ESM-MSR capped WT,DLG4_HUMAN_Faure_2021_binding_domain,0.728425,,1,esm_msr_testing stats
+ESM-MSR capped WT,GRB2_HUMAN_Faure_2021_abundance_domain,0.668892,,1,esm_msr_testing stats
+ESM-MSR capped WT,GRB2_HUMAN_Faure_2021_binding_domain,0.63282,,1,esm_msr_testing stats
+ESM-MSR capped WT,MYO_HUMAN_Kung_2025_display,0.63688,,1,esm_msr_testing stats
+ESM-MSR capped WT,ESTA_BACSU_Nutschel_2020_dTm,0.465729,,1,esm_msr_testing stats
+ESM-MSR capped WT,GB1_Wu_2016_binding_domain,0.337605,,1,esm_msr_testing stats
+ESM-MSR capped WT,domainome,0.54042,,1,esm_msr_testing stats
+ESM-MSR capped WT,tsu_capped_val,0.84089,,1,esm_msr_testing stats
+ESM-MSR capped WT,tsu_capped_test,0.823649,,1,esm_msr_testing stats
+ESM-MSR capped MT,s571,0.451474,,1,esm_msr_testing stats
+ESM-MSR capped MT,s783,0.69657,,1,esm_msr_testing stats
+ESM-MSR capped MT,s2648,0.634449,,1,esm_msr_testing stats
+ESM-MSR capped MT,s8754,0.596168,,1,esm_msr_testing stats
+ESM-MSR capped MT,s669,0.561362,,1,esm_msr_testing stats
+ESM-MSR capped MT,s461,0.725445,,1,esm_msr_testing stats
+ESM-MSR capped MT,ssym,0.713833,,1,esm_msr_testing stats
+ESM-MSR capped MT,q3421,0.589045,,1,esm_msr_testing stats
+ESM-MSR capped MT,k3822,0.681249,,1,esm_msr_testing stats
+ESM-MSR capped MT,k2369,0.682122,,1,esm_msr_testing stats
+ESM-MSR capped MT,ptmul,0.544765,,1,esm_msr_testing stats
+ESM-MSR capped MT,ptmuld,0.532907,,1,esm_msr_testing stats
+ESM-MSR capped MT,DLG4_HUMAN_Faure_2021_abundance_domain,0.705189,,1,esm_msr_testing stats
+ESM-MSR capped MT,DLG4_HUMAN_Faure_2021_binding_domain,0.695778,,1,esm_msr_testing stats
+ESM-MSR capped MT,GRB2_HUMAN_Faure_2021_abundance_domain,0.627306,,1,esm_msr_testing stats
+ESM-MSR capped MT,GRB2_HUMAN_Faure_2021_binding_domain,0.560011,,1,esm_msr_testing stats
+ESM-MSR capped MT,MYO_HUMAN_Kung_2025_display,0.621987,,1,esm_msr_testing stats
+ESM-MSR capped MT,ESTA_BACSU_Nutschel_2020_dTm,0.467383,,1,esm_msr_testing stats
+ESM-MSR capped MT,GB1_Wu_2016_binding_domain,0.302021,,1,esm_msr_testing stats
+ESM-MSR capped MT,domainome,0.52009,,1,esm_msr_testing stats
+ESM-MSR capped MT,tsu_capped_val,0.816764,,1,esm_msr_testing stats
+ESM-MSR capped MT,tsu_capped_test,0.812849,,1,esm_msr_testing stats
+ESM-MSR dc8,s571,0.44528666666666666,0.005233982380134226,3,esm_msr_testing stats
+ESM-MSR dc8,s783,0.7248316666666667,0.004705476336733175,3,esm_msr_testing stats
+ESM-MSR dc8,s2648,0.676978,0.004629012925739871,3,esm_msr_testing stats
+ESM-MSR dc8,s8754,0.6250336666666666,0.0031519687322194255,3,esm_msr_testing stats
+ESM-MSR dc8,s669,0.5597066666666666,0.003501393278237772,3,esm_msr_testing stats
+ESM-MSR dc8,s461,0.7534496666666667,0.0034864318276554658,3,esm_msr_testing stats
+ESM-MSR dc8,ssym,0.7729203333333333,0.0015248069458860146,3,esm_msr_testing stats
+ESM-MSR dc8,q3421,0.6255913333333333,0.004469872580833693,3,esm_msr_testing stats
+ESM-MSR dc8,k3822,0.7209366666666667,0.003136400307500412,3,esm_msr_testing stats
+ESM-MSR dc8,k2369,0.7218613333333334,0.0035007852769851225,3,esm_msr_testing stats
+ESM-MSR dc8,ptmul,0.593794,0.0034471658890553136,3,esm_msr_testing stats
+ESM-MSR dc8,ptmuld,0.5965919999999999,0.006368346881255788,3,esm_msr_testing stats
+ESM-MSR dc8,DLG4_HUMAN_Faure_2021_abundance_domain,0.7449486666666667,0.003929738017844056,3,esm_msr_testing stats
+ESM-MSR dc8,DLG4_HUMAN_Faure_2021_binding_domain,0.7421989999999999,0.0032327729067577263,3,esm_msr_testing stats
+ESM-MSR dc8,GRB2_HUMAN_Faure_2021_abundance_domain,0.681672,0.0008850054613767448,3,esm_msr_testing stats
+ESM-MSR dc8,GRB2_HUMAN_Faure_2021_binding_domain,0.6360503333333333,0.00408079210720448,3,esm_msr_testing stats
+ESM-MSR dc8,MYO_HUMAN_Kung_2025_display,0.6394246666666666,0.0015055692906302568,3,esm_msr_testing stats
+ESM-MSR dc8,ESTA_BACSU_Nutschel_2020_dTm,0.4810303333333333,0.0063456825392457904,3,esm_msr_testing stats
+ESM-MSR dc8,GB1_Wu_2016_binding_domain,0.33656900000000006,0.002729317863496284,3,esm_msr_testing stats
+ESM-MSR dc8,domainome,0.542822,0.0016349986748210843,3,esm_msr_testing stats
+ESM-MSR dc8,tsu_capped_val,0.8537500000000001,0.000792646621557614,3,esm_msr_testing stats
+ESM-MSR dc8,tsu_capped_test,0.8486706666666667,0.0010818115465376428,3,esm_msr_testing stats
+ESM-MSR dc8 WT,s571,0.43080999999999997,0.005306539173510374,3,esm_msr_testing stats
+ESM-MSR dc8 WT,s783,0.7130066666666668,0.0036873244440319467,3,esm_msr_testing stats
+ESM-MSR dc8 WT,s2648,0.675033,0.0016455906740944673,3,esm_msr_testing stats
+ESM-MSR dc8 WT,s8754,0.6177783333333333,0.0008934563348156859,3,esm_msr_testing stats
+ESM-MSR dc8 WT,s669,0.5513396666666667,0.00490919696986064,3,esm_msr_testing stats
+ESM-MSR dc8 WT,s461,0.7530193333333334,0.003642858798007688,3,esm_msr_testing stats
+ESM-MSR dc8 WT,ssym,0.7757873333333333,0.0007379061969895175,3,esm_msr_testing stats
+ESM-MSR dc8 WT,q3421,0.6231216666666667,0.001999441644281962,3,esm_msr_testing stats
+ESM-MSR dc8 WT,k3822,0.7195406666666666,0.003127580996375419,3,esm_msr_testing stats
+ESM-MSR dc8 WT,k2369,0.7165670000000001,0.0018629054368557152,3,esm_msr_testing stats
+ESM-MSR dc8 WT,ptmul,0.5804516666666667,0.007696740709908033,3,esm_msr_testing stats
+ESM-MSR dc8 WT,ptmuld,0.584352,0.0028295163308711528,3,esm_msr_testing stats
+ESM-MSR dc8 WT,DLG4_HUMAN_Faure_2021_abundance_domain,0.7486876666666666,0.001836453889671308,3,esm_msr_testing stats
+ESM-MSR dc8 WT,DLG4_HUMAN_Faure_2021_binding_domain,0.7521026666666667,0.002410350504709949,3,esm_msr_testing stats
+ESM-MSR dc8 WT,GRB2_HUMAN_Faure_2021_abundance_domain,0.6846336666666666,0.004320570204138424,3,esm_msr_testing stats
+ESM-MSR dc8 WT,GRB2_HUMAN_Faure_2021_binding_domain,0.6559986666666666,0.0031997046044213886,3,esm_msr_testing stats
+ESM-MSR dc8 WT,MYO_HUMAN_Kung_2025_display,0.6409703333333333,0.0014771509363937067,3,esm_msr_testing stats
+ESM-MSR dc8 WT,ESTA_BACSU_Nutschel_2020_dTm,0.47792866666666667,0.004683007319613723,3,esm_msr_testing stats
+ESM-MSR dc8 WT,GB1_Wu_2016_binding_domain,0.36524466666666666,0.011163936651358942,3,esm_msr_testing stats
+ESM-MSR dc8 WT,domainome,0.5482276666666667,0.0007518959738923407,3,esm_msr_testing stats
+ESM-MSR dc8 WT,tsu_capped_val,0.83594,0.0007725300425657859,3,esm_msr_testing stats
+ESM-MSR dc8 WT,tsu_capped_test,0.8268103333333333,0.0014219756991203838,3,esm_msr_testing stats
+ESM-MSR dc8 MT,s571,0.437777,0.010962737097398026,3,esm_msr_testing stats
+ESM-MSR dc8 MT,s783,0.7034493333333334,0.006454437560486743,3,esm_msr_testing stats
+ESM-MSR dc8 MT,s2648,0.6390076666666666,0.008132129910969727,3,esm_msr_testing stats
+ESM-MSR dc8 MT,s8754,0.6034656666666667,0.004323876681353863,3,esm_msr_testing stats
+ESM-MSR dc8 MT,s669,0.5386273333333333,0.0053571680536973485,3,esm_msr_testing stats
+ESM-MSR dc8 MT,s461,0.7089783333333334,0.007021676738658777,3,esm_msr_testing stats
+ESM-MSR dc8 MT,ssym,0.7365866666666667,0.006219723591571848,3,esm_msr_testing stats
+ESM-MSR dc8 MT,q3421,0.5946996666666667,0.006641233285735052,3,esm_msr_testing stats
+ESM-MSR dc8 MT,k3822,0.6879843333333334,0.002725631955263898,3,esm_msr_testing stats
+ESM-MSR dc8 MT,k2369,0.6940656666666666,0.004813511631046729,3,esm_msr_testing stats
+ESM-MSR dc8 MT,ptmul,0.5277766666666667,0.009592931854003554,3,esm_msr_testing stats
+ESM-MSR dc8 MT,ptmuld,0.5237293333333333,0.017904054705258503,3,esm_msr_testing stats
+ESM-MSR dc8 MT,DLG4_HUMAN_Faure_2021_abundance_domain,0.7182043333333333,0.012418343564618007,3,esm_msr_testing stats
+ESM-MSR dc8 MT,DLG4_HUMAN_Faure_2021_binding_domain,0.7071926666666667,0.011756614998468851,3,esm_msr_testing stats
+ESM-MSR dc8 MT,GRB2_HUMAN_Faure_2021_abundance_domain,0.6317123333333333,0.013056700459491598,3,esm_msr_testing stats
+ESM-MSR dc8 MT,GRB2_HUMAN_Faure_2021_binding_domain,0.5703533333333334,0.008450355271952906,3,esm_msr_testing stats
+ESM-MSR dc8 MT,MYO_HUMAN_Kung_2025_display,0.6162880000000001,0.003747850672941324,3,esm_msr_testing stats
+ESM-MSR dc8 MT,ESTA_BACSU_Nutschel_2020_dTm,0.45710933333333337,0.007864279256373214,3,esm_msr_testing stats
+ESM-MSR dc8 MT,GB1_Wu_2016_binding_domain,0.24276166666666665,0.020024991491189754,3,esm_msr_testing stats
+ESM-MSR dc8 MT,domainome,0.508956,0.004015278819708517,3,esm_msr_testing stats
+ESM-MSR dc8 MT,tsu_capped_val,0.8251616666666667,0.0022868913883746724,3,esm_msr_testing stats
+ESM-MSR dc8 MT,tsu_capped_test,0.8201076666666666,0.003304038169002032,3,esm_msr_testing stats
+ME stage1,s669,0.5592,0.0062,3,combined_external_table
+ME stage1,s461,0.7211,0.0133,3,combined_external_table
+ME stage1,ssym,0.6736,0.0076,3,combined_external_table
+ME stage1,s571,0.4387,0.0063,3,combined_external_table
+ME stage1,s783,0.7056,0.0066,3,combined_external_table
+ME stage1,s2648,0.7012,0.0089,3,combined_external_table
+ME stage1,s8754,0.6234,0.0041,3,combined_external_table
+ME stage1,q3421,0.6379,0.0069,3,combined_external_table
+ME stage1,k3822,0.6961,0.007,3,combined_external_table
+ME stage1,k2369,0.6738,0.0058,3,combined_external_table
+ME stage1,ptmul,0.4717,0.0589,3,combined_external_table
+ME stage1,ptmuld,0.4797,0.0422,3,combined_external_table
+ME stage2,s669,0.5406,0.0039,3,combined_external_table
+ME stage2,s461,0.7087,0.0039,3,combined_external_table
+ME stage2,ssym,0.6317,0.0032,3,combined_external_table
+ME stage2,s571,0.4242,0.0133,3,combined_external_table
+ME stage2,s783,0.6866,0.0136,3,combined_external_table
+ME stage2,s2648,0.6687,0.006,3,combined_external_table
+ME stage2,s8754,0.5978,0.0074,3,combined_external_table
+ME stage2,q3421,0.6149,0.0015,3,combined_external_table
+ME stage2,k3822,0.6731,0.0132,3,combined_external_table
+ME stage2,k2369,0.6568,0.0104,3,combined_external_table
+ME stage2,ptmul,0.4907,0.059,3,combined_external_table
+ME stage2,ptmuld,0.4902,0.0275,3,combined_external_table
+TMPNN,s669,0.4904,0.01,3,combined_external_table
+TMPNN,s461,0.6553,0.0146,3,combined_external_table
+TMPNN,ssym,0.7106,0.0112,3,combined_external_table
+TMPNN,s571,0.4055,0.0069,3,combined_external_table
+TMPNN,s783,0.6887,0.0016,3,combined_external_table
+TMPNN,s2648,0.6477,0.0043,3,combined_external_table
+TMPNN,s8754,0.602,0.0029,3,combined_external_table
+TMPNN,q3421,0.5905,0.004,3,combined_external_table
+TMPNN,k3822,0.6431,0.0048,3,combined_external_table
+TMPNN,k2369,0.649,0.0057,3,combined_external_table
+TMPNN,ptmul,0.4333,0.022,3,combined_external_table
+TMPNN,ptmuld,0.4995,0.0244,3,combined_external_table
+TMPNN+D,s669,0.4904,0.01,3,combined_external_table
+TMPNN+D,s461,0.6553,0.0146,3,combined_external_table
+TMPNN+D,ssym,0.7106,0.0112,3,combined_external_table
+TMPNN+D,s571,0.4055,0.0069,3,combined_external_table
+TMPNN+D,s783,0.6887,0.0016,3,combined_external_table
+TMPNN+D,s2648,0.6477,0.0043,3,combined_external_table
+TMPNN+D,s8754,0.602,0.0029,3,combined_external_table
+TMPNN+D,q3421,0.5905,0.004,3,combined_external_table
+TMPNN+D,k3822,0.6431,0.0048,3,combined_external_table
+TMPNN+D,k2369,0.649,0.0057,3,combined_external_table
+TMPNN+D,ptmul,0.4267,0.0372,3,combined_external_table
+TMPNN+D,ptmuld,0.5018,0.0302,3,combined_external_table
+TMPNN+D,DLG4_HUMAN_Faure_2021_abundance_domain,0.5739,0.0351,3,final_dms_table
+TMPNN,DLG4_HUMAN_Faure_2021_abundance_domain,0.6258,0.0233,3,final_dms_table
+ME stage1,DLG4_HUMAN_Faure_2021_abundance_domain,0.707,0.0294,3,final_dms_table
+ME stage1+,DLG4_HUMAN_Faure_2021_abundance_domain,0.7291,0.0199,3,final_dms_table
+ME stage2,DLG4_HUMAN_Faure_2021_abundance_domain,0.6548,0.0135,3,final_dms_table
+ME stage2+,DLG4_HUMAN_Faure_2021_abundance_domain,0.7102,0.0039,3,final_dms_table
+TMPNN+D,DLG4_HUMAN_Faure_2021_binding_domain,0.5879,0.0326,3,final_dms_table
+TMPNN,DLG4_HUMAN_Faure_2021_binding_domain,0.6316,0.0206,3,final_dms_table
+ME stage1,DLG4_HUMAN_Faure_2021_binding_domain,0.6806,0.0323,3,final_dms_table
+ME stage1+,DLG4_HUMAN_Faure_2021_binding_domain,0.7136,0.0221,3,final_dms_table
+ME stage2,DLG4_HUMAN_Faure_2021_binding_domain,0.6442,0.0117,3,final_dms_table
+ME stage2+,DLG4_HUMAN_Faure_2021_binding_domain,0.6947,0.0044,3,final_dms_table
+TMPNN+D,GRB2_HUMAN_Faure_2021_abundance_domain,0.5652,0.0025,3,final_dms_table
+TMPNN,GRB2_HUMAN_Faure_2021_abundance_domain,0.6134,0.0093,3,final_dms_table
+ME stage1,GRB2_HUMAN_Faure_2021_abundance_domain,0.6457,0.017,3,final_dms_table
+ME stage1+,GRB2_HUMAN_Faure_2021_abundance_domain,0.69,0.0085,3,final_dms_table
+ME stage2,GRB2_HUMAN_Faure_2021_abundance_domain,0.6236,0.014,3,final_dms_table
+ME stage2+,GRB2_HUMAN_Faure_2021_abundance_domain,0.6749,0.0102,3,final_dms_table
+TMPNN+D,GRB2_HUMAN_Faure_2021_binding_domain,0.5613,0.0144,3,final_dms_table
+TMPNN,GRB2_HUMAN_Faure_2021_binding_domain,0.5687,0.0077,3,final_dms_table
+ME stage1,GRB2_HUMAN_Faure_2021_binding_domain,0.5814,0.0608,3,final_dms_table
+ME stage1+,GRB2_HUMAN_Faure_2021_binding_domain,0.6152,0.0279,3,final_dms_table
+ME stage2,GRB2_HUMAN_Faure_2021_binding_domain,0.6006,0.0269,3,final_dms_table
+ME stage2+,GRB2_HUMAN_Faure_2021_binding_domain,0.6348,0.0247,3,final_dms_table
+TMPNN+D,MYO_HUMAN_Kung_2025_display,0.5401,0.0056,3,final_dms_table
+TMPNN,MYO_HUMAN_Kung_2025_display,0.57,0.0049,3,final_dms_table
+ME stage1,MYO_HUMAN_Kung_2025_display,0.5804,0.0074,3,final_dms_table
+ME stage1+,MYO_HUMAN_Kung_2025_display,0.6029,0.0052,3,final_dms_table
+ME stage2,MYO_HUMAN_Kung_2025_display,0.566,0.0042,3,final_dms_table
+ME stage2+,MYO_HUMAN_Kung_2025_display,0.5972,0.0045,3,final_dms_table
+TMPNN+D,ESTA_BACSU_Nutschel_2020_dTm,0.4051,0.0102,3,final_dms_table
+TMPNN,ESTA_BACSU_Nutschel_2020_dTm,0.4051,0.0102,3,final_dms_table
+ME stage1,ESTA_BACSU_Nutschel_2020_dTm,0.4831,0.0143,3,final_dms_table
+ME stage1+,ESTA_BACSU_Nutschel_2020_dTm,0.4831,0.0143,3,final_dms_table
+ME stage2,ESTA_BACSU_Nutschel_2020_dTm,0.4414,0.0196,3,final_dms_table
+ME stage2+,ESTA_BACSU_Nutschel_2020_dTm,0.4414,0.0196,3,final_dms_table
+TMPNN+D,GB1_Wu_2016_binding_domain,0.3177,0.0038,3,final_dms_table
+TMPNN,GB1_Wu_2016_binding_domain,0.3185,0.0037,3,final_dms_table
+ME stage1,GB1_Wu_2016_binding_domain,0.2959,0.0098,3,final_dms_table
+ME stage1+,GB1_Wu_2016_binding_domain,0.2866,0.0329,3,final_dms_table
+ME stage2,GB1_Wu_2016_binding_domain,0.2838,0.0411,3,final_dms_table
+ME stage2+,GB1_Wu_2016_binding_domain,0.2855,0.0431,3,final_dms_table
+TMPNN,domainome,0.4497,0.007,3,final_domainome_table
+ME stage1,domainome,0.5198,0.0042,3,final_domainome_table
+ME stage2,domainome,0.511,0.0031,3,final_domainome_table
+ME stage1,tsu_capped_val,0.7508,0.0039,3,combined_val_table.csv
+ME stage2,tsu_capped_val,0.727,0.0034,3,combined_val_table.csv
+TMPNN,tsu_capped_val,0.785,0.0015,3,combined_val_table.csv
+TMPNN+D,tsu_capped_val,0.7822,0.0039,3,combined_val_table.csv
+ME stage1,tsu_capped_test,0.7709,0.0023,3,combined_test_table.csv
+ME stage2,tsu_capped_test,0.7619,0.0025,3,combined_test_table.csv
+TMPNN,tsu_capped_test,0.7942,0.002,3,combined_test_table.csv
+TMPNN+D,tsu_capped_test,0.7834,0.0021,3,combined_test_table.csv
+ESMtherm,s571,0.349,,1,FINAL_TABLE
+ESMtherm,s783,0.4338,,1,FINAL_TABLE
+ESMtherm,s2648,0.3706,,1,FINAL_TABLE
+ESMtherm,s8754,0.3468,,1,FINAL_TABLE
+ESMtherm,s669,0.4139,,1,FINAL_TABLE
+ESMtherm,s461,0.4738,,1,FINAL_TABLE
+ESMtherm,ssym,0.3802,,1,FINAL_TABLE
+ESMtherm,q3421,0.3477,,1,FINAL_TABLE
+ESMtherm,k3822,0.3665,,1,FINAL_TABLE
+ESMtherm,k2369,0.393,,1,FINAL_TABLE
+ESMtherm,ptmul,0.2347,,1,FINAL_TABLE
+ESMtherm,ptmuld,0.2696,,1,FINAL_TABLE
+ESMtherm,tsu_hyperopt_val,0.6913,,1,FINAL_TABLE
+ESMtherm,tsu_hyperopt_test,0.707,,1,FINAL_TABLE
+ESMtherm,DLG4_HUMAN_Faure_2021_abundance_domain,0.0935,,1,FINAL_TABLE
+ESMtherm,DLG4_HUMAN_Faure_2021_binding_domain,0.1355,,1,FINAL_TABLE
+ESMtherm,GRB2_HUMAN_Faure_2021_abundance_domain,0.4836,,1,FINAL_TABLE
+ESMtherm,GRB2_HUMAN_Faure_2021_binding_domain,0.4661,,1,FINAL_TABLE
+ESMtherm,MYO_HUMAN_Kung_2025_display,0.2291,,1,FINAL_TABLE
+ESMtherm,ESTA_BACSU_Nutschel_2020_dTm,-0.0004,,1,FINAL_TABLE
+ESMtherm,GB1_Wu_2016_binding_domain,0.2142,,1,FINAL_TABLE
+ESMtherm,domainome,0.2013,,1,FINAL_TABLE
+DDGemb,s571,0.4841,,1,FINAL_TABLE
+DDGemb,s783,0.6891,,1,FINAL_TABLE
+DDGemb,s2648,0.8948,,1,FINAL_TABLE
+DDGemb,s8754,0.6844,,1,FINAL_TABLE
+DDGemb,s669,0.5701,,1,FINAL_TABLE
+DDGemb,s461,0.6544,,1,FINAL_TABLE
+DDGemb,ssym,0.891,,1,FINAL_TABLE
+DDGemb,q3421,0.7519,,1,FINAL_TABLE
+DDGemb,k3822,0.7448,,1,FINAL_TABLE
+DDGemb,k2369,0.7024,,1,FINAL_TABLE
+DDGemb,ptmul,0.6159,,1,FINAL_TABLE
+DDGemb,ptmuld,0.6783,,1,FINAL_TABLE
+DDGemb,tsu_hyperopt_val,0.6105,,1,FINAL_TABLE
+DDGemb,tsu_hyperopt_test,0.5245,,1,FINAL_TABLE
+DDGemb,DLG4_HUMAN_Faure_2021_abundance_domain,0.1035,,1,FINAL_TABLE
+DDGemb,DLG4_HUMAN_Faure_2021_binding_domain,0.1235,,1,FINAL_TABLE
+DDGemb,GRB2_HUMAN_Faure_2021_abundance_domain,0.4571,,1,FINAL_TABLE
+DDGemb,GRB2_HUMAN_Faure_2021_binding_domain,0.4687,,1,FINAL_TABLE
+DDGemb,MYO_HUMAN_Kung_2025_display,0.4754,,1,FINAL_TABLE
+DDGemb,ESTA_BACSU_Nutschel_2020_dTm,0.1879,,1,FINAL_TABLE
+DDGemb,GB1_Wu_2016_binding_domain,0.154,,1,FINAL_TABLE
+DDGemb,domainome,0.3513,,1,FINAL_TABLE
+DDMut,s571,0.3502,,1,FINAL_TABLE
+DDMut,s783,0.6871,,1,FINAL_TABLE
+DDMut,s2648,0.7311,,1,FINAL_TABLE
+DDMut,s8754,0.6381,,1,FINAL_TABLE
+DDMut [partial],s669,0.4022,,1,FINAL_TABLE cov=0.98
+DDMut [partial],s461,0.5343,,1,FINAL_TABLE cov=0.97
+DDMut,ssym,0.3633,,1,FINAL_TABLE
+DDMut,q3421,0.6526,,1,FINAL_TABLE
+DDMut,k3822,0.709,,1,FINAL_TABLE
+DDMut,k2369,0.6813,,1,FINAL_TABLE
+DDMut,ptmul,0.7253,,1,FINAL_TABLE
+DDMut,ptmuld,0.7175,,1,FINAL_TABLE
+DDMut [partial],tsu_hyperopt_val,0.5421,,1,FINAL_TABLE cov=0.26
+DDMut [partial],tsu_hyperopt_test,0.5824,,1,FINAL_TABLE cov=0.04
+IFUM (WT backbone),s571,0.3763,,1,FINAL_TABLE
+IFUM (WT backbone),s783,0.4977,,1,FINAL_TABLE
+IFUM (WT backbone),s2648,0.4853,,1,FINAL_TABLE
+IFUM (WT backbone),s8754,0.4771,,1,FINAL_TABLE
+IFUM (WT backbone),s669,0.4342,,1,FINAL_TABLE
+IFUM (WT backbone),s461,0.5315,,1,FINAL_TABLE
+IFUM (WT backbone),ssym,0.5739,,1,FINAL_TABLE
+IFUM (WT backbone),q3421,0.4309,,1,FINAL_TABLE
+IFUM (WT backbone),k3822,0.5364,,1,FINAL_TABLE
+IFUM (WT backbone),k2369,0.5468,,1,FINAL_TABLE
+IFUM (WT backbone),ptmul,0.3498,,1,FINAL_TABLE
+IFUM (WT backbone),ptmuld,0.4047,,1,FINAL_TABLE
+IFUM (WT backbone),tsu_hyperopt_val,0.7462,,1,FINAL_TABLE
+IFUM (WT backbone),tsu_hyperopt_test,0.697,,1,FINAL_TABLE
+IFUM (WT backbone),DLG4_HUMAN_Faure_2021_abundance_domain,0.766,,1,FINAL_TABLE
+IFUM (WT backbone),DLG4_HUMAN_Faure_2021_binding_domain,0.7677,,1,FINAL_TABLE
+IFUM (WT backbone),GRB2_HUMAN_Faure_2021_abundance_domain,0.6484,,1,FINAL_TABLE
+IFUM (WT backbone),GRB2_HUMAN_Faure_2021_binding_domain,0.5649,,1,FINAL_TABLE
+IFUM (WT backbone),MYO_HUMAN_Kung_2025_display,0.5066,,1,FINAL_TABLE
+IFUM (WT backbone),ESTA_BACSU_Nutschel_2020_dTm,0.1895,,1,FINAL_TABLE
+IFUM (WT backbone),GB1_Wu_2016_binding_domain,0.2619,,1,FINAL_TABLE
+IFUM (WT backbone),domainome,0.4636,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",s571,0.3847,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",s783,0.4712,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",s2648,0.4839,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",s8754,0.4511,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",s669,0.4091,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",s461,0.5418,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",ssym,0.5804,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",q3421,0.4331,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",k3822,0.5083,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",k2369,0.5118,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",ptmul,0.3907,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",ptmuld,0.4428,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",tsu_hyperopt_val,0.7781,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",tsu_hyperopt_test,0.7378,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",DLG4_HUMAN_Faure_2021_abundance_domain,0.7618,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",DLG4_HUMAN_Faure_2021_binding_domain,0.7468,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",GRB2_HUMAN_Faure_2021_abundance_domain,0.6966,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",GRB2_HUMAN_Faure_2021_binding_domain,0.5754,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",MYO_HUMAN_Kung_2025_display,0.5231,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",ESTA_BACSU_Nutschel_2020_dTm,0.2172,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",GB1_Wu_2016_binding_domain,0.2838,,1,FINAL_TABLE
+"IFUM (native, ESMFold)",domainome,0.4731,,1,FINAL_TABLE
+GeoDDG-3D,s571,0.5262,,1,FINAL_TABLE
+GeoDDG-3D,s783,0.8646,,1,FINAL_TABLE
+GeoDDG-3D,s2648,0.8922,,1,FINAL_TABLE
+GeoDDG-3D,s8754,0.8407,,1,FINAL_TABLE
+GeoDDG-3D,s669,0.6149,,1,FINAL_TABLE
+GeoDDG-3D,s461,0.6641,,1,FINAL_TABLE
+GeoDDG-3D,ssym,0.914,,1,FINAL_TABLE
+GeoDDG-3D,q3421,0.8215,,1,FINAL_TABLE
+GeoDDG-3D,k3822,0.8518,,1,FINAL_TABLE
+GeoDDG-3D,k2369,0.8305,,1,FINAL_TABLE
+GeoDDG-3D,ptmul,0.7171,,1,FINAL_TABLE
+GeoDDG-3D,ptmuld,0.6689,,1,FINAL_TABLE
+GeoDDG-3D,tsu_hyperopt_val,0.61,,1,FINAL_TABLE
+GeoDDG-3D,tsu_hyperopt_test,0.5573,,1,FINAL_TABLE
+GeoDDG-3D,DLG4_HUMAN_Faure_2021_abundance_domain,0.351,,1,FINAL_TABLE
+GeoDDG-3D,DLG4_HUMAN_Faure_2021_binding_domain,0.4306,,1,FINAL_TABLE
+GeoDDG-3D,GRB2_HUMAN_Faure_2021_abundance_domain,0.6043,,1,FINAL_TABLE
+GeoDDG-3D,GRB2_HUMAN_Faure_2021_binding_domain,0.481,,1,FINAL_TABLE
+GeoDDG-3D,MYO_HUMAN_Kung_2025_display,0.3949,,1,FINAL_TABLE
+GeoDDG-3D,ESTA_BACSU_Nutschel_2020_dTm,0.2403,,1,FINAL_TABLE
+GeoDDG-3D,GB1_Wu_2016_binding_domain,0.1997,,1,FINAL_TABLE
+GeoDDG-3D,domainome,0.4132,,1,FINAL_TABLE
+ProSST,s571,0.3096,,1,FINAL_TABLE
+ProSST,s783,0.5635,,1,FINAL_TABLE
+ProSST,s2648,0.4356,,1,FINAL_TABLE
+ProSST,s8754,0.4278,,1,FINAL_TABLE
+ProSST,s669,0.3693,,1,FINAL_TABLE
+ProSST,s461,0.5611,,1,FINAL_TABLE
+ProSST,ssym,0.5186,,1,FINAL_TABLE
+ProSST,q3421,0.4163,,1,FINAL_TABLE
+ProSST,k3822,0.4762,,1,FINAL_TABLE
+ProSST,k2369,0.4967,,1,FINAL_TABLE
+ProSST,ptmul,0.1816,,1,FINAL_TABLE
+ProSST,ptmuld,0.3172,,1,FINAL_TABLE
+ProSST,tsu_hyperopt_val,0.6069,,1,FINAL_TABLE
+ProSST,tsu_hyperopt_test,0.5943,,1,FINAL_TABLE
+ProSST,DLG4_HUMAN_Faure_2021_abundance_domain,0.7756,,1,FINAL_TABLE
+ProSST,DLG4_HUMAN_Faure_2021_binding_domain,0.7964,,1,FINAL_TABLE
+ProSST,GRB2_HUMAN_Faure_2021_abundance_domain,0.7113,,1,FINAL_TABLE
+ProSST,GRB2_HUMAN_Faure_2021_binding_domain,0.7019,,1,FINAL_TABLE
+ProSST,MYO_HUMAN_Kung_2025_display,0.5382,,1,FINAL_TABLE
+ProSST,ESTA_BACSU_Nutschel_2020_dTm,0.3565,,1,FINAL_TABLE
+ProSST,GB1_Wu_2016_binding_domain,0.2581,,1,FINAL_TABLE
+ProSST,domainome,0.5193,,1,FINAL_TABLE
+ESM3dG,s571,0.5109,,1,FINAL_TABLE
+ESM3dG,s783,0.6535,,1,FINAL_TABLE
+ESM3dG,s2648,0.6425,,1,FINAL_TABLE
+ESM3dG,s8754,0.5425,,1,FINAL_TABLE
+ESM3dG,s669,0.5635,,1,FINAL_TABLE
+ESM3dG,s461,0.6815,,1,FINAL_TABLE
+ESM3dG,ssym,0.7346,,1,FINAL_TABLE
+ESM3dG,q3421,0.5723,,1,FINAL_TABLE
+ESM3dG,k3822,0.5891,,1,FINAL_TABLE
+ESM3dG,k2369,0.5984,,1,FINAL_TABLE
+ESM3dG,ptmul,0.4093,,1,FINAL_TABLE
+ESM3dG,ptmuld,0.4818,,1,FINAL_TABLE
+ESM3dG,tsu_hyperopt_val,0.7902,,1,FINAL_TABLE
+ESM3dG,tsu_hyperopt_test,0.7444,,1,FINAL_TABLE
+ESM3dG,DLG4_HUMAN_Faure_2021_abundance_domain,0.7626,,1,FINAL_TABLE
+ESM3dG,DLG4_HUMAN_Faure_2021_binding_domain,0.7658,,1,FINAL_TABLE
+ESM3dG,GRB2_HUMAN_Faure_2021_abundance_domain,0.7487,,1,FINAL_TABLE
+ESM3dG,GRB2_HUMAN_Faure_2021_binding_domain,0.6457,,1,FINAL_TABLE
+ESM3dG,MYO_HUMAN_Kung_2025_display,0.594,,1,FINAL_TABLE
+ESM3dG,ESTA_BACSU_Nutschel_2020_dTm,0.2797,,1,FINAL_TABLE
+ESM3dG,GB1_Wu_2016_binding_domain,0.3238,,1,FINAL_TABLE
+ESM3dG,domainome,0.5119,,1,FINAL_TABLE
+"ESM-MSR-small (March, crystal)",s571,0.447,,1,FINAL_TABLE
+"ESM-MSR-small (March, crystal)",s783,0.7136,,1,FINAL_TABLE
+"ESM-MSR-small (March, crystal)",s2648,0.6774,,1,FINAL_TABLE
+"ESM-MSR-small (March, crystal)",s8754,0.6143,,1,FINAL_TABLE
+"ESM-MSR-small (March, crystal)",s669,0.5423,,1,FINAL_TABLE
+"ESM-MSR-small (March, crystal)",s461,0.7428,,1,FINAL_TABLE
+"ESM-MSR-small (March, crystal)",ssym,0.7809,,1,FINAL_TABLE
+"ESM-MSR-small (March, crystal)",q3421,0.6205,,1,FINAL_TABLE
+"ESM-MSR-small (March, crystal)",k3822,0.7008,,1,FINAL_TABLE
+"ESM-MSR-small (March, crystal)",k2369,0.7044,,1,FINAL_TABLE
+"ESM-MSR-small (March, crystal)",ptmul,0.5428,,1,FINAL_TABLE
+"ESM-MSR-small (March, crystal)",ptmuld,0.5768,,1,FINAL_TABLE
+ESM3-medium zero-shot,ptmul,0.2953586917777964,,1,esm3_forge stats
+ESM3-medium zero-shot,q3421,0.4500985737170622,,1,esm3_forge stats
+ESM3-medium zero-shot,s669,0.3422273815700857,,1,esm3_forge stats
+ESM3-medium zero-shot,ssym,0.6326363087664545,,1,esm3_forge stats
+ESM3-medium zero-shot,k3822,0.4834970058279706,,1,esm3_forge stats
+ESM3-medium zero-shot,s571,0.3318831109567112,,1,esm3_forge stats
+ESM3-medium zero-shot,s783,0.552485979724569,,1,esm3_forge stats
+ESM3-medium zero-shot,s8754,0.4375887493370402,,1,esm3_forge stats
+ESM3-medium zero-shot,s2648,0.4391950961356529,,1,esm3_forge stats
+ESM3-large zero-shot,ptmul,0.1457666622703509,,1,esm3_forge stats
+ESM3-large zero-shot,q3421,0.3055576676496019,,1,esm3_forge stats
+ESM3-large zero-shot,s669,0.2716114289984396,,1,esm3_forge stats
+ESM3-large zero-shot,ssym,0.5386098740575821,,1,esm3_forge stats
+ESM3-large zero-shot,k3822,0.3181390377958163,,1,esm3_forge stats
+ESM3-large zero-shot,s571,0.2202643109612192,,1,esm3_forge stats
+ESM3-large zero-shot,s783,0.352558207501916,,1,esm3_forge stats
+ESM3-large zero-shot,s8754,0.2909708069840905,,1,esm3_forge stats
+ESM3-large zero-shot,s2648,0.2666306226039915,,1,esm3_forge stats
+ESM3-large zero-shot,DLG4_HUMAN_Faure_2021_abundance_domain,0.6243750730002456,,1,esm3_forge stats
+ESM3-large zero-shot,DLG4_HUMAN_Faure_2021_binding_domain,0.6055542346135129,,1,esm3_forge stats
+ESM3-large zero-shot,GRB2_HUMAN_Faure_2021_abundance_domain,0.556648154211588,,1,esm3_forge stats
+ESM3-large zero-shot,GRB2_HUMAN_Faure_2021_binding_domain,0.582448355751203,,1,esm3_forge stats
+ESM3-large zero-shot,MYO_HUMAN_Kung_2025_display,0.45795586310281,,1,esm3_forge stats
+ESM3-large zero-shot,ESTA_BACSU_Nutschel_2020_dTm,0.4319934740526589,,1,esm3_forge stats
+ESM-MSR capped,PG avg,0.5104989304091256,,1,pgym_all_models_per_dms
+ESM-MSR capped,PG Stability,0.8703319732393754,,1,pgym_all_models_per_dms
+ESM-MSR capped,PG DMS mean,0.5557107015901388,,1,pgym_all_models_per_dms
+ESM-MSR capped WT,PG avg,0.5076185334113097,,1,pgym_all_models_per_dms
+ESM-MSR capped WT,PG Stability,0.8259411788600064,,1,pgym_all_models_per_dms
+ESM-MSR capped WT,PG DMS mean,0.5498640796993695,,1,pgym_all_models_per_dms
+"ESM3-small-open (ε=0, MSR readout)",PG avg,0.44835022986044004,,1,pgym_all_models_per_dms
+"ESM3-small-open (ε=0, MSR readout)",PG Stability,0.6207802008527922,,1,pgym_all_models_per_dms
+"ESM3-small-open (ε=0, MSR readout)",PG DMS mean,0.47037998466215813,,1,pgym_all_models_per_dms
+"SPURS (single, additive)",PG avg,0.4825530867631659,,1,pgym_all_models_per_dms
+"SPURS (single, additive)",PG Stability,0.83709417522537,,1,pgym_all_models_per_dms
+"SPURS (single, additive)",PG DMS mean,0.5246973797964525,,1,pgym_all_models_per_dms
+SPURS (multi),PG avg,0.4260881310255238,,1,pgym_all_models_per_dms
+SPURS (multi),PG Stability,0.8077005653529348,,1,pgym_all_models_per_dms
+SPURS (multi),PG DMS mean,0.47671947884381094,,1,pgym_all_models_per_dms
+ME stage1,PG avg,0.4678374820708049,,3,pgym_all_models_per_dms
+ME stage1,PG Stability,0.8083227810247872,,3,pgym_all_models_per_dms
+ME stage1,PG DMS mean,0.5063701840044135,,3,pgym_all_models_per_dms
+ME stage2,PG avg,0.44513928148423554,,3,pgym_all_models_per_dms
+ME stage2,PG Stability,0.8062736126054385,,3,pgym_all_models_per_dms
+ME stage2,PG DMS mean,0.49107391768897773,,3,pgym_all_models_per_dms
+TMPNN,PG avg,0.4413456030632717,,3,pgym_all_models_per_dms
+TMPNN,PG Stability,0.781357435053649,,3,pgym_all_models_per_dms
+TMPNN,PG DMS mean,0.48363051475971647,,3,pgym_all_models_per_dms
+ProteinMPNN,PG avg,0.4080709672858636,,3,pgym_all_models_per_dms
+ProteinMPNN,PG Stability,0.6270815481276443,,3,pgym_all_models_per_dms
+ProteinMPNN,PG DMS mean,0.4263864514413006,,3,pgym_all_models_per_dms
+ESM-MSR dc8,PG avg,0.5107451564526648,,3,pgym summary.csv
+ESM-MSR dc8,PG Stability,0.8688617068794604,,3,pgym summary.csv
+ESM-MSR dc8,PG DMS mean,0.5554774838612878,,3,pgym summary.csv
