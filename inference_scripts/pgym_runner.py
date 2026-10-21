@@ -17,6 +17,23 @@ import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
+
+def _cuda():
+    return torch is not None and torch.cuda.is_available()
+
+
+def _peak_vram():
+    """Peak GiB allocated / reserved by PyTorch on the current device since the last reset (None without CUDA)."""
+    if not _cuda():
+        return {"peak_alloc_gb": None, "peak_reserved_gb": None}
+    return {"peak_alloc_gb": round(torch.cuda.max_memory_allocated() / 2**30, 3),
+            "peak_reserved_gb": round(torch.cuda.max_memory_reserved() / 2**30, 3)}
+
 
 def safe_spearman(preds, targets):
     # same rule as esm_msr.stats.safe_spearman, over the rows that have a prediction (a model that cannot score some
@@ -56,6 +73,10 @@ def run_protein_gym(pgym_dir, out_dir, score_fn, pred_col, dms='all', tag='', ex
     line. pred_col is the column correlated with DMS_score (higher = fitter); each column in extra_cols also gets
     a spearman_<col> entry in summary.csv. log: a make_log logger to share with the caller (e.g. so a batch
     sizer writes to the same run.log); one is made for out_dir if None.
+
+    Each scored (or failed) DMS's summary row records its wall time (time_s, from reading the input to writing the
+    output), the peak GPU memory PyTorch allocated and reserved while scoring it (peak_alloc_gb, peak_reserved_gb;
+    the counters are reset per DMS), the GPU and the host.
     """
     pgym_dir = Path(pgym_dir).resolve()
     if not pgym_dir.exists():
@@ -72,7 +93,10 @@ def run_protein_gym(pgym_dir, out_dir, score_fn, pred_col, dms='all', tag='', ex
 
     log = log or make_log(out_dir)
 
-    log(f"[PGYM] START {tag} n_dms={len(dms_list)} pred_col={pred_col} out={out_dir}")
+    host = os.uname().nodename
+    gpu = torch.cuda.get_device_name() if _cuda() else "cpu"
+    gpu_gb = f" ({torch.cuda.get_device_properties(torch.cuda.current_device()).total_memory / 2**30:.1f} GiB)" if _cuda() else ""
+    log(f"[PGYM] START {tag} n_dms={len(dms_list)} pred_col={pred_col} host={host} gpu={gpu}{gpu_gb} out={out_dir}")
     # Keep rows from earlier invocations (other DMS subsets, or measured times of DMS skipped now).
     summary_rows = []
     prev_by_dms = {}
@@ -104,6 +128,8 @@ def run_protein_gym(pgym_dir, out_dir, score_fn, pred_col, dms='all', tag='', ex
                                          "time_s": None, "units_per_s": None, "status": "skipped_bad"})
             pd.DataFrame(summary_rows).to_csv(out_dir / "summary.csv", index=False)
             continue
+        if _cuda():
+            torch.cuda.reset_peak_memory_stats()
         t0 = time.time()
         try:
             df = pd.read_csv(pgym_dir / f"{did}.csv")
@@ -130,16 +156,21 @@ def run_protein_gym(pgym_dir, out_dir, score_fn, pred_col, dms='all', tag='', ex
             res.to_csv(out_csv, index=False)
             rho = safe_spearman(res[pred_col], res["DMS_score"])
             dt = time.time() - t0
+            mem = _peak_vram()
             summary_rows.append({"DMS_id": did, "n": len(res), "spearman_combined": rho, **spearmans(res),
-                                 "time_s": dt, "units_per_s": len(res) / dt, "status": "done"})
+                                 "time_s": dt, "units_per_s": len(res) / dt, **mem, "gpu": gpu, "host": host,
+                                 "status": "done"})
             info_s = ''.join(f" {k}={v}" for k, v in info.items())
-            log(f"[PGYM {i}/{len(dms_list)}] DONE {did}: n={len(res)}{info_s} rho={rho:.4f} {dt:.1f}s ({len(res)/dt:.1f} u/s)")
+            log(f"[PGYM {i}/{len(dms_list)}] DONE {did}: n={len(res)}{info_s} rho={rho:.4f} {dt:.1f}s ({len(res)/dt:.1f} u/s) "
+                f"peak_vram={mem['peak_alloc_gb']}/{mem['peak_reserved_gb']} GiB (alloc/reserved)")
         except Exception as e:
             dt = time.time() - t0
-            log(f"[PGYM {i}/{len(dms_list)}] FAIL {did}: {type(e).__name__}: {str(e)[:300]} after {dt:.1f}s")
+            mem = _peak_vram()
+            log(f"[PGYM {i}/{len(dms_list)}] FAIL {did}: {type(e).__name__}: {str(e)[:300]} after {dt:.1f}s "
+                f"peak_vram={mem['peak_alloc_gb']}/{mem['peak_reserved_gb']} GiB (alloc/reserved)")
             log(traceback.format_exc())
-            summary_rows.append({"DMS_id": did, "n": None, "spearman_combined": None,
-                                 "time_s": dt, "units_per_s": None, "status": "fail", "error": str(e)[:200]})
+            summary_rows.append({"DMS_id": did, "n": None, "spearman_combined": None, "time_s": dt, "units_per_s": None,
+                                 **mem, "gpu": gpu, "host": host, "status": "fail", "error": str(e)[:200]})
         pd.DataFrame(summary_rows).to_csv(out_dir / "summary.csv", index=False)
 
     s = pd.DataFrame(summary_rows)
