@@ -168,7 +168,7 @@ def collect_pgym(rows):
 HARNESS = [('esmtherm', '', {'pred': 'ESMtherm'}), ('ifum', '', {'pred': 'IFUM (WT backbone)'}),
            ('geoddg', '_faspr', {'pred': 'GeoDDG-3D'}), ('esm3dg', '', {'pred': 'ESM3dG'}), ('prosst', '', {'pred': 'ProSST'}),
            ('spurs', '', {'pred': 'SPURS (multi)', 'pred_additive': 'SPURS (single, additive)'}),
-           ('proteinmpnn', '', {'pred': 'ProteinMPNN'})]
+           ('proteinmpnn', '', {'pred': 'ProteinMPNN'}), ('ddgemb', '', {'pred': 'DDGemb'})]
 
 
 def harness_frame(model, tag, name):
@@ -247,9 +247,10 @@ ROWS = [('ESM-MSR capped', 'ESM-MSR capped (combined)'), ('ESM-MSR capped WT', '
 TSU_ALL = ['tsu_capped_val', 'tsu_capped_test', 'tsu_hyperopt_val', 'tsu_hyperopt_test']
 PG = ['PG avg', 'PG Stability', 'PG DMS mean']
 _FULL = EXT + DMS + ['domainome', 'tsu_capped_val', 'tsu_capped_test']
-# cells a gpu4 job queued on 2026-10-21 will fill (jobs 386274-386282)
+# cells a run queued on 2026-10-21 will fill (gpu4 jobs 386274-386282; DDGemb server stream ddgemb_state_capped)
 QUEUED = {**{m: _FULL for m in ['SPURS (single, additive)', 'SPURS (multi)', 'ProteinMPNN', 'ESM3-small-open (ε=0, MSR readout)']},
-          **{m: ['tsu_capped_val', 'tsu_capped_test'] + PG for m in ['ESMtherm', 'IFUM (WT backbone)', 'GeoDDG-3D', 'ESM3dG', 'ProSST']}}
+          **{m: ['tsu_capped_val', 'tsu_capped_test'] + PG for m in ['ESMtherm', 'IFUM (WT backbone)', 'GeoDDG-3D', 'ESM3dG', 'ProSST']},
+          'DDGemb': ['tsu_capped_val', 'tsu_capped_test']}
 # documented training-set overlap with a test set (authors' training data; not exhaustive)
 LEAK = {'DDGemb': {'s2648', 's8754'}, 'DDMut': {'s2648', 's8754', 'q3421', 'k3822', 'k2369'}, 'GeoDDG-3D': {'s2648', 's8754', 's783'},
         **{m: set(TSU_ALL) for m in ['ESMtherm', 'IFUM (WT backbone)', 'IFUM (native, ESMFold)', 'ESM3dG',

@@ -37,8 +37,9 @@ as in §4. Multi-seed rows are seed means (per-seed values and sds are in the CS
 DDMut on S9028 ⊃ S2648 + FireProtDB; GeoDDG on S8754 ⊃ S2648, and S783 only has a leakage-excluded column upstream;
 the Megascale-trained models on any Tsuboyama split). The list follows each paper's stated training sets and is
 not exhaustive. **‡** the model was trained on Megascale (Tsuboyama), so none of its Tsuboyama numbers are held
-out. **\*** partial coverage (DDMut: S669 98 %, S461 97 %, Tsuboyama val 26 %, test 4 %). **q** queued on gpu4 on
-2026-10-21 (jobs 386274–386282, see [`GPU4_INFERENCE_LEDGER.md`](GPU4_INFERENCE_LEDGER.md)). **–** not run, with the
+out. **\*** partial coverage (DDMut: S669 98 %, S461 97 %, Tsuboyama val 26 %, test 4 %). **q** queued on
+2026-10-21: gpu4 jobs 386274–386282 (see [`GPU4_INFERENCE_LEDGER.md`](GPU4_INFERENCE_LEDGER.md)), and for DDGemb a
+web-server stream. **–** not run, with the
 reason in [`OUTSTANDING_EXPERIMENTS.md`](OUTSTANDING_EXPERIMENTS.md).
 
 Which ESM-MSR / baseline numbers are comparable to which: the **capped** Tsuboyama columns are the split every
@@ -103,7 +104,7 @@ libraries with capped, so the two are not comparable. The queued runs put every 
 | SPURS single-additive ‡ | q | q | – | – |
 | SPURS multi ‡ | q | q | – | – |
 | ESMtherm ‡ | q | q | 0.691† | 0.707† |
-| DDGemb (server) | – | – | 0.611 | 0.524 |
+| DDGemb (server) | q | q | 0.611 | 0.524 |
 | DDMut (server) | – | – | 0.542* | 0.582* |
 | IFUM, WT backbone ‡ | q | q | 0.746† | 0.697† |
 | IFUM, ESMFold per variant ‡ | – | – | 0.778† | 0.738† |

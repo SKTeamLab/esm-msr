@@ -61,7 +61,8 @@ How to read the mixed rows:
   completed elsewhere.
 - **Third-party harness models:** ESMtherm and IFUM (WT backbone) ran entirely on gpu4, but IFUM shared the node
   with GeoDDG and ESMFold jobs; ESM3ΔG and ProSST ran entirely on gpu3; GeoDDG mostly on gpu4.
-- **DDGemb and DDMut** ran on the authors' web servers (Bologna, UQ): their times measure queueing on a remote
+- **DDGemb and DDMut** ran on the authors' web servers (Bologna, UQ; the capped-split DDGemb stream started
+  2026-10-21 logs per-job wall time to `closed_servers/ddgemb_state_capped/timings.csv`): their times measure queueing on a remote
   service and are not comparable with anything here.
 
 ## 2. Queued on gpu4 (2026-10-21)
