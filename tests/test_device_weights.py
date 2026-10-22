@@ -72,14 +72,44 @@ class TestReshareRepairsBrokenSharing(unittest.TestCase):
         with self.assertNoLogs(level='INFO'):   # nothing to repair the second time
             stub._reshare_base_params_on_device()
 
-    def test_a_single_adapter_model_is_left_alone(self):
+    def test_a_single_adapter_model_has_nothing_to_reshare_but_still_casts(self):
         from esm_msr import training
         cls = training.ESM3EpistasisLightningModule
+        casts = []
         stub = types.SimpleNamespace(model=types.SimpleNamespace(peft_wt=None, peft_mt=None),
-                                     _cast_frozen_linears_bf16=lambda: self.fail("should not cast"))
+                                     _cast_frozen_linears_bf16=lambda: casts.append(1))
         stub._reshare_base_params_on_device = types.MethodType(cls._reshare_base_params_on_device, stub)
-        stub._reshare_base_params_on_device()   # returns before touching anything
+        stub._reshare_base_params_on_device()   # no sharing to repair; the cast (fused mode's) is still requested exactly once
+        self.assertEqual(casts, [1])
 
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestFusedModeStoresTheFrozenBaseInBf16(unittest.TestCase):
+    """Fused mode has one adapter, so there is nothing to re-share between two - but the frozen base must still be stored bf16, or the
+    card carries ~2.8 GB more than the dual model does (the first fused run would otherwise sit that much closer to the host-spill cliff)."""
+
+    def _stub(self, precision):
+        from esm_msr import training
+        cls = training.ESM3EpistasisLightningModule
+        fused = torch.nn.Module()
+        fused.transformer = torch.nn.Module()
+        fused.transformer.blocks = torch.nn.ModuleList([torch.nn.Linear(4, 4)])
+        for p in fused.parameters():
+            p.requires_grad_(False)
+        stub = types.SimpleNamespace(model=types.SimpleNamespace(peft_fused=fused), trainer=types.SimpleNamespace(precision=precision))
+        stub._cast_frozen_linears_bf16 = types.MethodType(cls._cast_frozen_linears_bf16, stub)
+        stub._reshare_base_params_on_device = types.MethodType(cls._reshare_base_params_on_device, stub)
+        return stub, fused
+
+    def test_the_frozen_linears_are_cast(self):
+        stub, fused = self._stub('bf16-mixed')
+        stub._reshare_base_params_on_device()
+        self.assertEqual(fused.transformer.blocks[0].weight.dtype, torch.bfloat16)
+
+    def test_an_fp32_run_is_left_alone(self):
+        stub, fused = self._stub('32-true')
+        stub._reshare_base_params_on_device()
+        self.assertEqual(fused.transformer.blocks[0].weight.dtype, torch.float32)

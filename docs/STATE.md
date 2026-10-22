@@ -3,6 +3,15 @@
 Read this first, then `docs/README.md` for what every other document is. Facts here are dated where they
 matter; anything older than the date below is marked as history in `docs/EXPERIMENTS.md`.
 
+> **Update 2026-10-22: the training code was trimmed** (branch `claude/trim-training-2026-10-22`, not merged; `docs/trim_audit.md` is the
+> record). 160 flags became ~55, `hparams.yaml` went from 157 keys to ~60, and several mechanisms described below are GONE on that branch:
+> per-library floors and the protease-gap rule (one `--censor_threshold`), the learnable/ceiling link (`--link_floor 0.0 --link_tau 0.59`),
+> the nonspecific term, the `cond` subset, `combined_mode`/`lora_mode` variants, `--subset_caps` (now `--subsets`), the per-head plateau flags
+> (now `--plateau_patience/--plateau_factor/--freeze_after_decays`) and the global `--mask_strategy` (now per pass). Old command lines still
+> parse through `config.RETIRED`. Training reads a prebuilt cache (c6, `manifest_c6.json`; `analysis_scripts/build_cache.py`), not the raw
+> table. Recipes are `configs/{mt_frozen,joint,wt_phase}.yaml`; the new queue (project `esm-msr-trim-oct22`, arms `trim_*`) runs from the locked
+> pin named in `dc_runs/trim_run.sh`. Everything below this box describes the code the older arms ran.
+
 ## 1. What this project is, and where the work stands
 
 The repo ships the published **ESM-MSR** model (ESM3-small + LoRA, mutant stability ddG). The research line

@@ -1,0 +1,40 @@
+# Joint training, both heads from scratch (the dc17 line): the WT head on singles, the MT head on singles and doubles with the WT half
+# teacher-forced from the measured label. Each head decays on its own plateau and freezes after three decays; the run stops itself when
+# nothing is left training, or at the epoch cap. For --adapter_mode fused the one shared adapter takes the MT shape (--lora_*_mt).
+adapter_mode: dual
+lora_rank_wt: 2
+lora_alpha_wt: 4
+lora_dropout_wt: 0.1
+lora_rank_mt: 16
+lora_alpha_mt: 16
+lora_dropout_mt: 0.1
+
+subsets: [single, double]
+censor_threshold: 0.5
+censor_range: true
+link_floor: 0.0
+link_tau: 0.59
+
+lambda_rank_wt: 1.0
+lambda_reg_wt: 1.0
+lambda_rank_mt: 1.0
+lambda_reg_mt: 1.0
+rank_list_size: 16
+huber_delta: 0.0
+tf_mix: 1.0
+
+learning_rate: 2.0e-4
+weight_decay: 0.0
+lr_warmup_steps: 500
+batch_size: 256
+micro_batch_size: 64
+num_epochs: 10
+num_workers: 2
+
+plateau_patience: 1
+plateau_factor: 0.3
+freeze_after_decays: 3
+mt_convergence_metric: epi_beyond_rho_mt
+monitor_metric: val_rho_combined_avg
+early_stopping_patience: 0
+cache_version: c6

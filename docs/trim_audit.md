@@ -35,7 +35,7 @@ about 25 lines for all of them.
 | flags | evidence | what dies with them |
 |---|---|---|
 | `use_dora_{wt,mt}`, `unfreeze_layernorms_{wt,mt}` | false in 153/153 runs | the DoRA line in `_create_lora_config`; the layernorm-unfreeze block in `add_loras_to_esm3` |
-| `incl_structure_encoder_{wt,mt}`, `last_n_layers_{wt,mt}`, `target_mode_{wt,mt}`, `incl_sequence_head_{wt,mt}` | one value in 153/153 (False / 0 / `expanded` / True). The structure-encoder switch is **inert by construction**: ESM3 creates its structure encoder lazily and only `encode` uses it (`esm3.py:222,253`), so it is not a module the LoRA regex can match | the regex branches in `_create_lora_config`; `struct_enc_arg` special case in `setup_dataloaders`. CONST the rest into one `LoraSpec`, see §2.4 |
+| `incl_structure_encoder_{wt,mt}`, `last_n_layers_{wt,mt}`, `target_mode_{wt,mt}`, `incl_sequence_head_{wt,mt}` | one value in 153/153 (False / 0 / `expanded` / True). The structure-encoder switch is **inert** (corrected during the implementation: the model DOES instantiate the structure encoder, `ESM3PredictorBase` calls `get_structure_encoder()`, but ESM3's forward consumes the cached structure tokens and coordinates and never calls it, so LoRA on it would receive no gradient) | the training flags and the `struct_enc_arg` special case in `setup_dataloaders`. The regex branches in `_create_lora_config` were KEPT (inference reads old checkpoints' values through them); training passes constants (`training.LORA_CONSTANTS`) |
 | `grad_clip_norm` | 0.0 in 56/56; the branch never ran | 3 lines in `training_step` |
 | `calib_delay_steps`, `mt_lora_delay_steps` | 0 in 56/56 | the delay terms in both warm-up lambdas and in the `total_warmup_steps` formula (twice: `training_step` and `on_validation_epoch_end`, with a different fallback, 500, from the config's 0) |
 | `wt_plateau_min_lr`, `mt_plateau_min_lr` | 1e-7 in all runs. Three decays at 0.3 reach 5.4e-6, so it never binds when `*_freeze_after_decays` is 3, and 12 decays would be needed otherwise | one `max(min_lr, ...)` each |
@@ -205,3 +205,48 @@ Done in a **separate worktree/branch, merged only when the queue is idle**: the 
 4. **Experiments** of §7, each from a clean tree.
 
 **Safety net for stages 0-2:** the technique from `hparam_review.md` §1: run the real loss composition on a synthetic batch under the canonical recipe's configurations before and after, and require bit-identical losses and gradients. Every stage-0/1 change removes a branch that recipe does not take, so identity is the expected result and any difference is a bug. Then the full suite, a 2-step CPU smoke through `main()`, and a launch of each `dc_runs/*.sh` recipe with `--help`-level argument parsing to prove the old command lines still parse. Readers of `hparams.yaml` to check first: `make_fwt_block.py`, `gate_capacity.py`, `arm_parity.py`, `inference.parse_hparams_to_lora_config`, `comet_reupload.py`.
+
+## 9. What landed (2026-10-22, branch `claude/trim-training-2026-10-22`)
+
+You approved the whole plan with the recommendations at §6 taken as given, and asked for it to be implemented and the top-5 queued. This is
+what was done, where it departs from the plan, and how it was checked. Nothing is merged.
+
+**Done (stages 0-3).** (The 'about 2,000 source lines' of §3 came out at a net 1,860, of which 553 moved rather than went.) The flag-by-flag outcome is `config.py`'s `RETIRED` table (every removed flag, the one value it may still be given,
+and what replaced it). The code (lines): `utils.py` 928 -> 422; `config.py` 649 -> 453 (about 150 of them the `RETIRED` table, which is what keeps 60 launchers parsing); `link.py` 274 -> 165 (a link with nothing to learn); `data.py` 1853 -> 792 (the dataset only reads a cache; the generation code moved verbatim into the new `cache_build.py`, 553 lines that training does not import); `training.py` 1754 -> 1336. Against devel-revision `ce80771` the source diff is -3,487 / +1,627 lines (the additions include the 553 moved lines) and the tests -1,393 / +681. `ci_weights.py` and its 453-line test are gone (tag `archive/ci-weighting-2026-10-22`). Tests: 333 -> 372 passing (tests for removed features
+deleted, new ones for the config table, the cache and manifest, per-pass masking, censoring).
+
+| asked for | landed as |
+|---|---|
+| RETIRED table so ~60 launchers still parse | `config.RETIRED`; harmless old values accepted, behaviour-changing ones are errors that say what replaced them; `--subset_caps` / `--incl_*` -> `--subsets`, `--assay_floor` -> `--link_floor`, `--reg_loss huber` -> `--huber_delta`, `--no-censor_floor` -> `--censor_threshold none`, `--comet_api_key` -> the environment (never recorded) |
+| credentials and paths out of hparams | `training.UNLOGGED_ARGS` + the Comet key from `COMET_API_KEY` / `~/.comet.config`. `hparams.yaml` went from 157 keys to ~60 |
+| fixed link, floor 0 / tau 0.59 | `SaturatingLink(tau, floor)`; buffers named as the old parameters, so `link_head.*` loads and rescoring reads old checkpoints |
+| one censor threshold | `--censor_threshold` (default 0.5, `none` = off); the gap rule and the per-library floor estimator are gone |
+| shared plateau flags | `--plateau_patience/--plateau_factor/--freeze_after_decays`; one `_plateau_step(head)` |
+| `tie_mt_scale` | taken untied (the standing recipe's value); the model-side argument stays for checkpoints trained tied |
+| `tf_mix` | kept (0.0 arm queued) |
+| YAML defaults instead of Hydra | `--config configs/*.yaml` (`mt_frozen`, `joint`, `wt_phase`); the command line wins |
+| training reads a prebuilt cache; c6 without `cond` | `analysis_scripts/build_cache.py {build,convert}`, a per-cache `manifest_<version>.json` listing the libraries of each split in loader order; c6 written next to c5 (6.7 GB, 122,176 `cond` items dropped) |
+| per-pass masking | `--mask_strategy_wt/--mask_strategy_mt` (the global flag is retired), resolved by `models.pass_mask_strategy`, applied in training, validation and the cycle passes |
+
+**Departures from the audit, on purpose.**
+
+1. **No `--phase`.** §2.6 called it "worth a look" and it depends on the joint-training decision; the four paradigm flags stay.
+2. **`_create_lora_config` keeps its `target_mode` / `last_n_layers` / `incl_*` regex branches** (only DoRA and layernorm unfreezing were deleted
+   from the model side): inference rebuilds an old checkpoint's adapter through them, so training passes constants instead of the model forgetting them.
+3. **Items still carry `y_floor`**, stamped with the one floor, and the link methods still take it: a dump written now is read by the same
+   `epi_metrics` as an old one (that file must stay byte-identical across branches).
+4. **`ESM_MSR_PRECISION`** (environment, not a flag): fp32 for the CPU smoke test only. CPU bf16 autocast fails inside ESM3's geometric
+   attention; production is bf16-mixed on GPU.
+5. The structure-encoder remark of §2.1 was wrong as first written (corrected above).
+6. `make_fwt_block.py` (stacks frozen-WT launchers from a checkpoint's hparams) targets the old flag set and was not updated; the new arms use `configs/`.
+
+**Checked.**
+
+* *Loss parity.* The real `_compose_losses_streaming_and_backward` on a stub backbone, driven by the canonical recipes' own (old) command lines
+  through the new parser: frozen-WT MT, joint, WT-only, `tf_mix` 0.5 and 0, threshold 0, `lambda_rank_mt` 0.25, native-cond-for-MT. Losses, every
+  micro-batch backward value and every gradient are **bit-identical** to the pre-trim code (8 of 8).
+* *Data parity.* The old raw-table + c5 setup and the new manifest + c6 setup, on a 12-train / 3-val subset with the gap rule off: same libraries
+  in the same order, same items, same censoring, bounds and floors, and all **411 sampler batch index lists identical** at seed 1. So a trimmed run
+  and an old run at the same seed see the same batches; the one difference is the gap rule, which the old runs applied and the new code does not.
+* *Config.* Every retired flag with its old value parses and is dropped; the behaviour-changing values error.
+* *End to end on CPU* (`analysis_scripts/smoke_cpu.py`): see §10.

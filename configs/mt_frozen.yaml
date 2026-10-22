@@ -1,0 +1,40 @@
+# The standing MT-only recipe: a frozen, pre-trained WT head (--init_wt_from_checkpoint on the command line) and a fresh MT adapter trained on
+# singles and doubles. This is mt_frozenwt_run.sh (2026-10-21) expressed as defaults, minus the protease-gap rule (removed) and with
+# everything that was a constant dropped. Per-run values (--experiment_name, --seed, --init_wt_from_checkpoint, the paths, --version) are
+# on the command line; so is whatever an arm varies.
+adapter_mode: dual
+lora_rank_wt: 2           # the frozen WT head's shape: it must match the checkpoint
+lora_alpha_wt: 4
+lora_dropout_wt: 0.1
+lora_rank_mt: 16
+lora_alpha_mt: 16
+lora_dropout_mt: 0.1
+
+frozen_wt_mt_only: true
+subsets: [single, double]
+censor_threshold: 0.5
+censor_range: true
+link_floor: 0.0
+link_tau: 0.59
+
+lambda_rank_mt: 1.0
+lambda_reg_mt: 1.0
+rank_list_size: 16
+huber_delta: 0.0
+tf_mix: 1.0
+
+learning_rate: 2.0e-4
+weight_decay: 0.0
+lr_warmup_steps: 500
+batch_size: 256
+micro_batch_size: 64
+num_epochs: 8
+num_workers: 2
+
+plateau_patience: 1
+plateau_factor: 0.3
+freeze_after_decays: 3
+mt_convergence_metric: rho_combined
+monitor_metric: val_rho_combined_avg
+early_stopping_patience: 2
+cache_version: c6

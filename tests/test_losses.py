@@ -215,3 +215,21 @@ def test_only_upper_and_lower_blocks_is_still_informative():
     crit = ListMLELoss()
     loss = crit.forward_censored(*_list([2.0, -1.0], [9.0, -1.0], [1, -1]))
     assert float(loss) > 0                      # "the upper item ranks above the lower one" is a real statement
+
+
+# ---- --huber_delta: the same hinge machinery with a bounded-gradient base loss
+def test_huber_leaves_small_residuals_quadratic_and_caps_the_gradient_of_large_ones():
+    crit = nn.HuberLoss(reduction='none', delta=1.0)
+    pred = torch.tensor([0.5, 10.0], requires_grad=True)
+    L = hinge_regression_loss(crit, pred, torch.zeros(2), torch.full((2,), float('nan')), torch.zeros(2, dtype=torch.long))
+    assert float(L[0]) == pytest.approx(0.5 * 0.25)              # quadratic inside delta
+    assert float(L[1]) == pytest.approx(10.0 - 0.5)               # linear outside it: delta * (|x| - delta / 2)
+    L.sum().backward()
+    assert float(pred.grad[1]) == pytest.approx(1.0)              # MSE would pull with 2 * 10
+
+
+def test_huber_still_treats_a_bound_as_one_sided():
+    crit = nn.HuberLoss(reduction='none', delta=1.0)
+    pred = torch.tensor([-4.0, 3.0])
+    L = hinge_regression_loss(crit, pred, torch.zeros(2), torch.tensor([-1.0, -1.0]), torch.tensor([-1, -1]))
+    assert float(L[0]) == 0.0 and float(L[1]) > 0.0               # below a lower bound is satisfied; above it pays

@@ -153,9 +153,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         transformer-block Linears are cast; embeddings, layernorms, LoRA params,
         and the output heads stay fp32.
         """
-        peft_wt = getattr(self.model, 'peft_wt', None)
+        peft_wt = getattr(self.model, 'peft_wt', None) or getattr(self.model, 'peft_fused', None)    # fused mode has the one adapter
         if peft_wt is None:
             return
+        try:
+            if 'bf16' not in str(self.trainer.precision):       # the CPU smoke runs in fp32 (ESM_MSR_PRECISION=32); production is bf16-mixed
+                return
+        except RuntimeError:
+            pass
         n = 0
         for name, m in peft_wt.named_modules():
             if 'transformer.blocks.' not in name or 'lora_' in name:
@@ -183,7 +188,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         peft_wt = getattr(self.model, 'peft_wt', None)
         peft_mt = getattr(self.model, 'peft_mt', None)
         if peft_wt is None or peft_mt is None:
-            return  # single-adapter mode: nothing to re-share
+            self._cast_frozen_linears_bf16()      # single-adapter (fused) mode: nothing to re-share, but the frozen base is still stored bf16
+            return
         # Cast the frozen WT transformer Linears to bf16 first so the re-share
         # below points MT at the same bf16 storage (no extra copy).
         self._cast_frozen_linears_bf16()
@@ -1310,7 +1316,7 @@ def main():
     try:
         trainer = Trainer(max_epochs=args.num_epochs, accelerator=accelerator, devices=1, logger=loggers, callbacks=callbacks,
                           enable_checkpointing=True, num_sanity_val_steps=0, log_every_n_steps=25, check_val_every_n_epoch=1,
-                          precision="bf16-mixed")
+                          precision=os.environ.get('ESM_MSR_PRECISION', 'bf16-mixed'))   # bf16-mixed always; fp32 only for the CPU smoke test
     except Exception as e:
         logging.error(f"Trainer init failed: {e}", exc_info=True)
         return

@@ -1,0 +1,34 @@
+# The WT phase: the WT head alone, on singles, with the MT adapter frozen and untouched (the recipe that made the cthr05 gold heads).
+# Validation reports the WT head under all three names (--val_wt_only). Pair with --lora_rank_wt / --lora_alpha_wt for a capacity arm.
+adapter_mode: dual
+lora_rank_wt: 2
+lora_alpha_wt: 4
+lora_dropout_wt: 0.1
+
+freeze_mt_adapter: true
+val_wt_only: true
+subsets: [single]
+censor_threshold: 0.5
+censor_range: false
+link_floor: 0.0
+link_tau: 0.59
+
+lambda_rank_wt: 1.0
+lambda_reg_wt: 1.0
+lambda_rank_mt: 0.0
+lambda_reg_mt: 0.0
+rank_list_size: 16
+
+learning_rate: 2.0e-4
+lr_warmup_steps: 500
+batch_size: 256
+micro_batch_size: 64
+num_epochs: 8
+num_workers: 2
+
+plateau_patience: 1
+plateau_factor: 0.3
+freeze_after_decays: 3
+monitor_metric: val_rho_wt_valid_avg
+early_stopping_patience: 0
+cache_version: c6
