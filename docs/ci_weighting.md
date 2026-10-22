@@ -1,5 +1,10 @@
 # Label-uncertainty weighting (`--ci_weight`) in place of censoring
 
+> **Status 2026-10-22 (trim): the code was removed from the working branch** (`docs/trim_audit.md` §2.2). It lives at the tag
+> `archive/ci-weighting-2026-10-22` (commit `448dfcd`); `analysis_scripts/ci_weighting_{fit,sim,stats}.py` and `censoring_band_check.py` need that tag
+> checked out (they import `esm_msr.ci_weights`). The one arm that used it, `mt_frozenwt_ciw_r16a16_s1`, runs from the locked pin
+> `dc_runs/pin_ciw_f666366` and is the only test the feature will get. The measurements below stand.
+
 Written 2026-10-22, redesigned the same day. Implements open question 7 of `EXPERIMENTS.md` §7. **Status: implemented and tested on CPU
 (365 passed, 333 of them the pre-existing suite), smoke-tested on real cached libraries. The arm `mt_frozenwt_ciw_r16a16_s1` is queued
 behind `mt_frozenwt_r2a4_s3`, not yet run.** Everything is off by default: with the new flags absent every loss and every dataset is what it
