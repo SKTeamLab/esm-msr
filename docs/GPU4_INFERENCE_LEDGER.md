@@ -86,7 +86,7 @@ ms/row, host, GPU, Slurm job).
 They start when the four dc8 ProteinGym jobs (384287/89/91/93) release gpu4, expected late 2026-10-21. Another
 user's pending job can take a freed A4500 first (the scheduler is FIFO with backfill).
 
-## 3. ESM3ΔG inference precision (measured 2026-10-22, A4500)
+## 3. Inference precision: ESM3ΔG and IFUM (measured 2026-10-22, A4500)
 
 ESM3ΔG was the slowest model in the campaign: one full ESM3-small forward (1.4 B params) per variant per ensemble
 member, so cost is variants × length × 3, and the remaining ProteinGym work projected to **287 h**. What the
@@ -114,6 +114,8 @@ profiling found, on the adapter's own `--dtype` switch (`logs/bench_esm3dg-38636
   ProteinGym DMS, were produced in fp32; the rest of ProteinGym is fp16. Per-DMS ρ is unaffected at this level of
   agreement, so the columns are comparable, but the mix is recorded here rather than left implicit.
 
+### 3.1 ESM3ΔG
+
 Two findings that mattered more than precision:
 
 - **12 h of the 287 was being spent on DMS excluded from every comparison** — BRCA1, BRCA2, POLG_CXB3N and SCN5A,
@@ -123,6 +125,45 @@ Two findings that mattered more than precision:
   (536,962 variants, L=448) alone is about 84 h. The run was alphabetical, so it was spending its first days on
   large viral fitness assays and would have delivered the stability numbers last. The replacement job runs the 213
   comparable DMS **cheapest-first** (`harness/lists/pgym_esm3dg_bycost.txt`).
+
+### 3.2 IFUM: the same patch, and why it did not pay (2026-10-22)
+
+IFUM looked like the same opportunity and was not. Its adapter loaded `prot_t5_xl_half_uniref50-enc` with
+`T5EncoderModel.from_pretrained(T5)` and no `torch_dtype`, which **upcasts** the released fp16 weights to fp32
+(HuggingFace ignores the checkpoint's own `torch_dtype` unless asked), and nothing set TF32. Passing the dtype
+through is a real fix. It is just not where IFUM's time goes.
+
+Measured (`logs/verify_ifum-386365.out`, `logs/verify_ifum_L448-386366.out`), fp16 vs fp32, `--struct wt`:
+
+| protein | L | fp16 speedup | max abs ddG change | ρ vs fp32 | ρ vs the DMS scores |
+|---|---|---|---|---|---|
+| PIN1 | 39 | **2.71×** | 0.0019 | 0.999993 | 0.8280 → 0.8280 |
+| HIS7_YEAST | 220 | 1.44× | 0.0048 | 1.000000 | 0.5202 → 0.5202 |
+| SPG1_STRSG (the costliest DMS) | 448 | 1.28× | 0.0047 | 0.999889 | 0.0994 → 0.1016 |
+| HIV | 852 | 1.13× | 0.0053 | 0.999500 | 0.2905 → 0.2864 |
+
+**The speedup decays with length** because only part of IFUM's per-variant cost is ProtT5. The IEFFEUM head does
+O(L²) pairwise work — it builds an `L×L` mask per variant — in fp32, and that term dominates as L grows. ESM3ΔG,
+one big transformer forward per variant, gains at every length; IFUM does not.
+
+And IFUM's remaining ProteinGym work is almost all long proteins:
+
+| L | DMS remaining | share of remaining cost |
+|---|---|---|
+| < 100 | 69 | 1 % |
+| 100–200 | 25 | 4 % |
+| 200–400 | 44 | 23 % |
+| 400–600 | 34 | 49 % |
+| > 600 | 33 | 23 % |
+
+Cost-weighted mean L = 488, and only 1 % of the cost sits where fp16 helped. Combining the per-length speedups by
+cost share gives **≈1.28× overall**: 315 h → ~246 h, still ~10 days of one A4500. **Job 386275 was cancelled**
+after 15:51 h (8 of 217 ProteinGym DMS; its capped-Tsuboyama numbers were already finished and are kept). The
+`--dtype` patch is kept because it is correct and defaults to fp32, but it does not justify a restart.
+
+The lesson, which cost a wrong call here: measure a speedup at the **cost-weighted** length. A 39-residue test
+protein overstated this one by a factor of two. The cheap levers (skipping datasets every comparison excludes, and
+ordering cheapest-first) were worth more than precision for both models.
 
 ## 4. Where per-dataset times are recorded
 
