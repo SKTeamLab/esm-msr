@@ -249,8 +249,10 @@ PG = ['PG avg', 'PG Stability', 'PG DMS mean']
 _FULL = EXT + DMS + ['domainome', 'tsu_capped_val', 'tsu_capped_test']
 # cells a run queued on 2026-10-21 will fill (gpu4 jobs 386274-386282; DDGemb server stream ddgemb_state_capped)
 QUEUED = {**{m: _FULL for m in ['SPURS (single, additive)', 'SPURS (multi)', 'ProteinMPNN', 'ESM3-small-open (ε=0, MSR readout)']},
-          **{m: ['tsu_capped_val', 'tsu_capped_test'] + PG for m in ['ESMtherm', 'IFUM (WT backbone)', 'GeoDDG-3D', 'ESM3dG', 'ProSST']},
-          'DDGemb': ['tsu_capped_val', 'tsu_capped_test']}
+          **{m: ['tsu_capped_val', 'tsu_capped_test'] + PG for m in ['ESMtherm', 'GeoDDG-3D', 'ESM3dG', 'ProSST']},
+          # IFUM's ProteinGym run was cancelled 2026-10-22 (not worth ~10 days; see GPU4_INFERENCE_LEDGER.md 3.2),
+          # so its PG cells read as not run rather than queued.
+          'IFUM (WT backbone)': ['tsu_capped_val', 'tsu_capped_test']}
 # documented training-set overlap with a test set (authors' training data; not exhaustive)
 LEAK = {'DDGemb': {'s2648', 's8754'}, 'DDMut': {'s2648', 's8754', 'q3421', 'k3822', 'k2369'}, 'GeoDDG-3D': {'s2648', 's8754', 's783'},
         **{m: set(TSU_ALL) for m in ['ESMtherm', 'IFUM (WT backbone)', 'IFUM (native, ESMFold)', 'ESM3dG',

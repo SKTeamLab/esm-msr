@@ -119,7 +119,7 @@ profiling found, on the adapter's own `--dtype` switch (`logs/bench_esm3dg-38636
 Two findings that mattered more than precision:
 
 - **12 h of the 287 was being spent on DMS excluded from every comparison** — BRCA1, BRCA2, POLG_CXB3N and SCN5A,
-  all > 1,800 residues (§2.4 of the benchmarks doc drops them because at least one model cannot fit them).
+  all > 1,800 residues (§1.4 of the benchmarks doc drops them because at least one model cannot fit them).
 - **The cost is extremely skewed.** Half the DMS account for 1.8 % of the total and 90 % for 26 %; the *Stability*
   category — the relevant one for a stability model — is 6 h of the 287, while `SPG1_STRSG_Olson_2014`
   (536,962 variants, L=448) alone is about 84 h. The run was alphabetical, so it was spending its first days on

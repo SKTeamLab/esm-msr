@@ -532,6 +532,8 @@ ProteinMPNN,PG DMS mean,0.4263864514413006,,3,pgym_all_models_per_dms
 ESM-MSR dc8,PG avg,0.5107451564526648,,3,pgym summary.csv
 ESM-MSR dc8,PG Stability,0.8688617068794604,,3,pgym summary.csv
 ESM-MSR dc8,PG DMS mean,0.5554774838612878,,3,pgym summary.csv
+ESMtherm,tsu_capped_val,0.7158280303881348,,1,harness esmtherm cov=1.00
+ESMtherm,tsu_capped_test,0.7740498179896493,,1,harness esmtherm cov=1.00
 IFUM (WT backbone),tsu_capped_val,0.6660470735889185,,1,harness ifum cov=1.00
 IFUM (WT backbone),tsu_capped_test,0.7108837985741459,,1,harness ifum cov=1.00
 GeoDDG-3D,tsu_capped_val,0.5949183726842843,,1,harness geoddg_faspr cov=1.00
