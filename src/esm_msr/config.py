@@ -174,6 +174,14 @@ def parse_arguments() -> argparse.Namespace:
     log_group.add_argument('--log_dir', type=str, default='./logs')
     log_group.add_argument('--comet_api_key', type=str, default=None)
     log_group.add_argument('--comet_project_name', type=str, default="esm-msr-april2026")
+    log_group.add_argument('--external_val_sets', type=str, default='ptmuld,s461,ssym',
+                           help="Comma-separated validation loaders to score as OUT-OF-DISTRIBUTION benchmarks. They "
+                                "are still scored and logged per loader (val_<metric>/<name>) for diagnostics, but "
+                                "held OUT of every aggregate: val_*_avg, the pooled ungrouped metrics and the "
+                                "epistasis levels. They are summarised separately as val_rho_combined_external and "
+                                "val_rmse_combined_external, the mean over these loaders. Keeping OOD libraries out "
+                                "of the aggregate makes it an in-distribution quantity, and matches devel-revision, "
+                                "which separates them the same way. Pass '' for the pre-2026-10-21 behaviour.")
     log_group.add_argument('--log_every_n_steps', type=int, default=25)
     log_group.add_argument('--check_val_every_n_epoch', type=int, default=1)
     log_group.add_argument('--num_sanity_val_steps', type=int, default=0)

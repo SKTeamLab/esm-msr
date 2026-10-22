@@ -37,10 +37,38 @@ torch.set_float32_matmul_precision('high')
 # leaves it out (as devel does, where they are 'native_cond').
 NATIVE_BACKGROUND_CODE_RE = re.compile(r'_[A-Z][0-9]+[A-Z]$')
 
+EXTERNAL_SUMMARY_METRICS = ('rho_combined', 'rmse_combined')
+
+
+def summarise_external_benchmarks(per_loader: dict, external: set) -> dict:
+    """OOD validation loaders summarised as ``val_<metric>_external``: the mean of rho_combined and rmse_combined.
+
+    ``per_loader`` maps loader name -> {metric: value}. These libraries are deliberately kept out of every aggregate
+    (``val_*_avg``, the pooled ungrouped metrics, the epistasis levels): they are out of the training distribution, so
+    including them makes the aggregate incomparable across runs and inconsistent with what the model was trained on.
+    Their per-loader columns are still logged by the caller, so nothing diagnostic is lost. Same contract and the same
+    metric names as devel-revision's helper of this name, so the two branches' aggregates line up.
+    """
+    out = {}
+    for metric in EXTERNAL_SUMMARY_METRICS:
+        vals = [v[metric] for name, v in per_loader.items()
+                if name in external and metric in v and np.isfinite(v[metric])]
+        if vals:
+            out[f'val_{metric}_external'] = float(np.mean(vals))
+    return out
+
+
 class ESM3EpistasisLightningModule(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
         self.save_hyperparameters(ignore=['tokenizer'])
+        # OOD benchmarks: scored and logged per loader, held out of every aggregate (see summarise_external_benchmarks)
+        self.external_val_sets = {s.strip() for s in str(self.hparams.get('external_val_sets', '') or '').split(',')
+                                  if s.strip()}
+        if self.external_val_sets:
+            logging.info(f"external validation benchmarks held out of val_*_avg, the pooled metrics and the "
+                         f"epistasis levels: {sorted(self.external_val_sets)}; summarised as "
+                         f"val_rho_combined_external and val_rmse_combined_external")
         
         mt_lora_config = {
             "lora_rank": self.hparams.lora_rank_mt, "lora_alpha": self.hparams.lora_alpha_mt, "lora_dropout": self.hparams.lora_dropout_mt,
@@ -521,9 +549,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         
         # Pooled storage to compute ungrouped/global metrics at the end
         pooled_data = defaultdict(list)
+        ext_per_loader = {}          # OOD loaders: kept out of avg_metrics/pooled, survived by _external summaries
         
         for dataloader_idx, valid_outputs in self.validation_step_outputs.items():
             val_loader_name = self.val_dataloader_names[dataloader_idx] if dataloader_idx < len(self.val_dataloader_names) else f"unknown_dl_{dataloader_idx}"
+
+            is_external = val_loader_name in self.external_val_sets
 
             single_dict_comb = {}
             wt_scores_list, comb_scores_list, epi_scores_list = [], [], []
@@ -583,22 +614,30 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             rho_wt_valid = np.nan if NATIVE_BACKGROUND_CODE_RE.search(str(val_loader_name)) else stats.safe_spearman(wt_scores[sel], ground_truths[sel])
             if not np.isnan(rho_wt_valid):
                 self.log(f"val_rho_wt_valid/{val_loader_name}", rho_wt_valid, on_epoch=True, sync_dist=True)
-                avg_metrics['rho_wt_valid'].append(rho_wt_valid)
+                if not is_external:
+                    avg_metrics['rho_wt_valid'].append(rho_wt_valid)
             
-            # Aggregate pooled data for ungrouped metric calculation
-            pooled_data['wt_scores'].extend(wt_scores_list)
-            pooled_data['comb_scores'].extend(comb_scores_list)
-            pooled_data['ground_truths'].extend(ground_truths_list)
+            # Aggregate pooled data for ungrouped metric calculation. An external benchmark is summarised from its
+            # own metrics below and never pooled: the ungrouped ranking and the epistasis levels stay in-distribution.
+            if is_external:
+                ext_per_loader[val_loader_name] = {
+                    'rho_combined': metrics.get('rho', {}).get('combined', np.nan),
+                    'rmse_combined': metrics.get('rmse', {}).get('combined', np.nan),
+                }
+            pooled_data['wt_scores'].extend([] if is_external else wt_scores_list)
+            pooled_data['comb_scores'].extend([] if is_external else comb_scores_list)
+            pooled_data['ground_truths'].extend([] if is_external else ground_truths_list)
             # for the epistasis metrics (esm_msr.epi_metrics): per-item values of every pass, the mutation count and a library-tagged key
-            pooled_data['mt_scores'].extend(mt_scores_list)
-            pooled_data['wt_rev_scores'].extend(wt_rev_list)
-            pooled_data['mt_fwd_scores'].extend(mt_fwd_list)
-            pooled_data['dG_wt'].extend(dG_wt_list)
-            pooled_data['subset_type'].extend(subset_list)
-            pooled_data['dddG'].extend(dddG_truths_list)
-            pooled_data['n_mut'].extend(mut_lens_list)
-            pooled_data['loader'].extend([val_loader_name] * len(mut_lens_list))
-            pooled_data['mut_key'].extend([tuple((val_loader_name,) + tuple(m) for m in mp) if all(isinstance(m, (tuple, list)) for m in mp) else None
+            pooled_data['mt_scores'].extend([] if is_external else mt_scores_list)
+            pooled_data['wt_rev_scores'].extend([] if is_external else wt_rev_list)
+            pooled_data['mt_fwd_scores'].extend([] if is_external else mt_fwd_list)
+            pooled_data['dG_wt'].extend([] if is_external else dG_wt_list)
+            pooled_data['subset_type'].extend([] if is_external else subset_list)
+            pooled_data['dddG'].extend([] if is_external else dddG_truths_list)
+            pooled_data['n_mut'].extend([] if is_external else mut_lens_list)
+            pooled_data['loader'].extend([] if is_external else [val_loader_name] * len(mut_lens_list))
+            pooled_data['mut_key'].extend([] if is_external else
+                                          [tuple((val_loader_name,) + tuple(m) for m in mp) if all(isinstance(m, (tuple, list)) for m in mp) else None
                                            for mp in flat_mut_parts])
 
             # Log metrics avoiding MUT-specific grouped ones and grouped NDCGs
@@ -610,10 +649,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
             for metric_type, pathways in metrics.items(): 
                 for pathway, val in pathways.items():     
-                    if not np.isnan(val): avg_metrics[f"{metric_type}_{pathway}"].append(val)
+                    if not np.isnan(val) and not is_external: avg_metrics[f"{metric_type}_{pathway}"].append(val)
 
         for key, values in avg_metrics.items():
             if values: self.log(f'val_{key}_avg', np.nanmean(values), on_epoch=True, prog_bar=True, sync_dist=True)
+
+        for _k, _v in summarise_external_benchmarks(ext_per_loader, self.external_val_sets).items():
+            self.log(_k, _v, on_epoch=True, sync_dist=True)
 
         # Compute Ungrouped metrics globally across all valid samples
         if pooled_data['ground_truths']:
