@@ -10,29 +10,11 @@ and its order among its equally-dead peers is noise. Both objectives here are bu
   below the floor" for something measured at the floor is free, and only claiming it is *better* than the floor costs anything.
 
 ``cens`` is -1 (lower-censored), 0 (ordinary) or +1 (upper-censored) throughout; see ``esm_msr.censoring`` for where it comes from.
-
-Both losses also take per-item ``weights`` (``--ci_weight``, see ``esm_msr.ci_weights``). In the regression they are the usual
-inverse-variance weights. In the Plackett-Luce list a weight w_j does TWO things, and both are needed:
-
-* it scales the term in which item j is the one chosen (its own "this one is next" event), and
-* it enters every denominator that holds j as a known offset, exp(s_j + log w_j), so that a poorly measured competitor weighs
-  less against the winners above it.
-
-Scaling the chosen term alone is WRONG, and measurably so (docs/ci_weighting.md section 3, simulation): each Plackett-Luce term
-is zero-sum in the scores (+1 for the chosen item, -1 shared among the remaining ones), and a low-weight item then keeps its full
-share of the negatives from other items' terms while its own positive term shrinks, so low-weight items are pushed down for no
-reason the features could explain. The offset restores the balance - provided every item that HAS a term carries a term weight that is the
-SAME multiple of exp(its score offset). The caller guarantees it by weighting every uncensored item alike and passing offsets centred on that
-population (``w`` as the term scale, ``log w - mean(log w)`` as the offset: the multiple is the constant exp(mean log w)). Censored members have
-no term of their own and sit in the denominators at offset 0, i.e. at the population's typical weight. Mixing weighted and unweighted items that
-both have terms would break the balance (tests/test_ci_weighting.py shows the residual force). This is an approximation of a noisy-label
-likelihood, not the likelihood itself.
 """
 import itertools
 
 import torch
 
-MIN_WEIGHT = 1e-12      # log of a zero weight would be -inf; this is "never chosen, never competes" without the NaN
 
 class ListMLELoss(torch.nn.Module):
     """
@@ -48,16 +30,12 @@ class ListMLELoss(torch.nn.Module):
         self.eps = eps
         self.invert = invert
 
-    def forward(self, predictions: torch.Tensor, ground_truths: torch.Tensor, mask: torch.Tensor | None = None,
-                weights: torch.Tensor | None = None, offsets: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(self, predictions: torch.Tensor, ground_truths: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
         """
         Args:
             predictions: scores, (Batch, List_Size).
             ground_truths: targets, (Batch, List_Size); higher ranks higher.
             mask: False marks entries to ignore, (Batch, List_Size).
-            weights: per-item precision weights, (Batch, List_Size); None = all 1. See the module docstring for what they do.
-            offsets: the score offsets, (Batch, List_Size); default ``log(weights)``. A caller whose lists mix weighted and
-                unweighted items passes offsets centred on the weighted population (``ci_weights.item_offsets``).
         """
         if mask is None:
             mask = torch.ones_like(predictions, dtype=torch.bool)
@@ -65,34 +43,21 @@ class ListMLELoss(torch.nn.Module):
             raise AssertionError(f"Mask shape {mask.shape} must strictly match predictions shape {predictions.shape}.")
         if self.invert:
             predictions, ground_truths = -predictions, -ground_truths
-        predictions = self._offset(predictions, weights, offsets)
-        loss, valid = self._per_list(predictions, ground_truths, mask, mask, weights)
+        loss, valid = self._per_list(predictions, ground_truths, mask, mask)
         if valid.sum() == 0:
             # Whole micro-batch masked out: keep a 0.0 with gradients attached so backward does not crash.
             return predictions.sum() * 0.0
         return loss[valid].mean()
 
-    @staticmethod
-    def _offset(predictions: torch.Tensor, weights: torch.Tensor | None, offsets: torch.Tensor | None = None) -> torch.Tensor:
-        """The scores with each item's offset added (its log-weight unless ``offsets`` says otherwise): what puts a precision weight
-        into every denominator."""
-        if weights is None:
-            return predictions
-        if offsets is None:
-            offsets = torch.log(weights.float().clamp_min(MIN_WEIGHT))
-        return predictions.float() + offsets.float()
-
     def _per_list(self, predictions: torch.Tensor, ground_truths: torch.Tensor, mask: torch.Tensor,
-                  score: torch.Tensor, weights: torch.Tensor | None = None):
+                  score: torch.Tensor):
         """
         Plackett-Luce NLL of each list, descending order, with a tied block at the bottom.
 
         ``mask`` marks the list's members; ``score`` (a subset) marks those whose own term counts. Members in
         ``mask & ~score`` sort after every scored member, stay in the denominators and contribute no term of
-        their own, so their order among themselves is free. ``weights`` scales each scored member's own term; the
-        CALLER has already added their logs to ``predictions`` (:meth:`_offset`), which is what carries them into the
-        denominators. Returns ``(loss [B], valid [B])``; a list is valid when it has at least 2 members and at
-        least one scored member.
+        their own, so their order among themselves is free. Returns ``(loss [B], valid [B])``; a list is valid
+        when it has at least 2 members and at least one scored member.
         """
         predictions, ground_truths = predictions.float(), ground_truths.float()
         gt = ground_truths.clone()
@@ -114,16 +79,12 @@ class ListMLELoss(torch.nn.Module):
         exp_pred = torch.exp(shifted)
         denom = torch.flip(torch.cumsum(torch.flip(exp_pred, dims=(-1,)), dim=-1), dims=(-1,))
         denom = torch.clamp(denom, min=self.eps)
-        term_weight = ordered_score.float()
-        if weights is not None:
-            term_weight = term_weight * weights.float().gather(-1, idx)
-        log_probs = (ordered_pred - max_pred - torch.log(denom)) * term_weight
+        log_probs = (ordered_pred - max_pred - torch.log(denom)) * ordered_score.float()
         valid = (mask.sum(dim=-1) > 1) & (score & mask).any(dim=-1)
         return -log_probs.sum(dim=-1), valid
 
     def forward_censored(self, predictions: torch.Tensor, ground_truths: torch.Tensor,
-                         mask: torch.Tensor, cens: torch.Tensor, weights: torch.Tensor | None = None,
-                         offsets: torch.Tensor | None = None) -> torch.Tensor:
+                         mask: torch.Tensor, cens: torch.Tensor) -> torch.Tensor:
         """
         ListMLE with the censored members' mutual order left unscored. ``cens`` is -1, 0 or +1 per member:
 
@@ -139,19 +100,14 @@ class ListMLELoss(torch.nn.Module):
         holding any upper-censored member switched to REVERSE Plackett-Luce (and a list with both kinds averaged the
         two), which is exact for the block but bottom-weights every other member of that list. With no censored
         member this equals :meth:`forward`.
-
-        ``weights`` (optional, same shape; 1.0 for a censored member, which has no interval to weight by) shift every score by its
-        offset (``log w`` by default, or ``offsets``) and scale the term of each ORDINARY member. The shift reaches the upper block's ``-log P(first)`` factor
-        through the scores it is built from; its own weight stays 1.
         """
         if self.invert:
             raise AssertionError("forward_censored is not supported together with invert=True.")
         if mask.shape != predictions.shape or cens.shape != predictions.shape:
             raise AssertionError("mask and cens must match predictions' shape.")
-        predictions = self._offset(predictions, weights, offsets)
         lo, hi = (cens < 0) & mask, (cens > 0) & mask
         ordinary = mask & ~lo & ~hi
-        loss, valid = self._per_list(predictions, ground_truths, mask & ~hi, ordinary, weights)
+        loss, valid = self._per_list(predictions, ground_truths, mask & ~hi, ordinary)
         has_hi = hi.any(dim=-1)
         if bool(has_hi.any()):
             loss = loss + self._top_block_nll(predictions, mask, hi)

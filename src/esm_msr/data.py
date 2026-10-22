@@ -17,7 +17,7 @@ from tqdm import tqdm
 from esm.utils.structure.protein_chain import ProteinChain
 from esm.utils.constants import esm3 as C
 
-from esm_msr import censoring, ci_weights
+from esm_msr import censoring
 from esm_msr.utils import custom_end_gap_alignment, determine_diffs
 
 STRUCTURES_DIR = os.environ.get(
@@ -262,7 +262,6 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         floor_source: Optional[str] = None,
         censor_threshold: Optional[float] = None,
         censor_threshold_double: Optional[float] = None,
-        censor_doubles: bool = True,
     ):
         """
         Args:
@@ -295,8 +294,6 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             censor_range: Keep the rows the assay bounded rather than fitted (``<-1`` / ``>5``), which the cache
                 always stores. False drops them, restoring the selected-on-outcome population; see
                 ``esm_msr.censoring``.
-            censor_doubles: False leaves every measured double (and cond item) uncensored - no floor, threshold or gap rule
-                reaches it (``--no-censor_doubles``). Rows the assay only bounded stay bounds. Pairs with ``--ci_weight``.
             label_native_cond: Label a mutant-background library's measurements ``native_cond`` instead of leaving
                 them ``single``. Off (the released behaviour), they train the WT head as ordinary singles, which is
                 strictly wrong - ddG(X | background) is a conditional effect, not a wild-type-context one - but is the
@@ -356,10 +353,6 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
 
         logging.info(f"Cache contains: {dict(Counter(i.get('subset_type', 'unknown') for i in self.data))}")
 
-        # Each item's label variance (esm_msr.ci_weights), from its own protease readings. Stamped on ALL cached items, before any subset
-        # filter, because a library's protease offset is estimated from its whole content. Nothing is cached: it is derived from `meas`.
-        self._stamp_label_variance()
-
         # Mutant-background libraries: their singles are conditional measurements, unless we are reproducing the
         # released behaviour of treating them as ordinary singles.
         if not censor_range:
@@ -370,7 +363,6 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         self.assay_floor = assay_floor
         self.floor_source = floor_source
         self.censor_threshold, self.censor_threshold_double = censor_threshold, censor_threshold_double
-        self.censor_doubles = bool(censor_doubles)
         self._stamp_floor()
         self._apply_censoring(censor_floor, gap_max)
         self._extract_scalars()
@@ -395,10 +387,6 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         return data
     
     # ------------------------------------------------------------------ post-load filters
-
-    def _stamp_label_variance(self) -> None:
-        """Set ``item['label_var']`` on every item from its two protease readings and its interval (``ci_weights.label_variance``)."""
-        ci_weights.stamp_label_variance(self.data, _MEAS_INDEX)
 
     def _drop_range_censored(self) -> None:
         """
@@ -494,8 +482,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         thresholded = t1 is not None or t2 is not None
         # A threshold reaches every library: it is a statement about the assay's readings, not about this library's floor.
         active = bool(censor_floor and (thresholded or getattr(self, 'has_floor_evidence', False)))
-        self.data, c = censoring.apply_item_censoring(self.data, active, gap_max, threshold=t1, threshold_multi=t2,
-                                                      censor_multi=getattr(self, 'censor_doubles', True))
+        self.data, c = censoring.apply_item_censoring(self.data, active, gap_max, threshold=t1, threshold_multi=t2)
         if c['floor'] or c['gap'] or c['range']:
             logging.info(f"[{self.dms_name}] censored {c['floor'] + c['gap'] + c['range']} of {len(self.data)} items: "
                          f"{c['range']} bounded by the assay {dict(c['range_by_subset'])}, "
@@ -1020,7 +1007,6 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     cens_bound = torch.tensor([float(item.get('cens_bound', float('nan'))) for item in batch], dtype=torch.float32)
     meas = torch.stack([torch.as_tensor(item['meas'] if item.get('meas') is not None else np.full(len(MEAS_COLUMNS), np.nan),
                                         dtype=torch.float32) for item in batch], dim=0)
-    label_var = torch.tensor([float(item.get('label_var', float('nan'))) for item in batch], dtype=torch.float32)
 
     # Sequence stacking. MUST be identical lengths across the batch.
     wt_seq_list = [torch.as_tensor(item['wt_sequence_tokens'], dtype=torch.long) for item in batch]
@@ -1088,7 +1074,6 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         'cens_src': cens_src,
         'cens_bound': cens_bound,
         'meas': meas,
-        'label_var': label_var,
         'wt_sequence_tokens': wt_seq_stack,
         'mt_sequence_tokens': mt_seq_stack,
         'mut_pos': mut_pos_stack,
@@ -1608,7 +1593,6 @@ class PooledDataLoader:
         cens_bound = torch.tensor([float(it.get('cens_bound', float('nan'))) for it in batch], dtype=torch.float32)
         meas = torch.stack([torch.as_tensor(it['meas'] if it.get('meas') is not None else np.full(len(MEAS_COLUMNS), np.nan),
                                             dtype=torch.float32) for it in batch], dim=0)
-        label_var = torch.tensor([float(it.get('label_var', float('nan'))) for it in batch], dtype=torch.float32)
 
         # --- Vectorized Mutation Arrays ---
         mutations = [it.get("mutations", []) for it in batch]
@@ -1675,7 +1659,6 @@ class PooledDataLoader:
             "cens_src": cens_src,
             "cens_bound": cens_bound,
             "meas": meas,
-            "label_var": label_var,
             "subset_type": st,
         }
         return collated
