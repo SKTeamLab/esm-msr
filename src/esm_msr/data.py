@@ -17,7 +17,7 @@ from tqdm import tqdm
 from esm.utils.structure.protein_chain import ProteinChain
 from esm.utils.constants import esm3 as C
 
-from esm_msr import censoring
+from esm_msr import censoring, ci_weights
 from esm_msr.utils import custom_end_gap_alignment, determine_diffs
 
 STRUCTURES_DIR = os.environ.get(
@@ -356,6 +356,10 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
 
         logging.info(f"Cache contains: {dict(Counter(i.get('subset_type', 'unknown') for i in self.data))}")
 
+        # Each item's label variance (esm_msr.ci_weights), from its own protease readings. Stamped on ALL cached items, before any subset
+        # filter, because a library's protease offset is estimated from its whole content. Nothing is cached: it is derived from `meas`.
+        self._stamp_label_variance()
+
         # Mutant-background libraries: their singles are conditional measurements, unless we are reproducing the
         # released behaviour of treating them as ordinary singles.
         if not censor_range:
@@ -391,6 +395,10 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         return data
     
     # ------------------------------------------------------------------ post-load filters
+
+    def _stamp_label_variance(self) -> None:
+        """Set ``item['label_var']`` on every item from its two protease readings and its interval (``ci_weights.label_variance``)."""
+        ci_weights.stamp_label_variance(self.data, _MEAS_INDEX)
 
     def _drop_range_censored(self) -> None:
         """
@@ -1012,6 +1020,7 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     cens_bound = torch.tensor([float(item.get('cens_bound', float('nan'))) for item in batch], dtype=torch.float32)
     meas = torch.stack([torch.as_tensor(item['meas'] if item.get('meas') is not None else np.full(len(MEAS_COLUMNS), np.nan),
                                         dtype=torch.float32) for item in batch], dim=0)
+    label_var = torch.tensor([float(item.get('label_var', float('nan'))) for item in batch], dtype=torch.float32)
 
     # Sequence stacking. MUST be identical lengths across the batch.
     wt_seq_list = [torch.as_tensor(item['wt_sequence_tokens'], dtype=torch.long) for item in batch]
@@ -1079,6 +1088,7 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         'cens_src': cens_src,
         'cens_bound': cens_bound,
         'meas': meas,
+        'label_var': label_var,
         'wt_sequence_tokens': wt_seq_stack,
         'mt_sequence_tokens': mt_seq_stack,
         'mut_pos': mut_pos_stack,
@@ -1598,6 +1608,7 @@ class PooledDataLoader:
         cens_bound = torch.tensor([float(it.get('cens_bound', float('nan'))) for it in batch], dtype=torch.float32)
         meas = torch.stack([torch.as_tensor(it['meas'] if it.get('meas') is not None else np.full(len(MEAS_COLUMNS), np.nan),
                                             dtype=torch.float32) for it in batch], dim=0)
+        label_var = torch.tensor([float(it.get('label_var', float('nan'))) for it in batch], dtype=torch.float32)
 
         # --- Vectorized Mutation Arrays ---
         mutations = [it.get("mutations", []) for it in batch]
@@ -1664,6 +1675,7 @@ class PooledDataLoader:
             "cens_src": cens_src,
             "cens_bound": cens_bound,
             "meas": meas,
+            "label_var": label_var,
             "subset_type": st,
         }
         return collated

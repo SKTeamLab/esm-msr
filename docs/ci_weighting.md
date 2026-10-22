@@ -1,74 +1,89 @@
-# CI-weighted training (`--ci_weight`) in place of censoring on doubles
+# Label-uncertainty weighting (`--ci_weight`) in place of censoring
 
-Written 2026-10-22. Implements open question 7 of `EXPERIMENTS.md` §7 and queues its first test. **Status: implemented, tested on
-CPU (356 passed), real-cache smoke-tested; the arm `mt_frozenwt_r2a4_ciw_s1` is queued, not yet run.** Everything here is off by
-default: with the new flags absent every loss and every dataset is what it was (the 333 pre-existing tests are untouched).
+Written 2026-10-22, redesigned the same day. Implements open question 7 of `EXPERIMENTS.md` §7. **Status: implemented and tested on CPU
+(365 passed, 333 of them the pre-existing suite), smoke-tested on real cached libraries. The arm `mt_frozenwt_ciw_r16a16_s1` is queued
+behind `mt_frozenwt_r2a4_s3`, not yet run.** Everything is off by default: with the new flags absent every loss and every dataset is what it
+was.
 
-## 1. What was built
+The first version (commit `cb49643`) weighted by the interval the assay reports, `deltaG_95CI`. That was the wrong uncertainty (§2) and is
+superseded; this document describes the replacement.
+
+## 1. What exists
 
 | flag | default | what it does |
 |---|---|---|
-| `--ci_weight` | off | weight each **uncensored** item of `--ci_weight_subsets` by the precision of its own label |
-| `--ci_weight_subsets` | `double` | which subsets are weighted; the rest keep weight 1 |
-| `--ci_weight_tau` | `0.02` | kcal/mol of variance that is not the label's, added to every item (§2) |
-| `--ci_weight_losses` | `both` | `reg`, `rank` or `both`: which losses see the weights, so a result can be traced to one |
-| `--no-censor_doubles` | censor | no floor, threshold or gap rule reaches a measured double or cond item; singles are censored as before; a double the assay only **bounded** (`<-1` / `>5`) stays a bound |
+| `--ci_weight` | off | weight **every uncensored item, of every subset alike**, by the inverse of its label's variance plus `--ci_weight_tau`², normalised to mean 1 over the training items |
+| `--ci_weight_tau` | `0.5` | SD (kcal/mol) of the part of the residual that is the **model's**, added to every item (§3) |
+| `--ci_weight_losses` | `both` | `reg`, `rank` or `both`, so a result can be traced to one loss |
+| `--no-censor_doubles` | censor | no floor/threshold/gap rule reaches a measured double. **Not used by the queued arm**: a double read below the link's floor knee is then a regression target the link cannot reach (`training.reachable_bounds` exists for this reason). Kept for a stricter second shot |
 
-The weight is `w = [1/(σ² + τ²)] / mean(1/(σ² + τ²))` with `σ = deltaG_95CI / 3.92`, the mean taken over the training items it
-applies to (computed once at start-up and logged, `args.ci_weight_ref`), so the weights average 1 and the regression keeps its
-scale. The ranking loss uses a second normalisation of the same weights, geometric mean 1, for a reason given in §3.
-`deltaG_95CI` is the *full width* of the 95% interval, and for every numeric row `dG_ML == deltaG`, so it is the interval of the
-training label's own fit. No cache change: `meas` already carries the column (`data.MEAS_COLUMNS`), so `--cache_version c5` is
-untouched and no rebuild happens.
+Code: `src/esm_msr/ci_weights.py` (the uncertainty model and weights), `data.py` (`label_var` stamped on every item at load from `meas`, no cache
+change: `--cache_version c5` is untouched), `losses.py` (`ListMLELoss(weights=, offsets=)`), `training.py` (`ci_item_weights`, the composer),
+`preprocess_megascale.py` (the normaliser, from the training items), `censoring.py` (`censor_multi`), `config.py`.
+Tests: `tests/test_ci_weighting.py`. Evidence: `analysis_scripts/ci_weighting_fit.py` (everything in §2-3), `ci_weighting_sim.py` (§4),
+`ci_weighting_stats.py` (the raw interval statistics).
 
-Code: `src/esm_msr/ci_weights.py` (the weights), `losses.py` (`ListMLELoss(weights=)`), `censoring.py` / `data.py` /
-`preprocess_megascale.py` (`censor_multi` / `--no-censor_doubles`, training loaders only; validation scores the canonical
-population whatever training censors), `training.py` (`ci_item_weights`, the composer), `config.py`.
-Tests: `tests/test_ci_weighting.py`. Evidence: `analysis_scripts/ci_weighting_stats.py`, `analysis_scripts/ci_weighting_sim.py`.
+## 2. What the label uncertainty actually is
 
-## 2. What the interval is on this data (`ci_weighting_stats.py`)
+Every variant has two independent estimates of its stability, one per protease (`deltaG_t`, `deltaG_c`), and `dG_ML` is their joint fit.
+I tested each candidate measure of label noise against the **held-out squared error of a trained model** (`mt_frozenwt_r2a4_s1`, epoch 3,
+34,957 validation items joined to their raw measurement columns): if a measure is label noise, the model's error should rise with it, with a
+coefficient of about 1 once the model's own baseline error is subtracted.
 
-* **It is small.** The CI-implied label SD is a median **0.035 kcal/mol** on in-range doubles. The two proteases disagree about
-  the same variant by a median 0.30 (a per-protease SD of ≈ 0.35), ten times larger, and the model's held-out error is
-  `val_rmse_combined_avg` ≈ **0.49**. The interval is the fit's statistical precision, not the assay's error.
-* **It barely tracks the real error.** Spearman(CI width, protease gap) = **0.12** in range (0.15 over all doubles).
-* **It rises at the destabilised end, but gently.** Doubles, median CI width by dG band: 0.12-0.15 across dG 0-4.5, 0.17 at
-  -0.5..0, **0.30** below -0.5. The protease gap over the same bands goes 0.3 → 0.76 → **2.4**.
-* **So it cannot stand in for floor censoring.** 33.3% of doubles read at or below the 0.5 threshold. Under *pure* inverse
-  variance (τ = 0) they would still keep **29.2%** of the total weight (their CI is 0.167 median against 0.139 for the rest).
-  What the floor does to a reading is bias (it reports the unfolded-state composition error of that protease and library), not
-  variance, and a confidence interval measures variance. Weighting is not a softer censoring; it is a different thing.
+| candidate | what the held-out error does |
+|---|---|
+| `deltaG_95CI` (the interval; median implied SD 0.035) | flat for 99% of items (MSE 0.245-0.27), rising only in the last 0.5%. Coefficient on CI² in a regression: −0.4 ± 1.5 |
+| per-protease fitting error, K50 intervals | flat |
+| raw protease gap, \|dG_t − dG_c\| | flat up to 1.2 kcal/mol (MSE 0.27-0.32), because **a whole library shares a protease offset** |
+| **library-centred** gap (the gap minus the median signed gap of the library's in-range variants) | rises steadily: MSE **0.21 → 0.26 → 0.29 → 0.35 → 0.52 → 0.72** across its quantile bins (medians 0.06 → 1.22) |
 
-Weights over the doubles, by τ (`w95/w05` is the 95th over the 5th percentile weight; ESS is the effective sample size):
+The library offset cancels in `ddG = dG − dG_wt`, so only a variant's own deviation `g` from it is label error. For two independent protease
+errors the mean of the readings has variance `g²/4` (E[g²] = 2u², variance of the mean u²/2), so the coefficient on `g²` should be **1/4 with
+nothing fitted**. In range (readings 1-4.5) it is **0.263 ± 0.015** (singles 0.256 ± 0.014, doubles 0.226 ± 0.048). That is the whole model:
+`L = (CI/3.92)² + g²/4`, and `g` (capped at 3: `dG_ML` is clamped to [−1, 5], so no label is wrong by more than a few kcal/mol) is statistically
+independent of the error of the mean for equal variances, so weighting by it does not select on the label's own noise. Weighting by the
+**reading** would: a variant truly at the floor whose noise puts it a little higher would count for more, pulling the fit upward.
 
-| τ | w95/w05 | ESS | max / mean |
-|---|---|---|---|
-| 0 (pure inverse variance) | 30× | 47% | 28.7 |
-| **0.02 (default)** | **14×** | **71%** | **3.7** |
-| 0.04 | 6× | 86% | 1.9 |
-| 0.10 | 1.9× | 97% | 1.2 |
-| 0.40 (≈ the model's residual) | 1.1× | 100% | 1.0 |
+**Depth below the floor.** For a double the additive expectation `x = dG_wt + ddG_A + ddG_B` comes from other measurements, and the
+deviation grows steeply with depth. The mean capped squared deviation `m(x)`:
 
-`τ` is the variance that is not the label's: the inverse-variance weight of a regression whose residual is label noise plus the
-model's own misfit is exactly `1/(σ² + τ²)`. **The statistically correct τ is therefore the model's residual SD (≈ 0.4), where
-the weights are flat and `--ci_weight` does nothing.** Any τ that makes the weights discriminate is a deliberate emphasis choice
-(trust the precisely measured items more than the model's error would justify), not a maximum-likelihood weighting. The default
-keeps most of the contrast and stops a few tiny-interval items from carrying 29× the average.
+| x (additive dG) | −4.5 | −3.5 | −2.5 | −1.5 | −0.75 | −0.25 | 0.25 | 0.75 | 1.5 | 2.5 | 3.5 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| m(x) | 4.52 | 4.25 | 3.61 | 2.36 | 1.35 | 0.58 | 0.27 | 0.15 | 0.09 | 0.09 | 0.16 |
 
-## 3. Can it be weighted appropriately in both losses?
+It holds at a fixed reading too (reading −0.5..0.5: the uncapped deviation² goes 7.8 → 17 → 40 → 58 as x goes from >0 to < −3). On held-out
+doubles, error `= 0.272 + 0.678·m(x)` and the item's own deviation adds nothing once `m(x)` is in (−0.03 ± 0.03). So `m(x)` is the prior for a
+double's own `g²` (an average of the two: an empirical-Bayes estimate with a prior worth one observation). Singles have no such expectation and
+use their own deviation. **What the data do not separate** is label error from model difficulty at depth: held-out error there is 2-3 against a
+label variance of 0.25·m ≈ 1, so label error is the minority share of the residual, and the weights use only the label share.
 
-**Regression: yes, exactly.** Inverse-variance weighting is the maximum-likelihood fit under heteroscedastic Gaussian noise. The
-weights multiply the numerator only (`global_w_sum` stays the sum of the *subset* weights), so a batch of poorly measured items
-carries less in total, which is the right behaviour, and the loss keeps its scale (`tests/test_ci_weighting.py`,
-`test_regression_numerator_is_weighted_and_the_denominator_stays_the_subset_sum`). A censored item is not weighted: its label is
-a bound, and a range-bounded double's `deltaG_95CI` belongs to the unbounded fit the assay declined to report (median 0.65,
-four times a fitted row's).
+## 3. The weights
 
-**Ranking (ListMLE): only approximately, and the obvious way is wrong.** Plackett-Luce has no noise parameter. It models
-*choices* (the k-th term is "this item is next, out of those left"), and a label's noise reaches the loss through the *order* it
-induces, which depends on pairs of items, not on one. The first thing one writes, scaling each choice term by its chosen item's
-weight, is measurably harmful. Simulation (`ci_weighting_sim.py`; 24 seeds, paired; change in Spearman against the unweighted
-fit; noise ×3 is a median label SD of 1.5 against a unit signal):
+`w = [1/(τ² + L)] / mean[1/(τ² + L)]`, mean over the training items. This is the optimal weight of a regression whose residual is label
+error plus a model error common to all items; **τ is that model error**, 0.46-0.57 on clean validation items, so the default is 0.5. Smaller
+τ discriminates harder. Weights on the real training split (`ci_weighting_fit.py`):
+
+| items | τ | w05 / w50 / w95 | ESS | weighting efficiency | weight share of doubles with x < 0 (count share) |
+|---|---|---|---|---|---|
+| every item that is not a range bound (207,546) | 0.5 | 0.44 / 1.10 / 1.16 | 95% | 1.19 | 6.6% (11.9%) |
+| | 0.25 | 0.18 / 1.13 / 1.39 | 87% | 1.80 | 3.6% |
+| **kept as values by the `dthr0` recipe (181,013)** | **0.5** | **0.58 / 1.07 / 1.12** | **97%** | **1.065** | 5.7% (9.3%) |
+| | 0.25 | 0.28 / 1.10 / 1.32 | 91% | 1.34 | 3.2% |
+
+*Weighting efficiency* `E[τ²+L]·E[1/(τ²+L)]` is the most estimator variance that optimal weights can remove against uniform ones (1.0 =
+nothing). On the items the queued recipe keeps it is **1.065**: at the statistically right τ the weights are nearly flat, and the whole effect is
+a soft down-weighting of the ~9% of items that are deep doubles. The hard protease-gap rule would censor only **0.21% of singles and 1.79% of
+doubles** among them. See §6 for what that implies.
+
+## 4. Applying the weights to both losses
+
+**Regression: exact.** Inverse-variance weighting is the maximum-likelihood fit under noise that differs per item. The weights multiply the
+numerator only (`global_w_sum` stays the sum of the *subset* weights), so a batch of poorly measured items carries less in total and the loss keeps
+its scale. A censored item is not weighted: its label is a bound.
+
+**Ranking (ListMLE): approximate, and the obvious way is wrong.** Plackett-Luce models *choices*; a label's noise reaches it through the *order*
+it induces, which depends on pairs. Scaling each choice term by its chosen item's weight is measurably harmful (`ci_weighting_sim.py`; 24 seeds,
+paired; change in Spearman against the unweighted fit; noise ×3 is a median label SD of 1.5 against a unit signal):
 
 | noise | misfit | regression, weighted | rank: scale the chosen term only | rank: offset only | rank: **offset + term (shipped)** |
 |---|---|---|---|---|---|
@@ -77,62 +92,58 @@ fit; noise ×3 is a median label SD of 1.5 against a unit signal):
 | ×3 | 0.5 | +0.0159 | **−0.0867** | +0.0012 | **+0.0099** |
 | ×0.25 | 0.5 | −0.0019 | −0.0023 | −0.0012 | −0.0009 |
 
-Why: each Plackett-Luce term is zero-sum in the scores (+1 to the chosen item, −1 shared among those left). Weight only the
-chosen term and a low-weight item keeps its full share of the negatives from other items' terms while its own positive term
-shrinks, so low-weight items are pushed down for no reason the features can explain. `test_uninformative_labels_exert_no_net_force_on_any_item`
-shows it exactly: with equal scores and labels that say nothing (averaged over all 24 orders of four items) the term-only loss
-pushes the lowest-weight item with +0.70 and the highest with −1.09, and the shipped loss exerts 0.0 on all of them. The fix is
-to treat `log w` as a known offset on every score, `exp(s_j + log w_j)`, in numerator and every denominator, and to scale each
-term by `w` as well. That restores the balance and lets a noisy competitor weigh less against the winners above it
-(`ListMLELoss._offset`). It is not a likelihood of the noisy labels.
+Each Plackett-Luce term is zero-sum in the scores. Weight only the chosen term and a low-weight item keeps its full share of the negatives from
+other items' terms while its own positive term shrinks, so low-weight items are pushed down for no reason the features can explain
+(`test_uninformative_labels_exert_no_net_force_on_any_item`: with equal scores and labels that say nothing, the term-only loss pushes the
+lowest-weight item with +0.70 and the highest with −1.09; the shipped loss exerts 0). The fix is to offset every score by `log w − mean(log w)`
+(a known offset, in numerator and every denominator) **and** scale each term by `w`. The balance holds only if every item that has a term carries
+a term weight that is the same multiple of `exp(offset)`; that is why the weighting must be **uniform over the uncensored items** (the only ones
+with terms), and why leaving a subset out breaks it (`test_leaving_one_termed_item_unweighted_breaks_the_balance`). Censored members sit in the
+denominators at offset 0, the population's typical weight. It is an approximation of a noisy-label likelihood, not the likelihood. The last row is
+the regime this data is in: when label noise is small against model error, no weighting helps, and a hand-set strength hurts slightly.
 
-*The normalisation that makes the balance hold in the real lists.* The MT stream mixes singles (weight 1, offset 0) and weighted
-doubles in one list of 16, and the balance needs every item's term weight to be the **same multiple of `exp(offset)`**. Weights
-normalised to arithmetic mean 1 sit beside offsets `log w`, which average `-0.256` over the doubles at the default τ (a systematic
-0.26 shift of every double's score against the singles of its list once labels are informative). Centring the offsets removes the shift
-but, with arithmetic-mean-1 term weights, breaks the balance again (a residual force of 0.03-0.07 per item in the test, with a
-direction). The consistent form is the geometric-mean-1 normalisation for the *ranking* loss only: offsets `log w - mean(log w)`,
-term weight `exp(offset)` (`ci_weights.item_offsets`; `test_a_mixed_list_is_balanced_only_when...`). Its price is stated, not hidden: a
-ranking term is `e^{0.256} = 1.29×` larger on a weighted item at the default τ (1.09× at τ = 0.05), logged at start-up. The
-regression keeps arithmetic mean 1 and its scale. `--ci_weight_losses reg` removes the 1.29× entirely. A pairwise form (weight a pair by how far apart the labels are
-against their combined SD, the "near-noise pairs" of §7) is the principled alternative; it needs an O(n²) list term and was not built.
+## 5. The arm: `mt_frozenwt_ciw_r16a16_s1`
 
-**Two cautions the table carries.** (1) The effect is small and scales with how much noise there is to see: at noise ×0.25
-with model misfit, *every* weighting scheme is slightly negative, including regression (−0.0019). This is the regime the real
-data sits in (label SD 0.04 against a model error of 0.49), so the honest prior for `--ci_weight` alone is **no gain, perhaps a
-small loss**. (2) The simulation's weights see the label noise exactly; here the interval sees only a tenth of it (§2).
+The `mt_frozenwt_dthr0_r16a16_s1` recipe (frozen best-epoch WT of `wt_r2a4_f0_cthr05_s1`, MT-only, rank 16 / alpha 16, doubles floor-bounded at
+≤ 0, singles at ≤ 0.5, seed 1) with the hard protease-gap censoring replaced by the weights: `--no-censor_gap --ci_weight --ci_weight_tau 0.5`.
+Its parsed arguments differ from `dthr0`'s in exactly `censor_gap`, `ci_weight` and the experiment name. **Reading "instead of censoring" this
+way is my interpretation**; the floor bounds are kept because below the link's floor knee a value is an unreachable target, and the hinge there
+is the same as a clamped value for the regression (§6).
 
-## 4. The arm: `mt_frozenwt_r2a4_ciw_s1`
+Same seed and WT head as `dthr0_r16a16_s1`, so the comparison is paired (identical data order: no item is added or dropped). Code runs from a
+detached, locked worktree pinned at the commit (`dc_runs/pin_ciw_<hash>`), so nothing edited later can change it while it waits.
+Read the epistasis hierarchy (`cell_rank_mt`, `cell_mag_comb`, `cell_flipacc_mt`) with the guards `val_rho_wt_valid_avg` (fixed) and
+`val_rmse_combined_avg`. The log carries `train/ci_w_mean` (≈ 1) and, at start-up, the weight distribution and the weighting efficiency. One
+seed is screening only (`STATE.md` §5: a single-seed difference needs ≈ 0.02 on `cell_rank_mt`).
 
-The `mt_frozenwt_r2a4_s1` recipe (frozen best-epoch WT of `wt_r2a4_f0_cthr05_s1`, MT-only, rank 2 / alpha 4, seed 1) with
-`--no-censor_doubles --ci_weight --ci_weight_tau 0.02`. Reference: `mt_frozenwt_r2a4_s1`, a paired comparison at the same seed
-(identical WT head, identical data order: no item is added or dropped, only whether a double is censored).
+## 6. Reflection: can weighting beat censoring?
 
-What is **kept** from the reference, deliberately: `--censor_range` (range-bounded doubles stay bounds, because they have no
-value to weight and dropping them re-selects the doubles on their own outcome), `--censor_threshold 0.5` for **singles** (so the
-teacher-forcing cut is unchanged: a double whose single reads at or below 0.5 still takes the WT pass, and a single still
-supplies no label for itself), and everything else. To read "instead of censoring" more strictly (drop the bounded doubles too),
-add `--no-censor_range`; that changes the population further and is a separate arm.
+* **At the floor, censoring is already the right model, and weighting cannot improve on it.** For the regression, a hinge bounded at the link's
+  floor knee is a squared error to the knee (the link cannot predict below it), i.e. the same as a clamped value; there is nothing for a weight to
+  add. For the ranking, the order *within* the dead class is noise (protease rank agreement 0.20 below 0), and censoring ties it exactly, whereas
+  weights can only make the noisy order count less. Replacing the floor bound by weights is at best neutral and at worst puts noise into the rank
+  loss; that is why the queued arm keeps it.
+* **Outside the floor the label noise is small against the model's, so there is little to exploit.** In the retained set the efficiency bound is
+  1.065 at the right τ (1.34 at the aggressive τ = 0.25): optimal weights could remove at most 6% (25%) of the variance, equivalent to 6% (34%)
+  more data, and the realistic fraction of that is smaller. The hard gap rule touches 0.2% / 1.8% of singles / doubles. A paired single-seed
+  run cannot see an effect of that size (the noise floor is ≈ 0.02 on `cell_rank_mt`).
+* **Where gains over censoring can come from is inclusion, as you expected, but the data point to the threshold, not the weights.**
+  `dthr0` already shows it: moving the doubles' bound from 0.5 to 0 admits the (0, 0.5] doubles, whose label variance is modest, as values. The
+  principled continuation is not a weight but a **soft censoring**: replace the hard threshold by the posterior probability that the true value is
+  below the floor given the reading and its uncertainty, `p = Φ((c − r)/σ)` with `σ² = τ_r² + L`, and train on `p·hinge + (1−p)·value`. Its width
+  is the label uncertainty built here; it is a Tobit-style likelihood, so it avoids the selection bias that a weight on the reading would have. It
+  is not implemented. The cheaper second shot is the one lever the weights make safe: lower the **singles'** threshold from 0.5 toward 0, as was
+  done for doubles (this also changes the teacher-forcing cut that the frozen WT head was trained under, so it is a separate arm).
+* **My expectation for the queued arm is a null result within the seed noise**, with the deep-double share of the loss moving from 9.3% to 5.7%.
+  A null is still informative: it says the label noise outside the floor is not what limits the epistasis metrics.
 
-**This is a large population change, not a reweighting.** In the four libraries checked on the real cache, the reference
-censors 38% (2N88), 85% (1PSE), 29% (2RU9) and 0% (5JRT) of the doubles by threshold; the arm trains on all of them as values.
-Across the table, 33% of doubles read at or below 0.5. Whatever the arm shows is mostly "doubles uncensored", with the CI
-weights a second-order modifier (§2: they keep 29% of the weight on that population). Read it next to
-`mt_frozenwt_dthr0_r16a16_s1` (doubles threshold 0 instead of 0.5), the nearest precedent. If a clean attribution to the weights
-is wanted, the follow-up is `--no-censor_doubles` **without** `--ci_weight` (the same arm, flat weights), and `--ci_weight` **on top
-of** censoring; each is one more run, ~4.5 h.
+## 7. Known simplifications
 
-Reading it: target `val_epi_cell_rank_mt` with `cell_mag_comb` and `cell_flipacc_mt`, guards `val_rho_wt_valid_avg` (fixed, the WT
-is frozen) and `val_rmse_combined_avg` (reference ≈ 0.49). One seed is screening, not a finding (`STATE.md` §5: a single-seed
-difference needs ≈ 0.02 on `cell_rank_mt`); promote only per the triplicate rule. The log carries `train/ci_w_mean` (should sit at
-1.0) and, at start-up, the weight distribution and its reference.
-
-## 5. Known simplifications
-
-* The weight uses the double's **own** interval. With teacher forcing (`--tf_mix 1.0`) the combined prediction also inherits the
-  noise of the two singles' labels, `¼(σ_A² + σ_B²)` on top of `σ_AB²`; the singles' intervals are not carried on the double and
-  adding them would need a load-time lookup. With label SDs of 0.04 it would change the weights' ordering very little.
-* The interval is `deltaG_95CI` of the combined fit; the protease gap (§2: 10× larger, and what actually predicts a bad
-  reading) is **not** in the weight. A weight built on it is a different experiment, closer to the existing `--censor_gap`.
-* Replicate rows are collapsed by taking the mean of the interval widths, which slightly overstates the width of a replicated
-  variant (rare).
+* The weight uses the double's own deviation and its depth prior; with teacher forcing (`--tf_mix 1.0`) its prediction also inherits the noise of
+  the two singles' labels (`¼(σ_A² + σ_B²)` on top). Adding it needs the singles' readings on the double; at these variances it moves the weights
+  little.
+* `τ` is the model's residual on clean validation items from one trained head; a better head has a smaller τ and would warrant sharper weights.
+* The depth prior `m(x)` is a tabulated mean fitted on the training split, shipped as constants in `ci_weights.py`; `ci_weighting_fit.py`
+  refits it and prints the difference (zero at the time of writing).
+* Replicate rows are collapsed by taking the mean of the interval widths (`preprocess_megascale._collapse_replicates`), which slightly overstates
+  a replicated variant's interval (rare; the interval is a small part of `L`).

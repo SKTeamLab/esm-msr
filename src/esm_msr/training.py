@@ -22,7 +22,6 @@ from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 
 from esm_msr.models import MSRModel, combine_predictions
 from esm_msr import censoring, ci_weights, epi_metrics, stats, utils
-from esm_msr.data import MEAS_COLUMNS
 from esm_msr.link import SaturatingLink, NonspecificTerm
 from esm_msr.losses import ListMLELoss, hinge_regression_loss
 from esm_msr.preprocess_megascale import setup_dataloaders
@@ -79,20 +78,19 @@ def teacher_forcing_unusable(dG_wt, ddG_A, ddG_B, cut):
     return ((dG_wt + ddG_A) <= cut) | ((dG_wt + ddG_B) <= cut)
 
 
-def ci_item_weights(batch: dict, subset_types, cens, subsets, tau: float, ref: float, logmean: float = 0.0):
+def ci_item_weights(batch: dict, cens, tau: float, ref: float, logmean: float = 0.0):
     """
-    ``--ci_weight``: the batch's per-item loss weights from each item's own 95% interval (``esm_msr.ci_weights``), and the centred
-    score offsets the ranking loss adds. Only an UNCENSORED item of a weighted subset is weighted; every other item, and any item
-    with no interval, keeps weight 1.0 and offset 0. Returns ``(weights, offsets)``.
+    ``--ci_weight``: the batch's per-item loss weights from each item's label variance (``esm_msr.ci_weights``) and the centred score offsets
+    the ranking loss adds. Every UNCENSORED item with a label variance is weighted, whatever its subset; every other item keeps weight 1.0
+    and offset 0. Returns ``(weights, offsets)``.
     """
-    device = cens.device
-    meas = batch.get('meas')
-    if meas is None:
-        raise AssertionError("--ci_weight needs the batch's `meas` columns (data.MEAS_COLUMNS), which this batch lacks.")
-    ci = meas[:, MEAS_COLUMNS.index(ci_weights.CI_COLUMN)].to(device)
-    applies = torch.as_tensor([t in subsets for t in subset_types], device=device, dtype=torch.bool) & (cens == 0)
-    w = ci_weights.item_weights(ci, applies, tau, ref)
-    return w, ci_weights.item_offsets(w, ci_weights.usable_mask(ci, applies), logmean)
+    lv = batch.get('label_var')
+    if lv is None:
+        raise AssertionError("--ci_weight needs the batch's `label_var` (data.MutationStabilityDataset stamps it), which this batch lacks.")
+    lv = lv.to(cens.device)
+    applies = cens == 0
+    w = ci_weights.item_weights(lv, applies, tau, ref)
+    return w, ci_weights.item_offsets(w, ci_weights.usable_mask(lv, applies), logmean)
 
 
 def reachable_bounds(link, bound, y_floor, offset):
@@ -357,8 +355,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         batch's rank term, and a different one for every chop.
 
         ``weights`` (``--ci_weight``) are the items' precision weights: ``ListMLELoss.forward_censored`` offsets each score by
-        ``offsets`` (the centred log w) and scales each choice term by ``weights``, which the composer sets to exp(offsets) (the
-        module docstring of ``esm_msr.losses`` says why both, and why that pairing).
+        ``offsets`` (the centred log w) and scales each choice term by ``weights`` (the module docstring of ``esm_msr.losses`` says
+        why both).
         """
         if mask.dtype != torch.bool:
             raise AssertionError(f"rank mask must be bool, got {mask.dtype}.")
@@ -438,28 +436,26 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         global_w_sum = w_all.sum().clamp_min(1e-9)
         global_num_lists = max(1, B // list_size)
 
-        # --ci_weight: each uncensored item of the weighted subsets counts in proportion to the precision of its own label. The
-        # weights average 1 over that population, and they multiply the numerator only - global_w_sum above stays the sum of the
-        # SUBSET weights - so a batch of poorly measured items carries less in total, as it should, and the loss keeps its scale.
+        # --ci_weight: each uncensored item counts in proportion to the precision of its own label. The weights average 1 over that
+        # population, and they multiply the numerator only - global_w_sum above stays the sum of the SUBSET weights - so a batch of
+        # poorly measured items carries less in total, as it should, and the loss keeps its scale.
         ci_w_all, ci_rank_all, ci_off_all = None, None, None
         if self.hparams.get('ci_weight', False):
             if self.hparams.get('ci_weight_ref') is None:
                 raise AssertionError("--ci_weight needs its normaliser (--ci_weight_ref), which setup_dataloaders sets from the "
                                      "training items; the module was built without it.")
-            ci_w_all, ci_off_all = ci_item_weights(batch, st_all, batch.get('cens', torch.zeros(B, dtype=torch.long, device=device)).long(),
-                                                   set(self.hparams.get('ci_weight_subsets') or ['double']),
-                                                   float(self.hparams.get('ci_weight_tau', 0.02)), float(self.hparams.get('ci_weight_ref')),
+            ci_w_all, ci_off_all = ci_item_weights(batch, batch.get('cens', torch.zeros(B, dtype=torch.long, device=device)).long(),
+                                                   float(self.hparams.get('ci_weight_tau', 0.5)), float(self.hparams.get('ci_weight_ref')),
                                                    float(self.hparams.get('ci_weight_logmean') or 0.0))
             losses = self.hparams.get('ci_weight_losses', 'both')
             if losses in ('reg', 'both'):
                 w_all = w_all * ci_w_all
             if losses in ('rank', 'both'):
-                # The ranking loss takes a SECOND normalisation of the same weights, geometric mean 1: its term weight is exp(offset).
-                # A Plackett-Luce list is balanced (uninformative labels exert no net force) only when every item's term weight is
-                # the same multiple of exp(its score offset), and the lists mix weighted doubles with singles at weight 1 and
-                # offset 0. The price is a rank term that is e^(-mean log w) = 1.29x larger on weighted items at the default
-                # tau (logged at start-up); losses.py and docs/ci_weighting.md section 3 give the reasoning.
-                ci_rank_all = torch.exp(ci_off_all)
+                # The ranking loss gets the same weights as a term scale, and their centred logs as a score offset (ListMLELoss): the
+                # offset puts a poorly measured item's weight into every denominator, the term scale into its own choice. Both are
+                # needed, and the term weight must be the same multiple of exp(offset) for every item that HAS a term - which holds
+                # because the weighting is uniform over the uncensored items, the only ones with terms (losses.py, docs section 4).
+                ci_rank_all = ci_w_all
 
         # --link: regression on the observed scale, observed ddG = h(dG_wt + latent) - dG_wt, with the knee at the
         # item's own library floor. An item whose library has no measured dG_wt (the external benchmarks, which this

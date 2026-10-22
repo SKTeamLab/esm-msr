@@ -21,10 +21,12 @@ inverse-variance weights. In the Plackett-Luce list a weight w_j does TWO things
 Scaling the chosen term alone is WRONG, and measurably so (docs/ci_weighting.md section 3, simulation): each Plackett-Luce term
 is zero-sum in the scores (+1 for the chosen item, -1 shared among the remaining ones), and a low-weight item then keeps its full
 share of the negatives from other items' terms while its own positive term shrinks, so low-weight items are pushed down for no
-reason the features could explain. The offset restores the balance - but only if every item of a list has a term weight that is
-the SAME multiple of exp(its offset), singles (weight 1, offset 0) included; the caller guarantees it by passing
-``weights = exp(offsets)`` with offsets centred on the weighted population (geometric-mean-1 weights). This is an approximation of a
-noisy-label likelihood, not the likelihood itself.
+reason the features could explain. The offset restores the balance - provided every item that HAS a term carries a term weight that is the
+SAME multiple of exp(its score offset). The caller guarantees it by weighting every uncensored item alike and passing offsets centred on that
+population (``w`` as the term scale, ``log w - mean(log w)`` as the offset: the multiple is the constant exp(mean log w)). Censored members have
+no term of their own and sit in the denominators at offset 0, i.e. at the population's typical weight. Mixing weighted and unweighted items that
+both have terms would break the balance (tests/test_ci_weighting.py shows the residual force). This is an approximation of a noisy-label
+likelihood, not the likelihood itself.
 """
 import itertools
 
