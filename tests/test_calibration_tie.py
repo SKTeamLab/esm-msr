@@ -41,12 +41,16 @@ def test_per_mutation_bias_is_on_by_default_and_cannot_be_disabled_with_a_link()
         sys.argv = argv
 
 
-def test_tie_mt_scale_is_on_by_default():
+def test_the_mt_scale_is_always_its_own():
+    """The standing MT recipe trains an independent MT scale, so tying was removed as a training option (the model-side argument stays, for
+    checkpoints trained tied). The setting is still recorded, because inference reads it back from hparams.yaml."""
     from esm_msr import config
     argv = sys.argv
     try:
-        sys.argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
-        a = config.parse_arguments()
-        assert a.tie_mt_scale is True
+        sys.argv = ['training.py', '--experiment_name', 'x']
+        assert config.parse_arguments().tie_mt_scale is False
+        sys.argv = ['training.py', '--experiment_name', 'x', '--tie_mt_scale']
+        with pytest.raises(SystemExit):
+            config.parse_arguments()
     finally:
         sys.argv = argv

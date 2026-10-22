@@ -90,38 +90,37 @@ def _item(**kw):
 
 
 def test_a_range_item_keeps_its_bound_as_its_own_label():
-    """dG_bound == dG_meas, so cens_bound comes out as the item's ddG - the same identity SRC_GAP relies on."""
+    """dG_bound == dG_meas, so cens_bound comes out as the item's ddG."""
     it = _item(cens=CENS_LO, cens_src=SRC_RANGE, dG_bound=DG_RANGE_LOW, dG_meas=DG_RANGE_LOW, ddG=-3.5)
-    (out,), counts = apply_item_censoring([it], censor_floor=True, gap_max=2.0)
+    (out,), counts = apply_item_censoring([it], threshold=0.5)
     assert out['cens'] == CENS_LO and out['cens_src'] == SRC_RANGE
     assert out['cens_bound'] == pytest.approx(-3.5)
-    assert counts['range'] == 1 and counts['floor'] == 0 and counts['gap'] == 0
+    assert counts['range'] == 1 and counts['floor'] == 0
 
 
-def test_floor_and_gap_never_overwrite_an_assay_bound():
-    """Both other sources would fire on this item; the assay's own statement must win."""
+def test_the_threshold_never_overwrites_an_assay_bound():
+    """The threshold would fire on this item (dG -1 is below 0.5); the assay's own statement must win."""
     it = _item(cens=CENS_LO, cens_src=SRC_RANGE, dG_bound=DG_RANGE_LOW, dG_meas=DG_RANGE_LOW, ddG=-3.5,
                y_floor=0.1, protease_gap=9.0)
-    (out,), counts = apply_item_censoring([it], censor_floor=True, gap_max=2.0)
+    (out,), counts = apply_item_censoring([it], threshold=0.5)
     assert out['cens_src'] == SRC_RANGE
     assert out['dG_bound'] == DG_RANGE_LOW
-    assert counts['floor'] == 0 and counts['gap'] == 0
+    assert counts['floor'] == 0
 
 
 def test_an_upper_bound_is_carried_as_upper_censoring():
     it = _item(cens=CENS_HI, cens_src=SRC_RANGE, dG_bound=DG_RANGE_HIGH, dG_meas=DG_RANGE_HIGH, ddG=2.5)
-    (out,), counts = apply_item_censoring([it], censor_floor=True, gap_max=2.0)
+    (out,), counts = apply_item_censoring([it], threshold=0.5)
     assert out['cens'] == CENS_HI and out['cens_bound'] == pytest.approx(2.5)
     assert counts['range'] == 1
 
 
-def test_ordinary_items_still_reach_the_floor_and_gap_sources():
-    floor = _item(dG_meas=-0.5, y_floor=0.0, ddG=-3.0)
-    gap = _item(dG_meas=0.4, protease_gap=5.0, ddG=-2.0)
-    items, counts = apply_item_censoring([floor, gap], censor_floor=True, gap_max=2.0)
-    assert items[0]['cens_src'] == SRC_FLOOR
-    assert items[1]['cens_src'] == SRC_GAP
-    assert counts['range'] == 0
+def test_ordinary_items_still_reach_the_threshold():
+    below = _item(dG_meas=-0.5, ddG=-3.0)
+    above = _item(dG_meas=2.0, ddG=-1.0)
+    items, counts = apply_item_censoring([below, above], threshold=0.5)
+    assert items[0]['cens_src'] == SRC_FLOOR and items[1]['cens'] == 0
+    assert counts['range'] == 0 and counts['floor'] == 1
 
 
 def test_a_fitted_replicate_beats_a_bounded_one():

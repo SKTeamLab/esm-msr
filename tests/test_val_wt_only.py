@@ -14,6 +14,8 @@ from esm_msr import config
 from esm_msr.models import MSRModel
 from esm_msr.training import ESM3EpistasisLightningModule as M
 
+from _stubs import IdentityLink
+
 import sys
 
 BASE = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
@@ -109,12 +111,13 @@ class _ValModel:
 
 def _stub(val_wt_only=True, val_cycle_passes=True):
     s = types.SimpleNamespace()
-    s.hparams = _HP(mask_strategy=None, val_wt_only=val_wt_only, val_cycle_passes=val_cycle_passes)
+    s.hparams = _HP(val_wt_only=val_wt_only, val_cycle_passes=val_cycle_passes)
     s.model = _ValModel(val_wt_only)
-    s.link_head = None
+    s.link_head = IdentityLink()
+    s.mask_wt = s.mask_mt = None
+    s.mask_strategy = {'wt': None, 'mt': None}
     from collections import defaultdict
     s.validation_step_outputs = defaultdict(list)
-    s._apply_nonspecific = types.MethodType(M._apply_nonspecific, s)   # real method, ns_head absent -> pass-through
     return s
 
 

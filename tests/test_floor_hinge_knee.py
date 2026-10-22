@@ -18,7 +18,7 @@ TAU = 0.59
 
 
 def _setup(latent):
-    link = SaturatingLink(tau=TAU, floor_min=0.0, floor_max=0.001, learn_global_floor=False)
+    link = SaturatingLink(tau=TAU, floor=0.0)
     dG_wt = torch.full_like(latent, 2.0)
     y_floor = torch.zeros_like(latent)                        # --assay_floor 0
     offset = -dG_wt                                           # a single: ddG = dG_meas - dG_wt

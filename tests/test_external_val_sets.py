@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from esm_msr import config
+from esm_msr.link import SaturatingLink
 from esm_msr.training import summarise_external_benchmarks
 
 BASE = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
@@ -90,7 +91,7 @@ def _bare_module():
     obj._hparams = SimpleNamespace(freeze_wt_after_epoch=99, lr_warmup_steps=0, val_dump=False)
     obj._trainer = SimpleNamespace(sanity_checking=True, current_epoch=0, global_step=0)
     obj._fabric = None
-    obj.link_head = None
+    obj.link_head = SaturatingLink()
     obj._mut_keys = lambda pdb, muts: [('lib', str(i)) for i in range(len(muts))]
     return obj
 

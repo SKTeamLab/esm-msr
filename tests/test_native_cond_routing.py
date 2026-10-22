@@ -4,7 +4,7 @@ ordinary singles so the WT head trains on them. The flags choose between the two
 A mutant-background library's measurements are conditional effects ddG(X | background): the sequence carries the
 background mutation, while the structure is the native one, so the WT head (which models wild-type-context singles)
 has no business being regressed onto them. ``--native_cond_for_mt`` labels them ``native_cond``, includes the subset
-(overriding its 0.0 cap), and the training loop keeps them out of the WT losses and in the MT/combined loss.
+(setup_dataloaders adds the subset), and the training loop keeps them out of the WT losses and in the MT/combined loss.
 """
 import sys
 
@@ -30,17 +30,14 @@ def test_the_released_default_treats_them_as_singles():
 def test_for_mt_alone_means_both_heads_see_them():
     a = parse('--native_cond_for_mt')
     assert a.native_cond_for_wt is True and a.native_cond_for_mt is True
-    assert a.incl_native_cond is True
-    assert a.subset_caps['native_cond'] is None
+    assert a.subsets == ['single', 'double']          # the native_cond subset is added by setup_dataloaders when for_mt is on
 
 
 def test_mt_only_and_neither():
     mt = parse('--no-native_cond_for_wt', '--native_cond_for_mt')
     assert mt.native_cond_for_wt is False and mt.native_cond_for_mt is True
-    assert mt.incl_native_cond is True and mt.subset_caps['native_cond'] is None
     neither = parse('--no-native_cond_for_wt')
     assert neither.native_cond_for_wt is False and neither.native_cond_for_mt is False
-    assert neither.incl_native_cond is False and neither.subset_caps['native_cond'] == 0.0
 
 
 def test_the_label_condition_covers_all_four_combos():

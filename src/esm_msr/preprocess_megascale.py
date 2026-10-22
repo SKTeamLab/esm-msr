@@ -14,8 +14,6 @@ from esm_msr.censoring import SRC_NONE, SRC_RANGE, range_tag
 from esm_msr.data import (
     MEAS_COLUMNS,
     MutationStabilityDataset,
-    library_floor,
-    shrink_floors,
     collate_fn_twopass,
     create_consolidated_dataloader,
     PooledDataLoader
@@ -233,15 +231,9 @@ class MegaScaleDatasetPreprocessor:
         self.spurs_override = spurs_override
         self.censor_range = censor_range
         # Measured dG of each library's starting sequence (the WT, or the background for mutation-suffixed codes),
-        # keyed by `code`. The 'wt' rows are filtered out of self.df, so this is the only place they survive. Each
-        # dataset needs it to put an item on the assay's observed scale (dG_obs = h(dG_wt + latent)) and to compute
-        # the additive expectation its doubles-conditioned floor estimate uses.
+        # keyed by `code`. The 'wt' rows are filtered out of self.df, so this is the only place they survive. The cache
+        # builder stamps it on every item, which is what puts an item on the assay's observed scale (dG_obs = h(dG_wt + latent)).
         self.dG_wt: Dict[str, float] = {}
-        # Per-library floor statistics, keyed by `code`: where the assay's floor is for that library and whether the
-        # library shows any evidence of having one. Computed from the raw table every run (not cached), so the
-        # estimator is a free knob. See data.library_floor / data.floor_evidence.
-        self.floors: Dict[str, Dict[str, float]] = {}
-        self.dataset_floor: float = float('nan')
 
         self.preprocess()
 
@@ -394,20 +386,6 @@ class MegaScaleDatasetPreprocessor:
         # orig_index.equals() will fail if duplicates were actually removed
         assert self.df.index.isin(orig_index).all(), "Index mismatch detected: Indices were flattened or lost."
 
-    def compute_floors(self, percentile: float = 5.0, **evidence_kw) -> None:
-        """
-        Estimate every library's assay floor in one pass, then shrink the accepted ones toward their median.
-
-        Done here rather than per-dataset because shrinkage and the fallback knee need all the libraries at once,
-        and because the 'wt' rows this needs (through ``dG_wt``) are filtered out of the per-library frames.
-        """
-        if 'code' not in self.df.columns:
-            return
-        for code, df_c in self.df.groupby('code'):
-            self.floors[code] = library_floor(df_c, percentile, self.dG_wt.get(code, float('nan')), str(code),
-                                              **evidence_kw)
-        self.dataset_floor = shrink_floors(self.floors)
-
     def _filter_data(self, df, scaffold) -> pd.DataFrame:
 
         if self.spurs_override and scaffold != 'test':
@@ -453,7 +431,7 @@ class MegaScaleDatasetPreprocessor:
 
         return df
 
-    def create_training_splits(self, split_file: Optional[str], max_train_proteins: int = -1) -> Dict[str, List[str]]:
+    def create_training_splits(self, split_file: Optional[str]) -> Dict[str, List[str]]:
         """Derives train/val/test splits from a pickled dictionary or unique codes."""
         splits_dict = {'train': [], 'val': [], 'test': []}
         
@@ -481,10 +459,6 @@ class MegaScaleDatasetPreprocessor:
             # Default behavior if no split file: dump all into train
             splits_dict['train'] = protein_list
             logging.info("No split file provided. All unique codes assigned to train.")
-
-        if max_train_proteins > 0:
-            splits_dict['train'] = splits_dict['train'][:max_train_proteins]
-            logging.info(f"Limiting training to {len(splits_dict['train'])} proteins.")
 
         for scaffold in ['train', 'val', 'test']:
             
@@ -519,267 +493,126 @@ class MegaScaleDatasetPreprocessor:
             print(splits[scaffold])
         return splits
 
-    def create_protein_dataloaders(
-        self, 
-        tokenizer: Any, 
-        structure_encoder: Any, 
-        scaffold: str,
-        batch_size: int,
-        num_workers: int,
-        shuffle: bool = False,
-        cache_path: str = '',
-        score_name: str = '',
-        generate_cache: bool = False,
-        mut_structures_root: str = '',
-        incl_destab_bb: bool = True,
-        incl_singles: bool = True,
-        incl_doubles: bool = True,
-        incl_cond: bool = True,
-        incl_native_cond: bool = True,
-        censor_floor: bool = True,
-        assay_floor: Optional[float] = None,
-        gap_max=2.0,
-        label_native_cond: bool = False,
-        censor_range: bool = True,
-        cache_version: str = None,
-        combine_validation: bool = False,
-        floor_source: Optional[str] = None,
-        censor_threshold: Optional[float] = None,
-        censor_threshold_double: Optional[float] = None,
-    ) -> Tuple[List[DataLoader], List[str]]:
-        """Generates a list of dataloaders for a specific list of protein codes."""
-        loaders = []
-        loader_names = []
-        floors = []
+    # ------------------------------------------------------------------ the builder side: the cache and its manifest
 
-        df = self.split_dfs[scaffold]
-        if combine_validation:
-            df = pd.concat([df, self.split_dfs['val']])
-            
-        protein_list = list(df['code_wt'].unique())
-        print(scaffold)
-        print(df['code'].unique())
+    def library_order(self, scaffold: str) -> List[str]:
+        """The library codes of one split, in the order the training loaders are built (the order fixes the sampler's RNG stream)."""
+        return list(self.split_dfs[scaffold]['code'].unique())
 
-        logging.info(f'Creating {scaffold} datasets for {len(protein_list)} proteins...')
-        for wt_code in tqdm(protein_list, desc=f"Creating {scaffold} datasets"):
-        
-            df_prot = df.loc[df['code_wt']==wt_code]
-            for code in df_prot['code'].unique():
-                df_prot_ = df_prot.loc[df_prot['code']==code]
-       
-                dataset = MutationStabilityDataset(
-                    dms_df=df_prot_, tokenizer=tokenizer, structure_encoder=structure_encoder,
-                    dms_name=code, path=cache_path, score_name=score_name,
-                    generate=generate_cache, mut_structs_root=mut_structures_root,
-                    incl_destab_bb=incl_destab_bb,
-                    incl_singles=incl_singles,
-                    incl_doubles=incl_doubles,
-                    incl_cond=incl_cond,
-                    incl_native_cond=incl_native_cond,
-                    dG_wt=self.dG_wt.get(code),
-                    floor_stats=self.floors.get(code),
-                    censor_floor=censor_floor,
-                    assay_floor=assay_floor,
-                    gap_max=gap_max,
-                    label_native_cond=label_native_cond,
-                    censor_range=censor_range,
-                    cache_version=cache_version,
-                    floor_source=floor_source,
-                    censor_threshold=censor_threshold,
-                    censor_threshold_double=censor_threshold_double,
-                )
-                if len(dataset) == 0:
-                        logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
-                        continue
-                floors.append((code, dataset.floor_stats.get('y_floor', float('nan')),
-                               dataset.floor_stats.get('floor_pctl', float('nan')),
-                               dataset.floor_stats.get('evidence', 0.0)))
-                        
-                loader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn_twopass,
-                                    num_workers=num_workers, shuffle=shuffle, pin_memory=True)
-                loaders.append(loader)
-                loader_names.append(code)
-
-        _log_floor_summary(scaffold, floors)
-        return loaders, loader_names
+    def build_caches(self, tokenizer: Any, structure_encoder: Any, scaffolds: List[str], cache_path: str,
+                     mut_structures_root: str, score_name: str = 'ddG_ML', cache_version: Optional[str] = None,
+                     incl_destab_bb: bool = True) -> None:
+        """Generate and write the cache of every library of the given splits from the raw table (CPU work; see ``cache_build``)."""
+        from esm_msr.cache_build import LibraryCacheBuilder
+        for scaffold in scaffolds:
+            df = self.split_dfs[scaffold]
+            for wt_code in tqdm(list(df['code_wt'].unique()), desc=f"Building {scaffold} caches"):
+                df_prot = df.loc[df['code_wt'] == wt_code]
+                for code in df_prot['code'].unique():
+                    LibraryCacheBuilder(
+                        code, tokenizer, mut_structures_root, cache_path, score_name=score_name, structure_encoder=structure_encoder,
+                        incl_destab_bb=incl_destab_bb, dG_wt=self.dG_wt.get(code), cache_version=cache_version,
+                    ).build(df_prot.loc[df_prot['code'] == code])
 
 
-def _log_floor_summary(scaffold: str, floors: List[Tuple[str, float, float, float]]) -> None:
-    """How many libraries of one split show floor evidence, where their floors sit, and how far the percentile
-    estimate would have put them - the comparison that motivated the evidence gate."""
-    if not floors:
-        return
-    y = np.array([f[1] for f in floors], dtype=float)
-    pc = np.array([f[2] for f in floors], dtype=float)
-    ev = np.array([f[3] for f in floors], dtype=float) > 0
-    msg = f"floors ({scaffold}): {int(ev.sum())}/{len(floors)} libraries have floor evidence (the rest are not censored)"
-    if ev.any():
-        msg += (f"; accepted floors median {np.nanmedian(y[ev]):.3f}, "
-                f"range [{np.nanmin(y[ev]):.3f}, {np.nanmax(y[ev]):.3f}]")
-    both = ev & np.isfinite(pc)
-    if both.sum() >= 3:
-        d = pc[both] - y[both]
-        msg += (f"; the {len(d)} accepted libraries' percentile estimate differs by a median {np.median(d):+.3f} "
-                f"(SD {np.std(d):.3f}, correlation {np.corrcoef(pc[both], y[both])[0, 1]:.2f})")
-    nopc = (~ev) & np.isfinite(pc)
-    if nopc.any():
-        msg += (f"; the {int(nopc.sum())} libraries WITHOUT evidence would have been given a percentile floor of "
-                f"median {np.nanmedian(pc[nopc]):.3f} (max {np.nanmax(pc[nopc]):.3f}) and censored against it")
-    logging.info(msg)
+def manifest_path(cache_path: str, cache_version: str) -> str:
+    return os.path.join(cache_path, f"manifest_{cache_version}.json")
 
 
-def load_benchmark_datasets(data_path_base: str, tokenizer: Any, structure_encoder: Any, cache_path: str, generate_cache: bool,
-                            assay_floor: Optional[float] = None) -> Tuple[List[DataLoader], List[str]]:
-    """Loads static benchmark datasets. ``assay_floor`` has to reach them too: nothing here is censored, but the
-    link reads ``y_floor`` on every item it scores, so the knee must match the training run."""
-    val_dataloaders = []
-    val_loader_names = []
-    benchmark_datasets = {'ptmuld': 'ptmuld_mapped.csv', 's461': 's461_mapped.csv', 'ssym': 'ssym_mapped.csv'}
-    
-    for name, filename in benchmark_datasets.items():
-        filepath = os.path.join(data_path_base, filename)
-        if os.path.exists(filepath):
-            try:
-                df_bench = pd.read_csv(filepath)
-                score_name_bench = 'ddG'
-                if score_name_bench not in df_bench.columns:
-                     logging.warning(f"Benchmark '{name}' missing '{score_name_bench}' column. Skipping.")
-                     continue
-
-                dataset = MutationStabilityDataset(
-                    dms_df=df_bench, tokenizer=tokenizer, structure_encoder=structure_encoder,
-                    dms_name=name, path=cache_path, score_name=score_name_bench,
-                    generate=generate_cache, mut_structs_root='',
-                    incl_destab_bb=False, 
-                    incl_singles=True,
-                    incl_doubles=True,
-                    incl_cond=False,
-                    incl_native_cond=False,
-                    censor_floor=False,
-                    # The knee still has to match the training run even where nothing is censored: the link
-                    # reads y_floor on every item it scores.
-                    assay_floor=assay_floor,
-                )
-                
-                if len(dataset) == 0: continue
-                
-                loader = PooledDataLoader([DataLoader(dataset, batch_size=1, collate_fn=collate_fn_twopass, num_workers=0, shuffle=False, pin_memory=True)], batch_size=3)
-                val_dataloaders.append(loader)
-                val_loader_names.append(name)
-                logging.info(f"Added benchmark validation dataset: {name}")
-            except Exception as e: logging.warning(f"Could not load benchmark {name}: {e}", exc_info=True)
-        else:
-            logging.warning(f'{filepath} could not be found! Skipping this loader.')
-            
-    return val_dataloaders, val_loader_names
+def write_manifest(cache_path: str, cache_version: str, splits: Dict[str, List[str]], benchmarks: List[str],
+                   split_file: Optional[str], note: str = '') -> str:
+    """Record, next to the cache, which libraries each split holds (in loader order) and which benchmark caches exist."""
+    import json
+    import time
+    out = manifest_path(cache_path, cache_version)
+    with open(out, 'w') as f:
+        json.dump({'cache_version': cache_version, 'score': 'ddG_ML', 'split_file': os.path.basename(split_file) if split_file else None,
+                   'built': time.strftime('%Y-%m-%d %H:%M:%S'), 'note': note, 'benchmarks': list(benchmarks),
+                   **{k: list(v) for k, v in splits.items()}}, f, indent=1)
+    return out
 
 
-def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encoder: Any, add_benchmarks_to_val = False) -> Tuple[List[DataLoader], List[DataLoader], List[DataLoader], List[str], List[str], List[str]]:
-    """Main orchestrator utilizing MegaScaleDatasetPreprocessor."""
-    
-    preprocessor = MegaScaleDatasetPreprocessor(args.raw_data_file, args.af_model_folder, spurs_override=args.remove_spurs_homologs,
-                                                censor_range=args.censor_range)
-    preprocessor.compute_floors(percentile=args.floor_percentile, x_max=args.floor_x_max, min_n=args.floor_min_n,
-                                max_sd=args.floor_max_sd, band=(args.link_floor_min, args.link_floor_max))
-    # Initialises the link's learned global floor at the median of the libraries that do have one (a measured
-    # quantity); reaches the module through hparams, since main() builds it from vars(args) after this returns.
-    args.dataset_floor = preprocessor.dataset_floor
-    splits = preprocessor.create_training_splits(args.split_file, args.max_train_proteins)
-    
-    overlap = set(splits.get('train', [])) & set(splits.get('val', []))
-    if overlap: 
-        logging.warning(f"Overlap detected between train/val protein codes: {len(overlap)} proteins.")
+def read_manifest(cache_path: str, cache_version: str) -> Dict[str, Any]:
+    import json
+    path = manifest_path(cache_path, cache_version)
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"no cache manifest {path}. Training reads a prebuilt cache and its manifest (the list of libraries per split); "
+            f"build both with analysis_scripts/build_cache.py (`build` from the raw table, or `convert` from an older cache version).")
+    with open(path) as f:
+        return json.load(f)
 
-    struct_enc_arg = None if args.incl_structure_encoder_mt else structure_encoder
 
-    # Build Train Loaders
-    train_dataloaders, train_loader_names = preprocessor.create_protein_dataloaders(
-        tokenizer=tokenizer, structure_encoder=struct_enc_arg,
-        scaffold='train', batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False,
-        cache_path=args.cache_path, score_name=args.score_column,
-        generate_cache=args.regenerate_cache,
-        mut_structures_root=args.mut_structures_root, combine_validation=args.combine_validation,
-        incl_singles=args.incl_singles,
-        incl_doubles=args.incl_doubles,
-        incl_cond=args.incl_cond,
-        incl_native_cond=args.incl_native_cond,
-        censor_floor=args.censor_floor,
-        assay_floor=args.assay_floor,
-        gap_max=args.censor_gap_max if args.censor_gap else None,
-        label_native_cond=(args.native_cond_for_mt or not args.native_cond_for_wt),
-        censor_range=args.censor_range,
-        cache_version=args.cache_version,
-        floor_source=getattr(args, 'floor_source', None),
-        censor_threshold=getattr(args, 'censor_threshold', None),
-        censor_threshold_double=getattr(args, 'censor_threshold_double', None),
-    )
+def _library_loaders(codes: List[str], cache_path: str, *, batch_size: int, num_workers: int, desc: str, **dataset_kw) -> Tuple[List[DataLoader], List[str]]:
+    loaders, names = [], []
+    for code in tqdm(codes, desc=desc):
+        dataset = MutationStabilityDataset(code, cache_path, 'ddG_ML', **dataset_kw)
+        if len(dataset) == 0:
+            logging.warning(f"{desc}: dataset for '{code}' is empty. Skipping.")
+            continue
+        loaders.append(DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn_twopass,
+                                  num_workers=num_workers, shuffle=False, pin_memory=True))
+        names.append(code)
+    return loaders, names
 
-    if not train_dataloaders: 
+
+def load_benchmark_datasets(manifest: Dict[str, Any], cache_path: str, cache_version: str, link_floor: float) -> Tuple[List[DataLoader], List[str]]:
+    """Loads the static benchmark datasets the manifest lists. Nothing here is censored, but the link reads ``y_floor`` on every
+    item it scores, so the knee must match the training run."""
+    loaders, names = [], []
+    for name in manifest.get('benchmarks', []):
+        dataset = MutationStabilityDataset(name, cache_path, 'ddG', subsets=('single', 'double'), cache_version=cache_version,
+                                           link_floor=link_floor, censor_threshold=None)
+        if len(dataset) == 0:
+            continue
+        loaders.append(PooledDataLoader([DataLoader(dataset, batch_size=1, collate_fn=collate_fn_twopass, num_workers=0,
+                                                    shuffle=False, pin_memory=True)], batch_size=3))
+        names.append(name)
+        logging.info(f"Added benchmark validation dataset: {name}")
+    return loaders, names
+
+
+def setup_dataloaders(args: argparse.Namespace, add_benchmarks_to_val: bool = False) -> Tuple[List[DataLoader], List[DataLoader], List[DataLoader], List[str], List[str], List[str]]:
+    """Main orchestrator: the train / validation / benchmark loaders of a run, read from the prebuilt cache and its manifest."""
+    manifest = read_manifest(args.cache_path, args.cache_version)
+    args.split_name = manifest.get('split_file')        # provenance: the split the manifest was built from, recorded in hparams
+    requested = getattr(args, 'requested_split_file', None)       # a retired --split_file: the manifest IS the split now
+    if requested and manifest.get('split_file') and os.path.basename(requested) != manifest['split_file']:
+        raise ValueError(f"--split_file {requested} is not the split this cache manifest was built from ({manifest['split_file']}). "
+                         f"Training reads the split from the manifest; build a cache for the other split instead.")
+    if hasattr(args, 'requested_split_file'):
+        delattr(args, 'requested_split_file')
+    overlap = set(manifest['train']) & set(manifest['val'])
+    if overlap:
+        logging.warning(f"Overlap detected between train/val libraries: {len(overlap)}.")
+
+    # Mutant-background libraries: native_cond_for_wt keeps their measurements as ordinary singles (the released behaviour);
+    # native_cond_for_mt relabels them 'native_cond' and adds the subset, so the MT loss can train on them.
+    common = dict(label_native_cond=(args.native_cond_for_mt or not args.native_cond_for_wt), censor_range=args.censor_range,
+                  cache_version=args.cache_version, link_floor=args.link_floor, censor_threshold=args.censor_threshold)
+    train_subsets = set(args.subsets) | ({'native_cond'} if args.native_cond_for_mt else set())
+    train_dataloaders, train_loader_names = _library_loaders(
+        manifest['train'], args.cache_path, batch_size=args.batch_size, num_workers=args.num_workers, desc='train',
+        subsets=train_subsets, **common)
+    if not train_dataloaders:
         raise RuntimeError("No valid training dataloaders created.")
 
-    # Build Validation Loaders
-    val_dataloaders, val_loader_names = preprocessor.create_protein_dataloaders(
-        tokenizer=tokenizer, structure_encoder=struct_enc_arg,
-        scaffold='val', batch_size=64, num_workers=args.num_workers, shuffle=False,
-        cache_path=args.cache_path, score_name=args.score_column,
-        generate_cache=args.regenerate_cache,
-        incl_singles=True,
-        incl_doubles=True,
-        incl_cond=False,
-        incl_native_cond=True,
-        censor_floor=args.censor_floor,
-        assay_floor=args.assay_floor,
-        gap_max=args.censor_gap_max if args.censor_gap else None,
-        label_native_cond=(args.native_cond_for_mt or not args.native_cond_for_wt),
-        censor_range=args.censor_range,
-        cache_version=args.cache_version,
-        floor_source=getattr(args, 'floor_source', None),
-        censor_threshold=getattr(args, 'censor_threshold', None),
-        censor_threshold_double=getattr(args, 'censor_threshold_double', None),
-    )
+    val_dataloaders, val_loader_names = _library_loaders(
+        manifest['val'], args.cache_path, batch_size=64, num_workers=args.num_workers, desc='val',
+        subsets=('single', 'double', 'native_cond'), **common)
 
-    # Add Benchmarks
-    bench_loaders, bench_names = load_benchmark_datasets(
-        args.benchmark_data_path, tokenizer, struct_enc_arg, args.cache_path, args.regenerate_cache,
-        # a learned global floor: the benchmarks carry NaN like every other item, so the link's global_floor applies
-        assay_floor=None if getattr(args, 'floor_source', None) == 'global' else args.assay_floor
-    )
-    
+    bench_loaders, bench_names = load_benchmark_datasets(manifest, args.cache_path, args.cache_version, args.link_floor)
     if add_benchmarks_to_val:
         val_dataloaders.extend(bench_loaders)
         val_loader_names.extend(bench_names)
-
-    if not val_dataloaders: 
+    if not val_dataloaders:
         logging.warning("No validation dataloaders created.")
 
-    # Final Assembly (Train only)
-    if args.dataloading == 'cycle':
-        
-        consolidated_loader = create_consolidated_dataloader(
-            dataloaders=train_dataloaders,
-            train_list=train_loader_names,
-            batch_size=args.batch_size,
-            collate_fn=collate_fn_twopass,
-            strategy=args.loader_strategy,
-            subset_caps=args.subset_caps,
-            num_workers=args.num_workers,
-            rng_seed=args.seed,
-        )
-
-        train_dataloaders_final = [consolidated_loader]
-        train_loader_names_final = ['cycled_train']
-        
-    elif args.dataloading == 'pool':
-        logging.info("Using PooledDataLoader.")
-        train_combined_loader = PooledDataLoader(train_dataloaders, args.batch_size, train_loader_names, strategy=args.loader_strategy)
-        train_dataloaders_final = [train_combined_loader]
-        train_loader_names_final = ['pooled_train']
-        
-    else:
-        logging.warning(f"Unsupported loader_strategy '{args.loader_strategy}'. Using individual loaders.")
-        train_dataloaders_final = train_dataloaders
-        train_loader_names_final = train_loader_names
+    consolidated_loader = create_consolidated_dataloader(
+        dataloaders=train_dataloaders, train_list=train_loader_names, batch_size=args.batch_size, collate_fn=collate_fn_twopass,
+        num_workers=args.num_workers, rng_seed=args.seed,
+    )
+    train_dataloaders_final, train_loader_names_final = [consolidated_loader], ['cycled_train']
 
     logging.info(f"Setup complete. Final Training loaders: {len(train_dataloaders_final)} (Names: {train_loader_names_final}), Final Validation loaders: {len(val_dataloaders)} (Names: {val_loader_names})")
-    
     return train_dataloaders_final, val_dataloaders, bench_loaders, train_loader_names_final, val_loader_names, bench_names

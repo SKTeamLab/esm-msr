@@ -20,10 +20,10 @@ class _HP(dict):
         return dict.get(self, k, default)
 
 
-def _stub(patience=1, factor=0.1, freeze_after=0, min_lr=1e-7):
+def _stub(patience=1, factor=0.1, freeze_after=0):
     s = types.SimpleNamespace()
-    s.hparams = _HP(wt_convergence_metric='rho_wt_valid', wt_plateau_patience=patience,
-                    wt_plateau_factor=factor, wt_plateau_min_lr=min_lr, wt_freeze_after_decays=freeze_after)
+    s.hparams = _HP(plateau_patience=patience, plateau_factor=factor, freeze_after_decays=freeze_after,
+                    mt_convergence_metric='epi_beyond_rho_mt')
     s.groups = [{'name': 'lora_wt', 'lr': 2e-4}, {'name': 'calib_wt', 'lr': 4e-3},
                 {'name': 'lora_mt', 'lr': 2e-4}, {'name': 'calib_mt', 'lr': 4e-3}, {'name': 'link', 'lr': 5e-3}]
     s.optimizers = lambda: types.SimpleNamespace(param_groups=s.groups)
@@ -74,10 +74,10 @@ def test_a_new_best_resets_the_counter():
     assert _lr(s, 'lora_wt') == pytest.approx(2e-4)
 
 
-def test_decay_repeats_and_respects_min_lr():
-    s = _stub(patience=1, min_lr=1e-5)
-    feed(s, [0.80] + [0.80] * 6)
-    assert _lr(s, 'lora_wt') == pytest.approx(1e-5), "must not fall below --wt_plateau_min_lr"
+def test_decay_repeats():
+    s = _stub(patience=1, factor=0.1)
+    feed(s, [0.80] + [0.80] * 3)
+    assert _lr(s, 'lora_wt') == pytest.approx(2e-4 * 0.1 ** 3)
 
 
 def test_freezes_after_the_configured_number_of_decays():

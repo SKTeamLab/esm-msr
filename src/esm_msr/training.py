@@ -5,24 +5,18 @@ import warnings
 from collections import defaultdict
 import gc
 
-
-
 import numpy as np
-import torch 
+import torch
 import torch.nn as nn
 
 import lightning.pytorch as pl
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint, TQDMProgressBar, EarlyStopping
 from lightning.pytorch.loggers import CometLogger, CSVLogger
-from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
 
-from esm.pretrained import ESM3_structure_encoder_v0
-from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
-
-from esm_msr.models import MSRModel, combine_predictions
+from esm_msr.models import MSRModel, combine_predictions, pass_mask_strategy
 from esm_msr import censoring, epi_metrics, stats, utils
-from esm_msr.link import SaturatingLink, NonspecificTerm
+from esm_msr.link import SaturatingLink
 from esm_msr.losses import ListMLELoss, hinge_regression_loss
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
@@ -30,25 +24,22 @@ from esm_msr.config import parse_arguments
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 warnings.filterwarnings('ignore', category=UserWarning)
-torch.set_float32_matmul_precision('high') 
+torch.set_float32_matmul_precision('high')
 
-def alternating_phase(batch_idx: int, has_single: bool, has_multi: bool) -> str:
-    """
-    Which head this batch trains when --alternate_heads is on: 'wt' (singles) or 'mt' (multi-mutants).
+# The LoRA spec that is no longer a flag. inference.parse_hparams_to_lora_config defaults the same values for a checkpoint whose
+# hparams do not name them, so nothing needs recording.
+LORA_CONSTANTS = dict(target_mode='expanded', last_n_layers=0, incl_structure_encoder=False, incl_sequence_head=True,
+                      use_dora=False, unfreeze_layernorms=False)
+SHARED_SCALE_INIT, SHARED_BIAS_INIT = 0.3, 0.0       # the calibration heads' starting scale and bias
+CALIB_LR_MULT = 20.0                                  # the calibration heads learn this much faster than the adapters
+SAVE_TOP_K = 3
+# command-line values that say where things are, not what the run is: kept out of hparams.yaml (and so out of Comet)
+UNLOGGED_ARGS = ('log_dir', 'cache_path', 'comet', 'comet_project_name', 'comet_offline', 'comet_experiment_key')
 
-    Alternates on the batch index so the two heads get equal turns, and falls back to the other head when this
-    batch cannot serve its turn - every batch is ONE library, and the median training library holds no
-    multi-mutants at all, so an unconditional alternation would waste every other step on most libraries.
-    Returns 'none' when the batch has neither, which the caller skips.
-    """
-    if not has_single and not has_multi:
-        return 'none'
-    turn = 'wt' if batch_idx % 2 == 0 else 'mt'
-    if turn == 'mt' and not has_multi:
-        return 'wt'
-    if turn == 'wt' and not has_single:
-        return 'mt'
-    return turn
+
+def build_link(hp) -> SaturatingLink:
+    """The observed-scale link of a run: one floor and one knee width, both set by flags and neither learned."""
+    return SaturatingLink(tau=hp.link_tau, floor=hp.link_floor)
 
 
 EXTERNAL_SUMMARY_METRICS = ('rho_combined', 'rmse_combined')
@@ -81,114 +72,65 @@ def teacher_forcing_unusable(dG_wt, ddG_A, ddG_B, cut):
 def reachable_bounds(link, bound, y_floor, offset):
     """Censoring bounds (on each item's own ddG scale) moved inside what the link can report; see the comment at the call site.
 
-    Lower side: raised to the knee's reading h(floor) = floor + tau*ln2, so a lower-censored item's hinge holds exactly when its latent is at
-    or below the floor. Upper side: lowered to the ceiling when one is on. ``offset`` = ddG - dG_meas converts absolute dG to the item's scale.
-    Detached: a bound never trains the link it comes from.
+    Raised to the knee's reading h(floor) = floor + tau*ln2, so a lower-censored item's hinge holds exactly when its latent is at or below
+    the floor. ``offset`` = ddG - dG_meas converts absolute dG to the item's scale. Detached: a bound never trains the link it comes from.
     """
     knee_ddG = link(link.effective_floor(y_floor), y_floor).detach() + offset
     # Only where computable: torch.maximum propagates NaN, which would destroy a good bound.
-    bound = torch.where(torch.isfinite(knee_ddG), torch.maximum(bound, knee_ddG), bound)
-    ceil_t = link.ceiling()
-    if ceil_t is not None:
-        ceil_ddG = ceil_t.detach() + offset
-        bound = torch.where(torch.isfinite(ceil_ddG), torch.minimum(bound, ceil_ddG), bound)
-    return bound
+    return torch.where(torch.isfinite(knee_ddG), torch.maximum(bound, knee_ddG), bound)
 
 
 class ESM3EpistasisLightningModule(pl.LightningModule):
-    def __init__(self, **kwargs):
+    def __init__(self, val_dataloader_names=None, **kwargs):
         super().__init__()
-        self.save_hyperparameters(ignore=['tokenizer'])
-        
-        mt_lora_config = {
-            "lora_rank": self.hparams.lora_rank_mt, "lora_alpha": self.hparams.lora_alpha_mt, "lora_dropout": self.hparams.lora_dropout_mt,
-            "target_mode": self.hparams.target_mode_mt, "use_dora": self.hparams.use_dora_mt, "seed": self.hparams.seed,
-            "incl_structure_encoder": self.hparams.incl_structure_encoder_mt, "last_n_layers": self.hparams.last_n_layers_mt,
-            "incl_sequence_head": self.hparams.incl_sequence_head_mt, "unfreeze_layernorms": self.hparams.unfreeze_layernorms_mt,
-        }
+        self.save_hyperparameters(ignore=['val_dataloader_names'])
+        hp = self.hparams
 
-        wt_lora_config = {
-            "lora_rank": self.hparams.lora_rank_wt, "lora_alpha": self.hparams.lora_alpha_wt, "lora_dropout": self.hparams.lora_dropout_wt,
-            "target_mode": self.hparams.target_mode_wt, "use_dora": self.hparams.use_dora_wt, "seed": self.hparams.seed,
-            "incl_structure_encoder": self.hparams.incl_structure_encoder_wt, "last_n_layers": self.hparams.last_n_layers_wt,
-            "incl_sequence_head": self.hparams.incl_sequence_head_wt, "unfreeze_layernorms": self.hparams.unfreeze_layernorms_wt,
-        }
-
-        lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': self.hparams.seed}
+        lora = lambda side: {"lora_rank": hp[f'lora_rank_{side}'], "lora_alpha": hp[f'lora_alpha_{side}'],
+                             "lora_dropout": hp[f'lora_dropout_{side}'], "seed": hp.seed, **LORA_CONSTANTS}
+        lora_config = {'wt_config': lora('wt'), 'mt_config': lora('mt'), 'seed': hp.seed}
 
         self.model = MSRModel(
-            lora_config=lora_config, shared_scale_init=self.hparams.shared_scale_init, shared_bias_init=self.hparams.shared_bias_init, adapter_mode=self.hparams.adapter_mode,
-            lora_mode=self.hparams.lora_mode, model_dtype=torch.float32,
-            combined_mode=getattr(self.hparams, 'combined_mode', None) or 'mean',
-            per_mutation_bias=bool(getattr(self.hparams, 'per_mutation_bias', False)),
-            native_cond_mt_input=bool(getattr(self.hparams, 'native_cond_for_mt', False)),
-            # a checkpoint whose hparams predate the flag was trained untied; new runs always record it
-            tie_mt_scale=bool(getattr(self.hparams, 'tie_mt_scale', False))
+            lora_config=lora_config, shared_scale_init=SHARED_SCALE_INIT, shared_bias_init=SHARED_BIAS_INIT, adapter_mode=hp.adapter_mode,
+            model_dtype=torch.float32, per_mutation_bias=True, tie_mt_scale=False,
+            native_cond_mt_input=bool(hp.native_cond_for_mt),
         )
-        
+
         self.peft_manager = PEFTStateManager(self.model)
         # --init_wt_from_checkpoint: copy a pre-trained WT model in BEFORE anything freezes it, so that
-        # --freeze_wt_adapter / --freeze_link (or --frozen_wt_mt_only) hold exactly the loaded model fixed.
-        if self.hparams.get('init_wt_from_checkpoint'):
-            self._load_wt_weights(self.hparams.init_wt_from_checkpoint)
+        # --frozen_wt_mt_only holds exactly the loaded model fixed.
+        if hp.get('init_wt_from_checkpoint'):
+            self._load_wt_weights(hp.init_wt_from_checkpoint)
         # on_save_checkpoint deliberately keeps only the lora / calibration / link_head entries, so a
         # checkpoint is missing every frozen base weight. Lightning's default strict load would then refuse
         # to resume from our own checkpoints; the base comes from the pretrained weights either way.
         self.strict_loading = False
 
-        if self.hparams.freeze_wt_adapter: self.peft_manager.freeze_wt_components()
-        if self.hparams.freeze_mt_adapter: self.peft_manager.freeze_mt_components()
+        if hp.freeze_wt_adapter: self.peft_manager.freeze_wt_components()
+        if hp.freeze_mt_adapter: self.peft_manager.freeze_mt_components()
 
-        self.crit_rank_wt = ListMLELoss() if self.hparams.lambda_rank_wt > 0 else None
-        self.crit_rank_mt = ListMLELoss() if self.hparams.lambda_rank_mt > 0 else None
+        self.crit_rank_wt = ListMLELoss() if hp.lambda_rank_wt > 0 else None
+        self.crit_rank_mt = ListMLELoss() if hp.lambda_rank_mt > 0 else None
+        self.crit_reg = nn.HuberLoss(reduction='none', delta=float(hp.huber_delta)) if hp.huber_delta > 0 else nn.MSELoss(reduction='none')
 
-        if self.hparams.reg_loss == 'huber':
-            self.crit_reg = nn.HuberLoss(reduction='none', delta=self.hparams.huber_delta)
-        else:
-            self.crit_reg = nn.MSELoss(reduction='none')
+        # The observed-scale link. Regression goes through it; ranking does not, because it is monotone. Nothing in it is learned.
+        self.link_head = build_link(hp)
+        logging.info(f"Observed-scale link: {self.link_head.summary()}")
+        # The link is part of the pre-trained WT model, not a separate piece: a frozen WT adapter paired with a different floor or
+        # width is a different model than the one being frozen.
+        if hp.get('init_wt_from_checkpoint'):
+            self._load_link_weights(hp.init_wt_from_checkpoint)
 
-        # The observed-scale link. Regression goes through it; ranking does not, because it is monotone.
-        self.link_head = SaturatingLink(
-            tau=self.hparams.link_tau, floor_min=self.hparams.link_floor_min, floor_max=self.hparams.link_floor_max,
-            learn_tau=self.hparams.learn_link_tau, learn_floor_bounds=self.hparams.learn_link_floor_bounds,
-            # a learned global floor (floor_source 'global') starts at --assay_floor, its prior's anchor
-            global_floor_init=(float(self.hparams.assay_floor) if self.hparams.get('floor_source') == 'global'
-                               else self.hparams.get('dataset_floor', float('nan'))),
-            learn_global_floor=self.hparams.learn_global_floor,
-            ceiling=self.hparams.get('link_ceiling'), learn_ceiling=self.hparams.get('learn_link_ceiling', True),
-            tau_hi=self.hparams.get('link_tau_hi'),
-        ) if self.hparams.link else None
-        if self.link_head is not None:
-            logging.info(f"Observed-scale link enabled: {self.link_head.summary()}")
-            # The link is part of the pre-trained WT model, not a separate piece: a frozen WT adapter paired with a
-            # link that still moves (or with a different floor) is a different model than the one being frozen.
-            if self.hparams.get('init_wt_from_checkpoint'):
-                self._load_link_weights(self.hparams.init_wt_from_checkpoint)
-            if self.hparams.get('freeze_link', False):
-                self._freeze_link()
-        # --nonspecific_term fx: nonspecific epistasis as its own learned term, f(x) (esm_msr.link.NonspecificTerm), added to a
-        # multi-mutant's combined latent BEFORE the link so the link keeps modelling the readout alone. Lives on the Lightning
-        # module, not on self.model, so the released model's state and inference are unchanged; checkpoints keep it as ns_head.*.
-        self.ns_head = None
-        if self.hparams.get('nonspecific_term', 'none') == 'fx':
-            if self.link_head is None:
-                raise ValueError("--nonspecific_term fx needs --link: f acts on the latent scale, before the link")
-            if (self.hparams.get('combined_mode') or 'mean') != 'mean':
-                raise ValueError("--nonspecific_term fx is defined for --combined_mode mean only: f enters the combined "
-                                 "prediction as a latent term shared between the WT and MT halves, which is what makes "
-                                 "comb = (WT + MT) / 2 hold at validation")
-            self.ns_head = NonspecificTerm(lo=float(self.hparams.get('ns_knot_lo', -3.0)),
-                                           hi=float(self.hparams.get('ns_knot_hi', 5.0)),
-                                           step=float(self.hparams.get('ns_knot_step', 0.5)))
-            logging.info(f"Nonspecific epistasis term enabled: {len(self.ns_head.values)} knots, "
-                         f"{float(self.ns_head.knots[0])}..{float(self.ns_head.knots[-1])} kcal/mol additive dG, "
-                         f"lr {float(self.hparams.get('ns_lr', 5e-3))}")
+        # sequence masking, per pass (models.pass_mask_strategy)
+        self.mask_wt, self.mask_mt = pass_mask_strategy(hp, 'wt'), pass_mask_strategy(hp, 'mt')
+        self.mask_strategy = {'wt': self.mask_wt, 'mt': self.mask_mt}
+        if self.mask_wt or self.mask_mt:
+            logging.info(f"sequence masking: WT pass {self.mask_wt or 'none'}, MT pass {self.mask_mt or 'none'}")
 
         self.automatic_optimization = False
         self.validation_step_outputs = defaultdict(list)
-        self.val_dataloader_names = self.hparams.get('val_dataloader_names', ['val'])
-        self.external_val_sets = {s.strip() for s in str(self.hparams.get('external_val_sets', '') or '').split(',')
-                                  if s.strip()}
+        self.val_dataloader_names = list(val_dataloader_names) if val_dataloader_names else ['val']
+        self.external_val_sets = {s.strip() for s in str(hp.get('external_val_sets', '') or '').split(',') if s.strip()}
         if self.external_val_sets:
             logging.info(f"OOD validation sets held OUT of every aggregate (diagnostics only): "
                          f"{sorted(self.external_val_sets)}; summarised as val_rho_combined_external and "
@@ -357,214 +299,127 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         return scaled_loss, per_list.detach().mean().item(), num_lists
 
     @staticmethod
-    def _micro_batch(B: int, seq_len: int, list_size: int, hard_cap: int, budget: int) -> int:
+    def _micro_batch(B: int, list_size: int, hard_cap: int) -> int:
         """
-        How many items to put through one forward/backward, capped so that memory does not track sequence length.
-
-        Activation memory scales with (micro batch x sequence length), and every batch here is ONE library, so a
-        fixed micro batch costs whatever that library's length happens to be. Measured on this model at bf16:
-        3.0 GB of resident weights plus about 5.4 MB per token, so micro_batch_size 64 costs 23 GB at the median
-        training length of 49 and extrapolates past the 31.8 GiB card on the longest libraries (74). Exceeding the
-        card does not raise OOM under WSL2 - the driver silently spills to host memory over PCIe - so the only
-        symptom is throughput collapsing, which is what made this hard to see.
-
-        ``--micro_batch_tokens`` is therefore the real budget and ``--micro_batch_size`` only an upper bound: short
-        libraries still get the full 64, long ones are cut down. The result is rounded to a multiple of
-        ``list_size``, because the rank loss reshapes the micro batch into lists of exactly that size.
+        How many items to put through one forward/backward: ``--micro_batch_size``, rounded down to a multiple of ``list_size`` (the rank
+        loss reshapes the micro batch into lists of exactly that size) and no more than the batch. Activation memory scales with
+        micro batch x sequence length, so the right cap depends on the card: 64 costs about 23 GB at the median training length of 49 on
+        a 32 GB one. Exceeding the card does not raise OOM under WSL2 - the driver silently spills to host memory over PCIe - so the only
+        symptom is throughput collapsing.
         """
-        hard_cap = max(1, int(hard_cap))
-        budget = int(budget or 0)
-        n = hard_cap if budget <= 0 else min(hard_cap, max(1, budget // max(1, seq_len)))
+        n = max(1, int(hard_cap))
         n = max(list_size, (n // list_size) * list_size)      # whole lists only
         return min(B, n)
 
-    def _reg_loss(self, pred, target, bound, cens, mask, weights, global_w_sum):
+    def _reg_loss(self, pred, target, bound, cens, mask, denom):
         """
-        Weighted regression over ``mask``, one-sided wherever the measurement is only a bound.
+        Regression over ``mask``, one-sided wherever the measurement is only a bound.
 
-        Returns ``(loss_term, summed_value, summed_weight)``. A censored item is scored against ``bound`` and only
-        when the prediction sits on the wrong side of it (``losses.hinge_regression_loss``), so a variant the assay
-        pinned at its floor cannot be pushed to a value it never had.
+        Returns ``(loss_term, summed_value, count)``: the sum of the per-item losses over ``denom`` (the whole batch's size, so that the
+        micro-batches add up to the batch's mean whatever ``--micro_batch_size`` is), the same sum on its own, and the number of items.
+        A censored item is scored against ``bound`` and only when the prediction sits on the wrong side of it
+        (``losses.hinge_regression_loss``), so a variant the assay pinned at its floor cannot be pushed to a value it never had.
         """
         if mask.dtype != torch.bool:
             raise AssertionError(f"regression mask must be bool, got {mask.dtype}: an integer mask indexes rows "
                                  f"instead of selecting them, which fails silently.")
         L = hinge_regression_loss(self.crit_reg, pred[mask], target[mask], bound[mask], cens[mask])
-        w = weights[mask]
-        return (L * w).sum() / global_w_sum, float((L * w).sum().item()), float(w.sum().item())
+        return L.sum() / denom, float(L.sum().item()), float(L.numel())
 
     def _compose_losses_streaming_and_backward(self, batch: dict) -> dict:
+        hp = self.hparams
         device, B = batch['ddG'].device, int(batch['ddG'].shape[0])
-        list_size = max(1, int(self.hparams.subset_size))
-        mb = self._micro_batch(B, int(batch['wt_sequence_tokens'].shape[1]), list_size,
-                               getattr(self.hparams, 'micro_batch_size', 32),
-                               getattr(self.hparams, 'micro_batch_tokens', 0))
-        
+        list_size = max(1, int(hp.rank_list_size))
+        mb = self._micro_batch(B, list_size, hp.micro_batch_size)
+
         st_all = batch.get('subset_type', ['single'] * B)
         is_native_cond_all = torch.as_tensor([t == 'native_cond' for t in st_all], device=device)
-        w_all = torch.ones(B, dtype=torch.float32, device=device)
-        for subset, weight in (('double', self.hparams.double_weight),
-                               ('cond', self.hparams.cond_weight),
-                               ('native_cond', self.hparams.native_cond_weight)):
-            idx = torch.as_tensor([i for i, t in enumerate(st_all) if t == subset], device=device, dtype=torch.long)
-            if idx.numel() > 0:
-                w_all[idx] = weight
-
-        global_w_sum = w_all.sum().clamp_min(1e-9)
         global_num_lists = max(1, B // list_size)
 
-        # --link: regression on the observed scale, observed ddG = h(dG_wt + latent) - dG_wt, with the knee at the
-        # item's own library floor. An item whose library has no measured dG_wt (the external benchmarks, which this
-        # assay never measured) cannot be put on that scale, so it leaves the linked regressions but keeps its rank
-        # terms, which the link would not have changed anyway.
+        # Regression on the observed scale: observed ddG = h(dG_wt + latent) - dG_wt, with the knee at the item's floor. An item whose
+        # library has no measured dG_wt (the external benchmarks, which this assay never measured) cannot be put on that scale, so it
+        # leaves the linked regressions but keeps its rank terms, which the link would not have changed anyway.
         link = self.link_head
         dGwt_all = batch.get('dG_wt', torch.full((B,), float('nan'), device=device)).float()
         floor_all = batch.get('y_floor', torch.full((B,), float('nan'), device=device)).float()
-        link_ok_all = torch.isfinite(dGwt_all) if link is not None else torch.ones(B, dtype=torch.bool, device=device)
+        link_ok_all = torch.isfinite(dGwt_all)
         cens_all = batch.get('cens', torch.zeros(B, dtype=torch.long, device=device)).long()
         bound_all = batch.get('cens_bound', torch.full((B,), float('nan'), device=device)).float()
 
-        # A bound below what the link can even report is not a bound the model can honour. The floor source already
-        # bounds an item at exactly the link's floor, but the two-protease source bounds it at its OWN reading, and
-        # that reading is frequently BELOW the floor (on 1QP2, 92% of the gap-censored items, by a median 0.41
-        # kcal/mol) - precisely because the fit that produced it was unreliable. Left alone the hinge is then
-        # violated no matter what the model predicts, contributing an irreducible squared error (mean 0.20 there)
-        # and pushing the latent down forever instead of stopping once the prediction saturates.
-        #
-        # The bound is raised to the link's KNEE, h(floor) = floor + tau*ln2 on the observed scale: the reading of a
-        # variant whose latent dG sits exactly at the floor, i.e. half unfolded. A softplus link only reaches the
-        # floor itself as the latent goes to -inf, so a bound AT the floor was never satisfiable either: every
-        # floor-censored item kept a penalty (mean 0.36 on wt_r8a11 / dc18 validation singles, half of them already
-        # below the knee) and a push toward -inf. At the knee the hinge says exactly what the censoring means - the
-        # latent is at or below the floor - it switches off once that holds, and the two censoring sources end up
-        # with identical semantics. Detached, so a bound never trains the floor it is derived from.
-        #
-        # The ceiling needs the mirror image once --link_ceiling is on. A '>5' row is bounded at 5 - dG_wt, but
-        # what the link can actually emit tops out at ceiling - dG_wt, and the ceiling is LEARNED: the moment it
-        # settles below 5 that bound is unreachable for every such item, the hinge is violated whatever the model
-        # predicts, and the only way the gradient can respond is to push the latent up without limit. Clamping
-        # both ways keeps every bound inside the range the link can report.
-        if link is not None:
-            # The floor on the ITEM'S OWN ddG scale. The offset between an item's label and the absolute dG its
-            # measurement describes is a constant of the item, so the same shift that defines cens_bound converts
-            # the floor: for a single or a double it is just -dG_wt, and for a conditional item it also carries the
-            # partner's single. Computed from the batch rather than assumed, so it stays correct if cond is enabled.
-            offset = batch.get('ddG').float() - batch.get('dG_meas', torch.full((B,), float('nan'), device=device)).float()
-            bound_all = reachable_bounds(link, bound_all, floor_all, offset)
-
-        # --alternate_heads: one head per batch. Decided once for the whole batch, from the batch's own
-        # composition, so every micro-batch of it takes the same turn.
-        phase = None
-        if getattr(self.hparams, 'alternate_heads', False):
-            _single_all = torch.as_tensor([t == 'single' for t in st_all], device=device)
-            phase = alternating_phase(getattr(self, '_batch_idx', 0), bool(_single_all.any()), bool((~_single_all).any()))
-            if phase == 'none':
-                return {}
+        # A bound below what the link can even report is not a bound the model can honour. A softplus link only reaches the floor itself
+        # as the latent goes to -inf, so a bound AT the floor is never satisfiable: every floor-censored item would keep a penalty and a
+        # push toward -inf. The bound is raised to the link's KNEE, h(floor) = floor + tau*ln2 on the observed scale: the reading of a
+        # variant whose latent dG sits exactly at the floor, i.e. half unfolded. There the hinge says exactly what the censoring means -
+        # the latent is at or below the floor - and switches off once that holds. Detached, so a bound never trains the floor.
+        # The floor is on the ITEM'S OWN ddG scale: the offset between an item's label and the absolute dG its measurement describes is
+        # a constant of the item, the same shift that defines cens_bound.
+        offset = batch.get('ddG').float() - batch.get('dG_meas', torch.full((B,), float('nan'), device=device)).float()
+        bound_all = reachable_bounds(link, bound_all, floor_all, offset)
 
         sums, cnts = defaultdict(float), defaultdict(float)
         n_tf_drop = 0
         n_cens_lo = int((cens_all < 0).sum().item())
         n_cens_hi = int((cens_all > 0).sum().item())
+        nc_for_wt, nc_for_mt = bool(hp.native_cond_for_wt), bool(hp.native_cond_for_mt)
+        t_single = hp.get('censor_threshold')
+        tf_mix = float(hp.tf_mix)
 
         for start in range(0, B, mb):
-            # Drop the PREVIOUS micro-batch's tensors before this one's forward allocates. manual_backward frees a
-            # graph's saved activations, so this matters only for a micro-batch that produced no loss and therefore
-            # ran no backward: its graph then stays alive through these names and peak memory doubles. That happens
-            # once the WT path is frozen (--freeze_wt_after_epoch / --wt_freeze_after_decays) or when a unit's
-            # masks come up empty. Fixed on devel as acf6026, where a lossless unit pinned ~20 GB.
+            # Drop the PREVIOUS micro-batch's tensors before this one's forward allocates. manual_backward frees a graph's saved
+            # activations, so this matters only for a micro-batch that produced no loss and therefore ran no backward: its graph then
+            # stays alive through these names and peak memory doubles. That happens once the WT path is frozen or when a unit's masks
+            # come up empty. Fixed on devel as acf6026, where a lossless unit pinned ~20 GB.
             wt_out = wt_pred_cal = wt_pred_raw = mt_out = mt_pred_cal = mt_pred_raw = None
             p_obs = p_wt = p_comb = base_wt_cal = base_wt_raw = forced_wt_cal = forced_wt_raw = None
             combined_pred_raw = combined_pred_cal = total_wt = total_mt = L_rank = term = None
             wt_losses = mt_losses = None
 
             idx = torch.arange(start, min(start + mb, B), device=device)
-            micro, w_mb = utils.slice_batch_by_index(batch, idx), w_all[idx]
-            ddG_mb = micro['ddG'].float() 
+            micro = utils.slice_batch_by_index(batch, idx)
+            ddG_mb = micro['ddG'].float()
             dGwt_mb, floor_mb, link_ok = dGwt_all[idx], floor_all[idx], link_ok_all[idx]
             cens_mb, bound_mb = cens_all[idx], bound_all[idx]
             n_mut_mb = micro['mut_mask'].sum(dim=1)
             is_single = n_mut_mb == 1
             is_native_cond = is_native_cond_all[idx]
-            nc_for_wt = bool(getattr(self.hparams, 'native_cond_for_wt', True))
-            nc_for_mt = bool(getattr(self.hparams, 'native_cond_for_mt', False))
-            reg_mask = ~is_single if self.hparams.mt_reg_mask == 'doubles' else torch.ones_like(is_single, dtype=torch.bool)
-            # native_cond routing is independent per head: with --native_cond_for_mt the mutant-background item
-            # joins the MT/combined loss even under --mt_reg_mask doubles (which keys on the mutation count);
-            # without it, it is not an MT item at all.
-            reg_mask = (reg_mask | is_native_cond) if nc_for_mt else (reg_mask & ~is_native_cond)
-            
-            # --wt_double_target: the two self-consistent pairings for a multi-mutant's WT-path target.
-            #
-            #   'linked' - the WT pass's LLR sum through the link, against the item's own measured ddG_AB. The link
-            #              turns the additive latent into the observed ddG the double would have under pure
-            #              saturation, which is a measured quantity. Additivity is still enforced by the
-            #              architecture (the pass can only emit a sum of per-position terms), not by the label.
-            #   'latent' - the unlinked LLR sum against the sum of the measured singles, ddG_A + ddG_B.
-            #
-            # Mixing them is the one broken combination: a sum of two observed singles is not anything the readout
-            # can report (two singles at -2.5 give -5.0, while a linked prediction floors near y_floor - dG_wt), so
-            # a linked prediction could never match it and the gradient would drive the latent down without limit.
-            wt_double_linked = self.hparams.wt_double_target == 'linked'
-            wt_targets = ddG_mb.clone()
-            valid_wt_mask = torch.isfinite(ddG_mb)
-            if not wt_double_linked:
-                add = micro['ddG_additive'].float() if 'ddG_additive' in micro else torch.full_like(ddG_mb, float('nan'))
-                multi = ~is_single
-                wt_targets = torch.where(multi, add, wt_targets)
-                valid_wt_mask = valid_wt_mask & (is_single | torch.isfinite(add))
+            denom = float(B)
 
-            # --no-wt_trains_doubles: leave multi-mutants to the MT head entirely. They still teacher-force the
-            # WT half of the combined prediction, so the WT path still SHAPES a double's prediction - it just
-            # takes no gradient from one. The rank mask already drops them when the target is not 'linked'.
-            if not getattr(self.hparams, 'wt_trains_doubles', True):
-                valid_wt_mask = valid_wt_mask & is_single
-            # ... and whether the WT head trains on native_cond is its own flag (the released default is on, via
-            # the 'single' label; with --native_cond_for_mt it is a native_cond item and this mask decides).
+            # native_cond routing is independent per head: with --native_cond_for_mt the mutant-background item joins the MT/combined
+            # loss; without it, it is not an MT item at all.
+            reg_mask = torch.ones_like(is_single, dtype=torch.bool) if nc_for_mt else ~is_native_cond
+
+            # The WT head trains on singles only. Multi-mutants still teacher-force the WT half of the combined prediction below, so the
+            # WT path still SHAPES a double's prediction - it just takes no gradient from one. ... and whether it trains on native_cond
+            # is its own flag (the released default is on, via the 'single' label; with --native_cond_for_mt it is a native_cond item
+            # and this mask decides).
+            wt_targets = ddG_mb
+            valid_wt_mask = torch.isfinite(ddG_mb) & is_single
             if not nc_for_wt:
                 valid_wt_mask = valid_wt_mask & ~is_native_cond
 
-            # Teacher forcing for ENSEMBLE mode: the measured additive expectation replaces the WT half of the
-            # combined latent, so the MT head only has to learn the correction.
-            tf_additive_labels = torch.full_like(ddG_mb, float('nan'))
-            if 'ddG_additive' in micro:
-                tf_additive_labels = micro['ddG_additive'].clone().float()
-            tf_additive_labels[is_single] = ddG_mb[is_single]
-            has_add_label = ~torch.isnan(tf_additive_labels)
-
-            # --tf_delink: the label is on the OBSERVED scale and it is about to be added to a LATENT prediction,
-            # so put the label on the latent scale first (the inverse is nonlinear: one single at a time). The inverse is NONLINEAR, so a double's label is de-linked ONE SINGLE AT A
-            # TIME and then summed - de-linking ddG_A + ddG_B as a sum is a different and wrong number. Detached:
-            # a label must never train the link it was inverted through. A single at or below its library's floor
-            # has no invertible latent value and returns NaN, which drops it from teacher forcing - the same
-            # population tf_saturated below removes, now by construction rather than by threshold.
-            if link is not None and getattr(self.hparams, 'tf_delink', False):
-                lat = lambda o: link.latent_ddG(o.float(), dGwt_mb, floor_mb).detach()
-                if 'ddG_A' in micro and 'ddG_B' in micro:
-                    tf_lat = lat(micro['ddG_A']) + lat(micro['ddG_B'])
-                else:
-                    tf_lat = torch.full_like(ddG_mb, float('nan'))
-                    if not getattr(self, '_warned_tf_delink_missing', False):
-                        self._warned_tf_delink_missing = True
-                        logging.warning("--tf_delink is on but the batch has no ddG_A/ddG_B columns, so the additive "
-                                        "label cannot be de-linked: teacher forcing is unavailable for this batch "
-                                        "and the WT pass is used. (tf_delink is ON by default since 2026-10-19.)")
-                tf_additive_labels = torch.where(is_single, lat(ddG_mb), tf_lat)
-                has_add_label = torch.isfinite(tf_additive_labels) & link_ok
-
-            # ... but only where that measured sum is a usable stand-in for the LATENT sum. A single measured at its
-            # library's floor reports the floor, not its own effect, so injecting it into a latent average biases the
-            # combined prediction by however much that single was compressed. Such doubles fall back to the WT head's
-            # own latent.
-            # With --censor_threshold the cut is that threshold, the same one that censored the single, and a censored
-            # single gives no label for ITSELF either (its label is a bound); with a learned global floor it is the
-            # link's current floor, since no item carries one.
-            t_single = self.hparams.get('censor_threshold')
-            if t_single is not None:
-                cut = torch.full_like(floor_mb, float(t_single))
-            elif self.hparams.get('floor_source') == 'global' and link is not None:
-                cut = link.effective_floor(floor_mb).detach().expand_as(floor_mb)
+            # Teacher forcing: the measured additive expectation replaces the WT half of the combined latent, so the MT head only has to
+            # learn the correction. The label is on the OBSERVED scale and is about to be added to a LATENT prediction, so it is put on
+            # the latent scale first. The inverse is NONLINEAR, so a double's label is de-linked ONE SINGLE AT A TIME and then summed -
+            # de-linking ddG_A + ddG_B as a sum is a different and wrong number. Detached: a label must never train the link it was
+            # inverted through. A single at or below the link's floor has no invertible latent value and returns NaN, which drops it from
+            # teacher forcing.
+            lat = lambda o: link.latent_ddG(o.float(), dGwt_mb, floor_mb).detach()
+            if 'ddG_A' in micro and 'ddG_B' in micro:
+                tf_lat = lat(micro['ddG_A']) + lat(micro['ddG_B'])
             else:
-                cut = floor_mb
+                tf_lat = torch.full_like(ddG_mb, float('nan'))
+                if not getattr(self, '_warned_tf_delink_missing', False):
+                    self._warned_tf_delink_missing = True
+                    logging.warning("The batch has no ddG_A/ddG_B columns, so the additive label cannot be de-linked: teacher forcing is "
+                                    "unavailable for this batch and the WT pass is used.")
+            tf_additive_labels = torch.where(is_single, lat(ddG_mb), tf_lat)
+            has_add_label = torch.isfinite(tf_additive_labels) & link_ok
+
+            # ... but only where that measured sum is a usable stand-in for the LATENT sum. A single measured at the floor reports the
+            # floor, not its own effect, so injecting it into a latent average biases the combined prediction by however much that single
+            # was compressed. Such doubles fall back to the WT head's own latent. The cut is --censor_threshold, the same one that
+            # censored the single, and a censored single gives no label for ITSELF either (its label is a bound).
+            cut = torch.full_like(floor_mb, float(t_single)) if t_single is not None else floor_mb
             if 'ddG_A' in micro and 'ddG_B' in micro:
                 tf_saturated = teacher_forcing_unusable(dGwt_mb, micro['ddG_A'].float(), micro['ddG_B'].float(), cut) & ~is_single
                 n_tf_drop += int(tf_saturated.sum().item())
@@ -572,163 +427,93 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if t_single is not None:
                 has_add_label = has_add_label & ~(is_single & (cens_mb != 0))
 
-            # The WT half of the combined prediction is always detached (--no-detach_ensemble_input is retired),
-            # so the WT graph never has to survive its own backward. That also drops a retain_graph.
-            retain_wt = False
-
             # =============================================================
             # PHASE 1: WILD-TYPE PASS
             # =============================================================
-            # On an 'mt' turn the WT half of the combined prediction comes entirely from the teacher-forcing
-            # label (the MT losses are restricted to labelled items below), so the WT forward is not needed and
-            # is skipped - that is where the saving in --alternate_heads comes from. The zeros are never read.
-            if phase == 'mt':
-                wt_pred_cal = wt_pred_raw = torch.zeros_like(ddG_mb)
-            else:
-                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.hparams.mask_strategy)
-                wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
+            wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.mask_wt)
+            wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
 
-            cens_wt_rank = cens_mb if wt_double_linked else torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
+            cens_wt = torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
             wt_losses = []
-            if self.hparams.lambda_reg_wt > 0:
-                if link is not None:
-                    # Assembled in latent (the pass's own sum over the item's positions), linked once, at the end.
-                    # Under 'latent' a multi-mutant's target is itself a latent sum, so it stays off the link.
-                    p_obs = link.obs_ddG(wt_pred_cal, dGwt_mb, floor_mb)
-                    if wt_double_linked:
-                        p_wt, reg_wt_mask = p_obs, valid_wt_mask & link_ok
-                    else:
-                        # Under 'latent' a multi-mutant's target is itself a latent sum, so it stays off the link
-                        # and needs no dG_wt - hence it is kept even where link_ok is False.
-                        p_wt = torch.where(is_single, p_obs, wt_pred_cal)
-                        reg_wt_mask = valid_wt_mask & (link_ok | ~is_single)
-                else:
-                    p_wt, reg_wt_mask = wt_pred_cal, valid_wt_mask
-                cens_wt = cens_mb if wt_double_linked else torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
+            if hp.lambda_reg_wt > 0:
+                # Assembled in latent (the pass's own sum over the item's positions), linked once, at the end. A multi-mutant's target is
+                # itself a latent sum, so it stays off the link and needs no dG_wt - hence it is kept even where link_ok is False.
+                p_obs = link.obs_ddG(wt_pred_cal, dGwt_mb, floor_mb)
+                p_wt = torch.where(is_single, p_obs, wt_pred_cal)
+                reg_wt_mask = valid_wt_mask & (link_ok | ~is_single)
                 if reg_wt_mask.any():
-                    term, val, wsum = self._reg_loss(p_wt, wt_targets, bound_mb, cens_wt, reg_wt_mask, w_mb, global_w_sum)
-                    wt_losses.append(self.hparams.lambda_reg_wt * term)
+                    term, val, wsum = self._reg_loss(p_wt, wt_targets, bound_mb, cens_wt, reg_wt_mask, denom)
+                    wt_losses.append(hp.lambda_reg_wt * term)
                     sums['reg_wt'] += val; cnts['reg_wt'] += wsum
 
-            if self.hparams.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
-                L_rank, val, n_list = self._compute_rank_loss(wt_pred_raw, wt_targets, valid_wt_mask, cens_wt_rank,
-                                                              list_size, self.crit_rank_wt)
+            if hp.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
+                L_rank, val, n_list = self._compute_rank_loss(wt_pred_raw, wt_targets, valid_wt_mask, cens_wt, list_size, self.crit_rank_wt)
                 if L_rank is not None:
-                    wt_losses.append(self.hparams.lambda_rank_wt * L_rank * (n_list / global_num_lists))
+                    wt_losses.append(hp.lambda_rank_wt * L_rank * (n_list / global_num_lists))
                     sums['rank_wt'] += val * n_list; cnts['rank_wt'] += n_list
 
-            if phase != 'mt' and wt_losses and not self.peft_manager.wt_path_is_frozen and (self.hparams.lambda_rank_wt > 0 or self.hparams.lambda_reg_wt > 0):
+            if wt_losses and not self.peft_manager.wt_path_is_frozen and (hp.lambda_rank_wt > 0 or hp.lambda_reg_wt > 0):
                 total_wt = sum(wt_losses)
                 if not torch.isfinite(total_wt): raise AssertionError("WT Loss evaluated to NaN/Inf.")
                 if not total_wt.requires_grad: raise AssertionError("WT Loss detached from PyTorch Graph! Cannot call backward.")
-                self.manual_backward(total_wt, retain_graph=retain_wt)
-                    
-            if phase != 'wt' and not self.peft_manager.mt_path_is_frozen and (self.hparams.lambda_rank_mt > 0 or self.hparams.lambda_reg_mt > 0):
+                self.manual_backward(total_wt)
+
+            if not self.peft_manager.mt_path_is_frozen and (hp.lambda_rank_mt > 0 or hp.lambda_reg_mt > 0):
                 # =============================================================
                 # PHASE 2: MUTANT & COMBINED PASS
                 # =============================================================
-                mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=self.hparams.mask_strategy)
+                mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=self.mask_mt)
                 mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
-                
+
+                # The WT half of the combined prediction is detached: the WT graph never has to survive its own backward.
                 base_wt_cal, base_wt_raw = wt_pred_cal.detach(), wt_pred_raw.detach()
 
-                # Teacher forcing override for ENSEMBLE mode
-                if self.model.lora_mode == 'ensemble':
-                    if not has_add_label.any():
-                        logging.warning("Ensemble mode teacher-forcing enabled, but no additive labels or single mutations are present in the batch.")
+                if not has_add_label.any():
+                    logging.warning("Teacher forcing is on, but no additive labels or single mutations are present in the batch.")
 
-                    # Locate the appropriate calibration head
-                    cal_head = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
-                    if cal_head is None:
-                        raise AssertionError("Ensemble mode failed: Could not locate 'calibration_head_wt' or 'calibration_head_fused' on self.model for de-calibration.")
-                    
-                    # Invert the calibration: raw = (cal - bias) / scale
-                    s = 1.0 if not cal_head.use_scale else cal_head.scale.detach()
-                    # bias_for, not cal_head.bias: with --per_mutation_bias the head added bias * n_mut, so a
-                    # scalar inverse here would under-correct every multi-mutant and silently bias the label
-                    # the MT head is teacher-forced against.
-                    b = cal_head.bias_for(n_mut_mb)
-                    b = b.detach() if torch.is_tensor(b) else b
-                    decalibrated_label = (tf_additive_labels - b) / s
-                    
-                    forced_wt_cal = torch.where(has_add_label, tf_additive_labels, base_wt_cal)
-                    forced_wt_raw = torch.where(has_add_label, decalibrated_label, base_wt_raw)
+                # Invert the calibration: raw = (cal - bias) / scale
+                cal_head = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
+                if cal_head is None:
+                    raise AssertionError("Could not locate 'calibration_head_wt' or 'calibration_head_fused' on self.model for de-calibration.")
+                s = 1.0 if not cal_head.use_scale else cal_head.scale.detach()
+                # bias_for, not cal_head.bias: the head adds bias * n_mut, so a scalar inverse here would under-correct every multi-mutant
+                # and silently bias the label the MT head is teacher-forced against.
+                b = cal_head.bias_for(n_mut_mb)
+                b = b.detach() if torch.is_tensor(b) else b
+                decalibrated_label = (tf_additive_labels - b) / s
 
-                    # --tf_mix: how much of an item's WT half comes from the measurement rather than from the WT
-                    # head's own prediction. 1.0 (default) is the released behaviour - the label wherever one is
-                    # usable; 0.0 never teacher-forces; 0.5 is the arithmetic mean of the two on the calibrated
-                    # scale. The label carries the measurement noise (two singles for a double, one for a single)
-                    # and the floor clipping, the WT head is smooth but biased, so the mix trades variance for
-                    # bias. It applies to SINGLES as well as doubles (2026-10-19): with the label in place the MT
-                    # head is a total/interaction predictor, with the WT pass in place it compensates the WT head's
-                    # error, and a mix<1 sweep that left singles on the label would not be the pure arm it claims.
-                    # An item with no usable label is unaffected for any mix (both terms of the blend are then the
-                    # WT pass).
-                    _tf_mix = self.hparams.get('tf_mix', 1.0)          # not `or 1.0`: 0.0 is a legal, meaningful mix
-                    tf_mix = 1.0 if _tf_mix is None else float(_tf_mix)
-                    if tf_mix < 1.0:
-                        w_cal = torch.full_like(forced_wt_cal, tf_mix)      # singles included: one rule for all items
-                        forced_wt_cal = w_cal * forced_wt_cal + (1.0 - w_cal) * base_wt_cal
-                        forced_wt_raw = w_cal * forced_wt_raw + (1.0 - w_cal) * base_wt_raw
-                elif self.model.lora_mode == 'corrector':
-                    forced_wt_cal, forced_wt_raw = base_wt_cal, base_wt_raw
-                else:
-                    raise AssertionError(f"Unknown lora_mode: {self.model.lora_mode}")
+                forced_wt_cal = torch.where(has_add_label, tf_additive_labels, base_wt_cal)
+                forced_wt_raw = torch.where(has_add_label, decalibrated_label, base_wt_raw)
 
-                cmode = getattr(self.hparams, 'combined_mode', None) or 'mean'
-                # Under 'route' a SINGLE's combined prediction is the WT branch alone, and teacher forcing has
-                # already replaced that branch with the measured label (tf_additive_labels[is_single] = ddG). The
-                # single's loss is then identically zero and carries no gradient - harmless only because
-                # --mt_reg_mask doubles masks singles out of the combined losses entirely. Paired with 'all' it
-                # would silently train on nothing but doubles while appearing to train on everything.
-                if cmode == 'route' and self.hparams.mt_reg_mask != 'doubles':
-                    raise AssertionError("--combined_mode route requires --mt_reg_mask doubles: a single's "
-                                         "combined prediction is the teacher-forced label itself, so its loss is "
-                                         "identically zero and must be masked out rather than silently ignored.")
-                if phase == 'mt':
-                    # no WT forward was run, so only items whose WT half is a label can be scored
-                    reg_mask = reg_mask & has_add_label
-                combined_pred_raw = combine_predictions(forced_wt_raw, mt_pred_raw, cmode, is_single)
-                combined_pred_cal = combine_predictions(forced_wt_cal, mt_pred_cal, cmode, is_single)
+                # --tf_mix: how much of an item's WT half comes from the measurement rather than from the WT head's own prediction. 1.0
+                # is the label wherever one is usable; 0.0 never teacher-forces; 0.5 is the arithmetic mean of the two on the calibrated
+                # scale. The label carries the measurement noise (two singles for a double, one for a single) and the floor clipping, the
+                # WT head is smooth but biased, so the mix trades variance for bias. It applies to SINGLES as well as doubles: with the
+                # label in place the MT head is a total/interaction predictor, with the WT pass in place it compensates the WT head's
+                # error. An item with no usable label is unaffected for any mix (both terms of the blend are then the WT pass).
+                if tf_mix < 1.0:
+                    w_cal = torch.full_like(forced_wt_cal, tf_mix)
+                    forced_wt_cal = w_cal * forced_wt_cal + (1.0 - w_cal) * base_wt_cal
+                    forced_wt_raw = w_cal * forced_wt_raw + (1.0 - w_cal) * base_wt_raw
 
-                ns = getattr(self, 'ns_head', None)
-                if ns is not None:
-                    # Nonspecific epistasis f(x) on multi-mutants only: x = dG_wt + the additive latent the forcing uses (the
-                    # forced WT half; detached). Where that half is the WT pass of the multi-mutant, it carries the calibration
-                    # bias ONCE per item - add one bias per extra mutation. Under --per_mutation_bias the head already added
-                    # bias * n_mut, so there is nothing left to add; where the half is a measured additive label (teacher
-                    # forcing) there is no bias in it at all. Detached: f never trains the WT half; its own gradient comes from
-                    # the combined losses, which is also why it cannot leak into the WT adapter.
-                    ch = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
-                    s_ns = 1.0 if ch is None or not ch.use_scale else ch.scale.detach()
-                    b_ns = 0.0 if ch is None or ch.bias is None or getattr(self.hparams, 'per_mutation_bias', False) else ch.bias.detach()
-                    from_pass = ~has_add_label if self.model.lora_mode == 'ensemble' else torch.ones_like(is_single)
-                    x_hat = (dGwt_mb + forced_wt_cal
-                             + torch.where(from_pass, b_ns * (n_mut_mb - 1.0), torch.zeros_like(forced_wt_cal))).detach()
-                    f_ns = torch.where((n_mut_mb > 1) & link_ok, ns(x_hat), torch.zeros_like(x_hat))
-                    # Added after the combination, so the MT readout keeps 2 f: comb = (WT + MT) / 2 still holds.
-                    combined_pred_cal = combined_pred_cal + f_ns
-                    combined_pred_raw = combined_pred_raw + f_ns / s_ns
+                combined_pred_raw = combine_predictions(forced_wt_raw, mt_pred_raw)
+                combined_pred_cal = combine_predictions(forced_wt_cal, mt_pred_cal)
 
                 mt_losses = []
 
                 # Mut pass strictly relies on combined losses
-                if self.hparams.lambda_reg_mt > 0:
-                    if link is not None:
-                        p_comb = link.obs_ddG(combined_pred_cal, dGwt_mb, floor_mb)
-                        reg_c_mask = reg_mask & link_ok
-                    else:
-                        p_comb, reg_c_mask = combined_pred_cal, reg_mask
+                if hp.lambda_reg_mt > 0:
+                    p_comb = link.obs_ddG(combined_pred_cal, dGwt_mb, floor_mb)
+                    reg_c_mask = reg_mask & link_ok
                     if reg_c_mask.any():
-                        term, val, wsum = self._reg_loss(p_comb, ddG_mb, bound_mb, cens_mb, reg_c_mask, w_mb, global_w_sum)
-                        mt_losses.append(self.hparams.lambda_reg_mt * term)
+                        term, val, wsum = self._reg_loss(p_comb, ddG_mb, bound_mb, cens_mb, reg_c_mask, denom)
+                        mt_losses.append(hp.lambda_reg_mt * term)
                         sums['reg_combined'] += val; cnts['reg_combined'] += wsum
 
-                if self.hparams.lambda_rank_mt > 0 and self.crit_rank_mt is not None:
-                    L_rank, val, n_list = self._compute_rank_loss(combined_pred_raw, ddG_mb, reg_mask, cens_mb,
-                                                                  list_size, self.crit_rank_mt)
+                if hp.lambda_rank_mt > 0 and self.crit_rank_mt is not None:
+                    L_rank, val, n_list = self._compute_rank_loss(combined_pred_raw, ddG_mb, reg_mask, cens_mb, list_size, self.crit_rank_mt)
                     if L_rank is not None:
-                        mt_losses.append(self.hparams.lambda_rank_mt * L_rank * (n_list / global_num_lists))
+                        mt_losses.append(hp.lambda_rank_mt * L_rank * (n_list / global_num_lists))
                         sums['rank_combined'] += val * n_list; cnts['rank_combined'] += n_list
 
                 if mt_losses:
@@ -742,7 +527,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if cnts[k] > 0: logs[f'L_{k}'] = sums[k] / max(1, cnts[k])
         self._cens_diag = (n_cens_lo, n_cens_hi, n_tf_drop)
         return logs
-    
+
     def _log_lrs(self):
         opts = self.trainer.optimizers
         for opt in opts:
@@ -777,54 +562,32 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         continue
 
     def training_step(self, batch: dict, batch_idx: int):
-        self._batch_idx = int(batch_idx)
         self.model.train()
         logs = self._compose_losses_streaming_and_backward(utils._normalize_batch(batch))
-
-        # The temperature anchor is a penalty on two parameters, not a per-item loss, so it is applied once per
-        # optimizer step rather than inside the micro-batch loop (where it would be counted once per micro-batch).
-        if self.link_head is not None and float(self.hparams.get('link_tau_penalty', 0.0) or 0.0) > 0:
-            pen = self.link_head.tau_penalty(float(self.hparams.link_tau_penalty))
-            if pen.requires_grad:
-                self.manual_backward(pen)
-                logs['link_tau_penalty'] = float(pen.detach())
-
-        # The learned global floor's prior (--link_floor_penalty): same once-per-step placement as the tau anchor.
-        if self.link_head is not None and float(self.hparams.get('link_floor_penalty', 0.0) or 0.0) > 0:
-            pen = self.link_head.floor_penalty(float(self.hparams.link_floor_penalty), float(self.hparams.assay_floor or 0.0),
-                                               float(self.hparams.get('link_floor_prior_sd', 0.25)))
-            if pen.requires_grad:
-                self.manual_backward(pen)
-                logs['link_floor_penalty'] = float(pen.detach())
 
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=False)
 
         optim = self.optimizers()
-        
-        max_norm = getattr(self.hparams, "grad_clip_norm", None)
-        if max_norm and max_norm > 0:
-            self.clip_gradients(optim, gradient_clip_val=max_norm, gradient_clip_algorithm="norm")
-            
+
         param_id_to_name = {id(p): name for name, p in self.model.named_parameters()}
         for i, g in enumerate(optim.param_groups):
             group_name = g.get("name", f"group{i}")
             named_params = [(param_id_to_name.get(id(p), f"param_{j}"), p) for j, p in enumerate(g["params"])]
-            
+
             w_norm = utils.l2_weight_norm(named_params)
             g_norm = utils.l2_grad_norm(named_params)
             s_norm = utils.group_step_norm(named_params, float(g["lr"]))
-            
+
             self.log(f"norm_weight/{group_name}", w_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
             self.log(f"norm_grad/{group_name}", g_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
             self.log(f"norm_step/{group_name}", s_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
 
         optim.step()
         optim.zero_grad(set_to_none=True)
-        
+
         sch_warmup = self.lr_schedulers()   # one config, so Lightning hands back the scheduler itself
-        total_warmup_steps = self.hparams.lr_warmup_steps + max(int(getattr(self.hparams, "calib_delay_steps", 0)), int(getattr(self.hparams, "mt_lora_delay_steps", 500)))
-        if sch_warmup.last_epoch < total_warmup_steps:
+        if sch_warmup.last_epoch < self.hparams.lr_warmup_steps:
             sch_warmup.step()
 
         self._log_lrs()
@@ -838,46 +601,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.log("train/cens_upper_items", float(self._cens_diag[1]), on_step=True)
             self.log("train/tf_saturated_dropped", float(self._cens_diag[2]), on_step=True)
 
-        if getattr(self, 'ns_head', None) is not None:
-            # The learned curve, so it can be watched as it forms during a run (the same points are in the val dumps as ns_term).
-            with torch.no_grad():
-                for xv in (-1.0, 0.0, 1.0, 2.0, 3.0):
-                    self.log(f"ns/f_at_x{xv:+.0f}",
-                             float(self.ns_head(torch.tensor([xv], device=self.ns_head.values.device))[0]), on_step=True)
-            
         if torch.cuda.is_available():
             gb = 1.0 / (1024 ** 3)
             self.log("mem/allocated_gb", torch.cuda.memory_allocated() * gb, on_step=True)
             self.log("mem/reserved_gb", torch.cuda.memory_reserved() * gb, on_step=True, prog_bar=True)
             self.log("mem/peak_allocated_gb", torch.cuda.max_memory_allocated() * gb, on_step=True)
 
-        if getattr(self.trainer.precision_plugin, "scaler", None) is not None:
-            self.log("amp_scale", self.trainer.precision_plugin.scaler.get_scale(), on_step=True)
-
         return torch.tensor(0.0, device=self.device)
-
-    def _apply_nonspecific(self, out_dict, batch, dG_wt):
-        """With --nonspecific_term: a multi-mutant's combined prediction gains f(x) and its MT readout 2 f(x) (so comb = (WT + MT) / 2
-        still holds), x = dG_wt + the WT pass (the additive latent) + one calibration bias per extra mutation - none when the head
-        already applies one per mutated position (--per_mutation_bias). Singles and items without dG_wt are untouched."""
-        ns = getattr(self, 'ns_head', None)
-        if ns is None:
-            return out_dict
-        dev = out_dict['combined_pred'].device
-        mm = batch['mut_mask'].to(dev)
-        n_mut = mm.sum(dim=1).float()
-        dgw = dG_wt.to(dev).float()
-        ok = (n_mut > 1) & torch.isfinite(dgw)
-        ch = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
-        b = 0.0 if ch is None or ch.bias is None or getattr(self.hparams, 'per_mutation_bias', False) else ch.bias.detach()
-        with torch.no_grad():
-            x_hat = torch.where(ok, dgw, torch.zeros_like(dgw)) + out_dict['wt_lora_pred'].float() + b * (n_mut - 1.0)
-            f = torch.where(ok, ns(x_hat), torch.zeros_like(x_hat))
-        out = dict(out_dict)
-        out['combined_pred'] = out_dict['combined_pred'].float() + f
-        out['mt_lora_pred'] = out_dict['mt_lora_pred'].float() + 2.0 * f
-        out['epi_pred'] = out_dict['epi_pred'].float() + f
-        return out
 
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         wt_only = bool(self.hparams.get('val_wt_only', False))
@@ -890,27 +620,22 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # through noise. Report the WT head under all three names rather than leave the columns undefined or fill
             # them with that noise: mt == comb == wt is then a true statement about this model.
             with torch.inference_mode():
-                w = self.model.forward_partitioned(batch, pass_type='wt',
-                                                   mask_strategy=self.hparams.mask_strategy)['pred_calibrated'].float()
+                w = self.model.forward_partitioned(batch, pass_type='wt', mask_strategy=self.mask_wt)['pred_calibrated'].float()
             out_dict = {'wt_lora_pred': w, 'mt_lora_pred': w, 'combined_pred': w,
                         'epi_pred': torch.zeros_like(w)}
         else:
             with torch.inference_mode():
-                out_dict = self.model.forward_batch(batch, mask_strategy=self.hparams.mask_strategy)
+                out_dict = self.model.forward_batch(batch, mask_strategy=self.mask_strategy)
 
         B = int(out_dict['wt_lora_pred'].shape[0])
         ddG = utils._get_label(batch, 'ddG', device=batch['ddG'].device)
-        # --nonspecific_term: before anything else reads the predictions, so the observed-scale block below and every metric
-        # downstream see the term exactly as training does.
-        dG_wt = batch['dG_wt'].float() if torch.is_tensor(batch.get('dG_wt')) else torch.full((B,), float('nan'))
-        out_dict = self._apply_nonspecific(out_dict, batch, dG_wt)
         nan_col = lambda: np.full(B, np.nan, dtype=np.float32)
         get = lambda k: batch[k].detach().cpu().float().numpy() if torch.is_tensor(batch.get(k)) else nan_col()
 
         # The epistasis metrics need the LATENT scores and apply the link themselves. The observed scale is carried
         # separately, for the rmse metrics only, so they stay comparable with a run that has no link.
         obs = {}
-        if self.link_head is not None and torch.is_tensor(batch.get('dG_wt')):
+        if torch.is_tensor(batch.get('dG_wt')):
             dgw, foff = batch['dG_wt'].float(), batch['y_floor'].float()
             ok = torch.isfinite(dgw)
             z = torch.where(ok, dgw, torch.zeros_like(dgw))
@@ -922,7 +647,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         cyc = {}
         if self.hparams.val_cycle_passes:
             with torch.inference_mode():
-                c = self.model.forward_cycle(batch, mask_strategy=self.hparams.mask_strategy,
+                c = self.model.forward_cycle(batch, mask_strategy=self.mask_strategy,
                                              include_mt=not wt_only)
             cyc = {'wt_rev_scores': c['wt_rev'].detach().cpu().float().numpy()}
             if 'mt_fwd' in c:
@@ -1066,19 +791,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if np.isfinite(_v):
                     avg_metrics[_k].append(float(_v))
 
-        if self.link_head is not None:
-            for k, v in self.link_head.summary().items():
-                self.log(f"link/{k}", v, on_epoch=True, sync_dist=True)
-
-        if not self.trainer.sanity_checking and self.trainer.current_epoch==self.hparams.freeze_wt_after_epoch and not self.peft_manager.has_transitioned:
-            logging.info(f"Epoch {self.hparams.freeze_wt_after_epoch} ended! Transitioning to MT training.")
-            self._transition_to_mt()
+        for k, v in self.link_head.summary().items():
+            self.log(f"link/{k}", v, on_epoch=True, sync_dist=True)
 
         if not self.trainer.sanity_checking:
-            total_warmup_steps = self.hparams.lr_warmup_steps + max(int(getattr(self.hparams, "calib_delay_steps", 0)), int(getattr(self.hparams, "mt_lora_delay_steps", 500)))
-            # After warmup only: during warmup LambdaLR rewrites every group's lr each step and would
-            # overwrite these decays.
-            if self.trainer.global_step >= total_warmup_steps:
+            # After warmup only: during warmup LambdaLR rewrites every group's lr each step and would overwrite these decays.
+            if self.trainer.global_step >= self.hparams.lr_warmup_steps:
                 self._wt_plateau_step(avg_metrics)
                 self._mt_plateau_step(avg_metrics)
                 self._stop_if_nothing_is_training()
@@ -1117,9 +835,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if self.hparams.val_dump and log_dir:
                 tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
                 os.makedirs(log_dir, exist_ok=True)
-                extra = {'link_summary': np.array(json.dumps(self.link_head.summary()))} if self.link_head is not None else {}
-                if getattr(self, 'ns_head', None) is not None:
-                    extra['ns_term'] = np.array(json.dumps(self.ns_head.table()))
+                extra = {'link_summary': np.array(json.dumps(self.link_head.summary()))}
                 np.savez_compressed(
                     os.path.join(log_dir, f'val_dump_{tag}.npz'),
                     wt=items['wt'], mt=items['mt'], comb=items['comb'], wt_rev=items['wt_rev'],
@@ -1136,7 +852,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             canon = items['cens_src'] != censoring.SRC_RANGE
             scored = {k: ([v[i] for i in np.flatnonzero(canon)] if isinstance(v, list) else np.asarray(v)[canon])
                       for k, v in items.items()}
-            link = self.link_head.numpy() if self.link_head is not None else None
+            link = self.link_head.numpy()
             res = epi_metrics.compute(epi_metrics.Table(scored, link))
             for name, val in res.items():
                 if np.isfinite(val):
@@ -1147,119 +863,73 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)
         return {}
 
-    def _wt_plateau_step(self, avg_metrics: dict) -> None:
+    def _plateau_step(self, head: str, avg_metrics: dict) -> None:
         """
-        Decay the WT path's own learning rate when ITS validation metric stops improving, and optionally freeze it.
+        Decay one head's own learning rate when ITS validation metric stops improving, and freeze it after ``--freeze_after_decays`` decays.
 
-        The shared ReduceLROnPlateau this replaced watched ``val_rho_combined_avg``, which the MT path keeps
-        improving long after the WT head has stopped - ``rho_wt_valid`` typically peaks around epoch 2 while the
-        combined metric climbs for several more. That meant the WT adapter kept taking full-rate steps on a metric
-        it was no longer improving, so it drifted (weakly overfitting), and the target the MT path teacher-forces
-        against moved underneath it. Keyed on the WT metric, both stop. (That shared scheduler is gone entirely
-        now; see ``configure_optimizers``.)
-
-        Only the ``lora_wt`` and ``calib_wt`` groups are touched, so the MT path and the link are unaffected.
+        Each head gets its own plateau because a shared one (on ``val_rho_combined_avg``) kept the WT adapter taking full-rate steps on a
+        metric the MT path was still improving, so it drifted and the target the MT path teacher-forces against moved underneath it; and a
+        shared scheduler that owned every parameter group compounded patience-1 triggers into a 370x drop in three epochs (dc12r_s2).
+        The WT head watches ``rho_wt_valid`` and touches only the ``lora_wt`` / ``calib_wt`` groups; the MT head watches
+        ``--mt_convergence_metric`` (default ``epi_beyond_rho_mt``: its correlation on the part of a double the two singles do not
+        explain) and touches only ``lora_mt`` / ``calib_mt``. That metric is noisy epoch to epoch (swings of +-0.03, no trend), so
+        patience 1 wants the gentle factor 0.3 it has by default.
         """
-        patience = int(getattr(self.hparams, 'wt_plateau_patience', 0) or 0)
-        if patience <= 0 or self.peft_manager.has_transitioned:
+        patience = int(self.hparams.plateau_patience or 0)
+        done = self.peft_manager.has_transitioned if head == 'wt' else self.peft_manager.mt_path_is_frozen
+        if patience <= 0 or done:
             return
-        key = self.hparams.wt_convergence_metric
+        key = 'rho_wt_valid' if head == 'wt' else self.hparams.mt_convergence_metric
         if not avg_metrics.get(key):
             # Loudly, and once: a scheduler that is configured but silently inert is worse than one that errors.
             # dc12 ran 8 epochs with its MT plateau doing nothing, because _log_epistasis returned None and the
             # epistasis scalars never reached avg_metrics - and not one line said so.
-            if not getattr(self, '_warned_no_wt_metric', False):
-                self._warned_no_wt_metric = True
-                logging.warning(f"--wt_plateau_patience is set but '{key}' is not among the validation "
-                                f"metrics {sorted(avg_metrics)}, so the WT plateau will never fire.")
+            if not getattr(self, f'_warned_no_{head}_metric', False):
+                setattr(self, f'_warned_no_{head}_metric', True)
+                logging.warning(f"--plateau_patience is set but '{key}' is not among the validation metrics {sorted(avg_metrics)}, "
+                                f"so the {head.upper()} plateau will never fire.")
             return
         current = float(np.nanmean(avg_metrics[key]))
         if not np.isfinite(current):
             return
 
-        best = getattr(self, '_wt_plateau_best', -float('inf'))
+        best = getattr(self, f'_{head}_plateau_best', -float('inf'))
         if current > best + 1e-4:
-            self._wt_plateau_best, self._wt_plateau_bad = current, 0
+            setattr(self, f'_{head}_plateau_best', current); setattr(self, f'_{head}_plateau_bad', 0)
             return
-        self._wt_plateau_bad = getattr(self, '_wt_plateau_bad', 0) + 1
-        if self._wt_plateau_bad < patience:
+        bad = getattr(self, f'_{head}_plateau_bad', 0) + 1
+        setattr(self, f'_{head}_plateau_bad', bad)
+        if bad < patience:
             return
 
-        self._wt_plateau_bad = 0
-        factor, min_lr = float(self.hparams.wt_plateau_factor), float(self.hparams.wt_plateau_min_lr)
+        setattr(self, f'_{head}_plateau_bad', 0)
+        factor = float(self.hparams.plateau_factor)
         touched = []
         for g in self.optimizers().param_groups:
-            if g.get('name') in ('lora_wt', 'calib_wt'):
-                new = max(min_lr, float(g['lr']) * factor)
+            if g.get('name') in (f'lora_{head}', f'calib_{head}'):
+                new = float(g['lr']) * factor
                 touched.append(f"{g['name']}: {float(g['lr']):.2e} -> {new:.2e}")
                 g['lr'] = new
-        self._wt_decays = getattr(self, '_wt_decays', 0) + 1
-        logging.info(f"WT plateau on {key} (best={best:.4f}, now={current:.4f}), decay #{self._wt_decays}: "
-                     f"{', '.join(touched)}")
+        decays = getattr(self, f'_{head}_decays', 0) + 1
+        setattr(self, f'_{head}_decays', decays)
+        logging.info(f"{head.upper()} plateau on {key} (best={best:.4f}, now={current:.4f}), decay #{decays}: {', '.join(touched)}")
 
-        after = int(getattr(self.hparams, 'wt_freeze_after_decays', 0) or 0)
-        if after and self._wt_decays >= after:
-            logging.info(f"WT path frozen after {self._wt_decays} decays; its predictions are now fixed, so the "
-                         f"teacher-forced target the MT path uses stops moving.")
-            self._transition_to_mt()
+        after = int(self.hparams.freeze_after_decays or 0)
+        if after and decays >= after:
+            if head == 'wt':
+                logging.info(f"WT path frozen after {decays} decays; its predictions are now fixed, so the "
+                             f"teacher-forced target the MT path uses stops moving.")
+                self._transition_to_mt()
+            else:
+                logging.info(f"MT path frozen after {decays} decays.")
+                self.peft_manager.freeze_mt_components()
+                self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
+
+    def _wt_plateau_step(self, avg_metrics: dict) -> None:
+        ESM3EpistasisLightningModule._plateau_step(self, 'wt', avg_metrics)
 
     def _mt_plateau_step(self, avg_metrics: dict) -> None:
-        """
-        Decay the MT path's own learning rate when ITS metric stops improving. The mirror of _wt_plateau_step, and
-        it touches only the ``lora_mt`` and ``calib_mt`` groups, so the WT path and the link are unaffected.
-
-        Keyed by default on ``epi_beyond_rho_mt``, the MT head's correlation on the part of a double that is not
-        explained by the two singles - what the MT path exists to learn. Measured across dc6/dc7/dc8_s1 it peaks
-        early and then falls back without regaining the peak: dc6 peaked at epoch 4 (+0.5395) and ended -0.0190
-        lower, dc8 peaked at epoch 3 (+0.5331) and ended -0.0079 lower.
-
-        BUT it is noisy epoch to epoch, with swings of +-0.03 and no trend, and dc7_s1 is a counter-example: it
-        peaked at its LAST epoch (+0.5367, the highest value of the three runs) after dipping twice on the way. A
-        patience of 1 would have decayed it at epoch 4 and cost it that. So patience 1 wants a gentler
-        --mt_plateau_factor than the WT path's 0.1, or patience 2; see docs/devel_conservative.md.
-        """
-        patience = int(getattr(self.hparams, 'mt_plateau_patience', 0) or 0)
-        if patience <= 0 or self.peft_manager.mt_path_is_frozen:
-            return
-        key = getattr(self.hparams, 'mt_convergence_metric', None) or 'epi_beyond_rho_mt'
-        if not avg_metrics.get(key):
-            # Loudly, and once: a scheduler that is configured but silently inert is worse than one that errors.
-            # dc12 ran 8 epochs with its MT plateau doing nothing, because _log_epistasis returned None and the
-            # epistasis scalars never reached avg_metrics - and not one line said so.
-            if not getattr(self, '_warned_no_mt_metric', False):
-                self._warned_no_mt_metric = True
-                logging.warning(f"--mt_plateau_patience is set but '{key}' is not among the validation "
-                                f"metrics {sorted(avg_metrics)}, so the MT plateau will never fire.")
-            return
-        current = float(np.nanmean(avg_metrics[key]))
-        if not np.isfinite(current):
-            return
-
-        best = getattr(self, '_mt_plateau_best', -float('inf'))
-        if current > best + 1e-4:
-            self._mt_plateau_best, self._mt_plateau_bad = current, 0
-            return
-        self._mt_plateau_bad = getattr(self, '_mt_plateau_bad', 0) + 1
-        if self._mt_plateau_bad < patience:
-            return
-
-        self._mt_plateau_bad = 0
-        factor, min_lr = float(self.hparams.mt_plateau_factor), float(self.hparams.mt_plateau_min_lr)
-        touched = []
-        for g in self.optimizers().param_groups:
-            if g.get('name') in ('lora_mt', 'calib_mt'):
-                new = max(min_lr, float(g['lr']) * factor)
-                touched.append(f"{g['name']}: {float(g['lr']):.2e} -> {new:.2e}")
-                g['lr'] = new
-        self._mt_decays = getattr(self, '_mt_decays', 0) + 1
-        logging.info(f"MT plateau on {key} (best={best:.4f}, now={current:.4f}), decay #{self._mt_decays}: "
-                     f"{', '.join(touched)}")
-
-        after = int(getattr(self.hparams, 'mt_freeze_after_decays', 0) or 0)
-        if after and self._mt_decays >= after:
-            logging.info(f"MT path frozen after {self._mt_decays} decays.")
-            self.peft_manager.freeze_mt_components()
-            self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
+        ESM3EpistasisLightningModule._plateau_step(self, 'mt', avg_metrics)
 
     def _stop_if_nothing_is_training(self) -> None:
         """
@@ -1312,11 +982,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def configure_optimizers(self):
         base_lr = float(self.hparams.learning_rate)
-        wd = float(getattr(self.hparams, "weight_decay", 0.0))
-        
+        wd = float(self.hparams.weight_decay)
+
         lora_wt_params, lora_mt_params, other_params, calib_wt_params, calib_mt_params = [], [], [], [], []
         adapter_mode = getattr(self.model, 'adapter_mode', 'dual')
-        
+
         # Grab the robust strings injected by PEFT
         wt_name = getattr(self.model, 'wt_adapter_name', 'wt_adapter').lower()
         mt_name = getattr(self.model, 'mt_adapter_name', 'mt_adapter').lower()
@@ -1324,7 +994,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         seen = set()
         for name, p in self.model.named_parameters():
             if id(p) in seen: continue
-            
+
             # Build the SAME groups whatever happens to be frozen right now, keying on what arrived trainable.
             # A currently-frozen parameter still gets its group: enforce_freezing zeroes that group's lr and
             # weight_decay and clears the grads, so the group is inert.
@@ -1339,7 +1009,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
             seen.add(id(p))
             lname = name.lower()
-            
+
             if "calibration" in lname:
                 if "mt" in lname: calib_mt_params.append(p)
                 else: calib_wt_params.append(p)
@@ -1350,19 +1020,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         main_groups = []
         if lora_wt_params: main_groups.append({"params": lora_wt_params, "lr": base_lr, "weight_decay": wd, "name": "lora_wt"})
         if lora_mt_params: main_groups.append({"params": lora_mt_params, "lr": base_lr, "weight_decay": wd, "name": "lora_mt"})
-        if calib_wt_params: main_groups.append({"params": calib_wt_params, "lr": base_lr * self.hparams.calib_lr_mult, "weight_decay": 0.0, "name": "calib_wt"})
-        if calib_mt_params: main_groups.append({"params": calib_mt_params, "lr": base_lr * self.hparams.calib_lr_mult, "weight_decay": 0.0, "name": "calib_mt"})
+        if calib_wt_params: main_groups.append({"params": calib_wt_params, "lr": base_lr * CALIB_LR_MULT, "weight_decay": 0.0, "name": "calib_wt"})
+        if calib_mt_params: main_groups.append({"params": calib_mt_params, "lr": base_lr * CALIB_LR_MULT, "weight_decay": 0.0, "name": "calib_mt"})
         if other_params: main_groups.append({"params": other_params, "lr": base_lr, "weight_decay": wd, "name": "other"})
-        # The link lives on the LightningModule, not inside self.model, so the loop above never sees it.
-        if self.link_head is not None:
-            link_params = [p for p in self.link_head.parameters() if p.requires_grad]
-            if link_params:
-                main_groups.append({"params": link_params, "lr": float(self.hparams.link_lr),
-                                    "weight_decay": 0.0, "name": "link"})
-        # f(x) likewise lives on the LightningModule. Its own group with no warm-up and no plateau decay, like the link's.
-        if getattr(self, 'ns_head', None) is not None:
-            main_groups.append({"params": list(self.ns_head.parameters()), "lr": float(self.hparams.get('ns_lr', 5e-3)),
-                                "weight_decay": 0.0, "name": "nonspecific"})
+        # The link has no trainable parameters, so it has no group.
 
         if not main_groups:
             logging.warning("No param groups found; defaulting to all trainables.")
@@ -1370,25 +1031,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         opt_main = torch.optim.AdamW(main_groups, lr=base_lr, betas=(0.9, 0.999), fused=True, weight_decay=wd)
 
-        lambdas_main = []
-        for g in main_groups:
-            if "calib" in g["name"] or g["name"] in ("link", "nonspecific"): lambdas_main.append(lambda step: 1.0)
-            elif g["name"] == "lora_mt":
-                lambdas_main.append(lambda step, delay=self.hparams.mt_lora_delay_steps, warmup=self.hparams.lr_warmup_steps: 0.0 if step < delay else min(1.0, max(1e-4, (step - delay) / max(1, warmup))))
-            else:
-                lambdas_main.append(lambda step, delay=self.hparams.calib_delay_steps, warmup=self.hparams.lr_warmup_steps: 0.0 if step < delay else min(1.0, max(1e-4, (step - delay) / max(1, warmup))))
+        # Linear warm-up of every adapter group; the calibration heads start at their full rate.
+        warmup = self.hparams.lr_warmup_steps
+        lambdas_main = [(lambda step: 1.0) if "calib" in g["name"] else
+                        (lambda step, warmup=warmup: min(1.0, max(1e-4, step / max(1, warmup)))) for g in main_groups]
 
         warmup_main = torch.optim.lr_scheduler.LambdaLR(opt_main, lr_lambda=lambdas_main)
-        # Warmup is the only shared scheduler. The ReduceLROnPlateau that used to sit here watched
-        # val_rho_combined_avg and owned EVERY group in opt_main, so once --wt_plateau_patience and
-        # --mt_plateau_patience gave each head a schedule on its own metric it became a second, redundant
-        # decay on both of them, triggered by a metric neither head is being tuned against. Measured on
-        # dc12r_s2: lora_mt went 2e-4 -> 6e-5 (MT decay 1) -> 1.8e-5 (MT decay 2) -> 1.8e-6 (this scheduler,
-        # on rho_combined wobbling 0.8398 -> 0.8392 -> 0.8393) -> 5.4e-7 (MT decay 3). A factor of 370 in
-        # three epochs, so --mt_plateau_factor 0.3 was never the schedule the MT head actually got.
-        #
-        # The 'other' and 'link' groups consequently hold their warmed-up lr for the whole run: this was
-        # their only decay, and there is no metric specific to them to plateau on.
+        # Warmup is the only shared scheduler. The ReduceLROnPlateau that used to sit here watched val_rho_combined_avg and owned
+        # EVERY group in opt_main, so once each head got a plateau on its own metric it became a second, redundant decay on both
+        # of them, triggered by a metric neither head is being tuned against (dc12r_s2: lora_mt went 2e-4 -> 1.8e-6 in three epochs
+        # where --plateau_factor 0.3 asked for 5.4e-6 in three decays).
         return [opt_main], [{"scheduler": warmup_main, "interval": "step", "frequency": 1}]
 
     def _load_wt_weights(self, path):
@@ -1428,12 +1080,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                      + (f", {len(missing)} name(s) not present" if missing else "")
                      + (f", {len(mismatched)} shape mismatch(es) skipped ({', '.join(mismatched[:3])}...)" if mismatched else ""))
         return loaded
-
-    def _freeze_link(self):
-        """--freeze_link: nothing in the link trains, because the link is the last stage of the pre-trained WT model."""
-        for p in self.link_head.parameters():
-            p.requires_grad = False
-        logging.info("Link frozen (--freeze_link): its parameters are part of the pre-trained WT model")
 
     def _load_link_weights(self, path):
         """Copy the link (``link_head.*``) out of the same checkpoint the WT adapter came from.
@@ -1507,7 +1153,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # link.numpy_link_from_state_dict - which exists for exactly that - returns None for every checkpoint.
         filtered_state_dict = {
             k: v for k, v in state_dict.items()
-            if 'lora' in k.lower() or 'calibration' in k.lower() or 'link_head' in k.lower() or 'ns_head' in k.lower()
+            if 'lora' in k.lower() or 'calibration' in k.lower() or 'link_head' in k.lower()
         }
         
         if not filtered_state_dict:
@@ -1602,85 +1248,69 @@ def format_validation_results(results) -> str:
     return '\n'.join(lines)
 
 
+def _comet_api_key():
+    """The Comet key from the environment, else ~/.comet.config; None if neither has one. Never from the command line."""
+    key = os.environ.get('COMET_API_KEY')
+    if key:
+        return key
+    try:
+        import configparser
+        cfg = configparser.ConfigParser()
+        cfg.read(os.path.expanduser('~/.comet.config'))
+        return cfg.get('comet', 'api_key', fallback=None)
+    except Exception:
+        return None
+
+
 def main():
     args = parse_arguments()
     pl.seed_everything(args.seed)
 
-    if args.offline_model:
-        os.environ['INFRA_PROVIDER'] = "1"
+    train_loaders, val_loaders, bench_loaders, train_names, val_names, bench_names = setup_dataloaders(args, add_benchmarks_to_val=True)
 
+    accelerator = "gpu" if torch.cuda.is_available() else "cpu"
+    # hparams.yaml (and Comet) record what the run IS, not where things are on this machine or how to reach Comet
+    hparams = {k: v for k, v in vars(args).items() if k not in UNLOGGED_ARGS}
     try:
-        tokenizer = EsmSequenceTokenizer("cpu")
-        structure_encoder = ESM3_structure_encoder_v0("cpu")
+        lightning_model = ESM3EpistasisLightningModule(val_dataloader_names=val_names, **hparams)
     except Exception as e:
-        logging.error(f"Failed to load base model for tokenizer/encoder: {e}. Exiting.")
+        logging.error(f"Failed to initialize Lightning Module: {e}.", exc_info=True)
         return
 
-    train_loaders, val_loaders, bench_loaders, train_names, val_names, bench_names = setup_dataloaders(args, tokenizer, structure_encoder, add_benchmarks_to_val=True)
+    csv_logger = CSVLogger(save_dir=args.log_dir, name=args.experiment_name, version=args.version)
+    loggers = [csv_logger]
+    checkpoint_dir = csv_logger.log_dir
 
-    if torch.cuda.is_available() and args.gpus > 0:
-         accelerator, devices, model_device, strategy = "gpu", args.gpus, 'cuda:0', args.strategy if args.gpus > 1 else 'auto'
-    else:
-         accelerator, devices, model_device, strategy = "cpu", 1, 'cpu', 'auto'
-         
-    try:
-        lightning_model = ESM3EpistasisLightningModule(
-            **vars(args), train_dataloader_names=train_names, val_dataloader_names=val_names, tokenizer=tokenizer, model_device=model_device
-        )
-    except Exception as e:
-         logging.error(f"Failed to initialize Lightning Module: {e}.", exc_info=True)
-         return
-
-    if args.load_lora_checkpoint:
-        try:
-            lightning_model.model.load_lora_weights(args.load_lora_checkpoint, load_wt_only=args.load_wt_only)
-        except AttributeError:
-            raise NotImplementedError("load_lora_weights is not implemented on MSRModel.")
-            
-    loggers = []
-    if args.log_dir:
-        csv_logger = CSVLogger(save_dir=args.log_dir, name=args.experiment_name, version=args.version)
-        loggers.append(csv_logger)
-        checkpoint_dir = csv_logger.log_dir if hasattr(csv_logger, 'log_dir') else os.path.join(args.log_dir, args.experiment_name, csv_logger.version)
-    else:
-        checkpoint_dir = os.path.join(args.checkpoint_path, args.experiment_name, args.version or "default_version")
-
-    if args.comet_api_key:
-        comet_kwargs = dict(api_key=args.comet_api_key, project=args.comet_project_name,
-                            name=f"{args.experiment_name}-{args.version or 'run'}")
-        if getattr(args, 'comet_experiment_key', None):
-            # Comet has no notion of resuming on its own: without this a resumed run opens a SECOND
-            # experiment, and the run's curves end up split across two of them.
-            comet_kwargs.update(experiment_key=args.comet_experiment_key, mode='get_or_create')
-        if args.comet_offline:
-            os.environ['COMET_OFFLINE_DIRECTORY'] = os.path.abspath(os.path.join(args.log_dir or '.', 'comet_offline'))
-            comet_logger = OfflineCometLogger(**comet_kwargs)
+    if args.comet or args.comet_offline:
+        key = _comet_api_key()
+        if key:
+            comet_kwargs = dict(api_key=key, project=args.comet_project_name, name=f"{args.experiment_name}-{args.version or 'run'}")
+            if args.comet_experiment_key:
+                # Comet has no notion of resuming on its own: without this a resumed run opens a SECOND
+                # experiment, and the run's curves end up split across two of them.
+                comet_kwargs.update(experiment_key=args.comet_experiment_key, mode='get_or_create')
+            if args.comet_offline:
+                os.environ['COMET_OFFLINE_DIRECTORY'] = os.path.abspath(os.path.join(args.log_dir or '.', 'comet_offline'))
+                comet_logger = OfflineCometLogger(**comet_kwargs)
+            else:
+                comet_logger = CometLogger(**comet_kwargs)
+            loggers.append(comet_logger)
         else:
-            comet_logger = CometLogger(**comet_kwargs)
-        loggers.append(comet_logger)
+            logging.warning("No Comet key (COMET_API_KEY or ~/.comet.config): this run logs to CSV only.")
 
     os.makedirs(checkpoint_dir, exist_ok=True)
     callbacks = [
-        ModelCheckpoint(dirpath=checkpoint_dir, filename=args.checkpoint_filename, save_top_k=args.save_top_k, monitor=args.monitor_metric, mode=args.monitor_mode, save_last=True),
-        TQDMProgressBar(refresh_rate=min(10, args.log_every_n_steps))
+        ModelCheckpoint(dirpath=checkpoint_dir, filename=f"{{epoch:02d}}-{{{args.monitor_metric}:.4f}}", save_top_k=SAVE_TOP_K,
+                        monitor=args.monitor_metric, mode='max', save_last=True),
+        TQDMProgressBar(refresh_rate=10)
     ]
-
     if args.early_stopping_patience > 0:
-        callbacks.append(EarlyStopping(monitor=args.early_stopping_metric, patience=args.early_stopping_patience, mode=args.monitor_mode, verbose=True))
-
-    trainer_kwargs = {
-        "max_epochs": args.num_epochs, "accelerator": accelerator, "devices": devices, "strategy": strategy,
-        "logger": loggers if loggers else False, "callbacks": callbacks, "enable_checkpointing": True, 
-        "num_sanity_val_steps": args.num_sanity_val_steps, "log_every_n_steps": args.log_every_n_steps, "check_val_every_n_epoch": args.check_val_every_n_epoch,
-    }
-
-    if args.precision == "16-mixed":
-        trainer_kwargs["plugins"] = [MixedPrecisionPlugin(precision="16-mixed", device=model_device, scaler=torch.cuda.amp.GradScaler(init_scale=1024.0))]
-    else:
-        trainer_kwargs["precision"] = args.precision
+        callbacks.append(EarlyStopping(monitor=args.monitor_metric, patience=args.early_stopping_patience, mode='max', verbose=True))
 
     try:
-        trainer = Trainer(**trainer_kwargs)
+        trainer = Trainer(max_epochs=args.num_epochs, accelerator=accelerator, devices=1, logger=loggers, callbacks=callbacks,
+                          enable_checkpointing=True, num_sanity_val_steps=0, log_every_n_steps=25, check_val_every_n_epoch=1,
+                          precision="bf16-mixed")
     except Exception as e:
         logging.error(f"Trainer init failed: {e}", exc_info=True)
         return
@@ -1691,12 +1321,12 @@ def main():
         results = trainer.validate(lightning_model, dataloaders=val_loaders, verbose=False)
         if trainer.is_global_zero:
             logging.info("Zero-shot validation:\n" + format_validation_results(results))
-    ckpt = getattr(args, 'resume_from_checkpoint', None)
+    ckpt = args.resume_from_checkpoint
     if ckpt:
         logging.info(f"Resuming from {ckpt}")
     trainer.fit(lightning_model, train_dataloaders=train_loaders, val_dataloaders=val_loaders, ckpt_path=ckpt)
-    if args.comet_offline and args.comet_api_key and trainer.is_global_zero:
-        comet_logger.experiment.end()  # writes the archive to upload with `comet upload`
+    if args.comet_offline and len(loggers) > 1 and trainer.is_global_zero:
+        loggers[1].experiment.end()  # writes the archive to upload with `comet upload`
 
 if __name__ == "__main__":
     main()

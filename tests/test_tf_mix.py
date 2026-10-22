@@ -18,6 +18,8 @@ from esm_msr import config
 from esm_msr.losses import ListMLELoss
 from esm_msr.training import ESM3EpistasisLightningModule as M
 
+from _stubs import compose_hparams, with_identity_link
+
 BASE = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
 
 
@@ -94,22 +96,18 @@ def _batch(doubles=True, B=6, additive=True):
         'subset_type': ['double'] * B if doubles else ['single'] * B,
         'dG_wt': f(2.0), 'y_floor': f(-0.2), 'dG_meas': f(1.0),
         'cens': torch.zeros(B, dtype=torch.long), 'cens_bound': f(float('nan')),
-        'ddG_A': f(float('nan')), 'ddG_B': f(float('nan')),
+        'ddG_A': f(0.5) if additive else f(float('nan')), 'ddG_B': f(0.5) if additive else f(float('nan')),   # the two singles sum to the additive label
     }
 
 
 def _stub(tf_mix=None, wt_value=2.0, mt_value=0.0):
-    base = dict(subset_size=4, micro_batch_size=3, micro_batch_tokens=0, double_weight=1.0, cond_weight=1.0,
-                native_cond_weight=1.0, wt_double_target='latent', mt_reg_mask='all', mask_strategy=None,
-                lambda_reg_wt=0.0, lambda_rank_wt=0.0, lambda_reg_mt=1.0, lambda_rank_mt=0.0,
-                combined_mode='mean', detach_regression=False)
+    base = compose_hparams()
     if tf_mix is not None:
         base['tf_mix'] = tf_mix
     s = types.SimpleNamespace()
     s.hparams = _HP(base)
     s.model = _EnsembleModel(wt_value, mt_value)
-    s.ns_head = None
-    s.link_head = None
+    with_identity_link(s)
     s.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
     s.crit_reg = torch.nn.MSELoss(reduction='none')
     s.crit_rank_wt = s.crit_rank_mt = ListMLELoss()

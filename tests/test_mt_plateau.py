@@ -19,9 +19,8 @@ GROUPS = ('lora_wt', 'calib_wt', 'lora_mt', 'calib_mt', 'link')
 
 def stub(patience=1, factor=0.3, metric='epi_beyond_rho_mt', freeze_after=0, mt_frozen=False):
     s = types.SimpleNamespace()
-    s.hparams = types.SimpleNamespace(mt_plateau_patience=patience, mt_plateau_factor=factor,
-                                      mt_plateau_min_lr=1e-7, mt_convergence_metric=metric,
-                                      mt_freeze_after_decays=freeze_after)
+    s.hparams = types.SimpleNamespace(plateau_patience=patience, plateau_factor=factor,
+                                      mt_convergence_metric=metric, freeze_after_decays=freeze_after)
     s.peft_manager = types.SimpleNamespace(mt_path_is_frozen=mt_frozen, froze=[])
     def _freeze():                      # the real PEFTStateManager sets this, and _mt_plateau_step returns
         s.peft_manager.froze.append('mt')     # early on it, so the freeze cannot repeat
@@ -82,10 +81,10 @@ def test_a_frozen_mt_path_is_left_alone():
     assert getattr(s, '_mt_decays', 0) == 0 and all(v == 2e-4 for v in lrs.values())
 
 
-def test_the_floor_is_respected():
-    s = stub(patience=1, factor=0.01)
-    feed(s, [0.5] + [0.4] * 12)
-    assert all(g['lr'] >= 1e-7 for g in s._groups)
+def test_decays_compound_per_head():
+    s = stub(patience=1, factor=0.1)
+    out = feed(s, [0.5] + [0.4] * 3)
+    assert out['lora_mt'] == pytest.approx(2e-4 * 0.1 ** 3) and out['lora_wt'] == pytest.approx(2e-4)
 
 
 def test_freezing_after_n_decays():
@@ -119,9 +118,9 @@ def test_defaults_turn_it_on_with_patience_one():
         a = config.parse_arguments()
     finally:
         sys.argv = argv
-    assert a.mt_plateau_patience == 1
+    assert a.plateau_patience == 1
     assert a.mt_convergence_metric == 'epi_beyond_rho_mt'
-    assert a.mt_plateau_factor == 0.3        # gentler than the WT path's 0.1, because this metric is noisy
+    assert a.plateau_factor == 0.3           # gentle, because the metric is noisy: a patience-1 decay can fire on a wobble
 
 
 def test_a_missing_metric_warns_instead_of_sitting_silent(caplog):

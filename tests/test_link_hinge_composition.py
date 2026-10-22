@@ -23,7 +23,7 @@ def _censored_loss(latent, dG_wt=3.0, y_floor=-0.3, link=True):
     wt = torch.tensor([float(dG_wt)])
     fl = torch.tensor([float(y_floor)])
     bound = fl - wt                                   # the floor on this item's ddG scale
-    pred = SaturatingLink()(wt + lat, fl) - wt if link else lat
+    pred = SaturatingLink(floor=float(y_floor))(wt + lat, fl) - wt if link else lat
     return float(hinge_regression_loss(CRIT, pred, torch.tensor([float('nan')]), bound,
                                        torch.tensor([-1]))[0])
 

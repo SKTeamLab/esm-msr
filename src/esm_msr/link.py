@@ -4,31 +4,20 @@ The assay infers dG by comparing a variant's measured K50 against a K50 predicte
 is unfolded anyway has K50 = its true unfolded K50, so its inferred dG is the error of that prediction for that sequence: a constant of the
 library and of the protease. That constant is the library's practical FLOOR. No measurement can be reported below it, so a variant whose true
 stability is far beneath it is reported at it, and an additive model of mutation effects sees the difference as "epistasis" that is only the
-readout saturating. The same happens at the top of the range, where the assay cannot resolve a dG above about 5 kcal/mol.
+readout saturating.
 
-The link states that explicitly, as two soft clamps in series on absolute dG (the construction used on ``devel``):
+The link states that explicitly, as a soft clamp on absolute dG:
 
-    u    = f + tau_lo * softplus((z - f) / tau_lo)        # rises from the floor, then follows z
-    h(z) = c - tau_hi * softplus((c - u) / tau_hi)        # follows u, then levels off at the ceiling
+    h(z) = f + tau * softplus((z - f) / tau)
 
-with ``z = dG_wt + latent``, where ``latent`` is the model's additive-in-effects prediction (the calibrated LLR sum). Each stage is
-increasing, so ``h`` is increasing for any positive temperatures, and inside the range it is close to the identity. Regression is done on the
-observed scale (through ``h``); ranking is done on the latent scale and is unaffected by ``h`` because ``h`` is monotone, so the model keeps
-an unsaturated opinion - it can say a double is 7 kcal/mol less stable than the wild type even where the assay can only report the floor.
+with ``z = dG_wt + latent``, where ``latent`` is the model's additive-in-effects prediction (the calibrated LLR sum). ``h`` is increasing and,
+above the floor, close to the identity. Regression is done on the observed scale (through ``h``); ranking is done on the latent scale and is
+unaffected by ``h`` because ``h`` is monotone, so the model keeps an unsaturated opinion - it can say a double is 7 kcal/mol less stable than
+the wild type even where the assay can only report the floor.
 
-``f``, the floor, is DATA rather than a parameter: each item carries its library's own estimate (``y_floor``, cached per item by
-``data.MutationStabilityDataset``), clipped in training to ``[floor_min, floor_max]`` (default -1.0 to 0.2, the range the assay's own reported
-floor occupies) because a thin or unlucky library can produce a wild estimate. A library with no floor evidence carries NaN and falls back to
-the learned ``global_floor``, which is identifiable precisely from that population.
-
-``c``, the ceiling, is a single learned scalar with no per-library counterpart, because nothing in the data locates a per-library ceiling the
-way the pile-up at the bottom locates a floor. It is parameterised as ``floor_max + softplus(raw) + 1e-3`` so it can never reach, let alone cross,
-any library's floor whatever the band does - without the margin a learned span can underflow to exactly zero in
-float32 and collapse the link to a constant. Passing ``ceiling=None`` leaves the second clamp out entirely and recovers the floor-only link.
-
-``tau_lo`` and ``tau_hi`` set how sharp each knee is. 0.59 kcal/mol fits the measured pile-up at the floor; there is no independently known
-value for the top, so ``tau_hi`` starts there too. With ``--learn_link_tau`` both are free, and ``--link_tau_penalty`` adds
-``lambda * ((tau_lo - 0.59)^2 + (tau_hi - 0.59)^2)`` to the loss so they are anchored at that value and drift only where the data pays for it.
+There is one floor (0.0, the unfolded state) and one knee width (0.59 kcal/mol, RT), both set rather than fitted. Per-library floors, a learned
+floor, a learned width and an upper clamp were all tried; ``docs/trim_audit.md`` §2.2 has the evidence. ``numpy_link`` and
+``numpy_link_from_state_dict`` still evaluate the older forms (per-library floors, a ceiling) so a checkpoint or dump from those runs can be rescored.
 """
 import math
 
@@ -38,8 +27,7 @@ import torch.nn.functional as F
 from torch import nn
 
 TAU_DEFAULT = 0.59        # kcal/mol; the knee width that fits the measured pile-up at the floor
-FLOOR_MIN_DEFAULT = -1.0  # the cached per-library floor is clipped into this band before use
-FLOOR_MAX_DEFAULT = 0.2
+FLOOR_BAND = 1e-3         # floor_max - floor_min: the clip band around the one floor. Kept at its old value, 0.001 (--link_floor_max 0.001)
 CEILING_DEFAULT = 5.0     # the top of the assay's reported range ('>5'); see censoring.DG_RANGE_HIGH
 CEILING_MIN_SPAN = 1e-3   # the ceiling stays at least this far above floor_max, as bounds() keeps the band ordered
 
@@ -85,84 +73,40 @@ def numpy_link_from_state_dict(state_dict, prefix: str = 'link_head.'):
 
 
 class SaturatingLink(nn.Module):
-    """A soft floor at the library's own ``y_floor`` followed by an optional soft ceiling at a learned scalar."""
+    """
+    A soft floor at ``floor`` with knee width ``tau``: ``h(z) = f + tau * softplus((z - f) / tau)``. Nothing in it is learned.
 
-    def __init__(self, tau: float = TAU_DEFAULT, floor_min: float = FLOOR_MIN_DEFAULT, floor_max: float = FLOOR_MAX_DEFAULT,
-                 learn_tau: bool = False, learn_floor_bounds: bool = False,
-                 global_floor_init: float = 0.0, learn_global_floor: bool = True,
-                 ceiling: float = None, learn_ceiling: bool = True, tau_hi: float = None):
+    Both numbers are set, not fitted: 0.0 is the physical floor (the unfolded state) and 0.59 kcal/mol is RT. Learning them was
+    tried and dropped. A floor learned under a hinge is not identified (truncation pulls it up; scored on all items the best value
+    is exactly 0), it drifted to -0.37 / -0.50 when free (dc3), and the 4-parameter link matched the floor-only one (dc7 against
+    dc8). The values live in buffers named as the old parameters were (``raw_tau``, ``floor_min``, ``floor_max``, ``global_floor``),
+    so a checkpoint's ``link_head.*`` entries load into this module and ``numpy_link_from_state_dict`` reads them unchanged.
+
+    Items still carry ``y_floor`` (the dataset stamps ``floor`` on every one), and the methods still take it, so a dump written by this
+    code is read by the same ``epi_metrics`` as an old one. The knee is ``clip(y_floor, floor_min, floor_max)``, which is ``floor``
+    for every item of a run that uses one floor.
+    """
+
+    def __init__(self, tau: float = TAU_DEFAULT, floor: float = 0.0):
         super().__init__()
-        if not floor_max > floor_min:
-            raise ValueError(f"floor_max ({floor_max}) must exceed floor_min ({floor_min})")
         if not tau > 0:
             raise ValueError(f"tau ({tau}) must be positive")
-        if ceiling is not None and not ceiling > floor_max:
-            raise ValueError(f"ceiling ({ceiling}) must exceed floor_max ({floor_max})")
-        # tau is kept positive by construction; the band is kept ordered in `bounds()`.
-        self.raw_tau = nn.Parameter(torch.tensor(_inv_softplus(float(tau))), requires_grad=learn_tau)
-        self.floor_min = nn.Parameter(torch.tensor(float(floor_min)), requires_grad=learn_floor_bounds)
-        self.floor_max = nn.Parameter(torch.tensor(float(floor_max)), requires_grad=learn_floor_bounds)
-        # The knee for items whose library has no floor of its own. Learned, because it is identifiable: it is the
-        # one value that best explains how far the strongly destabilised predictions have to be compressed to match
-        # what the assay reported, pooled over every library that cannot supply its own. Initialised at the median
-        # of the libraries that CAN (a measured quantity) and clipped to the same band, so it cannot run off to
-        # absorb a calibration bias.
-        gi = float(global_floor_init) if np.isfinite(global_floor_init) else 0.5 * (float(floor_min) + float(floor_max))
-        self.global_floor = nn.Parameter(torch.tensor(gi), requires_grad=learn_global_floor)
-
-        self.has_ceiling = ceiling is not None
-        if self.has_ceiling:
-            # Parameterised as a positive span above floor_max, so the ceiling can never cross a library's floor
-            # however the band moves. tau_hi has no independently known value, so it starts where tau_lo does.
-            self.raw_ceiling_span = nn.Parameter(
-                torch.tensor(_inv_softplus(float(ceiling) - float(floor_max) - CEILING_MIN_SPAN)),
-                requires_grad=learn_ceiling)
-            self.raw_tau_hi = nn.Parameter(torch.tensor(_inv_softplus(float(tau if tau_hi is None else tau_hi))),
-                                           requires_grad=learn_tau)
+        self.register_buffer('raw_tau', torch.tensor(_inv_softplus(float(tau))))
+        self.register_buffer('floor_min', torch.tensor(float(floor)))
+        self.register_buffer('floor_max', torch.tensor(float(floor) + FLOOR_BAND))
+        self.register_buffer('global_floor', torch.tensor(float(floor)))
 
     def tau(self) -> torch.Tensor:
         """Softplus keeps it positive for any raw value, and round-trips the configured tau exactly."""
         return F.softplus(self.raw_tau)
 
-    def tau_hi(self) -> torch.Tensor:
-        """The ceiling's knee width; equal to ``tau()`` when there is no ceiling."""
-        return F.softplus(self.raw_tau_hi) if self.has_ceiling else self.tau()
-
     def bounds(self):
-        """(floor_min, floor_max) with the order enforced, so a learned band cannot invert."""
+        """(floor_min, floor_max) with the order enforced."""
         lo = self.floor_min
         return lo, torch.maximum(self.floor_max, lo + 1e-3)
 
-    def ceiling(self):
-        """The ceiling as a tensor, or None for the floor-only link."""
-        if not self.has_ceiling:
-            return None
-        return self.bounds()[1] + F.softplus(self.raw_ceiling_span) + CEILING_MIN_SPAN
-
-    def floor_penalty(self, weight: float, anchor: float, sd: float) -> torch.Tensor:
-        """``weight * ((global_floor - anchor) / sd)^2`` when the global floor is learned; 0 otherwise."""
-        if not weight or not self.global_floor.requires_grad:
-            return torch.zeros((), device=self.global_floor.device, dtype=self.global_floor.dtype)
-        return weight * ((self.global_floor - float(anchor)) / float(sd)) ** 2
-
-    def tau_penalty(self, weight: float) -> torch.Tensor:
-        """``weight * sum (tau - 0.59)^2`` over the temperatures that are actually free; 0 when none are."""
-        terms = [t for t in (self.raw_tau, self.raw_tau_hi if self.has_ceiling else None)
-                 if t is not None and t.requires_grad]
-        if not terms or not weight:
-            return torch.zeros((), device=self.raw_tau.device, dtype=self.raw_tau.dtype)
-        taus = [F.softplus(t) for t in terms]
-        return weight * sum(((t - TAU_DEFAULT) ** 2 for t in taus))
-
     def effective_floor(self, y_floor) -> torch.Tensor:
-        """
-        The knee this item bends at, clipped into the band.
-
-        A library that showed evidence of a floor supplies its own (``y_floor``, data). One that did not supplies
-        NaN, and those items fall back to the shared ``global_floor``, which is learned from exactly that
-        population. So the floor is measured where it can be and estimated where it cannot, and the two are never
-        mixed: a library with its own floor contributes no gradient to the global one.
-        """
+        """The knee this item bends at: its ``y_floor`` clipped into the band, or ``global_floor`` where it carries none (NaN)."""
         lo, hi = self.bounds()
         f = torch.as_tensor(y_floor, dtype=lo.dtype, device=lo.device)
         f = torch.where(torch.isfinite(f), f, self.global_floor.expand_as(f))
@@ -171,104 +115,51 @@ class SaturatingLink(nn.Module):
     def forward(self, z: torch.Tensor, y_floor) -> torch.Tensor:
         """``h`` on absolute dG."""
         f = self.effective_floor(y_floor)
-        u = f + self.tau() * F.softplus((z - f) / self.tau())
-        c = self.ceiling()
-        if c is None:
-            return u
-        th = self.tau_hi()
-        return c - th * F.softplus((c - u) / th)
+        return f + self.tau() * F.softplus((z - f) / self.tau())
 
     def inverse(self, y: torch.Tensor, y_floor) -> torch.Tensor:
         """
         ``h^-1`` on absolute dG: the latent dG whose readout would be ``y``.
 
-        Inverting the soft floor ``u = f + tau * softplus((z - f) / tau)`` gives
-        ``z = f + tau * log(expm1((y - f) / tau))``.
+        Inverting the soft floor ``u = f + tau * softplus((z - f) / tau)`` gives ``z = f + tau * log(expm1((y - f) / tau))``.
 
-        The floor is an ASYMPTOTE, so this is defined only for ``y > f``: a reading at or below the library floor
-        is consistent with any sufficiently negative latent value and carries no information about which. Those
-        items return NaN rather than a clamped number, so a caller has to decide what to do with them instead of
-        silently receiving a fabricated latent. That NaN set is essentially the one ``tf_saturated`` already drops.
+        The floor is an ASYMPTOTE, so this is defined only for ``y > f``: a reading at or below the floor is consistent with any
+        sufficiently negative latent value and carries no information about which. Those items return NaN rather than a clamped
+        number, so a caller has to decide what to do with them instead of silently receiving a fabricated latent. That NaN set is
+        essentially the one ``tf_saturated`` already drops.
         """
         f = self.effective_floor(y_floor)
-        th, c = self.tau_hi(), self.ceiling()
-        if c is not None:
-            # undo the ceiling stage first: y = c - th * softplus((c - u) / th)
-            vc = (c - y) / th
-            u = c - th * torch.where(vc > 20.0, vc, torch.log(torch.expm1(vc.clamp(min=1e-12))))
-        else:
-            u = y
-        v = (u - f) / self.tau()
+        v = (y - f) / self.tau()
         # v > 20: log(expm1(v)) == v to float precision, and expm1 overflows past ~88 in float32.
         safe = torch.log(torch.expm1(v.clamp(min=1e-12)))
         z = f + self.tau() * torch.where(v > 20.0, v, safe)
         return torch.where(v > 0, z, torch.full_like(z, float('nan')))
 
-    def latent_ddG(self, observed: torch.Tensor, dG_wt: torch.Tensor, y_floor, bg_offset=0.0) -> torch.Tensor:
+    def latent_ddG(self, observed: torch.Tensor, dG_wt: torch.Tensor, y_floor) -> torch.Tensor:
         """
         The exact inverse of :meth:`obs_ddG`: the latent ddG that would be REPORTED as ``observed``.
 
-        Use it to put a measured label on the latent scale before it is added to a latent prediction. Note that
-        the inverse is nonlinear, so ``latent_ddG(a + b) != latent_ddG(a) + latent_ddG(b)``: a sum of two measured
-        singles has to be de-linked ONE SINGLE AT A TIME and then summed, not de-linked as a sum.
+        Use it to put a measured label on the latent scale before it is added to a latent prediction. Note that the inverse is
+        nonlinear, so ``latent_ddG(a + b) != latent_ddG(a) + latent_ddG(b)``: a sum of two measured singles has to be de-linked ONE
+        SINGLE AT A TIME and then summed, not de-linked as a sum.
         """
-        return self.inverse(dG_wt + observed, y_floor) - dG_wt - bg_offset
+        return self.inverse(dG_wt + observed, y_floor) - dG_wt
 
-    def obs_ddG(self, latent: torch.Tensor, dG_wt: torch.Tensor, y_floor, bg_offset=0.0) -> torch.Tensor:
+    def obs_ddG(self, latent: torch.Tensor, dG_wt: torch.Tensor, y_floor) -> torch.Tensor:
         """
-        The ddG the assay would report: ``h(dG_wt + bg_offset + latent) - dG_wt``.
-
-        ``dG_wt`` is the dG of the library's starting sequence. ``bg_offset`` is the (observed) ddG of a conditional item's background,
-        ``ddG_AB - ddG(A|B)``, so a conditional item saturates as the double it came from; it is 0 for singles. NaN wherever ``dG_wt`` is
-        unknown, which is how callers find the items the observed scale cannot be computed for.
+        The ddG the assay would report: ``h(dG_wt + latent) - dG_wt``. ``dG_wt`` is the dG of the library's starting sequence; NaN
+        wherever it is unknown, which is how callers find the items the observed scale cannot be computed for.
         """
-        return self(dG_wt + bg_offset + latent, y_floor) - dG_wt
+        return self(dG_wt + latent, y_floor) - dG_wt
 
     @torch.no_grad()
     def numpy(self):
         """This link as a numpy function of absolute dG (see ``numpy_link``)."""
         lo, hi = self.bounds()
-        c = self.ceiling()
-        return numpy_link(float(self.tau()), float(lo), float(hi), float(self.global_floor),
-                          None if c is None else float(c), float(self.tau_hi()))
+        return numpy_link(float(self.tau()), float(lo), float(hi), float(self.global_floor))
 
     @torch.no_grad()
     def summary(self) -> dict:
         lo, hi = self.bounds()
-        out = {'tau': float(self.tau()), 'floor_min': float(lo), 'floor_max': float(hi),
-               'global_floor': float(torch.minimum(torch.maximum(self.global_floor, lo), hi))}
-        c = self.ceiling()
-        if c is not None:
-            out.update({'ceiling': float(c), 'tau_hi': float(self.tau_hi())})
-        return out
-
-
-class NonspecificTerm(nn.Module):
-    """
-    Nonspecific epistasis of a multi-mutant as a function of its additive expectation (``--nonspecific_term fx``): f(x), with
-    x = dG_wt + the additive latent ddG (the sum of the single effects). Piecewise linear on fixed knots, constant beyond the outer knots,
-    initialised at 0. It is added to a multi-mutant's latent before the link and never to a single, so the link keeps modelling the
-    readout alone.
-
-    The analysis behind it: of the variance of measured dddG, the additive expectation alone explains the largest share and the link's
-    floor makes even a perfectly additive model look epistatic on the observed scale, so this dependence deserves its own term instead of
-    being absorbed implicitly by the link and the MT adapter (docs/nonspecific_epistasis.md, and "Saturation and nonspecific epistasis" in
-    docs/epistasis_metrics_report.html).
-    """
-
-    def __init__(self, lo: float = -3.0, hi: float = 5.0, step: float = 0.5):
-        super().__init__()
-        n = int(round((hi - lo) / step)) + 1
-        self.register_buffer('knots', torch.linspace(lo, hi, n))
-        self.values = nn.Parameter(torch.zeros(n))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        k = self.knots
-        xc = x.clamp(float(k[0]), float(k[-1]))
-        i = torch.clamp(torch.searchsorted(k, xc.contiguous()) - 1, 0, len(k) - 2)
-        t = (xc - k[i]) / (k[i + 1] - k[i])
-        return self.values[i] + t * (self.values[i + 1] - self.values[i])
-
-    @torch.no_grad()
-    def table(self) -> dict:
-        return {'knots': [round(float(v), 4) for v in self.knots], 'values': [round(float(v), 5) for v in self.values]}
+        return {'tau': float(self.tau()), 'floor_min': float(lo), 'floor_max': float(hi),
+                'global_floor': float(torch.minimum(torch.maximum(self.global_floor, lo), hi))}

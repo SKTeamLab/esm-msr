@@ -52,29 +52,19 @@ def test_the_paradigm_derives_its_flags(tmp_path):
     torch.save({'state_dict': {}}, ckpt)
     a = parse('--frozen_wt_mt_only', '--init_wt_from_checkpoint', str(ckpt))
     assert a.freeze_wt_adapter is True
-    assert a.freeze_link is True
     # singles are KEPT since 2026-10-19: a doubles-only stream is floor-limited and not more informative, and the
-    # MT head learns contextual single effects too. --no-incl_singles still gives the old stream.
-    assert a.incl_singles is True and a.incl_doubles is True
-    assert a.wt_trains_doubles is False
+    # MT head learns contextual single effects too. --subsets double gives the old stream.
+    assert a.subsets == ['single', 'double']
     assert a.lambda_reg_wt == 0.0 and a.lambda_rank_wt == 0.0
     # the MT objective is untouched
     assert a.lambda_reg_mt == pytest.approx(1.0) and a.lambda_rank_mt == pytest.approx(1.0)
-
-
-def test_the_paradigm_needs_the_link(tmp_path):
-    """The WT model being frozen is adapter + calibration head + link; without the link there is no observed scale."""
-    ckpt = tmp_path / 'dc17.ckpt'
-    torch.save({'state_dict': {}}, ckpt)
-    with pytest.raises(SystemExit):
-        parse('--frozen_wt_mt_only', '--init_wt_from_checkpoint', str(ckpt), '--no-link')
 
 
 def test_a_plain_warm_start_is_allowed_and_keeps_the_wt_trainable(tmp_path):
     ckpt = tmp_path / 'wt.ckpt'
     torch.save({'state_dict': {}}, ckpt)
     a = parse('--init_wt_from_checkpoint', str(ckpt))
-    assert a.freeze_wt_adapter is False and a.incl_singles is True
+    assert a.freeze_wt_adapter is False and a.subsets == ['single', 'double']
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -202,18 +192,11 @@ def test_a_checkpoint_without_a_link_leaves_it_as_configured(tmp_path):
     assert float(stub.link_head.raw_tau) == pytest.approx(0.59)
 
 
-def test_freezing_the_link_stops_every_one_of_its_parameters():
-    stub = _stub()
-    stub.link_head = _Link()
-    assert all(p.requires_grad for p in stub.link_head.parameters())
-    M._freeze_link(stub)
-    assert all(not p.requires_grad for p in stub.link_head.parameters())
-
-
 def test_the_init_hooks_the_link_to_the_wt_model():
-    """Guard the wiring itself: the loader must run under --init_wt_from_checkpoint and the freeze under --freeze_link."""
+    """Guard the wiring itself: the loader must run under --init_wt_from_checkpoint, link included. (The link has no parameters to freeze:
+    its numbers are buffers, so nothing can move them.)"""
     src = inspect.getsource(M.__init__)
-    assert 'init_wt_from_checkpoint' in src and '_load_link_weights' in src and '_freeze_link' in src
+    assert 'init_wt_from_checkpoint' in src and '_load_link_weights' in src
 
 
 # ----------------------------------------------------------------------------------------------------------------

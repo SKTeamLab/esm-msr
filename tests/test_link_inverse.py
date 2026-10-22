@@ -2,7 +2,7 @@
 ``SaturatingLink.inverse`` / ``latent_ddG``: putting a MEASURED label back on the latent scale.
 
 Needed because teacher forcing injects ddG_A + ddG_B - a sum of two SATURATED readings - into a latent sum that
-then goes through the link. Under --combined_mode sum that mismatch enters at full weight instead of half.
+then goes through the link. 
 
 The point that is easy to get wrong: the inverse is nonlinear, so de-linking the SUM is not de-linking the
 singles. The label has to be inverted one single at a time and then added.
@@ -17,8 +17,8 @@ FLOOR = torch.tensor([-0.3, -0.3, -0.3, -0.3])
 NAN = float('nan')
 
 
-def link(**kw):
-    return SaturatingLink(tau=0.59, floor_min=-1.0, floor_max=0.2, global_floor_init=-0.1363, **kw)
+def link():
+    return SaturatingLink(tau=0.59, floor=-0.3)
 
 
 def test_inverse_round_trips_the_forward():
@@ -78,10 +78,3 @@ def test_the_gradient_flows_through_the_inverse():
     y = torch.tensor([1.0, 2.0, 3.0, 4.0], requires_grad=True)
     L.inverse(y, FLOOR).sum().backward()
     assert y.grad is not None and torch.isfinite(y.grad).all()
-
-
-def test_it_also_inverts_with_a_ceiling():
-    L = link(ceiling=5.0)
-    z = torch.tensor([0.0, 1.0, 2.0, 3.0])
-    y = L(z, FLOOR)
-    torch.testing.assert_close(L.inverse(y, FLOOR), z, atol=2e-3, rtol=1e-3)

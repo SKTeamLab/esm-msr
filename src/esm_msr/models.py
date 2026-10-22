@@ -78,6 +78,27 @@ class _ScaleSource:
         return self.head.scale
 
 
+MASK_STRATEGIES = ('marginal', 'independent')
+
+
+def pass_mask_strategy(hp, pass_type: str) -> Optional[str]:
+    """
+    The sequence-masking strategy of one pass, ``--mask_strategy_<pass_type>`` ('none' or unset = unmasked). ``hp`` is anything with
+    ``.get``. The motivating pairing is ``marginal`` on the WT pass and ``independent`` on the MT pass: the WT pass then masks both sites
+    of a double (it knows WHICH pair is mutated but not to what: pair and line effects, by construction no interaction) and the MT pass
+    reads each site masked with the partner's mutant residue visible, the conditional masked marginal of ddG(A|B). The same strategy on
+    both passes cannot do this: ``marginal`` on the MT pass hides the partner, so the model cannot represent an interaction at all
+    (``cell_rank`` is exactly 0).
+    """
+    v = hp.get(f'mask_strategy_{pass_type}', None)
+    return None if v in (None, 'none') else v
+
+
+def _per_pass(mask_strategy, pass_type: str) -> Optional[str]:
+    """``mask_strategy`` as ``forward_batch`` / ``forward_cycle`` take it: one strategy for both passes, or a dict {'wt': ..., 'mt': ...}."""
+    return mask_strategy.get(pass_type) if isinstance(mask_strategy, dict) else mask_strategy
+
+
 class CalibrationHead(nn.Module):
     """
     Scales and biases raw log-likelihood ratios: ``y_cal = scale * y_raw + bias``.
@@ -147,9 +168,6 @@ class CalibrationHead(nn.Module):
         return y_raw * s + self.bias_for(n_mut)
     
 
-COMBINE_MODES = ('mean', 'route')
-
-
 def native_cond_mt_batch(batch: dict) -> dict:
     """Return ``batch`` with the MT pass's sequence replaced by the WT pass's on native_cond rows.
 
@@ -173,29 +191,16 @@ def native_cond_mt_batch(batch: dict) -> dict:
     return out
 
 
-def combine_predictions(wt, mt, mode: str = 'mean', is_single=None):
+def combine_predictions(wt, mt):
     """
-    How the WT (additive) and MT (mutant-context) heads become the reported prediction.
+    How the WT (additive) and MT (mutant-context) heads become the reported prediction: ``0.5 * wt + 0.5 * mt``.
 
-    * ``mean`` - ``0.5 * wt + 0.5 * mt``, the released behaviour and the default. Trained against the measured
-      ddG, this makes MT learn ``2 * ddG - wt``: each head produces a TOTAL ddG-like prediction, which is what the
-      per-position LLR sum it computes actually is, and the ensemble averages the two.
-    * ``route`` - ``wt`` for singles, ``mt`` for everything else. For the arm where MT is a standalone double
-      predictor that never sees a single, so there is no ensemble to form.
-    (``sum`` existed until 2026-10-19: it asked MT for ``ddG - wt``, a pure difference. The MT pass is a sum of
-    per-position LLRs in the mutant context, i.e. a total; it cannot output the additive part's absence, and on a
-    single the target would be zero while the LLR sum is not. Removed.)
-
-    ``route`` needs ``is_single``; the others ignore it. Every site that forms a combined prediction - training,
-    validation and screening - must go through here, or an ablation trains one way and is scored another.
+    Trained against the measured ddG, this makes MT learn ``2 * ddG - wt``: each head produces a TOTAL ddG-like prediction, which
+    is what the per-position LLR sum it computes actually is, and the ensemble averages the two. (Two other modes existed and are
+    gone: ``sum`` asked MT for ``ddG - wt``, a pure difference the LLR sum cannot produce; ``route`` reported WT for singles and MT
+    for the rest, and never ran.) Every site that forms a combined prediction - training, validation and screening - goes through
+    here, or an ablation trains one way and is scored another.
     """
-    mode = mode or 'mean'                       # an unset hparam arrives as None, which means the default
-    if mode not in COMBINE_MODES:
-        raise AssertionError(f"combined_mode must be one of {COMBINE_MODES}, got {mode!r}.")
-    if mode == 'route':
-        if is_single is None:
-            raise AssertionError("combined_mode='route' needs is_single to know which head to report.")
-        return torch.where(is_single, wt, mt)
     return 0.5 * wt + 0.5 * mt
 
 
@@ -204,8 +209,7 @@ class MSRModel(ESM3PredictorBase):
     Mutational Stability Regression (MSR) Model.
     
     Wraps an ESM3 model with Parameter-Efficient Fine-Tuning (PEFT) adapters to predict 
-    protein stability scores (e.g., ddG). Supports dual/fused adapters and multiple 
-    strategies (ensemble, corrector).
+    protein stability scores (e.g., ddG). Supports dual (WT + MT) and fused (one shared) adapters.
     """
     def __init__(
             self, lora_config: dict, shared_scale_init: float | None = None,
@@ -215,10 +219,10 @@ class MSRModel(ESM3PredictorBase):
             combined_mode: str = 'mean', per_mutation_bias: bool = False, tie_mt_scale: bool = False,
             native_cond_mt_input: bool = False
         ):
-        combined_mode = combined_mode or 'mean'
-        if combined_mode not in COMBINE_MODES:
-            raise AssertionError(f"combined_mode must be one of {COMBINE_MODES}, got {combined_mode!r}.")
-        self.combined_mode = combined_mode
+        if (combined_mode or 'mean') != 'mean':
+            raise AssertionError(f"combined_mode {combined_mode!r} was removed: the reported prediction is the mean of the two heads.")
+        if lora_mode != 'ensemble':
+            raise AssertionError(f"lora_mode {lora_mode!r} was removed: the MT head is always an ensemble partner of the WT head.")
         # --native_cond_for_mt: the MT pass reads the WT pass's sequence on native_cond rows (native_cond_mt_batch). A
         # property of the trained model, not of the label alone: a run that only excludes those items keeps the
         # ordinary MT input.
@@ -228,9 +232,6 @@ class MSRModel(ESM3PredictorBase):
         base_esm3.to(model_dtype)
         super().__init__(esm_model=base_esm3)
         
-        if lora_mode not in ['ensemble', 'corrector']:
-            raise AssertionError(f"Unknown lora_mode '{lora_mode}'. Must be 'ensemble' or 'corrector'.")
-            
         self.quaternary_mode, self.log_likelihood, self.use_plddt, self.dtype = quaternary_mode, log_likelihood, use_plddt, model_dtype 
         self.adapter_mode, self.lora_mode = adapter_mode, lora_mode
         self.strict_loading = strict_loading
@@ -288,7 +289,6 @@ class MSRModel(ESM3PredictorBase):
         lora_dropout = kwargs_dict.get('lora_dropout', 0.15)
         target_mode = kwargs_dict.get('target_mode', 'expanded')
         last_n_layers = kwargs_dict.get('last_n_layers', 0)
-        use_dora = kwargs_dict.get('use_dora', False)
         incl_structure_encoder = kwargs_dict.get('incl_structure_encoder', False)
         incl_sequence_head = kwargs_dict.get('incl_sequence_head', False)
 
@@ -315,8 +315,6 @@ class MSRModel(ESM3PredictorBase):
             "use_rslora": True, 
             "bias": "none"
         }
-        if use_dora: config_dict['use_dora'] = True
-
         return LoraConfig(**config_dict)
 
     def add_loras_to_esm3(self, **kwargs):
@@ -326,15 +324,11 @@ class MSRModel(ESM3PredictorBase):
         'wt_config' and 'mt_config' dictionaries inside the primary config.
         """
         seed, dtype = kwargs.get('seed', None), kwargs.get('dtype', self.dtype)
-        TOTAL_BLOCKS = 48
-            
         for param in self.model.parameters(): param.requires_grad = False
         
         if seed is not None:
             torch.manual_seed(seed)
             if torch.cuda.is_available(): torch.cuda.manual_seed_all(seed)
-
-        active_configs = []
 
         if self.adapter_mode == 'dual':
             wt_kwargs = kwargs.get('wt_config', kwargs)
@@ -344,8 +338,8 @@ class MSRModel(ESM3PredictorBase):
             mt_config = self._create_lora_config(mt_kwargs)
             
             logging.info("--- Dual Adapter Configuration ---")
-            logging.info(f" WT Adapter | Rank: {wt_config.r:2} | Alpha: {wt_config.lora_alpha:2} | Dropout: {wt_config.lora_dropout} | DoRA: {getattr(wt_config, 'use_dora', False)}")
-            logging.info(f" MT Adapter | Rank: {mt_config.r:2} | Alpha: {mt_config.lora_alpha:2} | Dropout: {mt_config.lora_dropout} | DoRA: {getattr(mt_config, 'use_dora', False)}")
+            logging.info(f" WT Adapter | Rank: {wt_config.r:2} | Alpha: {wt_config.lora_alpha:2} | Dropout: {wt_config.lora_dropout}")
+            logging.info(f" MT Adapter | Rank: {mt_config.r:2} | Alpha: {mt_config.lora_alpha:2} | Dropout: {mt_config.lora_dropout}")
             logging.debug(f" Target Regex (WT): {wt_config.target_modules}")
             
             base_mt = copy.deepcopy(self.model)
@@ -367,7 +361,6 @@ class MSRModel(ESM3PredictorBase):
             self.wt_adapter_name = "wt_adapter"
             self.mt_adapter_name = "mt_adapter"
             
-            active_configs.extend([wt_kwargs, mt_kwargs])
             peft_models = [self.peft_wt, self.peft_mt]
             
             # Maintain self.model pointing to peft_wt for backwards compatibility
@@ -379,27 +372,19 @@ class MSRModel(ESM3PredictorBase):
             config = self._create_lora_config(mt_kwargs)
 
             logging.info("--- Fused Adapter Configuration ---")
-            logging.info(f" Fused Adapter | Rank: {config.r:2} | Alpha: {config.lora_alpha:2} | Dropout: {config.lora_dropout} | DoRA: {getattr(config, 'use_dora', False)}")
+            logging.info(f" Fused Adapter | Rank: {config.r:2} | Alpha: {config.lora_alpha:2} | Dropout: {config.lora_dropout}")
             logging.debug(f" Target Regex: {config.target_modules}")
             
             self.peft_fused = get_peft_model(self.model, config).to(dtype)
             self.wt_adapter_name = self.mt_adapter_name = list(self.peft_fused.peft_config.keys())[0]
             
-            active_configs.append(mt_kwargs)
             peft_models = [self.peft_fused]
             self.model = self.peft_fused
 
         # Apply requires_grad correctly via independent PEFT wrappers
-        for pm, cfg in zip(peft_models, active_configs):
+        for pm in peft_models:
             for name, param in pm.named_parameters():
                 if "lora" in name.lower() or "dora" in name.lower(): param.requires_grad = True
-
-            if cfg.get('unfreeze_layernorms', False):
-                ln_last_n = cfg.get('last_n_layers', 0)
-                for name, param in pm.named_parameters():
-                    if any(ln_name in name for ln_name in ["layernorm_qkv.0", "q_ln", "k_ln", "s_norm", "transformer.norm"]):
-                        if ln_last_n <= 0 or any(f"blocks.{b}." in name for b in [str(i) for i in range(TOTAL_BLOCKS - ln_last_n, TOTAL_BLOCKS)]):
-                             param.requires_grad = True
 
     def _log_trainable_parameters(self):
         """Helper to print total and trainable parameter counts grouped by module."""
@@ -616,12 +601,12 @@ class MSRModel(ESM3PredictorBase):
 
         logging.info("=== Checkpoint Loading Complete ===\n")
 
-    def forward_batch(self, batch_in: Dict[str, Any], cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, skip_reverse: bool = False, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
+    def forward_batch(self, batch_in: Dict[str, Any], cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, skip_reverse: bool = False, mask_strategy: Union[str, Dict[str, Optional[str]], None] = None) -> Dict[str, torch.Tensor]:
         if self.training: raise AssertionError("forward_batch is for inference only. Use forward_partitioned for training.")
 
-        wt_out = self.forward_partitioned(batch_in, pass_type='wt', cached_wt_esm3=cached_wt_esm3, mask_strategy=mask_strategy)
+        wt_out = self.forward_partitioned(batch_in, pass_type='wt', cached_wt_esm3=cached_wt_esm3, mask_strategy=_per_pass(mask_strategy, 'wt'))
         if not skip_reverse:
-            mt_out = self.forward_partitioned(batch_in, pass_type='mt', mask_strategy=mask_strategy)
+            mt_out = self.forward_partitioned(batch_in, pass_type='mt', mask_strategy=_per_pass(mask_strategy, 'mt'))
         else:
             mt_out = wt_out
         
@@ -629,18 +614,12 @@ class MSRModel(ESM3PredictorBase):
         wt_pred_raw, mt_pred_raw = wt_out['pred_raw'], mt_out['pred_raw']
 
         mm = batch_in.get('mut_mask')
-        is_single = (mm.sum(dim=1) == 1) if mm is not None else None
         n_mut = mm.sum(dim=1) if mm is not None else None
-        # native_cond is an MT-head item even though it carries one mutation: 'route' must report the MT head.
-        st = batch_in.get('subset_type')
-        if is_single is not None and st is not None:
-            is_single = is_single & torch.as_tensor([t == 'single' for t in st], device=is_single.device)
         if self.adapter_mode == 'fused':
             combined_pred = combine_predictions(self.calibration_head_fused(wt_pred_raw, n_mut),
-                                                self.calibration_head_fused(mt_pred_raw, n_mut),
-                                                self.combined_mode, is_single)
+                                                self.calibration_head_fused(mt_pred_raw, n_mut))
         else:
-            combined_pred = combine_predictions(wt_pred_cal, mt_pred_cal, self.combined_mode, is_single)
+            combined_pred = combine_predictions(wt_pred_cal, mt_pred_cal)
 
         # The predicted epistasis is whatever the combined prediction adds beyond the WT head: 0.5(mt-wt) under
         # 'mean', mt-wt under 'route' (doubles). Mode-agnostic definition.
@@ -651,7 +630,7 @@ class MSRModel(ESM3PredictorBase):
 
         return {'wt_lora_pred': wt_pred_cal, 'mt_lora_pred': mt_pred_cal, 'wt_lora_raw': wt_pred_raw, 'mt_lora_raw': mt_pred_raw, 'combined_pred': combined_pred, 'epi_pred': epi_pred}
 
-    def forward_cycle(self, batch_in: Dict[str, Any], mask_strategy: Optional[str] = None,
+    def forward_cycle(self, batch_in: Dict[str, Any], mask_strategy: Union[str, Dict[str, Optional[str]], None] = None,
                       include_mt: bool = True) -> Dict[str, torch.Tensor]:
         """
         The two passes forward_batch does not run, both returned as a FORWARD (wild type -> mutant) ddG estimate:
@@ -671,12 +650,12 @@ class MSRModel(ESM3PredictorBase):
         rev = dict(batch_in)
         rev['wt_sequence_tokens'] = batch_in['mt_sequence_tokens']
         rev['wt_id'], rev['mt_id'] = batch_in['mt_id'], batch_in['wt_id']
-        wt_rev = self.forward_partitioned(rev, pass_type='wt', mask_strategy=mask_strategy)['pred_calibrated']
+        wt_rev = self.forward_partitioned(rev, pass_type='wt', mask_strategy=_per_pass(mask_strategy, 'wt'))['pred_calibrated']
         if not include_mt:
             return {'wt_rev': -wt_rev}
         fwd = dict(batch_in)
         fwd['mt_sequence_tokens'] = batch_in['wt_sequence_tokens']
-        mt_fwd = self.forward_partitioned(fwd, pass_type='mt', mask_strategy=mask_strategy)['pred_calibrated']
+        mt_fwd = self.forward_partitioned(fwd, pass_type='mt', mask_strategy=_per_pass(mask_strategy, 'mt'))['pred_calibrated']
         return {'wt_rev': -wt_rev, 'mt_fwd': mt_fwd}
 
     def _process_logits(self, logits: torch.Tensor) -> torch.Tensor:
@@ -1027,12 +1006,10 @@ class MSRModel(ESM3PredictorBase):
                 wt_lora_pred = self.calibration_head_wt(wt_llr_sum, _n_mut) if hasattr(self, 'calibration_head_wt') else wt_llr_sum
                 mt_lora_pred = self.calibration_head_mt(mt_llr_sum, _n_mut) if hasattr(self, 'calibration_head_mt') else mt_llr_sum
 
-            _is_single = mut_mask.sum(dim=1) == 1
             if self.adapter_mode != 'fused':
-                combined_pred = combine_predictions(wt_lora_pred, mt_lora_pred, self.combined_mode, _is_single)
+                combined_pred = combine_predictions(wt_lora_pred, mt_lora_pred)
             else:
                 combined_pred = combine_predictions(self.calibration_head_fused(wt_llr_sum, _n_mut),
-                                                    self.calibration_head_fused(mt_llr_sum, _n_mut),
-                                                    self.combined_mode, _is_single)
+                                                    self.calibration_head_fused(mt_llr_sum, _n_mut))
 
         return {'wt_lora_pred': wt_lora_pred, 'mt_lora_pred': mt_lora_pred, 'combined_pred': combined_pred}

@@ -4,12 +4,12 @@ import numpy as np
 import pytest
 import torch
 
-from esm_msr.link import FLOOR_MAX_DEFAULT, FLOOR_MIN_DEFAULT, TAU_DEFAULT, SaturatingLink, numpy_link, numpy_link_from_state_dict
+from esm_msr.link import FLOOR_BAND, TAU_DEFAULT, SaturatingLink, numpy_link, numpy_link_from_state_dict
 
 
 def test_knee_value_and_asymptotes():
-    """h(y_floor) = y_floor + tau*ln2; h -> y_floor below, h -> z above, and never below the floor."""
-    link = SaturatingLink()
+    """h(floor) = floor + tau*ln2; h -> floor below, h -> z above, and never below the floor."""
+    link = SaturatingLink(floor=-0.3)
     f = torch.tensor(-0.3)
     assert float(link(f, f)) == pytest.approx(float(f) + TAU_DEFAULT * math.log(2), abs=1e-5)
     assert float(link(torch.tensor(-50.0), f)) == pytest.approx(float(f), abs=1e-6)
@@ -25,7 +25,7 @@ def test_knee_value_and_asymptotes():
 def test_monotone():
     """Non-decreasing everywhere (it goes exactly flat far below the floor, where float32 saturates), and strictly
     increasing from the knee upwards, which is the range ranking and regression actually live in."""
-    link = SaturatingLink()
+    link = SaturatingLink(floor=-0.3)
     z = torch.linspace(-20, 20, 4001)
     out = link(z, torch.full_like(z, -0.3))
     assert (out.diff() >= 0).all()
@@ -33,38 +33,30 @@ def test_monotone():
     assert (link(near, torch.full_like(near, -0.3)).diff() > 0).all()
 
 
-def test_floor_is_clipped_to_band():
-    """A wild cached estimate is pulled into [floor_min, floor_max]; the floor of the output follows the clipped value."""
-    link = SaturatingLink()
-    far_below = link(torch.tensor(-60.0), torch.tensor(-7.0))
-    far_above = link(torch.tensor(-60.0), torch.tensor(+9.0))
-    assert float(far_below) == pytest.approx(FLOOR_MIN_DEFAULT, abs=1e-5)
-    assert float(far_above) == pytest.approx(FLOOR_MAX_DEFAULT, abs=1e-5)
+def test_the_knee_is_the_one_floor_whatever_an_item_carries():
+    """An item's own y_floor is clipped into [floor, floor + FLOOR_BAND]: a run has one knee. (A dump from the era of per-library
+    floors is rescored with numpy_link instead, which still takes them.)"""
+    link = SaturatingLink(floor=0.0)
+    for carried in (-7.0, -0.3, 0.0, 0.5, 9.0):
+        out = float(link(torch.tensor(-60.0), torch.tensor(carried)))
+        assert 0.0 - 1e-6 <= out <= FLOOR_BAND + 1e-6, (carried, out)
 
 
-def test_nan_floor_falls_back_to_the_learned_global_floor():
-    """A library with no floor of its own bends at the shared, learned knee."""
-    link = SaturatingLink(global_floor_init=-0.4)
+def test_nan_floor_falls_back_to_the_one_floor():
+    link = SaturatingLink(floor=-0.4)
     out = link(torch.tensor(-60.0), torch.tensor(float('nan')))
-    assert float(out.detach()) == pytest.approx(-0.4, abs=1e-5)
-    # ... and it is a real parameter that receives gradient from exactly those items.
-    out.backward()
-    assert link.global_floor.grad is not None and abs(float(link.global_floor.grad)) > 0
+    assert float(out) == pytest.approx(-0.4, abs=1e-5)
 
 
-def test_a_library_with_its_own_floor_does_not_train_the_global_one():
-    link = SaturatingLink(global_floor_init=-0.4)
-    link(torch.tensor(-60.0), torch.tensor(-0.2)).backward()
-    assert link.global_floor.grad is None or float(link.global_floor.grad) == 0.0
-
-
-def test_global_floor_is_clipped_to_the_band_too():
-    link = SaturatingLink(global_floor_init=-9.0)
-    assert float(link(torch.tensor(-60.0), torch.tensor(float('nan'))).detach()) == pytest.approx(FLOOR_MIN_DEFAULT, abs=1e-5)
+def test_nothing_in_the_link_is_trainable():
+    link = SaturatingLink()
+    assert list(link.parameters()) == []
+    # ... but its numbers are in the state dict under the names old checkpoints used, so link_head.* keys load and rescore
+    assert set(link.state_dict()) == {'raw_tau', 'floor_min', 'floor_max', 'global_floor'}
 
 
 def test_obs_ddG_matches_definition():
-    link = SaturatingLink()
+    link = SaturatingLink(floor=-0.2)
     latent, dG_wt, y = torch.tensor([-6.0, 0.5]), torch.tensor([3.0, 3.0]), torch.tensor([-0.2, -0.2])
     got = link.obs_ddG(latent, dG_wt, y)
     want = link(dG_wt + latent, y) - dG_wt
@@ -73,23 +65,14 @@ def test_obs_ddG_matches_definition():
     assert float(got[0] + dG_wt[0]) == pytest.approx(-0.2, abs=0.02)
 
 
-def test_obs_ddG_bg_offset_saturates_as_the_parent_double():
-    """A conditional item's background offset moves it down the same curve."""
-    link = SaturatingLink()
-    latent, dG_wt, y = torch.tensor([-1.0]), torch.tensor([2.0]), torch.tensor([-0.1])
-    plain = link.obs_ddG(latent, dG_wt, y)
-    with_bg = link.obs_ddG(latent, dG_wt, y, bg_offset=torch.tensor([-3.0]))
-    assert float(with_bg) < float(plain)
-
-
 def test_nan_dG_wt_propagates():
-    link = SaturatingLink()
+    link = SaturatingLink(floor=-0.2)
     out = link.obs_ddG(torch.tensor([0.5]), torch.tensor([float('nan')]), torch.tensor([-0.2]))
     assert not torch.isfinite(out).any()
 
 
 def test_numpy_link_matches_torch():
-    link = SaturatingLink()
+    link = SaturatingLink(floor=-0.25)
     h = link.numpy()
     z = np.linspace(-10, 10, 101)
     y = np.full_like(z, -0.25)
@@ -99,38 +82,29 @@ def test_numpy_link_matches_torch():
 
 
 def test_numpy_link_from_state_dict_roundtrip():
-    link = SaturatingLink(tau=0.4, floor_min=-0.8, floor_max=0.3)
+    link = SaturatingLink(tau=0.4, floor=-0.8)
     h = numpy_link_from_state_dict({f'link_head.{k}': v for k, v in link.state_dict().items()})
     assert h is not None
-    assert h(-50.0, -7.0) == pytest.approx(-0.8, abs=1e-5)
-    assert h(0.0, 0.0) == pytest.approx(float(link(torch.tensor(0.0), torch.tensor(0.0))), abs=1e-5)
+    assert h(-50.0, -0.8) == pytest.approx(-0.8, abs=1e-5)
+    assert h(0.0, -0.8) == pytest.approx(float(link(torch.tensor(0.0), torch.tensor(-0.8))), abs=1e-5)
     assert numpy_link_from_state_dict({'other.weight': torch.zeros(1)}) is None
 
 
-def test_tau_is_fixed_by_default_and_learnable_on_request():
-    assert SaturatingLink().raw_tau.requires_grad is False
-    assert SaturatingLink(learn_tau=True).raw_tau.requires_grad is True
+def test_numpy_link_still_reads_an_old_checkpoint_with_a_ceiling_and_a_band():
+    """Rescoring a run from the era of per-library floors and a learned ceiling: the keys that existed then are read as before."""
+    sd = {'link_head.raw_tau': torch.tensor(0.0), 'link_head.floor_min': torch.tensor(-1.0), 'link_head.floor_max': torch.tensor(0.2),
+          'link_head.global_floor': torch.tensor(-0.1), 'link_head.raw_ceiling_span': torch.tensor(1.0)}
+    h = numpy_link_from_state_dict(sd)
+    assert h is not None
+    assert h(-60.0, -7.0) == pytest.approx(-1.0, abs=0.05)          # a per-library floor clipped into the old band (the ceiling bends it a little)
+    assert h(60.0, 0.0) < 60.0                                      # and the upper clamp is there
+
+
+def test_tau_is_what_was_asked():
     assert float(SaturatingLink().tau()) == pytest.approx(TAU_DEFAULT, abs=1e-4)
-
-
-def test_floor_bounds_receive_gradient_when_learnable():
-    link = SaturatingLink(learn_floor_bounds=True)
-    # A cached floor below the band is clipped at floor_min, so the gradient reaches floor_min.
-    link(torch.tensor(-60.0), torch.tensor(-5.0)).backward()
-    assert link.floor_min.grad is not None and abs(float(link.floor_min.grad)) > 0
-    assert SaturatingLink().floor_min.requires_grad is False
-
-
-def test_band_cannot_invert():
-    link = SaturatingLink(floor_min=-1.0, floor_max=0.2, learn_floor_bounds=True)
-    with torch.no_grad():
-        link.floor_max.fill_(-3.0)
-    lo, hi = link.bounds()
-    assert float(hi.detach()) > float(lo.detach())
+    assert float(SaturatingLink(tau=0.3).tau()) == pytest.approx(0.3, abs=1e-5)
 
 
 def test_rejects_bad_configuration():
-    with pytest.raises(ValueError):
-        SaturatingLink(floor_min=0.5, floor_max=-0.5)
     with pytest.raises(ValueError):
         SaturatingLink(tau=0.0)

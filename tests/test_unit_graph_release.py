@@ -16,6 +16,8 @@ import torch
 from esm_msr.losses import ListMLELoss
 from esm_msr.training import ESM3EpistasisLightningModule as M
 
+from _stubs import compose_hparams, with_identity_link
+
 
 class _HP(dict):
     """hparams is a read-only property on LightningModule, so the stub carries a plain attribute-dict."""
@@ -25,11 +27,18 @@ class _HP(dict):
         return dict.get(self, k, default)
 
 
-class TrackingStub(torch.nn.Module):
-    lora_mode = 'corrector'          # avoids the teacher-forcing path, which needs a calibration head
+class _CalHead(torch.nn.Module):
+    use_scale = False
+    bias = None
 
+    def bias_for(self, n_mut):
+        return 0.0
+
+
+class TrackingStub(torch.nn.Module):
     def __init__(self):
         super().__init__()
+        self.calibration_head_wt = _CalHead()
         self.w = torch.nn.Parameter(torch.tensor([1.0, 1.0]))
         self.refs, self.alive_at_forward = [], []
 
@@ -59,15 +68,12 @@ def _batch(B=8):
 
 
 def _stub(**hp):
-    base = dict(subset_size=4, micro_batch_size=4, micro_batch_tokens=0,
-                double_weight=1.0, cond_weight=1.0, native_cond_weight=1.0,
-                wt_double_target='latent', mt_reg_mask='all', mask_strategy=None,
-                lambda_reg_wt=0.0, lambda_rank_wt=0.0, lambda_reg_mt=1.0, lambda_rank_mt=0.0)
+    base = compose_hparams(micro_batch_size=4)
     base.update(hp)
     s = types.SimpleNamespace()
     s.hparams = _HP(base)
     s.model = TrackingStub()
-    s.link_head = None
+    with_identity_link(s)
     s.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
     s.crit_reg = torch.nn.MSELoss(reduction='none')
     s.crit_rank_wt = s.crit_rank_mt = ListMLELoss()

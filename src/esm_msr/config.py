@@ -1,612 +1,453 @@
+"""The training command line.
+
+About 55 flags (it was 160; ``docs/trim_audit.md`` has the verdict on each). Three mechanisms keep the old launchers and checkpoints working:
+
+* ``RETIRED`` - a table of removed flags. Given the one value they used to carry as a default, a retired flag is accepted and dropped from
+  the namespace (so it never reaches ``hparams.yaml``); given any other value it is an error that says what replaced it. A few are
+  translated (``--subset_caps`` -> ``--subsets``, ``--assay_floor`` -> ``--link_floor``, ``--comet_api_key`` -> the environment).
+* ``--config recipe.yaml`` - YAML defaults under the command line. Keys are flag names; the command line wins.
+* ``DERIVED`` - values the model and the scripts that read ``hparams.yaml`` still need (``per_mutation_bias``, ``tie_mt_scale``, ...),
+  recorded as constants.
+"""
 import argparse
-import os
-import sys
 import logging
-from esm_msr.data import ProteinCyclingBatchSampler
+import os
+
+DEFAULT_CACHE_VERSION = 'c6'            # data.MutationStabilityDataset.CACHE_VERSION (a test pins them together)
+SUBSETS = ('single', 'double')          # what --subsets may name. `native_cond` is routed by --native_cond_for_wt / --native_cond_for_mt
+
+# What the model and the readers of hparams.yaml (inference.parse_hparams_to_lora_config, make_fwt_block.py, gate_capacity.py) still need
+# to find, written as constants: the code behind them is gone, but a checkpoint trained here must say how its calibration is built.
+DERIVED = {'lora_mode': 'ensemble', 'per_mutation_bias': True, 'tie_mt_scale': False}
+
+_ANY = object()                          # any value is ignored
 
 
-class ParseSubsetCaps(argparse.Action):
-    """
-    Parses 'key=value' pairs into a dictionary.
-
-    A value of 'None' means unrestricted (the subset sets the baseline count); a float is the fraction of that
-    baseline the subset is capped to, and 0.0 excludes it. Keys are the subsets of ``esm_msr.routing``.
-    """
-    def __call__(self, parser, namespace, values, option_string=None):
-        valid_keys = ProteinCyclingBatchSampler.SUBSET_ORDER
-        caps = dict(DEFAULT_SUBSET_CAPS)
-
-        for kv in values:
-            if '=' not in kv:
-                raise argparse.ArgumentTypeError(
-                    f"Invalid subset_cap format: '{kv}'. Expected 'key=value'."
-                )
-
-            k, v = kv.split('=', 1)
-
-            if k not in valid_keys:
-                raise argparse.ArgumentTypeError(
-                    f"Invalid subset key: '{k}'. Must be one of {valid_keys}."
-                )
-
-            if v.lower() == 'none':
-                caps[k] = None
-            else:
-                try:
-                    caps[k] = float(v)
-                except ValueError:
-                    raise argparse.ArgumentTypeError(
-                        f"Value for '{k}' must be a float or 'None', got '{v}'."
-                    )
-
-        setattr(namespace, self.dest, caps)
+def _r(kind, ok=None, why=''):
+    return {'kind': kind, 'ok': ok, 'why': why}
 
 
-# 'single' and 'double' are the measured wild-type-context subsets and are unrestricted.
-#
-# The two conditional subsets are both held out of TRAINING for now, pending the MT-head routing that would do
-# something with them: 'cond' is derived arithmetic (ddG_AB - ddG_B from a double and its singles), and
-# 'native_cond' is a measured conditional effect ddG(X | background) that the WT head has no business being
-# regressed onto. Note that excluding native_cond is a deliberate departure from the released model, which trained
-# on those items because they were simply labelled 'single' there. They are still kept in VALIDATION (where they
-# are a direct measurement and count toward rho_combined), so the headline validation metric stays comparable.
-DEFAULT_SUBSET_CAPS = {'single': None, 'double': None, 'native_cond': 0.0, 'cond': 0.0}
+# flag -> what it used to be and the only value it may still be given. kind: 'bool' (--x / --no-x), 'val' (--x VALUE), 'flag' (--x, no value).
+# ok=_ANY: any value is dropped without comment (a path, a number that governed something now fixed).
+RETIRED = {
+    # the LoRA spec is fixed (inference reads an old checkpoint's own values from its hparams)
+    **{f'{k}_{h}': _r('bool', v, 'a constant now') for h in ('wt', 'mt')
+       for k, v in (('use_dora', False), ('unfreeze_layernorms', False), ('incl_structure_encoder', False), ('incl_sequence_head', True))},
+    **{f'target_mode_{h}': _r('val', 'expanded', 'a constant now') for h in ('wt', 'mt')},
+    **{f'last_n_layers_{h}': _r('val', 0, 'a constant now') for h in ('wt', 'mt')},
+    'lora_mode': _r('val', 'ensemble', 'the MT head is always an ensemble partner of the WT head (corrector removed)'),
+    'combined_mode': _r('val', 'mean', 'the reported prediction is always the mean of the two heads (route and sum removed)'),
+    'mt_reg_mask': _r('val', 'all', 'a constant now'),
+    'detach_ensemble_input': _r('bool', True, 'always on'),
+    'rank_loss': _r('val', 'listmle', 'the only rank loss'),
+    'per_mutation_bias': _r('bool', True, 'always on (a scalar bias puts a double one bias below its two singles)'),
+    'tf_delink': _r('bool', True, 'always on'),
+    'link': _r('bool', True, 'always on'),
+    'tie_mt_scale': _r('bool', False, 'the MT calibration scale is always its own'),
+    'wt_trains_doubles': _r('bool', False, 'the WT head trains on singles only'),
+    'wt_double_target': _r('val', 'latent', 'a constant now'),
+    'alternate_heads': _r('bool', False, 'removed (never run)'),
+    'shared_scale_init': _r('val', 0.3, 'a constant now'),
+    'shared_bias_init': _r('val', 0.0, 'a constant now'),
+    'calib_lr_mult': _r('val', 20.0, 'a constant now'),
+    # per-subset loss weights and the cond subset
+    'double_weight': _r('val', 1.0, 'removed'),
+    'cond_weight': _r('val', 0.5, 'the cond subset is gone'),
+    'native_cond_weight': _r('val', 1.0, 'removed'),
+    'incl_cond': _r('bool', False, 'the cond subset is gone'),
+    # the link is two set numbers
+    'learn_link_tau': _r('bool', False, 'the link is fixed: --link_floor / --link_tau'),
+    'learn_global_floor': _r('bool', False, 'the link is fixed: --link_floor / --link_tau'),
+    'learn_link_floor_bounds': _r('bool', False, 'the link is fixed'),
+    'learn_link_ceiling': _r('bool', False, 'the upper clamp was removed'),
+    'link_ceiling': _r('val', None, 'the upper clamp was removed (the 4-parameter link, dc7, matched the floor-only one, dc8)'),
+    'link_tau_hi': _r('val', None, 'the upper clamp was removed'),
+    'link_tau_penalty': _r('val', _ANY), 'link_floor_penalty': _r('val', _ANY), 'link_floor_prior_sd': _r('val', _ANY),
+    'link_lr': _r('val', _ANY), 'link_floor_min': _r('val', _ANY), 'link_floor_max': _r('val', _ANY),
+    'nonspecific_term': _r('val', 'none', 'the nonspecific term was removed (docs/trim_audit.md §2.2)'),
+    **{k: _r('val', _ANY) for k in ('ns_knot_lo', 'ns_knot_hi', 'ns_knot_step', 'ns_lr')},
+    # censoring and floors
+    'censor_gap': _r('bool', _ANY, 'the protease-gap rule was removed: this run does not censor on protease disagreement'),
+    'censor_gap_max': _r('val', _ANY),
+    'censor_floor': _r('bool', True, 'censoring is --censor_threshold (none = no censoring)'),
+    **{k: _r('val', _ANY) for k in ('floor_x_max', 'floor_min_n', 'floor_max_sd', 'floor_percentile')},   # the per-library floor estimator
+    # optimiser and schedule
+    'grad_clip_norm': _r('val', 0.0, 'removed (never used)'),
+    'calib_delay_steps': _r('val', 0, 'removed'),
+    'mt_lora_delay_steps': _r('val', 0, 'removed'),
+    'freeze_wt_after_epoch': _r('val', 1000, 'removed (the plateau budget freezes the WT head)'),
+    'wt_convergence_metric': _r('val', 'rho_wt_valid', 'a constant now'),
+    'wt_plateau_min_lr': _r('val', 1e-7, 'removed'),
+    'mt_plateau_min_lr': _r('val', 1e-7, 'removed'),
+    # data and pipeline plumbing
+    'micro_batch_tokens': _r('val', 0, 'removed; --micro_batch_size is the cap'),
+    'dataloading': _r('val', 'cycle', 'a constant now'),
+    'loader_strategy': _r('val', 'all', 'a constant now'),
+    'score_column': _r('val', 'ddG_ML', 'a constant now'),
+    'combine_validation': _r('bool', False, 'removed'),
+    'max_train_proteins': _r('val', -1, 'removed'),
+    'offline': _r('bool', False, 'removed'),
+    'offline_model': _r('bool', False, 'an environment variable now: export INFRA_PROVIDER=1'),
+    'precision': _r('val', 'bf16-mixed', 'a constant now'),
+    'gpus': _r('val', 1, 'one GPU'),
+    'strategy': _r('val', 'auto', 'one GPU'),
+    'num_sanity_val_steps': _r('val', 0, 'a constant now'),
+    'check_val_every_n_epoch': _r('val', 1, 'a constant now'),
+    'log_every_n_steps': _r('val', 25, 'a constant now'),
+    'load_lora_checkpoint': _r('val', None, 'use --init_wt_from_checkpoint'),
+    'load_wt_only': _r('bool', False, 'use --init_wt_from_checkpoint'),
+    'checkpoint_path': _r('val', _ANY), 'checkpoint_filename': _r('val', _ANY), 'save_top_k': _r('val', _ANY),
+    'monitor_mode': _r('val', 'max', 'a constant now'),
+    'freeze_link': _r('bool', _ANY),
+    # training reads a prebuilt cache; the raw table and the structures belong to analysis_scripts/build_cache.py
+    'raw_data_file': _r('val', _ANY), 'af_model_folder': _r('val', _ANY), 'mut_structures_root': _r('val', _ANY),
+    'benchmark_data_path': _r('val', _ANY),
+    'remove_spurs_homologs': _r('bool', False, 'a cache-build option'),
+    'regenerate_cache': _r('flag', None, 'training never builds a cache: use analysis_scripts/build_cache.py'),
+    'mask_strategy': _r('val', None, 'per pass now: --mask_strategy_wt / --mask_strategy_mt'),
+}
+# retired flags that carry a value worth translating or cross-checking; handled in parse_arguments
+_TRANSLATED_VAL = ('subset_caps', 'assay_floor', 'comet_api_key', 'split_file', 'censor_threshold_double', 'reg_loss', 'early_stopping_metric',
+                   'wt_plateau_patience', 'wt_plateau_factor', 'wt_freeze_after_decays',
+                   'mt_plateau_patience', 'mt_plateau_factor', 'mt_freeze_after_decays')
+_TRANSLATED_BOOL = ('incl_singles', 'incl_doubles', 'incl_native_cond', 'freeze_wt_adapter')
 
 
-def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train ESM3 Dual-LoRA Stability Model")
+def _threshold(v):
+    return None if str(v).lower() in ('none', 'null', '') else float(v)
 
-    arch_group = parser.add_argument_group("Architecture Configuration")
-    arch_group.add_argument('--adapter_mode', type=str, default='dual', choices=['dual', 'fused'])
 
-    lora_group_mt = parser.add_argument_group("MT LoRA Configuration")
-    lora_group_mt.add_argument('--lora_rank_mt', type=int, default=16)
-    lora_group_mt.add_argument('--lora_alpha_mt', type=int, default=16)
-    lora_group_mt.add_argument('--lora_dropout_mt', type=float, default=0.1)
-    lora_group_mt.add_argument('--incl_structure_encoder_mt', action=argparse.BooleanOptionalAction, default=False)
-    lora_group_mt.add_argument('--incl_sequence_head_mt', action=argparse.BooleanOptionalAction, default=True)
-    lora_group_mt.add_argument('--last_n_layers_mt', type=int, default=0)
-    lora_group_mt.add_argument('--target_mode_mt', type=str, default='expanded')
-    lora_group_mt.add_argument('--unfreeze_layernorms_mt', action=argparse.BooleanOptionalAction, default=False)
-    lora_group_mt.add_argument('--use_dora_mt', action=argparse.BooleanOptionalAction, default=False)
-    lora_group_mt.add_argument('--lora_mode', type=str, default='ensemble', choices=['ensemble', 'corrector'])
+def _same(a, b) -> bool:
+    try:
+        return float(a) == float(b)
+    except (TypeError, ValueError):
+        return str(a) == str(b)
 
-    lora_group_wt = parser.add_argument_group("WT LoRA Configuration")
-    lora_group_wt.add_argument('--lora_rank_wt', type=int, default=2)
-    lora_group_wt.add_argument('--lora_alpha_wt', type=int, default=4)
-    lora_group_wt.add_argument('--lora_dropout_wt', type=float, default=0.1)
-    lora_group_wt.add_argument('--incl_structure_encoder_wt', action=argparse.BooleanOptionalAction, default=False)
-    lora_group_wt.add_argument('--incl_sequence_head_wt', action=argparse.BooleanOptionalAction, default=True)
-    lora_group_wt.add_argument('--last_n_layers_wt', type=int, default=0)
-    lora_group_wt.add_argument('--target_mode_wt', type=str, default='expanded')
-    lora_group_wt.add_argument('--unfreeze_layernorms_wt', action=argparse.BooleanOptionalAction, default=False)
-    lora_group_wt.add_argument('--use_dora_wt', action=argparse.BooleanOptionalAction, default=False)
 
-    loss_group = parser.add_argument_group("Loss Configuration")
-    loss_group.add_argument('--reg_loss', type=str, default='mse', choices=['mse', 'huber'])
-    loss_group.add_argument('--huber_delta', type=float, default=1.0)
-    loss_group.add_argument('--lambda_rank_wt', type=float, default=1.0)
-    loss_group.add_argument('--lambda_rank_mt', '--lambda_rank_combined', dest='lambda_rank_mt', type=float, default=1.0,
-                            help="Weight of the MT path's rank loss. Named --lambda_rank_combined until the joint "
-                                 "path was retired: it is scored through the combined prediction, but it now trains "
-                                 "the MT path only. The old name is still accepted.")
-    loss_group.add_argument('--lambda_reg_wt', type=float, default=1.0)
-    loss_group.add_argument('--lambda_reg_mt', '--lambda_reg_combined', dest='lambda_reg_mt', type=float, default=1.0,
-                            help="Weight of the MT path's regression. Named --lambda_reg_combined until the joint "
-                                 "path was retired: it is scored through the combined prediction, but it now trains "
-                                 "the MT path only. The old name is still accepted.")
-    loss_group.add_argument('--mt_reg_mask', type=str, default='all', choices=['all', 'doubles'])
-    loss_group.add_argument('--tf_delink', action=argparse.BooleanOptionalAction, default=True,
-                            help="De-link the teacher-forcing label before it is added to a latent prediction. The "
-                                 "measured ddG_A + ddG_B is a sum of two SATURATED readings; this inverts each "
-                                 "single through the link and sums the results, which is not the same as inverting "
-                                 "the sum. Requires --link. A single measured at or below its library floor has no "
-                                 "invertible latent value, so it drops out of teacher forcing. DEFAULT ON since "
-                                 "2026-10-19: without it the observed-scale label is injected into a latent "
-                                 "prediction (a scale mismatch; pass --no-tf_delink for the old behaviour).")
-    loss_group.add_argument('--alternate_heads', action=argparse.BooleanOptionalAction, default=False,
-                            help="Train one head per batch instead of both: the WT head on singles, the MT head on "
-                                 "multi-mutants, alternating by batch. A batch that cannot serve its turn (no "
-                                 "doubles, or no singles) takes the other one, so no batch is wasted.")
-    loss_group.add_argument('--tf_mix', type=float, default=1.0,
-                            help="How much of an item's WT half comes from the measured label rather than from "
-                                 "the WT head's own prediction: 1.0 = the label wherever one is usable (the released "
-                                 "behaviour), 0.0 = never teacher-force, 0.5 = the arithmetic mean of the two. It "
-                                 "applies to SINGLES too (2026-10-19), so 0.0 is a pure non-teacher-forcing arm for "
-                                 "the whole stream: with the label the MT head is a total/interaction predictor, "
-                                 "with the WT pass it compensates the WT head's error. The label carries the "
-                                 "measurement noise of its singles and the floor clipping of either; the WT head is "
-                                 "smooth but biased, so this trades variance for bias. An item with no usable label "
-                                 "(e.g. a single at its library floor) falls back to the WT head for any mix. Needs "
-                                 "ensemble lora_mode and --link.")
-    loss_group.add_argument('--combined_mode', type=str, default='mean', choices=['mean', 'route'],
-                            help="How the WT and MT heads form the reported prediction. 'mean' is 0.5/0.5 "
-                                 "(released). 'sum' was REMOVED 2026-10-19: the MT pass is a sum of per-position "
-                                 "LLRs, i.e. a total ddG-like quantity, so it cannot output a pure difference "
-                                 "(epistasis) and cannot be zero on singles by construction. 'route' reports WT for "
-                                 "singles and MT for multi-mutants, for a standalone double predictor.")
-    loss_group.add_argument('--wt_trains_doubles', action=argparse.BooleanOptionalAction, default=False,
-                            help="Whether the WT head's own losses see multi-mutants. The default leaves doubles "
-                                 "to the MT head alone (they still teacher-force the WT half, so the WT path "
-                                 "still shapes a double's prediction - it just takes no gradient from one). Off "
-                                 "by default from dc17 on: dc15 put rho_wt_valid at 0.8397 against dc14's 0.8348 "
-                                 "with everything else equal, about ten times the 0.0005 between-seed SD, and "
-                                 "under --wt_double_target latent a double's WT target was ddG_A + ddG_B anyway, "
-                                 "a sum of two single measurements the head also sees on their own.")
-    loss_group.add_argument('--double_weight', type=float, default=1.0)
-    loss_group.add_argument('--cond_weight', type=float, default=0.5)
-    loss_group.add_argument('--native_cond_weight', type=float, default=1.0)
-    loss_group.add_argument('--weight_decay', type=float, default=0)
-    loss_group.add_argument('--calib_lr_mult', type=float, default=20.0)
-    loss_group.add_argument('--grad_clip_norm', type=float, default=0.0,
-                            help="Clip the gradient norm to this before each step; 0 disables clipping.")
-    # RETIRED flags that launch scripts still pass. They are ACCEPTED so those scripts keep working, warned about, and
-    # removed from the namespace below, so they never reach hparams. --detach_ensemble_input is now always on, and
-    # --no-detach_ensemble_input is an ERROR rather than a silent no-op, because that value used to train a different
-    # model (see the error message below). --rank_loss had one choice, listmle, which is what always runs.
-    loss_group.add_argument('--detach_ensemble_input', action=argparse.BooleanOptionalAction, default=None, help=argparse.SUPPRESS)
-    loss_group.add_argument('--rank_loss', type=str, default=None, help=argparse.SUPPRESS)
+def _add_retired(parser):
+    """Register every removed flag as a hidden option so that an old command line still parses (and is then checked)."""
+    for name, spec in RETIRED.items():
+        if spec['kind'] == 'bool':
+            parser.add_argument(f'--{name}', action=argparse.BooleanOptionalAction, default=None, help=argparse.SUPPRESS)
+        elif spec['kind'] == 'flag':
+            parser.add_argument(f'--{name}', action='store_true', default=None, help=argparse.SUPPRESS)
+        else:
+            parser.add_argument(f'--{name}', type=str, default=None, help=argparse.SUPPRESS)
+    parser.add_argument('--subset_caps', nargs='*', default=None, help=argparse.SUPPRESS)
+    for name in _TRANSLATED_VAL:
+        if name != 'subset_caps':
+            parser.add_argument(f'--{name}', type=str, default=None, help=argparse.SUPPRESS)
+    for name in _TRANSLATED_BOOL:
+        parser.add_argument(f'--{name}', action=argparse.BooleanOptionalAction, default=None, help=argparse.SUPPRESS)
 
-    link_group = parser.add_argument_group("Observed-Scale Link (esm_msr.link)")
-    link_group.add_argument('--link', action=argparse.BooleanOptionalAction, default=True,
-                            help="Put the regression target on the assay's observed scale through a soft floor at "
-                                 "each library's own floor estimate. Ranking stays on the latent scale.")
-    link_group.add_argument('--link_tau', type=float, default=0.59,
-                            help="Width of the link's knee in kcal/mol.")
-    link_group.add_argument('--learn_link_tau', action=argparse.BooleanOptionalAction, default=False)
-    link_group.add_argument('--link_floor_min', type=float, default=-1.0,
-                            help="Lower clip on a library's cached floor estimate.")
-    link_group.add_argument('--link_floor_max', type=float, default=0.2,
-                            help="Upper clip on a library's cached floor estimate.")
-    link_group.add_argument('--learn_link_floor_bounds', action=argparse.BooleanOptionalAction, default=False)
-    link_group.add_argument('--learn_global_floor', action=argparse.BooleanOptionalAction, default=False,
-                            help="Learn the shared knee used by libraries that show no floor of their own. It is "
-                                 "identifiable from exactly that population and is initialised at the median of "
-                                 "the libraries that do have one. Off by default from dc17 on, with "
-                                 "--learn_link_tau, --learn_link_floor_bounds and --learn_link_ceiling: the link "
-                                 "is then fixed, every one of its numbers comes from the data, and the 'link' "
-                                 "optimizer group disappears (configure_optimizers only adds it for parameters "
-                                 "that require grad).")
-    link_group.add_argument('--link_ceiling', type=float, default=None,
-                            help="Add a second soft clamp at this dG (kcal/mol), the top of the assay's reported "
-                                 "range; 5.0 matches the '>5' tag. Omitted, the link is floor-only.")
-    link_group.add_argument('--learn_link_ceiling', action=argparse.BooleanOptionalAction, default=False,
-                            help="Let --link_ceiling move. It is parameterised as a positive span above "
-                                 "--link_floor_max, so it can never cross a library's floor.")
-    link_group.add_argument('--link_tau_hi', type=float, default=None,
-                            help="Starting knee width for the ceiling. Defaults to --link_tau: nothing locates a "
-                                 "value for the top of the range the way the pile-up at the bottom locates one.")
-    link_group.add_argument('--link_tau_penalty', type=float, default=0.0,
-                            help="Weight on sum (tau - 0.59)^2 over the free temperatures, added to the loss, so "
-                                 "--learn_link_tau drifts from 0.59 only where the data pays for it.")
-    link_group.add_argument('--link_floor_penalty', type=float, default=0.0,
-                            help="Weight on ((global_floor - anchor) / --link_floor_prior_sd)^2, added once per step, so a "
-                                 "learned global floor (--assay_floor X --learn_global_floor) moves from X only where the "
-                                 "data pays for it. The anchor is --assay_floor.")
-    link_group.add_argument('--link_floor_prior_sd', type=float, default=0.25,
-                            help="Prior SD of the learned global floor around its anchor, kcal/mol (about the "
-                                 "between-library spread of practical floors, 0.27).")
-    link_group.add_argument('--link_lr', type=float, default=5e-3,
-                            help="Learning rate of the link's parameters (no weight decay, no warm-up, and not cut "
-                                 "by the plateau scheduler).")
-    link_group.add_argument('--nonspecific_term', choices=['none', 'fx'], default='none',
-                            help="Nonspecific epistasis as its own term (needs --link). 'fx': a learned "
-                                 "piecewise-linear f(x) added to every multi-mutant's latent before the link, "
-                                 "x = dG_wt + the additive latent ddG (the forced WT half, detached); singles never "
-                                 "get it, so the link keeps modelling the readout. At validation comb gains f and the "
-                                 "MT readout 2f, so comb = (WT + MT) / 2 still holds. Kept in checkpoints as "
-                                 "ns_head.*; inference_scripts do not read it yet.")
-    link_group.add_argument('--ns_knot_lo', type=float, default=-3.0,
-                            help="Lowest knot of f (kcal/mol of additive dG); f is constant below.")
-    link_group.add_argument('--ns_knot_hi', type=float, default=5.0,
-                            help="Highest knot of f (kcal/mol); f is constant above.")
-    link_group.add_argument('--ns_knot_step', type=float, default=0.5,
-                            help="Knot spacing of f (kcal/mol).")
-    link_group.add_argument('--ns_lr', type=float, default=5e-3,
-                            help="Learning rate of f (no weight decay, no warm-up, never cut by a plateau).")
-    link_group.add_argument('--wt_double_target', type=str, default='latent', choices=['latent', 'linked'],
-                            help="What the WT head regresses onto for a MULTI-mutant. 'latent': its unlinked LLR "
-                                 "sum against the sum of the measured singles, ddG_A + ddG_B. 'linked': its LLR sum "
-                                 "through the link against the measured ddG_AB. These are the only two "
-                                 "self-consistent pairings - a linked prediction cannot be compared with a sum of "
-                                 "observed singles, which is not a quantity the readout can report. Singles always "
-                                 "go through the link against their own measurement.")
 
-    calibration_group = parser.add_argument_group("Calibration Configuration")
-    calibration_group.add_argument('--shared_scale_init', type=float, default=0.3)
-    calibration_group.add_argument('--shared_bias_init', type=float, default=0.0)
-    calibration_group.add_argument('--tie_mt_scale', action=argparse.BooleanOptionalAction, default=True,
-                                   help="Tie the MT calibration head's SCALE to the frozen WT head's (the MT head keeps "
-                                        "its own bias). The calibrated outputs are the common latent scale; with an "
-                                        "independent MT scale the raw-scale rank loss weights the two halves "
-                                        "differently from the calibrated combined prediction. Default on; pass "
-                                        "--no-tie_mt_scale for the released independent-scale behaviour.")
-    calibration_group.add_argument('--per_mutation_bias', action=argparse.BooleanOptionalAction, default=True,
-                                   help="Apply the calibration bias once per MUTATED POSITION (bias * n_mut) "
-                                        "instead of once per item. The LLR sum being calibrated is itself a sum "
-                                        "over the item's positions, so a per-item bias makes a double's "
-                                        "prediction sit one bias below the sum of its own singles - measured at "
-                                        "0.1065 kcal/mol (L_AB - L_A - L_B = -b). Note the offline ceiling on "
-                                        "this: correcting it moved rho_combined by -0.0001 and doubles-only rho "
-                                        "by 0.0000, so it is a consistency fix, not an accuracy one.")
+def _check_retired(args, parser):
+    """Validate and strip every table-driven retired flag; returns the names that were silently ignored."""
+    ignored = []
+    for name, spec in RETIRED.items():
+        v = getattr(args, name, None)
+        delattr(args, name)
+        if v is None or (spec['kind'] == 'flag' and not v):
+            continue
+        ok = spec['ok']
+        if ok is _ANY:
+            ignored.append(name)
+            if spec['why']:
+                logging.warning(f"--{name} is retired: {spec['why']}.")
+            continue
+        if (spec['kind'] == 'bool' and v == ok) or (spec['kind'] == 'val' and ok is not None and _same(v, ok)) \
+                or (spec['kind'] == 'val' and ok is None and str(v).lower() in ('none', 'null')):
+            ignored.append(name)
+            continue
+        if name == 'censor_floor' and v is False:          # --no-censor_floor: no censoring at all
+            logging.warning("--no-censor_floor is retired: translated to --censor_threshold none.")
+            args.censor_threshold = None
+            continue
+        what = f"--no-{name}" if spec['kind'] == 'bool' and v is False else (f"--{name} {v}" if spec['kind'] == 'val' else f"--{name}")
+        parser.error(f"{what} is retired and its behaviour is gone: {spec['why']}.")
+    return ignored
 
-    rank_group = parser.add_argument_group("ListMLE Objective Configuration")
-    rank_group.add_argument('--subset_size', type=int, default=16)
 
-    mask_group = parser.add_argument_group("Masking Strategy")
-    mask_group.add_argument('--mask_strategy', type=str, choices=["marginal", "independent"], default=None)
+def parse_arguments(argv=None) -> argparse.Namespace:
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument('--config', type=str, default=None)
+    pre_args, _ = pre.parse_known_args(argv)
 
-    train_group = parser.add_argument_group("Training Parameters")
-    train_group.add_argument('--comet_experiment_key', type=str, default=None,
-                             help="Continue logging into an EXISTING Comet experiment instead of creating a "
-                                  "new one. Pair it with --resume_from_checkpoint, or a resumed run's curves "
-                                  "land in a second experiment and the two have to be read side by side.")
-    train_group.add_argument('--resume_from_checkpoint', type=str, default=None,
-                             help="A last.ckpt to resume from: picks up the epoch, optimizer state, both "
-                                  "schedulers and the WT/MT freeze state. Note the run must be relaunched "
-                                  "with the SAME flags - the checkpoint does not carry them.")
-    train_group.add_argument('--num_epochs', type=int, default=20)
-    train_group.add_argument('--learning_rate', type=float, default=2e-4)
-    train_group.add_argument('--lr_warmup_steps', type=int, default=500)
-    train_group.add_argument('--mt_lora_delay_steps', type=int, default=0)
-    train_group.add_argument('--calib_delay_steps', type=int, default=0)
-    train_group.add_argument('--batch_size', type=int, default=256)
-    train_group.add_argument('--micro_batch_size', type=int, default=16,
-                             help="Upper bound on the items per forward/backward. The binding constraint is "
-                                  "normally --micro_batch_tokens.")
-    train_group.add_argument('--micro_batch_tokens', type=int, default=0,
-                             help="Optional token budget per forward/backward (micro batch x sequence length), "
-                                  "which is what activation memory tracks. 0 (the default) disables it and uses "
-                                  "--micro_batch_size alone, which fits at 64 with about 4.4 GiB spare on a 32 GB "
-                                  "card. Set it (3700 holds the peak near 23 GB) only to buy margin on a smaller "
-                                  "card or a longer-sequence dataset, where it is gentler than cutting the micro "
-                                  "batch flat, since short libraries keep the full size.")
-    train_group.add_argument('--precision', type=str, default="bf16-mixed", choices=["32", "16-mixed", "bf16-mixed", "64"])
-    train_group.add_argument('--gpus', type=int, default=1)
-    train_group.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'deepspeed_stage_2', 'deepspeed_stage_3', 'fsdp'])
-    train_group.add_argument('--seed', type=int, default=1)
-    train_group.add_argument('--offline_model', action=argparse.BooleanOptionalAction, default=False)
+    parser = argparse.ArgumentParser(description="Train ESM3 Dual-LoRA Stability Model", allow_abbrev=False)
+    parser.add_argument('--config', type=str, default=None,
+                        help="A YAML file of defaults (keys are flag names without the dashes). The command line wins.")
 
-    train_group.add_argument('--freeze_wt_adapter', action=argparse.BooleanOptionalAction, default=False)
-    train_group.add_argument('--freeze_mt_adapter', action=argparse.BooleanOptionalAction, default=False)
-    train_group.add_argument('--freeze_link', action=argparse.BooleanOptionalAction, default=False,
-                             help="Freeze the link (the WT readout: latent -> observed ddG) for the whole run. It is "
-                                  "part of a pre-trained WT model - a frozen WT adapter paired with a link that still "
-                                  "moves is not the model the MT head is meant to be scored against - so "
-                                  "--frozen_wt_mt_only turns this on.")
-    train_group.add_argument('--init_wt_from_checkpoint', type=str, default=None,
-                             help="Warm-start the WT model from an existing checkpoint: its WT adapter, its "
-                                  "calibration head AND its link (the whole latent -> observed ddG readout) are "
-                                  "copied in before training. Accepts a full Lightning checkpoint (what the queue's "
-                                  "arms write) or a converged_wt_*.pt file; a checkpoint without link_head keys "
-                                  "leaves the link as configured by its flags. Nothing else is loaded - the MT path "
-                                  "is always fresh and the nonspecific term stays configured by its own flags (use "
-                                  "--resume_from_checkpoint for a true resume). Pair with --freeze_wt_adapter and "
-                                  "--freeze_link to keep the loaded model fixed, or use --frozen_wt_mt_only.")
-    train_group.add_argument('--frozen_wt_mt_only', action=argparse.BooleanOptionalAction, default=False,
-                             help="The 'frozen WT, MT-only' paradigm: requires --init_wt_from_checkpoint, and sets "
-                                  "--freeze_wt_adapter, --freeze_link and --no-wt_trains_doubles. The WT model "
-                                  "(adapter, calibration head, link) is then fixed and only the MT path (and the "
-                                  "nonspecific term) trains. The training stream is whatever the --incl_* flags say: "
-                                  "SINGLES ARE KEPT by default since 2026-10-19 (doubles alone are floor-limited and "
-                                  "not more informative; pass --no-incl_singles for the old doubles-only stream). "
-                                  "Validation always keeps singles and doubles, so rho_wt_valid stays a guard.")
-    train_group.add_argument('--freeze_wt_after_epoch', type=int, default=1000)
-    train_group.add_argument('--wt_convergence_metric', type=str, default='rho_wt_valid')
-    train_group.add_argument('--mt_plateau_patience', type=int, default=1,
-                             help="Epochs of no improvement in --mt_convergence_metric before the MT path's own lr "
-                                  "is decayed. 0 disables it. Only lora_mt and calib_mt are touched.")
-    train_group.add_argument('--mt_convergence_metric', type=str, default='epi_beyond_rho_mt',
-                             help="What the MT plateau watches. Default is the MT head's correlation on the part of "
-                                  "a double the two singles do not explain - what the MT path exists to learn. It is "
-                                  "noisy epoch to epoch, so pair a patience of 1 with a gentle --mt_plateau_factor.")
-    train_group.add_argument('--mt_plateau_factor', type=float, default=0.3)
-    train_group.add_argument('--mt_plateau_min_lr', type=float, default=1e-7)
-    train_group.add_argument('--mt_freeze_after_decays', type=int, default=3,
-                             help="Freeze the MT path after this many decays. 0 never freezes it. 3 by default, "
-                                  "matching --wt_freeze_after_decays: at --mt_plateau_factor 0.3 the third decay "
-                                  "leaves the head at 2.7 percent of its base rate, which is not training. Once "
-                                  "both heads are frozen the run stops itself "
-                                  "(ESM3EpistasisLightningModule._stop_if_nothing_is_training).")
-    train_group.add_argument('--wt_plateau_patience', type=int, default=1,
-                             help="Epochs without improvement in --wt_convergence_metric before the WT path's own "
-                                  "learning rate is cut by --wt_plateau_factor. 0 disables it, and then nothing "
-                                  "decays the WT groups at all: the shared ReduceLROnPlateau that used to, on "
-                                  "val_rho_combined_avg, was removed as redundant once each head got its own "
-                                  "plateau. That metric kept improving long after the WT head had stopped, so the "
-                                  "WT adapter was taking full-rate steps on a metric it was no longer improving.")
-    train_group.add_argument('--wt_plateau_factor', type=float, default=0.3,
-                             help="Multiplier applied to the WT groups' lr on each decay. 0.3, matching "
-                                  "--mt_plateau_factor: with a patience of 1 these metrics are noisy enough that a "
-                                  "decay can fire on a wobble, and a gentler step keeps that from being terminal. "
-                                  "The dc8 series and dc12 pin 0.1 explicitly and predate this, so they are "
-                                  "unaffected; dc14 onward pass 0.3 on both heads.")
-    train_group.add_argument('--wt_plateau_min_lr', type=float, default=1e-7)
-    train_group.add_argument('--wt_freeze_after_decays', type=int, default=3,
-                             help="Freeze the WT path after this many --wt_plateau_patience decays, which also "
-                                  "fixes the target the MT path teacher-forces against. 0 never freezes. 3 by "
-                                  "default, matching --mt_freeze_after_decays; the dc8 and dc14 series pin 2.")
-    train_group.add_argument('--early_stopping_patience', type=int, default=0)
-    train_group.add_argument('--early_stopping_metric', type=str, default='val_rho_combined_avg')
+    run = parser.add_argument_group("Run")
+    run.add_argument('--experiment_name', type=str, required=True)
+    run.add_argument('--version', type=str, default=None)
+    run.add_argument('--seed', type=int, default=1)
+    run.add_argument('--log_dir', type=str, default='./logs')
+    run.add_argument('--resume_from_checkpoint', type=str, default=None,
+                     help="A last.ckpt to resume from: picks up the epoch, optimizer state, the schedule counters and the WT/MT freeze state. "
+                          "The run must be relaunched with the SAME flags - the checkpoint does not carry them. It is the only recovery after a "
+                          "crash for the MT adapter, which --init_wt_from_checkpoint (the WT side only) cannot restore.")
+    run.add_argument('--comet', action=argparse.BooleanOptionalAction, default=True,
+                     help="Log to Comet. The key is read from the environment (COMET_API_KEY) or ~/.comet.config, never from the command line, "
+                          "so it cannot land in hparams.yaml or a process listing. No key available: a warning, and no Comet.")
+    run.add_argument('--comet_project_name', type=str, default="esm-msr-trim-oct22")
+    run.add_argument('--comet_experiment_key', type=str, default=None,
+                     help="Continue logging into an EXISTING Comet experiment instead of creating a new one. Pair it with "
+                          "--resume_from_checkpoint, or a resumed run's curves land in a second experiment.")
+    run.add_argument('--comet_offline', action='store_true',
+                     help="Write the Comet experiment to <log_dir>/comet_offline instead of uploading it: for nodes without internet. "
+                          "Upload afterwards from a node that has it: comet upload <log_dir>/comet_offline/*.zip")
 
-    data_group = parser.add_argument_group("Data Handling")
-    data_group.add_argument('--benchmark_data_path', type=str, default='./data/preprocessed/')
-    data_group.add_argument('--raw_data_file', type=str, required=True)
-    data_group.add_argument('--af_model_folder', type=str, required=True)
-    data_group.add_argument('--dataloading', type=str, default="cycle", choices=["pool", "cycle"])
-    data_group.add_argument('--loader_strategy', type=str, default='all', choices=['equal', 'min', 'all'])
-    data_group.add_argument('--split_file', type=str, default=None)
-    data_group.add_argument('--score_column', type=str, default='ddG_ML')
-    data_group.add_argument('--cache_path', type=str, default='./data_cache')
-    data_group.add_argument('--cache_version', type=str, default=None,
-                            help="Pin the cache version this run reads (e.g. c4), instead of whatever "
-                                 "data.MutationStabilityDataset.CACHE_VERSION currently is. Launch scripts run "
-                                 "from the live worktree, so pinning is what stops a code change handing a queued "
-                                 "job a different dataset under the same name.")
-    data_group.add_argument('--regenerate_cache', action='store_true')
-    data_group.add_argument('--num_workers', type=int, default=4)
-    data_group.add_argument('--max_train_proteins', type=int, default=-1)
+    data = parser.add_argument_group("Data (a prebuilt cache; analysis_scripts/build_cache.py makes one)")
+    data.add_argument('--cache_path', type=str, default=os.environ.get('ESM_MSR_CACHE_PATH', './data_cache'))
+    data.add_argument('--cache_version', type=str, default=None,
+                      help=f"The cache version this run reads (default {DEFAULT_CACHE_VERSION}). Pin it: a launcher that does not is handed "
+                           "whatever the code's default is by the time it starts.")
+    data.add_argument('--subsets', type=str, default=None,
+                      help="The measured subsets the run trains on, comma-separated: single, double (default both). Validation always scores "
+                           "both. Mutant-background libraries are routed by --native_cond_for_wt / --native_cond_for_mt instead.")
+    data.add_argument('--censor_threshold', type=_threshold, default=0.5,
+                      help="Censor every item whose measured dG is at or below this, in every library, bounded by it (kcal/mol): regression "
+                           "becomes one-sided and the item's rank is tied at the bottom. 'none' censors nothing. 0.5 sits a little above the "
+                           "link's knee, where dead variants pile up; 0.3 / 0.5 / 0.6 are indistinguishable on the WT head.")
+    data.add_argument('--censor_range', action=argparse.BooleanOptionalAction, default=False,
+                      help="Admit the rows the assay bounded rather than fitted ('<-1' / '>5') as censored items instead of dropping them. "
+                           "Dropping them selects the double set on its own outcome: fit failure rises from 0.7%% of shallow doubles to 24%% "
+                           "of those below -5 kcal/mol, so the survivors at depth are those that came out better than their additive expectation.")
+    data.add_argument('--native_cond_for_wt', '--native_cond_as_single', dest='native_cond_for_wt',
+                      action=argparse.BooleanOptionalAction, default=True,
+                      help="Keep a mutant-background library's measurements as ordinary 'single' items, which train the WT head: the released "
+                           "behaviour, and strictly wrong (they are conditional effects ddG(X | background)). Off, they are labelled "
+                           "'native_cond' and the WT head does not train on them.")
+    data.add_argument('--native_cond_for_mt', action=argparse.BooleanOptionalAction, default=False,
+                      help="Let the MT head train on a mutant-background library's measurements: label them 'native_cond', include the subset, "
+                           "and add them to the MT/combined loss. The MT pass then gets the SAME input the WT pass gets (the library's "
+                           "starting/background sequence), so the item is a forward conditional mutation in a pseudo-WT context: the only "
+                           "directly MEASURED ddG(A | B) in the data. Independent of --native_cond_for_wt.")
+    data.add_argument('--external_val_sets', type=str, default='ptmuld,s461,ssym',
+                      help="Comma-separated validation loaders scored as OUT-OF-DISTRIBUTION benchmarks: logged per loader (val_<metric>/<name>) "
+                           "but held OUT of every aggregate (val_*_avg, the pooled ranking, the epistasis levels), and summarised as "
+                           "val_rho_combined_external and val_rmse_combined_external.")
+    data.add_argument('--num_workers', type=int, default=4)
 
-    # Kept in sync with --subset_caps below: a subset capped to 0 is never loaded in the first place.
-    data_group.add_argument('--incl_singles', action=argparse.BooleanOptionalAction, default=True)
-    data_group.add_argument('--incl_doubles', action=argparse.BooleanOptionalAction, default=True)
-    data_group.add_argument('--incl_cond', action=argparse.BooleanOptionalAction, default=False)
-    data_group.add_argument('--incl_native_cond', action=argparse.BooleanOptionalAction, default=False)
-    data_group.add_argument('--native_cond_for_wt', '--native_cond_as_single', dest='native_cond_for_wt',
-                            action=argparse.BooleanOptionalAction, default=True,
-                            help="Label a mutant-background library's measurements 'single' rather than "
-                                 "'native_cond', which is what the released model does: they then train the WT "
-                                 "head and count as singles everywhere. Overrides the native_cond subset cap, "
-                                 "since no item carries that label. A mutant-background sequence differs from its "
-                                 "structure - these are conditional measurements ddG(X | background) - so this is a "
-                                 "deliberate reproduction of the released model, not the rigorous routing. The old "
-                                 "spelling --native_cond_as_single is an alias.")
-    data_group.add_argument('--native_cond_for_mt', action=argparse.BooleanOptionalAction, default=False,
-                            help="Let the MT head train on a mutant-background library's singles: label them "
-                                 "'native_cond', include the subset (overriding its 0.0 cap), and add them to the "
-                                 "MT/combined loss. The MT pass then gets the SAME input the WT pass gets (the "
-                                 "library's starting/background sequence), not the fully mutated one, so the item is "
-                                 "a forward conditional mutation in a pseudo-WT context whose sequence already "
-                                 "differs from the native structure - the MT head's domain, used as a strong "
-                                 "regularizer. Independent of --native_cond_for_wt: both can be on (both heads see "
-                                 "them), either alone, or neither (excluded).")
+    arch = parser.add_argument_group("Architecture")
+    arch.add_argument('--adapter_mode', type=str, default='dual', choices=['dual', 'fused'],
+                      help="dual: a WT adapter and an MT adapter. fused: ONE adapter and one calibration head read both the wild-type and the "
+                           "mutant sequence (its LoRA shape is the MT one: --lora_*_mt).")
+    arch.add_argument('--lora_rank_mt', type=int, default=16)
+    arch.add_argument('--lora_alpha_mt', type=int, default=16)
+    arch.add_argument('--lora_dropout_mt', type=float, default=0.1)
+    arch.add_argument('--lora_rank_wt', type=int, default=2)
+    arch.add_argument('--lora_alpha_wt', type=int, default=4)
+    arch.add_argument('--lora_dropout_wt', type=float, default=0.1)
+    arch.add_argument('--link_floor', type=float, default=0.0,
+                      help="The link's one knee (kcal/mol of absolute dG): 0.0 is the physical floor, the unfolded state. Stamped on every item.")
+    arch.add_argument('--link_tau', type=float, default=0.59, help="Width of the link's knee in kcal/mol (RT).")
+    for flag, side in (('mask_strategy_wt', 'WT'), ('mask_strategy_mt', 'MT')):
+        arch.add_argument(f'--{flag}', type=str, default=None, choices=['none', 'marginal', 'independent'],
+                          help=f"Sequence masking of the {side} pass. marginal masks every mutated site at once (the pass knows WHICH sites changed, "
+                               "not to what); independent masks one site at a time with the others as they are, the conditional masked marginal "
+                               "(on the MT pass, with the partner's mutant residue visible: the readout of ddG(A|B)); unset = unmasked. The same "
+                               "strategy on both passes cannot work: marginal on the MT pass hides the partner, so cell_rank is exactly 0.")
 
-    data_group.add_argument('--subset_caps', nargs='*', action=ParseSubsetCaps, default=dict(DEFAULT_SUBSET_CAPS),
-                            help=f"Caps for data subsets (e.g. double=0.6 cond=0.1). Defaults: {DEFAULT_SUBSET_CAPS}.")
-    floor_group = parser.add_argument_group("Assay Floor (data.floor_evidence)")
-    floor_group.add_argument('--censor_floor', action=argparse.BooleanOptionalAction, default=True,
-                             help="Treat an item measured at or below its library's floor as a bound rather than a "
-                                  "value: regression becomes one-sided and the item's rank is tied at the bottom. "
-                                  "Only applies to libraries that show evidence of a floor.")
-    floor_group.add_argument('--assay_floor', type=float, default=None,
-                             help="Override every library's floor with this one value, for the link AND for "
-                                  "censoring (both read item['y_floor']), and assert floor evidence so it "
-                                  "reaches the 364 of 411 libraries that have none of their own. Unset, each "
-                                  "library uses its own estimate from data.floor_evidence and the rest carry NaN. "
-                                  "0.0 is the physical choice - dG = 0 is the unfolded state - and costs the "
-                                  "per-library estimates, which are mostly BELOW zero (47 with evidence: median "
-                                  "-0.136, min -0.641, 68 percent negative), so it censors about 5 percent more "
-                                  "of the training set. Must sit inside [--link_floor_min, --link_floor_max].")
-    floor_group.add_argument('--censor_threshold', type=float, default=None,
-                             help="Censor every single (and native_cond item) whose measured dG is at or below this "
-                                  "value, in every library, bounded by it - instead of censoring at the library's "
-                                  "floor. Decouples censoring from the link: dead variants pile up a little ABOVE the "
-                                  "knee, so a threshold of a few tenths ties them in the rank loss and stops "
-                                  "regressing them as values. The bound is raised to the knee's reading wherever it "
-                                  "sits below it (see training.reachable_bounds). A single censored this way also "
-                                  "supplies no teacher-forcing label: its doubles take the WT pass. Unset, censoring "
-                                  "follows the library floor as before. Needs --censor_floor.")
-    floor_group.add_argument('--censor_threshold_double', type=float, default=None,
-                             help="The same for multi-mutants (and cond items). Defaults to --censor_threshold. Only "
-                                  "the MT/combined loss sees doubles, so this belongs to the MT block.")
-    floor_group.add_argument('--censor_gap', action=argparse.BooleanOptionalAction, default=True,
-                             help="Also censor an item whose two proteases disagree about its stability by more "
-                                  "than --censor_gap_max, bounded by its own reported value. Needs no doubles and "
-                                  "no library floor, so unlike --censor_floor it reaches every library.")
-    floor_group.add_argument('--censor_range', action=argparse.BooleanOptionalAction, default=False,
-                             help="Admit the rows the assay bounded rather than fitted ('<-1' / '>5') as censored "
-                                  "items instead of dropping them. Dropping them selects the double set on its own "
-                                  "outcome: fit failure rises from 0.7%% of shallow doubles to 24%% of those below "
-                                  "-5 kcal/mol, so the survivors at depth are those that came out better than their "
-                                  "additive expectation.")
-    floor_group.add_argument('--censor_gap_max', type=float, default=2.0,
-                             help="|deltaG_t - deltaG_c| above which the two fits are taken not to identify a "
-                                  "stability (kcal/mol). In-range variants sit near 0.31; the flagged population "
-                                  "is bimodal, so 2 and 3 select nearly the same rows.")
-    floor_group.add_argument('--floor_x_max', type=float, default=-1.5,
-                             help="A variant counts as expected-to-be-pinned when its additive expectation "
-                                  "dG_wt + ddG_A + ddG_B is below this.")
-    floor_group.add_argument('--floor_min_n', type=int, default=20,
-                             help="Expected-pinned variants a library needs before its floor is believed.")
-    floor_group.add_argument('--floor_max_sd', type=float, default=0.5,
-                             help="They must agree to within this SD (kcal/mol) to count as pinned at a common "
-                                  "value rather than merely destabilised.")
-    floor_group.add_argument('--floor_percentile', type=float, default=5.0,
-                             help="Nth_percentile_dG, computed and logged per library for COMPARISON only; it is "
-                                  "a quantile of the library's own sensitivity, not of the readout, and is not "
-                                  "what the link or the censoring use.")
-    data_group.add_argument('--mut_structures_root', type=str, default='/home/sareeves/software/esm-msr/data/tsuboyama/FINAL_results/')
-    data_group.add_argument('--remove_spurs_homologs', action=argparse.BooleanOptionalAction, default=False)
-    data_group.add_argument('--combine_validation', action=argparse.BooleanOptionalAction, default=False)
+    paradigm = parser.add_argument_group("Paradigm")
+    paradigm.add_argument('--init_wt_from_checkpoint', type=str, default=None,
+                          help="Warm-start the WT model from an existing checkpoint: its WT adapter, its calibration head AND its link are copied in "
+                               "before training. Accepts a full Lightning checkpoint or a converged_wt_*.pt file. Nothing else is loaded: the MT path "
+                               "is always fresh (use --resume_from_checkpoint for a true resume).")
+    paradigm.add_argument('--frozen_wt_mt_only', action=argparse.BooleanOptionalAction, default=False,
+                          help="The 'frozen WT, MT-only' paradigm: requires --init_wt_from_checkpoint, freezes the WT adapter (its calibration head "
+                               "and link are fixed anyway) and sets --lambda_reg_wt 0 --lambda_rank_wt 0. Only the MT path trains. Validation "
+                               "always keeps singles and doubles, so rho_wt_valid stays a guard.")
+    paradigm.add_argument('--freeze_mt_adapter', action=argparse.BooleanOptionalAction, default=False,
+                          help="Keep the MT adapter frozen for the whole run: a WT-only arm (pair with --val_wt_only, --subsets single and the MT lambdas at 0).")
+    paradigm.add_argument('--val_wt_only', action=argparse.BooleanOptionalAction, default=False,
+                          help="Validate the WT head only: no MT forward and no MT half of the cycle passes. For a run whose MT adapter is not "
+                               "trained, where every MT prediction is a forward through an untrained adapter. The mt and comb columns then report the WT head.")
 
-    log_group = parser.add_argument_group("Checkpointing & Logging")
-    log_group.add_argument('--experiment_name', type=str, required=True)
-    log_group.add_argument('--version', type=str, default=None)
-    log_group.add_argument('--checkpoint_path', type=str, default='./checkpoints')
-    log_group.add_argument('--checkpoint_filename', type=str, default='{epoch:02d}-{val_rho_combined_avg:.3f}')
-    log_group.add_argument('--monitor_metric', type=str, default='val_rho_combined_avg')
-    log_group.add_argument('--monitor_mode', type=str, default='max', choices=['min', 'max'])
-    log_group.add_argument('--save_top_k', type=int, default=5)
-    log_group.add_argument('--load_lora_checkpoint', type=str, default=None)
-    log_group.add_argument('--load_wt_only', action=argparse.BooleanOptionalAction, default=False)
-    log_group.add_argument('--log_dir', type=str, default='./logs')
-    log_group.add_argument('--comet_api_key', type=str, default=None)
-    log_group.add_argument('--comet_project_name', type=str, default="esm-msr-april2026")
-    log_group.add_argument('--comet_offline', action='store_true',
-                           help="Write the Comet experiment to <log_dir>/comet_offline instead of uploading it: for nodes "
-                                "without internet (Alliance compute nodes). Upload afterwards from a node that has it: "
-                                "COMET_API_KEY=... comet upload <log_dir>/comet_offline/*.zip")
-    log_group.add_argument('--log_every_n_steps', type=int, default=25)
-    log_group.add_argument('--check_val_every_n_epoch', type=int, default=1)
-    log_group.add_argument('--num_sanity_val_steps', type=int, default=0)
-    log_group.add_argument('--offline', type=bool, default=False, action=argparse.BooleanOptionalAction)
-    log_group.add_argument('--skip_val', type=bool, default=False, action=argparse.BooleanOptionalAction)
-    log_group.add_argument('--external_val_sets', type=str, default='ptmuld,s461,ssym',
-                           help="Comma-separated validation loaders to score as OUT-OF-DISTRIBUTION benchmarks. They are "
-                                "still scored and logged per loader (val_<metric>/<name>) for diagnostics, but held OUT "
-                                "of every aggregate: val_*_avg, the pooled global ranking and the epistasis levels. They "
-                                "are summarised separately as val_rho_combined_external and "
-                                "val_rmse_combined_external (the mean over these loaders). Keeping OOD libraries out of "
-                                "the aggregate makes it an in-distribution quantity: comparable across runs and "
-                                "consistent with what the training set covers. NOTE this changed on 2026-10-19, so "
-                                "aggregates are NOT comparable to runs before it - recompute from the per-library "
-                                "columns when an old run must be compared.")
-    log_group.add_argument('--val_dump', action=argparse.BooleanOptionalAction, default=True,
-                           help="Write per-item validation predictions to val_dump_<tag>.npz each epoch.")
-    log_group.add_argument('--val_wt_only', action=argparse.BooleanOptionalAction, default=False,
-                           help="Validate the WT head only: no MT forward and no MT half of the cycle passes. For a run "
-                                "whose MT adapter is not trained (a WT-only sweep), where every MT prediction is a "
-                                "forward through an untrained adapter. The mt and comb columns then report the WT head "
-                                "(documented, not silent), the ctx level still comes from --val_cycle_passes, and "
-                                "validation costs one forward per batch instead of two (plus one cycle pass instead "
-                                "of two).")
-    log_group.add_argument('--val_cycle_passes', action=argparse.BooleanOptionalAction, default=True,
-                           help="Run the two extra validation passes (WT adapter on the mutated sequence, MT "
-                                "adapter on the wild type). Needed for the 'ctx' control head of the epistasis "
-                                "metrics; costs one extra forward pass per validation batch.")
+    obj = parser.add_argument_group("Objective")
+    obj.add_argument('--lambda_rank_wt', type=float, default=1.0)
+    obj.add_argument('--lambda_reg_wt', type=float, default=1.0)
+    obj.add_argument('--lambda_rank_mt', '--lambda_rank_combined', dest='lambda_rank_mt', type=float, default=1.0,
+                     help="Weight of the MT path's rank loss (scored through the combined prediction, trains the MT path only).")
+    obj.add_argument('--lambda_reg_mt', '--lambda_reg_combined', dest='lambda_reg_mt', type=float, default=1.0,
+                     help="Weight of the MT path's regression (scored through the combined prediction, trains the MT path only).")
+    obj.add_argument('--rank_list_size', '--subset_size', dest='rank_list_size', type=int, default=16,
+                     help="Length of the ListMLE lists: a batch is cut into consecutive lists of this many items.")
+    obj.add_argument('--huber_delta', type=float, default=0.0,
+                     help="0 = squared error (every run so far). >0: Huber loss with this delta (kcal/mol) on the observed-scale regression, "
+                          "so a few items that read far from their prediction pull with a bounded gradient.")
+    obj.add_argument('--tf_mix', type=float, default=1.0,
+                     help="How much of an item's WT half comes from the measured label rather than from the WT head's own prediction: 1.0 = the "
+                          "label wherever one is usable, 0.0 = never teacher-force, 0.5 = the arithmetic mean of the two. Applies to singles "
+                          "too. An item with no usable label falls back to the WT head for any mix.")
 
-    args, remaining_argv = parser.parse_known_args()
+    opt = parser.add_argument_group("Optimisation")
+    opt.add_argument('--learning_rate', type=float, default=2e-4)
+    opt.add_argument('--weight_decay', type=float, default=0.0)
+    opt.add_argument('--batch_size', type=int, default=256)
+    opt.add_argument('--micro_batch_size', type=int, default=16, help="Items per forward/backward (the VRAM cap); 64 fits a 32 GB card.")
+    opt.add_argument('--num_epochs', type=int, default=20)
+    opt.add_argument('--lr_warmup_steps', type=int, default=500)
 
-    # A subset capped to 0 contributes nothing, so don't pay to load it; one left unrestricted must be loaded.
-    # The two spellings are kept in sync in BOTH directions. Without the second direction the flags were silently
-    # discarded: `--no-incl_doubles` alone left incl_doubles True, because the cap (None = unrestricted) then won,
-    # so the documented flag was a no-op unless the cap happened to agree. Only an EXPLICIT --no-incl_* forces the
-    # cap, because incl_cond/incl_native_cond default to False and must not overwrite a requested cap.
-    subset_flag_map = {'single': 'incl_singles', 'double': 'incl_doubles',
-                       'cond': 'incl_cond', 'native_cond': 'incl_native_cond'}
-    passed = set(sys.argv[1:])
-    for subset_key, flag_name in subset_flag_map.items():
-        cap_val = args.subset_caps.get(subset_key)
-        if f'--no-{flag_name}' in passed:
-            args.subset_caps[subset_key] = 0.0      # the explicit exclusion wins, and the cap now agrees with it
-            cap_val = 0.0
-        setattr(args, flag_name, cap_val is None or cap_val > 0)
+    sched = parser.add_argument_group("Schedule (each head that is training gets its own plateau)")
+    sched.add_argument('--plateau_patience', type=int, default=1,
+                       help="Epochs of no improvement in a head's metric (rho_wt_valid for the WT head, --mt_convergence_metric for the MT head) "
+                            "before that head's own learning rate is cut by --plateau_factor. 0 disables the decays.")
+    sched.add_argument('--plateau_factor', type=float, default=0.3)
+    sched.add_argument('--freeze_after_decays', type=int, default=3,
+                       help="Freeze a head after this many decays: at factor 0.3 the third leaves it at 2.7 percent of its base rate, which is "
+                            "not training. 0 never freezes. Once every head is frozen the run stops itself.")
+    sched.add_argument('--mt_convergence_metric', type=str, default='epi_beyond_rho_mt',
+                       help="What the MT plateau watches. The default is the MT head's correlation on the part of a double the two singles "
+                            "do not explain.")
+    sched.add_argument('--early_stopping_patience', type=int, default=0,
+                       help="Stop when --monitor_metric has not improved for this many validations. 0 (the default) never early-stops.")
+    sched.add_argument('--monitor_metric', type=str, default='val_rho_combined_avg',
+                       help="Which validation metric picks the checkpoints and drives early stopping; checkpoints are named "
+                            "epoch=NN-<metric>=0.xxxx.ckpt.")
 
+    val = parser.add_argument_group("Validation")
+    val.add_argument('--val_dump', action=argparse.BooleanOptionalAction, default=True,
+                     help="Write per-item validation predictions to val_dump_<tag>.npz each epoch.")
+    val.add_argument('--val_cycle_passes', action=argparse.BooleanOptionalAction, default=True,
+                     help="Run the two extra validation passes (WT adapter on the mutated sequence, MT adapter on the wild type). Needed for "
+                          "the 'ctx' control head of the epistasis metrics; costs one extra forward pass per validation batch.")
+    val.add_argument('--skip_val', action=argparse.BooleanOptionalAction, default=False)
+
+    _add_retired(parser)
+
+    if pre_args.config:
+        import yaml
+        with open(pre_args.config) as f:
+            cfg = yaml.safe_load(f) or {}
+        known = {a.dest for a in parser._actions} - set(RETIRED) - set(_TRANSLATED_VAL) - set(_TRANSLATED_BOOL)
+        unknown = sorted(set(cfg) - known)
+        if unknown:
+            parser.error(f"--config {pre_args.config}: unknown or retired keys {unknown}")
+        parser.set_defaults(**cfg)
+
+    args, remaining_argv = parser.parse_known_args(argv)
     if remaining_argv:
         parser.error(f"unrecognized arguments: {' '.join(remaining_argv)}")
 
-    if args.rank_loss not in (None, 'listmle'):
-        parser.error(f"--rank_loss {args.rank_loss}: the only rank loss is listmle, and the flag is retired.")
-    # Where every item's floor comes from, recorded in hparams: 'library' (each library's own estimate, NaN where it
-    # has none, those fall back to the link's global_floor), 'assay' (--assay_floor, one fixed value on every item) or
-    # 'global' (--assay_floor X --learn_global_floor: every item carries NaN, so the knee is the link's global_floor,
-    # learned from X - with --link_floor_penalty keeping it near X).
-    if args.assay_floor is None:
-        args.floor_source = 'library'
-    elif args.learn_global_floor:
-        args.floor_source = 'global'
-        if args.link and args.link_floor_max - args.link_floor_min < 0.2:
-            parser.error(f"--learn_global_floor with --assay_floor: the learned floor is clipped to "
-                         f"[--link_floor_min, --link_floor_max] = [{args.link_floor_min}, {args.link_floor_max}], which "
-                         f"leaves it no room to move; widen the band (e.g. -1.0 1.0)")
-        if not args.link_floor_min <= args.assay_floor <= args.link_floor_max:
-            parser.error(f"--assay_floor {args.assay_floor} (the learned floor's start and anchor) must sit inside "
-                         f"[--link_floor_min, --link_floor_max]")
-    else:
-        args.floor_source = 'assay'
-    if args.floor_source == 'global' and args.censor_floor and args.censor_threshold is None:
-        # No item carries a floor in this mode, so floor censoring would silently switch off; keep the population the
-        # fixed-floor recipe censors (read at or below --assay_floor) by deriving the threshold from it.
-        logging.info(f"learned global floor: censoring at --censor_threshold {args.assay_floor} (= --assay_floor)")
-        args.censor_threshold = float(args.assay_floor)
-    if args.link_floor_penalty > 0 and args.floor_source != 'global':
-        logging.warning("--link_floor_penalty only acts on a learned global floor (--assay_floor X --learn_global_floor)")
-    if args.censor_threshold_double is None:
-        args.censor_threshold_double = args.censor_threshold
-    if (args.censor_threshold is not None or args.censor_threshold_double is not None) and not args.censor_floor:
-        parser.error("--censor_threshold / --censor_threshold_double need --censor_floor")
-    if args.nonspecific_term != 'none' and not args.link:
-        parser.error("--nonspecific_term needs --link (f acts on the latent scale, before the link)")
-    if args.link and args.lora_mode == 'ensemble' and not args.per_mutation_bias:
-        parser.error("--per_mutation_bias is required with --link and --lora_mode ensemble: the calibrated LLR sum is "
-                     "a sum over mutated positions, so a scalar bias makes a double's prediction sit one bias BELOW "
-                     "the sum of its two singles (measured 0.1065 kcal/mol on devel-revision), and the teacher-forced "
-                     "additive half then disagrees with the shared latent scale. Pass --per_mutation_bias.")
-    if not 0.0 <= args.tf_mix <= 1.0:
-        parser.error(f"--tf_mix must be in [0, 1] (0 = never teacher-force, 1 = always use the measured additive "
-                     f"label where one is usable); got {args.tf_mix}")
-    if args.tf_mix < 1.0 and (args.lora_mode != 'ensemble' or not args.link):
-        logging.warning(f"--tf_mix {args.tf_mix} only affects ensemble mode with --link (teacher forcing happens "
-                        f"nowhere else), so it has no effect on this run")
-    if args.detach_ensemble_input is False:
-        parser.error(
-            "--no-detach_ensemble_input is retired. It let the MT regression and rank terms backpropagate into the "
-            "WT adapter, which is why those weights are still named lambda_*_combined. In ensemble mode it could "
-            "never have helped: the WT half of the combined prediction is replaced by the measured additive label "
-            "wherever one exists (and singles always have one), so the attached path delivered gradient ONLY on "
-            "multi-mutants whose additive label was missing or whose singles were measured at the floor - a subset "
-            "selected for having the worst single measurements. It also set the WT head two targets that differ by "
-            "exactly the epistasis term: its own objective wants ddG_A + ddG_B, the combined objective wants "
-            "ddG_AB, and the WT pass can only reconcile them by distorting its per-position terms."
-        )
-    for retired in ('detach_ensemble_input', 'rank_loss'):
-        if getattr(args, retired) is not None:
-            logging.warning(f"--{retired} is retired and ignored (detach_ensemble_input is always on; the rank loss is always listmle).")
-        delattr(args, retired)                    # a retired flag never reaches the model's hparams
+    if args.cache_version is None:
+        args.cache_version = DEFAULT_CACHE_VERSION
 
+    # ---- retired flags that have a successor
+    notes = []
+    caps, flags = args.subset_caps, {k: getattr(args, k) for k in ('incl_singles', 'incl_doubles', 'incl_native_cond')}
+    del args.subset_caps
+    for k in flags:
+        delattr(args, k)
+    legacy = None
+    if caps is not None or any(v is not None for v in flags.values()):
+        keep = {'single': True, 'double': True}
+        for kv in caps or []:
+            if '=' not in kv:
+                parser.error(f"--subset_caps: expected key=value, got {kv!r}")
+            key, raw = kv.split('=', 1)
+            if key not in ('single', 'double', 'cond', 'native_cond'):
+                parser.error(f"--subset_caps: unknown subset {key!r}")
+            if raw.lower() != 'none' and float(raw) != 0.0:
+                parser.error(f"--subset_caps {key}={raw}: fractional caps were removed (a subset is in or out)")
+            excluded = raw.lower() != 'none'
+            if key == 'cond' and not excluded:
+                parser.error("--subset_caps cond=none: the cond subset was removed")
+            if key in keep:
+                keep[key] = not excluded
+        for flag, key in (('incl_singles', 'single'), ('incl_doubles', 'double')):
+            if flags[flag] is not None:
+                keep[key] = bool(flags[flag])
+        legacy = [k for k in SUBSETS if keep[k]]
+        notes.append(f"--subset_caps / --incl_* are retired: translated to --subsets {','.join(legacy)} "
+                     f"(mutant-background libraries are routed by --native_cond_for_wt / --native_cond_for_mt).")
+    if args.subsets is None:
+        args.subsets = legacy if legacy is not None else list(SUBSETS)
+    else:
+        if legacy is not None:
+            notes.append("--subsets given together with --subset_caps / --incl_*: --subsets wins.")
+        args.subsets = list(args.subsets) if isinstance(args.subsets, (list, tuple)) else [s.strip() for s in str(args.subsets).split(',') if s.strip()]
+    bad = [s for s in args.subsets if s not in SUBSETS]
+    if bad or not args.subsets:
+        parser.error(f"--subsets must be a comma-separated subset of {list(SUBSETS)}, got {args.subsets}")
+    args.subsets = [s for s in SUBSETS if s in args.subsets]
+
+    if args.assay_floor is not None:
+        args.link_floor = float(args.assay_floor)
+        notes.append(f"--assay_floor is retired: translated to --link_floor {args.link_floor}.")
+    del args.assay_floor
+    if args.comet_api_key:
+        os.environ['COMET_API_KEY'] = args.comet_api_key
+        notes.append("--comet_api_key is retired: the key was moved into the environment and is not recorded.")
+    del args.comet_api_key
+    args.requested_split_file = args.split_file          # checked against the cache manifest in setup_dataloaders, then dropped
+    del args.split_file
+    if args.censor_threshold_double is not None and args.censor_threshold is not None and not _same(args.censor_threshold_double, args.censor_threshold):
+        parser.error(f"--censor_threshold_double {args.censor_threshold_double} differs from --censor_threshold {args.censor_threshold}: "
+                     f"one threshold serves singles and doubles now")
+    del args.censor_threshold_double
+    if args.reg_loss is not None and args.reg_loss != 'mse':
+        if args.reg_loss != 'huber':
+            parser.error(f"--reg_loss {args.reg_loss}: only mse and huber ever existed")
+        if args.huber_delta <= 0:
+            args.huber_delta = 1.0
+        notes.append(f"--reg_loss huber is retired: translated to --huber_delta {args.huber_delta}.")
+    del args.reg_loss
+    for head in ('wt', 'mt'):
+        for new in ('plateau_patience', 'plateau_factor', 'freeze_after_decays'):
+            old = f'{head}_{new}'
+            v = getattr(args, old)
+            if v is not None and not _same(v, getattr(args, new)):
+                parser.error(f"--{old} {v} differs from --{new} {getattr(args, new)}: both heads share one {new} now")
+            delattr(args, old)
+    if args.early_stopping_metric is not None and args.early_stopping_metric != args.monitor_metric:
+        parser.error(f"--early_stopping_metric {args.early_stopping_metric} differs from --monitor_metric {args.monitor_metric}: one metric now")
+    del args.early_stopping_metric
+    explicit_freeze_wt = args.freeze_wt_adapter
+    del args.freeze_wt_adapter
+
+    ignored = _check_retired(args, parser)
+    for n in notes:
+        logging.warning(n)
+    if ignored:
+        logging.info(f"retired flags accepted and ignored: {', '.join('--' + n for n in ignored)}")
+
+    # ---- validation
+    if not 0.0 <= args.tf_mix <= 1.0:
+        parser.error(f"--tf_mix must be in [0, 1] (0 = never teacher-force, 1 = always use the measured additive label where one is usable); got {args.tf_mix}")
+    if args.huber_delta < 0:
+        parser.error("--huber_delta must be >= 0")
+    if args.rank_list_size < 1:
+        parser.error("--rank_list_size must be >= 1")
+    if args.link_tau <= 0:
+        parser.error("--link_tau must be positive")
     if args.num_workers == -1:
         num_cpus = os.cpu_count()
         logging.info(f"Number of CPUs available: {num_cpus}")
         args.num_workers = max(1, num_cpus - 1)
-
-    # The frozen-WT / MT-only / doubles-only paradigm is a named combination of primitive flags. Deriving it here
-    # (rather than branching in the model) means hparams record the EFFECTIVE settings the run used.
     if args.init_wt_from_checkpoint is not None and not os.path.isfile(args.init_wt_from_checkpoint):
         parser.error(f"--init_wt_from_checkpoint: no such file: {args.init_wt_from_checkpoint}")
-    # native_cond is a four-way routing decision (routing.py): each head can see it independently.
-    #   for_wt only  -> the released behaviour: labelled 'single', the WT loss trains on it, and the combined
-    #                   (MT) loss sees it through the ordinary single route.
-    #   for_mt       -> labelled 'native_cond', the MT/combined loss trains on it, and the MT PASS input is the
-    #                   WT pass's sequence (see forward_partitioned) so it is a forward mutation from the
-    #                   background context rather than a second mutation from the true wild type.
-    #   for_wt+for_mt-> both heads train on the same items and the same input.
-    #   neither      -> excluded.
-    if args.native_cond_for_mt:
-        args.incl_native_cond = True
-        args.subset_caps['native_cond'] = None           # the 0.0 default would exclude exactly what we want
-    if not args.native_cond_for_wt and not args.native_cond_for_mt:
-        args.incl_native_cond = False
-        args.subset_caps['native_cond'] = 0.0
+
+    # The frozen-WT / MT-only paradigm is a named combination of primitive settings. Deriving it here (rather than branching in the
+    # model) means hparams record the EFFECTIVE settings the run used.
+    args.freeze_wt_adapter = False
     if args.frozen_wt_mt_only:
         if args.init_wt_from_checkpoint is None:
-            parser.error("--frozen_wt_mt_only needs --init_wt_from_checkpoint: the paradigm is a PRE-TRAINED frozen "
-                         "WT head, not a randomly initialised one")
-        if not args.link:
-            parser.error("--frozen_wt_mt_only needs --link: the WT model being frozen includes its link (the "
-                         "latent -> observed ddG readout), and the nonspecific term acts before it")
-        if not args.freeze_wt_adapter:
-            logging.info("--frozen_wt_mt_only: setting --freeze_wt_adapter")
-            args.freeze_wt_adapter = True
-        if not args.freeze_link:
-            logging.info("--frozen_wt_mt_only: setting --freeze_link (the WT readout is the adapter, its calibration "
-                         "head AND the link; a moving link would make the frozen WT a different model)")
-            args.freeze_link = True
-        if args.learn_link_tau or args.learn_global_floor:
-            logging.warning("--frozen_wt_mt_only freezes the link, so --learn_link_tau / --learn_global_floor have "
-                            "no effect")
-        if args.subset_caps.get('double') is not None and args.subset_caps['double'] <= 0:
-            parser.error("--frozen_wt_mt_only trains on multi-mutants only, but --subset_caps double=0 excludes "
-                         "them: nothing would be left to train on")
-        if args.wt_trains_doubles:
-            logging.info("--frozen_wt_mt_only: setting --no-wt_trains_doubles")
-            args.wt_trains_doubles = False
+            parser.error("--frozen_wt_mt_only needs --init_wt_from_checkpoint: the paradigm is a PRE-TRAINED frozen WT head, not a randomly initialised one")
+        if 'double' not in args.subsets:
+            parser.error("--frozen_wt_mt_only trains on multi-mutants, but --subsets leaves doubles out: nothing would be left to train on")
+        args.freeze_wt_adapter = True
         # a frozen WT head trains nothing: its losses would be computed every step and never backpropagated.
         if args.lambda_reg_wt > 0 or args.lambda_rank_wt > 0:
             logging.info("--frozen_wt_mt_only: setting --lambda_reg_wt 0 --lambda_rank_wt 0 (the WT path is frozen)")
             args.lambda_reg_wt = 0.0
             args.lambda_rank_wt = 0.0
-    elif args.init_wt_from_checkpoint is not None and not args.freeze_wt_adapter:
-        logging.warning(f"--init_wt_from_checkpoint given without --freeze_wt_adapter: {args.init_wt_from_checkpoint} "
-                        f"is a warm start, and the WT head will keep training from it")
+    elif explicit_freeze_wt:
+        parser.error("--freeze_wt_adapter without --frozen_wt_mt_only: freezing the WT head alone is no longer a separate mode")
+    elif args.init_wt_from_checkpoint is not None:
+        logging.warning(f"--init_wt_from_checkpoint given without --frozen_wt_mt_only: {args.init_wt_from_checkpoint} is a warm start, "
+                        f"and the WT head will keep training from it")
 
+    for k, v in DERIVED.items():
+        setattr(args, k, v)
     return args
