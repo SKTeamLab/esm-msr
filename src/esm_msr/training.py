@@ -21,7 +21,8 @@ from esm.pretrained import ESM3_structure_encoder_v0
 from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
 
 from esm_msr.models import MSRModel, combine_predictions
-from esm_msr import censoring, epi_metrics, stats, utils
+from esm_msr import censoring, ci_weights, epi_metrics, stats, utils
+from esm_msr.data import MEAS_COLUMNS
 from esm_msr.link import SaturatingLink, NonspecificTerm
 from esm_msr.losses import ListMLELoss, hinge_regression_loss
 from esm_msr.preprocess_megascale import setup_dataloaders
@@ -76,6 +77,22 @@ def teacher_forcing_unusable(dG_wt, ddG_A, ddG_B, cut):
     (the library floor, the learned global floor, or --censor_threshold) reports where the assay saturates, not its own
     effect, and de-linking it is undefined at the floor and explosively noisy just above it."""
     return ((dG_wt + ddG_A) <= cut) | ((dG_wt + ddG_B) <= cut)
+
+
+def ci_item_weights(batch: dict, subset_types, cens, subsets, tau: float, ref: float, logmean: float = 0.0):
+    """
+    ``--ci_weight``: the batch's per-item loss weights from each item's own 95% interval (``esm_msr.ci_weights``), and the centred
+    score offsets the ranking loss adds. Only an UNCENSORED item of a weighted subset is weighted; every other item, and any item
+    with no interval, keeps weight 1.0 and offset 0. Returns ``(weights, offsets)``.
+    """
+    device = cens.device
+    meas = batch.get('meas')
+    if meas is None:
+        raise AssertionError("--ci_weight needs the batch's `meas` columns (data.MEAS_COLUMNS), which this batch lacks.")
+    ci = meas[:, MEAS_COLUMNS.index(ci_weights.CI_COLUMN)].to(device)
+    applies = torch.as_tensor([t in subsets for t in subset_types], device=device, dtype=torch.bool) & (cens == 0)
+    w = ci_weights.item_weights(ci, applies, tau, ref)
+    return w, ci_weights.item_offsets(w, ci_weights.usable_mask(ci, applies), logmean)
 
 
 def reachable_bounds(link, bound, y_floor, offset):
@@ -319,7 +336,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
-    def _compute_rank_loss(self, pred, targets, mask, cens, list_size, crit_fn):
+    def _compute_rank_loss(self, pred, targets, mask, cens, list_size, crit_fn, weights=None, offsets=None):
         """
         ListMLE over the batch chopped into lists of ``list_size``, censored members tied at the bottom.
 
@@ -338,6 +355,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         that list four times its share. At ``--micro_batch_size 64`` with ``--subset_size 16`` - four lists per
         micro-batch, with 27% of training doubles carrying no additive label - that was a 6.7% error in the
         batch's rank term, and a different one for every chop.
+
+        ``weights`` (``--ci_weight``) are the items' precision weights: ``ListMLELoss.forward_censored`` offsets each score by
+        ``offsets`` (the centred log w) and scales each choice term by ``weights``, which the composer sets to exp(offsets) (the
+        module docstring of ``esm_msr.losses`` says why both, and why that pairing).
         """
         if mask.dtype != torch.bool:
             raise AssertionError(f"rank mask must be bool, got {mask.dtype}.")
@@ -346,11 +367,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             return None, 0.0, 0
         view = lambda t: t[:valid_len].view(-1, list_size)
         pred_rank, targ_rank, mask_rank, cens_rank = view(pred), view(targets), view(mask), view(cens)
+        w_rank = view(weights) if weights is not None else None
+        o_rank = view(offsets) if offsets is not None else None
         num_lists = valid_len // list_size
         # Per list, so that neither the scaling nor forward_censored's own mean can mix lists. A starved list
         # returns a gradient-attached zero, which is what lets it count in the mean without contributing.
         per_list = torch.stack([crit_fn.forward_censored(pred_rank[i:i + 1], targ_rank[i:i + 1],
-                                                         mask_rank[i:i + 1], cens_rank[i:i + 1])
+                                                         mask_rank[i:i + 1], cens_rank[i:i + 1],
+                                                         None if w_rank is None else w_rank[i:i + 1],
+                                                         None if o_rank is None else o_rank[i:i + 1])
                                 for i in range(num_lists)])
         n_valid = mask_rank.float().sum(dim=-1).clamp(min=1.0)
         scaled_loss = (per_list * (list_size / n_valid)).mean()
@@ -412,6 +437,29 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         global_w_sum = w_all.sum().clamp_min(1e-9)
         global_num_lists = max(1, B // list_size)
+
+        # --ci_weight: each uncensored item of the weighted subsets counts in proportion to the precision of its own label. The
+        # weights average 1 over that population, and they multiply the numerator only - global_w_sum above stays the sum of the
+        # SUBSET weights - so a batch of poorly measured items carries less in total, as it should, and the loss keeps its scale.
+        ci_w_all, ci_rank_all, ci_off_all = None, None, None
+        if self.hparams.get('ci_weight', False):
+            if self.hparams.get('ci_weight_ref') is None:
+                raise AssertionError("--ci_weight needs its normaliser (--ci_weight_ref), which setup_dataloaders sets from the "
+                                     "training items; the module was built without it.")
+            ci_w_all, ci_off_all = ci_item_weights(batch, st_all, batch.get('cens', torch.zeros(B, dtype=torch.long, device=device)).long(),
+                                                   set(self.hparams.get('ci_weight_subsets') or ['double']),
+                                                   float(self.hparams.get('ci_weight_tau', 0.02)), float(self.hparams.get('ci_weight_ref')),
+                                                   float(self.hparams.get('ci_weight_logmean') or 0.0))
+            losses = self.hparams.get('ci_weight_losses', 'both')
+            if losses in ('reg', 'both'):
+                w_all = w_all * ci_w_all
+            if losses in ('rank', 'both'):
+                # The ranking loss takes a SECOND normalisation of the same weights, geometric mean 1: its term weight is exp(offset).
+                # A Plackett-Luce list is balanced (uninformative labels exert no net force) only when every item's term weight is
+                # the same multiple of exp(its score offset), and the lists mix weighted doubles with singles at weight 1 and
+                # offset 0. The price is a rank term that is e^(-mean log w) = 1.29x larger on weighted items at the default
+                # tau (logged at start-up); losses.py and docs/ci_weighting.md section 3 give the reasoning.
+                ci_rank_all = torch.exp(ci_off_all)
 
         # --link: regression on the observed scale, observed ddG = h(dG_wt + latent) - dG_wt, with the knee at the
         # item's own library floor. An item whose library has no measured dG_wt (the external benchmarks, which this
@@ -612,7 +660,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
             if self.hparams.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
                 L_rank, val, n_list = self._compute_rank_loss(wt_pred_raw, wt_targets, valid_wt_mask, cens_wt_rank,
-                                                              list_size, self.crit_rank_wt)
+                                                              list_size, self.crit_rank_wt,
+                                                              None if ci_rank_all is None else ci_rank_all[idx],
+                                                              None if ci_rank_all is None else ci_off_all[idx])
                 if L_rank is not None:
                     wt_losses.append(self.hparams.lambda_rank_wt * L_rank * (n_list / global_num_lists))
                     sums['rank_wt'] += val * n_list; cnts['rank_wt'] += n_list
@@ -726,7 +776,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
                 if self.hparams.lambda_rank_mt > 0 and self.crit_rank_mt is not None:
                     L_rank, val, n_list = self._compute_rank_loss(combined_pred_raw, ddG_mb, reg_mask, cens_mb,
-                                                                  list_size, self.crit_rank_mt)
+                                                                  list_size, self.crit_rank_mt,
+                                                                  None if ci_rank_all is None else ci_rank_all[idx],
+                                                                  None if ci_rank_all is None else ci_off_all[idx])
                     if L_rank is not None:
                         mt_losses.append(self.hparams.lambda_rank_mt * L_rank * (n_list / global_num_lists))
                         sums['rank_combined'] += val * n_list; cnts['rank_combined'] += n_list
@@ -741,6 +793,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined'):
             if cnts[k] > 0: logs[f'L_{k}'] = sums[k] / max(1, cnts[k])
         self._cens_diag = (n_cens_lo, n_cens_hi, n_tf_drop)
+        if ci_w_all is not None:
+            # drift check on the normaliser: the mean weight of the weighted items in THIS batch (1.0 on average)
+            applied = ci_w_all != 1.0
+            if bool(applied.any()):
+                logs['ci_w_mean'] = float(ci_w_all[applied].mean().item())
         return logs
     
     def _log_lrs(self):

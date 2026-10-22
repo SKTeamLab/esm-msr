@@ -99,7 +99,7 @@ def threshold_for(item: Dict[str, Any], single: Optional[float], multi: Optional
 
 def apply_item_censoring(data: Iterable[Dict[str, Any]], censor_floor: bool = True,
                          gap_max: Optional[float] = 2.0, threshold: Optional[float] = None,
-                         threshold_multi: Optional[float] = None) -> Tuple[list, Dict[str, int]]:
+                         threshold_multi: Optional[float] = None, censor_multi: bool = True) -> Tuple[list, Dict[str, int]]:
     """
     Finalise the censoring fields of one library's items and return ``(items, counts)``.
 
@@ -108,6 +108,11 @@ def apply_item_censoring(data: Iterable[Dict[str, Any]], censor_floor: bool = Tr
     disagree by more than that (``protease_gap``) becomes lower-censored against its own reported value. The floor source is checked first
     because its bound is the more robust of the two - the library's central pinning value rather than one unreliable reading. An item that
     already carries ``SRC_RANGE`` from preprocessing is left as it is.
+
+    With ``censor_multi`` False (``--no-censor_doubles``) neither the floor/threshold rule nor the gap rule touches a double or a
+    cond item: it keeps its measured value as an ordinary label (to be weighted by its confidence interval instead,
+    ``esm_msr.ci_weights``). Singles are censored as before, and a double the assay only BOUNDED (``SRC_RANGE``) stays a bound,
+    because it has no value to keep.
 
     With ``threshold`` / ``threshold_multi`` (``--censor_threshold`` / ``--censor_threshold_double``) the floor rule uses that
     value instead of ``y_floor``: an item measured at or below it is lower-censored, bounded by it, in every library whether or
@@ -130,6 +135,12 @@ def apply_item_censoring(data: Iterable[Dict[str, Any]], censor_floor: bool = Tr
         if cens != 0 and int(item.get('cens_src', 0)) == SRC_RANGE:
             counts['range'] += 1
             counts['range_by_subset'][subset] += 1
+        if cens == 0 and not censor_multi and subset in MULTI_SUBSETS:
+            # a measured multi-mutant stays an ordinary label whatever its reading or its protease gap says
+            item.setdefault('cens', 0)
+            item.setdefault('cens_src', 0)
+            item['cens_bound'] = float('nan')
+            continue
         if cens == 0 and censor_floor:
             dG = item.get('dG_meas', float('nan'))
             thr = threshold_for(item, threshold, threshold_multi)

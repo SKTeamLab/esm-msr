@@ -330,3 +330,7 @@ on `wt_r4a8` and on every frozen-WT / tf-mix arm.
    alternative to adding ceiling parameters: the top of the assay shows rising noise and censoring (`>5` tags), not
    compression (no pile-up below 5; trypsin and chymotrypsin do not bend apart below 5; the WT head's top-end
    residual is mostly the selection that drops `>5` rows). Analysis in the 2026-10-20 review session.
+   *Update 2026-10-22: implemented as `--ci_weight` (+ `--no-censor_doubles`), see `docs/ci_weighting.md`. The interval turned
+   out to be ten times narrower than the protease disagreement and nearly blind to the floor, so it is a precision weight and
+   not a softer censoring; the ranking form needed an offset as well as a term weight. First test queued:
+   `mt_frozenwt_r2a4_ciw_s1`.*

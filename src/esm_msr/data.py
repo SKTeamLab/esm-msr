@@ -262,6 +262,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         floor_source: Optional[str] = None,
         censor_threshold: Optional[float] = None,
         censor_threshold_double: Optional[float] = None,
+        censor_doubles: bool = True,
     ):
         """
         Args:
@@ -294,6 +295,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             censor_range: Keep the rows the assay bounded rather than fitted (``<-1`` / ``>5``), which the cache
                 always stores. False drops them, restoring the selected-on-outcome population; see
                 ``esm_msr.censoring``.
+            censor_doubles: False leaves every measured double (and cond item) uncensored - no floor, threshold or gap rule
+                reaches it (``--no-censor_doubles``). Rows the assay only bounded stay bounds. Pairs with ``--ci_weight``.
             label_native_cond: Label a mutant-background library's measurements ``native_cond`` instead of leaving
                 them ``single``. Off (the released behaviour), they train the WT head as ordinary singles, which is
                 strictly wrong - ddG(X | background) is a conditional effect, not a wild-type-context one - but is the
@@ -363,6 +366,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         self.assay_floor = assay_floor
         self.floor_source = floor_source
         self.censor_threshold, self.censor_threshold_double = censor_threshold, censor_threshold_double
+        self.censor_doubles = bool(censor_doubles)
         self._stamp_floor()
         self._apply_censoring(censor_floor, gap_max)
         self._extract_scalars()
@@ -482,7 +486,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         thresholded = t1 is not None or t2 is not None
         # A threshold reaches every library: it is a statement about the assay's readings, not about this library's floor.
         active = bool(censor_floor and (thresholded or getattr(self, 'has_floor_evidence', False)))
-        self.data, c = censoring.apply_item_censoring(self.data, active, gap_max, threshold=t1, threshold_multi=t2)
+        self.data, c = censoring.apply_item_censoring(self.data, active, gap_max, threshold=t1, threshold_multi=t2,
+                                                      censor_multi=getattr(self, 'censor_doubles', True))
         if c['floor'] or c['gap'] or c['range']:
             logging.info(f"[{self.dms_name}] censored {c['floor'] + c['gap'] + c['range']} of {len(self.data)} items: "
                          f"{c['range']} bounded by the assay {dict(c['range_by_subset'])}, "

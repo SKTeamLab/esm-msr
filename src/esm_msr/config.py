@@ -233,6 +233,28 @@ def parse_arguments() -> argparse.Namespace:
     rank_group = parser.add_argument_group("ListMLE Objective Configuration")
     rank_group.add_argument('--subset_size', type=int, default=16)
 
+    ci_group = parser.add_argument_group("Per-item confidence weighting (esm_msr.ci_weights, docs/ci_weighting.md)")
+    ci_group.add_argument('--ci_weight', action=argparse.BooleanOptionalAction, default=False,
+                          help="Weight each uncensored training item by the precision of its own label, read from the assay's 95%% "
+                               "confidence interval (deltaG_95CI): w = [1/(sigma^2 + tau^2)] / its training-population mean, "
+                               "sigma = CI/3.92. Normalised to mean 1, so the loss keeps its scale. Off: every loss is byte-for-byte "
+                               "what it was.")
+    ci_group.add_argument('--ci_weight_subsets', nargs='+', default=['double'],
+                          choices=['single', 'double', 'cond', 'native_cond'],
+                          help="Which subsets are weighted; the rest keep weight 1. Default: doubles only.")
+    ci_group.add_argument('--ci_weight_tau', type=float, default=0.02,
+                          help="kcal/mol of variance-that-is-not-the-label's added to every item (the model's own misfit). 0 is pure "
+                               "inverse variance (a 30x spread between the 5th and 95th percentile, one item up to 29x the mean); "
+                               "0.4, the model's real residual SD, makes the weights flat. The default keeps a ~14x spread and no "
+                               "item above ~4x.")
+    ci_group.add_argument('--ci_weight_losses', choices=['reg', 'rank', 'both'], default='both',
+                          help="Which losses take the weights. reg: the regression is weighted exactly (inverse variance). rank: every "
+                               "ListMLE score is offset by log w and every choice term scaled by w - an approximation, and both "
+                               "halves are needed (docs/ci_weighting.md section 3). Splitting them isolates which one a result "
+                               "comes from.")
+    ci_group.add_argument('--ci_weight_ref', type=float, default=None, help=argparse.SUPPRESS)   # set from the data in setup_dataloaders
+    ci_group.add_argument('--ci_weight_logmean', type=float, default=None, help=argparse.SUPPRESS)   # likewise
+
     mask_group = parser.add_argument_group("Masking Strategy")
     mask_group.add_argument('--mask_strategy', type=str, choices=["marginal", "independent"], default=None)
 
@@ -409,6 +431,12 @@ def parse_arguments() -> argparse.Namespace:
                                   "outcome: fit failure rises from 0.7%% of shallow doubles to 24%% of those below "
                                   "-5 kcal/mol, so the survivors at depth are those that came out better than their "
                                   "additive expectation.")
+    floor_group.add_argument('--censor_doubles', action=argparse.BooleanOptionalAction, default=True,
+                             help="--no-censor_doubles: no floor, threshold or gap rule reaches a measured double (or cond item); it "
+                                  "keeps its value as an ordinary label. Singles are censored as before, and a double the assay only "
+                                  "BOUNDED ('<-1' / '>5', --censor_range) stays a bound, because it has no value to keep. Pairs with "
+                                  "--ci_weight, which then decides how much each double counts. Teacher forcing is unchanged: a "
+                                  "double whose single sits at/below --censor_threshold still takes the WT pass.")
     floor_group.add_argument('--censor_gap_max', type=float, default=2.0,
                              help="|deltaG_t - deltaG_c| above which the two fits are taken not to identify a "
                                   "stability (kcal/mol). In-range variants sit near 0.31; the flagged population "
@@ -532,6 +560,17 @@ def parse_arguments() -> argparse.Namespace:
                      "a sum over mutated positions, so a scalar bias makes a double's prediction sit one bias BELOW "
                      "the sum of its two singles (measured 0.1065 kcal/mol on devel-revision), and the teacher-forced "
                      "additive half then disagrees with the shared latent scale. Pass --per_mutation_bias.")
+    if args.ci_weight:
+        if args.ci_weight_tau < 0:
+            parser.error("--ci_weight_tau must be >= 0 (kcal/mol)")
+        if args.ci_weight_ref is not None and args.ci_weight_ref <= 0:
+            parser.error("--ci_weight_ref must be > 0")
+        args.ci_weight_subsets = sorted(set(args.ci_weight_subsets))
+        if not args.censor_doubles:
+            logging.info("--no-censor_doubles: measured doubles keep their values; censoring still applies to singles"
+                         + (f" (threshold {args.censor_threshold})" if args.censor_threshold is not None else ""))
+    elif not args.censor_doubles:
+        logging.warning("--no-censor_doubles without --ci_weight: every measured double counts fully, at any dG and protease gap")
     if not 0.0 <= args.tf_mix <= 1.0:
         parser.error(f"--tf_mix must be in [0, 1] (0 = never teacher-force, 1 = always use the measured additive "
                      f"label where one is usable); got {args.tf_mix}")

@@ -10,10 +10,12 @@ import pandas as pd
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
+from esm_msr import ci_weights
 from esm_msr.censoring import SRC_NONE, SRC_RANGE, range_tag
 from esm_msr.data import (
     MEAS_COLUMNS,
     MutationStabilityDataset,
+    meas_value,
     library_floor,
     shrink_floors,
     collate_fn_twopass,
@@ -546,6 +548,7 @@ class MegaScaleDatasetPreprocessor:
         floor_source: Optional[str] = None,
         censor_threshold: Optional[float] = None,
         censor_threshold_double: Optional[float] = None,
+        censor_doubles: bool = True,
     ) -> Tuple[List[DataLoader], List[str]]:
         """Generates a list of dataloaders for a specific list of protein codes."""
         loaders = []
@@ -587,6 +590,7 @@ class MegaScaleDatasetPreprocessor:
                     floor_source=floor_source,
                     censor_threshold=censor_threshold,
                     censor_threshold_double=censor_threshold_double,
+                    censor_doubles=censor_doubles,
                 )
                 if len(dataset) == 0:
                         logging.warning(f"{scaffold.capitalize()} dataset for '{code}' is empty. Skipping.")
@@ -602,6 +606,31 @@ class MegaScaleDatasetPreprocessor:
 
         _log_floor_summary(scaffold, floors)
         return loaders, loader_names
+
+
+def _set_ci_weight_reference(args: argparse.Namespace, train_dataloaders: List[DataLoader]) -> None:
+    """
+    Fix the normaliser of the ``--ci_weight`` weights from the TRAINING items of the weighted subsets, so the weights average 1
+    over them (``esm_msr.ci_weights``). Stored on ``args`` like ``dataset_floor``, so it reaches the module through hparams and is
+    recorded with the run. An explicit ``--ci_weight_ref`` wins.
+
+    Only UNCENSORED items count, here and in the loss: a censored item's label is a bound, not a value with an interval to
+    weight by. A range-bounded double does carry a ``deltaG_95CI`` (the unbounded fit the assay declined to report, median 0.65
+    against 0.15 for fitted rows), which would make it look like a poorly measured value rather than a bound.
+    """
+    subsets = set(args.ci_weight_subsets)
+    widths = np.array([meas_value(it, ci_weights.CI_COLUMN) for ld in train_dataloaders for it in ld.dataset.data
+                       if it.get('subset_type') in subsets and int(it.get('cens', 0)) == 0], dtype=np.float64)
+    if getattr(args, 'ci_weight_ref', None) is None:
+        args.ci_weight_ref = ci_weights.reference_weight(widths, args.ci_weight_tau)
+    args.ci_weight_logmean = ci_weights.reference_log_weight(widths, args.ci_weight_tau, args.ci_weight_ref)
+    s = ci_weights.summarise(widths, args.ci_weight_tau, args.ci_weight_ref)
+    logging.info(f"--ci_weight on {sorted(subsets)} (tau {args.ci_weight_tau}, losses {args.ci_weight_losses}): reference "
+                 f"{args.ci_weight_ref:.2f} (mean log w {args.ci_weight_logmean:+.3f}) from {int(s.get('n', 0))} items; weights p05/p50/p95 = {s.get('p05', float('nan')):.2f}/"
+                 f"{s.get('p50', float('nan')):.2f}/{s.get('p95', float('nan')):.2f}, max {s.get('max', float('nan')):.2f}, "
+                 f"effective sample {100 * s.get('ess_frac', float('nan')):.0f}% of the items; "
+                 f"{int(np.isnan(widths).sum())} uncensored items without an interval keep weight 1; the ranking terms of weighted items "
+                 f"scale by {np.exp(-args.ci_weight_logmean):.2f}x on average (geometric-mean-1 normalisation)")
 
 
 def _log_floor_summary(scaffold: str, floors: List[Tuple[str, float, float, float]]) -> None:
@@ -712,10 +741,14 @@ def setup_dataloaders(args: argparse.Namespace, tokenizer: Any, structure_encode
         floor_source=getattr(args, 'floor_source', None),
         censor_threshold=getattr(args, 'censor_threshold', None),
         censor_threshold_double=getattr(args, 'censor_threshold_double', None),
+        censor_doubles=getattr(args, 'censor_doubles', True),
     )
 
     if not train_dataloaders: 
         raise RuntimeError("No valid training dataloaders created.")
+
+    if getattr(args, 'ci_weight', False):
+        _set_ci_weight_reference(args, train_dataloaders)
 
     # Build Validation Loaders
     val_dataloaders, val_loader_names = preprocessor.create_protein_dataloaders(
