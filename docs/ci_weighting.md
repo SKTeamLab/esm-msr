@@ -127,13 +127,24 @@ seed is screening only (`STATE.md` §5: a single-seed difference needs ≈ 0.02 
   1.065 at the right τ (1.34 at the aggressive τ = 0.25): optimal weights could remove at most 6% (25%) of the variance, equivalent to 6% (34%)
   more data, and the realistic fraction of that is smaller. The hard gap rule touches 0.2% / 1.8% of singles / doubles. A paired single-seed
   run cannot see an effect of that size (the noise floor is ≈ 0.02 on `cell_rank_mt`).
-* **Where gains over censoring can come from is inclusion, as you expected, but the data point to the threshold, not the weights.**
-  `dthr0` already shows it: moving the doubles' bound from 0.5 to 0 admits the (0, 0.5] doubles, whose label variance is modest, as values. The
-  principled continuation is not a weight but a **soft censoring**: replace the hard threshold by the posterior probability that the true value is
-  below the floor given the reading and its uncertainty, `p = Φ((c − r)/σ)` with `σ² = τ_r² + L`, and train on `p·hinge + (1−p)·value`. Its width
-  is the label uncertainty built here; it is a Tobit-style likelihood, so it avoids the selection bias that a weight on the reading would have. It
-  is not implemented. The cheaper second shot is the one lever the weights make safe: lower the **singles'** threshold from 0.5 toward 0, as was
-  done for doubles (this also changes the teacher-forcing cut that the frozen WT head was trained under, so it is a separate arm).
+* **I expected soft censoring of the boundary band to be the better lever, tested the premise offline, and it does not hold up.** The idea was that
+  the hard threshold lumps two populations in the (0, 0.5] reading band: 4,437 training doubles (8.4% of all doubles) that read slightly "alive" while
+  their additive expectation says dead, and 5,026 that are plausible low values, so a per-item rule (or a Tobit-style posterior) should beat one global
+  cut. `analysis_scripts/censoring_band_check.py` reproduces three checks:
+  1. **The `dthr0` gain is not established.** Paired at seed 1 and matched epoch 3 (`mt_frozenwt_r16a16_s1` against `mt_frozenwt_dthr0_r16a16_s1`):
+     `cell_rank_mt` +0.008 (about one SD; −0.004, +0.001, +0.015 at epochs 0-2), `rho_combined` −0.0006, `rmse_combined` +0.0016, `cell_flipacc` +0.043
+     (about 1.5 SD). I had read a larger gain off a cross-seed comparison; it was wrong to say `dthr0` "already shows it".
+  2. **Where the two models differ, there is no rank signal.** On the 8,494 validation doubles, 55% of the total squared-error change is in the
+     expected-dead band (mse 2.29 → 1.99) and 48% in the (0.5, 1.5] reading band, but the within-library Spearman of prediction against label in the
+     (0, 0.5] and ≤ 0 groups is ≈ 0 for both models (−0.010 → −0.006, 0.082 → 0.071, −0.060 → −0.042) and unchanged. The model that treats the band as
+     values fits its piled-up readings better; it does not rank anything better.
+  3. **The boundary decision is insensitive elsewhere too.** The WT-only sweep of the singles' threshold (0.3 / 0.5 / 0.6, seed 2) gives best
+     `val_rho_wt_valid_avg` 0.8460 / 0.8459 / 0.8466.
+  The protease agreement that does exist near the floor is mostly dead-versus-alive separation (rank agreement of the two proteases' readings,
+  grouped by the exogenous expectation x: 0.18 for x < −3, 0.56 for x in (−2, −1], 0.86 above 1), which is what bounds and ties already extract.
+  So a soft or per-item rule would reclassify mainly the 4.4k expected-dead doubles, which carry no rank signal; I do **not** expect it to move the
+  epistasis metrics and have not queued it. It stays a hypothesis for a different kind of evidence (for example a triplicate showing `dthr0` itself
+  helps, followed by a reg-only versus rank-only split of the threshold). The singles' threshold has the same property.
 * **My expectation for the queued arm is a null result within the seed noise**, with the deep-double share of the loss moving from 9.3% to 5.7%.
   A null is still informative: it says the label noise outside the floor is not what limits the epistasis metrics.
 
