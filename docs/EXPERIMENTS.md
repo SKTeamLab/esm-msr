@@ -339,7 +339,7 @@ on `wt_r4a8` and on every frozen-WT / tf-mix arm.
 
 `docs/trim_audit.md` audited every flag against 131 completed runs' `hparams.yaml`, the launchers and the code (98 of 147 behavioural flags never
 took a second value; ~460 lines of `utils.py` were unreachable), the plan was approved whole, and it was implemented on
-`claude/trim-training-2026-10-22` with loss parity (bit-identical, 8 recipes) and data parity (identical libraries, items, censoring and all 411
+`claude/trim-training-2026-10-22` with loss parity (bit-identical, 11 recipes) and data parity (identical libraries, items, censoring and all 411
 sampler batches on a subset) against the pre-trim code. The label-uncertainty weighting (`--ci_weight`, §7 item 7) was removed with it: its one
 arm, `mt_frozenwt_ciw_r16a16_s1`, runs from its own pin and is the feature's only test.
 

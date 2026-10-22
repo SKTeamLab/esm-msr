@@ -243,10 +243,47 @@ deleted, new ones for the config table, the cache and manifest, per-pass masking
 **Checked.**
 
 * *Loss parity.* The real `_compose_losses_streaming_and_backward` on a stub backbone, driven by the canonical recipes' own (old) command lines
-  through the new parser: frozen-WT MT, joint, WT-only, `tf_mix` 0.5 and 0, threshold 0, `lambda_rank_mt` 0.25, native-cond-for-MT. Losses, every
-  micro-batch backward value and every gradient are **bit-identical** to the pre-trim code (8 of 8).
+  through the new parser: frozen-WT MT, joint, WT-only, `tf_mix` 0.5 and 0, threshold 0, `lambda_rank_mt` 0.25, native-cond-for-MT, plus (second pass) `lambda_rank_mt` 0, `lambda_reg_mt` 10 and `--reg_loss huber`. Losses, every
+  micro-batch backward value and every gradient are **bit-identical** to the pre-trim code (11 of 11: those plus `lambda_rank_mt` 0, `lambda_reg_mt` 10 and `--reg_loss huber`).
 * *Data parity.* The old raw-table + c5 setup and the new manifest + c6 setup, on a 12-train / 3-val subset with the gap rule off: same libraries
   in the same order, same items, same censoring, bounds and floors, and all **411 sampler batch index lists identical** at seed 1. So a trimmed run
   and an old run at the same seed see the same batches; the one difference is the gap rule, which the old runs applied and the new code does not.
 * *Config.* Every retired flag with its old value parses and is dropped; the behaviour-changing values error.
 * *End to end on CPU* (`analysis_scripts/smoke_cpu.py`): see §10.
+* *Launchers.* All 11 queued launchers were dry-run through the pin's parser: each differs from `trim_ctrl_s1` in exactly the one setting it is meant to vary, and
+  `trim_ctrl_s1`'s parsed settings equal the standing `mt_frozenwt_run.sh` recipe's on every shared key (the Comet project name is the only difference).
+
+## 10. The queue, and the end-to-end CPU smoke
+
+Fresh Comet project: **`esm-msr-trim-oct22`** (private, workspace `sareeves96`, created through the API; the key is read from `~/.comet.config` and is on no
+command line). Locked pin: `dc_runs/pin_trim_f5a00b8`; runner `dc_runs/trim_run.sh RECIPE SEED NAME [flags]`; recipes `configs/`. Appended to
+`queue_wt_r2a4_f0.txt` behind `mt_frozenwt_ciw_r16a16_s1`, which finishes on its own old-code pin (the runner pid was not touched). Seed 1, frozen WT = best epoch of
+`wt_r2a4_f0_cthr05_s1`, one variable each against `trim_ctrl_s1`:
+
+| order | arm | variable | audit item |
+|---|---|---|---|
+| 1 | `trim_ctrl_s1` | none: the standing recipe on the trimmed code (no gap rule), the matched control and the check that the trim did not move the recipe | |
+| 2 | `trim_ncmt_s1` | `--native_cond_for_mt` | top-5 #1 |
+| 3 | `trim_joint_dual_s1` | joint training, dual adapters (the control for #4) | #2 |
+| 4 | `trim_joint_fused_s1` | `--adapter_mode fused`: one shared adapter | #2 |
+| 5 | `trim_mask_mt_ind_s1` | `--mask_strategy_mt independent` (micro-batch 32: the two graphs of a double do not fit at 64) | #3 |
+| 6 | `trim_huber_s1` | `--huber_delta 1.0` | #5 |
+| 7-10 | `trim_rank0_s1`, `trim_rank025_s1`, `trim_list64_s1`, `trim_reg10_s1` | `--lambda_rank_mt` 0 / 0.25, `--rank_list_size 64`, `--lambda_reg_mt` 10 | #4 |
+| 11 | `trim_tfmix0_s1` | `--tf_mix 0.0` | §2.5 |
+
+Expected: the control within seed noise of `mt_frozenwt_r16a16_s1/s2` and `mt_frozenwt_dthr0_r16a16_s1` (cell_rank_mt 0.18-0.19). A single-seed lead needs about +0.02 on
+`cell_rank_mt` or +0.05 on `flipacc`, and a second seed for both arms, before it is worth a sentence. The 11 arms are roughly 40 GPU-hours.
+
+**Caveats the arms carry.** (a) *Fused:* the shared adapter's parameters sit in the `lora_wt` group, so the WT plateau (on `rho_wt_valid`) decays it, the MT plateau
+has no group to act on, and after three decays the handover leaves it training at 2.7% of its rate until the epoch cap: a schedule difference from the dual arm, not a
+pure architecture change. (b) *Independent masking:* it runs one MT forward per mutated position over the whole micro-batch and keeps both graphs, so it is ~2x the
+cost and memory of a double; the frozen WT pass stays unmasked, as it was trained (the full dc21 pairing needs a WT head trained under marginal masking).
+(c) Single seed: screening only.
+
+**End-to-end CPU smoke** (`analysis_scripts/smoke_cpu.py`: the real `training.main()` on truncated real libraries from the c6 cache, fp32 because CPU bf16 autocast breaks
+inside ESM3's geometric attention; one epoch, a real validation before and after): `dual_joint`, `frozen_wt`, `fused`, `native_cond_for_mt`, `mask_mt_independent`, `huber`
+and `comet_offline` all complete with two validations and a checkpoint. What it showed: the fused adapter trains (292 nonzero LoRA-B tensors, one calibration head);
+with a frozen WT the WT metric is unchanged to the digit and the WT calibration/link are the loaded ones; the zero-shot `rho_combined` of the fused and dual models
+is identical, as it must be (LoRA B starts at zero). It found two real defects, both fixed before the pin: the fused model skipped the bf16 cast of the frozen base
+(about 2.8 GB more on the card than the dual model), and `--comet_offline` died because comet_ml does not create its offline directory (a latent bug of the old code).
+It cannot say whether any recipe is any good.
