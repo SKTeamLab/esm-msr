@@ -2,16 +2,17 @@
 
 What still has to run, or cannot run yet, for the all-by-all comparison in
 [`BENCHMARKS_OCT2026.md`](BENCHMARKS_OCT2026.md) §2. Each entry says what it fills, why it is not done, and what
-unblocks it. Last updated 2026-10-21. Where things ran: [`GPU4_INFERENCE_LEDGER.md`](GPU4_INFERENCE_LEDGER.md).
+unblocks it. Last updated 2026-10-22. Where things ran: [`GPU4_INFERENCE_LEDGER.md`](GPU4_INFERENCE_LEDGER.md).
 Cluster paths are on `sreeves@subhak-gpu.uwaterloo.ca`.
 
 ## 1. Queued — no decision needed
 
 | what | fills (the `q` cells) | jobs (gpu4) |
 |---|---|---|
-| ESM3ΔG, IFUM (WT backbone), ESMtherm, GeoDDG-3D (FASPR), ProSST on the capped Tsuboyama val/test and all 217 ProteinGym DMS | §2.2 capped columns, §2.4 | 386274, 386275 → 386276, 386277 → 386278 |
-| ESM3-small-open zero-shot (ESM-MSR capped at ε = 0) on the 22-set gamut | §2.1–2.3 | 386282 |
-| SPURS and ProteinMPNN on the 22-set gamut | §2.1–2.3 | 386280, 386281 (after 386282) |
+| ESM3ΔG, IFUM, ESMtherm, GeoDDG, ProSST on the **capped Tsuboyama** val/test | §2.2 capped columns | **done** for ESM3ΔG, IFUM, GeoDDG; ESMtherm 386276 and ProSST 386278 still queued behind 386275 / 386277 |
+| the same five models on **ProteinGym** | §2.4 | in progress: ESM3ΔG 386364 (fp16, restarted), GeoDDG 46/213 in 386277, IFUM 8/213 in 386275; ESMtherm and ProSST not started |
+| ESM3-small-open zero-shot (ESM-MSR capped at ε = 0) on the 22-set gamut | §2.1–2.3 | **done** (386282) |
+| SPURS and ProteinMPNN on the 22-set gamut | §2.1–2.3 | **done** (386280, 386281) |
 
 **When they finish** (run on the cluster; CPU, about a minute):
 
@@ -27,11 +28,11 @@ can be resubmitted as is.
 
 ## 2. In flight
 
-| what | state (2026-10-21 12:30) | next |
+| what | state (2026-10-22) | next |
 |---|---|---|
-| dc8 ProteinGym ε = 0.5 (s3) and ε = 0.25 (s1–s3): 384287/89/91/93 on gpu4, then their `_rest` tails 384288/90/92/94 on gpu3 | 177/213 each; on SPG1 (537k variants) | when all are at 213: add the dc8 ε rows to §4, and write a combined dc8 per-DMS CSV into `outputs/pgym/` (the cross-model `pgym_all_models_per_dms.csv` has no dc8 columns) |
-| MT-pass ablation (`--mt_pass_adapter wt`, dc8 s1 ε = 1): 386255 on gpu3 | 24–26/213; about 6 days at RTX 6000 bf16 speed, so the 3-day limit stops it around halfway | **decision:** cancel and resubmit pinned to an A4500 (~33 h, after the queued jobs), or let it run and queue a follow-on job |
-| **DDGemb on the capped Tsuboyama split** (web server, started 2026-10-21 on the login node: `DDGEMB_STATE=ddgemb_state_capped python ddgemb_client.py run`, log `closed_servers/ddgemb_capped_run.log`) | 63,924 new requests in 32 jobs of ≤ 2,000 (requests answered by earlier streams are not re-sent); one job at a time, ~14 min each, so ~7–8 h | then `python ddgemb_client.py assemble --datasets splits_oct06_capped-val,splits_oct06_capped-test` writes `results/ddgemb/predictions/splits_oct06_capped-*.csv`, which `benchmark_matrix.py collect` scores |
+| ~~dc8 ProteinGym ε sweep~~ | **complete 2026-10-22**: 3 seeds × 4 ε, all 217 DMS. §4 now carries the paired table; ε = 0.75 is the only setting that beats capped | still to do: write a combined dc8 per-DMS CSV into `outputs/pgym/` (the cross-model `pgym_all_models_per_dms.csv` has no dc8 columns) |
+| **ESM3ΔG ProteinGym**, restarted 2026-10-22 as 386364 (`--dtype fp16`, the 213 comparable DMS cheapest-first) after 386274 was cancelled at 13/217 | fp16 is 2.4–3.3× faster with ρ unchanged, and the 4 over-length DMS are no longer run: ~287 h → ~100 h, with the Stability category inside the first ~2 h and 90 % of DMS in ~1 day (`GPU4_INFERENCE_LEDGER.md` §3) | nothing; the earlier fp32 DMS are kept (they agree to ≤ 5e-4) |
+| ~~MT-pass ablation (`--mt_pass_adapter wt`, dc8 s1 ε = 1), 386255~~ | **cancelled** 2026-10-21 after 15:46 h at ~26/213 DMS; the partial output is in `outputs/pgym/esm-msr-dc8-floorlink-canon-w2a4-m16a16-s1/sigma1.0_mtpass_wt/` | resubmit on an A4500 (~33 h) if the ablation is still wanted |
 | DDMut on the hyperopt Tsuboyama doubles (server stream, session `796d0b37`) | 6,861 + 8,321 of ~20,151 | let it finish; DDMut's Tsuboyama cells stay partial (`*`) until then |
 
 ## 3. Blocked
@@ -46,6 +47,7 @@ can be resubmitted as is.
 | IFUM in ESMFold-per-variant mode on capped Tsuboyama and ProteinGym | the IFUM-native row | ESMFold folding is ~3.9 s per variant sequence: ~95 GPU-h for capped, ~2,600 GPU-h for ProteinGym | not planned; the WT-backbone mode is the reported IFUM |
 | GeoDDG with FoldX structures beyond the 12 external sets | — | FoldX BuildModel is CPU-bound (~150–250 CPU-h for the externals); FASPR is the stand-in and gives GeoDDG predictions within 3.5e-4 kcal/mol of FoldX on the externals and ρ = 0.998 with the authors' S669 predictions | not needed |
 | ESM3 small / medium / large via the Forge API | ESM3 Forge rows (small has no external or DMS numbers; medium and large are missing S461, K2369, PTMUL-D) | paid, rate-limited API; the March runs were never completed | a Forge key and budget. ESM3-small-open (ε = 0, queued) covers the open model locally |
+| **SPURS (and the other Megascale-trained models) on a homolog-filtered Tsuboyama split** | makes the §2.2 capped column interpretable, where SPURS currently leads at 0.874 | SPURS trains on Megascale, so the capped split is not held out for it. `esm_msr_testing.py --remove_spurs_homologs` exists for exactly this, but the harness adapters do not apply it, so the baselines are scored on the unfiltered split | run the capped tables through that filter and rescore every ‡ model on the surviving libraries. Until then the SPURS, ESM3ΔG, IFUM and ESMtherm Tsuboyama numbers are upper bounds, not comparisons |
 | SPURS and ProteinMPNN on mutant-background Tsuboyama libraries | 5 of 25 val and 7 of 37 test libraries (all singles) | both models read the sequence from the wild-type PDB, which has the wild-type residue at the background position; the adapters return NaN rather than score the wrong sequence | an adapter that substitutes the background residue in the parsed structure; minor, since these rows are all singles |
 
 ## 4. Analysis to do once §1 lands (CPU)
@@ -59,9 +61,11 @@ can be resubmitted as is.
 
 ## 5. Housekeeping
 
-- The third-party harness (`~/stability-baselines/harness`) is not under version control. Three files were added on
-  2026-10-21: `adapters/spurs.py`, `adapters/proteinmpnn.py`, `build_pgym_tasks.py` (plus `lists/`). Both new adapters
-  reproduce the existing ProteinGym outputs exactly (max |Δ| = 0 on PIN1 and ZIKV).
+- The third-party harness (`~/stability-baselines/harness`) is not under version control. Added 2026-10-21:
+  `adapters/spurs.py`, `adapters/proteinmpnn.py`, `build_pgym_tasks.py`, `lists/`. Both new adapters reproduce the
+  existing ProteinGym outputs exactly (max |Δ| = 0 on PIN1 and ZIKV). Added 2026-10-22: `--dtype` on
+  `adapters/esm3dg.py` (previous version kept as `esm3dg.py.bak`), plus `bench_esm3dg.py` and
+  `verify_esm3dg_dtype.py`. **Worth copying into the repo** if the harness is ever to be reproducible from it.
 - `~/esm-msr-devel` is behind `origin/devel-revision`; pull it once no queued job reads it (the dc8 `_rest` tails and
   386282 do). Its staged `data/preprocessed/*_mapped.csv` changes only rewrite structure paths for the cluster: keep
   them out of any commit.

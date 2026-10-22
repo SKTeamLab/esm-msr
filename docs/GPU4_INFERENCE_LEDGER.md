@@ -73,7 +73,8 @@ ms/row, host, GPU, Slurm job).
 
 | job | model | datasets | runs after |
 |---|---|---|---|
-| 386274 `gpu4_esm3dg_cappg` | ESM3ΔG | capped Tsuboyama val/test + 217 ProteinGym DMS | — |
+| ~~386274~~ `gpu4_esm3dg_cappg` | ESM3ΔG | capped Tsuboyama val/test (done, fp32) + ProteinGym | **cancelled** 2026-10-22 after 14:53 h, 13 of 217 DMS; replaced by 386364 |
+| 386364 `gpu4_esm3dg_pg_fp16` | ESM3ΔG | the 213 comparable ProteinGym DMS, cheapest first, `--dtype fp16` | — |
 | 386275 `gpu4_ifum_cappg` | IFUM (WT backbone) | same | — |
 | 386276 `gpu4_esmtherm_cappg` | ESMtherm | same | 386275 |
 | 386277 `gpu4_geoddg_cappg` | GeoDDG-3D (FASPR) | same | — |
@@ -85,7 +86,45 @@ ms/row, host, GPU, Slurm job).
 They start when the four dc8 ProteinGym jobs (384287/89/91/93) release gpu4, expected late 2026-10-21. Another
 user's pending job can take a freed A4500 first (the scheduler is FIFO with backfill).
 
-## 3. Where per-dataset times are recorded
+## 3. ESM3ΔG inference precision (measured 2026-10-22, A4500)
+
+ESM3ΔG was the slowest model in the campaign: one full ESM3-small forward (1.4 B params) per variant per ensemble
+member, so cost is variants × length × 3, and the remaining ProteinGym work projected to **287 h**. What the
+profiling found, on the adapter's own `--dtype` switch (`logs/bench_esm3dg-386362.out`,
+`logs/verify_esm3dg-386363.out`; 3-member ensemble, the production config):
+
+| dtype | PIN1, L=39, 400 variants | HIV, L=852, 60 variants | max abs ddG change vs fp32 | ρ vs fp32 | ρ vs the DMS scores |
+|---|---|---|---|---|---|
+| fp32 (authors' default) | 1.00× | 1.00× | — | — | 0.8248 / 0.1081 |
+| tf32 | 2.27× | 1.63× | 0.0011 | 0.99999 | 0.8248 / 0.1064 |
+| bf16 | 3.33× | 2.37× | 0.031 | 0.9998 | 0.8248 / 0.1139 |
+| **fp16** | **3.26×** | **2.38×** | **0.0046** | **0.99999** | **0.8249 / 0.1066** |
+
+- **Batch size does not change throughput.** 3 → 28 rows per forward measured the same (211.7 vs 215.9 ms/variant at
+  L=852), so the model is compute-bound and `--max_tokens` is a memory knob only. It is left at 3000, which keeps
+  batch = 1 for the longest structure (L=2832).
+- **TF32 matmuls are off by default in torch 2.x**, which is where the easy 1.6–2.3× was hiding.
+- **fp16 is the choice, not bf16**: same speed, but 7× closer to fp32 on short proteins (0.0046 vs 0.031) and
+  ρ vs fp32 0.99999 against 0.9981 on the long one. bf16 trades mantissa bits for range, and the range was never
+  the problem — no non-finite prediction appeared in any setting.
+- The Spearman that is actually reported does not move: 0.8248 → 0.8249 on PIN1. On HIV the ρ is ~0.11 for every
+  dtype, and the ±0.006 spread there is resampling noise on a near-zero correlation over 60 variants, not a
+  precision effect (the predictions themselves agree to 2.6e-4).
+- **Precision mix in the ESM3ΔG row:** the external, DMS, Domainome and capped-Tsuboyama numbers, and the first 13
+  ProteinGym DMS, were produced in fp32; the rest of ProteinGym is fp16. Per-DMS ρ is unaffected at this level of
+  agreement, so the columns are comparable, but the mix is recorded here rather than left implicit.
+
+Two findings that mattered more than precision:
+
+- **12 h of the 287 was being spent on DMS excluded from every comparison** — BRCA1, BRCA2, POLG_CXB3N and SCN5A,
+  all > 1,800 residues (§2.4 of the benchmarks doc drops them because at least one model cannot fit them).
+- **The cost is extremely skewed.** Half the DMS account for 1.8 % of the total and 90 % for 26 %; the *Stability*
+  category — the relevant one for a stability model — is 6 h of the 287, while `SPG1_STRSG_Olson_2014`
+  (536,962 variants, L=448) alone is about 84 h. The run was alphabetical, so it was spending its first days on
+  large viral fitness assays and would have delivered the stability numbers last. The replacement job runs the 213
+  comparable DMS **cheapest-first** (`harness/lists/pgym_esm3dg_bycost.txt`).
+
+## 4. Where per-dataset times are recorded
 
 | source | granularity | covers |
 |---|---|---|
@@ -95,12 +134,13 @@ user's pending job can take a freed A4500 first (the scheduler is FIFO with back
 | `esm-msr-devel/analysis_notebooks/stats/<set>/<ckpt>/…_Combined.csv`, column `time` | per dataset (seconds) | ESM-MSR gamut runs |
 | Slurm (`slurm_jobs_oct2026.csv`) | per job | everything, including ME / ThermoMPNN, which log no per-dataset time |
 
-## 4. What a clean runtime comparison still needs
+## 5. What a clean runtime comparison still needs
 
 Production runs shared nodes and mixed GPU types, so their wall times are an upper bound, not a benchmark. For a
 like-for-like table, time each model **alone on one A4500** on a fixed subset (for example S669, the Tsuboyama
 capped test split, GB1, and ten ProteinGym DMS spanning lengths 50–1,000), excluding model loading and structure
 preparation, which are listed separately above (ESMFold folding for IFUM-native: 104 wall-hours; FoldX building
-for GeoDDG: 15.7 CPU-node-hours; AF2 for the external WT structures: 24.5 h). Not yet timed on gpu4 at all: ESM3ΔG, ProSST, SPURS, ProteinMPNN and ESM-MSR on the thermostability gamut. All
-five are queued there (§2); the ε = 0 ESM-MSR gamut does the same forward passes as ε = 1, so its times stand in
-for ESM-MSR's.
+for GeoDDG: 15.7 CPU-node-hours; AF2 for the external WT structures: 24.5 h). Not yet timed on gpu4 in a controlled way: ESM-MSR on the thermostability gamut (the ε = 0 gamut does the same
+forward passes as ε = 1, so its times stand in for it). ESM3ΔG, ProSST, SPURS and ProteinMPNN have now run there,
+but alongside other jobs on the same node, and ESM3ΔG's ProteinGym half is fp16 while its other datasets are fp32
+(§3) — so those wall times are not comparable with each other either.
