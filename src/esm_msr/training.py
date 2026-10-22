@@ -1296,7 +1296,9 @@ def main():
                 # experiment, and the run's curves end up split across two of them.
                 comet_kwargs.update(experiment_key=args.comet_experiment_key, mode='get_or_create')
             if args.comet_offline:
-                os.environ['COMET_OFFLINE_DIRECTORY'] = os.path.abspath(os.path.join(args.log_dir or '.', 'comet_offline'))
+                offline_dir = os.path.abspath(os.path.join(args.log_dir or '.', 'comet_offline'))
+                os.makedirs(offline_dir, exist_ok=True)           # comet_ml does not create it, and refuses to start without it
+                os.environ['COMET_OFFLINE_DIRECTORY'] = offline_dir
                 comet_logger = OfflineCometLogger(**comet_kwargs)
             else:
                 comet_logger = CometLogger(**comet_kwargs)
