@@ -7,6 +7,7 @@ Run on the cluster (it reads the result trees in place); pandas only, CPU, about
 
   python analysis_scripts/benchmark_matrix.py collect --out matrix_long.csv     # gather + score
   python analysis_scripts/benchmark_matrix.py tables matrix_long.csv           # markdown for the doc
+  python analysis_scripts/benchmark_matrix.py epi                              # the epistasis tables
   sacct -u sreeves -S 2026-10-01 -X -P -o JobID,JobName%40,NodeList,Start,End,Elapsed,State > sacct.txt
   python analysis_scripts/benchmark_matrix.py ledger sacct.txt --out slurm_jobs.csv                # gpu4 ledger
 
@@ -17,13 +18,16 @@ mean of the five category means (PG avg), the Stability category, and the plain 
 stable / fitter for every model.
 
 Sources:
-  ESM-MSR (capped, dc8, ε=0)      esm-msr-devel/analysis_notebooks/stats/<set>/<ckpt dir>/<ckpt>_epsilon<ε>_unmasked_<head>[_avg].csv
+  ESM-MSR (released, devel, ε sweep, ε=0)
+                                  esm-msr-devel/analysis_notebooks/stats/<set>/<ckpt dir>/<ckpt>_epsilon<ε>_unmasked_<head>[_avg].csv
   MutateEverything / ThermoMPNN   esm-msr-devel/outputs/baselines_capped/{combined_*,final_*}_table.csv (3-seed means)
   third-party (old runs)          stability-baselines/results/FINAL_TABLE.csv (Tsuboyama on hyperopt_splits)
   third-party (capped, ProteinGym), SPURS / ProteinMPNN gamut
                                   stability-baselines/results/<model>/predictions[_tag]/<dataset>.csv, scored here
-  ESM3 Forge zero-shot            esm-msr-devel/analysis_notebooks/stats/esm3_forge/zero_shot/ (pooled sets only)
-  ProteinGym                      esm-msr-devel/outputs/pgym/
+  ESM3 Forge zero-shot            esm-msr-devel/analysis_notebooks/predictions/<set>/esm3_forge/zero_shot/ (per variant;
+                                  S461, K2369 and PTMUL-D are scored from their parent sets' predictions)
+  ProteinGym                      esm-msr-devel/outputs/pgym/; ProSST from the authors' published scores
+                                  (analysis_scripts/pgym_public_scores.py)
 """
 import argparse
 import glob
@@ -44,6 +48,13 @@ PG_DROP = {'BRCA1_HUMAN_Findlay_2018', 'SCN5A_HUMAN_Glazer_2019', 'POLG_CXB3N_Ma
            'BRCA2_HUMAN_Erwood_2022_HEK293T'}
 CAPPED = {'splits_oct06_capped-val': 'tsu_capped_val', 'splits_oct06_capped-test': 'tsu_capped_test'}
 
+# The two ESM-MSR checkpoints compared throughout. "released": the released code retrained on the capped split
+# (LoRA_models/esm-msr-baseline-w2a4-m16a16-capped). "devel": the three-seed dc8-floorlink series from devel-revision.
+REL, DEVEL = 'ESM-MSR (released)', 'ESM-MSR (devel)'
+REL_CK = ['esm-msr-baseline-w2a4-m16a16-capped']
+DEVEL_CK = [f'esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{i}' for i in (1, 2, 3)]
+EPS_SWEEP = ['0.75', '0.5', '0.25']          # LoRA scales run on the DMS and Domainome blocks, besides 1 and 0
+
 
 class Rows(list):
     def add(self, model, ds, v, src, n_seeds=1, sd=np.nan):
@@ -62,38 +73,55 @@ def pg_categories():
     return pg.set_index('DMS_id')['category']
 
 
-def pg_summaries(rows, model, per_dms, src, n_seeds=1):
-    """per_dms: Series DMS_id -> rho. Adds PG avg / PG Stability / PG DMS mean when all 213 common DMS are present."""
+def pg_summaries(rows, model, per_dms, src, n_seeds=1, allow_partial=False):
+    """per_dms: Series DMS_id -> rho. Adds PG avg / PG Stability / PG DMS mean when all 213 common DMS are present.
+    allow_partial summarises over the DMS a model does cover (the count goes in `src`) -- used only for a model that
+    cannot score some DMS at all, never for one that is simply unfinished."""
     cat = pg_categories()
     keep = cat.index[~cat.index.isin(PG_DROP)]
     s = per_dms.reindex(keep)
     if s.notna().sum() < len(keep):
-        print(f'[pg] {model}: {s.notna().sum()}/{len(keep)} DMS, not summarised')
-        return
+        if not allow_partial:
+            print(f'[pg] {model}: {s.notna().sum()}/{len(keep)} DMS, not summarised')
+            return
+        src = f'{src}; {int(s.notna().sum())} of {len(keep)} DMS'
+        keep = s.dropna().index
+        s = s.reindex(keep)
     g = s.groupby(cat.reindex(keep)).mean()
     rows.add(model, 'PG avg', g.mean(), src, n_seeds)
     rows.add(model, 'PG Stability', g['Stability'], src, n_seeds)
     rows.add(model, 'PG DMS mean', s.mean(), src, n_seeds)
 
 
-def collect_msr(rows, ckpt_dirs, model, eps='1'):
+def collect_msr(rows, ckpt_dirs, model, eps='1', heads=None, blocks=('external', 'DMS', 'domainome', 'tsu')):
+    """ESM-MSR statistics written by esm_msr_testing.py for one LoRA scale (the ε is in the file name).
+    A model is the mean over the checkpoints given (seeds); heads default to combined / WT / MT."""
     stats = f'{DEV}/analysis_notebooks/stats'
-    for head, label in [('Combined', ''), ('WT_LoRA', ' WT'), ('MT_LoRA', ' MT')]:
+    heads = heads or [('Combined', ''), ('WT_LoRA', ' WT'), ('MT_LoRA', ' MT')]
+    for head, label in heads:
         acc = {}
         for ck in ckpt_dirs:
             for sub, names in [('external', EXT), ('DMS', DMS)]:
+                if sub not in blocks:
+                    continue
                 f = glob.glob(f'{stats}/{sub}/{ck}/*_epsilon{eps}_unmasked_{head}.csv')
                 if f:
                     d = pd.read_csv(f[0], index_col=0)
                     for ds in names:
                         if ds in d.index:
                             acc.setdefault(ds, []).append(d.loc[ds, 'spearman_all'])
-            for sub, ds in [('domainome', 'domainome'), ('splits_oct06_capped-val', 'tsu_capped_val'),
-                            ('splits_oct06_capped-test', 'tsu_capped_test')]:
+            for sub, ds, blk in [('domainome', 'domainome', 'domainome'), ('splits_oct06_capped-val', 'tsu_capped_val', 'tsu'),
+                                 ('splits_oct06_capped-test', 'tsu_capped_test', 'tsu')]:
+                if blk not in blocks:
+                    continue
                 f = glob.glob(f'{stats}/{sub}/{ck}/*_epsilon{eps}_unmasked_{head}_avg.csv')
                 if f:
                     acc.setdefault(ds, []).append(pd.read_csv(f[0], index_col=0).loc['spearman_all'].iloc[0])
         for ds, v in acc.items():
+            # a DMS/Domainome sweep point counts only once every seed has it, so a half-finished sweep never
+            # shows up as a seed mean over fewer seeds than its neighbours
+            if len(v) < len(ckpt_dirs):
+                continue
             rows.add(model + label, ds, np.mean(v), 'esm_msr_testing stats', len(v), np.std(v) if len(v) > 1 else np.nan)
 
 
@@ -136,22 +164,58 @@ def collect_final_table(rows):
                 rows.add(m if full else m + ' [partial]', ds, v, 'FINAL_TABLE' + ('' if full else f' cov={cov:.2f}'))
 
 
+# ESM3 zero-shot through the Forge API (small / medium / large). Predictions exist per variant for the parent sets
+# only. S461, K2369 and PTMUL-D are subsets of S669, K3822 and PTMUL: every child row is found in its parent by
+# (code, mut_type) with the same reference sequence and the same PDB file (checked: 461/461, 2369/2369, 536/536), so
+# a zero-shot score -- a function of structure and mutation alone -- is the parent's score, and only the LABELS are
+# the child's own. (They are not all identical: S461 revised 40 of its 461 labels relative to S669, 12 of them sign
+# flips, and PTMUL-D differs from PTMUL on 41 of 536.)
+FORGE_DIR = {'s571': 's571', 's783': 's783', 's2648': 's2648', 's8754': 's8754', 's669': 's669', 'ssym': 'ssym',
+             'q3421': 'q3421', 'k3822': 'k3822', 'ptmul': 'PTMUL',
+             's461': 's669', 'k2369': 'k3822', 'ptmuld': 'PTMUL'}
+FORGE_SUBSET = {'s461': 's669', 'k2369': 'k3822', 'ptmuld': 'ptmul'}
+
+
 def collect_forge(rows):
-    for size in ['small-2024-08', 'medium-2024-08', 'large-2024-03']:
-        for f in ['external', 'dms']:
-            p = f'{DEV}/analysis_notebooks/stats/esm3_forge/zero_shot/esm3-{size}/{f}_global_stats.csv'
-            if os.path.exists(p):
-                d = pd.read_csv(p, index_col=0)
-                for ds in d.index:
-                    rows.add(f'ESM3-{size.split("-")[0]} zero-shot', {'PTMUL': 'ptmul'}.get(ds, ds),
-                             d.loc[ds, 'spearman_all'], 'esm3_forge stats')
+    P = f'{DEV}/analysis_notebooks/predictions'
+    for size in ('small-2024-08', 'medium-2024-08', 'large-2024-03'):
+        label = f'ESM3-{size.split("-")[0]} zero-shot'
+        zs = f'esm3_forge/zero_shot/esm3-{size}/predictions.csv'
+        for ds in EXT:
+            f = f'{P}/{FORGE_DIR[ds]}/{zs}'
+            if not os.path.exists(f):
+                continue
+            pred = pd.read_csv(f, usecols=['id', 'code', 'mut_type', 'esm3_score'], low_memory=False)
+            # PTMUL leaves `code` blank for its 3+ mutants (343 of 914 rows) but the id is intact: '1A5EA_W15D:L37S:L121R'
+            # is PDB code + chain + '_' + mutations, so the code is the first four characters of the id
+            pred['code'] = pred['code'].fillna(pred['id'].astype(str).str[:4])
+            pred = pred.drop_duplicates(['code', 'mut_type'])
+            task = pd.read_csv(f'{SB}/tasks/{ds}.csv.gz', usecols=['code', 'mut_type', 'truth'], keep_default_na=False,
+                               na_values=[''], low_memory=False)
+            j = task.merge(pred, on=['code', 'mut_type'], how='left')
+            cov = j.esm3_score.notna().mean()
+            if cov < 0.99:
+                print(f'[forge] {label} {ds}: only {cov:.2f} of rows matched, skipped')
+                continue
+            via = f' via parent {FORGE_SUBSET[ds]}' if ds in FORGE_SUBSET else ''
+            rows.add(label, ds, spearman(j.esm3_score, j.truth), f'esm3 forge zero-shot{via}')
+        for ds in DMS:
+            f = f'{P}/{ds}/{zs}'
+            if os.path.exists(f):
+                d = pd.read_csv(f, usecols=['ddG_ML', 'esm3_score'], low_memory=False)
+                rows.add(label, ds, spearman(d.esm3_score, d.ddG_ML), 'esm3 forge zero-shot')
+        f = f'{P}/domainome/{zs}'
+        if os.path.exists(f):                       # per-domain mean, as every other Domainome number here
+            d = pd.read_csv(f, usecols=['code', 'ddG_ML', 'esm3_score'], low_memory=False)
+            per = [spearman(g.esm3_score, g.ddG_ML) for _, g in d.groupby('code')]
+            rows.add(label, 'domainome', np.nanmean(per), 'esm3 forge zero-shot, per-domain mean')
 
 
 def collect_pgym(rows):
     pg = pd.read_csv(f'{DEV}/outputs/pgym/pgym_all_models_per_dms.csv').set_index('DMS_id')
-    cols = {'ESM-MSR full': ('ESM-MSR capped', 1), 'ESM-MSR WT eps=1.0': ('ESM-MSR capped WT', 1),
+    cols = {'ESM-MSR full': (REL, 1), 'ESM-MSR WT eps=1.0': (REL + ' WT', 1),
             'ESM-MSR WT eps=0': ('ESM3-small-open (ε=0, MSR readout)', 1),
-            'SPURS single-additive': ('SPURS (single, additive)', 1), 'SPURS multi': ('SPURS (multi)', 1),
+            'SPURS single-additive': ('SPURS', 1), 'SPURS multi': ('SPURS multi', 1),
             'MutateEverything single': ('ME stage1', 3), 'MutateEverything double': ('ME stage2', 3),
             'ThermoMPNN': ('TMPNN', 3), 'ProteinMPNN': ('ProteinMPNN', 3)}
     for c, (m, n) in cols.items():
@@ -161,14 +225,42 @@ def collect_pgym(rows):
         f = f'{DEV}/outputs/pgym/esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{s}/sigma1.0/summary.csv'
         d = pd.read_csv(f).drop_duplicates('DMS_id', keep='last')
         per.append(d[d.status == 'done'].set_index('DMS_id').spearman_combined)
-    pg_summaries(rows, 'ESM-MSR dc8', pd.concat(per, axis=1).mean(axis=1), 'pgym summary.csv', 3)
+    pg_summaries(rows, DEVEL, pd.concat(per, axis=1).mean(axis=1), 'pgym summary.csv', 3)
 
 
-# harness runs added for the all-by-all (2026-10-21): model dir, prediction tag, {readout column: model label}
-HARNESS = [('esmtherm', '', {'pred': 'ESMtherm'}), ('ifum', '', {'pred': 'IFUM (WT backbone)'}),
-           ('geoddg', '_faspr', {'pred': 'GeoDDG-3D'}), ('esm3dg', '', {'pred': 'ESM3dG'}), ('prosst', '', {'pred': 'ProSST'}),
-           ('spurs', '', {'pred': 'SPURS (multi)', 'pred_additive': 'SPURS (single, additive)'}),
-           ('proteinmpnn', '', {'pred': 'ProteinMPNN'}), ('ddgemb', '', {'pred': 'DDGemb'})]
+def collect_pgym_public(rows):
+    """ProSST on ProteinGym is not rerun: the authors' own ProSST-2048 scores ship with ProteinGym
+    (analysis_scripts/pgym_public_scores.py), scored here on exactly the variants every other model sees."""
+    f = f'{DEV}/outputs/pgym/pgym_public_per_dms.csv'
+    if os.path.exists(f):
+        d = pd.read_csv(f).set_index('DMS_id')
+        pg_summaries(rows, 'ProSST', d['ProSST-2048 rho_mapped'], 'ProteinGym published scores (ProSST-2048)')
+
+
+def collect_pgym_rosetta(rows):
+    """Rosetta Cartesian ddG covers ProteinGym's SINGLE mutants only (analysis_scripts/pgym_rosetta_singles.py), so its
+    numbers are on a different variant set from every other model's and are shown in italics, not compared."""
+    f = f'{DEV}/outputs/pgym/pgym_rosetta_singles_per_dms.csv'
+    if os.path.exists(f):
+        d = pd.read_csv(f).set_index('DMS_id')
+        d = d[d.n_scored > 0]                      # POLG_HCVJF has no scored single; BRCA2 is excluded anyway
+        pg_summaries(rows, 'Rosetta', d['rho'], 'ProteinGym singles only (Rosetta Cartesian ddG)', allow_partial=True)
+
+
+# harness runs: (model dir, prediction tag, {readout column: model label}, scope). `scope` 'capped' restricts a run
+# to the capped Tsuboyama split, for runs whose other datasets live under a different (older, partial) tag.
+#   SPURS has two models. tag '' is the first run, which used the single model for singles and the multi model for
+#   multi-mutants; its pred_additive is the single model summed over substitutions, i.e. SPURS proper. Its `pred` is a
+#   hybrid and is NOT read. SPURS multi is the multi-mutant model applied to every variant, singles included, and
+#   comes from the `--readout multi` rerun (tag _multi).
+HARNESS = [('esmtherm', '', {'pred': 'ESMtherm'}, 'all'), ('ifum', '', {'pred': 'IFUM (WT backbone)'}, 'all'),
+           ('ifum', '_esmfold', {'pred': 'IFUM (native, ESMFold)'}, 'capped'),
+           ('geoddg', '_faspr', {'pred': 'GeoDDG-3D'}, 'all'), ('esm3dg', '', {'pred': 'ESM3dG'}, 'all'),
+           ('prosst', '', {'pred': 'ProSST'}, 'all'),
+           ('spurs', '', {'pred_additive': 'SPURS'}, 'all'), ('spurs', '_multi', {'pred': 'SPURS multi'}, 'all'),
+           ('proteinmpnn', '', {'pred': 'ProteinMPNN'}, 'all'), ('ddgemb', '', {'pred': 'DDGemb'}, 'all'),
+           ('rosetta', '', {'pred': 'Rosetta'}, 'capped')]    # cartesian_ddg on Narval; doubles scored directly
+NO_HARNESS_PG = {'SPURS', 'SPURS multi', 'ProteinMPNN', 'ProSST'}   # their ProteinGym numbers come from elsewhere
 
 
 def harness_frame(model, tag, name):
@@ -182,19 +274,20 @@ def harness_frame(model, tag, name):
 
 
 def collect_harness(rows, done_by_old_runs):
-    for model, tag, readouts in HARNESS:
+    for model, tag, readouts, scope in HARNESS:
         for col, label in readouts.items():
-            for name in EXT + DMS + ['domainome']:
-                if (label, name) in done_by_old_runs:
-                    continue
-                d = harness_frame(model, tag, name)
-                if d is None or d[col].isna().all():
-                    continue
-                if name == 'domainome':
-                    v = np.nanmean([spearman(g[col], g['truth']) for _, g in d.groupby('group')])
-                else:
-                    v = spearman(d[col], d['truth'])
-                rows.add(label, name, v, f'harness {model}{tag}')
+            if scope == 'all':
+                for name in EXT + DMS + ['domainome']:
+                    if (label, name) in done_by_old_runs:
+                        continue
+                    d = harness_frame(model, tag, name)
+                    if d is None or d[col].isna().all():
+                        continue
+                    if name == 'domainome':
+                        v = np.nanmean([spearman(g[col], g['truth']) for _, g in d.groupby('group')])
+                    else:
+                        v = spearman(d[col], d['truth'])
+                    rows.add(label, name, v, f'harness {model}{tag}')
             for name, ds in CAPPED.items():
                 d = harness_frame(model, tag, name)
                 if d is None:
@@ -205,25 +298,32 @@ def collect_harness(rows, done_by_old_runs):
                 cov = d[col].notna().mean()
                 # a model that cannot represent mutant backgrounds (SPURS, ProteinMPNN) is scored on the rest
                 rows.add(label, ds, np.mean(per) if per else np.nan, f'harness {model}{tag} cov={cov:.2f}')
+            if scope != 'all' or label in NO_HARNESS_PG:
+                continue
             pg = {}
             for f in glob.glob(f'{SB}/results/{model}/predictions{tag}/pg_*.csv'):
                 name = os.path.basename(f)[:-4]
                 d = harness_frame(model, tag, name)
                 if d is not None:
                     pg[name[3:]] = spearman(d[col], d['truth'])
-            if pg and label not in {'SPURS (multi)', 'SPURS (single, additive)', 'ProteinMPNN'}:
+            if pg:
                 pg_summaries(rows, label, pd.Series(pg), f'harness {model}{tag}')
 
 
 def cmd_collect(a):
     rows = Rows()
-    collect_msr(rows, ['esm-msr-baseline-w2a4-m16a16-capped'], 'ESM-MSR capped')
-    collect_msr(rows, [f'esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{i}' for i in (1, 2, 3)], 'ESM-MSR dc8')
-    collect_msr(rows, ['esm-msr-baseline-w2a4-m16a16-capped'], 'ESM3-small-open (ε=0, MSR readout)', eps='0.0')
+    collect_msr(rows, REL_CK, REL)
+    collect_msr(rows, DEVEL_CK, DEVEL)
+    collect_msr(rows, REL_CK, 'ESM3-small-open (ε=0, MSR readout)', eps='0.0')
+    for e in EPS_SWEEP:                    # DMS + Domainome only; the combined head
+        for ck, name in [(REL_CK, REL), (DEVEL_CK, DEVEL)]:
+            collect_msr(rows, ck, f'{name} ε={e}', eps=e, heads=[('Combined', '')], blocks=('DMS', 'domainome'))
     collect_retrained(rows)
     collect_final_table(rows)
     collect_forge(rows)
     collect_pgym(rows)
+    collect_pgym_public(rows)
+    collect_pgym_rosetta(rows)
     collect_harness(rows, {(r['model'], r['dataset']) for r in rows})
     L = pd.DataFrame(rows)
     L.to_csv(a.out, index=False)
@@ -231,31 +331,38 @@ def cmd_collect(a):
 
 
 # ---------------------------------------------------------------------------------------------- tables
-ROWS = [('ESM-MSR capped', 'ESM-MSR capped (combined)'), ('ESM-MSR capped WT', 'ESM-MSR capped, WT head'),
-        ('ESM-MSR dc8', 'ESM-MSR dc8 (combined, 3 seeds)'), ('ESM-MSR dc8 WT', 'ESM-MSR dc8, WT head'),
+ROWS = [(REL, 'ESM-MSR (released), combined'), (REL + ' WT', 'ESM-MSR (released), WT head'),
+        (DEVEL, 'ESM-MSR (devel), combined (3 seeds)'), (DEVEL + ' WT', 'ESM-MSR (devel), WT head'),
         ('ME stage1', 'MutateEverything st1 (3 seeds)'), ('ME stage1+', 'MutateEverything st1, additive'),
         ('ME stage2', 'MutateEverything st2 (3 seeds)'), ('ME stage2+', 'MutateEverything st2, additive'),
         ('TMPNN', 'ThermoMPNN (additive, 3 seeds)'), ('TMPNN+D', 'ThermoMPNN + ThermoMPNN-D (3 seeds)'),
-        ('SPURS (single, additive)', 'SPURS single-additive ‡'), ('SPURS (multi)', 'SPURS multi ‡'),
+        ('SPURS', 'SPURS (single model) ‡'), ('SPURS multi', 'SPURS multi (multi-mutant model) ‡'),
         ('ESMtherm', 'ESMtherm ‡'), ('DDGemb', 'DDGemb (server)'), ('DDMut', 'DDMut (server)'),
         ('IFUM (WT backbone)', 'IFUM, WT backbone ‡'), ('IFUM (native, ESMFold)', 'IFUM, ESMFold per variant ‡'),
         ('GeoDDG-3D', 'GeoDDG-3D (FASPR)'), ('ESM3dG', 'ESM3ΔG ‡'), ('ProSST', 'ProSST (zero-shot)'),
+        ('Rosetta', 'Rosetta Cartesian ΔΔG'),
         ('ProteinMPNN', 'ProteinMPNN (zero-shot)'), ('ESM3-small-open (ε=0, MSR readout)', 'ESM3-small-open, ε = 0 (zero-shot)'),
         ('ESM3-large zero-shot', 'ESM3-large (Forge, zero-shot)'), ('ESM3-medium zero-shot', 'ESM3-medium (Forge, zero-shot)'),
+        ('ESM3-small zero-shot', 'ESM3-small (Forge, zero-shot)'),
         ('ESM-MSR-small (March, crystal)', 'ESM-MSR-small (March reference)')]
 TSU_ALL = ['tsu_capped_val', 'tsu_capped_test', 'tsu_hyperopt_val', 'tsu_hyperopt_test']
 PG = ['PG avg', 'PG Stability', 'PG DMS mean']
 _FULL = EXT + DMS + ['domainome', 'tsu_capped_val', 'tsu_capped_test']
-# cells a run queued on 2026-10-21 will fill (gpu4 jobs 386274-386282; DDGemb server stream ddgemb_state_capped)
-QUEUED = {**{m: _FULL for m in ['SPURS (single, additive)', 'SPURS (multi)', 'ProteinMPNN', 'ESM3-small-open (ε=0, MSR readout)']},
-          **{m: ['tsu_capped_val', 'tsu_capped_test'] + PG for m in ['ESMtherm', 'GeoDDG-3D', 'ESM3dG', 'ProSST']},
-          # IFUM's ProteinGym run was cancelled 2026-10-22 (not worth ~10 days; see GPU4_INFERENCE_LEDGER.md 3.2),
-          # so its PG cells read as not run rather than queued.
-          'IFUM (WT backbone)': ['tsu_capped_val', 'tsu_capped_test']}
+_CAP = ['tsu_capped_val', 'tsu_capped_test']
+# cells a run still in the queue will fill (a filled cell always overrides the marker)
+QUEUED = {'SPURS multi': _FULL,                                                   # --readout multi rerun
+          'IFUM (native, ESMFold)': _CAP,                                         # fold 64,008 sequences, then score
+          'GeoDDG-3D': _CAP + PG, 'ESM3dG': PG, 'ESMtherm': PG,                   # runs in progress / one DMS retried
+          'ProSST': _CAP,                                                         # ProteinGym comes from published scores
+          'IFUM (WT backbone)': _CAP,
+          # the ε sweep on DMS + Domainome, one lane per checkpoint
+          **{f'{n} ε={e}': DMS + ['domainome'] for n in (REL, DEVEL) for e in EPS_SWEEP}}
+# cells that are on a different variant set from the rest of their column and are shown in italics, never bolded:
+# Rosetta's ProteinGym numbers cover single mutants only
+ITALIC = {('Rosetta', d) for d in PG}
 # documented training-set overlap with a test set (authors' training data; not exhaustive)
 LEAK = {'DDGemb': {'s2648', 's8754'}, 'DDMut': {'s2648', 's8754', 'q3421', 'k3822', 'k2369'}, 'GeoDDG-3D': {'s2648', 's8754', 's783'},
-        **{m: set(TSU_ALL) for m in ['ESMtherm', 'IFUM (WT backbone)', 'IFUM (native, ESMFold)', 'ESM3dG',
-                                     'SPURS (single, additive)', 'SPURS (multi)']}}
+        **{m: set(TSU_ALL) for m in ['ESMtherm', 'IFUM (WT backbone)', 'IFUM (native, ESMFold)', 'ESM3dG', 'SPURS', 'SPURS multi']}}
 
 
 def cmd_tables(a):
@@ -274,20 +381,22 @@ def cmd_tables(a):
             v, star = get(P, m, d), '*'
         if pd.isna(v):
             return 'q' if d in QUEUED.get(m, []) else '–'
+        if (m, d) in ITALIC:
+            return f'_{v:.3f}_'
         return f'{v:.3f}' + ('†' if d in LEAK.get(m, set()) else '') + star
 
     def plain(c):
-        """the number in a cell, or None when it is absent, queued, flagged as overlapping, or partial"""
-        if any(f in c for f in ('†', '‡', '*')) or c in ('–', 'q'):
+        """the number in a cell, or None when it is absent, queued, flagged as overlapping, partial, or italic (not comparable)"""
+        if any(f in c for f in ('†', '‡', '*', '_')) or c in ('–', 'q'):
             return None
         try:
             return float(c)
         except ValueError:
             return None
 
-    def table(cols, names, mean_label=None):
+    def table(cols, names, mean_label=None, rows_=None):
         body = []
-        for m, lab in ROWS:
+        for m, lab in (rows_ or ROWS):
             cs = [cell(m, d) for d in cols]
             if all(c == '–' for c in cs):
                 continue
@@ -314,10 +423,58 @@ def cmd_tables(a):
         return '\n'.join(out)
 
     short = ['DLG4 abund.', 'DLG4 bind.', 'GRB2 abund.', 'GRB2 bind.', 'MYO', 'ESTA dTm', 'GB1']
+    # the ε sweep: combined head, ε = 1 (the main tables), the three sweep points, and the ε = 0 control
+    eps_rows = []
+    for name in (REL, DEVEL):
+        tag = name.split('(')[1].rstrip(')')
+        eps_rows += [(name, f'{tag}, ε = 1')] + [(f'{name} ε={e}', f'{tag}, ε = {e}') for e in EPS_SWEEP]
+    eps_rows += [('ESM3-small-open (ε=0, MSR readout)', 'ε = 0 (zero-shot control)')]
     print('#### Thermostability: 12 external sets\n\n' + table(EXT, EXT, 'mean of 12'))
     print('\n#### Tsuboyama\n\n' + table(TSU_ALL, ['capped val', 'capped test', 'hyperopt val', 'hyperopt test']))
     print('\n#### DMS and Domainome\n\n' + table(DMS + ['domainome'], short + ['Domainome']))
+    print('\n#### ESM-MSR LoRA scale\n\n' + table(DMS + ['domainome'], short + ['Domainome'], rows_=eps_rows))
     print('\n#### ProteinGym (213 DMS)\n\n' + table(PG, ['PG avg', 'Stability', 'DMS mean']))
+
+
+# ---------------------------------------------------------------------------------------------- epistasis tables
+EPI_COLS = [('epi_naive_rho', 'naive ρ', 1), ('epi_beyond_rho', 'beyond ρ', 1), ('epi_pair_rho', 'pair ρ', 1),
+            ('epi_line_rho', 'line ρ', 1), ('epi_cell_mag', 'cell_mag', 1), ('epi_cell_rank', 'cell_rank', 1),
+            ('epi_cell_flipacc', 'flipacc', 1), ('epi_global_err', 'global_err ↓', -1)]
+
+
+def cmd_epi(a):
+    """The epistasis hierarchy, one row per MODEL. ESM-MSR is shown by its combined head only (what is deployed); a
+    baseline by its direct double head, which is its only prediction of an interaction (its additive head is by
+    construction 0 on every residual and rank metric, the suite's own validity check). Seed means; the sd is printed
+    so the text can say how far to trust a difference."""
+    B = f'{DEV}/outputs/baselines_capped'
+    pieces = {  # split -> (baselines + released, devel seeds, Rosetta)
+        'valfull (34,957 rows)': ('epi_test_valfull_allbb.csv', 'epi_test_valfull_allbb_msr_dc8_s1-dc8_s2-dc8_s3.csv',
+                                  'epi_rosetta_valfull_allbb.csv'),
+        'test (40,866 rows, destabilized backbones dropped)': ('epi_test.csv', 'epi_test_allbb_msr_dc8_s1-dc8_s2-dc8_s3.csv',
+                                                               'epi_rosetta_test.csv')}
+    for split, (base_f, dev_f, ros_f) in pieces.items():
+        base = pd.read_csv(f'{B}/{base_f}').set_index('run/head')
+        dev = pd.read_csv(f'{B}/{dev_f}').set_index('run/head')
+        ros = pd.read_csv(f'{B}/{ros_f}').set_index('run/head')
+        seeds = lambda df, stem: df[[i.startswith(stem) for i in df.index]]
+        spec = [('MutateEverything stage 1', seeds(base, 'ME_stage1_s')[lambda x: x.index.str.endswith('/mt')]),
+                ('MutateEverything stage 2', seeds(base, 'ME_stage2_s')[lambda x: x.index.str.endswith('/mt')]),
+                ('ThermoMPNN-D', seeds(base, 'TMPNN_s')[lambda x: x.index.str.endswith('/mt')]),
+                ('Rosetta Cartesian ΔΔG', ros[ros.index == 'Rosetta/mt']),
+                (REL, base[base.index == 'MSR/comb']),
+                (DEVEL + ' (3 seeds)', seeds(dev, 'MSR_dc8_s')[lambda x: x.index.str.endswith('/comb')])]
+        body = []
+        for name, df in spec:
+            body.append((name, [df[c].mean() for c, _, _ in EPI_COLS], [df[c].std() if len(df) > 1 else np.nan for c, _, _ in EPI_COLS]))
+        best = [(max if sign > 0 else min)(r[1][j] for r in body) for j, (_, _, sign) in enumerate(EPI_COLS)]
+        print(f'\n##### {split}\n')
+        print('| model | ' + ' | '.join(n for _, n, _ in EPI_COLS) + ' |')
+        print('|---|' + '---|' * len(EPI_COLS))
+        for name, m, sd in body:
+            cells = [f'**{v:.3f}**' if v == best[j] else f'{v:.3f}' for j, v in enumerate(m)]
+            print(f'| {name} | ' + ' | '.join(cells) + ' |')
+        print('\nseed sd (largest per model): ' + '; '.join(f'{n} {np.nanmax(sd):.3f}' for n, _, sd in body if not np.isnan(sd).all()))
 
 
 # ---------------------------------------------------------------------------------------------- ledger
@@ -355,6 +512,10 @@ JOBS = [  # job-name regex -> model, benchmark, kind
     (r'^pgym_mpnn_tta', 'ProteinMPNN', 'ProteinGym TTA pilot (73 DMS)', 'inference'),
     (r'^pgym_me_(single|double)_s\d|^pgym_me_retry', 'MutateEverything', 'ProteinGym', 'inference'),
     (r'^pgym_tmpnn(_s\d)?$', 'ThermoMPNN / -D', 'ProteinGym', 'inference'),
+    (r'^gpu4_ifumfold', 'IFUM (ESMFold per variant)', 'ESMFold folding, capped Tsuboyama (64,008 sequences)', 'structure prep'),
+    (r'^gpu4_ifumnat', 'IFUM (ESMFold per variant)', 'capped Tsuboyama scoring', 'inference'),
+    (r'^gpu4_spurs_multi', 'SPURS multi', 'gamut, multi model on every variant', 'inference'),
+    (r'^gpu4_eps', 'ESM-MSR', 'LoRA scale sweep, DMS + Domainome', 'inference'),
     (r'^gpu4_esm3dg', 'ESM3ΔG', 'capped Tsuboyama + ProteinGym', 'inference'),
     (r'^gpu4_ifum', 'IFUM (WT backbone)', 'capped Tsuboyama + ProteinGym', 'inference'),
     (r'^gpu4_esmtherm', 'ESMtherm', 'capped Tsuboyama + ProteinGym', 'inference'),
@@ -386,6 +547,7 @@ if __name__ == '__main__':
     sub = ap.add_subparsers(dest='cmd', required=True)
     c = sub.add_parser('collect'); c.add_argument('--out', default='matrix_long.csv'); c.set_defaults(fn=cmd_collect)
     t = sub.add_parser('tables'); t.add_argument('long'); t.set_defaults(fn=cmd_tables)
+    e = sub.add_parser('epi'); e.set_defaults(fn=cmd_epi)
     l = sub.add_parser('ledger'); l.add_argument('sacct'); l.add_argument('--out', default='slurm_jobs.csv'); l.set_defaults(fn=cmd_ledger)
     a = ap.parse_args()
     a.fn(a)
