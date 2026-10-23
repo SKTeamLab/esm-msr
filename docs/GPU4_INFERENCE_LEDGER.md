@@ -65,27 +65,33 @@ How to read the mixed rows:
   2026-10-21 logs per-job wall time to `closed_servers/ddgemb_state_capped/timings.csv`): their times measure queueing on a remote
   service and are not comparable with anything here.
 
-## 2. gpu4 queue (as of 2026-10-22)
+## 2. gpu4 queue (as of 2026-10-23)
 
 All pinned with `--nodelist=gpu4`; there are four cards, so lanes are chained with `afterany` and only the heads are
 eligible at once. Each harness job writes one line per dataset to
 `stability-baselines/results/<model>/predictions[_tag]/timing.csv` (rows, wall seconds, ms/row, host, GPU, job).
 
-**Finished since 2026-10-21 (gpu4):** `gpu4_ifum_cappg` 386275 (cancelled at 8/217 ProteinGym DMS, see §3.2),
-`gpu4_esmtherm_cappg` 386276 (all 217 ProteinGym DMS), `gpu4_msr_eps0_gamut` 386282, `gpu4_spurs_gamut` 386280,
-`gpu4_mpnn_gamut` 386281. **Cancelled:** `gpu4_esm3dg_cappg` 386274 (replaced by 386364, §3.1) and
-`gpu4_prosst_cappg` 386278 (ProteinGym part replaced by the published scores; capped Tsuboyama requeued as 386533).
+**Finished, with their wall time** (a clean per-job figure, not alone on the node):
 
-| job | model | datasets | est. wall |
-|---|---|---|---|
-| 386364 `gpu4_esm3dg_pg_fp16` (running) | ESM3ΔG | 213 ProteinGym DMS, cheapest first, `--dtype fp16` | 1–2 days |
-| 386277 `gpu4_geoddg_cappg` (running) | GeoDDG-3D (FASPR) | capped Tsuboyama + ProteinGym | ~67 h more |
-| 386515, 386516 `gpu4_ifumfold_cap1/2` (running) | IFUM, ESMFold | fold 64,008 sequences for capped Tsuboyama (two work-claiming workers) | ~3 h each |
-| 386517, 386518 `gpu4_ifumnat_capval/capte` | IFUM native | score capped val / test; start after both workers finish | ~2–3 h |
-| 386519 `gpu4_spurs_multi` | SPURS multi | 22-set gamut, `--readout multi` (multi model on every variant) | ~3 h |
-| 386520–386531 `gpu4_eps{0.75,0.5,0.25}_{rel,dev1,dev2,dev3}` | ESM-MSR | DMS + Domainome at three LoRA scales; four lanes (released, devel seeds 1–3), each chained | 12 × ~6.6 h |
-| 386532 `gpu4_esmtherm_cas9` | ESMtherm | one ProteinGym DMS that ran out of memory (adaptive batch size) | minutes |
-| 386533 `gpu4_prosst_capped` | ProSST | capped Tsuboyama val / test | minutes |
+| job | what | wall |
+|---|---|---|
+| 386515, 386516 | IFUM, ESMFold folding of 64,008 capped-Tsuboyama sequences (two workers) | 2:58 each |
+| 386517, 386518 | IFUM native scoring, capped val / test | 1:22 / 1:55 |
+| 386519 | SPURS multi, 22-set gamut | 0:07 |
+| 386520–386523 | ESM-MSR ε = 0.75 / 0.5 / 0.25 (released) and 0.75 (devel seed 1), DMS + Domainome | 1:27 each |
+| 386532, 386533 | ESMtherm CAS9 retry; ProSST capped Tsuboyama | 0:07, 0:01 |
+
+The ε runs took 1.5 h, not the ~6.6 h I had estimated from the gamut's earlier totals: those included the Tsuboyama
+blocks, which these runs skip. **Running:** 386364 ESM3ΔG (fp16, 192/213), 386277 GeoDDG (119/213), and ε lanes
+386524 (devel seed 1, ε = 0.5) and 386526 (seed 2, ε = 0.75). **Waiting:** the remaining ε jobs in the lanes.
+
+**A free GPU does not mean a free slot.** The ε jobs asked for 96 G and 8 CPUs but peak at 6.9 G. With 160 G of the
+node's 250 G already allocated, the next job could not fit and a card sat idle until the pending jobs were lowered to
+24 G. The same applies to every harness job: `run_model.sbatch` asks for 32 G, which is what ESM3ΔG and GeoDDG
+actually hold.
+
+Cancelled earlier: `gpu4_ifum_cappg` 386275 (§3.2), `gpu4_esm3dg_cappg` 386274 (replaced by 386364, §3.1),
+`gpu4_prosst_cappg` 386278 (ProteinGym part replaced by the published scores).
 
 Not on this cluster: **Rosetta** `cartesian_ddg` ran on the Alliance's Narval (CPU, 8,775 array chunks) in a separate
 session, so it has no gpu4 time; its predictions were copied here afterwards. Another user's pending job can take a

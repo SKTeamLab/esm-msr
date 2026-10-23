@@ -7,20 +7,26 @@ unblocks it. Last updated 2026-10-22 (evening). Where things ran and how long th
 
 ## 1. Queued or running on gpu4 — no decision needed
 
-Everything below is pinned to gpu4 (4 × A4500). Four cards are all that exist there, so most of this waits: ESM3ΔG
-and GeoDDG hold two, the IFUM folding workers the other two, and the rest starts as cards free up. Jobs in a lane
-are chained with `afterany`, so only the lane heads are eligible at any time.
+Everything below is pinned to gpu4 (4 × A4500). Lanes are chained with `afterany`, so only the heads are eligible at once.
 
-| what | fills (the `q` cells) | jobs | rough cost |
+**Finished since 2026-10-22:** IFUM-native on capped Tsuboyama (fold 386515/386516, 3.0 h each; score 386517/386518,
+1.4 and 1.9 h), SPURS multi 386519 (7.5 min), ProSST capped 386533, ESMtherm CAS9 retry 386532 (so ESMtherm now has all
+213 ProteinGym DMS), and the released-checkpoint ε sweep at 0.75 / 0.5 / 0.25 (386520–386522, 1.5 h each) plus devel
+seed 1 at ε = 0.75 (386523). All checked: no failed datasets, and the only NaN predictions are the 7,931 capped-test
+rows on mutant-background libraries that SPURS cannot represent.
+
+| what | fills (the `q` cells) | jobs | state |
 |---|---|---|---|
-| **IFUM, ESMFold per variant, capped Tsuboyama**: fold the 64,008 sequences not yet on disk, then score val and test | §1.2 IFUM-native row | fold 386515, 386516 (running) → score val 386517, test 386518 | ~6 GPU-h folding (0.33 s/sequence at mean length 58), then ~2–3 h scoring |
-| **SPURS multi**: the multi-mutant model on *every* variant, singles included, on the 22-set gamut | §1.1–1.3 SPURS multi rows | 386519 (`--readout multi`) | ~3 h |
-| **ESM-MSR LoRA scale ε ∈ {0.75, 0.5, 0.25}** on the DMS and Domainome blocks, for both checkpoints; combined head | §1.3 ε table | four lanes: released 386520→386521→386522; devel seed 1 386523→386524→386525; seed 2 386526→386527→386528; seed 3 386529→386530→386531 | 12 runs × ~6.6 GPU-h (2 h DMS + 4.6 h Domainome) ≈ 80 GPU-h |
-| ProSST on the capped Tsuboyama val/test (its ProteinGym part is covered by the published scores) | §1.2 ProSST capped cells | 386533 | minutes |
-| ESMtherm on `CAS9_STRP1_Spencer_2017_positive` (1,390 residues), which ran out of memory at a fixed batch of 64 | completes ESMtherm's 213-DMS ProteinGym summary | 386532, with a batch size that shrinks only above L = 375 | minutes |
-| ESM3ΔG, ProteinGym, 213 DMS cheapest first, fp16 | §1.4 | 386364, running: 175/213 | remaining work is dominated by the largest DMS (SPG1, 537k variants); expect a day or two |
-| GeoDDG (FASPR), capped Tsuboyama + ProteinGym | §1.2 capped cells, §1.4 | 386277, running: 71/213 | ~67 h more at its current rate |
+| **ESM-MSR LoRA scale ε ∈ {0.75, 0.5, 0.25}, DMS + Domainome, devel checkpoint**, one lane per seed | §1.3 ε table, devel rows (shown once all 3 seeds finish) | seed 1: 386524 (running), 386525; seed 2: 386526 (running), 386527, 386528; seed 3: 386529–386531 | 7 of 12 runs not yet finished; ~1.5 h each, so ≈ 8 more GPU-h across the lanes |
+| ESM3ΔG, ProteinGym, 213 DMS cheapest first, fp16 | §1.4 | 386364, running | 192 / 213; the remaining work is dominated by the largest DMS (SPG1, 537k variants) |
+| GeoDDG (FASPR), capped Tsuboyama + ProteinGym | §1.2 capped cells, §1.4 | 386277, running | 119 / 213 |
 | DDMut on the old hyperopt Tsuboyama doubles (web server, login node) | DDMut's Tsuboyama cells stay partial (`*`) until done | two client processes | ~6,861 + 8,321 of ~20,151 done |
+
+**Scheduling note (2026-10-23).** A card sat idle while the next ε job waited, because the node was out of *memory*, not
+GPUs: the ε jobs requested 96 G (copied from the gamut script) and use about 6.9 G (`MaxRSS` on every completed run). Reduced
+to 24 G on the pending jobs with `scontrol update JobId=… MinMemoryNode=24576` (the value is in MB, and a `G` suffix is
+rejected), and the script's default lowered. When a GPU looks free and a job is pending on `Resources`, check
+`scontrol show node gpu4 | grep AllocTRES` against the job's `--mem` and `--cpus-per-task` before suspecting the GPUs.
 
 **When they finish** (CPU, about a minute, on the cluster):
 
@@ -42,9 +48,9 @@ has. The harness skips datasets whose output already exists, so any failed job c
 |---|---|
 | ESM-MSR (released), (devel) × 4 ε, WT-only sweep, ε = 0 control | done on 213 DMS; the four > 1,800-residue DMS are blocked (§3) |
 | MutateEverything, ThermoMPNN, SPURS (both models), ProteinMPNN | done |
-| ESMtherm | 212 of the 213 comparison DMS done; the one failure (CAS9, out of memory) is requeued (386532) |
-| ESM3ΔG | running (fp16) |
-| GeoDDG | running |
+| ESMtherm | done on all 213 (one DMS needed a rerun with an adaptive batch size) |
+| ESM3ΔG | running (fp16), 192 / 213 |
+| GeoDDG | running, 119 / 213 |
 | ProSST | **done for free**: the authors' published ProSST-2048 scores ship with ProteinGym; its own job was cancelled |
 | Rosetta Cartesian ΔΔG | done, but the file covers **single mutants only**, so it is shown in italics and not compared |
 | IFUM | **declined**: ~10 days of an A4500 even in fp16, because the O(L²) IEFFEUM head dominates at the lengths that carry the cost |
@@ -91,7 +97,7 @@ asked for, so nothing else was added.
   `adapters/spurs.py`, `adapters/proteinmpnn.py`, `build_pgym_tasks.py`, `lists/`. Added 2026-10-22: `--dtype` on
   `adapters/esm3dg.py` and `adapters/ifum.py`, `--readout` on `adapters/spurs.py` (all default to the previous
   behaviour; `*.bak` copies kept), an adaptive batch size in `adapters/esmtherm.py`, `make_fold_manifest_capped.py`,
-  and the benchmarking scripts. **Worth copying into the repo** if the harness is ever to be reproducible from it.
+  `~/consolidation/msr_eps_sweep.sh` (now `--mem=24G`), and the benchmarking scripts. **Worth copying into the repo** if the harness is ever to be reproducible from it.
 - `~/esm-msr-devel` is behind `origin/devel-revision`; pull it once no queued job reads it (the ε-sweep jobs do). Its
   staged `data/preprocessed/*_mapped.csv` changes only rewrite structure paths for the cluster: keep them out of any
   commit.

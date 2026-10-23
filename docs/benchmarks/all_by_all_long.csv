@@ -197,6 +197,30 @@ ESM-MSR (devel) MT,tsu_capped_test,0.8201076666666666,0.003304038169002032,3,esm
 "ESM3-small-open (ε=0, MSR readout) MT",domainome,0.472324,,1,esm_msr_testing stats
 "ESM3-small-open (ε=0, MSR readout) MT",tsu_capped_val,0.49025,,1,esm_msr_testing stats
 "ESM3-small-open (ε=0, MSR readout) MT",tsu_capped_test,0.503601,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.75,DLG4_HUMAN_Faure_2021_abundance_domain,0.7501,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.75,DLG4_HUMAN_Faure_2021_binding_domain,0.762727,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.75,GRB2_HUMAN_Faure_2021_abundance_domain,0.70692,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.75,GRB2_HUMAN_Faure_2021_binding_domain,0.660494,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.75,MYO_HUMAN_Kung_2025_display,0.638916,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.75,ESTA_BACSU_Nutschel_2020_dTm,0.510473,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.75,GB1_Wu_2016_binding_domain,0.340816,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.75,domainome,0.56032,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.5,DLG4_HUMAN_Faure_2021_abundance_domain,0.760383,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.5,DLG4_HUMAN_Faure_2021_binding_domain,0.790085,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.5,GRB2_HUMAN_Faure_2021_abundance_domain,0.717673,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.5,GRB2_HUMAN_Faure_2021_binding_domain,0.695517,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.5,MYO_HUMAN_Kung_2025_display,0.627208,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.5,ESTA_BACSU_Nutschel_2020_dTm,0.526033,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.5,GB1_Wu_2016_binding_domain,0.342615,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.5,domainome,0.571535,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.25,DLG4_HUMAN_Faure_2021_abundance_domain,0.746803,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.25,DLG4_HUMAN_Faure_2021_binding_domain,0.791779,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.25,GRB2_HUMAN_Faure_2021_abundance_domain,0.687782,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.25,GRB2_HUMAN_Faure_2021_binding_domain,0.721052,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.25,MYO_HUMAN_Kung_2025_display,0.595409,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.25,ESTA_BACSU_Nutschel_2020_dTm,0.516083,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.25,GB1_Wu_2016_binding_domain,0.319084,,1,esm_msr_testing stats
+ESM-MSR (released) ε=0.25,domainome,0.567754,,1,esm_msr_testing stats
 ME stage1,s669,0.5592,0.0062,3,combined_external_table
 ME stage1,s461,0.7211,0.0133,3,combined_external_table
 ME stage1,ssym,0.6736,0.0076,3,combined_external_table
@@ -568,12 +592,19 @@ Rosetta,PG Stability,0.6398530913419602,,1,ProteinGym singles only (Rosetta Cart
 Rosetta,PG DMS mean,0.40936414953229117,,1,ProteinGym singles only (Rosetta Cartesian ddG); 212 of 213 DMS
 ESMtherm,tsu_capped_val,0.7158280303881348,,1,harness esmtherm cov=1.00
 ESMtherm,tsu_capped_test,0.7740498179896493,,1,harness esmtherm cov=1.00
+ESMtherm,PG avg,0.21252280223680034,,1,harness esmtherm
+ESMtherm,PG Stability,0.7200943536021568,,1,harness esmtherm
+ESMtherm,PG DMS mean,0.28261340610192204,,1,harness esmtherm
 IFUM (WT backbone),tsu_capped_val,0.6660470735889185,,1,harness ifum cov=1.00
 IFUM (WT backbone),tsu_capped_test,0.7108837985741459,,1,harness ifum cov=1.00
+"IFUM (native, ESMFold)",tsu_capped_val,0.7130748026136217,,1,harness ifum_esmfold cov=1.00
+"IFUM (native, ESMFold)",tsu_capped_test,0.7516058445872206,,1,harness ifum_esmfold cov=1.00
 GeoDDG-3D,tsu_capped_val,0.5949183726842843,,1,harness geoddg_faspr cov=1.00
 GeoDDG-3D,tsu_capped_test,0.6085668410680503,,1,harness geoddg_faspr cov=1.00
 ESM3dG,tsu_capped_val,0.8105714404564905,,1,harness esm3dg cov=1.00
 ESM3dG,tsu_capped_test,0.8106122671725858,,1,harness esm3dg cov=1.00
+ProSST,tsu_capped_val,0.5930051868246157,,1,harness prosst cov=1.00
+ProSST,tsu_capped_test,0.5964857619638142,,1,harness prosst cov=1.00
 SPURS,s571,0.46792980689318564,,1,harness spurs
 SPURS,s783,0.7122228039185877,,1,harness spurs
 SPURS,s2648,0.6821031065747714,,1,harness spurs
@@ -596,6 +627,28 @@ SPURS,GB1_Wu_2016_binding_domain,0.32983716452407036,,1,harness spurs
 SPURS,domainome,0.5132832919390009,,1,harness spurs
 SPURS,tsu_capped_val,0.8446079874707134,,1,harness spurs cov=0.83
 SPURS,tsu_capped_test,0.8664647227980397,,1,harness spurs cov=0.84
+SPURS multi,s571,0.4302182587572291,,1,harness spurs_multi
+SPURS multi,s783,0.7014205931320039,,1,harness spurs_multi
+SPURS multi,s2648,0.6419730487404868,,1,harness spurs_multi
+SPURS multi,s8754,0.5940448264938586,,1,harness spurs_multi
+SPURS multi,s669,0.45920593024030204,,1,harness spurs_multi
+SPURS multi,s461,0.6100658253616829,,1,harness spurs_multi
+SPURS multi,ssym,0.7577258451315706,,1,harness spurs_multi
+SPURS multi,q3421,0.5935831622105859,,1,harness spurs_multi
+SPURS multi,k3822,0.6272342034098615,,1,harness spurs_multi
+SPURS multi,k2369,0.6497639218071124,,1,harness spurs_multi
+SPURS multi,ptmul,0.3589642409280469,,1,harness spurs_multi
+SPURS multi,ptmuld,0.4655390335233378,,1,harness spurs_multi
+SPURS multi,DLG4_HUMAN_Faure_2021_abundance_domain,0.6121894227174667,,1,harness spurs_multi
+SPURS multi,DLG4_HUMAN_Faure_2021_binding_domain,0.6241592723643088,,1,harness spurs_multi
+SPURS multi,GRB2_HUMAN_Faure_2021_abundance_domain,0.6004925352842517,,1,harness spurs_multi
+SPURS multi,GRB2_HUMAN_Faure_2021_binding_domain,0.5020710566413212,,1,harness spurs_multi
+SPURS multi,MYO_HUMAN_Kung_2025_display,0.5556178766359391,,1,harness spurs_multi
+SPURS multi,ESTA_BACSU_Nutschel_2020_dTm,0.37526535333134975,,1,harness spurs_multi
+SPURS multi,GB1_Wu_2016_binding_domain,0.2578796509465191,,1,harness spurs_multi
+SPURS multi,domainome,0.40623308659056206,,1,harness spurs_multi
+SPURS multi,tsu_capped_val,0.7893012177971547,,1,harness spurs_multi cov=0.83
+SPURS multi,tsu_capped_test,0.8055616363108623,,1,harness spurs_multi cov=0.84
 ProteinMPNN,s571,0.3236141625268133,,1,harness proteinmpnn
 ProteinMPNN,s783,0.5607774315683574,,1,harness proteinmpnn
 ProteinMPNN,s2648,0.5060309649150412,,1,harness proteinmpnn

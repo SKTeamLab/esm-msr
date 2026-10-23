@@ -59,7 +59,7 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | ThermoMPNN (additive, 3 seeds) | 0.406 | 0.689 | 0.648 | 0.602 | 0.490 | 0.655 | 0.711 | 0.591 | 0.643 | 0.649 | 0.433 | 0.499 | 0.585 |
 | ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.406 | 0.689 | 0.648 | 0.602 | 0.490 | 0.655 | 0.711 | 0.591 | 0.643 | 0.649 | 0.427 | 0.502 | 0.584 |
 | SPURS (single model) ‡ | 0.468 | 0.712 | 0.682 | **0.626** | 0.502 | 0.654 | 0.784 | 0.614 | 0.681 | 0.698 | 0.399 | 0.495 | 0.610 |
-| SPURS multi (multi-mutant model) ‡ | q | q | q | q | q | q | q | q | q | q | q | q | q |
+| SPURS multi (multi-mutant model) ‡ | 0.430 | 0.701 | 0.642 | 0.594 | 0.459 | 0.610 | 0.758 | 0.594 | 0.627 | 0.650 | 0.359 | 0.466 | 0.574 |
 | ESMtherm ‡ | 0.349 | 0.434 | 0.371 | 0.347 | 0.414 | 0.474 | 0.380 | 0.348 | 0.366 | 0.393 | 0.235 | 0.270 | 0.365 |
 | DDGemb (server) | 0.484 | 0.689 | 0.895† | 0.684† | 0.570 | 0.654 | 0.891 | 0.752 | 0.745 | 0.702 | 0.616 | 0.678 | 0.697 |
 | DDMut (server) | 0.350 | 0.687 | 0.731† | 0.638† | 0.402* | 0.534* | 0.363 | 0.653† | 0.709† | 0.681† | **0.725** | **0.718** | – |
@@ -90,13 +90,14 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
   ESM3-small-open read through the calibration head. Its 12-set mean (0.378) sits on the published
   ESM3-small-open figure (0.380 over that table's 10 sets, §1.5), so the LoRA-off path behaves as expected and the
   LoRA is worth about +0.27 ρ.
-- **SPURS is two models and only one of them is in the table yet.** SPURS proper is the single-mutant model, summed
-  over substitutions for a multi-mutant. **SPURS multi** is the multi-mutant model applied to *every* variant,
-  singles included. The first harness run used the single model for singles and the multi model for multi-mutants,
-  so on a singles-only benchmark it was the single model throughout; the multi model had never been scored on a
-  single mutant outside ProteinGym. The two predictors disagree substantially on singles (Spearman 0.74 and mean
-  absolute difference 0.42 between them on a 23-variant check), so this matters. The SPURS row here is the single model
-  (unaffected); SPURS multi is rerun and shows `q` until it lands.
+- **SPURS is two models.** SPURS proper is the single-mutant model, summed over substitutions for a multi-mutant.
+  **SPURS multi** is the multi-mutant model applied to *every* variant, singles included. The first harness run used
+  the single model for singles and the multi model for multi-mutants, so on a singles-only benchmark it was the single
+  model throughout and the multi model had never been scored on a single mutant outside ProteinGym. Scored properly,
+  SPURS multi is clearly the weaker predictor on singles: 12-set mean 0.574 against 0.610, DMS mean 0.504 against
+  0.605, Domainome 0.406 against 0.513, capped test 0.806 against 0.866 (S669 0.459 against 0.502, K3822 0.627 against
+  0.681). It is also lower on the multi-mutant sets (PTMUL 0.359 against 0.399, PTMUL-D 0.466 against 0.495), so the
+  multi model is not buying anything even where it was designed to be used.
 - **ESM3 through Forge** (small, medium, large). Predictions exist only for the parent sets, so S461, K2369 and
   PTMUL-D are scored from S669, K3822 and PTMUL: every child row is found in its parent by (code, mutation) with
   the same reference sequence and the same PDB (461/461, 2,369/2,369, 536/536), and a zero-shot score is a function
@@ -126,15 +127,15 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | ThermoMPNN (additive, 3 seeds) | 0.785 | 0.794 | – | – |
 | ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.782 | 0.783 | – | – |
 | SPURS (single model) ‡ | 0.845† | 0.866† | – | – |
-| SPURS multi (multi-mutant model) ‡ | q | q | – | – |
+| SPURS multi (multi-mutant model) ‡ | 0.789† | 0.806† | – | – |
 | ESMtherm ‡ | 0.716† | 0.774† | 0.691† | 0.707† |
 | DDGemb (server) | 0.490 | 0.508 | **0.611** | 0.524 |
 | DDMut (server) | – | – | 0.542* | 0.582* |
 | IFUM, WT backbone ‡ | 0.666† | 0.711† | 0.746† | 0.697† |
-| IFUM, ESMFold per variant ‡ | q | q | 0.778† | 0.738† |
+| IFUM, ESMFold per variant ‡ | 0.713† | 0.752† | 0.778† | 0.738† |
 | GeoDDG-3D (FASPR) | 0.595 | 0.609 | 0.610 | 0.557 |
 | ESM3ΔG ‡ | 0.811† | 0.811† | 0.790† | 0.744† |
-| ProSST (zero-shot) | q | q | 0.607 | **0.594** |
+| ProSST (zero-shot) | 0.593 | 0.596 | 0.607 | **0.594** |
 | Rosetta Cartesian ΔΔG | 0.683 | 0.663 | – | – |
 | ProteinMPNN (zero-shot) | 0.532 | 0.537 | – | – |
 | ESM3-small-open, ε = 0 (zero-shot) | 0.565 | 0.578 | – | – |
@@ -156,8 +157,10 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 - SPURS and ProteinMPNN cannot represent a mutant background (they read the sequence from the wild-type PDB), so
   their capped numbers cover the wild-type-background libraries only: 5 of 25 val and 7 of 37 test libraries are
   excluded for them, all singles.
-- IFUM with ESMFold per variant and SPURS multi on the capped split are queued; ProSST's capped numbers are being
-  rerun after its combined job was split.
+- **IFUM scored on a per-variant ESMFold structure beats its WT-backbone mode on the capped split** (0.713 and 0.752
+  against 0.666 and 0.711), the same direction as on the older split. Both are flagged ‡: IFUM trains on all of
+  Megascale. SPURS multi is 0.789 and 0.806 against SPURS' 0.845 and 0.866 (§1.1). ProSST, which is zero-shot, scores
+  0.593 and 0.596.
 
 ### 1.3 DMS and Domainome
 
@@ -174,7 +177,7 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | ThermoMPNN (additive, 3 seeds) | 0.626 | 0.632 | 0.613 | 0.569 | 0.570 | 0.405 | 0.319 | 0.450 |
 | ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.574 | 0.588 | 0.565 | 0.561 | 0.540 | 0.405 | 0.318 | – |
 | SPURS (single model) ‡ | 0.689 | 0.711 | 0.736 | 0.635 | 0.602 | 0.535 | 0.330 | 0.513 |
-| SPURS multi (multi-mutant model) ‡ | q | q | q | q | q | q | q | q |
+| SPURS multi (multi-mutant model) ‡ | 0.612 | 0.624 | 0.600 | 0.502 | 0.556 | 0.375 | 0.258 | 0.406 |
 | ESMtherm ‡ | 0.093 | 0.136 | 0.484 | 0.466 | 0.229 | -0.000 | 0.214 | 0.201 |
 | DDGemb (server) | 0.103 | 0.123 | 0.457 | 0.469 | 0.475 | 0.188 | 0.154 | 0.351 |
 | IFUM, WT backbone ‡ | 0.766 | 0.768 | 0.648 | 0.565 | 0.507 | 0.190 | 0.262 | 0.464 |
@@ -190,7 +193,7 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 
 - **Mean over the 7 DMS** (models with all seven): ESM-MSR (devel) WT head 0.618, (devel) combined 0.609, SPURS
   0.605, ESM-MSR (released) 0.601, ProSST 0.591, ME st1 additive 0.589, ESM3ΔG 0.589, ESM3-small-open ε = 0 0.580,
-  ThermoMPNN 0.533, ProteinMPNN 0.514, GeoDDG 0.386, DDGemb 0.281, ESMtherm 0.232.
+  ThermoMPNN 0.533, ProteinMPNN 0.514, SPURS multi 0.504, GeoDDG 0.386, DDGemb 0.281, ESMtherm 0.232.
 - **The literature-ΔΔG models invert here:** GeoDDG and DDGemb, which lead the external sets, are near the bottom
   on the deep-mutational scans; ProSST, a zero-shot model, leads both DLG4 assays (0.776 and 0.796) among the
   models that cover all seven. ESM3-small through Forge is also ahead of ESM-MSR (devel) on the Faure assays it
@@ -204,24 +207,33 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 #### ESM-MSR LoRA scale ε on the DMS and Domainome
 
 ProteinGym showed that the right LoRA scale depends on the assay (§3), so the DMS and Domainome blocks are rerun at
-ε = 0.75, 0.5 and 0.25 for both checkpoints (the devel rows are seed means over all three seeds, shown only once
-every seed has finished). The combined head is shown.
+ε = 0.75, 0.5 and 0.25 for both checkpoints (devel rows are seed means over all three seeds, shown only once every
+seed has finished; the combined head is shown).
 
 | model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome |
 |---|---|---|---|---|---|---|---|---|
 | released, ε = 1 | 0.726 | 0.725 | 0.673 | 0.619 | **0.639** | 0.479 | **0.346** | 0.542 |
-| released, ε = 0.75 | q | q | q | q | q | q | q | q |
-| released, ε = 0.5 | q | q | q | q | q | q | q | q |
-| released, ε = 0.25 | q | q | q | q | q | q | q | q |
-| devel, ε = 1 | **0.745** | **0.742** | **0.682** | 0.636 | **0.639** | 0.481 | 0.337 | **0.543** |
+| released, ε = 0.75 | 0.750 | 0.763 | 0.707 | 0.660 | **0.639** | 0.510 | 0.341 | 0.560 |
+| released, ε = 0.5 | **0.760** | 0.790 | **0.718** | 0.696 | 0.627 | **0.526** | 0.343 | **0.572** |
+| released, ε = 0.25 | 0.747 | **0.792** | 0.688 | 0.721 | 0.595 | 0.516 | 0.319 | 0.568 |
+| devel, ε = 1 | 0.745 | 0.742 | 0.682 | 0.636 | **0.639** | 0.481 | 0.337 | 0.543 |
 | devel, ε = 0.75 | q | q | q | q | q | q | q | q |
 | devel, ε = 0.5 | q | q | q | q | q | q | q | q |
 | devel, ε = 0.25 | q | q | q | q | q | q | q | q |
-| ε = 0 (zero-shot control) | 0.689 | **0.742** | 0.627 | **0.723** | 0.536 | **0.483** | 0.259 | 0.540 |
+| ε = 0 (zero-shot control) | 0.689 | 0.742 | 0.627 | **0.723** | 0.536 | 0.483 | 0.259 | 0.540 |
 
-- The ε = 0 control already shows the direction: on GRB2 binding the LoRA-off model scores 0.723, above both
-  checkpoints at ε = 1 (0.619 released, 0.636 devel), and it ties ESM-MSR (devel) on DLG4 binding (0.742).
-  Fine-tuning on stability data costs these functional assays something. The three intermediate scales are queued.
+- **Released, a lower LoRA scale is clearly better on these assays.** At ε = 0.5 the 7-DMS mean is 0.637 against
+  0.601 at ε = 1 (0.624 at 0.75, 0.625 at 0.25), and ε = 0.5 beats ε = 1 on 6 of the 8 columns,
+  including Domainome (0.572 against 0.542), DLG4 binding (0.790 against 0.725) and GRB2 binding (0.696 against
+  0.619; 0.721 at ε = 0.25). Only MYO and GB1 prefer ε = 1, and by at most 0.012. This is the same direction as
+  ProteinGym's functional categories (§3), and at ε = 0.5 ESM-MSR (released) is ahead of ProSST (0.591) on the 7-DMS
+  mean.
+- **The caveat that goes with it:** the best ε per assay is chosen by looking at these same assays, so these numbers
+  are an upper bound on what tuning the scale buys, not a held-out result. The stability benchmarks (§1.1, §1.2) use
+  ε = 1, fixed in advance, and a fair version of this comparison fixes one ε before looking.
+- The ε = 0 control (LoRA off) shows the other end: it scores 0.723 on GRB2 binding, above both checkpoints at
+  ε = 1, and ties ESM-MSR (devel) on DLG4 binding (0.742); fine-tuning on stability data is what costs these assays.
+  Devel at the three intermediate scales is running (one lane per seed).
 
 ### 1.4 ProteinGym (213 DMS)
 
@@ -235,7 +247,7 @@ every seed has finished). The combined head is shown.
 | ThermoMPNN (additive, 3 seeds) | 0.441 | 0.781 | 0.484 |
 | SPURS (single model) ‡ | 0.483 | 0.837 | 0.525 |
 | SPURS multi (multi-mutant model) ‡ | 0.426 | 0.808 | 0.477 |
-| ESMtherm ‡ | q | q | q |
+| ESMtherm ‡ | 0.213 | 0.720 | 0.283 |
 | GeoDDG-3D (FASPR) | q | q | q |
 | ESM3ΔG ‡ | q | q | q |
 | ProSST (zero-shot) | **0.514** | 0.653 | 0.528 |
@@ -256,10 +268,11 @@ every seed has finished). The combined head is shown.
   published ProteinMPNN, which scores the whole sequence's likelihood, averages 0.295. The two track each other
   across DMS (rank correlation 0.90) and ours is higher on 208 of 217, so this is a different and stronger readout,
   not an error.
-- **In progress:** ESM3ΔG (fp16) and GeoDDG are mid-run; ESMtherm is complete except one 1,390-residue DMS that ran
-  out of memory at a fixed batch size and is being rerun. A model is summarised only once all 213 common DMS are in.
-  IFUM's ProteinGym run was stopped as not worth the time it needed, and DDGemb and DDMut are web services that
-  cannot be run at this scale.
+- **ESMtherm is Stability-only**, and the table shows how much: 0.720 on Stability against 0.213 on the five-category
+  average (0.283 DMS mean), the opposite shape to ProSST.
+- **In progress:** ESM3ΔG (fp16) and GeoDDG are mid-run (192 and 119 of 213 DMS). A model is summarised only once all
+  213 common DMS are in. IFUM's ProteinGym run was stopped as not worth the time it needed, and DDGemb and DDMut are
+  web services that cannot be run at this scale.
 
 The ε sweep and per-category breakdown are in §3.
 
