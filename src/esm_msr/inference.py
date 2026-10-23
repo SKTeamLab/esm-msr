@@ -128,19 +128,24 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
 def calibration_from_hparams(hparams: dict) -> dict:
     """The calibration-head settings a checkpoint was trained with, which inference must reproduce.
 
-    A key missing from ``hparams`` means the checkpoint predates the flag, so it gets the behaviour of that older
-    code: an independent MT scale and one bias per item. The released models are such checkpoints. Reading the
-    current training defaults instead (both on) would score them with a different model: the released small model's
-    MT scale is 0.217 against its WT scale of 0.340.
+    A key missing from ``hparams`` means the checkpoint predates the flag, and the project defaults apply:
+      tie_mt_scale False      an independent MT scale. This one is also a fact about such a checkpoint: its MT head's own
+                              scale is a trained weight (the released small model's is 0.217 against its WT scale of
+                              0.340), so tying would score a different model.
+      per_mutation_bias True  the bias once per mutated position. This one is a decision, not a fact: the released and
+                              the dc8 checkpoints were trained with one bias per item, so scoring them per mutation
+                              shifts a k-mutant's calibrated prediction by (k - 1) * bias and leaves every single
+                              unchanged. It is the one convention the project keeps (it is mandatory with --link), so
+                              anything computed per item before 2026-10-23 has to be rerun to be comparable.
     """
     return {'tie_mt_scale': bool(hparams.get('tie_mt_scale', False)),
-            'per_mutation_bias': bool(hparams.get('per_mutation_bias', False))}
+            'per_mutation_bias': bool(hparams.get('per_mutation_bias', True))}
 
 
 def resolve_calibration(checkpoint_cal: Optional[dict], tie_mt_scale: Optional[bool] = None,
                         per_mutation_bias: Optional[bool] = None) -> dict:
     """Calibration settings for an inference model: an explicit flag wins, then the checkpoint's own settings, then
-    the released behaviour (untied, one bias per item)."""
+    the project defaults (untied scale, bias per mutated position)."""
     cal = dict(calibration_from_hparams({}))
     cal.update(checkpoint_cal or {})
     if tie_mt_scale is not None:
@@ -484,10 +489,11 @@ if __name__ == "__main__":
     parser.add_argument("--sigma", type=float, default=1.0, help="Multiplier for the LoRA alpha parameters.")
     parser.add_argument("--tie_mt_scale", action=argparse.BooleanOptionalAction, default=None,
                         help="Share the WT calibration scale with the MT head. Default: what the checkpoint was trained "
-                             "with (its hparams; off when the key is missing, as for the released models).")
+                             "with (its hparams; OFF when the key is missing, as for the released models).")
     parser.add_argument("--per_mutation_bias", action=argparse.BooleanOptionalAction, default=None,
                         help="Apply the calibration bias once per mutated position. Default: what the checkpoint was "
-                             "trained with (its hparams; off when the key is missing, as for the released models).")
+                             "trained with (its hparams; ON when the key is missing, which for the released and dc8 "
+                             "checkpoints, trained with one bias per item, shifts multi-mutants by (k - 1) * bias).")
     
     # Model configuration
     parser.add_argument("--log_likelihood", action="store_true", help="Process raw logits into log likelihoods")

@@ -645,6 +645,17 @@ Paired against the released checkpoint over the 213 common DMS (3 seeds × 4 ε,
 11. **Every model is scored on the mutant-background libraries.** SPURS and ProteinMPNN needed their parsed sequence
     patched to do so (§1.2); the patch leaves wild-type-background groups untouched. The epistasis tables are
     unaffected either way, because every mutant-background row is a single.
+12. **ESM-MSR calibration defaults changed on 2026-10-23: `tie_mt_scale` off, `per_mutation_bias` on, everywhere.** The
+    released and dc8 checkpoints record neither key (they were trained with an independent MT scale and one bias per
+    item), so inference now scores them with the bias applied once per mutated position: a k-mutant's calibrated
+    prediction moves by (k − 1) × bias, singles do not move. Estimated offline from the stored capped-test predictions
+    (shift = each head's calibration bias; WT +0.099 to +0.130, MT −0.035 to −0.140, combined +0.048 for released and
+    within ±0.011 for the dc8 seeds), per-protein Spearman changes by at most 0.0008 (all variants) and 0.0000
+    (doubles only), because every double in a protein shifts by the same constant. What does move is anything that
+    reads levels (global error, bias, RMSE, the dddG of a double against its singles) and any set that mixes mutation
+    counts, most likely ProteinGym (its variants carry many substitutions; not yet measured). Every ESM-MSR number on a set with multi-mutants (Tsuboyama doubles, PTMUL, the DMS
+    assays, ProteinGym) computed before this date used one bias per item and is being rerun; singles-only sets
+    (Domainome, most external sets) are unaffected. See `OUTSTANDING_EXPERIMENTS.md`.
 
 ## 6. Where the code and results live
 

@@ -616,10 +616,11 @@ if __name__ == "__main__":
         parser.add_argument('--dtype', type=str, default='bf16', choices=['bf16', 'fp32'], help='Model inference dtype (bf16 = native/autocast, lower VRAM)')
         parser.add_argument('--tie_mt_scale', action=argparse.BooleanOptionalAction, default=None,
                             help="Share the WT calibration scale with the MT head. Default: the checkpoint's hparams "
-                                 "(off when the key is missing, as for the released models).")
+                                 "(OFF when the key is missing, as for the released models).")
         parser.add_argument('--per_mutation_bias', action=argparse.BooleanOptionalAction, default=None,
                             help="Apply the calibration bias once per mutated position. Default: the checkpoint's "
-                                 "hparams (off when the key is missing, as for the released models).")
+                                 "hparams (ON when the key is missing: the released and dc8 models were trained with "
+                                 "one bias per item, so this shifts their multi-mutants by (k - 1) * bias).")
 
         args, remaining_argv = parser.parse_known_args()
         current_remaining_argv = list(remaining_argv) 

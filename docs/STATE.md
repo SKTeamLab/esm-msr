@@ -272,9 +272,12 @@ writes `dc_runs/wt_gold.txt` and appends `gate1_tfmix`.
   `2y − label` (a total, not a residual). **Singles are kept** in the frozen-WT training stream by default
   (`--no-incl_singles` gives the old doubles-only stream). `--per_mutation_bias` defaults **ON** and is refused with
   `--link` + ensemble (a scalar bias puts a double one bias below its two singles, 0.1065 kcal/mol).
-  `--tie_mt_scale` defaults **ON**: the MT calibration shares the WT head's scale (bias separate), so the raw and
-  calibrated combinations weight the halves identically. `--nonspecific_term fx` requires `mean`, which the block
-  uses, so the ns arms run.
+  `--tie_mt_scale` defaults **OFF** (changed 2026-10-23; it was ON): the MT head keeps its own scale. Pass
+  `--tie_mt_scale` to share the WT head's scale (bias separate), so the raw and calibrated combinations weight the
+  halves identically; a run that needs it, such as the teacher-forcing recipe of `docs/tf_mix.md`, must now say so
+  explicitly. Both defaults are the same everywhere they are read: the training config, `MSRModel`, and the inference
+  fallback for a checkpoint whose hparams lack the keys (untied, bias per mutated position). `--nonspecific_term fx`
+  requires `mean`, which the block uses, so the ns arms run.
 
 * **Censoring** is one mechanism (`src/esm_msr/censoring.py`): per item `cens` (−1 / 0 / +1), `cens_src`
   (1 assay range, 2 floor), `cens_bound` on the item's own ddG scale. Lower-censored items tie at the bottom

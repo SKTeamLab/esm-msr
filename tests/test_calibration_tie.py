@@ -1,4 +1,4 @@
-"""The MT calibration head can share the WT head's scale (--tie_mt_scale, default on).
+"""The MT calibration head can share the WT head's scale (--tie_mt_scale, default OFF: independent scales).
 
 The calibrated outputs are the common latent scale; with an independent MT scale the raw-scale rank loss weights the
 two halves differently from the calibrated combined prediction. The bias stays per head.
@@ -41,12 +41,14 @@ def test_per_mutation_bias_is_on_by_default_and_cannot_be_disabled_with_a_link()
         sys.argv = argv
 
 
-def test_tie_mt_scale_is_on_by_default():
+def test_tie_mt_scale_is_off_by_default():
     from esm_msr import config
     argv = sys.argv
     try:
         sys.argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
         a = config.parse_arguments()
-        assert a.tie_mt_scale is True
+        assert a.tie_mt_scale is False                                 # independent MT scale unless asked to tie
+        sys.argv = sys.argv[:7] + ['--tie_mt_scale']
+        assert config.parse_arguments().tie_mt_scale is True           # ... and it can still be turned on
     finally:
         sys.argv = argv

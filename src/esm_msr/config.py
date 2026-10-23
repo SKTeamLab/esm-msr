@@ -215,14 +215,15 @@ def parse_arguments() -> argparse.Namespace:
     calibration_group = parser.add_argument_group("Calibration Configuration")
     calibration_group.add_argument('--shared_scale_init', type=float, default=0.3)
     calibration_group.add_argument('--shared_bias_init', type=float, default=0.0)
-    calibration_group.add_argument('--tie_mt_scale', action=argparse.BooleanOptionalAction, default=True,
+    calibration_group.add_argument('--tie_mt_scale', action=argparse.BooleanOptionalAction, default=False,
                                    help="Tie the MT calibration head's SCALE to the frozen WT head's (the MT head keeps "
-                                        "its own bias). The calibrated outputs are the common latent scale; with an "
+                                        "its own bias). The calibrated outputs are then the common latent scale; with an "
                                         "independent MT scale the raw-scale rank loss weights the two halves "
-                                        "differently from the calibrated combined prediction. Default on; pass "
-                                        "--no-tie_mt_scale for the released independent-scale behaviour.")
+                                        "differently from the calibrated combined prediction. Default OFF (independent "
+                                        "scales, as the released models); pass --tie_mt_scale to share the WT scale.")
     calibration_group.add_argument('--per_mutation_bias', action=argparse.BooleanOptionalAction, default=True,
-                                   help="Apply the calibration bias once per MUTATED POSITION (bias * n_mut) "
+                                   help="Default ON, here and wherever a default is read (inference, the model "
+                                        "constructor). Apply the calibration bias once per MUTATED POSITION (bias * n_mut) "
                                         "instead of once per item. The LLR sum being calibrated is itself a sum "
                                         "over the item's positions, so a per-item bias makes a double's "
                                         "prediction sit one bias below the sum of its own singles - measured at "

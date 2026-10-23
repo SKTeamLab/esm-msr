@@ -120,9 +120,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             lora_config=lora_config, shared_scale_init=self.hparams.shared_scale_init, shared_bias_init=self.hparams.shared_bias_init, adapter_mode=self.hparams.adapter_mode,
             lora_mode=self.hparams.lora_mode, model_dtype=torch.float32,
             combined_mode=getattr(self.hparams, 'combined_mode', None) or 'mean',
-            per_mutation_bias=bool(getattr(self.hparams, 'per_mutation_bias', False)),
+            per_mutation_bias=bool(getattr(self.hparams, 'per_mutation_bias', True)),
             native_cond_mt_input=bool(getattr(self.hparams, 'native_cond_for_mt', False)),
-            # a checkpoint whose hparams predate the flag was trained untied; new runs always record it
+            # hparams that predate the flag get the project defaults (untied, bias per mutation); new runs always record it
             tie_mt_scale=bool(getattr(self.hparams, 'tie_mt_scale', False))
         )
         
@@ -701,7 +701,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     # the combined losses, which is also why it cannot leak into the WT adapter.
                     ch = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
                     s_ns = 1.0 if ch is None or not ch.use_scale else ch.scale.detach()
-                    b_ns = 0.0 if ch is None or ch.bias is None or getattr(self.hparams, 'per_mutation_bias', False) else ch.bias.detach()
+                    b_ns = 0.0 if ch is None or ch.bias is None or getattr(self.hparams, 'per_mutation_bias', True) else ch.bias.detach()
                     from_pass = ~has_add_label if self.model.lora_mode == 'ensemble' else torch.ones_like(is_single)
                     x_hat = (dGwt_mb + forced_wt_cal
                              + torch.where(from_pass, b_ns * (n_mut_mb - 1.0), torch.zeros_like(forced_wt_cal))).detach()
@@ -869,7 +869,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         dgw = dG_wt.to(dev).float()
         ok = (n_mut > 1) & torch.isfinite(dgw)
         ch = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
-        b = 0.0 if ch is None or ch.bias is None or getattr(self.hparams, 'per_mutation_bias', False) else ch.bias.detach()
+        b = 0.0 if ch is None or ch.bias is None or getattr(self.hparams, 'per_mutation_bias', True) else ch.bias.detach()
         with torch.no_grad():
             x_hat = torch.where(ok, dgw, torch.zeros_like(dgw)) + out_dict['wt_lora_pred'].float() + b * (n_mut - 1.0)
             f = torch.where(ok, ns(x_hat), torch.zeros_like(x_hat))
