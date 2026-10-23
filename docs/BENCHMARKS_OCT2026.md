@@ -95,7 +95,7 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
   the single model for singles and the multi model for multi-mutants, so on a singles-only benchmark it was the single
   model throughout and the multi model had never been scored on a single mutant outside ProteinGym. Scored properly,
   SPURS multi is clearly the weaker predictor on singles: 12-set mean 0.574 against 0.610, DMS mean 0.504 against
-  0.605, Domainome 0.406 against 0.513, capped test 0.806 against 0.866 (S669 0.459 against 0.502, K3822 0.627 against
+  0.605, Domainome 0.406 against 0.513, capped test 0.806 against 0.864 (S669 0.459 against 0.502, K3822 0.627 against
   0.681). It is also lower on the multi-mutant sets (PTMUL 0.359 against 0.399, PTMUL-D 0.466 against 0.495), so the
   multi model is not buying anything even where it was designed to be used.
 - **ESM3 through Forge** (small, medium, large). Predictions exist only for the parent sets, so S461, K2369 and
@@ -126,8 +126,8 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | MutateEverything st2 (3 seeds) | 0.727 | 0.762 | – | – |
 | ThermoMPNN (additive, 3 seeds) | 0.785 | 0.794 | – | – |
 | ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.782 | 0.783 | – | – |
-| SPURS (single model) ‡ | 0.845† | 0.866† | – | – |
-| SPURS multi (multi-mutant model) ‡ | 0.789† | 0.806† | – | – |
+| SPURS (single model) ‡ | 0.841† | 0.864† | – | – |
+| SPURS multi (multi-mutant model) ‡ | 0.787† | 0.806† | – | – |
 | ESMtherm ‡ | 0.716† | 0.774† | 0.691† | 0.707† |
 | DDGemb (server) | 0.490 | 0.508 | **0.611** | 0.524 |
 | DDMut (server) | – | – | 0.542* | 0.582* |
@@ -137,16 +137,16 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | ESM3ΔG ‡ | 0.811† | 0.811† | 0.790† | 0.744† |
 | ProSST (zero-shot) | 0.593 | 0.596 | 0.607 | **0.594** |
 | Rosetta Cartesian ΔΔG | 0.683 | 0.663 | – | – |
-| ProteinMPNN (zero-shot) | 0.532 | 0.537 | – | – |
+| ProteinMPNN (zero-shot) | 0.541 | 0.542 | – | – |
 | ESM3-small-open, ε = 0 (zero-shot) | 0.565 | 0.578 | – | – |
 
-- **SPURS (single model) is above ESM-MSR (devel) on capped test (0.866 vs 0.849) though not on validation (0.845
+- **SPURS (single model) is above ESM-MSR (devel) on capped test (0.864 vs 0.849) though not on validation (0.841
   vs 0.854).** Not yet interpretable:
   SPURS trains on Megascale, and `esm_msr_testing.py` carries a `--remove_spurs_homologs` flag written for exactly
   this comparison, which the harness adapters do not apply. The same caveat covers ESM3ΔG (0.811) and IFUM (0.711).
 - **Among the models whose test set is held out** (ESM-MSR, MutateEverything and ThermoMPNN, all retrained on the
   same capped training split, plus the models that never saw Megascale), ESM-MSR leads: devel 0.849 and released
-  0.843 on test, then ThermoMPNN 0.794, ME stage 1 0.771, **Rosetta 0.663**, GeoDDG 0.609, ProteinMPNN 0.537,
+  0.843 on test, then ThermoMPNN 0.794, ME stage 1 0.771, **Rosetta 0.663**, GeoDDG 0.609, ProteinMPNN 0.542,
   DDGemb 0.508.
 - **Rosetta Cartesian ΔΔG** (physics-based; nothing to leak) scores 0.683 on validation and 0.663 on test at full
   coverage, above GeoDDG, ProteinMPNN, DDGemb and the zero-shot control and below every learned model trained on
@@ -158,12 +158,15 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
   PDB, which has the wild-type residue at the background position, and the first runs skipped those libraries (6,026
   val and 7,931 test rows, all singles). The adapters now overwrite the parsed sequence with the corrected
   mutant-background sequence (the structure stays the wild-type backbone's), asserting that it differs from the PDB
-  sequence at exactly the background positions. The reruns of capped val and test are queued (386549–386551); until
-  they land, the SPURS, SPURS multi and ProteinMPNN capped numbers above still cover the wild-type-background
-  libraries only. No other model had this gap.
+  sequence at exactly the background positions. The reruns of capped val and test (jobs 386549–386551) are in the
+  numbers above. They moved the capped values only a little (SPURS 0.845 / 0.866 → 0.841 / 0.864, SPURS multi 0.789 / 0.806 →
+  0.787 / 0.806, ProteinMPNN 0.532 / 0.537 → 0.541 / 0.542), and left the wild-type-background rows bit-for-bit unchanged. On the
+  mutant-background libraries themselves the per-library Spearman is 0.70–0.87 for SPURS and 0.44–0.70 for ProteinMPNN.
+  No other model had this gap. (The SPURS single-model rerun first wrote to a mislabelled directory and these numbers lagged it
+  by a few hours; see `GPU4_INFERENCE_LEDGER.md` §4a.)
 - **IFUM scored on a per-variant ESMFold structure beats its WT-backbone mode on the capped split** (0.713 and 0.752
   against 0.666 and 0.711), the same direction as on the older split. Both are flagged ‡: IFUM trains on all of
-  Megascale. SPURS multi is 0.789 and 0.806 against SPURS' 0.845 and 0.866 (§1.1). ProSST, which is zero-shot, scores
+  Megascale. SPURS multi is 0.787 and 0.806 against SPURS' 0.841 and 0.864 (§1.1). ProSST, which is zero-shot, scores
   0.593 and 0.596.
 
 ### 1.3 DMS and Domainome
