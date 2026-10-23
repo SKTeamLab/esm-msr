@@ -238,7 +238,7 @@ def collect_pgym_public(rows):
         # the same two models read out by their authors' ProteinGym recipe, beside ours (our ProteinMPNN is the unmasked
         # conditional score, our ESM3-small-open is the ESM-MSR readout with the LoRA off): the difference is inference
         for col, name, what in [('ProteinMPNN', 'ProteinMPNN (published)', 'whole-sequence likelihood'),
-                                ('ESM3', 'ESM3-open (published)', 'the authors\' own ESM3 readout')]:
+                                ('ESM3', 'ESM3-open (published)', 'the authors\' own ESM3 readout, an additive wild-type-marginal sum')]:
             if f'{col} rho_mapped' in d.columns:
                 pg_summaries(rows, name, d[f'{col} rho_mapped'], f'ProteinGym published scores ({col}, {what})')
 
