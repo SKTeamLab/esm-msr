@@ -222,6 +222,28 @@ def _collapse_replicates(df: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([m_out, b_out]) if len(m_out) else b_out
 
 
+
+def structure_file_stems(base_dir: str, original_stems: pd.Series) -> pd.Series:
+    """The structure file stem to use for each library, given its ORIGINAL name (the table's WT_name with ':' for '|').
+
+    The Zenodo AlphaFold_model_PDBs use the original name (EA|run2_0290_0001 -> EA:run2_0290_0001.pdb). A folder prepared before the
+    original names were used, such as the cluster's copy, has the same files with '_' in place of ':' (v2R31S_R32S_2N5D.pdb) and
+    no file with a colon: looking only for the original name then fails on every library whose name carries a '|' (it did, in
+    the capped Tsuboyama block, on 2026-10-23). So: the original name if that file exists, else the '_' name if THAT exists, else
+    the original name, which keeps a genuinely missing structure reported under the name the archive uses.
+    """
+    cache = {}
+
+    def one(stem):
+        if stem not in cache:
+            alt = stem.replace(':', '_')
+            has = lambda x: os.path.exists(os.path.join(base_dir, x + '.pdb'))
+            cache[stem] = alt if (not has(stem) and has(alt)) else stem
+        return cache[stem]
+
+    return original_stems.map(one)
+
+
 class MegaScaleDatasetPreprocessor:
     """Handles raw data loading, preprocessing, and dataset creation."""
     def __init__(self, data_file: str, af_model_folder: str = '/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs/', spurs_override: bool = False,
@@ -331,12 +353,12 @@ class MegaScaleDatasetPreprocessor:
         # The Zenodo AlphaFold_model_PDBs name a file with ':' where the table's WT_name has '|' (EA|run2_0290_0001
         # -> EA:run2_0290_0001.pdb), so the structure is looked up under its original name. Everything else (code,
         # uid, cache names, split lists) uses '_' in place of '|'.
-        pdb_stem = self.df['code_wt'].str.replace('|', ':', regex=False)
+        base_dir = os.path.join(self.af_model_folder, '')
+        pdb_stem = structure_file_stems(base_dir, self.df['code_wt'].str.replace('|', ':', regex=False))
         self.df['uid'] = self.df['uid'].str.replace('|', '_', regex=False)
         self.df['code'] = self.df['code'].str.replace('|', '_', regex=False)
         self.df['code_wt'] = self.df['code_wt'].str.replace('|', '_', regex=False)
 
-        base_dir = os.path.join(self.af_model_folder, '')
         self.df['pdb_file'] = base_dir + pdb_stem + '.pdb'
 
         logging.info(f"Reduced to: {len(self.df)} entries after basic filtering")
@@ -380,12 +402,12 @@ class MegaScaleDatasetPreprocessor:
         # The Zenodo AlphaFold_model_PDBs name a file with ':' where the table's WT_name has '|' (EA|run2_0290_0001
         # -> EA:run2_0290_0001.pdb), so the structure is looked up under its original name. Everything else (code,
         # uid, cache names, split lists) uses '_' in place of '|'.
-        pdb_stem = self.df['code_wt'].str.replace('|', ':', regex=False)
+        base_dir = os.path.join(self.af_model_folder, '')
+        pdb_stem = structure_file_stems(base_dir, self.df['code_wt'].str.replace('|', ':', regex=False))
         self.df['uid'] = self.df['uid'].str.replace('|', '_', regex=False)
         self.df['code'] = self.df['code'].str.replace('|', '_', regex=False)
         self.df['code_wt'] = self.df['code_wt'].str.replace('|', '_', regex=False)
 
-        base_dir = os.path.join(self.af_model_folder, '')
         self.df['pdb_file'] = base_dir + pdb_stem + '.pdb'
 
         logging.info(f"Total size: {len(self.df)} according to SPURS preprocessing")
