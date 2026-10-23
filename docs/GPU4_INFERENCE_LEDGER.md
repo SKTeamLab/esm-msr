@@ -103,10 +103,24 @@ prediction file). **Running** (as of 14:40): 386364 ESM3ΔG (fp16), 386277 GeoDD
 MT-pass ablation `gpu4_pgym_s1_mtpass_wt2` (386637; 187 DMS, ~29 h, scored with the new defaults; its first 26 DMS are the
 corrected output of the cancelled job 386255, so its `summary.csv` mixes the two origins, recorded in the manifest).
 
-**A free GPU does not mean a free slot.** The ε jobs asked for 96 G and 8 CPUs but peak at 6.9 G. With 160 G of the
-node's 250 G already allocated, the next job could not fit and a card sat idle until the pending jobs were lowered to
-24 G. The same applies to every harness job: `run_model.sbatch` asks for 32 G, which is what ESM3ΔG and GeoDDG
-actually hold.
+**A free GPU does not mean a free slot, and an empty queue does not fill one.** gpu4 has 4 cards, **24 CPUs** and **250 GB**, so
+a quarter of the node is 6 CPUs and ~62 GB. Three things have left a card idle, all avoidable:
+
+- **Memory.** The ε jobs asked for 96 G and peaked at 6.9 G; with 160 G of the node already allocated the next job could not fit
+  (fixed 2026-10-23 by lowering the pending jobs to 24 G).
+- **CPUs (2026-10-23).** ESM-MSR jobs asked for 8 CPUs, so **three** of them used all 24 and a fourth card idled with work waiting.
+  Measured peaks are 6.7–7.0 GB for every ESM-MSR inference job (`sacct` MaxRSS of 386531, 386566, 386576, 386581, 386588) against
+  24–32 G requested. **Rule: at most 4 CPUs and 12 G per ESM-MSR job (32 G for ESM3ΔG and GeoDDG, which actually hold it).**
+  Four such jobs use 16 of 24 CPUs. The stock `slurm_msr_gamut.sh` and `slurm_pgym.sh` still ask for 96 G and 8 CPUs; override them
+  on the command line (`--cpus-per-task=4 --mem=12G`) until they are changed.
+- **Failures nobody saw.** Five full ESM-MSR reruns (386576–386580, 31 min each) and four ctx jobs (386566–386569, 4.5 min each) failed on
+  the Tsuboyama structure lookup (below) and the queue drained, leaving a card empty for hours. A queue only keeps the node full if
+  failures are noticed: keep at least four eligible jobs per free card, and read the exit state of every job that ends.
+
+The failure itself: `882a5cb` looks structures up under the Zenodo names (`:` for `|`), and the cluster's folder has the same files
+with `_` (`v2R31S_R32S_2N5D.pdb`, no colon file). 40 of the table's 479 wild-type names carry a `|`, so any ESM-MSR run that reached
+one failed with `FileNotFoundError`. `structure_file_stems` now falls back to the `_` name when only that exists (all 479 resolve;
+`tests/test_structure_paths.py`); the jobs were resubmitted as `gpu4_pmb2_*` (external + DMS), `gpu4_pmb3_tsu_*` (Tsuboyama) and `gpu4_ctx2_*`.
 
 Cancelled earlier: `gpu4_ifum_cappg` 386275 (§3.2), `gpu4_esm3dg_cappg` 386274 (replaced by 386364, §3.1),
 `gpu4_prosst_cappg` 386278 (ProteinGym part replaced by the published scores).
