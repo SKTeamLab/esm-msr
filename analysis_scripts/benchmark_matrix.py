@@ -458,28 +458,33 @@ def cmd_epi(a):
     B = f'{DEV}/outputs/baselines_capped'
     pieces = {  # split -> (baselines + released, devel seeds, Rosetta, harness models)
         'valfull (34,957 rows)': ('epi_test_valfull_allbb.csv', 'epi_test_valfull_allbb_msr_dc8_s1-dc8_s2-dc8_s3.csv',
-                                  'epi_rosetta_valfull_allbb.csv', 'epi_harness_valfull_allbb.csv'),
+                                  'epi_rosetta_valfull_allbb.csv', 'epi_harness_valfull_allbb.csv', 'epi_ctx_valfull_allbb.csv'),
         'test (40,866 rows, destabilized backbones dropped)': ('epi_test.csv', 'epi_test_allbb_msr_dc8_s1-dc8_s2-dc8_s3.csv',
-                                                               'epi_rosetta_test.csv', 'epi_harness_test.csv')}
+                                                               'epi_rosetta_test.csv', 'epi_harness_test.csv', 'epi_ctx_test.csv')}
     # harness models with a real double prediction (analysis_scripts/epi_harness.py), labelled as in the other tables;
     # ProSST is absent because its double is the sum of its singles, so it has no interaction to score
     harness = [('ESMtherm', 'ESMtherm ‡'), ('IFUM (WT backbone)', 'IFUM, WT backbone ‡'),
                ('IFUM (native, ESMFold)', 'IFUM, ESMFold per variant ‡'), ('GeoDDG-3D (FASPR)', 'GeoDDG-3D (FASPR)'),
                ('ESM3dG', 'ESM3ΔG ‡'), ('SPURS multi', 'SPURS multi (multi-mutant model) ‡'),
                ('ProteinMPNN', 'ProteinMPNN (zero-shot)'), ('DDGemb', 'DDGemb (server)')]
-    for split, (base_f, dev_f, ros_f, har_f) in pieces.items():
+    for split, (base_f, dev_f, ros_f, har_f, ctx_f) in pieces.items():
         base = pd.read_csv(f'{B}/{base_f}').set_index('run/head')
         dev = pd.read_csv(f'{B}/{dev_f}').set_index('run/head')
         ros = pd.read_csv(f'{B}/{ros_f}').set_index('run/head')
         har = pd.read_csv(f'{B}/{har_f}').set_index('run/head')
+        # the WT adapter read in context, ctx = (WT + ~WT)/2 (analysis_scripts/epi_ctx.py); absent until its runs finish
+        ctx = pd.read_csv(f'{B}/{ctx_f}').set_index('run/head') if os.path.exists(f'{B}/{ctx_f}') else None
+        ctx_rel = [(f'{REL}, WT read in context', ctx[ctx.index == 'MSR_ctx/comb'])] if ctx is not None else []
+        ctx_dev = ([(f'{DEVEL}, WT read in context (3 seeds)', ctx[[i.startswith('MSR_dc8_s') and i.endswith('_ctx/comb') for i in ctx.index]])]
+                   if ctx is not None else [])
         seeds = lambda df, stem: df[[i.startswith(stem) for i in df.index]]
         spec = [('MutateEverything stage 1', seeds(base, 'ME_stage1_s')[lambda x: x.index.str.endswith('/mt')]),
                 ('MutateEverything stage 2', seeds(base, 'ME_stage2_s')[lambda x: x.index.str.endswith('/mt')]),
                 ('ThermoMPNN-D', seeds(base, 'TMPNN_s')[lambda x: x.index.str.endswith('/mt')]),
                 ('Rosetta Cartesian ΔΔG', ros[ros.index == 'Rosetta/mt']),
                 *[(label, har[har.index == f'{m}/mt']) for m, label in harness],
-                (REL, base[base.index == 'MSR/comb']),
-                (DEVEL + ' (3 seeds)', seeds(dev, 'MSR_dc8_s')[lambda x: x.index.str.endswith('/comb')])]
+                (REL, base[base.index == 'MSR/comb']), *ctx_rel,
+                (DEVEL + ' (3 seeds)', seeds(dev, 'MSR_dc8_s')[lambda x: x.index.str.endswith('/comb')]), *ctx_dev]
         body = []
         for name, df in spec:
             body.append((name, [df[c].mean() for c, _, _ in EPI_COLS], [df[c].std() if len(df) > 1 else np.nan for c, _, _ in EPI_COLS]))

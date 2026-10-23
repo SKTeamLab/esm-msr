@@ -18,6 +18,7 @@ patched now (below) and rerun as 386549–386551.
 
 | what | fills (the `q` cells) | jobs | state |
 |---|---|---|---|
+| ESM-MSR ctx head, (WT + ~WT)/2, on capped val + test (released and devel seeds 1–3) | the "WT read in context" rows of §2.1 and §2.2 | `gpu4_ctx_rel` 386566, `gpu4_ctx_s1` 386567, `gpu4_ctx_s2` 386568, `gpu4_ctx_s3` 386569; ~45 min each (launcher `inference_scripts/esm_msr_ctx_testing.py`, outputs in `outputs/ctx_run/`, scored by `analysis_scripts/epi_ctx.py`) | pending a gpu4 slot |
 | **ESM-MSR LoRA scale ε ∈ {0.75, 0.5, 0.25}, DMS + Domainome, devel checkpoint**, one lane per seed | §1.3 ε table, devel rows (shown once all 3 seeds finish) | seed 1: 386524 (running), 386525; seed 2: 386526 (running), 386527, 386528; seed 3: 386529–386531 | 7 of 12 runs not yet finished; ~1.5 h each, so ≈ 8 more GPU-h across the lanes |
 | ESM3ΔG, ProteinGym, 213 DMS cheapest first, fp16 | §1.4 | 386364, running | 192 / 213; the remaining work is dominated by the largest DMS (SPG1, 537k variants) |
 | GeoDDG (FASPR), capped Tsuboyama + ProteinGym | §1.2 capped cells, §1.4 | 386277, running | 119 / 213 |
