@@ -219,10 +219,11 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                            "behaviour, and strictly wrong (they are conditional effects ddG(X | background)). Off, they are labelled "
                            "'native_cond' and the WT head does not train on them.")
     data.add_argument('--native_cond_for_mt', action=argparse.BooleanOptionalAction, default=False,
-                      help="Let the MT head train on a mutant-background library's measurements: label them 'native_cond', include the subset, "
-                           "and add them to the MT/combined loss. The MT pass then gets the SAME input the WT pass gets (the library's "
-                           "starting/background sequence), so the item is a forward conditional mutation in a pseudo-WT context: the only "
-                           "directly MEASURED ddG(A | B) in the data. Independent of --native_cond_for_wt.")
+                      help="Label a mutant-background library's measurements 'native_cond' and route them to the MT/combined loss. This adds NO examples: "
+                           "under the default routing (--native_cond_for_wt) they already train as ordinary singles (3 training libraries, 3,782 items, "
+                           "1.7%% of the stream). What changes is the MT pass input for them: the library's background sequence (what the WT pass reads) "
+                           "instead of background + the scored mutation, so the item is a forward mutation from the background, the MT adapter's mt_fwd "
+                           "probe regime. The same swap applies at validation to mutant-background libraries. Independent of --native_cond_for_wt.")
     data.add_argument('--external_val_sets', type=str, default='ptmuld,s461,ssym',
                       help="Comma-separated validation loaders scored as OUT-OF-DISTRIBUTION benchmarks: logged per loader (val_<metric>/<name>) "
                            "but held OUT of every aggregate (val_*_avg, the pooled ranking, the epistasis levels), and summarised as "

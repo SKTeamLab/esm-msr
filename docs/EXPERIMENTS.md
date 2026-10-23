@@ -344,7 +344,7 @@ sampler batches on a subset) against the pre-trim code. The label-uncertainty we
 arm, `mt_frozenwt_ciw_r16a16_s1`, runs from its own pin and is the feature's only test.
 
 The new arms (project `esm-msr-trim-oct22`, seed 1, frozen WT = best epoch of `wt_r2a4_f0_cthr05_s1`, one variable each against `trim_ctrl_s1`):
-`trim_ncmt_s1` (measured conditionals as MT supervision), `trim_joint_dual_s1` / `trim_joint_fused_s1` (one shared adapter against two, joint
+`trim_ncmt_s1` -> `trim_ncmt_late_s1` (cancelled and requeued: `--native_cond_for_mt` adds no examples, it swaps the MT input for 1.7% of the stream), `trim_joint_dual_s1` / `trim_joint_fused_s1` (one shared adapter against two, joint
 training), `trim_mask_mt_ind_s1` (independent masking on the MT pass), `trim_huber_s1` (robust regression), `trim_rank0_s1` / `trim_rank025_s1` /
 `trim_list64_s1` / `trim_reg10_s1` (MT loss balance and list length), `trim_tfmix0_s1` (never teacher-force). Single-seed screens: per the promotion
 rule a lead needs a second seed for both arms before anything stacks.

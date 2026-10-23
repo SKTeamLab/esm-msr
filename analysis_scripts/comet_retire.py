@@ -24,7 +24,7 @@ import sys
 
 import comet_ml
 
-API_KEY = 'jxbqykQ7uyZi3c02oRlbDLS1q'
+# The key is NOT in this file: comet_ml.API() reads COMET_API_KEY or ~/.comet.config (it used to be hard-coded here, and so sat in git history).
 WORKSPACE = 'sareeves96'
 REASONS = ('aborted', 'superseded', 'invalid', 'confounded', 'reference')
 KEY = re.compile(r'([0-9a-f]{32})')
@@ -63,7 +63,7 @@ def main():
     p.add_argument('--list-project', help='list a project (archived included) and exit')
     p.add_argument('--match', help='with --list-project: only names matching this regex')
     a = p.parse_args()
-    api = comet_ml.API(api_key=API_KEY)
+    api = comet_ml.API()
 
     if a.list_project:
         rows = listing(api, a.list_project, a.match)
