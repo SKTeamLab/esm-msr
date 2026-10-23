@@ -402,7 +402,8 @@ def cmd_aggregates(a):
 
 # --------------------------------------------------------------------------------------------------------------------- compare
 VERIFY = {'rel_sigma1.0': (REL, 'sigma1.0'), 'rel_sigma1.0_wt_only': (REL, 'sigma1.0_wt_only'),
-          'rel_sigma0.5_wt_only': (REL, 'sigma0.5_wt_only'), 's1_sigma1.0': (DEV[0], 'sigma1.0'), 's1_sigma0.5': (DEV[0], 'sigma0.5')}
+          'rel_sigma0.5_wt_only': (REL, 'sigma0.5_wt_only'), 's1_sigma1.0': (DEV[0], 'sigma1.0'), 's1_sigma0.5': (DEV[0], 'sigma0.5'),
+          's1_sigma1.0_mtpass_wt': (DEV[0], 'sigma1.0_mtpass_wt')}
 
 
 def cmd_compare(a):
@@ -452,7 +453,7 @@ def cmd_compare(a):
                 exp = float((dl[c][multi] / km1[multi]).mean())
                 noise = float(np.nanmean(np.abs(diff[~multi]))) if (~multi).any() else 0.0
                 slope = slope_of(diff, km1, multi)
-                tol = 0.01 if c == 'mt_lora_pred' else 0.02
+                tol = 0.01 if (c == 'mt_lora_pred' and kind == 'full') else 0.02      # in the MT-pass ablation the MT pass IS the WT adapter
                 good = noise < 0.01 and abs(slope - exp) < tol
                 ok &= good
                 line.append(f'{c[:-5] if c.endswith("_pred") else c}: noise {noise:.4f}, slope {slope:+.4f} vs {exp:+.4f}')

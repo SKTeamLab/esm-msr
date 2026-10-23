@@ -19,10 +19,10 @@ every dataset in the job, so per-dataset timing has to come from the finer sourc
 | ESM-MSR capped | GB1 rerun | inference | **gpu4 only** | 1 / 0 | 0.2 / 0.0 |
 | ESM-MSR capped | ProteinGym full | inference | mixed | 1 / 1 (gpu3) | 31.8 / 11.8 |
 | ESM-MSR capped | ProteinGym WT-only ε sweep | inference | not gpu4 | 0 / 2 (gpu3) | 0.0 / 0.6 |
-| ESM-MSR dc8 | ProteinGym (ε sweep) | inference | mixed | 12 / 8 (gpu3) | 371.5 / 0.2 (running) |
+| ESM-MSR dc8 | ProteinGym (ε sweep) | inference | mixed | 12 / 12 (gpu3) | 401.1 / 0.3 |
 | ESM-MSR dc8 | ProteinGym BRCA1/SCN5A retry | inference | not gpu4 | 0 / 1 (gpu3) | 0.0 / 2.6 |
 | ESM-MSR dc8 | gamut | inference | not gpu4 | 0 / 3 (gpu1, gpu3) | 0.0 / 22.7 |
-| ESM-MSR dc8 | ProteinGym MT-pass ablation | inference | not gpu4 | 0 / 1 (gpu3) | 0.0 / 12.2 (running) |
+| ESM-MSR dc8 | ProteinGym MT-pass ablation | inference | not gpu4 | 0 / 1 (gpu3) | 0.0 / 15.8 (cancelled at 26 of 213 DMS) |
 | ESM-MSR-small (March) | 12 external sets, AF2 structures | inference | **gpu4 only** | 1 / 0 | 1.0 / 0.0 |
 | MutateEverything | Tsuboyama val/test + externals | inference | mixed | 3 / 16 (gpu1, gpu2, gpu3) | 5.1 / 14.3 |
 | MutateEverything | DMS | inference | mixed | 3 / 17 (gpu1, gpu2, gpu3) | 0.1 / 1.2 |
@@ -47,6 +47,17 @@ every dataset in the job, so per-dataset timing has to come from the finer sourc
 | ESM3ΔG | gamut (22 sets, sharded) | inference | not gpu4 | 0 / 5 (gpu3) | 0.0 / 14.4 |
 | ProSST | gamut (22 sets) | inference | not gpu4 | 0 / 1 (gpu3) | 0.0 / 0.6 |
 | ColabFold AF2 | WT structures for external sets | structure prep | **gpu4 only** | 6 / 0 | 24.5 / 0.0 |
+| SPURS | rerun with the mutant-background libraries (capped val+test) | rerun | **gpu4 only** | 1 / 0 | 0.02 / 0.0 |
+| SPURS multi | rerun with the mutant-background libraries (capped val+test) | rerun | **gpu4 only** | 1 / 0 | 0.01 / 0.0 |
+| ProteinMPNN | rerun with the mutant-background libraries (capped val+test) | rerun | **gpu4 only** | 1 / 0 | 0.00 / 0.0 |
+| ESM-MSR | rerun after the calibration-default change (multi-mutant sets) | rerun | gpu4 | 13 queued (1 running) | – |
+| ESM-MSR | ctx head (WT + ~WT)/2, capped val+test | inference | gpu4 | 4 queued | – |
+| ESM-MSR | ProteinGym bias correction (CPU, offline) | cpu | not gpu4 | 0 / 4 (gpu1) | 0.0 / 1.3 |
+
+The three **rerun** rows are not repeats of the gamut jobs they replace: they score the 6,026 + 7,931 mutant-background rows the
+first runs skipped, so they do more work and must not be summed with the originals. `benchmark_matrix.py ledger` keeps them
+in their own kind for that reason. The four CPU jobs are the ProteinGym bias correction; three of them stopped on a built-in
+guard (that is what the guards are for) and were rerun after the fix.
 
 How to read the mixed rows:
 
@@ -78,12 +89,18 @@ eligible at once. Each harness job writes one line per dataset to
 | 386515, 386516 | IFUM, ESMFold folding of 64,008 capped-Tsuboyama sequences (two workers) | 2:58 each |
 | 386517, 386518 | IFUM native scoring, capped val / test | 1:22 / 1:55 |
 | 386519 | SPURS multi, 22-set gamut | 0:07 |
-| 386520–386523 | ESM-MSR ε = 0.75 / 0.5 / 0.25 (released) and 0.75 (devel seed 1), DMS + Domainome | 1:27 each |
+| 386520–386529 | ESM-MSR ε sweep, DMS + Domainome (released ε = 0.75 / 0.5 / 0.25; devel seeds 1–3 at the intermediate ε) | 1:27–1:28 each |
+| 386549–386551 | SPURS, SPURS multi and ProteinMPNN rerun with the mutant-background libraries, capped val / test | 0:55, 0:37, 0:12 |
+| 386635 | MT-pass ablation, real-pipeline check on 3 DMS (§ the benchmarks doc, caveat 12) | 0:58 |
 | 386532, 386533 | ESMtherm CAS9 retry; ProSST capped Tsuboyama | 0:07, 0:01 |
 
 The ε runs took 1.5 h, not the ~6.6 h I had estimated from the gamut's earlier totals: those included the Tsuboyama
-blocks, which these runs skip. **Running:** 386364 ESM3ΔG (fp16, 192/213), 386277 GeoDDG (119/213), and ε lanes
-386524 (devel seed 1, ε = 0.5) and 386526 (seed 2, ε = 0.75). **Waiting:** the remaining ε jobs in the lanes.
+blocks, which these runs skip. **Convention:** jobs 386520–386527 ran before the calibration-default change (merged on the
+cluster at 12:10 on 2026-10-23) and used one bias per item; 386528 onward use one per mutated position. The older ones are
+being rerun (`gpu4_pmb_*`), so a seed mean over mixed jobs is never shown (the table builder reads the convention from each
+prediction file). **Running** (as of 14:40): 386364 ESM3ΔG (fp16), 386277 GeoDDG, 386530 (devel seed 3, ε = 0.5) and 386576
+(the first rerun, released ε = 1). **Waiting:** the other 12 `gpu4_pmb_*` reruns, the four `gpu4_ctx_*` jobs, and
+`gpu4_eps0.25_dev3` (386531).
 
 **A free GPU does not mean a free slot.** The ε jobs asked for 96 G and 8 CPUs but peak at 6.9 G. With 160 G of the
 node's 250 G already allocated, the next job could not fit and a card sat idle until the pending jobs were lowered to
@@ -184,7 +201,43 @@ ordering cheapest-first) were worth more than precision for both models.
 | `stability-baselines/results/<model>/predictions*/timing.csv` | per dataset: rows, wall s, ms/row, host, GPU, job | third-party harness runs (ESMtherm, IFUM ESMFold, GeoDDG FoldX, ESM3ΔG, ProSST, and every queued job) |
 | `stability-baselines/results/TIMING.md` | per model × dataset, hand-compiled, with concurrency notes | the six original third-party models |
 | `esm-msr-devel/analysis_notebooks/stats/<set>/<ckpt>/…_Combined.csv`, column `time` | per dataset (seconds) | ESM-MSR gamut runs |
-| Slurm (`slurm_jobs_oct2026.csv`) | per job | everything, including ME / ThermoMPNN, which log no per-dataset time |
+| Slurm (`slurm_jobs_oct2026.csv`) | per job | everything, including ME / ThermoMPNN, which log no per-dataset time. Complete record (418 jobs, smoke tests and failures included; `kind` separates them) |
+| `timing_cache_flags.csv` | per dataset | the 49 ESMtherm datasets whose `wall_s` is a cache hit, not inference (§4a) |
+
+### 4a. What auditing these records found (2026-10-23; `analysis_scripts/runtime_log_audit.py ledger|timing`)
+
+Consistent, checked on all of them:
+
+- **Slurm:** `Elapsed` agrees with `End − Start` for every finished job (0 disagreements).
+- **Harness `timing.csv`** (22 files, 742 rows): the summed per-dataset time never exceeds the job's `Elapsed` (45 jobs, 0 violations);
+  the host in the file is the node Slurm reports (0 mismatches). `ms_per_row` is recomputed from a `wall_s` rounded to 0.1 s, so it
+  is coarse for short datasets (error up to 0.05 s ÷ rows): do not read ms/row below about a second of wall time.
+
+Not what it looks like:
+
+- **ESMtherm's ProteinGym times include cache hits.** The adapter keeps one sequence cache for the whole process, so in a job that
+  scores several datasets a sequence seen earlier costs nothing: in job 386276, 49 of 218 ProteinGym datasets show `wall_s` under a
+  second (2,350 variants in 0.0 s), 25 of them Tsuboyama-origin DMS whose sequences the capped Tsuboyama block had just scored.
+  The job total (4.28 h of loop time in 4.31 h elapsed) is right; the per-dataset figures for those 49 are not inference time.
+  They are listed in `timing_cache_flags.csv`. GeoDDG (per structure-and-mutation cache), IFUM (per-group structure and ddG
+  caches) and ProSST (one entry) also cache; none shows near-zero rows, and ESM3ΔG has no cross-dataset cache, but a structure
+  scored twice in one job would be cheaper the second time.
+- **A dataset name that appears twice is either a shard or a rerun, and they must be treated oppositely.** Shards (ESM3ΔG and IFUM
+  Domainome, 2 and 6 rows) have different `n_rows` and are **summed**; reruns have the same `n_rows` and the **latest row wins**.
+  The reruns are ESMtherm CAS9 (386276 failed in 0.5 s with every prediction NaN; 386532 is the real 396.5 s), and capped val / test for
+  ProteinMPNN, SPURS (hybrid readout) and SPURS multi (the earlier row skipped the mutant-background libraries: `n_nan` 6,026 / 7,931).
+- **One rerun wrote to the wrong directory.** `gpu4_spurs_bb` (386549) went to `results/spurs/predictions""` (literal quotes): an
+  empty `--tag ""` passed through `sbatch --export` arrives as two quote characters. The table builder therefore kept reading the old
+  NaN file until this audit. The files were validated (no NaN, wild-type-background rows bit-identical to the old ones, the
+  mutant-background libraries at Spearman 0.70–0.87) and installed into `predictions/`; the stray directory is kept as
+  `predictions_MISNAMED_empty_tag_job386549_installed_into_predictions`. `run_model.py` now refuses any `--tag` outside
+  `[A-Za-z0-9_.-]` (backup `run_model.py.bak_tagguard`).
+- **Job-name patterns can silently merge a rerun into the run it replaces.** The three `*_bb` jobs would have matched the generic
+  `gpu4_spurs` / `gpu4_mpnn` patterns and been added to the original gamut rows. They now have their own patterns ahead of those, and
+  `benchmark_matrix.py ledger` keeps unmatched jobs (as `smoke` or `other`) instead of dropping them, which the earlier text of
+  this document claimed it already did.
+- **ESM-MSR ProteinGym `summary.csv`** keeps `time_s`, `gpu` and `host` after the bias correction (only `spearman_combined` changed,
+  with the old value kept in `spearman_combined_per_item_bias`), so those timings are unaffected.
 
 ## 5. What a clean runtime comparison still needs
 
@@ -196,3 +249,8 @@ for GeoDDG: 15.7 CPU-node-hours; AF2 for the external WT structures: 24.5 h). No
 forward passes as ε = 1, so its times stand in for it). ESM3ΔG, ProSST, SPURS and ProteinMPNN have now run there,
 but alongside other jobs on the same node, and ESM3ΔG's ProteinGym half is fp16 while its other datasets are fp32
 (§3) — so those wall times are not comparable with each other either.
+
+Two logging gaps remain and are cheap to close in `run_model.py`'s `log_timing`: a **run id** (so a rerun and its predecessor are
+distinguishable without reading job ids) and a **cache-hit count** (rows served without computation). Until then, take timings
+for a model from datasets that were the first to touch their sequences in the job, and exclude the rows in
+`timing_cache_flags.csv`.

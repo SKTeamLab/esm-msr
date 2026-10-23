@@ -610,6 +610,15 @@ JOBS = [  # job-name regex -> model, benchmark, kind
     (r'^pgym_tmpnn(_s\d)?$', 'ThermoMPNN / -D', 'ProteinGym', 'inference'),
     (r'^gpu4_ifumfold', 'IFUM (ESMFold per variant)', 'ESMFold folding, capped Tsuboyama (64,008 sequences)', 'structure prep'),
     (r'^gpu4_ifumnat', 'IFUM (ESMFold per variant)', 'capped Tsuboyama scoring', 'inference'),
+    # reruns and new work of 2026-10-23. These must stay ahead of the generic gpu4_spurs / gpu4_mpnn patterns below: a rerun scores
+    # MORE rows than the run it replaces (the mutant-background libraries), so merging them would corrupt a runtime comparison.
+    (r'^gpu4_spurs_bb$', 'SPURS', 'rerun with the mutant-background libraries (capped val+test)', 'rerun'),
+    (r'^gpu4_spursmulti_bb$', 'SPURS multi', 'rerun with the mutant-background libraries (capped val+test)', 'rerun'),
+    (r'^gpu4_mpnn_bb$', 'ProteinMPNN', 'rerun with the mutant-background libraries (capped val+test)', 'rerun'),
+    (r'^gpu4_ctx_', 'ESM-MSR', 'ctx head (WT + ~WT)/2, capped val+test', 'inference'),
+    (r'^gpu4_pmb_', 'ESM-MSR', 'rerun after the calibration-default change (multi-mutant sets)', 'rerun'),
+    (r'^pmb_(pgym_check|pipeline|apply|finish)$', 'ESM-MSR', 'ProteinGym bias correction (CPU, offline)', 'cpu'),
+    (r'^(smk_|ctx_smoke|pmb_smoke|pmb_pgym_verify|pmb_ablation_verify)', 'various', 'smoke / verification of a change', 'smoke'),
     (r'^gpu4_spurs_multi', 'SPURS multi', 'gamut, multi model on every variant', 'inference'),
     (r'^gpu4_eps', 'ESM-MSR', 'LoRA scale sweep, DMS + Domainome', 'inference'),
     (r'^gpu4_esm3dg', 'ESM3ΔG', 'capped Tsuboyama + ProteinGym', 'inference'),
@@ -626,13 +635,13 @@ JOBS = [  # job-name regex -> model, benchmark, kind
 def cmd_ledger(a):
     d = pd.read_csv(a.sacct, sep='|')
     rows = []
-    for _, r in d[d.JobName.notna()].iterrows():
-        for pat, m, b, k in JOBS:
-            if re.search(pat, r.JobName):
-                rows.append(dict(job=r.JobID, name=r.JobName, model=m, benchmark=b, kind=k, node=r.NodeList,
-                                 gpu=GPU.get(r.NodeList, r.NodeList), start=str(r.Start)[:16], elapsed=r.Elapsed,
-                                 state=r.State.split()[0]))
-                break
+    for _, r in d[d.JobName.notna() & ~d.JobName.isin(['bash', 'interactive'])].iterrows():
+        hit = next(((m, b, k) for pat, m, b, k in JOBS if re.search(pat, r.JobName)), None)
+        if hit is None:      # kept, not dropped: the CSV is the complete record, the doc's table is a filtered view of it
+            hit = ('unclassified', r.JobName, 'smoke' if re.search('smoke|verify|test|diag|dbg|check', r.JobName) else 'other')
+        rows.append(dict(job=r.JobID, name=r.JobName, model=hit[0], benchmark=hit[1], kind=hit[2], node=r.NodeList,
+                         gpu=GPU.get(r.NodeList, r.NodeList), start=str(r.Start)[:16], elapsed=r.Elapsed,
+                         state=r.State.split()[0]))
     J = pd.DataFrame(rows)
     J.to_csv(a.out, index=False)
     print(f'{len(J)} jobs -> {a.out}')
