@@ -72,9 +72,9 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | ESM-MSR (released), WT head | – | – | – | – | h.001 | h.002 | – | – | h<.001 | h<.001 | – | – | – |
 | ESM-MSR (devel), combined (3 seeds) | – | – | – | – | h.001 | h.002 | – | – | h<.001 | h<.001 | – | – | – |
 | ESM-MSR (devel), WT head | – | – | – | – | h.001 | h.002 | – | – | h<.001 | h<.001 | – | – | – |
-| MutateEverything st1 (3 seeds) | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| MutateEverything st2 (3 seeds) | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| ThermoMPNN (additive, 3 seeds) | – | – | – | – | – | – | – | – | – | – | – | – | – |
+| MutateEverything st1 (3 seeds) | – | – | – | – | h.001 | h.002 | – | – | – | – | – | – | – |
+| MutateEverything st2 (3 seeds) | – | – | – | – | h.001 | h.002 | – | – | – | – | – | – | – |
+| ThermoMPNN (additive, 3 seeds) | – | – | – | – | h.001 | h.002 | – | – | – | – | – | – | – |
 | ThermoMPNN + ThermoMPNN-D (3 seeds) | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | SPURS (single model) | P.08 H.03 | P.07 h.08 | M.001 P.02 H.02 h.01 | M.002 P.20 H.02 h.006 | H.003 h.001 | h.002 | – | M.002 P.02 H.02 h.008 | M.001 P.23 H.02 h.01 | M.002 P.34 H.02 h.01 | m.02 P.09 H.05 h.02 | m.006 P.02 H.04 h.02 | – |
 | SPURS multi (multi-mutant model) | m.005 P.08 H.03 | P.07 h.11 | m<.001 P.04 H.01 h.01 | m.002 P.21 H.01 h.006 | m.01 P.13 H.003 h.09 | m.02 P.19 h.13 | – | m<.001 P.04 H.02 h.02 | m.002 P.27 H.02 h.02 | m.002 P.35 H.02 h.02 | P.10 H.04 h.02 | P.02 H.04 h.02 | – |
@@ -858,6 +858,22 @@ zero exact mutations and zero same-protein overlap with all 33 capped-test and a
 caveat is the 15.6 %/20.3 % weak-homology rows and validation selection (`V` on the val column). That is the group the
 headline Tsuboyama numbers should be read within. At the other end, SPURS single, SPURS multi, EsmTherm and IFUM are
 not held out on this split, and ESM3ΔG is held out but homology-caveated.
+
+**The retrained baselines inherit the split, not extra leakage.** MutateEverything stage 1/2 and ThermoMPNN were
+retrained on the same 172 libraries as ESM-MSR, so their `P`/`H`/`h` columns are identical by construction and only the
+mutation classes differ (stage 1 = singles, stage 2 = singles+doubles, ThermoMPNN-D = doubles only). The single
+weak-homology row in S669/S461 (`1IOJ` vs `HHH_rd2_0155`, 37 % identity over 61 % of the test protein, E = 5.5) is
+therefore present for ESM-MSR, ME stage 1/2 and ThermoMPNN, and absent only for ThermoMPNN-D, whose double-only train
+subset does not contain that library. It is below the 0.5 % display threshold in the numeric tables and visible in the
+companion matrix. Retraining introduced no overlap: the upstream models train on the whole Megascale pool (upstream
+ThermoMPNN: 19/33 test libraries, 15,918/36,526 singles), which is strictly more than the capped train split.
+
+**Ssym is not a Megascale set.** None of Ssym's 357 PDB chains or 14 protein families is a Megascale library, so the
+Megascale-trained models (SPURS, EsmTherm, IFUM, ESM3ΔG) have no same-protein overlap with it. The best sequence match
+between an Ssym protein and a SPURS train library is 70 % identity over 23 % of a lysozyme (E = 3); a Foldseek search of
+the 357 Ssym structures against the 269 SPURS train structures gives 0 pairs at E ≤ 1e-3 or TM > 0.7, and the 303 pairs
+at TM 0.50–0.53 are fold-level matches to small designs (lddt 0.35–0.43). SPURS's 0.784 on Ssym is clean and stands
+ahead of ESM-MSR's 0.773.
 
 **ProteinGym.** The 23 fully trained assays are `ARGR_ECOLI_Tsuboyama_2023_1AOY`, `CBX4_HUMAN_Tsuboyama_2023_2K28`,
 `CSN4_MOUSE_Tsuboyama_2023_1UFM`, `CUE1_YEAST_Tsuboyama_2023_2MYX`, `DNJA1_HUMAN_Tsuboyama_2023_2LO1`,

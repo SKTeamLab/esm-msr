@@ -22,6 +22,98 @@ esm_msr_capped,DLG4 abund.,6976,0,0,0,0,6976
 esm_msr_capped,domainome,534385,4311,40945,12776,9124,467229
 esm_msr_capped,ESTA,2172,0,0,0,0,2172
 esm_msr_capped,ptmuld,536,0,0,0,18,518
+me_stage1,proteingym,2465767,45625,0,2028,281193,2136921
+me_stage1,s571,571,0,0,0,68,503
+me_stage1,s461,461,0,0,1,13,447
+me_stage1,s669,669,0,0,1,74,594
+me_stage1,GB1,149360,0,0,0,0,149360
+me_stage1,s8754,8754,0,0,0,277,8477
+me_stage1,ssym,684,0,0,0,0,684
+me_stage1,k2369,2369,0,0,1,72,2296
+me_stage1,GRB2 abund.,63366,0,0,0,0,63366
+me_stage1,ptmul,914,0,0,0,18,896
+me_stage1,tsu_capped_val,35473,0,0,7210,2534,25729
+me_stage1,MYO,5905,0,0,0,0,5905
+me_stage1,s783,783,0,0,0,20,763
+me_stage1,k3822,3822,0,0,1,121,3700
+me_stage1,GRB2 bind.,33441,0,0,0,0,33441
+me_stage1,DLG4 bind.,8251,0,0,0,0,8251
+me_stage1,tsu_capped_test,52071,0,0,8114,0,43957
+me_stage1,s2648,2648,0,0,0,53,2595
+me_stage1,q3421,3421,0,0,0,101,3320
+me_stage1,DLG4 abund.,6976,0,0,0,0,6976
+me_stage1,domainome,534385,4311,40945,12776,9124,467229
+me_stage1,ESTA,2172,0,0,0,0,2172
+me_stage1,ptmuld,536,0,0,0,18,518
+me_stage2,proteingym,2465767,45625,0,2028,281193,2136921
+me_stage2,s571,571,0,0,0,68,503
+me_stage2,s461,461,0,0,1,13,447
+me_stage2,s669,669,0,0,1,74,594
+me_stage2,GB1,149360,0,0,0,0,149360
+me_stage2,s8754,8754,0,0,0,277,8477
+me_stage2,ssym,684,0,0,0,0,684
+me_stage2,k2369,2369,0,0,1,72,2296
+me_stage2,GRB2 abund.,63366,0,0,0,0,63366
+me_stage2,ptmul,914,0,0,0,18,896
+me_stage2,tsu_capped_val,35473,0,0,7210,2534,25729
+me_stage2,MYO,5905,0,0,0,0,5905
+me_stage2,s783,783,0,0,0,20,763
+me_stage2,k3822,3822,0,0,1,121,3700
+me_stage2,GRB2 bind.,33441,0,0,0,0,33441
+me_stage2,DLG4 bind.,8251,0,0,0,0,8251
+me_stage2,tsu_capped_test,52071,0,0,8114,0,43957
+me_stage2,s2648,2648,0,0,0,53,2595
+me_stage2,q3421,3421,0,0,0,101,3320
+me_stage2,DLG4 abund.,6976,0,0,0,0,6976
+me_stage2,domainome,534385,4311,40945,12776,9124,467229
+me_stage2,ESTA,2172,0,0,0,0,2172
+me_stage2,ptmuld,536,0,0,0,18,518
+tmpnn,proteingym,2465767,45625,0,2028,281193,2136921
+tmpnn,s571,571,0,0,0,68,503
+tmpnn,s461,461,0,0,1,13,447
+tmpnn,s669,669,0,0,1,74,594
+tmpnn,GB1,149360,0,0,0,0,149360
+tmpnn,s8754,8754,0,0,0,277,8477
+tmpnn,ssym,684,0,0,0,0,684
+tmpnn,k2369,2369,0,0,1,72,2296
+tmpnn,GRB2 abund.,63366,0,0,0,0,63366
+tmpnn,ptmul,914,0,0,0,18,896
+tmpnn,tsu_capped_val,35473,0,0,7210,2534,25729
+tmpnn,MYO,5905,0,0,0,0,5905
+tmpnn,s783,783,0,0,0,20,763
+tmpnn,k3822,3822,0,0,1,121,3700
+tmpnn,GRB2 bind.,33441,0,0,0,0,33441
+tmpnn,DLG4 bind.,8251,0,0,0,0,8251
+tmpnn,tsu_capped_test,52071,0,0,8114,0,43957
+tmpnn,s2648,2648,0,0,0,53,2595
+tmpnn,q3421,3421,0,0,0,101,3320
+tmpnn,DLG4 abund.,6976,0,0,0,0,6976
+tmpnn,domainome,534385,4311,40945,12776,9124,467229
+tmpnn,ESTA,2172,0,0,0,0,2172
+tmpnn,ptmuld,536,0,0,0,18,518
+tmpnnd,proteingym,2465767,38512,0,0,4708,2422547
+tmpnnd,s571,571,0,0,0,17,554
+tmpnnd,s461,461,0,0,0,0,461
+tmpnnd,s669,669,0,0,0,1,668
+tmpnnd,GB1,149360,0,0,0,0,149360
+tmpnnd,s8754,8754,0,0,0,55,8699
+tmpnnd,ssym,684,0,0,0,0,684
+tmpnnd,k2369,2369,0,0,0,17,2352
+tmpnnd,GRB2 abund.,63366,0,0,0,0,63366
+tmpnnd,ptmul,914,0,0,0,3,911
+tmpnnd,tsu_capped_val,35473,0,0,0,2534,32939
+tmpnnd,MYO,5905,0,0,0,0,5905
+tmpnnd,s783,783,0,0,0,0,783
+tmpnnd,k3822,3822,0,0,0,20,3802
+tmpnnd,GRB2 bind.,33441,0,0,0,0,33441
+tmpnnd,DLG4 bind.,8251,0,0,0,0,8251
+tmpnnd,tsu_capped_test,52071,0,0,796,795,50480
+tmpnnd,s2648,2648,0,0,0,0,2648
+tmpnnd,q3421,3421,0,0,0,17,3404
+tmpnnd,DLG4 abund.,6976,0,0,0,0,6976
+tmpnnd,domainome,534385,4311,37106,9118,1623,482227
+tmpnnd,ESTA,2172,0,0,0,0,2172
+tmpnnd,ptmuld,536,0,0,0,3,533
 spurs_single,proteingym,2465767,108105,0,1813,1107207,1248642
 spurs_single,s571,571,48,15,0,22,486
 spurs_single,s461,461,0,0,1,48,412
@@ -57,7 +149,7 @@ spurs_multi,GRB2 abund.,63366,0,0,0,0,63366
 spurs_multi,ptmul,914,92,39,15,7,761
 spurs_multi,tsu_capped_val,35473,18830,866,810,1055,13912
 spurs_multi,MYO,5905,0,0,0,0,5905
-spurs_multi,s783,783,53,0,89,14,627
+spurs_multi,s783,783,53,0,31,72,627
 spurs_multi,k3822,3822,1021,77,86,127,2511
 spurs_multi,GRB2 bind.,33441,0,0,0,0,33441
 spurs_multi,DLG4 bind.,8251,0,0,0,0,8251
@@ -229,28 +321,3 @@ geoddg_s8754,DLG4 abund.,6976,0,0,0,0,6976
 geoddg_s8754,domainome,534385,25541,117948,42677,25358,322861
 geoddg_s8754,ESTA,2172,0,0,0,0,2172
 geoddg_s8754,ptmuld,536,522,3,0,0,11
-esm3dg_mgnify,proteingym,2465767,0,43119,724254,413065,1285329
-esm3dg_mgnify,s571,571,0,9,42,105,415
-esm3dg_mgnify,s461,461,0,0,145,54,262
-esm3dg_mgnify,tsu_hyperopt_val,41527,0,14636,16541,3213,7137
-esm3dg_mgnify,s669,669,0,0,153,147,369
-esm3dg_mgnify,GB1,149360,0,0,0,0,149360
-esm3dg_mgnify,s8754,8754,0,97,708,1023,6926
-esm3dg_mgnify,ssym,684,0,0,28,360,296
-esm3dg_mgnify,k2369,2369,0,16,205,208,1940
-esm3dg_mgnify,GRB2 abund.,63366,0,0,0,0,63366
-esm3dg_mgnify,ptmul,914,0,8,126,105,675
-esm3dg_mgnify,tsu_capped_val,35473,0,17448,1944,0,16081
-esm3dg_mgnify,MYO,5905,0,0,0,5905,0
-esm3dg_mgnify,s783,783,0,0,64,178,541
-esm3dg_mgnify,tsu_hyperopt_test,46034,0,10414,12492,0,23128
-esm3dg_mgnify,k3822,3822,0,34,377,311,3100
-esm3dg_mgnify,GRB2 bind.,33441,0,0,0,0,33441
-esm3dg_mgnify,DLG4 bind.,8251,0,0,0,0,8251
-esm3dg_mgnify,tsu_capped_test,52071,0,21185,12785,2712,15389
-esm3dg_mgnify,s2648,2648,0,53,331,263,2001
-esm3dg_mgnify,q3421,3421,0,12,363,451,2595
-esm3dg_mgnify,DLG4 abund.,6976,0,0,0,0,6976
-esm3dg_mgnify,domainome,534385,0,105638,171360,18313,239074
-esm3dg_mgnify,ESTA,2172,0,0,2172,0,0
-esm3dg_mgnify,ptmuld,536,0,6,66,61,403

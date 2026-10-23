@@ -148,6 +148,15 @@ designed to do. Their residual exposure is `h`: 15.6 % of test rows and 20.3 % o
 30–40 % identity match to a train library, and the val columns are `V` (used for early stopping / checkpoint
 selection).
 
+**The retrained baselines share the inventory.** MutateEverything stage 1 (singles), stage 2 (singles then
+doubles) and ThermoMPNN (singles; ThermoMPNN-D doubles only) were retrained on the same 172 libraries as ESM-MSR, so
+their `P`/`H`/`h` columns are identical by construction and only `M`/`m` differ. The single weak-homology row in
+S669 and S461 (`1IOJ` vs `HHH_rd2_0155`, 37 % identity over 61 % of the test protein, E = 5.5) is present for
+ESM-MSR, ME stage 1/2 and ThermoMPNN and absent for ThermoMPNN-D, whose double-only train subset does not contain
+that library. It is below the 0.5 % display threshold in the numeric tables. Retraining added no overlap: the
+upstream models train on the whole Megascale pool (upstream ThermoMPNN alone covers 19 of the 33 capped test
+libraries and 15,918/36,526 singles), strictly more than the capped split.
+
 The one gap in the split's own scope is ProteinGym and Domainome, which it never guarded:
 
 - **23 ProteinGym assays are 100 % in the capped train split.** They are Tsuboyama DMS that are also Megascale
@@ -162,6 +171,13 @@ The one gap in the split's own scope is ProteinGym and Domainome, which it never
   domain's own score should not be reported as held out.
 - **SPURS adds its own Domainome overlap:** 6,181 exact rows (1.2 %) because its train split contains several
   Megascale libraries that Domainome re-used.
+
+**Ssym is not a Megascale set.** None of Ssym's 357 PDB chains or its 14 protein families is a Megascale library,
+so SPURS, EsmTherm, IFUM and ESM3ΔG have no same-protein overlap with it. The best sequence match between an Ssym
+protein and a SPURS train library is 70 % identity over 23 % of a lysozyme (E = 3); Foldseek of the 357 Ssym
+structures against the 269 SPURS train structures returns 0 pairs at E ≤ 1e-3 or TM > 0.7, the strongest being
+fold-level matches at TM 0.50–0.53 to small designs (lddt 0.35–0.43). SPURS's 0.784 on Ssym is therefore a clean
+number, and it stands ahead of ESM-MSR's 0.773.
 
 ### 6.2 The third-party "Megascale-trained" models
 
