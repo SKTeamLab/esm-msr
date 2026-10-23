@@ -232,8 +232,7 @@ def cmd_collect(a):
 
 # ---------------------------------------------------------------------------------------------- tables
 ROWS = [('ESM-MSR capped', 'ESM-MSR capped (combined)'), ('ESM-MSR capped WT', 'ESM-MSR capped, WT head'),
-        ('ESM-MSR capped MT', 'ESM-MSR capped, MT head'), ('ESM-MSR dc8', 'ESM-MSR dc8 (combined, 3 seeds)'),
-        ('ESM-MSR dc8 WT', 'ESM-MSR dc8, WT head'), ('ESM-MSR dc8 MT', 'ESM-MSR dc8, MT head'),
+        ('ESM-MSR dc8', 'ESM-MSR dc8 (combined, 3 seeds)'), ('ESM-MSR dc8 WT', 'ESM-MSR dc8, WT head'),
         ('ME stage1', 'MutateEverything st1 (3 seeds)'), ('ME stage1+', 'MutateEverything st1, additive'),
         ('ME stage2', 'MutateEverything st2 (3 seeds)'), ('ME stage2+', 'MutateEverything st2, additive'),
         ('TMPNN', 'ThermoMPNN (additive, 3 seeds)'), ('TMPNN+D', 'ThermoMPNN + ThermoMPNN-D (3 seeds)'),
@@ -277,18 +276,41 @@ def cmd_tables(a):
             return 'q' if d in QUEUED.get(m, []) else '–'
         return f'{v:.3f}' + ('†' if d in LEAK.get(m, set()) else '') + star
 
+    def plain(c):
+        """the number in a cell, or None when it is absent, queued, flagged as overlapping, or partial"""
+        if any(f in c for f in ('†', '‡', '*')) or c in ('–', 'q'):
+            return None
+        try:
+            return float(c)
+        except ValueError:
+            return None
+
     def table(cols, names, mean_label=None):
-        out = ['| model | ' + ' | '.join(names) + (f' | {mean_label}' if mean_label else '') + ' |',
-               '|---|' + '---|' * (len(names) + bool(mean_label))]
+        body = []
         for m, lab in ROWS:
             cs = [cell(m, d) for d in cols]
             if all(c == '–' for c in cs):
                 continue
-            tail = ''
+            tail = None
             if mean_label:
                 vals = [get(W, m, d) for d in cols]
-                tail = ' | ' + (f'{np.mean(vals):.3f}' if not any(pd.isna(vals)) else ('q' if 'q' in cs else '–'))
-            out.append(f'| {lab} | ' + ' | '.join(cs) + tail + ' |')
+                tail = f'{np.mean(vals):.3f}' if not any(pd.isna(vals)) else ('q' if 'q' in cs else '–')
+            body.append([lab, cs, tail])
+        # bold the best value in each dataset column, among the cells that are a like-for-like comparison.
+        # The aggregate column is left unbolded: it averages over sets that are flagged for some models and not
+        # others, so its maximum is not a comparison (the overlap-free ranking is in the doc's bullets instead).
+        for j in range(len(cols)):
+            vals = [(plain(r[1][j]), i) for i, r in enumerate(body)]
+            vals = [(v, i) for v, i in vals if v is not None]
+            if vals:
+                best = max(v for v, _ in vals)
+                for v, i in vals:
+                    if v == best:
+                        body[i][1][j] = f'**{body[i][1][j]}**'
+        out = ['| model | ' + ' | '.join(names) + (f' | {mean_label}' if mean_label else '') + ' |',
+               '|---|' + '---|' * (len(names) + bool(mean_label))]
+        for lab, cs, tail in body:
+            out.append(f'| {lab} | ' + ' | '.join(cs) + (f' | {tail}' if tail is not None else '') + ' |')
         return '\n'.join(out)
 
     short = ['DLG4 abund.', 'DLG4 bind.', 'GRB2 abund.', 'GRB2 bind.', 'MYO', 'ESTA dTm', 'GB1']

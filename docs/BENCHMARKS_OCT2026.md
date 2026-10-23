@@ -26,7 +26,13 @@ DDMut on S9028 ⊃ S2648 + FireProtDB; GeoDDG on S8754 ⊃ S2648, and S783 only 
 upstream; the Megascale-trained models on any Tsuboyama split). The list follows each paper's stated training
 sets and is not exhaustive. **‡** the model was trained on Megascale (Tsuboyama), so none of its Tsuboyama
 numbers are held out. **\*** partial coverage (DDMut: S669 98 %, S461 97 %, Tsuboyama val 26 %, test 4 %).
-**q** run in progress. **–** not run; the reason is in `OUTSTANDING_EXPERIMENTS.md`.
+**q** run in progress. **–** not run; the reason is in `OUTSTANDING_EXPERIMENTS.md`. **Bold** marks the best
+value in each dataset column, taken over the cells that are a like-for-like comparison — flagged (†, ‡) and
+partial (\*) cells are excluded from that choice, and the aggregate column is left unbolded because it averages
+over sets that are flagged for some models and not others.
+
+ESM-MSR's **MT head is not listed here**: it is an internal head, not a deployable model, and it never wins a
+column. Its WT / MT / combined decomposition is what §2 is about, so it is kept there.
 
 **Which Tsuboyama columns are comparable.** The **capped** columns are the split every October model was trained
 on. The **hyperopt** columns are the older split the third-party harness was first run on; it shares only 4 of 23
@@ -36,24 +42,22 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 
 | model | s571 | s783 | s2648 | s8754 | s669 | s461 | ssym | q3421 | k3822 | k2369 | ptmul | ptmuld | mean of 12 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ESM-MSR capped (combined) | 0.456 | 0.717 | 0.665 | 0.615 | 0.565 | 0.756 | 0.751 | 0.617 | 0.715 | 0.714 | 0.595 | 0.601 | 0.647 |
+| ESM-MSR capped (combined) | 0.456 | 0.717 | 0.665 | 0.615 | 0.565 | **0.756** | 0.751 | 0.617 | 0.715 | 0.714 | 0.595 | 0.601 | 0.647 |
 | ESM-MSR capped, WT head | 0.442 | 0.703 | 0.657 | 0.606 | 0.547 | 0.748 | 0.752 | 0.613 | 0.714 | 0.711 | 0.568 | 0.586 | 0.637 |
-| ESM-MSR capped, MT head | 0.451 | 0.697 | 0.634 | 0.596 | 0.561 | 0.725 | 0.714 | 0.589 | 0.681 | 0.682 | 0.545 | 0.533 | 0.617 |
-| ESM-MSR dc8 (combined, 3 seeds) | 0.445 | 0.725 | 0.677 | 0.625 | 0.560 | 0.753 | 0.773 | 0.626 | 0.721 | 0.722 | 0.594 | 0.597 | 0.651 |
+| ESM-MSR dc8 (combined, 3 seeds) | 0.445 | **0.725** | 0.677 | 0.625 | 0.560 | 0.753 | 0.773 | 0.626 | 0.721 | 0.722 | 0.594 | 0.597 | 0.651 |
 | ESM-MSR dc8, WT head | 0.431 | 0.713 | 0.675 | 0.618 | 0.551 | 0.753 | 0.776 | 0.623 | 0.720 | 0.717 | 0.580 | 0.584 | 0.645 |
-| ESM-MSR dc8, MT head | 0.438 | 0.703 | 0.639 | 0.603 | 0.539 | 0.709 | 0.737 | 0.595 | 0.688 | 0.694 | 0.528 | 0.524 | 0.616 |
-| MutateEverything st1 (3 seeds) | 0.439 | 0.706 | 0.701 | 0.623 | 0.559 | 0.721 | 0.674 | 0.638 | 0.696 | 0.674 | 0.472 | 0.480 | 0.615 |
+| MutateEverything st1 (3 seeds) | 0.439 | 0.706 | **0.701** | 0.623 | 0.559 | 0.721 | 0.674 | 0.638 | 0.696 | 0.674 | 0.472 | 0.480 | 0.615 |
 | MutateEverything st2 (3 seeds) | 0.424 | 0.687 | 0.669 | 0.598 | 0.541 | 0.709 | 0.632 | 0.615 | 0.673 | 0.657 | 0.491 | 0.490 | 0.599 |
 | ThermoMPNN (additive, 3 seeds) | 0.406 | 0.689 | 0.648 | 0.602 | 0.490 | 0.655 | 0.711 | 0.591 | 0.643 | 0.649 | 0.433 | 0.499 | 0.585 |
 | ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.406 | 0.689 | 0.648 | 0.602 | 0.490 | 0.655 | 0.711 | 0.591 | 0.643 | 0.649 | 0.427 | 0.502 | 0.584 |
-| SPURS single-additive ‡ | 0.468 | 0.712 | 0.682 | 0.626 | 0.502 | 0.654 | 0.784 | 0.614 | 0.681 | 0.698 | 0.399 | 0.495 | 0.610 |
-| SPURS multi ‡ | 0.468 | 0.712 | 0.682 | 0.626 | 0.502 | 0.654 | 0.784 | 0.614 | 0.681 | 0.698 | 0.359 | 0.466 | 0.604 |
+| SPURS single-additive ‡ | 0.468 | 0.712 | 0.682 | **0.626** | 0.502 | 0.654 | 0.784 | 0.614 | 0.681 | 0.698 | 0.399 | 0.495 | 0.610 |
+| SPURS multi ‡ | 0.468 | 0.712 | 0.682 | **0.626** | 0.502 | 0.654 | 0.784 | 0.614 | 0.681 | 0.698 | 0.359 | 0.466 | 0.604 |
 | ESMtherm ‡ | 0.349 | 0.434 | 0.371 | 0.347 | 0.414 | 0.474 | 0.380 | 0.348 | 0.366 | 0.393 | 0.235 | 0.270 | 0.365 |
 | DDGemb (server) | 0.484 | 0.689 | 0.895† | 0.684† | 0.570 | 0.654 | 0.891 | 0.752 | 0.745 | 0.702 | 0.616 | 0.678 | 0.697 |
-| DDMut (server) | 0.350 | 0.687 | 0.731† | 0.638† | 0.402* | 0.534* | 0.363 | 0.653† | 0.709† | 0.681† | 0.725 | 0.718 | – |
+| DDMut (server) | 0.350 | 0.687 | 0.731† | 0.638† | 0.402* | 0.534* | 0.363 | 0.653† | 0.709† | 0.681† | **0.725** | **0.718** | – |
 | IFUM, WT backbone ‡ | 0.376 | 0.498 | 0.485 | 0.477 | 0.434 | 0.531 | 0.574 | 0.431 | 0.536 | 0.547 | 0.350 | 0.405 | 0.470 |
 | IFUM, ESMFold per variant ‡ | 0.385 | 0.471 | 0.484 | 0.451 | 0.409 | 0.542 | 0.580 | 0.433 | 0.508 | 0.512 | 0.391 | 0.443 | 0.467 |
-| GeoDDG-3D (FASPR) | 0.526 | 0.865† | 0.892† | 0.841† | 0.615 | 0.664 | 0.914 | 0.822 | 0.852 | 0.831 | 0.717 | 0.669 | 0.767 |
+| GeoDDG-3D (FASPR) | **0.526** | 0.865† | 0.892† | 0.841† | **0.615** | 0.664 | **0.914** | **0.822** | **0.852** | **0.831** | 0.717 | 0.669 | 0.767 |
 | ESM3ΔG ‡ | 0.511 | 0.653 | 0.642 | 0.542 | 0.564 | 0.681 | 0.735 | 0.572 | 0.589 | 0.598 | 0.409 | 0.482 | 0.582 |
 | ProSST (zero-shot) | 0.310 | 0.564 | 0.436 | 0.428 | 0.369 | 0.561 | 0.519 | 0.416 | 0.476 | 0.497 | 0.182 | 0.317 | 0.423 |
 | ProteinMPNN (zero-shot) | 0.324 | 0.561 | 0.506 | 0.438 | 0.329 | 0.442 | 0.696 | 0.494 | 0.420 | 0.436 | 0.382 | 0.546 | 0.464 |
@@ -84,12 +88,10 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 
 | model | capped val | capped test | hyperopt val | hyperopt test |
 |---|---|---|---|---|
-| ESM-MSR capped (combined) | 0.854 | 0.843 | – | – |
+| ESM-MSR capped (combined) | **0.854** | 0.843 | – | – |
 | ESM-MSR capped, WT head | 0.841 | 0.824 | – | – |
-| ESM-MSR capped, MT head | 0.817 | 0.813 | – | – |
-| ESM-MSR dc8 (combined, 3 seeds) | 0.854 | 0.849 | – | – |
+| ESM-MSR dc8 (combined, 3 seeds) | **0.854** | **0.849** | – | – |
 | ESM-MSR dc8, WT head | 0.836 | 0.827 | – | – |
-| ESM-MSR dc8, MT head | 0.825 | 0.820 | – | – |
 | MutateEverything st1 (3 seeds) | 0.751 | 0.771 | – | – |
 | MutateEverything st2 (3 seeds) | 0.727 | 0.762 | – | – |
 | ThermoMPNN (additive, 3 seeds) | 0.785 | 0.794 | – | – |
@@ -97,13 +99,13 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | SPURS single-additive ‡ | 0.845† | 0.866† | – | – |
 | SPURS multi ‡ | 0.870† | 0.874† | – | – |
 | ESMtherm ‡ | 0.716† | 0.774† | 0.691† | 0.707† |
-| DDGemb (server) | 0.490 | 0.508 | 0.611 | 0.524 |
+| DDGemb (server) | 0.490 | 0.508 | **0.611** | 0.524 |
 | DDMut (server) | – | – | 0.542* | 0.582* |
 | IFUM, WT backbone ‡ | 0.666† | 0.711† | 0.746† | 0.697† |
 | IFUM, ESMFold per variant ‡ | – | – | 0.778† | 0.738† |
 | GeoDDG-3D (FASPR) | 0.595 | 0.609 | 0.610 | 0.557 |
 | ESM3ΔG ‡ | 0.811† | 0.811† | 0.790† | 0.744† |
-| ProSST (zero-shot) | q | q | 0.607 | 0.594 |
+| ProSST (zero-shot) | q | q | 0.607 | **0.594** |
 | ProteinMPNN (zero-shot) | 0.532 | 0.537 | – | – |
 | ESM3-small-open, ε = 0 (zero-shot) | 0.565 | 0.578 | – | – |
 
@@ -125,10 +127,8 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 |---|---|---|---|---|---|---|---|---|
 | ESM-MSR capped (combined) | 0.726 | 0.725 | 0.673 | 0.619 | 0.639 | 0.479 | 0.346 | 0.542 |
 | ESM-MSR capped, WT head | 0.723 | 0.728 | 0.669 | 0.633 | 0.637 | 0.466 | 0.338 | 0.540 |
-| ESM-MSR capped, MT head | 0.705 | 0.696 | 0.627 | 0.560 | 0.622 | 0.467 | 0.302 | 0.520 |
 | ESM-MSR dc8 (combined, 3 seeds) | 0.745 | 0.742 | 0.682 | 0.636 | 0.639 | 0.481 | 0.337 | 0.543 |
-| ESM-MSR dc8, WT head | 0.749 | 0.752 | 0.685 | 0.656 | 0.641 | 0.478 | 0.365 | 0.548 |
-| ESM-MSR dc8, MT head | 0.718 | 0.707 | 0.632 | 0.570 | 0.616 | 0.457 | 0.243 | 0.509 |
+| ESM-MSR dc8, WT head | 0.749 | 0.752 | 0.685 | 0.656 | **0.641** | 0.478 | **0.365** | **0.548** |
 | MutateEverything st1 (3 seeds) | 0.707 | 0.681 | 0.646 | 0.581 | 0.580 | 0.483 | 0.296 | 0.520 |
 | MutateEverything st1, additive | 0.729 | 0.714 | 0.690 | 0.615 | 0.603 | 0.483 | 0.287 | – |
 | MutateEverything st2 (3 seeds) | 0.655 | 0.644 | 0.624 | 0.601 | 0.566 | 0.441 | 0.284 | 0.511 |
@@ -142,10 +142,10 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | IFUM, WT backbone ‡ | 0.766 | 0.768 | 0.648 | 0.565 | 0.507 | 0.190 | 0.262 | 0.464 |
 | IFUM, ESMFold per variant ‡ | 0.762 | 0.747 | 0.697 | 0.575 | 0.523 | 0.217 | 0.284 | 0.473 |
 | GeoDDG-3D (FASPR) | 0.351 | 0.431 | 0.604 | 0.481 | 0.395 | 0.240 | 0.200 | 0.413 |
-| ESM3ΔG ‡ | 0.763 | 0.766 | 0.749 | 0.646 | 0.594 | 0.280 | 0.324 | 0.512 |
-| ProSST (zero-shot) | 0.776 | 0.796 | 0.711 | 0.702 | 0.538 | 0.356 | 0.258 | 0.519 |
-| ProteinMPNN (zero-shot) | 0.619 | 0.613 | 0.667 | 0.538 | 0.498 | 0.544 | 0.119 | 0.548 |
-| ESM3-small-open, ε = 0 (zero-shot) | 0.689 | 0.742 | 0.627 | 0.723 | 0.536 | 0.483 | 0.259 | 0.540 |
+| ESM3ΔG ‡ | 0.763 | 0.766 | **0.749** | 0.646 | 0.594 | 0.280 | 0.324 | 0.512 |
+| ProSST (zero-shot) | **0.776** | **0.796** | 0.711 | 0.702 | 0.538 | 0.356 | 0.258 | 0.519 |
+| ProteinMPNN (zero-shot) | 0.619 | 0.613 | 0.667 | 0.538 | 0.498 | **0.544** | 0.119 | **0.548** |
+| ESM3-small-open, ε = 0 (zero-shot) | 0.689 | 0.742 | 0.627 | **0.723** | 0.536 | 0.483 | 0.259 | 0.540 |
 | ESM3-large (Forge, zero-shot) | 0.624 | 0.606 | 0.557 | 0.582 | 0.458 | 0.432 | – | – |
 
 - **Mean over the 7 DMS:** ESM-MSR dc8 WT 0.618, dc8 combined 0.609, SPURS single-additive 0.605, capped 0.601,
@@ -162,9 +162,9 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 
 | model | PG avg | Stability | DMS mean |
 |---|---|---|---|
-| ESM-MSR capped (combined) | 0.510 | 0.870 | 0.556 |
+| ESM-MSR capped (combined) | 0.510 | **0.870** | **0.556** |
 | ESM-MSR capped, WT head | 0.508 | 0.826 | 0.550 |
-| ESM-MSR dc8 (combined, 3 seeds) | 0.511 | 0.869 | 0.555 |
+| ESM-MSR dc8 (combined, 3 seeds) | **0.511** | 0.869 | 0.555 |
 | MutateEverything st1 (3 seeds) | 0.468 | 0.808 | 0.506 |
 | MutateEverything st2 (3 seeds) | 0.445 | 0.806 | 0.491 |
 | ThermoMPNN (additive, 3 seeds) | 0.441 | 0.781 | 0.484 |
@@ -191,26 +191,26 @@ the ESM3 family, which the October runs do not have.
 
 | dataset | ESM-MSR (published) | ProteinMPNN | Rosetta cart. ΔΔG | ESM3-small-open | ESM3-small | ESM3-medium | ESM3-large | ME (hyperopt) | ME additive (hyperopt) | ThermoMPNN (hyperopt) | ThermoMPNN-D (hyperopt) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Ssym | 0.750 | 0.694 | 0.621 | 0.584 | 0.594 | 0.617 | 0.498 | 0.669 | 0.722 | 0.727 | – |
-| S461 | 0.750 | 0.441 | 0.617 | 0.402 | 0.445 | 0.422 | 0.371 | 0.713 | 0.720 | 0.647 | – |
-| S783 | 0.725 | 0.559 | 0.648 | 0.480 | 0.526 | 0.510 | 0.330 | 0.690 | 0.717 | 0.691 | – |
-| K2369 | 0.705 | 0.435 | 0.618 | 0.438 | 0.488 | 0.477 | 0.318 | 0.671 | 0.689 | 0.659 | – |
-| S8754 | 0.617 | 0.437 | 0.571 | 0.379 | 0.410 | 0.409 | 0.268 | 0.630 | 0.657 | 0.611 | – |
-| S2648 | 0.665 | 0.508 | 0.606 | 0.374 | 0.432 | 0.407 | 0.261 | 0.679 | 0.719 | 0.658 | – |
-| Q3421 | 0.613 | 0.495 | 0.554 | 0.377 | 0.429 | 0.414 | 0.282 | 0.622 | 0.654 | 0.604 | – |
-| PTMUL-D | 0.587 | 0.545 | 0.472 | 0.299 | 0.442 | 0.339 | 0.145 | 0.493 | 0.446 | 0.502 | 0.563 |
-| PTMUL | 0.545 | 0.377 | 0.540 | 0.191 | 0.316 | 0.250 | 0.043 | 0.539 | 0.470 | 0.437 | 0.452 |
-| S571 | 0.451 | 0.336 | 0.357 | 0.274 | 0.249 | 0.341 | 0.196 | 0.440 | 0.465 | 0.420 | – |
-| mean of 10 external | 0.641 | 0.483 | 0.561 | 0.380 | 0.433 | 0.418 | 0.271 | 0.615 | 0.626 | 0.595 | 0.507 |
-| Megascale val (per-domain avg.) | 0.835 | 0.595 | 0.666 | 0.561 | 0.592 | 0.583 | 0.516 | 0.744 | 0.744 | 0.768 | 0.763 |
-| Megascale test (per-domain avg.) | 0.804 | 0.529 | 0.634 | 0.551 | 0.606 | 0.590 | 0.553 | 0.673 | 0.678 | 0.740 | 0.732 |
-| DLG4 abundance | 0.721 | 0.621 | – | 0.678 | 0.745 | 0.723 | 0.583 | 0.645 | 0.702 | 0.629 | 0.530 |
-| DLG4 binding | 0.739 | 0.615 | – | 0.731 | 0.755 | 0.762 | 0.562 | 0.638 | 0.722 | 0.651 | 0.545 |
-| GRB2 abundance | 0.734 | 0.668 | – | 0.613 | 0.639 | 0.617 | 0.549 | 0.618 | 0.711 | 0.649 | 0.640 |
-| GRB2 binding | 0.623 | 0.538 | – | 0.709 | 0.717 | 0.680 | 0.520 | 0.593 | 0.571 | 0.592 | 0.587 |
-| MYO display | 0.636 | 0.499 | – | 0.527 | 0.557 | 0.521 | 0.463 | 0.562 | 0.586 | 0.577 | 0.528 |
-| ESTA ΔT50 | 0.517 | 0.546 | – | 0.484 | 0.486 | 0.497 | 0.413 | 0.465 | 0.501 | 0.470 | – |
-| Domainome (per-domain avg.) | 0.548 | 0.548 | – | 0.533 | 0.548 | 0.532 | 0.508 | 0.516 | 0.523 | 0.462 | – |
+| Ssym | **0.750** | 0.694 | 0.621 | 0.584 | 0.594 | 0.617 | 0.498 | 0.669 | 0.722 | 0.727 | – |
+| S461 | **0.750** | 0.441 | 0.617 | 0.402 | 0.445 | 0.422 | 0.371 | 0.713 | 0.720 | 0.647 | – |
+| S783 | **0.725** | 0.559 | 0.648 | 0.480 | 0.526 | 0.510 | 0.330 | 0.690 | 0.717 | 0.691 | – |
+| K2369 | **0.705** | 0.435 | 0.618 | 0.438 | 0.488 | 0.477 | 0.318 | 0.671 | 0.689 | 0.659 | – |
+| S8754 | 0.617 | 0.437 | 0.571 | 0.379 | 0.410 | 0.409 | 0.268 | 0.630 | **0.657** | 0.611 | – |
+| S2648 | 0.665 | 0.508 | 0.606 | 0.374 | 0.432 | 0.407 | 0.261 | 0.679 | **0.719** | 0.658 | – |
+| Q3421 | 0.613 | 0.495 | 0.554 | 0.377 | 0.429 | 0.414 | 0.282 | 0.622 | **0.654** | 0.604 | – |
+| PTMUL-D | **0.587** | 0.545 | 0.472 | 0.299 | 0.442 | 0.339 | 0.145 | 0.493 | 0.446 | 0.502 | 0.563 |
+| PTMUL | **0.545** | 0.377 | 0.540 | 0.191 | 0.316 | 0.250 | 0.043 | 0.539 | 0.470 | 0.437 | 0.452 |
+| S571 | 0.451 | 0.336 | 0.357 | 0.274 | 0.249 | 0.341 | 0.196 | 0.440 | **0.465** | 0.420 | – |
+| mean of 10 external | **0.641** | 0.483 | 0.561 | 0.380 | 0.433 | 0.418 | 0.271 | 0.615 | 0.626 | 0.595 | 0.507 |
+| Megascale val (per-domain avg.) | **0.835** | 0.595 | 0.666 | 0.561 | 0.592 | 0.583 | 0.516 | 0.744 | 0.744 | 0.768 | 0.763 |
+| Megascale test (per-domain avg.) | **0.804** | 0.529 | 0.634 | 0.551 | 0.606 | 0.590 | 0.553 | 0.673 | 0.678 | 0.740 | 0.732 |
+| DLG4 abundance | 0.721 | 0.621 | – | 0.678 | **0.745** | 0.723 | 0.583 | 0.645 | 0.702 | 0.629 | 0.530 |
+| DLG4 binding | 0.739 | 0.615 | – | 0.731 | 0.755 | **0.762** | 0.562 | 0.638 | 0.722 | 0.651 | 0.545 |
+| GRB2 abundance | **0.734** | 0.668 | – | 0.613 | 0.639 | 0.617 | 0.549 | 0.618 | 0.711 | 0.649 | 0.640 |
+| GRB2 binding | 0.623 | 0.538 | – | 0.709 | **0.717** | 0.680 | 0.520 | 0.593 | 0.571 | 0.592 | 0.587 |
+| MYO display | **0.636** | 0.499 | – | 0.527 | 0.557 | 0.521 | 0.463 | 0.562 | 0.586 | 0.577 | 0.528 |
+| ESTA ΔT50 | 0.517 | **0.546** | – | 0.484 | 0.486 | 0.497 | 0.413 | 0.465 | 0.501 | 0.470 | – |
+| Domainome (per-domain avg.) | **0.548** | **0.548** | – | 0.533 | **0.548** | 0.532 | 0.508 | 0.516 | 0.523 | 0.462 | – |
 
 
 ## 2. Epistasis: ESM-MSR vs the retrained baselines
@@ -229,11 +229,11 @@ Seed means; ESM-MSR capped is one checkpoint. Metric definitions: `validation_me
 | model / head | naive ρ | beyond ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | global_err ↓ |
 |---|---|---|---|---|---|---|---|---|
 | ME stage 1 / mt | −0.024 | −0.007 | 0.124 | −0.010 | −0.016 | 0.007 | 0.517 | 1.000 |
-| ME stage 2 / mt | **0.464** | 0.340 | 0.610 | 0.242 | 0.083 | 0.061 | 0.700 | **0.498** |
+| ME stage 2 / mt | 0.464 | 0.340 | 0.610 | 0.242 | 0.083 | 0.061 | 0.700 | **0.498** |
 | TMPNN-D / mt | 0.166 | 0.095 | 0.155 | 0.179 | 0.040 | 0.018 | 0.601 | 0.650 |
 | ESM-MSR capped / comb | 0.351 | 0.485 | 0.614 | 0.390 | 0.316 | 0.156 | **0.861** | 0.884 |
 | ESM-MSR capped / mt | 0.351 | **0.513** | 0.644 | 0.410 | **0.326** | **0.206** | 0.860 | 0.593 |
-| dc8 / comb (3 seeds) | 0.518 | 0.481 | **0.667** | **0.415** | 0.246 | 0.155 | 0.855 | 0.626 |
+| dc8 / comb (3 seeds) | **0.518** | 0.481 | **0.667** | **0.415** | 0.246 | 0.155 | 0.855 | 0.626 |
 | dc8 / mt (3 seeds) | 0.373 | 0.502 | 0.641 | 0.401 | 0.307 | 0.192 | 0.855 | 0.543 |
 
 Additive heads score exactly 0 / 0.5 on every residual and rank metric — the suite's own correctness check —
@@ -256,10 +256,10 @@ libraries are kept (verified: max abs diff 0).
 
 | | ME st1 | ME st2 | TMPNN | TMPNN+D | ESM-MSR capped comb | dc8 comb (3 seeds) |
 |---|---|---|---|---|---|---|
-| val `spearman_all` | 0.751 | 0.727 | 0.785 | 0.782 | 0.854 | 0.854 ± 0.001 |
+| val `spearman_all` | 0.751 | 0.727 | 0.785 | 0.782 | **0.854** | **0.854 ± 0.001** |
 | test `spearman_all` | 0.771 | 0.762 | 0.794 | 0.783 | 0.843 | **0.849 ± 0.001** |
-| test `spearman_doubles` | 0.617 | 0.660 | 0.673 | 0.672 | 0.763 | — |
-| test `spearman_doubles_epi` (dddG ρ) | 0.020 | 0.434 | — | 0.181 | 0.554 | — |
+| test `spearman_doubles` | 0.617 | 0.660 | 0.673 | 0.672 | **0.763** | — |
+| test `spearman_doubles_epi` (dddG ρ) | 0.020 | 0.434 | — | 0.181 | **0.554** | — |
 
 dc8 vs capped: test combined +0.006, test MT +0.007, val WT −0.005 — a modest gain on test, level on val.
 These dc8 numbers are **on measured rows only** (§5.3); with bounded rows they would read 0.858 and look like
@@ -293,6 +293,57 @@ Those 3,543 training rows buy ME stage 2 a little ddG ranking on wild-type backb
 interaction metrics. ThermoMPNN-D was not retrained: its training data is byte-identical in both conditions.
 
 
+### 2.6 How much predicted epistasis should a multi-mutant prediction keep?
+
+Write **A** = `wt_lora_pred` (additive by construction) and **M** = `mt_lora_pred` (the direct multi-mutant
+head). Then
+
+    (1 − λ)·A + λ·M  ≡  A + λ·(M − A)
+
+so the ensemble weight **λ is exactly the fraction of the MT head's predicted interaction that is kept**. The
+shipped `combined_pred = 0.5·(A + M)` is already λ = 0.5 — a 50 % shrinkage of predicted epistasis, not an
+unweighted average of two independent models. The proposal `(N−1)/N · WT + 1/N · MT` is the schedule λ = 1/N.
+
+Rescored offline from the saved per-variant predictions (`analysis_scripts/ensemble_weight_scan.py`; no GPU
+needed, since every prediction file carries both heads and the mutation count). Multi-mutants only, capped
+checkpoint:
+
+| dataset | n | N | λ = 0 (additive) | λ = 0.5 (shipped) | λ = 1 (MT only) | best λ | ρ at best |
+|---|---|---|---|---|---|---|---|
+| Tsuboyama test | 13,319 | 2 | 0.6996 | 0.7628 | 0.6771 | 0.6 | **0.7662** |
+| PTMUL | 914 | 2–10 | 0.5676 | **0.5954** | 0.5448 | 0.5 | 0.5954 |
+| PTMUL-D | 536 | 2 | 0.5861 | 0.6015 | 0.5329 | 0.4 | **0.6022** |
+| GRB2 abundance | 62,332 | 2 | 0.6635 | 0.6671 | 0.6214 | 0.33 | **0.6684** |
+| DLG4 binding | 6,810 | 2 | 0.7091 | 0.7038 | 0.6700 | 0.1 | **0.7093** |
+| GB1 | 149,284 | 2–4 | 0.3363 | 0.3450 | 0.3017 | 0.6 | **0.3453** |
+
+**λ = 1/N does not help, for three separate reasons.**
+
+1. **It is a no-op on doubles.** 1/N = 0.5 at N = 2, which is the shipped recipe, and doubles are essentially all
+   of the multi-mutant data here: Tsuboyama, both Faure assays and PTMUL-D contain nothing else.
+2. **Where N ≥ 3 exists it is worse.** Paired bootstrap of ρ(λ = 1/N) − ρ(λ = 0.5) on multi-mutants:
+   PTMUL −0.0140 [−0.0203, −0.0075] (capped) and −0.0107 [−0.0173, −0.0041] (dc8 s1); GB1 −0.0044
+   [−0.0065, −0.0023] (capped), though dc8 disagrees at +0.0111. Both PTMUL intervals exclude zero.
+3. **The N-dependence points the other way.** On PTMUL the best λ *rises* with N — ρ(λ = 0.6) − ρ(λ = 0.3) is
+   −0.0127 at N = 2, −0.0021 at N = 3 and +0.0269 at N = 4 (capped). The N = 4 interval still includes zero
+   (n = 98), so this is a trend rather than a result, but nothing in the data supports shrinking M as N grows.
+   A mechanism fits it: the additive baseline accumulates N single-prediction errors and misses every
+   interaction, while the MT head reads the whole mutant context in one pass, so M gets *relatively* more
+   trustworthy as N grows, not less.
+
+Also note that λ = 1/N sends λ → 1 at N = 1, i.e. pure MT for single mutants, which costs 0.024 ρ on the 35,421
+Tsuboyama test singles (0.8019 → 0.7774). Any N-schedule has to be restricted to N ≥ 2.
+
+**What the data does say.** The optimal λ tracks the *assay*, not the mutation count: ≈ 0.5–0.6 on in-distribution
+stability (Tsuboyama), ≈ 0.4–0.5 on PTMUL, and ≈ 0.1–0.33 on the functional Faure assays. So the MT head's
+epistasis is genuinely overweighted — but on out-of-distribution functional readouts, where λ should fall to
+roughly a third, not as a function of N. In-distribution it is slightly *under*weighted (best λ = 0.6 > 0.5).
+
+**Recommendation: keep λ = 0.5.** It is within 0.004 ρ of the best constant λ on every set except GB1, and no
+N-schedule is justified. The one case worth revisiting is GB1 at N = 2, where λ = 0 gains +0.047 (0.5847 →
+0.6321) — consistent with GB1 being the assay whose epistasis sign disagrees with Tsuboyama throughout these
+tables. If a per-assay λ is ever wanted, it needs to be fitted on held-out assays rather than on these.
+
 ## 3. ProteinGym in detail
 
 
@@ -304,14 +355,14 @@ ProteinGym's own AF2 structures.
 | model | Activity (43) | Binding (13) | Expression (18) | Org. fitness (73) | Stability (66) | PG avg | DMS mean |
 |---|---|---|---|---|---|---|---|
 | **dc8 full, ε = 0.75** (3 seeds) | 0.439 | 0.364 | 0.515 | 0.410 | 0.858 | **0.517** | **0.560** |
-| ESM-MSR capped, WT only, ε = 0.75 | 0.449 | 0.363 | 0.512 | 0.425 | 0.813 | 0.512 | 0.553 |
-| dc8 full, ε = 1 (3 seeds) | 0.426 | 0.347 | 0.517 | 0.395 | 0.869 | 0.511 | 0.555 |
+| ESM-MSR capped, WT only, ε = 0.75 | 0.449 | 0.363 | 0.512 | **0.425** | 0.813 | 0.512 | 0.553 |
+| dc8 full, ε = 1 (3 seeds) | 0.426 | 0.347 | **0.517** | 0.395 | 0.869 | 0.511 | 0.555 |
 | dc8 full, ε = 0.5 (3 seeds) | 0.443 | 0.381 | 0.499 | 0.413 | 0.822 | 0.512 | 0.551 |
 | ESM-MSR capped, full | 0.426 | 0.346 | 0.516 | 0.395 | **0.870** | 0.510 | 0.556 |
 | ESM-MSR capped, WT only, ε = 1 | 0.436 | 0.349 | 0.515 | 0.412 | 0.826 | 0.508 | 0.550 |
-| ESM-MSR capped, WT only, ε = 0.5 | 0.450 | 0.377 | 0.493 | 0.425 | 0.779 | 0.505 | 0.542 |
+| ESM-MSR capped, WT only, ε = 0.5 | **0.450** | 0.377 | 0.493 | **0.425** | 0.779 | 0.505 | 0.542 |
 | SPURS single-additive | 0.384 | 0.334 | 0.490 | 0.368 | 0.837 | 0.483 | 0.525 |
-| dc8 full, ε = 0.25 (3 seeds) | 0.430 | 0.385 | 0.468 | 0.400 | 0.742 | 0.485 | 0.517 |
+| dc8 full, ε = 0.25 (3 seeds) | 0.430 | **0.385** | 0.468 | 0.400 | 0.742 | 0.485 | 0.517 |
 | ESM-MSR capped, WT only, ε = 0.25 | 0.438 | 0.382 | 0.466 | 0.411 | 0.712 | 0.482 | 0.512 |
 | MutateEverything single (3 seeds) | 0.371 | 0.336 | 0.472 | 0.352 | 0.808 | 0.468 | 0.506 |
 | ESM-MSR, ε = 0 (no LoRA) | 0.417 | 0.374 | 0.439 | 0.391 | 0.621 | 0.448 | 0.470 |
