@@ -221,8 +221,8 @@ seed has finished; the combined head is shown).
 | released, ε = 0.5 | **0.760** | 0.790 | **0.718** | 0.696 | 0.627 | **0.526** | 0.343 | **0.572** |
 | released, ε = 0.25 | 0.747 | **0.792** | 0.688 | 0.721 | 0.595 | 0.516 | 0.319 | 0.568 |
 | devel, ε = 1 | 0.745 | 0.742 | 0.682 | 0.636 | **0.639** | 0.481 | 0.337 | 0.543 |
-| devel, ε = 0.75 | q | q | q | q | q | q | q | q |
-| devel, ε = 0.5 | q | q | q | q | q | q | q | q |
+| devel, ε = 0.75 | q | q | q | q | q | 0.510 | q | 0.560 |
+| devel, ε = 0.5 | q | q | q | q | q | 0.525 | q | q |
 | devel, ε = 0.25 | q | q | q | q | q | q | q | q |
 | ε = 0 (zero-shot control) | 0.689 | 0.742 | 0.627 | **0.723** | 0.536 | 0.483 | 0.259 | 0.540 |
 
@@ -243,9 +243,9 @@ seed has finished; the combined head is shown).
 
 | model | PG avg | Stability | DMS mean |
 |---|---|---|---|
-| ESM-MSR (released), combined | 0.510 | **0.870** | **0.556** |
-| ESM-MSR (released), WT head | 0.508 | 0.826 | 0.550 |
-| ESM-MSR (devel), combined (3 seeds) | 0.511 | 0.869 | 0.555 |
+| ESM-MSR (released), combined | 0.510 | **0.870** | **0.555** |
+| ESM-MSR (released), WT head | 0.507 | 0.828 | 0.550 |
+| ESM-MSR (devel), combined (3 seeds) | 0.511 | 0.869 | **0.555** |
 | MutateEverything st1 (3 seeds) | 0.468 | 0.808 | 0.506 |
 | MutateEverything st2 (3 seeds) | 0.445 | 0.806 | 0.491 |
 | ThermoMPNN (additive, 3 seeds) | 0.441 | 0.781 | 0.484 |
@@ -258,7 +258,7 @@ seed has finished; the combined head is shown).
 | Rosetta Cartesian ΔΔG | _0.375_ | _0.640_ | _0.409_ |
 | ProteinMPNN (zero-shot) | 0.408 | 0.627 | 0.426 |
 | ProteinMPNN, ProteinGym published recipe | 0.257 | 0.565 | 0.298 |
-| ESM3-small-open, ε = 0 (zero-shot) | 0.448 | 0.621 | 0.470 |
+| ESM3-small-open, ε = 0 (zero-shot) | 0.448 | 0.620 | 0.470 |
 | ESM3-open, ProteinGym published recipe | 0.466 | 0.641 | 0.486 |
 
 - **ProSST ties ESM-MSR on the average and the tie hides a split.** ProSST's published ProSST-2048 scores average
@@ -541,17 +541,17 @@ italic because its predictions cover single mutants only (212 of the 213 DMS) an
 |---|---|---|---|---|---|---|---|
 | ESM-MSR (devel), ε = 0.75 (3 seeds) | 0.439 | 0.364 | 0.515 | 0.410 | 0.858 | **0.517** | **0.560** |
 | ProSST (zero-shot; published scores) | **0.486** | **0.449** | **0.530** | **0.453** | 0.653 | 0.514 | 0.528 |
-| ESM-MSR (released), WT head only, ε = 0.75 | 0.449 | 0.363 | 0.512 | 0.425 | 0.813 | 0.512 | 0.553 |
 | ESM-MSR (devel), ε = 0.5 (3 seeds) | 0.443 | 0.381 | 0.499 | 0.413 | 0.822 | 0.512 | 0.551 |
+| ESM-MSR (released), WT head only, ε = 0.75 | 0.447 | 0.362 | 0.512 | 0.424 | 0.815 | 0.512 | 0.554 |
 | ESM-MSR (devel), ε = 1 (3 seeds) | 0.426 | 0.347 | 0.517 | 0.395 | 0.869 | 0.511 | 0.555 |
-| ESM-MSR (released), ε = 1 | 0.426 | 0.346 | 0.516 | 0.395 | **0.870** | 0.510 | 0.556 |
-| ESM-MSR (released), WT head only, ε = 1 | 0.436 | 0.349 | 0.515 | 0.412 | 0.826 | 0.508 | 0.550 |
-| ESM-MSR (released), WT head only, ε = 0.5 | 0.450 | 0.377 | 0.493 | 0.425 | 0.779 | 0.505 | 0.542 |
+| ESM-MSR (released), ε = 1 | 0.425 | 0.345 | 0.515 | 0.394 | **0.870** | 0.510 | 0.555 |
+| ESM-MSR (released), WT head only, ε = 1 | 0.434 | 0.349 | 0.515 | 0.411 | 0.828 | 0.507 | 0.550 |
+| ESM-MSR (released), WT head only, ε = 0.5 | 0.449 | 0.377 | 0.493 | 0.425 | 0.780 | 0.505 | 0.543 |
 | ESM-MSR (devel), ε = 0.25 (3 seeds) | 0.430 | 0.385 | 0.468 | 0.400 | 0.742 | 0.485 | 0.517 |
 | SPURS (single model) | 0.384 | 0.334 | 0.490 | 0.368 | 0.837 | 0.483 | 0.525 |
-| ESM-MSR (released), WT head only, ε = 0.25 | 0.438 | 0.382 | 0.466 | 0.411 | 0.712 | 0.482 | 0.512 |
+| ESM-MSR (released), WT head only, ε = 0.25 | 0.436 | 0.381 | 0.466 | 0.411 | 0.713 | 0.481 | 0.512 |
 | MutateEverything single (3 seeds) | 0.371 | 0.336 | 0.472 | 0.352 | 0.808 | 0.468 | 0.506 |
-| ESM-MSR, ε = 0 (no LoRA) | 0.417 | 0.374 | 0.439 | 0.391 | 0.621 | 0.448 | 0.470 |
+| ESM-MSR, ε = 0 (no LoRA) | 0.416 | 0.374 | 0.439 | 0.391 | 0.620 | 0.448 | 0.470 |
 | MutateEverything double (3 seeds) | 0.348 | 0.296 | 0.437 | 0.338 | 0.806 | 0.445 | 0.491 |
 | ThermoMPNN (3 seeds) | 0.351 | 0.299 | 0.439 | 0.337 | 0.781 | 0.441 | 0.484 |
 | SPURS multi (multi-mutant model) | 0.326 | 0.267 | 0.410 | 0.320 | 0.808 | 0.426 | 0.477 |
@@ -560,15 +560,16 @@ italic because its predictions cover single mutants only (212 of the 213 DMS) an
 
 Paired against the released checkpoint over the 213 common DMS (3 seeds × 4 ε, every DMS scored):
 
-| devel setting | PG avg | paired Δ vs released | better on | seed sd (PG avg) |
+| devel setting | PG avg | paired Δ vs released (mean over DMS) | better on | seed sd (PG avg) |
 |---|---|---|---|---|
-| ε = 1 | 0.5107 | −0.0002 | 108 / 213 | 0.0003 |
-| **ε = 0.75** | **0.5170** | **+0.0047** | **133 / 213** | 0.0007 |
-| ε = 0.5 | 0.5115 | −0.0048 | 98 / 213 | 0.0007 |
-| ε = 0.25 | 0.4853 | −0.0385 | 70 / 213 | 0.0005 |
+| ε = 1 | 0.5107 | +0.0003 | 112 / 213 | 0.0003 |
+| **ε = 0.75** | **0.5170** | **+0.0053** | **135 / 213** | 0.0007 |
+| ε = 0.5 | 0.5115 | −0.0043 | 102 / 213 | 0.0007 |
+| ε = 0.25 | 0.4853 | −0.0380 | 71 / 213 | 0.0005 |
 
-- **Devel at ε = 1 matches released** and **ε = 0.75 is the only setting that beats it** (+0.0047, better on 133 of 213,
-  paired t = 2.83). Seed sd ≤ 0.0007, so the ε = 0.75 gain is ~7 seed-sds and the ε = 1 null is real.
+- **Devel at ε = 1 matches released** and **ε = 0.75 is the only setting that beats it** (+0.0053, better on 135 of 213,
+  paired t = 3.04). Seed sd ≤ 0.0007, so the ε = 0.75 gain is ~8 seed-sds and the ε = 1 null is real. (Before the
+  2026-10-23 bias correction these read +0.0047, 133 of 213, t = 2.83; the conclusion did not move.)
 - **The ε trend:** Stability falls monotonically as ε drops (0.869 → 0.742) while Binding rises monotonically
   (0.347 → 0.385), with Activity and Organismal fitness peaking near ε = 0.5. Scaling the LoRA down trades
   stability skill for general fitness, and ε = 0.75 is where the two balance.
@@ -654,8 +655,17 @@ Paired against the released checkpoint over the 213 common DMS (3 seeds × 4 ε,
     (doubles only), because every double in a protein shifts by the same constant. What does move is anything that
     reads levels (global error, bias, RMSE, the dddG of a double against its singles) and any set that mixes mutation
     counts, most likely ProteinGym (its variants carry many substitutions; not yet measured). Every ESM-MSR number on a set with multi-mutants (Tsuboyama doubles, PTMUL, the DMS
-    assays, ProteinGym) computed before this date used one bias per item and is being rerun; singles-only sets
-    (Domainome, most external sets) are unaffected. See `OUTSTANDING_EXPERIMENTS.md`.
+    assays, ProteinGym) computed before this date used one bias per item; singles-only sets
+    (Domainome, most external sets) are unaffected. **ProteinGym was corrected offline, not rerun** (a rerun is ~250 GPU-hours): the 18
+    stored run directories were rewritten with `analysis_scripts/pgym_per_mutation_bias.py` (31.9 M rows shifted, originals kept in
+    `outputs/pgym_pre_per_mutation_bias/`, a manifest in each run directory). The correction was checked against a real rerun of
+    three DMS (GCN4, with up to 44 substitutions, and two Tsuboyama sets) at ε = 1 and 0.5 in full and WT-only mode: the MT head's
+    shift agrees to within 0.001, the Spearman of the corrected values to within 5e-4 of the rerun's. The old code's WT pass for
+    multi-mutants differed slightly between a full and a WT-only run (up to 0.015 on a double, 0.04 on a deep multi-mutant, bias aside);
+    the correction keeps that offset. Effect on the ProteinGym table: released combined PG avg 0.510 unchanged, DMS mean 0.556 → 0.555, WT
+    head 0.508 → 0.507, devel unchanged at the printed precision; per-DMS changes reach 0.025–0.036 for the released checkpoint and
+    0.005 for a devel seed. Tsuboyama, PTMUL and the DMS assays are being rerun for real; until a seed mean is complete under one
+    convention it is shown as `q` (`benchmark_matrix.py` classifies each file by the mean of its `wt_lora_dddg_pred`).
 
 ## 6. Where the code and results live
 

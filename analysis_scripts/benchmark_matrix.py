@@ -93,13 +93,35 @@ def pg_summaries(rows, model, per_dms, src, n_seeds=1, allow_partial=False):
     rows.add(model, 'PG DMS mean', s.mean(), src, n_seeds)
 
 
+# Sets that contain multi-mutants: the only ones the 2026-10-23 change of the calibration bias (per item -> per mutated position) moves.
+MULTI = {'ptmul', 'ptmuld', 'tsu_capped_val', 'tsu_capped_test'} | {d for d in DMS if not d.startswith('ESTA')}
+_CONV = {}
+
+
+def bias_convention(ds, ck, eps):
+    """Which calibration-bias convention a stored ESM-MSR prediction file was produced under, read from the file itself.
+    For a multi-mutant, wt_lora_dddg_pred = (the double's WT prediction) - (the sum of its singles'), which is -bias_wt with one bias per
+    item and exactly 0 with one per mutated position, so its mean over the multi-mutants tells them apart. A job that started before the
+    switch and finished after it therefore cannot pass for a new one, as a file time would let it. None: no multi-mutants / no file."""
+    sub = {'ptmul': 'PTMUL', 'tsu_capped_val': 'splits_oct06_capped-val', 'tsu_capped_test': 'splits_oct06_capped-test'}.get(ds, ds)
+    f = glob.glob(f'{DEV}/analysis_notebooks/predictions/{sub}/{ck}/*_epsilon{eps}_unmasked_predictions.csv')
+    if not f:
+        return None
+    key = (f[0], os.path.getmtime(f[0]))
+    if key not in _CONV:
+        x = pd.read_csv(f[0], usecols=lambda c: c == 'wt_lora_dddg_pred', low_memory=False).get('wt_lora_dddg_pred')
+        x = x.dropna() if x is not None else []
+        _CONV[key] = None if len(x) == 0 else ('item' if abs(float(np.mean(x))) > 0.02 else 'mutation')
+    return _CONV[key]
+
+
 def collect_msr(rows, ckpt_dirs, model, eps='1', heads=None, blocks=('external', 'DMS', 'domainome', 'tsu')):
     """ESM-MSR statistics written by esm_msr_testing.py for one LoRA scale (the ε is in the file name).
     A model is the mean over the checkpoints given (seeds); heads default to combined / WT / MT."""
     stats = f'{DEV}/analysis_notebooks/stats'
     heads = heads or [('Combined', ''), ('WT_LoRA', ' WT'), ('MT_LoRA', ' MT')]
     for head, label in heads:
-        acc = {}
+        acc, conv = {}, {}
         for ck in ckpt_dirs:
             for sub, names in [('external', EXT), ('DMS', DMS)]:
                 if sub not in blocks:
@@ -110,6 +132,7 @@ def collect_msr(rows, ckpt_dirs, model, eps='1', heads=None, blocks=('external',
                     for ds in names:
                         if ds in d.index:
                             acc.setdefault(ds, []).append(d.loc[ds, 'spearman_all'])
+                            conv.setdefault(ds, []).append(bias_convention(ds, ck, eps) if ds in MULTI else None)
             for sub, ds, blk in [('domainome', 'domainome', 'domainome'), ('splits_oct06_capped-val', 'tsu_capped_val', 'tsu'),
                                  ('splits_oct06_capped-test', 'tsu_capped_test', 'tsu')]:
                 if blk not in blocks:
@@ -117,10 +140,14 @@ def collect_msr(rows, ckpt_dirs, model, eps='1', heads=None, blocks=('external',
                 f = glob.glob(f'{stats}/{sub}/{ck}/*_epsilon{eps}_unmasked_{head}_avg.csv')
                 if f:
                     acc.setdefault(ds, []).append(pd.read_csv(f[0], index_col=0).loc['spearman_all'].iloc[0])
+                    conv.setdefault(ds, []).append(bias_convention(ds, ck, eps) if ds in MULTI else None)
         for ds, v in acc.items():
             # a DMS/Domainome sweep point counts only once every seed has it, so a half-finished sweep never
             # shows up as a seed mean over fewer seeds than its neighbours
             if len(v) < len(ckpt_dirs):
+                continue
+            if len({c for c in conv.get(ds, []) if c}) > 1:          # seeds computed under different bias conventions: not a mean
+                print(f'[msr] {model}{label} {ds} eps={eps}: seeds mix bias conventions {conv[ds]}, not shown until rerun')
                 continue
             rows.add(model + label, ds, np.mean(v), 'esm_msr_testing stats', len(v), np.std(v) if len(v) > 1 else np.nan)
 

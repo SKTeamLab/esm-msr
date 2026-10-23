@@ -41,7 +41,7 @@ def _make(m, d, kind, name, ks, rng, nan_row=False, epi=False):
         df['mt_lora_pred'], df['combined_pred'] = mt.astype(float), cb.astype(float)
         df['combined_dddg_pred'] = (np.float32(0.5) * mt - np.float32(0.5) * wt).astype(float)
         if epi:
-            df['epistasis_pred'] = (cb - wt).astype(float)
+            df['epistasis_pred'] = (mt - wt).astype(float)       # the released run stored the full head difference, not combined - wt
         if nan_row:
             df.loc[ks.index(max(ks)), 'combined_pred'] = np.nan
     df['DMS_id'], df['mutant'], df['DMS_score'] = name, muts, rng.normal(size=n)
@@ -64,6 +64,8 @@ def _tree(m, tmp_path):
                 df = pd.read_csv(f'{d}/{nm}.csv')
                 rows.append({'DMS_id': nm, 'n': len(df), 'spearman_combined': m.safe_spearman(df[m.pred_col(kind)], df['DMS_score']),
                              'time_s': 1.0, 'status': 'done', 'error': ''})
+            if ck == m.REL and sub == 'sigma1.0':
+                rows[2]['status'] = 'skipped'            # a resumed run records an already-scored DMS this way, with its Spearman
             pd.DataFrame(rows).to_csv(f'{d}/summary.csv', index=False)
     for f in ('pgym_dc8_per_dms.csv', 'pgym_all_models_per_dms.csv'):
         open(f'{root}/{f}', 'w').write('DMS_id,category\nA_single,x\n')
@@ -94,7 +96,7 @@ def test_correction_matches_an_independent_computation(tool, tmp_path, capsys):
             if kind != 'wt_only':
                 exp.update(mt_lora_pred=bm * (k - 1), combined_pred=0.5 * (bw + bm) * (k - 1), combined_dddg_pred=0.5 * (bm - bw) * (k - 1))
                 if 'epistasis_pred' in o:
-                    exp['epistasis_pred'] = 0.5 * (bm - bw) * (k - 1)
+                    exp['epistasis_pred'] = (bm - bw) * (k - 1)
             for c, dv in exp.items():
                 d = (n[c] - o[c] - dv).abs().max()
                 assert np.isnan(d) or d < 1e-12, (p, c, d)
@@ -110,6 +112,9 @@ def test_correction_matches_an_independent_computation(tool, tmp_path, capsys):
     assert snap == {p: open(p, 'rb').read() for p in snap}
     s = pd.read_csv(f'{root}/{m.REL}/sigma1.0/summary.csv')
     assert (s['spearman_combined_per_item_bias'] != s['spearman_combined']).sum() == 2    # B and C moved; singles-only A did not
+    assert s.loc[2, 'status'] == 'skipped'                                                # ... including the row whose status is 'skipped'
+    nw = pd.read_csv(f'{root}/{m.REL}/sigma1.0/C_nan.csv')
+    assert s.loc[2, 'spearman_combined'] == pytest.approx(m.safe_spearman(nw['combined_pred'], nw['DMS_score']))
 
 
 def test_a_file_that_is_not_the_backed_up_original_is_refused(tool, tmp_path):
@@ -127,3 +132,51 @@ def test_apply_needs_a_backup(tool, tmp_path):
     root = _tree(m, tmp_path)
     with pytest.raises(AssertionError, match='backup'):
         m.cmd_apply(types.SimpleNamespace(root=root, include_ablation=False, write=False))
+
+
+def test_summaries_refreshes_a_row_that_apply_left_stale(tool, tmp_path):
+    """The bug this guards against: apply once refreshed only status == 'done' rows, so a 'skipped' row kept its per-item Spearman."""
+    m = tool
+    root = _tree(m, tmp_path)
+    a = types.SimpleNamespace(root=root, include_ablation=False, write=False, only=None)
+    m.cmd_backup(a)
+    m.cmd_apply(a)
+    sp = f'{root}/{m.REL}/sigma1.0/summary.csv'
+    s = pd.read_csv(sp)
+    stale = s['spearman_combined_per_item_bias'].copy()
+    s.loc[2, 'spearman_combined'] = stale[2]                              # put the stale value back, as the old apply left it
+    s.to_csv(sp, index=False)
+    m.cmd_summaries(a)
+    s2 = pd.read_csv(sp)
+    nw = pd.read_csv(f'{root}/{m.REL}/sigma1.0/C_nan.csv')
+    assert s2.loc[2, 'spearman_combined'] == pytest.approx(m.safe_spearman(nw['combined_pred'], nw['DMS_score']))
+    assert s2.loc[2, 'spearman_combined'] != pytest.approx(stale[2])
+    assert (s2['spearman_combined_per_item_bias'] == stale).all()
+
+
+def test_aggregates_keep_unchanged_cells_exactly_and_shift_only_the_corrected_ones(tool, tmp_path):
+    m = tool
+    root = _tree(m, tmp_path)
+    cats = pd.Series({'A_single': 'x', 'B_mixed': 'x', 'C_nan': 'x'}, name='category')
+    cats.index.name = 'DMS_id'
+    a = types.SimpleNamespace(root=root, include_ablation=False, write=True, only=None)
+    # the synthetic tree has none of the epsilon directories the real builders read, so use minimal builders over the same helpers
+    m.build_dc8 = lambda r, c: pd.DataFrame({'DMS_id': c.index, 'category': c.values})
+    m.build_all = lambda r, c: pd.DataFrame({'DMS_id': c.index, 'category': c.values,
+                                             'ESM-MSR full': m.per_dms(r, m.REL, 'sigma1.0').reindex(c.index).values})
+    m.cmd_backup(a)
+    # the released 'full' column: take the summary, but make one single-mutant-only cell differ from it by 3e-7 (compiled earlier)
+    s0 = pd.read_csv(f'{root}/{m.REL}/sigma1.0/summary.csv').set_index('DMS_id')['spearman_combined']
+    agg = pd.DataFrame({'category': cats, 'ESM-MSR full': s0.reindex(cats.index)})
+    agg.loc['A_single', 'ESM-MSR full'] += 3e-7
+    agg.reset_index().to_csv(f'{root}/pgym_all_models_per_dms.csv', index=False)
+    pd.DataFrame({'DMS_id': cats.index, 'category': 'x'}).to_csv(f'{root}/pgym_dc8_per_dms.csv', index=False)
+    shutil_copy = __import__('shutil').copy2
+    shutil_copy(f'{root}/pgym_all_models_per_dms.csv', f'{root}_pre_per_mutation_bias/pgym_all_models_per_dms.csv')
+    m.cmd_apply(a)
+    m.cmd_aggregates(a)
+    out = pd.read_csv(f'{root}/pgym_all_models_per_dms.csv').set_index('DMS_id')['ESM-MSR full']
+    new = pd.read_csv(f'{root}/{m.REL}/sigma1.0/summary.csv').set_index('DMS_id')['spearman_combined']
+    assert out['A_single'] == pytest.approx(agg.loc['A_single', 'ESM-MSR full'], abs=1e-15)      # singles-only: untouched, incl. its 3e-7
+    for d in ('B_mixed', 'C_nan'):
+        assert out[d] == pytest.approx(new[d], abs=1e-9)                                           # corrected cells follow the new summary
