@@ -281,8 +281,9 @@ cost and memory of a double; the frozen WT pass stays unmasked, as it was traine
 (c) Single seed: screening only.
 
 **End-to-end CPU smoke** (`analysis_scripts/smoke_cpu.py`: the real `training.main()` on truncated real libraries from the c6 cache, fp32 because CPU bf16 autocast breaks
-inside ESM3's geometric attention; one epoch, a real validation before and after): `dual_joint`, `frozen_wt`, `fused`, `native_cond_for_mt`, `mask_mt_independent`, `huber`
-and `comet_offline` all complete with two validations and a checkpoint. What it showed: the fused adapter trains (292 nonzero LoRA-B tensors, one calibration head);
+inside ESM3's geometric attention; one epoch, a real validation before and after): `dual_joint`, `frozen_wt`, `fused`, `native_cond_for_mt`, `mask_mt_independent`, `mask_wt_marginal_mt_independent`,
+`huber`, `wt_only` and `comet_offline` all complete with two validations and a checkpoint (the tool's first success test looked for train-loss columns, which a 6-step run never
+logs at Lightning's every-25-steps interval; it now checks the validations and the checkpoint, and the first batch of runs was re-read against that). What it showed: the fused adapter trains (292 nonzero LoRA-B tensors, one calibration head);
 with a frozen WT the WT metric is unchanged to the digit and the WT calibration/link are the loaded ones; the zero-shot `rho_combined` of the fused and dual models
 is identical, as it must be (LoRA B starts at zero). It found two real defects, both fixed before the pin: the fused model skipped the bf16 cast of the frozen base
 (about 2.8 GB more on the card than the dual model), and `--comet_offline` died because comet_ml does not create its offline directory (a latent bug of the old code).
