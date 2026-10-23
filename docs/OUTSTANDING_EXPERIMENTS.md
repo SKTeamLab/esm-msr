@@ -13,7 +13,8 @@ Everything below is pinned to gpu4 (4 × A4500). Lanes are chained with `afteran
 1.4 and 1.9 h), SPURS multi 386519 (7.5 min), ProSST capped 386533, ESMtherm CAS9 retry 386532 (so ESMtherm now has all
 213 ProteinGym DMS), and the released-checkpoint ε sweep at 0.75 / 0.5 / 0.25 (386520–386522, 1.5 h each) plus devel
 seed 1 at ε = 0.75 (386523). All checked: no failed datasets, and the only NaN predictions are the 7,931 capped-test
-rows on mutant-background libraries that SPURS cannot represent.
+(6,026 val) rows on mutant-background libraries, which the SPURS and ProteinMPNN adapters used to skip. They are
+patched now (below) and rerun as 386549–386551.
 
 | what | fills (the `q` cells) | jobs | state |
 |---|---|---|---|
@@ -76,7 +77,7 @@ asked for, so nothing else was added.
 | UniMutStab | the whole row | no released weights or inference code (pseudocode only); reimplementation ruled out on 2026-10-14 | weights from the authors |
 | GeoDDG with FoldX structures beyond the 12 external sets | — | FoldX BuildModel is CPU-bound (~150–250 CPU-h for the externals); FASPR is the stand-in and matches it to 3.5e-4 kcal/mol on the externals | not needed |
 | **ESM3 through Forge: the gaps its stored runs leave** | small lacks GB1 and Domainome; medium lacks GRB2 binding, MYO, ESTA, GB1 and Domainome; large lacks GB1 | paid, rate-limited API; the earlier runs were never completed. (S461, K2369 and PTMUL-D are *not* gaps any more: they are scored from their parent sets.) | a Forge key and budget; ESM3-small-open at ε = 0 covers the open model locally |
-| SPURS and ProteinMPNN on mutant-background Tsuboyama libraries | 5 of 25 val and 7 of 37 test libraries (all singles) | both models read the sequence from the wild-type PDB, which has the wild-type residue at the background position; the adapters return NaN rather than score the wrong sequence | an adapter that substitutes the background residue in the parsed structure; minor, since these rows are all singles |
+| SPURS (both models) and ProteinMPNN on mutant-background Tsuboyama libraries | 3 of 25 val and 4 of 37 test parent libraries, 7 of 37 test groups (6,026 val and 7,931 test rows, all singles) | the adapters used to return NaN because both models read the sequence from the wild-type PDB. **Patched 2026-10-23**: the parsed sequence is overwritten with the corrected mutant-background `ref_seq` (SPURS through `alt_parse_PDB`, ProteinMPNN on the featurized `S`), after checking that it differs from the structure's sequence at exactly the `backbone_mutation` positions. Smoke test on all 7 test groups: 480/480 predictions, no assertion; wild-type-background rows agree with the old run to 1e-5 | rerun of capped val+test, `gpu4_spurs_bb` 386549, `gpu4_spursmulti_bb` 386550, `gpu4_mpnn_bb` 386551 (pending a gpu4 slot; previous files kept as `*.pre_bbpatch`) |
 | Rosetta on the external sets, DMS and Domainome | the Rosetta row outside Tsuboyama | the Narval run covered the capped Tsuboyama split only; the published comparison (§1.5) has Rosetta on the older row sets | a `cartesian_ddg` array over those sets (CPU) |
 | MT-pass ablation (`--mt_pass_adapter wt`, devel seed 1, ε = 1) | §3 ablation bullet | cancelled 2026-10-21 after 15:46 h at ~26 of 213 DMS (it needed ~6 days on an RTX 6000); the partial output is in `outputs/pgym/esm-msr-dc8-floorlink-canon-w2a4-m16a16-s1/sigma1.0_mtpass_wt/` | resubmit on an A4500 (~33 h) if the ablation is still wanted |
 

@@ -235,6 +235,12 @@ def collect_pgym_public(rows):
     if os.path.exists(f):
         d = pd.read_csv(f).set_index('DMS_id')
         pg_summaries(rows, 'ProSST', d['ProSST-2048 rho_mapped'], 'ProteinGym published scores (ProSST-2048)')
+        # the same two models read out by their authors' ProteinGym recipe, beside ours (our ProteinMPNN is the unmasked
+        # conditional score, our ESM3-small-open is the ESM-MSR readout with the LoRA off): the difference is inference
+        for col, name, what in [('ProteinMPNN', 'ProteinMPNN (published)', 'whole-sequence likelihood'),
+                                ('ESM3', 'ESM3-open (published)', 'the authors\' own ESM3 readout')]:
+            if f'{col} rho_mapped' in d.columns:
+                pg_summaries(rows, name, d[f'{col} rho_mapped'], f'ProteinGym published scores ({col}, {what})')
 
 
 def collect_pgym_rosetta(rows):
@@ -341,7 +347,9 @@ ROWS = [(REL, 'ESM-MSR (released), combined'), (REL + ' WT', 'ESM-MSR (released)
         ('IFUM (WT backbone)', 'IFUM, WT backbone ‡'), ('IFUM (native, ESMFold)', 'IFUM, ESMFold per variant ‡'),
         ('GeoDDG-3D', 'GeoDDG-3D (FASPR)'), ('ESM3dG', 'ESM3ΔG ‡'), ('ProSST', 'ProSST (zero-shot)'),
         ('Rosetta', 'Rosetta Cartesian ΔΔG'),
-        ('ProteinMPNN', 'ProteinMPNN (zero-shot)'), ('ESM3-small-open (ε=0, MSR readout)', 'ESM3-small-open, ε = 0 (zero-shot)'),
+        ('ProteinMPNN', 'ProteinMPNN (zero-shot)'), ('ProteinMPNN (published)', 'ProteinMPNN, ProteinGym published recipe'),
+        ('ESM3-small-open (ε=0, MSR readout)', 'ESM3-small-open, ε = 0 (zero-shot)'),
+        ('ESM3-open (published)', 'ESM3-open, ProteinGym published recipe'),
         ('ESM3-large zero-shot', 'ESM3-large (Forge, zero-shot)'), ('ESM3-medium zero-shot', 'ESM3-medium (Forge, zero-shot)'),
         ('ESM3-small zero-shot', 'ESM3-small (Forge, zero-shot)'),
         ('ESM-MSR-small (March, crystal)', 'ESM-MSR-small (March reference)')]
@@ -448,31 +456,41 @@ def cmd_epi(a):
     construction 0 on every residual and rank metric, the suite's own validity check). Seed means; the sd is printed
     so the text can say how far to trust a difference."""
     B = f'{DEV}/outputs/baselines_capped'
-    pieces = {  # split -> (baselines + released, devel seeds, Rosetta)
+    pieces = {  # split -> (baselines + released, devel seeds, Rosetta, harness models)
         'valfull (34,957 rows)': ('epi_test_valfull_allbb.csv', 'epi_test_valfull_allbb_msr_dc8_s1-dc8_s2-dc8_s3.csv',
-                                  'epi_rosetta_valfull_allbb.csv'),
+                                  'epi_rosetta_valfull_allbb.csv', 'epi_harness_valfull_allbb.csv'),
         'test (40,866 rows, destabilized backbones dropped)': ('epi_test.csv', 'epi_test_allbb_msr_dc8_s1-dc8_s2-dc8_s3.csv',
-                                                               'epi_rosetta_test.csv')}
-    for split, (base_f, dev_f, ros_f) in pieces.items():
+                                                               'epi_rosetta_test.csv', 'epi_harness_test.csv')}
+    # harness models with a real double prediction (analysis_scripts/epi_harness.py), labelled as in the other tables;
+    # ProSST is absent because its double is the sum of its singles, so it has no interaction to score
+    harness = [('ESMtherm', 'ESMtherm ‡'), ('IFUM (WT backbone)', 'IFUM, WT backbone ‡'),
+               ('IFUM (native, ESMFold)', 'IFUM, ESMFold per variant ‡'), ('GeoDDG-3D (FASPR)', 'GeoDDG-3D (FASPR)'),
+               ('ESM3dG', 'ESM3ΔG ‡'), ('SPURS multi', 'SPURS multi (multi-mutant model) ‡'),
+               ('ProteinMPNN', 'ProteinMPNN (zero-shot)'), ('DDGemb', 'DDGemb (server)')]
+    for split, (base_f, dev_f, ros_f, har_f) in pieces.items():
         base = pd.read_csv(f'{B}/{base_f}').set_index('run/head')
         dev = pd.read_csv(f'{B}/{dev_f}').set_index('run/head')
         ros = pd.read_csv(f'{B}/{ros_f}').set_index('run/head')
+        har = pd.read_csv(f'{B}/{har_f}').set_index('run/head')
         seeds = lambda df, stem: df[[i.startswith(stem) for i in df.index]]
         spec = [('MutateEverything stage 1', seeds(base, 'ME_stage1_s')[lambda x: x.index.str.endswith('/mt')]),
                 ('MutateEverything stage 2', seeds(base, 'ME_stage2_s')[lambda x: x.index.str.endswith('/mt')]),
                 ('ThermoMPNN-D', seeds(base, 'TMPNN_s')[lambda x: x.index.str.endswith('/mt')]),
                 ('Rosetta Cartesian ΔΔG', ros[ros.index == 'Rosetta/mt']),
+                *[(label, har[har.index == f'{m}/mt']) for m, label in harness],
                 (REL, base[base.index == 'MSR/comb']),
                 (DEVEL + ' (3 seeds)', seeds(dev, 'MSR_dc8_s')[lambda x: x.index.str.endswith('/comb')])]
         body = []
         for name, df in spec:
             body.append((name, [df[c].mean() for c, _, _ in EPI_COLS], [df[c].std() if len(df) > 1 else np.nan for c, _, _ in EPI_COLS]))
-        best = [(max if sign > 0 else min)(r[1][j] for r in body) for j, (_, _, sign) in enumerate(EPI_COLS)]
+        # best value per column among models that did not train on Tsuboyama (‡), as in the other tables
+        fair = [r for r in body if '‡' not in r[0]]
+        best = [(max if sign > 0 else min)(r[1][j] for r in fair) for j, (_, _, sign) in enumerate(EPI_COLS)]
         print(f'\n##### {split}\n')
         print('| model | ' + ' | '.join(n for _, n, _ in EPI_COLS) + ' |')
         print('|---|' + '---|' * len(EPI_COLS))
         for name, m, sd in body:
-            cells = [f'**{v:.3f}**' if v == best[j] else f'{v:.3f}' for j, v in enumerate(m)]
+            cells = [f'**{v:.3f}**' if v == best[j] and '‡' not in name else f'{v:.3f}' for j, v in enumerate(m)]
             print(f'| {name} | ' + ' | '.join(cells) + ' |')
         print('\nseed sd (largest per model): ' + '; '.join(f'{n} {np.nanmax(sd):.3f}' for n, _, sd in body if not np.isnan(sd).all()))
 
