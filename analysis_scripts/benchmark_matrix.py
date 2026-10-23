@@ -495,6 +495,52 @@ def cmd_epi(a):
         print('\nseed sd (largest per model): ' + '; '.join(f'{n} {np.nanmax(sd):.3f}' for n, _, sd in body if not np.isnan(sd).all()))
 
 
+DDG_ROWS = [('spearman_all', 'all variants'), ('spearman_doubles', 'doubles'), ('spearman_doubles_epi', 'dddG of doubles')]
+
+
+def cmd_ddg(a):
+    """ddG ranking (mean per-protein Spearman) on capped val and test: the retrained baselines against both ESM-MSR
+    checkpoints, each shown by its WT (additive) head and by its combined prediction. Baselines are 3-seed means from
+    combined_{val,test}_table.csv (TMPNN, the singles-only ThermoMPNN, has no dddG, the one structural gap); ESM-MSR
+    comes from esm_msr_testing.py's *_avg.csv, the devel columns being seed means ± sd over the 3 seeds."""
+    o6 = f'{DEV}/outputs/baselines_capped'
+    stats = f'{DEV}/analysis_notebooks/stats'
+    seeds = [f'esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{i}' for i in (1, 2, 3)]
+
+    def msr(split, cks, head):
+        out = {m: [] for m, _ in DDG_ROWS}
+        for ck in cks:
+            f = glob.glob(f'{stats}/splits_oct06_capped-{split}/{ck}/*_epsilon1_unmasked_{head}_avg.csv')
+            assert len(f) == 1, (split, ck, head, f)
+            d = pd.read_csv(f[0], index_col=0).iloc[:, 0]
+            for m, _ in DDG_ROWS:
+                out[m].append(d[m])
+        return out
+
+    cols = ['ME st1', 'ME st2', 'TMPNN', 'TMPNN+D', f'{REL} WT', f'{REL} combined', f'{DEVEL} WT', f'{DEVEL} combined']
+    print('| | ' + ' | '.join(cols) + ' |')
+    print('|---|' + '---|' * len(cols))
+    for split in ('val', 'test'):
+        base = pd.read_csv(f'{o6}/combined_{split}_table.csv', index_col=0)
+        pieces = {'ME st1': 'ME stage1', 'ME st2': 'ME stage2', 'TMPNN': 'TMPNN', 'TMPNN+D': 'TMPNN+D'}
+        m_rel = {h: msr(split, REL_CK, h) for h in ('WT_LoRA', 'Combined')}
+        m_dev = {h: msr(split, seeds, h) for h in ('WT_LoRA', 'Combined')}
+        for metric, name in DDG_ROWS:
+            vals = [base.loc[metric, pieces[c]] if c in pieces else None for c in cols]
+            vals[4], vals[5] = m_rel['WT_LoRA'][metric][0], m_rel['Combined'][metric][0]
+            vals[6], vals[7] = np.mean(m_dev['WT_LoRA'][metric]), np.mean(m_dev['Combined'][metric])
+            sd = [np.nan] * 6 + [np.std(m_dev['WT_LoRA'][metric], ddof=1), np.std(m_dev['Combined'][metric], ddof=1)]
+            ok = [v for v in vals if v is not None and np.isfinite(v)]
+            cells = []
+            for v, e in zip(vals, sd):
+                if v is None or not np.isfinite(v):
+                    cells.append('–')
+                    continue
+                t = f'{v:.3f}' + (f' ± {e:.3f}' if np.isfinite(e) else '')
+                cells.append(f'**{t}**' if v == max(ok) else t)
+            print(f'| {split} {name} (`{metric}`) | ' + ' | '.join(cells) + ' |')
+
+
 # ---------------------------------------------------------------------------------------------- ledger
 GPU = {'gpu1': 'RTX 6000', 'gpu2': 'RTX 6000', 'gpu3': 'RTX 6000', 'gpu4': 'RTX A4500'}
 JOBS = [  # job-name regex -> model, benchmark, kind
@@ -566,6 +612,7 @@ if __name__ == '__main__':
     c = sub.add_parser('collect'); c.add_argument('--out', default='matrix_long.csv'); c.set_defaults(fn=cmd_collect)
     t = sub.add_parser('tables'); t.add_argument('long'); t.set_defaults(fn=cmd_tables)
     e = sub.add_parser('epi'); e.set_defaults(fn=cmd_epi)
+    g = sub.add_parser('ddg'); g.set_defaults(fn=cmd_ddg)
     l = sub.add_parser('ledger'); l.add_argument('sacct'); l.add_argument('--out', default='slurm_jobs.csv'); l.set_defaults(fn=cmd_ledger)
     a = ap.parse_args()
     a.fn(a)
