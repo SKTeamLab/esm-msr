@@ -47,7 +47,7 @@ def test_retired_flags_never_reach_hparams():
 
 
 @pytest.mark.parametrize('extra', [('--no-detach_ensemble_input',), ('--rank_loss', 'mse'), ('--link_ceiling', '5.0'), ('--nonspecific_term', 'fx'),
-                                   ('--regenerate_cache',), ('--lora_mode', 'corrector'), ('--combined_mode', 'route'), ('--tie_mt_scale',),
+                                   ('--regenerate_cache',), ('--lora_mode', 'corrector'), ('--combined_mode', 'route'),
                                    ('--alternate_heads',), ('--wt_trains_doubles',), ('--mask_strategy', 'marginal'),
                                    ('--wt_plateau_factor', '0.1'), ('--mt_plateau_patience', '0'), ('--wt_freeze_after_decays', '2'),
                                    ('--subset_caps', 'double=0.5'), ('--subset_caps', 'cond=none'), ('--use_dora_mt',),
@@ -125,6 +125,7 @@ def test_the_old_aliases_still_work():
 def test_what_inference_reads_back_is_recorded_as_constants():
     a = parse()
     assert a.per_mutation_bias is True and a.tie_mt_scale is False and a.lora_mode == 'ensemble'
+    assert parse('--tie_mt_scale').tie_mt_scale is True              # a real flag, default off
 
 
 def test_frozen_wt_derives_its_pieces(tmp_path):

@@ -6,7 +6,7 @@ About 55 flags (it was 160; ``docs/trim_audit.md`` has the verdict on each). Thr
   the namespace (so it never reaches ``hparams.yaml``); given any other value it is an error that says what replaced it. A few are
   translated (``--subset_caps`` -> ``--subsets``, ``--assay_floor`` -> ``--link_floor``, ``--comet_api_key`` -> the environment).
 * ``--config recipe.yaml`` - YAML defaults under the command line. Keys are flag names; the command line wins.
-* ``DERIVED`` - values the model and the scripts that read ``hparams.yaml`` still need (``per_mutation_bias``, ``tie_mt_scale``, ...),
+* ``DERIVED`` - values the model and the scripts that read ``hparams.yaml`` still need (``per_mutation_bias``, ``lora_mode``),
   recorded as constants.
 """
 import argparse
@@ -18,7 +18,7 @@ SUBSETS = ('single', 'double')          # what --subsets may name. `native_cond`
 
 # What the model and the readers of hparams.yaml (inference.parse_hparams_to_lora_config, make_fwt_block.py, gate_capacity.py) still need
 # to find, written as constants: the code behind them is gone, but a checkpoint trained here must say how its calibration is built.
-DERIVED = {'lora_mode': 'ensemble', 'per_mutation_bias': True, 'tie_mt_scale': False}
+DERIVED = {'lora_mode': 'ensemble', 'per_mutation_bias': True}
 
 _ANY = object()                          # any value is ignored
 
@@ -43,7 +43,6 @@ RETIRED = {
     'per_mutation_bias': _r('bool', True, 'always on (a scalar bias puts a double one bias below its two singles)'),
     'tf_delink': _r('bool', True, 'always on'),
     'link': _r('bool', True, 'always on'),
-    'tie_mt_scale': _r('bool', False, 'the MT calibration scale is always its own'),
     'wt_trains_doubles': _r('bool', False, 'the WT head trains on singles only'),
     'wt_double_target': _r('val', 'latent', 'a constant now'),
     'alternate_heads': _r('bool', False, 'removed (never run)'),
@@ -240,6 +239,11 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     arch.add_argument('--lora_rank_wt', type=int, default=2)
     arch.add_argument('--lora_alpha_wt', type=int, default=4)
     arch.add_argument('--lora_dropout_wt', type=float, default=0.1)
+    arch.add_argument('--tie_mt_scale', action=argparse.BooleanOptionalAction, default=False,
+                      help="Tie the MT calibration head's SCALE to the frozen WT head's (the MT head keeps its own bias). The calibrated outputs are then "
+                           "the common latent scale; with an independent MT scale the raw-scale rank loss weights the two halves differently from the "
+                           "calibrated combined prediction. Default OFF (independent scales, as the released models and every MT run so far); "
+                           "pass --tie_mt_scale to share the WT scale. Recorded in hparams.yaml: inference reads it back.")
     arch.add_argument('--link_floor', type=float, default=0.0,
                       help="The link's one knee (kcal/mol of absolute dG): 0.0 is the physical floor, the unfolded state. Stamped on every item.")
     arch.add_argument('--link_tau', type=float, default=0.59, help="Width of the link's knee in kcal/mol (RT).")

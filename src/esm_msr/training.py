@@ -92,7 +92,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         self.model = MSRModel(
             lora_config=lora_config, shared_scale_init=SHARED_SCALE_INIT, shared_bias_init=SHARED_BIAS_INIT, adapter_mode=hp.adapter_mode,
-            model_dtype=torch.float32, per_mutation_bias=True, tie_mt_scale=False,
+            model_dtype=torch.float32, per_mutation_bias=True, tie_mt_scale=bool(hp.tie_mt_scale),
             native_cond_mt_input=bool(hp.native_cond_for_mt),
         )
 

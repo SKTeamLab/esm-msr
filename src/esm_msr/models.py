@@ -216,7 +216,7 @@ class MSRModel(ESM3PredictorBase):
             shared_bias_init: float | None = None, inference_mode: bool = False, log_likelihood: bool = False,
             use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
             adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
-            combined_mode: str = 'mean', per_mutation_bias: bool = False, tie_mt_scale: bool = False,
+            combined_mode: str = 'mean', per_mutation_bias: bool = True, tie_mt_scale: bool = False,
             native_cond_mt_input: bool = False
         ):
         if (combined_mode or 'mean') != 'mean':

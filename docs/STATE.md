@@ -8,7 +8,8 @@ matter; anything older than the date below is marked as history in `docs/EXPERIM
 > per-library floors and the protease-gap rule (one `--censor_threshold`), the learnable/ceiling link (`--link_floor 0.0 --link_tau 0.59`),
 > the nonspecific term, the `cond` subset, `combined_mode`/`lora_mode` variants, `--subset_caps` (now `--subsets`), the per-head plateau flags
 > (now `--plateau_patience/--plateau_factor/--freeze_after_decays`) and the global `--mask_strategy` (now per pass). Old command lines still
-> parse through `config.RETIRED`. Training reads a prebuilt cache (c6, `manifest_c6.json`; `analysis_scripts/build_cache.py`), not the raw
+> parse through `config.RETIRED`. `--tie_mt_scale` is NOT retired: it is a flag again, default OFF (the merge with origin/devel-revision, 2026-10-23, kept it as an opt-in; a run
+> that needs it, such as the tf_mix recipe, passes it). Training reads a prebuilt cache (c6, `manifest_c6.json`; `analysis_scripts/build_cache.py`), not the raw
 > table. Recipes are `configs/{mt_frozen,joint,wt_phase}.yaml`; the new queue (project `esm-msr-trim-oct22`, arms `trim_*`) runs from the locked
 > pin named in `dc_runs/trim_run.sh`. Everything below this box describes the code the older arms ran.
 
@@ -281,9 +282,12 @@ writes `dc_runs/wt_gold.txt` and appends `gate1_tfmix`.
   `2y − label` (a total, not a residual). **Singles are kept** in the frozen-WT training stream by default
   (`--no-incl_singles` gives the old doubles-only stream). `--per_mutation_bias` defaults **ON** and is refused with
   `--link` + ensemble (a scalar bias puts a double one bias below its two singles, 0.1065 kcal/mol).
-  `--tie_mt_scale` defaults **ON**: the MT calibration shares the WT head's scale (bias separate), so the raw and
-  calibrated combinations weight the halves identically. `--nonspecific_term fx` requires `mean`, which the block
-  uses, so the ns arms run.
+  `--tie_mt_scale` defaults **OFF** (changed 2026-10-23; it was ON): the MT head keeps its own scale. Pass
+  `--tie_mt_scale` to share the WT head's scale (bias separate), so the raw and calibrated combinations weight the
+  halves identically; a run that needs it, such as the teacher-forcing recipe of `docs/tf_mix.md`, must now say so
+  explicitly. Both defaults are the same everywhere they are read: the training config, `MSRModel`, and the inference
+  fallback for a checkpoint whose hparams lack the keys (untied, bias per mutated position). `--nonspecific_term fx`
+  requires `mean`, which the block uses, so the ns arms run.
 
 * **Censoring** is one mechanism (`src/esm_msr/censoring.py`): per item `cens` (−1 / 0 / +1), `cens_src`
   (1 assay range, 2 floor), `cens_bound` on the item's own ddG scale. Lower-censored items tie at the bottom

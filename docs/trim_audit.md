@@ -230,7 +230,7 @@ deleted, new ones for the config table, the cache and manifest, per-pass masking
 | fixed link, floor 0 / tau 0.59 | `SaturatingLink(tau, floor)`; buffers named as the old parameters, so `link_head.*` loads and rescoring reads old checkpoints |
 | one censor threshold | `--censor_threshold` (default 0.5, `none` = off); the gap rule and the per-library floor estimator are gone |
 | shared plateau flags | `--plateau_patience/--plateau_factor/--freeze_after_decays`; one `_plateau_step(head)` |
-| `tie_mt_scale` | taken untied (the standing recipe's value); the model-side argument stays for checkpoints trained tied |
+| `tie_mt_scale` | first taken untied and retired; **restored as a real flag, default off, at the 2026-10-23 merge** (origin/devel-revision `ae34433` keeps it as an opt-in, and `STATE.md` there says a run that needs it must pass it). The trimmed recipes leave it off, as the standing MT recipe always did |
 | `tf_mix` | kept (0.0 arm queued) |
 | YAML defaults instead of Hydra | `--config configs/*.yaml` (`mt_frozen`, `joint`, `wt_phase`); the command line wins |
 | training reads a prebuilt cache; c6 without `cond` | `analysis_scripts/build_cache.py {build,convert}`, a per-cache `manifest_<version>.json` listing the libraries of each split in loader order; c6 written next to c5 (6.7 GB, 122,176 `cond` items dropped) |
@@ -297,3 +297,26 @@ with a frozen WT the WT metric is unchanged to the digit and the WT calibration/
 is identical, as it must be (LoRA B starts at zero). It found two real defects, both fixed before the pin: the fused model skipped the bf16 cast of the frozen base
 (about 2.8 GB more on the card than the dual model), and `--comet_offline` died because comet_ml does not create its offline directory (a latent bug of the old code).
 It cannot say whether any recipe is any good.
+
+## 11. Merge with origin/devel-revision (2026-10-23)
+
+`git fetch origin` found `devel-revision` 14 commits ahead of the trim base (`ce80771`): benchmark and documentation work (ProteinGym corrections, the ctx head scorer, the all-by-all tables,
+runtime audits), plus one source change, **`ae34433` "Calibration defaults: tie_mt_scale off and per_mutation_bias on, in every place a default is read"** (`config.py`, `models.py`,
+`training.py`, `inference.py`, `esm_msr_testing.py`, two tests). Everything but that commit merged without a conflict. Three files conflicted, all because the trim had rewritten what that commit edited:
+
+| file | conflict | resolution |
+|---|---|---|
+| `src/esm_msr/config.py` | their change edits the `calibration_group` the trim deleted | kept the trimmed file; its intent was already there (`per_mutation_bias` is a constant True; no tie by default). **One decision, not a textual one:** they keep `--tie_mt_scale` as an opt-in flag (default off) and their `STATE.md` says the tf_mix recipe must now pass it, while the trim had retired it. Resolved toward theirs: `--tie_mt_scale` is a real flag again, default off, recorded in `hparams.yaml` |
+| `src/esm_msr/training.py` | four hunks: the model constructor's fallbacks and two in the nonspecific-term code the trim removed | kept the trimmed file (constants `per_mutation_bias=True`, which is their default); the constructor now passes `tie_mt_scale=bool(hp.tie_mt_scale)` |
+| `tests/test_calibration_tie.py` | their default-off test against the trim's "always untied, flag is an error" test | kept theirs (default off, `--tie_mt_scale` turns it on, `--no-tie_mt_scale` stays accepted); the trim's retirement test and the `tie_mt_scale` entries of `test_config.py`'s retired list went |
+
+**Consistent?** Yes, with two things to know.
+* *Code.* 379 tests pass. The trimmed `_compose_losses_streaming_and_backward` is still **bit-identical (11 of 11 recipes) to the current upstream tip's**, not only to `ce80771`. `models.MSRModel`'s default
+  `per_mutation_bias=True` (theirs) agrees with the trim's constant; `inference.calibration_from_hparams` now defaults both keys to the project defaults, and a trimmed run records both
+  (`per_mutation_bias: True` as a derived constant, `tie_mt_scale` as the flag), so its inference never reaches the fallback. The new scripts (`esm_msr_ctx_testing.py` monkey-patches `MSRModel.forward_batch` and
+  calls `forward_partitioned(..., mask_strategy=)`; `pgym_per_mutation_bias.py` reads `combined_mode`, which a trimmed run does not record and which defaults to `mean`) are compatible with the trimmed signatures.
+* *Semantics outside the trim.* `ae34433` changes what inference does with a checkpoint whose hparams lack `per_mutation_bias` (the released and dc8 models): it now scores multi-mutants per mutation
+  (a k-mutant shifts by (k - 1) * bias, singles unchanged; they estimate <= 0.0008 per-protein Spearman). That is their decision and is independent of the trim, but any per-item number computed before
+  2026-10-23 is not comparable to one after it.
+* *The queue.* The running arms use the locked pin `pin_trim_f5a00b8`, which predates the merge and has no `--tie_mt_scale` flag: they are unaffected (they leave tying off, which is both the old and the new
+  default). A tied-scale arm needs a new pin from the merged commit; the pin and the queue were not touched.

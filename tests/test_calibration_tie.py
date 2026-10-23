@@ -1,4 +1,4 @@
-"""The MT calibration head can share the WT head's scale (--tie_mt_scale, default on).
+"""The MT calibration head can share the WT head's scale (--tie_mt_scale, default OFF: independent scales).
 
 The calibrated outputs are the common latent scale; with an independent MT scale the raw-scale rank loss weights the
 two halves differently from the calibrated combined prediction. The bias stays per head.
@@ -41,16 +41,17 @@ def test_per_mutation_bias_is_on_by_default_and_cannot_be_disabled_with_a_link()
         sys.argv = argv
 
 
-def test_the_mt_scale_is_always_its_own():
-    """The standing MT recipe trains an independent MT scale, so tying was removed as a training option (the model-side argument stays, for
-    checkpoints trained tied). The setting is still recorded, because inference reads it back from hparams.yaml."""
+def test_tie_mt_scale_is_off_by_default_and_can_be_turned_on():
+    """Independent MT scale unless asked to tie (the released models, every MT run so far, and the trimmed recipes). The setting is a real flag
+    and is recorded in hparams.yaml, because inference reads it back."""
     from esm_msr import config
     argv = sys.argv
     try:
         sys.argv = ['training.py', '--experiment_name', 'x']
         assert config.parse_arguments().tie_mt_scale is False
         sys.argv = ['training.py', '--experiment_name', 'x', '--tie_mt_scale']
-        with pytest.raises(SystemExit):
-            config.parse_arguments()
+        assert config.parse_arguments().tie_mt_scale is True
+        sys.argv = ['training.py', '--experiment_name', 'x', '--no-tie_mt_scale']      # the old launchers' spelling of the default
+        assert config.parse_arguments().tie_mt_scale is False
     finally:
         sys.argv = argv
