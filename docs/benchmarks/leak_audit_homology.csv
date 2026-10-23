@@ -1,0 +1,256 @@
+inventory,dataset,n,n_sameprot,n_H,n_h,n_low,n_none
+esm_msr_capped,proteingym,2465767,45625,0,2028,281193,2136921
+esm_msr_capped,s571,571,0,0,0,68,503
+esm_msr_capped,s461,461,0,0,1,13,447
+esm_msr_capped,s669,669,0,0,1,74,594
+esm_msr_capped,GB1,149360,0,0,0,0,149360
+esm_msr_capped,s8754,8754,0,0,0,277,8477
+esm_msr_capped,ssym,684,0,0,0,0,684
+esm_msr_capped,k2369,2369,0,0,1,72,2296
+esm_msr_capped,GRB2 abund.,63366,0,0,0,0,63366
+esm_msr_capped,ptmul,914,0,0,0,18,896
+esm_msr_capped,tsu_capped_val,35473,0,0,7210,2534,25729
+esm_msr_capped,MYO,5905,0,0,0,0,5905
+esm_msr_capped,s783,783,0,0,0,20,763
+esm_msr_capped,k3822,3822,0,0,1,121,3700
+esm_msr_capped,GRB2 bind.,33441,0,0,0,0,33441
+esm_msr_capped,DLG4 bind.,8251,0,0,0,0,8251
+esm_msr_capped,tsu_capped_test,52071,0,0,8114,0,43957
+esm_msr_capped,s2648,2648,0,0,0,53,2595
+esm_msr_capped,q3421,3421,0,0,0,101,3320
+esm_msr_capped,DLG4 abund.,6976,0,0,0,0,6976
+esm_msr_capped,domainome,534385,4311,40945,12776,9124,467229
+esm_msr_capped,ESTA,2172,0,0,0,0,2172
+esm_msr_capped,ptmuld,536,0,0,0,18,518
+spurs_single,proteingym,2465767,108105,0,1813,1107207,1248642
+spurs_single,s571,571,48,15,0,22,486
+spurs_single,s461,461,0,0,1,48,412
+spurs_single,s669,669,0,2,1,70,596
+spurs_single,GB1,149360,149360,0,0,0,0
+spurs_single,s8754,8754,1725,165,53,1646,5165
+spurs_single,ssym,684,0,0,0,67,617
+spurs_single,k2369,2369,799,54,28,348,1140
+spurs_single,GRB2 abund.,63366,0,0,0,0,63366
+spurs_single,ptmul,914,92,46,14,255,507
+spurs_single,tsu_capped_val,35473,28142,0,0,0,7331
+spurs_single,MYO,5905,0,0,0,0,5905
+spurs_single,s783,783,53,0,59,83,588
+spurs_single,k3822,3822,901,78,39,711,2093
+spurs_single,GRB2 bind.,33441,0,0,0,0,33441
+spurs_single,DLG4 bind.,8251,0,0,0,0,8251
+spurs_single,tsu_capped_test,52071,46482,0,0,0,5589
+spurs_single,s2648,2648,53,42,29,592,1932
+spurs_single,q3421,3421,91,65,27,746,2492
+spurs_single,DLG4 abund.,6976,0,0,0,0,6976
+spurs_single,domainome,534385,19767,130534,27475,26830,329779
+spurs_single,ESTA,2172,0,0,0,0,2172
+spurs_single,ptmuld,536,12,23,11,144,346
+spurs_multi,proteingym,2465767,103055,0,1813,881290,1479609
+spurs_multi,s571,571,48,15,0,17,491
+spurs_multi,s461,461,95,0,62,44,260
+spurs_multi,s669,669,95,2,62,57,453
+spurs_multi,GB1,149360,149360,0,0,0,0
+spurs_multi,s8754,8754,1887,107,49,387,6324
+spurs_multi,ssym,684,0,0,0,10,674
+spurs_multi,k2369,2369,839,52,44,58,1376
+spurs_multi,GRB2 abund.,63366,0,0,0,0,63366
+spurs_multi,ptmul,914,92,39,15,7,761
+spurs_multi,tsu_capped_val,35473,18830,866,810,1055,13912
+spurs_multi,MYO,5905,0,0,0,0,5905
+spurs_multi,s783,783,53,0,89,14,627
+spurs_multi,k3822,3822,1021,77,86,127,2511
+spurs_multi,GRB2 bind.,33441,0,0,0,0,33441
+spurs_multi,DLG4 bind.,8251,0,0,0,0,8251
+spurs_multi,tsu_capped_test,52071,30654,3515,796,795,16311
+spurs_multi,s2648,2648,108,39,29,43,2429
+spurs_multi,q3421,3421,148,62,58,131,3022
+spurs_multi,DLG4 abund.,6976,0,0,0,0,6976
+spurs_multi,domainome,534385,19316,117612,29413,20891,347153
+spurs_multi,ESTA,2172,0,0,0,0,2172
+spurs_multi,ptmuld,536,12,21,12,6,485
+esmtherm,proteingym,2465767,100873,2264,1813,997150,1363667
+esmtherm,s571,571,67,15,0,218,271
+esmtherm,s461,461,163,0,63,49,186
+esmtherm,s669,669,163,2,63,125,316
+esmtherm,GB1,149360,149360,0,0,0,0
+esmtherm,s8754,8754,1985,215,53,1796,4705
+esmtherm,ssym,684,0,0,0,72,612
+esmtherm,k2369,2369,910,67,38,377,977
+esmtherm,GRB2 abund.,63366,0,0,0,0,63366
+esmtherm,ptmul,914,116,54,11,262,471
+esmtherm,tsu_capped_val,35473,30835,1182,814,0,2642
+esmtherm,MYO,5905,0,0,0,0,5905
+esmtherm,s783,783,149,0,31,103,500
+esmtherm,k3822,3822,1169,97,79,773,1704
+esmtherm,GRB2 bind.,33441,0,0,0,0,33441
+esmtherm,DLG4 bind.,8251,0,0,0,0,8251
+esmtherm,tsu_capped_test,52071,42783,2069,1593,0,5626
+esmtherm,s2648,2648,145,62,20,612,1809
+esmtherm,q3421,3421,215,86,52,792,2276
+esmtherm,DLG4 abund.,6976,0,0,0,0,6976
+esmtherm,domainome,534385,25405,137158,30457,23323,318042
+esmtherm,ESTA,2172,0,0,0,0,2172
+esmtherm,ptmuld,536,34,30,10,151,311
+ifum,proteingym,2465767,95854,2282,1813,1146526,1219292
+ifum,s571,571,28,43,0,77,423
+ifum,s461,461,95,0,63,47,256
+ifum,s669,669,95,2,63,121,388
+ifum,GB1,149360,149360,0,0,0,0
+ifum,s8754,8754,1955,156,13,1820,4810
+ifum,ssym,684,0,0,0,72,612
+ifum,k2369,2369,894,36,30,381,1028
+ifum,GRB2 abund.,63366,0,0,0,0,63366
+ifum,ptmul,914,137,26,1,262,488
+ifum,tsu_capped_val,35473,24055,0,2419,0,8999
+ifum,MYO,5905,0,0,0,0,5905
+ifum,s783,783,29,25,88,103,538
+ifum,k3822,3822,1105,65,63,774,1815
+ifum,GRB2 bind.,33441,0,0,0,0,33441
+ifum,DLG4 bind.,8251,0,0,0,0,8251
+ifum,tsu_capped_test,52071,23518,3515,3080,0,21958
+ifum,s2648,2648,160,46,0,621,1821
+ifum,q3421,3421,212,56,31,785,2337
+ifum,DLG4 abund.,6976,0,0,0,0,6976
+ifum,domainome,534385,26039,140085,28167,28848,311246
+ifum,ESTA,2172,0,0,0,0,2172
+ifum,ptmuld,536,37,19,1,151,328
+esm3dg_released,proteingym,2465767,108070,2282,1813,1211701,1141901
+esm3dg_released,s571,571,39,43,0,232,257
+esm3dg_released,s461,461,163,0,63,49,186
+esm3dg_released,s669,669,163,2,63,125,316
+esm3dg_released,GB1,149360,149360,0,0,0,0
+esm3dg_released,s8754,8754,2067,161,22,1871,4633
+esm3dg_released,ssym,684,0,0,0,80,604
+esm3dg_released,k2369,2369,945,40,30,386,968
+esm3dg_released,GRB2 abund.,63366,0,0,0,0,63366
+esm3dg_released,ptmul,914,150,26,5,277,456
+esm3dg_released,tsu_capped_val,35473,32370,0,802,0,2301
+esm3dg_released,MYO,5905,0,0,0,0,5905
+esm3dg_released,s783,783,125,25,30,103,500
+esm3dg_released,k3822,3822,1212,70,63,785,1692
+esm3dg_released,GRB2 bind.,33441,0,0,0,0,33441
+esm3dg_released,DLG4 bind.,8251,0,0,0,0,8251
+esm3dg_released,tsu_capped_test,52071,38569,0,1938,0,11564
+esm3dg_released,s2648,2648,181,46,0,635,1786
+esm3dg_released,q3421,3421,266,56,31,799,2269
+esm3dg_released,DLG4 abund.,6976,0,0,0,0,6976
+esm3dg_released,domainome,534385,29057,138367,31290,31407,304264
+esm3dg_released,ESTA,2172,0,0,0,0,2172
+esm3dg_released,ptmuld,536,50,19,5,166,296
+ddgemb_s2450,proteingym,2465767,57375,73437,10094,306553,2018308
+ddgemb_s2450,s571,571,169,19,7,38,338
+ddgemb_s2450,s461,461,0,0,0,27,434
+ddgemb_s2450,s669,669,0,0,0,64,605
+ddgemb_s2450,GB1,149360,0,0,0,0,149360
+ddgemb_s2450,s8754,8754,5819,328,34,89,2484
+ddgemb_s2450,ssym,684,684,0,0,0,0
+ddgemb_s2450,k2369,2369,1190,64,6,28,1081
+ddgemb_s2450,GRB2 abund.,63366,0,0,0,0,63366
+ddgemb_s2450,ptmul,914,725,28,3,12,146
+ddgemb_s2450,tsu_capped_val,35473,0,0,0,0,35473
+ddgemb_s2450,MYO,5905,0,5905,0,0,0
+ddgemb_s2450,s783,783,559,17,0,5,202
+ddgemb_s2450,k3822,3822,2177,101,22,57,1465
+ddgemb_s2450,GRB2 bind.,33441,0,0,0,0,33441
+ddgemb_s2450,DLG4 bind.,8251,0,0,0,0,8251
+ddgemb_s2450,tsu_capped_test,52071,0,0,799,1043,50229
+ddgemb_s2450,s2648,2648,2450,44,3,0,151
+ddgemb_s2450,q3421,3421,2895,68,0,23,435
+ddgemb_s2450,DLG4 abund.,6976,0,0,0,0,6976
+ddgemb_s2450,domainome,534385,16607,73671,32914,19191,392002
+ddgemb_s2450,ESTA,2172,0,0,0,0,2172
+ddgemb_s2450,ptmuld,536,460,23,2,11,40
+ddmut_s9028,proteingym,2465767,68376,12448,6284,1028887,1349772
+ddmut_s9028,s571,571,227,33,0,14,297
+ddmut_s9028,s461,461,73,2,2,40,344
+ddmut_s9028,s669,669,76,13,3,69,508
+ddmut_s9028,GB1,149360,149360,0,0,0,0
+ddmut_s9028,s8754,8754,7865,283,10,296,300
+ddmut_s9028,ssym,684,684,0,0,0,0
+ddmut_s9028,k2369,2369,2063,70,8,49,179
+ddmut_s9028,GRB2 abund.,63366,0,0,0,0,63366
+ddmut_s9028,ptmul,914,873,12,0,10,19
+ddmut_s9028,tsu_capped_val,35473,0,0,0,0,35473
+ddmut_s9028,MYO,5905,0,5905,0,0,0
+ddmut_s9028,s783,783,710,13,0,1,59
+ddmut_s9028,k3822,3822,3247,107,9,104,355
+ddmut_s9028,GRB2 bind.,33441,0,0,0,0,33441
+ddmut_s9028,DLG4 bind.,8251,0,0,0,0,8251
+ddmut_s9028,tsu_capped_test,52071,0,0,795,1043,50233
+ddmut_s9028,s2648,2648,2642,1,0,0,5
+ddmut_s9028,q3421,3421,3187,32,0,69,133
+ddmut_s9028,DLG4 abund.,6976,0,0,0,0,6976
+ddmut_s9028,domainome,534385,19861,113387,31391,10301,359445
+ddmut_s9028,ESTA,2172,2172,0,0,0,0
+ddmut_s9028,ptmuld,536,510,9,0,7,10
+ddmut_sm1242,proteingym,2465767,24829,28122,6374,1013733,1392709
+ddmut_sm1242,s571,571,186,39,0,20,326
+ddmut_sm1242,s461,461,109,0,2,76,274
+ddmut_sm1242,s669,669,120,8,3,82,456
+ddmut_sm1242,GB1,149360,149360,0,0,0,0
+ddmut_sm1242,s8754,8754,6782,329,1,342,1300
+ddmut_sm1242,ssym,684,676,6,0,2,0
+ddmut_sm1242,k2369,2369,1797,85,0,98,389
+ddmut_sm1242,GRB2 abund.,63366,0,0,0,0,63366
+ddmut_sm1242,ptmul,914,890,3,0,1,20
+ddmut_sm1242,tsu_capped_val,35473,0,0,0,0,35473
+ddmut_sm1242,MYO,5905,0,5905,0,0,0
+ddmut_sm1242,s783,783,621,5,0,59,98
+ddmut_sm1242,k3822,3822,2705,135,0,222,760
+ddmut_sm1242,GRB2 bind.,33441,0,0,0,0,33441
+ddmut_sm1242,DLG4 bind.,8251,0,0,0,0,8251
+ddmut_sm1242,tsu_capped_test,52071,0,0,1592,1043,49436
+ddmut_sm1242,s2648,2648,2060,105,0,27,456
+ddmut_sm1242,q3421,3421,2739,100,0,91,491
+ddmut_sm1242,DLG4 abund.,6976,0,0,0,0,6976
+ddmut_sm1242,domainome,534385,15477,102894,20249,12389,383376
+ddmut_sm1242,ESTA,2172,0,0,0,0,2172
+ddmut_sm1242,ptmuld,536,522,3,0,0,11
+geoddg_s8754,proteingym,2465767,761924,27557,12043,464191,1200052
+geoddg_s8754,s571,571,283,25,0,44,219
+geoddg_s8754,s461,461,0,2,14,155,290
+geoddg_s8754,s669,669,8,21,18,187,435
+geoddg_s8754,GB1,149360,149360,0,0,0,0
+geoddg_s8754,s8754,8754,8754,0,0,0,0
+geoddg_s8754,ssym,684,684,0,0,0,0
+geoddg_s8754,k2369,2369,2168,8,4,44,145
+geoddg_s8754,GRB2 abund.,63366,0,0,0,0,63366
+geoddg_s8754,ptmul,914,890,4,0,0,20
+geoddg_s8754,tsu_capped_val,35473,0,0,0,0,35473
+geoddg_s8754,MYO,5905,5905,0,0,0,0
+geoddg_s8754,s783,783,691,0,58,0,34
+geoddg_s8754,k3822,3822,3414,9,6,123,270
+geoddg_s8754,GRB2 bind.,33441,0,0,0,0,33441
+geoddg_s8754,DLG4 bind.,8251,0,0,0,0,8251
+geoddg_s8754,tsu_capped_test,52071,0,0,3870,1043,47158
+geoddg_s8754,s2648,2648,2648,0,0,0,0
+geoddg_s8754,q3421,3421,3358,0,0,1,62
+geoddg_s8754,DLG4 abund.,6976,0,0,0,0,6976
+geoddg_s8754,domainome,534385,25541,117948,42677,25358,322861
+geoddg_s8754,ESTA,2172,0,0,0,0,2172
+geoddg_s8754,ptmuld,536,522,3,0,0,11
+esm3dg_mgnify,proteingym,2465767,0,43119,724254,413065,1285329
+esm3dg_mgnify,s571,571,0,9,42,105,415
+esm3dg_mgnify,s461,461,0,0,145,54,262
+esm3dg_mgnify,tsu_hyperopt_val,41527,0,14636,16541,3213,7137
+esm3dg_mgnify,s669,669,0,0,153,147,369
+esm3dg_mgnify,GB1,149360,0,0,0,0,149360
+esm3dg_mgnify,s8754,8754,0,97,708,1023,6926
+esm3dg_mgnify,ssym,684,0,0,28,360,296
+esm3dg_mgnify,k2369,2369,0,16,205,208,1940
+esm3dg_mgnify,GRB2 abund.,63366,0,0,0,0,63366
+esm3dg_mgnify,ptmul,914,0,8,126,105,675
+esm3dg_mgnify,tsu_capped_val,35473,0,17448,1944,0,16081
+esm3dg_mgnify,MYO,5905,0,0,0,5905,0
+esm3dg_mgnify,s783,783,0,0,64,178,541
+esm3dg_mgnify,tsu_hyperopt_test,46034,0,10414,12492,0,23128
+esm3dg_mgnify,k3822,3822,0,34,377,311,3100
+esm3dg_mgnify,GRB2 bind.,33441,0,0,0,0,33441
+esm3dg_mgnify,DLG4 bind.,8251,0,0,0,0,8251
+esm3dg_mgnify,tsu_capped_test,52071,0,21185,12785,2712,15389
+esm3dg_mgnify,s2648,2648,0,53,331,263,2001
+esm3dg_mgnify,q3421,3421,0,12,363,451,2595
+esm3dg_mgnify,DLG4 abund.,6976,0,0,0,0,6976
+esm3dg_mgnify,domainome,534385,0,105638,171360,18313,239074
+esm3dg_mgnify,ESTA,2172,0,0,2172,0,0
+esm3dg_mgnify,ptmuld,536,0,6,66,61,403

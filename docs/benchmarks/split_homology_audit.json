@@ -1,0 +1,86 @@
+{
+  "default_edges_total": 25027,
+  "default_cross_edges_involving_excluded": 366,
+  "default_cross_edges_real": 0,
+  "sweep": [
+    {
+      "rule": "split rule (E1e-3, id>0.40)",
+      "edges": 24427,
+      "cross_any": 235,
+      "cross_real": 0,
+      "pairs": 0
+    },
+    {
+      "rule": "E<=1e-3 only",
+      "edges": 24353,
+      "cross_any": 210,
+      "cross_real": 0,
+      "pairs": 0
+    },
+    {
+      "rule": "identity>0.30",
+      "edges": 26301,
+      "cross_any": 736,
+      "cross_real": 218,
+      "pairs": 218
+    },
+    {
+      "rule": "identity>0.25",
+      "edges": 36001,
+      "cross_any": 1883,
+      "cross_real": 610,
+      "pairs": 610
+    },
+    {
+      "rule": "E<=1e-2",
+      "edges": 25052,
+      "cross_any": 307,
+      "cross_real": 4,
+      "pairs": 4
+    },
+    {
+      "rule": "E<=1e-1",
+      "edges": 26302,
+      "cross_any": 660,
+      "cross_real": 48,
+      "pairs": 48
+    },
+    {
+      "rule": "TM_max>=0.5",
+      "edges": 27666,
+      "cross_any": 1289,
+      "cross_real": 177,
+      "pairs": 177
+    },
+    {
+      "rule": "TM_max>=0.4",
+      "edges": 34217,
+      "cross_any": 3041,
+      "cross_real": 681,
+      "pairs": 681
+    },
+    {
+      "rule": "split rule + TM>=0.7",
+      "edges": 25027,
+      "cross_any": 366,
+      "cross_real": 0,
+      "pairs": 0
+    }
+  ],
+  "pairs_struct_only": 550,
+  "struct_only_cross_real": 0,
+  "struct_only_external": 0,
+  "transitive_connected": {
+    "train": 134,
+    "val": 7,
+    "test": 17
+  },
+  "transitive_direct_stats": {
+    "max_identity": 0.3953488372093023,
+    "max_tm": 0.6998
+  },
+  "transitive_has_no_direct_pair": 0,
+  "excluded_direct_pairs": 109482,
+  "excluded_libs_with_direct": 142,
+  "excluded_direct_identity_gt90": 90
+}
