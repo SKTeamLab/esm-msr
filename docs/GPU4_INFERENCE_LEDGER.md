@@ -99,8 +99,9 @@ blocks, which these runs skip. **Convention:** jobs 386520–386527 ran before t
 cluster at 12:10 on 2026-10-23) and used one bias per item; 386528 onward use one per mutated position. The older ones are
 being rerun (`gpu4_pmb_*`), so a seed mean over mixed jobs is never shown (the table builder reads the convention from each
 prediction file). **Running** (as of 14:40): 386364 ESM3ΔG (fp16), 386277 GeoDDG, 386530 (devel seed 3, ε = 0.5) and 386576
-(the first rerun, released ε = 1). **Waiting:** the other 12 `gpu4_pmb_*` reruns, the four `gpu4_ctx_*` jobs, and
-`gpu4_eps0.25_dev3` (386531).
+(the first rerun, released ε = 1). **Waiting:** the other 12 `gpu4_pmb_*` reruns, the four `gpu4_ctx_*` jobs, `gpu4_eps0.25_dev3` (386531), and the resumed
+MT-pass ablation `gpu4_pgym_s1_mtpass_wt2` (386637; 187 DMS, ~29 h, scored with the new defaults; its first 26 DMS are the
+corrected output of the cancelled job 386255, so its `summary.csv` mixes the two origins, recorded in the manifest).
 
 **A free GPU does not mean a free slot.** The ε jobs asked for 96 G and 8 CPUs but peak at 6.9 G. With 160 G of the
 node's 250 G already allocated, the next job could not fit and a card sat idle until the pending jobs were lowered to

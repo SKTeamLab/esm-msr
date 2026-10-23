@@ -577,9 +577,12 @@ Paired against the released checkpoint over the 213 common DMS (3 seeds × 4 ε,
   (0.347 → 0.385), with Activity and Organismal fitness peaking near ε = 0.5. Scaling the LoRA down trades
   stability skill for general fitness, and ε = 0.75 is where the two balance.
 - **MT-pass ablation** (`--mt_pass_adapter wt`, devel seed 1, ε = 1): the WT adapter scoring the mutant sequence
-  costs −0.016 ρ on the first 24 DMS (worse on 18). Verified by hand on BCHB: unmasked, the WT adapter sees the
+  costs −0.017 ρ on the 26 DMS done so far (worse on 20, better on 6; −0.0165 on the first 24, against −0.016 before the
+  2026-10-23 bias correction). Verified by hand on BCHB: unmasked, the WT adapter sees the
   mutant residue it is scoring and its LLR collapses toward zero (mean −0.85 vs −3.44 on the WT sequence).
-  This is a partial result: 26 of 213 DMS before the run was stopped.
+  This is still a partial result, but it is being completed: the 26 stored files were corrected to the per-mutation bias
+  (both heads of this mode shift by the WT bias, 0.0987; checked against a real rerun of 3 of them, Spearman within 8e-4) and
+  the remaining 187 DMS are running under the new defaults (job 386637, resumed from those files).
 - **ProSST wins four of five categories outright** (Activity, Binding, Expression, Organismal fitness) against every
   ESM-MSR setting, not just ε = 1; the 0.22 it concedes on Stability is what brings the averages level (§1.4).
 - **ProteinMPNN test-time ensembling:** averaging three decoding orders +0.0003; a 0.2 Å backbone-noise
