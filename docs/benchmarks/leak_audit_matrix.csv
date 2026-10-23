@@ -1,0 +1,677 @@
+model,dataset,rho,inventory,n,exact,constituent,P,H,h,C,D,U,V,bad,note,code,sup
+ESM-MSR (released),s571,0.45597,esm_msr_capped,571.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),s783,0.71711,esm_msr_capped,783.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),s2648,0.664553,esm_msr_capped,2648.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),s8754,0.614592,esm_msr_capped,8754.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),s669,0.565399,esm_msr_capped,669.0,0,0,0,0,1,0.0,0,0,0,0,,h.001,
+ESM-MSR (released),s461,0.756357,esm_msr_capped,461.0,0,0,0,0,1,0.0,0,0,0,0,,h.002,
+ESM-MSR (released),ssym,0.750822,esm_msr_capped,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),q3421,0.617445,esm_msr_capped,3421.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),k3822,0.715247,esm_msr_capped,3822.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ESM-MSR (released),k2369,0.714273,esm_msr_capped,2369.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ESM-MSR (released),ptmul,0.595371,esm_msr_capped,914.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),ptmuld,0.601495,esm_msr_capped,536.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),DLG4_HUMAN_Faure_2021_abundance_domain,0.726369,esm_msr_capped,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),DLG4_HUMAN_Faure_2021_binding_domain,0.725378,esm_msr_capped,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),GRB2_HUMAN_Faure_2021_abundance_domain,0.672507,esm_msr_capped,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),GRB2_HUMAN_Faure_2021_binding_domain,0.619261,esm_msr_capped,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),MYO_HUMAN_Kung_2025_display,0.639345,esm_msr_capped,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),ESTA_BACSU_Nutschel_2020_dTm,0.478819,esm_msr_capped,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),GB1_Wu_2016_binding_domain,0.346024,esm_msr_capped,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released),domainome,0.541634,esm_msr_capped,534385.0,1134,0,3177,40945,12776,0.0,0,0,0,0,,M.002 P.006 H.08 h.02,ᴹ
+ESM-MSR (released),tsu_capped_val,0.853601,esm_msr_capped,35473.0,0,0,0,0,7210,0.0,0,0,1,0,,h.20 V,ʰ
+ESM-MSR (released),tsu_capped_test,0.842744,esm_msr_capped,52071.0,0,0,0,0,8114,0.0,0,0,0,0,,h.16,ʰ
+ESM-MSR (released) WT,s571,0.441918,esm_msr_capped,571.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,s783,0.703122,esm_msr_capped,783.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,s2648,0.657401,esm_msr_capped,2648.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,s8754,0.605708,esm_msr_capped,8754.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,s669,0.546602,esm_msr_capped,669.0,0,0,0,0,1,0.0,0,0,0,0,,h.001,
+ESM-MSR (released) WT,s461,0.748262,esm_msr_capped,461.0,0,0,0,0,1,0.0,0,0,0,0,,h.002,
+ESM-MSR (released) WT,ssym,0.752229,esm_msr_capped,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,q3421,0.613354,esm_msr_capped,3421.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,k3822,0.713687,esm_msr_capped,3822.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ESM-MSR (released) WT,k2369,0.710651,esm_msr_capped,2369.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ESM-MSR (released) WT,ptmul,0.567581,esm_msr_capped,914.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,ptmuld,0.586104,esm_msr_capped,536.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,DLG4_HUMAN_Faure_2021_abundance_domain,0.722538,esm_msr_capped,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,DLG4_HUMAN_Faure_2021_binding_domain,0.728425,esm_msr_capped,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,GRB2_HUMAN_Faure_2021_abundance_domain,0.668892,esm_msr_capped,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,GRB2_HUMAN_Faure_2021_binding_domain,0.63282,esm_msr_capped,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,MYO_HUMAN_Kung_2025_display,0.63688,esm_msr_capped,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,ESTA_BACSU_Nutschel_2020_dTm,0.465729,esm_msr_capped,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,GB1_Wu_2016_binding_domain,0.337605,esm_msr_capped,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) WT,domainome,0.54042,esm_msr_capped,534385.0,1134,0,3177,40945,12776,0.0,0,0,0,0,,M.002 P.006 H.08 h.02,ᴹ
+ESM-MSR (released) WT,tsu_capped_val,0.84089,esm_msr_capped,35473.0,0,0,0,0,7210,0.0,0,0,1,0,,h.20 V,ʰ
+ESM-MSR (released) WT,tsu_capped_test,0.823649,esm_msr_capped,52071.0,0,0,0,0,8114,0.0,0,0,0,0,,h.16,ʰ
+ESM-MSR (released) MT,s571,0.451474,esm_msr_capped,571.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,s783,0.69657,esm_msr_capped,783.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,s2648,0.634449,esm_msr_capped,2648.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,s8754,0.596168,esm_msr_capped,8754.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,s669,0.561362,esm_msr_capped,669.0,0,0,0,0,1,0.0,0,0,0,0,,h.001,
+ESM-MSR (released) MT,s461,0.725445,esm_msr_capped,461.0,0,0,0,0,1,0.0,0,0,0,0,,h.002,
+ESM-MSR (released) MT,ssym,0.713833,esm_msr_capped,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,q3421,0.589045,esm_msr_capped,3421.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,k3822,0.681249,esm_msr_capped,3822.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ESM-MSR (released) MT,k2369,0.682122,esm_msr_capped,2369.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ESM-MSR (released) MT,ptmul,0.544765,esm_msr_capped,914.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,ptmuld,0.532907,esm_msr_capped,536.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,DLG4_HUMAN_Faure_2021_abundance_domain,0.705189,esm_msr_capped,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,DLG4_HUMAN_Faure_2021_binding_domain,0.695778,esm_msr_capped,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,GRB2_HUMAN_Faure_2021_abundance_domain,0.627306,esm_msr_capped,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,GRB2_HUMAN_Faure_2021_binding_domain,0.560011,esm_msr_capped,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,MYO_HUMAN_Kung_2025_display,0.621987,esm_msr_capped,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,ESTA_BACSU_Nutschel_2020_dTm,0.467383,esm_msr_capped,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,GB1_Wu_2016_binding_domain,0.302021,esm_msr_capped,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) MT,domainome,0.52009,esm_msr_capped,534385.0,1134,0,3177,40945,12776,0.0,0,0,0,0,,M.002 P.006 H.08 h.02,ᴹ
+ESM-MSR (released) MT,tsu_capped_val,0.816764,esm_msr_capped,35473.0,0,0,0,0,7210,0.0,0,0,1,0,,h.20 V,ʰ
+ESM-MSR (released) MT,tsu_capped_test,0.812849,esm_msr_capped,52071.0,0,0,0,0,8114,0.0,0,0,0,0,,h.16,ʰ
+ESM-MSR (devel),s571,0.4452866666666666,esm_msr_capped,571.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),s783,0.7248316666666667,esm_msr_capped,783.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),s2648,0.676978,esm_msr_capped,2648.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),s8754,0.6250336666666666,esm_msr_capped,8754.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),s669,0.5597066666666666,esm_msr_capped,669.0,0,0,0,0,1,0.0,0,0,0,0,,h.001,
+ESM-MSR (devel),s461,0.7534496666666667,esm_msr_capped,461.0,0,0,0,0,1,0.0,0,0,0,0,,h.002,
+ESM-MSR (devel),ssym,0.7729203333333333,esm_msr_capped,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),q3421,0.6255913333333333,esm_msr_capped,3421.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),k3822,0.7209366666666667,esm_msr_capped,3822.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ESM-MSR (devel),k2369,0.7218613333333334,esm_msr_capped,2369.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ESM-MSR (devel),ptmul,0.593794,esm_msr_capped,914.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),ptmuld,0.5965919999999999,esm_msr_capped,536.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),DLG4_HUMAN_Faure_2021_abundance_domain,0.7449486666666667,esm_msr_capped,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),DLG4_HUMAN_Faure_2021_binding_domain,0.7421989999999999,esm_msr_capped,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),GRB2_HUMAN_Faure_2021_abundance_domain,0.681672,esm_msr_capped,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),GRB2_HUMAN_Faure_2021_binding_domain,0.6360503333333333,esm_msr_capped,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),MYO_HUMAN_Kung_2025_display,0.6394246666666666,esm_msr_capped,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),ESTA_BACSU_Nutschel_2020_dTm,0.4810303333333333,esm_msr_capped,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),GB1_Wu_2016_binding_domain,0.336569,esm_msr_capped,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel),domainome,0.542822,esm_msr_capped,534385.0,1134,0,3177,40945,12776,0.0,0,0,0,0,,M.002 P.006 H.08 h.02,ᴹ
+ESM-MSR (devel),tsu_capped_val,0.8537500000000001,esm_msr_capped,35473.0,0,0,0,0,7210,0.0,0,0,1,0,,h.20 V,ʰ
+ESM-MSR (devel),tsu_capped_test,0.8486706666666667,esm_msr_capped,52071.0,0,0,0,0,8114,0.0,0,0,0,0,,h.16,ʰ
+ESM-MSR (devel) WT,s571,0.4308099999999999,esm_msr_capped,571.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,s783,0.7130066666666668,esm_msr_capped,783.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,s2648,0.675033,esm_msr_capped,2648.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,s8754,0.6177783333333333,esm_msr_capped,8754.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,s669,0.5513396666666667,esm_msr_capped,669.0,0,0,0,0,1,0.0,0,0,0,0,,h.001,
+ESM-MSR (devel) WT,s461,0.7530193333333334,esm_msr_capped,461.0,0,0,0,0,1,0.0,0,0,0,0,,h.002,
+ESM-MSR (devel) WT,ssym,0.7757873333333333,esm_msr_capped,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,q3421,0.6231216666666667,esm_msr_capped,3421.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,k3822,0.7195406666666666,esm_msr_capped,3822.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ESM-MSR (devel) WT,k2369,0.7165670000000001,esm_msr_capped,2369.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ESM-MSR (devel) WT,ptmul,0.5804516666666667,esm_msr_capped,914.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,ptmuld,0.584352,esm_msr_capped,536.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,DLG4_HUMAN_Faure_2021_abundance_domain,0.7486876666666666,esm_msr_capped,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,DLG4_HUMAN_Faure_2021_binding_domain,0.7521026666666667,esm_msr_capped,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,GRB2_HUMAN_Faure_2021_abundance_domain,0.6846336666666666,esm_msr_capped,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,GRB2_HUMAN_Faure_2021_binding_domain,0.6559986666666666,esm_msr_capped,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,MYO_HUMAN_Kung_2025_display,0.6409703333333333,esm_msr_capped,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,ESTA_BACSU_Nutschel_2020_dTm,0.4779286666666666,esm_msr_capped,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,GB1_Wu_2016_binding_domain,0.3652446666666666,esm_msr_capped,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) WT,domainome,0.5482276666666667,esm_msr_capped,534385.0,1134,0,3177,40945,12776,0.0,0,0,0,0,,M.002 P.006 H.08 h.02,ᴹ
+ESM-MSR (devel) WT,tsu_capped_val,0.83594,esm_msr_capped,35473.0,0,0,0,0,7210,0.0,0,0,1,0,,h.20 V,ʰ
+ESM-MSR (devel) WT,tsu_capped_test,0.8268103333333333,esm_msr_capped,52071.0,0,0,0,0,8114,0.0,0,0,0,0,,h.16,ʰ
+ESM-MSR (devel) MT,s571,0.437777,esm_msr_capped,571.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,s783,0.7034493333333334,esm_msr_capped,783.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,s2648,0.6390076666666666,esm_msr_capped,2648.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,s8754,0.6034656666666667,esm_msr_capped,8754.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,s669,0.5386273333333333,esm_msr_capped,669.0,0,0,0,0,1,0.0,0,0,0,0,,h.001,
+ESM-MSR (devel) MT,s461,0.7089783333333334,esm_msr_capped,461.0,0,0,0,0,1,0.0,0,0,0,0,,h.002,
+ESM-MSR (devel) MT,ssym,0.7365866666666667,esm_msr_capped,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,q3421,0.5946996666666667,esm_msr_capped,3421.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,k3822,0.6879843333333334,esm_msr_capped,3822.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ESM-MSR (devel) MT,k2369,0.6940656666666666,esm_msr_capped,2369.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ESM-MSR (devel) MT,ptmul,0.5277766666666667,esm_msr_capped,914.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,ptmuld,0.5237293333333333,esm_msr_capped,536.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,DLG4_HUMAN_Faure_2021_abundance_domain,0.7182043333333333,esm_msr_capped,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,DLG4_HUMAN_Faure_2021_binding_domain,0.7071926666666667,esm_msr_capped,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,GRB2_HUMAN_Faure_2021_abundance_domain,0.6317123333333333,esm_msr_capped,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,GRB2_HUMAN_Faure_2021_binding_domain,0.5703533333333334,esm_msr_capped,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,MYO_HUMAN_Kung_2025_display,0.6162880000000001,esm_msr_capped,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,ESTA_BACSU_Nutschel_2020_dTm,0.4571093333333333,esm_msr_capped,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,GB1_Wu_2016_binding_domain,0.2427616666666666,esm_msr_capped,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (devel) MT,domainome,0.508956,esm_msr_capped,534385.0,1134,0,3177,40945,12776,0.0,0,0,0,0,,M.002 P.006 H.08 h.02,ᴹ
+ESM-MSR (devel) MT,tsu_capped_val,0.8251616666666667,esm_msr_capped,35473.0,0,0,0,0,7210,0.0,0,0,1,0,,h.20 V,ʰ
+ESM-MSR (devel) MT,tsu_capped_test,0.8201076666666666,esm_msr_capped,52071.0,0,0,0,0,8114,0.0,0,0,0,0,,h.16,ʰ
+"ESM3-small-open (ε=0, MSR readout)",s571,0.268016,corpus,571.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",s783,0.486987,corpus,783.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",s2648,0.378917,corpus,2648.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",s8754,0.373795,corpus,8754.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",s669,0.299246,corpus,669.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",s461,0.403529,corpus,461.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",ssym,0.582909,corpus,684.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",q3421,0.381569,corpus,3421.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",k3822,0.423193,corpus,3822.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",k2369,0.441811,corpus,2369.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",ptmul,0.18972,corpus,914.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",ptmuld,0.30394,corpus,536.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",DLG4_HUMAN_Faure_2021_abundance_domain,0.688648,corpus,6976.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",DLG4_HUMAN_Faure_2021_binding_domain,0.742391,corpus,8251.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",GRB2_HUMAN_Faure_2021_abundance_domain,0.626907,corpus,63366.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",GRB2_HUMAN_Faure_2021_binding_domain,0.723147,corpus,33441.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",MYO_HUMAN_Kung_2025_display,0.535899,corpus,5905.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",ESTA_BACSU_Nutschel_2020_dTm,0.482853,corpus,2172.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",GB1_Wu_2016_binding_domain,0.259402,corpus,149360.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",domainome,0.53969,corpus,534385.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",tsu_capped_val,0.56483,corpus,35473.0,0,0,0,0,0,0.729597158402165,0,0,0,0,,C.73,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",tsu_capped_test,0.577586,corpus,52071.0,0,0,0,0,0,0.7820667934166811,0,0,0,0,,C.78,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",s571,0.265735,corpus,571.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",s783,0.49708,corpus,783.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",s2648,0.385729,corpus,2648.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",s8754,0.372078,corpus,8754.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",s669,0.302514,corpus,669.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",s461,0.404472,corpus,461.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",ssym,0.577822,corpus,684.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",q3421,0.388207,corpus,3421.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",k3822,0.425705,corpus,3822.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",k2369,0.447483,corpus,2369.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",ptmul,0.173634,corpus,914.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",ptmuld,0.290878,corpus,536.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",DLG4_HUMAN_Faure_2021_abundance_domain,0.699085,corpus,6976.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",DLG4_HUMAN_Faure_2021_binding_domain,0.754185,corpus,8251.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",GRB2_HUMAN_Faure_2021_abundance_domain,0.64288,corpus,63366.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",GRB2_HUMAN_Faure_2021_binding_domain,0.740036,corpus,33441.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",MYO_HUMAN_Kung_2025_display,0.543603,corpus,5905.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",ESTA_BACSU_Nutschel_2020_dTm,0.471642,corpus,2172.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",GB1_Wu_2016_binding_domain,0.257991,corpus,149360.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",domainome,0.544331,corpus,534385.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",tsu_capped_val,0.563145,corpus,35473.0,0,0,0,0,0,0.729597158402165,0,0,0,0,,C.73,ᶜ
+"ESM3-small-open (ε=0, MSR readout) WT",tsu_capped_test,0.578351,corpus,52071.0,0,0,0,0,0,0.7820667934166811,0,0,0,0,,C.78,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",s571,0.254705,corpus,571.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",s783,0.412689,corpus,783.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",s2648,0.338679,corpus,2648.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",s8754,0.349331,corpus,8754.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",s669,0.264147,corpus,669.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",s461,0.378444,corpus,461.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",ssym,0.564888,corpus,684.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",q3421,0.335258,corpus,3421.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",k3822,0.38353,corpus,3822.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",k2369,0.383983,corpus,2369.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",ptmul,0.168483,corpus,914.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",ptmuld,0.248609,corpus,536.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",DLG4_HUMAN_Faure_2021_abundance_domain,0.589184,corpus,6976.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",DLG4_HUMAN_Faure_2021_binding_domain,0.632723,corpus,8251.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",GRB2_HUMAN_Faure_2021_abundance_domain,0.500691,corpus,63366.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",GRB2_HUMAN_Faure_2021_binding_domain,0.615965,corpus,33441.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",MYO_HUMAN_Kung_2025_display,0.452811,corpus,5905.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",ESTA_BACSU_Nutschel_2020_dTm,0.4511,corpus,2172.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",GB1_Wu_2016_binding_domain,0.122579,corpus,149360.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",domainome,0.472324,corpus,534385.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",tsu_capped_val,0.49025,corpus,35473.0,0,0,0,0,0,0.729597158402165,0,0,0,0,,C.73,ᶜ
+"ESM3-small-open (ε=0, MSR readout) MT",tsu_capped_test,0.503601,corpus,52071.0,0,0,0,0,0,0.7820667934166811,0,0,0,0,,C.78,ᶜ
+ESM-MSR (released) ε=0.75,DLG4_HUMAN_Faure_2021_abundance_domain,0.7501,esm_msr_capped,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.75,DLG4_HUMAN_Faure_2021_binding_domain,0.762727,esm_msr_capped,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.75,GRB2_HUMAN_Faure_2021_abundance_domain,0.70692,esm_msr_capped,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.75,GRB2_HUMAN_Faure_2021_binding_domain,0.660494,esm_msr_capped,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.75,MYO_HUMAN_Kung_2025_display,0.638916,esm_msr_capped,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.75,ESTA_BACSU_Nutschel_2020_dTm,0.510473,esm_msr_capped,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.75,GB1_Wu_2016_binding_domain,0.340816,esm_msr_capped,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.75,domainome,0.56032,esm_msr_capped,534385.0,1134,0,3177,40945,12776,0.0,0,0,0,0,,M.002 P.006 H.08 h.02,ᴹ
+ESM-MSR (released) ε=0.5,DLG4_HUMAN_Faure_2021_abundance_domain,0.760383,esm_msr_capped,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.5,DLG4_HUMAN_Faure_2021_binding_domain,0.790085,esm_msr_capped,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.5,GRB2_HUMAN_Faure_2021_abundance_domain,0.717673,esm_msr_capped,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.5,GRB2_HUMAN_Faure_2021_binding_domain,0.695517,esm_msr_capped,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.5,MYO_HUMAN_Kung_2025_display,0.627208,esm_msr_capped,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.5,ESTA_BACSU_Nutschel_2020_dTm,0.526033,esm_msr_capped,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.5,GB1_Wu_2016_binding_domain,0.342615,esm_msr_capped,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.5,domainome,0.571535,esm_msr_capped,534385.0,1134,0,3177,40945,12776,0.0,0,0,0,0,,M.002 P.006 H.08 h.02,ᴹ
+ESM-MSR (released) ε=0.25,DLG4_HUMAN_Faure_2021_abundance_domain,0.746803,esm_msr_capped,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.25,DLG4_HUMAN_Faure_2021_binding_domain,0.791779,esm_msr_capped,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.25,GRB2_HUMAN_Faure_2021_abundance_domain,0.687782,esm_msr_capped,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.25,GRB2_HUMAN_Faure_2021_binding_domain,0.721052,esm_msr_capped,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.25,MYO_HUMAN_Kung_2025_display,0.595409,esm_msr_capped,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.25,ESTA_BACSU_Nutschel_2020_dTm,0.516083,esm_msr_capped,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.25,GB1_Wu_2016_binding_domain,0.319084,esm_msr_capped,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) ε=0.25,domainome,0.567754,esm_msr_capped,534385.0,1134,0,3177,40945,12776,0.0,0,0,0,0,,M.002 P.006 H.08 h.02,ᴹ
+ME stage1,s669,0.5592,me_stage1,669.0,0,0,0,0,1,0.0,0,0,0,0,,h.001,
+ME stage1,s461,0.7211,me_stage1,461.0,0,0,0,0,1,0.0,0,0,0,0,,h.002,
+ME stage1,ssym,0.6736,me_stage1,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,s571,0.4387,me_stage1,571.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,s783,0.7056,me_stage1,783.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,s2648,0.7012,me_stage1,2648.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,s8754,0.6234,me_stage1,8754.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,q3421,0.6379,me_stage1,3421.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,k3822,0.6961,me_stage1,3822.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ME stage1,k2369,0.6738,me_stage1,2369.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ME stage1,ptmul,0.4717,me_stage1,914.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,ptmuld,0.4797,me_stage1,536.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,s669,0.5406,me_stage2,669.0,0,0,0,0,1,0.0,0,0,0,0,,h.001,
+ME stage2,s461,0.7087,me_stage2,461.0,0,0,0,0,1,0.0,0,0,0,0,,h.002,
+ME stage2,ssym,0.6317,me_stage2,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,s571,0.4242,me_stage2,571.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,s783,0.6866,me_stage2,783.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,s2648,0.6687,me_stage2,2648.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,s8754,0.5978,me_stage2,8754.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,q3421,0.6149,me_stage2,3421.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,k3822,0.6731,me_stage2,3822.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ME stage2,k2369,0.6568,me_stage2,2369.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+ME stage2,ptmul,0.4907,me_stage2,914.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,ptmuld,0.4902,me_stage2,536.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,s669,0.4904,tmpnn,669.0,0,0,0,0,1,0.0,0,0,0,0,,h.001,
+TMPNN,s461,0.6553,tmpnn,461.0,0,0,0,0,1,0.0,0,0,0,0,,h.002,
+TMPNN,ssym,0.7106,tmpnn,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,s571,0.4055,tmpnn,571.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,s783,0.6887,tmpnn,783.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,s2648,0.6477,tmpnn,2648.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,s8754,0.602,tmpnn,8754.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,q3421,0.5905,tmpnn,3421.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,k3822,0.6431,tmpnn,3822.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+TMPNN,k2369,0.649,tmpnn,2369.0,0,0,0,0,1,0.0,0,0,0,0,,h<.001,
+TMPNN,ptmul,0.4333,tmpnn,914.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,ptmuld,0.4995,tmpnn,536.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,s669,0.4904,tmpnnd,669.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,s461,0.6553,tmpnnd,461.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,ssym,0.7106,tmpnnd,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,s571,0.4055,tmpnnd,571.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,s783,0.6887,tmpnnd,783.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,s2648,0.6477,tmpnnd,2648.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,s8754,0.602,tmpnnd,8754.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,q3421,0.5905,tmpnnd,3421.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,k3822,0.6431,tmpnnd,3822.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,k2369,0.649,tmpnnd,2369.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,ptmul,0.4267,tmpnnd,914.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,ptmuld,0.5018,tmpnnd,536.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,DLG4_HUMAN_Faure_2021_abundance_domain,0.5739,tmpnnd,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,DLG4_HUMAN_Faure_2021_abundance_domain,0.6258,tmpnn,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,DLG4_HUMAN_Faure_2021_abundance_domain,0.707,me_stage1,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1+,DLG4_HUMAN_Faure_2021_abundance_domain,0.7291,me_stage1,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,DLG4_HUMAN_Faure_2021_abundance_domain,0.6548,me_stage2,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2+,DLG4_HUMAN_Faure_2021_abundance_domain,0.7102,me_stage2,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,DLG4_HUMAN_Faure_2021_binding_domain,0.5879,tmpnnd,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,DLG4_HUMAN_Faure_2021_binding_domain,0.6316,tmpnn,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,DLG4_HUMAN_Faure_2021_binding_domain,0.6806,me_stage1,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1+,DLG4_HUMAN_Faure_2021_binding_domain,0.7136,me_stage1,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,DLG4_HUMAN_Faure_2021_binding_domain,0.6442,me_stage2,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2+,DLG4_HUMAN_Faure_2021_binding_domain,0.6947,me_stage2,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,GRB2_HUMAN_Faure_2021_abundance_domain,0.5652,tmpnnd,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,GRB2_HUMAN_Faure_2021_abundance_domain,0.6134,tmpnn,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,GRB2_HUMAN_Faure_2021_abundance_domain,0.6457,me_stage1,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1+,GRB2_HUMAN_Faure_2021_abundance_domain,0.69,me_stage1,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,GRB2_HUMAN_Faure_2021_abundance_domain,0.6236,me_stage2,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2+,GRB2_HUMAN_Faure_2021_abundance_domain,0.6749,me_stage2,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,GRB2_HUMAN_Faure_2021_binding_domain,0.5613,tmpnnd,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,GRB2_HUMAN_Faure_2021_binding_domain,0.5687,tmpnn,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,GRB2_HUMAN_Faure_2021_binding_domain,0.5814,me_stage1,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1+,GRB2_HUMAN_Faure_2021_binding_domain,0.6152,me_stage1,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,GRB2_HUMAN_Faure_2021_binding_domain,0.6006,me_stage2,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2+,GRB2_HUMAN_Faure_2021_binding_domain,0.6348,me_stage2,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,MYO_HUMAN_Kung_2025_display,0.5401,tmpnnd,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,MYO_HUMAN_Kung_2025_display,0.57,tmpnn,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,MYO_HUMAN_Kung_2025_display,0.5804,me_stage1,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1+,MYO_HUMAN_Kung_2025_display,0.6029,me_stage1,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,MYO_HUMAN_Kung_2025_display,0.566,me_stage2,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2+,MYO_HUMAN_Kung_2025_display,0.5972,me_stage2,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,ESTA_BACSU_Nutschel_2020_dTm,0.4051,tmpnnd,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,ESTA_BACSU_Nutschel_2020_dTm,0.4051,tmpnn,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,ESTA_BACSU_Nutschel_2020_dTm,0.4831,me_stage1,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1+,ESTA_BACSU_Nutschel_2020_dTm,0.4831,me_stage1,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,ESTA_BACSU_Nutschel_2020_dTm,0.4414,me_stage2,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2+,ESTA_BACSU_Nutschel_2020_dTm,0.4414,me_stage2,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN+D,GB1_Wu_2016_binding_domain,0.3177,tmpnnd,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,GB1_Wu_2016_binding_domain,0.3185,tmpnn,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1,GB1_Wu_2016_binding_domain,0.2959,me_stage1,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage1+,GB1_Wu_2016_binding_domain,0.2866,me_stage1,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2,GB1_Wu_2016_binding_domain,0.2838,me_stage2,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ME stage2+,GB1_Wu_2016_binding_domain,0.2855,me_stage2,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+TMPNN,domainome,0.4497,tmpnn,534385.0,1134,0,3177,40945,12776,0.0,0,0,0,0,,M.002 P.006 H.08 h.02,ᴹ
+ME stage1,domainome,0.5198,me_stage1,534385.0,1134,0,3177,40945,12776,0.0,0,0,0,0,,M.002 P.006 H.08 h.02,ᴹ
+ME stage2,domainome,0.511,me_stage2,534385.0,1134,0,3177,40945,12776,0.0,0,0,0,0,,M.002 P.006 H.08 h.02,ᴹ
+ME stage1,tsu_capped_val,0.7508,me_stage1,35473.0,0,0,0,0,7210,0.0,0,0,1,0,,h.20 V,ʰ
+ME stage2,tsu_capped_val,0.727,me_stage2,35473.0,0,0,0,0,7210,0.0,0,0,1,0,,h.20 V,ʰ
+TMPNN,tsu_capped_val,0.785,tmpnn,35473.0,0,0,0,0,7210,0.0,0,0,1,0,,h.20 V,ʰ
+TMPNN+D,tsu_capped_val,0.7822,tmpnnd,35473.0,0,0,0,0,0,0.0,0,0,1,0,,V,
+ME stage1,tsu_capped_test,0.7709,me_stage1,52071.0,0,0,0,0,8114,0.0,0,0,0,0,,h.16,ʰ
+ME stage2,tsu_capped_test,0.7619,me_stage2,52071.0,0,0,0,0,8114,0.0,0,0,0,0,,h.16,ʰ
+TMPNN,tsu_capped_test,0.7942,tmpnn,52071.0,0,0,0,0,8114,0.0,0,0,0,0,,h.16,ʰ
+TMPNN+D,tsu_capped_test,0.7834,tmpnnd,52071.0,0,0,0,0,796,0.0,0,0,0,0,,h.02,ʰ
+ESMtherm,s571,0.349,esmtherm,571.0,0,0,67,15,0,0.0,0,0,0,0,,P.12 M?.09 H.03,ᴾ
+ESMtherm,s783,0.4338,esmtherm,783.0,0,0,149,0,31,0.0,0,0,0,0,,P.19 M?.15 h.04,ᴾ
+ESMtherm,s2648,0.3706,esmtherm,2648.0,0,0,145,62,20,0.0,0,0,0,0,,P.05 M?.04 H.02 h.008,ᴾ
+ESMtherm,s8754,0.3468,esmtherm,8754.0,0,0,1985,215,53,0.0,0,0,0,0,,P.23 M?.18 H.02 h.006,ᴾ
+ESMtherm,s669,0.4139,esmtherm,669.0,0,0,163,2,63,0.0,0,0,0,0,,P.24 M?.19 H.003 h.09,ᴾ
+ESMtherm,s461,0.4738,esmtherm,461.0,0,0,163,0,63,0.0,0,0,0,0,,P.35 M?.28 h.14,ᴾ
+ESMtherm,ssym,0.3802,esmtherm,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESMtherm,q3421,0.3477,esmtherm,3421.0,0,0,215,86,52,0.0,0,0,0,0,,P.06 M?.05 H.03 h.02,ᴾ
+ESMtherm,k3822,0.3665,esmtherm,3822.0,0,0,1169,97,79,0.0,0,0,0,0,,P.31 M?.24 H.03 h.02,ᴾ
+ESMtherm,k2369,0.393,esmtherm,2369.0,0,0,910,67,38,0.0,0,0,0,0,,P.38 M?.31 H.03 h.02,ᴾ
+ESMtherm,ptmul,0.2347,esmtherm,914.0,0,0,116,54,11,0.0,0,0,0,0,,P.13 M?.10 H.06 h.01,ᴾ
+ESMtherm,ptmuld,0.2696,esmtherm,536.0,0,0,34,30,10,0.0,0,0,0,0,,P.06 M?.05 H.06 h.02,ᴾ
+ESMtherm,tsu_hyperopt_val,0.6913,esmtherm,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+ESMtherm,tsu_hyperopt_test,0.707,esmtherm,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+ESMtherm,DLG4_HUMAN_Faure_2021_abundance_domain,0.0935,esmtherm,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESMtherm,DLG4_HUMAN_Faure_2021_binding_domain,0.1355,esmtherm,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESMtherm,GRB2_HUMAN_Faure_2021_abundance_domain,0.4836,esmtherm,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESMtherm,GRB2_HUMAN_Faure_2021_binding_domain,0.4661,esmtherm,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESMtherm,MYO_HUMAN_Kung_2025_display,0.2291,esmtherm,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESMtherm,ESTA_BACSU_Nutschel_2020_dTm,-0.0004,esmtherm,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESMtherm,GB1_Wu_2016_binding_domain,0.2142,esmtherm,149360.0,0,0,149360,0,0,0.0,0,0,0,0,,P1 M?.80,ᴾ
+ESMtherm,domainome,0.2013,esmtherm,534385.0,0,0,25405,137158,30457,0.0,0,0,0,0,,P.05 M?.04 H.26 h.06,ᴾ
+DDGemb,s571,0.4841,ddgemb_s2450,571.0,52,0,117,19,7,0.0,0,0,0,0,,M.09 P.20 H.03 h.01,ᴹ
+DDGemb,s783,0.6891,ddgemb_s2450,783.0,10,0,549,17,0,0.0,0,0,0,0,,M.01 P.70 H.02,ᴹ
+DDGemb,s2648,0.8948,ddgemb_s2450,2648.0,2450,0,0,44,3,0.0,1,0,0,0,,M.93 H.02 h.001 D,ᴹ
+DDGemb,s8754,0.6844,ddgemb_s2450,8754.0,2587,0,3232,328,34,0.0,0,0,0,0,,M.30 P.37 H.04 h.004,ᴹ
+DDGemb,s669,0.5701,ddgemb_s2450,669.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+DDGemb,s461,0.6544,ddgemb_s2450,461.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+DDGemb,ssym,0.891,ddgemb_s2450,684.0,194,0,490,0,0,0.0,0,0,0,0,,M.28 P.72,ᴹ
+DDGemb,q3421,0.7519,ddgemb_s2450,3421.0,1549,0,1346,68,0,0.0,0,0,0,0,,M.45 P.39 H.02,ᴹ
+DDGemb,k3822,0.7448,ddgemb_s2450,3822.0,979,0,1198,101,22,0.0,0,0,0,0,,M.26 P.31 H.03 h.006,ᴹ
+DDGemb,k2369,0.7024,ddgemb_s2450,2369.0,566,0,624,64,6,0.0,0,0,0,0,,M.24 P.26 H.03 h.003,ᴹ
+DDGemb,ptmul,0.6159,ddgemb_s2450,914.0,0,0,725,28,3,0.0,0,0,0,0,,P.79 H.03 h.003,ᴾ
+DDGemb,ptmuld,0.6783,ddgemb_s2450,536.0,0,0,460,23,2,0.0,0,0,0,0,,P.86 H.04 h.004,ᴾ
+DDGemb,tsu_hyperopt_val,0.6105,ddgemb_s2450,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+DDGemb,tsu_hyperopt_test,0.5245,ddgemb_s2450,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+DDGemb,DLG4_HUMAN_Faure_2021_abundance_domain,0.1035,ddgemb_s2450,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+DDGemb,DLG4_HUMAN_Faure_2021_binding_domain,0.1235,ddgemb_s2450,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+DDGemb,GRB2_HUMAN_Faure_2021_abundance_domain,0.4571,ddgemb_s2450,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+DDGemb,GRB2_HUMAN_Faure_2021_binding_domain,0.4687,ddgemb_s2450,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+DDGemb,MYO_HUMAN_Kung_2025_display,0.4754,ddgemb_s2450,5905.0,0,0,0,5905,0,0.0,0,0,0,0,,H1,ᴴ
+DDGemb,ESTA_BACSU_Nutschel_2020_dTm,0.1879,ddgemb_s2450,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+DDGemb,GB1_Wu_2016_binding_domain,0.154,ddgemb_s2450,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+DDGemb,domainome,0.3513,ddgemb_s2450,534385.0,0,0,16607,73671,32914,0.0,0,0,0,0,,P.03 H.14 h.06,ᴾ
+DDMut,s571,0.3502,ddmut_s9028,571.0,112,0,115,33,0,0.0,0,0,0,0,,M.20 P.20 H.06,ᴹ
+DDMut,s783,0.6871,ddmut_s9028,783.0,330,0,380,13,0,0.0,0,0,0,0,,M.42 P.49 H.02,ᴹ
+DDMut,s2648,0.7311,ddmut_s9028,2648.0,2347,0,295,1,0,0.0,1,0,0,0,,M.89 P.11 H<.001 D,ᴹ
+DDMut,s8754,0.6381,ddmut_s9028,8754.0,5272,0,2593,283,10,0.0,1,0,0,0,,M.60 P.30 H.03 h.001 D,ᴹ
+DDMut [partial],s669,0.4022,ddmut_s9028,669.0,0,0,76,13,3,0.0,0,0,0,0,,P.11 H.02 h.004,ᴾ
+DDMut [partial],s461,0.5343,ddmut_s9028,461.0,0,0,73,2,2,0.0,0,0,0,0,,P.16 H.004 h.004,ᴾ
+DDMut,ssym,0.3633,ddmut_s9028,684.0,203,0,481,0,0,0.0,0,0,0,0,,M.30 P.70,ᴹ
+DDMut,q3421,0.6526,ddmut_s9028,3421.0,2248,0,939,32,0,0.0,0,0,0,0,,M.66 P.27 H.009,ᴹ
+DDMut,k3822,0.709,ddmut_s9028,3822.0,2195,0,1052,107,9,0.0,0,0,0,0,,M.57 P.28 H.03 h.002,ᴹ
+DDMut,k2369,0.6813,ddmut_s9028,2369.0,1530,0,533,70,8,0.0,0,0,0,0,,M.65 P.22 H.03 h.003,ᴹ
+DDMut,ptmul,0.7253,ddmut_s9028,914.0,538,0,335,12,0,0.0,0,0,0,0,,M.59 P.37 H.01,ᴹ
+DDMut,ptmuld,0.7175,ddmut_s9028,536.0,194,0,316,9,0,0.0,0,0,0,0,,M.36 P.59 H.02,ᴹ
+DDMut [partial],tsu_hyperopt_val,0.5421,ddmut_s9028,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+DDMut [partial],tsu_hyperopt_test,0.5824,ddmut_s9028,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+IFUM (WT backbone),s571,0.3763,ifum,571.0,0,0,28,43,0,0.0,0,0,0,0,,P.05 M?.05 H.08,ᴾ
+IFUM (WT backbone),s783,0.4977,ifum,783.0,0,0,29,25,88,0.0,0,0,0,0,,P.04 M?.04 H.03 h.11,ᴾ
+IFUM (WT backbone),s2648,0.4853,ifum,2648.0,0,0,160,46,0,0.0,0,0,0,0,,P.06 M?.06 H.02,ᴾ
+IFUM (WT backbone),s8754,0.4771,ifum,8754.0,0,0,1955,156,13,0.0,0,0,0,0,,P.22 M?.22 H.02 h.001,ᴾ
+IFUM (WT backbone),s669,0.4342,ifum,669.0,0,0,95,2,63,0.0,0,0,0,0,,P.14 M?.14 H.003 h.09,ᴾ
+IFUM (WT backbone),s461,0.5315,ifum,461.0,0,0,95,0,63,0.0,0,0,0,0,,P.21 M?.21 h.14,ᴾ
+IFUM (WT backbone),ssym,0.5739,ifum,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+IFUM (WT backbone),q3421,0.4309,ifum,3421.0,0,0,212,56,31,0.0,0,0,0,0,,P.06 M?.06 H.02 h.009,ᴾ
+IFUM (WT backbone),k3822,0.5364,ifum,3822.0,0,0,1105,65,63,0.0,0,0,0,0,,P.29 M?.29 H.02 h.02,ᴾ
+IFUM (WT backbone),k2369,0.5468,ifum,2369.0,0,0,894,36,30,0.0,0,0,0,0,,P.38 M?.38 H.02 h.01,ᴾ
+IFUM (WT backbone),ptmul,0.3498,ifum,914.0,0,0,137,26,1,0.0,0,0,0,0,,P.15 M?.15 H.03 h.001,ᴾ
+IFUM (WT backbone),ptmuld,0.4047,ifum,536.0,0,0,37,19,1,0.0,0,0,0,0,,P.07 M?.07 H.04 h.002,ᴾ
+IFUM (WT backbone),tsu_hyperopt_val,0.7462,ifum,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+IFUM (WT backbone),tsu_hyperopt_test,0.697,ifum,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+IFUM (WT backbone),DLG4_HUMAN_Faure_2021_abundance_domain,0.766,ifum,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+IFUM (WT backbone),DLG4_HUMAN_Faure_2021_binding_domain,0.7677,ifum,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+IFUM (WT backbone),GRB2_HUMAN_Faure_2021_abundance_domain,0.6484,ifum,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+IFUM (WT backbone),GRB2_HUMAN_Faure_2021_binding_domain,0.5649,ifum,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+IFUM (WT backbone),MYO_HUMAN_Kung_2025_display,0.5066,ifum,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+IFUM (WT backbone),ESTA_BACSU_Nutschel_2020_dTm,0.1895,ifum,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+IFUM (WT backbone),GB1_Wu_2016_binding_domain,0.2619,ifum,149360.0,0,0,149360,0,0,0.0,0,0,0,0,,P1 M?1,ᴾ
+IFUM (WT backbone),domainome,0.4636,ifum,534385.0,0,0,26039,140085,28167,0.0,0,0,0,0,,P.05 M?.05 H.26 h.05,ᴾ
+"IFUM (native, ESMFold)",s571,0.3847,ifum,571.0,0,0,28,43,0,0.0,0,0,0,0,,P.05 M?.05 H.08,ᴾ
+"IFUM (native, ESMFold)",s783,0.4712,ifum,783.0,0,0,29,25,88,0.0,0,0,0,0,,P.04 M?.04 H.03 h.11,ᴾ
+"IFUM (native, ESMFold)",s2648,0.4839,ifum,2648.0,0,0,160,46,0,0.0,0,0,0,0,,P.06 M?.06 H.02,ᴾ
+"IFUM (native, ESMFold)",s8754,0.4511,ifum,8754.0,0,0,1955,156,13,0.0,0,0,0,0,,P.22 M?.22 H.02 h.001,ᴾ
+"IFUM (native, ESMFold)",s669,0.4091,ifum,669.0,0,0,95,2,63,0.0,0,0,0,0,,P.14 M?.14 H.003 h.09,ᴾ
+"IFUM (native, ESMFold)",s461,0.5418,ifum,461.0,0,0,95,0,63,0.0,0,0,0,0,,P.21 M?.21 h.14,ᴾ
+"IFUM (native, ESMFold)",ssym,0.5804,ifum,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"IFUM (native, ESMFold)",q3421,0.4331,ifum,3421.0,0,0,212,56,31,0.0,0,0,0,0,,P.06 M?.06 H.02 h.009,ᴾ
+"IFUM (native, ESMFold)",k3822,0.5083,ifum,3822.0,0,0,1105,65,63,0.0,0,0,0,0,,P.29 M?.29 H.02 h.02,ᴾ
+"IFUM (native, ESMFold)",k2369,0.5118,ifum,2369.0,0,0,894,36,30,0.0,0,0,0,0,,P.38 M?.38 H.02 h.01,ᴾ
+"IFUM (native, ESMFold)",ptmul,0.3907,ifum,914.0,0,0,137,26,1,0.0,0,0,0,0,,P.15 M?.15 H.03 h.001,ᴾ
+"IFUM (native, ESMFold)",ptmuld,0.4428,ifum,536.0,0,0,37,19,1,0.0,0,0,0,0,,P.07 M?.07 H.04 h.002,ᴾ
+"IFUM (native, ESMFold)",tsu_hyperopt_val,0.7781,ifum,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+"IFUM (native, ESMFold)",tsu_hyperopt_test,0.7378,ifum,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+"IFUM (native, ESMFold)",DLG4_HUMAN_Faure_2021_abundance_domain,0.7618,ifum,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"IFUM (native, ESMFold)",DLG4_HUMAN_Faure_2021_binding_domain,0.7468,ifum,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"IFUM (native, ESMFold)",GRB2_HUMAN_Faure_2021_abundance_domain,0.6966,ifum,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"IFUM (native, ESMFold)",GRB2_HUMAN_Faure_2021_binding_domain,0.5754,ifum,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"IFUM (native, ESMFold)",MYO_HUMAN_Kung_2025_display,0.5231,ifum,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"IFUM (native, ESMFold)",ESTA_BACSU_Nutschel_2020_dTm,0.2172,ifum,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"IFUM (native, ESMFold)",GB1_Wu_2016_binding_domain,0.2838,ifum,149360.0,0,0,149360,0,0,0.0,0,0,0,0,,P1 M?1,ᴾ
+"IFUM (native, ESMFold)",domainome,0.4731,ifum,534385.0,0,0,26039,140085,28167,0.0,0,0,0,0,,P.05 M?.05 H.26 h.05,ᴾ
+GeoDDG-3D,s571,0.5262,geoddg_s8754,571.0,220,0,63,25,0,0.0,0,0,0,0,,M.39 P.11 H.04,ᴹ
+GeoDDG-3D,s783,0.8646,geoddg_s8754,783.0,691,0,0,0,58,0.0,0,0,0,0,,M.88 h.07,ᴹ
+GeoDDG-3D,s2648,0.8922,geoddg_s8754,2648.0,2583,0,65,0,0,0.0,0,0,0,0,,M.98 P.02,ᴹ
+GeoDDG-3D,s8754,0.8407,geoddg_s8754,8754.0,8754,0,0,0,0,0.0,0,0,0,1,the test set IS the training set,M1 #,#
+GeoDDG-3D,s669,0.6149,geoddg_s8754,669.0,0,0,8,21,18,0.0,0,0,0,0,,P.01 H.03 h.03,ᴾ
+GeoDDG-3D,s461,0.6641,geoddg_s8754,461.0,0,0,0,2,14,0.0,0,0,0,0,,H.004 h.03,ʰ
+GeoDDG-3D,ssym,0.914,geoddg_s8754,684.0,256,0,428,0,0,0.0,0,0,0,0,,M.37 P.63,ᴹ
+GeoDDG-3D,q3421,0.8215,geoddg_s8754,3421.0,2351,0,1007,0,0,0.0,0,0,0,0,,M.69 P.29,ᴹ
+GeoDDG-3D,k3822,0.8518,geoddg_s8754,3822.0,2648,0,766,9,6,0.0,0,0,0,0,,M.69 P.20 H.002 h.002,ᴹ
+GeoDDG-3D,k2369,0.8305,geoddg_s8754,2369.0,1803,0,365,8,4,0.0,0,0,0,0,,M.76 P.15 H.003 h.002,ᴹ
+GeoDDG-3D,ptmul,0.7171,geoddg_s8754,914.0,0,0,890,4,0,0.0,0,0,0,0,,P.97 H.004,ᴾ
+GeoDDG-3D,ptmuld,0.6689,geoddg_s8754,536.0,0,0,522,3,0,0.0,0,0,0,0,,P.97 H.006,ᴾ
+GeoDDG-3D,tsu_hyperopt_val,0.61,geoddg_s8754,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+GeoDDG-3D,tsu_hyperopt_test,0.5573,geoddg_s8754,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+GeoDDG-3D,DLG4_HUMAN_Faure_2021_abundance_domain,0.351,geoddg_s8754,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+GeoDDG-3D,DLG4_HUMAN_Faure_2021_binding_domain,0.4306,geoddg_s8754,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+GeoDDG-3D,GRB2_HUMAN_Faure_2021_abundance_domain,0.6043,geoddg_s8754,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+GeoDDG-3D,GRB2_HUMAN_Faure_2021_binding_domain,0.481,geoddg_s8754,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+GeoDDG-3D,MYO_HUMAN_Kung_2025_display,0.3949,geoddg_s8754,5905.0,0,0,5905,0,0,0.0,0,0,0,0,,P1,ᴾ
+GeoDDG-3D,ESTA_BACSU_Nutschel_2020_dTm,0.2403,geoddg_s8754,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+GeoDDG-3D,GB1_Wu_2016_binding_domain,0.1997,geoddg_s8754,149360.0,61,61880,87419,0,0,0.0,0,0,0,0,,M<.001 m.41 P.59,ᴹ
+GeoDDG-3D,domainome,0.4132,geoddg_s8754,534385.0,0,0,25541,117948,42677,0.0,0,0,0,0,,P.05 H.22 h.08,ᴾ
+ProSST,s571,0.3096,corpus,571.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,s783,0.5635,corpus,783.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,s2648,0.4356,corpus,2648.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,s8754,0.4278,corpus,8754.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,s669,0.3693,corpus,669.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,s461,0.5611,corpus,461.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,ssym,0.5186,corpus,684.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,q3421,0.4163,corpus,3421.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,k3822,0.4762,corpus,3822.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,k2369,0.4967,corpus,2369.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,ptmul,0.1816,corpus,914.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,ptmuld,0.3172,corpus,536.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,tsu_hyperopt_val,0.6069,corpus,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+ProSST,tsu_hyperopt_test,0.5943,corpus,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+ProSST,DLG4_HUMAN_Faure_2021_abundance_domain,0.7756,corpus,6976.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,DLG4_HUMAN_Faure_2021_binding_domain,0.7964,corpus,8251.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,GRB2_HUMAN_Faure_2021_abundance_domain,0.7113,corpus,63366.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,GRB2_HUMAN_Faure_2021_binding_domain,0.7019,corpus,33441.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,MYO_HUMAN_Kung_2025_display,0.5382,corpus,5905.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,ESTA_BACSU_Nutschel_2020_dTm,0.3565,corpus,2172.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,GB1_Wu_2016_binding_domain,0.2581,corpus,149360.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,domainome,0.5193,corpus,534385.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3dG,s571,0.5109,esm3dg_mgnify,571.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,s783,0.6535,esm3dg_mgnify,783.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,s2648,0.6425,esm3dg_mgnify,2648.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,s8754,0.5425,esm3dg_mgnify,8754.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,s669,0.5635,esm3dg_mgnify,669.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,s461,0.6815,esm3dg_mgnify,461.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,ssym,0.7346,esm3dg_mgnify,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,q3421,0.5723,esm3dg_mgnify,3421.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,k3822,0.5891,esm3dg_mgnify,3822.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,k2369,0.5984,esm3dg_mgnify,2369.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,ptmul,0.4093,esm3dg_mgnify,914.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,ptmuld,0.4818,esm3dg_mgnify,536.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,tsu_hyperopt_val,0.7902,esm3dg_mgnify,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+ESM3dG,tsu_hyperopt_test,0.7444,esm3dg_mgnify,,0,0,0,0,0,0.0,0,0,0,0,legacy hyperopt split — out of scope,–,
+ESM3dG,DLG4_HUMAN_Faure_2021_abundance_domain,0.7626,esm3dg_mgnify,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,DLG4_HUMAN_Faure_2021_binding_domain,0.7658,esm3dg_mgnify,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,GRB2_HUMAN_Faure_2021_abundance_domain,0.7487,esm3dg_mgnify,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,GRB2_HUMAN_Faure_2021_binding_domain,0.6457,esm3dg_mgnify,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,MYO_HUMAN_Kung_2025_display,0.594,esm3dg_mgnify,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,ESTA_BACSU_Nutschel_2020_dTm,0.2797,esm3dg_mgnify,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,GB1_Wu_2016_binding_domain,0.3238,esm3dg_mgnify,149360.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,domainome,0.5119,esm3dg_mgnify,534385.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM-MSR-small (March, crystal)",s571,0.447,esm_msr_small_hyperopt,571.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM-MSR-small (March, crystal)",s783,0.7136,esm_msr_small_hyperopt,783.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM-MSR-small (March, crystal)",s2648,0.6774,esm_msr_small_hyperopt,2648.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM-MSR-small (March, crystal)",s8754,0.6143,esm_msr_small_hyperopt,8754.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM-MSR-small (March, crystal)",s669,0.5423,esm_msr_small_hyperopt,669.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM-MSR-small (March, crystal)",s461,0.7428,esm_msr_small_hyperopt,461.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM-MSR-small (March, crystal)",ssym,0.7809,esm_msr_small_hyperopt,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM-MSR-small (March, crystal)",q3421,0.6205,esm_msr_small_hyperopt,3421.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM-MSR-small (March, crystal)",k3822,0.7008,esm_msr_small_hyperopt,3822.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM-MSR-small (March, crystal)",k2369,0.7044,esm_msr_small_hyperopt,2369.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM-MSR-small (March, crystal)",ptmul,0.5428,esm_msr_small_hyperopt,914.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM-MSR-small (March, crystal)",ptmuld,0.5768,esm_msr_small_hyperopt,536.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3-small zero-shot,s571,0.2355382273707887,corpus,571.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,s783,0.5475694479055729,corpus,783.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,s2648,0.4407958034963105,corpus,2648.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,s8754,0.4247256711864852,corpus,8754.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,s669,0.3357987104059978,corpus,669.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,s461,0.456591824954856,corpus,461.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,ssym,0.5884730201288726,corpus,684.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,q3421,0.4409597979637388,corpus,3421.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,k3822,0.4746530740057214,corpus,3822.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,k2369,0.5001768875488962,corpus,2369.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,ptmul,0.3044097732781568,corpus,914.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,ptmuld,0.4063444486927871,corpus,536.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,DLG4_HUMAN_Faure_2021_abundance_domain,0.7691664462219702,corpus,6976.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,DLG4_HUMAN_Faure_2021_binding_domain,0.7854213956894345,corpus,8251.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,GRB2_HUMAN_Faure_2021_abundance_domain,0.6725178145663138,corpus,63366.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,GRB2_HUMAN_Faure_2021_binding_domain,0.7313068120522708,corpus,33441.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,MYO_HUMAN_Kung_2025_display,0.5681841583884599,corpus,5905.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-small zero-shot,ESTA_BACSU_Nutschel_2020_dTm,0.4979585975468773,corpus,2172.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,s571,0.3318831109567112,corpus,571.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,s783,0.552485979724569,corpus,783.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,s2648,0.4391950961356529,corpus,2648.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,s8754,0.437526167695358,corpus,8754.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,s669,0.3422273815700857,corpus,669.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,s461,0.4452735241225112,corpus,461.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,ssym,0.6326363087664545,corpus,684.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,q3421,0.4500985737170622,corpus,3421.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,k3822,0.4834970058279706,corpus,3822.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,k2369,0.5027981672738,corpus,2369.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,ptmul,0.2638294841809036,corpus,914.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,ptmuld,0.3528507451486742,corpus,536.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,DLG4_HUMAN_Faure_2021_abundance_domain,0.734366355752172,corpus,6976.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,DLG4_HUMAN_Faure_2021_binding_domain,0.7791024923250154,corpus,8251.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-medium zero-shot,GRB2_HUMAN_Faure_2021_abundance_domain,0.6642537272913261,corpus,63366.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,s571,0.2202643109612192,corpus,571.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,s783,0.352558207501916,corpus,783.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,s2648,0.2666306226039915,corpus,2648.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,s8754,0.2910235438951779,corpus,8754.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,s669,0.2716114289984396,corpus,669.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,s461,0.3338500955701472,corpus,461.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,ssym,0.5386098740575821,corpus,684.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,q3421,0.3055576676496019,corpus,3421.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,k3822,0.3181390377958163,corpus,3822.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,k2369,0.364377120123909,corpus,2369.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,ptmul,0.016694213751929,corpus,914.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,ptmuld,0.1263623230216817,corpus,536.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,DLG4_HUMAN_Faure_2021_abundance_domain,0.6243750730002456,corpus,6976.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,DLG4_HUMAN_Faure_2021_binding_domain,0.6055542346135129,corpus,8251.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,GRB2_HUMAN_Faure_2021_abundance_domain,0.556648154211588,corpus,63366.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,GRB2_HUMAN_Faure_2021_binding_domain,0.582448355751203,corpus,33441.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,MYO_HUMAN_Kung_2025_display,0.45795586310281,corpus,5905.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,ESTA_BACSU_Nutschel_2020_dTm,0.4319934740526589,corpus,2172.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM3-large zero-shot,domainome,0.5103105078771742,corpus,534385.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM-MSR (released),PG avg,0.5104989304091256,esm_msr_capped,2465767.0,45623,2,0,0,2028,0.0,0,0,0,0,,M.02 m<.001 h<.001,ᴹ
+ESM-MSR (released),PG Stability,0.8703319732393754,esm_msr_capped,2465767.0,45623,2,0,0,2028,0.0,0,0,0,0,,M.02 m<.001 h<.001,ᴹ
+ESM-MSR (released),PG DMS mean,0.5557107015901388,esm_msr_capped,2465767.0,45623,2,0,0,2028,0.0,0,0,0,0,,M.02 m<.001 h<.001,ᴹ
+ESM-MSR (released) WT,PG avg,0.5076185334113097,esm_msr_capped,2465767.0,45623,2,0,0,2028,0.0,0,0,0,0,,M.02 m<.001 h<.001,ᴹ
+ESM-MSR (released) WT,PG Stability,0.8259411788600064,esm_msr_capped,2465767.0,45623,2,0,0,2028,0.0,0,0,0,0,,M.02 m<.001 h<.001,ᴹ
+ESM-MSR (released) WT,PG DMS mean,0.5498640796993695,esm_msr_capped,2465767.0,45623,2,0,0,2028,0.0,0,0,0,0,,M.02 m<.001 h<.001,ᴹ
+"ESM3-small-open (ε=0, MSR readout)",PG avg,0.44835022986044,corpus,2465767.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",PG Stability,0.6207802008527922,corpus,2465767.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+"ESM3-small-open (ε=0, MSR readout)",PG DMS mean,0.4703799846621581,corpus,2465767.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+SPURS,PG avg,0.4825530867631659,spurs_single,2465767.0,50866,37435,19804,0,1813,0.0,0,0,0,0,,M.02 m.02 P.008 h<.001,ᴹ
+SPURS,PG Stability,0.83709417522537,spurs_single,2465767.0,50866,37435,19804,0,1813,0.0,0,0,0,0,,M.02 m.02 P.008 h<.001,ᴹ
+SPURS,PG DMS mean,0.5246973797964525,spurs_single,2465767.0,50866,37435,19804,0,1813,0.0,0,0,0,0,,M.02 m.02 P.008 h<.001,ᴹ
+SPURS multi,PG avg,0.4260881310255238,spurs_multi,2465767.0,44106,5065,53884,0,1813,0.0,0,0,0,0,,M.02 m.002 P.02 h<.001,ᴹ
+SPURS multi,PG Stability,0.8077005653529348,spurs_multi,2465767.0,44106,5065,53884,0,1813,0.0,0,0,0,0,,M.02 m.002 P.02 h<.001,ᴹ
+SPURS multi,PG DMS mean,0.4767194788438109,spurs_multi,2465767.0,44106,5065,53884,0,1813,0.0,0,0,0,0,,M.02 m.002 P.02 h<.001,ᴹ
+ME stage1,PG avg,0.4678374820708049,me_stage1,2465767.0,24252,21331,42,0,2028,0.0,0,0,0,0,,M.010 m.009 P<.001 h<.001,ᴹ
+ME stage1,PG Stability,0.8083227810247872,me_stage1,2465767.0,24252,21331,42,0,2028,0.0,0,0,0,0,,M.010 m.009 P<.001 h<.001,ᴹ
+ME stage1,PG DMS mean,0.5063701840044135,me_stage1,2465767.0,24252,21331,42,0,2028,0.0,0,0,0,0,,M.010 m.009 P<.001 h<.001,ᴹ
+ME stage2,PG avg,0.4451392814842355,me_stage2,2465767.0,45623,2,0,0,2028,0.0,0,0,0,0,,M.02 m<.001 h<.001,ᴹ
+ME stage2,PG Stability,0.8062736126054385,me_stage2,2465767.0,45623,2,0,0,2028,0.0,0,0,0,0,,M.02 m<.001 h<.001,ᴹ
+ME stage2,PG DMS mean,0.4910739176889777,me_stage2,2465767.0,45623,2,0,0,2028,0.0,0,0,0,0,,M.02 m<.001 h<.001,ᴹ
+TMPNN,PG avg,0.4413456030632717,tmpnn,2465767.0,24252,21331,42,0,2028,0.0,0,0,0,0,,M.010 m.009 P<.001 h<.001,ᴹ
+TMPNN,PG Stability,0.781357435053649,tmpnn,2465767.0,24252,21331,42,0,2028,0.0,0,0,0,0,,M.010 m.009 P<.001 h<.001,ᴹ
+TMPNN,PG DMS mean,0.4836305147597164,tmpnn,2465767.0,24252,21331,42,0,2028,0.0,0,0,0,0,,M.010 m.009 P<.001 h<.001,ᴹ
+ProteinMPNN,PG avg,0.4080709672858636,corpus,2465767.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,PG Stability,0.6270815481276443,corpus,2465767.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,PG DMS mean,0.4263864514413006,corpus,2465767.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ESM-MSR (devel),PG avg,0.5107451564526648,esm_msr_capped,2465767.0,45623,2,0,0,2028,0.0,0,0,0,0,,M.02 m<.001 h<.001,ᴹ
+ESM-MSR (devel),PG Stability,0.8688617068794604,esm_msr_capped,2465767.0,45623,2,0,0,2028,0.0,0,0,0,0,,M.02 m<.001 h<.001,ᴹ
+ESM-MSR (devel),PG DMS mean,0.5554774838612878,esm_msr_capped,2465767.0,45623,2,0,0,2028,0.0,0,0,0,0,,M.02 m<.001 h<.001,ᴹ
+ProSST,PG avg,0.5140678628128655,corpus,2465767.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,PG Stability,0.6526110902728012,corpus,2465767.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProSST,PG DMS mean,0.5276825226268106,corpus,2465767.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+Rosetta,PG avg,0.3749579323218903,none,2465767.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+Rosetta,PG Stability,0.6398530913419602,none,2465767.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+Rosetta,PG DMS mean,0.4093641495322911,none,2465767.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESMtherm,tsu_capped_val,0.7158280303881348,esmtherm,35473.0,0,0,30835,1182,814,0.0,0,0,1,0,,P.87 M?.70 H.03 h.02 V,ᴾ
+ESMtherm,tsu_capped_test,0.7740498179896493,esmtherm,52071.0,0,0,42783,2069,1593,0.0,0,0,0,0,,P.82 M?.66 H.04 h.03,ᴾ
+ESMtherm,PG avg,0.2125228022368003,esmtherm,2465767.0,0,0,100873,2264,1813,0.0,0,0,0,0,,P.04 M?.03 H<.001 h<.001,ᴾ
+ESMtherm,PG Stability,0.7200943536021568,esmtherm,2465767.0,0,0,100873,2264,1813,0.0,0,0,0,0,,P.04 M?.03 H<.001 h<.001,ᴾ
+ESMtherm,PG DMS mean,0.282613406101922,esmtherm,2465767.0,0,0,100873,2264,1813,0.0,0,0,0,0,,P.04 M?.03 H<.001 h<.001,ᴾ
+IFUM (WT backbone),tsu_capped_val,0.6660470735889185,ifum,35473.0,0,0,24055,0,2419,0.0,0,0,1,0,,P.68 M?.68 h.07 V,ᴾ
+IFUM (WT backbone),tsu_capped_test,0.7108837985741459,ifum,52071.0,0,0,23518,3515,3080,0.0,0,0,0,0,,P.45 M?.45 H.07 h.06,ᴾ
+"IFUM (native, ESMFold)",tsu_capped_val,0.7130748026136217,ifum,35473.0,0,0,24055,0,2419,0.0,0,0,1,0,,P.68 M?.68 h.07 V,ᴾ
+"IFUM (native, ESMFold)",tsu_capped_test,0.7516058445872206,ifum,52071.0,0,0,23518,3515,3080,0.0,0,0,0,0,,P.45 M?.45 H.07 h.06,ᴾ
+GeoDDG-3D,tsu_capped_val,0.5949183726842843,geoddg_s8754,35473.0,0,0,0,0,0,0.0,0,0,1,0,,V,
+GeoDDG-3D,tsu_capped_test,0.6085668410680503,geoddg_s8754,52071.0,0,0,0,0,3870,0.0,0,0,0,0,,h.07,ʰ
+ESM3dG,tsu_capped_val,0.8105714404564905,esm3dg_mgnify,35473.0,0,0,0,0,0,0.0,0,0,1,0,,V,
+ESM3dG,tsu_capped_test,0.8106122671725858,esm3dg_mgnify,52071.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ProSST,tsu_capped_val,0.5930051868246157,corpus,35473.0,0,0,0,0,0,0.729597158402165,0,0,0,0,,C.73,ᶜ
+ProSST,tsu_capped_test,0.5964857619638142,corpus,52071.0,0,0,0,0,0,0.7820667934166811,0,0,0,0,,C.78,ᶜ
+SPURS,s571,0.4679298068931856,spurs_single,571.0,0,0,48,15,0,0.0,0,0,0,0,,P.08 H.03,ᴾ
+SPURS,s783,0.7122228039185877,spurs_single,783.0,0,0,53,0,59,0.0,0,0,0,0,,P.07 h.08,ᴾ
+SPURS,s2648,0.6821031065747714,spurs_single,2648.0,3,0,50,42,29,0.0,0,0,0,0,,M.001 P.02 H.02 h.01,ᴹ
+SPURS,s8754,0.6258544030880888,spurs_single,8754.0,14,0,1711,165,53,0.0,0,0,0,0,,M.002 P.20 H.02 h.006,ᴹ
+SPURS,s669,0.5019961088761143,spurs_single,669.0,0,0,0,2,1,0.0,0,0,0,0,,H.003 h.001,
+SPURS,s461,0.6544840209225996,spurs_single,461.0,0,0,0,0,1,0.0,0,0,0,0,,h.002,
+SPURS,ssym,0.7835881696538691,spurs_single,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS,q3421,0.6142428408386912,spurs_single,3421.0,6,0,85,65,27,0.0,0,0,0,0,,M.002 P.02 H.02 h.008,ᴹ
+SPURS,k3822,0.6808444254518033,spurs_single,3822.0,4,0,897,78,39,0.0,0,0,0,0,,M.001 P.23 H.02 h.01,ᴹ
+SPURS,k2369,0.698476018749346,spurs_single,2369.0,4,0,795,54,28,0.0,0,0,0,0,,M.002 P.34 H.02 h.01,ᴹ
+SPURS,ptmul,0.3994337487026346,spurs_single,914.0,0,14,78,46,14,0.0,0,0,0,0,,m.02 P.09 H.05 h.02,ᵐ
+SPURS,ptmuld,0.4949333577403503,spurs_single,536.0,0,3,9,23,11,0.0,0,0,0,0,,m.006 P.02 H.04 h.02,ᵐ
+SPURS,DLG4_HUMAN_Faure_2021_abundance_domain,0.6886887827071816,spurs_single,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS,DLG4_HUMAN_Faure_2021_binding_domain,0.7107417810561238,spurs_single,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS,GRB2_HUMAN_Faure_2021_abundance_domain,0.7359230340490176,spurs_single,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS,GRB2_HUMAN_Faure_2021_binding_domain,0.6351062293600358,spurs_single,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS,MYO_HUMAN_Kung_2025_display,0.6023536336666804,spurs_single,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS,ESTA_BACSU_Nutschel_2020_dTm,0.5345263545434504,spurs_single,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS,GB1_Wu_2016_binding_domain,0.3298371645240703,spurs_single,149360.0,0,0,149360,0,0,0.0,0,0,0,0,,P1,ᴾ
+SPURS,domainome,0.5132832919390009,spurs_single,534385.0,6181,0,13586,130534,27475,0.0,0,0,0,0,,M.01 P.03 H.24 h.05,ᴹ
+SPURS,tsu_capped_val,0.8446079874707134,spurs_single,35473.0,17101,7504,3537,0,0,0.0,0,0,1,0,,M.48 m.21 P.10 V,ᴹ
+SPURS,tsu_capped_test,0.8664647227980397,spurs_single,52071.0,21282,6747,18453,0,0,0.0,0,0,0,0,,M.41 m.13 P.35,ᴹ
+SPURS multi,s571,0.4302182587572291,spurs_multi,571.0,0,3,45,15,0,0.0,0,0,0,0,,m.005 P.08 H.03,ᵐ
+SPURS multi,s783,0.7014205931320039,spurs_multi,783.0,0,0,53,0,31,0.0,0,0,0,0,,P.07 h.04,ᴾ
+SPURS multi,s2648,0.6419730487404868,spurs_multi,2648.0,0,1,107,39,29,0.0,0,0,0,0,,m<.001 P.04 H.01 h.01,ᵐ
+SPURS multi,s8754,0.5940448264938586,spurs_multi,8754.0,0,14,1873,107,49,0.0,0,0,0,0,,m.002 P.21 H.01 h.006,ᵐ
+SPURS multi,s669,0.459205930240302,spurs_multi,669.0,0,7,88,2,62,0.0,0,0,0,0,,m.01 P.13 H.003 h.09,ᵐ
+SPURS multi,s461,0.6100658253616829,spurs_multi,461.0,0,7,88,0,62,0.0,0,0,0,0,,m.02 P.19 h.13,ᵐ
+SPURS multi,ssym,0.7577258451315706,spurs_multi,684.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS multi,q3421,0.5935831622105859,spurs_multi,3421.0,0,2,146,62,58,0.0,0,0,0,0,,m<.001 P.04 H.02 h.02,ᵐ
+SPURS multi,k3822,0.6272342034098615,spurs_multi,3822.0,0,8,1013,77,86,0.0,0,0,0,0,,m.002 P.27 H.02 h.02,ᵐ
+SPURS multi,k2369,0.6497639218071124,spurs_multi,2369.0,0,5,834,52,44,0.0,0,0,0,0,,m.002 P.35 H.02 h.02,ᵐ
+SPURS multi,ptmul,0.3589642409280469,spurs_multi,914.0,0,0,92,39,15,0.0,0,0,0,0,,P.10 H.04 h.02,ᴾ
+SPURS multi,ptmuld,0.4655390335233378,spurs_multi,536.0,0,0,12,21,12,0.0,0,0,0,0,,P.02 H.04 h.02,ᴾ
+SPURS multi,DLG4_HUMAN_Faure_2021_abundance_domain,0.6121894227174667,spurs_multi,6976.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS multi,DLG4_HUMAN_Faure_2021_binding_domain,0.6241592723643088,spurs_multi,8251.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS multi,GRB2_HUMAN_Faure_2021_abundance_domain,0.6004925352842517,spurs_multi,63366.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS multi,GRB2_HUMAN_Faure_2021_binding_domain,0.5020710566413212,spurs_multi,33441.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS multi,MYO_HUMAN_Kung_2025_display,0.5556178766359391,spurs_multi,5905.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS multi,ESTA_BACSU_Nutschel_2020_dTm,0.3752653533313497,spurs_multi,2172.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS multi,GB1_Wu_2016_binding_domain,0.2578796509465191,spurs_multi,149360.0,0,0,149360,0,0,0.0,0,0,0,0,,P1,ᴾ
+SPURS multi,domainome,0.406233086590562,spurs_multi,534385.0,0,1172,18144,117612,29413,0.0,0,0,0,0,,m.002 P.03 H.22 h.06,ᵐ
+SPURS multi,tsu_capped_val,0.7893012177971547,spurs_multi,35473.0,7300,937,10593,866,810,0.0,0,0,1,0,,M.21 m.03 P.30 H.02 h.02 V,ᴹ
+SPURS multi,tsu_capped_test,0.8055616363108623,spurs_multi,52071.0,6400,1717,22537,3515,796,0.0,0,0,0,0,,M.12 m.03 P.43 H.07 h.02,ᴹ
+ProteinMPNN,s571,0.3236141625268133,corpus,571.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,s783,0.5607774315683574,corpus,783.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,s2648,0.5060309649150412,corpus,2648.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,s8754,0.4375225614552609,corpus,8754.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,s669,0.3285863013593246,corpus,669.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,s461,0.4417890561850104,corpus,461.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,ssym,0.6957546274261525,corpus,684.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,q3421,0.4941795908163613,corpus,3421.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,k3822,0.419638955313917,corpus,3822.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,k2369,0.4360916817020452,corpus,2369.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,ptmul,0.3821471544825849,corpus,914.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,ptmuld,0.5460901650839385,corpus,536.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,DLG4_HUMAN_Faure_2021_abundance_domain,0.6185691986695747,corpus,6976.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,DLG4_HUMAN_Faure_2021_binding_domain,0.6126244095157609,corpus,8251.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,GRB2_HUMAN_Faure_2021_abundance_domain,0.6665970561444869,corpus,63366.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,GRB2_HUMAN_Faure_2021_binding_domain,0.5382489492440119,corpus,33441.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,MYO_HUMAN_Kung_2025_display,0.4977976722844026,corpus,5905.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,ESTA_BACSU_Nutschel_2020_dTm,0.5437442488449519,corpus,2172.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,GB1_Wu_2016_binding_domain,0.1194896944344219,corpus,149360.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,domainome,0.5476333316835287,corpus,534385.0,0,0,0,0,0,1.0,0,0,0,0,,C,ᶜ
+ProteinMPNN,tsu_capped_val,0.5317505964407443,corpus,35473.0,0,0,0,0,0,0.729597158402165,0,0,0,0,,C.73,ᶜ
+ProteinMPNN,tsu_capped_test,0.5373912098733792,corpus,52071.0,0,0,0,0,0,0.7820667934166811,0,0,0,0,,C.78,ᶜ
+DDGemb,tsu_capped_val,0.4896418470168683,ddgemb_s2450,35473.0,0,0,0,0,0,0.0,0,0,1,0,,V,
+DDGemb,tsu_capped_test,0.5075246745472338,ddgemb_s2450,52071.0,0,0,0,0,799,0.0,0,0,0,0,,h.02,ʰ
+Rosetta,tsu_capped_val,0.6827383095316205,none,35473.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+Rosetta,tsu_capped_test,0.6625513977830332,none,52071.0,0,0,0,0,0,0.0,0,0,0,0,,–,
