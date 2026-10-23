@@ -264,6 +264,7 @@ command line). Locked pin: `dc_runs/pin_trim_f5a00b8`; runner `dc_runs/trim_run.
 |---|---|---|---|
 | 1 | `trim_ctrl_s1` | none: the standing recipe on the trimmed code (no gap rule), the matched control and the check that the trim did not move the recipe | |
 | 2 | `trim_ncmt_s1` | `--native_cond_for_mt` | top-5 #1 |
+| 2b | `trim_r2a4_s1`, `trim_r4a8_s1` | MT `--lora_rank_mt/--lora_alpha_mt` 2/4 and 4/8 (rsLoRA scale 2.83 and 4.0 against the control's 4.0), added at your request: capacity, with r4a8 holding the update scale fixed. The old runs had r2a4 below r16a16 on every in-distribution target at matched epoch (`cell_rank_mt` -0.014) and slightly above on the external sets (+0.004 mean rho) | MT capacity |
 | 3 | `trim_joint_dual_s1` | joint training, dual adapters (the control for #4) | #2 |
 | 4 | `trim_joint_fused_s1` | `--adapter_mode fused`: one shared adapter | #2 |
 | 5 | `trim_mask_mt_ind_s1` | `--mask_strategy_mt independent` (micro-batch 32: the two graphs of a double do not fit at 64) | #3 |
@@ -272,7 +273,7 @@ command line). Locked pin: `dc_runs/pin_trim_f5a00b8`; runner `dc_runs/trim_run.
 | 11 | `trim_tfmix0_s1` | `--tf_mix 0.0` | §2.5 |
 
 Expected: the control within seed noise of `mt_frozenwt_r16a16_s1/s2` and `mt_frozenwt_dthr0_r16a16_s1` (cell_rank_mt 0.18-0.19). A single-seed lead needs about +0.02 on
-`cell_rank_mt` or +0.05 on `flipacc`, and a second seed for both arms, before it is worth a sentence. The 11 arms are roughly 40 GPU-hours.
+`cell_rank_mt` or +0.05 on `flipacc`, and a second seed for both arms, before it is worth a sentence. The 13 arms are roughly 45 GPU-hours.
 
 **Caveats the arms carry.** (a) *Fused:* the shared adapter's parameters sit in the `lora_wt` group, so the WT plateau (on `rho_wt_valid`) decays it, the MT plateau
 has no group to act on, and after three decays the handover leaves it training at 2.7% of its rate until the epoch cap: a schedule difference from the dual arm, not a
