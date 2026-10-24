@@ -436,8 +436,23 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # =============================================================
             # PHASE 1: WILD-TYPE PASS
             # =============================================================
-            wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.mask_wt)
-            wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
+            wt_frozen = bool(self.peft_manager.wt_path_is_frozen)
+            need_wt_losses = (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0)
+            if wt_frozen and hasattr(self.model, 'peft_wt') and isinstance(self.model.peft_wt, torch.nn.Module):
+                self.model.peft_wt.eval()
+
+            if wt_frozen and not need_wt_losses and tf_mix >= 1.0 and bool(has_add_label.all()):
+                wt_pred_cal = torch.zeros_like(tf_additive_labels)
+                wt_pred_raw = torch.zeros_like(tf_additive_labels)
+            elif wt_frozen and not need_wt_losses:
+                with torch.no_grad():
+                    wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.mask_wt)
+                    wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
+                if torch.cuda.is_available():
+                    torch.clear_autocast_cache()
+            else:
+                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.mask_wt)
+                wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
 
             cens_wt = torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
             wt_losses = []
@@ -569,6 +584,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def training_step(self, batch: dict, batch_idx: int):
         self.model.train()
+        if self.peft_manager.wt_path_is_frozen and hasattr(self.model, 'peft_wt') and isinstance(self.model.peft_wt, torch.nn.Module):
+            self.model.peft_wt.eval()
         logs = self._compose_losses_streaming_and_backward(utils._normalize_batch(batch))
 
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
@@ -576,18 +593,20 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         optim = self.optimizers()
 
-        param_id_to_name = {id(p): name for name, p in self.model.named_parameters()}
-        for i, g in enumerate(optim.param_groups):
-            group_name = g.get("name", f"group{i}")
-            named_params = [(param_id_to_name.get(id(p), f"param_{j}"), p) for j, p in enumerate(g["params"])]
+        log_every = int(getattr(self.trainer, 'log_every_n_steps', 25) or 25) if getattr(self, '_trainer', None) is not None else 1
+        if batch_idx == 0 or (batch_idx + 1) % log_every == 0:
+            param_id_to_name = {id(p): name for name, p in self.model.named_parameters()}
+            for i, g in enumerate(optim.param_groups):
+                group_name = g.get("name", f"group{i}")
+                named_params = [(param_id_to_name.get(id(p), f"param_{j}"), p) for j, p in enumerate(g["params"])]
 
-            w_norm = utils.l2_weight_norm(named_params)
-            g_norm = utils.l2_grad_norm(named_params)
-            s_norm = utils.group_step_norm(named_params, float(g["lr"]))
+                w_norm = utils.l2_weight_norm(named_params)
+                g_norm = utils.l2_grad_norm(named_params)
+                s_norm = utils.group_step_norm(named_params, float(g["lr"]))
 
-            self.log(f"norm_weight/{group_name}", w_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
-            self.log(f"norm_grad/{group_name}", g_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
-            self.log(f"norm_step/{group_name}", s_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
+                self.log(f"norm_weight/{group_name}", w_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
+                self.log(f"norm_grad/{group_name}", g_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
+                self.log(f"norm_step/{group_name}", s_norm, on_step=True, on_epoch=False, logger=True, sync_dist=True)
 
         optim.step()
         optim.zero_grad(set_to_none=True)
@@ -616,6 +635,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         return torch.tensor(0.0, device=self.device)
 
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
+        if getattr(self, '_val_cache_dl_idx', None) != dataloader_idx:
+            self._val_cache_dl_idx = dataloader_idx
+            self.model._masked_logit_cache = {}
+        elif getattr(self.model, '_masked_logit_cache', None) is None:
+            self.model._masked_logit_cache = {}
+
         wt_only = bool(self.hparams.get('val_wt_only', False))
         if wt_only and not getattr(self, '_warned_val_wt_only', False):
             self._warned_val_wt_only = True
@@ -935,6 +960,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         ESM3EpistasisLightningModule._plateau_step(self, 'wt', avg_metrics)
 
     def _mt_plateau_step(self, avg_metrics: dict) -> None:
+        if getattr(getattr(self, 'model', None), 'adapter_mode', 'dual') == 'fused':
+            return
         ESM3EpistasisLightningModule._plateau_step(self, 'mt', avg_metrics)
 
     def _stop_if_nothing_is_training(self) -> None:
@@ -976,14 +1003,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         """
         self._save_converged_wt_weights()
         self.peft_manager.freeze_wt_components()
-        if self.hparams.freeze_mt_adapter:
+        if self.hparams.freeze_mt_adapter or getattr(getattr(self, 'model', None), 'adapter_mode', 'dual') == 'fused':
             self.peft_manager.freeze_mt_components()
-        else:
+        elif not getattr(self.peft_manager, 'mt_path_is_frozen', False):
             self.peft_manager.unfreeze_mt_components()
         self.peft_manager.has_transitioned = True
         self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
     def on_validation_end(self):
+        self.model._masked_logit_cache = None
+        self._val_cache_dl_idx = None
         self.peft_manager.apply_baseline_requires_grad()
 
     def configure_optimizers(self):

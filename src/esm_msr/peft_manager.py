@@ -73,7 +73,7 @@ class PEFTStateManager:
                 p.requires_grad = False
                 if p.grad is not None: p.grad = None
                 
-                if 'calibration_head_wt' in name: frozen_groups.add('calib_wt')
+                if 'calibration_head_wt' in name or 'calibration_head_fused' in name: frozen_groups.add('calib_wt')
                 elif 'calibration_head_mt' in name: frozen_groups.add('calib_mt')
                 elif wt_name in name: frozen_groups.add('lora_wt')
                 elif mt_name in name: frozen_groups.add('lora_mt')

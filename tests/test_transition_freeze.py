@@ -60,3 +60,20 @@ def test_a_normal_arm_still_opens_the_mt_path():
     ESM3EpistasisLightningModule._transition_to_mt(obj)
     assert obj.peft_manager.calls == ['freeze_wt', 'unfreeze_mt', 'enforce(zero_lrs=True)']
     assert not obj.peft_manager.mt_path_is_frozen, "the normal handover must still thaw MT"
+
+
+def test_transition_does_not_rethaw_already_frozen_mt_path():
+    obj = _bare(freeze_mt_adapter=False)
+    obj.peft_manager.mt_path_is_frozen = True
+    ESM3EpistasisLightningModule._transition_to_mt(obj)
+    assert obj.peft_manager.calls == ['freeze_wt', 'enforce(zero_lrs=True)']
+    assert obj.peft_manager.mt_path_is_frozen, "an MT path that already plateau-froze must stay frozen when WT transitions later"
+
+
+def test_fused_mode_freezes_at_wt_transition_and_skips_mt_plateau():
+    obj = _bare(freeze_mt_adapter=False)
+    obj.model = SimpleNamespace(adapter_mode='fused')
+    ESM3EpistasisLightningModule._mt_plateau_step(obj, {'epi_beyond_rho_mt': [0.5, 0.4]})
+    assert obj.peft_manager.calls == []
+    ESM3EpistasisLightningModule._transition_to_mt(obj)
+    assert obj.peft_manager.calls == ['freeze_wt', 'freeze_mt', 'enforce(zero_lrs=True)']

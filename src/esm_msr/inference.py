@@ -79,18 +79,14 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'unfreeze_layernorms': False,
     }
 
-    for key, default_val in default_wt.items():
+    for key in ('lora_rank', 'lora_alpha', 'lora_dropout'):
         if key + '_wt' not in hparams:
-            logging.warning(f"Expected base parameter '{key}' missing from hparams. Defaulting to {default_val}.")
-
-    for key, default_val in default_mt.items():
+            logging.warning(f"Expected base parameter '{key}_wt' missing from hparams. Defaulting to {default_wt[key]}.")
         if key + '_mt' not in hparams:
-            logging.warning(f"Expected base parameter '{key}' missing from hparams. Defaulting to {default_val}.")
+            logging.warning(f"Expected base parameter '{key}_mt' missing from hparams. Defaulting to {default_mt[key]}.")
 
     if 'adapter_mode' not in hparams:
         logging.warning("Expected 'adapter_mode' missing from hparams. Defaulting to 'dual'.")
-    if 'lora_mode' not in hparams:
-        logging.warning("Expected 'lora_mode' missing from hparams. Defaulting to 'ensemble'.")
 
     wt_config = {
         'lora_rank': hparams.get('lora_rank_wt', default_wt['lora_rank']),
@@ -116,12 +112,23 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'unfreeze_layernorms': hparams.get('unfreeze_layernorms_mt', default_mt['unfreeze_layernorms']),
     }
 
+    m_wt = hparams.get('mask_strategy_wt', hparams.get('mask_strategy', None))
+    m_mt = hparams.get('mask_strategy_mt', hparams.get('mask_strategy', None))
+    if isinstance(m_wt, str) and m_wt.lower() == 'none': m_wt = None
+    if isinstance(m_mt, str) and m_mt.lower() == 'none': m_mt = None
+    if m_wt == m_mt:
+        ckpt_mask_strategy = m_wt
+    else:
+        ckpt_mask_strategy = {'wt': m_wt, 'mt': m_mt}
+
     return {
         'wt_config': wt_config,
         'mt_config': mt_config,
         'adapter_mode': hparams.get('adapter_mode', 'dual'),
         'lora_mode': hparams.get('lora_mode', 'ensemble'),
         'calibration': calibration_from_hparams(hparams),
+        'mask_strategy': ckpt_mask_strategy,
+        'native_cond_for_mt': bool(hparams.get('native_cond_for_mt', False)),
     }
 
 
@@ -296,7 +303,8 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
         dist_matrix = compute_pairwise_heavy_atom_dist_matrix(coords)
         
     cached_wt_esm3 = None
-    if optimize_wt_pass and mask_strategy is None:
+    wt_mask_strat = mask_strategy.get('wt') if isinstance(mask_strategy, dict) else mask_strategy
+    if optimize_wt_pass and wt_mask_strat is None:
         with _dtype_autocast(model, dev):
             out = model._get_esm3_outputs(seq_toks, coords, struct_toks, plddt)
 
@@ -444,7 +452,10 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
     return out
 
 if __name__ == "__main__":
-    from models import MSRModel
+    try:
+        from esm_msr.models import MSRModel
+    except ImportError:
+        from models import MSRModel
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -478,6 +489,8 @@ if __name__ == "__main__":
     parser.add_argument("--backbone_mutation", type=str, default=None, help="Backbone mutation applied across structures")
     parser.add_argument("--no_optimize_wt_pass", action="store_true", help="Disable the caching of the Wild Type pass")
     parser.add_argument('--mask_strategy', type=str, choices=['marginal', 'independent'], default=None)
+    parser.add_argument('--mask_strategy_wt', type=str, choices=['none', 'marginal', 'independent'], default=None)
+    parser.add_argument('--mask_strategy_mt', type=str, choices=['none', 'marginal', 'independent'], default=None)
     parser.add_argument("--skip_additive", action="store_true", help="Skip single mutation sub-calculations for multis")
     parser.add_argument("--skip_reverse", action="store_true", help="Skip the MT pass if predicting purely from WT adapters")
 
@@ -620,6 +633,8 @@ if __name__ == "__main__":
     adapter_mode = "dual"
     lora_mode = "ensemble"
     checkpoint_cal = None
+    ckpt_mask_strategy = None
+    native_cond_for_mt = False
 
     if args.lora_config:
         try:
@@ -632,6 +647,8 @@ if __name__ == "__main__":
             adapter_mode = lora_config.get('adapter_mode', 'dual')
             lora_mode = lora_config.get('lora_mode', 'ensemble')
             checkpoint_cal = calibration_from_hparams(lora_config)
+            ckpt_mask_strategy = lora_config.get('mask_strategy')
+            native_cond_for_mt = bool(lora_config.get('native_cond_for_mt', False))
 
             # Apply sigma
             if args.sigma <= 0:
@@ -652,10 +669,21 @@ if __name__ == "__main__":
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         lora_mode = parsed_config.get('lora_mode', 'ensemble')
         checkpoint_cal = parsed_config.get('calibration')
+        ckpt_mask_strategy = parsed_config.get('mask_strategy')
+        native_cond_for_mt = bool(parsed_config.get('native_cond_for_mt', False))
         lora_config = {
             'wt_config': parsed_config['wt_config'],
             'mt_config': parsed_config['mt_config']
         }
+
+    if args.mask_strategy_wt is not None or args.mask_strategy_mt is not None:
+        m_wt = None if args.mask_strategy_wt in (None, 'none') else args.mask_strategy_wt
+        m_mt = None if args.mask_strategy_mt in (None, 'none') else args.mask_strategy_mt
+        eff_mask_strategy = m_wt if m_wt == m_mt else {'wt': m_wt, 'mt': m_mt}
+    elif args.mask_strategy is not None:
+        eff_mask_strategy = args.mask_strategy
+    else:
+        eff_mask_strategy = ckpt_mask_strategy
 
     dtype_map = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}
     model_dtype = dtype_map[args.model_dtype]
@@ -663,7 +691,7 @@ if __name__ == "__main__":
 
     cal = resolve_calibration(checkpoint_cal, args.tie_mt_scale, args.per_mutation_bias)
     logging.info(f"Initializing MSRModel on {device} (dtype: {model_dtype}, adapter: {adapter_mode}, lora: {lora_mode}, "
-                 f"tie_mt_scale: {cal['tie_mt_scale']}, per_mutation_bias: {cal['per_mutation_bias']})...")
+                 f"tie_mt_scale: {cal['tie_mt_scale']}, per_mutation_bias: {cal['per_mutation_bias']}, mask_strategy: {eff_mask_strategy})...")
 
     model = MSRModel(
         lora_config=lora_config,
@@ -678,6 +706,7 @@ if __name__ == "__main__":
         lora_mode=lora_mode,
         tie_mt_scale=cal['tie_mt_scale'],
         per_mutation_bias=cal['per_mutation_bias'],
+        native_cond_mt_input=native_cond_for_mt,
     )
 
     if args.base_model_loc:
@@ -701,7 +730,7 @@ if __name__ == "__main__":
         quiet=False,
         skip_additive=args.skip_additive,
         skip_reverse=args.skip_reverse,
-        mask_strategy=args.mask_strategy,
+        mask_strategy=eff_mask_strategy,
         calculate_distances=args.calculate_distances
     )
 

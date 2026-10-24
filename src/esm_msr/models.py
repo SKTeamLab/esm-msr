@@ -613,13 +613,7 @@ class MSRModel(ESM3PredictorBase):
         wt_pred_cal, mt_pred_cal = wt_out['pred_calibrated'], mt_out['pred_calibrated']
         wt_pred_raw, mt_pred_raw = wt_out['pred_raw'], mt_out['pred_raw']
 
-        mm = batch_in.get('mut_mask')
-        n_mut = mm.sum(dim=1) if mm is not None else None
-        if self.adapter_mode == 'fused':
-            combined_pred = combine_predictions(self.calibration_head_fused(wt_pred_raw, n_mut),
-                                                self.calibration_head_fused(mt_pred_raw, n_mut))
-        else:
-            combined_pred = combine_predictions(wt_pred_cal, mt_pred_cal)
+        combined_pred = combine_predictions(wt_pred_cal, mt_pred_cal)
 
         # The predicted epistasis is whatever the combined prediction adds beyond the WT head: 0.5(mt-wt) under
         # 'mean', mt-wt under 'route' (doubles). Mode-agnostic definition.
@@ -686,6 +680,15 @@ class MSRModel(ESM3PredictorBase):
         safe_mt_id = mt_id.clone(); safe_mt_id[~mut_mask] = 0
         b_idx = torch.arange(B, device=seq.device).unsqueeze(1).expand(-1, max_muts)
 
+        pdb_list = batch.get('pdb')
+        if B <= 1:
+            same_struct = True
+        elif isinstance(pdb_list, (list, tuple)) and len(pdb_list) == B:
+            same_struct = (len(set(pdb_list)) == 1)
+        else:
+            same_struct = ((coords is None or bool(torch.equal(coords[0], coords[-1]))) and
+                           (struct_tokens is None or bool(torch.equal(struct_tokens[0], struct_tokens[-1]))))
+
         if mask_strategy is not None:
             if mask_strategy == 'chain':
                 mask_strategy = 'independent'  # legacy alias for old hparams.yaml
@@ -702,28 +705,82 @@ class MSRModel(ESM3PredictorBase):
                 active_model = self.peft_fused
                 
             unsummed_llr = torch.zeros((B, max_muts), dtype=torch.float32, device=seq.device)
+            lib_cache = getattr(self, '_masked_logit_cache', None)
+            can_dedup = same_struct and not getattr(active_model, 'training', False)
+
+            def _expand_b(t: Optional[torch.Tensor], n: int) -> Optional[torch.Tensor]:
+                return t[0:1].expand(n, *([-1] * (t.ndim - 1))) if t is not None else None
+
+            def _eval_masked_seqs(seqs_in: torch.Tensor, row_idx: Optional[torch.Tensor] = None) -> torch.Tensor:
+                n_rows = seqs_in.shape[0]
+                if same_struct:
+                    c_in = _expand_b(coords, n_rows)
+                    s_in = _expand_b(struct_tokens, n_rows)
+                    p_in = _expand_b(plddt, n_rows)
+                else:
+                    c_in = coords[row_idx] if (coords is not None and row_idx is not None) else coords
+                    s_in = struct_tokens[row_idx] if (struct_tokens is not None and row_idx is not None) else struct_tokens
+                    p_in = plddt[row_idx] if (plddt is not None and row_idx is not None) else plddt
+
+                has_pdb_id = isinstance(pdb_list, (list, tuple)) and len(pdb_list) == B and len(set(pdb_list)) == 1
+                if same_struct and has_pdb_id and lib_cache is not None and not torch.is_grad_enabled():
+                    pdb_id = pdb_list[0]
+                    seqs_np = seqs_in.detach().cpu().numpy()
+                    keys = [(pdb_id, pass_type, seqs_np[r].tobytes()) for r in range(n_rows)]
+                    miss_indices = [r for r, k in enumerate(keys) if k not in lib_cache]
+                    if miss_indices:
+                        miss_t = torch.tensor(miss_indices, dtype=torch.long, device=seqs_in.device)
+                        miss_seqs = seqs_in[miss_t]
+                        chunk_sz = max(1, B)
+                        for st in range(0, len(miss_indices), chunk_sz):
+                            en = min(st + chunk_sz, len(miss_indices))
+                            sub_n = en - st
+                            mc = _expand_b(coords, sub_n)
+                            ms = _expand_b(struct_tokens, sub_n)
+                            mp = _expand_b(plddt, sub_n)
+                            out_m = self._get_esm3_outputs(miss_seqs[st:en], mc, ms, mp, active_model=active_model)
+                            logits_m = self._process_logits(out_m.sequence_logits.float())
+                            for j_local in range(sub_n):
+                                r_orig = miss_indices[st + j_local]
+                                lib_cache[keys[r_orig]] = logits_m[j_local]
+                    return torch.stack([lib_cache[k] for k in keys], dim=0)
+
+                out = self._get_esm3_outputs(seqs_in, c_in, s_in, p_in, active_model=active_model)
+                return self._process_logits(out.sequence_logits.float())
             
             if mask_strategy == 'independent':
+                b_list, i_list, pos_list, seq_list = [], [], [], []
                 for i in range(max_muts):
                     curr_mask = mut_mask[:, i]
                     if not curr_mask.any():
                         continue
-                    
-                    masked_seq = seq.clone()
-                    batch_idx_valid = torch.where(curr_mask)[0]
-                    pos_valid = safe_pos[curr_mask, i]
-                    
-                    # Apply the mask locally
-                    masked_seq[batch_idx_valid, pos_valid] = mask_token_id
-                    
-                    out = self._get_esm3_outputs(masked_seq, coords, struct_tokens, plddt, active_model=active_model)
-                    step_logits_B = self._process_logits(out.sequence_logits.float())
-                    
-                    # Regardless of WT or MT pass, logic calculates MT - WT 
-                    # (Equivalent to -(WT - MT) used originally for MT pass)
-                    mt_logits = step_logits_B[batch_idx_valid, pos_valid, safe_mt_id[curr_mask, i]]
-                    wt_logits = step_logits_B[batch_idx_valid, pos_valid, safe_wt_id[curr_mask, i]]
-                    unsummed_llr[batch_idx_valid, i] = mt_logits - wt_logits
+                    b_valid = torch.where(curr_mask)[0]
+                    p_valid = safe_pos[b_valid, i]
+                    m_seq = seq[b_valid].clone()
+                    m_seq[torch.arange(b_valid.shape[0], device=seq.device), p_valid] = mask_token_id
+                    b_list.append(b_valid)
+                    i_list.append(torch.full_like(b_valid, i))
+                    pos_list.append(p_valid)
+                    seq_list.append(m_seq)
+
+                if b_list:
+                    b_all = torch.cat(b_list, dim=0)
+                    i_all = torch.cat(i_list, dim=0)
+                    pos_all = torch.cat(pos_list, dim=0)
+                    seqs_all = torch.cat(seq_list, dim=0)
+
+                    if same_struct:
+                        unique_seqs, inv_idx = torch.unique(seqs_all, dim=0, return_inverse=True)
+                        step_logits_U = _eval_masked_seqs(unique_seqs)
+                        mt_logits = step_logits_U[inv_idx, pos_all, safe_mt_id[b_all, i_all]]
+                        wt_logits = step_logits_U[inv_idx, pos_all, safe_wt_id[b_all, i_all]]
+                        unsummed_llr[b_all, i_all] = mt_logits - wt_logits
+                    else:
+                        step_logits_M = _eval_masked_seqs(seqs_all, row_idx=b_all)
+                        m_idx = torch.arange(seqs_all.shape[0], device=seq.device)
+                        mt_logits = step_logits_M[m_idx, pos_all, safe_mt_id[b_all, i_all]]
+                        wt_logits = step_logits_M[m_idx, pos_all, safe_wt_id[b_all, i_all]]
+                        unsummed_llr[b_all, i_all] = mt_logits - wt_logits
 
             elif mask_strategy == 'marginal':
                 masked_seq = seq.clone()
@@ -735,8 +792,12 @@ class MSRModel(ESM3PredictorBase):
                     pos_valid = safe_pos[curr_mask, i]
                     masked_seq[batch_idx_valid, pos_valid] = mask_token_id
                 
-                out = self._get_esm3_outputs(masked_seq, coords, struct_tokens, plddt, active_model=active_model)
-                step_logits_B = self._process_logits(out.sequence_logits.float())
+                if same_struct:
+                    unique_seqs, inv_idx = torch.unique(masked_seq, dim=0, return_inverse=True)
+                    step_logits_U = _eval_masked_seqs(unique_seqs)
+                    step_logits_B = step_logits_U[inv_idx]
+                else:
+                    step_logits_B = _eval_masked_seqs(masked_seq)
                 
                 mt_logits, wt_logits = step_logits_B[b_idx, safe_pos, safe_mt_id], step_logits_B[b_idx, safe_pos, safe_wt_id]
                 unsummed_llr = torch.where(mut_mask, mt_logits - wt_logits, torch.zeros_like(mt_logits))
@@ -760,8 +821,24 @@ class MSRModel(ESM3PredictorBase):
                 else:
                     active_model = self.peft_fused
 
-                out = self._get_esm3_outputs(seq, coords, struct_tokens, plddt, active_model=active_model)
-                logits_B = self._process_logits(out.sequence_logits.float())
+                if pass_type == 'wt' and B > 1 and same_struct and not getattr(active_model, 'training', False) and bool((seq == seq[0:1]).all()):
+                    lib_cache = getattr(self, '_masked_logit_cache', None)
+                    has_pdb_id = isinstance(pdb_list, (list, tuple)) and len(pdb_list) == B and len(set(pdb_list)) == 1
+                    cache_key = (pdb_list[0], 'wt_unmasked', seq[0].detach().cpu().numpy().tobytes()) if (has_pdb_id and lib_cache is not None and not torch.is_grad_enabled()) else None
+                    if cache_key is not None and cache_key in lib_cache:
+                        logits_1 = lib_cache[cache_key]
+                    else:
+                        c_1 = coords[0:1] if coords is not None else None
+                        s_1 = struct_tokens[0:1] if struct_tokens is not None else None
+                        p_1 = plddt[0:1] if plddt is not None else None
+                        out = self._get_esm3_outputs(seq[0:1], c_1, s_1, p_1, active_model=active_model)
+                        logits_1 = self._process_logits(out.sequence_logits.float())
+                        if cache_key is not None:
+                            lib_cache[cache_key] = logits_1
+                    logits_B = logits_1.expand(B, -1, -1)
+                else:
+                    out = self._get_esm3_outputs(seq, coords, struct_tokens, plddt, active_model=active_model)
+                    logits_B = self._process_logits(out.sequence_logits.float())
 
             if pass_type == 'wt':
                 mt_logits, wt_logits = logits_B[b_idx, safe_pos, safe_mt_id], logits_B[b_idx, safe_pos, safe_wt_id]
@@ -777,15 +854,17 @@ class MSRModel(ESM3PredictorBase):
         n_mut = mut_mask.sum(dim=1)
 
         if pass_type == 'wt':
-            llr_sum_cal = self.calibration_head_fused(llr_sum_raw, n_mut) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_wt(llr_sum_raw, n_mut) if hasattr(self, 'calibration_head_wt') else llr_sum_raw)
+            cal_wt = getattr(self, 'calibration_head_fused', None) if self.adapter_mode == 'fused' else getattr(self, 'calibration_head_wt', None)
+            llr_sum_cal = cal_wt(llr_sum_raw, n_mut) if cal_wt is not None else llr_sum_raw
         elif pass_type == 'mt':
-            llr_sum_cal = self.calibration_head_fused(llr_sum_raw, n_mut) if self.adapter_mode == 'fused' and hasattr(self, 'calibration_head_fused') else (self.calibration_head_mt(llr_sum_raw, n_mut) if hasattr(self, 'calibration_head_mt') else llr_sum_raw)
+            cal_mt = getattr(self, 'calibration_head_fused', None) if self.adapter_mode == 'fused' else getattr(self, 'calibration_head_mt', None)
+            llr_sum_cal = cal_mt(llr_sum_raw, n_mut) if cal_mt is not None else llr_sum_raw
 
         output_dict = {'pred_calibrated': llr_sum_cal, 'pred_raw': llr_sum_raw, 'unsummed_llr': unsummed_llr}
         return output_dict
 
     @torch.no_grad()
-    def score_screening_batch(self, wt_sequence_tokens: torch.Tensor, mut_pos: torch.Tensor, wt_id: torch.Tensor, mt_id: torch.Tensor, mut_mask: torch.Tensor, coords: Optional[torch.Tensor] = None, structure_tokens: Optional[torch.Tensor] = None, plddt: Optional[torch.Tensor] = None, mask_strategy: Optional[str] = None, batch_size: int = 32, skip_reverse: bool = False, cached_wt_esm3: Optional[Dict] = None, quiet: bool = False, auto_batch: Optional["AutoBatchSizer"] = None) -> Dict[str, torch.Tensor]:
+    def score_screening_batch(self, wt_sequence_tokens: torch.Tensor, mut_pos: torch.Tensor, wt_id: torch.Tensor, mt_id: torch.Tensor, mut_mask: torch.Tensor, coords: Optional[torch.Tensor] = None, structure_tokens: Optional[torch.Tensor] = None, plddt: Optional[torch.Tensor] = None, mask_strategy: Union[str, Dict[str, Optional[str]], None] = None, batch_size: int = 32, skip_reverse: bool = False, cached_wt_esm3: Optional[Dict] = None, quiet: bool = False, auto_batch: Optional["AutoBatchSizer"] = None) -> Dict[str, torch.Tensor]:
         """
         A unified, sparse-input scoring engine. 
         Routes dynamically between dense chunking (for unmasked) and state deduplication (for masked)
@@ -804,7 +883,15 @@ class MSRModel(ESM3PredictorBase):
         mt_lora_pred = torch.zeros(B, dtype=torch.float32, device=device)
         combined_pred = torch.zeros(B, dtype=torch.float32, device=device)
 
-        if mask_strategy is None:
+        mask_wt = _per_pass(mask_strategy, 'wt')
+        mask_mt = _per_pass(mask_strategy, 'mt')
+        if mask_wt == 'chain': mask_wt = 'independent'
+        if mask_mt == 'chain': mask_mt = 'independent'
+        for m_s in (mask_wt, mask_mt):
+            if m_s not in (None, 'independent', 'marginal'):
+                raise AssertionError(f"Invalid mask_strategy: '{m_s}'. Expected 'independent', 'chain', 'marginal', or None.")
+
+        if mask_wt is None and (mask_mt is None or skip_reverse):
             # ROUTE 1: Dense Chunking for Unmasked (Maximum GPU Saturation, No Hashing Overhead)
             def _dense_chunk(start_idx, end_idx):
                 curr_B = end_idx - start_idx
@@ -859,80 +946,78 @@ class MSRModel(ESM3PredictorBase):
                 auto_batch.run(B, _dense_chunk, label=f'dense-B{B}-L{wt_sequence_tokens.shape[1]}')
 
         else:
-            # ROUTE 2: State Deduplication for Masked (Resolves combinatorial explosion)
-            if mask_strategy == 'chain':
-                mask_strategy = 'independent'  # legacy alias for old hparams.yaml
-            if mask_strategy not in ['independent', 'marginal']:
-                raise AssertionError(f"Invalid mask_strategy: '{mask_strategy}'. Expected 'independent', 'chain', 'marginal', or None.")
-            if cached_wt_esm3 is not None:
-                raise NotImplementedError(f"cached_wt_esm3 cannot be used with mask_strategy='{mask_strategy}'.")
-            
-            mask_token_id = C.SEQUENCE_MASK_TOKEN
+            # ROUTE 2: State Deduplication for Masked (Supports symmetric or per-pass asymmetric masking)
+            if mask_wt is not None and cached_wt_esm3 is not None:
+                raise NotImplementedError(f"cached_wt_esm3 cannot be used when WT mask_strategy='{mask_wt}'.")
+
+            mask_token_id = int(C.SEQUENCE_MASK_TOKEN)
             wt_state_reqs = defaultdict(set)
             mt_state_reqs = defaultdict(set)
             state_map = defaultdict(dict)
 
             base_wt = wt_sequence_tokens.squeeze(0)
+            mut_pos_cpu = mut_pos.detach().cpu().tolist()
+            mt_id_cpu = mt_id.detach().cpu().tolist()
+            mut_mask_cpu = mut_mask.detach().cpu().tolist()
 
             _tA = time.time()
-            _hb(f"    [PHASE-A] start B={B} L={wt_sequence_tokens.shape[1]}")
+            _hb(f"    [PHASE-A] start B={B} L={wt_sequence_tokens.shape[1]} (wt={mask_wt}, mt={mask_mt})")
             for b in tqdm(range(B), desc='Constructing efficient masked batches to evaluate', disable=quiet):
                 if b and b % 100_000 == 0:
                     _hb(f"    [PHASE-A] {b}/{B} ({time.time()-_tA:.0f}s)")
-                valid_indices = torch.where(mut_mask[b])[0].tolist()
-                if not valid_indices: continue
-                
-                # Construct base MT purely from sparse indices
-                base_mt = base_wt.clone()
-                for i in valid_indices:
-                    base_mt[mut_pos[b, i]] = mt_id[b, i]
-                
-                if mask_strategy == 'independent':
-                    for i in valid_indices:
-                        pos = mut_pos[b, i].item()
-                        
-                        wt_state_t = base_wt.clone()
-                        wt_state_t[pos] = mask_token_id
-                        wt_tup = tuple(wt_state_t.tolist())
-                        wt_state_reqs[wt_tup].add(pos)
-                        
-                        mt_state_t = base_mt.clone()
-                        mt_state_t[pos] = mask_token_id
-                        mt_tup = tuple(mt_state_t.tolist())
-                        mt_state_reqs[mt_tup].add(pos)
-                        
-                        state_map[b][i] = (wt_tup, mt_tup)
+                valid_indices = [i for i, m in enumerate(mut_mask_cpu[b]) if m]
+                if not valid_indices:
+                    continue
 
-                elif mask_strategy == 'marginal':
-                    all_positions = mut_pos[b, valid_indices]
-                    
-                    wt_state_t = base_wt.clone()
-                    wt_state_t[all_positions] = mask_token_id
-                    wt_tup = tuple(wt_state_t.tolist())
-                    
-                    mt_state_t = base_mt.clone()
-                    mt_state_t[all_positions] = mask_token_id
-                    mt_tup = tuple(mt_state_t.tolist())
-                    
+                if mask_wt == 'independent':
+                    wt_keys = {i: ((mut_pos_cpu[b][i], mask_token_id),) for i in valid_indices}
+                elif mask_wt == 'marginal':
+                    wk = tuple(sorted((mut_pos_cpu[b][i], mask_token_id) for i in valid_indices))
+                    wt_keys = {i: wk for i in valid_indices}
+                else:
+                    wt_keys = {i: None for i in valid_indices}
+
+                if not skip_reverse and mask_mt == 'independent':
+                    mt_keys = {}
                     for i in valid_indices:
-                        pos = mut_pos[b, i].item()
-                        wt_state_reqs[wt_tup].add(pos)
-                        mt_state_reqs[mt_tup].add(pos)
-                        state_map[b][i] = (wt_tup, mt_tup)
+                        ov = {}
+                        for j in valid_indices:
+                            ov[mut_pos_cpu[b][j]] = int(mt_id_cpu[b][j])
+                        ov[mut_pos_cpu[b][i]] = mask_token_id
+                        mt_keys[i] = tuple(sorted(ov.items()))
+                elif not skip_reverse and mask_mt == 'marginal':
+                    mk = tuple(sorted((mut_pos_cpu[b][i], mask_token_id) for i in valid_indices))
+                    mt_keys = {i: mk for i in valid_indices}
+                else:
+                    mt_keys = {i: None for i in valid_indices}
+
+                for i in valid_indices:
+                    pos = mut_pos_cpu[b][i]
+                    wk, mk = wt_keys[i], mt_keys[i]
+                    if wk is not None:
+                        wt_state_reqs[wk].add(pos)
+                    if mk is not None:
+                        mt_state_reqs[mk].add(pos)
+                    state_map[b][i] = (wk, mk)
 
             _hb(f"    [PHASE-A] done in {time.time()-_tA:.0f}s: {len(wt_state_reqs)} unique wt states, {len(mt_state_reqs)} unique mt states")
 
             def compute_cache(states_reqs, active_model, label):
                 cache = defaultdict(dict)
+                if not states_reqs:
+                    return cache
                 states_list = list(states_reqs.keys())
                 done, t0, next_hb = 0, time.time(), 100_000
 
                 def _state_chunk(start_idx, end_idx):
                     nonlocal done, next_hb
-                    batch_tuples = states_list[start_idx:end_idx]
-                    batch_tensor = torch.tensor(batch_tuples, dtype=torch.long, device=device)
-                    
-                    curr_b = batch_tensor.shape[0]
+                    batch_keys = states_list[start_idx:end_idx]
+                    curr_b = len(batch_keys)
+                    batch_tensor = base_wt.unsqueeze(0).expand(curr_b, -1).clone()
+                    for j, state_key in enumerate(batch_keys):
+                        for p_ov, tok_ov in state_key:
+                            batch_tensor[j, p_ov] = tok_ov
+
                     b_coords = coords.expand(curr_b, -1, -1, -1) if coords is not None else None
                     b_struct = structure_tokens.expand(curr_b, -1) if structure_tokens is not None else None
                     b_plddt = plddt.expand(curr_b, -1) if plddt is not None else None
@@ -940,10 +1025,10 @@ class MSRModel(ESM3PredictorBase):
                     out = self._get_esm3_outputs(batch_tensor, b_coords, b_struct, b_plddt, active_model=active_model)
                     logits = self._process_logits(out.sequence_logits.float())
 
-                    for j, state_tuple in enumerate(batch_tuples):
-                        for p in states_reqs[state_tuple]:
-                            cache[state_tuple][p] = logits[j, p, :].clone()
-                    done += len(batch_tuples)
+                    for j, state_key in enumerate(batch_keys):
+                        for p in states_reqs[state_key]:
+                            cache[state_key][p] = logits[j, p, :].clone()
+                    done += curr_b
                     if done >= next_hb:
                         _hb(f"    [CACHE {label}] {done}/{len(states_list)} states ({time.time()-t0:.0f}s)")
                         next_hb += 100_000
@@ -957,41 +1042,92 @@ class MSRModel(ESM3PredictorBase):
 
             is_dual = getattr(self, 'adapter_mode', 'dual') == 'dual'
             _L = wt_sequence_tokens.shape[1]
-            wt_cache = compute_cache(wt_state_reqs, self.peft_wt if is_dual else self.peft_fused, label=f'wt-L{_L}')
+            active_wt = self.peft_wt if is_dual else self.peft_fused
+            active_mt = self.peft_mt if is_dual else self.peft_fused
+
+            unsummed_llr_wt = torch.zeros((B, max_muts), dtype=torch.float32, device=device)
+            unsummed_llr_mt = torch.zeros((B, max_muts), dtype=torch.float32, device=device)
+
+            safe_pos = mut_pos.clone(); safe_pos[~mut_mask] = 0
+            safe_wt = wt_id.clone(); safe_wt[~mut_mask] = 0
+            safe_mt = mt_id.clone(); safe_mt[~mut_mask] = 0
+
+            if mask_wt is None:
+                if cached_wt_esm3 is not None:
+                    wt_logits_1L = cached_wt_esm3['logits']
+                else:
+                    out_wt = self._get_esm3_outputs(wt_sequence_tokens, coords, structure_tokens, plddt, active_model=active_wt)
+                    wt_logits_1L = self._process_logits(out_wt.sequence_logits.float())
+                wt_pass_mt = wt_logits_1L[0, safe_pos, safe_mt]
+                wt_pass_wt = wt_logits_1L[0, safe_pos, safe_wt]
+                unsummed_llr_wt = torch.where(mut_mask, wt_pass_mt - wt_pass_wt, torch.zeros_like(wt_pass_mt))
+                wt_cache = {}
+            else:
+                wt_cache = compute_cache(wt_state_reqs, active_wt, label=f'wt-L{_L}')
 
             if not skip_reverse:
-                if is_dual:
-                    mt_cache = compute_cache(mt_state_reqs, self.peft_mt, label=f'mt-L{_L}')
+                if mask_mt is None:
+                    def _dense_mt_chunk(start_idx, end_idx):
+                        curr_B = end_idx - start_idx
+                        chunk_mt_seq = wt_sequence_tokens.expand(curr_B, -1).clone()
+                        for i_loc in range(curr_B):
+                            b_abs = start_idx + i_loc
+                            v_idx = torch.where(mut_mask[b_abs])[0]
+                            chunk_mt_seq[i_loc, mut_pos[b_abs, v_idx]] = mt_id[b_abs, v_idx]
+                        chunk_batch = {
+                            'wt_sequence_tokens': wt_sequence_tokens.expand(curr_B, -1),
+                            'mt_sequence_tokens': chunk_mt_seq,
+                            'mut_pos': mut_pos[start_idx:end_idx],
+                            'wt_id': wt_id[start_idx:end_idx],
+                            'mt_id': mt_id[start_idx:end_idx],
+                            'mut_mask': mut_mask[start_idx:end_idx],
+                            'coords': coords.expand(curr_B, -1, -1, -1) if coords is not None else None,
+                            'structure_tokens': structure_tokens.expand(curr_B, -1) if structure_tokens is not None else None,
+                            'plddt': plddt.expand(curr_B, -1) if plddt is not None else None,
+                        }
+                        mt_out = self.forward_partitioned(chunk_batch, pass_type='mt', mask_strategy=None)
+                        unsummed_llr_mt[start_idx:end_idx] = mt_out['unsummed_llr']
+
+                    if auto_batch is None:
+                        for start_idx in tqdm(range(0, B, batch_size), desc='Computing dense MT mutants', disable=quiet):
+                            _dense_mt_chunk(start_idx, min(start_idx + batch_size, B))
+                    else:
+                        auto_batch.run(B, _dense_mt_chunk, label=f'dense-mt-B{B}-L{_L}')
+                    mt_cache = {}
+                elif is_dual or mask_wt is None:
+                    mt_cache = compute_cache(mt_state_reqs, active_mt, label=f'mt-L{_L}')
                 else:
                     all_reqs = defaultdict(set)
                     for tup, poses in wt_state_reqs.items(): all_reqs[tup].update(poses)
                     for tup, poses in mt_state_reqs.items(): all_reqs[tup].update(poses)
                     mt_cache = wt_cache = compute_cache(all_reqs, self.peft_fused, label=f'fused-L{_L}')
-
-            unsummed_llr_wt = torch.zeros((B, max_muts), dtype=torch.float32, device=device)
-            unsummed_llr_mt = torch.zeros((B, max_muts), dtype=torch.float32, device=device)
+            else:
+                mt_cache = {}
 
             _tC = time.time()
             _hb(f"    [COLLATE] start B={B}")
-            for b in tqdm(range(B), desc='Collating results', disable=quiet):
-                if b and b % 100_000 == 0:
-                    _hb(f"    [COLLATE] {b}/{B} ({time.time()-_tC:.0f}s)")
-                valid_indices = torch.where(mut_mask[b])[0].tolist()
-                for i in valid_indices:
-                    wt_tup, mt_tup = state_map[b][i]
-                    pos = mut_pos[b, i].item()
-                    w_id, m_id = wt_id[b, i], mt_id[b, i]
+            wt_id_cpu = wt_id.detach().cpu().tolist()
+            if mask_wt is not None or (not skip_reverse and mask_mt is not None):
+                for b in tqdm(range(B), desc='Collating results', disable=quiet):
+                    if b and b % 100_000 == 0:
+                        _hb(f"    [COLLATE] {b}/{B} ({time.time()-_tC:.0f}s)")
+                    valid_indices = [i for i, m in enumerate(mut_mask_cpu[b]) if m]
+                    for i in valid_indices:
+                        wt_tup, mt_tup = state_map[b][i]
+                        pos = mut_pos_cpu[b][i]
+                        w_id, m_id = wt_id_cpu[b][i], mt_id_cpu[b][i]
 
-                    wt_pass_mt_logit = wt_cache[wt_tup][pos][m_id]
-                    wt_pass_wt_logit = wt_cache[wt_tup][pos][w_id]
-                    unsummed_llr_wt[b, i] = wt_pass_mt_logit - wt_pass_wt_logit
+                        if wt_tup is not None:
+                            wt_pass_mt_logit = wt_cache[wt_tup][pos][m_id]
+                            wt_pass_wt_logit = wt_cache[wt_tup][pos][w_id]
+                            unsummed_llr_wt[b, i] = wt_pass_mt_logit - wt_pass_wt_logit
 
-                    if not skip_reverse:
-                        mt_pass_wt_logit = mt_cache[mt_tup][pos][w_id]
-                        mt_pass_mt_logit = mt_cache[mt_tup][pos][m_id]
-                        unsummed_llr_mt[b, i] = mt_pass_mt_logit - mt_pass_wt_logit
-                    else:
-                        unsummed_llr_mt[b, i] = unsummed_llr_wt[b, i]
+                        if not skip_reverse and mt_tup is not None:
+                            mt_pass_wt_logit = mt_cache[mt_tup][pos][w_id]
+                            mt_pass_mt_logit = mt_cache[mt_tup][pos][m_id]
+                            unsummed_llr_mt[b, i] = mt_pass_mt_logit - mt_pass_wt_logit
+            if skip_reverse:
+                unsummed_llr_mt = unsummed_llr_wt.clone()
 
             _hb(f"    [COLLATE] done in {time.time()-_tC:.0f}s")
 
@@ -1000,16 +1136,19 @@ class MSRModel(ESM3PredictorBase):
 
             _n_mut = mut_mask.sum(dim=1)
             if self.adapter_mode == 'fused':
-                wt_lora_pred = self.calibration_head_fused(wt_llr_sum, _n_mut)
-                mt_lora_pred = self.calibration_head_fused(mt_llr_sum, _n_mut)
+                cal_f = getattr(self, 'calibration_head_fused', None)
+                wt_lora_pred = cal_f(wt_llr_sum, _n_mut) if cal_f is not None else wt_llr_sum
+                mt_lora_pred = cal_f(mt_llr_sum, _n_mut) if cal_f is not None else mt_llr_sum
             else:
-                wt_lora_pred = self.calibration_head_wt(wt_llr_sum, _n_mut) if hasattr(self, 'calibration_head_wt') else wt_llr_sum
-                mt_lora_pred = self.calibration_head_mt(mt_llr_sum, _n_mut) if hasattr(self, 'calibration_head_mt') else mt_llr_sum
+                cal_wt = getattr(self, 'calibration_head_wt', None)
+                cal_mt = getattr(self, 'calibration_head_mt', None)
+                wt_lora_pred = cal_wt(wt_llr_sum, _n_mut) if cal_wt is not None else wt_llr_sum
+                mt_lora_pred = cal_mt(mt_llr_sum, _n_mut) if cal_mt is not None else mt_llr_sum
 
-            if self.adapter_mode != 'fused':
-                combined_pred = combine_predictions(wt_lora_pred, mt_lora_pred)
+            if skip_reverse:
+                mt_lora_pred = torch.full_like(wt_lora_pred, float('nan'))
+                combined_pred = torch.full_like(wt_lora_pred, float('nan'))
             else:
-                combined_pred = combine_predictions(self.calibration_head_fused(wt_llr_sum, _n_mut),
-                                                    self.calibration_head_fused(mt_llr_sum, _n_mut))
+                combined_pred = combine_predictions(wt_lora_pred, mt_lora_pred)
 
         return {'wt_lora_pred': wt_lora_pred, 'mt_lora_pred': mt_lora_pred, 'combined_pred': combined_pred}

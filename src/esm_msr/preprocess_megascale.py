@@ -329,7 +329,9 @@ class MegaScaleDatasetPreprocessor:
         self.df['code_wt'] = self.df['code_wt'].str.replace('|', '_', regex=False)
 
         base_dir = os.path.join(self.af_model_folder, '')
-        self.df['pdb_file'] = base_dir + pdb_stem + '.pdb'
+        colon_paths = base_dir + pdb_stem + '.pdb'
+        under_paths = base_dir + self.df['code_wt'].str.replace('|', '_', regex=False) + '.pdb'
+        self.df['pdb_file'] = [c if os.path.exists(c) or not os.path.exists(u) else u for c, u in zip(colon_paths, under_paths)]
 
         logging.info(f"Reduced to: {len(self.df)} entries after basic filtering")
 
@@ -378,7 +380,9 @@ class MegaScaleDatasetPreprocessor:
         self.df['code_wt'] = self.df['code_wt'].str.replace('|', '_', regex=False)
 
         base_dir = os.path.join(self.af_model_folder, '')
-        self.df['pdb_file'] = base_dir + pdb_stem + '.pdb'
+        colon_paths = base_dir + pdb_stem + '.pdb'
+        under_paths = base_dir + self.df['code_wt'].str.replace('|', '_', regex=False) + '.pdb'
+        self.df['pdb_file'] = [c if os.path.exists(c) or not os.path.exists(u) else u for c, u in zip(colon_paths, under_paths)]
 
         logging.info(f"Total size: {len(self.df)} according to SPURS preprocessing")
 
@@ -431,7 +435,7 @@ class MegaScaleDatasetPreprocessor:
 
         return df
 
-    def create_training_splits(self, split_file: Optional[str]) -> Dict[str, List[str]]:
+    def create_training_splits(self, split_file: Optional[str], cap_train_size: int = -1) -> Dict[str, List[str]]:
         """Derives train/val/test splits from a pickled dictionary or unique codes."""
         splits_dict = {'train': [], 'val': [], 'test': []}
         

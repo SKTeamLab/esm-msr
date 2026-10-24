@@ -111,6 +111,9 @@ def main():
         else:
             print(f"[{mode}] ok", flush=True)
     print(f"failed: {failed or 'none'}")
+    if not a.keep and not failed:
+        import shutil
+        shutil.rmtree(root, ignore_errors=True)
     return 1 if failed else 0
 
 

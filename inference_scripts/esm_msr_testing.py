@@ -164,6 +164,10 @@ def main_(args):
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         lora_mode = parsed_config.get('lora_mode', 'ensemble')
         checkpoint_cal = parsed_config.get('calibration')
+        if args.mask_strategy is None and parsed_config.get('mask_strategy') is not None:
+            args.mask_strategy = parsed_config['mask_strategy']
+            print(f"[MODEL] mask_strategy from hparams: {args.mask_strategy}")
+        native_cond_for_mt = bool(parsed_config.get('native_cond_for_mt', False))
         if args.lora_epsilon != 1:
             parsed_config['wt_config']['lora_alpha'] *= args.lora_epsilon
             parsed_config['mt_config']['lora_alpha'] *= args.lora_epsilon
@@ -189,6 +193,7 @@ def main_(args):
         adapter_mode = 'dual'
         lora_mode = 'ensemble'
         checkpoint_cal = None
+        native_cond_for_mt = False
         lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': args.seed}        
 
     model_dtype = torch.bfloat16 if args.dtype == 'bf16' else torch.float32
@@ -198,7 +203,8 @@ def main_(args):
     model = models.MSRModel(
         lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
         lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True,
-        tie_mt_scale=cal['tie_mt_scale'], per_mutation_bias=cal['per_mutation_bias']
+        tie_mt_scale=cal['tie_mt_scale'], per_mutation_bias=cal['per_mutation_bias'],
+        native_cond_mt_input=native_cond_for_mt,
     ).to('cuda:0')
 
     # ---------------------------------------------------------

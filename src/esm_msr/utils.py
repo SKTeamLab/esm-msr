@@ -174,12 +174,16 @@ def l2_grad_norm(params):
         return 0.0
     return accum.sqrt().item()
 
+@torch.no_grad()
 def group_step_norm(params, lr):
-    s = 0.0
+    accum = None
     for _, p in params:
         if p.grad is None: continue
-        s += (lr * p.grad.detach()).pow(2).sum().item()
-    return s ** 0.5
+        s = (lr * p.grad.detach()).pow(2).sum()
+        accum = s if accum is None else (accum + s)
+    if accum is None:
+        return 0.0
+    return accum.sqrt().item()
 
 def slice_batch_by_index(batch: Dict[str, Any], idx: torch.Tensor) -> Dict[str, Any]:
     """
