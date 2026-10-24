@@ -114,9 +114,10 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
 
     * ``rho_wt_valid``   - WT head on plain single mutations in the real wild-type context (NaN for a
       mutant-background library, whose singles are all ``native_cond``).
-    * ``rho_wt_all``     - WT head on everything, multi-mutants and conditionals included.
-    * ``rho_mt_valid``   - MT head on conditional targets (``cond``, ``native_cond``); NaN without either.
-    * ``rho_mt_all``     - MT head on everything.
+    * ``rho_singles_combined`` - the reported two-path average on the same singles: what the MT half does to them.
+    * ``rho_doubles_wt`` / ``rho_doubles_combined`` - the WT head (additive: the sum of its singles) and the reported
+      average on the library's doubles; NaN for a library without doubles. Their difference is what the MT half buys
+      on the items it exists for.
     * ``rho_combined``   - the reported two-path average, on measured items only (singles, doubles,
       native-background items).
     * ``rmse_combined``  - calibration of that average in kcal/mol. With ``obs`` (a dict whose ``comb`` holds the
@@ -125,8 +126,9 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
       always use the latent scores, which ``h`` leaves alone because it is monotone.
     * ``ndcg@k=96`` / ``ndcg>0`` - top-of-list retrieval for the WT head and the combined path.
 
-    ``_all`` deliberately mixes quantities (a conditional ddG(X | background) is not a wild-type-context ddG): it
-    answers "does this head rank anything sensibly" rather than "is this head right". Read ``_valid`` first.
+    Retired 2026-10-24: ``rho_wt_all`` / ``rho_mt_all`` (each head on singles and doubles mixed, which answered
+    nothing the singles/doubles split does not) and ``rho_mt_valid`` (conditional items; validation relabels
+    native_cond as single before this is called, so it was NaN on every library).
 
     Every item passed in is scored. Censoring is a property of the LOSS, not of the yardstick: scoring only the
     uncensored items makes a run's numbers incomparable to a baseline that censors nothing, and biases them by
@@ -144,14 +146,14 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     finite = np.isfinite(gt)
 
     is_single = np.isin(subset_types, list(routing.WT_HEAD_SUBSETS)) & finite
-    is_cond = np.isin(subset_types, list(routing.CONDITIONAL_SUBSETS)) & finite
+    is_double = (subset_types == 'double') & finite
     is_measured = np.isin(subset_types, list(routing.MEASURED_SUBSETS)) & finite
 
     metrics = {
         'rho_wt_valid': safe_spearman(wt_scores[is_single], gt[is_single]),
-        'rho_wt_all': safe_spearman(wt_scores[finite], gt[finite]),
-        'rho_mt_valid': safe_spearman(mt_scores[is_cond], gt[is_cond]),
-        'rho_mt_all': safe_spearman(mt_scores[finite], gt[finite]),
+        'rho_singles_combined': safe_spearman(comb_scores[is_single], gt[is_single]),
+        'rho_doubles_wt': safe_spearman(wt_scores[is_double], gt[is_double]),
+        'rho_doubles_combined': safe_spearman(comb_scores[is_double], gt[is_double]),
         'rho_combined': safe_spearman(comb_scores[is_measured], gt[is_measured]),
         'rmse_combined': safe_rmse(comb_scores[is_measured], gt[is_measured]),
     }

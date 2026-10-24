@@ -34,7 +34,7 @@ num_workers: 2
 plateau_patience: 1
 plateau_factor: 0.3
 freeze_after_decays: 3
-mt_convergence_metric: epi_beyond_rho_mt
+mt_convergence_metric: epi_beyond_lib_comb
 monitor_metric: val_rho_combined_avg
 early_stopping_patience: 0
 cache_version: c6

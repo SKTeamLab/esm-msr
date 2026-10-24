@@ -314,9 +314,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     sched.add_argument('--freeze_after_decays', type=int, default=3,
                        help="Freeze a head after this many decays: at factor 0.3 the third leaves it at 2.7 percent of its base rate, which is "
                             "not training. 0 never freezes. Once every head is frozen the run stops itself.")
-    sched.add_argument('--mt_convergence_metric', type=str, default='epi_beyond_rho_mt',
-                       help="What the MT plateau watches. The default is the MT head's correlation on the part of a double the two singles "
-                            "do not explain.")
+    sched.add_argument('--mt_convergence_metric', type=str, default='epi_beyond_lib_comb',
+                       help="What the MT plateau watches. The default is the reported prediction's correlation, library by library, on the "
+                            "part of a double the WT head's singles do not explain.")
     sched.add_argument('--early_stopping_patience', type=int, default=0,
                        help="Stop when --monitor_metric has not improved for this many validations. 0 (the default) never early-stops.")
     sched.add_argument('--monitor_metric', type=str, default='val_rho_combined_avg',

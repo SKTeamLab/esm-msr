@@ -76,7 +76,7 @@ KNOW = {
     'cell': lambda P, i, j: P['eps'][i, j],
     'all': lambda P, i, j: P['m'] + P['r'][i] + P['s'][j] + P['eps'][i, j],
 }
-ALL_HEADS = {m: ('comb', 'mt', 'ctx', 'add') for m in E.METRICS}
+ALL_HEADS = {m: ('comb', 'mt', 'ctx', 'add') for m in tuple(E.METRICS) + ('naive_rho', 'beyond_rho', 'cell_sigsd')}
 
 
 def scores(know, measure=FLOOR, link=FLOOR, seed=0):
@@ -108,7 +108,7 @@ class TestLevelIsolation(unittest.TestCase):
 
     def test_a_perfect_predictor_scores_at_the_top_of_every_level(self):
         s = scores('all', measure=None, link=None)
-        for m in ('beyond_rho', 'pair_rho', 'line_rho', 'cell_mag'):
+        for m in ('beyond_lib', 'beyond_rho', 'pair_rho', 'line_rho', 'cell_mag'):
             self.assertGreater(s[f'epi_{m}_comb'], 0.85, m)
         self.assertAlmostEqual(s['epi_cell_rank_mt'], 1.0, places=9)
         self.assertEqual(s['epi_cell_flipacc_mt'], 1.0)
@@ -120,7 +120,7 @@ class TestSaturation(unittest.TestCase):
     def test_an_additive_head_through_the_link_scores_only_on_the_naive_and_global_metrics(self):
         s = scores('nothing')
         self.assertGreater(s['epi_naive_rho_add'], 0.5)              # saturation alone: the confound the naive metric cannot see past
-        for m in ('beyond_rho', 'pair_rho', 'line_rho', 'cell_mag', 'cell_rank'):
+        for m in ('beyond_lib', 'beyond_rho', 'pair_rho', 'line_rho', 'cell_mag', 'cell_rank'):
             self.assertEqual(s[f'epi_{m}_add'], 0.0, m)
         self.assertEqual(s['epi_cell_flipacc_add'], 0.5)
         self.assertLess(s['epi_global_err_comb'], scores('nothing', link=None)['epi_global_err_comb'])
@@ -190,21 +190,54 @@ class TestTable(unittest.TestCase):
 
     def test_logged_names_cover_the_documented_set(self):
         names = E.logged_names()
-        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 8 * 3 + 1 + 2)
+        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 2 + 5 * 2 + 3)
         s = E.compute(E.Table(items(*synthetic(0), KNOW['all']), FLOOR))
         for n in names:
             self.assertIn(n, s)
 
-    def test_every_metric_is_logged_for_every_trained_head(self):
+    def test_the_reported_prediction_and_the_control_are_logged_at_every_level(self):
         for m, hs in E.METRICS.items():
-            if m in ('global_err', 'global_bias'):
-                self.assertEqual(tuple(hs), ('comb',), m)
-            else:
-                self.assertTrue({'comb', 'mt', 'ctx'} <= set(hs), m)
+            self.assertIn('comb', hs, m)
+            if m not in ('global_err', 'global_bias'):
+                self.assertIn('ctx', hs, m)
+        self.assertIn('mt', E.METRICS['cell_rank'])
 
     def test_comb_and_mt_agree_on_the_reversals(self):
-        s = E.compute(E.Table(items(*synthetic(5), KNOW['cell']), FLOOR))
+        s = E.compute(E.Table(items(*synthetic(5), KNOW['cell']), FLOOR), ALL_HEADS)
         self.assertEqual(s['epi_cell_flipacc_comb'], s['epi_cell_flipacc_mt'])
+
+
+class TestWTReference(unittest.TestCase):
+    def test_the_residual_ignores_a_heads_own_singles(self):
+        """The residual is the head's double minus the WT-additive double: what the head says about its own singles never enters."""
+        pairs, meas = synthetic(6, measure=None)
+        it = items(pairs, meas, KNOW['all'])
+        base = E.compute(E.Table(it, None))
+        st = np.asarray(it['subset_type'])
+        it2 = dict(it)
+        it2['mt'] = np.where(st == 'single', it['mt'] + np.random.default_rng(0).normal(0, 2.0, len(st)), it['mt'])
+        it2['comb'] = 0.5 * (it2['wt'] + it2['mt'])
+        moved = E.compute(E.Table(it2, None))
+        for m in ('beyond_lib_comb', 'pair_rho_comb', 'line_rho_comb', 'cell_mag_comb'):
+            self.assertAlmostEqual(base[f'epi_{m}'], moved[f'epi_{m}'], places=9, msg=m)
+
+    def test_library_centring_removes_a_library_wide_offset(self):
+        """A per-library constant added to the head's doubles is a calibration offset, not epistasis: beyond_lib does not move, beyond_rho does."""
+        pairs, meas = synthetic(7, measure=None)
+        it = items(pairs, meas, KNOW['cell'])
+        st = np.asarray(it['subset_type'])
+        lib = np.array([k[0][0] for k in it['mut_key']])
+        it2 = dict(it)
+        it2['mt'] = it['mt'] + np.where((st == 'double') & (lib == 'L1'), 3.0, 0.0)
+        it2['comb'] = 0.5 * (it2['wt'] + it2['mt'])
+        a = E.compute(E.Table(it, None), {'beyond_lib': ('comb',), 'beyond_rho': ('comb',)})
+        b = E.compute(E.Table(it2, None), {'beyond_lib': ('comb',), 'beyond_rho': ('comb',)})
+        self.assertAlmostEqual(a['epi_beyond_lib_comb'], b['epi_beyond_lib_comb'], places=9)
+        self.assertNotAlmostEqual(a['epi_beyond_rho_comb'], b['epi_beyond_rho_comb'], places=3)
+
+    def test_the_old_own_singles_residual_is_still_available(self):
+        t = E.Table(items(*synthetic(8), KNOW['all']), FLOOR)
+        self.assertGreater(E.residual_levels(t, 'mt', ref='own')['beyond_rho'], 0.5)
 
 
 class TestSmoother(unittest.TestCase):

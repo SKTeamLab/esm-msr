@@ -25,14 +25,19 @@ and the levels of the hierarchy are, from the top:
              single that every cell of the line shares)
     cell     what depends on the specific combination of the two residues (6%; about the size of the doubles' own measurement noise)
 
-How saturation is kept out. Two devices, each exact for a predictor whose latent is additive (so any credit it gets is not epistasis):
+How saturation is kept out. Two devices:
 
   * BEYOND-GLOBAL RESIDUALS (magnitudes). Measured: r = dG_AB - E[dG_AB | x] (= dddG - E[dddG | x]); a smoother on the measured x. Predicted, for
-    head H: its observed-scale double minus its OWN additive prediction pushed through its own link, e = P_AB - obs(L_A + L_B + o) (o the
-    head's median second difference, which removes a calibration bias), then minus
-    E[e | x_hat] with x_hat = c + L_A + L_B. A head that is additive before its link has e = 0, so it scores exactly 0 at every residual level:
-    what the link does to the singles never enters. The pair / line / cell levels are pair means, line effects and double-centred cells of these
-    residuals.
+    head H: its DEVIATION FROM THE WT-ADDITIVE PREDICTION of the same double, e = P_H(AB) - obs(WT(AB)), minus E[e | x_hat] with
+    x_hat = c + WT(AB). WT(AB) = WT(A) + WT(B) is the WT adapter on the wild type, additive by construction, so e is exactly the part of the
+    head's double prediction the WT head's singles do not give, and no head is asked for its OWN singles (the MT adapter reading a sequence
+    whose only mutation is A is not what it is used for; the WT head is the better single predictor). For comb, e is the MT half's
+    contribution to the reported prediction. The WT reference (head 'add') has e = 0 and scores exactly 0 at every residual level.
+    (Until 2026-10-24 e was the head's double minus its own singles, P_AB - obs(L_A + L_B + o); ``beyond_global(..., ref='own')`` keeps that
+    definition for reports. Offline on 46 run-epochs the WT reference agreed better with the saturation-free cell_rank_mt, 0.83 against 0.58
+    with library centring, and separated MT from the ctx control by ~0.2 instead of ~0.05.)
+    The pair / line / cell levels are pair means, line effects and double-centred cells of these residuals; the holistic level centres both
+    residuals on their library means first (``beyond_lib``), so a library-wide calibration offset is not mistaken for epistasis.
   * WITHIN-COLUMN RANKS (orders). A monotone assay cannot change which of two doubles in one column (same library, same partner) is more stable,
     so the order of ddG_AB inside a column is saturation-free. The cell-level rank statistic double-centres column ranks; the confident-flip
     accuracy uses only reversals of order between two columns.
@@ -40,38 +45,34 @@ How saturation is kept out. Two devices, each exact for a predictor whose latent
 Heads (each head is a rule for the latent ddG of a single or a double; observed = h(c + latent) - c through the run's link, or the latent itself):
 
     comb  (WT + ~MT)/2: the reported prediction (inference ``combined_pred``)
-    mt    ~MT: the MT pass alone (inference ``epistasis_pred``); its non-additive part is the same as comb's, twice as large, without the WT half
+    mt    ~MT: the MT pass alone. On the residual levels its deviation from WT is exactly twice comb's (latent), so only comb is logged there;
+          it is logged on the rank levels, where comb's WT half reorders columns and the two differ.
     ctx   (WT + ~WT)/2: the WT adapter read on the mutated sequence as well. It never trains on a double, so it is the CONTROL for what the
-          backbone plus single-mutant training already know about epistasis; the MT adapter's contribution is comb / mt minus ctx. Needs
+          backbone plus single-mutant training already know about epistasis; the MT adapter's contribution is comb minus ctx. Needs
           --val_cycle_passes.
-    add   WT: the WT adapter on the wild type, additive by construction. Through the link it scores ONLY by saturation: the CONTROL for the naive
-          and global metrics (it is exactly 0 / 0.5 on every other one, so it is not logged there).
+    add   WT: the WT adapter on the wild type, additive by construction: the reference of the residual levels (not logged).
 
-The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``). Every metric is logged for each of the three heads comb, mt and ctx
-(ctx only with --val_cycle_passes), so the MT adapter's contribution is always readable as mt (or comb) minus ctx at the same level; add is
-logged where it is not identically 0 / 0.5 (the naive and global metrics, which saturation alone can earn).
+The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``).
 
-    naive_rho_{comb,mt,ctx,add}     Spearman of predicted against measured dddG over all doubles, observed scale. Holistic and naive: under a
-                                    link most of it is saturation (add scores about as much as comb). A summary, not a target.
     global_err_comb                 RMSE (kcal/mol) of the calibrated and linked combined double-mutant prediction P_AB against measured ddG_AB.
     global_bias_comb                Mean of (P_AB - ddG_AB) in kcal/mol on the calibrated and linked combined double-mutant predictions.
-    beyond_rho_{comb,mt,ctx}        Spearman of the beyond-global residuals over all doubles: everything above the global level at once (pair
-                                    offsets dominate it). The clean holistic number.
-    pair_rho_{comb,mt,ctx}          Spearman across position pairs of the pairs' mean residuals. Only about 24 pairs (9 libraries) in
+    beyond_lib_{comb,ctx}           Spearman of the beyond-global residuals over all doubles, both centred on their library's mean: everything
+                                    above the global level that is not a library-wide offset. The clean holistic number.
+    pair_rho_{comb,ctx}             Spearman across position pairs of the pairs' mean residuals. Only about 24 pairs (9 libraries) in
                                     validation: report it, do not select on it.
-    line_rho_{comb,mt,ctx}          Spearman, pooled over the lines of every matrix (both orientations), of the line means of the residuals
+    line_rho_{comb,ctx}             Spearman, pooled over the lines of every matrix (both orientations), of the line means of the residuals
                                     centred on their matrix mean.
-    cell_mag_{comb,mt,ctx}          each matrix trimmed to a complete block, residuals double-centred, Spearman per block, mean over blocks.
+    cell_mag_{comb,ctx}             each matrix trimmed to a complete block, residuals double-centred, Spearman per block, mean over blocks.
     cell_rank_{comb,mt,ctx}         the same block, but each column of measured ddG_AB and of the head's latent ddG_AB rank-transformed before
                                     double-centring (both orientations, mean per block, mean over blocks). Saturation-free; exactly 0 for any
                                     predictor whose order within a column does not depend on the partner.
-    cell_flipacc_{comb,mt,ctx}      of the 2 x 2 sub-blocks whose measured order REVERSES between two columns by more than ``FLIP_DELTA``
+    cell_flipacc_{comb,ctx}         of the 2 x 2 sub-blocks whose measured order REVERSES between two columns by more than ``FLIP_DELTA``
                                     kcal/mol on both sides, the share in which the head's predicted interaction contrast (L_ij - L_i'j -
                                     L_ij' + L_i'j', latent; pair, row and column effects cancel exactly) has the reversal's sign; ties count
-                                    half, so an additive head is exactly 0.5. comb's contrast is half of mt's, so the two are identical (comb
-                                    is logged anyway, for a uniform table).
-    cell_sigsd_{comb,mt,ctx}        the standard deviation of the head's double-centred column ranks: how much partner-dependent order it
-                                    predicts at all (0 = an additive readout; not a skill score).
+                                    half, so an additive head is exactly 0.5. mt's contrast is twice comb's, so it is not logged separately.
+
+Retired 2026-10-24 (still computable by asking ``compute`` for them): naive_rho (raw dddG, mostly saturation: the additive head scored as much
+as comb), beyond_rho (the pooled, uncentred holistic level), cell_sigsd (a spread, not a skill score), and every residual level for mt.
 
 Counts (logged as ``val_epi_n_<name>``): doubles, pairs, complete blocks, confident flips.
 """
@@ -97,19 +98,18 @@ MIN_BLOCK = 3            # a complete block needs at least this many rows and co
 
 HEADS = ('comb', 'mt', 'ctx', 'add')
 SYM = ('comb', 'mt', 'ctx')
-# name -> heads it is logged for. The order is the reading order of the hierarchy. Every metric for every trained head (symmetric); the
-# additive control only where it is not 0 / 0.5 by construction.
+RES = ('comb', 'ctx')
+# name -> heads it is logged for. The order is the reading order of the hierarchy. Residual levels for the reported prediction and the ctx
+# control (mt's WT-referenced residual is exactly twice comb's in latent); the rank level also for mt; flip accuracy is identical for comb and mt.
 METRICS = {
-    'naive_rho': SYM + ('add',),
     'global_err': ('comb',),
     'global_bias': ('comb',),
-    'beyond_rho': SYM,
-    'pair_rho': SYM,
-    'line_rho': SYM,
-    'cell_mag': SYM,
+    'beyond_lib': RES,
+    'pair_rho': RES,
+    'line_rho': RES,
+    'cell_mag': RES,
     'cell_rank': SYM,
-    'cell_flipacc': SYM,
-    'cell_sigsd': SYM,
+    'cell_flipacc': RES,
 }
 COUNTS = ('doubles', 'pairs', 'blocks', 'flips')
 # Not logged in training (saturation leaks into them; docs/validation_metrics.md): the levels computed on RAW observed-scale dddG, the
@@ -251,6 +251,8 @@ class Table:
         self.n = len(rec)
         I, IA, IB = (np.array([r[j] for r in rec], int) for j in range(3))
         self.pair = np.array([r[3] for r in rec], int)
+        lib_id = {}
+        self.lib = np.array([lib_id.setdefault(tuple(keys[r[0]][0][:-2]), len(lib_id)) for r in rec], int)   # the key minus (pos, aa)
         rows = [r[4] for r in rec]; cols = [r[5] for r in rec]
         self.row = np.array([res_id.setdefault(('r', p, a), len(res_id)) for p, a in zip(self.pair, rows)], int)
         self.col = np.array([res_id.setdefault(('c', p, b), len(res_id)) for p, b in zip(self.pair, cols)], int)
@@ -309,13 +311,30 @@ def _lay(M, v):
 
 
 # ---------------------------------------------------------------- residuals
-def beyond_global(t: Table, h: str):
-    """(measured, predicted) beyond-global residuals per double; see the module docstring."""
+def beyond_global(t: Table, h: str, ref: str = 'wt', lib_centre: bool = False):
+    """(measured, predicted) beyond-global residuals per double; see the module docstring. ``ref='wt'``: the head's deviation from the WT-additive
+    prediction (the logged definition); ``ref='own'``: the head's double minus its own singles (the definition before 2026-10-24).
+    ``lib_centre``: remove each library's mean from the predicted deviation BEFORE the smoother, so a library-wide offset (a calibration bias
+    the head applies to one library's doubles) cannot leak into other libraries through the shared smoother."""
     rm = (t.c + t.y) - smooth_on(t.x, t.c + t.y)
-    e = t.P[h] - t.PX[h]
+    if ref == 'own':
+        e, xh = t.P[h] - t.PX[h], t.c + t.LA[h] + t.LB[h]
+    else:
+        e, xh = t.P[h] - t.P['add'], t.c + t.L['add']
     if not np.isfinite(e).any() or np.nanstd(e) < FLAT:
         return rm, np.where(np.isfinite(e), 0.0, np.nan)
-    return rm, e - smooth_on(t.c + t.LA[h] + t.LB[h], e)
+    if lib_centre:
+        e = _lib_centred(e, t.lib)
+    return rm, e - smooth_on(xh, e)
+
+
+def _lib_centred(v, lib):
+    out = np.full(len(v), np.nan)
+    ok = np.isfinite(v)
+    for g in np.unique(lib[ok]):
+        m = ok & (lib == g)
+        out[m] = v[m] - v[m].mean()
+    return out
 
 
 # ---------------------------------------------------------------- levels
@@ -333,10 +352,11 @@ def global_curve(t: Table, h: str = 'comb'):
     return float(np.sqrt(np.mean(d ** 2))), float(np.mean(d))
 
 
-def residual_levels(t: Table, h: str) -> Dict[str, float]:
-    """beyond_rho, pair_rho, line_rho, cell_mag on the beyond-global residuals."""
-    rm, rp = beyond_global(t, h)
-    out = {'beyond_rho': _rho(rp, rm)}
+def residual_levels(t: Table, h: str, ref: str = 'wt') -> Dict[str, float]:
+    """beyond_lib, beyond_rho, pair_rho, line_rho, cell_mag on the beyond-global residuals."""
+    rm, rp = beyond_global(t, h, ref)
+    _, rpl = beyond_global(t, h, ref, lib_centre=True)
+    out = {'beyond_rho': _rho(rp, rm), 'beyond_lib': _rho(_lib_centred(rpl, t.lib), _lib_centred(rm, t.lib))}
     mats = t.matrices()
     pm, pp, lm, lp, cells = [], [], [], [], []
     for M in mats:
@@ -443,7 +463,7 @@ def compute(t: Table, metrics: Dict[str, Sequence[str]] = METRICS) -> Dict[str, 
             r['naive_rho'] = naive_rho(t, h)
         if want & {'global_err', 'global_bias'}:
             r['global_err'], r['global_bias'] = global_curve(t, h)
-        if want & {'beyond_rho', 'pair_rho', 'line_rho', 'cell_mag'}:
+        if want & {'beyond_rho', 'beyond_lib', 'pair_rho', 'line_rho', 'cell_mag'}:
             r.update(residual_levels(t, h))
         if want & {'cell_rank', 'cell_sigsd'}:
             rl = rank_levels(t, h)

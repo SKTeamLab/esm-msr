@@ -942,8 +942,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if ok.any():
                 self.log("val_rho_ungrouped_wt", stats.safe_spearman(g_wt[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
                 self.log("val_rho_ungrouped_combined", stats.safe_spearman(g_comb[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
-                self.log("val_ndcg@k=96_ungrouped_combined", stats.safe_ndcg_k96(g_comb[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
-                self.log("val_ndcg@k>0_ungrouped_combined", stats.safe_ndcg_t0(g_comb[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
             # The epistasis scalars are pooled over every library at once, so they are not per-library values and
             # never entered avg_metrics. Merge them in as single-element lists AFTER the val_<key>_avg logging loop
             # above - so nothing is logged twice - and the plateau steps can then read any metric by name.
@@ -1031,7 +1029,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         metric the MT path was still improving, so it drifted and the target the MT path teacher-forces against moved underneath it; and a
         shared scheduler that owned every parameter group compounded patience-1 triggers into a 370x drop in three epochs (dc12r_s2).
         The WT head watches ``rho_wt_valid`` and touches only the ``lora_wt`` / ``calib_wt`` groups; the MT head watches
-        ``--mt_convergence_metric`` (default ``epi_beyond_rho_mt``: its correlation on the part of a double the two singles do not
+        ``--mt_convergence_metric`` (default ``epi_beyond_lib_comb``: the reported prediction's correlation on the part of a double the WT singles do not
         explain) and touches only ``lora_mt`` / ``calib_mt``. That metric is noisy epoch to epoch (swings of +-0.03, no trend), so
         patience 1 wants the gentle factor 0.3 it has by default.
         """

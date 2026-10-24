@@ -119,7 +119,7 @@ def test_defaults_turn_it_on_with_patience_one():
     finally:
         sys.argv = argv
     assert a.plateau_patience == 1
-    assert a.mt_convergence_metric == 'epi_beyond_rho_mt'
+    assert a.mt_convergence_metric == 'epi_beyond_lib_comb'
     assert a.plateau_factor == 0.3           # gentle, because the metric is noisy: a patience-1 decay can fire on a wobble
 
 
