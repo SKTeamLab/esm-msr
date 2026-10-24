@@ -71,8 +71,7 @@ The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``).
                                     report. The difference from global_dddg_bias_comb is the MT half's own effect on the partner singles.
     beyond_rho_{comb,mt,ctx}        Spearman of r' against r over all doubles: everything above the global level at once (pair and library
                                     offsets dominate it).
-    beyond_lib_{comb,mt,ctx}        the same with each library's mean removed from r and r' (from dddG' also before its smoother, so one
-                                    library's offset cannot bend the shared curve): above the global level and not a library-wide offset.
+    beyond_lib_{comb,mt,ctx}        the same with each library's mean removed from r and r': above the global level and not a library-wide offset.
     pair_rho_{comb,mt,ctx}          Spearman across position pairs of the pairs' mean residuals. Only about 24 pairs (9 libraries) in
                                     validation: report it, do not select on it.
     line_rho_{comb,mt,ctx}          Spearman, pooled over the lines of every matrix (both orientations), of the line means of the residuals
@@ -337,15 +336,12 @@ def predicted_dddg(t: Table, h: str):
     return t.P[h] - t.PX[h], t.c + t.LA[h] + t.LB[h]
 
 
-def beyond_global(t: Table, h: str, lib_centre: bool = False):
-    """(r, r'): measured and predicted dddG, each minus E[dddG | x] on its own additive expectation x; see the module docstring.
-    ``lib_centre``: remove each library's mean from dddG' BEFORE its smoother (the beyond_lib level)."""
+def beyond_global(t: Table, h: str):
+    """(r, r'): measured and predicted dddG, each minus E[dddG | x] on its own additive expectation x; see the module docstring."""
     r = t.dddG - smooth_on(t.x, t.dddG)
     d, xh = predicted_dddg(t, h)
     if not np.isfinite(d).any() or np.nanstd(d) < FLAT:
         return r, np.where(np.isfinite(d), 0.0, np.nan)
-    if lib_centre:
-        d = _lib_centred(d, t.lib)
     return r, d - smooth_on(xh, d)
 
 
@@ -377,8 +373,7 @@ def global_curve(t: Table, h: str = 'comb'):
 def residual_levels(t: Table, h: str) -> Dict[str, float]:
     """beyond_rho, beyond_lib, pair_rho, line_rho, cell_mag on the beyond-global residuals."""
     rm, rp = beyond_global(t, h)
-    _, rpl = beyond_global(t, h, lib_centre=True)
-    out = {'beyond_rho': _rho(rp, rm), 'beyond_lib': _rho(_lib_centred(rpl, t.lib), _lib_centred(rm, t.lib))}
+    out = {'beyond_rho': _rho(rp, rm), 'beyond_lib': _rho(_lib_centred(rp, t.lib), _lib_centred(rm, t.lib))}
     mats = t.matrices()
     pm, pp, lm, lp, cells = [], [], [], [], []
     for M in mats:

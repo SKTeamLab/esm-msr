@@ -224,18 +224,18 @@ class TestWTReference(unittest.TestCase):
         self.assertNotAlmostEqual(base['epi_beyond_rho_comb'], moved['epi_beyond_rho_comb'], places=3)
 
     def test_library_centring_removes_a_library_wide_offset(self):
-        """A per-library constant added to the head's doubles is a calibration offset, not epistasis: beyond_lib does not move, beyond_rho does."""
+        """A per-library constant on residuals is a library offset, not epistasis: beyond_lib does not move, beyond_rho does."""
         pairs, meas = synthetic(7, measure=None)
         it = items(pairs, meas, KNOW['cell'])
-        st = np.asarray(it['subset_type'])
-        lib = np.array([k[0][0] for k in it['mut_key']])
-        it2 = dict(it)
-        it2['mt'] = it['mt'] + np.where((st == 'double') & (lib == 'L1'), 3.0, 0.0)
-        it2['comb'] = 0.5 * (it2['wt'] + it2['mt'])
-        a = E.compute(E.Table(it, None), {'beyond_lib': ('mt',), 'beyond_rho': ('mt',)})
-        b = E.compute(E.Table(it2, None), {'beyond_lib': ('mt',), 'beyond_rho': ('mt',)})
-        self.assertAlmostEqual(a['epi_beyond_lib_mt'], b['epi_beyond_lib_mt'], places=9)
-        self.assertNotAlmostEqual(a['epi_beyond_rho_mt'], b['epi_beyond_rho_mt'], places=3)
+        t = E.Table(it, None)
+        rm, rp = E.beyond_global(t, 'mt')
+        rp_shifted = rp + np.where(t.lib == 0, 3.0, 0.0)
+        base = E._rho(E._lib_centred(rp, t.lib), E._lib_centred(rm, t.lib))
+        moved = E._rho(E._lib_centred(rp_shifted, t.lib), E._lib_centred(rm, t.lib))
+        uncentered_base = E._rho(rp, rm)
+        uncentered_moved = E._rho(rp_shifted, rm)
+        self.assertAlmostEqual(base, moved, places=9)
+        self.assertNotAlmostEqual(uncentered_base, uncentered_moved, places=3)
 
     def test_the_measured_residual_is_dddG_minus_its_global_curve(self):
         t = E.Table(items(*synthetic(8), KNOW['all']), FLOOR)
