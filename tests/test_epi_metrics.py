@@ -123,7 +123,9 @@ class TestSaturation(unittest.TestCase):
         for m in ('beyond_rho', 'pair_rho', 'line_rho', 'cell_mag', 'cell_rank'):
             self.assertEqual(s[f'epi_{m}_add'], 0.0, m)
         self.assertEqual(s['epi_cell_flipacc_add'], 0.5)
-        self.assertLess(s['epi_global_err_add'], scores('nothing', link=None)['epi_global_err_add'])
+        self.assertLess(s['epi_global_err_comb'], scores('nothing', link=None)['epi_global_err_comb'])
+        s_all = scores('all')
+        self.assertLess(s_all['epi_global_err_comb'], s['epi_global_err_comb'])
 
     def test_the_rank_metrics_ignore_a_monotone_measurement(self):
         self.assertAlmostEqual(scores('all', measure=None, link=None)['epi_cell_rank_mt'], 1.0, places=9)
@@ -188,14 +190,17 @@ class TestTable(unittest.TestCase):
 
     def test_logged_names_cover_the_documented_set(self):
         names = E.logged_names()
-        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 10 * 3 + 3)
+        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 8 * 3 + 1 + 2)
         s = E.compute(E.Table(items(*synthetic(0), KNOW['all']), FLOOR))
         for n in names:
             self.assertIn(n, s)
 
     def test_every_metric_is_logged_for_every_trained_head(self):
         for m, hs in E.METRICS.items():
-            self.assertTrue({'comb', 'mt', 'ctx'} <= set(hs), m)
+            if m in ('global_err', 'global_bias'):
+                self.assertEqual(tuple(hs), ('comb',), m)
+            else:
+                self.assertTrue({'comb', 'mt', 'ctx'} <= set(hs), m)
 
     def test_comb_and_mt_agree_on_the_reversals(self):
         s = E.compute(E.Table(items(*synthetic(5), KNOW['cell']), FLOOR))

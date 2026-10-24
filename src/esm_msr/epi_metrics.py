@@ -53,10 +53,8 @@ logged where it is not identically 0 / 0.5 (the naive and global metrics, which 
 
     naive_rho_{comb,mt,ctx,add}     Spearman of predicted against measured dddG over all doubles, observed scale. Holistic and naive: under a
                                     link most of it is saturation (add scores about as much as comb). A summary, not a target.
-    global_err_{comb,mt,ctx,add}    RMSE (kcal/mol) between the predicted and the measured E[dddG | x] (quantile bins of the measured x). How
-                                    well the head reproduces the global curve; add shows how much of it the link alone carries.
-    global_bias_{comb,mt,ctx,add}   the weighted mean of (predicted - measured) over the same bins: negative = the head under-predicts the
-                                    nonspecific (saturation) epistasis, e.g. a link floor below the assay's practical floor.
+    global_err_comb                 RMSE (kcal/mol) of the calibrated and linked combined double-mutant prediction P_AB against measured ddG_AB.
+    global_bias_comb                Mean of (P_AB - ddG_AB) in kcal/mol on the calibrated and linked combined double-mutant predictions.
     beyond_rho_{comb,mt,ctx}        Spearman of the beyond-global residuals over all doubles: everything above the global level at once (pair
                                     offsets dominate it). The clean holistic number.
     pair_rho_{comb,mt,ctx}          Spearman across position pairs of the pairs' mean residuals. Only about 24 pairs (9 libraries) in
@@ -103,8 +101,8 @@ SYM = ('comb', 'mt', 'ctx')
 # additive control only where it is not 0 / 0.5 by construction.
 METRICS = {
     'naive_rho': SYM + ('add',),
-    'global_err': SYM + ('add',),
-    'global_bias': SYM + ('add',),
+    'global_err': ('comb',),
+    'global_bias': ('comb',),
     'beyond_rho': SYM,
     'pair_rho': SYM,
     'line_rho': SYM,
@@ -325,21 +323,14 @@ def naive_rho(t: Table, h: str) -> float:
     return _rho(t.P[h] - t.PA[h] - t.PB[h], t.dddG)
 
 
-def global_curve(t: Table, h: str):
-    """(RMSE, bias) of the predicted against the measured mean dddG in quantile bins of the measured x."""
-    pd_ = t.P[h] - t.PA[h] - t.PB[h]
-    ok = np.isfinite(pd_) & np.isfinite(t.x)
-    if ok.sum() < 2 * GLOBAL_BINS:
+def global_curve(t: Table, h: str = 'comb'):
+    """(RMSE, bias) of the calibrated and linked double-mutant prediction P[h] against measured ddG_AB (y)."""
+    d = t.P[h] - t.y
+    ok = np.isfinite(d)
+    if not ok.any():
         return NAN, NAN
-    qs = np.quantile(t.x[ok], np.linspace(0, 1, GLOBAL_BINS + 1))
-    q = np.clip(np.searchsorted(qs, t.x[ok], side='right') - 1, 0, GLOBAL_BINS - 1)
-    d, w = [], []
-    for k in range(GLOBAL_BINS):
-        s = q == k
-        if s.any():
-            d.append(pd_[ok][s].mean() - t.dddG[ok][s].mean()); w.append(s.sum())
-    d, w = np.array(d), np.array(w, float)
-    return float(np.sqrt(np.average(d ** 2, weights=w))), float(np.average(d, weights=w))
+    d = d[ok]
+    return float(np.sqrt(np.mean(d ** 2))), float(np.mean(d))
 
 
 def residual_levels(t: Table, h: str) -> Dict[str, float]:
