@@ -32,6 +32,16 @@ def timed_call(func, *args, **kwargs):
     elapsed = time.perf_counter() - start
     return result, elapsed
 
+
+def _mask_strategy_tag(ms) -> str:
+    if ms is None:
+        return "unmasked"
+    if isinstance(ms, dict):
+        w = ms.get('wt') or 'unmasked'
+        m = ms.get('mt') or 'unmasked'
+        return str(w) if w == m else f"wt-{w}_mt-{m}"
+    return str(ms)
+
 def safe_spearman(df, col1, col2):
     """Safely computes spearman correlation, returning NaN if insufficient valid data."""
     valid_df = df[[col1, col2]].dropna()
@@ -128,7 +138,7 @@ def run_protein_gym(args, model):
             log(f"[PGYM] {did}: standardize n={len(df)} in {time.time()-t0:.1f}s")
             res = inference.infer_mutants(
                 model=model, df=df, batch_size=dms_batch,
-                quiet=True, optimize_wt_pass=(args.mask_strategy is None),
+                quiet=True, optimize_wt_pass=True,
                 skip_reverse=args.skip_reverse, mask_strategy=args.mask_strategy,
                 auto_batch=sizer
             )
@@ -159,12 +169,17 @@ def main_(args):
     os.makedirs('tmp', exist_ok=True)
 
     if CHECKPOINT_STR != 'zeroshot':
-        hparams_path = os.path.join(MODEL_DIR, os.path.dirname(args.checkpoint), 'hparams.yaml')
+        resolved_ckpt = os.path.abspath(args.checkpoint) if os.path.isfile(args.checkpoint) else str(MODEL_DIR / args.checkpoint)
+        hparams_path = os.path.join(os.path.dirname(resolved_ckpt), 'hparams.yaml')
         parsed_config = inference.parse_hparams_to_lora_config(hparams_path)
         adapter_mode = parsed_config.get('adapter_mode', 'dual')
         lora_mode = parsed_config.get('lora_mode', 'ensemble')
         checkpoint_cal = parsed_config.get('calibration')
-        if args.mask_strategy is None and parsed_config.get('mask_strategy') is not None:
+        if getattr(args, 'mask_strategy_wt', None) is not None or getattr(args, 'mask_strategy_mt', None) is not None:
+            m_wt = None if getattr(args, 'mask_strategy_wt', None) in (None, 'none') else args.mask_strategy_wt
+            m_mt = None if getattr(args, 'mask_strategy_mt', None) in (None, 'none') else args.mask_strategy_mt
+            args.mask_strategy = m_wt if m_wt == m_mt else {'wt': m_wt, 'mt': m_mt}
+        elif args.mask_strategy is None and parsed_config.get('mask_strategy') is not None:
             args.mask_strategy = parsed_config['mask_strategy']
             print(f"[MODEL] mask_strategy from hparams: {args.mask_strategy}")
         native_cond_for_mt = bool(parsed_config.get('native_cond_for_mt', False))
@@ -180,6 +195,7 @@ def main_(args):
         }
     
     else:
+        resolved_ckpt = None
         mt_lora_config = {
             "lora_rank": 1, "lora_alpha": 0, "lora_dropout": 0,
             "target_mode": "baseline", "use_dora": False, "seed": args.seed,
@@ -218,8 +234,7 @@ def main_(args):
     # Robust Checkpoint Loading
     # ---------------------------------------------------------
     if args.checkpoint:
-        ckpt_path = str(MODEL_DIR / args.checkpoint)
-        model.load_lora_weights(ckpt_path)
+        model.load_lora_weights(resolved_ckpt)
     else:
         print('Zero shot mode!')
 
@@ -283,7 +298,7 @@ def main_(args):
                 pred_df, t_inf = timed_call(
                     inference.infer_mutants, 
                     model=model, df=input_data, batch_size=1, quiet=True, mask_strategy=args.mask_strategy, 
-                    optimize_wt_pass=(args.mask_strategy is None), skip_reverse=args.skip_reverse
+                    optimize_wt_pass=True, skip_reverse=args.skip_reverse
                 )
                 pred_df['id'] = code + chain + '_' + pred_df['mut_type_renumbered']
                 pred_df = pred_df.set_index('id')
@@ -295,8 +310,9 @@ def main_(args):
                 total_time += t_inf
 
             res_df = pd.concat(res_combined)
+            mask_tag = _mask_strategy_tag(args.mask_strategy)
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
 
@@ -310,7 +326,7 @@ def main_(args):
             if 'ptmul' not in name:
                 assert len(df_true) == len(res_df), f"Lost samples during join for {name}!"
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/external/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/external/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
             
@@ -382,7 +398,7 @@ def main_(args):
                     pred_df, t = timed_call(
                         inference.infer_mutants, 
                         model=model, df=input_data, batch_size=16, backbone_mutation=backbone_mutation, quiet=True, 
-                        skip_additive=False, mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None),
+                        skip_additive=False, mask_strategy=args.mask_strategy, optimize_wt_pass=True,
                         skip_reverse=args.skip_reverse
                     )
                     pred_df['id'] = code + ('_' if backbone_mutation is None else '_' + str(backbone_mutation) + '_') + pred_df['mut_type_renumbered']
@@ -397,9 +413,10 @@ def main_(args):
 
             # Aggregate DataFrames
             res_df = pd.concat(res_combined)
+            mask_tag = _mask_strategy_tag(args.mask_strategy)
 
             # File Operations
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
 
@@ -419,7 +436,7 @@ def main_(args):
                     stats_mt = update_stats(stats_mt, code, group, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', current_time)
                     stats_cmb = update_stats(stats_cmb, code, group, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', current_time)
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
             
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -474,7 +491,7 @@ def main_(args):
             pred_df, t_inf = timed_call(
                 inference.infer_mutants, 
                 model=model, df=input_data, batch_size=batch_sz, quiet=False, skip_additive=False, 
-                mask_strategy=args.mask_strategy, optimize_wt_pass=(args.mask_strategy is None),
+                mask_strategy=args.mask_strategy, optimize_wt_pass=True,
                 skip_reverse=args.skip_reverse
             )
             pred_df['id'] = prot_name + '_' + pred_df['mut_type_renumbered']
@@ -485,8 +502,9 @@ def main_(args):
 
             assert len(df_true) == len(res), f"Merge error on DMS {prot}"
             res_combined.append(res)
+            mask_tag = _mask_strategy_tag(args.mask_strategy)
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res.to_csv(out_path)
 
@@ -495,7 +513,7 @@ def main_(args):
                 stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', t_inf)
                 stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', t_inf)
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
 
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -540,7 +558,7 @@ def main_(args):
                 inference.infer_mutants, 
                 model=model, df=input_data, batch_size=32, quiet=True, 
                 skip_reverse=should_skip_reverse_dom, mask_strategy=args.mask_strategy, 
-                optimize_wt_pass=(args.mask_strategy is None)
+                optimize_wt_pass=True
             )
             pred_df['id'] = prot + '_' + pred_df['mut_type_renumbered']
             pred_df = pred_df.set_index('id')
@@ -557,12 +575,13 @@ def main_(args):
                 stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', time_val=t_inf)
 
         res_df = pd.concat(res_combined, axis=0)
+        mask_tag = _mask_strategy_tag(args.mask_strategy)
 
-        out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}_predictions.csv')
+        out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}_predictions.csv')
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         res_df.to_csv(out_path)
 
-        stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/domainome/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{args.mask_strategy if args.mask_strategy is not None else "unmasked"}')
+        stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/domainome/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}')
         os.makedirs(os.path.dirname(stats_base), exist_ok=True)
 
         stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -590,6 +609,8 @@ if __name__ == "__main__":
 
         parser.add_argument('--local_cluster', action='store_true')
         parser.add_argument('--mask_strategy', type=str, choices=['marginal', 'independent'], default=None)
+        parser.add_argument('--mask_strategy_wt', type=str, choices=['none', 'marginal', 'independent'], default=None)
+        parser.add_argument('--mask_strategy_mt', type=str, choices=['none', 'marginal', 'independent'], default=None)
         parser.add_argument('--mask_structure_pos', action='store_true')
         parser.add_argument('--mask_coords_pos', action='store_true')
         parser.add_argument('--mask_coords', action='store_true')

@@ -164,7 +164,7 @@ def resolve_calibration(checkpoint_cal: Optional[dict], tie_mt_scale: Optional[b
     return cal
 
 
-def _handle_mutated_backbone(sequence, coords, structure_tokens, backbone_mutation=None, assert_wt=False, assert_mut=False, mask_ctx=False):
+def _handle_mutated_backbone(sequence, coords, structure_tokens, backbone_mutation=None, assert_wt=False, assert_mut=False, mask_ctx=False, mask_struct_only=False):
     corrected_seq = sequence
     if backbone_mutation:
         for single_m in backbone_mutation.split(':'):
@@ -180,14 +180,15 @@ def _handle_mutated_backbone(sequence, coords, structure_tokens, backbone_mutati
                 if corrected_seq[mutated_backbone_pos-1] != mut:
                     raise AssertionError(f"Expected {mut} at pos {mutated_backbone_pos}, found {corrected_seq[mutated_backbone_pos-1]}. Note: Chain breaks ('|') may shift sequence indices.")
 
-            if mask_ctx and mutated_backbone_pos:
+            if (mask_ctx or mask_struct_only) and mutated_backbone_pos:
                 structure_tokens[:, mutated_backbone_pos] = C.STRUCTURE_MASK_TOKEN
+            if mask_ctx and mutated_backbone_pos:
                 coords[:, mutated_backbone_pos, :, :] = np.nan
         
     return corrected_seq, coords, structure_tokens
 
 
-def preprocess_structure(model, pdb_path, chain, dev, backbone_mutation, assert_wt=False, assert_mut=False, mask_ctx=False):
+def preprocess_structure(model, pdb_path, chain, dev, backbone_mutation, assert_wt=False, assert_mut=False, mask_ctx=False, mask_struct_only=False):
     if isinstance(chain, str):
         chains = chain.split(',')
     elif isinstance(chain, (list, tuple)):
@@ -213,7 +214,7 @@ def preprocess_structure(model, pdb_path, chain, dev, backbone_mutation, assert_
         structure_tokens[:, 0], structure_tokens[:, -1] = C.STRUCTURE_BOS_TOKEN, C.STRUCTURE_EOS_TOKEN
 
     corrected_seq, masked_coords, masked_struct = _handle_mutated_backbone(
-        seq, coords, structure_tokens, backbone_mutation, assert_wt, assert_mut, mask_ctx)
+        seq, coords, structure_tokens, backbone_mutation, assert_wt, assert_mut, mask_ctx, mask_struct_only=mask_struct_only)
 
     seq_tokens_list = model.sequence_tokenizer.encode(corrected_seq)
     seq_tokens = torch.tensor(seq_tokens_list, dtype=torch.long).unsqueeze(0).to(dev)
@@ -297,7 +298,9 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
     code = unique_structs['code'].iloc[0]
     chain = unique_structs['chain'].iloc[0]
     
-    seq_toks, coords, plddt, struct_toks, wt_seq_str = preprocess_structure(model, pdb, chain, dev, backbone_mutation, assert_wt=True)
+    seq_toks, coords, plddt, struct_toks, wt_seq_str = preprocess_structure(
+        model, pdb, chain, dev, backbone_mutation, assert_wt=True,
+        mask_struct_only=bool(backbone_mutation and getattr(model, 'mask_native_cond_struct', False)))
     
     dist_matrix = None
     if calculate_distances:
@@ -393,7 +396,8 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
             skip_reverse=skip_reverse,
             cached_wt_esm3=cached_wt_esm3,
             quiet=quiet,
-            auto_batch=auto_batch
+            auto_batch=auto_batch,
+            is_native_cond=bool(backbone_mutation),
         )
     
     # Pull all GPU results to host with three bulk copies instead of three

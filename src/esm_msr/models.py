@@ -916,7 +916,7 @@ class MSRModel(ESM3PredictorBase):
         return output_dict
 
     @torch.no_grad()
-    def score_screening_batch(self, wt_sequence_tokens: torch.Tensor, mut_pos: torch.Tensor, wt_id: torch.Tensor, mt_id: torch.Tensor, mut_mask: torch.Tensor, coords: Optional[torch.Tensor] = None, structure_tokens: Optional[torch.Tensor] = None, plddt: Optional[torch.Tensor] = None, mask_strategy: Union[str, Dict[str, Optional[str]], None] = None, batch_size: int = 32, skip_reverse: bool = False, cached_wt_esm3: Optional[Dict] = None, quiet: bool = False, auto_batch: Optional["AutoBatchSizer"] = None) -> Dict[str, torch.Tensor]:
+    def score_screening_batch(self, wt_sequence_tokens: torch.Tensor, mut_pos: torch.Tensor, wt_id: torch.Tensor, mt_id: torch.Tensor, mut_mask: torch.Tensor, coords: Optional[torch.Tensor] = None, structure_tokens: Optional[torch.Tensor] = None, plddt: Optional[torch.Tensor] = None, mask_strategy: Union[str, Dict[str, Optional[str]], None] = None, batch_size: int = 32, skip_reverse: bool = False, cached_wt_esm3: Optional[Dict] = None, quiet: bool = False, auto_batch: Optional["AutoBatchSizer"] = None, is_native_cond: bool = False) -> Dict[str, torch.Tensor]:
         """
         A unified, sparse-input scoring engine. 
         Routes dynamically between dense chunking (for unmasked) and state deduplication (for masked)
@@ -975,6 +975,7 @@ class MSRModel(ESM3PredictorBase):
                     'coords': coords.expand(curr_B, -1, -1, -1) if coords is not None else None,
                     'structure_tokens': structure_tokens.expand(curr_B, -1) if structure_tokens is not None else None,
                     'plddt': plddt.expand(curr_B, -1) if plddt is not None else None,
+                    **({'subset_type': ['native_cond'] * curr_B} if is_native_cond else {}),
                 }
 
                 chunk_cache = None
@@ -1119,13 +1120,17 @@ class MSRModel(ESM3PredictorBase):
 
             if not skip_reverse:
                 if mask_mt is None:
+                    use_wt_for_mt = bool(is_native_cond and getattr(self, 'native_cond_mt_input', False))
                     def _dense_mt_chunk(start_idx, end_idx):
                         curr_B = end_idx - start_idx
-                        chunk_mt_seq = wt_sequence_tokens.expand(curr_B, -1).clone()
-                        for i_loc in range(curr_B):
-                            b_abs = start_idx + i_loc
-                            v_idx = torch.where(mut_mask[b_abs])[0]
-                            chunk_mt_seq[i_loc, mut_pos[b_abs, v_idx]] = mt_id[b_abs, v_idx]
+                        if use_wt_for_mt:
+                            chunk_mt_seq = wt_sequence_tokens.expand(curr_B, -1)
+                        else:
+                            chunk_mt_seq = wt_sequence_tokens.expand(curr_B, -1).clone()
+                            for i_loc in range(curr_B):
+                                b_abs = start_idx + i_loc
+                                v_idx = torch.where(mut_mask[b_abs])[0]
+                                chunk_mt_seq[i_loc, mut_pos[b_abs, v_idx]] = mt_id[b_abs, v_idx]
                         chunk_batch = {
                             'wt_sequence_tokens': wt_sequence_tokens.expand(curr_B, -1),
                             'mt_sequence_tokens': chunk_mt_seq,
