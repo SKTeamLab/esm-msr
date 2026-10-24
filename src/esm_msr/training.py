@@ -578,7 +578,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         s_w = 1.0 if not cal_wt_h.use_scale else cal_wt_h.scale.detach()
                         b_w = cal_wt_h.bias_for(n_mut_mb)
                         b_w = b_w.detach() if torch.is_tensor(b_w) else b_w
-                        wt_rank_in = s_w * wt_pred_raw + b_w
+                        wt_rank_in = wt_pred_raw + (b_w / s_w)
                     else:
                         wt_rank_in = wt_pred_raw
                 else:
@@ -652,16 +652,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if hp.lambda_rank_mt > 0 and self.crit_rank_mt is not None:
                     cal_mt_h = getattr(self.model, 'calibration_head_fused', None) if getattr(self.model, 'adapter_mode', 'dual') == 'fused' else getattr(self.model, 'calibration_head_mt', None)
                     if cal_mt_h is not None:
-                        s_m = 1.0 if not cal_mt_h.use_scale else cal_mt_h.scale.detach()
                         b_m = cal_mt_h.bias_for(n_mut_mb)
                         b_m = b_m.detach() if torch.is_tensor(b_m) else b_m
                         if getattr(self.model, 'adapter_mode', 'dual') == 'fused' and getattr(self.model, 'fused_antisymmetric', False):
-                            mt_pred_rank = s_m * mt_pred_raw - b_m
+                            mt_pred_rank = mt_pred_raw - (b_m / s)
                         else:
-                            mt_pred_rank = s_m * mt_pred_raw + b_m
+                            mt_pred_rank = mt_pred_raw + (b_m / s)
                     else:
                         mt_pred_rank = mt_pred_raw
-                    combined_pred_rank = combine_predictions(forced_wt_cal, mt_pred_rank)
+                    combined_pred_rank = combine_predictions(forced_wt_cal / s, mt_pred_rank)
 
                     use_cal_rank = rank_calibrated or (getattr(self.model, 'adapter_mode', 'dual') == 'fused' and getattr(self.model, 'fused_antisymmetric', False))
                     rank_pred_in = combined_pred_rank if use_cal_rank else combined_pred_raw
@@ -669,7 +668,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         if 'ddG_A' in micro and 'ddG_B' in micro:
                             epi_targ_mb = ddG_mb - (micro['ddG_A'].float() + micro['ddG_B'].float())
                             epi_mask_mb = reg_mask & ~is_single & has_add_label & torch.isfinite(epi_targ_mb)
-                            epi_pred_mb = combined_pred_rank - forced_wt_cal
+                            epi_pred_mb = combined_pred_raw - forced_wt_raw
                         else:
                             epi_targ_mb = epi_mask_mb = epi_pred_mb = None
                         L_rank, val, n_list = self._compute_partner_rank_loss(
