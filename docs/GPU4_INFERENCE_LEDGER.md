@@ -50,8 +50,8 @@ every dataset in the job, so per-dataset timing has to come from the finer sourc
 | SPURS | rerun with the mutant-background libraries (capped val+test) | rerun | **gpu4 only** | 1 / 0 | 0.02 / 0.0 |
 | SPURS multi | rerun with the mutant-background libraries (capped val+test) | rerun | **gpu4 only** | 1 / 0 | 0.01 / 0.0 |
 | ProteinMPNN | rerun with the mutant-background libraries (capped val+test) | rerun | **gpu4 only** | 1 / 0 | 0.00 / 0.0 |
-| ESM-MSR | rerun after the calibration-default change (multi-mutant sets) | rerun | gpu4 | 13 queued (1 running) | – |
-| ESM-MSR | ctx head (WT + ~WT)/2, capped val+test | inference | gpu4 | 4 queued | – |
+| ESM-MSR | rerun after the calibration-default change (multi-mutant sets) | rerun | **gpu4 only** | 18 / 0 (five first-pass jobs failed in 31 min each, then reran) | 8.8 / 0.0 |
+| ESM-MSR | ctx head (WT + ~WT)/2, capped val+test | inference | **gpu4 only** | 8 / 0 (four first-pass jobs failed in 4.5 min each on a missing structure) | 0.7 / 0.0 |
 | ESM-MSR | ProteinGym bias correction (CPU, offline) | cpu | not gpu4 | 0 / 4 (gpu1) | 0.0 / 1.3 |
 
 The three **rerun** rows are not repeats of the gamut jobs they replace: they score the 6,026 + 7,931 mutant-background rows the
@@ -98,15 +98,34 @@ The ε runs took 1.5 h, not the ~6.6 h I had estimated from the gamut's earlier 
 blocks, which these runs skip. **Convention:** jobs 386520–386527 ran before the calibration-default change (merged on the
 cluster at 12:10 on 2026-10-23) and used one bias per item; 386528 onward use one per mutated position. The older ones are
 being rerun (`gpu4_pmb_*`), so a seed mean over mixed jobs is never shown (the table builder reads the convention from each
-prediction file). **Running** (as of 14:40): 386364 ESM3ΔG (fp16), 386277 GeoDDG, 386530 (devel seed 3, ε = 0.5) and 386576
-(the first rerun, released ε = 1). **Waiting:** the other 12 `gpu4_pmb_*` reruns, the four `gpu4_ctx_*` jobs, `gpu4_eps0.25_dev3` (386531), and the resumed
-MT-pass ablation `gpu4_pgym_s1_mtpass_wt2` (386637; 187 DMS, ~29 h, scored with the new defaults; its first 26 DMS are the
-corrected output of the cancelled job 386255, so its `summary.csv` mixes the two origins, recorded in the manifest).
+prediction file). **State on 2026-10-24 (the 14:40 snapshot above, brought forward).** Finished since: the other 12 `gpu4_pmb_*` reruns
+(386581–386588) and the five that failed on their first pass (386576–386580, rerun as 386727–386731 on DMS + Domainome
+and 386733–386737 on Tsuboyama); the four `gpu4_ctx2_*` jobs (386738–386741) that replaced the four that died on a
+missing structure; and `gpu4_eps0.25_dev3` (386531). **Running:** 386364 ESM3ΔG fp16 (200 of 213 DMS), 386637 the
+MT-pass ablation (130 of 213; 187 DMS, ~29 h, scored with the new defaults, and its first 26 DMS are the corrected
+output of the cancelled job 386255, so its `summary.csv` mixes the two origins, recorded in the manifest), and 386804
+GeoDDG. GeoDDG's first job, 386277, ended `TIMEOUT` after exactly 2-00:00:00 with 148 of 213 DMS done — it was
+submitted with `--time=2-00:00:00` and the partition allows unlimited time, so that was a scheduling choice, not a
+failure; 386804 resumes it with `--time=4-00:00:00` and skips the 148 datasets already on disk.
 
-**A free GPU does not mean a free slot.** The ε jobs asked for 96 G and 8 CPUs but peak at 6.9 G. With 160 G of the
-node's 250 G already allocated, the next job could not fit and a card sat idle until the pending jobs were lowered to
-24 G. The same applies to every harness job: `run_model.sbatch` asks for 32 G, which is what ESM3ΔG and GeoDDG
-actually hold.
+**A free GPU does not mean a free slot, and an empty queue does not fill one.** gpu4 has 4 cards, **24 CPUs** and **250 GB**, so
+a quarter of the node is 6 CPUs and ~62 GB. Three things have left a card idle, all avoidable:
+
+- **Memory.** The ε jobs asked for 96 G and peaked at 6.9 G; with 160 G of the node already allocated the next job could not fit
+  (fixed 2026-10-23 by lowering the pending jobs to 24 G).
+- **CPUs (2026-10-23).** ESM-MSR jobs asked for 8 CPUs, so **three** of them used all 24 and a fourth card idled with work waiting.
+  Measured peaks are 6.7–7.0 GB for every ESM-MSR inference job (`sacct` MaxRSS of 386531, 386566, 386576, 386581, 386588) against
+  24–32 G requested. **Rule: at most 4 CPUs and 12 G per ESM-MSR job (32 G for ESM3ΔG and GeoDDG, which actually hold it).**
+  Four such jobs use 16 of 24 CPUs. The stock `slurm_msr_gamut.sh` and `slurm_pgym.sh` still ask for 96 G and 8 CPUs; override them
+  on the command line (`--cpus-per-task=4 --mem=12G`) until they are changed.
+- **Failures nobody saw.** Five full ESM-MSR reruns (386576–386580, 31 min each) and four ctx jobs (386566–386569, 4.5 min each) failed on
+  the Tsuboyama structure lookup (below) and the queue drained, leaving a card empty for hours. A queue only keeps the node full if
+  failures are noticed: keep at least four eligible jobs per free card, and read the exit state of every job that ends.
+
+The failure itself: `882a5cb` looks structures up under the Zenodo names (`:` for `|`), and the cluster's folder has the same files
+with `_` (`v2R31S_R32S_2N5D.pdb`, no colon file). 40 of the table's 479 wild-type names carry a `|`, so any ESM-MSR run that reached
+one failed with `FileNotFoundError`. `structure_file_stems` now falls back to the `_` name when only that exists (all 479 resolve;
+`tests/test_structure_paths.py`); the jobs were resubmitted as `gpu4_pmb2_*` (external + DMS), `gpu4_pmb3_tsu_*` (Tsuboyama) and `gpu4_ctx2_*`.
 
 Cancelled earlier: `gpu4_ifum_cappg` 386275 (§3.2), `gpu4_esm3dg_cappg` 386274 (replaced by 386364, §3.1),
 `gpu4_prosst_cappg` 386278 (ProteinGym part replaced by the published scores).
