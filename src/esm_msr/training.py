@@ -836,7 +836,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
     def on_validation_epoch_start(self):
         self.validation_step_outputs = defaultdict(list)
 
-    _VAL_PROGRESS_BAR = ('rho_combined', 'rho_wt_valid')
+    _VAL_PROGRESS_BAR = ('rho_combined', 'rho_singles_wt')
 
     @staticmethod
     def _mut_keys(pdb, mutations):
@@ -876,7 +876,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # Score every run on the released labelling, where a mutant-background library's measurements are
             # singles. --native_cond_for_wt / --native_cond_for_mt relabel them 'native_cond' to decide which head
             # trains on them and what the MT pass sees, and that routing must not move the yardstick: with the label
-            # left in place rho_wt_valid drops the five mutant-background validation libraries (the frozen gold
+            # left in place rho_singles_wt drops the five mutant-background validation libraries (the frozen gold
             # head reads 0.8536 on the other 20 against 0.8510 on all 25). The dump and the epistasis pool get the
             # same canonical label.
             subset_types = ['single' if t == 'native_cond' else t for o in valid_outputs for t in o['subset_types']]
@@ -1028,8 +1028,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         Each head gets its own plateau because a shared one (on ``val_rho_combined_avg``) kept the WT adapter taking full-rate steps on a
         metric the MT path was still improving, so it drifted and the target the MT path teacher-forces against moved underneath it; and a
         shared scheduler that owned every parameter group compounded patience-1 triggers into a 370x drop in three epochs (dc12r_s2).
-        The WT head watches ``rho_wt_valid`` and touches only the ``lora_wt`` / ``calib_wt`` groups; the MT head watches
-        ``--mt_convergence_metric`` (default ``epi_beyond_lib_comb``: the reported prediction's correlation on the part of a double the WT singles do not
+        The WT head watches ``rho_singles_wt`` and touches only the ``lora_wt`` / ``calib_wt`` groups; the MT head watches
+        ``--mt_convergence_metric`` (default ``epi_beyond_rho_mt``: the MT head's correlation on the part of a double the WT head's singles do not
         explain) and touches only ``lora_mt`` / ``calib_mt``. That metric is noisy epoch to epoch (swings of +-0.03, no trend), so
         patience 1 wants the gentle factor 0.3 it has by default.
         """
@@ -1037,7 +1037,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         done = self.peft_manager.has_transitioned if head == 'wt' else self.peft_manager.mt_path_is_frozen
         if patience <= 0 or done:
             return
-        key = 'rho_wt_valid' if head == 'wt' else self.hparams.mt_convergence_metric
+        key = 'rho_singles_wt' if head == 'wt' else self.hparams.mt_convergence_metric
         if not avg_metrics.get(key):
             # Loudly, and once: a scheduler that is configured but silently inert is worse than one that errors.
             # dc12 ran 8 epochs with its MT plateau doing nothing, because _log_epistasis returned None and the
@@ -1096,7 +1096,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         End the run once every optimizer group that still holds trainable parameters is at lr 0.
 
         With --wt_freeze_after_decays and --mt_freeze_after_decays both set, each head stops itself after its own
-        decay budget, and the MT head is normally last (rho_wt_valid peaks around epoch 2 while beyond_rho_mt
+        decay budget, and the MT head is normally last (rho_singles_wt peaks around epoch 2 while beyond_rho_mt
         climbs for several more). The remaining epochs would re-run the same weights for the same score, so the
         epoch budget can be set generously and is spent only where it is used.
 

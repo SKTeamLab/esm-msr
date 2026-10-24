@@ -112,8 +112,7 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     """
     The ddG validation metrics for one dataloader.
 
-    * ``rho_wt_valid``   - WT head on plain single mutations in the real wild-type context (NaN for a
-      mutant-background library, whose singles are all ``native_cond``).
+    * ``rho_singles_wt`` - WT head on the library's single mutations (``rho_wt_valid`` before 2026-10-24).
     * ``rho_singles_combined`` - the reported two-path average on the same singles: what the MT half does to them.
     * ``rho_doubles_wt`` / ``rho_doubles_combined`` - the WT head (additive: the sum of its singles) and the reported
       average on the library's doubles; NaN for a library without doubles. Their difference is what the MT half buys
@@ -150,7 +149,7 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     is_measured = np.isin(subset_types, list(routing.MEASURED_SUBSETS)) & finite
 
     metrics = {
-        'rho_wt_valid': safe_spearman(wt_scores[is_single], gt[is_single]),
+        'rho_singles_wt': safe_spearman(wt_scores[is_single], gt[is_single]),
         'rho_singles_combined': safe_spearman(comb_scores[is_single], gt[is_single]),
         'rho_doubles_wt': safe_spearman(wt_scores[is_double], gt[is_double]),
         'rho_doubles_combined': safe_spearman(comb_scores[is_double], gt[is_double]),

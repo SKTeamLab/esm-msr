@@ -268,7 +268,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     paradigm.add_argument('--frozen_wt_mt_only', action=argparse.BooleanOptionalAction, default=False,
                           help="The 'frozen WT, MT-only' paradigm: requires --init_wt_from_checkpoint, freezes the WT adapter (its calibration head "
                                "and link are fixed anyway) and sets --lambda_reg_wt 0 --lambda_rank_wt 0. Only the MT path trains. Validation "
-                               "always keeps singles and doubles, so rho_wt_valid stays a guard.")
+                               "always keeps singles and doubles, so rho_singles_wt stays a guard.")
     paradigm.add_argument('--freeze_mt_adapter', action=argparse.BooleanOptionalAction, default=False,
                           help="Keep the MT adapter frozen for the whole run: a WT-only arm (pair with --val_wt_only, --subsets single and the MT lambdas at 0).")
     paradigm.add_argument('--val_wt_only', action=argparse.BooleanOptionalAction, default=False,
@@ -308,15 +308,15 @@ def parse_arguments(argv=None) -> argparse.Namespace:
 
     sched = parser.add_argument_group("Schedule (each head that is training gets its own plateau)")
     sched.add_argument('--plateau_patience', type=int, default=1,
-                       help="Epochs of no improvement in a head's metric (rho_wt_valid for the WT head, --mt_convergence_metric for the MT head) "
+                       help="Epochs of no improvement in a head's metric (rho_singles_wt for the WT head, --mt_convergence_metric for the MT head) "
                             "before that head's own learning rate is cut by --plateau_factor. 0 disables the decays.")
     sched.add_argument('--plateau_factor', type=float, default=0.3)
     sched.add_argument('--freeze_after_decays', type=int, default=3,
                        help="Freeze a head after this many decays: at factor 0.3 the third leaves it at 2.7 percent of its base rate, which is "
                             "not training. 0 never freezes. Once every head is frozen the run stops itself.")
-    sched.add_argument('--mt_convergence_metric', type=str, default='epi_beyond_lib_comb',
-                       help="What the MT plateau watches. The default is the reported prediction's correlation, library by library, on the "
-                            "part of a double the WT head's singles do not explain.")
+    sched.add_argument('--mt_convergence_metric', type=str, default='epi_beyond_rho_mt',
+                       help="What the MT plateau watches. The default is the correlation of the MT head's epistasis component, ~MT(AB) - WT(AB), "
+                            "with the measured one, both beyond the global level.")
     sched.add_argument('--early_stopping_patience', type=int, default=0,
                        help="Stop when --monitor_metric has not improved for this many validations. 0 (the default) never early-stops.")
     sched.add_argument('--monitor_metric', type=str, default='val_rho_combined_avg',

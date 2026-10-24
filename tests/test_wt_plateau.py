@@ -1,7 +1,7 @@
 """The WT path's learning rate must follow its OWN metric.
 
 The shared ReduceLROnPlateau watches val_rho_combined_avg, which the MT path keeps improving long after
-rho_wt_valid has stopped (it peaks around epoch 2). Without a separate rule the WT adapter keeps taking
+rho_singles_wt has stopped (it peaks around epoch 2). Without a separate rule the WT adapter keeps taking
 full-rate steps on a metric it is no longer improving, drifting, and moving the teacher-forced target the MT
 path is fitting against.
 """
@@ -40,7 +40,7 @@ def _lr(s, name):
 
 def feed(s, values):
     for v in values:
-        s._wt_plateau_step({'rho_combined': [0.8], 'rho_wt_valid': [v]})
+        s._wt_plateau_step({'rho_combined': [0.8], 'rho_singles_wt': [v]})
 
 
 def test_improving_metric_never_decays():
@@ -104,6 +104,6 @@ def test_does_nothing_once_already_transitioned():
 def test_a_missing_or_nan_metric_is_ignored():
     s = _stub(patience=1)
     s._wt_plateau_step({'rho_combined': [0.8]})                       # key absent
-    s._wt_plateau_step({'rho_wt_valid': []})                          # empty
-    s._wt_plateau_step({'rho_wt_valid': [float('nan')]})              # NaN
+    s._wt_plateau_step({'rho_singles_wt': []})                          # empty
+    s._wt_plateau_step({'rho_singles_wt': [float('nan')]})              # NaN
     assert _lr(s, 'lora_wt') == pytest.approx(2e-4)

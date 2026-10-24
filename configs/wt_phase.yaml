@@ -29,6 +29,6 @@ num_workers: 2
 plateau_patience: 1
 plateau_factor: 0.3
 freeze_after_decays: 3
-monitor_metric: val_rho_wt_valid_avg
+monitor_metric: val_rho_singles_wt_avg
 early_stopping_patience: 0
 cache_version: c6

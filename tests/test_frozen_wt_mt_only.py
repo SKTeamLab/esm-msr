@@ -3,7 +3,7 @@
 ``--frozen_wt_mt_only`` is a named combination of primitive flags: a PRE-TRAINED WT path loaded from a checkpoint
 (``--init_wt_from_checkpoint``), held fixed (``--freeze_wt_adapter``), with the training stream restricted to
 multi-mutants (``--no-incl_singles``) so only the MT head (plus the link and the nonspecific term) learns. The
-validation loaders are built independently and always keep singles and doubles, so ``rho_wt_valid`` stays a guard.
+validation loaders are built independently and always keep singles and doubles, so ``rho_singles_wt`` stays a guard.
 
 What is tested here: the flag combination is derived and validated at parse time, and the loader copies exactly
 the WT path - never the MT adapter, the link or the nonspecific term, which must not be smuggled in from the
