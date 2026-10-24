@@ -190,14 +190,14 @@ class TestTable(unittest.TestCase):
 
     def test_logged_names_cover_the_documented_set(self):
         names = E.logged_names()
-        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 4 + 2 + 7 * 3)
+        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 4 + 3 + 7 * 3)
         s = E.compute(E.Table(items(*synthetic(0), KNOW['all']), FLOOR))
         for n in names:
             self.assertIn(n, s)
 
     def test_every_metric_is_logged_for_every_trained_head(self):
         for m, hs in E.METRICS.items():
-            if m in ('global_err', 'global_bias'):
+            if m.startswith('global_'):
                 self.assertEqual(tuple(hs), ('comb',), m)
             else:
                 self.assertTrue({'comb', 'mt', 'ctx'} <= set(hs), m)
@@ -241,6 +241,17 @@ class TestWTReference(unittest.TestCase):
         t = E.Table(items(*synthetic(8), KNOW['all']), FLOOR)
         r, _ = E.beyond_global(t, 'mt')
         np.testing.assert_allclose(r, (t.c + t.y) - E.smooth_on(t.x, t.c + t.y), atol=1e-9)    # the form used before 2026-10-24
+
+
+class TestGlobalDddgBias(unittest.TestCase):
+    def test_zero_for_a_perfect_head_and_signed(self):
+        pairs, meas = synthetic(9, measure=None)
+        it = items(pairs, meas, KNOW['all'])
+        it['comb'] = it['mt']                               # comb = the truth everywhere
+        self.assertAlmostEqual(E.compute(E.Table(it, None))['epi_global_dddg_bias_comb'], 0.0, places=9)
+        st = np.asarray(it['subset_type'])
+        it['comb'] = it['comb'] - np.where(st == 'double', 0.5, 0.0)
+        self.assertAlmostEqual(E.compute(E.Table(it, None))['epi_global_dddg_bias_comb'], -0.5, places=9)
 
 
 class TestSmoother(unittest.TestCase):

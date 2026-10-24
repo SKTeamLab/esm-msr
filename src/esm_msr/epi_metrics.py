@@ -35,8 +35,7 @@ How saturation is kept out. Two devices:
     The predicted side conditions on the head's OWN x' because a head's saturation-made dddG' is an exact function of x' (it is its link
     bending its own additive prediction), so a head that is additive before its link scores exactly 0 at every residual level. Each head's
     dddG' (``predicted_dddg``):
-      comb   P_comb(AB) - obs(comb(A) + comb(B) + o)       x' = c + comb(A) + comb(B)     6 head evaluations; o = the head's median
-                                                                                         second difference (removes a calibration bias)
+      comb   P_comb(AB) - obs(comb(A) + comb(B))           x' = c + comb(A) + comb(B)     6 head evaluations
       mt     P_mt(AB)   - P_wt(AB)       ~MT(AB) - WT(AB)  x' = c + WT(AB)                2 evaluations, no singles asked of the MT head
       ctx    P_rev(AB)  - P_wt(AB)       ~WT(AB) - WT(AB)  x' = c + WT(AB)                the same with the WT adapter in the MT seat
     WT(AB) = WT(A) + WT(B) exactly (the WT adapter on the wild type, per-mutation bias), so mt / ctx read the part of the double the WT head's
@@ -62,6 +61,10 @@ The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``).
                                     (comb / add: P(AB) - P(A) - P(B)). Mostly saturation - add scores about as much as comb. For curiosity.
     global_err_comb                 RMSE (kcal/mol) of the calibrated and linked combined double-mutant prediction P_AB against measured ddG_AB.
     global_bias_comb                Mean of (P_AB - ddG_AB) in kcal/mol on the calibrated and linked combined double-mutant predictions.
+    global_dddg_bias_comb           mean over doubles of [P(AB) - P(A) - P(B)] - dddG, kcal/mol: the prediction's dddG formed exactly as the
+                                    measured one (observed double minus observed singles), so saturation counts on both sides. Whether the
+                                    reported prediction carries the right AMOUNT of average epistasis (diminishing returns plus saturation).
+                                    Equal to the doubles' mean error minus the mean error of the two singles. comb only: mt is ~2x by construction.
     beyond_rho_{comb,mt,ctx}        Spearman of r' against r over all doubles: everything above the global level at once (pair and library
                                     offsets dominate it).
     beyond_lib_{comb,mt,ctx}        the same with each library's mean removed from r and r' (from dddG' also before its smoother, so one
@@ -79,8 +82,8 @@ The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``).
                                     L_ij' + L_i'j', latent; pair, row and column effects cancel exactly) has the reversal's sign; ties count
                                     half, so an additive head is exactly 0.5. comb's contrast is half of mt's, so the two are identical.
 
-Changed 2026-10-24: mt / ctx residual levels and naive_rho read the WT-referenced dddG' above (before: each head's double minus its OWN
-singles); beyond_lib added; cell_sigsd retired (a spread, not a skill score). comb is unchanged.
+Changed 2026-10-24: comb's composition offset o removed; global_dddg_bias added; mt / ctx residual levels and naive_rho read the WT-referenced dddG' above (before: each head's double minus its OWN
+singles); beyond_lib added; cell_sigsd retired (a spread, not a skill score).
 
 Counts (logged as ``val_epi_n_<name>``): doubles, pairs, complete blocks, confident flips.
 """
@@ -113,6 +116,7 @@ METRICS = {
     'naive_rho': SYM + ('add',),
     'global_err': ('comb',),
     'global_bias': ('comb',),
+    'global_dddg_bias': ('comb',),
     'beyond_rho': SYM,
     'beyond_lib': SYM,
     'pair_rho': SYM,
@@ -217,7 +221,7 @@ class Table:
     Measured: ``pair`` (an integer id per position pair), ``row`` / ``col`` (residue indices inside the pair), ``y`` (ddG_AB), ``yA``,
     ``yB``, ``dddG``, ``c`` (dG_wt), ``x`` (= c + yA + yB). Per head ``h`` in ``self.heads``: ``L[h]`` latent ddG_AB, ``LA[h]`` / ``LB[h]`` latent
     singles, ``P[h]`` / ``PA[h]`` / ``PB[h]`` observed-scale ddG_AB and singles, ``PX[h]`` the observed-scale value of the head's additive
-    prediction, L_A + L_B plus the head's median second difference (its composition offset, e.g. a calibration bias).
+    prediction, obs(L_A + L_B).
     """
 
     def __init__(self, items: Dict[str, Sequence], link: Optional[Callable] = None, heads: Sequence[str] = HEADS):
@@ -288,11 +292,10 @@ class Table:
             v = lat[h]
             self.L[h], self.LA[h], self.LB[h] = v[I], v[IA], v[IB]
             self.P[h], self.PA[h], self.PB[h] = obs(v[I], self.c), obs(v[IA], self.c), obs(v[IB], self.c)
-            # the head's own composition offset: a calibration bias b makes even an additive head give L_AB - L_A - L_B = -b, which a link
-            # would bend into a spurious pattern; the median second difference removes it (for other heads it is a constant of the global level)
-            d = v[I] - v[IA] - v[IB]
-            off = float(np.nanmedian(d)) if np.isfinite(d).any() else 0.0
-            self.PX[h] = obs(v[IA] + v[IB] + off, self.c)
+            # No composition offset (until 2026-10-24 the head's median L_AB - L_A - L_B was added here). With --per_mutation_bias an
+            # additive head's second difference is exactly 0, and for comb the median is the MT pass's typical diminishing returns, a real
+            # global term that the E[dddG' | x'] correction handles anyway.
+            self.PX[h] = obs(v[IA] + v[IB], self.c)
         self._mats = None
 
     def head_ok(self, h):
@@ -477,6 +480,9 @@ def compute(t: Table, metrics: Dict[str, Sequence[str]] = METRICS) -> Dict[str, 
             r['naive_rho'] = naive_rho(t, h)
         if want & {'global_err', 'global_bias'}:
             r['global_err'], r['global_bias'] = global_curve(t, h)
+        if 'global_dddg_bias' in want:
+            d = (t.P[h] - t.PA[h] - t.PB[h]) - t.dddG      # the measured form: observed double minus observed singles
+            r['global_dddg_bias'] = float(np.nanmean(d)) if np.isfinite(d).any() else NAN
         if want & {'beyond_rho', 'beyond_lib', 'pair_rho', 'line_rho', 'cell_mag'}:
             r.update(residual_levels(t, h))
         if want & {'cell_rank', 'cell_sigsd'}:
