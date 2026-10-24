@@ -385,13 +385,10 @@ PG = ['PG avg', 'PG Stability', 'PG DMS mean']
 _FULL = EXT + DMS + ['domainome', 'tsu_capped_val', 'tsu_capped_test']
 _CAP = ['tsu_capped_val', 'tsu_capped_test']
 # cells a run still in the queue will fill (a filled cell always overrides the marker)
-QUEUED = {'SPURS multi': _FULL,                                                   # --readout multi rerun
-          'IFUM (native, ESMFold)': _CAP,                                         # fold 64,008 sequences, then score
-          'GeoDDG-3D': _CAP + PG, 'ESM3dG': PG, 'ESMtherm': PG,                   # runs in progress / one DMS retried
-          'ProSST': _CAP,                                                         # ProteinGym comes from published scores
-          'IFUM (WT backbone)': _CAP,
-          # the ε sweep on DMS + Domainome, one lane per checkpoint
-          **{f'{n} ε={e}': DMS + ['domainome'] for n in (REL, DEVEL) for e in EPS_SWEEP}}
+QUEUED = {'GeoDDG-3D': PG, 'ESM3dG': PG}                    # the only two ProteinGym runs still open, 2026-10-24
+# Cleared 2026-10-24 once their results landed: SPURS multi (_FULL), IFUM native (_CAP), IFUM WT backbone (_CAP),
+# ProSST (_CAP; its ProteinGym column is the authors' published scores), ESMtherm (PG) and the released + devel
+# LoRA-scale ε sweeps on the DMS + Domainome (all twelve runs finished 2026-10-23).
 # cells that are on a different variant set from the rest of their column and are shown in italics, never bolded:
 # Rosetta's ProteinGym numbers cover single mutants only
 ITALIC = {('Rosetta', d) for d in PG}
@@ -602,7 +599,7 @@ JOBS = [  # job-name regex -> model, benchmark, kind
     (r'^pgym_msr_(wtonly|wtsweep)$', 'ESM-MSR capped', 'ProteinGym WT-only ε sweep', 'inference'),
     (r'^pgym_dc8_s\d_e[\d.]+(_rest)?$', 'ESM-MSR dc8', 'ProteinGym (ε sweep)', 'inference'),
     (r'^pgym_bigalloc$', 'ESM-MSR dc8', 'ProteinGym BRCA1/SCN5A retry', 'inference'),
-    (r'^pgym_dc8_s1_e1.0_mtpass', 'ESM-MSR dc8', 'ProteinGym MT-pass ablation', 'inference'),
+    (r'^pgym_dc8_s1_e1.0_mtpass|^gpu4_pgym_s1_mtpass', 'ESM-MSR dc8', 'ProteinGym MT-pass ablation', 'inference'),
     (r'^pgym_spurs$', 'SPURS', 'ProteinGym', 'inference'),
     (r'^pgym_mpnn(_fast|_s\d)?$', 'ProteinMPNN', 'ProteinGym', 'inference'),
     (r'^pgym_mpnn_tta', 'ProteinMPNN', 'ProteinGym TTA pilot (73 DMS)', 'inference'),
@@ -615,8 +612,8 @@ JOBS = [  # job-name regex -> model, benchmark, kind
     (r'^gpu4_spurs_bb$', 'SPURS', 'rerun with the mutant-background libraries (capped val+test)', 'rerun'),
     (r'^gpu4_spursmulti_bb$', 'SPURS multi', 'rerun with the mutant-background libraries (capped val+test)', 'rerun'),
     (r'^gpu4_mpnn_bb$', 'ProteinMPNN', 'rerun with the mutant-background libraries (capped val+test)', 'rerun'),
-    (r'^gpu4_ctx_', 'ESM-MSR', 'ctx head (WT + ~WT)/2, capped val+test', 'inference'),
-    (r'^gpu4_pmb_', 'ESM-MSR', 'rerun after the calibration-default change (multi-mutant sets)', 'rerun'),
+    (r'^gpu4_ctx2?_', 'ESM-MSR', 'ctx head (WT + ~WT)/2, capped val+test', 'inference'),
+    (r'^gpu4_pmb[23]?_', 'ESM-MSR', 'rerun after the calibration-default change (multi-mutant sets)', 'rerun'),
     (r'^pmb_(pgym_check|pipeline|apply|finish)$', 'ESM-MSR', 'ProteinGym bias correction (CPU, offline)', 'cpu'),
     (r'^(smk_|ctx_smoke|pmb_smoke|pmb_pgym_verify|pmb_ablation_verify)', 'various', 'smoke / verification of a change', 'smoke'),
     (r'^gpu4_spurs_multi', 'SPURS multi', 'gamut, multi model on every variant', 'inference'),

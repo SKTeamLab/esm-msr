@@ -270,18 +270,18 @@ seed has finished; the combined head is shown).
 | model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome |
 |---|---|---|---|---|---|---|---|---|
 | released, ε = 1 | 0.726 | 0.725 | 0.673 | 0.619 | **0.639** | 0.479 | **0.346** | 0.542 |
-| released, ε = 0.75 | 0.750 | 0.763 | 0.707 | 0.660 | **0.639** | 0.510 | 0.341 | 0.560 |
-| released, ε = 0.5 | **0.760** | 0.790 | **0.718** | 0.696 | 0.627 | **0.526** | 0.343 | **0.572** |
-| released, ε = 0.25 | 0.747 | **0.792** | 0.688 | 0.721 | 0.595 | 0.516 | 0.319 | 0.568 |
+| released, ε = 0.75 | 0.751 | 0.764 | 0.707 | 0.660 | **0.639** | 0.510 | 0.340 | 0.560 |
+| released, ε = 0.5 | 0.762 | 0.791 | **0.718** | 0.696 | 0.627 | **0.526** | 0.342 | **0.572** |
+| released, ε = 0.25 | 0.748 | 0.793 | 0.688 | 0.721 | 0.596 | 0.516 | 0.320 | 0.568 |
 | devel, ε = 1 | 0.745 | 0.742 | 0.682 | 0.636 | **0.639** | 0.481 | 0.337 | 0.543 |
-| devel, ε = 0.75 | q | q | q | q | q | 0.510 | q | 0.560 |
-| devel, ε = 0.5 | q | q | q | q | q | 0.525 | q | q |
-| devel, ε = 0.25 | q | q | q | q | q | q | q | q |
-| ε = 0 (zero-shot control) | 0.689 | 0.742 | 0.627 | **0.723** | 0.536 | 0.483 | 0.259 | 0.540 |
+| devel, ε = 0.75 | 0.762 | 0.773 | 0.713 | 0.674 | **0.639** | 0.510 | 0.345 | 0.560 |
+| devel, ε = 0.5 | **0.768** | **0.796** | 0.716 | 0.705 | 0.627 | 0.525 | **0.349** | 0.570 |
+| devel, ε = 0.25 | 0.749 | 0.793 | 0.687 | **0.726** | 0.596 | 0.516 | 0.318 | 0.567 |
+| ε = 0 (zero-shot control) | 0.689 | 0.743 | 0.627 | 0.723 | 0.536 | 0.483 | 0.260 | 0.540 |
 
 - **Released, a lower LoRA scale is clearly better on these assays.** At ε = 0.5 the 7-DMS mean is 0.637 against
-  0.601 at ε = 1 (0.624 at 0.75, 0.625 at 0.25), and ε = 0.5 beats ε = 1 on 6 of the 8 columns,
-  including Domainome (0.572 against 0.542), DLG4 binding (0.790 against 0.725) and GRB2 binding (0.696 against
+  0.601 at ε = 1 (0.624 at 0.75, 0.626 at 0.25), and ε = 0.5 beats ε = 1 on 6 of the 8 columns,
+  including Domainome (0.572 against 0.542), DLG4 binding (0.791 against 0.725) and GRB2 binding (0.696 against
   0.619; 0.721 at ε = 0.25). Only MYO and GB1 prefer ε = 1, and by at most 0.012. This is the same direction as
   ProteinGym's functional categories (§3), and at ε = 0.5 ESM-MSR (released) is ahead of ProSST (0.591) on the 7-DMS
   mean.
@@ -290,7 +290,13 @@ seed has finished; the combined head is shown).
   ε = 1, fixed in advance, and a fair version of this comparison fixes one ε before looking.
 - The ε = 0 control (LoRA off) shows the other end: it scores 0.723 on GRB2 binding, above both checkpoints at
   ε = 1, and ties ESM-MSR (devel) on DLG4 binding (0.742); fine-tuning on stability data is what costs these assays.
-  Devel at the three intermediate scales is running (one lane per seed).
+  Devel at the three intermediate scales is now complete (all three seeds).
+- **Devel follows the same shape.** Its 7-DMS mean is 0.641 at ε = 0.5, 0.631 at 0.75, 0.626 at 0.25 and 0.609 at
+  ε = 1, so the intermediate scales beat ε = 1 by 0.017–0.032 and the best devel row (ε = 0.5, 0.641) edges the
+  best released row (0.637). Devel at ε = 0.5 takes DLG4 abundance (0.768), DLG4 binding (0.796) and GB1 (0.349);
+  released at ε = 0.25 takes GRB2 binding (0.726). The two checkpoints are level within about 0.01 on every column
+  and on the mean, so the gain from a lower LoRA scale is a property of the scale, not of the checkpoint. At
+  ε = 0.5 the devel row is also ahead of ProSST (0.591) on the 7-DMS mean, as the released row is.
 
 ### 1.4 ProteinGym (213 DMS)
 
@@ -355,9 +361,11 @@ seed has finished; the combined head is shown).
   the ESM3 comparison is a readout that cannot represent an interaction against one that can.
 - **ESMtherm is Stability-only**, and the table shows how much: 0.720 on Stability against 0.213 on the five-category
   average (0.283 DMS mean), the opposite shape to ProSST.
-- **In progress:** ESM3ΔG (fp16) and GeoDDG are mid-run (192 and 119 of 213 DMS). A model is summarised only once all
-  213 common DMS are in. IFUM's ProteinGym run was stopped as not worth the time it needed, and DDGemb and DDMut are
-  web services that cannot be run at this scale.
+- **In progress:** ESM3ΔG (fp16) and GeoDDG are mid-run (200 and 148 of 213 DMS, 2026-10-24). A model is
+  summarised only once all 213 common DMS are in. GeoDDG's first attempt (386277) was killed by its own two-day
+  wall clock, not by an error, at 148 DMS; none of that work is redone, because the harness skips datasets whose
+  output already exists, and it resumed on 2026-10-24 as 386804 with a four-day limit. IFUM's ProteinGym run was
+  stopped as not worth the time it needed, and DDGemb and DDMut are web services that cannot be run at this scale.
 
 The ε sweep and per-category breakdown are in §3.
 

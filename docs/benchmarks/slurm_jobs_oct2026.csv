@@ -352,7 +352,7 @@ job,name,model,benchmark,kind,node,gpu,start,elapsed,state
 386274,gpu4_esm3dg_cappg,ESM3ΔG,capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-21T19:17,14:53:10,CANCELLED
 386275,gpu4_ifum_cappg,IFUM (WT backbone),capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-21T19:40,15:50:55,CANCELLED
 386276,gpu4_esmtherm_cappg,ESMtherm,capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-22T11:31,04:18:53,COMPLETED
-386277,gpu4_geoddg_cappg,GeoDDG-3D (FASPR),capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-21T19:48,1-18:47:16,RUNNING
+386277,gpu4_geoddg_cappg,GeoDDG-3D (FASPR),capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-21T19:48,2-00:00:02,TIMEOUT
 386279,gpu4_msr_eps0_gamut,ESM3-small-open (ε=0),gamut,inference,None assigned,None assigned,2026-10-21T12:24,00:00:00,CANCELLED
 386280,gpu4_spurs_gamut,SPURS,gamut (incl. capped Tsuboyama),inference,gpu4,RTX A4500,2026-10-21T22:50,00:11:01,COMPLETED
 386281,gpu4_mpnn_gamut,ProteinMPNN,gamut (incl. capped Tsuboyama),inference,gpu4,RTX A4500,2026-10-21T23:01,00:04:25,COMPLETED
@@ -360,7 +360,7 @@ job,name,model,benchmark,kind,node,gpu,start,elapsed,state
 386361,bench_esm3dg,unclassified,bench_esm3dg,other,gpu4,RTX A4500,2026-10-22T10:01,00:00:11,FAILED
 386362,bench_esm3dg,unclassified,bench_esm3dg,other,gpu4,RTX A4500,2026-10-22T10:02,00:01:48,COMPLETED
 386363,verify_esm3dg,unclassified,verify_esm3dg,smoke,gpu4,RTX A4500,2026-10-22T10:07,00:03:31,COMPLETED
-386364,gpu4_esm3dg_pg_fp16,ESM3ΔG,capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-22T10:10,1-04:24:58,RUNNING
+386364,gpu4_esm3dg_pg_fp16,ESM3ΔG,capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-22T10:10,1-23:45:57,RUNNING
 386365,verify_ifum,unclassified,verify_ifum,smoke,gpu4,RTX A4500,2026-10-22T11:23,00:04:41,COMPLETED
 386366,verify_ifum_L448,unclassified,verify_ifum_L448,smoke,gpu4,RTX A4500,2026-10-22T11:28,00:01:41,COMPLETED
 386514,smoke_spurs_multi,unclassified,smoke_spurs_multi,smoke,gpu4,RTX A4500,2026-10-22T23:21,00:00:48,COMPLETED
@@ -379,7 +379,8 @@ job,name,model,benchmark,kind,node,gpu,start,elapsed,state
 386527,gpu4_eps0.5_dev2,ESM-MSR,"LoRA scale sweep, DMS + Domainome",inference,gpu4,RTX A4500,2026-10-23T11:32,01:28:18,COMPLETED
 386528,gpu4_eps0.25_dev2,ESM-MSR,"LoRA scale sweep, DMS + Domainome",inference,gpu4,RTX A4500,2026-10-23T13:01,01:28:13,COMPLETED
 386529,gpu4_eps0.75_dev3,ESM-MSR,"LoRA scale sweep, DMS + Domainome",inference,gpu4,RTX A4500,2026-10-23T12:28,01:27:23,COMPLETED
-386530,gpu4_eps0.5_dev3,ESM-MSR,"LoRA scale sweep, DMS + Domainome",inference,gpu4,RTX A4500,2026-10-23T13:55,00:39:49,RUNNING
+386530,gpu4_eps0.5_dev3,ESM-MSR,"LoRA scale sweep, DMS + Domainome",inference,gpu4,RTX A4500,2026-10-23T13:55,01:27:21,COMPLETED
+386531,gpu4_eps0.25_dev3,ESM-MSR,"LoRA scale sweep, DMS + Domainome",inference,gpu4,RTX A4500,2026-10-23T15:23,01:27:22,COMPLETED
 386532,gpu4_esmtherm_cas9,ESMtherm,capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-23T04:25,00:06:47,COMPLETED
 386533,gpu4_prosst_capped,ProSST,capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-23T04:32,00:00:54,COMPLETED
 386534,epi_allbb_verify,unclassified,epi_allbb_verify,smoke,gpu4,RTX A4500,2026-10-22T23:40,00:00:21,COMPLETED
@@ -392,28 +393,45 @@ job,name,model,benchmark,kind,node,gpu,start,elapsed,state
 386551,gpu4_mpnn_bb,ProteinMPNN,rerun with the mutant-background libraries (capped val+test),rerun,gpu4,RTX A4500,2026-10-23T14:30,00:00:12,COMPLETED
 386564,ctx_smoke,various,smoke / verification of a change,smoke,gpu3,RTX 6000,2026-10-23T11:25,00:04:23,COMPLETED
 386565,ctx_smoke_pm,various,smoke / verification of a change,smoke,gpu3,RTX 6000,2026-10-23T11:33,00:03:55,COMPLETED
-386566,gpu4_ctx_rel,ESM-MSR,"ctx head (WT + ~WT)/2, capped val+test",inference,None assigned,None assigned,Unknown,00:00:00,PENDING
-386567,gpu4_ctx_s1,ESM-MSR,"ctx head (WT + ~WT)/2, capped val+test",inference,None assigned,None assigned,Unknown,00:00:00,PENDING
-386568,gpu4_ctx_s2,ESM-MSR,"ctx head (WT + ~WT)/2, capped val+test",inference,None assigned,None assigned,Unknown,00:00:00,PENDING
-386569,gpu4_ctx_s3,ESM-MSR,"ctx head (WT + ~WT)/2, capped val+test",inference,None assigned,None assigned,Unknown,00:00:00,PENDING
+386566,gpu4_ctx_rel,ESM-MSR,"ctx head (WT + ~WT)/2, capped val+test",inference,gpu4,RTX A4500,2026-10-23T18:33,00:04:30,FAILED
+386567,gpu4_ctx_s1,ESM-MSR,"ctx head (WT + ~WT)/2, capped val+test",inference,gpu4,RTX A4500,2026-10-23T18:38,00:04:29,FAILED
+386568,gpu4_ctx_s2,ESM-MSR,"ctx head (WT + ~WT)/2, capped val+test",inference,gpu4,RTX A4500,2026-10-23T18:42,00:04:30,FAILED
+386569,gpu4_ctx_s3,ESM-MSR,"ctx head (WT + ~WT)/2, capped val+test",inference,gpu4,RTX A4500,2026-10-23T18:47,00:04:30,FAILED
 386574,pmb_smoke_rel,various,smoke / verification of a change,smoke,gpu3,RTX 6000,2026-10-23T12:12,00:04:16,COMPLETED
 386575,pmb_smoke_s1,various,smoke / verification of a change,smoke,gpu3,RTX 6000,2026-10-23T12:12,00:04:28,COMPLETED
-386576,gpu4_pmb_rel_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T14:32,00:03:34,RUNNING
-386577,gpu4_pmb_s1_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,None assigned,None assigned,Unknown,00:00:00,PENDING
-386578,gpu4_pmb_s2_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,None assigned,None assigned,Unknown,00:00:00,PENDING
-386579,gpu4_pmb_s3_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,None assigned,None assigned,Unknown,00:00:00,PENDING
-386580,gpu4_pmb_rel_e0,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,None assigned,None assigned,Unknown,00:00:00,PENDING
-386581,gpu4_pmb_rel_e0.75,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,None assigned,None assigned,Unknown,00:00:00,PENDING
-386582,gpu4_pmb_rel_e0.5,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,None assigned,None assigned,Unknown,00:00:00,PENDING
-386583,gpu4_pmb_rel_e0.25,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,None assigned,None assigned,Unknown,00:00:00,PENDING
-386584,gpu4_pmb_s1_e0.75,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,None assigned,None assigned,Unknown,00:00:00,PENDING
-386585,gpu4_pmb_s1_e0.5,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,None assigned,None assigned,Unknown,00:00:00,PENDING
-386586,gpu4_pmb_s2_e0.75,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,None assigned,None assigned,Unknown,00:00:00,PENDING
-386587,gpu4_pmb_s1_e0.25,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,None assigned,None assigned,Unknown,00:00:00,PENDING
-386588,gpu4_pmb_s2_e0.5,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,None assigned,None assigned,Unknown,00:00:00,PENDING
+386576,gpu4_pmb_rel_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T14:32,00:30:59,FAILED
+386577,gpu4_pmb_s1_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T15:03,00:30:52,FAILED
+386578,gpu4_pmb_s2_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T15:33,00:30:44,FAILED
+386579,gpu4_pmb_s3_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T16:04,00:30:45,FAILED
+386580,gpu4_pmb_rel_e0,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T16:35,00:30:43,FAILED
+386581,gpu4_pmb_rel_e0.75,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T16:50,00:25:49,COMPLETED
+386582,gpu4_pmb_rel_e0.5,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T17:06,00:25:57,COMPLETED
+386583,gpu4_pmb_rel_e0.25,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T17:16,00:25:46,COMPLETED
+386584,gpu4_pmb_s1_e0.75,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T17:32,00:26:00,COMPLETED
+386585,gpu4_pmb_s1_e0.5,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T17:42,00:25:45,COMPLETED
+386586,gpu4_pmb_s2_e0.75,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T17:58,00:25:58,COMPLETED
+386587,gpu4_pmb_s1_e0.25,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T18:07,00:25:46,COMPLETED
+386588,gpu4_pmb_s2_e0.5,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T18:24,00:25:56,COMPLETED
 386589,pmb_pgym_verify,various,smoke / verification of a change,smoke,gpu3,RTX 6000,2026-10-23T12:35,00:21:19,COMPLETED
 386590,pmb_pgym_check,ESM-MSR,"ProteinGym bias correction (CPU, offline)",cpu,gpu1,RTX 6000,2026-10-23T12:35,00:17:53,FAILED
 386602,pmb_pipeline,ESM-MSR,"ProteinGym bias correction (CPU, offline)",cpu,gpu1,RTX 6000,2026-10-23T12:59,00:11:30,COMPLETED
 386604,pmb_apply,ESM-MSR,"ProteinGym bias correction (CPU, offline)",cpu,gpu1,RTX 6000,2026-10-23T13:16,00:36:56,FAILED
 386619,pmb_finish,ESM-MSR,"ProteinGym bias correction (CPU, offline)",cpu,gpu1,RTX 6000,2026-10-23T13:56,00:11:07,FAILED
 386635,pmb_ablation_verify,various,smoke / verification of a change,smoke,gpu4,RTX A4500,2026-10-23T14:31,00:00:58,COMPLETED
+386636,pmb_apply_ablation,unclassified,pmb_apply_ablation,other,gpu1,RTX 6000,2026-10-23T14:42,00:00:16,COMPLETED
+386637,gpu4_pgym_s1_mtpass_wt2,ESM-MSR dc8,ProteinGym MT-pass ablation,inference,gpu4,RTX A4500,2026-10-23T18:50,15:06:38,RUNNING
+386727,gpu4_pmb2_rel_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T19:19,00:54:02,COMPLETED
+386728,gpu4_pmb2_s1_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T19:49,00:53:46,COMPLETED
+386729,gpu4_pmb2_s2_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T20:14,00:53:03,COMPLETED
+386730,gpu4_pmb2_s3_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T20:43,00:53:44,COMPLETED
+386731,gpu4_pmb2_rel_e0,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T21:08,00:53:16,COMPLETED
+386733,gpu4_pmb3_tsu_rel_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T21:37,00:10:14,COMPLETED
+386734,gpu4_pmb3_tsu_s1_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T21:47,00:10:13,COMPLETED
+386735,gpu4_pmb3_tsu_s2_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T21:57,00:10:14,COMPLETED
+386736,gpu4_pmb3_tsu_s3_e1,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T22:01,00:10:14,COMPLETED
+386737,gpu4_pmb3_tsu_rel_e0,ESM-MSR,rerun after the calibration-default change (multi-mutant sets),rerun,gpu4,RTX A4500,2026-10-23T22:07,00:10:12,COMPLETED
+386738,gpu4_ctx2_rel,ESM-MSR,"ctx head (WT + ~WT)/2, capped val+test",inference,gpu4,RTX A4500,2026-10-23T22:11,00:10:14,COMPLETED
+386739,gpu4_ctx2_s1,ESM-MSR,"ctx head (WT + ~WT)/2, capped val+test",inference,gpu4,RTX A4500,2026-10-23T22:18,00:10:15,COMPLETED
+386740,gpu4_ctx2_s2,ESM-MSR,"ctx head (WT + ~WT)/2, capped val+test",inference,gpu4,RTX A4500,2026-10-23T22:21,00:10:16,COMPLETED
+386741,gpu4_ctx2_s3,ESM-MSR,"ctx head (WT + ~WT)/2, capped val+test",inference,gpu4,RTX A4500,2026-10-23T22:28,00:10:15,COMPLETED
+386804,gpu4_geoddg_cappg2,GeoDDG-3D (FASPR),capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-24T09:51,00:05:28,RUNNING
