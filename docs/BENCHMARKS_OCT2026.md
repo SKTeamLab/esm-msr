@@ -361,11 +361,12 @@ seed has finished; the combined head is shown).
   the ESM3 comparison is a readout that cannot represent an interaction against one that can.
 - **ESMtherm is Stability-only**, and the table shows how much: 0.720 on Stability against 0.213 on the five-category
   average (0.283 DMS mean), the opposite shape to ProSST.
-- **In progress:** ESM3ΔG (fp16) and GeoDDG are mid-run (200 and 148 of 213 DMS, 2026-10-24). A model is
+- **In progress:** ESM3ΔG (fp16) and GeoDDG are mid-run (202 and 181 of 213 DMS, 2026-10-24 16:10). A model is
   summarised only once all 213 common DMS are in. GeoDDG's first attempt (386277) was killed by its own two-day
   wall clock, not by an error, at 148 DMS; none of that work is redone, because the harness skips datasets whose
-  output already exists, and it resumed on 2026-10-24 as 386804 with a four-day limit. IFUM's ProteinGym run was
-  stopped as not worth the time it needed, and DDGemb and DDMut are web services that cannot be run at this scale.
+  output already exists, and the resumed job (386804, four-day limit) has since carried it to 181. IFUM's ProteinGym
+  run was stopped as not worth the time it needed, and DDGemb and DDMut are web services that cannot be run at this
+  scale.
 
 The ε sweep and per-category breakdown are in §3.
 
@@ -658,7 +659,8 @@ Paired against the released checkpoint over the 213 common DMS (3 seeds × 4 ε,
   mutant residue it is scoring and its LLR collapses toward zero (mean −0.85 vs −3.44 on the WT sequence).
   This is still a partial result, but it is being completed: the 26 stored files were corrected to the per-mutation bias
   (both heads of this mode shift by the WT bias, 0.0987; checked against a real rerun of 3 of them, Spearman within 8e-4) and
-  the remaining 187 DMS are running under the new defaults (job 386637, resumed from those files).
+  the remaining 187 DMS are running under the new defaults (job 386637, resumed from those files; 177 of the 213 were
+  in at 2026-10-24 16:10).
 - **ProSST wins four of five categories outright** (Activity, Binding, Expression, Organismal fitness) against every ESM-MSR setting, not just ε = 1; the 0.22 it concedes on Stability is what brings the averages level (§1.4). **Under the audit the Stability comparison is the contaminated one:** all 23 fully trained DMS are Stability assays, so the category where ESM-MSR wins by 0.22 is the only one where it has direct training data. Removing them puts ESM-MSR's Stability at 0.871 and ProSST's 0.653 unchanged; the four-category lead is untouched and the global tie is restored without ESM-MSR's training advantage.
 - **ProteinMPNN test-time ensembling:** averaging three decoding orders +0.0003; a 0.2 Å backbone-noise
   ensemble of 8 +0.0017 on a 73-DMS pilot (50/73 up, t = 1.29). Not worth a full run.
