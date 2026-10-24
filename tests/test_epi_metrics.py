@@ -190,7 +190,7 @@ class TestTable(unittest.TestCase):
 
     def test_logged_names_cover_the_documented_set(self):
         names = E.logged_names()
-        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 4 + 3 + 7 * 3)
+        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 4 + 4 + 7 * 3)
         s = E.compute(E.Table(items(*synthetic(0), KNOW['all']), FLOOR))
         for n in names:
             self.assertIn(n, s)
@@ -252,6 +252,11 @@ class TestGlobalDddgBias(unittest.TestCase):
         st = np.asarray(it['subset_type'])
         it['comb'] = it['comb'] - np.where(st == 'double', 0.5, 0.0)
         self.assertAlmostEqual(E.compute(E.Table(it, None))['epi_global_dddg_bias_comb'], -0.5, places=9)
+        # the WT-singles variant ignores comb's singles: shifting them moves only the first
+        it['comb'] = it['comb'] + np.where(st == 'single', 0.3, 0.0)
+        r = E.compute(E.Table(it, None))
+        self.assertAlmostEqual(r['epi_global_dddg_bias_comb'], -1.1, places=9)
+        self.assertAlmostEqual(r['epi_global_dddg_bias_wts_comb'], -0.5, places=9)
 
 
 class TestSmoother(unittest.TestCase):

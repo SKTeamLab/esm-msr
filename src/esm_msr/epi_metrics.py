@@ -65,6 +65,10 @@ The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``).
                                     measured one (observed double minus observed singles), so saturation counts on both sides. Whether the
                                     reported prediction carries the right AMOUNT of average epistasis (diminishing returns plus saturation).
                                     Equal to the doubles' mean error minus the mean error of the two singles. comb only: mt is ~2x by construction.
+                                    The singles that partner a double sit at destabilizing positions, where every head shrinks toward the mean
+                                    (the frozen WT is ~+0.2 kcal/mol per single there), so this mixes single shrinkage into the epistasis amount.
+    global_dddg_bias_wts_comb       the same with the WT head's singles, [P_comb(AB) - P_wt(A) - P_wt(B)] - dddG: the singles the WT head would
+                                    report. The difference from global_dddg_bias_comb is the MT half's own effect on the partner singles.
     beyond_rho_{comb,mt,ctx}        Spearman of r' against r over all doubles: everything above the global level at once (pair and library
                                     offsets dominate it).
     beyond_lib_{comb,mt,ctx}        the same with each library's mean removed from r and r' (from dddG' also before its smoother, so one
@@ -117,6 +121,7 @@ METRICS = {
     'global_err': ('comb',),
     'global_bias': ('comb',),
     'global_dddg_bias': ('comb',),
+    'global_dddg_bias_wts': ('comb',),
     'beyond_rho': SYM,
     'beyond_lib': SYM,
     'pair_rho': SYM,
@@ -483,6 +488,9 @@ def compute(t: Table, metrics: Dict[str, Sequence[str]] = METRICS) -> Dict[str, 
         if 'global_dddg_bias' in want:
             d = (t.P[h] - t.PA[h] - t.PB[h]) - t.dddG      # the measured form: observed double minus observed singles
             r['global_dddg_bias'] = float(np.nanmean(d)) if np.isfinite(d).any() else NAN
+        if 'global_dddg_bias_wts' in want:
+            d = (t.P[h] - t.PA['add'] - t.PB['add']) - t.dddG
+            r['global_dddg_bias_wts'] = float(np.nanmean(d)) if np.isfinite(d).any() else NAN
         if want & {'beyond_rho', 'beyond_lib', 'pair_rho', 'line_rho', 'cell_mag'}:
             r.update(residual_levels(t, h))
         if want & {'cell_rank', 'cell_sigsd'}:
