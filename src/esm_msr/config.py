@@ -284,6 +284,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                      help="Weight of the MT path's regression (scored through the combined prediction, trains the MT path only).")
     obj.add_argument('--rank_list_size', '--subset_size', dest='rank_list_size', type=int, default=16,
                      help="Length of the ListMLE lists: a batch is cut into consecutive lists of this many items.")
+    obj.add_argument('--rank_calibrated', action=argparse.BooleanOptionalAction, default=False,
+                     help="Score ListMLE on the calibrated kcal/mol prediction (with calibration scale/bias detached so ListMLE cannot inflate "
+                          "scale as a softmax temperature), preserving the per-mutation bias and WT/MT scale ratio when lists mix singles and doubles.")
     obj.add_argument('--rank_group_by', type=str, default='none', choices=['none', 'partner'],
                      help="How MT ListMLE lists are formed within a micro-batch: 'none' uses random consecutive slices; 'partner' groups doubles "
                           "by shared mutation partner / position pair and adds contrastive epistatic-residual ListMLE lists.")

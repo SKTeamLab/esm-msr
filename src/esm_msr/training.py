@@ -466,6 +466,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         tf_mix = float(hp.tf_mix)
         ci_margin = float(hp.get('rank_ci_margin', 0.0) or 0.0)
         rank_group_by = str(hp.get('rank_group_by', 'none') or 'none')
+        rank_calibrated = bool(hp.get('rank_calibrated', False))
         meas_all = batch.get('meas')
         if torch.is_tensor(meas_all) and meas_all.ndim == 2 and meas_all.shape[1] > 5:
             sigma_all = torch.nan_to_num(meas_all[:, 5].float() / 3.92, nan=0.0, posinf=0.0, neginf=0.0).clamp(min=0.0)
@@ -571,8 +572,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     sums['reg_wt'] += val; cnts['reg_wt'] += wsum
 
             if hp.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
+                if rank_calibrated:
+                    cal_wt_h = getattr(self.model, 'calibration_head_fused', None) if getattr(self.model, 'adapter_mode', 'dual') == 'fused' else getattr(self.model, 'calibration_head_wt', None)
+                    if cal_wt_h is not None:
+                        s_w = 1.0 if not cal_wt_h.use_scale else cal_wt_h.scale.detach()
+                        b_w = cal_wt_h.bias_for(n_mut_mb)
+                        b_w = b_w.detach() if torch.is_tensor(b_w) else b_w
+                        wt_rank_in = s_w * wt_pred_raw + b_w
+                    else:
+                        wt_rank_in = wt_pred_raw
+                else:
+                    wt_rank_in = wt_pred_raw
                 L_rank, val, n_list = self._compute_rank_loss(
-                    wt_pred_raw, wt_targets, valid_wt_mask, cens_wt, list_size, self.crit_rank_wt,
+                    wt_rank_in, wt_targets, valid_wt_mask, cens_wt, list_size, self.crit_rank_wt,
                     sigma=sigma_mb, ci_margin=ci_margin
                 )
                 if L_rank is not None:
@@ -638,12 +650,26 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         sums['reg_combined'] += val; cnts['reg_combined'] += wsum
 
                 if hp.lambda_rank_mt > 0 and self.crit_rank_mt is not None:
-                    rank_pred_in = combined_pred_cal if (getattr(self.model, 'adapter_mode', 'dual') == 'fused' and getattr(self.model, 'fused_antisymmetric', False)) else combined_pred_raw
+                    cal_mt_h = getattr(self.model, 'calibration_head_fused', None) if getattr(self.model, 'adapter_mode', 'dual') == 'fused' else getattr(self.model, 'calibration_head_mt', None)
+                    if cal_mt_h is not None:
+                        s_m = 1.0 if not cal_mt_h.use_scale else cal_mt_h.scale.detach()
+                        b_m = cal_mt_h.bias_for(n_mut_mb)
+                        b_m = b_m.detach() if torch.is_tensor(b_m) else b_m
+                        if getattr(self.model, 'adapter_mode', 'dual') == 'fused' and getattr(self.model, 'fused_antisymmetric', False):
+                            mt_pred_rank = s_m * mt_pred_raw - b_m
+                        else:
+                            mt_pred_rank = s_m * mt_pred_raw + b_m
+                    else:
+                        mt_pred_rank = mt_pred_raw
+                    combined_pred_rank = combine_predictions(forced_wt_cal, mt_pred_rank)
+
+                    use_cal_rank = rank_calibrated or (getattr(self.model, 'adapter_mode', 'dual') == 'fused' and getattr(self.model, 'fused_antisymmetric', False))
+                    rank_pred_in = combined_pred_rank if use_cal_rank else combined_pred_raw
                     if rank_group_by == 'partner':
                         if 'ddG_A' in micro and 'ddG_B' in micro:
                             epi_targ_mb = ddG_mb - (micro['ddG_A'].float() + micro['ddG_B'].float())
                             epi_mask_mb = reg_mask & ~is_single & has_add_label & torch.isfinite(epi_targ_mb)
-                            epi_pred_mb = combined_pred_cal - forced_wt_cal
+                            epi_pred_mb = combined_pred_rank - forced_wt_cal
                         else:
                             epi_targ_mb = epi_mask_mb = epi_pred_mb = None
                         L_rank, val, n_list = self._compute_partner_rank_loss(
