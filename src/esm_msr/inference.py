@@ -129,6 +129,8 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'calibration': calibration_from_hparams(hparams),
         'mask_strategy': ckpt_mask_strategy,
         'native_cond_for_mt': bool(hparams.get('native_cond_for_mt', False)),
+        'mask_native_cond_struct': bool(hparams.get('mask_native_cond_struct', False)),
+        'fused_antisymmetric': bool(hparams.get('fused_antisymmetric', False)),
     }
 
 
@@ -500,6 +502,9 @@ if __name__ == "__main__":
     parser.add_argument("--lora_config", type=str, default=None, help="Path to JSON file containing LoRA config")
     parser.add_argument("--hparams_path", type=str, default=None, help="Path to lightning hparams.yaml file")
     parser.add_argument("--sigma", type=float, default=1.0, help="Multiplier for the LoRA alpha parameters.")
+    parser.add_argument("--epistasis_weight", type=float, default=0.5,
+                        help="Blend weight lambda in (1 - lambda) * y_WT + lambda * y_MT (default 0.5). Lower values (e.g. 0.1-0.33) "
+                             "favor additive main effects on functional/DMS assays; 0.5-0.6 favors thermodynamic stability.")
     parser.add_argument("--tie_mt_scale", action=argparse.BooleanOptionalAction, default=None,
                         help="Share the WT calibration scale with the MT head. Default: what the checkpoint was trained "
                              "with (its hparams; OFF when the key is missing, as for the released models).")
@@ -649,6 +654,8 @@ if __name__ == "__main__":
             checkpoint_cal = calibration_from_hparams(lora_config)
             ckpt_mask_strategy = lora_config.get('mask_strategy')
             native_cond_for_mt = bool(lora_config.get('native_cond_for_mt', False))
+            mask_native_cond_struct = bool(lora_config.get('mask_native_cond_struct', False))
+            fused_antisymmetric = bool(lora_config.get('fused_antisymmetric', False))
 
             # Apply sigma
             if args.sigma <= 0:
@@ -671,6 +678,8 @@ if __name__ == "__main__":
         checkpoint_cal = parsed_config.get('calibration')
         ckpt_mask_strategy = parsed_config.get('mask_strategy')
         native_cond_for_mt = bool(parsed_config.get('native_cond_for_mt', False))
+        mask_native_cond_struct = bool(parsed_config.get('mask_native_cond_struct', False))
+        fused_antisymmetric = bool(parsed_config.get('fused_antisymmetric', False))
         lora_config = {
             'wt_config': parsed_config['wt_config'],
             'mt_config': parsed_config['mt_config']
@@ -707,6 +716,9 @@ if __name__ == "__main__":
         tie_mt_scale=cal['tie_mt_scale'],
         per_mutation_bias=cal['per_mutation_bias'],
         native_cond_mt_input=native_cond_for_mt,
+        mask_native_cond_struct=mask_native_cond_struct,
+        fused_antisymmetric=fused_antisymmetric,
+        epistasis_weight=args.epistasis_weight,
     )
 
     if args.base_model_loc:

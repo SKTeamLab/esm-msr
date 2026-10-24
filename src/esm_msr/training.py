@@ -1,4 +1,5 @@
 import json
+import itertools
 import os
 import logging
 import warnings
@@ -94,6 +95,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             lora_config=lora_config, shared_scale_init=SHARED_SCALE_INIT, shared_bias_init=SHARED_BIAS_INIT, adapter_mode=hp.adapter_mode,
             model_dtype=torch.float32, per_mutation_bias=True, tie_mt_scale=bool(hp.tie_mt_scale),
             native_cond_mt_input=bool(hp.native_cond_for_mt),
+            mask_native_cond_struct=bool(hp.get('mask_native_cond_struct', False)),
+            fused_antisymmetric=bool(hp.get('fused_antisymmetric', False)),
         )
 
         self.peft_manager = PEFTStateManager(self.model)
@@ -267,7 +270,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
-    def _compute_rank_loss(self, pred, targets, mask, cens, list_size, crit_fn):
+    def _compute_rank_loss(self, pred, targets, mask, cens, list_size, crit_fn,
+                           sigma: torch.Tensor | None = None, ci_margin: float = 0.0):
         """
         ListMLE over the batch chopped into lists of ``list_size``, censored members tied at the bottom.
 
@@ -294,15 +298,106 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             return None, 0.0, 0
         view = lambda t: t[:valid_len].view(-1, list_size)
         pred_rank, targ_rank, mask_rank, cens_rank = view(pred), view(targets), view(mask), view(cens)
+        sig_rank = view(sigma) if sigma is not None else None
         num_lists = valid_len // list_size
         # Per list, so that neither the scaling nor forward_censored's own mean can mix lists. A starved list
         # returns a gradient-attached zero, which is what lets it count in the mean without contributing.
-        per_list = torch.stack([crit_fn.forward_censored(pred_rank[i:i + 1], targ_rank[i:i + 1],
-                                                         mask_rank[i:i + 1], cens_rank[i:i + 1])
-                                for i in range(num_lists)])
+        per_list = torch.stack([crit_fn.forward_censored(
+            pred_rank[i:i + 1], targ_rank[i:i + 1], mask_rank[i:i + 1], cens_rank[i:i + 1],
+            sigma=(sig_rank[i:i + 1] if sig_rank is not None else None), ci_margin=ci_margin
+        ) for i in range(num_lists)])
         n_valid = mask_rank.float().sum(dim=-1).clamp(min=1.0)
         scaled_loss = (per_list * (list_size / n_valid)).mean()
         return scaled_loss, per_list.detach().mean().item(), num_lists
+
+    def _compute_partner_rank_loss(self, pred: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor,
+                                   cens: torch.Tensor, list_size: int, crit_fn: ListMLELoss,
+                                   micro: dict, epi_pred: torch.Tensor | None = None,
+                                   epi_targ: torch.Tensor | None = None, epi_mask: torch.Tensor | None = None,
+                                   sigma: torch.Tensor | None = None, ci_margin: float = 0.0):
+        """
+        Contrastive within-partner / within-pair ListMLE for the MT path:
+
+        1. Orders the micro-batch rows so doubles sharing a position pair ``(pos_0, pos_1)`` or primary partner
+           mutation ``(pos_0, mt_0)`` land in the same ``list_size`` slice before calling :meth:`_compute_rank_loss`.
+        2. Forms explicit fixed-partner and fixed-pair epistatic-residual lists from doubles in the micro-batch
+           that share a partner allele ``(pos, mt_id)`` or position pair ``(pos_0, pos_1)``, plus the micro-batch's
+           epistatic-residual list over ``epi_mask``, directly optimizing ``cell_rank`` and ``epi_beyond_rho``.
+        """
+        mut_pos = micro.get('mut_pos')
+        mt_id = micro.get('mt_id')
+        mut_mask = micro.get('mut_mask')
+        if mut_pos is not None and mt_id is not None and mut_mask is not None and pred.shape[0] > 1:
+            pos_cpu = mut_pos.detach().cpu().tolist()
+            mt_cpu = mt_id.detach().cpu().tolist()
+            mm_cpu = mut_mask.detach().cpu().tolist()
+            keys = []
+            for r in range(pred.shape[0]):
+                v = [(pos_cpu[r][j], mt_cpu[r][j]) for j, m in enumerate(mm_cpu[r]) if m]
+                v.sort()
+                is_dbl = 0 if len(v) >= 2 else 1
+                p0 = v[0][0] if len(v) >= 1 else 999999
+                m0 = v[0][1] if len(v) >= 1 else 999999
+                p1 = v[1][0] if len(v) >= 2 else 999999
+                m1 = v[1][1] if len(v) >= 2 else 999999
+                keys.append((is_dbl, p0, m0, p1, m1, r))
+            keys.sort()
+            perm = torch.tensor([k[-1] for k in keys], dtype=torch.long, device=pred.device)
+            sig_perm = sigma[perm] if sigma is not None else None
+            base_loss, base_val, n_list = self._compute_rank_loss(
+                pred[perm], targets[perm], mask[perm], cens[perm], list_size, crit_fn, sigma=sig_perm, ci_margin=ci_margin
+            )
+        else:
+            base_loss, base_val, n_list = self._compute_rank_loss(
+                pred, targets, mask, cens, list_size, crit_fn, sigma=sigma, ci_margin=ci_margin
+            )
+
+        if base_loss is None or epi_pred is None or epi_targ is None or epi_mask is None:
+            return base_loss, base_val, n_list
+
+        valid_dbl = torch.where(epi_mask)[0]
+        if valid_dbl.numel() < 2:
+            return base_loss, base_val, n_list
+
+        groups = []
+        if mut_pos is not None and mt_id is not None and mut_mask is not None:
+            by_partner = defaultdict(list)
+            by_pair = defaultdict(list)
+            dbl_list = valid_dbl.detach().cpu().tolist()
+            for r in dbl_list:
+                v = sorted((pos_cpu[r][j], mt_cpu[r][j]) for j, m in enumerate(mm_cpu[r]) if m)
+                for allele in v:
+                    by_partner[allele].append(r)
+                if len(v) >= 2:
+                    by_pair[(v[0][0], v[1][0])].append(r)
+            for g in itertools.chain(by_pair.values(), by_partner.values()):
+                if len(g) >= 2:
+                    groups.append(g[:list_size])
+
+        dbl_all = valid_dbl.detach().cpu().tolist()
+        for st in range(0, len(dbl_all), list_size):
+            chunk = dbl_all[st:st + list_size]
+            if len(chunk) >= 2:
+                groups.append(chunk)
+
+        if not groups:
+            return base_loss, base_val, n_list
+
+        epi_losses = []
+        for g in groups:
+            g_idx = torch.tensor(g, dtype=torch.long, device=pred.device)
+            k = g_idx.numel()
+            p_g = epi_pred[g_idx].unsqueeze(0)
+            t_g = epi_targ[g_idx].unsqueeze(0)
+            m_g = torch.ones((1, k), dtype=torch.bool, device=pred.device)
+            c_g = cens[g_idx].unsqueeze(0)
+            s_g = sigma[g_idx].unsqueeze(0) if sigma is not None else None
+            l_g = crit_fn.forward_censored(p_g, t_g, m_g, c_g, sigma=s_g, ci_margin=ci_margin)
+            epi_losses.append(l_g * (list_size / float(k)))
+
+        epi_loss_mean = torch.stack(epi_losses).mean()
+        comb_loss = 0.5 * base_loss + 0.5 * epi_loss_mean
+        return comb_loss, float(comb_loss.detach().item()), n_list
 
     @staticmethod
     def _micro_batch(B: int, list_size: int, hard_cap: int) -> int:
@@ -369,6 +464,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         nc_for_wt, nc_for_mt = bool(hp.native_cond_for_wt), bool(hp.native_cond_for_mt)
         t_single = hp.get('censor_threshold')
         tf_mix = float(hp.tf_mix)
+        ci_margin = float(hp.get('rank_ci_margin', 0.0) or 0.0)
+        rank_group_by = str(hp.get('rank_group_by', 'none') or 'none')
+        meas_all = batch.get('meas')
+        if torch.is_tensor(meas_all) and meas_all.ndim == 2 and meas_all.shape[1] > 5:
+            sigma_all = torch.nan_to_num(meas_all[:, 5].float() / 3.92, nan=0.0, posinf=0.0, neginf=0.0).clamp(min=0.0)
+        else:
+            sigma_all = None
 
         for start in range(0, B, mb):
             # Drop the PREVIOUS micro-batch's tensors before this one's forward allocates. manual_backward frees a graph's saved
@@ -385,6 +487,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             ddG_mb = micro['ddG'].float()
             dGwt_mb, floor_mb, link_ok = dGwt_all[idx], floor_all[idx], link_ok_all[idx]
             cens_mb, bound_mb = cens_all[idx], bound_all[idx]
+            sigma_mb = sigma_all[idx] if sigma_all is not None else None
             n_mut_mb = micro['mut_mask'].sum(dim=1)
             is_single = n_mut_mb == 1
             is_native_cond = is_native_cond_all[idx]
@@ -468,7 +571,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     sums['reg_wt'] += val; cnts['reg_wt'] += wsum
 
             if hp.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
-                L_rank, val, n_list = self._compute_rank_loss(wt_pred_raw, wt_targets, valid_wt_mask, cens_wt, list_size, self.crit_rank_wt)
+                L_rank, val, n_list = self._compute_rank_loss(
+                    wt_pred_raw, wt_targets, valid_wt_mask, cens_wt, list_size, self.crit_rank_wt,
+                    sigma=sigma_mb, ci_margin=ci_margin
+                )
                 if L_rank is not None:
                     wt_losses.append(hp.lambda_rank_wt * L_rank * (n_list / global_num_lists))
                     sums['rank_wt'] += val * n_list; cnts['rank_wt'] += n_list
@@ -532,7 +638,24 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         sums['reg_combined'] += val; cnts['reg_combined'] += wsum
 
                 if hp.lambda_rank_mt > 0 and self.crit_rank_mt is not None:
-                    L_rank, val, n_list = self._compute_rank_loss(combined_pred_raw, ddG_mb, reg_mask, cens_mb, list_size, self.crit_rank_mt)
+                    rank_pred_in = combined_pred_cal if (getattr(self.model, 'adapter_mode', 'dual') == 'fused' and getattr(self.model, 'fused_antisymmetric', False)) else combined_pred_raw
+                    if rank_group_by == 'partner':
+                        if 'ddG_A' in micro and 'ddG_B' in micro:
+                            epi_targ_mb = ddG_mb - (micro['ddG_A'].float() + micro['ddG_B'].float())
+                            epi_mask_mb = reg_mask & ~is_single & has_add_label & torch.isfinite(epi_targ_mb)
+                            epi_pred_mb = combined_pred_cal - forced_wt_cal
+                        else:
+                            epi_targ_mb = epi_mask_mb = epi_pred_mb = None
+                        L_rank, val, n_list = self._compute_partner_rank_loss(
+                            rank_pred_in, ddG_mb, reg_mask, cens_mb, list_size, self.crit_rank_mt,
+                            micro=micro, epi_pred=epi_pred_mb, epi_targ=epi_targ_mb, epi_mask=epi_mask_mb,
+                            sigma=sigma_mb, ci_margin=ci_margin
+                        )
+                    else:
+                        L_rank, val, n_list = self._compute_rank_loss(
+                            rank_pred_in, ddG_mb, reg_mask, cens_mb, list_size, self.crit_rank_mt,
+                            sigma=sigma_mb, ci_margin=ci_margin
+                        )
                     if L_rank is not None:
                         mt_losses.append(hp.lambda_rank_mt * L_rank * (n_list / global_num_lists))
                         sums['rank_combined'] += val * n_list; cnts['rank_combined'] += n_list

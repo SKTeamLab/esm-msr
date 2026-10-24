@@ -168,6 +168,8 @@ def main_(args):
             args.mask_strategy = parsed_config['mask_strategy']
             print(f"[MODEL] mask_strategy from hparams: {args.mask_strategy}")
         native_cond_for_mt = bool(parsed_config.get('native_cond_for_mt', False))
+        mask_native_cond_struct = bool(parsed_config.get('mask_native_cond_struct', False))
+        fused_antisymmetric = bool(parsed_config.get('fused_antisymmetric', False))
         if args.lora_epsilon != 1:
             parsed_config['wt_config']['lora_alpha'] *= args.lora_epsilon
             parsed_config['mt_config']['lora_alpha'] *= args.lora_epsilon
@@ -194,6 +196,8 @@ def main_(args):
         lora_mode = 'ensemble'
         checkpoint_cal = None
         native_cond_for_mt = False
+        mask_native_cond_struct = False
+        fused_antisymmetric = False
         lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': args.seed}        
 
     model_dtype = torch.bfloat16 if args.dtype == 'bf16' else torch.float32
@@ -205,6 +209,9 @@ def main_(args):
         lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True,
         tie_mt_scale=cal['tie_mt_scale'], per_mutation_bias=cal['per_mutation_bias'],
         native_cond_mt_input=native_cond_for_mt,
+        mask_native_cond_struct=mask_native_cond_struct,
+        fused_antisymmetric=fused_antisymmetric,
+        epistasis_weight=args.epistasis_weight,
     ).to('cuda:0')
 
     # ---------------------------------------------------------
@@ -627,6 +634,8 @@ if __name__ == "__main__":
                             help="Apply the calibration bias once per mutated position. Default: the checkpoint's "
                                  "hparams (ON when the key is missing: the released and dc8 models were trained with "
                                  "one bias per item, so this shifts their multi-mutants by (k - 1) * bias).")
+        parser.add_argument('--epistasis_weight', type=float, default=0.5,
+                            help="Blend weight lambda in (1 - lambda) * y_WT + lambda * y_MT (default 0.5).")
 
         args, remaining_argv = parser.parse_known_args()
         current_remaining_argv = list(remaining_argv) 

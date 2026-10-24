@@ -191,17 +191,58 @@ def native_cond_mt_batch(batch: dict) -> dict:
     return out
 
 
-def combine_predictions(wt, mt):
-    """
-    How the WT (additive) and MT (mutant-context) heads become the reported prediction: ``0.5 * wt + 0.5 * mt``.
+_NATIVE_BG_POS_RE = re.compile(r'_[A-Z](\d+)[A-Z]$')
 
-    Trained against the measured ddG, this makes MT learn ``2 * ddG - wt``: each head produces a TOTAL ddG-like prediction, which
-    is what the per-position LLR sum it computes actually is, and the ensemble averages the two. (Two other modes existed and are
-    gone: ``sum`` asked MT for ``ddG - wt``, a pure difference the LLR sum cannot produce; ``route`` reported WT for singles and MT
-    for the rest, and never ran.) Every site that forms a combined prediction - training, validation and screening - goes through
-    here, or an ablation trains one way and is scored another.
+
+def mask_native_cond_structure_batch(batch: dict) -> dict:
+    """Mask the VQ-VAE ``structure_tokens`` at the background mutation site on ``native_cond`` rows.
+
+    A mutant-background library (e.g. ``2KT8_G54S``) carries the wild-type PDB backbone and VQ-VAE structure token at
+    position 54 even though the background sequence already has S54. Masking ``structure_tokens[..., pos]`` with
+    ``C.STRUCTURE_MASK_TOKEN`` (4096) prevents the frozen structure track from asserting wild-type sidechain packing
+    at the substituted background site.
     """
-    return 0.5 * wt + 0.5 * mt
+    st = batch.get('subset_type')
+    struct_tok = batch.get('structure_tokens')
+    pdb_list = batch.get('pdb')
+    if st is None or struct_tok is None or pdb_list is None:
+        return batch
+    nc_indices = [r for r, t in enumerate(st) if t == 'native_cond']
+    if not nc_indices:
+        return batch
+    mask_tok = int(C.STRUCTURE_MASK_TOKEN)
+    L = struct_tok.shape[-1]
+    new_struct = None
+    for r in nc_indices:
+        code = pdb_list[r] if isinstance(pdb_list, (list, tuple)) and r < len(pdb_list) else (pdb_list if isinstance(pdb_list, str) else '')
+        m = _NATIVE_BG_POS_RE.search(str(code))
+        if m is not None:
+            bg_pos = int(m.group(1))
+            if 0 <= bg_pos < L:
+                if new_struct is None:
+                    new_struct = struct_tok.clone()
+                new_struct[r, ..., bg_pos] = mask_tok
+    if new_struct is None:
+        return batch
+    out = dict(batch)
+    out['structure_tokens'] = new_struct
+    return out
+
+
+def combine_predictions(wt, mt, epistasis_weight: float = 0.5):
+    """
+    How the WT (additive) and MT (mutant-context) heads become the reported prediction:
+    ``(1 - epistasis_weight) * wt + epistasis_weight * mt`` (``0.5 * wt + 0.5 * mt`` at the default ``0.5``).
+
+    Trained against the measured ddG at ``epistasis_weight=0.5``, this makes MT learn ``2 * ddG - wt``: each head produces a
+    TOTAL ddG-like prediction, which is what the per-position LLR sum it computes actually is, and the ensemble blends the two.
+    At inference time, ``epistasis_weight`` (lambda) acts as an assay-adaptation knob trading additive main effects against
+    mutant-context epistasis.
+    """
+    w = float(epistasis_weight)
+    if w == 0.5:
+        return 0.5 * wt + 0.5 * mt
+    return (1.0 - w) * wt + w * mt
 
 
 class MSRModel(ESM3PredictorBase):
@@ -217,7 +258,8 @@ class MSRModel(ESM3PredictorBase):
             use_plddt: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
             adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
             combined_mode: str = 'mean', per_mutation_bias: bool = True, tie_mt_scale: bool = False,
-            native_cond_mt_input: bool = False
+            native_cond_mt_input: bool = False, mask_native_cond_struct: bool = False,
+            fused_antisymmetric: bool = False, epistasis_weight: float = 0.5
         ):
         if (combined_mode or 'mean') != 'mean':
             raise AssertionError(f"combined_mode {combined_mode!r} was removed: the reported prediction is the mean of the two heads.")
@@ -227,6 +269,9 @@ class MSRModel(ESM3PredictorBase):
         # property of the trained model, not of the label alone: a run that only excludes those items keeps the
         # ordinary MT input.
         self.native_cond_mt_input = bool(native_cond_mt_input)
+        self.mask_native_cond_struct = bool(mask_native_cond_struct)
+        self.fused_antisymmetric = bool(fused_antisymmetric)
+        self.epistasis_weight = float(epistasis_weight)
         logging.info("Initializing ESM3 Base Model...")
         base_esm3 = ESM3_sm_open_v0()
         base_esm3.to(model_dtype)
@@ -613,7 +658,7 @@ class MSRModel(ESM3PredictorBase):
         wt_pred_cal, mt_pred_cal = wt_out['pred_calibrated'], mt_out['pred_calibrated']
         wt_pred_raw, mt_pred_raw = wt_out['pred_raw'], mt_out['pred_raw']
 
-        combined_pred = combine_predictions(wt_pred_cal, mt_pred_cal)
+        combined_pred = combine_predictions(wt_pred_cal, mt_pred_cal, epistasis_weight=getattr(self, 'epistasis_weight', 0.5))
 
         # The predicted epistasis is whatever the combined prediction adds beyond the WT head: 0.5(mt-wt) under
         # 'mean', mt-wt under 'route' (doubles). Mode-agnostic definition.
@@ -669,6 +714,8 @@ class MSRModel(ESM3PredictorBase):
 
         if pass_type == 'mt':
             batch = self._mt_pass_batch(batch)
+        if getattr(self, 'mask_native_cond_struct', False):
+            batch = mask_native_cond_structure_batch(batch)
 
         seq, mut_pos = batch.get(f'{pass_type}_sequence_tokens'), batch.get('mut_pos')
         wt_id, mt_id, mut_mask = batch.get('wt_id'), batch.get('mt_id'), batch.get('mut_mask')
@@ -858,7 +905,12 @@ class MSRModel(ESM3PredictorBase):
             llr_sum_cal = cal_wt(llr_sum_raw, n_mut) if cal_wt is not None else llr_sum_raw
         elif pass_type == 'mt':
             cal_mt = getattr(self, 'calibration_head_fused', None) if self.adapter_mode == 'fused' else getattr(self, 'calibration_head_mt', None)
-            llr_sum_cal = cal_mt(llr_sum_raw, n_mut) if cal_mt is not None else llr_sum_raw
+            if cal_mt is None:
+                llr_sum_cal = llr_sum_raw
+            elif self.adapter_mode == 'fused' and getattr(self, 'fused_antisymmetric', False):
+                llr_sum_cal = -cal_mt(-llr_sum_raw, n_mut)
+            else:
+                llr_sum_cal = cal_mt(llr_sum_raw, n_mut)
 
         output_dict = {'pred_calibrated': llr_sum_cal, 'pred_raw': llr_sum_raw, 'unsummed_llr': unsummed_llr}
         return output_dict
@@ -1138,7 +1190,12 @@ class MSRModel(ESM3PredictorBase):
             if self.adapter_mode == 'fused':
                 cal_f = getattr(self, 'calibration_head_fused', None)
                 wt_lora_pred = cal_f(wt_llr_sum, _n_mut) if cal_f is not None else wt_llr_sum
-                mt_lora_pred = cal_f(mt_llr_sum, _n_mut) if cal_f is not None else mt_llr_sum
+                if cal_f is None:
+                    mt_lora_pred = mt_llr_sum
+                elif getattr(self, 'fused_antisymmetric', False):
+                    mt_lora_pred = -cal_f(-mt_llr_sum, _n_mut)
+                else:
+                    mt_lora_pred = cal_f(mt_llr_sum, _n_mut)
             else:
                 cal_wt = getattr(self, 'calibration_head_wt', None)
                 cal_mt = getattr(self, 'calibration_head_mt', None)
@@ -1149,6 +1206,6 @@ class MSRModel(ESM3PredictorBase):
                 mt_lora_pred = torch.full_like(wt_lora_pred, float('nan'))
                 combined_pred = torch.full_like(wt_lora_pred, float('nan'))
             else:
-                combined_pred = combine_predictions(wt_lora_pred, mt_lora_pred)
+                combined_pred = combine_predictions(wt_lora_pred, mt_lora_pred, epistasis_weight=getattr(self, 'epistasis_weight', 0.5))
 
         return {'wt_lora_pred': wt_lora_pred, 'mt_lora_pred': mt_lora_pred, 'combined_pred': combined_pred}

@@ -223,6 +223,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                            "1.7%% of the stream). What changes is the MT pass input for them: the library's background sequence (what the WT pass reads) "
                            "instead of background + the scored mutation, so the item is a forward mutation from the background, the MT adapter's mt_fwd "
                            "probe regime. The same swap applies at validation to mutant-background libraries. Independent of --native_cond_for_wt.")
+    data.add_argument('--mask_native_cond_struct', action=argparse.BooleanOptionalAction, default=False,
+                      help="Mask the VQ-VAE structure token at the background mutation position on native_cond rows (e.g. pos 54 on 2KT8_G54S), "
+                           "preventing the frozen structure track from asserting wild-type sidechain packing at the substituted background site.")
     data.add_argument('--external_val_sets', type=str, default='ptmuld,s461,ssym',
                       help="Comma-separated validation loaders scored as OUT-OF-DISTRIBUTION benchmarks: logged per loader (val_<metric>/<name>) "
                            "but held OUT of every aggregate (val_*_avg, the pooled ranking, the epistasis levels), and summarised as "
@@ -233,6 +236,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     arch.add_argument('--adapter_mode', type=str, default='dual', choices=['dual', 'fused'],
                       help="dual: a WT adapter and an MT adapter. fused: ONE adapter and one calibration head read both the wild-type and the "
                            "mutant sequence (its LoRA shape is the MT one: --lora_*_mt).")
+    arch.add_argument('--fused_antisymmetric', action=argparse.BooleanOptionalAction, default=False,
+                      help="In fused mode, score the MT pass via the negated reverse calibration -f_theta(MT, m -> w), so the combined cycle "
+                           "readout 0.5*(WT - rev_MT) cancels per-mutation bias and enforces exact forward/reverse antisymmetry.")
     arch.add_argument('--lora_rank_mt', type=int, default=16)
     arch.add_argument('--lora_alpha_mt', type=int, default=16)
     arch.add_argument('--lora_dropout_mt', type=float, default=0.1)
@@ -278,6 +284,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                      help="Weight of the MT path's regression (scored through the combined prediction, trains the MT path only).")
     obj.add_argument('--rank_list_size', '--subset_size', dest='rank_list_size', type=int, default=16,
                      help="Length of the ListMLE lists: a batch is cut into consecutive lists of this many items.")
+    obj.add_argument('--rank_group_by', type=str, default='none', choices=['none', 'partner'],
+                     help="How MT ListMLE lists are formed within a micro-batch: 'none' uses random consecutive slices; 'partner' groups doubles "
+                          "by shared mutation partner / position pair and adds contrastive epistatic-residual ListMLE lists.")
+    obj.add_argument('--rank_ci_margin', type=float, default=0.0,
+                     help="Attenuate adjacent ListMLE rank comparisons within measurement uncertainty: >0 scales pairwise standard errors "
+                          "sqrt(sigma_i^2 + sigma_j^2) from deltaG_95CI via Gaussian survival probability Phi(dy / (margin * sigma_ij)).")
     obj.add_argument('--huber_delta', type=float, default=0.0,
                      help="0 = squared error (every run so far). >0: Huber loss with this delta (kcal/mol) on the observed-scale regression, "
                           "so a few items that read far from their prediction pull with a bounded gradient.")
