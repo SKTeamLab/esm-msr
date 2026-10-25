@@ -711,6 +711,18 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         # never break logging loop; skip malformed tensors
                         continue
 
+    def on_train_epoch_start(self) -> None:
+        """Synchronize the train batch sampler with trainer's current_epoch for resumable dataloading."""
+        trainer = getattr(self, 'trainer', None)
+        if trainer is None:
+            return
+        epoch = getattr(trainer, 'current_epoch', 0)
+        train_loader = getattr(trainer, 'train_dataloader', None)
+        if train_loader is not None:
+            batch_sampler = getattr(train_loader, 'batch_sampler', None)
+            if batch_sampler is not None and hasattr(batch_sampler, 'set_epoch'):
+                batch_sampler.set_epoch(epoch)
+
     def training_step(self, batch: dict, batch_idx: int):
         self.model.train()
         if self.peft_manager.wt_path_is_frozen and hasattr(self.model, 'peft_wt') and isinstance(self.model.peft_wt, torch.nn.Module):
@@ -1339,12 +1351,20 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             'mt_plateau_bad': getattr(self, '_mt_plateau_bad', 0),
             'mt_decays': getattr(self, '_mt_decays', 0),
         }
+        trainer = getattr(self, 'trainer', None)
+        checkpoint['dataloader_state'] = {
+            'epoch': getattr(trainer, 'current_epoch', 0) if trainer else 0,
+            'global_step': getattr(trainer, 'global_step', 0) if trainer else 0,
+        }
 
     def on_load_checkpoint(self, checkpoint: dict) -> None:
         """
         Restores the custom transition state and re-enforces parameter freezing
         if the model was preempted after the WT validation convergence trigger.
         """
+        dataloader_state = checkpoint.get('dataloader_state', {})
+        if dataloader_state:
+            logging.info(f"Resumed dataloader state: checkpoint from epoch {dataloader_state.get('epoch')}, step {dataloader_state.get('global_step')}")
         transition_state = checkpoint.get('transition_state', {})
         self.peft_manager.has_transitioned = transition_state.get('has_transitioned', False)
         self._wt_plateau_best = transition_state.get('wt_plateau_best', -float('inf'))

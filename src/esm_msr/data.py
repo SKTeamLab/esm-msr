@@ -343,6 +343,11 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         self.batch_size = batch_size
         self.train_list = train_list
         self.verbose = verbose
+        self.rng_seed = rng_seed
+        self.sampler = self      # allows Lightning _set_sampler_epoch to discover set_epoch on this batch_sampler
+
+        self._completed_epochs = 0
+        self._active_batches: Optional[List[List[int]]] = None
         self._rng = random.Random(rng_seed)
 
         # 1. Map cumulative offsets for ConcatDataset
@@ -370,6 +375,7 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
             self._cached_buckets.append(buckets)
 
         # 3. Perform a dry-run to calculate exact batch sizes for the DataLoader __len__
+        # Matches the exact initial RNG consumption of the continuous run.
         self.num_batches = self._calculate_epoch_batches(dry_run=True)
 
     def _calculate_epoch_batches(self, dry_run: bool = False) -> int:
@@ -410,10 +416,40 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
 
         return len(final_batches)
 
+    def set_epoch(self, epoch: int) -> None:
+        """Set the epoch for resumable and deterministic shuffling across preemptions."""
+        if epoch == self._completed_epochs and self._active_batches is not None:
+            return
+
+        if self.rng_seed is not None and epoch != self._completed_epochs:
+            logging.info(f"ProteinCyclingBatchSampler: fast-forwarding RNG stream from epoch {self._completed_epochs} to {epoch}")
+            self._rng = random.Random(self.rng_seed)
+            self._calculate_epoch_batches(dry_run=True)
+            for _ in range(epoch):
+                self._calculate_epoch_batches(dry_run=True)
+            self._completed_epochs = epoch
+
+        self._calculate_epoch_batches(dry_run=False)
+
+    def state_dict(self) -> dict:
+        return {
+            'epoch': self._completed_epochs,
+            'batch_size': self.batch_size,
+            'rng_seed': self.rng_seed,
+        }
+
+    def load_state_dict(self, state: dict) -> None:
+        if 'epoch' in state:
+            self.set_epoch(state['epoch'])
+
     def __iter__(self) -> Iterator[List[int]]:
         """Invoked by PyTorch workers at the start of every epoch."""
-        self._calculate_epoch_batches(dry_run=False)
-        yield from self._active_batches
+        if self._active_batches is None:
+            self._calculate_epoch_batches(dry_run=False)
+        batches = self._active_batches
+        self._active_batches = None
+        self._completed_epochs += 1
+        yield from batches
 
     def __len__(self) -> int:
         return self.num_batches
