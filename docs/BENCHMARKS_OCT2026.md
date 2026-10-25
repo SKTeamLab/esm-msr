@@ -462,9 +462,9 @@ are comparable to §2.1–2.2: same splits, censored rows excluded, 8,494 and 12
 Two things this set makes sharper than the old one. On validation the trim seeds lead every interaction column, with
 the largest margin on `beyond_lib` (0.554 against 0.440) — so it is not a between-library offset. On test they lead
 `cell_mag`, `cell_rank`, `flipacc` and `beyond_lib` while trailing on `beyond ρ` (0.463 against 0.494): the pooled
-correlation still carries the per-library level agreement that `beyond_lib` strips out. `global_err` is higher for
-every model than under the old definition because it now compares the *epistasis* prediction against the full
-measured double ddG; it is not a like-for-like number against §2.1–2.2.
+correlation still carries the per-library level agreement that `beyond_lib` strips out. `global_err` and
+`global_bias` evaluate the point-wise RMSE and mean bias of the predicted epistasis $\sim\text{MT}(AB) - \text{WT}(AB)$
+directly against measured epistasis $\delta\Delta\Delta G$ on double mutants; negative bias reflects under-predicted epistasis.
 
 The change is specific to ESM-MSR: it redefines how that model's WT and MT passes are compared, and no other model has
 that pair of heads, so the third-party and harness rows in §2.1–2.2 are unaffected and need no rescoring. Those
