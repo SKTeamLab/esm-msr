@@ -479,7 +479,7 @@ exist before live (`beyond_lib`, `beyond_rho_pairavg`, three-class accuracy, `gl
 | MutateEverything stage 2 | 0.464 | 0.340 | 0.610 | 0.242 | 0.083 | 0.061 | 0.700 | **0.498** |
 | ThermoMPNN-D | 0.166 | 0.095 | 0.155 | 0.179 | 0.040 | 0.018 | 0.601 | 0.650 |
 | Rosetta Cartesian ΔΔG | 0.269 | 0.267 | 0.421 | 0.168 | 0.068 | 0.060 | 0.620 | 0.732 |
-| ESMtherm ‡ ᴾ | 0.486 | 0.471 | 0.697 | 0.384 | 0.258 | 0.171 | **0.884** | 0.900 |
+| ESMtherm ‡ ᴾ | 0.486 | 0.471 | 0.697 | 0.384 | 0.258 | 0.171 | 0.884 | 0.900 |
 | IFUM, WT backbone ‡ ᴾ | 0.300 | 0.351 | 0.594 | 0.248 | 0.121 | 0.076 | 0.759 | 0.939 |
 | IFUM, ESMFold per variant ‡ ᴾ | 0.292 | 0.316 | 0.657 | 0.189 | 0.097 | 0.076 | 0.771 | 0.882 |
 | GeoDDG-3D (FASPR) ʰ | 0.137 | 0.112 | 0.240 | 0.080 | 0.089 | 0.073 | 0.736 | 1.109 |
@@ -487,7 +487,7 @@ exist before live (`beyond_lib`, `beyond_rho_pairavg`, three-class accuracy, `gl
 | SPURS multi (multi-mutant model) ‡ ᴹ | 0.230 | 0.098 | 0.602 | -0.143 | 0.148 | 0.059 | 0.513 | 0.750 |
 | ProteinMPNN (zero-shot) ᶜ | 0.059 | 0.152 | 0.123 | 0.151 | 0.141 | 0.077 | 0.669 | 0.742 |
 | DDGemb (server) ʰ | 0.164 | 0.370 | **0.728** | 0.143 | 0.062 | 0.045 | 0.616 | 0.777 |
-| ESM-MSR (released) ʰ | **0.675** | **0.598** | **0.730** | 0.403 | **0.327** | **0.207** | 0.860 | 0.845 |
+| ESM-MSR (released) ʰ | **0.675** | **0.598** | **0.730** | 0.403 | **0.327** | **0.207** | **0.860** | 0.845 |
 | ESM-MSR (devel) (3 seeds) ʰ | 0.370 | 0.591 | 0.718 | **0.440** | 0.303 | 0.195 | 0.854 | 0.694 |
 
 ### 2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)
@@ -495,31 +495,33 @@ exist before live (`beyond_lib`, `beyond_rho_pairavg`, three-class accuracy, `gl
 | model | naive ρ | beyond ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | global_err ↓ |
 |---|---|---|---|---|---|---|---|---|
 | MutateEverything stage 1 | 0.014 | 0.023 | -0.001 | 0.045 | -0.020 | -0.010 | 0.519 | 0.870 |
-| MutateEverything stage 2 | 0.460 | 0.305 | 0.275 | 0.314 | 0.139 | 0.110 | 0.645 | **0.397** |
+| MutateEverything stage 2 | **0.460** | 0.305 | 0.275 | 0.314 | 0.139 | 0.110 | 0.645 | **0.397** |
 | ThermoMPNN-D | 0.037 | 0.024 | -0.107 | 0.217 | 0.021 | 0.011 | 0.591 | 0.592 |
 | Rosetta Cartesian ΔΔG | 0.381 | 0.207 | 0.258 | 0.195 | 0.094 | 0.066 | 0.556 | 0.775 |
-| ESMtherm ‡ ᴾ | **0.495** | **0.507** | **0.635** | **0.550** | 0.250 | 0.178 | 0.790 | 0.449 |
+| ESMtherm ‡ ᴾ | 0.495 | 0.507 | 0.635 | 0.550 | 0.250 | 0.178 | 0.790 | 0.449 |
 | IFUM, WT backbone ‡ ᴾ | 0.002 | 0.247 | 0.315 | 0.254 | 0.107 | 0.068 | 0.617 | 0.911 |
 | IFUM, ESMFold per variant ‡ ᴾ | 0.102 | 0.304 | 0.503 | 0.230 | 0.093 | 0.069 | 0.649 | 0.907 |
 | GeoDDG-3D (FASPR) ʰ | 0.055 | 0.046 | 0.083 | 0.087 | 0.077 | 0.054 | 0.589 | 0.984 |
-| ESM3ΔG ᴴ | 0.413 | 0.462 | 0.571 | 0.384 | **0.289** | 0.203 | **0.794** | 0.762 |
+| ESM3ΔG ᴴ | 0.413 | 0.462 | 0.571 | 0.384 | 0.289 | 0.203 | 0.794 | 0.762 |
 | SPURS multi (multi-mutant model) ‡ ᴹ | 0.137 | 0.132 | 0.494 | -0.052 | 0.092 | 0.082 | 0.549 | 0.672 |
 | ProteinMPNN (zero-shot) ᶜ | 0.314 | 0.273 | 0.473 | 0.125 | 0.125 | 0.064 | 0.592 | 0.582 |
 | DDGemb (server) ʰ | 0.031 | 0.122 | 0.242 | -0.019 | 0.028 | 0.028 | 0.550 | 0.625 |
-| ESM-MSR (released) ʰ | 0.452 | 0.488 | 0.605 | 0.362 | 0.247 | 0.198 | 0.744 | 1.484 |
-| ESM-MSR (devel) (3 seeds) ʰ | 0.435 | 0.494 | 0.618 | 0.384 | 0.230 | **0.209** | 0.754 | 1.276 |
+| ESM-MSR (released) ʰ | 0.452 | 0.488 | 0.605 | 0.362 | **0.247** | 0.198 | 0.744 | 1.484 |
+| ESM-MSR (devel) (3 seeds) ʰ | 0.435 | **0.494** | **0.618** | **0.384** | 0.230 | **0.209** | **0.754** | 1.276 |
 
 Largest seed sd per model, validation: ME stage 1 0.364, ME stage 2 0.060, ThermoMPNN-D 0.069, ESM-MSR (devel)
 0.057; test: ME stage 1 0.170, ME stage 2 0.046, ThermoMPNN-D 0.091, ESM-MSR (devel) 0.035. A difference smaller
 than these is not a result.
 
-- **Under the authoritative `epi` head ESM-MSR no longer leads the test interaction columns.** ESMtherm takes naive ρ
-  (0.495), beyond ρ (0.507), pair ρ (0.635) and line ρ (0.550); ESM3ΔG takes cell_mag (0.289) and flip accuracy
-  (0.794); the best ESM-MSR cell is (devel) cell_rank 0.209, ahead of ESM3ΔG 0.203 and ESMtherm 0.178. ME stage 2
-  keeps the lowest global error (0.397). Both leaders are flagged for training overlap with the capped split (‡ ᴾ),
-  so this is not a held-out ranking — see the Megascale bullet below. On validation ESM-MSR (released) still takes
-  naive ρ (0.675), beyond ρ (0.598), pair ρ (0.730), cell_mag (0.327) and cell_rank (0.207), (devel) takes line ρ
-  (0.440), and ESMtherm takes flip accuracy (0.884).
+- **The metric overhaul moves the ESM-MSR numbers, not the ranking.** As in every other table, a bold cell is the best
+  value among the models that did **not** train on Tsuboyama. On test that is (devel) beyond ρ 0.494, pair ρ 0.618,
+  line ρ 0.384, cell_rank 0.209 and flip accuracy 0.754, (released) cell_mag 0.247, and ME stage 2 naive ρ 0.460 with
+  the lowest global error 0.397. The ‡ models show higher raw values in naive/beyond/pair/line and, for ESM3ΔG,
+  cell_mag and flip accuracy; they did so before the overhaul too, and they stay unbolded because they trained on
+  Tsuboyama. The one ordering the overhaul does change is *inside* the ESM-MSR rows: the cell_rank lead moves from
+  (released) 0.176 to (devel) 0.209. On validation ESM-MSR leads seven of the eight columns — (released) naive ρ
+  0.675, beyond ρ 0.598, pair ρ 0.730, cell_mag 0.327, cell_rank 0.207 and flip accuracy 0.860, (devel) line ρ
+  0.440 — with global error going to ME stage 2 (0.498).
 - **Among models that did not train on Tsuboyama, ESM-MSR still leads the interaction metrics.** On test, beyond ρ
   is 0.494 (devel) and 0.488 (released) against 0.305 for ME stage 2, 0.273 for ProteinMPNN and 0.207 for Rosetta;
   cell_rank is 0.198–0.209 against 0.110 (ME stage 2) and 0.064–0.066 (ProteinMPNN, Rosetta). No model outside
