@@ -190,7 +190,7 @@ class TestTable(unittest.TestCase):
 
     def test_logged_names_cover_the_documented_set(self):
         names = E.logged_names()
-        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 4 + 4 + 7 * 3)
+        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 4 + 4 + 11 * 3)
         s = E.compute(E.Table(items(*synthetic(0), KNOW['all']), FLOOR))
         for n in names:
             self.assertIn(n, s)

@@ -188,7 +188,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     run.add_argument('--comet', action=argparse.BooleanOptionalAction, default=True,
                      help="Log to Comet. The key is read from the environment (COMET_API_KEY) or ~/.comet.config, never from the command line, "
                           "so it cannot land in hparams.yaml or a process listing. No key available: a warning, and no Comet.")
-    run.add_argument('--comet_project_name', type=str, default="esm-msr-trim-oct22")
+    run.add_argument('--comet_project_name', type=str, default="esm-msr-oct24-final")
     run.add_argument('--comet_experiment_key', type=str, default=None,
                      help="Continue logging into an EXISTING Comet experiment instead of creating a new one. Pair it with "
                           "--resume_from_checkpoint, or a resumed run's curves land in a second experiment.")

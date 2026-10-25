@@ -72,6 +72,7 @@ The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``).
     beyond_rho_{comb,mt,ctx}        Spearman of r' against r over all doubles: everything above the global level at once (pair and library
                                     offsets dominate it).
     beyond_lib_{comb,mt,ctx}        the same with each library's mean removed from r and r': above the global level and not a library-wide offset.
+    beyond_rho_pairavg_{comb,mt,ctx} mean across position pairs of the Spearman correlation of residuals r' against r within each pair.
     pair_rho_{comb,mt,ctx}          Spearman across position pairs of the pairs' mean residuals. Only about 24 pairs (9 libraries) in
                                     validation: report it, do not select on it.
     line_rho_{comb,mt,ctx}          Spearman, pooled over the lines of every matrix (both orientations), of the line means of the residuals
@@ -84,6 +85,9 @@ The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``).
                                     kcal/mol on both sides, the share in which the head's predicted interaction contrast (L_ij - L_i'j -
                                     L_ij' + L_i'j', latent; pair, row and column effects cancel exactly) has the reversal's sign; ties count
                                     half, so an additive head is exactly 0.5. comb's contrast is half of mt's, so the two are identical.
+    class3_acc_{comb,mt,ctx}        3-class classification accuracy (negative < -0.6, neutral [-0.6, 0.6], positive > 0.6 kcal/mol) on residuals.
+    class3_pos_recall_{comb,mt,ctx} recall on confident positive epistasis (r > 0.6 kcal/mol).
+    class3_neg_recall_{comb,mt,ctx} recall on confident negative epistasis (r < -0.6 kcal/mol).
 
 Changed 2026-10-24: comb's composition offset o removed; global_dddg_bias added; mt / ctx residual levels and naive_rho read the WT-referenced dddG' above (before: each head's double minus its OWN
 singles); beyond_lib added; cell_sigsd retired (a spread, not a skill score).
@@ -123,11 +127,15 @@ METRICS = {
     'global_dddg_bias_wts': ('comb',),
     'beyond_rho': SYM,
     'beyond_lib': SYM,
+    'beyond_rho_pairavg': SYM,
     'pair_rho': SYM,
     'line_rho': SYM,
     'cell_mag': SYM,
     'cell_rank': SYM,
     'cell_flipacc': SYM,
+    'class3_acc': SYM,
+    'class3_pos_recall': SYM,
+    'class3_neg_recall': SYM,
 }
 COUNTS = ('doubles', 'pairs', 'blocks', 'flips')
 # Not logged in training (saturation leaks into them; docs/validation_metrics.md): the levels computed on RAW observed-scale dddG, the
@@ -371,16 +379,17 @@ def global_curve(t: Table, h: str = 'comb'):
 
 
 def residual_levels(t: Table, h: str) -> Dict[str, float]:
-    """beyond_rho, beyond_lib, pair_rho, line_rho, cell_mag on the beyond-global residuals."""
+    """beyond_rho, beyond_lib, beyond_rho_pairavg, pair_rho, line_rho, cell_mag, class3_* on the beyond-global residuals."""
     rm, rp = beyond_global(t, h)
     out = {'beyond_rho': _rho(rp, rm), 'beyond_lib': _rho(_lib_centred(rp, t.lib), _lib_centred(rm, t.lib))}
     mats = t.matrices()
-    pm, pp, lm, lp, cells = [], [], [], [], []
+    pm, pp, lm, lp, cells, pair_rhos = [], [], [], [], [], []
     for M in mats:
         Rm, Rp = _lay(M, rm), _lay(M, rp)
         ok = np.isfinite(Rm) & np.isfinite(Rp)
         if ok.sum() < MIN_PAIR_CELLS:
             continue
+        pair_rhos.append(_rho(Rp[ok], Rm[ok]))
         Rm, Rp = np.where(ok, Rm, np.nan), np.where(ok, Rp, np.nan)
         mm, mp = np.nanmean(Rm), np.nanmean(Rp)
         pm.append(mm); pp.append(mp)
@@ -392,9 +401,22 @@ def residual_levels(t: Table, h: str) -> Dict[str, float]:
         if blk is not None:
             ix = np.ix_(*blk)
             cells.append(_rho(_dc(Rp[ix]).ravel(), _dc(Rm[ix]).ravel()))
+    out['beyond_rho_pairavg'] = _mean(pair_rhos)
     out['pair_rho'] = _rho(pp, pm) if len(pm) >= MIN_PAIRS else NAN
     out['line_rho'] = _rho(lp, lm) if len(lm) >= 2 * MIN_PAIRS else NAN
     out['cell_mag'] = _mean(cells)
+
+    ok = np.isfinite(rm) & np.isfinite(rp)
+    if ok.any():
+        ym, yp = rm[ok], rp[ok]
+        cm = np.where(ym < -FLIP_DELTA, -1, np.where(ym > FLIP_DELTA, 1, 0))
+        cp = np.where(yp < -FLIP_DELTA, -1, np.where(yp > FLIP_DELTA, 1, 0))
+        out['class3_acc'] = float((cm == cp).mean())
+        pos_m, neg_m = cm == 1, cm == -1
+        out['class3_pos_recall'] = float((cp[pos_m] == 1).mean()) if pos_m.any() else NAN
+        out['class3_neg_recall'] = float((cp[neg_m] == -1).mean()) if neg_m.any() else NAN
+    else:
+        out['class3_acc'] = out['class3_pos_recall'] = out['class3_neg_recall'] = NAN
     return out
 
 
