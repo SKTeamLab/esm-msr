@@ -433,9 +433,9 @@ The metric set changed on 2026-10-24 and this is now the authoritative one (`src
 `docs/validation_metrics.md`). The epistasis head is **`epi` = ~MT(AB) − WT(AB)**: the MT pass read against the WT
 adapter's additive baseline, which under `--per_mutation_bias` is additive by construction. `comb` (the 50/50 WT+MT
 mix) is no longer used for the residual levels, because halving the epistatic contrast compresses every residual by
-2x and pushes >97 % of variants into the neutral band. `global_err`/`global_bias` are anchored to `epi` and measured
-against the *measured* double-mutant ddG, no longer against observed singles (which confounded epistasis bias with
-single-mutant shrinkage). Three statistics are new: `beyond_lib` (each library's mean removed from the residuals, so
+2x and pushes >97 % of variants into the neutral band. `global_err`/`global_bias` are anchored to `epi` and evaluate the predicted
+epistasis dddG' against the *measured* dddG on double mutants, no longer against observed singles (which confounded
+epistasis bias with single-mutant shrinkage). Three statistics are new: `beyond_lib` (each library's mean removed from the residuals, so
 between-library offsets do not count), `beyond_rho_pairavg` (mean within-position-pair Spearman), and a three-class
 residual accuracy (negative < −0.6, neutral, positive > +0.6 kcal/mol).
 
@@ -447,17 +447,17 @@ are comparable to §2.1–2.2: same splits, censored rows excluded, 8,494 and 12
 
 | model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ESM-MSR (released) | **0.675** | 0.598 | 0.453 | 0.391 | 0.730 | 0.403 | 0.327 | 0.207 | 0.860 | 0.678 | 0.845 | 0.529 |
-| ESM-MSR (devel), 3 seeds | 0.370 | 0.591 | 0.440 | 0.403 | 0.718 | 0.440 | 0.303 | 0.195 | 0.854 | **0.690** | **0.694** | **0.367** |
-| ESM-MSR (trim/mask), 3 seeds | 0.371 | **0.659** | **0.554** | **0.460** | **0.868** | **0.514** | 0.328 | **0.217** | **0.906** | 0.685 | 0.762 | 0.410 |
+| ESM-MSR (released) | **0.675** | 0.598 | 0.453 | 0.391 | 0.730 | 0.403 | 0.327 | 0.207 | 0.860 | 0.678 | **0.849** | 0.493 |
+| ESM-MSR (devel), 3 seeds | 0.370 | 0.591 | 0.440 | 0.403 | 0.718 | 0.440 | 0.303 | 0.195 | 0.854 | **0.690** | 0.850 | **-0.226** |
+| ESM-MSR (trim/mask), 3 seeds | 0.371 | **0.659** | **0.554** | **0.460** | **0.868** | **0.514** | 0.328 | **0.217** | **0.906** | 0.685 | 0.915 | -0.313 |
 
 **Test (12,455 doubles, 43 pairs, 4,236 flips)**
 
 | model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ESM-MSR (released) | **0.452** | 0.488 | 0.343 | 0.316 | 0.605 | 0.362 | 0.247 | 0.198 | 0.744 | 0.599 | 1.484 | 1.205 |
-| ESM-MSR (devel), 3 seeds | 0.435 | **0.494** | 0.367 | 0.327 | **0.618** | 0.384 | 0.230 | 0.209 | 0.754 | 0.608 | **1.276** | **0.974** |
-| ESM-MSR (trim/mask), 3 seeds | 0.411 | 0.463 | **0.400** | **0.376** | 0.594 | **0.416** | **0.260** | **0.224** | **0.803** | 0.589 | 1.361 | 1.047 |
+| ESM-MSR (released) | **0.452** | 0.488 | 0.343 | 0.316 | 0.605 | 0.362 | 0.247 | 0.198 | 0.744 | 0.599 | 1.055 | 0.513 |
+| ESM-MSR (devel), 3 seeds | 0.435 | **0.494** | 0.367 | 0.327 | **0.618** | 0.384 | 0.230 | 0.209 | 0.754 | 0.608 | **0.852** | 0.125 |
+| ESM-MSR (trim/mask), 3 seeds | 0.411 | 0.463 | **0.400** | **0.376** | 0.594 | **0.416** | **0.260** | **0.224** | **0.803** | 0.589 | 0.865 | **-0.088** |
 
 Two things this set makes sharper than the old one. On validation the trim seeds lead every interaction column, with
 the largest margin on `beyond_lib` (0.554 against 0.440) — so it is not a between-library offset. On test they lead
@@ -487,8 +487,8 @@ exist before live (`beyond_lib`, `beyond_rho_pairavg`, three-class accuracy, `gl
 | SPURS multi (multi-mutant model) ‡ ᴹ | 0.230 | 0.098 | 0.602 | -0.143 | 0.148 | 0.059 | 0.513 | 0.750 |
 | ProteinMPNN (zero-shot) ᶜ | 0.059 | 0.152 | 0.123 | 0.151 | 0.141 | 0.077 | 0.669 | 0.742 |
 | DDGemb (server) ʰ | 0.164 | 0.370 | **0.728** | 0.143 | 0.062 | 0.045 | 0.616 | 0.777 |
-| ESM-MSR (released) ʰ | **0.675** | **0.598** | **0.730** | 0.403 | **0.327** | **0.207** | **0.860** | 0.845 |
-| ESM-MSR (devel) (3 seeds) ʰ | 0.370 | 0.591 | 0.718 | **0.440** | 0.303 | 0.195 | 0.854 | 0.694 |
+| ESM-MSR (released) ʰ | **0.675** | **0.598** | **0.730** | 0.403 | **0.327** | **0.207** | **0.860** | 0.849 |
+| ESM-MSR (devel) (3 seeds) ʰ | 0.370 | 0.591 | 0.718 | **0.440** | 0.303 | 0.195 | 0.854 | 0.850 |
 
 ### 2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)
 
@@ -506,8 +506,8 @@ exist before live (`beyond_lib`, `beyond_rho_pairavg`, three-class accuracy, `gl
 | SPURS multi (multi-mutant model) ‡ ᴹ | 0.137 | 0.132 | 0.494 | -0.052 | 0.092 | 0.082 | 0.549 | 0.672 |
 | ProteinMPNN (zero-shot) ᶜ | 0.314 | 0.273 | 0.473 | 0.125 | 0.125 | 0.064 | 0.592 | 0.582 |
 | DDGemb (server) ʰ | 0.031 | 0.122 | 0.242 | -0.019 | 0.028 | 0.028 | 0.550 | 0.625 |
-| ESM-MSR (released) ʰ | 0.452 | 0.488 | 0.605 | 0.362 | **0.247** | 0.198 | 0.744 | 1.484 |
-| ESM-MSR (devel) (3 seeds) ʰ | 0.435 | **0.494** | **0.618** | **0.384** | 0.230 | **0.209** | **0.754** | 1.276 |
+| ESM-MSR (released) ʰ | 0.452 | 0.488 | 0.605 | 0.362 | **0.247** | 0.198 | 0.744 | 1.055 |
+| ESM-MSR (devel) (3 seeds) ʰ | 0.435 | **0.494** | **0.618** | **0.384** | 0.230 | **0.209** | **0.754** | 0.852 |
 
 Largest seed sd per model, validation: ME stage 1 0.364, ME stage 2 0.060, ThermoMPNN-D 0.069, ESM-MSR (devel)
 0.057; test: ME stage 1 0.170, ME stage 2 0.046, ThermoMPNN-D 0.091, ESM-MSR (devel) 0.035. A difference smaller
@@ -541,7 +541,7 @@ than these is not a result.
   test: beyond ρ 0.511, pair ρ 0.660, cell_rank 0.210 against 0.489, 0.627, 0.173 combined) and worse on global
   error; the choice of the combination weight is §2.6.
 - Additive heads score exactly 0 / 0.5 on every residual and rank metric, the suite's own correctness check, and
-  `global_err` 1.105 on validation for each of them.
+  `global_err` equal to the RMS of the measured dddG, since their predicted dddG is exactly 0 by construction.
 - Every destabilized-backbone test row is a single, so these epistasis columns are identical with or without those
   libraries (re-verified with the current `dG_wt`: max difference 0 over all 17 `epi_*` columns and 18 rows); only
   the pooled ddG metrics move, by up to 0.01 on `spearman_all`.
