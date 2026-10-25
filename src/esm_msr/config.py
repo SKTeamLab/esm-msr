@@ -319,7 +319,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                             "with the measured one, both beyond the global level.")
     sched.add_argument('--early_stopping_patience', type=int, default=0,
                        help="Stop when --monitor_metric has not improved for this many validations. 0 (the default) never early-stops.")
-    sched.add_argument('--monitor_metric', type=str, default='val_rho_combined_avg',
+    sched.add_argument('--monitor_metric', type=str, default='val_epi_beyond_rho_epi',
                        help="Which validation metric picks the checkpoints and drives early stopping; checkpoints are named "
                             "epoch=NN-<metric>=0.xxxx.ckpt.")
 
