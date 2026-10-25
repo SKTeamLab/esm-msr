@@ -121,7 +121,6 @@ class TestSaturation(unittest.TestCase):
         for m in ('beyond_lib', 'beyond_rho', 'pair_rho', 'line_rho', 'cell_mag', 'cell_rank'):
             self.assertEqual(s[f'epi_{m}_add'], 0.0, m)
         self.assertEqual(s['epi_cell_flipacc_add'], 0.5)
-        self.assertLess(s['epi_global_err_epi'], scores('nothing', link=None)['epi_global_err_epi'])
         s_all = scores('all')
         self.assertLess(s_all['epi_global_err_epi'], s['epi_global_err_epi'])
 

@@ -59,8 +59,8 @@ The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``).
 
     naive_rho_{comb,epi,ctx,add}    Spearman of the head's raw observed-scale dddG' against measured dddG over all doubles, nothing removed
                                     (comb / add: P(AB) - P(A) - P(B)). Mostly saturation - add scores about as much as comb. For curiosity.
-    global_err_epi                  RMSE (kcal/mol) of the calibrated and linked epistasis double-mutant prediction P_epi against measured ddG_AB.
-    global_bias_epi                 Mean of (P_epi - ddG_AB) in kcal/mol on the calibrated and linked epistasis double-mutant predictions.
+    global_err_epi                  RMSE (kcal/mol) of the predicted epistasis dddG' (~MT - WT) against measured dddG on double mutants.
+    global_bias_epi                 Mean of (predicted_dddG - measured_dddG) in kcal/mol on double mutants; negative = under-predicted epistasis.
     beyond_rho_{epi,ctx}            Spearman of r' against r over all doubles: everything above the global level at once (pair and library
                                     offsets dominate it).
     beyond_lib_{epi,ctx}            the same with each library's mean removed from r and r': above the global level and not a library-wide offset.
@@ -246,10 +246,11 @@ class Table:
         n = len(keys)
         gt, dddG = np.asarray(items['ddG'], float), np.asarray(items['dddG'], float)
         c = np.asarray(items['dG_wt'], float) if items.get('dG_wt') is not None else np.full(n, np.nan)
-        mt_arr = items['epi'] if 'epi' in items else items['mt']
-        lat = {'add': np.asarray(items['wt'], float), 'epi': np.asarray(mt_arr, float), 'comb': np.asarray(items['comb'], float)}
-        if 'mt' in items:
-            lat['mt'] = np.asarray(items['mt'], float)
+        mt_arr = items['mt'] if 'mt' in items else items.get('epi')
+        lat = {'add': np.asarray(items['wt'], float), 'comb': np.asarray(items['comb'], float)}
+        if mt_arr is not None:
+            lat['mt'] = np.asarray(mt_arr, float)
+            lat['epi'] = np.asarray(items['epi'], float) if 'epi' in items else lat['mt']
         if items.get('wt_rev') is not None and np.isfinite(np.asarray(items['wt_rev'], float)).any():
             lat['rev'] = np.asarray(items['wt_rev'], float)
             lat['ctx'] = 0.5 * (lat['add'] + lat['rev'])
@@ -339,7 +340,12 @@ def _lay(M, v):
 def predicted_dddg(t: Table, h: str):
     """(dddG'_h on the observed scale, x'_h): the head's predicted epistasis and its own additive expectation; see the module docstring."""
     if h in WT_REFERENCED:
-        return t.P[WT_REFERENCED[h]] - t.P['add'], t.c + t.L['add']
+        ref = WT_REFERENCED[h]
+        if ref in t.P and 'add' in t.P:
+            return t.P[ref] - t.P['add'], t.c + t.L['add']
+        if h in t.P:
+            add_l = t.L['add'] if 'add' in t.L else np.zeros_like(t.P[h])
+            return t.P[h], t.c + add_l
     return t.P[h] - t.PX[h], t.c + t.LA[h] + t.LB[h]
 
 
@@ -368,8 +374,9 @@ def naive_rho(t: Table, h: str) -> float:
 
 
 def global_curve(t: Table, h: str = 'epi'):
-    """(RMSE, bias) of the calibrated and linked double-mutant prediction P[h] against measured ddG_AB (y)."""
-    d = t.P[h] - t.y
+    """(RMSE, bias) of the predicted epistasis dddG' against measured epistasis dddG."""
+    pred_dddG, _ = predicted_dddg(t, h)
+    d = pred_dddG - t.dddG
     ok = np.isfinite(d)
     if not ok.any():
         return NAN, NAN

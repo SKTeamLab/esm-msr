@@ -24,9 +24,9 @@ is **authoritative across all training, validation, inference, and analysis scri
    residual classification and correlation without adding any signal. `comb` is retained only for `val_epi_naive_rho_comb` (the observed-scale
    product benchmark).
 4. **Anchoring Global Error & Bias to `epi`**: `val_epi_global_err_epi` and `val_epi_global_bias_epi` track the RMSE and mean error of the
-   calibrated and linked double-mutant predictions $P_{\text{epi}}$ directly against measured double stabilities. The flawed `global_dddg_bias*`
-   metrics are deleted: because doubles partner with single mutants at destabilizing positions where models shrink toward the mean
-   ($\sim +0.2$ kcal/mol per single), subtracting observed singles confounded epistasis bias with single-mutant shrinkage.
+   authoritative epistasis prediction $\sim\text{MT}(AB) - \text{WT}(AB)$ directly against measured epistasis $\delta\Delta\Delta G$ on double mutants.
+   The flawed `global_dddg_bias*` metrics are deleted: because doubles partner with single mutants at destabilizing positions where models
+   shrink toward the mean ($\sim +0.2$ kcal/mol per single), subtracting observed singles confounded epistasis bias with single-mutant shrinkage.
 5. **New Residual Statistics**:
    - `val_epi_beyond_rho_pairavg_{epi,ctx}`: Mean across position pairs of within-pair residual Spearman correlation.
    - `val_epi_beyond_lib_{epi,ctx}`: Spearman correlation of library-centered residuals, stripping inter-library offsets.
@@ -57,8 +57,8 @@ travels with each run and with generated frozen-WT blocks.
 | | `val_epi_naive_rho_epi` | the same for the epistasis head | better |
 | | `val_epi_naive_rho_ctx` | the same for the context control | (control) |
 | | `val_epi_naive_rho_add` | the same for the saturation-only control | (control) |
-| global calibration | `val_epi_global_err_epi` | RMSE of calibrated $P_{\text{epi}}$ on measured doubles, kcal/mol | worse |
-| | `val_epi_global_bias_epi` | mean ($P_{\text{epi}} - y$) on measured doubles; negative = under-predicted | closer to 0 |
+| global calibration | `val_epi_global_err_epi` | RMSE of predicted epistasis $\sim\text{MT}(AB) - \text{WT}(AB)$ against measured epistasis $\delta\Delta\Delta G$, kcal/mol | worse |
+| | `val_epi_global_bias_epi` | mean ($\delta\Delta\Delta G'_{\text{epi}} - \delta\Delta\Delta G_{\text{meas}}$) on measured doubles; negative = under-predicted | closer to 0 |
 | beyond global | `val_epi_beyond_rho_epi` | residual Spearman over all doubles: everything above the global curve at once | better |
 | | `val_epi_beyond_rho_ctx` | the same for the WT-in-context control | (control) |
 | | `val_epi_beyond_lib_epi` | residual Spearman with per-library means removed (no library offset) | better |
