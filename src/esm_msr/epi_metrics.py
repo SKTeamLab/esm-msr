@@ -1,7 +1,7 @@
 """
 Epistasis validation metrics: what a model has learned about how two substitutions combine, level by level, with the assay's saturation and the
 other levels kept out of each level's number. Full argument, measurements and reading guide: docs/epistasis_metrics_report.html on the devel
-branch. Every metric is logged for every head.
+branch.
 
 This file is shared VERBATIM by claude/main-baseline and the devel branches - keep it that way, so neither has to resolve it against the other.
 It therefore assumes nothing about the link: the caller passes one (or None) and its arity decides what happens. A link taking only an absolute
@@ -36,11 +36,11 @@ How saturation is kept out. Two devices:
     bending its own additive prediction), so a head that is additive before its link scores exactly 0 at every residual level. Each head's
     dddG' (``predicted_dddg``):
       comb   P_comb(AB) - obs(comb(A) + comb(B))           x' = c + comb(A) + comb(B)     6 head evaluations
-      mt     P_mt(AB)   - P_wt(AB)       ~MT(AB) - WT(AB)  x' = c + WT(AB)                2 evaluations, no singles asked of the MT head
+      epi    P_epi(AB)  - P_wt(AB)       ~MT(AB) - WT(AB)  x' = c + WT(AB)                2 evaluations, no singles asked of the MT head
       ctx    P_rev(AB)  - P_wt(AB)       ~WT(AB) - WT(AB)  x' = c + WT(AB)                the same with the WT adapter in the MT seat
-    WT(AB) = WT(A) + WT(B) exactly (the WT adapter on the wild type, per-mutation bias), so mt / ctx read the part of the double the WT head's
+    WT(AB) = WT(A) + WT(B) exactly (the WT adapter on the wild type, per-mutation bias), so epi / ctx read the part of the double the WT head's
     singles do not give: the epistasis component the model would actually report, at the cost of the double alone. comb keeps the definition
-    used since the suite was introduced, for comparability with earlier runs. P = observed scale, h(c + latent) - c.
+    used since the suite was introduced, for comparability with earlier runs (only naive_rho_comb is logged). P = observed scale, h(c + latent) - c.
     The pair / line / cell levels are pair means, line effects and double-centred cells of these residuals.
   * WITHIN-COLUMN RANKS (orders). A monotone assay cannot change which of two doubles in one column (same library, same partner) is more stable,
     so the order of ddG_AB inside a column is saturation-free. The cell-level rank statistic double-centres column ranks; the confident-flip
@@ -48,8 +48,8 @@ How saturation is kept out. Two devices:
 
 Heads (latent ddG rules; observed = h(c + latent) - c through the run's link, or the latent itself):
 
-    comb  (WT + ~MT)/2: the reported prediction (inference ``combined_pred``)
-    mt    ~MT: the MT pass alone
+    comb  (WT + ~MT)/2: the reported prediction (inference ``combined_pred``; logged only for naive_rho)
+    epi   ~MT: the epistasis (MT) pass alone, evaluated relative to the WT additive baseline (~MT(AB) - WT(AB))
     ctx   (WT + ~WT)/2 on the rank levels; ~WT alone in its dddG' above. ~WT is the WT adapter read on the mutated sequence. It never trains
           on a double, so it is the CONTROL for what the backbone plus single-mutant training already know about epistasis. Needs
           --val_cycle_passes.
@@ -57,40 +57,38 @@ Heads (latent ddG rules; observed = h(c + latent) - c through the run's link, or
 
 The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``).
 
-    naive_rho_{comb,mt,ctx,add}     Spearman of the head's raw observed-scale dddG' against measured dddG over all doubles, nothing removed
+    naive_rho_{comb,epi,ctx,add}    Spearman of the head's raw observed-scale dddG' against measured dddG over all doubles, nothing removed
                                     (comb / add: P(AB) - P(A) - P(B)). Mostly saturation - add scores about as much as comb. For curiosity.
-    global_err_comb                 RMSE (kcal/mol) of the calibrated and linked combined double-mutant prediction P_AB against measured ddG_AB.
-    global_bias_comb                Mean of (P_AB - ddG_AB) in kcal/mol on the calibrated and linked combined double-mutant predictions.
-    global_dddg_bias_comb           mean over doubles of [P(AB) - P(A) - P(B)] - dddG, kcal/mol: the prediction's dddG formed exactly as the
-                                    measured one (observed double minus observed singles), so saturation counts on both sides. Whether the
-                                    reported prediction carries the right AMOUNT of average epistasis (diminishing returns plus saturation).
-                                    Equal to the doubles' mean error minus the mean error of the two singles. comb only: mt is ~2x by construction.
-                                    The singles that partner a double sit at destabilizing positions, where every head shrinks toward the mean
-                                    (the frozen WT is ~+0.2 kcal/mol per single there), so this mixes single shrinkage into the epistasis amount.
-    global_dddg_bias_wts_comb       the same with the WT head's singles, [P_comb(AB) - P_wt(A) - P_wt(B)] - dddG: the singles the WT head would
-                                    report. The difference from global_dddg_bias_comb is the MT half's own effect on the partner singles.
-    beyond_rho_{comb,mt,ctx}        Spearman of r' against r over all doubles: everything above the global level at once (pair and library
+    global_err_epi                  RMSE (kcal/mol) of the calibrated and linked epistasis double-mutant prediction P_epi against measured ddG_AB.
+    global_bias_epi                 Mean of (P_epi - ddG_AB) in kcal/mol on the calibrated and linked epistasis double-mutant predictions.
+    beyond_rho_{epi,ctx}            Spearman of r' against r over all doubles: everything above the global level at once (pair and library
                                     offsets dominate it).
-    beyond_lib_{comb,mt,ctx}        the same with each library's mean removed from r and r': above the global level and not a library-wide offset.
-    beyond_rho_pairavg_{comb,mt,ctx} mean across position pairs of the Spearman correlation of residuals r' against r within each pair.
-    pair_rho_{comb,mt,ctx}          Spearman across position pairs of the pairs' mean residuals. Only about 24 pairs (9 libraries) in
+    beyond_lib_{epi,ctx}            the same with each library's mean removed from r and r': above the global level and not a library-wide offset.
+    beyond_rho_pairavg_{epi,ctx}    mean across position pairs of the Spearman correlation of residuals r' against r within each pair.
+    pair_rho_{epi,ctx}              Spearman across position pairs of the pairs' mean residuals. Only about 24 pairs (9 libraries) in
                                     validation: report it, do not select on it.
-    line_rho_{comb,mt,ctx}          Spearman, pooled over the lines of every matrix (both orientations), of the line means of the residuals
+    line_rho_{epi,ctx}              Spearman, pooled over the lines of every matrix (both orientations), of the line means of the residuals
                                     centred on their matrix mean.
-    cell_mag_{comb,mt,ctx}          each matrix trimmed to a complete block, residuals double-centred, Spearman per block, mean over blocks.
-    cell_rank_{comb,mt,ctx}         the same block, but each column of measured ddG_AB and of the head's latent ddG_AB rank-transformed before
+    cell_mag_{epi,ctx}              each matrix trimmed to a complete block, residuals double-centred, Spearman per block, mean over blocks.
+    cell_rank_{epi,ctx}             the same block, but each column of measured ddG_AB and of the head's latent ddG_AB rank-transformed before
                                     double-centring (both orientations, mean per block, mean over blocks). Saturation-free; exactly 0 for any
                                     predictor whose order within a column does not depend on the partner.
-    cell_flipacc_{comb,mt,ctx}      of the 2 x 2 sub-blocks whose measured order REVERSES between two columns by more than ``FLIP_DELTA``
+    cell_flipacc_{epi,ctx}          of the 2 x 2 sub-blocks whose measured order REVERSES between two columns by more than ``FLIP_DELTA``
                                     kcal/mol on both sides, the share in which the head's predicted interaction contrast (L_ij - L_i'j -
                                     L_ij' + L_i'j', latent; pair, row and column effects cancel exactly) has the reversal's sign; ties count
-                                    half, so an additive head is exactly 0.5. comb's contrast is half of mt's, so the two are identical.
-    class3_acc_{comb,mt,ctx}        3-class classification accuracy (negative < -0.6, neutral [-0.6, 0.6], positive > 0.6 kcal/mol) on residuals.
-    class3_pos_recall_{comb,mt,ctx} recall on confident positive epistasis (r > 0.6 kcal/mol).
-    class3_neg_recall_{comb,mt,ctx} recall on confident negative epistasis (r < -0.6 kcal/mol).
+                                    half, so an additive head is exactly 0.5.
+    class3_acc_{epi,ctx}            3-class classification accuracy (negative < -0.6, neutral [-0.6, 0.6], positive > 0.6 kcal/mol) on residuals.
+    class3_pos_recall_{epi,ctx}     recall on confident positive epistasis (r > 0.6 kcal/mol).
+    class3_neg_recall_{epi,ctx}     recall on confident negative epistasis (r < -0.6 kcal/mol).
 
-Changed 2026-10-24: comb's composition offset o removed; global_dddg_bias added; mt / ctx residual levels and naive_rho read the WT-referenced dddG' above (before: each head's double minus its OWN
-singles); beyond_lib added; cell_sigsd retired (a spread, not a skill score).
+Changed 2026-10-24:
+  - Global calibration/scale metrics anchored to 'epi' (formerly 'mt'): kept only global_err and global_bias, dropping
+    global_dddg_bias* (which conflated single-mutant shrinkage with epistasis bias).
+  - Deleted all comb epistasis metrics except naive_rho_comb: comb mixes 50% additive WT head, diluting epistatic contrast
+    and compressing residuals by 2x.
+  - Renamed _mt to _epi across all epistasis metrics to reflect that the head is evaluated as ~MT(AB) - WT(AB) (the epistasis increment).
+  - Added beyond_rho_pairavg, class3_acc, class3_pos_recall, and class3_neg_recall.
+  - Library-centred beyond_lib.
 
 Counts (logged as ``val_epi_n_<name>``): doubles, pairs, complete blocks, confident flips.
 """
@@ -114,28 +112,26 @@ MIN_PAIRS = 8            # the pair level needs this many matrices
 MIN_LINE = 3             # a line needs this many cells for its mean
 MIN_BLOCK = 3            # a complete block needs at least this many rows and columns
 
-HEADS = ('comb', 'mt', 'ctx', 'add')
-SYM = ('comb', 'mt', 'ctx')
+HEADS = ('comb', 'epi', 'ctx', 'add')
+EPI_HEADS = ('epi', 'ctx')
 # Heads whose dddG' is their DOUBLE minus the WT-additive double (head -> the latent whose double is read); see predicted_dddg.
-WT_REFERENCED = {'mt': 'mt', 'ctx': 'rev'}
+WT_REFERENCED = {'epi': 'epi', 'ctx': 'rev', 'mt': 'epi'}
 # name -> heads it is logged for. The order is the reading order of the hierarchy.
 METRICS = {
-    'naive_rho': SYM + ('add',),
-    'global_err': ('comb',),
-    'global_bias': ('comb',),
-    'global_dddg_bias': ('comb',),
-    'global_dddg_bias_wts': ('comb',),
-    'beyond_rho': SYM,
-    'beyond_lib': SYM,
-    'beyond_rho_pairavg': SYM,
-    'pair_rho': SYM,
-    'line_rho': SYM,
-    'cell_mag': SYM,
-    'cell_rank': SYM,
-    'cell_flipacc': SYM,
-    'class3_acc': SYM,
-    'class3_pos_recall': SYM,
-    'class3_neg_recall': SYM,
+    'naive_rho': HEADS,
+    'global_err': ('epi',),
+    'global_bias': ('epi',),
+    'beyond_rho': EPI_HEADS,
+    'beyond_lib': EPI_HEADS,
+    'beyond_rho_pairavg': EPI_HEADS,
+    'pair_rho': EPI_HEADS,
+    'line_rho': EPI_HEADS,
+    'cell_mag': EPI_HEADS,
+    'cell_rank': EPI_HEADS,
+    'cell_flipacc': EPI_HEADS,
+    'class3_acc': EPI_HEADS,
+    'class3_pos_recall': EPI_HEADS,
+    'class3_neg_recall': EPI_HEADS,
 }
 COUNTS = ('doubles', 'pairs', 'blocks', 'flips')
 # Not logged in training (saturation leaks into them; docs/validation_metrics.md): the levels computed on RAW observed-scale dddG, the
@@ -250,7 +246,10 @@ class Table:
         n = len(keys)
         gt, dddG = np.asarray(items['ddG'], float), np.asarray(items['dddG'], float)
         c = np.asarray(items['dG_wt'], float) if items.get('dG_wt') is not None else np.full(n, np.nan)
-        lat = {'add': np.asarray(items['wt'], float), 'mt': np.asarray(items['mt'], float), 'comb': np.asarray(items['comb'], float)}
+        mt_arr = items['epi'] if 'epi' in items else items['mt']
+        lat = {'add': np.asarray(items['wt'], float), 'epi': np.asarray(mt_arr, float), 'comb': np.asarray(items['comb'], float)}
+        if 'mt' in items:
+            lat['mt'] = np.asarray(items['mt'], float)
         if items.get('wt_rev') is not None and np.isfinite(np.asarray(items['wt_rev'], float)).any():
             lat['rev'] = np.asarray(items['wt_rev'], float)
             lat['ctx'] = 0.5 * (lat['add'] + lat['rev'])
@@ -368,7 +367,7 @@ def naive_rho(t: Table, h: str) -> float:
     return _rho(d, t.dddG)
 
 
-def global_curve(t: Table, h: str = 'comb'):
+def global_curve(t: Table, h: str = 'epi'):
     """(RMSE, bias) of the calibrated and linked double-mutant prediction P[h] against measured ddG_AB (y)."""
     d = t.P[h] - t.y
     ok = np.isfinite(d)
@@ -502,12 +501,6 @@ def compute(t: Table, metrics: Dict[str, Sequence[str]] = METRICS) -> Dict[str, 
             r['naive_rho'] = naive_rho(t, h)
         if want & {'global_err', 'global_bias'}:
             r['global_err'], r['global_bias'] = global_curve(t, h)
-        if 'global_dddg_bias' in want:
-            d = (t.P[h] - t.PA[h] - t.PB[h]) - t.dddG      # the measured form: observed double minus observed singles
-            r['global_dddg_bias'] = float(np.nanmean(d)) if np.isfinite(d).any() else NAN
-        if 'global_dddg_bias_wts' in want:
-            d = (t.P[h] - t.PA['add'] - t.PB['add']) - t.dddG
-            r['global_dddg_bias_wts'] = float(np.nanmean(d)) if np.isfinite(d).any() else NAN
         if want & {'beyond_rho', 'beyond_lib', 'pair_rho', 'line_rho', 'cell_mag'}:
             r.update(residual_levels(t, h))
         if want & {'cell_rank', 'cell_sigsd'}:

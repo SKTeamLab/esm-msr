@@ -965,13 +965,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def _log_epistasis(self, pooled):
         """
-        Logs ``val_epi_<metric>_<head>`` (``esm_msr.epi_metrics``: every metric for comb, mt and ctx, the naive and
-        global ones also for the additive control add), pooled over every validation library, and with --val_dump
-        writes ``val_dump_<tag>.npz`` for offline rescoring.
+        Logs ``val_epi_<metric>_<head>`` (``esm_msr.epi_metrics``: the full epistasis hierarchy for epi and ctx,
+        naive_rho also for comb and add, and global calibration/scale for epi), pooled over every validation library,
+        and with --val_dump writes ``val_dump_<tag>.npz`` for offline rescoring.
 
-        Heads: comb ((WT + ~MT)/2, the reported prediction), mt (~MT), ctx ((WT + ~WT)/2, needs --val_cycle_passes),
-        add (WT, additive by construction - the control for what saturation alone can earn). With --link the metrics
-        put each head on the observed scale through the run's link, bending at each library's own floor. Never raises.
+        Heads: epi (~MT, evaluated relative to the WT additive baseline), ctx ((WT + ~WT)/2, needs --val_cycle_passes),
+        comb ((WT + ~MT)/2, reported prediction, naive_rho only), add (WT, additive by construction - the control for
+        what saturation alone can earn). With --link the metrics put each head on the observed scale through the run's
+        link, bending at each library's own floor. Never raises.
         """
         try:
             keys = pooled['mut_key']
@@ -1015,7 +1016,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             for name, val in res.items():
                 if np.isfinite(val):
                     self.log(f"val_{name}", float(val), on_epoch=True,
-                             prog_bar=name == 'epi_cell_rank_mt', sync_dist=True)
+                             prog_bar=name in ('epi_cell_rank_epi', 'epi_cell_rank_mt'), sync_dist=True)
             return res                  # the caller merges these into avg_metrics so a plateau can watch them
         except Exception as e:
             logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)
@@ -1029,8 +1030,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         metric the MT path was still improving, so it drifted and the target the MT path teacher-forces against moved underneath it; and a
         shared scheduler that owned every parameter group compounded patience-1 triggers into a 370x drop in three epochs (dc12r_s2).
         The WT head watches ``rho_singles_wt`` and touches only the ``lora_wt`` / ``calib_wt`` groups; the MT head watches
-        ``--mt_convergence_metric`` (default ``epi_beyond_rho_mt``: the MT head's correlation on the part of a double the WT head's singles do not
-        explain) and touches only ``lora_mt`` / ``calib_mt``. That metric is noisy epoch to epoch (swings of +-0.03, no trend), so
+        ``--mt_convergence_metric`` (default ``epi_beyond_rho_epi``: the epistasis component's correlation on the part of a double the WT head's
+        singles do not explain) and touches only ``lora_mt`` / ``calib_mt``. That metric is noisy epoch to epoch (swings of +-0.03, no trend), so
         patience 1 wants the gentle factor 0.3 it has by default.
         """
         patience = int(self.hparams.plateau_patience or 0)
@@ -1038,6 +1039,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if patience <= 0 or done:
             return
         key = 'rho_singles_wt' if head == 'wt' else self.hparams.mt_convergence_metric
+        if head != 'wt' and key == 'epi_beyond_rho_mt' and key not in avg_metrics and 'epi_beyond_rho_epi' in avg_metrics:
+            key = 'epi_beyond_rho_epi'
         if not avg_metrics.get(key):
             # Loudly, and once: a scheduler that is configured but silently inert is worse than one that errors.
             # dc12 ran 8 epochs with its MT plateau doing nothing, because _log_epistasis returned None and the

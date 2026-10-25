@@ -76,7 +76,7 @@ KNOW = {
     'cell': lambda P, i, j: P['eps'][i, j],
     'all': lambda P, i, j: P['m'] + P['r'][i] + P['s'][j] + P['eps'][i, j],
 }
-ALL_HEADS = {m: ('comb', 'mt', 'ctx', 'add') for m in tuple(E.METRICS) + ('cell_sigsd',)}
+ALL_HEADS = {m: ('comb', 'epi', 'ctx', 'add') for m in tuple(E.METRICS) + ('cell_sigsd',)}
 
 
 def scores(know, measure=FLOOR, link=FLOOR, seed=0):
@@ -88,32 +88,30 @@ class TestLevelIsolation(unittest.TestCase):
     def test_the_rank_and_flip_metrics_credit_only_the_cell(self):
         for know in ('nothing', 'pair', 'line'):
             s = scores(know)
-            self.assertEqual(s['epi_cell_rank_mt'], 0.0, know)
-            self.assertEqual(s['epi_cell_flipacc_mt'], 0.5, know)
-            self.assertEqual(s['epi_cell_sigsd_mt'], 0.0, know)
+            self.assertEqual(s['epi_cell_rank_epi'], 0.0, know)
+            self.assertEqual(s['epi_cell_flipacc_epi'], 0.5, know)
+            self.assertEqual(s['epi_cell_sigsd_epi'], 0.0, know)
         s = scores('cell')
         # rank space is not additive: without the line effects the double-centred ranks of the truth are not reproduced exactly
-        self.assertGreater(s['epi_cell_rank_mt'], 0.5)
-        self.assertGreater(s['epi_cell_flipacc_mt'], 0.9)
+        self.assertGreater(s['epi_cell_rank_epi'], 0.5)
+        self.assertGreater(s['epi_cell_flipacc_epi'], 0.9)
 
     def test_each_residual_level_is_carried_by_its_own_component(self):
         pair, line, cell = (scores(k, measure=None, link=None) for k in ('pair', 'line', 'cell'))
-        self.assertGreater(pair['epi_pair_rho_comb'], 0.7)
-        self.assertGreater(line['epi_line_rho_comb'], 0.7)
-        self.assertGreater(cell['epi_cell_mag_comb'], 0.7)
+        self.assertGreater(pair['epi_pair_rho_epi'], 0.7)
+        self.assertGreater(line['epi_line_rho_epi'], 0.7)
+        self.assertGreater(cell['epi_cell_mag_epi'], 0.7)
         # a higher level does not score at the cell level (up to the smoother's curvature). Through a saturating link it can: line effects
         # pushed through the floor are non-additive on the observed scale, for the measurement and a model that knows them alike
-        self.assertLess(abs(pair['epi_cell_mag_comb']), 0.25)
-        self.assertLess(abs(line['epi_cell_mag_comb']), 0.25)
+        self.assertLess(abs(pair['epi_cell_mag_epi']), 0.25)
+        self.assertLess(abs(line['epi_cell_mag_epi']), 0.25)
 
     def test_a_perfect_predictor_scores_at_the_top_of_every_level(self):
         s = scores('all', measure=None, link=None)
         for m in ('beyond_lib', 'beyond_rho', 'pair_rho', 'line_rho', 'cell_mag'):
-            self.assertGreater(s[f'epi_{m}_comb'], 0.85, m)
-        self.assertAlmostEqual(s['epi_cell_rank_mt'], 1.0, places=9)
-        self.assertEqual(s['epi_cell_flipacc_mt'], 1.0)
-        # comb carries half the epistasis on an additive base, which reorders columns (FINDINGS section 4): lower in rank space only
-        self.assertLess(s['epi_cell_rank_comb'], s['epi_cell_rank_mt'])
+            self.assertGreater(s[f'epi_{m}_epi'], 0.85, m)
+        self.assertAlmostEqual(s['epi_cell_rank_epi'], 1.0, places=9)
+        self.assertEqual(s['epi_cell_flipacc_epi'], 1.0)
 
 
 class TestSaturation(unittest.TestCase):
@@ -123,15 +121,15 @@ class TestSaturation(unittest.TestCase):
         for m in ('beyond_lib', 'beyond_rho', 'pair_rho', 'line_rho', 'cell_mag', 'cell_rank'):
             self.assertEqual(s[f'epi_{m}_add'], 0.0, m)
         self.assertEqual(s['epi_cell_flipacc_add'], 0.5)
-        self.assertLess(s['epi_global_err_comb'], scores('nothing', link=None)['epi_global_err_comb'])
+        self.assertLess(s['epi_global_err_epi'], scores('nothing', link=None)['epi_global_err_epi'])
         s_all = scores('all')
-        self.assertLess(s_all['epi_global_err_comb'], s['epi_global_err_comb'])
+        self.assertLess(s_all['epi_global_err_epi'], s['epi_global_err_epi'])
 
     def test_the_rank_metrics_ignore_a_monotone_measurement(self):
-        self.assertAlmostEqual(scores('all', measure=None, link=None)['epi_cell_rank_mt'], 1.0, places=9)
-        self.assertGreater(scores('all', measure=FLOOR, link=None)['epi_cell_rank_mt'], 0.6)     # floor ties blur, never invent
-        self.assertEqual(scores('nothing', measure=FLOOR, link=None)['epi_cell_rank_mt'], 0.0)
-        self.assertEqual(scores('all', measure=FLOOR, link=None)['epi_cell_flipacc_mt'], 1.0)
+        self.assertAlmostEqual(scores('all', measure=None, link=None)['epi_cell_rank_epi'], 1.0, places=9)
+        self.assertGreater(scores('all', measure=FLOOR, link=None)['epi_cell_rank_epi'], 0.6)     # floor ties blur, never invent
+        self.assertEqual(scores('nothing', measure=FLOOR, link=None)['epi_cell_rank_epi'], 0.0)
+        self.assertEqual(scores('all', measure=FLOOR, link=None)['epi_cell_flipacc_epi'], 1.0)
 
     def test_without_a_link_the_additive_head_is_flat(self):
         s = scores('nothing', measure=None, link=None)
@@ -181,7 +179,7 @@ class TestTable(unittest.TestCase):
         it['wt_rev'] = np.full(len(it['wt']), np.nan)
         res = E.compute(E.Table(it, FLOOR))
         self.assertFalse([k for k in res if k.endswith('_ctx')])
-        self.assertIn('epi_cell_rank_mt', res)
+        self.assertIn('epi_cell_rank_epi', res)
 
     def test_no_doubles_gives_counts_only(self):
         it = {'mut_key': [(('L', 'W', 1, 'A'),)], 'subset_type': ['single'], 'cens': np.zeros(1), 'ddG': np.ones(1), 'dddG': np.full(1, np.nan),
@@ -190,27 +188,28 @@ class TestTable(unittest.TestCase):
 
     def test_logged_names_cover_the_documented_set(self):
         names = E.logged_names()
-        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 4 + 4 + 11 * 3)
+        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 4 + 1 + 1 + 11 * 2)
         s = E.compute(E.Table(items(*synthetic(0), KNOW['all']), FLOOR))
         for n in names:
             self.assertIn(n, s)
 
-    def test_every_metric_is_logged_for_every_trained_head(self):
+    def test_every_metric_is_logged_for_its_configured_heads(self):
         for m, hs in E.METRICS.items():
             if m.startswith('global_'):
-                self.assertEqual(tuple(hs), ('comb',), m)
+                self.assertEqual(tuple(hs), ('epi',), m)
+            elif m == 'naive_rho':
+                self.assertEqual(set(hs), {'comb', 'epi', 'ctx', 'add'}, m)
             else:
-                self.assertTrue({'comb', 'mt', 'ctx'} <= set(hs), m)
+                self.assertEqual(set(hs), {'epi', 'ctx'}, m)
 
-    def test_comb_and_mt_agree_on_the_reversals(self):
-        s = E.compute(E.Table(items(*synthetic(5), KNOW['cell']), FLOOR))
-        self.assertEqual(s['epi_cell_flipacc_comb'], s['epi_cell_flipacc_mt'])
+    def test_comb_and_epi_agree_on_the_reversals(self):
+        t = E.Table(items(*synthetic(5), KNOW['cell']), FLOOR)
+        self.assertEqual(E.flip_accuracy(t, 'comb')[0], E.flip_accuracy(t, 'epi')[0])
 
 
 class TestWTReference(unittest.TestCase):
-    def test_mt_ignores_its_own_singles_and_comb_does_not(self):
-        """mt's dddG' is ~MT(AB) - WT(AB): what the MT head says about singles never enters. comb keeps its original definition, which
-        subtracts its own singles."""
+    def test_epi_ignores_its_own_singles(self):
+        """epi's dddG' is ~MT(AB) - WT(AB): what the MT/epi head says about singles never enters."""
         pairs, meas = synthetic(6, measure=None)
         it = items(pairs, meas, KNOW['all'])
         base = E.compute(E.Table(it, None))
@@ -219,16 +218,15 @@ class TestWTReference(unittest.TestCase):
         it2['mt'] = np.where(st == 'single', it['mt'] + np.random.default_rng(0).normal(0, 2.0, len(st)), it['mt'])
         it2['comb'] = 0.5 * (it2['wt'] + it2['mt'])
         moved = E.compute(E.Table(it2, None))
-        for m in ('naive_rho_mt', 'beyond_rho_mt', 'beyond_lib_mt', 'pair_rho_mt', 'line_rho_mt', 'cell_mag_mt'):
+        for m in ('naive_rho_epi', 'beyond_rho_epi', 'beyond_lib_epi', 'pair_rho_epi', 'line_rho_epi', 'cell_mag_epi'):
             self.assertAlmostEqual(base[f'epi_{m}'], moved[f'epi_{m}'], places=9, msg=m)
-        self.assertNotAlmostEqual(base['epi_beyond_rho_comb'], moved['epi_beyond_rho_comb'], places=3)
 
     def test_library_centring_removes_a_library_wide_offset(self):
         """A per-library constant on residuals is a library offset, not epistasis: beyond_lib does not move, beyond_rho does."""
         pairs, meas = synthetic(7, measure=None)
         it = items(pairs, meas, KNOW['cell'])
         t = E.Table(it, None)
-        rm, rp = E.beyond_global(t, 'mt')
+        rm, rp = E.beyond_global(t, 'epi')
         rp_shifted = rp + np.where(t.lib == 0, 3.0, 0.0)
         base = E._rho(E._lib_centred(rp, t.lib), E._lib_centred(rm, t.lib))
         moved = E._rho(E._lib_centred(rp_shifted, t.lib), E._lib_centred(rm, t.lib))
@@ -239,24 +237,23 @@ class TestWTReference(unittest.TestCase):
 
     def test_the_measured_residual_is_dddG_minus_its_global_curve(self):
         t = E.Table(items(*synthetic(8), KNOW['all']), FLOOR)
-        r, _ = E.beyond_global(t, 'mt')
+        r, _ = E.beyond_global(t, 'epi')
         np.testing.assert_allclose(r, (t.c + t.y) - E.smooth_on(t.x, t.c + t.y), atol=1e-9)    # the form used before 2026-10-24
 
 
-class TestGlobalDddgBias(unittest.TestCase):
+class TestGlobalErrAndBias(unittest.TestCase):
     def test_zero_for_a_perfect_head_and_signed(self):
         pairs, meas = synthetic(9, measure=None)
         it = items(pairs, meas, KNOW['all'])
-        it['comb'] = it['mt']                               # comb = the truth everywhere
-        self.assertAlmostEqual(E.compute(E.Table(it, None))['epi_global_dddg_bias_comb'], 0.0, places=9)
-        st = np.asarray(it['subset_type'])
-        it['comb'] = it['comb'] - np.where(st == 'double', 0.5, 0.0)
-        self.assertAlmostEqual(E.compute(E.Table(it, None))['epi_global_dddg_bias_comb'], -0.5, places=9)
-        # the WT-singles variant ignores comb's singles: shifting them moves only the first
-        it['comb'] = it['comb'] + np.where(st == 'single', 0.3, 0.0)
         r = E.compute(E.Table(it, None))
-        self.assertAlmostEqual(r['epi_global_dddg_bias_comb'], -1.1, places=9)
-        self.assertAlmostEqual(r['epi_global_dddg_bias_wts_comb'], -0.5, places=9)
+        self.assertAlmostEqual(r['epi_global_err_epi'], 0.0, places=9)
+        self.assertAlmostEqual(r['epi_global_bias_epi'], 0.0, places=9)
+        # shift the double predictions by -0.5: bias drops by -0.5, err becomes 0.5
+        st = np.asarray(it['subset_type'])
+        it['mt'] = it['mt'] - np.where(st == 'double', 0.5, 0.0)
+        r2 = E.compute(E.Table(it, None))
+        self.assertAlmostEqual(r2['epi_global_bias_epi'], -0.5, places=9)
+        self.assertAlmostEqual(r2['epi_global_err_epi'], 0.5, places=9)
 
 
 class TestSmoother(unittest.TestCase):
