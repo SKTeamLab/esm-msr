@@ -649,7 +649,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         if 'ddG_A' in micro and 'ddG_B' in micro:
                             epi_targ_mb = ddG_mb - (micro['ddG_A'].float() + micro['ddG_B'].float())
                             epi_mask_mb = reg_mask & ~is_single & has_add_label & torch.isfinite(epi_targ_mb)
-                            epi_pred_mb = combined_pred_raw - forced_wt_raw
+                            epi_pred_mb = mt_pred_raw - forced_wt_raw
                         else:
                             epi_targ_mb = epi_mask_mb = epi_pred_mb = None
                         L_rank, val, n_list = self._compute_partner_rank_loss(

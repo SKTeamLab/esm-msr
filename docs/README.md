@@ -69,7 +69,7 @@ recovers any of them:
 * `training_logs/<run>/0/metrics.csv` is the source of every number quoted; `<run>` names are given exactly.
 * Runs whose names begin `_invalid_`, `_aborted_`, `_confounded_`, `_truncated_`, `_superseded_` or
   `_cudafault_` **do not count** — see the triage table in `EXPERIMENTS.md` §6.
-* "Cell level" means `val_epi_cell_rank_mt` (+ `cell_mag_comb`, `cell_flipacc_mt`); "beyond-additive" means
-  `val_epi_beyond_rho_mt` / `_comb`; the guards are `val_rho_wt_valid_avg` and `val_rmse_combined_avg`.
+* "Cell level" means `val_epi_cell_rank_epi` (+ `cell_mag_epi`, `cell_flipacc_epi`); "beyond-additive" means
+  `val_epi_beyond_rho_epi` (authoritatively defined as ~MT(AB) - WT(AB)); the guards are `val_rho_wt_valid_avg` and `val_rmse_combined_avg`.
 * A difference is only quoted as a result when it exceeds the measured replicate noise in
   `STATE.md` §5, and single-seed differences are labelled as such.

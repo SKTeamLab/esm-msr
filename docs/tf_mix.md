@@ -107,12 +107,12 @@ See `docs/dual_adapter_design.md` section 2 for the four-way routing.
 
 ## 4. What to read
 
-* **`val_epi_beyond_rho_mt`** and `val_epi_beyond_rho_comb` first — the interaction level is the MT head's job and
+* **`val_epi_beyond_rho_epi`** (authoritatively defined as ~MT(AB) - WT(AB)) and `val_epi_beyond_rho_pairavg_epi` first — the interaction level is the MT head's job and
   the only level that cannot be won by getting the additive part right.
-* Then `cell_rank_mt`, `cell_mag_comb`, `cell_flipacc_mt` (mean of the last 3 epochs), against `fwt_ctrl_s1`.
+* Then `cell_rank_epi`, `cell_mag_epi`, `cell_flipacc_epi` (mean of the last 3 epochs), against `fwt_ctrl_s1`.
 * Guards: `val_rho_wt_valid_avg` should be identical across arms (the WT head is frozen and loaded from one
-  checkpoint - if it is not, an arm failed the load check), `val_rmse_combined_avg` and
-  `val_epi_beyond_rho_comb` must not fall.
+  checkpoint - if it is not, an arm failed the load check), `val_rmse_combined_avg` must not regress, and
+  `val_epi_beyond_rho_epi` must not fall.
 * Two readings would be findings in their own right: **m = 0 not hurting** means the measured additive labels add
   nothing to the WT head; **m = 1 not hurting** means the WT head's additive error is not what limits us. A peak in
   the middle is the interesting case.
@@ -122,8 +122,8 @@ See `docs/dual_adapter_design.md` section 2 for the four-way routing.
 
 * **Self-reference at low m.** With m < 1 the MT head's target partly *is* the WT half of its own combined
   prediction, so it can reduce the loss by agreeing with the additive model instead of learning the interaction.
-  The signature to watch: `beyond_rho_mt` flat or falling while `rho_combined`/`rmse` hold or improve — the arm has
-  collapsed toward the additive model. `beyond_rho_mt` is the metric that cannot be gamed that way, which is why it
+  The signature to watch: `beyond_rho_epi` flat or falling while `rho_combined`/`rmse` hold or improve — the arm has
+  collapsed toward the additive model. `beyond_rho_epi` is the metric that cannot be gamed that way, which is why it
   is the primary read.
 * **The rank objective inherits the blend** (it uses `combined_pred_raw`), so m changes list ordering too, not only
   the squared error. That is intended, but it means an m arm is a change to both losses at once.

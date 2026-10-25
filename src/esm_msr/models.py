@@ -660,9 +660,9 @@ class MSRModel(ESM3PredictorBase):
 
         combined_pred = combine_predictions(wt_pred_cal, mt_pred_cal, epistasis_weight=getattr(self, 'epistasis_weight', 0.5))
 
-        # The predicted epistasis is whatever the combined prediction adds beyond the WT head: 0.5(mt-wt) under
-        # 'mean', mt-wt under 'route' (doubles). Mode-agnostic definition.
-        epi_pred = combined_pred - wt_pred_cal
+        # Epistasis prediction: authoritatively defined as ~MT(AB) - WT(AB) (the epistasis component of the MT pass alone
+        # beyond the wild-type additive baseline).
+        epi_pred = mt_pred_cal - wt_pred_cal
 
         if skip_reverse:
             mt_pred_raw, mt_pred_cal, combined_pred, epi_pred = float('nan'), float('nan'), float('nan'), float('nan')

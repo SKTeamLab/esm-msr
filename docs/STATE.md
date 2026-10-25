@@ -18,9 +18,10 @@ matter; anything older than the date below is marked as history in `docs/EXPERIM
 The repo ships the published **ESM-MSR** model (ESM3-small + LoRA, mutant stability ddG). The research line
 on this checkout extends it to **double mutants and epistasis**: a dual-adapter architecture (WT head for
 singles, MT head for multi-mutants), a link that models the readout with a saturation floor, censoring for
-bounded rows, and a cell-level epistasis metric suite. The target is `val_epi_cell_rank_mt` plus its two
-companions (`val_epi_cell_mag_comb`, `val_epi_cell_flipacc_mt`) with `val_rho_wt_valid_avg` /
-`val_rmse_combined_avg` as guards; `val_epi_beyond_rho_*` is the saturation-free interaction level.
+bounded rows, and a cell-level epistasis metric suite. Epistasis is authoritatively defined as ~MT(AB) - WT(AB)
+(the MT head evaluated relative to the additive WT baseline). The target is `val_epi_cell_rank_epi` plus its two
+companions (`val_epi_cell_mag_epi`, `val_epi_cell_flipacc_epi`) with `val_rho_wt_valid_avg` /
+`val_rmse_combined_avg` as guards; `val_epi_beyond_rho_epi` is the beyond-global interaction level.
 
 Current best cell-level result on record: the **`--nonspecific_term fx`** arm (one seed) —
 see `docs/nonspecific_epistasis.md`. Current best *canonical* arm: **dc17**.
@@ -108,18 +109,18 @@ Deferred/not queued: the from-scratch ns arms (`ctrl_s2`, `ns1_*`, pinned at `pi
 
 ## 5. How to read results
 
-* **Target**: `val_epi_cell_rank_mt` (with `cell_mag_comb`, `cell_flipacc_mt`). Judge on the **mean of the
+* **Target**: `val_epi_cell_rank_epi` (with `cell_mag_epi`, `cell_flipacc_epi`). Judge on the **mean of the
   last 2-3 epochs**, never the best epoch — epoch-to-epoch jitter is about the replicate SD.
-* **Cell score** (for ranking arms): mean of `cell_rank_mt/0.0047`, `cell_mag_comb/0.0071`,
-  `cell_flipacc_mt/0.0103`, averaged over the last 2-3 epochs.
+* **Cell score** (for ranking arms): mean of `cell_rank_epi/0.0047`, `cell_mag_epi/0.0071`,
+  `cell_flipacc_epi/0.0103`, averaged over the last 2-3 epochs.
 * **Noise (measured, replaces the older estimates).** From the two triplicates, at epoch 7 across seeds:
-  `cell_rank_mt` SD **0.007-0.009**, `cell_mag_comb` 0.002-0.008, `cell_flipacc_mt` **0.024-0.030**,
-  `beyond_rho_mt` 0.008-0.018. Consequence: a single-seed difference needs roughly ≥0.02 on
-  `cell_rank_mt` (≈2.8 SD) or ≥0.05 on flipacc before it is worth a sentence, and **two seeds are the
+  `cell_rank_epi` SD **0.007-0.009**, `cell_mag_epi` 0.002-0.008, `cell_flipacc_epi` **0.024-0.030**,
+  `beyond_rho_epi` 0.008-0.018. Consequence: a single-seed difference needs roughly ≥0.02 on
+  `cell_rank_epi` (≈2.8 SD) or ≥0.05 on flipacc before it is worth a sentence, and **two seeds are the
   minimum for any claim**. The Oct-8 handoff's 0.005 / 0.007 / 0.010 were optimistic.
-* **Guards**: `val_rmse_combined_avg` and `val_rho_wt_valid_avg` must not regress; `val_epi_beyond_rho_comb`
+* **Guards**: `val_rmse_combined_avg` and `val_rho_wt_valid_avg` must not regress; `val_epi_beyond_rho_epi`
   should not fall when the cell level rises.
-* **Attribution**: `cell_rank_mt - cell_rank_ctx` = what the MT adapter adds over the WT adapter read in
+* **Attribution**: `cell_rank_epi - cell_rank_ctx` = what the MT adapter adds over the WT adapter read in
   context (≈+0.06 in the modern arms).
 * **WT-only runs (`--val_wt_only`, the WT sweep)**: the MT adapter is untrained there, so validation runs the WT
   forward only plus the WT-rev cycle pass (2 forwards per batch instead of 4). What is then readable, measured on
@@ -128,13 +129,13 @@ Deferred/not queued: the from-scratch ns arms (`ctrl_s2`, `ns1_*`, pinned at `pi
     and does not need an MT head;
   * the raw levels (`val_epi_naive_rho_*`) and the `val_rho_*` scores for `mt`/`comb` mirror the WT head, because
     `mt` and `comb` are set equal to `wt` in this mode;
-  * the **symmetrised** `val_epi_*_mt` and `val_epi_*_comb` levels read **0.0000**: they are built from the MT-reverse
+  * the **symmetrised** `val_epi_*_epi` levels read **0.0000**: they are built from the MT-reverse
     pass, which does not exist here, so 0.0 is the "no data" value and not a measurement. Do not read those zeros as
-    a score, and never compare a `comb` column from a WT-only run with one from an ensemble run.
+    a score, and never compare an `epi` column from a WT-only run with one from an ensemble run.
   * (If those levels are wanted in a WT-only run later, the honest construction is `mt_fwd := wt_rev`, which makes
-    `comb` identical to `ctx` — the same statement the raw columns already make.)
+    `epi` identical to `ctx` — the same statement the raw columns already make.)
 * **Do not optimise**: `val_epi_naive_rho_*` (saturation leaks into them — the `fx` term moves them +0.21),
-  `val_epi_pair_rho_comb` (24 pairs only), `val_epi_cell_sigsd_mt`, and anything named
+  retired `pair_rho_comb` / `cell_sigsd`, and anything named
   `val_auc_hyper_*` (≈2-25 items; see `EXPERIMENTS.md` §4).
 * **Compare within a constant set and a code snapshot.** Arms from different `--reg_balance` constants or
   different pinned snapshots are not comparable; residuals are in `EXPERIMENTS.md`.

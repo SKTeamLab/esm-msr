@@ -50,6 +50,7 @@ def forward_batch_ctx(self, batch_in, cached_wt_esm3=None, skip_reverse=False, m
     out = dict(out)
     out['mt_lora_pred'] = rev
     out['combined_pred'] = 0.5 * (out['wt_lora_pred'] + rev)
+    out['epi_pred'] = rev - out['wt_lora_pred']
     return out
 
 

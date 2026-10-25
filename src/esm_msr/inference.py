@@ -428,9 +428,11 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
             wt_tot = preds[muts_tup]['wt_lora']
             mt_tot = preds[muts_tup]['mt_lora']
             comb_tot = preds[muts_tup]['combined']
+            epi_tot = mt_tot - wt_tot if len(muts) > 1 else 0.0
             res_dict.update({
                 'wt_lora_pred': wt_tot, 'mt_lora_pred': mt_tot, 
-                'combined_pred': comb_tot, 'combined_dddg_pred': 0.5 * mt_tot - 0.5 * wt_tot
+                'combined_pred': comb_tot, 'combined_dddg_pred': 0.5 * mt_tot - 0.5 * wt_tot,
+                'epi_pred': epi_tot, 'mt_lora_dddg_pred': epi_tot,
             })
         else:
             wt_add = sum(preds[(m,)]['wt_lora'] for m in muts)
@@ -440,11 +442,14 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
             wt_tot = preds[muts_tup]['wt_lora']
             mt_tot = preds[muts_tup]['mt_lora']
             comb_tot = preds[muts_tup]['combined']
+            # Authoritative epistasis: ~MT(AB) - WT(AB), where WT(AB) = WT(A) + WT(B) on the additive baseline.
+            epi_tot = mt_tot - wt_tot
             
             res_dict.update({
                 'wt_lora_pred_additive': wt_add, 'wt_lora_dddg_pred': wt_tot - wt_add, 'wt_lora_pred': wt_tot, 
-                'mt_lora_pred_additive': mt_add, 'mt_lora_dddg_pred': mt_tot - mt_add, 'mt_lora_pred': mt_tot, 
-                'combined_pred_additive': comb_add, 'combined_dddg_pred': comb_tot - comb_add, 'combined_pred': comb_tot
+                'mt_lora_pred_additive': mt_add, 'mt_lora_dddg_pred': epi_tot, 'mt_lora_pred': mt_tot, 
+                'combined_pred_additive': comb_add, 'combined_dddg_pred': comb_tot - comb_add, 'combined_pred': comb_tot,
+                'epi_pred': epi_tot,
             })
 
         if calculate_distances and len(muts) == 2:

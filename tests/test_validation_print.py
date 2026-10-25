@@ -8,7 +8,7 @@ def results(n_proteins=4):
     """What trainer.validate returns with one dataloader per protein: every dict carries every epoch-end metric."""
     shared = {f'val_rho_combined/P{i}': 0.5 + 0.01 * i for i in range(n_proteins)}
     shared.update({f'val_rmse_combined/P{i}': 1.0 + 0.1 * i for i in range(n_proteins)})
-    shared.update({'val_rho_combined_avg': torch.tensor(0.515), 'val_epi_cell_rank_mt': 0.12})
+    shared.update({'val_rho_combined_avg': torch.tensor(0.515), 'val_epi_cell_rank_epi': 0.12})
     return [dict(shared) for _ in range(n_proteins)]
 
 
@@ -17,7 +17,7 @@ def test_each_protein_and_each_metric_appears_once():
     for i in range(4):
         assert sum(line.startswith(f'P{i} ') for line in text.splitlines()) == 1
     assert text.count('val_rho_combined_avg') == 1
-    assert text.count('val_epi_cell_rank_mt') == 1
+    assert text.count('val_epi_cell_rank_epi') == 1
     assert '0.5150' in text and '0.1200' in text
 
 
