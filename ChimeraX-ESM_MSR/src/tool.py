@@ -355,11 +355,12 @@ class ESM_MSR_Tool(ToolInstance):
         row1.addWidget(self.mask_strategy_combobox)
         
         row1.addSpacing(10)
-        row1.addWidget(QLabel("Sigma:"))
+        row1.addWidget(QLabel("Sigma (σ):"))
         self.sigma_spinbox = QDoubleSpinBox()
-        self.sigma_spinbox.setRange(-0.1, 100.0)
+        self.sigma_spinbox.setRange(0.0, 100.0)
         self.sigma_spinbox.setSingleStep(0.1)
         self.sigma_spinbox.setValue(1.0)
+        self.sigma_spinbox.setToolTip("LoRA alpha scaling factor sigma (σ). 1.0 = standard model; 0.0 = zero-shot ESM3 backbone control.")
         row1.addWidget(self.sigma_spinbox)
         
         row1.addStretch()

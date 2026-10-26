@@ -2,7 +2,7 @@
 
 WHAT CHANGED. A calibration head outputs  y = scale * raw + bias        (one bias per item)      -- how the released and the dc8
 checkpoints were trained and, until 2026-10-23, scored -- and now      y = scale * raw + bias * n_mut   (bias per mutated position).
-`raw` (the summed log-likelihood ratio, which carries the LoRA and its epsilon) and `scale` are untouched, so for an item with
+`raw` (the summed log-likelihood ratio, which carries the LoRA and its sigma) and `scale` are untouched, so for an item with
 k = n_mut mutated positions each head's calibrated prediction moves by exactly
         d_head = bias_head * (k - 1)        (singles do not move)
 and every other stored column is a fixed linear function of the heads (esm_msr.models.combine_predictions, mode 'mean', and
@@ -16,8 +16,8 @@ esm_msr.inference.infer_mutants with skip_additive):
                                                               `check` found on the real files before anything was written)
 A WT-only run (--skip_reverse) stores wt_lora_pred only. The MT-pass ablation (`*_mtpass_wt`) runs the MT pass through the WT adapter
 AND the WT calibration head (esm_msr_testing --mt_pass_adapter wt), so there d_mt = d_wt = bias_wt * (k - 1).
-The biases are read from each checkpoint's state dict (`*calibration_head_wt.bias`, `*calibration_head_mt.bias`); epsilon only scales
-the adapter that produces `raw`, so the same shift holds at every epsilon.
+The biases are read from each checkpoint's state dict (`*calibration_head_wt.bias`, `*calibration_head_mt.bias`); sigma only scales
+the adapter that produces `raw`, so the same shift holds at every sigma.
 
 SUBCOMMANDS (all take --root, default the cluster's outputs/pgym):
   check       read-only. Biases, the identities above on the OLD files, mutation counts from two columns, and a reproduction of every
@@ -410,7 +410,7 @@ def cmd_compare(a):
     """A real rerun (new defaults) against OLD + shift. Three things make a max-abs test the wrong tool, all measured:
       * bf16 rounding differs with the batch layout: ~0.005 on a single, more on deep multi-mutants;
       * the OLD code's WT pass was not the same in a full run and a WT-only run for multi-mutants (old full - old WT-only wt_lora_pred,
-        same checkpoint, epsilon and bias: PIN1 +0.015, SAV1 -0.002, GCN4 -0.043), whereas the NEW code gives bit-identical wt_lora_pred
+        same checkpoint, sigma and bias: PIN1 +0.015, SAV1 -0.002, GCN4 -0.043), whereas the NEW code gives bit-identical wt_lora_pred
         in the two modes. A rerun can therefore only agree with ONE of the two old runs, and it is the WT-only one that has the new
         code's numerics;
       * a few hundred doubles give a slope estimate whose error is that offset, not the bias.
@@ -419,11 +419,11 @@ def cmd_compare(a):
       MT head    slope < 0.01 from the expected shift           slope = sum(diff*(k-1)) / sum((k-1)^2) over the multi-mutants
       WT head, combined, dddg   slope within 0.02              the measured old-code WT offset on a few hundred doubles reaches 0.015 (PIN1)
                  and the WT-only reference below removes it where it exists; combined and dddg inherit half of it
-      WT head, released full run   additionally the rerun against the old WT-ONLY run of the same epsilon, shift removed, < 0.01
+      WT head, released full run   additionally the rerun against the old WT-ONLY run of the same sigma, shift removed, < 0.01
       Spearman   |rho(rerun) - rho(old + shift)| < 2e-3
     HISTORY OF THE THRESHOLDS, because they were not all fixed in advance: a first max-abs rule (5e-3) was dropped after the GCN4/PIN1/SAV1
     rerun showed it measures bf16 noise over thousands of variants; the slope rule with 0.01 for every head was then loosened to 0.02 for
-    the WT-derived columns after the old full-vs-WT-only offset was found (+0.015 on PIN1) and a WT-only epsilon=0.5 file missed 0.01 by
+    the WT-derived columns after the old full-vs-WT-only offset was found (+0.015 on PIN1) and a WT-only sigma=0.5 file missed 0.01 by
     0.003. The numbers printed here, not the verdict, are the evidence."""
     back = a.root + '_pre_per_mutation_bias'
     vroot = a.root.replace('/pgym', '/pgym_verify_pmb')

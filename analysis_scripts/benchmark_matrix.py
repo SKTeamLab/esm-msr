@@ -18,8 +18,8 @@ mean of the five category means (PG avg), the Stability category, and the plain 
 stable / fitter for every model.
 
 Sources:
-  ESM-MSR (released, devel, ε sweep, ε=0)
-                                  esm-msr-devel/analysis_notebooks/stats/<set>/<ckpt dir>/<ckpt>_epsilon<ε>_unmasked_<head>[_avg].csv
+  ESM-MSR (released, devel, σ sweep, σ=0)
+                                  esm-msr-devel/analysis_notebooks/stats/<set>/<ckpt dir>/<ckpt>_sigma<σ>_unmasked_<head>[_avg].csv
   MutateEverything / ThermoMPNN   esm-msr-devel/outputs/baselines_capped/{combined_*,final_*}_table.csv (3-seed means)
   third-party (old runs)          stability-baselines/results/FINAL_TABLE.csv (Tsuboyama on hyperopt_splits)
   third-party (capped, ProteinGym), SPURS / ProteinMPNN gamut
@@ -53,7 +53,7 @@ CAPPED = {'splits_oct06_capped-val': 'tsu_capped_val', 'splits_oct06_capped-test
 REL, DEVEL = 'ESM-MSR (released)', 'ESM-MSR (devel)'
 REL_CK = ['esm-msr-baseline-w2a4-m16a16-capped']
 DEVEL_CK = [f'esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{i}' for i in (1, 2, 3)]
-EPS_SWEEP = ['0.75', '0.5', '0.25']          # LoRA scales run on the DMS and Domainome blocks, besides 1 and 0
+SIGMA_SWEEP = ['0.75', '0.5', '0.25']          # LoRA scales run on the DMS and Domainome blocks, besides 1 and 0
 
 
 class Rows(list):
@@ -98,13 +98,13 @@ MULTI = {'ptmul', 'ptmuld', 'tsu_capped_val', 'tsu_capped_test'} | {d for d in D
 _CONV = {}
 
 
-def bias_convention(ds, ck, eps):
+def bias_convention(ds, ck, sigma):
     """Which calibration-bias convention a stored ESM-MSR prediction file was produced under, read from the file itself.
     For a multi-mutant, wt_lora_dddg_pred = (the double's WT prediction) - (the sum of its singles'), which is -bias_wt with one bias per
     item and exactly 0 with one per mutated position, so its mean over the multi-mutants tells them apart. A job that started before the
     switch and finished after it therefore cannot pass for a new one, as a file time would let it. None: no multi-mutants / no file."""
     sub = {'ptmul': 'PTMUL', 'tsu_capped_val': 'splits_oct06_capped-val', 'tsu_capped_test': 'splits_oct06_capped-test'}.get(ds, ds)
-    f = glob.glob(f'{DEV}/analysis_notebooks/predictions/{sub}/{ck}/*_epsilon{eps}_unmasked_predictions.csv')
+    f = glob.glob(f'{DEV}/analysis_notebooks/predictions/{sub}/{ck}/*_sigma{sigma}_unmasked_predictions.csv')
     if not f:
         return None
     key = (f[0], os.path.getmtime(f[0]))
@@ -115,8 +115,8 @@ def bias_convention(ds, ck, eps):
     return _CONV[key]
 
 
-def collect_msr(rows, ckpt_dirs, model, eps='1', heads=None, blocks=('external', 'DMS', 'domainome', 'tsu')):
-    """ESM-MSR statistics written by esm_msr_testing.py for one LoRA scale (the ε is in the file name).
+def collect_msr(rows, ckpt_dirs, model, sigma='1', heads=None, blocks=('external', 'DMS', 'domainome', 'tsu')):
+    """ESM-MSR statistics written by esm_msr_testing.py for one LoRA scale (the σ is in the file name).
     A model is the mean over the checkpoints given (seeds); heads default to combined / WT / MT."""
     stats = f'{DEV}/analysis_notebooks/stats'
     heads = heads or [('Combined', ''), ('WT_LoRA', ' WT'), ('MT_LoRA', ' MT')]
@@ -126,21 +126,21 @@ def collect_msr(rows, ckpt_dirs, model, eps='1', heads=None, blocks=('external',
             for sub, names in [('external', EXT), ('DMS', DMS)]:
                 if sub not in blocks:
                     continue
-                f = glob.glob(f'{stats}/{sub}/{ck}/*_epsilon{eps}_unmasked_{head}.csv')
+                f = glob.glob(f'{stats}/{sub}/{ck}/*_sigma{sigma}_unmasked_{head}.csv')
                 if f:
                     d = pd.read_csv(f[0], index_col=0)
                     for ds in names:
                         if ds in d.index:
                             acc.setdefault(ds, []).append(d.loc[ds, 'spearman_all'])
-                            conv.setdefault(ds, []).append(bias_convention(ds, ck, eps) if ds in MULTI else None)
+                            conv.setdefault(ds, []).append(bias_convention(ds, ck, sigma) if ds in MULTI else None)
             for sub, ds, blk in [('domainome', 'domainome', 'domainome'), ('splits_oct06_capped-val', 'tsu_capped_val', 'tsu'),
                                  ('splits_oct06_capped-test', 'tsu_capped_test', 'tsu')]:
                 if blk not in blocks:
                     continue
-                f = glob.glob(f'{stats}/{sub}/{ck}/*_epsilon{eps}_unmasked_{head}_avg.csv')
+                f = glob.glob(f'{stats}/{sub}/{ck}/*_sigma{sigma}_unmasked_{head}_avg.csv')
                 if f:
                     acc.setdefault(ds, []).append(pd.read_csv(f[0], index_col=0).loc['spearman_all'].iloc[0])
-                    conv.setdefault(ds, []).append(bias_convention(ds, ck, eps) if ds in MULTI else None)
+                    conv.setdefault(ds, []).append(bias_convention(ds, ck, sigma) if ds in MULTI else None)
         for ds, v in acc.items():
             # a DMS/Domainome sweep point counts only once every seed has it, so a half-finished sweep never
             # shows up as a seed mean over fewer seeds than its neighbours
@@ -240,8 +240,8 @@ def collect_forge(rows):
 
 def collect_pgym(rows):
     pg = pd.read_csv(f'{DEV}/outputs/pgym/pgym_all_models_per_dms.csv').set_index('DMS_id')
-    cols = {'ESM-MSR full': (REL, 1), 'ESM-MSR WT eps=1.0': (REL + ' WT', 1),
-            'ESM-MSR WT eps=0': ('ESM3-small-open (ε=0, MSR readout)', 1),
+    cols = {'ESM-MSR full': (REL, 1), 'ESM-MSR WT sigma=1.0': (REL + ' WT', 1),
+            'ESM-MSR WT sigma=0': ('ESM3-small-open (σ=0, MSR readout)', 1),
             'SPURS single-additive': ('SPURS', 1), 'SPURS multi': ('SPURS multi', 1),
             'MutateEverything single': ('ME stage1', 3), 'MutateEverything double': ('ME stage2', 3),
             'ThermoMPNN': ('TMPNN', 3), 'ProteinMPNN': ('ProteinMPNN', 3)}
@@ -347,10 +347,10 @@ def cmd_collect(a):
     rows = Rows()
     collect_msr(rows, REL_CK, REL)
     collect_msr(rows, DEVEL_CK, DEVEL)
-    collect_msr(rows, REL_CK, 'ESM3-small-open (ε=0, MSR readout)', eps='0.0')
-    for e in EPS_SWEEP:                    # DMS + Domainome only; the combined head
+    collect_msr(rows, REL_CK, 'ESM3-small-open (σ=0, MSR readout)', sigma='0.0')
+    for e in SIGMA_SWEEP:                    # DMS + Domainome only; the combined head
         for ck, name in [(REL_CK, REL), (DEVEL_CK, DEVEL)]:
-            collect_msr(rows, ck, f'{name} ε={e}', eps=e, heads=[('Combined', '')], blocks=('DMS', 'domainome'))
+            collect_msr(rows, ck, f'{name} σ={e}', sigma=e, heads=[('Combined', '')], blocks=('DMS', 'domainome'))
     collect_retrained(rows)
     collect_final_table(rows)
     collect_forge(rows)
@@ -375,7 +375,7 @@ ROWS = [(REL, 'ESM-MSR (released), combined'), (REL + ' WT', 'ESM-MSR (released)
         ('GeoDDG-3D', 'GeoDDG-3D (FASPR)'), ('ESM3dG', 'ESM3ΔG ‡'), ('ProSST', 'ProSST (zero-shot)'),
         ('Rosetta', 'Rosetta Cartesian ΔΔG'),
         ('ProteinMPNN', 'ProteinMPNN (zero-shot)'), ('ProteinMPNN (published)', 'ProteinMPNN, ProteinGym published recipe'),
-        ('ESM3-small-open (ε=0, MSR readout)', 'ESM3-small-open, ε = 0 (zero-shot)'),
+        ('ESM3-small-open (σ=0, MSR readout)', 'ESM3-small-open, σ = 0 (zero-shot)'),
         ('ESM3-open (published)', 'ESM3-open, ProteinGym published recipe'),
         ('ESM3-large zero-shot', 'ESM3-large (Forge, zero-shot)'), ('ESM3-medium zero-shot', 'ESM3-medium (Forge, zero-shot)'),
         ('ESM3-small zero-shot', 'ESM3-small (Forge, zero-shot)'),
@@ -388,7 +388,7 @@ _CAP = ['tsu_capped_val', 'tsu_capped_test']
 QUEUED = {'GeoDDG-3D': PG, 'ESM3dG': PG}                    # the only two ProteinGym runs still open, 2026-10-24
 # Cleared 2026-10-24 once their results landed: SPURS multi (_FULL), IFUM native (_CAP), IFUM WT backbone (_CAP),
 # ProSST (_CAP; its ProteinGym column is the authors' published scores), ESMtherm (PG) and the released + devel
-# LoRA-scale ε sweeps on the DMS + Domainome (all twelve runs finished 2026-10-23).
+# LoRA-scale σ sweeps on the DMS + Domainome (all twelve runs finished 2026-10-23).
 # cells that are on a different variant set from the rest of their column and are shown in italics, never bolded:
 # Rosetta's ProteinGym numbers cover single mutants only
 ITALIC = {('Rosetta', d) for d in PG}
@@ -455,16 +455,16 @@ def cmd_tables(a):
         return '\n'.join(out)
 
     short = ['DLG4 abund.', 'DLG4 bind.', 'GRB2 abund.', 'GRB2 bind.', 'MYO', 'ESTA dTm', 'GB1']
-    # the ε sweep: combined head, ε = 1 (the main tables), the three sweep points, and the ε = 0 control
-    eps_rows = []
+    # the σ sweep: combined head, σ = 1 (the main tables), the three sweep points, and the σ = 0 control
+    sigma_rows = []
     for name in (REL, DEVEL):
         tag = name.split('(')[1].rstrip(')')
-        eps_rows += [(name, f'{tag}, ε = 1')] + [(f'{name} ε={e}', f'{tag}, ε = {e}') for e in EPS_SWEEP]
-    eps_rows += [('ESM3-small-open (ε=0, MSR readout)', 'ε = 0 (zero-shot control)')]
+        sigma_rows += [(name, f'{tag}, σ = 1')] + [(f'{name} σ={e}', f'{tag}, σ = {e}') for e in SIGMA_SWEEP]
+    sigma_rows += [('ESM3-small-open (σ=0, MSR readout)', 'σ = 0 (zero-shot control)')]
     print('#### Thermostability: 12 external sets\n\n' + table(EXT, EXT, 'mean of 12'))
     print('\n#### Tsuboyama\n\n' + table(TSU_ALL, ['capped val', 'capped test', 'hyperopt val', 'hyperopt test']))
     print('\n#### DMS and Domainome\n\n' + table(DMS + ['domainome'], short + ['Domainome']))
-    print('\n#### ESM-MSR LoRA scale\n\n' + table(DMS + ['domainome'], short + ['Domainome'], rows_=eps_rows))
+    print('\n#### ESM-MSR LoRA scale\n\n' + table(DMS + ['domainome'], short + ['Domainome'], rows_=sigma_rows))
     print('\n#### ProteinGym (213 DMS)\n\n' + table(PG, ['PG avg', 'Stability', 'DMS mean']))
 
 
@@ -539,7 +539,7 @@ def cmd_ddg(a):
     def msr(split, cks, head):
         out = {m: [] for m, _ in DDG_ROWS}
         for ck in cks:
-            f = glob.glob(f'{stats}/splits_oct06_capped-{split}/{ck}/*_epsilon1_unmasked_{head}_avg.csv')
+            f = glob.glob(f'{stats}/splits_oct06_capped-{split}/{ck}/*_sigma1_unmasked_{head}_avg.csv')
             assert len(f) == 1, (split, ck, head, f)
             d = pd.read_csv(f[0], index_col=0).iloc[:, 0]
             for m, _ in DDG_ROWS:
@@ -596,8 +596,8 @@ JOBS = [  # job-name regex -> model, benchmark, kind
     (r'^msr_gb1$', 'ESM-MSR capped', 'GB1 rerun', 'inference'),
     (r'^msr_dc8_s\d$', 'ESM-MSR dc8', 'gamut', 'inference'),
     (r'^pgym_msr_(a4500|fp32)$', 'ESM-MSR capped', 'ProteinGym full', 'inference'),
-    (r'^pgym_msr_(wtonly|wtsweep)$', 'ESM-MSR capped', 'ProteinGym WT-only ε sweep', 'inference'),
-    (r'^pgym_dc8_s\d_e[\d.]+(_rest)?$', 'ESM-MSR dc8', 'ProteinGym (ε sweep)', 'inference'),
+    (r'^pgym_msr_(wtonly|wtsweep)$', 'ESM-MSR capped', 'ProteinGym WT-only σ sweep', 'inference'),
+    (r'^pgym_dc8_s\d_e[\d.]+(_rest)?$', 'ESM-MSR dc8', 'ProteinGym (σ sweep)', 'inference'),
     (r'^pgym_bigalloc$', 'ESM-MSR dc8', 'ProteinGym BRCA1/SCN5A retry', 'inference'),
     (r'^pgym_dc8_s1_e1.0_mtpass|^gpu4_pgym_s1_mtpass', 'ESM-MSR dc8', 'ProteinGym MT-pass ablation', 'inference'),
     (r'^pgym_spurs$', 'SPURS', 'ProteinGym', 'inference'),
@@ -623,7 +623,7 @@ JOBS = [  # job-name regex -> model, benchmark, kind
     (r'^gpu4_esmtherm', 'ESMtherm', 'capped Tsuboyama + ProteinGym', 'inference'),
     (r'^gpu4_geoddg', 'GeoDDG-3D (FASPR)', 'capped Tsuboyama + ProteinGym', 'inference'),
     (r'^gpu4_prosst', 'ProSST', 'capped Tsuboyama + ProteinGym', 'inference'),
-    (r'^gpu4_msr_eps0', 'ESM3-small-open (ε=0)', 'gamut', 'inference'),
+    (r'^gpu4_msr_eps0', 'ESM3-small-open (σ=0)', 'gamut', 'inference'),
     (r'^gpu4_spurs', 'SPURS', 'gamut (incl. capped Tsuboyama)', 'inference'),
     (r'^gpu4_mpnn', 'ProteinMPNN', 'gamut (incl. capped Tsuboyama)', 'inference'),
 ]

@@ -109,7 +109,7 @@ def run_protein_gym(args, model):
     if not args.pgym_dir:
         raise AssertionError("--pgym_dir is required with --protein_gym")
     pgym_dir = Path(args.pgym_dir).resolve()
-    out_dir = Path(args.pgym_out).resolve() if args.pgym_out else (pgym_dir.parent / f"pgym_results_sigma{args.lora_epsilon}")
+    out_dir = Path(args.pgym_out).resolve() if args.pgym_out else (pgym_dir.parent / f"pgym_results_sigma{args.sigma}")
     # WT-only / additive-approximation mode (--skip_reverse): predict from the
     # WT adapter pass alone. combined_pred / mt_lora_pred are NaN by design in
     # that mode, so the benchmark scores wt_lora_pred instead of combined_pred.
@@ -153,7 +153,7 @@ def run_protein_gym(args, model):
         b_used = (max(r.max_batch for r in sizer.reports[n_reports_before:]) if sizer else dms_batch)
         return res.reset_index(drop=True), {"b": b_used}
 
-    tag = (f"sigma={args.lora_epsilon} ckpt={args.checkpoint} mt_pass_adapter={args.mt_pass_adapter} batch={args.batch_size}" +
+    tag = (f"sigma={args.sigma} ckpt={args.checkpoint} mt_pass_adapter={args.mt_pass_adapter} batch={args.batch_size}" +
            (f" batch_map={args.batch_map} ({len(batch_map)} entries)" if batch_map else "") +
            (f" auto_batch(headroom={args.auto_batch_headroom}, max={args.auto_batch_max})" if sizer else ""))
     pgym_runner.run_protein_gym(pgym_dir, out_dir, score_fn, pred_col=pred_col, dms=args.pgym_dms, tag=tag, log=log)
@@ -185,9 +185,9 @@ def main_(args):
         native_cond_for_mt = bool(parsed_config.get('native_cond_for_mt', False))
         mask_native_cond_struct = bool(parsed_config.get('mask_native_cond_struct', False))
         fused_antisymmetric = bool(parsed_config.get('fused_antisymmetric', False))
-        if args.lora_epsilon != 1:
-            parsed_config['wt_config']['lora_alpha'] *= args.lora_epsilon
-            parsed_config['mt_config']['lora_alpha'] *= args.lora_epsilon
+        if args.sigma != 1:
+            parsed_config['wt_config']['lora_alpha'] *= args.sigma
+            parsed_config['mt_config']['lora_alpha'] *= args.sigma
 
         lora_config = {
             'wt_config': parsed_config['wt_config'],
@@ -312,7 +312,7 @@ def main_(args):
             res_df = pd.concat(res_combined)
             mask_tag = _mask_strategy_tag(args.mask_strategy)
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
 
@@ -326,7 +326,7 @@ def main_(args):
             if 'ptmul' not in name:
                 assert len(df_true) == len(res_df), f"Lost samples during join for {name}!"
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/external/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/external/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
             
@@ -416,7 +416,7 @@ def main_(args):
             mask_tag = _mask_strategy_tag(args.mask_strategy)
 
             # File Operations
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
 
@@ -436,7 +436,7 @@ def main_(args):
                     stats_mt = update_stats(stats_mt, code, group, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', current_time)
                     stats_cmb = update_stats(stats_cmb, code, group, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', current_time)
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
             
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -504,7 +504,7 @@ def main_(args):
             res_combined.append(res)
             mask_tag = _mask_strategy_tag(args.mask_strategy)
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res.to_csv(out_path)
 
@@ -513,7 +513,7 @@ def main_(args):
                 stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', t_inf)
                 stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', t_inf)
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
 
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -577,11 +577,11 @@ def main_(args):
         res_df = pd.concat(res_combined, axis=0)
         mask_tag = _mask_strategy_tag(args.mask_strategy)
 
-        out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}_predictions.csv')
+        out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}_predictions.csv')
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         res_df.to_csv(out_path)
 
-        stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/domainome/{CHECKPOINT_STR}_epsilon{args.lora_epsilon}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}')
+        stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/domainome/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}')
         os.makedirs(os.path.dirname(stats_base), exist_ok=True)
 
         stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -602,7 +602,8 @@ if __name__ == "__main__":
         parser.add_argument('--checkpoint', type=str, required=False)
         parser.add_argument('--split', type=str)
         parser.add_argument('--seed', type=int, required=False, default=42)
-        parser.add_argument('--lora_epsilon', type=float, required=False, default=1)
+        parser.add_argument('--sigma', '--lora_sigma', dest='sigma', type=float, required=False, default=1.0,
+                            help="LoRA alpha scaling factor sigma (σ). Multiplies lora_alpha. 1.0 = standard model; 0.0 = zero-shot ESM3 control.")
         
         # Precision Argument
         parser.add_argument('--precision', type=str, default='bf16-mixed', choices=['16', '16-mixed', '32', 'bf16-mixed'])

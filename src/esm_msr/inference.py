@@ -35,8 +35,8 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
     Warns if expected hyperparameters are missing from the configuration.
     Multiplies lora_alpha by sigma.
     """
-    if sigma <= 0:
-        raise AssertionError(f"sigma must be strictly greater than 0. Got: {sigma}")
+    if sigma < 0:
+        raise AssertionError(f"sigma must be non-negative. Got: {sigma}")
 
     if not os.path.isfile(hparams_path):
         raise AssertionError(f"hparams file not found at: {hparams_path}")
@@ -667,8 +667,8 @@ if __name__ == "__main__":
             fused_antisymmetric = bool(lora_config.get('fused_antisymmetric', False))
 
             # Apply sigma
-            if args.sigma <= 0:
-                raise AssertionError("sigma must be strictly positive.")
+            if args.sigma < 0:
+                raise AssertionError("sigma must be non-negative.")
             lora_config['wt_config']['lora_alpha'] = round(float(lora_config['wt_config'].get('lora_alpha', 4)) * args.sigma, 3)
             lora_config['mt_config']['lora_alpha'] = round(float(lora_config['mt_config'].get('lora_alpha', 16)) * args.sigma, 3)
 

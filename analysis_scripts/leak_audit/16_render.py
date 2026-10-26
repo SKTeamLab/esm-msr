@@ -84,7 +84,7 @@ rows11=[('ESM-MSR (released), combined','ESM-MSR (released)'),('ESM-MSR (release
  ('DDGemb (server)','DDGemb'),('DDMut (server)','DDMut'),('IFUM, WT backbone','IFUM (WT backbone)'),
  ('IFUM, ESMFold per variant','IFUM (native, ESMFold)'),('GeoDDG-3D (FASPR)','GeoDDG-3D'),('ESM3ΔG','ESM3dG'),
  ('ProSST (zero-shot)','ProSST'),('ProteinMPNN (zero-shot)','ProteinMPNN'),
- ('ESM3-small-open, ε = 0 (zero-shot)','ESM3-small-open (ε=0, MSR readout)'),
+ ('ESM3-small-open, σ = 0 (zero-shot)','ESM3-small-open (σ=0, MSR readout)'),
  ('ESM3-large (Forge, zero-shot)','ESM3-large zero-shot'),('ESM3-medium (Forge, zero-shot)','ESM3-medium zero-shot'),
  ('ESM3-small (Forge, zero-shot)','ESM3-small zero-shot'),('ESM-MSR-small (March reference)','ESM-MSR-small (March, crystal)')]
 t11,c11=render(0,['model']+[c[0] for c in D11],rows11,D11)
@@ -103,7 +103,7 @@ rows13=[('ESM-MSR (released), combined','ESM-MSR (released)'),('ESM-MSR (release
  ('SPURS (single model)','SPURS'),('SPURS multi (multi-mutant model)','SPURS multi'),('ESMtherm','ESMtherm'),
  ('DDGemb (server)','DDGemb'),('IFUM, WT backbone','IFUM (WT backbone)'),('IFUM, ESMFold per variant','IFUM (native, ESMFold)'),
  ('GeoDDG-3D (FASPR)','GeoDDG-3D'),('ESM3ΔG','ESM3dG'),('ProSST (zero-shot)','ProSST'),('ProteinMPNN (zero-shot)','ProteinMPNN'),
- ('ESM3-small-open, ε = 0 (zero-shot)','ESM3-small-open (ε=0, MSR readout)'),
+ ('ESM3-small-open, σ = 0 (zero-shot)','ESM3-small-open (σ=0, MSR readout)'),
  ('ESM3-large (Forge, zero-shot)','ESM3-large zero-shot'),('ESM3-medium (Forge, zero-shot)','ESM3-medium zero-shot'),
  ('ESM3-small (Forge, zero-shot)','ESM3-small zero-shot')]
 t13,c13=render(2,['model']+[c[0] for c in D13],rows13,D13)
@@ -113,7 +113,7 @@ rows14=[('ESM-MSR (released), combined','ESM-MSR (released)'),('ESM-MSR (release
  ('MutateEverything st2 (3 seeds)','ME stage2'),('ThermoMPNN (additive, 3 seeds)','TMPNN'),('SPURS (single model)','SPURS'),
  ('SPURS multi (multi-mutant model)','SPURS multi'),('ESMtherm','ESMtherm'),('GeoDDG-3D (FASPR)','GeoDDG-3D'),
  ('ESM3ΔG','ESM3dG'),('ProSST (zero-shot)','ProSST'),('Rosetta Cartesian ΔΔG','Rosetta'),('ProteinMPNN (zero-shot)','ProteinMPNN'),
- ('ProteinMPNN, ProteinGym published recipe','corpus'),('ESM3-small-open, ε = 0 (zero-shot)','ESM3-small-open (ε=0, MSR readout)'),
+ ('ProteinMPNN, ProteinGym published recipe','corpus'),('ESM3-small-open, σ = 0 (zero-shot)','ESM3-small-open (σ=0, MSR readout)'),
  ('ESM3-open, ProteinGym published recipe','corpus')]
 t14,c14=render(4,['model','PG avg','Stability','DMS mean'],rows14,D14,italic_rows=('Rosetta',))
 open(os.path.join(OUT,'tables.md'),'w').write('\n\n'.join([t11,c11,t12,c12,t13,c13,t14,c14]))

@@ -37,11 +37,11 @@ def main():
 
     rows = {}
     for e, lab in (('1.0', '1'), ('0.75', '0.75'), ('0.5', '0.5'), ('0.25', '0.25')):
-        rows[f'ESM-MSR (devel), ε = {lab} (3 seeds)'] = summarize(dc8[f'dc8 eps={e} mean'], cat, common)
-    rows['ESM-MSR (released), ε = 1'] = summarize(allm['ESM-MSR full'], cat, common)
+        rows[f'ESM-MSR (devel), σ = {lab} (3 seeds)'] = summarize(dc8[f'dc8 eps={e} mean'], cat, common)
+    rows['ESM-MSR (released), σ = 1'] = summarize(allm['ESM-MSR full'], cat, common)
     for e, lab in (('1.0', '1'), ('0.75', '0.75'), ('0.5', '0.5'), ('0.25', '0.25')):
-        rows[f'ESM-MSR (released), WT head only, ε = {lab}'] = summarize(allm[f'ESM-MSR WT eps={e}'], cat, common)
-    rows['ESM-MSR, ε = 0 (no LoRA)'] = summarize(allm['ESM-MSR WT eps=0'], cat, common)
+        rows[f'ESM-MSR (released), WT head only, σ = {lab}'] = summarize(allm[f'ESM-MSR WT eps={e}'], cat, common)
+    rows['ESM-MSR, σ = 0 (no LoRA)'] = summarize(allm['ESM-MSR WT eps=0'], cat, common)
     print('| model | Activity | Binding | Expression | Org. fitness | Stability | PG avg | DMS mean |')
     for k, v in rows.items():
         print(f'| {k} | ' + ' | '.join(f'{x:.3f}' for x in v) + ' |')
@@ -55,7 +55,7 @@ def main():
         seeds = [summarize(dc8[f'dc8 eps={e} s{i}'], cat, common)[5] for i in (1, 2, 3)]
         d = dc8[f'dc8 eps={e} mean'].reindex(common) - rel
         pg = summarize(dc8[f'dc8 eps={e} mean'], cat, common)[5]
-        print(f'| ε = {e} | {pg:.4f} | {d.mean():+.4f} | {int((d > 0).sum())} / 213 | {np.std(seeds):.4f} | {ttest_1samp(d, 0).statistic:+.2f} |')
+        print(f'| σ = {e} | {pg:.4f} | {d.mean():+.4f} | {int((d > 0).sum())} / 213 | {np.std(seeds):.4f} | {ttest_1samp(d, 0).statistic:+.2f} |')
 
 
 if __name__ == '__main__':

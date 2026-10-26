@@ -278,9 +278,9 @@ job,name,model,benchmark,kind,node,gpu,start,elapsed,state
 383926,pgym_tmpnn_s2,ThermoMPNN / -D,ProteinGym,inference,gpu3,RTX 6000,2026-10-16T09:46,02:58:59,COMPLETED
 383927,pgym_tmpnn_s3,ThermoMPNN / -D,ProteinGym,inference,gpu3,RTX 6000,2026-10-16T09:46,07:29:40,COMPLETED
 383928,pgym_me_retry,MutateEverything,ProteinGym,inference,gpu3,RTX 6000,2026-10-16T09:46,00:00:47,COMPLETED
-383929,pgym_msr_wtonly,ESM-MSR capped,ProteinGym WT-only ε sweep,inference,gpu3,RTX 6000,2026-10-16T09:53,00:06:54,COMPLETED
+383929,pgym_msr_wtonly,ESM-MSR capped,ProteinGym WT-only σ sweep,inference,gpu3,RTX 6000,2026-10-16T09:53,00:06:54,COMPLETED
 383930,pgym_me_retry,MutateEverything,ProteinGym,inference,gpu3,RTX 6000,2026-10-16T10:00,04:04:12,COMPLETED
-383931,pgym_msr_wtsweep,ESM-MSR capped,ProteinGym WT-only ε sweep,inference,gpu3,RTX 6000,2026-10-16T10:06,00:28:45,COMPLETED
+383931,pgym_msr_wtsweep,ESM-MSR capped,ProteinGym WT-only σ sweep,inference,gpu3,RTX 6000,2026-10-16T10:06,00:28:45,COMPLETED
 383932,pgym_msr_fp32,ESM-MSR capped,ProteinGym full,inference,gpu3,RTX 6000,2026-10-16T10:34,11:47:38,COMPLETED
 383952,pgym_verify_rev,unclassified,pgym_verify_rev,smoke,gpu3,RTX 6000,2026-10-16T16:01,00:04:36,COMPLETED
 383959,pgym_verify_tmpnn,unclassified,pgym_verify_tmpnn,smoke,gpu3,RTX 6000,2026-10-16T16:06,00:03:50,COMPLETED
@@ -292,30 +292,30 @@ job,name,model,benchmark,kind,node,gpu,start,elapsed,state
 383983,pgym_mpnn_tta_0.2,ProteinMPNN,ProteinGym TTA pilot (73 DMS),inference,gpu3,RTX 6000,2026-10-16T22:09,03:16:15,COMPLETED
 383984,pgym_mpnn_tta_0,ProteinMPNN,ProteinGym TTA pilot (73 DMS),inference,gpu3,RTX 6000,2026-10-16T22:23,03:19:00,COMPLETED
 384257,pgym_smoke_dc8,unclassified,pgym_smoke_dc8,smoke,gpu4,RTX A4500,2026-10-17T15:31,00:03:06,COMPLETED
-384271,pgym_dc8_s1_e1.0,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-17T15:35,1-09:23:08,COMPLETED
-384272,pgym_dc8_s1_e1.0_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-19T15:57,00:02:02,COMPLETED
-384273,pgym_dc8_s2_e1.0,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-17T15:35,1-09:21:39,COMPLETED
-384274,pgym_dc8_s2_e1.0_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-19T15:59,00:01:38,COMPLETED
-384275,pgym_dc8_s3_e1.0,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-17T15:35,1-09:42:38,COMPLETED
-384276,pgym_dc8_s3_e1.0_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-19T16:01,00:01:44,COMPLETED
-384277,pgym_dc8_s1_e0.75,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-17T15:35,1-09:14:27,COMPLETED
-384278,pgym_dc8_s1_e0.75_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-19T16:03,00:01:40,COMPLETED
-384279,pgym_dc8_s2_e0.75,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-19T00:50,1-09:13:26,COMPLETED
-384280,pgym_dc8_s2_e0.75_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-20T10:04,00:01:46,COMPLETED
-384281,pgym_dc8_s3_e0.75,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-19T00:57,1-09:21:31,COMPLETED
-384282,pgym_dc8_s3_e0.75_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-20T10:19,00:01:35,COMPLETED
-384283,pgym_dc8_s1_e0.5,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-19T00:58,1-09:23:44,COMPLETED
-384284,pgym_dc8_s1_e0.5_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-20T10:22,00:01:35,COMPLETED
-384285,pgym_dc8_s2_e0.5,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-19T01:18,1-09:42:44,COMPLETED
-384286,pgym_dc8_s2_e0.5_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-20T13:15,00:01:37,COMPLETED
-384287,pgym_dc8_s3_e0.5,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-20T10:04,1-09:12:58,COMPLETED
-384288,pgym_dc8_s3_e0.5_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-21T19:19,00:01:36,COMPLETED
-384289,pgym_dc8_s1_e0.25,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-20T10:19,1-09:20:48,COMPLETED
-384290,pgym_dc8_s1_e0.25_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-21T19:45,00:01:41,COMPLETED
-384291,pgym_dc8_s2_e0.25,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-20T10:22,1-09:25:44,COMPLETED
-384292,pgym_dc8_s2_e0.25_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-21T20:01,00:01:36,COMPLETED
-384293,pgym_dc8_s3_e0.25,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu4,RTX A4500,2026-10-20T11:01,1-09:42:26,COMPLETED
-384294,pgym_dc8_s3_e0.25_rest,ESM-MSR dc8,ProteinGym (ε sweep),inference,gpu3,RTX 6000,2026-10-21T20:47,00:01:37,COMPLETED
+384271,pgym_dc8_s1_e1.0,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu4,RTX A4500,2026-10-17T15:35,1-09:23:08,COMPLETED
+384272,pgym_dc8_s1_e1.0_rest,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu3,RTX 6000,2026-10-19T15:57,00:02:02,COMPLETED
+384273,pgym_dc8_s2_e1.0,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu4,RTX A4500,2026-10-17T15:35,1-09:21:39,COMPLETED
+384274,pgym_dc8_s2_e1.0_rest,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu3,RTX 6000,2026-10-19T15:59,00:01:38,COMPLETED
+384275,pgym_dc8_s3_e1.0,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu4,RTX A4500,2026-10-17T15:35,1-09:42:38,COMPLETED
+384276,pgym_dc8_s3_e1.0_rest,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu3,RTX 6000,2026-10-19T16:01,00:01:44,COMPLETED
+384277,pgym_dc8_s1_e0.75,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu4,RTX A4500,2026-10-17T15:35,1-09:14:27,COMPLETED
+384278,pgym_dc8_s1_e0.75_rest,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu3,RTX 6000,2026-10-19T16:03,00:01:40,COMPLETED
+384279,pgym_dc8_s2_e0.75,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu4,RTX A4500,2026-10-19T00:50,1-09:13:26,COMPLETED
+384280,pgym_dc8_s2_e0.75_rest,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu3,RTX 6000,2026-10-20T10:04,00:01:46,COMPLETED
+384281,pgym_dc8_s3_e0.75,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu4,RTX A4500,2026-10-19T00:57,1-09:21:31,COMPLETED
+384282,pgym_dc8_s3_e0.75_rest,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu3,RTX 6000,2026-10-20T10:19,00:01:35,COMPLETED
+384283,pgym_dc8_s1_e0.5,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu4,RTX A4500,2026-10-19T00:58,1-09:23:44,COMPLETED
+384284,pgym_dc8_s1_e0.5_rest,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu3,RTX 6000,2026-10-20T10:22,00:01:35,COMPLETED
+384285,pgym_dc8_s2_e0.5,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu4,RTX A4500,2026-10-19T01:18,1-09:42:44,COMPLETED
+384286,pgym_dc8_s2_e0.5_rest,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu3,RTX 6000,2026-10-20T13:15,00:01:37,COMPLETED
+384287,pgym_dc8_s3_e0.5,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu4,RTX A4500,2026-10-20T10:04,1-09:12:58,COMPLETED
+384288,pgym_dc8_s3_e0.5_rest,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu3,RTX 6000,2026-10-21T19:19,00:01:36,COMPLETED
+384289,pgym_dc8_s1_e0.25,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu4,RTX A4500,2026-10-20T10:19,1-09:20:48,COMPLETED
+384290,pgym_dc8_s1_e0.25_rest,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu3,RTX 6000,2026-10-21T19:45,00:01:41,COMPLETED
+384291,pgym_dc8_s2_e0.25,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu4,RTX A4500,2026-10-20T10:22,1-09:25:44,COMPLETED
+384292,pgym_dc8_s2_e0.25_rest,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu3,RTX 6000,2026-10-21T20:01,00:01:36,COMPLETED
+384293,pgym_dc8_s3_e0.25,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu4,RTX A4500,2026-10-20T11:01,1-09:42:26,COMPLETED
+384294,pgym_dc8_s3_e0.25_rest,ESM-MSR dc8,ProteinGym (σ sweep),inference,gpu3,RTX 6000,2026-10-21T20:47,00:01:37,COMPLETED
 386140,pgym_bigalloc,ESM-MSR dc8,ProteinGym BRCA1/SCN5A retry,inference,gpu3,RTX 6000,2026-10-20T14:25,02:37:30,COMPLETED
 386141,msr_dc8_s1,ESM-MSR dc8,gamut,inference,gpu3,RTX 6000,2026-10-20T14:25,01:05:04,FAILED
 386142,msr_dc8_s2,ESM-MSR dc8,gamut,inference,gpu3,RTX 6000,2026-10-20T14:25,01:01:19,FAILED
@@ -353,10 +353,10 @@ job,name,model,benchmark,kind,node,gpu,start,elapsed,state
 386275,gpu4_ifum_cappg,IFUM (WT backbone),capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-21T19:40,15:50:55,CANCELLED
 386276,gpu4_esmtherm_cappg,ESMtherm,capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-22T11:31,04:18:53,COMPLETED
 386277,gpu4_geoddg_cappg,GeoDDG-3D (FASPR),capped Tsuboyama + ProteinGym,inference,gpu4,RTX A4500,2026-10-21T19:48,2-00:00:02,TIMEOUT
-386279,gpu4_msr_eps0_gamut,ESM3-small-open (ε=0),gamut,inference,None assigned,None assigned,2026-10-21T12:24,00:00:00,CANCELLED
+386279,gpu4_msr_eps0_gamut,ESM3-small-open (σ=0),gamut,inference,None assigned,None assigned,2026-10-21T12:24,00:00:00,CANCELLED
 386280,gpu4_spurs_gamut,SPURS,gamut (incl. capped Tsuboyama),inference,gpu4,RTX A4500,2026-10-21T22:50,00:11:01,COMPLETED
 386281,gpu4_mpnn_gamut,ProteinMPNN,gamut (incl. capped Tsuboyama),inference,gpu4,RTX A4500,2026-10-21T23:01,00:04:25,COMPLETED
-386282,gpu4_msr_eps0_gamut,ESM3-small-open (ε=0),gamut,inference,gpu4,RTX A4500,2026-10-21T20:44,02:06:12,COMPLETED
+386282,gpu4_msr_eps0_gamut,ESM3-small-open (σ=0),gamut,inference,gpu4,RTX A4500,2026-10-21T20:44,02:06:12,COMPLETED
 386361,bench_esm3dg,unclassified,bench_esm3dg,other,gpu4,RTX A4500,2026-10-22T10:01,00:00:11,FAILED
 386362,bench_esm3dg,unclassified,bench_esm3dg,other,gpu4,RTX A4500,2026-10-22T10:02,00:01:48,COMPLETED
 386363,verify_esm3dg,unclassified,verify_esm3dg,smoke,gpu4,RTX A4500,2026-10-22T10:07,00:03:31,COMPLETED

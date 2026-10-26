@@ -11,12 +11,12 @@ Everything below is pinned to gpu4 (4 × A4500). Lanes are chained with `afteran
 
 **Finished since 2026-10-22:** IFUM-native on capped Tsuboyama (fold 386515/386516, 3.0 h each; score 386517/386518,
 1.4 and 1.9 h), SPURS multi 386519 (7.5 min), ProSST capped 386533, ESMtherm CAS9 retry 386532 (so ESMtherm now has all
-213 ProteinGym DMS), and the released-checkpoint ε sweep at 0.75 / 0.5 / 0.25 (386520–386522, 1.5 h each) plus devel
-seed 1 at ε = 0.75 (386523). All checked: no failed datasets, and the only NaN predictions are the 7,931 capped-test
+213 ProteinGym DMS), and the released-checkpoint σ sweep at 0.75 / 0.5 / 0.25 (386520–386522, 1.5 h each) plus devel
+seed 1 at σ = 0.75 (386523). All checked: no failed datasets, and the only NaN predictions are the 7,931 capped-test
 (6,026 val) rows on mutant-background libraries, which the SPURS and ProteinMPNN adapters used to skip. They are
 patched and rerun (386549–386551, done and validated 2026-10-23).
 
-**Finished since 2026-10-23:** the devel ε sweep on DMS + Domainome is complete — all twelve runs (386523–386531,
+**Finished since 2026-10-23:** the devel σ sweep on DMS + Domainome is complete — all twelve runs (386523–386531,
 ~1.5 h each) landed, so the §1.3 devel rows are filled and `benchmark_matrix.py tables` renders them without a `q`
 (regenerated 2026-10-24; the §1.3 prose now carries the devel means). The context-head runs first failed on a missing
 structure (see the ctx row below) and were rerun successfully as `gpu4_ctx2_*` 386738–386741 (~10 min each). The calibration-default
@@ -27,15 +27,15 @@ reruns finished: 386581–386588 on the first pass, and the five that failed (38
 | what | fills (the `q` cells) | jobs | state |
 |---|---|---|---|
 | ProteinGym ESM-MSR rows after the calibration-default change | §1.4, §3 | **done offline 2026-10-23** by `analysis_scripts/pgym_per_mutation_bias.py` instead of ~250 GPU-hours of reruns; backup `outputs/pgym_pre_per_mutation_bias/`; validated on a real rerun of GCN4 / PIN1 / SAV1 (`outputs/pgym_verify_pmb/`) | the MT-pass ablation (26 DMS, devel s1) was not corrected and is not comparable; a full ProteinGym rerun would settle the remaining ~0.015 old-code WT offset on multi-mutants |
-| ESM-MSR reruns after the calibration-default change (Tsuboyama, PTMUL, DMS; ε = 1 for all four checkpoints, ε = 0 released, ε sweeps) | Table 2.3, §1.2, §1.3, the epistasis tables | 13 jobs 386576–386588, then the reruns 386727–386731 and 386733–386737; 8.8 GPU-h completed, plus 2.6 GPU-h lost to the five first-pass failures | **done 2026-10-23.** Five of the thirteen failed on their first pass (386576–386580: `rel_e1`, `s1_e1`, `s2_e1`, `s3_e1`, `rel_e0`) and were rerun on both the DMS + Domainome and Tsuboyama tag sets; all completed. Seed means that mix old and new conventions are no longer hidden by `benchmark_matrix.py` |
+| ESM-MSR reruns after the calibration-default change (Tsuboyama, PTMUL, DMS; σ = 1 for all four checkpoints, σ = 0 released, σ sweeps) | Table 2.3, §1.2, §1.3, the epistasis tables | 13 jobs 386576–386588, then the reruns 386727–386731 and 386733–386737; 8.8 GPU-h completed, plus 2.6 GPU-h lost to the five first-pass failures | **done 2026-10-23.** Five of the thirteen failed on their first pass (386576–386580: `rel_e1`, `s1_e1`, `s2_e1`, `s3_e1`, `rel_e0`) and were rerun on both the DMS + Domainome and Tsuboyama tag sets; all completed. Seed means that mix old and new conventions are no longer hidden by `benchmark_matrix.py` |
 | ESM-MSR ctx head, (WT + ~WT)/2, on capped val + test (released and devel seeds 1–3) | the "WT read in context" rows of §2.1 and §2.2 | `gpu4_ctx2_rel` 386738, `gpu4_ctx2_s1` 386739, `gpu4_ctx2_s2` 386740, `gpu4_ctx2_s3` 386741; ~10 min each (launcher `inference_scripts/esm_msr_ctx_testing.py`, outputs in `outputs/ctx_run/`, scored by `analysis_scripts/epi_ctx.py`) | **done 2026-10-23.** The first four attempts (386566–386569) died in 4.5 min on a missing structure, `data/tsuboyama/AlphaFold_model_PDBs/v2R31S:R32S_2N5D.pdb`; the colon-named file does not exist and the adapter now falls back to the `_` name. The reruns all completed. The §2.1/§2.2 rows are not yet written into the doc |
-| **ESM-MSR LoRA scale ε ∈ {0.75, 0.5, 0.25}, DMS + Domainome, devel checkpoint**, one lane per seed | §1.3 ε table, devel rows (shown once all 3 seeds finish) | seed 1: 386524, 386525; seed 2: 386526, 386527, 386528; seed 3: 386529–386531 | **done 2026-10-23** — all twelve runs landed at ~1.5 h each, and the §1.3 devel rows are now filled (regenerated 2026-10-24) |
+| **ESM-MSR LoRA scale σ ∈ {0.75, 0.5, 0.25}, DMS + Domainome, devel checkpoint**, one lane per seed | §1.3 σ table, devel rows (shown once all 3 seeds finish) | seed 1: 386524, 386525; seed 2: 386526, 386527, 386528; seed 3: 386529–386531 | **done 2026-10-23** — all twelve runs landed at ~1.5 h each, and the §1.3 devel rows are now filled (regenerated 2026-10-24) |
 | ESM3ΔG, ProteinGym, 213 DMS cheapest first, fp16 | §1.4 | 386364, running | 202 / 213 at 2 d 5 h against a 5-day limit (2026-10-24 16:10); the remaining work is dominated by the largest DMS (SPG1, 537k variants) |
 | GeoDDG (FASPR), capped Tsuboyama + ProteinGym | §1.2 capped cells, §1.4 | 386277 (killed), **386804 running** | **386277 was killed by its own two-day wall clock** at 148 / 213 — a scheduling limit (`--time=2-00:00:00`), not a failure of the code, and the partition allows unlimited time. Resumed 2026-10-24 as 386804 with `--time=4-00:00:00`; the harness logs `exists, skipping` for the 148 datasets already on disk, and it has since carried the model to **181 / 213** (2026-10-24 16:10) |
 | DDMut on the old hyperopt Tsuboyama doubles (web server, login node) | DDMut's Tsuboyama cells stay partial (`*`) until done | two client processes | ~6,861 + 8,321 of ~20,151 done |
 
-**Scheduling note (2026-10-23).** A card sat idle while the next ε job waited, because the node was out of *memory*, not
-GPUs: the ε jobs requested 96 G (copied from the gamut script) and use about 6.9 G (`MaxRSS` on every completed run). Reduced
+**Scheduling note (2026-10-23).** A card sat idle while the next σ job waited, because the node was out of *memory*, not
+GPUs: the σ jobs requested 96 G (copied from the gamut script) and use about 6.9 G (`MaxRSS` on every completed run). Reduced
 to 24 G on the pending jobs with `scontrol update JobId=… MinMemoryNode=24576` (the value is in MB, and a `G` suffix is
 rejected), and the script's default lowered. When a GPU looks free and a job is pending on `Resources`, check
 `scontrol show node gpu4 | grep AllocTRES` against the job's `--mem` and `--cpus-per-task` before suspecting the GPUs.
@@ -58,7 +58,7 @@ has. The harness skips datasets whose output already exists, so any failed job c
 
 | model | status |
 |---|---|
-| ESM-MSR (released), (devel) × 4 ε, WT-only sweep, ε = 0 control | done on 213 DMS; the four > 1,800-residue DMS are blocked (§3) |
+| ESM-MSR (released), (devel) × 4 σ, WT-only sweep, σ = 0 control | done on 213 DMS; the four > 1,800-residue DMS are blocked (§3) |
 | MutateEverything, ThermoMPNN, SPURS (both models), ProteinMPNN | done |
 | ESMtherm | done on all 213 (one DMS needed a rerun with an adaptive batch size) |
 | ESM3ΔG | running (fp16), 202 / 213 |
@@ -79,7 +79,7 @@ asked for, so nothing else was added.
 
 | what | fills | why blocked | unblocks it |
 |---|---|---|---|
-| **ESM-MSR on the four largest ProteinGym DMS** (BRCA1_HUMAN_Findlay_2018, BRCA2_HUMAN_Erwood_2022_HEK293T, POLG_CXB3N_Mattenberger_2021, SCN5A_HUMAN_Glazer_2019; > 1,800 residues) | full 217-DMS ProteinGym for ESM-MSR; today every model is compared on 213 | out of memory on 24 GB (RTX 6000) and 20 GB (A4500) even at batch size 1. Devel seed 1 at ε = 1 alone got BRCA1 and SCN5A through an allocator retry. Needs the local 32 GB 5090, which the training queue is using (28.8 of 32.6 GB in use on 2026-10-21) | a free 5090. Inputs exist locally (`playground/esm-msr-devel/pgym_inputs`, `LoRA_models/esm-msr-baseline-w2a4-m16a16-capped`); the devel checkpoints are on the cluster under `LoRA_models/esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{1,2,3}/` (copy with their `MANIFEST.txt`). Runs: released full (4 DMS); released WT-only ε ∈ {0, 0.25, 0.5, 0.75, 1} (BRCA2, POLG, SCN5A); devel 3 seeds × ε ∈ {1, 0.75, 0.5, 0.25} (seed 1 at ε = 1 needs only BRCA2, POLG). Use `--batch_size 1 --dtype bf16` with the default allocator, as the `slurm_pgym.sh` second pass does |
+| **ESM-MSR on the four largest ProteinGym DMS** (BRCA1_HUMAN_Findlay_2018, BRCA2_HUMAN_Erwood_2022_HEK293T, POLG_CXB3N_Mattenberger_2021, SCN5A_HUMAN_Glazer_2019; > 1,800 residues) | full 217-DMS ProteinGym for ESM-MSR; today every model is compared on 213 | out of memory on 24 GB (RTX 6000) and 20 GB (A4500) even at batch size 1. Devel seed 1 at σ = 1 alone got BRCA1 and SCN5A through an allocator retry. Needs the local 32 GB 5090, which the training queue is using (28.8 of 32.6 GB in use on 2026-10-21) | a free 5090. Inputs exist locally (`playground/esm-msr-devel/pgym_inputs`, `LoRA_models/esm-msr-baseline-w2a4-m16a16-capped`); the devel checkpoints are on the cluster under `LoRA_models/esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{1,2,3}/` (copy with their `MANIFEST.txt`). Runs: released full (4 DMS); released WT-only σ ∈ {0, 0.25, 0.5, 0.75, 1} (BRCA2, POLG, SCN5A); devel 3 seeds × σ ∈ {1, 0.75, 0.5, 0.25} (seed 1 at σ = 1 needs only BRCA2, POLG). Use `--batch_size 1 --dtype bf16` with the default allocator, as the `slurm_pgym.sh` second pass does |
 | MutateEverything on BRCA2 and SCN5A (ProteinGym) | ME at 217 DMS | out of memory at the cluster's card sizes | same 5090 window; low priority, since all comparisons use the 213 common DMS anyway |
 | **SPURS and the other Megascale-trained models on a homolog-filtered Tsuboyama split** | makes the §1.2 capped column interpretable, where SPURS (single model) currently reads 0.864 on test against ESM-MSR (devel) 0.849 | SPURS trains on Megascale, so the capped split is not held out for it. `esm_msr_testing.py --remove_spurs_homologs` exists for exactly this, but the harness adapters do not apply it | rescore every ‡ model on the libraries that survive that filter. Until then the SPURS, ESM3ΔG, IFUM and ESMtherm Tsuboyama numbers are upper bounds, not comparisons |
 | IFUM on ProteinGym | the IFUM row of §1.4 | declined 2026-10-22: ~246 h even with the fp16 patch, since the speedup is only 1.13–1.28× at the lengths that carry 95 % of the cost (`GPU4_INFERENCE_LEDGER.md` §3.2). A partial slice (Stability category 66 DMS / ~5.4 h; everything under 200 residues 94 DMS / ~12.5 h) was considered and turned down | a decision to spend the time, or a fix to the IEFFEUM head's precision rather than ProtT5's |
@@ -87,10 +87,10 @@ asked for, so nothing else was added.
 | DDMut on capped Tsuboyama, DMS, Domainome, ProteinGym | the DDMut row | REST API at 20–30 s per variant: the capped split alone is weeks | not planned |
 | UniMutStab | the whole row | no released weights or inference code (pseudocode only); reimplementation ruled out on 2026-10-14 | weights from the authors |
 | GeoDDG with FoldX structures beyond the 12 external sets | — | FoldX BuildModel is CPU-bound (~150–250 CPU-h for the externals); FASPR is the stand-in and matches it to 3.5e-4 kcal/mol on the externals | not needed |
-| **ESM3 through Forge: the gaps its stored runs leave** | small lacks GB1 and Domainome; medium lacks GRB2 binding, MYO, ESTA, GB1 and Domainome; large lacks GB1 | paid, rate-limited API; the earlier runs were never completed. (S461, K2369 and PTMUL-D are *not* gaps any more: they are scored from their parent sets.) | a Forge key and budget; ESM3-small-open at ε = 0 covers the open model locally |
+| **ESM3 through Forge: the gaps its stored runs leave** | small lacks GB1 and Domainome; medium lacks GRB2 binding, MYO, ESTA, GB1 and Domainome; large lacks GB1 | paid, rate-limited API; the earlier runs were never completed. (S461, K2369 and PTMUL-D are *not* gaps any more: they are scored from their parent sets.) | a Forge key and budget; ESM3-small-open at σ = 0 covers the open model locally |
 | ~~SPURS (both models) and ProteinMPNN on mutant-background Tsuboyama libraries~~ | **done 2026-10-23** | adapters patched (parsed sequence overwritten with the corrected `ref_seq`), reruns 386549–386551 on gpu4; validated: no NaN, wild-type-background rows bit-identical to the old files, mutant-background libraries at Spearman 0.70–0.87 (SPURS) and 0.44–0.70 (ProteinMPNN). The SPURS single-model output first landed in a mislabelled directory (empty `--tag` through `--export`) and was installed after validation; `run_model.py` now rejects such tags | – |
 | Rosetta on the external sets, DMS and Domainome | the Rosetta row outside Tsuboyama | the Narval run covered the capped Tsuboyama split only; the published comparison (§1.5) has Rosetta on the older row sets | a `cartesian_ddg` array over those sets (CPU) |
-| MT-pass ablation (`--mt_pass_adapter wt`, devel seed 1, ε = 1) | §3 ablation bullet | **resubmitted 2026-10-23** as `gpu4_pgym_s1_mtpass_wt2` (386637, gpu4, ~29 GPU-hours): the 26 DMS from the cancelled job 386255 were corrected to the per-mutation bias (manifest in the output directory; real-rerun check on 3 DMS passed) and the other 187 of the 213 common DMS run under the new defaults, resuming from them. Scores the 213, not the four >1,800-residue structures | **running 2026-10-24**, 177 / 213 at 21 h, ~29 GPU-hours estimated; partial result in the meantime: −0.017 ρ on 26 DMS |
+| MT-pass ablation (`--mt_pass_adapter wt`, devel seed 1, σ = 1) | §3 ablation bullet | **resubmitted 2026-10-23** as `gpu4_pgym_s1_mtpass_wt2` (386637, gpu4, ~29 GPU-hours): the 26 DMS from the cancelled job 386255 were corrected to the per-mutation bias (manifest in the output directory; real-rerun check on 3 DMS passed) and the other 187 of the 213 common DMS run under the new defaults, resuming from them. Scores the 213, not the four >1,800-residue structures | **running 2026-10-24**, 177 / 213 at 21 h, ~29 GPU-hours estimated; partial result in the meantime: −0.017 ρ on 26 DMS |
 
 ## 4. Analysis to do once §1 lands (CPU)
 
@@ -117,7 +117,7 @@ asked for, so nothing else was added.
   `adapters/esm3dg.py` and `adapters/ifum.py`, `--readout` on `adapters/spurs.py` (all default to the previous
   behaviour; `*.bak` copies kept), an adaptive batch size in `adapters/esmtherm.py`, `make_fold_manifest_capped.py`,
   `~/consolidation/msr_eps_sweep.sh` (now `--mem=24G`), and the benchmarking scripts. **Worth copying into the repo** if the harness is ever to be reproducible from it.
-- `~/esm-msr-devel` is behind `origin/devel-revision`; pull it once no queued job reads it (the ε-sweep jobs do). Its
+- `~/esm-msr-devel` is behind `origin/devel-revision`; pull it once no queued job reads it (the σ-sweep jobs do). Its
   staged `data/preprocessed/*_mapped.csv` changes only rewrite structure paths for the cluster: keep them out of any
   commit.
 - Awaiting approval to delete: `~/esm-msr-rev` (old work clone) and `~/esm-msr-devel/outputs/pgym_verify_rev/`.

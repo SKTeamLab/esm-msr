@@ -8,7 +8,7 @@ hom=pd.read_csv(os.path.join(OUT,'homology_classes.csv'))
 cex=pd.read_csv(os.path.join(OUT,'code_inventory_exact.csv'))
 MODEL_INV={
  'ESM-MSR (released)':'esm_msr_capped','ESM-MSR (released) WT':'esm_msr_capped','ESM-MSR (released) MT':'esm_msr_capped',
- 'ESM-MSR (released) ε=0.25':'esm_msr_capped','ESM-MSR (released) ε=0.5':'esm_msr_capped','ESM-MSR (released) ε=0.75':'esm_msr_capped',
+ 'ESM-MSR (released) σ=0.25':'esm_msr_capped','ESM-MSR (released) σ=0.5':'esm_msr_capped','ESM-MSR (released) σ=0.75':'esm_msr_capped',
  'ESM-MSR (devel)':'esm_msr_capped','ESM-MSR (devel) WT':'esm_msr_capped','ESM-MSR (devel) MT':'esm_msr_capped',
  'ME stage1':'me_stage1','ME stage1+':'me_stage1','ME stage2':'me_stage2','ME stage2+':'me_stage2',
  'TMPNN':'tmpnn','TMPNN+D':'tmpnnd','SPURS':'spurs_single','SPURS multi':'spurs_multi',
@@ -17,8 +17,8 @@ MODEL_INV={
  'ESM3dG':'esm3dg_mgnify','ESM-MSR-small (March, crystal)':'esm_msr_small_hyperopt',
  'ProSST':'corpus','ProteinMPNN':'corpus','Rosetta':'none',
  'ESM3-small zero-shot':'corpus','ESM3-medium zero-shot':'corpus','ESM3-large zero-shot':'corpus',
- 'ESM3-small-open (ε=0, MSR readout)':'corpus','ESM3-small-open (ε=0, MSR readout) WT':'corpus',
- 'ESM3-small-open (ε=0, MSR readout) MT':'corpus',
+ 'ESM3-small-open (σ=0, MSR readout)':'corpus','ESM3-small-open (σ=0, MSR readout) WT':'corpus',
+ 'ESM3-small-open (σ=0, MSR readout) MT':'corpus',
 }
 DS={'s571':'s571','s783':'s783','s2648':'s2648','s8754':'s8754','s669':'s669','s461':'s461','ssym':'ssym',
  'q3421':'q3421','k3822':'k3822','k2369':'k2369','ptmul':'ptmul','ptmuld':'ptmuld',

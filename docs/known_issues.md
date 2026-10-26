@@ -31,7 +31,7 @@ default allocator:
 PYTORCH_CUDA_ALLOC_CONF= python inference_scripts/esm_msr_testing.py \
     --checkpoint esm-msr/lora_seed1.safetensors --protein_gym \
     --pgym_dir pgym_inputs --pgym_out pgym_results \
-    --auto_batch_size --dtype bf16 --lora_epsilon 1.0 \
+    --auto_batch_size --dtype bf16 --sigma 1.0 \
     --pgym_dms SCN5A_HUMAN_Glazer_2019
 ```
 
@@ -61,7 +61,7 @@ reference results, but two things are required:
 PYTORCH_CUDA_ALLOC_CONF= python inference_scripts/esm_msr_testing.py \
     --checkpoint esm-msr/lora_seed1.safetensors --protein_gym \
     --pgym_dir pgym_inputs --pgym_out pgym_results \
-    --batch_size 1 --dtype bf16 --lora_epsilon 1.0 \
+    --batch_size 1 --dtype bf16 --sigma 1.0 \
     --pgym_dms BRCA2_HUMAN_Erwood_2022_HEK293T
 ```
 

@@ -160,7 +160,7 @@ def test_aggregates_keep_unchanged_cells_exactly_and_shift_only_the_corrected_on
     cats = pd.Series({'A_single': 'x', 'B_mixed': 'x', 'C_nan': 'x'}, name='category')
     cats.index.name = 'DMS_id'
     a = types.SimpleNamespace(root=root, include_ablation=False, write=True, only=None)
-    # the synthetic tree has none of the epsilon directories the real builders read, so use minimal builders over the same helpers
+    # the synthetic tree has none of the sigma directories the real builders read, so use minimal builders over the same helpers
     m.build_dc8 = lambda r, c: pd.DataFrame({'DMS_id': c.index, 'category': c.values})
     m.build_all = lambda r, c: pd.DataFrame({'DMS_id': c.index, 'category': c.values,
                                              'ESM-MSR full': m.per_dms(r, m.REL, 'sigma1.0').reindex(c.index).values})

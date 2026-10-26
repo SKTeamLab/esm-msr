@@ -18,8 +18,8 @@ every dataset in the job, so per-dataset timing has to come from the finer sourc
 | ESM-MSR capped | gamut (one job per block) | inference | not gpu4 | 0 / 4 (gpu2) | 0.0 / 8.4 |
 | ESM-MSR capped | GB1 rerun | inference | **gpu4 only** | 1 / 0 | 0.2 / 0.0 |
 | ESM-MSR capped | ProteinGym full | inference | mixed | 1 / 1 (gpu3) | 31.8 / 11.8 |
-| ESM-MSR capped | ProteinGym WT-only ε sweep | inference | not gpu4 | 0 / 2 (gpu3) | 0.0 / 0.6 |
-| ESM-MSR dc8 | ProteinGym (ε sweep) | inference | mixed | 12 / 12 (gpu3) | 401.1 / 0.3 |
+| ESM-MSR capped | ProteinGym WT-only σ sweep | inference | not gpu4 | 0 / 2 (gpu3) | 0.0 / 0.6 |
+| ESM-MSR dc8 | ProteinGym (σ sweep) | inference | mixed | 12 / 12 (gpu3) | 401.1 / 0.3 |
 | ESM-MSR dc8 | ProteinGym BRCA1/SCN5A retry | inference | not gpu4 | 0 / 1 (gpu3) | 0.0 / 2.6 |
 | ESM-MSR dc8 | gamut | inference | not gpu4 | 0 / 3 (gpu1, gpu3) | 0.0 / 22.7 |
 | ESM-MSR dc8 | ProteinGym MT-pass ablation | inference | not gpu4 | 0 / 1 (gpu3) | 0.0 / 15.8 (cancelled at 26 of 213 DMS) |
@@ -61,7 +61,7 @@ guard (that is what the guards are for) and were rerun after the fix.
 
 How to read the mixed rows:
 
-- **ESM-MSR dc8, ProteinGym:** every main run (3 seeds × 4 ε) ran on gpu4; the 8 gpu3 jobs are 2-minute `_rest`
+- **ESM-MSR dc8, ProteinGym:** every main run (3 seeds × 4 σ) ran on gpu4; the 8 gpu3 jobs are 2-minute `_rest`
   tails for the large structures, plus the BRCA1/SCN5A allocator retry. Use these as the gpu4 ESM-MSR timing.
 - **ESM-MSR capped, ProteinGym:** 383708 ran on gpu4 for 31.8 h and the remaining DMS finished on gpu3 in fp32
   (383932); the per-DMS `summary.csv` has no gpu column for this run, so which DMS ran where has to come from the
@@ -89,12 +89,12 @@ eligible at once. Each harness job writes one line per dataset to
 | 386515, 386516 | IFUM, ESMFold folding of 64,008 capped-Tsuboyama sequences (two workers) | 2:58 each |
 | 386517, 386518 | IFUM native scoring, capped val / test | 1:22 / 1:55 |
 | 386519 | SPURS multi, 22-set gamut | 0:07 |
-| 386520–386529 | ESM-MSR ε sweep, DMS + Domainome (released ε = 0.75 / 0.5 / 0.25; devel seeds 1–3 at the intermediate ε) | 1:27–1:28 each |
+| 386520–386529 | ESM-MSR σ sweep, DMS + Domainome (released σ = 0.75 / 0.5 / 0.25; devel seeds 1–3 at the intermediate σ) | 1:27–1:28 each |
 | 386549–386551 | SPURS, SPURS multi and ProteinMPNN rerun with the mutant-background libraries, capped val / test | 0:55, 0:37, 0:12 |
 | 386635 | MT-pass ablation, real-pipeline check on 3 DMS (§ the benchmarks doc, caveat 12) | 0:58 |
 | 386532, 386533 | ESMtherm CAS9 retry; ProSST capped Tsuboyama | 0:07, 0:01 |
 
-The ε runs took 1.5 h, not the ~6.6 h I had estimated from the gamut's earlier totals: those included the Tsuboyama
+The σ runs took 1.5 h, not the ~6.6 h I had estimated from the gamut's earlier totals: those included the Tsuboyama
 blocks, which these runs skip. **Convention:** jobs 386520–386527 ran before the calibration-default change (merged on the
 cluster at 12:10 on 2026-10-23) and used one bias per item; 386528 onward use one per mutated position. The older ones are
 being rerun (`gpu4_pmb_*`), so a seed mean over mixed jobs is never shown (the table builder reads the convention from each
@@ -111,7 +111,7 @@ failure; 386804 resumes it with `--time=4-00:00:00` and skips the 148 datasets a
 **A free GPU does not mean a free slot, and an empty queue does not fill one.** gpu4 has 4 cards, **24 CPUs** and **250 GB**, so
 a quarter of the node is 6 CPUs and ~62 GB. Three things have left a card idle, all avoidable:
 
-- **Memory.** The ε jobs asked for 96 G and peaked at 6.9 G; with 160 G of the node already allocated the next job could not fit
+- **Memory.** The σ jobs asked for 96 G and peaked at 6.9 G; with 160 G of the node already allocated the next job could not fit
   (fixed 2026-10-23 by lowering the pending jobs to 24 G).
 - **CPUs (2026-10-23).** ESM-MSR jobs asked for 8 CPUs, so **three** of them used all 24 and a fourth card idled with work waiting.
   Measured peaks are 6.7–7.0 GB for every ESM-MSR inference job (`sacct` MaxRSS of 386531, 386566, 386576, 386581, 386588) against
@@ -265,8 +265,8 @@ Production runs shared nodes and mixed GPU types, so their wall times are an upp
 like-for-like table, time each model **alone on one A4500** on a fixed subset (for example S669, the Tsuboyama
 capped test split, GB1, and ten ProteinGym DMS spanning lengths 50–1,000), excluding model loading and structure
 preparation, which are listed separately above (ESMFold folding for IFUM-native: 104 wall-hours; FoldX building
-for GeoDDG: 15.7 CPU-node-hours; AF2 for the external WT structures: 24.5 h). Not yet timed on gpu4 in a controlled way: ESM-MSR on the thermostability gamut (the ε = 0 gamut does the same
-forward passes as ε = 1, so its times stand in for it). ESM3ΔG, ProSST, SPURS and ProteinMPNN have now run there,
+for GeoDDG: 15.7 CPU-node-hours; AF2 for the external WT structures: 24.5 h). Not yet timed on gpu4 in a controlled way: ESM-MSR on the thermostability gamut (the σ = 0 gamut does the same
+forward passes as σ = 1, so its times stand in for it). ESM3ΔG, ProSST, SPURS and ProteinMPNN have now run there,
 but alongside other jobs on the same node, and ESM3ΔG's ProteinGym half is fp16 while its other datasets are fp32
 (§3) — so those wall times are not comparable with each other either.
 

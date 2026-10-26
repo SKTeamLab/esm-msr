@@ -117,12 +117,12 @@ This aligns each DMS's mutations to the corresponding AlphaFold2 structure (re-n
 
 ### 3. Run the benchmark (resumable, ~1 day on a 32 GB GPU)
 
-`python inference_scripts/esm_msr_testing.py --checkpoint esm-msr/lora_seed1.safetensors --protein_gym --pgym_dir pgym_inputs --pgym_out pgym_results --auto_batch_size --dtype bf16 --lora_epsilon 1.0`
+`python inference_scripts/esm_msr_testing.py --checkpoint esm-msr/lora_seed1.safetensors --protein_gym --pgym_dir pgym_inputs --pgym_out pgym_results --auto_batch_size --dtype bf16 --sigma 1.0`
 
 * `--checkpoint` is relative to the `LoRA_models/` folder. The full model above is not included in the repo (only the small demo model is); download it once from our [HuggingFace page](https://huggingface.co/sareeves96/esm-msr): `huggingface-cli download sareeves96/esm-msr --local-dir LoRA_models/esm-msr`.
 * `--auto_batch_size` sizes each batch from measured GPU memory, so no manual tuning is needed. If a DMS simply does not fit in GPU memory even at batch size 1, it is logged as a failure and the run continues with the next DMS (on WSL2, very large DMS may instead spill into system RAM and complete very slowly — see [docs/known_issues.md](docs/known_issues.md)).
 * `--dtype bf16` is required for accuracy and speed on modern GPUs.
-* `--lora_epsilon 1.0` runs the trained ESM-MSR model; set it to `0.0` to score with the untrained (zero-shot) ESM3 backbone as a control.
+* `--sigma 1.0` runs the trained ESM-MSR model; set it to `0.0` to score with the untrained (zero-shot) ESM3 backbone as a control.
 * `--skip_reverse` scores with the WT pass only (the additive approximation): each DMS runs a single cached WT-context forward, and every mutant is then scored by gathering the per-position local-substitution log-likelihood ratios from it. No mutant-context forward is run, so `mt_lora_pred`/`combined_pred` are NaN (omitted from the CSVs) and the per-DMS correlation is computed on `wt_lora_pred` instead. It is ~10× faster than the full two-pass mode (~17 min vs ~1 day for all 217 DMS on a 32 GB card), and the batch size no longer affects VRAM, since the one forward is always run at batch size 1.
 * The run is resumable: any DMS that already has an output CSV in `--pgym_out` is skipped, so you can interrupt and restart freely. Use `--pgym_dms DMS1,DMS2` to score only a subset (defaults to all).
 * Outputs: one CSV per DMS with the predictions (`combined_pred`) alongside the experimental `DMS_score`, plus a `summary.csv` with the per-DMS Spearman correlation (`spearman_combined`), timing, and status. A DMS that crashes mid-run is recorded in `summary.csv` with `status=fail` and an error message; fix the cause (usually memory) and re-run — only that DMS will be re-attempted.

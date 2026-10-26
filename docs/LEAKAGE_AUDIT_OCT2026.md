@@ -68,7 +68,7 @@ A cell lists every class present with its fraction of the dataset's reported row
 
 | model row(s) | training inventory | n | source | evidence |
 |---|---|---|---|---|
-| ESM-MSR (released), ESM-MSR (devel), WT/MT heads, ε sweep, ESM-MSR-small | the capped-train libraries (172), all substitutions | 229,721 rows / 172 libraries | `data/splits_oct06_capped.pkl` + `Tsuboyama2023_Dataset2_Dataset3_20230416.csv` | verified |
+| ESM-MSR (released), ESM-MSR (devel), WT/MT heads, σ sweep, ESM-MSR-small | the capped-train libraries (172), all substitutions | 229,721 rows / 172 libraries | `data/splits_oct06_capped.pkl` + `Tsuboyama2023_Dataset2_Dataset3_20230416.csv` | verified |
 | MutateEverything stage 1 / stage 1+ | the same libraries, singles (stage 1); additive readout uses the same model | 168 libraries with singles | capped split; ME recipe | verified |
 | MutateEverything stage 2 / stage 2+ | the same libraries, singles then doubles (stage 2 is initialised from stage 1) | 168 libraries | capped split | verified |
 | ThermoMPNN (additive) | the same libraries, singles | 168 libraries | capped split; `train_single.yaml` | verified |
@@ -83,7 +83,7 @@ A cell lists every class present with its fraction of the dataset's reported row
 | ESM3ΔG | MGnify Stability fine-tune, **not** Megascale | 960,216 sequences | Zenodo 19411306 `mgnify_training_index.csv` | verified (0 exact sequences) |
 | ProSST | AlphaFoldDB 18.8 M structures, masked-LM; no ΔΔG fine-tune | — | ProSST paper | documented only |
 | ProteinMPNN | PDB assemblies deposited before 2021-08-02, sequence recovery | 25,361 clusters | ProteinMPNN paper | documented only |
-| ESM3 small/medium/large, ε = 0 control | UniRef/MGnify/JGI + PDB (≤2020-05-01) + AFDB v4 | 2.78 B proteins | ESM3 paper | documented only |
+| ESM3 small/medium/large, σ = 0 control | UniRef/MGnify/JGI + PDB (≤2020-05-01) + AFDB v4 | 2.78 B proteins | ESM3 paper | documented only |
 | Rosetta Cartesian ΔΔG | none | — | physics | n/a |
 
 Two corrections to the old table legend follow. **ESM3ΔG is not Megascale-trained**: its released `*_augmented_*`
@@ -141,7 +141,7 @@ is the source of the `h` grey zone, and it is why the audit reports those rows a
 
 ### 6.1 The models the split was built for
 
-ESM-MSR (released and devel, all heads and ε values), MutateEverything stage 1/2, ThermoMPNN and ThermoMPNN-D
+ESM-MSR (released and devel, all heads and σ values), MutateEverything stage 1/2, ThermoMPNN and ThermoMPNN-D
 have **zero** identical-mutation and **zero** same-protein overlap with all 12 external sets, both Tsuboyama capped
 splits, the 7 DMS assays and Domainome (outside the one domain below). The capped split does exactly what it was
 designed to do. Their residual exposure is `h`: 15.6 % of test rows and 20.3 % of val rows are on proteins with a
@@ -261,7 +261,7 @@ why its 0.483 average is not comparable to ESM-MSR's 0.510.
 - **The 12-set mean** remains in the table but is not a like-for-like ranking: GeoDDG's 0.767 and DDGemb's 0.697 are
   training-set-adjacent. Over cells with no flag, ESM-MSR (devel) 0.62, ME stage 1 0.56, ThermoMPNN 0.53 lead.
 - **The "clean six" ranking is replaced** by a per-model clean-subset mean (Table §6.5): only ESM-MSR, ME,
-  ThermoMPNN, ProSST, ProteinMPNN and the ε = 0 control are clean on all six; ESM-MSR (released) 0.621 leads them,
+  ThermoMPNN, ProSST, ProteinMPNN and the σ = 0 control are clean on all six; ESM-MSR (released) 0.621 leads them,
   with DDGemb 0.612 on the only two sets it has left.
 - **The ProteinGym tie moves.** On all 213 assays ESM-MSR 0.510 and ProSST 0.514; on the 190 assays with no trained
   rows ESM-MSR is 0.520 and ProSST 0.528. The 0.22 Stability lead that ESM-MSR holds is entirely on the 23

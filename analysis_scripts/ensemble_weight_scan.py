@@ -30,7 +30,7 @@ def rho(a, b):
 
 
 def load(ds, ck):
-    f = sorted(glob.glob(f'{D}/{ds}/{CKPT[ck]}/*_epsilon1_unmasked_predictions.csv'))
+    f = sorted(glob.glob(f'{D}/{ds}/{CKPT[ck]}/*_sigma1_unmasked_predictions.csv'))
     if not f:
         return None
     d = pd.read_csv(f[0], low_memory=False)
