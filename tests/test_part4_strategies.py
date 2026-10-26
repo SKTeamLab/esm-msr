@@ -2,8 +2,7 @@
 1. Two-knob assay adaptation (`epistasis_weight` in `combine_predictions` and `MSRModel`)
 2. Antisymmetric cycle readout for single-adapter (`fused`) mode (`fused_antisymmetric`)
 3. Local VQ-VAE structure token masking on `native_cond` scaffolds (`mask_native_cond_structure_batch`)
-4. Pairwise uncertainty margins in `ListMLELoss` (`sigma` + `ci_margin`)
-5. Within-partner / within-pair contrastive ListMLE (`_compute_partner_rank_loss`)
+4. Within-partner / within-pair contrastive ListMLE (`_compute_partner_rank_loss`)
 """
 from types import SimpleNamespace
 import pytest
@@ -81,22 +80,6 @@ def test_fused_antisymmetric_cancels_bias_and_flips_reverse():
     # Combined mean cancels +b and -b identically
     fb = m.forward_batch(batch)
     assert torch.allclose(fb['combined_pred'], torch.full((2,), s * 2.0))
-
-
-def test_listmle_ci_margin_attenuates_noisy_adjacent_pairs():
-    crit = ListMLELoss()
-    # Prediction reverses the top two items (0.0 vs 1.0), where ground truth gap is tiny (1.01 vs 1.00)
-    pred = torch.tensor([[0.0, 1.0, -2.0]], requires_grad=True)
-    gt = torch.tensor([[1.01, 1.00, -1.0]])
-    mask = torch.ones((1, 3), dtype=torch.bool)
-    cens = torch.zeros((1, 3), dtype=torch.long)
-
-    # Without CI margin vs with large sigma on the top two items
-    loss_no_ci = crit.forward_censored(pred, gt, mask, cens)
-    sigma_high = torch.tensor([[0.5, 0.5, 0.01]])
-    loss_ci = crit.forward_censored(pred, gt, mask, cens, sigma=sigma_high, ci_margin=1.0)
-    # With high uncertainty across the tiny 0.01 gap, the top step weight approaches 0.5, reducing the penalty
-    assert float(loss_ci.item()) < float(loss_no_ci.item())
 
 
 def test_compute_partner_rank_loss_groups_doubles():

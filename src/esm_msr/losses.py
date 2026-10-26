@@ -50,7 +50,7 @@ class ListMLELoss(torch.nn.Module):
         return loss[valid].mean()
 
     def _per_list(self, predictions: torch.Tensor, ground_truths: torch.Tensor, mask: torch.Tensor,
-                  score: torch.Tensor, sigma: torch.Tensor | None = None, ci_margin: float = 0.0):
+                  score: torch.Tensor):
         """
         Plackett-Luce NLL of each list, descending order, with a tied block at the bottom.
 
@@ -80,24 +80,12 @@ class ListMLELoss(torch.nn.Module):
         denom = torch.flip(torch.cumsum(torch.flip(exp_pred, dims=(-1,)), dim=-1), dims=(-1,))
         denom = torch.clamp(denom, min=self.eps)
         score_w = ordered_score.float()
-        if sigma is not None and ci_margin > 0.0 and predictions.shape[-1] > 1:
-            ordered_gt = ground_truths.gather(-1, idx)
-            sig_clean = torch.nan_to_num(sigma.float(), nan=0.0, posinf=0.0, neginf=0.0).clamp(min=0.0)
-            ordered_sig = sig_clean.gather(-1, idx)
-            dy = (ordered_gt[:, :-1] - ordered_gt[:, 1:]).clamp(min=0.0)
-            pair_var = ordered_sig[:, :-1].square() + ordered_sig[:, 1:].square()
-            has_pair_ci = ordered_score[:, :-1] & ordered_score[:, 1:] & (pair_var > 0.0)
-            z = dy / (float(ci_margin) * torch.sqrt(2.0 * pair_var + 1e-12))
-            w_adj = torch.where(has_pair_ci, 0.5 * (1.0 + torch.erf(z)), torch.ones_like(dy))
-            step_w = torch.cat([w_adj, torch.ones_like( score_w[:, -1:] )], dim=-1)
-            score_w = score_w * step_w
         log_probs = (ordered_pred - max_pred - torch.log(denom)) * score_w
         valid = (mask.sum(dim=-1) > 1) & (score & mask).any(dim=-1)
         return -log_probs.sum(dim=-1), valid
 
     def forward_censored(self, predictions: torch.Tensor, ground_truths: torch.Tensor,
-                         mask: torch.Tensor, cens: torch.Tensor,
-                         sigma: torch.Tensor | None = None, ci_margin: float = 0.0) -> torch.Tensor:
+                         mask: torch.Tensor, cens: torch.Tensor) -> torch.Tensor:
         """
         ListMLE with the censored members' mutual order left unscored. ``cens`` is -1, 0 or +1 per member:
 
@@ -120,7 +108,7 @@ class ListMLELoss(torch.nn.Module):
             raise AssertionError("mask and cens must match predictions' shape.")
         lo, hi = (cens < 0) & mask, (cens > 0) & mask
         ordinary = mask & ~lo & ~hi
-        loss, valid = self._per_list(predictions, ground_truths, mask & ~hi, ordinary, sigma=sigma, ci_margin=ci_margin)
+        loss, valid = self._per_list(predictions, ground_truths, mask & ~hi, ordinary)
         has_hi = hi.any(dim=-1)
         if bool(has_hi.any()):
             loss = loss + self._top_block_nll(predictions, mask, hi)
