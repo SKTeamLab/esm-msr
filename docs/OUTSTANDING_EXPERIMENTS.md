@@ -2,7 +2,7 @@
 
 What still has to run, or cannot run yet, for the all-by-all comparison in
 [`BENCHMARKS_OCT2026.md`](BENCHMARKS_OCT2026.md) §1. Each entry says what it fills, why it is not done, and what
-unblocks it. Last updated 2026-10-24. Where things ran and how long they took:
+unblocks it. Last updated 2026-10-26. Where things ran and how long they took:
 [`GPU4_INFERENCE_LEDGER.md`](GPU4_INFERENCE_LEDGER.md). Cluster paths are on `sreeves@subhak-gpu.uwaterloo.ca`.
 
 ## 1. Queued or running on gpu4 — no decision needed
@@ -117,9 +117,25 @@ asked for, so nothing else was added.
   `adapters/esm3dg.py` and `adapters/ifum.py`, `--readout` on `adapters/spurs.py` (all default to the previous
   behaviour; `*.bak` copies kept), an adaptive batch size in `adapters/esmtherm.py`, `make_fold_manifest_capped.py`,
   `~/consolidation/msr_eps_sweep.sh` (now `--mem=24G`), and the benchmarking scripts. **Worth copying into the repo** if the harness is ever to be reproducible from it.
-- `~/esm-msr-devel` is behind `origin/devel-revision`; pull it once no queued job reads it (the σ-sweep jobs do). Its
+- `~/esm-msr-devel` sits at `a61367c`, two commits behind `origin/devel-revision` (`7a5b283`). Update it only as step
+  (3) of the ε → σ rename below, once 387181–387183 have finished. Its
   staged `data/preprocessed/*_mapped.csv` changes only rewrite structure paths for the cluster: keep them out of any
   commit.
+- **The ε → σ artefact rename is prepared but deliberately not applied.** Commit `7a5b283` renamed the LoRA scaling
+  factor ε → σ repo-wide, and the analysis scripts now glob `*_sigma{σ}_unmasked_*`; every artefact on the cluster is
+  still `*_epsilon{ε}_unmasked_*`, so `benchmark_matrix.py` would find nothing. `baselines/rename_epsilon_to_sigma.sh`
+  (dry-run by default, `--apply` to execute) plans **987 files with 0 conflicts**, and normalises both spellings of the
+  unit case (`_epsilon1`, 350 files, and `_epsilon1.0`, 72) to `_sigma1_`, which is what `collect_msr(sigma='1')`
+  globs. A plain substitution would leave the second group as `_sigma1.0_` and silently drop every capped val/test
+  row. Every move is written to `~/esm-msr-devel/rename_to_sigma.manifest.tsv` so the rename can be reversed. Order:
+  (1) wait for the three frozen-WT ProteinGym runs, 387181–387183; (2) run the script with `--apply`; (3)
+  `git reset --hard origin/devel-revision` on the cluster; (4) regenerate the tables and diff them against the saved
+  pre-rename output as the regression check — a rename must not move a single number; (5) update the `_epsilon1_` path
+  globs in `dc_runs/*.py`.
+- **Trim statistics will still not reach the collector after the rename.** Their filenames carry the mask tag
+  (`..._sigma1_wt-unmasked_mt-independent_Combined.csv`) while `collect_msr` globs `*_sigma1_unmasked_{head}.csv`.
+  That is a pre-existing naming gap rather than anything to do with ε → σ — the trim rows in §2.0 come from the
+  rescorer, not the collector — but it has to be closed before trim can enter §1.
 - Awaiting approval to delete: `~/esm-msr-rev` (old work clone) and `~/esm-msr-devel/outputs/pgym_verify_rev/`.
 - `~/playground/narval-recovery/` (local machine) holds the Rosetta session's transcripts and the raw Narval outputs.
   The capped-split predictions were copied into the harness layout at `~/stability-baselines/results/rosetta/`.
