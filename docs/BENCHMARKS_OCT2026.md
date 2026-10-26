@@ -311,7 +311,7 @@ seed has finished; the combined head is shown).
 | SPURS (single model) | 0.483ᴹ | 0.837ᴹ | 0.525ᴹ |
 | SPURS multi (multi-mutant model) | 0.426ᴹ | 0.808ᴹ | 0.477ᴹ |
 | ESMtherm | 0.213ᴾ | 0.720ᴾ | 0.283ᴾ |
-| GeoDDG-3D (FASPR) | q | q | q |
+| GeoDDG-3D (FASPR) | 0.383 | 0.638 | 0.422 |
 | ESM3ΔG | q | q | q |
 | ProSST (zero-shot) | **0.514ᶜ** | **0.653ᶜ** | **0.528ᶜ** |
 | Rosetta Cartesian ΔΔG | _0.375_ | _0.640_ | _0.409_ |
@@ -361,11 +361,16 @@ seed has finished; the combined head is shown).
   the ESM3 comparison is a readout that cannot represent an interaction against one that can.
 - **ESMtherm is Stability-only**, and the table shows how much: 0.720 on Stability against 0.213 on the five-category
   average (0.283 DMS mean), the opposite shape to ProSST.
-- **In progress:** ESM3ΔG (fp16) and GeoDDG are mid-run (202 and 181 of 213 DMS, 2026-10-24 16:10). A model is
-  summarised only once all 213 common DMS are in. GeoDDG's first attempt (386277) was killed by its own two-day
-  wall clock, not by an error, at 148 DMS; none of that work is redone, because the harness skips datasets whose
-  output already exists, and the resumed job (386804, four-day limit) has since carried it to 181. IFUM's ProteinGym
-  run was stopped as not worth the time it needed, and DDGemb and DDMut are web services that cannot be run at this
+- **GeoDDG inverts the way its external-set lead predicts.** It scores 0.383 on the five-category average with 0.638
+  on Stability and 0.422 on the DMS mean: strong on the stability-led slice, weak on the functional assays, the
+  mirror image of ESMtherm and the same inversion §1.3 records for the literature-ΔΔG models. Its ProteinGym overlap
+  composition has not been audited, so its row in the leak-code table below stays `–` like the other unaudited
+  models.
+- **In progress:** ESM3ΔG (fp16) is the last model whose ProteinGym row is unfilled (204 of 213 DMS, 2026-10-25). A
+  model is summarised only once all 213 common DMS are in. GeoDDG finished on 2026-10-25 (386804, 1 d 08 h) and its
+  row is above; its first attempt (386277) had been killed by its own two-day wall clock at 148 DMS, and because the
+  harness skips datasets whose output already exists, the resumed job redid none of that work. IFUM's ProteinGym run
+  was stopped as not worth the time it needed, and DDGemb and DDMut are web services that cannot be run at this
   scale.
 
 The ε sweep and per-category breakdown are in §3.
