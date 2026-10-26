@@ -673,6 +673,72 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         torch.cuda.empty_cache()
         gc.collect()
 
+    def _log_epistasis(self, pooled):
+        """
+        Logs ``val_epi_<metric>_<head>`` (``esm_msr.epi_metrics``: the full epistasis hierarchy for epi and ctx,
+        naive_rho also for comb and add, and global calibration/scale for epi), pooled over every validation library,
+        and with --val_dump writes ``val_dump_<tag>.npz`` for offline rescoring.
+
+        Heads: epi (~MT, evaluated relative to the WT additive baseline), ctx ((WT + ~WT)/2, needs --val_cycle_passes),
+        comb ((WT + ~MT)/2, reported prediction, naive_rho only), add (WT, additive by construction - the control for
+        what saturation alone can earn). With --link the metrics put each head on the observed scale through the run's
+        link, bending at each library's own floor. Never raises.
+        """
+        try:
+            keys = pooled['mut_key']
+            if not keys or all(k is None for k in keys):
+                return {}
+            f = lambda name: np.asarray(pooled[name], dtype=float)
+            n_items = len(keys)
+            for field in ('dG_wt', 'y_floor', 'ground_truths', 'dddG', 'wt_scores', 'mt_scores', 'comb_scores',
+                          'cens', 'cens_src'):
+                got = len(np.atleast_1d(np.asarray(pooled.get(field, []))))
+                if got != n_items:    # a field on_validation_epoch_end failed to pool: fail loudly, never mis-score quietly
+                    raise ValueError(f"pooled '{field}' has {got} values for {n_items} items")
+            items = {'mut_key': keys, 'subset_type': list(pooled['subset_type']), 'cens': f('cens').astype(int),
+                     'cens_src': f('cens_src').astype(int),
+                     'ddG': f('ground_truths'), 'dddG': f('dddG'), 'dG_wt': f('dG_wt'), 'y_floor': f('y_floor'),
+                     'wt': f('wt_scores'), 'mt': f('mt_scores'), 'comb': f('comb_scores'), 'wt_rev': f('wt_rev_scores')}
+
+            logger = None
+            try:
+                logger = self.logger
+            except Exception:
+                pass
+            log_dir = getattr(logger, 'log_dir', None) or getattr(logger, 'save_dir', None)
+            if getattr(self.hparams, 'val_dump', True) and log_dir:
+                tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
+                os.makedirs(log_dir, exist_ok=True)
+                extra = {}
+                if hasattr(self, 'link_head'):
+                    extra['link_summary'] = np.array(json.dumps(self.link_head.summary()))
+                np.savez_compressed(
+                    os.path.join(log_dir, f'val_dump_{tag}.npz'),
+                    wt=items['wt'], mt=items['mt'], comb=items['comb'], wt_rev=items['wt_rev'],
+                    mt_fwd=f('mt_fwd_scores'), dddG=items['dddG'], ground_truth=items['ddG'],
+                    dG_wt=items['dG_wt'], y_floor=items['y_floor'], cens=items['cens'],
+                    cens_src=items['cens_src'],
+                    n_mut=np.asarray(pooled['n_mut']), subset_type=np.asarray(items['subset_type'], dtype=str),
+                    loader=np.asarray(pooled['loader']),
+                    mut_key=np.asarray([json.dumps(k) for k in keys]), **extra)
+
+            # The dump above carries every mutant, so any of this can be rescored offline. The metrics are
+            # computed on the canonical population only - the same one the per-library metrics use - so that a
+            # run with --censor_range stays directly comparable to one without.
+            canon = items['cens_src'] != censoring.SRC_RANGE
+            scored = {k: ([v[i] for i in np.flatnonzero(canon)] if isinstance(v, list) else np.asarray(v)[canon])
+                      for k, v in items.items()}
+            link = self.link_head.numpy() if hasattr(self, 'link_head') else None
+            res = epi_metrics.compute(epi_metrics.Table(scored, link))
+            for name, val in res.items():
+                if np.isfinite(val):
+                    self.log(f"val_{name}", float(val), on_epoch=True,
+                             prog_bar=name in ('epi_cell_rank_epi', 'epi_cell_rank_mt'), sync_dist=True)
+            return res                  # the caller merges these into avg_metrics so a plateau can watch them
+        except Exception as e:
+            logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)
+        return {}
+
     def on_validation_end(self):
         self.peft_manager.apply_baseline_requires_grad()
 

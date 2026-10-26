@@ -18,7 +18,7 @@ $PY $W/src/esm_msr/training.py \
   --checkpoint_path training_checkpoints --log_dir training_logs \
   --num_epochs $EPOCHS --seed $SEED --num_workers ${NUM_WORKERS:-2} \
   $(cat $W/baseline/recipe_args.txt) \
-  --comet_project_name ${COMET_PROJECT:-esm-msr-agent-oct06-capped-baseline} --comet_api_key "$COMET_KEY" "$@" 2>&1 | tee run_logs/$NAME.log
+  --comet_project_name ${COMET_PROJECT:-esm-msr-oct24-final} --comet_api_key "$COMET_KEY" "$@" 2>&1 | tee run_logs/$NAME.log
 rc=${PIPESTATUS[0]}
 echo "DONE rc=$rc" >> run_logs/$NAME.log
 exit $rc
