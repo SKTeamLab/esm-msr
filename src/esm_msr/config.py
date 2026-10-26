@@ -108,6 +108,8 @@ def parse_arguments() -> argparse.Namespace:
                             help="VALIDATION ONLY: also run the two non-native passes on every validation item (the WT adapter on the mutated sequence asked "
                                  "about the reverse mutation, the MT adapter on the wild-type sequence), so that the control head ctx = (WT + ~WT)/2 of the "
                                  "epistasis metrics (val_epi_*_ctx, esm_msr.epi_metrics) exists; both legs are written to the validation dump. Does not touch training.")
+    mask_group.add_argument('--val_dump', action=argparse.BooleanOptionalAction, default=True,
+                            help="Write per-item validation predictions to val_dump_<tag>.npz each epoch.")
     mask_group.add_argument('--mask_strategy', type=str, choices=["marginal", "chain"], default=None)
 
     train_group = parser.add_argument_group("Training Parameters")

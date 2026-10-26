@@ -506,7 +506,9 @@ class MSRModel(ESM3PredictorBase):
         else:
             combined_pred = 0.5 * wt_pred_cal + 0.5 * mt_pred_cal
 
-        epi_pred = 0.5 * mt_pred_cal - 0.5 * wt_pred_cal
+        # Epistasis prediction: authoritatively defined as ~MT(AB) - WT(AB) (the epistasis component of the MT pass alone
+        # beyond the wild-type additive baseline).
+        epi_pred = mt_pred_cal - wt_pred_cal
 
         if skip_reverse:
             mt_pred_raw, mt_pred_cal, combined_pred, epi_pred = float('nan'), float('nan'), float('nan'), float('nan')

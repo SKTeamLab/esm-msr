@@ -27,7 +27,7 @@ from esm_msr.losses import ListMLELoss, ListMLELoss_enhanced, AsymmetricHuberLos
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
-from esm_msr import stats, epi_metrics
+from esm_msr import stats, epi_metrics, censoring
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -484,208 +484,150 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         with torch.inference_mode():
-            out_dict = self.model.forward_batch(batch, mask_strategy=self.hparams.mask_strategy)
+            out_dict = self.model.forward_batch(batch, mask_strategy=getattr(self.hparams, 'mask_strategy', None))
 
+        B = int(out_dict['wt_lora_pred'].shape[0])
         ddG = utils._get_label(batch, 'ddG', device=batch['ddG'].device)
-        dddG = batch.get('dddG', None)
-
-        n_items = int(out_dict['wt_lora_pred'].shape[0])
-        dG_wt = batch['dG_wt'].float() if torch.is_tensor(batch.get('dG_wt')) else torch.full((n_items,), float('nan'))
+        nan_col = lambda: np.full(B, np.nan, dtype=np.float32)
+        get = lambda k: batch[k].detach().cpu().float().numpy() if torch.is_tensor(batch.get(k)) else nan_col()
 
         cyc = {}
         if getattr(self.hparams, 'val_cycle_passes', False):
             with torch.inference_mode():
-                c = self.model.forward_cycle(batch, mask_strategy=self.hparams.mask_strategy)
-            cyc = {'wt_rev_scores': c['wt_rev'].detach().cpu().float().numpy(), 'mt_fwd_scores': c['mt_fwd'].detach().cpu().float().numpy()}
+                c = self.model.forward_cycle(batch, mask_strategy=getattr(self.hparams, 'mask_strategy', None))
+            cyc = {'wt_rev_scores': c['wt_rev'].detach().cpu().float().numpy()}
+            if 'mt_fwd' in c:
+                cyc['mt_fwd_scores'] = c['mt_fwd'].detach().cpu().float().numpy()
 
-        self.validation_step_outputs[dataloader_idx].append({
+        rec = {
             **cyc,
-            'dG_wt': dG_wt.detach().cpu().numpy(),
-            'subset_type': list(batch.get('subset_type', ['single'] * n_items)),
-            'mt_scores': out_dict['mt_lora_pred'].detach().cpu().float().numpy(),
             'wt_scores': out_dict['wt_lora_pred'].detach().cpu().float().numpy(),
+            'mt_scores': out_dict['mt_lora_pred'].detach().cpu().float().numpy(),
             'comb_scores': out_dict['combined_pred'].detach().cpu().float().numpy(),
-            'epi_scores': out_dict['epi_pred'].detach().cpu().float().numpy(),
-            'ground_truths': ddG.detach().cpu().float().numpy() if ddG is not None else np.array([]),
-            'dddG_truths': dddG.detach().cpu().float().numpy() if dddG is not None else np.array([]),
-            'pdb': batch.get('pdb', []),
-            'mutations': batch.get('mutations', [])
-        })
-
-    def _log_epistasis(self, pooled):
-        """
-        Logs val_epi_<metric>_<head> (esm_msr.epi_metrics: every metric for comb, mt and ctx, the naive and global ones also for the additive
-        control add), pooled over every validation library, and writes val_dump_<tag>.npz (rescore offline with baseline/epi_from_dump.py).
-        Heads: comb ((WT + ~MT)/2, the reported prediction), mt (~MT), ctx ((WT + ~WT)/2, needs --val_cycle_passes), add (WT). This model has
-        no link, so its predictions are taken as the observed scale. Never raises.
-        """
-        try:
-            keys = pooled['mut_key']
-            if not keys or any(k is None for k in keys):
-                return
-            f = lambda name: np.asarray(pooled[name], dtype=float)
-            items = {'mut_key': keys, 'subset_type': list(pooled['subset_type']), 'cens': None, 'ddG': f('ground_truths'), 'dddG': f('dddG'),
-                     'dG_wt': f('dG_wt'), 'wt': f('wt_scores'), 'mt': f('mt_scores'), 'comb': f('comb_scores'), 'wt_rev': f('wt_rev_scores')}
-            log_dir = getattr(self.logger, 'log_dir', None) or getattr(self.logger, 'save_dir', None)
-            if log_dir:
-                tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
-                os.makedirs(log_dir, exist_ok=True)
-                np.savez_compressed(os.path.join(log_dir, f'val_dump_{tag}.npz'), wt=items['wt'], mt=items['mt'], comb=items['comb'],
-                                    wt_rev=items['wt_rev'], mt_fwd=f('mt_fwd_scores'), dddG=items['dddG'], n_mut=np.asarray(pooled['n_mut']),
-                                    ground_truth=items['ddG'], dG_wt=items['dG_wt'], subset_type=np.asarray(items['subset_type'], dtype=str),
-                                    loader=np.asarray(pooled['loader']), mut_key=np.asarray([json.dumps(k) for k in keys]))
-            res = epi_metrics.compute(epi_metrics.Table(items))
-            for name, val in res.items():
-                if np.isfinite(val):
-                    self.log(f"val_{name}", float(val), on_epoch=True, prog_bar=name == 'epi_cell_rank_mt', sync_dist=True)
-        except Exception as e:
-            logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)
+            'ground_truths': ddG.detach().cpu().float().numpy() if ddG is not None else nan_col(),
+            'dddG_truths': get('dddG'),
+            'subset_types': list(batch.get('subset_type', ['single'] * B)),
+            'cens': batch['cens'].detach().cpu().numpy() if torch.is_tensor(batch.get('cens')) else np.zeros(B, dtype=np.int64),
+            'cens_src': (batch['cens_src'].detach().cpu().numpy() if torch.is_tensor(batch.get('cens_src'))
+                         else np.zeros(B, dtype=np.int64)),
+            'dG_wt': get('dG_wt'),
+            'y_floor': get('y_floor'),
+            'pdb': list(batch.get('pdb', [])),
+            'mutations': list(batch.get('mutations', [])),
+        }
+        self.validation_step_outputs[dataloader_idx].append(rec)
 
     def on_validation_epoch_start(self):
         self.validation_step_outputs = defaultdict(list)
 
+    _VAL_PROGRESS_BAR = ('rho_combined', 'rho_singles_wt')
+
+    @staticmethod
+    def _mut_keys(pdb, mutations):
+        """
+        One hashable key per item: a tuple of ``(library, position, mutant residue)`` per mutation.
+
+        ``epi_metrics`` pairs a double with its two singles by these keys and requires the library to be part of
+        them, so that identical mutations in different libraries are never matched up.
+        """
+        keys = []
+        for i, m in enumerate(mutations):
+            lib = pdb[i] if isinstance(pdb, (list, tuple)) and i < len(pdb) else (pdb if isinstance(pdb, str) else 'unknown')
+            parts = m.split(':') if isinstance(m, str) else m
+            try:
+                if parts and isinstance(parts[0], (list, tuple)):          # (wt, pos, mt) triples
+                    keys.append(tuple((str(lib), int(q[1]), str(q[2])) for q in parts))
+                else:                                                      # 'A12G' strings
+                    keys.append(tuple((str(lib), int(str(q)[1:-1]), str(q)[-1]) for q in parts))
+            except (ValueError, IndexError, TypeError):
+                keys.append(None)
+        return keys
+
     def on_validation_epoch_end(self):
         avg_metrics = defaultdict(list)
-        
-        # Pooled storage to compute ungrouped/global metrics at the end
-        pooled_data = defaultdict(list)
+        pooled = defaultdict(list)
         ext_per_loader = {}          # OOD loaders: kept out of avg_metrics/pooled, survived by _external summaries
-        
+
         for dataloader_idx, valid_outputs in self.validation_step_outputs.items():
-            val_loader_name = self.val_dataloader_names[dataloader_idx] if dataloader_idx < len(self.val_dataloader_names) else f"unknown_dl_{dataloader_idx}"
+            name = (self.val_dataloader_names[dataloader_idx] if dataloader_idx < len(self.val_dataloader_names)
+                    else f"unknown_dl_{dataloader_idx}")
 
-            is_external = val_loader_name in self.external_val_sets
+            cat = lambda key: (np.concatenate([np.atleast_1d(np.asarray(o[key])) for o in valid_outputs])
+                               if valid_outputs else np.array([]))
+            wt, mt, comb = cat('wt_scores'), cat('mt_scores'), cat('comb_scores')
+            gt, cens, dddG = cat('ground_truths'), cat('cens'), cat('dddG_truths')
+            cens_src = cat('cens_src')
+            # Score every run on the released labelling, where a mutant-background library's measurements are
+            # singles.
+            subset_types = ['single' if t == 'native_cond' else t for o in valid_outputs for t in o['subset_types']]
+            obs = None
+            if valid_outputs and 'obs' in valid_outputs[0]:
+                obs = {k: np.concatenate([o['obs'][k] for o in valid_outputs]) for k in valid_outputs[0]['obs']}
 
-            single_dict_comb = {}
-            wt_scores_list, comb_scores_list, epi_scores_list = [], [], []
-            ground_truths_list, dddG_truths_list, mut_lens_list = [], [], []
-            
-            flat_mut_parts, flat_pdb_ids = [], []
-            mt_scores_list, wt_rev_list, mt_fwd_list = [], [], []
-            dG_wt_list, subset_list = [], []
+            if not len(gt):
+                continue
 
-            for o in valid_outputs:
-                pdb_list, muts_list = o.get('pdb', []), o.get('mutations', [])
-                for i, m_val in enumerate(muts_list):
-                    mut_parts = m_val.split(':') if isinstance(m_val, str) else m_val
-                    pdb_id = pdb_list[i] if (isinstance(pdb_list, (list, tuple, np.ndarray)) and i < len(pdb_list)) else (pdb_list if isinstance(pdb_list, str) else "unknown")
-
-                    wt_scores_list.append(o['wt_scores'][i])
-                    mt_scores_list.append(o['mt_scores'][i])
-                    wt_rev_list.append(o['wt_rev_scores'][i] if 'wt_rev_scores' in o else np.nan)
-                    mt_fwd_list.append(o['mt_fwd_scores'][i] if 'mt_fwd_scores' in o else np.nan)
-                    dG_wt_list.append(o['dG_wt'][i] if 'dG_wt' in o else np.nan)
-                    subset_list.append(o['subset_type'][i] if 'subset_type' in o else ('single' if len(mut_parts) == 1 else 'double'))
-                    comb_scores_list.append(o['comb_scores'][i])
-                    epi_scores_list.append(o['epi_scores'][i])
-                    ground_truths_list.append(o['ground_truths'][i] if i < len(o['ground_truths']) else np.nan)
-                    dddG_truths_list.append(o['dddG_truths'][i] if i < len(o['dddG_truths']) else np.nan)
-                    mut_lens_list.append(len(mut_parts))
-                    
-                    flat_mut_parts.append(mut_parts)
-                    flat_pdb_ids.append(pdb_id)
-                    
-                    if len(mut_parts) == 1:
-                        key = (pdb_id, str(mut_parts[0]))
-                        single_dict_comb[key] = o['comb_scores'][i]
-
-            epi_scores_list_full = []
-
-            for i, mut_parts in enumerate(flat_mut_parts):
-                if len(mut_parts) > 1:
-                    pdb_id = flat_pdb_ids[i]
-                    add_comb = sum([single_dict_comb.get((pdb_id, str(m)), np.nan) for m in mut_parts])
-                    epi_scores_list_full.append(comb_scores_list[i] - add_comb)
-                else:
-                    epi_scores_list_full.append(0.0)
-                        
-            wt_scores, comb_scores = np.array(wt_scores_list), np.array(comb_scores_list)
-            epi_scores, epi_scores_full, ground_truths, dddG_truths = np.array(epi_scores_list), np.array(epi_scores_list_full), np.array(ground_truths_list), np.array(dddG_truths_list)
-            idx_singles, idx_doubles = np.array(mut_lens_list) == 1, np.array(mut_lens_list) >= 2
-            
-            valid_dddG_mask = idx_doubles & ~np.isnan(dddG_truths) & ~np.isnan(epi_scores)
-
+            # Score the CANONICAL population: every item the assay actually fitted, censored or not. Floor- and
+            # gap-censored items are scored like any other, because censoring belongs in the loss and excluding
+            # them makes the numbers incomparable to a run that censors nothing. The rows the assay only bounded
+            # (--censor_range) are held back instead: their label IS their bound and is a library constant, so
+            # scoring them would compare predictions against a flat line. They are still dumped in full below.
+            canon = cens_src != censoring.SRC_RANGE
+            sub = lambda a: np.asarray(a)[canon]
             metrics = stats.compute_metrics(
-                wt_scores, comb_scores, epi_scores, epi_scores_full,
-                ground_truths, dddG_truths, idx_singles, idx_doubles, valid_dddG_mask
-            )
-            # the WT head on plain singles in the library's own wild-type context (devel's rho_wt_valid; NaN for a mutant-background library)
-            sel = np.array([st == 'single' for st in subset_list]) & idx_singles & np.isfinite(ground_truths)
-            rho_wt_valid = np.nan if NATIVE_BACKGROUND_CODE_RE.search(str(val_loader_name)) else stats.safe_spearman(wt_scores[sel], ground_truths[sel])
-            if not np.isnan(rho_wt_valid):
-                self.log(f"val_rho_wt_valid/{val_loader_name}", rho_wt_valid, on_epoch=True, sync_dist=True)
-                if not is_external:
-                    avg_metrics['rho_wt_valid'].append(rho_wt_valid)
-            
-            # Aggregate pooled data for ungrouped metric calculation. An external benchmark is summarised from its
-            # own metrics below and never pooled: the ungrouped ranking and the epistasis levels stay in-distribution.
+                sub(wt), sub(mt), sub(comb), sub(gt), [t for t, k in zip(subset_types, canon) if k],
+                obs=None if obs is None else {k: sub(v) for k, v in obs.items()})
+            is_external = name in self.external_val_sets
+            for metric, val in metrics.items():
+                if val is not None and np.isfinite(val):
+                    self.log(f"val_{metric}/{name}", float(val), on_epoch=True, sync_dist=True)
+                    if not is_external:
+                        avg_metrics[metric].append(float(val))
             if is_external:
-                ext_per_loader[val_loader_name] = {
-                    'rho_combined': metrics.get('rho', {}).get('combined', np.nan),
-                    'rmse_combined': metrics.get('rmse', {}).get('combined', np.nan),
-                }
-            pooled_data['wt_scores'].extend([] if is_external else wt_scores_list)
-            pooled_data['comb_scores'].extend([] if is_external else comb_scores_list)
-            pooled_data['ground_truths'].extend([] if is_external else ground_truths_list)
-            # for the epistasis metrics (esm_msr.epi_metrics): per-item values of every pass, the mutation count and a library-tagged key
-            pooled_data['mt_scores'].extend([] if is_external else mt_scores_list)
-            pooled_data['wt_rev_scores'].extend([] if is_external else wt_rev_list)
-            pooled_data['mt_fwd_scores'].extend([] if is_external else mt_fwd_list)
-            pooled_data['dG_wt'].extend([] if is_external else dG_wt_list)
-            pooled_data['subset_type'].extend([] if is_external else subset_list)
-            pooled_data['dddG'].extend([] if is_external else dddG_truths_list)
-            pooled_data['n_mut'].extend([] if is_external else mut_lens_list)
-            pooled_data['loader'].extend([] if is_external else [val_loader_name] * len(mut_lens_list))
-            pooled_data['mut_key'].extend([] if is_external else
-                                          [tuple((val_loader_name,) + tuple(m) for m in mp) if all(isinstance(m, (tuple, list)) for m in mp) else None
-                                           for mp in flat_mut_parts])
+                # OOD benchmark: scored and logged above, but out of every aggregate - avg_metrics, the pooled global
+                # ranking and the epistasis hierarchy - and dropped before the pooling below. Only its own rho/rmse
+                # summary survives (summarise_external_benchmarks).
+                ext_per_loader[name] = {k: metrics[k] for k in EXTERNAL_SUMMARY_METRICS if k in metrics}
+                continue
 
-            # Log metrics avoiding MUT-specific grouped ones and grouped NDCGs
-            for metric_type in ['rho', 'rho_singles', 'rho_doubles', 'rho_dddG_heuristic', 'rho_dddG', 'rmse', 'ndcg@k=96', 'ndcg>0']: 
-                if metric_type in metrics:
-                    for pathway, val in metrics[metric_type].items():
-                        if pathway == 'mt': continue # Skip all standalone mut pass metrics
-                        if not np.isnan(val): self.log(f"val_{metric_type}_{pathway}/{val_loader_name}", val, on_epoch=True, sync_dist=True)
-
-            for metric_type, pathways in metrics.items(): 
-                for pathway, val in pathways.items():     
-                    if not np.isnan(val) and not is_external: avg_metrics[f"{metric_type}_{pathway}"].append(val)
+            # Pool for the global ranking and for the epistasis hierarchy, which needs every library at once.
+            keys = [k for o in valid_outputs for k in self._mut_keys(o['pdb'], o['mutations'])]
+            pooled['mut_key'].extend(keys)
+            pooled['subset_type'].extend(subset_types)
+            pooled['loader'].extend([name] * len(keys))
+            pooled['n_mut'].extend([len(k) if k else 0 for k in keys])
+            for field, arr in (('wt_scores', wt), ('mt_scores', mt), ('comb_scores', comb),
+                               ('ground_truths', gt), ('dddG', dddG), ('cens', cens), ('cens_src', cens_src),
+                               ('dG_wt', cat('dG_wt')), ('y_floor', cat('y_floor'))):
+                pooled[field].extend(np.asarray(arr).tolist())
+            for field in ('wt_rev_scores', 'mt_fwd_scores'):
+                have = valid_outputs and field in valid_outputs[0]
+                pooled[field].extend(cat(field).tolist() if have else [float('nan')] * len(keys))
 
         for key, values in avg_metrics.items():
-            if values: self.log(f'val_{key}_avg', np.nanmean(values), on_epoch=True, prog_bar=True, sync_dist=True)
+            if values:
+                self.log(f'val_{key}_avg', float(np.nanmean(values)), on_epoch=True,
+                         prog_bar=key in self._VAL_PROGRESS_BAR, sync_dist=True)
 
+        # OOD benchmarks, as their own section: mean rho/rmse over the external loaders, never inside an aggregate.
         for _k, _v in summarise_external_benchmarks(ext_per_loader, self.external_val_sets).items():
             self.log(_k, _v, on_epoch=True, sync_dist=True)
 
-        # Compute Ungrouped metrics globally across all valid samples
-        if pooled_data['ground_truths']:
-            g_wt = np.array(pooled_data['wt_scores'])
-            g_comb = np.array(pooled_data['comb_scores'])
-            g_gt = np.array(pooled_data['ground_truths'])
-            
-            valid_mask = ~np.isnan(g_gt)
-            if valid_mask.any():
-                ungrouped_rho = {
-                    'wt': stats.safe_spearman(g_wt[valid_mask], g_gt[valid_mask]),
-                    'combined': stats.safe_spearman(g_comb[valid_mask], g_gt[valid_mask])
-                }
-                ungrouped_ndcg_k96 = {
-                    'wt': stats.safe_ndcg_k96(g_wt[valid_mask], g_gt[valid_mask]),
-                    'combined': stats.safe_ndcg_k96(g_comb[valid_mask], g_gt[valid_mask])
-                }
-                ungrouped_ndcg_t0 = {
-                    'wt': stats.safe_ndcg_t0(g_wt[valid_mask], g_gt[valid_mask]),
-                    'combined': stats.safe_ndcg_t0(g_comb[valid_mask], g_gt[valid_mask])
-                }
-                
-                for pathway, val in ungrouped_rho.items():
-                    if not np.isnan(val): self.log(f"val_rho_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
-                for pathway, val in ungrouped_ndcg_k96.items():
-                    if not np.isnan(val): self.log(f"val_ndcg@k=96_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
-                for pathway, val in ungrouped_ndcg_t0.items():
-                    if not np.isnan(val): self.log(f"val_ndcg@k>0_ungrouped_{pathway}", val, on_epoch=True, sync_dist=True)
+        # Ungrouped metrics across all valid in-distribution samples
+        if pooled['ground_truths']:
+            g_wt = np.array(pooled['wt_scores']); g_comb = np.array(pooled['comb_scores'])
+            g_gt = np.array(pooled['ground_truths']); g_src = np.array(pooled['cens_src'])
+            ok = np.isfinite(g_gt) & (g_src != censoring.SRC_RANGE)
+            if ok.any():
+                self.log("val_rho_ungrouped_wt", stats.safe_spearman(g_wt[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
+                self.log("val_rho_ungrouped_combined", stats.safe_spearman(g_comb[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
+            for _k, _v in (self._log_epistasis(pooled) or {}).items():
+                if np.isfinite(_v):
+                    avg_metrics[_k].append(float(_v))
 
-        ESM3EpistasisLightningModule._log_epistasis(self, pooled_data)
+        if hasattr(self, 'link_head'):
+            for k, v in self.link_head.summary().items():
+                self.log(f"link/{k}", v, on_epoch=True, sync_dist=True)
 
         if not self.trainer.sanity_checking and self.hparams.freeze_wt_on_convergence and not self.peft_manager.has_transitioned:
             target_metric_key = self.hparams.wt_convergence_metric
