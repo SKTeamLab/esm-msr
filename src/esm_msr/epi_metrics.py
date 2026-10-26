@@ -34,13 +34,11 @@ How saturation is kept out. Two devices:
       predicted:  r' = dddG'_h    - E[dddG'_h    | x'_h ],  x'_h  = c + the head's own additive prediction (latent)
     The predicted side conditions on the head's OWN x' because a head's saturation-made dddG' is an exact function of x' (it is its link
     bending its own additive prediction), so a head that is additive before its link scores exactly 0 at every residual level. Each head's
-    dddG' (``predicted_dddg``):
-      comb   P_comb(AB) - obs(comb(A) + comb(B))           x' = c + comb(A) + comb(B)     6 head evaluations
-      epi    P_epi(AB)  - P_wt(AB)       ~MT(AB) - WT(AB)  x' = c + WT(AB)                2 evaluations, no singles asked of the MT head
-      ctx    P_rev(AB)  - P_wt(AB)       ~WT(AB) - WT(AB)  x' = c + WT(AB)                the same with the WT adapter in the MT seat
+    dddG' (``predicted_dddg``, evaluated on the latent scale):
+      epi    L_epi(AB)  - L_wt(AB)       ~MT(AB) - WT(AB)  x' = c + WT(AB)                2 evaluations, no singles asked of the MT head
+      ctx    L_rev(AB)  - L_wt(AB)       ~WT(AB) - WT(AB)  x' = c + WT(AB)                the same with the WT adapter in the MT seat
     WT(AB) = WT(A) + WT(B) exactly (the WT adapter on the wild type, per-mutation bias), so epi / ctx read the part of the double the WT head's
-    singles do not give: the epistasis component the model would actually report, at the cost of the double alone. comb keeps the definition
-    used since the suite was introduced, for comparability with earlier runs (only naive_rho_comb is logged). P = observed scale, h(c + latent) - c.
+    singles do not give: the epistasis component the model would actually report, at the cost of the double alone.
     The pair / line / cell levels are pair means, line effects and double-centred cells of these residuals.
   * WITHIN-COLUMN RANKS (orders). A monotone assay cannot change which of two doubles in one column (same library, same partner) is more stable,
     so the order of ddG_AB inside a column is saturation-free. The cell-level rank statistic double-centres column ranks; the confident-flip
@@ -48,7 +46,6 @@ How saturation is kept out. Two devices:
 
 Heads (latent ddG rules; observed = h(c + latent) - c through the run's link, or the latent itself):
 
-    comb  (WT + ~MT)/2: the reported prediction (inference ``combined_pred``; logged only for naive_rho)
     epi   ~MT: the epistasis (MT) pass alone, evaluated relative to the WT additive baseline (~MT(AB) - WT(AB))
     ctx   (WT + ~WT)/2 on the rank levels; ~WT alone in its dddG' above. ~WT is the WT adapter read on the mutated sequence. It never trains
           on a double, so it is the CONTROL for what the backbone plus single-mutant training already know about epistasis. Needs
@@ -57,9 +54,9 @@ Heads (latent ddG rules; observed = h(c + latent) - c through the run's link, or
 
 The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``).
 
-    naive_rho_{comb,epi,ctx,add}    Spearman of the head's raw observed-scale dddG' against measured dddG over all doubles, nothing removed
-                                    (comb / add: P(AB) - P(A) - P(B)). Mostly saturation - add scores about as much as comb. For curiosity.
-    global_err_epi                  RMSE (kcal/mol) of the predicted epistasis dddG' (~MT - WT) against measured dddG on double mutants.
+    naive_rho_{epi,ctx,add}         Spearman of the head's observed-scale epistasis against measured dddG over all doubles:
+                                    P_h(AB) - (P_add(A) + P_add(B)). Add is the saturation-only control.
+    global_err_epi                  RMSE (kcal/mol) of the predicted latent epistasis dddG' (~MT - WT) against measured dddG on double mutants.
     global_bias_epi                 Mean of (predicted_dddG - measured_dddG) in kcal/mol on double mutants; negative = under-predicted epistasis.
     beyond_rho_{epi,ctx}            Spearman of r' against r over all doubles: everything above the global level at once (pair and library
                                     offsets dominate it).
@@ -112,7 +109,7 @@ MIN_PAIRS = 8            # the pair level needs this many matrices
 MIN_LINE = 3             # a line needs this many cells for its mean
 MIN_BLOCK = 3            # a complete block needs at least this many rows and columns
 
-HEADS = ('comb', 'epi', 'ctx', 'add')
+HEADS = ('epi', 'ctx', 'add')
 EPI_HEADS = ('epi', 'ctx')
 # Heads whose dddG' is their DOUBLE minus the WT-additive double (head -> the latent whose double is read); see predicted_dddg.
 WT_REFERENCED = {'epi': 'epi', 'ctx': 'rev', 'mt': 'epi'}
@@ -254,7 +251,7 @@ class Table:
         if items.get('wt_rev') is not None and np.isfinite(np.asarray(items['wt_rev'], float)).any():
             lat['rev'] = np.asarray(items['wt_rev'], float)
             lat['ctx'] = 0.5 * (lat['add'] + lat['rev'])
-        self.heads = [h for h in heads if h in lat] + (['rev'] if 'rev' in lat else [])
+        self.heads = [h for h in heads if h in lat] + (['rev'] if 'rev' in lat else []) + (['comb'] if 'comb' in lat and 'comb' not in heads else [])
 
         single = {}
         for i, k in enumerate(keys):
@@ -338,15 +335,15 @@ def _lay(M, v):
 
 # ---------------------------------------------------------------- residuals
 def predicted_dddg(t: Table, h: str):
-    """(dddG'_h on the observed scale, x'_h): the head's predicted epistasis and its own additive expectation; see the module docstring."""
+    """(dddG'_h in latent space, x'_h): the head's predicted latent epistasis and its additive expectation."""
     if h in WT_REFERENCED:
         ref = WT_REFERENCED[h]
-        if ref in t.P and 'add' in t.P:
-            return t.P[ref] - t.P['add'], t.c + t.L['add']
-        if h in t.P:
-            add_l = t.L['add'] if 'add' in t.L else np.zeros_like(t.P[h])
-            return t.P[h], t.c + add_l
-    return t.P[h] - t.PX[h], t.c + t.LA[h] + t.LB[h]
+        if ref in t.L and 'add' in t.L:
+            return t.L[ref] - t.L['add'], t.c + t.L['add']
+        if h in t.L:
+            add_l = t.L['add'] if 'add' in t.L else np.zeros_like(t.L[h])
+            return t.L[h], t.c + add_l
+    return t.L[h] - (t.LA[h] + t.LB[h]), t.c + t.LA[h] + t.LB[h]
 
 
 def beyond_global(t: Table, h: str):
@@ -369,7 +366,21 @@ def _lib_centred(v, lib):
 
 # ---------------------------------------------------------------- levels
 def naive_rho(t: Table, h: str) -> float:
-    d = predicted_dddg(t, h)[0] if h in WT_REFERENCED else t.P[h] - t.PA[h] - t.PB[h]
+    """
+    Spearman of the head's observed-scale epistasis against measured dddG.
+    For epi and ctx, the observed double minus the WT additive singles:
+      P_h(AB) - (P_add(A) + P_add(B))
+    For add, the saturation-only control:
+      P_add(AB) - (P_add(A) + P_add(B))
+    """
+    add_singles = (t.PA['add'] + t.PB['add']) if ('add' in t.PA and 'add' in t.PB) else (t.PA.get(h, 0.0) + t.PB.get(h, 0.0))
+    if h in WT_REFERENCED:
+        ref = WT_REFERENCED[h]
+        d = (t.P[ref] if ref in t.P else t.P[h]) - add_singles
+    elif h == 'add':
+        d = t.P['add'] - add_singles
+    else:
+        d = t.P[h] - add_singles
     return _rho(d, t.dddG)
 
 

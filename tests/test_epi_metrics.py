@@ -187,7 +187,7 @@ class TestTable(unittest.TestCase):
 
     def test_logged_names_cover_the_documented_set(self):
         names = E.logged_names()
-        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 4 + 1 + 1 + 11 * 2)
+        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 3 + 1 + 1 + 11 * 2)
         s = E.compute(E.Table(items(*synthetic(0), KNOW['all']), FLOOR))
         for n in names:
             self.assertIn(n, s)
@@ -197,7 +197,7 @@ class TestTable(unittest.TestCase):
             if m.startswith('global_'):
                 self.assertEqual(tuple(hs), ('epi',), m)
             elif m == 'naive_rho':
-                self.assertEqual(set(hs), {'comb', 'epi', 'ctx', 'add'}, m)
+                self.assertEqual(set(hs), {'epi', 'ctx', 'add'}, m)
             else:
                 self.assertEqual(set(hs), {'epi', 'ctx'}, m)
 
