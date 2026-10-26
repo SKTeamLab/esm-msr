@@ -53,6 +53,11 @@ CAPPED = {'splits_oct06_capped-val': 'tsu_capped_val', 'splits_oct06_capped-test
 REL, DEVEL = 'ESM-MSR (released)', 'ESM-MSR (devel)'
 REL_CK = ['esm-msr-baseline-w2a4-m16a16-capped']
 DEVEL_CK = [f'esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{i}' for i in (1, 2, 3)]
+# "trim": three seeds trained with per-site leave-one-out masking on the MT pass (mask_strategy_mt=independent).
+# Their prediction and statistics filenames therefore carry a mask tag -- <ckpt>_sigma1_wt-unmasked_mt-independent_<head>
+# -- rather than the plain '_unmasked_' that an unmasked run writes, which is why _msr_stats() accepts both.
+TRIM = 'ESM-MSR (trim, σ=1)'
+TRIM_CK = [f'trim_mask_mt_ind_fast_s{i}' for i in (1, 2, 3)]
 SIGMA_SWEEP = ['0.75', '0.5', '0.25']          # LoRA scales run on the DMS and Domainome blocks, besides 1 and 0
 
 
@@ -98,13 +103,44 @@ MULTI = {'ptmul', 'ptmuld', 'tsu_capped_val', 'tsu_capped_test'} | {d for d in D
 _CONV = {}
 
 
+def _sigma_tokens(sigma):
+    """The σ token as callers spell it, plus the way esm_msr_testing.py writes it. The writer formats
+    `f'_sigma{args.sigma}'` from a float, so the default run stores `_sigma1.0_` while collect_msr passes '1';
+    without both spellings a writer-produced file is invisible to the collector."""
+    out = {str(sigma)}
+    try:
+        v = float(sigma)
+        out.add('%g' % v)      # 1, 0.75, 0.25
+        out.add(repr(v))       # 1.0, 0.75, 0.25
+    except (TypeError, ValueError):
+        pass
+    return sorted(out)
+
+
+def _msr_paths(root, ck, sigma, tail, sub=None):
+    """Every glob that can be this file, tolerating the mask-strategy tag. `tail` is the filename part after the tag
+    ('Combined.csv', 'Combined_avg.csv', 'predictions.csv'). The tag is 'unmasked' when both passes are unmasked and
+    'wt-<w>_mt-<m>' when they differ, e.g. trim's 'wt-unmasked_mt-independent' (inference_scripts/esm_msr_testing.py:
+    _mask_strategy_tag). The plain form is tried first so an unmasked run wins if both exist."""
+    base = f'{root}/{sub}/{ck}' if sub else f'{root}/{ck}'
+    hits = []
+    for tok in _sigma_tokens(sigma):
+        for tag in ('unmasked', 'wt-*_mt-*'):
+            hits += glob.glob(f'{base}/*_sigma{tok}_{tag}_{tail}')
+    return hits
+
+
+def _msr_stats(stats, sub, ck, sigma, head, avg=False):
+    return _msr_paths(stats, ck, sigma, f'{head}_avg.csv' if avg else f'{head}.csv', sub)
+
+
 def bias_convention(ds, ck, sigma):
     """Which calibration-bias convention a stored ESM-MSR prediction file was produced under, read from the file itself.
     For a multi-mutant, wt_lora_dddg_pred = (the double's WT prediction) - (the sum of its singles'), which is -bias_wt with one bias per
     item and exactly 0 with one per mutated position, so its mean over the multi-mutants tells them apart. A job that started before the
     switch and finished after it therefore cannot pass for a new one, as a file time would let it. None: no multi-mutants / no file."""
     sub = {'ptmul': 'PTMUL', 'tsu_capped_val': 'splits_oct06_capped-val', 'tsu_capped_test': 'splits_oct06_capped-test'}.get(ds, ds)
-    f = glob.glob(f'{DEV}/analysis_notebooks/predictions/{sub}/{ck}/*_sigma{sigma}_unmasked_predictions.csv')
+    f = _msr_paths(f'{DEV}/analysis_notebooks/predictions/{sub}', ck, sigma, 'predictions.csv')
     if not f:
         return None
     key = (f[0], os.path.getmtime(f[0]))
@@ -126,7 +162,7 @@ def collect_msr(rows, ckpt_dirs, model, sigma='1', heads=None, blocks=('external
             for sub, names in [('external', EXT), ('DMS', DMS)]:
                 if sub not in blocks:
                     continue
-                f = glob.glob(f'{stats}/{sub}/{ck}/*_sigma{sigma}_unmasked_{head}.csv')
+                f = _msr_stats(stats, sub, ck, sigma, head)
                 if f:
                     d = pd.read_csv(f[0], index_col=0)
                     for ds in names:
@@ -137,7 +173,7 @@ def collect_msr(rows, ckpt_dirs, model, sigma='1', heads=None, blocks=('external
                                  ('splits_oct06_capped-test', 'tsu_capped_test', 'tsu')]:
                 if blk not in blocks:
                     continue
-                f = glob.glob(f'{stats}/{sub}/{ck}/*_sigma{sigma}_unmasked_{head}_avg.csv')
+                f = _msr_stats(stats, sub, ck, sigma, head, avg=True)
                 if f:
                     acc.setdefault(ds, []).append(pd.read_csv(f[0], index_col=0).loc['spearman_all'].iloc[0])
                     conv.setdefault(ds, []).append(bias_convention(ds, ck, sigma) if ds in MULTI else None)
@@ -347,6 +383,7 @@ def cmd_collect(a):
     rows = Rows()
     collect_msr(rows, REL_CK, REL)
     collect_msr(rows, DEVEL_CK, DEVEL)
+    collect_msr(rows, TRIM_CK, TRIM)
     collect_msr(rows, REL_CK, 'ESM3-small-open (σ=0, MSR readout)', sigma='0.0')
     for e in SIGMA_SWEEP:                    # DMS + Domainome only; the combined head
         for ck, name in [(REL_CK, REL), (DEVEL_CK, DEVEL)]:
@@ -366,6 +403,7 @@ def cmd_collect(a):
 # ---------------------------------------------------------------------------------------------- tables
 ROWS = [(REL, 'ESM-MSR (released), combined'), (REL + ' WT', 'ESM-MSR (released), WT head'),
         (DEVEL, 'ESM-MSR (devel), combined (3 seeds)'), (DEVEL + ' WT', 'ESM-MSR (devel), WT head'),
+        (TRIM, 'ESM-MSR (trim/mask), combined (3 seeds)'), (TRIM + ' WT', 'ESM-MSR (trim/mask), WT head'),
         ('ME stage1', 'MutateEverything st1 (3 seeds)'), ('ME stage1+', 'MutateEverything st1, additive'),
         ('ME stage2', 'MutateEverything st2 (3 seeds)'), ('ME stage2+', 'MutateEverything st2, additive'),
         ('TMPNN', 'ThermoMPNN (additive, 3 seeds)'), ('TMPNN+D', 'ThermoMPNN + ThermoMPNN-D (3 seeds)'),
