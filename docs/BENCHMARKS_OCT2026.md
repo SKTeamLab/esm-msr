@@ -312,7 +312,7 @@ seed has finished; the combined head is shown).
 | SPURS multi (multi-mutant model) | 0.426ᴹ | 0.808ᴹ | 0.477ᴹ |
 | ESMtherm | 0.213ᴾ | 0.720ᴾ | 0.283ᴾ |
 | GeoDDG-3D (FASPR) | 0.383 | 0.638 | 0.422 |
-| ESM3ΔG | q | q | q |
+| ESM3ΔG | 0.380 | 0.788 | 0.441 |
 | ProSST (zero-shot) | **0.514ᶜ** | **0.653ᶜ** | **0.528ᶜ** |
 | Rosetta Cartesian ΔΔG | _0.375_ | _0.640_ | _0.409_ |
 | ProteinMPNN (zero-shot) | 0.408ᶜ | 0.627ᶜ | 0.426ᶜ |
@@ -361,17 +361,20 @@ seed has finished; the combined head is shown).
   the ESM3 comparison is a readout that cannot represent an interaction against one that can.
 - **ESMtherm is Stability-only**, and the table shows how much: 0.720 on Stability against 0.213 on the five-category
   average (0.283 DMS mean), the opposite shape to ProSST.
+- **ESM3ΔG completes the row stability-led, like the other stability-trained models.** 0.788 on Stability against a
+  0.380 five-category average and 0.441 on the DMS mean. Measured as the Stability-minus-average gap that is 0.41,
+  second only to ESMtherm's 0.51 and well above GeoDDG's 0.26; ProSST leans the same way but only by 0.14, so the
+  row's shape is set by how much weight each model puts on the stability assays rather than by which side of zero.
 - **GeoDDG inverts the way its external-set lead predicts.** It scores 0.383 on the five-category average with 0.638
   on Stability and 0.422 on the DMS mean: strong on the stability-led slice, weak on the functional assays, the
   mirror image of ESMtherm and the same inversion §1.3 records for the literature-ΔΔG models. Its ProteinGym overlap
   composition has not been audited, so its row in the leak-code table below stays `–` like the other unaudited
   models.
-- **In progress:** ESM3ΔG (fp16) is the last model whose ProteinGym row is unfilled (204 of 213 DMS, 2026-10-25). A
-  model is summarised only once all 213 common DMS are in. GeoDDG finished on 2026-10-25 (386804, 1 d 08 h) and its
-  row is above; its first attempt (386277) had been killed by its own two-day wall clock at 148 DMS, and because the
-  harness skips datasets whose output already exists, the resumed job redid none of that work. IFUM's ProteinGym run
-  was stopped as not worth the time it needed, and DDGemb and DDMut are web services that cannot be run at this
-  scale.
+- **Every row in this table is complete.** ESM3ΔG finished on 2026-10-26 (386364, 3 d 23 h, 213 of 213; the last
+  dataset, `SPG1_STRSG_Olson_2014`, took 25.5 h on its own) and GeoDDG on 2026-10-25 (386804, 1 d 08 h). GeoDDG's
+  first attempt had been killed by its own two-day wall clock at 148 DMS, and because the harness skips datasets whose
+  output already exists, the resumed job redid none of that work. IFUM's ProteinGym run was stopped as not worth the
+  time it needed, and DDGemb and DDMut are web services that cannot be run at this scale.
 
 The ε sweep and per-category breakdown are in §3.
 
