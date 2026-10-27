@@ -33,7 +33,6 @@ RETIRED = {
     # the LoRA spec is fixed (inference reads an old checkpoint's own values from its hparams)
     **{f'{k}_{h}': _r('bool', v, 'a constant now') for h in ('wt', 'mt')
        for k, v in (('use_dora', False), ('unfreeze_layernorms', False), ('incl_structure_encoder', False), ('incl_sequence_head', True))},
-    **{f'target_mode_{h}': _r('val', 'expanded', 'a constant now') for h in ('wt', 'mt')},
     **{f'last_n_layers_{h}': _r('val', 0, 'a constant now') for h in ('wt', 'mt')},
     'lora_mode': _r('val', 'ensemble', 'the MT head is always an ensemble partner of the WT head (corrector removed)'),
     'combined_mode': _r('val', 'mean', 'the reported prediction is always the mean of the two heads (route and sum removed)'),
@@ -243,9 +242,15 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     arch.add_argument('--lora_rank_mt', type=int, default=16)
     arch.add_argument('--lora_alpha_mt', type=int, default=16)
     arch.add_argument('--lora_dropout_mt', type=float, default=0.1)
+    arch.add_argument('--target_mode_mt', type=str, default='expanded',
+                      choices=['expanded', 'qkv_outproj', 'baseline', 'all', 'ffn'],
+                      help="LoRA target modules for MT adapter: expanded (QKV+FFN, default), qkv_outproj (attention only: QKV+out_proj, skipping FFN), baseline (QKV only), all (QKV+out_proj+FFN), or ffn.")
     arch.add_argument('--lora_rank_wt', type=int, default=2)
     arch.add_argument('--lora_alpha_wt', type=int, default=4)
     arch.add_argument('--lora_dropout_wt', type=float, default=0.1)
+    arch.add_argument('--target_mode_wt', type=str, default='expanded',
+                      choices=['expanded', 'qkv_outproj', 'baseline', 'all', 'ffn'],
+                      help="LoRA target modules for WT adapter.")
     arch.add_argument('--tie_mt_scale', action=argparse.BooleanOptionalAction, default=False,
                       help="Tie the MT calibration head's SCALE to the frozen WT head's (the MT head keeps its own bias). The calibrated outputs are then "
                            "the common latent scale; with an independent MT scale the raw-scale rank loss weights the two halves differently from the "

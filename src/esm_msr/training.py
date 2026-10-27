@@ -88,7 +88,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         hp = self.hparams
 
         lora = lambda side: {"lora_rank": hp[f'lora_rank_{side}'], "lora_alpha": hp[f'lora_alpha_{side}'],
-                             "lora_dropout": hp[f'lora_dropout_{side}'], "seed": hp.seed, **LORA_CONSTANTS}
+                             "lora_dropout": hp[f'lora_dropout_{side}'], "seed": hp.seed,
+                             "target_mode": hp.get(f'target_mode_{side}', LORA_CONSTANTS['target_mode']),
+                             **{k: v for k, v in LORA_CONSTANTS.items() if k != 'target_mode'}}
         lora_config = {'wt_config': lora('wt'), 'mt_config': lora('mt'), 'seed': hp.seed}
 
         self.model = MSRModel(
