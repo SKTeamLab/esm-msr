@@ -42,7 +42,6 @@ RETIRED = {
     'rank_ci_margin': _r('val', 0.0, 'uncertainty margins removed'),
     'per_mutation_bias': _r('bool', True, 'always on (a scalar bias puts a double one bias below its two singles)'),
     'tf_delink': _r('bool', True, 'always on'),
-    'link': _r('bool', True, 'always on'),
     'wt_trains_doubles': _r('bool', False, 'the WT head trains on singles only'),
     'wt_double_target': _r('val', 'latent', 'a constant now'),
     'alternate_heads': _r('bool', False, 'removed (never run)'),
@@ -256,6 +255,8 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                            "the common latent scale; with an independent MT scale the raw-scale rank loss weights the two halves differently from the "
                            "calibrated combined prediction. Default OFF (independent scales, as the released models and every MT run so far); "
                            "pass --tie_mt_scale to share the WT scale. Recorded in hparams.yaml: inference reads it back.")
+    arch.add_argument('--link', action=argparse.BooleanOptionalAction, default=True,
+                      help="Enable the saturating assay link (default True). Pass --no-link to disable.")
     arch.add_argument('--link_floor', type=float, default=0.0,
                       help="The link's one knee (kcal/mol of absolute dG): 0.0 is the physical floor, the unfolded state. Stamped on every item.")
     arch.add_argument('--link_tau', type=float, default=0.59, help="Width of the link's knee in kcal/mol (RT).")

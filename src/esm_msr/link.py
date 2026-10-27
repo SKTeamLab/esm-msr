@@ -163,3 +163,31 @@ class SaturatingLink(nn.Module):
         lo, hi = self.bounds()
         return {'tau': float(self.tau()), 'floor_min': float(lo), 'floor_max': float(hi),
                 'global_floor': float(torch.minimum(torch.maximum(self.global_floor, lo), hi))}
+
+
+class IdentityLink(nn.Module):
+    """An identity link that passes values through unclipped (used when --no-link is passed)."""
+
+    def forward(self, z, y_floor=0.0):
+        return z
+
+    def inverse(self, y, y_floor=0.0):
+        return y
+
+    def obs_ddG(self, latent: torch.Tensor, dG_wt: torch.Tensor = None, y_floor=0.0) -> torch.Tensor:
+        return latent
+
+    def latent_ddG(self, observed: torch.Tensor, dG_wt: torch.Tensor = None, y_floor=0.0) -> torch.Tensor:
+        return observed
+
+    def effective_floor(self, y_floor=0.0):
+        return torch.as_tensor(float('-inf'))
+
+    @torch.no_grad()
+    def numpy(self):
+        return None
+
+    @torch.no_grad()
+    def summary(self) -> dict:
+        return {'link': 'none'}
+

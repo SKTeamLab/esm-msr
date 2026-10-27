@@ -17,7 +17,7 @@ from lightning.pytorch.loggers import CometLogger, CSVLogger
 
 from esm_msr.models import MSRModel, combine_predictions, pass_mask_strategy
 from esm_msr import censoring, epi_metrics, stats, utils
-from esm_msr.link import SaturatingLink
+from esm_msr.link import SaturatingLink, IdentityLink
 from esm_msr.losses import ListMLELoss, hinge_regression_loss
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
@@ -38,8 +38,10 @@ SAVE_TOP_K = 3
 UNLOGGED_ARGS = ('log_dir', 'cache_path', 'comet', 'comet_project_name', 'comet_offline', 'comet_experiment_key')
 
 
-def build_link(hp) -> SaturatingLink:
+def build_link(hp):
     """The observed-scale link of a run: one floor and one knee width, both set by flags and neither learned."""
+    if not getattr(hp, 'link', True):
+        return IdentityLink()
     return SaturatingLink(tau=hp.link_tau, floor=hp.link_floor)
 
 
@@ -76,6 +78,8 @@ def reachable_bounds(link, bound, y_floor, offset):
     Raised to the knee's reading h(floor) = floor + tau*ln2, so a lower-censored item's hinge holds exactly when its latent is at or below
     the floor. ``offset`` = ddG - dG_meas converts absolute dG to the item's scale. Detached: a bound never trains the link it comes from.
     """
+    if isinstance(link, IdentityLink):
+        return bound
     knee_ddG = link(link.effective_floor(y_floor), y_floor).detach() + offset
     # Only where computable: torch.maximum propagates NaN, which would destroy a good bound.
     return torch.where(torch.isfinite(knee_ddG), torch.maximum(bound, knee_ddG), bound)
