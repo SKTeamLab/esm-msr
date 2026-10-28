@@ -129,6 +129,8 @@ warnings.filterwarnings('ignore') # Consider removing this to catch legitimate d
 
 import paths  # noqa: E402
 import resource_tracker  # noqa: E402
+import batching  # noqa: E402
+from batching import merge_info  # noqa: E402
 from benchmark_rows import EXTERNAL, DMS, external_rows, dms_rows, domainome_rows, library_sequence  # noqa: E402
 
 REPO_ROOT = paths.REPO_ROOT
@@ -187,16 +189,18 @@ def load_spurs_models(checkpoint_single, checkpoint_multi, models='both'):
     return model_single, model_multi, cfg_single, cfg_multi
 
 
-def run_multi(model_multi, pdb_data, mutation_lists, chunk):
-    """SPURSMulti ddG for each mutation list, grouped by number of mutations and chunked so the per-variant tensors of
-    very large DMS stay bounded; the structure/ESM2 pass is repeated once per chunk."""
+def run_multi(model_multi, pdb_data, mutation_lists, batching, label=''):
+    """(ddG array, batch info): SPURSMulti ddG for each mutation list, grouped by number of mutations and run in the batches
+    `batching` decides (baselines/batching.py; fixed default 4096 variants per call); the structure/ESM2 pass is repeated
+    once per call."""
     out = np.full(len(mutation_lists), np.nan)
     by_len = {}
     for i, muts in enumerate(mutation_lists):
         by_len.setdefault(len(muts), []).append(i)
-    for idx in by_len.values():
-        for j in range(0, len(idx), chunk):
-            sub = idx[j:j + chunk]
+    infos = []
+    for n_mut, idx in by_len.items():
+        def chunk_fn(a, b, idx=idx):
+            sub = idx[a:b]
             mut_ids, append_tensors = parse_pdb_for_mutation([mutation_lists[i] for i in sub])
             pdb_data_group = pdb_data.copy()
             pdb_data_group['mut_ids'] = mut_ids
@@ -204,7 +208,8 @@ def run_multi(model_multi, pdb_data, mutation_lists, chunk):
             with torch.no_grad():
                 ddg_multi = model_multi(pdb_data_group)
             out[sub] = ddg_multi.view(-1).float().cpu().numpy()
-    return out
+        infos.append(batching.run(len(idx), chunk_fn, label=f'{label} {n_mut}-mut', default_chunk=4096))
+    return out, merge_info(infos)
 
 
 def _seq_len(pdb_data):
@@ -235,7 +240,8 @@ class Spurs:
 
     def __init__(self, args, tracker):
         self.args, self.tracker = args, tracker
-        self.mutants, self.models, self.chunk = args.mutants, args.models, args.chunk
+        self.mutants, self.models = args.mutants, args.models
+        self.batching = args.batching
         with tracker.stage('model_load'):
             self.single, self.multi, self.cfg_single, self.cfg_multi = load_spurs_models(
                 args.checkpoint_single, args.checkpoint_multi, args.models)
@@ -259,7 +265,7 @@ class Spurs:
         if not len(wanted):
             return out
         with self.tracker.scope('protein', name, n_rows=len(wanted), seq_len=_seq_len(pdb_data),
-                                models=self.models, chunk=self.chunk) as sc:
+                                models=self.models) as sc:
             if self.single is not None:
                 with sc.phase('single_forward'), torch.no_grad():
                     ddg_local = self.single(pdb_data, return_logist=True).float().cpu()
@@ -270,10 +276,13 @@ class Spurs:
             if self.multi is not None:
                 singles = sorted({m for i in wanted for m in lists[i]})
                 with sc.phase('multi_singles'):
-                    s_pred = dict(zip(singles, run_multi(self.multi, pdb_data, [[m] for m in singles], self.chunk)))
+                    vals, info_s = run_multi(self.multi, pdb_data, [[m] for m in singles], self.batching, f'{name} singles')
+                    s_pred = dict(zip(singles, vals))
                 out['SPURS_multi_additive'][wanted] = -np.array([sum(s_pred[m] for m in lists[i]) for i in wanted])
                 with sc.phase('multi_targets'):
-                    out['SPURS_multi'][wanted] = -run_multi(self.multi, pdb_data, [lists[i] for i in wanted], self.chunk)
+                    vals, info_t = run_multi(self.multi, pdb_data, [lists[i] for i in wanted], self.batching, f'{name} targets')
+                    out['SPURS_multi'][wanted] = -vals
+                sc.note(**merge_info([info_s, info_t]))
         torch.cuda.empty_cache()
         return out
 
@@ -349,10 +358,11 @@ class Spurs:
 def main(args):
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
+    args.batching = batching.Batching(args)
     tracker = resource_tracker.Tracker.from_args(
         args, label='spurs', default_dir=out / 'resources',
         meta={'model': 'SPURS', 'checkpoint_single': args.checkpoint_single, 'checkpoint_multi': args.checkpoint_multi,
-              'models': args.models, 'mutants': args.mutants, 'dtype': 'fp32', 'chunk': args.chunk})
+              'models': args.models, 'mutants': args.mutants, 'dtype': 'fp32', **args.batching.meta()})
     try:
         spurs = Spurs(args, tracker)
         if not args.skip_tsuboyama and args.split:
@@ -399,6 +409,6 @@ if __name__ == '__main__':
     parser.add_argument('--skip_existing', action='store_true', help='skip an external/DMS/Domainome output that exists')
     parser.add_argument('--pgym_dir', default=str(paths.PGYM_INPUTS), help='pgym_inputs (preprocessing/pgym_preprocess.py)')
     parser.add_argument('--pgym_dms', default='all', help="comma-separated DMS ids, or 'all'")
-    parser.add_argument('--chunk', type=int, default=4096, help='variants per SPURS-multi forward call')
+    batching.add_batch_args(parser)
     resource_tracker.add_tracking_args(parser)
     main(parser.parse_args())

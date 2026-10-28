@@ -49,6 +49,8 @@ from pathlib import Path
 sys.path.insert(0, str(paths.REPO_ROOT / "src"))
 from esm_msr import utils
 import resource_tracker  # noqa: E402
+import batching  # noqa: E402
+from batching import merge_info  # noqa: E402
 from benchmark_rows import EXTERNAL, DMS, external_rows, dms_rows, domainome_rows, library_sequence  # noqa: E402
 
 from tqdm import tqdm
@@ -488,7 +490,7 @@ def mpnn_decode_at(model, enc, S, vals, p):
 
 
 def score_unmasked_fast(model, mut_strings, X, S_wt, mask, residue_idx, chain_encoding_all, alphabet,
-                        max_tokens=32768, seed=0, n_samples=1, coord_noise=0.0):
+                        max_tokens=32768, seed=0, n_samples=1, coord_noise=0.0, batching=None, info_out=None):
     """calculate_unmasked_scores (N_background_orders=1) for every variant of one structure, without the redundant
     work of scoring them one at a time. Returns (score_wt, score_mut) as numpy arrays.
 
@@ -539,9 +541,10 @@ def score_unmasked_fast(model, mut_strings, X, S_wt, mask, residue_idx, chain_en
         X_s = X + coord_noise * torch.randn(X.shape, generator=gen, device=device) if coord_noise > 0 else X
         enc = mpnn_encode(model, X_s, mask, residue_idx, chain_encoding_all)
         lp = torch.empty((len(keys), 21), dtype=torch.float32)
-        for i in range(0, len(keys), B):
-            chunk = keys[i:i + B]
-            n = len(chunk)
+
+        def chunk_fn(i, j, enc=enc, noise=noise, lp=lp):
+            chunk = keys[i:j]
+            n = j - i
             p_t = torch.tensor([k[0] for k in chunk], device=device)
             vals = noise[p_t].clone()
             vals[torch.arange(n, device=device), p_t] = 1000.0   # target forced to end
@@ -550,7 +553,15 @@ def score_unmasked_fast(model, mut_strings, X, S_wt, mask, residue_idx, chain_en
             if sub:
                 b_i, q_i, m_i = (torch.tensor(x, device=device) for x in zip(*sub))
                 S_chunk[b_i, q_i] = m_i
-            lp[i:i + n] = mpnn_decode_at(model, enc, S_chunk, vals, p_t).float().cpu()
+            lp[i:j] = mpnn_decode_at(model, enc, S_chunk, vals, p_t).float().cpu()
+
+        if batching is None:                       # the original rule: max_tokens // L decoder rows per call
+            for i in range(0, len(keys), B):
+                chunk_fn(i, min(i + B, len(keys)))
+        else:                                      # baselines/batching.py: dynamic against the GPU, or fixed (default max_tokens // L)
+            info = batching.run(len(keys), chunk_fn, label=f'L={L} sample {s}', default_chunk=B)
+            if info_out is not None:
+                info_out.append(info)
         lp = lp.numpy().astype(np.float64)
         delta = lp[t[:, 2], t[:, 4]] - lp[t[:, 2], t[:, 3]]
         np.add.at(scores[s], (t[:, 0], t[:, 1]), delta)
@@ -664,6 +675,7 @@ COLS = ('mpnn_score_wt_seq', 'mpnn_score_mut_seq', 'mpnn_score_additive', 'mpnn_
 class Mpnn:
     def __init__(self, args, tracker):
         self.args, self.tracker = args, tracker
+        self.batching = args.batching
         self.device = torch.device('cuda:0')
         with tracker.stage('model_load'):
             model_name = 'v_48_020'                    # 48 edges, 0.20 A training noise
@@ -694,21 +706,14 @@ class Mpnn:
         if not len(wanted):
             return out
         sel = [mut_strings[i] for i in wanted]
-        tokens = a.max_tokens
+        infos = []
         with self.tracker.scope('protein', name, n_rows=len(wanted), seq_len=int(S.shape[1]), n_samples=a.n_samples,
-                                coord_noise=a.coord_noise, max_tokens=a.max_tokens) as sc:
+                                coord_noise=a.coord_noise) as sc:
             with sc.phase('score'):
-                while True:
-                    try:
-                        res = score_unmasked_fast(self.model, sel, X, S, mask, residue_idx, chain_encoding_all, ALPHABET,
-                                                  max_tokens=tokens, seed=a.seed, n_samples=a.n_samples, coord_noise=a.coord_noise)
-                        break
-                    except torch.cuda.OutOfMemoryError:
-                        torch.cuda.empty_cache()
-                        if tokens <= S.shape[1]:
-                            raise
-                        tokens //= 2
-                        print(f'OOM; retrying {name} with max_tokens={tokens}', flush=True)
+                res = score_unmasked_fast(self.model, sel, X, S, mask, residue_idx, chain_encoding_all, ALPHABET,
+                                          max_tokens=a.max_tokens, seed=a.seed, n_samples=a.n_samples, coord_noise=a.coord_noise,
+                                          batching=self.batching, info_out=infos)
+            sc.note(**merge_info(infos))
         w, m = res[:2]
         out['mpnn_score_wt_seq'][wanted] = w
         out['mpnn_score_mut_seq'][wanted] = m
@@ -787,10 +792,11 @@ class Mpnn:
 def main(args):
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
+    args.batching = batching.Batching(args)
     tracker = resource_tracker.Tracker.from_args(
         args, label='proteinmpnn', default_dir=out / 'resources',
         meta={'model': 'ProteinMPNN v_48_020', 'mutants': args.mutants, 'dtype': 'fp32', 'seed': args.seed,
-              'n_samples': args.n_samples, 'coord_noise': args.coord_noise, 'max_tokens': args.max_tokens})
+              'n_samples': args.n_samples, 'coord_noise': args.coord_noise, 'max_tokens': args.max_tokens, **args.batching.meta()})
     try:
         mpnn = Mpnn(args, tracker)
         if not args.skip_tsuboyama and args.split:
@@ -831,7 +837,8 @@ if __name__ == '__main__':
     parser.add_argument('--skip_existing', action='store_true', help='skip an external/DMS/Domainome output that exists')
     parser.add_argument('--pgym_dir', default=str(paths.PGYM_INPUTS), help='pgym_inputs (preprocessing/pgym_preprocess.py)')
     parser.add_argument('--pgym_dms', default='all', help="comma-separated DMS ids, or 'all'")
-    parser.add_argument('--max_tokens', type=int, default=32768, help='residues per forward batch (batch size = this // length; halved on OOM)')
+    parser.add_argument('--max_tokens', type=int, default=32768, help='fixed mode without --batch_size: decoder rows per call = this // length')
+    batching.add_batch_args(parser)
     parser.add_argument('--seed', type=int, default=0, help='seed for the background decoding orders')
     parser.add_argument('--n_samples', type=int, default=1, help='average over this many samples, each with its own background orders')
     parser.add_argument('--coord_noise', type=float, default=0.0,

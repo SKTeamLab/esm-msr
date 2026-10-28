@@ -12,6 +12,31 @@ sys.path.insert(0, str(BASELINES))
 sys.path.insert(0, str(BASELINES.parent))
 
 
+def _fixed(batch_size):
+    """A fixed-mode Batching (no sizer, so no GPU)."""
+    import batching
+    return batching.Batching(types.SimpleNamespace(batch_mode='fixed', batch_size=batch_size, auto_batch_headroom=0.9))
+
+
+class _LadderSizer:
+    """Stands in for the AutoBatchSizer: the same 1, 2, 4, ... ladder (clamped to what is left), no GPU."""
+    def run(self, n_items, chunk_fn, label=''):
+        ladder, i, b = [], 0, 1
+        while i < n_items:
+            c = min(b, n_items - i)
+            chunk_fn(i, i + c)
+            ladder.append(c)
+            i += c
+            b *= 2
+        return types.SimpleNamespace(max_batch=max(ladder), ladder=ladder, ooms=0)
+
+
+def _auto_stub():
+    b = _fixed(None)
+    b.mode, b.sizer = 'auto', _LadderSizer()
+    return b
+
+
 def _load_spurs_module(monkeypatch):
     pytest.importorskip('omegaconf')
     """Import baselines/spurs_inference.py with the `spurs` package replaced by stubs; its own esm/torchtext mocking stays in place."""
@@ -59,7 +84,8 @@ class _FakeMulti:
 
 def _spurs(mod, models, mutants, tracker):
     obj = mod.Spurs.__new__(mod.Spurs)
-    obj.args, obj.tracker, obj.mutants, obj.models, obj.chunk = None, tracker, mutants, models, 4096
+    obj.args, obj.tracker, obj.mutants, obj.models = None, tracker, mutants, models
+    obj.batching = _fixed(4096)
     obj.single = _FakeSingle() if models in ('single', 'both') else None
     obj.multi = _FakeMulti() if models in ('multi', 'both') else None
     obj.cfg_single, obj.cfg_multi = {}, {}
@@ -120,7 +146,9 @@ def test_mpnn_score_columns_and_mutants_filter(monkeypatch, tmp_path):
     import resource_tracker as rt
     calls = []
 
-    def fake_fast(model, muts, X, S, mask, residue_idx, chain_enc, alphabet, max_tokens, seed, n_samples, coord_noise):
+    def fake_fast(model, muts, X, S, mask, residue_idx, chain_enc, alphabet, max_tokens, seed, n_samples, coord_noise, batching=None, info_out=None):
+        if info_out is not None:
+            info_out.append({'batch_mode': 'fixed', 'batch_max': 1, 'n_chunks': 1, 'batch_ooms': 0})
         calls.append(list(muts))
         w = np.arange(1.0, len(muts) + 1)
         return w, w + 10.0
@@ -129,6 +157,7 @@ def test_mpnn_score_columns_and_mutants_filter(monkeypatch, tmp_path):
     t = rt.Tracker(tmp_path, 'test', interval=0.05)
     obj = mod.Mpnn.__new__(mod.Mpnn)
     obj.args = types.SimpleNamespace(mutants='both', max_tokens=32768, n_samples=1, coord_noise=0.0, seed=0)
+    obj.batching = _fixed(None)
     obj.tracker, obj.model, obj.device = t, None, torch.device('cpu')
     feats = (None, torch.zeros(1, 12, dtype=torch.long), None, None, None)
     r = obj.score('P', feats, ['A1C', 'A1C:C2D', 'D3E'])
@@ -196,14 +225,15 @@ def test_tmpnn_predict_batches_within_proteins_and_restores_order(monkeypatch, t
     items = [{'value': float(i), 'mutation': types.SimpleNamespace(pdb=c), 'seq': 'A' * (30 + 20 * 'ABC'.index(c))}
              for i, c in enumerate(codes)]
     t = rt.Tracker(tmp_path, 'test', interval=0.05)
-    p = mod.predict(_FakeNet(), items, batch_size=7, tracker=t, groups=codes, tag={'model': 'single'})
+    p = mod.predict(_FakeNet(), items, _fixed(7), tracker=t, groups=codes, tag={'model': 'single'})
     assert np.allclose(p, np.arange(40) * 2.0)                      # every item scored once, in item order
     t.close()
     df = rt.load_scopes(t.dir)
     assert sorted(df.name) == ['A', 'B', 'C'] and df.n_rows.sum() == 40 and (df.model == 'single').all()
     assert {'t_featurize_s', 't_forward_s', 't_d2h_s'} <= set(df.columns)
-    mixed = mod.predict(_FakeNet(), items, batch_size=7, tracker=rt.NullTracker(), groups=codes, mixed_protein_batches=True)
-    assert np.allclose(mixed, p)                                    # batching changes nothing about a prediction
+    for other in (_fixed(1), _fixed(100), _auto_stub()):             # batching changes nothing about a prediction
+        assert np.allclose(mod.predict(_FakeNet(), items, other, tracker=rt.NullTracker(), groups=codes), p)
+    assert (df.batch_mode == 'fixed').all() and (df.batch_max <= 7).all() and df.n_chunks.sum() >= 40 // 7
 
 
 def test_tmpnn_combine_and_wanted(monkeypatch):
@@ -294,7 +324,7 @@ def test_no_baseline_script_shadows_a_package_it_imports():
     import ast
     scripts = sorted(BASELINES.glob('*.py')) + sorted((BASELINES / 'prepare').glob('*.py'))
     stems = {p.stem for p in scripts}
-    local_helpers = {'paths', 'benchmark_rows', 'dms_source'}
+    local_helpers = {'paths', 'benchmark_rows', 'dms_source', 'batching'}
     imported = set()
     for p in scripts:
         for node in ast.walk(ast.parse(p.read_text())):
@@ -305,3 +335,39 @@ def test_no_baseline_script_shadows_a_package_it_imports():
     clash = (stems & imported) - local_helpers
     assert not clash, f'a script is named like a module that scripts import: {sorted(clash)}'
     assert not (BASELINES / 'thermompnn.py').exists() and not (BASELINES / 'spurs.py').exists()
+
+
+def test_batching_policy_fixed_and_auto():
+    import batching
+    seen = []
+    info = _fixed(None).run(10, lambda a, b: seen.append((a, b)), default_chunk=4)       # the method's own default
+    assert seen == [(0, 4), (4, 8), (8, 10)] and info == {'batch_mode': 'fixed', 'batch_max': 4, 'n_chunks': 3, 'batch_ooms': 0}
+    seen.clear()
+    _fixed(3).run(7, lambda a, b: seen.append((a, b)), default_chunk=lambda: 100)         # --batch_size wins over the default
+    assert seen == [(0, 3), (3, 6), (6, 7)]
+    seen.clear()
+    info = _auto_stub().run(10, lambda a, b: seen.append((a, b)))
+    assert [b - a for a, b in seen] == [1, 2, 4, 3] and info['batch_mode'] == 'auto' and info['batch_max'] == 4 and info['n_chunks'] == 4
+    assert _fixed(None).run(0, lambda a, b: 1 / 0)['n_chunks'] == 0
+    assert batching.merge_info([info, info])['n_chunks'] == 8 and batching.merge_info([]) == {}
+
+
+def test_spurs_multi_runner_is_batch_invariant(monkeypatch):
+    mod = _load_spurs_module(monkeypatch)
+    lists = [['A1C'], ['A1D', 'C2D'], ['A1E'], ['A1F'], ['A1G', 'C2E'], ['A1H'], ['A1I']]
+
+    def run(b):
+        vals, info = mod.run_multi(_FakeMulti(), {'seq': 'ACDEFGHIKL'}, lists, b)
+        return vals, info
+    ref, info = run(_fixed(100))
+    assert np.allclose(ref, [0.5 * len(m) for m in lists]) and info['n_chunks'] == 2           # one call per mutation count
+    for other in (_fixed(1), _fixed(2), _auto_stub()):
+        v, i = run(other)
+        assert np.allclose(v, ref) and i['batch_max'] >= 1
+
+
+def test_auto_mode_builds_the_esm_msr_sizer_by_path():
+    import batching
+    b = batching.Batching(types.SimpleNamespace(batch_mode='auto', batch_size=8, auto_batch_headroom=0.85))
+    assert type(b.sizer).__name__ == 'AutoBatchSizer' and b.sizer.max_batch == 8 and b.sizer.headroom == 0.85
+    assert b.meta() == {'batch_mode': 'auto', 'batch_size_arg': 8, 'auto_batch_headroom': 0.85}

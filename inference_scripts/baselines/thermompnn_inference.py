@@ -21,6 +21,7 @@ additive prediction) and the `epistatic` (siamese) network scores exactly two. G
   --single_ckpt only     every row gets its additive prediction (pred_combined == pred_single_additive)
   --epistatic_ckpt only  only rows with exactly two mutations are predicted
   --mutants {single,multi,both}   which rows are scored (default both); the others get NaN and cost nothing
+  --batch_mode {auto,fixed}       dynamic or fixed batch size per protein (default auto; batching.py)
 
 Per-dataset and per-protein wall time, CPU, RAM, VRAM and I/O are recorded for the inference calls by default
 (inference_scripts/resource_tracker.py; --no_resource_tracking to skip). Run it in the fixed slot with
@@ -44,6 +45,7 @@ sys.path.insert(0, str(HERE.parent))                # resource_tracker, pgym_run
 import paths  # noqa: E402
 from benchmark_rows import EXTERNAL, DMS, external_rows, dms_rows, domainome_rows  # noqa: E402
 import resource_tracker  # noqa: E402
+import batching  # noqa: E402
 
 TMPNN = str(paths.THERMOMPNN_DIR)
 sys.path.insert(0, TMPNN)
@@ -157,20 +159,6 @@ def _item_lengths(ds):
     return ds.df['WT_name'].str.replace('.pdb', '', regex=False).map(seqlen).to_numpy()
 
 
-def _batches(lengths, batch_size, tokens):
-    """Indices grouped so that (rows x padded length) stays under `tokens`: the external benchmark proteins are
-    several times longer than the ~70-residue Tsuboyama libraries, and a fixed 256 row batch OOMs on them.
-    Sorted by length so padding is minimal and each batch is near-homogeneous."""
-    out, cur = [], []
-    for j in np.argsort(lengths, kind='stable'):
-        trial_max = max([lengths[j]] + [lengths[k] for k in cur])
-        if cur and ((len(cur) + 1) * trial_max > tokens or len(cur) >= batch_size):
-            out.append(cur)
-            cur = []
-        cur.append(int(j))
-    return out + ([cur] if cur else [])
-
-
 def _item_groups(ds):
     """The protein (library code) each item of a dataset sits on, in item order."""
     if isinstance(ds, list):
@@ -178,60 +166,44 @@ def _item_groups(ds):
     return ds.df['WT_name'].str.replace('.pdb', '', regex=False).to_numpy()
 
 
-def _grouped_batches(lengths, groups, batch_size, tokens):
-    """_batches within each group, so no batch spans two proteins. That makes a batch's cost belong to one protein
-    (the per-protein resource rows need that) and is also how a user scores one structure at a time. The model reads
-    every item independently (padding is masked), so a prediction does not depend on its batch-mates."""
-    out = []
-    groups = np.asarray(groups)
-    for g in dict.fromkeys(groups.tolist()):
-        gi = np.flatnonzero(groups == g)
-        out.extend((g, [int(gi[k]) for k in b]) for b in _batches(lengths[gi], batch_size, tokens))
-    return out
-
-
 @torch.no_grad()
-def predict(model_pl, ds, batch_size=256, siamese=False, tokens=16000, tracker=None, groups=None, tag=None,
-            mixed_protein_batches=False):
+def predict(model_pl, ds, batching, siamese=False, tracker=None, groups=None, tag=None, tokens=16000):
     """Predicted ddG (ThermoMPNN convention, positive = destabilizing) for every item of ds, in order.
 
-    Batches never span proteins unless mixed_protein_batches (the original behaviour: all items of a dataset sorted
-    by length together). Each protein's batches are one `protein` scope of `tracker` (inference only: featurizing,
-    the forward pass and the copy back; building the items and parsing structures happen outside), with the three
-    steps as phases; `tag` adds columns (model=, part=) to those rows."""
+    Items are scored one protein at a time, in the batches `batching` decides (batching.py: dynamic against the GPU, or fixed;
+    the fixed default is the historical rule, as many items as fit `tokens` residues, at most 256, halved for the siamese
+    network). Each protein is one `protein` scope of `tracker` (inference only: featurizing, the forward pass and the copy
+    back; building the items and parsing structures happen outside), with the three steps as phases; `tag` adds columns
+    (model=, part=) to those rows. The model reads items independently (padding is masked), so a prediction does not depend on
+    its batch-mates."""
     tracker = tracker or resource_tracker.NullTracker()    # callers always pass one; the tracker module is needed here
     model_pl.eval().cuda()
     dev = next(model_pl.parameters()).device
     lengths = _item_lengths(ds)
     groups = _item_groups(ds) if groups is None else np.asarray(groups)
     preds = np.full(len(lengths), np.nan, dtype=np.float64)
-    if mixed_protein_batches:
-        plan = [(None, idx) for idx in _batches(lengths, batch_size, tokens // (2 if siamese else 1))]
-    else:
-        plan = _grouped_batches(lengths, groups, batch_size, tokens // (2 if siamese else 1))
-    by_group = {}
-    for g, idx in plan:
-        by_group.setdefault(g, []).append(idx)
-    for g, batches in by_group.items():
-        n_rows = sum(len(b) for b in batches)
-        name = str(g) if g is not None else '(mixed)'
-        with tracker.scope('protein', name, n_rows=n_rows, seq_len=int(lengths[batches[0][0]]), n_batches=len(batches),
-                           batch_size=batch_size, tokens=tokens, **(tag or {})) as sc:
-            for idx in batches:
+    for g in dict.fromkeys(groups.tolist()):
+        idx = np.flatnonzero(groups == g)
+        L = int(lengths[idx[0]])                              # one structure: every item of a protein has its length
+        with tracker.scope('protein', str(g), n_rows=len(idx), seq_len=L, **(tag or {})) as sc:
+            def chunk_fn(a, b, idx=idx, sc=sc):
+                sub = idx[a:b]
                 with sc.phase('featurize'):
-                    batch = tied_featurize_mut([ds[j] for j in idx], side_chains=False)
+                    batch = tied_featurize_mut([ds[j] for j in sub], side_chains=False)
                     X, S, mask, lengths_b, chain_M, chain_enc, res_idx, mut_pos, mut_wt, mut_mt, mut_ddG, atom_mask = batch
                 with sc.phase('forward'):
                     args = [t.to(dev) if torch.is_tensor(t) else t for t in
                             (X, S, mask, chain_M, res_idx, chain_enc, mut_pos, mut_wt, mut_mt, mut_ddG, atom_mask)]
                     if siamese:
-                        a, b = model_pl(*args)
-                        p = (a + b) / 2.
+                        a_, b_ = model_pl(*args)
+                        p = (a_ + b_) / 2.
                     else:
                         p, _ = model_pl(*args)
                 with sc.phase('d2h'):
-                    preds[idx] = p.float().reshape(-1).cpu().numpy()
+                    preds[sub] = p.float().reshape(-1).cpu().numpy()
                 del args, batch, p
+            info = batching.run(len(idx), chunk_fn, label=f'{g}', default_chunk=lambda: max(1, min(256, (tokens // (2 if siamese else 1)) // L)))
+            sc.note(**info)
     assert not np.isnan(preds).any(), 'some items were never scored'
     return preds
 
@@ -260,7 +232,7 @@ def _tracker(args, mode):
         args, label='thermompnn', default_dir=os.path.join(args.out, 'resources'),
         meta={'model': 'ThermoMPNN-D', 'mode': mode, 'seed': args.seed, 'single_ckpt': os.path.basename(args.single_ckpt or ''),
               'epistatic_ckpt': os.path.basename(args.epistatic_ckpt or ''), 'dtype': 'fp32', 'mutants': args.mutants,
-              'mixed_protein_batches': bool(args.mixed_protein_batches)})
+              **args.batching.meta()})
 
 
 def load_models(args, tracker):
@@ -315,16 +287,14 @@ def test(args, tracker, models, cfgs, split):
                 if len(rows):
                     ds.df = ds.df.loc[ds.df['row'].isin(rows)].reset_index(drop=True)
                     out.loc[ds.df['row'].values, 'single_pred'] = predict(
-                        models[model], ds, tracker=tracker, tag={'model': 'single', 'part': 'singles'},
-                        mixed_protein_batches=args.mixed_protein_batches)
+                        models[model], ds, tracker=tracker, tag={'model': 'single', 'part': 'singles'}, batching=args.batching)
                 d = items.loc[is_double & wanted]
                 add = np.zeros(len(d))
                 for k in ((0, 1) if len(d) else ()):
                     part = d.copy()
                     part['mut_type'] = part['mut_type'].str.split(':').str[k]
                     ds.df = part.assign(WT_name=part.code + '.pdb', DIRECT=True).reset_index(drop=True)
-                    add += predict(models[model], ds, tracker=tracker, tag={'model': 'single', 'part': f'additive_{k}'},
-                                   mixed_protein_batches=args.mixed_protein_batches)
+                    add += predict(models[model], ds, tracker=tracker, tag={'model': 'single', 'part': f'additive_{k}'}, batching=args.batching)
                 if len(d):
                     out.loc[d['row'].values, 'single_pred'] = add
             else:
@@ -332,8 +302,7 @@ def test(args, tracker, models, cfgs, split):
                 if len(rows):
                     ds.df = ds.df.loc[ds.df.mut_type.str.contains(':') & ds.df['row'].isin(rows)].reset_index(drop=True)
                     out.loc[ds.df['row'].values, 'epistatic_pred'] = predict(
-                        models[model], ds, siamese=True, tracker=tracker, tag={'model': 'epistatic', 'part': 'doubles'},
-                        mixed_protein_batches=args.mixed_protein_batches)
+                        models[model], ds, siamese=True, tracker=tracker, tag={'model': 'epistatic', 'part': 'doubles'}, batching=args.batching)
     n_mut = np.where(is_double, 2, 1)
     out['pred_single_additive'], out['pred_combined'] = _combine(
         out['single_pred'].to_numpy(), out['epistatic_pred'].to_numpy(), n_mut, models)
@@ -376,8 +345,7 @@ def domainome(args, tracker, models):
                 it = deepcopy(p); it['mutation'] = Mutation([k], [w], [t], 0.0, code)
                 rows.append(i); items.append(it)
             if items:
-                preds[rows] = predict(model_pl, items, tracker=tracker, groups=[code] * len(items), tag={'model': 'single'},
-                                      mixed_protein_batches=args.mixed_protein_batches)
+                preds[rows] = predict(model_pl, items, tracker=tracker, groups=[code] * len(items), tag={'model': 'single'}, batching=args.batching)
             if n % 50 == 0:
                 print(f'  {n}/522 domains', flush=True)
     df['pred_single_additive'] = -preds
@@ -429,14 +397,13 @@ def external(args, tracker, models, mode):
             if items['single']:
                 rows, its = zip(*items['single'])
                 s = predict(models['single'], list(its), tracker=tracker, groups=codes[list(rows)],
-                            tag={'model': 'single'}, mixed_protein_batches=args.mixed_protein_batches)
+                            tag={'model': 'single'}, batching=args.batching)
                 add_s = pd.Series(s).groupby(np.array(rows)).sum()
                 add[add_s.index.values] = add_s.values
             if items['epistatic']:
                 rows, its = zip(*items['epistatic'])
                 epi[list(rows)] = predict(models['epistatic'], list(its), siamese=True, tracker=tracker,
-                                          groups=codes[list(rows)], tag={'model': 'epistatic'},
-                                          mixed_protein_batches=args.mixed_protein_batches)
+                                          groups=codes[list(rows)], tag={'model': 'epistatic'}, batching=args.batching)
             df['pred_single_additive'], df['pred_combined'] = _combine(add, epi, n_mut, models)
             df.to_csv(os.path.join(args.out, f'{prefix}_{name}.csv'), index=False)
         n2 = int((n_mut == 2).sum()); nhi = int((n_mut > 2).sum())
@@ -467,8 +434,7 @@ def pgym(args, tracker, models):
                 it['mutation'] = Mutation([k for k, _, _ in muts], [w for _, w, _ in muts], [t for _, _, t in muts], 0.0, code)
                 items.append(it)
             out[s:s + len(items)] = predict(model_pl, items, siamese=siamese, tracker=tracker, groups=[code] * len(items),
-                                            tag={'model': 'epistatic' if siamese else 'single'},
-                                            mixed_protein_batches=args.mixed_protein_batches)
+                                            tag={'model': 'epistatic' if siamese else 'single'}, batching=args.batching)
         return out
 
     def score_fn(df):
@@ -517,9 +483,7 @@ def main():
     ap.add_argument('--pgym_dir', default=str(paths.PGYM_INPUTS))
     ap.add_argument('--pgym_dms', default='all', help="comma-separated DMS ids, or 'all'")
     ap.add_argument('--chunk', type=int, default=20000, help='pgym: structure copies built per predict() call')
-    ap.add_argument('--mixed_protein_batches', action='store_true',
-                    help='Batch items of different proteins together, sorted by length (the behaviour before per-protein '
-                         'resource tracking). Default: batches never span proteins.')
+    batching.add_batch_args(ap)
     resource_tracker.add_tracking_args(ap)
     a = ap.parse_args()
     for k in ('out', 'single_ckpt', 'epistatic_ckpt', 'pgym_dir', 'resource_dir'):   # the loaders chdir into ThermoMPNN-D
@@ -527,6 +491,7 @@ def main():
             setattr(a, k, os.path.abspath(getattr(a, k)))
     if a.mode == 'train':
         return train(a)
+    a.batching = batching.Batching(a)
     tracker = _tracker(a, a.mode)
     try:
         models, cfgs = load_models(a, tracker)
