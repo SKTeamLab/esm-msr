@@ -6,9 +6,9 @@ series) is in [`EXPERIMENTS.md`](EXPERIMENTS.md); this document is the results.
 **The two ESM-MSR checkpoints compared throughout.** **ESM-MSR (baseline)** is the released recipe retrained on the
 capped split as a **three-seed triplicate** (`LoRA_models/release-baseline/s{1,2,3}`, unmasked, σ = 1); §1.1–1.3 carry
 its seed mean ± the standard deviation over the three seeds. It replaces the single
-`LoRA_models/esm-msr-baseline-w2a4-m16a16-capped` checkpoint that the §1.4 ProteinGym and §2 epistasis rows still
-quote, because those come from the earlier run: the triplicate's ProteinGym pass is in flight and its epistasis
-metrics have not been recomputed. Those rows keep the "(released)" label to mark the difference. **ESM-MSR (devel)** is the three-seed
+`LoRA_models/esm-msr-baseline-w2a4-m16a16-capped` checkpoint, which is now quoted only by the §1.4 ProteinGym row;
+those came from the earlier run, and the triplicate's ProteinGym pass was still in flight when this table was built.
+§2 epistasis is rescored from the triplicate too (`analysis_scripts/rescore_epistasis.py`). **ESM-MSR (devel)** is the three-seed
 floor-link series from `devel-revision` (`esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{1,2,3}`,
 `val_rho_combined_avg` 0.840 / 0.839 / 0.841). Both were trained on `splits_oct06_capped.pkl`, as were the
 retrained baselines, so all of them are scored on identical rows. "Capped" on its own always means that
@@ -493,7 +493,7 @@ are comparable to §2.1–2.2: same splits, censored rows excluded, 8,494 and 12
 
 | model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ESM-MSR (released) | **0.675** | 0.598 | 0.453 | 0.391 | 0.730 | 0.403 | 0.327 | 0.207 | 0.860 | 0.678 | 0.849 | 0.493 |
+| ESM-MSR (baseline), 3 seeds | **0.654±0.003** | 0.586±0.018 | 0.434±0.033 | 0.377±0.045 | 0.745±0.024 | 0.395±0.050 | 0.309±0.004 | 0.193±0.004 | 0.845±0.009 | 0.683±0.012 | 0.717±0.036 | 0.177±0.081 |
 | ESM-MSR (devel), 3 seeds | 0.370 | 0.591 | 0.440 | 0.403 | 0.718 | 0.440 | 0.303 | 0.195 | 0.854 | 0.690 | 0.850 | -0.226 |
 | ESM-MSR (trim/mask), 3 seeds | 0.371 | **0.659** | **0.554** | **0.460** | **0.868** | **0.514** | **0.328** | **0.217** | **0.906** | 0.685 | 0.915 | -0.313 |
 | MutateEverything stage 2 (vs stage-1 singles), 3 seeds | 0.421 | 0.311 | 0.141 | 0.153 | 0.467 | 0.161 | 0.093 | 0.072 | 0.736 | 0.668 | **0.803** | **-0.127** |
@@ -503,7 +503,7 @@ are comparable to §2.1–2.2: same splits, censored rows excluded, 8,494 and 12
 
 | model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ESM-MSR (released) | **0.452** | 0.488 | 0.343 | 0.316 | 0.605 | 0.362 | 0.247 | 0.198 | 0.744 | 0.599 | 1.055 | 0.513 |
+| ESM-MSR (baseline), 3 seeds | **0.452±0.013** | 0.484±0.016 | 0.343±0.018 | 0.304±0.018 | 0.637±0.006 | 0.361±0.026 | 0.240±0.008 | 0.217±0.006 | 0.761±0.003 | 0.604±0.011 | 0.954±0.042 | 0.280±0.109 |
 | ESM-MSR (devel), 3 seeds | 0.435 | **0.494** | 0.367 | 0.327 | **0.618** | 0.384 | 0.230 | 0.209 | 0.754 | **0.608** | **0.852** | 0.125 |
 | ESM-MSR (trim/mask), 3 seeds | 0.411 | 0.463 | **0.400** | **0.376** | 0.594 | **0.416** | **0.260** | **0.224** | **0.803** | 0.589 | 0.865 | **-0.088** |
 | MutateEverything stage 2 (vs stage-1 singles), 3 seeds | 0.405 | 0.223 | 0.165 | 0.211 | 0.124 | 0.225 | 0.134 | 0.112 | 0.665 | 0.595 | 0.922 | 0.255 |
@@ -539,7 +539,7 @@ exist before live (`beyond_lib`, `beyond_rho_pairavg`, three-class accuracy, `gl
 | SPURS multi (multi-mutant model) ‡ ᴹ | 0.230 | 0.098 | 0.602 | -0.143 | 0.148 | 0.059 | 0.513 | 0.925 |
 | ProteinMPNN (zero-shot) ᶜ | 0.059 | 0.152 | 0.123 | 0.151 | 0.141 | 0.077 | 0.669 | 1.096 |
 | DDGemb (server) ʰ | 0.164 | 0.370 | 0.728 | 0.143 | 0.062 | 0.045 | 0.616 | 1.295 |
-| ESM-MSR (released) ʰ | **0.675** | **0.598** | **0.730** | 0.403 | **0.327** | **0.207** | **0.860** | 0.849 |
+| ESM-MSR (baseline) ʰ | **0.654±0.003** | **0.586±0.018** | **0.745±0.024** | 0.395±0.050 | **0.309±0.004** | 0.193±0.004 | **0.845±0.009** | 0.717±0.036 |
 | ESM-MSR (devel) (3 seeds) ʰ | 0.370 | 0.591 | 0.718 | **0.440** | 0.303 | 0.195 | 0.854 | 0.850 |
 
 ### 2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)
@@ -558,7 +558,7 @@ exist before live (`beyond_lib`, `beyond_rho_pairavg`, three-class accuracy, `gl
 | SPURS multi (multi-mutant model) ‡ ᴹ | 0.137 | 0.132 | 0.494 | -0.052 | 0.092 | 0.082 | 0.549 | 0.894 |
 | ProteinMPNN (zero-shot) ᶜ | 0.314 | 0.273 | 0.473 | 0.125 | 0.125 | 0.064 | 0.592 | 0.992 |
 | DDGemb (server) ʰ | 0.031 | 0.122 | 0.242 | -0.019 | 0.028 | 0.028 | 0.550 | 1.108 |
-| ESM-MSR (released) ʰ | **0.452** | 0.488 | 0.605 | 0.362 | **0.247** | 0.198 | 0.744 | 1.055 |
+| ESM-MSR (baseline) ʰ | **0.452±0.013** | 0.484±0.016 | 0.637±0.006 | 0.361±0.026 | **0.240±0.008** | 0.217±0.006 | 0.761±0.003 | 0.954±0.042 |
 | ESM-MSR (devel) (3 seeds) ʰ | 0.435 | **0.494** | **0.618** | **0.384** | 0.230 | **0.209** | **0.754** | **0.852** |
 
 Largest seed sd per model, validation: ME stage 1 0.364, ME stage 2 0.077, ThermoMPNN-D 0.134, ESM-MSR (devel) 0.057; test:
