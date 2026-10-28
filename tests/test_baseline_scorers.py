@@ -474,3 +474,28 @@ def test_spurs_parse_with_overwritten_sequence_needs_no_patched_spurs(monkeypatc
         mod.parse_pdb_with_seq('x.pdb', 'lib', 'A', {'datamodule': {'alphabet': {}}}, overwrite_seq='AGD', device='cpu')
     # without overwrite_seq it is upstream's function, called with no extra argument
     assert mod.parse_pdb_with_seq('x.pdb', 'lib', 'A', {}, device='cpu') == {'seq': 'ACDEFGHIKL'}
+
+
+def test_me_predict_survives_a_protein_that_runs_out_of_memory(monkeypatch, tmp_path):
+    mod = _load_me_module(monkeypatch, tmp_path)
+    import resource_tracker as rt
+    batches = [{'pdb_ids': [n], 'seqs': ['A' * 5]} for n in ('P1', 'P2', 'P3')]
+
+    def fake_batch(model, batch, device, args, sc):
+        if batch['pdb_ids'][0] == 'P2':
+            raise RuntimeError('CUDA out of memory. Tried to allocate 20.00 GiB')
+        if batch['pdb_ids'][0] == 'P4':
+            raise RuntimeError('some other runtime error')
+        return {batch['pdb_ids'][0]: {'mutations': [], 'scores': []}}
+    monkeypatch.setattr(mod, '_predict_batch', fake_batch)
+    t = rt.Tracker(tmp_path / 'res', 'test', interval=0.05)
+    failed = []
+    preds = mod.predict(types.SimpleNamespace(eval=lambda: None), iter(batches), None, None, t, failed)
+    assert sorted(preds) == ['P1', 'P3'] and failed == ['P2']                       # the others still scored, the failure is listed
+    t.close()
+    df = rt.load_scopes(t.dir)
+    assert df[df.level == 'protein'].set_index('name').loc['P2', 'status'] == 'error:RuntimeError'
+    with pytest.raises(RuntimeError, match='some other'):                            # only OOM is tolerated
+        mod.predict(types.SimpleNamespace(eval=lambda: None), iter([{'pdb_ids': ['P4'], 'seqs': ['A']}]), None, None, None, [])
+    with pytest.raises(RuntimeError, match='out of memory'):                         # and only when the caller collects failures
+        mod.predict(types.SimpleNamespace(eval=lambda: None), iter([batches[1]]), None, None, None, None)

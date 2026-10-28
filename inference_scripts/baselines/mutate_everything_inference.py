@@ -108,13 +108,21 @@ def filter_mutants(path, mutants, out_dir, max_proteins=0):
 
 
 @torch.no_grad()
-def predict(model, dl, device, args, tracker=None):
+def _is_oom(e):
+    return isinstance(e, torch.cuda.OutOfMemoryError) or (isinstance(e, RuntimeError) and 'out of memory' in str(e).lower())
+
+
+def predict(model, dl, device, args, tracker=None, failed=None):
     """The prediction half of engine_train.evaluate, verbatim, with the metric call removed.
 
     Resource tracking (batch size 1, so a batch is one protein): fetching the batch (the dataset's featurization, MSAs
     included) is a `load` scope; moving it to the GPU, the model forward and turning the dense output into per-mutation
     scores are phases of that protein's `protein` scope. The model predicts every single and double of the protein in
-    one pass whatever subset is asked for, so the cost is per protein, not per variant."""
+    one pass whatever subset is asked for, so the cost is per protein, not per variant.
+
+    A protein that runs out of GPU memory (the dense pair head grows with length squared) does not end the set: its row is
+    recorded with status error, its name is appended to `failed`, and the others go on. The October fork swallowed such an
+    OOM silently (singles only, or NaN); here the caller reports the failures and the run exits non-zero."""
     tracker = tracker or resource_tracker.NullTracker()
     model.eval()
     all_preds = {}
@@ -127,9 +135,17 @@ def predict(model, dl, device, args, tracker=None):
                 batch = next(it)
         except StopIteration:
             break
-        with tracker.scope('protein', str(batch['pdb_ids'][0]), seq_len=len(batch['seqs'][0]),
-                           batch_size=len(batch['seqs'])) as sc:
-            all_preds.update(_predict_batch(model, batch, device, args, sc))
+        try:
+            with tracker.scope('protein', str(batch['pdb_ids'][0]), seq_len=len(batch['seqs'][0]),
+                               batch_size=len(batch['seqs'])) as sc:
+                all_preds.update(_predict_batch(model, batch, device, args, sc))
+        except RuntimeError as e:
+            if failed is None or not _is_oom(e):
+                raise
+            print(f"{batch['pdb_ids'][0]}: FAIL out of memory at length {len(batch['seqs'][0])}", flush=True)
+            failed.append(str(batch['pdb_ids'][0]))
+            batch = None
+            torch.cuda.empty_cache()
     return all_preds
 
 
@@ -198,7 +214,7 @@ def main(args):
         meta={'model': 'MutateEverything', 'resume': os.path.basename(str(args.resume)), 'backbone': args.backbone,
               'seed': args.seed, 'dtype': 'fp32', 'batch_size': 1, 'dataloader_workers': 0, 'mutants': args.mutants,
               'sets': args.sets})
-    failed = []
+    failed, oom_failed = [], []
     try:
         with tracker.stage('model_load'):
             model = MutateEverything(args)
@@ -218,7 +234,7 @@ def main(args):
                 # num_workers=0: the batch is featurized in this process, so its CPU and RAM show up in the `load` scopes
                 dl = torch.utils.data.DataLoader(ds, batch_size=1, collate_fn=collate_fn, shuffle=False, num_workers=0)
                 try:
-                    preds = predict(model, dl, device, args, tracker)
+                    preds = predict(model, dl, device, args, tracker, oom_failed)
                 except Exception as e:           # one set that does not fit (the AF2 trunk is uncropped) must not end the run
                     if not args.continue_on_error:
                         raise
@@ -234,8 +250,8 @@ def main(args):
                 print(f'{name}: {len(out)} predictions -> {dest}', flush=True)
     finally:
         tracker.close()
-    if failed:      # --continue_on_error keeps the run going, but the job must not look like a success
-        sys.exit(f'{len(failed)} set(s) failed: {", ".join(failed)}')
+    if failed or oom_failed:      # --continue_on_error keeps the run going, but the job must not look like a success
+        sys.exit(f'{len(failed)} set(s) failed: {", ".join(failed)}; {len(oom_failed)} protein(s) out of memory: {", ".join(oom_failed[:8])}')
 
 
 if __name__ == '__main__':

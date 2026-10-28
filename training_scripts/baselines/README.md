@@ -60,10 +60,21 @@ diagnostic lines only (comments and a `print` of the deletion-matrix lengths whe
 * **ThermoMPNN-D** (`df9a75a`, upstream main): the checkout has no modified file and the environment holds no copy of the code
   (`thermompnn` is imported from the checkout). The deviations are in this repository: `OctItemsDataset` replaces the dataset's
   `__init__` (our items tables instead of the raw CSV) and `load_cfg` fills in two paths; models, trainers, losses and configs are
-  upstream's.
+  upstream's. Mutant-background Tsuboyama libraries: `prepare/prepare_oct06_data.py` writes `pdbs/<library>.pdb`, the wild-type
+  AlphaFold backbone with the background residue renamed, so the sequence the structure implies is the background sequence;
+  `OctItemsDataset` asserts that sequence equals the table's wild-type sequence for every library, in training, validation and
+  inference alike (checked for all 15 libraries of the capped split: the structure differs from the wild type at exactly the
+  background position).
 * **MutateEverything** (`034dd91`, upstream master): no modified tracked file; the only deviation is the OpenFold install above.
   `inference_scripts/baselines/mutate_everything_inference.py` replaces upstream's evaluation entry (no detection metric,
-  one process), as `predict_dms.py` did.
+  one process, a protein that runs out of memory is reported and skipped, not fatal), as `predict_dms.py` did.
+  The older fork (`~/software/MutateEverything`, upstream `c380ea9` plus changes to `data.py`, `engine_train.py`, `metrics.py`,
+  `misc.py`, `main_train.py`, `modeling/`) is not used by any of these runs. Its mutant-backbone support (a `mut_structure` column,
+  the wild-type protein's MSA with the query residue overwritten at the background position, predictions keyed by library
+  code) is replaced by data: each mutant-background library is its own protein (own `pdb_id`, fasta and MSA whose query is the
+  background sequence; verified for all 15 libraries of the capped split), which upstream's `data.py` handles unchanged. Its
+  `--additive_mode` is replaced by scoring the component singles (`testcomp`). Its OOM-swallowing multi decoder and NaN-tolerant
+  metrics are not needed (see above; metrics are computed afterwards).
 * **SPURS** (`70cbb99`, a non-default upstream branch, `fix/py311-inference-beta`): inference uses it unmodified; training uses it
   plus `spurs/spurs_retrain.patch` (a patch is a unified diff: per file, the changed lines with their surrounding context, applied
   with `patch -p1` inside a checkout; this one was made with `diff -ruN <pinned> <retraining tree>`, so applying it to the pinned
