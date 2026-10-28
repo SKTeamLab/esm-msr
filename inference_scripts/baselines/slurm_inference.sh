@@ -3,18 +3,22 @@
 # Domainome, ProteinGym), as a Slurm job. Submit it through ../sbatch_fixed_slot.sh so every model gets the same slot:
 #
 #   MODEL=esm_msr          CKPT=release-baseline/s1/epoch=04-val_rho_combined_avg=0.855.ckpt OUT=runs/esm_msr    ../sbatch_fixed_slot.sh slurm_inference.sh
-#   MODEL=thermompnn       SINGLE=.../single.ckpt EPISTATIC=.../epistatic.ckpt            OUT=runs/thermompnn ../sbatch_fixed_slot.sh slurm_inference.sh
-#   MODEL=mutate_everything CKPT=logs/af_double_..._seed1/checkpoint-99.pth               OUT=runs/me         ../sbatch_fixed_slot.sh slurm_inference.sh
+#   MODEL=thermompnn       SINGLE=.../single.ckpt EPISTATIC=.../epistatic.ckpt MSR_BASELINE_DATA=<prepared dir> OUT=runs/thermompnn ../sbatch_fixed_slot.sh slurm_inference.sh
+#   MODEL=mutate_everything CKPT=logs/af_double_..._seed1/checkpoint-99.pth SPLIT_NAME=<data/ dir> OUT=runs/me ../sbatch_fixed_slot.sh slurm_inference.sh
 #   MODEL=spurs            OUT=runs/spurs                                                 ../sbatch_fixed_slot.sh slurm_inference.sh
 #   MODEL=proteinmpnn      OUT=runs/proteinmpnn                                           ../sbatch_fixed_slot.sh slurm_inference.sh
+#
+# Every line also needs SPLIT, the Tsuboyama split (a name under data/, e.g. SPLIT=splits_oct06_capped). ESM-MSR, SPURS and
+# ProteinMPNN read its pickle; ThermoMPNN and ME read tables prepared from it (prepare/prepare_baseline_data.py: MSR_BASELINE_DATA is
+# that output directory; build_mutate_everything_data.py: SPLIT_NAME is data/<name> in the ME checkout) and stop if those were
+# prepared from another split.
 #
 # Batch size (every method but MutateEverything, which has no variant batching): BATCH_MODE=table|auto|fixed, default table = one
 # size per model and dataset from batch_sizes_gpu4.json (ProteinGym dynamic); BATCH_SIZE overrides the table (fixed: items per
 # call; auto: a cap). CALIBRATE=1 instead of benchmarking runs the sizer on each dataset's worst-case proteins and writes
 # $OUT/batch_sizes_$MODEL.json (calibration.py merge builds the table); do it on the GPU the table is for.
 # Optional, any model:
-# MUTANTS=single|multi|both (which rows; default both), SPLIT (Tsuboyama split, default
-# splits_oct06_capped), PGYM_DMS=id,id (ProteinGym subset; default all), EXTRA="..." (appended to the model's command line;
+# MUTANTS=single|multi|both (which rows; default both), PGYM_DMS=id,id (ProteinGym subset; default all), EXTRA="..." (appended to the model's command line;
 # EXTRA="--max_proteins 2" is the smoke subset). Model specific: ThermoMPNN accepts SINGLE only,
 # EPISTATIC only, or both; SPURS MODELS=single|multi|both, SPURS_SINGLE / SPURS_MULTI checkpoints; ME SETS (default all).
 # Outputs land in $OUT (predictions per benchmark, ProteinGym summaries, resources/<run_id>/ with the tracker's files).
@@ -33,7 +37,7 @@ MODEL=${MODEL:?set MODEL (esm_msr|thermompnn|mutate_everything|spurs|proteinmpnn
 OUT=${OUT:?set OUT}
 REPO=${MSR_REPO:-${SLURM_SUBMIT_DIR:-$PWD}}          # sbatch runs a copy of this script, so the repo cannot be found from $0
 B=$REPO/inference_scripts/baselines
-SPLIT=${SPLIT:-splits_oct06_capped}
+SPLIT=${SPLIT:?set SPLIT (the Tsuboyama split under data/, e.g. splits_oct06_capped)}
 MUTANTS=${MUTANTS:-both}
 EXTRA=${EXTRA:-}
 BATCH=(--batch_mode "${BATCH_MODE:-table}" ${BATCH_SIZE:+--batch_size "$BATCH_SIZE"})     # not for MutateEverything: one protein per forward
@@ -66,12 +70,12 @@ case $MODEL in
     PY=${THERMOMPNN_DIR:-${THIRD_PARTY_DIR:-$HOME/software}/ThermoMPNN-D}/.venv/bin/python
     [ -n "${SINGLE:-}${EPISTATIC:-}" ] || { echo "set SINGLE and/or EPISTATIC (ThermoMPNN-D checkpoints)"; exit 1; }
     "$PY" -u "$B/thermompnn_inference.py" all ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
-        --out "$OUT" --mutants "$MUTANTS" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;
+        --tsuboyama_split "$SPLIT" --out "$OUT" --mutants "$MUTANTS" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;
   mutate_everything)
     CKPT=${CKPT:?set CKPT (a MutateEverything checkpoint, relative to the ME checkout or absolute)}
     module purge 2>/dev/null || true
     activate mutate_everything
-    python -u "$B/mutate_everything_inference.py" --resume "$CKPT" --output_dir "$OUT" --sets "${SETS:-all}" --mutants "$MUTANTS" \
+    python -u "$B/mutate_everything_inference.py" --resume "$CKPT" --output_dir "$OUT" --split_name "${SPLIT_NAME:?set SPLIT_NAME (the ME data/ directory of the split)}" --tsuboyama_split "$SPLIT" --sets "${SETS:-all}" --mutants "$MUTANTS" \
         --skip_existing --continue_on_error $EXTRA;;
   spurs)
     activate spurs_higher

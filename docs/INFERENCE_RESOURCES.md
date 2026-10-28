@@ -83,9 +83,10 @@ SPURS and ProteinMPNN score every benchmark from the shared rows (`benchmark_row
 All three models get the same resources, one quarter of gpu4 (RTX A4500 × 4, 24 CPUs, 250 GB): **1 GPU, 6 CPUs, 60 GB**.
 
 ```bash
-MODEL=thermompnn SINGLE=/path/single.ckpt EPISTATIC=/path/epistatic.ckpt OUT=runs/thermompnn \
-    inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
-# likewise MODEL=mutate_everything CKPT=..., spurs, proteinmpnn, esm_msr CKPT=...  (README in inference_scripts/baselines)
+SPLIT=splits_oct06_capped MODEL=thermompnn SINGLE=/path/single.ckpt EPISTATIC=/path/epistatic.ckpt MSR_BASELINE_DATA=<prepared tables> \
+    OUT=runs/thermompnn inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
+# likewise MODEL=mutate_everything CKPT=... SPLIT_NAME=..., spurs, proteinmpnn, esm_msr CKPT=...  (README in inference_scripts/baselines;
+# SPLIT is any split pickle under data/)
 ```
 
 It sets `MSR_FIXED_GPUS/CPUS/RAM_GB`, `OMP/MKL/OPENBLAS_NUM_THREADS=6`, `MSR_REPO` and the sbatch options. 60 GB is a quarter of gpu4's 250,604 MiB (4 x 61,440 MiB = 245,760 MiB fits with 4,844 MiB to spare), so four jobs can run at once with 6 CPUs each. The tracker compares what the

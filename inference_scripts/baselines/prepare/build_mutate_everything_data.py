@@ -1,5 +1,6 @@
 """
-Write the oct06 split in upstream MutateEverything's on-disk format (data/<name>/{mutations,fasta,msa}).
+Write a prepared baseline variant (prepare_baseline_data.py: one split, its flags) in upstream MutateEverything's on-disk format
+(data/<name>/{mutations,fasta,msa}); <name> is the variant's name (variant.json) unless --name says otherwise.
 
 pdb_id is the ESM-MSR library code, so a mutant-background library ('2K52_L42A') is its own protein whose wild type is
 the background sequence, with its own fasta and its own ColabFold MSA (query = background sequence). Upstream data.py
@@ -21,8 +22,6 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # paths
 import paths  # noqa: E402
-
-DATA = str(paths.BASELINE_DATA)
 
 
 def sort_muts(mut_type):
@@ -49,13 +48,20 @@ def to_me(items):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--mode', choices=['fasta', 'build'], required=True)
-    ap.add_argument('--name', default='oct06_structure')
+    ap.add_argument('--data_dir', default=None, help='the prepare_baseline_data.py output (default: $MSR_BASELINE_DATA)')
+    ap.add_argument('--name', default=None, help='data/<name> in the MutateEverything checkout (default: the variant name in variant.json)')
     ap.add_argument('--me_root', default=str(paths.MUTATE_EVERYTHING_DIR))
-    ap.add_argument('--new_msas', default=os.environ.get('MSR_ME_NEW_MSAS', str(paths.THIRD_PARTY_DIR / 'ColabFold' / 'oct06_structure_msas')),
-                    help='ColabFold MSAs of the library sequences without one yet (a data input, not in the repo)')
+    ap.add_argument('--new_msas', default=os.environ.get('MSR_ME_NEW_MSAS'),
+                    help='ColabFold MSAs <code>.a3m of the library sequences without one yet (a data input, not in the repo; '
+                         'default $MSR_ME_NEW_MSAS, else <data_dir>/new_msas)')
     ap.add_argument('--skip_msa', action='store_true', help='write mutations/fasta before the MSAs exist (pre-flight only)')
     args = ap.parse_args()
 
+    DATA = paths.baseline_data(args.data_dir)
+    args.name = args.name or paths.variant_info(DATA).get('name')
+    if not args.name:
+        sys.exit(f'{DATA} has no variant.json: pass --name')
+    args.new_msas = args.new_msas or os.path.join(DATA, 'new_msas')
     libs = pd.read_csv(os.path.join(DATA, 'libraries.csv'))
     index = json.load(open(os.path.join(DATA, 'msa_index.json')))
     if os.path.isdir(args.new_msas):
@@ -88,7 +94,11 @@ def main():
         msa_d = os.path.join(root, 'msa', code)
         os.makedirs(msa_d, exist_ok=True)
         shutil.copyfile(index[r['wt_seq']], os.path.join(msa_d, f'{code}.a3m'))
-    for split in ['train', 'val', 'test']:
+    if os.path.exists(os.path.join(DATA, 'variant.json')):      # lets the inference script check the split it is asked to score
+        shutil.copyfile(os.path.join(DATA, 'variant.json'), os.path.join(root, 'variant.json'))
+    for split in ['train', 'val', 'valfull', 'test']:
+        if split == 'valfull' and not os.path.exists(os.path.join(DATA, 'items_valfull.csv')):
+            continue                                            # tables prepared before valfull existed
         df = to_me(pd.read_csv(os.path.join(DATA, f'items_{split}.csv'), low_memory=False))
         out = os.path.join(root, 'mutations', f'{args.name}_{split}.csv')
         df.to_csv(out, index=False)

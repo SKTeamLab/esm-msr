@@ -27,7 +27,7 @@ TAB = str(paths.DOMAINOME_TABLE)
 # precomputed MSAs / fastas per domain (ColabFold; a data input, not in the repo)
 FORK = os.environ.get('MSR_ME_DOMAINOME_MSAS', str(paths.THIRD_PARTY_DIR / 'MutateEverything' / 'data' / 'domainome_2026'))
 OUT = str(paths.MUTATE_EVERYTHING_DIR / 'data' / 'domainome_oct06')
-AUDIT = os.environ.get('MSR_DOMAINOME_AUDIT', str(paths.REPO_ROOT / 'outputs' / 'baselines_capped' / 'domainome_audit.json'))   # prepare/audit_domainome.py
+AUDIT = os.environ.get('MSR_DOMAINOME_AUDIT', str(paths.REPO_ROOT / 'outputs' / 'baselines' / 'domainome_audit.json'))   # prepare/audit_domainome.py
 
 
 def chain_seq(path, chain='A'):

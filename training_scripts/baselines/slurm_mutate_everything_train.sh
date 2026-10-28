@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=me_oct06
+#SBATCH --job-name=me_train
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:RTX6000:3
 #SBATCH --cpus-per-task=24
@@ -7,17 +7,16 @@
 #SBATCH --time=2-00:00:00
 #SBATCH --output=slurm-%x-%j.out
 # Upstream MutateEverything (AF backbone), README recipe unchanged: stage 1 singles (20 ep), stage 2 doubles (100 ep)
-# fine-tuned from stage 1, 3 GPUs, batch 1. Data: ESM-MSR-matched oct06 split (prepare/build_mutate_everything_data.py).
+# fine-tuned from stage 1, 3 GPUs, batch 1. Data: the ESM-MSR-matched tables of one split
+# (prepare/prepare_baseline_data.py, then prepare/build_mutate_everything_data.py).
 # Past runs of this recipe on gpu2: ~17 h for both stages on a 118-protein train set; this one has 192.
-# Usage: SEED=1 [STAGE=single|double|both] [SPLIT_NAME=...] [STAGE1_SPLIT=...] sbatch training_scripts/baselines/slurm_mutate_everything_train.sh
-# STAGE1_SPLIT: take the stage-1 checkpoint from logs/af_single_<STAGE1_SPLIT>_seed<SEED> (default: SPLIT_NAME), e.g. the corrected
-# stage 2 on oct06_capped_allbl starts from the oct06_capped stage 1, whose single mutations are the same rows
+# Usage: SEED=1 SPLIT_NAME=<name> [STAGE=single|double|both] [STAGE1_SPLIT=<name>] sbatch training_scripts/baselines/slurm_mutate_everything_train.sh
+# SPLIT_NAME: data/<name>/mutations of the MutateEverything checkout, as build_mutate_everything_data.py wrote it (the variant name
+# paths.variant_name gives: the split's stem without `splits_`, plus `_allbl` when every measured double is kept, `_nobb` when
+# mutant-background libraries are left out; those are choices made when preparing).
+# STAGE1_SPLIT: take the stage-1 checkpoint from logs/af_single_<STAGE1_SPLIT>_seed<SEED> (default: SPLIT_NAME), e.g. a stage 2
+# on <split>_allbl starts from the <split> stage 1, whose single mutations are the same rows
 # (checkpoints and logs land in logs/ of the MutateEverything checkout, which is also where the inference script reads them)
-#
-# MUT_BACKBONES=include|exclude picks which prepared data dir to train on: whether mutant-background libraries
-# ('2K52_L42A', WT backbone + background-mutated sequence) are present in train/val. The exclusion happens in
-# prepare/prepare_oct06_data.py; here it only resolves SPLIT_NAME, i.e. which data/<name>/mutations tree is read.
-# SPLIT_NAME set explicitly wins, so existing runs are unaffected.
 set -eo pipefail
 hostname; nvidia-smi -i "$CUDA_VISIBLE_DEVICES" || { echo "unhealthy GPU in allocation ($CUDA_VISIBLE_DEVICES)"; exit 1; }  # gpu2 idx 3 (D8:00.0) is unresponsive
 module purge
@@ -25,15 +24,9 @@ unset PYTHONPATH
 export PATH=${ME_ENV_BIN:-$HOME/.conda/envs/mutate_everything/bin}:$PATH        # the conda env of envs/mutate_everything.yml
 cd "${MUTATE_EVERYTHING_DIR:-${THIRD_PARTY_DIR:-$HOME/software}/MutateEverything-oct06}"
 SEED=${SEED:-1}; STAGE=${STAGE:-both}
-MUT_BACKBONES=${MUT_BACKBONES:-include}
-case $MUT_BACKBONES in
-  include) DEF=oct06_capped;;
-  exclude) DEF=oct06_nobb;;
-  *) echo "bad MUT_BACKBONES=$MUT_BACKBONES"; exit 1;;
-esac
-S=${SPLIT_NAME:-$DEF}
+S=${SPLIT_NAME:?set SPLIT_NAME (the data/<name> directory build_mutate_everything_data.py wrote)}
 D=data/$S/mutations
-echo "mut_backbones=$MUT_BACKBONES split_name=$S stage=$STAGE seed=$SEED"
+echo "split_name=$S stage=$STAGE seed=$SEED"
 EVAL=$D/${S}_val.csv,$D/${S}_test.csv
 PORT=$((29500 + SLURM_JOB_ID % 1000))
 

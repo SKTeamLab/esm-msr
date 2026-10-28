@@ -1,5 +1,13 @@
 """
-Build ESM-MSR-matched training / validation / test tables for the MutateEverything and ThermoMPNN-D baselines.
+Build ESM-MSR-matched training / validation / test tables for the ThermoMPNN-D, MutateEverything and SPURS baselines, from
+any ESM-MSR split pickle (train / val / test keys: data/<split>.pkl).
+
+  python inference_scripts/baselines/prepare/prepare_baseline_data.py --split splits_<name> [--keep_all_doubles] [--mut_backbones exclude]
+
+writes outputs/baselines/<variant>/data (or --out): items_{train,val,valfull,test}.csv, libraries.csv, pdbs/, prep_stats.json and
+variant.json, which records the split and flags so the training and inference scripts can refuse tables of another split.
+<variant> is paths.variant_name: the split's stem without `splits_`, plus `_allbl` (--keep_all_doubles), plus `_nobb`
+(--mut_backbones exclude). MutateEverything's on-disk format comes from build_mutate_everything_data.py afterwards.
 
 Row-level filtering is ESM-MSR's own (MegaScaleDatasetPreprocessor + create_training_splits, out-of-range rows
 excluded). Item-level rules follow MutationStabilityDataset as run by scripts/run_arm.sh (subsets single, cond,
@@ -13,7 +21,9 @@ native_cond; --min_additive_dG -1.0 --subfloor_rank_only; no censor floor):
   * censored ('<-1' / '>5') rows, doubles without both singles, sub-floor doubles, reversions   -> dropped
 
 The test table is what inference_scripts/esm_msr_testing.py scores (all uncensored singles and doubles of the test
-split, every backbone group), so baseline and ESM-MSR numbers come from identical rows.
+split, every backbone group), so baseline and ESM-MSR numbers come from identical rows. valfull is the same for the val split:
+items_val follows the training rules above, which drop doubles that ESM-MSR keeps (rank-only) and scores, so a baseline is
+compared with ESM-MSR on valfull.
 
 Structures: ESM-MSR looks for a modeled background structure under <mut_structures_root>/<code incl. background>/,
 which never exists, so it always uses the WT AlphaFold backbone with the background-mutated sequence (unmasked).
@@ -176,34 +186,40 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--raw', default=os.path.join(REPO, 'data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv'))
     ap.add_argument('--af_dir', default=os.path.join(REPO, 'data/tsuboyama/AlphaFold_model_PDBs'))
-    ap.add_argument('--split', default=os.path.join(REPO, 'data/splits_oct06_structure.pkl'))
-    ap.add_argument('--out', default=str(paths.BASELINE_DATA))
+    ap.add_argument('--split', required=True, help='the split: a pickle path or a name under data/ (e.g. splits_oct06_capped)')
+    ap.add_argument('--name', default=None, help='variant name (default: paths.variant_name of the split and flags)')
+    ap.add_argument('--out', default=None, help='output directory (default: outputs/baselines/<variant>/data)')
     ap.add_argument('--mut_backbones', choices=['include', 'exclude'], default='include',
                     help="Mutant-background libraries ('2K52_L42A': the WT AlphaFold backbone carrying a "
                          "background-mutated sequence, so the structure is a wild type the measurements were never "
                          "made against). 'exclude' drops every row of such a library from the splits named by "
-                         "--mut_backbone_splits. Default 'include' reproduces the oct06/capped tables already on disk.")
+                         "--mut_backbone_splits. Default 'include' keeps them.")
     ap.add_argument('--mut_backbone_splits', default='train,val',
                     help='Which splits --mut_backbones exclude applies to. test is left out by default so a model '
                          'trained without these examples is still scored on exactly the rows ESM-MSR scores.')
     ap.add_argument('--keep_all_doubles', action='store_true',
                     help='Keep every measured double, also those without both singles measured and those the ESM-MSR rules '
                          'would make rank-only (sub-floor): upstream-style filtering by valid labels only. The corrected '
-                         'baselines (outputs/baselines_capped_allbl) were trained on tables built with this.')
+                         'baselines were trained on tables built with this.')
     args = ap.parse_args()
     global KEEP_ALL_DOUBLES
     KEEP_ALL_DOUBLES = args.keep_all_doubles
     logging.basicConfig(level=logging.WARNING)
+    split_pkl = str(paths.require(paths.split_file(args.split), 'the split pickle'))
+    name = args.name or paths.variant_name(args.split, args.keep_all_doubles, args.mut_backbones)
+    args.out = args.out or os.path.join(REPO, 'outputs', 'baselines', name, 'data')
     os.makedirs(args.out, exist_ok=True)
+    print(f'variant {name}: split {split_pkl} -> {args.out}')
 
     pre = MegaScaleDatasetPreprocessor(args.raw, args.af_dir, censor_range=False)
-    pre.create_training_splits(args.split, -1)
+    pre.create_training_splits(split_pkl, -1)
     stats = Counter()
 
     tables = {}
     for split in ['train', 'val']:
         tables[split] = build_items(pre.split_dfs[split], pre.dG_wt, args.af_dir, split, stats)
     tables['test'] = build_test(pre.split_dfs['test'], args.af_dir)
+    tables['valfull'] = build_test(pre.split_dfs['val'], args.af_dir)
 
     # A mutant-background library's rows are measured against a sequence its backbone does not have. 'exclude' drops
     # them wholesale; the libraries themselves stay in libraries.csv (and so keep their PDB/MSA) when any other split
@@ -237,6 +253,9 @@ def main():
     libs.to_csv(os.path.join(args.out, 'libraries.csv'), index=False)
     with open(os.path.join(args.out, 'prep_stats.json'), 'w') as f:
         json.dump(dict(stats), f, indent=1, sort_keys=True)
+    with open(os.path.join(args.out, 'variant.json'), 'w') as f:
+        json.dump(dict(name=name, split=paths.split_stem(args.split), keep_all_doubles=args.keep_all_doubles,
+                       mut_backbones=args.mut_backbones, mut_backbone_splits=args.mut_backbone_splits), f, indent=1)
     print(json.dumps(dict(stats), indent=1, sort_keys=True))
     print('libraries:', len(libs), 'with background:', libs['bb_mut'].notna().sum())
 

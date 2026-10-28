@@ -67,7 +67,7 @@ bad = {k: v for k, v in dom.items() if v.get('status') != 'ok' or not v.get('msa
 print(f'domains needing attention: {len(bad)}')
 for k, v in list(bad.items())[:10]:
     print('   ', k, v.get('status'), 'matched', v.get('matched'), 'of', v.get('n'), 'msa', bool(v.get('msa')))
-out = os.environ.get('MSR_DOMAINOME_AUDIT', str(paths.REPO_ROOT / 'outputs' / 'baselines_capped' / 'domainome_audit.json'))
+out = os.environ.get('MSR_DOMAINOME_AUDIT', str(paths.REPO_ROOT / 'outputs' / 'baselines' / 'domainome_audit.json'))
 os.makedirs(os.path.dirname(out), exist_ok=True)
 json.dump(dom, open(out, 'w'), indent=1)
 print('wrote domainome_audit.json')

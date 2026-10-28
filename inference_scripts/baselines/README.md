@@ -56,14 +56,19 @@ size. `calibration.py merge a.json b.json ... -o batch_sizes_gpu4.json` builds t
    (`models/finetuning_ptm_2.pt`, from its README) and its prepared inputs under `$MUTATE_EVERYTHING_DIR/data/`
    (`prepare/build_*_me_data.py` write them from the preprocessed tables; the MSAs they reuse are ColabFold output, searched
    by `prepare/find_dms_msas.py` / `index_msas.py`, locations in `MSR_ME_*` variables), SPURS's weights (Hugging Face hub),
-   the ThermoMPNN-D item tables (`prepare/prepare_oct06_data.py`, `MSR_BASELINE_DATA`) and checkpoints, the ProteinGym
+   the ThermoMPNN-D item tables (`prepare/prepare_baseline_data.py`, `MSR_BASELINE_DATA`) and checkpoints, the ProteinGym
    inputs (`preprocessing/pgym_preprocess.py`) and structures.
-5. **Run**, in the fixed gpu4 slot (1 GPU, 6 CPUs, 60 GB), one job per model:
+5. **Run**, in the fixed gpu4 slot (1 GPU, 6 CPUs, 60 GB), one job per model. `SPLIT` is the Tsuboyama split to score, a pickle
+   under `data/` (any split; the ones below use `splits_oct06_capped`). ESM-MSR, SPURS and ProteinMPNN read the pickle;
+   ThermoMPNN and MutateEverything read tables prepared from the split (`prepare_baseline_data.py`,
+   `build_mutate_everything_data.py`, [training recipe](../../training_scripts/baselines/README.md)): `MSR_BASELINE_DATA` is the
+   prepared directory, `SPLIT_NAME` the ME `data/<name>` directory. They stop if those tables were prepared from another split.
 
 ```bash
-MODEL=thermompnn SINGLE=/path/single.ckpt EPISTATIC=/path/epistatic.ckpt OUT=runs/thermompnn \
-    inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
-MODEL=mutate_everything CKPT=logs/af_double_oct06_capped_allbl_seed1/checkpoint-99.pth OUT=runs/me \
+export SPLIT=splits_oct06_capped
+MODEL=thermompnn SINGLE=/path/single.ckpt EPISTATIC=/path/epistatic.ckpt MSR_BASELINE_DATA=$PWD/outputs/baselines/oct06_capped_allbl/data \
+    OUT=runs/thermompnn inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
+MODEL=mutate_everything CKPT=logs/af_double_oct06_capped_allbl_seed1/checkpoint-99.pth SPLIT_NAME=oct06_capped_allbl OUT=runs/me \
     inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
 MODEL=spurs OUT=runs/spurs inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
 MODEL=proteinmpnn OUT=runs/proteinmpnn inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
@@ -103,6 +108,9 @@ MutateEverything and SPURS checkpoints are in [`training_scripts/baselines`](../
 ## Not in this directory
 
 The scoring and epistasis scripts that turn predictions into the tables (`score_baselines.py`, `final_tables.py`, `epi_*.py`),
-the GB1 and audit scripts and the data-preparation launchers (`slurm_prep_nobb.sh`, `build_valfull.py`) live outside the
-repository on the cluster (`~/esm-msr-devel/baselines/`). They are not needed to produce predictions, but several of them
-import `dms_source`, `prepare_oct06_data` and `build_mutate_everything_data`, which is why those three still have copies there.
+the GB1 and audit scripts and the October data-preparation launchers (`slurm_prep_nobb.sh`, `build_valfull.py`) live outside the
+repository on the cluster (`~/esm-msr-devel/baselines/`). They are not needed to produce predictions. Several of them import
+`dms_source`, `prepare_oct06_data` and `build_mutate_everything_data`, which is why copies of those three remain there, in their
+October form with the capped split built in. The repository's versions replace them for any split: `prepare/prepare_baseline_data.py`
+(formerly `prepare_oct06_data.py`; it also writes the unfiltered `items_valfull.csv` that `build_valfull.py` made, and `--mut_backbones
+exclude` is what `slurm_prep_nobb.sh` ran) and `prepare/build_mutate_everything_data.py`.

@@ -55,8 +55,8 @@ from thermompnn.datasets.v2_datasets import MegaScaleDatasetv2, tied_featurize_m
 from thermompnn.protein_mpnn_utils import parse_PDB  # noqa: E402
 from thermompnn.train_thermompnn import parse_cfg  # noqa: E402
 
-# The prepared item tables a baseline was trained on (prepare/prepare_oct06_data.py): MSR_BASELINE_DATA.
-DATA = str(paths.BASELINE_DATA)
+# The prepared item tables of one split (prepare/prepare_baseline_data.py), set by main() from --data_dir / MSR_BASELINE_DATA.
+DATA = None
 ROSETTA = str(paths.ROSETTA_DIR) + '/'
 CONFIGS = {'single': 'train_single.yaml', 'epistatic': 'train_epistatic.yaml'}
 
@@ -105,12 +105,12 @@ class OctItemsDataset(MegaScaleDatasetv2):
         self._sort_dataset()
 
 
-def load_cfg(model, seed):
+def load_cfg(model, seed, variant=None):
     cfg = OmegaConf.merge(
         OmegaConf.create({'platform': {'accel': 'gpu', 'thermompnn_dir': TMPNN},
                           'data_loc': {'rosetta_data': ROSETTA}}),
         OmegaConf.load(os.path.join(TMPNN, 'examples/configs', CONFIGS[model])))
-    cfg.name = f'{model}_oct06_seed{seed}'
+    cfg.name = f'{model}_{variant or "baseline"}_seed{seed}'
     cfg.data.seed = seed  # upstream option: seeds the double-aug pairing
     return parse_cfg(cfg)
 
@@ -122,7 +122,7 @@ def train(args):
     from thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
 
     pl.seed_everything(args.seed, workers=True)
-    cfg = load_cfg(args.model, args.seed)
+    cfg = load_cfg(args.model, args.seed, paths.variant_info(DATA).get('name'))
     if args.num_workers is not None:
         cfg.training.num_workers = args.num_workers
     if args.epochs is not None:  # smoke tests only; the real runs use the config's 100
@@ -524,6 +524,8 @@ def main():
     ap.add_argument('--epochs', type=int, default=None)
     ap.add_argument('--batch_fraction', type=float, default=None)
     ap.add_argument('--split', default='test', help='test: which prepared item table (test | val); `all` does both')
+    ap.add_argument('--data_dir', default=None, help='train, test, all: the prepare_baseline_data.py output of one split (default: $MSR_BASELINE_DATA)')
+    ap.add_argument('--tsuboyama_split', default=None, help='the split --data_dir must have been prepared from (checked against its variant.json)')
     ap.add_argument('--single_ckpt')
     ap.add_argument('--epistatic_ckpt')
     ap.add_argument('--max_proteins', type=int, default=0,
@@ -540,6 +542,10 @@ def main():
     for k in ('out', 'single_ckpt', 'epistatic_ckpt', 'pgym_dir', 'resource_dir'):   # the loaders chdir into ThermoMPNN-D
         if getattr(a, k, None):
             setattr(a, k, os.path.abspath(getattr(a, k)))
+    if a.mode in ('train', 'test', 'all'):
+        global DATA
+        DATA = paths.baseline_data(a.data_dir)
+        paths.check_split(DATA, a.tsuboyama_split)
     if a.mode == 'train':
         return train(a)
     if a.calibrate_batch_sizes:

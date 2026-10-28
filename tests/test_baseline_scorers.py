@@ -519,3 +519,70 @@ def test_me_predict_survives_a_protein_that_runs_out_of_memory(monkeypatch, tmp_
         mod.predict(types.SimpleNamespace(eval=lambda: None), iter([{'pdb_ids': ['P4'], 'seqs': ['A']}]), None, None, None, [])
     with pytest.raises(RuntimeError, match='out of memory'):                         # and only when the caller collects failures
         mod.predict(types.SimpleNamespace(eval=lambda: None), iter([batches[1]]), None, None, None, None)
+
+
+def test_split_helpers_name_variants_and_refuse_another_split(tmp_path, monkeypatch):
+    import json
+    import paths
+    assert paths.split_stem('data/splits_x.pkl') == 'splits_x' == paths.split_stem('splits_x')
+    assert paths.variant_name('splits_oct06_capped') == 'oct06_capped'
+    assert paths.variant_name('data/splits_oct06_capped.pkl', True) == 'oct06_capped_allbl'
+    assert paths.variant_name('mysplit', True, 'exclude') == 'mysplit_allbl_nobb'
+    f = tmp_path / 's.pkl'
+    f.write_bytes(b'')
+    assert paths.split_file(str(f)) == f and paths.split_file('splits_x') == paths.DATA_DIR / 'splits_x.pkl'
+    d = tmp_path / 'tables'
+    d.mkdir()
+    paths.check_split(d, 'anything')                                   # tables prepared before variant.json: no check
+    (d / 'variant.json').write_text(json.dumps({'name': 'a_allbl', 'split': 'splits_a'}))
+    paths.check_split(d, 'data/splits_a.pkl')
+    paths.check_split(d, None)
+    with pytest.raises(SystemExit, match='splits_a'):
+        paths.check_split(d, 'splits_b')
+    monkeypatch.setattr(paths, 'BASELINE_DATA', None)
+    with pytest.raises(SystemExit, match='MSR_BASELINE_DATA'):
+        paths.baseline_data()
+    assert paths.baseline_data(str(d)) == str(d.resolve())
+
+
+def test_me_builder_takes_its_name_from_the_prepared_variant(tmp_path, monkeypatch):
+    import importlib.util
+    import json
+    spec = importlib.util.spec_from_file_location('build_me_under_test', BASELINES / 'prepare' / 'build_mutate_everything_data.py')
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    d = tmp_path / 'tables'
+    d.mkdir()
+    seq = 'ACDEF'
+    msa = tmp_path / 'q.a3m'
+    msa.write_text('>q\n' + seq + '\n')
+    pd.DataFrame({'code': ['L1'], 'code_wt': ['L1'], 'bb_mut': [np.nan], 'wt_seq': [seq]}).to_csv(d / 'libraries.csv', index=False)
+    (d / 'msa_index.json').write_text(json.dumps({seq: str(msa)}))
+    (d / 'variant.json').write_text(json.dumps({'name': 'zeta_allbl', 'split': 'splits_zeta'}))
+    items = pd.DataFrame({'code': 'L1', 'code_wt': 'L1', 'bb_mut': np.nan, 'wt_seq': seq, 'mut_type': ['A1C', 'A1C:C2D'],
+                          'ddG_ML': [0.5, 1.0], 'kind': ['single', 'double']})
+    for t in ('train', 'val', 'test'):
+        items.to_csv(d / f'items_{t}.csv', index=False)
+    me = tmp_path / 'me'
+    monkeypatch.setattr(sys, 'argv', ['x', '--mode', 'build', '--data_dir', str(d), '--me_root', str(me)])
+    mod.main()
+    root = me / 'data' / 'zeta_allbl'                                  # the name came from variant.json
+    assert sorted(p.name for p in (root / 'mutations').iterdir()) == [f'zeta_allbl_{n}.csv' for n in ('test', 'testcomp', 'train', 'val')]
+    assert json.load(open(root / 'variant.json'))['split'] == 'splits_zeta'      # the inference script's split check reads this
+    items.to_csv(d / 'items_valfull.csv', index=False)
+    mod.main()
+    assert (root / 'mutations' / 'zeta_allbl_valfull.csv').exists()    # valfull follows when the tables have it
+
+
+def test_no_retraining_or_inference_file_hard_codes_a_split():
+    """The baselines' preparation, training and inference code works for any split: a split's name belongs on a command line or in
+    a README, not in code (an example in a comment or an `e.g.` in a message is fine)."""
+    import re
+    root = BASELINES.parent.parent
+    files = [*BASELINES.glob('*.py'), *BASELINES.glob('*.sh'), *(BASELINES / 'prepare').glob('*.py'),
+             *(root / 'training_scripts' / 'baselines').glob('*.sh'), *(root / 'env').glob('*.sbatch')]
+    pat = re.compile(r'splits_oct06|oct06_capped|oct06_structure|oct06_nobb|baselines_capped|baselines_nobb')
+    hits = [f'{f.relative_to(root)}:{i}' for f in files for i, line in enumerate(f.read_text().splitlines(), 1)
+            if pat.search(line.split('#')[0]) and 'e.g.' not in line]
+    assert not hits, f'a split is hard-coded in {hits}'
+    assert not (BASELINES / 'prepare' / 'prepare_oct06_data.py').exists()

@@ -57,7 +57,7 @@ DMS = ['DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_
 def resolve_sets(sets, split_name):
     """--sets (group names and/or single set names) -> the list of input CSVs."""
     root = Path(ME_DIR) / 'data'
-    tsu = lambda n: root / split_name / 'mutations' / f'{split_name}_{n}.csv'
+    tsu = lambda n: root / (split_name or '-') / 'mutations' / f'{split_name}_{n}.csv'      # unused without a split_name (main checks)
     one = {**{n: root / 'external_test_feb' / 'mutations' / f'{n}.csv' for n in EXTERNAL_E},
            **{n: root / 'additional_test_march' / 'mutations' / f'{n}.csv' for n in EXTERNAL_A},
            's461': root / 's461' / 'mutations' / 's461.csv',
@@ -259,7 +259,9 @@ if __name__ == '__main__':
     # the recipe the corrected baselines were evaluated with
     p.set_defaults(backbone='af', finetune_backbone='models/finetuning_ptm_2.pt', batch_size=1, eval=True, disable_wandb=True)
     p.add_argument('--sets', default='all', help='all | tsuboyama | external | dms | domainome | pgym | comma-separated set names')
-    p.add_argument('--split_name', default='oct06_capped_allbl', help='the Tsuboyama split directory under data/')
+    p.add_argument('--split_name', default=None, help='the Tsuboyama tables directory under data/ (build_mutate_everything_data.py --name); '
+                   'needed for --sets all, tsuboyama, val, valfull, test, testcomp')
+    p.add_argument('--tsuboyama_split', default=None, help='the split data/<split_name> must have been built from (checked against its variant.json)')
     p.add_argument('--mutants', choices=['single', 'multi', 'both'], default='both',
                    help='which rows of each set to request (single: no doubles, so the pair head is skipped)')
     p.add_argument('--max_proteins', type=int, default=0, help='smoke test: only the first N proteins of every set (0 = all)')
@@ -267,5 +269,9 @@ if __name__ == '__main__':
     p.add_argument('--continue_on_error', action='store_true', help='log a failing set (e.g. too long for the GPU) and go on')
     resource_tracker.add_tracking_args(p)
     a = p.parse_args()
+    if not a.split_name and {x.strip() for x in a.sets.split(',')} & {'all', 'tsuboyama', 'val', 'valfull', 'test', 'testcomp'}:
+        p.error('--sets with Tsuboyama tables needs --split_name')
+    if a.split_name:
+        paths.check_split(Path(ME_DIR) / 'data' / a.split_name, a.tsuboyama_split)
     a.output_dir = Path(a.output_dir)
     main(a)

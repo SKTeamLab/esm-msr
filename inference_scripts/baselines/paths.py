@@ -14,10 +14,12 @@ this repository, so nothing here names a user or a machine.
                              machine that built them; `fix_pdb_path` rewrites it to this directory)
   MSR_DOMAINOME_TABLE        domainome_mapped_2026.csv
   MSR_ROSETTA_DIR            Tsuboyama FINAL_results (Rosetta models; ThermoMPNN-D's double augmentation, training only)
-  MSR_BASELINE_DATA          the prepared item tables (prepare/prepare_oct06_data.py output) a baseline was trained on
+  MSR_BASELINE_DATA          the prepared item tables (prepare/prepare_baseline_data.py output, one directory per split and
+                             variant) a baseline is trained on and scored on Tsuboyama with; no default, the caller names it
   MSR_PGYM_INPUTS            pgym_inputs/ (preprocessing/pgym_preprocess.py)
   MSR_PGYM_STRUCTURES        ProteinGym_AF2_structures
 """
+import json
 import os
 import re
 from pathlib import Path
@@ -42,7 +44,7 @@ TSUBOYAMA_DIR = _env('MSR_TSUBOYAMA_DIR', DATA_DIR / 'tsuboyama')
 STRUCTURES_DIR = _env('MSR_STRUCTURES_DIR', THIRD_PARTY_DIR / 'esm-msr' / 'data' / 'structures')
 DOMAINOME_TABLE = _env('MSR_DOMAINOME_TABLE', THIRD_PARTY_DIR / 'esm-msr' / 'data' / 'domainome1' / 'domainome_mapped_2026.csv')
 ROSETTA_DIR = _env('MSR_ROSETTA_DIR', THIRD_PARTY_DIR / 'esm-msr' / 'data' / 'tsuboyama' / 'FINAL_results')
-BASELINE_DATA = _env('MSR_BASELINE_DATA', REPO_ROOT / 'outputs' / 'baselines_capped_allbl' / 'data')
+BASELINE_DATA = os.environ.get('MSR_BASELINE_DATA') or None      # a prepared directory belongs to one split: no default
 PGYM_INPUTS = _env('MSR_PGYM_INPUTS', REPO_ROOT / 'pgym_inputs')
 PGYM_STRUCTURES = _env('MSR_PGYM_STRUCTURES', HOME / 'ProteinGym' / 'ProteinGym_AF2_structures')
 
@@ -57,6 +59,48 @@ def fix_pdb_path(p):
 
 def fix_pdb_column(series):
     return series.astype(str).str.replace(_BAKED, str(STRUCTURES_DIR), regex=True)
+
+
+def split_stem(split):
+    """'data/splits_x.pkl' and 'splits_x' are the same split."""
+    name = os.path.basename(str(split))
+    return name[:-4] if name.endswith('.pkl') else name
+
+
+def split_file(split):
+    """The pickle of a split given as a path or as a name under data/."""
+    return Path(split) if Path(split).is_file() else DATA_DIR / (split_stem(split) + '.pkl')
+
+
+def variant_name(split, keep_all_doubles=False, mut_backbones='include'):
+    """The name of a split's prepared baseline tables (prepare_baseline_data.py): the split's stem without a `splits_` prefix,
+    `_allbl` when every measured double is kept, `_nobb` when mutant-background libraries are left out. It is also the name of
+    MutateEverything's data/<name> directory (build_mutate_everything_data.py)."""
+    stem = split_stem(split)
+    stem = stem[len('splits_'):] if stem.startswith('splits_') else stem
+    return stem + ('_allbl' if keep_all_doubles else '') + ('_nobb' if mut_backbones == 'exclude' else '')
+
+
+def baseline_data(path=None):
+    """The prepared item-table directory: `path`, else $MSR_BASELINE_DATA."""
+    p = path or BASELINE_DATA
+    if not p:
+        raise SystemExit('no prepared baseline tables: pass --data_dir or set MSR_BASELINE_DATA to the output directory of '
+                         'prepare/prepare_baseline_data.py')
+    return str(require(p, 'the prepared baseline tables').resolve())      # absolute: ThermoMPNN's loaders chdir
+
+
+def variant_info(data_dir):
+    """variant.json of a prepared directory (name, split, flags), {} for tables prepared before it existed."""
+    p = Path(data_dir) / 'variant.json'
+    return json.load(open(p)) if p.exists() else {}
+
+
+def check_split(data_dir, split):
+    """Refuse to train on or score with tables prepared from another split than `split` (None: no check)."""
+    have = variant_info(data_dir).get('split')
+    if split and have and split_stem(have) != split_stem(split):
+        raise SystemExit(f'{data_dir} holds the tables of split {split_stem(have)}, not {split_stem(split)}')
 
 
 def require(path, what):
