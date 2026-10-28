@@ -5,9 +5,12 @@ series) is in [`EXPERIMENTS.md`](EXPERIMENTS.md); this document is the results.
 
 **The two ESM-MSR checkpoints compared throughout.** **ESM-MSR (baseline)** is the released recipe retrained on the
 capped split as a **three-seed triplicate** (`LoRA_models/release-baseline/s{1,2,3}`, unmasked, σ = 1); §1.1–1.3 carry
-its seed mean ± the standard deviation over the three seeds. It replaces the single
-`LoRA_models/esm-msr-baseline-w2a4-m16a16-capped` checkpoint, which is now quoted only by the §1.4 ProteinGym row;
-those came from the earlier run, and the triplicate's ProteinGym pass was still in flight when this table was built.
+its seed mean ± the sample standard deviation (n − 1) over the three seeds. It replaces the single
+`LoRA_models/esm-msr-baseline-w2a4-m16a16-capped` checkpoint, which is now quoted only by the rows labelled "released"
+(the §1.3 LoRA-scale sweep, §1.4 ProteinGym, §2.6, §3 and the all-substitution tables); the triplicate's ProteinGym pass
+was still in flight when this table was built. In `benchmarks/all_by_all_long.csv` the label "ESM-MSR (released)" with
+`n_seeds` = 3 is the baseline triplicate (the label predates the retrain); its `n_seeds` = 1 rows (the σ sweeps and
+ProteinGym) are the single released checkpoint.
 §2 epistasis is rescored from the triplicate too (`analysis_scripts/rescore_epistasis.py`). **ESM-MSR (devel)** is the three-seed
 floor-link series from `devel-revision` (`esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{1,2,3}`,
 `val_rho_combined_avg` 0.840 / 0.839 / 0.841). Both were trained on `splits_oct06_capped.pkl`, as were the
@@ -25,10 +28,12 @@ says `q` (queued). The recipe, the data accounting and the deviations that remai
 
 **Metric conventions.** One Spearman ρ per model and dataset, positive = stabilizing / fitter for every model.
 External sets and DMS are a pooled ρ per set; Tsuboyama and Domainome are the mean of per-protein ρ, on measured
-rows only; ProteinGym is per-DMS ρ summarised as in §3. Multi-seed rows are seed means.
+rows only; ProteinGym is per-DMS ρ summarised as in §3. Multi-seed rows are seed means, and every ± is the sample
+standard deviation over seeds (n − 1), in §1 and §2 and in the ESM-MSR rows of the long CSV.
 
-**Regenerating.** `analysis_scripts/benchmark_matrix.py collect|tables`, run on the cluster (it reads the result
-trees in place). The long table is [`benchmarks/all_by_all_long.csv`](benchmarks/all_by_all_long.csv)
+**Regenerating.** The §1 tables are rendered on the cluster by a fork of `analysis_scripts/benchmark_matrix.py`
+(`~/consolidation/benchmark_matrix.py`, kept in step with it by `analysis_scripts/patch_consolidation_copy.py`); the repo
+script (`collect|tables`) reads the result trees in place but is not a drop-in for the fork. The long table is [`benchmarks/all_by_all_long.csv`](benchmarks/all_by_all_long.csv)
 (model, dataset, rho, sd, n_seeds, source). Companion documents: what is still outstanding is in
 [`OUTSTANDING_EXPERIMENTS.md`](OUTSTANDING_EXPERIMENTS.md); which hardware each run used, and the inference-speed
 findings, in [`GPU4_INFERENCE_LEDGER.md`](GPU4_INFERENCE_LEDGER.md).
@@ -54,8 +59,8 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 
 | model | s571 | s783 | s2648 | s8754 | s669 | s461 | ssym | q3421 | k3822 | k2369 | ptmul | ptmuld | mean of 12 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ESM-MSR (baseline), combined (3 seeds) | **0.455±0.003** | 0.713±0.004 | 0.669±0.005 | 0.616±0.003 | 0.558±0.003 | 0.750±0.004 | 0.765±0.004 | 0.621±0.003 | 0.714±0.002 | 0.715±0.002 | 0.583±0.003 | 0.593±0.005 | 0.646±0.002 |
-| ESM-MSR (baseline), WT head (3 seeds) | 0.441±0.006 | 0.698±0.004 | 0.662±0.003 | 0.607±0.004 | 0.543±0.000 | 0.744±0.004 | 0.764±0.003 | 0.615±0.001 | 0.715±0.001 | 0.712±0.001 | 0.571±0.003 | 0.577±0.001 | 0.637±0.001 |
+| ESM-MSR (baseline), combined (3 seeds) | **0.455±0.004** | 0.713±0.004 | 0.669±0.006 | 0.616±0.004 | 0.558±0.003 | 0.750±0.005 | 0.765±0.005 | 0.621±0.004 | 0.714±0.003 | 0.715±0.003 | 0.583±0.004 | 0.593±0.006 | 0.646±0.002 |
+| ESM-MSR (baseline), WT head (3 seeds) | 0.441±0.007 | 0.698±0.005 | 0.662±0.004 | 0.607±0.005 | 0.543±0.000 | 0.744±0.005 | 0.764±0.003 | 0.615±0.001 | 0.715±0.001 | 0.712±0.001 | 0.571±0.003 | 0.577±0.001 | 0.637±0.001 |
 | ESM-MSR (devel), combined (3 seeds) | 0.445 | **0.725** | 0.677 | **0.625** | 0.560 | **0.753** | 0.773 | 0.626 | **0.721** | **0.722** | **0.594** | **0.597** | 0.652 |
 | ESM-MSR (devel), WT head | 0.430 | 0.713 | 0.675 | 0.618 | 0.551 | **0.753** | 0.776 | 0.623 | 0.719 | 0.717 | 0.583 | 0.585 | 0.645 |
 | MutateEverything st1 (3 seeds) | 0.439 | 0.706 | **0.701** | 0.623 | 0.559 | 0.721 | 0.674 | **0.638** | 0.696 | 0.674 | 0.472 | 0.480 | 0.615 |
@@ -105,9 +110,9 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | ESM3-medium (Forge, zero-shot) | C | C | C | C | C | C | C | C | C | C | C | C | – |
 | ESM3-small (Forge, zero-shot) | C | C | C | C | C | C | C | C | C | C | C | C | – |
 | ESM-MSR-small (March reference) | – | – | – | – | – | – | – | – | – | – | – | – | – |
-- **The 12-set ranking is dominated by training overlap.** GeoDDG (0.767) and DDGemb (0.697) lead only on cells that are partly or wholly their training data: S8754 *is* GeoDDG's training set (`M 1.00`, `#`), S2648 is 92.5 % of DDGemb's S2450, and every one of GeoDDG's twelve cells carries an identical-mutation, same-protein or strong-homolog flag (§6.5). Over the cells with no such flag (§6.5) the 12-set mean is ESM-MSR (devel) 0.651, ME stage 1 0.615, ME stage 2 0.605, ThermoMPNN 0.585, ProteinMPNN 0.464 and ProSST 0.423; none of them loses a cell to the filter. On the two sets that are same-protein-clean for every supervised model (S669, S461) ESM-MSR and DDGemb are level on S669 (0.565 vs 0.570) and ESM-MSR leads S461 (0.756 vs 0.654).
-- **There is no set with no overlap for every model.** The overlap lattice is measured, not assumed: S669 and S461 are the only sets with zero identical mutations for every model, yet DDMut still shares 11 %/16 % of them at the same-protein level (its S9028 includes S2648+FireProtDB proteins), and GeoDDG has a same-protein or strong-homolog trace on both (1 % of S669, 3 % of S461). S571 is 39 % identical-mutation overlap with GeoDDG and 20 % with DDMut; Ssym is 37 % with GeoDDG, 30 % with DDMut and 28 % with DDGemb; PTMUL is 59 % with DDMut's multi-mutant training file SM1242 and 97 % same-protein with GeoDDG/DDGemb. A ranking over the raw 12 sets therefore compares different models on different subsets. The per-model means over their own clean cells are in §6.5; only ESM-MSR, ME, ThermoMPNN, ProSST, ProteinMPNN and the zero-shot control are clean on all twelve, and ESM-MSR (released 0.647, devel 0.651) leads them.
-- **Among the models trained on Tsuboyama/Megascale, ESM-MSR leads 9 of 12 sets, but only two of those models are clean comparators.** SPURS trained on 24 of the 33 capped test libraries (21,315 of 36,526 singles, 58.4 % exact), ESMtherm on 27 of 33 (82 % of test rows same-protein, mutant-level split) and IFUM on 21 of 33 (45 % same-protein); ESM3ΔG is not Megascale-trained at all (see below). Only ESM-MSR, MutateEverything and ThermoMPNN have zero exact-mutation and zero same-protein overlap with all 33 test libraries (§6.5).
+- **The 12-set ranking is dominated by training overlap.** GeoDDG (0.767) and DDGemb (0.697) lead only on cells that are partly or wholly their training data: S8754 *is* GeoDDG's training set (`M 1.00`, `#`), S2648 is 92.5 % of DDGemb's S2450, and every one of GeoDDG's twelve cells carries an identical-mutation, same-protein or strong-homolog flag (§6.5). Over the cells with no such flag (§6.5) the 12-set mean is ESM-MSR (devel) 0.652, ESM-MSR (baseline) 0.646, ME stage 1 0.615, ME stage 2 0.605, ThermoMPNN 0.585, ProteinMPNN 0.464 and ProSST 0.423; none of them loses a cell to the filter. On the two sets that are same-protein-clean for every supervised model (S669, S461) DDGemb is about 0.01 ahead on S669 (0.570 against ESM-MSR 0.558 baseline, 0.560 devel) and ESM-MSR leads S461 (0.750 baseline, 0.753 devel, against 0.654).
+- **There is no set with no overlap for every model.** The overlap lattice is measured, not assumed: S669 and S461 are the only sets with zero identical mutations for every model, yet DDMut still shares 11 %/16 % of them at the same-protein level (its S9028 includes S2648+FireProtDB proteins), and GeoDDG has a same-protein or strong-homolog trace on both (1 % of S669, 3 % of S461). S571 is 39 % identical-mutation overlap with GeoDDG and 20 % with DDMut; Ssym is 37 % with GeoDDG, 30 % with DDMut and 28 % with DDGemb; PTMUL is 59 % with DDMut's multi-mutant training file SM1242 and 97 % same-protein with GeoDDG/DDGemb. A ranking over the raw 12 sets therefore compares different models on different subsets. The per-model means over their own clean cells are in §6.5; only ESM-MSR, ME, ThermoMPNN, ProSST, ProteinMPNN and the zero-shot control are clean on all twelve, and ESM-MSR (baseline 0.646, devel 0.652) leads them.
+- **Among the models trained on Tsuboyama/Megascale, ESM-MSR (devel) leads 9 of 12 sets and the baseline triplicate 7, but only two of those models are clean comparators.** SPURS trained on 24 of the 33 capped test libraries (21,315 of 36,526 singles, 58.4 % exact), ESMtherm on 27 of 33 (82 % of test rows same-protein, mutant-level split) and IFUM on 21 of 33 (45 % same-protein); ESM3ΔG is not Megascale-trained at all (see below). Only ESM-MSR, MutateEverything and ThermoMPNN have zero exact-mutation and zero same-protein overlap with all 33 test libraries (§6.5). Counting only comparator cells with no leak flag, ME stage 1 takes S2648 and Q3421 and SPURS takes Ssym from both ESM-MSR rows; the baseline triplicate also trails ME stage 1 on S8754 (0.616 against 0.623) and, by 0.001, on S669.
 - **The σ = 0 row is a control, not a model:** the ESM-MSR architecture with the LoRA scaled to zero, i.e. plain
   ESM3-small-open read through the calibration head. Its 12-set mean (0.378) sits on the published
   ESM3-small-open figure (0.380 over that table's 10 sets, §1.5), so the LoRA-off path behaves as expected and the
@@ -228,8 +233,8 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 
 | model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome |
 |---|---|---|---|---|---|---|---|---|
-| ESM-MSR (baseline), combined (3 seeds) | 0.737±0.003 | 0.737±0.002 | 0.675±0.015 | 0.627±0.009 | 0.638±0.002 | 0.480±0.006 | 0.318±0.010 | 0.543±0.001ᴾ |
-| ESM-MSR (baseline), WT head (3 seeds) | 0.733±0.001 | 0.736±0.002 | 0.670±0.012 | 0.636±0.004 | 0.637±0.001 | 0.462±0.008 | 0.341±0.010 | 0.541±0.003ᴾ |
+| ESM-MSR (baseline), combined (3 seeds) | 0.737±0.004 | 0.737±0.003 | 0.675±0.019 | 0.627±0.011 | 0.638±0.003 | 0.480±0.007 | 0.318±0.012 | 0.543±0.001ᴾ |
+| ESM-MSR (baseline), WT head (3 seeds) | 0.733±0.001 | 0.736±0.003 | 0.670±0.015 | 0.636±0.005 | 0.637±0.001 | 0.462±0.010 | 0.341±0.013 | 0.541±0.004ᴾ |
 | ESM-MSR (devel), combined (3 seeds) | 0.745 | 0.742 | 0.681 | 0.636 | 0.639 | 0.481 | 0.337 | 0.543ᴾ |
 | ESM-MSR (devel), WT head | 0.751 | 0.754 | 0.684 | 0.655 | **0.640** | 0.478 | **0.364** | 0.548ᴾ |
 | MutateEverything st1 (3 seeds) | 0.707 | 0.681 | 0.646 | 0.581 | 0.580 | 0.483 | 0.296 | 0.520 |
@@ -292,16 +297,17 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 #### ESM-MSR LoRA scale σ on the DMS and Domainome
 
 ProteinGym showed that the right LoRA scale depends on the assay (§3), so the DMS and Domainome blocks are rerun at
-σ = 0.75, 0.5 and 0.25 for both checkpoints (devel rows are seed means over all three seeds, shown only once every
-seed has finished; the combined head is shown).
+σ = 0.75, 0.5 and 0.25 for both checkpoints (the released rows are the single released checkpoint, not the baseline
+triplicate of the rows above; devel rows are seed means over all three seeds, shown only once every seed has finished;
+the combined head is shown).
 
 | model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome |
 |---|---|---|---|---|---|---|---|---|
-| released, σ = 1 | 0.726 | 0.725 | 0.673 | 0.619 | **0.639** | 0.479 | 0.346 | 0.542 |
+| released, σ = 1 | 0.728 | 0.727 | 0.673 | 0.620 | **0.639** | 0.478 | 0.345 | 0.542 |
 | released, σ = 0.75 | 0.751 | 0.764 | 0.707 | 0.660 | **0.639** | 0.510 | 0.340 | 0.560 |
 | released, σ = 0.5 | 0.762 | 0.791 | **0.718** | 0.696 | 0.627 | **0.526** | 0.342 | **0.572** |
 | released, σ = 0.25 | 0.748 | 0.793 | 0.688 | 0.721 | 0.596 | 0.516 | 0.320 | 0.568 |
-| devel, σ = 1 | 0.745 | 0.742 | 0.682 | 0.636 | **0.639** | 0.481 | 0.337 | 0.543 |
+| devel, σ = 1 | 0.745 | 0.742 | 0.681 | 0.636 | **0.639** | 0.481 | 0.337 | 0.543 |
 | devel, σ = 0.75 | 0.762 | 0.773 | 0.713 | 0.674 | **0.639** | 0.510 | 0.345 | 0.560 |
 | devel, σ = 0.5 | **0.768** | **0.796** | 0.716 | 0.705 | 0.627 | 0.525 | **0.349** | 0.570 |
 | devel, σ = 0.25 | 0.749 | 0.793 | 0.687 | **0.726** | 0.596 | 0.516 | 0.318 | 0.567 |
@@ -309,8 +315,8 @@ seed has finished; the combined head is shown).
 
 - **Released, a lower LoRA scale is clearly better on these assays.** At σ = 0.5 the 7-DMS mean is 0.637 against
   0.601 at σ = 1 (0.624 at 0.75, 0.626 at 0.25), and σ = 0.5 beats σ = 1 on 6 of the 8 columns,
-  including Domainome (0.572 against 0.542), DLG4 binding (0.791 against 0.725) and GRB2 binding (0.696 against
-  0.619; 0.721 at σ = 0.25). Only MYO and GB1 prefer σ = 1, and by at most 0.012. This is the same direction as
+  including Domainome (0.572 against 0.542), DLG4 binding (0.791 against 0.727) and GRB2 binding (0.696 against
+  0.620; 0.721 at σ = 0.25). Only MYO and GB1 prefer σ = 1, and by at most 0.012. This is the same direction as
   ProteinGym's functional categories (§3), and at σ = 0.5 ESM-MSR (released) is ahead of ProSST (0.591) on the 7-DMS
   mean.
 - **The caveat that goes with it:** the best σ per assay is chosen by looking at these same assays, so these numbers
@@ -495,8 +501,8 @@ are comparable to §2.1–2.2: same splits, censored rows excluded, 8,494 and 12
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | ESM-MSR (baseline), 3 seeds | **0.654±0.003** | 0.586±0.018 | 0.434±0.033 | 0.377±0.045 | 0.745±0.024 | 0.395±0.050 | 0.309±0.004 | 0.193±0.004 | 0.845±0.009 | 0.683±0.012 | **0.717±0.036** | 0.177±0.081 |
 | ESM-MSR (devel), 3 seeds | 0.643±0.032 | 0.585±0.017 | 0.437±0.031 | 0.406±0.011 | 0.734±0.023 | 0.434±0.011 | 0.315±0.014 | 0.195±0.007 | 0.854±0.023 | 0.657±0.011 | 0.824±0.019 | 0.275±0.030 |
-| ESM-MSR (trim/mask), 3 seeds | 0.371 | **0.659** | **0.554** | **0.460** | **0.868** | **0.514** | **0.328** | **0.217** | **0.906** | 0.685 | 0.915 | -0.313 |
-| MutateEverything stage 2 (vs stage-1 singles), 3 seeds | 0.421 | 0.311 | 0.141 | 0.153 | 0.467 | 0.161 | 0.093 | 0.072 | 0.736 | 0.668 | 0.803 | **-0.127** |
+| ESM-MSR (trim/mask), 3 seeds | 0.598±0.022 | **0.637±0.021** | **0.530±0.015** | **0.433±0.025** | **0.851±0.053** | **0.475±0.030** | **0.320±0.010** | **0.217±0.005** | **0.906±0.004** | 0.619±0.009 | 0.830±0.059 | **-0.117±0.219** |
+| MutateEverything stage 2 (vs stage-1 singles), 3 seeds | 0.421 | 0.311 | 0.141 | 0.153 | 0.467 | 0.161 | 0.093 | 0.072 | 0.736 | 0.668 | 0.803 | -0.127 |
 | ThermoMPNN-D (vs ThermoMPNN), 3 seeds | 0.190 | 0.085 | 0.108 | 0.150 | 0.060 | 0.203 | 0.048 | 0.023 | 0.655 | **0.692** | 0.979 | -0.435 |
 
 **Test (12,455 doubles, 43 pairs, 4,236 flips)**
@@ -505,13 +511,15 @@ are comparable to §2.1–2.2: same splits, censored rows excluded, 8,494 and 12
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | ESM-MSR (baseline), 3 seeds | 0.452±0.013 | 0.484±0.016 | 0.343±0.018 | 0.304±0.018 | **0.637±0.006** | 0.361±0.026 | 0.240±0.008 | 0.217±0.006 | 0.761±0.003 | **0.604±0.011** | 0.954±0.042 | 0.280±0.109 |
 | ESM-MSR (devel), 3 seeds | **0.464±0.015** | **0.487±0.020** | 0.361±0.030 | 0.322±0.021 | 0.606±0.034 | 0.382±0.026 | 0.236±0.003 | 0.209±0.006 | 0.754±0.008 | 0.590±0.008 | 1.079±0.024 | 0.405±0.021 |
-| ESM-MSR (trim/mask), 3 seeds | 0.411 | 0.463 | **0.400** | **0.376** | 0.594 | **0.416** | **0.260** | **0.224** | **0.803** | 0.589 | **0.865** | **-0.088** |
-| MutateEverything stage 2 (vs stage-1 singles), 3 seeds | 0.405 | 0.223 | 0.165 | 0.211 | 0.124 | 0.225 | 0.134 | 0.112 | 0.665 | 0.595 | 0.922 | 0.255 |
+| ESM-MSR (trim/mask), 3 seeds | 0.444±0.013 | 0.460±0.019 | **0.398±0.008** | **0.374±0.010** | 0.589±0.017 | **0.417±0.016** | **0.266±0.014** | **0.224±0.009** | **0.803±0.019** | 0.567±0.007 | 0.937±0.045 | **0.083±0.192** |
+| MutateEverything stage 2 (vs stage-1 singles), 3 seeds | 0.405 | 0.223 | 0.165 | 0.211 | 0.124 | 0.225 | 0.134 | 0.112 | 0.665 | 0.595 | **0.922** | 0.255 |
 | ThermoMPNN-D (vs ThermoMPNN), 3 seeds | 0.077 | 0.071 | 0.124 | 0.166 | -0.003 | 0.197 | 0.022 | 0.016 | 0.601 | 0.578 | 1.030 | -0.224 |
 
-Two things this set makes sharper than the old one. On validation the trim seeds lead every interaction column, with
-the largest margin on `beyond_lib` (0.554 against 0.440) — so it is not a between-library offset. On test they lead
-`cell_mag`, `cell_rank`, `flipacc` and `beyond_lib` while trailing on `beyond ρ` (0.463 against 0.494): the pooled
+Two things this set makes sharper than the old one. On validation the trim seeds lead the interaction columns (`beyond ρ`, `beyond_lib`, pair-avg, pair, line, `cell_mag`,
+`cell_rank`, `flipacc`) while trailing on naive ρ (0.598 against 0.654), `class3` and `global_err`; `beyond_lib` (0.530
+against 0.437) strips each library's mean, so the gain is not a between-library offset. On test they lead `beyond_lib`,
+pair-avg, line, `cell_mag`, `cell_rank` (by less than one seed sd) and `flipacc` while trailing on `beyond ρ` (0.460
+against 0.487, devel) and pair ρ (0.589 against 0.637, baseline): the pooled
 correlation still carries the per-library level agreement that `beyond_lib` strips out. `global_err` and
 `global_bias` evaluate the point-wise RMSE and mean bias of the predicted epistasis $\sim\text{MT}(AB) - \text{WT}(AB)$
 directly against measured epistasis $\delta\Delta\Delta G$ on double mutants; negative bias reflects under-predicted epistasis.
@@ -619,7 +627,7 @@ retrained baselines are on the full 34,957-row validation population (ME stage 1
 
 | | ME st1 | ME st2 | TMPNN | TMPNN+D | ESM-MSR (baseline) WT ʰ | ESM-MSR (baseline) combined ʰ | ESM-MSR (devel) WT ʰ | ESM-MSR (devel) combined ʰ |
 |---|---|---|---|---|---|---|---|---|
-| val all variants (`spearman_all`) | 0.754 | 0.730 | 0.787 | 0.785 | 0.841 ± 0.002 | **0.855 ± 0.001** | 0.836 ± 0.001 | **0.854 ± 0.001** |
+| val all variants (`spearman_all`) | 0.754 | 0.730 | 0.787 | 0.785 | 0.841 ± 0.002 | **0.855 ± 0.001** | 0.836 ± 0.001 | 0.854 ± 0.001 |
 | val doubles (`spearman_doubles`) | 0.571 | 0.629 | 0.630 | 0.688 | 0.687 ± 0.015 | 0.720 ± 0.003 | 0.693 ± 0.002 | **0.727 ± 0.011** |
 | val dddG of doubles (`spearman_doubles_epi`) | -0.013 | 0.341 | – | 0.225 | -0.023 ± 0.031 | **0.505 ± 0.010** | 0.009 ± 0.068 | 0.492 ± 0.006 |
 | test all variants (`spearman_all`) | 0.771 | 0.760 | 0.794 | 0.784 | 0.829 ± 0.002 | 0.847 ± 0.001 | 0.827 ± 0.002 | **0.849 ± 0.001** |
@@ -644,11 +652,14 @@ retrained baselines are on the full 34,957-row validation population (ME stage 1
 ### 2.4 External sets, DMS, Domainome (baselines = 3-seed means, ESM-MSR = baseline triplicate)
 
 - **12 external sets, mean ρ:** ESM-MSR (baseline) **0.646**, ME stage 1 0.615, ME stage 2 0.605, ThermoMPNN
-  0.585, ThermoMPNN + D 0.586. ESM-MSR is best on 9 of 12 (ME stage 1 on s2648, s8754, q3421).
-- **7 DMS** (`spearman_all`): ESM-MSR (devel) leads DLG4 binding (0.742) and GB1 (0.337); the baseline triplicate reaches 0.737 on DLG4 binding, 0.318 on GB1 and 0.638 on MYO
-  (combined 0.639); ME's additive variants lead DLG4 abundance (stage 1+ 0.729 vs 0.726), GRB2 abundance (0.690 vs
-  0.672), GRB2 binding (stage 2+ 0.642 vs 0.633) and ESTA (0.483 vs 0.479) — mostly by < 0.02. **Every
-  model's additive variant beats its own direct multi-mutant prediction** on these assays.
+  0.585, ThermoMPNN + D 0.586. ESM-MSR (baseline) is best of these on 8 of 12 (ME stage 1 takes s2648, s8754 and q3421, and s669 by 0.001); ESM-MSR (devel) is best on 10 of 12.
+- **7 DMS** (`spearman_all`): the baseline triplicate leads the retrained baselines on DLG4 abundance (0.737 against
+  ME stage 1+ 0.729), DLG4 binding (0.737 against 0.714) and MYO (0.638 against 0.603; ESM-MSR (devel) 0.639); ME's
+  additive variants lead GRB2 abundance (stage 1+ 0.690 vs 0.675), GRB2 binding (stage 2+ 0.642 vs 0.627) and ESTA
+  (0.483 vs 0.480, inside the seed sd of 0.007) — mostly by < 0.02. On GB1 the baseline combined row (0.318 ± 0.012)
+  ties ThermoMPNN (0.319); the WT heads lead (baseline 0.341, devel 0.364). **The additive variants of ME and
+  ThermoMPNN beat their own direct multi-mutant predictions** on the four Faure assays and MYO, by 0.02–0.07; ESTA is an
+  exact tie and GB1 is mixed (ME stage 1 additive 0.287 against 0.296 direct).
 - **dddG on DMS:** ME stage 2 (corrected, against the stage-1 singles) scores 0.477 and 0.462 on DLG4 abundance and
   binding, 0.349 on GRB2 abundance, 0.116 on GRB2 binding, 0.087 on MYO and 0.177 on GB1; ThermoMPNN-D (corrected, against
   ThermoMPNN) scores 0.203 and 0.192, 0.203, 0.034, 0.071 and 0.445 on the same six. So ME stage 2 and ESM-MSR are comparable on DLG4
@@ -1016,7 +1027,7 @@ edges, and `make_homology_split` re-checks every edge.
 | GeoDDG = S8754 | S8754 is its training set (`#`); 97.7 % of S2648; 88.3 % of S783; 38.5 % of S571; 68.7 % of Q3421; 69.3 % of K3822; 76.1 % of K2369 | exact |
 | the "six clean sets" claim | only S669 and S461 have zero identical mutations for every model | DDMut shares 11 %/16 % of them at protein level, GeoDDG 1 %/3 % |
 
-**Clean comparators on Tsuboyama.** ESM-MSR (released and devel), MutateEverything st1/st2 and ThermoMPNN(-D) have
+**Clean comparators on Tsuboyama.** ESM-MSR (baseline and devel), MutateEverything st1/st2 and ThermoMPNN(-D) have
 zero exact mutations and zero same-protein overlap with all 33 capped-test and all 23 capped-val libraries; their only
 caveat is the 15.6 %/20.3 % weak-homology rows and validation selection (`V` on the val column). That is the group the
 headline Tsuboyama numbers should be read within. At the other end, SPURS single, SPURS multi, EsmTherm and IFUM are
@@ -1073,14 +1084,14 @@ subsets of S669, K3822 and PTMUL, so the sets overlap):
 | ProteinMPNN | 0.464 (12) | 0.464 | none |
 | ESM3-small-open, σ = 0 | 0.378 (12) | 0.378 | none |
 
-Only ESM-MSR (released and devel), ME stage 1/2, ThermoMPNN(+D), ProSST, ProteinMPNN and the σ = 0 control are clean on all twelve; ESM-MSR
-(devel 0.651, released 0.647) leads that group, ahead of ME stage 1 0.615, ME stage 2 0.605, ThermoMPNN 0.585,
+Only ESM-MSR (baseline and devel), ME stage 1/2, ThermoMPNN(+D), ProSST, ProteinMPNN and the σ = 0 control are clean on all twelve; ESM-MSR
+(devel 0.652, baseline 0.646) leads that group, ahead of ME stage 1 0.615, ME stage 2 0.605, ThermoMPNN 0.585,
 ProteinMPNN 0.464 and ProSST 0.423. The other means are over fewer sets and over different ones, so they are not comparable with these or
-with each other: DDGemb's clean cells are S669 and S461, where it is level with ESM-MSR on S669.
+with each other: DDGemb's clean cells are S669 and S461, where it is about 0.01 ahead of ESM-MSR on S669.
 
 **External sets.** With identical mutations, same protein and strong homologs excluded, the surviving comparisons are
-narrow: on S669 and S461 the clean supervised models are ESM-MSR (0.565 / 0.756, released; 0.560 / 0.753 devel),
-ME stage 1 (0.559 / 0.721), ThermoMPNN (0.490 / 0.655) and DDGemb (0.570 / 0.654). ESM-MSR and DDGemb are level on
+narrow: on S669 and S461 the clean supervised models are ESM-MSR (0.558 / 0.750 baseline; 0.560 / 0.753 devel),
+ME stage 1 (0.559 / 0.721), ThermoMPNN (0.490 / 0.655) and DDGemb (0.570 / 0.654). DDGemb is about 0.01 ahead on
 S669; ESM-MSR leads S461 by 0.10. The former 12-set leaders, GeoDDG and DDGemb, are not clean on the sets that made
 them leaders.
 
@@ -1092,9 +1103,9 @@ them leaders.
   split's own validation role, which every in-house model shares) do not disqualify, because a 30 %-identity local match,
   generic pretraining exposure or having been used for model selection is not the same kind of evidence as a trained
   mutation. Tables that compare settings of one model (the σ sweeps) bold within it; summary-mean columns, the
-  singles-only Rosetta rows and `q` cells are never bolded. This is why several bold values moved: §1.1 s571 ESM-MSR
-  0.456 (GeoDDG 0.526 is `M`), s783 ESM-MSR (devel) 0.725 (GeoDDG `M`), s2648 ME stage 1 0.701 (GeoDDG `M`), s8754
-  ESM-MSR (devel) 0.625 (GeoDDG `#`, DDGemb/DDMut `M`), S669 DDGemb 0.570 (GeoDDG/DDMut `P`), S461 ESM-MSR 0.756; §1.3
+  singles-only Rosetta rows and `q` cells are never bolded. This is why several bold values moved: §1.1 s571 ESM-MSR (baseline)
+  0.455 (GeoDDG 0.526 is `M`), s783 ESM-MSR (devel) 0.725 (GeoDDG `M`), s2648 ME stage 1 0.701 (GeoDDG `M`), s8754
+  ESM-MSR (devel) 0.625 (GeoDDG `#`, DDGemb/DDMut `M`), S669 DDGemb 0.570 (GeoDDG/DDMut `P`), S461 ESM-MSR (devel) 0.753; §1.3
   Domainome ProteinMPNN 0.548 (ESM-MSR `P`, `H.08`); §1.4 ProSST 0.514/0.653/0.528 (all trained rows `M`); §1.2 the clean
   held-out group is unchanged. On 2026-10-27 every superscript was re-derived from its matrix with the 0.5 % threshold
   (SPURS's tiny `M`/`m` fractions no longer print where a larger `P` is present, and the Domainome cells of ME and
@@ -1150,7 +1161,7 @@ ts `wt_lora_dddg_pred`).
 In the repo, on `devel-revision`: `inference_scripts/pgym_runner.py` (the one ProteinGym loop every model shares,
 recording per-DMS time, peak VRAM, GPU and host), the ProteinGym modes of `esm_msr_testing.py`,
 `proteinmpnn_testing.py`, `spurs_testing.py` and `thermompnnd_testing.py`, and in `analysis_scripts/`:
-`benchmark_matrix.py` (the all-by-all tables and the epistasis tables; it still reads the ME stage-2 and ThermoMPNN-D numbers from the withdrawn item-filtered exports `outputs/baselines_capped/{combined,final}_*_table.csv`, so regenerating a table brings those numbers back until it is repointed to the corrected result trees listed below), `ensemble_weight_scan.py` (§2.6),
+`benchmark_matrix.py` (the all-by-all tables and the epistasis tables; §1 is rendered by the cluster fork `~/consolidation/benchmark_matrix.py`, which `patch_consolidation_copy.py` keeps in step, and the repo script is not a drop-in for it; it still reads the ME stage-2 and ThermoMPNN-D numbers from the withdrawn item-filtered exports `outputs/baselines_capped/{combined,final}_*_table.csv`, so regenerating a table brings those numbers back until it is repointed to the corrected result trees listed below), `ensemble_weight_scan.py` (§2.6),
 `pgym_public_scores.py` (ProSST and ProteinMPNN from ProteinGym's published scores), `pgym_rosetta_singles.py` and
 `epi_rosetta.py` (Rosetta on ProteinGym and on the epistasis suite), `forge_ptmul_link_check.py` (the PTMUL
 indexing check above).

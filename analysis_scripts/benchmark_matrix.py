@@ -194,7 +194,7 @@ def collect_msr(rows, ckpt_dirs, model, sigma='1', heads=None, blocks=('external
             if len({c for c in conv.get(ds, []) if c}) > 1:          # seeds computed under different bias conventions: not a mean
                 print(f'[msr] {model}{label} {ds} eps={eps}: seeds mix bias conventions {conv[ds]}, not shown until rerun')
                 continue
-            rows.add(model + label, ds, np.mean(v), 'esm_msr_testing stats', len(v), np.std(v) if len(v) > 1 else np.nan)
+            rows.add(model + label, ds, np.mean(v), 'esm_msr_testing stats', len(v), np.std(v, ddof=1) if len(v) > 1 else np.nan)
 
 
 def collect_retrained(rows):
