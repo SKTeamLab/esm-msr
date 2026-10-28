@@ -231,7 +231,7 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | ESM-MSR (baseline), combined (3 seeds) | 0.737±0.003 | 0.737±0.002 | 0.675±0.015 | 0.627±0.009 | 0.638±0.002 | 0.480±0.006 | 0.318±0.010 | 0.543±0.001ᴾ |
 | ESM-MSR (baseline), WT head (3 seeds) | 0.733±0.001 | 0.736±0.002 | 0.670±0.012 | 0.636±0.004 | 0.637±0.001 | 0.462±0.008 | 0.341±0.010 | 0.541±0.003ᴾ |
 | ESM-MSR (devel), combined (3 seeds) | 0.745 | 0.742 | 0.681 | 0.636 | 0.639 | 0.481 | 0.337 | 0.543ᴾ |
-| ESM-MSR (devel), WT head | 0.751 | 0.754 | 0.684 | 0.655 | **0.640** | 0.478 | **0.364** | **0.548ᴾ** |
+| ESM-MSR (devel), WT head | 0.751 | 0.754 | 0.684 | 0.655 | **0.640** | 0.478 | **0.364** | 0.548ᴾ |
 | MutateEverything st1 (3 seeds) | 0.707 | 0.681 | 0.646 | 0.581 | 0.580 | 0.483 | 0.296 | 0.520 |
 | MutateEverything st1, additive | 0.729 | 0.714 | 0.690 | 0.615 | 0.603 | 0.483 | 0.287 | – |
 | MutateEverything st2 (3 seeds) | 0.645 | 0.635 | 0.605 | 0.598 | 0.560 | 0.439 | 0.253 | 0.509 |
@@ -493,19 +493,19 @@ are comparable to §2.1–2.2: same splits, censored rows excluded, 8,494 and 12
 
 | model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ESM-MSR (baseline), 3 seeds | **0.654±0.003** | 0.586±0.018 | 0.434±0.033 | 0.377±0.045 | 0.745±0.024 | 0.395±0.050 | 0.309±0.004 | 0.193±0.004 | 0.845±0.009 | 0.683±0.012 | 0.717±0.036 | 0.177±0.081 |
+| ESM-MSR (baseline), 3 seeds | **0.654±0.003** | 0.586±0.018 | 0.434±0.033 | 0.377±0.045 | 0.745±0.024 | 0.395±0.050 | 0.309±0.004 | 0.193±0.004 | 0.845±0.009 | 0.683±0.012 | **0.717±0.036** | 0.177±0.081 |
 | ESM-MSR (devel), 3 seeds | 0.643±0.032 | 0.585±0.017 | 0.437±0.031 | 0.406±0.011 | 0.734±0.023 | 0.434±0.011 | 0.315±0.014 | 0.195±0.007 | 0.854±0.023 | 0.657±0.011 | 0.824±0.019 | 0.275±0.030 |
 | ESM-MSR (trim/mask), 3 seeds | 0.371 | **0.659** | **0.554** | **0.460** | **0.868** | **0.514** | **0.328** | **0.217** | **0.906** | 0.685 | 0.915 | -0.313 |
-| MutateEverything stage 2 (vs stage-1 singles), 3 seeds | 0.421 | 0.311 | 0.141 | 0.153 | 0.467 | 0.161 | 0.093 | 0.072 | 0.736 | 0.668 | **0.803** | **-0.127** |
+| MutateEverything stage 2 (vs stage-1 singles), 3 seeds | 0.421 | 0.311 | 0.141 | 0.153 | 0.467 | 0.161 | 0.093 | 0.072 | 0.736 | 0.668 | 0.803 | **-0.127** |
 | ThermoMPNN-D (vs ThermoMPNN), 3 seeds | 0.190 | 0.085 | 0.108 | 0.150 | 0.060 | 0.203 | 0.048 | 0.023 | 0.655 | **0.692** | 0.979 | -0.435 |
 
 **Test (12,455 doubles, 43 pairs, 4,236 flips)**
 
 | model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ESM-MSR (baseline), 3 seeds | **0.452±0.013** | 0.484±0.016 | 0.343±0.018 | 0.304±0.018 | 0.637±0.006 | 0.361±0.026 | 0.240±0.008 | 0.217±0.006 | 0.761±0.003 | 0.604±0.011 | 0.954±0.042 | 0.280±0.109 |
-| ESM-MSR (devel), 3 seeds | 0.464±0.015 | **0.487±0.020** | 0.361±0.030 | 0.322±0.021 | **0.606±0.034** | 0.382±0.026 | 0.236±0.003 | 0.209±0.006 | 0.754±0.008 | **0.590±0.008** | **1.079±0.024** | 0.405±0.021 |
-| ESM-MSR (trim/mask), 3 seeds | 0.411 | 0.463 | **0.400** | **0.376** | 0.594 | **0.416** | **0.260** | **0.224** | **0.803** | 0.589 | 0.865 | **-0.088** |
+| ESM-MSR (baseline), 3 seeds | 0.452±0.013 | 0.484±0.016 | 0.343±0.018 | 0.304±0.018 | **0.637±0.006** | 0.361±0.026 | 0.240±0.008 | 0.217±0.006 | 0.761±0.003 | **0.604±0.011** | 0.954±0.042 | 0.280±0.109 |
+| ESM-MSR (devel), 3 seeds | **0.464±0.015** | **0.487±0.020** | 0.361±0.030 | 0.322±0.021 | 0.606±0.034 | 0.382±0.026 | 0.236±0.003 | 0.209±0.006 | 0.754±0.008 | 0.590±0.008 | 1.079±0.024 | 0.405±0.021 |
+| ESM-MSR (trim/mask), 3 seeds | 0.411 | 0.463 | **0.400** | **0.376** | 0.594 | **0.416** | **0.260** | **0.224** | **0.803** | 0.589 | **0.865** | **-0.088** |
 | MutateEverything stage 2 (vs stage-1 singles), 3 seeds | 0.405 | 0.223 | 0.165 | 0.211 | 0.124 | 0.225 | 0.134 | 0.112 | 0.665 | 0.595 | 0.922 | 0.255 |
 | ThermoMPNN-D (vs ThermoMPNN), 3 seeds | 0.077 | 0.071 | 0.124 | 0.166 | -0.003 | 0.197 | 0.022 | 0.016 | 0.601 | 0.578 | 1.030 | -0.224 |
 
@@ -528,7 +528,7 @@ exist before live (`beyond_lib`, `beyond_rho_pairavg`, three-class accuracy, `gl
 | model | naive ρ | beyond ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | global_err ↓ |
 |---|---|---|---|---|---|---|---|---|
 | MutateEverything stage 1 | -0.024 | -0.007 | 0.124 | -0.010 | -0.016 | 0.007 | 0.517 | 1.189 |
-| MutateEverything stage 2 | 0.421 | 0.311 | 0.467 | 0.161 | 0.093 | 0.072 | 0.736 | **0.803** |
+| MutateEverything stage 2 | 0.421 | 0.311 | 0.467 | 0.161 | 0.093 | 0.072 | 0.736 | 0.803 |
 | ThermoMPNN-D | 0.190 | 0.085 | 0.060 | 0.203 | 0.048 | 0.023 | 0.655 | 0.979 |
 | Rosetta Cartesian ΔΔG | 0.269 | 0.267 | 0.421 | 0.168 | 0.068 | 0.060 | 0.620 | 3.066 |
 | ESMtherm ‡ ᴾ | 0.486 | 0.471 | 0.697 | 0.384 | 0.258 | 0.171 | 0.884 | 1.069 |
@@ -539,15 +539,15 @@ exist before live (`beyond_lib`, `beyond_rho_pairavg`, three-class accuracy, `gl
 | SPURS multi (multi-mutant model) ‡ ᴹ | 0.230 | 0.098 | 0.602 | -0.143 | 0.148 | 0.059 | 0.513 | 0.925 |
 | ProteinMPNN (zero-shot) ᶜ | 0.059 | 0.152 | 0.123 | 0.151 | 0.141 | 0.077 | 0.669 | 1.096 |
 | DDGemb (server) ʰ | 0.164 | 0.370 | 0.728 | 0.143 | 0.062 | 0.045 | 0.616 | 1.295 |
-| ESM-MSR (baseline) ʰ | **0.654±0.003** | **0.586±0.018** | **0.745±0.024** | 0.395±0.050 | **0.309±0.004** | 0.193±0.004 | **0.845±0.009** | 0.717±0.036 |
-| ESM-MSR (devel) (3 seeds) ʰ | 0.643±0.032 | 0.585±0.017 | 0.734±0.023 | **0.434±0.011** | 0.315±0.014 | 0.195±0.007 | 0.854±0.023 | 0.824±0.019 |
+| ESM-MSR (baseline) ʰ | **0.654±0.003** | **0.586±0.018** | **0.745±0.024** | 0.395±0.050 | 0.309±0.004 | 0.193±0.004 | 0.845±0.009 | **0.717±0.036** |
+| ESM-MSR (devel) (3 seeds) ʰ | 0.643±0.032 | 0.585±0.017 | 0.734±0.023 | **0.434±0.011** | **0.315±0.014** | **0.195±0.007** | **0.854±0.023** | 0.824±0.019 |
 
 ### 2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)
 
 | model | naive ρ | beyond ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | global_err ↓ |
 |---|---|---|---|---|---|---|---|---|
 | MutateEverything stage 1 | 0.029 | 0.018 | -0.059 | 0.038 | -0.024 | -0.010 | 0.519 | 1.098 |
-| MutateEverything stage 2 | 0.405 | 0.223 | 0.124 | 0.225 | 0.134 | 0.112 | 0.665 | 0.922 |
+| MutateEverything stage 2 | 0.405 | 0.223 | 0.124 | 0.225 | 0.134 | 0.112 | 0.665 | **0.922** |
 | ThermoMPNN-D | 0.077 | 0.071 | -0.003 | 0.197 | 0.022 | 0.016 | 0.601 | 1.030 |
 | Rosetta Cartesian ΔΔG | 0.381 | 0.207 | 0.258 | 0.195 | 0.094 | 0.066 | 0.556 | 3.083 |
 | ESMtherm ‡ ᴾ | 0.495 | 0.507 | 0.635 | 0.550 | 0.250 | 0.178 | 0.790 | 0.806 |
@@ -558,8 +558,8 @@ exist before live (`beyond_lib`, `beyond_rho_pairavg`, three-class accuracy, `gl
 | SPURS multi (multi-mutant model) ‡ ᴹ | 0.137 | 0.132 | 0.494 | -0.052 | 0.092 | 0.082 | 0.549 | 0.894 |
 | ProteinMPNN (zero-shot) ᶜ | 0.314 | 0.273 | 0.473 | 0.125 | 0.125 | 0.064 | 0.592 | 0.992 |
 | DDGemb (server) ʰ | 0.031 | 0.122 | 0.242 | -0.019 | 0.028 | 0.028 | 0.550 | 1.108 |
-| ESM-MSR (baseline) ʰ | **0.452±0.013** | 0.484±0.016 | 0.637±0.006 | 0.361±0.026 | **0.240±0.008** | 0.217±0.006 | 0.761±0.003 | 0.954±0.042 |
-| ESM-MSR (devel) (3 seeds) ʰ | 0.464±0.015 | **0.487±0.020** | **0.606±0.034** | **0.382±0.026** | 0.236±0.003 | **0.209±0.006** | **0.754±0.008** | **1.079±0.024** |
+| ESM-MSR (baseline) ʰ | 0.452±0.013 | 0.484±0.016 | **0.637±0.006** | 0.361±0.026 | **0.240±0.008** | **0.217±0.006** | **0.761±0.003** | 0.954±0.042 |
+| ESM-MSR (devel) (3 seeds) ʰ | **0.464±0.015** | **0.487±0.020** | 0.606±0.034 | **0.382±0.026** | 0.236±0.003 | 0.209±0.006 | 0.754±0.008 | 1.079±0.024 |
 
 Largest seed sd per model, validation: ME stage 1 0.364, ME stage 2 0.077, ThermoMPNN-D 0.134, ESM-MSR (devel) 0.057; test:
 ME stage 1 0.201, ME stage 2 0.062, ThermoMPNN-D 0.076, ESM-MSR (devel) 0.035. A difference smaller than these is not
@@ -573,19 +573,18 @@ head name `mt` the suite returns the raw double prediction as the predicted epis
 from +0.405 into −0.164.
 
 - **The metric overhaul moves the ESM-MSR numbers, not the ranking.** A bold cell is the best value among the models
-  without more than minor overlap with training (§6.6: no ‡, no `M`/`m`/`P`/`H` flag). On test that is (devel) beyond ρ
-  0.494, pair ρ 0.618, line ρ 0.384, cell_rank 0.209, flip accuracy 0.754 and the lowest global error 0.852, and
-  (released) naive ρ 0.452 and cell_mag 0.247. The ‡ models and ESM3ΔG show higher raw values in several columns (ESMtherm
-  leads line ρ at 0.550, ESM3ΔG cell_mag at 0.289); they did so before the overhaul too, and they stay unbolded because
-  they trained on Tsuboyama or have strong homologs in training. The one ordering the overhaul does change is *inside*
-  the ESM-MSR rows: the cell_rank lead moves from (released) 0.176 to (devel) 0.209. On validation ESM-MSR leads seven of
-  the eight columns — (released) naive ρ 0.675, beyond ρ 0.598, pair ρ 0.730, cell_mag 0.327, cell_rank 0.207 and flip
-  accuracy 0.860, (devel) line ρ 0.440 — with global error going to ME stage 2 (0.803 against 0.849 for ESM-MSR released).
+  without more than minor overlap with training (§6.6: no ‡, no `M`/`m`/`P`/`H` flag). On test that is (devel) naive ρ
+  0.464, beyond ρ 0.487 and line ρ 0.382, and (baseline) pair ρ 0.637, cell_mag 0.240, cell_rank 0.217 and flip accuracy
+  0.761, with the lowest global error going to ME stage 2 (0.922 against 0.954 for the ESM-MSR baseline). The ‡ models
+  and ESM3ΔG show higher raw values in several columns (ESMtherm leads line ρ at 0.550, ESM3ΔG cell_mag at 0.289); they
+  did so before the overhaul too, and they stay unbolded because they trained on Tsuboyama or have strong homologs in
+  training. On validation ESM-MSR leads all eight columns: (baseline) naive ρ 0.654, beyond ρ 0.586, pair ρ 0.745 and
+  global error 0.717, (devel) line ρ 0.434, cell_mag 0.315, cell_rank 0.195 and flip accuracy 0.854.
 - **Among models that did not train on Tsuboyama, ESM-MSR still leads the interaction metrics.** On test, beyond ρ is
-  0.494 (devel) and 0.488 (released) against 0.223 for ME stage 2, 0.273 for ProteinMPNN and 0.207 for Rosetta;
-  cell_rank is 0.198–0.209 against 0.112 (ME stage 2) and 0.064–0.066 (ProteinMPNN, Rosetta). No model outside
+  0.487 (devel) and 0.484 (baseline) against 0.223 for ME stage 2, 0.273 for ProteinMPNN and 0.207 for Rosetta;
+  cell_rank is 0.209–0.217 against 0.112 (ME stage 2) and 0.064–0.066 (ProteinMPNN, Rosetta). No model outside
   ESM-MSR reaches 0.21 on cell_rank. ME stage 2 is the best retrained baseline, and its predicted epistasis does track
-  the measured one (naive ρ 0.405 on test and 0.421 on validation, against 0.435–0.452 and 0.370–0.675 for ESM-MSR),
+  the measured one (naive ρ 0.405 on test and 0.421 on validation, against 0.452–0.464 and 0.643–0.654 for ESM-MSR),
   which a model trained on doubles should do; naive ρ is mostly saturation, though, and its within-column order (cell_rank
   0.112, flip accuracy 0.665) is far below ESM-MSR's. ThermoMPNN-D's naive ρ is 0.077 on test and 0.190 on validation.
 - **The Megascale-trained models are not a held-out comparison, and one of them should not have been flagged at all.** On test SPURS multi has 41.2 % of doubles exact, ESMtherm 82 % of rows same-protein (mutant-level split) and IFUM 45 % same-protein; all three are trained on the Megascale libraries this split uses. ESM3ΔG was labelled ‡ but its released weights are fine-tuned on the authors' own 960,216-sequence MGnify Stability set, not on Megascale: 0 of the 33 test libraries are in training, 8 have a strong homolog (40.7 % of test rows) and 12 a weak one. Its 0.811/0.811 is a genuine zero-shot result with a homology caveat, not a training leak.
@@ -599,7 +598,7 @@ from +0.405 into −0.164.
   0.207 and pair ρ 0.258, validation 0.267 and 0.421. That is above ThermoMPNN-D on beyond ρ, pair ρ and cell_mag on both
   halves (test 0.207 / 0.258 / 0.094 against 0.071 / −0.003 / 0.022; validation 0.267 / 0.421 / 0.068 against 0.085 /
   0.060 / 0.048). On test it is also above ME stage 2 on pair ρ (0.258 against 0.124), and below ME stage 2 and ESM-MSR
-  on the other levels and on naive ρ (0.381 against 0.405 and 0.435–0.452).
+  on the other levels and on naive ρ (0.381 against 0.405 and 0.452–0.464).
 - **ESM-MSR is shown by its combined head.** Its MT head alone scores higher on the within-column levels (devel,
   test: beyond ρ 0.511, pair ρ 0.660, cell_rank 0.210 against 0.489, 0.627, 0.173 combined) and worse on global
   error; the choice of the combination weight is §2.6.
