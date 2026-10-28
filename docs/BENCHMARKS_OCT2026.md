@@ -206,7 +206,7 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | ProteinMPNN (zero-shot) | C.73 | C.78 |
 | ESM3-small-open, σ = 0 (zero-shot) | C.73 | C.78 |
 | ESM3-large (Forge, zero-shot) | – | – |
-- **SPURS is not held out, and that explains the comparison.** SPURS's Megascale fit uses the ThermoMPNN 8:1:1 split, not ours: 24 of our 33 capped-test libraries and 21,315 of 36,526 singles are in its fit (58.4 % exact; 41.2 % of the doubles for the multi model), and its val is in the fit too. Its 0.866/0.844 is therefore not a held-out result. Under the audit it is `M.41 m.13 P.35` on test; the identical-mutation part alone is larger than any difference between the models.
+- **SPURS is not held out, and that explains the comparison.** SPURS's Megascale fit uses the ThermoMPNN 8:1:1 split, not ours: 24 of our 33 capped-test libraries and 21,315 of 36,526 singles are in its fit (58.4 % exact; 41.2 % of the doubles for the multi model), and its val is in the fit too. Its 0.866/0.844 is therefore not a held-out result. Under the audit it is `M.41 m.13 P.35` on test; the identical-mutation part alone is larger than any difference between the models. A held-out retrain of SPURS and SPURS multi on the capped split is in §1.6.
 - **Among the models whose test set is held out** (ESM-MSR, MutateEverything and ThermoMPNN, all retrained on the
   same capped training split, plus the models that never saw Megascale), ESM-MSR leads: devel 0.849 and baseline
   0.847 on test, then ThermoMPNN 0.794, ME stage 1 0.771, **Rosetta 0.663**, GeoDDG 0.609, ProteinMPNN 0.542,
@@ -447,6 +447,97 @@ label sign flipped relative to the upstream recipe (§5, item 13).
 | MYO display | **0.636** | 0.499 | – | 0.527 | 0.557 | 0.521 | 0.463 | 0.562 | 0.586 | 0.577 | 0.528 |
 | ESTA ΔT50 | 0.517 | **0.546** | – | 0.484 | 0.486 | 0.497 | 0.413 | 0.465 | 0.501 | 0.470 | – |
 | Domainome (per-domain avg.) | **0.548** | **0.548** | – | 0.533 | **0.548** | 0.532 | 0.508 | 0.516 | 0.523 | 0.462 | – |
+
+
+### 1.6 SPURS retrained on the capped split (preliminary)
+
+*Preliminary, added 2026-10-28 as a reference; to be cleaned up, leak-coded under §6 and folded into the tables above on the next pass.*
+
+The published SPURS checkpoint is not held out on this split (§1.2: 24 of the 33 capped-test libraries are in its training set). To have
+a clean SPURS comparator, SPURS and SPURS multi were retrained on `splits_oct06_capped.pkl` and run through the same harness
+(`inference_scripts/baselines/spurs_inference.py`, `--skip_pgym`) and the same `update_stats` rows as every other model. Tsuboyama is
+scored on **measured rows only** (`cens == 0`); with that filter the published checkpoint reproduces its rows above to three decimals (externals, DMS,
+Domainome) and to within 0.001 (Tsuboyama).
+Three seeds each; the ± is the sample standard deviation (n − 1).
+
+- **Data.** `outputs/baselines_capped_allbl/data`, train libraries only: 173 libraries, 154,358 single and mutant-background-single rows
+  for SPURS; 52 libraries with doubles, 53,188 doubles, for SPURS multi (val: 25 libraries / 26,410 singles, and 9 libraries / 8,547 doubles).
+- **Recipe.** The upstream SPURS config (AdamW, lr 1e-4, weight decay 1e-3, plateau scheduler, early stopping with patience 30 on the pooled
+  validation Spearman, one GPU), with the **pretrained ProteinMPNN `v_48_020` initialisation restored**: the public code stopped loading it
+  (commits 70a3174 / 21a2430), and without it a retrain on SPURS's own `mega_splits` peaks at validation 0.741, against 0.809 for the released
+  checkpoint and about 0.80 with the initialisation restored. The structural adapter (ESM layer 30) is left at its random initialisation,
+  which is what the released checkpoints contain (it never received a gradient in their training); one seed with the adapter trained gives
+  the same results within noise (third row). SPURS stopped after 43, 67 and 46 epochs (seeds 1, 2, 3; 29-40 min each). SPURS multi is initialised from the
+  same-seed SPURS checkpoint, as the released multi checkpoint is, and trained on doubles only (lr 1e-4, weight decay 1e-4, patience 10);
+  its validation peaks within the first few epochs (seed 1: epoch 2 of 13) and is noisy over 9 libraries.
+
+**Tsuboyama, capped split** (mean per-protein ρ)
+
+| model | capped val | capped test |
+|---|---|---|
+| **SPURS, retrained (3 seeds)** | 0.803±0.002 | 0.801±0.004 |
+| **SPURS multi, retrained (3 seeds)** | 0.763±0.005 | 0.772±0.002 |
+| SPURS, retrained, adapter trained (1 seed) | 0.798 | 0.799 |
+| ESM-MSR (baseline), combined (3 seeds) | 0.855±0.001 | 0.847±0.001 |
+| ESM-MSR (devel), combined (3 seeds) | 0.854±0.001 | 0.849±0.001 |
+| ThermoMPNN (additive, 3 seeds) | 0.787±0.002 | 0.794±0.002 |
+| ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.785±0.002 | 0.784±0.000 |
+| MutateEverything st1 (3 seeds) | 0.753±0.003 | 0.771±0.002 |
+| MutateEverything st2 (3 seeds) | 0.730±0.003 | 0.760±0.003 |
+| ProteinMPNN (zero-shot) | 0.541 | 0.542 |
+| SPURS (published checkpoint, not held out) | 0.841 | 0.864 |
+| SPURS multi (published checkpoint, not held out) | 0.787 | 0.806 |
+
+**External sets** (pooled ρ per set)
+
+| model | s571 | s783 | s2648 | s8754 | s669 | s461 | ssym | q3421 | k3822 | k2369 | ptmul | ptmuld | 12-set mean |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **SPURS, retrained (3 seeds)** | 0.450±0.006 | 0.675±0.012 | 0.655±0.002 | 0.581±0.002 | 0.497±0.008 | 0.644±0.003 | 0.741±0.004 | 0.593±0.003 | 0.621±0.006 | 0.635±0.008 | 0.427±0.039 | 0.537±0.021 | 0.588 |
+| **SPURS multi, retrained (3 seeds)** | 0.426±0.007 | 0.641±0.022 | 0.620±0.011 | 0.557±0.008 | 0.471±0.012 | 0.612±0.017 | 0.696±0.013 | 0.566±0.010 | 0.598±0.008 | 0.605±0.006 | 0.403±0.028 | 0.481±0.025 | 0.556 |
+| SPURS, retrained, adapter trained (1 seed) | 0.463 | 0.667 | 0.651 | 0.578 | 0.491 | 0.643 | 0.740 | 0.591 | 0.614 | 0.627 | 0.429 | 0.538 | 0.586 |
+| ESM-MSR (baseline), combined (3 seeds) | 0.455±0.004 | 0.713±0.004 | 0.669±0.006 | 0.616±0.004 | 0.558±0.003 | 0.750±0.005 | 0.765±0.005 | 0.621±0.004 | 0.714±0.003 | 0.715±0.003 | 0.583±0.004 | 0.593±0.006 | 0.646 |
+| ESM-MSR (devel), combined (3 seeds) | 0.445±0.006 | 0.725±0.006 | 0.677±0.006 | 0.625±0.004 | 0.560±0.004 | 0.753±0.004 | 0.773±0.002 | 0.626±0.006 | 0.721±0.004 | 0.722±0.005 | 0.594±0.004 | 0.597±0.007 | 0.651 |
+| ThermoMPNN (additive, 3 seeds) | 0.406±0.007 | 0.689±0.002 | 0.648±0.004 | 0.602±0.003 | 0.490±0.010 | 0.655±0.015 | 0.711±0.011 | 0.591±0.004 | 0.643±0.005 | 0.649±0.006 | 0.433±0.022 | 0.499±0.024 | 0.585 |
+| ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.406±0.007 | 0.689±0.002 | 0.648±0.004 | 0.602±0.003 | 0.490±0.010 | 0.655±0.015 | 0.711±0.011 | 0.591±0.004 | 0.643±0.005 | 0.649±0.006 | 0.432±0.024 | 0.514±0.012 | 0.586 |
+| MutateEverything st1 (3 seeds) | 0.439±0.006 | 0.706±0.007 | 0.701±0.009 | 0.623±0.004 | 0.559±0.006 | 0.721±0.013 | 0.674±0.008 | 0.638±0.007 | 0.696±0.007 | 0.674±0.006 | 0.472±0.059 | 0.480±0.042 | 0.615 |
+| MutateEverything st2 (3 seeds) | 0.426±0.006 | 0.694±0.004 | 0.676±0.006 | 0.606±0.004 | 0.542±0.010 | 0.710±0.008 | 0.636±0.019 | 0.620±0.007 | 0.683±0.009 | 0.662±0.005 | 0.510±0.056 | 0.489±0.042 | 0.605 |
+| ProteinMPNN (zero-shot) | 0.324 | 0.561 | 0.506 | 0.438 | 0.329 | 0.442 | 0.696 | 0.494 | 0.420 | 0.436 | 0.382 | 0.546 | 0.464 |
+| SPURS (published checkpoint, not held out) | 0.468 | 0.712 | 0.682 | 0.626 | 0.502 | 0.654 | 0.784 | 0.614 | 0.681 | 0.698 | 0.399 | 0.495 | 0.610 |
+| SPURS multi (published checkpoint, not held out) | 0.430 | 0.701 | 0.642 | 0.594 | 0.459 | 0.610 | 0.758 | 0.594 | 0.627 | 0.650 | 0.359 | 0.466 | 0.574 |
+
+**DMS and Domainome** (DMS: pooled ρ per assay; Domainome: mean per-domain ρ)
+
+| model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | 7-DMS mean | Domainome |
+|---|---|---|---|---|---|---|---|---|---|
+| **SPURS, retrained (3 seeds)** | 0.716±0.009 | 0.729±0.006 | 0.674±0.013 | 0.589±0.007 | 0.583±0.007 | 0.449±0.012 | 0.308±0.004 | 0.578 | 0.489±0.009 |
+| **SPURS multi, retrained (3 seeds)** | 0.658±0.023 | 0.673±0.020 | 0.576±0.003 | 0.545±0.036 | 0.539±0.019 | 0.335±0.021 | 0.333±0.002 | 0.523 | 0.393±0.008 |
+| SPURS, retrained, adapter trained (1 seed) | 0.729 | 0.738 | 0.665 | 0.577 | 0.583 | 0.462 | 0.327 | 0.583 | 0.494 |
+| ESM-MSR (baseline), combined (3 seeds) | 0.737±0.004 | 0.737±0.003 | 0.675±0.019 | 0.627±0.011 | 0.638±0.003 | 0.480±0.007 | 0.318±0.012 | 0.602 | 0.543±0.001 |
+| ESM-MSR (devel), combined (3 seeds) | 0.745±0.005 | 0.742±0.004 | 0.682±0.002 | 0.636±0.005 | 0.639±0.002 | 0.481±0.008 | 0.337±0.003 | 0.609 | 0.543±0.002 |
+| ThermoMPNN (additive, 3 seeds) | 0.626±0.023 | 0.632±0.021 | 0.613±0.009 | 0.569±0.008 | 0.570±0.005 | 0.405±0.010 | 0.319±0.004 | 0.533 | 0.450±0.007 |
+| ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.568±0.016 | 0.582±0.013 | 0.560±0.017 | 0.549±0.022 | 0.535±0.005 | 0.405±0.010 | 0.318±0.004 | 0.502 | – |
+| MutateEverything st1 (3 seeds) | 0.707±0.029 | 0.681±0.032 | 0.646±0.017 | 0.581±0.061 | 0.580±0.007 | 0.483±0.014 | 0.296±0.010 | 0.568 | 0.520±0.004 |
+| MutateEverything st2 (3 seeds) | 0.645±0.023 | 0.635±0.017 | 0.605±0.014 | 0.598±0.017 | 0.560±0.004 | 0.439±0.014 | 0.253±0.045 | 0.534 | 0.509±0.004 |
+| ProteinMPNN (zero-shot) | 0.619 | 0.613 | 0.667 | 0.538 | 0.498 | 0.544 | 0.119 | 0.514 | 0.548 |
+| SPURS (published checkpoint, not held out) | 0.689 | 0.711 | 0.736 | 0.635 | 0.602 | 0.535 | 0.330 | 0.605 | 0.513 |
+| SPURS multi (published checkpoint, not held out) | 0.612 | 0.624 | 0.600 | 0.502 | 0.556 | 0.375 | 0.258 | 0.504 | 0.406 |
+
+- **Held out, SPURS lands between ThermoMPNN and ESM-MSR.** On Tsuboyama it is 0.803 / 0.801 against ThermoMPNN 0.787 / 0.794 and the ESM-MSR
+  baseline 0.855 / 0.847; on the 12 external sets it ties ThermoMPNN (0.588 against 0.585); it is ahead of ThermoMPNN on the DMS (0.578
+  against 0.533) and on Domainome (0.489 against 0.450); and it is below the ESM-MSR baseline in every column (GRB2 abundance is level).
+  Against ME stage 1 it is ahead on Tsuboyama and the DMS and behind on the externals (0.588 against 0.615) and Domainome (0.489 against 0.520).
+- **The published number overstates it** by 0.038 (val) and 0.063 (test) on Tsuboyama (0.841 / 0.864 → 0.803 / 0.801), 0.022 on the 12-set
+  mean, 0.027 on the DMS mean and 0.024 on Domainome, in line with the identical-mutation overlap in the §1.2 audit (`M.41` on test).
+- **SPURS multi is weaker than SPURS on every column except GB1** (0.333 against 0.308), as the published pair mostly is (Tsuboyama −0.040 / −0.029,
+  12-set mean −0.032, DMS mean −0.055, Domainome −0.096). The retrained multi checkpoints are a noisy selection (small validation set, epoch chosen within the first few).
+- **Adapter trained or frozen** makes no measurable difference at this seed count (one trained-adapter seed: 0.798 / 0.799, 12-set 0.586, DMS 0.583,
+  Domainome 0.494, against the frozen three-seed means in the first row).
+
+Not done yet: ProteinGym; the §2 epistasis metrics for the retrained SPURS multi; the §6 leak codes (the retrained models are trained on the capped train
+libraries only, but the homology audit has not been rerun for them); the fixed-slot resource pass. Numbers: `docs/benchmarks/spurs_retrain_oct06.csv`
+(long layout, retrained rows only). Predictions: `~/spurs_retrain/harness_out/oct06_leg_{single,multi}_seed{1,2,3}` and `oct06_single_seed1` (adapter trained);
+checkpoints: `~/spurs_retrain/SPURS/logs/oct06/leg_seed{s}` and `leg_multi_seed{s}`; hand-off notes (checkpoint names, the patched SPURS package the harness needs,
+the scoring filter): `~/spurs_retrain/HANDOFF_SPURS_BENCHMARK.md`. The training code is a patched copy of luo-group/SPURS in `~/spurs_retrain/SPURS` (not a git repository here).
 
 
 ## 2. Epistasis: ESM-MSR vs the retrained baselines and the third-party models
@@ -1179,6 +1270,7 @@ scripts):
 | `~/esm-msr-devel/analysis_notebooks/stats/` | ESM-MSR's own per-dataset statistics |
 | `~/esm-msr-devel/baselines/` | baseline data prep (`prepare_oct06_data.py`), training wrappers, and the epistasis suite applied to other models (`epi_baselines.py`, `epi_dms.py`) |
 | `~/stability-baselines/` | the third-party harness, adapters and results (not a git repository) |
+| `~/spurs_retrain/` | the SPURS retrain on the capped split (§1.6): code (patched luo-group/SPURS), checkpoints, harness predictions and scored summaries, `HANDOFF_SPURS_BENCHMARK.md` |
 | `~/project_oct06_baselines/` | a symlink index over the retrained-baseline work, with its own README |
 | `~/stability-baselines/results/rosetta/` | the Rosetta capped-split predictions in harness layout, with their provenance; the raw Narval outputs are in `~/playground/narval-recovery/predictions/` on the local machine |
 | `~/stability-baselines/pgym_public/` | ProteinGym's published zero-shot scores (1.9 GB zip) |
