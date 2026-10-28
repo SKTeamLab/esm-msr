@@ -72,8 +72,10 @@ def prediction_path(ckpt_rel, split):
     stem = os.path.basename(ckpt_rel)
     # Token order matters and must not be left to sort(): '_sigma1.0_' sorts before '_sigma1_' ('0x2e' < '0x5f'),
     # and the two spellings hold different data (139 of 156 pairs differ), so the exact '1' spelling is tried first.
+    # Generation preference: '_sigma1.0_' is the 2026-10-23 per-mutation-bias regeneration of '_sigma1_'
+    # (2026-10-08, per-item bias), so it is tried first. _pre_pmb/ holds the superseded copies.
     for pre in ('sigma', 'epsilon'):
-        for tok in ('1', '1.0'):
+        for tok in ('1.0', '1'):
             hits = glob.glob(os.path.join(d, f'{stem}_{pre}{tok}_*_predictions.csv'))
             if hits:
                 unmasked = [f for f in hits if '_unmasked_' in os.path.basename(f)]

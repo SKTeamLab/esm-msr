@@ -23,7 +23,9 @@ HELPER = '''def _glob_any(base, eps, tail):
     '_sigma1_' file always wins over '_sigma1.0_'. The two spellings hold different data, so the order matters."""
     try:
         v = float(eps)
-        toks = [str(eps), '%g' % v, repr(v)]
+        # float repr first: '_sigma1.0_' is the corrected per-mutation-bias generation, '_sigma1_' the superseded
+        # per-item one, so the newer spelling must win when both are present.
+        toks = [repr(v), '%g' % v, str(eps)]
     except (TypeError, ValueError):
         toks = [str(eps)]
     seen, ordered = set(), []

@@ -111,14 +111,19 @@ def _sigma_tokens(sigma):
     """The σ token as callers spell it, plus the way esm_msr_testing.py writes it. The writer formats
     `f'_sigma{args.sigma}'` from a float, so the default run stores `_sigma1.0_` while collect_msr passes '1';
     without both spellings a writer-produced file is invisible to the collector."""
-    out = {str(sigma)}
     try:
         v = float(sigma)
-        out.add('%g' % v)      # 1, 0.75, 0.25
-        out.add(repr(v))       # 1.0, 0.75, 0.25
+        # The float repr first: '_sigma1.0_' is the corrected per-mutation-bias generation and '_sigma1_' the
+        # superseded per-item one, so the newer spelling must win when both are present.
+        out = [repr(v), '%g' % v, str(sigma)]          # 1.0, 1, 1
     except (TypeError, ValueError):
-        pass
-    return sorted(out)
+        out = [str(sigma)]
+    seen, ordered = set(), []
+    for t in out:
+        if t not in seen:
+            seen.add(t)
+            ordered.append(t)
+    return ordered
 
 
 def _msr_paths(root, ck, sigma, tail, sub=None):
