@@ -275,6 +275,7 @@ class Scope:
         if _cuda():
             alloc_peak = max(self.vram_alloc_peak, torch.cuda.max_memory_allocated())
             res_peak = max(self.vram_res_peak, torch.cuda.max_memory_reserved())
+            t._proc_vram_peak = max(t._proc_vram_peak, alloc_peak)
             if self.parent is not None:
                 self.parent.vram_alloc_peak = max(self.parent.vram_alloc_peak, alloc_peak)
                 self.parent.vram_res_peak = max(self.parent.vram_res_peak, res_peak)
@@ -363,6 +364,7 @@ class Tracker:
         self._last_flush = time.time()
         self._violation = None
         self._closed = False
+        self._proc_vram_peak = 0          # max over all scopes: torch's own counter is reset at every scope entry
         self._dev = None
         if _cuda():
             try:
@@ -526,7 +528,7 @@ class Tracker:
         self.meta['cgroup_memory_at_exit'] = cgroup_memory()
         self.meta['neighbours_at_end'] = self._neighbours()
         if _cuda():
-            self.meta['process_peak_vram_alloc_gb'] = _gb(torch.cuda.max_memory_allocated())
+            self.meta['process_peak_vram_alloc_gb'] = _gb(max(self._proc_vram_peak, torch.cuda.max_memory_allocated()))
         self.meta.update(final)
         self._write_meta()
 

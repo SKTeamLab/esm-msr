@@ -246,4 +246,5 @@ def test_cuda_peaks_nest_correctly(tmp_path, monkeypatch):
         pass
     t2.close()
     assert pd.notna(rt.load_scopes(t2.dir).iloc[0]['vram_device_peak_gb'])
-    assert json.load(open(t.dir / 'resources_run.json'))['gpu']['name'] == 'Fake'
+    meta = json.load(open(t.dir / 'resources_run.json'))
+    assert meta['gpu']['name'] == 'Fake' and meta['process_peak_vram_alloc_gb'] == 6.0      # the run's peak, not the last scope's

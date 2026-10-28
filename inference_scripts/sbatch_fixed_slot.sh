@@ -9,9 +9,9 @@
 #   the environment (SEED=1 STAGE=double ... ), not with --export: sbatch splits --export on commas.
 #     TIME=HH:MM:SS     override the script's --time
 #     OUT=dir           where the job's results go; its Slurm log is written there too
-#     STRICT=1          the job aborts at start if the slot is not verifiably in force (visible GPUs, CPU affinity mask,
-#                       cgroup memory limit) and a process over the RAM limit raises at its next scope exit. Off by
-#                       default until a smoke job shows this cluster's cgroups pass the check; resources_run.json records
+#     STRICT=0          on by default: the job aborts at start if the slot is not verifiably in force (visible GPUs, CPU
+#                       affinity mask, cgroup memory limit) and a process over the RAM limit raises at its next scope
+#                       exit. gpu4's Slurm cgroups pass the check (smoke runs of 2026-10-28); resources_run.json records
 #                       the check either way (limits.check).
 #     SLOT_NODE / SLOT_CPUS / SLOT_RAM_GB   change the slot (a different slot is a different protocol: rerun everything)
 #
@@ -25,7 +25,7 @@ set -euo pipefail
 NODE=${SLOT_NODE:-gpu4}
 CPUS=${SLOT_CPUS:-6}
 RAM_GB=${SLOT_RAM_GB:-60}
-STRICT=${STRICT:-0}
+STRICT=${STRICT:-1}
 [ $# -ge 1 ] || { sed -n '2,24p' "$0"; exit 1; }
 SCRIPT=$1; shift
 [ -f "$SCRIPT" ] || { echo "no such job script: $SCRIPT"; exit 1; }

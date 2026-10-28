@@ -91,9 +91,9 @@ MODEL=thermompnn SINGLE=/path/single.ckpt EPISTATIC=/path/epistatic.ckpt OUT=run
 It sets `MSR_FIXED_GPUS/CPUS/RAM_GB`, `OMP/MKL/OPENBLAS_NUM_THREADS=6`, `MSR_REPO` and the sbatch options. 60 GB is a quarter of gpu4's 250,604 MiB (4 x 61,440 MiB = 245,760 MiB fits with 4,844 MiB to spare), so four jobs can run at once with 6 CPUs each. The tracker compares what the
 process really has (visible GPUs, CPU affinity mask, torch threads, cgroup memory limit) with the slot and writes the result
 to `resources_run.json` (`limits.check`). `STRICT=1` aborts the run at start if the check fails and raises if the process RSS
-passes the RAM limit; it is off by default until a smoke job shows that this cluster's cgroups pass the check (Slurm uses
-`task/cgroup` and OOM-kills at the memory limit, but whether the limit is visible in `/proc/self/cgroup` and the CPU mask is
-constrained is not known from the login node). Slurm's cgroup is the hard cap on RAM; the tracker only verifies it.
+passes the RAM limit. It is on by default (`STRICT=0` to turn off): the smoke runs of 2026-10-28 showed that gpu4's Slurm
+cgroups pass the check (6 CPUs in the affinity mask, 1 visible GPU, a 60 GB cgroup memory limit). Slurm's cgroup is the hard cap
+on RAM; the tracker only verifies it.
 
 The wrapper cannot stop other users' jobs sharing the node, so it prints the jobs running there. Submit when gpu4 is
 otherwise idle: the three models can run at the same time, one per GPU, which loads the node equally for each. The run
@@ -125,15 +125,21 @@ not something to hide by raising the cap for ME. ThermoMPNN's ProteinGym job pea
 
 ## Not verified, and not covered
 
-* The CUDA branches of the tracker were exercised only against a fake allocator (no GPU was used for this work). First
-  check on the cluster: one small job through `sbatch_fixed_slot.sh` and read `resources_run.json` and the first rows
-  (`gpu`, `vram_*`, `limits.check`).
+* Smoke runs of every script on gpu4, 2026-10-28 (`--max_proteins 2` on every benchmark plus two ProteinGym DMS, in the slot,
+  next to three other jobs): all five tracked correctly. Checked: the slot check passes; ESM-MSR's tracker time equals its old
+  `time` column to 1 ms on all 12 external sets; the tracker's peak RSS is at or above `sacct`'s MaxRSS (sacct samples and
+  misses short peaks, e.g. ESM-MSR model loading 8.5 vs 6.4 GB). Not smoke-tested: ProteinGym beyond two DMS, the full DMS
+  assays (GB1), mutant-background Tsuboyama libraries in SPURS/ProteinMPNN at scale.
+* Reading the numbers: `vram_alloc_peak_gb` and `vram_reserved_peak_gb` are exact per scope; `vram_device_peak_gb` is sampled and
+  includes the CUDA context and the allocator's cache from earlier scopes, so it can exceed a small scope's own need. ThermoMPNN
+  writes one `protein` row per library and network pass (singles, additive_0/1, epistatic), so its `n_proteins` and summed
+  `n_rows` count passes. ME's `load` rows use up to ~5 cores (its featurization is multi-threaded), its forward ~1.
 * ThermoMPNN predictions under per-protein batching versus the old mixed batching, on one dataset (for example `external`
   with and without `--mixed_protein_batches`): expect agreement to about 1e-6.
-* The baseline scripts were exercised against fake models and a fake MutateEverything checkout (`tests/test_baseline_scorers.py`:
-  batching, readout combination, the `--mutants` and `--models` switches, set resolution, row alignment), never against the real
-  models: none of `thermompnn_inference.py`, `mutate_everything_inference.py`, `spurs_inference.py`, `proteinmpnn_inference.py` has run end to end yet. First check on
-  the cluster: one small set per model (`--sets s669` for ME; `--skip_*` flags for the others) through `sbatch_fixed_slot.sh`.
+* The baseline scripts have run only on the smoke subset above (and against fake models in `tests/test_baseline_scorers.py`);
+  none has run a full benchmark. The smoke runs found and fixed: script names shadowing the upstream packages, ME's old torch
+  rejecting `expandable_segments`, upstream's Slurm rank detection, ME losing its fasta/msa layout in filtered inputs, ME
+  reporting success with every set failed, and `--max_proteins` not limiting the DMS assays.
 * ME's Tsuboyama and external sets used to go through `main_train.py --eval --dist_eval`; `mutate_everything_inference.py` writes the same
   `results_<set>.csv` columns, but its predictions on those sets have not been compared with the earlier files.
 * SPURS and ProteinMPNN predictions are not byte-comparable with the earlier runs (shared rows, one scorer; see the README).
