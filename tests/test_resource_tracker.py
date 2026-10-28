@@ -181,7 +181,7 @@ def test_resource_report_sums_inference_rows_only(tmp_path):
         for p, n in (('p1', 10), ('p2', 30)):
             with t.scope('load', f'b{p}'):
                 time.sleep(0.02)
-            with t.scope('protein', p, n_rows=n):
+            with t.scope('protein', p, n_rows=n, model='single'):          # an extra column named like the report's own
                 time.sleep(0.1)
         time.sleep(0.1)                                # data handling outside the inference calls
     t.close()
@@ -189,7 +189,7 @@ def test_resource_report_sums_inference_rows_only(tmp_path):
     a = summary[summary.dataset == 'setA'].iloc[0]
     assert a.n_proteins == 2 and a.n_rows == 40 and 0.2 <= a.inference_wall_s < 0.3
     assert a.dataset_wall_s > a.inference_wall_s + 0.08 and a.load_wall_s >= 0.04
-    assert (summary.dataset == '(stage) model_load').any() and len(prot) == 2
+    assert (summary.dataset == '(stage) model_load').any() and len(prot) == 2 and (prot.network == 'single').all()
     assert resource_report.find_runs([tmp_path]) == [t.dir]
 
 

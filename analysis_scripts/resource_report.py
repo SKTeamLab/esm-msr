@@ -46,7 +46,7 @@ def summarise(run_dir):
     if sc.empty:
         return pd.DataFrame(), pd.DataFrame()
     flags = run_flags(meta)
-    prot = sc[sc.level == 'protein'].copy()
+    prot = sc[sc.level == 'protein'].copy().rename(columns={'model': 'network'})   # ThermoMPNN tags its rows model=single|epistatic
     rows = []
     for ds, g in prot.groupby('dataset', sort=False):
         other = sc[(sc.dataset == ds) & (sc.level != 'protein')]
