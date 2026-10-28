@@ -52,6 +52,10 @@ CAPPED = {'splits_oct06_capped-val': 'tsu_capped_val', 'splits_oct06_capped-test
 # (LoRA_models/esm-msr-baseline-w2a4-m16a16-capped). "devel": the three-seed dc8-floorlink series from devel-revision.
 REL, DEVEL = 'ESM-MSR (released)', 'ESM-MSR (devel)'
 REL_CK = ['esm-msr-baseline-w2a4-m16a16-capped']
+# Three fresh seeds of the baseline recipe (WT r2/a4, MT r16/a16, no masking) trained on the capped split. They
+# replace the single released checkpoint in the comparison rows; REL_CK is kept only for the sigma=0 zero-shot
+# control, which was run from that checkpoint.
+BL_CK = [f'release-baseline/s{i}' for i in (1, 2, 3)]
 DEVEL_CK = [f'esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{i}' for i in (1, 2, 3)]
 # "trim": three seeds trained with per-site leave-one-out masking on the MT pass (mask_strategy_mt=independent).
 # Their prediction and statistics filenames therefore carry a mask tag -- <ckpt>_sigma1_wt-unmasked_mt-independent_<head>
@@ -381,7 +385,7 @@ def collect_harness(rows, done_by_old_runs):
 
 def cmd_collect(a):
     rows = Rows()
-    collect_msr(rows, REL_CK, REL)
+    collect_msr(rows, BL_CK, REL)
     collect_msr(rows, DEVEL_CK, DEVEL)
     collect_msr(rows, TRIM_CK, TRIM)
     collect_msr(rows, REL_CK, 'ESM3-small-open (σ=0, MSR readout)', sigma='0.0')
@@ -401,7 +405,7 @@ def cmd_collect(a):
 
 
 # ---------------------------------------------------------------------------------------------- tables
-ROWS = [(REL, 'ESM-MSR (released), combined'), (REL + ' WT', 'ESM-MSR (released), WT head'),
+ROWS = [(REL, 'ESM-MSR (baseline), combined (3 seeds)'), (REL + ' WT', 'ESM-MSR (baseline), WT head (3 seeds)'),
         (DEVEL, 'ESM-MSR (devel), combined (3 seeds)'), (DEVEL + ' WT', 'ESM-MSR (devel), WT head'),
         (TRIM, 'ESM-MSR (trim/mask), combined (3 seeds)'), (TRIM + ' WT', 'ESM-MSR (trim/mask), WT head'),
         ('ME stage1', 'MutateEverything st1 (3 seeds)'), ('ME stage1+', 'MutateEverything st1, additive'),
