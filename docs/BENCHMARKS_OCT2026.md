@@ -203,8 +203,8 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | ESM3-large (Forge, zero-shot) | – | – |
 - **SPURS is not held out, and that explains the comparison.** SPURS's Megascale fit uses the ThermoMPNN 8:1:1 split, not ours: 24 of our 33 capped-test libraries and 21,315 of 36,526 singles are in its fit (58.4 % exact; 41.2 % of the doubles for the multi model), and its val is in the fit too. Its 0.866/0.844 is therefore not a held-out result. Under the audit it is `M.41 m.13 P.35` on test; the identical-mutation part alone is larger than any difference between the models.
 - **Among the models whose test set is held out** (ESM-MSR, MutateEverything and ThermoMPNN, all retrained on the
-  same capped training split, plus the models that never saw Megascale), ESM-MSR leads: devel 0.849 and released
-  0.843 on test, then ThermoMPNN 0.794, ME stage 1 0.771, **Rosetta 0.663**, GeoDDG 0.609, ProteinMPNN 0.542,
+  same capped training split, plus the models that never saw Megascale), ESM-MSR leads: devel 0.849 and baseline
+  0.847 on test, then ThermoMPNN 0.794, ME stage 1 0.771, **Rosetta 0.663**, GeoDDG 0.609, ProteinMPNN 0.542,
   DDGemb 0.508.
 - **Rosetta Cartesian ΔΔG** (physics-based; nothing to leak) scores 0.683 on validation and 0.663 on test at full
   coverage, above GeoDDG, ProteinMPNN, DDGemb and the zero-shot control and below every learned model trained on
@@ -279,7 +279,7 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | ESM3-large (Forge, zero-shot) | – | – | – | – | – | – | – | C |
 | ESM3-medium (Forge, zero-shot) | – | – | – | – | – | – | – | – |
 | ESM3-small (Forge, zero-shot) | – | – | – | – | – | – | – | – |
-- **Mean over the 7 DMS** (models with all seven): ESM-MSR (devel) WT head 0.618, (devel) combined 0.609, SPURS 0.605, ESM-MSR (released) 0.601, ProSST 0.591, ME st1 additive 0.589, ESM3ΔG 0.589, ESM3-small-open σ = 0 0.580, ThermoMPNN 0.533, ProteinMPNN 0.514, SPURS multi 0.504, GeoDDG 0.386, DDGemb 0.281, ESMtherm 0.232. **The GB1 column is not clean for four of these:** SPURS (same-protein via a near-identical Megascale design), ESMtherm and IFUM (trained on the Megascale 1PGA/GB1 library) and GeoDDG (1,538 1PGA/GB1 single mutants in S8754; 61 of the Wu rows exact and 61,880 constituent); ESM-MSR/ME/ThermoMPNN are clean on it because GB1 was quarantined from the capped split. GB1 is the lowest of the seven for every model, so dropping it moves the means up by 0.00–0.07 and leaves the top three unchanged (ESM-MSR devel WT 0.660, devel 0.654, SPURS 0.651); ProSST moves from fifth to fourth, ahead of ESM-MSR (released).
+- **Mean over the 7 DMS** (models with all seven): ESM-MSR (devel) WT head 0.618, (devel) combined 0.609, SPURS 0.605, ESM-MSR (baseline) 0.602, ProSST 0.591, ME st1 additive 0.589, ESM3ΔG 0.589, ESM3-small-open σ = 0 0.580, ThermoMPNN 0.533, ProteinMPNN 0.514, SPURS multi 0.504, GeoDDG 0.386, DDGemb 0.281, ESMtherm 0.232. **The GB1 column is not clean for four of these:** SPURS (same-protein via a near-identical Megascale design), ESMtherm and IFUM (trained on the Megascale 1PGA/GB1 library) and GeoDDG (1,538 1PGA/GB1 single mutants in S8754; 61 of the Wu rows exact and 61,880 constituent); ESM-MSR/ME/ThermoMPNN are clean on it because GB1 was quarantined from the capped split. GB1 is the lowest of the seven for every model, so dropping it moves the means up by 0.00–0.07 and leaves the top three unchanged (ESM-MSR devel WT 0.660, devel 0.654, SPURS 0.651); ProSST moves from fifth to fourth, ahead of ESM-MSR (released).
 - **The literature-ΔΔG models invert here:** GeoDDG and DDGemb, which lead the external sets, are near the bottom
   on the deep-mutational scans; ProSST, a zero-shot model, leads both DLG4 assays (0.776 and 0.796) among the
   models that cover all seven. ESM3-small through Forge is also ahead of ESM-MSR (devel) on the Faure assays it
@@ -599,9 +599,11 @@ from +0.405 into −0.164.
   halves (test 0.207 / 0.258 / 0.094 against 0.071 / −0.003 / 0.022; validation 0.267 / 0.421 / 0.068 against 0.085 /
   0.060 / 0.048). On test it is also above ME stage 2 on pair ρ (0.258 against 0.124), and below ME stage 2 and ESM-MSR
   on the other levels and on naive ρ (0.381 against 0.405 and 0.452–0.464).
-- **ESM-MSR is shown by its combined head.** Its MT head alone scores higher on the within-column levels (devel,
-  test: beyond ρ 0.511, pair ρ 0.660, cell_rank 0.210 against 0.489, 0.627, 0.173 combined) and worse on global
-  error; the choice of the combination weight is §2.6.
+- **What the ESM-MSR rows score.** They score the MT-referenced epistasis head. The MT head is not a separate
+  readout under these metrics: `WT_REFERENCED` evaluates it against the WT additive baseline exactly as the `epi`
+  head, so the two coincide (devel, test: beyond ρ 0.487 ± 0.020, pair ρ 0.606 ± 0.034, cell_rank 0.209 ± 0.006).
+  The earlier contrast between "MT head alone" and the combined 50/50 head was on the pre-2026-10-24 definition and
+  no longer applies; the combined prediction is carried in §2.3, and the combination weight is §2.6.
 - Additive heads score exactly 0 / 0.5 on every residual and rank metric, the suite's own correctness check, and
   `global_err` equal to the RMS of the measured dddG, since their predicted dddG is exactly 0 by construction.
 - Every destabilized-backbone test row is a single, so these epistasis columns are identical with or without those
@@ -611,39 +613,39 @@ from +0.405 into −0.164.
 ### 2.3 ddG ranking (mean per-protein Spearman)
 
 Each ESM-MSR checkpoint is shown by its WT (additive) head and by its combined prediction, beside the retrained
-baselines. Baselines are 3-seed means; the devel columns are means ± sd over 3 seeds; the released checkpoint is one
-run. TMPNN is the singles-only ThermoMPNN, which makes no pair-specific prediction, so it has no dddG: that is the
+baselines. Baselines are 3-seed means; the ESM-MSR columns are means ± sd over the three seeds of each series. TMPNN is the singles-only ThermoMPNN, which makes no pair-specific prediction, so it has no dddG: that is the
 only gap. Regenerated by `benchmark_matrix.py ddg`, with the ME stage 2 and ThermoMPNN+D columns replaced on 2026-10-27 by the corrected runs. The validation numbers of all
 retrained baselines are on the full 34,957-row validation population (ME stage 1 and ThermoMPNN were rescored on it on 2026-10-28).
 
-| | ME st1 | ME st2 | TMPNN | TMPNN+D | ESM-MSR (released) WT ʰ | ESM-MSR (released) combined ʰ | ESM-MSR (devel) WT ʰ | ESM-MSR (devel) combined ʰ |
+| | ME st1 | ME st2 | TMPNN | TMPNN+D | ESM-MSR (baseline) WT ʰ | ESM-MSR (baseline) combined ʰ | ESM-MSR (devel) WT ʰ | ESM-MSR (devel) combined ʰ |
 |---|---|---|---|---|---|---|---|---|
-| val all variants (`spearman_all`) | 0.754 | 0.730 | 0.787 | 0.785 | 0.841 | **0.854** | 0.836 ± 0.001 | **0.854 ± 0.001** |
-| val doubles (`spearman_doubles`) | 0.571 | 0.629 | 0.630 | 0.688 | 0.691 | 0.720 | 0.693 ± 0.002 | **0.727 ± 0.011** |
-| val dddG of doubles (`spearman_doubles_epi`) | -0.013 | 0.341 | – | 0.225 | 0.062 | **0.513** | 0.009 ± 0.068 | 0.492 ± 0.006 |
-| test all variants (`spearman_all`) | 0.771 | 0.760 | 0.794 | 0.784 | 0.824 | 0.843 | 0.827 ± 0.002 | **0.849 ± 0.001** |
-| test doubles (`spearman_doubles`) | 0.617 | 0.652 | 0.673 | 0.668 | 0.700 | 0.763 | 0.717 ± 0.005 | **0.781 ± 0.008** |
-| test dddG of doubles (`spearman_doubles_epi`) | 0.020 | 0.346 | – | 0.184 | 0.042 | 0.554 | -0.022 ± 0.026 | **0.575 ± 0.007** |
+| val all variants (`spearman_all`) | 0.754 | 0.730 | 0.787 | 0.785 | 0.841 ± 0.002 | **0.855 ± 0.001** | 0.836 ± 0.001 | **0.854 ± 0.001** |
+| val doubles (`spearman_doubles`) | 0.571 | 0.629 | 0.630 | 0.688 | 0.687 ± 0.015 | 0.720 ± 0.003 | 0.693 ± 0.002 | **0.727 ± 0.011** |
+| val dddG of doubles (`spearman_doubles_epi`) | -0.013 | 0.341 | – | 0.225 | -0.023 ± 0.031 | **0.505 ± 0.010** | 0.009 ± 0.068 | 0.492 ± 0.006 |
+| test all variants (`spearman_all`) | 0.771 | 0.760 | 0.794 | 0.784 | 0.829 ± 0.002 | 0.847 ± 0.001 | 0.827 ± 0.002 | **0.849 ± 0.001** |
+| test doubles (`spearman_doubles`) | 0.617 | 0.652 | 0.673 | 0.668 | 0.709 ± 0.005 | 0.766 ± 0.004 | 0.717 ± 0.005 | **0.781 ± 0.008** |
+| test dddG of doubles (`spearman_doubles_epi`) | 0.020 | 0.346 | – | 0.184 | -0.045 ± 0.033 | 0.574 ± 0.013 | -0.022 ± 0.026 | **0.575 ± 0.007** |
 
 - **The combined prediction beats the WT head for both checkpoints on every metric, and almost all of the gain is
-  the interaction term.** On test, all-variant ρ rises 0.824 → 0.843 (released) and 0.827 → 0.849 (devel); doubles
-  0.700 → 0.763 and 0.717 → 0.781; and the dddG of doubles goes from about nothing (0.042 and −0.022 ± 0.026) to
-  0.554 and 0.575. Validation reads the same way (dddG 0.062 → 0.513 released, 0.009 ± 0.068 → 0.492 ± 0.006 devel).
+  the interaction term.** On test, all-variant ρ rises 0.829 → 0.847 (baseline) and 0.827 → 0.849 (devel); doubles
+  0.709 → 0.766 and 0.717 → 0.781; and the dddG of doubles goes from about nothing (−0.045 ± 0.033 and
+  −0.022 ± 0.026) to 0.574 ± 0.013 and 0.575 ± 0.007. Validation reads the same way (dddG −0.023 ± 0.031 → 0.505
+  ± 0.010 baseline, 0.009 ± 0.068 → 0.492 ± 0.006 devel).
   The WT head carries no usable pair signal by itself, as an additive-style head should not.
-- **Devel against released, combined:** test +0.006 on all variants, +0.018 on doubles, +0.021 on dddG; validation
-  level on all variants (0.854 both), +0.007 on doubles and −0.021 on dddG (0.492 ± 0.006 against 0.513). The
-  released checkpoint has no seed sd, so a difference of about 0.02 on dddG cannot be called either way. The devel
+- **Devel against baseline, combined:** test +0.002 on all variants, +0.015 on doubles, +0.001 on dddG; validation
+  −0.001 on all variants, +0.007 on doubles and −0.013 on dddG (0.492 ± 0.006 against 0.505 ± 0.010). Both series now
+  carry a seed sd, and the dddG difference is 1.3 sd, so it cannot be called either way. The devel
   numbers are **on measured rows only** (§5.3); with bounded rows they would read 0.858 and look like +0.015.
 - **Against the retrained baselines** an ESM-MSR combined column is the best value in all six rows. ME stage 2 is the
   best baseline on dddG (0.346 test, 0.341 validation, against the stage-1 singles) and ESM-MSR is ahead of it by 0.15–0.23;
   ThermoMPNN-D reaches 0.184 on test and 0.225 on validation, and ME stage 1 and the WT heads are near zero. With its own
   singles ME stage 2's dddG is 0.462 (test) and 0.438 (validation).
 
-### 2.4 External sets, DMS, Domainome (baselines = 3-seed means, ESM-MSR = released)
+### 2.4 External sets, DMS, Domainome (baselines = 3-seed means, ESM-MSR = baseline triplicate)
 
 - **12 external sets, mean ρ:** ESM-MSR (baseline) **0.646**, ME stage 1 0.615, ME stage 2 0.605, ThermoMPNN
   0.585, ThermoMPNN + D 0.586. ESM-MSR is best on 9 of 12 (ME stage 1 on s2648, s8754, q3421).
-- **7 DMS** (`spearman_all`): ESM-MSR (devel) leads DLG4 binding (0.742) and GB1 (0.337); the baseline triplicate reaches 0.737 on DLG4 binding and 0.318 on GB1 and MYO
+- **7 DMS** (`spearman_all`): ESM-MSR (devel) leads DLG4 binding (0.742) and GB1 (0.337); the baseline triplicate reaches 0.737 on DLG4 binding, 0.318 on GB1 and 0.638 on MYO
   (combined 0.639); ME's additive variants lead DLG4 abundance (stage 1+ 0.729 vs 0.726), GRB2 abundance (0.690 vs
   0.672), GRB2 binding (stage 2+ 0.642 vs 0.633) and ESTA (0.483 vs 0.479) — mostly by < 0.02. **Every
   model's additive variant beats its own direct multi-mutant prediction** on these assays.

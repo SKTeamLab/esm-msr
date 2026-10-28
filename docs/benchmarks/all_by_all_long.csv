@@ -1,70 +1,70 @@
 model,dataset,rho,sd,n_seeds,source
-ESM-MSR (released),s571,0.45597,,1,esm_msr_testing stats
-ESM-MSR (released),s783,0.71711,,1,esm_msr_testing stats
-ESM-MSR (released),s2648,0.664553,,1,esm_msr_testing stats
-ESM-MSR (released),s8754,0.614592,,1,esm_msr_testing stats
-ESM-MSR (released),s669,0.565399,,1,esm_msr_testing stats
-ESM-MSR (released),s461,0.756357,,1,esm_msr_testing stats
-ESM-MSR (released),ssym,0.750822,,1,esm_msr_testing stats
-ESM-MSR (released),q3421,0.617445,,1,esm_msr_testing stats
-ESM-MSR (released),k3822,0.715247,,1,esm_msr_testing stats
-ESM-MSR (released),k2369,0.714273,,1,esm_msr_testing stats
-ESM-MSR (released),ptmul,0.595371,,1,esm_msr_testing stats
-ESM-MSR (released),ptmuld,0.601495,,1,esm_msr_testing stats
-ESM-MSR (released),DLG4_HUMAN_Faure_2021_abundance_domain,0.726369,,1,esm_msr_testing stats
-ESM-MSR (released),DLG4_HUMAN_Faure_2021_binding_domain,0.725378,,1,esm_msr_testing stats
-ESM-MSR (released),GRB2_HUMAN_Faure_2021_abundance_domain,0.672507,,1,esm_msr_testing stats
-ESM-MSR (released),GRB2_HUMAN_Faure_2021_binding_domain,0.619261,,1,esm_msr_testing stats
-ESM-MSR (released),MYO_HUMAN_Kung_2025_display,0.639345,,1,esm_msr_testing stats
-ESM-MSR (released),ESTA_BACSU_Nutschel_2020_dTm,0.478819,,1,esm_msr_testing stats
-ESM-MSR (released),GB1_Wu_2016_binding_domain,0.346024,,1,esm_msr_testing stats
-ESM-MSR (released),domainome,0.541634,,1,esm_msr_testing stats
-ESM-MSR (released),tsu_capped_val,0.853601,,1,esm_msr_testing stats
-ESM-MSR (released),tsu_capped_test,0.842744,,1,esm_msr_testing stats
-ESM-MSR (released) WT,s571,0.441918,,1,esm_msr_testing stats
-ESM-MSR (released) WT,s783,0.703122,,1,esm_msr_testing stats
-ESM-MSR (released) WT,s2648,0.657401,,1,esm_msr_testing stats
-ESM-MSR (released) WT,s8754,0.605708,,1,esm_msr_testing stats
-ESM-MSR (released) WT,s669,0.546602,,1,esm_msr_testing stats
-ESM-MSR (released) WT,s461,0.748262,,1,esm_msr_testing stats
-ESM-MSR (released) WT,ssym,0.752229,,1,esm_msr_testing stats
-ESM-MSR (released) WT,q3421,0.613354,,1,esm_msr_testing stats
-ESM-MSR (released) WT,k3822,0.713687,,1,esm_msr_testing stats
-ESM-MSR (released) WT,k2369,0.710651,,1,esm_msr_testing stats
-ESM-MSR (released) WT,ptmul,0.567581,,1,esm_msr_testing stats
-ESM-MSR (released) WT,ptmuld,0.586104,,1,esm_msr_testing stats
-ESM-MSR (released) WT,DLG4_HUMAN_Faure_2021_abundance_domain,0.722538,,1,esm_msr_testing stats
-ESM-MSR (released) WT,DLG4_HUMAN_Faure_2021_binding_domain,0.728425,,1,esm_msr_testing stats
-ESM-MSR (released) WT,GRB2_HUMAN_Faure_2021_abundance_domain,0.668892,,1,esm_msr_testing stats
-ESM-MSR (released) WT,GRB2_HUMAN_Faure_2021_binding_domain,0.63282,,1,esm_msr_testing stats
-ESM-MSR (released) WT,MYO_HUMAN_Kung_2025_display,0.63688,,1,esm_msr_testing stats
-ESM-MSR (released) WT,ESTA_BACSU_Nutschel_2020_dTm,0.465729,,1,esm_msr_testing stats
-ESM-MSR (released) WT,GB1_Wu_2016_binding_domain,0.337605,,1,esm_msr_testing stats
-ESM-MSR (released) WT,domainome,0.54042,,1,esm_msr_testing stats
-ESM-MSR (released) WT,tsu_capped_val,0.84089,,1,esm_msr_testing stats
-ESM-MSR (released) WT,tsu_capped_test,0.823649,,1,esm_msr_testing stats
-ESM-MSR (released) MT,s571,0.451474,,1,esm_msr_testing stats
-ESM-MSR (released) MT,s783,0.69657,,1,esm_msr_testing stats
-ESM-MSR (released) MT,s2648,0.634449,,1,esm_msr_testing stats
-ESM-MSR (released) MT,s8754,0.596168,,1,esm_msr_testing stats
-ESM-MSR (released) MT,s669,0.561362,,1,esm_msr_testing stats
-ESM-MSR (released) MT,s461,0.725445,,1,esm_msr_testing stats
-ESM-MSR (released) MT,ssym,0.713833,,1,esm_msr_testing stats
-ESM-MSR (released) MT,q3421,0.589045,,1,esm_msr_testing stats
-ESM-MSR (released) MT,k3822,0.681249,,1,esm_msr_testing stats
-ESM-MSR (released) MT,k2369,0.682122,,1,esm_msr_testing stats
-ESM-MSR (released) MT,ptmul,0.544765,,1,esm_msr_testing stats
-ESM-MSR (released) MT,ptmuld,0.532907,,1,esm_msr_testing stats
-ESM-MSR (released) MT,DLG4_HUMAN_Faure_2021_abundance_domain,0.705189,,1,esm_msr_testing stats
-ESM-MSR (released) MT,DLG4_HUMAN_Faure_2021_binding_domain,0.695778,,1,esm_msr_testing stats
-ESM-MSR (released) MT,GRB2_HUMAN_Faure_2021_abundance_domain,0.627306,,1,esm_msr_testing stats
-ESM-MSR (released) MT,GRB2_HUMAN_Faure_2021_binding_domain,0.560011,,1,esm_msr_testing stats
-ESM-MSR (released) MT,MYO_HUMAN_Kung_2025_display,0.621987,,1,esm_msr_testing stats
-ESM-MSR (released) MT,ESTA_BACSU_Nutschel_2020_dTm,0.467383,,1,esm_msr_testing stats
-ESM-MSR (released) MT,GB1_Wu_2016_binding_domain,0.302021,,1,esm_msr_testing stats
-ESM-MSR (released) MT,domainome,0.52009,,1,esm_msr_testing stats
-ESM-MSR (released) MT,tsu_capped_val,0.816764,,1,esm_msr_testing stats
-ESM-MSR (released) MT,tsu_capped_test,0.812849,,1,esm_msr_testing stats
+ESM-MSR (released),s571,0.455477,0.00326953,3,esm_msr_testing stats
+ESM-MSR (released),s783,0.712607,0.0035884,3,esm_msr_testing stats
+ESM-MSR (released),s2648,0.669487,0.00506899,3,esm_msr_testing stats
+ESM-MSR (released),s8754,0.61552,0.00329173,3,esm_msr_testing stats
+ESM-MSR (released),s669,0.557963,0.0026192,3,esm_msr_testing stats
+ESM-MSR (released),s461,0.750392,0.00369218,3,esm_msr_testing stats
+ESM-MSR (released),ssym,0.765269,0.00374543,3,esm_msr_testing stats
+ESM-MSR (released),q3421,0.620993,0.00336895,3,esm_msr_testing stats
+ESM-MSR (released),k3822,0.714244,0.00219805,3,esm_msr_testing stats
+ESM-MSR (released),k2369,0.71459,0.00223099,3,esm_msr_testing stats
+ESM-MSR (released),ptmul,0.582551,0.00293912,3,esm_msr_testing stats
+ESM-MSR (released),ptmuld,0.592541,0.00469179,3,esm_msr_testing stats
+ESM-MSR (released),DLG4_HUMAN_Faure_2021_abundance_domain,0.737433,0.00324178,3,esm_msr_testing stats
+ESM-MSR (released),DLG4_HUMAN_Faure_2021_binding_domain,0.736518,0.00210667,3,esm_msr_testing stats
+ESM-MSR (released),GRB2_HUMAN_Faure_2021_abundance_domain,0.674551,0.0151638,3,esm_msr_testing stats
+ESM-MSR (released),GRB2_HUMAN_Faure_2021_binding_domain,0.626836,0.00890695,3,esm_msr_testing stats
+ESM-MSR (released),MYO_HUMAN_Kung_2025_display,0.638308,0.00212703,3,esm_msr_testing stats
+ESM-MSR (released),ESTA_BACSU_Nutschel_2020_dTm,0.479876,0.00587164,3,esm_msr_testing stats
+ESM-MSR (released),GB1_Wu_2016_binding_domain,0.318195,0.00957456,3,esm_msr_testing stats
+ESM-MSR (released),domainome,0.542589,0.000796153,3,esm_msr_testing stats
+ESM-MSR (released),tsu_capped_val,0.85484,0.00105494,3,esm_msr_testing stats
+ESM-MSR (released),tsu_capped_test,0.847431,0.00115149,3,esm_msr_testing stats
+ESM-MSR (released) WT,s571,0.440707,0.00604065,3,esm_msr_testing stats
+ESM-MSR (released) WT,s783,0.697519,0.00415415,3,esm_msr_testing stats
+ESM-MSR (released) WT,s2648,0.662096,0.00348096,3,esm_msr_testing stats
+ESM-MSR (released) WT,s8754,0.60725,0.00378871,3,esm_msr_testing stats
+ESM-MSR (released) WT,s669,0.542506,0.000383524,3,esm_msr_testing stats
+ESM-MSR (released) WT,s461,0.743892,0.00409525,3,esm_msr_testing stats
+ESM-MSR (released) WT,ssym,0.764364,0.00251101,3,esm_msr_testing stats
+ESM-MSR (released) WT,q3421,0.615454,0.00119724,3,esm_msr_testing stats
+ESM-MSR (released) WT,k3822,0.714909,0.0010444,3,esm_msr_testing stats
+ESM-MSR (released) WT,k2369,0.712078,0.00120654,3,esm_msr_testing stats
+ESM-MSR (released) WT,ptmul,0.571365,0.0026809,3,esm_msr_testing stats
+ESM-MSR (released) WT,ptmuld,0.577383,0.000995471,3,esm_msr_testing stats
+ESM-MSR (released) WT,DLG4_HUMAN_Faure_2021_abundance_domain,0.732979,0.000521095,3,esm_msr_testing stats
+ESM-MSR (released) WT,DLG4_HUMAN_Faure_2021_binding_domain,0.73593,0.00220824,3,esm_msr_testing stats
+ESM-MSR (released) WT,GRB2_HUMAN_Faure_2021_abundance_domain,0.670076,0.0121696,3,esm_msr_testing stats
+ESM-MSR (released) WT,GRB2_HUMAN_Faure_2021_binding_domain,0.635813,0.00445686,3,esm_msr_testing stats
+ESM-MSR (released) WT,MYO_HUMAN_Kung_2025_display,0.636853,0.00101915,3,esm_msr_testing stats
+ESM-MSR (released) WT,ESTA_BACSU_Nutschel_2020_dTm,0.462384,0.00804243,3,esm_msr_testing stats
+ESM-MSR (released) WT,GB1_Wu_2016_binding_domain,0.340732,0.0102328,3,esm_msr_testing stats
+ESM-MSR (released) WT,domainome,0.540907,0.00327767,3,esm_msr_testing stats
+ESM-MSR (released) WT,tsu_capped_val,0.841276,0.00135262,3,esm_msr_testing stats
+ESM-MSR (released) WT,tsu_capped_test,0.828647,0.00150498,3,esm_msr_testing stats
+ESM-MSR (released) MT,s571,0.447262,0.00546078,3,esm_msr_testing stats
+ESM-MSR (released) MT,s783,0.695589,0.0026269,3,esm_msr_testing stats
+ESM-MSR (released) MT,s2648,0.642782,0.0092575,3,esm_msr_testing stats
+ESM-MSR (released) MT,s8754,0.597651,0.00667935,3,esm_msr_testing stats
+ESM-MSR (released) MT,s669,0.550792,0.00817464,3,esm_msr_testing stats
+ESM-MSR (released) MT,s461,0.719003,0.00481873,3,esm_msr_testing stats
+ESM-MSR (released) MT,ssym,0.735263,0.00758485,3,esm_msr_testing stats
+ESM-MSR (released) MT,q3421,0.596682,0.00772632,3,esm_msr_testing stats
+ESM-MSR (released) MT,k3822,0.679849,0.00415023,3,esm_msr_testing stats
+ESM-MSR (released) MT,k2369,0.684683,0.00488267,3,esm_msr_testing stats
+ESM-MSR (released) MT,ptmul,0.509569,0.00408003,3,esm_msr_testing stats
+ESM-MSR (released) MT,ptmuld,0.515896,0.011645,3,esm_msr_testing stats
+ESM-MSR (released) MT,DLG4_HUMAN_Faure_2021_abundance_domain,0.719821,0.0104668,3,esm_msr_testing stats
+ESM-MSR (released) MT,DLG4_HUMAN_Faure_2021_binding_domain,0.713623,0.0113789,3,esm_msr_testing stats
+ESM-MSR (released) MT,GRB2_HUMAN_Faure_2021_abundance_domain,0.630717,0.0311274,3,esm_msr_testing stats
+ESM-MSR (released) MT,GRB2_HUMAN_Faure_2021_binding_domain,0.57821,0.021938,3,esm_msr_testing stats
+ESM-MSR (released) MT,MYO_HUMAN_Kung_2025_display,0.621549,0.00408645,3,esm_msr_testing stats
+ESM-MSR (released) MT,ESTA_BACSU_Nutschel_2020_dTm,0.4738,0.00351098,3,esm_msr_testing stats
+ESM-MSR (released) MT,GB1_Wu_2016_binding_domain,0.248906,0.00152786,3,esm_msr_testing stats
+ESM-MSR (released) MT,domainome,0.522052,0.00623371,3,esm_msr_testing stats
+ESM-MSR (released) MT,tsu_capped_val,0.823625,0.00107354,3,esm_msr_testing stats
+ESM-MSR (released) MT,tsu_capped_test,0.817798,0.00196706,3,esm_msr_testing stats
 ESM-MSR (devel),s571,0.44528666666666666,0.005233982380134226,3,esm_msr_testing stats
 ESM-MSR (devel),s783,0.7248316666666667,0.004705476336733175,3,esm_msr_testing stats
 ESM-MSR (devel),s2648,0.676978,0.004629012925739871,3,esm_msr_testing stats
