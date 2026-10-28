@@ -363,7 +363,7 @@ def main(args):
                 if not (args.skip_existing and dest.exists()):
                     spurs.score_table(_limit(external_rows(name), args.max_proteins), f'external_{name}').to_csv(dest, index=False)
         if not args.skip_dms:
-            for assay in DMS:
+            for assay in DMS[:args.max_proteins or None]:     # each assay is one protein: the smoke subset is the first N assays
                 dest = out / f'dms_{assay}.csv'
                 if not (args.skip_existing and dest.exists()):
                     spurs.score_table(_limit(dms_rows(assay), args.max_proteins), f'dms_{assay}').to_csv(dest, index=False)

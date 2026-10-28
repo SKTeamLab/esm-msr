@@ -394,6 +394,8 @@ def external(args, tracker, models, mode):
     from thermompnn.protein_mpnn_utils import alt_parse_PDB
     os.makedirs(args.out, exist_ok=True)
     names, rows_fn, prefix = (EXTERNAL, external_rows, 'external') if mode == 'external' else (DMS, dms_rows, 'dms')
+    if mode == 'dms' and args.max_proteins:          # each assay is one protein: the smoke subset is the first N assays
+        names = names[:args.max_proteins]
     for name in names:
         df = _limit(rows_fn(name), args.max_proteins)
         n_mut = _n_mut(df.mut_type)
