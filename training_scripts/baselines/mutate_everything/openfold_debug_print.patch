@@ -1,0 +1,22 @@
+--- a/openfold/openfold/data/data_pipeline.py
++++ b/openfold/openfold/data/data_pipeline.py
+@@ -235,6 +235,8 @@
+     int_msa = []
+     deletion_matrix = []
+     seen_sequences = set()
++    #print('deletion_matrices')
++    #print([len(d) for d in deletion_matrices])
+     for msa_index, msa in enumerate(msas):
+         if not msa:
+             raise ValueError(
+@@ -252,6 +254,10 @@
+     num_res = len(msas[0][0])
+     num_alignments = len(int_msa)
+     features = {}
++    #print('deletion matrix')
++    if not all([len(d)==len(deletion_matrix[0]) for d in deletion_matrix]):
++        print([len(d) for d in deletion_matrix])
++    #print(len(deletion_matrix[0]))
+     features["deletion_matrix_int"] = np.array(deletion_matrix, dtype=np.int32)
+     features["msa"] = np.array(int_msa, dtype=np.int32)
+     features["num_alignments"] = np.array(

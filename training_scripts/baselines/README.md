@@ -48,6 +48,28 @@ SEED=1 STAGE=double SPLIT_NAME=oct06_capped_allbl STAGE1_SPLIT=oct06_capped sbat
 ```
 Stage 2 (`logs/af_double_oct06_capped_allbl_seed<s>/checkpoint-99.pth` in the ME checkout) is the checkpoint to benchmark.
 
+ME imports OpenFold from the copy installed in its conda environment, not from the checkout. The environment used here has an
+OpenFold built in January 2025 whose Python source equals the checkout's except `openfold/data/data_pipeline.py`, which carries
+diagnostic lines only (comments and a `print` of the deletion-matrix lengths when they disagree; no effect on any output).
+`mutate_everything/openfold_debug_print.patch` is that difference: to build the identical package, apply it in the ME checkout
+(`cd $MUTATE_EVERYTHING_DIR && patch -p1 < <repo>/training_scripts/baselines/mutate_everything/openfold_debug_print.patch`) before
+`cd openfold && python setup.py install`; leaving it out gives the same numbers.
+
+## What deviates from upstream, checked 2026-10-28
+
+* **ThermoMPNN-D** (`df9a75a`, upstream main): the checkout has no modified file and the environment holds no copy of the code
+  (`thermompnn` is imported from the checkout). The deviations are in this repository: `OctItemsDataset` replaces the dataset's
+  `__init__` (our items tables instead of the raw CSV) and `load_cfg` fills in two paths; models, trainers, losses and configs are
+  upstream's.
+* **MutateEverything** (`034dd91`, upstream master): no modified tracked file; the only deviation is the OpenFold install above.
+  `inference_scripts/baselines/mutate_everything_inference.py` replaces upstream's evaluation entry (no detection metric,
+  one process), as `predict_dms.py` did.
+* **SPURS** (`70cbb99`, a non-default upstream branch, `fix/py311-inference-beta`): inference uses it unmodified; training uses it
+  plus `spurs/spurs_retrain.patch` (a patch is a unified diff: per file, the changed lines with their surrounding context, applied
+  with `patch -p1` inside a checkout; this one was made with `diff -ruN <pinned> <retraining tree>`, so applying it to the pinned
+  checkout gives the retraining tree exactly).
+* Not checked: other packages in the environments (`envs/` records their versions, not their contents).
+
 ## 4. SPURS and SPURS-multi (seeds 1-3, from the retraining of 2026-10-28; not re-run when this was written)
 
 ```bash
