@@ -17,6 +17,16 @@ same row order for the same rows, so any two baselines can be scored against ESM
 missing, the readouts that need it are NaN and the combined readout falls back to what exists (ThermoMPNN: additive from the
 single network; SPURS: its own four columns).
 
+## Batch sizing
+
+One policy for every method that batches variants (`batching.py`, `--batch_mode auto|fixed`, `--batch_size`,
+`--auto_batch_headroom`; the job script takes `BATCH_MODE` and `BATCH_SIZE`): `auto` (default) is the `AutoBatchSizer` of
+`src/esm_msr/auto_batch.py` per protein, with the same 90 % GPU headroom for all of them; `fixed` is `--batch_size` items per forward
+call, or the method's historical default. The unit is what one forward call does for one protein: ESM-MSR variant sequences,
+ThermoMPNN mutation items, SPURS-multi variants, ProteinMPNN decoder rows. MutateEverything does not batch variants (one forward
+predicts every mutation of a protein). ESM-MSR's own script keeps its historical per-block sizes unless `--batch_mode` is given.
+Each protein's resource row records `batch_mode`, `batch_max`, `n_chunks` and `batch_ooms`.
+
 ## Reproducing
 
 1. **Upstream code**, unmodified, at the commits in `third_party.lock`: `./setup_third_party.sh` (clones into
@@ -60,8 +70,8 @@ stabilizing in every prediction column, except that MutateEverything's `ddg_pred
 
 ## What changed from the October scripts (so older predictions are not directly the same runs)
 
-* **ThermoMPNN**: batches never span proteins (`--mixed_protein_batches` restores the old behaviour); epistatic checkpoint
-  optional; one process for `all`.
+* **ThermoMPNN**: batches never span proteins and follow the shared batch policy (below); epistatic checkpoint optional; one
+  process for `all`.
 * **MutateEverything**: one GPU, one process (upstream's `--dist_eval` sharded over 3); the loader runs in-process; the metric
   that cannot run on the DMS is dropped, as in the October `predict_dms.py`.
 * **SPURS**: the four per-block copies of the scoring loop are one function; DMS rows come from the complete tables (the old

@@ -74,8 +74,8 @@ measurement taken outside the slot or next to another job is visible.
 ## Changes to the baseline scripts that affect comparison with October predictions
 
 The scripts moved into `inference_scripts/baselines/` (README there has the full list): ThermoMPNN's `predict()` no longer
-batches across proteins (a batch then belongs to one protein; `--mixed_protein_batches` restores the old behaviour; the model
-reads items independently, so predictions should agree to float rounding), MutateEverything runs on one GPU in one process,
+batches across proteins (a batch belongs to one protein) and, like every baseline that batches variants, takes its batch size
+from the shared policy below, MutateEverything runs on one GPU in one process,
 SPURS and ProteinMPNN score every benchmark from the shared rows (`benchmark_rows.py`) with one scoring function each.
 
 ## The fixed slot
@@ -99,9 +99,35 @@ The wrapper cannot stop other users' jobs sharing the node, so it prints the job
 otherwise idle: the three models can run at the same time, one per GPU, which loads the node equally for each. The run
 records the neighbours at start and end and the node load per scope.
 
-Native choices stay native and are recorded, not forced: ESM-MSR bf16 (the A4500 has native bf16) with its per-block batch
-sizes, ME fp32 at batch 1 per protein with the loader in-process (`num_workers=0`), ThermoMPNN fp32 with the token-budget
-batcher. A different batch size or precision is a different measurement.
+**Batch size** is one policy for every method that batches variants (`inference_scripts/baselines/batching.py`; flags
+`--batch_mode auto|fixed`, `--batch_size`, `--auto_batch_headroom`, the job script's `BATCH_MODE`/`BATCH_SIZE`). `auto` (default
+in the job script) is the existing `src/esm_msr/auto_batch.py` sizer, used unchanged for all of them: for each protein start at
+1, double while a memory model fitted on the measured peaks of the chunks already run predicts the next size stays under 90 % of
+the GPU, bisect for the largest size that fits, halve and retry on an OOM. Small proteins reach batches in the hundreds, long
+ones stay small, and a protein that does not fit at 1 fails. `fixed` runs `--batch_size` items per call (default: the method's
+historical size: ESM-MSR 1/16/`mem_size × 32`/32 per block and 16 on ProteinGym, ThermoMPNN as many items as fit 16,000
+residues (at most 256), SPURS-multi 4,096 variants, ProteinMPNN `32768 // L` decoder rows). The unit is the items one forward call
+does for one protein: ESM-MSR variant sequences, ThermoMPNN mutation items, SPURS-multi variants (the structure pass is repeated
+per call), ProteinMPNN decoder rows; MutateEverything has none (one forward predicts every mutation of a protein). Each protein's
+row records `batch_mode`, `batch_max`, `n_chunks`, `batch_ooms`.
+
+Precision and the rest stay native and are recorded: ESM-MSR bf16 (the A4500 has native bf16), ME fp32 with the loader in-process
+(`num_workers=0`), ThermoMPNN, SPURS and ProteinMPNN fp32. A different precision is a different measurement.
+
+What the policy did in the smoke runs (auto vs fixed, same subset, A4500; `--max_proteins 2` plus two ProteinGym DMS):
+
+| method | auto vs fixed predictions, max abs difference | largest batch reached (auto) | VRAM allocated peak, auto / fixed (GB) | inference time, auto / fixed (s) | OOMs |
+|---|---|---|---|---|---|
+| ESM-MSR | 0.033 (bf16; ProteinGym files only) | 512 | 16.1 / 10.8 | 191 / 204 | 0 |
+| ThermoMPNN-D | 4.5e-4 | 512 | 14.5 / 7.8 | 154 / 132 | 0 |
+| SPURS-multi | 1e-6 | 2,715 | 5.2 / 5.2 | 15.2 / 5.1 | 0 |
+| ProteinMPNN | 6e-6 | 552 | 15.0 / 10.6 | 12.0 / 8.3 | 0 |
+
+The sizer holds every method to the same budget (device peak 17.3-17.7 GB of 19.7 for the three that reach it; SPURS never fills
+the card), and nothing hit an OOM. Two things to know before comparing runtimes: the ladder starts at 1 for every protein, so on
+small work lists auto does more calls than the historical default (SPURS-multi is 3x slower on the subset because each call repeats
+the structure pass: 303 calls against 65), and predictions change slightly with the batch size (ESM-MSR's bf16 most). A warm start
+from the previous protein's size would remove most of the ladder cost; it is not implemented.
 
 ## What to rerun
 
@@ -134,8 +160,8 @@ not something to hide by raising the cap for ME. ThermoMPNN's ProteinGym job pea
   includes the CUDA context and the allocator's cache from earlier scopes, so it can exceed a small scope's own need. ThermoMPNN
   writes one `protein` row per library and network pass (singles, additive_0/1, epistatic), so its `n_proteins` and summed
   `n_rows` count passes. ME's `load` rows use up to ~5 cores (its featurization is multi-threaded), its forward ~1.
-* ThermoMPNN predictions under per-protein batching versus the old mixed batching, on one dataset (for example `external`
-  with and without `--mixed_protein_batches`): expect agreement to about 1e-6.
+* ThermoMPNN predictions against its October runs (the batching differs: per protein, and now dynamic); against its own fixed mode
+  they agree to 4.5e-4 at most (smoke subset).
 * The baseline scripts have run only on the smoke subset above (and against fake models in `tests/test_baseline_scorers.py`);
   none has run a full benchmark. The smoke runs found and fixed: script names shadowing the upstream packages, ME's old torch
   rejecting `expandable_segments`, upstream's Slurm rank detection, ME losing its fasta/msa layout in filtered inputs, ME
