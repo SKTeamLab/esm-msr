@@ -94,8 +94,15 @@ def filter_mutants(path, mutants, out_dir, max_proteins=0):
         df = df[df['pdb_id'].isin(list(dict.fromkeys(df['pdb_id']))[:max_proteins])]
     multi = df['mut_info'].astype(str).str.contains(':')
     df = df if mutants == 'both' else (df[~multi] if mutants == 'single' else df[multi])
-    dest = Path(out_dir) / 'inputs' / f'{Path(path).stem}.{mutants}{f".first{max_proteins}" if max_proteins else ""}.csv'
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    # upstream finds <set>/fasta and <set>/msa next to the <set>/mutations directory the CSV is in, so the copy gets the same
+    # layout, with the fasta and msa directories linked to the originals
+    src_root = Path(path).resolve().parent.parent
+    root = Path(out_dir) / 'inputs' / src_root.name
+    (root / 'mutations').mkdir(parents=True, exist_ok=True)
+    for sub in ('fasta', 'msa'):
+        if (src_root / sub).exists() and not (root / sub).exists():
+            (root / sub).symlink_to(src_root / sub)
+    dest = root / 'mutations' / f'{Path(path).stem}.{mutants}{f".first{max_proteins}" if max_proteins else ""}.csv'
     df.to_csv(dest, index=False)
     return str(dest)
 
@@ -191,6 +198,7 @@ def main(args):
         meta={'model': 'MutateEverything', 'resume': os.path.basename(str(args.resume)), 'backbone': args.backbone,
               'seed': args.seed, 'dtype': 'fp32', 'batch_size': 1, 'dataloader_workers': 0, 'mutants': args.mutants,
               'sets': args.sets})
+    failed = []
     try:
         with tracker.stage('model_load'):
             model = MutateEverything(args)
@@ -215,6 +223,7 @@ def main(args):
                     if not args.continue_on_error:
                         raise
                     print(f'{name}: FAIL {type(e).__name__}: {str(e)[:300]}', flush=True)
+                    failed.append(name)
                     torch.cuda.empty_cache()
                     ds_scope.note(failed=f'{type(e).__name__}')
                     continue
@@ -225,6 +234,8 @@ def main(args):
                 print(f'{name}: {len(out)} predictions -> {dest}', flush=True)
     finally:
         tracker.close()
+    if failed:      # --continue_on_error keeps the run going, but the job must not look like a success
+        sys.exit(f'{len(failed)} set(s) failed: {", ".join(failed)}')
 
 
 if __name__ == '__main__':

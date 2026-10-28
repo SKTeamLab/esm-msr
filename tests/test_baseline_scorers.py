@@ -235,6 +235,8 @@ def _load_me_module(monkeypatch, tmp_path):
              'domainome_oct06/mutations': ['domainome'], 'pgym_oct06/mutations': ['PG_A', 'PG_B']}
     for sub, stems in names.items():
         (root / sub).mkdir(parents=True)
+        for extra in ('fasta', 'msa'):
+            (root / Path(sub).parent / extra / 'P').mkdir(parents=True, exist_ok=True)
         for stem in stems:
             pd.DataFrame({'pdb_id': 'P', 'mut_info': ['A1C', 'A1C:C2D', 'D3E', 'E4F:F5G:G6H'], 'ddg': 0.0}).to_csv(root / sub / f'{stem}.csv', index=False)
     (root / 'dms_oct06' / 'mutations').mkdir(parents=True)
@@ -275,6 +277,9 @@ def test_me_set_resolution_and_mutant_filter(monkeypatch, tmp_path):
     single = pd.read_csv(mod.filter_mutants(src, 'single', tmp_path / 'out'))
     multi = pd.read_csv(mod.filter_mutants(src, 'multi', tmp_path / 'out'))
     assert single.mut_info.tolist() == ['A1C', 'D3E'] and multi.mut_info.tolist() == ['A1C:C2D', 'E4F:F5G:G6H']
+    # the copy keeps upstream's <set>/{mutations,fasta,msa} layout, because the dataset finds fasta/msa relative to the CSV
+    copy = Path(mod.filter_mutants(src, 'single', tmp_path / 'out'))
+    assert (copy.parent.parent / 'fasta' / 'P').is_dir() and (copy.parent.parent / 'msa' / 'P').is_dir()
     two = pd.DataFrame({'pdb_id': ['P', 'P', 'Q', 'R'], 'mut_info': ['A1C', 'A1C:C2D', 'D3E', 'E4F']})
     src2 = tmp_path / 'two.csv'
     two.to_csv(src2, index=False)
