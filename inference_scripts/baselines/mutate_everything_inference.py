@@ -12,7 +12,7 @@ every single and double of a protein in one pass whatever subset is asked for; -
 requested. `single` requests no doubles, so the pair head is skipped (upstream's `only_eval_single`), which is the cheap
 way to benchmark a singles model; `multi` requests only rows with two or more mutations; `both` is everything.
 
-  everything: python mutate_everything.py --resume CKPT --output_dir OUT --sets all
+  everything: python mutate_everything_inference.py --resume CKPT --output_dir OUT --sets all
               (Tsuboyama val/test/testcomp, the 12 external sets, the 7 DMS, Domainome, ProteinGym)
   some:       --sets tsuboyama | external | dms | domainome | pgym | s669,ssym,val,test,DLG4_HUMAN_Faure_2021_abundance_domain,...
 
@@ -177,7 +177,7 @@ def _predict_batch(model, batch, device, args, sc):
 
 def main(args):
     if int(os.environ.get('WORLD_SIZE', '1')) > 1:
-        sys.exit('mutate_everything.py is a single-process script (WORLD_SIZE > 1 would repeat every set on every rank)')
+        sys.exit('mutate_everything_inference.py is a single-process script (WORLD_SIZE > 1 would repeat every set on every rank)')
     misc.init_distributed_mode(args)
     device = torch.device(args.device)
     torch.manual_seed(args.seed); np.random.seed(args.seed)

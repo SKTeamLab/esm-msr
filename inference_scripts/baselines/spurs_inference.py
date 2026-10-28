@@ -4,7 +4,7 @@ SPURS has two models: SPURS (one mutation per structure pass; a multi-mutant get
 (any number of mutations in one pass; also scored additively from its own single predictions). Four readouts come out,
 all positive = stabilizing: SPURS_single (single rows), SPURS_single_additive, SPURS_multi, SPURS_multi_additive.
 
-  everything: python spurs.py --out DIR            (Tsuboyama val + test, 12 external sets, 7 DMS, Domainome, ProteinGym)
+  everything: python spurs_inference.py --out DIR            (Tsuboyama val + test, 12 external sets, 7 DMS, Domainome, ProteinGym)
   --models {single,multi,both}    which model(s) to load and run (default both)
   --mutants {single,multi,both}   which rows to score (default both); the others stay NaN and cost nothing
   --checkpoint_single / --checkpoint_multi  'hf' (published, default) or a file under SPURS/checkpoints

@@ -26,7 +26,7 @@ token budget, and the job index stopped at 2026-10-24.
 
 `inference_scripts/resource_tracker.py` (stdlib; torch and pandas optional). On by default in `esm_msr_testing.py`,
 `pgym_runner.py` (so every ProteinGym run through the shared loop), and the run-everything scripts of
-`inference_scripts/baselines/` (`thermompnn.py`, `mutate_everything.py`, `spurs.py`, `proteinmpnn.py`; see its README for
+`inference_scripts/baselines/` (`thermompnn_inference.py`, `mutate_everything_inference.py`, `spurs_inference.py`, `proteinmpnn_inference.py`; see its README for
 reproducing them, the pinned upstream commits and the environments). `--no_resource_tracking` (or `MSR_TRACK_RESOURCES=0`)
 turns it off.
 
@@ -132,9 +132,9 @@ not something to hide by raising the cap for ME. ThermoMPNN's ProteinGym job pea
   with and without `--mixed_protein_batches`): expect agreement to about 1e-6.
 * The baseline scripts were exercised against fake models and a fake MutateEverything checkout (`tests/test_baseline_scorers.py`:
   batching, readout combination, the `--mutants` and `--models` switches, set resolution, row alignment), never against the real
-  models: none of `thermompnn.py`, `mutate_everything.py`, `spurs.py`, `proteinmpnn.py` has run end to end yet. First check on
+  models: none of `thermompnn_inference.py`, `mutate_everything_inference.py`, `spurs_inference.py`, `proteinmpnn_inference.py` has run end to end yet. First check on
   the cluster: one small set per model (`--sets s669` for ME; `--skip_*` flags for the others) through `sbatch_fixed_slot.sh`.
-* ME's Tsuboyama and external sets used to go through `main_train.py --eval --dist_eval`; `mutate_everything.py` writes the same
+* ME's Tsuboyama and external sets used to go through `main_train.py --eval --dist_eval`; `mutate_everything_inference.py` writes the same
   `results_<set>.csv` columns, but its predictions on those sets have not been compared with the earlier files.
 * SPURS and ProteinMPNN predictions are not byte-comparable with the earlier runs (shared rows, one scorer; see the README).
 * The other third-party models (ESMtherm, IFUM, GeoDDG, ESM3ΔG, ProSST, DDGemb, DDMut) are not covered: they run through the

@@ -8,10 +8,10 @@ same row order for the same rows, so any two baselines can be scored against ESM
 
 | script | model | what one file covers |
 |---|---|---|
-| `thermompnn.py` | ThermoMPNN / ThermoMPNN-D (also `train`) | `--single_ckpt` and/or `--epistatic_ckpt`; `--mutants single\|multi\|both`; modes `all`, `test`, `external`, `dms`, `domainome`, `pgym` |
-| `mutate_everything.py` | MutateEverything | any checkpoint (`--resume`: stage 1 singles, stage 2 doubles); `--mutants`; `--sets all` or any group / set names |
-| `spurs.py` | SPURS and SPURS-multi | `--models single\|multi\|both`; `--mutants`; `--checkpoint_single/multi` |
-| `proteinmpnn.py` | ProteinMPNN `v_48_020` | `--mutants`; `--n_samples`, `--coord_noise` for the test-time ensemble |
+| `thermompnn_inference.py` | ThermoMPNN / ThermoMPNN-D (also `train`) | `--single_ckpt` and/or `--epistatic_ckpt`; `--mutants single\|multi\|both`; modes `all`, `test`, `external`, `dms`, `domainome`, `pgym` |
+| `mutate_everything_inference.py` | MutateEverything | any checkpoint (`--resume`: stage 1 singles, stage 2 doubles); `--mutants`; `--sets all` or any group / set names |
+| `spurs_inference.py` | SPURS and SPURS-multi | `--models single\|multi\|both`; `--mutants`; `--checkpoint_single/multi` |
+| `proteinmpnn_inference.py` | ProteinMPNN `v_48_020` | `--mutants`; `--n_samples`, `--coord_noise` for the test-time ensemble |
 
 `--mutants single|multi|both` chooses which rows are scored (the others are NaN and cost nothing). With one network or model
 missing, the readouts that need it are NaN and the combined readout falls back to what exists (ThermoMPNN: additive from the
@@ -49,7 +49,7 @@ MODEL=esm_msr CKPT=release-baseline/s1/epoch=04-val_rho_combined_avg=0.855.ckpt 
 python analysis_scripts/resource_report.py runs/*/resources --out runs/summary.csv     # the resource table
 ```
 
-Each script also runs by hand (`python thermompnn.py all --help`).
+Each script also runs by hand (`python thermompnn_inference.py all --help`).
 
 ## Outputs
 
@@ -74,7 +74,7 @@ stabilizing in every prediction column, except that MutateEverything's `ddg_pred
 
 ## Training
 
-`slurm_thermompnn_train.sh` (`MODEL=single|epistatic SEED=1`, runs `thermompnn.py train`) and
+`slurm_thermompnn_train.sh` (`MODEL=single|epistatic SEED=1`, runs `thermompnn_inference.py train`) and
 `slurm_mutate_everything_train.sh` (`SEED=1`, upstream's two-stage recipe on 3 GPUs) are the launchers the corrected baselines
 were trained with, with their paths made configurable.
 

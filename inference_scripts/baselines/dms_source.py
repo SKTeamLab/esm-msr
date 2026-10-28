@@ -7,7 +7,7 @@ WHY THIS EXISTS. There were two copies of the preprocessed DMS tables:
     <esm-msr checkout>/data/preprocessed/      <- GB1 is missing V39A, V39C, V39D (an old copy, renamed *.BROKEN_...)
 
 GB1_Wu_2016_binding_domain is a 4-site saturation library: 19 substitutions at each of positions 39, 40, 41, 54,
-so 76 singles. The old esm-msr copy has 73, and every pipeline read it (thermompnn.py,
+so 76 singles. The old esm-msr copy has 73, and every pipeline read it (thermompnn_inference.py,
 build_dms_me_data.py, and esm_msr_testing.py's DMS block all hardcoded that path). The 149,357 rows the two copies
 share are bit-identical, so the only damage is the three absent singles -- but a double is usable by the epistasis
 metrics only when BOTH its singles are measured, so those three cost 152 of GB1's 2,091 two-mutation variants

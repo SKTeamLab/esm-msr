@@ -7,7 +7,7 @@ sequence (mpnn_score_wt_seq) and on the variant's sequence (mpnn_score_mut_seq);
 the wild-type one, mpnn_score_epistasis their difference. The model has no singles/doubles split: any number of mutations
 is scored the same way, so --mutants only chooses which rows are scored.
 
-  everything: python proteinmpnn.py --out DIR      (Tsuboyama val + test, 12 external sets, 7 DMS, Domainome, ProteinGym)
+  everything: python proteinmpnn_inference.py --out DIR      (Tsuboyama val + test, 12 external sets, 7 DMS, Domainome, ProteinGym)
   --mutants {single,multi,both}   which rows to score (default both); the others stay NaN and cost nothing
   --n_samples K --coord_noise A   test-time ensemble over K background orders (and noisy backbones); K=1 is the benchmark default
 

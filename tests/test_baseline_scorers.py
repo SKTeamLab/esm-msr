@@ -14,7 +14,7 @@ sys.path.insert(0, str(BASELINES.parent))
 
 def _load_spurs_module(monkeypatch):
     pytest.importorskip('omegaconf')
-    """Import baselines/spurs.py with the `spurs` package replaced by stubs; its own esm/torchtext mocking stays in place."""
+    """Import baselines/spurs_inference.py with the `spurs` package replaced by stubs; its own esm/torchtext mocking stays in place."""
     stub = types.ModuleType('spurs')
     sub = {}
     for name in ('spurs.utils', 'spurs.models', 'spurs.models.stability', 'spurs.models.stability.spurs', 'spurs.models.stability.spurs_multi',
@@ -33,7 +33,7 @@ def _load_spurs_module(monkeypatch):
         monkeypatch.setitem(sys.modules, k, v)
     sys.modules.pop('spurs_baseline_under_test', None)
     import importlib.util
-    spec = importlib.util.spec_from_file_location('spurs_baseline_under_test', BASELINES / 'spurs.py')
+    spec = importlib.util.spec_from_file_location('spurs_baseline_under_test', BASELINES / 'spurs_inference.py')
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -108,7 +108,7 @@ def _load_mpnn_module(monkeypatch):
         setattr(stub, n, object)
     monkeypatch.setitem(sys.modules, 'protein_mpnn_utils', stub)
     import importlib.util
-    spec = importlib.util.spec_from_file_location('mpnn_baseline_under_test', BASELINES / 'proteinmpnn.py')
+    spec = importlib.util.spec_from_file_location('mpnn_baseline_under_test', BASELINES / 'proteinmpnn_inference.py')
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -160,7 +160,7 @@ def _load_tmpnn_module(monkeypatch):
     stub('thermompnn.protein_mpnn_utils', parse_PDB=lambda *a, **k: None)
     stub('thermompnn.train_thermompnn', parse_cfg=lambda c: c)
     import importlib.util
-    spec = importlib.util.spec_from_file_location('tmpnn_baseline_under_test', BASELINES / 'thermompnn.py')
+    spec = importlib.util.spec_from_file_location('tmpnn_baseline_under_test', BASELINES / 'thermompnn_inference.py')
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -225,7 +225,7 @@ def test_tmpnn_combine_and_wanted(monkeypatch):
 
 
 def _load_me_module(monkeypatch, tmp_path):
-    """baselines/mutate_everything.py against a throwaway 'MutateEverything checkout' and stubbed upstream modules."""
+    """baselines/mutate_everything_inference.py against a throwaway 'MutateEverything checkout' and stubbed upstream modules."""
     import paths
     me = tmp_path / 'ME'
     root = me / 'data'
@@ -250,7 +250,7 @@ def _load_me_module(monkeypatch, tmp_path):
             setattr(m, k, v)
         monkeypatch.setitem(sys.modules, name, m)
     import importlib.util
-    spec = importlib.util.spec_from_file_location('me_baseline_under_test', BASELINES / 'mutate_everything.py')
+    spec = importlib.util.spec_from_file_location('me_baseline_under_test', BASELINES / 'mutate_everything_inference.py')
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     for a in mod.DMS:
@@ -281,3 +281,22 @@ def test_me_set_resolution_and_mutant_filter(monkeypatch, tmp_path):
     first = pd.read_csv(mod.filter_mutants(src2, 'both', tmp_path / 'out', max_proteins=2))          # --max_proteins keeps the first N proteins
     assert first.pdb_id.tolist() == ['P', 'P', 'Q']
     assert pd.read_csv(mod.filter_mutants(src2, 'single', tmp_path / 'out', max_proteins=2)).mut_info.tolist() == ['A1C', 'D3E']
+
+
+def test_no_baseline_script_shadows_a_package_it_imports():
+    """The scripts run with their own directory first on sys.path, so a script named like an upstream package
+    (thermompnn.py, spurs.py) would import itself instead of the package. The fake-module tests above cannot see that."""
+    import ast
+    scripts = sorted(BASELINES.glob('*.py')) + sorted((BASELINES / 'prepare').glob('*.py'))
+    stems = {p.stem for p in scripts}
+    local_helpers = {'paths', 'benchmark_rows', 'dms_source'}
+    imported = set()
+    for p in scripts:
+        for node in ast.walk(ast.parse(p.read_text())):
+            if isinstance(node, ast.Import):
+                imported |= {a.name.split('.')[0] for a in node.names}
+            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                imported.add(node.module.split('.')[0])
+    clash = (stems & imported) - local_helpers
+    assert not clash, f'a script is named like a module that scripts import: {sorted(clash)}'
+    assert not (BASELINES / 'thermompnn.py').exists() and not (BASELINES / 'spurs.py').exists()

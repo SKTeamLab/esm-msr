@@ -14,10 +14,10 @@ tables; __getitem__, _augment_double_mutants, _sort_dataset, the models, trainer
 Two networks, either or both: the `single` network scores one mutation (a multi-mutant gets the sum of its singles, its
 additive prediction) and the `epistatic` (siamese) network scores exactly two. Give the checkpoints you have:
 
-  train:      python thermompnn.py train --model {single,epistatic} --seed 1 --out DIR
-  everything: python thermompnn.py all --single_ckpt S --epistatic_ckpt E --out DIR
+  train:      python thermompnn_inference.py train --model {single,epistatic} --seed 1 --out DIR
+  everything: python thermompnn_inference.py all --single_ckpt S --epistatic_ckpt E --out DIR
               (Tsuboyama val + test, the 12 external sets, the 7 DMS, Domainome, ProteinGym)
-  one block:  python thermompnn.py {test,external,dms,domainome,pgym} ...
+  one block:  python thermompnn_inference.py {test,external,dms,domainome,pgym} ...
   --single_ckpt only     every row gets its additive prediction (pred_combined == pred_single_additive)
   --epistatic_ckpt only  only rows with exactly two mutations are predicted
   --mutants {single,multi,both}   which rows are scored (default both); the others get NaN and cost nothing

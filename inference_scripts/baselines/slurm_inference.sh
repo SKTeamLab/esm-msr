@@ -36,7 +36,9 @@ hostname
 nvidia-smi -i "${CUDA_VISIBLE_DEVICES:-0}" || { echo "unhealthy GPU in allocation (${CUDA_VISIBLE_DEVICES:-?})"; exit 1; }
 unset PYTHONPATH
 module load cuda/12.1 2>/dev/null || true
-export HF_HUB_OFFLINE=1 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export HF_HUB_OFFLINE=1
+# expandable segments help the large-variant-count models; MutateEverything's older torch rejects the option
+[ "$MODEL" = mutate_everything ] || export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 mkdir -p "$OUT"
 OUT=$(cd "$OUT" && pwd)
 activate() { set +u; source "$CONDA_SH"; conda activate "$1"; set -u; }
@@ -55,21 +57,21 @@ case $MODEL in
   thermompnn)
     PY=${THERMOMPNN_DIR:-${THIRD_PARTY_DIR:-$HOME/software}/ThermoMPNN-D}/.venv/bin/python
     [ -n "${SINGLE:-}${EPISTATIC:-}" ] || { echo "set SINGLE and/or EPISTATIC (ThermoMPNN-D checkpoints)"; exit 1; }
-    "$PY" -u "$B/thermompnn.py" all ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
+    "$PY" -u "$B/thermompnn_inference.py" all ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
         --out "$OUT" --mutants "$MUTANTS" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" $EXTRA;;
   mutate_everything)
     CKPT=${CKPT:?set CKPT (a MutateEverything checkpoint, relative to the ME checkout or absolute)}
     module purge 2>/dev/null || true
     activate mutate_everything
-    python -u "$B/mutate_everything.py" --resume "$CKPT" --output_dir "$OUT" --sets "${SETS:-all}" --mutants "$MUTANTS" \
+    python -u "$B/mutate_everything_inference.py" --resume "$CKPT" --output_dir "$OUT" --sets "${SETS:-all}" --mutants "$MUTANTS" \
         --skip_existing --continue_on_error $EXTRA;;
   spurs)
     activate spurs_higher
-    python -u "$B/spurs.py" --out "$OUT" --models "${MODELS:-both}" --mutants "$MUTANTS" --split "$SPLIT" \
+    python -u "$B/spurs_inference.py" --out "$OUT" --models "${MODELS:-both}" --mutants "$MUTANTS" --split "$SPLIT" \
         --checkpoint_single "${SPURS_SINGLE:-hf}" --checkpoint_multi "${SPURS_MULTI:-hf}" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" $EXTRA;;
   proteinmpnn)
     activate msr_venv
-    python -u "$B/proteinmpnn.py" --out "$OUT" --mutants "$MUTANTS" --split "$SPLIT" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" $EXTRA;;
+    python -u "$B/proteinmpnn_inference.py" --out "$OUT" --mutants "$MUTANTS" --split "$SPLIT" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" $EXTRA;;
   *) echo "unknown MODEL=$MODEL"; exit 1;;
 esac
 echo "done: $OUT (resource report: python analysis_scripts/resource_report.py $OUT/resources)"

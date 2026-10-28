@@ -30,5 +30,5 @@ export MSR_BASELINE_DATA=${MSR_BASELINE_DATA:-$DEF/data}
 OUT=${BASE_OUT:-$DEF}/thermompnn/$RUN
 mkdir -p $OUT
 echo "mut_backbones=$MUT_BACKBONES data=$MSR_BASELINE_DATA out=$OUT"
-"$THERMOMPNN_DIR/.venv/bin/python" -u "$REPO/inference_scripts/baselines/thermompnn.py" train \
+"$THERMOMPNN_DIR/.venv/bin/python" -u "$REPO/inference_scripts/baselines/thermompnn_inference.py" train \
   --model $MODEL --seed $SEED --out $OUT --num_workers 10 "$@"
