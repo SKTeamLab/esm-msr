@@ -41,6 +41,6 @@ echo "slot: node=$NODE gpus=1 cpus=$CPUS ram=${RAM_GB}G strict=$STRICT script=$S
 LOG=()
 if [ -n "${OUT:-}" ]; then mkdir -p "$OUT"; LOG=(--output="$(cd "$OUT" && pwd)/slurm-%x-%j.out"); fi
 
-exec sbatch "${LOG[@]}" --nodelist="$NODE" --gres=gpu:1 --cpus-per-task="$CPUS" --mem="${RAM_GB}G" ${TIME:+--time="$TIME"} \
+exec sbatch ${LOG[@]+"${LOG[@]}"} --nodelist="$NODE" --gres=gpu:1 --cpus-per-task="$CPUS" --mem="${RAM_GB}G" ${TIME:+--time="$TIME"} \
   --export="ALL,MSR_REPO=$(cd "$(dirname "$0")/.." && pwd),MSR_FIXED_GPUS=1,MSR_FIXED_CPUS=$CPUS,MSR_FIXED_RAM_GB=$RAM_GB,MSR_STRICT_RESOURCES=$STRICT,OMP_NUM_THREADS=$CPUS,MKL_NUM_THREADS=$CPUS,OPENBLAS_NUM_THREADS=$CPUS" \
   "$SCRIPT" "$@"

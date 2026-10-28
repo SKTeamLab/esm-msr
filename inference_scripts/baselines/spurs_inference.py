@@ -130,6 +130,7 @@ warnings.filterwarnings('ignore') # Consider removing this to catch legitimate d
 import paths  # noqa: E402
 import resource_tracker  # noqa: E402
 import batching  # noqa: E402
+import calibration  # noqa: E402
 from batching import merge_info  # noqa: E402
 from benchmark_rows import EXTERNAL, DMS, external_rows, dms_rows, domainome_rows, library_sequence  # noqa: E402
 
@@ -189,7 +190,7 @@ def load_spurs_models(checkpoint_single, checkpoint_multi, models='both'):
     return model_single, model_multi, cfg_single, cfg_multi
 
 
-def run_multi(model_multi, pdb_data, mutation_lists, batching, label=''):
+def run_multi(model_multi, pdb_data, mutation_lists, batching, label='', info_out=None):
     """(ddG array, batch info): SPURSMulti ddG for each mutation list, grouped by number of mutations and run in the batches
     `batching` decides (baselines/batching.py; fixed default 4096 variants per call); the structure/ESM2 pass is repeated
     once per call."""
@@ -209,6 +210,8 @@ def run_multi(model_multi, pdb_data, mutation_lists, batching, label=''):
                 ddg_multi = model_multi(pdb_data_group)
             out[sub] = ddg_multi.view(-1).float().cpu().numpy()
         infos.append(batching.run(len(idx), chunk_fn, label=f'{label} {n_mut}-mut', default_chunk=4096))
+    if info_out is not None:
+        info_out.extend(infos)
     return out, merge_info(infos)
 
 
@@ -276,11 +279,12 @@ class Spurs:
             if self.multi is not None:
                 singles = sorted({m for i in wanted for m in lists[i]})
                 with sc.phase('multi_singles'):
-                    vals, info_s = run_multi(self.multi, pdb_data, [[m] for m in singles], self.batching, f'{name} singles')
+                    self.last_infos = []
+                    vals, info_s = run_multi(self.multi, pdb_data, [[m] for m in singles], self.batching, f'{name} singles', self.last_infos)
                     s_pred = dict(zip(singles, vals))
                 out['SPURS_multi_additive'][wanted] = -np.array([sum(s_pred[m] for m in lists[i]) for i in wanted])
                 with sc.phase('multi_targets'):
-                    vals, info_t = run_multi(self.multi, pdb_data, [lists[i] for i in wanted], self.batching, f'{name} targets')
+                    vals, info_t = run_multi(self.multi, pdb_data, [lists[i] for i in wanted], self.batching, f'{name} targets', self.last_infos)
                     out['SPURS_multi'][wanted] = -vals
                 sc.note(**merge_info([info_s, info_t]))
         torch.cuda.empty_cache()
@@ -290,7 +294,7 @@ class Spurs:
         """Score a rows frame (id, code, chain, pdb_file, mut_type, ddG) structure by structure."""
         res = {c: np.full(len(df), np.nan) for c in ('SPURS_single', 'SPURS_single_additive', 'SPURS_multi', 'SPURS_multi_additive')}
         pos = {i: k for k, i in enumerate(df.index)}
-        with self.tracker.scope('dataset', label, n_rows=len(df)):
+        with self.batching.dataset_scope(self.tracker, label, n_rows=len(df)):
             for (pdb_path, code, chain), g in df.groupby(list(group_cols), sort=False):
                 try:
                     pdb_data = self.parse(pdb_path, code, chain)
@@ -305,6 +309,44 @@ class Spurs:
         for c, v in res.items():
             out[c] = v
         out['SPURS_multi_epi'] = out['SPURS_multi'] - out['SPURS_multi_additive']
+        return out
+
+    def calibrate(self, args):
+        """--calibrate_batch_sizes: the SPURS-multi batch for the heaviest proteins of every dataset (calibration.py). The
+        smallest batch over the one- and two-mutation groups of a saturated list wins."""
+        only = calibration.parse_only(args.calibration_datasets)
+        sets = {name: structs for name, (structs, _) in calibration.rows_structures(only).items()}
+        tsu = self._tsuboyama_structures(args.split, args.remove_spurs_homologs, only)
+        sets.update(tsu)
+
+        def run_one(struct, muts):
+            pdb_data = self.parse(struct['pdb_file'], struct['code'], struct['chain'], overwrite_seq=struct.get('overwrite'))
+            self.score('calibration', pdb_data, muts)
+            return {'batch_max': min(i['batch_max'] for i in self.last_infos), 'batch_ooms': sum(i['batch_ooms'] for i in self.last_infos)}
+
+        sizes, detail = calibration.calibrate(sets, run_one, k=args.calibration_k, cap=args.calibration_cap)
+        calibration.save_entries(args.calibrate_batch_sizes, {'spurs': sizes}, {'spurs': detail},
+                                 calibration.gpu_meta(args.auto_batch_headroom, 'fp32', args.calibration_k, args.calibration_cap))
+
+    def _tsuboyama_structures(self, split_name, remove_homologs, only):
+        """{tsuboyama_val / tsuboyama_test: wild-type-backbone libraries (structure, sequence)} for the calibration."""
+        want = [s for s in ('val', 'test') if only is None or f'tsuboyama_{s}' in only]
+        if not want or not split_name:
+            return {}
+        tsu = paths.TSUBOYAMA_DIR
+        ds = MegaScaleDatasetPreprocessor(
+            data_file=str(paths.require(tsu / 'Tsuboyama2023_Dataset2_Dataset3_20230416.csv', 'the Tsuboyama table')),
+            af_model_folder=str(paths.require(tsu / 'AlphaFold_model_PDBs', 'the AlphaFold models')), spurs_override=remove_homologs)
+        ds.create_training_splits(str(REPO_ROOT / 'data' / f'{split_name}.pkl'), -1)
+        out = {}
+        for sc in want:
+            df = ds.split_dfs[sc]
+            df = df[df['mut_structure'].fillna('-') == '-']
+            structs = []
+            for code in df['code_wt'].unique():
+                seq, pdb = library_sequence(df.loc[df['code_wt'] == code], '-')
+                structs.append({'pdb_file': pdb, 'code': code, 'chain': 'A', 'seq': seq, 'overwrite': seq})
+            out[f'tsuboyama_{sc}'] = structs
         return out
 
     def pgym_score_fn(self):
@@ -330,7 +372,7 @@ class Spurs:
         for scaffold_ in ('val', 'test'):
             data_scaffold = ds.split_dfs[scaffold_]
             parts = []
-            with self.tracker.scope('dataset', f'tsuboyama_{scaffold_}', n_rows=len(data_scaffold)):
+            with self.batching.dataset_scope(self.tracker, f'tsuboyama_{scaffold_}', n_rows=len(data_scaffold)):
                 for code in data_scaffold['code_wt'].unique()[:self.args.max_proteins or None]:
                     df_true = data_scaffold.loc[data_scaffold['code_wt'] == code].copy()
                     df_true['mut_structure'] = df_true['mut_structure'].fillna('-')
@@ -358,13 +400,17 @@ class Spurs:
 def main(args):
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
-    args.batching = batching.Batching(args)
+    if args.calibrate_batch_sizes:
+        args.batch_mode, args.no_resource_tracking = 'auto', True
+    args.batching = batching.Batching(args, model='spurs')
     tracker = resource_tracker.Tracker.from_args(
         args, label='spurs', default_dir=out / 'resources',
         meta={'model': 'SPURS', 'checkpoint_single': args.checkpoint_single, 'checkpoint_multi': args.checkpoint_multi,
               'models': args.models, 'mutants': args.mutants, 'dtype': 'fp32', **args.batching.meta()})
     try:
         spurs = Spurs(args, tracker)
+        if args.calibrate_batch_sizes:
+            return spurs.calibrate(args)
         if not args.skip_tsuboyama and args.split:
             spurs.tsuboyama(args.split, out, args.remove_spurs_homologs)
         if not args.skip_external:
@@ -383,6 +429,7 @@ def main(args):
                 spurs.score_table(_limit(domainome_rows(), args.max_proteins), 'domainome').to_csv(dest, index=False)
         if not args.skip_pgym:
             import pgym_runner
+            args.batching.dataset = 'proteingym'
             pgym_runner.run_protein_gym(
                 args.pgym_dir, out / 'proteingym', spurs.pgym_score_fn(), pred_col=spurs.pred_col, dms=args.pgym_dms,
                 tag=f'SPURS {args.checkpoint_single}+{args.checkpoint_multi} models={args.models} mutants={args.mutants}',
@@ -410,5 +457,6 @@ if __name__ == '__main__':
     parser.add_argument('--pgym_dir', default=str(paths.PGYM_INPUTS), help='pgym_inputs (preprocessing/pgym_preprocess.py)')
     parser.add_argument('--pgym_dms', default='all', help="comma-separated DMS ids, or 'all'")
     batching.add_batch_args(parser)
+    calibration.add_calibration_args(parser)
     resource_tracker.add_tracking_args(parser)
     main(parser.parse_args())

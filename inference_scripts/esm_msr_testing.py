@@ -21,6 +21,9 @@ from esm_msr import stats, utils, models, inference, preprocess_megascale, auto_
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import resource_tracker
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'baselines'))
+import batching
+import calibration
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -29,22 +32,41 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data" / "preprocessed"
 MODEL_DIR = REPO_ROOT / "LoRA_models"
 
-def _use_auto(args):
-    return args.batch_mode == 'auto' or args.auto_batch_size
+class _Plan:
+    """The batch policy of one run (baselines/batching.py): `for_dataset(name, default)` is (batch_size, sizer) for a dataset.
 
+      --batch_mode table  the calibrated size of the dataset from batch_sizes_gpu4.json; `auto` entries (ProteinGym) get the
+                          dynamic sizer; --batch_size overrides the table
+      --batch_mode auto   (or the older --auto_batch_size) the dynamic sizer of esm_msr/auto_batch.py everywhere
+      --batch_mode fixed  --batch_size for every block
+      unset               the historical sizes (`default`), the sizer only with --auto_batch_size
+    --batch_size or --auto_batch_max caps the dynamic sizer in auto mode."""
 
-def _make_sizer(args, model, log=print):
-    """The dynamic batch sizer (esm_msr/auto_batch.py) when --batch_mode auto / --auto_batch_size, else None. --batch_size or
-    --auto_batch_max is then a hard cap on the batch."""
-    if not _use_auto(args):
-        return None
-    return auto_batch.AutoBatchSizer(device=next(model.parameters()).device, headroom=args.auto_batch_headroom,
-                                     max_batch=args.auto_batch_max or args.batch_size, log=log)
+    def __init__(self, args, model, log=print):
+        self.args, self.model, self.log = args, model, log
+        self.mode = args.batch_mode or ('auto' if args.auto_batch_size else None)
+        self.bt = batching.Batching(args, model='esm_msr', log=log) if self.mode == 'table' else None
+        self._sizer = None
 
+    @property
+    def sizer(self):
+        if self._sizer is None:
+            self._sizer = auto_batch.AutoBatchSizer(
+                device=next(self.model.parameters()).device, headroom=self.args.auto_batch_headroom, log=self.log,
+                max_batch=self.args.auto_batch_max or (self.args.batch_size if self.mode == 'auto' else None))
+        return self._sizer
 
-def _fixed_bs(args, default):
-    """The batch size of a gamut block: its historical one, or --batch_size with --batch_mode fixed."""
-    return args.batch_size if (args.batch_mode == 'fixed' and args.batch_size) else default
+    def for_dataset(self, dataset, default):
+        a = self.args
+        if self.mode == 'table' and a.batch_size is None:
+            self.bt.dataset = dataset
+            entry = self.bt.table_entry()
+            return (default, self.sizer) if entry == 'auto' else (int(entry), None)
+        if self.mode == 'auto':
+            return default, self.sizer
+        if self.mode in ('fixed', 'table') and a.batch_size:
+            return a.batch_size, None
+        return default, None
 
 
 def _batch_note(sizer, n_before, fixed):
@@ -127,7 +149,7 @@ def update_stats(stats_df, row_name, res_df, true_col, pred_col, epi_true_col='d
     return stats_df
 
 
-def run_protein_gym(args, model, tracker=None):
+def run_protein_gym(args, model, tracker=None, plan=None):
     """Run esm-msr over all (preprocessed) ProteinGym DMS benchmarks, through the loop every model shares
     (pgym_runner.run_protein_gym: per-DMS resumable output CSVs, incremental summary.csv, run.log).
 
@@ -150,11 +172,12 @@ def run_protein_gym(args, model, tracker=None):
     batch_map = None
     if args.batch_map:
         batch_map = json.load(open(args.batch_map))
-    sizer = _make_sizer(args, model, log)
+    plan = plan or _Plan(args, model, log)
+    pgym_bs, sizer = plan.for_dataset('proteingym', args.batch_size or 16)
 
     def score_fn(df):
         did = df["code"].iloc[0]   # pgym_preprocess.py sets code = DMS_id
-        dms_batch = (batch_map or {}).get(did, args.batch_size or 16)
+        dms_batch = (batch_map or {}).get(did, pgym_bs)
         n_reports_before = len(sizer.reports) if sizer else 0
         t0 = time.time()
         try:
@@ -179,13 +202,54 @@ def run_protein_gym(args, model, tracker=None):
         b_used = (max(r.max_batch for r in sizer.reports[n_reports_before:]) if sizer else dms_batch)
         return res.reset_index(drop=True), {"b": b_used}
 
-    tag = (f"sigma={args.sigma} ckpt={args.checkpoint} mt_pass_adapter={args.mt_pass_adapter} batch={args.batch_size or 16}" +
+    tag = (f"sigma={args.sigma} ckpt={args.checkpoint} mt_pass_adapter={args.mt_pass_adapter} batch={pgym_bs}" +
            (f" batch_map={args.batch_map} ({len(batch_map)} entries)" if batch_map else "") +
            (f" auto_batch(headroom={args.auto_batch_headroom}, max={args.auto_batch_max})" if sizer else ""))
     pgym_runner.run_protein_gym(pgym_dir, out_dir, score_fn, pred_col=pred_col, dms=args.pgym_dms, tag=tag, log=log,
                                 tracker=tracker)
 
+def calibrate_batch_sizes(args, model, plan):
+    """--calibrate_batch_sizes: the batch the dynamic sizer settles on for the heaviest proteins of every dataset
+    (baselines/calibration.py), written to args.calibrate_batch_sizes. ProteinGym stays dynamic in the table."""
+    from benchmark_rows import library_sequence
+    only = calibration.parse_only(args.calibration_datasets)
+    sets = {name: structs for name, (structs, _) in calibration.rows_structures(only).items()}
+    want = [x for x in ('val', 'test') if only is None or f'tsuboyama_{x}' in only]
+    if want and args.split:
+        tsu = (REPO_ROOT / 'data' / 'tsuboyama') if args.local_cluster else Path('/home/sareeves/software/esm-msr/data/tsuboyama')
+        ds = preprocess_megascale.MegaScaleDatasetPreprocessor(
+            data_file=str(tsu / 'Tsuboyama2023_Dataset2_Dataset3_20230416.csv'), af_model_folder=str(tsu / 'AlphaFold_model_PDBs'))
+        ds.create_training_splits(str(REPO_ROOT / 'data' / f'{args.split}.pkl'), -1)
+        for sc in want:
+            df = ds.split_dfs[sc]
+            df = df[df['mut_structure'].fillna('-') == '-']
+            structs = []
+            for code in df['code_wt'].unique():
+                seq, pdb = library_sequence(df.loc[df['code_wt'] == code], '-')
+                pdb = pdb.replace('/home/sareeves/software/esm-msr/data/structures', args.local_path_to_structures)
+                structs.append({'pdb_file': pdb, 'code': code, 'chain': 'A', 'seq': seq})
+            sets[f'tsuboyama_{sc}'] = structs
+
+    def run_one(struct, muts):
+        df = pd.DataFrame({'pdb_file': struct['pdb_file'], 'code': struct['code'], 'chain': struct['chain'],
+                           'mut_type_renumbered': muts, 'mutant': muts, 'DMS_score': 0.0})
+        df = inference.standardize_input_df(df, quiet=True)
+        sizer = plan.sizer
+        n0 = len(sizer.reports)
+        inference.infer_mutants(model=model, df=df, batch_size=16, quiet=True, optimize_wt_pass=True, skip_reverse=args.skip_reverse,
+                                mask_strategy=args.mask_strategy, auto_batch=sizer)
+        torch.cuda.empty_cache()
+        reps = sizer.reports[n0:]
+        return {'batch_max': min((r.max_batch for r in reps), default=0), 'batch_ooms': sum(r.ooms for r in reps)}
+
+    sizes, detail = calibration.calibrate(sets, run_one, k=args.calibration_k, cap=args.calibration_cap)
+    calibration.save_entries(args.calibrate_batch_sizes, {'esm_msr': sizes}, {'esm_msr': detail},
+                             calibration.gpu_meta(args.auto_batch_headroom, args.dtype, args.calibration_k, args.calibration_cap))
+
+
 def main_(args):
+    if args.calibrate_batch_sizes:          # the sizer decides; nothing is tracked or benchmarked
+        args.batch_mode, args.no_resource_tracking = 'auto', True
 
     CHECKPOINT_STR = str(args.checkpoint) if args.checkpoint else "zeroshot"
 
@@ -255,7 +319,7 @@ def main_(args):
               'precision_flag': args.precision, 'mask_strategy': str(args.mask_strategy),
               'skip_reverse': bool(args.skip_reverse),
               'batch_mode': args.batch_mode or ('auto' if args.auto_batch_size else 'legacy'), 'batch_size_arg': args.batch_size,
-              'auto_batch_headroom': args.auto_batch_headroom if _use_auto(args) else None})
+              'auto_batch_headroom': args.auto_batch_headroom if (args.batch_mode in ('auto', 'table') or args.auto_batch_size) else None})
     _model_load = tracker.stage('model_load')
     _model_load.__enter__()
     cal = inference.resolve_calibration(checkpoint_cal, args.tie_mt_scale, args.per_mutation_bias)
@@ -289,14 +353,18 @@ def main_(args):
 
     model.eval()
     _model_load.__exit__(None, None, None)
-    sizer = _make_sizer(args, model)       # shared by the gamut blocks below (ProteinGym builds its own, with its log)
+    plan = _Plan(args, model)
+    if args.calibrate_batch_sizes:
+        calibrate_batch_sizes(args, model, plan)
+        tracker.close()
+        return
 
     # =========================================================================
     # PROTEINGYM BENCHMARKS (all DMS, preprocessed inputs)
     # =========================================================================
     if getattr(args, 'protein_gym', False):
         try:
-            run_protein_gym(args, model, tracker)
+            run_protein_gym(args, model, tracker, plan)
         finally:
             tracker.close()
         return
@@ -338,6 +406,7 @@ def main_(args):
             if args.max_proteins:       # smoke subset: the first N structures of the set
                 keep = list(dict.fromkeys(df_true['code']))[:args.max_proteins]
                 df_true = df_true[df_true['code'].isin(keep)]
+            _bs, _sz = plan.for_dataset(name, 1)
             _ds = tracker.scope('dataset', name, n_rows=len(df_true))
             _ds.__enter__()
             for (pdb, code, chain), data in tqdm(df_true.groupby(['pdb_file', 'code', 'chain'])):
@@ -346,13 +415,13 @@ def main_(args):
                 
                 input_data = inference.standardize_input_df(unique_data, quiet=True)
                 with tracker.scope('protein', f'{code}{chain}', n_rows=len(input_data)) as sc:
-                    _nb = len(sizer.reports) if sizer else 0
+                    _nb = len(_sz.reports) if _sz else 0
                     pred_df, t_inf = timed_call(
                         inference.infer_mutants,
-                        model=model, df=input_data, batch_size=_fixed_bs(args, 1), quiet=True, mask_strategy=args.mask_strategy,
-                        optimize_wt_pass=True, skip_reverse=args.skip_reverse, auto_batch=sizer
+                        model=model, df=input_data, batch_size=_bs, quiet=True, mask_strategy=args.mask_strategy,
+                        optimize_wt_pass=True, skip_reverse=args.skip_reverse, auto_batch=_sz
                     )
-                    sc.note(**_batch_note(sizer, _nb, _fixed_bs(args, 1)))
+                    sc.note(**_batch_note(_sz, _nb, _bs))
                 pred_df['id'] = code + chain + '_' + pred_df['mut_type_renumbered']
                 pred_df = pred_df.set_index('id')
 
@@ -430,6 +499,7 @@ def main_(args):
 
             time_per_code = {} # Track time per protein properly
 
+            _bs, _sz = plan.for_dataset(f'tsuboyama_{scaffold_}', 16)
             _ds = tracker.scope('dataset', f'tsuboyama_{scaffold_}', n_rows=len(data_scaffold))
             _ds.__enter__()
             for code in tqdm(data_scaffold['code_wt'].unique()[:args.max_proteins or None]):
@@ -453,14 +523,14 @@ def main_(args):
                     # Unified Inference
                     with tracker.scope('protein', code if backbone_mutation is None else f'{code}_{backbone_mutation}',
                                        n_rows=len(input_data)) as sc:
-                        _nb = len(sizer.reports) if sizer else 0
+                        _nb = len(_sz.reports) if _sz else 0
                         pred_df, t = timed_call(
                             inference.infer_mutants,
-                            model=model, df=input_data, batch_size=_fixed_bs(args, 16), backbone_mutation=backbone_mutation, quiet=True,
+                            model=model, df=input_data, batch_size=_bs, backbone_mutation=backbone_mutation, quiet=True,
                             skip_additive=False, mask_strategy=args.mask_strategy, optimize_wt_pass=True,
-                            skip_reverse=args.skip_reverse, auto_batch=sizer
+                            skip_reverse=args.skip_reverse, auto_batch=_sz
                         )
-                        sc.note(**_batch_note(sizer, _nb, _fixed_bs(args, 16)))
+                        sc.note(**_batch_note(_sz, _nb, _bs))
                     pred_df['id'] = code + ('_' if backbone_mutation is None else '_' + str(backbone_mutation) + '_') + pred_df['mut_type_renumbered']
                     pred_df = pred_df.set_index('id')
 
@@ -549,16 +619,17 @@ def main_(args):
             unique_data = df_true[~df_true.index.duplicated(keep='first')]
             input_data = inference.standardize_input_df(unique_data, quiet=True)
 
+            _bs, _sz = plan.for_dataset(prot, batch_sz)
             with tracker.scope('dataset', prot, n_rows=len(df_true)):
                 with tracker.scope('protein', prot_name, n_rows=len(input_data)) as sc:
-                    _nb = len(sizer.reports) if sizer else 0
+                    _nb = len(_sz.reports) if _sz else 0
                     pred_df, t_inf = timed_call(
                         inference.infer_mutants,
-                        model=model, df=input_data, batch_size=_fixed_bs(args, batch_sz), quiet=False, skip_additive=False,
+                        model=model, df=input_data, batch_size=_bs, quiet=False, skip_additive=False,
                         mask_strategy=args.mask_strategy, optimize_wt_pass=True,
-                        skip_reverse=args.skip_reverse, auto_batch=sizer
+                        skip_reverse=args.skip_reverse, auto_batch=_sz
                     )
-                    sc.note(**_batch_note(sizer, _nb, _fixed_bs(args, batch_sz)))
+                    sc.note(**_batch_note(_sz, _nb, _bs))
             pred_df['id'] = prot_name + '_' + pred_df['mut_type_renumbered']
             pred_df = pred_df.set_index('id')
 
@@ -610,6 +681,7 @@ def main_(args):
         
         should_skip_reverse_dom = args.skip_reverse or args.skip_reverse_domainome
 
+        _bs, _sz = plan.for_dataset('domainome', 32)
         _ds = tracker.scope('dataset', 'domainome', n_rows=len(df))
         _ds.__enter__()
         for prot in tqdm(df['code'].unique()[:args.max_proteins or None]):
@@ -622,14 +694,14 @@ def main_(args):
             input_data = inference.standardize_input_df(unique_data, quiet=True)
 
             with tracker.scope('protein', prot, n_rows=len(input_data)) as sc:
-                _nb = len(sizer.reports) if sizer else 0
+                _nb = len(_sz.reports) if _sz else 0
                 pred_df, t_inf = timed_call(
                     inference.infer_mutants,
-                    model=model, df=input_data, batch_size=_fixed_bs(args, 32), quiet=True,
+                    model=model, df=input_data, batch_size=_bs, quiet=True,
                     skip_reverse=should_skip_reverse_dom, mask_strategy=args.mask_strategy,
-                    optimize_wt_pass=True, auto_batch=sizer
+                    optimize_wt_pass=True, auto_batch=_sz
                 )
-                sc.note(**_batch_note(sizer, _nb, _fixed_bs(args, 32)))
+                sc.note(**_batch_note(_sz, _nb, _bs))
             pred_df['id'] = prot + '_' + pred_df['mut_type_renumbered']
             pred_df = pred_df.set_index('id')
 
@@ -714,11 +786,14 @@ if __name__ == "__main__":
         parser.add_argument('--pgym_dir', type=str, default=None, help='Directory with per-DMS input CSVs + manifest.csv')
         parser.add_argument('--pgym_out', type=str, default=None, help='Output directory for ProteinGym results (per-DMS CSVs + summary.csv)')
         parser.add_argument('--pgym_dms', type=str, default='all', help="Comma-separated DMS ids, or 'all'")
-        parser.add_argument('--batch_mode', choices=['auto', 'fixed'], default=None,
+        parser.add_argument('--batch_mode', choices=['table', 'auto', 'fixed'], default=None,
                             help="The batch policy shared by every baseline script (baselines/batching.py). auto: size each protein's batches dynamically against the GPU (= --auto_batch_size; --batch_size or --auto_batch_max caps it); fixed: --batch_size for every block. Unset: the historical per-block sizes (1 / 16 / mem_size*32 / 32 for external / Tsuboyama / DMS / Domainome, --batch_size for ProteinGym).")
         parser.add_argument('--batch_size', type=int, default=None, help='Inference batch size: ProteinGym (default 16) and, with --batch_mode fixed, every block; with --batch_mode auto a cap')
         parser.add_argument('--batch_map', type=str, default=None,
                             help='Optional JSON file {DMS_id: batch_size} for per-DMS batch sizing (e.g. max-fitting per length bin). DMS not in the map use --batch_size.')
+        parser.add_argument('--batch_table', default=str(Path(__file__).resolve().parent / 'baselines' / 'batch_sizes_gpu4.json'),
+                            help='--batch_mode table: the calibrated batch sizes (baselines/calibration.py)')
+        calibration.add_calibration_args(parser)
         parser.add_argument('--auto_batch_size', action='store_true',
                             help='On-the-fly per-DMS batch sizing: start at 1, double while a measured memory model predicts the attempt fits (esm_msr/auto_batch.py). Overrides --batch_size/--batch_map.')
         parser.add_argument('--auto_batch_headroom', type=float, default=0.90,

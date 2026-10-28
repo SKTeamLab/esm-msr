@@ -8,8 +8,11 @@
 #   MODEL=spurs            OUT=runs/spurs                                                 ../sbatch_fixed_slot.sh slurm_inference.sh
 #   MODEL=proteinmpnn      OUT=runs/proteinmpnn                                           ../sbatch_fixed_slot.sh slurm_inference.sh
 #
-# Optional, any model: BATCH_MODE=auto|fixed (default auto: dynamic batch sizing per protein, the same policy and headroom for
-# every method; MutateEverything has no variant batching), BATCH_SIZE (fixed: items per call; auto: a cap),
+# Batch size (every method but MutateEverything, which has no variant batching): BATCH_MODE=table|auto|fixed, default table = one
+# size per model and dataset from batch_sizes_gpu4.json (ProteinGym dynamic); BATCH_SIZE overrides the table (fixed: items per
+# call; auto: a cap). CALIBRATE=1 instead of benchmarking runs the sizer on each dataset's worst-case proteins and writes
+# $OUT/batch_sizes_$MODEL.json (calibration.py merge builds the table); do it on the GPU the table is for.
+# Optional, any model:
 # MUTANTS=single|multi|both (which rows; default both), SPLIT (Tsuboyama split, default
 # splits_oct06_capped), PGYM_DMS=id,id (ProteinGym subset; default all), EXTRA="..." (appended to the model's command line;
 # EXTRA="--max_proteins 2" is the smoke subset). Model specific: ThermoMPNN accepts SINGLE only,
@@ -33,7 +36,8 @@ B=$REPO/inference_scripts/baselines
 SPLIT=${SPLIT:-splits_oct06_capped}
 MUTANTS=${MUTANTS:-both}
 EXTRA=${EXTRA:-}
-BATCH=(--batch_mode "${BATCH_MODE:-auto}" ${BATCH_SIZE:+--batch_size "$BATCH_SIZE"})     # not for MutateEverything: one protein per forward
+BATCH=(--batch_mode "${BATCH_MODE:-table}" ${BATCH_SIZE:+--batch_size "$BATCH_SIZE"})     # not for MutateEverything: one protein per forward
+CAL=(${CALIBRATE:+--calibrate_batch_sizes "$OUT/batch_sizes_$MODEL.json"})
 CONDA_SH=${CONDA_SH:-/usr/local/anaconda3/etc/profile.d/conda.sh}
 hostname
 nvidia-smi -i "${CUDA_VISIBLE_DEVICES:-0}" || { echo "unhealthy GPU in allocation (${CUDA_VISIBLE_DEVICES:-?})"; exit 1; }
@@ -54,14 +58,15 @@ case $MODEL in
     activate msr_venv
     cd "$REPO/inference_scripts"
     python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
-        --resource_dir "$OUT/resources" "${BATCH[@]}" $EXTRA
+        --resource_dir "$OUT/resources" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA
+    [ -z "${CALIBRATE:-}" ] || { echo "calibration done: $OUT/batch_sizes_$MODEL.json"; exit 0; }
     python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
         --protein_gym --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" --pgym_out "$OUT/proteingym" --resource_dir "$OUT/resources" "${BATCH[@]}" $EXTRA;;
   thermompnn)
     PY=${THERMOMPNN_DIR:-${THIRD_PARTY_DIR:-$HOME/software}/ThermoMPNN-D}/.venv/bin/python
     [ -n "${SINGLE:-}${EPISTATIC:-}" ] || { echo "set SINGLE and/or EPISTATIC (ThermoMPNN-D checkpoints)"; exit 1; }
     "$PY" -u "$B/thermompnn_inference.py" all ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
-        --out "$OUT" --mutants "$MUTANTS" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" $EXTRA;;
+        --out "$OUT" --mutants "$MUTANTS" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;
   mutate_everything)
     CKPT=${CKPT:?set CKPT (a MutateEverything checkpoint, relative to the ME checkout or absolute)}
     module purge 2>/dev/null || true
@@ -71,10 +76,10 @@ case $MODEL in
   spurs)
     activate spurs_higher
     python -u "$B/spurs_inference.py" --out "$OUT" --models "${MODELS:-both}" --mutants "$MUTANTS" --split "$SPLIT" \
-        --checkpoint_single "${SPURS_SINGLE:-hf}" --checkpoint_multi "${SPURS_MULTI:-hf}" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" $EXTRA;;
+        --checkpoint_single "${SPURS_SINGLE:-hf}" --checkpoint_multi "${SPURS_MULTI:-hf}" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;
   proteinmpnn)
     activate msr_venv
-    python -u "$B/proteinmpnn_inference.py" --out "$OUT" --mutants "$MUTANTS" --split "$SPLIT" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" $EXTRA;;
+    python -u "$B/proteinmpnn_inference.py" --out "$OUT" --mutants "$MUTANTS" --split "$SPLIT" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;
   *) echo "unknown MODEL=$MODEL"; exit 1;;
 esac
 echo "done: $OUT (resource report: python analysis_scripts/resource_report.py $OUT/resources)"

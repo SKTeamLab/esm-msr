@@ -1,4 +1,5 @@
 """The scoring cores of the baseline scripts, with fake models (no SPURS / ThermoMPNN install, no GPU)."""
+import json
 import sys
 import types
 from pathlib import Path
@@ -15,7 +16,7 @@ sys.path.insert(0, str(BASELINES.parent))
 def _fixed(batch_size):
     """A fixed-mode Batching (no sizer, so no GPU)."""
     import batching
-    return batching.Batching(types.SimpleNamespace(batch_mode='fixed', batch_size=batch_size, auto_batch_headroom=0.9))
+    return batching.Batching(types.SimpleNamespace(batch_mode='fixed', batch_size=batch_size, auto_batch_headroom=0.9, batch_table=None), model='t')
 
 
 class _LadderSizer:
@@ -33,7 +34,7 @@ class _LadderSizer:
 
 def _auto_stub():
     b = _fixed(None)
-    b.mode, b.sizer = 'auto', _LadderSizer()
+    b.mode, b._sizer = 'auto', _LadderSizer()
     return b
 
 
@@ -324,7 +325,7 @@ def test_no_baseline_script_shadows_a_package_it_imports():
     import ast
     scripts = sorted(BASELINES.glob('*.py')) + sorted((BASELINES / 'prepare').glob('*.py'))
     stems = {p.stem for p in scripts}
-    local_helpers = {'paths', 'benchmark_rows', 'dms_source', 'batching'}
+    local_helpers = {'paths', 'benchmark_rows', 'dms_source', 'batching', 'calibration'}
     imported = set()
     for p in scripts:
         for node in ast.walk(ast.parse(p.read_text())):
@@ -368,6 +369,75 @@ def test_spurs_multi_runner_is_batch_invariant(monkeypatch):
 
 def test_auto_mode_builds_the_esm_msr_sizer_by_path():
     import batching
-    b = batching.Batching(types.SimpleNamespace(batch_mode='auto', batch_size=8, auto_batch_headroom=0.85))
+    b = batching.Batching(types.SimpleNamespace(batch_mode='auto', batch_size=8, auto_batch_headroom=0.85, batch_table=None), model='t')
     assert type(b.sizer).__name__ == 'AutoBatchSizer' and b.sizer.max_batch == 8 and b.sizer.headroom == 0.85
-    assert b.meta() == {'batch_mode': 'auto', 'batch_size_arg': 8, 'auto_batch_headroom': 0.85}
+    assert b.meta() == {'batch_mode': 'auto', 'batch_size_arg': 8, 'auto_batch_headroom': 0.85, 'batch_table': None}
+
+
+def test_calibration_helpers(tmp_path):
+    import calibration
+    pdb = tmp_path / 'x.pdb'
+    pdb.write_text(''.join(f'ATOM  {i:5d}  CA  {r} A{i:4d}    0.0 0.0 0.0\n' for i, r in enumerate(['ALA', 'GLY', 'MSE', 'LEU', 'LEU'], 1))
+                   + 'ATOM      9  CA  VAL B   1    0.0 0.0 0.0\n')
+    assert calibration.pdb_chain_seq(pdb, 'A') == 'AGXLL' and calibration.pdb_chain_seq(pdb, 'B') == 'V'
+    seq = 'ACDEFGHIKLMNPQRSTVWY' * 3                                                     # 60 residues
+    v = calibration.mixed_variants(seq, cap=400, seed=1)
+    assert v == calibration.mixed_variants(seq, cap=400, seed=1) and len(v) == 400          # deterministic, capped
+    singles = [m for m in v if ':' not in m]
+    doubles = [m for m in v if ':' in m]
+    assert len(singles) == len(doubles) == 200
+    for m in v:                                                                            # every mutation is valid for the sequence
+        parts = [(x[0], int(x[1:-1]), x[-1]) for x in m.split(':')]
+        assert all(seq[p - 1] == w and t != w for w, p, t in parts)
+        assert [p for _, p, _ in parts] == sorted(p for _, p, _ in parts) and len({p for _, p, _ in parts}) == len(parts)
+    assert [m for m in calibration.mixed_variants('AXA', cap=10) if ':' not in m] and all('2' not in m[1:-1] for m in calibration.mixed_variants('AXA', cap=10))
+    structs = [{'code': c, 'seq': 'A' * n} for c, n in (('a', 30), ('b', 90), ('c', 60))]
+    assert [s['code'] for s in calibration.longest(structs, 2)] == ['b', 'c']
+    seen = []
+
+    def run_one(struct, muts):
+        seen.append((struct['code'], len(muts)))
+        return {'batch_max': 1000 // len(struct['seq']), 'batch_ooms': 0}
+    sizes, detail = calibration.calibrate({'d1': structs, 'd2': structs[:1]}, run_one, k=2, cap=50, log=lambda m: None)
+    assert sizes == {'d1': 11, 'd2': 33}                                                   # the smallest batch of the k longest wins
+    assert [d['code'] for d in detail['d1']] == ['b', 'c']
+    calibration.save_entries(tmp_path / 'a.json', {'m1': sizes}, {'m1': detail}, {'gpu': 'G', 'headroom': 0.9})
+    calibration.save_entries(tmp_path / 'b.json', {'m2': {'d1': 4}}, {'m2': {}}, {'gpu': 'G', 'headroom': 0.9})
+    calibration.merge([tmp_path / 'a.json', tmp_path / 'b.json'], tmp_path / 'table.json')
+    t = json.load(open(tmp_path / 'table.json'))
+    assert t['m1'] == {'d1': 11, 'd2': 33, 'proteingym': 'auto'} and t['m2']['d1'] == 4 and t['_meta']['gpu'] == 'G'
+    calibration.save_entries(tmp_path / 'c.json', {'m3': {}}, {'m3': {}}, {'gpu': 'OTHER', 'headroom': 0.9})
+    with pytest.raises(AssertionError):                                                   # tables from different GPUs do not mix
+        calibration.merge([tmp_path / 'a.json', tmp_path / 'c.json'], tmp_path / 'bad.json')
+
+
+def test_table_mode_batching(tmp_path):
+    import batching
+    table = tmp_path / 't.json'
+    table.write_text(json.dumps({'m': {'s571': 5, 'dmsA': 3, 'proteingym': 'auto'}, 'm_epistatic': {'s571': 2}}))
+    args = types.SimpleNamespace(batch_mode='table', batch_size=None, auto_batch_headroom=0.9, batch_table=str(table))
+    b = batching.Batching(args, model='m')
+    assert batching.dataset_key('external_s571') == 's571' and batching.dataset_key('dms_dmsA') == 'dmsA' and batching.dataset_key('x') == 'x'
+    seen = []
+    b.dataset = 'external_s571'
+    info = b.run(12, lambda a, c: seen.append((a, c)))
+    assert seen == [(0, 5), (5, 10), (10, 12)] and info['batch_mode'] == 'table' and info['batch_max'] == 5
+    seen.clear()
+    b.run(5, lambda a, c: seen.append((a, c)), model='m_epistatic')                        # a per-network column
+    assert seen == [(0, 2), (2, 4), (4, 5)]
+    b.dataset = 'dms_dmsA'
+    seen.clear()
+    b.run(7, lambda a, c: seen.append((a, c)))
+    assert [c - a for a, c in seen] == [3, 3, 1]
+    b.dataset = 'proteingym'                                                              # `auto` entries use the dynamic sizer
+    b._sizer = _LadderSizer()
+    assert b.run(10, lambda a, c: None)['batch_mode'] == 'auto'
+    b.dataset = 'not_in_table'
+    with pytest.raises(KeyError, match='calibrat'):
+        b.run(3, lambda a, c: None)
+    over = batching.Batching(types.SimpleNamespace(batch_mode='table', batch_size=4, auto_batch_headroom=0.9, batch_table=str(table)), model='m')
+    seen.clear()
+    over.run(9, lambda a, c: seen.append((a, c)))                                         # --batch_size overrides the table
+    assert [c - a for a, c in seen] == [4, 4, 1]
+    with pytest.raises(FileNotFoundError, match='calibrate'):
+        batching.Batching(types.SimpleNamespace(batch_mode='table', batch_size=None, auto_batch_headroom=0.9, batch_table=str(tmp_path / 'none.json')), model='m')

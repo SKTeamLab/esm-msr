@@ -50,6 +50,7 @@ sys.path.insert(0, str(paths.REPO_ROOT / "src"))
 from esm_msr import utils
 import resource_tracker  # noqa: E402
 import batching  # noqa: E402
+import calibration  # noqa: E402
 from batching import merge_info  # noqa: E402
 from benchmark_rows import EXTERNAL, DMS, external_rows, dms_rows, domainome_rows, library_sequence  # noqa: E402
 
@@ -714,6 +715,7 @@ class Mpnn:
                                           max_tokens=a.max_tokens, seed=a.seed, n_samples=a.n_samples, coord_noise=a.coord_noise,
                                           batching=self.batching, info_out=infos)
             sc.note(**merge_info(infos))
+        self.last_infos = infos
         w, m = res[:2]
         out['mpnn_score_wt_seq'][wanted] = w
         out['mpnn_score_mut_seq'][wanted] = m
@@ -731,7 +733,7 @@ class Mpnn:
         """Score a rows frame (id, code, chain, pdb_file, mut_type, ddG) structure by structure."""
         cols = {}
         pos = {i: k for k, i in enumerate(df.index)}
-        with self.tracker.scope('dataset', label, n_rows=len(df)):
+        with self.batching.dataset_scope(self.tracker, label, n_rows=len(df)):
             for (pdb_path, code, chain), g in df.groupby(['pdb_file', 'code', 'chain'], sort=False):
                 try:
                     feats = self.featurize(code, pdb_path, chain)
@@ -746,6 +748,36 @@ class Mpnn:
         for c, v in cols.items():
             out[c] = v
         return out
+
+    def calibrate(self, args):
+        """--calibrate_batch_sizes: the decoder-row batch for the heaviest proteins of every dataset (calibration.py)."""
+        from esm_msr import preprocess_megascale
+        only = calibration.parse_only(args.calibration_datasets)
+        sets = {name: structs for name, (structs, _) in calibration.rows_structures(only).items()}
+        want = [s for s in ('val', 'test') if only is None or f'tsuboyama_{s}' in only]
+        if want and args.split:
+            tsu = paths.TSUBOYAMA_DIR
+            ds = preprocess_megascale.MegaScaleDatasetPreprocessor(
+                data_file=str(paths.require(tsu / 'Tsuboyama2023_Dataset2_Dataset3_20230416.csv', 'the Tsuboyama table')),
+                af_model_folder=str(paths.require(tsu / 'AlphaFold_model_PDBs', 'the AlphaFold models')))
+            ds.create_training_splits(str(REPO_ROOT / 'data' / f'{args.split}.pkl'), -1)
+            for sc in want:
+                df = ds.split_dfs[sc]
+                df = df[df['mut_structure'].fillna('-') == '-']
+                structs = []
+                for code in df['code_wt'].unique():
+                    seq, pdb = library_sequence(df.loc[df['code_wt'] == code], '-')
+                    structs.append({'pdb_file': pdb, 'code': code, 'chain': 'A', 'seq': seq, 'overwrite': seq})
+                sets[f'tsuboyama_{sc}'] = structs
+
+        def run_one(struct, muts):
+            feats = self.featurize(struct['code'], struct['pdb_file'], struct['chain'], seq=struct.get('overwrite'))
+            self.score('calibration', feats, muts)
+            return {'batch_max': min(i['batch_max'] for i in self.last_infos), 'batch_ooms': sum(i['batch_ooms'] for i in self.last_infos)}
+
+        sizes, detail = calibration.calibrate(sets, run_one, k=args.calibration_k, cap=args.calibration_cap)
+        calibration.save_entries(args.calibrate_batch_sizes, {'proteinmpnn': sizes}, {'proteinmpnn': detail},
+                                 calibration.gpu_meta(args.auto_batch_headroom, 'fp32', args.calibration_k, args.calibration_cap))
 
     def pgym_score_fn(self):
         def score_fn(df):
@@ -765,7 +797,7 @@ class Mpnn:
         for scaffold_ in ('val', 'test'):
             data_scaffold = ds.split_dfs[scaffold_]
             parts = []
-            with self.tracker.scope('dataset', f'tsuboyama_{scaffold_}', n_rows=len(data_scaffold)):
+            with self.batching.dataset_scope(self.tracker, f'tsuboyama_{scaffold_}', n_rows=len(data_scaffold)):
                 for code in data_scaffold['code_wt'].unique()[:self.args.max_proteins or None]:
                     df_true = data_scaffold.loc[data_scaffold['code_wt'] == code].copy()
                     df_true['mut_structure'] = df_true['mut_structure'].fillna('-')
@@ -792,13 +824,17 @@ class Mpnn:
 def main(args):
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
-    args.batching = batching.Batching(args)
+    if args.calibrate_batch_sizes:
+        args.batch_mode, args.no_resource_tracking = 'auto', True
+    args.batching = batching.Batching(args, model='proteinmpnn')
     tracker = resource_tracker.Tracker.from_args(
         args, label='proteinmpnn', default_dir=out / 'resources',
         meta={'model': 'ProteinMPNN v_48_020', 'mutants': args.mutants, 'dtype': 'fp32', 'seed': args.seed,
               'n_samples': args.n_samples, 'coord_noise': args.coord_noise, 'max_tokens': args.max_tokens, **args.batching.meta()})
     try:
         mpnn = Mpnn(args, tracker)
+        if args.calibrate_batch_sizes:
+            return mpnn.calibrate(args)
         if not args.skip_tsuboyama and args.split:
             mpnn.tsuboyama(args.split, out)
         if not args.skip_external:
@@ -817,6 +853,7 @@ def main(args):
                 mpnn.score_table(_limit(domainome_rows(), args.max_proteins), 'domainome').to_csv(dest, index=False)
         if not args.skip_pgym:
             import pgym_runner
+            args.batching.dataset = 'proteingym'
             pgym_runner.run_protein_gym(
                 args.pgym_dir, out / 'proteingym', mpnn.pgym_score_fn(), pred_col='mpnn_score', dms=args.pgym_dms,
                 tag=f'proteinmpnn v_48_020 unmasked seed={args.seed} n_samples={args.n_samples} coord_noise={args.coord_noise} '
@@ -839,6 +876,7 @@ if __name__ == '__main__':
     parser.add_argument('--pgym_dms', default='all', help="comma-separated DMS ids, or 'all'")
     parser.add_argument('--max_tokens', type=int, default=32768, help='fixed mode without --batch_size: decoder rows per call = this // length')
     batching.add_batch_args(parser)
+    calibration.add_calibration_args(parser)
     parser.add_argument('--seed', type=int, default=0, help='seed for the background decoding orders')
     parser.add_argument('--n_samples', type=int, default=1, help='average over this many samples, each with its own background orders')
     parser.add_argument('--coord_noise', type=float, default=0.0,

@@ -46,6 +46,7 @@ import paths  # noqa: E402
 from benchmark_rows import EXTERNAL, DMS, external_rows, dms_rows, domainome_rows  # noqa: E402
 import resource_tracker  # noqa: E402
 import batching  # noqa: E402
+import calibration  # noqa: E402
 
 TMPNN = str(paths.THERMOMPNN_DIR)
 sys.path.insert(0, TMPNN)
@@ -167,7 +168,7 @@ def _item_groups(ds):
 
 
 @torch.no_grad()
-def predict(model_pl, ds, batching, siamese=False, tracker=None, groups=None, tag=None, tokens=16000):
+def predict(model_pl, ds, batching, siamese=False, tracker=None, groups=None, tag=None, tokens=16000, info_out=None):
     """Predicted ddG (ThermoMPNN convention, positive = destabilizing) for every item of ds, in order.
 
     Items are scored one protein at a time, in the batches `batching` decides (batching.py: dynamic against the GPU, or fixed;
@@ -202,8 +203,11 @@ def predict(model_pl, ds, batching, siamese=False, tracker=None, groups=None, ta
                 with sc.phase('d2h'):
                     preds[sub] = p.float().reshape(-1).cpu().numpy()
                 del args, batch, p
-            info = batching.run(len(idx), chunk_fn, label=f'{g}', default_chunk=lambda: max(1, min(256, (tokens // (2 if siamese else 1)) // L)))
+            info = batching.run(len(idx), chunk_fn, label=f'{g}', model='thermompnn_epistatic' if siamese else 'thermompnn_single',
+                                default_chunk=lambda: max(1, min(256, (tokens // (2 if siamese else 1)) // L)))
             sc.note(**info)
+            if info_out is not None:
+                info_out.append(info)
     assert not np.isnan(preds).any(), 'some items were never scored'
     return preds
 
@@ -274,7 +278,7 @@ def test(args, tracker, models, cfgs, split):
     out = items.copy()
     out['single_pred'] = np.nan
     out['epistatic_pred'] = np.nan
-    with tracker.scope('dataset', f'tsuboyama_{split}', n_rows=int(wanted.sum())):
+    with args.batching.dataset_scope(tracker, f'tsuboyama_{split}', n_rows=int(wanted.sum())):
         for model in ('single', 'epistatic'):
             if model not in models:
                 continue
@@ -331,7 +335,7 @@ def domainome(args, tracker, models):
     df = _limit(domainome_rows(), args.max_proteins)
     preds = np.full(len(df), np.nan)
     bad = 0
-    with tracker.scope('dataset', 'domainome', n_rows=len(df)):
+    with args.batching.dataset_scope(tracker, 'domainome', n_rows=len(df)):
         for n, (code, g) in enumerate(df.groupby('code', sort=False), 1):
             p = alt_parse_PDB(g['pdb_file'].iloc[0], input_chain_list=['A'])[0]
             nongap = [k for k, a in enumerate(p['seq']) if a != '-']
@@ -368,7 +372,7 @@ def external(args, tracker, models, mode):
         df = _limit(rows_fn(name), args.max_proteins)
         n_mut = _n_mut(df.mut_type)
         wanted = _wanted(n_mut, args.mutants)
-        with tracker.scope('dataset', f'{prefix}_{name}', n_rows=int(wanted.sum())):
+        with args.batching.dataset_scope(tracker, f'{prefix}_{name}', n_rows=int(wanted.sum())):
             pdbs, items = {}, {'single': [], 'epistatic': []}
             bad = 0
             for i, r in enumerate(df.itertuples()):
@@ -458,10 +462,56 @@ def pgym(args, tracker, models):
         pred_add, comb = _combine(add, epi, n_mut, models)
         return pd.DataFrame({'pred_single_additive': pred_add, 'pred_combined': comb, 'n_mut': n_mut})
 
+    args.batching.dataset = 'proteingym'
     pgym_runner.run_protein_gym(args.pgym_dir, args.out, score_fn, pred_col='pred_combined', dms=args.pgym_dms,
                                 tag=f'ThermoMPNN single={os.path.basename(args.single_ckpt or "-")} '
                                     f'epistatic={os.path.basename(args.epistatic_ckpt or "-")} mutants={args.mutants}',
                                 extra_cols=('pred_single_additive',), tracker=tracker)
+
+
+def calibrate(args, models):
+    """--calibrate_batch_sizes: the batch each network settles on for the heaviest proteins of every dataset (calibration.py).
+    The single network is run on the saturated lists' single mutations, the epistatic one on their doubles (and only for
+    datasets that have doubles); auto mode, no tracker."""
+    from copy import deepcopy
+    from thermompnn.datasets.dataset_utils import Mutation
+    from thermompnn.protein_mpnn_utils import alt_parse_PDB
+    only = calibration.parse_only(args.calibration_datasets)
+    sets = calibration.rows_structures(only)
+    for split in ('val', 'test'):
+        if only is None or f'tsuboyama_{split}' in only:
+            libs = pd.read_csv(os.path.join(DATA, f'items_{split}.csv'), usecols=['code', 'wt_seq'], low_memory=False).drop_duplicates('code')
+            sets[f'tsuboyama_{split}'] = ([{'pdb_file': os.path.join(DATA, 'pdbs', f'{c}.pdb'), 'code': c, 'chain': 'A', 'seq': s}
+                                           for c, s in zip(libs.code, libs.wt_seq)], True)
+
+    def run_one(net):
+        def f(struct, muts):
+            p = alt_parse_PDB(struct['pdb_file'], input_chain_list=[struct['chain']])[0]
+            nongap = [k for k, a in enumerate(p['seq']) if a != '-']
+            items = []
+            for s in muts:
+                if (s.count(':') == 1) != (net == 'epistatic'):
+                    continue
+                parts = [(m[0], int(m[1:-1]), m[-1]) for m in s.split(':')]
+                idx = [nongap[pos - 1] if pos - 1 < len(nongap) else None for _, pos, _ in parts]
+                if any(k is None or p['seq'][k] != w for k, (w, _, _) in zip(idx, parts)):
+                    continue
+                it = deepcopy(p)
+                it['mutation'] = Mutation(idx, [w for w, _, _ in parts], [t for _, _, t in parts], 0.0, struct['code'])
+                items.append(it)
+            info = []
+            predict(models[net], items, args.batching, siamese=(net == 'epistatic'), groups=[struct['code']] * len(items), info_out=info)
+            return info[0]
+        return f
+
+    entries, details = {}, {}
+    for net in [n for n in ('single', 'epistatic') if n in models]:
+        todo = {name: structs for name, (structs, has_doubles) in sets.items() if net == 'single' or has_doubles}
+        print(f'[calibrate] thermompnn_{net}: {len(todo)} datasets', flush=True)
+        entries[f'thermompnn_{net}'], details[f'thermompnn_{net}'] = calibration.calibrate(
+            todo, run_one(net), k=args.calibration_k, cap=args.calibration_cap)
+    calibration.save_entries(args.calibrate_batch_sizes, entries, details,
+                             calibration.gpu_meta(args.auto_batch_headroom, 'fp32', args.calibration_k, args.calibration_cap))
 
 
 def main():
@@ -484,6 +534,7 @@ def main():
     ap.add_argument('--pgym_dms', default='all', help="comma-separated DMS ids, or 'all'")
     ap.add_argument('--chunk', type=int, default=20000, help='pgym: structure copies built per predict() call')
     batching.add_batch_args(ap)
+    calibration.add_calibration_args(ap)
     resource_tracker.add_tracking_args(ap)
     a = ap.parse_args()
     for k in ('out', 'single_ckpt', 'epistatic_ckpt', 'pgym_dir', 'resource_dir'):   # the loaders chdir into ThermoMPNN-D
@@ -491,10 +542,14 @@ def main():
             setattr(a, k, os.path.abspath(getattr(a, k)))
     if a.mode == 'train':
         return train(a)
-    a.batching = batching.Batching(a)
+    if a.calibrate_batch_sizes:
+        a.batch_mode, a.no_resource_tracking = 'auto', True      # the sizer decides, nothing is tracked or benchmarked
+    a.batching = batching.Batching(a, model='thermompnn')
     tracker = _tracker(a, a.mode)
     try:
         models, cfgs = load_models(a, tracker)
+        if a.calibrate_batch_sizes:
+            return calibrate(a, models)
         if a.mode in ('test', 'all'):
             for split in (['val', 'test'] if a.mode == 'all' else [a.split]):
                 test(a, tracker, models, cfgs, split)
