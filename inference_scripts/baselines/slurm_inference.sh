@@ -9,7 +9,8 @@
 #   MODEL=proteinmpnn      OUT=runs/proteinmpnn                                           ../sbatch_fixed_slot.sh slurm_inference.sh
 #
 # Optional, any model: MUTANTS=single|multi|both (which rows; default both), SPLIT (Tsuboyama split, default
-# splits_oct06_capped), EXTRA="..." (appended to the model's command line). Model specific: ThermoMPNN accepts SINGLE only,
+# splits_oct06_capped), PGYM_DMS=id,id (ProteinGym subset; default all), EXTRA="..." (appended to the model's command line;
+# EXTRA="--max_proteins 2" is the smoke subset). Model specific: ThermoMPNN accepts SINGLE only,
 # EPISTATIC only, or both; SPURS MODELS=single|multi|both, SPURS_SINGLE / SPURS_MULTI checkpoints; ME SETS (default all).
 # Outputs land in $OUT (predictions per benchmark, ProteinGym summaries, resources/<run_id>/ with the tracker's files).
 #
@@ -50,12 +51,12 @@ case $MODEL in
     python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
         --resource_dir "$OUT/resources" $EXTRA
     python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
-        --protein_gym --pgym_dir "$PGYM" --pgym_out "$OUT/proteingym" --resource_dir "$OUT/resources" $EXTRA;;
+        --protein_gym --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" --pgym_out "$OUT/proteingym" --resource_dir "$OUT/resources" $EXTRA;;
   thermompnn)
     PY=${THERMOMPNN_DIR:-${THIRD_PARTY_DIR:-$HOME/software}/ThermoMPNN-D}/.venv/bin/python
     [ -n "${SINGLE:-}${EPISTATIC:-}" ] || { echo "set SINGLE and/or EPISTATIC (ThermoMPNN-D checkpoints)"; exit 1; }
     "$PY" -u "$B/thermompnn.py" all ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
-        --out "$OUT" --mutants "$MUTANTS" --pgym_dir "$PGYM" $EXTRA;;
+        --out "$OUT" --mutants "$MUTANTS" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" $EXTRA;;
   mutate_everything)
     CKPT=${CKPT:?set CKPT (a MutateEverything checkpoint, relative to the ME checkout or absolute)}
     module purge 2>/dev/null || true
@@ -65,10 +66,10 @@ case $MODEL in
   spurs)
     activate spurs_higher
     python -u "$B/spurs.py" --out "$OUT" --models "${MODELS:-both}" --mutants "$MUTANTS" --split "$SPLIT" \
-        --checkpoint_single "${SPURS_SINGLE:-hf}" --checkpoint_multi "${SPURS_MULTI:-hf}" --pgym_dir "$PGYM" $EXTRA;;
+        --checkpoint_single "${SPURS_SINGLE:-hf}" --checkpoint_multi "${SPURS_MULTI:-hf}" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" $EXTRA;;
   proteinmpnn)
     activate msr_venv
-    python -u "$B/proteinmpnn.py" --out "$OUT" --mutants "$MUTANTS" --split "$SPLIT" --pgym_dir "$PGYM" $EXTRA;;
+    python -u "$B/proteinmpnn.py" --out "$OUT" --mutants "$MUTANTS" --split "$SPLIT" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" $EXTRA;;
   *) echo "unknown MODEL=$MODEL"; exit 1;;
 esac
 echo "done: $OUT (resource report: python analysis_scripts/resource_report.py $OUT/resources)"

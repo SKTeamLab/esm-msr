@@ -72,8 +72,15 @@ stabilizing in every prediction column, except that MutateEverything's `ddg_pred
   seed 0) instead of the row-by-row scorer; mutant-background libraries are scored on their background sequence; the legacy
   `functional` block (data outside the repository) is gone. The row-by-row scorers stay in the file as the reference.
 
+## Training
+
+`slurm_thermompnn_train.sh` (`MODEL=single|epistatic SEED=1`, runs `thermompnn.py train`) and
+`slurm_mutate_everything_train.sh` (`SEED=1`, upstream's two-stage recipe on 3 GPUs) are the launchers the corrected baselines
+were trained with, with their paths made configurable.
+
 ## Not in this directory
 
-Training launchers (`train_oct06.sh`, `slurm_thermompnn_train.sh`; ThermoMPNN training itself is `thermompnn.py train`), the
-scoring and epistasis scripts that turn predictions into the tables (`score_baselines.py`, `epi_*.py`) and the audit scripts
-live outside the repository on the cluster (`~/esm-msr-devel/baselines/`) and are not needed to produce predictions.
+The scoring and epistasis scripts that turn predictions into the tables (`score_baselines.py`, `final_tables.py`, `epi_*.py`),
+the GB1 and audit scripts and the data-preparation launchers (`slurm_prep_nobb.sh`, `build_valfull.py`) live outside the
+repository on the cluster (`~/esm-msr-devel/baselines/`). They are not needed to produce predictions, but several of them
+import `dms_source`, `prepare_oct06_data` and `build_mutate_everything_data`, which is why those three still have copies there.
