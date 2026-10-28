@@ -46,8 +46,9 @@ for s in 1 2 3; do for m in single epistatic; do
   MODEL=$m SEED=$s MSR_BASELINE_DATA=$PWD/outputs/baselines/$V/data SPLIT=$SPLIT sbatch training_scripts/baselines/slurm_thermompnn_train.sh
 done; done
 ```
-Each run (in `outputs/baselines/$V/thermompnn/<model>_seed<s>`, `BASE_OUT` moves it) writes `best_checkpoint.txt`; its content is the
-`--single_ckpt` / `--epistatic_ckpt` of the inference script.
+Each run (in `outputs/baselines/$V/thermompnn/<model>_seed<s>`, `BASE_OUT` moves it) writes `best_checkpoint.txt`, whose content is the
+`--single_ckpt` / `--epistatic_ckpt` of the inference script, and `train_data.json` (the tables' directory, split and flags: a Lightning
+checkpoint does not record its training data, ME's checkpoints store `args.data_path` and SPURS's run has `.hydra/overrides.yaml`).
 
 ## 3. MutateEverything (seeds 1-3)
 

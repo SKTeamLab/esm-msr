@@ -31,6 +31,7 @@ Outputs under --out: predictions_{val,test}.csv, external_<set>.csv, dms_<assay>
 CSVs and summary.csv, and resources/<run_id>/.
 """
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -141,6 +142,8 @@ def train(args):
                             num_workers=cfg.training.num_workers, batch_size=cfg.training.batch_size)
     model_pl = TransferModelPLv2Siamese(cfg) if cfg.model.aggregation == 'siamese' else TransferModelPLv2(cfg)
     os.makedirs(args.out, exist_ok=True)
+    with open(os.path.join(args.out, 'train_data.json'), 'w') as f:      # a Lightning checkpoint does not say which tables it was trained on
+        json.dump({'data_dir': DATA, **paths.variant_info(DATA)}, f, indent=1)
     ckpt = ModelCheckpoint(monitor='val_ddG_spearman', mode='max', dirpath=args.out,
                            filename=cfg.name + '_{epoch:02d}_{val_ddG_spearman:.02}', save_last=True)
     trainer = pl.Trainer(callbacks=[ckpt], logger=pl.loggers.CSVLogger(args.out, name='csv'), log_every_n_steps=100,
