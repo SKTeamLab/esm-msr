@@ -9,7 +9,9 @@
 # Upstream MutateEverything (AF backbone), README recipe unchanged: stage 1 singles (20 ep), stage 2 doubles (100 ep)
 # fine-tuned from stage 1, 3 GPUs, batch 1. Data: ESM-MSR-matched oct06 split (prepare/build_mutate_everything_data.py).
 # Past runs of this recipe on gpu2: ~17 h for both stages on a 118-protein train set; this one has 192.
-# Usage: SEED=1 [STAGE=single|double|both] sbatch inference_scripts/baselines/slurm_mutate_everything_train.sh
+# Usage: SEED=1 [STAGE=single|double|both] [SPLIT_NAME=...] [STAGE1_SPLIT=...] sbatch training_scripts/baselines/slurm_mutate_everything_train.sh
+# STAGE1_SPLIT: take the stage-1 checkpoint from logs/af_single_<STAGE1_SPLIT>_seed<SEED> (default: SPLIT_NAME), e.g. the corrected
+# stage 2 on oct06_capped_allbl starts from the oct06_capped stage 1, whose single mutations are the same rows
 # (checkpoints and logs land in logs/ of the MutateEverything checkout, which is also where the inference script reads them)
 #
 # MUT_BACKBONES=include|exclude picks which prepared data dir to train on: whether mutant-background libraries
@@ -59,7 +61,7 @@ torchrun --nproc_per_node=3 --master_port=$PORT main_train.py \
     --dist_eval \
     --backbone af \
     --eval_period 1000 --epochs 100 --warmup_epochs 10 --save_period 100 \
-    --finetune logs/af_single_${S}_seed$SEED/checkpoint-19.pth \
+    --finetune logs/af_single_${STAGE1_SPLIT:-$S}_seed$SEED/checkpoint-19.pth \
     --seed $SEED \
     --disable_wandb \
     --output_dir logs/af_double_${S}_seed$SEED

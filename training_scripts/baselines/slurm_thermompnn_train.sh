@@ -7,7 +7,7 @@
 #SBATCH --time=24:00:00
 #SBATCH --output=slurm-%x-%j.out
 # ThermoMPNN-D (upstream train_single.yaml / train_epistatic.yaml, unchanged) on the ESM-MSR-matched oct06 data.
-# Usage: MODEL=single|epistatic SEED=1 [RUN=name] sbatch inference_scripts/baselines/slurm_thermompnn_train.sh [extra args]   (from the repo root)
+# Usage: MODEL=single|epistatic SEED=1 [RUN=name] sbatch training_scripts/baselines/slurm_thermompnn_train.sh [extra args]   (from the repo root)
 #
 # MUT_BACKBONES=include|exclude picks which prepared condition to train on: whether mutant-background libraries
 # ('2K52_L42A', WT backbone + background-mutated sequence) are in train/val. The exclusion itself happens in

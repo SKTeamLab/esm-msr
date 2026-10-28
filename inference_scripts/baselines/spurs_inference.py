@@ -135,8 +135,11 @@ from batching import merge_info  # noqa: E402
 from benchmark_rows import EXTERNAL, DMS, external_rows, dms_rows, domainome_rows, library_sequence  # noqa: E402
 
 REPO_ROOT = paths.REPO_ROOT
-MODEL_DIR = str(paths.SPURS_DIR / 'checkpoints')
-SPURS_CFG_DIR = paths.SPURS_DIR / 'data' / 'checkpoints' / 'spurs' / '.hydra'
+# Retrained checkpoints (training_scripts/baselines) are files under --spurs_ckpt_dir, built with the configs in --spurs_cfg_dir
+# (config.yaml, config_multi.yaml: the repo's training_scripts/baselines/spurs/inference_configs); the published models ('hf')
+# need neither.
+DEFAULT_CKPT_DIR = os.environ.get('SPURS_CKPT_DIR') or str(paths.SPURS_DIR / 'checkpoints')
+DEFAULT_CFG_DIR = str(REPO_ROOT / 'training_scripts' / 'baselines' / 'spurs' / 'inference_configs')
 
 def extract_ddg_prediction(mutation: str, ddg_matrix: torch.Tensor, assert_wt_zero: bool = True) -> float:
     ALPHABET = 'ACDEFGHIKLMNPQRSTVWY'
@@ -155,19 +158,20 @@ def extract_ddg_prediction(mutation: str, ddg_matrix: torch.Tensor, assert_wt_ze
 
     return ddg_matrix[pos, mut_idx].item()
 
-def load_spurs_models(checkpoint_single, checkpoint_multi, models='both'):
+def load_spurs_models(checkpoint_single, checkpoint_multi, models='both', ckpt_dir=None, cfg_dir=None):
     """(model_single, model_multi, cfg_single, cfg_multi); a model that `models` does not ask for is not loaded (None).
     'hf' (or None) is the published checkpoint from the Hugging Face hub; anything else is a file under SPURS/checkpoints."""
     print("Loading SPURS models...")
+    ckpt_dir, cfg_dir = ckpt_dir or DEFAULT_CKPT_DIR, cfg_dir or DEFAULT_CFG_DIR
     model_single = model_multi = cfg_single = cfg_multi = None
     # cfg_single is needed by every parse (parse_pdb reads the single model's config whichever model runs), so with
     # --models multi the single model is built only to get it and dropped
     if checkpoint_single is not None and (checkpoint_single != 'hf'):
-        cfg_single = OmegaConf.load(str(SPURS_CFG_DIR / 'config.yaml'))
+        cfg_single = OmegaConf.load(os.path.join(cfg_dir, 'config.yaml'))
         del cfg_single['model']['_target_']
         seed_everything(cfg_single['train']['seed'])
         model_single = SPURS(cfg_single['model']).to('cuda')
-        ckpt_single = torch.load(os.path.join(MODEL_DIR, checkpoint_single), map_location=torch.device('cpu'), weights_only=False)['state_dict']
+        ckpt_single = torch.load(os.path.join(ckpt_dir, checkpoint_single), map_location=torch.device('cpu'), weights_only=False)['state_dict']
         model_single.load_state_dict({k[6:]: v for k, v in ckpt_single.items() if 'model.' in k}, strict=True)
     else:
         model_single, cfg_single = get_SPURS_from_hub()
@@ -178,11 +182,11 @@ def load_spurs_models(checkpoint_single, checkpoint_multi, models='both'):
         torch.cuda.empty_cache()
     if models in ('multi', 'both'):
         if (checkpoint_multi is not None) and (checkpoint_multi != 'hf'):
-            cfg_multi = OmegaConf.load(str(SPURS_CFG_DIR / 'config_multi.yaml'))
+            cfg_multi = OmegaConf.load(os.path.join(cfg_dir, 'config_multi.yaml'))
             del cfg_multi['model']['_target_']
             seed_everything(cfg_multi['train']['seed'])
             model_multi = SPURSMulti(cfg_multi['model']).to('cuda')
-            ckpt_multi = torch.load(os.path.join(MODEL_DIR, checkpoint_multi), map_location=torch.device('cpu'), weights_only=False)['state_dict']
+            ckpt_multi = torch.load(os.path.join(ckpt_dir, checkpoint_multi), map_location=torch.device('cpu'), weights_only=False)['state_dict']
             model_multi.load_state_dict({k[6:]: v for k, v in ckpt_multi.items() if 'model.' in k}, strict=True)
         else:
             model_multi, cfg_multi = get_SPURS_multi_from_hub()
@@ -280,7 +284,7 @@ class Spurs:
         self.batching = args.batching
         with tracker.stage('model_load'):
             self.single, self.multi, self.cfg_single, self.cfg_multi = load_spurs_models(
-                args.checkpoint_single, args.checkpoint_multi, args.models)
+                args.checkpoint_single, args.checkpoint_multi, args.models, args.spurs_ckpt_dir, args.spurs_cfg_dir)
 
     @property
     def pred_col(self):
@@ -479,6 +483,8 @@ if __name__ == '__main__':
     parser.add_argument('--out', required=True, help='output directory (CSV per benchmark, proteingym/, resources/)')
     parser.add_argument('--checkpoint_single', default='hf', help="'hf' (the published model) or a file under SPURS/checkpoints")
     parser.add_argument('--checkpoint_multi', default='hf')
+    parser.add_argument('--spurs_ckpt_dir', default=None, help='where a retrained --checkpoint_* file lives (default: $SPURS_CKPT_DIR or $SPURS_DIR/checkpoints)')
+    parser.add_argument('--spurs_cfg_dir', default=None, help="the config.yaml / config_multi.yaml retrained checkpoints were built with (default: the repo's training_scripts/baselines/spurs/inference_configs)")
     parser.add_argument('--models', choices=['single', 'multi', 'both'], default='both',
                         help='which SPURS models to load and run (single: SPURS; multi: SPURS-multi)')
     parser.add_argument('--mutants', choices=['single', 'multi', 'both'], default='both',

@@ -48,6 +48,7 @@ THREE = {'ALA': 'A', 'ARG': 'R', 'ASN': 'N', 'ASP': 'D', 'CYS': 'C', 'GLN': 'Q',
          'TYR': 'Y', 'VAL': 'V'}
 ONE = {v: k for k, v in THREE.items()}
 MIN_ADDITIVE_DG = -1.0
+KEEP_ALL_DOUBLES = False      # --keep_all_doubles: every measured double is a row (the corrected `allbl` tables)
 
 
 def pdb_sequence(path, chain='A'):
@@ -135,10 +136,10 @@ def build_items(df, dG_wt, af_dir, split_name, stats):
             elif len(muts) == 2:
                 a = singles.get((muts[0][1], muts[0][2]), np.nan)
                 b = singles.get((muts[1][1], muts[1][2]), np.nan)
-                if not (np.isfinite(a) and np.isfinite(b)):
+                if not KEEP_ALL_DOUBLES and not (np.isfinite(a) and np.isfinite(b)):
                     stats[f'{split_name}/drop_double_no_singles'] += 1
                     continue
-                if dgw is not None and dgw + a + b <= MIN_ADDITIVE_DG:
+                if not KEEP_ALL_DOUBLES and dgw is not None and dgw + a + b <= MIN_ADDITIVE_DG:
                     stats[f'{split_name}/drop_double_subfloor'] += 1
                     continue
                 rows.append({**base, 'kind': 'double', 'ddG_A': a, 'ddG_B': b})
@@ -185,7 +186,13 @@ def main():
     ap.add_argument('--mut_backbone_splits', default='train,val',
                     help='Which splits --mut_backbones exclude applies to. test is left out by default so a model '
                          'trained without these examples is still scored on exactly the rows ESM-MSR scores.')
+    ap.add_argument('--keep_all_doubles', action='store_true',
+                    help='Keep every measured double, also those without both singles measured and those the ESM-MSR rules '
+                         'would make rank-only (sub-floor): upstream-style filtering by valid labels only. The corrected '
+                         'baselines (outputs/baselines_capped_allbl) were trained on tables built with this.')
     args = ap.parse_args()
+    global KEEP_ALL_DOUBLES
+    KEEP_ALL_DOUBLES = args.keep_all_doubles
     logging.basicConfig(level=logging.WARNING)
     os.makedirs(args.out, exist_ok=True)
 

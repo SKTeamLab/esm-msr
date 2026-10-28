@@ -1,0 +1,1344 @@
+diff -ruN sp_a/configs/train.yaml sp_b/configs/train.yaml
+--- sp_a/configs/train.yaml	1969-12-31 19:00:00.000000000 -0500
++++ sp_b/configs/train.yaml	2026-10-28 15:19:14.933813305 -0400
+@@ -0,0 +1,121 @@
++# Training config for SPURS, derived from the .hydra/config.yaml of the released checkpoint (HF spurs/.hydra/config.yaml;
++# the checkpoint's own hyper_parameters agree with it except mlp.num_layers, which MLP ignores: it always builds 4 linears).
++# Differences from the released config: single GPU (no ddp_sharded_fbo / fairscale), plain ModelSummary, and the two
++# switches that decide whether the public code reproduces the released training run (see model.*).
++experiment_path: null
++# training_pipeline.train() seeds from the top-level key only (train.seed is read by inference.get_SPURS)
++seed: 45
++datamodule:
++  _target_: megascale
++  batch_size: 1
++  num_workers: 8
++  pin_memory: true
++  alphabet:
++    name: esm
++    featurizer: megascale
++trainer:
++  _target_: pytorch_lightning.Trainer
++  accelerator: gpu
++  devices: 1
++  min_epochs: 1
++  max_epochs: 200
++  enable_progress_bar: false
++  log_every_n_steps: 10
++  resume_from_checkpoint: null
++  precision: 32
++  gradient_clip_val: 0.0
++  num_sanity_val_steps: 0
++  check_val_every_n_epoch: 1
++  reload_dataloaders_every_n_epochs: 100000
++  replace_sampler_ddp: false
++  max_steps: 200000
++name: megascale/spurs
++model:
++  _target_: spurs
++  encoder:
++    d_model: 128
++    n_enc_layers: 3
++    n_dec_layers: 3
++    tune: true
++    use_input_decoding_order: true
++    # The released checkpoint's MPNN is v_48_020 + fine-tuning (cos 0.9996 to the vanilla weights); the public code no
++    # longer loads it. Set to null for the random-init behaviour of the unmodified public repo.
++    pretrained_weights: data/checkpoints/ThermoMPNN/vanilla_model_weights/v_48_020.pt
++  adapter_layer_indices:
++  - -3
++  # true reproduces the code the released checkpoint was trained with (adapter never receives gradient)
++  legacy_esm_forward: false
++  mlp:
++    flat_dim: 128
++    input_dim: 256
++    hidden_dim: 1024
++    num_layers: 2
++    output_dim: 21
++    dropout: 0.1
++  dropout: 0.5
++task:
++  _target_: stability/megascale
++  criterion:
++    _target_: spurs.modules.mseloss.MSELoss
++  optimizer:
++    type: adamw
++    _partial_: true
++    lr: 0.0001
++    betas:
++    - 0.9
++    - 0.98
++    weight_decay: 0.001
++  lr_scheduler:
++    type: plateau
++    lr: ${train.lr}
++    factor: 0.2
++    mode: min
++    monitor: val/rho_avg_mse
++train:
++  seed: 45
++  lr: 0.001
++  monitor: val/rho_avg_spearman
++  mode: max
++  patience: 30
++optimized_metric: val/rho_avg_spearman
++experiment: mpnn
++print_config: true
++ignore_warnings: true
++callbacks:
++  model_summary:
++    _target_: pytorch_lightning.callbacks.ModelSummary
++    max_depth: -1
++  model_checkpoint:
++    _target_: spurs.utils.callbacks.ModelCheckpoint
++    monitor: ${train.monitor}
++    mode: ${train.mode}
++    save_top_k: 1
++    save_last: true
++    verbose: true
++    dirpath: checkpoints
++    filename: step_{global_step}-${train.monitor}_{${train.monitor}:.2f}
++    auto_insert_metric_name: false
++  early_stopping:
++    _target_: pytorch_lightning.callbacks.EarlyStopping
++    monitor: ${train.monitor}
++    mode: ${train.mode}
++    patience: ${train.patience}
++    min_delta: 0
++    check_on_train_epoch_end: false
++logger:
++  tensorboard:
++    _target_: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
++    save_dir: tensorboard/
++    name: null
++    version: ${name}
++    log_graph: false
++    default_hp_metric: true
++    prefix: ''
++paths:
++  root_dir: ${oc.env:PROJECT_ROOT}
++  data_dir: ${paths.root_dir}/data/
++  log_dir: ${paths.root_dir}/logs/${name}
++  ckpt_dir: ${paths.log_dir}/checkpoints
++hydra:
++  run:
++    dir: ${paths.log_dir}
+diff -ruN sp_a/configs/train_multi.yaml sp_b/configs/train_multi.yaml
+--- sp_a/configs/train_multi.yaml	1969-12-31 19:00:00.000000000 -0500
++++ sp_b/configs/train_multi.yaml	2026-10-28 16:23:13.884993377 -0400
+@@ -0,0 +1,129 @@
++# SPURS-multi training config, derived from the .hydra/config_multi.yaml shipped in data.tar.gz (HF spurs_multi/.hydra/config.yaml agrees
++# on the architecture). The released multi checkpoint is a fine-tune of the released SPURS-single checkpoint: set model.init_from to a
++# trained single checkpoint (best.ckpt of the matching seed). Trains on two-mutation variants only, lr 1e-4, wd 1e-4, patience 10.
++experiment_path: null
++# training_pipeline.train() seeds from the top-level key only (train.seed is read by inference.get_SPURS)
++seed: 45
++datamodule:
++  _target_: items
++  multi: true
++  data_dir: ???
++  batch_size: 1
++  num_workers: 8
++  pin_memory: true
++  alphabet:
++    name: esm
++    featurizer: megascale
++trainer:
++  _target_: pytorch_lightning.Trainer
++  accelerator: gpu
++  devices: 1
++  min_epochs: 1
++  max_epochs: 200
++  enable_progress_bar: false
++  log_every_n_steps: 10
++  resume_from_checkpoint: null
++  precision: 32
++  gradient_clip_val: 0.0
++  num_sanity_val_steps: 0
++  check_val_every_n_epoch: 1
++  reload_dataloaders_every_n_epochs: 100000
++  replace_sampler_ddp: false
++  max_steps: 200000
++name: megascale/spurs_multi
++model:
++  _target_: spurs_multi
++  encoder:
++    d_model: 128
++    n_enc_layers: 3
++    n_dec_layers: 3
++    tune: true
++    use_input_decoding_order: true
++    pretrained_weights: null  # unused by SPURS-multi: the encoder comes from model.init_from
++  adapter_layer_indices:
++  - -3
++  init_from: ???   # trained SPURS-single checkpoint
++  legacy_esm_forward: true  # adapter stays at its (random) init, as in the released single and multi checkpoints
++  mlp:
++    flat_dim: 128
++    input_dim: 256
++    hidden_dim: 1024
++    num_layers: 2
++    output_dim: 21
++    dropout: 0.1
++  multi:
++    flat_dim: 128
++    input_dim: 384
++    hidden_dim: 768
++    num_layers: 4
++    output_dim: 1
++    dropout: 0.1
++  dropout: 0.5
++  agg_type: concate
++  agg_dim: 128
++task:
++  _target_: stability/megascale
++  criterion:
++    _target_: spurs.modules.mseloss.MSELoss
++  optimizer:
++    type: adamw
++    _partial_: true
++    lr: 0.0001
++    betas:
++    - 0.9
++    - 0.98
++    weight_decay: 0.0001
++  lr_scheduler:
++    type: plateau
++    lr: ${train.lr}
++    factor: 0.2
++    mode: min
++    monitor: val/rho_avg_mse
++train:
++  seed: 45
++  lr: 0.001
++  monitor: val/rho_avg_spearman
++  mode: max
++  patience: 10
++optimized_metric: val/rho_avg_spearman
++experiment: mpnn
++print_config: true
++ignore_warnings: true
++callbacks:
++  model_summary:
++    _target_: pytorch_lightning.callbacks.ModelSummary
++    max_depth: -1
++  model_checkpoint:
++    _target_: spurs.utils.callbacks.ModelCheckpoint
++    monitor: ${train.monitor}
++    mode: ${train.mode}
++    save_top_k: 1
++    save_last: true
++    verbose: true
++    dirpath: checkpoints
++    filename: step_{global_step}-${train.monitor}_{${train.monitor}:.2f}
++    auto_insert_metric_name: false
++  early_stopping:
++    _target_: pytorch_lightning.callbacks.EarlyStopping
++    monitor: ${train.monitor}
++    mode: ${train.mode}
++    patience: ${train.patience}
++    min_delta: 0
++    check_on_train_epoch_end: false
++logger:
++  tensorboard:
++    _target_: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
++    save_dir: tensorboard/
++    name: null
++    version: ${name}
++    log_graph: false
++    default_hp_metric: true
++    prefix: ''
++paths:
++  root_dir: ${oc.env:PROJECT_ROOT}
++  data_dir: ${paths.root_dir}/data/
++  log_dir: ${paths.root_dir}/logs/${name}
++  ckpt_dir: ${paths.log_dir}/checkpoints
++hydra:
++  run:
++    dir: ${paths.log_dir}
+diff -ruN sp_a/requirements.txt sp_b/requirements.txt
+--- sp_a/requirements.txt	2026-10-14 22:37:36.347540037 -0400
++++ sp_b/requirements.txt	2026-10-28 14:46:01.294687144 -0400
+@@ -1,6 +1,3 @@
+-# Legacy training dependency stack (Python 3.7 era).
+-# For modern inference-only setup, use requirements.inference.txt.
+-
+ # --------- pytorch --------- #
+ torch==1.12.0
+ #torchvision==0.13.0+cu116
+diff -ruN sp_a/setup.py sp_b/setup.py
+--- sp_a/setup.py	2026-10-14 22:37:36.347540037 -0400
++++ sp_b/setup.py	2026-10-28 14:46:01.294687144 -0400
+@@ -1,19 +1,8 @@
+ from setuptools import find_packages, setup
+ 
+-
+-def _read_requirements(path):
+-    requirements = []
+-    with open(path) as f:
+-        for line in f:
+-            req = line.strip()
+-            if not req or req.startswith('#') or req.startswith('git+'):
+-                continue
+-            requirements.append(req)
+-    return requirements
+-
+-
+-inference_requirements = _read_requirements("requirements.inference.txt")
+-legacy_requirements = _read_requirements("requirements.training-legacy.txt")
++# Read requirements.txt and filter out git URLs
++with open("requirements.txt") as f:
++    requirements = [line.strip() for line in f if not line.strip().startswith('git+')]
+ 
+ setup(
+     name="spurs",  
+@@ -21,10 +10,7 @@
+     description="",
+     author="Ziang Li",
+     author_email="zaing at gatech.edu",
+-    install_requires=inference_requirements,
+-    extras_require={
+-        "training-legacy": legacy_requirements,
+-    },
++    install_requires=requirements,
+     packages=find_packages(),  
+     package_dir={"": "."},  
+ )
+diff -ruN sp_a/spurs/__init__.py sp_b/spurs/__init__.py
+--- sp_a/spurs/__init__.py	2026-10-14 22:37:36.347540037 -0400
++++ sp_b/spurs/__init__.py	2026-10-28 14:46:01.294687144 -0400
+@@ -1,17 +1,5 @@
+ # some code adated from https://github.com/BytedProtein/ByProt and https://github.com/ashleve/lightning-hydra-template
+-"""Top-level SPURS package with lazy submodule loading.
+-
+-This keeps ``import spurs`` lightweight for inference-only use cases.
+-"""
+-
+-import importlib
+-
+-__all__ = ["models", "tasks", "utils", "datamodules"]
+-
+-
+-def __getattr__(name):
+-    if name in __all__:
+-        module = importlib.import_module(f"spurs.{name}")
+-        globals()[name] = module
+-        return module
+-    raise AttributeError(f"module 'spurs' has no attribute '{name}'")
++import spurs.models
++import spurs.tasks
++import spurs.utils
++import spurs.datamodules
+\ No newline at end of file
+diff -ruN sp_a/spurs/datamodules/__init__.py sp_b/spurs/datamodules/__init__.py
+--- sp_a/spurs/datamodules/__init__.py	2026-10-14 22:37:36.347540037 -0400
++++ sp_b/spurs/datamodules/__init__.py	2026-10-28 14:46:01.294687144 -0400
+@@ -1,9 +1,11 @@
+-import glob
+ import importlib
++from omegaconf import DictConfig
+ import os
++import glob
++
++from spurs.utils import import_modules
+ 
+ DATAMODULE_REGISTRY = {}
+-_DATAMODULES_DISCOVERED = False
+ 
+ 
+ def register_datamodule(name):
+@@ -13,28 +15,4 @@
+     return decorator
+ 
+ 
+-def ensure_datamodules_discovered():
+-    global _DATAMODULES_DISCOVERED
+-    if _DATAMODULES_DISCOVERED:
+-        return
+-
+-    import_modules(os.path.dirname(__file__), "spurs.datamodules")
+-    _DATAMODULES_DISCOVERED = True
+-
+-
+-def import_modules(models_dir, namespace, excludes=None):
+-    excludes = excludes or []
+-    for path in glob.glob(models_dir + '/**', recursive=True)[1:]:
+-        if any(e in path for e in excludes):
+-            continue
+-
+-        file = os.path.split(path)[1]
+-        if (
+-            not file.startswith("_")
+-            and not file.startswith(".")
+-            and (file.endswith(".py") or os.path.isdir(path))
+-        ):
+-            module_name = file[: file.find(".py")] if file.endswith(".py") else file
+-            _namespace = path.replace('/', '.')
+-            _namespace = _namespace[_namespace.find(namespace): _namespace.rfind('.' + module_name)]
+-            importlib.import_module(_namespace + "." + module_name)
++import_modules(os.path.dirname(__file__), "spurs.datamodules")
+diff -ruN sp_a/spurs/datamodules/datasets/batch.py sp_b/spurs/datamodules/datasets/batch.py
+--- sp_a/spurs/datamodules/datasets/batch.py	2026-10-14 22:37:36.371538841 -0400
++++ sp_b/spurs/datamodules/datasets/batch.py	2026-10-28 14:46:01.294687144 -0400
+@@ -1,12 +1,12 @@
+ # https://github.com/BytedProtein/ByProt/blob/dd279dc85f76ee2c28c819b71bf3911b90159f0a/src/byprot/datamodules/datasets/cath.py#L123
+ import json
+-import logging
+ import os
+ from functools import partial
+ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+ 
+ import numpy as np
+ import torch
++from spurs import utils
+ from torch.nn import functional as F
+ from torch.utils.data.datapipes.map import SequenceWrapper
+ from torch.utils.data.dataset import Subset
+@@ -15,7 +15,7 @@
+ 
+ import esm
+ 
+-log = logging.getLogger(__name__)
++log = utils.get_logger(__name__)
+ 
+ # NOTE: batch is a list mapping
+ # each mapping has columns:
+diff -ruN sp_a/spurs/datamodules/datasets/data_utils.py sp_b/spurs/datamodules/datasets/data_utils.py
+--- sp_a/spurs/datamodules/datasets/data_utils.py	2026-10-14 22:37:36.371538841 -0400
++++ sp_b/spurs/datamodules/datasets/data_utils.py	2026-10-28 14:46:01.294687144 -0400
+@@ -13,20 +13,12 @@
+ import esm
+ import numpy as np
+ import torch
++from pytorch_lightning.utilities.seed import seed_everything
+ from torch import distributed as dist
+ from torch import nn
+ from torch.utils.data import DataChunk
+ from torch.utils.data.distributed import DistributedSampler
+ from torch.utils.data.sampler import BatchSampler, SequentialSampler
+-import random
+-
+-
+-def seed_everything(seed):
+-    random.seed(seed)
+-    np.random.seed(seed)
+-    torch.manual_seed(seed)
+-    torch.cuda.manual_seed_all(seed)
+-    return seed
+ 
+ 
+ class Alphabet(object):
+diff -ruN sp_a/spurs/datamodules/datasets/items.py sp_b/spurs/datamodules/datasets/items.py
+--- sp_a/spurs/datamodules/datasets/items.py	1969-12-31 19:00:00.000000000 -0500
++++ sp_b/spurs/datamodules/datasets/items.py	2026-10-28 15:57:16.794537799 -0400
+@@ -0,0 +1,94 @@
++import json
++import os
++
++import numpy as np
++import pandas as pd
++import torch
++
++from spurs import utils
++from .megascale import MegaScaleDataset
++from .megascale_multi import MegaScaleDoubleDataset
++from .utils import parse_pdb
++
++log = utils.get_logger(__name__)
++
++
++class ItemsTableDataset(MegaScaleDataset):
++    """Single-mutation Megascale data from prepared item tables instead of mega_splits.pkl + the raw Tsuboyama csv.
++
++    `data_dir` holds items_{train,val,test}.csv (columns code, wt_seq, mut_type, ddG_ML, kind; ddG_ML is positive =
++    stabilizing) and pdbs/<code>.pdb, one structure per library whose sequence equals the library's wt_seq. This is the
++    data contract of the ESM-MSR-matched baselines, so SPURS sees exactly the rows ThermoMPNN and MutateEverything do.
++    A mutant-background library (kind native_cond, e.g. 2K52_L42A) is its own protein with the background residue already in
++    wt_seq. Batching, targets (ddG = -ddG_ML) and featurisation are MegaScaleDataset's.
++
++    Args:
++        data_dir: directory with the item tables and pdbs/
++        split: train | val | test
++        kinds: which `kind` values to keep (doubles are for SPURS-multi)
++        structure_json: cache of the parsed pdbs/ (written on first use; keep it outside data_dir)
++        max_libraries: smoke tests
++    """
++
++    def __init__(self, data_dir, split='train', kinds=('single', 'native_cond'), structure_json=None,
++                 mut_seq=False, single_mut=False, std_ratio=0.75, loss_ratio=1., train_ratio=1., max_libraries=0):
++        torch.utils.data.Dataset.__init__(self)
++        self.split = split
++        df = pd.read_csv(os.path.join(data_dir, f'items_{split}.csv'), low_memory=False)
++        df = df[df['kind'].isin(list(kinds))].reset_index(drop=True)
++        df = df[np.isfinite(df['ddG_ML'])]
++        self.wt_seqs, self.mut_rows = {}, {}
++        for code, g in df.groupby('code', sort=True):
++            wt_seq = g['wt_seq'].iloc[0]
++            assert (g['wt_seq'] == wt_seq).all(), f'{code}: several wild-type sequences'
++            g = g.reset_index(drop=True)
++            pos = g['mut_type'].str[1:-1].astype(int) - 1
++            assert all(wt_seq[p] == m[0] for p, m in zip(pos, g['mut_type'])), f'{code}: mut_type does not match wt_seq'
++            g['aa_seq'] = [wt_seq[:p] + m[-1] + wt_seq[p + 1:] for p, m in zip(pos, g['mut_type'])]
++            self.wt_seqs[code + '.pdb'] = wt_seq
++            self.mut_rows[code + '.pdb'] = g
++        self.wt_names = list(self.wt_seqs)[:max_libraries or None]
++        log.info(f'{split}: {len(self.wt_names)} libraries, {sum(len(self.mut_rows[n]) for n in self.wt_names)} mutations')
++
++        self.structure_path = os.path.join(data_dir, 'pdbs')
++        structure_json = structure_json or os.path.join(data_dir, '..', 'parsed_structure.json')
++        os.makedirs(os.path.dirname(os.path.abspath(structure_json)), exist_ok=True)
++        parse_pdb(self.structure_path, structure_json)
++        with open(structure_json) as f:
++            self.json_dataset = json.load(f)
++        self.mut_seq, self.single_mut = mut_seq, single_mut
++        self.std_ratio, self.loss_ratio, self.train_ratio = std_ratio, loss_ratio, train_ratio
++
++
++class ItemsTableDoubleDataset(MegaScaleDoubleDataset):
++    """SPURS-multi data (two-mutation variants, `kind == double`) from the same item tables; item layout, targets and
++    featurisation are MegaScaleDoubleDataset's (mut_ids [N, 2], append_tensors [N, 4], ddG = -ddG_ML)."""
++
++    def __init__(self, data_dir, split='train', kinds=('double',), structure_json=None, max_libraries=0):
++        torch.utils.data.Dataset.__init__(self)
++        self.split = split
++        df = pd.read_csv(os.path.join(data_dir, f'items_{split}.csv'), low_memory=False)
++        df = df[df['kind'].isin(list(kinds)) & np.isfinite(df['ddG_ML'])].reset_index(drop=True)
++        self.wt_seqs, self.mut_rows = {}, {}
++        for code, g in df.groupby('code', sort=True):
++            wt_seq = g['wt_seq'].iloc[0]
++            assert (g['wt_seq'] == wt_seq).all(), f'{code}: several wild-type sequences'
++            g = g.reset_index(drop=True)
++            seqs = []
++            for mt in g['mut_type']:
++                s = list(wt_seq)
++                for m in mt.split(':'):
++                    assert wt_seq[int(m[1:-1]) - 1] == m[0], f'{code}: {mt} does not match wt_seq'
++                    s[int(m[1:-1]) - 1] = m[-1]
++                seqs.append(''.join(s))
++            g['aa_seq'] = seqs
++            self.wt_seqs[code + '.pdb'] = wt_seq
++            self.mut_rows[code + '.pdb'] = g
++        self.wt_names = list(self.wt_seqs)[:max_libraries or None]
++        log.info(f'{split}: {len(self.wt_names)} libraries, {sum(len(self.mut_rows[n]) for n in self.wt_names)} double mutants')
++        self.structure_path = os.path.join(data_dir, 'pdbs')
++        structure_json = structure_json or os.path.join(data_dir, '..', 'parsed_structure.json')
++        os.makedirs(os.path.dirname(os.path.abspath(structure_json)), exist_ok=True)
++        parse_pdb(self.structure_path, structure_json)
++        with open(structure_json) as f:
++            self.json_dataset = json.load(f)
+diff -ruN sp_a/spurs/datamodules/datasets/megascale.py sp_b/spurs/datamodules/datasets/megascale.py
+--- sp_a/spurs/datamodules/datasets/megascale.py	2026-10-14 22:37:36.372538791 -0400
++++ sp_b/spurs/datamodules/datasets/megascale.py	2026-10-28 14:46:01.294687144 -0400
+@@ -4,7 +4,6 @@
+ import numpy as np
+ import pickle
+ import os
+-import logging
+ from Bio import pairwise2
+ from math import isnan
+ from tqdm import tqdm
+@@ -13,17 +12,21 @@
+ from .utils import get_pdb,parse_pdb
+ import lmdb
+ import glob
++from spurs import utils
++log = utils.get_logger(__name__)
+ import json
+ from .LMDBDataset import LMDBDataset
+ from .batch import CoordBatchConverter
+ from .data_utils import Alphabet
++from .fireport import FireProtDataset
++from .ddgbench import ddgBenchDataset
++from .ddggeo import ddgGeo
++from .domainome import domainome
+ ALPAHBET = 'ACDEFGHIKLMNPQRSTVWYX'
+ from joblib import Parallel, delayed
+ from collections import defaultdict
+ import math
+ import random
+-
+-log = logging.getLogger(__name__)
+             
+ 
+ class MegaScaleDataset(torch.utils.data.Dataset):
+@@ -338,10 +341,6 @@
+ 
+     def __init__(self, 
+                  ):
+-        from .ddgbench import ddgBenchDataset
+-        from .ddggeo import ddgGeo
+-        from .fireport import FireProtDataset
+-
+         current_dir = os.path.dirname(os.path.abspath(__file__))
+         root_path = os.path.join(current_dir,'../../../')
+ 
+diff -ruN sp_a/spurs/datamodules/items_datamodule.py sp_b/spurs/datamodules/items_datamodule.py
+--- sp_a/spurs/datamodules/items_datamodule.py	1969-12-31 19:00:00.000000000 -0500
++++ sp_b/spurs/datamodules/items_datamodule.py	2026-10-28 15:57:16.798588846 -0400
+@@ -0,0 +1,51 @@
++from typing import Optional
++
++from pytorch_lightning import LightningDataModule
++from torch.utils.data import DataLoader
++
++from spurs import utils
++from spurs.datamodules import register_datamodule
++from .datasets.data_utils import Alphabet
++from .datasets.items import ItemsTableDataset, ItemsTableDoubleDataset
++
++log = utils.get_logger(__name__)
++
++
++@register_datamodule('items')
++class ItemsModule(LightningDataModule):
++    """Same loop as MegaScaleModule, with ItemsTableDataset in place of the mega_splits.pkl dataset."""
++
++    def __init__(self, alphabet, data_dir: str, structure_json: Optional[str] = None, kinds=('single', 'native_cond'),
++                 batch_size: int = 1, num_workers: int = 0, pin_memory: bool = False, max_libraries: int = 0, multi: bool = False) -> None:
++        super().__init__()
++        self.save_hyperparameters(logger=False)
++        self.alphabet = None
++
++    def _dataset(self, split):
++        h = self.hparams
++        if h.multi:  # SPURS-multi: two-mutation variants
++            return ItemsTableDoubleDataset(h.data_dir, split=split, structure_json=h.structure_json, max_libraries=h.max_libraries)
++        return ItemsTableDataset(h.data_dir, split=split, kinds=tuple(h.kinds), structure_json=h.structure_json,
++                                 max_libraries=h.max_libraries)
++
++    def setup(self, stage: Optional[str] = None):
++        self.alphabet = Alphabet(**self.hparams.alphabet)
++        self.collate_batch = self.alphabet.featurize
++        if stage == 'fit':
++            self.train_dataset, self.valid_dataset = self._dataset('train'), self._dataset('val')
++        elif stage == 'test':
++            self.test_dataset = self._dataset('test')
++
++    def _loader(self, dataset, shuffle):
++        h = self.hparams
++        return DataLoader(dataset, batch_size=h.batch_size, shuffle=shuffle, num_workers=h.num_workers,
++                          pin_memory=h.pin_memory, collate_fn=self.collate_batch)
++
++    def train_dataloader(self):
++        return self._loader(self.train_dataset, True)
++
++    def val_dataloader(self):
++        return self._loader(self.valid_dataset, False)
++
++    def test_dataloader(self):
++        return self._loader(self.test_dataset, False)
+diff -ruN sp_a/spurs/inference.py sp_b/spurs/inference.py
+--- sp_a/spurs/inference.py	2026-10-14 22:37:36.372538791 -0400
++++ sp_b/spurs/inference.py	2026-10-28 14:46:01.294687144 -0400
+@@ -1,24 +1,14 @@
+-import os
+-import random
+-
+-import numpy as np
++import spurs
++from omegaconf import OmegaConf
++from spurs.utils import seed_everything
+ import torch
++import os
++from spurs.models.stability.spurs import SPURS
++from spurs.datamodules.datasets.utils import alt_parse_PDB
++from spurs.datamodules.datasets.utils import get_pdb
++from spurs.datamodules.datasets.data_utils import Alphabet
+ from huggingface_hub import hf_hub_download
+-from omegaconf import OmegaConf
+-
+-
+-def _seed_everything(seed):
+-    random.seed(seed)
+-    np.random.seed(seed)
+-    torch.manual_seed(seed)
+-    torch.cuda.manual_seed_all(seed)
+-
+-
+-def _load_model_state_dict(model, ckpt_path):
+-    ckpt = torch.load(ckpt_path, map_location=torch.device('cpu'))['state_dict']
+-    ckpt_remove_model = {k[6:]: v for k, v in ckpt.items() if 'model.' in k}
+-    model.load_state_dict(ckpt_remove_model, strict=False)
+-    return model
++from spurs.models.stability.spurs_multi import SPURSMulti
+ 
+ 
+ def get_SPURS(ckpt_path: str, device: str = 'cuda' if torch.cuda.is_available() else 'cpu'):
+@@ -39,16 +29,17 @@
+     Example:
+         >>> model, cfg = get_SPURS("path/to/checkpoint")
+     """
+-    cfg = OmegaConf.load(os.path.join(ckpt_path, '.hydra/config.yaml'))
++    cfg = OmegaConf.load(os.path.join(ckpt_path,'.hydra/config.yaml'))
+ 
+     del cfg['model']['_target_']
+-    _seed_everything(cfg['train']['seed'])
+-
+-    from spurs.models.stability.spurs import SPURS
++    seed_everything(cfg['train']['seed'])
+ 
+     model = SPURS(cfg['model']).to(device)
+-    model = _load_model_state_dict(model, os.path.join(ckpt_path, 'checkpoints/best.ckpt'))
+ 
++    ckpt = torch.load(os.path.join(ckpt_path,'checkpoints/best.ckpt'), map_location=torch.device('cpu'))['state_dict']
++    ckpt_remove_model = {k[6:]:v for k, v in ckpt.items() if 'model.' in k}
++    model.load_state_dict(ckpt_remove_model, strict=False)    
++    
+     return model, cfg
+ 
+ 
+@@ -70,21 +61,23 @@
+     Example:
+         >>> model, cfg = get_SPURS_from_hub()
+     """
++    # Download files from Hugging Face Hub
+     config_path = hf_hub_download(repo_id=repo_id, filename="spurs/.hydra/config.yaml")
+     ckpt_path = hf_hub_download(repo_id=repo_id, filename="spurs/checkpoints/best.ckpt")
+ 
++    # Load config
+     cfg = OmegaConf.load(config_path)
+     del cfg['model']['_target_']
+-    _seed_everything(cfg['train']['seed'])
+-
+-    from spurs.models.stability.spurs import SPURS
++    seed_everything(cfg['train']['seed'])
+ 
++    # Instantiate model and load checkpoint
+     model = SPURS(cfg['model']).to(device)
+-    model = _load_model_state_dict(model, ckpt_path)
++    ckpt = torch.load(ckpt_path, map_location=torch.device('cpu'))['state_dict']
++    ckpt_remove_model = {k[6:]: v for k, v in ckpt.items() if 'model.' in k}
++    model.load_state_dict(ckpt_remove_model, strict=False)
+ 
+     return model, cfg
+ 
+-
+ def get_SPURS_multi_from_hub(repo_id: str = "cyclization9/SPURS", device: str = 'cuda' if torch.cuda.is_available() else 'cpu'):
+     """Load a pre-trained SPURS multi-mutation model from the Hugging Face model hub.
+ 
+@@ -103,17 +96,20 @@
+     Example:
+         >>> model, cfg = get_SPURS_multi_from_hub()
+     """
++    # Download files from Hugging Face Hub
+     config_path = hf_hub_download(repo_id=repo_id, filename="spurs_multi/.hydra/config.yaml")
+     ckpt_path = hf_hub_download(repo_id=repo_id, filename="spurs_multi/checkpoints/best.ckpt")
+ 
++    # Load config
+     cfg = OmegaConf.load(config_path)
+     del cfg['model']['_target_']
+-    _seed_everything(cfg['train']['seed'])
+-
+-    from spurs.models.stability.spurs_multi import SPURSMulti
++    seed_everything(cfg['train']['seed'])
+ 
++    # Instantiate model and load checkpoint
+     model = SPURSMulti(cfg['model']).to(device)
+-    model = _load_model_state_dict(model, ckpt_path)
++    ckpt = torch.load(ckpt_path, map_location=torch.device('cpu'))['state_dict']
++    ckpt_remove_model = {k[6:]: v for k, v in ckpt.items() if 'model.' in k}
++    model.load_state_dict(ckpt_remove_model, strict=False)
+ 
+     return model, cfg
+ 
+@@ -139,10 +135,6 @@
+             All tensors are placed on the specified device.
+ 
+     """
+-    from spurs.datamodules.datasets.data_utils import Alphabet
+-    from spurs.datamodules.datasets.utils import alt_parse_PDB
+-    from spurs.datamodules.datasets.utils import get_pdb
+-
+     pdb = alt_parse_PDB(pdb_path, chain)
+     resn_list_int = [int(i) for i in pdb[0]['resn_list']]
+     # assert min(resn_list_int) == 1 and max(resn_list_int) == len(resn_list_int) for af2 structure only
+@@ -155,7 +147,6 @@
+     pdb['dataset'] = ['0']
+     alphabet = Alphabet(**cfg['datamodule']['alphabet'])
+     pdb = alphabet.featurize([pdb])
+-
+     def move_tensors_to_device(d, device):
+         """Move all tensors in a nested dictionary or list to the specified device.
+ 
+@@ -168,28 +159,27 @@
+         """
+         if isinstance(d, dict):
+             return {k: move_tensors_to_device(v, device) for k, v in d.items()}
+-        if isinstance(d, list):
++        elif isinstance(d, list):
+             return [move_tensors_to_device(v, device) for v in d]
+-        if isinstance(d, torch.Tensor):
++        elif isinstance(d, torch.Tensor):
+             return d.to(device)
+-        return d
+-
+-    pdb = move_tensors_to_device(pdb, device)
++        else:
++            return d
++    pdb = move_tensors_to_device(pdb,device)
+     return pdb
+ 
+-
+ def parse_pdb_for_mutation(mut_info_list):
+     """Parse mutation information into tensor format required by model.
+-
++    
+     This function converts a list of mutation specifications into the tensor format
+     required by SPURS models for mutation analysis.
+-
++    
+     Args:
+         mut_info_list (List[List[str]]): List of lists containing mutation strings.
+             Each inner list represents a set of mutations to analyze together.
+             Format: [['V2C','P3T'], ['W1A','V2Y']] where each mutation string is
+             formatted as 'OriginalAAPositionNewAA'.
+-
++        
+     Returns:
+         tuple: A tuple containing:
+             - mut_ids (torch.Tensor): Tensor of mutation positions (0-indexed)
+@@ -202,19 +192,23 @@
+     """
+     mut_ids = []
+     append_tensors = []
+-    alphabet = 'ACDEFGHIKLMNPQRSTVWY'
+-
++    ALPHABET = 'ACDEFGHIKLMNPQRSTVWY'
++    
+     for mut_info in mut_info_list:
+         mut_ids_ = []
+         append_tensors_ = []
+         for mut in mut_info:
++            # Extract position (convert to 0-based indexing)
+             mut_ids_.append(int(mut[1:-1]) - 1)
+-            append_tensors_.append(alphabet.index(mut[0]))
+-            append_tensors_.append(alphabet.index(mut[-1]))
++            # Get indices for wild-type and mutant amino acids
++            append_tensors_.append(ALPHABET.index(mut[0]))    # Wild-type
++            append_tensors_.append(ALPHABET.index(mut[-1]))   # Mutant
+         mut_ids.append(mut_ids_)
+         append_tensors.append(append_tensors_)
+-
++        
+     mut_ids = torch.tensor(mut_ids)
+     append_tensors = torch.tensor(append_tensors)
+-
++    
+     return mut_ids, append_tensors
++
++
+diff -ruN sp_a/spurs/models/__init__.py sp_b/spurs/models/__init__.py
+--- sp_a/spurs/models/__init__.py	2026-10-14 22:37:36.398537494 -0400
++++ sp_b/spurs/models/__init__.py	2026-10-28 14:46:01.294687144 -0400
+@@ -1,9 +1,13 @@
+-import glob
+ import importlib
++from omegaconf import DictConfig
+ import os
++import glob
++
++from spurs.utils import import_modules
++
++
+ 
+ MODEL_REGISTRY = {}
+-_MODELS_DISCOVERED = False
+ 
+ 
+ def register_model(name):
+@@ -13,29 +17,6 @@
+     return decorator
+ 
+ 
+-def ensure_models_discovered():
+-    global _MODELS_DISCOVERED
+-    if _MODELS_DISCOVERED:
+-        return
+-
+-    import_modules(os.path.dirname(__file__), "spurs.models", excludes=['protein_structure_prediction'])
+-    _MODELS_DISCOVERED = True
+-
+-
+-def import_modules(models_dir, namespace, excludes=None):
+-    excludes = excludes or []
+-    for path in glob.glob(models_dir + '/**', recursive=True)[1:]:
+-        if any(e in path for e in excludes):
+-            continue
+-
+-        file = os.path.split(path)[1]
+-        if (
+-            not file.startswith("_")
+-            and not file.startswith(".")
+-            and (file.endswith(".py") or os.path.isdir(path))
+-        ):
+-            module_name = file[: file.find(".py")] if file.endswith(".py") else file
+-            _namespace = path.replace('/', '.')
+-            _namespace = _namespace[_namespace.find(namespace): _namespace.rfind('.' + module_name)]
+-            importlib.import_module(_namespace + "." + module_name)
+ 
++# automatically import any Python files in the models/ directory
++import_modules(os.path.dirname(__file__), "spurs.models", excludes=['protein_structure_prediction'])
+diff -ruN sp_a/spurs/models/stability/__init__.py sp_b/spurs/models/stability/__init__.py
+--- sp_a/spurs/models/stability/__init__.py	2026-10-14 22:37:36.398537494 -0400
++++ sp_b/spurs/models/stability/__init__.py	2026-10-28 15:06:35.311408825 -0400
+@@ -1,10 +1,18 @@
+ from omegaconf import OmegaConf
++try:
++    import esm
++    ESM_INSTALLED = True
++except:
++    ESM_INSTALLED = False
++
++from spurs.utils.config import compose_config, merge_config
++import pytorch_lightning as pl
+ 
+ import torch
+ from torch import nn
++import numpy as np
+ 
+-
+-class RegressionModel(nn.Module):
++class RegressionModel(pl.LightningModule):
+     _default_cfg = {}
+ 
+     def __init__(self, cfg) -> None:
+diff -ruN sp_a/spurs/models/stability/basemodel.py sp_b/spurs/models/stability/basemodel.py
+--- sp_a/spurs/models/stability/basemodel.py	2026-10-14 22:37:36.398537494 -0400
++++ sp_b/spurs/models/stability/basemodel.py	2026-10-28 15:06:35.311408825 -0400
+@@ -6,6 +6,8 @@
+ except:
+     ESM_INSTALLED = False
+ 
++from spurs.utils.config import compose_config, merge_config
++
+ import torch
+ from torch import nn
+ import numpy as np
+diff -ruN sp_a/spurs/models/stability/modules/esm2.py sp_b/spurs/models/stability/modules/esm2.py
+--- sp_a/spurs/models/stability/modules/esm2.py	2026-10-14 22:37:36.399537444 -0400
++++ sp_b/spurs/models/stability/modules/esm2.py	2026-10-28 14:46:01.298687445 -0400
+@@ -4,7 +4,6 @@
+ # LICENSE file in the root directory of this source tree.
+ 
+ from copy import deepcopy
+-import logging
+ import math
+ from typing import Union
+ 
+@@ -27,15 +26,9 @@
+     gelu,
+ )
+ from esm.multihead_attention import MultiheadAttention
+-log = logging.getLogger(__name__)
+-
+-
+-def Cfg(**kwds):
+-    return OmegaConf.create(kwds)
+-
+-
+-def merge_config(default_cfg, override_cfg):
+-    return OmegaConf.merge(default_cfg, override_cfg)
++from spurs.utils.config import compose_config as Cfg, merge_config
++from spurs import utils
++log = utils.get_logger(__name__)
+ 
+ class ESM2(nn.Module):
+     @classmethod
+diff -ruN sp_a/spurs/models/stability/modules/esm2_adapter.py sp_b/spurs/models/stability/modules/esm2_adapter.py
+--- sp_a/spurs/models/stability/modules/esm2_adapter.py	2026-10-14 22:37:36.399537444 -0400
++++ sp_b/spurs/models/stability/modules/esm2_adapter.py	2026-10-28 14:59:15.471877486 -0400
+@@ -5,7 +5,6 @@
+ # LICENSE file in the root directory of this source tree.
+ 
+ from copy import deepcopy
+-import logging
+ import math
+ from typing import Union
+ 
+@@ -28,15 +27,9 @@
+     gelu,
+ )
+ from esm.multihead_attention import MultiheadAttention
+-log = logging.getLogger(__name__)
+-
+-
+-def Cfg(**kwds):
+-    return OmegaConf.create(kwds)
+-
+-
+-def merge_config(default_cfg, override_cfg):
+-    return OmegaConf.merge(default_cfg, override_cfg)
++from spurs.utils.config import compose_config as Cfg, merge_config
++from spurs import utils
++log = utils.get_logger(__name__)
+ 
+ class ESM2WithStructuralAdatper(nn.Module):
+     @classmethod
+@@ -163,11 +156,22 @@
+         return layer
+ 
+     def forward_layers(self, x, encoder_out, padding_mask, repr_layers=[], hidden_representations=[], need_head_weights=False, attn_weights=[]):
++        legacy = bool(self.args.get('legacy_esm_forward', False))
+         for layer_idx, layer in enumerate(self.layers):
+             if layer_idx in self.args.adapter_layer_indices:
++                if legacy:
++                    layer.train()
+                 x, attn = layer(
+                     x, encoder_out, self_attn_padding_mask=padding_mask, need_head_weights=need_head_weights
+                 )
++            elif legacy:
++                # pre-cc854c1 behaviour: no autograd through the plain ESM layers, which also cuts the gradient path
++                # to an adapter that sits before them
++                layer.eval()
++                with torch.no_grad():
++                    x, attn = layer(
++                        x, self_attn_padding_mask=padding_mask, need_head_weights=need_head_weights
++                    )
+             else:
+                 x, attn = layer(
+                     x, self_attn_padding_mask=padding_mask, need_head_weights=need_head_weights
+@@ -376,4 +380,4 @@
+ 
+         x = self.structural_adapter_ffn(x)
+         # x = x.transpose(0, 1)
+-        return x
++        return x
+\ No newline at end of file
+diff -ruN sp_a/spurs/models/stability/org_transfer_model.py sp_b/spurs/models/stability/org_transfer_model.py
+--- sp_a/spurs/models/stability/org_transfer_model.py	2026-10-14 22:37:36.400537394 -0400
++++ sp_b/spurs/models/stability/org_transfer_model.py	2026-10-28 15:06:35.311408825 -0400
+@@ -1508,19 +1508,34 @@
+ SUBTRACT_MUT = True
+ 
+ 
+-def get_protein_mpnn(version='v_48_020.pt',tune=False):
+-    """Loading Pre-trained ProteinMPNN model for structure embeddings"""
++def get_protein_mpnn(version='v_48_020.pt',tune=False,weights_path=None):
++    """Build the ProteinMPNN structure encoder, optionally initialised from pretrained weights.
++
++    The SPURS checkpoints were trained from the vanilla ProteinMPNN weights (v_48_020.pt, shipped in data.tar.gz as
++    data/checkpoints/ThermoMPNN/vanilla_model_weights/v_48_020.pt). Loading them was removed from the public code
++    (commits 70a3174 / 21a2430), so training silently starts from a random encoder unless `weights_path` is given.
++    Inference does not need it: the encoder weights come from the SPURS checkpoint.
++    """
+     hidden_dim = 128
+     num_layers = 3 
+-    # current_dir = os.path.dirname(os.path.realpath(__file__))
+-    # model_weight_dir = os.path.join(current_dir,'../../../data/checkpoints/ThermoMPNN/vanilla_model_weights')
+-    # checkpoint_path = os.path.join(model_weight_dir, version)
+-    # checkpoint_path = "vanilla_model_weights/v_48_020.pt"
+-    # checkpoint = torch.load(checkpoint_path, map_location='cpu') 
++    k_neighbors = 48
++    checkpoint = None
++    if weights_path:
++        if not os.path.isabs(weights_path) and not os.path.exists(weights_path):
++            repo_root = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../../'))
++            weights_path = os.path.join(repo_root, weights_path)
++        if not os.path.exists(weights_path):
++            raise FileNotFoundError(
++                f"pretrained ProteinMPNN weights not found: {weights_path} (data.tar.gz ships them as "
++                f"data/checkpoints/ThermoMPNN/vanilla_model_weights/{version})")
++        checkpoint = torch.load(weights_path, map_location='cpu')
++        k_neighbors = checkpoint['num_edges']
+     model = ProteinMPNN(ca_only=False, num_letters=21, node_features=hidden_dim, edge_features=hidden_dim, hidden_dim=hidden_dim, 
+-                        num_encoder_layers=num_layers, num_decoder_layers=num_layers, k_neighbors=48, augment_eps=0.0)
++                        num_encoder_layers=num_layers, num_decoder_layers=num_layers, k_neighbors=k_neighbors, augment_eps=0.0)
+ 
+-    # model.load_state_dict(checkpoint['model_state_dict'])
++    if checkpoint is not None:
++        model.load_state_dict(checkpoint['model_state_dict'])
++        print(f"loaded pretrained ProteinMPNN weights from {weights_path}")
+     
+     if not tune:
+         model.eval()
+diff -ruN sp_a/spurs/models/stability/protein_mpnn.py sp_b/spurs/models/stability/protein_mpnn.py
+--- sp_a/spurs/models/stability/protein_mpnn.py	2026-10-14 22:37:16.941507687 -0400
++++ sp_b/spurs/models/stability/protein_mpnn.py	2026-10-28 15:06:35.311408825 -0400
+@@ -1,5 +1,6 @@
+ # form spurs
+ from dataclasses import dataclass
++from typing import Optional
+ 
+ import torch
+ from spurs.models import register_model
+@@ -23,6 +24,9 @@
+     
+     tune: bool = False
+     use_input_decoding_order: bool = False
++    # path to a vanilla ProteinMPNN checkpoint (e.g. v_48_020.pt) used to initialise the encoder before
++    # fine-tuning; None keeps random init (what inference configs rely on, the weights come from the SPURS ckpt)
++    pretrained_weights: Optional[str] = None
+     # decoder-only
+     n_vocab: int = 22
+     n_dec_layers: int = 3
+diff -ruN sp_a/spurs/models/stability/spurs.py sp_b/spurs/models/stability/spurs.py
+--- sp_a/spurs/models/stability/spurs.py	2026-10-14 22:37:36.401537345 -0400
++++ sp_b/spurs/models/stability/spurs.py	2026-10-28 15:06:35.311408825 -0400
+@@ -1,5 +1,4 @@
+ from dataclasses import dataclass, field
+-import logging
+ from typing import List
+ 
+ import torch
+@@ -8,20 +7,23 @@
+ from spurs.models.stability.protein_mpnn import ProteinMPNNConfig
+ 
+ from spurs.models.stability.modules.esm2 import ESM2
++from spurs import utils
+ from spurs.models.stability.org_transfer_model import get_protein_mpnn
+ import torch.nn.functional as F
+ from spurs.models.stability.modules.esm2_adapter import ESM2WithStructuralAdatper
+ import torch.nn as nn
++log = utils.get_logger(__name__)
+ from .mlp import MLP, MLPConfig
+ 
+-log = logging.getLogger(__name__)
+-
+ 
+ @dataclass
+ class SPURSConfig:
+     encoder: ProteinMPNNConfig = field(default_factory=ProteinMPNNConfig)
+     adapter_layer_indices: List = field(default_factory=lambda: [-1, ])
+     separate_loss: bool = True
++    # reproduce the pre-Aug-2025 ESM forward (cc854c1): layers outside the adapter run in eval()/no_grad, so the
++    # adapter (index -3) never receives gradient and stays at its random init; the adapter layer is forced to train()
++    legacy_esm_forward: bool = False
+     name: str = 'esm2_t33_650M_UR50D'
+     dropout: float = 0.1
+     mlp: MLPConfig = field(default_factory=MLPConfig)
+@@ -57,7 +59,7 @@
+ 
+         self.tune = cfg.encoder.tune
+         self.use_input_decoding_order = cfg.encoder.use_input_decoding_order
+-        self.encoder = get_protein_mpnn(tune=cfg.encoder.tune) 
++        self.encoder = get_protein_mpnn(tune=cfg.encoder.tune, weights_path=self.cfg.encoder.pretrained_weights)
+         
+         self.cfg.encoder.d_model = self.cfg.mlp.input_dim
+         self.decoder = ESM2WithStructuralAdatper.from_pretrained(args=self.cfg, name=self.cfg.name)
+@@ -175,4 +177,4 @@
+         
+         all_mpnn_hid = torch.cat([all_mpnn_hid[0],mpnn_embed,all_mpnn_hid[1],all_mpnn_hid[2]],dim=-1)
+         
+-        return all_mpnn_hid
++        return all_mpnn_hid
+\ No newline at end of file
+diff -ruN sp_a/spurs/models/stability/spurs_multi.py sp_b/spurs/models/stability/spurs_multi.py
+--- sp_a/spurs/models/stability/spurs_multi.py	2026-10-14 22:37:36.401537345 -0400
++++ sp_b/spurs/models/stability/spurs_multi.py	2026-10-28 16:23:13.884993377 -0400
+@@ -1,6 +1,5 @@
+ from dataclasses import dataclass, field
+-import logging
+-from typing import List
++from typing import List, Optional
+ 
+ import torch
+ from spurs.models import register_model
+@@ -8,6 +7,7 @@
+ from spurs.models.stability.protein_mpnn import ProteinMPNNConfig
+ 
+ from spurs.models.stability.modules.esm2 import ESM2
++from spurs import utils
+ from spurs.models.stability.org_transfer_model import get_protein_mpnn
+ import torch.nn.functional as F
+ from spurs.models.stability.modules.esm2_adapter import ESM2WithStructuralAdatper
+@@ -15,7 +15,8 @@
+ from .mlp import MLP, MLPConfig
+ 
+ 
+-log = logging.getLogger(__name__)
++
++log = utils.get_logger(__name__)
+ 
+ @dataclass
+ class SPURSMultiConfig:
+@@ -26,8 +27,12 @@
+     dropout: float = 0.1
+     mlp: MLPConfig = field(default_factory=MLPConfig)
+     multi: MLPConfig = field(default_factory=MLPConfig)
++    legacy_esm_forward: bool = False  # see SPURSConfig
+     agg_type: str = 'sum'
+     agg_dim: int = 128
++    # SPURS-single checkpoint to start from. The released multi checkpoint is a fine-tune of the single one (encoder cos 0.9999,
++    # mlp 0.9965, adapter 1.0000); only aa_embedding and `multi` are new. Weights come from `model.*` of a Lightning ckpt.
++    init_from: Optional[str] = None
+ 
+ 
+ @register_model('spurs_multi')
+@@ -65,6 +70,13 @@
+         if self.agg_type == 'concate':
+             self.cfg.multi.input_dim = self.cfg.mlp.input_dim + agg_dim
+         self.multi = MLP(self.cfg.multi)
++
++        if self.cfg.init_from:
++            state = torch.load(self.cfg.init_from, map_location='cpu', weights_only=False)['state_dict']
++            state = {k[len('model.'):]: v for k, v in state.items() if k.startswith('model.')}
++            res = self.load_state_dict(state, strict=False)
++            log.info(f'initialised from {self.cfg.init_from}: new (not in ckpt) {sorted({k.split(".")[0] for k in res.missing_keys})}, '
++                     f'unexpected {list(res.unexpected_keys)[:3]}')
+         
+     def forward(self, batch, **kwargs):
+         batch['feats'] = self.forward_encoder(batch)
+@@ -142,4 +154,4 @@
+         
+         all_mpnn_hid = torch.cat([all_mpnn_hid[0],mpnn_embed,all_mpnn_hid[1],all_mpnn_hid[2]],dim=-1)
+         
+-        return all_mpnn_hid
++        return all_mpnn_hid
+\ No newline at end of file
+diff -ruN sp_a/spurs/tasks/__init__.py sp_b/spurs/tasks/__init__.py
+--- sp_a/spurs/tasks/__init__.py	2026-10-14 22:37:36.401537345 -0400
++++ sp_b/spurs/tasks/__init__.py	2026-10-28 14:46:01.298687445 -0400
+@@ -233,7 +233,6 @@
+ 
+ 
+ TASK_REGISTRY = {}
+-_TASKS_DISCOVERED = False
+ 
+ 
+ def register_task(name):
+@@ -244,11 +243,5 @@
+     return decorator
+ 
+ 
+-def ensure_tasks_discovered():
+-    global _TASKS_DISCOVERED
+-    if _TASKS_DISCOVERED:
+-        return
+-
+-    # automatically import any Python files in the tasks/ directory
+-    utils.import_modules(os.path.dirname(__file__), "spurs.tasks")
+-    _TASKS_DISCOVERED = True
++# automatically import any Python files in the models/ directory
++utils.import_modules(os.path.dirname(__file__), "spurs.tasks")
+diff -ruN sp_a/spurs/utils/__init__.py sp_b/spurs/utils/__init__.py
+--- sp_a/spurs/utils/__init__.py	2026-10-14 22:37:16.943507587 -0400
++++ sp_b/spurs/utils/__init__.py	2026-10-28 15:07:08.629333655 -0400
+@@ -334,7 +334,10 @@
+ def get_git_revision_hash() -> str:
+     from pathlib import Path
+     REPO_DIR = str(Path(__file__).resolve().parents[2])
+-    return subprocess.check_output(['git', '-C', REPO_DIR, 'rev-parse', 'HEAD']).decode('ascii').strip()
++    try:
++        return subprocess.check_output(['git', '-C', REPO_DIR, 'rev-parse', 'HEAD'], stderr=subprocess.DEVNULL).decode('ascii').strip()
++    except Exception:  # no .git (rsync'd copy) or git too old for -C
++        return 'unknown'
+ 
+ 
+ def seed_everything(seed, verbose=False) -> int:
+diff -ruN sp_a/spurs/utils/registry.py sp_b/spurs/utils/registry.py
+--- sp_a/spurs/utils/registry.py	2026-10-14 22:37:36.402537295 -0400
++++ sp_b/spurs/utils/registry.py	2026-10-28 14:46:01.298687445 -0400
+@@ -2,9 +2,6 @@
+ from spurs.datamodules import DATAMODULE_REGISTRY
+ from spurs.models import MODEL_REGISTRY
+ from spurs.tasks import TASK_REGISTRY
+-from spurs import datamodules as _datamodules_pkg
+-from spurs import models as _models_pkg
+-from spurs import tasks as _tasks_pkg
+ 
+ registry_dict = dict(
+     datamodule=DATAMODULE_REGISTRY,
+@@ -12,20 +9,7 @@
+     model=MODEL_REGISTRY
+ )
+ 
+-_discovery_hooks = dict(
+-    datamodule=_datamodules_pkg.ensure_datamodules_discovered,
+-    task=_tasks_pkg.ensure_tasks_discovered,
+-    model=_models_pkg.ensure_models_discovered,
+-)
+-
+-
+-def _ensure_discovered(group_name):
+-    hook = _discovery_hooks.get(group_name)
+-    if hook is not None:
+-        hook()
+-
+ def get_module(group_name, module_name):
+-    _ensure_discovered(group_name)
+     group = registry_dict.get(group_name, None)
+     if group is None:
+         raise KeyError(f'{group_name} is not a valid registry group {registry_dict.keys()}.')
+@@ -33,7 +17,6 @@
+     return group.get(module_name)
+ 
+ def get_registered_modules(group_name):
+-    _ensure_discovered(group_name)
+     group = registry_dict.get(group_name)
+     if group is not None:
+         return group.keys()
+@@ -43,4 +26,4 @@
+ __all__ = [
+     'get_module',
+     'get_registered_modules'
+-]
++]
+\ No newline at end of file
+diff -ruN sp_a/train.py sp_b/train.py
+--- sp_a/train.py	1969-12-31 19:00:00.000000000 -0500
++++ sp_b/train.py	2026-10-28 15:06:05.374682872 -0400
+@@ -0,0 +1,64 @@
++#!python
++# Training entry point. Mirrors test.py; the public repo ships training_pipeline.py but no train.py / train.yaml.
++# https://github.com/BytedProtein/ByProt/blob/dd279dc85f76ee2c28c819b71bf3911b90159f0a/train.py
++import os
++import sys
++import warnings
++from pathlib import Path
++from unittest.mock import MagicMock
++
++import importlib.abc
++import importlib.machinery
++import pytorch_lightning  # noqa: F401  (must import before anything is stubbed: PL probes find_spec("torchtext"))
++
++
++class _StubFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
++    """Last-resort finder: packages that are imported at module level somewhere in spurs/ but never used on the
++    training path (torchtext, IPython, matplotlib, ...) resolve to MagicMock modules when they are not installed."""
++
++    def __init__(self, roots):
++        self.roots = set(roots)
++
++    def find_spec(self, name, path=None, target=None):
++        if name.split(".")[0] in self.roots:
++            return importlib.machinery.ModuleSpec(name, self, is_package=True)
++
++    def create_module(self, spec):
++        module = MagicMock(name=spec.name)
++        module.__spec__, module.__path__ = spec, []
++        return module
++
++    def exec_module(self, module):
++        pass
++
++
++sys.meta_path.append(_StubFinder(["torchtext", "IPython", "matplotlib", "seaborn", "wandb", "biotite", "dotenv"]))
++
++try:
++    import pyrootutils
++    root = pyrootutils.setup_root(search_from=__file__, indicator=[".git", "pyproject.toml"], pythonpath=True, dotenv=True)
++except ImportError:
++    root = Path(__file__).resolve().parent
++    os.environ.setdefault("PROJECT_ROOT", str(root))
++    sys.path.insert(0, str(root))
++
++import hydra
++from omegaconf import DictConfig
++
++
++@hydra.main(config_path=f"{root}/configs", config_name="train.yaml")
++def main(config: DictConfig):
++    from spurs import utils
++    from spurs.training_pipeline import train
++
++    # `experiment_path=<dir>` re-loads <dir>/.hydra/config.yaml AND points log_dir at <dir>, i.e. the run writes its
++    # checkpoints, .hydra/ and config_tree.log into that directory. Leave it null to train from configs/train.yaml.
++    if config.get("experiment_path"):
++        warnings.warn(f"experiment_path set: this run will write into {config.experiment_path}")
++        config = utils.resolve_experiment_config(config)
++    config = utils.extras(config)
++    return train(config)
++
++
++if __name__ == "__main__":
++    main()
