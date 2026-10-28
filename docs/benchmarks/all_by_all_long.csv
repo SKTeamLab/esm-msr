@@ -293,6 +293,13 @@ TMPNN+D,k3822,0.6431,0.0048,3,corrected 2026-10-27 (me_audit score tables)
 TMPNN+D,k2369,0.649,0.0057,3,corrected 2026-10-27 (me_audit score tables)
 TMPNN+D,ptmul,0.4321,0.0241,3,corrected 2026-10-27 (me_audit score tables)
 TMPNN+D,ptmuld,0.5144,0.0118,3,corrected 2026-10-27 (me_audit score tables)
+TMPNN+D,DLG4_HUMAN_Faure_2021_abundance_domain,0.5679,0.0162,3,corrected 2026-10-28 (me_audit score tables)
+TMPNN+D,DLG4_HUMAN_Faure_2021_binding_domain,0.5818,0.0127,3,corrected 2026-10-28 (me_audit score tables)
+TMPNN+D,GRB2_HUMAN_Faure_2021_abundance_domain,0.5599,0.0166,3,corrected 2026-10-28 (me_audit score tables)
+TMPNN+D,GRB2_HUMAN_Faure_2021_binding_domain,0.5493,0.0225,3,corrected 2026-10-28 (me_audit score tables)
+TMPNN+D,MYO_HUMAN_Kung_2025_display,0.5348,0.0047,3,corrected 2026-10-28 (me_audit score tables)
+TMPNN+D,ESTA_BACSU_Nutschel_2020_dTm,0.4051,0.0102,3,corrected 2026-10-28 (me_audit score tables)
+TMPNN+D,GB1_Wu_2016_binding_domain,0.3178,0.0039,3,corrected 2026-10-28 (me_audit score tables)
 TMPNN,DLG4_HUMAN_Faure_2021_abundance_domain,0.6258,0.0233,3,final_dms_table
 ME stage1,DLG4_HUMAN_Faure_2021_abundance_domain,0.707,0.0294,3,final_dms_table
 ME stage1+,DLG4_HUMAN_Faure_2021_abundance_domain,0.7291,0.0199,3,final_dms_table
@@ -331,12 +338,13 @@ ME stage2+,GB1_Wu_2016_binding_domain,0.2809,0.0444,3,"corrected 2026-10-27 (me_
 TMPNN,domainome,0.4497,0.007,3,final_domainome_table
 ME stage1,domainome,0.5198,0.0042,3,final_domainome_table
 ME stage2,domainome,0.5086,0.0037,3,corrected 2026-10-27 (me_audit score tables)
-ME stage1,tsu_capped_val,0.7508,0.0039,3,combined_val_table.csv
+ME stage1,tsu_capped_val,0.7535,0.0034,3,corrected 2026-10-28 (me_audit score tables)
 ME stage2,tsu_capped_val,0.7298,0.0025,3,corrected 2026-10-27 (me_audit score tables)
-TMPNN,tsu_capped_val,0.785,0.0015,3,combined_val_table.csv
+TMPNN,tsu_capped_val,0.7872,0.0016,3,corrected 2026-10-28 (me_audit score tables)
 ME stage1,tsu_capped_test,0.7709,0.0023,3,combined_test_table.csv
 ME stage2,tsu_capped_test,0.7604,0.0034,3,corrected 2026-10-27 (me_audit score tables)
 TMPNN,tsu_capped_test,0.7942,0.002,3,combined_test_table.csv
+TMPNN+D,tsu_capped_val,0.785,0.0024,3,corrected 2026-10-28 (me_audit score tables)
 TMPNN+D,tsu_capped_test,0.7841,0.0003,3,corrected 2026-10-27 (me_audit score tables)
 ESMtherm,s571,0.349,,1,FINAL_TABLE
 ESMtherm,s783,0.4338,,1,FINAL_TABLE
