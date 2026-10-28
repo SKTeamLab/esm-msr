@@ -344,7 +344,7 @@ def test_batching_policy_fixed_and_auto():
     import batching
     seen = []
     info = _fixed(None).run(10, lambda a, b: seen.append((a, b)), default_chunk=4)       # the method's own default
-    assert seen == [(0, 4), (4, 8), (8, 10)] and info == {'batch_mode': 'fixed', 'batch_max': 4, 'n_chunks': 3, 'batch_ooms': 0}
+    assert seen == [(0, 4), (4, 8), (8, 10)] and info == {'batch_mode': 'fixed', 'batch_max': 4, 'n_items': 10, 'n_chunks': 3, 'batch_ooms': 0}
     seen.clear()
     _fixed(3).run(7, lambda a, b: seen.append((a, b)), default_chunk=lambda: 100)         # --batch_size wins over the default
     assert seen == [(0, 3), (3, 6), (6, 7)]
@@ -393,6 +393,8 @@ def test_calibration_helpers(tmp_path):
         assert all(seq[p - 1] == w and t != w for w, p, t in parts)
         assert [p for _, p, _ in parts] == sorted(p for _, p, _ in parts) and len({p for _, p, _ in parts}) == len(parts)
     assert [m for m in calibration.mixed_variants('AXA', cap=10) if ':' not in m] and all('2' not in m[1:-1] for m in calibration.mixed_variants('AXA', cap=10))
+    short = calibration.mixed_variants('ACDEF', cap=400, seed=0)                          # fewer singles than cap // 2: repeated, so the list is long enough
+    assert len([m for m in short if ':' not in m]) == 200 and len({m for m in short if ':' not in m}) == 95
     structs = [{'code': c, 'seq': 'A' * n} for c, n in (('a', 30), ('b', 90), ('c', 60))]
     assert [s['code'] for s in calibration.longest(structs, 2)] == ['b', 'c']
     seen = []
@@ -402,7 +404,22 @@ def test_calibration_helpers(tmp_path):
         return {'batch_max': 1000 // len(struct['seq']), 'batch_ooms': 0}
     sizes, detail = calibration.calibrate({'d1': structs, 'd2': structs[:1]}, run_one, k=2, cap=50, log=lambda m: None)
     assert sizes == {'d1': 11, 'd2': 33}                                                   # the smallest batch of the k longest wins
-    assert [d['code'] for d in detail['d1']] == ['b', 'c']
+    assert [d['code'] for d in detail['d1']] == ['b', 'c'] and not any(d['list_bounded'] for d in detail['d1'])
+    # a list the sizer got through bounds the answer: it is made 4x longer until memory is what stops it (or max_cap)
+    lens = []
+
+    def run_bounded(struct, muts):
+        lens.append(len(muts))
+        return {'batch_max': min(len(muts) // 2, 300), 'n_items': len(muts), 'batch_ooms': 0}      # memory stops at 300
+    sizes2, detail2 = calibration.calibrate({'d': structs}, run_bounded, k=1, cap=100, max_cap=6400, log=lambda m: None)
+    assert lens == [100, 400, 1600] and sizes2 == {'d': 300} and detail2['d'][0]['variants'] == 1600 and not detail2['d'][0]['list_bounded']
+    lens.clear()
+    sizes3, detail3 = calibration.calibrate({'d': structs}, lambda s_, m_: {'batch_max': len(m_), 'n_items': len(m_)}, k=1, cap=100, max_cap=400, log=lambda m: None)
+    assert sizes3 == {'d': 400} and detail3['d'][0]['list_bounded']                           # never memory-bound: flagged
+    assert calibration.worst([{'batch_max': 8, 'n_items': 100, 'batch_ooms': 1}, {'batch_max': 3, 'n_items': 40, 'batch_ooms': 2}]) == \
+        {'batch_max': 3, 'n_items': 40, 'batch_ooms': 3}
+    assert not calibration.list_bounded({'batch_max': 5, 'n_items': 100}) and calibration.list_bounded({'batch_max': 30, 'n_items': 100})
+    assert not calibration.list_bounded({'batch_max': 0, 'n_items': 0}) and not calibration.list_bounded({'batch_max': 7})
     calibration.save_entries(tmp_path / 'a.json', {'m1': sizes}, {'m1': detail}, {'gpu': 'G', 'headroom': 0.9})
     calibration.save_entries(tmp_path / 'b.json', {'m2': {'d1': 4}}, {'m2': {}}, {'gpu': 'G', 'headroom': 0.9})
     calibration.merge([tmp_path / 'a.json', tmp_path / 'b.json'], tmp_path / 'table.json')

@@ -123,21 +123,22 @@ class Batching:
 
     def run(self, n_items, chunk_fn, label='', default_chunk=None, model=None):
         if n_items <= 0:
-            return {'batch_mode': self.mode, 'batch_max': 0, 'n_chunks': 0, 'batch_ooms': 0}
+            return {'batch_mode': self.mode, 'batch_max': 0, 'n_items': 0, 'n_chunks': 0, 'batch_ooms': 0}
         mode, size = self.mode, self.batch_size
         if mode == 'table' and size is None:
             entry = self.table_entry(model)
             mode, size = ('auto', None) if entry == 'auto' else ('table', int(entry))
         if mode == 'auto':
             r = self.sizer.run(n_items, chunk_fn, label=label)
-            return {'batch_mode': 'auto', 'batch_max': int(r.max_batch), 'n_chunks': len(r.ladder), 'batch_ooms': int(r.ooms)}
+            return {'batch_mode': 'auto', 'batch_max': int(r.max_batch), 'n_items': int(n_items), 'n_chunks': len(r.ladder),
+                    'batch_ooms': int(r.ooms)}
         size = size or (default_chunk() if callable(default_chunk) else default_chunk) or n_items
         size = max(1, int(size))
         n_chunks = 0
         for i in range(0, n_items, size):
             chunk_fn(i, min(i + size, n_items))
             n_chunks += 1
-        return {'batch_mode': mode, 'batch_max': min(size, n_items), 'n_chunks': n_chunks, 'batch_ooms': 0}
+        return {'batch_mode': mode, 'batch_max': min(size, n_items), 'n_items': int(n_items), 'n_chunks': n_chunks, 'batch_ooms': 0}
 
 
 def merge_info(infos):
@@ -146,4 +147,5 @@ def merge_info(infos):
     if not infos:
         return {}
     return {'batch_mode': infos[0]['batch_mode'], 'batch_max': max(i['batch_max'] for i in infos),
-            'n_chunks': sum(i['n_chunks'] for i in infos), 'batch_ooms': sum(i['batch_ooms'] for i in infos)}
+            'n_items': sum(i.get('n_items', 0) for i in infos), 'n_chunks': sum(i['n_chunks'] for i in infos),
+            'batch_ooms': sum(i['batch_ooms'] for i in infos)}

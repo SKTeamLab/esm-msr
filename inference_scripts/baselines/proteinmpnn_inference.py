@@ -775,9 +775,9 @@ class Mpnn:
         def run_one(struct, muts):
             feats = self.featurize(struct['code'], struct['pdb_file'], struct['chain'], seq=struct.get('overwrite'))
             self.score('calibration', feats, muts)
-            return {'batch_max': min(i['batch_max'] for i in self.last_infos), 'batch_ooms': sum(i['batch_ooms'] for i in self.last_infos)}
+            return calibration.worst(self.last_infos)
 
-        sizes, detail = calibration.calibrate(sets, run_one, k=args.calibration_k, cap=args.calibration_cap)
+        sizes, detail = calibration.calibrate(sets, run_one, k=args.calibration_k, cap=args.calibration_cap, max_cap=args.calibration_max_cap)
         calibration.save_entries(args.calibrate_batch_sizes, {'proteinmpnn': sizes}, {'proteinmpnn': detail},
                                  calibration.gpu_meta(args.auto_batch_headroom, 'fp32', args.calibration_k, args.calibration_cap))
 

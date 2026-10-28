@@ -509,7 +509,7 @@ def calibrate(args, models):
         todo = {name: structs for name, (structs, has_doubles) in sets.items() if net == 'single' or has_doubles}
         print(f'[calibrate] thermompnn_{net}: {len(todo)} datasets', flush=True)
         entries[f'thermompnn_{net}'], details[f'thermompnn_{net}'] = calibration.calibrate(
-            todo, run_one(net), k=args.calibration_k, cap=args.calibration_cap)
+            todo, run_one(net), k=args.calibration_k, cap=args.calibration_cap, max_cap=args.calibration_max_cap)
     calibration.save_entries(args.calibrate_batch_sizes, entries, details,
                              calibration.gpu_meta(args.auto_batch_headroom, 'fp32', args.calibration_k, args.calibration_cap))
 

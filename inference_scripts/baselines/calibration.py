@@ -7,9 +7,11 @@
   python calibration.py merge OUT_a.json OUT_b.json ... -o batch_sizes_gpu4.json
 
 For each dataset the script takes its `k` longest structures (memory per item grows with length), builds a saturated work list
-for each (every single mutation, plus random double mutants, up to `cap` variants: far more than fits), runs its normal scoring
-path with the AutoBatchSizer, and keeps the smallest batch the sizer settled on: one size that fits the heaviest protein of the
-dataset. The table's `_meta` says which GPU, headroom and precision it is for; a different GPU or precision needs a new table.
+for each (every single mutation, plus random double mutants, `cap` variants), runs its normal scoring path with the
+AutoBatchSizer, and keeps the smallest batch the sizer settled on: one size that fits the heaviest protein of the dataset. A list
+the sizer gets through before memory stops it only gives a lower bound (the sizer cannot grow past the items it has left), so a
+run whose largest batch is more than a quarter of its items is repeated with a list four times longer, up to `max_cap`. The
+table's `_meta` says which GPU, headroom and precision it is for; a different GPU or precision needs a new table.
 """
 import argparse
 import json
@@ -40,13 +42,17 @@ def pdb_chain_seq(path, chain='A'):
 
 
 def mixed_variants(seq, cap=4096, seed=0):
-    """A saturated work list for `seq`: every single substitution (subsampled to cap // 2 if there are more) and cap // 2 random
-    double mutants at distinct positions, as mutation strings ('A12G', 'A12G:C30D', sorted by position). Deterministic."""
+    """A saturated work list for `seq`: every single substitution (subsampled to cap // 2 if there are more, repeated up to cap // 2
+    if there are fewer: a protein has only 19 L of them, and a list the sizer exhausts before memory does gives a lower bound, not
+    the limit; a method that deduplicates just ignores the repeats) and cap // 2 random double mutants at distinct positions, as
+    mutation strings ('A12G', 'A12G:C30D', sorted by position). Deterministic."""
     rng = np.random.default_rng(seed)
     pos = [i for i, a in enumerate(seq) if a in AA]
     singles = [(i, a, b) for i in pos for b in AA if b != seq[i] for a in [seq[i]]]
     if len(singles) > cap // 2:
         singles = [singles[j] for j in sorted(rng.choice(len(singles), cap // 2, replace=False))]
+    if singles and len(singles) < cap // 2:
+        singles = (singles * -(-(cap // 2) // len(singles)))[:cap // 2]
     out = [f'{a}{i + 1}{b}' for i, a, b in singles]
     if len(pos) >= 2:
         for _ in range(cap // 2):
@@ -72,21 +78,42 @@ def structures_of(frame, chain_col='chain', seq_fn=None):
     return out
 
 
-def calibrate(datasets, run_one, k=2, cap=4096, log=print):
+def worst(infos):
+    """One info dict out of the sizer reports of one scoring call (a call can run several groups, e.g. singles and doubles): the
+    smallest batch with the item count of the group it came from, OOMs summed."""
+    infos = [i for i in infos if i]
+    w = min(infos, key=lambda i: i['batch_max'])
+    return {'batch_max': w['batch_max'], 'n_items': w.get('n_items', 0), 'batch_ooms': sum(i.get('batch_ooms', 0) for i in infos)}
+
+
+def list_bounded(info):
+    """Whether the work list, not memory, may have stopped the sizer: its largest batch is over a quarter of the items it had."""
+    return int(info['batch_max']) * 4 > int(info.get('n_items', 0)) > 0
+
+
+def calibrate(datasets, run_one, k=2, cap=4096, max_cap=65536, log=print):
     """{dataset: batch} for `datasets` = {name: [structure dicts]}: for each dataset's k longest structures,
-    run_one(structure, mutation_strings) -> the sizer's info dict ({'batch_max', 'batch_ooms', ...}); the smallest batch wins."""
+    run_one(structure, mutation_strings) -> the sizer's info dict ({'batch_max', 'n_items', 'batch_ooms'}); the smallest batch
+    wins. A list that bounds the answer is repeated four times longer, up to max_cap variants (`list_bounded` in the detail if
+    it still bounds it)."""
     sizes, detail = {}, {}
     for name, structs in datasets.items():
         found = []
         for s in longest(structs, k):
-            t0 = time.time()
-            info = run_one(s, mixed_variants(s['seq'], cap))
-            found.append((s.get('code', '?'), len(s['seq']), int(info['batch_max']), int(info.get('batch_ooms', 0))))
+            t0, c = time.time(), cap
+            while True:
+                info = run_one(s, mixed_variants(s['seq'], c))
+                if not list_bounded(info) or c >= max_cap:
+                    break
+                log(f'  [calibrate] {name}: {s.get("code", "?")} batch {info["batch_max"]} of {info["n_items"]} items: list too short, x4')
+                c *= 4
+            found.append(dict(code=s.get('code', '?'), length=len(s['seq']), batch=int(info['batch_max']), ooms=int(info.get('batch_ooms', 0)),
+                              variants=c, list_bounded=list_bounded(info)))
             log(f'  [calibrate] {name}: {s.get("code", "?")} L={len(s["seq"])} -> batch {info["batch_max"]} '
-                f'(ooms {info.get("batch_ooms", 0)}, {time.time() - t0:.0f}s)')
+                f'(ooms {info.get("batch_ooms", 0)}, {c} variants, {time.time() - t0:.0f}s)')
         if found:
-            sizes[name] = min(b for _, _, b, _ in found)
-            detail[name] = [dict(code=c, length=L, batch=b, ooms=o) for c, L, b, o in found]
+            sizes[name] = min(f['batch'] for f in found)
+            detail[name] = found
     return sizes, detail
 
 
@@ -110,7 +137,9 @@ def add_calibration_args(parser):
                              'batch sizes to OUT.json (calibration.py merge builds the table). Run it on the target GPU.')
     parser.add_argument('--calibration_datasets', default=None, help='comma-separated dataset names to calibrate (default all)')
     parser.add_argument('--calibration_k', type=int, default=2, help='worst-case proteins (longest) per dataset')
-    parser.add_argument('--calibration_cap', type=int, default=4096, help='variants in each saturated work list')
+    parser.add_argument('--calibration_cap', type=int, default=4096, help='variants in the first saturated work list of each structure')
+    parser.add_argument('--calibration_max_cap', type=int, default=65536,
+                        help='a list that bounds the sizer (largest batch > 1/4 of its items) is made 4x longer, up to this many variants')
     return parser
 
 

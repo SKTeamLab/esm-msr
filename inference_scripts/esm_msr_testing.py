@@ -240,9 +240,10 @@ def calibrate_batch_sizes(args, model, plan):
                                 mask_strategy=args.mask_strategy, auto_batch=sizer)
         torch.cuda.empty_cache()
         reps = sizer.reports[n0:]
-        return {'batch_max': min((r.max_batch for r in reps), default=0), 'batch_ooms': sum(r.ooms for r in reps)}
+        return calibration.worst([{'batch_max': r.max_batch, 'n_items': r.n_items, 'batch_ooms': r.ooms} for r in reps]
+                                 or [{'batch_max': 0}])
 
-    sizes, detail = calibration.calibrate(sets, run_one, k=args.calibration_k, cap=args.calibration_cap)
+    sizes, detail = calibration.calibrate(sets, run_one, k=args.calibration_k, cap=args.calibration_cap, max_cap=args.calibration_max_cap)
     calibration.save_entries(args.calibrate_batch_sizes, {'esm_msr': sizes}, {'esm_msr': detail},
                              calibration.gpu_meta(args.auto_batch_headroom, args.dtype, args.calibration_k, args.calibration_cap))
 
