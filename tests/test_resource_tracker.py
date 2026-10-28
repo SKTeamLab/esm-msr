@@ -239,4 +239,11 @@ def test_cuda_peaks_nest_correctly(tmp_path, monkeypatch):
     assert df.loc['big', 'vram_alloc_peak_gb'] == 6.0
     assert df.loc['d', 'vram_alloc_peak_gb'] == 6.0 and df.loc['d', 'vram_weights_gb'] == 1.0   # parent keeps its own 4 GiB and the child's 6
     assert df.loc['big', 'vram_device_peak_gb'] >= 7.0            # 1 GiB context + weights + 5 GiB, sampled
+    # a scope far shorter than the sampler interval still has a device figure (entry and exit samples)
+    t2 = _tracker(tmp_path / 'b')
+    t2.interval = 3600
+    with t2.scope('protein', 'blink'):
+        pass
+    t2.close()
+    assert pd.notna(rt.load_scopes(t2.dir).iloc[0]['vram_device_peak_gb'])
     assert json.load(open(t.dir / 'resources_run.json'))['gpu']['name'] == 'Fake'

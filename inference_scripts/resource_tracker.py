@@ -254,7 +254,7 @@ class Scope:
             self.vram_alloc_start = None
         self.vram_alloc_peak = self.vram_alloc_start or 0
         self.vram_res_peak = 0
-        self.dev_peak = 0
+        self.dev_peak = t._device_used() or 0       # sampled at entry, exit and every `interval`, so even a scope shorter than the interval has two samples
         self.rss_start = _rss_bytes()
         self.rss_peak = self.rss_start
         self.io0 = _io_bytes()
@@ -280,10 +280,11 @@ class Scope:
                 self.parent.vram_res_peak = max(self.parent.vram_res_peak, res_peak)
         else:
             alloc_peak = res_peak = None
+        used_end = t._device_used() or 0
         with t._lock:
             t._stack.remove(self)
             rss_peak = max(self.rss_peak, rss_end)
-            dev_peak = self.dev_peak
+            dev_peak = max(self.dev_peak, used_end)
             if self.parent is not None:
                 self.parent.rss_peak = max(self.parent.rss_peak, rss_peak)
                 self.parent.dev_peak = max(self.parent.dev_peak, dev_peak)
@@ -362,6 +363,12 @@ class Tracker:
         self._last_flush = time.time()
         self._violation = None
         self._closed = False
+        self._dev = None
+        if _cuda():
+            try:
+                self._dev = torch.cuda.current_device()
+            except Exception:
+                self._dev = None
         self.limits = limits or Limits()
         self._jsonl = open(self.dir / 'resources_scopes.jsonl', 'a')
         self._t_open = time.time()
@@ -445,23 +452,20 @@ class Tracker:
         with open(self.dir / 'resources_run.json', 'w') as f:
             json.dump(self.meta, f, indent=1, default=str)
 
+    def _device_used(self):
+        """Used memory of the current CUDA device in bytes (the CUDA context and non-PyTorch allocations included), or None."""
+        if self._dev is None:
+            return None
+        try:
+            free, total = torch.cuda.mem_get_info(self._dev)
+            return total - free
+        except Exception:
+            return None
+
     def _sample(self):
-        dev = None
-        if _cuda():
-            try:
-                torch.cuda.set_device(torch.cuda.current_device())
-                dev = torch.cuda.current_device()
-            except Exception:
-                dev = None
         while not self._stop.wait(self.interval):
             rss = _rss_bytes()
-            used = None
-            if dev is not None:
-                try:
-                    free, total = torch.cuda.mem_get_info(dev)
-                    used = total - free
-                except Exception:
-                    used = None
+            used = self._device_used()
             with self._lock:
                 for s in self._stack:
                     if rss > s.rss_peak:
