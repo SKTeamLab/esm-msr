@@ -1160,7 +1160,7 @@ ts `wt_lora_dddg_pred`).
 
 In the repo, on `devel-revision`: `inference_scripts/pgym_runner.py` (the one ProteinGym loop every model shares,
 recording per-DMS time, peak VRAM, GPU and host), the ProteinGym modes of `esm_msr_testing.py`,
-`proteinmpnn_testing.py`, `spurs_testing.py` and `thermompnnd_testing.py`, and in `analysis_scripts/`:
+`thermompnnd_testing.py`, the run-everything baseline scripts in `inference_scripts/baselines/` (ThermoMPNN, MutateEverything, SPURS, ProteinMPNN), and in `analysis_scripts/`:
 `benchmark_matrix.py` (the all-by-all tables and the epistasis tables; §1 is rendered by the cluster fork `~/consolidation/benchmark_matrix.py`, which `patch_consolidation_copy.py` keeps in step, and the repo script is not a drop-in for it; it still reads the ME stage-2 and ThermoMPNN-D numbers from the withdrawn item-filtered exports `outputs/baselines_capped/{combined,final}_*_table.csv`, so regenerating a table brings those numbers back until it is repointed to the corrected result trees listed below), `ensemble_weight_scan.py` (§2.6),
 `pgym_public_scores.py` (ProSST and ProteinMPNN from ProteinGym's published scores), `pgym_rosetta_singles.py` and
 `epi_rosetta.py` (Rosetta on ProteinGym and on the epistasis suite), `forge_ptmul_link_check.py` (the PTMUL

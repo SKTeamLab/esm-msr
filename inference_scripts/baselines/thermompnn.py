@@ -1,51 +1,60 @@
-"""
-Train / evaluate ThermoMPNN-D on the ESM-MSR-matched oct06 tables (outputs/baselines_oct06/data/items_*.csv).
+"""ThermoMPNN / ThermoMPNN-D: train on the ESM-MSR-matched tables, and run inference on every benchmark with resource tracking.
 
-Only the data path differs from upstream: OctItemsDataset subclasses MegaScaleDatasetv2 and replaces its __init__
-(the raw-CSV read + split pickle) with our item tables; __getitem__, _augment_double_mutants, _sort_dataset, the
-models, trainers, losses and configs are upstream's, untouched.
+Only the data path differs from upstream (Kuhlman-Lab/ThermoMPNN-D at the commit in third_party.lock, unmodified):
+OctItemsDataset subclasses MegaScaleDatasetv2 and replaces its __init__ (the raw-CSV read + split pickle) with our item
+tables; __getitem__, _augment_double_mutants, _sort_dataset, the models, trainers, losses and configs are upstream's.
 
   * One "WT" per ESM-MSR library code. A mutant-background library ('2K52_L42A') gets data/pdbs/2K52_L42A.pdb: the WT
     AlphaFold backbone with the background residue renamed, so the wild-type sequence ThermoMPNN-D reads matches the
     sequence the measurements are stated against (ESM-MSR uses this same backbone + sequence).
   * mut_types=[single] -> single + native_cond items; [double, double-aug] -> regressable doubles + upstream's
-    augmentation. Augmentation needs the Rosetta model of each single (rosetta_data/<wt>/pdb_models), which exists
+    augmentation. Augmentation needs the Rosetta model of each single (MSR_ROSETTA_DIR/<wt>/pdb_models), which exists
     only for WT-backbone singles, so mutant-background singles are left out of the augmentation pool.
 
-Usage:
-  train:  python thermompnn_oct06.py train --model {single,epistatic} --seed 1 --out DIR
-  test:   python thermompnn_oct06.py test --single_ckpt C1 --epistatic_ckpt C2 --out DIR
+Two networks, either or both: the `single` network scores one mutation (a multi-mutant gets the sum of its singles, its
+additive prediction) and the `epistatic` (siamese) network scores exactly two. Give the checkpoints you have:
+
+  train:      python thermompnn.py train --model {single,epistatic} --seed 1 --out DIR
+  everything: python thermompnn.py all --single_ckpt S --epistatic_ckpt E --out DIR
+              (Tsuboyama val + test, the 12 external sets, the 7 DMS, Domainome, ProteinGym)
+  one block:  python thermompnn.py {test,external,dms,domainome,pgym} ...
+  --single_ckpt only     every row gets its additive prediction (pred_combined == pred_single_additive)
+  --epistatic_ckpt only  only rows with exactly two mutations are predicted
+  --mutants {single,multi,both}   which rows are scored (default both); the others get NaN and cost nothing
+
+Per-dataset and per-protein wall time, CPU, RAM, VRAM and I/O are recorded for the inference calls by default
+(inference_scripts/resource_tracker.py; --no_resource_tracking to skip). Run it in the fixed slot with
+inference_scripts/sbatch_fixed_slot.sh.
+
+Outputs under --out: predictions_{val,test}.csv, external_<set>.csv, dms_<assay>.csv, domainome.csv, ProteinGym's per-DMS
+CSVs and summary.csv, and resources/<run_id>/.
 """
 import argparse
 import os
 import sys
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import torch
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import dms_source  # noqa: E402
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))                       # paths, dms_source
+sys.path.insert(0, str(HERE.parent))                # resource_tracker, pgym_runner
+import paths  # noqa: E402
+from benchmark_rows import EXTERNAL, DMS, external_rows, dms_rows, domainome_rows  # noqa: E402
+import resource_tracker  # noqa: E402
 
-# the shared resource tracker lives in the ESM-MSR repo's inference_scripts (it is also what pgym_runner uses)
-INFERENCE_SCRIPTS = os.environ.get('MSR_INFERENCE_SCRIPTS', '/home/sreeves/esm-msr-devel/inference_scripts')
-sys.path.insert(0, INFERENCE_SCRIPTS)
-try:
-    import resource_tracker  # noqa: E402
-except ImportError:      # train mode needs no tracker; the inference modes say so below
-    resource_tracker = None
-
-TMPNN = '/home/sreeves/software/ThermoMPNN-D'
+TMPNN = str(paths.THERMOMPNN_DIR)
 sys.path.insert(0, TMPNN)
 from omegaconf import OmegaConf  # noqa: E402
 from thermompnn.datasets.v2_datasets import MegaScaleDatasetv2, tied_featurize_mut  # noqa: E402
 from thermompnn.protein_mpnn_utils import parse_PDB  # noqa: E402
 from thermompnn.train_thermompnn import parse_cfg  # noqa: E402
 
-# Which prepared split to train/evaluate on. Set MSR_BASELINE_DATA to point at another split's
-# prepare_oct06_data.py output (e.g. .../outputs/baselines_capped/data).
-DATA = os.environ.get('MSR_BASELINE_DATA', '/home/sreeves/esm-msr-devel/outputs/baselines_oct06/data')
-ROSETTA = '/home/sreeves/software/esm-msr/data/tsuboyama/FINAL_results/'
+# The prepared item tables a baseline was trained on (prepare/prepare_oct06_data.py): MSR_BASELINE_DATA.
+DATA = str(paths.BASELINE_DATA)
+ROSETTA = str(paths.ROSETTA_DIR) + '/'
 CONFIGS = {'single': 'train_single.yaml', 'epistatic': 'train_epistatic.yaml'}
 
 
@@ -192,6 +201,7 @@ def predict(model_pl, ds, batch_size=256, siamese=False, tokens=16000, tracker=N
     steps as phases; `tag` adds columns (model=, part=) to those rows."""
     tracker = tracker or resource_tracker.NullTracker()    # callers always pass one; the tracker module is needed here
     model_pl.eval().cuda()
+    dev = next(model_pl.parameters()).device
     lengths = _item_lengths(ds)
     groups = _item_groups(ds) if groups is None else np.asarray(groups)
     preds = np.full(len(lengths), np.nan, dtype=np.float64)
@@ -212,7 +222,7 @@ def predict(model_pl, ds, batch_size=256, siamese=False, tokens=16000, tracker=N
                     batch = tied_featurize_mut([ds[j] for j in idx], side_chains=False)
                     X, S, mask, lengths_b, chain_M, chain_enc, res_idx, mut_pos, mut_wt, mut_mt, mut_ddG, atom_mask = batch
                 with sc.phase('forward'):
-                    args = [t.cuda() if torch.is_tensor(t) else t for t in
+                    args = [t.to(dev) if torch.is_tensor(t) else t for t in
                             (X, S, mask, chain_M, res_idx, chain_enc, mut_pos, mut_wt, mut_mt, mut_ddG, atom_mask)]
                     if siamese:
                         a, b = model_pl(*args)
@@ -226,165 +236,142 @@ def predict(model_pl, ds, batch_size=256, siamese=False, tokens=16000, tracker=N
     return preds
 
 
-def test(args):
-    from thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
-    os.chdir(os.path.join(TMPNN, 'thermompnn'))
-    tracker = _tracker(args, 'test')
-    items = pd.read_csv(os.path.join(DATA, f'items_{args.split}.csv'), low_memory=False)
-    _ds_scope = tracker.scope('dataset', f'tsuboyama_{args.split}', n_rows=len(items))
-    _ds_scope.__enter__()
-    items['row'] = np.arange(len(items))
-    out = items.copy()
-    out['single_pred'] = np.nan
-    out['epistatic_pred'] = np.nan
-    for model, ckpt in [('single', args.single_ckpt), ('epistatic', args.epistatic_ckpt)]:
-        cfg = load_cfg(model, args.seed)
-        cfg.data.mut_types = ['single', 'double']
-        cls = TransferModelPLv2Siamese if cfg.model.aggregation == 'siamese' else TransferModelPLv2
-        with tracker.stage(f'model_load_{model}'):
-            model_pl = cls.load_from_checkpoint(ckpt, cfg=cfg, map_location='cpu')
-            model_pl.cuda()
-        ds = OctItemsDataset(cfg, args.split, items=items)
-        # the single model scores singles; doubles get its additive (sum of the two singles) prediction
-        if model == 'single':
-            s = ds.df.loc[~ds.df.mut_type.str.contains(':')].copy()
-            ds.df = s.reset_index(drop=True)
-            out.loc[ds.df['row'].values, 'single_pred'] = predict(
-                model_pl, ds, tracker=tracker, tag={'model': 'single', 'part': 'singles'}, mixed_protein_batches=args.mixed_protein_batches)
-            d = items.loc[items.mut_type.str.contains(':')]
-            add = np.zeros(len(d))
-            for k in (0, 1):
-                part = d.copy()
-                part['mut_type'] = part['mut_type'].str.split(':').str[k]
-                ds.df = part.assign(WT_name=part.code + '.pdb', DIRECT=True).reset_index(drop=True)
-                add += predict(model_pl, ds, tracker=tracker, tag={'model': 'single', 'part': f'additive_{k}'},
-                               mixed_protein_batches=args.mixed_protein_batches)
-            out.loc[d['row'].values, 'single_pred'] = add
-        else:
-            d = ds.df.loc[ds.df.mut_type.str.contains(':')].copy()
-            ds.df = d.reset_index(drop=True)
-            out.loc[ds.df['row'].values, 'epistatic_pred'] = predict(
-                model_pl, ds, siamese=True, tracker=tracker, tag={'model': 'epistatic', 'part': 'doubles'},
-                mixed_protein_batches=args.mixed_protein_batches)
-    # ESM-MSR convention (ddG_ML: positive = stabilizing)
-    out['pred_single_additive'] = -out['single_pred']
-    out['pred_combined'] = np.where(out.mut_type.str.contains(':'), -out['epistatic_pred'], -out['single_pred'])
-    os.makedirs(args.out, exist_ok=True)
-    path = os.path.join(args.out, f'predictions_{args.split}.csv')
-    out.drop(columns=['row']).to_csv(path, index=False)
-    print('wrote', path)
-    _ds_scope.__exit__(None, None, None)
-    tracker.close()
+def _n_mut(mut_types):
+    return np.asarray(pd.Series(mut_types).astype(str).str.count(':') + 1)
+
+
+def _wanted(n_mut, mutants):
+    """Which rows --mutants asks for."""
+    n = np.asarray(n_mut)
+    return {'single': n == 1, 'multi': n >= 2, 'both': np.ones(len(n), dtype=bool)}[mutants]
 
 
 def _tracker(args, mode):
     """The resource tracker for this invocation (a no-op with --no_resource_tracking)."""
-    if resource_tracker is None:
-        sys.exit(f'resource_tracker.py not found in {INFERENCE_SCRIPTS} (set MSR_INFERENCE_SCRIPTS to the repo\'s inference_scripts)')
     return resource_tracker.Tracker.from_args(
         args, label='thermompnn', default_dir=os.path.join(args.out, 'resources'),
         meta={'model': 'ThermoMPNN-D', 'mode': mode, 'seed': args.seed, 'single_ckpt': os.path.basename(args.single_ckpt or ''),
-              'epistatic_ckpt': os.path.basename(args.epistatic_ckpt or ''), 'dtype': 'fp32',
+              'epistatic_ckpt': os.path.basename(args.epistatic_ckpt or ''), 'dtype': 'fp32', 'mutants': args.mutants,
               'mixed_protein_batches': bool(args.mixed_protein_batches)})
 
 
-EXTERNAL = ['s571', 's783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld']
-SEQPOS_SETS = {'s669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 's571', 's783', 's2648', 's8754'}
+def load_models(args, tracker):
+    """The networks whose checkpoints were given, loaded onto the GPU (a `stage` row each, not inference cost)."""
+    from thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
+    os.chdir(os.path.join(TMPNN, 'thermompnn'))
+    models, cfgs = {}, {}
+    for name, ckpt in (('single', args.single_ckpt), ('epistatic', args.epistatic_ckpt)):
+        if not ckpt:
+            continue
+        cfg = load_cfg(name, args.seed)
+        cls = TransferModelPLv2Siamese if cfg.model.aggregation == 'siamese' else TransferModelPLv2
+        with tracker.stage(f'model_load_{name}'):
+            models[name] = cls.load_from_checkpoint(ckpt, cfg=cfg, map_location='cpu')
+            models[name].cuda()
+        cfgs[name] = cfg
+    if not models:
+        sys.exit('give --single_ckpt and/or --epistatic_ckpt')
+    return models, cfgs
 
 
-def external_rows(name):
-    """The rows and mutation strings (structure-sequence numbering) esm_msr_testing.py scores for one external set."""
-    df = pd.read_csv(os.path.join('/home/sreeves/esm-msr-devel/data/preprocessed', f'{name}_mapped.csv'))
-    if name in SEQPOS_SETS:
-        df['mut_type'] = df['wild_type'] + df['seq_pos'].astype(int).astype(str) + df['mutation']
-        if 'dTm' in df.columns:
-            df['ddG'] = df['dTm']
-    else:
-        df['mut_type'] = df['mut_info_seq_pos'].map(lambda s: ':'.join(sorted(s.split(':'), key=lambda m: int(m[1:-1]))))
-    df['id'] = df['code'] + df['chain'] + '_' + df['mut_type']
-    return df[['id', 'code', 'chain', 'pdb_file', 'mut_type', 'ddG']]
+def _combine(add, epi, n_mut, models):
+    """ESM-MSR convention (positive = stabilizing) from the two networks' outputs (ThermoMPNN: positive = destabilizing).
+    A double takes the epistatic prediction when that network ran, every other row its additive one."""
+    pred_add = -add
+    comb = np.where(n_mut == 2, -epi, -add) if 'epistatic' in models else -add
+    if 'single' in models:
+        comb = np.where(np.isnan(add), np.nan, comb)    # a row the structure could not be mapped for gets no prediction at all
+    return pred_add, comb
 
 
-DMS = ['DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain',
-       'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain',
-       'MYO_HUMAN_Kung_2025_display', 'ESTA_BACSU_Nutschel_2020_dTm', 'GB1_Wu_2016_binding_domain']
+def test(args, tracker, models, cfgs, split):
+    """The prepared Tsuboyama item table of one split (val or test)."""
+    os.chdir(os.path.join(TMPNN, 'thermompnn'))
+    items = pd.read_csv(os.path.join(DATA, f'items_{split}.csv'), low_memory=False)
+    items['row'] = np.arange(len(items))
+    is_double = items.mut_type.str.contains(':').to_numpy()
+    wanted = _wanted(_n_mut(items.mut_type), args.mutants)
+    out = items.copy()
+    out['single_pred'] = np.nan
+    out['epistatic_pred'] = np.nan
+    with tracker.scope('dataset', f'tsuboyama_{split}', n_rows=int(wanted.sum())):
+        for model in ('single', 'epistatic'):
+            if model not in models:
+                continue
+            cfg = cfgs[model]
+            cfg.data.mut_types = ['single', 'double']
+            ds = OctItemsDataset(cfg, split, items=items)
+            if model == 'single':
+                # the single network scores singles; doubles get its additive (sum of the two singles) prediction
+                rows = items.loc[~is_double & wanted, 'row'].to_numpy()
+                if len(rows):
+                    ds.df = ds.df.loc[ds.df['row'].isin(rows)].reset_index(drop=True)
+                    out.loc[ds.df['row'].values, 'single_pred'] = predict(
+                        models[model], ds, tracker=tracker, tag={'model': 'single', 'part': 'singles'},
+                        mixed_protein_batches=args.mixed_protein_batches)
+                d = items.loc[is_double & wanted]
+                add = np.zeros(len(d))
+                for k in ((0, 1) if len(d) else ()):
+                    part = d.copy()
+                    part['mut_type'] = part['mut_type'].str.split(':').str[k]
+                    ds.df = part.assign(WT_name=part.code + '.pdb', DIRECT=True).reset_index(drop=True)
+                    add += predict(models[model], ds, tracker=tracker, tag={'model': 'single', 'part': f'additive_{k}'},
+                                   mixed_protein_batches=args.mixed_protein_batches)
+                if len(d):
+                    out.loc[d['row'].values, 'single_pred'] = add
+            else:
+                rows = items.loc[is_double & wanted, 'row'].to_numpy()
+                if len(rows):
+                    ds.df = ds.df.loc[ds.df.mut_type.str.contains(':') & ds.df['row'].isin(rows)].reset_index(drop=True)
+                    out.loc[ds.df['row'].values, 'epistatic_pred'] = predict(
+                        models[model], ds, siamese=True, tracker=tracker, tag={'model': 'epistatic', 'part': 'doubles'},
+                        mixed_protein_batches=args.mixed_protein_batches)
+    n_mut = np.where(is_double, 2, 1)
+    out['pred_single_additive'], out['pred_combined'] = _combine(
+        out['single_pred'].to_numpy(), out['epistatic_pred'].to_numpy(), n_mut, models)
+    os.makedirs(args.out, exist_ok=True)
+    path = os.path.join(args.out, f'predictions_{split}.csv')
+    out.drop(columns=['row']).to_csv(path, index=False)
+    print('wrote', path)
 
 
-def dms_rows(prot):
-    """The rows esm_msr_testing.py's DMS block scores for one assay, keyed and scored the same way (id = code_mut_info,
-    deduplicated, target ddG_ML). Audited: for all seven assays every mutation's position and wild-type residue match
-    the parsed chain exactly, and the chain sequence equals wt_seq wherever the table carries one, so the positions are
-    already in structure numbering and need no renumbering."""
-    # dms_source.load: the complete tables, with the completeness guard (the old software/esm-msr copy of GB1 was
-    # missing V39A/V39C/V39D, which silently cost 152 of its 2,091 scorable doubles).
-    df = dms_source.load(prot)
-    df['mut_type'] = df['mut_info'].map(lambda s: ':'.join(sorted(str(s).split(':'), key=lambda m: int(m[1:-1]))))
-    df['id'] = df['code'] + '_' + df['mut_info']
-    df = df[~df['id'].duplicated(keep='first')]
-    df['ddG'] = df['ddG_ML']
-    return df[['id', 'code', 'chain', 'pdb_file', 'mut_type', 'ddG']].reset_index(drop=True)
-
-
-def domainome_rows():
-    """ESM-MSR's domainome rows (domainome_mapped_2026.csv, code = domain_ID with '/'->'_', target scaled_fitness),
-    keyed and deduplicated as esm_msr_testing.py's domainome block does. All 536k rows are single mutants; audited:
-    every row's position and wild-type residue match its spurs_structures chain A."""
-    df = pd.read_csv('/home/sreeves/software/esm-msr/data/domainome1/domainome_mapped_2026.csv',
-                     usecols=['domain_ID', 'mut_type', 'scaled_fitness', 'pdb_file', 'position', 'wild_type',
-                              'mutation'], low_memory=False)
-    df['code'] = df['domain_ID'].str.replace('/', '_', regex=False)
-    df = df.dropna(subset=['pdb_file', 'position'])
-    df['pdb_file'] = df['pdb_file'].str.replace('/home/sareeves', '/home/sreeves', regex=False)
-    df['chain'] = 'A'
-    df['ddG'] = df['scaled_fitness']
-    df['id'] = df['code'] + '_' + df['mut_type']
-    df = df[~df['id'].duplicated(keep='first')]
-    return df[['id', 'code', 'chain', 'pdb_file', 'mut_type', 'ddG']].reset_index(drop=True)
-
-
-def domainome(args):
+def domainome(args, tracker, models):
     """Score the domainome assay domain by domain.
 
     Kept separate from external() because that one materialises a deepcopy of the parsed structure for every mutation
     before predicting anything; at 536k rows over 522 domains that would not fit in memory. Here each domain is
-    parsed once, predicted, and released. Only the single model is used: every row is a single mutant and
+    parsed once, predicted, and released. Only the single network is used: every row is a single mutant and
     ThermoMPNN-D takes exactly two mutations, so it makes no prediction on this benchmark at all.
     """
     from copy import deepcopy
     from thermompnn.datasets.dataset_utils import Mutation
     from thermompnn.protein_mpnn_utils import alt_parse_PDB
-    from thermompnn.trainer.v2_trainer import TransferModelPLv2
-    os.chdir(os.path.join(TMPNN, 'thermompnn'))
+    if 'single' not in models or args.mutants == 'multi':
+        print('domainome: skipped (every row is a single mutant; needs --single_ckpt and --mutants single|both)')
+        return
+    model_pl = models['single']
     os.makedirs(args.out, exist_ok=True)
-    tracker = _tracker(args, 'domainome')
-    cfg = load_cfg('single', args.seed)
-    with tracker.stage('model_load_single'):
-        model_pl = TransferModelPLv2.load_from_checkpoint(args.single_ckpt, cfg=cfg, map_location='cpu')
-        model_pl.cuda()
     df = domainome_rows()
     preds = np.full(len(df), np.nan)
     bad = 0
-    _ds_scope = tracker.scope('dataset', 'domainome', n_rows=len(df))
-    _ds_scope.__enter__()
-    for n, (code, g) in enumerate(df.groupby('code', sort=False), 1):
-        p = alt_parse_PDB(g['pdb_file'].iloc[0], input_chain_list=['A'])[0]
-        nongap = [k for k, a in enumerate(p['seq']) if a != '-']
-        rows, items = [], []
-        for i, mt in zip(g.index, g.mut_type):
-            w, pos, t = mt[0], int(mt[1:-1]), mt[-1]
-            k = nongap[pos - 1] if pos - 1 < len(nongap) else None
-            if k is None or p['seq'][k] != w:
-                bad += 1
-                continue
-            it = deepcopy(p); it['mutation'] = Mutation([k], [w], [t], 0.0, code)
-            rows.append(i); items.append(it)
-        if items:
-            preds[rows] = predict(model_pl, items, tracker=tracker, groups=[code] * len(items), tag={'model': 'single'},
-                                  mixed_protein_batches=args.mixed_protein_batches)
-        if n % 50 == 0:
-            print(f'  {n}/522 domains', flush=True)
-    _ds_scope.__exit__(None, None, None)
-    tracker.close()
+    with tracker.scope('dataset', 'domainome', n_rows=len(df)):
+        for n, (code, g) in enumerate(df.groupby('code', sort=False), 1):
+            p = alt_parse_PDB(g['pdb_file'].iloc[0], input_chain_list=['A'])[0]
+            nongap = [k for k, a in enumerate(p['seq']) if a != '-']
+            rows, items = [], []
+            for i, mt in zip(g.index, g.mut_type):
+                w, pos, t = mt[0], int(mt[1:-1]), mt[-1]
+                k = nongap[pos - 1] if pos - 1 < len(nongap) else None
+                if k is None or p['seq'][k] != w:
+                    bad += 1
+                    continue
+                it = deepcopy(p); it['mutation'] = Mutation([k], [w], [t], 0.0, code)
+                rows.append(i); items.append(it)
+            if items:
+                preds[rows] = predict(model_pl, items, tracker=tracker, groups=[code] * len(items), tag={'model': 'single'},
+                                      mixed_protein_batches=args.mixed_protein_batches)
+            if n % 50 == 0:
+                print(f'  {n}/522 domains', flush=True)
     df['pred_single_additive'] = -preds
     df['pred_combined'] = df['pred_single_additive']   # identical: no row has two mutations
     df.to_csv(os.path.join(args.out, 'domainome.csv'), index=False)
@@ -392,94 +379,74 @@ def domainome(args):
           f'{int(df.pred_single_additive.isna().sum())} without a prediction', flush=True)
 
 
-def external(args):
+def external(args, tracker, models, mode):
+    """The 12 external sets (mode 'external') or the 7 DMS assays (mode 'dms')."""
     from copy import deepcopy
     from thermompnn.datasets.dataset_utils import Mutation
     from thermompnn.protein_mpnn_utils import alt_parse_PDB
-    from thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
-    os.chdir(os.path.join(TMPNN, 'thermompnn'))
     os.makedirs(args.out, exist_ok=True)
-    tracker = _tracker(args, args.mode)
-    models = {}
-    for model, ckpt in [('single', args.single_ckpt), ('epistatic', args.epistatic_ckpt)]:
-        cfg = load_cfg(model, args.seed)
-        cls = TransferModelPLv2Siamese if cfg.model.aggregation == 'siamese' else TransferModelPLv2
-        with tracker.stage(f'model_load_{model}'):
-            models[model] = cls.load_from_checkpoint(ckpt, cfg=cfg, map_location='cpu')
-            models[model].cuda()
-    names, rows_fn, prefix = (EXTERNAL, external_rows, 'external') if args.mode == 'external' else (DMS, dms_rows, 'dms')
+    names, rows_fn, prefix = (EXTERNAL, external_rows, 'external') if mode == 'external' else (DMS, dms_rows, 'dms')
     for name in names:
         df = rows_fn(name)
-        _ds_scope = tracker.scope('dataset', f'{prefix}_{name}', n_rows=len(df))
-        _ds_scope.__enter__()
-        pdbs, items = {}, {'single': [], 'epistatic': []}
-        bad = 0
-        for i, r in enumerate(df.itertuples()):
-            key = (r.pdb_file, r.chain)
-            if key not in pdbs:
-                p = alt_parse_PDB(r.pdb_file, input_chain_list=[r.chain])[0]
-                pdbs[key] = (p, [k for k, a in enumerate(p['seq']) if a != '-'])
-            p, nongap = pdbs[key]
-            muts = [(m[0], int(m[1:-1]), m[-1]) for m in r.mut_type.split(':')]
-            idx = [nongap[pos - 1] if pos - 1 < len(nongap) else None for _, pos, _ in muts]
-            if any(k is None or p['seq'][k] != w for k, (w, _, _) in zip(idx, muts)):
-                bad += 1
-                continue
-            # singles of every row (the additive prediction of a multi-mutant sums them); doubles also go to the epistatic model
-            for k, (w, _, t) in zip(idx, muts):
-                it = deepcopy(p); it['mutation'] = Mutation([k], [w], [t], 0.0, r.code); items['single'].append((i, it))
-            if len(muts) == 2:
-                it = deepcopy(p)
-                it['mutation'] = Mutation(idx, [m[0] for m in muts], [m[2] for m in muts], 0.0, r.code)
-                items['epistatic'].append((i, it))
-        add = np.full(len(df), np.nan); epi = np.full(len(df), np.nan)
-        if items['single']:
-            rows, its = zip(*items['single'])
-            s = predict(models['single'], list(its), tracker=tracker, groups=df['code'].to_numpy()[list(rows)],
-                        tag={'model': 'single'}, mixed_protein_batches=args.mixed_protein_batches)
-            add_s = pd.Series(s).groupby(np.array(rows)).sum()
-            add[add_s.index.values] = add_s.values
-        if items['epistatic']:
-            rows, its = zip(*items['epistatic'])
-            epi[list(rows)] = predict(models['epistatic'], list(its), siamese=True, tracker=tracker,
-                                      groups=df['code'].to_numpy()[list(rows)], tag={'model': 'epistatic'},
-                                      mixed_protein_batches=args.mixed_protein_batches)
-        n_mut = df.mut_type.str.count(':') + 1
-        df['pred_single_additive'] = -add
-        df['pred_combined'] = np.where(n_mut == 2, -epi, -add)
-        df.loc[df.pred_single_additive.isna(), 'pred_combined'] = np.nan
-        df.to_csv(os.path.join(args.out, f'{prefix}_{name}.csv'), index=False)
-        _ds_scope.__exit__(None, None, None)
+        n_mut = _n_mut(df.mut_type)
+        wanted = _wanted(n_mut, args.mutants)
+        with tracker.scope('dataset', f'{prefix}_{name}', n_rows=int(wanted.sum())):
+            pdbs, items = {}, {'single': [], 'epistatic': []}
+            bad = 0
+            for i, r in enumerate(df.itertuples()):
+                if not wanted[i]:
+                    continue
+                key = (r.pdb_file, r.chain)
+                if key not in pdbs:
+                    p = alt_parse_PDB(r.pdb_file, input_chain_list=[r.chain])[0]
+                    pdbs[key] = (p, [k for k, a in enumerate(p['seq']) if a != '-'])
+                p, nongap = pdbs[key]
+                muts = [(m[0], int(m[1:-1]), m[-1]) for m in r.mut_type.split(':')]
+                idx = [nongap[pos - 1] if pos - 1 < len(nongap) else None for _, pos, _ in muts]
+                if any(k is None or p['seq'][k] != w for k, (w, _, _) in zip(idx, muts)):
+                    bad += 1
+                    continue
+                # singles of every row (the additive prediction of a multi-mutant sums them); doubles also go to the epistatic network
+                if 'single' in models:
+                    for k, (w, _, t) in zip(idx, muts):
+                        it = deepcopy(p); it['mutation'] = Mutation([k], [w], [t], 0.0, r.code); items['single'].append((i, it))
+                if len(muts) == 2 and 'epistatic' in models:
+                    it = deepcopy(p)
+                    it['mutation'] = Mutation(idx, [m[0] for m in muts], [m[2] for m in muts], 0.0, r.code)
+                    items['epistatic'].append((i, it))
+            add = np.full(len(df), np.nan); epi = np.full(len(df), np.nan)
+            codes = df['code'].to_numpy()
+            if items['single']:
+                rows, its = zip(*items['single'])
+                s = predict(models['single'], list(its), tracker=tracker, groups=codes[list(rows)],
+                            tag={'model': 'single'}, mixed_protein_batches=args.mixed_protein_batches)
+                add_s = pd.Series(s).groupby(np.array(rows)).sum()
+                add[add_s.index.values] = add_s.values
+            if items['epistatic']:
+                rows, its = zip(*items['epistatic'])
+                epi[list(rows)] = predict(models['epistatic'], list(its), siamese=True, tracker=tracker,
+                                          groups=codes[list(rows)], tag={'model': 'epistatic'},
+                                          mixed_protein_batches=args.mixed_protein_batches)
+            df['pred_single_additive'], df['pred_combined'] = _combine(add, epi, n_mut, models)
+            df.to_csv(os.path.join(args.out, f'{prefix}_{name}.csv'), index=False)
         n2 = int((n_mut == 2).sum()); nhi = int((n_mut > 2).sum())
-        print(f'{name}: {len(df)} rows ({int((n_mut == 1).sum())} single, {n2} double, {nhi} order>2), '
+        print(f'{name}: {len(df)} rows ({int((n_mut == 1).sum())} single, {n2} double, {nhi} order>2; scoring {args.mutants}), '
               f'{bad} not mappable onto the parsed structure. ThermoMPNN-D scores the {n2} doubles; '
               f'order>2 rows get only the additive prediction', flush=True)
-    tracker.close()
 
 
-def pgym(args):
+def pgym(args, tracker, models):
     """ProteinGym (all DMS, pgym_inputs from preprocessing/pgym_preprocess.py) through the shared pgym_runner loop, so
     the outputs (per-DMS CSVs + summary.csv, resumable) match ESM-MSR's. Same readouts as external(): the single
-    model's additive prediction for every row, ThermoMPNN-D on rows with exactly two mutations, additive for order>2.
+    network's additive prediction for every row, the epistatic network on rows with exactly two mutations, additive for order>2.
 
-    Each distinct single of a DMS is scored once (the single model is deterministic per structure and mutation, and
+    Each distinct single of a DMS is scored once (the single network is deterministic per structure and mutation, and
     the large multi-mutant DMS reuse the same singles across hundreds of thousands of rows); items are built and
     predicted in chunks so a DMS never holds more than `chunk` structure copies at once."""
     from copy import deepcopy
     from thermompnn.datasets.dataset_utils import Mutation
     from thermompnn.protein_mpnn_utils import alt_parse_PDB
-    from thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
     import pgym_runner
-    os.chdir(os.path.join(TMPNN, 'thermompnn'))
-    os.makedirs(args.out, exist_ok=True)
-    tracker = _tracker(args, 'pgym')
-    models = {}
-    for model, ckpt in [('single', args.single_ckpt), ('epistatic', args.epistatic_ckpt)]:
-        cfg = load_cfg(model, args.seed)
-        cls = TransferModelPLv2Siamese if cfg.model.aggregation == 'siamese' else TransferModelPLv2
-        with tracker.stage(f'model_load_{model}'):
-            models[model] = cls.load_from_checkpoint(ckpt, cfg=cfg, map_location='cpu')
-            models[model].cuda()
 
     def chunked_predict(model_pl, p, code, muts_list, siamese):
         out = np.full(len(muts_list), np.nan)
@@ -501,48 +468,70 @@ def pgym(args):
         muts = [[(nongap[int(m[1:-1]) - 1], m[0], m[-1]) for m in s.split(':')] for s in df['mut_type_renumbered']]
         bad = sum(p['seq'][k] != w for row in muts for k, w, _ in row)
         assert bad == 0, f'{bad} mutations disagree with the parsed structure'
-        singles = sorted({m for row in muts for m in row})
-        s_pred = dict(zip(singles, chunked_predict(models['single'], p, code, [[m] for m in singles], False)))
-        add = np.array([sum(s_pred[m] for m in row) for row in muts])
         n_mut = np.array([len(row) for row in muts])
-        epi = np.full(len(df), np.nan)
-        dbl = np.where(n_mut == 2)[0]
-        if len(dbl):
+        wanted = _wanted(n_mut, args.mutants)
+        add = np.full(len(df), np.nan); epi = np.full(len(df), np.nan)
+        if 'single' in models:
+            singles = sorted({m for row, w in zip(muts, wanted) if w for m in row})
+            s_pred = dict(zip(singles, chunked_predict(models['single'], p, code, [[m] for m in singles], False))) if singles else {}
+            add = np.array([sum(s_pred[m] for m in row) if w else np.nan for row, w in zip(muts, wanted)])
+        dbl = np.where((n_mut == 2) & wanted)[0]
+        if 'epistatic' in models and len(dbl):
             epi[dbl] = chunked_predict(models['epistatic'], p, code, [muts[i] for i in dbl], True)
         torch.cuda.empty_cache()
-        # ESM-MSR convention (positive = stabilizing)
-        return pd.DataFrame({'pred_single_additive': -add, 'pred_combined': np.where(n_mut == 2, -epi, -add),
-                             'n_mut': n_mut})
+        pred_add, comb = _combine(add, epi, n_mut, models)
+        return pd.DataFrame({'pred_single_additive': pred_add, 'pred_combined': comb, 'n_mut': n_mut})
 
     pgym_runner.run_protein_gym(args.pgym_dir, args.out, score_fn, pred_col='pred_combined', dms=args.pgym_dms,
-                                tag=f'ThermoMPNN single={os.path.basename(args.single_ckpt)} '
-                                    f'epistatic={os.path.basename(args.epistatic_ckpt)}',
+                                tag=f'ThermoMPNN single={os.path.basename(args.single_ckpt or "-")} '
+                                    f'epistatic={os.path.basename(args.epistatic_ckpt or "-")} mutants={args.mutants}',
                                 extra_cols=('pred_single_additive',), tracker=tracker)
-    tracker.close()
 
 
-if __name__ == '__main__':
-    ap = argparse.ArgumentParser()
-    ap.add_argument('mode', choices=['train', 'test', 'external', 'dms', 'domainome', 'pgym'])
-    ap.add_argument('--model', choices=list(CONFIGS))
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('mode', choices=['train', 'test', 'external', 'dms', 'domainome', 'pgym', 'all'])
+    ap.add_argument('--model', choices=list(CONFIGS), help='train: which network')
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--out', required=True)
     ap.add_argument('--num_workers', type=int, default=None)
     ap.add_argument('--epochs', type=int, default=None)
     ap.add_argument('--batch_fraction', type=float, default=None)
-    ap.add_argument('--split', default='test')
+    ap.add_argument('--split', default='test', help='test: which prepared item table (test | val); `all` does both')
     ap.add_argument('--single_ckpt')
     ap.add_argument('--epistatic_ckpt')
-    ap.add_argument('--pgym_dir', default='/home/sreeves/esm-msr-devel/pgym_inputs')
+    ap.add_argument('--mutants', choices=['single', 'multi', 'both'], default='both',
+                    help='which rows to score (the others get NaN predictions and no inference)')
+    ap.add_argument('--pgym_dir', default=str(paths.PGYM_INPUTS))
     ap.add_argument('--pgym_dms', default='all', help="comma-separated DMS ids, or 'all'")
     ap.add_argument('--chunk', type=int, default=20000, help='pgym: structure copies built per predict() call')
     ap.add_argument('--mixed_protein_batches', action='store_true',
                     help='Batch items of different proteins together, sorted by length (the behaviour before per-protein '
                          'resource tracking). Default: batches never span proteins.')
-    if resource_tracker is not None:
-        resource_tracker.add_tracking_args(ap)
-    else:
-        ap.add_argument('--no_resource_tracking', action='store_true')
+    resource_tracker.add_tracking_args(ap)
     a = ap.parse_args()
-    {'train': train, 'test': test, 'external': external, 'dms': external,
-     'domainome': domainome, 'pgym': pgym}[a.mode](a)
+    for k in ('out', 'single_ckpt', 'epistatic_ckpt', 'pgym_dir', 'resource_dir'):   # the loaders chdir into ThermoMPNN-D
+        if getattr(a, k, None):
+            setattr(a, k, os.path.abspath(getattr(a, k)))
+    if a.mode == 'train':
+        return train(a)
+    tracker = _tracker(a, a.mode)
+    try:
+        models, cfgs = load_models(a, tracker)
+        if a.mode in ('test', 'all'):
+            for split in (['val', 'test'] if a.mode == 'all' else [a.split]):
+                test(a, tracker, models, cfgs, split)
+        if a.mode in ('external', 'all'):
+            external(a, tracker, models, 'external')
+        if a.mode in ('dms', 'all'):
+            external(a, tracker, models, 'dms')
+        if a.mode in ('domainome', 'all'):
+            domainome(a, tracker, models)
+        if a.mode in ('pgym', 'all'):
+            pgym(a, tracker, models)
+    finally:
+        tracker.close()
+
+
+if __name__ == '__main__':
+    main()

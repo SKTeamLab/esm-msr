@@ -1,7 +1,7 @@
 # Inference resource tracking
 
 What an inference run costs in wall time, CPU, host RAM and GPU memory, at the resolution of one protein, for ESM-MSR,
-MutateEverything (ME) and ThermoMPNN / ThermoMPNN-D, measured in the same resource slot. This replaces the October
+MutateEverything (ME), ThermoMPNN / ThermoMPNN-D, SPURS and ProteinMPNN, measured in the same resource slot. This replaces the October
 Slurm ledger (`GPU4_INFERENCE_LEDGER.md`, `benchmarks/slurm_jobs_oct2026.csv`, `benchmarks/timing_cache_flags.csv`,
 `analysis_scripts/runtime_log_audit*.py`, `benchmark_matrix.py ledger`), which recorded job elapsed time and, for some
 models, per-dataset time, and nothing about memory or CPU. It is still readable in history:
@@ -16,18 +16,19 @@ models, per-dataset time, and nothing about memory or CPU. It is still readable 
 | ME | none (Slurm elapsed per job) | none | Slurm `MaxRSS` per job | none |
 | ThermoMPNN(-D) | none (Slurm elapsed per job); ProteinGym `time_s` per DMS | ProteinGym only | Slurm `MaxRSS` per job | none |
 
-The only memory record for non-ProteinGym runs was `sacct`'s job-level `MaxRSS`, and the resources were not uniform: ME's
+SPURS and ProteinMPNN had the same shape: a `time` column in their stats files and, on ProteinGym, `time_s` and VRAM from the
+runner; no RAM or CPU. The only memory record for non-ProteinGym runs was `sacct`'s job-level `MaxRSS`, and the resources were not uniform: ME's
 evaluation script asks for 3 GPUs (`torchrun --nproc_per_node=3`, 24 CPUs, 128 GB; the corrected-seed evals ran with 8 CPUs
 and 120 GB) while ThermoMPNN ran 1 GPU with 4 CPUs and 32 GB and ESM-MSR 1 GPU with 4 CPUs and 8–24 GB; batch sizes differ per block in ESM-MSR (1, 16, `mem_size × 32`, 32), ThermoMPNN batched across proteins by
 token budget, and the job index stopped at 2026-10-24.
 
 ## What is recorded now
 
-`inference_scripts/resource_tracker.py` (stdlib; torch and pandas optional). On by default in
-`esm_msr_testing.py`, `pgym_runner.py` (so every ProteinGym run through the shared loop), and the two retrained-baseline
-wrappers (`inference_scripts/baselines/thermompnn_oct06.py`, `inference_scripts/baselines/predict_dms.py`; copies of the
-cluster's live `baselines/thermompnn_oct06.py` and `~/software/MutateEverything-oct06/predict_dms.py` with tracking added).
-`--no_resource_tracking` (or `MSR_TRACK_RESOURCES=0`) turns it off.
+`inference_scripts/resource_tracker.py` (stdlib; torch and pandas optional). On by default in `esm_msr_testing.py`,
+`pgym_runner.py` (so every ProteinGym run through the shared loop), and the run-everything scripts of
+`inference_scripts/baselines/` (`thermompnn.py`, `mutate_everything.py`, `spurs.py`, `proteinmpnn.py`; see its README for
+reproducing them, the pinned upstream commits and the environments). `--no_resource_tracking` (or `MSR_TRACK_RESOURCES=0`)
+turns it off.
 
 Output: `<resource_dir>/<run_id>/resources_run.json` (host, GPU, Slurm environment, the fixed-slot check, neighbours on the
 node at start and end, totals), `resources_scopes.jsonl` (one row per scope, flushed as the run goes, so a killed run is
@@ -60,36 +61,34 @@ measurable slowdown of a compute loop with the sampler running; about 480 bytes 
 250 kB). On a GPU each scope and phase boundary adds a `torch.cuda.synchronize()`, which is nothing at protein granularity
 (ThermoMPNN's batches already end in `.cpu()`).
 
-Granularity: ESM-MSR, ThermoMPNN and ME are all per protein (ThermoMPNN per batch is also possible from the phases;
-ESM-MSR's `infer_mutants` is one call per protein, and splitting its WT and MT passes would need phases inside
-`src/esm_msr/inference.py`, not done). Because ME predicts every single and double of a protein in one pass whatever subset
-is requested, its cost is per protein, not per variant.
+Granularity: all five models are per protein (ThermoMPNN per batch is also possible from the phases; ESM-MSR's `infer_mutants`
+is one call per protein, and splitting its WT and MT passes would need phases inside `src/esm_msr/inference.py`, not done;
+SPURS marks `single_forward`, `multi_singles` and `multi_targets` phases; ProteinMPNN `score`). Because ME predicts every
+single and double of a protein in one pass whatever subset is requested, its cost is per protein, not per variant.
 
 `analysis_scripts/resource_report.py RUN_DIR... [--out summary.csv] [--proteins proteins.csv]` reads runs (a parent
 directory is searched) and prints one row per model and dataset: proteins, rows, inference wall, rows/s, CPU core-seconds
 and mean cores, peak RAM, peak VRAM, plus `load`/`dataset` time, the GPU, and `slot_ok`, `neighbours_start/end`, so a
 measurement taken outside the slot or next to another job is visible.
 
-## One change to ThermoMPNN's inference
+## Changes to the baseline scripts that affect comparison with October predictions
 
-`predict()` used to sort all items of a dataset by length and batch across proteins. A batch then belongs to several
-proteins, so per-protein cost cannot be measured. Batches now never span proteins (default; `--mixed_protein_batches`
-restores the old behaviour). The model reads items independently (padding is masked), so predictions should agree to float
-rounding; **this has not been checked on the cluster** (see below). It also makes the ThermoMPNN protocol the same as
-ESM-MSR's and ME's: one structure at a time.
+The scripts moved into `inference_scripts/baselines/` (README there has the full list): ThermoMPNN's `predict()` no longer
+batches across proteins (a batch then belongs to one protein; `--mixed_protein_batches` restores the old behaviour; the model
+reads items independently, so predictions should agree to float rounding), MutateEverything runs on one GPU in one process,
+SPURS and ProteinMPNN score every benchmark from the shared rows (`benchmark_rows.py`) with one scoring function each.
 
 ## The fixed slot
 
 All three models get the same resources, one quarter of gpu4 (RTX A4500 × 4, 24 CPUs, 250 GB): **1 GPU, 6 CPUs, 60 GB**.
 
 ```bash
-# any existing job script, with its node/GPU/CPU/memory lines overridden; set the script's variables in the environment
-SEED=1 STEP=all inference_scripts/sbatch_fixed_slot.sh baselines/slurm_thermompnn_eval.sh
-SEED=1 STAGE=double SETS=all ENTRY=predict_dms.py NPROC=1 inference_scripts/sbatch_fixed_slot.sh eval_oct06.sh   # in the ME directory
-inference_scripts/sbatch_fixed_slot.sh baselines/slurm_msr_gamut.sh                                               # ESM-MSR
+MODEL=thermompnn SINGLE=/path/single.ckpt EPISTATIC=/path/epistatic.ckpt OUT=runs/thermompnn \
+    inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
+# likewise MODEL=mutate_everything CKPT=..., spurs, proteinmpnn, esm_msr CKPT=...  (README in inference_scripts/baselines)
 ```
 
-It sets `MSR_FIXED_GPUS/CPUS/RAM_GB`, `OMP/MKL/OPENBLAS_NUM_THREADS=6` and the sbatch options. The tracker compares what the
+It sets `MSR_FIXED_GPUS/CPUS/RAM_GB`, `OMP/MKL/OPENBLAS_NUM_THREADS=6`, `MSR_REPO` and the sbatch options. 60 GB is a quarter of gpu4's 250,604 MiB (4 x 61,440 MiB = 245,760 MiB fits with 4,844 MiB to spare), so four jobs can run at once with 6 CPUs each. The tracker compares what the
 process really has (visible GPUs, CPU affinity mask, torch threads, cgroup memory limit) with the slot and writes the result
 to `resources_run.json` (`limits.check`). `STRICT=1` aborts the run at start if the check fails and raises if the process RSS
 passes the RAM limit; it is off by default until a smoke job shows that this cluster's cgroups pass the check (Slurm uses
@@ -108,11 +107,14 @@ batcher. A different batch size or precision is a different measurement.
 
 Everything is a rerun of inference only, on the gpu4 slot, one checkpoint per model (inference cost does not depend on the
 seed): ESM-MSR baseline seed 1 (and devel if its cost should be shown), ME stage 2 seed 1 (stages share the architecture),
-ThermoMPNN-D seed 1 (single and epistatic models). Benchmarks: the 12 external sets, Tsuboyama val and test, the 7 DMS,
-Domainome, ProteinGym. Rough size from the October jobs: ESM-MSR ≈ 2 h for everything but ProteinGym and ≈ 32 h for
-ProteinGym on an A4500; ThermoMPNN-D ≈ 1–2 h plus ≈ 7 h for ProteinGym; ME ≈ 4 h for a Tsuboyama + external evaluation in October (possibly
-sharded over several GPUs, so longer on one), and its ProteinGym time on one GPU is unmeasured. About 3–4 GPU-days if all of ProteinGym is included, about half a
-day without it. A stratified ProteinGym subset by protein length would give the length dependence for a fraction of that.
+ThermoMPNN-D seed 1 (single and epistatic networks), SPURS (published models) and ProteinMPNN. Benchmarks: the 12 external sets,
+Tsuboyama val and test, the 7 DMS, Domainome, ProteinGym; `baselines/slurm_inference.sh` runs all of them for one model.
+Rough size from the October jobs: ESM-MSR about 2 h for everything but ProteinGym and about 32 h for ProteinGym on an A4500;
+ThermoMPNN-D about 1-2 h plus about 7 h for ProteinGym; ME about 4 h for a Tsuboyama + external evaluation in October (possibly
+sharded over several GPUs, so longer on one), its ProteinGym time on one GPU unmeasured; SPURS and ProteinMPNN took 0.1-6 h for
+ProteinGym on RTX 6000s (not comparable). About 3-4 GPU-days if all of ProteinGym is included, about half a day without it
+(`--skip_pgym` for SPURS/ProteinMPNN, `--sets` for ME, `esm_msr_testing.py` without `--protein_gym`). A stratified ProteinGym
+subset by protein length would give the length dependence for a fraction of that.
 
 Nothing already measured carries over: no earlier run has memory, CPU or per-protein numbers in the slot, and the earlier
 timings mixed RTX 6000 and A4500 nodes, shared nodes and different batch policies.
@@ -127,9 +129,14 @@ not something to hide by raising the cap for ME. ThermoMPNN's ProteinGym job pea
   check on the cluster: one small job through `sbatch_fixed_slot.sh` and read `resources_run.json` and the first rows
   (`gpu`, `vram_*`, `limits.check`).
 * ThermoMPNN predictions under per-protein batching versus the old mixed batching, on one dataset (for example `external`
-  on `s669` with and without `--mixed_protein_batches`): expect agreement to about 1e-6.
-* ME's Tsuboyama and external sets used to go through `main_train.py --eval --dist_eval`; `predict_dms.py` writes the same
+  with and without `--mixed_protein_batches`): expect agreement to about 1e-6.
+* The baseline scripts were exercised against fake models and a fake MutateEverything checkout (`tests/test_baseline_scorers.py`:
+  batching, readout combination, the `--mutants` and `--models` switches, set resolution, row alignment), never against the real
+  models: none of `thermompnn.py`, `mutate_everything.py`, `spurs.py`, `proteinmpnn.py` has run end to end yet. First check on
+  the cluster: one small set per model (`--sets s669` for ME; `--skip_*` flags for the others) through `sbatch_fixed_slot.sh`.
+* ME's Tsuboyama and external sets used to go through `main_train.py --eval --dist_eval`; `mutate_everything.py` writes the same
   `results_<set>.csv` columns, but its predictions on those sets have not been compared with the earlier files.
-* The third-party models (SPURS, ProteinMPNN, ESMtherm, IFUM, GeoDDG, ESM3ΔG, ProSST) are tracked only on ProteinGym, through
-  `pgym_runner.py`'s `dms` rows when their wrappers pass a tracker (they do not yet; they keep `time_s` and VRAM from the
-  runner).
+* SPURS and ProteinMPNN predictions are not byte-comparable with the earlier runs (shared rows, one scorer; see the README).
+* The other third-party models (ESMtherm, IFUM, GeoDDG, ESM3ΔG, ProSST, DDGemb, DDMut) are not covered: they run through the
+  stability-baselines harness outside this repository, which keeps its own per-dataset `timing.csv`. The tracker module is
+  generic, so a wrapper only needs the same `scope` calls around its inference.

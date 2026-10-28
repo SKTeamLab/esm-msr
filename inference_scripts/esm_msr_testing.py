@@ -561,7 +561,7 @@ def main_(args):
     # =========================================================================
     
     if not args.skip_domainome:
-        path = f'/home/{"sareeves" if not args.local_cluster else "sreeves"}/software/esm-msr/data/domainome1/domainome_mapped_2026.csv'
+        path = os.environ.get('MSR_DOMAINOME_TABLE') or f'/home/{"sareeves" if not args.local_cluster else "sreeves"}/software/esm-msr/data/domainome1/domainome_mapped_2026.csv'
         df = pd.read_csv(path)
         df['pdb_file'] = df['pdb_file'].str.replace('/home/sareeves/software/esm-msr/data/structures', args.local_path_to_structures, regex=False)
         df['code'] = df['domain_ID'].apply(lambda x: x.replace('/', '_'))

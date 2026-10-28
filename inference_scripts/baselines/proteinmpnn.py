@@ -1,9 +1,35 @@
+"""ProteinMPNN (dauparas/ProteinMPNN at the commit in third_party.lock, unmodified; weights v_48_020): zero-shot
+inference on every benchmark, with resource tracking.
+
+The readout is the unmasked WT/MUT log-likelihood score (`score_unmasked_fast`, the one ProteinGym uses): for each
+mutation, log p(mut) - log p(wt) with its position decoded last after a random background order, on the wild-type
+sequence (mpnn_score_wt_seq) and on the variant's sequence (mpnn_score_mut_seq); mpnn_score is their mean, mpnn_score_additive
+the wild-type one, mpnn_score_epistasis their difference. The model has no singles/doubles split: any number of mutations
+is scored the same way, so --mutants only chooses which rows are scored.
+
+  everything: python proteinmpnn.py --out DIR      (Tsuboyama val + test, 12 external sets, 7 DMS, Domainome, ProteinGym)
+  --mutants {single,multi,both}   which rows to score (default both); the others stay NaN and cost nothing
+  --n_samples K --coord_noise A   test-time ensemble over K background orders (and noisy backbones); K=1 is the benchmark default
+
+Rows are the shared benchmark rows (benchmark_rows.py). A mutant-background Tsuboyama library is scored on its own
+background sequence (library_sequence), so those libraries are predicted too. Per-dataset and per-protein wall time, CPU,
+RAM, VRAM and I/O of the scoring (not of featurizing the structure) are recorded by default
+(inference_scripts/resource_tracker.py; --no_resource_tracking to skip).
+
+The earlier row-by-row scorers (calculate_unmasked_scores, calculate_rigorous_scores and `predict`) stay below as the
+reference implementation the fast scorer was checked against; they are not run by this script.
+"""
 # adapted from ProteinMPNN/protein_mpnn_utils.py
 
 import os
 import sys
-# ProteinMPNN checkout (protein_mpnn_utils.py, vanilla_model_weights/); override with PROTEINMPNN_DIR
-MPNN_DIR = os.environ.get('PROTEINMPNN_DIR', '/home/sareeves/software/ProteinMPNN')
+from pathlib import Path as _Path
+_HERE = _Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE))                 # paths, benchmark_rows
+sys.path.insert(0, str(_HERE.parent))          # resource_tracker, pgym_runner
+import paths  # noqa: E402
+# ProteinMPNN checkout (dauparas/ProteinMPNN at the commit in third_party.lock: protein_mpnn_utils.py, vanilla_model_weights/)
+MPNN_DIR = str(paths.PROTEINMPNN_DIR)
 sys.path.append(MPNN_DIR)
 from protein_mpnn_utils import tied_featurize, parse_PDB
 from protein_mpnn_utils import StructureDatasetPDB, ProteinMPNN
@@ -20,8 +46,10 @@ import numpy as np
 import random
 
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+sys.path.insert(0, str(paths.REPO_ROOT / "src"))
 from esm_msr import utils
+import resource_tracker  # noqa: E402
+from benchmark_rows import EXTERNAL, DMS, external_rows, dms_rows, domainome_rows, library_sequence  # noqa: E402
 
 from tqdm import tqdm
 from Bio.PDB import PDBParser
@@ -33,10 +61,7 @@ warnings.filterwarnings('ignore')
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = REPO_ROOT / "data" / "preprocessed"
-MODEL_DIR = REPO_ROOT / "models"
-OUT_DIR = REPO_ROOT / "analysis_notebooks"
+REPO_ROOT = paths.REPO_ROOT
 
 def make_tied_positions_for_homomers(pdb_dict_list):
     """Causes identical sequences in a quaternary structure to have likelihoods influenced by each monomer"""
@@ -620,355 +645,188 @@ def predict(df, model, K_paths=4, use_masks=False):
     return logps
 
 
-def timed_call(func, *args, **kwargs):
-    start = time.perf_counter()
-    result = func(*args, **kwargs)
-    elapsed = time.perf_counter() - start
-    return result, elapsed
+def _wanted(n_mut, mutants):
+    n = np.asarray(n_mut)
+    return {'single': n == 1, 'multi': n >= 2, 'both': np.ones(len(n), dtype=bool)}[mutants]
 
-def main_(args):
 
-    device = torch.device("cuda:0")
-    #v_48_010=version with 48 edges 0.10A noise
-    model_name = f"v_48_020"
-    backbone_noise = 0.00 # Standard deviation of Gaussian noise to add to backbone atoms
-    hidden_dim = 128
-    num_layers = 3
-    model_folder_path = os.path.join(MPNN_DIR, 'vanilla_model_weights')
-    if model_folder_path[-1] != '/':
-        model_folder_path = model_folder_path + '/'
-    checkpoint_path = model_folder_path + f'{model_name}.pt'
+ALPHABET = 'ACDEFGHIKLMNPQRSTVWYX'
+COLS = ('mpnn_score_wt_seq', 'mpnn_score_mut_seq', 'mpnn_score_additive', 'mpnn_score', 'mpnn_score_epistasis')
 
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    print('Number of edges:', checkpoint['num_edges'])
-    noise_level_print = checkpoint['noise_level']
-    print(f'Training noise level: {noise_level_print}A')
-    model = ProteinMPNN(num_letters=21, node_features=hidden_dim, edge_features=hidden_dim, 
-        hidden_dim=hidden_dim, num_encoder_layers=num_layers, num_decoder_layers=num_layers, 
-        augment_eps=backbone_noise, k_neighbors=checkpoint['num_edges'])
-    model.to(device)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.eval()
-    
-    mode_suffix = '_masked' if args.use_masks else '_unmasked'
-    out_name = f"proteinmpnn_020{mode_suffix}.csv"
 
-    if args.protein_gym:
-        if args.use_masks:
-            raise AssertionError("--protein_gym scores the unmasked WT/MUT mode only; drop --use_masks")
-        if not args.pgym_dir:
-            raise AssertionError("--pgym_dir is required with --protein_gym")
-        import pgym_runner
-        pgym_runner.run_protein_gym(
-            args.pgym_dir, args.pgym_out or (Path(args.pgym_dir).resolve().parent / 'pgym_results' / 'proteinmpnn_020_unmasked'),
-            make_pgym_score_fn(model, args.pgym_max_tokens, args.pgym_seed, args.pgym_n_samples, args.pgym_coord_noise),
-            pred_col='mpnn_score', dms=args.pgym_dms,
-            tag=f'proteinmpnn {model_name} unmasked seed={args.pgym_seed} n_samples={args.pgym_n_samples} '
-                f'coord_noise={args.pgym_coord_noise}', extra_cols=('mpnn_score_wt_seq',))
-        return
+class Mpnn:
+    def __init__(self, args, tracker):
+        self.args, self.tracker = args, tracker
+        self.device = torch.device('cuda:0')
+        with tracker.stage('model_load'):
+            model_name = 'v_48_020'                    # 48 edges, 0.20 A training noise
+            checkpoint = torch.load(os.path.join(MPNN_DIR, 'vanilla_model_weights', f'{model_name}.pt'), map_location=self.device)
+            self.model = ProteinMPNN(num_letters=21, node_features=128, edge_features=128, hidden_dim=128,
+                                     num_encoder_layers=3, num_decoder_layers=3, augment_eps=0.0,
+                                     k_neighbors=checkpoint['num_edges'])
+            self.model.to(self.device)
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+            self.model.eval()
 
-    if not args.skip_external:
-        external_test_dataloaders_names = ['s669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 's571', 's783', 's8754', 's2648', 'ptmul', 'ptmuld']
-        #external_test_dataloaders_names = ['ptmul']
-        stats_df = pd.DataFrame()
+    def featurize(self, code, pdb_path, chain, seq=None):
+        """Structure features; `seq` replaces the structure's sequence (a mutant-background Tsuboyama library)."""
+        X, S, mask, chain_M, residue_idx, chain_encoding_all = featurize_structure(code, pdb_path, chain, self.device)
+        if seq is not None:
+            assert S.shape[1] == len(seq), f'{code}: structure has {S.shape[1]} residues, sequence {len(seq)}'
+            S = torch.tensor([[ALPHABET.find(c) for c in seq]], device=self.device)
+        return X, S, mask, residue_idx, chain_encoding_all
 
-        for name in external_test_dataloaders_names:
-            print(name)
+    def score(self, name, feats, mut_strings):
+        """The ProteinMPNN readouts of one structure (a dict of arrays aligned with mut_strings). The scoring is one
+        `protein` scope; featurizing the structure is not in it."""
+        X, S, mask, residue_idx, chain_encoding_all = feats
+        a = self.args
+        n_mut = np.array([s.count(':') + 1 for s in mut_strings])
+        wanted = np.flatnonzero(_wanted(n_mut, a.mutants))
+        out = {c: np.full(len(mut_strings), np.nan) for c in COLS}
+        if not len(wanted):
+            return out
+        sel = [mut_strings[i] for i in wanted]
+        tokens = a.max_tokens
+        with self.tracker.scope('protein', name, n_rows=len(wanted), seq_len=int(S.shape[1]), n_samples=a.n_samples,
+                                coord_noise=a.coord_noise, max_tokens=a.max_tokens) as sc:
+            with sc.phase('score'):
+                while True:
+                    try:
+                        res = score_unmasked_fast(self.model, sel, X, S, mask, residue_idx, chain_encoding_all, ALPHABET,
+                                                  max_tokens=tokens, seed=a.seed, n_samples=a.n_samples, coord_noise=a.coord_noise)
+                        break
+                    except torch.cuda.OutOfMemoryError:
+                        torch.cuda.empty_cache()
+                        if tokens <= S.shape[1]:
+                            raise
+                        tokens //= 2
+                        print(f'OOM; retrying {name} with max_tokens={tokens}', flush=True)
+        w, m = res[:2]
+        out['mpnn_score_wt_seq'][wanted] = w
+        out['mpnn_score_mut_seq'][wanted] = m
+        out['mpnn_score_additive'][wanted] = w
+        out['mpnn_score'][wanted] = 0.5 * (w + m)
+        out['mpnn_score_epistasis'][wanted] = 0.5 * (w + m) - w
+        if len(res) == 4:
+            for k, (wk, mk) in enumerate(zip(res[2], res[3])):
+                col = out.setdefault(f'mpnn_score_s{k}', np.full(len(mut_strings), np.nan))
+                col[wanted] = 0.5 * (wk + mk)
+        torch.cuda.empty_cache()
+        return out
 
-            df_true = pd.read_csv(DATA_DIR / f'{name}_mapped.csv')
-            if name in ['s669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 's571', 's783', 's8754', 's2648']:
-                df_true = df_true.reset_index()
-                df_true['position_pdb'] = df_true['position']
-                df_true['position'] = df_true['seq_pos']
-                df_true['mut_type'] = df_true['wild_type'] + df_true['position'].astype(int).astype(str) + df_true['mutation']
-                df_true['id'] = df_true['code'] + df_true['chain'] + '_' + df_true['mut_type']
-                df_true['mut_type'] = df_true['wild_type'] + df_true['seq_pos'].astype(int).astype(str) + df_true['mutation']
-                df_true = df_true.set_index('id')
-                if name == 's571':
-                    df_true['ddG'] = df_true['dTm']
-            else:
-                df_true = df_true.reset_index()
-                df_true = utils.sort_mutations_by_position(df_true, 'mut_info_seq_pos', 'mut_type')
-                df_true['id'] = df_true['code'] + df_true['chain'] + '_' + df_true['mut_type']
-                df_true = df_true.set_index('id')
-                df_true = utils.parse_multimutant_column(df_true, 'mut_type', max_mutations=10)
+    def score_table(self, df, label):
+        """Score a rows frame (id, code, chain, pdb_file, mut_type, ddG) structure by structure."""
+        cols = {}
+        pos = {i: k for k, i in enumerate(df.index)}
+        with self.tracker.scope('dataset', label, n_rows=len(df)):
+            for (pdb_path, code, chain), g in df.groupby(['pdb_file', 'code', 'chain'], sort=False):
+                try:
+                    feats = self.featurize(code, pdb_path, chain)
+                except Exception as e:
+                    print(f'Skipping {code}{chain}: failed featurizing: {e}')
+                    continue
+                r = self.score(f'{code}{chain}', feats, g['mut_type'].tolist())
+                idx = [pos[i] for i in g.index]
+                for c, v in r.items():
+                    cols.setdefault(c, np.full(len(df), np.nan))[idx] = v
+        out = df.copy()
+        for c, v in cols.items():
+            out[c] = v
+        return out
 
-            res_df, time_taken = timed_call(predict, df=df_true, model=model, use_masks=args.use_masks)
-            print(res_df[['mpnn_score']].head())
+    def pgym_score_fn(self):
+        def score_fn(df):
+            feats = self.featurize(df['code'].iloc[0], df['pdb_file'].iloc[0], df['chain'].iloc[0])
+            return pd.DataFrame(self.score(str(df['code'].iloc[0]), feats, df['mut_type_renumbered'].tolist()))
+        return score_fn
 
-            pred_dir = OUT_DIR / f'predictions/{name if name!= "ptmul" else "PTMUL"}/proteinmpnn'
-            os.makedirs(pred_dir, exist_ok=True)
-            res_df.to_csv(pred_dir / out_name)
-
-            stats_df.at[name, 'spearman'] = res_df[['ddG', 'mpnn_score']].corr('spearman').iloc[0,1]
-            #stats_df.at[name, 'ndcg@30'] = utils.compute_ndcg_flexible(res_df, 'mpnn_score', 'ddG', top_n=30)
-            #stats_df.at[name, 'ndcg>0'] = utils.compute_ndcg_flexible(res_df, 'mpnn_score', 'ddG', threshold=0)
-            stats_df.at[name, 'time'] = time_taken
-
-            if 'ptmul' not in name:
-                assert len(df_true) == len(res_df)
-            else:
-                pass
-
-            stats_dir = OUT_DIR / 'stats/external/proteinmpnn'
-            os.makedirs(stats_dir, exist_ok=True)
-            stats_df.to_csv(stats_dir / out_name)
-
-    ############## REPEAT WITH SPECIFIC SPLITS ################
-
-    if args.split is not None and not args.skip_tsuboyama:
-        split_file = REPO_ROOT / "data" / f"{args.split}.pkl"
-        split_name = args.split
-
+    def tsuboyama(self, split_name, out_dir):
+        """The Tsuboyama validation and test splits through the ESM-MSR preprocessor, one library at a time; every row,
+        bounded ones included (flagged in `cens`), as esm_msr_testing.py predicts them."""
         from esm_msr import preprocess_megascale
+        tsu = paths.TSUBOYAMA_DIR
         ds = preprocess_megascale.MegaScaleDatasetPreprocessor(
-            data_file='/home/sareeves/software/esm-msr/data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv', 
-            af_model_folder='/home/sareeves/software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs')
-
-        splits = ds.create_training_splits(str(split_file), -1)
-
-        #if args.remove_spurs_homologs:
-        #    ds.remove_homologs_from_scaffold(scaffold='train')
-        #    ds.remove_homologs_from_scaffold(scaffold='val')
-
-        for scaffold in ['validation', 'testing']:
-            stats_df = pd.DataFrame()
-            scaffold_ = scaffold.replace('testing', 'test')
-            
-            if not os.path.exists(OUT_DIR / f'predictions/{split_name}-{scaffold_}/proteinmpnn/{out_name}'):
-                results_list = []
-
-                scaffold_ = {'validation': 'val', 'testing': 'test'}[scaffold]
-                data_scaffold = ds.split_dfs[scaffold_]
-                
-                data_scaffold = utils.parse_multimutant_column(data_scaffold, 'mut_type')
-                data_scaffold['id'] = data_scaffold['code'] + '_' + data_scaffold['mut_type']
-                data_scaffold = data_scaffold.sort_values('id')
-
-                for code in tqdm(data_scaffold['code_wt'].unique()):
-
-                    df_true = data_scaffold.loc[data_scaffold['code_wt']==code]
-                    
+            data_file=str(paths.require(tsu / 'Tsuboyama2023_Dataset2_Dataset3_20230416.csv', 'the Tsuboyama table')),
+            af_model_folder=str(paths.require(tsu / 'AlphaFold_model_PDBs', 'the AlphaFold models')))
+        ds.create_training_splits(str(REPO_ROOT / 'data' / f'{split_name}.pkl'), -1)
+        for scaffold_ in ('val', 'test'):
+            data_scaffold = ds.split_dfs[scaffold_]
+            parts = []
+            with self.tracker.scope('dataset', f'tsuboyama_{scaffold_}', n_rows=len(data_scaffold)):
+                for code in data_scaffold['code_wt'].unique():
+                    df_true = data_scaffold.loc[data_scaffold['code_wt'] == code].copy()
+                    df_true['mut_structure'] = df_true['mut_structure'].fillna('-')
                     df_true = utils.sum_individual_mutation_scores(df_true, 'ddG_ML', new_score_column='ddG_additive_ML')
                     df_true['dddG_ML'] = df_true['ddG_ML'] - df_true['ddG_additive_ML']
+                    for mut_structure, data in df_true.groupby('mut_structure'):
+                        seq, pdb_path = library_sequence(data, mut_structure)
+                        try:
+                            feats = self.featurize(code, pdb_path, 'A', seq=seq)
+                        except Exception as e:
+                            print(f'Skipping {code}: failed featurizing: {e}')
+                            continue
+                        r = self.score(code if mut_structure == '-' else f'{code}_{mut_structure}', feats, data['mut_type'].tolist())
+                        for c, v in r.items():
+                            if c not in df_true.columns:
+                                df_true[c] = np.nan
+                            df_true.loc[data.index, c] = v
+                    parts.append(df_true.reset_index().set_index('uid'))
+            path = Path(out_dir) / f'tsuboyama_{scaffold_}.csv'
+            pd.concat(parts, axis=0).to_csv(path)
+            print('wrote', path)
 
-                    print(df_true[['dddG_ML']])
-                    res_df, time_taken = timed_call(predict, df=df_true, model=model, use_masks=args.use_masks)
-                    print(res_df[['mpnn_score', 'mpnn_score_epistasis']].head())
 
-                    stats_df.at[code, 'spearman'] = res_df[['ddG_ML', 'mpnn_score']].corr('spearman').iloc[0,1]
-                    try:
-                        stats_df.at[code, 'spearman_epi'] = res_df[['dddG_ML', 'mpnn_score_epistasis']].dropna().corr('spearman').iloc[0,1]
-                    except:
-                        stats_df.at[code, 'spearman_epi'] = float('nan')
-                    #stats_df.at[code, 'ndcg@30'] = utils.compute_ndcg_flexible(res_df, 'mpnn_score', 'ddG_ML', top_n=30)
-                    #stats_df.at[code, 'ndcg>0'] = utils.compute_ndcg_flexible(res_df, 'mpnn_score', 'ddG_ML', threshold=0)
-                    stats_df.at[code, 'time'] = time_taken
+def main(args):
+    out = Path(args.out).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    tracker = resource_tracker.Tracker.from_args(
+        args, label='proteinmpnn', default_dir=out / 'resources',
+        meta={'model': 'ProteinMPNN v_48_020', 'mutants': args.mutants, 'dtype': 'fp32', 'seed': args.seed,
+              'n_samples': args.n_samples, 'coord_noise': args.coord_noise, 'max_tokens': args.max_tokens})
+    try:
+        mpnn = Mpnn(args, tracker)
+        if not args.skip_tsuboyama and args.split:
+            mpnn.tsuboyama(args.split, out)
+        if not args.skip_external:
+            for name in EXTERNAL:
+                dest = out / f'external_{name}.csv'
+                if not (args.skip_existing and dest.exists()):
+                    mpnn.score_table(external_rows(name), f'external_{name}').to_csv(dest, index=False)
+        if not args.skip_dms:
+            for assay in DMS:
+                dest = out / f'dms_{assay}.csv'
+                if not (args.skip_existing and dest.exists()):
+                    mpnn.score_table(dms_rows(assay), f'dms_{assay}').to_csv(dest, index=False)
+        if not args.skip_domainome:
+            dest = out / 'domainome.csv'
+            if not (args.skip_existing and dest.exists()):
+                mpnn.score_table(domainome_rows(), 'domainome').to_csv(dest, index=False)
+        if not args.skip_pgym:
+            import pgym_runner
+            pgym_runner.run_protein_gym(
+                args.pgym_dir, out / 'proteingym', mpnn.pgym_score_fn(), pred_col='mpnn_score', dms=args.pgym_dms,
+                tag=f'proteinmpnn v_48_020 unmasked seed={args.seed} n_samples={args.n_samples} coord_noise={args.coord_noise} '
+                    f'mutants={args.mutants}', extra_cols=('mpnn_score_wt_seq',), tracker=tracker)
+    finally:
+        tracker.close()
 
-                    assert len(df_true) == len(res_df)
 
-                    results_list.append(res_df)
-
-                results_df = pd.concat(results_list, axis=0)
-
-                print(stats_df.mean(axis=0))  
-
-                pred_dir = OUT_DIR / f'predictions/{split_name}-{scaffold_}/proteinmpnn'
-                stats_dir = OUT_DIR / f'stats/{split_name}-{scaffold_}/proteinmpnn'
-                os.makedirs(pred_dir, exist_ok=True)
-                os.makedirs(stats_dir, exist_ok=True)
-
-                stats_df.mean(axis=0).to_csv(stats_dir / out_name)
-                results_df.to_csv(pred_dir / out_name)
-                stats_df.to_csv(stats_dir / out_name)
-
-                torch.cuda.empty_cache()
-
-    ######################################
-
-    if not args.skip_dms:
-
-        prots = ['DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display', 'ESTA_BACSU_Nutschel_2020_dTm', 'GB1_Wu_2016_binding_domain'] #, 'A4_HUMAN_Seuma_2022'] # 'GB1_Wu_2016_binding_domain','A4_HUMAN_Seuma_2022', 
-        stats_df = pd.DataFrame()
-
-        results_list = []
-    
-        for mem_size, prot in zip([4,4,2,2,4,4,2], prots): #4,4,2,2,4,4,2
-
-            df_true = pd.read_csv(DATA_DIR / f'{prot}.csv')
-            df_true['id'] = df_true['code'] + '_' + df_true['mut_info']
-            df_true = df_true.set_index('id')
-            has_doubles = len(df_true.loc[df_true['mut_info'].str.contains(':')]) > 0
-            if has_doubles:
-                df_true = utils.sum_individual_mutation_scores(df_true, 'ddG_ML', new_score_column='ddG_additive_ML')
-                df_true['dddG_ML'] = df_true['ddG_ML'] - df_true['ddG_additive_ML']
-            print(prot, has_doubles)
-
-            prot_name = '_'.join(prot.split('_')[:2])
-            if prot_name == 'GB1_Wu':
-                prot_name = 'GB1'
-
-            res_df, time_taken = timed_call(predict, df=df_true, model=model, use_masks=args.use_masks)
-            print(res_df[['mpnn_score']].head())
-
-            assert len(df_true) == len(res_df)
-            
-            pred_dir = OUT_DIR / f'predictions/{prot}/proteinmpnn'
-            os.makedirs(pred_dir, exist_ok=True)
-            res_df.to_csv(pred_dir / out_name)
-
-            results_list.append(res_df)
-
-            stats_df.at[prot, 'spearman'] = res_df[['ddG_ML', 'mpnn_score']].corr('spearman').iloc[0,1]
-            try:
-                stats_df.at[prot, 'spearman_epi'] = res_df[['dddG_ML', 'mpnn_score_epistasis']].dropna().corr('spearman').iloc[0,1]
-            except Exception:
-                stats_df.at[prot, 'spearman_epi'] = float('nan')
-            #stats_df.at[prot, 'ndcg@30'] = utils.compute_ndcg_flexible(res_df, 'mpnn_score', 'ddG_ML', top_n=30)
-            #stats_df.at[prot, 'ndcg>0'] = utils.compute_ndcg_flexible(res_df, 'mpnn_score', 'ddG_ML', threshold=0)
-            stats_df.at[prot, 'time'] = time_taken
-
-        print(stats_df)
-
-        stats_dir = OUT_DIR / 'stats/DMS/proteinmpnn'
-        os.makedirs(stats_dir, exist_ok=True)
-
-        results_df = pd.concat(results_list, axis=0)
-
-        stats_df.to_csv(stats_dir / out_name)
-
-        torch.cuda.empty_cache()
-
-        #os.makedirs(os.path.dirname(OUT_DIR / f'stats/DMS/proteinmpnn/{out_name}'), exist_ok=True)
-        #prot_stats.to_csv(f'/home/{"sareeves" if not args.local_cluster else "sreeves"}/software/esm-msr/analysis_notebooks/stats/DMS/proteinmpnn/{out_name}{"_alpha"+str(args.lora_alpha)}chain_rule_avg.csv')
-
-    #########################################
-
-    if not args.skip_domainome:
-
-        path = f'/home/{"sareeves" if not args.local_cluster else "sreeves"}/software/esm-msr/data/domainome1/domainome_mapped_2026.csv'
-        df = pd.read_csv(path)
-        df['code'] = df['domain_ID'].apply(lambda x: x.replace('/', '_'))
-        df['ddG_ML'] = df['scaled_fitness']
-        df = df.dropna(subset='pdb_file')
-        df = df[['code', 'mut_type', 'uniprot_ID', 'pdb_file', 'ddG_ML']]
-        df['chain'] = 'A'
-        df = df.dropna(subset=['mut_type'])
-        results_list = []
-        stats_df = pd.DataFrame()
-
-        for prot in tqdm(df['code'].unique()):
-
-            df_true = df.loc[df['code']==prot]
-            df_true['id'] = df_true['code'] + '_' + df_true['mut_type']
-            df_true = df_true.set_index('id')
-
-            res_df, time_taken = timed_call(predict, df=df_true, model=model, use_masks=args.use_masks)
-            print(res_df[['mpnn_score']].head())
-
-            assert len(df_true) == len(res_df)
-
-            stats_df.at[prot, 'spearman'] = res_df[['ddG_ML', 'mpnn_score']].corr('spearman').iloc[0,1]
-            #stats_df.at[prot, 'ndcg@30'] = utils.compute_ndcg_flexible(res_df, 'mpnn_score', 'ddG_ML', top_n=30)
-            #stats_df.at[prot, 'ndcg>0'] = utils.compute_ndcg_flexible(res_df, 'mpnn_score', 'ddG_ML', threshold=0)
-
-            stats_df.at[prot, 'time'] = time_taken
-
-            results_list.append(res_df)
-
-        results_df_out = pd.concat(results_list, axis=0)
-
-        print(stats_df.mean(axis=0))
-
-        pred_dir = OUT_DIR / 'predictions/domainome/proteinmpnn'
-        stats_dir = OUT_DIR / 'stats/domainome/proteinmpnn'
-        os.makedirs(pred_dir, exist_ok=True)
-        os.makedirs(stats_dir, exist_ok=True)
-
-        stats_df.mean(axis=0).to_csv(stats_dir / out_name)
-        results_df_out.to_csv(pred_dir / out_name)
-        stats_df.to_csv(stats_dir / out_name)
-
-        torch.cuda.empty_cache()
-
-    ##########################################
-
-    if not args.skip_functional:
-
-        test_list_DMS = ['D7PM05_CLYGR', 'GFP_AEQVI', 'HIS7_YEAST', 'Q6WV12_9MAXI', 'Q8WTC7_9CNID', 'RASK_HUMAN']
-
-        for mem_size, prot in zip([8,8,8,8,8,8], test_list_DMS):
-
-            strategy = 'masked' if args.use_masks else 'unmasked'
-
-            df_true = pd.read_csv(f'/home/{"sareeves" if not args.local_cluster else "sreeves"}/PSLMs/data/lora/DMS/csv_formatted/{prot}.csv')
-            df_true['mut_type'] = df_true['MUTS'].apply(lambda x: x.replace(';', ':'))
-            df_true['id'] = df_true['code'] + '_' + df_true['mut_type']
-            df_true = df_true.set_index('id')
-            df_true = utils.parse_multimutant_column(df_true, mut_column='mut_type')
-            has_doubles = len(df_true['mut_type'].str.contains(':')) > 0
-            print(prot, has_doubles)
-            print(df_true)
-
-            pdb = df_true['pdb_file'].head(1).item()
-
-            res_df, time_taken = timed_call(predict, df=df_true, model=model, use_masks=args.use_masks)
-        
-            #pred_combined = res_df #.set_index('id')
-
-            #res = df_true.join(pred_combined)
-            res = res_df
-            assert len(df_true) == len(res)
-            print(res[['ddG_dir', 'mpnn_score']].corr('spearman').iloc[0,1])
-            print(res.head())
-
-            pred_dir = f'/home/{"sareeves" if not args.local_cluster else "sreeves"}/software/esm-msr/analysis_notebooks/predictions/{prot}/proteinmpnn'
-            os.makedirs(pred_dir, exist_ok=True)
-            res.to_csv(f'{pred_dir}/{out_name}')
-            torch.cuda.empty_cache()
-
-if __name__ == "__main__":
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--split', type=str, default='hyperopt_splits') #'/home/sareeves/software/esm-msr/data/splits_megascale.csv'
-        parser.add_argument('--local_cluster', action='store_true')
-        parser.add_argument('--use_masks', action='store_true', default=False, help='Use masked trajectories instead of WT/MUT unmasked inference')
-        parser.add_argument('--skip_external', action='store_true')
-        parser.add_argument('--skip_tsuboyama', action='store_true')
-        parser.add_argument('--skip_dms', action='store_true')
-        parser.add_argument('--skip_functional', action='store_true')
-        parser.add_argument('--skip_domainome', action='store_true')
-
-        # ProteinGym (all-DMS) benchmark mode
-        parser.add_argument('--protein_gym', action='store_true', help='Score all preprocessed ProteinGym DMS benchmarks (unmasked mode) and exit')
-        parser.add_argument('--pgym_dir', type=str, default=None, help='Directory with per-DMS input CSVs + manifest.csv (preprocessing/pgym_preprocess.py)')
-        parser.add_argument('--pgym_out', type=str, default=None, help='Output directory for ProteinGym results (per-DMS CSVs + summary.csv)')
-        parser.add_argument('--pgym_dms', type=str, default='all', help="Comma-separated DMS ids, or 'all'")
-        parser.add_argument('--pgym_max_tokens', type=int, default=32768, help='Residues per forward batch (batch size = this // length; halved on OOM)')
-        parser.add_argument('--pgym_seed', type=int, default=0, help='Seed for the background decoding orders')
-        parser.add_argument('--pgym_n_samples', type=int, default=1, help='Average scores over this many samples, each with its own background orders (and noisy structure, see --pgym_coord_noise)')
-        parser.add_argument('--pgym_coord_noise', type=float, default=0.0, help='Std (A) of Gaussian noise added to every backbone atom, a fresh draw per sample (0.2 = v_48_020 training noise)')
-
-        # Parse known args for main parser
-        args, remaining_argv = parser.parse_known_args()
-
-        # Keep track of remaining args after each parse
-        current_remaining_argv = list(remaining_argv) # Make a mutable copy
-
-        # Check if any arguments were truly unrecognized by any relevant parser
-        if current_remaining_argv:
-            parser.error(f"unrecognized arguments: {' '.join(current_remaining_argv)}")
-
-        if args.skip_external:
-            print('Skipping benchmark datasets!')
-        if args.skip_tsuboyama:
-            print('Skipping MegaScale validation and testing datasets!')
-        if args.skip_dms:
-            print('Skipping DMS assays!')
-        if args.skip_functional:
-            print('Skipping double mutant functional DMS assays!')
-        if args.skip_domainome:
-            print('Skipping domainome VAMP assays!')
-        if not args.split:
-            print('Warning! Not using any specific split file!')
-
-        main_(args)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--out', required=True, help='output directory (CSV per benchmark, proteingym/, resources/)')
+    parser.add_argument('--mutants', choices=['single', 'multi', 'both'], default='both',
+                        help='which rows to score (the others get NaN predictions and no inference)')
+    parser.add_argument('--split', default='hyperopt_splits', help='Tsuboyama split pickle under data/ (without .pkl)')
+    for b in ('tsuboyama', 'external', 'dms', 'domainome', 'pgym'):
+        parser.add_argument(f'--skip_{b}', action='store_true')
+    parser.add_argument('--skip_existing', action='store_true', help='skip an external/DMS/Domainome output that exists')
+    parser.add_argument('--pgym_dir', default=str(paths.PGYM_INPUTS), help='pgym_inputs (preprocessing/pgym_preprocess.py)')
+    parser.add_argument('--pgym_dms', default='all', help="comma-separated DMS ids, or 'all'")
+    parser.add_argument('--max_tokens', type=int, default=32768, help='residues per forward batch (batch size = this // length; halved on OOM)')
+    parser.add_argument('--seed', type=int, default=0, help='seed for the background decoding orders')
+    parser.add_argument('--n_samples', type=int, default=1, help='average over this many samples, each with its own background orders')
+    parser.add_argument('--coord_noise', type=float, default=0.0,
+                        help='std (A) of Gaussian noise added to every backbone atom per sample (0.2 = the training noise)')
+    resource_tracker.add_tracking_args(parser)
+    main(parser.parse_args())

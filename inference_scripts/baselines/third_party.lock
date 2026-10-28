@@ -1,0 +1,5 @@
+# name  url  commit   -- the upstream checkouts the baselines run against, all unmodified (setup_third_party.sh verifies them)
+ThermoMPNN-D           https://github.com/Kuhlman-Lab/ThermoMPNN-D        df9a75aaddb674a7c4c193005031fc0536d325fb
+MutateEverything-oct06 https://github.com/jozhang97/MutateEverything      034dd91e7a449e68b0f0993043bd32ce281f056c
+SPURS                  https://github.com/luo-group/SPURS.git             70cbb99af5cdf1f6da392389aaf93fd245610efb
+ProteinMPNN            https://github.com/dauparas/ProteinMPNN            8907e6671bfbfc92303b5f79c4b5e6ce47cdef57

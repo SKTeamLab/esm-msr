@@ -5,7 +5,7 @@ preprocessing/pgym_preprocess.py, scores each DMS with a model-specific score_fn
 (predictions + DMS_score), an incremental <out>/summary.csv (per-DMS Spearman of pred_col vs DMS_score) and
 <out>/run.log. Any DMS whose output CSV already exists is skipped, so runs can be interrupted and restarted.
 
-Used by esm_msr_testing.py, proteinmpnn_testing.py, spurs_testing.py and thermompnnd_testing.py (--protein_gym).
+Used by esm_msr_testing.py, thermompnnd_testing.py (--protein_gym) and the baselines/ scripts (ThermoMPNN, SPURS, ProteinMPNN; MutateEverything runs ProteinGym through its own loop).
 Kept free of esm_msr imports so it runs in any environment (e.g. the SPURS env, whose `esm` is fair-esm).
 """
 import os

@@ -18,7 +18,8 @@
 # other jobs on the node at start and end (resources_run.json: neighbours_at_start / neighbours_at_end) and the node load
 # per scope (loadavg1), so a contaminated run can be identified and repeated. This script warns about running neighbours.
 #
-# The ME eval needs the single-process entry: ENTRY=predict_dms.py NPROC=1 (eval_oct06.sh defaults to torchrun over 3 GPUs).
+# The per-model jobs that run every benchmark are baselines/slurm_inference.sh (MODEL=esm_msr|thermompnn|mutate_everything|
+# spurs|proteinmpnn); MSR_REPO tells it where this repository is.
 set -euo pipefail
 NODE=${SLOT_NODE:-gpu4}
 CPUS=${SLOT_CPUS:-6}
@@ -36,5 +37,5 @@ fi
 echo "slot: node=$NODE gpus=1 cpus=$CPUS ram=${RAM_GB}G strict=$STRICT script=$SCRIPT" >&2
 
 exec sbatch --nodelist="$NODE" --gres=gpu:1 --cpus-per-task="$CPUS" --mem="${RAM_GB}G" ${TIME:+--time="$TIME"} \
-  --export="ALL,MSR_FIXED_GPUS=1,MSR_FIXED_CPUS=$CPUS,MSR_FIXED_RAM_GB=$RAM_GB,MSR_STRICT_RESOURCES=$STRICT,OMP_NUM_THREADS=$CPUS,MKL_NUM_THREADS=$CPUS,OPENBLAS_NUM_THREADS=$CPUS" \
+  --export="ALL,MSR_REPO=$(cd "$(dirname "$0")/.." && pwd),MSR_FIXED_GPUS=1,MSR_FIXED_CPUS=$CPUS,MSR_FIXED_RAM_GB=$RAM_GB,MSR_STRICT_RESOURCES=$STRICT,OMP_NUM_THREADS=$CPUS,MKL_NUM_THREADS=$CPUS,OPENBLAS_NUM_THREADS=$CPUS" \
   "$SCRIPT" "$@"

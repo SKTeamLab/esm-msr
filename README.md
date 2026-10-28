@@ -148,7 +148,7 @@ Four of the 217 are size extremes that need special handling on a 32 GB card: `B
 
 ### Baselines on the same inputs
 
-`inference_scripts/proteinmpnn_testing.py`, `spurs_testing.py` and `thermompnnd_testing.py` take the same `--protein_gym --pgym_dir pgym_inputs --pgym_out DIR [--pgym_dms ...]` flags. All four scripts run through one shared loop (`inference_scripts/pgym_runner.py`), so the baselines' per-DMS CSVs, `summary.csv` and resume rule are the same as ESM-MSR's. Every readout is signed so that higher means fitter. `summary.csv` reports `spearman_combined` for the headline column and `spearman_<col>` for each secondary readout:
+`inference_scripts/thermompnnd_testing.py` takes the same `--protein_gym --pgym_dir pgym_inputs --pgym_out DIR [--pgym_dms ...]` flags as `esm_msr_testing.py`; ProteinMPNN, SPURS, ThermoMPNN-D (retrained) and MutateEverything have their own run-everything scripts in `inference_scripts/baselines/` (see its README; ProteinGym is one of their blocks, `--pgym_dir`/`--pgym_dms`). All of them run ProteinGym through one shared loop (`inference_scripts/pgym_runner.py`), so the baselines' per-DMS CSVs, `summary.csv` and resume rule are the same as ESM-MSR's. Every readout is signed so that higher means fitter. `summary.csv` reports `spearman_combined` for the headline column and `spearman_<col>` for each secondary readout:
 
 * **ProteinMPNN** (`v_48_020`, unmasked; set `PROTEINMPNN_DIR` to your ProteinMPNN checkout).
   * Headline `mpnn_score`: the mean of the log-odds with the wild-type and with the variant sequence as context, each mutated position decoded last.
