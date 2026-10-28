@@ -63,7 +63,8 @@ def resolve_sets(sets, split_name):
            's461': root / 's461' / 'mutations' / 's461.csv',
            **{n: tsu(n) for n in ('val', 'valfull', 'test', 'testcomp')},
            **{n: root / 'dms_oct06' / 'mutations' / f'{n}.csv' for n in DMS},
-           'domainome': root / 'domainome_oct06' / 'mutations' / 'domainome.csv'}
+           'domainome': root / 'domainome_oct06' / 'mutations' / 'domainome.csv',
+           **{p.stem: p for p in (root / 'pgym_oct06' / 'mutations').glob('*.csv')}}      # a single ProteinGym DMS by id
     groups = {'tsuboyama': [tsu(n) for n in ('val', 'test', 'testcomp')],
               'external': [one[n] for n in EXTERNAL_E + EXTERNAL_A + ['s461']],
               'dms': [one[n] for n in DMS], 'domainome': [one['domainome']],
@@ -83,14 +84,17 @@ def resolve_sets(sets, split_name):
     return out
 
 
-def filter_mutants(path, mutants, out_dir):
-    """The input CSV restricted to the rows --mutants asks for (written under out_dir/inputs), or the CSV itself for `both`."""
-    if mutants == 'both':
+def filter_mutants(path, mutants, out_dir, max_proteins=0):
+    """The input CSV restricted to the rows --mutants asks for and, for a smoke test, to the first `max_proteins` proteins
+    (written under out_dir/inputs), or the CSV itself when neither applies."""
+    if mutants == 'both' and not max_proteins:
         return str(path)
     df = pd.read_csv(path, low_memory=False)
+    if max_proteins:
+        df = df[df['pdb_id'].isin(list(dict.fromkeys(df['pdb_id']))[:max_proteins])]
     multi = df['mut_info'].astype(str).str.contains(':')
-    df = df[~multi] if mutants == 'single' else df[multi]
-    dest = Path(out_dir) / 'inputs' / f'{Path(path).stem}.{mutants}.csv'
+    df = df if mutants == 'both' else (df[~multi] if mutants == 'single' else df[multi])
+    dest = Path(out_dir) / 'inputs' / f'{Path(path).stem}.{mutants}{f".first{max_proteins}" if max_proteins else ""}.csv'
     dest.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(dest, index=False)
     return str(dest)
@@ -196,7 +200,7 @@ def main(args):
                 print(f'{name}: SKIP (results exist)', flush=True)
                 continue
             with tracker.scope('dataset', name) as ds_scope:
-                ds = SeqDetDatatset(filter_mutants(path, args.mutants, args.output_dir), args, train=False)
+                ds = SeqDetDatatset(filter_mutants(path, args.mutants, args.output_dir, args.max_proteins), args, train=False)
                 ds_scope.note(n_proteins=len(ds))
                 collate_fn = partial(protein_collate_fn, alphabet=alphabet, args=args)
                 # num_workers=0: the batch is featurized in this process, so its CPU and RAM show up in the `load` scopes
@@ -227,6 +231,7 @@ if __name__ == '__main__':
     p.add_argument('--split_name', default='oct06_capped_allbl', help='the Tsuboyama split directory under data/')
     p.add_argument('--mutants', choices=['single', 'multi', 'both'], default='both',
                    help='which rows of each set to request (single: no doubles, so the pair head is skipped)')
+    p.add_argument('--max_proteins', type=int, default=0, help='smoke test: only the first N proteins of every set (0 = all)')
     p.add_argument('--skip_existing', action='store_true', help='skip a set whose results_<set>.csv exists (resumable ProteinGym)')
     p.add_argument('--continue_on_error', action='store_true', help='log a failing set (e.g. too long for the GPU) and go on')
     resource_tracker.add_tracking_args(p)

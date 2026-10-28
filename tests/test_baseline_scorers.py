@@ -208,6 +208,8 @@ def test_tmpnn_predict_batches_within_proteins_and_restores_order(monkeypatch, t
 
 def test_tmpnn_combine_and_wanted(monkeypatch):
     mod = _load_tmpnn_module(monkeypatch)
+    df = pd.DataFrame({'code': ['A', 'A', 'B', 'C', 'B'], 'x': range(5)})
+    assert mod._limit(df, 2)['code'].tolist() == ['A', 'A', 'B', 'B'] and len(mod._limit(df, 0)) == 5
     n_mut = np.array([1, 2, 3])
     add = np.array([1.0, 2.0, 3.0]); epi = np.array([np.nan, 5.0, np.nan])
     pa, comb = mod._combine(add, epi, n_mut, {'single': 1, 'epistatic': 1})
@@ -262,6 +264,7 @@ def test_me_set_resolution_and_mutant_filter(monkeypatch, tmp_path):
     assert len(allsets) == 3 + 10 + 7 + 1 + 2                       # tsuboyama, external (incl. s461), DMS, domainome, 2 ProteinGym
     assert [p.stem for p in mod.resolve_sets('tsuboyama', 'oct06_capped_allbl')] == ['oct06_capped_allbl_val', 'oct06_capped_allbl_test', 'oct06_capped_allbl_testcomp']
     assert [p.stem for p in mod.resolve_sets('s669,val', 'oct06_capped_allbl')] == ['s669', 'oct06_capped_allbl_val']
+    assert [p.stem for p in mod.resolve_sets('PG_B', 'oct06_capped_allbl')] == ['PG_B']              # one ProteinGym DMS by id
     with pytest.raises(SystemExit):
         mod.resolve_sets('nope', 'oct06_capped_allbl')
     (tmp_path / 'ME' / 'data' / 's461' / 'mutations' / 's461.csv').unlink()
@@ -272,3 +275,9 @@ def test_me_set_resolution_and_mutant_filter(monkeypatch, tmp_path):
     single = pd.read_csv(mod.filter_mutants(src, 'single', tmp_path / 'out'))
     multi = pd.read_csv(mod.filter_mutants(src, 'multi', tmp_path / 'out'))
     assert single.mut_info.tolist() == ['A1C', 'D3E'] and multi.mut_info.tolist() == ['A1C:C2D', 'E4F:F5G:G6H']
+    two = pd.DataFrame({'pdb_id': ['P', 'P', 'Q', 'R'], 'mut_info': ['A1C', 'A1C:C2D', 'D3E', 'E4F']})
+    src2 = tmp_path / 'two.csv'
+    two.to_csv(src2, index=False)
+    first = pd.read_csv(mod.filter_mutants(src2, 'both', tmp_path / 'out', max_proteins=2))          # --max_proteins keeps the first N proteins
+    assert first.pdb_id.tolist() == ['P', 'P', 'Q']
+    assert pd.read_csv(mod.filter_mutants(src2, 'single', tmp_path / 'out', max_proteins=2)).mut_info.tolist() == ['A1C', 'D3E']

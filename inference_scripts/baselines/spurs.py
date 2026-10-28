@@ -214,6 +214,13 @@ def _seq_len(pdb_data):
         return None
 
 
+def _limit(df, n):
+    """--max_proteins: only the rows of the first n proteins (by `code`) of a frame; everything with n == 0."""
+    if not n:
+        return df
+    return df[df['code'].isin(list(dict.fromkeys(df['code']))[:n])]
+
+
 def _wanted(n_mut, mutants):
     n = np.asarray(n_mut)
     return {'single': n == 1, 'multi': n >= 2, 'both': np.ones(len(n), dtype=bool)}[mutants]
@@ -315,7 +322,7 @@ class Spurs:
             data_scaffold = ds.split_dfs[scaffold_]
             parts = []
             with self.tracker.scope('dataset', f'tsuboyama_{scaffold_}', n_rows=len(data_scaffold)):
-                for code in data_scaffold['code_wt'].unique():
+                for code in data_scaffold['code_wt'].unique()[:self.args.max_proteins or None]:
                     df_true = data_scaffold.loc[data_scaffold['code_wt'] == code].copy()
                     df_true['mut_structure'] = df_true['mut_structure'].fillna('-')
                     df_true = sum_individual_mutation_scores(df_true, 'ddG_ML', new_score_column='ddG_additive_ML')
@@ -354,16 +361,16 @@ def main(args):
             for name in EXTERNAL:
                 dest = out / f'external_{name}.csv'
                 if not (args.skip_existing and dest.exists()):
-                    spurs.score_table(external_rows(name), f'external_{name}').to_csv(dest, index=False)
+                    spurs.score_table(_limit(external_rows(name), args.max_proteins), f'external_{name}').to_csv(dest, index=False)
         if not args.skip_dms:
             for assay in DMS:
                 dest = out / f'dms_{assay}.csv'
                 if not (args.skip_existing and dest.exists()):
-                    spurs.score_table(dms_rows(assay), f'dms_{assay}').to_csv(dest, index=False)
+                    spurs.score_table(_limit(dms_rows(assay), args.max_proteins), f'dms_{assay}').to_csv(dest, index=False)
         if not args.skip_domainome:
             dest = out / 'domainome.csv'
             if not (args.skip_existing and dest.exists()):
-                spurs.score_table(domainome_rows(), 'domainome').to_csv(dest, index=False)
+                spurs.score_table(_limit(domainome_rows(), args.max_proteins), 'domainome').to_csv(dest, index=False)
         if not args.skip_pgym:
             import pgym_runner
             pgym_runner.run_protein_gym(
@@ -388,6 +395,7 @@ if __name__ == '__main__':
                         help='Remove homologs of SPURS training data from the Tsuboyama splits (tests generalization)')
     for b in ('tsuboyama', 'external', 'dms', 'domainome', 'pgym'):
         parser.add_argument(f'--skip_{b}', action='store_true')
+    parser.add_argument('--max_proteins', type=int, default=0, help='smoke test: only the first N proteins of every benchmark (0 = all); ProteinGym: use --pgym_dms')
     parser.add_argument('--skip_existing', action='store_true', help='skip an external/DMS/Domainome output that exists')
     parser.add_argument('--pgym_dir', default=str(paths.PGYM_INPUTS), help='pgym_inputs (preprocessing/pgym_preprocess.py)')
     parser.add_argument('--pgym_dms', default='all', help="comma-separated DMS ids, or 'all'")

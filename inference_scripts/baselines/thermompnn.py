@@ -240,6 +240,14 @@ def _n_mut(mut_types):
     return np.asarray(pd.Series(mut_types).astype(str).str.count(':') + 1)
 
 
+def _limit(df, n):
+    """--max_proteins: only the rows of the first n proteins (by `code`) of a frame; everything with n == 0."""
+    if not n:
+        return df
+    keep = list(dict.fromkeys(df['code']))[:n]
+    return df[df['code'].isin(keep)].reset_index(drop=True)
+
+
 def _wanted(n_mut, mutants):
     """Which rows --mutants asks for."""
     n = np.asarray(n_mut)
@@ -287,7 +295,7 @@ def _combine(add, epi, n_mut, models):
 def test(args, tracker, models, cfgs, split):
     """The prepared Tsuboyama item table of one split (val or test)."""
     os.chdir(os.path.join(TMPNN, 'thermompnn'))
-    items = pd.read_csv(os.path.join(DATA, f'items_{split}.csv'), low_memory=False)
+    items = _limit(pd.read_csv(os.path.join(DATA, f'items_{split}.csv'), low_memory=False), args.max_proteins)
     items['row'] = np.arange(len(items))
     is_double = items.mut_type.str.contains(':').to_numpy()
     wanted = _wanted(_n_mut(items.mut_type), args.mutants)
@@ -351,7 +359,7 @@ def domainome(args, tracker, models):
         return
     model_pl = models['single']
     os.makedirs(args.out, exist_ok=True)
-    df = domainome_rows()
+    df = _limit(domainome_rows(), args.max_proteins)
     preds = np.full(len(df), np.nan)
     bad = 0
     with tracker.scope('dataset', 'domainome', n_rows=len(df)):
@@ -387,7 +395,7 @@ def external(args, tracker, models, mode):
     os.makedirs(args.out, exist_ok=True)
     names, rows_fn, prefix = (EXTERNAL, external_rows, 'external') if mode == 'external' else (DMS, dms_rows, 'dms')
     for name in names:
-        df = rows_fn(name)
+        df = _limit(rows_fn(name), args.max_proteins)
         n_mut = _n_mut(df.mut_type)
         wanted = _wanted(n_mut, args.mutants)
         with tracker.scope('dataset', f'{prefix}_{name}', n_rows=int(wanted.sum())):
@@ -500,6 +508,8 @@ def main():
     ap.add_argument('--split', default='test', help='test: which prepared item table (test | val); `all` does both')
     ap.add_argument('--single_ckpt')
     ap.add_argument('--epistatic_ckpt')
+    ap.add_argument('--max_proteins', type=int, default=0,
+                    help='smoke test: only the first N proteins of every benchmark (0 = all); ProteinGym: use --pgym_dms')
     ap.add_argument('--mutants', choices=['single', 'multi', 'both'], default='both',
                     help='which rows to score (the others get NaN predictions and no inference)')
     ap.add_argument('--pgym_dir', default=str(paths.PGYM_INPUTS))

@@ -311,6 +311,9 @@ def main_(args):
                 df_true = df_true.set_index('id')
                 df_true = utils.parse_multimutant_column(df_true, 'mut_type', max_mutations=10)
 
+            if args.max_proteins:       # smoke subset: the first N structures of the set
+                keep = list(dict.fromkeys(df_true['code']))[:args.max_proteins]
+                df_true = df_true[df_true['code'].isin(keep)]
             _ds = tracker.scope('dataset', name, n_rows=len(df_true))
             _ds.__enter__()
             for (pdb, code, chain), data in tqdm(df_true.groupby(['pdb_file', 'code', 'chain'])):
@@ -403,7 +406,7 @@ def main_(args):
 
             _ds = tracker.scope('dataset', f'tsuboyama_{scaffold_}', n_rows=len(data_scaffold))
             _ds.__enter__()
-            for code in tqdm(data_scaffold['code_wt'].unique()):
+            for code in tqdm(data_scaffold['code_wt'].unique()[:args.max_proteins or None]):
                 df_true = data_scaffold.loc[data_scaffold['code_wt']==code].copy()
                 df_true['pdb_file'] = df_true['pdb_file'].str.replace('/home/sareeves/software/esm-msr/data/structures', args.local_path_to_structures, regex=False)
                 assert len(df_true) > 0
@@ -495,7 +498,7 @@ def main_(args):
         
         res_combined = []
 
-        for mem_size, prot in zip(mem_sizes, prots): 
+        for mem_size, prot in list(zip(mem_sizes, prots))[:args.max_proteins or None]:
             batch_sz = mem_size * 32
 
             # the repo's own data/preprocessed, not the software/esm-msr copy: that copy's GB1 is missing V39A/V39C/
@@ -579,7 +582,7 @@ def main_(args):
 
         _ds = tracker.scope('dataset', 'domainome', n_rows=len(df))
         _ds.__enter__()
-        for prot in tqdm(df['code'].unique()):
+        for prot in tqdm(df['code'].unique()[:args.max_proteins or None]):
             df_true = df.loc[df['code']==prot].copy()
             df_true['id'] = df_true['code'] + '_' + df_true['mut_type']
             df_true['chain'] = 'A'
@@ -673,6 +676,8 @@ if __name__ == "__main__":
         parser.add_argument('--remove_spurs_homologs', action='store_true', help='Remove homologous sequences to SPURS training data from the Tsuboyama splits to test generalization to non-homologous sequences')
 
         # ProteinGym (all-DMS) benchmark mode
+        parser.add_argument('--max_proteins', type=int, default=0,
+                            help='Smoke test: only the first N proteins of every external set / Tsuboyama split / Domainome and the first N DMS assays (0 = all). Writes partial outputs: use a checkpoint path nobody else reads.')
         parser.add_argument('--protein_gym', action='store_true', help='Run esm-msr over all preprocessed ProteinGym DMS benchmarks and exit')
         parser.add_argument('--pgym_dir', type=str, default=None, help='Directory with per-DMS input CSVs + manifest.csv')
         parser.add_argument('--pgym_out', type=str, default=None, help='Output directory for ProteinGym results (per-DMS CSVs + summary.csv)')
