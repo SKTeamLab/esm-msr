@@ -27,6 +27,15 @@ def _cuda():
     return torch is not None and torch.cuda.is_available()
 
 
+class _NullTracker:
+    """Stand-in when no resource_tracker.Tracker is passed, so the loop needs no branches."""
+    class _S:
+        row = None
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+    def scope(self, *a, **k): return self._S()
+
+
 def _peak_vram():
     """Peak GiB allocated / reserved by PyTorch on the current device since the last reset (None without CUDA)."""
     if not _cuda():
@@ -64,7 +73,7 @@ def make_log(out_dir):
     return log
 
 
-def run_protein_gym(pgym_dir, out_dir, score_fn, pred_col, dms='all', tag='', extra_cols=(), log=None):
+def run_protein_gym(pgym_dir, out_dir, score_fn, pred_col, dms='all', tag='', extra_cols=(), log=None, tracker=None):
     """Score every (or the selected) ProteinGym DMS with score_fn and write per-DMS CSVs + summary.csv.
 
     score_fn(df) gets one DMS's input rows (pdb_file resolved to an absolute path; columns pdb_file, code (the
@@ -77,7 +86,14 @@ def run_protein_gym(pgym_dir, out_dir, score_fn, pred_col, dms='all', tag='', ex
     Each scored (or failed) DMS's summary row records its wall time (time_s, from reading the input to writing the
     output), the peak GPU memory PyTorch allocated and reserved while scoring it (peak_alloc_gb, peak_reserved_gb;
     the counters are reset per DMS), the GPU and the host.
+
+    tracker: a resource_tracker.Tracker. Each DMS's score_fn call (which includes the model's own input handling) is
+    recorded as a `dms` scope inside one `dataset` scope named `proteingym`; the summary row also gets `ram_peak_gb`
+    and `cpu_cores` from it. The model-specific wrapper adds `protein` scopes around its inference calls only, and
+    those are the rows to read for inference cost. Without a tracker nothing changes.
     """
+    if tracker is None:
+        tracker = _NullTracker()
     pgym_dir = Path(pgym_dir).resolve()
     if not pgym_dir.exists():
         raise AssertionError(f"pgym_dir does not exist: {pgym_dir}")
@@ -110,6 +126,8 @@ def run_protein_gym(pgym_dir, out_dir, score_fn, pred_col, dms='all', tag='', ex
         return {f"spearman_{c}": safe_spearman(res[c], res["DMS_score"]) for c in extra_cols if c in res}
 
     t_start = time.time()
+    dataset_scope = tracker.scope('dataset', 'proteingym', n_dms=len(dms_list))
+    dataset_scope.__enter__()
     for i, did in enumerate(dms_list, 1):
         out_csv = out_dir / f"{did}.csv"
         if out_csv.exists():
@@ -142,7 +160,8 @@ def run_protein_gym(pgym_dir, out_dir, score_fn, pred_col, dms='all', tag='', ex
                 if not pdb_res.exists():
                     raise AssertionError(f"pdb_file not found: {pdb_res}")
                 df["pdb_file"] = str(pdb_res)
-            preds = score_fn(df)
+            with tracker.scope('dms', did, n_rows=len(df)) as sc:
+                preds = score_fn(df)
             info = {}
             if isinstance(preds, tuple):
                 preds, info = preds
@@ -159,6 +178,8 @@ def run_protein_gym(pgym_dir, out_dir, score_fn, pred_col, dms='all', tag='', ex
             mem = _peak_vram()
             summary_rows.append({"DMS_id": did, "n": len(res), "spearman_combined": rho, **spearmans(res),
                                  "time_s": dt, "units_per_s": len(res) / dt, **mem, "gpu": gpu, "host": host,
+                                 **({"ram_peak_gb": sc.row["ram_rss_peak_gb"], "cpu_cores": sc.row["cpu_cores"]}
+                                    if sc.row else {}),
                                  "status": "done"})
             info_s = ''.join(f" {k}={v}" for k, v in info.items())
             log(f"[PGYM {i}/{len(dms_list)}] DONE {did}: n={len(res)}{info_s} rho={rho:.4f} {dt:.1f}s ({len(res)/dt:.1f} u/s) "
@@ -173,6 +194,7 @@ def run_protein_gym(pgym_dir, out_dir, score_fn, pred_col, dms='all', tag='', ex
                                  **mem, "gpu": gpu, "host": host, "status": "fail", "error": str(e)[:200]})
         pd.DataFrame(summary_rows).to_csv(out_dir / "summary.csv", index=False)
 
+    dataset_scope.__exit__(None, None, None)
     s = pd.DataFrame(summary_rows)
     s.to_csv(out_dir / "summary.csv", index=False)
     valid = s.dropna(subset=["spearman_combined"])

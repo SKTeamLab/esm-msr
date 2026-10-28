@@ -19,6 +19,9 @@ from huggingface_hub import login, get_token
 
 from esm_msr import stats, utils, models, inference, preprocess_megascale, auto_batch
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import resource_tracker
+
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -97,7 +100,7 @@ def update_stats(stats_df, row_name, res_df, true_col, pred_col, epi_true_col='d
     return stats_df
 
 
-def run_protein_gym(args, model):
+def run_protein_gym(args, model, tracker=None):
     """Run esm-msr over all (preprocessed) ProteinGym DMS benchmarks, through the loop every model shares
     (pgym_runner.run_protein_gym: per-DMS resumable output CSVs, incremental summary.csv, run.log).
 
@@ -115,6 +118,7 @@ def run_protein_gym(args, model):
     # that mode, so the benchmark scores wt_lora_pred instead of combined_pred.
     pred_col = "wt_lora_pred" if getattr(args, 'skip_reverse', False) else "combined_pred"
     log = pgym_runner.make_log(out_dir)
+    tracker = tracker or resource_tracker.NullTracker()
 
     batch_map = None
     if args.batch_map:
@@ -136,12 +140,13 @@ def run_protein_gym(args, model):
         try:
             df = inference.standardize_input_df(df, quiet=True)
             log(f"[PGYM] {did}: standardize n={len(df)} in {time.time()-t0:.1f}s")
-            res = inference.infer_mutants(
-                model=model, df=df, batch_size=dms_batch,
-                quiet=True, optimize_wt_pass=True,
-                skip_reverse=args.skip_reverse, mask_strategy=args.mask_strategy,
-                auto_batch=sizer
-            )
+            with tracker.scope('protein', did, n_rows=len(df), batch_size=dms_batch):
+                res = inference.infer_mutants(
+                    model=model, df=df, batch_size=dms_batch,
+                    quiet=True, optimize_wt_pass=True,
+                    skip_reverse=args.skip_reverse, mask_strategy=args.mask_strategy,
+                    auto_batch=sizer
+                )
         finally:
             # Per-DMS L x vocab logits tensors and chunk buffers vary in size; return the caching allocator's hold on
             # freed blocks so VRAM stays flat across the full DMS sweep (otherwise the footprint grows monotonically
@@ -156,7 +161,8 @@ def run_protein_gym(args, model):
     tag = (f"sigma={args.sigma} ckpt={args.checkpoint} mt_pass_adapter={args.mt_pass_adapter} batch={args.batch_size}" +
            (f" batch_map={args.batch_map} ({len(batch_map)} entries)" if batch_map else "") +
            (f" auto_batch(headroom={args.auto_batch_headroom}, max={args.auto_batch_max})" if sizer else ""))
-    pgym_runner.run_protein_gym(pgym_dir, out_dir, score_fn, pred_col=pred_col, dms=args.pgym_dms, tag=tag, log=log)
+    pgym_runner.run_protein_gym(pgym_dir, out_dir, score_fn, pred_col=pred_col, dms=args.pgym_dms, tag=tag, log=log,
+                                tracker=tracker)
 
 def main_(args):
 
@@ -218,6 +224,17 @@ def main_(args):
 
     model_dtype = torch.bfloat16 if args.dtype == 'bf16' else torch.float32
     print(f"[MODEL] inference dtype = {args.dtype} ({model_dtype})")
+    # Resource tracking (on by default, --no_resource_tracking to skip): per-dataset and per-protein wall time, CPU, RAM,
+    # VRAM and I/O of the inference calls only; model loading and data handling are separate `stage` / dataset rows.
+    tracker = resource_tracker.Tracker.from_args(
+        args, label='esm_msr',
+        default_dir=(Path(args.pgym_out).resolve() / 'resources' if getattr(args, 'protein_gym', False) and args.pgym_out
+                     else REPO_ROOT / 'analysis_notebooks' / 'resources' / f'{CHECKPOINT_STR}_sigma{args.sigma}'),
+        meta={'model': 'ESM-MSR', 'checkpoint': CHECKPOINT_STR, 'sigma': args.sigma, 'dtype': args.dtype,
+              'precision_flag': args.precision, 'mask_strategy': str(args.mask_strategy),
+              'skip_reverse': bool(args.skip_reverse)})
+    _model_load = tracker.stage('model_load')
+    _model_load.__enter__()
     cal = inference.resolve_calibration(checkpoint_cal, args.tie_mt_scale, args.per_mutation_bias)
     print(f"[MODEL] calibration: tie_mt_scale={cal['tie_mt_scale']} per_mutation_bias={cal['per_mutation_bias']}")
     model = models.MSRModel(
@@ -248,12 +265,16 @@ def main_(args):
         print('[MODEL] MT pass uses the WT adapter and WT calibration head (--mt_pass_adapter wt)')
 
     model.eval()
+    _model_load.__exit__(None, None, None)
 
     # =========================================================================
     # PROTEINGYM BENCHMARKS (all DMS, preprocessed inputs)
     # =========================================================================
     if getattr(args, 'protein_gym', False):
-        run_protein_gym(args, model)
+        try:
+            run_protein_gym(args, model, tracker)
+        finally:
+            tracker.close()
         return
 
     # =========================================================================
@@ -290,16 +311,19 @@ def main_(args):
                 df_true = df_true.set_index('id')
                 df_true = utils.parse_multimutant_column(df_true, 'mut_type', max_mutations=10)
 
+            _ds = tracker.scope('dataset', name, n_rows=len(df_true))
+            _ds.__enter__()
             for (pdb, code, chain), data in tqdm(df_true.groupby(['pdb_file', 'code', 'chain'])):
                 
                 unique_data = data[~data.index.duplicated(keep='first')]
                 
                 input_data = inference.standardize_input_df(unique_data, quiet=True)
-                pred_df, t_inf = timed_call(
-                    inference.infer_mutants, 
-                    model=model, df=input_data, batch_size=1, quiet=True, mask_strategy=args.mask_strategy, 
-                    optimize_wt_pass=True, skip_reverse=args.skip_reverse
-                )
+                with tracker.scope('protein', f'{code}{chain}', n_rows=len(input_data), batch_size=1):
+                    pred_df, t_inf = timed_call(
+                        inference.infer_mutants,
+                        model=model, df=input_data, batch_size=1, quiet=True, mask_strategy=args.mask_strategy,
+                        optimize_wt_pass=True, skip_reverse=args.skip_reverse
+                    )
                 pred_df['id'] = code + chain + '_' + pred_df['mut_type_renumbered']
                 pred_df = pred_df.set_index('id')
 
@@ -309,6 +333,7 @@ def main_(args):
                 res_combined.append(res_partial)
                 total_time += t_inf
 
+            _ds.__exit__(None, None, None)
             res_df = pd.concat(res_combined)
             mask_tag = _mask_strategy_tag(args.mask_strategy)
 
@@ -376,6 +401,8 @@ def main_(args):
 
             time_per_code = {} # Track time per protein properly
 
+            _ds = tracker.scope('dataset', f'tsuboyama_{scaffold_}', n_rows=len(data_scaffold))
+            _ds.__enter__()
             for code in tqdm(data_scaffold['code_wt'].unique()):
                 df_true = data_scaffold.loc[data_scaffold['code_wt']==code].copy()
                 df_true['pdb_file'] = df_true['pdb_file'].str.replace('/home/sareeves/software/esm-msr/data/structures', args.local_path_to_structures, regex=False)
@@ -395,12 +422,14 @@ def main_(args):
                     input_data = inference.standardize_input_df(unique_data, backbone_mutation=backbone_mutation, quiet=True)
 
                     # Unified Inference
-                    pred_df, t = timed_call(
-                        inference.infer_mutants, 
-                        model=model, df=input_data, batch_size=16, backbone_mutation=backbone_mutation, quiet=True, 
-                        skip_additive=False, mask_strategy=args.mask_strategy, optimize_wt_pass=True,
-                        skip_reverse=args.skip_reverse
-                    )
+                    with tracker.scope('protein', code if backbone_mutation is None else f'{code}_{backbone_mutation}',
+                                       n_rows=len(input_data), batch_size=16):
+                        pred_df, t = timed_call(
+                            inference.infer_mutants,
+                            model=model, df=input_data, batch_size=16, backbone_mutation=backbone_mutation, quiet=True,
+                            skip_additive=False, mask_strategy=args.mask_strategy, optimize_wt_pass=True,
+                            skip_reverse=args.skip_reverse
+                        )
                     pred_df['id'] = code + ('_' if backbone_mutation is None else '_' + str(backbone_mutation) + '_') + pred_df['mut_type_renumbered']
                     pred_df = pred_df.set_index('id')
 
@@ -411,6 +440,7 @@ def main_(args):
                 
                 time_per_code[code] = t_total # Store the accumulated time for this specific code
 
+            _ds.__exit__(None, None, None)
             # Aggregate DataFrames
             res_df = pd.concat(res_combined)
             mask_tag = _mask_strategy_tag(args.mask_strategy)
@@ -488,12 +518,14 @@ def main_(args):
             unique_data = df_true[~df_true.index.duplicated(keep='first')]
             input_data = inference.standardize_input_df(unique_data, quiet=True)
 
-            pred_df, t_inf = timed_call(
-                inference.infer_mutants, 
-                model=model, df=input_data, batch_size=batch_sz, quiet=False, skip_additive=False, 
-                mask_strategy=args.mask_strategy, optimize_wt_pass=True,
-                skip_reverse=args.skip_reverse
-            )
+            with tracker.scope('dataset', prot, n_rows=len(df_true)):
+                with tracker.scope('protein', prot_name, n_rows=len(input_data), batch_size=batch_sz):
+                    pred_df, t_inf = timed_call(
+                        inference.infer_mutants,
+                        model=model, df=input_data, batch_size=batch_sz, quiet=False, skip_additive=False,
+                        mask_strategy=args.mask_strategy, optimize_wt_pass=True,
+                        skip_reverse=args.skip_reverse
+                    )
             pred_df['id'] = prot_name + '_' + pred_df['mut_type_renumbered']
             pred_df = pred_df.set_index('id')
 
@@ -545,6 +577,8 @@ def main_(args):
         
         should_skip_reverse_dom = args.skip_reverse or args.skip_reverse_domainome
 
+        _ds = tracker.scope('dataset', 'domainome', n_rows=len(df))
+        _ds.__enter__()
         for prot in tqdm(df['code'].unique()):
             df_true = df.loc[df['code']==prot].copy()
             df_true['id'] = df_true['code'] + '_' + df_true['mut_type']
@@ -554,12 +588,13 @@ def main_(args):
             unique_data = df_true[~df_true.index.duplicated(keep='first')]
             input_data = inference.standardize_input_df(unique_data, quiet=True)
 
-            pred_df, t_inf = timed_call(
-                inference.infer_mutants, 
-                model=model, df=input_data, batch_size=32, quiet=True, 
-                skip_reverse=should_skip_reverse_dom, mask_strategy=args.mask_strategy, 
-                optimize_wt_pass=True
-            )
+            with tracker.scope('protein', prot, n_rows=len(input_data), batch_size=32):
+                pred_df, t_inf = timed_call(
+                    inference.infer_mutants,
+                    model=model, df=input_data, batch_size=32, quiet=True,
+                    skip_reverse=should_skip_reverse_dom, mask_strategy=args.mask_strategy,
+                    optimize_wt_pass=True
+                )
             pred_df['id'] = prot + '_' + pred_df['mut_type_renumbered']
             pred_df = pred_df.set_index('id')
 
@@ -574,6 +609,7 @@ def main_(args):
                 stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', time_val=t_inf)
                 stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', time_val=t_inf)
 
+        _ds.__exit__(None, None, None)
         res_df = pd.concat(res_combined, axis=0)
         mask_tag = _mask_strategy_tag(args.mask_strategy)
 
@@ -595,6 +631,8 @@ def main_(args):
             stats_cmb.mean(axis=0).to_csv(f'{stats_base}_Combined_avg.csv', na_rep='', float_format='%.6f')
 
         torch.cuda.empty_cache()
+
+    tracker.close()
 
 
 if __name__ == "__main__":
@@ -658,6 +696,7 @@ if __name__ == "__main__":
                                  "one bias per item, so this shifts their multi-mutants by (k - 1) * bias).")
         parser.add_argument('--epistasis_weight', type=float, default=0.5,
                             help="Blend weight lambda in (1 - lambda) * y_WT + lambda * y_MT (default 0.5).")
+        resource_tracker.add_tracking_args(parser)
 
         args, remaining_argv = parser.parse_known_args()
         current_remaining_argv = list(remaining_argv) 

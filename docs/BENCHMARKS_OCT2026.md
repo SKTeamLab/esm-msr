@@ -35,8 +35,8 @@ standard deviation over seeds (n − 1), in §1 and §2 and in the ESM-MSR rows 
 (`~/consolidation/benchmark_matrix.py`, kept in step with it by `analysis_scripts/patch_consolidation_copy.py`); the repo
 script (`collect|tables`) reads the result trees in place but is not a drop-in for the fork. The long table is [`benchmarks/all_by_all_long.csv`](benchmarks/all_by_all_long.csv)
 (model, dataset, rho, sd, n_seeds, source). Companion documents: what is still outstanding is in
-[`OUTSTANDING_EXPERIMENTS.md`](OUTSTANDING_EXPERIMENTS.md); which hardware each run used, and the inference-speed
-findings, in [`GPU4_INFERENCE_LEDGER.md`](GPU4_INFERENCE_LEDGER.md).
+[`OUTSTANDING_EXPERIMENTS.md`](OUTSTANDING_EXPERIMENTS.md); how inference runtime, memory and CPU are measured, in
+[`INFERENCE_RESOURCES.md`](INFERENCE_RESOURCES.md).
 
 ## 1. All-by-all: every model on every dataset
 
@@ -226,7 +226,7 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
   0.787 / 0.806, ProteinMPNN 0.532 / 0.537 → 0.541 / 0.542), and left the wild-type-background rows bit-for-bit unchanged. On the
   mutant-background libraries themselves the per-library Spearman is 0.70–0.87 for SPURS and 0.44–0.70 for ProteinMPNN.
   No other model had this gap. (The SPURS single-model rerun first wrote to a mislabelled directory and these numbers lagged it
-  by a few hours; see `GPU4_INFERENCE_LEDGER.md` §4a.)
+  by a few hours.)
 - **IFUM is not held out either.** Its published split puts 21 of the 33 capped-test libraries in train and the other 12 in its unseparated val/test block; 23,518 test rows (45 %) are on proteins it trained on, and the mutations are the Megascale rows themselves. Both IFUM modes are `P`-flagged on the capped split, and its GB1 row is same-protein (IFUM trained on the Megascale 1PGA/GB1 library). Its per-variant ESMFold mode still beats its WT-backbone mode, but neither is a clean test.
 
 ### 1.3 DMS and Domainome

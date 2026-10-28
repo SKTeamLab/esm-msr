@@ -2,8 +2,8 @@
 
 What still has to run, or cannot run yet, for the all-by-all comparison in
 [`BENCHMARKS_OCT2026.md`](BENCHMARKS_OCT2026.md) §1. Each entry says what it fills, why it is not done, and what
-unblocks it. Last updated 2026-10-26. Where things ran and how long they took:
-[`GPU4_INFERENCE_LEDGER.md`](GPU4_INFERENCE_LEDGER.md). Cluster paths are on `sreeves@subhak-gpu.uwaterloo.ca`.
+unblocks it. Last updated 2026-10-26. Runtime, memory and CPU measurement:
+[`INFERENCE_RESOURCES.md`](INFERENCE_RESOURCES.md). Cluster paths are on `sreeves@subhak-gpu.uwaterloo.ca`.
 
 ## 1. Queued or running on gpu4 — no decision needed
 
@@ -82,7 +82,7 @@ asked for, so nothing else was added.
 | **ESM-MSR on the four largest ProteinGym DMS** (BRCA1_HUMAN_Findlay_2018, BRCA2_HUMAN_Erwood_2022_HEK293T, POLG_CXB3N_Mattenberger_2021, SCN5A_HUMAN_Glazer_2019; > 1,800 residues) | full 217-DMS ProteinGym for ESM-MSR; today every model is compared on 213 | out of memory on 24 GB (RTX 6000) and 20 GB (A4500) even at batch size 1. Devel seed 1 at σ = 1 alone got BRCA1 and SCN5A through an allocator retry. Needs the local 32 GB 5090, which the training queue is using (28.8 of 32.6 GB in use on 2026-10-21) | a free 5090. Inputs exist locally (`playground/esm-msr-devel/pgym_inputs`, `LoRA_models/esm-msr-baseline-w2a4-m16a16-capped`); the devel checkpoints are on the cluster under `LoRA_models/esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{1,2,3}/` (copy with their `MANIFEST.txt`). Runs: released full (4 DMS); released WT-only σ ∈ {0, 0.25, 0.5, 0.75, 1} (BRCA2, POLG, SCN5A); devel 3 seeds × σ ∈ {1, 0.75, 0.5, 0.25} (seed 1 at σ = 1 needs only BRCA2, POLG). Use `--batch_size 1 --dtype bf16` with the default allocator, as the `slurm_pgym.sh` second pass does |
 | MutateEverything on BRCA2 and SCN5A (ProteinGym) | ME at 217 DMS | out of memory at the cluster's card sizes | same 5090 window; low priority, since all comparisons use the 213 common DMS anyway |
 | **SPURS and the other Megascale-trained models on a homolog-filtered Tsuboyama split** | makes the §1.2 capped column interpretable, where SPURS (single model) currently reads 0.864 on test against ESM-MSR (devel) 0.849 | SPURS trains on Megascale, so the capped split is not held out for it. `esm_msr_testing.py --remove_spurs_homologs` exists for exactly this, but the harness adapters do not apply it | rescore every ‡ model on the libraries that survive that filter. Until then the SPURS, ESM3ΔG, IFUM and ESMtherm Tsuboyama numbers are upper bounds, not comparisons |
-| IFUM on ProteinGym | the IFUM row of §1.4 | declined 2026-10-22: ~246 h even with the fp16 patch, since the speedup is only 1.13–1.28× at the lengths that carry 95 % of the cost (`GPU4_INFERENCE_LEDGER.md` §3.2). A partial slice (Stability category 66 DMS / ~5.4 h; everything under 200 residues 94 DMS / ~12.5 h) was considered and turned down | a decision to spend the time, or a fix to the IEFFEUM head's precision rather than ProtT5's |
+| IFUM on ProteinGym | the IFUM row of §1.4 | declined 2026-10-22: ~246 h even with the fp16 patch, since the speedup is only 1.13–1.28× at the lengths that carry 95 % of the cost (the fp16 measurements are in the retired ledger: `git show d1cf240:docs/GPU4_INFERENCE_LEDGER.md` §3.2). A partial slice (Stability category 66 DMS / ~5.4 h; everything under 200 residues 94 DMS / ~12.5 h) was considered and turned down | a decision to spend the time, or a fix to the IEFFEUM head's precision rather than ProtT5's |
 | DDGemb on ProteinGym | §1.4 | 2.4 M variants ≈ 10 days of server time | a decision that it is worth it; otherwise reported as not run |
 | DDMut on capped Tsuboyama, DMS, Domainome, ProteinGym | the DDMut row | REST API at 20–30 s per variant: the capped split alone is weeks | not planned |
 | UniMutStab | the whole row | no released weights or inference code (pseudocode only); reimplementation ruled out on 2026-10-14 | weights from the authors |
@@ -99,7 +99,7 @@ asked for, so nothing else was added.
   `epi_baselines.assemble` and `score`, so a model needs only `pred` and `pred_additive` in the harness layout.
 - **Bootstrap intervals** (`analysis_notebooks/bootstrap_external.py`) with the new rows included, so the rankings in
   §1.3, where the spread is small, can be read with an uncertainty.
-- **A clean runtime table** on one A4500 per model ([`GPU4_INFERENCE_LEDGER.md`](GPU4_INFERENCE_LEDGER.md) §5).
+- **A clean runtime and memory table** on one A4500 slot per model: the tracker and the slot launcher are in place, the rerun is not done ([`INFERENCE_RESOURCES.md`](INFERENCE_RESOURCES.md)).
 - **Singles-only ProteinGym for the other models**, so that Rosetta's italic row has a comparable neighbour: every
   model's per-DMS predictions are on disk, so this is a re-scoring of the single-mutant rows, no GPU.
 

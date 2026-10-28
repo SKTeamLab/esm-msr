@@ -8,8 +8,6 @@ Run on the cluster (it reads the result trees in place); pandas only, CPU, about
   python analysis_scripts/benchmark_matrix.py collect --out matrix_long.csv     # gather + score
   python analysis_scripts/benchmark_matrix.py tables matrix_long.csv           # markdown for the doc
   python analysis_scripts/benchmark_matrix.py epi                              # the epistasis tables
-  sacct -u sreeves -S 2026-10-01 -X -P -o JobID,JobName%40,NodeList,Start,End,Elapsed,State > sacct.txt
-  python analysis_scripts/benchmark_matrix.py ledger sacct.txt --out slurm_jobs.csv                # gpu4 ledger
 
 Metric conventions, the same as esm_msr_testing.update_stats and the stability-baselines harness: external sets and
 DMS are one pooled Spearman per set; Tsuboyama and Domainome are the mean over proteins of the per-protein Spearman,
@@ -192,7 +190,7 @@ def collect_msr(rows, ckpt_dirs, model, sigma='1', heads=None, blocks=('external
             if len(v) < len(ckpt_dirs):
                 continue
             if len({c for c in conv.get(ds, []) if c}) > 1:          # seeds computed under different bias conventions: not a mean
-                print(f'[msr] {model}{label} {ds} eps={eps}: seeds mix bias conventions {conv[ds]}, not shown until rerun')
+                print(f'[msr] {model}{label} {ds} sigma={sigma}: seeds mix bias conventions {conv[ds]}, not shown until rerun')
                 continue
             rows.add(model + label, ds, np.mean(v), 'esm_msr_testing stats', len(v), np.std(v, ddof=1) if len(v) > 1 else np.nan)
 
@@ -617,80 +615,6 @@ def cmd_ddg(a):
             print(f'| {split} {name} (`{metric}`) | ' + ' | '.join(cells) + ' |')
 
 
-# ---------------------------------------------------------------------------------------------- ledger
-GPU = {'gpu1': 'RTX 6000', 'gpu2': 'RTX 6000', 'gpu3': 'RTX 6000', 'gpu4': 'RTX A4500'}
-JOBS = [  # job-name regex -> model, benchmark, kind
-    (r'^esmtherm_(full|s669)$', 'ESMtherm', 'gamut (22 sets, hyperopt Tsuboyama)', 'inference'),
-    (r'^ifum_wt_full$', 'IFUM (WT backbone)', 'gamut (22 sets)', 'inference'),
-    (r'^(esmfold_s|fold_w|foldS_w|ifum_foldbench)', 'IFUM (ESMFold per variant)', 'ESMFold folding of variant structures', 'structure prep'),
-    (r'^(ifum_esmfold_ext|ifum_multi_|ifum_sing_)', 'IFUM (ESMFold per variant)', 'gamut scoring on folded structures', 'inference'),
-    (r'^(geoddg_full|geoddg_retry|geoddg_s669)$', 'GeoDDG-3D (FASPR)', 'gamut (22 sets)', 'inference'),
-    (r'^(foldx_full|foldx_fix|fx_test)$', 'GeoDDG-3D (FoldX)', 'FoldX structure building (CPU)', 'structure prep'),
-    (r'^geoddg_fx_(full|rescore)$', 'GeoDDG-3D (FoldX)', '12 external sets', 'inference'),
-    (r'^prosst_all$', 'ProSST', 'gamut (22 sets)', 'inference'),
-    (r'^esm3dg_', 'ESM3ΔG', 'gamut (22 sets, sharded)', 'inference'),
-    (r'^af2ext_\d', 'ColabFold AF2', 'WT structures for external sets', 'structure prep'),
-    (r'^msr_small_af2$', 'ESM-MSR-small (March)', '12 external sets, AF2 structures', 'inference'),
-    (r'^(me_oct06|me_capped|me_capped_s\d|me_nobb_s\d)$', 'MutateEverything', 'training (st1+st2)', 'training'),
-    (r'^(tm_sin_c|tm_epi_c|tmpnn_(epi|single)_s|tm_nobb_single_s)', 'ThermoMPNN / -D', 'training', 'training'),
-    (r'^(me_ext|me_ext2|me_eval|me_vf|me_nobb_eval)', 'MutateEverything', 'Tsuboyama val/test + externals', 'inference'),
-    (r'^(me_dms|me_gb1|me_nobb_dms|me_nobb_fix)', 'MutateEverything', 'DMS', 'inference'),
-    (r'^(me_dom|me_nobb_dom)', 'MutateEverything', 'Domainome', 'inference'),
-    (r'^(tm_eval_c|tm_val_c|tm_vf_s|tm_nobb_eval|tmpnn_eval|tmpnn_ext)', 'ThermoMPNN / -D', 'Tsuboyama val/test + externals', 'inference'),
-    (r'^(tm_dms_c|tm_gb1|tm_nobb_dms)', 'ThermoMPNN / -D', 'DMS', 'inference'),
-    (r'^(tm_dom_c|tm_nobb_domainome)', 'ThermoMPNN / -D', 'Domainome', 'inference'),
-    (r'^msr_(ext|tsu|dms|dom)$', 'ESM-MSR capped', 'gamut (one job per block)', 'inference'),
-    (r'^msr_gb1$', 'ESM-MSR capped', 'GB1 rerun', 'inference'),
-    (r'^msr_dc8_s\d$', 'ESM-MSR dc8', 'gamut', 'inference'),
-    (r'^pgym_msr_(a4500|fp32)$', 'ESM-MSR capped', 'ProteinGym full', 'inference'),
-    (r'^pgym_msr_(wtonly|wtsweep)$', 'ESM-MSR capped', 'ProteinGym WT-only σ sweep', 'inference'),
-    (r'^pgym_dc8_s\d_e[\d.]+(_rest)?$', 'ESM-MSR dc8', 'ProteinGym (σ sweep)', 'inference'),
-    (r'^pgym_bigalloc$', 'ESM-MSR dc8', 'ProteinGym BRCA1/SCN5A retry', 'inference'),
-    (r'^pgym_dc8_s1_e1.0_mtpass|^gpu4_pgym_s1_mtpass', 'ESM-MSR dc8', 'ProteinGym MT-pass ablation', 'inference'),
-    (r'^pgym_spurs$', 'SPURS', 'ProteinGym', 'inference'),
-    (r'^pgym_mpnn(_fast|_s\d)?$', 'ProteinMPNN', 'ProteinGym', 'inference'),
-    (r'^pgym_mpnn_tta', 'ProteinMPNN', 'ProteinGym TTA pilot (73 DMS)', 'inference'),
-    (r'^pgym_me_(single|double)_s\d|^pgym_me_retry', 'MutateEverything', 'ProteinGym', 'inference'),
-    (r'^pgym_tmpnn(_s\d)?$', 'ThermoMPNN / -D', 'ProteinGym', 'inference'),
-    (r'^gpu4_ifumfold', 'IFUM (ESMFold per variant)', 'ESMFold folding, capped Tsuboyama (64,008 sequences)', 'structure prep'),
-    (r'^gpu4_ifumnat', 'IFUM (ESMFold per variant)', 'capped Tsuboyama scoring', 'inference'),
-    # reruns and new work of 2026-10-23. These must stay ahead of the generic gpu4_spurs / gpu4_mpnn patterns below: a rerun scores
-    # MORE rows than the run it replaces (the mutant-background libraries), so merging them would corrupt a runtime comparison.
-    (r'^gpu4_spurs_bb$', 'SPURS', 'rerun with the mutant-background libraries (capped val+test)', 'rerun'),
-    (r'^gpu4_spursmulti_bb$', 'SPURS multi', 'rerun with the mutant-background libraries (capped val+test)', 'rerun'),
-    (r'^gpu4_mpnn_bb$', 'ProteinMPNN', 'rerun with the mutant-background libraries (capped val+test)', 'rerun'),
-    (r'^gpu4_ctx2?_', 'ESM-MSR', 'ctx head (WT + ~WT)/2, capped val+test', 'inference'),
-    (r'^gpu4_pmb[23]?_', 'ESM-MSR', 'rerun after the calibration-default change (multi-mutant sets)', 'rerun'),
-    (r'^pmb_(pgym_check|pipeline|apply|finish)$', 'ESM-MSR', 'ProteinGym bias correction (CPU, offline)', 'cpu'),
-    (r'^(smk_|ctx_smoke|pmb_smoke|pmb_pgym_verify|pmb_ablation_verify)', 'various', 'smoke / verification of a change', 'smoke'),
-    (r'^gpu4_spurs_multi', 'SPURS multi', 'gamut, multi model on every variant', 'inference'),
-    (r'^gpu4_eps', 'ESM-MSR', 'LoRA scale sweep, DMS + Domainome', 'inference'),
-    (r'^gpu4_esm3dg', 'ESM3ΔG', 'capped Tsuboyama + ProteinGym', 'inference'),
-    (r'^gpu4_ifum', 'IFUM (WT backbone)', 'capped Tsuboyama + ProteinGym', 'inference'),
-    (r'^gpu4_esmtherm', 'ESMtherm', 'capped Tsuboyama + ProteinGym', 'inference'),
-    (r'^gpu4_geoddg', 'GeoDDG-3D (FASPR)', 'capped Tsuboyama + ProteinGym', 'inference'),
-    (r'^gpu4_prosst', 'ProSST', 'capped Tsuboyama + ProteinGym', 'inference'),
-    (r'^gpu4_msr_eps0', 'ESM3-small-open (σ=0)', 'gamut', 'inference'),
-    (r'^gpu4_spurs', 'SPURS', 'gamut (incl. capped Tsuboyama)', 'inference'),
-    (r'^gpu4_mpnn', 'ProteinMPNN', 'gamut (incl. capped Tsuboyama)', 'inference'),
-]
-
-
-def cmd_ledger(a):
-    d = pd.read_csv(a.sacct, sep='|')
-    rows = []
-    for _, r in d[d.JobName.notna() & ~d.JobName.isin(['bash', 'interactive'])].iterrows():
-        hit = next(((m, b, k) for pat, m, b, k in JOBS if re.search(pat, r.JobName)), None)
-        if hit is None:      # kept, not dropped: the CSV is the complete record, the doc's table is a filtered view of it
-            hit = ('unclassified', r.JobName, 'smoke' if re.search('smoke|verify|test|diag|dbg|check', r.JobName) else 'other')
-        rows.append(dict(job=r.JobID, name=r.JobName, model=hit[0], benchmark=hit[1], kind=hit[2], node=r.NodeList,
-                         gpu=GPU.get(r.NodeList, r.NodeList), start=str(r.Start)[:16], elapsed=r.Elapsed,
-                         state=r.State.split()[0]))
-    J = pd.DataFrame(rows)
-    J.to_csv(a.out, index=False)
-    print(f'{len(J)} jobs -> {a.out}')
-
-
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     sub = ap.add_subparsers(dest='cmd', required=True)
@@ -698,6 +622,5 @@ if __name__ == '__main__':
     t = sub.add_parser('tables'); t.add_argument('long'); t.set_defaults(fn=cmd_tables)
     e = sub.add_parser('epi'); e.set_defaults(fn=cmd_epi)
     g = sub.add_parser('ddg'); g.set_defaults(fn=cmd_ddg)
-    l = sub.add_parser('ledger'); l.add_argument('sacct'); l.add_argument('--out', default='slurm_jobs.csv'); l.set_defaults(fn=cmd_ledger)
     a = ap.parse_args()
     a.fn(a)
