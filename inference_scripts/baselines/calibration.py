@@ -78,17 +78,19 @@ def structures_of(frame, chain_col='chain', seq_fn=None):
     return out
 
 
-def worst(infos):
-    """One info dict out of the sizer reports of one scoring call (a call can run several groups, e.g. singles and doubles): the
-    smallest batch with the item count of the group it came from, OOMs summed."""
-    infos = [i for i in infos if i]
-    w = min(infos, key=lambda i: i['batch_max'])
-    return {'batch_max': w['batch_max'], 'n_items': w.get('n_items', 0), 'batch_ooms': sum(i.get('batch_ooms', 0) for i in infos)}
-
-
 def list_bounded(info):
     """Whether the work list, not memory, may have stopped the sizer: its largest batch is over a quarter of the items it had."""
     return int(info['batch_max']) * 4 > int(info.get('n_items', 0)) > 0
+
+
+def worst(infos):
+    """One info dict out of the sizer reports of one scoring call (a call can run several groups, e.g. singles and doubles): the
+    smallest batch among the groups that memory limited, with the item count of the group it came from, OOMs summed. A group
+    the list bounded (a protein has only 19 L distinct singles, however long the list) says only that its batch fits, so it
+    counts only when every group is bounded (the result is then bounded too and the list is grown)."""
+    infos = [i for i in infos if i]
+    w = min([i for i in infos if not list_bounded(i)] or infos, key=lambda i: i['batch_max'])
+    return {'batch_max': w['batch_max'], 'n_items': w.get('n_items', 0), 'batch_ooms': sum(i.get('batch_ooms', 0) for i in infos)}
 
 
 def calibrate(datasets, run_one, k=2, cap=4096, max_cap=65536, log=print):

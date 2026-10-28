@@ -416,8 +416,11 @@ def test_calibration_helpers(tmp_path):
     lens.clear()
     sizes3, detail3 = calibration.calibrate({'d': structs}, lambda s_, m_: {'batch_max': len(m_), 'n_items': len(m_)}, k=1, cap=100, max_cap=400, log=lambda m: None)
     assert sizes3 == {'d': 400} and detail3['d'][0]['list_bounded']                           # never memory-bound: flagged
-    assert calibration.worst([{'batch_max': 8, 'n_items': 100, 'batch_ooms': 1}, {'batch_max': 3, 'n_items': 40, 'batch_ooms': 2}]) == \
-        {'batch_max': 3, 'n_items': 40, 'batch_ooms': 3}
+    assert calibration.worst([{'batch_max': 8, 'n_items': 100, 'batch_ooms': 1}, {'batch_max': 3, 'n_items': 90, 'batch_ooms': 2}]) == \
+        {'batch_max': 3, 'n_items': 90, 'batch_ooms': 3}                                      # both memory-limited: the smaller
+    assert calibration.worst([{'batch_max': 8, 'n_items': 12}, {'batch_max': 30, 'n_items': 500, 'batch_ooms': 0}]) == \
+        {'batch_max': 30, 'n_items': 500, 'batch_ooms': 0}                                    # the short group (12 items) does not limit
+    assert calibration.list_bounded(calibration.worst([{'batch_max': 8, 'n_items': 12}, {'batch_max': 5, 'n_items': 9}]))   # all bounded
     assert not calibration.list_bounded({'batch_max': 5, 'n_items': 100}) and calibration.list_bounded({'batch_max': 30, 'n_items': 100})
     assert not calibration.list_bounded({'batch_max': 0, 'n_items': 0}) and not calibration.list_bounded({'batch_max': 7})
     calibration.save_entries(tmp_path / 'a.json', {'m1': sizes}, {'m1': detail}, {'gpu': 'G', 'headroom': 0.9})

@@ -19,13 +19,26 @@ single network; SPURS: its own four columns).
 
 ## Batch sizing
 
-One policy for every method that batches variants (`batching.py`, `--batch_mode auto|fixed`, `--batch_size`,
-`--auto_batch_headroom`; the job script takes `BATCH_MODE` and `BATCH_SIZE`): `auto` (default) is the `AutoBatchSizer` of
-`src/esm_msr/auto_batch.py` per protein, with the same 90 % GPU headroom for all of them; `fixed` is `--batch_size` items per forward
-call, or the method's historical default. The unit is what one forward call does for one protein: ESM-MSR variant sequences,
-ThermoMPNN mutation items, SPURS-multi variants, ProteinMPNN decoder rows. MutateEverything does not batch variants (one forward
-predicts every mutation of a protein). ESM-MSR's own script keeps its historical per-block sizes unless `--batch_mode` is given.
-Each protein's resource row records `batch_mode`, `batch_max`, `n_chunks` and `batch_ooms`.
+One policy for every method that batches variants (`batching.py`; `--batch_mode table|auto|fixed`, `--batch_size`,
+`--auto_batch_headroom`, `--batch_table`; the job script takes `BATCH_MODE` and `BATCH_SIZE`). The unit is what one forward call
+does for one protein: ESM-MSR variant sequences, ThermoMPNN mutation items (per network), SPURS-multi variants, ProteinMPNN
+decoder rows. MutateEverything does not batch variants (one forward predicts every mutation of a protein).
+
+* `table` (default): one batch size per model and dataset, read from [`batch_sizes_gpu4.json`](batch_sizes_gpu4.json), made once
+  on the target GPU (below). ProteinGym is `auto` in the table, because its proteins differ too much for one size per dataset.
+* `auto`: the `AutoBatchSizer` of `src/esm_msr/auto_batch.py` per protein, 90 % GPU headroom for every method.
+* `fixed`: `--batch_size N` items per call (without it, the method's historical size). `--batch_size N` in table mode overrides
+  the table.
+
+Each protein's resource row records `batch_mode`, `batch_max`, `n_chunks` and `batch_ooms`. ESM-MSR's own script keeps its
+historical per-block sizes unless `--batch_mode` is given.
+
+**Making the table** (`calibration.py`; once per GPU, headroom and precision; the table's `_meta` records them): each script's
+`--calibrate_batch_sizes OUT.json` (job script: `CALIBRATE=1`) takes the two longest structures of every dataset (memory per item
+grows with length), scores a saturated mixed list of single and double mutants with the sizer, and keeps the smaller batch the
+sizer settled on. A list the sizer gets through before memory stops it is repeated four times longer (up to 65,536 variants), so
+the size is the memory limit and not the list length; `_detail` records the proteins, lengths, list lengths and OOMs behind each
+size. `calibration.py merge a.json b.json ... -o batch_sizes_gpu4.json` builds the table.
 
 ## Reproducing
 
