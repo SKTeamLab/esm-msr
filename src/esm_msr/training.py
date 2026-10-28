@@ -952,7 +952,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     avg_metrics[_k].append(float(_v))
 
         for k, v in self.link_head.summary().items():
-            self.log(f"link/{k}", v, on_epoch=True, sync_dist=True)
+            if not isinstance(v, (str, bytes)):
+                self.log(f"link/{k}", v, on_epoch=True, sync_dist=True)
 
         if not self.trainer.sanity_checking:
             # After warmup only: during warmup LambdaLR rewrites every group's lr each step and would overwrite these decays.
