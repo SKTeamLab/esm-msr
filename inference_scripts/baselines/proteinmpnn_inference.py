@@ -677,6 +677,7 @@ class Mpnn:
     def __init__(self, args, tracker):
         self.args, self.tracker = args, tracker
         self.batching = args.batching
+        self.skipped = []          # structures that could not be featurized: the run exits non-zero if any
         self.device = torch.device('cuda:0')
         with tracker.stage('model_load'):
             model_name = 'v_48_020'                    # 48 edges, 0.20 A training noise
@@ -739,6 +740,7 @@ class Mpnn:
                     feats = self.featurize(code, pdb_path, chain)
                 except Exception as e:
                     print(f'Skipping {code}{chain}: failed featurizing: {e}')
+                    self.skipped.append(f'{label}/{code}{chain}')
                     continue
                 r = self.score(f'{code}{chain}', feats, g['mut_type'].tolist())
                 idx = [pos[i] for i in g.index]
@@ -809,6 +811,7 @@ class Mpnn:
                             feats = self.featurize(code, pdb_path, 'A', seq=seq)
                         except Exception as e:
                             print(f'Skipping {code}: failed featurizing: {e}')
+                            self.skipped.append(f'tsuboyama_{scaffold_}/{code}/{mut_structure}')
                             continue
                         r = self.score(code if mut_structure == '-' else f'{code}_{mut_structure}', feats, data['mut_type'].tolist())
                         for c, v in r.items():
@@ -860,6 +863,8 @@ def main(args):
                     f'mutants={args.mutants}', extra_cols=('mpnn_score_wt_seq',), tracker=tracker)
     finally:
         tracker.close()
+    if mpnn.skipped:
+        sys.exit(f'{len(mpnn.skipped)} structure(s) skipped, their predictions are NaN: {mpnn.skipped[:8]}')
 
 
 if __name__ == '__main__':

@@ -90,6 +90,7 @@ def _spurs(mod, models, mutants, tracker):
     obj.single = _FakeSingle() if models in ('single', 'both') else None
     obj.multi = _FakeMulti() if models in ('multi', 'both') else None
     obj.cfg_single, obj.cfg_multi = {}, {}
+    obj.skipped = []
     return obj
 
 
@@ -160,6 +161,7 @@ def test_mpnn_score_columns_and_mutants_filter(monkeypatch, tmp_path):
     obj.args = types.SimpleNamespace(mutants='both', max_tokens=32768, n_samples=1, coord_noise=0.0, seed=0)
     obj.batching = _fixed(None)
     obj.tracker, obj.model, obj.device = t, None, torch.device('cpu')
+    obj.skipped = []
     feats = (None, torch.zeros(1, 12, dtype=torch.long), None, None, None)
     r = obj.score('P', feats, ['A1C', 'A1C:C2D', 'D3E'])
     assert np.allclose(r['mpnn_score_wt_seq'], [1, 2, 3]) and np.allclose(r['mpnn_score'], [6, 7, 8])
@@ -441,3 +443,34 @@ def test_table_mode_batching(tmp_path):
     assert [c - a for a, c in seen] == [4, 4, 1]
     with pytest.raises(FileNotFoundError, match='calibrate'):
         batching.Batching(types.SimpleNamespace(batch_mode='table', batch_size=None, auto_batch_headroom=0.9, batch_table=str(tmp_path / 'none.json')), model='m')
+
+
+def test_spurs_parse_with_overwritten_sequence_needs_no_patched_spurs(monkeypatch):
+    import torch
+    mod = _load_spurs_module(monkeypatch)
+    seen = {}
+
+    def alt_parse_PDB(path, chain):
+        return [{'seq': 'ACDE', 'seq_chain_A': 'ACDE', 'resn_list': ['1', '2', '3', '4']}]
+
+    def get_pdb(d, name, model_name, check_assert=True):
+        seen.update(d)
+        return dict(d)
+
+    class Alphabet:
+        def __init__(self, **kw):
+            pass
+
+        def featurize(self, items):
+            return items[0]
+
+    utils_mod = types.ModuleType('spurs.datamodules.datasets.utils')
+    utils_mod.alt_parse_PDB, utils_mod.get_pdb = alt_parse_PDB, get_pdb
+    monkeypatch.setitem(sys.modules, 'spurs.datamodules.datasets.utils', utils_mod)
+    monkeypatch.setattr(sys.modules['spurs.datamodules.datasets.data_utils'], 'Alphabet', Alphabet)
+    out = mod.parse_pdb_with_seq('x.pdb', 'lib', 'A', {'datamodule': {'alphabet': {}}}, overwrite_seq='AGDE', device='cpu')
+    assert seen['seq'] == 'AGDE' and seen['seq_chain_A'] == 'AGDE' and isinstance(out['mut_ids'], torch.Tensor)
+    with pytest.raises(AssertionError):                                   # a sequence of another length is a bug, not a skip
+        mod.parse_pdb_with_seq('x.pdb', 'lib', 'A', {'datamodule': {'alphabet': {}}}, overwrite_seq='AGD', device='cpu')
+    # without overwrite_seq it is upstream's function, called with no extra argument
+    assert mod.parse_pdb_with_seq('x.pdb', 'lib', 'A', {}, device='cpu') == {'seq': 'ACDEFGHIKL'}

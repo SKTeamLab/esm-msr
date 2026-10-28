@@ -215,6 +215,38 @@ def run_multi(model_multi, pdb_data, mutation_lists, batching, label='', info_ou
     return out, merge_info(infos)
 
 
+def parse_pdb_with_seq(pdb_path, pdb_name, chain, cfg, overwrite_seq=None,
+                       device='cuda' if torch.cuda.is_available() else 'cpu'):
+    """spurs.inference.parse_pdb, plus `overwrite_seq`: score a sequence other than the structure's on its backbone (a
+    mutant-background Tsuboyama library is the wild-type AlphaFold backbone carrying the background substitution). The pinned
+    SPURS (third_party.lock) has no such argument, and patching it would make the checkout differ from the lock, so the
+    function is reproduced here: upstream's body from `parse_pdb` at that commit, with the sequence replaced after
+    `alt_parse_PDB`. Without `overwrite_seq` it is upstream's function."""
+    if overwrite_seq is None:
+        return parse_pdb(pdb_path, pdb_name, chain, cfg, device)
+    from spurs.datamodules.datasets.data_utils import Alphabet
+    from spurs.datamodules.datasets.utils import alt_parse_PDB, get_pdb
+
+    pdb = alt_parse_PDB(pdb_path, chain)
+    assert len(overwrite_seq) == len(pdb[0]['seq']), (len(overwrite_seq), len(pdb[0]['seq']))
+    for k in [k for k in pdb[0] if k == 'seq' or k.startswith('seq_chain_')]:
+        pdb[0][k] = overwrite_seq
+    pdb = get_pdb(pdb[0], pdb_name, pdb_name, check_assert=False)
+    pdb['mut_ids'] = torch.tensor([0])
+    pdb['ddG'] = torch.tensor([[0]])
+    pdb['append_tensors'] = torch.tensor([0])
+    pdb['dataset'] = ['0']
+    pdb = Alphabet(**cfg['datamodule']['alphabet']).featurize([pdb])
+
+    def to_device(d):
+        if isinstance(d, dict):
+            return {k: to_device(v) for k, v in d.items()}
+        if isinstance(d, list):
+            return [to_device(v) for v in d]
+        return d.to(device) if isinstance(d, torch.Tensor) else d
+    return to_device(pdb)
+
+
 def _seq_len(pdb_data):
     try:
         return int(len(pdb_data['seq']))
@@ -244,6 +276,7 @@ class Spurs:
     def __init__(self, args, tracker):
         self.args, self.tracker = args, tracker
         self.mutants, self.models = args.mutants, args.models
+        self.skipped = []          # structures that could not be parsed: the run exits non-zero if any
         self.batching = args.batching
         with tracker.stage('model_load'):
             self.single, self.multi, self.cfg_single, self.cfg_multi = load_spurs_models(
@@ -254,8 +287,7 @@ class Spurs:
         return 'SPURS_multi' if self.models != 'single' else 'SPURS_single_additive'
 
     def parse(self, pdb_path, code, chain, overwrite_seq=None):
-        return (parse_pdb(pdb_path, code, chain, self.cfg_single, overwrite_seq=overwrite_seq) if overwrite_seq
-                else parse_pdb(pdb_path, code, chain, self.cfg_single))
+        return parse_pdb_with_seq(pdb_path, code, chain, self.cfg_single, overwrite_seq=overwrite_seq)
 
     def score(self, name, pdb_data, mut_strings):
         """The SPURS readouts for one structure (positive = stabilizing, as everywhere here): a dict of arrays aligned
@@ -300,6 +332,7 @@ class Spurs:
                     pdb_data = self.parse(pdb_path, code, chain)
                 except Exception as e:
                     print(f'Skipping {code}{chain}: failed parsing PDB: {e}')
+                    self.skipped.append(f'{label}/{code}{chain}')
                     continue
                 r = self.score(f'{code}{chain}', pdb_data, g['mut_type'].tolist())
                 idx = [pos[i] for i in g.index]
@@ -386,6 +419,7 @@ class Spurs:
                             pdb_data = self.parse(pdb_path, code, 'A', overwrite_seq=mutbb_seq)
                         except Exception as e:
                             print(f'Skipping sequence {code} - failed parsing PDB: {e}')
+                            self.skipped.append(f'tsuboyama_{scaffold_}/{code}/{mut_structure}')
                             continue
                         r = self.score(code if mut_structure == '-' else f'{code}_{mut_structure}', pdb_data, data['mut_type'].tolist())
                         for c, v in r.items():
@@ -436,6 +470,8 @@ def main(args):
                 extra_cols=('SPURS_single_additive', 'SPURS_multi_additive'), tracker=tracker)
     finally:
         tracker.close()
+    if spurs.skipped:      # a structure that cannot be scored is a missing result, not something to hide in the log
+        sys.exit(f'{len(spurs.skipped)} structure(s) skipped, their predictions are NaN: {spurs.skipped[:8]}')
 
 
 if __name__ == '__main__':
