@@ -178,7 +178,11 @@ def _predict_batch(model, batch, device, args, sc):
 def main(args):
     if int(os.environ.get('WORLD_SIZE', '1')) > 1:
         sys.exit('mutate_everything_inference.py is a single-process script (WORLD_SIZE > 1 would repeat every set on every rank)')
+    # a single process: under Slurm upstream's init_distributed_mode would take SLURM_PROCID as a rank and wait for peers
+    slurm_procid = os.environ.pop('SLURM_PROCID', None)
     misc.init_distributed_mode(args)
+    if slurm_procid is not None:
+        os.environ['SLURM_PROCID'] = slurm_procid
     device = torch.device(args.device)
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     os.makedirs(args.output_dir, exist_ok=True)
