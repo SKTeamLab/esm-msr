@@ -1,0 +1,13 @@
+code,meaning,evidence
+`M`,"identical variant row in training (same protein family, identical mutation set)",verified
+`m`,"every mutation in the row appears in training in the same protein, but not this combination (e.g. a test double whose two singles were trained)",verified
+`P`,"same protein (≥95 % identity over ≥90 % coverage, or ≥90 % identity over ≥50 %) in training, no mutation match",verified
+`H`,strong homolog in training: MMseqs2 E ≤ 1e-3 over ≥50 % of the test protein,verified
+`h`,weak/ambiguous: E ≤ 1e-2 or ≥30 % identity over ≥30 % of the test protein,measured
+`D`,documented training on the same source dataset; rows not reconstructable,documented
+`C`,"pretraining-corpus exposure only (WT sequence/structure, no mutation supervision)",documented
+`U`,training data not disclosed,documented
+`V`,the dataset was used for validation or model selection,documented
+`#`,the number is not a test result (the dataset is the training set),verified
+`?`,"probable but unverified (e.g. `M?`: same protein and same source dataset, row-level file not public)",inferred
+`n.a.`,"not audited: no statement about overlap is made, and the cell is not eligible for bold",–

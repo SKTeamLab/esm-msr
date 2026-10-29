@@ -1,0 +1,25 @@
+model,s571 (leak code),s783 (leak code),s2648 (leak code),s8754 (leak code),s669 (leak code),s461 (leak code),ssym (leak code),q3421 (leak code),k3822 (leak code),k2369 (leak code),ptmul (leak code),ptmuld (leak code),mean of 12 (leak code)
+"ESM-MSR (baseline), combined (3 seeds)",–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
+"ESM-MSR (baseline), WT head (3 seeds)",–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
+"ESM-MSR (devel), combined (3 seeds)",–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
+"ESM-MSR (devel), WT head",–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
+MutateEverything st1 (3 seeds),–,–,–,–,h.001,h.002,–,–,–,–,–,–,–
+MutateEverything st2 (3 seeds),–,–,–,–,h.001,h.002,–,–,–,–,–,–,–
+"ThermoMPNN (additive, 3 seeds)",–,–,–,–,h.001,h.002,–,–,–,–,–,–,–
+ThermoMPNN + ThermoMPNN-D (3 seeds),–,–,–,–,–,–,–,–,–,–,–,–,–
+SPURS (single model),P.08 H.03,P.07 h.08,M.001 P.02 H.02 h.01,M.002 P.20 H.02 h.006,H.003 h.001,h.002,–,M.002 P.02 H.02 h.008,M.001 P.23 H.02 h.01,M.002 P.34 H.02 h.01,m.02 P.09 H.05 h.02,m.006 P.02 H.04 h.02,–
+SPURS multi (multi-mutant model),m.005 P.08 H.03,P.07 h.11,m<.001 P.04 H.01 h.01,m.002 P.21 H.01 h.006,m.01 P.13 H.003 h.09,m.02 P.19 h.13,–,m<.001 P.04 H.02 h.02,m.002 P.27 H.02 h.02,m.002 P.35 H.02 h.02,P.10 H.04 h.02,P.02 H.04 h.02,–
+ESMtherm,P.12 M?.09 H.03,P.19 M?.15 h.04,P.05 M?.04 H.02 h.008,P.23 M?.18 H.02 h.006,P.24 M?.19 H.003 h.09,P.35 M?.28 h.14,–,P.06 M?.05 H.03 h.02,P.31 M?.24 H.03 h.02,P.38 M?.31 H.03 h.02,P.13 M?.10 H.06 h.01,P.06 M?.05 H.06 h.02,–
+DDGemb (server),M.09 P.20 H.03 h.01,M.01 P.70 H.02,M.93 H.02 h.001 D,M.30 P.37 H.04 h.004,–,–,M.28 P.72,M.45 P.39 H.02,M.26 P.31 H.03 h.006,M.24 P.26 H.03 h.003,P.79 H.03 h.003,P.86 H.04 h.004,–
+DDMut (server),M.20 P.20 H.06,M.42 P.49 H.02,M.89 P.11 H<.001 D,M.60 P.30 H.03 h.001 D,P.11 H.02 h.004,P.16 H.004 h.004,M.30 P.70,M.66 P.27 H.009,M.57 P.28 H.03 h.002,M.65 P.22 H.03 h.003,M.59 P.37 H.01,M.36 P.59 H.02,–
+"IFUM, WT backbone",P.05 M?.05 H.08,P.04 M?.04 H.03 h.11,P.06 M?.06 H.02,P.22 M?.22 H.02 h.001,P.14 M?.14 H.003 h.09,P.21 M?.21 h.14,–,P.06 M?.06 H.02 h.009,P.29 M?.29 H.02 h.02,P.38 M?.38 H.02 h.01,P.15 M?.15 H.03 h.001,P.07 M?.07 H.04 h.002,–
+"IFUM, ESMFold per variant",P.05 M?.05 H.08,P.04 M?.04 H.03 h.11,P.06 M?.06 H.02,P.22 M?.22 H.02 h.001,P.14 M?.14 H.003 h.09,P.21 M?.21 h.14,–,P.06 M?.06 H.02 h.009,P.29 M?.29 H.02 h.02,P.38 M?.38 H.02 h.01,P.15 M?.15 H.03 h.001,P.07 M?.07 H.04 h.002,–
+GeoDDG-3D (FASPR),M.39 P.11 H.04,M.88 h.07,M.98 P.02,M1 #,P.01 H.03 h.03,H.004 h.03,M.37 P.63,M.69 P.29,M.69 P.20 H.002 h.002,M.76 P.15 H.003 h.002,P.97 H.004,P.97 H.006,–
+ESM3ΔG,H.02 h.07,h.08,H.02 h.12,H.01 h.08,h.23,h.31,h.04,H.004 h.11,H.009 h.10,H.007 h.09,H.009 h.14,H.01 h.12,–
+ProSST (zero-shot),C,C,C,C,C,C,C,C,C,C,C,C,–
+ProteinMPNN (zero-shot),C,C,C,C,C,C,C,C,C,C,C,C,–
+"ESM3-small-open, σ = 0 (zero-shot)",C,C,C,C,C,C,C,C,C,C,C,C,–
+"ESM3-large (Forge, zero-shot)",C,C,C,C,C,C,C,C,C,C,C,C,–
+"ESM3-medium (Forge, zero-shot)",C,C,C,C,C,C,C,C,C,C,C,C,–
+"ESM3-small (Forge, zero-shot)",C,C,C,C,C,C,C,C,C,C,C,C,–
+ESM-MSR-small (March reference),–,–,–,–,–,–,–,–,–,–,–,–,–

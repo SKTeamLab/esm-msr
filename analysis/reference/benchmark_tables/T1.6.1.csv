@@ -1,0 +1,13 @@
+model,capped val,capped test
+"**SPURS, retrained (3 seeds)**",0.803±0.002,0.801±0.004
+"**SPURS multi, retrained (3 seeds)**",0.763±0.005,0.772±0.002
+"SPURS, retrained, adapter trained (1 seed)",0.798,0.799
+"ESM-MSR (baseline), combined (3 seeds)",0.855±0.001,0.847±0.001
+"ESM-MSR (devel), combined (3 seeds)",0.854±0.001,0.849±0.001
+"ThermoMPNN (additive, 3 seeds)",0.787±0.002,0.794±0.002
+ThermoMPNN + ThermoMPNN-D (3 seeds),0.785±0.002,0.784±0.000
+MutateEverything st1 (3 seeds),0.753±0.003,0.771±0.002
+MutateEverything st2 (3 seeds),0.730±0.003,0.760±0.003
+ProteinMPNN (zero-shot),0.541,0.542
+"SPURS (published checkpoint, not held out)",0.841,0.864
+"SPURS multi (published checkpoint, not held out)",0.787,0.806

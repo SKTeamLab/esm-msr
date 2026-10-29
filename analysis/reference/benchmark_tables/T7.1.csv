@@ -1,0 +1,13 @@
+path,what
+`~/esm-msr-devel/outputs/baselines_capped/`,"the retrained-baseline and devel-checkpoint result tables (§2), and `epi_rosetta_*.csv`"
+"`~/esm-msr-devel/outputs/baselines_corrected/`, `outputs/baselines_capped_allbl/`","the corrected ThermoMPNN-D checkpoints and evaluations, and the corrected (unfiltered) item tables"
+`~/me_audit/`,"the corrected-data builder (`prepare_allbl.py`), ME stage-2 and evaluation launchers, scorers, the epistasis rescoring with the `epi` head fix (`epi/`), and the corrected score tables (`out/`)"
+`~/software/MutateEverything-oct06/`,"the upstream ME clone (034dd91) with the oct06 data, `logs/` (checkpoints) and `logs_eval/` (predictions)"
+`~/esm-msr-devel/outputs/pgym/`,"every ProteinGym run, plus `pgym_all_models_per_dms.csv` and `pgym_dc8_per_dms.csv`"
+`~/esm-msr-devel/analysis_notebooks/stats/`,ESM-MSR's own per-dataset statistics
+`~/esm-msr-devel/baselines/`,"baseline data prep (`prepare_oct06_data.py`), training wrappers, and the epistasis suite applied to other models (`epi_baselines.py`, `epi_dms.py`)"
+`~/stability-baselines/`,"the third-party harness, adapters and results (not a git repository)"
+`~/spurs_retrain/`,"the SPURS retrain on the capped split (§1.6): code (patched luo-group/SPURS), checkpoints, harness predictions and scored summaries, `HANDOFF_SPURS_BENCHMARK.md`"
+`~/project_oct06_baselines/`,"a symlink index over the retrained-baseline work, with its own README"
+`~/stability-baselines/results/rosetta/`,"the Rosetta capped-split predictions in harness layout, with their provenance; the raw Narval outputs are in `~/playground/narval-recovery/predictions/` on the local machine"
+`~/stability-baselines/pgym_public/`,ProteinGym's published zero-shot scores (1.9 GB zip)

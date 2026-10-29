@@ -1,0 +1,79 @@
+column,model,rho,lo,hi
+DLG4_HUMAN_Faure_2021_abundance_domain,devel σ = 1,0.7451,0.6667,0.7604
+DLG4_HUMAN_Faure_2021_binding_domain,devel σ = 1,0.7423,0.6602,0.7688
+GRB2_HUMAN_Faure_2021_abundance_domain,devel σ = 1,0.6815,0.6303,0.7146
+GRB2_HUMAN_Faure_2021_binding_domain,devel σ = 1,0.6358,0.5964,0.6773
+MYO_HUMAN_Kung_2025_display,devel σ = 1,0.6395,0.6014,0.6711
+ESTA_BACSU_Nutschel_2020_dTm,devel σ = 1,0.4778,0.4062,0.5442
+GB1_Wu_2016_binding_domain,devel σ = 1,0.3369,0.2986,0.3706
+domainome,devel σ = 1,0.5482,0.5361,0.5596
+mean of 7 DMS,devel σ = 1,0.6084,0.5836,0.6218
+DLG4_HUMAN_Faure_2021_abundance_domain,devel σ = 0.75,0.7617,0.6853,0.7742
+DLG4_HUMAN_Faure_2021_binding_domain,devel σ = 0.75,0.7727,0.7018,0.7916
+GRB2_HUMAN_Faure_2021_abundance_domain,devel σ = 0.75,0.7127,0.6613,0.7455
+GRB2_HUMAN_Faure_2021_binding_domain,devel σ = 0.75,0.6737,0.6311,0.7162
+MYO_HUMAN_Kung_2025_display,devel σ = 0.75,0.6393,0.6023,0.6698
+ESTA_BACSU_Nutschel_2020_dTm,devel σ = 0.75,0.5084,0.4395,0.5703
+GB1_Wu_2016_binding_domain,devel σ = 0.75,0.3454,0.3239,0.3913
+domainome,devel σ = 0.75,0.5648,0.5530,0.5768
+mean of 7 DMS,devel σ = 0.75,0.6306,0.6070,0.6438
+DLG4_HUMAN_Faure_2021_abundance_domain,devel σ = 0.5,0.7679,0.6916,0.7807
+DLG4_HUMAN_Faure_2021_binding_domain,devel σ = 0.5,0.7960,0.7226,0.8110
+GRB2_HUMAN_Faure_2021_abundance_domain,devel σ = 0.5,0.7163,0.6606,0.7496
+GRB2_HUMAN_Faure_2021_binding_domain,devel σ = 0.5,0.7054,0.6626,0.7480
+MYO_HUMAN_Kung_2025_display,devel σ = 0.5,0.6275,0.5914,0.6588
+ESTA_BACSU_Nutschel_2020_dTm,devel σ = 0.5,0.5184,0.4499,0.5802
+GB1_Wu_2016_binding_domain,devel σ = 0.5,0.3488,0.3333,0.3980
+domainome,devel σ = 0.5,0.5711,0.5590,0.5837
+mean of 7 DMS,devel σ = 0.5,0.6400,0.6145,0.6553
+DLG4_HUMAN_Faure_2021_abundance_domain,devel σ = 0.25,0.7489,0.6609,0.7706
+DLG4_HUMAN_Faure_2021_binding_domain,devel σ = 0.25,0.7935,0.7122,0.8123
+GRB2_HUMAN_Faure_2021_abundance_domain,devel σ = 0.25,0.6865,0.6284,0.7222
+GRB2_HUMAN_Faure_2021_binding_domain,devel σ = 0.25,0.7263,0.6846,0.7667
+MYO_HUMAN_Kung_2025_display,devel σ = 0.25,0.5955,0.5597,0.6277
+ESTA_BACSU_Nutschel_2020_dTm,devel σ = 0.25,0.5022,0.4340,0.5642
+GB1_Wu_2016_binding_domain,devel σ = 0.25,0.3184,0.3093,0.3648
+domainome,devel σ = 0.25,0.5640,0.5512,0.5770
+mean of 7 DMS,devel σ = 0.25,0.6245,0.5961,0.6376
+DLG4_HUMAN_Faure_2021_abundance_domain,σ = 0 (zero-shot control),0.6895,0.5714,0.7316
+DLG4_HUMAN_Faure_2021_binding_domain,σ = 0 (zero-shot control),0.7432,0.6485,0.7731
+GRB2_HUMAN_Faure_2021_abundance_domain,σ = 0 (zero-shot control),0.6268,0.5681,0.6670
+GRB2_HUMAN_Faure_2021_binding_domain,σ = 0 (zero-shot control),0.7232,0.6837,0.7594
+MYO_HUMAN_Kung_2025_display,σ = 0 (zero-shot control),0.5358,0.4980,0.5705
+ESTA_BACSU_Nutschel_2020_dTm,σ = 0 (zero-shot control),0.4716,0.4034,0.5325
+GB1_Wu_2016_binding_domain,σ = 0 (zero-shot control),0.2597,0.2434,0.2949
+domainome,σ = 0 (zero-shot control),0.5443,0.5322,0.5580
+mean of 7 DMS,σ = 0 (zero-shot control),0.5785,0.5459,0.5942
+DLG4_HUMAN_Faure_2021_abundance_domain,ProSST (zero-shot),0.7756,0.6990,0.7894
+DLG4_HUMAN_Faure_2021_binding_domain,ProSST (zero-shot),0.7964,0.7137,0.8133
+GRB2_HUMAN_Faure_2021_abundance_domain,ProSST (zero-shot),0.7113,0.6555,0.7429
+GRB2_HUMAN_Faure_2021_binding_domain,ProSST (zero-shot),0.7019,0.6538,0.7453
+MYO_HUMAN_Kung_2025_display,ProSST (zero-shot),0.5382,0.4949,0.5782
+ESTA_BACSU_Nutschel_2020_dTm,ProSST (zero-shot),0.3565,0.2783,0.4277
+GB1_Wu_2016_binding_domain,ProSST (zero-shot),0.2581,0.2487,0.3166
+domainome,ProSST (zero-shot),0.5193,0.5078,0.5310
+mean of 7 DMS,ProSST (zero-shot),0.5911,0.5629,0.6103
+DLG4_HUMAN_Faure_2021_abundance_domain,ProteinMPNN (zero-shot),0.6186,0.5328,0.6601
+DLG4_HUMAN_Faure_2021_binding_domain,ProteinMPNN (zero-shot),0.6126,0.5330,0.6575
+GRB2_HUMAN_Faure_2021_abundance_domain,ProteinMPNN (zero-shot),0.6666,0.6083,0.7066
+GRB2_HUMAN_Faure_2021_binding_domain,ProteinMPNN (zero-shot),0.5383,0.4653,0.5978
+MYO_HUMAN_Kung_2025_display,ProteinMPNN (zero-shot),0.4978,0.4580,0.5353
+ESTA_BACSU_Nutschel_2020_dTm,ProteinMPNN (zero-shot),0.5437,0.4698,0.6132
+GB1_Wu_2016_binding_domain,ProteinMPNN (zero-shot),0.1195,0.1053,0.3035
+domainome,ProteinMPNN (zero-shot),0.5476,0.5372,0.5595
+mean of 7 DMS,ProteinMPNN (zero-shot),0.5139,0.4877,0.5518
+DLG4_HUMAN_Faure_2021_abundance_domain,ESM3-small (Forge),0.7692,0.6912,0.7871
+DLG4_HUMAN_Faure_2021_binding_domain,ESM3-small (Forge),0.7854,0.7051,0.8033
+GRB2_HUMAN_Faure_2021_abundance_domain,ESM3-small (Forge),0.6725,0.6206,0.7051
+GRB2_HUMAN_Faure_2021_binding_domain,ESM3-small (Forge),0.7313,0.6925,0.7646
+MYO_HUMAN_Kung_2025_display,ESM3-small (Forge),0.5682,0.5310,0.6018
+ESTA_BACSU_Nutschel_2020_dTm,ESM3-small (Forge),0.4980,0.4292,0.5624
+DLG4_HUMAN_Faure_2021_abundance_domain,ESM3ΔG,0.7626,0.6806,0.7726
+DLG4_HUMAN_Faure_2021_binding_domain,ESM3ΔG,0.7658,0.6825,0.7815
+GRB2_HUMAN_Faure_2021_abundance_domain,ESM3ΔG,0.7487,0.6869,0.7850
+GRB2_HUMAN_Faure_2021_binding_domain,ESM3ΔG,0.6457,0.5954,0.6986
+MYO_HUMAN_Kung_2025_display,ESM3ΔG,0.5940,0.5536,0.6297
+ESTA_BACSU_Nutschel_2020_dTm,ESM3ΔG,0.2797,0.1982,0.3600
+GB1_Wu_2016_binding_domain,ESM3ΔG,0.3238,0.3192,0.3898
+domainome,ESM3ΔG,0.5119,0.4951,0.5277
+mean of 7 DMS,ESM3ΔG,0.5886,0.5629,0.6041

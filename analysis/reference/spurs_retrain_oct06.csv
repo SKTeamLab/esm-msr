@@ -1,0 +1,67 @@
+model,dataset,rho,sd,n_seeds,source
+"SPURS retrained, frozen adapter (3 seeds)",tsu_capped_val,0.802833,0.002082,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",tsu_capped_test,0.801367,0.003669,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",s571,0.449500,0.005859,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",s783,0.675300,0.012326,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",s2648,0.654600,0.001744,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",s8754,0.581233,0.001674,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",s669,0.496867,0.007666,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",s461,0.644233,0.002902,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",ssym,0.740667,0.004356,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",q3421,0.593467,0.002909,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",k3822,0.620700,0.006317,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",k2369,0.635333,0.007769,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",ptmul,0.426900,0.039266,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",ptmuld,0.536867,0.020989,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",DLG4_HUMAN_Faure_2021_abundance_domain,0.715500,0.008685,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",DLG4_HUMAN_Faure_2021_binding_domain,0.728933,0.005581,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",GRB2_HUMAN_Faure_2021_abundance_domain,0.673933,0.013283,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",GRB2_HUMAN_Faure_2021_binding_domain,0.589167,0.006697,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",MYO_HUMAN_Kung_2025_display,0.582800,0.007049,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",ESTA_BACSU_Nutschel_2020_dTm,0.448667,0.012241,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",GB1_Wu_2016_binding_domain,0.307667,0.003700,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, frozen adapter (3 seeds)",domainome,0.489267,0.009100,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",tsu_capped_val,0.762700,0.004513,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",tsu_capped_test,0.771767,0.002411,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",s571,0.425567,0.007077,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",s783,0.640533,0.022316,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",s2648,0.619967,0.010597,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",s8754,0.557100,0.007502,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",s669,0.470867,0.012003,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",s461,0.612300,0.017054,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",ssym,0.696333,0.012980,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",q3421,0.565500,0.009583,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",k3822,0.597933,0.008031,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",k2369,0.605133,0.005718,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",ptmul,0.403100,0.028408,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",ptmuld,0.481200,0.025343,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",DLG4_HUMAN_Faure_2021_abundance_domain,0.658333,0.022754,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",DLG4_HUMAN_Faure_2021_binding_domain,0.673000,0.019968,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",GRB2_HUMAN_Faure_2021_abundance_domain,0.576267,0.003156,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",GRB2_HUMAN_Faure_2021_binding_domain,0.544567,0.035689,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",MYO_HUMAN_Kung_2025_display,0.539367,0.019490,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",ESTA_BACSU_Nutschel_2020_dTm,0.334767,0.020658,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",GB1_Wu_2016_binding_domain,0.332867,0.001750,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS multi retrained, frozen adapter (3 seeds)",domainome,0.393500,0.007544,3,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",tsu_capped_val,0.798300,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",tsu_capped_test,0.799400,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",s571,0.462900,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",s783,0.666700,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",s2648,0.651000,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",s8754,0.578300,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",s669,0.491300,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",s461,0.643000,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",ssym,0.739800,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",q3421,0.591100,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",k3822,0.613900,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",k2369,0.627100,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",ptmul,0.428800,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",ptmuld,0.538300,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",DLG4_HUMAN_Faure_2021_abundance_domain,0.729000,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",DLG4_HUMAN_Faure_2021_binding_domain,0.737500,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",GRB2_HUMAN_Faure_2021_abundance_domain,0.665400,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",GRB2_HUMAN_Faure_2021_binding_domain,0.576800,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",MYO_HUMAN_Kung_2025_display,0.583100,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",ESTA_BACSU_Nutschel_2020_dTm,0.462000,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",GB1_Wu_2016_binding_domain,0.326700,,1,harness spurs_inference.py + score_spurs_harness.py
+"SPURS retrained, trained adapter (1 seed)",domainome,0.494500,,1,harness spurs_inference.py + score_spurs_harness.py

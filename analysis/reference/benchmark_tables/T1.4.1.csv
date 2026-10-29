@@ -1,0 +1,18 @@
+model,PG avg,Stability,DMS mean
+"ESM-MSR (released), combined",0.510ᴹ,0.870ᴹ,0.555ᴹ
+"ESM-MSR (released), WT head",0.507ᴹ,0.828ᴹ,0.550ᴹ
+"ESM-MSR (devel), combined (3 seeds)",0.511ᴹ,0.869ᴹ,0.555ᴹ
+MutateEverything st1 (3 seeds),0.468ᴹ,0.808ᴹ,0.506ᴹ
+MutateEverything st2 (3 seeds),q,q,q
+"ThermoMPNN (additive, 3 seeds)",0.441ᴹ,0.781ᴹ,0.484ᴹ
+SPURS (single model),0.483ᴹ,0.837ᴹ,0.525ᴹ
+SPURS multi (multi-mutant model),0.426ᴹ,0.808ᴹ,0.477ᴹ
+ESMtherm,0.213ᴾ,0.720ᴾ,0.283ᴾ
+GeoDDG-3D (FASPR),0.383,0.638,0.422
+ESM3ΔG,0.380,0.788,0.441
+ProSST (zero-shot),**0.514ᶜ**,**0.653ᶜ**,**0.528ᶜ**
+Rosetta Cartesian ΔΔG,_0.375_,_0.640_,_0.409_
+ProteinMPNN (zero-shot),0.408ᶜ,0.627ᶜ,0.426ᶜ
+"ProteinMPNN, ProteinGym published recipe",0.257ᶜ,0.565ᶜ,0.298ᶜ
+"ESM3-small-open, σ = 0 (zero-shot)",0.448ᶜ,0.620ᶜ,0.470ᶜ
+"ESM3-open, ProteinGym published recipe",0.466ᶜ,0.641ᶜ,0.486ᶜ

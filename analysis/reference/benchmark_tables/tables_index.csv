@@ -1,0 +1,28 @@
+table,section,heading,columns,rows
+1.1.1,1.1,Thermostability: the 12 external sets,model | s571 | s783 | s2648 | s8754 | s669 | s461 | ssym | q3421 | k3822 | k2369 | ptmul | ptmuld | mean of 12,24
+1.1.2,1.1,Thermostability: the 12 external sets,model | s571 (leak code) | s783 (leak code) | s2648 (leak code) | s8754 (leak code) | s669 (leak code) | s461 (leak code) | ssym (leak code) | q3421 (leak code),24
+1.2.1,1.2,Tsuboyama,model | capped val | capped test,21
+1.2.2,1.2,Tsuboyama,model | capped val (leak code) | capped test (leak code),21
+1.3.1,1.3,DMS and Domainome,model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome,24
+1.3.2,1.3,DMS and Domainome,model | DLG4 abund. (leak code) | DLG4 bind. (leak code) | GRB2 abund. (leak code) | GRB2 bind. (leak code) | MYO (leak code) | ESTA dTm (leak code) | GB1 (leak,24
+1.3.3,1.3,ESM-MSR LoRA scale σ on the DMS and Domainome,model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome,9
+1.4.1,1.4,ProteinGym (213 DMS),model | PG avg | Stability | DMS mean,17
+1.4.2,1.4,ProteinGym (213 DMS),model | PG avg (leak code) | Stability (leak code) | DMS mean (leak code),17
+1.5.1,1.5,Published-paper evaluation (reference; earlier models and row sets),dataset | ESM-MSR (published) | ProteinMPNN | Rosetta cart. ΔΔG | ESM3-small-open | ESM3-small | ESM3-medium | ESM3-large | ME (hyperopt) | ME additive (hyperop,20
+1.6.1,1.6,SPURS retrained on the capped split (preliminary),model | capped val | capped test,12
+1.6.2,1.6,SPURS retrained on the capped split (preliminary),model | s571 | s783 | s2648 | s8754 | s669 | s461 | ssym | q3421 | k3822 | k2369 | ptmul | ptmuld | 12-set mean,12
+1.6.3,1.6,SPURS retrained on the capped split (preliminary),model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | 7-DMS mean | Domainome,12
+2.0.1,2.0,Authoritative epistasis metrics (2026-10-24),model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias,5
+2.0.2,2.0,Authoritative epistasis metrics (2026-10-24),model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias,5
+2.1.1,2.1,"Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",model | naive ρ | beyond ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | global_err ↓,14
+2.2.1,2.2,"Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",model | naive ρ | beyond ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | global_err ↓,14
+2.3.1,2.3,ddG ranking (mean per-protein Spearman),col0 | ME st1 | ME st2 | TMPNN | TMPNN+D | ESM-MSR (baseline) WT ʰ | ESM-MSR (baseline) combined ʰ | ESM-MSR (devel) WT ʰ | ESM-MSR (devel) combined ʰ,6
+2.5.1,2.5,Mutant-background ablation (nobb),model | Δ spearman_all | Δ spearman_doubles | Δ beyond ρ | Δ pair ρ | Δ flipacc,3
+2.6.1,2.6,How much predicted epistasis should a multi-mutant prediction keep?,dataset | n | N | λ = 0 (additive) | λ = 0.5 (shipped) | λ = 1 (MT only) | best λ | ρ at best,6
+3.1,3,ProteinGym in detail,model | Activity (43) | Binding (13) | Expression (18) | Org. fitness (73) | Stability (66) | PG avg | DMS mean,18
+3.2,3,ProteinGym in detail,devel setting | PG avg | paired Δ vs released (mean over DMS) | better on | seed sd (PG avg),4
+6.2.1,6.2,Notation,code | meaning | evidence,12
+6.3.1,6.3,Training inventories,inventory | training data | source | evidence,17
+6.5.1,6.5,What the audit finds,finding | size | affected rows,12
+6.5.2,6.5,What the audit finds,model | clean mean (n of 12) | all-12 mean | cells excluded,15
+7.1,7,Where the code and results live,path | what,12
