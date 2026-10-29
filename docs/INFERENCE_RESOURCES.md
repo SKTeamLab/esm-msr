@@ -129,9 +129,26 @@ calibration. `_detail` in the table keeps proteins, lengths, list lengths and a 
 | ProteinMPNN (fp32) | 22 + ProteinGym | 13 (s461) to 802 (GB1, GRB2) | memory |
 | ThermoMPNN single network (fp32) | 22 + ProteinGym | 39 (k3822) to 513 (GB1, GRB2) | memory |
 | ThermoMPNN epistatic network (fp32) | the 10 datasets with doubles + ProteinGym | 68 (PTMUL) to 513 | memory |
-| SPURS-multi (fp32) | 22 + ProteinGym | 16,384 everywhere | nothing below 16,384 variants (flagged `list_bounded`): VRAM does not limit SPURS-multi on these proteins |
+| SPURS-multi (fp32) | 22 + ProteinGym | 16,384 everywhere | nothing below 16,384 variants (flagged `list_bounded`); see below |
 
 A different GPU, headroom or precision needs a new table (`_meta` says what this one is for).
+
+**Why SPURS-multi is not memory-limited.** A SPURS-multi call runs the ProteinMPNN encoder and the ESM2 decoder once, on the one wild-type
+structure (`spurs/models/stability/spurs_multi.py`, `forward`); the variants of that call only gather the representation at their (one or two)
+mutated positions and go through a small MLP. The backbone cost is therefore paid per call and grows with the protein's length, the batch adds
+about 7 KB per variant. Measured on the gpu4 card (`--batch_mode fixed`, double mutants of one structure, fp32, both models loaded, 5.06 GiB of
+weights):
+
+| structure | 1 variant | 1,024 | 16,384 | 32,768 | per call at 1 / 16,384 variants |
+|---|---|---|---|---|---|
+| GB1, 56 residues | 5.10 GiB | 5.10 | 5.37 | 5.67 | 0.04 s / 0.08 s |
+| 3FFN, 782 residues (k3822, the longest of the table's structures) | 5.49 GiB | 5.50 | 5.50 | 5.72 | 0.16 s / 0.21 s |
+
+(peak allocated memory; the sizer's 90 % limit on this card is 17.7 GiB). The batch buys time, not memory: a call costs 0.16 s on the
+782-residue protein whether it has 1 or 16,384 variants, so 162 ms per variant at batch 1 and 0.01 ms at 16,384. The calibration lists
+(at most 65,536 variants, 32,768 per group) end long before VRAM could, so the table's 16,384 is a lower bound, not a limit. It applies to
+SPURS-multi's variants only: the single SPURS model is one pass per protein with no batch (5.10 GiB at 56 residues, 5.45 GiB at 782), and
+ProteinGym stays dynamic because the backbone pass of a very long protein is what can fail.
 
 Precision and the rest stay native and are recorded: ESM-MSR bf16 (the A4500 has native bf16), ME fp32 with the loader in-process
 (`num_workers=0`), ThermoMPNN, SPURS and ProteinMPNN fp32. A different precision is a different measurement.
