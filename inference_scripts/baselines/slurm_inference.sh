@@ -24,7 +24,9 @@
 # Outputs land in $OUT (predictions per benchmark, ProteinGym summaries, resources/<run_id>/ with the tracker's files).
 #
 # The Python environments are in envs/ (conda env names msr_venv, spurs_higher, mutate_everything; a venv for ThermoMPNN-D);
-# upstream checkouts: setup_third_party.sh. CONDA_SH points at the conda profile script.
+# upstream checkouts: setup_third_party.sh. CONDA_SH points at the conda profile script; another machine names its environments
+# differently: MSR_ENV (ESM-MSR, ProteinMPNN), SPURS_ENV, ME_ENV, THERMOMPNN_PY (the python of the ThermoMPNN-D environment).
+# The script also runs outside Slurm (`bash slurm_inference.sh`); without MSR_FIXED_* the tracker checks no slot.
 #SBATCH --job-name=bench_inf
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
@@ -43,6 +45,7 @@ EXTRA=${EXTRA:-}
 BATCH=(--batch_mode "${BATCH_MODE:-table}" ${BATCH_SIZE:+--batch_size "$BATCH_SIZE"})     # not for MutateEverything: one protein per forward
 CAL=(${CALIBRATE:+--calibrate_batch_sizes "$OUT/batch_sizes_$MODEL.json"})
 CONDA_SH=${CONDA_SH:-/usr/local/anaconda3/etc/profile.d/conda.sh}
+[ -f "$CONDA_SH" ] || CONDA_SH=$(conda info --base 2>/dev/null)/etc/profile.d/conda.sh
 hostname
 nvidia-smi -i "${CUDA_VISIBLE_DEVICES:-0}" || { echo "unhealthy GPU in allocation (${CUDA_VISIBLE_DEVICES:-?})"; exit 1; }
 unset PYTHONPATH
@@ -59,7 +62,7 @@ echo "model=$MODEL out=$OUT mutants=$MUTANTS split=$SPLIT slot: cpus=${MSR_FIXED
 case $MODEL in
   esm_msr)
     CKPT=${CKPT:?set CKPT (a checkpoint under LoRA_models/)}
-    activate msr_venv
+    activate "${MSR_ENV:-msr_venv}"
     cd "$REPO/inference_scripts"
     python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
         --analysis_root "$OUT/analysis" --resource_dir "$OUT/resources" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA
@@ -67,22 +70,22 @@ case $MODEL in
     python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
         --protein_gym --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" --pgym_out "$OUT/proteingym" --analysis_root "$OUT/analysis" --resource_dir "$OUT/resources" "${BATCH[@]}" $EXTRA;;
   thermompnn)
-    PY=${THERMOMPNN_DIR:-${THIRD_PARTY_DIR:-$HOME/software}/ThermoMPNN-D}/.venv/bin/python
+    PY=${THERMOMPNN_PY:-${THERMOMPNN_DIR:-${THIRD_PARTY_DIR:-$HOME/software}/ThermoMPNN-D}/.venv/bin/python}
     [ -n "${SINGLE:-}${EPISTATIC:-}" ] || { echo "set SINGLE and/or EPISTATIC (ThermoMPNN-D checkpoints)"; exit 1; }
     "$PY" -u "$B/thermompnn_inference.py" all ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
         --tsuboyama_split "$SPLIT" --out "$OUT" --mutants "$MUTANTS" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;
   mutate_everything)
     CKPT=${CKPT:?set CKPT (a MutateEverything checkpoint, relative to the ME checkout or absolute)}
     module purge 2>/dev/null || true
-    activate mutate_everything
+    activate "${ME_ENV:-mutate_everything}"
     python -u "$B/mutate_everything_inference.py" --resume "$CKPT" --output_dir "$OUT" --split_name "${SPLIT_NAME:?set SPLIT_NAME (the ME data/ directory of the split)}" --tsuboyama_split "$SPLIT" --sets "${SETS:-all}" --mutants "$MUTANTS" \
         --skip_existing --continue_on_error $EXTRA;;
   spurs)
-    activate spurs_higher
+    activate "${SPURS_ENV:-spurs_higher}"
     python -u "$B/spurs_inference.py" --out "$OUT" --models "${MODELS:-both}" --mutants "$MUTANTS" --split "$SPLIT" \
         --checkpoint_single "${SPURS_SINGLE:-hf}" --checkpoint_multi "${SPURS_MULTI:-hf}" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;
   proteinmpnn)
-    activate msr_venv
+    activate "${MSR_ENV:-msr_venv}"
     python -u "$B/proteinmpnn_inference.py" --out "$OUT" --mutants "$MUTANTS" --split "$SPLIT" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;
   *) echo "unknown MODEL=$MODEL"; exit 1;;
 esac

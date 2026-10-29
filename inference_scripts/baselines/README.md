@@ -79,6 +79,26 @@ python analysis_scripts/resource_report.py runs/*/resources --out runs/summary.c
 
 Each script also runs by hand (`python thermompnn_inference.py all --help`).
 
+## Another machine
+
+Everything the scripts need that is not in the repository is a path variable (`paths.py`) or an environment name:
+
+* **Checkpoints**: [`docs/benchmarks/checkpoints.csv`](../../docs/benchmarks/checkpoints.csv) lists the 31 checkpoints behind the benchmark
+  tables (ESM-MSR, ThermoMPNN, ThermoMPNN-D, MutateEverything stage 1 and 2, SPURS and SPURS-multi, 19.3 GiB) with size, md5, the tables
+  each was trained on and where it sits on the cluster; `rsync -aL <cluster>:<cluster_path_under_home> <here>` and compare md5. The
+  released ESM-MSR models are also on Hugging Face. SPURS-multi needs the same seed's SPURS single (`SPURS_SINGLE`, `SPURS_MULTI`).
+* **Code and data**: `setup_third_party.sh` (pinned upstream clones; `THIRD_PARTY_DIR`, or one variable per repository), then
+  `MSR_TSUBOYAMA_DIR` (the Tsuboyama CSV and `AlphaFold_model_PDBs`), `MSR_STRUCTURES_DIR`, `MSR_DOMAINOME_TABLE` (`domainome_mapped_2026.csv`,
+  293 MB, `preprocessing/domainome_preprocessing.ipynb`), `MSR_PGYM_INPUTS` / `MSR_PGYM_STRUCTURES` (`preprocessing/pgym_preprocess.py`),
+  `MSR_ROSETTA_DIR` (Tsuboyama's Rosetta models, 30 GB: only ThermoMPNN-D's double augmentation in *training* reads them),
+  `MSR_BASELINE_DATA` and, for MutateEverything, `models/finetuning_ptm_2.pt` plus `data/<variant>` in its checkout (`prepare/`).
+  `prepare/prepare_baseline_data.py` run on another machine reproduced the cluster's capped-split training tables byte for byte.
+* **Environments**: `envs/` has the specifications; if yours are named differently set `MSR_ENV` (ESM-MSR, ProteinMPNN), `SPURS_ENV`,
+  `ME_ENV` and `THERMOMPNN_PY` (the python of the ThermoMPNN-D environment), and `CONDA_SH`. `bash slurm_inference.sh` runs outside Slurm.
+* **GPU generation**: the MutateEverything environment (`envs/mutate_everything.yml`: Python 3.7, torch 1.12 for CUDA 11.3) has no kernels
+  for Blackwell cards (RTX 50 series, sm_120); the others (torch 2.7+ for CUDA 12.8) do. Inference and training of the other models need no
+  change; ME on such a card needs a newer environment that these scripts have not been run in.
+
 ## Outputs
 
 `$OUT/predictions` per benchmark (ESM-MSR: `$OUT/analysis/{predictions,stats}`, so a tracked run never overwrites `analysis_notebooks/` files of the same checkpoint; `external_<set>.csv`, `dms_<assay>.csv`, `domainome.csv`, `tsuboyama_{val,test}.csv`, ProteinGym's

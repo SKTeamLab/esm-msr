@@ -25,5 +25,5 @@ export MSR_BASELINE_DATA=${MSR_BASELINE_DATA:?set MSR_BASELINE_DATA (the output 
 OUT=${BASE_OUT:-$(dirname "$MSR_BASELINE_DATA")}/thermompnn/$RUN
 mkdir -p $OUT
 echo "data=$MSR_BASELINE_DATA out=$OUT"
-"$THERMOMPNN_DIR/.venv/bin/python" -u "$REPO/inference_scripts/baselines/thermompnn_inference.py" train \
+"${THERMOMPNN_PY:-$THERMOMPNN_DIR/.venv/bin/python}" -u "$REPO/inference_scripts/baselines/thermompnn_inference.py" train \
   --model $MODEL --seed $SEED --out $OUT --num_workers 10 ${SPLIT:+--tsuboyama_split "$SPLIT"} "$@"

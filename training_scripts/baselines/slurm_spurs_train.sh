@@ -13,7 +13,7 @@ hostname; nvidia-smi -i "${CUDA_VISIBLE_DEVICES:-0}" || { echo "unhealthy GPU"; 
 unset PYTHONPATH
 module load cuda/12.1 2>/dev/null || true
 source "${CONDA_SH:-/usr/local/anaconda3/etc/profile.d/conda.sh}"
-conda activate spurs_higher
+conda activate "${SPURS_ENV:-spurs_higher}"
 cd "${SPURS_TRAIN_DIR:?set SPURS_TRAIN_DIR}"
 export PROJECT_ROOT=$PWD HF_HUB_OFFLINE=1 PYTHONUNBUFFERED=1
 python train.py ${CONFIG_NAME:+--config-name $CONFIG_NAME} name="${NAME:?set NAME}" $OVERRIDES
