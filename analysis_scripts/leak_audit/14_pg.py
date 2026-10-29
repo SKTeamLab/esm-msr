@@ -53,6 +53,8 @@ add_ms('me_stage1', sp['train'], lambda d:d.n==1)
 add_ms('me_stage2', sp['train'])
 add_ms('tmpnn', sp['train'], lambda d:d.n==1)
 add_ms('tmpnnd', sp['train'], lambda d:d.n>=2)
+add_ms('spurs_retrain_single', sp['train'], lambda d:d.n==1)       # the retrained SPURS models train on the same capped-train rows as ME / ESM-MSR
+add_ms('spurs_retrain_multi', sp['train'])
 tm=pickle.load(open('/home/sareeves/software/ThermoMPNN/dataset_splits/mega_splits.pkl','rb'))
 tmtest=set(x.replace('.pdb','') for x in tm['test'])
 add_ms('esm3dg_released',[c for c in lib.index if c not in tmtest])

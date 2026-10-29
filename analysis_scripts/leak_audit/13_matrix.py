@@ -2,7 +2,7 @@
 import os, sys, json, pickle, re
 import pandas as pd, numpy as np
 ROOT=os.environ.get('LEAK_ROOT','/home/sareeves/playground/esm-msr-devel'); D=os.path.join(ROOT,'leak_audit','data'); OUT=os.path.join(ROOT,'leak_audit','out')
-long=pd.read_csv(os.path.join(ROOT,'repo/.claude/worktrees/devel-main-conservative-merge-5e554f/docs/benchmarks/all_by_all_long.csv'))
+long=pd.read_csv(os.environ.get('LONG_CSV', os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','..','docs','benchmarks','all_by_all_long.csv')))   # the checkout this script is in
 ov=pd.read_csv(os.path.join(OUT,'inventory_overlaps.csv'))
 hom=pd.read_csv(os.path.join(OUT,'homology_classes.csv'))
 cex=pd.read_csv(os.path.join(OUT,'code_inventory_exact.csv'))
