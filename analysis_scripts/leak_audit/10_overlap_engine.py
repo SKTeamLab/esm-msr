@@ -102,6 +102,10 @@ INV.append(ms_inv('tmpnn','ThermoMPNN additive (singles), capped-train libraries
                   prov='capped train; train_single.yaml'))
 INV.append(ms_inv('tmpnnd','ThermoMPNN-D (doubles), capped-train libraries', capped, keep=lambda d: d.n>=2,
                   prov='capped train; train_epistatic.yaml'))
+INV.append(ms_inv('spurs_retrain_single','SPURS retrained (single model: single + native_cond rows), capped-train libraries', capped, keep=lambda d: d.n==1,
+                  prov='capped train; datamodule items, singles'))
+INV.append(ms_inv('spurs_retrain_multi','SPURS-multi retrained (initialised from the same seed\'s single model, then doubles), capped-train libraries', capped,
+                  prov='capped train; datamodule items, doubles after the single-model initialisation'))
 INV.append(ms_inv('esm3dg_released','ESM3dG (released augmented ensemble): documented K50dG+DMSv4/v5/v7',
                   list(lib.index), prov='HF/GitHub README: fine-tuned on K50dG+DMSv4/v5/v7; row-level mapping unverified',
                   exact_status='likely-unverified'))

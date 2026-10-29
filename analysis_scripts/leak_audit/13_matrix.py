@@ -12,6 +12,7 @@ MODEL_INV={
  'ESM-MSR (devel)':'esm_msr_capped','ESM-MSR (devel) WT':'esm_msr_capped','ESM-MSR (devel) MT':'esm_msr_capped',
  'ME stage1':'me_stage1','ME stage1+':'me_stage1','ME stage2':'me_stage2','ME stage2+':'me_stage2',
  'TMPNN':'tmpnn','TMPNN+D':'tmpnnd','SPURS':'spurs_single','SPURS multi':'spurs_multi',
+ 'SPURS (retrained)':'spurs_retrain_single','SPURS multi (retrained)':'spurs_retrain_multi',
  'ESMtherm':'esmtherm','DDGemb':'ddgemb_s2450','DDMut':'ddmut_s9028','DDMut [partial]':'ddmut_s9028',
  'GeoDDG-3D':'geoddg_s8754','IFUM (WT backbone)':'ifum','IFUM (native, ESMFold)':'ifum',
  'ESM3dG':'esm3dg_mgnify','ESM-MSR-small (March, crystal)':'esm_msr_small_hyperopt',
@@ -58,7 +59,7 @@ for _,r in long.iterrows():
     if ds=='HYPEROPT':
         rec['note']='legacy hyperopt split — out of scope'; rec['code']='—'; rows.append(rec); continue
     n=nrows(ds); rec['n']=n
-    if inv in ('esm_msr_capped','me_stage1','me_stage2','tmpnn','tmpnnd','spurs_single','spurs_multi','esm3dg_released','esm_msr_small_hyperopt'):
+    if inv in ('esm_msr_capped','me_stage1','me_stage2','tmpnn','tmpnnd','spurs_retrain_single','spurs_retrain_multi','spurs_single','spurs_multi','esm3dg_released','esm_msr_small_hyperopt'):
         e=eng(inv,ds); hh=hm(inv,ds)
         if e is not None:
             rec['exact']=int(e['exact']); rec['constituent']=int(e['constituent']); rec['P']=int(e['sameprot'])

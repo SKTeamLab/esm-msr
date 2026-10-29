@@ -23,6 +23,9 @@ msv=pd.read_pickle(os.path.join(D,'megascale_variants.pkl'))
 lib=pd.read_pickle(os.path.join(D,'megascale_libraries.pkl'))
 INV={}
 INV['esm_msr_capped']={'lib:'+c for c in sp['train']}
+# every model retrained on the capped split sees the same training proteins, so the protein-level classes (P, H, h) are the same
+for _k in ('me_stage1', 'me_stage2', 'tmpnn', 'tmpnnd', 'spurs_retrain_single', 'spurs_retrain_multi'):
+    INV[_k]=INV['esm_msr_capped']
 INV['spurs_single']={'lib:'+c for c in pd.read_csv(os.path.join(D,'spurs_single_train_proteins.csv')).query('retained==True')['code_wt'].astype(str)}
 INV['spurs_multi']={'lib:'+c for c in pd.read_csv(os.path.join(D,'spurs_multi_train_proteins.csv')).query('retained==True')['code_wt'].astype(str)}
 et=pd.read_csv(os.path.join(D,'esmtherm_train_proteins.csv'))
