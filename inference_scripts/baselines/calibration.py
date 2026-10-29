@@ -87,9 +87,11 @@ def worst(infos):
     """One info dict out of the sizer reports of one scoring call (a call can run several groups, e.g. singles and doubles): the
     smallest batch among the groups that memory limited, with the item count of the group it came from, OOMs summed. A group
     the list bounded (a protein has only 19 L distinct singles, however long the list) says only that its batch fits, so it
-    counts only when every group is bounded (the result is then bounded too and the list is grown)."""
+    counts only when every group is bounded: then memory limited none of them, the largest batch any group ran is the best
+    known to fit, and the result is bounded too (the list is grown; at max_cap it stays flagged)."""
     infos = [i for i in infos if i]
-    w = min([i for i in infos if not list_bounded(i)] or infos, key=lambda i: i['batch_max'])
+    free = [i for i in infos if not list_bounded(i)]
+    w = min(free, key=lambda i: i['batch_max']) if free else max(infos, key=lambda i: i['batch_max'])
     return {'batch_max': w['batch_max'], 'n_items': w.get('n_items', 0), 'batch_ooms': sum(i.get('batch_ooms', 0) for i in infos)}
 
 

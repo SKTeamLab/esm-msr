@@ -420,7 +420,8 @@ def test_calibration_helpers(tmp_path):
         {'batch_max': 3, 'n_items': 90, 'batch_ooms': 3}                                      # both memory-limited: the smaller
     assert calibration.worst([{'batch_max': 8, 'n_items': 12}, {'batch_max': 30, 'n_items': 500, 'batch_ooms': 0}]) == \
         {'batch_max': 30, 'n_items': 500, 'batch_ooms': 0}                                    # the short group (12 items) does not limit
-    assert calibration.list_bounded(calibration.worst([{'batch_max': 8, 'n_items': 12}, {'batch_max': 5, 'n_items': 9}]))   # all bounded
+    allb = calibration.worst([{'batch_max': 8, 'n_items': 12}, {'batch_max': 5, 'n_items': 9}, {'batch_max': 6, 'n_items': 11}])
+    assert calibration.list_bounded(allb) and allb['batch_max'] == 8                   # all bounded: memory limited none, the largest that ran
     assert not calibration.list_bounded({'batch_max': 5, 'n_items': 100}) and calibration.list_bounded({'batch_max': 30, 'n_items': 100})
     assert not calibration.list_bounded({'batch_max': 0, 'n_items': 0}) and not calibration.list_bounded({'batch_max': 7})
     calibration.save_entries(tmp_path / 'a.json', {'m1': sizes}, {'m1': detail}, {'gpu': 'G', 'headroom': 0.9})
