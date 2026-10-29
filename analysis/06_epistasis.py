@@ -96,7 +96,7 @@ def hierarchy_figures():
         d = read_table(tid)
         d.iloc[:, 0] = [clean_label(x) for x in d.iloc[:, 0]]
         V, S = numeric(d)
-        flagged = [r for r in V.index if any(k in r for k in ('ESMtherm', 'IFUM', 'ESM3ΔG'))]       # trained on Megascale: last, greyed, starred
+        flagged = [r for r in V.index if any(k in r for k in ('ESMtherm', 'IFUM'))]       # trained on Megascale: last, greyed, starred
         order = [r for r in V.index if r not in flagged] + flagged
         V, S = V.loc[order], S.loc[order]
         V.index = S.index = [r + '*' if r in flagged else r for r in V.index]

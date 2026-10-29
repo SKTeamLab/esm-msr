@@ -91,7 +91,7 @@ MODELS = {
     'ifum_wt':   dict(label='IFUM, WT backbone*', color='#6c3483', marker='v', fill=True, group='public'),
     'ifum_esmfold': dict(label='IFUM, ESMFold*', color='#a569bd', marker='v', fill=False, group='public'),
     'geoddg':    dict(label='GeoDDG-3D', color='#117a65', marker='^', fill=True, group='public'),
-    'esm3dg':    dict(label='ESM3ΔG*', color='#cb4335', marker='*', fill=True, group='public'),
+    'esm3dg':    dict(label='ESM3ΔG', color='#cb4335', marker='*', fill=True, group='public'),
     'rosetta':   dict(label='Rosetta cart. ΔΔG', color=C['ros'], marker='+', fill=True, group='public'),
     # --- zero-shot ------------------------------------------------------------------------------
     'prosst':    dict(label='ProSST (zero-shot)', color=C['prosst'], marker='X', fill=True, group='zeroshot'),
@@ -110,8 +110,8 @@ MODELS['msrrel@0:wt'] = dict(label='ESM3-small-open, σ = 0 WT head', color=C['z
 
 # sets of keys used by the figure scripts -----------------------------------------------------------
 # Models whose training data include Megascale (Tsuboyama) libraries: not held out on the Tsuboyama sets, and drawn last, greyed, with an asterisk
-# (BENCHMARKS section 6.3 lists ESM3ΔG as MGnify-trained with Megascale held out; it is flagged here on the project owner's instruction)
-MEGASCALE_TRAINED = ['esmtherm', 'esm3dg', 'ifum_wt', 'ifum_esmfold']
+# (ESM3ΔG is not in the list: it is trained on the MGnify stability set and Megascale is its held-out test, BENCHMARKS section 6.3)
+MEGASCALE_TRAINED = ['esmtherm', 'ifum_wt', 'ifum_esmfold']
 MEGASCALE_NOTE = '* trained on Megascale (Tsuboyama) data: not held out'
 
 RETRAINS = ['me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm']
