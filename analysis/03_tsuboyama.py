@@ -25,7 +25,7 @@ from msr_analysis import style  # noqa: E402
 from msr_analysis.boot import bootstrap_rho, ci  # noqa: E402
 from msr_analysis.common import leak_table, load_rho_df, out_dir, subframe  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
-from msr_analysis.registry import MODELS, TSU  # noqa: E402
+from msr_analysis.registry import MEGASCALE_NOTE, MEGASCALE_TRAINED, MODELS, TSU  # noqa: E402
 
 OUT = out_dir('03_tsuboyama')
 KEYS = ['msr:comb', 'msr:wt', 'msrdev:comb', 'msrdev:wt', 'me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm', 'esm3dg', 'rosetta', 'ifum_esmfold', 'ifum_wt', 'esmtherm', 'ddgemb',
@@ -41,6 +41,8 @@ def overview():
     leak = leak_table()
     keys = [k for k in KEYS if (TSU[1], k) in P]
     keys = sorted(keys, key=lambda k: P[(TSU[1], k)][0])
+    mega = [k for k in keys if k in MEGASCALE_TRAINED]
+    keys = mega + [k for k in keys if k not in MEGASCALE_TRAINED]       # Megascale-trained models: bottom, greyed, starred
     fig, axes = plt.subplots(1, 2, figsize=(9, 0.33 * len(keys) + 1.4), sharey=True)
     for ax, ds, ttl in zip(axes, TSU, ('validation (23 libraries)', 'test (33 libraries)')):
         for i, k in enumerate(keys):
@@ -58,6 +60,7 @@ def overview():
             if leak.get((k, ds), False):
                 ax.plot(v, i, marker='o', ms=11, mfc='none', mec='#c0392b', mew=1.0, ls='none')
             ax.text(max(hi, m[2] if m else hi) + .008, i, f'{v:.3f}', va='center', fontsize=7.5, color='#444')
+        ax.axhspan(-.5, len(mega) - .5, color='#bdbdbd', alpha=.35, zorder=0)
         ax.set_title(ttl, loc='left'); ax.grid(axis='x', color=style.GRID, lw=.6)
         ax.set_xlabel('mean per-library Spearman ρ'); ax.set_xlim(0.40, 0.93)
     axes[0].set_yticks(range(len(keys))); axes[0].set_yticklabels([MODELS[k]['label'] for k in keys], fontsize=8.5)
@@ -65,7 +68,7 @@ def overview():
         t.set_color({'msr': 'k', 'retrain': '#1b6f3a', 'public': '#8a5a00', 'zeroshot': '#555'}[MODELS[k]['group']])
         if MODELS[k]['group'] == 'msr':
             t.set_fontweight('bold')
-    fig.suptitle('thick bar: resampling libraries; thin line: resampling mutations; red ring: documented training overlap', fontsize=8.5, y=1.0)
+    fig.suptitle('thick bar: resampling libraries; thin line: resampling mutations; red ring: documented training overlap\n' + MEGASCALE_NOTE + ' (grey rows, at the bottom)', fontsize=8.5, y=1.02)
     fig.tight_layout()
     style.save(fig, OUT / 'tsuboyama_overview')
     return P
@@ -131,7 +134,7 @@ def scatter():
     y = sp['y'].to_numpy()
     ok = sp['use'].to_numpy()
     panels = [('msr:wt', 'singles', 'ESM-MSR WT head'), ('msr:wt', 'doubles', 'ESM-MSR WT head'), ('msr:comb', 'doubles', 'ESM-MSR combined'), ('me2', 'doubles', 'MutateEverything st2'),
-              ('tmpnnd', 'doubles', 'ThermoMPNN + D'), ('spursm', 'doubles', 'SPURS multi (retrained)')]
+              ('tmpnnd', 'doubles', 'ThermoMPNN + D'), ('spursm', 'doubles', 'SPURS multi')]
     fig, axes = plt.subplots(1, len(panels), figsize=(2.9 * len(panels), 3.2), sharey=True)
     for ax, (k, subset, t) in zip(axes, panels):
         m = ok & ((sp['n_mut'] == (1 if subset == 'singles' else 2)).to_numpy()) & np.isfinite(fr.preds[k][0])

@@ -27,7 +27,7 @@ from matplotlib.lines import Line2D  # noqa: E402
 from msr_analysis import style  # noqa: E402
 from msr_analysis.boot import ci  # noqa: E402
 from msr_analysis.common import leak_table, load_rho_df, out_dir, primary_ci  # noqa: E402
-from msr_analysis.registry import CACHE, EXT12, LABEL, MODELS, RETRAINS  # noqa: E402
+from msr_analysis.registry import CACHE, EXT12, LABEL, MEGASCALE_NOTE, MEGASCALE_TRAINED, MODELS, RETRAINS  # noqa: E402
 
 OUT = out_dir('02_thermostability')
 MULTI = {'ptmul', 'ptmuld'}
@@ -64,7 +64,8 @@ def main():
     S.to_csv(OUT / 'thermostability_rho.csv', index=False, float_format='%.4f')
 
     # ---- figure 1: every model ---------------------------------------------------------------------------------
-    models = order + [k for k in partial if any((d, k) in P for d in EXT12)]
+    mega = [k for k in order if k in MEGASCALE_TRAINED]                   # trained on Megascale: last (bottom), greyed, starred
+    models = mega + [k for k in partial if any((d, k) in P for d in EXT12)] + [k for k in order if k not in MEGASCALE_TRAINED]
     fig, axes = plt.subplots(1, 13, figsize=(17, 0.34 * len(models) + 1.6), sharey=True, gridspec_kw=dict(width_ratios=[1] * 12 + [1.15]))
     ypos = {k: i for i, k in enumerate(models)}
     for ax, d in zip(axes, EXT12 + ['mean of 12']):
@@ -81,6 +82,7 @@ def main():
                 ax.plot(v[0], i, marker='o', ms=10, mfc='none', mec='#c0392b', mew=1.0, ls='none', zorder=5)
         for k in ('msr:wt', 'msr:comb'):
             ax.axhspan(ypos[k] - .5, ypos[k] + .5, color='#f2f2f2', zorder=0)
+        ax.axhspan(-.5, len(mega) - .5, color='#bdbdbd', alpha=.35, zorder=0)
         ax.set_title(LABEL.get(d, d), fontsize=9)
         ax.grid(axis='x', color=style.GRID, lw=.6)
         ax.set_ylim(-.7, len(models) - .3)
@@ -91,7 +93,7 @@ def main():
         t.set_color({'msr': 'k', 'retrain': '#1b6f3a', 'public': '#8a5a00', 'zeroshot': '#555555'}[MODELS[k]['group']])
         if MODELS[k]['group'] == 'msr':
             t.set_fontweight('bold')
-    fig.supxlabel('Spearman ρ (95% protein-level bootstrap); red ring = documented training overlap with the set', fontsize=9.5, y=-0.01)
+    fig.supxlabel('Spearman ρ (95% protein-level bootstrap); red ring = documented training overlap with the set.   ' + MEGASCALE_NOTE + ' (grey rows)', fontsize=9.5, y=-0.01)
     fig.tight_layout(w_pad=0.3)
     style.save(fig, OUT / 'thermo_all_models')
 

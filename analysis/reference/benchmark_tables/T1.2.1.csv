@@ -1,14 +1,14 @@
 model,capped val,capped test
-"ESM-MSR (baseline), combined (3 seeds)",**0.855±0.001ʰ**,0.847±0.001ʰ
-"ESM-MSR (baseline), WT head (3 seeds)",0.841±0.002ʰ,0.829±0.002ʰ
+"ESM-MSR (baseline), combined (3 seeds)",**0.855ʰ**,0.847ʰ
+"ESM-MSR (baseline), WT head (3 seeds)",0.841ʰ,0.829ʰ
 "ESM-MSR (devel), combined (3 seeds)",0.854ʰ,**0.849ʰ**
 "ESM-MSR (devel), WT head",0.837ʰ,0.828ʰ
-MutateEverything st1 (3 seeds),0.754,0.771
-MutateEverything st2 (3 seeds),0.730,0.760
-"ThermoMPNN (additive, 3 seeds)",0.787,0.794
-ThermoMPNN + ThermoMPNN-D (3 seeds),0.785,0.784
-SPURS (single model),0.841ᴹ,0.864ᴹ
-SPURS multi (multi-mutant model),0.787ᴹ,0.806ᴹ
+MutateEverything st1 (3 seeds),0.754ʰ,0.771ʰ
+MutateEverything st2 (3 seeds),0.730ʰ,0.760ʰ
+"ThermoMPNN (additive, 3 seeds)",0.787ʰ,0.794ʰ
+ThermoMPNN + ThermoMPNN-D (3 seeds),0.785ʰ,0.784ʰ
+"SPURS (retrained, 3 seeds)",0.803ʰ,0.801ʰ
+"SPURS multi (retrained, 3 seeds)",0.763ʰ,0.772ʰ
 ESMtherm,0.716ᴾ,0.774ᴾ
 DDGemb (server),0.490,0.508ʰ
 DDMut (server),–,–

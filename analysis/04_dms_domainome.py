@@ -123,10 +123,10 @@ def main():
     mod2 = {'ESM-MSR (baseline)': lambda d: head('msr', d), 'ESM-MSR (devel)': lambda d: head('msrdev', d),
             'MutateEverything st1': fixed('me1'), 'MutateEverything st1, additive': fixed('me1+'), 'MutateEverything st2': fixed('me2'),
             'MutateEverything st2, additive': fixed('me2+'), 'ThermoMPNN': fixed('tmpnn'), 'ThermoMPNN + ThermoMPNN-D': fixed('tmpnnd'),
-            'SPURS (retrained)': fixed('spurs'), 'SPURS multi (retrained)': fixed('spursm')}
+            'SPURS': fixed('spurs'), 'SPURS multi': fixed('spursm')}
     sty = {'ESM-MSR (baseline)': ('msr', 'ESM-MSR (baseline)'), 'ESM-MSR (devel)': ('msrdev:comb', 'ESM-MSR (devel)'), 'MutateEverything st1': ('me1', None),
            'MutateEverything st1, additive': ('me1+', None), 'MutateEverything st2': ('me2', None), 'MutateEverything st2, additive': ('me2+', None), 'ThermoMPNN': ('tmpnn', None),
-           'ThermoMPNN + ThermoMPNN-D': ('tmpnnd', None), 'SPURS (retrained)': ('spurs', None), 'SPURS multi (retrained)': ('spursm', None)}
+           'ThermoMPNN + ThermoMPNN-D': ('tmpnnd', None), 'SPURS': ('spurs', None), 'SPURS multi': ('spursm', None)}
     for n, (k, _) in sty.items():
         MODELS[n] = dict(MODELS[k], label=n)
     t2, c2 = table_for(mod2, P, mean7)

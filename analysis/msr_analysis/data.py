@@ -20,7 +20,7 @@ TSU_SETS = set(TSU)
 
 SEEDS = (1, 2, 3)
 SPINE_COLS = ['id', 'row_id', 'code', 'group', 'truth', 'mut_type', 'ref_seq', 'cens', 'mut_structure', 'code_wt',
-              'ddG_ML', 'dddG_ML', 'ddG_additive_ML', 'ddG_dir', 'wt_code']
+              'ddG_ML', 'dddG_ML', 'ddG_additive_ML', 'ddG_dir', 'wt_code', 'dG_ML']
 
 
 @dataclass
@@ -62,6 +62,8 @@ def build_spine(ds):
     s['n_mut'] = s['mut'].str.count(':') + 1
     s['site1'] = s['mut'].map(_first_site)
     s['seq_len'] = t['ref_seq'].astype(str).str.len() if 'ref_seq' in t else np.nan
+    if 'dG_ML' in t and 'ddG_ML' in t:
+        s['dG_wt'] = (t['dG_ML'] - t['ddG_ML']).astype(float)     # the library constant (BENCHMARKS section 5.2)
     for c in ('cens', 'mut_structure', 'code_wt', 'dddG_ML', 'ddG_additive_ML'):
         if c in t:
             s[c] = t[c]
@@ -183,76 +185,50 @@ def _read_seeded(path_fmt, seeds=SEEDS):
 PARENT = {'s461': 's669', 'k2369': 'k3822', 'ptmuld': 'ptmul'}      # S461 within S669, K2369 within K3822, PTMUL-D within PTMUL
 
 
-def _me_stage_arrays(ds, spine):
-    """{stage: (n_seeds, n) stabilizing-positive ME prediction on ``spine``'s rows}."""
+def _me_stage_arrays(ds, spine, additive=False):
+    """{stage: (n_seeds, n) stabilizing-positive ME prediction on ``spine``'s rows}; with ``additive`` also {stage + '+': the sum of the model's own singles}.
+    The additive readout is built from ME's own file (complete GB1, 149,360 rows), not from the harness label table, which lacks three GB1 singles."""
     ids = spine['id'].to_numpy(dtype=object)
     idset = set(ids)
     res = {}
     for stage in ('stage1', 'stage2'):
-        arrs = []
+        arrs, adds = [], []
         for sd, d in _read_seeded(str(RETRAINED / 'mutate_everything' / 'predictions' / stage / 'seed{seed}' / f'{ds}.csv')):
             k1 = d['pdb_id'].astype(str) + '_' + d['mut_info'].astype(str)
             k2 = d['pdb_id'].astype(str).str[:-1] + '_' + d['mut_info'].astype(str)
-            key = k1 if k1.isin(idset).mean() >= k2.isin(idset).mean() else k2
-            if key.isin(idset).mean() < 0.99 and d['mut_info'].astype(str).str.count(':').max() == 0:
-                arrs.append(_align_me_offset(d, spine, -d['ddg_pred'].to_numpy()))
-            else:
-                arrs.append(_align_id(ids, key.to_numpy(dtype=object), -d['ddg_pred'].to_numpy()))
+            key = (k1 if k1.isin(idset).mean() >= k2.isin(idset).mean() else k2).to_numpy(dtype=object)
+            v = -d['ddg_pred'].to_numpy()
+            arrs.append(_align_id(ids, key, v))
+            if additive:
+                own = pd.DataFrame({'id': key, 'n_mut': pd.Series(key).str.rsplit('_', n=1).str[-1].str.count(':').to_numpy() + 1})
+                adds.append(_align_id(ids, key, sum_singles(own, v)))
         if arrs:
             res[stage] = np.vstack(arrs)
+        if adds:
+            res[stage + '+'] = np.vstack(adds)
     return res
-
-
-def _split_single(m):
-    m = pd.Series(m).astype(str)
-    return m.str[0], pd.to_numeric(m.str[1:-1], errors='coerce'), m.str[-1]
-
-
-def _align_me_offset(d, spine, vals):
-    """ME numbers some sets (S461) by sequence position, the spine by PDB residue number: the two differ by a
-    per-protein constant.  Find it from the (wild type, mutant) letters and match on (entry, letters, position)."""
-    sw, sp_, sm = _split_single(spine['mut'])
-    spdb = spine['id'].str.split('_').str[0]
-    mw, mp, mm = _split_single(d['mut_info'])
-    mpdb = d['pdb_id'].astype(str)
-    S = pd.DataFrame({'pdb': spdb.to_numpy(), 'w': sw.to_numpy(), 'm': sm.to_numpy(), 'pos': sp_.to_numpy(), 'row': np.arange(len(spine))})
-    M = pd.DataFrame({'pdb': mpdb.to_numpy(), 'w': mw.to_numpy(), 'm': mm.to_numpy(), 'mpos': mp.to_numpy(), 'val': np.asarray(vals, float)})
-    J = S.merge(M, on=['pdb', 'w', 'm'])
-    J['off'] = J['pos'] - J['mpos']
-    off = J.groupby('pdb')['off'].agg(lambda x: x.value_counts().index[0])
-    M['pos'] = M['mpos'] + M['pdb'].map(off)
-    out = np.full(len(spine), np.nan)
-    K = S.merge(M, on=['pdb', 'w', 'm', 'pos'])
-    K = K.drop_duplicates('row')
-    out[K['row'].to_numpy()] = K['val'].to_numpy()
-    return out
 
 
 def _load_me(frame, ds, out):
     sp = frame.spine
-    res = _me_stage_arrays(ds, sp)
-    if ds in PARENT and ds != 's461':
-        # ME numbers S461 by sequence position and has no K2369 / PTMUL-D files: score the subset from its parent's
-        # predictions, matched on (PDB entry + mutation), as the tables do for ESM3 (a zero-shot-style readout of
-        # structure and mutation alone; only the labels are the subset's own)
+    ids = sp['id'].to_numpy(dtype=object)
+    if ds in PARENT:
+        # S461, K2369 and PTMUL-D are scored from their parent set's predictions, matched on (PDB entry + mutation), against the subset's own labels (BENCHMARKS
+        # sections 1.1 and 5.7).  ME's own S461 file is a different input (other constructs and MSAs) and must not be used; K2369 and PTMUL-D have no ME file.
         psp = build_spine_ids(PARENT[ds])
-        par = _me_stage_arrays(PARENT[ds], psp)
-        for stage, v in par.items():
-            m = np.vstack([_align_id(sp['id'].to_numpy(dtype=object), psp['id'].to_numpy(dtype=object), r) for r in v])
-            if stage in res:
-                m = np.where(np.isfinite(res[stage]), res[stage], m)
-            res[stage] = m
+        par = _me_stage_arrays(PARENT[ds], psp, additive=ds in DMS7)
+        res = {st: np.vstack([_align_id(ids, psp['id'].to_numpy(dtype=object), r) for r in v]) for st, v in par.items()}
+    else:
+        res = _me_stage_arrays(ds, sp, additive=ds in DMS7)
     for stage, key in (('stage1', 'me1'), ('stage2', 'me2')):
         if stage in res:
             out[f'{key}:'] = res[stage]
     if 'stage1' in res and 'stage2' in res:
         # predicted epistasis of stage 2: direct double minus the same-seed stage-1 additive expectation
         out['me2:epi'] = res['stage2'] - np.vstack([sum_singles(sp, r) for r in res['stage1']])
-    # additive readouts (summing a model's own singles), needed where the tables list them
-    if ds in DMS7:
-        for stage, key in (('stage1', 'me1+'), ('stage2', 'me2+')):
-            if stage in res:
-                out[f'{key}:'] = np.vstack([sum_singles(sp, r) for r in res[stage]])
+    for stage, key in (('stage1+', 'me1+'), ('stage2+', 'me2+')):
+        if stage in res:
+            out[f'{key}:'] = res[stage]
 
 
 def build_spine_ids(ds):

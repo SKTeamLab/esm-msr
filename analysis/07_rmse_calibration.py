@@ -3,7 +3,7 @@
 
 ESM-MSR is trained on protease-derived stabilities, so its output is on the protease scale, not the calorimetric scale of the
 external sets.  Rank metrics ignore that, RMSE does not.  Each model's two calibration numbers (scale, bias; OLS) are fitted on
-ONE sacrificial set (``--calib``, default S461) and then frozen; every other set is scored out of sample.  S461 itself,
+ONE sacrificial set (run twice: S461, and Ssym for its larger dynamic range) and then frozen; every other set is scored out of sample.  S461 itself,
 and S669 which contains it, carry an asterisk: their RMSE is not a held-out number.  The retrained baselines are trained on the same
 Tsuboyama ddG scale as ESM-MSR, so the same recalibration is applied to them; the raw RMSE is shown faded for ESM-MSR.
 
@@ -55,9 +55,17 @@ def fit(fam, ds):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--calib', default='s461')
     ap.add_argument('--B', type=int, default=500)
-    a = ap.parse_args()
+    b = ap.parse_args()
+    # the sacrificial set the document suggests (S461: one-sided, sd 1.25) and one with more dynamic range (Ssym: both directions of every mutation, 5-95% range
+    # -3.1 to +3.1, sd 1.83); starred sets are the donor and the sets that contain it
+    for calib, stars in (('s461', {'s461', 's669'}), ('ssym', {'ssym'})):
+        globals()['STAR'] = stars
+        run(argparse.Namespace(calib=calib, B=b.B))
+
+
+def run(a):
+    sfx = '' if a.calib == 's461' else f'_{a.calib}'
     frames = {d: load_frame(d) for d in EXT12}
     # --- calibration donors -------------------------------------------------------------------
     cand = []
@@ -68,7 +76,7 @@ def main():
         ab = calib.fit_scale_bias(fr.preds[k].mean(0)[m], fr.spine['y'].to_numpy()[m])
         cand.append(dict(dataset=d, n=len(y), sd_y=y.std(), p05=np.percentile(y, 5), p95=np.percentile(y, 95), range_5_95=np.ptp(np.percentile(y, [5, 95])),
                          fit_scale=ab[0], fit_bias=ab[1], rho_in_set=spearmanr(fr.preds[k].mean(0)[m], fr.spine['y'].to_numpy()[m])[0]))
-    pd.DataFrame(cand).to_csv(OUT / 'calibration_candidates.csv', index=False, float_format='%.3f')
+    pd.DataFrame(cand).to_csv(OUT / f'calibration_candidates{sfx}.csv', index=False, float_format='%.3f')
     frames = {d: fr for d, fr in frames.items() if d in SETS}
 
     # --- RMSE with frozen calibration, protein-level bootstrap -------------------------------------
@@ -104,7 +112,7 @@ def main():
                              rmse_raw=res['raw'][0], lo_raw=res['raw'][1], hi_raw=res['raw'][2], n=int(m.sum()),
                              sacrificial=d == a.calib, contains_sacrificial=d in STAR))
     R = pd.DataFrame(rows)
-    R.to_csv(OUT / 'rmse_by_dataset.csv', index=False, float_format='%.4f')
+    R.to_csv(OUT / f'rmse_by_dataset{sfx}.csv', index=False, float_format='%.4f')
 
     # --- transfer matrix for ESM-MSR ------------------------------------------------------------------
     T = np.full((len(SETS), len(SETS)), np.nan)
@@ -116,7 +124,7 @@ def main():
             m = valid(fr, k)
             y = fr.spine['y'].to_numpy()[m]
             T[i, j] = np.mean([calib.rmse(calib.apply(p[m], ab[min(s, len(ab) - 1)]), y) for s, p in enumerate(fr.preds[k])])
-    pd.DataFrame(T, index=[LABEL[d] for d in SETS], columns=[LABEL[d] for d in SETS]).to_csv(OUT / 'calibration_transfer.csv', float_format='%.3f')
+    pd.DataFrame(T, index=[LABEL[d] for d in SETS], columns=[LABEL[d] for d in SETS]).to_csv(OUT / f'calibration_transfer{sfx}.csv', float_format='%.3f')
 
     # --- figure ----------------------------------------------------------------------------------------
     fig = plt.figure(figsize=(14, 8.2))
@@ -168,19 +176,19 @@ def main():
     for i, d in enumerate(SETS):
         r = R[(R.dataset == d) & (R.model == 'msr')]
         if len(r):
-            axD.plot(i + (-0.36), r.rmse_raw.iloc[0], marker='x', color='#999', ms=5, ls='none')
+            axD.plot(i + (-0.36), r.rmse_raw.iloc[0], marker='x', color='#d62728', ms=9, mew=2.2, ls='none', zorder=12)
     # legend (registry styles; 'msr' stands for WT head / combined)
     from matplotlib.lines import Line2D
     hs = [Line2D([0], [0], label=MODELS['msr']['label'], **style.marker_kwargs('msr', 7))]
     hs += [Line2D([0], [0], label=MODELS[f]['label'], **style.marker_kwargs(f, 7)) for f in models if f != 'msr']
-    hs += [Line2D([0], [0], marker='x', color='#999', ls='none', label='ESM-MSR before recalibration')]
+    hs += [Line2D([0], [0], marker='x', color='#d62728', ms=8, mew=2, ls='none', label='ESM-MSR before recalibration')]
     axD.legend(handles=hs, ncol=4, loc='upper left', fontsize=8)
-    axD.set_title(f'D  * calibration set {LABEL[a.calib]} and its superset S669: not out-of-sample.  Whiskers: 95% protein-level bootstrap')
-    style.save(fig, OUT / 'rmse_recalibrated')
+    axD.set_title(f'D  * calibrated on {LABEL[a.calib]} (and sets containing it, starred): not out-of-sample.  Whiskers: 95% protein-level bootstrap')
+    style.save(fig, OUT / f'rmse_recalibrated{sfx}')
     s = R.pivot_table(index='model', columns='dataset', values='rmse')[SETS]
     print(s.round(2).to_string())
     print('scale/bias on', a.calib, ab)
-    print(pd.read_csv(OUT / 'calibration_candidates.csv').round(2).to_string(index=False))
+    print(pd.read_csv(OUT / f'calibration_candidates{sfx}.csv').round(2).to_string(index=False))
 
 
 if __name__ == '__main__':

@@ -8,12 +8,12 @@ ProSST (zero-shot; published scores) ᶜ,**0.486**,**0.449**,**0.530**,**0.453**
 "ESM-MSR (released), WT head only, σ = 1 ᴹ",0.434,0.349,0.515,0.411,0.828,0.507,0.550
 "ESM-MSR (released), WT head only, σ = 0.5 ᴹ",0.449,0.377,0.493,0.425,0.780,0.505,0.543
 "ESM-MSR (devel), σ = 0.25 (3 seeds) ᴹ",0.430,0.385,0.468,0.400,0.742,0.485,0.517
-SPURS (single model) ᴹ,0.384,0.334,0.490,0.368,0.837,0.483,0.525
 "ESM-MSR (released), WT head only, σ = 0.25 ᴹ",0.436,0.381,0.466,0.411,0.713,0.481,0.512
 MutateEverything single (3 seeds) ᴹ,0.371,0.336,0.472,0.352,0.808,0.468,0.506
+"SPURS (retrained, 3 seeds) ᴹ",0.373,0.320,0.472,0.340,0.805,0.462,0.501
 "ESM-MSR, σ = 0 (no LoRA) ᶜ",0.416,0.374,0.439,0.391,0.620,0.448,0.470
 MutateEverything double (3 seeds) ᴹ,q,q,q,q,q,q,q
 ThermoMPNN (3 seeds) ᴹ,0.351,0.299,0.439,0.337,0.781,0.441,0.484
-SPURS multi (multi-mutant model) ᴹ,0.326,0.267,0.410,0.320,0.808,0.426,0.477
+"SPURS multi (retrained, 3 seeds) ᴹ",0.333,0.269,0.413,0.303,0.772,0.418,0.462
 ProteinMPNN (3 decoding orders) ᶜ,0.343,0.323,0.437,0.310,0.627,0.408,0.426
 Rosetta Cartesian ΔΔG (*singles only*),_0.311_,_0.291_,_0.336_,_0.296_,_0.640_,_0.375_,_0.409_

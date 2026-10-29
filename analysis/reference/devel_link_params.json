@@ -1,0 +1,23 @@
+{
+ "1": {
+  "tau": 0.5797608897150698,
+  "floor_min": -1.0,
+  "floor_max": 0.20000000298023224,
+  "global_floor": -0.1363125592470169,
+  "checkpoint": "epoch=04-val_rho_combined_avg=0.840.ckpt"
+ },
+ "2": {
+  "tau": 0.561192582767061,
+  "floor_min": -1.0,
+  "floor_max": 0.20000000298023224,
+  "global_floor": -0.1363125592470169,
+  "checkpoint": "epoch=07-val_rho_combined_avg=0.839.ckpt"
+ },
+ "3": {
+  "tau": 0.5640835788758005,
+  "floor_min": -1.0,
+  "floor_max": 0.20000000298023224,
+  "global_floor": -0.1363125592470169,
+  "checkpoint": "epoch=05-val_rho_combined_avg=0.841.ckpt"
+ }
+}

@@ -8,6 +8,7 @@ path,what
 `~/esm-msr-devel/baselines/`,"baseline data prep (`prepare_oct06_data.py`), training wrappers, and the epistasis suite applied to other models (`epi_baselines.py`, `epi_dms.py`)"
 `~/stability-baselines/`,"the third-party harness, adapters and results (not a git repository)"
 `~/spurs_retrain/`,"the SPURS retrain on the capped split (§1.6): code (patched luo-group/SPURS), checkpoints, harness predictions and scored summaries, `HANDOFF_SPURS_BENCHMARK.md`"
+"`~/esm-msr-devel/outputs/tracked/spurs_retrain_s{1,2,3}`","the tracked fixed-slot runs behind the SPURS rows (both models of a seed), scored by `analysis_scripts/score_baseline_runs.py`; the results of the published SPURS checkpoint next to them (`spurs_published`, `~/stability-baselines/results/spurs`, ...) carry a `NOT_RETRAINED.md` and are not in this document"
 `~/project_oct06_baselines/`,"a symlink index over the retrained-baseline work, with its own README"
 `~/stability-baselines/results/rosetta/`,"the Rosetta capped-split predictions in harness layout, with their provenance; the raw Narval outputs are in `~/playground/narval-recovery/predictions/` on the local machine"
 `~/stability-baselines/pgym_public/`,ProteinGym's published zero-shot scores (1.9 GB zip)

@@ -5,8 +5,8 @@ model,PG avg,Stability,DMS mean
 MutateEverything st1 (3 seeds),0.468ᴹ,0.808ᴹ,0.506ᴹ
 MutateEverything st2 (3 seeds),q,q,q
 "ThermoMPNN (additive, 3 seeds)",0.441ᴹ,0.781ᴹ,0.484ᴹ
-SPURS (single model),0.483ᴹ,0.837ᴹ,0.525ᴹ
-SPURS multi (multi-mutant model),0.426ᴹ,0.808ᴹ,0.477ᴹ
+"SPURS (retrained, 3 seeds)",0.462ᴹ,0.805ᴹ,0.501ᴹ
+"SPURS multi (retrained, 3 seeds)",0.418ᴹ,0.772ᴹ,0.462ᴹ
 ESMtherm,0.213ᴾ,0.720ᴾ,0.283ᴾ
 GeoDDG-3D (FASPR),0.383,0.638,0.422
 ESM3ΔG,0.380,0.788,0.441

@@ -3,12 +3,12 @@ model,capped val (leak code),capped test (leak code)
 "ESM-MSR (baseline), WT head (3 seeds)",h.20 V,h.16
 "ESM-MSR (devel), combined (3 seeds)",h.20 V,h.16
 "ESM-MSR (devel), WT head",h.20 V,h.16
-MutateEverything st1 (3 seeds),V,–
-MutateEverything st2 (3 seeds),V,–
-"ThermoMPNN (additive, 3 seeds)",V,–
-ThermoMPNN + ThermoMPNN-D (3 seeds),V,–
-SPURS (single model),M.48 m.21 P.10 V,M.41 m.13 P.35
-SPURS multi (multi-mutant model),M.21 m.03 P.30 H.02 h.02 V,M.12 m.03 P.43 H.07 h.02
+MutateEverything st1 (3 seeds),h.20 V,h.16
+MutateEverything st2 (3 seeds),h.20 V,h.16
+"ThermoMPNN (additive, 3 seeds)",h.20 V,h.16
+ThermoMPNN + ThermoMPNN-D (3 seeds),h.07 V,h.12
+"SPURS (retrained, 3 seeds)",h.20 V,h.16
+"SPURS multi (retrained, 3 seeds)",h.20 V,h.16
 ESMtherm,P.87 M?.70 H.03 h.02 V,P.82 M?.66 H.04 h.03
 DDGemb (server),V,h.02
 DDMut (server),–,–

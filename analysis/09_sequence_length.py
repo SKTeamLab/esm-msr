@@ -5,10 +5,9 @@
   (one length per protein; also the variant-weighted median).
 * ``sequence_length_distribution``  the lengths themselves, one dot per protein, per dataset.
 * ``length_vs_performance``  per-protein Spearman rho, and per-protein RMSE after the one-dataset recalibration of
-  ``07_rmse_calibration.py``, against sequence length, for ESM-MSR (WT head for singles, combined for multi-mutant sets) and
-  the retrained baselines, with the Spearman correlation between length and the per-protein metric and its protein-level
-  bootstrap interval.  Pooled over the external stability sets (a protein in two sets counts twice); the calibration set
-  S461 and its superset S669 are left out of the RMSE panels.
+  ``07_rmse_calibration.py``, against sequence length, for ESM-MSR (WT head), ME stage 1, ThermoMPNN and SPURS multi, on the ten single-mutant sets, with the Spearman correlation between length and the per-protein metric and its protein-level
+  bootstrap interval.  Pooled over the single-mutant external stability sets (a protein in two sets counts twice); the calibration set
+  S461, its superset S669 and S571 (labels not in kcal/mol) are left out of the RMSE panels.
 
 The full-sized proteins are the external stability sets (20-780 residues) and the single-protein DMS; the Tsuboyama libraries
 (40-72) and Domainome domains (19-97) are small domains and are shown for contrast.
@@ -30,7 +29,9 @@ from msr_analysis.registry import ALL_DATASETS, EXT12, LABEL, MODELS, TSU  # noq
 
 OUT = out_dir('09_sequence_length')
 CALIB_SET = 's461'
-MODELS_LEN = ['msr', 'me1', 'me2', 'tmpnn', 'spurs']          # 'msr' resolves to the head the set calls for
+MODELS_LEN = ['msr', 'me1', 'tmpnn', 'spursm']       # ESM-MSR WT head and ME stage 1 (one model per category), plus ThermoMPNN and SPURS multi; ten single-mutant sets
+LEN_SETS = [d for d in EXT12 if d not in ('ptmul', 'ptmuld')]
+LEN_LABEL = {'msr': 'ESM-MSR WT head', 'me1': 'MutateEverything st1', 'tmpnn': 'ThermoMPNN', 'spursm': 'SPURS multi'}
 MIN_N = 5
 
 
@@ -56,15 +57,16 @@ def summary():
 
 
 def fig_distribution(d, per_prot):
-    order = EXT12 + ['DLG4_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain', 'MYO_HUMAN_Kung_2025_display',
-                     'ESTA_BACSU_Nutschel_2020_dTm', 'GB1_Wu_2016_binding_domain', 'domainome', TSU[1]]
-    names = {**LABEL, 'DLG4_HUMAN_Faure_2021_abundance_domain': 'DLG4', 'GRB2_HUMAN_Faure_2021_abundance_domain': 'GRB2'}
-    fig, ax = plt.subplots(figsize=(11, 3.9))
+    order = EXT12 + ['domainome', TSU[1]]           # the single-protein DMS are one length each: in the text, not the figure
+    names = LABEL
+    dms = ', '.join(f'{n} {int(per_prot[d].iloc[0])}' for n, d in (('DLG4', 'DLG4_HUMAN_Faure_2021_abundance_domain'), ('GRB2', 'GRB2_HUMAN_Faure_2021_abundance_domain'),
+                                                                 ('MYO', 'MYO_HUMAN_Kung_2025_display'), ('ESTA', 'ESTA_BACSU_Nutschel_2020_dTm'), ('GB1', 'GB1_Wu_2016_binding_domain')))
+    fig, ax = plt.subplots(figsize=(10, 4.1))
     style.band_axis(ax, len(order))
     rng = np.random.default_rng(0)
     for i, ds in enumerate(order):
         L = per_prot[ds].to_numpy()
-        col = '#2c7fb8' if ds in EXT12 else ('#7f7f7f' if ds in ('domainome', TSU[1]) else '#d95f0e')
+        col = '#2c7fb8' if ds in EXT12 else '#7f7f7f'
         ax.scatter(i + rng.uniform(-.28, .28, len(L)), L, s=7, color=col, alpha=.55, lw=0, zorder=3, rasterized=True)
         q = np.percentile(L, [25, 50, 75])
         ax.plot([i - .36, i + .36], [q[1]] * 2, color='k', lw=1.8, zorder=4)
@@ -74,6 +76,7 @@ def fig_distribution(d, per_prot):
     ax.set_xticks(range(len(order))); ax.set_xticklabels([names[o] for o in order], rotation=30, ha='right')
     ax.set_ylabel('wild-type sequence length (residues)')
     ax.set_title('Protein sizes in the test sets (median and range above each column; black bar = median, line = IQR)', fontsize=10)
+    fig.text(0.01, -0.02, f'Single-protein DMS (not shown; one protein each): {dms} residues.  Grey: small domains (Domainome, Tsuboyama).', fontsize=8)
     style.save(fig, OUT / 'sequence_length_distribution')
 
 
@@ -137,7 +140,7 @@ def fig_performance(sets):
     for key in MODELS_LEN:
         for ds in sets:
             fr = load_frame(ds)
-            k = primary_key(fr) if key == 'msr' else key
+            k = 'msr:wt' if key == 'msr' else key
             t = per_protein_metrics(ds, k, ab[key])
             if t is not None and len(t):
                 t['model'] = key
@@ -145,15 +148,15 @@ def fig_performance(sets):
     D = pd.concat(allrows, ignore_index=True)
     D.to_csv(OUT / 'per_protein_metrics.csv', index=False, float_format='%.4f')
     # figure: rows = models, cols = (rho, rmse)
-    fig, axes = plt.subplots(len(MODELS_LEN), 2, figsize=(9.2, 2.15 * len(MODELS_LEN)), sharex=True)
+    fig, axes = plt.subplots(len(MODELS_LEN), 2, figsize=(9.2, 2.3 * len(MODELS_LEN)), sharex=True)
     stats = []
     for r, key in enumerate(MODELS_LEN):
         d = D[D.model == key]
-        lab = 'ESM-MSR (WT head / combined)' if key == 'msr' else MODELS[key]['label']
+        lab = LEN_LABEL[key]
         col = MODELS['msr:wt']['color'] if key == 'msr' else MODELS[key]['color']
         for c, (metric, yl) in enumerate((('rho', 'per-protein Spearman ρ'), ('rmse', 'per-protein RMSE (kcal/mol), recalibrated'))):
             ax = axes[r, c]
-            dd = d if metric == 'rho' else d[~d.dataset.isin(['s461', 's669'])]
+            dd = d if metric == 'rho' else d[~d.dataset.isin(['s461', 's669', 's571'])]
             ax.scatter(dd['length'], dd[metric], s=11, color=col, alpha=.5, lw=0, rasterized=True)
             ax.set_xscale('log')
             r0, lo, hi, n = boot_len_corr(dd, metric, B=1000)
@@ -184,7 +187,7 @@ def fig_performance(sets):
         ax.axvline(0, color='#888', lw=.8, ls=':')
         ax.set_xlabel(f'Spearman(length, per-protein {metric})')
         ax.set_yticks(range(len(s)))
-        ax.set_yticklabels(['ESM-MSR' if m == 'msr' else MODELS[m]['label'] for m in s.model])
+        ax.set_yticklabels([LEN_LABEL[m] for m in s.model])
     fig.tight_layout()
     style.save(fig, OUT / 'length_correlation_summary')
 
@@ -193,7 +196,7 @@ def main():
     d, per_prot = summary()
     print(d[['dataset', 'n_proteins', 'n_variants', 'median_len', 'min_len', 'max_len']].to_string(index=False))
     fig_distribution(d, per_prot)
-    fig_performance(EXT12)
+    fig_performance(LEN_SETS)
 
 
 if __name__ == '__main__':
