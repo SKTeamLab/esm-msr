@@ -3,9 +3,11 @@ esm_msr_capped,ESM-MSR (released) and (devel) checkpoints; all substitutions of 
 me_stage1,MutateEverything stage 1 (singles) on the capped train libraries,capped split; ME recipe stage 1,verified
 me_stage2,MutateEverything stage 2 (singles then doubles) on the capped train libraries,capped split; stage 2 initialised from stage 1,verified
 tmpnn,ThermoMPNN additive (singles) retrained on the capped train libraries,capped split; train_single.yaml,verified
-tmpnnd,ThermoMPNN-D (doubles) retrained on the capped train libraries,capped split; train_epistatic.yaml,verified
-spurs_single,SPURS single-mutant model: Megascale train+val libraries after the 25%-identity blacklist,SPURS_mod data; ThermoMPNN 8:1:1 split; m8 filter,verified
-spurs_multi,"SPURS multi-mutant model: same libraries, doubles",SPURS_mod data,verified
+tmpnnd,"ThermoMPNN-D (doubles) retrained on the capped train libraries it can see: the 52 with measured doubles, which all have a Rosetta model too, plus 82 more with a Rosetta-modelled single (134 of 172)",capped split; train_epistatic.yaml; 05c_tmpnnd_inventory.py,verified
+spurs_retrain_single,SPURS single-mutant model retrained on the capped train libraries (singles; same rows as ME stage 1),capped split; training_scripts/baselines/slurm_spurs_train.sh,verified
+spurs_retrain_multi,"SPURS multi-mutant model retrained on the capped train libraries (same-seed single model, then singles+doubles; same rows as ESM-MSR)",capped split; training_scripts/baselines/slurm_spurs_train.sh,verified
+spurs_single,PUBLISHED SPURS single-mutant checkpoint (not retrained; not in the BENCHMARKS tables): Megascale train+val libraries after the 25%-identity blacklist,SPURS_mod data; ThermoMPNN 8:1:1 split; m8 filter,verified
+spurs_multi,"PUBLISHED SPURS multi-mutant checkpoint (not retrained; not in the BENCHMARKS tables): same libraries, doubles",SPURS_mod data,verified
 esmtherm,"EsmTherm: K50_dG Dataset1+2 domains, mutant-level 80/10/10 split",datasets/split/wildtype_split.csv,protein-level (mutation rows unavailable)
 ifum,"IFUM: Megascale Dataset2 train domains (322 train, 86 val/test)",IFUM published dataset_splits.pdf,protein-level (mutation rows unavailable)
 esm3dg_mgnify,"ESM3dG: 960,216-sequence MGnify Stability fine-tune (not Megascale)",Zenodo 19411306 mgnify_training_index.csv,verified (0 exact sequences)

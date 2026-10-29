@@ -115,6 +115,7 @@ def test_limits_check_flags_what_the_slot_forbids(monkeypatch):
 def test_strict_mode_refuses_a_wrong_slot(tmp_path, monkeypatch):
     monkeypatch.setenv('MSR_FIXED_GPUS', '1')
     monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '0,1,2')
+    monkeypatch.setattr(rt, '_cuda', lambda: False)       # the slot check counts CUDA_VISIBLE_DEVICES; it must not need a device (a CPU-only box failed here)
     with pytest.raises(rt.ResourceLimitExceeded):
         rt.Tracker(tmp_path, 'test', limits=rt.Limits.from_env().__class__(gpus=1, strict=True))
 

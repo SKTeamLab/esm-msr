@@ -23,6 +23,13 @@ msv=pd.read_pickle(os.path.join(D,'megascale_variants.pkl'))
 lib=pd.read_pickle(os.path.join(D,'megascale_libraries.pkl'))
 INV={}
 INV['esm_msr_capped']={'lib:'+c for c in sp['train']}
+# every model retrained on the capped split trained on the same 172 libraries (stage 2 and SPURS multi start from the singles model), so the
+# protein-level classes (P, H, h) are the same for them; ThermoMPNN-D alone sees a subset (05c_tmpnnd_inventory.py: libraries with measured
+# doubles or a Rosetta model for its augmentation)
+for _k in ('me_stage1', 'me_stage2', 'tmpnn', 'spurs_retrain_single', 'spurs_retrain_multi'):
+    INV[_k]=INV['esm_msr_capped']
+_td=pd.read_csv(os.path.join(D,'tmpnnd_train_proteins.csv'))
+INV['tmpnnd']={'lib:'+c for c in _td.loc[_td.retained,'code_wt'].astype(str)}
 INV['spurs_single']={'lib:'+c for c in pd.read_csv(os.path.join(D,'spurs_single_train_proteins.csv')).query('retained==True')['code_wt'].astype(str)}
 INV['spurs_multi']={'lib:'+c for c in pd.read_csv(os.path.join(D,'spurs_multi_train_proteins.csv')).query('retained==True')['code_wt'].astype(str)}
 et=pd.read_csv(os.path.join(D,'esmtherm_train_proteins.csv'))
