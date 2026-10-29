@@ -5,7 +5,7 @@ series) is in [`EXPERIMENTS.md`](EXPERIMENTS.md); this document is the results.
 
 **The two ESM-MSR checkpoints compared throughout.** **ESM-MSR (baseline)** is the released recipe retrained on the
 capped split as a **three-seed triplicate** (`LoRA_models/release-baseline/s{1,2,3}`, unmasked, σ = 1); §1.1–1.3 carry
-its seed mean ± the sample standard deviation (n − 1) over the three seeds. It replaces the single
+its seed mean over the three seeds. It replaces the single
 `LoRA_models/esm-msr-baseline-w2a4-m16a16-capped` checkpoint, which is now quoted only by the rows labelled "released"
 (the §1.3 LoRA-scale sweep, §1.4 ProteinGym, §2.6, §3 and the all-substitution tables); the triplicate's ProteinGym pass
 was still in flight when this table was built. In `benchmarks/all_by_all_long.csv` the label "ESM-MSR (released)" with
@@ -28,8 +28,9 @@ says `q` (queued). The recipe, the data accounting and the deviations that remai
 
 **Metric conventions.** One Spearman ρ per model and dataset, positive = stabilizing / fitter for every model.
 External sets and DMS are a pooled ρ per set; Tsuboyama and Domainome are the mean of per-protein ρ, on measured
-rows only; ProteinGym is per-DMS ρ summarised as in §3. Multi-seed rows are seed means, and every ± is the sample
-standard deviation over seeds (n − 1), in §1 and §2 and in the ESM-MSR rows of the long CSV.
+rows only; ProteinGym is per-DMS ρ summarised as in §3. Multi-seed rows are seed means. The tables show no error range;
+the sample standard deviation over seeds (n − 1) is kept in the `sd` column of the long CSV and, for every table cell that used to carry a ±,
+in [`benchmarks/seed_sd_by_table_cell.csv`](benchmarks/seed_sd_by_table_cell.csv).
 
 **Regenerating.** The §1 tables are rendered on the cluster by a fork of `analysis_scripts/benchmark_matrix.py`
 (`~/consolidation/benchmark_matrix.py`, kept in step with it by `analysis_scripts/patch_consolidation_copy.py`); the repo
@@ -59,16 +60,16 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 
 | model | s571 | s783 | s2648 | s8754 | s669 | s461 | ssym | q3421 | k3822 | k2369 | ptmul | ptmuld | mean of 12 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ESM-MSR (baseline), combined (3 seeds) | **0.455±0.004** | 0.713±0.004 | 0.669±0.006 | 0.616±0.004 | 0.558±0.003 | 0.750±0.005 | 0.765±0.005 | 0.621±0.004 | 0.714±0.003 | 0.715±0.003 | 0.583±0.004 | 0.593±0.006 | 0.646±0.002 |
-| ESM-MSR (baseline), WT head (3 seeds) | 0.441±0.007 | 0.698±0.005 | 0.662±0.004 | 0.607±0.005 | 0.543±0.000 | 0.744±0.005 | 0.764±0.003 | 0.615±0.001 | 0.715±0.001 | 0.712±0.001 | 0.571±0.003 | 0.577±0.001 | 0.637±0.001 |
+| ESM-MSR (baseline), combined (3 seeds) | **0.455** | 0.713 | 0.669 | 0.616 | 0.558 | 0.750 | 0.765 | 0.621 | 0.714 | 0.715 | 0.583 | 0.593 | 0.646 |
+| ESM-MSR (baseline), WT head (3 seeds) | 0.441 | 0.698 | 0.662 | 0.607 | 0.543 | 0.744 | 0.764 | 0.615 | 0.715 | 0.712 | 0.571 | 0.577 | 0.637 |
 | ESM-MSR (devel), combined (3 seeds) | 0.445 | **0.725** | 0.677 | **0.625** | 0.560 | **0.753** | 0.773 | 0.626 | **0.721** | **0.722** | **0.594** | **0.597** | 0.652 |
 | ESM-MSR (devel), WT head | 0.430 | 0.713 | 0.675 | 0.618 | 0.551 | **0.753** | **0.776** | 0.623 | 0.719 | 0.717 | 0.583 | 0.585 | 0.645 |
 | MutateEverything st1 (3 seeds) | 0.439 | 0.706 | **0.701** | 0.623 | 0.559 | 0.721 | 0.674 | **0.638** | 0.696 | 0.674 | 0.472 | 0.480 | 0.615 |
 | MutateEverything st2 (3 seeds) | 0.426 | 0.694 | 0.676 | 0.606 | 0.542 | 0.710 | 0.636 | 0.620 | 0.683 | 0.662 | 0.510 | 0.489 | 0.605 |
 | ThermoMPNN (additive, 3 seeds) | 0.406 | 0.689 | 0.648 | 0.602 | 0.490 | 0.655 | 0.711 | 0.591 | 0.643 | 0.649 | 0.433 | 0.499 | 0.585 |
 | ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.406 | 0.689 | 0.648 | 0.602 | 0.490 | 0.655 | 0.711 | 0.591 | 0.643 | 0.649 | 0.432 | 0.514 | 0.586 |
-| SPURS (retrained, 3 seeds) | 0.449±0.006 | 0.675±0.012 | 0.655±0.002 | 0.581±0.002 | 0.497±0.008 | 0.644±0.003 | 0.741±0.004 | 0.593±0.003 | 0.621±0.006 | 0.635±0.008 | 0.427±0.039 | 0.537±0.021 | 0.588±0.006 |
-| SPURS multi (retrained, 3 seeds) | 0.426±0.007 | 0.641±0.022 | 0.620±0.011 | 0.557±0.008 | 0.471±0.012 | 0.612±0.017 | 0.696±0.013 | 0.566±0.010 | 0.598±0.008 | 0.605±0.006 | 0.403±0.028 | 0.481±0.025 | 0.556±0.010 |
+| SPURS (retrained, 3 seeds) | 0.449 | 0.675 | 0.655 | 0.581 | 0.497 | 0.644 | 0.741 | 0.593 | 0.621 | 0.635 | 0.427 | 0.537 | 0.588 |
+| SPURS multi (retrained, 3 seeds) | 0.426 | 0.641 | 0.620 | 0.557 | 0.471 | 0.612 | 0.696 | 0.566 | 0.598 | 0.605 | 0.403 | 0.481 | 0.556 |
 | ESMtherm | 0.349ᴾ | 0.434ᴾ | 0.371ᴾ | 0.347ᴾ | 0.414ᴾ | 0.474ᴾ | 0.380 | 0.348ᴾ | 0.366ᴾ | 0.393ᴾ | 0.235ᴾ | 0.270ᴾ | 0.365 |
 | DDGemb (server) | 0.484ᴹ | 0.689ᴹ | 0.895ᴹ | 0.684ᴹ | **0.570** | 0.654 | 0.891ᴹ | 0.752ᴹ | 0.745ᴹ | 0.702ᴹ | 0.616ᴾ | 0.678ᴾ | 0.697 |
 | DDMut (server) | 0.350ᴹ | 0.687ᴹ | 0.731ᴹ | 0.638ᴹ | 0.402*ᴾ | 0.534*ᴾ | 0.363ᴹ | 0.653ᴹ | 0.709ᴹ | 0.681ᴹ | 0.725ᴹ | 0.718ᴹ | – |
@@ -159,16 +160,16 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 
 | model | capped val | capped test |
 |---|---|---|
-| ESM-MSR (baseline), combined (3 seeds) | **0.855±0.001ʰ** | 0.847±0.001ʰ |
-| ESM-MSR (baseline), WT head (3 seeds) | 0.841±0.002ʰ | 0.829±0.002ʰ |
+| ESM-MSR (baseline), combined (3 seeds) | **0.855ʰ** | 0.847ʰ |
+| ESM-MSR (baseline), WT head (3 seeds) | 0.841ʰ | 0.829ʰ |
 | ESM-MSR (devel), combined (3 seeds) | 0.854ʰ | **0.849ʰ** |
 | ESM-MSR (devel), WT head | 0.837ʰ | 0.828ʰ |
 | MutateEverything st1 (3 seeds) | 0.754ʰ | 0.771ʰ |
 | MutateEverything st2 (3 seeds) | 0.730ʰ | 0.760ʰ |
 | ThermoMPNN (additive, 3 seeds) | 0.787ʰ | 0.794ʰ |
 | ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.785ʰ | 0.784ʰ |
-| SPURS (retrained, 3 seeds) | 0.803±0.002ʰ | 0.801±0.004ʰ |
-| SPURS multi (retrained, 3 seeds) | 0.763±0.005ʰ | 0.772±0.002ʰ |
+| SPURS (retrained, 3 seeds) | 0.803ʰ | 0.801ʰ |
+| SPURS multi (retrained, 3 seeds) | 0.763ʰ | 0.772ʰ |
 | ESMtherm | 0.716ᴾ | 0.774ᴾ |
 | DDGemb (server) | 0.490 | 0.508ʰ |
 | DDMut (server) | – | – |
@@ -223,8 +224,8 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 
 | model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome |
 |---|---|---|---|---|---|---|---|---|
-| ESM-MSR (baseline), combined (3 seeds) | 0.737±0.004 | 0.737±0.003 | 0.675±0.019 | 0.627±0.011 | 0.638±0.003 | 0.480±0.007 | 0.318±0.012 | 0.543±0.001ᴾ |
-| ESM-MSR (baseline), WT head (3 seeds) | 0.733±0.001 | 0.736±0.003 | 0.670±0.015 | 0.636±0.005 | 0.637±0.001 | 0.462±0.010 | 0.341±0.013 | 0.541±0.004ᴾ |
+| ESM-MSR (baseline), combined (3 seeds) | 0.737 | 0.737 | 0.675 | 0.627 | 0.638 | 0.480 | 0.318 | 0.543ᴾ |
+| ESM-MSR (baseline), WT head (3 seeds) | 0.733 | 0.736 | 0.670 | 0.636 | 0.637 | 0.462 | 0.341 | 0.541ᴾ |
 | ESM-MSR (devel), combined (3 seeds) | 0.745 | 0.742 | 0.681 | 0.636 | 0.639 | 0.481 | 0.337 | 0.543ᴾ |
 | ESM-MSR (devel), WT head | 0.751 | 0.754 | 0.684 | 0.655 | **0.640** | 0.478 | **0.364** | 0.548ᴾ |
 | MutateEverything st1 (3 seeds) | 0.707 | 0.681 | 0.646 | 0.581 | 0.580 | 0.483 | 0.296 | 0.520ᴾ |
@@ -233,8 +234,8 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | MutateEverything st2, additive | 0.715 | 0.699 | 0.669 | 0.642 | 0.599 | 0.439 | 0.281 | – |
 | ThermoMPNN (additive, 3 seeds) | 0.626 | 0.632 | 0.613 | 0.569 | 0.570 | 0.405 | 0.319 | 0.450ᴾ |
 | ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.568 | 0.582 | 0.560 | 0.549 | 0.535 | 0.405 | 0.318 | – |
-| SPURS (retrained, 3 seeds) | 0.715±0.009 | 0.729±0.006 | 0.674±0.013 | 0.589±0.007 | 0.583±0.007 | 0.449±0.012 | 0.308±0.004 | 0.489±0.009ᴾ |
-| SPURS multi (retrained, 3 seeds) | 0.658±0.023 | 0.673±0.020 | 0.576±0.003 | 0.545±0.036 | 0.539±0.019 | 0.335±0.021 | 0.333±0.002 | 0.393±0.008ᴾ |
+| SPURS (retrained, 3 seeds) | 0.715 | 0.729 | 0.674 | 0.589 | 0.583 | 0.449 | 0.308 | 0.489ᴾ |
+| SPURS multi (retrained, 3 seeds) | 0.658 | 0.673 | 0.576 | 0.545 | 0.539 | 0.335 | 0.333 | 0.393ᴾ |
 | ESMtherm | 0.093 | 0.136 | 0.484 | 0.466 | 0.229 | -0.000 | 0.214ᴾ | 0.201ᴾ |
 | DDGemb (server) | 0.103 | 0.123 | 0.457 | 0.469 | 0.475 | 0.188 | 0.154 | 0.351ᴾ |
 | IFUM, WT backbone | 0.766 | 0.768 | 0.648 | 0.565 | 0.507 | 0.190 | 0.262ᴾ | 0.464ᴾ |
@@ -333,8 +334,8 @@ the combined head is shown).
 | MutateEverything st1 (3 seeds) | 0.468ᴹ | 0.808ᴹ | 0.506ᴹ |
 | MutateEverything st2 (3 seeds) | q | q | q |
 | ThermoMPNN (additive, 3 seeds) | 0.441ᴹ | 0.781ᴹ | 0.484ᴹ |
-| SPURS (retrained, 3 seeds) | 0.462±0.004ᴹ | 0.805±0.005ᴹ | 0.501±0.003ᴹ |
-| SPURS multi (retrained, 3 seeds) | 0.418±0.008ᴹ | 0.772±0.006ᴹ | 0.462±0.006ᴹ |
+| SPURS (retrained, 3 seeds) | 0.462ᴹ | 0.805ᴹ | 0.501ᴹ |
+| SPURS multi (retrained, 3 seeds) | 0.418ᴹ | 0.772ᴹ | 0.462ᴹ |
 | ESMtherm | 0.213ᴾ | 0.720ᴾ | 0.283ᴾ |
 | GeoDDG-3D (FASPR) | 0.383 | 0.638 | 0.422 |
 | ESM3ΔG | 0.380 | 0.788 | 0.441 |
@@ -443,7 +444,7 @@ label sign flipped relative to the upstream recipe (§5, item 13).
 
 ### 1.6 SPURS retrained on the capped split
 
-SPURS and SPURS multi were retrained on `splits_oct06_capped.pkl` so that they are held out like ESM-MSR, MutateEverything and ThermoMPNN. Their rows in §1.1–§1.4, §2 and §3 are the three-seed means (± the sample standard deviation, n − 1; the multi model of seed *s* starts from the single model of seed *s*) and carry the same leak codes as the other retrained models (§6). The runs are the tracked fixed-slot jobs of `inference_scripts/baselines/slurm_inference.sh` (one per seed, both models of that seed), scored by `analysis_scripts/score_baseline_runs.py`: Tsuboyama on **measured rows only** (`cens == 0`), ProteinGym as in `benchmark_matrix.py`.
+SPURS and SPURS multi were retrained on `splits_oct06_capped.pkl` so that they are held out like ESM-MSR, MutateEverything and ThermoMPNN. Their rows in §1.1–§1.4, §2 and §3 are the three-seed means (the multi model of seed *s* starts from the single model of seed *s*) and carry the same leak codes as the other retrained models (§6). The runs are the tracked fixed-slot jobs of `inference_scripts/baselines/slurm_inference.sh` (one per seed, both models of that seed), scored by `analysis_scripts/score_baseline_runs.py`: Tsuboyama on **measured rows only** (`cens == 0`), ProteinGym as in `benchmark_matrix.py`.
 
 - **Data.** `outputs/baselines_capped_allbl/data`, train libraries only: 173 libraries, 154,358 single and mutant-background-single rows
   for SPURS; 52 libraries with doubles, 53,188 doubles, for SPURS multi (val: 25 libraries / 26,410 singles, and 9 libraries / 8,547 doubles).
@@ -512,9 +513,9 @@ are comparable to §2.1–2.2: same splits, censored rows excluded, 8,494 and 12
 
 | model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ESM-MSR (baseline), 3 seeds | **0.654±0.003** | 0.586±0.018 | 0.434±0.033 | 0.377±0.045 | 0.745±0.024 | 0.395±0.050 | 0.309±0.004 | 0.193±0.004 | 0.845±0.009 | 0.683±0.012 | **0.717±0.036** | 0.177±0.081 |
-| ESM-MSR (devel), 3 seeds | 0.643±0.032 | 0.585±0.017 | 0.437±0.031 | 0.406±0.011 | 0.734±0.023 | 0.434±0.011 | 0.315±0.014 | 0.195±0.007 | 0.854±0.023 | 0.657±0.011 | 0.824±0.019 | 0.275±0.030 |
-| ESM-MSR (trim/mask), 3 seeds | 0.598±0.022 | **0.637±0.021** | **0.530±0.015** | **0.433±0.025** | **0.851±0.053** | **0.475±0.030** | **0.320±0.010** | **0.217±0.005** | **0.906±0.004** | 0.619±0.009 | 0.830±0.059 | **-0.117±0.219** |
+| ESM-MSR (baseline), 3 seeds | **0.654** | 0.586 | 0.434 | 0.377 | 0.745 | 0.395 | 0.309 | 0.193 | 0.845 | 0.683 | **0.717** | 0.177 |
+| ESM-MSR (devel), 3 seeds | 0.643 | 0.585 | 0.437 | 0.406 | 0.734 | 0.434 | 0.315 | 0.195 | 0.854 | 0.657 | 0.824 | 0.275 |
+| ESM-MSR (trim/mask), 3 seeds | 0.598 | **0.637** | **0.530** | **0.433** | **0.851** | **0.475** | **0.320** | **0.217** | **0.906** | 0.619 | 0.830 | **-0.117** |
 | MutateEverything stage 2 (vs stage-1 singles), 3 seeds | 0.421 | 0.311 | 0.141 | 0.153 | 0.467 | 0.161 | 0.093 | 0.072 | 0.736 | 0.668 | 0.803 | -0.127 |
 | ThermoMPNN-D (vs ThermoMPNN), 3 seeds | 0.190 | 0.085 | 0.108 | 0.150 | 0.060 | 0.203 | 0.048 | 0.023 | 0.655 | **0.692** | 0.979 | -0.435 |
 
@@ -522,16 +523,16 @@ are comparable to §2.1–2.2: same splits, censored rows excluded, 8,494 and 12
 
 | model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ESM-MSR (baseline), 3 seeds | 0.452±0.013 | 0.484±0.016 | 0.343±0.018 | 0.304±0.018 | **0.637±0.006** | 0.361±0.026 | 0.240±0.008 | 0.217±0.006 | 0.761±0.003 | **0.604±0.011** | 0.954±0.042 | 0.280±0.109 |
-| ESM-MSR (devel), 3 seeds | **0.464±0.015** | **0.487±0.020** | 0.361±0.030 | 0.322±0.021 | 0.606±0.034 | 0.382±0.026 | 0.236±0.003 | 0.209±0.006 | 0.754±0.008 | 0.590±0.008 | 1.079±0.024 | 0.405±0.021 |
-| ESM-MSR (trim/mask), 3 seeds | 0.444±0.013 | 0.460±0.019 | **0.398±0.008** | **0.374±0.010** | 0.589±0.017 | **0.417±0.016** | **0.266±0.014** | **0.224±0.009** | **0.803±0.019** | 0.567±0.007 | 0.937±0.045 | **0.083±0.192** |
+| ESM-MSR (baseline), 3 seeds | 0.452 | 0.484 | 0.343 | 0.304 | **0.637** | 0.361 | 0.240 | 0.217 | 0.761 | **0.604** | 0.954 | 0.280 |
+| ESM-MSR (devel), 3 seeds | **0.464** | **0.487** | 0.361 | 0.322 | 0.606 | 0.382 | 0.236 | 0.209 | 0.754 | 0.590 | 1.079 | 0.405 |
+| ESM-MSR (trim/mask), 3 seeds | 0.444 | 0.460 | **0.398** | **0.374** | 0.589 | **0.417** | **0.266** | **0.224** | **0.803** | 0.567 | 0.937 | **0.083** |
 | MutateEverything stage 2 (vs stage-1 singles), 3 seeds | 0.405 | 0.223 | 0.165 | 0.211 | 0.124 | 0.225 | 0.134 | 0.112 | 0.665 | 0.595 | **0.922** | 0.255 |
 | ThermoMPNN-D (vs ThermoMPNN), 3 seeds | 0.077 | 0.071 | 0.124 | 0.166 | -0.003 | 0.197 | 0.022 | 0.016 | 0.601 | 0.578 | 1.030 | -0.224 |
 
 Two things this set makes sharper than the old one. On validation the trim seeds lead the interaction columns (`beyond ρ`, `beyond_lib`, pair-avg, pair, line, `cell_mag`,
 `cell_rank`, `flipacc`) while trailing on naive ρ (0.598 against 0.654), `class3` and `global_err`; `beyond_lib` (0.530
 against 0.437) strips each library's mean, so the gain is not a between-library offset. On test they lead `beyond_lib`,
-pair-avg, line, `cell_mag`, `cell_rank` (by less than one seed sd) and `flipacc` while trailing on `beyond ρ` (0.460
+pair-avg, line, `cell_mag`, `cell_rank` (by less than one seed sd, `benchmarks/seed_sd_by_table_cell.csv`) and `flipacc` while trailing on `beyond ρ` (0.460
 against 0.487, devel) and pair ρ (0.589 against 0.637, baseline): the pooled
 correlation still carries the per-library level agreement that `beyond_lib` strips out. `global_err` and
 `global_bias` evaluate the point-wise RMSE and mean bias of the predicted epistasis $\sim\text{MT}(AB) - \text{WT}(AB)$
@@ -557,11 +558,11 @@ exist before live (`beyond_lib`, `beyond_rho_pairavg`, three-class accuracy, `gl
 | IFUM, ESMFold per variant ‡ ᴾ | 0.292 | 0.316 | 0.657 | 0.189 | 0.097 | 0.076 | 0.771 | 1.067 |
 | GeoDDG-3D (FASPR) ʰ | 0.137 | 0.112 | 0.240 | 0.080 | 0.089 | 0.073 | 0.736 | 1.277 |
 | ESM3ΔG ᴴ | 0.305 | 0.447 | 0.587 | 0.346 | 0.211 | 0.149 | 0.856 | 1.044 |
-| SPURS multi (retrained, 3 seeds) ʰ | 0.422±0.016 | 0.261±0.028 | 0.450±0.032 | 0.262±0.036 | -0.026±0.006 | 0.023±0.005 | 0.533±0.045 | 0.815±0.014 |
+| SPURS multi (retrained, 3 seeds) ʰ | 0.422 | 0.261 | 0.450 | 0.262 | -0.026 | 0.023 | 0.533 | 0.815 |
 | ProteinMPNN (zero-shot) ᶜ | 0.059 | 0.152 | 0.123 | 0.151 | 0.141 | 0.077 | 0.669 | 1.096 |
 | DDGemb (server) ʰ | 0.164 | 0.370 | 0.728 | 0.143 | 0.062 | 0.045 | 0.616 | 1.295 |
-| ESM-MSR (baseline) ʰ | **0.654±0.003** | **0.586±0.018** | **0.745±0.024** | 0.395±0.050 | 0.309±0.004 | 0.193±0.004 | 0.845±0.009 | **0.717±0.036** |
-| ESM-MSR (devel) (3 seeds) ʰ | 0.643±0.032 | 0.585±0.017 | 0.734±0.023 | **0.434±0.011** | **0.315±0.014** | **0.195±0.007** | **0.854±0.023** | 0.824±0.019 |
+| ESM-MSR (baseline) ʰ | **0.654** | **0.586** | **0.745** | 0.395 | 0.309 | 0.193 | 0.845 | **0.717** |
+| ESM-MSR (devel) (3 seeds) ʰ | 0.643 | 0.585 | 0.734 | **0.434** | **0.315** | **0.195** | **0.854** | 0.824 |
 
 ### 2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)
 
@@ -576,11 +577,11 @@ exist before live (`beyond_lib`, `beyond_rho_pairavg`, three-class accuracy, `gl
 | IFUM, ESMFold per variant ‡ ᴾ | 0.102 | 0.304 | 0.503 | 0.230 | 0.093 | 0.069 | 0.649 | 1.132 |
 | GeoDDG-3D (FASPR) ʰ | 0.055 | 0.046 | 0.083 | 0.087 | 0.077 | 0.054 | 0.589 | 1.195 |
 | ESM3ΔG ᴴ | 0.413 | 0.462 | 0.571 | 0.384 | 0.289 | 0.203 | 0.794 | 0.956 |
-| SPURS multi (retrained, 3 seeds) ʰ | 0.308±0.060 | 0.278±0.044 | 0.399±0.050 | 0.270±0.047 | 0.009±0.015 | 0.041±0.008 | 0.522±0.023 | **0.883±0.027** |
+| SPURS multi (retrained, 3 seeds) ʰ | 0.308 | 0.278 | 0.399 | 0.270 | 0.009 | 0.041 | 0.522 | **0.883** |
 | ProteinMPNN (zero-shot) ᶜ | 0.314 | 0.273 | 0.473 | 0.125 | 0.125 | 0.064 | 0.592 | 0.992 |
 | DDGemb (server) ʰ | 0.031 | 0.122 | 0.242 | -0.019 | 0.028 | 0.028 | 0.550 | 1.108 |
-| ESM-MSR (baseline) ʰ | 0.452±0.013 | 0.484±0.016 | **0.637±0.006** | 0.361±0.026 | **0.240±0.008** | **0.217±0.006** | **0.761±0.003** | 0.954±0.042 |
-| ESM-MSR (devel) (3 seeds) ʰ | **0.464±0.015** | **0.487±0.020** | 0.606±0.034 | **0.382±0.026** | 0.236±0.003 | 0.209±0.006 | 0.754±0.008 | 1.079±0.024 |
+| ESM-MSR (baseline) ʰ | 0.452 | 0.484 | **0.637** | 0.361 | **0.240** | **0.217** | **0.761** | 0.954 |
+| ESM-MSR (devel) (3 seeds) ʰ | **0.464** | **0.487** | 0.606 | **0.382** | 0.236 | 0.209 | 0.754 | 1.079 |
 
 Largest seed sd per model, validation: ME stage 1 0.364, ME stage 2 0.077, ThermoMPNN-D 0.134, ESM-MSR (devel) 0.057; test:
 ME stage 1 0.201, ME stage 2 0.062, ThermoMPNN-D 0.076, ESM-MSR (devel) 0.035. A difference smaller than these is not
@@ -632,18 +633,18 @@ from +0.405 into −0.164.
 ### 2.3 ddG ranking (mean per-protein Spearman)
 
 Each ESM-MSR checkpoint is shown by its WT (additive) head and by its combined prediction, beside the retrained
-baselines. Baselines are 3-seed means; the ESM-MSR columns are means ± sd over the three seeds of each series. TMPNN is the singles-only ThermoMPNN, which makes no pair-specific prediction, so it has no dddG: that is the
+baselines. Baselines are 3-seed means; the ESM-MSR columns are means over the three seeds of each series (their seed sd: `benchmarks/seed_sd_by_table_cell.csv`). TMPNN is the singles-only ThermoMPNN, which makes no pair-specific prediction, so it has no dddG: that is the
 only gap. Regenerated by `benchmark_matrix.py ddg`, with the ME stage 2 and ThermoMPNN+D columns replaced on 2026-10-27 by the corrected runs. The validation numbers of all
 retrained baselines are on the full 34,957-row validation population (ME stage 1 and ThermoMPNN were rescored on it on 2026-10-28).
 
 | | ME st1 | ME st2 | TMPNN | TMPNN+D | ESM-MSR (baseline) WT ʰ | ESM-MSR (baseline) combined ʰ | ESM-MSR (devel) WT ʰ | ESM-MSR (devel) combined ʰ |
 |---|---|---|---|---|---|---|---|---|
-| val all variants (`spearman_all`) | 0.754 | 0.730 | 0.787 | 0.785 | 0.841 ± 0.002 | **0.855 ± 0.001** | 0.836 ± 0.001 | 0.854 ± 0.001 |
-| val doubles (`spearman_doubles`) | 0.571 | 0.629 | 0.630 | 0.688 | 0.687 ± 0.015 | 0.720 ± 0.003 | 0.693 ± 0.002 | **0.727 ± 0.011** |
-| val dddG of doubles (`spearman_doubles_epi`) | -0.013 | 0.341 | – | 0.225 | -0.023 ± 0.031 | **0.505 ± 0.010** | 0.009 ± 0.068 | 0.492 ± 0.006 |
-| test all variants (`spearman_all`) | 0.771 | 0.760 | 0.794 | 0.784 | 0.829 ± 0.002 | 0.847 ± 0.001 | 0.827 ± 0.002 | **0.849 ± 0.001** |
-| test doubles (`spearman_doubles`) | 0.617 | 0.652 | 0.673 | 0.668 | 0.709 ± 0.005 | 0.766 ± 0.004 | 0.717 ± 0.005 | **0.781 ± 0.008** |
-| test dddG of doubles (`spearman_doubles_epi`) | 0.020 | 0.346 | – | 0.184 | -0.045 ± 0.033 | 0.574 ± 0.013 | -0.022 ± 0.026 | **0.575 ± 0.007** |
+| val all variants (`spearman_all`) | 0.754 | 0.730 | 0.787 | 0.785 | 0.841 | **0.855** | 0.836 | 0.854 |
+| val doubles (`spearman_doubles`) | 0.571 | 0.629 | 0.630 | 0.688 | 0.687 | 0.720 | 0.693 | **0.727** |
+| val dddG of doubles (`spearman_doubles_epi`) | -0.013 | 0.341 | – | 0.225 | -0.023 | **0.505** | 0.009 | 0.492 |
+| test all variants (`spearman_all`) | 0.771 | 0.760 | 0.794 | 0.784 | 0.829 | 0.847 | 0.827 | **0.849** |
+| test doubles (`spearman_doubles`) | 0.617 | 0.652 | 0.673 | 0.668 | 0.709 | 0.766 | 0.717 | **0.781** |
+| test dddG of doubles (`spearman_doubles_epi`) | 0.020 | 0.346 | – | 0.184 | -0.045 | 0.574 | -0.022 | **0.575** |
 
 - **The combined prediction beats the WT head for both checkpoints on every metric, and almost all of the gain is
   the interaction term.** On test, all-variant ρ rises 0.829 → 0.847 (baseline) and 0.827 → 0.849 (devel); doubles

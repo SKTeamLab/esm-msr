@@ -35,6 +35,9 @@ import re
 import numpy as np
 import pandas as pd
 
+# The BENCHMARKS tables show seed means only; the seed sd stays in the long CSV (`sd`). BENCH_SHOW_SD=1 prints ' ± sd' again.
+SHOW_SD = os.environ.get('BENCH_SHOW_SD', '0') == '1'
+
 DEV = '/home/sreeves/esm-msr-devel'
 SB = '/home/sreeves/stability-baselines'
 EXT = ['s571', 's783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld']
@@ -610,7 +613,7 @@ def cmd_ddg(a):
                 if v is None or not np.isfinite(v):
                     cells.append('–')
                     continue
-                t = f'{v:.3f}' + (f' ± {e:.3f}' if np.isfinite(e) else '')
+                t = f'{v:.3f}' + (f' ± {e:.3f}' if SHOW_SD and np.isfinite(e) else '')
                 cells.append(f'**{t}**' if v == max(ok) else t)
             print(f'| {split} {name} (`{metric}`) | ' + ' | '.join(cells) + ' |')
 

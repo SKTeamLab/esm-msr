@@ -1,0 +1,243 @@
+table,row,column,mean,sd_n_minus_1,n_seeds
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",s571,0.455,0.004,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",s783,0.713,0.004,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",s2648,0.669,0.006,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",s8754,0.616,0.004,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",s669,0.558,0.003,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",s461,0.750,0.005,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",ssym,0.765,0.005,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",q3421,0.621,0.004,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",k3822,0.714,0.003,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",k2369,0.715,0.003,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",ptmul,0.583,0.004,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",ptmuld,0.593,0.006,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), combined (3 seeds)",mean of 12,0.646,0.002,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",s571,0.441,0.007,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",s783,0.698,0.005,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",s2648,0.662,0.004,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",s8754,0.607,0.005,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",s669,0.543,0.000,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",s461,0.744,0.005,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",ssym,0.764,0.003,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",q3421,0.615,0.001,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",k3822,0.715,0.001,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",k2369,0.712,0.001,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",ptmul,0.571,0.003,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",ptmuld,0.577,0.001,3
+1.1 Thermostability: the 12 external sets,"ESM-MSR (baseline), WT head (3 seeds)",mean of 12,0.637,0.001,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",s571,0.449,0.006,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",s783,0.675,0.012,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",s2648,0.655,0.002,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",s8754,0.581,0.002,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",s669,0.497,0.008,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",s461,0.644,0.003,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",ssym,0.741,0.004,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",q3421,0.593,0.003,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",k3822,0.621,0.006,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",k2369,0.635,0.008,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",ptmul,0.427,0.039,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",ptmuld,0.537,0.021,3
+1.1 Thermostability: the 12 external sets,"SPURS (retrained, 3 seeds)",mean of 12,0.588,0.006,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",s571,0.426,0.007,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",s783,0.641,0.022,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",s2648,0.620,0.011,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",s8754,0.557,0.008,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",s669,0.471,0.012,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",s461,0.612,0.017,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",ssym,0.696,0.013,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",q3421,0.566,0.010,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",k3822,0.598,0.008,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",k2369,0.605,0.006,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",ptmul,0.403,0.028,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",ptmuld,0.481,0.025,3
+1.1 Thermostability: the 12 external sets,"SPURS multi (retrained, 3 seeds)",mean of 12,0.556,0.010,3
+1.2 Tsuboyama,"ESM-MSR (baseline), combined (3 seeds)",capped val,0.855,0.001,3
+1.2 Tsuboyama,"ESM-MSR (baseline), combined (3 seeds)",capped test,0.847,0.001,3
+1.2 Tsuboyama,"ESM-MSR (baseline), WT head (3 seeds)",capped val,0.841,0.002,3
+1.2 Tsuboyama,"ESM-MSR (baseline), WT head (3 seeds)",capped test,0.829,0.002,3
+1.2 Tsuboyama,"SPURS (retrained, 3 seeds)",capped val,0.803,0.002,3
+1.2 Tsuboyama,"SPURS (retrained, 3 seeds)",capped test,0.801,0.004,3
+1.2 Tsuboyama,"SPURS multi (retrained, 3 seeds)",capped val,0.763,0.005,3
+1.2 Tsuboyama,"SPURS multi (retrained, 3 seeds)",capped test,0.772,0.002,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",DLG4 abund.,0.737,0.004,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",DLG4 bind.,0.737,0.003,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",GRB2 abund.,0.675,0.019,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",GRB2 bind.,0.627,0.011,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",MYO,0.638,0.003,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",ESTA dTm,0.480,0.007,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",GB1,0.318,0.012,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",Domainome,0.543,0.001,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",DLG4 abund.,0.733,0.001,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",DLG4 bind.,0.736,0.003,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",GRB2 abund.,0.670,0.015,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",GRB2 bind.,0.636,0.005,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",MYO,0.637,0.001,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",ESTA dTm,0.462,0.010,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",GB1,0.341,0.013,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",Domainome,0.541,0.004,3
+1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",DLG4 abund.,0.715,0.009,3
+1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",DLG4 bind.,0.729,0.006,3
+1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",GRB2 abund.,0.674,0.013,3
+1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",GRB2 bind.,0.589,0.007,3
+1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",MYO,0.583,0.007,3
+1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",ESTA dTm,0.449,0.012,3
+1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",GB1,0.308,0.004,3
+1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",Domainome,0.489,0.009,3
+1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",DLG4 abund.,0.658,0.023,3
+1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",DLG4 bind.,0.673,0.020,3
+1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",GRB2 abund.,0.576,0.003,3
+1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",GRB2 bind.,0.545,0.036,3
+1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",MYO,0.539,0.019,3
+1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",ESTA dTm,0.335,0.021,3
+1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",GB1,0.333,0.002,3
+1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",Domainome,0.393,0.008,3
+1.4 ProteinGym (213 DMS),"SPURS (retrained, 3 seeds)",PG avg,0.462,0.004,3
+1.4 ProteinGym (213 DMS),"SPURS (retrained, 3 seeds)",Stability,0.805,0.005,3
+1.4 ProteinGym (213 DMS),"SPURS (retrained, 3 seeds)",DMS mean,0.501,0.003,3
+1.4 ProteinGym (213 DMS),"SPURS multi (retrained, 3 seeds)",PG avg,0.418,0.008,3
+1.4 ProteinGym (213 DMS),"SPURS multi (retrained, 3 seeds)",Stability,0.772,0.006,3
+1.4 ProteinGym (213 DMS),"SPURS multi (retrained, 3 seeds)",DMS mean,0.462,0.006,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (baseline), 3 seeds",naive ρ,0.654,0.003,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (baseline), 3 seeds",beyond ρ,0.586,0.018,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (baseline), 3 seeds",beyond_lib,0.434,0.033,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (baseline), 3 seeds",pair-avg ρ,0.377,0.045,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (baseline), 3 seeds",pair ρ,0.745,0.024,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (baseline), 3 seeds",line ρ,0.395,0.050,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (baseline), 3 seeds",cell_mag,0.309,0.004,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (baseline), 3 seeds",cell_rank,0.193,0.004,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (baseline), 3 seeds",flipacc,0.845,0.009,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (baseline), 3 seeds",class3 acc,0.683,0.012,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (baseline), 3 seeds",global_err ↓,0.717,0.036,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (baseline), 3 seeds",global_bias,0.177,0.081,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (devel), 3 seeds",naive ρ,0.643,0.032,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (devel), 3 seeds",beyond ρ,0.585,0.017,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (devel), 3 seeds",beyond_lib,0.437,0.031,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (devel), 3 seeds",pair-avg ρ,0.406,0.011,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (devel), 3 seeds",pair ρ,0.734,0.023,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (devel), 3 seeds",line ρ,0.434,0.011,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (devel), 3 seeds",cell_mag,0.315,0.014,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (devel), 3 seeds",cell_rank,0.195,0.007,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (devel), 3 seeds",flipacc,0.854,0.023,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (devel), 3 seeds",class3 acc,0.657,0.011,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (devel), 3 seeds",global_err ↓,0.824,0.019,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (devel), 3 seeds",global_bias,0.275,0.030,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (trim/mask), 3 seeds",naive ρ,0.598,0.022,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (trim/mask), 3 seeds",beyond ρ,0.637,0.021,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (trim/mask), 3 seeds",beyond_lib,0.530,0.015,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (trim/mask), 3 seeds",pair-avg ρ,0.433,0.025,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (trim/mask), 3 seeds",pair ρ,0.851,0.053,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (trim/mask), 3 seeds",line ρ,0.475,0.030,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (trim/mask), 3 seeds",cell_mag,0.320,0.010,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (trim/mask), 3 seeds",cell_rank,0.217,0.005,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (trim/mask), 3 seeds",flipacc,0.906,0.004,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (trim/mask), 3 seeds",class3 acc,0.619,0.009,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (trim/mask), 3 seeds",global_err ↓,0.830,0.059,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Validation (valfull: 8,494 doubles, 24 pairs, 2,509 flips)","ESM-MSR (trim/mask), 3 seeds",global_bias,-0.117,0.219,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (baseline), 3 seeds",naive ρ,0.452,0.013,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (baseline), 3 seeds",beyond ρ,0.484,0.016,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (baseline), 3 seeds",beyond_lib,0.343,0.018,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (baseline), 3 seeds",pair-avg ρ,0.304,0.018,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (baseline), 3 seeds",pair ρ,0.637,0.006,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (baseline), 3 seeds",line ρ,0.361,0.026,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (baseline), 3 seeds",cell_mag,0.240,0.008,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (baseline), 3 seeds",cell_rank,0.217,0.006,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (baseline), 3 seeds",flipacc,0.761,0.003,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (baseline), 3 seeds",class3 acc,0.604,0.011,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (baseline), 3 seeds",global_err ↓,0.954,0.042,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (baseline), 3 seeds",global_bias,0.280,0.109,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (devel), 3 seeds",naive ρ,0.464,0.015,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (devel), 3 seeds",beyond ρ,0.487,0.020,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (devel), 3 seeds",beyond_lib,0.361,0.030,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (devel), 3 seeds",pair-avg ρ,0.322,0.021,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (devel), 3 seeds",pair ρ,0.606,0.034,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (devel), 3 seeds",line ρ,0.382,0.026,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (devel), 3 seeds",cell_mag,0.236,0.003,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (devel), 3 seeds",cell_rank,0.209,0.006,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (devel), 3 seeds",flipacc,0.754,0.008,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (devel), 3 seeds",class3 acc,0.590,0.008,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (devel), 3 seeds",global_err ↓,1.079,0.024,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (devel), 3 seeds",global_bias,0.405,0.021,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (trim/mask), 3 seeds",naive ρ,0.444,0.013,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (trim/mask), 3 seeds",beyond ρ,0.460,0.019,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (trim/mask), 3 seeds",beyond_lib,0.398,0.008,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (trim/mask), 3 seeds",pair-avg ρ,0.374,0.010,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (trim/mask), 3 seeds",pair ρ,0.589,0.017,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (trim/mask), 3 seeds",line ρ,0.417,0.016,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (trim/mask), 3 seeds",cell_mag,0.266,0.014,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (trim/mask), 3 seeds",cell_rank,0.224,0.009,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (trim/mask), 3 seeds",flipacc,0.803,0.019,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (trim/mask), 3 seeds",class3 acc,0.567,0.007,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (trim/mask), 3 seeds",global_err ↓,0.937,0.045,3
+"2.0 Authoritative epistasis metrics (2026-10-24) | Test (12,455 doubles, 43 pairs, 4,236 flips)","ESM-MSR (trim/mask), 3 seeds",global_bias,0.083,0.192,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)","SPURS multi (retrained, 3 seeds) ʰ",naive ρ,0.422,0.016,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)","SPURS multi (retrained, 3 seeds) ʰ",beyond ρ,0.261,0.028,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)","SPURS multi (retrained, 3 seeds) ʰ",pair ρ,0.450,0.032,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)","SPURS multi (retrained, 3 seeds) ʰ",line ρ,0.262,0.036,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)","SPURS multi (retrained, 3 seeds) ʰ",cell_mag,-0.026,0.006,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)","SPURS multi (retrained, 3 seeds) ʰ",cell_rank,0.023,0.005,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)","SPURS multi (retrained, 3 seeds) ʰ",flipacc,0.533,0.045,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)","SPURS multi (retrained, 3 seeds) ʰ",global_err ↓,0.815,0.014,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (baseline) ʰ,naive ρ,0.654,0.003,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (baseline) ʰ,beyond ρ,0.586,0.018,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (baseline) ʰ,pair ρ,0.745,0.024,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (baseline) ʰ,line ρ,0.395,0.050,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (baseline) ʰ,cell_mag,0.309,0.004,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (baseline) ʰ,cell_rank,0.193,0.004,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (baseline) ʰ,flipacc,0.845,0.009,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (baseline) ʰ,global_err ↓,0.717,0.036,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (devel) (3 seeds) ʰ,naive ρ,0.643,0.032,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (devel) (3 seeds) ʰ,beyond ρ,0.585,0.017,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (devel) (3 seeds) ʰ,pair ρ,0.734,0.023,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (devel) (3 seeds) ʰ,line ρ,0.434,0.011,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (devel) (3 seeds) ʰ,cell_mag,0.315,0.014,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (devel) (3 seeds) ʰ,cell_rank,0.195,0.007,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (devel) (3 seeds) ʰ,flipacc,0.854,0.023,3
+"2.1 Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",ESM-MSR (devel) (3 seeds) ʰ,global_err ↓,0.824,0.019,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)","SPURS multi (retrained, 3 seeds) ʰ",naive ρ,0.308,0.060,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)","SPURS multi (retrained, 3 seeds) ʰ",beyond ρ,0.278,0.044,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)","SPURS multi (retrained, 3 seeds) ʰ",pair ρ,0.399,0.050,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)","SPURS multi (retrained, 3 seeds) ʰ",line ρ,0.270,0.047,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)","SPURS multi (retrained, 3 seeds) ʰ",cell_mag,0.009,0.015,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)","SPURS multi (retrained, 3 seeds) ʰ",cell_rank,0.041,0.008,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)","SPURS multi (retrained, 3 seeds) ʰ",flipacc,0.522,0.023,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)","SPURS multi (retrained, 3 seeds) ʰ",global_err ↓,0.883,0.027,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (baseline) ʰ,naive ρ,0.452,0.013,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (baseline) ʰ,beyond ρ,0.484,0.016,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (baseline) ʰ,pair ρ,0.637,0.006,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (baseline) ʰ,line ρ,0.361,0.026,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (baseline) ʰ,cell_mag,0.240,0.008,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (baseline) ʰ,cell_rank,0.217,0.006,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (baseline) ʰ,flipacc,0.761,0.003,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (baseline) ʰ,global_err ↓,0.954,0.042,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (devel) (3 seeds) ʰ,naive ρ,0.464,0.015,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (devel) (3 seeds) ʰ,beyond ρ,0.487,0.020,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (devel) (3 seeds) ʰ,pair ρ,0.606,0.034,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (devel) (3 seeds) ʰ,line ρ,0.382,0.026,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (devel) (3 seeds) ʰ,cell_mag,0.236,0.003,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (devel) (3 seeds) ʰ,cell_rank,0.209,0.006,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (devel) (3 seeds) ʰ,flipacc,0.754,0.008,3
+"2.2 Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",ESM-MSR (devel) (3 seeds) ʰ,global_err ↓,1.079,0.024,3
+2.3 ddG ranking (mean per-protein Spearman),val all variants (`spearman_all`),ESM-MSR (baseline) WT ʰ,0.841,0.002,3
+2.3 ddG ranking (mean per-protein Spearman),val all variants (`spearman_all`),ESM-MSR (baseline) combined ʰ,0.855,0.001,3
+2.3 ddG ranking (mean per-protein Spearman),val all variants (`spearman_all`),ESM-MSR (devel) WT ʰ,0.836,0.001,3
+2.3 ddG ranking (mean per-protein Spearman),val all variants (`spearman_all`),ESM-MSR (devel) combined ʰ,0.854,0.001,3
+2.3 ddG ranking (mean per-protein Spearman),val doubles (`spearman_doubles`),ESM-MSR (baseline) WT ʰ,0.687,0.015,3
+2.3 ddG ranking (mean per-protein Spearman),val doubles (`spearman_doubles`),ESM-MSR (baseline) combined ʰ,0.720,0.003,3
+2.3 ddG ranking (mean per-protein Spearman),val doubles (`spearman_doubles`),ESM-MSR (devel) WT ʰ,0.693,0.002,3
+2.3 ddG ranking (mean per-protein Spearman),val doubles (`spearman_doubles`),ESM-MSR (devel) combined ʰ,0.727,0.011,3
+2.3 ddG ranking (mean per-protein Spearman),val dddG of doubles (`spearman_doubles_epi`),ESM-MSR (baseline) WT ʰ,-0.023,0.031,3
+2.3 ddG ranking (mean per-protein Spearman),val dddG of doubles (`spearman_doubles_epi`),ESM-MSR (baseline) combined ʰ,0.505,0.010,3
+2.3 ddG ranking (mean per-protein Spearman),val dddG of doubles (`spearman_doubles_epi`),ESM-MSR (devel) WT ʰ,0.009,0.068,3
+2.3 ddG ranking (mean per-protein Spearman),val dddG of doubles (`spearman_doubles_epi`),ESM-MSR (devel) combined ʰ,0.492,0.006,3
+2.3 ddG ranking (mean per-protein Spearman),test all variants (`spearman_all`),ESM-MSR (baseline) WT ʰ,0.829,0.002,3
+2.3 ddG ranking (mean per-protein Spearman),test all variants (`spearman_all`),ESM-MSR (baseline) combined ʰ,0.847,0.001,3
+2.3 ddG ranking (mean per-protein Spearman),test all variants (`spearman_all`),ESM-MSR (devel) WT ʰ,0.827,0.002,3
+2.3 ddG ranking (mean per-protein Spearman),test all variants (`spearman_all`),ESM-MSR (devel) combined ʰ,0.849,0.001,3
+2.3 ddG ranking (mean per-protein Spearman),test doubles (`spearman_doubles`),ESM-MSR (baseline) WT ʰ,0.709,0.005,3
+2.3 ddG ranking (mean per-protein Spearman),test doubles (`spearman_doubles`),ESM-MSR (baseline) combined ʰ,0.766,0.004,3
+2.3 ddG ranking (mean per-protein Spearman),test doubles (`spearman_doubles`),ESM-MSR (devel) WT ʰ,0.717,0.005,3
+2.3 ddG ranking (mean per-protein Spearman),test doubles (`spearman_doubles`),ESM-MSR (devel) combined ʰ,0.781,0.008,3
+2.3 ddG ranking (mean per-protein Spearman),test dddG of doubles (`spearman_doubles_epi`),ESM-MSR (baseline) WT ʰ,-0.045,0.033,3
+2.3 ddG ranking (mean per-protein Spearman),test dddG of doubles (`spearman_doubles_epi`),ESM-MSR (baseline) combined ʰ,0.574,0.013,3
+2.3 ddG ranking (mean per-protein Spearman),test dddG of doubles (`spearman_doubles_epi`),ESM-MSR (devel) WT ʰ,-0.022,0.026,3
+2.3 ddG ranking (mean per-protein Spearman),test dddG of doubles (`spearman_doubles_epi`),ESM-MSR (devel) combined ʰ,0.575,0.007,3

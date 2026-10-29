@@ -11,7 +11,7 @@ logic indexes different column names). This patch changes only what is needed:
    spelling ('1'). Runs scored after 2026-10-23 (release-baseline, trim, frozen-WT, masked devel) write `_sigma1_` files
    with that same newer scoring and have no `_sigma1.0_` sibling, so the fall-through to `_sigma1_` is correct for them;
    `quarantine_pre_pmb.py --stale` moves the old `_sigma1_` files that have no sibling.
-2. The seed sd in the `esm_msr_testing stats` rows is the sample sd (`ddof=1`), as in the doc's ± everywhere.
+2. The seed sd in the `esm_msr_testing stats` rows is the sample sd (`ddof=1`), as in the sd column the doc's tables no longer print (`docs/benchmarks/seed_sd_by_table_cell.csv`).
 3. The comparison rows point at `release-baseline/s{1,2,3}`, the three-seed baseline triplicate. `REL_CK` is kept
    for the sigma=0 zero-shot control, which was run from the original released checkpoint.
 
