@@ -107,11 +107,14 @@ def filter_mutants(path, mutants, out_dir, max_proteins=0):
     return str(dest)
 
 
-@torch.no_grad()
 def _is_oom(e):
-    return isinstance(e, torch.cuda.OutOfMemoryError) or (isinstance(e, RuntimeError) and 'out of memory' in str(e).lower())
+    # torch.cuda.OutOfMemoryError exists from torch 1.13; ME's torch 1.12 raises a plain RuntimeError with the message, and
+    # naming the missing class here turned every exception of the forward pass into an AttributeError
+    oom_class = getattr(torch.cuda, 'OutOfMemoryError', None)
+    return (oom_class is not None and isinstance(e, oom_class)) or (isinstance(e, RuntimeError) and 'out of memory' in str(e).lower())
 
 
+@torch.no_grad()      # upstream's engine_train.evaluate is decorated; without it the forward keeps its autograd graph (18 GB at L = 66)
 def predict(model, dl, device, args, tracker=None, failed=None):
     """The prediction half of engine_train.evaluate, verbatim, with the metric call removed.
 
@@ -242,6 +245,10 @@ def main(args):
                     failed.append(name)
                     torch.cuda.empty_cache()
                     ds_scope.note(failed=f'{type(e).__name__}')
+                    continue
+                if not preds:        # a set with no requested rows (ptmul has no singles) or one whose every protein ran out of memory
+                    print(f'{name}: no predictions ({"no requested rows" if len(ds) == 0 else "every protein failed"})', flush=True)
+                    ds_scope.note(empty='yes')
                     continue
                 out = pd.concat([pd.DataFrame({'pdb_id': pdb_id, 'mut_info': p['mutations'], 'scores': p['scores']})
                                  for pdb_id, p in preds.items()])
