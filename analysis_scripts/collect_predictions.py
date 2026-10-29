@@ -214,7 +214,11 @@ def plan_retrained(plan):
                     if m:
                         name = me_tsu[stage].get(m.group(2), m.group(2))
                         sub = 'predictions' if m.group(1) == 'results' else 'metrics'
-                        plan.add(f'{RT}/mutate_everything/{sub}/{stage}/seed{k}/{name}.csv', path, size, mt, None, 'retrained:me')
+                        if name == 's461':      # ME's run on the S461 table ME ships (another construct and MSA per protein than its S669
+                                                # inputs); the S461 column scores the s669 predictions, so no table cell reads this file
+                            plan.add(f'msr_predictions/_not_in_benchmarks/me_upstream_s461/{sub}/{stage}/seed{k}.csv', path, size, mt, None, 'retrained:me')
+                        else:
+                            plan.add(f'{RT}/mutate_everything/{sub}/{stage}/seed{k}/{name}.csv', path, size, mt, None, 'retrained:me')
                     elif rel == 'timing.csv':
                         plan.add(f'{RT}/mutate_everything/resources/{stage}/seed{k}/timing.csv', path, size, mt, None, 'retrained:me')
     for k in (1, 2, 3):                        # stage 1 ProteinGym (stage 2's is withdrawn / not in the tables)
