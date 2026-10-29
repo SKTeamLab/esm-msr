@@ -228,8 +228,8 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | ESM-MSR (baseline), WT head (3 seeds) | 0.733 | 0.736 | 0.670 | 0.636 | 0.637 | 0.462 | 0.341 | 0.541ᴾ |
 | ESM-MSR (devel), combined (3 seeds) | 0.745 | 0.742 | 0.681 | 0.636 | 0.639 | 0.481 | 0.337 | 0.543ᴾ |
 | ESM-MSR (devel), WT head | 0.751 | 0.754 | 0.684 | 0.655 | **0.640** | 0.478 | **0.364** | 0.548ᴾ |
-| MutateEverything st1 (3 seeds) | 0.707 | 0.681 | 0.646 | 0.581 | 0.580 | 0.483 | 0.296 | 0.520ᴾ |
-| MutateEverything st1, additive | 0.729 | 0.714 | 0.690 | 0.615 | 0.603 | 0.483 | 0.287 | – |
+| MutateEverything st1 (3 seeds) | 0.707 | 0.681 | 0.646 | 0.581 | 0.580 | 0.483 | 0.299 | 0.520ᴾ |
+| MutateEverything st1, additive | 0.729 | 0.714 | 0.690 | 0.615 | 0.603 | 0.483 | 0.294 | – |
 | MutateEverything st2 (3 seeds) | 0.645 | 0.635 | 0.605 | 0.598 | 0.560 | 0.439 | 0.253 | 0.509ᴾ |
 | MutateEverything st2, additive | 0.715 | 0.699 | 0.669 | 0.642 | 0.599 | 0.439 | 0.281 | – |
 | ThermoMPNN (additive, 3 seeds) | 0.626 | 0.632 | 0.613 | 0.569 | 0.570 | 0.405 | 0.319 | 0.450ᴾ |
@@ -275,7 +275,7 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 | ESM3-large (Forge, zero-shot) | – | – | – | – | – | – | – | C |
 | ESM3-medium (Forge, zero-shot) | – | – | – | – | – | – | – | – |
 | ESM3-small (Forge, zero-shot) | – | – | – | – | – | – | – | – |
-- **Mean over the 7 DMS** (models with all seven): ESM-MSR (devel) WT head 0.618, (devel) combined 0.609, ESM-MSR (baseline) 0.602, ProSST 0.591, ME st1 additive 0.589, ESM3ΔG 0.589, ESM3-small-open σ = 0 0.580, SPURS (retrained) 0.578, ThermoMPNN 0.533, SPURS multi (retrained) 0.523, ProteinMPNN 0.514, GeoDDG 0.386, DDGemb 0.281, ESMtherm 0.232. **The GB1 column is not clean for three of these:** ESMtherm and IFUM (trained on the Megascale 1PGA/GB1 library) and GeoDDG (1,538 1PGA/GB1 single mutants in S8754; 61 of the Wu rows exact and 61,880 constituent); ESM-MSR/ME/ThermoMPNN and the retrained SPURS are clean on it because GB1 was quarantined from the capped split. GB1 is the lowest of the seven for every model, so dropping it moves the means up by 0.00–0.07 and leaves the top two unchanged (ESM-MSR devel WT 0.660, devel 0.654) with ESM-MSR (baseline) third (0.649); ProSST moves from fifth to fourth, ahead of ESM-MSR (released).
+- **Mean over the 7 DMS** (models with all seven): ESM-MSR (devel) WT head 0.618, (devel) combined 0.609, ESM-MSR (baseline) 0.602, ProSST 0.591, ME st1 additive 0.590, ESM3ΔG 0.589, ESM3-small-open σ = 0 0.580, SPURS (retrained) 0.578, ThermoMPNN 0.533, SPURS multi (retrained) 0.523, ProteinMPNN 0.514, GeoDDG 0.386, DDGemb 0.281, ESMtherm 0.232. **The GB1 column is not clean for three of these:** ESMtherm and IFUM (trained on the Megascale 1PGA/GB1 library) and GeoDDG (1,538 1PGA/GB1 single mutants in S8754; 61 of the Wu rows exact and 61,880 constituent); ESM-MSR/ME/ThermoMPNN and the retrained SPURS are clean on it because GB1 was quarantined from the capped split. GB1 is the lowest of the seven for every model, so dropping it moves the means up by 0.00–0.07 and leaves the top two unchanged (ESM-MSR devel WT 0.660, devel 0.654) with ESM-MSR (baseline) third (0.649); ProSST moves from fifth to fourth, ahead of ESM-MSR (released).
 - **Retrained SPURS on Domainome and GB1.** On Domainome (mean per-domain ρ) the retrained SPURS is at 0.489, ahead of ThermoMPNN (0.450) and behind ME stage 1 (0.520), ME stage 2 (0.509) and the ESM-MSR baseline (0.543); SPURS multi is at 0.393. SPURS multi is below SPURS on every DMS column except GB1 (0.333 against 0.308).
 - **The literature-ΔΔG models invert here:** GeoDDG and DDGemb, which lead the external sets, are near the bottom
   on the deep-mutational scans; ProSST, a zero-shot model, leads both DLG4 assays (0.776 and 0.796) among the
@@ -671,7 +671,7 @@ retrained baselines are on the full 34,957-row validation population (ME stage 1
   (0.483 vs 0.480, inside the seed sd of 0.007) — mostly by < 0.02. On GB1 the baseline combined row (0.318 ± 0.012)
   ties ThermoMPNN (0.319); the WT heads lead (baseline 0.341, devel 0.364). **The additive variants of ME and
   ThermoMPNN beat their own direct multi-mutant predictions** on the four Faure assays and MYO, by 0.02–0.07; ESTA is an
-  exact tie and GB1 is mixed (ME stage 1 additive 0.287 against 0.296 direct).
+  exact tie and GB1 is mixed (ME stage 1 additive 0.294 against 0.299 direct).
 - **dddG on DMS:** ME stage 2 (corrected, against the stage-1 singles) scores 0.477 and 0.462 on DLG4 abundance and
   binding, 0.349 on GRB2 abundance, 0.116 on GRB2 binding, 0.087 on MYO and 0.177 on GB1; ThermoMPNN-D (corrected, against
   ThermoMPNN) scores 0.203 and 0.192, 0.203, 0.034, 0.071 and 0.445 on the same six. So ME stage 2 and ESM-MSR are comparable on DLG4
