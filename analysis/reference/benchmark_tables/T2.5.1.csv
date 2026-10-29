@@ -1,0 +1,4 @@
+model,Δ spearman_all,Δ spearman_doubles,Δ beyond ρ,Δ pair ρ,Δ flipacc
+MutateEverything stage 2,**−0.017**,**−0.022**,+0.004,+0.026,+0.033
+MutateEverything stage 1,+0.001,−0.000,+0.006,+0.006,−0.004
+ThermoMPNN,0.000,+0.005,0,0,0

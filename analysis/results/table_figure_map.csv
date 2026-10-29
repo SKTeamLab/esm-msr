@@ -1,0 +1,28 @@
+table,heading,status,figures
+1.1.1,Thermostability: the 12 external sets,drawn,02_thermostability/thermo_all_models; 02_thermostability/thermo_vs_retrains; 02_thermostability/thermo_scatter_external
+1.1.2,Thermostability: the 12 external sets,drawn,10_leakage_and_reference/leak_matrix_external; 02_thermostability/thermo_all_models
+1.2.1,Tsuboyama,drawn,03_tsuboyama/tsuboyama_overview; 03_tsuboyama/tsuboyama_per_library; 03_tsuboyama/tsuboyama_singles_doubles
+1.2.2,Tsuboyama,drawn,10_leakage_and_reference/leak_matrix_other; 03_tsuboyama/tsuboyama_overview
+1.3.1,DMS and Domainome,drawn,04_dms_domainome/dms_vs_retrains; 04_dms_domainome/dms_sigma_vs_zero_shot
+1.3.2,DMS and Domainome,drawn,10_leakage_and_reference/leak_matrix_other
+1.3.3,ESM-MSR LoRA scale σ on the DMS and Domainome,drawn,04_dms_domainome/dms_sigma_sweep; 04_dms_domainome/dms_sigma_vs_zero_shot
+1.4.1,ProteinGym (213 DMS),drawn,05_proteingym/pg_categories; 05_proteingym/pg_table_heatmap
+1.4.2,ProteinGym (213 DMS),drawn,10_leakage_and_reference/leak_matrix_other
+1.5.1,Published-paper evaluation (reference; earlier models and row sets),drawn,10_leakage_and_reference/published_reference
+1.6.1,SPURS retrained on the capped split (preliminary),drawn,03_tsuboyama/tsuboyama_overview; 10_leakage_and_reference/spurs_published_vs_retrained
+1.6.2,SPURS retrained on the capped split (preliminary),drawn,02_thermostability/thermo_vs_retrains; 10_leakage_and_reference/spurs_published_vs_retrained
+1.6.3,SPURS retrained on the capped split (preliminary),drawn,04_dms_domainome/dms_vs_retrains; 10_leakage_and_reference/spurs_published_vs_retrained
+2.0.1,Authoritative epistasis metrics (2026-10-24),drawn,06_epistasis/epistasis_authoritative_metrics
+2.0.2,Authoritative epistasis metrics (2026-10-24),drawn,06_epistasis/epistasis_authoritative_metrics
+2.1.1,"Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",drawn,06_epistasis/epistasis_hierarchy_val; 06_epistasis/epistasis_naive_recomputed
+2.2.1,"Test, epistasis hierarchy (12,455 doubles, 43 pairs, 4,236 flips)",drawn,06_epistasis/epistasis_hierarchy_test; 06_epistasis/epistasis_naive_recomputed; 06_epistasis/epistasis_scatter_dddG
+2.3.1,ddG ranking (mean per-protein Spearman),drawn,06_epistasis/ddg_ranking; 06_epistasis/epistasis_scatter_ddG_doubles
+2.5.1,Mutant-background ablation (nobb),drawn,06_epistasis/nobb_ablation
+2.6.1,How much predicted epistasis should a multi-mutant prediction keep?,drawn,06_epistasis/lambda_scan
+3.1,ProteinGym in detail,drawn,05_proteingym/pg_categories; 05_proteingym/pg_table_heatmap
+3.2,ProteinGym in detail,drawn,05_proteingym/pg_per_dms_scatter
+6.2.1,Notation,drawn,10_leakage_and_reference/leak_audit_text_tables; 10_leakage_and_reference/leak_matrix_external
+6.3.1,Training inventories,drawn,10_leakage_and_reference/leak_audit_text_tables
+6.5.1,What the audit finds,drawn,10_leakage_and_reference/leak_overlap_tsuboyama_test; 10_leakage_and_reference/leak_audit_text_tables
+6.5.2,What the audit finds,drawn,10_leakage_and_reference/clean_means
+7.1,Where the code and results live,not a result table,"file-location table (cluster paths); replaced by the ""where things are"" section of analysis/README.md"

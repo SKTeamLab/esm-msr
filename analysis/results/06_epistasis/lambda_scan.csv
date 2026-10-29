@@ -1,0 +1,13 @@
+checkpoint,dataset,n,rho_lam0,rho_lam05,rho_lam1,best_lambda,rho_best,gap_05_to_best,gap_lo,gap_hi
+released (1 checkpoint; the document),tsuboyama_capped_test,13319,0.7002,0.7634,0.6775,0.6000,0.7667,0.0034,0.0016,0.0056
+released (1 checkpoint; the document),ptmul,914,0.5687,0.5949,0.5453,0.5000,0.5949,0.0000,0.0000,0.0000
+released (1 checkpoint; the document),ptmuld,536,0.5857,0.6010,0.5331,0.4000,0.6017,0.0007,-0.0051,0.0068
+released (1 checkpoint; the document),GRB2_HUMAN_Faure_2021_abundance_domain,62332,0.6636,0.6672,0.6214,0.3500,0.6685,0.0013,0.0011,0.0017
+released (1 checkpoint; the document),DLG4_HUMAN_Faure_2021_binding_domain,6810,0.7104,0.7047,0.6700,0.1000,0.7106,0.0059,0.0037,0.0080
+released (1 checkpoint; the document),GB1_Wu_2016_binding_domain,149284,0.3346,0.3441,0.3039,0.6000,0.3446,0.0005,0.0002,0.0009
+baseline triplicate,tsuboyama_capped_test,13319,0.7093,0.7662,0.6654,0.5500,0.7664,0.0002,-0.0007,0.0013
+baseline triplicate,ptmul,914,0.5714,0.5826,0.5096,0.4000,0.5846,0.0021,-0.0009,0.0062
+baseline triplicate,ptmuld,536,0.5774,0.5925,0.5159,0.4000,0.5941,0.0016,-0.0044,0.0079
+baseline triplicate,GRB2_HUMAN_Faure_2021_abundance_domain,62332,0.6647,0.6691,0.6244,0.3500,0.6703,0.0013,0.0010,0.0016
+baseline triplicate,DLG4_HUMAN_Faure_2021_binding_domain,6810,0.7176,0.7185,0.6929,0.3000,0.7201,0.0016,0.0007,0.0025
+baseline triplicate,GB1_Wu_2016_binding_domain,149284,0.3401,0.3177,0.2486,0.0000,0.3401,0.0224,0.0208,0.0240
