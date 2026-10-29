@@ -91,29 +91,75 @@ tmpnn,DLG4 abund.,6976,0,0,0,0,6976
 tmpnn,domainome,534385,4311,40945,12776,9124,467229
 tmpnn,ESTA,2172,0,0,0,0,2172
 tmpnn,ptmuld,536,0,0,0,18,518
-tmpnnd,proteingym,2465767,38512,0,0,4708,2422547
-tmpnnd,s571,571,0,0,0,17,554
-tmpnnd,s461,461,0,0,0,0,461
-tmpnnd,s669,669,0,0,0,1,668
+spurs_retrain_single,proteingym,2465767,45625,0,2028,281193,2136921
+spurs_retrain_single,s571,571,0,0,0,68,503
+spurs_retrain_single,s461,461,0,0,1,13,447
+spurs_retrain_single,s669,669,0,0,1,74,594
+spurs_retrain_single,GB1,149360,0,0,0,0,149360
+spurs_retrain_single,s8754,8754,0,0,0,277,8477
+spurs_retrain_single,ssym,684,0,0,0,0,684
+spurs_retrain_single,k2369,2369,0,0,1,72,2296
+spurs_retrain_single,GRB2 abund.,63366,0,0,0,0,63366
+spurs_retrain_single,ptmul,914,0,0,0,18,896
+spurs_retrain_single,tsu_capped_val,35473,0,0,7210,2534,25729
+spurs_retrain_single,MYO,5905,0,0,0,0,5905
+spurs_retrain_single,s783,783,0,0,0,20,763
+spurs_retrain_single,k3822,3822,0,0,1,121,3700
+spurs_retrain_single,GRB2 bind.,33441,0,0,0,0,33441
+spurs_retrain_single,DLG4 bind.,8251,0,0,0,0,8251
+spurs_retrain_single,tsu_capped_test,52071,0,0,8114,0,43957
+spurs_retrain_single,s2648,2648,0,0,0,53,2595
+spurs_retrain_single,q3421,3421,0,0,0,101,3320
+spurs_retrain_single,DLG4 abund.,6976,0,0,0,0,6976
+spurs_retrain_single,domainome,534385,4311,40945,12776,9124,467229
+spurs_retrain_single,ESTA,2172,0,0,0,0,2172
+spurs_retrain_single,ptmuld,536,0,0,0,18,518
+spurs_retrain_multi,proteingym,2465767,45625,0,2028,281193,2136921
+spurs_retrain_multi,s571,571,0,0,0,68,503
+spurs_retrain_multi,s461,461,0,0,1,13,447
+spurs_retrain_multi,s669,669,0,0,1,74,594
+spurs_retrain_multi,GB1,149360,0,0,0,0,149360
+spurs_retrain_multi,s8754,8754,0,0,0,277,8477
+spurs_retrain_multi,ssym,684,0,0,0,0,684
+spurs_retrain_multi,k2369,2369,0,0,1,72,2296
+spurs_retrain_multi,GRB2 abund.,63366,0,0,0,0,63366
+spurs_retrain_multi,ptmul,914,0,0,0,18,896
+spurs_retrain_multi,tsu_capped_val,35473,0,0,7210,2534,25729
+spurs_retrain_multi,MYO,5905,0,0,0,0,5905
+spurs_retrain_multi,s783,783,0,0,0,20,763
+spurs_retrain_multi,k3822,3822,0,0,1,121,3700
+spurs_retrain_multi,GRB2 bind.,33441,0,0,0,0,33441
+spurs_retrain_multi,DLG4 bind.,8251,0,0,0,0,8251
+spurs_retrain_multi,tsu_capped_test,52071,0,0,8114,0,43957
+spurs_retrain_multi,s2648,2648,0,0,0,53,2595
+spurs_retrain_multi,q3421,3421,0,0,0,101,3320
+spurs_retrain_multi,DLG4 abund.,6976,0,0,0,0,6976
+spurs_retrain_multi,domainome,534385,4311,40945,12776,9124,467229
+spurs_retrain_multi,ESTA,2172,0,0,0,0,2172
+spurs_retrain_multi,ptmuld,536,0,0,0,18,518
+tmpnnd,proteingym,2465767,45625,0,0,219633,2200509
+tmpnnd,s571,571,0,0,0,22,549
+tmpnnd,s461,461,0,0,1,13,447
+tmpnnd,s669,669,0,0,1,23,645
 tmpnnd,GB1,149360,0,0,0,0,149360
-tmpnnd,s8754,8754,0,0,0,55,8699
+tmpnnd,s8754,8754,0,0,0,104,8650
 tmpnnd,ssym,684,0,0,0,0,684
-tmpnnd,k2369,2369,0,0,0,17,2352
+tmpnnd,k2369,2369,0,0,1,38,2330
 tmpnnd,GRB2 abund.,63366,0,0,0,0,63366
-tmpnnd,ptmul,914,0,0,0,3,911
-tmpnnd,tsu_capped_val,35473,0,0,0,2534,32939
+tmpnnd,ptmul,914,0,0,0,7,907
+tmpnnd,tsu_capped_val,35473,0,0,2427,2534,30512
 tmpnnd,MYO,5905,0,0,0,0,5905
 tmpnnd,s783,783,0,0,0,0,783
-tmpnnd,k3822,3822,0,0,0,20,3802
+tmpnnd,k3822,3822,0,0,1,53,3768
 tmpnnd,GRB2 bind.,33441,0,0,0,0,33441
 tmpnnd,DLG4 bind.,8251,0,0,0,0,8251
-tmpnnd,tsu_capped_test,52071,0,0,796,795,50480
-tmpnnd,s2648,2648,0,0,0,0,2648
-tmpnnd,q3421,3421,0,0,0,17,3404
+tmpnnd,tsu_capped_test,52071,0,0,6495,812,44764
+tmpnnd,s2648,2648,0,0,0,24,2624
+tmpnnd,q3421,3421,0,0,0,44,3377
 tmpnnd,DLG4 abund.,6976,0,0,0,0,6976
-tmpnnd,domainome,534385,4311,37106,9118,1623,482227
+tmpnnd,domainome,534385,4311,40945,11287,3887,473955
 tmpnnd,ESTA,2172,0,0,0,0,2172
-tmpnnd,ptmuld,536,0,0,0,3,533
+tmpnnd,ptmuld,536,0,0,0,7,529
 spurs_single,proteingym,2465767,108105,0,1813,1107207,1248642
 spurs_single,s571,571,48,15,0,22,486
 spurs_single,s461,461,0,0,1,48,412
