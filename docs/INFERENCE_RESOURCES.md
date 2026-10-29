@@ -101,16 +101,37 @@ otherwise idle: the three models can run at the same time, one per GPU, which lo
 records the neighbours at start and end and the node load per scope.
 
 **Batch size** is one policy for every method that batches variants (`inference_scripts/baselines/batching.py`; flags
-`--batch_mode auto|fixed`, `--batch_size`, `--auto_batch_headroom`, the job script's `BATCH_MODE`/`BATCH_SIZE`). `auto` (default
-in the job script) is the existing `src/esm_msr/auto_batch.py` sizer, used unchanged for all of them: for each protein start at
-1, double while a memory model fitted on the measured peaks of the chunks already run predicts the next size stays under 90 % of
-the GPU, bisect for the largest size that fits, halve and retry on an OOM. Small proteins reach batches in the hundreds, long
-ones stay small, and a protein that does not fit at 1 fails. `fixed` runs `--batch_size` items per call (default: the method's
-historical size: ESM-MSR 1/16/`mem_size × 32`/32 per block and 16 on ProteinGym, ThermoMPNN as many items as fit 16,000
-residues (at most 256), SPURS-multi 4,096 variants, ProteinMPNN `32768 // L` decoder rows). The unit is the items one forward call
-does for one protein: ESM-MSR variant sequences, ThermoMPNN mutation items, SPURS-multi variants (the structure pass is repeated
-per call), ProteinMPNN decoder rows; MutateEverything has none (one forward predicts every mutation of a protein). Each protein's
-row records `batch_mode`, `batch_max`, `n_chunks`, `batch_ooms`.
+`--batch_mode table|auto|fixed`, `--batch_size`, `--auto_batch_headroom`, `--batch_table`; the job script's `BATCH_MODE`/`BATCH_SIZE`).
+The unit is the items one forward call does for one protein: ESM-MSR variant sequences, ThermoMPNN mutation items (per network),
+SPURS-multi variants (the structure pass is repeated per call), ProteinMPNN decoder rows; MutateEverything has none (one forward
+predicts every mutation of a protein).
+
+* `table` (default): one batch size per model and dataset from `inference_scripts/baselines/batch_sizes_gpu4.json`, made once on the
+  gpu4 card (RTX A4500, 19.7 GB, 90 % headroom). ProteinGym is `auto` in the table, because its proteins differ too much for one size.
+* `auto`: the `src/esm_msr/auto_batch.py` sizer per protein: start at 1, double while a memory model fitted on the measured peaks of
+  the chunks already run predicts the next size stays under 90 % of the GPU, bisect for the largest size that fits, halve and retry on
+  an OOM; a protein that does not fit at 1 fails.
+* `fixed`: `--batch_size` items per call (without it, the method's historical size: ESM-MSR 1/16/`mem_size x 32`/32 per block and 16
+  on ProteinGym, ThermoMPNN as many items as fit 16,000 residues (at most 256), SPURS-multi 4,096 variants, ProteinMPNN `32768 // L`
+  decoder rows).
+
+Each protein's row records `batch_mode`, `batch_max`, `n_chunks`, `batch_ooms`.
+
+**How the table was made** (`--calibrate_batch_sizes`, `calibration.py`; October 28): for every dataset, the two longest structures
+(memory per item grows with length), a saturated list of single and double mutants (4,096 variants, made four times longer while the
+largest batch was more than a quarter of the items the sizer had, up to 65,536), scored through the model's normal path with the
+sizer; the smaller of the two batches is the dataset's entry, so it fits the heaviest protein of the dataset. 0 OOMs in any
+calibration. `_detail` in the table keeps proteins, lengths, list lengths and a `list_bounded` flag per entry.
+
+| model | datasets | batch range | what limits it |
+|---|---|---|---|
+| ESM-MSR (bf16) | 22 + ProteinGym | 4 (k3822, q3421) to 587 (GB1, GRB2) | memory |
+| ProteinMPNN (fp32) | 22 + ProteinGym | 13 (s461) to 802 (GB1, GRB2) | memory |
+| ThermoMPNN single network (fp32) | 22 + ProteinGym | 39 (k3822) to 513 (GB1, GRB2) | memory |
+| ThermoMPNN epistatic network (fp32) | the 10 datasets with doubles + ProteinGym | 68 (PTMUL) to 513 | memory |
+| SPURS-multi (fp32) | 22 + ProteinGym | 16,384 everywhere | nothing below 16,384 variants (flagged `list_bounded`): VRAM does not limit SPURS-multi on these proteins |
+
+A different GPU, headroom or precision needs a new table (`_meta` says what this one is for).
 
 Precision and the rest stay native and are recorded: ESM-MSR bf16 (the A4500 has native bf16), ME fp32 with the loader in-process
 (`num_workers=0`), ThermoMPNN, SPURS and ProteinMPNN fp32. A different precision is a different measurement.
@@ -129,6 +150,22 @@ the card), and nothing hit an OOM. Two things to know before comparing runtimes:
 small work lists auto does more calls than the historical default (SPURS-multi is 3x slower on the subset because each call repeats
 the structure pass: 303 calls against 65), and predictions change slightly with the batch size (ESM-MSR's bf16 most). A warm start
 from the previous protein's size would remove most of the ladder cost; it is not implemented.
+
+**Table mode, same subset** (October 28, after the calibration; the same slot, `--max_proteins 2` and two ProteinGym DMS, table against
+auto in separate jobs):
+
+| method | table vs auto predictions, max abs difference | largest batch used (table) | OOMs |
+|---|---|---|---|
+| ProteinMPNN | 5.7e-6 | 534 | 0 |
+| SPURS-multi | 2.9e-6 | 6,810 (the table says 16,384; a call never has more items than the protein) | 0 |
+| ThermoMPNN-D | 2.9e-4 | 391 | 0 |
+| ESM-MSR | not compared on the six blocks (both runs wrote the same files, see below); ProteinGym files 1.6e-2 (bf16, both runs dynamic) | 382 | 0 in the table-mode blocks |
+
+No protein used a batch above its dataset's table entry, ProteinGym ran dynamic in table mode (`batch_mode` auto), and the only recorded OOM
+is the same in both ESM-MSR jobs (ProteinGym NPC1, a long protein the sizer halves down to batch 1). The ESM-MSR rows of a table-mode run are
+labelled `table` (they said `fixed` in the first jobs). A `--max_proteins` run of `esm_msr_testing.py` now tags its files
+`analysis_notebooks/{predictions,stats,resources}/<checkpoint>_smoke<N>_sigma...`; before that it wrote the same names as a real run, which
+only the `_sigma1_` renaming of the October files kept from being overwritten (the partial files the first jobs left were deleted).
 
 ## What to rerun
 

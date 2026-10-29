@@ -49,6 +49,11 @@ class _Plan:
         self._sizer = None
 
     @property
+    def label(self):
+        """What a protein's resource row calls a batch size that is not the sizer's."""
+        return 'table' if self.mode == 'table' else 'fixed'
+
+    @property
     def sizer(self):
         if self._sizer is None:
             self._sizer = auto_batch.AutoBatchSizer(
@@ -69,10 +74,10 @@ class _Plan:
         return default, None
 
 
-def _batch_note(sizer, n_before, fixed):
-    """What the batch policy did for one protein, for its resource row."""
+def _batch_note(sizer, n_before, fixed, label='fixed'):
+    """What the batch policy did for one protein, for its resource row (label: 'table' when the size came from the table)."""
     if sizer is None:
-        return {'batch_mode': 'fixed', 'batch_max': fixed}
+        return {'batch_mode': label, 'batch_max': fixed}
     reps = sizer.reports[n_before:]
     return {'batch_mode': 'auto', 'batch_max': max([r.max_batch for r in reps], default=0),
             'n_chunks': sum(len(r.ladder) for r in reps), 'batch_ooms': sum(r.ooms for r in reps)}
@@ -253,6 +258,8 @@ def main_(args):
         args.batch_mode, args.no_resource_tracking = 'auto', True
 
     CHECKPOINT_STR = str(args.checkpoint) if args.checkpoint else "zeroshot"
+    # a --max_proteins subset must never share a file name with a real run (analysis_notebooks/{predictions,stats,resources})
+    OUT_STR = CHECKPOINT_STR + (f"_smoke{args.max_proteins}" if args.max_proteins else "")
 
     print('\n\n\n\n\n')
     print(f"Running Inference for Checkpoint: {CHECKPOINT_STR}")
@@ -315,7 +322,7 @@ def main_(args):
     tracker = resource_tracker.Tracker.from_args(
         args, label='esm_msr',
         default_dir=(Path(args.pgym_out).resolve() / 'resources' if getattr(args, 'protein_gym', False) and args.pgym_out
-                     else REPO_ROOT / 'analysis_notebooks' / 'resources' / f'{CHECKPOINT_STR}_sigma{args.sigma}'),
+                     else REPO_ROOT / 'analysis_notebooks' / 'resources' / f'{OUT_STR}_sigma{args.sigma}'),
         meta={'model': 'ESM-MSR', 'checkpoint': CHECKPOINT_STR, 'sigma': args.sigma, 'dtype': args.dtype,
               'precision_flag': args.precision, 'mask_strategy': str(args.mask_strategy),
               'skip_reverse': bool(args.skip_reverse),
@@ -422,7 +429,7 @@ def main_(args):
                         model=model, df=input_data, batch_size=_bs, quiet=True, mask_strategy=args.mask_strategy,
                         optimize_wt_pass=True, skip_reverse=args.skip_reverse, auto_batch=_sz
                     )
-                    sc.note(**_batch_note(_sz, _nb, _bs))
+                    sc.note(**_batch_note(_sz, _nb, _bs, plan.label))
                 pred_df['id'] = code + chain + '_' + pred_df['mut_type_renumbered']
                 pred_df = pred_df.set_index('id')
 
@@ -436,7 +443,7 @@ def main_(args):
             res_df = pd.concat(res_combined)
             mask_tag = _mask_strategy_tag(args.mask_strategy)
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
 
@@ -450,7 +457,7 @@ def main_(args):
             if 'ptmul' not in name:
                 assert len(df_true) == len(res_df), f"Lost samples during join for {name}!"
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/external/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/external/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
             
@@ -531,7 +538,7 @@ def main_(args):
                             skip_additive=False, mask_strategy=args.mask_strategy, optimize_wt_pass=True,
                             skip_reverse=args.skip_reverse, auto_batch=_sz
                         )
-                        sc.note(**_batch_note(_sz, _nb, _bs))
+                        sc.note(**_batch_note(_sz, _nb, _bs, plan.label))
                     pred_df['id'] = code + ('_' if backbone_mutation is None else '_' + str(backbone_mutation) + '_') + pred_df['mut_type_renumbered']
                     pred_df = pred_df.set_index('id')
 
@@ -548,7 +555,7 @@ def main_(args):
             mask_tag = _mask_strategy_tag(args.mask_strategy)
 
             # File Operations
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
 
@@ -568,7 +575,7 @@ def main_(args):
                     stats_mt = update_stats(stats_mt, code, group, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', current_time)
                     stats_cmb = update_stats(stats_cmb, code, group, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', current_time)
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
             
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -630,7 +637,7 @@ def main_(args):
                         mask_strategy=args.mask_strategy, optimize_wt_pass=True,
                         skip_reverse=args.skip_reverse, auto_batch=_sz
                     )
-                    sc.note(**_batch_note(_sz, _nb, _bs))
+                    sc.note(**_batch_note(_sz, _nb, _bs, plan.label))
             pred_df['id'] = prot_name + '_' + pred_df['mut_type_renumbered']
             pred_df = pred_df.set_index('id')
 
@@ -641,7 +648,7 @@ def main_(args):
             res_combined.append(res)
             mask_tag = _mask_strategy_tag(args.mask_strategy)
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
+            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res.to_csv(out_path)
 
@@ -650,7 +657,7 @@ def main_(args):
                 stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', t_inf)
                 stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', t_inf)
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
+            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
 
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -702,7 +709,7 @@ def main_(args):
                     skip_reverse=should_skip_reverse_dom, mask_strategy=args.mask_strategy,
                     optimize_wt_pass=True, auto_batch=_sz
                 )
-                sc.note(**_batch_note(_sz, _nb, _bs))
+                sc.note(**_batch_note(_sz, _nb, _bs, plan.label))
             pred_df['id'] = prot + '_' + pred_df['mut_type_renumbered']
             pred_df = pred_df.set_index('id')
 
@@ -721,11 +728,11 @@ def main_(args):
         res_df = pd.concat(res_combined, axis=0)
         mask_tag = _mask_strategy_tag(args.mask_strategy)
 
-        out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}_predictions.csv')
+        out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}_predictions.csv')
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         res_df.to_csv(out_path)
 
-        stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/domainome/{CHECKPOINT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}')
+        stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/domainome/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}')
         os.makedirs(os.path.dirname(stats_base), exist_ok=True)
 
         stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
