@@ -81,7 +81,7 @@ Each script also runs by hand (`python thermompnn_inference.py all --help`).
 
 ## Outputs
 
-`$OUT/predictions` per benchmark (`external_<set>.csv`, `dms_<assay>.csv`, `domainome.csv`, `tsuboyama_{val,test}.csv`, ProteinGym's
+`$OUT/predictions` per benchmark (ESM-MSR: `$OUT/analysis/{predictions,stats}`, so a tracked run never overwrites `analysis_notebooks/` files of the same checkpoint; `external_<set>.csv`, `dms_<assay>.csv`, `domainome.csv`, `tsuboyama_{val,test}.csv`, ProteinGym's
 per-DMS CSVs and `summary.csv`; ME writes upstream's `results_<set>.csv`) and `$OUT/resources/<run_id>/`. Positive means
 stabilizing in every prediction column, except that MutateEverything's `ddg_pred` is upstream's ddG (positive = destabilizing,
 `ddg_pred = -scores`), as in its October files.

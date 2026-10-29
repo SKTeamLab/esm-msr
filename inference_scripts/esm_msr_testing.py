@@ -260,6 +260,7 @@ def main_(args):
     CHECKPOINT_STR = str(args.checkpoint) if args.checkpoint else "zeroshot"
     # a --max_proteins subset must never share a file name with a real run (analysis_notebooks/{predictions,stats,resources})
     OUT_STR = CHECKPOINT_STR + (f"_smoke{args.max_proteins}" if args.max_proteins else "")
+    ANALYSIS = Path(args.analysis_root) if args.analysis_root else REPO_ROOT / 'analysis_notebooks'      # where predictions/, stats/ and resources/ go
 
     print('\n\n\n\n\n')
     print(f"Running Inference for Checkpoint: {CHECKPOINT_STR}")
@@ -322,7 +323,7 @@ def main_(args):
     tracker = resource_tracker.Tracker.from_args(
         args, label='esm_msr',
         default_dir=(Path(args.pgym_out).resolve() / 'resources' if getattr(args, 'protein_gym', False) and args.pgym_out
-                     else REPO_ROOT / 'analysis_notebooks' / 'resources' / f'{OUT_STR}_sigma{args.sigma}'),
+                     else ANALYSIS / 'resources' / f'{OUT_STR}_sigma{args.sigma}'),
         meta={'model': 'ESM-MSR', 'checkpoint': CHECKPOINT_STR, 'sigma': args.sigma, 'dtype': args.dtype,
               'precision_flag': args.precision, 'mask_strategy': str(args.mask_strategy),
               'skip_reverse': bool(args.skip_reverse),
@@ -443,7 +444,7 @@ def main_(args):
             res_df = pd.concat(res_combined)
             mask_tag = _mask_strategy_tag(args.mask_strategy)
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
+            out_path = str(ANALYSIS / f'predictions/{name if name!= "ptmul" else "PTMUL"}/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
 
@@ -457,7 +458,7 @@ def main_(args):
             if 'ptmul' not in name:
                 assert len(df_true) == len(res_df), f"Lost samples during join for {name}!"
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/external/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
+            stats_base = str(ANALYSIS / f'stats/external/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
             
@@ -555,7 +556,7 @@ def main_(args):
             mask_tag = _mask_strategy_tag(args.mask_strategy)
 
             # File Operations
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
+            out_path = str(ANALYSIS / f'predictions/{split_name}-{scaffold_}/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res_df.to_csv(out_path)
 
@@ -575,7 +576,7 @@ def main_(args):
                     stats_mt = update_stats(stats_mt, code, group, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', current_time)
                     stats_cmb = update_stats(stats_cmb, code, group, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', current_time)
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/{split_name}-{scaffold_}/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
+            stats_base = str(ANALYSIS / f'stats/{split_name}-{scaffold_}/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
             
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -648,7 +649,7 @@ def main_(args):
             res_combined.append(res)
             mask_tag = _mask_strategy_tag(args.mask_strategy)
 
-            out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
+            out_path = str(ANALYSIS / f'predictions/{prot}/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}_predictions.csv')
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             res.to_csv(out_path)
 
@@ -657,7 +658,7 @@ def main_(args):
                 stats_mt = update_stats(stats_mt, prot, res, 'ddG_ML', 'mt_lora_pred', 'dddG_ML', 'mt_lora_dddg_pred', t_inf)
                 stats_cmb = update_stats(stats_cmb, prot, res, 'ddG_ML', 'combined_pred', 'dddG_ML', 'combined_dddg_pred', t_inf)
 
-            stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/DMS/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
+            stats_base = str(ANALYSIS / f'stats/DMS/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if args.skip_reverse else ""}_{mask_tag}')
             os.makedirs(os.path.dirname(stats_base), exist_ok=True)
 
             stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -728,11 +729,11 @@ def main_(args):
         res_df = pd.concat(res_combined, axis=0)
         mask_tag = _mask_strategy_tag(args.mask_strategy)
 
-        out_path = str(REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}_predictions.csv')
+        out_path = str(ANALYSIS / f'predictions/domainome/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}_predictions.csv')
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         res_df.to_csv(out_path)
 
-        stats_base = str(REPO_ROOT / 'analysis_notebooks' / f'stats/domainome/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}')
+        stats_base = str(ANALYSIS / f'stats/domainome/{OUT_STR}_sigma{args.sigma}{"_skip_additive" if args.skip_additive else ""}{"_skip_reverse" if should_skip_reverse_dom else ""}_{mask_tag}')
         os.makedirs(os.path.dirname(stats_base), exist_ok=True)
 
         stats_wt.to_csv(f'{stats_base}_WT_LoRA.csv', na_rep='', float_format='%.6f')
@@ -788,6 +789,9 @@ if __name__ == "__main__":
         parser.add_argument('--remove_spurs_homologs', action='store_true', help='Remove homologous sequences to SPURS training data from the Tsuboyama splits to test generalization to non-homologous sequences')
 
         # ProteinGym (all-DMS) benchmark mode
+        parser.add_argument('--analysis_root', default=None,
+                            help='directory for predictions/, stats/ and resources/ (default: <repo>/analysis_notebooks, where a real run '
+                                 'of the same checkpoint would overwrite files of the same name)')
         parser.add_argument('--max_proteins', type=int, default=0,
                             help='Smoke test: only the first N proteins of every external set / Tsuboyama split / Domainome and the first N DMS assays (0 = all). Writes partial outputs: use a checkpoint path nobody else reads.')
         parser.add_argument('--protein_gym', action='store_true', help='Run esm-msr over all preprocessed ProteinGym DMS benchmarks and exit')

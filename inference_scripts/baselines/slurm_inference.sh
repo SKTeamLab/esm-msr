@@ -62,10 +62,10 @@ case $MODEL in
     activate msr_venv
     cd "$REPO/inference_scripts"
     python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
-        --resource_dir "$OUT/resources" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA
+        --analysis_root "$OUT/analysis" --resource_dir "$OUT/resources" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA
     [ -z "${CALIBRATE:-}" ] || { echo "calibration done: $OUT/batch_sizes_$MODEL.json"; exit 0; }
     python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
-        --protein_gym --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" --pgym_out "$OUT/proteingym" --resource_dir "$OUT/resources" "${BATCH[@]}" $EXTRA;;
+        --protein_gym --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" --pgym_out "$OUT/proteingym" --analysis_root "$OUT/analysis" --resource_dir "$OUT/resources" "${BATCH[@]}" $EXTRA;;
   thermompnn)
     PY=${THERMOMPNN_DIR:-${THIRD_PARTY_DIR:-$HOME/software}/ThermoMPNN-D}/.venv/bin/python
     [ -n "${SINGLE:-}${EPISTATIC:-}" ] || { echo "set SINGLE and/or EPISTATIC (ThermoMPNN-D checkpoints)"; exit 1; }
