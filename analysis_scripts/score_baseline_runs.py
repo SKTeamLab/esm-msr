@@ -5,7 +5,9 @@ and writes one summary CSV (one row per benchmark, ESM-MSR's update_stats column
 
   python analysis_scripts/score_baseline_runs.py --pred_dir outputs/tracked/spurs_retrain_s1 --label SPURS_s1 --out scored/ \\
       --col SPURS_single_additive --epi_col none                        # SPURS single (an additive model: predicted epistasis 0)
-  python analysis_scripts/score_baseline_runs.py ... --col SPURS_multi --epi_col SPURS_multi_epi --pgym_col spearman_SPURS_multi_additive
+  python analysis_scripts/score_baseline_runs.py ... --col SPURS_multi --epi_col SPURS_multi_epi --pgym_col spearman_combined
+      # proteingym/summary.csv's spearman_combined is the runner's primary readout, which for SPURS is the multi model on every variant (= SPURS_multi);
+      # the BENCHMARKS SPURS multi ProteinGym row reads it. spearman_SPURS_multi_additive (the multi model summed over substitutions) is a different, 0.001 higher, number.
 
 Tsuboyama is scored on measured rows only (cens == 0): the inference scripts predict the bounded rows too and flag them in `cens`, and
 including them inflates SPURS by about 0.005-0.007. Domainome is the mean over domains. ProteinGym is summarised as in benchmark_matrix.py:
