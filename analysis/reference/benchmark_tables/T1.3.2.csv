@@ -3,14 +3,14 @@ model,DLG4 abund. (leak code),DLG4 bind. (leak code),GRB2 abund. (leak code),GRB
 "ESM-MSR (baseline), WT head (3 seeds)",–,–,–,–,–,–,–,M.002 P.006 H.08 h.02
 "ESM-MSR (devel), combined (3 seeds)",–,–,–,–,–,–,–,M.002 P.006 H.08 h.02
 "ESM-MSR (devel), WT head",–,–,–,–,–,–,–,M.002 P.006 H.08 h.02
-MutateEverything st1 (3 seeds),–,–,–,–,–,–,–,M.002 P<.001
-"MutateEverything st1, additive",–,–,–,–,–,–,–,–
-MutateEverything st2 (3 seeds),–,–,–,–,–,–,–,M.002 P<.001
-"MutateEverything st2, additive",–,–,–,–,–,–,–,–
-"ThermoMPNN (additive, 3 seeds)",–,–,–,–,–,–,–,M.002 P<.001
+MutateEverything st1 (3 seeds),–,–,–,–,–,–,–,M.002 P.006 H.08 h.02
+"MutateEverything st1, additive",–,–,–,–,–,–,–,M.002 P.006 H.08 h.02
+MutateEverything st2 (3 seeds),–,–,–,–,–,–,–,M.002 P.006 H.08 h.02
+"MutateEverything st2, additive",–,–,–,–,–,–,–,M.002 P.006 H.08 h.02
+"ThermoMPNN (additive, 3 seeds)",–,–,–,–,–,–,–,M.002 P.006 H.08 h.02
 ThermoMPNN + ThermoMPNN-D (3 seeds),–,–,–,–,–,–,–,–
-SPURS (single model),–,–,–,–,–,–,P1,M.01 P.03 H.24 h.05
-SPURS multi (multi-mutant model),–,–,–,–,–,–,P1,m.002 P.03 H.22 h.06
+"SPURS (retrained, 3 seeds)",–,–,–,–,–,–,–,M.002 P.006 H.08 h.02
+"SPURS multi (retrained, 3 seeds)",–,–,–,–,–,–,–,M.002 P.006 H.08 h.02
 ESMtherm,–,–,–,–,–,–,P1,P.05 M?.04 H.26 h.06
 DDGemb (server),–,–,–,–,–,–,–,P.03 H.14 h.06
 "IFUM, WT backbone",–,–,–,–,–,–,P1,P.05 M?.05 H.26 h.05

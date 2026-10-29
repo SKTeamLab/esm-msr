@@ -1,0 +1,51 @@
+model,dataset,rho,sd,n_seeds,source
+SPURS (public checkpoint),PG avg,0.4825530867631659,,1,pgym_all_models_per_dms
+SPURS (public checkpoint),PG Stability,0.83709417522537,,1,pgym_all_models_per_dms
+SPURS (public checkpoint),PG DMS mean,0.5246973797964525,,1,pgym_all_models_per_dms
+SPURS multi (public checkpoint),PG avg,0.4260881310255238,,1,pgym_all_models_per_dms
+SPURS multi (public checkpoint),PG Stability,0.8077005653529348,,1,pgym_all_models_per_dms
+SPURS multi (public checkpoint),PG DMS mean,0.4767194788438109,,1,pgym_all_models_per_dms
+SPURS (public checkpoint),s571,0.4679298068931856,,1,harness spurs
+SPURS (public checkpoint),s783,0.7122228039185877,,1,harness spurs
+SPURS (public checkpoint),s2648,0.6821031065747714,,1,harness spurs
+SPURS (public checkpoint),s8754,0.6258544030880888,,1,harness spurs
+SPURS (public checkpoint),s669,0.5019961088761143,,1,harness spurs
+SPURS (public checkpoint),s461,0.6544840209225996,,1,harness spurs
+SPURS (public checkpoint),ssym,0.7835881696538691,,1,harness spurs
+SPURS (public checkpoint),q3421,0.6142428408386912,,1,harness spurs
+SPURS (public checkpoint),k3822,0.6808444254518033,,1,harness spurs
+SPURS (public checkpoint),k2369,0.698476018749346,,1,harness spurs
+SPURS (public checkpoint),ptmul,0.3994337487026346,,1,harness spurs
+SPURS (public checkpoint),ptmuld,0.4949333577403503,,1,harness spurs
+SPURS (public checkpoint),DLG4_HUMAN_Faure_2021_abundance_domain,0.6886887827071816,,1,harness spurs
+SPURS (public checkpoint),DLG4_HUMAN_Faure_2021_binding_domain,0.7107417810561238,,1,harness spurs
+SPURS (public checkpoint),GRB2_HUMAN_Faure_2021_abundance_domain,0.7359230340490176,,1,harness spurs
+SPURS (public checkpoint),GRB2_HUMAN_Faure_2021_binding_domain,0.6351062293600358,,1,harness spurs
+SPURS (public checkpoint),MYO_HUMAN_Kung_2025_display,0.6023536336666804,,1,harness spurs
+SPURS (public checkpoint),ESTA_BACSU_Nutschel_2020_dTm,0.5345263545434504,,1,harness spurs
+SPURS (public checkpoint),GB1_Wu_2016_binding_domain,0.3298371645240703,,1,harness spurs
+SPURS (public checkpoint),domainome,0.5132832919390009,,1,harness spurs
+SPURS (public checkpoint),tsu_capped_val,0.8407849082290163,,1,harness spurs cov=1.00
+SPURS (public checkpoint),tsu_capped_test,0.864491022872003,,1,harness spurs cov=1.00
+SPURS multi (public checkpoint),s571,0.4302182587572291,,1,harness spurs_multi
+SPURS multi (public checkpoint),s783,0.7014205931320039,,1,harness spurs_multi
+SPURS multi (public checkpoint),s2648,0.6419730487404868,,1,harness spurs_multi
+SPURS multi (public checkpoint),s8754,0.5940448264938586,,1,harness spurs_multi
+SPURS multi (public checkpoint),s669,0.459205930240302,,1,harness spurs_multi
+SPURS multi (public checkpoint),s461,0.6100658253616829,,1,harness spurs_multi
+SPURS multi (public checkpoint),ssym,0.7577258451315706,,1,harness spurs_multi
+SPURS multi (public checkpoint),q3421,0.5935831622105859,,1,harness spurs_multi
+SPURS multi (public checkpoint),k3822,0.6272342034098615,,1,harness spurs_multi
+SPURS multi (public checkpoint),k2369,0.6497639218071124,,1,harness spurs_multi
+SPURS multi (public checkpoint),ptmul,0.3589642409280469,,1,harness spurs_multi
+SPURS multi (public checkpoint),ptmuld,0.4655390335233378,,1,harness spurs_multi
+SPURS multi (public checkpoint),DLG4_HUMAN_Faure_2021_abundance_domain,0.6121894227174667,,1,harness spurs_multi
+SPURS multi (public checkpoint),DLG4_HUMAN_Faure_2021_binding_domain,0.6241592723643088,,1,harness spurs_multi
+SPURS multi (public checkpoint),GRB2_HUMAN_Faure_2021_abundance_domain,0.6004925352842517,,1,harness spurs_multi
+SPURS multi (public checkpoint),GRB2_HUMAN_Faure_2021_binding_domain,0.5020710566413212,,1,harness spurs_multi
+SPURS multi (public checkpoint),MYO_HUMAN_Kung_2025_display,0.5556178766359391,,1,harness spurs_multi
+SPURS multi (public checkpoint),ESTA_BACSU_Nutschel_2020_dTm,0.3752653533313497,,1,harness spurs_multi
+SPURS multi (public checkpoint),GB1_Wu_2016_binding_domain,0.2578796509465191,,1,harness spurs_multi
+SPURS multi (public checkpoint),domainome,0.406233086590562,,1,harness spurs_multi
+SPURS multi (public checkpoint),tsu_capped_val,0.7872653525359112,,1,harness spurs_multi cov=1.00
+SPURS multi (public checkpoint),tsu_capped_test,0.8063328154685294,,1,harness spurs_multi cov=1.00

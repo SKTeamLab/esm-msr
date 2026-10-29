@@ -1,7 +1,7 @@
 col0,ME st1,ME st2,TMPNN,TMPNN+D,ESM-MSR (baseline) WT ʰ,ESM-MSR (baseline) combined ʰ,ESM-MSR (devel) WT ʰ,ESM-MSR (devel) combined ʰ
-val all variants (`spearman_all`),0.754,0.730,0.787,0.785,0.841 ± 0.002,**0.855 ± 0.001**,0.836 ± 0.001,0.854 ± 0.001
-val doubles (`spearman_doubles`),0.571,0.629,0.630,0.688,0.687 ± 0.015,0.720 ± 0.003,0.693 ± 0.002,**0.727 ± 0.011**
-val dddG of doubles (`spearman_doubles_epi`),-0.013,0.341,–,0.225,-0.023 ± 0.031,**0.505 ± 0.010**,0.009 ± 0.068,0.492 ± 0.006
-test all variants (`spearman_all`),0.771,0.760,0.794,0.784,0.829 ± 0.002,0.847 ± 0.001,0.827 ± 0.002,**0.849 ± 0.001**
-test doubles (`spearman_doubles`),0.617,0.652,0.673,0.668,0.709 ± 0.005,0.766 ± 0.004,0.717 ± 0.005,**0.781 ± 0.008**
-test dddG of doubles (`spearman_doubles_epi`),0.020,0.346,–,0.184,-0.045 ± 0.033,0.574 ± 0.013,-0.022 ± 0.026,**0.575 ± 0.007**
+val all variants (`spearman_all`),0.754,0.730,0.787,0.785,0.841,**0.855**,0.836,0.854
+val doubles (`spearman_doubles`),0.571,0.629,0.630,0.688,0.687,0.720,0.693,**0.727**
+val dddG of doubles (`spearman_doubles_epi`),-0.013,0.341,–,0.225,-0.023,**0.505**,0.009,0.492
+test all variants (`spearman_all`),0.771,0.760,0.794,0.784,0.829,0.847,0.827,**0.849**
+test doubles (`spearman_doubles`),0.617,0.652,0.673,0.668,0.709,0.766,0.717,**0.781**
+test dddG of doubles (`spearman_doubles_epi`),0.020,0.346,–,0.184,-0.045,0.574,-0.022,**0.575**

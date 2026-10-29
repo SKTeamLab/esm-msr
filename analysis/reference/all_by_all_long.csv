@@ -587,12 +587,56 @@ ESM-MSR (released) WT,PG DMS mean,0.5498336732409423,,1,pgym_all_models_per_dms
 "ESM3-small-open (σ=0, MSR readout)",PG avg,0.4478082874821073,,1,pgym_all_models_per_dms
 "ESM3-small-open (σ=0, MSR readout)",PG Stability,0.6196173321588871,,1,pgym_all_models_per_dms
 "ESM3-small-open (σ=0, MSR readout)",PG DMS mean,0.4697229820554599,,1,pgym_all_models_per_dms
-SPURS,PG avg,0.4825530867631659,,1,pgym_all_models_per_dms
-SPURS,PG Stability,0.83709417522537,,1,pgym_all_models_per_dms
-SPURS,PG DMS mean,0.5246973797964525,,1,pgym_all_models_per_dms
-SPURS multi,PG avg,0.4260881310255238,,1,pgym_all_models_per_dms
-SPURS multi,PG Stability,0.8077005653529348,,1,pgym_all_models_per_dms
-SPURS multi,PG DMS mean,0.47671947884381094,,1,pgym_all_models_per_dms
+SPURS (retrained),tsu_capped_val,0.8028233333333333,0.002076395273866031,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),tsu_capped_test,0.8013793333333333,0.0036666656969696104,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),s571,0.44949866666666666,0.005844993185054477,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),s783,0.675282,0.012340836235847225,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),s2648,0.6545979999999999,0.0017806462310071534,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),s8754,0.581204,0.001676744464729207,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),s669,0.49687566666666666,0.007645441931852787,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),s461,0.644251,0.002876836456943632,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),ssym,0.7406423333333333,0.004364570578342542,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),q3421,0.5934873333333334,0.0028869146737188784,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),k3822,0.6207206666666666,0.006315125124123295,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),k2369,0.6353266666666667,0.007805959923887228,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),ptmul,0.42692100000000005,0.03925188138166119,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),ptmuld,0.5368703333333333,0.02097089071387604,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),DLG4_HUMAN_Faure_2021_abundance_domain,0.7154986666666666,0.00868779035965614,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),DLG4_HUMAN_Faure_2021_binding_domain,0.7289123333333333,0.005571978314147826,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),GRB2_HUMAN_Faure_2021_abundance_domain,0.6739260000000001,0.01331898858772692,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),GRB2_HUMAN_Faure_2021_binding_domain,0.5891446666666666,0.006680810155462691,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),MYO_HUMAN_Kung_2025_display,0.582777,0.007021823053879963,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),ESTA_BACSU_Nutschel_2020_dTm,0.4486493333333333,0.012253050286901336,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),GB1_Wu_2016_binding_domain,0.307665,0.0036992268111052397,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),domainome,0.489253,0.0090739384503092,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),PG avg,0.46204433333333333,0.003962295336460063,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),PG Stability,0.8050453333333335,0.0047671461413862,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS (retrained),PG DMS mean,0.5007173333333333,0.0026847637388294245,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),tsu_capped_val,0.7627193333333332,0.004527144832378725,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),tsu_capped_test,0.7717426666666668,0.0024018805826545916,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),s571,0.4255816666666667,0.007069115385487303,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),s783,0.640536,0.02230491696913489,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),s2648,0.6199456666666666,0.010588544249958705,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),s8754,0.5570983333333333,0.007506816524555086,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),s669,0.470876,0.01197204949037547,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),s461,0.6123396666666666,0.017045740533439286,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),ssym,0.696329,0.012941651053864788,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),q3421,0.5655100000000001,0.009582017115409494,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),k3822,0.597915,0.00804646027766246,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),k2369,0.6051043333333334,0.005711340327220333,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),ptmul,0.4030753333333333,0.028381608575507717,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),ptmuld,0.48119466666666666,0.025319083244330434,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),DLG4_HUMAN_Faure_2021_abundance_domain,0.658329,0.022788510548081065,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),DLG4_HUMAN_Faure_2021_binding_domain,0.672996,0.019975696408385864,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),GRB2_HUMAN_Faure_2021_abundance_domain,0.576241,0.0031651679260349063,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),GRB2_HUMAN_Faure_2021_binding_domain,0.5445723333333333,0.03565348513586484,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),MYO_HUMAN_Kung_2025_display,0.5393666666666667,0.019495339195134125,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),ESTA_BACSU_Nutschel_2020_dTm,0.3347766666666667,0.020638935082346984,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),GB1_Wu_2016_binding_domain,0.3328743333333333,0.0017406896143004223,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),domainome,0.393496,0.007530618102121505,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),PG avg,0.41791433333333333,0.007894392271310913,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),PG Stability,0.7721936666666668,0.005574173421533726,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
+SPURS multi (retrained),PG DMS mean,0.46152433333333337,0.006121581195519118,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis_scripts/score_baseline_runs.py"
 ME stage1,PG avg,0.4678374820708049,,3,pgym_all_models_per_dms
 ME stage1,PG Stability,0.8083227810247872,,3,pgym_all_models_per_dms
 ME stage1,PG DMS mean,0.5063701840044135,,3,pgym_all_models_per_dms
@@ -632,50 +676,6 @@ ESM3dG,tsu_capped_val,0.8105714404564905,,1,harness esm3dg cov=1.00
 ESM3dG,tsu_capped_test,0.8106122671725858,,1,harness esm3dg cov=1.00
 ProSST,tsu_capped_val,0.5930051868246157,,1,harness prosst cov=1.00
 ProSST,tsu_capped_test,0.5964857619638142,,1,harness prosst cov=1.00
-SPURS,s571,0.46792980689318564,,1,harness spurs
-SPURS,s783,0.7122228039185877,,1,harness spurs
-SPURS,s2648,0.6821031065747714,,1,harness spurs
-SPURS,s8754,0.6258544030880888,,1,harness spurs
-SPURS,s669,0.5019961088761143,,1,harness spurs
-SPURS,s461,0.6544840209225996,,1,harness spurs
-SPURS,ssym,0.7835881696538691,,1,harness spurs
-SPURS,q3421,0.6142428408386912,,1,harness spurs
-SPURS,k3822,0.6808444254518033,,1,harness spurs
-SPURS,k2369,0.698476018749346,,1,harness spurs
-SPURS,ptmul,0.39943374870263465,,1,harness spurs
-SPURS,ptmuld,0.4949333577403503,,1,harness spurs
-SPURS,DLG4_HUMAN_Faure_2021_abundance_domain,0.6886887827071816,,1,harness spurs
-SPURS,DLG4_HUMAN_Faure_2021_binding_domain,0.7107417810561238,,1,harness spurs
-SPURS,GRB2_HUMAN_Faure_2021_abundance_domain,0.7359230340490176,,1,harness spurs
-SPURS,GRB2_HUMAN_Faure_2021_binding_domain,0.6351062293600358,,1,harness spurs
-SPURS,MYO_HUMAN_Kung_2025_display,0.6023536336666804,,1,harness spurs
-SPURS,ESTA_BACSU_Nutschel_2020_dTm,0.5345263545434504,,1,harness spurs
-SPURS,GB1_Wu_2016_binding_domain,0.32983716452407036,,1,harness spurs
-SPURS,domainome,0.5132832919390009,,1,harness spurs
-SPURS,tsu_capped_val,0.8407849082290163,,1,harness spurs cov=1.00
-SPURS,tsu_capped_test,0.864491022872003,,1,harness spurs cov=1.00
-SPURS multi,s571,0.4302182587572291,,1,harness spurs_multi
-SPURS multi,s783,0.7014205931320039,,1,harness spurs_multi
-SPURS multi,s2648,0.6419730487404868,,1,harness spurs_multi
-SPURS multi,s8754,0.5940448264938586,,1,harness spurs_multi
-SPURS multi,s669,0.45920593024030204,,1,harness spurs_multi
-SPURS multi,s461,0.6100658253616829,,1,harness spurs_multi
-SPURS multi,ssym,0.7577258451315706,,1,harness spurs_multi
-SPURS multi,q3421,0.5935831622105859,,1,harness spurs_multi
-SPURS multi,k3822,0.6272342034098615,,1,harness spurs_multi
-SPURS multi,k2369,0.6497639218071124,,1,harness spurs_multi
-SPURS multi,ptmul,0.3589642409280469,,1,harness spurs_multi
-SPURS multi,ptmuld,0.4655390335233378,,1,harness spurs_multi
-SPURS multi,DLG4_HUMAN_Faure_2021_abundance_domain,0.6121894227174667,,1,harness spurs_multi
-SPURS multi,DLG4_HUMAN_Faure_2021_binding_domain,0.6241592723643088,,1,harness spurs_multi
-SPURS multi,GRB2_HUMAN_Faure_2021_abundance_domain,0.6004925352842517,,1,harness spurs_multi
-SPURS multi,GRB2_HUMAN_Faure_2021_binding_domain,0.5020710566413212,,1,harness spurs_multi
-SPURS multi,MYO_HUMAN_Kung_2025_display,0.5556178766359391,,1,harness spurs_multi
-SPURS multi,ESTA_BACSU_Nutschel_2020_dTm,0.37526535333134975,,1,harness spurs_multi
-SPURS multi,GB1_Wu_2016_binding_domain,0.2578796509465191,,1,harness spurs_multi
-SPURS multi,domainome,0.40623308659056206,,1,harness spurs_multi
-SPURS multi,tsu_capped_val,0.7872653525359112,,1,harness spurs_multi cov=1.00
-SPURS multi,tsu_capped_test,0.8063328154685294,,1,harness spurs_multi cov=1.00
 ProteinMPNN,s571,0.3236141625268133,,1,harness proteinmpnn
 ProteinMPNN,s783,0.5607774315683574,,1,harness proteinmpnn
 ProteinMPNN,s2648,0.5060309649150412,,1,harness proteinmpnn

@@ -4,8 +4,8 @@ MutateEverything st1,"the 172 capped-train libraries: 154,358 valid singles (150
 MutateEverything st2,"the same singles plus all 53,188 measured doubles (207,546 rows); stage 2 (100 epochs) initialised from the same seed's stage 1",capped split; ME README recipe,verified
 ThermoMPNN (additive),"the same 154,358 singles",capped split; `train_single.yaml`,verified
 ThermoMPNN-D,"the 53,188 measured doubles plus 118,963 augmented doubles (upstream `double-aug`, built from the singles that have a Rosetta model: 79 % of them)",capped split; `train_epistatic.yaml`,verified
-SPURS single,"212 train + 29 val Megascale libraries after a >25 %-identity blacklist; 216,336 singles","`SPURS_mod` data, ThermoMPNN 8:1:1 split, `mmseq_mut_search_0.25.m8`",verified
-SPURS multi,"same libraries, 132,950 doubles",`SPURS_mod`,verified
+SPURS (retrained),"the 172 capped-train libraries: 154,358 valid singles (150,815 wild-type-backbone + 3,543 mutant-background)","capped split; patched SPURS training code, three seeds",verified
+SPURS multi (retrained),"the same singles (through its same-seed SPURS initialisation) and the 53,188 measured doubles","capped split; patched SPURS training code, three seeds",verified
 EsmTherm,`K50_dG_Dataset1_Dataset2` domains; 414 wildtypes contribute train mutants under a per-row 80/10/10 split; only 47 domains are test-only,`EsmTherm/datasets/split/wildtype_split.csv`,protein-level (mutation rows unavailable)
 IFUM,"Megascale Dataset2: 322 train libraries, 86 in an unseparated val/test block",IFUM published `dataset_splits.pdf`,protein-level
 DDGemb,"S2450 = S2648 − 18 sequences/198 mutations >25 % identity to S669; 2,450 mutations / 115 UniProt",`ddgemb.biocomp.unibo.it` S2450.tsv/.fasta,verified

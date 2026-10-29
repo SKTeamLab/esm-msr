@@ -16,7 +16,7 @@ def read_table(tid):
 
 def num(cell):
     """'**0.654±0.003**ʰ' -> (0.654, 0.003); '–', 'q', '' -> (nan, nan)."""
-    s = str(cell).replace('**', '').replace('_', '').strip()
+    s = str(cell).replace('**', '').replace('_', '').replace('−', '-').replace('+', '').strip()
     s = ''.join(ch for ch in s if ch not in _SUP).strip()
     m = re.match(r'^(-?\d*\.?\d+(?:e-?\d+)?)\s*(?:±\s*(\d*\.?\d+))?', s)
     if not m:

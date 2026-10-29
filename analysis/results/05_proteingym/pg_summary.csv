@@ -4,6 +4,7 @@ ESM-MSR (baseline) combined,Binding,0.3455,0.2301,0.4433,13
 ESM-MSR (baseline) combined,Expression,0.5152,0.4396,0.5754,18
 ESM-MSR (baseline) combined,OrganismalFitness,0.3929,0.3549,0.4302,73
 ESM-MSR (baseline) combined,Stability,0.8656,0.8364,0.8900,66
+ESM-MSR (baseline) combined,StabClean,0.8279,0.7908,0.8619,43
 ESM-MSR (baseline) combined,PG avg,0.5091,0.4788,0.5363,213
 ESM-MSR (baseline) combined,DMS mean,0.5536,0.5331,0.5731,213
 ESM-MSR (baseline) WT head,Activity,0.4356,0.3908,0.4818,43
@@ -11,6 +12,7 @@ ESM-MSR (baseline) WT head,Binding,0.3518,0.2385,0.4482,13
 ESM-MSR (baseline) WT head,Expression,0.5159,0.4423,0.5766,18
 ESM-MSR (baseline) WT head,OrganismalFitness,0.4088,0.3709,0.4458,73
 ESM-MSR (baseline) WT head,Stability,0.8241,0.7949,0.8497,66
+ESM-MSR (baseline) WT head,StabClean,0.8037,0.7652,0.8400,43
 ESM-MSR (baseline) WT head,PG avg,0.5073,0.4779,0.5347,213
 ESM-MSR (baseline) WT head,DMS mean,0.5485,0.5280,0.5680,213
 ESM-MSR (released) combined σ=1,Activity,0.4247,0.3798,0.4702,43
@@ -18,6 +20,7 @@ ESM-MSR (released) combined σ=1,Binding,0.3449,0.2223,0.4473,13
 ESM-MSR (released) combined σ=1,Expression,0.5155,0.4418,0.5747,18
 ESM-MSR (released) combined σ=1,OrganismalFitness,0.3943,0.3564,0.4308,73
 ESM-MSR (released) combined σ=1,Stability,0.8704,0.8400,0.8956,66
+ESM-MSR (released) combined σ=1,StabClean,0.8260,0.7877,0.8607,43
 ESM-MSR (released) combined σ=1,PG avg,0.5100,0.4792,0.5383,213
 ESM-MSR (released) combined σ=1,DMS mean,0.5552,0.5344,0.5748,213
 ESM-MSR (released) WT head σ=1,Activity,0.4341,0.3896,0.4798,43
@@ -25,6 +28,7 @@ ESM-MSR (released) WT head σ=1,Binding,0.3486,0.2313,0.4471,13
 ESM-MSR (released) WT head σ=1,Expression,0.5152,0.4418,0.5761,18
 ESM-MSR (released) WT head σ=1,OrganismalFitness,0.4107,0.3730,0.4480,73
 ESM-MSR (released) WT head σ=1,Stability,0.8282,0.7984,0.8534,66
+ESM-MSR (released) WT head σ=1,StabClean,0.8030,0.7638,0.8392,43
 ESM-MSR (released) WT head σ=1,PG avg,0.5074,0.4774,0.5348,213
 ESM-MSR (released) WT head σ=1,DMS mean,0.5498,0.5292,0.5695,213
 ESM-MSR (released) WT head σ=0.75,Activity,0.4472,0.4022,0.4927,43
@@ -32,6 +36,7 @@ ESM-MSR (released) WT head σ=0.75,Binding,0.3621,0.2446,0.4630,13
 ESM-MSR (released) WT head σ=0.75,Expression,0.5120,0.4376,0.5754,18
 ESM-MSR (released) WT head σ=0.75,OrganismalFitness,0.4240,0.3863,0.4616,73
 ESM-MSR (released) WT head σ=0.75,Stability,0.8150,0.7856,0.8408,66
+ESM-MSR (released) WT head σ=0.75,StabClean,0.7920,0.7532,0.8290,43
 ESM-MSR (released) WT head σ=0.75,PG avg,0.5121,0.4821,0.5398,213
 ESM-MSR (released) WT head σ=0.75,DMS mean,0.5535,0.5328,0.5732,213
 ESM-MSR (released) WT head σ=0.5,Activity,0.4490,0.4044,0.4930,43
@@ -39,6 +44,7 @@ ESM-MSR (released) WT head σ=0.5,Binding,0.3766,0.2715,0.4728,13
 ESM-MSR (released) WT head σ=0.5,Expression,0.4928,0.4204,0.5560,18
 ESM-MSR (released) WT head σ=0.5,OrganismalFitness,0.4247,0.3875,0.4614,73
 ESM-MSR (released) WT head σ=0.5,Stability,0.7804,0.7501,0.8070,66
+ESM-MSR (released) WT head σ=0.5,StabClean,0.7636,0.7239,0.8007,43
 ESM-MSR (released) WT head σ=0.5,PG avg,0.5047,0.4767,0.5313,213
 ESM-MSR (released) WT head σ=0.5,DMS mean,0.5426,0.5222,0.5625,213
 ESM-MSR (released) WT head σ=0.25,Activity,0.4364,0.3930,0.4780,43
@@ -46,20 +52,23 @@ ESM-MSR (released) WT head σ=0.25,Binding,0.3815,0.2953,0.4675,13
 ESM-MSR (released) WT head σ=0.25,Expression,0.4657,0.4025,0.5242,18
 ESM-MSR (released) WT head σ=0.25,OrganismalFitness,0.4110,0.3734,0.4472,73
 ESM-MSR (released) WT head σ=0.25,Stability,0.7126,0.6795,0.7418,66
+ESM-MSR (released) WT head σ=0.25,StabClean,0.7063,0.6649,0.7461,43
 ESM-MSR (released) WT head σ=0.25,PG avg,0.4814,0.4561,0.5056,213
 ESM-MSR (released) WT head σ=0.25,DMS mean,0.5124,0.4930,0.5323,213
-ESM-MSR (released) WT head σ=0,Activity,0.4157,0.3725,0.4574,43
-ESM-MSR (released) WT head σ=0,Binding,0.3740,0.2944,0.4566,13
-ESM-MSR (released) WT head σ=0,Expression,0.4392,0.3823,0.4923,18
-ESM-MSR (released) WT head σ=0,OrganismalFitness,0.3906,0.3536,0.4276,73
-ESM-MSR (released) WT head σ=0,Stability,0.6196,0.5861,0.6500,66
-ESM-MSR (released) WT head σ=0,PG avg,0.4478,0.4238,0.4713,213
-ESM-MSR (released) WT head σ=0,DMS mean,0.4697,0.4509,0.4900,213
+"ESM3-small-open, σ = 0 (ours)",Activity,0.4157,0.3725,0.4574,43
+"ESM3-small-open, σ = 0 (ours)",Binding,0.3740,0.2944,0.4566,13
+"ESM3-small-open, σ = 0 (ours)",Expression,0.4392,0.3823,0.4923,18
+"ESM3-small-open, σ = 0 (ours)",OrganismalFitness,0.3906,0.3536,0.4276,73
+"ESM3-small-open, σ = 0 (ours)",Stability,0.6196,0.5861,0.6500,66
+"ESM3-small-open, σ = 0 (ours)",StabClean,0.6199,0.5775,0.6612,43
+"ESM3-small-open, σ = 0 (ours)",PG avg,0.4478,0.4238,0.4713,213
+"ESM3-small-open, σ = 0 (ours)",DMS mean,0.4697,0.4509,0.4900,213
 ESM-MSR (devel) σ=1,Activity,0.4257,0.3804,0.4717,43
 ESM-MSR (devel) σ=1,Binding,0.3469,0.2294,0.4460,13
 ESM-MSR (devel) σ=1,Expression,0.5171,0.4432,0.5766,18
 ESM-MSR (devel) σ=1,OrganismalFitness,0.3952,0.3576,0.4324,73
 ESM-MSR (devel) σ=1,Stability,0.8689,0.8405,0.8931,66
+ESM-MSR (devel) σ=1,StabClean,0.8313,0.7947,0.8640,43
 ESM-MSR (devel) σ=1,PG avg,0.5107,0.4807,0.5387,213
 ESM-MSR (devel) σ=1,DMS mean,0.5555,0.5350,0.5751,213
 ESM-MSR (devel) σ=0.75,Activity,0.4390,0.3929,0.4849,43
@@ -67,6 +76,7 @@ ESM-MSR (devel) σ=0.75,Binding,0.3640,0.2503,0.4628,13
 ESM-MSR (devel) σ=0.75,Expression,0.5151,0.4422,0.5764,18
 ESM-MSR (devel) σ=0.75,OrganismalFitness,0.4095,0.3712,0.4477,73
 ESM-MSR (devel) σ=0.75,Stability,0.8576,0.8289,0.8818,66
+ESM-MSR (devel) σ=0.75,StabClean,0.8235,0.7872,0.8564,43
 ESM-MSR (devel) σ=0.75,PG avg,0.5170,0.4876,0.5441,213
 ESM-MSR (devel) σ=0.75,DMS mean,0.5604,0.5399,0.5801,213
 ESM-MSR (devel) σ=0.5,Activity,0.4427,0.3971,0.4876,43
@@ -74,6 +84,7 @@ ESM-MSR (devel) σ=0.5,Binding,0.3814,0.2832,0.4732,13
 ESM-MSR (devel) σ=0.5,Expression,0.4991,0.4269,0.5612,18
 ESM-MSR (devel) σ=0.5,OrganismalFitness,0.4126,0.3746,0.4500,73
 ESM-MSR (devel) σ=0.5,Stability,0.8219,0.7930,0.8467,66
+ESM-MSR (devel) σ=0.5,StabClean,0.7951,0.7580,0.8298,43
 ESM-MSR (devel) σ=0.5,PG avg,0.5115,0.4846,0.5375,213
 ESM-MSR (devel) σ=0.5,DMS mean,0.5509,0.5309,0.5708,213
 ESM-MSR (devel) σ=0.25,Activity,0.4303,0.3855,0.4728,43
@@ -81,41 +92,47 @@ ESM-MSR (devel) σ=0.25,Binding,0.3855,0.3044,0.4666,13
 ESM-MSR (devel) σ=0.25,Expression,0.4677,0.4045,0.5261,18
 ESM-MSR (devel) σ=0.25,OrganismalFitness,0.4003,0.3632,0.4368,73
 ESM-MSR (devel) σ=0.25,Stability,0.7424,0.7114,0.7698,66
+ESM-MSR (devel) σ=0.25,StabClean,0.7290,0.6897,0.7673,43
 ESM-MSR (devel) σ=0.25,PG avg,0.4853,0.4607,0.5088,213
 ESM-MSR (devel) σ=0.25,DMS mean,0.5172,0.4979,0.5371,213
-SPURS (retrained),Activity,0.3732,0.3305,0.4160,43
-SPURS (retrained),Binding,0.3200,0.2217,0.4028,13
-SPURS (retrained),Expression,0.4720,0.3978,0.5307,18
-SPURS (retrained),OrganismalFitness,0.3399,0.3017,0.3766,73
-SPURS (retrained),Stability,0.8050,0.7771,0.8302,66
-SPURS (retrained),PG avg,0.4620,0.4359,0.4863,213
-SPURS (retrained),DMS mean,0.5007,0.4811,0.5191,213
-SPURS multi (retrained),Activity,0.3331,0.2952,0.3722,43
-SPURS multi (retrained),Binding,0.2689,0.1637,0.3545,13
-SPURS multi (retrained),Expression,0.4128,0.3428,0.4667,18
-SPURS multi (retrained),OrganismalFitness,0.3026,0.2672,0.3352,73
-SPURS multi (retrained),Stability,0.7722,0.7423,0.7995,66
-SPURS multi (retrained),PG avg,0.4179,0.3918,0.4409,213
-SPURS multi (retrained),DMS mean,0.4615,0.4426,0.4789,213
-"SPURS (published, not held out)",Activity,0.3839,0.3401,0.4274,43
-"SPURS (published, not held out)",Binding,0.3336,0.2156,0.4303,13
-"SPURS (published, not held out)",Expression,0.4905,0.4204,0.5456,18
-"SPURS (published, not held out)",OrganismalFitness,0.3677,0.3298,0.4053,73
-"SPURS (published, not held out)",Stability,0.8371,0.8098,0.8596,66
-"SPURS (published, not held out)",PG avg,0.4826,0.4533,0.5088,213
-"SPURS (published, not held out)",DMS mean,0.5247,0.5045,0.5438,213
-"SPURS multi (published, not held out)",Activity,0.3259,0.2878,0.3651,43
-"SPURS multi (published, not held out)",Binding,0.2669,0.1600,0.3570,13
-"SPURS multi (published, not held out)",Expression,0.4097,0.3380,0.4655,18
-"SPURS multi (published, not held out)",OrganismalFitness,0.3202,0.2882,0.3510,73
-"SPURS multi (published, not held out)",Stability,0.8077,0.7794,0.8309,66
-"SPURS multi (published, not held out)",PG avg,0.4261,0.3989,0.4508,213
-"SPURS multi (published, not held out)",DMS mean,0.4767,0.4593,0.4937,213
+SPURS,Activity,0.3732,0.3305,0.4160,43
+SPURS,Binding,0.3200,0.2217,0.4028,13
+SPURS,Expression,0.4720,0.3978,0.5307,18
+SPURS,OrganismalFitness,0.3399,0.3017,0.3766,73
+SPURS,Stability,0.8050,0.7771,0.8302,66
+SPURS,StabClean,0.7837,0.7460,0.8183,43
+SPURS,PG avg,0.4620,0.4359,0.4863,213
+SPURS,DMS mean,0.5007,0.4811,0.5191,213
+SPURS multi,Activity,0.3331,0.2952,0.3722,43
+SPURS multi,Binding,0.2689,0.1637,0.3545,13
+SPURS multi,Expression,0.4128,0.3428,0.4667,18
+SPURS multi,OrganismalFitness,0.3026,0.2672,0.3352,73
+SPURS multi,Stability,0.7722,0.7423,0.7995,66
+SPURS multi,StabClean,0.7402,0.7001,0.7763,43
+SPURS multi,PG avg,0.4179,0.3918,0.4409,213
+SPURS multi,DMS mean,0.4615,0.4426,0.4789,213
+SPURS (public checkpoint),Activity,0.3839,0.3401,0.4274,43
+SPURS (public checkpoint),Binding,0.3336,0.2156,0.4303,13
+SPURS (public checkpoint),Expression,0.4905,0.4204,0.5456,18
+SPURS (public checkpoint),OrganismalFitness,0.3677,0.3298,0.4053,73
+SPURS (public checkpoint),Stability,0.8371,0.8098,0.8596,66
+SPURS (public checkpoint),StabClean,0.8384,0.8002,0.8695,43
+SPURS (public checkpoint),PG avg,0.4826,0.4533,0.5088,213
+SPURS (public checkpoint),DMS mean,0.5247,0.5045,0.5438,213
+SPURS multi (public checkpoint),Activity,0.3259,0.2878,0.3651,43
+SPURS multi (public checkpoint),Binding,0.2669,0.1600,0.3570,13
+SPURS multi (public checkpoint),Expression,0.4097,0.3380,0.4655,18
+SPURS multi (public checkpoint),OrganismalFitness,0.3202,0.2882,0.3510,73
+SPURS multi (public checkpoint),Stability,0.8077,0.7794,0.8309,66
+SPURS multi (public checkpoint),StabClean,0.8028,0.7632,0.8348,43
+SPURS multi (public checkpoint),PG avg,0.4261,0.3989,0.4508,213
+SPURS multi (public checkpoint),DMS mean,0.4767,0.4593,0.4937,213
 MutateEverything st1,Activity,0.3710,0.3257,0.4184,43
 MutateEverything st1,Binding,0.3361,0.2683,0.4096,13
 MutateEverything st1,Expression,0.4718,0.4053,0.5267,18
 MutateEverything st1,OrganismalFitness,0.3520,0.3182,0.3866,73
 MutateEverything st1,Stability,0.8083,0.7766,0.8346,66
+MutateEverything st1,StabClean,0.7737,0.7333,0.8078,43
 MutateEverything st1,PG avg,0.4678,0.4446,0.4893,213
 MutateEverything st1,DMS mean,0.5064,0.4873,0.5246,213
 ThermoMPNN,Activity,0.3509,0.3092,0.3920,43
@@ -123,40 +140,46 @@ ThermoMPNN,Binding,0.2992,0.2136,0.3751,13
 ThermoMPNN,Expression,0.4387,0.3794,0.4898,18
 ThermoMPNN,OrganismalFitness,0.3366,0.3031,0.3680,73
 ThermoMPNN,Stability,0.7814,0.7486,0.8112,66
+ThermoMPNN,StabClean,0.7523,0.7074,0.7920,43
 ThermoMPNN,PG avg,0.4413,0.4169,0.4634,213
 ThermoMPNN,DMS mean,0.4836,0.4649,0.5018,213
-ProSST (published scores),Activity,0.4862,0.4408,0.5317,43
-ProSST (published scores),Binding,0.4487,0.3562,0.5437,13
-ProSST (published scores),Expression,0.5302,0.4773,0.5793,18
-ProSST (published scores),OrganismalFitness,0.4526,0.4178,0.4862,73
-ProSST (published scores),Stability,0.6526,0.6185,0.6858,66
-ProSST (published scores),PG avg,0.5141,0.4876,0.5390,213
-ProSST (published scores),DMS mean,0.5277,0.5079,0.5478,213
+ProSST (ProteinGym reported),Activity,0.4862,0.4408,0.5317,43
+ProSST (ProteinGym reported),Binding,0.4487,0.3562,0.5437,13
+ProSST (ProteinGym reported),Expression,0.5302,0.4773,0.5793,18
+ProSST (ProteinGym reported),OrganismalFitness,0.4526,0.4178,0.4862,73
+ProSST (ProteinGym reported),Stability,0.6526,0.6185,0.6858,66
+ProSST (ProteinGym reported),StabClean,0.6509,0.6034,0.6945,43
+ProSST (ProteinGym reported),PG avg,0.5141,0.4876,0.5390,213
+ProSST (ProteinGym reported),DMS mean,0.5277,0.5079,0.5478,213
 ProteinMPNN (ours),Activity,0.3431,0.3004,0.3849,43
 ProteinMPNN (ours),Binding,0.3232,0.2522,0.3942,13
 ProteinMPNN (ours),Expression,0.4373,0.3789,0.4925,18
 ProteinMPNN (ours),OrganismalFitness,0.3097,0.2730,0.3461,73
 ProteinMPNN (ours),Stability,0.6271,0.5982,0.6557,66
+ProteinMPNN (ours),StabClean,0.6233,0.5840,0.6609,43
 ProteinMPNN (ours),PG avg,0.4081,0.3850,0.4305,213
 ProteinMPNN (ours),DMS mean,0.4264,0.4076,0.4444,213
-ProteinMPNN (published recipe),Activity,0.1943,0.1632,0.2312,43
-ProteinMPNN (published recipe),Binding,0.1600,0.1202,0.1983,13
-ProteinMPNN (published recipe),Expression,0.1976,0.1602,0.2329,18
-ProteinMPNN (published recipe),OrganismalFitness,0.1685,0.1422,0.1968,73
-ProteinMPNN (published recipe),Stability,0.5647,0.5323,0.5959,66
-ProteinMPNN (published recipe),PG avg,0.2570,0.2414,0.2721,213
-ProteinMPNN (published recipe),DMS mean,0.2984,0.2830,0.3144,213
-ESM3-open (published recipe),Activity,0.4294,0.3838,0.4721,43
-ESM3-open (published recipe),Binding,0.3904,0.3084,0.4758,13
-ESM3-open (published recipe),Expression,0.4703,0.4089,0.5281,18
-ESM3-open (published recipe),OrganismalFitness,0.4013,0.3637,0.4387,73
-ESM3-open (published recipe),Stability,0.6406,0.6074,0.6706,66
-ESM3-open (published recipe),PG avg,0.4664,0.4417,0.4907,213
-ESM3-open (published recipe),DMS mean,0.4863,0.4673,0.5069,213
+ProteinMPNN (ProteinGym reported),Activity,0.1943,0.1632,0.2312,43
+ProteinMPNN (ProteinGym reported),Binding,0.1600,0.1202,0.1983,13
+ProteinMPNN (ProteinGym reported),Expression,0.1976,0.1602,0.2329,18
+ProteinMPNN (ProteinGym reported),OrganismalFitness,0.1685,0.1422,0.1968,73
+ProteinMPNN (ProteinGym reported),Stability,0.5647,0.5323,0.5959,66
+ProteinMPNN (ProteinGym reported),StabClean,0.5610,0.5175,0.6030,43
+ProteinMPNN (ProteinGym reported),PG avg,0.2570,0.2414,0.2721,213
+ProteinMPNN (ProteinGym reported),DMS mean,0.2984,0.2830,0.3144,213
+ESM3-open (ProteinGym reported),Activity,0.4294,0.3838,0.4721,43
+ESM3-open (ProteinGym reported),Binding,0.3904,0.3084,0.4758,13
+ESM3-open (ProteinGym reported),Expression,0.4703,0.4089,0.5281,18
+ESM3-open (ProteinGym reported),OrganismalFitness,0.4013,0.3637,0.4387,73
+ESM3-open (ProteinGym reported),Stability,0.6406,0.6074,0.6706,66
+ESM3-open (ProteinGym reported),StabClean,0.6403,0.5979,0.6813,43
+ESM3-open (ProteinGym reported),PG avg,0.4664,0.4417,0.4907,213
+ESM3-open (ProteinGym reported),DMS mean,0.4863,0.4673,0.5069,213
 Rosetta (singles only),Activity,0.3113,0.2712,0.3528,43
 Rosetta (singles only),Binding,0.2914,0.1356,0.4319,13
 Rosetta (singles only),Expression,0.3359,0.2694,0.3931,18
 Rosetta (singles only),OrganismalFitness,0.2963,,,73
 Rosetta (singles only),Stability,0.6399,0.6073,0.6664,66
+Rosetta (singles only),StabClean,0.6299,0.5813,0.6670,43
 Rosetta (singles only),PG avg,0.3750,,,213
 Rosetta (singles only),DMS mean,0.4094,,,213

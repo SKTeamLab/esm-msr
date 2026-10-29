@@ -31,7 +31,16 @@ from msr_analysis.registry import BASE, CACHE, MSR, PGYM, REFERENCE, RETRAINED  
 OUT = out_dir('05_proteingym')
 CATS = ['Activity', 'Binding', 'Expression', 'OrganismalFitness', 'Stability']
 CAT_LABEL = {'Activity': 'Activity (43)', 'Binding': 'Binding (13)', 'Expression': 'Expression (18)', 'OrganismalFitness': 'Org. fitness (73)',
-             'Stability': 'Stability (66)', 'PG avg': 'PG avg', 'DMS mean': 'DMS mean'}
+             'Stability': 'Stability* (66)', 'StabClean': 'Stability, 43 assays\nnot in training', 'PG avg': 'PG avg*', 'DMS mean': 'DMS mean*'}
+STAB_NOTE = ('* includes the Stability assays, which overlap training: 23 of the 66 are Tsuboyama libraries whose every variant is in the capped train split of ESM-MSR,\n'
+             'ME and ThermoMPNN (BENCHMARKS section 6.5); PG avg and DMS mean contain them. "not in training" drops those 23.')
+# the 23 ProteinGym Stability assays that are entirely inside the capped train split (BENCHMARKS section 6.5)
+TRAINED_STAB = {'ARGR_ECOLI_Tsuboyama_2023_1AOY', 'CBX4_HUMAN_Tsuboyama_2023_2K28', 'CSN4_MOUSE_Tsuboyama_2023_1UFM', 'CUE1_YEAST_Tsuboyama_2023_2MYX',
+                'DNJA1_HUMAN_Tsuboyama_2023_2LO1', 'FKBP3_HUMAN_Tsuboyama_2023_2KFV', 'HCP_LAMBD_Tsuboyama_2023_2L6Q', 'ILF3_HUMAN_Tsuboyama_2023_2L33',
+                'ISDH_STAAW_Tsuboyama_2023_2LHR', 'NKX31_HUMAN_Tsuboyama_2023_2L9R', 'NUSG_MYCTU_Tsuboyama_2023_2MI6', 'PITX2_HUMAN_Tsuboyama_2023_2L7M',
+                'PSAE_PICP2_Tsuboyama_2023_1PSE', 'RCD1_ARATH_Tsuboyama_2023_5OAO', 'RFAH_ECOLI_Tsuboyama_2023_2LCL', 'RS15_GEOSE_Tsuboyama_2023_1A32',
+                'SBI_STAAM_Tsuboyama_2023_2JVG', 'SDA_BACSU_Tsuboyama_2023_1PV0', 'SR43C_ARATH_Tsuboyama_2023_2N88', 'UBE4B_HUMAN_Tsuboyama_2023_3L1X',
+                'YAIA_ECOLI_Tsuboyama_2023_2KVT', 'POLG_PESV_Tsuboyama_2023_2MXD', 'YNZC_BACSU_Tsuboyama_2023_2JVD'}
 DROP = {'BRCA1_HUMAN_Findlay_2018', 'BRCA2_HUMAN_Erwood_2022_HEK293T', 'POLG_CXB3N_Mattenberger_2021', 'SCN5A_HUMAN_Glazer_2019'}
 B = 2000
 
@@ -58,7 +67,7 @@ def extra_models():
     msr = score_files(str(MSR / 'baseline_w2a4_m16a16' / 'seed{seed}' / 'sigma1' / 'proteingym'), ['combined_pred', 'wt_lora_pred'])
     sp = score_files(str(RETRAINED / 'spurs' / 'predictions' / 'seed{seed}' / 'proteingym'), ['SPURS_single_additive', 'SPURS_multi'])
     df = pd.DataFrame({'ESM-MSR (baseline) combined': msr['combined_pred'], 'ESM-MSR (baseline) WT head': msr['wt_lora_pred'],
-                       'SPURS (retrained)': sp['SPURS_single_additive'], 'SPURS multi (retrained)': sp['SPURS_multi']})
+                       'SPURS': sp['SPURS_single_additive'], 'SPURS multi': sp['SPURS_multi']})
     df.to_csv(cache)
     return df
 
@@ -76,19 +85,19 @@ def build():
     T['ESM-MSR (baseline) WT head'] = X['ESM-MSR (baseline) WT head']
     T['ESM-MSR (released) combined σ=1'] = a['ESM-MSR full']
     for s in ('1.0', '0.75', '0.5', '0.25', '0'):
-        T[f'ESM-MSR (released) WT head σ={float(s):g}'] = a[f'ESM-MSR WT eps={s}']
+        T['ESM3-small-open, σ = 0 (ours)' if s == '0' else f'ESM-MSR (released) WT head σ={float(s):g}'] = a[f'ESM-MSR WT eps={s}']
     for s in ('1.0', '0.75', '0.5', '0.25'):
         T[f'ESM-MSR (devel) σ={float(s):g}'] = dc[f'dc8 eps={s} mean']
-    T['SPURS (retrained)'] = X['SPURS (retrained)']
-    T['SPURS multi (retrained)'] = X['SPURS multi (retrained)']
-    T['SPURS (published, not held out)'] = a['SPURS single-additive']
-    T['SPURS multi (published, not held out)'] = a['SPURS multi']
+    T['SPURS'] = X['SPURS']
+    T['SPURS multi'] = X['SPURS multi']
+    T['SPURS (public checkpoint)'] = a['SPURS single-additive']
+    T['SPURS multi (public checkpoint)'] = a['SPURS multi']
     T['MutateEverything st1'] = a['MutateEverything single']
     T['ThermoMPNN'] = a['ThermoMPNN']
-    T['ProSST (published scores)'] = pub['ProSST-2048 rho_full']
+    T['ProSST (ProteinGym reported)'] = pub['ProSST-2048 rho_full']
     T['ProteinMPNN (ours)'] = a['ProteinMPNN']
-    T['ProteinMPNN (published recipe)'] = pub['ProteinMPNN rho_full']
-    T['ESM3-open (published recipe)'] = pub['ESM3 rho_full']
+    T['ProteinMPNN (ProteinGym reported)'] = pub['ProteinMPNN rho_full']
+    T['ESM3-open (ProteinGym reported)'] = pub['ESM3 rho_full']
     T['Rosetta (singles only)'] = ro['rho']
     T = T[~T.index.isin(DROP)]
     return T
@@ -106,6 +115,9 @@ def summarize_cols(T, idx_by_cat):
         for c in CATS:
             vals = v[T.category == c].to_numpy()
             reps[c] = vals[idx_by_cat[c]].mean(axis=1) if np.isfinite(vals).all() else np.full(B, np.nan)
+        clean = v[(T.category == 'Stability') & ~T.index.isin(TRAINED_STAB)]
+        point['StabClean'] = float(clean.mean())
+        reps['StabClean'] = clean.to_numpy()[idx_clean].mean(axis=1) if np.isfinite(clean).all() else np.full(B, np.nan)
         reps['PG avg'] = np.mean([reps[c] for c in CATS], axis=0)
         n = np.array([(T.category == c).sum() for c in CATS])
         reps['DMS mean'] = sum(reps[c] * k for c, k in zip(CATS, n)) / n.sum()
@@ -125,13 +137,15 @@ def main():
     for c in CATS:
         n = int((T.category == c).sum())
         idx_by_cat[c] = rng.integers(0, n, (B, n))
+    assert len(TRAINED_STAB & set(T.index)) == 23, 'the 23 trained Stability assays must all be present'
+    globals()['idx_clean'] = rng.integers(0, 43, (B, 43))
     S = summarize_cols(T, idx_by_cat)
     rows = []
-    cols = CATS + ['PG avg', 'DMS mean']
+    cols = CATS + ['StabClean', 'PG avg', 'DMS mean']
     for m, (pt, reps) in S.items():
         for c in cols:
             lo, hi = np.nanquantile(reps[c], [.025, .975]) if np.isfinite(reps[c]).all() else (np.nan, np.nan)
-            rows.append(dict(model=m, column=c, value=pt[c], lo=lo, hi=hi, n_dms=int((T.category == c).sum()) if c in CATS else len(T)))
+            rows.append(dict(model=m, column=c, value=pt[c], lo=lo, hi=hi, n_dms=int((T.category == c).sum()) if c in CATS else (43 if c == 'StabClean' else len(T))))
     R = pd.DataFrame(rows)
     R.to_csv(OUT / 'pg_summary.csv', index=False, float_format='%.4f')
     print(R[R.column.isin(['PG avg', 'Stability', 'DMS mean'])].pivot(index='model', columns='column', values='value').round(3).sort_values('PG avg', ascending=False).to_string())
@@ -150,23 +164,23 @@ def main():
     print(P.round(4).to_string(index=False))
 
     # ---- figure: category dot panels --------------------------------------------------------------------
-    top = ['ESM-MSR (devel) σ=1', 'ESM-MSR (devel) σ=0.75', 'ESM-MSR (devel) σ=0.5', 'ESM-MSR (devel) σ=0.25', 'ESM-MSR (released) WT head σ=0',
-           'ProSST (published scores)', 'ProteinMPNN (published recipe)', 'ESM3-open (published recipe)']
-    bot = ['ESM-MSR (baseline) WT head', 'ESM-MSR (baseline) combined', 'SPURS (retrained)', 'SPURS multi (retrained)', 'MutateEverything st1', 'ThermoMPNN',
-           'SPURS (published, not held out)']
+    top = ['ESM-MSR (devel) σ=1', 'ESM-MSR (devel) σ=0.75', 'ESM-MSR (devel) σ=0.5', 'ESM-MSR (devel) σ=0.25',
+           'ESM3-small-open, σ = 0 (ours)', 'ESM3-open (ProteinGym reported)', 'ProteinMPNN (ours)', 'ProteinMPNN (ProteinGym reported)', 'ProSST (ProteinGym reported)']
+    bot = ['ESM-MSR (baseline) WT head', 'ESM-MSR (baseline) combined', 'SPURS', 'SPURS multi', 'MutateEverything st1', 'ThermoMPNN',
+           'SPURS (public checkpoint)']
     sty = {
         'ESM-MSR (devel) σ=1': dict(color='#000000', marker='D', fill=True), 'ESM-MSR (devel) σ=0.75': dict(color='#333333', marker='D', fill=False),
         'ESM-MSR (devel) σ=0.5': dict(color='#666666', marker='D', fill=False), 'ESM-MSR (devel) σ=0.25': dict(color='#999999', marker='D', fill=False),
-        'ESM-MSR (released) WT head σ=0': dict(color='#7f8c8d', marker='^', fill=True), 'ProSST (published scores)': dict(color='#8e44ad', marker='X', fill=True),
-        'ProteinMPNN (published recipe)': dict(color='#34495e', marker='d', fill=True), 'ESM3-open (published recipe)': dict(color='#e74c3c', marker='o', fill=True),
+        'ESM3-small-open, σ = 0 (ours)': dict(color='#7f8c8d', marker='^', fill=True), 'ProteinMPNN (ours)': dict(color='#34495e', marker='d', fill=True), 'ProSST (ProteinGym reported)': dict(color='#8e44ad', marker='X', fill=True),
+        'ProteinMPNN (ProteinGym reported)': dict(color='#34495e', marker='d', fill=False), 'ESM3-open (ProteinGym reported)': dict(color='#7f8c8d', marker='^', fill=False),
         'ESM-MSR (baseline) WT head': dict(color='#000000', marker='o', fill=False), 'ESM-MSR (baseline) combined': dict(color='#000000', marker='D', fill=True),
-        'SPURS (retrained)': dict(color='#d35400', marker='s', fill=True), 'SPURS multi (retrained)': dict(color='#e59866', marker='s', fill=False),
+        'SPURS': dict(color='#d35400', marker='s', fill=True), 'SPURS multi': dict(color='#e59866', marker='s', fill=False),
         'MutateEverything st1': dict(color='#2ecc71', marker='h', fill=True), 'ThermoMPNN': dict(color='#3498db', marker='p', fill=True),
-        'SPURS (published, not held out)': dict(color='#d35400', marker='s', fill=False)}
+        'SPURS (public checkpoint)': dict(color='#d35400', marker='s', fill=False)}
     from msr_analysis.registry import MODELS
     for k, v in sty.items():
         MODELS[k] = dict(label=k, group='pg', **v)
-    fig, axes = plt.subplots(2, 1, figsize=(11, 8.6), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(12, 9.0), sharex=True)
     for ax, models, ttl in ((axes[0], top, 'ESM-MSR at lower LoRA scale σ, against zero-shot models'), (axes[1], bot, 'ESM-MSR against the models retrained on the capped split (σ = 1)')):
         table = {(c, m): float(R[(R.model == m) & (R.column == c)].value.iloc[0]) for m in models for c in cols}
         ci = {(c, m): (float(R[(R.model == m) & (R.column == c)].lo.iloc[0]), float(R[(R.model == m) & (R.column == c)].hi.iloc[0])) for m in models for c in cols}
@@ -174,7 +188,9 @@ def main():
                         xlabels=[CAT_LABEL[c] for c in cols], rot=0, size=6)
         style.model_legend(ax, models, loc='upper left', ncol=2, fontsize=8)
         ax.set_title(ttl, loc='left')
-        ax.set_ylim(0.1, 1.0)
+        lows = [ci[(c, m)][0] for m in models for c in cols if np.isfinite(ci[(c, m)][0])]
+        ax.set_ylim(min(lows) - 0.03, 1.0)
+    fig.text(0.01, -0.025, STAB_NOTE, fontsize=8)
     fig.tight_layout()
     style.save(fig, OUT / 'pg_categories')
 
@@ -188,9 +204,10 @@ def main():
         for j, c in enumerate(cols):
             lo, hi = R[(R.model == Z.index[i]) & (R.column == c)][['lo', 'hi']].iloc[0]
             ax.text(j, i, f'{Z.iloc[i, j]:.3f}', ha='center', va='center', fontsize=7.2, color='white' if rk.iloc[i, j] > .75 else 'black')
-    ax.set_xticks(range(len(cols))); ax.set_xticklabels([CAT_LABEL[c] for c in cols], rotation=30, ha='right')
+    ax.set_xticks(range(len(cols))); ax.set_xticklabels([CAT_LABEL[c].replace('\n', ' ') for c in cols], rotation=30, ha='right')
     ax.set_yticks(range(len(Z))); ax.set_yticklabels(Z.index, fontsize=8)
     ax.set_title('ProteinGym, every model (tables 1.4 and 3): rho by category, PG avg and DMS mean; colour = rank in column', loc='left', fontsize=9)
+    fig.text(0.01, 0.0, STAB_NOTE, fontsize=6.8, va='top')
     for sp_ in ax.spines.values():
         sp_.set_visible(False)
     fig.tight_layout()
@@ -199,8 +216,8 @@ def main():
     # ---- figure: per-assay raw data -------------------------------------------------------------------
     colors = dict(zip(CATS, ['#1f77b4', '#ff7f0e', '#2ca02c', '#9467bd', '#d62728']))
     fig, axes = plt.subplots(1, 3, figsize=(14, 4.4))
-    for ax, (xm, ym, xl, yl) in zip(axes[:2], [('ProSST (published scores)', 'ESM-MSR (devel) σ=1', 'ProSST (zero-shot)', 'ESM-MSR (devel) σ=1'),
-                                               ('ESM-MSR (released) WT head σ=0', 'ESM-MSR (devel) σ=1', 'σ = 0 (LoRA off, zero-shot readout)', 'ESM-MSR (devel) σ=1')]):
+    for ax, (xm, ym, xl, yl) in zip(axes[:2], [('ProSST (ProteinGym reported)', 'ESM-MSR (devel) σ=1', 'ProSST (zero-shot)', 'ESM-MSR (devel) σ=1'),
+                                               ('ESM3-small-open, σ = 0 (ours)', 'ESM-MSR (devel) σ=1', 'σ = 0 (LoRA off, zero-shot readout)', 'ESM-MSR (devel) σ=1')]):
         for c in CATS:
             s = T[T.category == c]
             ax.scatter(s[xm], s[ym], s=16, color=colors[c], alpha=.75, lw=0, label=CAT_LABEL[c])

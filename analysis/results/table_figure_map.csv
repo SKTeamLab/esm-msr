@@ -9,9 +9,6 @@ table,heading,status,figures
 1.4.1,ProteinGym (213 DMS),drawn,05_proteingym/pg_categories; 05_proteingym/pg_table_heatmap
 1.4.2,ProteinGym (213 DMS),drawn,10_leakage_and_reference/leak_matrix_other
 1.5.1,Published-paper evaluation (reference; earlier models and row sets),drawn,10_leakage_and_reference/published_reference
-1.6.1,SPURS retrained on the capped split (preliminary),drawn,03_tsuboyama/tsuboyama_overview; 10_leakage_and_reference/spurs_published_vs_retrained
-1.6.2,SPURS retrained on the capped split (preliminary),drawn,02_thermostability/thermo_vs_retrains; 10_leakage_and_reference/spurs_published_vs_retrained
-1.6.3,SPURS retrained on the capped split (preliminary),drawn,04_dms_domainome/dms_vs_retrains; 10_leakage_and_reference/spurs_published_vs_retrained
 2.0.1,Authoritative epistasis metrics (2026-10-24),drawn,06_epistasis/epistasis_authoritative_metrics
 2.0.2,Authoritative epistasis metrics (2026-10-24),drawn,06_epistasis/epistasis_authoritative_metrics
 2.1.1,"Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",drawn,06_epistasis/epistasis_hierarchy_val; 06_epistasis/epistasis_naive_recomputed

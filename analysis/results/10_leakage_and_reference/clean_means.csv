@@ -3,14 +3,14 @@ model,clean,n_clean,all12,excluded
 EsmTherm,0.380,1,0.365,"s571, s783, s2648, s8754, s669, s461, q3421, k3822, k2369, ptmul, ptmuld"
 ProSST,0.423,12,0.423,none
 ProteinMPNN,0.464,12,0.464,none
+SPURS multi (retrained),0.556,12,0.556,none
 ThermoMPNN,0.585,12,0.585,none
 ThermoMPNN + D,0.586,12,0.586,none
+SPURS (retrained),0.588,12,0.588,none
 ME stage 2,0.605,12,0.605,none
 DDGemb,0.612,2,0.697,"s571, s783, s2648, s8754, ssym, q3421, k3822, k2369, ptmul, ptmuld"
 ME stage 1,0.615,12,0.615,none
 ESM3ΔG,0.641,5,0.582,"s571, s2648, s8754, k3822, k2369, ptmul, ptmuld"
 ESM-MSR (baseline),0.646,12,0.646,none
-SPURS single,0.647,3,0.610,"s571, s783, s2648, s8754, q3421, k3822, k2369, ptmul, ptmuld"
 ESM-MSR (devel),0.652,12,0.652,none
 GeoDDG-3D,0.664,1,0.767,"s571, s783, s2648, s8754, s669, ssym, q3421, k3822, k2369, ptmul, ptmuld"
-SPURS multi,0.758,1,0.574,"s571, s783, s2648, s8754, s669, s461, q3421, k3822, k2369, ptmul, ptmuld"

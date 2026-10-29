@@ -6,7 +6,7 @@
   is table 2.0.
 * ``epistasis_naive_recomputed``  the headline column, naive rho (predicted against measured dddG over all doubles), and the RMSE of
   the predicted epistasis, recomputed from the per-variant predictions with library-level bootstrap intervals; the document's
-  value is the cross.
+  value is the cross (for devel the document's value is on the observed scale with per-item floors, ours is the latent difference).
 * ``epistasis_scatter_dddG`` / ``epistasis_scatter_ddG_doubles``  the raw points: predicted against measured epistasis, and
   predicted against measured ddG of the double, for every model that scores a double itself.
 * ``ddg_ranking``  table 2.3 (per-protein rho: all variants, doubles, dddG of doubles) with protein-level bootstrap intervals.
@@ -26,16 +26,34 @@ from scipy.stats import spearmanr
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import matplotlib.pyplot as plt  # noqa: E402
 
-from msr_analysis import style  # noqa: E402
+from msr_analysis import link, style  # noqa: E402
 from msr_analysis.boot import SpearmanEngine, _Ranks, bootstrap_rho, ci  # noqa: E402
 from msr_analysis.common import epi_rows, out_dir, subframe  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
-from msr_analysis.registry import LABEL, MODELS, PER_PROTEIN  # noqa: E402
+from msr_analysis.registry import LABEL, MEGASCALE_NOTE, MODELS, PER_PROTEIN  # noqa: E402
 from msr_analysis.tables import clean_label, num, numeric, read_table  # noqa: E402
 
 OUT = out_dir('06_epistasis')
 TSU = ['tsuboyama_capped_val', 'tsuboyama_capped_test']
-EPI_KEYS = ['msr:epi', 'msr:cdddg', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
+EPI_KEYS = ['msr:epi', 'msr:cdddg', 'msrrel:epi', 'msrdev:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
+EPI_PLOT = ['msr:epi', 'msrrel:epi', 'msrdev:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
+MODELS['msrrel:epi'] = dict(label='ESM-MSR released (link intrinsic)', color='#555555', marker='D', fill=True, group='msr')
+MODELS['msrdev:epi_obs'] = dict(label='ESM-MSR devel, post-link', color='#7f7f7f', marker='D', fill=True, group='msr')
+MODELS['msrdev:epi'] = dict(label='ESM-MSR devel (latent MT − WT)', color='#7f7f7f', marker='D', fill=False, group='msr')
+
+
+def add_linked(fr):
+    """devel (floor-link) checkpoints write latent ddG: put them on the observed scale, per seed, with the checkpoint's own link (msr_analysis/link.py).
+    Approximation: one learned floor for every item (the cluster's per-item floors are not collected).  With it the post-link epistasis does NOT reproduce the document's
+    devel naive rho (val 0.42 against 0.643), so post-link values are used only to show what the link does to the pooled ranking of doubles, never as an epistasis score."""
+    dg = fr.spine['dG_wt'].to_numpy()
+    for fam in ('msrrel', 'msrdev'):          # the released / devel prediction files carry no epi_pred column: MT(AB) - WT(AB) on the latent scale
+        fr.preds[f'{fam}:epi'] = fr.preds[f'{fam}:mt'] - fr.preds[f'{fam}:wt']
+    wt, mt, comb = fr.preds['msrdev:wt'], fr.preds['msrdev:mt'], fr.preds['msrdev:comb']
+    fr.preds['msrdev:epi_obs'] = np.stack([link.observed(mt[i], dg, i + 1) - link.observed(wt[i], dg, i + 1) for i in range(3)])
+    fr.preds['msrdev:comb_obs'] = np.stack([link.observed(comb[i], dg, i + 1) for i in range(3)])
+    fr.preds['msrdev:wt_obs'] = np.stack([link.observed(wt[i], dg, i + 1) for i in range(3)])
+    return fr
 DMS_D = ['GB1_Wu_2016_binding_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain',
          'DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain']
 
@@ -43,7 +61,7 @@ DMS_D = ['GB1_Wu_2016_binding_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain',
 # --------------------------------------------------------------------------------------------------
 # 1. the document's hierarchy tables as heat maps
 # --------------------------------------------------------------------------------------------------
-def heat(ax, V, S, higher, title, hl=('ESM-MSR',), fs=7.2):
+def heat(ax, V, S, higher, title, hl=('ESM-MSR',), fs=7.2, grey=()):
     cols = list(V.columns)
     Z = np.zeros(V.shape)
     for j, c in enumerate(cols):
@@ -60,7 +78,12 @@ def heat(ax, V, S, higher, title, hl=('ESM-MSR',), fs=7.2):
     ax.set_xticks(range(len(cols))); ax.set_xticklabels([c.replace('_', ' ') for c in cols], rotation=35, ha='right')
     ax.set_yticks(range(V.shape[0]))
     ax.set_yticklabels(V.index)
+    for i, name in enumerate(V.index):
+        if name in grey:
+            ax.add_patch(plt.Rectangle((-.5, i - .5), len(cols), 1, color='#9e9e9e', alpha=.55, lw=0, zorder=5))
     for t in ax.get_yticklabels():
+        if t.get_text() in grey:
+            t.set_color('#6b6b6b')
         if any(h in t.get_text() for h in hl):
             t.set_fontweight('bold')
     ax.set_title(title, loc='left')
@@ -73,9 +96,15 @@ def hierarchy_figures():
         d = read_table(tid)
         d.iloc[:, 0] = [clean_label(x) for x in d.iloc[:, 0]]
         V, S = numeric(d)
+        flagged = [r for r in V.index if any(k in r for k in ('ESMtherm', 'IFUM', 'ESM3ΔG'))]       # trained on Megascale: last, greyed, starred
+        order = [r for r in V.index if r not in flagged] + flagged
+        V, S = V.loc[order], S.loc[order]
+        V.index = S.index = [r + '*' if r in flagged else r for r in V.index]
         higher = {c: ('↓' not in c) for c in V.columns}
         fig, ax = plt.subplots(figsize=(10.5, 6.2))
-        heat(ax, V, S, higher, f'{ttl}: the epistasis hierarchy (table {tid[:3]}); colour = rank within the column, darker = better; ± = seed sd')
+        heat(ax, V, S, higher, f'{ttl}: the epistasis hierarchy (table {tid[:3]}); colour = rank within the column, darker = better; ± = seed sd',
+             grey=[r + '*' for r in flagged])
+        fig.text(0.01, -0.01, MEGASCALE_NOTE + ' (grey rows, at the bottom)', fontsize=8)
         fig.tight_layout()
         style.save(fig, OUT / f'epistasis_hierarchy_{nm}')
     fig, axes = plt.subplots(2, 1, figsize=(11.5, 6.2))
@@ -112,6 +141,8 @@ def naive_recomputed():
     rows = []
     for ds in TSU + DMS_D:
         fr = load_frame(ds)
+        if ds in TSU:
+            add_linked(fr)
         m = epi_rows(fr)
         sub = subframe(fr, m, y=fr.spine['dddG_ML'].to_numpy(), keys=EPI_KEYS)
         kind = 'protein' if ds in TSU else 'mutation'
@@ -132,16 +163,16 @@ def naive_recomputed():
         for _, r in d.iterrows():
             lab = clean_label(r.iloc[0])
             doc[(ds, lab)] = (num(r['naive ρ'])[0], num(r['global_err ↓'])[0])
-    names = {'msr:epi': 'ESM-MSR (baseline)', 'me2:epi': 'MutateEverything stage 2', 'tmpnnd:epi': 'ThermoMPNN-D', 'spursm:epi': 'SPURS multi (multi-mutant model)'}
+    names = {'msr:epi': 'ESM-MSR (baseline)', 'msrdev:epi': 'ESM-MSR (devel) (3 seeds)', 'me2:epi': 'MutateEverything stage 2', 'tmpnnd:epi': 'ThermoMPNN-D', 'spursm:epi': 'SPURS multi (retrained, 3 seeds)'}
     R['doc_naive_rho'] = [doc.get((r.dataset, names.get(r.key, '')), (np.nan, np.nan))[0] for r in R.itertuples()]
     R['doc_global_err'] = [doc.get((r.dataset, names.get(r.key, '')), (np.nan, np.nan))[1] for r in R.itertuples()]
     R.to_csv(OUT / 'epistasis_naive_recomputed.csv', index=False, float_format='%.4f')
     print(R[R.dataset.isin(TSU)][['dataset', 'key', 'naive_rho', 'doc_naive_rho', 'global_err', 'doc_global_err', 'n_doubles']].round(3).to_string(index=False))
     # figure
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.2), gridspec_kw=dict(width_ratios=[1.4, 1]))
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.6), gridspec_kw=dict(width_ratios=[1.5, 1]))
     groups = TSU + DMS_D
     glabels = ['Tsuboyama val', 'Tsuboyama test', 'GB1', 'GRB2 abund.', 'GRB2 bind.', 'DLG4 abund.', 'DLG4 bind.']
-    keys = ['msr:epi', 'msr:cdddg', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
+    keys = EPI_PLOT
     table = {(r.dataset, r.key): r.naive_rho for r in R.itertuples()}
     cis = {(r.dataset, r.key): (r.lo, r.hi) for r in R.itertuples()}
     style.dot_panel(axes[0], groups, keys, table, cis, highlight=['msr:epi'], ylabel='naive ρ: predicted vs measured dddG (all doubles)', xlabels=glabels, size=6.5)
@@ -150,7 +181,7 @@ def naive_recomputed():
             v = R[(R.dataset == ds) & (R.key == k)].doc_naive_rho
             if len(v) and np.isfinite(v.iloc[0]):
                 axes[0].plot(i + np.linspace(-.36, .36, len(keys))[j], v.iloc[0], marker='x', color='k', ms=5, mew=1)
-    style.model_legend(axes[0], keys, loc='upper right', fontsize=7.5)
+    style.model_legend(axes[0], keys, loc='upper right', fontsize=7.2)
     axes[0].set_title("A  naive ρ (× = document's value); whiskers: library-level (Tsuboyama) / mutation-level (DMS) bootstrap", loc='left', fontsize=9)
     T = R[R.dataset.isin(TSU)]
     tbl = {(r.dataset, r.key): r.global_err for r in T.itertuples()}
@@ -187,19 +218,53 @@ def scatter_figures():
     fig.suptitle('Predicted vs measured epistasis of double mutants (seed 1; ρ in each panel; dashed = y = x)', y=1.0, fontsize=10)
     fig.tight_layout()
     style.save(fig, OUT / 'epistasis_scatter_dddG')
-    # ddG of the double
-    fr = load_frame('tsuboyama_capped_test')
-    m = epi_rows(fr)
-    y = fr.spine['y'].to_numpy()
-    cols = [('msr:wt', 'ESM-MSR WT head (additive)'), ('msr:comb', 'ESM-MSR combined'), ('me2', 'MutateEverything st2'), ('tmpnnd', 'ThermoMPNN + D'), ('spursm', 'SPURS multi')]
-    fig, axes = plt.subplots(1, len(cols), figsize=(3.0 * len(cols), 3.3), sharey=True)
-    for ax, (k, t) in zip(axes, cols):
+    doubles_ddg()
+
+
+def doubles_ddg():
+    """ddG of the test doubles: predicted against measured, for ESM-MSR as released (link intrinsic), as the baseline triplicate, and as the devel seeds before and
+    after their link, beside the retrained baselines.  Two ways to rank: pooled over all libraries (what a scatter shows; library offsets and the assay's saturation
+    count) and the mean of per-library rho (the benchmark's metric).  The link is monotone, so it cannot change the second and moves the first."""
+    fr = add_linked(load_frame(TSU[1]))
+    sp = fr.spine
+    y = sp['y'].to_numpy()
+    m = ((sp['n_mut'] == 2) & sp['use']).to_numpy()
+    groups = sp['group'].to_numpy()
+    items = [('msrrel:comb', 'ESM-MSR released\n(link intrinsic), combined'), ('msr:comb', 'ESM-MSR baseline,\ncombined'), ('msrdev:comb', 'ESM-MSR devel,\nlatent (no link)'),
+             ('msrdev:comb_obs', 'ESM-MSR devel,\npost-link'), ('spursm', 'SPURS multi'), ('me1', 'MutateEverything st1'), ('me2', 'MutateEverything st2'), ('tmpnn', 'ThermoMPNN'),
+             ('tmpnnd', 'ThermoMPNN + D'), ('spurs', 'SPURS')]
+    extra = [('msr:wt', ''), ('msrrel:wt', ''), ('msrdev:wt', ''), ('msrdev:wt_obs', '')]
+    rows = []
+
+    def both(k):
+        pooled, per = [], []
+        for p in fr.preds[k]:
+            ok = m & np.isfinite(p)
+            pooled.append(spearmanr(p[ok], y[ok])[0])
+            r = [spearmanr(p[ok & (groups == g)], y[ok & (groups == g)])[0] for g in np.unique(groups[ok]) if (ok & (groups == g)).sum() >= 3]
+            per.append(np.nanmean(r))
+        return float(np.mean(pooled)), float(np.mean(per))
+    for k, _ in items + extra:
+        po, pe = both(k)
+        rows.append(dict(model=k, pooled_rho=po, per_library_mean_rho=pe, n_doubles=int(m.sum())))
+    T = pd.DataFrame(rows)
+    T.to_csv(OUT / 'doubles_pooled_vs_per_library.csv', index=False, float_format='%.4f')
+    print(T.round(3).to_string(index=False))
+    fig, axes = plt.subplots(2, 5, figsize=(15, 6.6), sharey=True)
+    for ax, (k, t) in zip(axes.ravel(), items):
         p = fr.preds[k][0]
         ok = m & np.isfinite(p)
-        style.density_scatter(ax, p[ok], y[ok], s=4, cmap='viridis', line=True, max_points=40000)
-        ax.set_title(t, fontsize=8.5); ax.set_xlabel('predicted ddG of the double')
-    axes[0].set_ylabel('measured ddG of the double (kcal/mol)')
-    fig.suptitle('Tsuboyama test doubles with both singles measured (n = %d, seed 1)' % int(m.sum()), y=1.02, fontsize=10)
+        style.density_scatter(ax, p[ok], y[ok], s=3, line=True, max_points=30000, label_stats=False)
+        r = T[T.model == k].iloc[0]
+        ax.set_title(t, fontsize=8.8)
+        ax.text(0.04, 0.96, f'pooled ρ = {r.pooled_rho:.3f}\nper-library ρ = {r.per_library_mean_rho:.3f}', transform=ax.transAxes, va='top', fontsize=8.2,
+                bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='#cccccc', alpha=0.9))
+    for ax in axes[1]:
+        ax.set_xlabel('predicted ddG of the double')
+    for ax in axes[:, 0]:
+        ax.set_ylabel('measured ddG (kcal/mol)')
+    fig.suptitle(f'Tsuboyama test doubles (n = {int(m.sum()):,}; seed 1 shown, rho is the seed mean).  Pooled ρ counts between-library offsets and saturation; the link (devel) raises it, '
+                 'per-library ρ (the benchmark metric) is unchanged by it.\nLink rebuilt from each checkpoint with its one learned floor (the per-item floors of the cluster are not collected).', y=1.01, fontsize=9)
     fig.tight_layout()
     style.save(fig, OUT / 'epistasis_scatter_ddG_doubles')
 
@@ -208,7 +273,7 @@ def scatter_figures():
 # 4. table 2.3: ddG ranking
 # --------------------------------------------------------------------------------------------------
 def ddg_ranking():
-    ms = ['msr:wt', 'msr:comb', 'me1', 'me2', 'tmpnn', 'tmpnnd']
+    ms = ['msr:wt', 'msr:comb', 'me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm']       # SPURS (single, additive) and SPURS multi
     rows = []
     for ds, sp_ in zip(TSU, ('val', 'test')):
         fr = load_frame(ds)
@@ -232,9 +297,9 @@ def ddg_ranking():
     labels = [f'{s}\n{m}' for s, m in groups]
     gnames = [f'{s} {m}' for s, m in groups]
     fig, ax = plt.subplots(figsize=(11, 4.4))
-    style.dot_panel(ax, gnames, ms + ['spursm'], table, cis, highlight=['msr:comb'], ylabel='mean per-protein Spearman ρ', xlabels=labels, rot=0, size=6.5)
-    style.model_legend(ax, ms + ['spursm'], loc='upper center', bbox_to_anchor=(0.5, -0.22), ncol=7, fontsize=7.5, columnspacing=1.0, handletextpad=0.3)
-    ax.set_title('Table 2.3: ddG ranking; whiskers 95% protein-level bootstrap.  The WT head is additive, so its dddG is zero by construction (not shown)', loc='left', fontsize=9)
+    style.dot_panel(ax, gnames, ms, table, cis, highlight=['msr:comb'], ylabel='mean per-protein Spearman ρ', xlabels=labels, rot=0, size=6.5)
+    style.model_legend(ax, ms, loc='upper center', bbox_to_anchor=(0.5, -0.22), ncol=8, fontsize=7.5, columnspacing=1.0, handletextpad=0.3)
+    ax.set_title('Table 2.3: ddG ranking; whiskers 95% protein-level bootstrap.  The additive models (WT head, ME st1, ThermoMPNN, SPURS) have dddG = 0 by construction (not shown)', loc='left', fontsize=9)
     fig.tight_layout()
     style.save(fig, OUT / 'ddg_ranking')
     print(R.pivot_table(index=['split', 'metric'], columns='model', values='rho').round(3).to_string())
@@ -311,7 +376,7 @@ def nobb():
     for i, (name, row) in enumerate(V.iterrows()):
         ax.bar(x + (i - 1) * w, row.values, w, color=cols.get(name, '#999'), label=name)
     ax.axhline(0, color='k', lw=.7)
-    ax.set_xticks(x); ax.set_xticklabels(V.columns, rotation=20, ha='right'); ax.set_ylabel('change when the mutant-background libraries are dropped')
+    ax.set_xticks(x); ax.set_xticklabels(V.columns, rotation=20, ha='right'); ax.set_ylabel('Δ (without − with the\nmutant-background libraries)', fontsize=9)
     ax.legend(fontsize=8); ax.set_title('Table 2.5: mutant-background ablation (document values; the runs are not collected)', loc='left', fontsize=9)
     fig.tight_layout()
     style.save(fig, OUT / 'nobb_ablation')

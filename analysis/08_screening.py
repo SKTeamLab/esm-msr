@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Protein-engineering view: what a fixed screening budget buys.
 
-A *hit* is a variant measured more stabilizing than ``--tau`` (default 0.5 kcal/mol).  Three statistics (definitions in
+A *hit* is a variant measured more stabilizing than ``--tau`` (default 0.5 kcal/mol); for Domainome, whose label is a change in expression, a hit is any increase (> 0).  Three statistics (definitions in
 ``msr_analysis/screening.py``):
 
 * **hit rate** - the fraction of the variants a model suggests that are hits (precision of the selection);
@@ -33,7 +33,8 @@ from msr_analysis.registry import LABEL, MODELS  # noqa: E402
 OUT = out_dir('08_screening')
 POOLED_SETS = ['s783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld']   # S571's labels are not ddG
 FAM = ['msr', 'me', 'tm', 'spurs']
-FAM_LABEL = {'msr': 'ESM-MSR', 'me': 'MutateEverything (st1 / st2)', 'tm': 'ThermoMPNN (/ -D)', 'spurs': 'SPURS retrained (single / multi)'}
+FAM_LABEL = {'msr': 'ESM-MSR', 'me': 'MutateEverything (st1 / st2)', 'tm': 'ThermoMPNN (/ -D)', 'spurs': 'SPURS (single / multi)'}
+TAU_DS = {'domainome': 0.0}      # Domainome's label is a change in expression: a hit is any increase (> 0), not > 0.5 kcal/mol
 FAM_STYLE = {'msr': 'msr', 'me': 'me2', 'tm': 'tmpnn', 'spurs': 'spurs'}
 for _f, _k in FAM_STYLE.items():          # the dot panels look families up in the registry
     MODELS.setdefault(_f, dict(MODELS[_k]))
@@ -127,13 +128,14 @@ def per_protein(ds, Ks, tau, B):
 
 
 def fig_per_protein(D, tau):
+    tau_of = lambda ds: TAU_DS.get(ds, tau)
     sets = list(D.dataset.unique())
     fig, axes = plt.subplots(len(sets), 3, figsize=(12, 3.4 * len(sets)))
     axes = np.atleast_2d(axes)
     for r, ds in enumerate(sets):
         d = D[D.dataset == ds]
-        for c, (metric, yl, ref) in enumerate((('hit_rate', f'hit rate (ddG > {tau})', 'rand_hit'), ('p_recover', f'P(at least one hit in top K)', 'rand_rec'),
-                                               ('best', 'best measured ddG in top K (kcal/mol)', 'rand_best'))):
+        for c, (metric, yl, ref) in enumerate((('hit_rate', f'hit rate (> {tau_of(ds)})', 'rand_hit'), ('p_recover', f'P(at least one hit in top K)', 'rand_rec'),
+                                               ('best', 'best measured value in top K', 'rand_best'))):
             ax = axes[r, c]
             for f in FAM:
                 x = d[(d.family == f) & (d.metric == metric)].sort_values('K')
@@ -173,7 +175,7 @@ def main():
                 rows.append(dict(dataset=ds, baseline=f, d_hit_rate=float(np.nanmean(d)), lo=float(np.nanquantile(d, .025)), hi=float(np.nanquantile(d, .975))))
     pd.DataFrame(rows).to_csv(OUT / 'screening_pooled_paired_diff.csv', index=False, float_format='%.4f')
     D = pd.concat([per_protein('tsuboyama_capped_test', [1, 3, 5, 10, 20, 50], a.tau, a.B),
-                   per_protein('domainome', [1, 3, 5, 10, 20, 50], a.tau, a.B)])
+                   per_protein('domainome', [1, 3, 5, 10, 20, 50], TAU_DS['domainome'], a.B)])
     D.to_csv(OUT / 'screening_per_protein.csv', index=False, float_format='%.4f')
     fig_per_protein(D, a.tau)
     print(P[P.metric == 'hit_rate'].pivot_table(index='family', columns='dataset', values='value')[POOLED_SETS].round(3).to_string())

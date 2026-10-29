@@ -25,7 +25,7 @@ REF = {'msr:comb': ('ESM-MSR (released)', 3), 'msr:wt': ('ESM-MSR (released) WT'
        'msrrel:comb': ('ESM-MSR (released)', 1), 'msrrel:wt': ('ESM-MSR (released) WT', 1),
        'msrrel@0:comb': ('ESM3-small-open (σ=0, MSR readout)', 1),
        'me1': ('ME stage1', 3), 'me2': ('ME stage2', 3), 'me1+': ('ME stage1+', 3), 'me2+': ('ME stage2+', 3),
-       'tmpnn': ('TMPNN', 3), 'tmpnnd': ('TMPNN+D', 3),
+       'tmpnn': ('TMPNN', 3), 'tmpnnd': ('TMPNN+D', 3), 'spurs': ('SPURS (retrained)', 3), 'spursm': ('SPURS multi (retrained)', 3),
        'esmtherm': ('ESMtherm', 1), 'ddgemb': ('DDGemb', 1), 'ifum_wt': ('IFUM (WT backbone)', 1),
        'ifum_esmfold': ('IFUM (native, ESMFold)', 1), 'geoddg': ('GeoDDG-3D', 1), 'esm3dg': ('ESM3dG', 1),
        'prosst': ('ProSST', 1), 'pmpnn': ('ProteinMPNN', 1), 'esm3s': ('ESM3-small zero-shot', 1),
@@ -33,25 +33,19 @@ REF = {'msr:comb': ('ESM-MSR (released)', 3), 'msr:wt': ('ESM-MSR (released) WT'
 for s in ('0.25', '0.5', '0.75'):
     REF[f'msrdev@{s}:comb'] = (f'ESM-MSR (devel) σ={s}', 3)
     REF[f'msrrel@{s}:comb'] = (f'ESM-MSR (released) σ={s}', 1)
-SPURS_REF = {'spurs': 'SPURS, retrained (3 seeds)', 'spursm': 'SPURS multi, retrained (3 seeds)'}
 DS_REF = {'tsuboyama_capped_val': 'tsu_capped_val', 'tsuboyama_capped_test': 'tsu_capped_test'}
 
 
 def main():
     ref = pd.read_csv(REFERENCE / 'all_by_all_long.csv')
-    sp = pd.read_csv(REFERENCE / 'spurs_retrain_oct06.csv')
     rows = []
     for ds in ALL_DATASETS:
         fr = load_frame(ds)
-        b = DatasetBoot(fr, list(REF) + list(SPURS_REF), per_protein=ds in PER_PROTEIN)
+        b = DatasetBoot(fr, list(REF), per_protein=ds in PER_PROTEIN)
         for k in b.keys:
             rho, per_seed, n, ng = b.point(k)
-            if k in SPURS_REF:
-                r = sp[(sp.model.str.startswith(SPURS_REF[k].split(' (')[0])) & (sp.dataset == DS_REF.get(ds, ds))]
-                r = r[r.model.str.contains('3 seeds') & r.model.str.contains('multi') == (k == 'spursm')]
-            else:
-                lab, ns = REF[k]
-                r = ref[(ref.model == lab) & (ref.dataset == DS_REF.get(ds, ds)) & (ref.n_seeds == ns)]
+            lab, ns = REF[k]
+            r = ref[(ref.model == lab) & (ref.dataset == DS_REF.get(ds, ds)) & (ref.n_seeds == ns)]
             doc = float(r['rho'].iloc[0]) if len(r) else np.nan
             rows.append(dict(dataset=ds, model=k, rho=rho, doc=doc, diff=rho - doc, n=n, seed_sd=float(np.std(per_seed, ddof=1)) if len(per_seed) > 1 else np.nan))
     d = pd.DataFrame(rows)

@@ -2,14 +2,14 @@
 
 This directory replaces `analysis_notebooks/` for the benchmark. Every number and figure is computed by a script
 here from the predictions collected under `msr_predictions/` and `baselines/{retrained,public}/` (nothing is read from
-`analysis_notebooks/`), and every table of `docs/BENCHMARKS_OCT2026.md` is drawn in at least one figure
+`analysis_notebooks/`), and every result table of `docs/BENCHMARKS_OCT2026.md` is drawn in at least one figure
 (`results/table_figure_map.csv`, checked by `99_table_coverage.py`).
 
 ```
 analysis/
   msr_analysis/        the library: registry (datasets, models, colours), data (loaders), boot (bootstrap), calib, screening, style, tables
   00_parse_benchmark_tables.py   BENCHMARKS markdown tables -> reference/benchmark_tables/*.csv (committed; the doc need not be present)
-  00_validate_against_tables.py  recompute 465 documented cells from the predictions (the gate for everything else)
+  00_validate_against_tables.py  recompute 509 documented cells from the predictions (the gate for everything else)
   01_core_rho.py                 rho of every model on every dataset, protein / site / mutation bootstrap
   02_ ... 10_*.py                one script per theme; each writes figures (png + pdf) and the csv behind them to results/<NN_theme>/
   99_table_coverage.py           every BENCHMARKS table appears in a figure
@@ -26,7 +26,7 @@ Run: `./run_all.sh` (CPU only; `01_core_rho.py` is the slow step, about 15 minut
 
 * **Scoring is BENCHMARKS' scoring**: stabilizing-positive for every model; seed means of per-seed rho; one pooled rho per external set and
   DMS; the mean over proteins of per-protein rho for Tsuboyama (per wild-type library: 23 validation, 33 test; measured rows, all backbones)
-  and Domainome (per domain). `00_validate_against_tables.py` reproduces 465 documented cells: median |difference| 1e-5, three cells off (below).
+  and Domainome (per domain). `00_validate_against_tables.py` reproduces 509 documented cells: median |difference| < 1e-5, one cell off (below).
 * **Bootstrap** (`msr_analysis/boot.py`): Spearman under integer row multiplicities, exactly scipy's `spearmanr` on the expanded sample (`tests/`).
   `protein`: whole proteins resampled, one draw over the union of proteins of the 12 external sets (a protein is its wild-type entry; Ssym's 357
   variant structures are its 15 wild types), so models and sets are paired and "mean of 12" has an interval; Tsuboyama libraries and Domainome
@@ -50,39 +50,55 @@ Run: `./run_all.sh` (CPU only; `01_core_rho.py` is the slow step, about 15 minut
 | request | where |
 |---|---|
 | 1 scripts in `analysis/`, outputs in subfolders | this layout; `results/<NN_theme>/` |
-| 2 every BENCHMARKS table in a figure | `results/table_figure_map.csv` (26 result tables drawn; T7.1 is a table of cluster paths, replaced by the section below) |
+| 2 every BENCHMARKS table in a figure | `results/table_figure_map.csv` (23 result tables drawn; T7.1 is a table of cluster paths, not a result) |
 | 3 notebook figures with protein / mutation bootstrap | per-set Spearman dot plots → `02`, `03`, `04`; ProteinGym → `05`; RMSE → `07`; gain per selected mutant → `08`; epistasis bars and density scatters → `06`; NDCG and the AUPRC classification bars of the notebooks are **not** reproduced (the hit-rate / recovery statistics of `08` replace them) |
 | 4 style kept, simpler | same dot-and-whisker panels with grey bands, same density scatters; one message per figure, ≤ 8 models per dot panel except the deliberate all-models figure |
 | 5 scaffolds | ESM-MSR vs retrains: `02/thermo_vs_retrains`, `03`, `04/dms_vs_retrains`, `05/pg_categories` (lower panel); vs lower σ and zero-shot: `04/dms_sigma_vs_zero_shot`, `05/pg_categories` (upper); WT head on singles / combined on multi-mutants: the head rule above; **all models on all 12 thermostability sets**: `02/thermo_all_models` |
-| 6 recalibrated RMSE with a sacrificial set | `07_rmse/rmse_recalibrated`; the choice of donor is tested in panel C and `calibration_transfer.csv` |
+| 6 recalibrated RMSE with a sacrificial set | `07_rmse/rmse_recalibrated` (donor S461) and `rmse_recalibrated_ssym` (donor Ssym, which has both signs: 5-95% range −3.1 to +3.1, sd 1.83 against 1.25); the choice of donor is tested in panel C and `calibration_transfer*.csv` |
 | 7 more scatter and raw data, especially dddG | `06/epistasis_scatter_dddG` (3 sets × 5 predictors), `06/epistasis_scatter_ddG_doubles`, `03/tsuboyama_scatter`, `03/tsuboyama_per_library`, `02/thermo_scatter_external`, `05/pg_per_dms_scatter`, `09/length_vs_performance` |
 | 8 screening statistics | `08_screening/` (pooled over each external set and per protein as K grows) |
-| 9 sizes of the full-sized proteins | `09_sequence_length/length_summary.csv` (median / min / max per dataset), `sequence_length_distribution`, `length_vs_performance`, `length_correlation_summary` |
+| 9 sizes of the full-sized proteins | `09_sequence_length/length_summary.csv` (median / min / max per dataset, single-protein DMS included), `sequence_length_distribution` (external sets, Domainome, Tsuboyama; the single-protein DMS are in its footnote: DLG4 84, GRB2 56, MYO 154, ESTA 181, GB1 56 residues), `length_vs_performance` and `length_correlation_summary` (ESM-MSR WT head, ME stage 1, ThermoMPNN, SPURS multi; the ten single-mutant sets) |
 
 ## What the figures say (all intervals 95%)
 
-* **ESM-MSR against the retrained baselines on the 12 thermostability sets** (`02`): ahead on average by 0.03 (ME stage 1; interval −0.01 to 0.05, not separated),
-  0.04 (ME stage 2), 0.05 (ThermoMPNN, ThermoMPNN-D, SPURS) and 0.08 (SPURS multi); the per-set differences are mostly inside the protein-level intervals; against most baselines the
-  intervals exclude zero on S461, PTMUL, K2369, K3822 and PTMUL-D.
+* **ESM-MSR against the retrained baselines on the 12 thermostability sets** (`02`): ahead on average by 0.02 (ME stage 1; interval −0.01 to 0.04, not separated),
+  0.04 (ME stage 2; 0.01 to 0.06), 0.05 (ThermoMPNN, ThermoMPNN-D, SPURS) and 0.08 (SPURS multi); the per-set differences are mostly inside the protein-level intervals; against most baselines the
+  intervals exclude zero on PTMUL, K2369, K3822, PTMUL-D and S461 (not against ME stage 1, which is level with ESM-MSR on every set but PTMUL-D).
 * **Tsuboyama** (`03`): 0.855 / 0.847 (val / test), SPURS retrained 0.803 / 0.801, ThermoMPNN 0.787 / 0.794; ESM-MSR is above each retrained baseline in 30 to 32 of the 33 test libraries.
 * **Lower LoRA scale** (`04`, `05`): σ = 0.75 is the only setting that beats σ = 1 on ProteinGym (+0.0053 per assay, interval 0.0024 to 0.0082, better on 135 of 213); on the DMS σ = 0.5 has the highest rho on 5 of the 7 assays, their mean and Domainome (a choice made on these assays: an upper bound); ProSST is level with ESM-MSR on ProteinGym only because of the 23 Tsuboyama assays that are in the training split.
 * **Epistasis** (`06`): the combined head's dddG ranking, 0.505 (val) and 0.574 (test), is 0.15 to 0.23 above ME stage 2; λ = 0.5 is within 0.006 of the best constant weight except on GB1 (baseline triplicate: best at λ = 0, 0.022 above).
-* **RMSE** (`07`): recalibration changes ESM-MSR little (scale 1.15, bias −0.19 on S461); its RMSE is 0.83* on S461 and 1.1 to 1.9 elsewhere, within the protein-level intervals of the retrained baselines; the result does not depend on the donor set.
+* **RMSE** (`07`): recalibration changes ESM-MSR little (S461 donor: scale 1.15, bias −0.19; Ssym donor: 1.27, +0.19); its RMSE is 0.83* on S461 and 1.1 to 1.9 elsewhere, within the protein-level intervals of the retrained baselines, with either donor.
 * **Screening** (`08`): on Tsuboyama test libraries ESM-MSR's top-10 hit rate is 0.46 against 0.30 to 0.35 for the baselines and P(recover ≥ 1 in 10) = 0.92 against 0.77 to 0.85; on the external sets the pooled
   top-10% hit rates are mostly inside each other's intervals; ESM-MSR is ahead on PTMUL (and on K3822 against ThermoMPNN) and SPURS is ahead on S783 and S8754.
-* **Length** (`09`): the external sets' proteins have a median length of 108 to 140 residues (range 20 to 782); per-protein rho falls with length for every model (ESM-MSR −0.34 [−0.44, −0.22]; retrained −0.24 to −0.29) and per-protein RMSE rises.
+* **Length** (`09`): the external sets' proteins have a median length of 108 to 140 residues (range 20 to 782); per-protein rho falls with length for each of the four models and per-protein RMSE rises (numbers in `length_vs_performance_stats.csv`).
+
+## Conventions added after review (2026-10-29)
+
+* **Megascale-trained models** (ESMtherm, IFUM in both modes, ESM3ΔG; list in `registry.MEGASCALE_TRAINED`) carry an asterisk, sit last in the forest figures and the epistasis hierarchy, and are greyed.
+  BENCHMARKS section 6.3 records ESM3ΔG as MGnify-trained with Megascale held out; it is flagged here on the project owner's instruction, and one line in the registry undoes it.
+* **ProteinGym**: every Stability, PG avg and DMS mean entry is starred (23 of the 66 Stability assays are entirely inside the capped train split); a column with those 23 removed is drawn beside Stability. "ours" and
+  "ProteinGym reported" are separate rows for ProteinMPNN and ESM3-small-open (σ = 0).
+* **SPURS**: the retrained SPURS and SPURS multi are unlabelled (they are the models of every table); the public checkpoint, whose values are frozen in `reference/spurs_public_checkpoint.csv` and
+  `leak_public_spurs.csv` because the document no longer carries them, is labelled "(public checkpoint)".
+* **Domainome screening** counts a hit as any increase in expression (> 0); the stability sets use > 0.5 kcal/mol.
+* **Pooled versus per-library ranking of doubles** (`06/epistasis_scatter_ddG_doubles`, `doubles_pooled_vs_per_library.csv`): ESM-MSR leads the benchmark's per-library mean rho on the Tsuboyama test doubles
+  (0.766 baseline, 0.781 devel against 0.652 ME stage 2) but not the rho pooled over libraries (0.469 baseline, 0.471 released, 0.514 devel latent, 0.560 devel after the link, against 0.580 ME stage 2,
+  0.648 ME stage 1, 0.632 ThermoMPNN). The link (`msr_analysis/link.py`, parameters read from the three devel checkpoints) is monotone, so it cannot change per-library rho and does raise the pooled one. It is rebuilt
+  with the checkpoints' one learned floor because the per-item floors (`y_floor.json`) are not collected, so post-link values are illustrative: used for this comparison only, they do not reproduce the document's
+  devel epistasis scores (post-link naive rho 0.42 on validation against 0.643). The document's devel epistasis rows match the *latent* MT − WT difference (global error 0.824 / 1.079 to three decimals), so
+  they appear not to have been put through the link; that is worth confirming.
 
 ## Known gaps and discrepancies
 
-* **Three recomputed cells differ from the document by more than 0.005**: ME stage 1 / stage 2 on S461 (0.678 / 0.657 here, 0.721 / 0.710 in the table; ME's own S461 file scored
-  against its own labels also gives 0.679, so the document's value is not reproduced and its provenance is unknown) and ME stage 2 additive on GB1 (0.270 against 0.281; the additive
-  readout needs both singles in the file and 13 % of GB1 doubles lack one).
+* **One recomputed cell differs from the document by more than 0.005**: ME stage 1 additive on GB1 (0.294 here, 0.287 in table 1.3). The document's ME stage 1 GB1 cells (direct 0.296, additive 0.287) come from
+  an export of Oct 9; ME's GB1 files (re-run Oct 13 on the complete table) give 0.299 and 0.294, which is what is computed here. The two cells that earlier looked unreproducible are explained and reproduce:
+  S461 (0.721 / 0.710) is scored from ME's S669 predictions, never from ME's own S461 file (a different input: other constructs and MSAs), and ME stage 2 additive on GB1 (0.281) needs ME's own complete
+  149,360-row GB1 file (the harness label table lacks three GB1 singles).
 * **Not recomputable from the collected files** (drawn from the document's own numbers): the epistasis suite beyond naive rho (tables 2.0-2.2, `06/epistasis_hierarchy_*`; the suite lives
   with the training code, and the naive rho and global error columns *are* recomputed and match), the mutant-background ablation (table 2.5), the published SPURS checkpoints (tables 1.1-1.3
-  rows, drawn in `10/spurs_published_vs_retrained` from `reference/all_by_all_long.csv`), the published-paper evaluation (table 1.5), and the leak codes (table 6).
-  The SPURS multi row of tables 2.1 / 2.2 is the published checkpoint; `06/epistasis_naive_recomputed` shows the retrained one.
+  rows, drawn in `10/spurs_published_vs_retrained` from `reference/spurs_public_checkpoint.csv`), the published-paper evaluation (table 1.5), and the leak codes (table 6).
 * **S571's labels are not in kcal/mol** (standard deviation 8.9, 5th percentile −20): it is excluded from the RMSE and screening figures; its rho is unaffected.
-* ESM-MSR (devel) is on the latent scale (its link is not applied): rank metrics are unaffected, and no scale-dependent metric is computed for it. `msr_predictions/README.md` explains.
+* ESM-MSR (devel) predictions are on the latent scale; rank metrics within a library are unaffected, and scale-dependent metrics for it are marked as such (see the conventions above).
 * The ESM3 Forge models are scored for S461, K2369 and PTMUL-D from their parents' predictions (BENCHMARKS section 1.1); ME is scored for K2369 and PTMUL-D the same way.
 
 ## From the old notebooks

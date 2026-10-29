@@ -3,12 +3,12 @@ model,s571 (leak code),s783 (leak code),s2648 (leak code),s8754 (leak code),s669
 "ESM-MSR (baseline), WT head (3 seeds)",–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
 "ESM-MSR (devel), combined (3 seeds)",–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
 "ESM-MSR (devel), WT head",–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
-MutateEverything st1 (3 seeds),–,–,–,–,h.001,h.002,–,–,–,–,–,–,–
-MutateEverything st2 (3 seeds),–,–,–,–,h.001,h.002,–,–,–,–,–,–,–
-"ThermoMPNN (additive, 3 seeds)",–,–,–,–,h.001,h.002,–,–,–,–,–,–,–
-ThermoMPNN + ThermoMPNN-D (3 seeds),–,–,–,–,–,–,–,–,–,–,–,–,–
-SPURS (single model),P.08 H.03,P.07 h.08,M.001 P.02 H.02 h.01,M.002 P.20 H.02 h.006,H.003 h.001,h.002,–,M.002 P.02 H.02 h.008,M.001 P.23 H.02 h.01,M.002 P.34 H.02 h.01,m.02 P.09 H.05 h.02,m.006 P.02 H.04 h.02,–
-SPURS multi (multi-mutant model),m.005 P.08 H.03,P.07 h.11,m<.001 P.04 H.01 h.01,m.002 P.21 H.01 h.006,m.01 P.13 H.003 h.09,m.02 P.19 h.13,–,m<.001 P.04 H.02 h.02,m.002 P.27 H.02 h.02,m.002 P.35 H.02 h.02,P.10 H.04 h.02,P.02 H.04 h.02,–
+MutateEverything st1 (3 seeds),–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
+MutateEverything st2 (3 seeds),–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
+"ThermoMPNN (additive, 3 seeds)",–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
+ThermoMPNN + ThermoMPNN-D (3 seeds),–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
+"SPURS (retrained, 3 seeds)",–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
+"SPURS multi (retrained, 3 seeds)",–,–,–,–,h.001,h.002,–,–,h<.001,h<.001,–,–,–
 ESMtherm,P.12 M?.09 H.03,P.19 M?.15 h.04,P.05 M?.04 H.02 h.008,P.23 M?.18 H.02 h.006,P.24 M?.19 H.003 h.09,P.35 M?.28 h.14,–,P.06 M?.05 H.03 h.02,P.31 M?.24 H.03 h.02,P.38 M?.31 H.03 h.02,P.13 M?.10 H.06 h.01,P.06 M?.05 H.06 h.02,–
 DDGemb (server),M.09 P.20 H.03 h.01,M.01 P.70 H.02,M.93 H.02 h.001 D,M.30 P.37 H.04 h.004,–,–,M.28 P.72,M.45 P.39 H.02,M.26 P.31 H.03 h.006,M.24 P.26 H.03 h.003,P.79 H.03 h.003,P.86 H.04 h.004,–
 DDMut (server),M.20 P.20 H.06,M.42 P.49 H.02,M.89 P.11 H<.001 D,M.60 P.30 H.03 h.001 D,P.11 H.02 h.004,P.16 H.004 h.004,M.30 P.70,M.66 P.27 H.009,M.57 P.28 H.03 h.002,M.65 P.22 H.03 h.003,M.59 P.37 H.01,M.36 P.59 H.02,–

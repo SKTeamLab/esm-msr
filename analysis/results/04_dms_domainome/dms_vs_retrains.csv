@@ -32,8 +32,8 @@ GRB2_HUMAN_Faure_2021_abundance_domain,"MutateEverything st1, additive",0.6900,0
 GRB2_HUMAN_Faure_2021_binding_domain,"MutateEverything st1, additive",0.6152,0.5692,0.6613
 MYO_HUMAN_Kung_2025_display,"MutateEverything st1, additive",0.6029,0.5566,0.6386
 ESTA_BACSU_Nutschel_2020_dTm,"MutateEverything st1, additive",0.4831,0.4185,0.5419
-GB1_Wu_2016_binding_domain,"MutateEverything st1, additive",0.2895,0.2374,0.3138
-mean of 7 DMS,"MutateEverything st1, additive",0.5891,0.5579,0.5992
+GB1_Wu_2016_binding_domain,"MutateEverything st1, additive",0.2938,0.2374,0.3138
+mean of 7 DMS,"MutateEverything st1, additive",0.5897,0.5588,0.6000
 DLG4_HUMAN_Faure_2021_abundance_domain,MutateEverything st2,0.6450,0.5372,0.6692
 DLG4_HUMAN_Faure_2021_binding_domain,MutateEverything st2,0.6353,0.5104,0.6653
 GRB2_HUMAN_Faure_2021_abundance_domain,MutateEverything st2,0.6048,0.5552,0.6438
@@ -49,8 +49,8 @@ GRB2_HUMAN_Faure_2021_abundance_domain,"MutateEverything st2, additive",0.6690,0
 GRB2_HUMAN_Faure_2021_binding_domain,"MutateEverything st2, additive",0.6421,0.6004,0.6815
 MYO_HUMAN_Kung_2025_display,"MutateEverything st2, additive",0.5988,0.5574,0.6340
 ESTA_BACSU_Nutschel_2020_dTm,"MutateEverything st2, additive",0.4389,0.3654,0.5081
-GB1_Wu_2016_binding_domain,"MutateEverything st2, additive",0.2699,0.2140,0.2800
-mean of 7 DMS,"MutateEverything st2, additive",0.5761,0.5406,0.5872
+GB1_Wu_2016_binding_domain,"MutateEverything st2, additive",0.2808,0.2140,0.2877
+mean of 7 DMS,"MutateEverything st2, additive",0.5777,0.5408,0.5886
 DLG4_HUMAN_Faure_2021_abundance_domain,ThermoMPNN,0.6258,0.5130,0.6994
 DLG4_HUMAN_Faure_2021_binding_domain,ThermoMPNN,0.6316,0.5171,0.7159
 GRB2_HUMAN_Faure_2021_abundance_domain,ThermoMPNN,0.6134,0.5600,0.6538
@@ -68,21 +68,21 @@ MYO_HUMAN_Kung_2025_display,ThermoMPNN + ThermoMPNN-D,0.5348,0.4921,0.5720
 ESTA_BACSU_Nutschel_2020_dTm,ThermoMPNN + ThermoMPNN-D,0.4051,0.3229,0.4760
 GB1_Wu_2016_binding_domain,ThermoMPNN + ThermoMPNN-D,0.3177,0.3028,0.3528
 mean of 7 DMS,ThermoMPNN + ThermoMPNN-D,0.5024,0.4681,0.5286
-DLG4_HUMAN_Faure_2021_abundance_domain,SPURS (retrained),0.7155,0.6362,0.7322
-DLG4_HUMAN_Faure_2021_binding_domain,SPURS (retrained),0.7289,0.6534,0.7525
-GRB2_HUMAN_Faure_2021_abundance_domain,SPURS (retrained),0.6739,0.6208,0.7053
-GRB2_HUMAN_Faure_2021_binding_domain,SPURS (retrained),0.5891,0.5342,0.6481
-MYO_HUMAN_Kung_2025_display,SPURS (retrained),0.5828,0.5414,0.6194
-ESTA_BACSU_Nutschel_2020_dTm,SPURS (retrained),0.4486,0.3676,0.5160
-GB1_Wu_2016_binding_domain,SPURS (retrained),0.3076,0.2265,0.3264
-domainome,SPURS (retrained),0.4888,0.4763,0.5011
-mean of 7 DMS,SPURS (retrained),0.5781,0.5501,0.5906
-DLG4_HUMAN_Faure_2021_abundance_domain,SPURS multi (retrained),0.6583,0.5568,0.6867
-DLG4_HUMAN_Faure_2021_binding_domain,SPURS multi (retrained),0.6730,0.5827,0.7054
-GRB2_HUMAN_Faure_2021_abundance_domain,SPURS multi (retrained),0.5762,0.5319,0.6171
-GRB2_HUMAN_Faure_2021_binding_domain,SPURS multi (retrained),0.5446,0.4940,0.5963
-MYO_HUMAN_Kung_2025_display,SPURS multi (retrained),0.5394,0.4974,0.5734
-ESTA_BACSU_Nutschel_2020_dTm,SPURS multi (retrained),0.3348,0.2589,0.4113
-GB1_Wu_2016_binding_domain,SPURS multi (retrained),0.3328,0.2482,0.3518
-domainome,SPURS multi (retrained),0.3934,0.3821,0.4040
-mean of 7 DMS,SPURS multi (retrained),0.5227,0.4905,0.5379
+DLG4_HUMAN_Faure_2021_abundance_domain,SPURS,0.7155,0.6362,0.7322
+DLG4_HUMAN_Faure_2021_binding_domain,SPURS,0.7289,0.6534,0.7525
+GRB2_HUMAN_Faure_2021_abundance_domain,SPURS,0.6739,0.6208,0.7053
+GRB2_HUMAN_Faure_2021_binding_domain,SPURS,0.5891,0.5342,0.6481
+MYO_HUMAN_Kung_2025_display,SPURS,0.5828,0.5414,0.6194
+ESTA_BACSU_Nutschel_2020_dTm,SPURS,0.4486,0.3676,0.5160
+GB1_Wu_2016_binding_domain,SPURS,0.3076,0.2265,0.3264
+domainome,SPURS,0.4888,0.4763,0.5011
+mean of 7 DMS,SPURS,0.5781,0.5501,0.5906
+DLG4_HUMAN_Faure_2021_abundance_domain,SPURS multi,0.6583,0.5568,0.6867
+DLG4_HUMAN_Faure_2021_binding_domain,SPURS multi,0.6730,0.5827,0.7054
+GRB2_HUMAN_Faure_2021_abundance_domain,SPURS multi,0.5762,0.5319,0.6171
+GRB2_HUMAN_Faure_2021_binding_domain,SPURS multi,0.5446,0.4940,0.5963
+MYO_HUMAN_Kung_2025_display,SPURS multi,0.5394,0.4974,0.5734
+ESTA_BACSU_Nutschel_2020_dTm,SPURS multi,0.3348,0.2589,0.4113
+GB1_Wu_2016_binding_domain,SPURS multi,0.3328,0.2482,0.3518
+domainome,SPURS multi,0.3934,0.3821,0.4040
+mean of 7 DMS,SPURS multi,0.5227,0.4905,0.5379

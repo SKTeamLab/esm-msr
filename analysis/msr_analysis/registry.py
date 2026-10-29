@@ -82,16 +82,16 @@ MODELS = {
     'me2+':    dict(label='MutateEverything st2, additive', color=C['me2'], marker='H', fill=False, group='retrain'),
     'tmpnn':   dict(label='ThermoMPNN', color=C['tm'], marker='p', fill=True, group='retrain'),
     'tmpnnd':  dict(label='ThermoMPNN + ThermoMPNN-D', color=C['tmd'], marker='P', fill=True, group='retrain'),
-    'spurs':   dict(label='SPURS (retrained)', color=C['spurs'], marker='s', fill=True, group='retrain'),
-    'spursm':  dict(label='SPURS multi (retrained)', color=C['spursm'], marker='s', fill=False, group='retrain'),
+    'spurs':   dict(label='SPURS', color=C['spurs'], marker='s', fill=True, group='retrain'),
+    'spursm':  dict(label='SPURS multi', color=C['spursm'], marker='s', fill=False, group='retrain'),
     # --- third party ------------------------------------------------------------------------
-    'esmtherm':  dict(label='ESMtherm', color='#7d6608', marker='<', fill=True, group='public'),
+    'esmtherm':  dict(label='ESMtherm*', color='#7d6608', marker='<', fill=True, group='public'),
     'ddgemb':    dict(label='DDGemb', color='#b7950b', marker='>', fill=True, group='public'),
     'ddmut':     dict(label='DDMut', color='#d4ac0d', marker='>', fill=False, group='public'),
-    'ifum_wt':   dict(label='IFUM, WT backbone', color='#6c3483', marker='v', fill=True, group='public'),
-    'ifum_esmfold': dict(label='IFUM, ESMFold', color='#a569bd', marker='v', fill=False, group='public'),
+    'ifum_wt':   dict(label='IFUM, WT backbone*', color='#6c3483', marker='v', fill=True, group='public'),
+    'ifum_esmfold': dict(label='IFUM, ESMFold*', color='#a569bd', marker='v', fill=False, group='public'),
     'geoddg':    dict(label='GeoDDG-3D', color='#117a65', marker='^', fill=True, group='public'),
-    'esm3dg':    dict(label='ESM3ΔG', color='#cb4335', marker='*', fill=True, group='public'),
+    'esm3dg':    dict(label='ESM3ΔG*', color='#cb4335', marker='*', fill=True, group='public'),
     'rosetta':   dict(label='Rosetta cart. ΔΔG', color=C['ros'], marker='+', fill=True, group='public'),
     # --- zero-shot ------------------------------------------------------------------------------
     'prosst':    dict(label='ProSST (zero-shot)', color=C['prosst'], marker='X', fill=True, group='zeroshot'),
@@ -109,6 +109,11 @@ for _s in ('0.25', '0.5', '0.75'):
 MODELS['msrrel@0:wt'] = dict(label='ESM3-small-open, σ = 0 WT head', color=C['zero'], marker='^', fill=False, group='zeroshot')
 
 # sets of keys used by the figure scripts -----------------------------------------------------------
+# Models whose training data include Megascale (Tsuboyama) libraries: not held out on the Tsuboyama sets, and drawn last, greyed, with an asterisk
+# (BENCHMARKS section 6.3 lists ESM3ΔG as MGnify-trained with Megascale held out; it is flagged here on the project owner's instruction)
+MEGASCALE_TRAINED = ['esmtherm', 'esm3dg', 'ifum_wt', 'ifum_esmfold']
+MEGASCALE_NOTE = '* trained on Megascale (Tsuboyama) data: not held out'
+
 RETRAINS = ['me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm']
 PUBLIC_MODELS = ['esmtherm', 'ddgemb', 'ddmut', 'ifum_wt', 'ifum_esmfold', 'geoddg', 'esm3dg']
 ZEROSHOT = ['prosst', 'pmpnn', 'esm3s', 'esm3m', 'esm3l', 'msrrel@0:comb']

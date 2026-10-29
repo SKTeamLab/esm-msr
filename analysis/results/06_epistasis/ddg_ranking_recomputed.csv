@@ -5,12 +5,16 @@ val,all variants,me1,0.7535,0.7171,0.7876,0.0034,34957,23
 val,all variants,me2,0.7298,0.6875,0.7705,0.0025,34957,23
 val,all variants,tmpnn,0.7872,0.7587,0.8138,0.0016,34957,23
 val,all variants,tmpnnd,0.7850,0.7530,0.8137,0.0024,34957,23
+val,all variants,spurs,0.8028,0.7705,0.8323,0.0021,34957,23
+val,all variants,spursm,0.7627,0.7284,0.7917,0.0045,34957,23
 val,doubles,msr:wt,0.6874,0.5696,0.7802,0.0147,8547,9
 val,doubles,msr:comb,0.7197,0.5798,0.8322,0.0034,8547,9
 val,doubles,me1,0.5709,0.4169,0.7073,0.0155,8547,9
 val,doubles,me2,0.6290,0.4929,0.7443,0.0084,8547,9
 val,doubles,tmpnn,0.6304,0.4979,0.7521,0.0111,8547,9
 val,doubles,tmpnnd,0.6882,0.5840,0.7851,0.0100,8547,9
+val,doubles,spurs,0.6830,0.5880,0.7664,0.0092,8547,9
+val,doubles,spursm,0.6943,0.5557,0.8087,0.0241,8547,9
 val,dddG of doubles,msr:comb,0.5049,0.3795,0.6331,0.0100,8494,9
 val,dddG of doubles,me2,0.3413,0.1708,0.5079,0.0502,8494,9
 val,dddG of doubles,tmpnnd,0.2252,0.0890,0.3678,0.0251,8494,9
@@ -21,12 +25,16 @@ test,all variants,me1,0.7709,0.7412,0.7994,0.0023,48740,33
 test,all variants,me2,0.7604,0.7323,0.7886,0.0034,48740,33
 test,all variants,tmpnn,0.7942,0.7676,0.8169,0.0020,48740,33
 test,all variants,tmpnnd,0.7840,0.7538,0.8115,0.0003,48740,33
+test,all variants,spurs,0.8014,0.7707,0.8296,0.0037,48740,33
+test,all variants,spursm,0.7717,0.7477,0.7960,0.0024,48740,33
 test,doubles,msr:wt,0.7093,0.6410,0.7651,0.0045,13319,13
 test,doubles,msr:comb,0.7662,0.6925,0.8274,0.0039,13319,13
 test,doubles,me1,0.6171,0.5529,0.6839,0.0185,13319,13
 test,doubles,me2,0.6521,0.5721,0.7271,0.0133,13319,13
 test,doubles,tmpnn,0.6726,0.6151,0.7345,0.0090,13319,13
 test,doubles,tmpnnd,0.6678,0.6079,0.7337,0.0114,13319,13
+test,doubles,spurs,0.6994,0.6289,0.7624,0.0106,13319,13
+test,doubles,spursm,0.6926,0.6265,0.7591,0.0135,13319,13
 test,dddG of doubles,msr:comb,0.5738,0.4767,0.6685,0.0126,13225,13
 test,dddG of doubles,me2,0.3479,0.2336,0.4646,0.0181,12455,13
 test,dddG of doubles,tmpnnd,0.2049,0.1008,0.2950,0.0339,13225,13

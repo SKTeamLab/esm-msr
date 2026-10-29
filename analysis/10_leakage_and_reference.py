@@ -6,7 +6,7 @@
   training on the source set, C pretraining only, # the cell is a training-set score), thresholded at 0.5% of rows like the document.
 * ``leak_overlap_tsuboyama_test``  table 6.5 'what the audit finds' for the capped test libraries: the fraction of rows each model has seen.
 * ``clean_means``  table 6.5 'clean external-set means': the mean over the 12 sets with and without the cells that carry overlap.
-* ``spurs_published_vs_retrained``  the overlap made visible: SPURS' published checkpoint (leaky) against the retrained one (tables 1.1-1.3, 1.6).
+* ``spurs_published_vs_retrained``  the overlap made visible: SPURS' public checkpoint (leaky; values frozen from the earlier tables, no longer in the document) against the retrained one.
 * ``published_reference``  table 1.5, the evaluation of the published paper (hyperopt split, earlier models; compare within it only).
 * ``leak_audit_text_tables``  tables 6.2, 6.3 and 6.5 (findings) set as figures.
 """
@@ -90,12 +90,13 @@ def leak_maps():
 
 
 def overlap_bars():
-    d = pd.read_csv(REFERENCE / 'leak_audit_matrix.csv')
+    d = pd.concat([pd.read_csv(REFERENCE / 'leak_audit_matrix.csv'), pd.read_csv(REFERENCE / 'leak_public_spurs.csv').assign(model=lambda x: x.model + ' (public checkpoint)')])
     t = d[d.dataset == 'tsu_capped_test'].copy()
     for c in ('exact', 'constituent', 'P', 'H', 'h'):
         t[c] = t[c].fillna(0) / t['n']
     t['seen'] = t['exact'] + t['constituent']
-    keep = ['SPURS', 'SPURS multi', 'ESMtherm', 'IFUM (WT backbone)', 'ESM3dG', 'DDGemb', 'GeoDDG-3D', 'ESM-MSR (released)', 'ME stage1', 'ME stage2', 'TMPNN', 'TMPNN+D', 'ProSST', 'ProteinMPNN']
+    keep = ['SPURS (public checkpoint)', 'SPURS multi (public checkpoint)', 'ESMtherm', 'IFUM (WT backbone)', 'ESM3dG', 'DDGemb', 'GeoDDG-3D', 'ESM-MSR (released)', 'ME stage1', 'ME stage2', 'TMPNN', 'TMPNN+D',
+            'SPURS (retrained)', 'SPURS multi (retrained)', 'ProSST', 'ProteinMPNN']
     t = t[t.model.isin(keep)].drop_duplicates('model').set_index('model').reindex(keep)
     fig, ax = plt.subplots(figsize=(8.2, 4.4))
     y = np.arange(len(t))
@@ -105,9 +106,9 @@ def overlap_bars():
         v = t[c].fillna(0).to_numpy()
         ax.barh(y, v, left=left, color=col, label=lab, height=.7)
         left += v
-    ax.set_yticks(y); ax.set_yticklabels([m.replace('ESM-MSR (released)', 'ESM-MSR (baseline, devel)') for m in t.index]); ax.invert_yaxis()
+    ax.set_yticks(y); ax.set_yticklabels([m.replace('ESM-MSR (released)', 'ESM-MSR (baseline, devel)').replace(' (retrained)', '').replace('ESM3dG', 'ESM3ΔG*').replace('ESMtherm', 'ESMtherm*').replace('IFUM (WT backbone)', 'IFUM, WT backbone*') for m in t.index]); ax.invert_yaxis()
     ax.set_xlabel('fraction of the capped Tsuboyama test rows'); ax.set_xlim(0, 1.2)
-    ax.legend(fontsize=7.5, loc='lower right'); ax.set_title('What each model has seen of the capped test libraries (leak audit); SPURS here is the published checkpoint', loc='left', fontsize=9)
+    ax.legend(fontsize=7.5, loc='lower right'); ax.set_title('What each model has seen of the capped test libraries (leak audit); * trained on Megascale data', loc='left', fontsize=9)
     fig.tight_layout()
     style.save(fig, OUT / 'leak_overlap_tsuboyama_test')
 
@@ -134,8 +135,8 @@ def clean_means():
 
 
 def spurs_pub_vs_retrained():
-    ref = pd.read_csv(REFERENCE / 'all_by_all_long.csv')
-    pub = ref[(ref.model == 'SPURS') & (ref.n_seeds == 1)].set_index('dataset').rho
+    ref = pd.read_csv(REFERENCE / 'spurs_public_checkpoint.csv')
+    pub = ref[ref.model == 'SPURS (public checkpoint)'].set_index('dataset').rho
     df = load_rho_df()
     P = primary_ci(df)
     ds = EXT12 + ['tsuboyama_capped_val', 'tsuboyama_capped_test', 'DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain',
@@ -153,9 +154,9 @@ def spurs_pub_vs_retrained():
         ax.errorbar([i], [v[0]], yerr=[[v[0] - v[1]], [v[2] - v[0]]], fmt='s', color='#d35400', capsize=2, zorder=3, ms=6)
         ax.plot([i], [p], marker='s', mfc='white', mec='#d35400', ms=7, ls='none', zorder=4)
         rows.append(dict(dataset=d, retrained=v[0], published=p, inflation=p - v[0]))
-    ax.plot([], [], 's', color='#d35400', label='retrained on the capped split (3 seeds)'); ax.plot([], [], 's', mfc='white', mec='#d35400', label='published checkpoint (trained on 24 of the 33 test libraries)')
+    ax.plot([], [], 's', color='#d35400', label='retrained on the capped split (3 seeds; the SPURS of the other figures)'); ax.plot([], [], 's', mfc='white', mec='#d35400', label='public checkpoint (trained on 24 of the 33 test libraries)')
     ax.set_xticks(range(len(ds))); ax.set_xticklabels([LABEL[d] for d in ds], rotation=35, ha='right'); ax.set_ylabel('Spearman ρ'); ax.legend(fontsize=8, loc='lower left')
-    ax.set_title('SPURS: what training overlap adds (tables 1.1-1.3 published rows against the table 1.6 retrained rows)', loc='left', fontsize=9.5)
+    ax.set_title('SPURS: what training overlap adds (public checkpoint, frozen from the earlier BENCHMARKS tables, against the retrained SPURS)', loc='left', fontsize=9.5)
     fig.tight_layout()
     style.save(fig, OUT / 'spurs_published_vs_retrained')
     pd.DataFrame(rows).to_csv(OUT / 'spurs_published_vs_retrained.csv', index=False, float_format='%.4f')
