@@ -65,7 +65,7 @@ Run: `./run_all.sh` (CPU only; `01_core_rho.py` is the slow step, about 15 minut
   0.04 (ME stage 2; 0.01 to 0.06), 0.05 (ThermoMPNN, ThermoMPNN-D, SPURS) and 0.08 (SPURS multi); the per-set differences are mostly inside the protein-level intervals; against most baselines the
   intervals exclude zero on PTMUL, K2369, K3822, PTMUL-D and S461 (not against ME stage 1, which is level with ESM-MSR on every set but PTMUL-D).
 * **Tsuboyama** (`03`): 0.855 / 0.847 (val / test), SPURS retrained 0.803 / 0.801, ThermoMPNN 0.787 / 0.794; ESM-MSR is above each retrained baseline in 30 to 32 of the 33 test libraries.
-* **Lower LoRA scale** (`04`, `05`): σ = 0.75 is the only setting that beats σ = 1 on ProteinGym (+0.0053 per assay, interval 0.0024 to 0.0082, better on 135 of 213); on the DMS σ = 0.5 has the highest rho on 5 of the 7 assays, their mean and Domainome (a choice made on these assays: an upper bound); ProSST is level with ESM-MSR on ProteinGym only because of the 23 Tsuboyama assays that are in the training split.
+* **Lower LoRA scale** (`04`, `05`): σ = 0.75 is the only setting that beats σ = 1 on ProteinGym (all 213 assays: +0.0053 per assay, interval 0.0024 to 0.0082, better on 135; without the trained Stability assays: +0.0098 [0.0069, 0.0126], better on 135 of 190); on the DMS σ = 0.5 has the highest rho on 5 of the 7 assays, their mean and Domainome (a choice made on these assays: an upper bound); ProSST is level with ESM-MSR on ProteinGym only because of the 23 Tsuboyama assays that are in the training split: without them ProSST's PG avg (0.514) is ahead of ESM-MSR devel σ = 1 (0.503) and level with σ = 0.75 (0.510).
 * **Epistasis** (`06`): the combined head's dddG ranking, 0.505 (val) and 0.574 (test), is 0.15 to 0.23 above ME stage 2; λ = 0.5 is within 0.006 of the best constant weight except on GB1 (baseline triplicate: best at λ = 0, 0.022 above).
 * **RMSE** (`07`): recalibration changes ESM-MSR little (S461 donor: scale 1.15, bias −0.19; Ssym donor: 1.27, +0.19); its RMSE is 0.83* on S461 and 1.1 to 1.9 elsewhere, within the protein-level intervals of the retrained baselines, with either donor.
 * **Screening** (`08`): on Tsuboyama test libraries ESM-MSR's top-10 hit rate is 0.46 against 0.30 to 0.35 for the baselines and P(recover ≥ 1 in 10) = 0.92 against 0.77 to 0.85; on the external sets the pooled
@@ -74,10 +74,12 @@ Run: `./run_all.sh` (CPU only; `01_core_rho.py` is the slow step, about 15 minut
 
 ## Conventions added after review (2026-10-29)
 
-* **Megascale-trained models** (ESMtherm, IFUM in both modes, ESM3ΔG; list in `registry.MEGASCALE_TRAINED`) carry an asterisk, sit last in the forest figures and the epistasis hierarchy, and are greyed.
-  BENCHMARKS section 6.3 records ESM3ΔG as MGnify-trained with Megascale held out; it is flagged here on the project owner's instruction, and one line in the registry undoes it.
-* **ProteinGym**: every Stability, PG avg and DMS mean entry is starred (23 of the 66 Stability assays are entirely inside the capped train split); a column with those 23 removed is drawn beside Stability. "ours" and
-  "ProteinGym reported" are separate rows for ProteinMPNN and ESM3-small-open (σ = 0).
+* **Megascale-trained models** (ESMtherm and IFUM in both modes; list in `registry.MEGASCALE_TRAINED`) carry an asterisk, sit last in the forest figures and the epistasis hierarchy, and are greyed.
+  ESM3ΔG is not among them: it is trained on the MGnify stability set and Megascale is its held-out test (BENCHMARKS section 6.3); it keeps its homology caveat in the leak maps.
+* **ProteinGym**: the 23 Stability assays whose proteins the retrained models trained on (Tsuboyama libraries inside the capped train split; the leak audit gives the same 23 for ESM-MSR, ME, ThermoMPNN
+  and the retrained SPURS) are removed from every model in the figures. Stability* is labelled with what is left, (43/66), and PG avg* and DMS mean* (190/213) are over the remaining assays. The documented all-213
+  numbers are in `results/05_proteingym/pg_summary_all213.csv` and `pg_sigma_paired_all213.csv` (table 3.2 reproduces: σ = 0.75 is +0.0053, better on 135 of 213). "ours" and "ProteinGym reported"
+  are separate rows for ProteinMPNN and ESM3-small-open (σ = 0).
 * **SPURS**: the retrained SPURS and SPURS multi are unlabelled (they are the models of every table); the public checkpoint, whose values are frozen in `reference/spurs_public_checkpoint.csv` and
   `leak_public_spurs.csv` because the document no longer carries them, is labelled "(public checkpoint)".
 * **Domainome screening** counts a hit as any increase in expression (> 0); the stability sets use > 0.5 kcal/mol.

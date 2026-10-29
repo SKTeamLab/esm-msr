@@ -106,7 +106,7 @@ def overlap_bars():
         v = t[c].fillna(0).to_numpy()
         ax.barh(y, v, left=left, color=col, label=lab, height=.7)
         left += v
-    ax.set_yticks(y); ax.set_yticklabels([m.replace('ESM-MSR (released)', 'ESM-MSR (baseline, devel)').replace(' (retrained)', '').replace('ESM3dG', 'ESM3ΔG*').replace('ESMtherm', 'ESMtherm*').replace('IFUM (WT backbone)', 'IFUM, WT backbone*') for m in t.index]); ax.invert_yaxis()
+    ax.set_yticks(y); ax.set_yticklabels([m.replace('ESM-MSR (released)', 'ESM-MSR (baseline, devel)').replace(' (retrained)', '').replace('ESM3dG', 'ESM3ΔG').replace('ESMtherm', 'ESMtherm*').replace('IFUM (WT backbone)', 'IFUM, WT backbone*') for m in t.index]); ax.invert_yaxis()
     ax.set_xlabel('fraction of the capped Tsuboyama test rows'); ax.set_xlim(0, 1.2)
     ax.legend(fontsize=7.5, loc='lower right'); ax.set_title('What each model has seen of the capped test libraries (leak audit); * trained on Megascale data', loc='left', fontsize=9)
     fig.tight_layout()

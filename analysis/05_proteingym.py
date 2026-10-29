@@ -4,7 +4,7 @@
 Per-DMS Spearman rho tables come from ``baselines/pgym_per_dms`` (the tables each BENCHMARKS row is built from); the new ESM-MSR
 baseline triplicate and the retrained SPURS pair are scored here from their per-assay prediction files
 (``msr_predictions/baseline_w2a4_m16a16/seed*/sigma1/proteingym``, ``baselines/retrained/spurs/predictions/seed*/proteingym``).
-Summaries follow the document: the category mean is a plain mean over the DMS of a category, **PG avg** is the mean of
+Summaries follow the document, on the assays left after removing the Stability assays the retrained models trained on (``pg_summary_all213.csv`` has the documented all-213 table): the category mean is a plain mean over the DMS of a category, **PG avg** is the mean of
 the five category means, **DMS mean** the mean over the 213 assays.  The bootstrap resamples assays *within* each category (so the
 category sizes stay fixed) with the same draws for every model, so differences between models are paired.
 
@@ -31,16 +31,18 @@ from msr_analysis.registry import BASE, CACHE, MSR, PGYM, REFERENCE, RETRAINED  
 OUT = out_dir('05_proteingym')
 CATS = ['Activity', 'Binding', 'Expression', 'OrganismalFitness', 'Stability']
 CAT_LABEL = {'Activity': 'Activity (43)', 'Binding': 'Binding (13)', 'Expression': 'Expression (18)', 'OrganismalFitness': 'Org. fitness (73)',
-             'Stability': 'Stability* (66)', 'StabClean': 'Stability, 43 assays\nnot in training', 'PG avg': 'PG avg*', 'DMS mean': 'DMS mean*'}
-STAB_NOTE = ('* includes the Stability assays, which overlap training: 23 of the 66 are Tsuboyama libraries whose every variant is in the capped train split of ESM-MSR,\n'
-             'ME and ThermoMPNN (BENCHMARKS section 6.5); PG avg and DMS mean contain them. "not in training" drops those 23.')
-# the 23 ProteinGym Stability assays that are entirely inside the capped train split (BENCHMARKS section 6.5)
-TRAINED_STAB = {'ARGR_ECOLI_Tsuboyama_2023_1AOY', 'CBX4_HUMAN_Tsuboyama_2023_2K28', 'CSN4_MOUSE_Tsuboyama_2023_1UFM', 'CUE1_YEAST_Tsuboyama_2023_2MYX',
-                'DNJA1_HUMAN_Tsuboyama_2023_2LO1', 'FKBP3_HUMAN_Tsuboyama_2023_2KFV', 'HCP_LAMBD_Tsuboyama_2023_2L6Q', 'ILF3_HUMAN_Tsuboyama_2023_2L33',
-                'ISDH_STAAW_Tsuboyama_2023_2LHR', 'NKX31_HUMAN_Tsuboyama_2023_2L9R', 'NUSG_MYCTU_Tsuboyama_2023_2MI6', 'PITX2_HUMAN_Tsuboyama_2023_2L7M',
-                'PSAE_PICP2_Tsuboyama_2023_1PSE', 'RCD1_ARATH_Tsuboyama_2023_5OAO', 'RFAH_ECOLI_Tsuboyama_2023_2LCL', 'RS15_GEOSE_Tsuboyama_2023_1A32',
-                'SBI_STAAM_Tsuboyama_2023_2JVG', 'SDA_BACSU_Tsuboyama_2023_1PV0', 'SR43C_ARATH_Tsuboyama_2023_2N88', 'UBE4B_HUMAN_Tsuboyama_2023_3L1X',
-                'YAIA_ECOLI_Tsuboyama_2023_2KVT', 'POLG_PESV_Tsuboyama_2023_2MXD', 'YNZC_BACSU_Tsuboyama_2023_2JVD'}
+             'Stability': 'Stability* (43/66)', 'PG avg': 'PG avg*', 'DMS mean': 'DMS mean* (190/213)'}
+STAB_NOTE = ('* The 23 Stability assays whose proteins the retrained models trained on (Tsuboyama libraries inside the capped train split, shared by ESM-MSR, ME, ThermoMPNN and SPURS) are removed from every model:\n'
+             'Stability* keeps 43 of 66, PG avg* averages the five category means over the remaining assays, DMS mean* is over 190 of 213.  The unfiltered values (the documented table) are in pg_summary_all213.csv.')
+def trained_stability_assays():
+    """ProteinGym assays whose protein the retrained models trained on: any identical-mutation overlap, in the leak audit, of the capped train split
+    (shared by ESM-MSR, ME, ThermoMPNN(-D) and the retrained SPURS) with the assay.  All of them are Tsuboyama Stability assays."""
+    d = pd.read_csv(REFERENCE / 'leak_audit_pg_per_dms.csv')
+    d = d[d.inventory.isin(['esm_msr_capped', 'me_stage1', 'me_stage2', 'tmpnn', 'tmpnnd', 'spurs_retrain_single', 'spurs_retrain_multi'])]
+    return set(d.loc[d.frac > 0, 'DMS'])
+
+
+TRAINED_STAB = trained_stability_assays()
 DROP = {'BRCA1_HUMAN_Findlay_2018', 'BRCA2_HUMAN_Erwood_2022_HEK293T', 'POLG_CXB3N_Mattenberger_2021', 'SCN5A_HUMAN_Glazer_2019'}
 B = 2000
 
@@ -115,14 +117,36 @@ def summarize_cols(T, idx_by_cat):
         for c in CATS:
             vals = v[T.category == c].to_numpy()
             reps[c] = vals[idx_by_cat[c]].mean(axis=1) if np.isfinite(vals).all() else np.full(B, np.nan)
-        clean = v[(T.category == 'Stability') & ~T.index.isin(TRAINED_STAB)]
-        point['StabClean'] = float(clean.mean())
-        reps['StabClean'] = clean.to_numpy()[idx_clean].mean(axis=1) if np.isfinite(clean).all() else np.full(B, np.nan)
         reps['PG avg'] = np.mean([reps[c] for c in CATS], axis=0)
         n = np.array([(T.category == c).sum() for c in CATS])
         reps['DMS mean'] = sum(reps[c] * k for c, k in zip(CATS, n)) / n.sum()
         res[m] = (point, reps)
     return res
+
+
+def summary_rows(T, cols):
+    rng = np.random.default_rng(2)
+    idx_by_cat = {c: rng.integers(0, int((T.category == c).sum()), (B, int((T.category == c).sum()))) for c in CATS}
+    S = summarize_cols(T, idx_by_cat)
+    rows = []
+    for m, (pt, reps) in S.items():
+        for c in cols:
+            lo, hi = np.nanquantile(reps[c], [.025, .975]) if np.isfinite(reps[c]).all() else (np.nan, np.nan)
+            rows.append(dict(model=m, column=c, value=pt[c], lo=lo, hi=hi, n_dms=int((T.category == c).sum()) if c in CATS else len(T)))
+    return pd.DataFrame(rows), S
+
+
+def sigma_paired(T, S):
+    """paired shift of each devel LoRA scale against the released checkpoint (table 3.2), mean over the assays of T"""
+    rel = S['ESM-MSR (released) combined σ=1']
+    prow = []
+    for s_ in ('1', '0.75', '0.5', '0.25'):
+        m = f'ESM-MSR (devel) σ={s_}'
+        d = T[m] - T['ESM-MSR (released) combined σ=1']
+        dd = S[m][1]['DMS mean'] - rel[1]['DMS mean']
+        prow.append(dict(setting=f'devel σ={s_}', pg_avg=S[m][0]['PG avg'], paired_delta_mean_over_dms=float(d.mean()), delta_lo=float(np.quantile(dd, .025)),
+                         delta_hi=float(np.quantile(dd, .975)), better_on=int((d > 0).sum()), of=len(d)))
+    return pd.DataFrame(prow)
 
 
 def main():
@@ -132,36 +156,20 @@ def main():
     full = T.drop(columns=['MutateEverything st1', 'Rosetta (singles only)']).dropna()     # Rosetta lacks one assay, ME a few
     print(len(T), 'assays;', len(full), 'with all main models;', T.isna().sum()[T.isna().sum() > 0].to_dict())
     T = T.loc[full.index]
-    rng = np.random.default_rng(2)
-    idx_by_cat = {}
-    for c in CATS:
-        n = int((T.category == c).sum())
-        idx_by_cat[c] = rng.integers(0, n, (B, n))
-    assert len(TRAINED_STAB & set(T.index)) == 23, 'the 23 trained Stability assays must all be present'
-    globals()['idx_clean'] = rng.integers(0, 43, (B, 43))
-    S = summarize_cols(T, idx_by_cat)
-    rows = []
-    cols = CATS + ['StabClean', 'PG avg', 'DMS mean']
-    for m, (pt, reps) in S.items():
-        for c in cols:
-            lo, hi = np.nanquantile(reps[c], [.025, .975]) if np.isfinite(reps[c]).all() else (np.nan, np.nan)
-            rows.append(dict(model=m, column=c, value=pt[c], lo=lo, hi=hi, n_dms=int((T.category == c).sum()) if c in CATS else (43 if c == 'StabClean' else len(T))))
-    R = pd.DataFrame(rows)
+    assert len(TRAINED_STAB) == 23 and TRAINED_STAB <= set(T.index), 'the 23 trained Stability assays must all be present'
+    cols = CATS + ['PG avg', 'DMS mean']
+    # the documented table: all 213 assays (stability included); then the figures' table without the assays the retrained models trained on
+    R_all, S_all = summary_rows(T, cols)
+    R_all.to_csv(OUT / 'pg_summary_all213.csv', index=False, float_format='%.4f')
+    sigma_paired(T, S_all).to_csv(OUT / 'pg_sigma_paired_all213.csv', index=False, float_format='%.4f')
+    print('all 213:\n', sigma_paired(T, S_all).round(4).to_string(index=False))
+    T = T[~T.index.isin(TRAINED_STAB)]
+    R, S = summary_rows(T, cols)
     R.to_csv(OUT / 'pg_summary.csv', index=False, float_format='%.4f')
     print(R[R.column.isin(['PG avg', 'Stability', 'DMS mean'])].pivot(index='model', columns='column', values='value').round(3).sort_values('PG avg', ascending=False).to_string())
-
-    # ---- paired shift of each LoRA scale against the released checkpoint (T3.2) -----------------------
-    rel = S['ESM-MSR (released) combined σ=1']
-    prow = []
-    for s in ('1', '0.75', '0.5', '0.25'):
-        m = f'ESM-MSR (devel) σ={s}'
-        d = T[m] - T['ESM-MSR (released) combined σ=1']
-        dd = S[m][1]['DMS mean'] - rel[1]['DMS mean']
-        prow.append(dict(setting=f'devel σ={s}', pg_avg=S[m][0]['PG avg'], paired_delta_mean_over_dms=float(d.mean()), delta_lo=float(np.quantile(dd, .025)),
-                         delta_hi=float(np.quantile(dd, .975)), better_on=int((d > 0).sum()), of=len(d)))
-    P = pd.DataFrame(prow)
+    P = sigma_paired(T, S)
     P.to_csv(OUT / 'pg_sigma_paired.csv', index=False, float_format='%.4f')
-    print(P.round(4).to_string(index=False))
+    print('filtered:\n', P.round(4).to_string(index=False))
 
     # ---- figure: category dot panels --------------------------------------------------------------------
     top = ['ESM-MSR (devel) σ=1', 'ESM-MSR (devel) σ=0.75', 'ESM-MSR (devel) σ=0.5', 'ESM-MSR (devel) σ=0.25',
