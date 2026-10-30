@@ -1,0 +1,9 @@
+split,checkpoint,subset,n,measured_dddG,latent,bias
+test,ESM-MSR devel,measured dG_additive > 1,3907,0.2675,0.7620,0.4945
+test,ESM-MSR devel,measured and model dG_additive > 1,3207,0.2846,0.6795,0.3949
+test,ESM-MSR baseline,measured dG_additive > 1,3907,0.2675,0.7245,0.4570
+test,ESM-MSR baseline,measured and model dG_additive > 1,3462,0.2781,0.6746,0.3965
+validation,ESM-MSR devel,measured dG_additive > 1,3119,0.3240,0.6075,0.2836
+validation,ESM-MSR devel,measured and model dG_additive > 1,2628,0.3452,0.5208,0.1756
+validation,ESM-MSR baseline,measured dG_additive > 1,3119,0.3240,0.6838,0.3598
+validation,ESM-MSR baseline,measured and model dG_additive > 1,2776,0.3478,0.6391,0.2913

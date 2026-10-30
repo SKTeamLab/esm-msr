@@ -112,6 +112,16 @@ Predicted against measured epistasis of every model of the heat maps (the same 1
 the RMSE of each panel and `rosetta_unit_check.csv` the unit check. Restricting to dG_additive > 0 separates the models that rank epistasis from those that only follow the floor: ρ (all → positive) is 0.46 → 0.43 for
 ESM-MSR (devel 0.48 → 0.44), but 0.44 → 0.12 for ME stage 2, 0.34 → 0.08 for SPURS multi, 0.10 → −0.03 for ThermoMPNN-D and 0.50 → 0.27 for ESMtherm\*; ProteinMPNN holds (0.31 → 0.35), Rosetta 0.38 → 0.31.
 
+### Why does ESM-MSR devel over-predict positive epistasis at dG_additive > 1?
+
+`13_dddG_scatters/latent_vs_linked_gt1.png` and the `bias_*.csv` files next to it (test doubles with a measured additive dG above 1, n = 3,907): measured dddG +0.27 on average, latent +0.76, linked +0.75, so the link does nothing there
+(under 3% of the WT head's additive predictions and none of the MT head's lie below dG 0). The WT head's singles are unbiased (WT(A) + WT(B) = −1.54 against the measured additive −1.54); the whole offset is the MT head's double,
+predicted 0.49 kcal/mol more stable than measured. It is not only a selection effect of the noisy measured singles: with both the measured and the model's additive dG above 1 (n = 3,207) it is still +0.40 (measured +0.29,
+latent +0.68, linked +0.67); selecting on the model's additive dG alone gives +0.04 only because 2,743 doubles that the model calls stable but the measurement does not (measured additive ≤ 1) are under-predicted by 0.38. The
+baseline triplicate has the same offset (+0.40), validation has it smaller (+0.18 devel, +0.29 baseline), all 10 domains with 40 or more such doubles show it (+0.01 to +0.85), it is larger in the most stable domains (+0.46 for
+dG_wt > 3.5, +0.25 below) and roughly constant over measured additive dG 0 to 3 (+0.57, +0.52, +0.45). The two heads' per-mutation calibration biases (MT −0.11, WT +0.10 per mutated position for seed 1) would lower MT − WT of
+a double by about 0.4, not raise it.
+
 ## What the figures say (all intervals 95%)
 
 * **ESM-MSR against the retrained baselines on the 12 thermostability sets** (`02`): ahead on average by 0.02 (ME stage 1; interval −0.01 to 0.04, not separated),
