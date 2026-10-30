@@ -7,7 +7,7 @@ PY=${PYTHON:-python}
 export PYTHONPATH=.
 $PY 00_validate_against_tables.py
 $PY 01_core_rho.py
-for s in 02_thermostability 03_tsuboyama 04_dms_domainome 05_proteingym 06_epistasis 07_rmse_calibration 08_screening 09_sequence_length 10_leakage_and_reference; do
+for s in 02_thermostability 03_tsuboyama 04_dms_domainome 05_proteingym 06_epistasis 07_rmse_calibration 08_screening 09_sequence_length 10_leakage_and_reference 11_publication_figures 11b_publication_epistasis_levels; do
   echo "== $s"; $PY $s.py
 done
 $PY 99_table_coverage.py

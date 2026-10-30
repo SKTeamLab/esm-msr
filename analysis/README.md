@@ -59,6 +59,33 @@ Run: `./run_all.sh` (CPU only; `01_core_rho.py` is the slow step, about 15 minut
 | 8 screening statistics | `08_screening/` (pooled over each external set and per protein as K grows) |
 | 9 sizes of the full-sized proteins | `09_sequence_length/length_summary.csv` (median / min / max per dataset, single-protein DMS included), `sequence_length_distribution` (external sets, Domainome, Tsuboyama; the single-protein DMS are in its footnote: DLG4 84, GRB2 56, MYO 154, ESTA 181, GB1 56 residues), `length_vs_performance` and `length_correlation_summary` (ESM-MSR WT head, ME stage 1, ThermoMPNN, SPURS multi; the ten single-mutant sets) |
 
+## Publication figures (`11_publication_figures.py`, `results/11_publication/`)
+
+The notebooks' headline bar charts on the capped Tsuboyama **test** libraries (33 proteins), recomputed with intervals from resampling libraries (proteins) instead of the spread over three models. Columns come in three labelled categories:
+
+* **Retrained on the capped split**: ESM-MSR WT head and combined head (both always shown: the WT head is the cheap one and the focus of the paper) and one column per retrained baseline, scored by the model that fits the subset: ME stage 1 for singles and stage 2 for doubles, ThermoMPNN for singles and ThermoMPNN-D for doubles, SPURS for singles and SPURS multi for doubles (`X | Y` on the axis; the panels of figure 2 name the model they use).
+* **Zero-shot**: ESM3-small-open (the σ = 0 control of an ESM-MSR checkpoint, so the calibration head is kept) scored by **canonical masked marginal** (all mutated positions masked at once in the wild-type sequence); ProteinMPNN; ProSST.
+* **Supervised, not trained on Megascale**: GeoDDG-3D (better than DDGemb on mean per-library singles ρ; trained on S8754) and Rosetta, on the far right. ESM3ΔG is left out on purpose: its MGnify fine-tune is recent and overlaps the test proteins.
+
+Every legend gives the number of variants and libraries behind each split; the black "overall" line is drawn behind the bars. The ESM3 masked runs are `cluster/esm3_masked_gamut.sh` (one job per strategy on the fixed gpu4 slot, ESM-MSR checkpoint at `--sigma 0`, no ProteinGym); their outputs are copied to
+`msr_predictions/esm3_small_open_sigma0_masked/<strategy>/` and read by `data.add_esm3_masked`. Without them the ESM3 column falls back to the unmasked σ = 0 readout and is marked ‡. `--esm3 independent` draws independent masking (each mutated position masked on its own, partner visible on the mutant pass) in figures 1 and 2; the other strategy stays in the CSVs.
+
+| file | what |
+|---|---|
+| `fig1_ndcg96_singles_doubles` | NDCG@96 (rectified relevance max(ddG, 0), per library, as in the notebooks), singles against doubles (the doubles bars use the 8 libraries with a stabilizing double: NDCG is undefined without one) |
+| `fig2_spearman_stab_destab` (+ `_pooled`) | Spearman ρ on stabilizing (measured ddG > 0) against destabilizing (< 0) variants, a panel for singles and one for doubles; black line = overall ρ of the panel; per-library mean over libraries with ≥ 10 variants in the subset, and pooled over libraries |
+| `fig3_spearman_doubles_additive_vs_epistatic` | ρ on doubles, the additive version (the singles model summed over the double's substitutions: WT head, ME stage 1, ThermoMPNN, SPURS, Rosetta, GeoDDG-3D and ProteinMPNN sums of singles, ESM3 WT pass) against the version that scores the double (combined head, stage 2, ThermoMPNN-D, SPURS multi, the direct double, ESM3 mutant pass); ProSST is additive by construction; `…_paired_difference.csv` has the paired differences |
+| `fig4_naive_epistasis_pos_neg_{grouped,pooled}` | naive epistasis ρ (predicted against measured dddG, doubles with both singles measured) for measured positive against negative epistasis; the predicted epistasis is always the double prediction of one model minus the singles of another (or another head), spelled out under each column |
+| `fig5a_epistasis_levels_bars_{test,val}` (`11b_publication_epistasis_levels.py`) | the epistasis hierarchy of BENCHMARKS tables 2.1 / 2.2: three bars per model for the levels from coarse to fine (pair ρ, line ρ, cell rank), two horizontal dashes across them for naive ρ (raw dddG, saturation included) and saturation-subtracted ρ (the tables' "beyond ρ"); the main-text design |
+| `fig5b_epistasis_levels_panels_{test,val}` | the same numbers as one dot panel per metric, for reading values and rankings (supplement); numbers are the document's, error bars the seed sd where the table has seeds |
+
+Reading them (test libraries): ESM-MSR's overall values reproduce the benchmark (doubles ρ 0.709 / 0.766 for WT / combined, naive ρ 0.452). NDCG@96 (singles / doubles): ESM-MSR WT 0.58 / 0.60 and combined 0.62 / 0.71 against 0.41 to 0.55 / 0.43 to 0.51 for the
+retrained baselines, 0.32 to 0.34 / 0.31 to 0.50 for the zero-shot models and 0.36 to 0.37 / 0.29 to 0.40 for GeoDDG-3D and Rosetta; the doubles intervals are wide (8 libraries with a stabilizing double). Stabilizing variants are ranked far worse than destabilizing ones by every model
+(singles, ESM-MSR WT 0.29 against 0.81; baselines 0.15 to 0.29 against 0.77 to 0.79; zero-shot 0.03 to 0.07 against 0.51 to 0.60). On doubles the epistatic version helps ESM-MSR (0.709 to 0.766, paired difference +0.057 [0.030, 0.082], the only interval that excludes zero) and ME (+0.035 [−0.006, 0.074]) and not ThermoMPNN, SPURS, GeoDDG-3D or ProteinMPNN; for ESM3-small-open the
+mutant pass is no better than its WT pass (0.408 to 0.381, independent masking). No model ranks *negative* epistasis (naive ρ between −0.25 and +0.13), because predicted epistasis is mostly the saturation of the readout; positive-epistasis ρ is 0.32 to 0.49 for ESM-MSR, ME stage 2, SPURS multi and Rosetta and 0.05 to 0.24 for the others (0.40 and 0.49 for ESM-MSR and ME).
+ESM3-small-open's scoring barely matters: singles ρ is 0.574 under masked marginals and under independent masking (the same input for one mutated position), doubles 0.398 (marginal), 0.408 (independent, WT pass), 0.381 (independent, mutant pass) against 0.421 for the unmasked readout of the older σ = 0 files.
+Figure 5 (levels): ESM-MSR keeps the most at every level (pair ρ 0.64 / 0.61, line ρ 0.36 / 0.38, cell rank 0.22 / 0.21 for baseline / devel) and its saturation-subtracted ρ (0.48 / 0.49) is above its naive ρ (0.45 / 0.46); ME stage 2 and Rosetta fall from naive 0.41 / 0.38 to 0.22 / 0.21 once saturation is subtracted, and ThermoMPNN-D has essentially no pair or cell signal.
+
 ## What the figures say (all intervals 95%)
 
 * **ESM-MSR against the retrained baselines on the 12 thermostability sets** (`02`): ahead on average by 0.02 (ME stage 1; interval −0.01 to 0.04, not separated),

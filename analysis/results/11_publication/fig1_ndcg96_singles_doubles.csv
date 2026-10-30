@@ -1,0 +1,23 @@
+column,key,subset,value,lo,hi,n_libraries,n_variants
+ESM-MSR WT head,msr:wt,singles,0.5774,0.5343,0.6210,33,35421
+ESM-MSR WT head,msr:wt,doubles,0.5955,0.3738,0.7907,8,10586
+ESM-MSR combined,msr:comb,singles,0.6174,0.5728,0.6614,33,35421
+ESM-MSR combined,msr:comb,doubles,0.7109,0.5053,0.8755,8,10586
+MutateEverything,me1,singles,0.4059,0.3654,0.4454,33,35421
+MutateEverything,me2,doubles,0.5057,0.2831,0.7073,8,10586
+ThermoMPNN,tmpnn,singles,0.5044,0.4559,0.5539,33,35421
+ThermoMPNN,tmpnnd,doubles,0.4306,0.2400,0.5996,8,10586
+SPURS,spurs,singles,0.5451,0.4956,0.5982,33,35421
+SPURS,spursm,doubles,0.4358,0.2110,0.6381,8,10586
+ESM3-small-open,esm3mm,singles,0.3225,0.2756,0.3648,33,35421
+ESM3-small-open,esm3mm,doubles,0.3817,0.1542,0.6224,8,10586
+ProteinMPNN,pmpnn,singles,0.3403,0.2946,0.3853,33,35421
+ProteinMPNN,pmpnn,doubles,0.5037,0.3009,0.7314,8,10586
+ProSST,prosst,singles,0.3408,0.2889,0.3888,33,35421
+ProSST,prosst,doubles,0.3095,0.1382,0.5196,8,10586
+best other ddG,geoddg,singles,0.3555,0.3082,0.4006,33,35421
+best other ddG,geoddg,doubles,0.4009,0.1621,0.6363,8,10586
+Rosetta,rosetta,singles,0.3673,0.3211,0.4107,33,35421
+Rosetta,rosetta,doubles,0.2898,0.1277,0.4681,8,10586
+ESM3-small-open (alt),esm3ind,singles,0.3226,0.2753,0.3654,33,35421
+ESM3-small-open (alt),esm3ind,doubles,0.3583,0.1502,0.5804,8,10586

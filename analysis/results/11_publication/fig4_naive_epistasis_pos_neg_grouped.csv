@@ -1,0 +1,25 @@
+column,key,subset,value,lo,hi,n_libraries,n_variants
+ESM-MSR,msr:epi,positive,0.5140,0.4211,0.6059,13,10444
+ESM-MSR,msr:epi,negative,0.0780,-0.0304,0.1923,12,2010
+MutateEverything,me2:epi,positive,0.3680,0.2699,0.4661,13,10444
+MutateEverything,me2:epi,negative,-0.0677,-0.1896,0.0530,12,2010
+ThermoMPNN,tmpnnd:epi,positive,0.1765,0.0940,0.2538,13,10444
+ThermoMPNN,tmpnnd:epi,negative,0.0073,-0.0964,0.1018,12,2010
+SPURS,spursm:epi,positive,0.3788,0.2747,0.4801,13,10444
+SPURS,spursm:epi,negative,-0.0789,-0.1986,0.0407,12,2010
+ESM3-small-open,esm3ind:epi,positive,0.4002,0.2875,0.5173,13,10444
+ESM3-small-open,esm3ind:epi,negative,0.0133,-0.0940,0.1198,12,2010
+ProteinMPNN,pmpnn:epi,positive,0.2442,0.0819,0.4013,13,10444
+ProteinMPNN,pmpnn:epi,negative,0.0944,-0.0294,0.2274,12,2010
+best other ddG,geoddg:epi,positive,0.0235,-0.0293,0.0845,13,10444
+best other ddG,geoddg:epi,negative,0.0119,-0.1268,0.1345,12,2010
+Rosetta,rosetta:epi,positive,0.2545,0.1462,0.3683,13,10444
+Rosetta,rosetta:epi,negative,0.0652,0.0060,0.1287,12,2010
+ESM-MSR,msr:epi,overall,0.5560,0.4501,0.6535,13,12455
+MutateEverything,me2:epi,overall,0.3479,0.2310,0.4628,13,12455
+ThermoMPNN,tmpnnd:epi,overall,0.1837,0.0854,0.2781,13,12455
+SPURS,spursm:epi,overall,0.3613,0.2333,0.4814,13,12455
+ESM3-small-open,esm3ind:epi,overall,0.4050,0.2926,0.5198,13,12455
+ProteinMPNN,pmpnn:epi,overall,0.3177,0.1473,0.4656,13,12455
+best other ddG,geoddg:epi,overall,0.0519,-0.0202,0.1178,13,12455
+Rosetta,rosetta:epi,overall,0.2825,0.1688,0.4074,13,12455
