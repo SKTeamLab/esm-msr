@@ -40,12 +40,28 @@ def build(a):
     from esm.pretrained import ESM3_structure_encoder_v0
     from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
     from esm_msr.cache_build import LibraryCacheBuilder
+    from tqdm import tqdm
     pre = _preprocessor(a)
     tokenizer, structure_encoder = EsmSequenceTokenizer("cpu"), ESM3_structure_encoder_v0("cpu")
     os.makedirs(a.cache_path, exist_ok=True)
-    pre.build_caches(tokenizer, structure_encoder, a.splits, a.cache_path, a.mut_structures_root, 'ddG_ML', a.cache_version)
+    for scaffold in a.splits:
+        df = pre.split_dfs[scaffold]
+        for wt_code in tqdm(list(df['code_wt'].unique()), desc=f"Building {scaffold} caches"):
+            df_prot = df.loc[df['code_wt'] == wt_code]
+            for code in df_prot['code'].unique():
+                cache_file = os.path.join(a.cache_path, f"{code}_ddG_ML_{a.cache_version}.pkl")
+                if getattr(a, 'skip_existing', False) and os.path.exists(cache_file):
+                    continue
+                LibraryCacheBuilder(
+                    code, tokenizer, a.mut_structures_root, a.cache_path, score_name='ddG_ML', structure_encoder=structure_encoder,
+                    incl_destab_bb=True, dG_wt=pre.dG_wt.get(code), cache_version=a.cache_version,
+                ).build(df_prot.loc[df_prot['code'] == code])
     found = []
     for name, filename in BENCHMARKS.items():
+        cache_file = os.path.join(a.cache_path, f"{name}_ddG_{a.cache_version}.pkl")
+        if getattr(a, 'skip_existing', False) and os.path.exists(cache_file):
+            found.append(name)
+            continue
         path = os.path.join(a.benchmark_data_path, filename) if a.benchmark_data_path else None
         if path and os.path.exists(path):
             df = pd.read_csv(path)
@@ -105,6 +121,7 @@ def main(argv=None):
     b.add_argument('--benchmark_data_path', default=None)
     b.add_argument('--cache_version', default='c6')
     b.add_argument('--splits', nargs='+', default=['train', 'val'], choices=['train', 'val', 'test'])
+    b.add_argument('--skip_existing', action='store_true', default=False)
     c = sub.choices['convert']
     c.add_argument('--from_version', default='c5')
     c.add_argument('--to_version', default='c6')

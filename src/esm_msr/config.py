@@ -268,6 +268,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                                "strategy on both passes cannot work: marginal on the MT pass hides the partner, so cell_rank is exactly 0.")
 
     paradigm = parser.add_argument_group("Paradigm")
+    paradigm.add_argument('--mt_direct_pred', action=argparse.BooleanOptionalAction, default=False,
+                          help="Direct prediction via MT head: zero-shot WT adapter is frozen, only MT adapter trains. "
+                               "Skips teacher forcing and blends, evaluating MT directly on singles and doubles.")
     paradigm.add_argument('--init_wt_from_checkpoint', type=str, default=None,
                           help="Warm-start the WT model from an existing checkpoint: its WT adapter, its calibration head AND its link are copied in "
                                "before training. Accepts a full Lightning checkpoint or a converged_wt_*.pt file. Nothing else is loaded: the MT path "
@@ -463,6 +466,18 @@ def parse_arguments(argv=None) -> argparse.Namespace:
             logging.info("--frozen_wt_mt_only: setting --lambda_reg_wt 0 --lambda_rank_wt 0 (the WT path is frozen)")
             args.lambda_reg_wt = 0.0
             args.lambda_rank_wt = 0.0
+    elif args.mt_direct_pred:
+        if args.adapter_mode == 'fused':
+            parser.error("--mt_direct_pred requires --adapter_mode dual: in dual mode WT is frozen at zero-shot and MT trains directly. In fused mode the single adapter is shared.")
+        args.freeze_wt_adapter = True
+        if args.lambda_reg_wt > 0 or args.lambda_rank_wt > 0:
+            logging.info("--mt_direct_pred: setting --lambda_reg_wt 0 --lambda_rank_wt 0 (direct MT prediction; WT is frozen)")
+            args.lambda_reg_wt = 0.0
+            args.lambda_rank_wt = 0.0
+        if args.mt_convergence_metric == 'epi_beyond_rho_epi':
+            args.mt_convergence_metric = 'rho_combined'
+        if args.monitor_metric == 'val_epi_beyond_rho_epi':
+            args.monitor_metric = 'val_rho_combined_avg'
     elif explicit_freeze_wt:
         parser.error("--freeze_wt_adapter without --frozen_wt_mt_only: freezing the WT head alone is no longer a separate mode")
     elif args.init_wt_from_checkpoint is not None:

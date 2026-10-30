@@ -532,50 +532,53 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # =============================================================
             # PHASE 1: WILD-TYPE PASS
             # =============================================================
-            wt_frozen = bool(self.peft_manager.wt_path_is_frozen)
-            need_wt_losses = (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0)
-            if wt_frozen and hasattr(self.model, 'peft_wt') and isinstance(self.model.peft_wt, torch.nn.Module):
-                self.model.peft_wt.eval()
+            if hp.get('mt_direct_pred', False):
+                wt_pred_cal = wt_pred_raw = None
+            else:
+                wt_frozen = bool(self.peft_manager.wt_path_is_frozen)
+                need_wt_losses = (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0)
+                if wt_frozen and hasattr(self.model, 'peft_wt') and isinstance(self.model.peft_wt, torch.nn.Module):
+                    self.model.peft_wt.eval()
 
-            if wt_frozen and not need_wt_losses and tf_mix >= 1.0 and bool(has_add_label.all()):
-                wt_pred_cal = torch.zeros_like(tf_additive_labels)
-                wt_pred_raw = torch.zeros_like(tf_additive_labels)
-            elif wt_frozen and not need_wt_losses:
-                with torch.no_grad():
+                if wt_frozen and not need_wt_losses and tf_mix >= 1.0 and bool(has_add_label.all()):
+                    wt_pred_cal = torch.zeros_like(tf_additive_labels)
+                    wt_pred_raw = torch.zeros_like(tf_additive_labels)
+                elif wt_frozen and not need_wt_losses:
+                    with torch.no_grad():
+                        wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.mask_wt)
+                        wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
+                    if torch.cuda.is_available():
+                        torch.clear_autocast_cache()
+                else:
                     wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.mask_wt)
                     wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
-                if torch.cuda.is_available():
-                    torch.clear_autocast_cache()
-            else:
-                wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.mask_wt)
-                wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
 
-            cens_wt = torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
-            wt_losses = []
-            if hp.lambda_reg_wt > 0:
-                # Assembled in latent (the pass's own sum over the item's positions), linked once, at the end. A multi-mutant's target is
-                # itself a latent sum, so it stays off the link and needs no dG_wt - hence it is kept even where link_ok is False.
-                p_obs = link.obs_ddG(wt_pred_cal, dGwt_mb, floor_mb)
-                p_wt = torch.where(is_single, p_obs, wt_pred_cal)
-                reg_wt_mask = valid_wt_mask & (link_ok | ~is_single)
-                if reg_wt_mask.any():
-                    term, val, wsum = self._reg_loss(p_wt, wt_targets, bound_mb, cens_wt, reg_wt_mask, denom)
-                    wt_losses.append(hp.lambda_reg_wt * term)
-                    sums['reg_wt'] += val; cnts['reg_wt'] += wsum
+                cens_wt = torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
+                wt_losses = []
+                if hp.lambda_reg_wt > 0:
+                    # Assembled in latent (the pass's own sum over the item's positions), linked once, at the end. A multi-mutant's target is
+                    # itself a latent sum, so it stays off the link and needs no dG_wt - hence it is kept even where link_ok is False.
+                    p_obs = link.obs_ddG(wt_pred_cal, dGwt_mb, floor_mb)
+                    p_wt = torch.where(is_single, p_obs, wt_pred_cal)
+                    reg_wt_mask = valid_wt_mask & (link_ok | ~is_single)
+                    if reg_wt_mask.any():
+                        term, val, wsum = self._reg_loss(p_wt, wt_targets, bound_mb, cens_wt, reg_wt_mask, denom)
+                        wt_losses.append(hp.lambda_reg_wt * term)
+                        sums['reg_wt'] += val; cnts['reg_wt'] += wsum
 
-            if hp.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
-                L_rank, val, n_list = self._compute_rank_loss(
-                    wt_pred_raw, wt_targets, valid_wt_mask, cens_wt, list_size, self.crit_rank_wt
-                )
-                if L_rank is not None:
-                    wt_losses.append(hp.lambda_rank_wt * L_rank * (n_list / global_num_lists))
-                    sums['rank_wt'] += val * n_list; cnts['rank_wt'] += n_list
+                if hp.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
+                    L_rank, val, n_list = self._compute_rank_loss(
+                        wt_pred_raw, wt_targets, valid_wt_mask, cens_wt, list_size, self.crit_rank_wt
+                    )
+                    if L_rank is not None:
+                        wt_losses.append(hp.lambda_rank_wt * L_rank * (n_list / global_num_lists))
+                        sums['rank_wt'] += val * n_list; cnts['rank_wt'] += n_list
 
-            if wt_losses and not self.peft_manager.wt_path_is_frozen and (hp.lambda_rank_wt > 0 or hp.lambda_reg_wt > 0):
-                total_wt = sum(wt_losses)
-                if not torch.isfinite(total_wt): raise AssertionError("WT Loss evaluated to NaN/Inf.")
-                if not total_wt.requires_grad: raise AssertionError("WT Loss detached from PyTorch Graph! Cannot call backward.")
-                self.manual_backward(total_wt)
+                if wt_losses and not self.peft_manager.wt_path_is_frozen and (hp.lambda_rank_wt > 0 or hp.lambda_reg_wt > 0):
+                    total_wt = sum(wt_losses)
+                    if not torch.isfinite(total_wt): raise AssertionError("WT Loss evaluated to NaN/Inf.")
+                    if not total_wt.requires_grad: raise AssertionError("WT Loss detached from PyTorch Graph! Cannot call backward.")
+                    self.manual_backward(total_wt)
 
             if not self.peft_manager.mt_path_is_frozen and (hp.lambda_rank_mt > 0 or hp.lambda_reg_mt > 0):
                 # =============================================================
@@ -584,39 +587,43 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=self.mask_mt)
                 mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
 
-                # The WT half of the combined prediction is detached: the WT graph never has to survive its own backward.
-                base_wt_cal, base_wt_raw = wt_pred_cal.detach(), wt_pred_raw.detach()
+                if hp.get('mt_direct_pred', False):
+                    combined_pred_raw = mt_pred_raw
+                    combined_pred_cal = mt_pred_cal
+                else:
+                    # The WT half of the combined prediction is detached: the WT graph never has to survive its own backward.
+                    base_wt_cal, base_wt_raw = wt_pred_cal.detach(), wt_pred_raw.detach()
 
-                if not has_add_label.any():
-                    logging.warning("Teacher forcing is on, but no additive labels or single mutations are present in the batch.")
+                    if not has_add_label.any():
+                        logging.warning("Teacher forcing is on, but no additive labels or single mutations are present in the batch.")
 
-                # Invert the calibration: raw = (cal - bias) / scale
-                cal_head = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
-                if cal_head is None:
-                    raise AssertionError("Could not locate 'calibration_head_wt' or 'calibration_head_fused' on self.model for de-calibration.")
-                s = 1.0 if not cal_head.use_scale else cal_head.scale.detach()
-                # bias_for, not cal_head.bias: the head adds bias * n_mut, so a scalar inverse here would under-correct every multi-mutant
-                # and silently bias the label the MT head is teacher-forced against.
-                b = cal_head.bias_for(n_mut_mb)
-                b = b.detach() if torch.is_tensor(b) else b
-                decalibrated_label = (tf_additive_labels - b) / s
+                    # Invert the calibration: raw = (cal - bias) / scale
+                    cal_head = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
+                    if cal_head is None:
+                        raise AssertionError("Could not locate 'calibration_head_wt' or 'calibration_head_fused' on self.model for de-calibration.")
+                    s = 1.0 if not cal_head.use_scale else cal_head.scale.detach()
+                    # bias_for, not cal_head.bias: the head adds bias * n_mut, so a scalar inverse here would under-correct every multi-mutant
+                    # and silently bias the label the MT head is teacher-forced against.
+                    b = cal_head.bias_for(n_mut_mb)
+                    b = b.detach() if torch.is_tensor(b) else b
+                    decalibrated_label = (tf_additive_labels - b) / s
 
-                forced_wt_cal = torch.where(has_add_label, tf_additive_labels, base_wt_cal)
-                forced_wt_raw = torch.where(has_add_label, decalibrated_label, base_wt_raw)
+                    forced_wt_cal = torch.where(has_add_label, tf_additive_labels, base_wt_cal)
+                    forced_wt_raw = torch.where(has_add_label, decalibrated_label, base_wt_raw)
 
-                # --tf_mix: how much of an item's WT half comes from the measurement rather than from the WT head's own prediction. 1.0
-                # is the label wherever one is usable; 0.0 never teacher-forces; 0.5 is the arithmetic mean of the two on the calibrated
-                # scale. The label carries the measurement noise (two singles for a double, one for a single) and the floor clipping, the
-                # WT head is smooth but biased, so the mix trades variance for bias. It applies to SINGLES as well as doubles: with the
-                # label in place the MT head is a total/interaction predictor, with the WT pass in place it compensates the WT head's
-                # error. An item with no usable label is unaffected for any mix (both terms of the blend are then the WT pass).
-                if tf_mix < 1.0:
-                    w_cal = torch.full_like(forced_wt_cal, tf_mix)
-                    forced_wt_cal = w_cal * forced_wt_cal + (1.0 - w_cal) * base_wt_cal
-                    forced_wt_raw = w_cal * forced_wt_raw + (1.0 - w_cal) * base_wt_raw
+                    # --tf_mix: how much of an item's WT half comes from the measurement rather than from the WT head's own prediction. 1.0
+                    # is the label wherever one is usable; 0.0 never teacher-forces; 0.5 is the arithmetic mean of the two on the calibrated
+                    # scale. The label carries the measurement noise (two singles for a double, one for a single) and the floor clipping, the
+                    # WT head is smooth but biased, so the mix trades variance for bias. It applies to SINGLES as well as doubles: with the
+                    # label in place the MT head is a total/interaction predictor, with the WT pass in place it compensates the WT head's
+                    # error. An item with no usable label is unaffected for any mix (both terms of the blend are then the WT pass).
+                    if tf_mix < 1.0:
+                        w_cal = torch.full_like(forced_wt_cal, tf_mix)
+                        forced_wt_cal = w_cal * forced_wt_cal + (1.0 - w_cal) * base_wt_cal
+                        forced_wt_raw = w_cal * forced_wt_raw + (1.0 - w_cal) * base_wt_raw
 
-                combined_pred_raw = combine_predictions(forced_wt_raw, mt_pred_raw)
-                combined_pred_cal = combine_predictions(forced_wt_cal, mt_pred_cal)
+                    combined_pred_raw = combine_predictions(forced_wt_raw, mt_pred_raw)
+                    combined_pred_cal = combine_predictions(forced_wt_cal, mt_pred_cal)
 
                 mt_losses = []
 
@@ -772,12 +779,22 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         elif getattr(self.model, '_masked_logit_cache', None) is None:
             self.model._masked_logit_cache = {}
 
+        mt_direct = bool(self.hparams.get('mt_direct_pred', False))
         wt_only = bool(self.hparams.get('val_wt_only', False))
-        if wt_only and not getattr(self, '_warned_val_wt_only', False):
+        if mt_direct and not getattr(self, '_warned_mt_direct_pred', False):
+            self._warned_mt_direct_pred = True
+            logging.info("validation: MT direct prediction (--mt_direct_pred) - no WT forward and no cycle passes; "
+                         "reporting direct MT predictions under wt, mt, and comb")
+        elif wt_only and not getattr(self, '_warned_val_wt_only', False):
             self._warned_val_wt_only = True
             logging.info("validation: WT head only (--val_wt_only) - no MT forward and no MT cycle pass; the mt and "
                          "comb columns report the WT head")
-        if wt_only:
+        if mt_direct:
+            with torch.inference_mode():
+                m = self.model.forward_partitioned(batch, pass_type='mt', mask_strategy=self.mask_mt)['pred_calibrated'].float()
+            out_dict = {'wt_lora_pred': m, 'mt_lora_pred': m, 'combined_pred': m,
+                        'epi_pred': torch.zeros_like(m)}
+        elif wt_only:
             # The MT adapter is untrained in this run (WT-only sweep, MT frozen at init), so an MT forward is a pass
             # through noise. Report the WT head under all three names rather than leave the columns undefined or fill
             # them with that noise: mt == comb == wt is then a true statement about this model.
@@ -807,7 +824,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     obs[key] = torch.where(ok, self.link_head.obs_ddG(v, z, foff), v).detach().cpu().numpy()
 
         cyc = {}
-        if self.hparams.val_cycle_passes:
+        if self.hparams.val_cycle_passes and not (wt_only or mt_direct):
             with torch.inference_mode():
                 c = self.model.forward_cycle(batch, mask_strategy=self.mask_strategy,
                                              include_mt=not wt_only)
@@ -947,9 +964,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # The epistasis scalars are pooled over every library at once, so they are not per-library values and
             # never entered avg_metrics. Merge them in as single-element lists AFTER the val_<key>_avg logging loop
             # above - so nothing is logged twice - and the plateau steps can then read any metric by name.
-            for _k, _v in (self._log_epistasis(pooled) or {}).items():
-                if np.isfinite(_v):
-                    avg_metrics[_k].append(float(_v))
+            if not bool(self.hparams.get('mt_direct_pred', False)):
+                for _k, _v in (self._log_epistasis(pooled) or {}).items():
+                    if np.isfinite(_v):
+                        avg_metrics[_k].append(float(_v))
 
         for k, v in self.link_head.summary().items():
             if not isinstance(v, (str, bytes)):
@@ -1038,12 +1056,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         patience 1 wants the gentle factor 0.3 it has by default.
         """
         patience = int(self.hparams.plateau_patience or 0)
-        done = self.peft_manager.has_transitioned if head == 'wt' else self.peft_manager.mt_path_is_frozen
+        done = (self.peft_manager.has_transitioned or self.peft_manager.wt_path_is_frozen) if head == 'wt' else self.peft_manager.mt_path_is_frozen
         if patience <= 0 or done:
             return
         key = 'rho_singles_wt' if head == 'wt' else self.hparams.mt_convergence_metric
         if head != 'wt' and key == 'epi_beyond_rho_mt' and key not in avg_metrics and 'epi_beyond_rho_epi' in avg_metrics:
             key = 'epi_beyond_rho_epi'
+        if key not in avg_metrics:
+            stripped = key.removeprefix('val_').removesuffix('_avg')
+            if stripped in avg_metrics:
+                key = stripped
         if not avg_metrics.get(key):
             # Loudly, and once: a scheduler that is configured but silently inert is worse than one that errors.
             # dc12 ran 8 epochs with its MT plateau doing nothing, because _log_epistasis returned None and the
