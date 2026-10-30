@@ -99,6 +99,48 @@ SPECS = [
 ]
 GAMUT_RX = re.compile(r'^.+\.ckpt_sigma(?P<sig>[0-9.]+)_unmasked_predictions\.csv$')
 
+# Fixed-slot reruns of two checkpoints (outputs/tracked/<run>, made for runtime and memory): the same checkpoint and configuration as
+# seed <k> of the spec, run again, so they sit beside that seed as seed<k>_tracked and no table reads them. The released checkpoint's
+# rerun (esm_msr_released) is left out on purpose: its configuration is the baseline recipe's. ProteinGym and the resource run that
+# belongs to it are taken only once the job has finished (a run in flight is a moving target); the Slurm logs are never taken.
+TRACKED_MSR = [('baseline_w2a4_m16a16', 'esm_msr_baseline_s1', 1), ('devel_dc8_floorlink_w2a4_m16a16', 'esm_msr_devel_s1', 1)]
+
+
+def tracked_msr_dst(spec, k, rel, finished_runs, all_done):
+    """Destination (relative to ROOT) of one file of a tracked ESM-MSR rerun, or None to leave it. ``rel`` is relative to
+    outputs/tracked/<run>; ``finished_runs`` the resource run directories that hold a resources_scopes.csv (written at the end of a run)."""
+    base = f'msr_predictions/{spec}/seed{k}_tracked'
+    parts = rel.split('/')
+    if parts[0] == 'analysis' and len(parts) >= 4:
+        kind, block = parts[1], parts[2]
+        if block.startswith(('hyperopt', 'esm3_forge')) or '_valprobe' in block:
+            return None
+        if kind == 'predictions':
+            m = GAMUT_RX.match(parts[-1])
+            return f'{base}/{sigma_dir(m["sig"])}/{ds_name(block)}.csv' if m else None
+        if kind == 'stats':
+            return f'{base}/stats/{ds_name(block)}/{parts[-1]}'
+    elif parts[0] == 'resources' and len(parts) == 3:
+        return f'{base}/{rel}' if parts[1] in finished_runs else None
+    elif parts[0] == 'proteingym' and len(parts) == 2 and parts[1].endswith('.csv'):
+        return f'{base}/sigma1/proteingym/{parts[1]}' if all_done else None
+    return None
+
+
+def plan_msr_tracked(plan):
+    for spec, run, k in TRACKED_MSR:
+        d = f'{DEV}/outputs/tracked/{run}'
+        files = remote_find(d)
+        runs = {p[len(d) + 1:].split('/')[1] for _, _, p in files if p[len(d) + 1:].startswith('resources/')}
+        finished = {p[len(d) + 1:].split('/')[1] for _, _, p in files if p.endswith('/resources_scopes.csv')}
+        all_done = len(runs) >= 2 and runs == finished         # the gamut phase and the ProteinGym phase each leave one resource run
+        for size, mt, path in files:
+            dst = tracked_msr_dst(spec, k, path[len(d) + 1:], finished, all_done)
+            if dst:
+                plan.add(dst, path, size, mt, None, f'msr:{spec}')
+        if not all_done:
+            print(f'{run}: still running; its ProteinGym files and ProteinGym resource run are not collected yet', file=sys.stderr)
+
 
 def plan_msr(plan):
     P = f'{DEV}/analysis_notebooks/predictions'
@@ -144,6 +186,7 @@ def plan_msr(plan):
             plan.add(f'msr_predictions/esm-msr-small_march_crystal/{ds_name(Path(rel).stem)}.csv', path, size, mt, None, 'msr:small')
         elif rel.startswith('stats/') or rel == 'timing.csv':
             plan.add(f'msr_predictions/esm-msr-small_march_crystal/{rel}', path, size, mt, None, 'msr:small')
+    plan_msr_tracked(plan)
 
 
 # ------------------------------------------------------------------------------------------------ retrained baselines
@@ -214,7 +257,11 @@ def plan_retrained(plan):
                     if m:
                         name = me_tsu[stage].get(m.group(2), m.group(2))
                         sub = 'predictions' if m.group(1) == 'results' else 'metrics'
-                        plan.add(f'{RT}/mutate_everything/{sub}/{stage}/seed{k}/{name}.csv', path, size, mt, None, 'retrained:me')
+                        if name == 's461':      # ME's run on the S461 table ME ships (another construct and MSA per protein than its S669
+                                                # inputs); the S461 column scores the s669 predictions, so no table cell reads this file
+                            plan.add(f'msr_predictions/_not_in_benchmarks/me_upstream_s461/{sub}/{stage}/seed{k}.csv', path, size, mt, None, 'retrained:me')
+                        else:
+                            plan.add(f'{RT}/mutate_everything/{sub}/{stage}/seed{k}/{name}.csv', path, size, mt, None, 'retrained:me')
                     elif rel == 'timing.csv':
                         plan.add(f'{RT}/mutate_everything/resources/{stage}/seed{k}/timing.csv', path, size, mt, None, 'retrained:me')
     for k in (1, 2, 3):                        # stage 1 ProteinGym (stage 2's is withdrawn / not in the tables)

@@ -61,3 +61,43 @@ def test_destination_collisions_are_refused(monkeypatch):
     monkeypatch.setattr(C, 'plan_msr', fake)
     with pytest.raises(SystemExit):
         C.build_plan(['msr'])
+
+
+def _tracked(rel, finished=('run1',), done=False, spec='baseline_w2a4_m16a16'):
+    return C.tracked_msr_dst(spec, 1, rel, set(finished), done)
+
+
+def test_tracked_msr_reruns_sit_beside_seed1_under_the_gamut_names():
+    ck = 'epoch=04-val_rho_combined_avg=0.855.ckpt_sigma1.0_unmasked_predictions.csv'
+    base = 'msr_predictions/baseline_w2a4_m16a16/seed1_tracked'
+    assert _tracked(f'analysis/predictions/s669/release-baseline/s1/{ck}') == f'{base}/sigma1/s669.csv'
+    assert _tracked(f'analysis/predictions/PTMUL/release-baseline/s1/{ck}') == f'{base}/sigma1/ptmul.csv'
+    assert _tracked(f'analysis/predictions/splits_oct06_capped-val/release-baseline/s1/{ck}') == f'{base}/sigma1/tsuboyama_capped_val.csv'
+    assert _tracked('analysis/stats/external/release-baseline/s1/x_Combined.csv') == f'{base}/stats/external/x_Combined.csv'
+    assert _tracked(f'analysis/predictions/s669/esm-msr-dc8-floorlink-canon-w2a4-m16a16-s1/{ck}', spec='devel_dc8_floorlink_w2a4_m16a16') \
+        == 'msr_predictions/devel_dc8_floorlink_w2a4_m16a16/seed1_tracked/sigma1/s669.csv'
+
+
+def test_tracked_msr_leaves_what_no_table_reads():
+    ck = 'epoch=04.ckpt_sigma1.0_unmasked_predictions.csv'
+    assert _tracked(f'analysis/predictions/splits_oct06_capped_valprobe-val/release-baseline/s1/{ck}') is None
+    assert _tracked('analysis/predictions/s669/release-baseline/s1/last.ckpt_sigma1_wt-unmasked_mt-independent_predictions.csv') is None
+    assert _tracked('slurm-bench_inf-387813.out', done=True) is None           # logs stay on the cluster (they can carry hyperparameters)
+    assert _tracked('resources_scopes.jsonl') is None
+
+
+def test_tracked_msr_takes_proteingym_and_its_resource_run_only_when_the_job_is_done():
+    gamut_run = 'resources/esm_msr-387813-20261029T110257/resources_scopes.csv'
+    pg_run = 'resources/esm_msr-387813-20261029T124659/resources_scopes.jsonl'
+    fin = ('esm_msr-387813-20261029T110257',)
+    assert _tracked(gamut_run, finished=fin) is not None                         # a finished resource run is taken
+    assert _tracked(pg_run, finished=fin) is None                                # the one still being written is not
+    assert _tracked('proteingym/A4_HUMAN_Seuma_2022.csv', finished=fin, done=False) is None
+    assert _tracked('proteingym/A4_HUMAN_Seuma_2022.csv', finished=fin, done=True) \
+        == 'msr_predictions/baseline_w2a4_m16a16/seed1_tracked/sigma1/proteingym/A4_HUMAN_Seuma_2022.csv'
+    assert _tracked(pg_run, finished=fin + ('esm_msr-387813-20261029T124659',), done=True) \
+        == 'msr_predictions/baseline_w2a4_m16a16/seed1_tracked/' + pg_run
+
+
+def test_tracked_msr_does_not_include_the_released_rerun():
+    assert [r for _, r, _ in C.TRACKED_MSR] == ['esm_msr_baseline_s1', 'esm_msr_devel_s1']
