@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Publication figure 5: the epistasis hierarchy, level by level (BENCHMARKS tables 2.1 / 2.2, the document's numbers: the metric suite lives with the training code).
+"""Publication figure 5: the epistasis hierarchy, level by level (BENCHMARKS tables 2.1 / 2.2: the document's numbers, except the two ESM-MSR columns, which come from the suite itself).
 
 Two designs of the same numbers, for the validation and the test doubles:
 
@@ -8,9 +8,11 @@ Two designs of the same numbers, for the validation and the test doubles:
                                            each side minus E[dddG | its own additive expectation]).
   B  ``fig5b_epistasis_levels_panels_*``   one dot panel per metric (naive, saturation-subtracted, pair, line, cell rank), models on the rows in the same three categories.
 
-Models are the ones of figures 1-4 that the tables hold: ESM-MSR (baseline triplicate and devel), ME stage 2, ThermoMPNN-D, SPURS multi | ProteinMPNN | GeoDDG-3D, Rosetta.
+Models: ESM-MSR devel twice, as its epistasis head MT - WT and as its context control ~WT - WT (the WT adapter read on the mutated sequence, asked about the reverse mutation: what the
+backbone and the single-mutant training already know about epistasis), both scored by ``esm_msr.epi_metrics`` on the saved predictions (``00b_epi_devel_heads.py``; its MT - WT numbers
+are BENCHMARKS table 2.2's devel row), then ME stage 2, ThermoMPNN-D, SPURS multi | ProteinMPNN | GeoDDG-3D, Rosetta from the document's tables.
 ESM3-small-open and ProSST are not in the tables; ESM3ΔG is left out (overlap with its MGnify fine-tune); the Megascale-trained ESMtherm and IFUM stay in the heat maps of
-``06_epistasis``.  Error bars: standard deviation over the three seeds where the table has them (the ESM-MSR rows and SPURS multi); the other rows are single checkpoints or
+``06_epistasis``.  Error bars: standard deviation over the three seeds where there are seeds (the two ESM-MSR devel columns and SPURS multi); the other rows are single checkpoints or
 public models and carry none, and a protein-level bootstrap of these metrics needs the suite itself.  Outputs: ``results/11_publication`` (also ``fig5_epistasis_levels_*.csv``).
 """
 import importlib
@@ -35,8 +37,9 @@ pub = importlib.import_module('11_publication_figures')       # CATS, layout(), 
 OUT = out_dir('11_publication')
 
 # (table row, category, colour, axis label)
-MODELS = [('ESM-MSR (baseline)', 'retrained', '#000000', 'ESM-MSR\nbaseline'),
-          ('ESM-MSR (devel) (3 seeds)', 'retrained', '#666666', 'ESM-MSR\ndevel'),
+# the two devel columns read reference/epi_devel_heads.csv (key 'devel:<head>'), the others the document's tables
+MODELS = [('devel:epi', 'retrained', '#000000', 'ESM-MSR devel\nMT − WT'),
+          ('devel:ctx', 'retrained', '#7f7f7f', 'ESM-MSR devel\n~WT − WT\n(context control)'),
           ('MutateEverything stage 2', 'retrained', '#1b8a4b', 'ME\nstage 2'),
           ('ThermoMPNN-D', 'retrained', '#1f5f8b', 'ThermoMPNN-D'),
           ('SPURS multi (retrained, 3 seeds)', 'retrained', '#d35400', 'SPURS\nmulti'),
@@ -50,7 +53,8 @@ C_NAIVE, C_SAT = '#e67e22', '#2e86c1'
 SETS = {'test': ('2.2.1', '2.2 ', 'Test', '12,455 doubles with both singles measured, 43 position pairs'),
         'val': ('2.1.1', '2.1 ', 'Validation', '8,494 doubles with both singles measured, 24 position pairs')}
 FOOT = ['† trained on S8754 (ProThermDB + ThermoMutDB), not on Megascale. ESM3-small-open and ProSST are not in the epistasis tables; ESM3ΔG is left out (overlap with its MGnify fine-tune).',
-        'Error bars: sd over 3 seeds where the table has seeds (ESM-MSR rows, SPURS multi); other rows are single checkpoints or public models. Numbers are the benchmark document\'s (tables 2.1 / 2.2).']
+        'MT − WT: the epistasis head. ~WT − WT: the WT adapter read on the mutated sequence, a control for what the backbone and single-mutant training know; both scored by the epistasis suite (3 devel seeds).',
+        'Error bars: sd over 3 seeds (ESM-MSR devel, SPURS multi); other rows are single checkpoints or public models, with the benchmark document\'s numbers (tables 2.1 / 2.2).']
 
 
 def load(split):
@@ -62,10 +66,17 @@ def load(split):
     sd = sd[sd.table.str.startswith(prefix)].copy()
     sd['row'] = [re.sub(r'[ᴹᵐᴾᴴʰᴰᶜᵁ‡#*†\s]+$', '', clean_label(r)) for r in sd['row']]
     S = sd.pivot_table(index='row', columns='column', values='sd_n_minus_1', aggfunc='first')
+    H = pd.read_csv(REFERENCE / 'epi_devel_heads.csv')
+    H = H[H.split == split]
+    col = {'naive ρ': 'naive_rho', 'beyond ρ': 'beyond_rho', 'pair ρ': 'pair_rho', 'line ρ': 'line_rho', 'cell_rank': 'cell_rank'}
     rows = []
     for name, cat, color, label in MODELS:
         for m, _ in METRICS:
-            rows.append(dict(model=name, category=cat, metric=m, value=V.loc[name, m], seed_sd=S.loc[name, m] if name in S.index and m in S.columns else np.nan))
+            if name.startswith('devel:'):
+                v = H[f'epi_{col[m]}_{name.split(":")[1]}']
+                rows.append(dict(model=name, category=cat, metric=m, value=v.mean(), seed_sd=v.std(ddof=1)))
+            else:
+                rows.append(dict(model=name, category=cat, metric=m, value=V.loc[name, m], seed_sd=S.loc[name, m] if name in S.index and m in S.columns else np.nan))
     return pd.DataFrame(rows)
 
 

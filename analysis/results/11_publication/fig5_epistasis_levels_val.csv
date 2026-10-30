@@ -1,14 +1,14 @@
 model,category,metric,value,seed_sd,split
-ESM-MSR (baseline),retrained,naive ρ,0.6540,0.0030,val
-ESM-MSR (baseline),retrained,beyond ρ,0.5860,0.0180,val
-ESM-MSR (baseline),retrained,pair ρ,0.7450,0.0240,val
-ESM-MSR (baseline),retrained,line ρ,0.3950,0.0500,val
-ESM-MSR (baseline),retrained,cell_rank,0.1930,0.0040,val
-ESM-MSR (devel) (3 seeds),retrained,naive ρ,0.6430,0.0320,val
-ESM-MSR (devel) (3 seeds),retrained,beyond ρ,0.5850,0.0170,val
-ESM-MSR (devel) (3 seeds),retrained,pair ρ,0.7340,0.0230,val
-ESM-MSR (devel) (3 seeds),retrained,line ρ,0.4340,0.0110,val
-ESM-MSR (devel) (3 seeds),retrained,cell_rank,0.1950,0.0070,val
+devel:epi,retrained,naive ρ,0.6428,0.0322,val
+devel:epi,retrained,beyond ρ,0.5849,0.0167,val
+devel:epi,retrained,pair ρ,0.7342,0.0229,val
+devel:epi,retrained,line ρ,0.4342,0.0111,val
+devel:epi,retrained,cell_rank,0.1945,0.0074,val
+devel:ctx,retrained,naive ρ,0.6788,0.0178,val
+devel:ctx,retrained,beyond ρ,0.4837,0.0059,val
+devel:ctx,retrained,pair ρ,0.6878,0.0218,val
+devel:ctx,retrained,line ρ,0.3326,0.0007,val
+devel:ctx,retrained,cell_rank,0.1383,0.0047,val
 MutateEverything stage 2,retrained,naive ρ,0.4210,,val
 MutateEverything stage 2,retrained,beyond ρ,0.3110,,val
 MutateEverything stage 2,retrained,pair ρ,0.4670,,val
