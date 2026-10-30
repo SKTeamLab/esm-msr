@@ -3,7 +3,10 @@ import os, sys, pickle, collections, hashlib
 import pandas as pd, numpy as np
 ROOT=os.environ.get('LEAK_ROOT','/home/sareeves/playground/esm-msr-devel'); D=os.path.join(ROOT,'leak_audit','data'); OUT=os.path.join(ROOT,'leak_audit','out')
 h=lambda s: hashlib.sha1(s.encode()).hexdigest()
-m8=pd.read_csv(os.path.join(D,'raw','test_vs_mgnify.m8'), sep='\t', header=None,
+_m8 = os.path.join(D,'raw','test_vs_mgnify_s75.m8')
+if not os.path.exists(_m8):
+    _m8 = os.path.join(D,'raw','test_vs_mgnify.m8')  # older, less sensitive run
+m8=pd.read_csv(_m8, sep='\t', header=None,
                names=['q','t','fident','alnlen','qlen','tlen','evalue','bits'])
 print('hits',len(m8))
 m8['cov']=m8.alnlen/m8.qlen

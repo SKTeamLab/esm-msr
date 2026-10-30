@@ -80,7 +80,7 @@ A cell lists every class present with its fraction of the dataset's reported row
 | DDGemb | S2450 = S2648 − 18 sequences / 198 mutations >25 % identity to S669 | 2,450 mutations / 115 UniProt | `ddgemb.biocomp.unibo.it` S2450.tsv/.fasta | verified |
 | DDMut | S9028 = S2648 + FireProtDB, forward+reverse; multi-mutant branch SM1242 | 9,028 rows / 171 PDB; 1,242 multi rows | `biosig.lab.uq.edu.au` S9028.csv, SM1242.csv | verified |
 | GeoDDG-3D | S8754 (its own training set) | 8,754 rows / 301 proteins | `GeoStab` S8754.csv | verified (same file as the benchmark's S8754: 8,745/8,754 names identical) |
-| ESM3ΔG | MGnify Stability fine-tune, **not** Megascale | 960,216 sequences | Zenodo 19411306 `mgnify_training_index.csv` | verified (0 exact sequences) |
+| ESM3ΔG | MGnify Stability fine-tune, **not** Megascale | 960,216 sequences | Zenodo 19411306 `mgnify_training_index.csv` | verified (0 exact WT or mutant sequences anywhere in the benchmark) |
 | ProSST | AlphaFoldDB 18.8 M structures, masked-LM; no ΔΔG fine-tune | — | ProSST paper | documented only |
 | ProteinMPNN | PDB assemblies deposited before 2021-08-02, sequence recovery | 25,361 clusters | ProteinMPNN paper | documented only |
 | ESM3 small/medium/large, σ = 0 control | UniRef/MGnify/JGI + PDB (≤2020-05-01) + AFDB v4 | 2.78 B proteins | ESM3 paper | documented only |
@@ -88,7 +88,9 @@ A cell lists every class present with its fraction of the dataset's reported row
 
 Two corrections to the old table legend follow. **ESM3ΔG is not Megascale-trained**: its released `*_augmented_*`
 weights are fine-tuned on the authors' own 960,216-sequence MGnify Stability set (five library versions K50dG /
-DMSv4 / DMSv5 / DMSv7 of that same experiment), and the 28,172-mutant Megascale set is its held-out test. **S8754 is
+DMSv4 / DMSv5 / DMSv7 of that same experiment), and the 28,172-mutant Megascale set is its held-out test. An exact
+SHA-1 join of every benchmark wild-type and mutant sequence against that corpus returns 0 matches; 8 of the 33
+capped test libraries have a strong homolog (40.7 % of rows) and 21 a weak one (50.3 %) — see §6.6. **S8754 is
 GeoDDG's training set**, not an independent external set; its reported 0.841 on it is a training-set score.
 
 ## 4. The datasets overlap each other
@@ -187,7 +189,7 @@ number, and it stands ahead of ESM-MSR's 0.773.
 | SPURS multi | 9 of 13 double-bearing libraries | 6,400 rows (41.2 % of doubles) + 1,717 constituent | 21,477 | heavily leaked |
 | EsmTherm | 27 of 33 test libraries contribute train mutants (per-row 80/10/10) | rows not public (`M?` ≈ 0.8 × same-protein) | 42,783 (82.2 %) | leaked at the protein level |
 | IFUM | 21 of 33 test libraries in train | rows not public (`M?` = same-protein) | 23,518 (45.2 %) | leaked at the protein level |
-| ESM3ΔG | **0 of 33** | 0 | 0 | not trained on this data; 40.7 % strong + 24.6 % weak homologs |
+| ESM3ΔG | **0 exact rows anywhere** | 0 | 0 | not trained on this data; 40.7 % strong + 50.3 % weak homologs |
 
 SPURS's fit is the ThermoMPNN 8:1:1 split (239 train / 31 val), which is *not* the Oct06 split; its val is in the
 fit. Its reported 0.866 on capped test (0.844 on val) is therefore not a held-out result, and the old bullet that
@@ -199,7 +201,7 @@ published split has only "Train" and "Val and test" sections; 21 of our test lib
 ESM3ΔG is the correction in the other direction. Its released weights are fine-tuned on MGnify Stability, not
 Megascale; its Megascale benchmark is the ThermoMPNN 28-protein/28,172-mutant test set. Against our 33 test
 libraries, 0 are in its 960,216-sequence training index by exact sequence, 8 have a strong homolog (40.7 % of test
-rows) and 12 a weak one. It is the cleanest third-party comparator on this split, with a homology caveat, and its ‡
+rows) and 21 a weak one (50.3 %). It is the cleanest third-party comparator on this split, with a homology caveat, and its ‡
 flag should be removed.
 
 ### 6.3 The literature-ΔΔG models
@@ -251,6 +253,29 @@ constituent counts. The headline:
 SPURS is more contaminated on ProteinGym than ESM-MSR: its train+val covers 51 of the 213 assays at ≥50 %, which is
 why its 0.483 average is not comparable to ESM-MSR's 0.510.
 
+### 6.6 The ESM3ΔG hold-out, verified
+
+The 28,172-mutant held-out set is the ThermoMPNN 28-protein split, not ours, so it does not tell us whether our 33
+capped test libraries were trained on. Two checks close that gap.
+
+**Exact.** A SHA-1 join of every benchmark row's wild-type *and* mutant sequence against the 960,216-sequence MGnify
+train split returns **0 matches**: 0/87,544 Tsuboyama capped val+test rows, 0/2,446,730 ProteinGym rows (including
+all 117,811 Tsuboyama DMS rows), 0/534,385 Domainome rows, 0/25,632 external-set rows, 0/269,471 DMS-assay rows.
+No exact protein or exact variant of ours is in ESM3ΔG's training data. The join is on sequences, so it also catches
+a training mutant equal to one of our test mutants, which a mutation-name join would miss.
+
+**Homology.** High-sensitivity MMseqs2 (s = 7.5, e = 10, max-seqs 500) against the same corpus: 8 of the 33 capped
+test libraries have a strong homolog (41–68 % identity over 78–96 % of the test protein, E 1e-20 to 1e-6), covering
+40.7 % of test rows; 21 libraries have a weak/ambiguous local match (50.3 % of rows) and 4 have none. The strong
+hits are all natural PDB libraries (1GYZ, 3DKM, 2MKX, 2D1U, 2KRU, 2K52, 2L09, 1ZHC); the de novo designs are weak
+or absent. Per-library table: `docs/benchmarks/leak_audit_esm3dg_libraries.csv`.
+
+**Cost of the full comparison.** MMseqs2 is not expensive at this scale. Against the 960k-sequence corpus, a
+33-query search takes 4.7–5.8 s including target indexing (1.3 GB peak RSS; 305 hits at s = 5.5/max-seqs 50, 1,283
+at s = 7.5/max-seqs 500), and the full 2,583-protein test set takes **9.7 s** at s = 7.5 (1.5 GB RSS, 40,451 hits).
+The audit's recipe is therefore: exact hash join first (instant, definitive), then MMseqs2 at s = 7.5 for every
+protein the join does not resolve, then per-row coverage classification. No heuristic shortcut is needed.
+
 ## 7. What changes in the reported conclusions
 
 - **Bold** now marks the best clean cell per column (no `M`, `m`, `P`, `H`, `D`, `U`, `V`, `#`; `h` and `C` remain
@@ -284,8 +309,9 @@ worthless.
    80/10/10 split. The table flags `P` and `M?` separately so the reader can discount either.
 2. **IFUM exact rows.** Same: domains are public, rows are not. `M? = P` assumes the model trained on all mutants of
    a train domain; the paper's 30–80 aa window is necessary but not verified per domain.
-3. **ESM3ΔG augmented checkpoints.** Its homology fractions use the 960,216-sequence base index; the augmented
-   checkpoints we scored "used a more limited subset", so the fractions are an upper bound.
+3. **ESM3ΔG augmented checkpoints.** The exact join returns 0 matches against the 960,216-sequence base index; the
+   homology fractions use the high-sensitivity MMseqs2 run (s = 7.5, max-seqs 500). The augmented checkpoints we
+   scored "used a more limited subset", so the fractions are an upper bound.
 4. **S2450-inherited DDGemb overlaps.** S2450 = S2648 − 198 mutations homologous to S669; the removed rows cannot all
    be located in the mapped S2648 copy, so S8754/Q/K/Ssym/S571/S783 figures are upper bounds (`≤`).
 5. **Identity vs E-value.** The split's identity is BLOSUM62 matches / shorter length; MMseqs2's is alignment
@@ -319,6 +345,8 @@ worthless.
 | `leak_audit_homology.csv` | per inventory × dataset `P`/`H`/`h` counts |
 | `leak_audit_code_exact.csv` | exact counts for the code/position inventories (S2450, S9028, SM1242, S8754) |
 | `split_homology_audit.json` | the split-validation numbers of §5 |
+| `leak_audit_esm3dg_libraries.csv` | per-library ESM3ΔG homology for the 33 capped test libraries |
+| `esm3dg_exact.csv`, `esm3dg_pg_exact_per_dms.csv` | exact-sequence join results for every benchmark row |
 
 **Scripts** (`analysis_scripts/leak_audit/`, run in order; each is deterministic for the inputs below):
 
@@ -333,6 +361,7 @@ worthless.
 | 11 | `11_homology_classes.py` | `P`/`H`/`h` at whole-protein level |
 | 12 | `12_code_exact.py` | exact overlaps for DDGemb/DDMut/GeoDDG |
 | 13–16 | `13_matrix.py`, `14_pg.py`, `15_mgnify.py`, `16_render.py` | cell codes, ProteinGym clean aggregates, ESM3ΔG corpus, table rendering |
+| 19 | `19_esm3dg_exact.py` | exact SHA-1 join of every benchmark WT/mutant sequence against the MGnify train split |
 | 18 | `18_db.py` | SQLite + CSVs |
 
 **Inputs not in the repo** (public, with the URLs in `docs/LEAKAGE_AUDIT_OCT2026.md` §3): S2450.tsv/.fasta

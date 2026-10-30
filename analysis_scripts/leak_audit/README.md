@@ -40,6 +40,7 @@ the MGnify `mgnify_training_index.csv`, the ProteinGym DMS files, the Domainome 
 16_render.py               # annotated table fragments (reads the ORIGINAL BENCHMARKS doc)
 17_write_doc.py            # splices the tables and §6 into docs/BENCHMARKS_OCT2026.md
 18_db.py                   # SQLite + committed CSVs
+19_esm3dg_exact.py         # exact WT/mutant SHA-1 join against the MGnify train split
 ```
 
 `16_render.py` and `17_write_doc.py` must be run against the unmodified `BENCHMARKS_OCT2026.md`; check the file out
@@ -49,3 +50,16 @@ of `devel-revision` before re-running them. They regenerate whole tables and §6
 Every model retrained on the capped split (ESM-MSR, ME stage 1/2, ThermoMPNN, SPURS, SPURS multi) shares one protein set in `11_homology_classes.py`
 (so `P`/`H`/`h` are identical for them); ThermoMPNN-D uses the subset from `05c_tmpnnd_inventory.py`. The cell codes are deterministic given the inputs; `13_matrix.py` also
 needs `ifum_train_proteins.csv` and `esmtherm_train_proteins.csv` from the inventory data.
+
+## ESM3dG training-corpus check (October 30 2026)
+
+`19_esm3dg_exact.py` does the exact check: a SHA-1 join of every benchmark row's wild-type and mutant sequence
+against the 960,216-sequence MGnify train split (`data/raw/mgnify_index.csv`, `split == 'train'`). It returns 0
+matches for every dataset. `15_mgnify.py` then classifies homology from
+
+    mmseqs easy-search data/raw/test_queries.fa data/raw/mgnify_train.fa data/raw/test_vs_mgnify_s75.m8 \
+        /tmp/mm_tmp -s 7.5 -e 10 --max-seqs 500 --threads 8 \
+        --format-output query,target,fident,alnlen,qlen,tlen,evalue,bits
+
+which takes 9.7 s for all 2,583 test proteins (1.5 GB RSS) and 4.7-5.8 s for the 33 capped test libraries. The
+older `test_vs_mgnify.m8` (s = 5.5, max-seqs 50) is used only if the s75 file is absent.
