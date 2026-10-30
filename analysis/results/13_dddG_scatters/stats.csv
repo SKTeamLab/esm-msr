@@ -1,27 +1,40 @@
-model,version,n,spearman,pearson,rmse
-ESM-MSR,all_dG_additive,12455,0.4604,0.4350,0.9393
-ESM-MSR,dG_additive_positive,7405,0.4290,0.4130,0.8225
-ESM-MSR (devel),all_dG_additive,12455,0.4796,0.4465,1.0672
-ESM-MSR (devel),dG_additive_positive,7405,0.4404,0.4154,0.9279
-MutateEverything st2,all_dG_additive,12455,0.4372,0.4528,0.8550
-MutateEverything st2,dG_additive_positive,7405,0.1146,0.1193,0.8472
-ThermoMPNN-D,all_dG_additive,12455,0.0990,0.0814,0.9878
-ThermoMPNN-D,dG_additive_positive,7405,-0.0251,-0.0423,0.7945
-SPURS multi,all_dG_additive,12455,0.3350,0.3398,0.8556
-SPURS multi,dG_additive_positive,7405,0.0809,0.0622,0.7936
-ESM3-small-open,all_dG_additive,12455,0.1095,0.1481,1.2883
-ESM3-small-open,dG_additive_positive,7405,0.0867,0.1162,1.2311
-ProteinMPNN,all_dG_additive,12455,0.3135,0.2791,0.9924
-ProteinMPNN,dG_additive_positive,7405,0.3527,0.3345,0.7206
-GeoDDG-3D,all_dG_additive,12455,0.0554,0.0739,1.1949
-GeoDDG-3D,dG_additive_positive,7405,0.0537,0.0669,0.7815
-DDGemb,all_dG_additive,12455,0.0309,0.0179,1.1080
-DDGemb,dG_additive_positive,7405,-0.1086,-0.1584,0.9161
-Rosetta,all_dG_additive,12455,0.3813,0.3427,1.1463
-Rosetta,dG_additive_positive,7405,0.3119,0.2733,0.9718
-ESMtherm*,all_dG_additive,12455,0.4952,0.5878,0.8056
-ESMtherm*,dG_additive_positive,7405,0.2716,0.2785,0.6505
-"IFUM, WT backbone*",all_dG_additive,12455,0.0015,0.0328,1.1133
-"IFUM, WT backbone*",dG_additive_positive,7405,-0.0041,-0.0201,0.7077
-"IFUM, ESMFold*",all_dG_additive,12455,0.1023,0.1096,1.1317
-"IFUM, ESMFold*",dG_additive_positive,7405,0.0799,0.0836,0.7522
+model,version,prediction,n,spearman,pearson,rmse
+ESM-MSR,all_dG_additive,as is,12455,0.4604,0.4350,0.9393
+ESM-MSR,dG_additive_positive,as is,7405,0.4290,0.4130,0.8225
+ESM-MSR,dG_additive_gt1,as is,3907,0.4191,0.3961,0.7650
+ESM-MSR (devel),all_dG_additive,observed,12455,0.4700,0.4440,0.9845
+ESM-MSR (devel),dG_additive_positive,observed,7405,0.4428,0.4276,0.8791
+ESM-MSR (devel),dG_additive_gt1,latent,3907,0.4388,0.4082,0.8398
+MutateEverything st2,all_dG_additive,as is,12455,0.4372,0.4528,0.8550
+MutateEverything st2,dG_additive_positive,as is,7405,0.1146,0.1193,0.8472
+MutateEverything st2,dG_additive_gt1,as is,3907,0.0522,0.0116,0.7727
+ThermoMPNN-D,all_dG_additive,as is,12455,0.0990,0.0814,0.9878
+ThermoMPNN-D,dG_additive_positive,as is,7405,-0.0251,-0.0423,0.7945
+ThermoMPNN-D,dG_additive_gt1,as is,3907,-0.0040,-0.0544,0.6996
+SPURS multi,all_dG_additive,as is,12455,0.3350,0.3398,0.8556
+SPURS multi,dG_additive_positive,as is,7405,0.0809,0.0622,0.7936
+SPURS multi,dG_additive_gt1,as is,3907,0.0073,-0.0344,0.7522
+ESM3-small-open,all_dG_additive,as is,12455,0.1095,0.1481,1.2883
+ESM3-small-open,dG_additive_positive,as is,7405,0.0867,0.1162,1.2311
+ESM3-small-open,dG_additive_gt1,as is,3907,0.0934,0.1061,1.2121
+ProteinMPNN,all_dG_additive,as is,12455,0.3135,0.2791,0.9924
+ProteinMPNN,dG_additive_positive,as is,7405,0.3527,0.3345,0.7206
+ProteinMPNN,dG_additive_gt1,as is,3907,0.2799,0.2958,0.7123
+GeoDDG-3D,all_dG_additive,as is,12455,0.0554,0.0739,1.1949
+GeoDDG-3D,dG_additive_positive,as is,7405,0.0537,0.0669,0.7815
+GeoDDG-3D,dG_additive_gt1,as is,3907,0.0609,0.0820,0.6652
+DDGemb,all_dG_additive,as is,12455,0.0309,0.0179,1.1080
+DDGemb,dG_additive_positive,as is,7405,-0.1086,-0.1584,0.9161
+DDGemb,dG_additive_gt1,as is,3907,-0.1027,-0.1002,0.8076
+Rosetta,all_dG_additive,as is,12455,0.3813,0.3427,1.1463
+Rosetta,dG_additive_positive,as is,7405,0.3119,0.2733,0.9718
+Rosetta,dG_additive_gt1,as is,3907,0.3167,0.2229,0.9995
+ESMtherm*,all_dG_additive,as is,12455,0.4952,0.5878,0.8056
+ESMtherm*,dG_additive_positive,as is,7405,0.2716,0.2785,0.6505
+ESMtherm*,dG_additive_gt1,as is,3907,0.1808,0.1579,0.5719
+"IFUM, WT backbone*",all_dG_additive,as is,12455,0.0015,0.0328,1.1133
+"IFUM, WT backbone*",dG_additive_positive,as is,7405,-0.0041,-0.0201,0.7077
+"IFUM, WT backbone*",dG_additive_gt1,as is,3907,-0.0055,-0.0029,0.5935
+"IFUM, ESMFold*",all_dG_additive,as is,12455,0.1023,0.1096,1.1317
+"IFUM, ESMFold*",dG_additive_positive,as is,7405,0.0799,0.0836,0.7522
+"IFUM, ESMFold*",dG_additive_gt1,as is,3907,0.0222,0.0315,0.6696

@@ -1,6 +1,6 @@
 mode,domain,pos1,pos2,model,spearman,n_cells
 raw,2D1U,61,71,ESM-MSR,0.7473,287
-raw,2D1U,61,71,ESM-MSR (devel),0.7253,287
+raw,2D1U,61,71,ESM-MSR (devel),0.7446,287
 raw,2D1U,61,71,MutateEverything st2,0.5608,287
 raw,2D1U,61,71,ThermoMPNN-D,0.0096,287
 raw,2D1U,61,71,SPURS multi,0.5199,287
@@ -13,7 +13,7 @@ raw,2D1U,61,71,ESMtherm*,0.6737,287
 raw,2D1U,61,71,"IFUM, WT backbone*",0.5340,287
 raw,2D1U,61,71,"IFUM, ESMFold*",0.3709,287
 raw,2KRU,28,32,ESM-MSR,0.5381,324
-raw,2KRU,28,32,ESM-MSR (devel),0.5051,324
+raw,2KRU,28,32,ESM-MSR (devel),0.5047,324
 raw,2KRU,28,32,MutateEverything st2,0.4342,324
 raw,2KRU,28,32,ThermoMPNN-D,0.2243,324
 raw,2KRU,28,32,SPURS multi,0.4065,324
@@ -26,7 +26,7 @@ raw,2KRU,28,32,ESMtherm*,-0.0254,324
 raw,2KRU,28,32,"IFUM, WT backbone*",0.5511,324
 raw,2KRU,28,32,"IFUM, ESMFold*",0.3826,324
 raw,2KRU,42,46,ESM-MSR,0.4162,353
-raw,2KRU,42,46,ESM-MSR (devel),0.4443,353
+raw,2KRU,42,46,ESM-MSR (devel),0.4450,353
 raw,2KRU,42,46,MutateEverything st2,0.3766,353
 raw,2KRU,42,46,ThermoMPNN-D,0.3165,353
 raw,2KRU,42,46,SPURS multi,0.1040,353
@@ -39,7 +39,7 @@ raw,2KRU,42,46,ESMtherm*,0.0918,353
 raw,2KRU,42,46,"IFUM, WT backbone*",0.4810,353
 raw,2KRU,42,46,"IFUM, ESMFold*",0.4281,353
 raw,2KVS,2,63,ESM-MSR,0.5859,341
-raw,2KVS,2,63,ESM-MSR (devel),0.5875,341
+raw,2KVS,2,63,ESM-MSR (devel),0.5972,341
 raw,2KVS,2,63,MutateEverything st2,0.4834,341
 raw,2KVS,2,63,ThermoMPNN-D,0.5806,341
 raw,2KVS,2,63,SPURS multi,0.5579,341
@@ -52,7 +52,7 @@ raw,2KVS,2,63,ESMtherm*,-0.0730,341
 raw,2KVS,2,63,"IFUM, WT backbone*",-0.0572,341
 raw,2KVS,2,63,"IFUM, ESMFold*",-0.0055,341
 raw,2KVS,3,31,ESM-MSR,0.6623,361
-raw,2KVS,3,31,ESM-MSR (devel),0.6733,361
+raw,2KVS,3,31,ESM-MSR (devel),0.6753,361
 raw,2KVS,3,31,MutateEverything st2,0.6210,361
 raw,2KVS,3,31,ThermoMPNN-D,0.7033,361
 raw,2KVS,3,31,SPURS multi,0.8157,361
@@ -65,7 +65,7 @@ raw,2KVS,3,31,ESMtherm*,0.2967,361
 raw,2KVS,3,31,"IFUM, WT backbone*",-0.0616,361
 raw,2KVS,3,31,"IFUM, ESMFold*",-0.0286,361
 raw,2KVS,33,35,ESM-MSR,0.5815,323
-raw,2KVS,33,35,ESM-MSR (devel),0.5830,323
+raw,2KVS,33,35,ESM-MSR (devel),0.5832,323
 raw,2KVS,33,35,MutateEverything st2,0.3622,323
 raw,2KVS,33,35,ThermoMPNN-D,0.0161,323
 raw,2KVS,33,35,SPURS multi,0.3248,323
@@ -78,7 +78,7 @@ raw,2KVS,33,35,ESMtherm*,-0.1463,323
 raw,2KVS,33,35,"IFUM, WT backbone*",-0.2020,323
 raw,2KVS,33,35,"IFUM, ESMFold*",-0.2496,323
 raw,2L09,28,32,ESM-MSR,0.6277,324
-raw,2L09,28,32,ESM-MSR (devel),0.5859,324
+raw,2L09,28,32,ESM-MSR (devel),0.5817,324
 raw,2L09,28,32,MutateEverything st2,0.3583,324
 raw,2L09,28,32,ThermoMPNN-D,0.0570,324
 raw,2L09,28,32,SPURS multi,0.4254,324
@@ -91,7 +91,7 @@ raw,2L09,28,32,ESMtherm*,0.3802,324
 raw,2L09,28,32,"IFUM, WT backbone*",0.3857,324
 raw,2L09,28,32,"IFUM, ESMFold*",0.4283,324
 raw,2LC2,36,39,ESM-MSR,0.7595,361
-raw,2LC2,36,39,ESM-MSR (devel),0.7351,361
+raw,2LC2,36,39,ESM-MSR (devel),0.7421,361
 raw,2LC2,36,39,MutateEverything st2,0.4282,361
 raw,2LC2,36,39,ThermoMPNN-D,0.2854,361
 raw,2LC2,36,39,SPURS multi,0.4964,361
@@ -104,7 +104,7 @@ raw,2LC2,36,39,ESMtherm*,0.8133,361
 raw,2LC2,36,39,"IFUM, WT backbone*",0.4190,361
 raw,2LC2,36,39,"IFUM, ESMFold*",0.3066,361
 raw,3DKM,18,28,ESM-MSR,0.3512,342
-raw,3DKM,18,28,ESM-MSR (devel),0.4116,342
+raw,3DKM,18,28,ESM-MSR (devel),0.3685,342
 raw,3DKM,18,28,MutateEverything st2,0.3835,342
 raw,3DKM,18,28,ThermoMPNN-D,0.2478,342
 raw,3DKM,18,28,SPURS multi,0.2994,342
@@ -117,7 +117,7 @@ raw,3DKM,18,28,ESMtherm*,0.4567,342
 raw,3DKM,18,28,"IFUM, WT backbone*",-0.0012,342
 raw,3DKM,18,28,"IFUM, ESMFold*",0.0556,342
 raw,3DKM,27,56,ESM-MSR,0.3108,361
-raw,3DKM,27,56,ESM-MSR (devel),0.3628,361
+raw,3DKM,27,56,ESM-MSR (devel),0.3635,361
 raw,3DKM,27,56,MutateEverything st2,0.4039,361
 raw,3DKM,27,56,ThermoMPNN-D,-0.2810,361
 raw,3DKM,27,56,SPURS multi,-0.0294,361
@@ -130,7 +130,7 @@ raw,3DKM,27,56,ESMtherm*,0.2762,361
 raw,3DKM,27,56,"IFUM, WT backbone*",0.1414,361
 raw,3DKM,27,56,"IFUM, ESMFold*",0.2296,361
 raw,3DKM,59,67,ESM-MSR,0.2184,227
-raw,3DKM,59,67,ESM-MSR (devel),0.1813,227
+raw,3DKM,59,67,ESM-MSR (devel),0.1714,227
 raw,3DKM,59,67,MutateEverything st2,0.1099,227
 raw,3DKM,59,67,ThermoMPNN-D,0.1522,227
 raw,3DKM,59,67,SPURS multi,0.2267,227
@@ -143,7 +143,7 @@ raw,3DKM,59,67,ESMtherm*,0.1683,227
 raw,3DKM,59,67,"IFUM, WT backbone*",0.2123,227
 raw,3DKM,59,67,"IFUM, ESMFold*",0.1702,227
 raw,3ZGK,11,41,ESM-MSR,0.5526,361
-raw,3ZGK,11,41,ESM-MSR (devel),0.5998,361
+raw,3ZGK,11,41,ESM-MSR (devel),0.5899,361
 raw,3ZGK,11,41,MutateEverything st2,0.3882,361
 raw,3ZGK,11,41,ThermoMPNN-D,0.4188,361
 raw,3ZGK,11,41,SPURS multi,0.5046,361
@@ -156,7 +156,7 @@ raw,3ZGK,11,41,ESMtherm*,0.6355,361
 raw,3ZGK,11,41,"IFUM, WT backbone*",-0.1733,361
 raw,3ZGK,11,41,"IFUM, ESMFold*",0.0810,361
 raw,3ZGK,33,68,ESM-MSR,0.7151,328
-raw,3ZGK,33,68,ESM-MSR (devel),0.6992,328
+raw,3ZGK,33,68,ESM-MSR (devel),0.7369,328
 raw,3ZGK,33,68,MutateEverything st2,0.6509,328
 raw,3ZGK,33,68,ThermoMPNN-D,0.4536,328
 raw,3ZGK,33,68,SPURS multi,0.5789,328
@@ -169,7 +169,7 @@ raw,3ZGK,33,68,ESMtherm*,0.8149,328
 raw,3ZGK,33,68,"IFUM, WT backbone*",-0.2240,328
 raw,3ZGK,33,68,"IFUM, ESMFold*",-0.0996,328
 raw,3ZGK,42,45,ESM-MSR,0.5949,361
-raw,3ZGK,42,45,ESM-MSR (devel),0.5871,361
+raw,3ZGK,42,45,ESM-MSR (devel),0.5866,361
 raw,3ZGK,42,45,MutateEverything st2,0.3892,361
 raw,3ZGK,42,45,ThermoMPNN-D,0.4560,361
 raw,3ZGK,42,45,SPURS multi,0.5035,361
@@ -182,7 +182,7 @@ raw,3ZGK,42,45,ESMtherm*,0.6586,361
 raw,3ZGK,42,45,"IFUM, WT backbone*",0.0718,361
 raw,3ZGK,42,45,"IFUM, ESMFold*",0.2363,361
 raw,3ZGK,52,57,ESM-MSR,0.2389,361
-raw,3ZGK,52,57,ESM-MSR (devel),0.2848,361
+raw,3ZGK,52,57,ESM-MSR (devel),0.2852,361
 raw,3ZGK,52,57,MutateEverything st2,0.1422,361
 raw,3ZGK,52,57,ThermoMPNN-D,0.3117,361
 raw,3ZGK,52,57,SPURS multi,0.2268,361

@@ -16,9 +16,11 @@ Colour: blue = positive epistasis, red = negative, × = no usable value.  One sc
 |measured value| over the usable cells of the 15 pairs: raw and saturation-corrected each have their own, printed on the colour bar); a model's values beyond it are clipped to the end
 colour.  Each panel title carries the Spearman rho of the model against the measured cells of the pair.
 Layout: ``results/12_pair_heatmaps/<raw|saturation_corrected>/<domain>/<wt><pos>_<wt><pos>.png``, ``pairs.csv`` (the pairs) and ``agreement.csv`` (rho of each model, per pair and mode).
-ESM-MSR's epistasis is always the MT head minus the WT head (latent, the checkpoint's two passes; the baseline files' epi_pred column is the same number).
+ESM-MSR's epistasis is the MT head against the WT head: for the baseline triplicate, which has no link, MT(AB) - WT(AB); for the devel checkpoints (which write latent ddG) the raw panels are on the observed scale like the
+measurement, obs(MT(AB)) - [obs(WT(A)) + obs(WT(B))] through each seed's link and library floors (``msr_analysis.link.observed_epistasis``, the epistasis suite's naive definition), the saturation-corrected ones on latents as the suite's beyond-global levels.
 Rosetta is divided by 2.94 (REU to kcal/mol).  Multi-seed models are averaged over seeds first; ESM3ΔG is not shown (its fine-tune overlaps the test proteins), the Megascale-trained ESMtherm and IFUM carry an asterisk.
 """
+import json
 import re
 import sys
 from pathlib import Path
@@ -32,7 +34,9 @@ import matplotlib.pyplot as plt  # noqa: E402
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # noqa: E402
 
 from msr_analysis.common import epi_rows, out_dir  # noqa: E402
+from msr_analysis.registry import REFERENCE  # noqa: E402
 from msr_analysis.data import add_esm3_masked, load_frame  # noqa: E402
+from msr_analysis.link import observed_epistasis  # noqa: E402
 
 DS = 'tsuboyama_capped_test'
 OUT = out_dir('12_pair_heatmaps')
@@ -109,6 +113,7 @@ def build():
     add_esm3_masked(fr, DS)
     sp, p = fr.spine, fr.preds
     n = len(sp)
+    y_floor = json.load(open(REFERENCE / 'y_floor.json'))
     fit = epi_rows(fr)
     c = sp['dG_wt'].to_numpy(float)
     meas = {'raw': sp['dddG_ML'].to_numpy(float)}
@@ -123,7 +128,9 @@ def build():
         u = UNIT.get(label, 1.0)
         e = u * (mean_seeds(p[build_[1]]) - (mean_seeds(p[build_[2]]) if build_[0] == 'diff' else 0.0))
         x_add = c + u * mean_seeds(p[addk])
-        model[label] = dict(raw=e, saturation_corrected=beyond_global(e, x_add, fit), single=u * mean_seeds(p[sk]))
+        model[label] = dict(raw=e, saturation_corrected=beyond_global(e, x_add, fit), single=u * mean_seeds(p[sk]), latent=e)
+        if label == 'ESM-MSR (devel)':       # the raw panels are on the observed scale, like the measurement: obs(MT(AB)) - [obs(WT(A)) + obs(WT(B))] through each seed's link (the suite's naive definition)
+            model[label]['raw'] = np.nanmean([observed_epistasis(sp, p['msrdev:wt'][s], p['msrdev:mt'][s], s + 1, y_floor) for s in range(3)], axis=0)
     mut = sp['mut'].to_numpy(dtype=object)
     nm = sp['n_mut'].to_numpy()
     d = pd.DataFrame({'i': np.flatnonzero(nm == 2)})
