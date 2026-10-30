@@ -293,6 +293,8 @@ def _load_public(frame, ds, out):
         if 'pred' not in d or 'row_id' not in d:
             continue
         out[f'{key}:'] = _align_rowid(sp['row_id'].to_numpy(), d['row_id'].to_numpy(), d['pred'].to_numpy())[None, :]
+        if 'pred_additive' in d:      # the model summed over a multi-mutant's single substitutions (harness column); equals `pred` for additive models
+            out[f'{key}+:'] = _align_rowid(sp['row_id'].to_numpy(), d['row_id'].to_numpy(), d['pred_additive'].to_numpy())[None, :]
 
 
 FORGE = {'esm3s': 'esm3-small-2024-08', 'esm3m': 'esm3-medium-2024-08', 'esm3l': 'esm3-large-2024-03'}
@@ -332,6 +334,42 @@ def _load_small(frame, ds, out):
         d = pd.read_csv(p, low_memory=False)
         if 'pred' in d and 'row_id' in d:
             out['msrsmall:comb'] = _align_rowid(frame.spine['row_id'].to_numpy(), d['row_id'].to_numpy(), d['pred'].to_numpy())[None, :]
+
+
+# ESM3-small-open with masked scoring: the ESM-MSR checkpoint at sigma = 0 (adapters off, calibration head kept), run by
+# cluster/esm3_masked_gamut.sh once per strategy and copied here as <strategy>/analysis/predictions/<folder>/*_predictions.csv.
+ESM3_MASKED = MSR / 'esm3_small_open_sigma0_masked'
+_ESM3_FOLDER = {'tsuboyama_capped_val': 'splits_oct06_capped-val', 'tsuboyama_capped_test': 'splits_oct06_capped-test', 'ptmul': 'PTMUL'}
+
+
+def _esm3_file(strategy, ds):
+    d = ESM3_MASKED / strategy / 'analysis' / 'predictions' / _ESM3_FOLDER.get(ds, ds)
+    hits = sorted(p for p in d.rglob(f'*_sigma0.0*_{strategy}_predictions.csv') if '_smoke' not in p.name) if d.is_dir() else []   # <folder>/<checkpoint directory>/<file>
+    return hits[-1] if hits else None
+
+
+def add_esm3_masked(frame, ds):
+    """Add ESM3-small-open scored with masking to ``frame.preds`` (not cached with the frame: the runs may finish after it was built).
+
+    ``esm3mm``     canonical masked marginal: every mutated position masked at once in the wild-type sequence (WT pass; the mutant pass sees the same input)
+    ``esm3ind``    independent masking, mutant pass: each mutated position masked on its own with the other mutations visible
+    ``esm3ind+``   independent masking, WT pass: each position masked on its own in the wild-type sequence (the additive reading)
+    ``esm3ind:epi``  ``esm3ind`` - ``esm3ind+`` (the checkpoint's own MT - WT)
+    Returns the keys added (none until the cluster jobs are copied)."""
+    ids = frame.spine['id'].to_numpy(dtype=object)
+    added = []
+    for strategy, cols in (('marginal', {'esm3mm': 'wt_lora_pred'}),
+                           ('independent', {'esm3ind': 'mt_lora_pred', 'esm3ind+': 'wt_lora_pred', 'esm3ind:epi': 'epi_pred'})):
+        p = _esm3_file(strategy, ds)
+        if p is None:
+            continue
+        hdr = pd.read_csv(p, nrows=0).columns
+        d = pd.read_csv(p, usecols=['id'] + [c for c in cols.values() if c in hdr], low_memory=False)
+        for key, col in cols.items():
+            if col in d:
+                frame.preds[key] = _align_id(ids, d['id'].astype(str).to_numpy(), d[col].to_numpy())[None, :]
+                added.append(key)
+    return added
 
 
 def _tidy(out):
