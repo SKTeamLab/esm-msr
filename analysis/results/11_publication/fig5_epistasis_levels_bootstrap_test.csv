@@ -1,0 +1,46 @@
+split,model,metric,value,lo,hi,n_domains,n_doubles,B
+test,ESM-MSR devel · MT − WT,naive_rho,0.46417,0.29957,0.69273,13,12455,300
+test,ESM-MSR devel · MT − WT,beyond_rho,0.48746,0.30696,0.68622,13,12455,300
+test,ESM-MSR devel · MT − WT,pair_rho,0.60626,0.35753,0.90956,13,12455,300
+test,ESM-MSR devel · MT − WT,line_rho,0.38244,0.26963,0.55796,13,12455,300
+test,ESM-MSR devel · MT − WT,cell_rank,0.20878,0.14209,0.32956,13,12455,300
+test,ESM-MSR devel · ~WT − WT,naive_rho,0.47139,0.37652,0.62145,13,12455,300
+test,ESM-MSR devel · ~WT − WT,beyond_rho,0.43689,0.32463,0.58506,13,12455,300
+test,ESM-MSR devel · ~WT − WT,pair_rho,0.54998,0.33019,0.82075,13,12455,300
+test,ESM-MSR devel · ~WT − WT,line_rho,0.36294,0.29809,0.49060,13,12455,300
+test,ESM-MSR devel · ~WT − WT,cell_rank,0.15148,0.09817,0.25977,13,12455,300
+test,ME stage 2,naive_rho,0.40931,0.23185,0.47260,13,12455,300
+test,ME stage 2,beyond_rho,0.22281,0.06926,0.49670,13,12455,300
+test,ME stage 2,pair_rho,0.16883,-0.17294,0.78702,13,12455,300
+test,ME stage 2,line_rho,0.17919,0.09478,0.25738,13,12455,300
+test,ME stage 2,cell_rank,0.10984,0.08791,0.15560,13,12455,300
+test,ThermoMPNN-D,naive_rho,0.07686,-0.04445,0.20043,13,12455,300
+test,ThermoMPNN-D,beyond_rho,0.07067,-0.03760,0.25712,13,12455,300
+test,ThermoMPNN-D,pair_rho,-0.00237,-0.20848,0.34108,13,12455,300
+test,ThermoMPNN-D,line_rho,0.19763,0.11577,0.29110,13,12455,300
+test,ThermoMPNN-D,cell_rank,0.01469,-0.00304,0.02303,13,12455,300
+test,SPURS multi,naive_rho,0.30785,0.17966,0.43820,13,12455,300
+test,SPURS multi,beyond_rho,0.27758,0.10118,0.44931,13,12455,300
+test,SPURS multi,pair_rho,0.39907,0.09777,0.66743,13,12455,300
+test,SPURS multi,line_rho,0.27025,0.15030,0.34286,13,12455,300
+test,SPURS multi,cell_rank,0.04339,0.02534,0.06935,13,12455,300
+test,ESM3-small-open,naive_rho,0.20644,0.04124,0.48421,13,12455,300
+test,ESM3-small-open,beyond_rho,0.32843,0.07128,0.53565,13,12455,300
+test,ESM3-small-open,pair_rho,0.45485,-0.01180,0.76357,13,12455,300
+test,ESM3-small-open,line_rho,0.18568,0.05115,0.26437,13,12455,300
+test,ESM3-small-open,cell_rank,0.09806,0.04844,0.18434,13,12455,300
+test,ProteinMPNN,naive_rho,0.31354,0.20878,0.44583,13,12455,300
+test,ProteinMPNN,beyond_rho,0.27332,0.19789,0.36885,13,12455,300
+test,ProteinMPNN,pair_rho,0.47267,0.31506,0.62173,13,12455,300
+test,ProteinMPNN,line_rho,0.12476,0.03900,0.23231,13,12455,300
+test,ProteinMPNN,cell_rank,0.06164,0.03454,0.11969,13,12455,300
+test,GeoDDG-3D,naive_rho,0.05536,-0.01675,0.12377,13,12455,300
+test,GeoDDG-3D,beyond_rho,0.04573,-0.03156,0.09329,13,12455,300
+test,GeoDDG-3D,pair_rho,0.08275,-0.38146,0.18622,13,12455,300
+test,GeoDDG-3D,line_rho,0.08694,0.03159,0.20378,13,12455,300
+test,GeoDDG-3D,cell_rank,0.05753,0.02528,0.11922,13,12455,300
+test,Rosetta,naive_rho,0.38127,0.23565,0.44151,13,12455,300
+test,Rosetta,beyond_rho,0.20743,0.14511,0.29188,13,12455,300
+test,Rosetta,pair_rho,0.25793,0.13999,0.57858,13,12455,300
+test,Rosetta,line_rho,0.19454,0.14037,0.26977,13,12455,300
+test,Rosetta,cell_rank,0.07134,0.04609,0.11986,13,12455,300

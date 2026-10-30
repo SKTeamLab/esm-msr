@@ -1,22 +1,16 @@
 #!/usr/bin/env python
-"""Publication figure 5: the epistasis hierarchy, level by level (BENCHMARKS tables 2.1 / 2.2: the document's numbers, except the two ESM-MSR columns, which come from the suite itself).
+"""Publication figure 5: the epistasis hierarchy, level by level, with domain-level bootstrap intervals (numbers: ``11d_epistasis_levels_bootstrap.py``).
 
-Two designs of the same numbers, for the validation and the test doubles:
+``fig5a_epistasis_levels_bars_{test,val}``: three bars per model for the levels of the hierarchy from coarse to fine (pair rho, line rho, cell rank; light to dark), and two horizontal
+dashes across the model's bars: naive rho (raw dddG, saturation included) and saturation-subtracted rho (the "beyond rho" of BENCHMARKS tables 2.0-2.2: each side minus E[dddG | its own
+additive expectation]).  Bars carry 95% intervals from resampling domains; a dash has its interval as the whisker at its left (naive) or right (saturation-subtracted) end.
 
-  A  ``fig5a_epistasis_levels_bars_*``     three bars per model, the hierarchy's levels from coarse to fine (pair ρ, line ρ, cell rank; light to dark), and two horizontal
-                                           dashes across the model's bars: naive ρ (raw dddG, saturation included) and saturation-subtracted ρ (the "beyond ρ" of the tables,
-                                           each side minus E[dddG | its own additive expectation]).
-  B  ``fig5b_epistasis_levels_panels_*``   one dot panel per metric (naive, saturation-subtracted, pair, line, cell rank), models on the rows in the same three categories.
-
-Models: ESM-MSR devel twice, as its epistasis head MT - WT and as its context control ~WT - WT (the WT adapter read on the mutated sequence, asked about the reverse mutation: what the
-backbone and the single-mutant training already know about epistasis), both scored by ``esm_msr.epi_metrics`` on the saved predictions (``00b_epi_devel_heads.py``; its MT - WT numbers
-are BENCHMARKS table 2.2's devel row), then ME stage 2, ThermoMPNN-D, SPURS multi | ProteinMPNN | GeoDDG-3D, Rosetta from the document's tables.
-ESM3-small-open and ProSST are not in the tables; ESM3ΔG is left out (overlap with its MGnify fine-tune); the Megascale-trained ESMtherm and IFUM stay in the heat maps of
-``06_epistasis``.  Error bars: standard deviation over the three seeds where there are seeds (the two ESM-MSR devel columns and SPURS multi); the other rows are single checkpoints or
-public models and carry none, and a protein-level bootstrap of these metrics needs the suite itself.  Outputs: ``results/11_publication`` (also ``fig5_epistasis_levels_*.csv``).
+Models, in the three categories of the other publication figures: ESM-MSR devel as its epistasis head MT - WT and as its context control ~WT - WT (the WT adapter read on the mutated
+sequence, asked about the reverse mutation: what the backbone and the single-mutant training already know about epistasis) | ME stage 2, ThermoMPNN-D, SPURS multi (retrained, three seeds) |
+ESM3-small-open (independent-masking mutant pass - masked-marginal WT pass), ProteinMPNN | GeoDDG-3D, Rosetta.  ProSST has no interaction term; ESM3ΔG is left out (overlap with its
+MGnify fine-tune); the Megascale-trained ESMtherm and IFUM stay in the heat maps of ``06_epistasis``.  Outputs: ``results/11_publication``.
 """
 import importlib
-import re
 import sys
 from pathlib import Path
 
@@ -30,144 +24,72 @@ from matplotlib.patches import Patch  # noqa: E402
 
 from msr_analysis import style  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
-from msr_analysis.registry import REFERENCE  # noqa: E402
-from msr_analysis.tables import clean_label, numeric, read_table  # noqa: E402
 
-pub = importlib.import_module('11_publication_figures')       # CATS, layout(), the footnotes
+pub = importlib.import_module('11_publication_figures')       # CATS, layout(), finish()
 OUT = out_dir('11_publication')
 
-# (table row, category, colour, axis label)
-# the two devel columns read reference/epi_devel_heads.csv (key 'devel:<head>'), the others the document's tables
-MODELS = [('devel:epi', 'retrained', '#000000', 'ESM-MSR devel\nMT − WT'),
-          ('devel:ctx', 'retrained', '#7f7f7f', 'ESM-MSR devel\n~WT − WT\n(context control)'),
-          ('MutateEverything stage 2', 'retrained', '#1b8a4b', 'ME\nstage 2'),
+# (model as named in the bootstrap csv, category, colour, axis label)
+MODELS = [('ESM-MSR devel · MT − WT', 'retrained', '#000000', 'ESM-MSR devel\nMT − WT'),
+          ('ESM-MSR devel · ~WT − WT', 'retrained', '#7f7f7f', 'ESM-MSR devel\n~WT − WT\n(context control)'),
+          ('ME stage 2', 'retrained', '#1b8a4b', 'ME\nstage 2'),
           ('ThermoMPNN-D', 'retrained', '#1f5f8b', 'ThermoMPNN-D'),
-          ('SPURS multi (retrained, 3 seeds)', 'retrained', '#d35400', 'SPURS\nmulti'),
-          ('ProteinMPNN (zero-shot)', 'zeroshot', '#34495e', 'ProteinMPNN'),
-          ('GeoDDG-3D (FASPR)', 'supervised', '#117a65', 'GeoDDG-3D†'),
-          ('Rosetta Cartesian ΔΔG', 'supervised', '#1abc9c', 'Rosetta')]
-METRICS = [('naive ρ', 'naive ρ'), ('beyond ρ', 'saturation-subtracted ρ'), ('pair ρ', 'pair ρ'), ('line ρ', 'line ρ'), ('cell_rank', 'cell rank')]
-BARS = ['pair ρ', 'line ρ', 'cell_rank']
+          ('SPURS multi', 'retrained', '#d35400', 'SPURS\nmulti'),
+          ('ESM3-small-open', 'zeroshot', '#7f8c8d', 'ESM3-small-open'),
+          ('ProteinMPNN', 'zeroshot', '#34495e', 'ProteinMPNN'),
+          ('GeoDDG-3D', 'supervised', '#117a65', 'GeoDDG-3D†'),
+          ('Rosetta', 'supervised', '#1abc9c', 'Rosetta')]
+BARS = [('pair_rho', 'pair ρ (coarsest)'), ('line_rho', 'line ρ'), ('cell_rank', 'cell rank (finest)')]
 SHADE = [0.38, 0.68, 1.0]
 C_NAIVE, C_SAT = '#e67e22', '#2e86c1'
-SETS = {'test': ('2.2.1', '2.2 ', 'Test', '12,455 doubles with both singles measured, 43 position pairs'),
-        'val': ('2.1.1', '2.1 ', 'Validation', '8,494 doubles with both singles measured, 24 position pairs')}
-FOOT = ['† trained on S8754 (ProThermDB + ThermoMutDB), not on Megascale. ESM3-small-open and ProSST are not in the epistasis tables; ESM3ΔG is left out (overlap with its MGnify fine-tune).',
-        'MT − WT: the epistasis head. ~WT − WT: the WT adapter read on the mutated sequence, a control for what the backbone and single-mutant training know; both scored by the epistasis suite (3 devel seeds).',
-        'Error bars: sd over 3 seeds (ESM-MSR devel, SPURS multi); other rows are single checkpoints or public models, with the benchmark document\'s numbers (tables 2.1 / 2.2).']
-
-
-def load(split):
-    tid, prefix, _, _ = SETS[split]
-    d = read_table(tid)
-    d.iloc[:, 0] = [clean_label(x) for x in d.iloc[:, 0]]
-    V, _ = numeric(d)
-    sd = pd.read_csv(REFERENCE / 'seed_sd_by_table_cell.csv')
-    sd = sd[sd.table.str.startswith(prefix)].copy()
-    sd['row'] = [re.sub(r'[ᴹᵐᴾᴴʰᴰᶜᵁ‡#*†\s]+$', '', clean_label(r)) for r in sd['row']]
-    S = sd.pivot_table(index='row', columns='column', values='sd_n_minus_1', aggfunc='first')
-    H = pd.read_csv(REFERENCE / 'epi_devel_heads.csv')
-    H = H[H.split == split]
-    col = {'naive ρ': 'naive_rho', 'beyond ρ': 'beyond_rho', 'pair ρ': 'pair_rho', 'line ρ': 'line_rho', 'cell_rank': 'cell_rank'}
-    rows = []
-    for name, cat, color, label in MODELS:
-        for m, _ in METRICS:
-            if name.startswith('devel:'):
-                v = H[f'epi_{col[m]}_{name.split(":")[1]}']
-                rows.append(dict(model=name, category=cat, metric=m, value=v.mean(), seed_sd=v.std(ddof=1)))
-            else:
-                rows.append(dict(model=name, category=cat, metric=m, value=V.loc[name, m], seed_sd=S.loc[name, m] if name in S.index and m in S.columns else np.nan))
-    return pd.DataFrame(rows)
-
-
-def cols_of():
-    return [dict(name=n, cat=c, color=col, label=lab) for n, c, col, lab in MODELS]
-
-
-def design_a(T, split):
-    cols = cols_of()
-    xs, spans = pub.layout(cols)
-    fig, ax = plt.subplots(figsize=(11.5, 5.0))
-    w = 0.26
-    for c, x in zip(cols, xs):
-        t = T[T.model == c['name']].set_index('metric')
-        for j, (m, a) in enumerate(zip(BARS, SHADE)):
-            xx = x + (j - 1) * w * 1.08
-            v, s = t.loc[m, 'value'], t.loc[m, 'seed_sd']
-            ax.bar(xx, v, w, color=c['color'], alpha=a, edgecolor='black', lw=0.7, zorder=3)
-            if np.isfinite(s):
-                ax.errorbar(xx, v, yerr=s, fmt='none', ecolor='#c0392b', elinewidth=1.2, capsize=2.2, zorder=5)
-            top = max(v, 0) + (s if np.isfinite(s) else 0)
-            ax.text(xx, top + 0.012, f'{v:.2f}', ha='center', va='bottom', fontsize=6.8, rotation=90, zorder=8, bbox=dict(fc='white', ec='none', alpha=0.8, pad=0.6))
-        for m, colr in (('naive ρ', C_NAIVE), ('beyond ρ', C_SAT)):
-            ax.plot([x - 1.5 * w * 1.08, x + 1.5 * w * 1.08], [t.loc[m, 'value']] * 2, color=colr, lw=2.8, zorder=6, solid_capstyle='butt')
-    ax.set_xticks(xs)
-    ax.set_xticklabels([c['label'] for c in cols], fontsize=8.3)
-    ax.set_ylabel('level metric (higher is better)')
-    ax.set_ylim(-0.1, 0.92)
-    ax.set_yticks(np.arange(0, 0.81, 0.2))
-    ax.axhline(0, color='black', lw=0.8, zorder=2.5)
-    ax.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
-    ax.set_xlim(xs[0] - 0.7, xs[-1] + 0.7)
-    for i, (cat, (x0, x1)) in enumerate(spans.items()):
-        if i % 2:
-            ax.axvspan(x0 - 0.85, x1 + 0.85, color='#000000', alpha=0.045, lw=0, zorder=0)
-        tr = ax.get_xaxis_transform()
-        ax.plot([x0 - 0.45, x1 + 0.45], [1.012, 1.012], transform=tr, clip_on=False, color='#444444', lw=1.1)
-        ax.text((x0 + x1) / 2, 1.02, pub.CATS[cat], transform=tr, ha='center', va='bottom', fontsize=8.8, fontweight='bold', color='#333333')
-    handles = [Patch(fc='#7f7f7f', alpha=a, ec='black', lw=0.7, label=lab) for a, lab in zip(SHADE, ('pair ρ (coarsest)', 'line ρ', 'cell rank (finest)'))]
-    handles += [Line2D([0], [0], color=C_NAIVE, lw=2.8, label='naive ρ (raw dddG, saturation included)'), Line2D([0], [0], color=C_SAT, lw=2.8, label='saturation-subtracted ρ')]
-    ax.legend(handles=handles, loc='upper right', fontsize=8.2, ncol=5, framealpha=0.92, columnspacing=1.1, handlelength=1.5)
-    pub.finish(fig, f'{SETS[split][2]}: epistasis predicted level by level, {SETS[split][3]}', FOOT)
-    style.save(fig, OUT / f'fig5a_epistasis_levels_bars_{split}')
-
-
-def design_b(T, split):
-    cols = cols_of()
-    n = len(cols)
-    ys = []
-    y, prev = 0.0, None
-    for c in cols:
-        if prev is not None and c['cat'] != prev:
-            y += 0.6
-        ys.append(y)
-        prev = c['cat']
-        y += 1.0
-    fig, axes = plt.subplots(1, len(METRICS), figsize=(13.0, 4.6), sharey=True)
-    for ax, (m, title) in zip(axes, METRICS):
-        for c, yy in zip(cols, ys):
-            r = T[(T.model == c['name']) & (T.metric == m)].iloc[0]
-            ax.plot([0, r.value], [yy, yy], color=c['color'], lw=1.0, alpha=0.55, zorder=2)
-            ax.scatter([r.value], [yy], s=46, color=c['color'], zorder=4, edgecolor='black', linewidth=0.5)
-            if np.isfinite(r.seed_sd):
-                ax.errorbar(r.value, yy, xerr=r.seed_sd, fmt='none', ecolor='#c0392b', elinewidth=1.2, capsize=2.2, zorder=5)
-            ax.text(max(r.value, 0) + (r.seed_sd if np.isfinite(r.seed_sd) else 0) + 0.02, yy, f'{r.value:.2f}', va='center', fontsize=7.2, zorder=8, bbox=dict(fc='white', ec='none', alpha=0.7, pad=0.5))
-        for cat in dict.fromkeys(c['cat'] for c in cols):
-            yy = [y_ for c, y_ in zip(cols, ys) if c['cat'] == cat]
-            if list(pub.CATS).index(cat) % 2:
-                ax.axhspan(min(yy) - 0.5, max(yy) + 0.5, color='#000000', alpha=0.045, lw=0, zorder=0)
-        ax.axvline(0, color='black', lw=0.8, zorder=1)
-        ax.set_xlim(-0.12, 0.95)
-        ax.set_xticks([0, 0.2, 0.4, 0.6, 0.8])
-        ax.set_title(title, fontsize=9.5, color=C_NAIVE if m == 'naive ρ' else (C_SAT if m == 'beyond ρ' else 'black'))
-        ax.grid(axis='x', color=style.GRID, lw=0.6, zorder=0)
-    axes[0].set_yticks(ys)
-    axes[0].set_yticklabels([c['label'].replace('\n', ' ') for c in cols], fontsize=8.5)
-    axes[0].set_ylim(ys[-1] + 0.7, ys[0] - 1.0)
-    for cat in dict.fromkeys(c['cat'] for c in cols):
-        yy = [y_ for c, y_ in zip(cols, ys) if c['cat'] == cat]
-        axes[0].text(-0.115, min(yy) - 0.58, {'retrained': 'Retrained', 'zeroshot': 'Zero-shot', 'supervised': 'Supervised, not Megascale'}[cat], ha='left', va='center', fontsize=8.2, fontweight='bold', color='#333333')
-    pub.finish(fig, f'{SETS[split][2]}: epistasis predicted level by level, {SETS[split][3]}', FOOT, top=0.93)
-    style.save(fig, OUT / f'fig5b_epistasis_levels_panels_{split}')
+TITLE = {'test': 'Test', 'val': 'Validation'}
+FOOT = ['† trained on S8754 (ProThermDB + ThermoMutDB), not on Megascale. ProSST has no interaction term; ESM3ΔG is left out (overlap with its MGnify fine-tune).',
+        'Epistasis = the double-mutant prediction of one model minus the additive reading of another or of another head: ESM-MSR MT − WT and ~WT − WT; ME stage 2, ThermoMPNN-D, SPURS multi minus the same seed\'s singles;',
+        'ESM3-small-open independent-masking mutant pass minus masked-marginal WT pass; ProteinMPNN, GeoDDG-3D, Rosetta minus the sum of their singles. Seed means over the three seeds of the retrained models.',
+        'Intervals: 95% bootstrap over domains (the same resample for every model; the epistasis suite recomputed on each); the whiskers on the dashes (orange left, blue right) are their intervals.']
 
 
 def main():
-    for split in SETS:
-        T = load(split)
-        T.assign(split=split).to_csv(OUT / f'fig5_epistasis_levels_{split}.csv', index=False, float_format='%.4f')
-        design_a(T, split)
-        design_b(T, split)
-        print(split, '\n', T.pivot(index='model', columns='metric', values='value').reindex([m[0] for m in MODELS]).round(3).to_string())
+    for split in ('test', 'val'):
+        T = pd.read_csv(OUT / f'fig5_epistasis_levels_bootstrap_{split}.csv')
+        nd, nn = int(T.n_domains.iloc[0]), int(T.n_doubles.iloc[0])
+        cols = [dict(name=n, cat=c, color=col, label=lab) for n, c, col, lab in MODELS if (T.model == n).any()]
+        xs, spans = pub.layout(cols)
+        fig, ax = plt.subplots(figsize=(12.5, 5.2))
+        w = 0.26
+        for c, x in zip(cols, xs):
+            t = T[T.model == c['name']].set_index('metric')
+            for k, ((m, _), a) in enumerate(zip(BARS, SHADE)):
+                xx = x + (k - 1) * w * 1.08
+                r = t.loc[m]
+                ax.bar(xx, r.value, w, color=c['color'], alpha=a, edgecolor='black', lw=0.7, zorder=3)
+                ax.errorbar(xx, r.value, yerr=[[max(r.value - r.lo, 0)], [max(r.hi - r.value, 0)]], fmt='none', ecolor='#c0392b', elinewidth=1.2, capsize=2.2, zorder=5)
+                ax.text(xx, max(r.hi, r.value, 0) + 0.012, f'{r.value:.2f}', ha='center', va='bottom', fontsize=6.8, rotation=90, zorder=8, bbox=dict(fc='white', ec='none', alpha=0.7, pad=0.6))
+            x0, x1 = x - 1.5 * w * 1.08, x + 1.5 * w * 1.08
+            for m, colr, xe in (('naive_rho', C_NAIVE, x0), ('beyond_rho', C_SAT, x1)):       # the interval of a dash is the whisker at its left (naive) or right (saturation-subtracted) end
+                r = t.loc[m]
+                ax.plot([x0, x1], [r.value] * 2, color=colr, lw=2.8, zorder=6, solid_capstyle='butt')
+                ax.errorbar(xe, r.value, yerr=[[max(r.value - r.lo, 0)], [max(r.hi - r.value, 0)]], fmt='none', ecolor=colr, elinewidth=1.5, capsize=3, zorder=6.5)
+        ax.set_xticks(xs)
+        ax.set_xticklabels([c['label'] for c in cols], fontsize=8.3)
+        ax.set_ylabel('level metric (higher is better)')
+        lo_, hi_ = float(np.nanmin(T.lo)), float(np.nanmax(T.hi))
+        ax.set_ylim(min(-0.12, lo_ - 0.03), max(0.95, hi_ + 0.28))
+        ax.set_yticks(np.arange(0, 0.91, 0.2))
+        ax.axhline(0, color='black', lw=0.8, zorder=2.5)
+        ax.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+        ax.set_xlim(xs[0] - 0.7, xs[-1] + 0.7)
+        for i, (cat, (x0, x1)) in enumerate(spans.items()):
+            if i % 2:
+                ax.axvspan(x0 - 0.85, x1 + 0.85, color='#000000', alpha=0.045, lw=0, zorder=0)
+            tr = ax.get_xaxis_transform()
+            ax.plot([x0 - 0.45, x1 + 0.45], [1.012, 1.012], transform=tr, clip_on=False, color='#444444', lw=1.1)
+            ax.text((x0 + x1) / 2, 1.02, pub.CATS[cat], transform=tr, ha='center', va='bottom', fontsize=8.8, fontweight='bold', color='#333333')
+        handles = [Patch(fc='#7f7f7f', alpha=a, ec='black', lw=0.7, label=lab) for a, (_, lab) in zip(SHADE, BARS)]
+        handles += [Line2D([0], [0], color=C_NAIVE, lw=2.8, label='naive ρ (raw dddG, saturation included)'), Line2D([0], [0], color=C_SAT, lw=2.8, label='saturation-subtracted ρ')]
+        ax.legend(handles=handles, loc='upper right', fontsize=8.2, ncol=5, framealpha=0.92, columnspacing=1.1, handlelength=1.5)
+        pub.finish(fig, f'{TITLE[split]}: epistasis predicted level by level, {nn:,} doubles with both singles measured in {nd} domains', FOOT)
+        style.save(fig, OUT / f'fig5a_epistasis_levels_bars_{split}')
+        print(split, T.pivot(index='model', columns='metric', values='value').reindex([m[0] for m in MODELS]).round(3).to_string())
 
 
 if __name__ == '__main__':

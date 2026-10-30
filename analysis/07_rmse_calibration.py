@@ -53,6 +53,17 @@ def fit(fam, ds):
     return [calib.fit_scale_bias(p[m], y) for p in fr.preds[k]]       # one (a, b) per seed
 
 
+def boot_sd(v, cluster, B=400, seed=0):
+    """95% percentile interval of the standard deviation of ``v`` when the proteins (``cluster``) are resampled with replacement (per-protein n, sum and sum of squares)."""
+    v, cl = np.asarray(v, float), np.asarray(cluster)
+    u, inv = np.unique(cl, return_inverse=True)
+    n = np.bincount(inv).astype(float); s1 = np.bincount(inv, v); s2 = np.bincount(inv, v * v)
+    c = np.random.default_rng(seed).multinomial(len(u), np.full(len(u), 1.0 / len(u)), size=B).astype(float)
+    N, S1, S2 = c @ n, c @ s1, c @ s2
+    sd = np.sqrt(np.maximum(S2 / N - (S1 / N) ** 2, 0))
+    return tuple(np.percentile(sd, [2.5, 97.5]))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--B', type=int, default=500)
@@ -146,15 +157,18 @@ def run(a):
     axB = fig.add_subplot(gs[0, 1])
     sets = [d for d in SETS if d not in ('ptmul', 'ptmuld')]
     # raw ESM-MSR vs measured over all singles sets, by dataset: dynamic range comparison
-    sd_pred, sd_y = [], []
+    sd_pred, sd_y, ci_pred, ci_y = [], [], [], []
     for d in SETS:
         fd = frames[d]; kd = primary_key(fd); md = valid(fd, kd)
-        sd_pred.append(fd.preds[kd].mean(0)[md].std()); sd_y.append(fd.spine['y'].to_numpy()[md].std())
+        vp, vy, cl = fd.preds[kd].mean(0)[md], fd.spine['y'].to_numpy()[md], fd.spine['cluster'].to_numpy()[md]
+        sd_pred.append(vp.std()); sd_y.append(vy.std())
+        ci_pred.append(boot_sd(vp, cl)); ci_y.append(boot_sd(vy, cl))
     x = np.arange(len(SETS))
-    axB.bar(x - .2, sd_y, .4, color='#999999', label='measured ddG')
-    axB.bar(x + .2, sd_pred, .4, color=MODELS['msr:wt']['color'], label='ESM-MSR (raw)')
+    err = lambda sd, ci: [[max(v - c[0], 0) for v, c in zip(sd, ci)], [max(c[1] - v, 0) for v, c in zip(sd, ci)]]
+    axB.bar(x - .2, sd_y, .4, color='#999999', label='measured ddG', yerr=err(sd_y, ci_y), error_kw=dict(ecolor='#c0392b', elinewidth=1.1, capsize=2))
+    axB.bar(x + .2, sd_pred, .4, color=MODELS['msr:wt']['color'], label='ESM-MSR (raw)', yerr=err(sd_pred, ci_pred), error_kw=dict(ecolor='#c0392b', elinewidth=1.1, capsize=2))
     axB.set_xticks(x); axB.set_xticklabels([LABEL[d] for d in SETS], rotation=40, ha='right')
-    axB.set_ylabel('standard deviation (kcal/mol)'); axB.legend(); axB.set_title('B  Spread of raw ESM-MSR vs measured ddG')
+    axB.set_ylabel('standard deviation (kcal/mol)\n(whiskers: 95% bootstrap over proteins)'); axB.legend(); axB.set_title('B  Spread of raw vs measured ddG')
     axC = fig.add_subplot(gs[0, 2])
     im = axC.imshow(T, cmap='viridis_r', aspect='auto')
     for i in range(T.shape[0]):
