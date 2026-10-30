@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """Publication figures: the notebooks' headline bar charts, recomputed from the collected predictions with protein-level bootstrap intervals.
 
-All four are on the capped Tsuboyama **test** libraries (33 proteins; measured rows only, all backbones).  Error bars are 95% intervals from resampling
-**libraries** (proteins) with replacement, the same draw for every model and subset (the notebooks' bars were the spread over three models/seeds).
+All four are on the capped Tsuboyama **test** domains (33 proteins; measured rows only, all backbones).  Error bars are 95% intervals from resampling
+**domains** (proteins) with replacement, the same draw for every model and subset (the notebooks' bars were the spread over three models/seeds).
 Multi-seed models are seed means of the per-library value.
 
 Columns are grouped in three labelled categories:
@@ -14,8 +14,9 @@ Columns are grouped in three labelled categories:
               its MGnify fine-tune is recent and overlaps the test proteins).
 
 fig1  NDCG@96 (rectified relevance max(ddG, 0), sklearn ndcg_score as in the notebooks), per library then averaged, singles against doubles.
-fig2  Spearman rho, stabilizing (measured ddG > 0) against destabilizing (< 0) mutations, one panel for singles and one for doubles (each column is the
-      model that scores that subset); the overall rho of the panel is the black line.  ``*_pooled``: rho pooled over libraries instead of averaged.
+fig2  Spearman rho over all variants (singles and doubles; a baseline's singles model on the singles, its doubles model on the doubles), stabilizing (measured ddG > 0) against
+      destabilizing (< 0) mutations.  fig2b: one panel for singles and one for doubles (each column is the
+      model that scores that subset); the overall rho of the panel is the black line.  ``*_pooled``: rho pooled over domains instead of averaged.
 fig3  Spearman rho on double mutants, additive version of a model against its epistatic version: the singles model summed over the double's two substitutions
       (ESM-MSR WT head, ME stage 1, ThermoMPNN, SPURS, Rosetta's sum of singles, ESM3-small-open's WT pass) against the model that scores the double itself (ESM-MSR
       combined, ME stage 2, ThermoMPNN-D, SPURS multi, Rosetta's direct double, ESM3-small-open's mutant pass).  ProSST is additive by construction (one bar).
@@ -52,7 +53,7 @@ K = 96
 CATS = {'retrained': 'Retrained on the capped Tsuboyama split', 'zeroshot': 'Zero-shot', 'supervised': 'Supervised, not trained\non Megascale'}
 BEST_LABEL = {'geoddg': 'GeoDDG-3D', 'ddgemb': 'DDGemb'}          # ESM3ΔG is left out on purpose: its MGnify fine-tune is recent and overlaps the test proteins (BENCHMARKS §6)
 BEST_COLOR = {'geoddg': '#117a65', 'ddgemb': '#b7950b'}
-F_COMPOSITE = 'X | Y: singles scored by X, doubles by Y.'
+F_COMPOSITE = 'MutateEverything(1+2), ThermoMPNN(-D), SPURS(-multi): singles are scored by the first model, doubles by the second (stage 1 / stage 2, ThermoMPNN / ThermoMPNN-D, SPURS / SPURS multi).'
 F_BEST = '† trained on S8754 (ProThermDB + ThermoMutDB), not on Megascale; chosen over DDGemb by mean per-library singles ρ. ESM3ΔG is not shown: homology to its MGnify fine-tune confounds the comparison.'
 F_INTERIM = '‡ unmasked sigma = 0 readout: the independent-masking run (WT pass against mutant pass) has not been copied here yet.'
 
@@ -75,7 +76,7 @@ def load():
 
 
 def per_library(fr, key, mask, fn, min_n, y=None):
-    """{library: value}, the value of ``fn(pred, y)`` averaged over the model's seeds; libraries with fewer than ``min_n`` rows in ``mask`` are left out."""
+    """{library: value}, the value of ``fn(pred, y)`` averaged over the model's seeds; domains with fewer than ``min_n`` rows in ``mask`` are left out."""
     sp = fr.spine
     y = sp['y'].to_numpy() if y is None else y
     g = sp['group'].to_numpy()
@@ -151,9 +152,9 @@ def main_columns(fr, best, esm3_want):
     ek, el, interim, alt = esm3_choice(fr, esm3_want)
     cols = [col('ESM-MSR WT head', 'retrained', '#000000', 'ESM-MSR\nWT head', 'msr:wt'),
             col('ESM-MSR combined', 'retrained', '#666666', 'ESM-MSR\ncombined', 'msr:comb'),
-            col('MutateEverything', 'retrained', '#1b8a4b', 'ME\nst1 | st2', 'me1', 'me2', label_s='ME\nst1', label_d='ME\nst2'),
-            col('ThermoMPNN', 'retrained', '#1f5f8b', 'ThermoMPNN\n| -D', 'tmpnn', 'tmpnnd', label_s='ThermoMPNN', label_d='ThermoMPNN-D'),
-            col('SPURS', 'retrained', '#d35400', 'SPURS\n| multi', 'spurs', 'spursm', label_s='SPURS', label_d='SPURS multi'),
+            col('MutateEverything', 'retrained', '#1b8a4b', 'MutateEverything\n(1+2)', 'me1', 'me2', label_s='ME\nst1', label_d='ME\nst2'),
+            col('ThermoMPNN', 'retrained', '#1f5f8b', 'ThermoMPNN\n(-D)', 'tmpnn', 'tmpnnd', label_s='ThermoMPNN', label_d='ThermoMPNN-D'),
+            col('SPURS', 'retrained', '#d35400', 'SPURS\n(-multi)', 'spurs', 'spursm', label_s='SPURS', label_d='SPURS multi'),
             col('ESM3-small-open', 'zeroshot', '#7f8c8d', el, ek),
             col('ProteinMPNN', 'zeroshot', '#34495e', 'ProteinMPNN', 'pmpnn'),
             col('ProSST', 'zeroshot', '#8e44ad', 'ProSST', 'prosst'),
@@ -224,7 +225,7 @@ def key_for(c, which):
 
 
 def table_grouped(fr, cols, cells, fn, min_n, counts, libs, y=None):
-    """Rows (column, subset): mean over libraries of ``fn``, with the library bootstrap.  ``cells``: subset -> (row mask, 'singles' | 'doubles' = which key of the column)."""
+    """Rows (column, subset): mean over domains of ``fn``, with the library bootstrap.  ``cells``: subset -> (row mask, 'singles' | 'doubles' = which key of the column)."""
     g = fr.spine['group'].to_numpy()
     rows = []
     for c in cols:
@@ -241,7 +242,7 @@ def table_grouped(fr, cols, cells, fn, min_n, counts, libs, y=None):
 
 
 def table_pooled(fr, cols, cells, y, B_=1000, seed=7):
-    """Rho pooled over libraries, with the library-level bootstrap, for the same (column, subset) cells."""
+    """Rho pooled over domains, with the library-level bootstrap, for the same (column, subset) cells."""
     rows = []
     for sub, (m, which) in cells.items():
         names = {key_for(c, which): c['name'] for c in cols if key_for(c, which) in fr.preds}
@@ -259,9 +260,9 @@ def save_tab(T, name):
 
 
 def count_text(T, sub, text):
-    """'text (n = 1,234 variants, 33 libraries)' from the table's rows of one subset."""
+    """'text (n = 1,234 variants, 33 domains)' from the table's rows of one subset."""
     r = T[T.subset == sub]
-    return f'{text} (n = {int(r.n_variants.max()):,}, {int(r.n_libraries.max())} libraries)'
+    return f'{text} (n = {int(r.n_variants.max()):,}, {int(r.n_libraries.max())} domains)'
 
 
 # ----------------------------------------------------------------------------------------------
@@ -382,13 +383,36 @@ def main():
              [f'The overall NDCG@96 of a library (singles and doubles ranked together) equals the singles bar to within 0.01 for {close} of {len(d1)} columns '
               f'(largest difference {d1.abs().max():.2f}, {d1.abs().idxmax()}), so it is not drawn.'])
     fig, ax = plt.subplots(figsize=(12.5, 4.9))
-    bars(ax, cols, T1, ['singles', 'doubles'], [count_text(T1, 'singles', 'singles'), count_text(T1, 'doubles', 'doubles')], f'NDCG@{K} (mean over test libraries)', (0, 1.12),
+    bars(ax, cols, T1, ['singles', 'doubles'], [count_text(T1, 'singles', 'singles'), count_text(T1, 'doubles', 'doubles')], f'NDCG@{K} (mean over test domains)', (0, 1.12),
          overall=ov1 if draw_overall else None, overall_label=f'overall (n = {int(ov1.n_variants.max()):,})')
-    finish(fig, f'Capped Tsuboyama test, NDCG@{K} per library, 95% intervals from resampling libraries (doubles: the libraries with a stabilizing double)',
+    finish(fig, f'Capped Tsuboyama test, NDCG@{K} per library, 95% intervals from resampling domains (doubles: the domains with a stabilizing double)',
            foots(*note1, composite=True, interim=interim))
     style.save(fig, OUT / 'fig1_ndcg96_singles_doubles')
 
-    # ---- fig 2: Spearman, stabilizing against destabilizing, singles and doubles panels ----------------------
+    # ---- fig 2: Spearman over all variants, stabilizing against destabilizing ------------------------------------
+    # every baseline scores a variant with its singles model when it is a single and with its doubles model when it is a double
+    cells = {'stabilizing': (use & (y > 0), 'all'), 'destabilizing': (use & (y < 0), 'all')}
+    T2 = table_grouped(fr, cols, cells, rho, MIN_N, counts, libs)
+    ov2 = table_grouped(fr, cols, {'overall': (use, 'all')}, rho, 3, counts, libs)
+    save_tab(pd.concat([T2, ov2]), 'fig2_spearman_stab_destab')
+    fig, ax = plt.subplots(figsize=(12.5, 4.9))
+    bars(ax, cols, T2, ['stabilizing', 'destabilizing'], [count_text(T2, 'stabilizing', 'stabilizing, ddG > 0'), count_text(T2, 'destabilizing', 'destabilizing, ddG < 0')],
+         "Spearman's ρ (mean over test domains)", (-0.2, 1.12), overall=ov2, overall_label=f'overall (n = {int(ov2.n_variants.max()):,})', zero_line=True)
+    finish(fig, f'Capped Tsuboyama test, all variants (singles and doubles): Spearman ρ of stabilizing against destabilizing variants (domains with at least {MIN_N} in the subset); '
+                '95% intervals from resampling domains', foots(composite=True, interim=interim))
+    style.save(fig, OUT / 'fig2_spearman_stab_destab')
+    pc = {'stabilizing': (use & (y > 0), 'all'), 'destabilizing': (use & (y < 0), 'all'), 'overall': (use, 'all')}
+    Tp2 = table_pooled(fr, cols, pc, y)
+    save_tab(Tp2, 'fig2_spearman_stab_destab_pooled')
+    fig, ax = plt.subplots(figsize=(12.5, 4.9))
+    pv2 = Tp2[Tp2.subset != 'overall']
+    bars(ax, cols, pv2, ['stabilizing', 'destabilizing'], [count_text(pv2, 'stabilizing', 'stabilizing, ddG > 0'), count_text(pv2, 'destabilizing', 'destabilizing, ddG < 0')],
+         "Spearman's ρ pooled over test domains", (-0.3, 1.12), overall=Tp2[Tp2.subset == 'overall'], overall_label=f'overall (n = {int(Tp2[Tp2.subset == "overall"].n_variants.max()):,})', zero_line=True)
+    finish(fig, 'Capped Tsuboyama test, all variants (singles and doubles): Spearman ρ pooled over domains, stabilizing against destabilizing; 95% intervals from resampling domains',
+           foots(composite=True, interim=interim))
+    style.save(fig, OUT / 'fig2_spearman_stab_destab_pooled')
+
+    # ---- fig 2b: the same for singles and for doubles, each panel with the model that fits it -----------------------
     tabs, tabs_p = [], []
     fig, axes = plt.subplots(2, 1, figsize=(12.5, 8.6))
     figp, axesp = plt.subplots(2, 1, figsize=(12.5, 8.6))
@@ -397,28 +421,28 @@ def main():
         T = table_grouped(fr, cols, cells, rho, MIN_N, counts, libs)
         ov = table_grouped(fr, cols, {'overall': (base, which)}, rho, 3, counts, libs)
         tabs.append(pd.concat([T, ov]).assign(panel=which))
-        ylab = "Spearman's ρ (mean over test libraries)"
+        ylab = "Spearman's ρ (mean over test domains)"
         bars(ax, cols, T, ['stabilizing', 'destabilizing'], [count_text(T, 'stabilizing', 'stabilizing, ddG > 0'), count_text(T, 'destabilizing', 'destabilizing, ddG < 0')],
              ylab, (-0.2, 1.12), overall=ov, overall_label=f'overall (n = {int(ov.n_variants.max()):,})', tick='label_s' if which == 'singles' else 'label_d',
              headers=which == 'singles', zero_line=True)
         ax.text(0.006, 0.985, which, transform=ax.transAxes, va='top', ha='left', fontsize=9.5, fontweight='bold')
-        # pooled over libraries
+        # pooled over domains
         pcells = {'stabilizing': (base & (y > 0), which), 'destabilizing': (base & (y < 0), which), 'overall': (base, which)}
         Tp = table_pooled(fr, cols, pcells, y)
         tabs_p.append(Tp.assign(panel=which))
         pv = Tp[Tp.subset != 'overall']
         bars(axp, cols, pv, ['stabilizing', 'destabilizing'], [count_text(pv, 'stabilizing', 'stabilizing, ddG > 0'), count_text(pv, 'destabilizing', 'destabilizing, ddG < 0')],
-             "Spearman's ρ pooled over test libraries", (-0.3, 1.12), overall=Tp[Tp.subset == 'overall'], overall_label=f'overall (n = {int(Tp[Tp.subset == "overall"].n_variants.max()):,})',
+             "Spearman's ρ pooled over test domains", (-0.3, 1.12), overall=Tp[Tp.subset == 'overall'], overall_label=f'overall (n = {int(Tp[Tp.subset == "overall"].n_variants.max()):,})',
              tick='label_s' if which == 'singles' else 'label_d', headers=which == 'singles', zero_line=True)
         axp.text(0.006, 0.985, which, transform=axp.transAxes, va='top', ha='left', fontsize=9.5, fontweight='bold')
-    save_tab(pd.concat(tabs), 'fig2_spearman_stab_destab')
-    save_tab(pd.concat(tabs_p), 'fig2_spearman_stab_destab_pooled')
-    finish(fig, f'Capped Tsuboyama test, Spearman ρ of stabilizing against destabilizing variants (libraries with at least {MIN_N} in the subset); each panel scores its subset with the model that fits it; 95% intervals from resampling libraries',
+    save_tab(pd.concat(tabs), 'fig2b_spearman_stab_destab_singles_doubles')
+    save_tab(pd.concat(tabs_p), 'fig2b_spearman_stab_destab_singles_doubles_pooled')
+    finish(fig, f'Capped Tsuboyama test, Spearman ρ of stabilizing against destabilizing variants (domains with at least {MIN_N} in the subset); each panel scores its subset with the model that fits it; 95% intervals from resampling domains',
            foots(interim=interim))
-    style.save(fig, OUT / 'fig2_spearman_stab_destab')
-    finish(figp, 'Capped Tsuboyama test, Spearman ρ pooled over libraries, stabilizing against destabilizing variants; 95% intervals from resampling libraries',
+    style.save(fig, OUT / 'fig2b_spearman_stab_destab_singles_doubles')
+    finish(figp, 'Capped Tsuboyama test, Spearman ρ pooled over domains, stabilizing against destabilizing variants; 95% intervals from resampling domains',
            foots(interim=interim))
-    style.save(figp, OUT / 'fig2_spearman_stab_destab_pooled')
+    style.save(figp, OUT / 'fig2b_spearman_stab_destab_singles_doubles_pooled')
 
     # ---- fig 3: doubles, additive version against epistatic version ---------------------------------------------
     cols3, interim3 = pair_columns(fr, best)
@@ -437,7 +461,7 @@ def main():
     fig, ax = plt.subplots(figsize=(11.5, 4.9))
     bars(ax, cols3, T3, ['additive', 'epistatic'], [count_text(T3, 'additive', 'additive: singles model summed'), count_text(T3, 'epistatic', 'epistatic: model scores the double')],
          "Spearman's ρ, double mutants", (0, 1.12))
-    finish(fig, 'Capped Tsuboyama test doubles, additive version against epistatic version; 95% intervals from resampling libraries', foots(interim=interim3))
+    finish(fig, 'Capped Tsuboyama test doubles, additive version against epistatic version; 95% intervals from resampling domains', foots(interim=interim3))
     style.save(fig, OUT / 'fig3_spearman_doubles_additive_vs_epistatic')
 
     # ---- fig 4: naive epistasis rho, positive against negative epistasis ------------------------------------------
@@ -449,13 +473,13 @@ def main():
     save_tab(pd.concat([Tg, Og]), 'fig4_naive_epistasis_pos_neg_grouped')
     Tp = table_pooled(fr, cols4, {**cells, 'overall': (erows, 'doubles')}, dd)
     save_tab(Tp, 'fig4_naive_epistasis_pos_neg_pooled')
-    for tab, ov, name, yl in ((Tg, Og, 'fig4_naive_epistasis_pos_neg_grouped', 'naive epistasis ρ (mean over libraries)'),
-                              (Tp[Tp.subset != 'overall'], Tp[Tp.subset == 'overall'], 'fig4_naive_epistasis_pos_neg_pooled', 'naive epistasis ρ, pooled over libraries')):
+    for tab, ov, name, yl in ((Tg, Og, 'fig4_naive_epistasis_pos_neg_grouped', 'naive epistasis ρ (mean over domains)'),
+                              (Tp[Tp.subset != 'overall'], Tp[Tp.subset == 'overall'], 'fig4_naive_epistasis_pos_neg_pooled', 'naive epistasis ρ, pooled over domains')):
         fig, ax = plt.subplots(figsize=(13.5, 5.7))
         bars(ax, cols4, tab, ['positive', 'negative'], [count_text(tab, 'positive', 'positive epistasis, dddG > 0'), count_text(tab, 'negative', 'negative epistasis, dddG < 0')], yl, (-0.6, 1.0),
              overall=ov, overall_label=f'overall (n = {int(ov.n_variants.max()):,})', zero_line=True, tick_fs=7.8)
         ax.set_xlabel('predicted epistasis = prediction for the double − sum of the predictions for its two singles (models named under each column)', fontsize=8.3)
-        finish(fig, 'Capped Tsuboyama test doubles with both singles measured: predicted against measured dddG; 95% intervals from resampling libraries', foots(interim=interim4), top=0.95)
+        finish(fig, 'Capped Tsuboyama test doubles with both singles measured: predicted against measured dddG; 95% intervals from resampling domains', foots(interim=interim4), top=0.95)
         style.save(fig, OUT / name)
 
     # ---- console summary -------------------------------------------------------------------------------------
