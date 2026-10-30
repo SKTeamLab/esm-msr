@@ -194,198 +194,198 @@ raw,3ZGK,52,57,Rosetta,0.3430,361
 raw,3ZGK,52,57,ESMtherm*,0.0016,361
 raw,3ZGK,52,57,"IFUM, WT backbone*",-0.1398,361
 raw,3ZGK,52,57,"IFUM, ESMFold*",-0.0326,361
-saturation_corrected,2D1U,61,71,ESM-MSR,0.8077,287
-saturation_corrected,2D1U,61,71,ESM-MSR (devel),0.8400,287
-saturation_corrected,2D1U,61,71,MutateEverything st2,0.5165,287
-saturation_corrected,2D1U,61,71,ThermoMPNN-D,0.5529,287
-saturation_corrected,2D1U,61,71,SPURS multi,0.6538,287
-saturation_corrected,2D1U,61,71,ESM3-small-open,0.1991,287
-saturation_corrected,2D1U,61,71,ProteinMPNN,0.2119,287
-saturation_corrected,2D1U,61,71,GeoDDG-3D,0.1588,287
-saturation_corrected,2D1U,61,71,DDGemb,0.3700,287
-saturation_corrected,2D1U,61,71,Rosetta,0.3482,287
-saturation_corrected,2D1U,61,71,ESMtherm*,0.7820,287
-saturation_corrected,2D1U,61,71,"IFUM, WT backbone*",0.6536,287
-saturation_corrected,2D1U,61,71,"IFUM, ESMFold*",0.6458,287
-saturation_corrected,2KRU,28,32,ESM-MSR,0.2477,324
-saturation_corrected,2KRU,28,32,ESM-MSR (devel),0.2860,324
-saturation_corrected,2KRU,28,32,MutateEverything st2,0.0146,324
-saturation_corrected,2KRU,28,32,ThermoMPNN-D,-0.1616,324
-saturation_corrected,2KRU,28,32,SPURS multi,-0.0548,324
-saturation_corrected,2KRU,28,32,ESM3-small-open,0.0259,324
-saturation_corrected,2KRU,28,32,ProteinMPNN,0.1792,324
-saturation_corrected,2KRU,28,32,GeoDDG-3D,0.1869,324
-saturation_corrected,2KRU,28,32,DDGemb,0.1992,324
-saturation_corrected,2KRU,28,32,Rosetta,0.2635,324
-saturation_corrected,2KRU,28,32,ESMtherm*,0.4279,324
-saturation_corrected,2KRU,28,32,"IFUM, WT backbone*",0.4253,324
-saturation_corrected,2KRU,28,32,"IFUM, ESMFold*",0.3174,324
-saturation_corrected,2KRU,42,46,ESM-MSR,0.2376,353
-saturation_corrected,2KRU,42,46,ESM-MSR (devel),0.2726,353
-saturation_corrected,2KRU,42,46,MutateEverything st2,0.2362,353
-saturation_corrected,2KRU,42,46,ThermoMPNN-D,0.3109,353
-saturation_corrected,2KRU,42,46,SPURS multi,0.0223,353
-saturation_corrected,2KRU,42,46,ESM3-small-open,0.2993,353
-saturation_corrected,2KRU,42,46,ProteinMPNN,0.4425,353
-saturation_corrected,2KRU,42,46,GeoDDG-3D,0.1881,353
-saturation_corrected,2KRU,42,46,DDGemb,0.1413,353
-saturation_corrected,2KRU,42,46,Rosetta,0.1813,353
-saturation_corrected,2KRU,42,46,ESMtherm*,0.3084,353
-saturation_corrected,2KRU,42,46,"IFUM, WT backbone*",0.5083,353
-saturation_corrected,2KRU,42,46,"IFUM, ESMFold*",0.5144,353
-saturation_corrected,2KVS,2,63,ESM-MSR,0.2011,341
-saturation_corrected,2KVS,2,63,ESM-MSR (devel),0.2934,341
-saturation_corrected,2KVS,2,63,MutateEverything st2,-0.0779,341
-saturation_corrected,2KVS,2,63,ThermoMPNN-D,0.3981,341
-saturation_corrected,2KVS,2,63,SPURS multi,0.0455,341
-saturation_corrected,2KVS,2,63,ESM3-small-open,0.1976,341
-saturation_corrected,2KVS,2,63,ProteinMPNN,0.0492,341
-saturation_corrected,2KVS,2,63,GeoDDG-3D,0.0511,341
-saturation_corrected,2KVS,2,63,DDGemb,-0.3568,341
-saturation_corrected,2KVS,2,63,Rosetta,-0.0560,341
-saturation_corrected,2KVS,2,63,ESMtherm*,0.3972,341
-saturation_corrected,2KVS,2,63,"IFUM, WT backbone*",0.3889,341
-saturation_corrected,2KVS,2,63,"IFUM, ESMFold*",0.3209,341
-saturation_corrected,2KVS,3,31,ESM-MSR,0.5032,361
-saturation_corrected,2KVS,3,31,ESM-MSR (devel),0.5241,361
-saturation_corrected,2KVS,3,31,MutateEverything st2,0.3192,361
-saturation_corrected,2KVS,3,31,ThermoMPNN-D,0.5470,361
-saturation_corrected,2KVS,3,31,SPURS multi,0.6280,361
-saturation_corrected,2KVS,3,31,ESM3-small-open,0.5868,361
-saturation_corrected,2KVS,3,31,ProteinMPNN,0.3624,361
-saturation_corrected,2KVS,3,31,GeoDDG-3D,0.1242,361
-saturation_corrected,2KVS,3,31,DDGemb,-0.0771,361
-saturation_corrected,2KVS,3,31,Rosetta,-0.0397,361
-saturation_corrected,2KVS,3,31,ESMtherm*,0.1485,361
-saturation_corrected,2KVS,3,31,"IFUM, WT backbone*",-0.1760,361
-saturation_corrected,2KVS,3,31,"IFUM, ESMFold*",-0.1822,361
-saturation_corrected,2KVS,33,35,ESM-MSR,0.5475,323
-saturation_corrected,2KVS,33,35,ESM-MSR (devel),0.5270,323
-saturation_corrected,2KVS,33,35,MutateEverything st2,0.3007,323
-saturation_corrected,2KVS,33,35,ThermoMPNN-D,0.0236,323
-saturation_corrected,2KVS,33,35,SPURS multi,0.2382,323
-saturation_corrected,2KVS,33,35,ESM3-small-open,0.4315,323
-saturation_corrected,2KVS,33,35,ProteinMPNN,0.0649,323
-saturation_corrected,2KVS,33,35,GeoDDG-3D,-0.0309,323
-saturation_corrected,2KVS,33,35,DDGemb,-0.0751,323
-saturation_corrected,2KVS,33,35,Rosetta,0.3515,323
-saturation_corrected,2KVS,33,35,ESMtherm*,-0.1683,323
-saturation_corrected,2KVS,33,35,"IFUM, WT backbone*",-0.2173,323
-saturation_corrected,2KVS,33,35,"IFUM, ESMFold*",-0.2655,323
-saturation_corrected,2L09,28,32,ESM-MSR,0.6338,324
-saturation_corrected,2L09,28,32,ESM-MSR (devel),0.5893,324
-saturation_corrected,2L09,28,32,MutateEverything st2,0.3410,324
-saturation_corrected,2L09,28,32,ThermoMPNN-D,0.1290,324
-saturation_corrected,2L09,28,32,SPURS multi,0.4119,324
-saturation_corrected,2L09,28,32,ESM3-small-open,0.2183,324
-saturation_corrected,2L09,28,32,ProteinMPNN,0.0390,324
-saturation_corrected,2L09,28,32,GeoDDG-3D,-0.0701,324
-saturation_corrected,2L09,28,32,DDGemb,0.0634,324
-saturation_corrected,2L09,28,32,Rosetta,0.1262,324
-saturation_corrected,2L09,28,32,ESMtherm*,0.4666,324
-saturation_corrected,2L09,28,32,"IFUM, WT backbone*",0.5021,324
-saturation_corrected,2L09,28,32,"IFUM, ESMFold*",0.5121,324
-saturation_corrected,2LC2,36,39,ESM-MSR,0.6570,361
-saturation_corrected,2LC2,36,39,ESM-MSR (devel),0.6574,361
-saturation_corrected,2LC2,36,39,MutateEverything st2,0.2743,361
-saturation_corrected,2LC2,36,39,ThermoMPNN-D,0.1090,361
-saturation_corrected,2LC2,36,39,SPURS multi,0.3764,361
-saturation_corrected,2LC2,36,39,ESM3-small-open,0.0739,361
-saturation_corrected,2LC2,36,39,ProteinMPNN,-0.0771,361
-saturation_corrected,2LC2,36,39,GeoDDG-3D,0.0772,361
-saturation_corrected,2LC2,36,39,DDGemb,0.1263,361
-saturation_corrected,2LC2,36,39,Rosetta,-0.0342,361
-saturation_corrected,2LC2,36,39,ESMtherm*,0.6509,361
-saturation_corrected,2LC2,36,39,"IFUM, WT backbone*",0.3895,361
-saturation_corrected,2LC2,36,39,"IFUM, ESMFold*",0.2772,361
-saturation_corrected,3DKM,18,28,ESM-MSR,0.2006,342
-saturation_corrected,3DKM,18,28,ESM-MSR (devel),0.3472,342
-saturation_corrected,3DKM,18,28,MutateEverything st2,0.3419,342
-saturation_corrected,3DKM,18,28,ThermoMPNN-D,0.3033,342
-saturation_corrected,3DKM,18,28,SPURS multi,0.3043,342
-saturation_corrected,3DKM,18,28,ESM3-small-open,-0.0551,342
-saturation_corrected,3DKM,18,28,ProteinMPNN,0.0382,342
-saturation_corrected,3DKM,18,28,GeoDDG-3D,-0.0544,342
-saturation_corrected,3DKM,18,28,DDGemb,-0.5004,342
-saturation_corrected,3DKM,18,28,Rosetta,-0.0759,342
-saturation_corrected,3DKM,18,28,ESMtherm*,0.6183,342
-saturation_corrected,3DKM,18,28,"IFUM, WT backbone*",0.4148,342
-saturation_corrected,3DKM,18,28,"IFUM, ESMFold*",0.3268,342
-saturation_corrected,3DKM,27,56,ESM-MSR,-0.0640,361
-saturation_corrected,3DKM,27,56,ESM-MSR (devel),-0.0576,361
-saturation_corrected,3DKM,27,56,MutateEverything st2,-0.1833,361
-saturation_corrected,3DKM,27,56,ThermoMPNN-D,-0.3057,361
-saturation_corrected,3DKM,27,56,SPURS multi,-0.1967,361
-saturation_corrected,3DKM,27,56,ESM3-small-open,-0.1774,361
-saturation_corrected,3DKM,27,56,ProteinMPNN,0.2939,361
-saturation_corrected,3DKM,27,56,GeoDDG-3D,0.2503,361
-saturation_corrected,3DKM,27,56,DDGemb,0.0591,361
-saturation_corrected,3DKM,27,56,Rosetta,-0.1103,361
-saturation_corrected,3DKM,27,56,ESMtherm*,-0.0003,361
-saturation_corrected,3DKM,27,56,"IFUM, WT backbone*",0.0378,361
-saturation_corrected,3DKM,27,56,"IFUM, ESMFold*",0.2393,361
-saturation_corrected,3DKM,59,67,ESM-MSR,-0.0709,227
-saturation_corrected,3DKM,59,67,ESM-MSR (devel),-0.2250,227
-saturation_corrected,3DKM,59,67,MutateEverything st2,0.3462,227
-saturation_corrected,3DKM,59,67,ThermoMPNN-D,0.3273,227
-saturation_corrected,3DKM,59,67,SPURS multi,0.5069,227
-saturation_corrected,3DKM,59,67,ESM3-small-open,-0.2596,227
-saturation_corrected,3DKM,59,67,ProteinMPNN,-0.1893,227
-saturation_corrected,3DKM,59,67,GeoDDG-3D,-0.3062,227
-saturation_corrected,3DKM,59,67,DDGemb,-0.2263,227
-saturation_corrected,3DKM,59,67,Rosetta,0.0492,227
-saturation_corrected,3DKM,59,67,ESMtherm*,0.6915,227
-saturation_corrected,3DKM,59,67,"IFUM, WT backbone*",-0.0258,227
-saturation_corrected,3DKM,59,67,"IFUM, ESMFold*",-0.1542,227
-saturation_corrected,3ZGK,11,41,ESM-MSR,0.3793,361
-saturation_corrected,3ZGK,11,41,ESM-MSR (devel),0.5318,361
-saturation_corrected,3ZGK,11,41,MutateEverything st2,0.2226,361
-saturation_corrected,3ZGK,11,41,ThermoMPNN-D,0.2563,361
-saturation_corrected,3ZGK,11,41,SPURS multi,0.1583,361
-saturation_corrected,3ZGK,11,41,ESM3-small-open,0.1872,361
-saturation_corrected,3ZGK,11,41,ProteinMPNN,0.4247,361
-saturation_corrected,3ZGK,11,41,GeoDDG-3D,-0.1409,361
-saturation_corrected,3ZGK,11,41,DDGemb,0.2363,361
-saturation_corrected,3ZGK,11,41,Rosetta,-0.1578,361
-saturation_corrected,3ZGK,11,41,ESMtherm*,0.5349,361
-saturation_corrected,3ZGK,11,41,"IFUM, WT backbone*",0.1552,361
-saturation_corrected,3ZGK,11,41,"IFUM, ESMFold*",0.1808,361
-saturation_corrected,3ZGK,33,68,ESM-MSR,0.3909,328
-saturation_corrected,3ZGK,33,68,ESM-MSR (devel),0.4097,328
-saturation_corrected,3ZGK,33,68,MutateEverything st2,0.4577,328
-saturation_corrected,3ZGK,33,68,ThermoMPNN-D,-0.1527,328
-saturation_corrected,3ZGK,33,68,SPURS multi,0.2598,328
-saturation_corrected,3ZGK,33,68,ESM3-small-open,0.0092,328
-saturation_corrected,3ZGK,33,68,ProteinMPNN,-0.0003,328
-saturation_corrected,3ZGK,33,68,GeoDDG-3D,-0.0143,328
-saturation_corrected,3ZGK,33,68,DDGemb,0.1012,328
-saturation_corrected,3ZGK,33,68,Rosetta,0.0930,328
-saturation_corrected,3ZGK,33,68,ESMtherm*,0.6038,328
-saturation_corrected,3ZGK,33,68,"IFUM, WT backbone*",0.0538,328
-saturation_corrected,3ZGK,33,68,"IFUM, ESMFold*",0.0330,328
-saturation_corrected,3ZGK,42,45,ESM-MSR,0.4307,361
-saturation_corrected,3ZGK,42,45,ESM-MSR (devel),0.4184,361
-saturation_corrected,3ZGK,42,45,MutateEverything st2,0.2125,361
-saturation_corrected,3ZGK,42,45,ThermoMPNN-D,0.1606,361
-saturation_corrected,3ZGK,42,45,SPURS multi,0.1988,361
-saturation_corrected,3ZGK,42,45,ESM3-small-open,0.4279,361
-saturation_corrected,3ZGK,42,45,ProteinMPNN,0.2713,361
-saturation_corrected,3ZGK,42,45,GeoDDG-3D,0.0416,361
-saturation_corrected,3ZGK,42,45,DDGemb,0.2308,361
-saturation_corrected,3ZGK,42,45,Rosetta,0.3026,361
-saturation_corrected,3ZGK,42,45,ESMtherm*,0.5830,361
-saturation_corrected,3ZGK,42,45,"IFUM, WT backbone*",0.0879,361
-saturation_corrected,3ZGK,42,45,"IFUM, ESMFold*",0.1189,361
-saturation_corrected,3ZGK,52,57,ESM-MSR,0.1251,361
-saturation_corrected,3ZGK,52,57,ESM-MSR (devel),0.1505,361
-saturation_corrected,3ZGK,52,57,MutateEverything st2,0.1360,361
-saturation_corrected,3ZGK,52,57,ThermoMPNN-D,0.2081,361
-saturation_corrected,3ZGK,52,57,SPURS multi,0.0556,361
-saturation_corrected,3ZGK,52,57,ESM3-small-open,0.1796,361
-saturation_corrected,3ZGK,52,57,ProteinMPNN,0.1937,361
-saturation_corrected,3ZGK,52,57,GeoDDG-3D,0.0580,361
-saturation_corrected,3ZGK,52,57,DDGemb,-0.1276,361
-saturation_corrected,3ZGK,52,57,Rosetta,0.1224,361
-saturation_corrected,3ZGK,52,57,ESMtherm*,0.1546,361
-saturation_corrected,3ZGK,52,57,"IFUM, WT backbone*",-0.1192,361
-saturation_corrected,3ZGK,52,57,"IFUM, ESMFold*",-0.0867,361
+saturation_corrected,2D1U,61,71,ESM-MSR,0.6020,287
+saturation_corrected,2D1U,61,71,ESM-MSR (devel),0.6861,287
+saturation_corrected,2D1U,61,71,MutateEverything st2,0.1172,287
+saturation_corrected,2D1U,61,71,ThermoMPNN-D,0.4018,287
+saturation_corrected,2D1U,61,71,SPURS multi,0.1413,287
+saturation_corrected,2D1U,61,71,ESM3-small-open,0.0724,287
+saturation_corrected,2D1U,61,71,ProteinMPNN,0.2227,287
+saturation_corrected,2D1U,61,71,GeoDDG-3D,0.1243,287
+saturation_corrected,2D1U,61,71,DDGemb,0.2220,287
+saturation_corrected,2D1U,61,71,Rosetta,0.2681,287
+saturation_corrected,2D1U,61,71,ESMtherm*,0.4286,287
+saturation_corrected,2D1U,61,71,"IFUM, WT backbone*",0.4570,287
+saturation_corrected,2D1U,61,71,"IFUM, ESMFold*",0.4668,287
+saturation_corrected,2KRU,28,32,ESM-MSR,0.2503,324
+saturation_corrected,2KRU,28,32,ESM-MSR (devel),0.2329,324
+saturation_corrected,2KRU,28,32,MutateEverything st2,-0.0647,324
+saturation_corrected,2KRU,28,32,ThermoMPNN-D,-0.1731,324
+saturation_corrected,2KRU,28,32,SPURS multi,-0.1525,324
+saturation_corrected,2KRU,28,32,ESM3-small-open,-0.0406,324
+saturation_corrected,2KRU,28,32,ProteinMPNN,0.0693,324
+saturation_corrected,2KRU,28,32,GeoDDG-3D,0.1750,324
+saturation_corrected,2KRU,28,32,DDGemb,-0.0574,324
+saturation_corrected,2KRU,28,32,Rosetta,0.1091,324
+saturation_corrected,2KRU,28,32,ESMtherm*,0.4272,324
+saturation_corrected,2KRU,28,32,"IFUM, WT backbone*",0.4017,324
+saturation_corrected,2KRU,28,32,"IFUM, ESMFold*",0.1835,324
+saturation_corrected,2KRU,42,46,ESM-MSR,0.0364,353
+saturation_corrected,2KRU,42,46,ESM-MSR (devel),0.0588,353
+saturation_corrected,2KRU,42,46,MutateEverything st2,0.1414,353
+saturation_corrected,2KRU,42,46,ThermoMPNN-D,0.2048,353
+saturation_corrected,2KRU,42,46,SPURS multi,-0.2692,353
+saturation_corrected,2KRU,42,46,ESM3-small-open,-0.1551,353
+saturation_corrected,2KRU,42,46,ProteinMPNN,0.3991,353
+saturation_corrected,2KRU,42,46,GeoDDG-3D,0.1470,353
+saturation_corrected,2KRU,42,46,DDGemb,0.0849,353
+saturation_corrected,2KRU,42,46,Rosetta,0.1727,353
+saturation_corrected,2KRU,42,46,ESMtherm*,0.3171,353
+saturation_corrected,2KRU,42,46,"IFUM, WT backbone*",0.4442,353
+saturation_corrected,2KRU,42,46,"IFUM, ESMFold*",0.3959,353
+saturation_corrected,2KVS,2,63,ESM-MSR,0.0156,341
+saturation_corrected,2KVS,2,63,ESM-MSR (devel),0.0161,341
+saturation_corrected,2KVS,2,63,MutateEverything st2,-0.2206,341
+saturation_corrected,2KVS,2,63,ThermoMPNN-D,0.1802,341
+saturation_corrected,2KVS,2,63,SPURS multi,-0.1070,341
+saturation_corrected,2KVS,2,63,ESM3-small-open,0.1296,341
+saturation_corrected,2KVS,2,63,ProteinMPNN,0.0873,341
+saturation_corrected,2KVS,2,63,GeoDDG-3D,0.0366,341
+saturation_corrected,2KVS,2,63,DDGemb,-0.3653,341
+saturation_corrected,2KVS,2,63,Rosetta,-0.1193,341
+saturation_corrected,2KVS,2,63,ESMtherm*,0.3382,341
+saturation_corrected,2KVS,2,63,"IFUM, WT backbone*",0.4012,341
+saturation_corrected,2KVS,2,63,"IFUM, ESMFold*",0.3656,341
+saturation_corrected,2KVS,3,31,ESM-MSR,0.4671,361
+saturation_corrected,2KVS,3,31,ESM-MSR (devel),0.4681,361
+saturation_corrected,2KVS,3,31,MutateEverything st2,0.3704,361
+saturation_corrected,2KVS,3,31,ThermoMPNN-D,0.5524,361
+saturation_corrected,2KVS,3,31,SPURS multi,0.5085,361
+saturation_corrected,2KVS,3,31,ESM3-small-open,0.6160,361
+saturation_corrected,2KVS,3,31,ProteinMPNN,0.5360,361
+saturation_corrected,2KVS,3,31,GeoDDG-3D,0.1010,361
+saturation_corrected,2KVS,3,31,DDGemb,-0.0720,361
+saturation_corrected,2KVS,3,31,Rosetta,0.1659,361
+saturation_corrected,2KVS,3,31,ESMtherm*,0.1950,361
+saturation_corrected,2KVS,3,31,"IFUM, WT backbone*",-0.1858,361
+saturation_corrected,2KVS,3,31,"IFUM, ESMFold*",-0.1180,361
+saturation_corrected,2KVS,33,35,ESM-MSR,0.5428,323
+saturation_corrected,2KVS,33,35,ESM-MSR (devel),0.5354,323
+saturation_corrected,2KVS,33,35,MutateEverything st2,0.3214,323
+saturation_corrected,2KVS,33,35,ThermoMPNN-D,0.0460,323
+saturation_corrected,2KVS,33,35,SPURS multi,0.2514,323
+saturation_corrected,2KVS,33,35,ESM3-small-open,0.3983,323
+saturation_corrected,2KVS,33,35,ProteinMPNN,0.2749,323
+saturation_corrected,2KVS,33,35,GeoDDG-3D,-0.0226,323
+saturation_corrected,2KVS,33,35,DDGemb,-0.1344,323
+saturation_corrected,2KVS,33,35,Rosetta,0.3291,323
+saturation_corrected,2KVS,33,35,ESMtherm*,-0.1755,323
+saturation_corrected,2KVS,33,35,"IFUM, WT backbone*",-0.1938,323
+saturation_corrected,2KVS,33,35,"IFUM, ESMFold*",-0.2386,323
+saturation_corrected,2L09,28,32,ESM-MSR,0.5923,324
+saturation_corrected,2L09,28,32,ESM-MSR (devel),0.5260,324
+saturation_corrected,2L09,28,32,MutateEverything st2,0.1027,324
+saturation_corrected,2L09,28,32,ThermoMPNN-D,0.0600,324
+saturation_corrected,2L09,28,32,SPURS multi,0.0995,324
+saturation_corrected,2L09,28,32,ESM3-small-open,0.0664,324
+saturation_corrected,2L09,28,32,ProteinMPNN,0.0231,324
+saturation_corrected,2L09,28,32,GeoDDG-3D,-0.0959,324
+saturation_corrected,2L09,28,32,DDGemb,-0.0922,324
+saturation_corrected,2L09,28,32,Rosetta,0.1075,324
+saturation_corrected,2L09,28,32,ESMtherm*,0.4777,324
+saturation_corrected,2L09,28,32,"IFUM, WT backbone*",0.4800,324
+saturation_corrected,2L09,28,32,"IFUM, ESMFold*",0.4702,324
+saturation_corrected,2LC2,36,39,ESM-MSR,0.6050,361
+saturation_corrected,2LC2,36,39,ESM-MSR (devel),0.6018,361
+saturation_corrected,2LC2,36,39,MutateEverything st2,0.4273,361
+saturation_corrected,2LC2,36,39,ThermoMPNN-D,0.2863,361
+saturation_corrected,2LC2,36,39,SPURS multi,0.4045,361
+saturation_corrected,2LC2,36,39,ESM3-small-open,0.3978,361
+saturation_corrected,2LC2,36,39,ProteinMPNN,0.0791,361
+saturation_corrected,2LC2,36,39,GeoDDG-3D,0.0821,361
+saturation_corrected,2LC2,36,39,DDGemb,0.1818,361
+saturation_corrected,2LC2,36,39,Rosetta,0.0207,361
+saturation_corrected,2LC2,36,39,ESMtherm*,0.6190,361
+saturation_corrected,2LC2,36,39,"IFUM, WT backbone*",0.4013,361
+saturation_corrected,2LC2,36,39,"IFUM, ESMFold*",0.3381,361
+saturation_corrected,3DKM,18,28,ESM-MSR,-0.0395,342
+saturation_corrected,3DKM,18,28,ESM-MSR (devel),-0.0115,342
+saturation_corrected,3DKM,18,28,MutateEverything st2,0.2852,342
+saturation_corrected,3DKM,18,28,ThermoMPNN-D,0.2250,342
+saturation_corrected,3DKM,18,28,SPURS multi,-0.0076,342
+saturation_corrected,3DKM,18,28,ESM3-small-open,-0.1894,342
+saturation_corrected,3DKM,18,28,ProteinMPNN,0.0569,342
+saturation_corrected,3DKM,18,28,GeoDDG-3D,-0.1139,342
+saturation_corrected,3DKM,18,28,DDGemb,-0.5735,342
+saturation_corrected,3DKM,18,28,Rosetta,-0.1075,342
+saturation_corrected,3DKM,18,28,ESMtherm*,0.0149,342
+saturation_corrected,3DKM,18,28,"IFUM, WT backbone*",0.2260,342
+saturation_corrected,3DKM,18,28,"IFUM, ESMFold*",0.1870,342
+saturation_corrected,3DKM,27,56,ESM-MSR,-0.0552,361
+saturation_corrected,3DKM,27,56,ESM-MSR (devel),-0.0659,361
+saturation_corrected,3DKM,27,56,MutateEverything st2,-0.1457,361
+saturation_corrected,3DKM,27,56,ThermoMPNN-D,-0.3606,361
+saturation_corrected,3DKM,27,56,SPURS multi,-0.2163,361
+saturation_corrected,3DKM,27,56,ESM3-small-open,-0.3056,361
+saturation_corrected,3DKM,27,56,ProteinMPNN,0.2286,361
+saturation_corrected,3DKM,27,56,GeoDDG-3D,0.2733,361
+saturation_corrected,3DKM,27,56,DDGemb,0.0894,361
+saturation_corrected,3DKM,27,56,Rosetta,-0.2065,361
+saturation_corrected,3DKM,27,56,ESMtherm*,-0.0942,361
+saturation_corrected,3DKM,27,56,"IFUM, WT backbone*",-0.0089,361
+saturation_corrected,3DKM,27,56,"IFUM, ESMFold*",0.2751,361
+saturation_corrected,3DKM,59,67,ESM-MSR,-0.2391,227
+saturation_corrected,3DKM,59,67,ESM-MSR (devel),-0.3714,227
+saturation_corrected,3DKM,59,67,MutateEverything st2,-0.2538,227
+saturation_corrected,3DKM,59,67,ThermoMPNN-D,0.0323,227
+saturation_corrected,3DKM,59,67,SPURS multi,0.3010,227
+saturation_corrected,3DKM,59,67,ESM3-small-open,-0.1401,227
+saturation_corrected,3DKM,59,67,ProteinMPNN,-0.1481,227
+saturation_corrected,3DKM,59,67,GeoDDG-3D,-0.4366,227
+saturation_corrected,3DKM,59,67,DDGemb,-0.4542,227
+saturation_corrected,3DKM,59,67,Rosetta,-0.0531,227
+saturation_corrected,3DKM,59,67,ESMtherm*,-0.3681,227
+saturation_corrected,3DKM,59,67,"IFUM, WT backbone*",-0.3635,227
+saturation_corrected,3DKM,59,67,"IFUM, ESMFold*",-0.2093,227
+saturation_corrected,3ZGK,11,41,ESM-MSR,0.1811,361
+saturation_corrected,3ZGK,11,41,ESM-MSR (devel),0.3270,361
+saturation_corrected,3ZGK,11,41,MutateEverything st2,0.0313,361
+saturation_corrected,3ZGK,11,41,ThermoMPNN-D,0.0274,361
+saturation_corrected,3ZGK,11,41,SPURS multi,0.0104,361
+saturation_corrected,3ZGK,11,41,ESM3-small-open,0.2620,361
+saturation_corrected,3ZGK,11,41,ProteinMPNN,0.4569,361
+saturation_corrected,3ZGK,11,41,GeoDDG-3D,-0.1955,361
+saturation_corrected,3ZGK,11,41,DDGemb,0.1981,361
+saturation_corrected,3ZGK,11,41,Rosetta,-0.2999,361
+saturation_corrected,3ZGK,11,41,ESMtherm*,0.3707,361
+saturation_corrected,3ZGK,11,41,"IFUM, WT backbone*",-0.0999,361
+saturation_corrected,3ZGK,11,41,"IFUM, ESMFold*",0.1255,361
+saturation_corrected,3ZGK,33,68,ESM-MSR,0.0297,328
+saturation_corrected,3ZGK,33,68,ESM-MSR (devel),0.0454,328
+saturation_corrected,3ZGK,33,68,MutateEverything st2,0.0445,328
+saturation_corrected,3ZGK,33,68,ThermoMPNN-D,-0.2226,328
+saturation_corrected,3ZGK,33,68,SPURS multi,-0.1608,328
+saturation_corrected,3ZGK,33,68,ESM3-small-open,0.0883,328
+saturation_corrected,3ZGK,33,68,ProteinMPNN,0.0590,328
+saturation_corrected,3ZGK,33,68,GeoDDG-3D,-0.0290,328
+saturation_corrected,3ZGK,33,68,DDGemb,-0.0217,328
+saturation_corrected,3ZGK,33,68,Rosetta,-0.0545,328
+saturation_corrected,3ZGK,33,68,ESMtherm*,0.2823,328
+saturation_corrected,3ZGK,33,68,"IFUM, WT backbone*",-0.0669,328
+saturation_corrected,3ZGK,33,68,"IFUM, ESMFold*",0.0107,328
+saturation_corrected,3ZGK,42,45,ESM-MSR,0.3960,361
+saturation_corrected,3ZGK,42,45,ESM-MSR (devel),0.3856,361
+saturation_corrected,3ZGK,42,45,MutateEverything st2,0.2397,361
+saturation_corrected,3ZGK,42,45,ThermoMPNN-D,0.3219,361
+saturation_corrected,3ZGK,42,45,SPURS multi,0.3087,361
+saturation_corrected,3ZGK,42,45,ESM3-small-open,0.4398,361
+saturation_corrected,3ZGK,42,45,ProteinMPNN,0.3601,361
+saturation_corrected,3ZGK,42,45,GeoDDG-3D,0.0421,361
+saturation_corrected,3ZGK,42,45,DDGemb,0.2464,361
+saturation_corrected,3ZGK,42,45,Rosetta,0.3248,361
+saturation_corrected,3ZGK,42,45,ESMtherm*,0.5853,361
+saturation_corrected,3ZGK,42,45,"IFUM, WT backbone*",0.0946,361
+saturation_corrected,3ZGK,42,45,"IFUM, ESMFold*",0.1485,361
+saturation_corrected,3ZGK,52,57,ESM-MSR,0.1498,361
+saturation_corrected,3ZGK,52,57,ESM-MSR (devel),0.1714,361
+saturation_corrected,3ZGK,52,57,MutateEverything st2,0.1414,361
+saturation_corrected,3ZGK,52,57,ThermoMPNN-D,0.2154,361
+saturation_corrected,3ZGK,52,57,SPURS multi,0.1082,361
+saturation_corrected,3ZGK,52,57,ESM3-small-open,0.2019,361
+saturation_corrected,3ZGK,52,57,ProteinMPNN,0.2836,361
+saturation_corrected,3ZGK,52,57,GeoDDG-3D,0.0501,361
+saturation_corrected,3ZGK,52,57,DDGemb,-0.1951,361
+saturation_corrected,3ZGK,52,57,Rosetta,0.3265,361
+saturation_corrected,3ZGK,52,57,ESMtherm*,0.1631,361
+saturation_corrected,3ZGK,52,57,"IFUM, WT backbone*",-0.1011,361
+saturation_corrected,3ZGK,52,57,"IFUM, ESMFold*",-0.0596,361

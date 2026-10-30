@@ -8,16 +8,16 @@ margins: measured ddG for the measurement, the model's single-mutant prediction 
 missing: the benchmark's rule; the wild-type residue of each position is a row and a column of ×); a model cell is drawn wherever the model predicts and scored only where the measurement exists.
 
   raw                    dddG as is (measured) and the model's predicted epistasis (its double minus its additive sum / WT-head double; BENCHMARKS table 2.2's definition)
-  saturation_corrected   each side minus E[dddG | additive expectation x]: measured x = dG_wt + ddG_A + ddG_B, a model's x' = dG_wt + its own additive prediction of the
-                         double; E[. | x] is the 25-quantile-bin smoother of ``esm_msr.epi_metrics.smooth_on`` fitted on all 12,455 test doubles.  What is removed is the assay floor
-                         and any diminishing returns, a function of x alone (the "beyond-global residuals" of the epistasis suite).
+  saturation_corrected   the MEASUREMENT minus E[dddG | its additive expectation x = dG_wt + ddG_A + ddG_B] (the 25-quantile-bin smoother of ``esm_msr.epi_metrics.smooth_on`` fitted
+                         on all 12,455 test doubles: the assay floor and any diminishing returns, a function of x alone); the models' predictions are left exactly as in ``raw``,
+                         so a model that carries the saturation in its predicted epistasis is compared with the measurement once the saturation is gone from it.
 
 Colour: blue = positive epistasis, red = negative, × = no usable value.  One scale for every panel of every figure of a mode (symmetric about zero, the 98th percentile of
 |measured value| over the usable cells of the 15 pairs: raw and saturation-corrected each have their own, printed on the colour bar); a model's values beyond it are clipped to the end
 colour.  Each panel title carries the Spearman rho of the model against the measured cells of the pair.
 Layout: ``results/12_pair_heatmaps/<raw|saturation_corrected>/<domain>/<wt><pos>_<wt><pos>.png``, ``pairs.csv`` (the pairs) and ``agreement.csv`` (rho of each model, per pair and mode).
 ESM-MSR's epistasis is the MT head against the WT head: for the baseline triplicate, which has no link, MT(AB) - WT(AB); for the devel checkpoints (which write latent ddG) the raw panels are on the observed scale like the
-measurement, obs(MT(AB)) - [obs(WT(A)) + obs(WT(B))] through each seed's link and library floors (``msr_analysis.link.observed_epistasis``, the epistasis suite's naive definition), the saturation-corrected ones on latents as the suite's beyond-global levels.
+measurement, obs(MT(AB)) - [obs(WT(A)) + obs(WT(B))] through each seed's link and library floors (``msr_analysis.link.observed_epistasis``, the epistasis suite's naive definition); the predictions are never saturation-corrected.
 Rosetta is divided by 2.94 (REU to kcal/mol).  Multi-seed models are averaged over seeds first; ESM3ΔG is not shown (its fine-tune overlaps the test proteins), the Megascale-trained ESMtherm and IFUM carry an asterisk.
 """
 import json
@@ -127,10 +127,9 @@ def build():
             continue
         u = UNIT.get(label, 1.0)
         e = u * (mean_seeds(p[build_[1]]) - (mean_seeds(p[build_[2]]) if build_[0] == 'diff' else 0.0))
-        x_add = c + u * mean_seeds(p[addk])
-        model[label] = dict(raw=e, saturation_corrected=beyond_global(e, x_add, fit), single=u * mean_seeds(p[sk]), latent=e)
+        model[label] = dict(raw=e, saturation_corrected=e, single=u * mean_seeds(p[sk]), latent=e)       # predictions are not saturation-corrected
         if label == 'ESM-MSR (devel)':       # the raw panels are on the observed scale, like the measurement: obs(MT(AB)) - [obs(WT(A)) + obs(WT(B))] through each seed's link (the suite's naive definition)
-            model[label]['raw'] = np.nanmean([observed_epistasis(sp, p['msrdev:wt'][s], p['msrdev:mt'][s], s + 1, y_floor) for s in range(3)], axis=0)
+            model[label]['raw'] = model[label]['saturation_corrected'] = np.nanmean([observed_epistasis(sp, p['msrdev:wt'][s], p['msrdev:mt'][s], s + 1, y_floor) for s in range(3)], axis=0)
     mut = sp['mut'].to_numpy(dtype=object)
     nm = sp['n_mut'].to_numpy()
     d = pd.DataFrame({'i': np.flatnonzero(nm == 2)})
@@ -214,11 +213,12 @@ def figure(mode, pair, d, fit, meas, model, singles, sp, vmax):
         t = ('Measured dddG' + (' − E[dddG | additive]' if mode == 'saturation_corrected' else '')) if k == 0 else f'{label}  (ρ = {rho:.2f})'
         im = heat_panel(ax, M, top, right, t, vmax, wt1, wt2, pos1, pos2, label_axes=(k % nc == 0))
     info = axes.ravel()[len(panels)]
+    mode_txt = 'measurement saturation-corrected,\npredictions as is' if mode == 'saturation_corrected' else 'raw'
     info.axis('on'); info.set_xticks([]); info.set_yticks([])
     for s in info.spines.values():
         s.set_visible(False)
     n_meas = int(cells_ok.sum())
-    info.text(0.0, 1.0, f'{code}  {wt1}{pos1} × {wt2}{pos2}\n\n{mode.replace("_", " ")}\n\n'
+    info.text(0.0, 1.0, f'{code}  {wt1}{pos1} × {wt2}{pos2}\n\n{mode_txt}\n\n'
                         f'{len(sub)} of 361 identity pairs in the data,\n{n_meas} with a usable measurement (× : none)\n\n'
                         'rows: residue at the first position;\ncolumns: residue at the second\n'
                         'margins: single-substitution scores\n(measured ddG, or the model\'s single)\n'
@@ -226,9 +226,9 @@ def figure(mode, pair, d, fit, meas, model, singles, sp, vmax):
                         'ρ: Spearman against the measured cells\n* trained on Megascale data', va='top', ha='left', fontsize=9, transform=info.transAxes)
     cax = info.inset_axes([0.04, 0.10, 0.92, 0.045])
     cb = fig.colorbar(im, cax=cax, orientation='horizontal')
-    cb.set_label(f'dddG{" − E[dddG | additive]" if mode == "saturation_corrected" else ""} (kcal/mol); values beyond ±{vmax:.2f} are clipped', fontsize=8)
+    cb.set_label(('measured dddG − E[dddG | additive]; predictions as is' if mode == 'saturation_corrected' else 'dddG') + f' (kcal/mol); values beyond ±{vmax:.2f} are clipped', fontsize=7.6)
     cb.ax.tick_params(labelsize=7.5)
-    fig.suptitle(f'{code} {wt1}{pos1} × {wt2}{pos2}: pair epistasis dddG, {"saturation-corrected" if mode == "saturation_corrected" else "raw"} (capped Tsuboyama test)', fontsize=12, y=0.995)
+    fig.suptitle(f'{code} {wt1}{pos1} × {wt2}{pos2}: pair epistasis dddG, {"measurement saturation-corrected, predictions as is" if mode == "saturation_corrected" else "raw"} (capped Tsuboyama test)', fontsize=12, y=0.995)
     fig.subplots_adjust(hspace=0.42, wspace=0.42, left=0.05, right=0.985, top=0.95, bottom=0.03)
     folder = OUT / mode / code
     folder.mkdir(parents=True, exist_ok=True)
