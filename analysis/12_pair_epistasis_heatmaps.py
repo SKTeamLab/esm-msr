@@ -17,7 +17,7 @@ Colour: blue = positive epistasis, red = negative, × = no usable value.  One sc
 colour.  Each panel title carries the Spearman rho of the model against the measured cells of the pair.
 Layout: ``results/12_pair_heatmaps/<raw|saturation_corrected>/<domain>/<wt><pos>_<wt><pos>.png``, ``pairs.csv`` (the pairs) and ``agreement.csv`` (rho of each model, per pair and mode).
 ESM-MSR's epistasis is always the MT head minus the WT head (latent, the checkpoint's two passes; the baseline files' epi_pred column is the same number).
-Multi-seed models are averaged over seeds first; ESM3ΔG is not shown (its fine-tune overlaps the test proteins), the Megascale-trained ESMtherm and IFUM carry an asterisk.
+Rosetta is divided by 2.94 (REU to kcal/mol).  Multi-seed models are averaged over seeds first; ESM3ΔG is not shown (its fine-tune overlaps the test proteins), the Megascale-trained ESMtherm and IFUM carry an asterisk.
 """
 import re
 import sys
@@ -41,6 +41,9 @@ IDX = {a: i for i, a in enumerate(AA)}
 SMOOTH_BINS = 25                                      # esm_msr.epi_metrics.SMOOTH_BINS
 FLAT = 0.02                                           # esm_msr.epi_metrics.FLAT: a flatter prediction scores 0 beyond the global curve
 DPI = 85
+# Rosetta Cartesian ddG is in Rosetta energy units; 1 kcal/mol = 2.94 REU.  Dividing by it takes the RMSE of the predicted dddG against the measured one on the 12,455 test doubles
+# from 3.08 to 1.15 and that of ddG from 6.9 / 9.8 (singles / doubles) to 1.9 / 2.5; every other model is already in kcal/mol.
+UNIT = {'Rosetta': 1 / 2.94}
 
 # (label, epistasis builder, additive key, singles key); builders are ('diff', a, b) = a - b or ('key', k).  Order = the panels after the measurement.
 MODELS = [('ESM-MSR', ('diff', 'msr:mt', 'msr:wt'), 'msr:wt', 'msr:wt'),
@@ -117,9 +120,10 @@ def build():
         if any(k not in p for k in need):
             print('skip (missing predictions):', label, [k for k in need if k not in p])
             continue
-        e = mean_seeds(p[build_[1]]) - (mean_seeds(p[build_[2]]) if build_[0] == 'diff' else 0.0)
-        x_add = c + mean_seeds(p[addk])
-        model[label] = dict(raw=e, saturation_corrected=beyond_global(e, x_add, fit), single=mean_seeds(p[sk]))
+        u = UNIT.get(label, 1.0)
+        e = u * (mean_seeds(p[build_[1]]) - (mean_seeds(p[build_[2]]) if build_[0] == 'diff' else 0.0))
+        x_add = c + u * mean_seeds(p[addk])
+        model[label] = dict(raw=e, saturation_corrected=beyond_global(e, x_add, fit), single=u * mean_seeds(p[sk]))
     mut = sp['mut'].to_numpy(dtype=object)
     nm = sp['n_mut'].to_numpy()
     d = pd.DataFrame({'i': np.flatnonzero(nm == 2)})

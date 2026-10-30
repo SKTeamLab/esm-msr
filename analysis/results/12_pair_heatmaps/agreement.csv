@@ -203,7 +203,7 @@ saturation_corrected,2D1U,61,71,ESM3-small-open,0.1991,287
 saturation_corrected,2D1U,61,71,ProteinMPNN,0.2119,287
 saturation_corrected,2D1U,61,71,GeoDDG-3D,0.1588,287
 saturation_corrected,2D1U,61,71,DDGemb,0.3700,287
-saturation_corrected,2D1U,61,71,Rosetta,0.3608,287
+saturation_corrected,2D1U,61,71,Rosetta,0.3482,287
 saturation_corrected,2D1U,61,71,ESMtherm*,0.7820,287
 saturation_corrected,2D1U,61,71,"IFUM, WT backbone*",0.6536,287
 saturation_corrected,2D1U,61,71,"IFUM, ESMFold*",0.6458,287
@@ -216,7 +216,7 @@ saturation_corrected,2KRU,28,32,ESM3-small-open,0.0259,324
 saturation_corrected,2KRU,28,32,ProteinMPNN,0.1792,324
 saturation_corrected,2KRU,28,32,GeoDDG-3D,0.1869,324
 saturation_corrected,2KRU,28,32,DDGemb,0.1992,324
-saturation_corrected,2KRU,28,32,Rosetta,0.3064,324
+saturation_corrected,2KRU,28,32,Rosetta,0.2635,324
 saturation_corrected,2KRU,28,32,ESMtherm*,0.4279,324
 saturation_corrected,2KRU,28,32,"IFUM, WT backbone*",0.4253,324
 saturation_corrected,2KRU,28,32,"IFUM, ESMFold*",0.3174,324
@@ -229,7 +229,7 @@ saturation_corrected,2KRU,42,46,ESM3-small-open,0.2993,353
 saturation_corrected,2KRU,42,46,ProteinMPNN,0.4425,353
 saturation_corrected,2KRU,42,46,GeoDDG-3D,0.1881,353
 saturation_corrected,2KRU,42,46,DDGemb,0.1413,353
-saturation_corrected,2KRU,42,46,Rosetta,0.1855,353
+saturation_corrected,2KRU,42,46,Rosetta,0.1813,353
 saturation_corrected,2KRU,42,46,ESMtherm*,0.3084,353
 saturation_corrected,2KRU,42,46,"IFUM, WT backbone*",0.5083,353
 saturation_corrected,2KRU,42,46,"IFUM, ESMFold*",0.5144,353
@@ -242,7 +242,7 @@ saturation_corrected,2KVS,2,63,ESM3-small-open,0.1976,341
 saturation_corrected,2KVS,2,63,ProteinMPNN,0.0492,341
 saturation_corrected,2KVS,2,63,GeoDDG-3D,0.0511,341
 saturation_corrected,2KVS,2,63,DDGemb,-0.3568,341
-saturation_corrected,2KVS,2,63,Rosetta,-0.0579,341
+saturation_corrected,2KVS,2,63,Rosetta,-0.0560,341
 saturation_corrected,2KVS,2,63,ESMtherm*,0.3972,341
 saturation_corrected,2KVS,2,63,"IFUM, WT backbone*",0.3889,341
 saturation_corrected,2KVS,2,63,"IFUM, ESMFold*",0.3209,341
@@ -255,7 +255,7 @@ saturation_corrected,2KVS,3,31,ESM3-small-open,0.5868,361
 saturation_corrected,2KVS,3,31,ProteinMPNN,0.3624,361
 saturation_corrected,2KVS,3,31,GeoDDG-3D,0.1242,361
 saturation_corrected,2KVS,3,31,DDGemb,-0.0771,361
-saturation_corrected,2KVS,3,31,Rosetta,-0.0553,361
+saturation_corrected,2KVS,3,31,Rosetta,-0.0397,361
 saturation_corrected,2KVS,3,31,ESMtherm*,0.1485,361
 saturation_corrected,2KVS,3,31,"IFUM, WT backbone*",-0.1760,361
 saturation_corrected,2KVS,3,31,"IFUM, ESMFold*",-0.1822,361
@@ -268,7 +268,7 @@ saturation_corrected,2KVS,33,35,ESM3-small-open,0.4315,323
 saturation_corrected,2KVS,33,35,ProteinMPNN,0.0649,323
 saturation_corrected,2KVS,33,35,GeoDDG-3D,-0.0309,323
 saturation_corrected,2KVS,33,35,DDGemb,-0.0751,323
-saturation_corrected,2KVS,33,35,Rosetta,0.3558,323
+saturation_corrected,2KVS,33,35,Rosetta,0.3515,323
 saturation_corrected,2KVS,33,35,ESMtherm*,-0.1683,323
 saturation_corrected,2KVS,33,35,"IFUM, WT backbone*",-0.2173,323
 saturation_corrected,2KVS,33,35,"IFUM, ESMFold*",-0.2655,323
@@ -281,7 +281,7 @@ saturation_corrected,2L09,28,32,ESM3-small-open,0.2183,324
 saturation_corrected,2L09,28,32,ProteinMPNN,0.0390,324
 saturation_corrected,2L09,28,32,GeoDDG-3D,-0.0701,324
 saturation_corrected,2L09,28,32,DDGemb,0.0634,324
-saturation_corrected,2L09,28,32,Rosetta,0.1210,324
+saturation_corrected,2L09,28,32,Rosetta,0.1262,324
 saturation_corrected,2L09,28,32,ESMtherm*,0.4666,324
 saturation_corrected,2L09,28,32,"IFUM, WT backbone*",0.5021,324
 saturation_corrected,2L09,28,32,"IFUM, ESMFold*",0.5121,324
@@ -294,7 +294,7 @@ saturation_corrected,2LC2,36,39,ESM3-small-open,0.0739,361
 saturation_corrected,2LC2,36,39,ProteinMPNN,-0.0771,361
 saturation_corrected,2LC2,36,39,GeoDDG-3D,0.0772,361
 saturation_corrected,2LC2,36,39,DDGemb,0.1263,361
-saturation_corrected,2LC2,36,39,Rosetta,-0.0445,361
+saturation_corrected,2LC2,36,39,Rosetta,-0.0342,361
 saturation_corrected,2LC2,36,39,ESMtherm*,0.6509,361
 saturation_corrected,2LC2,36,39,"IFUM, WT backbone*",0.3895,361
 saturation_corrected,2LC2,36,39,"IFUM, ESMFold*",0.2772,361
@@ -307,7 +307,7 @@ saturation_corrected,3DKM,18,28,ESM3-small-open,-0.0551,342
 saturation_corrected,3DKM,18,28,ProteinMPNN,0.0382,342
 saturation_corrected,3DKM,18,28,GeoDDG-3D,-0.0544,342
 saturation_corrected,3DKM,18,28,DDGemb,-0.5004,342
-saturation_corrected,3DKM,18,28,Rosetta,-0.0799,342
+saturation_corrected,3DKM,18,28,Rosetta,-0.0759,342
 saturation_corrected,3DKM,18,28,ESMtherm*,0.6183,342
 saturation_corrected,3DKM,18,28,"IFUM, WT backbone*",0.4148,342
 saturation_corrected,3DKM,18,28,"IFUM, ESMFold*",0.3268,342
@@ -320,7 +320,7 @@ saturation_corrected,3DKM,27,56,ESM3-small-open,-0.1774,361
 saturation_corrected,3DKM,27,56,ProteinMPNN,0.2939,361
 saturation_corrected,3DKM,27,56,GeoDDG-3D,0.2503,361
 saturation_corrected,3DKM,27,56,DDGemb,0.0591,361
-saturation_corrected,3DKM,27,56,Rosetta,-0.1273,361
+saturation_corrected,3DKM,27,56,Rosetta,-0.1103,361
 saturation_corrected,3DKM,27,56,ESMtherm*,-0.0003,361
 saturation_corrected,3DKM,27,56,"IFUM, WT backbone*",0.0378,361
 saturation_corrected,3DKM,27,56,"IFUM, ESMFold*",0.2393,361
@@ -333,7 +333,7 @@ saturation_corrected,3DKM,59,67,ESM3-small-open,-0.2596,227
 saturation_corrected,3DKM,59,67,ProteinMPNN,-0.1893,227
 saturation_corrected,3DKM,59,67,GeoDDG-3D,-0.3062,227
 saturation_corrected,3DKM,59,67,DDGemb,-0.2263,227
-saturation_corrected,3DKM,59,67,Rosetta,0.0081,227
+saturation_corrected,3DKM,59,67,Rosetta,0.0492,227
 saturation_corrected,3DKM,59,67,ESMtherm*,0.6915,227
 saturation_corrected,3DKM,59,67,"IFUM, WT backbone*",-0.0258,227
 saturation_corrected,3DKM,59,67,"IFUM, ESMFold*",-0.1542,227
@@ -346,7 +346,7 @@ saturation_corrected,3ZGK,11,41,ESM3-small-open,0.1872,361
 saturation_corrected,3ZGK,11,41,ProteinMPNN,0.4247,361
 saturation_corrected,3ZGK,11,41,GeoDDG-3D,-0.1409,361
 saturation_corrected,3ZGK,11,41,DDGemb,0.2363,361
-saturation_corrected,3ZGK,11,41,Rosetta,-0.1247,361
+saturation_corrected,3ZGK,11,41,Rosetta,-0.1578,361
 saturation_corrected,3ZGK,11,41,ESMtherm*,0.5349,361
 saturation_corrected,3ZGK,11,41,"IFUM, WT backbone*",0.1552,361
 saturation_corrected,3ZGK,11,41,"IFUM, ESMFold*",0.1808,361
@@ -359,7 +359,7 @@ saturation_corrected,3ZGK,33,68,ESM3-small-open,0.0092,328
 saturation_corrected,3ZGK,33,68,ProteinMPNN,-0.0003,328
 saturation_corrected,3ZGK,33,68,GeoDDG-3D,-0.0143,328
 saturation_corrected,3ZGK,33,68,DDGemb,0.1012,328
-saturation_corrected,3ZGK,33,68,Rosetta,0.0805,328
+saturation_corrected,3ZGK,33,68,Rosetta,0.0930,328
 saturation_corrected,3ZGK,33,68,ESMtherm*,0.6038,328
 saturation_corrected,3ZGK,33,68,"IFUM, WT backbone*",0.0538,328
 saturation_corrected,3ZGK,33,68,"IFUM, ESMFold*",0.0330,328
@@ -372,7 +372,7 @@ saturation_corrected,3ZGK,42,45,ESM3-small-open,0.4279,361
 saturation_corrected,3ZGK,42,45,ProteinMPNN,0.2713,361
 saturation_corrected,3ZGK,42,45,GeoDDG-3D,0.0416,361
 saturation_corrected,3ZGK,42,45,DDGemb,0.2308,361
-saturation_corrected,3ZGK,42,45,Rosetta,0.3063,361
+saturation_corrected,3ZGK,42,45,Rosetta,0.3026,361
 saturation_corrected,3ZGK,42,45,ESMtherm*,0.5830,361
 saturation_corrected,3ZGK,42,45,"IFUM, WT backbone*",0.0879,361
 saturation_corrected,3ZGK,42,45,"IFUM, ESMFold*",0.1189,361
@@ -385,7 +385,7 @@ saturation_corrected,3ZGK,52,57,ESM3-small-open,0.1796,361
 saturation_corrected,3ZGK,52,57,ProteinMPNN,0.1937,361
 saturation_corrected,3ZGK,52,57,GeoDDG-3D,0.0580,361
 saturation_corrected,3ZGK,52,57,DDGemb,-0.1276,361
-saturation_corrected,3ZGK,52,57,Rosetta,0.1285,361
+saturation_corrected,3ZGK,52,57,Rosetta,0.1224,361
 saturation_corrected,3ZGK,52,57,ESMtherm*,0.1546,361
 saturation_corrected,3ZGK,52,57,"IFUM, WT backbone*",-0.1192,361
 saturation_corrected,3ZGK,52,57,"IFUM, ESMFold*",-0.0867,361

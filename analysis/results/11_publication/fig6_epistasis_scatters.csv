@@ -1,3 +1,4 @@
-figure,n,spearman,pearson,share_both_positive
-fig6a_dG_additive_vs_dddG,12455,0.6420,0.6765,0.3927
-fig6b_esm_msr_dddG_pred_vs_true,12455,0.4604,0.4350,0.7962
+figure,n,spearman,pearson,share_dG_additive_lt0
+fig6a_dG_additive_vs_dddG,12455,-0.6420,-0.6765,0.4055
+fig6b_esm_msr_dddG_pred_vs_true,12455,0.4604,0.4350,0.4055
+fig6c_esm_msr_dddG_pred_vs_true_dG_additive_lt0,12455,0.4604,0.4350,0.4055

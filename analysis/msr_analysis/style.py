@@ -136,44 +136,53 @@ def density_scatter(ax, x, y, s=5, cmap='viridis', max_points=60000, line=True, 
     return n
 
 
-def density_scatter_marginals(x, y, xlabel, ylabel, xname=None, yname=None, cmap='plasma', s=8, point_alpha=0.3, figsize=(7.4, 6.8), max_kde=15000, rng=0):
-    """The notebooks' density scatter (``analysis_utils_msr.density_scatter``): points coloured by their kernel density, the histograms of both variables on the margins
-    (x blue, y orange, each over the other), the density colour bar on the left.  The only reference line is x = y, drawn over equal axis limits (the notebooks drew a dashed
-    linear fit here).  Returns the figure; the title is the caller's."""
+def density_scatter_plain(x, y, xlabel, ylabel, ref='xy', ref_label=None, highlight=None, highlight_label=None, highlight_color='#1a9850', title=None, cmap='plasma', s=8,
+                          point_alpha=0.3, figsize=(6.6, 5.8), max_kde=15000, rng=0, clip_pct=0.3, rmse=False):
+    """The notebooks' density scatter (``analysis_utils_msr.density_scatter``) without the marginal histograms: points coloured by their kernel density, a colour bar on the right,
+    Spearman / Pearson / n in the corner.  ``ref``: 'xy' draws y = x over equal axis limits, 'neg' draws y = -x, None draws no line (the notebooks drew a dashed linear fit).
+    ``highlight`` (boolean, same length as x) paints those points in a flat high-contrast colour on top of the density colours, with its own legend entry.  The axis limits are the
+    ``clip_pct`` .. 100 - ``clip_pct`` percentiles of x and y pooled, so a few outliers do not squash the plot (they are cut off, not dropped from the statistics)."""
     from matplotlib.colors import Normalize
-    from matplotlib.patches import Patch
     from scipy.stats import gaussian_kde, pearsonr, spearmanr
     x = np.asarray(x, float); y = np.asarray(y, float)
     ok = np.isfinite(x) & np.isfinite(y)
-    x, y = x[ok], y[ok]
+    hl = np.zeros(len(x), bool) if highlight is None else np.asarray(highlight, bool)
+    x, y, hl = x[ok], y[ok], hl[ok]
     n = len(x)
     sub = np.random.default_rng(rng).choice(n, min(n, max_kde), replace=False)
     z = gaussian_kde(np.vstack([x[sub], y[sub]]))(np.vstack([x, y]))
     o = np.argsort(z)
-    lo, hi = min(x.min(), y.min()), max(x.max(), y.max())
-    pad = 0.04 * (hi - lo)
+    both = np.concatenate([x, y])
+    lo, hi = np.percentile(both, [clip_pct, 100 - clip_pct])
+    pad = 0.05 * (hi - lo)
     lim = (lo - pad, hi + pad)
-    fig = plt.figure(figsize=figsize)
-    gs = fig.add_gridspec(2, 4, hspace=0.06, wspace=0.08, width_ratios=[0.16, 0.75, 4, 1], height_ratios=[1, 4])      # column 1 is the room of the y label and tick labels
-    ax = fig.add_subplot(gs[1, 2]); axt = fig.add_subplot(gs[0, 2], sharex=ax); axr = fig.add_subplot(gs[1, 3], sharey=ax); axc = fig.add_subplot(gs[1, 0])
+    fig, ax = plt.subplots(figsize=figsize)
     norm = Normalize(z.min(), z.max())
     cm = plt.get_cmap(cmap)
     col = cm(norm(z)); col[:, 3] = point_alpha
-    ax.scatter(x[o], y[o], c=col[o], s=s, edgecolors='none', rasterized=True)
-    ax.plot(lim, lim, color='#c0392b', ls='--', lw=1.6, zorder=4, label='x = y')
-    ax.set_xlim(lim); ax.set_ylim(lim)
+    keep = o[~hl[o]]
+    ax.scatter(x[keep], y[keep], c=col[keep], s=s, edgecolors='none', rasterized=True)
+    handles = []
+    if hl.any():
+        ax.scatter(x[hl], y[hl], c=highlight_color, s=s, alpha=0.55, edgecolors='none', rasterized=True, zorder=3)
+        handles.append(plt.Line2D([0], [0], marker='o', ls='', color=highlight_color, alpha=0.8, label=f'{highlight_label} (n = {int(hl.sum()):,})'))
+    if ref == 'xy':
+        ax.plot(lim, lim, color='#c0392b', ls='--', lw=1.6, zorder=4)
+        handles.append(plt.Line2D([0], [0], color='#c0392b', ls='--', lw=1.6, label=ref_label or 'x = y'))
+    elif ref == 'neg':
+        ax.plot(lim, [-lim[0], -lim[1]], color='#c0392b', ls='--', lw=1.6, zorder=4)
+        handles.append(plt.Line2D([0], [0], color='#c0392b', ls='--', lw=1.6, label=ref_label or 'y = −x'))
+    ax.set_xlim(lim); ax.set_ylim(lim if ref == 'xy' else ax.get_ylim())
     ax.set_xlabel(xlabel); ax.set_ylabel(ylabel)
-    ax.legend(loc='lower right', fontsize=8.5)
-    ax.text(0.04, 0.96, f'ρ = {spearmanr(x, y)[0]:.2f}\nr = {pearsonr(x, y)[0]:.2f}\nn = {n:,}', transform=ax.transAxes, va='top', fontsize=9,
-            bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#cccccc', alpha=0.9))
-    b = np.linspace(lim[0], lim[1], 60)
-    axt.hist(x, bins=b, alpha=0.75, color='steelblue', density=True); axt.hist(y, bins=b, alpha=0.3, color='coral', density=True)
-    axr.hist(y, bins=b, alpha=0.75, color='coral', density=True, orientation='horizontal'); axr.hist(x, bins=b, alpha=0.3, color='steelblue', density=True, orientation='horizontal')
-    axt.set_ylabel('density', fontsize=8); axr.set_xlabel('density', fontsize=8)
-    axt.tick_params(labelbottom=False, labelsize=7.5); axr.tick_params(labelleft=False, labelsize=7.5)
-    axt.legend(handles=[Patch(color='steelblue', label=xname or xlabel), Patch(color='coral', label=yname or ylabel)], loc='upper right', fontsize=7.5)
+    txt = f'ρ = {spearmanr(x, y)[0]:.2f}\nr = {pearsonr(x, y)[0]:.2f}\nn = {n:,}' + (f'\nRMSE = {np.sqrt(np.mean((x - y) ** 2)):.2f}' if rmse else '')
+    ax.text(0.04, 0.96, txt, transform=ax.transAxes, va='top', fontsize=9, bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#cccccc', alpha=0.9))
+    if handles:
+        ax.legend(handles=handles, loc='lower right', fontsize=8, framealpha=0.92)
     sm = plt.cm.ScalarMappable(norm=norm, cmap=cm); sm.set_array([])
-    cb = fig.colorbar(sm, cax=axc)
-    cb.ax.yaxis.set_ticks_position('left'); cb.ax.yaxis.set_label_position('left'); cb.set_label('density'); cb.ax.tick_params(labelsize=7.5)
+    cb = fig.colorbar(sm, ax=ax, pad=0.02, fraction=0.05)
+    cb.set_label('density'); cb.ax.tick_params(labelsize=7.5)
     cb.ax.yaxis.set_major_formatter(plt.FormatStrFormatter('%.2f'))
+    if title:
+        ax.set_title(title, fontsize=9.5, loc='left')
+    fig.tight_layout()
     return fig

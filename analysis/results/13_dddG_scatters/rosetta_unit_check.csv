@@ -1,0 +1,4 @@
+quantity,n,rmse_reu,rmse_div_2_94,best_scale_through_origin,rmse_best_scale
+"dddG, doubles",12455,3.0827,1.1463,0.1662,0.9703
+"ddG, singles",35421,6.9441,1.9494,0.1143,0.8436
+"ddG, doubles",13319,9.7868,2.4503,0.1552,1.2181

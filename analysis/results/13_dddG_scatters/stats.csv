@@ -1,0 +1,27 @@
+model,version,n,spearman,pearson,rmse
+ESM-MSR,all_dG_additive,12455,0.4604,0.4350,0.9393
+ESM-MSR,dG_additive_positive,7405,0.4290,0.4130,0.8225
+ESM-MSR (devel),all_dG_additive,12455,0.4796,0.4465,1.0672
+ESM-MSR (devel),dG_additive_positive,7405,0.4404,0.4154,0.9279
+MutateEverything st2,all_dG_additive,12455,0.4372,0.4528,0.8550
+MutateEverything st2,dG_additive_positive,7405,0.1146,0.1193,0.8472
+ThermoMPNN-D,all_dG_additive,12455,0.0990,0.0814,0.9878
+ThermoMPNN-D,dG_additive_positive,7405,-0.0251,-0.0423,0.7945
+SPURS multi,all_dG_additive,12455,0.3350,0.3398,0.8556
+SPURS multi,dG_additive_positive,7405,0.0809,0.0622,0.7936
+ESM3-small-open,all_dG_additive,12455,0.1095,0.1481,1.2883
+ESM3-small-open,dG_additive_positive,7405,0.0867,0.1162,1.2311
+ProteinMPNN,all_dG_additive,12455,0.3135,0.2791,0.9924
+ProteinMPNN,dG_additive_positive,7405,0.3527,0.3345,0.7206
+GeoDDG-3D,all_dG_additive,12455,0.0554,0.0739,1.1949
+GeoDDG-3D,dG_additive_positive,7405,0.0537,0.0669,0.7815
+DDGemb,all_dG_additive,12455,0.0309,0.0179,1.1080
+DDGemb,dG_additive_positive,7405,-0.1086,-0.1584,0.9161
+Rosetta,all_dG_additive,12455,0.3813,0.3427,1.1463
+Rosetta,dG_additive_positive,7405,0.3119,0.2733,0.9718
+ESMtherm*,all_dG_additive,12455,0.4952,0.5878,0.8056
+ESMtherm*,dG_additive_positive,7405,0.2716,0.2785,0.6505
+"IFUM, WT backbone*",all_dG_additive,12455,0.0015,0.0328,1.1133
+"IFUM, WT backbone*",dG_additive_positive,7405,-0.0041,-0.0201,0.7077
+"IFUM, ESMFold*",all_dG_additive,12455,0.1023,0.1096,1.1317
+"IFUM, ESMFold*",dG_additive_positive,7405,0.0799,0.0836,0.7522
