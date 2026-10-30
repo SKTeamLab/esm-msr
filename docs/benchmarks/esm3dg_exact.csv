@@ -1,0 +1,25 @@
+dataset,n,wt_in_train,mutant_in_train
+tsu_capped_val,35473,0.0,0
+tsu_capped_test,52071,0.0,0
+proteingym_all,2465767,,0
+proteingym_tsuboyama,117811,,0
+s571,571,0.0,0
+s783,783,0.0,0
+s2648,2648,0.0,0
+s8754,8754,0.0,0
+s669,669,0.0,0
+s461,461,0.0,0
+ssym,684,0.0,0
+q3421,3421,0.0,0
+k3822,3822,0.0,0
+k2369,2369,0.0,0
+ptmul,914,0.0,0
+ptmuld,536,0.0,0
+DLG4 abund.,6976,0.0,0
+DLG4 bind.,8251,0.0,0
+GRB2 abund.,63366,0.0,0
+GRB2 bind.,33441,0.0,0
+MYO,5905,0.0,0
+ESTA,2172,0.0,0
+GB1,149360,0.0,0
+domainome,534385,0.0,0
