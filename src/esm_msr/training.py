@@ -645,7 +645,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     else:
                         rank_pred_in = combined_pred_raw
                     if rank_group_by == 'partner':
-                        if 'ddG_A' in micro and 'ddG_B' in micro:
+                        if 'ddG_A' in micro and 'ddG_B' in micro and forced_wt_raw is not None:      # --mt_direct_pred has no WT half to subtract
                             epi_targ_mb = ddG_mb - (micro['ddG_A'].float() + micro['ddG_B'].float())
                             epi_mask_mb = reg_mask & ~is_single & has_add_label & torch.isfinite(epi_targ_mb)
                             epi_pred_mb = mt_pred_raw - forced_wt_raw
@@ -824,7 +824,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     obs[key] = torch.where(ok, self.link_head.obs_ddG(v, z, foff), v).detach().cpu().numpy()
 
         cyc = {}
-        if self.hparams.val_cycle_passes and not (wt_only or mt_direct):
+        if self.hparams.val_cycle_passes and not mt_direct:
             with torch.inference_mode():
                 c = self.model.forward_cycle(batch, mask_strategy=self.mask_strategy,
                                              include_mt=not wt_only)
@@ -964,7 +964,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # The epistasis scalars are pooled over every library at once, so they are not per-library values and
             # never entered avg_metrics. Merge them in as single-element lists AFTER the val_<key>_avg logging loop
             # above - so nothing is logged twice - and the plateau steps can then read any metric by name.
-            if not bool(self.hparams.get('mt_direct_pred', False)):
+            if not bool(getattr(self.hparams, 'mt_direct_pred', False)):
                 for _k, _v in (self._log_epistasis(pooled) or {}).items():
                     if np.isfinite(_v):
                         avg_metrics[_k].append(float(_v))

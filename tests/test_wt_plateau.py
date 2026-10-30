@@ -27,7 +27,7 @@ def _stub(patience=1, factor=0.1, freeze_after=0):
     s.groups = [{'name': 'lora_wt', 'lr': 2e-4}, {'name': 'calib_wt', 'lr': 4e-3},
                 {'name': 'lora_mt', 'lr': 2e-4}, {'name': 'calib_mt', 'lr': 4e-3}, {'name': 'link', 'lr': 5e-3}]
     s.optimizers = lambda: types.SimpleNamespace(param_groups=s.groups)
-    s.peft_manager = types.SimpleNamespace(has_transitioned=False)
+    s.peft_manager = types.SimpleNamespace(has_transitioned=False, wt_path_is_frozen=False)
     s.froze = []
     s._transition_to_mt = lambda: (s.froze.append(True), setattr(s.peft_manager, 'has_transitioned', True))
     s._wt_plateau_step = types.MethodType(M._wt_plateau_step, s)
