@@ -483,9 +483,9 @@ GB1_Wu_2016_binding_domain,msrdev:wt,0.36398,,,149357,0.01341
 GB1_Wu_2016_binding_domain,msrrel:comb,0.34463,,,149357,
 GB1_Wu_2016_binding_domain,msrrel:wt,0.33524,,,149357,
 GB1_Wu_2016_binding_domain,msrrel@0:comb,0.25967,0.25971,-0.00003,149357,
-GB1_Wu_2016_binding_domain,me1,0.29917,0.29590,0.00327,149357,0.00329
+GB1_Wu_2016_binding_domain,me1,0.29917,0.29920,-0.00003,149357,0.00329
 GB1_Wu_2016_binding_domain,me2,0.25286,0.25290,-0.00004,149357,0.04510
-GB1_Wu_2016_binding_domain,me1+,0.29383,0.28660,0.00723,149357,0.02853
+GB1_Wu_2016_binding_domain,me1+,0.29383,0.29390,-0.00007,149357,0.02853
 GB1_Wu_2016_binding_domain,me2+,0.28083,0.28090,-0.00007,149357,0.04439
 GB1_Wu_2016_binding_domain,tmpnn,0.31850,0.31850,-0.00000,149357,0.00368
 GB1_Wu_2016_binding_domain,tmpnnd,0.31775,0.31780,-0.00005,149357,0.00390

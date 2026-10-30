@@ -21,3 +21,14 @@ Rosetta,rosetta,singles,0.3673,0.3211,0.4107,33,35421
 Rosetta,rosetta,doubles,0.2898,0.1277,0.4681,8,10586
 ESM3-small-open (alt),esm3ind,singles,0.3226,0.2753,0.3654,33,35421
 ESM3-small-open (alt),esm3ind,doubles,0.3583,0.1502,0.5804,8,10586
+ESM-MSR WT head,msr:wt,overall,0.5597,0.5126,0.6062,33,48740
+ESM-MSR combined,msr:comb,overall,0.5987,0.5511,0.6449,33,48740
+MutateEverything,me1|me2,overall,0.3947,0.3485,0.4406,33,48740
+ThermoMPNN,tmpnn|tmpnnd,overall,0.4748,0.4218,0.5292,33,48740
+SPURS,spurs|spursm,overall,0.5316,0.4835,0.5814,33,48740
+ESM3-small-open,esm3mm,overall,0.3039,0.2547,0.3501,33,48740
+ProteinMPNN,pmpnn,overall,0.3289,0.2830,0.3732,33,48740
+ProSST,prosst,overall,0.3326,0.2817,0.3804,33,48740
+best other ddG,geoddg,overall,0.3383,0.2873,0.3883,33,48740
+Rosetta,rosetta,overall,0.3440,0.2996,0.3880,33,48740
+ESM3-small-open (alt),esm3ind,overall,0.3033,0.2527,0.3500,33,48740

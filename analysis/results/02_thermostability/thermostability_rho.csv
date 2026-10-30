@@ -207,19 +207,19 @@ geoddg,k2369,0.8305,0.7691,0.8846,True
 geoddg,ptmul,0.7170,0.6060,0.7661,True
 geoddg,ptmuld,0.6689,0.5425,0.7396,True
 geoddg,mean of 12,0.7672,0.7279,0.7920,True
-esm3dg,s571,0.5109,0.3267,0.6658,False
+esm3dg,s571,0.5109,0.3267,0.6658,True
 esm3dg,s783,0.6535,0.5404,0.7377,False
-esm3dg,s2648,0.6425,0.5955,0.6800,False
-esm3dg,s8754,0.5425,0.4619,0.6572,False
+esm3dg,s2648,0.6425,0.5955,0.6800,True
+esm3dg,s8754,0.5425,0.4619,0.6572,True
 esm3dg,s669,0.5635,0.4287,0.6700,False
 esm3dg,s461,0.6815,0.5643,0.7610,False
 esm3dg,ssym,0.7346,0.5369,0.8168,False
 esm3dg,q3421,0.5723,0.4679,0.6354,False
-esm3dg,k3822,0.5891,0.5404,0.7062,False
-esm3dg,k2369,0.5984,0.5562,0.7315,False
-esm3dg,ptmul,0.4093,0.2924,0.6238,False
-esm3dg,ptmuld,0.4818,0.3747,0.6072,False
-esm3dg,mean of 12,0.5816,0.5408,0.6398,False
+esm3dg,k3822,0.5891,0.5404,0.7062,True
+esm3dg,k2369,0.5984,0.5562,0.7315,True
+esm3dg,ptmul,0.4093,0.2924,0.6238,True
+esm3dg,ptmuld,0.4818,0.3747,0.6072,True
+esm3dg,mean of 12,0.5816,0.5408,0.6398,True
 prosst,s571,0.3096,0.1845,0.4248,False
 prosst,s783,0.5635,0.4523,0.6461,False
 prosst,s2648,0.4356,0.3602,0.4931,False

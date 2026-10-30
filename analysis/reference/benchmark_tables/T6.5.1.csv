@@ -4,7 +4,7 @@ ME stage 1/2 and ThermoMPNN on those assays,"singles (24,252 exact) + constituen
 Domainome domain `O95155_PF04564_1229` (UBE4B) is Megascale library 3L1X,1 of 522 domains,"1,134 exact + 3,177 same-protein rows (0.8 % of Domainome)"
 "EsmTherm's 80/10/10 is per row, not per domain: 27/33 test libraries contribute training mutants",82.2 % of test rows same-protein,"`P`, `M?` expected ≈ 0.8"
 IFUM trained on 21/33 test libraries,45.2 % of test rows same-protein,"`P`, `M?` = same rows"
-ESM3ΔG is zero-shot on Megascale,0/33 exact,40.7 % strong + 24.6 % weak homologs
+ESM3ΔG is zero-shot on Megascale,0 exact sequences anywhere in the benchmark,40.7 % strong + 50.3 % weak homologs
 DDGemb = S2450,92.5 % of S2648; 30 % of S8754; 28 % of Ssym; 45 % of Q3421; 26 % of K3822; 24 % of K2369,upper bounds via S2648
 DDMut = S9028 + SM1242,88.8 % of S2648; 60.3 % of S8754; 42.1 % of S783; 19.6 % of S571; 29.7 % of Ssym; 58.9 % of PTMUL; 36.2 % of PTMUL-D,exact
 GeoDDG = S8754,S8754 is its training set (`#`); 97.7 % of S2648; 88.3 % of S783; 38.5 % of S571; 68.7 % of Q3421; 69.3 % of K3822; 76.1 % of K2369,exact

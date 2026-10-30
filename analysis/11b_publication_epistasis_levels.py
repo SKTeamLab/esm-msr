@@ -130,7 +130,7 @@ def design_b(T, split):
             ax.scatter([r.value], [yy], s=46, color=c['color'], zorder=4, edgecolor='black', linewidth=0.5)
             if np.isfinite(r.seed_sd):
                 ax.errorbar(r.value, yy, xerr=r.seed_sd, fmt='none', ecolor='#c0392b', elinewidth=1.2, capsize=2.2, zorder=5)
-            ax.text(max(r.value, 0) + (r.seed_sd if np.isfinite(r.seed_sd) else 0) + 0.02, yy, f'{r.value:.2f}', va='center', fontsize=7.2)
+            ax.text(max(r.value, 0) + (r.seed_sd if np.isfinite(r.seed_sd) else 0) + 0.02, yy, f'{r.value:.2f}', va='center', fontsize=7.2, zorder=8, bbox=dict(fc='white', ec='none', alpha=0.7, pad=0.5))
         for cat in dict.fromkeys(c['cat'] for c in cols):
             yy = [y_ for c, y_ in zip(cols, ys) if c['cat'] == cat]
             if list(pub.CATS).index(cat) % 2:

@@ -9,7 +9,7 @@ MutateEverything st2 (3 seeds),M.02 m<.001 h<.001,M.02 m<.001 h<.001,M.02 m<.001
 "SPURS multi (retrained, 3 seeds)",M.02 m<.001 h<.001,M.02 m<.001 h<.001,M.02 m<.001 h<.001
 ESMtherm,P.04 M?.03 H<.001 h<.001,P.04 M?.03 H<.001 h<.001,P.04 M?.03 H<.001 h<.001
 GeoDDG-3D (FASPR),n.a.,n.a.,n.a.
-ESM3ΔG,n.a.,n.a.,n.a.
+ESM3ΔG,H.02 h.32,H.02 h.32,H.02 h.32
 ProSST (zero-shot),C,C,C
 Rosetta Cartesian ΔΔG,–,–,–
 ProteinMPNN (zero-shot),C,C,C

@@ -16,7 +16,7 @@ DDGemb (server),–,–,–,–,–,–,–,P.03 H.14 h.06
 "IFUM, WT backbone",–,–,–,–,–,–,P1,P.05 M?.05 H.26 h.05
 "IFUM, ESMFold per variant",–,–,–,–,–,–,P1,P.05 M?.05 H.26 h.05
 GeoDDG-3D (FASPR),–,–,–,–,–,–,m.41 M<.001,P.05 H.22 h.08
-ESM3ΔG,–,–,–,–,–,–,–,H.20 h.32
+ESM3ΔG,–,–,–,–,–,–,h1.00,H.23 h.49
 ProSST (zero-shot),–,–,–,–,–,–,–,C
 ProteinMPNN (zero-shot),–,–,–,–,–,–,–,C
 "ESM3-small-open, σ = 0 (zero-shot)",–,–,–,–,–,–,–,C

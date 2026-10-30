@@ -3,23 +3,26 @@ ESM-MSR,msr:epi,positive,0.4033,0.2493,0.6355,10444,13
 MutateEverything,me2:epi,positive,0.4872,0.3115,0.5238,10444,13
 ThermoMPNN,tmpnnd:epi,positive,0.1058,-0.0293,0.2381,10444,13
 SPURS,spursm:epi,positive,0.3236,0.2450,0.4927,10444,13
-ESM3-small-open,esm3ind:epi,positive,0.1716,-0.0262,0.5011,10444,13
+ESM3-small-open,esm3:epi,positive,0.0800,-0.1283,0.3790,10444,13
 ProteinMPNN,pmpnn:epi,positive,0.2400,0.0941,0.4055,10444,13
 best other ddG,geoddg:epi,positive,0.0522,-0.0710,0.1165,10444,13
 Rosetta,rosetta:epi,positive,0.3687,0.2118,0.4387,10444,13
+"ESM3-small-open (MT − WT, both independent)",esm3ind:epi,positive,0.1716,-0.0262,0.5011,10444,13
 ESM-MSR,msr:epi,negative,-0.0816,-0.1585,0.1653,2011,13
 MutateEverything,me2:epi,negative,-0.2527,-0.3936,0.0215,2011,13
 ThermoMPNN,tmpnnd:epi,negative,-0.2007,-0.2780,0.0024,2011,13
 SPURS,spursm:epi,negative,0.0398,-0.2038,0.2047,2011,13
-ESM3-small-open,esm3ind:epi,negative,0.1309,-0.1560,0.2573,2011,13
+ESM3-small-open,esm3:epi,negative,0.1446,-0.1466,0.2840,2011,13
 ProteinMPNN,pmpnn:epi,negative,0.1085,-0.0543,0.2261,2011,13
 best other ddG,geoddg:epi,negative,-0.0432,-0.1277,0.0785,2011,13
 Rosetta,rosetta:epi,negative,-0.0216,-0.0880,0.1053,2011,13
+"ESM3-small-open (MT − WT, both independent)",esm3ind:epi,negative,0.1309,-0.1560,0.2573,2011,13
 ESM-MSR,msr:epi,overall,0.4522,0.2977,0.6769,12455,13
 MutateEverything,me2:epi,overall,0.4093,0.2387,0.4808,12455,13
 ThermoMPNN,tmpnnd:epi,overall,0.0763,-0.0448,0.2198,12455,13
 SPURS,spursm:epi,overall,0.3079,0.2067,0.4663,12455,13
-ESM3-small-open,esm3ind:epi,overall,0.2055,0.0412,0.4929,12455,13
+ESM3-small-open,esm3:epi,overall,0.1095,-0.0776,0.3710,12455,13
 ProteinMPNN,pmpnn:epi,overall,0.3135,0.1856,0.4539,12455,13
 best other ddG,geoddg:epi,overall,0.0554,-0.0592,0.1196,12455,13
 Rosetta,rosetta:epi,overall,0.3813,0.2401,0.4420,12455,13
+"ESM3-small-open (MT − WT, both independent)",esm3ind:epi,overall,0.2055,0.0412,0.4929,12455,13

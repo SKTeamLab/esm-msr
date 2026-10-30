@@ -15,7 +15,7 @@ DDMut (server),M.20 P.20 H.06,M.42 P.49 H.02,M.89 P.11 H<.001 D,M.60 P.30 H.03 h
 "IFUM, WT backbone",P.05 M?.05 H.08,P.04 M?.04 H.03 h.11,P.06 M?.06 H.02,P.22 M?.22 H.02 h.001,P.14 M?.14 H.003 h.09,P.21 M?.21 h.14,–,P.06 M?.06 H.02 h.009,P.29 M?.29 H.02 h.02,P.38 M?.38 H.02 h.01,P.15 M?.15 H.03 h.001,P.07 M?.07 H.04 h.002,–
 "IFUM, ESMFold per variant",P.05 M?.05 H.08,P.04 M?.04 H.03 h.11,P.06 M?.06 H.02,P.22 M?.22 H.02 h.001,P.14 M?.14 H.003 h.09,P.21 M?.21 h.14,–,P.06 M?.06 H.02 h.009,P.29 M?.29 H.02 h.02,P.38 M?.38 H.02 h.01,P.15 M?.15 H.03 h.001,P.07 M?.07 H.04 h.002,–
 GeoDDG-3D (FASPR),M.39 P.11 H.04,M.88 h.07,M.98 P.02,M1 #,P.01 H.03 h.03,H.004 h.03,M.37 P.63,M.69 P.29,M.69 P.20 H.002 h.002,M.76 P.15 H.003 h.002,P.97 H.004,P.97 H.006,–
-ESM3ΔG,H.02 h.07,h.08,H.02 h.12,H.01 h.08,h.23,h.31,h.04,H.004 h.11,H.009 h.10,H.007 h.09,H.009 h.14,H.01 h.12,–
+ESM3ΔG,H.02 h.31,h.22,H.02 h.25,H.01 h.21,h.49,h.62,h.21,H.004 h.24,H.009 h.23,H.007 h.19,H.009 h.22,H.01 h.22,–
 ProSST (zero-shot),C,C,C,C,C,C,C,C,C,C,C,C,–
 ProteinMPNN (zero-shot),C,C,C,C,C,C,C,C,C,C,C,C,–
 "ESM3-small-open, σ = 0 (zero-shot)",C,C,C,C,C,C,C,C,C,C,C,C,–

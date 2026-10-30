@@ -10,10 +10,10 @@ spurs_single,PUBLISHED SPURS single-mutant checkpoint (not retrained; not in the
 spurs_multi,"PUBLISHED SPURS multi-mutant checkpoint (not retrained; not in the BENCHMARKS tables): same libraries, doubles",SPURS_mod data,verified
 esmtherm,"EsmTherm: K50_dG Dataset1+2 domains, mutant-level 80/10/10 split",datasets/split/wildtype_split.csv,protein-level (mutation rows unavailable)
 ifum,"IFUM: Megascale Dataset2 train domains (322 train, 86 val/test)",IFUM published dataset_splits.pdf,protein-level (mutation rows unavailable)
-esm3dg_mgnify,"ESM3dG: 960,216-sequence MGnify Stability fine-tune (not Megascale)",Zenodo 19411306 mgnify_training_index.csv,verified (0 exact sequences)
+esm3dg_mgnify,"ESM3dG: 960,216-sequence MGnify Stability fine-tune (not Megascale)",Zenodo 19411306 mgnify_training_index.csv,verified (0 exact WT or mutant sequences anywhere in the benchmark)
 ddgemb_s2450,DDGemb: S2450 = S2648 minus 198 S669-homologous mutations,ddgemb.biocomp.unibo.it S2450.tsv/.fasta,verified
 ddmut_s9028,"DDMut: S9028 = S2648 + FireProtDB (4,514 forward + reverse)",biosig.lab.uq.edu.au S9028.csv,verified
 ddmut_sm1242,DDMut multi-mutant branch: SM1242,biosig.lab.uq.edu.au SM1242.csv,verified
 geoddg_s8754,GeoDDG: S8754 (its own training set),GeoStab S8754.csv,verified
 corpus,ProSST / ProteinMPNN / ESM3 zero-shot: pretraining corpus only,papers,documented only
-none,Rosetta Cartesian ΔΔG: no training data,physics-based,n/a
+none,Rosetta Cartesian ΔΔG: no training data,physics-based,

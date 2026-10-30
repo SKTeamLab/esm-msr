@@ -66,6 +66,8 @@ def load():
     added = add_esm3_masked(fr, DS)
     if 'msrrel@0:comb' in p and 'msrrel@0:wt' in p:
         p['msrrel@0:epi'] = 2.0 * (p['msrrel@0:comb'] - p['msrrel@0:wt'])         # comb = (WT + MT) / 2, so MT - WT = 2 (comb - WT)
+    if 'esm3ind' in p and 'esm3mm' in p:
+        p['esm3:epi'] = p['esm3ind'] - p['esm3mm']                                # mutant pass with the partner visible minus the canonical masked marginal of the wild type
     for k in ('rosetta', 'geoddg', 'ddgemb', 'pmpnn'):
         if k in p and k + '+' in p:
             p[k + ':epi'] = p[k] - p[k + '+']                                      # direct double minus the sum of the model's singles
@@ -159,6 +161,11 @@ def main_columns(fr, best, esm3_want):
             col('Rosetta', 'supervised', '#1abc9c', 'Rosetta', 'rosetta')]
     if alt:
         cols.append(col('ESM3-small-open (alt)', 'zeroshot', '#7f8c8d', alt[1], alt[0], draw=False))
+    n1 = (fr.spine['n_mut'] == 1).to_numpy()
+    for c in cols:                         # the model that scores every variant of a library: its singles model on the singles and its doubles model on the doubles
+        if c['single'] != c['double']:
+            c['all'] = f"{c['single']}|{c['double']}"
+            fr.preds[c['all']] = np.where(n1[None, :], fr.preds[c['single']], fr.preds[c['double']])
     return cols, interim
 
 
@@ -185,7 +192,12 @@ def pair_columns(fr, best):
 
 def epi_columns(fr, best):
     p = fr.preds
-    if 'esm3ind:epi' in p:
+    extra = []
+    if 'esm3:epi' in p:
+        es = col('ESM3-small-open', 'zeroshot', '#7f8c8d', 'ESM3-small-open\ndouble: MT, independent\nsingles: WT, marginal', None, 'esm3:epi')
+        extra = [col('ESM3-small-open (MT − WT, both independent)', 'zeroshot', '#7f8c8d', 'ESM3-small-open', None, 'esm3ind:epi', draw=False)]
+        interim = False
+    elif 'esm3ind:epi' in p:
         es = col('ESM3-small-open', 'zeroshot', '#7f8c8d', 'ESM3-small-open\ndouble: mutant pass\nsingles: WT pass', None, 'esm3ind:epi')
         interim = False
     else:
@@ -198,7 +210,7 @@ def epi_columns(fr, best):
             es,
             col('ProteinMPNN', 'zeroshot', '#34495e', 'ProteinMPNN\ndouble: direct\nsingles: summed', None, 'pmpnn:epi'),
             col('best other ddG', 'supervised', BEST_COLOR[best], BEST_LABEL[best] + '†\ndouble: direct\nsingles: summed', None, best + ':epi'),
-            col('Rosetta', 'supervised', '#1abc9c', 'Rosetta\ndouble: direct\nsingles: summed', None, 'rosetta:epi')]
+            col('Rosetta', 'supervised', '#1abc9c', 'Rosetta\ndouble: direct\nsingles: summed', None, 'rosetta:epi')] + extra
     return cols, interim
 
 
@@ -206,6 +218,8 @@ def epi_columns(fr, best):
 # tables
 # ----------------------------------------------------------------------------------------------
 def key_for(c, which):
+    if which == 'all':
+        return c.get('all', c['single'])
     return c['single'] if which == 'singles' else c['double']
 
 
@@ -282,7 +296,8 @@ def bars(ax, cols, T, subsets, sub_labels, ylabel, ylim, overall=None, overall_l
             ax.bar(xx, r.value, w, color=c['color'], alpha=0.95 if j else 0.55, edgecolor=c['color'] if j == 0 else 'black', hatch='////' if j == 0 else None, lw=0.8, zorder=3)
             ax.errorbar(xx, r.value, yerr=[[max(r.value - r.lo, 0)], [max(r.hi - r.value, 0)]], fmt='none', ecolor='#c0392b', elinewidth=1.3, capsize=2.5, zorder=5)
             if annotate:
-                ax.text(xx, max(r.hi, r.value, 0) + 0.012 * (ylim[1] - ylim[0]), f'{r.value:.2f}', ha='center', va='bottom', fontsize=6.8, rotation=90, zorder=6)
+                ax.text(xx, max(r.hi, r.value, 0) + 0.012 * (ylim[1] - ylim[0]), f'{r.value:.2f}', ha='center', va='bottom', fontsize=6.8, rotation=90, zorder=8,
+                        bbox=dict(fc='white', ec='none', alpha=0.7, pad=0.6))      # a label that runs into a bar or a line stays readable
         if overall is not None:
             o = overall[overall.column == c['name']]
             if len(o):
@@ -352,11 +367,25 @@ def main():
     cols, interim = main_columns(fr, best, a.esm3)
     cells = {'singles': (single, 'singles'), 'doubles': (double, 'doubles')}
     T1 = table_grouped(fr, cols, cells, ndcg96, 1, counts, libs)
-    save_tab(T1, 'fig1_ndcg96_singles_doubles')
+    # the overall NDCG@96 of a library ranks its singles and doubles together; it is drawn as the black line unless it sits on the singles bar
+    # (singles are 73% of the rows, and the top 96 of a library are mostly singles)
+    ov1 = table_grouped(fr, cols, {'overall': (use, 'all')}, ndcg96, 1, counts, libs)
+    save_tab(pd.concat([T1, ov1]), 'fig1_ndcg96_singles_doubles')
+    d1 = (ov1.set_index('column').value - T1[T1.subset == 'singles'].set_index('column').value).dropna()
+    d1 = d1[[c['name'] for c in cols if c.get('draw', True) and c['name'] in d1.index]]
+    close = int((d1.abs() <= 0.01).sum())
+    draw_overall = close < 0.9 * len(d1)
+    print(f'fig1 overall NDCG@96 against singles: {close} of {len(d1)} columns within 0.01 (largest difference {d1.abs().max():.3f}); '
+          f'{"drawn as the overall line" if draw_overall else "not drawn, footnote instead"}')
+    note1 = ([f'Overall = NDCG@96 of a library with its singles and doubles ranked together (singles are 73% of the rows); it differs from the singles bar by {d1.min():+.2f} to {d1.max():+.2f}.']
+             if draw_overall else
+             [f'The overall NDCG@96 of a library (singles and doubles ranked together) equals the singles bar to within 0.01 for {close} of {len(d1)} columns '
+              f'(largest difference {d1.abs().max():.2f}, {d1.abs().idxmax()}), so it is not drawn.'])
     fig, ax = plt.subplots(figsize=(12.5, 4.9))
-    bars(ax, cols, T1, ['singles', 'doubles'], [count_text(T1, 'singles', 'singles'), count_text(T1, 'doubles', 'doubles')], f'NDCG@{K} (mean over test libraries)', (0, 1.12))
+    bars(ax, cols, T1, ['singles', 'doubles'], [count_text(T1, 'singles', 'singles'), count_text(T1, 'doubles', 'doubles')], f'NDCG@{K} (mean over test libraries)', (0, 1.12),
+         overall=ov1 if draw_overall else None, overall_label=f'overall (n = {int(ov1.n_variants.max()):,})')
     finish(fig, f'Capped Tsuboyama test, NDCG@{K} per library, 95% intervals from resampling libraries (doubles: the libraries with a stabilizing double)',
-           foots(composite=True, interim=interim))
+           foots(*note1, composite=True, interim=interim))
     style.save(fig, OUT / 'fig1_ndcg96_singles_doubles')
 
     # ---- fig 2: Spearman, stabilizing against destabilizing, singles and doubles panels ----------------------

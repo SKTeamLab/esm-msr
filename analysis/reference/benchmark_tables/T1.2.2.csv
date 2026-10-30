@@ -15,7 +15,7 @@ DDMut (server),–,–
 "IFUM, WT backbone",P.68 M?.68 h.07 V,P.45 M?.45 H.07 h.06
 "IFUM, ESMFold per variant",P.68 M?.68 h.07 V,P.45 M?.45 H.07 h.06
 GeoDDG-3D (FASPR),V,h.07
-ESM3ΔG,H.49 h.05 V,H.41 h.25
+ESM3ΔG,H.49 h.24 V,H.41 h.50
 ProSST (zero-shot),C.73,C.78
 ProteinMPNN (zero-shot),C.73,C.78
 "ESM3-small-open, σ = 0 (zero-shot)",C.73,C.78
