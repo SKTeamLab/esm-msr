@@ -134,3 +134,46 @@ def density_scatter(ax, x, y, s=5, cmap='viridis', max_points=60000, line=True, 
         ax.text(0.04, 0.96, f'ρ = {rho:.2f}\nr = {r:.2f}\nn = {n:,}', transform=ax.transAxes, va='top', fontsize=8.5,
                 bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='#cccccc', alpha=0.9))
     return n
+
+
+def density_scatter_marginals(x, y, xlabel, ylabel, xname=None, yname=None, cmap='plasma', s=8, point_alpha=0.3, figsize=(7.4, 6.8), max_kde=15000, rng=0):
+    """The notebooks' density scatter (``analysis_utils_msr.density_scatter``): points coloured by their kernel density, the histograms of both variables on the margins
+    (x blue, y orange, each over the other), the density colour bar on the left.  The only reference line is x = y, drawn over equal axis limits (the notebooks drew a dashed
+    linear fit here).  Returns the figure; the title is the caller's."""
+    from matplotlib.colors import Normalize
+    from matplotlib.patches import Patch
+    from scipy.stats import gaussian_kde, pearsonr, spearmanr
+    x = np.asarray(x, float); y = np.asarray(y, float)
+    ok = np.isfinite(x) & np.isfinite(y)
+    x, y = x[ok], y[ok]
+    n = len(x)
+    sub = np.random.default_rng(rng).choice(n, min(n, max_kde), replace=False)
+    z = gaussian_kde(np.vstack([x[sub], y[sub]]))(np.vstack([x, y]))
+    o = np.argsort(z)
+    lo, hi = min(x.min(), y.min()), max(x.max(), y.max())
+    pad = 0.04 * (hi - lo)
+    lim = (lo - pad, hi + pad)
+    fig = plt.figure(figsize=figsize)
+    gs = fig.add_gridspec(2, 4, hspace=0.06, wspace=0.08, width_ratios=[0.16, 0.75, 4, 1], height_ratios=[1, 4])      # column 1 is the room of the y label and tick labels
+    ax = fig.add_subplot(gs[1, 2]); axt = fig.add_subplot(gs[0, 2], sharex=ax); axr = fig.add_subplot(gs[1, 3], sharey=ax); axc = fig.add_subplot(gs[1, 0])
+    norm = Normalize(z.min(), z.max())
+    cm = plt.get_cmap(cmap)
+    col = cm(norm(z)); col[:, 3] = point_alpha
+    ax.scatter(x[o], y[o], c=col[o], s=s, edgecolors='none', rasterized=True)
+    ax.plot(lim, lim, color='#c0392b', ls='--', lw=1.6, zorder=4, label='x = y')
+    ax.set_xlim(lim); ax.set_ylim(lim)
+    ax.set_xlabel(xlabel); ax.set_ylabel(ylabel)
+    ax.legend(loc='lower right', fontsize=8.5)
+    ax.text(0.04, 0.96, f'ρ = {spearmanr(x, y)[0]:.2f}\nr = {pearsonr(x, y)[0]:.2f}\nn = {n:,}', transform=ax.transAxes, va='top', fontsize=9,
+            bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#cccccc', alpha=0.9))
+    b = np.linspace(lim[0], lim[1], 60)
+    axt.hist(x, bins=b, alpha=0.75, color='steelblue', density=True); axt.hist(y, bins=b, alpha=0.3, color='coral', density=True)
+    axr.hist(y, bins=b, alpha=0.75, color='coral', density=True, orientation='horizontal'); axr.hist(x, bins=b, alpha=0.3, color='steelblue', density=True, orientation='horizontal')
+    axt.set_ylabel('density', fontsize=8); axr.set_xlabel('density', fontsize=8)
+    axt.tick_params(labelbottom=False, labelsize=7.5); axr.tick_params(labelleft=False, labelsize=7.5)
+    axt.legend(handles=[Patch(color='steelblue', label=xname or xlabel), Patch(color='coral', label=yname or ylabel)], loc='upper right', fontsize=7.5)
+    sm = plt.cm.ScalarMappable(norm=norm, cmap=cm); sm.set_array([])
+    cb = fig.colorbar(sm, cax=axc)
+    cb.ax.yaxis.set_ticks_position('left'); cb.ax.yaxis.set_label_position('left'); cb.set_label('density'); cb.ax.tick_params(labelsize=7.5)
+    cb.ax.yaxis.set_major_formatter(plt.FormatStrFormatter('%.2f'))
+    return fig

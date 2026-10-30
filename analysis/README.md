@@ -12,6 +12,7 @@ analysis/
   00_validate_against_tables.py  recompute 509 documented cells from the predictions (the gate for everything else)
   01_core_rho.py                 rho of every model on every dataset, protein / site / mutation bootstrap
   02_ ... 10_*.py                one script per theme; each writes figures (png + pdf) and the csv behind them to results/<NN_theme>/
+  11_*.py, 11b, 11c              the publication figures (results/11_publication); 12_pair_epistasis_heatmaps.py the pair heat maps (results/12_pair_heatmaps)
   99_table_coverage.py           every BENCHMARKS table appears in a figure
   reference/                     small committed inputs: parsed doc tables, all_by_all_long.csv, leak audit matrix
   results/                       the output, one subfolder per script
@@ -79,6 +80,7 @@ Every legend gives the number of variants and libraries behind each split; the b
 | `fig4_naive_epistasis_pos_neg_{grouped,pooled}` | naive epistasis ρ (predicted against measured dddG, doubles with both singles measured) for measured positive against negative epistasis; the predicted epistasis is always the double prediction of one model minus the singles of another (or another head), spelled out under each column; for ESM3-small-open it is the independent-masking mutant pass minus the masked-marginal WT pass (`esm3ind - esm3mm`; independent minus independent is in the CSV: naive ρ 0.21 against 0.11) |
 | `fig5a_epistasis_levels_bars_{test,val}` (`11b_publication_epistasis_levels.py`) | the epistasis hierarchy of BENCHMARKS tables 2.1 / 2.2: three bars per model for the levels from coarse to fine (pair ρ, line ρ, cell rank), two horizontal dashes across them for naive ρ (raw dddG, saturation included) and saturation-subtracted ρ (the tables' "beyond ρ"); the main-text design |
 | `fig5b_epistasis_levels_panels_{test,val}` | the same numbers as one dot panel per metric, for reading values and rankings (supplement); numbers are the document's, error bars the seed sd where the table has seeds |
+| `fig6a_additive_vs_dddG`, `fig6b_esm_msr_dddG_pred_vs_true` (`11c_publication_epistasis_scatters.py`) | the notebooks' density scatters with marginal histograms on the 12,455 test doubles with both singles measured: −(additive ddG of the two measured singles) against the measured dddG (ρ 0.66: most of dddG is the assay floor), and ESM-MSR's predicted dddG (epi head, mean of the three baseline seeds) against the measured dddG (ρ 0.46); the only line is x = y (the notebooks drew a dashed linear fit) |
 
 Reading them (test domains): ESM-MSR's overall values reproduce the benchmark (doubles ρ 0.709 / 0.766 for WT / combined, naive ρ 0.452). NDCG@96 (singles / doubles): ESM-MSR WT 0.58 / 0.60 and combined 0.62 / 0.71 against 0.41 to 0.55 / 0.43 to 0.51 for the
 retrained baselines, 0.32 to 0.34 / 0.31 to 0.50 for the zero-shot models and 0.36 to 0.37 / 0.29 to 0.40 for GeoDDG-3D and Rosetta; the doubles intervals are wide (8 libraries with a stabilizing double). Stabilizing variants are ranked far worse than destabilizing ones by every model
@@ -86,6 +88,25 @@ retrained baselines, 0.32 to 0.34 / 0.31 to 0.50 for the zero-shot models and 0.
 mutant pass is no better than its WT pass (0.408 to 0.381, independent masking). No model ranks *negative* epistasis (naive ρ between −0.25 and +0.15), because predicted epistasis is mostly the saturation of the readout; positive-epistasis ρ is 0.32 to 0.49 for ESM-MSR, ME stage 2, SPURS multi and Rosetta and 0.05 to 0.24 for the others (0.40 and 0.49 for ESM-MSR and ME).
 ESM3-small-open's scoring barely matters: singles ρ is 0.574 under masked marginals and under independent masking (the same input for one mutated position), doubles 0.398 (marginal), 0.408 (independent, WT pass), 0.381 (independent, mutant pass) against 0.421 for the unmasked readout of the older σ = 0 files.
 Figure 5 (levels): ESM-MSR keeps the most at every level (pair ρ 0.64 / 0.61, line ρ 0.36 / 0.38, cell rank 0.22 / 0.21 for baseline / devel) and its saturation-subtracted ρ (0.48 / 0.49) is above its naive ρ (0.45 / 0.46); ME stage 2 and Rosetta fall from naive 0.41 / 0.38 to 0.22 / 0.21 once saturation is subtracted, and ThermoMPNN-D has essentially no pair or cell signal.
+
+## Pair-epistasis heat maps (`12_pair_epistasis_heatmaps.py`, `results/12_pair_heatmaps/`)
+
+The notebooks' `plot_joint_with_marginals` (a 20 × 20 map of dddG over the residue identities of a position pair, with the single-substitution scores of each position as bars on the margins), for **every
+test position pair whose 361 identity pairs are all in the data** (15 of the 45 test pairs, in 7 domains: 2D1U, 2KRU, 2KVS, 2L09, 2LC2, 3DKM, 3ZGK; `pairs.csv`; 6 of them have a usable measurement in every cell, the others
+have grey cells where the double sits at an assay bound or a single is missing). One figure per pair, one panel for the measurement and one for each of 13 models (ESM-MSR baseline and devel, ME stage 2, ThermoMPNN-D, SPURS multi,
+ESM3-small-open, ProteinMPNN, GeoDDG-3D, DDGemb, Rosetta, and the Megascale-trained ESMtherm\*, IFUM WT backbone\*, IFUM ESMFold\*; ESM3ΔG is left out as elsewhere). Layout:
+
+```
+results/12_pair_heatmaps/raw/<domain>/<wt><pos>_<wt><pos>.png                  dddG as is (measured) and the model's predicted epistasis
+results/12_pair_heatmaps/saturation_corrected/<domain>/<wt><pos>_<wt><pos>.png the same minus E[dddG | additive expectation]
+results/12_pair_heatmaps/pairs.csv, agreement.csv                              the pairs; the Spearman ρ of every model against the measured cells, per pair and mode
+```
+
+*Saturation-corrected* is the beyond-global residual of the epistasis suite (`esm_msr/epi_metrics.py`, BENCHMARKS table 2.2): each side minus its mean given its own additive expectation, E[dddG | x] with x = dG_wt + ddG_A + ddG_B for the
+measurement and x' = dG_wt + the model's own additive prediction of the double for a model, the 25-quantile-bin smoother fitted on all 12,455 test doubles. What it removes is the assay floor and any diminishing returns; what is left is
+pair, line and cell epistasis. The colour scale is symmetric about zero and per panel (98th percentile; printed in the title with the panel's ρ), so panels compare patterns, not magnitudes. Mean over the 15 pairs of the per-pair ρ
+(raw / corrected): ESM-MSR 0.53 / 0.35, ESM-MSR devel 0.53 / 0.37, ME stage 2 0.41 / 0.23, SPURS multi 0.40 / 0.24, ESM3-small-open 0.38 / 0.16, ThermoMPNN-D 0.26 / 0.18, Rosetta 0.17 / 0.09, GeoDDG-3D 0.07 / 0.04;
+ESMtherm\* 0.34 / 0.41 and IFUM\* 0.13 to 0.15 / 0.19 to 0.21 are the only models whose ρ rises once saturation is removed (they are trained on these domains).
 
 ## What the figures say (all intervals 95%)
 
