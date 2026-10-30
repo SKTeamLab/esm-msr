@@ -4,16 +4,19 @@
 A position pair (i, j) of a capped Tsuboyama test domain is *fully characterized* when all 19 x 19 = 361 substitution pairs (a at i, b at j) are in the dataset (15 of the 45
 test pairs; the others lack up to 64 cells).  Each figure is one such pair: a heat map of the epistasis dddG = ddG_AB - ddG_A - ddG_B over the identity pairs, one panel for the
 measurement and one per model, in the notebooks' layout (residue order K R H D E S T N Q Y C A V I L M F W P G, bars of the single-substitution scores of each position on the
-margins: measured ddG for the measurement, the model's single-mutant prediction for a model).  Grey = no usable measurement (the double sits at an assay bound, or a single is
-missing: the benchmark's rule, so a model cell is drawn wherever the model predicts but scored only where the measurement exists).
+margins: measured ddG for the measurement, the model's single-mutant prediction for a model).  A grey × = no usable value (the double sits at an assay bound, or a single is
+missing: the benchmark's rule; the wild-type residue of each position is a row and a column of ×); a model cell is drawn wherever the model predicts and scored only where the measurement exists.
 
   raw                    dddG as is (measured) and the model's predicted epistasis (its double minus its additive sum / WT-head double; BENCHMARKS table 2.2's definition)
   saturation_corrected   each side minus E[dddG | additive expectation x]: measured x = dG_wt + ddG_A + ddG_B, a model's x' = dG_wt + its own additive prediction of the
                          double; E[. | x] is the 25-quantile-bin smoother of ``esm_msr.epi_metrics.smooth_on`` fitted on all 12,455 test doubles.  What is removed is the assay floor
                          and any diminishing returns, a function of x alone (the "beyond-global residuals" of the epistasis suite).
 
-Colour scale: symmetric about zero, per panel (98th percentile of |value|), printed in the panel title together with the Spearman rho against the measured cells of the pair.
+Colour: blue = positive epistasis, red = negative, × = no usable value.  One scale for every panel of every figure of a mode (symmetric about zero, the 98th percentile of
+|measured value| over the usable cells of the 15 pairs: raw and saturation-corrected each have their own, printed on the colour bar); a model's values beyond it are clipped to the end
+colour.  Each panel title carries the Spearman rho of the model against the measured cells of the pair.
 Layout: ``results/12_pair_heatmaps/<raw|saturation_corrected>/<domain>/<wt><pos>_<wt><pos>.png``, ``pairs.csv`` (the pairs) and ``agreement.csv`` (rho of each model, per pair and mode).
+ESM-MSR's epistasis is always the MT head minus the WT head (latent, the checkpoint's two passes; the baseline files' epi_pred column is the same number).
 Multi-seed models are averaged over seeds first; ESM3ΔG is not shown (its fine-tune overlaps the test proteins), the Megascale-trained ESMtherm and IFUM carry an asterisk.
 """
 import re
@@ -40,7 +43,7 @@ FLAT = 0.02                                           # esm_msr.epi_metrics.FLAT
 DPI = 85
 
 # (label, epistasis builder, additive key, singles key); builders are ('diff', a, b) = a - b or ('key', k).  Order = the panels after the measurement.
-MODELS = [('ESM-MSR', ('key', 'msr:epi'), 'msr:wt', 'msr:wt'),
+MODELS = [('ESM-MSR', ('diff', 'msr:mt', 'msr:wt'), 'msr:wt', 'msr:wt'),
           ('ESM-MSR (devel)', ('diff', 'msrdev:mt', 'msrdev:wt'), 'msrdev:wt', 'msrdev:wt'),
           ('MutateEverything st2', ('key', 'me2:epi'), 'me1', 'me1'),
           ('ThermoMPNN-D', ('key', 'tmpnnd:epi'), 'tmpnn', 'tmpnn'),
@@ -145,9 +148,11 @@ def margin(code, wt, pos, singles, vals):
 
 
 def heat_panel(ax, M, top, right, title, vmax, wt1, wt2, pos1, pos2, label_axes):
-    cm = plt.get_cmap('RdBu_r').copy()
-    cm.set_bad('#d9d9d9')
-    ax.imshow(np.ma.masked_invalid(M), origin='lower', interpolation='nearest', cmap=cm, vmin=-vmax, vmax=vmax, aspect='equal')
+    cm = plt.get_cmap('RdBu').copy()                   # blue = positive epistasis
+    cm.set_bad('white')
+    im = ax.imshow(np.ma.masked_invalid(M), origin='lower', interpolation='nearest', cmap=cm, vmin=-vmax, vmax=vmax, aspect='equal')
+    yy, xx = np.where(~np.isfinite(M))                  # no value in this cell: a grey x on white
+    ax.scatter(xx, yy, marker='x', s=6, color='#8c8c8c', linewidths=0.55, zorder=3)
     ax.set_xticks(range(20)); ax.set_xticklabels(AA, fontsize=5.2)
     ax.set_yticks(range(20)); ax.set_yticklabels(AA, fontsize=5.2)
     ax.tick_params(length=1.5, pad=1)
@@ -165,9 +170,10 @@ def heat_panel(ax, M, top, right, title, vmax, wt1, wt2, pos1, pos2, label_axes)
         a_.axhline(0, color='k', lw=0.4) if o == 'x' else a_.axvline(0, color='k', lw=0.4)
     at.tick_params(axis='y', labelleft=True, labelsize=4.8); ar.tick_params(axis='x', labelbottom=True, labelsize=4.8)
     ax.set_xlim(-0.5, 19.5); ax.set_ylim(-0.5, 19.5)
+    return im
 
 
-def figure(mode, pair, d, fit, meas, model, singles, sp):
+def figure(mode, pair, d, fit, meas, model, singles, sp, vmax):
     code, pos1, pos2 = pair
     sub = d[(d.code_wt == code) & (d.pos1 == pos1) & (d.pos2 == pos2)].drop_duplicates(['mt1', 'mt2'])
     wt1, wt2 = sub.wt1.iloc[0], sub.wt2.iloc[0]
@@ -194,20 +200,23 @@ def figure(mode, pair, d, fit, meas, model, singles, sp):
     for k, (label, M, top, right, rho) in enumerate(panels):
         ax = axes.ravel()[k]
         ax.axis('on')
-        vmax = max(float(np.nanpercentile(np.abs(M[np.isfinite(M)]), 98)), 0.05) if np.isfinite(M).any() else 1.0
-        t = (('Measured dddG' + (' − E[dddG | additive]' if mode == 'saturation_corrected' else '')) + f'  (±{vmax:.2f})') if k == 0 else f'{label}  (±{vmax:.2f}, ρ = {rho:.2f})'
-        heat_panel(ax, M, top, right, t, vmax, wt1, wt2, pos1, pos2, label_axes=(k % nc == 0))
+        t = ('Measured dddG' + (' − E[dddG | additive]' if mode == 'saturation_corrected' else '')) if k == 0 else f'{label}  (ρ = {rho:.2f})'
+        im = heat_panel(ax, M, top, right, t, vmax, wt1, wt2, pos1, pos2, label_axes=(k % nc == 0))
     info = axes.ravel()[len(panels)]
     info.axis('on'); info.set_xticks([]); info.set_yticks([])
     for s in info.spines.values():
         s.set_visible(False)
     n_meas = int(cells_ok.sum())
     info.text(0.0, 1.0, f'{code}  {wt1}{pos1} × {wt2}{pos2}\n\n{mode.replace("_", " ")}\n\n'
-                        f'{len(sub)} of 361 identity pairs in the data,\n{n_meas} with a usable measurement (grey: none)\n\n'
+                        f'{len(sub)} of 361 identity pairs in the data,\n{n_meas} with a usable measurement (× : none)\n\n'
                         'rows: residue at the first position;\ncolumns: residue at the second\n'
                         'margins: single-substitution scores\n(measured ddG, or the model\'s single)\n'
-                        'colour: red = positive epistasis,\nblue = negative; scale ± in each title\n'
+                        'colour: blue = positive epistasis, red = negative,\none scale for all panels (below)\n'
                         'ρ: Spearman against the measured cells\n* trained on Megascale data', va='top', ha='left', fontsize=9, transform=info.transAxes)
+    cax = info.inset_axes([0.04, 0.10, 0.92, 0.045])
+    cb = fig.colorbar(im, cax=cax, orientation='horizontal')
+    cb.set_label(f'dddG{" − E[dddG | additive]" if mode == "saturation_corrected" else ""} (kcal/mol); values beyond ±{vmax:.2f} are clipped', fontsize=8)
+    cb.ax.tick_params(labelsize=7.5)
     fig.suptitle(f'{code} {wt1}{pos1} × {wt2}{pos2}: pair epistasis dddG, {"saturation-corrected" if mode == "saturation_corrected" else "raw"} (capped Tsuboyama test)', fontsize=12, y=0.995)
     fig.subplots_adjust(hspace=0.42, wspace=0.42, left=0.05, right=0.985, top=0.95, bottom=0.03)
     folder = OUT / mode / code
@@ -224,9 +233,15 @@ def main():
     pairs = [k for k, n in g.items() if n >= 361]
     print(f'{len(g)} test position pairs, {len(pairs)} with all 361 identity pairs; models drawn: {list(model)}')
     agree, info = [], {}
+    pair_rows = np.zeros(len(sp), bool)
+    for pair in pairs:
+        pair_rows[d.loc[(d.code_wt == pair[0]) & (d.pos1 == pair[1]) & (d.pos2 == pair[2]), 'i'].to_numpy()] = True
     for mode in ('raw', 'saturation_corrected'):
+        v = meas[mode][pair_rows & fit]
+        vmax = float(np.nanpercentile(np.abs(v[np.isfinite(v)]), 98))
+        print(f'{mode}: colour scale ±{vmax:.2f} kcal/mol (98th percentile of |measured| over the usable cells of the {len(pairs)} pairs)')
         for pair in pairs:
-            rows, meta = figure(mode, pair, d, fit, meas, model, singles, sp)
+            rows, meta = figure(mode, pair, d, fit, meas, model, singles, sp, vmax)
             agree += rows
             info[pair] = meta
         print(mode, 'done')

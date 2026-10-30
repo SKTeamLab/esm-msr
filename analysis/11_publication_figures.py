@@ -67,6 +67,7 @@ def load():
     added = add_esm3_masked(fr, DS)
     if 'msrrel@0:comb' in p and 'msrrel@0:wt' in p:
         p['msrrel@0:epi'] = 2.0 * (p['msrrel@0:comb'] - p['msrrel@0:wt'])         # comb = (WT + MT) / 2, so MT - WT = 2 (comb - WT)
+    p['msr:epi'] = p['msr:mt'] - p['msr:wt']                                   # ESM-MSR's epistasis is always the MT head minus the WT head
     if 'esm3ind' in p and 'esm3mm' in p:
         p['esm3:epi'] = p['esm3ind'] - p['esm3mm']                                # mutant pass with the partner visible minus the canonical masked marginal of the wild type
     for k in ('rosetta', 'geoddg', 'ddgemb', 'pmpnn'):
