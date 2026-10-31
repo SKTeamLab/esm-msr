@@ -23,8 +23,8 @@ the mutant and the wild type both inside the assay's dG range of −1 to 5 kcal/
 of ESM-MSR's rules (no item filters, rank-only items, floor, link or censoring) and with the mutant-background libraries
 kept, which is the one departure from the upstream recipes (they never saw those libraries). An earlier set of stage-2 and
 ThermoMPNN-D runs had applied ESM-MSR's item filters and lost 14,388 of the 53,188 measured doubles; those runs are
-withdrawn, and every ME stage-2 and ThermoMPNN-D number below is from the corrected runs (3 seeds), except where a cell
-says `q` (queued). The recipe, the data accounting and the deviations that remain are in §6.3.
+withdrawn, and every ME stage-2 and ThermoMPNN-D number below is from the corrected runs (3 seeds).
+The recipe, the data accounting and the deviations that remain are in §6.3.
 
 **Metric conventions.** One Spearman ρ per model and dataset, positive = stabilizing / fitter for every model.
 External sets and DMS are a pooled ρ per set; Tsuboyama and Domainome are the mean of per-protein ρ, on measured
@@ -332,7 +332,7 @@ the combined head is shown).
 | ESM-MSR (released), WT head | 0.507ᴹ | 0.828ᴹ | 0.550ᴹ |
 | ESM-MSR (devel), combined (3 seeds) | 0.511ᴹ | 0.869ᴹ | 0.555ᴹ |
 | MutateEverything st1 (3 seeds) | 0.468ᴹ | 0.808ᴹ | 0.506ᴹ |
-| MutateEverything st2 (3 seeds) | q | q | q |
+| MutateEverything st2 (3 seeds) | 0.441ᴹ | 0.801ᴹ | 0.489ᴹ |
 | ThermoMPNN (additive, 3 seeds) | 0.441ᴹ | 0.781ᴹ | 0.484ᴹ |
 | SPURS (retrained, 3 seeds) | 0.462ᴹ | 0.805ᴹ | 0.501ᴹ |
 | SPURS multi (retrained, 3 seeds) | 0.418ᴹ | 0.772ᴹ | 0.462ᴹ |
@@ -365,9 +365,7 @@ the combined head is shown).
 | ProteinMPNN, ProteinGym published recipe | C | C | C |
 | ESM3-small-open, σ = 0 (zero-shot) | C | C | C |
 | ESM3-open, ProteinGym published recipe | C | C | C |
-- **ME stage 2 is `q`: its ProteinGym run predates the data correction.** The item-filtered stage 2 scored 0.445 / 0.806 /
-  0.491 (PG avg / Stability / DMS mean); the corrected seed-1 run (job 387353, one GPU, pinned to gpu4) and a matching
-  ThermoMPNN-D run (job 387352) are queued and also record per-DMS time and peak memory.
+- **ME stage 2 on ProteinGym (corrected, 3 seeds).** PG avg / Stability / DMS mean are 0.441 / 0.801 / 0.489 (seed sd 0.006 / 0.005 / 0.005), replacing the item-filtered run's 0.445 / 0.806 / 0.491. The three seeds are the fixed-slot reruns of the corrected checkpoints of 2026-10-29/30 (jobs 387860 and 387861 on an RTX A4500, 387922 on an RTX 6000), scored by `analysis_scripts/score_me_proteingym.py`; each scored 214 of the 217 assays, the 213 common ones and SCN5A. BRCA1 and POLG_CXB3N failed in every seed with a RuntimeError at 14 to 21 GB allocated (torch 1.12 reports an out-of-memory error this way; the 24 GB card did not fit BRCA1 either) and BRCA2 failed an assertion while loading its inputs. ME stage 2 is below ME stage 1 (0.468 / 0.808 / 0.506) in every category (Binding −0.054, Expression −0.037, Activity −0.022, Organismal fitness −0.013, Stability −0.008), ties ThermoMPNN on PG avg (0.441) and is 0.023 / 0.029 / 0.027 above SPURS multi. On the 23 fully trained Stability assays it scores 0.900, on the other 190 assays 0.439.
 - **Retrained SPURS on ProteinGym.** PG avg / Stability / DMS mean are 0.462 / 0.805 / 0.501 for SPURS and 0.418 / 0.772 / 0.462 for SPURS multi (three seeds each). SPURS is ahead of ThermoMPNN (0.441 / 0.781 / 0.484), 0.003–0.006 behind ME stage 1 (0.468 / 0.808 / 0.506) and 0.05–0.07 behind ESM-MSR (released and devel); SPURS multi is 0.044 / 0.033 / 0.039 below SPURS.
 - **ProSST ties ESM-MSR on the average only because of 23 fully memorised DMS.** 23 of the 213 ProteinGym assays are Tsuboyama DMS whose every row is in the capped train split used by ESM-MSR, ME and ThermoMPNN: 45,623 of 2,446,730 rows (1.9 % of the benchmark, 10.8 % of the assays). They are all Stability assays and ESM-MSR scores 0.897 on them. Removing them (local devel-seed reruns, 190 DMS) moves ESM-MSR's DMS mean from 0.561 to 0.520, its Stability category mean from 0.880 to 0.871, and its PG average from 0.516 to 0.514. ProSST, zero-shot on those assays, is 0.528 on the all-213 DMS mean and 0.514 on the all-213 PG average; after removing the 23 assays ESM-MSR is at 0.520 and the two PG averages are no longer directly comparable (§6.5). The same 23 DMS are in the training data of ME stage 1/2 (24,252 exact + 21,331 constituent) and ThermoMPNN (24,252 exact singles), and of the retrained SPURS (as ME stage 1) and SPURS multi (as ESM-MSR: 45,623 exact).
 - **Rosetta (italic) is singles only.** It covers ProteinGym's single mutants, 97.8 % of them scored, and 212 of the
@@ -751,7 +749,7 @@ tables. If a per-assay λ is ever wanted, it needs to be fitted on held-out assa
 
 ## 3. ProteinGym in detail
 
-**Leak note (§6).** The ME stage-2 row (`q`) is the item-filtered run, withdrawn with the other stage-2 numbers; the corrected run is queued (§1.4). 23 of the 213 assays are fully inside the capped train split (45,623 rows; all Stability); they are listed in `docs/benchmarks/leak_audit_pg_per_dms.csv` and marked in the per-model `M` fractions of §6.5. The σ sweep below is unaffected in ranking (a lower σ is better on exactly these Stability assays, so removing them strengthens rather than weakens the σ = 0.75 conclusion) but its absolute values are upper bounds for ESM-MSR.
+**Leak note (§6).** The ME stage-2 row is the corrected run (§1.4); the item-filtered run's values were withdrawn with the other stage-2 numbers. 23 of the 213 assays are fully inside the capped train split (45,623 rows; all Stability); they are listed in `docs/benchmarks/leak_audit_pg_per_dms.csv` and marked in the per-model `M` fractions of §6.5. The σ sweep below is unaffected in ranking (a lower σ is better on exactly these Stability assays, so removing them strengthens rather than weakens the σ = 0.75 conclusion) but its absolute values are upper bounds for ESM-MSR.
 
 
 213 DMS that every model scored (BRCA1, BRCA2, POLG_CXB3N and SCN5A excluded: > 1,800 residues, out of
@@ -776,8 +774,8 @@ italic because its predictions cover single mutants only (212 of the 213 DMS) an
 | MutateEverything single (3 seeds) ᴹ | 0.371 | 0.336 | 0.472 | 0.352 | 0.808 | 0.468 | 0.506 |
 | SPURS (retrained, 3 seeds) ᴹ | 0.373 | 0.320 | 0.472 | 0.340 | 0.805 | 0.462 | 0.501 |
 | ESM-MSR, σ = 0 (no LoRA) ᶜ | 0.416 | 0.374 | 0.439 | 0.391 | 0.620 | 0.448 | 0.470 |
-| MutateEverything double (3 seeds) ᴹ | q | q | q | q | q | q | q |
 | ThermoMPNN (3 seeds) ᴹ | 0.351 | 0.299 | 0.439 | 0.337 | 0.781 | 0.441 | 0.484 |
+| MutateEverything double (3 seeds) ᴹ | 0.349 | 0.283 | 0.434 | 0.339 | 0.801 | 0.441 | 0.489 |
 | SPURS multi (retrained, 3 seeds) ᴹ | 0.333 | 0.269 | 0.413 | 0.303 | 0.772 | 0.418 | 0.462 |
 | ProteinMPNN (3 decoding orders) ᶜ | 0.343 | 0.323 | 0.437 | 0.310 | 0.627 | 0.408 | 0.426 |
 | Rosetta Cartesian ΔΔG (*singles only*) | _0.311_ | _0.291_ | _0.336_ | _0.296_ | _0.640_ | _0.375_ | _0.409_ |
@@ -1200,6 +1198,7 @@ scripts):
 | `~/stability-baselines/` | the third-party harness, adapters and results (not a git repository) |
 | `~/spurs_retrain/` | the SPURS retrain on the capped split (§1.6): code (patched luo-group/SPURS), checkpoints, harness predictions and scored summaries, `HANDOFF_SPURS_BENCHMARK.md` |
 | `~/esm-msr-devel/outputs/tracked/spurs_retrain_s{1,2,3}` | the tracked fixed-slot runs behind the SPURS rows (both models of a seed), scored by `analysis_scripts/score_baseline_runs.py`; the results of the published SPURS checkpoint next to them (`spurs_published`, `~/stability-baselines/results/spurs`, ...) carry a `NOT_RETRAINED.md` and are not in this document |
+| `~/esm-msr-devel/outputs/tracked/me_st2_s{1,2,3}`, `me_st1_s1` | the tracked fixed-slot ME runs (2026-10-29/30): the corrected stage 2's ProteinGym rows (§1.4, §3) are scored from them by `analysis_scripts/score_me_proteingym.py`; stage 1 seed 1 (singles only) is a resource measurement. All four also reran the gamut, which no table reads (the gamut cells come from the 2026-10-26/27 evaluations) |
 | `~/project_oct06_baselines/` | a symlink index over the retrained-baseline work, with its own README |
 | `~/stability-baselines/results/rosetta/` | the Rosetta capped-split predictions in harness layout, with their provenance; the raw Narval outputs are in `~/playground/narval-recovery/predictions/` on the local machine |
 | `~/stability-baselines/pgym_public/` | ProteinGym's published zero-shot scores (1.9 GB zip) |

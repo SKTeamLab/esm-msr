@@ -640,6 +640,9 @@ SPURS multi (retrained),PG DMS mean,0.46152433333333337,0.006121581195519118,3,"
 ME stage1,PG avg,0.4678374820708049,,3,pgym_all_models_per_dms
 ME stage1,PG Stability,0.8083227810247872,,3,pgym_all_models_per_dms
 ME stage1,PG DMS mean,0.5063701840044135,,3,pgym_all_models_per_dms
+ME stage2,PG avg,0.44123938816195835,0.00621424969992519,3,"outputs/tracked/me_st2_s{1,2,3} (tracked slot runs, 2026-10-29/30) scored by analysis_scripts/score_me_proteingym.py"
+ME stage2,PG Stability,0.8007972380790453,0.004787393144277793,3,"outputs/tracked/me_st2_s{1,2,3} (tracked slot runs, 2026-10-29/30) scored by analysis_scripts/score_me_proteingym.py"
+ME stage2,PG DMS mean,0.4888550224742283,0.0047465357751626394,3,"outputs/tracked/me_st2_s{1,2,3} (tracked slot runs, 2026-10-29/30) scored by analysis_scripts/score_me_proteingym.py"
 TMPNN,PG avg,0.4413456030632717,,3,pgym_all_models_per_dms
 TMPNN,PG Stability,0.781357435053649,,3,pgym_all_models_per_dms
 TMPNN,PG DMS mean,0.48363051475971647,,3,pgym_all_models_per_dms
