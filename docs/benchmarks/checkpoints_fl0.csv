@@ -1,0 +1,4 @@
+model,seed,file,bytes,md5_first12,trained_on,cluster_path_under_home,local_source_under_esm-msr-devel
+ESM-MSR fl0 triplicate,1,epoch=03-val_epi_beyond_rho_epi=0.5827.ckpt,224752672,0f73ffa9aee8,splits_oct06_capped,esm-msr-devel/LoRA_models/esm-msr-fl0-joint-ctrl-w2a4-m16a16-s1/epoch=03-val_epi_beyond_rho_epi=0.5827.ckpt,dc_runs/logs/trim_joint_ctrl_s1/0
+ESM-MSR fl0 triplicate,2,epoch=01-val_epi_beyond_rho_epi=0.6065.ckpt,224752544,f35f24de1d48,splits_oct06_capped,esm-msr-devel/LoRA_models/esm-msr-fl0-joint-ctrl-w2a4-m16a16-s2/epoch=01-val_epi_beyond_rho_epi=0.6065.ckpt,dc_runs/logs/trim_joint_ctrl_s2/0
+ESM-MSR fl0 triplicate,3,epoch=02-val_epi_beyond_rho_epi=0.6125.ckpt,224752672,304edb19da8e,splits_oct06_capped,esm-msr-devel/LoRA_models/esm-msr-fl0-joint-ctrl-w2a4-m16a16-s3/epoch=02-val_epi_beyond_rho_epi=0.6125.ckpt,dc_runs/logs/trim_joint_ctrl_s3/0
