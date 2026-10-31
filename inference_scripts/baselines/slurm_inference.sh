@@ -21,7 +21,8 @@
 # MUTANTS=single|multi|both (which rows; default both), PGYM_DMS=id,id (ProteinGym subset; default all), EXTRA="..." (appended to the model's command line;
 # EXTRA="--max_proteins 2" is the smoke subset). Model specific: ThermoMPNN accepts SINGLE only,
 # EPISTATIC only, or both; SPURS MODELS=single|multi|both, SPURS_SINGLE / SPURS_MULTI checkpoints; ME SETS (default all).
-# ESM-MSR GAMUT_ONLY=1 stops after the 22-dataset gamut (no ProteinGym phase, which alone takes ~33 h).
+# ESM-MSR PGYM_WT_ONLY=1 runs the ProteinGym phase with the WT adapter alone (--skip_reverse, scored on wt_lora_pred) into $OUT/proteingym_wt_only: minutes
+# instead of the ~33 h of the full two-pass run.
 # Outputs land in $OUT (predictions per benchmark, ProteinGym summaries, resources/<run_id>/ with the tracker's files).
 #
 # The Python environments are in envs/ (conda env names msr_venv, spurs_higher, mutate_everything; a venv for ThermoMPNN-D);
@@ -68,9 +69,10 @@ case $MODEL in
     python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
         --analysis_root "$OUT/analysis" --resource_dir "$OUT/resources" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA
     [ -z "${CALIBRATE:-}" ] || { echo "calibration done: $OUT/batch_sizes_$MODEL.json"; exit 0; }
-    [ -z "${GAMUT_ONLY:-}" ] || { echo "done: $OUT (GAMUT_ONLY: no ProteinGym phase)"; exit 0; }
+    PG_OUT="$OUT/proteingym"; PG_FLAGS=()
+    [ -z "${PGYM_WT_ONLY:-}" ] || { PG_OUT="$OUT/proteingym_wt_only"; PG_FLAGS=(--skip_reverse); }
     python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
-        --protein_gym --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" --pgym_out "$OUT/proteingym" --analysis_root "$OUT/analysis" --resource_dir "$OUT/resources" "${BATCH[@]}" $EXTRA;;
+        --protein_gym --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" --pgym_out "$PG_OUT" --analysis_root "$OUT/analysis" --resource_dir "$OUT/resources" "${BATCH[@]}" $EXTRA ${PG_FLAGS[@]+"${PG_FLAGS[@]}"};;
   thermompnn)
     PY=${THERMOMPNN_PY:-${THERMOMPNN_DIR:-${THIRD_PARTY_DIR:-$HOME/software}/ThermoMPNN-D}/.venv/bin/python}
     [ -n "${SINGLE:-}${EPISTATIC:-}" ] || { echo "set SINGLE and/or EPISTATIC (ThermoMPNN-D checkpoints)"; exit 1; }
