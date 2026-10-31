@@ -101,3 +101,31 @@ def test_tracked_msr_takes_proteingym_and_its_resource_run_only_when_the_job_is_
 
 def test_tracked_msr_does_not_include_the_released_rerun():
     assert [r for _, r, _ in C.TRACKED_MSR] == ['esm_msr_baseline_s1', 'esm_msr_devel_s1']
+
+
+def test_tracked_me_stage2_proteingym_goes_where_the_tables_read_it():
+    RT = 'baselines/retrained/mutate_everything'
+    assert C.tracked_me_dst('stage2', 2, 'results_A4_HUMAN_Seuma_2022.csv') == f'{RT}/predictions/stage2/seed2/proteingym/A4_HUMAN_Seuma_2022.csv'
+    # stage 1's tracked rerun is singles only and is not what its ProteinGym row reads (the 2026-10-16 runs are)
+    assert C.tracked_me_dst('stage1', 1, 'results_A4_HUMAN_Seuma_2022.csv') == f'{RT}/tracked/stage1/seed1/proteingym/A4_HUMAN_Seuma_2022.csv'
+
+
+def test_tracked_me_gamut_reruns_sit_apart_and_s461_stays_out_of_the_tables():
+    RT = 'baselines/retrained/mutate_everything'
+    assert C.tracked_me_dst('stage2', 1, 's669'.join(['results_', '.csv'])) == f'{RT}/tracked/stage2/seed1/s669.csv'
+    assert C.tracked_me_dst('stage2', 1, 'results_oct06_capped_allbl_test.csv') == f'{RT}/tracked/stage2/seed1/tsuboyama_capped_test.csv'
+    assert C.tracked_me_dst('stage2', 3, 'results_GB1_Wu_2016_binding_domain.csv') == f'{RT}/tracked/stage2/seed3/GB1_Wu_2016_binding_domain.csv'
+    assert C.tracked_me_dst('stage2', 1, 'results_s461.csv') == 'msr_predictions/_not_in_benchmarks/me_upstream_s461/predictions_tracked/stage2/seed1.csv'
+
+
+def test_tracked_me_takes_resources_and_the_gpu_note_and_leaves_logs_and_inputs():
+    RT = 'baselines/retrained/mutate_everything'
+    assert C.tracked_me_dst('stage2', 1, 'resources/mutate_everything-387860-20261029T174048/resources_scopes.csv') \
+        == f'{RT}/resources/stage2/seed1/tracked/mutate_everything-387860-20261029T174048/resources_scopes.csv'
+    assert C.tracked_me_dst('stage2', 3, 'NOTE_run_on_gpu1.md') == f'{RT}/tracked/stage2/seed3/NOTE_run_on_gpu1.md'
+    assert C.tracked_me_dst('stage2', 1, 'slurm-bench_inf-387860.out') is None
+    assert C.tracked_me_dst('stage1', 1, 'inputs/s669/mutations/s669.single.csv') is None
+
+
+def test_tracked_me_names_cover_only_the_gamut():
+    assert 'oct06_capped_allbl_val' in C.ME_TRACKED_SETS and 'A4_HUMAN_Seuma_2022' not in C.ME_TRACKED_SETS

@@ -190,6 +190,59 @@ def plan_msr(plan):
 
 
 # ------------------------------------------------------------------------------------------------ retrained baselines
+# The fixed-slot ME runs (outputs/tracked/me_st2_s<k>, me_st1_s1; 2026-10-29/30: the corrected stage-2 checkpoints and stage-1 seed 1, every
+# set of the gamut and ProteinGym, resources recorded). Upstream result files (results_<set>.csv, no labels), like every other ME file here.
+# Stage 2's ProteinGym files are the corrected stage 2's ProteinGym run, so they go where the tables read them
+# (predictions/stage2/seed<k>/proteingym); everything else of the reruns, which no table reads (the gamut cells come from the 2026-10-26/27
+# evaluations), is kept apart under tracked/. ME's own S461 run keeps going to _not_in_benchmarks (see below); Slurm logs are never taken.
+TRACKED_ME = [('stage2', 'me_st2_s{k}', (1, 2, 3)), ('stage1', 'me_st1_s{k}', (1,))]
+ME_TRACKED_SETS = {'oct06_capped_allbl_val': 'tsuboyama_capped_val', 'oct06_capped_allbl_test': 'tsuboyama_capped_test',
+                   'oct06_capped_allbl_testcomp': 'tsuboyama_capped_testcomp',
+                   's571': 's571', 's783': 's783', 's2648': 's2648', 's8754': 's8754', 's669': 's669', 's461': 's461', 'ssym': 'ssym',
+                   'q3421': 'q3421', 'k3822': 'k3822', 'k2369': 'k2369', 'ptmul': 'ptmul', 'ptmuld': 'ptmuld', 'domainome': 'domainome',
+                   'DLG4_HUMAN_Faure_2021_abundance_domain': 'DLG4_HUMAN_Faure_2021_abundance_domain',
+                   'DLG4_HUMAN_Faure_2021_binding_domain': 'DLG4_HUMAN_Faure_2021_binding_domain',
+                   'GRB2_HUMAN_Faure_2021_abundance_domain': 'GRB2_HUMAN_Faure_2021_abundance_domain',
+                   'GRB2_HUMAN_Faure_2021_binding_domain': 'GRB2_HUMAN_Faure_2021_binding_domain',
+                   'MYO_HUMAN_Kung_2025_display': 'MYO_HUMAN_Kung_2025_display', 'ESTA_BACSU_Nutschel_2020_dTm': 'ESTA_BACSU_Nutschel_2020_dTm',
+                   'GB1_Wu_2016_binding_domain': 'GB1_Wu_2016_binding_domain'}
+
+
+def tracked_me_dst(stage, k, rel):
+    """Destination (relative to ROOT) of one file of a tracked ME run, or None to leave it; ``rel`` is relative to outputs/tracked/<run>."""
+    RT = 'baselines/retrained/mutate_everything'
+    parts = rel.split('/')
+    m = re.match(r'^results_(.+)\.csv$', rel)
+    if m:
+        name = m.group(1)
+        if name == 's461':                      # ME's own S461 table (see plan_retrained): no table cell reads it
+            return f'msr_predictions/_not_in_benchmarks/me_upstream_s461/predictions_tracked/{stage}/seed{k}.csv'
+        if name in ME_TRACKED_SETS:
+            return f'{RT}/tracked/{stage}/seed{k}/{ME_TRACKED_SETS[name]}.csv'
+        if stage == 'stage2':                   # a ProteinGym assay: the corrected stage 2's ProteinGym run
+            return f'{RT}/predictions/stage2/seed{k}/proteingym/{name}.csv'
+        return f'{RT}/tracked/{stage}/seed{k}/proteingym/{name}.csv'
+    if parts[0] == 'resources' and len(parts) == 3:
+        return f'{RT}/resources/{stage}/seed{k}/tracked/{parts[1]}/{parts[2]}'
+    if rel == 'NOTE_run_on_gpu1.md':
+        return f'{RT}/tracked/{stage}/seed{k}/{rel}'
+    return None
+
+
+def plan_me_tracked(plan):
+    for stage, tmpl, seeds in TRACKED_ME:
+        for k in seeds:
+            d = f'{DEV}/outputs/tracked/{tmpl.format(k=k)}'
+            files = remote_find(d)
+            if not any(p.endswith('/resources_scopes.csv') for _, _, p in files):      # written at the end of a run
+                print(f'{tmpl.format(k=k)}: not finished, skipped', file=sys.stderr)
+                continue
+            for size, mt, path in files:
+                dst = tracked_me_dst(stage, k, path[len(d) + 1:])
+                if dst:
+                    plan.add(dst, path, size, mt, None, 'retrained:me')
+
+
 def plan_retrained(plan):
     RT = 'baselines/retrained'
     # SPURS (single + multi in one file per dataset): the tracked fixed-slot runs the BENCHMARKS rows are scored from
@@ -264,10 +317,11 @@ def plan_retrained(plan):
                             plan.add(f'{RT}/mutate_everything/{sub}/{stage}/seed{k}/{name}.csv', path, size, mt, None, 'retrained:me')
                     elif rel == 'timing.csv':
                         plan.add(f'{RT}/mutate_everything/resources/{stage}/seed{k}/timing.csv', path, size, mt, None, 'retrained:me')
-    for k in (1, 2, 3):                        # stage 1 ProteinGym (stage 2's is withdrawn / not in the tables)
+    for k in (1, 2, 3):                        # stage 1 ProteinGym (the withdrawn item-filtered stage 2's `mutateeverything_double_seed*` is not collected)
         d = f'{DEV}/outputs/pgym/mutateeverything_single_seed{k}'
         for size, mt, path in remote_find(d):
             plan.add(f'{RT}/mutate_everything/predictions/stage1/seed{k}/proteingym/{path[len(d) + 1:]}', path, size, mt, None, 'retrained:me')
+    plan_me_tracked(plan)
     # scored per-variant tables (labels attached) behind the corrected rows
     sc = f'{RHOME}/me_audit/out/scores'
     for size, mt, path in remote_find(sc):
@@ -461,7 +515,7 @@ def write_manifests(plan):
     for p in plan:
         parts = Path(p['dst']).parts
         # one manifest per model folder: baselines/<retrained|public>/<model>, msr_predictions/<spec>, baselines/<table folder>
-        n = 3 if parts[0] == 'baselines' else 2
+        n = 3 if parts[0] == 'baselines' or parts[1:2] == ('_not_in_benchmarks',) else 2     # _not_in_benchmarks/<what> is its own folder
         top = parts[:n] if len(parts) > n else parts[:-1]
         by_dir.setdefault(Path(*top), []).append(p)
     for d, items in by_dir.items():
