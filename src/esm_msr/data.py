@@ -338,12 +338,16 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         *,
         rng_seed: Optional[int] = None,
         verbose: bool = True,
+        drop_last: bool = True,
+        min_batch_size: int = 32,
     ):
         self.datasets = datasets
         self.batch_size = batch_size
         self.train_list = train_list
         self.verbose = verbose
         self.rng_seed = rng_seed
+        self.drop_last = bool(drop_last)
+        self.min_batch_size = max(1, int(min_batch_size))
         self.sampler = self      # allows Lightning _set_sampler_epoch to discover set_epoch on this batch_sampler
 
         self._completed_epochs = 0
@@ -402,8 +406,9 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
                 for start in range(0, len(flat_indices), self.batch_size)
             ]
 
-            # Filter out undersized batches based on PyTorch default behavior expectations
-            ds_batches = [b for b in ds_batches if len(b) == self.batch_size]
+            # Filter out undersized batches (or retain tail batches >= min_batch_size when drop_last=False)
+            min_keep = self.batch_size if self.drop_last else min(self.batch_size, self.min_batch_size)
+            ds_batches = [b for b in ds_batches if len(b) >= min_keep]
             self.all_batches.append(ds_batches)
 
         final_batches = []
@@ -462,7 +467,9 @@ def create_consolidated_dataloader(
     collate_fn: Callable,
     num_workers: int = 4,
     pin_memory: bool = True,
-    rng_seed: Optional[int] = None
+    rng_seed: Optional[int] = None,
+    drop_last: bool = True,
+    min_batch_size: int = 32,
 ) -> DataLoader:
     """A DataLoader over every library's dataset at once, batched by ProteinCyclingBatchSampler so each batch
     holds one library (the homogeneous-microbatch assumption the model's collate relies on)."""
@@ -475,6 +482,8 @@ def create_consolidated_dataloader(
         # Without this the sampler seeds itself from system entropy, so --seed controlled only the model init: the batch
         # composition differed every run, runs were not reproducible, and two configurations could not be paired on a seed.
         rng_seed=rng_seed,
+        drop_last=drop_last,
+        min_batch_size=min_batch_size,
     )
 
     concat_dataset = ConcatDataset(datasets)

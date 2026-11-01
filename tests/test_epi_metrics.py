@@ -47,8 +47,10 @@ def items(pairs, measure, predict, link_pred=None):
     out = {k: [] for k in ('mut_key', 'subset_type', 'cens', 'ddG', 'dddG', 'dG_wt', 'wt', 'mt', 'comb', 'wt_rev')}
 
     def add(key, st, ddG, dddG, c, wt, pred):
+        # Ensemble convention matching training.py: comb = 0.5 * (wt + mt) = pred => mt = 2 * pred - wt.
+        mt_val = 2.0 * pred - wt
         out['mut_key'].append(key); out['subset_type'].append(st); out['cens'].append(0); out['ddG'].append(ddG); out['dddG'].append(dddG)
-        out['dG_wt'].append(c); out['wt'].append(wt); out['mt'].append(pred); out['comb'].append(0.5 * (wt + pred)); out['wt_rev'].append(pred)
+        out['dG_wt'].append(c); out['wt'].append(wt); out['mt'].append(mt_val); out['comb'].append(pred); out['wt_rev'].append(mt_val)
 
     for P in pairs:
         c, (p, q) = P['c'], P['pos']
@@ -247,9 +249,10 @@ class TestGlobalErrAndBias(unittest.TestCase):
         r = E.compute(E.Table(it, None))
         self.assertAlmostEqual(r['epi_global_err_epi'], 0.0, places=9)
         self.assertAlmostEqual(r['epi_global_bias_epi'], 0.0, places=9)
-        # shift the double predictions by -0.5: bias drops by -0.5, err becomes 0.5
+        # shift the ensemble double predictions by -0.5 (mt by -1.0 => comb = 0.5*(wt+mt) by -0.5): bias drops by -0.5, err becomes 0.5
         st = np.asarray(it['subset_type'])
-        it['mt'] = it['mt'] - np.where(st == 'double', 0.5, 0.0)
+        it['mt'] = it['mt'] - np.where(st == 'double', 1.0, 0.0)
+        it['comb'] = 0.5 * (it['wt'] + it['mt'])
         r2 = E.compute(E.Table(it, None))
         self.assertAlmostEqual(r2['epi_global_bias_epi'], -0.5, places=9)
         self.assertAlmostEqual(r2['epi_global_err_epi'], 0.5, places=9)

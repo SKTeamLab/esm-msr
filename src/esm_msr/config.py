@@ -30,9 +30,9 @@ def _r(kind, ok=None, why=''):
 # flag -> what it used to be and the only value it may still be given. kind: 'bool' (--x / --no-x), 'val' (--x VALUE), 'flag' (--x, no value).
 # ok=_ANY: any value is dropped without comment (a path, a number that governed something now fixed).
 RETIRED = {
-    # the LoRA spec is fixed (inference reads an old checkpoint's own values from its hparams)
+    # the LoRA spec is fixed except incl_sequence_head_{wt,mt}, which can be ablated
     **{f'{k}_{h}': _r('bool', v, 'a constant now') for h in ('wt', 'mt')
-       for k, v in (('use_dora', False), ('unfreeze_layernorms', False), ('incl_structure_encoder', False), ('incl_sequence_head', True))},
+       for k, v in (('use_dora', False), ('unfreeze_layernorms', False), ('incl_structure_encoder', False))},
     **{f'last_n_layers_{h}': _r('val', 0, 'a constant now') for h in ('wt', 'mt')},
     'lora_mode': _r('val', 'ensemble', 'the MT head is always an ensemble partner of the WT head (corrector removed)'),
     'combined_mode': _r('val', 'mean', 'the reported prediction is always the mean of the two heads (route and sum removed)'),
@@ -47,7 +47,6 @@ RETIRED = {
     'alternate_heads': _r('bool', False, 'removed (never run)'),
     'shared_scale_init': _r('val', 0.3, 'a constant now'),
     'shared_bias_init': _r('val', 0.0, 'a constant now'),
-    'calib_lr_mult': _r('val', 20.0, 'a constant now'),
     # per-subset loss weights and the cond subset
     'double_weight': _r('val', 1.0, 'removed'),
     'cond_weight': _r('val', 0.5, 'the cond subset is gone'),
@@ -70,7 +69,6 @@ RETIRED = {
     'censor_floor': _r('bool', True, 'censoring is --censor_threshold (none = no censoring)'),
     **{k: _r('val', _ANY) for k in ('floor_x_max', 'floor_min_n', 'floor_max_sd', 'floor_percentile')},   # the per-library floor estimator
     # optimiser and schedule
-    'grad_clip_norm': _r('val', 0.0, 'removed (never used)'),
     'calib_delay_steps': _r('val', 0, 'removed'),
     'mt_lora_delay_steps': _r('val', 0, 'removed'),
     'freeze_wt_after_epoch': _r('val', 1000, 'removed (the plateau budget freezes the WT head)'),
@@ -230,6 +228,11 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                            "but held OUT of every aggregate (val_*_avg, the pooled ranking, the epistasis levels), and summarised as "
                            "val_rho_combined_external and val_rmse_combined_external.")
     data.add_argument('--num_workers', type=int, default=4)
+    data.add_argument('--drop_last', action=argparse.BooleanOptionalAction, default=True,
+                      help="Drop per-library tail batches smaller than --batch_size (legacy default True). Pass --no-drop_last to retain "
+                           "tail batches of at least --min_batch_size items (~9.2%% of training variants).")
+    data.add_argument('--min_batch_size', type=int, default=32,
+                      help="Minimum items in a retained per-library tail batch when --no-drop_last is set.")
 
     arch = parser.add_argument_group("Architecture")
     arch.add_argument('--adapter_mode', type=str, default='dual', choices=['dual', 'fused'],
@@ -250,6 +253,10 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     arch.add_argument('--target_mode_wt', type=str, default='expanded',
                       choices=['expanded', 'qkv_outproj', 'baseline', 'all', 'ffn'],
                       help="LoRA target modules for WT adapter.")
+    arch.add_argument('--incl_sequence_head_wt', action=argparse.BooleanOptionalAction, default=True,
+                      help="Include ESM3's sequence LM output head in the WT LoRA targets (default True). Pass --no-incl_sequence_head_wt to freeze.")
+    arch.add_argument('--incl_sequence_head_mt', action=argparse.BooleanOptionalAction, default=True,
+                      help="Include ESM3's sequence LM output head in the MT LoRA targets (default True). Pass --no-incl_sequence_head_mt to freeze.")
     arch.add_argument('--tie_mt_scale', action=argparse.BooleanOptionalAction, default=False,
                       help="Tie the MT calibration head's SCALE to the frozen WT head's (the MT head keeps its own bias). The calibrated outputs are then "
                            "the common latent scale; with an independent MT scale the raw-scale rank loss weights the two halves differently from the "
@@ -304,16 +311,39 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                      help="How much of an item's WT half comes from the measured label rather than from the WT head's own prediction: 1.0 = the "
                           "label wherever one is usable, 0.0 = never teacher-force, 0.5 = the arithmetic mean of the two. Applies to singles "
                           "too. An item with no usable label falls back to the WT head for any mix.")
+    obj.add_argument('--rank_calibrated_stopgrad', action=argparse.BooleanOptionalAction, default=False,
+                     help="Score ListMLE on stop-gradient calibrated predictions (s.detach()*raw + b.detach()*n_mut) / s_wt.detach(), aligning "
+                          "untied MT/WT scales and per-mutation biases across mixed single/double lists without temperature collapse on s.")
+    obj.add_argument('--mt_single_loss_weight', type=float, default=1.0,
+                     help="Relative loss weight on single-mutant items vs multi-mutants (1.0) in the MT regression and ranking losses "
+                          "(e.g. 0.1 downweights singles 10x while preserving domain-context regularisation).")
+    obj.add_argument('--lambda_cond_mt', type=float, default=0.0,
+                     help="Weight on zero-extra-pass two-conditional masked supervision (A|B and B|A from mt_out['unsummed_llr'] when "
+                          "--mask_strategy_mt independent and partner dG > --cond_partner_min_dg).")
+    obj.add_argument('--cond_partner_min_dg', type=float, default=1.0,
+                     help="Minimum absolute partner stability dG_wt + ddG_partner (kcal/mol) required to supervise a conditional leg.")
+    obj.add_argument('--latent_censor_hinge', action=argparse.BooleanOptionalAction, default=False,
+                     help="Evaluate censored items' one-sided hinge directly on latent stability (dG_wt + pred_cal vs unclamped dG_bound) "
+                          "instead of clamping bounds upward to +0.409 via reachable_bounds, while keeping SaturatingLink on uncensored items.")
 
     opt = parser.add_argument_group("Optimisation")
     opt.add_argument('--learning_rate', type=float, default=2e-4)
     opt.add_argument('--weight_decay', type=float, default=0.0)
+    opt.add_argument('--grad_clip_norm', type=float, default=0.0,
+                     help="Global L2 gradient norm clip across all trainable parameters before optim.step() (0 = disabled).")
+    opt.add_argument('--calib_lr_mult', type=float, default=20.0,
+                     help="Learning-rate multiplier for calibration heads relative to --learning_rate (default 20.0; 5.0 recommended with cosine).")
     opt.add_argument('--batch_size', type=int, default=256)
     opt.add_argument('--micro_batch_size', type=int, default=16, help="Items per forward/backward (the VRAM cap); 64 fits a 32 GB card.")
     opt.add_argument('--num_epochs', type=int, default=20)
     opt.add_argument('--lr_warmup_steps', type=int, default=500)
 
     sched = parser.add_argument_group("Schedule (each head that is training gets its own plateau)")
+    sched.add_argument('--lr_schedule', type=str, default='plateau', choices=['plateau', 'cosine'],
+                       help="Learning-rate schedule: 'plateau' (per-head ReduceLROnPlateau, legacy default) or 'cosine' (linear warmup + "
+                            "cosine decay applied to both LoRA and calibration parameter groups).")
+    sched.add_argument('--cosine_min_lr_ratio', type=float, default=0.05,
+                       help="Minimum LR as a fraction of peak LR at the end of cosine decay (default 0.05).")
     sched.add_argument('--plateau_patience', type=int, default=1,
                        help="Epochs of no improvement in a head's metric (rho_singles_wt for the WT head, --mt_convergence_metric for the MT head) "
                             "before that head's own learning rate is cut by --plateau_factor. 0 disables the decays.")
@@ -445,6 +475,16 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         parser.error("--rank_list_size must be >= 1")
     if args.link_tau <= 0:
         parser.error("--link_tau must be positive")
+    if args.mt_single_loss_weight < 0:
+        parser.error("--mt_single_loss_weight must be >= 0")
+    if args.lambda_cond_mt < 0:
+        parser.error("--lambda_cond_mt must be >= 0")
+    if args.grad_clip_norm < 0:
+        parser.error("--grad_clip_norm must be >= 0")
+    if args.calib_lr_mult <= 0:
+        parser.error("--calib_lr_mult must be > 0")
+    if args.min_batch_size < 1:
+        parser.error("--min_batch_size must be >= 1")
     if args.num_workers == -1:
         num_cpus = os.cpu_count()
         logging.info(f"Number of CPUs available: {num_cpus}")

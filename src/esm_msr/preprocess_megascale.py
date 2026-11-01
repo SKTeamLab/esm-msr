@@ -633,6 +633,8 @@ def setup_dataloaders(args: argparse.Namespace, add_benchmarks_to_val: bool = Fa
     consolidated_loader = create_consolidated_dataloader(
         dataloaders=train_dataloaders, train_list=train_loader_names, batch_size=args.batch_size, collate_fn=collate_fn_twopass,
         num_workers=args.num_workers, rng_seed=args.seed,
+        drop_last=bool(getattr(args, 'drop_last', True)),
+        min_batch_size=int(getattr(args, 'min_batch_size', 32)),
     )
     train_dataloaders_final, train_loader_names_final = [consolidated_loader], ['cycled_train']
 

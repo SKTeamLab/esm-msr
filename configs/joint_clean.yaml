@@ -1,0 +1,54 @@
+# Clean joint training configuration (audit-next, 2026-11-01):
+#   - Balanced 50/50 gradient norms (lambda_rank=0.5, lambda_reg=15.0)
+#   - Stop-gradient calibrated ListMLE (rank_calibrated_stopgrad: true)
+#   - Attention-only WT LoRA (target_mode_wt: qkv_outproj, r2a4) + weight_decay 0.05 + grad_clip_norm 1.0
+#   - Cosine LR decay with 500-step warmup across LoRA and calibration (calib_lr_mult: 5.0)
+#   - Uncensored numeric ordering down to -1.0 kcal/mol (censor_threshold: -1.0, censor_range: false)
+#   - Retained tail batches >= 32 variants (drop_last: false, min_batch_size: 32)
+#   - Leak-free within-library/within-block epistasis composite monitor (val_epi_composite) + early stopping (patience 2)
+adapter_mode: dual
+lora_rank_wt: 2
+lora_alpha_wt: 4
+lora_dropout_wt: 0.1
+target_mode_wt: qkv_outproj
+lora_rank_mt: 16
+lora_alpha_mt: 16
+lora_dropout_mt: 0.1
+target_mode_mt: expanded
+
+subsets: [single, double]
+censor_threshold: -1.0
+censor_range: false
+link_floor: 0.0
+link_tau: 0.59
+drop_last: false
+min_batch_size: 32
+
+lambda_rank_wt: 0.5
+lambda_reg_wt: 15.0
+lambda_rank_mt: 0.5
+lambda_reg_mt: 15.0
+rank_list_size: 16
+rank_calibrated_stopgrad: true
+huber_delta: 0.0
+tf_mix: 1.0
+
+learning_rate: 2.0e-4
+weight_decay: 0.05
+grad_clip_norm: 1.0
+calib_lr_mult: 5.0
+lr_warmup_steps: 500
+lr_schedule: cosine
+cosine_min_lr_ratio: 0.05
+batch_size: 256
+micro_batch_size: 64
+num_epochs: 6
+num_workers: 2
+
+plateau_patience: 0
+plateau_factor: 0.3
+freeze_after_decays: 0
+mt_convergence_metric: epi_composite
+monitor_metric: val_epi_composite
+early_stopping_patience: 2
+cache_version: c6
