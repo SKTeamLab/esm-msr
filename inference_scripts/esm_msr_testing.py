@@ -347,7 +347,8 @@ def main_(args):
     # Robust Checkpoint Loading
     # ---------------------------------------------------------
     if args.checkpoint:
-        model.load_lora_weights(resolved_ckpt)
+        load_wt_only = bool(args.skip_reverse or 'converged_wt' in os.path.basename(resolved_ckpt))
+        model.load_lora_weights(resolved_ckpt, load_wt_only=load_wt_only)
     else:
         print('Zero shot mode!')
 

@@ -613,6 +613,8 @@ class MSRModel(ESM3PredictorBase):
         
         loaded_trainable = set(new_state_dict.keys()).intersection(trainable_names)
         missing_trainable = set(missing).intersection(trainable_names)
+        if load_wt_only:
+            missing_trainable = {k for k in missing_trainable if not any(x in k for x in ['mt_adapter', 'peft_mt', 'calibration_head_mt'])}
         
         logging.info(f"Checkpoint Keys Found: {len(new_state_dict) + len(unexpected)}")
         logging.info(f"Keys Mapped to Model: {len(new_state_dict)}")
