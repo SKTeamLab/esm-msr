@@ -147,8 +147,7 @@ def rescore_val_dump(
     if force_no_link or ls.get("mode") == "identity" or ls.get("tau") is None:
         lnk = None
     else:
-        lh = link_mod.SaturatingLink(tau=float(ls["tau"]), floor=float(ls.get("global_floor", 0.0)))
-        lnk = lh.numpy()
+        lnk = link_mod.numpy_link_from_summary(ls)
 
     loaders = sorted(set(loader_arr.tolist()))
     all_singles_wt = []

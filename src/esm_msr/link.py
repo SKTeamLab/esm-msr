@@ -29,6 +29,7 @@ from torch import nn
 TAU_DEFAULT = 0.59        # kcal/mol; the knee width that fits the measured pile-up at the floor
 FLOOR_BAND = 1e-3         # floor_max - floor_min: the clip band around the one floor. Kept at its old value, 0.001 (--link_floor_max 0.001)
 CEILING_DEFAULT = 5.0     # the top of the assay's reported range ('>5'); see censoring.DG_RANGE_HIGH
+CLAMP_WIDTH_DEFAULT = 0.25  # softness of LeakyFloorLink's clamp at the assay's lowest report (a constant, not a flag)
 CEILING_MIN_SPAN = 1e-3   # the ceiling stays at least this far above floor_max, as bounds() keeps the band ordered
 
 
@@ -54,6 +55,22 @@ def numpy_link(tau: float, floor_min: float, floor_max: float, global_floor: flo
     return h
 
 
+def numpy_leaky_link(knee: float, tau: float, alpha: float, clamp: float, clamp_width: float):
+    """The numpy form of ``LeakyFloorLink`` (``h(z, y_floor=None)``; the per-item floor is ignored, there is one knee)."""
+    def h(z, y_floor=0.0):
+        z = np.asarray(z, dtype=np.float64)
+        u = knee + alpha * (z - knee) + (1.0 - alpha) * tau * np.logaddexp(0.0, (z - knee) / tau)
+        return clamp + clamp_width * np.logaddexp(0.0, (u - clamp) / clamp_width)
+    return h
+
+
+def numpy_link_from_summary(ls: dict):
+    """The numpy link a validation dump's ``link_summary`` describes (a softplus or a leaky link), for rescoring a dump off the GPU."""
+    if 'leaky_alpha' in ls:
+        return numpy_leaky_link(ls.get('global_floor', 0.0), ls['tau'], ls['leaky_alpha'], ls['clamp'], CLAMP_WIDTH_DEFAULT)
+    return numpy_link(ls['tau'], ls['floor_min'], ls['floor_max'], ls.get('global_floor', 0.0))
+
+
 def numpy_link_from_state_dict(state_dict, prefix: str = 'link_head.'):
     """The numpy link of a checkpoint trained with ``--link`` (its ``link_head.*`` entries), or None when it has none. Inference returns the
     latent ddG; evaluation code uses this to put predictions on the assay's observed scale."""
@@ -62,6 +79,9 @@ def numpy_link_from_state_dict(state_dict, prefix: str = 'link_head.'):
         return None
     sp = lambda v: float(F.softplus(torch.as_tensor(v, dtype=torch.float64)))
     f = lambda k: float(torch.as_tensor(state_dict[keys[k]], dtype=torch.float64))
+    if prefix + 'leaky_alpha' in state_dict:                  # a LeakyFloorLink: same buffers plus alpha / clamp / clamp_width
+        g = lambda k: float(torch.as_tensor(state_dict[prefix + k], dtype=torch.float64))
+        return numpy_leaky_link(f('global_floor'), sp(state_dict[keys['raw_tau']]), g('leaky_alpha'), g('clamp'), g('clamp_width'))
     tau = sp(state_dict[keys['raw_tau']])
     lo = f('floor_min')
     hi = max(f('floor_max'), lo + 1e-3)                      # the same ordering SaturatingLink.bounds() enforces
@@ -163,6 +183,94 @@ class SaturatingLink(nn.Module):
         lo, hi = self.bounds()
         return {'tau': float(self.tau()), 'floor_min': float(lo), 'floor_max': float(hi),
                 'global_floor': float(torch.minimum(torch.maximum(self.global_floor, lo), hi))}
+
+
+class LeakyFloorLink(nn.Module):
+    """
+    A soft floor whose KNEE and ASYMPTOTE are different numbers: ``h = clamp(leaky(z))``.
+
+        u(z) = k + alpha * (z - k) + (1 - alpha) * tau * softplus((z - k) / tau)          (the leaky knee at k, slope alpha below it)
+        h(z) = c + w * softplus((u(z) - c) / w)                                            (a soft clamp at the assay's lowest report c)
+
+    ``SaturatingLink`` has one number ``f`` that has to be both the place dead variants pile up (the forward knee, ~0.0 kcal/mol) and the
+    lowest value the link can emit. Moving ``f`` to the assay's reporting limit (-1.0) so that every numeric reading is inside the range
+    drags the knee with it, and a genuinely dead double is then predicted near -0.8 where the assay reports ~+0.1 (docs/trim_audit.md,
+    audit of 2026-11-01: doubles RMSE 0.47 -> 0.59-0.68 on every checkpoint). Here the knee stays at ``k`` and the asymptote is ``c = -1.0``,
+    so every numeric reading (> -1) is strictly inside the range, the inverse is defined for all of them, and below the knee the link
+    keeps a small slope ``alpha`` instead of going flat: a reading near the floor stays a (weak) function of the latent, so the inverse's slope
+    stays bounded where a softplus link's diverges (measured, alpha 0.10: d(inverse)/dy <= 4.2 for y >= 0, 11.5 for y >= -0.5, 30 at -0.9, where the
+    clamp's own shoulder steepens it; SP(0, 0.59) is 113 at y = 0.005 and infinite at 0).
+
+    Nothing is learned. Buffers keep the names ``SaturatingLink`` uses (``raw_tau``, ``floor_min``, ``floor_max``, ``global_floor``; the knee is
+    all four) and add ``leaky_alpha``, ``clamp``, ``clamp_width``, so ``numpy_link_from_state_dict`` can tell the two apart.
+    """
+
+    def __init__(self, tau: float = 0.65, knee: float = 0.0, alpha: float = 0.10, clamp: float = -1.0, clamp_width: float = CLAMP_WIDTH_DEFAULT):
+        super().__init__()
+        if not tau > 0 or not clamp_width > 0 or not 0.0 < alpha < 1.0:
+            raise ValueError(f"need tau > 0, clamp_width > 0 and 0 < alpha < 1; got {tau}, {clamp_width}, {alpha}")
+        self.register_buffer('raw_tau', torch.tensor(_inv_softplus(float(tau))))
+        self.register_buffer('floor_min', torch.tensor(float(knee)))
+        self.register_buffer('floor_max', torch.tensor(float(knee) + FLOOR_BAND))
+        self.register_buffer('global_floor', torch.tensor(float(knee)))
+        self.register_buffer('leaky_alpha', torch.tensor(float(alpha)))
+        self.register_buffer('clamp', torch.tensor(float(clamp)))
+        self.register_buffer('clamp_width', torch.tensor(float(clamp_width)))
+
+    def tau(self) -> torch.Tensor:
+        return F.softplus(self.raw_tau)
+
+    def effective_floor(self, y_floor=None) -> torch.Tensor:
+        """The knee (one for every item). Shaped like ``y_floor`` when given, so callers can use it element-wise."""
+        if y_floor is None:
+            return self.global_floor
+        return self.global_floor.expand_as(torch.as_tensor(y_floor, device=self.global_floor.device))
+
+    def _u(self, z: torch.Tensor) -> torch.Tensor:
+        k, t, a = self.global_floor, self.tau(), self.leaky_alpha
+        return k + a * (z - k) + (1.0 - a) * t * F.softplus((z - k) / t)
+
+    def forward(self, z: torch.Tensor, y_floor=None) -> torch.Tensor:
+        """``h`` on absolute dG."""
+        c, w = self.clamp, self.clamp_width
+        return c + w * F.softplus((self._u(z) - c) / w)
+
+    @torch.no_grad()
+    def inverse(self, y: torch.Tensor, y_floor=None) -> torch.Tensor:
+        """
+        ``h^-1`` on absolute dG, defined for every ``y > clamp`` (NaN at or below it, the asymptote). The clamp inverts in closed form;
+        ``u`` is convex and increasing in z, so Newton started at its upper bound ``k + (u - k) / alpha`` converges monotonically.
+        """
+        dt = y.dtype
+        y64 = y.double()
+        c, w = self.clamp.double(), self.clamp_width.double()
+        v = (y64 - c) / w
+        u = c + w * torch.where(v > 20.0, v, torch.log(torch.expm1(v.clamp(min=1e-12))))
+        k, t, a = self.global_floor.double(), self.tau().double(), self.leaky_alpha.double()
+        d = (u - k) / a                                            # upper bound on z - k, since u - k >= alpha * (z - k)
+        for _ in range(60):
+            s = d / t
+            f = a * d + (1.0 - a) * t * F.softplus(s) - (u - k)
+            fp = a + (1.0 - a) * torch.sigmoid(s)
+            d = d - f / fp
+        z = (k + d).to(dt)
+        return torch.where(v > 0, z, torch.full_like(z, float('nan')))
+
+    def latent_ddG(self, observed: torch.Tensor, dG_wt: torch.Tensor, y_floor=None) -> torch.Tensor:
+        return self.inverse(dG_wt + observed, y_floor) - dG_wt
+
+    def obs_ddG(self, latent: torch.Tensor, dG_wt: torch.Tensor, y_floor=None) -> torch.Tensor:
+        return self(dG_wt + latent, y_floor) - dG_wt
+
+    @torch.no_grad()
+    def numpy(self):
+        return numpy_leaky_link(float(self.global_floor), float(self.tau()), float(self.leaky_alpha), float(self.clamp), float(self.clamp_width))
+
+    @torch.no_grad()
+    def summary(self) -> dict:
+        k = float(self.global_floor)
+        return {'tau': float(self.tau()), 'floor_min': k, 'floor_max': k + FLOOR_BAND, 'global_floor': k, 'leaky_alpha': float(self.leaky_alpha),
+                'clamp': float(self.clamp), 'clamp_width': float(self.clamp_width)}
 
 
 class IdentityLink(nn.Module):

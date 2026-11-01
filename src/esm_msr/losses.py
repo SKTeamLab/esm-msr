@@ -6,12 +6,15 @@ and its order among its equally-dead peers is noise. Both objectives here are bu
 * :meth:`ListMLELoss.forward_censored` ties the censored members of a list at the bottom (or top) - the bottom block stays in the
   denominators, the top block is scored as "placed first in any order" - so the model is still taught where they rank against the
   measurable variants, while never scoring their order among themselves. Always forward (top-weighted) Plackett-Luce.
+* :func:`tobit_regression_loss` is the same idea without a threshold: the exact likelihood of a reading that is the larger of the variant's own
+  stability and a noisy per-library unfolded floor, so a near-floor reading bounds the latent from above smoothly instead of pinning it.
 * :func:`hinge_regression_loss` penalises a censored item only when the prediction falls on the wrong side of its bound, so predicting "at or
   below the floor" for something measured at the floor is free, and only claiming it is *better* than the floor costs anything.
 
 ``cens`` is -1 (lower-censored), 0 (ordinary) or +1 (upper-censored) throughout; see ``esm_msr.censoring`` for where it comes from.
 """
 import itertools
+import math
 
 import torch
 
@@ -178,3 +181,45 @@ def hinge_regression_loss(crit, pred: torch.Tensor, target: torch.Tensor, bound:
     wrong_side = ((cens < 0) & (pred > safe_bound)) | ((cens > 0) & (pred < safe_bound))
     keep = (~censored) | (wrong_side & finite_bound)
     return L * keep.to(L.dtype)
+
+
+TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F = 0.28, 0.05, 0.38     # kcal/mol: assay noise, mean and spread of the unfolded floor
+_LOG_SQRT_2PI = 0.5 * math.log(2.0 * math.pi)
+
+
+def tobit_regression_loss(z: torch.Tensor, y: torch.Tensor, bound: torch.Tensor, cens: torch.Tensor,
+                          sigma_y: float = TOBIT_SIGMA_Y, mu_f: float = TOBIT_MU_F, sigma_f: float = TOBIT_SIGMA_F) -> torch.Tensor:
+    """
+    Noisy-floor Tobit negative log-likelihood, element-wise, on ABSOLUTE dG (``z`` the latent dG the model claims, ``y`` the reading).
+
+    A reading is ``Y = max(X, F)`` with ``X ~ N(z, sigma_y^2)`` (the variant's own stability, measured with noise) and ``F ~ N(mu_f, sigma_f^2)``
+    the unfolded floor of that library and protease (the composition model's error for the sequence). Then
+
+        p(y | z) = phi_y(y - z) * Phi_f(y - mu_f)  +  phi_f(y - mu_f) * Phi_y(y - z)
+
+    The first term is "the variant was measured"; the second is "the floor was read, and the variant sits below it". Far above the floor
+    ``Phi_f -> 1`` and ``phi_f -> 0`` and this is a Gaussian, i.e. plain MSE. Near and below it the second term turns the loss into a smooth upper bound
+    on z: a dead double at z = -3 read at +0.05 costs almost nothing, a false-stable z = +1.5 is expensive, and no reading below the floor
+    has to be inverted or censored by a threshold. The minimiser of one item is the noise-aware E[z | y], not the deterministic h^-1(y).
+
+    ``cens`` as everywhere: 0 an ordinary reading scored with the mixture; -1 / +1 a bound (``bound`` absolute dG, e.g. the assay's '<-1' / '>5' tags), scored
+    with the survival term ``-log Phi((b - z) / sigma_y)`` / ``-log Phi((z - b) / sigma_y)`` (the floor factor does not depend on z). A censored
+    item whose bound is not finite contributes nothing.
+
+    Scaled by ``2 * sigma_y^2`` and shifted by the Gaussian constant so that, away from the floor, it equals ``(y - z)^2`` exactly: the same magnitude as the
+    MSE it replaces, so the loss weights tuned for MSE carry over.
+    """
+    z, y, bound = z.float(), y.float(), bound.float()
+    scale = 2.0 * sigma_y ** 2
+    lo, hi = cens < 0, cens > 0
+    num = (cens == 0) & torch.isfinite(y)
+    y_s = torch.where(num, y, torch.zeros_like(y))
+    t1 = -0.5 * ((y_s - z) / sigma_y) ** 2 - math.log(sigma_y) - _LOG_SQRT_2PI + torch.special.log_ndtr((y_s - mu_f) / sigma_f)
+    t2 = -0.5 * ((y_s - mu_f) / sigma_f) ** 2 - math.log(sigma_f) - _LOG_SQRT_2PI + torch.special.log_ndtr((y_s - z) / sigma_y)
+    L_num = scale * (-torch.logaddexp(t1, t2) - (math.log(sigma_y) + _LOG_SQRT_2PI))
+    b_ok = torch.isfinite(bound)
+    b_s = torch.where(b_ok, bound, torch.zeros_like(bound))
+    L_lo = -scale * torch.special.log_ndtr((b_s - z) / sigma_y)
+    L_hi = -scale * torch.special.log_ndtr((z - b_s) / sigma_y)
+    zero = torch.zeros_like(L_num)
+    return torch.where(num, L_num, zero) + torch.where(lo & b_ok, L_lo, zero) + torch.where(hi & b_ok, L_hi, zero)

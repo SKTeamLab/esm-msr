@@ -13,7 +13,7 @@ import numpy as np
 
 from esm_msr import epi_metrics, stats
 from esm_msr.censoring import SRC_RANGE
-from esm_msr.link import numpy_link
+from esm_msr.link import numpy_link, numpy_link_from_summary
 
 POOLED_4 = ('val_rho_ungrouped_wt', 'val_rho_ungrouped_combined',
             'val_ndcg@k=96_ungrouped_combined', 'val_ndcg@k>0_ungrouped_combined')
@@ -38,7 +38,7 @@ def load_dump(path):
     d['link'] = None
     if 'link_summary' in z.files:
         ls = json.loads(str(z['link_summary'].item()))
-        d['link'] = numpy_link(ls['tau'], ls['floor_min'], ls['floor_max'], ls.get('global_floor', 0.0))
+        d['link'] = numpy_link_from_summary(ls)
     return d
 
 

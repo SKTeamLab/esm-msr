@@ -15,7 +15,7 @@ import argparse, json, os, pickle, sys
 import numpy as np
 
 from esm_msr import censoring, epi_metrics as E
-from esm_msr.link import numpy_link
+from esm_msr.link import numpy_link, numpy_link_from_summary
 
 _DGWT = {}
 
@@ -42,7 +42,7 @@ def _parse_link(z):
     ls = z['link_summary']
     s = json.loads(str(ls.item()) if hasattr(ls, 'item') and ls.ndim == 0 else str(ls))
     if 'tau' in s:
-        return numpy_link(s['tau'], s['floor_min'], s['floor_max'], s.get('global_floor', 0.0))
+        return numpy_link_from_summary(s)
     if 'tau_lo' in s:
         return numpy_link(s['tau_lo'], s['lo'], s['hi'], ceiling=s.get('ceiling'), tau_hi=s.get('tau_hi'))
     return None

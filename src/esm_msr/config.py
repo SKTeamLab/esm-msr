@@ -267,6 +267,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     arch.add_argument('--link_floor', type=float, default=0.0,
                       help="The link's one knee (kcal/mol of absolute dG): 0.0 is the physical floor, the unfolded state. Stamped on every item.")
     arch.add_argument('--link_tau', type=float, default=0.59, help="Width of the link's knee in kcal/mol (RT).")
+    arch.add_argument('--link_kind', type=str, default='softplus', choices=['softplus', 'leaky'],
+                      help="softplus: h = f + tau*softplus((z-f)/tau), one number f is both the knee and the asymptote (the released link). leaky: the knee "
+                           "(--link_floor, --link_tau) and the asymptote (--link_clamp) are different numbers, with slope --link_alpha below the knee: "
+                           "every numeric reading is inside the range and the inverse is defined for all of them (esm_msr.link.LeakyFloorLink).")
+    arch.add_argument('--link_alpha', type=float, default=0.10, help="--link_kind leaky: the slope below the knee (0 < alpha < 1).")
+    arch.add_argument('--link_clamp', type=float, default=-1.0, help="--link_kind leaky: the asymptote, the lowest dG the link can report (the assay's -1).")
     for flag, side in (('mask_strategy_wt', 'WT'), ('mask_strategy_mt', 'MT')):
         arch.add_argument(f'--{flag}', type=str, default=None, choices=['none', 'marginal', 'independent'],
                           help=f"Sequence masking of the {side} pass. marginal masks every mutated site at once (the pass knows WHICH sites changed, "
@@ -314,6 +320,15 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     obj.add_argument('--rank_calibrated_stopgrad', action=argparse.BooleanOptionalAction, default=False,
                      help="Score ListMLE on stop-gradient calibrated predictions (s.detach()*raw + b.detach()*n_mut) / s_wt.detach(), aligning "
                           "untied MT/WT scales and per-mutation biases across mixed single/double lists without temperature collapse on s.")
+    obj.add_argument('--reg_nll', type=str, default='none', choices=['none', 'tobit'],
+                     help="Regression likelihood. none: MSE/Huber on the observed scale through the link, one-sided at --censor_threshold (the default). "
+                          "tobit: the noisy-floor Tobit mixture on the LATENT absolute dG (losses.tobit_regression_loss; its noise constants are losses.TOBIT_*); the link is then only the "
+                          "forward map used to report the observed scale, and --censor_threshold only ties the floor items' ranks (the regression ignores it). "
+                          "'<-1' / '>5' range tags are scored with the survival term.")
+    obj.add_argument('--tf_cut', type=_threshold, default=None,
+                     help="Teacher forcing uses a measured single (or a double's two singles) only when its absolute dG is ABOVE this. Unset keeps the old "
+                          "coupling to --censor_threshold (or the link floor): that coupling made a censor threshold at or below the floor feed "
+                          "near-floor readings to the inverse link, which explodes there. Set it (0.5) to choose the teacher-forcing cut on its own.")
     obj.add_argument('--mt_single_loss_weight', type=float, default=1.0,
                      help="Relative loss weight on single-mutant items vs multi-mutants (1.0) in the MT regression and ranking losses "
                           "(e.g. 0.1 downweights singles 10x while preserving domain-context regularisation).")
@@ -479,6 +494,13 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         parser.error("--rank_list_size must be >= 1")
     if args.link_tau <= 0:
         parser.error("--link_tau must be positive")
+    if args.link_kind == 'leaky':
+        if not 0.0 < args.link_alpha < 1.0:
+            parser.error("--link_alpha must be in (0, 1)")
+        if args.link_clamp >= args.link_floor:
+            parser.error(f"--link_clamp {args.link_clamp} must be below the knee --link_floor {args.link_floor}")
+    if args.reg_nll == 'tobit' and not args.link:
+        parser.error("--reg_nll tobit with --no-link: the observed-scale report would be the latent itself; use the link (it only reports, it is not trained through)")
     if args.mt_single_loss_weight < 0:
         parser.error("--mt_single_loss_weight must be >= 0")
     if args.lambda_cond_mt < 0:

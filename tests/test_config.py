@@ -143,7 +143,9 @@ def test_frozen_wt_derives_its_pieces(tmp_path):
 def test_the_number_of_flags_is_small():
     """The point of the trim. A new flag is allowed, but it has to be a decision: raise this bound on purpose."""
     keys = set(vars(parse()))
-    assert len(keys) <= 83, sorted(keys)
+    # 83 -> 87 on 2026-11-01: --link_kind / --link_alpha / --link_clamp (the leaky link), --reg_nll (Tobit likelihood), --tf_cut (teacher-forcing cut
+    # decoupled from --censor_threshold). The Tobit noise constants and the clamp width are constants, not flags, to keep this bound honest.
+    assert len(keys) <= 87, sorted(keys)
 
 
 # ---------------------------------------------------------------------------------------------------------------- yaml

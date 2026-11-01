@@ -19,8 +19,8 @@ from lightning.pytorch.loggers import CometLogger, CSVLogger
 
 from esm_msr.models import MSRModel, combine_predictions, pass_mask_strategy
 from esm_msr import censoring, epi_metrics, stats, utils
-from esm_msr.link import SaturatingLink, IdentityLink
-from esm_msr.losses import ListMLELoss, hinge_regression_loss
+from esm_msr.link import SaturatingLink, LeakyFloorLink, IdentityLink
+from esm_msr.losses import ListMLELoss, hinge_regression_loss, tobit_regression_loss, TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
@@ -44,6 +44,8 @@ def build_link(hp):
     """The observed-scale link of a run: one floor and one knee width, both set by flags and neither learned."""
     if not getattr(hp, 'link', True):
         return IdentityLink()
+    if hp.get('link_kind', 'softplus') == 'leaky':
+        return LeakyFloorLink(tau=hp.link_tau, knee=hp.link_floor, alpha=hp.get('link_alpha', 0.10), clamp=hp.get('link_clamp', -1.0))
     return SaturatingLink(tau=hp.link_tau, floor=hp.link_floor)
 
 
@@ -198,6 +200,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # The observed-scale link. Regression goes through it; ranking does not, because it is monotone. Nothing in it is learned.
         self.link_head = build_link(hp)
         logging.info(f"Observed-scale link: {self.link_head.summary()}")
+        # --reg_nll tobit: regression is the noisy-floor Tobit likelihood on the latent absolute dG, not MSE through the link.
+        self.tobit = hp.get('reg_nll', 'none') == 'tobit'
+        self.tobit_params = dict(sigma_y=TOBIT_SIGMA_Y, mu_f=TOBIT_MU_F, sigma_f=TOBIT_SIGMA_F)
+        if self.tobit:
+            logging.info(f"Regression: noisy-floor Tobit NLL {self.tobit_params} on latent dG (the link only reports the observed scale)")
         # The link is part of the pre-trained WT model, not a separate piece: a frozen WT adapter paired with a different floor or
         # width is a different model than the one being frozen.
         if hp.get('init_wt_from_checkpoint'):
@@ -490,7 +497,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         n = max(list_size, (n // list_size) * list_size)      # whole lists only
         return min(B, n)
 
-    def _reg_loss(self, pred, target, bound, cens, mask, denom, weights=None):
+    def _reg_loss(self, pred, target, bound, cens, mask, denom, weights=None, dgwt=None):
         """
         Regression over ``mask``, one-sided wherever the measurement is only a bound.
 
@@ -502,7 +509,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if mask.dtype != torch.bool:
             raise AssertionError(f"regression mask must be bool, got {mask.dtype}: an integer mask indexes rows "
                                  f"instead of selecting them, which fails silently.")
-        L = hinge_regression_loss(self.crit_reg, pred[mask], target[mask], bound[mask], cens[mask])
+        if getattr(self, 'tobit', False) and dgwt is not None:
+            # ``pred`` is the LATENT ddG here (not linked); the likelihood lives on absolute dG, so each item is shifted by its library's dG_wt.
+            off = dgwt[mask]
+            L = tobit_regression_loss(off + pred[mask], off + target[mask], off + bound[mask], cens[mask], **self.tobit_params)
+        else:
+            L = hinge_regression_loss(self.crit_reg, pred[mask], target[mask], bound[mask], cens[mask])
         if weights is not None:
             w = weights[mask]
             Lw = L * w
@@ -511,6 +523,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def _compose_losses_streaming_and_backward(self, batch: dict) -> dict:
         hp = self.hparams
+        tobit = bool(getattr(self, 'tobit', False))
         device, B = batch['ddG'].device, int(batch['ddG'].shape[0])
         list_size = max(1, int(hp.rank_list_size))
         mb = self._micro_batch(B, list_size, hp.micro_batch_size)
@@ -538,7 +551,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # a constant of the item, the same shift that defines cens_bound.
         offset = batch.get('ddG').float() - batch.get('dG_meas', torch.full((B,), float('nan'), device=device)).float()
         raw_bound_all = bound_all
-        bound_all = reachable_bounds(link, bound_all, floor_all, offset)
+        if not tobit:          # the Tobit survival term is exact at the tag's own bound: nothing has to be made reachable
+            bound_all = reachable_bounds(link, bound_all, floor_all, offset)
+        # What the regression sees as censored. Under Tobit only the assay's own '<-1' / '>5' tags are: a floor-censored item (--censor_threshold)
+        # has a number, which the mixture uses, and the threshold stays a rank-tie device.
+        if tobit:
+            cens_src_all = batch.get('cens_src', torch.zeros(B, dtype=torch.long, device=device)).long()
+            cens_reg_all = torch.where(cens_src_all == censoring.SRC_RANGE, cens_all, torch.zeros_like(cens_all))
+        else:
+            cens_reg_all = cens_all
+        tf_cut_hp = hp.get('tf_cut', None)
 
         sums, cnts = defaultdict(float), defaultdict(float)
         n_tf_drop = 0
@@ -572,6 +594,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             ddG_mb = micro['ddG'].float()
             dGwt_mb, floor_mb, link_ok = dGwt_all[idx], floor_all[idx], link_ok_all[idx]
             cens_mb, bound_mb, raw_bound_mb = cens_all[idx], bound_all[idx], raw_bound_all[idx]
+            cens_reg_mb = cens_reg_all[idx]
             n_mut_mb = micro['mut_mask'].sum(dim=1)
             is_single = n_mut_mb == 1
             is_native_cond = is_native_cond_all[idx]
@@ -612,12 +635,18 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # floor, not its own effect, so injecting it into a latent average biases the combined prediction by however much that single
             # was compressed. Such doubles fall back to the WT head's own latent. The cut is --censor_threshold, the same one that
             # censored the single, and a censored single gives no label for ITSELF either (its label is a bound).
-            cut = torch.full_like(floor_mb, float(t_single)) if t_single is not None else floor_mb
+            if tf_cut_hp is not None:
+                cut = torch.full_like(floor_mb, float(tf_cut_hp))
+            else:
+                cut = torch.full_like(floor_mb, float(t_single)) if t_single is not None else floor_mb
             if 'ddG_A' in micro and 'ddG_B' in micro:
                 tf_saturated = teacher_forcing_unusable(dGwt_mb, micro['ddG_A'].float(), micro['ddG_B'].float(), cut) & ~is_single
                 n_tf_drop += int(tf_saturated.sum().item())
                 has_add_label = has_add_label & ~tf_saturated
-            if t_single is not None:
+            if tf_cut_hp is not None:
+                # a single read at or below the cut gives no label for itself either (it is not censored, so cens does not say so)
+                has_add_label = has_add_label & ~(is_single & ((dGwt_mb + ddG_mb) <= float(tf_cut_hp)))
+            elif t_single is not None:
                 has_add_label = has_add_label & ~(is_single & (cens_mb != 0))
             if wt_sup_dbl and self.mask_wt == 'marginal':
                 # With marginal pair-masking supervised on doubles, WT(AB) learns pair + line effects (WT(AB) != WT(A) + WT(B)).
@@ -660,9 +689,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     if lat_hinge:
                         p_wt = torch.where(cens_wt != 0, wt_pred_cal, p_wt)
                         b_wt_use = torch.where(cens_wt != 0, raw_bound_mb, bound_mb)
-                    reg_wt_mask = (valid_wt_mask & link_ok) if wt_sup_dbl else (valid_wt_mask & (link_ok | ~is_single))
+                    reg_wt_mask = (valid_wt_mask & link_ok) if (wt_sup_dbl or tobit) else (valid_wt_mask & (link_ok | ~is_single))
                     if reg_wt_mask.any():
-                        term, val, wsum = self._reg_loss(p_wt, wt_targets, b_wt_use, cens_wt, reg_wt_mask, denom)
+                        if tobit:
+                            cens_wt_reg = cens_reg_mb if wt_sup_dbl else torch.where(is_single, cens_reg_mb, torch.zeros_like(cens_reg_mb))
+                            term, val, wsum = self._reg_loss(wt_pred_cal, wt_targets, raw_bound_mb, cens_wt_reg, reg_wt_mask, denom, dgwt=dGwt_mb)
+                        else:
+                            term, val, wsum = self._reg_loss(p_wt, wt_targets, b_wt_use, cens_wt, reg_wt_mask, denom)
                         wt_losses.append(hp.lambda_reg_wt * term)
                         sums['reg_wt'] += val; cnts['reg_wt'] += wsum
 
@@ -745,7 +778,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         b_comb_use = torch.where(cens_mb != 0, raw_bound_mb, bound_mb)
                     reg_c_mask = reg_mask & link_ok
                     if reg_c_mask.any():
-                        term, val, wsum = self._reg_loss(p_comb, ddG_mb, b_comb_use, cens_mb, reg_c_mask, denom, weights=mt_item_w)
+                        if tobit:
+                            term, val, wsum = self._reg_loss(combined_pred_cal, ddG_mb, raw_bound_mb, cens_reg_mb, reg_c_mask, denom, weights=mt_item_w,
+                                                             dgwt=dGwt_mb)
+                        else:
+                            term, val, wsum = self._reg_loss(p_comb, ddG_mb, b_comb_use, cens_mb, reg_c_mask, denom, weights=mt_item_w)
                         mt_losses.append(hp.lambda_reg_mt * term)
                         sums['reg_combined'] += val; cnts['reg_combined'] += wsum
 
@@ -779,7 +816,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                                 obs_ab = link.obs_ddG(lat_ab, dGwt_mb, floor_mb)
                                 p_leg = torch.where(cens_mb != 0, lat_ab, obs_ab) if lat_hinge else obs_ab
                                 b_leg = torch.where(cens_mb != 0, raw_bound_mb, bound_mb) if lat_hinge else bound_mb
-                                t_c, v_c, w_c = self._reg_loss(p_leg, ddG_mb, b_leg, cens_mb, ok_leg, 2.0 * denom)
+                                if tobit:
+                                    t_c, v_c, w_c = self._reg_loss(lat_ab, ddG_mb, raw_bound_mb, cens_reg_mb, ok_leg, 2.0 * denom, dgwt=dGwt_mb)
+                                else:
+                                    t_c, v_c, w_c = self._reg_loss(p_leg, ddG_mb, b_leg, cens_mb, ok_leg, 2.0 * denom)
                                 mt_losses.append(lambda_cond_mt * t_c)
                                 sums['cond_mt'] += v_c; cnts['cond_mt'] += w_c
 
