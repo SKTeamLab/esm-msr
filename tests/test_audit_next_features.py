@@ -267,3 +267,64 @@ def test_new_cli_flags_parse_and_cosine_scheduler_steps():
     # Warmup rises first, then cosine decays smoothly
     assert lrs[3] > lrs[0]
     assert lrs[-1] < lrs[3]
+
+
+def test_wt_supervise_doubles_with_marginal_masking():
+    """Verify --wt_supervise_doubles trains WT on true double labels through link & censoring, both standalone and joint."""
+    # Make a doubles-only batch: without wt_supervise_doubles WT produces no loss; with wt_supervise_doubles WT learns cleanly.
+    batch = _make_batch(8)
+    batch['mut_mask'] = torch.ones((8, 2), dtype=torch.bool)
+    batch['subset_type'] = ['double'] * 8
+
+    mod_off = _make_stub_module(mask_strategy_wt='marginal', wt_supervise_doubles=False, lambda_reg_mt=0.0, lambda_rank_mt=0.0)
+    logs_off = mod_off._compose_losses_streaming_and_backward(batch)
+    assert 'L_reg_wt' not in logs_off
+    assert mod_off.model.lora_wt_weight.grad is None or mod_off.model.lora_wt_weight.grad.abs().sum().item() == 0.0
+
+    mod_on = _make_stub_module(mask_strategy_wt='marginal', wt_supervise_doubles=True, rank_calibrated_stopgrad=True,
+                               lambda_cond_mt=7.5, mt_single_loss_weight=0.1)
+    mod_on.mask_wt = 'marginal'
+    logs_on = mod_on._compose_losses_streaming_and_backward(batch)
+    assert 'L_reg_wt' in logs_on and 'L_rank_wt' in logs_on
+    assert mod_on.model.lora_wt_weight.grad is not None and mod_on.model.lora_wt_weight.grad.abs().sum().item() > 0.0
+    assert mod_on.model.lora_mt_weight.grad is not None and mod_on.model.lora_mt_weight.grad.abs().sum().item() > 0.0
+
+
+def test_epi_metrics_credits_marginal_wt_pair_and_line_effects():
+    """Verify epi_metrics credits a standalone marginal-masked WT head (wt == mt == comb) for pair + line epistasis while cell_rank == 0."""
+    rng = np.random.default_rng(11)
+    keys, st, ddg, dddg, dg_wt, wt, mt, comb = [], [], [], [], [], [], [], []
+    for p in range(10):
+        lib, c = ('L1', 2.5) if p % 2 == 0 else ('L2', 3.0)
+        a = rng.normal(-0.6, 0.5, 5)
+        b = rng.normal(-0.6, 0.5, 5)
+        m_pair = rng.normal(0.0, 0.5)
+        r_line = rng.normal(0.0, 0.35, 5)
+        s_line = rng.normal(0.0, 0.35, 5)
+        eps_cell = rng.normal(0.0, 0.25, (5, 5))
+        eps_cell = eps_cell - eps_cell.mean(1, keepdims=True) - eps_cell.mean(0, keepdims=True) + eps_cell.mean()
+        for i in range(5):
+            keys.append(((lib, 10 * p + 1, chr(65 + i)),))
+            st.append('single'); ddg.append(a[i]); dddg.append(np.nan); dg_wt.append(c)
+            wt.append(a[i]); mt.append(a[i]); comb.append(a[i])
+        for j in range(5):
+            keys.append(((lib, 10 * p + 5, chr(70 + j)),))
+            st.append('single'); ddg.append(b[j]); dddg.append(np.nan); dg_wt.append(c)
+            wt.append(b[j]); mt.append(b[j]); comb.append(b[j])
+        for i in range(5):
+            for j in range(5):
+                ep_marg = m_pair + r_line[i] + s_line[j]
+                ep_true = ep_marg + eps_cell[i, j]
+                y_true = a[i] + b[j] + ep_true
+                y_marg = a[i] + b[j] + ep_marg
+                keys.append(((lib, 10 * p + 1, chr(65 + i)), (lib, 10 * p + 5, chr(70 + j))))
+                st.append('double'); ddg.append(y_true); dddg.append(ep_true); dg_wt.append(c)
+                # Standalone marginal WT (--val_wt_only): wt == mt == comb == y_marg on doubles, == a[i]/b[j] on singles
+                wt.append(y_marg); mt.append(y_marg); comb.append(y_marg)
+    tbl = E.Table({'mut_key': keys, 'subset_type': st, 'cens': np.zeros(len(keys), int),
+                   'ddG': ddg, 'dddG': dddg, 'dG_wt': dg_wt, 'wt': wt, 'mt': mt, 'comb': comb}, link=None)
+    res = E.compute(tbl)
+    assert res['epi_pair_rho_epi'] > 0.85
+    assert res['epi_line_rho_epi'] > 0.85
+    assert res['epi_beyond_lib_epi'] > 0.85
+    assert res['epi_cell_rank_epi'] == 0.0

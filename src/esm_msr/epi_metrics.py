@@ -346,6 +346,9 @@ def predicted_dddg(t: Table, h: str):
     """(dddG'_h in latent space, x'_h): the head's predicted latent epistasis and its additive expectation."""
     if h in WT_REFERENCED:
         ref = WT_REFERENCED[h]
+        if ref in t.L and 'add' in t.LA and 'add' in t.LB:
+            add_lat = t.LA['add'] + t.LB['add']
+            return t.L[ref] - add_lat, t.c + add_lat
         if ref in t.L and 'add' in t.L:
             return t.L[ref] - t.L['add'], t.c + t.L['add']
         if h in t.L:

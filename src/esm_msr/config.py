@@ -325,6 +325,10 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     obj.add_argument('--latent_censor_hinge', action=argparse.BooleanOptionalAction, default=False,
                      help="Evaluate censored items' one-sided hinge directly on latent stability (dG_wt + pred_cal vs unclamped dG_bound) "
                           "instead of clamping bounds upward to +0.409 via reachable_bounds, while keeping SaturatingLink on uncensored items.")
+    obj.add_argument('--wt_supervise_doubles', action=argparse.BooleanOptionalAction, default=False,
+                     help="Supervise the WT head on all true single and double ddG labels (passing doubles through the observed-scale link "
+                          "and censoring bounds identically to singles). Designed for --mask_strategy_wt marginal, where simultaneous pair "
+                          "masking gives the WT head awareness of both mutated sites (pair and line effects).")
 
     opt = parser.add_argument_group("Optimisation")
     opt.add_argument('--learning_rate', type=float, default=2e-4)

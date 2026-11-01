@@ -553,6 +553,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         lambda_cond_mt = float(hp.get('lambda_cond_mt', 0.0) or 0.0)
         cond_min_dg = float(hp.get('cond_partner_min_dg', 1.0))
         lat_hinge = bool(hp.get('latent_censor_hinge', False))
+        wt_sup_dbl = bool(hp.get('wt_supervise_doubles', False))
 
         for start in range(0, B, mb):
             # Drop the PREVIOUS micro-batch's tensors before this one's forward allocates. manual_backward frees a graph's saved
@@ -585,7 +586,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # is its own flag (the released default is on, via the 'single' label; with --native_cond_for_mt it is a native_cond item
             # and this mask decides).
             wt_targets = ddG_mb
-            valid_wt_mask = torch.isfinite(ddG_mb) & is_single
+            valid_wt_mask = torch.isfinite(ddG_mb) if wt_sup_dbl else (torch.isfinite(ddG_mb) & is_single)
             if not nc_for_wt:
                 valid_wt_mask = valid_wt_mask & ~is_native_cond
 
@@ -618,6 +619,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 has_add_label = has_add_label & ~tf_saturated
             if t_single is not None:
                 has_add_label = has_add_label & ~(is_single & (cens_mb != 0))
+            if wt_sup_dbl and self.mask_wt == 'marginal':
+                # With marginal pair-masking supervised on doubles, WT(AB) learns pair + line effects (WT(AB) != WT(A) + WT(B)).
+                # Keep single-label teacher forcing on singles, and feed WT_marginal(AB).detach() as the WT half on doubles so
+                # 0.5 * WT_marginal(AB) + 0.5 * MT(AB) matches inference without 1.5x pair/line double-counting.
+                has_add_label = has_add_label & is_single
 
             # =============================================================
             # PHASE 1: WILD-TYPE PASS
@@ -643,18 +649,18 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.mask_wt)
                     wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
 
-                cens_wt = torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
+                cens_wt = cens_mb if wt_sup_dbl else torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
                 wt_losses = []
                 if hp.lambda_reg_wt > 0:
-                    # Assembled in latent (the pass's own sum over the item's positions), linked once, at the end. A multi-mutant's target is
-                    # itself a latent sum, so it stays off the link and needs no dG_wt - hence it is kept even where link_ok is False.
+                    # Assembled in latent (the pass's own sum over the item's positions), linked once, at the end. When --wt_supervise_doubles
+                    # is enabled, wt_targets carries true observed-scale single and double ddG labels, so multi-mutants pass through link.obs_ddG too.
                     p_obs = link.obs_ddG(wt_pred_cal, dGwt_mb, floor_mb)
-                    p_wt = torch.where(is_single, p_obs, wt_pred_cal)
+                    p_wt = p_obs if wt_sup_dbl else torch.where(is_single, p_obs, wt_pred_cal)
                     b_wt_use = bound_mb
                     if lat_hinge:
                         p_wt = torch.where(cens_wt != 0, wt_pred_cal, p_wt)
                         b_wt_use = torch.where(cens_wt != 0, raw_bound_mb, bound_mb)
-                    reg_wt_mask = valid_wt_mask & (link_ok | ~is_single)
+                    reg_wt_mask = (valid_wt_mask & link_ok) if wt_sup_dbl else (valid_wt_mask & (link_ok | ~is_single))
                     if reg_wt_mask.any():
                         term, val, wsum = self._reg_loss(p_wt, wt_targets, b_wt_use, cens_wt, reg_wt_mask, denom)
                         wt_losses.append(hp.lambda_reg_wt * term)
