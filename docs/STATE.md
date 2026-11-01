@@ -255,7 +255,7 @@ writes `dc_runs/wt_gold.txt` and appends `gate1_tfmix`.
   `--link` + ensemble (a scalar bias puts a double one bias below its two singles, 0.1065 kcal/mol).
   `--tie_mt_scale` defaults **OFF** (changed 2026-10-23; it was ON): the MT head keeps its own scale. Pass
   `--tie_mt_scale` to share the WT head's scale (bias separate), so the raw and calibrated combinations weight the
-  halves identically; a run that needs it, such as the teacher-forcing recipe of `docs/tf_mix.md`, must now say so
+  halves identically; a run that needs it, such as the teacher-forcing recipe in `docs/FEATURES.md`, must now say so
   explicitly. Both defaults are the same everywhere they are read: the training config, `MSRModel`, and the inference
   fallback for a checkpoint whose hparams lack the keys (untied, bias per mutated position). `--nonspecific_term fx`
   requires `mean`, which the block uses, so the ns arms run.
