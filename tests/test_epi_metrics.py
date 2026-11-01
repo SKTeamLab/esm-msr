@@ -47,10 +47,8 @@ def items(pairs, measure, predict, link_pred=None):
     out = {k: [] for k in ('mut_key', 'subset_type', 'cens', 'ddG', 'dddG', 'dG_wt', 'wt', 'mt', 'comb', 'wt_rev')}
 
     def add(key, st, ddG, dddG, c, wt, pred):
-        # Ensemble convention matching training.py: comb = 0.5 * (wt + mt) = pred => mt = 2 * pred - wt.
-        mt_val = 2.0 * pred - wt
         out['mut_key'].append(key); out['subset_type'].append(st); out['cens'].append(0); out['ddG'].append(ddG); out['dddG'].append(dddG)
-        out['dG_wt'].append(c); out['wt'].append(wt); out['mt'].append(mt_val); out['comb'].append(pred); out['wt_rev'].append(mt_val)
+        out['dG_wt'].append(c); out['wt'].append(wt); out['mt'].append(pred); out['comb'].append(0.5 * (wt + pred)); out['wt_rev'].append(pred)
 
     for P in pairs:
         c, (p, q) = P['c'], P['pos']
@@ -189,7 +187,7 @@ class TestTable(unittest.TestCase):
 
     def test_logged_names_cover_the_documented_set(self):
         names = E.logged_names()
-        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 3 + 1 + 1 + 11 * 2)
+        self.assertEqual(len([n for n in names if not n.startswith('epi_n_')]), 4 + 2 + 2 + 11 * 3)
         s = E.compute(E.Table(items(*synthetic(0), KNOW['all']), FLOOR))
         for n in names:
             self.assertIn(n, s)
@@ -197,11 +195,11 @@ class TestTable(unittest.TestCase):
     def test_every_metric_is_logged_for_its_configured_heads(self):
         for m, hs in E.METRICS.items():
             if m.startswith('global_'):
-                self.assertEqual(tuple(hs), ('epi',), m)
+                self.assertEqual(tuple(hs), ('comb', 'epi'), m)
             elif m == 'naive_rho':
-                self.assertEqual(set(hs), {'epi', 'ctx', 'add'}, m)
+                self.assertEqual(set(hs), {'comb', 'epi', 'ctx', 'add'}, m)
             else:
-                self.assertEqual(set(hs), {'epi', 'ctx'}, m)
+                self.assertEqual(set(hs), {'comb', 'epi', 'ctx'}, m)
 
     def test_comb_and_epi_agree_on_the_reversals(self):
         t = E.Table(items(*synthetic(5), KNOW['cell']), FLOOR)
@@ -249,10 +247,9 @@ class TestGlobalErrAndBias(unittest.TestCase):
         r = E.compute(E.Table(it, None))
         self.assertAlmostEqual(r['epi_global_err_epi'], 0.0, places=9)
         self.assertAlmostEqual(r['epi_global_bias_epi'], 0.0, places=9)
-        # shift the ensemble double predictions by -0.5 (mt by -1.0 => comb = 0.5*(wt+mt) by -0.5): bias drops by -0.5, err becomes 0.5
+        # shift the double predictions by -0.5: bias drops by -0.5, err becomes 0.5
         st = np.asarray(it['subset_type'])
-        it['mt'] = it['mt'] - np.where(st == 'double', 1.0, 0.0)
-        it['comb'] = 0.5 * (it['wt'] + it['mt'])
+        it['mt'] = it['mt'] - np.where(st == 'double', 0.5, 0.0)
         r2 = E.compute(E.Table(it, None))
         self.assertAlmostEqual(r2['epi_global_bias_epi'], -0.5, places=9)
         self.assertAlmostEqual(r2['epi_global_err_epi'], 0.5, places=9)

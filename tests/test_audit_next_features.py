@@ -141,7 +141,7 @@ def _make_batch(B=8):
 
 
 def test_epi_metrics_1x_dddg_and_preserved_cell_rank():
-    """Verify 0.5*(MT - WT) fixes the 2x epistasis bias while rank_levels('epi') preserves pure-MT cell_rank."""
+    """Verify comb = 0.5*(WT + MT) fixes the 2x epistasis bias & achieves 1.000 oracle cell_rank_comb while epi retains raw MT."""
     rng = np.random.default_rng(42)
     keys, st, ddg, dddg, dg_wt, wt, mt, comb = [], [], [], [], [], [], [], []
     a = rng.normal(-0.5, 0.5, 5)
@@ -170,12 +170,14 @@ def test_epi_metrics_1x_dddg_and_preserved_cell_rank():
                    'ddG': ddg, 'dddG': dddg, 'dG_wt': dg_wt, 'wt': wt, 'mt': mt, 'comb': comb}, link=None)
     res = E.compute(tbl)
     diag = E.compute_clean_diagnostics(tbl)
-    assert abs(res['epi_global_bias_epi']) < 1e-9
-    assert abs(res['epi_global_err_epi']) < 1e-9
+    assert abs(res['epi_global_bias_comb']) < 1e-9
+    assert abs(res['epi_global_err_comb']) < 1e-9
+    assert abs(diag['epi_clean_bias_comb']) < 1e-9
     assert abs(diag['epi_clean_bias_epi']) < 1e-9
     assert abs(diag['wt_doubles_clean_slope'] - 1.0) < 0.35
-    assert res['epi_cell_rank_epi'] > 0.999999
-    assert 'epi_cell_rank_mt_legacy' in diag and diag['epi_cell_rank_mt_legacy'] < res['epi_cell_rank_epi']
+    assert res['epi_cell_rank_comb'] > 0.999999
+    assert 'epi_cell_rank_mt_legacy' in diag and diag['epi_cell_rank_mt_legacy'] < res['epi_cell_rank_comb']
+    assert abs(res['epi_cell_rank_epi'] - diag['epi_cell_rank_mt_legacy']) < 1e-12
 
 
 def test_stopgrad_calibrated_rank_loss_never_touches_calibration_params():
@@ -319,12 +321,12 @@ def test_epi_metrics_credits_marginal_wt_pair_and_line_effects():
                 y_marg = a[i] + b[j] + ep_marg
                 keys.append(((lib, 10 * p + 1, chr(65 + i)), (lib, 10 * p + 5, chr(70 + j))))
                 st.append('double'); ddg.append(y_true); dddg.append(ep_true); dg_wt.append(c)
-                # Standalone marginal WT (--val_wt_only): wt == mt == comb == y_marg on doubles, == a[i]/b[j] on singles
-                wt.append(y_marg); mt.append(y_marg); comb.append(y_marg)
+                # Standalone marginal WT (--val_wt_only): mt is NaN, wt == comb == y_marg on doubles, == a[i]/b[j] on singles
+                wt.append(y_marg); mt.append(np.nan); comb.append(y_marg)
     tbl = E.Table({'mut_key': keys, 'subset_type': st, 'cens': np.zeros(len(keys), int),
                    'ddG': ddg, 'dddG': dddg, 'dG_wt': dg_wt, 'wt': wt, 'mt': mt, 'comb': comb}, link=None)
     res = E.compute(tbl)
-    assert res['epi_pair_rho_epi'] > 0.85
-    assert res['epi_line_rho_epi'] > 0.85
-    assert res['epi_beyond_lib_epi'] > 0.85
-    assert res['epi_cell_rank_epi'] == 0.0
+    assert res['epi_pair_rho_comb'] > 0.85
+    assert res['epi_line_rho_comb'] > 0.85
+    assert res['epi_beyond_lib_comb'] > 0.85
+    assert res['epi_cell_rank_comb'] == 0.0

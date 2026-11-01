@@ -1282,13 +1282,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             for name, val in res.items():
                 if np.isfinite(val):
                     self.log(f"val_{name}", float(val), on_epoch=True,
-                             prog_bar=name in ('epi_cell_rank_epi', 'epi_cell_rank_mt'), sync_dist=True)
+                             prog_bar=name in ('epi_cell_rank_comb', 'epi_cell_rank_epi', 'epi_cell_rank_mt'), sync_dist=True)
             diag = epi_metrics.compute_clean_diagnostics(tbl)
             for d_name, d_val in diag.items():
                 if np.isfinite(d_val):
                     self.log(f"val_diag_{d_name}", float(d_val), on_epoch=True, sync_dist=True)
-            cr = res.get('epi_cell_rank_epi', float('nan'))
-            bl = res.get('epi_beyond_lib_epi', float('nan'))
+            cr = res.get('epi_cell_rank_comb', res.get('epi_cell_rank_epi', float('nan')))
+            bl = res.get('epi_beyond_lib_comb', res.get('epi_beyond_lib_epi', float('nan')))
             if np.isfinite(cr) and np.isfinite(bl):
                 comp = 0.5 * (float(cr) + float(bl))
                 self.log("val_epi_composite", comp, on_epoch=True, sync_dist=True)
