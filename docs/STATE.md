@@ -1,17 +1,17 @@
-# Current state (last updated 2026-10-18 21:00 EDT)
+# Current state (last updated 2026-10-31 21:00 EDT)
 
 Read this first, then `docs/README.md` for what every other document is. Facts here are dated where they
 matter; anything older than the date below is marked as history in `docs/EXPERIMENTS.md`.
 
-> **Update 2026-10-22: the training code was trimmed** (branch `claude/trim-training-2026-10-22`, not merged; `docs/trim_audit.md` is the
-> record). 160 flags became ~55, `hparams.yaml` went from 157 keys to ~60, and several mechanisms described below are GONE on that branch:
-> per-library floors and the protease-gap rule (one `--censor_threshold`), the learnable/ceiling link (`--link_floor 0.0 --link_tau 0.59`),
-> the nonspecific term, the `cond` subset, `combined_mode`/`lora_mode` variants, `--subset_caps` (now `--subsets`), the per-head plateau flags
-> (now `--plateau_patience/--plateau_factor/--freeze_after_decays`) and the global `--mask_strategy` (now per pass). Old command lines still
-> parse through `config.RETIRED`. `--tie_mt_scale` is NOT retired: it is a flag again, default OFF (the merge with origin/devel-revision, 2026-10-23, kept it as an opt-in; a run
-> that needs it, such as the tf_mix recipe, passes it). Training reads a prebuilt cache (c6, `manifest_c6.json`; `analysis_scripts/build_cache.py`), not the raw
-> table. Recipes are `configs/{mt_frozen,joint,wt_phase}.yaml`; the new queue (project `esm-msr-trim-oct22`, arms `trim_*`) runs from the locked
-> pin named in `dc_runs/trim_run.sh`. Everything below this box describes the code the older arms ran.
+> **Update 2026-10-31: Consolidated on `devel-revision`, trimmed training in production**
+> 
+> The repository is consolidated on branch `devel-revision` (HEAD `76727b0`), carrying modern trimmed training (`src/esm_msr/`),
+> preset YAML recipes (`configs/{joint,mt_frozen,wt_phase}.yaml`), the authoritative benchmark suite
+> (`inference_scripts/esm_msr_testing.py`), and documentation. To guarantee bitwise execution reproducibility, the local
+> queue executes from the locked, detached worktree `dc_runs/pin_trim_912e38d` (`5e9ae92` / commit `d9a60c3`).
+> Precomputed feature cache is `c6` (`manifest_c6.json`). Epistasis metric names are authoritatively `*_epi` (e.g.
+> `val_epi_cell_rank_epi`, `val_epi_beyond_rho_epi`; `*_mt` is retired).
+> For the comprehensive technical specification and infrastructure audit, see [`docs/codebase_spec_and_audit.md`](file:///home/sareeves/playground/esm-msr-devel/repo/docs/codebase_spec_and_audit.md).
 
 ## 1. What this project is, and where the work stands
 
@@ -23,89 +23,53 @@ bounded rows, and a cell-level epistasis metric suite. Epistasis is authoritativ
 companions (`val_epi_cell_mag_epi`, `val_epi_cell_flipacc_epi`) with `val_rho_wt_valid_avg` /
 `val_rmse_combined_avg` as guards; `val_epi_beyond_rho_epi` is the beyond-global interaction level.
 
-Current best cell-level result on record: the **`--nonspecific_term fx`** arm (one seed) —
-see `docs/nonspecific_epistasis.md`. Current best *canonical* arm: **dc17**.
+Current standing paradigms: **Canonical joint training** (`configs/joint.yaml`), **Balanced gradient 50-50 loss**
+(`--lambda_reg_wt 15.0 --lambda_reg_mt 15.0 --lambda_rank_wt 0.5 --lambda_rank_mt 0.5`), and **Conditional masked marginals**
+(`--mask_strategy_mt independent`). Current active ablation: **Half-rank capacity triplicate** (`WT r1a4, MT r8a11`).
 
 ## 2. Code: branches, worktrees, and the pinning rule
 
 | ref | path | what it is |
 |---|---|---|
-| `devel-experimental` (workspace) | `repo/` | the dev branch; epistasis metric suite, packing, flip loss, grad-balance |
-| `devel-revision` | `.claude/worktrees/devel-main-conservative-merge-5e554f` | conservative rebuild of the released objective + floor link |
-| `claude/main-baseline` | `.claude/worktrees/main-baseline` | released-behaviour line; the basis of the Oct 13-14 link series |
-| `claude/val-doubles-and-masking` | `.claude/worktrees/practical-snyder-52312a` | val doubles + masking work |
-| `claude/ext-val-and-masks` | `.claude/worktrees/ext-val` | external validation, mask strategies |
-| `feature/nonspecific-term` (`7266661` + OOD commit) | `.claude/worktrees/nonspecific-term` | ns term, frozen-WT, `--tf_mix`, `--val_wt_only`, `incl_*` fix, OOD metric exclusion (parent `b34093f`); queue plan written, not run — `docs/queue_takeover_ns.md` |
+| `devel-revision` (workspace root) | `repo/` | Authoritative consolidated development & evaluation branch: modern trimmed training, `AutoBatchSizer`, `configs/`, benchmark suites, and canonical docs. |
+| `pin_trim_912e38d` (detached `5e9ae92`) | `dc_runs/pin_trim_912e38d` | Locked training pin incorporating commit `d9a60c3` (identity link and target module ablations). Isolates headless GPU queue runs from workspace code edits. |
+| legacy pins | `dc_runs/pin_*` | Preserved execution snapshots for earlier experimental series (`pin_ciw_f666366`, `pin_wtd_1872858`, etc.). |
 
-**Consolidated 2026-10-19: one branch, no pin.** `devel-revision` (checked out at
-`.claude/worktrees/devel-main-conservative-merge-5e554f`) now carries **both the code and the documentation**:
-`b34093f` (the dc17–dc19 code) + seven campaign commits (ns term, frozen-WT/MT-only, link loading, `--tf_mix`, the
-`--no-incl_*` fix, `--val_wt_only`, the OOD metric exclusion) + the docs. It deliberately excludes `--ext_val_doubles`,
-per-pass masking (`--mask_strategy_wt/mt`) and `--double_batch_frac`, which came from the `claude/ext-val-and-masks`
-side branch.
-
-**Why the old rule existed, and what replaces it.** A queue ran from `dc_runs/pin_<series>`, a *directory copy* of a
-snapshot plus hand patches, because worktrees move mid-session and code must not change under a running arm. That had
-two costs: a pin could silently diverge from the branch (it did — it was `devel-revision` + three ext-val commits, not
-`devel-revision`), and hand patches had to be re-applied by hand. Now the launchers `cd` into the branch worktree and
-**log the commit as their first output line** (`tree=... commit=... branch=...`), so every arm is stamped with the code
-that produced it. The rule that keeps it honest: **do not commit to `src/` on `devel-revision` while the queue is running** (docs
-are harmless; a code commit would change the next arm's code while the log stamps the earlier commit).
-
-Runs before this consolidation came from the pin lineage; it is tagged `archive/pin-lineage-2026-10-19` and the pin
-directories remain on disk, so they are still reproducible. For the canonical recipe the three excluded commits are
-inert (mask strategies off, `--ext_val_doubles` unused, `--double_batch_frac` off), but that code is **not
-byte-identical** to what ran.
+**Consolidated October 2026**: `repo/` on `devel-revision` carries both the modern code and the documentation. Launchers `cd` into the pinned tree (`dc_runs/pin_trim_912e38d`) and log their tree and commit as the first output line (`tree=... commit=... branch=...`).
 
 ## 3. Where things live
 
 | what | where |
 |---|---|
-| training code the dc queue runs | `dc_runs/pin_dc17_series/src/` (a snapshot, not a branch) |
-| queue file (edit freely) | `dc_runs/claude_queue.txt`; runner `dc_runs/claude_queue.sh` |
-| queue history (append every start/stop/change) | `/home/sareeves/playground/esm-msr-devel/queue_history.txt` |
-| per-arm launch scripts (the lab notebook) | `dc_runs/launch_*.sh` — header carries hypothesis, evidence, and what changed from the previous arm |
-| run logs | `dc_runs/<arm>.log`, `run_logs/<arm>.log` (`DONE rc=0` = clean) |
-| metrics, checkpoints, val dumps | `dc_runs/logs/<arm>/0/` and `training_logs/<arm>/0/`: `metrics.csv`, `last.ckpt`, `val_dump_e{0..N}.npz` |
-| gradient-balance constants | `/home/sareeves/playground/esm-msr-devel/probes/reg_balance_oct08.json` |
-| cached preprocessed data | `/home/sareeves/playground/esm-msr-devel/cache_devel_conservative` (`--cache_version c5`) |
+| training code the queue runs | `dc_runs/pin_trim_912e38d/src/` (pinned worktree) |
+| active queue file (edit freely) | `dc_runs/queue_wt_r2a4_f0.txt`; runner `dc_runs/queue_ns.sh` |
+| queue log & history | `dc_runs/queue_wt_r2a4_f0.log` |
+| per-arm launch scripts (the lab notebook) | `dc_runs/launch_trim_*.sh` — header carries hypothesis, evidence, and configuration |
+| run logs | `dc_runs/logs/<arm>/0/` and `dc_runs/<arm>.log` (`rc=0` = clean) |
+| metrics, checkpoints, val dumps | `dc_runs/logs/<arm>/0/`: `metrics.csv`, `last.ckpt`, `val_dump_e{0..N}.npz` |
+| cached preprocessed data | `/home/sareeves/playground/esm-msr-devel/cache_devel_conservative` (`--cache_version c6`) |
 | split file | `repo/data/splits_oct06_capped.pkl` |
-| Comet | project `esm-msr-agent-oct06-capped` (key read from `~/.comet.config` by `run_arm.sh`) |
-| offline rescoring of any dump | `scripts/epi_from_dump.py` (also reads the released-code dump format) |
-| interpreter | `/home/sareeves/miniconda3/envs/msr_venv/bin/python` (has **pytest**, installed 2026-10-18) |
-| tests | `PYTHONPATH=src python -m pytest tests -q` — currently **288 passed, 1 skipped**, CPU only, ~17 s. (The parent `b34093f` is 234 passed, 1 skipped; the suite is pytest-style, so `unittest discover` is no longer the right entry point.) |
-| GPU | one RTX 5090, 32.6 GB. The Windows display holds ~5 GB when idle; a training run takes 22-25 GB **reserved**. One job at a time. |
+| Comet | project `esm-msr-oct24-final` (key read from `~/.comet.config` by `trim_run.sh`) |
+| offline rescoring of any dump | `scripts/epi_from_dump.py` |
+| interpreter | `/home/sareeves/miniconda3/envs/msr_venv/bin/python` |
+| tests | `PYTHONPATH=src /home/sareeves/miniconda3/envs/msr_venv/bin/python -m pytest tests -q` |
+| GPU | one RTX 5090, 32.6 GB. The host display holds ~4-5 GB when idle; a training run reserves 22-25 GB. One job at a time. |
 
-## 4. Running now / queued (2026-10-19 12:40)
+## 4. Running now / queued (2026-10-31 21:00 EDT)
 
-**The WT reference run is live** (attempt 3). `dc_runs/queue_ns.sh queue_ref.txt` -> **`wt_ref_floor0_r16a16_d02`**:
-floor 0 (`--assay_floor 0.0`, link band 0…0.001), WT rank 16 / alpha 16, dropout 0.2, singles only, under the **new
-metric definition** (OOD sets out of every aggregate). Started 12:29:48 from `devel-revision` @ `309c27e`; its log's
-first line records the tree and commit. The zero-shot validation gate passed at 12:35:55 (~16 min/epoch, ~4 min
-validation, self-stops after three plateau decays).
+**Current live execution**:
+- Runner PID `1602678` (`queue_ns.sh queue_wt_r2a4_f0.txt`) completed automated handover from PID `1593179` (`dc8repro_w3_s2`) and resumed queue execution.
+- **Active job on GPU 0**: **`trim_joint_halfrank_s2`** (PID `1637827`, Epoch 1 progressing, ~24.7 GB reserved).
+- **Queued behind it**: **`trim_joint_halfrank_s3`** (`launch_trim_joint_halfrank_s3.sh`).
 
-This is the **new WT gold standard**: its `val_rho_wt_valid_avg` is the reference for every later WT comparison, and its
-`val_rho_combined_external` / `val_rmse_combined_external` are the external-set baseline. It supersedes the 0.8447
-reference, whose aggregate still contained the OOD sets.
-
-**Two failed attempts are on record, not silent.** Attempt 1 died at 12:22 with `NameError: name 'ext_per_loader' is
-not defined` — the OOD patch added the dict's uses but never initialised it, so *no* run on the new basis could pass
-the pre-training zero-shot validation. Fixed in `75d3e34` (one line) with a regression test in `309c27e`.
-Attempt 2 died in 96 s for an environment reason: the launching shell's sandbox denies `/dev/shm`, so DataLoader
-workers cannot create POSIX semaphores (`PermissionError` on `multiprocessing.SemLock`); the queue is relaunched with
-elevated permissions (do **not** "fix" this by lowering `num_workers` — it would change the arm's provenance).
-Archives: `logs/_aborted_wt_ref_floor0_r16a16_d02_{nameerror,semlock}`.
-
-**Queued behind it** (`queue_ref.txt`, same recipe and new basis, so WT rank/alpha is the only variable):
-`wt_r8a11` then `wt_r4a8` — the **capacity re-check** ("capacity is still in doubt"; `r4/a8` is a re-run, its 0.8395
-was old-basis and pre-dropout). If a challenger is not clearly outside the reference's measurement error it earns a
-second seed for **both** arms before anything stacks — see §5.2.
-
-Not carried over: the retired sweep's `lr`/`balance`/`reach` stages (designed on the old basis, old pin), and any use
-of `wt_stack.txt` / `wt_best.txt` (history now, not state). After the capacity re-check: `gate1_tfmix` (frozen-WT
-block: one knee A/B arm + five `--tf_mix` points) -> `gate2_ns` -> the `fx` arms.
-Deferred/not queued: the from-scratch ns arms (`ctrl_s2`, `ns1_*`, pinned at `pin_ns_series` @ `7db75a7`), and
-`claude_queue.txt`, which still lists `wtsweep` and `dc19`–`dc23` and must be re-stated before that runner is restarted.
+**Completed in current queue run**:
+1. `trim_joint_loss5050_s2` (`rc=0`, Epoch 6, `val_rho_combined_avg = 0.857`)
+2. `trim_joint_neg1_loss5050_s1` (`rc=0`, Epoch 6, `val_rho_combined_avg = 0.858`)
+3. `trim_joint_ctrl_s3` (`rc=0`, Epoch 5, `val_rho_combined_avg = 0.859`)
+4. `trim_joint_target_attn_s2` (`rc=0`, Epoch 5, `val_rho_combined_avg = 0.853`)
+5. `trim_joint_target_attn_loss5050_s1` (`rc=0`, Epoch 3, `val_rho_combined_avg = 0.852`)
+6. `trim_joint_target_attn_loss5050_s2` (`rc=0`, Epoch 5, `val_rho_combined_avg = 0.853`)
+7. `trim_joint_halfrank_s1` (`rc=0`, Epoch 7, `val_rho_combined_avg = 0.855`)
 
 ## 5. How to read results
 
@@ -224,7 +188,7 @@ writes `dc_runs/wt_gold.txt` and appends `gate1_tfmix`.
    queue first.
 5. **WSL reports VRAM exhaustion as `CUDA driver error: device not ready`**, not as an OOM; check `dmesg`
    and the VRAM sample log before hunting for a code bug.
-6. **Cache version.** `--cache_version` must match the directory (`c5` for the dc series); a mismatch
+6. **Cache version.** `--cache_version` must match the directory (`c6` for the modern series; `c5` for legacy dc runs); a mismatch
    silently regenerates the cache (CPU, minutes). The first epoch's log must say "Loading cached data".
 7. **`--incl_*` and `--subset_caps` are one mechanism, in both directions.** A subset capped to 0 is never loaded,
    and an explicitly passed `--no-incl_doubles` / `--no-incl_singles` now forces that cap to 0.0 (before
@@ -272,6 +236,12 @@ writes `dc_runs/wt_gold.txt` and appends `gate1_tfmix`.
     sticks); and a **resumed** arm skips warm-up, which is why the reference's resume stopped correctly while a
     fresh WT-only arm did not. Check: a WT-only arm's log must end with "Every trainable group is at lr 0", and
     `lr/lora_mt` must be 0 in its last epoch.
+15. **Pre-fit validation on resume runs un-restored weights.** Passing `--resume_from_checkpoint` without
+    `--skip_val` triggers `trainer.validate` before `trainer.fit` restores weights, evaluating randomly initialized
+    LoRA weights and prepending an untrained row to `metrics.csv`. Always pass `--skip_val` when resuming.
+16. **WT-only checkpoint loading in joint models.** When loading a WT-only checkpoint (e.g. `wt_r2a4_f0_cthr05`)
+    into a model with MT components instantiated, pass `load_wt_only=True` to `load_lora_weights` (or use `--skip_reverse`
+    in `esm_msr_testing.py`) so missing MT adapter parameters are excluded from `missing_trainable`.
 
 ## 8. Design facts a reader would otherwise have to rediscover
 
