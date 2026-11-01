@@ -83,6 +83,7 @@ To confirm the WT weights and link buffers loaded correctly:
 1. Log output confirms: `WT path warm-started from ...: N tensors loaded` and `Link warm-started from ...: 4/4 tensor(s)`.
 2. Zero-shot validation at step 0 reports `val_rho_singles_wt_avg ≈ 0.84--0.85`.
 3. During MT training, `self.model.peft_wt.eval()` is enforced ([`training.py`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/training.py#L724-L726)) to prevent stochastic LoRA dropout from injecting noise into anchor evaluations.
+4. Adapter compatibility: `--init_wt_from_checkpoint` strictly validates parameter shapes, requiring the model to match the saved WT adapter configuration (`lora_rank_wt`, `lora_alpha_wt`, `per_mutation_bias`).
 
 ---
 
@@ -116,39 +117,3 @@ ANOVA variance-partition analyses demonstrate that ~90% of the variance in raw d
 The nonspecific term models identity-independent non-additivity as an explicit function of additive expectation:
 $$y_{\text{pred}} = y_{\text{comb}} + f(y_{\text{WT}})$$
 Where $f(x)$ is parameterized as a smooth, monotonic neural spline or piecewise polynomial. In initial single-seed evaluations, adding $f(x)$ improved cell-level rankings; however, canonical training relies directly on `SaturatingLink` to model saturation non-additivity without introducing auxiliary unidentifiable parameters.
-
----
-
-## 6. Confidence-Interval & Label Variance Weighting (`--ci_weight`)
-
-### 6.1 Assay Disagreement vs Tabulated Intervals
-Experimental MegaScale tables report a nominal 95% confidence interval (`deltaG_95CI`). Analysis showed that tabulated intervals correlate weakly with held-out prediction error, whereas the between-protease disagreement ($|\Delta G_{\text{trypsin}} - \Delta G_{\text{chymotrypsin}}|$) provides a reliable measurement error estimate.
-
-### 6.2 Weighting Scheme & Findings
-Under `--ci_weight`, items were weighted inversely by estimated label variance $\sigma_i^2$:
-$$w_i = \frac{1}{\sigma_i^2 + \tau^2}$$
-While mathematically sound for pure regression, weighting efficiency on in-range variants measured only $1.065$ at $\tau=0.5$. In ranking losses (Plackett-Luce), item-level weighting distorted risk-set normalization. Because the observed gain was within replicate noise, explicit variance weighting was permanently retired in favor of robust hinge regression and Plackett-Luce list ranking.
-
----
-
-## 7. Stacking Rules, Decision Gates & Capacity Ladders
-
-### 7.1 Stacking Wins
-The foundational rule of ESM-MSR ablation campaigns is **strict stacking**:
-- Any configuration change (e.g. loss formulation, link parameters, capacity) must demonstrate a statistically significant improvement over replicate noise on cell-level metrics (`val_epi_cell_rank_epi`, `val_epi_beyond_rho_epi`).
-- Once confirmed, the winning change is adopted into the canonical baseline for all subsequent runs.
-
-### 7.2 Architecture Matching in Resumed / Frozen Checkpoints
-A PyTorch LoRA checkpoint cannot load into an adapter of different rank or scaling. `--init_wt_from_checkpoint` strictly validates parameter shapes. When freezing a WT head, the exact hyperparameters (`lora_rank_wt`, `lora_alpha_wt`, `lora_dropout_wt`, `per_mutation_bias`) are preserved.
-
-### 7.3 Capacity Ladder Protocol
-To determine minimal required capacity without underfitting, LoRA rank is evaluated via a descending ladder:
-$$\text{Rank } 16 \longrightarrow 8 \longrightarrow 4 \longrightarrow 2 \longrightarrow 1$$
-Scaling $\alpha = 4 \sqrt{r}$ maintains constant rsLoRA effective scale ($\alpha / \sqrt{r} = 4.0$):
-- $r=16, \alpha=16$ (scale 4.0)
-- $r=8, \alpha=11$ (scale 3.89)
-- $r=4, \alpha=8$ (scale 4.0)
-- $r=2, \alpha=4$ (scale 2.83 standard; $r=2, \alpha=6$ scale 4.24)
-- $r=1, \alpha=4$ (scale 4.0)
-
-If a lower-capacity arm degrades `val_rho_wt_valid_avg` by $\le 0.002$, the parsimonious lower-capacity model is accepted. This ladder directly motivated the current half-rank ablation arm (WT $r=1, \alpha=4$; MT $r=8, \alpha=11$).

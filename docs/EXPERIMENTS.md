@@ -100,7 +100,7 @@ Same basis (`bl_w2a4_m16a16_capped`), seed 1, 8 epochs, `--link softclamp`, micr
 | `--tf_singles predicted` | 0.1902 | 0.2789 | 0.8387 | +0.5276 | +0.4903 | 0.7003 | 0.8381 |
 
 **The `--nonspecific_term fx` arm is the best cell-level result on record and the reason it is worth
-revisiting — see `docs/nonspecific_epistasis.md`.** The per-library floor arm (data floors, 96 own
+revisiting — see `docs/FEATURES.md` §5.** The per-library floor arm (data floors, 96 own
 estimates) was not better than the control, and its non-circular train-only control (`_tr`, floors estimated
 from 45 training libraries only) was stopped at the user's request after 10 minutes. The `--lambda_reg_wt 5`
 arm never ran.
@@ -304,7 +304,7 @@ on `wt_r4a8` and on every frozen-WT / tf-mix arm.
 ## 7. Open questions (in priority order)
 
 1. **Does the nonspecific term help on the current basis?** The best lead in the project, single seed —
-   plan in `docs/nonspecific_epistasis.md` §7.
+   plan in `docs/FEATURES.md` §5.
 2. **The missing released-model control.** A matched-epoch, same-libraries comparison of the released
    objective against the current canonical is needed; the last attempt was abandoned at launch. `dc20`
    (scoring-only pass on external doubles) covers the external side but not this.
@@ -330,7 +330,7 @@ on `wt_r4a8` and on every frozen-WT / tf-mix arm.
    alternative to adding ceiling parameters: the top of the assay shows rising noise and censoring (`>5` tags), not
    compression (no pile-up below 5; trypsin and chymotrypsin do not bend apart below 5; the WT head's top-end
    residual is mostly the selection that drops `>5` rows). Analysis in the 2026-10-20 review session.
-   *Update 2026-10-22: implemented as `--ci_weight`, see `docs/ci_weighting.md`. The reported interval (`deltaG_95CI`) turned out to be
+   *Update 2026-10-22: implemented as `--ci_weight` (retired; see git tag `archive/ci-weighting-2026-10-22`). The reported interval (`deltaG_95CI`) turned out to be
    irrelevant to the model's held-out error; the label's uncertainty is its library-centred protease disagreement (calibrated coefficient
    0.263 ± 0.015 against the theoretical 1/4), with the double's additive expectation as a depth prior. With the floor bound kept the realistic
    gain over `dthr0` is within seed noise (weighting efficiency 1.065). First test queued: `mt_frozenwt_ciw_r16a16_s1`.*

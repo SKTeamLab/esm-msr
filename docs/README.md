@@ -13,7 +13,7 @@ Status key:
 | :--- | :--- | :--- |
 | [`STATE.md`](STATE.md) | **CURRENT** | Active workspace state, queue runner status, running and queued arms on GPU 0, pitfalls, and design facts. **Read first upon context reset.** |
 | [`codebase_spec_and_audit.md`](codebase_spec_and_audit.md) | **CURRENT** | Full architectural and infrastructure specification, prioritized bug resolutions/mitigations, efficiency shortcuts in training and inference, and active modeling directions. |
-| [`FEATURES.md`](FEATURES.md) | **CURRENT** | Comprehensive consolidated guide to model features: dual-adapter design, readout links, two-source censoring, frozen-WT paradigm, de-linked teacher forcing (`tf_mix`), and capacity ladder rules. |
+| [`FEATURES.md`](FEATURES.md) | **CURRENT** | Comprehensive consolidated guide to model features: dual-adapter design, readout links, two-source censoring, frozen-WT paradigm, and de-linked teacher forcing (`tf_mix`). |
 | [`EXPERIMENTS.md`](EXPERIMENTS.md) | **CURRENT** | Chronological experiment history, measured metric progressions across lineages, triage records, and open questions. |
 | [`OUTSTANDING_EXPERIMENTS.md`](OUTSTANDING_EXPERIMENTS.md) | **CURRENT** | Tracker for in-flight, queued, and blocked benchmark evaluations and ablations. |
 

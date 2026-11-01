@@ -130,33 +130,6 @@ arm **`wt_ref_floor0_r16a16_d02`** (`dc_runs/launch_wt_ref_floor0_r16a16_d02.sh`
 `ext_per_loader` fix). Future WT comparisons are against it. The first two attempts at it did not produce a number:
 they are archived, not superseded, and their failure modes are recorded in §4.
 
-### 5.2 Capacity ladder (2026-10-19): shrink until a dropoff, replicate the dropoff
-
-The WT capacity decision is a **ladder**, not one comparison. Reference = **rank 16** (`r16·a32` is excluded: its
-rsLoRA scale is 8.0 against the reference's 4.0, so it is not comparable). Walk **16 → 8 → 4 → 2 → 1**, each level
-compared with the reference on best-epoch `val_rho_wt_valid_avg`:
-
-* degradation within **−0.002** → no test; accept the level and go down one step (parsimony is the default).
-* degradation worse than **−0.002** → **replicate both the next higher level and that contender** (seed 2 each, a
-  symmetric pair) and pool the two seeds per arm. The replication partner is the next higher *level*, not the
-  reference: the reference is a baseline, not a candidate for the gold head (user, 2026-10-19).
-  * pooled degradation **> 0.001** → stop at the **next higher** capacity level;
-  * otherwise → accept the level and continue down.
-* every level acceptable → the smallest (**rank 1**) is the gold head.
-
-Worked example (user's): 8 at −0.0003, 4 at −0.0006, 2 at −0.001, 1 at −0.008 → replicate 1; if the pooled
-difference still exceeds 0.001, go with 2, then on to the other hyperparameters, tf_mix, etc.
-
-Alpha holds the rsLoRA scale `alpha/sqrt(rank)` at the reference's 4.0: r16/a16 = 4.000, r8/a11 = 3.889,
-r4/a8 = 4.000, r2/a6 = 4.243, r1/a4 = 4.000.
-
-The external OOD sets remain a **generalization guard**: read `val_rho_combined_external` /
-`val_rmse_combined_external` to check that a decision travels, and never decide anything from them.
-
-Implementation: `dc_runs/gate_capacity.py`, as queue entries `gate_capacity_l4` → `_l2` → `_l1` → `gate_capacity_final`
-(the pooled verdict). A stage either queues the next level and its gate, or the seed-2 pair and the pooled gate, or
-writes `dc_runs/wt_gold.txt` and appends `gate1_tfmix`.
-
 ## 6. Operating the queue
 
 * **Change upcoming arms**: edit the queue file atomically (write a temp file, `mv` it). Never edit a bash
@@ -220,7 +193,7 @@ writes `dc_runs/wt_gold.txt` and appends `gate1_tfmix`.
     and `--version 0` (the right way to keep one series) keeps the *directory* and the checkpoints but **loses every
     pre-resume row** (2026-10-19, the reference: resumed at epoch 5 and epochs 0–4 vanished, including the best
     0.8513). What survives: the checkpoint filenames carry the metric to 4 dp (`epoch=04-val_rho_wt_valid_avg=0.8513`),
-    the `val_dump_e*.npz` files carry every item, and Comet has the full series. `gate_capacity.py` therefore takes
+    the `val_dump_e*.npz` files carry every item, and Comet has the full series. Analysis scripts therefore take
     the arm's best as the max over `metrics.csv` **and** the checkpoint names (and says which). Do not "fix" this by
     writing reconstructed rows into `metrics.csv` — half-empty rows are worse than an honest gap. If a resume is
     expected to need its history, copy `metrics.csv` aside first.
