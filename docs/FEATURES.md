@@ -106,6 +106,9 @@ $$y_{\text{forced\_wt}} = m \cdot y_{\text{measured\_additive}} + (1 - m) \cdot 
 - **$m = 0.5$**: Arithmetic midpoint blending empirical measurement with smooth model predictions.
 - **$m = 0.0$**: Pure model-based training with no teacher forcing.
 
+### 4.3b Detaching the Teacher-Forcing Half (`--tf_detach_wt`)
+`--tf_detach_wt` (default **on**, what every run before it did): the WT half of the combined prediction that teacher-forces the MT head carries no gradient to the WT head. The WT head learns from its own losses (singles), the MT head from the combined one. `--no-tf_detach_wt` lets the combined loss train the WT head on every item as well: its graph then lives until the MT pass has run (one backward through both, so two graphs of memory), it needs a trainable MT path, and it is refused with `--joint_doubles alternate` (which frees the WT graph first). `--joint_doubles` is the narrower switch (live WT half on the doubles only). It applies to the per-item loop and to `--block_training`.
+
 ### 4.4 Joint Training on the Real Doubles (`--joint_doubles`)
 By default a double's WT half is a label or a *detached* WT prediction, so only the MT adapter learns from a double and the WT adapter sees singles alone. `--joint_doubles` makes the two adapters fit the real double together:
 $$\mathcal{L}_{\text{joint}} = \ell\big(h(\,\tfrac12[\,\text{WT}(AB)+\text{MT}(AB)\,]\,),\; y_{AB}\big)$$
