@@ -1,14 +1,17 @@
-# Current state (last updated 2026-10-31 21:00 EDT)
+# Current state (last updated 2026-11-01 01:05 EDT)
 
 Read this first, then `docs/README.md` for what every other document is. Facts here are dated where they
 matter; anything older than the date below is marked as history in `docs/EXPERIMENTS.md`.
 
-> **Update 2026-10-31: Consolidated on `devel-revision`, trimmed training in production**
+> **Update 2026-11-01: Audit-next campaign launched on GPU 0**
 > 
-> The repository is consolidated on branch `devel-revision` (HEAD `76727b0`), carrying modern trimmed training (`src/esm_msr/`),
+> The repository is consolidated on branch `devel-revision` (HEAD `aba3f92`), carrying modern trimmed training (`src/esm_msr/`),
 > preset YAML recipes (`configs/{joint,mt_frozen,wt_phase}.yaml`), the authoritative benchmark suite
-> (`inference_scripts/esm_msr_testing.py`), and documentation. To guarantee bitwise execution reproducibility, the local
-> queue executes from the locked, detached worktree `dc_runs/pin_trim_912e38d` (`5e9ae92` / commit `d9a60c3`).
+> (`inference_scripts/esm_msr_testing.py`), and documentation.
+> The half-rank ablation completed seeds 1 & 2 (`trim_joint_halfrank_s1` best `val_epi_beyond_rho_epi = 0.5649`,
+> `trim_joint_halfrank_s2` best `val_epi_beyond_rho_epi = 0.5821`). The active queue transitioned to `queue_audit_nov01.txt`
+> running from worktree `/home/sareeves/playground/esm-msr-devel/wt_audit_next` (`audit-next` @ `455bfa0`).
+> Arm 1 (`audit_clean_base_s1`, PID 1653683) is training on GPU 0.
 > Precomputed feature cache is `c6` (`manifest_c6.json`). Epistasis metric names are authoritatively `*_epi` (e.g.
 > `val_epi_cell_rank_epi`, `val_epi_beyond_rho_epi`; `*_mt` is retired).
 > For the comprehensive technical specification and infrastructure audit, see [`docs/codebase_spec_and_audit.md`](file:///home/sareeves/playground/esm-msr-devel/repo/docs/codebase_spec_and_audit.md).
@@ -25,7 +28,7 @@ companions (`val_epi_cell_mag_epi`, `val_epi_cell_flipacc_epi`) with `val_rho_wt
 
 Current standing paradigms: **Canonical joint training** (`configs/joint.yaml`), **Balanced gradient 50-50 loss**
 (`--lambda_reg_wt 15.0 --lambda_reg_mt 15.0 --lambda_rank_wt 0.5 --lambda_rank_mt 0.5`), and **Conditional masked marginals**
-(`--mask_strategy_mt independent`). Current active ablation: **Half-rank capacity triplicate** (`WT r1a4, MT r8a11`).
+(`--mask_strategy_mt independent`). Current active queue: **Audit-next campaign** (`queue_audit_nov01.txt`).
 
 ## 2. Code: branches, worktrees, and the pinning rule
 
@@ -42,8 +45,8 @@ Current standing paradigms: **Canonical joint training** (`configs/joint.yaml`),
 | what | where |
 |---|---|
 | training code the queue runs | `dc_runs/pin_trim_912e38d/src/` (pinned worktree) |
-| active queue file (edit freely) | `dc_runs/queue_wt_r2a4_f0.txt`; runner `dc_runs/queue_ns.sh` |
-| queue log & history | `dc_runs/queue_wt_r2a4_f0.log` |
+| active queue file (edit freely) | `dc_runs/queue_audit_nov01.txt` (previously `queue_wt_r2a4_f0.txt`); runner `dc_runs/queue_ns.sh` |
+| queue log & history | `dc_runs/queue_audit_nov01.log` (history in `dc_runs/queue_history.txt`) |
 | per-arm launch scripts (the lab notebook) | `dc_runs/launch_trim_*.sh` — header carries hypothesis, evidence, and configuration |
 | run logs | `dc_runs/logs/<arm>/0/` and `dc_runs/<arm>.log` (`rc=0` = clean) |
 | metrics, checkpoints, val dumps | `dc_runs/logs/<arm>/0/`: `metrics.csv`, `last.ckpt`, `val_dump_e{0..N}.npz` |

@@ -89,6 +89,10 @@ def pass_mask_strategy(hp, pass_type: str) -> Optional[str]:
     reads each site masked with the partner's mutant residue visible, the conditional masked marginal of ddG(A|B). The same strategy on
     both passes cannot do this: ``marginal`` on the MT pass hides the partner, so the model cannot represent an interaction at all
     (``cell_rank`` is exactly 0).
+
+    ``random`` is the third value and the consolidation of the other two: on a TRAINING pass every mutated site is masked independently with
+    probability ``--mask_prob`` (default 0.5), so the pass sees all four combinations of masked and visible sites in a double and one model
+    covers the masked and the unmasked regime. It is a training-time regime: an eval-mode pass (validation, scoring) runs unmasked.
     """
     v = hp.get(f'mask_strategy_{pass_type}', None)
     return None if v in (None, 'none') else v
@@ -711,6 +715,50 @@ class MSRModel(ESM3PredictorBase):
         """The MT pass's input: native_cond rows get the WT pass's sequence only in a --native_cond_for_mt model."""
         return native_cond_mt_batch(batch) if self.native_cond_mt_input else batch
 
+    def forward_site_llr(self, seqs: torch.Tensor, read_pos: torch.Tensor, wt_at_read: torch.Tensor, pass_type: str,
+                         coords: Optional[torch.Tensor] = None, struct_tokens: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        The raw LLR of all 20 residues at one position per row, ``[R, 20]``: ``logit[x] - logit[wt]`` at ``read_pos[r]``, in the order of
+        ``valid_canonical_aas``. One forward per row reads the whole alphabet, and the wild-type residue itself reads exactly 0. ``seqs`` are
+        complete input sequences (the caller has masked the site and applied any partner mutation); every row shares the library's structure.
+        This is the pass of block training (``esm_msr.blocks``).
+        """
+        R = int(seqs.shape[0])
+        if getattr(self, 'adapter_mode', 'dual') == 'dual':
+            active_model = self.peft_wt if pass_type == 'wt' else self.peft_mt
+        else:
+            active_model = self.peft_fused
+        one = lambda t: None if t is None else t[0:1].expand(R, *([-1] * (t.ndim - 1)))
+        out = self._get_esm3_outputs(seqs, one(coords), one(struct_tokens), None, active_model=active_model)
+        logits = self._process_logits(out.sequence_logits.float())
+        row = logits[torch.arange(R, device=seqs.device), read_pos]
+        return row[:, self.canonical_idx_tensor] - row.gather(1, wt_at_read.view(-1, 1))
+
+    def _randomly_masked(self, seq: torch.Tensor, mut_pos: torch.Tensor, mut_mask: torch.Tensor, pass_type: str = 'mt') -> torch.Tensor:
+        """
+        ``seq`` with some mutated sites replaced by the mask token. By default each site independently with probability
+        ``self.random_mask_prob`` (0.5). With ``self.random_mask_dist_<pass> = (q_none, q_one, q_both)`` an item draws its PATTERN instead: no site
+        masked, exactly one site (uniformly chosen), or all of its mutated sites; for a single the last two are the same event.
+        """
+        dist = getattr(self, f'random_mask_dist_{pass_type}', None)
+        if dist is not None:
+            q = torch.as_tensor(dist, dtype=torch.float32, device=seq.device)
+            pattern = torch.multinomial((q / q.sum()).expand(mut_mask.shape[0], 3), 1).squeeze(1)       # 0 none, 1 one site, 2 all sites
+            pick = torch.rand(mut_mask.shape, device=seq.device).masked_fill(~mut_mask, -1.0).argmax(dim=1)
+            one_site = torch.zeros_like(mut_mask).scatter_(1, pick.unsqueeze(1), True)
+            hit = ((pattern == 2).unsqueeze(1) & mut_mask) | ((pattern == 1).unsqueeze(1) & one_site & mut_mask)
+        else:
+            p = float(getattr(self, 'random_mask_prob', 0.5))
+            hit = (torch.rand(mut_mask.shape, device=seq.device) < p) & mut_mask
+            if p <= 0.0:
+                return seq
+        if not bool(hit.any()):
+            return seq
+        rows, cols = torch.where(hit)
+        out = seq.clone()
+        out[rows, mut_pos[rows, cols]] = C.SEQUENCE_MASK_TOKEN
+        return out
+
     def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
         if pass_type not in ['wt', 'mt']: raise AssertionError(f"pass_type must be 'wt' or 'mt'. Received: {pass_type}")
 
@@ -722,6 +770,13 @@ class MSRModel(ESM3PredictorBase):
         seq, mut_pos = batch.get(f'{pass_type}_sequence_tokens'), batch.get('mut_pos')
         wt_id, mt_id, mut_mask = batch.get('wt_id'), batch.get('mt_id'), batch.get('mut_mask')
         coords, struct_tokens, plddt = batch.get('coords'), batch.get('structure_tokens'), batch.get('plddt')
+
+        if mask_strategy == 'random':
+            # Masked sites are drawn per pass, so the WT and the MT pass of one item see different masks. The readout below is the plain
+            # one (mt - wt logit at every mutated site) on this partly masked sequence, which for a masked site is the masked-marginal LLR.
+            mask_strategy = None
+            if self.training:
+                seq = self._randomly_masked(seq, mut_pos, mut_mask, pass_type)
 
         B, max_muts = seq.shape[0], mut_pos.shape[1]
         safe_pos = mut_pos.clone(); safe_pos[~mut_mask] = 0
@@ -886,8 +941,19 @@ class MSRModel(ESM3PredictorBase):
                             lib_cache[cache_key] = logits_1
                     logits_B = logits_1.expand(B, -1, -1)
                 else:
-                    out = self._get_esm3_outputs(seq, coords, struct_tokens, plddt, active_model=active_model)
-                    logits_B = self._process_logits(out.sequence_logits.float())
+                    # --group_by_site: rows of one library that carry the SAME sequence (every row of an unmasked WT pass; every single at a
+                    # masked site) share one forward, read per row afterwards. Without it each row pays for its own copy of the sequence.
+                    useq = inv = None
+                    if getattr(self, 'dedup_rows', False) and B > 1 and same_struct:
+                        useq, inv = torch.unique(seq, dim=0, return_inverse=True)
+                    if useq is not None and useq.shape[0] < B:
+                        n_u = int(useq.shape[0])
+                        one = lambda t: None if t is None else t[0:1].expand(n_u, *([-1] * (t.ndim - 1)))
+                        out = self._get_esm3_outputs(useq, one(coords), one(struct_tokens), one(plddt), active_model=active_model)
+                        logits_B = self._process_logits(out.sequence_logits.float())[inv]
+                    else:
+                        out = self._get_esm3_outputs(seq, coords, struct_tokens, plddt, active_model=active_model)
+                        logits_B = self._process_logits(out.sequence_logits.float())
 
             if pass_type == 'wt':
                 mt_logits, wt_logits = logits_B[b_idx, safe_pos, safe_mt_id], logits_B[b_idx, safe_pos, safe_wt_id]

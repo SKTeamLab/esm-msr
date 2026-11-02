@@ -630,12 +630,18 @@ def setup_dataloaders(args: argparse.Namespace, add_benchmarks_to_val: bool = Fa
     if not val_dataloaders:
         logging.warning("No validation dataloaders created.")
 
-    consolidated_loader = create_consolidated_dataloader(
-        dataloaders=train_dataloaders, train_list=train_loader_names, batch_size=args.batch_size, collate_fn=collate_fn_twopass,
-        num_workers=args.num_workers, rng_seed=args.seed,
-        drop_last=bool(getattr(args, 'drop_last', True)),
-        min_batch_size=int(getattr(args, 'min_batch_size', 32)),
-    )
+    if getattr(args, 'block_training', False):
+        from esm_msr import blocks
+        consolidated_loader = blocks.build_block_loader(
+            [dl.dataset for dl in train_dataloaders], train_loader_names, args.block_positions, args.seed, num_workers=args.num_workers,
+            singles='single' in args.subsets, pairs='double' in args.subsets)
+    else:
+        consolidated_loader = create_consolidated_dataloader(
+            dataloaders=train_dataloaders, train_list=train_loader_names, batch_size=args.batch_size, collate_fn=collate_fn_twopass,
+            num_workers=args.num_workers, rng_seed=args.seed,
+            drop_last=bool(getattr(args, 'drop_last', True)), min_batch_size=int(getattr(args, 'min_batch_size', 32)),
+            group_by_site=bool(getattr(args, 'group_by_site', False)),
+        )
     train_dataloaders_final, train_loader_names_final = [consolidated_loader], ['cycled_train']
 
     logging.info(f"Setup complete. Final Training loaders: {len(train_dataloaders_final)} (Names: {train_loader_names_final}), Final Validation loaders: {len(val_dataloaders)} (Names: {val_loader_names})")

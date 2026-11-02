@@ -274,11 +274,22 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     arch.add_argument('--link_alpha', type=float, default=0.10, help="--link_kind leaky: the slope below the knee (0 < alpha < 1).")
     arch.add_argument('--link_clamp', type=float, default=-1.0, help="--link_kind leaky: the asymptote, the lowest dG the link can report (the assay's -1).")
     for flag, side in (('mask_strategy_wt', 'WT'), ('mask_strategy_mt', 'MT')):
-        arch.add_argument(f'--{flag}', type=str, default=None, choices=['none', 'marginal', 'independent'],
+        arch.add_argument(f'--{flag}', type=str, default=None, choices=['none', 'marginal', 'independent', 'random'],
                           help=f"Sequence masking of the {side} pass. marginal masks every mutated site at once (the pass knows WHICH sites changed, "
                                "not to what); independent masks one site at a time with the others as they are, the conditional masked marginal "
                                "(on the MT pass, with the partner's mutant residue visible: the readout of ddG(A|B)); unset = unmasked. The same "
-                               "strategy on both passes cannot work: marginal on the MT pass hides the partner, so cell_rank is exactly 0.")
+                               "strategy on both passes cannot work: marginal on the MT pass hides the partner, so cell_rank is exactly 0. random masks "
+                               "each mutated site independently with probability --mask_prob on a training pass (a different draw per pass), so one "
+                               "model sees the masked and the unmasked regime; validation and scoring run a random pass unmasked.")
+    for side, name in (('wt', 'WT'), ('mt', 'MT')):
+        arch.add_argument(f'--mask_dist_{side}', type=float, nargs=3, default=None, metavar=('NONE', 'ONE', 'BOTH'),
+                          help=f"The pattern an item's {name} pass is masked with when --mask_strategy_{side} is random, as weights of (no mutated "
+                               "site masked, exactly ONE site masked - chosen uniformly, all its mutated sites masked). For a single the last two are "
+                               "the same event. Replaces --mask_prob's independent per-site draw, which is the special case ((1-p)^2, 2p(1-p), p^2): "
+                               "p = 0.5 is the weights 1 2 1.")
+    arch.add_argument('--mask_prob', type=float, default=0.5,
+                      help="The probability that a mutated site is masked on a pass whose --mask_strategy_wt / --mask_strategy_mt is random "
+                           "(ignored otherwise).")
 
     paradigm = parser.add_argument_group("Paradigm")
     paradigm.add_argument('--mt_direct_pred', action=argparse.BooleanOptionalAction, default=False,
@@ -344,6 +355,23 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                      help="Supervise the WT head on all true single and double ddG labels (passing doubles through the observed-scale link "
                           "and censoring bounds identically to singles). Designed for --mask_strategy_wt marginal, where simultaneous pair "
                           "masking gives the WT head awareness of both mutated sites (pair and line effects).")
+    obj.add_argument('--tf_detach_wt', action=argparse.BooleanOptionalAction, default=True,
+                     help="The WT half that teacher-forces the MT head carries no gradient to the WT head (the default, and what every run so far did): the "
+                          "WT head learns from its own losses, the MT head from the combined one. --no-tf_detach_wt lets the combined loss train the WT "
+                          "head on every item as well, which keeps its graph alive until the MT pass has run (one backward through both, so memory "
+                          "for two graphs) and is refused with --joint_doubles alternate. --joint_doubles is the narrower switch: only the doubles.")
+    obj.add_argument('--joint_doubles', type=str, default='off', choices=['off', 'both', 'alternate'],
+                     help="Train the two adapters TOGETHER on the real doubles. off (every run so far): a double's WT half is the measured "
+                          "additive label (--tf_mix) or the WT head's detached prediction, so only MT is trained by it and the WT head sees "
+                          "singles alone. both: the WT half of a double carries the WT head's LIVE prediction, 0.5*(WT + MT) is regressed on the "
+                          "measured double and the gradient reaches both adapters (both graphs are alive at once, so lower --micro_batch_size). "
+                          "alternate: the same loss, but each double keeps only ONE adapter's graph - the other half is read under no_grad - "
+                          "and which adapter alternates from double to double and micro-batch to micro-batch. The owner's loss is doubled so "
+                          "the expected update is 'both''s; peak memory is one graph. --tf_mix applies to the doubles as well: the WT half is "
+                          "tf_mix * (measured label) + (1 - tf_mix) * (live WT prediction), so the WT head gets the (1 - tf_mix) share of the "
+                          "gradient where a label is usable (and all of it where none is). At the default --tf_mix 1.0 a labelled double "
+                          "trains the MT head alone, as under off: pair this flag with --tf_mix < 1. Singles are untouched. The rank term "
+                          "stays an MT-side term with the WT half detached.")
 
     opt = parser.add_argument_group("Optimisation")
     opt.add_argument('--learning_rate', type=float, default=2e-4)
@@ -385,6 +413,33 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     val.add_argument('--val_cycle_passes', action=argparse.BooleanOptionalAction, default=True,
                      help="Run the two extra validation passes (WT adapter on the mutated sequence, MT adapter on the wild type). Needed for "
                           "the 'ctx' control head of the epistasis metrics; costs one extra forward pass per validation batch.")
+    train_g = parser.add_argument_group("Throughput")
+    train_g.add_argument('--block_training', action=argparse.BooleanOptionalAction, default=False,
+                         help="Train by BLOCKS (esm_msr.blocks): a step is B positions of one library read as a [B, 20] tensor from B masked-site "
+                              "passes (every substitution at once, the wild-type residue reading 0), regressed and ranked as ONE list of B x 20 "
+                              "cells; or one position pair, whose 19 x 19 doubles come from 2 wild-type and 38 mutant passes, ranked as lists of "
+                              "B rows or columns. An epoch is every library's singles blocks, then every pair block. Training masks are "
+                              "structural (the site read is masked; a double's mutant pass shows the partner), so --mask_strategy_* and "
+                              "--batch_size / --micro_batch_size / --rank_list_size / --group_by_site do not apply to training; validation is "
+                              "unchanged. --joint_doubles other than off makes a pair's WT half live. native_cond items are left out.")
+    train_g.add_argument('--block_positions', type=int, default=8,
+                         help="B of --block_training: positions per singles block, and rows (or columns) per rank list of a pair block.")
+    train_g.add_argument('--group_by_site', action=argparse.BooleanOptionalAction, default=False,
+                         help="Batch by SITE: the singles at one position and the doubles of one position pair travel together, a pass whose input "
+                              "is the same sequence for every item of the group is read ONCE (an unmasked WT pass; a masked site, whatever it was "
+                              "mutated to), and ListMLE lists are drawn at random across the micro-batch instead of being consecutive rows "
+                              "(which would now share a site). With masked passes this reads a library at about one forward per site instead "
+                              "of one per variant; memory scales with the distinct sequences, so --micro_batch_size can be raised a lot.")
+    val.add_argument('--val_four_pass', action=argparse.BooleanOptionalAction, default=True,
+                     help="Also score validation with the four-pass thermodynamic cycle of a double: the independent readout of BOTH adapters "
+                          "(WT(a, b masked) + WT(b, a masked) and MT(B | A), MT(A | B) with the partner's mutant residue visible), whose two "
+                          "paths around the cycle, WT(a) + MT(B|A) and WT(b) + MT(A|B), average to the reported prediction. Logged as val_c4_* "
+                          "(per-library metrics, the epistasis hierarchy and val_c4_cycle_gap, the mean |path 1 - path 2|), never watched by "
+                          "a plateau or the checkpoint monitor. Each unique masked sequence is computed once per library (the model's logit "
+                          "cache), so a library of N sites costs N WT forwards and one MT forward per (mutation, partner site). The same pass also scores the WT head "
+                          "unmasked and masked-marginal (val_wt_unmasked_*, val_wt_marginal_*) and the ensemble of the unmasked WT score with the cycle's "
+                          "prediction (val_ens_*). The c4 epistasis metrics are watchable: --mt_convergence_metric c4_epi_beyond_rho_epi, "
+                          "--monitor_metric val_c4_epi_beyond_rho_epi.")
     val.add_argument('--skip_val', action=argparse.BooleanOptionalAction, default=False)
 
     _add_retired(parser)
@@ -488,6 +543,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     # ---- validation
     if not 0.0 <= args.tf_mix <= 1.0:
         parser.error(f"--tf_mix must be in [0, 1] (0 = never teacher-force, 1 = always use the measured additive label where one is usable); got {args.tf_mix}")
+    for side in ('wt', 'mt'):
+        d = getattr(args, f'mask_dist_{side}')
+        if d is not None and (min(d) < 0 or sum(d) <= 0):
+            parser.error(f"--mask_dist_{side} needs three non-negative weights that do not all vanish; got {d}")
+    if not 0.0 <= args.mask_prob <= 1.0:
+        parser.error(f"--mask_prob must be in [0, 1]; got {args.mask_prob}")
     if args.huber_delta < 0:
         parser.error("--huber_delta must be >= 0")
     if args.rank_list_size < 1:
@@ -549,6 +610,36 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     elif args.init_wt_from_checkpoint is not None:
         logging.warning(f"--init_wt_from_checkpoint given without --frozen_wt_mt_only: {args.init_wt_from_checkpoint} is a warm start, "
                         f"and the WT head will keep training from it")
+
+    if not args.tf_detach_wt and args.joint_doubles == 'alternate':
+        parser.error("--no-tf_detach_wt keeps the WT graph alive for every item, but --joint_doubles alternate frees it before the MT pass: use --joint_doubles both (or off)")
+    if args.joint_doubles != 'off' or args.block_training:
+        clash = [f for f, on in (('--reg_nll tobit', args.reg_nll == 'tobit'), ('--latent_censor_hinge', args.latent_censor_hinge),
+                                 ('--wt_supervise_doubles', args.wt_supervise_doubles)) if on]
+        if clash and args.joint_doubles != 'off':
+            parser.error(f"--joint_doubles regresses the live double through the standard observed-scale hinge; it is not defined with {', '.join(clash)}")
+        clash += [f for f, on in (('--lambda_cond_mt', args.lambda_cond_mt > 0), ('--mt_single_loss_weight', args.mt_single_loss_weight != 1.0),
+                                  ('--rank_calibrated_stopgrad', args.rank_calibrated_stopgrad)) if on]
+        if clash and args.block_training:
+            parser.error(f"--block_training has its own tensor losses (standard observed-scale hinge, raw-scale ListMLE); it is not defined with {', '.join(clash)}")
+    if args.block_training:
+        bad = ('--mt_direct_pred' if args.mt_direct_pred else '--adapter_mode fused' if args.adapter_mode == 'fused'
+               else '--rank_group_by partner' if args.rank_group_by == 'partner' else None)
+        if bad:
+            parser.error(f"--block_training does not support {bad}")
+        if args.block_positions < 1:
+            parser.error("--block_positions must be >= 1")
+    if args.joint_doubles != 'off':
+        why = ('--frozen_wt_mt_only / --mt_direct_pred freeze the WT head, which is half of the joint prediction' if args.freeze_wt_adapter
+               else '--freeze_mt_adapter freezes the MT head, which is the other half' if args.freeze_mt_adapter
+               else '--adapter_mode fused shares one adapter between the passes, so there are no two graphs to joint or alternate' if args.adapter_mode == 'fused'
+               else '--lambda_reg_mt 0 leaves nothing to regress the joint prediction with' if args.lambda_reg_mt <= 0
+               else '--subsets leaves doubles out' if 'double' not in args.subsets else None)
+        if why:
+            parser.error(f"--joint_doubles {args.joint_doubles}: {why}")
+        if args.tf_mix >= 1.0:
+            logging.warning(f"--joint_doubles {args.joint_doubles} with --tf_mix {args.tf_mix}: a double with a usable additive label is "
+                            f"teacher-forced completely, so the WT head is trained only by the doubles that have none. Use --tf_mix < 1.")
 
     for k, v in DERIVED.items():
         setattr(args, k, v)
