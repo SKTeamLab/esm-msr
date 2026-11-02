@@ -120,17 +120,21 @@ def single_sequences(seq: torch.Tensor, positions: torch.Tensor) -> torch.Tensor
     return out
 
 
-def pair_sequences(seq: torch.Tensor, i: int, j: int, wt_i: int, wt_j: int):
+def pair_sequences(seq: torch.Tensor, i: int, j: int, wt_i: int, wt_j: int, identity: bool = False):
     """
     The passes of a pair block, as ``(wt_rows [2, L], row_seqs [19, L], col_seqs [19, L], Xa, Ya)``.
+
+    With ``identity`` the alphabet is all 20 residues on both axes: the row pass of the wild-type residue at i is the wild type with j masked
+    (its read is the single at j, seen by the mutant adapter) and the column pass of the wild type at j likewise, so the matrices are 20 x 20
+    with the singles on the identity row and column, from 40 mutant passes instead of 38.
 
     ``wt_rows[0]`` is the wild type with i masked (read at i), ``wt_rows[1]`` with j masked (read at j). Row pass x carries substitution x
     at i and masks j (read at j: the conditional readout of every y given x); column pass y carries y at j and masks i (read at i).
     ``Xa`` / ``Ya`` are the alphabet indices of the 19 substitutions at i / j.
     """
     canon = torch.tensor(CANON_IDS, dtype=torch.long, device=seq.device)
-    Xa = [a for a in range(20) if CANON_IDS[a] != wt_i]
-    Ya = [a for a in range(20) if CANON_IDS[a] != wt_j]
+    Xa = [a for a in range(20) if identity or CANON_IDS[a] != wt_i]
+    Ya = [a for a in range(20) if identity or CANON_IDS[a] != wt_j]
     wt_rows = seq.unsqueeze(0).repeat(2, 1)
     wt_rows[0, i] = MASK
     wt_rows[1, j] = MASK
@@ -154,6 +158,40 @@ def assemble_pair(llr_i: torch.Tensor, llr_j: torch.Tensor, row: torch.Tensor, c
     wt_raw = llr_i[x].unsqueeze(1) + llr_j[y].unsqueeze(0)
     mt_raw = row[:, y] + col[:, x].t()
     return wt_raw, mt_raw
+
+
+def pair_labels(b: dict, Xa: Sequence[int], Ya: Sequence[int], wi: int, wj: int):
+    """
+    The label matrices of a pair block over the alphabet rows ``Xa`` and columns ``Ya`` (alphabet indices; ``wi`` / ``wj`` the wild-type
+    residues at i and j).
+
+    The double cells come from the library's doubles; the identity row and column are the SINGLES at j and at i (cell (x, wt_j) is the single x
+    at i), and the wild type itself is 0. The library constants dG_wt and the floor are filled into every cell, so no cell hands the link a NaN.
+    Returns ``(lab, A, B, ident, full)``: ``lab`` the six label fields restricted to ``Xa`` x ``Ya``; ``A`` / ``B`` the two measured singles
+    of each cell (their de-linked sum is the teacher-forcing label; the identity cells carry the one single and a 0 for the wild type);
+    ``ident`` marks the identity cells; ``full`` the same fields over the whole 20 x 20 alphabet, which the conditional legs index.
+    """
+    dev = b['y'].device
+    X, Y = torch.as_tensor(list(Xa), device=dev), torch.as_tensor(list(Ya), device=dev)
+    M = {f: b[f].clone() for f in SINGLE_FIELDS}
+    for f in ('y', 'cens', 'bound', 'dG_meas'):
+        M[f][:, wj] = b['si_' + f]
+        M[f][wi, :] = b['sj_' + f]
+    finite = torch.cat([t.reshape(-1) for t in (b['dG_wt'], b['si_dG_wt'], b['sj_dG_wt'])])
+    finite = finite[torch.isfinite(finite)]
+    dG = finite.mean() if finite.numel() else torch.tensor(float('nan'), device=dev)
+    fl = b['y_floor'][torch.isfinite(b['y_floor'])]
+    M['dG_wt'] = torch.full_like(M['dG_wt'], float(dG))
+    M['y_floor'] = torch.full_like(M['y_floor'], float(fl.mean()) if fl.numel() else float('nan'))
+    M['y'][wi, wj], M['cens'][wi, wj], M['bound'][wi, wj], M['dG_meas'][wi, wj] = 0.0, 0, float('nan'), float(dG)
+    A, Bm = b['yA'].clone(), b['yB'].clone()
+    A[:, wj], Bm[:, wj] = b['si_y'], 0.0
+    A[wi, :], Bm[wi, :] = 0.0, b['sj_y']
+    ident = torch.zeros(20, 20, dtype=torch.bool, device=dev)
+    ident[:, wj] = True
+    ident[wi, :] = True
+    sl = lambda t: t[X][:, Y]
+    return {f: sl(M[f]) for f in M}, sl(A), sl(Bm), sl(ident), M
 
 
 # ---------------------------------------------------------------------------------------------------------------- dataset and sampler
@@ -216,9 +254,15 @@ class BlockDataset(Dataset):
                          **{f: t(lib.singles[f][idx]) for f in SINGLE_FIELDS})
         else:
             i, j = lib.pairs[sel]
+            row_of = {int(p): r for r, p in enumerate(lib.single_pos)}
+            partners = {}
+            for tag, p in (('si_', i), ('sj_', j)):             # the measured singles at the pair's two positions (NaN where there are none)
+                r = row_of.get(p)
+                for f in ('y', 'cens', 'bound', 'dG_meas', 'dG_wt'):
+                    partners[tag + f] = t(lib.singles[f][r]) if r is not None else t(_fill(20, f))
             batch.update(block='pair', positions=t(np.array([i, j], dtype=np.int64)),
                          wt_ids=t(np.array([lib.wt_tok[i], lib.wt_tok[j]], dtype=np.int64)),
-                         **{f: t(lib.pair_data[f][sel]) for f in PAIR_FIELDS})
+                         **{f: t(lib.pair_data[f][sel]) for f in PAIR_FIELDS}, **partners)
         return batch
 
 

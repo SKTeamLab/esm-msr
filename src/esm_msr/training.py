@@ -1012,15 +1012,35 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     # ------------------------------------------------------------------------------------------------------------ block training
     # --block_training (esm_msr.blocks): a step is a singles block (B positions, a [B, 20] tensor from B masked-site passes, ONE ListMLE list of
-    # B x 20 cells) or a pair block (2 WT + 38 MT passes, the 19 x 19 cells of a position pair, lists of B rows or columns). The objective
-    # is the per-item one - WT head on the singles, MT head through 0.5 * (forced WT half + MT) with --tf_mix, joint doubles with a live WT half -
-    # evaluated on tensors instead of rows.
+    # B x 20 cells) or a pair block (2 WT + 38/40 MT passes, the cells of a position pair, lists of B rows or columns). The objective is the
+    # per-item one - WT head on the singles, MT head through 0.5 * (forced WT half + MT) with --tf_mix, a live WT half with --joint_doubles or
+    # --no-tf_detach_wt - evaluated on tensors, plus (--block_identity) the wild-type identity cell in every ListMLE list and (--lambda_cond_mt)
+    # the MT head's conditional legs trained directly.
 
     def _block_cal(self, side):
         head = getattr(self.model, f'calibration_head_{side}', None)
         return head if head is not None else self.model.calibration_head_fused
 
+    def _block_cal_sg(self, side, raw, n):
+        """The calibrated prediction with the calibration head's scale and bias held constant (stop-gradient), as the audit's ListMLE scores it."""
+        head = self._block_cal(side)
+        s = head.scale.detach() if head.use_scale else 1.0
+        b = head.bias_for(n)
+        return raw * s + (b.detach() if torch.is_tensor(b) else b)
+
+    def _block_s_wt(self):
+        head = self._block_cal('wt')
+        return head.scale.detach() if head.use_scale else 1.0
+
     def _block_llr(self, b, seqs, read_pos, wt_at, side, grad):
+        chunk = int(self.hparams.get('block_row_chunk', 0) or 0)
+        R = int(seqs.shape[0])
+        if grad and chunk > 0 and R > chunk:
+            # --block_row_chunk: the passes run in checkpointed chunks. Only a chunk's activations are alive at a time (the rest are recomputed
+            # inside backward, with the dropout draw restored), so a 40-row pair block fits a 20 GB card; the gradient is exact.
+            from torch.utils.checkpoint import checkpoint
+            return torch.cat([checkpoint(self.model.forward_site_llr, seqs[k:k + chunk], read_pos[k:k + chunk], wt_at[k:k + chunk], side,
+                                         b['coords'], b['structure_tokens'], use_reentrant=False) for k in range(0, R, chunk)])
         with torch.set_grad_enabled(grad):
             llr = self.model.forward_site_llr(seqs, read_pos, wt_at, side, b['coords'], b['structure_tokens'])
         if not grad:
@@ -1029,12 +1049,22 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 torch.clear_autocast_cache()        # a weight cast under no_grad must not be reused by a later grad forward
         return llr
 
-    def _block_ctx(self, lab, rank_groups):
-        """The labels of one block on the item's own scales, and the lists the rank loss is drawn over (index tensors into the flat block)."""
+    def _block_ctx(self, lab, rank_groups, reg_exclude=None, rank_exclude=None):
+        """
+        The labels of one block on the item's own scales, and the lists the rank loss is drawn over (index tensors into the flat block).
+
+        ``reg_exclude`` takes cells out of the regression only (the identity cells, whose prediction is the constant 0); ``rank_exclude`` out of
+        the lists (a conditional leg whose partner is unusable).
+        """
         link = self.link_head
         y = lab['y']
         link_ok = torch.isfinite(lab['dG_wt'])
         obs_rank = torch.isfinite(y)
+        if rank_exclude is not None:
+            obs_rank = obs_rank & ~rank_exclude
+        obs_reg = obs_rank & link_ok
+        if reg_exclude is not None:
+            obs_reg = obs_reg & ~reg_exclude
         # An unobserved cell has no dG_wt or floor. Every cell goes through the link, and masking a NaN output out of the loss is not enough:
         # backward multiplies the zero gradient of a masked cell by the link's NaN derivative there, and 0 * NaN poisons every parameter. So the
         # link inputs are finite everywhere; link_ok / obs_* say which cells count.
@@ -1042,11 +1072,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         floor = torch.nan_to_num(lab['y_floor'], nan=0.0)
         return types.SimpleNamespace(
             y=y, y_safe=torch.nan_to_num(y, nan=0.0), cens=lab['cens'], dG_wt=dG_wt, floor=floor,
-            link_ok=link_ok, obs_rank=obs_rank, obs_reg=obs_rank & link_ok, groups=rank_groups,
+            link_ok=link_ok, obs_rank=obs_rank, obs_reg=obs_reg, groups=rank_groups,
             bound=reachable_bounds(link, lab['bound'], floor, y - lab['dG_meas']))
 
-    def _block_reg_rank(self, c, pred_cal, pred_raw, lam_reg, lam_rank, crit_rank, name):
-        """Regression on the observed scale over the observed cells + ListMLE over each list; returns the weighted terms and logs them."""
+    def _block_reg_rank(self, c, pred_cal, rank_pred, lam_reg, lam_rank, crit_rank, name):
+        """Regression on the observed scale over the observed cells + ListMLE of ``rank_pred`` over each list; returns the weighted terms and logs them."""
         terms, link, flat = [], self.link_head, (lambda t: t.reshape(-1))
         if lam_reg > 0 and bool(c.obs_reg.any()):
             denom = float(max(1, int(c.obs_reg.sum())))
@@ -1056,7 +1086,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if lam_rank > 0 and crit_rank is not None:
             ls, vals = [], []
             for g in c.groups:
-                L, val, _ = self._compute_rank_loss(flat(pred_raw)[g], flat(c.y_safe)[g], flat(c.obs_rank)[g], flat(c.cens)[g], int(g.numel()), crit_rank)
+                L, val, _ = self._compute_rank_loss(flat(rank_pred)[g], flat(c.y_safe)[g], flat(c.obs_rank)[g], flat(c.cens)[g], int(g.numel()), crit_rank)
                 if L is not None:
                     ls.append(L); vals.append(val)
             if ls:
@@ -1087,26 +1117,42 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
     def _block_step(self, b):
         self._block_sums, self._block_cnts = defaultdict(float), defaultdict(float)
         (self._block_singles if b['block'] == 'single' else self._block_pair)(b)
-        logs = {f'L_{k}': self._block_sums[k] / max(1, self._block_cnts[k]) for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined')
-                if self._block_cnts[k] > 0}
+        logs = {f'L_{k}': self._block_sums[k] / max(1, self._block_cnts[k])
+                for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined', 'reg_cond', 'rank_cond') if self._block_cnts[k] > 0}
         self._cens_diag = (int((b['cens'] < 0).sum().item()), int((b['cens'] > 0).sum().item()), 0)
         return logs
 
     def _block_singles(self, b):
         hp, link = self.hparams, self.link_head
         pos, wt_ids = b['positions'], b['wt_ids']
+        dev = b['y'].device
+        ident = bool(hp.get('block_identity', True))
         seqs = blocks.single_sequences(b['seq'], pos)
         lab = {k: b[k].float() if k != 'cens' else b[k] for k in ('y', 'cens', 'bound', 'dG_meas', 'dG_wt', 'y_floor')}
+        n = torch.ones(b['y'].shape, dtype=torch.long, device=dev)                        # one mutation per cell
+        ident_cells = None
+        if ident:
+            # The wild-type residue is a cell of the list too: it reads exactly 0 (no mutation, so no bias either) and its label is 0.
+            ar = torch.arange(pos.shape[0], device=dev)
+            wi = torch.as_tensor([blocks.TOKEN_TO_AA[int(t)] for t in wt_ids], device=dev)
+            lab['y'], lab['cens'] = lab['y'].clone(), lab['cens'].clone()
+            lab['y'][ar, wi], lab['cens'][ar, wi] = 0.0, 0
+            n[ar, wi] = 0
+            ident_cells = torch.zeros(b['y'].shape, dtype=torch.bool, device=dev)
+            ident_cells[ar, wi] = True
         n_all = int(b['y'].numel())
-        c = self._block_ctx(lab, [torch.arange(n_all, device=b['y'].device)])         # one list: the whole [B, 20] block
-        n = torch.ones(b['y'].shape, dtype=torch.long, device=b['y'].device)           # one mutation per cell
+        c = self._block_ctx(lab, [torch.arange(n_all, device=dev)], reg_exclude=ident_cells)         # one list: the whole [B, 20] block
         wt_frozen, mt_frozen = self.peft_manager.wt_path_is_frozen, self.peft_manager.mt_path_is_frozen
         wt_train = not wt_frozen and (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0)
         mt_on = not mt_frozen and (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0)
         live = (not bool(hp.get('tf_detach_wt', True))) and not wt_frozen and mt_on            # --no-tf_detach_wt: the combined loss reaches the WT head
         llr_wt = self._block_llr(b, seqs, pos, wt_ids, 'wt', grad=wt_train or live)
         wt_cal = self._block_cal('wt')(llr_wt, n)
-        wt_terms = self._block_reg_rank(c, wt_cal, llr_wt, hp.lambda_reg_wt, hp.lambda_rank_wt, self.crit_rank_wt, 'wt') if wt_train else []
+        s_wt = self._block_s_wt()
+        # With the identity cell in the list, the lists are scored on the calibrated scale (stop-gradient), where "no mutation" is 0 and a
+        # mutation carries its bias; without it, on the raw LLR as before.
+        wt_rank = self._block_cal_sg('wt', llr_wt, n) / s_wt if ident else llr_wt
+        wt_terms = self._block_reg_rank(c, wt_cal, wt_rank, hp.lambda_reg_wt, hp.lambda_rank_wt, self.crit_rank_wt, 'wt') if wt_train else []
         if not live:
             self._block_backward(wt_terms, 'WT')                 # freed before the MT pass builds its graph
             wt_terms = []
@@ -1123,42 +1169,99 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             has = has & (c.cens == 0)
         f_cal, f_raw = self._block_forced(c, wt_cal, llr_wt, n, lat, has, live=live)
         comb_cal, comb_raw = combine_predictions(f_cal, mt_cal), combine_predictions(f_raw, llr_mt)
-        self._block_backward(wt_terms + self._block_reg_rank(c, comb_cal, comb_raw, hp.lambda_reg_mt, hp.lambda_rank_mt, self.crit_rank_mt, 'combined'), 'MT')
+        if ident:
+            f_sg, _ = self._block_forced(c, self._block_cal_sg('wt', llr_wt, n), llr_wt, n, lat, has, live=live)
+            comb_rank = combine_predictions(f_sg, self._block_cal_sg('mt', llr_mt, n)) / s_wt
+        else:
+            comb_rank = comb_raw
+        self._block_backward(wt_terms + self._block_reg_rank(c, comb_cal, comb_rank, hp.lambda_reg_mt, hp.lambda_rank_mt, self.crit_rank_mt, 'combined'), 'MT')
+
+    def _block_cond_legs(self, b, llr_m, Xa, Ya, wi, wj, full, ident):
+        """
+        The MT head's conditional legs trained directly (--lambda_cond_mt, the audit's two-conditional supervision on the block's passes).
+
+        Row pass x (the substitution x at i, j masked) reads ddG(Y | X) for every y at j in one forward, column pass y the other way. Each leg is
+        scored as the partner single's latent plus the calibrated leg, ``lat(single_x) + cal(Row[x][y])``, through the link against the DOUBLE's
+        own label (so a saturated reading is never differenced), over the cells whose partner single is usable: finite, its absolute dG above
+        ``--cond_partner_min_dg`` (an unfolded partner leaves nothing to condition on) and above the link's floor. With ``--block_identity`` the
+        lists also hold the identity cell of each pass: no second mutation, so the prediction is the partner single itself.
+        """
+        hp, link = self.hparams, self.link_head
+        lam = float(hp.get('lambda_cond_mt', 0.0) or 0.0)
+        dev = llr_m.device
+        nx, ny = len(Xa), len(Ya)
+        Row, Col = llr_m[:nx], llr_m[nx:]
+        dG = torch.nanmean(full['dG_wt'])
+        fl = full['y_floor'][0, 0]
+        floor_eff = link.effective_floor(fl).detach() if not isinstance(link, IdentityLink) else torch.tensor(-1e9, device=dev)
+        cutoff = float(hp.get('cond_partner_min_dg', 1.0))
+        rank_w = lam * float(hp.lambda_rank_mt) / max(float(hp.lambda_reg_mt), 1e-8)
+        B = max(1, int(hp.get('block_positions', 8)))
+        ident_rank = bool(hp.get('block_identity', True))
+        s_wt = self._block_s_wt()
+        terms = []
+        for passes, raw_all, partner, wt_self, wt_read, axis_idx, lab_rows in (
+                ('row', Row, b['si_y'], wi, wj, Xa, lambda k: {f: full[f][k] for f in full}),                       # partner single at i
+                ('col', Col, b['sj_y'], wj, wi, Ya, lambda k: {f: full[f].t()[k] for f in full})):                   # partner single at j
+            real = [r for r, a in enumerate(axis_idx) if a != wt_self]
+            if not real:
+                continue
+            ridx = torch.as_tensor(real, device=dev)
+            aa = torch.as_tensor([axis_idx[r] for r in real], device=dev)
+            raw = raw_all[ridx]                                                                      # [P, 20] raw LLR over the residue read
+            n_leg = torch.ones(raw.shape, dtype=torch.long, device=dev)
+            n_leg[:, wt_read] = 0                                                                    # reading the wild type: no second mutation
+            leg = self._block_cal('mt')(raw, n_leg)
+            s = partner[aa]                                                                          # the partner single's ddG
+            ok = torch.isfinite(s) & ((dG + s) > cutoff) & ((dG + s) > floor_eff + 1e-3)
+            lat_p = torch.nan_to_num(link.latent_ddG(torch.where(ok, s, torch.zeros_like(s)), dG.expand_as(s), fl.expand_as(s)).detach(), nan=0.0)
+            lab = lab_rows(aa)
+            ident_cols = torch.zeros(raw.shape, dtype=torch.bool, device=dev)
+            ident_cols[:, wt_read] = True
+            # the cells: the double (or, on the identity column, the partner single itself) of each pass, with the partner usable
+            c = self._block_ctx(lab, [], reg_exclude=ident_cols | ~ok.unsqueeze(1), rank_exclude=~ok.unsqueeze(1) | (ident_cols if not ident_rank else torch.zeros_like(ident_cols)))
+            total = lat_p.unsqueeze(1) + leg
+            P = raw.shape[0]
+            order = torch.randperm(P, device=dev)
+            c.groups = [g.reshape(-1) for g in torch.tensor_split(torch.arange(P * 20, device=dev).view(P, 20)[order], max(1, -(-P // B)))]
+            rank_pred = (lat_p.unsqueeze(1) + self._block_cal_sg('mt', raw, n_leg)) / s_wt
+            terms += self._block_reg_rank(c, total, rank_pred, 0.5 * lam, 0.5 * rank_w, self.crit_rank_mt, 'cond')
+        return terms
 
     def _block_pair(self, b):
         hp, link = self.hparams, self.link_head
+        dev = b['y'].device
+        ident = bool(hp.get('block_identity', True))
         i, j = int(b['positions'][0]), int(b['positions'][1])
         wt_i, wt_j = int(b['wt_ids'][0]), int(b['wt_ids'][1])
-        wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(b['seq'], i, j, wt_i, wt_j)
-        dev = b['y'].device
-        sel = lambda t: t[torch.as_tensor(Xa, device=dev)][:, torch.as_tensor(Ya, device=dev)]
-        lab = {k: (sel(b[k]).float() if k != 'cens' else sel(b[k])) for k in ('y', 'cens', 'bound', 'dG_meas', 'dG_wt', 'y_floor')}
-        if not bool(torch.isfinite(lab['y']).any()):
+        wi, wj = blocks.TOKEN_TO_AA[wt_i], blocks.TOKEN_TO_AA[wt_j]
+        wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(b['seq'], i, j, wt_i, wt_j, identity=ident)
+        lab, tfA, tfB, ident_cells, full = blocks.pair_labels(b, Xa, Ya, wi, wj)
+        if not bool((torch.isfinite(lab['y']) & ~ident_cells).any()):
             return
         nx, ny = len(Xa), len(Ya)
+        xi, yj = torch.as_tensor(Xa, device=dev), torch.as_tensor(Ya, device=dev)
+        n = (xi != wi).long().view(-1, 1) + (yj != wj).long().view(1, -1)                   # mutations per cell: 2 for a double, 1 for a single, 0 for the wild type
         # lists of B rows or B columns of the cell matrix, the unit chosen at random for each block
         B = max(1, int(hp.get('block_positions', 8)))
         flat_idx = torch.arange(nx * ny, device=dev).view(nx, ny)
-        by_row = bool(torch.rand(()) < 0.5)
-        units = flat_idx if by_row else flat_idx.t()
+        units = flat_idx if bool(torch.rand(()) < 0.5) else flat_idx.t()
         units = units[torch.randperm(units.shape[0], device=dev)]
         groups = [g.reshape(-1) for g in torch.tensor_split(units, max(1, -(-units.shape[0] // B)))]
-        c = self._block_ctx(lab, groups)
-        n = torch.full((nx, ny), 2, dtype=torch.long, device=dev)
+        c = self._block_ctx(lab, groups, reg_exclude=ident_cells)
         joint = ((str(hp.get('joint_doubles', 'off') or 'off') != 'off') or not bool(hp.get('tf_detach_wt', True))) and not self.peft_manager.wt_path_is_frozen
-        mt_frozen = self.peft_manager.mt_path_is_frozen
-        if mt_frozen or not (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0):
+        if self.peft_manager.mt_path_is_frozen or not (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0 or float(hp.get('lambda_cond_mt', 0.0) or 0.0) > 0):
             return
         wt_pos = torch.as_tensor([i, j], device=dev)
         llr_w = self._block_llr(b, wt_rows, wt_pos, b['wt_ids'], 'wt', grad=joint)             # 2 wild-type passes
-        mt_seqs = torch.cat([row_seqs, col_seqs])                                              # 38 mutant passes
+        mt_seqs = torch.cat([row_seqs, col_seqs])                                              # 38 (40 with the identity) mutant passes
         read = torch.as_tensor([j] * nx + [i] * ny, device=dev)
         wt_at = torch.as_tensor([wt_j] * nx + [wt_i] * ny, device=dev)
         llr_m = self._block_llr(b, mt_seqs, read, wt_at, 'mt', grad=True)
         wt_raw, mt_raw = blocks.assemble_pair(llr_w[0], llr_w[1], llr_m[:nx], llr_m[nx:], Xa, Ya)
         wt_cal, mt_cal = self._block_cal('wt')(wt_raw, n), self._block_cal('mt')(mt_raw, n)
-        # the teacher-forcing label of a double: its two measured singles, de-linked one at a time and summed
-        yA, yB = sel(b['yA']).float(), sel(b['yB']).float()
+        # the teacher-forcing label of a cell: its measured singles, de-linked one at a time and summed
+        yA, yB = tfA.float(), tfB.float()
         dG, fl = c.dG_wt, c.floor
         lat = (link.latent_ddG(yA, dG, fl) + link.latent_ddG(yB, dG, fl)).detach()
         t_single, tf_cut = hp.get('censor_threshold'), hp.get('tf_cut')
@@ -1166,7 +1269,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         has = torch.isfinite(lat) & c.link_ok & ~teacher_forcing_unusable(dG, yA, yB, cut)
         f_cal, f_raw = self._block_forced(c, wt_cal, wt_raw, n, lat, has, live=joint)
         comb_cal, comb_raw = combine_predictions(f_cal, mt_cal), combine_predictions(f_raw, mt_raw)
-        self._block_backward(self._block_reg_rank(c, comb_cal, comb_raw, hp.lambda_reg_mt, hp.lambda_rank_mt, self.crit_rank_mt, 'combined'), 'MT')
+        if ident:
+            s_wt = self._block_s_wt()
+            f_sg, _ = self._block_forced(c, self._block_cal_sg('wt', wt_raw, n), wt_raw, n, lat, has, live=joint)
+            comb_rank = combine_predictions(f_sg, self._block_cal_sg('mt', mt_raw, n)) / s_wt
+        else:
+            comb_rank = comb_raw
+        terms = self._block_reg_rank(c, comb_cal, comb_rank, hp.lambda_reg_mt, hp.lambda_rank_mt, self.crit_rank_mt, 'combined')
+        if float(hp.get('lambda_cond_mt', 0.0) or 0.0) > 0:
+            terms += self._block_cond_legs(b, llr_m, Xa, Ya, wi, wj, full, ident_cells)
+        self._block_backward(terms, 'MT')
 
     def _log_lrs(self):
         opts = self.trainer.optimizers

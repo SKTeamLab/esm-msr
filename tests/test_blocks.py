@@ -196,7 +196,9 @@ class _Net(torch.nn.Module):
         R = seqs.shape[0]
         self.calls.append((side, R, torch.is_grad_enabled()))
         w = self.w_wt if side == 'wt' else self.w_mt
-        return w * (torch.arange(20).float().view(1, 20) + 1 + 0.1 * torch.arange(R).float().view(R, 1))
+        out = w * (torch.arange(20).float().view(1, 20) + 1 + 0.1 * torch.arange(R).float().view(R, 1))
+        wt_aa = torch.as_tensor([blocks.TOKEN_TO_AA[int(t)] for t in wt_at])
+        return out * (torch.arange(20).view(1, 20) != wt_aa.view(R, 1)).float()                       # the wild type reads exactly 0
 
 
 def _hp(**kw):
@@ -221,8 +223,8 @@ def _module(**hp):
     s.crit_reg = torch.nn.MSELoss(reduction='none')
     s.crit_rank_wt = s.crit_rank_mt = ListMLELoss()
     s.manual_backward = lambda loss, retain_graph=False: loss.backward()
-    for name in ('_reg_loss', '_compute_rank_loss', '_block_cal', '_block_llr', '_block_ctx', '_block_reg_rank', '_block_backward',
-                 '_block_forced', '_block_singles', '_block_pair', '_block_step'):
+    for name in ('_reg_loss', '_compute_rank_loss', '_block_cal', '_block_cal_sg', '_block_s_wt', '_block_llr', '_block_ctx', '_block_reg_rank',
+                 '_block_backward', '_block_forced', '_block_singles', '_block_pair', '_block_step', '_block_cond_legs'):
         setattr(s, name, types.MethodType(getattr(M, name), s))
     return s
 
@@ -259,11 +261,12 @@ def test_a_singles_block_is_ranked_as_one_list_of_b_times_twenty_cells():
     assert seen and all(sh == (1, 60) for sh in seen)
 
 
-def test_a_pair_block_uses_forty_passes_and_regresses_the_cycle_prediction():
-    s = _module(lambda_rank_mt=0.0)
+@pytest.mark.parametrize('ident,rows', [(False, 38), (True, 40)])
+def test_a_pair_block_uses_thirty_eight_passes_forty_with_the_identity_and_regresses_the_cycle_prediction(ident, rows):
+    s = _module(lambda_rank_mt=0.0, block_identity=ident)
     b = _blk('pair')
     logs = M._block_step(s, b)
-    assert sorted((c[0], c[1]) for c in s.model.calls) == [('mt', 38), ('wt', 2)]
+    assert sorted((c[0], c[1]) for c in s.model.calls) == [('mt', rows), ('wt', 2)]
     assert 'L_reg_combined' in logs and logs['L_reg_combined'] > 0
     assert s.model.w_mt.grad is not None and (s.model.w_wt.grad is None or float(s.model.w_wt.grad.abs()) == 0.0)   # joint off: WT half detached
 
@@ -291,7 +294,7 @@ def test_pair_rank_lists_cover_every_cell_once_in_rows_or_columns():
         seen.clear()
         M._block_step(s, _blk('pair'))
         sizes.add(tuple(sorted(seen)))
-        assert sum(seen) == 361                                                                  # 19 x 19 cells, each in exactly one list
+        assert sum(seen) == 400                                                                  # 20 x 20 cells (the identity row and column too), each in exactly one list
     assert all(max(t) <= 8 * 19 for t in sizes)                                                  # at most B rows (or columns) per list
 
 
@@ -349,9 +352,164 @@ def test_block_clashes_with_the_per_item_only_losses_are_refused():
     argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x', '--block_training']
     old = sys.argv
     try:
-        for bad in (['--reg_nll', 'tobit'], ['--lambda_cond_mt', '1.0'], ['--wt_supervise_doubles'], ['--mt_single_loss_weight', '0.1']):
+        sys.argv = argv + ['--lambda_cond_mt', '7.5']                         # the conditional legs ARE defined for blocks
+        assert config.parse_arguments().lambda_cond_mt == 7.5
+        for bad in (['--reg_nll', 'tobit'], ['--wt_supervise_doubles'], ['--mt_single_loss_weight', '0.1']):
             sys.argv = argv + bad
             with pytest.raises(SystemExit):
                 config.parse_arguments()
     finally:
         sys.argv = old
+
+
+# ---------------------------------------------------------------------------------------------------------------- identity, conditional legs, chunks
+
+class _Rec(ListMLELoss):
+    """Records every list the rank loss is handed: predictions, labels and the member mask."""
+
+    def __init__(self):
+        super().__init__()
+        self.lists = []
+
+    def forward_censored(self, p, t, m, c):
+        self.lists.append((p[0].detach().clone(), t[0].clone(), m[0].clone()))
+        return super().forward_censored(p, t, m, c)
+
+
+def test_pair_labels_put_the_singles_on_the_identity_row_and_column_and_zero_on_the_wild_type():
+    b = _blk('pair', yA=torch.full((20, 20), 0.3), yB=torch.full((20, 20), 0.2))
+    wi, wj = blocks.TOKEN_TO_AA[WT_I], blocks.TOKEN_TO_AA[int(SEQ[5])]
+    wi = blocks.TOKEN_TO_AA[int(SEQ[2])]
+    lab, A, B, ident, full = blocks.pair_labels(b, list(range(20)), list(range(20)), wi, wj)
+    assert lab['y'].shape == (20, 20) and ident.sum() == 39 and bool(ident[wi, wj])
+    assert lab['y'][wi, wj] == 0.0 and lab['cens'][wi, wj] == 0
+    for x in (0, 1, 2):                                                  # (x, wt_j) is the single x at position 2
+        assert lab['y'][x, wj] == pytest.approx(float(b['si_y'][x])) and float(A[x, wj]) == pytest.approx(float(b['si_y'][x])) and float(B[x, wj]) == 0.0
+    assert torch.isnan(lab['y'][wi, 3]) or float(lab['y'][wi, 3]) == pytest.approx(float(b['sj_y'][3]), nan_ok=True)
+    assert torch.isfinite(lab['dG_wt']).all() and torch.isfinite(lab['y_floor']).all()      # no cell hands the link a NaN
+    lab19, *_ = blocks.pair_labels(b, [a for a in range(20) if a != wi], [a for a in range(20) if a != wj], wi, wj)
+    assert lab19['y'].shape == (19, 19)
+
+
+def test_the_identity_cells_of_a_pair_block_are_the_per_item_singles():
+    m = _stand_in()
+    wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(SEQ, I, J, WT_I, WT_J, identity=True)
+    assert len(Xa) == len(Ya) == 20 and row_seqs.shape == (20, 9)
+    llr = lambda seqs, pos, wt: m.forward_site_llr(seqs, torch.as_tensor(pos), torch.as_tensor(wt), 'wt')
+    llr_w = llr(wt_rows, [I, J], [WT_I, WT_J])
+    llr_m = llr(torch.cat([row_seqs, col_seqs]), [J] * 20 + [I] * 20, [WT_J] * 20 + [WT_I] * 20)
+    wt_raw, mt_raw = blocks.assemble_pair(llr_w[0], llr_w[1], llr_m[:20], llr_m[20:], Xa, Ya)
+    wi, wj = blocks.TOKEN_TO_AA[WT_I], blocks.TOKEN_TO_AA[WT_J]
+    assert float(wt_raw[wi, wj]) == 0.0 and float(mt_raw[wi, wj]) == 0.0                 # the wild type itself reads 0
+    for x in (0, 3, 17):                                                                   # the single x at i: column wt_j
+        mt = SEQ.clone(); mt[I] = blocks.CANON_IDS[x]
+        b = {'wt_sequence_tokens': SEQ.unsqueeze(0), 'mt_sequence_tokens': mt.unsqueeze(0), 'mut_pos': torch.tensor([[I]]),
+             'wt_id': torch.tensor([[WT_I]]), 'mt_id': torch.tensor([[blocks.CANON_IDS[x]]]), 'mut_mask': torch.tensor([[True]])}
+        if x == wi:
+            continue
+        w = float(m.forward_partitioned(b, pass_type='wt', mask_strategy='independent')['pred_calibrated'][0])
+        t = float(m.forward_partitioned(b, pass_type='mt', mask_strategy='independent')['pred_calibrated'][0])
+        assert float(wt_raw[x, wj]) == pytest.approx(w, rel=1e-5, abs=1e-4) and float(mt_raw[x, wj]) == pytest.approx(t, rel=1e-5, abs=1e-4)
+
+
+def test_a_singles_list_holds_the_wild_type_with_label_and_prediction_zero_when_asked():
+    for ident, extra in ((True, 3), (False, 0)):
+        s = _module(lambda_reg_wt=0.0, lambda_reg_mt=0.0, block_identity=ident)
+        s.crit_rank_wt = s.crit_rank_mt = rec = _Rec()
+        b = _blk('single')
+        M._block_step(s, b)
+        p, t, m = rec.lists[0]
+        n_obs = int(torch.isfinite(b['y']).sum())
+        assert int(m.sum()) == n_obs + extra and p.shape == (60,)
+        if ident:
+            wi = torch.as_tensor([blocks.TOKEN_TO_AA[int(w)] for w in b['wt_ids']])
+            cells = torch.arange(3) * 20 + wi
+            assert m[cells].all() and (t[cells] == 0).all() and (p[cells] == 0).all()
+
+
+def test_the_identity_cell_has_no_regression_and_the_regression_count_is_unchanged():
+    logs = {}
+    for ident in (True, False):
+        s = _module(lambda_rank_wt=0.0, lambda_rank_mt=0.0, block_identity=ident)
+        logs[ident] = M._block_step(s, _blk('single'))
+        logs[ident]['n'] = s._block_cnts['reg_wt']
+    assert logs[True]['n'] == logs[False]['n'] and logs[True]['L_reg_wt'] == pytest.approx(logs[False]['L_reg_wt'])
+
+
+def test_a_pair_block_ranks_the_singles_and_the_wild_type_with_the_doubles():
+    s = _module(lambda_reg_mt=0.0, lambda_reg_wt=0.0, lambda_rank_wt=0.0, block_positions=20)
+    s.crit_rank_mt = rec = _Rec()
+    b = _blk('pair')
+    M._block_step(s, b)
+    assert len(rec.lists) == 1 and rec.lists[0][0].shape == (400,)
+    n_doubles = int(torch.isfinite(b['y']).sum())
+    n_singles = int(torch.isfinite(b['si_y']).sum()) + int(torch.isfinite(b['sj_y']).sum())
+    assert int(rec.lists[0][2].sum()) == n_doubles + n_singles + 1                       # + the wild type
+
+
+def _cond_setup(**hp):
+    s = _module(lambda_rank_mt=0.0, lambda_rank_wt=0.0, lambda_reg_wt=0.0, lambda_reg_mt=0.0, lambda_cond_mt=1.0, **hp)
+    return s, _blk('pair')
+
+
+def test_a_conditional_leg_is_the_partner_single_plus_the_leg_against_the_doubles_own_label():
+    s, b = _cond_setup(cond_partner_min_dg=1.0)
+    logs = M._block_step(s, b)
+    # The one double (x = aa 1 at site 2, y = aa 2 at site 5) has label 0.5. Row pass k = 1 reads site 5 after the substitution at site 2: the
+    # partner single is the label of (site 2, aa 1) = 2 + 1, the leg is w_mt * (y + 1 + 0.1 k) = 0.1 * (2 + 1 + 0.1). Site 5 has no singles, so no column leg.
+    expected = (3.0 + 0.1 * (2 + 1 + 0.1 * 1) - 0.5) ** 2
+    assert logs['L_reg_cond'] == pytest.approx(expected, rel=1e-5)
+    assert s.model.w_mt.grad is not None and float(s.model.w_mt.grad.abs()) > 0 and s.model.w_wt.grad is None
+
+
+def test_the_partner_cutoff_removes_the_legs_whose_partner_is_not_stable_enough():
+    s, b = _cond_setup(cond_partner_min_dg=10.0)                              # the partner has dG = 2.0 + 3.0 = 5.0 < 10
+    logs = M._block_step(s, b)
+    assert 'L_reg_cond' not in logs
+    s, b = _cond_setup(cond_partner_min_dg=4.9)                               # just below the partner's 5.0
+    assert 'L_reg_cond' in M._block_step(s, b)
+
+
+def test_a_conditional_list_holds_the_partner_single_as_its_identity_cell():
+    s = _module(lambda_reg_mt=0.0, lambda_reg_wt=0.0, lambda_rank_wt=0.0, lambda_rank_mt=1.0, lambda_cond_mt=1.0, block_positions=19)
+    b = _blk('pair')
+    wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(b['seq'], 2, 5, WT_I, int(SEQ[5]), identity=True)
+    wi, wj = blocks.TOKEN_TO_AA[int(SEQ[2])], blocks.TOKEN_TO_AA[int(SEQ[5])]
+    lab, A, Bm, ident_cells, full = blocks.pair_labels(b, Xa, Ya, wi, wj)
+    llr_m = s.model.forward_site_llr(torch.cat([row_seqs, col_seqs]), torch.as_tensor([5] * 20 + [2] * 20), torch.as_tensor([int(SEQ[5])] * 20 + [WT_I] * 20), 'mt')
+    s.crit_rank_mt = rec = _Rec()
+    s._block_sums, s._block_cnts = defaultdict_float(), defaultdict_float()
+    M._block_cond_legs(s, b, llr_m, Xa, Ya, wi, wj, full, ident_cells)
+    assert rec.lists                                                              # row legs whose partner single (site 2) is observed
+    p, t, m = rec.lists[0]
+    cols = torch.arange(len(p)).view(-1, 20)
+    ident_cols = cols[:, wj]
+    assert m[ident_cols].any()                                                    # the identity cell is a member of the list ...
+    ok = ident_cols[m[ident_cols]]
+    single_x = [float(b['si_y'][a]) for a in range(20) if a != wi and torch.isfinite(b['si_y'][a])]
+    assert sorted(float(t[k]) for k in ok.tolist()) == sorted(single_x)           # ... labelled with the partner single, and predicted as it (leg 0)
+
+
+def defaultdict_float():
+    from collections import defaultdict
+    return defaultdict(float)
+
+
+def test_row_chunks_give_the_same_gradient_as_all_rows_at_once():
+    def content_llr(net):
+        """A stand-in whose rows depend on their CONTENT (the default one on the row's index within the call, which a chunk renumbers)."""
+        def f(seqs, read_pos, wt_at, side, coords=None, struct=None):
+            w = net.w_wt if side == 'wt' else net.w_mt
+            out = w * (torch.arange(20).float().view(1, 20) + 1 + 0.01 * seqs.sum(dim=1).float().view(-1, 1))
+            wt_aa = torch.as_tensor([blocks.TOKEN_TO_AA[int(t)] for t in wt_at])
+            return out * (torch.arange(20).view(1, 20) != wt_aa.view(-1, 1)).float()
+        return f
+    grads = []
+    for chunk in (0, 7):
+        torch.manual_seed(5)
+        s = _module(lambda_cond_mt=1.0, joint_doubles='both', tf_mix=0.5, block_row_chunk=chunk)
+        s.model.forward_site_llr = content_llr(s.model)
+        M._block_step(s, _blk('pair', yA=torch.full((20, 20), 0.3), yB=torch.full((20, 20), 0.2)))
+        grads.append((s.model.w_mt.grad.clone(), s.model.w_wt.grad.clone(), s.model.calibration_head_mt.scale.grad.clone()))
+    for a, b_ in zip(*grads):
+        assert torch.allclose(a, b_, rtol=1e-5, atol=1e-7)

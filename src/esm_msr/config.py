@@ -345,7 +345,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                           "(e.g. 0.1 downweights singles 10x while preserving domain-context regularisation).")
     obj.add_argument('--lambda_cond_mt', type=float, default=0.0,
                      help="Weight on zero-extra-pass two-conditional masked supervision (A|B and B|A from mt_out['unsummed_llr'] when "
-                          "--mask_strategy_mt independent and partner dG > --cond_partner_min_dg).")
+                          "--mask_strategy_mt independent and partner dG > --cond_partner_min_dg). With --block_training the MT head's row and column "
+                          "passes are the conditional legs: each is scored as the partner single's latent plus the calibrated leg against the "
+                          "double's label, with ListMLE lists of the same legs (rank weight lambda_cond_mt * lambda_rank_mt / lambda_reg_mt).")
     obj.add_argument('--cond_partner_min_dg', type=float, default=1.0,
                      help="Minimum absolute partner stability dG_wt + ddG_partner (kcal/mol) required to supervise a conditional leg.")
     obj.add_argument('--latent_censor_hinge', action=argparse.BooleanOptionalAction, default=False,
@@ -422,6 +424,16 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                               "structural (the site read is masked; a double's mutant pass shows the partner), so --mask_strategy_* and "
                               "--batch_size / --micro_batch_size / --rank_list_size / --group_by_site do not apply to training; validation is "
                               "unchanged. --joint_doubles other than off makes a pair's WT half live. native_cond items are left out.")
+    train_g.add_argument('--block_identity', action=argparse.BooleanOptionalAction, default=True,
+                         help="--block_training: the wild-type residue is a cell of every ListMLE list, with label 0 and prediction 0 (no mutation, so no "
+                              "bias): a singles block holds B x 20 cells with the wild type in its own column, a pair block is the 20 x 20 matrix whose "
+                              "identity row and column are the singles (40 mutant passes instead of 38), and a conditional leg's list holds the "
+                              "partner single. Lists are then scored on the stop-gradient calibrated scale (where 'no mutation' is 0) instead of the raw "
+                              "LLR. The identity cells carry no regression.")
+    train_g.add_argument('--block_row_chunk', type=int, default=0,
+                         help="--block_training: run a block's passes in checkpointed chunks of this many rows (0 = all at once). Only a chunk's "
+                              "activations are alive at a time and the gradient is exact (the dropout draw is restored on recompute): the 40-row pair "
+                              "block needs about 25 GB at once and fits a 20 GB card at 10-12.")
     train_g.add_argument('--block_positions', type=int, default=8,
                          help="B of --block_training: positions per singles block, and rows (or columns) per rank list of a pair block.")
     train_g.add_argument('--group_by_site', action=argparse.BooleanOptionalAction, default=False,
@@ -618,7 +630,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                                  ('--wt_supervise_doubles', args.wt_supervise_doubles)) if on]
         if clash and args.joint_doubles != 'off':
             parser.error(f"--joint_doubles regresses the live double through the standard observed-scale hinge; it is not defined with {', '.join(clash)}")
-        clash += [f for f, on in (('--lambda_cond_mt', args.lambda_cond_mt > 0), ('--mt_single_loss_weight', args.mt_single_loss_weight != 1.0),
+        clash += [f for f, on in (('--mt_single_loss_weight', args.mt_single_loss_weight != 1.0),
                                   ('--rank_calibrated_stopgrad', args.rank_calibrated_stopgrad)) if on]
         if clash and args.block_training:
             parser.error(f"--block_training has its own tensor losses (standard observed-scale hinge, raw-scale ListMLE); it is not defined with {', '.join(clash)}")
