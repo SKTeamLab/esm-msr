@@ -362,7 +362,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
-    def _compute_rank_loss(self, pred, targets, mask, cens, list_size, crit_fn, item_weights=None, shuffle: bool = False):
+    def _compute_rank_loss(self, pred, targets, mask, cens, list_size, crit_fn, item_weights=None, shuffle: bool = False, norm_to=None):
         """
         ListMLE over the batch chopped into lists of ``list_size``, censored members tied at the bottom.
 
@@ -403,12 +403,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             pred_rank[i:i + 1], targ_rank[i:i + 1], mask_rank[i:i + 1], cens_rank[i:i + 1]
         ) for i in range(num_lists)])
         n_valid = mask_rank.float().sum(dim=-1).clamp(min=1.0)
+        # ListMLE sums its terms over the list, so a list's loss grows with its length. ``norm_to`` (--block_rank_norm ref) rescales every list
+        # to that many members' worth, which keeps the rank:regression balance the same whatever the list is made of.
+        ref = float(norm_to) if norm_to else float(list_size)
         if item_weights is not None:
             w_rank = view(item_weights)
             list_w = (w_rank * mask_rank.float()).sum(dim=-1) / n_valid
-            scaled_loss = (per_list * (list_size / n_valid) * list_w).mean()
+            scaled_loss = (per_list * (ref / n_valid) * list_w).mean()
             return scaled_loss, (per_list.detach() * list_w.detach()).mean().item(), num_lists
-        scaled_loss = (per_list * (list_size / n_valid)).mean()
+        scaled_loss = (per_list * (ref / n_valid)).mean()
         return scaled_loss, per_list.detach().mean().item(), num_lists
 
     def _compute_partner_rank_loss(self, pred: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor,
@@ -1085,8 +1088,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self._block_sums[f'reg_{name}'] += val; self._block_cnts[f'reg_{name}'] += w
         if lam_rank > 0 and crit_rank is not None:
             ls, vals = [], []
+            norm_to = int(self.hparams.rank_list_size) if str(self.hparams.get('block_rank_norm', 'sum')) == 'ref' else None
             for g in c.groups:
-                L, val, _ = self._compute_rank_loss(flat(rank_pred)[g], flat(c.y_safe)[g], flat(c.obs_rank)[g], flat(c.cens)[g], int(g.numel()), crit_rank)
+                L, val, _ = self._compute_rank_loss(flat(rank_pred)[g], flat(c.y_safe)[g], flat(c.obs_rank)[g], flat(c.cens)[g], int(g.numel()), crit_rank,
+                                                    norm_to=norm_to)
                 if L is not None:
                     ls.append(L); vals.append(val)
             if ls:
@@ -1141,7 +1146,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             ident_cells = torch.zeros(b['y'].shape, dtype=torch.bool, device=dev)
             ident_cells[ar, wi] = True
         n_all = int(b['y'].numel())
-        c = self._block_ctx(lab, [torch.arange(n_all, device=dev)], reg_exclude=ident_cells)         # one list: the whole [B, 20] block
+        rows_per_list = int(hp.get('block_list_rows', 0) or 0)
+        if rows_per_list > 0:                                                              # --block_list_rows R: lists of R positions (R = 1: one position each)
+            P = int(pos.shape[0])
+            cells = torch.arange(n_all, device=dev).view(P, 20)[torch.randperm(P, device=dev)]
+            groups = [g.reshape(-1) for g in torch.tensor_split(cells, max(1, -(-P // rows_per_list)))]
+        else:
+            groups = [torch.arange(n_all, device=dev)]                                     # one list: the whole [B, 20] block
+        c = self._block_ctx(lab, groups, reg_exclude=ident_cells)
         wt_frozen, mt_frozen = self.peft_manager.wt_path_is_frozen, self.peft_manager.mt_path_is_frozen
         wt_train = not wt_frozen and (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0)
         mt_on = not mt_frozen and (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0)
@@ -1196,7 +1208,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         floor_eff = link.effective_floor(fl).detach() if not isinstance(link, IdentityLink) else torch.tensor(-1e9, device=dev)
         cutoff = float(hp.get('cond_partner_min_dg', 1.0))
         rank_w = lam * float(hp.lambda_rank_mt) / max(float(hp.lambda_reg_mt), 1e-8)
-        B = max(1, int(hp.get('block_positions', 8)))
+        B = max(1, int(hp.get('block_list_rows', 0) or 0) or int(hp.get('block_positions', 8)))
         ident_rank = bool(hp.get('block_identity', True))
         s_wt = self._block_s_wt()
         terms = []
@@ -1242,8 +1254,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         nx, ny = len(Xa), len(Ya)
         xi, yj = torch.as_tensor(Xa, device=dev), torch.as_tensor(Ya, device=dev)
         n = (xi != wi).long().view(-1, 1) + (yj != wj).long().view(1, -1)                   # mutations per cell: 2 for a double, 1 for a single, 0 for the wild type
-        # lists of B rows or B columns of the cell matrix, the unit chosen at random for each block
-        B = max(1, int(hp.get('block_positions', 8)))
+        # lists of B rows or B columns of the cell matrix (--block_list_rows overrides B), the unit chosen at random for each block
+        B = max(1, int(hp.get('block_list_rows', 0) or 0) or int(hp.get('block_positions', 8)))
         flat_idx = torch.arange(nx * ny, device=dev).view(nx, ny)
         units = flat_idx if bool(torch.rand(()) < 0.5) else flat_idx.t()
         units = units[torch.randperm(units.shape[0], device=dev)]

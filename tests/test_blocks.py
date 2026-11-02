@@ -280,6 +280,61 @@ def test_joint_doubles_make_the_pair_blocks_wt_half_live_and_tf_mix_one_takes_th
         assert (g is not None and float(g.abs()) > 0) == expect, (mix, g)
 
 
+def test_block_list_rows_cuts_the_lists_into_rows_of_positions():
+    class R(ListMLELoss):
+        def __init__(self):
+            super().__init__()
+            self.seen = []
+
+        def forward_censored(self, p, t, m, c):
+            self.seen.append(p.shape[1])
+            return super().forward_censored(p, t, m, c)
+    s = _module(lambda_reg_wt=0.0, lambda_reg_mt=0.0, block_list_rows=1)
+    s.crit_rank_wt = s.crit_rank_mt = rec = R()
+    M._block_step(s, _blk('single'))
+    assert rec.seen == [20] * 6                                                    # 3 positions x 20 cells, per head, one list each
+    s = _module(lambda_reg_wt=0.0, lambda_reg_mt=0.0, block_list_rows=2)
+    s.crit_rank_wt = s.crit_rank_mt = rec = R()
+    M._block_step(s, _blk('single'))
+    assert sorted(rec.seen) == [20, 20, 40, 40]                                    # 3 positions in lists of up to 2
+    s = _module(lambda_reg_mt=0.0, block_positions=8, block_list_rows=2)
+    s.crit_rank_mt = rec = R()
+    M._block_step(s, _blk('pair'))
+    assert rec.seen == [40] * 10                                                    # the 20 x 20 matrix in 10 lists of 2 rows or columns
+
+
+def test_rank_norm_ref_scales_a_list_to_the_reference_length_not_its_own():
+    class Const:
+        def forward_censored(self, p, t, m, c):
+            return p.sum() * 0.0 + 7.0
+    s = _module()
+    n = 40
+    mask = torch.ones(n, dtype=torch.bool)
+    mask[:10] = False                                                              # 30 valid members
+    args = (torch.randn(n), torch.arange(n).float(), mask, torch.zeros(n, dtype=torch.long), n, Const())
+    own, _, _ = M._compute_rank_loss(s, *args)
+    ref, _, _ = M._compute_rank_loss(s, *args, norm_to=16)
+    assert float(own) == pytest.approx(7.0 * 40 / 30) and float(ref) == pytest.approx(7.0 * 16 / 30)
+
+
+def test_the_list_flags_default_to_the_old_behaviour_and_are_validated():
+    import sys
+    argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x', '--block_training']
+    old = sys.argv
+    try:
+        sys.argv = argv
+        a = config.parse_arguments()
+        assert a.block_list_rows == 0 and a.block_rank_norm == 'sum'
+        sys.argv = argv + ['--block_list_rows', '1', '--block_rank_norm', 'ref']
+        a = config.parse_arguments()
+        assert a.block_list_rows == 1 and a.block_rank_norm == 'ref'
+        sys.argv = argv + ['--block_list_rows', '-1']
+        with pytest.raises(SystemExit):
+            config.parse_arguments()
+    finally:
+        sys.argv = old
+
+
 def test_pair_rank_lists_cover_every_cell_once_in_rows_or_columns():
     s = _module(lambda_reg_mt=0.0, block_positions=8)
     seen = []

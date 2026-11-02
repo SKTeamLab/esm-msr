@@ -422,7 +422,8 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                               "cells; or one position pair, whose 19 x 19 doubles come from 2 wild-type and 38 mutant passes, ranked as lists of "
                               "B rows or columns. An epoch is every library's singles blocks, then every pair block. Training masks are "
                               "structural (the site read is masked; a double's mutant pass shows the partner), so --mask_strategy_* and "
-                              "--batch_size / --micro_batch_size / --rank_list_size / --group_by_site do not apply to training; validation is "
+                              "--batch_size / --micro_batch_size / --group_by_site do not apply to training (--rank_list_size is only the reference "
+                              "length of --block_rank_norm ref); validation is "
                               "unchanged. --joint_doubles other than off makes a pair's WT half live. native_cond items are left out.")
     train_g.add_argument('--block_identity', action=argparse.BooleanOptionalAction, default=True,
                          help="--block_training: the wild-type residue is a cell of every ListMLE list, with label 0 and prediction 0 (no mutation, so no "
@@ -436,6 +437,16 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                               "block needs about 25 GB at once and fits a 20 GB card at 10-12.")
     train_g.add_argument('--block_positions', type=int, default=8,
                          help="B of --block_training: positions per singles block, and rows (or columns) per rank list of a pair block.")
+    train_g.add_argument('--block_list_rows', type=int, default=0,
+                         help="--block_training: positions (rows) per ListMLE list. 0 (default) keeps the lists as they were: a singles block is ONE list "
+                              "of B x 20 cells and a pair block's lists hold --block_positions rows or columns. R >= 1 makes lists of R rows in both "
+                              "(R = 1: each position, or each row or column of a pair block, ranked on its own, 20 cells with the wild type). "
+                              "ListMLE SUMS over the list, so the rank term grows with the list: see --block_rank_norm.")
+    train_g.add_argument('--block_rank_norm', choices=['sum', 'ref'], default='sum',
+                         help="--block_training: how a list's ListMLE loss is scaled. 'sum' (default) is the loss as is, so a list of B x 20 cells weighs "
+                              "B x 20 / 16 times the 16-member lists of the per-item path against the regression, which is a mean. 'ref' rescales every "
+                              "list to --rank_list_size members' worth (loss x rank_list_size / its valid members), so the rank:regression balance "
+                              "of --lambda_rank_* / --lambda_reg_* does not depend on B or --block_list_rows.")
     train_g.add_argument('--group_by_site', action=argparse.BooleanOptionalAction, default=False,
                          help="Batch by SITE: the singles at one position and the doubles of one position pair travel together, a pass whose input "
                               "is the same sequence for every item of the group is read ONCE (an unmasked WT pass; a masked site, whatever it was "
@@ -641,6 +652,8 @@ def parse_arguments(argv=None) -> argparse.Namespace:
             parser.error(f"--block_training does not support {bad}")
         if args.block_positions < 1:
             parser.error("--block_positions must be >= 1")
+        if args.block_list_rows < 0:
+            parser.error("--block_list_rows must be >= 0")
     if args.joint_doubles != 'off':
         why = ('--frozen_wt_mt_only / --mt_direct_pred freeze the WT head, which is half of the joint prediction' if args.freeze_wt_adapter
                else '--freeze_mt_adapter freezes the MT head, which is the other half' if args.freeze_mt_adapter
