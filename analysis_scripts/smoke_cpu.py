@@ -30,10 +30,10 @@ MODES = {
     # the one truncated validation library is too small for the epistasis metrics, so these watch rho_combined
     'joint_both': ['--joint_doubles', 'both', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'joint_alternate': ['--joint_doubles', 'alternate', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
-    'joint_alternate_random_four_pass': ['--joint_doubles', 'alternate', '--tf_mix', '0.5', '--mask_strategy_wt', 'random', '--mask_strategy_mt', 'random',
-                                         '--val_four_pass', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
-    'joint_alternate_mask_ind_four_pass': ['--joint_doubles', 'alternate', '--tf_mix', '0.5', '--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent',
-                                           '--val_four_pass', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
+    'joint_alternate_random': ['--joint_doubles', 'alternate', '--tf_mix', '0.5', '--mask_strategy_wt', 'random', '--mask_strategy_mt', 'random',
+                                         '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
+    'joint_alternate_mask_ind': ['--joint_doubles', 'alternate', '--tf_mix', '0.5', '--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent',
+                                           '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'site_grouped_pattern_masks': ['--group_by_site', '--joint_doubles', 'alternate', '--tf_mix', '0.5', '--mask_strategy_wt', 'random', '--mask_strategy_mt', 'random',
                                    '--mask_dist_wt', '0', '1', '0', '--mask_dist_mt', '0', '1', '0', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'site_grouped_mask_ind': ['--group_by_site', '--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
@@ -119,14 +119,9 @@ def main():
             df = pd.read_csv(csv)
             rho = df['val_rho_combined_avg'].dropna().tolist() if 'val_rho_combined_avg' in df.columns else []
             ok = len(rho) >= 2 and bool(np.isfinite(rho).all()) and os.path.exists(os.path.join(root, 'logs', f'smoke_{mode}', '0', 'last.ckpt'))
-            for col in ('val_wt_unmasked_rho_singles_wt_avg', 'val_wt_marginal_rho_singles_wt_avg', 'val_ens_rho_combined_avg'):      # the other regimes, on by default
-                got = df[col].dropna().tolist() if col in df.columns else []
-                ok = ok and len(got) >= 1 and bool(np.isfinite(got).all())
-                print(f"[{mode}] {col} {['%.4f' % r for r in got]}", flush=True)
-            if '--val_four_pass' in extra:      # the four-pass regime must have been logged, and finite
-                c4 = df['val_c4_rho_combined_avg'].dropna().tolist() if 'val_c4_rho_combined_avg' in df.columns else []
-                ok = ok and len(c4) >= 1 and bool(np.isfinite(c4).all())
-                print(f"[{mode}] val_c4_rho_combined_avg {['%.4f' % r for r in c4]}, val_c4_cycle_gap_avg {df['val_c4_cycle_gap_avg'].dropna().tolist() if 'val_c4_cycle_gap_avg' in df.columns else 'MISSING'}", flush=True)
+            gap = df['val_cycle_gap_avg'].dropna().tolist() if 'val_cycle_gap_avg' in df.columns else []         # --val_masking independent is the default
+            ok = ok and len(gap) >= 1 and bool(np.isfinite(gap).all())
+            print(f"[{mode}] val_cycle_gap_avg {['%.4f' % r for r in gap]}", flush=True)
             print(f"[{mode}] validations {len(rho)}, val_rho_combined_avg {['%.4f' % r for r in rho]}", flush=True)
         if not ok:
             failed.append(mode)

@@ -116,6 +116,9 @@ def _stub(val_wt_only=True, val_cycle_passes=True):
     s.link_head = IdentityLink()
     s.mask_wt = s.mask_mt = None
     s.mask_strategy = {'wt': None, 'mt': None}
+    s.val_independent = False                                  # --val_masking train: no cycle-gap pass, so the call lists below are the forwards of the run's own regime
+    s.val_mask_wt = s.val_mask_mt = None
+    s.val_mask_strategy = {'wt': None, 'mt': None}
     from collections import defaultdict
     s.validation_step_outputs = defaultdict(list)
     return s

@@ -16,7 +16,7 @@ from esm_msr.data import ProteinCyclingBatchSampler
 from esm_msr.training import ESM3EpistasisLightningModule as M
 
 from test_pass_masking import MASK, _double, _model
-from test_four_pass import _cat, _single
+from test_val_masking import _cat, _single
 
 BASE = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
 

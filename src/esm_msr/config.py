@@ -453,16 +453,14 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                               "mutated to), and ListMLE lists are drawn at random across the micro-batch instead of being consecutive rows "
                               "(which would now share a site). With masked passes this reads a library at about one forward per site instead "
                               "of one per variant; memory scales with the distinct sequences, so --micro_batch_size can be raised a lot.")
-    val.add_argument('--val_four_pass', action=argparse.BooleanOptionalAction, default=True,
-                     help="Also score validation with the four-pass thermodynamic cycle of a double: the independent readout of BOTH adapters "
-                          "(WT(a, b masked) + WT(b, a masked) and MT(B | A), MT(A | B) with the partner's mutant residue visible), whose two "
-                          "paths around the cycle, WT(a) + MT(B|A) and WT(b) + MT(A|B), average to the reported prediction. Logged as val_c4_* "
-                          "(per-library metrics, the epistasis hierarchy and val_c4_cycle_gap, the mean |path 1 - path 2|), never watched by "
-                          "a plateau or the checkpoint monitor. Each unique masked sequence is computed once per library (the model's logit "
-                          "cache), so a library of N sites costs N WT forwards and one MT forward per (mutation, partner site). The same pass also scores the WT head "
-                          "unmasked and masked-marginal (val_wt_unmasked_*, val_wt_marginal_*) and the ensemble of the unmasked WT score with the cycle's "
-                          "prediction (val_ens_*). The c4 epistasis metrics are watchable: --mt_convergence_metric c4_epi_beyond_rho_epi, "
-                          "--monitor_metric val_c4_epi_beyond_rho_epi.")
+    val.add_argument('--val_masking', choices=['independent', 'train'], default='independent',
+                     help="How validation reads the passes. 'independent' (default): BOTH adapters read every mutated site masked on its own, with the "
+                          "partner's mutant residue visible (the singles' masked sequences, so it comes free): WT(a, b masked) + WT(b, a masked) and "
+                          "MT(B | A) + MT(A | B), the thermodynamic cycle, which is the regime block training and the random-mask paradigm train "
+                          "on. Every val_* metric, the plateau schedule, early stopping and the checkpoint monitor read this regime, and "
+                          "val_cycle_gap is the mean |path 1 - path 2| of the double's two paths around the cycle. 'train': the run's own "
+                          "--mask_strategy_wt/_mt (unmasked when unset, and an eval pass of 'random' is unmasked), which is what validation was before "
+                          "and what an unmasked-trained run is matched to; no cycle gap.")
     val.add_argument('--skip_val', action=argparse.BooleanOptionalAction, default=False)
 
     _add_retired(parser)

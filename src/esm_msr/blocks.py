@@ -9,7 +9,7 @@ so ``logit[x] - logit[wt]`` is the LLR of every substitution there, the wild-typ
 * a PAIR block is one position pair (i, j): 2 wild-type passes (i masked; j masked) and 38 mutant passes, 19 'row' passes
   (substitution x at i, j masked: the conditional readout of every y at j) and 19 'column' passes (y at j, i masked), give every
   19 x 19 double. The wild-type head's cell is ``llr_i[x] + llr_j[y]`` and the mutant head's ``Row[x][y] + Col[y][x]``, the
-  thermodynamic cycle of ``ESM3EpistasisLightningModule._four_pass``, so ``0.5 (WT + MT)`` is the reported prediction.
+  thermodynamic cycle of validation (``--val_masking independent``), so ``0.5 (WT + MT)`` is the reported prediction.
 
 An epoch is every library's singles blocks, then every pair block. The labels are rebuilt as dense ``[P, 20]`` / ``[Q, 20, 20]`` tensors
 from the cache's per-item records when the datasets are built (seconds; the cache itself is not rebuilt). This module is torch-only and
