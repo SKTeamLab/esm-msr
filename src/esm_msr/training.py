@@ -412,6 +412,60 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         n = max(list_size, (n // list_size) * list_size)      # whole lists only
         return min(B, n)
 
+    @staticmethod
+    def _joint_owners(rows, mode: str, turn: int):
+        """
+        Which adapter's graph each joint double keeps, as ``(own_w, own_m)`` masks over the micro-batch.
+
+        ``both``: every double belongs to both (the WT and the MT graph are alive together). ``alternate``: alternate down the micro-batch's
+        doubles, and flip which side starts with every micro-batch (``turn``), so each adapter owns half of the doubles of a micro-batch and
+        a given double is as likely to be owned by either across epochs, however few doubles a micro-batch holds.
+        """
+        if mode == 'both':
+            return rows, rows
+        rank = torch.cumsum(rows.long(), dim=0) - 1
+        own_w = rows & ((rank + int(turn)) % 2 == 0)
+        return own_w, rows & ~own_w
+
+    def _forward_rows(self, micro, pass_type: str, mask_strategy, grad_rows, need_rows=None):
+        """
+        One pass over some of a micro-batch's rows, as full-length ``(calibrated, raw)`` tensors.
+
+        Rows in ``grad_rows`` go through autograd and carry the pass's graph; the other rows in ``need_rows`` (default: all) are read in a
+        second forward under ``no_grad`` and are constants; a row in neither is zero and must be masked out of every loss that sees the
+        result. This is what lets a double keep ONE adapter's graph (--joint_doubles alternate): the half it does not own is a detached
+        number, produced without saving activations.
+        """
+        n = int(grad_rows.shape[0])
+        need = torch.ones_like(grad_rows) if need_rows is None else need_rows
+        cal = raw = None
+        for rows, grad in ((grad_rows & need, True), (need & ~grad_rows, False)):
+            idx = torch.where(rows)[0]
+            if idx.numel() == 0:
+                continue
+            sub = micro if idx.numel() == n else utils.slice_batch_by_index(micro, idx)
+            with torch.set_grad_enabled(grad):
+                out = self.model.forward_partitioned(sub, pass_type=pass_type, mask_strategy=mask_strategy)
+            c, r = out['pred_calibrated'].float(), out['pred_raw'].float()
+            if not grad:
+                c, r = c.detach(), r.detach()
+                # autocast caches the bf16 copy of a weight it cast under no_grad, and the next GRAD forward of the same adapter would
+                # reuse that copy, which has no graph: the adapter would get no gradient. Same reason the frozen-WT branch clears it.
+                if torch.cuda.is_available():
+                    torch.clear_autocast_cache()
+            if idx.numel() == n:
+                return c, r
+            cal = (c.new_zeros(n) if cal is None else cal).index_copy(0, idx, c)
+            raw = (r.new_zeros(n) if raw is None else raw).index_copy(0, idx, r)
+        if cal is None:
+            z = torch.zeros(n, device=grad_rows.device)
+            return z, z.clone()
+        return cal, raw
+
+    def _joint_reg(self, combined_cal, link, dGwt, floor, ddG, bound, cens, rows, denom):
+        """The observed-scale regression of a combined latent on the measured doubles in ``rows`` (``_reg_loss``'s three values)."""
+        return self._reg_loss(link.obs_ddG(combined_cal, dGwt, floor), ddG, bound, cens, rows, denom)
+
     def _reg_loss(self, pred, target, bound, cens, mask, denom):
         """
         Regression over ``mask``, one-sided wherever the measurement is only a bound.
@@ -465,6 +519,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         t_single = hp.get('censor_threshold')
         tf_mix = float(hp.tf_mix)
         rank_group_by = str(hp.get('rank_group_by', 'none') or 'none')
+        # --joint_doubles: both adapters train on the real doubles. It needs both paths trainable and a regression weight to carry it;
+        # a run that froze either path partway (the plateau schedule) simply falls back to the detached WT half from then on.
+        joint_mode = str(hp.get('joint_doubles', 'off') or 'off')
+        if joint_mode != 'off' and (self.peft_manager.wt_path_is_frozen or self.peft_manager.mt_path_is_frozen
+                                    or not hp.lambda_reg_mt > 0 or hp.get('mt_direct_pred', False)):
+            joint_mode = 'off'
+        joint_scale = 2.0 if joint_mode == 'alternate' else 1.0
 
         for start in range(0, B, mb):
             # Drop the PREVIOUS micro-batch's tensors before this one's forward allocates. manual_backward frees a graph's saved
@@ -474,7 +535,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             wt_out = wt_pred_cal = wt_pred_raw = mt_out = mt_pred_cal = mt_pred_raw = None
             p_obs = p_wt = p_comb = base_wt_cal = base_wt_raw = forced_wt_cal = forced_wt_raw = None
             combined_pred_raw = combined_pred_cal = total_wt = total_mt = L_rank = term = None
-            wt_losses = mt_losses = None
+            wt_losses = mt_losses = mt_nog = None
 
             idx = torch.arange(start, min(start + mb, B), device=device)
             micro = utils.slice_batch_by_index(batch, idx)
@@ -529,6 +590,20 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if t_single is not None:
                 has_add_label = has_add_label & ~(is_single & (cens_mb != 0))
 
+            # --joint_doubles: a multi-mutant with a measured double is regressed through the WT head's LIVE prediction, not through the
+            # label or a detached copy, so the WT head is trained by the real double (never by an additive stand-in for one). Such a
+            # double is therefore not teacher-forced; the label still decides which doubles carry an epistasis target below.
+            has_label_epi = has_add_label
+            joint_rows = torch.zeros_like(is_single)
+            own_w = own_m = joint_rows
+            if joint_mode != 'off':
+                joint_rows = ~is_single & reg_mask & link_ok & torch.isfinite(ddG_mb)
+                if joint_rows.any():
+                    own_w, own_m = self._joint_owners(joint_rows, joint_mode, int(getattr(self, '_joint_turn', 0)))
+                    self._joint_turn = int(getattr(self, '_joint_turn', 0)) + 1
+                    has_add_label = has_add_label & ~joint_rows
+            joint_on = bool(joint_rows.any())
+
             # =============================================================
             # PHASE 1: WILD-TYPE PASS
             # =============================================================
@@ -549,6 +624,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
                     if torch.cuda.is_available():
                         torch.clear_autocast_cache()
+                elif joint_on:
+                    # The MT half of the doubles this pass owns is read first, under no_grad, so that by the time the WT graph exists nothing
+                    # else is alive; the WT graph then covers only the rows it trains (singles, and the doubles it owns).
+                    if joint_mode == 'alternate' and own_w.any():
+                        mt_nog = self._forward_rows(micro, 'mt', self.mask_mt, torch.zeros_like(own_w), own_w)
+                    wt_pred_cal, wt_pred_raw = self._forward_rows(micro, 'wt', self.mask_wt, valid_wt_mask | own_w)
                 else:
                     wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.mask_wt)
                     wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
@@ -574,18 +655,36 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         wt_losses.append(hp.lambda_rank_wt * L_rank * (n_list / global_num_lists))
                         sums['rank_wt'] += val * n_list; cnts['rank_wt'] += n_list
 
-                if wt_losses and not self.peft_manager.wt_path_is_frozen and (hp.lambda_rank_wt > 0 or hp.lambda_reg_wt > 0):
+                if joint_mode == 'alternate' and own_w.any():
+                    # The doubles the WT graph owns: 0.5 * (live WT + the MT half read above) against the measured double. Doubled, because
+                    # a double trains only one adapter per visit and the owner alternates, so the expected update is 'both''s.
+                    term, val, wsum = self._joint_reg(combine_predictions(wt_pred_cal, mt_nog[0]), link, dGwt_mb, floor_mb, ddG_mb,
+                                                      bound_mb, cens_mb, own_w, denom)
+                    wt_losses.append(hp.lambda_reg_mt * joint_scale * term)
+                    for k in ('reg_combined', 'reg_joint'):
+                        sums[k] += val; cnts[k] += wsum
+
+                if wt_losses and not self.peft_manager.wt_path_is_frozen and (hp.lambda_rank_wt > 0 or hp.lambda_reg_wt > 0 or joint_on):
                     total_wt = sum(wt_losses)
                     if not torch.isfinite(total_wt): raise AssertionError("WT Loss evaluated to NaN/Inf.")
                     if not total_wt.requires_grad: raise AssertionError("WT Loss detached from PyTorch Graph! Cannot call backward.")
-                    self.manual_backward(total_wt)
+                    if joint_mode == 'both' and joint_on:
+                        pass                    # the WT graph must outlive the MT pass: the joint term backpropagates through both
+                    else:
+                        self.manual_backward(total_wt)
+                        total_wt = None
 
             if not self.peft_manager.mt_path_is_frozen and (hp.lambda_rank_mt > 0 or hp.lambda_reg_mt > 0):
                 # =============================================================
                 # PHASE 2: MUTANT & COMBINED PASS
                 # =============================================================
-                mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=self.mask_mt)
-                mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
+                if joint_mode == 'alternate' and own_w.any():
+                    # The rows the WT graph owned were read under no_grad above and are constants here; the MT graph covers the rest.
+                    live = self._forward_rows(micro, 'mt', self.mask_mt, ~own_w, ~own_w)
+                    mt_pred_cal, mt_pred_raw = (torch.where(own_w, c0, c1) for c0, c1 in zip(mt_nog, live))
+                else:
+                    mt_out = self.model.forward_partitioned(micro, pass_type='mt', mask_strategy=self.mask_mt)
+                    mt_pred_cal, mt_pred_raw = mt_out['pred_calibrated'].float(), mt_out['pred_raw'].float()
 
                 if hp.get('mt_direct_pred', False):
                     combined_pred_raw = mt_pred_raw
@@ -594,7 +693,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     # The WT half of the combined prediction is detached: the WT graph never has to survive its own backward.
                     base_wt_cal, base_wt_raw = wt_pred_cal.detach(), wt_pred_raw.detach()
 
-                    if not has_add_label.any():
+                    if not has_add_label.any() and not joint_on:
                         logging.warning("Teacher forcing is on, but no additive labels or single mutations are present in the batch.")
 
                     # Invert the calibration: raw = (cal - bias) / scale
@@ -630,11 +729,20 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 # Mut pass strictly relies on combined losses
                 if hp.lambda_reg_mt > 0:
                     p_comb = link.obs_ddG(combined_pred_cal, dGwt_mb, floor_mb)
-                    reg_c_mask = reg_mask & link_ok
+                    reg_c_mask = reg_mask & link_ok & ~joint_rows            # the joint doubles are regressed below, through a live WT half
                     if reg_c_mask.any():
                         term, val, wsum = self._reg_loss(p_comb, ddG_mb, bound_mb, cens_mb, reg_c_mask, denom)
                         mt_losses.append(hp.lambda_reg_mt * term)
                         sums['reg_combined'] += val; cnts['reg_combined'] += wsum
+                    # both: every joint double, WT half live (the WT graph is still alive); alternate: the doubles this graph owns, WT half
+                    # read under no_grad (the WT graph was freed by its own backward).
+                    j_rows = joint_rows if joint_mode == 'both' else own_m
+                    if j_rows.any():
+                        term, val, wsum = self._joint_reg(combine_predictions(wt_pred_cal if joint_mode == 'both' else base_wt_cal, mt_pred_cal),
+                                                          link, dGwt_mb, floor_mb, ddG_mb, bound_mb, cens_mb, j_rows, denom)
+                        mt_losses.append(hp.lambda_reg_mt * joint_scale * term)
+                        for k in ('reg_combined', 'reg_joint'):
+                            sums[k] += val; cnts[k] += wsum
 
                 if hp.lambda_rank_mt > 0 and self.crit_rank_mt is not None:
                     if getattr(self.model, 'adapter_mode', 'dual') == 'fused' and getattr(self.model, 'fused_antisymmetric', False):
@@ -647,7 +755,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     if rank_group_by == 'partner':
                         if 'ddG_A' in micro and 'ddG_B' in micro and forced_wt_raw is not None:      # --mt_direct_pred has no WT half to subtract
                             epi_targ_mb = ddG_mb - (micro['ddG_A'].float() + micro['ddG_B'].float())
-                            epi_mask_mb = reg_mask & ~is_single & has_add_label & torch.isfinite(epi_targ_mb)
+                            epi_mask_mb = reg_mask & ~is_single & has_label_epi & torch.isfinite(epi_targ_mb)
                             epi_pred_mb = mt_pred_raw - forced_wt_raw
                         else:
                             epi_targ_mb = epi_mask_mb = epi_pred_mb = None
@@ -665,12 +773,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
                 if mt_losses:
                     total_mt = sum(mt_losses)
+                    if total_wt is not None:             # --joint_doubles both: one backward through the WT and the MT graph
+                        total_mt = total_mt + total_wt
                     if not torch.isfinite(total_mt): raise AssertionError("MT Loss evaluated to NaN/Inf.")
                     if not total_mt.requires_grad: raise AssertionError("MT Loss detached from PyTorch Graph! Cannot call backward.")
                     self.manual_backward(total_mt)
 
         logs = {}
-        for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined'):
+        for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined', 'reg_joint'):
             if cnts[k] > 0: logs[f'L_{k}'] = sums[k] / max(1, cnts[k])
         self._cens_diag = (n_cens_lo, n_cens_hi, n_tf_drop)
         return logs

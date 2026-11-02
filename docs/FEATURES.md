@@ -106,6 +106,18 @@ $$y_{\text{forced\_wt}} = m \cdot y_{\text{measured\_additive}} + (1 - m) \cdot 
 - **$m = 0.5$**: Arithmetic midpoint blending empirical measurement with smooth model predictions.
 - **$m = 0.0$**: Pure model-based training with no teacher forcing.
 
+### 4.4 Joint Training on the Real Doubles (`--joint_doubles`)
+By default a double's WT half is a label or a *detached* WT prediction, so only the MT adapter learns from a double and the WT adapter sees singles alone. `--joint_doubles` makes the two adapters fit the real double together:
+$$\mathcal{L}_{\text{joint}} = \ell\big(h(\,\tfrac12[\,\text{WT}(AB)+\text{MT}(AB)\,]\,),\; y_{AB}\big)$$
+with the WT half **live** (never the additive label or a stand-in for one) and the gradient reaching both adapters. The weight is `--lambda_reg_mt`; `--tf_mix` then applies to singles only. Doubles with no measured $dG_{wt}$ stay out of it (as they do of every linked regression).
+- **`off`** (default): unchanged.
+- **`both`**: one backward through the WT *and* the MT graph. Both graphs are alive together, so `--micro_batch_size` has to come down.
+- **`alternate`**: each double keeps **one** adapter's graph. Down the micro-batch's doubles the owner alternates (and which side starts flips with every micro-batch); the half a double does not own is read under `no_grad`, so no pass ever builds a graph over rows it does not train and peak memory is one graph. The owner's loss is doubled, so the expectation over owners equals `both`'s update (tested: the mean of the two owner assignments' gradients is `both`'s gradient).
+- The rank term is unchanged: still an MT-side list loss, with the WT half detached (a WT-owned double sits in its list as a constant).
+- Masking is independent of this flag and composes with it: `--mask_strategy_wt marginal` lets the WT pass see *which* sites are mutated (and removes the wild-type residue it would otherwise read, so no reversion prior) while the MT pass, unmasked or `independent`, sees the mutant residues.
+- Unmasked, the WT pass reads one sequence for a single and its double alike, so $\text{WT}(AB)=\text{WT}(A)+\text{WT}(B)$ exactly and the joint loss can only move a double through the parameters that also fit the singles. With `marginal` WT masking a double has its own context (both sites masked), and the WT half is no longer exactly additive.
+- Needs both adapters trainable: refused with `--frozen_wt_mt_only`, `--mt_direct_pred`, `--freeze_mt_adapter`, `--adapter_mode fused`, `--lambda_reg_mt 0` or without doubles in `--subsets`. If either path is frozen during a run (the plateau schedule), it falls back to `off` from then on.
+
 ---
 
 ## 5. Nonspecific Epistasis Modeling (`--nonspecific_term fx`)

@@ -304,6 +304,15 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                      help="How much of an item's WT half comes from the measured label rather than from the WT head's own prediction: 1.0 = the "
                           "label wherever one is usable, 0.0 = never teacher-force, 0.5 = the arithmetic mean of the two. Applies to singles "
                           "too. An item with no usable label falls back to the WT head for any mix.")
+    obj.add_argument('--joint_doubles', type=str, default='off', choices=['off', 'both', 'alternate'],
+                     help="Train the two adapters TOGETHER on the real doubles. off (every run so far): a double's WT half is the measured "
+                          "additive label (--tf_mix) or the WT head's detached prediction, so only MT is trained by it and the WT head sees "
+                          "singles alone. both: a double's WT half is the WT head's LIVE prediction, 0.5*(WT + MT) is regressed on the measured "
+                          "double and the gradient reaches both adapters (both graphs are alive at once, so lower --micro_batch_size). "
+                          "alternate: the same loss, but each double keeps only ONE adapter's graph - the other half is read under no_grad - "
+                          "and which adapter alternates from double to double and micro-batch to micro-batch. The owner's loss is doubled so "
+                          "the expected update is 'both''s; peak memory is one graph. Singles are untouched; --tf_mix applies to them only. "
+                          "The rank term stays an MT-side term with the WT half detached.")
 
     opt = parser.add_argument_group("Optimisation")
     opt.add_argument('--learning_rate', type=float, default=2e-4)
@@ -483,6 +492,15 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     elif args.init_wt_from_checkpoint is not None:
         logging.warning(f"--init_wt_from_checkpoint given without --frozen_wt_mt_only: {args.init_wt_from_checkpoint} is a warm start, "
                         f"and the WT head will keep training from it")
+
+    if args.joint_doubles != 'off':
+        why = ('--frozen_wt_mt_only / --mt_direct_pred freeze the WT head, which is half of the joint prediction' if args.freeze_wt_adapter
+               else '--freeze_mt_adapter freezes the MT head, which is the other half' if args.freeze_mt_adapter
+               else '--adapter_mode fused shares one adapter between the passes, so there are no two graphs to joint or alternate' if args.adapter_mode == 'fused'
+               else '--lambda_reg_mt 0 leaves nothing to regress the joint prediction with' if args.lambda_reg_mt <= 0
+               else '--subsets leaves doubles out' if 'double' not in args.subsets else None)
+        if why:
+            parser.error(f"--joint_doubles {args.joint_doubles}: {why}")
 
     for k, v in DERIVED.items():
         setattr(args, k, v)

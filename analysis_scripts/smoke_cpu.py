@@ -27,6 +27,10 @@ MODES = {
     'mask_wt_marginal_mt_independent': ['--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent'],
     'native_cond_for_mt': ['--frozen_wt_mt_only', '--native_cond_for_mt'],
     'huber': ['--frozen_wt_mt_only', '--huber_delta', '1.0'],
+    # the one truncated validation library is too small for the epistasis metrics, so these watch rho_combined
+    'joint_both': ['--joint_doubles', 'both', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
+    'joint_alternate': ['--joint_doubles', 'alternate', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
+    'joint_alternate_wt_marginal': ['--joint_doubles', 'alternate', '--mask_strategy_wt', 'marginal', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'comet_offline': ['--frozen_wt_mt_only', '--comet', '--comet_offline'],      # the key lookup and the logger path, without uploading anything
     'wt_only': ['--freeze_mt_adapter', '--val_wt_only', '--subsets', 'single', '--lambda_rank_mt', '0', '--lambda_reg_mt', '0'],
 }
