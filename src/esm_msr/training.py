@@ -134,7 +134,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.mask_wt, self.mask_mt = pass_mask_strategy(hp, 'wt'), pass_mask_strategy(hp, 'mt')
         self.mask_strategy = {'wt': self.mask_wt, 'mt': self.mask_mt}
         self.model.random_mask_prob = float(hp.get('mask_prob', 0.5))       # read by MSRModel when a pass is 'random'
-        self.model.random_mask_dist = tuple(hp['mask_dist']) if hp.get('mask_dist') else None
+        for side in ('wt', 'mt'):
+            setattr(self.model, f'random_mask_dist_{side}', tuple(hp[f'mask_dist_{side}']) if hp.get(f'mask_dist_{side}') else None)
         self.model.dedup_rows = bool(hp.get('group_by_site', False))        # one forward per distinct sequence of a library
         self.shuffle_rank_lists = bool(hp.get('group_by_site', False))      # site-grouped rows: lists across the micro-batch, not consecutive
         if self.mask_wt or self.mask_mt:

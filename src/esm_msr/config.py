@@ -268,11 +268,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                                "strategy on both passes cannot work: marginal on the MT pass hides the partner, so cell_rank is exactly 0. random masks "
                                "each mutated site independently with probability --mask_prob on a training pass (a different draw per pass), so one "
                                "model sees the masked and the unmasked regime; validation and scoring run a random pass unmasked.")
-    arch.add_argument('--mask_dist', type=float, nargs=3, default=None, metavar=('NONE', 'ONE', 'BOTH'),
-                      help="The pattern an item's pass is masked with when its --mask_strategy_wt / --mask_strategy_mt is random, as weights of "
-                           "(no mutated site masked, exactly ONE site masked - chosen uniformly, all its mutated sites masked). For a single the last two "
-                           "are the same event. Replaces --mask_prob's independent per-site draw, which is the special case "
-                           "((1-p)^2, 2p(1-p), p^2): p = 0.5 is the weights 1 2 1.")
+    for side, name in (('wt', 'WT'), ('mt', 'MT')):
+        arch.add_argument(f'--mask_dist_{side}', type=float, nargs=3, default=None, metavar=('NONE', 'ONE', 'BOTH'),
+                          help=f"The pattern an item's {name} pass is masked with when --mask_strategy_{side} is random, as weights of (no mutated "
+                               "site masked, exactly ONE site masked - chosen uniformly, all its mutated sites masked). For a single the last two are "
+                               "the same event. Replaces --mask_prob's independent per-site draw, which is the special case ((1-p)^2, 2p(1-p), p^2): "
+                               "p = 0.5 is the weights 1 2 1.")
     arch.add_argument('--mask_prob', type=float, default=0.5,
                       help="The probability that a mutated site is masked on a pass whose --mask_strategy_wt / --mask_strategy_mt is random "
                            "(ignored otherwise).")
@@ -478,8 +479,10 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     # ---- validation
     if not 0.0 <= args.tf_mix <= 1.0:
         parser.error(f"--tf_mix must be in [0, 1] (0 = never teacher-force, 1 = always use the measured additive label where one is usable); got {args.tf_mix}")
-    if args.mask_dist is not None and (min(args.mask_dist) < 0 or sum(args.mask_dist) <= 0):
-        parser.error(f"--mask_dist needs three non-negative weights that do not all vanish; got {args.mask_dist}")
+    for side in ('wt', 'mt'):
+        d = getattr(args, f'mask_dist_{side}')
+        if d is not None and (min(d) < 0 or sum(d) <= 0):
+            parser.error(f"--mask_dist_{side} needs three non-negative weights that do not all vanish; got {d}")
     if not 0.0 <= args.mask_prob <= 1.0:
         parser.error(f"--mask_prob must be in [0, 1]; got {args.mask_prob}")
     if args.huber_delta < 0:

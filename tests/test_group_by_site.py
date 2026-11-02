@@ -1,4 +1,4 @@
-"""``--group_by_site`` and ``--mask_dist``: the throughput paradigm.
+"""``--group_by_site`` and ``--mask_dist_wt/_mt``: the throughput paradigm.
 
 Batches carry whole sites (the singles at one position, the doubles of one position pair); a pass whose input is the same sequence for
 every item of a group is read once; ListMLE lists are drawn at random across the micro-batch; and a pass is masked with a pattern
@@ -50,12 +50,12 @@ def _rows(m):
 # ---------------------------------------------------------------------------------------------------------------- the flags
 
 def test_the_flags_and_their_validation():
-    a = parse('--group_by_site', '--mask_dist', '1', '2', '1')
-    assert a.group_by_site is True and a.mask_dist == [1.0, 2.0, 1.0]
-    assert parse().group_by_site is False and parse().mask_dist is None
+    a = parse('--group_by_site', '--mask_dist_wt', '1', '2', '1', '--mask_dist_mt', '0', '1', '0')
+    assert a.group_by_site is True and a.mask_dist_wt == [1.0, 2.0, 1.0] and a.mask_dist_mt == [0.0, 1.0, 0.0]
+    assert parse().group_by_site is False and parse().mask_dist_wt is None and parse().mask_dist_mt is None
     for bad in (('-1', '1', '1'), ('0', '0', '0')):
         with pytest.raises(SystemExit):
-            parse('--mask_dist', *bad)
+            parse('--mask_dist_mt', *bad)
 
 
 # ---------------------------------------------------------------------------------------------------------------- one forward per distinct sequence
@@ -73,7 +73,7 @@ def test_masked_singles_at_one_site_share_one_forward_and_the_numbers_do_not_cha
     new.dedup_rows = True
     for m in (ref, new):
         _train(m)
-        m.random_mask_dist = (0.0, 0.0, 1.0)                      # every mutated site masked: the six mutants are one sequence
+        m.random_mask_dist_wt = m.random_mask_dist_mt = (0.0, 0.0, 1.0)                      # every mutated site masked: the six mutants are one sequence
     r_ref, r_new = _rows(ref), _rows(new)
     a = ref.forward_partitioned(b, pass_type=pass_type, mask_strategy='random')
     c = new.forward_partitioned(b, pass_type=pass_type, mask_strategy='random')
@@ -114,7 +114,7 @@ def _pattern_counts(dist, n=600, double=True):
     torch.manual_seed(0)
     m = _model()
     m.train()
-    m.random_mask_dist = dist
+    m.random_mask_dist_mt = dist
     seen = _rows(m)
     inner = m._get_esm3_outputs
     masks = []
@@ -141,7 +141,7 @@ def test_exactly_one_picks_either_site_of_a_double():
     torch.manual_seed(3)
     m = _model()
     m.train()
-    m.random_mask_dist = (0, 1, 0)
+    m.random_mask_dist_mt = (0, 1, 0)
     b = _double()
     which = set()
     inner = m._get_esm3_outputs

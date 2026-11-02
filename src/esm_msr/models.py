@@ -715,13 +715,13 @@ class MSRModel(ESM3PredictorBase):
         """The MT pass's input: native_cond rows get the WT pass's sequence only in a --native_cond_for_mt model."""
         return native_cond_mt_batch(batch) if self.native_cond_mt_input else batch
 
-    def _randomly_masked(self, seq: torch.Tensor, mut_pos: torch.Tensor, mut_mask: torch.Tensor) -> torch.Tensor:
+    def _randomly_masked(self, seq: torch.Tensor, mut_pos: torch.Tensor, mut_mask: torch.Tensor, pass_type: str = 'mt') -> torch.Tensor:
         """
         ``seq`` with some mutated sites replaced by the mask token. By default each site independently with probability
-        ``self.random_mask_prob`` (0.5). With ``self.random_mask_dist = (q_none, q_one, q_both)`` an item draws its PATTERN instead: no site
+        ``self.random_mask_prob`` (0.5). With ``self.random_mask_dist_<pass> = (q_none, q_one, q_both)`` an item draws its PATTERN instead: no site
         masked, exactly one site (uniformly chosen), or all of its mutated sites; for a single the last two are the same event.
         """
-        dist = getattr(self, 'random_mask_dist', None)
+        dist = getattr(self, f'random_mask_dist_{pass_type}', None)
         if dist is not None:
             q = torch.as_tensor(dist, dtype=torch.float32, device=seq.device)
             pattern = torch.multinomial((q / q.sum()).expand(mut_mask.shape[0], 3), 1).squeeze(1)       # 0 none, 1 one site, 2 all sites
@@ -757,7 +757,7 @@ class MSRModel(ESM3PredictorBase):
             # one (mt - wt logit at every mutated site) on this partly masked sequence, which for a masked site is the masked-marginal LLR.
             mask_strategy = None
             if self.training:
-                seq = self._randomly_masked(seq, mut_pos, mut_mask)
+                seq = self._randomly_masked(seq, mut_pos, mut_mask, pass_type)
 
         B, max_muts = seq.shape[0], mut_pos.shape[1]
         safe_pos = mut_pos.clone(); safe_pos[~mut_mask] = 0

@@ -145,7 +145,7 @@ Measured on the real training cache (joint recipe, batch 256, validation skipped
 
 The gain is in the passes whose input is the same for a whole group: an MT pass that masks its own site (`independent`, or a `random` pattern that always masks one site) dedups, while an MT pass that leaves the mutation visible is one sequence per variant whatever the batching. What is left of a fast step is not data: assembling a batch costs 0.025 s against a 0.5 s step (the whole training cache loads in 17 s from the per-item pickles), and about 35 distinct sequences leave the GPU launch-bound (about 36% utilised) with the backward pass at 0.18 s, the LoRA forwards at 0.09 s and the ListMLE list loop at 0.04 s of it.
 
-`--mask_dist NONE ONE BOTH` sets the pattern a `random` pass is masked with, as weights of: no mutated site, exactly one (uniformly chosen), all of them (the same event for a single). `1 2 1` is the independent $p=0.5$ draw; `0 1 0` always masks exactly one site; `1 1 2` masks more. Each pass draws its own pattern.
+`--mask_dist_wt` / `--mask_dist_mt NONE ONE BOTH` set the pattern a `random` pass is masked with (one setting per pass), as weights of: no mutated site, exactly one (uniformly chosen), all of them (the same event for a single). `1 2 1` is the independent $p=0.5$ draw; `0 1 0` always masks exactly one site (on the MT pass the mutated site of a single is always masked, so it dedups like `independent`); `1 1 2` masks more. Each pass draws its own pattern.
 
 ---
 
