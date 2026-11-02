@@ -113,8 +113,9 @@ def test_every_unique_masked_sequence_is_computed_once_per_library():
     b['pdb'] = ['LIB'] * 4
     c1 = _four(m, b)
     # WT: the wild-type sequence with site 1 masked, with site 3 masked = 2.  MT: (A1, site 3 masked), (A2, site 3 masked), (B1, site 1 masked),
-    # (B2, site 1 masked) = 4.  Naive: 4 doubles x 4 passes = 16.
-    assert sum(rows) == 6, rows
+    # (B2, site 1 masked) = 4.  Naive: 4 doubles x 4 passes = 16.  The WT head's other two regimes add one forward each: the unmasked
+    # wild-type sequence, and the marginal one with both sites masked.
+    assert sum(rows) == 6 + 1 + 1, rows
     n = len(rows)
     c2 = _four(m, b)                                                    # a second visit to the library costs a lookup
     assert len(rows) == n
@@ -134,3 +135,15 @@ def test_the_cache_does_not_change_the_numbers():
     c_cached = _four(m1, b)
     for k in c_plain:
         assert torch.allclose(torch.as_tensor(c_plain[k]), torch.as_tensor(c_cached[k]), equal_nan=True), k
+
+
+def test_the_wt_head_is_also_scored_unmasked_and_marginal_and_the_ensemble_is_their_mean_with_the_cycle():
+    m = _model()
+    m.eval()
+    b = _cat([_double(), _single(), _double(b=(3, 8, 20))])
+    c = _four(m, b)
+    un = m.forward_partitioned(b, pass_type='wt', mask_strategy=None)['pred_calibrated']
+    mg = m.forward_partitioned(b, pass_type='wt', mask_strategy='marginal')['pred_calibrated']
+    assert torch.allclose(torch.as_tensor(c['wt_unmasked']), un.float()) and torch.allclose(torch.as_tensor(c['wt_marginal']), mg.float())
+    assert torch.allclose(torch.as_tensor(c['ens']), 0.5 * (torch.as_tensor(c['comb']) + torch.as_tensor(c['wt_unmasked'])))
+    assert not torch.allclose(torch.as_tensor(c['wt_unmasked']), torch.as_tensor(c['wt_marginal']))          # three regimes, three different scores

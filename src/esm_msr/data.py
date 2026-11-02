@@ -338,8 +338,10 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
         *,
         rng_seed: Optional[int] = None,
         verbose: bool = True,
+        group_by_site: bool = False,
     ):
         self.datasets = datasets
+        self.group_by_site = bool(group_by_site)
         self.batch_size = batch_size
         self.train_list = train_list
         self.verbose = verbose
@@ -356,10 +358,12 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
 
         # 2. Cache subset classifications ONCE during initialization
         self._cached_buckets: List[Dict[str, List[int]]] = []
+        self._site_keys: List[Dict[int, tuple]] = []         # --group_by_site: item index -> the sorted mutated positions
 
         logging.info("Caching dataset subsets for Sampler...")
         for ds_idx, ds in enumerate(self.datasets):
             buckets = {k: [] for k in self.SUBSET_ORDER}
+            site_keys: Dict[int, tuple] = {}
             first_pdb = ds[0].get('pdb') if len(ds) > 0 else None
 
             for i in range(len(ds)):
@@ -371,8 +375,11 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
                 if stype not in buckets:
                     stype = 'single'
                 buckets[stype].append(i)
+                if self.group_by_site:
+                    site_keys[i] = tuple(sorted(int(p) for p in item['mut_pos'].tolist()))
 
             self._cached_buckets.append(buckets)
+            self._site_keys.append(site_keys)
 
         # 3. Perform a dry-run to calculate exact batch sizes for the DataLoader __len__
         # Matches the exact initial RNG consumption of the continuous run.
@@ -393,7 +400,21 @@ class ProteinCyclingBatchSampler(Sampler[List[int]]):
             for items in buckets.values():
                 flat_indices.extend(items)
 
-            self._rng.shuffle(flat_indices)
+            if self.group_by_site:
+                # Whole sites stay together: the singles at one position, the doubles of one position pair. Their masked inputs are
+                # then identical across the group and the model reads each distinct sequence once (--group_by_site). The groups come in
+                # random order, and a group's own order is shuffled; the batch cut below may split one group in two.
+                groups: Dict[tuple, List[int]] = {}
+                for i in flat_indices:
+                    groups.setdefault(self._site_keys[idx][i], []).append(i)
+                order = list(groups)
+                self._rng.shuffle(order)
+                flat_indices = []
+                for key in order:
+                    self._rng.shuffle(groups[key])
+                    flat_indices.extend(groups[key])
+            else:
+                self._rng.shuffle(flat_indices)
             offset = self.offsets[idx]
 
             # Create batches for this dataset
@@ -462,7 +483,8 @@ def create_consolidated_dataloader(
     collate_fn: Callable,
     num_workers: int = 4,
     pin_memory: bool = True,
-    rng_seed: Optional[int] = None
+    rng_seed: Optional[int] = None,
+    group_by_site: bool = False,
 ) -> DataLoader:
     """A DataLoader over every library's dataset at once, batched by ProteinCyclingBatchSampler so each batch
     holds one library (the homogeneous-microbatch assumption the model's collate relies on)."""
@@ -475,6 +497,7 @@ def create_consolidated_dataloader(
         # Without this the sampler seeds itself from system entropy, so --seed controlled only the model init: the batch
         # composition differed every run, runs were not reproducible, and two configurations could not be paired on a seed.
         rng_seed=rng_seed,
+        group_by_site=group_by_site,
     )
 
     concat_dataset = ConcatDataset(datasets)

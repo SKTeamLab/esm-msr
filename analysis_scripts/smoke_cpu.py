@@ -34,6 +34,9 @@ MODES = {
                                          '--val_four_pass', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'joint_alternate_mask_ind_four_pass': ['--joint_doubles', 'alternate', '--tf_mix', '0.5', '--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent',
                                            '--val_four_pass', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
+    'site_grouped_pattern_masks': ['--group_by_site', '--joint_doubles', 'alternate', '--tf_mix', '0.5', '--mask_strategy_wt', 'random', '--mask_strategy_mt', 'random',
+                                   '--mask_dist', '0', '1', '0', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
+    'site_grouped_mask_ind': ['--group_by_site', '--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'joint_alternate_wt_marginal': ['--joint_doubles', 'alternate', '--mask_strategy_wt', 'marginal', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'comet_offline': ['--frozen_wt_mt_only', '--comet', '--comet_offline'],      # the key lookup and the logger path, without uploading anything
     'wt_only': ['--freeze_mt_adapter', '--val_wt_only', '--subsets', 'single', '--lambda_rank_mt', '0', '--lambda_reg_mt', '0'],
@@ -112,6 +115,10 @@ def main():
             df = pd.read_csv(csv)
             rho = df['val_rho_combined_avg'].dropna().tolist() if 'val_rho_combined_avg' in df.columns else []
             ok = len(rho) >= 2 and bool(np.isfinite(rho).all()) and os.path.exists(os.path.join(root, 'logs', f'smoke_{mode}', '0', 'last.ckpt'))
+            for col in ('val_wt_unmasked_rho_singles_wt_avg', 'val_wt_marginal_rho_singles_wt_avg', 'val_ens_rho_combined_avg'):      # the other regimes, on by default
+                got = df[col].dropna().tolist() if col in df.columns else []
+                ok = ok and len(got) >= 1 and bool(np.isfinite(got).all())
+                print(f"[{mode}] {col} {['%.4f' % r for r in got]}", flush=True)
             if '--val_four_pass' in extra:      # the four-pass regime must have been logged, and finite
                 c4 = df['val_c4_rho_combined_avg'].dropna().tolist() if 'val_c4_rho_combined_avg' in df.columns else []
                 ok = ok and len(c4) >= 1 and bool(np.isfinite(c4).all())

@@ -124,6 +124,28 @@ with the WT half carrying the **live** WT prediction (never an additive stand-in
 $$\underbrace{\text{WT}(a)+\text{MT}(B|A)}_{\text{path 1}}\quad\text{and}\quad\underbrace{\text{WT}(b)+\text{MT}(A|B)}_{\text{path 2}}$$
   where $\text{WT}(a)$ is the WT pass with site $a$ masked (partner wild type) and $\text{MT}(B|A)$ the MT pass on the sequence carrying $A$ with site $b$ masked. The mean of the two paths is exactly the reported $\tfrac12(\text{WT}+\text{MT})$ of this regime; their difference is the cycle's closing error. Logged as `val_c4_*` (per-library metrics and their `_avg`, the epistasis hierarchy as `val_c4_epi_*`, and `val_c4_cycle_gap`, the mean $|{\rm path\,1}-{\rm path\,2}|$), written to the validation dump as `wt4/mt4/comb4/gap4`, and never watched by a plateau or the checkpoint monitor.
 - **Cost.** Every unique masked sequence is computed once per library through the model's logit cache: a WT pass masks one site of the wild-type sequence, so a library of $N$ sites needs $N$ forwards for all its singles and doubles; an MT pass masks one site of a mutant sequence, so the doubles of a position pair share their (mutation, partner site) sequences (a $2\times2$ grid of mutations costs 6 forwards, not 16). A second visit to the library, or the standard regime when it is already `independent`, is a lookup.
+- **Validation regimes (`--val_four_pass`, on by default).** Multiples are always scored with the `independent` readout of both heads (`val_c4_*`; the thermodynamic cycle above), because it comes free from the singles' masked sequences and reads a double the way it was derived. The WT head is also scored `val_wt_unmasked_*` (one forward per library) and `val_wt_marginal_*` (every mutated site masked at once), and `val_ens_*` is the unmasked WT score averaged with the cycle's prediction, which an inference run can always afford. The configured-regime numbers (`val_*`, no prefix) are unchanged and still drive the plateau and the checkpoint monitor unless pointed at `c4_*`.
+
+### 4.6 Site-Grouped Throughput (`--group_by_site`, `--mask_dist`)
+Under masking, the input of a pass depends on the *site*, not on what the site was mutated to: every single at a masked position is the same sequence, and so is every double of a masked position pair. `--group_by_site` exploits that:
+- the batch sampler keeps whole sites together (the singles at one position, the doubles of one position pair; the groups come in random order and a group may be cut at a batch boundary);
+- `forward_partitioned` reads each distinct sequence of a library once and indexes the logits per row: an unmasked WT pass is one forward for the whole group, a masked site is one forward whatever it was mutated to (the masked `marginal` / `independent` strategies already deduplicated; this extends it to the `random` strategy and the plain unmasked pass), so memory scales with the distinct sequences and `--micro_batch_size` can be raised a lot;
+- ListMLE lists are drawn from a random permutation of the micro-batch, since consecutive rows are now neighbours of one site.
+It changes how rows are drawn and computed, not the losses. With LoRA dropout on, rows of one sequence now share one draw.
+
+Measured on the real training cache (joint recipe, batch 256, validation skipped, one 32 GB card; training steps per second):
+
+| setting | it/s | backbone rows per step | reserved GB |
+|---|---:|---:|---:|
+| unmasked, micro-batch 64 (before) | 0.43 | | 24.5 |
+| WT `marginal` + MT `independent`, micro-batch 32 (before) | 0.29 | about 450 | 20.9 |
+| the same with `--group_by_site`, micro-batch 256 | 1.7-2.1 | about 35 | 28.9 |
+| `--group_by_site`, both passes `random` (1 2 1), micro-batch 128 | 0.57 | | 29.1 |
+| `--group_by_site`, unmasked | 0.50 | | 25.1 |
+
+The gain is in the passes whose input is the same for a whole group: an MT pass that masks its own site (`independent`, or a `random` pattern that always masks one site) dedups, while an MT pass that leaves the mutation visible is one sequence per variant whatever the batching. What is left of a fast step is not data: assembling a batch costs 0.025 s against a 0.5 s step (the whole training cache loads in 17 s from the per-item pickles), and about 35 distinct sequences leave the GPU launch-bound (about 36% utilised) with the backward pass at 0.18 s, the LoRA forwards at 0.09 s and the ListMLE list loop at 0.04 s of it.
+
+`--mask_dist NONE ONE BOTH` sets the pattern a `random` pass is masked with, as weights of: no mutated site, exactly one (uniformly chosen), all of them (the same event for a single). `1 2 1` is the independent $p=0.5$ draw; `0 1 0` always masks exactly one site; `1 1 2` masks more. Each pass draws its own pattern.
 
 ---
 

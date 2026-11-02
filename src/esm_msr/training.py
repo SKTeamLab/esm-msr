@@ -134,6 +134,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.mask_wt, self.mask_mt = pass_mask_strategy(hp, 'wt'), pass_mask_strategy(hp, 'mt')
         self.mask_strategy = {'wt': self.mask_wt, 'mt': self.mask_mt}
         self.model.random_mask_prob = float(hp.get('mask_prob', 0.5))       # read by MSRModel when a pass is 'random'
+        self.model.random_mask_dist = tuple(hp['mask_dist']) if hp.get('mask_dist') else None
+        self.model.dedup_rows = bool(hp.get('group_by_site', False))        # one forward per distinct sequence of a library
+        self.shuffle_rank_lists = bool(hp.get('group_by_site', False))      # site-grouped rows: lists across the micro-batch, not consecutive
         if self.mask_wt or self.mask_mt:
             logging.info(f"sequence masking: WT pass {self.mask_wt or 'none'}, MT pass {self.mask_mt or 'none'}")
 
@@ -277,7 +280,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
-    def _compute_rank_loss(self, pred, targets, mask, cens, list_size, crit_fn):
+    def _compute_rank_loss(self, pred, targets, mask, cens, list_size, crit_fn, shuffle: bool = False):
         """
         ListMLE over the batch chopped into lists of ``list_size``, censored members tied at the bottom.
 
@@ -299,6 +302,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         """
         if mask.dtype != torch.bool:
             raise AssertionError(f"rank mask must be bool, got {mask.dtype}.")
+        if shuffle:
+            # Rows of a site-grouped micro-batch are neighbours of the same site: a consecutive list would rank one position's variants
+            # against each other and never one position against another. A random order restores lists across the library.
+            perm = torch.randperm(pred.shape[0], device=pred.device)
+            pred, targets, mask, cens = pred[perm], targets[perm], mask[perm], cens[perm]
         valid_len = (pred.shape[0] // list_size) * list_size
         if valid_len <= 0:
             return None, 0.0, 0
@@ -655,7 +663,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
                 if hp.lambda_rank_wt > 0 and self.crit_rank_wt is not None:
                     L_rank, val, n_list = self._compute_rank_loss(
-                        wt_pred_raw, wt_targets, valid_wt_mask, cens_wt, list_size, self.crit_rank_wt
+                        wt_pred_raw, wt_targets, valid_wt_mask, cens_wt, list_size, self.crit_rank_wt,
+                        shuffle=getattr(self, 'shuffle_rank_lists', False)
                     )
                     if L_rank is not None:
                         wt_losses.append(hp.lambda_rank_wt * L_rank * (n_list / global_num_lists))
@@ -771,7 +780,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         )
                     else:
                         L_rank, val, n_list = self._compute_rank_loss(
-                            rank_pred_in, ddG_mb, reg_mask, cens_mb, list_size, self.crit_rank_mt
+                            rank_pred_in, ddG_mb, reg_mask, cens_mb, list_size, self.crit_rank_mt,
+                            shuffle=getattr(self, 'shuffle_rank_lists', False)
                         )
                     if L_rank is not None:
                         mt_losses.append(hp.lambda_rank_mt * L_rank * (n_list / global_num_lists))
@@ -919,8 +929,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             path1 = site(wt, hw, 0) + site(mt, hm, 1)
             path2 = site(wt, hw, 1) + site(mt, hm, 0)
             gap = torch.where(dbl & m[:, 0] & m[:, 1], path1 - path2, gap)
+        # The WT head's other two regimes, both near-free: the unmasked pass is ONE forward per library (every row carries the wild-type
+        # sequence), and the marginal pass masks every mutated site at once, so a position pair is one sequence for all its doubles.
+        wt_un = self.model.forward_partitioned(batch, pass_type='wt', mask_strategy=None)['pred_calibrated'].float()
+        wt_mg = self.model.forward_partitioned(batch, pass_type='wt', mask_strategy='marginal')['pred_calibrated'].float()
         f = lambda t: t.detach().cpu().float().numpy()
-        return {'wt': f(wt_cal), 'mt': f(mt_cal), 'comb': f(comb), 'gap': f(gap)}
+        # What inference can always afford: the unmasked WT score ensembled with the independent cycle's prediction.
+        return {'wt': f(wt_cal), 'mt': f(mt_cal), 'comb': f(comb), 'gap': f(gap), 'wt_unmasked': f(wt_un), 'wt_marginal': f(wt_mg),
+                'ens': f(0.5 * (comb + wt_un))}
 
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         if getattr(self, '_val_cache_dl_idx', None) != dataloader_idx:
@@ -1003,7 +1019,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.hparams.get('val_four_pass', False) and not (mt_direct or wt_only):
             with torch.inference_mode():
                 c4 = self._four_pass(batch)
-            rec.update(wt4_scores=c4['wt'], mt4_scores=c4['mt'], comb4_scores=c4['comb'], gap4=c4['gap'])
+            rec.update(wt4_scores=c4['wt'], mt4_scores=c4['mt'], comb4_scores=c4['comb'], gap4=c4['gap'],
+                       wtu_scores=c4['wt_unmasked'], wtm_scores=c4['wt_marginal'], ens_scores=c4['ens'])
         self.validation_step_outputs[dataloader_idx].append(rec)
 
     def on_validation_epoch_start(self):
@@ -1034,7 +1051,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         avg_metrics = defaultdict(list)
-        avg4 = defaultdict(list)             # --val_four_pass: logged as val_c4_<metric>_avg, never watched by a plateau or the monitor
+        avg4 = defaultdict(list)             # --val_four_pass regimes: logged as val_<regime>_<metric>_avg (c4_, wt_unmasked_, wt_marginal_, ens_)
         pooled = defaultdict(list)
         ext_per_loader = {}          # OOD loaders: kept out of avg_metrics/pooled, survived by _external summaries
 
@@ -1083,11 +1100,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                                            [t for t, k in zip(subset_types, canon) if k])
                 g4 = np.abs(sub(cat('gap4')))
                 m4['cycle_gap'] = float(np.nanmean(g4)) if np.isfinite(g4).any() else None
-                for metric, val in m4.items():
-                    if val is not None and np.isfinite(val):
-                        self.log(f"val_c4_{metric}/{name}", float(val), on_epoch=True, sync_dist=True)
-                        if not is_external:
-                            avg4[metric].append(float(val))
+                regimes = {'c4_': m4}
+                gts, sts = sub(gt), [t for t, k in zip(subset_types, canon) if k]
+                for tag, arr in (('wt_unmasked_', cat('wtu_scores')), ('wt_marginal_', cat('wtm_scores'))):       # the WT head alone
+                    mw = stats.compute_metrics(sub(arr), sub(arr), sub(arr), gts, sts)
+                    regimes[tag] = {k: v for k, v in mw.items() if k.endswith('_wt')}
+                me = stats.compute_metrics(sub(cat('wtu_scores')), sub(cat('mt4_scores')), sub(cat('ens_scores')), gts, sts)
+                regimes['ens_'] = {k: v for k, v in me.items() if k in ('rho_combined', 'rho_doubles_combined', 'rho_singles_combined')}
+                for tag, ms in regimes.items():
+                    for metric, val in ms.items():
+                        if val is not None and np.isfinite(val):
+                            self.log(f"val_{tag}{metric}/{name}", float(val), on_epoch=True, sync_dist=True)
+                            if not is_external:
+                                avg4[tag + metric].append(float(val))
             if is_external:
                 # OOD benchmark: scored and logged above, but out of every aggregate - avg_metrics, the pooled global
                 # ranking and the epistasis hierarchy - and dropped before the pooling below. Only its own rho/rmse
@@ -1109,7 +1134,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 have = valid_outputs and field in valid_outputs[0]
                 pooled[field].extend(cat(field).tolist() if have else [float('nan')] * len(keys))
             if c4_have:
-                for field in ('wt4_scores', 'mt4_scores', 'comb4_scores', 'gap4'):
+                for field in ('wt4_scores', 'mt4_scores', 'comb4_scores', 'gap4', 'wtu_scores', 'wtm_scores', 'ens_scores'):
                     pooled[field].extend(cat(field).tolist())
 
         for key, values in avg_metrics.items():
@@ -1118,7 +1143,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                          prog_bar=key in self._VAL_PROGRESS_BAR, sync_dist=True)
         for key, values in avg4.items():
             if values:
-                self.log(f'val_c4_{key}_avg', float(np.nanmean(values)), on_epoch=True, sync_dist=True)
+                self.log(f'val_{key}_avg', float(np.nanmean(values)), on_epoch=True, sync_dist=True)
 
         # OOD benchmarks, as their own section: mean rho/rmse over the external loaders, never inside an aggregate.
         for _k, _v in summarise_external_benchmarks(ext_per_loader, self.external_val_sets).items():
@@ -1142,8 +1167,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         avg_metrics[_k].append(float(_v))
                 if pooled.get('wt4_scores') and len(pooled['wt4_scores']) == len(pooled['ground_truths']):
                     # the same hierarchy on the four-pass regime, as val_c4_epi_*; not merged into avg_metrics, so nothing watches it
-                    self._log_epistasis(dict(pooled, wt_scores=pooled['wt4_scores'], mt_scores=pooled['mt4_scores'],
-                                             comb_scores=pooled['comb4_scores']), prefix='c4_', dump=False)
+                    for _k, _v in (self._log_epistasis(dict(pooled, wt_scores=pooled['wt4_scores'], mt_scores=pooled['mt4_scores'],
+                                                            comb_scores=pooled['comb4_scores']), prefix='c4_', dump=False) or {}).items():
+                        if np.isfinite(_v):
+                            avg_metrics['c4_' + _k].append(float(_v))     # --mt_convergence_metric c4_epi_beyond_rho_epi works
 
         for k, v in self.link_head.summary().items():
             if not isinstance(v, (str, bytes)):
@@ -1201,7 +1228,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     n_mut=np.asarray(pooled['n_mut']), subset_type=np.asarray(items['subset_type'], dtype=str),
                     loader=np.asarray(pooled['loader']),
                     mut_key=np.asarray([json.dumps(k) for k in keys]), **extra,
-                    **({'wt4': f('wt4_scores'), 'mt4': f('mt4_scores'), 'comb4': f('comb4_scores'), 'gap4': f('gap4')} if pooled.get('wt4_scores') else {}))
+                    **({'wt4': f('wt4_scores'), 'mt4': f('mt4_scores'), 'comb4': f('comb4_scores'), 'gap4': f('gap4'), 'wt_unmasked': f('wtu_scores'),
+                        'wt_marginal': f('wtm_scores'), 'ens': f('ens_scores')} if pooled.get('wt4_scores') else {}))
 
             # The dump above carries every mutant, so any of this can be rescored offline. The metrics are
             # computed on the canonical population only - the same one the per-library metrics use - so that a

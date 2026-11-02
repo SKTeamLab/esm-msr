@@ -268,6 +268,11 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                                "strategy on both passes cannot work: marginal on the MT pass hides the partner, so cell_rank is exactly 0. random masks "
                                "each mutated site independently with probability --mask_prob on a training pass (a different draw per pass), so one "
                                "model sees the masked and the unmasked regime; validation and scoring run a random pass unmasked.")
+    arch.add_argument('--mask_dist', type=float, nargs=3, default=None, metavar=('NONE', 'ONE', 'BOTH'),
+                      help="The pattern an item's pass is masked with when its --mask_strategy_wt / --mask_strategy_mt is random, as weights of "
+                           "(no mutated site masked, exactly ONE site masked - chosen uniformly, all its mutated sites masked). For a single the last two "
+                           "are the same event. Replaces --mask_prob's independent per-site draw, which is the special case "
+                           "((1-p)^2, 2p(1-p), p^2): p = 0.5 is the weights 1 2 1.")
     arch.add_argument('--mask_prob', type=float, default=0.5,
                       help="The probability that a mutated site is masked on a pass whose --mask_strategy_wt / --mask_strategy_mt is random "
                            "(ignored otherwise).")
@@ -353,13 +358,23 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     val.add_argument('--val_cycle_passes', action=argparse.BooleanOptionalAction, default=True,
                      help="Run the two extra validation passes (WT adapter on the mutated sequence, MT adapter on the wild type). Needed for "
                           "the 'ctx' control head of the epistasis metrics; costs one extra forward pass per validation batch.")
-    val.add_argument('--val_four_pass', action=argparse.BooleanOptionalAction, default=False,
+    train_g = parser.add_argument_group("Throughput")
+    train_g.add_argument('--group_by_site', action=argparse.BooleanOptionalAction, default=False,
+                         help="Batch by SITE: the singles at one position and the doubles of one position pair travel together, a pass whose input "
+                              "is the same sequence for every item of the group is read ONCE (an unmasked WT pass; a masked site, whatever it was "
+                              "mutated to), and ListMLE lists are drawn at random across the micro-batch instead of being consecutive rows "
+                              "(which would now share a site). With masked passes this reads a library at about one forward per site instead "
+                              "of one per variant; memory scales with the distinct sequences, so --micro_batch_size can be raised a lot.")
+    val.add_argument('--val_four_pass', action=argparse.BooleanOptionalAction, default=True,
                      help="Also score validation with the four-pass thermodynamic cycle of a double: the independent readout of BOTH adapters "
                           "(WT(a, b masked) + WT(b, a masked) and MT(B | A), MT(A | B) with the partner's mutant residue visible), whose two "
                           "paths around the cycle, WT(a) + MT(B|A) and WT(b) + MT(A|B), average to the reported prediction. Logged as val_c4_* "
                           "(per-library metrics, the epistasis hierarchy and val_c4_cycle_gap, the mean |path 1 - path 2|), never watched by "
                           "a plateau or the checkpoint monitor. Each unique masked sequence is computed once per library (the model's logit "
-                          "cache), so a library of N sites costs N WT forwards and one MT forward per (mutation, partner site).")
+                          "cache), so a library of N sites costs N WT forwards and one MT forward per (mutation, partner site). The same pass also scores the WT head "
+                          "unmasked and masked-marginal (val_wt_unmasked_*, val_wt_marginal_*) and the ensemble of the unmasked WT score with the cycle's "
+                          "prediction (val_ens_*). The c4 epistasis metrics are watchable: --mt_convergence_metric c4_epi_beyond_rho_epi, "
+                          "--monitor_metric val_c4_epi_beyond_rho_epi.")
     val.add_argument('--skip_val', action=argparse.BooleanOptionalAction, default=False)
 
     _add_retired(parser)
@@ -463,6 +478,8 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     # ---- validation
     if not 0.0 <= args.tf_mix <= 1.0:
         parser.error(f"--tf_mix must be in [0, 1] (0 = never teacher-force, 1 = always use the measured additive label where one is usable); got {args.tf_mix}")
+    if args.mask_dist is not None and (min(args.mask_dist) < 0 or sum(args.mask_dist) <= 0):
+        parser.error(f"--mask_dist needs three non-negative weights that do not all vanish; got {args.mask_dist}")
     if not 0.0 <= args.mask_prob <= 1.0:
         parser.error(f"--mask_prob must be in [0, 1]; got {args.mask_prob}")
     if args.huber_delta < 0:
