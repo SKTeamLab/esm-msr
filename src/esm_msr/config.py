@@ -274,22 +274,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     arch.add_argument('--link_alpha', type=float, default=0.10, help="--link_kind leaky: the slope below the knee (0 < alpha < 1).")
     arch.add_argument('--link_clamp', type=float, default=-1.0, help="--link_kind leaky: the asymptote, the lowest dG the link can report (the assay's -1).")
     for flag, side in (('mask_strategy_wt', 'WT'), ('mask_strategy_mt', 'MT')):
-        arch.add_argument(f'--{flag}', type=str, default=None, choices=['none', 'marginal', 'independent', 'random'],
+        arch.add_argument(f'--{flag}', type=str, default=None, choices=['none', 'marginal', 'independent'],
                           help=f"Sequence masking of the {side} pass. marginal masks every mutated site at once (the pass knows WHICH sites changed, "
                                "not to what); independent masks one site at a time with the others as they are, the conditional masked marginal "
                                "(on the MT pass, with the partner's mutant residue visible: the readout of ddG(A|B)); unset = unmasked. The same "
-                               "strategy on both passes cannot work: marginal on the MT pass hides the partner, so cell_rank is exactly 0. random masks "
-                               "each mutated site independently with probability --mask_prob on a training pass (a different draw per pass), so one "
-                               "model sees the masked and the unmasked regime; validation and scoring run a random pass unmasked.")
-    for side, name in (('wt', 'WT'), ('mt', 'MT')):
-        arch.add_argument(f'--mask_dist_{side}', type=float, nargs=3, default=None, metavar=('NONE', 'ONE', 'BOTH'),
-                          help=f"The pattern an item's {name} pass is masked with when --mask_strategy_{side} is random, as weights of (no mutated "
-                               "site masked, exactly ONE site masked - chosen uniformly, all its mutated sites masked). For a single the last two are "
-                               "the same event. Replaces --mask_prob's independent per-site draw, which is the special case ((1-p)^2, 2p(1-p), p^2): "
-                               "p = 0.5 is the weights 1 2 1.")
-    arch.add_argument('--mask_prob', type=float, default=0.5,
-                      help="The probability that a mutated site is masked on a pass whose --mask_strategy_wt / --mask_strategy_mt is random "
-                           "(ignored otherwise).")
+                               "strategy on both passes cannot work: marginal on the MT pass hides the partner, so cell_rank is exactly 0. "
+                               "(--block_training reads sites by --block_mask_wt/_mt instead.)")
 
     paradigm = parser.add_argument_group("Paradigm")
     paradigm.add_argument('--mt_direct_pred', action=argparse.BooleanOptionalAction, default=False,
@@ -424,7 +414,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                               "cells; or one position pair, whose 19 x 19 doubles come from 2 wild-type and 38 mutant passes, ranked as lists of "
                               "B rows or columns. An epoch is every library's singles blocks, then every pair block. Training masks are "
                               "structural (the site read is masked; a double's mutant pass shows the partner), so --mask_strategy_* and "
-                              "--batch_size / --micro_batch_size / --group_by_site do not apply to training (--rank_list_size is only the reference "
+                              "--batch_size / --micro_batch_size do not apply to training (--rank_list_size is only the reference "
                               "length of --block_rank_norm ref); validation is "
                               "unchanged. --joint_doubles other than off makes a pair's WT half live. native_cond items are left out.")
     train_g.add_argument('--block_identity', action=argparse.BooleanOptionalAction, default=True,
@@ -434,8 +424,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                               "partner single. The identity cells carry no regression. (The rank scale is --rank_calibrated_stopgrad's, not this flag's.)")
     train_g.add_argument('--block_row_chunk', type=int, default=0,
                          help="--block_training: run a block's passes in checkpointed chunks of this many rows (0 = all at once). Only a chunk's "
-                              "activations are alive at a time and the gradient is exact (the dropout draw is restored on recompute): the 40-row pair "
-                              "block needs about 25 GB at once and fits a 20 GB card at 10-12.")
+                              "activations are alive at a time and the gradient is exact (the dropout draw is restored on recompute). Not needed for "
+                              "visible-site-free runs: the 40-pass pair block peaks at 16.3 GB un-checkpointed (longest library), a recompute costs "
+                              "~1.7x on the pair blocks. Needed (an even number, e.g. 20) when --block_mask_mt makes sites visible.")
     train_g.add_argument('--block_positions', type=int, default=8,
                          help="B of --block_training: positions per singles block, and rows (or columns) per rank list of a pair block.")
     train_g.add_argument('--block_list_rows', type=int, default=0,
@@ -458,12 +449,6 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                               "drawn per position of a singles block; a pair block is drawn once per block and, unmasked, reads all 20 x 20 sequences "
                               "at both sites (no row / column passes, so no --lambda_cond_mt legs for that block). Expensive: set --block_row_chunk "
                               "(an even number, so a sequence's two reads share a chunk).")
-    train_g.add_argument('--group_by_site', action=argparse.BooleanOptionalAction, default=False,
-                         help="Batch by SITE: the singles at one position and the doubles of one position pair travel together, a pass whose input "
-                              "is the same sequence for every item of the group is read ONCE (an unmasked WT pass; a masked site, whatever it was "
-                              "mutated to), and ListMLE lists are drawn at random across the micro-batch instead of being consecutive rows "
-                              "(which would now share a site). With masked passes this reads a library at about one forward per site instead "
-                              "of one per variant; memory scales with the distinct sequences, so --micro_batch_size can be raised a lot.")
     val.add_argument('--val_masking', choices=['independent', 'train'], default='independent',
                      help="How validation reads the passes. 'independent' (default): BOTH adapters read every mutated site masked on its own, with the "
                           "partner's mutant residue visible (the singles' masked sequences, so it comes free): WT(a, b masked) + WT(b, a masked) and "
@@ -582,12 +567,6 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     # ---- validation
     if not 0.0 <= args.tf_mix <= 1.0:
         parser.error(f"--tf_mix must be in [0, 1] (0 = never teacher-force, 1 = always use the measured additive label where one is usable); got {args.tf_mix}")
-    for side in ('wt', 'mt'):
-        d = getattr(args, f'mask_dist_{side}')
-        if d is not None and (min(d) < 0 or sum(d) <= 0):
-            parser.error(f"--mask_dist_{side} needs three non-negative weights that do not all vanish; got {d}")
-    if not 0.0 <= args.mask_prob <= 1.0:
-        parser.error(f"--mask_prob must be in [0, 1]; got {args.mask_prob}")
     if args.huber_delta < 0:
         parser.error("--huber_delta must be >= 0")
     if args.rank_list_size < 1:

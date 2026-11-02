@@ -219,11 +219,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.val_independent = str(hp.get('val_masking', 'independent')) == 'independent'
         self.val_mask_wt, self.val_mask_mt = ('independent', 'independent') if self.val_independent else (self.mask_wt, self.mask_mt)
         self.val_mask_strategy = {'wt': self.val_mask_wt, 'mt': self.val_mask_mt}
-        self.model.random_mask_prob = float(hp.get('mask_prob', 0.5))       # read by MSRModel when a pass is 'random'
-        for side in ('wt', 'mt'):
-            setattr(self.model, f'random_mask_dist_{side}', tuple(hp[f'mask_dist_{side}']) if hp.get(f'mask_dist_{side}') else None)
-        self.model.dedup_rows = bool(hp.get('group_by_site', False))        # one forward per distinct sequence of a library
-        self.shuffle_rank_lists = bool(hp.get('group_by_site', False))      # site-grouped rows: lists across the micro-batch, not consecutive
         if self.mask_wt or self.mask_mt:
             logging.info(f"sequence masking: WT pass {self.mask_wt or 'none'}, MT pass {self.mask_mt or 'none'}")
 
@@ -367,7 +362,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=True)
 
-    def _compute_rank_loss(self, pred, targets, mask, cens, list_size, crit_fn, item_weights=None, shuffle: bool = False, norm_to=None):
+    def _compute_rank_loss(self, pred, targets, mask, cens, list_size, crit_fn, item_weights=None, norm_to=None):
         """
         ListMLE over the batch chopped into lists of ``list_size``, censored members tied at the bottom.
 
@@ -389,13 +384,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         """
         if mask.dtype != torch.bool:
             raise AssertionError(f"rank mask must be bool, got {mask.dtype}.")
-        if shuffle:
-            # Rows of a site-grouped micro-batch are neighbours of the same site: a consecutive list would rank one position's variants
-            # against each other and never one position against another. A random order restores lists across the library.
-            perm = torch.randperm(pred.shape[0], device=pred.device)
-            pred, targets, mask, cens = pred[perm], targets[perm], mask[perm], cens[perm]
-            if item_weights is not None:
-                item_weights = item_weights[perm]
         valid_len = (pred.shape[0] // list_size) * list_size
         if valid_len <= 0:
             return None, 0.0, 0
@@ -821,8 +809,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     else:
                         wt_rank_in = wt_pred_raw
                     L_rank, val, n_list = self._compute_rank_loss(
-                        wt_rank_in, wt_targets, valid_wt_mask, cens_wt, list_size, self.crit_rank_wt,
-                        shuffle=getattr(self, 'shuffle_rank_lists', False)
+                        wt_rank_in, wt_targets, valid_wt_mask, cens_wt, list_size, self.crit_rank_wt
                     )
                     if L_rank is not None:
                         wt_losses.append(hp.lambda_rank_wt * L_rank * (n_list / global_num_lists))
@@ -997,8 +984,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                         )
                     else:
                         L_rank, val, n_list = self._compute_rank_loss(
-                            rank_pred_in, ddG_mb, reg_mask, cens_mb, list_size, self.crit_rank_mt, item_weights=mt_item_w,
-                            shuffle=getattr(self, 'shuffle_rank_lists', False)
+                            rank_pred_in, ddG_mb, reg_mask, cens_mb, list_size, self.crit_rank_mt, item_weights=mt_item_w
                         )
                     if L_rank is not None:
                         mt_losses.append(hp.lambda_rank_mt * L_rank * (n_list / global_num_lists))

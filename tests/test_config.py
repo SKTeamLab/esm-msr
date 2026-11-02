@@ -145,8 +145,9 @@ def test_the_number_of_flags_is_small():
     keys = set(vars(parse()))
     # 83 -> 87 on 2026-11-01: --link_kind / --link_alpha / --link_clamp (the leaky link), --reg_nll (Tobit likelihood), --tf_cut (teacher-forcing cut
     # decoupled from --censor_threshold). The Tobit noise constants and the clamp width are constants, not flags, to keep this bound honest.
-    # + 2026-11-02: --joint_doubles, --mask_prob, --mask_dist_wt/_mt, --group_by_site, --block_training, --block_positions (+7 over the audit's 87), --tf_detach_wt (+1)
-    assert len(keys) <= 103, sorted(keys)
+    # + 2026-11-02: --joint_doubles, --tf_detach_wt, --val_masking, --val_unmasked and the --block_* family (training by blocks: --block_training / _positions / _identity /
+    # _row_chunk / _list_rows / _rank_norm / _mask_wt / _mask_mt). --mask_prob, --mask_dist_wt/_mt and --group_by_site were removed again the same night.
+    assert len(keys) <= 99, sorted(keys)
 
 
 # ---------------------------------------------------------------------------------------------------------------- yaml

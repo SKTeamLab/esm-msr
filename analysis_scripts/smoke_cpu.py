@@ -30,13 +30,8 @@ MODES = {
     # the one truncated validation library is too small for the epistasis metrics, so these watch rho_combined
     'joint_both': ['--joint_doubles', 'both', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'joint_alternate': ['--joint_doubles', 'alternate', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
-    'joint_alternate_random': ['--joint_doubles', 'alternate', '--tf_mix', '0.5', '--mask_strategy_wt', 'random', '--mask_strategy_mt', 'random',
-                                         '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'joint_alternate_mask_ind': ['--joint_doubles', 'alternate', '--tf_mix', '0.5', '--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent',
                                            '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
-    'site_grouped_pattern_masks': ['--group_by_site', '--joint_doubles', 'alternate', '--tf_mix', '0.5', '--mask_strategy_wt', 'random', '--mask_strategy_mt', 'random',
-                                   '--mask_dist_wt', '0', '1', '0', '--mask_dist_mt', '0', '1', '0', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
-    'site_grouped_mask_ind': ['--group_by_site', '--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'block_training': ['--block_training', '--block_positions', '4', '--joint_doubles', 'both', '--tf_mix', '0.5', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'block_training_old_objective': ['--block_training', '--block_positions', '4', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'block_joint_clean_cond_chunked': ['--config', 'configs/joint_clean.yaml', '--block_training', '--block_positions', '4', '--block_row_chunk', '10',
