@@ -147,6 +147,48 @@ def pair_sequences(seq: torch.Tensor, i: int, j: int, wt_i: int, wt_j: int, iden
     return wt_rows, row_seqs, col_seqs, Xa, Ya
 
 
+def unmasked_rows(seqs: torch.Tensor, seq: torch.Tensor, keep: torch.Tensor) -> torch.Tensor:
+    """``seqs`` ``[R, L]`` with the rows where ``keep`` is True restored to the plain sequence ``seq``: their site is read VISIBLE."""
+    return torch.where(keep.unsqueeze(1), seq.unsqueeze(0), seqs)
+
+
+def mutant_single_sequences(seq: torch.Tensor, positions: torch.Tensor, wt_ids: torch.Tensor):
+    """
+    The unmasked mutant-adapter inputs of some positions: every one of the 19 substitutions as its own sequence, ``(seqs [n*19, L], read_pos
+    [n*19], wt_at [n*19], row [n*19], col [n*19])`` with ``row`` the index into ``positions`` and ``col`` the alphabet index of the substitution.
+    The mutant adapter reads such a sequence with the mutation VISIBLE: ``logit[x] - logit[wt]`` at the site, the per-item unmasked readout.
+    """
+    canon = torch.tensor(CANON_IDS, dtype=torch.long, device=seq.device)
+    rows, cols, wt_cols = [], [], []
+    for r in range(int(positions.shape[0])):
+        wa = TOKEN_TO_AA[int(wt_ids[r])]
+        for a in range(20):
+            if a != wa:
+                rows.append(r); cols.append(a); wt_cols.append(int(wt_ids[r]))
+    row = torch.as_tensor(rows, dtype=torch.long, device=seq.device)
+    col = torch.as_tensor(cols, dtype=torch.long, device=seq.device)
+    seqs = seq.unsqueeze(0).repeat(len(rows), 1)
+    pos = positions[row]
+    seqs[torch.arange(len(rows), device=seq.device), pos] = canon[col]
+    return seqs, pos, torch.as_tensor(wt_cols, dtype=torch.long, device=seq.device), row, col
+
+
+def pair_unmasked_sequences(seq: torch.Tensor, i: int, j: int, Xa: Sequence[int], Ya: Sequence[int]):
+    """
+    The unmasked mutant-adapter inputs of a pair block: one sequence per cell, ``x`` at ``i`` and ``y`` at ``j`` (the wild-type residue where a
+    cell has no mutation there), each listed TWICE in a row so one call reads both sites: rows ``2c`` read ``i`` and ``2c + 1`` read ``j`` of cell
+    ``c = x_index * len(Ya) + y_index``. Returns ``(seqs [2*nx*ny, L], read_pos [2*nx*ny])``.
+    """
+    canon = torch.tensor(CANON_IDS, dtype=torch.long, device=seq.device)
+    nx, ny = len(Xa), len(Ya)
+    cells = seq.unsqueeze(0).repeat(nx * ny, 1)
+    cells[:, i] = canon[torch.as_tensor(list(Xa), device=seq.device)].repeat_interleave(ny)
+    cells[:, j] = canon[torch.as_tensor(list(Ya), device=seq.device)].repeat(nx)
+    seqs = cells.repeat_interleave(2, dim=0)
+    read = torch.tensor([i, j], dtype=torch.long, device=seq.device).repeat(nx * ny)
+    return seqs, read
+
+
 def assemble_pair(llr_i: torch.Tensor, llr_j: torch.Tensor, row: torch.Tensor, col: torch.Tensor, Xa: Sequence[int], Ya: Sequence[int]):
     """
     The 19 x 19 raw cells of a pair block, ``(wt_raw, mt_raw)``, rows = substitutions at i, columns = substitutions at j.

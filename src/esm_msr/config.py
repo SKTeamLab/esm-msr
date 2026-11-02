@@ -447,6 +447,16 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                               "B x 20 / 16 times the 16-member lists of the per-item path against the regression, which is a mean. 'ref' rescales every "
                               "list to --rank_list_size members' worth (loss x rank_list_size / its valid members), so the rank:regression balance "
                               "of --lambda_rank_* / --lambda_reg_* does not depend on B or --block_list_rows.")
+    train_g.add_argument('--block_mask_wt', type=float, default=1.0,
+                         help="--block_training: probability that the WT head reads a position with its site MASKED (1, the default, always; 0 = the "
+                              "plain wild-type sequence every time, the unmasked WT readout; in between, drawn per position of a singles block and per "
+                              "read of a pair block). An unmasked WT read is the cheap case: every row is the same sequence, so a block is one forward.")
+    train_g.add_argument('--block_mask_mt', type=float, default=1.0,
+                         help="--block_training: probability that the MT head reads a position with its site MASKED (1, the default, always). An "
+                              "unmasked read sees the mutation: each of a position's 19 substitutions is its own sequence (19 passes instead of 1), "
+                              "drawn per position of a singles block; a pair block is drawn once per block and, unmasked, reads all 20 x 20 sequences "
+                              "at both sites (no row / column passes, so no --lambda_cond_mt legs for that block). Expensive: set --block_row_chunk "
+                              "(an even number, so a sequence's two reads share a chunk).")
     train_g.add_argument('--group_by_site', action=argparse.BooleanOptionalAction, default=False,
                          help="Batch by SITE: the singles at one position and the doubles of one position pair travel together, a pass whose input "
                               "is the same sequence for every item of the group is read ONCE (an unmasked WT pass; a masked site, whatever it was "
@@ -461,6 +471,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                           "val_cycle_gap is the mean |path 1 - path 2| of the double's two paths around the cycle. 'train': the run's own "
                           "--mask_strategy_wt/_mt (unmasked when unset, and an eval pass of 'random' is unmasked), which is what validation was before "
                           "and what an unmasked-trained run is matched to; no cycle gap.")
+    val.add_argument('--val_unmasked', action=argparse.BooleanOptionalAction, default=False,
+                     help="Also score validation with NEITHER adapter masked (the plain wild-type sequence for WT, the full mutant sequence for MT: the "
+                          "per-item readout), logged as val_unmasked_* (per-library metrics and their _avg, and the epistasis hierarchy as "
+                          "val_unmasked_epi_*). Never watched by the plateau, early stopping or the checkpoint monitor, which read the default regime. "
+                          "The matched regime of a run trained on visible sites (--block_mask_wt/_mt < 1, --mask_strategy_* none or random). The MT "
+                          "side is one forward per variant, the cost the validation had before it was consolidated.")
     val.add_argument('--skip_val', action=argparse.BooleanOptionalAction, default=False)
 
     _add_retired(parser)
@@ -652,6 +668,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
             parser.error("--block_positions must be >= 1")
         if args.block_list_rows < 0:
             parser.error("--block_list_rows must be >= 0")
+        for f in ('block_mask_wt', 'block_mask_mt'):
+            if not 0.0 <= getattr(args, f) <= 1.0:
+                parser.error(f"--{f} is a probability in [0, 1]")
     if args.joint_doubles != 'off':
         why = ('--frozen_wt_mt_only / --mt_direct_pred freeze the WT head, which is half of the joint prediction' if args.freeze_wt_adapter
                else '--freeze_mt_adapter freezes the MT head, which is the other half' if args.freeze_mt_adapter

@@ -1057,6 +1057,31 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 torch.clear_autocast_cache()        # a weight cast under no_grad must not be reused by a later grad forward
         return llr
 
+    def _block_singles_llr(self, b, seqs, pos, wt_ids, side, grad):
+        """
+        The ``[B, 20]`` raw LLR of a singles block for one head. ``--block_mask_wt/_mt p`` is the probability that a position is read with its site
+        MASKED (1, the default: every position, one pass reading the whole alphabet); a position drawn unmasked is read with its residue visible.
+        The WT head then reads the plain wild-type sequence at that position (identical rows are one forward, so this is the cheap case); the
+        MT head reads each of the 19 substitutions as its own sequence, ``logit[x] - logit[wt]`` at the visible mutation, which costs 19 passes
+        for that position instead of 1 (use ``--block_row_chunk``). The wild-type column is exactly 0 either way.
+        """
+        p_mask = float(self.hparams.get('block_mask_' + side, 1.0))
+        P = int(pos.shape[0])
+        if p_mask >= 1.0:
+            return self._block_llr(b, seqs, pos, wt_ids, side, grad)
+        keep = torch.rand(P, device=pos.device) >= p_mask                                 # True: this position is read visible
+        if side == 'wt':
+            return self._block_llr(b, blocks.unmasked_rows(seqs, b['seq'], keep), pos, wt_ids, side, grad)
+        masked, vis = (~keep).nonzero().squeeze(1), keep.nonzero().squeeze(1)
+        llr = torch.zeros(P, 20, device=pos.device)
+        if masked.numel():
+            llr = llr.index_copy(0, masked, self._block_llr(b, seqs[masked], pos[masked], wt_ids[masked], side, grad))
+        if vis.numel():
+            vseq, vpos, vwt, vrow, vcol = blocks.mutant_single_sequences(b['seq'], pos[vis], wt_ids[vis])
+            out = self._block_llr(b, vseq, vpos, vwt, side, grad)
+            llr = llr.index_put((vis[vrow], vcol), out[torch.arange(int(vcol.numel()), device=pos.device), vcol])
+        return llr
+
     def _block_ctx(self, lab, rank_groups, reg_exclude=None, rank_exclude=None):
         """
         The labels of one block on the item's own scales, and the lists the rank loss is drawn over (index tensors into the flat block).
@@ -1163,7 +1188,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         wt_train = not wt_frozen and (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0)
         mt_on = not mt_frozen and (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0)
         live = (not bool(hp.get('tf_detach_wt', True))) and not wt_frozen and mt_on            # --no-tf_detach_wt: the combined loss reaches the WT head
-        llr_wt = self._block_llr(b, seqs, pos, wt_ids, 'wt', grad=wt_train or live)
+        llr_wt = self._block_singles_llr(b, seqs, pos, wt_ids, 'wt', grad=wt_train or live)
         wt_cal = self._block_cal('wt')(llr_wt, n)
         s_wt = self._block_s_wt()
         # With the identity cell in the list, the lists are scored on the calibrated scale (stop-gradient), where "no mutation" is 0 and a
@@ -1175,7 +1200,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             wt_terms = []
         if not mt_on:
             return
-        llr_mt = self._block_llr(b, seqs, pos, wt_ids, 'mt', grad=True)               # a masked single is the same input for both adapters
+        llr_mt = self._block_singles_llr(b, seqs, pos, wt_ids, 'mt', grad=True)       # with --block_mask_* 1 a masked single is the same input for both adapters
         mt_cal = self._block_cal('mt')(llr_mt, n)
         lat = link.latent_ddG(c.y, c.dG_wt, c.floor).detach()
         has = torch.isfinite(lat) & c.link_ok & c.obs_rank
@@ -1270,12 +1295,25 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if self.peft_manager.mt_path_is_frozen or not (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0 or float(hp.get('lambda_cond_mt', 0.0) or 0.0) > 0):
             return
         wt_pos = torch.as_tensor([i, j], device=dev)
-        llr_w = self._block_llr(b, wt_rows, wt_pos, b['wt_ids'], 'wt', grad=joint)             # 2 wild-type passes
-        mt_seqs = torch.cat([row_seqs, col_seqs])                                              # 38 (40 with the identity) mutant passes
-        read = torch.as_tensor([j] * nx + [i] * ny, device=dev)
-        wt_at = torch.as_tensor([wt_j] * nx + [wt_i] * ny, device=dev)
-        llr_m = self._block_llr(b, mt_seqs, read, wt_at, 'mt', grad=True)
-        wt_raw, mt_raw = blocks.assemble_pair(llr_w[0], llr_w[1], llr_m[:nx], llr_m[nx:], Xa, Ya)
+        p_wt, p_mt = float(hp.get('block_mask_wt', 1.0)), float(hp.get('block_mask_mt', 1.0))
+        if p_wt < 1.0:                                                                         # --block_mask_wt: each WT read sees its site visible with prob 1 - p
+            wt_rows = blocks.unmasked_rows(wt_rows, b['seq'], torch.rand(2, device=dev) >= p_wt)
+        llr_w = self._block_llr(b, wt_rows, wt_pos, b['wt_ids'], 'wt', grad=joint)             # 2 wild-type passes (one forward when both are visible)
+        llr_m = None
+        if p_mt < 1.0 and bool(torch.rand(()) >= p_mt):
+            # --block_mask_mt: this block's mutant passes read every site VISIBLE. One sequence per cell (x at i, y at j), read at both sites: the
+            # per-item unmasked double. 20 x 20 sequences instead of 40, so it needs --block_row_chunk, and it has no row / column passes to condition on.
+            useqs, uread = blocks.pair_unmasked_sequences(b['seq'], i, j, Xa, Ya)
+            out = self._block_llr(b, useqs, uread, torch.as_tensor([wt_i, wt_j], device=dev).repeat(nx * ny), 'mt', grad=True)
+            cell = torch.arange(nx * ny, device=dev)
+            mt_raw = (out[0::2][cell, xi.repeat_interleave(ny)] + out[1::2][cell, yj.repeat(nx)]).view(nx, ny)
+            wt_raw = llr_w[0][xi].unsqueeze(1) + llr_w[1][yj].unsqueeze(0)
+        else:
+            mt_seqs = torch.cat([row_seqs, col_seqs])                                          # 38 (40 with the identity) mutant passes
+            read = torch.as_tensor([j] * nx + [i] * ny, device=dev)
+            wt_at = torch.as_tensor([wt_j] * nx + [wt_i] * ny, device=dev)
+            llr_m = self._block_llr(b, mt_seqs, read, wt_at, 'mt', grad=True)
+            wt_raw, mt_raw = blocks.assemble_pair(llr_w[0], llr_w[1], llr_m[:nx], llr_m[nx:], Xa, Ya)
         wt_cal, mt_cal = self._block_cal('wt')(wt_raw, n), self._block_cal('mt')(mt_raw, n)
         # the teacher-forcing label of a cell: its measured singles, de-linked one at a time and summed
         yA, yB = tfA.float(), tfB.float()
@@ -1293,7 +1331,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         else:
             comb_rank = comb_raw
         terms = self._block_reg_rank(c, comb_cal, comb_rank, hp.lambda_reg_mt, hp.lambda_rank_mt, self.crit_rank_mt, 'combined')
-        if float(hp.get('lambda_cond_mt', 0.0) or 0.0) > 0:
+        if float(hp.get('lambda_cond_mt', 0.0) or 0.0) > 0 and llr_m is not None:       # the conditional legs are the masked row / column passes
             terms += self._block_cond_legs(b, llr_m, Xa, Ya, wi, wj, full, ident_cells)
         self._block_backward(terms, 'MT')
 
@@ -1488,15 +1526,18 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         # The epistasis metrics need the LATENT scores and apply the link themselves. The observed scale is carried
         # separately, for the rmse metrics only, so they stay comparable with a run that has no link.
-        obs = {}
-        if torch.is_tensor(batch.get('dG_wt')):
-            dgw, foff = batch['dG_wt'].float(), batch['y_floor'].float()
-            ok = torch.isfinite(dgw)
-            z = torch.where(ok, dgw, torch.zeros_like(dgw))
-            with torch.inference_mode():
-                for key, src in (('wt', out_dict['wt_lora_pred']), ('comb', out_dict['combined_pred'])):
-                    v = src.float()
-                    obs[key] = torch.where(ok, self.link_head.obs_ddG(v, z, foff), v).detach().cpu().numpy()
+        def observed_scale(out):
+            res = {}
+            if torch.is_tensor(batch.get('dG_wt')):
+                dgw, foff = batch['dG_wt'].float(), batch['y_floor'].float()
+                ok = torch.isfinite(dgw)
+                z = torch.where(ok, dgw, torch.zeros_like(dgw))
+                with torch.inference_mode():
+                    for key, src in (('wt', out['wt_lora_pred']), ('comb', out['combined_pred'])):
+                        v = src.float()
+                        res[key] = torch.where(ok, self.link_head.obs_ddG(v, z, foff), v).detach().cpu().numpy()
+            return res
+        obs = observed_scale(out_dict)
 
         cyc = {}
         if self.hparams.val_cycle_passes and not mt_direct:
@@ -1525,6 +1566,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         }
         if obs:
             rec['obs'] = obs
+        if self.hparams.get('val_unmasked', False) and not (mt_direct or wt_only):
+            # --val_unmasked: the same items read with NEITHER adapter masked (the plain wild type for WT, the full mutant sequence for MT)
+            with torch.inference_mode():
+                un = self.model.forward_batch(batch, mask_strategy={'wt': None, 'mt': None})
+            rec.update(wtU_scores=un['wt_lora_pred'].detach().cpu().float().numpy(), mtU_scores=un['mt_lora_pred'].detach().cpu().float().numpy(),
+                       combU_scores=un['combined_pred'].detach().cpu().float().numpy())
+            if obs:
+                rec['obsU'] = observed_scale(un)
         if self.val_independent and not (mt_direct or wt_only):
             with torch.inference_mode():
                 rec['gap_scores'] = self._cycle_gap(batch)
@@ -1561,6 +1610,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         cat_metrics = {'natural_wt': defaultdict(list), 'designed': defaultdict(list), 'mutant_bg': defaultdict(list)}
         nat_alive_rhos = []
         nat_single_records = []
+        avgU = defaultdict(list)              # --val_unmasked: logged as val_unmasked_<metric>_avg
         pooled = defaultdict(list)
         ext_per_loader = {}          # OOD loaders: kept out of avg_metrics/pooled, survived by _external summaries
 
@@ -1605,6 +1655,17 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     if not is_external:
                         avg_metrics[metric].append(float(val))
                         cat_metrics[lib_cat][metric].append(float(val))
+            if valid_outputs and 'combU_scores' in valid_outputs[0]:       # --val_unmasked: the same library with neither adapter masked
+                obsU = ({k: np.concatenate([o['obsU'][k] for o in valid_outputs]) for k in valid_outputs[0]['obsU']}
+                        if 'obsU' in valid_outputs[0] else None)
+                mu = stats.compute_metrics(sub(cat('wtU_scores')), sub(cat('mtU_scores')), sub(cat('combU_scores')), sub(gt),
+                                           [t for t, k in zip(subset_types, canon) if k],
+                                           obs=None if obsU is None else {k: sub(v) for k, v in obsU.items()})
+                for metric, val in mu.items():
+                    if val is not None and np.isfinite(val):
+                        self.log(f"val_unmasked_{metric}/{name}", float(val), on_epoch=True, sync_dist=True)
+                        if not is_external:
+                            avgU[metric].append(float(val))
             if valid_outputs and 'gap_scores' in valid_outputs[0]:         # --val_masking independent: the closing error of the double's cycle
                 g = np.abs(sub(cat('gap_scores')))
                 if np.isfinite(g).any():
@@ -1647,6 +1708,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                                ('ground_truths', gt), ('dddG', dddG), ('cens', cens), ('cens_src', cens_src),
                                ('dG_wt', dg_wt_arr), ('y_floor', cat('y_floor'))):
                 pooled[field].extend(np.asarray(arr).tolist())
+            if valid_outputs and 'combU_scores' in valid_outputs[0]:
+                for field in ('wtU_scores', 'mtU_scores', 'combU_scores'):
+                    pooled[field].extend(cat(field).tolist())
             for field in ('wt_rev_scores', 'mt_fwd_scores'):
                 have = valid_outputs and field in valid_outputs[0]
                 pooled[field].extend(cat(field).tolist() if have else [float('nan')] * len(keys))
@@ -1655,6 +1719,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if values:
                 self.log(f'val_{key}_avg', float(np.nanmean(values)), on_epoch=True,
                          prog_bar=key in self._VAL_PROGRESS_BAR, sync_dist=True)
+
+        for key, values in avgU.items():
+            if values:
+                self.log(f'val_unmasked_{key}_avg', float(np.nanmean(values)), on_epoch=True, sync_dist=True)
 
         # Flagged new validation splits: natural WT vs de novo designed vs mutant-background MegaScale libraries.
         nat_sng_wt = float(np.nanmean(cat_metrics['natural_wt']['rho_singles_wt'])) if cat_metrics['natural_wt']['rho_singles_wt'] else float('nan')
@@ -1718,6 +1786,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 for _k, _v in (self._log_epistasis(pooled) or {}).items():
                     if np.isfinite(_v):
                         avg_metrics[_k].append(float(_v))
+                if pooled.get('combU_scores') and len(pooled['combU_scores']) == len(pooled['ground_truths']):
+                    # the same epistasis hierarchy on the unmasked regime, as val_unmasked_epi_*; the composite and the clean diagnostics stay on the default one
+                    for _k, _v in (self._log_epistasis(dict(pooled, wt_scores=pooled['wtU_scores'], mt_scores=pooled['mtU_scores'],
+                                                            comb_scores=pooled['combU_scores']), prefix='unmasked_', dump=False) or {}).items():
+                        if np.isfinite(_v):
+                            avg_metrics['unmasked_' + _k].append(float(_v))
 
         for k, v in self.link_head.summary().items():
             if not isinstance(v, (str, bytes)):
@@ -1735,7 +1809,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         torch.cuda.empty_cache()
         gc.collect()
 
-    def _log_epistasis(self, pooled):
+    def _log_epistasis(self, pooled, prefix: str = '', dump: bool = True):
         """
         Logs ``val_epi_<metric>_<head>`` (``esm_msr.epi_metrics``: the full epistasis hierarchy for epi and ctx,
         naive_rho also for comb and add, and global calibration/scale for epi), pooled over every validation library,
@@ -1763,7 +1837,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                      'wt': f('wt_scores'), 'mt': f('mt_scores'), 'comb': f('comb_scores'), 'wt_rev': f('wt_rev_scores')}
 
             log_dir = getattr(self.logger, 'log_dir', None) or getattr(self.logger, 'save_dir', None)
-            if self.hparams.val_dump and log_dir:
+            if dump and self.hparams.val_dump and log_dir:
                 tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
                 os.makedirs(log_dir, exist_ok=True)
                 extra = {'link_summary': np.array(json.dumps(self.link_head.summary()))}
@@ -1775,7 +1849,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     cens_src=items['cens_src'],
                     n_mut=np.asarray(pooled['n_mut']), subset_type=np.asarray(items['subset_type'], dtype=str),
                     loader=np.asarray(pooled['loader']),
-                    mut_key=np.asarray([json.dumps(k) for k in keys]), **extra)
+                    mut_key=np.asarray([json.dumps(k) for k in keys]), **extra,
+                    **({'wt_unmasked': f('wtU_scores'), 'mt_unmasked': f('mtU_scores'), 'comb_unmasked': f('combU_scores')} if pooled.get('combU_scores') else {}))
 
             # The dump above carries every mutant, so any of this can be rescored offline. The metrics are
             # computed on the canonical population only - the same one the per-library metrics use - so that a
@@ -1788,18 +1863,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             res = epi_metrics.compute(tbl)
             for name, val in res.items():
                 if np.isfinite(val):
-                    self.log(f"val_{name}", float(val), on_epoch=True,
+                    self.log(f"val_{prefix}{name}", float(val), on_epoch=True,
                              prog_bar=name in ('epi_cell_rank_comb', 'epi_cell_rank_epi', 'epi_cell_rank_mt'), sync_dist=True)
-            diag = epi_metrics.compute_clean_diagnostics(tbl)
-            for d_name, d_val in diag.items():
-                if np.isfinite(d_val):
-                    self.log(f"val_diag_{d_name}", float(d_val), on_epoch=True, sync_dist=True)
-            cr = res.get('epi_cell_rank_comb', res.get('epi_cell_rank_epi', float('nan')))
-            bl = res.get('epi_beyond_lib_comb', res.get('epi_beyond_lib_epi', float('nan')))
-            if np.isfinite(cr) and np.isfinite(bl):
-                comp = 0.5 * (float(cr) + float(bl))
-                self.log("val_epi_composite", comp, on_epoch=True, sync_dist=True)
-                res['epi_composite'] = comp
+            if not prefix:           # the audit diagnostics and the composite belong to the default regime only
+                diag = epi_metrics.compute_clean_diagnostics(tbl)
+                for d_name, d_val in diag.items():
+                    if np.isfinite(d_val):
+                        self.log(f"val_diag_{d_name}", float(d_val), on_epoch=True, sync_dist=True)
+                cr = res.get('epi_cell_rank_comb', res.get('epi_cell_rank_epi', float('nan')))
+                bl = res.get('epi_beyond_lib_comb', res.get('epi_beyond_lib_epi', float('nan')))
+                if np.isfinite(cr) and np.isfinite(bl):
+                    comp = 0.5 * (float(cr) + float(bl))
+                    self.log("val_epi_composite", comp, on_epoch=True, sync_dist=True)
+                    res['epi_composite'] = comp
             return res                  # the caller merges these into avg_metrics so a plateau can watch them
         except Exception as e:
             logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)

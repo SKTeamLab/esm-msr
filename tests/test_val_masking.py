@@ -134,8 +134,9 @@ class _HP(dict):
     __getattr__ = dict.__getitem__
 
 
-def _validation_stub(model, val_masking, train_wt=None, train_mt=None):
-    s = types.SimpleNamespace(model=model, hparams=_HP(mt_direct_pred=False, val_wt_only=False, val_cycle_passes=False, val_masking=val_masking),
+def _validation_stub(model, val_masking, train_wt=None, train_mt=None, unmasked=False):
+    s = types.SimpleNamespace(model=model, hparams=_HP(mt_direct_pred=False, val_wt_only=False, val_cycle_passes=False, val_masking=val_masking,
+                                                       val_unmasked=unmasked),
                               validation_step_outputs=defaultdict(list), link_head=None)
     s.val_independent = val_masking == 'independent'
     s.mask_wt, s.mask_mt = train_wt, train_mt
@@ -145,7 +146,7 @@ def _validation_stub(model, val_masking, train_wt=None, train_mt=None):
     return s
 
 
-def _validate(val_masking, **train):
+def _validate(val_masking, unmasked=False, **train):
     m = _model()
     m.eval()
     seen = []
@@ -155,7 +156,7 @@ def _validate(val_masking, **train):
         seen.append((pass_type, mask_strategy))
         return inner(batch, pass_type=pass_type, mask_strategy=mask_strategy, **k)
     m.forward_partitioned = spy
-    s = _validation_stub(m, val_masking, **train)
+    s = _validation_stub(m, val_masking, unmasked=unmasked, **train)
     b = _cat([_double(), _single()])
     b['ddG'] = torch.zeros(2)
     M.validation_step(s, b, 0)
@@ -188,5 +189,27 @@ def test_the_flag_defaults_to_independent_and_the_four_pass_flag_is_gone():
             sys.argv = argv + bad
             with pytest.raises(SystemExit):
                 config.parse_arguments()
+    finally:
+        sys.argv = old
+
+
+def test_val_unmasked_adds_the_regime_with_neither_adapter_masked_and_leaves_the_default_alone():
+    seen0, rec0 = _validate('independent')
+    seen, rec = _validate('independent', unmasked=True)
+    assert 'combU_scores' not in rec0
+    assert [x for x in seen if x[1] is None] and {x for x in seen if x[1] == 'independent'}, seen             # both regimes were read
+    assert rec['wtU_scores'].shape == rec['mtU_scores'].shape == rec['combU_scores'].shape == (2,)
+    assert (rec['comb_scores'] == rec0['comb_scores']).all()                                                  # the default numbers do not move
+    assert not (rec['combU_scores'] == rec['comb_scores']).all()                                              # and the unmasked ones differ from them
+
+
+def test_the_unmasked_flag_is_off_by_default():
+    argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
+    old = sys.argv
+    try:
+        sys.argv = argv
+        assert config.parse_arguments().val_unmasked is False
+        sys.argv = argv + ['--val_unmasked']
+        assert config.parse_arguments().val_unmasked is True
     finally:
         sys.argv = old

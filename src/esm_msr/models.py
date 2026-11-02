@@ -728,10 +728,19 @@ class MSRModel(ESM3PredictorBase):
             active_model = self.peft_wt if pass_type == 'wt' else self.peft_mt
         else:
             active_model = self.peft_fused
-        one = lambda t: None if t is None else t[0:1].expand(R, *([-1] * (t.ndim - 1)))
-        out = self._get_esm3_outputs(seqs, one(coords), one(struct_tokens), None, active_model=active_model)
-        logits = self._process_logits(out.sequence_logits.float())
-        row = logits[torch.arange(R, device=seqs.device), read_pos]
+        # Identical rows are one forward: an UNMASKED wild-type pass carries the same sequence for every position it reads, and a pair block's
+        # unmasked mutant passes read both sites of one sequence. Rows that are all different (masked sites) take the plain path unchanged.
+        uniq, inv = torch.unique(seqs, dim=0, return_inverse=True)
+        n = int(uniq.shape[0]) if uniq.shape[0] < R else R
+        one = lambda t: None if t is None else t[0:1].expand(n, *([-1] * (t.ndim - 1)))
+        if n < R:
+            out = self._get_esm3_outputs(uniq, one(coords), one(struct_tokens), None, active_model=active_model)
+            logits = self._process_logits(out.sequence_logits.float())
+            row = logits[inv, read_pos]
+        else:
+            out = self._get_esm3_outputs(seqs, one(coords), one(struct_tokens), None, active_model=active_model)
+            logits = self._process_logits(out.sequence_logits.float())
+            row = logits[torch.arange(R, device=seqs.device), read_pos]
         return row[:, self.canonical_idx_tensor] - row.gather(1, wt_at_read.view(-1, 1))
 
     def _randomly_masked(self, seq: torch.Tensor, mut_pos: torch.Tensor, mut_mask: torch.Tensor, pass_type: str = 'mt') -> torch.Tensor:

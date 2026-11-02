@@ -224,7 +224,7 @@ def _module(**hp):
     s.crit_rank_wt = s.crit_rank_mt = ListMLELoss()
     s.manual_backward = lambda loss, retain_graph=False: loss.backward()
     for name in ('_reg_loss', '_compute_rank_loss', '_block_cal', '_block_cal_sg', '_block_s_wt', '_block_llr', '_block_ctx', '_block_reg_rank',
-                 '_block_backward', '_block_forced', '_block_singles', '_block_pair', '_block_step', '_block_cond_legs'):
+                 '_block_backward', '_block_forced', '_block_singles', '_block_singles_llr', '_block_pair', '_block_step', '_block_cond_legs'):
         setattr(s, name, types.MethodType(getattr(M, name), s))
     return s
 
@@ -568,3 +568,158 @@ def test_row_chunks_give_the_same_gradient_as_all_rows_at_once():
         grads.append((s.model.w_mt.grad.clone(), s.model.w_wt.grad.clone(), s.model.calibration_head_mt.scale.grad.clone()))
     for a, b_ in zip(*grads):
         assert torch.allclose(a, b_, rtol=1e-5, atol=1e-7)
+
+
+# ---------------------------------------------------------------------------------------------------------------- --block_mask_wt / --block_mask_mt
+
+def _content_net(net):
+    """A stand-in whose logits depend on the CONTENT of a sequence and on the position read, and that remembers the sequences it was handed."""
+    seen = []
+
+    def f(seqs, read_pos, wt_at, side, coords=None, struct=None):
+        seen.append((side, seqs.clone(), read_pos.clone()))
+        w = net.w_wt if side == 'wt' else net.w_mt
+        base = (torch.arange(20).float().view(1, 20) + 1 + 0.01 * seqs.sum(dim=1).float().view(-1, 1) + 0.3 * read_pos.float().view(-1, 1))
+        wt_aa = torch.as_tensor([blocks.TOKEN_TO_AA[int(t)] for t in wt_at])
+        return w * base * (torch.arange(20).view(1, 20) != wt_aa.view(-1, 1)).float()
+    net.forward_site_llr = f
+    return seen
+
+
+def test_the_unmasked_sequence_helpers():
+    seq = SEQ.clone()
+    seqs = blocks.single_sequences(seq, torch.tensor([1, 4, 6]))
+    out = blocks.unmasked_rows(seqs, seq, torch.tensor([True, False, True]))
+    assert torch.equal(out[0], seq) and torch.equal(out[2], seq) and int(out[1, 4]) == blocks.MASK
+    vs, vp, vw, vr, vc = blocks.mutant_single_sequences(seq, torch.tensor([1, 4]), torch.tensor([int(seq[1]), int(seq[4])]))
+    assert vs.shape == (38, len(seq)) and vp.tolist() == [1] * 19 + [4] * 19 and vr.tolist() == [0] * 19 + [1] * 19
+    assert all(int(vs[k, vp[k]]) == blocks.CANON_IDS[int(vc[k])] != int(seq[vp[k]]) for k in range(38))       # the substitution is visible, never the wild type
+    assert not (vs == blocks.MASK).any()
+    ps, pr = blocks.pair_unmasked_sequences(seq, I, J, [0, 1, 2], [3, 4])
+    assert ps.shape == (12, len(seq)) and pr.tolist() == [I, J] * 6
+    assert torch.equal(ps[0], ps[1]) and not torch.equal(ps[1], ps[2])                                         # a cell's sequence is listed twice in a row
+    assert int(ps[4, I]) == blocks.CANON_IDS[1] and int(ps[4, J]) == blocks.CANON_IDS[3]                      # cell 2 = (second x, first y): rows 4 and 5
+
+
+def test_mask_wt_zero_reads_the_plain_wild_type_for_every_position_and_the_default_stays_masked():
+    s = _module(block_mask_wt=0.0, lambda_rank_wt=0.0, lambda_rank_mt=0.0)
+    seen = _content_net(s.model)
+    M._block_step(s, _blk('single'))
+    wt = [x for x in seen if x[0] == 'wt'][0][1]
+    mt = [x for x in seen if x[0] == 'mt'][0][1]
+    assert not (wt == blocks.MASK).any() and all(torch.equal(r, wt[0]) for r in wt)                            # unmasked: one sequence for every position
+    assert (mt == blocks.MASK).sum(dim=1).tolist() == [1, 1, 1]                                                # the MT head is still masked (p = 1)
+
+
+def test_mask_mt_zero_reads_each_substitution_as_its_own_visible_sequence_and_assembles_the_block():
+    s = _module(block_mask_mt=0.0, lambda_rank_wt=0.0, lambda_rank_mt=0.0)
+    seen = _content_net(s.model)
+    b = _blk('single')
+    M._block_step(s, b)
+    side, seqs, read = [x for x in seen if x[0] == 'mt'][0]
+    assert seqs.shape[0] == 3 * 19 and not (seqs == blocks.MASK).any()
+    assert s.model.w_mt.grad is not None and float(s.model.w_mt.grad.abs()) > 0
+    # the assembled [B, 20] is the visible readout of each substitution, with the wild-type column exactly 0
+    s2 = _module(block_mask_mt=0.0)
+    _content_net(s2.model)
+    pos, wt_ids = b['positions'], b['wt_ids']
+    llr = M._block_singles_llr(s2, b, blocks.single_sequences(b['seq'], pos), pos, wt_ids, 'mt', grad=True)
+    assert llr.shape == (3, 20)
+    for r in range(3):
+        wa = blocks.TOKEN_TO_AA[int(wt_ids[r])]
+        assert float(llr[r, wa]) == 0.0
+        for a in (0, 5, 19):
+            if a == wa:
+                continue
+            one = blocks.CANON_IDS[a]
+            sq = b['seq'].clone()
+            sq[pos[r]] = one
+            ref = s2.model.forward_site_llr(sq.unsqueeze(0), pos[r:r + 1], wt_ids[r:r + 1], 'mt')[0, a]
+            assert float(llr[r, a]) == pytest.approx(float(ref), rel=1e-6)
+
+
+def test_a_probability_between_draws_masked_and_visible_positions_in_one_block():
+    torch.manual_seed(1)
+    s = _module(block_mask_mt=0.5)
+    seen = _content_net(s.model)
+    b = _blk('single')
+    llr = M._block_singles_llr(s, b, blocks.single_sequences(b['seq'], b['positions']), b['positions'], b['wt_ids'], 'mt', grad=True)
+    assert llr.shape == (3, 20) and torch.isfinite(llr).all()
+    n_rows = sum(x[1].shape[0] for x in seen)                                                                  # k masked rows + 19 per visible row
+    assert n_rows in (3, 3 + 18, 3 + 36, 57), n_rows
+
+
+def test_pair_block_with_mask_wt_zero_is_one_wild_type_forward_and_mask_mt_zero_reads_both_sites_of_every_cell():
+    s = _module(block_mask_wt=0.0, block_mask_mt=0.0, lambda_cond_mt=1.0, block_positions=8)
+    seen = _content_net(s.model)
+    M._block_step(s, _blk('pair', yA=torch.full((20, 20), 0.3), yB=torch.full((20, 20), 0.2)))
+    wt = [x for x in seen if x[0] == 'wt'][0][1]
+    mt = [x for x in seen if x[0] == 'mt'][0][1]
+    assert not (wt == blocks.MASK).any() and torch.equal(wt[0], wt[1])
+    assert mt.shape[0] == 2 * 400 and not (mt == blocks.MASK).any()                                           # 20 x 20 cells, each read at i and at j
+    assert s.model.w_mt.grad is not None and float(s.model.w_mt.grad.abs()) > 0                               # trained, with the cond legs skipped for this block
+
+
+def test_the_unmasked_pair_cell_is_the_sum_of_the_two_visible_readouts():
+    s = _module(block_mask_mt=0.0, lambda_rank_mt=0.0, lambda_rank_wt=0.0, lambda_reg_wt=0.0)
+    seen = _content_net(s.model)
+    fed = []
+    head = s.model.calibration_head_mt
+    orig = head.forward
+    head.forward = lambda y, n=None: (fed.append(y.detach().clone()), orig(y, n))[1]                         # what the MT head is handed: the raw cells
+    M._block_step(s, _blk('pair'))
+    mt_raw = fed[0]
+    assert mt_raw.shape == (20, 20)
+    f = lambda sq, pos, wt: s.model.forward_site_llr(sq.unsqueeze(0), torch.tensor([pos]), torch.tensor([wt]), 'mt')[0]
+    for x, y in ((3, 7), (0, 19), (11, 2)):
+        sq = SEQ.clone()
+        sq[I], sq[J] = blocks.CANON_IDS[x], blocks.CANON_IDS[y]
+        want = float(f(sq, I, WT_I)[x] + f(sq, J, WT_J)[y])               # the mutation at each site VISIBLE, the other site's mutation in place too
+        assert float(mt_raw[x, y]) == pytest.approx(want, rel=1e-5), (x, y)
+    wi, wj = blocks.TOKEN_TO_AA[WT_I], blocks.TOKEN_TO_AA[WT_J]
+    assert float(mt_raw[wi, wj]) == 0.0                                                                       # the wild type reads 0 at both sites
+    side, seqs, read = [x for x in seen if x[0] == 'mt'][0]
+    c = (3 * 20 + 7) * 2
+    assert torch.equal(seqs[c], seqs[c + 1]) and read[c].item() == I and read[c + 1].item() == J
+
+
+def test_the_masking_probabilities_are_validated():
+    import sys
+    argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x', '--block_training']
+    old = sys.argv
+    try:
+        sys.argv = argv
+        a = config.parse_arguments()
+        assert a.block_mask_wt == 1.0 and a.block_mask_mt == 1.0
+        sys.argv = argv + ['--block_mask_wt', '0', '--block_mask_mt', '0.25']
+        a = config.parse_arguments()
+        assert a.block_mask_wt == 0.0 and a.block_mask_mt == 0.25
+        for bad in (['--block_mask_mt', '1.5'], ['--block_mask_wt', '-0.1']):
+            sys.argv = argv + bad
+            with pytest.raises(SystemExit):
+                config.parse_arguments()
+    finally:
+        sys.argv = old
+
+
+def test_identical_rows_are_one_forward_and_give_the_numbers_of_separate_ones():
+    m = _stand_in()
+    rows = []
+    inner = m._get_esm3_outputs
+
+    def counting(seq, *a, **k):
+        rows.append(int(seq.shape[0]))
+        return inner(seq, *a, **k)
+    m._get_esm3_outputs = counting
+    pos = torch.tensor([1, 4, 6, 4])
+    wt = SEQ[pos]
+    same = SEQ.unsqueeze(0).repeat(4, 1)                                  # an unmasked pass: the same sequence read at four positions
+    together = m.forward_site_llr(same, pos, wt, 'wt')
+    assert rows == [1], rows
+    for r in range(4):
+        alone = m.forward_site_llr(same[r:r + 1], pos[r:r + 1], wt[r:r + 1], 'wt')
+        assert torch.allclose(together[r], alone[0], atol=1e-6)
+    rows.clear()
+    masked = blocks.single_sequences(SEQ, pos[:3])                        # rows that differ take the plain path: one forward each, in the given order
+    m.forward_site_llr(masked, pos[:3], wt[:3], 'wt')
+    assert rows == [3], rows
