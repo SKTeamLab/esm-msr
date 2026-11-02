@@ -1150,7 +1150,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self._block_sums, self._block_cnts = defaultdict(float), defaultdict(float)
         (self._block_singles if b['block'] == 'single' else self._block_pair)(b)
         logs = {f'L_{k}': self._block_sums[k] / max(1, self._block_cnts[k])
-                for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined', 'reg_cond', 'rank_cond') if self._block_cnts[k] > 0}
+                for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined', 'reg_cond', 'rank_cond', 'cycle') if self._block_cnts[k] > 0}
         self._cens_diag = (int((b['cens'] < 0).sum().item()), int((b['cens'] > 0).sum().item()), 0)
         return logs
 
@@ -1216,6 +1216,31 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             comb_rank = comb_raw
         self._block_backward(wt_terms + self._block_reg_rank(c, comb_cal, comb_rank, hp.lambda_reg_mt, hp.lambda_rank_mt, self.crit_rank_mt, 'combined'), 'MT')
 
+    def _block_cycle(self, llr_w, llr_m, Xa, Ya, wi, wj):
+        """
+        The thermodynamic cycle of a pair block as a loss (--lambda_cycle), label-free and over EVERY real double of the 19 x 19 grid, observed or not.
+
+        A double's two ways round the cycle, ``ddG(X) + ddG(Y|X) = ddG(Y) + ddG(X|Y)``, are path 1 = WT(x at i) + MT(Y|X) = ``Row[x][y]`` and path 2 =
+        WT(y at j) + MT(X|Y) = ``Col[y][x]`` (their mean is the reported 0.5 (WT + MT)). The loss is the mean squared closing error ``(path 1 - path 2)^2``
+        on the calibrated scale with every calibration head's scale and bias held constant (so the loss shapes the readouts, never the calibration), one
+        mutation per leg. By default the WT readouts are constants too (--cycle_detach_wt): the singles are fitted on labels, and the cycle asks the MT
+        conditionals to agree with them. It moves a path onto the other, not their mean, so it cannot by itself improve the reported prediction; what it
+        adds is a constraint on the many doubles that have no label.
+        """
+        hp = self.hparams
+        dev = llr_m.device
+        nx = len(Xa)
+        x, y = torch.as_tensor(list(Xa), device=dev), torch.as_tensor(list(Ya), device=dev)
+        real = (x != wi).view(-1, 1) & (y != wj).view(1, -1)
+        w_i, w_j = llr_w[0][x], llr_w[1][y]
+        if bool(hp.get('cycle_detach_wt', True)):
+            w_i, w_j = w_i.detach(), w_j.detach()
+        row, col = llr_m[:nx][:, y], llr_m[nx:][:, x]
+        one = lambda t: torch.ones_like(t, dtype=torch.long)
+        path1 = self._block_cal_sg('wt', w_i, one(w_i)).view(-1, 1) + self._block_cal_sg('mt', row, one(row))
+        path2 = self._block_cal_sg('wt', w_j, one(w_j)).view(1, -1) + self._block_cal_sg('mt', col, one(col)).t()
+        return ((path1 - path2)[real] ** 2).mean()
+
     def _block_cond_legs(self, b, llr_m, Xa, Ya, wi, wj, full, ident):
         """
         The MT head's conditional legs trained directly (--lambda_cond_mt, the audit's two-conditional supervision on the block's passes).
@@ -1278,7 +1303,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         wi, wj = blocks.TOKEN_TO_AA[wt_i], blocks.TOKEN_TO_AA[wt_j]
         wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(b['seq'], i, j, wt_i, wt_j, identity=ident)
         lab, tfA, tfB, ident_cells, full = blocks.pair_labels(b, Xa, Ya, wi, wj)
-        if not bool((torch.isfinite(lab['y']) & ~ident_cells).any()):
+        lam_cyc = float(hp.get('lambda_cycle', 0.0) or 0.0)
+        if lam_cyc <= 0 and not bool((torch.isfinite(lab['y']) & ~ident_cells).any()):
             return
         nx, ny = len(Xa), len(Ya)
         xi, yj = torch.as_tensor(Xa, device=dev), torch.as_tensor(Ya, device=dev)
@@ -1291,13 +1317,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         groups = [g.reshape(-1) for g in torch.tensor_split(units, max(1, -(-units.shape[0] // B)))]
         c = self._block_ctx(lab, groups, reg_exclude=ident_cells)
         joint = ((str(hp.get('joint_doubles', 'off') or 'off') != 'off') or not bool(hp.get('tf_detach_wt', True))) and not self.peft_manager.wt_path_is_frozen
-        if self.peft_manager.mt_path_is_frozen or not (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0 or float(hp.get('lambda_cond_mt', 0.0) or 0.0) > 0):
+        if self.peft_manager.mt_path_is_frozen or not (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0 or float(hp.get('lambda_cond_mt', 0.0) or 0.0) > 0 or lam_cyc > 0):
             return
+        cyc_wt = lam_cyc > 0 and not bool(hp.get('cycle_detach_wt', True)) and not self.peft_manager.wt_path_is_frozen       # the WT readouts take the cycle's gradient
         wt_pos = torch.as_tensor([i, j], device=dev)
         p_wt, p_mt = float(hp.get('block_mask_wt', 1.0)), float(hp.get('block_mask_mt', 1.0))
         if p_wt < 1.0:                                                                         # --block_mask_wt: each WT read sees its site visible with prob 1 - p
             wt_rows = blocks.unmasked_rows(wt_rows, b['seq'], torch.rand(2, device=dev) >= p_wt)
-        llr_w = self._block_llr(b, wt_rows, wt_pos, b['wt_ids'], 'wt', grad=joint)             # 2 wild-type passes (one forward when both are visible)
+        llr_w = self._block_llr(b, wt_rows, wt_pos, b['wt_ids'], 'wt', grad=joint or cyc_wt)    # 2 wild-type passes (one forward when both are visible)
         llr_m = None
         if p_mt < 1.0 and bool(torch.rand(()) >= p_mt):
             # --block_mask_mt: this block's mutant passes read every site VISIBLE. One sequence per cell (x at i, y at j), read at both sites: the
@@ -1330,6 +1357,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         else:
             comb_rank = comb_raw
         terms = self._block_reg_rank(c, comb_cal, comb_rank, hp.lambda_reg_mt, hp.lambda_rank_mt, self.crit_rank_mt, 'combined')
+        if lam_cyc > 0 and llr_m is not None:                                              # a visible-site block has no row / column passes to close a cycle with
+            L_cyc = self._block_cycle(llr_w, llr_m, Xa, Ya, wi, wj)
+            terms.append(lam_cyc * L_cyc)
+            self._block_sums['cycle'] += float(L_cyc.detach()); self._block_cnts['cycle'] += 1
         if float(hp.get('lambda_cond_mt', 0.0) or 0.0) > 0 and llr_m is not None:       # the conditional legs are the masked row / column passes
             terms += self._block_cond_legs(b, llr_m, Xa, Ya, wi, wj, full, ident_cells)
         self._block_backward(terms, 'MT')

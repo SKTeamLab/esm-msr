@@ -147,7 +147,7 @@ def test_the_number_of_flags_is_small():
     # decoupled from --censor_threshold). The Tobit noise constants and the clamp width are constants, not flags, to keep this bound honest.
     # + 2026-11-02: --joint_doubles, --tf_detach_wt, --val_masking, --val_unmasked and the --block_* family (training by blocks: --block_training / _positions / _identity /
     # _row_chunk / _list_rows / _rank_norm / _mask_wt / _mask_mt). --mask_prob, --mask_dist_wt/_mt and --group_by_site were removed again the same night.
-    assert len(keys) <= 99, sorted(keys)
+    assert len(keys) <= 101, sorted(keys)   # + --lambda_cycle, --cycle_detach_wt (2026-11-02 night)
 
 
 # ---------------------------------------------------------------------------------------------------------------- yaml

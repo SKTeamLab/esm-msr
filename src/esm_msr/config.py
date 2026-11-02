@@ -340,6 +340,14 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                           "--mask_strategy_mt independent and partner dG > --cond_partner_min_dg). With --block_training the MT head's row and column "
                           "passes are the conditional legs: each is scored as the partner single's latent plus the calibrated leg against the "
                           "double's label, with ListMLE lists of the same legs (rank weight lambda_cond_mt * lambda_rank_mt / lambda_reg_mt).")
+    obj.add_argument('--lambda_cycle', type=float, default=0.0,
+                     help="--block_training: weight on the thermodynamic-cycle loss of every pair block, label-free and over all 19 x 19 doubles of the "
+                          "position pair, observed or not: the mean squared closing error (path 1 - path 2)^2 with path 1 = WT(x) + MT(Y|X) and path 2 = "
+                          "WT(y) + MT(X|Y), on the stop-gradient calibrated scale. It pulls one path onto the other, not their mean, so it constrains the "
+                          "unlabelled doubles without moving the reported prediction directly. val_cycle_gap is the same quantity, validated.")
+    obj.add_argument('--cycle_detach_wt', action=argparse.BooleanOptionalAction, default=True,
+                     help="--lambda_cycle: hold the WT head's single readouts constant in the cycle loss, so only the MT conditionals move toward them "
+                          "(default); off lets the cycle loss train the WT head too.")
     obj.add_argument('--cond_partner_min_dg', type=float, default=1.0,
                      help="Minimum absolute partner stability dG_wt + ddG_partner (kcal/mol) required to supervise a conditional leg.")
     obj.add_argument('--latent_censor_hinge', action=argparse.BooleanOptionalAction, default=False,
@@ -655,6 +663,10 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         for f in ('block_mask_wt', 'block_mask_mt'):
             if not 0.0 <= getattr(args, f) <= 1.0:
                 parser.error(f"--{f} is a probability in [0, 1]")
+    if args.lambda_cycle < 0:
+        parser.error("--lambda_cycle must be >= 0")
+    if args.lambda_cycle > 0 and not args.block_training:
+        parser.error("--lambda_cycle is a --block_training loss (it needs a pair block's row and column passes)")
     if args.joint_doubles != 'off':
         why = ('--frozen_wt_mt_only / --mt_direct_pred freeze the WT head, which is half of the joint prediction' if args.freeze_wt_adapter
                else '--freeze_mt_adapter freezes the MT head, which is the other half' if args.freeze_mt_adapter

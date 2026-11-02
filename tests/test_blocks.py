@@ -785,3 +785,81 @@ def test_the_rank_scale_follows_rank_calibrated_stopgrad_not_the_identity_cell()
     for r, wa in enumerate(wt_cols):
         assert float(d[r, wa]) == pytest.approx(0.0, abs=1e-6)            # ... and the wild-type cell, no mutation, stays 0
         assert all(float(d[r, a]) == pytest.approx(0.5, abs=1e-5) for a in range(20) if a != wa)
+
+
+# ---------------------------------------------------------------------------------------------------------------- --lambda_cycle
+
+def _cycle_module(**hp):
+    """Only the cycle loss is on, so what trains is exactly what the cycle reaches."""
+    s = _module(lambda_reg_wt=0.0, lambda_rank_wt=0.0, lambda_reg_mt=0.0, lambda_rank_mt=0.0, lambda_cycle=1.0, **hp)
+    s._block_cycle = types.MethodType(M._block_cycle, s)
+    return s
+
+
+def test_the_cycle_loss_is_the_mean_squared_closing_error_of_every_real_double_with_calibration_held_constant():
+    s = _cycle_module()
+    s.model.calibration_head_wt.bias.data, s.model.calibration_head_mt.bias.data = torch.tensor(0.2), torch.tensor(-0.3)
+    s.model.calibration_head_wt.scale.data, s.model.calibration_head_mt.scale.data = torch.tensor(1.5), torch.tensor(0.5)
+    seen = _content_net(s.model)
+    logs = M._block_step(s, _blk('pair'))
+    wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(SEQ, I, J, WT_I, WT_J, identity=True)
+    f = lambda side, sq, pos, wt: s.model.forward_site_llr(sq.unsqueeze(0), torch.tensor([pos]), torch.tensor([wt]), side)[0]
+    wi, wj = blocks.TOKEN_TO_AA[WT_I], blocks.TOKEN_TO_AA[WT_J]
+    cw = lambda v: 1.5 * v + 0.2
+    cm = lambda v: 0.5 * v - 0.3
+    res = []
+    for x in range(20):
+        for y in range(20):
+            if x == wi or y == wj:
+                continue
+            p1 = cw(f('wt', wt_rows[0], I, WT_I)[x]) + cm(f('mt', row_seqs[x], J, WT_J)[y])        # WT(x) + MT(Y | X)
+            p2 = cw(f('wt', wt_rows[1], J, WT_J)[y]) + cm(f('mt', col_seqs[y], I, WT_I)[x])        # WT(y) + MT(X | Y)
+            res.append(float(p1 - p2) ** 2)
+    assert logs['L_cycle'] == pytest.approx(sum(res) / len(res), rel=1e-4)
+    assert len(res) == 19 * 19                                                                      # every real double, observed or not
+    assert s.model.calibration_head_mt.scale.grad is None and s.model.calibration_head_mt.bias.grad is None      # the cycle never moves the calibration
+
+
+def test_the_cycle_loss_trains_the_mt_conditionals_and_only_touches_the_wt_head_when_asked():
+    s = _cycle_module()
+    _content_net(s.model)
+    M._block_step(s, _blk('pair'))
+    assert s.model.w_mt.grad is not None and float(s.model.w_mt.grad.abs()) > 0
+    assert s.model.w_wt.grad is None                                                                # --cycle_detach_wt (default): the singles are constants
+    s = _cycle_module(cycle_detach_wt=False)
+    _content_net(s.model)
+    M._block_step(s, _blk('pair'))
+    assert s.model.w_wt.grad is not None and float(s.model.w_wt.grad.abs()) > 0
+
+
+def test_a_visible_site_block_has_no_cycle_and_a_block_without_labels_still_gets_one():
+    s = _cycle_module(block_mask_mt=0.0)
+    _content_net(s.model)
+    logs = M._block_step(s, _blk('pair'))
+    assert 'L_cycle' not in logs                                                                    # the unmasked MT block has no row / column passes
+    s = _cycle_module()
+    _content_net(s.model)
+    b = _blk('pair')
+    b['y'] = torch.full_like(b['y'], float('nan'))                                                  # no doubles measured: the label-free loss does not need them
+    for k in ('si_y',):
+        b[k] = torch.full_like(b[k], float('nan'))
+    assert 'L_cycle' in M._block_step(s, b)
+
+
+def test_the_cycle_flags_parse_and_need_block_training():
+    import sys
+    argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
+    old = sys.argv
+    try:
+        sys.argv = argv + ['--block_training', '--lambda_cycle', '5', '--no-cycle_detach_wt']
+        a = config.parse_arguments()
+        assert a.lambda_cycle == 5.0 and a.cycle_detach_wt is False
+        sys.argv = argv
+        a = config.parse_arguments()
+        assert a.lambda_cycle == 0.0 and a.cycle_detach_wt is True
+        for bad in (['--lambda_cycle', '1'], ['--block_training', '--lambda_cycle', '-1']):
+            sys.argv = argv + bad
+            with pytest.raises(SystemExit):
+                config.parse_arguments()
+    finally:
+        sys.argv = old
