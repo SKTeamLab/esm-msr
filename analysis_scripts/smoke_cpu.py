@@ -37,6 +37,8 @@ MODES = {
     'site_grouped_pattern_masks': ['--group_by_site', '--joint_doubles', 'alternate', '--tf_mix', '0.5', '--mask_strategy_wt', 'random', '--mask_strategy_mt', 'random',
                                    '--mask_dist_wt', '0', '1', '0', '--mask_dist_mt', '0', '1', '0', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'site_grouped_mask_ind': ['--group_by_site', '--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
+    'block_training': ['--block_training', '--block_positions', '4', '--joint_doubles', 'both', '--tf_mix', '0.5', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
+    'block_training_old_objective': ['--block_training', '--block_positions', '4', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'joint_alternate_wt_marginal': ['--joint_doubles', 'alternate', '--mask_strategy_wt', 'marginal', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'comet_offline': ['--frozen_wt_mt_only', '--comet', '--comet_offline'],      # the key lookup and the logger path, without uploading anything
     'wt_only': ['--freeze_mt_adapter', '--val_wt_only', '--subsets', 'single', '--lambda_rank_mt', '0', '--lambda_reg_mt', '0'],

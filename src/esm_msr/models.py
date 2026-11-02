@@ -715,6 +715,25 @@ class MSRModel(ESM3PredictorBase):
         """The MT pass's input: native_cond rows get the WT pass's sequence only in a --native_cond_for_mt model."""
         return native_cond_mt_batch(batch) if self.native_cond_mt_input else batch
 
+    def forward_site_llr(self, seqs: torch.Tensor, read_pos: torch.Tensor, wt_at_read: torch.Tensor, pass_type: str,
+                         coords: Optional[torch.Tensor] = None, struct_tokens: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        The raw LLR of all 20 residues at one position per row, ``[R, 20]``: ``logit[x] - logit[wt]`` at ``read_pos[r]``, in the order of
+        ``valid_canonical_aas``. One forward per row reads the whole alphabet, and the wild-type residue itself reads exactly 0. ``seqs`` are
+        complete input sequences (the caller has masked the site and applied any partner mutation); every row shares the library's structure.
+        This is the pass of block training (``esm_msr.blocks``).
+        """
+        R = int(seqs.shape[0])
+        if getattr(self, 'adapter_mode', 'dual') == 'dual':
+            active_model = self.peft_wt if pass_type == 'wt' else self.peft_mt
+        else:
+            active_model = self.peft_fused
+        one = lambda t: None if t is None else t[0:1].expand(R, *([-1] * (t.ndim - 1)))
+        out = self._get_esm3_outputs(seqs, one(coords), one(struct_tokens), None, active_model=active_model)
+        logits = self._process_logits(out.sequence_logits.float())
+        row = logits[torch.arange(R, device=seqs.device), read_pos]
+        return row[:, self.canonical_idx_tensor] - row.gather(1, wt_at_read.view(-1, 1))
+
     def _randomly_masked(self, seq: torch.Tensor, mut_pos: torch.Tensor, mut_mask: torch.Tensor, pass_type: str = 'mt') -> torch.Tensor:
         """
         ``seq`` with some mutated sites replaced by the mask token. By default each site independently with probability

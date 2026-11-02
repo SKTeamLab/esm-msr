@@ -1,5 +1,6 @@
 import json
 import itertools
+import types
 import os
 import logging
 import warnings
@@ -16,7 +17,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint, TQDMProgressBar, EarlyS
 from lightning.pytorch.loggers import CometLogger, CSVLogger
 
 from esm_msr.models import MSRModel, combine_predictions, pass_mask_strategy
-from esm_msr import censoring, epi_metrics, stats, utils
+from esm_msr import blocks, censoring, epi_metrics, stats, utils
 from esm_msr.link import SaturatingLink, IdentityLink
 from esm_msr.losses import ListMLELoss, hinge_regression_loss
 from esm_msr.preprocess_megascale import setup_dataloaders
@@ -802,6 +803,158 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self._cens_diag = (n_cens_lo, n_cens_hi, n_tf_drop)
         return logs
 
+    # ------------------------------------------------------------------------------------------------------------ block training
+    # --block_training (esm_msr.blocks): a step is a singles block (B positions, a [B, 20] tensor from B masked-site passes, ONE ListMLE list of
+    # B x 20 cells) or a pair block (2 WT + 38 MT passes, the 19 x 19 cells of a position pair, lists of B rows or columns). The objective
+    # is the per-item one - WT head on the singles, MT head through 0.5 * (forced WT half + MT) with --tf_mix, joint doubles with a live WT half -
+    # evaluated on tensors instead of rows.
+
+    def _block_cal(self, side):
+        head = getattr(self.model, f'calibration_head_{side}', None)
+        return head if head is not None else self.model.calibration_head_fused
+
+    def _block_llr(self, b, seqs, read_pos, wt_at, side, grad):
+        with torch.set_grad_enabled(grad):
+            llr = self.model.forward_site_llr(seqs, read_pos, wt_at, side, b['coords'], b['structure_tokens'])
+        if not grad:
+            llr = llr.detach()
+            if torch.cuda.is_available():
+                torch.clear_autocast_cache()        # a weight cast under no_grad must not be reused by a later grad forward
+        return llr
+
+    def _block_ctx(self, lab, rank_groups):
+        """The labels of one block on the item's own scales, and the lists the rank loss is drawn over (index tensors into the flat block)."""
+        link = self.link_head
+        y = lab['y']
+        link_ok = torch.isfinite(lab['dG_wt'])
+        obs_rank = torch.isfinite(y)
+        # An unobserved cell has no dG_wt or floor. Every cell goes through the link, and masking a NaN output out of the loss is not enough:
+        # backward multiplies the zero gradient of a masked cell by the link's NaN derivative there, and 0 * NaN poisons every parameter. So the
+        # link inputs are finite everywhere; link_ok / obs_* say which cells count.
+        dG_wt = torch.where(link_ok, lab['dG_wt'], torch.zeros_like(lab['dG_wt']))
+        floor = torch.nan_to_num(lab['y_floor'], nan=0.0)
+        return types.SimpleNamespace(
+            y=y, y_safe=torch.nan_to_num(y, nan=0.0), cens=lab['cens'], dG_wt=dG_wt, floor=floor,
+            link_ok=link_ok, obs_rank=obs_rank, obs_reg=obs_rank & link_ok, groups=rank_groups,
+            bound=reachable_bounds(link, lab['bound'], floor, y - lab['dG_meas']))
+
+    def _block_reg_rank(self, c, pred_cal, pred_raw, lam_reg, lam_rank, crit_rank, name):
+        """Regression on the observed scale over the observed cells + ListMLE over each list; returns the weighted terms and logs them."""
+        terms, link, flat = [], self.link_head, (lambda t: t.reshape(-1))
+        if lam_reg > 0 and bool(c.obs_reg.any()):
+            denom = float(max(1, int(c.obs_reg.sum())))
+            term, val, w = self._reg_loss(flat(link.obs_ddG(pred_cal, c.dG_wt, c.floor)), flat(c.y_safe), flat(c.bound), flat(c.cens), flat(c.obs_reg), denom)
+            terms.append(lam_reg * term)
+            self._block_sums[f'reg_{name}'] += val; self._block_cnts[f'reg_{name}'] += w
+        if lam_rank > 0 and crit_rank is not None:
+            ls, vals = [], []
+            for g in c.groups:
+                L, val, _ = self._compute_rank_loss(flat(pred_raw)[g], flat(c.y_safe)[g], flat(c.obs_rank)[g], flat(c.cens)[g], int(g.numel()), crit_rank)
+                if L is not None:
+                    ls.append(L); vals.append(val)
+            if ls:
+                terms.append(lam_rank * torch.stack(ls).mean())
+                self._block_sums[f'rank_{name}'] += float(np.mean(vals)); self._block_cnts[f'rank_{name}'] += 1
+        return terms
+
+    def _block_backward(self, terms, what):
+        if not terms:
+            return
+        total = sum(terms)
+        if not torch.isfinite(total): raise AssertionError(f"{what} loss evaluated to NaN/Inf.")
+        if not total.requires_grad: raise AssertionError(f"{what} loss detached from the graph; cannot call backward.")
+        self.manual_backward(total)
+
+    def _block_forced(self, c, wt_cal, wt_raw, n, label_lat, has_label, live):
+        """The WT half of the combined prediction, as the per-item loop builds it: tf_mix of the de-linked label where one is usable, else the WT head."""
+        hp, cal_w = self.hparams, self._block_cal('wt')
+        tf_mix = float(hp.tf_mix)
+        base_cal, base_raw = (wt_cal, wt_raw) if live else (wt_cal.detach(), wt_raw.detach())
+        s = 1.0 if not cal_w.use_scale else cal_w.scale.detach()
+        b = cal_w.bias_for(n)
+        b = b.detach() if torch.is_tensor(b) else b
+        decal = (label_lat - b) / s
+        return (torch.where(has_label, tf_mix * label_lat + (1.0 - tf_mix) * base_cal, base_cal),
+                torch.where(has_label, tf_mix * decal + (1.0 - tf_mix) * base_raw, base_raw))
+
+    def _block_step(self, b):
+        self._block_sums, self._block_cnts = defaultdict(float), defaultdict(float)
+        (self._block_singles if b['block'] == 'single' else self._block_pair)(b)
+        logs = {f'L_{k}': self._block_sums[k] / max(1, self._block_cnts[k]) for k in ('reg_wt', 'rank_wt', 'reg_combined', 'rank_combined')
+                if self._block_cnts[k] > 0}
+        self._cens_diag = (int((b['cens'] < 0).sum().item()), int((b['cens'] > 0).sum().item()), 0)
+        return logs
+
+    def _block_singles(self, b):
+        hp, link = self.hparams, self.link_head
+        pos, wt_ids = b['positions'], b['wt_ids']
+        seqs = blocks.single_sequences(b['seq'], pos)
+        lab = {k: b[k].float() if k != 'cens' else b[k] for k in ('y', 'cens', 'bound', 'dG_meas', 'dG_wt', 'y_floor')}
+        n_all = int(b['y'].numel())
+        c = self._block_ctx(lab, [torch.arange(n_all, device=b['y'].device)])         # one list: the whole [B, 20] block
+        n = torch.ones(b['y'].shape, dtype=torch.long, device=b['y'].device)           # one mutation per cell
+        wt_frozen, mt_frozen = self.peft_manager.wt_path_is_frozen, self.peft_manager.mt_path_is_frozen
+        wt_train = not wt_frozen and (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0)
+        llr_wt = self._block_llr(b, seqs, pos, wt_ids, 'wt', grad=wt_train)
+        wt_cal = self._block_cal('wt')(llr_wt, n)
+        if wt_train:
+            self._block_backward(self._block_reg_rank(c, wt_cal, llr_wt, hp.lambda_reg_wt, hp.lambda_rank_wt, self.crit_rank_wt, 'wt'), 'WT')
+        if mt_frozen or not (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0):
+            return
+        llr_mt = self._block_llr(b, seqs, pos, wt_ids, 'mt', grad=True)               # a masked single is the same input for both adapters
+        mt_cal = self._block_cal('mt')(llr_mt, n)
+        lat = link.latent_ddG(c.y, c.dG_wt, c.floor).detach()
+        has = torch.isfinite(lat) & c.link_ok & c.obs_rank
+        t_single = hp.get('censor_threshold')
+        if t_single is not None:
+            has = has & (c.cens == 0)
+        f_cal, f_raw = self._block_forced(c, wt_cal, llr_wt, n, lat, has, live=False)
+        comb_cal, comb_raw = combine_predictions(f_cal, mt_cal), combine_predictions(f_raw, llr_mt)
+        self._block_backward(self._block_reg_rank(c, comb_cal, comb_raw, hp.lambda_reg_mt, hp.lambda_rank_mt, self.crit_rank_mt, 'combined'), 'MT')
+
+    def _block_pair(self, b):
+        hp, link = self.hparams, self.link_head
+        i, j = int(b['positions'][0]), int(b['positions'][1])
+        wt_i, wt_j = int(b['wt_ids'][0]), int(b['wt_ids'][1])
+        wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(b['seq'], i, j, wt_i, wt_j)
+        dev = b['y'].device
+        sel = lambda t: t[torch.as_tensor(Xa, device=dev)][:, torch.as_tensor(Ya, device=dev)]
+        lab = {k: (sel(b[k]).float() if k != 'cens' else sel(b[k])) for k in ('y', 'cens', 'bound', 'dG_meas', 'dG_wt', 'y_floor')}
+        if not bool(torch.isfinite(lab['y']).any()):
+            return
+        nx, ny = len(Xa), len(Ya)
+        # lists of B rows or B columns of the cell matrix, the unit chosen at random for each block
+        B = max(1, int(hp.get('block_positions', 8)))
+        flat_idx = torch.arange(nx * ny, device=dev).view(nx, ny)
+        by_row = bool(torch.rand(()) < 0.5)
+        units = flat_idx if by_row else flat_idx.t()
+        units = units[torch.randperm(units.shape[0], device=dev)]
+        groups = [g.reshape(-1) for g in torch.tensor_split(units, max(1, -(-units.shape[0] // B)))]
+        c = self._block_ctx(lab, groups)
+        n = torch.full((nx, ny), 2, dtype=torch.long, device=dev)
+        joint = str(hp.get('joint_doubles', 'off') or 'off') != 'off' and not self.peft_manager.wt_path_is_frozen
+        mt_frozen = self.peft_manager.mt_path_is_frozen
+        if mt_frozen or not (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0):
+            return
+        wt_pos = torch.as_tensor([i, j], device=dev)
+        llr_w = self._block_llr(b, wt_rows, wt_pos, b['wt_ids'], 'wt', grad=joint)             # 2 wild-type passes
+        mt_seqs = torch.cat([row_seqs, col_seqs])                                              # 38 mutant passes
+        read = torch.as_tensor([j] * nx + [i] * ny, device=dev)
+        wt_at = torch.as_tensor([wt_j] * nx + [wt_i] * ny, device=dev)
+        llr_m = self._block_llr(b, mt_seqs, read, wt_at, 'mt', grad=True)
+        wt_raw, mt_raw = blocks.assemble_pair(llr_w[0], llr_w[1], llr_m[:nx], llr_m[nx:], Xa, Ya)
+        wt_cal, mt_cal = self._block_cal('wt')(wt_raw, n), self._block_cal('mt')(mt_raw, n)
+        # the teacher-forcing label of a double: its two measured singles, de-linked one at a time and summed
+        yA, yB = sel(b['yA']).float(), sel(b['yB']).float()
+        dG, fl = c.dG_wt, c.floor
+        lat = (link.latent_ddG(yA, dG, fl) + link.latent_ddG(yB, dG, fl)).detach()
+        t_single = hp.get('censor_threshold')
+        cut = torch.full_like(fl, float(t_single)) if t_single is not None else fl
+        has = torch.isfinite(lat) & c.link_ok & ~teacher_forcing_unusable(dG, yA, yB, cut)
+        f_cal, f_raw = self._block_forced(c, wt_cal, wt_raw, n, lat, has, live=joint)
+        comb_cal, comb_raw = combine_predictions(f_cal, mt_cal), combine_predictions(f_raw, mt_raw)
+        self._block_backward(self._block_reg_rank(c, comb_cal, comb_raw, hp.lambda_reg_mt, hp.lambda_rank_mt, self.crit_rank_mt, 'combined'), 'MT')
+
     def _log_lrs(self):
         opts = self.trainer.optimizers
         for opt in opts:
@@ -846,12 +999,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             batch_sampler = getattr(train_loader, 'batch_sampler', None)
             if batch_sampler is not None and hasattr(batch_sampler, 'set_epoch'):
                 batch_sampler.set_epoch(epoch)
+            sampler = getattr(train_loader, 'sampler', None)                 # --block_training: batch_size=None, the sampler yields the blocks
+            if sampler is not None and hasattr(sampler, 'set_epoch'):
+                sampler.set_epoch(epoch)
 
     def training_step(self, batch: dict, batch_idx: int):
         self.model.train()
         if self.peft_manager.wt_path_is_frozen and hasattr(self.model, 'peft_wt') and isinstance(self.model.peft_wt, torch.nn.Module):
             self.model.peft_wt.eval()
-        logs = self._compose_losses_streaming_and_backward(utils._normalize_batch(batch))
+        batch = utils._normalize_batch(batch)                  # Lightning hands a single loader's batch over as a one-element list
+        if batch.get('block') in ('single', 'pair'):
+            logs = self._block_step(batch)                     # --block_training
+        else:
+            logs = self._compose_losses_streaming_and_backward(batch)
 
         if self.peft_manager.has_transitioned or self.hparams.freeze_wt_adapter or self.hparams.freeze_mt_adapter:
             self.peft_manager.enforce_freezing(self.optimizers(), zero_lrs=False)

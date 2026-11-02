@@ -147,6 +147,13 @@ The gain is in the passes whose input is the same for a whole group: an MT pass 
 
 `--mask_dist_wt` / `--mask_dist_mt NONE ONE BOTH` set the pattern a `random` pass is masked with (one setting per pass), as weights of: no mutated site, exactly one (uniformly chosen), all of them (the same event for a single). `1 2 1` is the independent $p=0.5$ draw; `0 1 0` always masks exactly one site (on the MT pass the mutated site of a single is always masked, so it dedups like `independent`); `1 1 2` masks more. Each pass draws its own pattern.
 
+### 4.7 Block Training (`--block_training`, `--block_positions B`)
+A training step is a **block** of one library (`esm_msr/blocks.py`), not a list of variants. A masked site reads out the whole alphabet at once, $\text{logit}[x]-\text{logit}[wt]$ for all 20 residues with the wild type reading exactly 0.
+- **Singles block**: $B$ positions give a $[B,20]$ tensor from $B$ masked-site passes (the WT and the MT adapter see the same input, the wild type with the site masked). The observed singles are regressed on the observed scale and ranked as **one** ListMLE list of $B\times20$ cells (the unobserved cells are masked out).
+- **Pair block**: one position pair $(i,j)$ gives every $19\times19$ double from **2 WT passes** (wild type with $i$ masked; with $j$ masked) and **38 MT passes** (19 row passes: substitution $x$ at $i$, $j$ masked, which reads every $y$ at $j$; 19 column passes the other way). WT cell $=\text{llr}_i[x]+\text{llr}_j[y]$, MT cell $=\text{Row}[x][y]+\text{Col}[y][x]$, the cycle of §4.5, and $\tfrac12(\text{WT}+\text{MT})$ is the prediction. Ranking uses lists of $B$ rows or $B$ columns of the cell matrix (the unit is drawn at random for each block). A test pins every one of the 361 cells to what the per-item `independent` strategy reads for that double.
+- An epoch is every library's singles blocks, then every pair block (both orders random, seeded by epoch). Labels are rebuilt as dense $[P,20]$ / $[Q,20,20]$ tensors from the cache's items when the datasets are built; **the cache is not rebuilt** (the whole training cache loads in 17 s).
+- The objective is the per-item one on tensors: WT head on the singles, MT head through $\tfrac12(\text{forced WT half}+\text{MT})$ with `--tf_mix`; with `--joint_doubles` other than `off` a pair's WT half is live (its graph is only 2 rows, so `both` costs nothing). `--batch_size`, `--micro_batch_size`, `--rank_list_size`, `--group_by_site` and the training masks do not apply; validation is unchanged. Refused with `--mt_direct_pred`, fused adapters and `--rank_group_by partner`; `native_cond` items are left out.
+
 ---
 
 ## 5. Nonspecific Epistasis Modeling (`--nonspecific_term fx`)

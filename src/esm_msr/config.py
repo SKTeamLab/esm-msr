@@ -360,6 +360,16 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                      help="Run the two extra validation passes (WT adapter on the mutated sequence, MT adapter on the wild type). Needed for "
                           "the 'ctx' control head of the epistasis metrics; costs one extra forward pass per validation batch.")
     train_g = parser.add_argument_group("Throughput")
+    train_g.add_argument('--block_training', action=argparse.BooleanOptionalAction, default=False,
+                         help="Train by BLOCKS (esm_msr.blocks): a step is B positions of one library read as a [B, 20] tensor from B masked-site "
+                              "passes (every substitution at once, the wild-type residue reading 0), regressed and ranked as ONE list of B x 20 "
+                              "cells; or one position pair, whose 19 x 19 doubles come from 2 wild-type and 38 mutant passes, ranked as lists of "
+                              "B rows or columns. An epoch is every library's singles blocks, then every pair block. Training masks are "
+                              "structural (the site read is masked; a double's mutant pass shows the partner), so --mask_strategy_* and "
+                              "--batch_size / --micro_batch_size / --rank_list_size / --group_by_site do not apply to training; validation is "
+                              "unchanged. --joint_doubles other than off makes a pair's WT half live. native_cond items are left out.")
+    train_g.add_argument('--block_positions', type=int, default=8,
+                         help="B of --block_training: positions per singles block, and rows (or columns) per rank list of a pair block.")
     train_g.add_argument('--group_by_site', action=argparse.BooleanOptionalAction, default=False,
                          help="Batch by SITE: the singles at one position and the doubles of one position pair travel together, a pass whose input "
                               "is the same sequence for every item of the group is read ONCE (an unmasked WT pass; a masked site, whatever it was "
@@ -530,6 +540,13 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         logging.warning(f"--init_wt_from_checkpoint given without --frozen_wt_mt_only: {args.init_wt_from_checkpoint} is a warm start, "
                         f"and the WT head will keep training from it")
 
+    if args.block_training:
+        bad = ('--mt_direct_pred' if args.mt_direct_pred else '--adapter_mode fused' if args.adapter_mode == 'fused'
+               else '--rank_group_by partner' if args.rank_group_by == 'partner' else None)
+        if bad:
+            parser.error(f"--block_training does not support {bad}")
+        if args.block_positions < 1:
+            parser.error("--block_positions must be >= 1")
     if args.joint_doubles != 'off':
         why = ('--frozen_wt_mt_only / --mt_direct_pred freeze the WT head, which is half of the joint prediction' if args.freeze_wt_adapter
                else '--freeze_mt_adapter freezes the MT head, which is the other half' if args.freeze_mt_adapter
