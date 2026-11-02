@@ -5,6 +5,9 @@ WT head learns from singles alone. ``both``: the WT half of a double is the WT h
 the measured double, and the gradient reaches both adapters. ``alternate``: the same loss, but a double keeps only ONE adapter's graph -
 the other half is read under no_grad - and the owner alternates; the owner's loss is doubled so the expected update is ``both``'s.
 
+``--tf_mix m`` applies to the joint doubles too: the WT half of a double is ``m`` of the measured additive label (where one is usable) and
+``1 - m`` of the live WT prediction, so the WT head gets the ``(1 - m)`` share of the gradient (the stub's default is m = 0, all of it).
+
 The stub model is linear in one parameter per adapter (``WT = wp * x_wt``, ``MT = mp * x_mt``), so every gradient below is checked
 against a hand-derived one, and it records which activations are alive when each forward starts, which is the memory claim.
 """
@@ -56,6 +59,17 @@ def test_a_frozen_wt_head_is_refused(tmp_path):
     ck.write_bytes(b'x')
     with pytest.raises(SystemExit):
         parse('--joint_doubles', 'alternate', '--init_wt_from_checkpoint', str(ck), '--frozen_wt_mt_only')
+
+
+def test_joint_doubles_at_tf_mix_one_warns_that_labelled_doubles_leave_the_wt_head_alone(caplog):
+    import logging
+    with caplog.at_level(logging.WARNING):
+        parse('--joint_doubles', 'alternate')
+    assert any('--tf_mix' in r.message and 'joint_doubles' in r.message for r in caplog.records)
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        parse('--joint_doubles', 'alternate', '--tf_mix', '0.5')
+    assert not any('joint_doubles' in r.message for r in caplog.records)
 
 
 def test_it_composes_with_the_per_pass_masks():
@@ -126,7 +140,7 @@ def _batch(n_single=0, n_double=4, y=None, labels=True):
 
 
 def _stub(mode='off', mask_wt=None, mask_mt=None, **hp):
-    base = compose_hparams(micro_batch_size=4, tf_mix=1.0, joint_doubles=mode, **hp)
+    base = compose_hparams(**{'micro_batch_size': 4, 'tf_mix': 0.0, 'joint_doubles': mode, **hp})
     s = types.SimpleNamespace()
     s.hparams = _HP(base)
     s.model = _Model()
@@ -149,24 +163,34 @@ def _grads(stub, batch):
     return logs, g(stub.model.wp), g(stub.model.mp)
 
 
-def _analytic(batch):
-    """Gradients of  sum_i (0.5 (wp x_wt + mp x_mt) - y)^2 / B  at wp = mp = 1, over the doubles."""
+def _analytic(batch, m=0.0, labelled=True):
+    """Gradients of  sum_i (0.5 (F_i + mp x_mt) - y)^2 / B  at wp = mp = 1 over the doubles, F = m * label + (1 - m) * wp * x_wt (label 1.0)."""
     d = batch['mut_mask'].sum(1) == 2
     xw, xm, y = batch['x_wt'][d], batch['x_mt'][d], batch['ddG'][d]
-    r = 0.5 * (xw + xm) - y
+    mm = m if labelled else 0.0
+    r = 0.5 * (mm * 1.0 + (1 - mm) * xw + xm) - y
     B = batch['ddG'].shape[0]
-    return (r * xw).sum() / B, (r * xm).sum() / B, (r ** 2).sum() / B
+    return ((1 - mm) * r * xw).sum() / B, (r * xm).sum() / B, (r ** 2).sum() / B
 
 
 # ---------------------------------------------------------------------------------------------------------------- the loss
 
-def test_both_regresses_the_live_wt_half_and_ignores_the_additive_label():
-    batch = _batch(labels=True)                                    # tf_mix 1.0 and a usable label: off would use the label
-    logs, gw, gm = _grads(_stub('both', lambda_reg_wt=0.0), batch)
-    g_wt, g_mt, loss = _analytic(batch)
+@pytest.mark.parametrize('m', [0.0, 0.5, 1.0])
+def test_both_regresses_a_tf_mix_blend_of_the_label_and_the_live_wt_half(m):
+    batch = _batch(labels=True)
+    logs, gw, gm = _grads(_stub('both', lambda_reg_wt=0.0, tf_mix=m), batch)
+    g_wt, g_mt, loss = _analytic(batch, m)
     assert gw.item() == pytest.approx(g_wt.item(), abs=1e-6) and gm.item() == pytest.approx(g_mt.item(), abs=1e-6)
-    assert logs['L_reg_joint'] == pytest.approx(loss.item() * 4 / 4, abs=1e-6)
+    assert logs['L_reg_joint'] == pytest.approx(loss.item(), abs=1e-6)
     assert logs['L_reg_combined'] == pytest.approx(logs['L_reg_joint'])
+
+
+def test_tf_mix_one_sends_a_labelled_double_no_wt_gradient_but_an_unlabelled_one_still_trains_the_wt_head():
+    _, gw, _ = _grads(_stub('both', lambda_reg_wt=0.0, tf_mix=1.0), _batch(labels=True))
+    assert gw.item() == 0.0
+    unl = _batch(labels=False)
+    _, gw, _ = _grads(_stub('both', lambda_reg_wt=0.0, tf_mix=1.0), unl)
+    assert gw.item() == pytest.approx(_analytic(unl, 1.0, labelled=False)[0].item(), abs=1e-6) and gw.item() != 0.0
 
 
 def test_off_never_sends_a_double_s_gradient_to_the_wt_head():
@@ -179,10 +203,10 @@ def test_alternate_averaged_over_the_two_owners_is_both():
     """Each double is owned by WT on one turn and by MT on the other; the owner's loss is doubled. So the mean of the two turns' gradients
     is the gradient of 'both' - the claim that makes alternating an unbiased replacement."""
     batch = _batch()
-    _, bw, bm = _grads(_stub('both', lambda_reg_wt=0.0), batch)
+    _, bw, bm = _grads(_stub('both', lambda_reg_wt=0.0, tf_mix=0.5), batch)
     turns = []
     for t in (0, 1):
-        s = _stub('alternate', lambda_reg_wt=0.0)
+        s = _stub('alternate', lambda_reg_wt=0.0, tf_mix=0.5)
         s._joint_turn = t
         turns.append(_grads(s, batch))
     assert torch.allclose((turns[0][1] + turns[1][1]) / 2, bw, atol=1e-6)

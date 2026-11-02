@@ -133,6 +133,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # sequence masking, per pass (models.pass_mask_strategy)
         self.mask_wt, self.mask_mt = pass_mask_strategy(hp, 'wt'), pass_mask_strategy(hp, 'mt')
         self.mask_strategy = {'wt': self.mask_wt, 'mt': self.mask_mt}
+        self.model.random_mask_prob = float(hp.get('mask_prob', 0.5))       # read by MSRModel when a pass is 'random'
         if self.mask_wt or self.mask_mt:
             logging.info(f"sequence masking: WT pass {self.mask_wt or 'none'}, MT pass {self.mask_mt or 'none'}")
 
@@ -462,9 +463,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             return z, z.clone()
         return cal, raw
 
-    def _joint_reg(self, combined_cal, link, dGwt, floor, ddG, bound, cens, rows, denom):
-        """The observed-scale regression of a combined latent on the measured doubles in ``rows`` (``_reg_loss``'s three values)."""
-        return self._reg_loss(link.obs_ddG(combined_cal, dGwt, floor), ddG, bound, cens, rows, denom)
+    def _joint_reg(self, wt_half, mt_half, label, has_label, tf_mix, link, dGwt, floor, ddG, bound, cens, rows, denom):
+        """
+        The observed-scale regression of ``0.5 * (WT half + MT half)`` on the measured doubles in ``rows`` (``_reg_loss``'s three values).
+
+        The WT half is ``--tf_mix`` of the de-linked additive ``label`` where there is a usable one (``has_label``) and the WT prediction
+        for the rest, so tf_mix 1 gives a labelled double no WT gradient and tf_mix 0 sends all of it. ``wt_half`` is live (``both``'s WT
+        graph, ``alternate``'s owner) or a constant (the other side); the label never carries a gradient.
+        """
+        half = torch.where(has_label, tf_mix * label + (1.0 - tf_mix) * wt_half, wt_half)
+        return self._reg_loss(link.obs_ddG(combine_predictions(half, mt_half), dGwt, floor), ddG, bound, cens, rows, denom)
 
     def _reg_loss(self, pred, target, bound, cens, mask, denom):
         """
@@ -590,10 +598,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if t_single is not None:
                 has_add_label = has_add_label & ~(is_single & (cens_mb != 0))
 
-            # --joint_doubles: a multi-mutant with a measured double is regressed through the WT head's LIVE prediction, not through the
-            # label or a detached copy, so the WT head is trained by the real double (never by an additive stand-in for one). Such a
-            # double is therefore not teacher-forced; the label still decides which doubles carry an epistasis target below.
-            has_label_epi = has_add_label
+            # --joint_doubles: a multi-mutant with a measured double is regressed through the WT head's LIVE prediction, so the WT head is
+            # trained by the real double (never by an additive stand-in for one). --tf_mix still decides how much of the WT half is the
+            # measured label: with m < 1 the live prediction carries (1 - m) of it and the WT head gets that share of the gradient.
             joint_rows = torch.zeros_like(is_single)
             own_w = own_m = joint_rows
             if joint_mode != 'off':
@@ -601,7 +608,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if joint_rows.any():
                     own_w, own_m = self._joint_owners(joint_rows, joint_mode, int(getattr(self, '_joint_turn', 0)))
                     self._joint_turn = int(getattr(self, '_joint_turn', 0)) + 1
-                    has_add_label = has_add_label & ~joint_rows
             joint_on = bool(joint_rows.any())
 
             # =============================================================
@@ -658,8 +664,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if joint_mode == 'alternate' and own_w.any():
                     # The doubles the WT graph owns: 0.5 * (live WT + the MT half read above) against the measured double. Doubled, because
                     # a double trains only one adapter per visit and the owner alternates, so the expected update is 'both''s.
-                    term, val, wsum = self._joint_reg(combine_predictions(wt_pred_cal, mt_nog[0]), link, dGwt_mb, floor_mb, ddG_mb,
-                                                      bound_mb, cens_mb, own_w, denom)
+                    term, val, wsum = self._joint_reg(wt_pred_cal, mt_nog[0], tf_additive_labels, has_add_label, tf_mix, link, dGwt_mb, floor_mb,
+                                                      ddG_mb, bound_mb, cens_mb, own_w, denom)
                     wt_losses.append(hp.lambda_reg_mt * joint_scale * term)
                     for k in ('reg_combined', 'reg_joint'):
                         sums[k] += val; cnts[k] += wsum
@@ -693,7 +699,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     # The WT half of the combined prediction is detached: the WT graph never has to survive its own backward.
                     base_wt_cal, base_wt_raw = wt_pred_cal.detach(), wt_pred_raw.detach()
 
-                    if not has_add_label.any() and not joint_on:
+                    if not has_add_label.any():
                         logging.warning("Teacher forcing is on, but no additive labels or single mutations are present in the batch.")
 
                     # Invert the calibration: raw = (cal - bias) / scale
@@ -738,8 +744,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     # read under no_grad (the WT graph was freed by its own backward).
                     j_rows = joint_rows if joint_mode == 'both' else own_m
                     if j_rows.any():
-                        term, val, wsum = self._joint_reg(combine_predictions(wt_pred_cal if joint_mode == 'both' else base_wt_cal, mt_pred_cal),
-                                                          link, dGwt_mb, floor_mb, ddG_mb, bound_mb, cens_mb, j_rows, denom)
+                        term, val, wsum = self._joint_reg(wt_pred_cal if joint_mode == 'both' else base_wt_cal, mt_pred_cal, tf_additive_labels,
+                                                          has_add_label, tf_mix, link, dGwt_mb, floor_mb, ddG_mb, bound_mb, cens_mb, j_rows, denom)
                         mt_losses.append(hp.lambda_reg_mt * joint_scale * term)
                         for k in ('reg_combined', 'reg_joint'):
                             sums[k] += val; cnts[k] += wsum
@@ -755,7 +761,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     if rank_group_by == 'partner':
                         if 'ddG_A' in micro and 'ddG_B' in micro and forced_wt_raw is not None:      # --mt_direct_pred has no WT half to subtract
                             epi_targ_mb = ddG_mb - (micro['ddG_A'].float() + micro['ddG_B'].float())
-                            epi_mask_mb = reg_mask & ~is_single & has_label_epi & torch.isfinite(epi_targ_mb)
+                            epi_mask_mb = reg_mask & ~is_single & has_add_label & torch.isfinite(epi_targ_mb)
                             epi_pred_mb = mt_pred_raw - forced_wt_raw
                         else:
                             epi_targ_mb = epi_mask_mb = epi_pred_mb = None
@@ -882,6 +888,40 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         return torch.tensor(0.0, device=self.device)
 
+    def _four_pass(self, batch: dict) -> dict:
+        """
+        The four-pass thermodynamic cycle of a double (mutation A at site a, B at site b), read on the independent masking of both adapters::
+
+            WT(a, b masked)   WT(b, a masked)   each single's own readout: its site masked, the partner still wild type
+            MT(B | A)         MT(A | B)         the conditional readouts: the site masked, the partner's MUTANT residue visible
+
+        Path 1 = WT(a) + MT(B|A) and path 2 = WT(b) + MT(A|B) are the two ways round ddG(AB) = ddG(A) + ddG(B|A) = ddG(B) + ddG(A|B).
+        Their mean is exactly the reported 0.5 * (WT + MT) of this regime (the WT sum is the two singles, the MT sum the two conditionals),
+        and their difference is the cycle's closing error. A single has no cycle (gap NaN) and is read as the independent single.
+
+        Cheap by construction. Read in eval mode on one library's batch, ``forward_partitioned`` keeps every unique masked sequence's logits
+        in the model's per-library cache: a WT pass masks one site of the wild-type sequence, so a library of N sites needs N forwards for
+        every single and double in it, and an MT pass masks one site of a mutant sequence, so the doubles of a position pair share their
+        (mutation, partner site) sequences. A second call on the same library, or the standard validation regime when it is already
+        independent, costs a lookup.
+        """
+        wt = self.model.forward_partitioned(batch, pass_type='wt', mask_strategy='independent')
+        mt = self.model.forward_partitioned(batch, pass_type='mt', mask_strategy='independent')
+        wt_cal, mt_cal = wt['pred_calibrated'].float(), mt['pred_calibrated'].float()
+        comb = combine_predictions(wt_cal, mt_cal, epistasis_weight=getattr(self.model, 'epistasis_weight', 0.5))
+        gap = torch.full_like(wt_cal, float('nan'))
+        m = batch['mut_mask']
+        dbl = m.sum(dim=1) == 2
+        if m.shape[1] >= 2 and self.model.adapter_mode != 'fused' and bool(dbl.any()):
+            one = torch.ones(wt_cal.shape[0], dtype=torch.long, device=wt_cal.device)
+            site = lambda out, head, j: out['unsummed_llr'][:, j].float() if head is None else head(out['unsummed_llr'][:, j].float(), one)
+            hw, hm = getattr(self.model, 'calibration_head_wt', None), getattr(self.model, 'calibration_head_mt', None)
+            path1 = site(wt, hw, 0) + site(mt, hm, 1)
+            path2 = site(wt, hw, 1) + site(mt, hm, 0)
+            gap = torch.where(dbl & m[:, 0] & m[:, 1], path1 - path2, gap)
+        f = lambda t: t.detach().cpu().float().numpy()
+        return {'wt': f(wt_cal), 'mt': f(mt_cal), 'comb': f(comb), 'gap': f(gap)}
+
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         if getattr(self, '_val_cache_dl_idx', None) != dataloader_idx:
             self._val_cache_dl_idx = dataloader_idx
@@ -960,6 +1000,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         }
         if obs:
             rec['obs'] = obs
+        if self.hparams.get('val_four_pass', False) and not (mt_direct or wt_only):
+            with torch.inference_mode():
+                c4 = self._four_pass(batch)
+            rec.update(wt4_scores=c4['wt'], mt4_scores=c4['mt'], comb4_scores=c4['comb'], gap4=c4['gap'])
         self.validation_step_outputs[dataloader_idx].append(rec)
 
     def on_validation_epoch_start(self):
@@ -990,6 +1034,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         avg_metrics = defaultdict(list)
+        avg4 = defaultdict(list)             # --val_four_pass: logged as val_c4_<metric>_avg, never watched by a plateau or the monitor
         pooled = defaultdict(list)
         ext_per_loader = {}          # OOD loaders: kept out of avg_metrics/pooled, survived by _external summaries
 
@@ -1032,6 +1077,17 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     self.log(f"val_{metric}/{name}", float(val), on_epoch=True, sync_dist=True)
                     if not is_external:
                         avg_metrics[metric].append(float(val))
+            c4_have = bool(valid_outputs) and 'wt4_scores' in valid_outputs[0]
+            if c4_have:
+                m4 = stats.compute_metrics(sub(cat('wt4_scores')), sub(cat('mt4_scores')), sub(cat('comb4_scores')), sub(gt),
+                                           [t for t, k in zip(subset_types, canon) if k])
+                g4 = np.abs(sub(cat('gap4')))
+                m4['cycle_gap'] = float(np.nanmean(g4)) if np.isfinite(g4).any() else None
+                for metric, val in m4.items():
+                    if val is not None and np.isfinite(val):
+                        self.log(f"val_c4_{metric}/{name}", float(val), on_epoch=True, sync_dist=True)
+                        if not is_external:
+                            avg4[metric].append(float(val))
             if is_external:
                 # OOD benchmark: scored and logged above, but out of every aggregate - avg_metrics, the pooled global
                 # ranking and the epistasis hierarchy - and dropped before the pooling below. Only its own rho/rmse
@@ -1052,11 +1108,17 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             for field in ('wt_rev_scores', 'mt_fwd_scores'):
                 have = valid_outputs and field in valid_outputs[0]
                 pooled[field].extend(cat(field).tolist() if have else [float('nan')] * len(keys))
+            if c4_have:
+                for field in ('wt4_scores', 'mt4_scores', 'comb4_scores', 'gap4'):
+                    pooled[field].extend(cat(field).tolist())
 
         for key, values in avg_metrics.items():
             if values:
                 self.log(f'val_{key}_avg', float(np.nanmean(values)), on_epoch=True,
                          prog_bar=key in self._VAL_PROGRESS_BAR, sync_dist=True)
+        for key, values in avg4.items():
+            if values:
+                self.log(f'val_c4_{key}_avg', float(np.nanmean(values)), on_epoch=True, sync_dist=True)
 
         # OOD benchmarks, as their own section: mean rho/rmse over the external loaders, never inside an aggregate.
         for _k, _v in summarise_external_benchmarks(ext_per_loader, self.external_val_sets).items():
@@ -1078,6 +1140,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 for _k, _v in (self._log_epistasis(pooled) or {}).items():
                     if np.isfinite(_v):
                         avg_metrics[_k].append(float(_v))
+                if pooled.get('wt4_scores') and len(pooled['wt4_scores']) == len(pooled['ground_truths']):
+                    # the same hierarchy on the four-pass regime, as val_c4_epi_*; not merged into avg_metrics, so nothing watches it
+                    self._log_epistasis(dict(pooled, wt_scores=pooled['wt4_scores'], mt_scores=pooled['mt4_scores'],
+                                             comb_scores=pooled['comb4_scores']), prefix='c4_', dump=False)
 
         for k, v in self.link_head.summary().items():
             if not isinstance(v, (str, bytes)):
@@ -1094,7 +1160,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         torch.cuda.empty_cache()
         gc.collect()
 
-    def _log_epistasis(self, pooled):
+    def _log_epistasis(self, pooled, prefix: str = '', dump: bool = True):
         """
         Logs ``val_epi_<metric>_<head>`` (``esm_msr.epi_metrics``: the full epistasis hierarchy for epi and ctx,
         naive_rho also for comb and add, and global calibration/scale for epi), pooled over every validation library,
@@ -1122,7 +1188,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                      'wt': f('wt_scores'), 'mt': f('mt_scores'), 'comb': f('comb_scores'), 'wt_rev': f('wt_rev_scores')}
 
             log_dir = getattr(self.logger, 'log_dir', None) or getattr(self.logger, 'save_dir', None)
-            if self.hparams.val_dump and log_dir:
+            if dump and self.hparams.val_dump and log_dir:
                 tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
                 os.makedirs(log_dir, exist_ok=True)
                 extra = {'link_summary': np.array(json.dumps(self.link_head.summary()))}
@@ -1134,7 +1200,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     cens_src=items['cens_src'],
                     n_mut=np.asarray(pooled['n_mut']), subset_type=np.asarray(items['subset_type'], dtype=str),
                     loader=np.asarray(pooled['loader']),
-                    mut_key=np.asarray([json.dumps(k) for k in keys]), **extra)
+                    mut_key=np.asarray([json.dumps(k) for k in keys]), **extra,
+                    **({'wt4': f('wt4_scores'), 'mt4': f('mt4_scores'), 'comb4': f('comb4_scores'), 'gap4': f('gap4')} if pooled.get('wt4_scores') else {}))
 
             # The dump above carries every mutant, so any of this can be rescored offline. The metrics are
             # computed on the canonical population only - the same one the per-library metrics use - so that a
@@ -1146,7 +1213,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             res = epi_metrics.compute(epi_metrics.Table(scored, link))
             for name, val in res.items():
                 if np.isfinite(val):
-                    self.log(f"val_{name}", float(val), on_epoch=True,
+                    self.log(f"val_{prefix}{name}", float(val), on_epoch=True,
                              prog_bar=name in ('epi_cell_rank_epi', 'epi_cell_rank_mt'), sync_dist=True)
             return res                  # the caller merges these into avg_metrics so a plateau can watch them
         except Exception as e:

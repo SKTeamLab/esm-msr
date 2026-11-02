@@ -1,12 +1,12 @@
 """Two short GPU probes of ``--joint_doubles`` on the real model, one training run per mode on a truncated cache.
 
-    python analysis_scripts/joint_doubles_probe.py memory --cache_path CACHE [--micro 32] [--modes off alternate both]
+    python analysis_scripts/joint_doubles_probe.py memory --cache_path CACHE [--micro 32] [--modes off alternate both] [--extra FLAGS...]
     python analysis_scripts/joint_doubles_probe.py grad   --cache_path CACHE [--micro 16]
 
 memory: the peak CUDA memory allocated over the run (``torch.cuda.max_memory_allocated``). Use a micro-batch big enough that training, not
         the one-off load of the base model (about 10.7 GB), sets the peak; a batch is one library and a short batch is dropped, so the
         probe keeps 48 singles and 48 doubles per library.
-grad:   the gradient norm of each adapter at every step with the WT losses at 0, so a WT gradient can only come from the joint doubles:
+grad:   the gradient norm of each adapter at every step with the WT losses at 0 and --tf_mix 0.5, so a WT gradient can only come from the joint doubles:
         ``off`` must show exactly 0 for ``lora_wt``, ``both`` and ``alternate`` a positive one (the check that autocast's weight cache is
         not handing the adapter a graph-less copy after a ``no_grad`` read).
 """
@@ -45,6 +45,7 @@ def main():
     ap.add_argument('--cache_version', default='c6')
     ap.add_argument('--micro', type=int, default=None)
     ap.add_argument('--modes', nargs='*', default=['off', 'alternate', 'both'])
+    ap.add_argument('--extra', nargs=argparse.REMAINDER, default=[], help="more training flags, e.g. --tf_mix 0.5 --mask_strategy_mt independent (last)")
     a = ap.parse_args()
     micro = a.micro or (32 if a.what == 'memory' else 16)
     root = tempfile.mkdtemp(prefix='joint_probe_')
@@ -54,7 +55,7 @@ def main():
     smoke_cpu.make_cache(a.cache_path, a.cache_version, cache, n_train=3, n_val=1)
     for mode in a.modes:
         if a.what == 'memory':
-            r = run(root, cache, a.cache_version, mode, micro, [], '',
+            r = run(root, cache, a.cache_version, mode, micro, a.extra, '',
                     "print('PEAK_GB %.3f' % (torch.cuda.max_memory_allocated() / 2**30))\n")
             peak = [l for l in (r.stdout + r.stderr).splitlines() if l.startswith('PEAK_GB')]
             print(f"{mode:10s} micro={micro} {peak[-1] if peak else 'NO PEAK LINE'}", flush=True)
@@ -62,7 +63,7 @@ def main():
                 print('\n'.join((r.stdout + r.stderr).splitlines()[-20:]), flush=True)
         else:
             import pandas as pd
-            run(root, cache, a.cache_version, mode, micro, ['--lambda_reg_wt', '0', '--lambda_rank_wt', '0', '--lambda_rank_mt', '0'], LOG_EVERY_STEP, '')
+            run(root, cache, a.cache_version, mode, micro, ['--lambda_reg_wt', '0', '--lambda_rank_wt', '0', '--lambda_rank_mt', '0', '--tf_mix', '0.5'] + a.extra, LOG_EVERY_STEP, '')
             csv = os.path.join(root, 'logs', f'probe_{mode}', '0', 'metrics.csv')
             if not os.path.exists(csv):
                 print(mode, 'no metrics.csv', flush=True)

@@ -89,6 +89,10 @@ def pass_mask_strategy(hp, pass_type: str) -> Optional[str]:
     reads each site masked with the partner's mutant residue visible, the conditional masked marginal of ddG(A|B). The same strategy on
     both passes cannot do this: ``marginal`` on the MT pass hides the partner, so the model cannot represent an interaction at all
     (``cell_rank`` is exactly 0).
+
+    ``random`` is the third value and the consolidation of the other two: on a TRAINING pass every mutated site is masked independently with
+    probability ``--mask_prob`` (default 0.5), so the pass sees all four combinations of masked and visible sites in a double and one model
+    covers the masked and the unmasked regime. It is a training-time regime: an eval-mode pass (validation, scoring) runs unmasked.
     """
     v = hp.get(f'mask_strategy_{pass_type}', None)
     return None if v in (None, 'none') else v
@@ -711,6 +715,17 @@ class MSRModel(ESM3PredictorBase):
         """The MT pass's input: native_cond rows get the WT pass's sequence only in a --native_cond_for_mt model."""
         return native_cond_mt_batch(batch) if self.native_cond_mt_input else batch
 
+    def _randomly_masked(self, seq: torch.Tensor, mut_pos: torch.Tensor, mut_mask: torch.Tensor) -> torch.Tensor:
+        """``seq`` with each mutated site replaced by the mask token independently with probability ``self.random_mask_prob`` (default 0.5)."""
+        p = float(getattr(self, 'random_mask_prob', 0.5))
+        hit = (torch.rand(mut_mask.shape, device=seq.device) < p) & mut_mask
+        if p <= 0.0 or not bool(hit.any()):
+            return seq
+        rows, cols = torch.where(hit)
+        out = seq.clone()
+        out[rows, mut_pos[rows, cols]] = C.SEQUENCE_MASK_TOKEN
+        return out
+
     def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
         if pass_type not in ['wt', 'mt']: raise AssertionError(f"pass_type must be 'wt' or 'mt'. Received: {pass_type}")
 
@@ -722,6 +737,13 @@ class MSRModel(ESM3PredictorBase):
         seq, mut_pos = batch.get(f'{pass_type}_sequence_tokens'), batch.get('mut_pos')
         wt_id, mt_id, mut_mask = batch.get('wt_id'), batch.get('mt_id'), batch.get('mut_mask')
         coords, struct_tokens, plddt = batch.get('coords'), batch.get('structure_tokens'), batch.get('plddt')
+
+        if mask_strategy == 'random':
+            # Masked sites are drawn per pass, so the WT and the MT pass of one item see different masks. The readout below is the plain
+            # one (mt - wt logit at every mutated site) on this partly masked sequence, which for a masked site is the masked-marginal LLR.
+            mask_strategy = None
+            if self.training:
+                seq = self._randomly_masked(seq, mut_pos, mut_mask)
 
         B, max_muts = seq.shape[0], mut_pos.shape[1]
         safe_pos = mut_pos.clone(); safe_pos[~mut_mask] = 0
