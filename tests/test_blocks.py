@@ -409,7 +409,7 @@ def test_block_clashes_with_the_per_item_only_losses_are_refused():
     try:
         sys.argv = argv + ['--lambda_cond_mt', '7.5']                         # the conditional legs ARE defined for blocks
         assert config.parse_arguments().lambda_cond_mt == 7.5
-        for bad in (['--reg_nll', 'tobit'], ['--wt_supervise_doubles'], ['--mt_single_loss_weight', '0.1']):
+        for bad in (['--wt_supervise_doubles'], ['--mt_single_loss_weight', '0.1'], ['--latent_censor_hinge']):
             sys.argv = argv + bad
             with pytest.raises(SystemExit):
                 config.parse_arguments()
@@ -723,3 +723,65 @@ def test_identical_rows_are_one_forward_and_give_the_numbers_of_separate_ones():
     masked = blocks.single_sequences(SEQ, pos[:3])                        # rows that differ take the plain path: one forward each, in the given order
     m.forward_site_llr(masked, pos[:3], wt[:3], 'wt')
     assert rows == [3], rows
+
+
+
+# ---------------------------------------------------------------------------------------------------------------- --reg_nll tobit, the rank scale, the censoring source
+
+def test_tobit_and_the_rank_scale_flag_are_accepted_by_block_training_and_joint_stays_refused_without_blocks():
+    import sys
+    argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
+    old = sys.argv
+    try:
+        sys.argv = argv + ['--block_training', '--reg_nll', 'tobit', '--rank_calibrated_stopgrad', '--joint_doubles', 'both', '--tf_mix', '0.5']
+        a = config.parse_arguments()
+        assert a.reg_nll == 'tobit' and a.rank_calibrated_stopgrad and a.joint_doubles == 'both'
+        sys.argv = argv + ['--joint_doubles', 'both', '--reg_nll', 'tobit', '--tf_mix', '0.5']
+        with pytest.raises(SystemExit):
+            config.parse_arguments()
+    finally:
+        sys.argv = old
+
+
+def test_the_tobit_block_regression_is_the_noisy_floor_likelihood_on_the_latent_dG_of_the_observed_cells():
+    from esm_msr.losses import tobit_regression_loss, TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F
+    s = _module(lambda_rank_wt=0.0, lambda_rank_mt=0.0, lambda_reg_mt=0.0, block_identity=False)
+    s.tobit, s.tobit_params = True, dict(sigma_y=TOBIT_SIGMA_Y, mu_f=TOBIT_MU_F, sigma_f=TOBIT_SIGMA_F)
+    b = _blk('single')
+    logs = M._block_step(s, b)
+    obs = torch.isfinite(b['y'])
+    llr = s.model.w_wt.detach() * (torch.arange(20).float().view(1, 20) + 1 + 0.1 * torch.arange(3).float().view(3, 1))
+    off = b['dG_wt'][obs]
+    want = tobit_regression_loss(off + llr[obs], off + b['y'][obs], off + torch.zeros_like(off), torch.zeros_like(off, dtype=torch.long), **s.tobit_params).mean()
+    assert logs['L_reg_wt'] == pytest.approx(float(want), rel=1e-5)
+    assert float(s.model.w_wt.grad.abs()) > 0 and torch.isfinite(s.model.w_wt.grad)
+
+
+def test_only_the_assay_range_tags_are_censored_for_the_tobit_regression():
+    from esm_msr import censoring
+    s = _module()
+    s.tobit = True
+    lab = {'y': torch.tensor([[0.5, 0.2]]), 'cens': torch.tensor([[-1, -1]]), 'bound': torch.tensor([[0.1, 0.3]]), 'dG_meas': torch.zeros(1, 2),
+           'dG_wt': torch.full((1, 2), 2.0), 'y_floor': torch.zeros(1, 2), 'cens_src': torch.tensor([[censoring.SRC_RANGE, 0]])}
+    c = s._block_ctx(lab, [torch.arange(2)])
+    assert c.cens.tolist() == [[-1, -1]]                                   # both still tie their ranks ...
+    assert c.cens_reg.tolist() == [[-1, 0]]                                # ... but only the range tag is a bound for the likelihood
+    assert torch.equal(c.bound, lab['bound'])                              # raw bound: nothing is made reachable under Tobit
+
+
+def test_the_rank_scale_follows_rank_calibrated_stopgrad_not_the_identity_cell():
+    seen = {}
+    for flag in (True, False):
+        s = _module(lambda_reg_wt=0.0, lambda_reg_mt=0.0, lambda_rank_mt=0.0, block_identity=True, rank_calibrated_stopgrad=flag)
+        s.model.calibration_head_wt.bias.data = torch.tensor(0.5)
+        s.crit_rank_wt = rec = _Rec()
+        b = _blk('single')
+        M._block_step(s, b)
+        seen[flag] = rec.lists[0][0]
+    raw = seen[False]
+    wt_cols = [blocks.TOKEN_TO_AA[int(t)] for t in b['wt_ids']]
+    assert not torch.allclose(seen[True], raw)                            # calibrated: every mutation carries the bias ...
+    d = (seen[True] - raw).view(3, 20)
+    for r, wa in enumerate(wt_cols):
+        assert float(d[r, wa]) == pytest.approx(0.0, abs=1e-6)            # ... and the wild-type cell, no mutation, stays 0
+        assert all(float(d[r, a]) == pytest.approx(0.5, abs=1e-5) for a in range(20) if a != wa)

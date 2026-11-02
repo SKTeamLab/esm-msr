@@ -330,7 +330,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                           "too. An item with no usable label falls back to the WT head for any mix.")
     obj.add_argument('--rank_calibrated_stopgrad', action=argparse.BooleanOptionalAction, default=False,
                      help="Score ListMLE on stop-gradient calibrated predictions (s.detach()*raw + b.detach()*n_mut) / s_wt.detach(), aligning "
-                          "untied MT/WT scales and per-mutation biases across mixed single/double lists without temperature collapse on s.")
+                          "untied MT/WT scales and per-mutation biases across mixed single/double lists without temperature collapse on s. Off: ListMLE scores the raw "
+                          "LLR. Either way the rank loss sends no gradient to the calibration heads. --block_training honours it too (a conditional "
+                          "leg's list is always calibrated).")
     obj.add_argument('--reg_nll', type=str, default='none', choices=['none', 'tobit'],
                      help="Regression likelihood. none: MSE/Huber on the observed scale through the link, one-sided at --censor_threshold (the default). "
                           "tobit: the noisy-floor Tobit mixture on the LATENT absolute dG (losses.tobit_regression_loss; its noise constants are losses.TOBIT_*); the link is then only the "
@@ -429,8 +431,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                          help="--block_training: the wild-type residue is a cell of every ListMLE list, with label 0 and prediction 0 (no mutation, so no "
                               "bias): a singles block holds B x 20 cells with the wild type in its own column, a pair block is the 20 x 20 matrix whose "
                               "identity row and column are the singles (40 mutant passes instead of 38), and a conditional leg's list holds the "
-                              "partner single. Lists are then scored on the stop-gradient calibrated scale (where 'no mutation' is 0) instead of the raw "
-                              "LLR. The identity cells carry no regression.")
+                              "partner single. The identity cells carry no regression. (The rank scale is --rank_calibrated_stopgrad's, not this flag's.)")
     train_g.add_argument('--block_row_chunk', type=int, default=0,
                          help="--block_training: run a block's passes in checkpointed chunks of this many rows (0 = all at once). Only a chunk's "
                               "activations are alive at a time and the gradient is exact (the dropout draw is restored on recompute): the 40-row pair "
@@ -651,15 +652,18 @@ def parse_arguments(argv=None) -> argparse.Namespace:
 
     if not args.tf_detach_wt and args.joint_doubles == 'alternate':
         parser.error("--no-tf_detach_wt keeps the WT graph alive for every item, but --joint_doubles alternate frees it before the MT pass: use --joint_doubles both (or off)")
-    if args.joint_doubles != 'off' or args.block_training:
+    if args.joint_doubles != 'off' and not args.block_training:
         clash = [f for f, on in (('--reg_nll tobit', args.reg_nll == 'tobit'), ('--latent_censor_hinge', args.latent_censor_hinge),
                                  ('--wt_supervise_doubles', args.wt_supervise_doubles)) if on]
-        if clash and args.joint_doubles != 'off':
+        if clash:
             parser.error(f"--joint_doubles regresses the live double through the standard observed-scale hinge; it is not defined with {', '.join(clash)}")
-        clash += [f for f, on in (('--mt_single_loss_weight', args.mt_single_loss_weight != 1.0),
-                                  ('--rank_calibrated_stopgrad', args.rank_calibrated_stopgrad)) if on]
-        if clash and args.block_training:
-            parser.error(f"--block_training has its own tensor losses (standard observed-scale hinge, raw-scale ListMLE); it is not defined with {', '.join(clash)}")
+    if args.block_training:
+        # Block training regresses on tensors: the observed-scale hinge or, with --reg_nll tobit, the Tobit likelihood on the latent dG. The per-item
+        # extras below have no block form.
+        clash = [f for f, on in (('--latent_censor_hinge', args.latent_censor_hinge), ('--wt_supervise_doubles', args.wt_supervise_doubles),
+                                 ('--mt_single_loss_weight', args.mt_single_loss_weight != 1.0)) if on]
+        if clash:
+            parser.error(f"--block_training has its own tensor losses; it is not defined with {', '.join(clash)}")
     if args.block_training:
         bad = ('--mt_direct_pred' if args.mt_direct_pred else '--adapter_mode fused' if args.adapter_mode == 'fused'
                else '--rank_group_by partner' if args.rank_group_by == 'partner' else None)

@@ -1091,6 +1091,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         """
         link = self.link_head
         y = lab['y']
+        tobit = bool(getattr(self, 'tobit', False))
         link_ok = torch.isfinite(lab['dG_wt'])
         obs_rank = torch.isfinite(y)
         if rank_exclude is not None:
@@ -1103,17 +1104,27 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # link inputs are finite everywhere; link_ok / obs_* say which cells count.
         dG_wt = torch.where(link_ok, lab['dG_wt'], torch.zeros_like(lab['dG_wt']))
         floor = torch.nan_to_num(lab['y_floor'], nan=0.0)
+        if tobit:
+            # --reg_nll tobit: the likelihood is on the latent absolute dG and takes the tag's own bound; only the assay's '<-1' / '>5' range tags are
+            # censored for the regression, a floor-censored cell (--censor_threshold) has a number the mixture scores and only ties its rank.
+            bound = lab['bound']
+            cens_reg = torch.where(lab['cens_src'] == censoring.SRC_RANGE, lab['cens'], torch.zeros_like(lab['cens']))
+        else:
+            bound = reachable_bounds(link, lab['bound'], floor, y - lab['dG_meas'])
+            cens_reg = lab['cens']
         return types.SimpleNamespace(
-            y=y, y_safe=torch.nan_to_num(y, nan=0.0), cens=lab['cens'], dG_wt=dG_wt, floor=floor,
-            link_ok=link_ok, obs_rank=obs_rank, obs_reg=obs_reg, groups=rank_groups,
-            bound=reachable_bounds(link, lab['bound'], floor, y - lab['dG_meas']))
+            y=y, y_safe=torch.nan_to_num(y, nan=0.0), cens=lab['cens'], cens_reg=cens_reg, dG_wt=dG_wt, floor=floor,
+            link_ok=link_ok, obs_rank=obs_rank, obs_reg=obs_reg, groups=rank_groups, bound=bound)
 
     def _block_reg_rank(self, c, pred_cal, rank_pred, lam_reg, lam_rank, crit_rank, name):
         """Regression on the observed scale over the observed cells + ListMLE of ``rank_pred`` over each list; returns the weighted terms and logs them."""
         terms, link, flat = [], self.link_head, (lambda t: t.reshape(-1))
         if lam_reg > 0 and bool(c.obs_reg.any()):
             denom = float(max(1, int(c.obs_reg.sum())))
-            term, val, w = self._reg_loss(flat(link.obs_ddG(pred_cal, c.dG_wt, c.floor)), flat(c.y_safe), flat(c.bound), flat(c.cens), flat(c.obs_reg), denom)
+            if getattr(self, 'tobit', False):
+                term, val, w = self._reg_loss(flat(pred_cal), flat(c.y_safe), flat(c.bound), flat(c.cens_reg), flat(c.obs_reg), denom, dgwt=flat(c.dG_wt))
+            else:
+                term, val, w = self._reg_loss(flat(link.obs_ddG(pred_cal, c.dG_wt, c.floor)), flat(c.y_safe), flat(c.bound), flat(c.cens), flat(c.obs_reg), denom)
             terms.append(lam_reg * term)
             self._block_sums[f'reg_{name}'] += val; self._block_cnts[f'reg_{name}'] += w
         if lam_rank > 0 and crit_rank is not None:
@@ -1162,8 +1173,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         pos, wt_ids = b['positions'], b['wt_ids']
         dev = b['y'].device
         ident = bool(hp.get('block_identity', True))
+        rank_sg = bool(hp.get('rank_calibrated_stopgrad', False))
         seqs = blocks.single_sequences(b['seq'], pos)
-        lab = {k: b[k].float() if k != 'cens' else b[k] for k in ('y', 'cens', 'bound', 'dG_meas', 'dG_wt', 'y_floor')}
+        lab = {k: b[k].float() if k not in ('cens', 'cens_src') else b[k] for k in ('y', 'cens', 'bound', 'dG_meas', 'dG_wt', 'y_floor', 'cens_src')}
         n = torch.ones(b['y'].shape, dtype=torch.long, device=dev)                        # one mutation per cell
         ident_cells = None
         if ident:
@@ -1193,7 +1205,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         s_wt = self._block_s_wt()
         # With the identity cell in the list, the lists are scored on the calibrated scale (stop-gradient), where "no mutation" is 0 and a
         # mutation carries its bias; without it, on the raw LLR as before.
-        wt_rank = self._block_cal_sg('wt', llr_wt, n) / s_wt if ident else llr_wt
+        wt_rank = self._block_cal_sg('wt', llr_wt, n) / s_wt if rank_sg else llr_wt
         wt_terms = self._block_reg_rank(c, wt_cal, wt_rank, hp.lambda_reg_wt, hp.lambda_rank_wt, self.crit_rank_wt, 'wt') if wt_train else []
         if not live:
             self._block_backward(wt_terms, 'WT')                 # freed before the MT pass builds its graph
@@ -1211,7 +1223,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             has = has & (c.cens == 0)
         f_cal, f_raw = self._block_forced(c, wt_cal, llr_wt, n, lat, has, live=live)
         comb_cal, comb_raw = combine_predictions(f_cal, mt_cal), combine_predictions(f_raw, llr_mt)
-        if ident:
+        if rank_sg:
             f_sg, _ = self._block_forced(c, self._block_cal_sg('wt', llr_wt, n), llr_wt, n, lat, has, live=live)
             comb_rank = combine_predictions(f_sg, self._block_cal_sg('mt', llr_mt, n)) / s_wt
         else:
@@ -1274,6 +1286,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         hp, link = self.hparams, self.link_head
         dev = b['y'].device
         ident = bool(hp.get('block_identity', True))
+        rank_sg = bool(hp.get('rank_calibrated_stopgrad', False))
         i, j = int(b['positions'][0]), int(b['positions'][1])
         wt_i, wt_j = int(b['wt_ids'][0]), int(b['wt_ids'][1])
         wi, wj = blocks.TOKEN_TO_AA[wt_i], blocks.TOKEN_TO_AA[wt_j]
@@ -1324,7 +1337,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         has = torch.isfinite(lat) & c.link_ok & ~teacher_forcing_unusable(dG, yA, yB, cut)
         f_cal, f_raw = self._block_forced(c, wt_cal, wt_raw, n, lat, has, live=joint)
         comb_cal, comb_raw = combine_predictions(f_cal, mt_cal), combine_predictions(f_raw, mt_raw)
-        if ident:
+        if rank_sg:
             s_wt = self._block_s_wt()
             f_sg, _ = self._block_forced(c, self._block_cal_sg('wt', wt_raw, n), wt_raw, n, lat, has, live=joint)
             comb_rank = combine_predictions(f_sg, self._block_cal_sg('mt', mt_raw, n)) / s_wt

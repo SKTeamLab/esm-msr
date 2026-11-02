@@ -31,7 +31,7 @@ CANON_IDS = [C.SEQUENCE_VOCAB.index(a) for a in AAS]
 TOKEN_TO_AA = {t: k for k, t in enumerate(CANON_IDS)}
 MASK = int(C.SEQUENCE_MASK_TOKEN)
 
-SINGLE_FIELDS = ('y', 'cens', 'bound', 'dG_meas', 'dG_wt', 'y_floor')
+SINGLE_FIELDS = ('y', 'cens', 'bound', 'dG_meas', 'dG_wt', 'y_floor', 'cens_src')
 PAIR_FIELDS = SINGLE_FIELDS + ('yA', 'yB')
 
 
@@ -54,7 +54,7 @@ class Library:
 
 
 def _fill(shape, name):
-    if name == 'cens':
+    if name in ('cens', 'cens_src'):
         return np.zeros(shape, dtype=np.int64)
     return np.full(shape, np.nan, dtype=np.float32)
 
@@ -85,7 +85,8 @@ def build_library(name: str, items: Sequence[dict]) -> 'Library | None':
         for p, w in zip(pos, wts):
             wt_tok[p] = w
         vals = {'y': it.get('ddG', np.nan), 'cens': int(it.get('cens', 0)), 'bound': it.get('cens_bound', np.nan),
-                'dG_meas': it.get('dG_meas', np.nan), 'dG_wt': it.get('dG_wt', np.nan), 'y_floor': it.get('y_floor', np.nan)}
+                'dG_meas': it.get('dG_meas', np.nan), 'dG_wt': it.get('dG_wt', np.nan), 'y_floor': it.get('y_floor', np.nan),
+                'cens_src': int(it.get('cens_src', 0))}
         if len(pos) == 1:
             d = singles.setdefault(pos[0], {f: _fill(20, f) for f in SINGLE_FIELDS})
             for f in SINGLE_FIELDS:
@@ -216,7 +217,7 @@ def pair_labels(b: dict, Xa: Sequence[int], Ya: Sequence[int], wi: int, wj: int)
     dev = b['y'].device
     X, Y = torch.as_tensor(list(Xa), device=dev), torch.as_tensor(list(Ya), device=dev)
     M = {f: b[f].clone() for f in SINGLE_FIELDS}
-    for f in ('y', 'cens', 'bound', 'dG_meas'):
+    for f in ('y', 'cens', 'bound', 'dG_meas', 'cens_src'):
         M[f][:, wj] = b['si_' + f]
         M[f][wi, :] = b['sj_' + f]
     finite = torch.cat([t.reshape(-1) for t in (b['dG_wt'], b['si_dG_wt'], b['sj_dG_wt'])])
@@ -300,7 +301,7 @@ class BlockDataset(Dataset):
             partners = {}
             for tag, p in (('si_', i), ('sj_', j)):             # the measured singles at the pair's two positions (NaN where there are none)
                 r = row_of.get(p)
-                for f in ('y', 'cens', 'bound', 'dG_meas', 'dG_wt'):
+                for f in ('y', 'cens', 'bound', 'dG_meas', 'dG_wt', 'cens_src'):
                     partners[tag + f] = t(lib.singles[f][r]) if r is not None else t(_fill(20, f))
             batch.update(block='pair', positions=t(np.array([i, j], dtype=np.int64)),
                          wt_ids=t(np.array([lib.wt_tok[i], lib.wt_tok[j]], dtype=np.int64)),
