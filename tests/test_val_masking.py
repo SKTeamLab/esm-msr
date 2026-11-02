@@ -213,3 +213,4 @@ def test_the_unmasked_flag_is_off_by_default():
         assert config.parse_arguments().val_unmasked is True
     finally:
         sys.argv = old
+

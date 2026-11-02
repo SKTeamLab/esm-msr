@@ -474,7 +474,8 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     val.add_argument('--val_unmasked', action=argparse.BooleanOptionalAction, default=False,
                      help="Also score validation with NEITHER adapter masked (the plain wild-type sequence for WT, the full mutant sequence for MT: the "
                           "per-item readout), logged as val_unmasked_* (per-library metrics and their _avg, and the epistasis hierarchy as "
-                          "val_unmasked_epi_*). Never watched by the plateau, early stopping or the checkpoint monitor, which read the default regime. "
+                          "val_unmasked_epi_*, with val_unmasked_epi_composite). Not watched unless pointed at: the plateau, early stopping and the checkpoint monitor read the default regime, "
+                          "and a run trained on visible sites sets --monitor_metric val_unmasked_epi_composite and --mt_convergence_metric unmasked_epi_composite. "
                           "The matched regime of a run trained on visible sites (--block_mask_wt/_mt < 1, --mask_strategy_* none or random). The MT "
                           "side is one forward per variant, the cost the validation had before it was consolidated.")
     val.add_argument('--skip_val', action=argparse.BooleanOptionalAction, default=False)

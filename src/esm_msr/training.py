@@ -1865,17 +1865,17 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if np.isfinite(val):
                     self.log(f"val_{prefix}{name}", float(val), on_epoch=True,
                              prog_bar=name in ('epi_cell_rank_comb', 'epi_cell_rank_epi', 'epi_cell_rank_mt'), sync_dist=True)
-            if not prefix:           # the audit diagnostics and the composite belong to the default regime only
+            if not prefix:           # the audit diagnostics belong to the default regime only
                 diag = epi_metrics.compute_clean_diagnostics(tbl)
                 for d_name, d_val in diag.items():
                     if np.isfinite(d_val):
                         self.log(f"val_diag_{d_name}", float(d_val), on_epoch=True, sync_dist=True)
-                cr = res.get('epi_cell_rank_comb', res.get('epi_cell_rank_epi', float('nan')))
-                bl = res.get('epi_beyond_lib_comb', res.get('epi_beyond_lib_epi', float('nan')))
-                if np.isfinite(cr) and np.isfinite(bl):
-                    comp = 0.5 * (float(cr) + float(bl))
-                    self.log("val_epi_composite", comp, on_epoch=True, sync_dist=True)
-                    res['epi_composite'] = comp
+            cr = res.get('epi_cell_rank_comb', res.get('epi_cell_rank_epi', float('nan')))
+            bl = res.get('epi_beyond_lib_comb', res.get('epi_beyond_lib_epi', float('nan')))
+            if np.isfinite(cr) and np.isfinite(bl):
+                comp = 0.5 * (float(cr) + float(bl))
+                self.log(f"val_{prefix}epi_composite", comp, on_epoch=True, sync_dist=True)       # val_unmasked_epi_composite for the unmasked regime
+                res['epi_composite'] = comp
             return res                  # the caller merges these into avg_metrics so a plateau can watch them
         except Exception as e:
             logging.warning(f"epistasis metrics skipped: {e}", exc_info=True)
