@@ -12,6 +12,7 @@ About 55 flags (it was 160; ``docs/trim_audit.md`` has the verdict on each). Thr
 import argparse
 import logging
 import os
+import re
 
 DEFAULT_CACHE_VERSION = 'c6'            # data.MutationStabilityDataset.CACHE_VERSION (a test pins them together)
 SUBSETS = ('single', 'double')          # what --subsets may name. `native_cond` is routed by --native_cond_for_wt / --native_cond_for_mt
@@ -163,6 +164,29 @@ def _check_retired(args, parser):
         what = f"--no-{name}" if spec['kind'] == 'bool' and v is False else (f"--{name} {v}" if spec['kind'] == 'val' else f"--{name}")
         parser.error(f"{what} is retired and its behaviour is gone: {spec['why']}.")
     return ignored
+
+
+# val_[unmasked_]epi_<metric>_epi was the MT head at twice the reported scale and is no longer logged (training.epi_log_names). The rank levels
+# that ignore scale are bit-identical to their _comb twin, and the MT head's own cell rank is val_diag_epi_cell_rank_mt_legacy, so a flag that
+# still names the old metric is rewritten rather than left to point at a metric that never appears.
+_EPI_SAME_AS_COMB = ('beyond_rho', 'beyond_lib', 'beyond_rho_pairavg', 'pair_rho', 'line_rho')
+_RETIRED_EPI = re.compile(r'^(val_)?((?:unmasked_)?)epi_(.+)_epi$')
+
+
+def current_metric_name(name, monitor):
+    """The logged equivalent of a retired ``_epi``-head metric name; a name that is not retired comes back unchanged.
+    ``monitor`` (a checkpoint / early-stopping monitor, which reads the logger) cannot use a name that is only kept internally, so for it an
+    ``_epi`` metric with no exact twin is an error (returns None)."""
+    m = _RETIRED_EPI.match(name)
+    if not m:
+        return name
+    val, unmasked, metric = m.groups()
+    val = val or ''
+    if metric in _EPI_SAME_AS_COMB:
+        return f'{val}{unmasked}epi_{metric}_comb'
+    if metric == 'cell_rank' and monitor:
+        return f'val_{unmasked}diag_epi_cell_rank_mt_legacy'
+    return None if monitor else name
 
 
 def parse_arguments(argv=None) -> argparse.Namespace:
@@ -401,12 +425,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     sched.add_argument('--freeze_after_decays', type=int, default=3,
                        help="Freeze a head after this many decays: at factor 0.3 the third leaves it at 2.7 percent of its base rate, which is "
                             "not training. 0 never freezes. Once every head is frozen the run stops itself.")
-    sched.add_argument('--mt_convergence_metric', type=str, default='epi_beyond_rho_epi',
-                       help="What the MT plateau watches. The default is the correlation of the MT head's epistasis component, ~MT(AB) - WT(AB), "
+    sched.add_argument('--mt_convergence_metric', type=str, default='epi_beyond_rho_comb',
+                       help="What the MT plateau watches. The default is the correlation of the epistasis component of the reported prediction, 0.5 (~MT(AB) - WT(AB)), "
                             "with the measured one, both beyond the global level.")
     sched.add_argument('--early_stopping_patience', type=int, default=0,
                        help="Stop when --monitor_metric has not improved for this many validations. 0 (the default) never early-stops.")
-    sched.add_argument('--monitor_metric', type=str, default='val_epi_beyond_rho_epi',
+    sched.add_argument('--monitor_metric', type=str, default='val_epi_beyond_rho_comb',
                        help="Which validation metric picks the checkpoints and drives early stopping; checkpoints are named "
                             "epoch=NN-<metric>=0.xxxx.ckpt.")
 
@@ -606,6 +630,16 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     if args.init_wt_from_checkpoint is not None and not os.path.isfile(args.init_wt_from_checkpoint):
         parser.error(f"--init_wt_from_checkpoint: no such file: {args.init_wt_from_checkpoint}")
 
+    for flag, monitor in (('mt_convergence_metric', False), ('monitor_metric', True)):
+        old_name = getattr(args, flag)
+        new_name = current_metric_name(old_name, monitor)
+        if new_name is None:
+            parser.error(f"--{flag} {old_name}: the _epi head is no longer logged; use its _comb twin (the reported prediction), "
+                         f"or val_diag_epi_cell_rank_mt_legacy for the MT head's cell rank")
+        if new_name != old_name:
+            logging.info(f"--{flag} {old_name} is retired; using {new_name}")
+            setattr(args, flag, new_name)
+
     # The frozen-WT / MT-only paradigm is a named combination of primitive settings. Deriving it here (rather than branching in the
     # model) means hparams record the EFFECTIVE settings the run used.
     args.freeze_wt_adapter = False
@@ -628,9 +662,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
             logging.info("--mt_direct_pred: setting --lambda_reg_wt 0 --lambda_rank_wt 0 (direct MT prediction; WT is frozen)")
             args.lambda_reg_wt = 0.0
             args.lambda_rank_wt = 0.0
-        if args.mt_convergence_metric == 'epi_beyond_rho_epi':
+        if args.mt_convergence_metric == 'epi_beyond_rho_comb':
             args.mt_convergence_metric = 'rho_combined'
-        if args.monitor_metric == 'val_epi_beyond_rho_epi':
+        if args.monitor_metric == 'val_epi_beyond_rho_comb':
             args.monitor_metric = 'val_rho_combined_avg'
     elif explicit_freeze_wt:
         parser.error("--freeze_wt_adapter without --frozen_wt_mt_only: freezing the WT head alone is no longer a separate mode")

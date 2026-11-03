@@ -52,6 +52,24 @@ def build_link(hp):
 
 EXTERNAL_SUMMARY_METRICS = ('rho_combined', 'rmse_combined')
 
+# ``epi_<metric>_epi`` is the MT head's epistasis at twice the reported scale (MT - WT, where the reported double is 0.5 (WT + MT)). Every rank
+# level that is blind to scale (beyond_rho, beyond_lib, beyond_rho_pairavg, pair_rho, line_rho) is bit-identical to its ``_comb`` twin, and the
+# others (cell_mag, cell_flipacc, class3_*, global_err / global_bias, naive_rho) differ only by the 2x scale or the observed-scale link, so
+# ``_comb`` (the reported prediction) is the one that is logged. ``epi_cell_rank_epi`` equals ``val_diag_epi_cell_rank_mt_legacy`` exactly, which
+# is kept as the MT head on its own. The values still reach ``res`` (the plateaus read them by name); they are just not sent to the logger.
+RETIRED_EPI_LOG = re.compile(r'^epi_.+_epi$')
+
+
+def epi_log_names(res: dict, diag: dict, prefix: str = '') -> dict:
+    """The ``val_*`` scalars one validation regime sends to the logger: finite values only, no ``_epi``-head duplicates.
+    ``diag`` (the audit diagnostics) belongs to the default regime, except the MT head's own cell rank, which both regimes log."""
+    out = {f'val_{prefix}{k}': v for k, v in res.items() if not RETIRED_EPI_LOG.match(k)}
+    for k, v in diag.items():
+        if RETIRED_EPI_LOG.match(k) or (prefix and k != 'epi_cell_rank_mt_legacy'):
+            continue
+        out[f'val_{prefix}diag_{k}'] = v
+    return {k: float(v) for k, v in out.items() if np.isfinite(v)}
+
 
 def summarise_external_benchmarks(per_loader: dict, external: set) -> dict:
     """OOD validation loaders summarised as ``val_<metric>_external``: the mean of rho_combined and rmse_combined.
@@ -1891,15 +1909,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             link = self.link_head.numpy()
             tbl = epi_metrics.Table(scored, link)
             res = epi_metrics.compute(tbl)
-            for name, val in res.items():
-                if np.isfinite(val):
-                    self.log(f"val_{prefix}{name}", float(val), on_epoch=True,
-                             prog_bar=name in ('epi_cell_rank_comb', 'epi_cell_rank_epi', 'epi_cell_rank_mt'), sync_dist=True)
-            if not prefix:           # the audit diagnostics belong to the default regime only
-                diag = epi_metrics.compute_clean_diagnostics(tbl)
-                for d_name, d_val in diag.items():
-                    if np.isfinite(d_val):
-                        self.log(f"val_diag_{d_name}", float(d_val), on_epoch=True, sync_dist=True)
+            diag = epi_metrics.compute_clean_diagnostics(tbl)
+            for name, val in epi_log_names(res, diag, prefix).items():
+                self.log(name, val, on_epoch=True, sync_dist=True,
+                         prog_bar=name in (f'val_{prefix}epi_cell_rank_comb', f'val_{prefix}diag_epi_cell_rank_mt_legacy'))
             cr = res.get('epi_cell_rank_comb', res.get('epi_cell_rank_epi', float('nan')))
             bl = res.get('epi_beyond_lib_comb', res.get('epi_beyond_lib_epi', float('nan')))
             if np.isfinite(cr) and np.isfinite(bl):
@@ -1919,7 +1932,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         metric the MT path was still improving, so it drifted and the target the MT path teacher-forces against moved underneath it; and a
         shared scheduler that owned every parameter group compounded patience-1 triggers into a 370x drop in three epochs (dc12r_s2).
         The WT head watches ``rho_singles_wt`` and touches only the ``lora_wt`` / ``calib_wt`` groups; the MT head watches
-        ``--mt_convergence_metric`` (default ``epi_beyond_rho_epi``: the epistasis component's correlation on the part of a double the WT head's
+        ``--mt_convergence_metric`` (default ``epi_beyond_rho_comb``: the epistasis component's correlation on the part of a double the WT head's
         singles do not explain) and touches only ``lora_mt`` / ``calib_mt``. That metric is noisy epoch to epoch (swings of +-0.03, no trend), so
         patience 1 wants the gentle factor 0.3 it has by default.
         """
