@@ -2040,7 +2040,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def configure_optimizers(self):
         base_lr = float(self.hparams.learning_rate)
-        wd = float(self.hparams.weight_decay)
+        wd = 0.0                      # no weight decay, ever (--weight_decay is a retired flag that only accepts 0)
 
         lora_wt_params, lora_mt_params, other_params, calib_wt_params, calib_mt_params = [], [], [], [], []
         adapter_mode = getattr(self.model, 'adapter_mode', 'dual')

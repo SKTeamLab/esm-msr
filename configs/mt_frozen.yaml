@@ -24,7 +24,6 @@ huber_delta: 0.0
 tf_mix: 1.0
 
 learning_rate: 2.0e-4
-weight_decay: 0.0
 lr_warmup_steps: 500
 batch_size: 256
 micro_batch_size: 64

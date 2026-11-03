@@ -172,3 +172,13 @@ def test_yaml_with_an_unknown_or_retired_key_is_refused(tmp_path):
 def test_the_default_cache_version_is_the_datasets():
     from esm_msr.data import MutationStabilityDataset
     assert config.DEFAULT_CACHE_VERSION == MutationStabilityDataset.CACHE_VERSION
+
+
+def test_weight_decay_is_gone_and_only_zero_is_still_accepted():
+    for ok in ('0', '0.0'):
+        parse('--weight_decay', ok)                                           # an old launcher that spelled the default still parses
+    with pytest.raises(SystemExit):
+        parse('--weight_decay', '0.05')
+    import glob, yaml
+    for f in glob.glob(os.path.join(os.path.dirname(__file__), '..', 'configs', '*.yaml')):
+        assert 'weight_decay' not in (yaml.safe_load(open(f)) or {}), f      # a retired key in a recipe is a parse error

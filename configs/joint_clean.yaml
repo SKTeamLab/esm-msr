@@ -1,7 +1,7 @@
 # Clean joint training configuration (audit-next, 2026-11-01):
 #   - Balanced 50/50 gradient norms (lambda_rank=0.5, lambda_reg=15.0)
 #   - Stop-gradient calibrated ListMLE (rank_calibrated_stopgrad: true)
-#   - Attention-only WT LoRA (target_mode_wt: qkv_outproj, r2a4) + weight_decay 0.05 + grad_clip_norm 1.0
+#   - Attention-only WT LoRA (target_mode_wt: qkv_outproj, r2a4) + grad_clip_norm 1.0 (no weight decay: removed 2026-11-02)
 #   - Cosine LR decay with 500-step warmup across LoRA and calibration (calib_lr_mult: 5.0)
 #   - Uncensored numeric ordering down to -1.0 kcal/mol (censor_threshold: -1.0, censor_range: false)
 #   - Retained tail batches >= 32 variants (drop_last: false, min_batch_size: 32)
@@ -34,7 +34,6 @@ huber_delta: 0.0
 tf_mix: 1.0
 
 learning_rate: 2.0e-4
-weight_decay: 0.05
 grad_clip_norm: 1.0
 calib_lr_mult: 5.0
 lr_warmup_steps: 500

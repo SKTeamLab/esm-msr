@@ -30,6 +30,7 @@ def _r(kind, ok=None, why=''):
 # flag -> what it used to be and the only value it may still be given. kind: 'bool' (--x / --no-x), 'val' (--x VALUE), 'flag' (--x, no value).
 # ok=_ANY: any value is dropped without comment (a path, a number that governed something now fixed).
 RETIRED = {
+    'weight_decay': _r('val', 0.0, 'no weight decay is ever used (AdamW weight_decay is 0)'),
     # the LoRA spec is fixed except incl_sequence_head_{wt,mt}, which can be ablated
     **{f'{k}_{h}': _r('bool', v, 'a constant now') for h in ('wt', 'mt')
        for k, v in (('use_dora', False), ('unfreeze_layernorms', False), ('incl_structure_encoder', False))},
@@ -307,7 +308,8 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     obj.add_argument('--lambda_reg_mt', '--lambda_reg_combined', dest='lambda_reg_mt', type=float, default=1.0,
                      help="Weight of the MT path's regression (scored through the combined prediction, trains the MT path only).")
     obj.add_argument('--rank_list_size', '--subset_size', dest='rank_list_size', type=int, default=16,
-                     help="Length of the ListMLE lists: a batch is cut into consecutive lists of this many items.")
+                     help="Length of the ListMLE lists: a batch is cut into consecutive lists of this many items. --block_training cuts no lists of this size (a list is "
+                          "--block_list_rows positions); there it is only the reference length of --block_rank_norm ref, i.e. it scales the rank term like --lambda_rank_*.")
     obj.add_argument('--rank_group_by', type=str, default='none', choices=['none', 'partner'],
                      help="How MT ListMLE lists are formed within a micro-batch: 'none' uses random consecutive slices; 'partner' groups doubles "
                           "by shared mutation partner / position pair and adds contrastive epistatic-residual ListMLE lists.")
@@ -377,13 +379,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
 
     opt = parser.add_argument_group("Optimisation")
     opt.add_argument('--learning_rate', type=float, default=2e-4)
-    opt.add_argument('--weight_decay', type=float, default=0.0)
     opt.add_argument('--grad_clip_norm', type=float, default=0.0,
                      help="Global L2 gradient norm clip across all trainable parameters before optim.step() (0 = disabled).")
     opt.add_argument('--calib_lr_mult', type=float, default=20.0,
                      help="Learning-rate multiplier for calibration heads relative to --learning_rate (default 20.0; 5.0 recommended with cosine).")
-    opt.add_argument('--batch_size', type=int, default=256)
-    opt.add_argument('--micro_batch_size', type=int, default=16, help="Items per forward/backward (the VRAM cap); 64 fits a 32 GB card.")
+    opt.add_argument('--batch_size', type=int, default=256, help="Items per optimizer step of the per-item path (--block_training: a step is one block and ignores this; validation uses 64).")
+    opt.add_argument('--micro_batch_size', type=int, default=16, help="Items per forward/backward (the VRAM cap); 64 fits a 32 GB card. Per-item path only: --block_training ignores it.")
     opt.add_argument('--num_epochs', type=int, default=20)
     opt.add_argument('--lr_warmup_steps', type=int, default=500)
 

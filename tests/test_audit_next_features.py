@@ -89,7 +89,6 @@ def _make_stub_module(**hp_overrides):
         rank_group_by='none',
         huber_delta=0.0,
         learning_rate=2e-4,
-        weight_decay=0.05,
         calib_lr_mult=5.0,
         lr_warmup_steps=10,
         lr_schedule='cosine',
