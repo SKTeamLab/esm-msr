@@ -3,7 +3,7 @@
 #   - Stop-gradient calibrated ListMLE (rank_calibrated_stopgrad: true)
 #   - Attention-only WT LoRA (target_mode_wt: qkv_outproj, r2a4) + grad_clip_norm 1.0 (no weight decay: removed 2026-11-02)
 #   - Cosine LR decay with 500-step warmup across LoRA and calibration (calib_lr_mult: 5.0)
-#   - Uncensored numeric ordering down to -1.0 kcal/mol (censor_threshold: -1.0, censor_range: false)
+#   - Uncensored numeric ordering down to -1.0 kcal/mol (censor_threshold: -1.0); range-bounded rows (<-1, >5) admitted as censored items (censor_range: true, switched on 2026-11-02: dropping them selects the double set on its own outcome)
 #   - Retained tail batches >= 32 variants (drop_last: false, min_batch_size: 32)
 #   - Leak-free within-library/within-block epistasis composite monitor (val_epi_composite) + early stopping (patience 2)
 adapter_mode: dual
@@ -18,7 +18,7 @@ target_mode_mt: expanded
 
 subsets: [single, double]
 censor_threshold: -1.0
-censor_range: false
+censor_range: true
 link_floor: 0.0
 link_tau: 0.59
 drop_last: false
