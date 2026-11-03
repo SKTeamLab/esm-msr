@@ -1446,6 +1446,28 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         optim = self.optimizers()
 
+        # --grad_accum_blocks K: the K blocks' gradients add up in .grad and the optimizer steps once, after the K-th. Everything below (norms, clip, step,
+        # scheduler, logs) therefore runs once per K blocks, on the mean gradient and the mean of the K blocks' losses.
+        accum = max(1, int(self.hparams.get('grad_accum_blocks', 1) or 1))
+        if accum > 1:
+            self._accum_n = getattr(self, '_accum_n', 0) + 1
+            acc = getattr(self, '_accum_logs', None) or {}
+            for k, v in logs.items():
+                acc[k] = acc.get(k, 0.0) + float(v)
+            self._accum_logs = acc
+            if self._accum_n < accum:
+                return torch.tensor(0.0, device=self.device)
+            logs = {k: v / accum for k, v in acc.items()}
+            self._accum_n, self._accum_logs = 0, {}
+            seen_g = set()
+            for g in optim.param_groups:
+                for p in g["params"]:
+                    if p.grad is not None and id(p) not in seen_g:
+                        seen_g.add(id(p))
+                        p.grad.div_(accum)
+            self._opt_steps = getattr(self, '_opt_steps', -1) + 1
+            batch_idx = self._opt_steps                         # the logging cadence below counts optimizer steps
+
         log_every = int(getattr(self.trainer, 'log_every_n_steps', 25) or 25) if getattr(self, '_trainer', None) is not None else 1
         if batch_idx == 0 or (batch_idx + 1) % log_every == 0:
             param_id_to_name = {id(p): name for name, p in self.model.named_parameters()}
@@ -2109,6 +2131,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             min_ratio = float(self.hparams.get('cosine_min_lr_ratio', 0.05))
             est_steps = getattr(self.trainer, 'estimated_stepping_batches', None) if getattr(self, '_trainer', None) is not None else None
             total_steps = int(est_steps) if (est_steps is not None and math.isfinite(est_steps) and est_steps > 0) else max(warmup + 1, int(self.hparams.num_epochs) * 900)
+            accum = max(1, int(self.hparams.get('grad_accum_blocks', 1) or 1))
+            if accum > 1:                                       # the scheduler counts optimizer steps, one per --grad_accum_blocks blocks
+                total_steps = max(warmup + 1, -(-total_steps // accum))
 
             def _cos_fn(step, warmup=warmup, total_steps=total_steps, min_ratio=min_ratio):
                 if warmup > 0 and step < warmup:

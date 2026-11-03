@@ -472,6 +472,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                               "B x 20 / 16 times the 16-member lists of the per-item path against the regression, which is a mean. 'ref' rescales every "
                               "list to --rank_list_size members' worth (loss x rank_list_size / its valid members), so the rank:regression balance "
                               "of --lambda_rank_* / --lambda_reg_* does not depend on B or --block_list_rows.")
+    train_g.add_argument('--grad_accum_blocks', type=int, default=1,
+                         help="--block_training: gradient accumulation, in BLOCKS. K >= 2 adds up the gradients of K consecutive blocks (they stay in .grad, "
+                              "which costs the size of the trainable parameters, ~0.1 GB, and no activation memory) and takes one optimizer step after the K-th, "
+                              "so a run at small B takes K x fewer, K x smoother steps. The summed gradient is divided by K before the clip; --lr_warmup_steps "
+                              "and the cosine length count OPTIMIZER steps (set warmup to a quarter for the same warmup in blocks); logged train/* losses are "
+                              "the mean over the K blocks; blocks left over at the end of an epoch carry into the next, and a resume starts a fresh window.")
     train_g.add_argument('--block_mask_wt', type=float, default=1.0,
                          help="--block_training: probability that the WT head reads a position with its site MASKED (1, the default, always; 0 = the "
                               "plain wild-type sequence every time, the unmasked WT readout; in between, drawn per position of a singles block and per "
@@ -698,6 +704,10 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         for f in ('block_mask_wt', 'block_mask_mt'):
             if not 0.0 <= getattr(args, f) <= 1.0:
                 parser.error(f"--{f} is a probability in [0, 1]")
+    if args.grad_accum_blocks < 1:
+        parser.error("--grad_accum_blocks must be >= 1")
+    if args.grad_accum_blocks > 1 and not args.block_training:
+        parser.error("--grad_accum_blocks needs --block_training (the per-item path already accumulates micro-batches inside one batch)")
     if args.lambda_cycle < 0:
         parser.error("--lambda_cycle must be >= 0")
     if args.lambda_cycle > 0 and not args.block_training:
