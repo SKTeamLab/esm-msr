@@ -11,6 +11,10 @@ that cannot lose a run it could not verify:
   3. read the NEW experiment back and compare every kept (metric, step) value with the old one;
   4. only if all of them match (and the parameters and tag sets match): delete the old experiment and append old key -> new key to the ledger.
 
+Copies are made back to back and verified in the background of the next one (the server can take many minutes to show a copy's parameters);
+an original is deleted only after its OWN copy verifies, a copy that arrived WRONG stops the run with every original untouched, and a copy left
+by an interrupted run is found again (same name, rebuild tag, 'orig_experiment_key') instead of being made twice.
+
 Lost by construction: the dropped series, the sys.* / 'process duration' system series (they are not metrics Comet lets a script write), the
 original timestamps and run duration, and the experiment key / URL (the ledger maps old to new). Never run it on a running experiment: it
 refuses any whose metadata says running or whose last metric is newer than --min-idle-min minutes, and the selection is explicit (--names-file).
@@ -111,31 +115,60 @@ def rebuild(api, project, name, key, d):
     return new_key
 
 
-def verify(api, new_key, d, timeout_s=900):
-    """Poll until the new experiment holds every kept point, every parameter and the tags (the server ingests asynchronously); returns (ok, message)."""
+def verify(api, new_key, d):
+    """One look at the new experiment (the server ingests asynchronously, and parameters can lag the metrics by many minutes).
+    Returns (True, msg) when every kept point, every parameter and the tags are identical, (None, why) while something has not arrived yet, and
+    (False, why) when what has arrived is WRONG, which no waiting fixes."""
     want = {(p['metricName'], None if p['step'] is None else int(p['step'])): float(p['metricValue']) for p in d['keep']}
-    t0, why = time.time(), ''
-    while True:
-        e = api.get_experiment_by_key(new_key)
-        got = {}
-        for p in e.get_metrics():
-            if not p['metricName'].startswith(SYSTEM):
-                got[(p['metricName'], None if p['step'] is None else int(p['step']))] = float(p['metricValue'])
-        params = {p['name']: p['valueCurrent'] for p in e.get_parameters_summary() if p['name'] not in AUTO_PARAMS}
-        missing = [k for k in want if k not in got]
-        if missing:
-            why = f'{len(missing)} of {len(want)} kept points not there yet'
-        elif params != d['params']:
-            why = f'parameters differ ({len(params)} of {len(d["params"])} there)'
-        elif sorted(e.get_tags() or []) != sorted(d['tags'] + [TAG]):
-            why = 'tags differ'
-        else:
-            bad = [k for k, v in want.items() if abs(got[k] - v) > 1e-9 * max(1.0, abs(v))]
-            extra = [k for k in got if k not in want]
-            return (False, f'{len(bad)} values differ, {len(extra)} unexpected points') if (bad or extra) else (True, f'{len(want)} points, {len(params)} parameters identical')
-        if time.time() - t0 > timeout_s:
-            return False, why
-        time.sleep(15)
+    e = api.get_experiment_by_key(new_key)
+    got = {}
+    for p in e.get_metrics():
+        if not p['metricName'].startswith(SYSTEM):
+            got[(p['metricName'], None if p['step'] is None else int(p['step']))] = float(p['metricValue'])
+    params = {p['name']: p['valueCurrent'] for p in e.get_parameters_summary() if p['name'] not in AUTO_PARAMS}
+    missing = [k for k in want if k not in got]
+    if missing:
+        return None, f'{len(missing)} of {len(want)} kept points not there yet'
+    if len(params) < len(d['params']):
+        return None, f'parameters not all there yet ({len(params)} of {len(d["params"])})'
+    if params != d['params']:
+        return False, 'parameters differ'
+    if sorted(e.get_tags() or []) != sorted(d['tags'] + [TAG]):
+        return None, 'tags not there yet' if TAG not in (e.get_tags() or []) else 'tags differ'
+    bad = [k for k, v in want.items() if abs(got[k] - v) > 1e-9 * max(1.0, abs(v))]
+    extra = [k for k in got if k not in want]
+    if bad or extra:
+        return False, f'{len(bad)} values differ, {len(extra)} unexpected points'
+    return True, f'{len(want)} points, {len(params)} parameters identical'
+
+
+def find_copy(api, project, name, key):
+    """A copy of ``key`` made by an earlier (interrupted) run: same name, the rebuild tag, and its 'orig_experiment_key' other."""
+    r = api._client.get_from_endpoint('experiments', {'workspaceName': WORKSPACE, 'projectName': project, 'archived': False})
+    for e in r['experiments']:
+        if e.get('experimentName') == name and e['experimentKey'] != key:
+            x = api.get_experiment_by_key(e['experimentKey'])
+            if TAG in (x.get_tags() or []) and any(o.get('name') == 'orig_experiment_key' and o.get('valueCurrent') == key for o in x.get_others_summary()):
+                return e['experimentKey']
+    return None
+
+
+def finalize(api, pending, keep_old):
+    """Delete the original of every pending (name, key, new_key, d) whose copy now verifies; returns the ones still waiting. A copy that is WRONG stops the run."""
+    left = []
+    for name, key, new_key, d in pending:
+        ok, msg = verify(api, new_key, d)
+        if ok is None:
+            left.append((name, key, new_key, d))
+            continue
+        if not ok:
+            sys.exit(f'STOP: {name} {key[:8]} -> {new_key[:8]} is wrong ({msg}); every original is untouched, the copy is left for inspection')
+        if not keep_old:
+            api.delete_experiment(key)
+        with open(LEDGER, 'a') as f:
+            f.write(f"{time.strftime('%F %T')} {name} {key} -> {new_key}  ({msg}; dropped {len(d['dropped'])} points{'; OLD KEPT' if keep_old else ''})\n")
+        print(f"   rebuilt {name}: {key[:8]} -> {new_key[:8]}  {msg}{'  (old kept)' if keep_old else ''}", flush=True)
+    return left
 
 
 def main():
@@ -148,6 +181,7 @@ def main():
     ap.add_argument('--target-project', help='create the rebuilt copies in this project instead (a dry rehearsal: use with --keep-old)')
     ap.add_argument('--keep-old', action='store_true', help='verify the copy but do NOT delete the original')
     ap.add_argument('--stop-file', help='checked before every rebuild: if this file exists the run stops cleanly')
+    ap.add_argument('--finalize-wait-min', type=float, default=120.0, help='after the last copy is made, keep checking this long for slow ones to arrive')
     a = ap.parse_args()
     api = comet_ml.API()
     names = None
@@ -156,27 +190,27 @@ def main():
             sys.exit('--execute needs --names-file: the selection is explicit')
         names = {l.strip() for l in open(a.names_file) if l.strip() and not l.startswith('#')}
     todo = [(n, k) for n, k in listing(api, a.project, a.match) if names is None or n in names]
-    print(f"{len(todo)} experiments selected; dropping /{DROP}/; {'EXECUTING' if a.execute else 'dry run'}")
-    done = 0
+    print(f"{len(todo)} experiments selected; dropping /{DROP}/; {'EXECUTING' if a.execute else 'dry run'}", flush=True)
+    target = a.target_project or a.project
+    pending = []
     for name, key in todo:
         if a.stop_file and os.path.exists(a.stop_file):
-            print(f'stop file {a.stop_file} exists: stopping before {name}')
+            print(f'stop file {a.stop_file} exists: no more copies', flush=True)
             break
         d = read(api, key)
         ok = report(name, key, d, a.min_idle_min)
         if not a.execute or not ok or not d['dropped']:
             continue
-        new_key = rebuild(api, a.target_project or a.project, name, key, d)
-        good, msg = verify(api, new_key, d)
-        if not good:
-            sys.exit(f'STOP: {name} {key[:8]} -> {new_key[:8]} did not verify ({msg}); the old experiment is untouched, the new one is left for inspection')
-        if not a.keep_old:
-            api.delete_experiment(key)
-        with open(LEDGER, 'a') as f:
-            f.write(f"{time.strftime('%F %T')} {name} {key} -> {new_key}  ({msg}; dropped {len(d['dropped'])} points{'; OLD KEPT' if a.keep_old else ''})\n")
-        print(f"   rebuilt {name}: {key[:8]} -> {new_key[:8]}  {msg}{'  (old kept)' if a.keep_old else ''}")
-        done += 1
-    print(f'done: {done} rebuilt')
+        new_key = find_copy(api, target, name, key) or rebuild(api, target, name, key, d)
+        pending.append((name, key, new_key, d))
+        pending = finalize(api, pending, a.keep_old)      # copies are made back to back; the originals go as soon as their copy has arrived
+    t0 = time.time()
+    while pending and time.time() - t0 < a.finalize_wait_min * 60 and not (a.stop_file and os.path.exists(a.stop_file)):
+        time.sleep(60)
+        pending = finalize(api, pending, a.keep_old)
+    for name, key, new_key, d in pending:
+        print(f'UNVERIFIED {name} {key[:8]} -> {new_key[:8]}: original kept, copy left in place', flush=True)
+    print(f'done: {len(pending)} still waiting', flush=True)
 
 
 if __name__ == '__main__':
