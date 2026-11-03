@@ -54,16 +54,67 @@ def listing(api, project, match):
     return sorted(out)
 
 
+# A _comb twin that was BACKFILLED onto an older run was recomputed from the validation dump, so it equals the logged _epi value only to the dump's precision
+# (about 1e-4); a twin that differs by more than this is a different quantity and the _epi series stays.
+EXACT_TOL = 2e-3
+WORST = [0.0]                                     # the largest _epi-vs-twin difference accepted so far (reported per run)
+EXACT = ('beyond_rho', 'beyond_lib', 'beyond_rho_pairavg', 'pair_rho', 'line_rho')   # bit-identical to their _comb twin (the diag clean err / bias too)
+TWIN = re.compile(r'^(val_(?:unmasked_)?)(diag_)?epi_(.+)_epi$')
+
+
+def twin_of(name):
+    """(the metric that replaces a dropped ``_epi`` series, whether the two must be numerically identical)."""
+    pre, diag, metric = TWIN.match(name).groups()
+    if diag:
+        return f'{pre}diag_epi_{metric}_comb', True
+    if metric == 'cell_rank':
+        return f'{pre}diag_epi_cell_rank_mt_legacy', True        # the MT head alone, which cell_rank_epi equals exactly
+    return f'{pre}epi_{metric}_comb', metric in EXACT
+
+
+def droppable(series):
+    """The ``_epi`` series that may go: only those whose replacement is in the same experiment at every step (and equal to it where they must be).
+    Older runs have no _comb or MT-legacy twin, and for them the _epi series is the only copy, so it stays."""
+    out = set()
+    for name in series:
+        if not re.match(DROP, name):
+            continue
+        twin, exact = twin_of(name)
+        if twin not in series or not set(series[name]) <= set(series[twin]):
+            continue
+        if exact:
+            worst = max(abs(v - series[twin][st]) for st, v in series[name].items())
+            WORST[0] = max(WORST[0], worst)
+            if worst > EXACT_TOL:
+                continue
+        out.add(name)
+    return out
+
+
 def read(api, key):
     e = api.get_experiment_by_key(key)
     md = e.get_metadata()
     pts = e.get_metrics()
-    keep, dropped, system = [], [], []
-    drop = re.compile(DROP)
+    series = {}
+    for p in pts:
+        if not p['metricName'].startswith(SYSTEM) and re.match(r'^val_', p['metricName']):
+            series.setdefault(p['metricName'], {})[None if p['step'] is None else int(p['step'])] = float(p['metricValue'])
+    WORST[0] = 0.0
+    gone = droppable(series)
+    worst = WORST[0]
+    keep, dropped, system, no_twin = [], [], [], []
     for p in pts:
         n = p['metricName']
-        (system if n.startswith(SYSTEM) else dropped if drop.match(n) else keep).append(p)
-    return dict(exp=e, meta=md, keep=keep, dropped=dropped, system=system, params={p['name']: p['valueCurrent'] for p in e.get_parameters_summary() if p['name'] not in AUTO_PARAMS},
+        if n.startswith(SYSTEM):
+            system.append(p)
+        elif n in gone:
+            dropped.append(p)
+        else:
+            keep.append(p)
+            if re.match(DROP, n):
+                no_twin.append(n)
+    return dict(worst=worst, exp=e, meta=md, keep=keep, dropped=dropped, system=system, no_twin=sorted(set(no_twin)),
+                params={p['name']: p['valueCurrent'] for p in e.get_parameters_summary() if p['name'] not in AUTO_PARAMS},
                 tags=sorted(e.get_tags() or []), assets=e.get_asset_list(), git=e.get_git_metadata() or {},
                 last=max([float(p['timestamp']) for p in pts if p.get('timestamp')] or [0.0]))
 
@@ -75,7 +126,7 @@ def report(name, key, d, idle_min):
     if idle_min is not None and (time.time() * 1000 - d['last']) < idle_min * 60_000:
         why.append(f'metric < {idle_min} min old')
     print(f"{name:34s} {key[:8]}  points {len(d['keep']) + len(d['dropped']) + len(d['system']):6d}: keep {len(d['keep']):6d}  drop {len(d['dropped']):5d}  "
-          f"system(lost) {len(d['system']):5d}  assets {len(d['assets'])}  tags {d['tags']}  {'SKIP: ' + ', '.join(why) if why else ''}")
+          f"system(lost) {len(d['system']):5d}  assets {len(d['assets'])}  tags {d['tags']}  max|twin diff| {d['worst']:.1e}  {'KEPT (no twin): ' + str(len(d['no_twin'])) + ' _epi series  ' if d['no_twin'] else ''}{'SKIP: ' + ', '.join(why) if why else ''}")
     return not why
 
 
