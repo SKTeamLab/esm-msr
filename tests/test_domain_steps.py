@@ -167,3 +167,26 @@ def test_the_cosine_length_counts_domain_steps():
         scheds[0]['scheduler'].step()
     g = opts[0].param_groups[0]
     assert g['lr'] / g['initial_lr'] == pytest.approx(0.05, rel=0.05)
+
+
+@pytest.mark.parametrize('p', [0.0, 0.5])
+def test_visible_sites_compose_with_the_domain_weight_and_the_row_chunk(p):
+    """The masking grid (p = 0.5 and 0 on both heads, row chunk 20) runs on domain steps: a visible-site pair block is weighted w / n_pairs exactly as a masked one is, and
+    a visible-site singles block still trains both heads (the same random draw is replayed for each of the two compared steps)."""
+    from test_blocks import _blk, _module
+    kw = dict(lambda_rank_mt=0.0, block_mask_wt=p, block_mask_mt=p, block_row_chunk=20)
+    s = _module(**kw)
+    torch.manual_seed(3)
+    plain = M_step(s, _blk('pair'))
+    g0 = s.model.w_mt.grad.clone()
+    s = _module(**kw, block_pair_weight=0.38)
+    torch.manual_seed(3)
+    scaled = M_step(s, _blk('pair', n_lib_pairs=4, step_end=True))
+    assert float(g0.abs()) > 0
+    assert s.model.w_mt.grad.item() == pytest.approx(g0.item() * 0.38 / 4, rel=1e-4)
+    assert scaled['L_reg_combined'] == pytest.approx(plain['L_reg_combined'])
+    s = _module(**kw)
+    torch.manual_seed(3)
+    logs = M_step(s, _blk('single'))
+    assert all(np.isfinite(v) for v in logs.values())
+    assert float(s.model.w_wt.grad.abs()) > 0 and float(s.model.w_mt.grad.abs()) > 0
