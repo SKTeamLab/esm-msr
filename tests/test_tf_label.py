@@ -3,15 +3,19 @@
 The posterior is checked against brute-force integration of prior x likelihood, so the closed form cannot drift from the Tobit loss it claims to invert.
 """
 import sys
+import types
 
+import numpy as np
 import pytest
 import torch
 
 from esm_msr import blocks, censoring, config
+from esm_msr.data import stamp_tf_singles
 from esm_msr.link import LeakyFloorLink, SaturatingLink
 from esm_msr.losses import TF_PRIOR_SD, TOBIT_SIGMA_Y, tobit_posterior_mean, tobit_regression_loss
 from esm_msr.training import ESM3EpistasisLightningModule as M, TF_CLAMP_Y0, tf_single_label
 from test_blocks import _blk, _module
+from test_tf_mix import _EnsembleModel, _batch, _combined_loss, _stub
 
 
 def _brute(y, m, cens=0, s=TF_PRIOR_SD):
@@ -209,6 +213,83 @@ def test_the_singles_block_takes_the_same_labels():
         logs = M._block_step(s, _blk('single'))
         assert logs['L_reg_combined'] == logs['L_reg_combined'], kind
         assert s.model.w_mt.grad is not None and torch.isfinite(s.model.w_mt.grad), kind
+
+
+# ---------------------------------------------------------------------------------------------------------------- the per-item path
+
+def test_stamp_tf_singles_keeps_each_measured_single_where_the_cache_blanks_both():
+    def item(kind, pos, mts, y=0.0, src=0, **kw):
+        return dict(subset_type=kind, mut_pos=np.array(pos), mt_id=np.array(mts), ddG=y, cens_src=src, **kw)
+    nan = float('nan')
+    items = [item('single', [3], [10], y=-1.2), item('single', [7], [20], y=-3.0, src=censoring.SRC_RANGE), item('single', [7], [21], y=0.4),
+             item('double', [3, 7], [10, 20], ddG_A=nan, ddG_B=nan),    # the single at 7 is only a tag
+             item('double', [3, 7], [10, 22], ddG_A=nan, ddG_B=nan),    # the single at 7 was never measured
+             item('double', [7, 3], [21, 10], ddG_A=0.4, ddG_B=-1.2)]   # slot 0 is the item's first mutation
+    stamp_tf_singles(items)
+    assert items[3]['tf_A'] == pytest.approx(-1.2) and np.isnan(items[3]['tf_B'])
+    assert items[4]['tf_A'] == pytest.approx(-1.2) and np.isnan(items[4]['tf_B'])
+    assert items[5]['tf_A'] == pytest.approx(0.4) and items[5]['tf_B'] == pytest.approx(-1.2)
+    assert 'tf_A' not in items[0]
+
+
+class _SlotModel(_EnsembleModel):
+    """The WT pass reads 1.5 at the first mutated site and 0.5 at the second, so a label can only be right by using the matching slot."""
+
+    def forward_partitioned(self, micro, pass_type, mask_strategy=None, cached_wt_esm3=None):
+        out = super().forward_partitioned(micro, pass_type, mask_strategy, cached_wt_esm3)
+        B = int(micro['ddG'].shape[0])
+        out['unsummed_llr'] = torch.tensor([[1.5, 0.5]]).repeat(B, 1) * self.w[0]
+        return out
+
+
+def _per_item(batch, **hp):
+    s = _stub()
+    s.model = _SlotModel(2.0, 0.0)
+    for k, v in hp.items():
+        s.hparams[k] = v
+    return _combined_loss(s, batch)
+
+
+# With MT at 0 and a target of -1, the loss is (0.5 * WT half + 1)^2. dG_wt 2, cut 2.3: a single with ddG 0.2 reads 2.2 (dead), one with ddG 0.5 reads 2.5 (live).
+_half = lambda h: (0.5 * h + 1.0) ** 2
+
+
+@pytest.mark.parametrize('a,b,want', [(0.2, 0.5, 1.5 + 0.5),      # A dead: the read of slot 0 and the measurement of B
+                                      (0.5, 0.2, 0.5 + 0.5),      # B dead: the measurement of A and the read of slot 1
+                                      (0.5, 0.5, 1.0),            # both measured
+                                      (0.2, 0.2, 2.0)])           # neither: the WT head's own sum
+def test_a_per_item_double_below_the_cut_costs_only_the_dead_single(a, b, want):
+    batch = _batch()
+    batch['ddG_A'], batch['ddG_B'] = torch.full((6,), a), torch.full((6,), b)
+    assert _per_item(batch, tf_cut=2.3) == pytest.approx(_half(want), abs=1e-5)
+
+
+def test_a_per_item_double_beside_a_tagged_single_keeps_its_partner_through_tf_a_and_tf_b():
+    nan = float('nan')
+    batch = _batch()
+    batch['ddG_A'], batch['ddG_B'] = torch.full((6,), nan), torch.full((6,), nan)    # the cache blanks both
+    batch['tf_A'], batch['tf_B'] = torch.full((6,), 0.5), torch.full((6,), nan)
+    assert _per_item(batch, tf_cut=2.3) == pytest.approx(_half(0.5 + 0.5), abs=1e-5)
+    batch['tf_A'], batch['tf_B'] = torch.full((6,), nan), torch.full((6,), nan)      # neither single measured
+    assert _per_item(batch, tf_cut=2.3) == pytest.approx(_half(2.0), abs=1e-5)
+
+
+def test_a_missing_per_position_read_refuses_rather_than_labels_with_a_zero():
+    batch = _batch()
+    batch['ddG_A'], batch['ddG_B'] = torch.full((6,), 0.2), torch.full((6,), 0.5)
+    s = _stub()                                                                      # this stub's model returns no unsummed_llr
+    s.hparams['tf_cut'] = 2.3
+    with pytest.raises(AssertionError, match='per-position'):
+        _combined_loss(s, batch)
+
+
+def test_forward_rows_hands_back_the_per_position_reads_of_each_forward():
+    s = types.SimpleNamespace(model=_SlotModel(2.0, 0.0))
+    micro = {'ddG': torch.zeros(4)}
+    slots = []
+    M._forward_rows(s, micro, 'wt', None, torch.tensor([True, False, True, False]), slots=slots)
+    rows = torch.cat([r for r, _ in slots]).sort().values.tolist()
+    assert rows == [0, 1, 2, 3] and all(not u.requires_grad and u.shape[1] == 2 for _, u in slots)
 
 
 # ---------------------------------------------------------------------------------------------------------------- flags

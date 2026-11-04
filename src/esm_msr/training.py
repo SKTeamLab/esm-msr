@@ -554,14 +554,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         own_w = rows & ((rank + int(turn)) % 2 == 0)
         return own_w, rows & ~own_w
 
-    def _forward_rows(self, micro, pass_type: str, mask_strategy, grad_rows, need_rows=None):
+    def _forward_rows(self, micro, pass_type: str, mask_strategy, grad_rows, need_rows=None, slots=None):
         """
         One pass over some of a micro-batch's rows, as full-length ``(calibrated, raw)`` tensors.
 
         Rows in ``grad_rows`` go through autograd and carry the pass's graph; the other rows in ``need_rows`` (default: all) are read in a
         second forward under ``no_grad`` and are constants; a row in neither is zero and must be masked out of every loss that sees the
         result. This is what lets a double keep ONE adapter's graph (--joint_doubles alternate): the half it does not own is a detached
-        number, produced without saving activations.
+        number, produced without saving activations. ``slots``, a list, receives ``(row indices, per-position reads)`` of each forward, detached.
         """
         n = int(grad_rows.shape[0])
         need = torch.ones_like(grad_rows) if need_rows is None else need_rows
@@ -573,6 +573,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             sub = micro if idx.numel() == n else utils.slice_batch_by_index(micro, idx)
             with torch.set_grad_enabled(grad):
                 out = self.model.forward_partitioned(sub, pass_type=pass_type, mask_strategy=mask_strategy)
+            if slots is not None and out.get('unsummed_llr') is not None:
+                slots.append((idx, out['unsummed_llr'].detach().float()))
             c, r = out['pred_calibrated'].float(), out['pred_raw'].float()
             if not grad:
                 c, r = c.detach(), r.detach()
@@ -736,7 +738,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # teacher forcing.
             lat = lambda o: link.latent_ddG(o.float(), dGwt_mb, floor_mb).detach()
             if 'ddG_A' in micro and 'ddG_B' in micro:
-                tf_lat = lat(micro['ddG_A']) + lat(micro['ddG_B'])
+                # tf_A / tf_B: the item's ddG_A / ddG_B are both NaN beside a tagged or missing single, and these keep the other one
+                yA, yB = micro.get('tf_A', micro['ddG_A']).float(), micro.get('tf_B', micro['ddG_B']).float()
+                zA, zB = lat(yA), lat(yB)
+                tf_lat = zA + zB
             else:
                 tf_lat = torch.full_like(ddG_mb, float('nan'))
                 if not getattr(self, '_warned_tf_delink_missing', False):
@@ -748,16 +753,21 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
             # ... but only where that measured sum is a usable stand-in for the LATENT sum. A single measured at the floor reports the
             # floor, not its own effect, so injecting it into a latent average biases the combined prediction by however much that single
-            # was compressed. Such doubles fall back to the WT head's own latent. The cut is --censor_threshold, the same one that
-            # censored the single, and a censored single gives no label for ITSELF either (its label is a bound).
+            # was compressed. The WT head reads such a single instead, once its pass has run, so its partner keeps its measurement; with neither
+            # measured the WT half is simply the WT head's own. The cut is --censor_threshold, the same one that censored the single, and a
+            # censored single gives no label for ITSELF either (its label is a bound).
             if tf_cut_hp is not None:
                 cut = torch.full_like(floor_mb, float(tf_cut_hp))
             else:
                 cut = torch.full_like(floor_mb, float(t_single)) if t_single is not None else floor_mb
+            one_measured = torch.zeros_like(is_single)
             if 'ddG_A' in micro and 'ddG_B' in micro:
-                tf_saturated = teacher_forcing_unusable(dGwt_mb, micro['ddG_A'].float(), micro['ddG_B'].float(), cut) & ~is_single
+                tf_saturated = teacher_forcing_unusable(dGwt_mb, yA, yB, cut) & ~is_single
                 n_tf_drop += int(tf_saturated.sum().item())
                 has_add_label = has_add_label & ~tf_saturated
+                useA, useB = torch.isfinite(zA) & ((dGwt_mb + yA) > cut), torch.isfinite(zB) & ((dGwt_mb + yB) > cut)
+                if not (wt_sup_dbl and self.mask_wt == 'marginal'):
+                    one_measured = (useA ^ useB) & (n_mut_mb == 2) & link_ok
             if tf_cut_hp is not None:
                 # a single read at or below the cut gives no label for itself either (it is not censored, so cens does not say so)
                 has_add_label = has_add_label & ~(is_single & ((dGwt_mb + ddG_mb) <= float(tf_cut_hp)))
@@ -792,6 +802,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if wt_frozen and hasattr(self.model, 'peft_wt') and isinstance(self.model.peft_wt, torch.nn.Module):
                     self.model.peft_wt.eval()
 
+                wt_out, wt_slots = None, []                      # the pass's read of each mutated position, as (rows, reads)
                 if wt_frozen and not need_wt_losses and tf_mix >= 1.0 and bool(has_add_label.all()):
                     wt_pred_cal = torch.zeros_like(tf_additive_labels)
                     wt_pred_raw = torch.zeros_like(tf_additive_labels)
@@ -806,10 +817,27 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     # else is alive; the WT graph then covers only the rows it trains (singles, and the doubles it owns).
                     if joint_mode == 'alternate' and own_w.any():
                         mt_nog = self._forward_rows(micro, 'mt', self.mask_mt, torch.zeros_like(own_w), own_w)
-                    wt_pred_cal, wt_pred_raw = self._forward_rows(micro, 'wt', self.mask_wt, valid_wt_mask | own_w)
+                    wt_pred_cal, wt_pred_raw = self._forward_rows(micro, 'wt', self.mask_wt, valid_wt_mask | own_w, slots=wt_slots)
                 else:
                     wt_out = self.model.forward_partitioned(micro, pass_type='wt', mask_strategy=self.mask_wt)
                     wt_pred_cal, wt_pred_raw = wt_out['pred_calibrated'].float(), wt_out['pred_raw'].float()
+
+                # One measurement and one guess beat two guesses: the single without a usable measurement is the WT head's read of it alone.
+                if one_measured.any():
+                    if wt_out is not None and wt_out.get('unsummed_llr') is not None:
+                        wt_slots.append((torch.arange(ddG_mb.shape[0], device=ddG_mb.device), wt_out['unsummed_llr'].detach().float()))
+                    if not wt_slots:
+                        raise AssertionError("A double with one usable single needs the WT pass's per-position reads, and this pass returned none.")
+                    read_w = getattr(self.model, 'calibration_head_wt', getattr(self.model, 'calibration_head_fused', None))
+                    s_w = 1.0 if not read_w.use_scale else read_w.scale.detach()
+                    b_w = read_w.bias_for(torch.ones_like(n_mut_mb))
+                    b_w = b_w.detach() if torch.is_tensor(b_w) else b_w
+                    llr_one = torch.zeros(ddG_mb.shape[0], 2, device=ddG_mb.device)
+                    for rows, reads in wt_slots:
+                        llr_one[rows] = reads[:, :2]
+                    wt_one = s_w * llr_one + (b_w.unsqueeze(1) if torch.is_tensor(b_w) else b_w)
+                    tf_additive_labels = torch.where(one_measured, torch.where(useA, zA, wt_one[:, 0]) + torch.where(useB, zB, wt_one[:, 1]), tf_additive_labels)
+                    has_add_label = has_add_label | one_measured
 
                 cens_wt = cens_mb if wt_sup_dbl else torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
                 wt_losses = []

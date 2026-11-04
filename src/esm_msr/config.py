@@ -359,9 +359,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                           "coupling to --censor_threshold (or the link floor): that coupling made a censor threshold at or below the floor feed "
                           "near-floor readings to the inverse link, which explodes there. Set it (0.5) to choose the teacher-forcing cut on its own.")
     obj.add_argument('--tf_label', type=str, default='inverse', choices=['inverse', 'clamped', 'posterior'],
-                     help="--block_training: the teacher-forcing label of one measured single. inverse: the inverse link above --tf_cut, and below it the WT head's read of that single alone, so its "
-                          "partner keeps its measurement (the default; the per-item path still replaces the double's whole WT half). posterior: E[z | reading] under the Tobit likelihood with the WT "
-                          "head's detached read as the prior (losses.tobit_posterior_mean), at every reading, with no cut. clamped: the inverse link with the reading raised to 0.25 (training.TF_CLAMP_Y0).")
+                     help="The teacher-forcing label of one measured single. inverse: the inverse link above --tf_cut, and below it the WT head's read of that single alone, so its partner keeps its "
+                          "measurement (the default, in both training paths). --block_training only: posterior, E[z | reading] under the Tobit likelihood with the WT head's detached read as the prior "
+                          "(losses.tobit_posterior_mean), at every reading, with no cut; clamped, the inverse link with the reading raised to 0.25 (training.TF_CLAMP_Y0).")
     obj.add_argument('--tf_no_label', type=str, default='wt', choices=['wt', 'mt'],
                      help="--block_training with --tf_label inverse: what a double missing a measurement is regressed through. wt: 0.5 (WT + MT), the WT head reading the missing single (the default). "
                           "mt: the MT head alone, which is on half the epistasis scale of a labelled double.")
@@ -693,7 +693,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         if clash:
             parser.error(f"--joint_doubles regresses the live double through the standard observed-scale hinge; it is not defined with {', '.join(clash)}")
     if (args.tf_label != 'inverse' or args.tf_no_label != 'wt') and not args.block_training:
-        parser.error("--tf_label and --tf_no_label are defined for --block_training only: a per-item double does not carry its singles' tags, and its ddG_A / ddG_B are NaN beside a tagged single")
+        parser.error("--tf_label clamped / posterior and --tf_no_label mt are defined for --block_training only")
     if args.tf_label != 'inverse' and args.tf_cut is not None:
         parser.error(f"--tf_label {args.tf_label} has no cut: every single keeps a label, so --tf_cut means nothing")
     if args.tf_no_label != 'wt' and args.tf_label != 'inverse':

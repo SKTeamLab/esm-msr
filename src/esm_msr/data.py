@@ -129,6 +129,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             self.data: List[Dict[str, Any]] = pickle.load(f)['items']
         logging.info(f"Cache contains: {dict(Counter(i.get('subset_type', 'unknown') for i in self.data))}")
 
+        stamp_tf_singles(self.data)
         if not censor_range:
             self._drop_range_censored()
         if label_native_cond:
@@ -206,6 +207,23 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         return self.data[idx]
 
 
+def stamp_tf_singles(items: List[Dict[str, Any]]) -> None:
+    """
+    Give every double its two measured singles as ``tf_A`` / ``tf_B``, NaN where one is missing or only a range tag ('<-1', '>5'), so teacher forcing can keep the other.
+
+    The cache's ``ddG_A`` / ``ddG_B`` cannot serve: both are NaN when either single is missing or tagged. Slot 0 is the item's first mutation, as for ``ddG_A``.
+    """
+    keyed = [it for it in items if 'mut_pos' in it and 'mt_id' in it]
+    measured = {}
+    for it in keyed:
+        if it.get('subset_type') == 'single' and int(it.get('cens_src', 0)) != censoring.SRC_RANGE:
+            measured[(int(np.asarray(it['mut_pos']).ravel()[0]), int(np.asarray(it['mt_id']).ravel()[0]))] = float(it.get('ddG', float('nan')))
+    for it in keyed:
+        if it.get('subset_type') == 'double':
+            pos, mts = np.asarray(it['mut_pos']).ravel(), np.asarray(it['mt_id']).ravel()
+            it['tf_A'], it['tf_B'] = (measured.get((int(pos[k]), int(mts[k])), float('nan')) for k in (0, 1))
+
+
 def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Vectorized collation specifically built for MSRModel's homogeneous microbatch assumption.
@@ -224,6 +242,8 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     ddG_additive = torch.tensor([float(item.get('ddG_additive', float('nan'))) for item in batch], dtype=torch.float32)
     ddG_A = torch.tensor([float(item.get('ddG_A', float('nan'))) for item in batch], dtype=torch.float32)
     ddG_B = torch.tensor([float(item.get('ddG_B', float('nan'))) for item in batch], dtype=torch.float32)
+    tf_A = torch.tensor([float(item.get('tf_A', item.get('ddG_A', float('nan')))) for item in batch], dtype=torch.float32)
+    tf_B = torch.tensor([float(item.get('tf_B', item.get('ddG_B', float('nan')))) for item in batch], dtype=torch.float32)
     valid_dddG_mask = torch.tensor([bool(item.get('valid_dddG_mask', False)) for item in batch], dtype=torch.bool)
 
     # The assay's own scale: the library's starting dG and floor, and what this item's measurement bounds.
@@ -294,6 +314,8 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         'ddG_additive': ddG_additive,
         'ddG_A': ddG_A,
         'ddG_B': ddG_B,
+        'tf_A': tf_A,
+        'tf_B': tf_B,
         'valid_dddG_mask': valid_dddG_mask,
         'dG_wt': dG_wt,
         'y_floor': y_floor,
@@ -766,6 +788,8 @@ class PooledDataLoader:
         ddG_additive = torch.tensor([float(it.get('ddG_additive', float('nan'))) for it in batch], dtype=torch.float32)
         ddG_A = torch.tensor([float(it.get('ddG_A', float('nan'))) for it in batch], dtype=torch.float32)
         ddG_B = torch.tensor([float(it.get('ddG_B', float('nan'))) for it in batch], dtype=torch.float32)
+        tf_A = torch.tensor([float(it.get('tf_A', it.get('ddG_A', float('nan')))) for it in batch], dtype=torch.float32)
+        tf_B = torch.tensor([float(it.get('tf_B', it.get('ddG_B', float('nan')))) for it in batch], dtype=torch.float32)
         valid_dddG_mask = torch.tensor([bool(it.get('valid_dddG_mask', False)) for it in batch], dtype=torch.bool)
         dG_wt = torch.tensor([float(it.get('dG_wt', float('nan'))) for it in batch], dtype=torch.float32)
         y_floor = torch.tensor([float(it.get('y_floor', float('nan'))) for it in batch], dtype=torch.float32)
@@ -824,6 +848,8 @@ class PooledDataLoader:
             "ddG_additive": ddG_additive,
             "ddG_A": ddG_A,
             "ddG_B": ddG_B,
+            "tf_A": tf_A,
+            "tf_B": tf_B,
             "valid_dddG_mask": valid_dddG_mask,
             "dG_wt": dG_wt,
             "y_floor": y_floor,
