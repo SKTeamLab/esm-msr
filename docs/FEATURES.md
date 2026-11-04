@@ -99,6 +99,11 @@ Because the measured label is reported on the saturated assay scale, simply addi
 $$\Delta\Delta G_{\text{tf,lat}} = h^{-1}(\Delta G_{\text{wt}} + \Delta\Delta G_A) + h^{-1}(\Delta G_{\text{wt}} + \Delta\Delta G_B) - 2\Delta G_{\text{wt}}$$
 If either constituent single is at or below the floor, the item is flagged as unusable (`teacher_forcing_unusable`).
 
+### 4.2b The Label of One Single (`--tf_label`, `--tf_no_label`, block training only)
+- **`inverse`** (default): the inverse link, with a cut (`--tf_cut`, else `--censor_threshold`). A double below the cut is not dropped: its whole WT half falls back to the WT head (`--tf_no_label wt`), or it is regressed through the MT head alone (`--tf_no_label mt`, half the epistasis scale of a labelled double). The leaky inverse diverges on the way to its clamp (a reading of -0.5 gives -5.36, -0.9 gives -11.77), which puts the combined prediction in the flat part of the Tobit loss whatever MT says.
+- **`posterior`**: $E[z \mid y]$ with the prior $N(\text{WT read}, 0.75^2)$ under the Tobit likelihood, in closed form (`losses.tobit_posterior_mean`), per single and detached. No cut and no fallback: a reading above the floor is averaged with the prior (88% reading), a reading at the floor keeps the part of the prior below it, and a `<-1` single (which has no `ddG_A` / `ddG_B`) gets the survival term's truncated mean.
+- **`clamped`**: the inverse link with the reading raised to 0.25, the same continuity without the model.
+
 ### 4.3 Mixture Tuning (`--tf_mix`)
 `--tf_mix m` blends the de-linked measured label with the WT adapter prediction:
 $$y_{\text{forced\_wt}} = m \cdot y_{\text{measured\_additive}} + (1 - m) \cdot y_{\text{WT\_pred}}$$

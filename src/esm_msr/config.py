@@ -358,6 +358,13 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                      help="Teacher forcing uses a measured single (or a double's two singles) only when its absolute dG is ABOVE this. Unset keeps the old "
                           "coupling to --censor_threshold (or the link floor): that coupling made a censor threshold at or below the floor feed "
                           "near-floor readings to the inverse link, which explodes there. Set it (0.5) to choose the teacher-forcing cut on its own.")
+    obj.add_argument('--tf_label', type=str, default='inverse', choices=['inverse', 'clamped', 'posterior'],
+                     help="--block_training: the teacher-forcing label of one measured single. inverse: the inverse link, with --tf_cut and the WT fallback (the default). "
+                          "posterior: E[z | reading] under the Tobit likelihood with the WT head's detached read as the prior (losses.tobit_posterior_mean), for every single at every reading: "
+                          "no cut, no fallback, and a '<-1' single keeps its label. clamped: the inverse link with the reading raised to 0.25 (training.TF_CLAMP_Y0), the same without the model.")
+    obj.add_argument('--tf_no_label', type=str, default='wt', choices=['wt', 'mt'],
+                     help="--block_training with --tf_label inverse: what a double without a usable label is regressed through. wt: 0.5 (WT + MT), its whole WT half the WT head's read (the "
+                          "default). mt: the MT head alone, which is on half the epistasis scale of a labelled double.")
     obj.add_argument('--mt_single_loss_weight', type=float, default=1.0,
                      help="Relative loss weight on single-mutant items vs multi-mutants (1.0) in the MT regression and ranking losses "
                           "(e.g. 0.1 downweights singles 10x while preserving domain-context regularisation).")
@@ -685,6 +692,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                                  ('--wt_supervise_doubles', args.wt_supervise_doubles)) if on]
         if clash:
             parser.error(f"--joint_doubles regresses the live double through the standard observed-scale hinge; it is not defined with {', '.join(clash)}")
+    if (args.tf_label != 'inverse' or args.tf_no_label != 'wt') and not args.block_training:
+        parser.error("--tf_label and --tf_no_label are defined for --block_training only: the per-item path has no read of each single")
+    if args.tf_label != 'inverse' and args.tf_cut is not None:
+        parser.error(f"--tf_label {args.tf_label} has no cut: every single keeps a label, so --tf_cut means nothing")
+    if args.tf_no_label != 'wt' and args.tf_label != 'inverse':
+        parser.error("--tf_no_label mt needs --tf_label inverse: the other labels leave no double without one")
     if args.block_training:
         # Block training regresses on tensors: the observed-scale hinge or, with --reg_nll tobit, the Tobit likelihood on the latent dG. The per-item
         # extras below have no block form.

@@ -185,6 +185,7 @@ def hinge_regression_loss(crit, pred: torch.Tensor, target: torch.Tensor, bound:
 
 TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F = 0.28, 0.05, 0.38     # kcal/mol: assay noise, mean and spread of the unfolded floor
 _LOG_SQRT_2PI = 0.5 * math.log(2.0 * math.pi)
+TF_PRIOR_SD = 0.75                                              # kcal/mol: the width of the prior on a single's latent dG around the WT head's read (--tf_label posterior)
 
 
 def tobit_regression_loss(z: torch.Tensor, y: torch.Tensor, bound: torch.Tensor, cens: torch.Tensor,
@@ -200,7 +201,8 @@ def tobit_regression_loss(z: torch.Tensor, y: torch.Tensor, bound: torch.Tensor,
     The first term is "the variant was measured"; the second is "the floor was read, and the variant sits below it". Far above the floor
     ``Phi_f -> 1`` and ``phi_f -> 0`` and this is a Gaussian, i.e. plain MSE. Near and below it the second term turns the loss into a smooth upper bound
     on z: a dead double at z = -3 read at +0.05 costs almost nothing, a false-stable z = +1.5 is expensive, and no reading below the floor
-    has to be inverted or censored by a threshold. The minimiser of one item is the noise-aware E[z | y], not the deterministic h^-1(y).
+    has to be inverted or censored by a threshold. One item's minimiser is its maximum-likelihood point (a reading of 0 gives z = -0.18, barely better than z = -30); E[z | y] needs a
+    prior as well, see :func:`tobit_posterior_mean`. Below z* = y - (sigma_y / sigma_f) (y - mu_f) the floor branch owns the item and the loss is flat, at any reading.
 
     ``cens`` as everywhere: 0 an ordinary reading scored with the mixture; -1 / +1 a bound (``bound`` absolute dG, e.g. the assay's '<-1' / '>5' tags), scored
     with the survival term ``-log Phi((b - z) / sigma_y)`` / ``-log Phi((z - b) / sigma_y)`` (the floor factor does not depend on z). A censored
@@ -223,3 +225,32 @@ def tobit_regression_loss(z: torch.Tensor, y: torch.Tensor, bound: torch.Tensor,
     L_hi = -scale * torch.special.log_ndtr((z - b_s) / sigma_y)
     zero = torch.zeros_like(L_num)
     return torch.where(num, L_num, zero) + torch.where(lo & b_ok, L_lo, zero) + torch.where(hi & b_ok, L_hi, zero)
+
+
+@torch.no_grad()
+def tobit_posterior_mean(y: torch.Tensor, m: torch.Tensor, cens: torch.Tensor, s: float = TF_PRIOR_SD,
+                         sigma_y: float = TOBIT_SIGMA_Y, mu_f: float = TOBIT_MU_F, sigma_f: float = TOBIT_SIGMA_F) -> torch.Tensor:
+    """
+    E[z | reading] on ABSOLUTE dG, element-wise: the prior ``z ~ N(m, s^2)`` updated by the likelihood of :func:`tobit_regression_loss`, in closed form. Nothing is sampled.
+
+    The likelihood has two branches, so the posterior is a mixture of two pieces with known means, with r^2 = s^2 + sigma_y^2 and a = (y - m) / r:
+
+        measured:  the prior times a Gaussian, mean (m sigma_y^2 + y s^2) / r^2,                  weight phi(a) / r * Phi_f(y - mu_f)
+        floor:     the prior times Phi((y - z) / sigma_y), mean m - (s^2 / r) lambda(a),          weight phi_f(y - mu_f) * Phi(a)
+
+    with lambda = phi / Phi. So a reading well above the floor is averaged with the prior (88% reading at s = 0.75), and a reading at the floor keeps the part of the prior below it: a
+    deep prior stays deep, an optimistic one is cut down to the floor. ``cens`` -1 / +1 (a '<-1' / '>5' tag, with ``y`` its bound) gives the survival term's truncated mean, and a NaN ``y``
+    (no reading) returns the prior. Continuous in y, with no threshold, inverse or NaN to handle.
+    """
+    y_s = torch.where(torch.isfinite(y), y, m)
+    r = math.sqrt(s ** 2 + sigma_y ** 2)
+    a = (y_s - m) / r
+    lam = lambda t: torch.exp(-0.5 * t ** 2 - _LOG_SQRT_2PI - torch.special.log_ndtr(t))
+    f = (y_s - mu_f) / sigma_f
+    log_w1 = -0.5 * a ** 2 - math.log(r) + torch.special.log_ndtr(f)
+    log_w2 = -0.5 * f ** 2 - math.log(sigma_f) + torch.special.log_ndtr(a)
+    w1 = torch.exp(log_w1 - torch.logaddexp(log_w1, log_w2))
+    z = w1 * (m * sigma_y ** 2 + y_s * s ** 2) / r ** 2 + (1.0 - w1) * (m - s ** 2 / r * lam(a))
+    z = torch.where(cens < 0, m - s ** 2 / r * lam(a), z)
+    z = torch.where(cens > 0, m + s ** 2 / r * lam(-a), z)
+    return torch.where(torch.isfinite(y), z, m)

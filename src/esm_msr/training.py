@@ -21,7 +21,7 @@ from lightning.pytorch.loggers import CometLogger, CSVLogger
 from esm_msr.models import MSRModel, combine_predictions, pass_mask_strategy
 from esm_msr import blocks, censoring, epi_metrics, stats, utils
 from esm_msr.link import SaturatingLink, LeakyFloorLink, IdentityLink
-from esm_msr.losses import ListMLELoss, hinge_regression_loss, tobit_regression_loss, TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F
+from esm_msr.losses import ListMLELoss, hinge_regression_loss, tobit_posterior_mean, tobit_regression_loss, TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
@@ -163,6 +163,21 @@ def teacher_forcing_unusable(dG_wt, ddG_A, ddG_B, cut):
     (the library floor, the learned global floor, or --censor_threshold) reports where the assay saturates, not its own
     effect, and de-linking it is undefined at the floor and explosively noisy just above it."""
     return ((dG_wt + ddG_A) <= cut) | ((dG_wt + ddG_B) <= cut)
+
+
+TF_CLAMP_Y0 = 0.25   # kcal/mol: the lowest reading --tf_label clamped inverts; a single read below it counts as read here
+
+
+def tf_single_label(kind, link, y, cens, cens_src, wt_lat, dG_wt, y_floor):
+    """The latent ddG label of one measured single under --tf_label clamped / posterior, detached; ``y`` and ``wt_lat`` (the WT head's read) on the ddG scale, ``dG_wt`` finite.
+
+    posterior is defined everywhere (no reading: the prior; a range tag: the survival term, its ``y`` being the tag's bound). clamped is NaN with no reading. A floor-censored number
+    (--censor_threshold) is a number: only the assay's own tags count as bounds, as in the Tobit regression.
+    """
+    if kind == 'posterior':
+        tag = torch.where(cens_src == censoring.SRC_RANGE, cens, torch.zeros_like(cens))
+        return tobit_posterior_mean(dG_wt + y, dG_wt + wt_lat, tag) - dG_wt
+    return link.latent_ddG(torch.maximum(y, TF_CLAMP_Y0 - dG_wt), dG_wt, y_floor).detach()
 
 
 def reachable_bounds(link, bound, y_floor, offset):
@@ -1218,13 +1233,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             return
         llr_mt = self._block_singles_llr(b, seqs, pos, wt_ids, 'mt', grad=True)       # with --block_mask_* 1 a masked single is the same input for both adapters
         mt_cal = self._block_cal('mt')(llr_mt, n)
-        lat = link.latent_ddG(c.y, c.dG_wt, c.floor).detach()
-        has = torch.isfinite(lat) & c.link_ok & c.obs_rank
-        t_single, tf_cut = hp.get('censor_threshold'), hp.get('tf_cut')
-        if tf_cut is not None:                                   # the audit's own cut: a single read at or below it gives no label (not tied to --censor_threshold)
-            has = has & ~((c.dG_wt + c.y) <= float(tf_cut))
-        elif t_single is not None:
-            has = has & (c.cens == 0)
+        tf_label = hp.get('tf_label', 'inverse') or 'inverse'
+        if tf_label == 'inverse':
+            lat = link.latent_ddG(c.y, c.dG_wt, c.floor).detach()
+            has = torch.isfinite(lat) & c.link_ok & c.obs_rank
+            t_single, tf_cut = hp.get('censor_threshold'), hp.get('tf_cut')
+            if tf_cut is not None:                               # the audit's own cut: a single read at or below it gives no label (not tied to --censor_threshold)
+                has = has & ~((c.dG_wt + c.y) <= float(tf_cut))
+            elif t_single is not None:
+                has = has & (c.cens == 0)
+        else:
+            lat = tf_single_label(tf_label, link, c.y, c.cens, lab['cens_src'], wt_cal.detach(), c.dG_wt, c.floor)
+            lat = torch.where(n == 0, torch.zeros_like(lat), lat)      # the identity cell: the wild type has no effect to estimate
+            has = torch.isfinite(lat) & c.link_ok & c.obs_rank
         f_cal, f_raw = self._block_forced(c, wt_cal, llr_wt, n, lat, has, live=live)
         comb_cal, comb_raw = combine_predictions(f_cal, mt_cal), combine_predictions(f_raw, llr_mt)
         if rank_sg:
@@ -1362,16 +1383,34 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # the teacher-forcing label of a cell: its measured singles, de-linked one at a time and summed
         yA, yB = tfA.float(), tfB.float()
         dG, fl = c.dG_wt, c.floor
-        lat = (link.latent_ddG(yA, dG, fl) + link.latent_ddG(yB, dG, fl)).detach()
-        t_single, tf_cut = hp.get('censor_threshold'), hp.get('tf_cut')
-        cut = torch.full_like(fl, float(tf_cut)) if tf_cut is not None else torch.full_like(fl, float(t_single)) if t_single is not None else fl
-        has = torch.isfinite(lat) & c.link_ok & ~teacher_forcing_unusable(dG, yA, yB, cut)
+        tf_label = hp.get('tf_label', 'inverse') or 'inverse'
+        if tf_label == 'inverse':
+            lat = (link.latent_ddG(yA, dG, fl) + link.latent_ddG(yB, dG, fl)).detach()
+            t_single, tf_cut = hp.get('censor_threshold'), hp.get('tf_cut')
+            cut = torch.full_like(fl, float(tf_cut)) if tf_cut is not None else torch.full_like(fl, float(t_single)) if t_single is not None else fl
+            has = torch.isfinite(lat) & c.link_ok & ~teacher_forcing_unusable(dG, yA, yB, cut)
+        else:
+            # One single at a time, from the block's own singles (a double with a '<-1' single has no yA / yB) and the WT head's read of each, so a live single keeps its measurement beside a dead one.
+            cal_w = self._block_cal('wt')
+
+            def one(aa, wt_aa, llr, tag):
+                w = cal_w(llr[aa], (aa != wt_aa).long()).detach()
+                z = tf_single_label(tf_label, link, b[tag + 'y'][aa].float(), b[tag + 'cens'][aa], b[tag + 'cens_src'][aa], w, dG.reshape(-1)[0], fl.reshape(-1)[0])
+                return torch.where(aa == wt_aa, torch.zeros_like(z), z)
+            lat = one(xi, wi, llr_w[0], 'si_').unsqueeze(1) + one(yj, wj, llr_w[1], 'sj_').unsqueeze(0)
+            has = torch.isfinite(lat) & c.link_ok
         f_cal, f_raw = self._block_forced(c, wt_cal, wt_raw, n, lat, has, live=joint)
         comb_cal, comb_raw = combine_predictions(f_cal, mt_cal), combine_predictions(f_raw, mt_raw)
+        no_label_mt = (hp.get('tf_no_label', 'wt') or 'wt') == 'mt'
+        dead = (n == 2) & ~has & c.link_ok                                   # --tf_no_label mt: these doubles are the MT head's alone
+        if no_label_mt:
+            comb_cal, comb_raw = torch.where(dead, mt_cal, comb_cal), torch.where(dead, mt_raw, comb_raw)
         if rank_sg:
             s_wt = self._block_s_wt()
             f_sg, _ = self._block_forced(c, self._block_cal_sg('wt', wt_raw, n), wt_raw, n, lat, has, live=joint)
-            comb_rank = combine_predictions(f_sg, self._block_cal_sg('mt', mt_raw, n)) / s_wt
+            mt_sg = self._block_cal_sg('mt', mt_raw, n)
+            comb_sg = combine_predictions(f_sg, mt_sg)
+            comb_rank = (torch.where(dead, mt_sg, comb_sg) if no_label_mt else comb_sg) / s_wt
         else:
             comb_rank = comb_raw
         terms = self._block_reg_rank(c, comb_cal, comb_rank, hp.lambda_reg_mt, hp.lambda_rank_mt, self.crit_rank_mt, 'combined')
