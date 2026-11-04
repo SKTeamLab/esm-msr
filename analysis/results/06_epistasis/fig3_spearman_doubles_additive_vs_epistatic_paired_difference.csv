@@ -1,0 +1,9 @@
+column,delta,lo,hi,n_libraries
+ESM-MSR,0.0569,0.0328,0.0814,13
+MutateEverything,0.0350,-0.0036,0.0688,13
+ThermoMPNN,-0.0048,-0.0373,0.0367,13
+SPURS,-0.0068,-0.0555,0.0325,13
+ESM3-small-open,-0.0069,-0.0332,0.0199,13
+ProteinMPNN,-0.0184,-0.0477,0.0131,13
+best other ddG,-0.0002,-0.0289,0.0270,13
+Rosetta,0.0215,-0.0088,0.0533,13

@@ -1,0 +1,18 @@
+column,key,subset,value,lo,hi,n_libraries,n_variants
+ESM-MSR,msr:wt,additive,0.7093,0.6376,0.7576,13,13319
+ESM-MSR,msr:comb,epistatic,0.7662,0.6919,0.8279,13,13319
+MutateEverything,me1,additive,0.6171,0.5524,0.6908,13,13319
+MutateEverything,me2,epistatic,0.6521,0.5713,0.7459,13,13319
+ThermoMPNN,tmpnn,additive,0.6726,0.6052,0.7411,13,13319
+ThermoMPNN,tmpnnd,epistatic,0.6678,0.6121,0.7369,13,13319
+SPURS,spurs,additive,0.6994,0.6211,0.7595,13,13319
+SPURS,spursm,epistatic,0.6926,0.6207,0.7658,13,13319
+ESM3-small-open,msrrel@0:wt,additive,0.4205,0.3643,0.4760,13,13319
+ESM3-small-open,msrrel@0:comb,epistatic,0.4137,0.3456,0.4815,13,13319
+ProteinMPNN,pmpnn+,additive,0.3484,0.2646,0.4398,13,13319
+ProteinMPNN,pmpnn,epistatic,0.3301,0.2347,0.4289,13,13319
+ProSST,prosst,additive,0.4204,0.3025,0.5352,13,13319
+best other ddG,geoddg+,additive,0.4562,0.3451,0.5759,13,13319
+best other ddG,geoddg,epistatic,0.4560,0.3480,0.5810,13,13319
+Rosetta,rosetta+,additive,0.4775,0.3820,0.5852,13,13319
+Rosetta,rosetta,epistatic,0.4990,0.4155,0.5941,13,13319

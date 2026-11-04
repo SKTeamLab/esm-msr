@@ -1,0 +1,31 @@
+column,key,subset,value,lo,hi,n_variants,n_libraries
+ESM-MSR,msrdev:epi,positive,0.4387,0.2619,0.6850,10444,13
+MutateEverything,me2:epi,positive,0.4872,0.3356,0.5176,10444,13
+ThermoMPNN,tmpnnd:epi,positive,0.1058,-0.0300,0.2293,10444,13
+SPURS,spursm:epi,positive,0.3236,0.2486,0.4978,10444,13
+ESM3-small-open,msrrel@0:epi,positive,0.2669,0.1284,0.5069,10444,13
+ProteinMPNN,pmpnn:epi,positive,0.2400,0.0962,0.4118,10444,13
+best other ddG,geoddg:epi,positive,0.0522,-0.0357,0.1221,10444,13
+Rosetta,rosetta:epi,positive,0.3687,0.2224,0.4403,10444,13
+ESM3-small-open (independent masking),esm3:epi,positive,0.1716,-0.0043,0.5007,10444,13
+ESM3-small-open (MT independent − WT marginal),esm3mm:epi,positive,0.0800,-0.1015,0.3751,10444,13
+ESM-MSR,msrdev:epi,negative,-0.1235,-0.2042,0.1588,2011,13
+MutateEverything,me2:epi,negative,-0.2527,-0.3930,0.0073,2011,13
+ThermoMPNN,tmpnnd:epi,negative,-0.2007,-0.2794,0.0024,2011,13
+SPURS,spursm:epi,negative,0.0398,-0.2106,0.1998,2011,13
+ESM3-small-open,msrrel@0:epi,negative,0.0469,-0.2004,0.1704,2011,13
+ProteinMPNN,pmpnn:epi,negative,0.1085,-0.0571,0.2080,2011,13
+best other ddG,geoddg:epi,negative,-0.0432,-0.1301,0.0590,2011,13
+Rosetta,rosetta:epi,negative,-0.0216,-0.0888,0.1030,2011,13
+ESM3-small-open (independent masking),esm3:epi,negative,0.1309,-0.1561,0.2364,2011,13
+ESM3-small-open (MT independent − WT marginal),esm3mm:epi,negative,0.1446,-0.1389,0.2721,2011,13
+ESM-MSR,msrdev:epi,overall,0.4735,0.3066,0.7186,12455,13
+MutateEverything,me2:epi,overall,0.4093,0.2515,0.4760,12455,13
+ThermoMPNN,tmpnnd:epi,overall,0.0763,-0.0465,0.2069,12455,13
+SPURS,spursm:epi,overall,0.3079,0.2191,0.4645,12455,13
+ESM3-small-open,msrrel@0:epi,overall,0.2891,0.1739,0.4906,12455,13
+ProteinMPNN,pmpnn:epi,overall,0.3135,0.1887,0.4608,12455,13
+best other ddG,geoddg:epi,overall,0.0554,-0.0397,0.1314,12455,13
+Rosetta,rosetta:epi,overall,0.3813,0.2478,0.4463,12455,13
+ESM3-small-open (independent masking),esm3:epi,overall,0.2055,0.0614,0.4866,12455,13
+ESM3-small-open (MT independent − WT marginal),esm3mm:epi,overall,0.1095,-0.0381,0.3700,12455,13

@@ -17,7 +17,7 @@ GRB2_HUMAN_Faure_2021_abundance_domain,GRB2 abund.,1,63366,56.0,56.0,56.0,56.0,5
 GRB2_HUMAN_Faure_2021_binding_domain,GRB2 bind.,1,33441,56.0,56.0,56.0,56.0,56.0,56.0,32786
 MYO_HUMAN_Kung_2025_display,MYO,1,5905,154.0,154.0,154.0,154.0,154.0,154.0,3371
 ESTA_BACSU_Nutschel_2020_dTm,ESTA dTm,1,2172,181.0,181.0,181.0,181.0,181.0,181.0,0
-GB1_Wu_2016_binding_domain,GB1,1,149357,56.0,56.0,56.0,56.0,56.0,56.0,149284
+GB1_Wu_2016_binding_domain,GB1,1,149360,56.0,56.0,56.0,56.0,56.0,56.0,149284
 domainome,Domainome,522,540265,58.0,19.0,97.0,45.0,70.0,63.0,0
 tsuboyama_capped_val,Tsuboyama val,23,34957,58.0,43.0,71.0,43.5,67.5,64.0,8547
 tsuboyama_capped_test,Tsuboyama test,33,48740,44.0,40.0,72.0,43.0,59.0,59.0,13319

@@ -1,0 +1,34 @@
+column,key,subset,value,lo,hi,n_variants,n_libraries
+ESM-MSR WT head,msr:wt,stabilizing,0.2887,0.2666,0.3076,7417,33
+ESM-MSR combined,msr:comb,stabilizing,0.3472,0.3266,0.3659,7417,33
+MutateEverything,me1|me2,stabilizing,0.1930,0.1704,0.2136,7417,33
+ThermoMPNN,tmpnn|tmpnnd,stabilizing,0.2288,0.2091,0.2500,7417,33
+SPURS,spurs|spursm,stabilizing,0.2686,0.2461,0.2873,7417,33
+ESM3-small-open,msrrel@0:comb,stabilizing,0.0173,-0.0039,0.0419,7417,33
+ProteinMPNN,pmpnn,stabilizing,0.0599,0.0365,0.0839,7417,33
+ProSST,prosst,stabilizing,0.0169,-0.0022,0.0388,7417,33
+best other ddG,geoddg,stabilizing,0.1959,0.1697,0.2183,7417,33
+Rosetta,rosetta,stabilizing,0.1060,0.0845,0.1291,7417,33
+ESM3-small-open (alt),esm3avg,stabilizing,0.0170,-0.0067,0.0437,7417,33
+ESM-MSR WT head,msr:wt,destabilizing,0.7167,0.7121,0.7234,41323,33
+ESM-MSR combined,msr:comb,destabilizing,0.6873,0.6816,0.6950,41323,33
+MutateEverything,me1|me2,destabilizing,0.7267,0.7222,0.7327,41323,33
+ThermoMPNN,tmpnn|tmpnnd,destabilizing,0.6967,0.6909,0.7022,41323,33
+SPURS,spurs|spursm,destabilizing,0.7204,0.7154,0.7256,41323,33
+ESM3-small-open,msrrel@0:comb,destabilizing,0.5544,0.5481,0.5626,41323,33
+ProteinMPNN,pmpnn,destabilizing,0.5733,0.5671,0.5800,41323,33
+ProSST,prosst,destabilizing,0.6555,0.6506,0.6606,41323,33
+best other ddG,geoddg,destabilizing,0.5834,0.5779,0.5898,41323,33
+Rosetta,rosetta,destabilizing,0.6419,0.6362,0.6479,41323,33
+ESM3-small-open (alt),esm3avg,destabilizing,0.5348,0.5285,0.5429,41323,33
+ESM-MSR WT head,msr:wt,overall,0.7781,0.7744,0.7822,48740,33
+ESM-MSR combined,msr:comb,overall,0.7633,0.7590,0.7673,48740,33
+MutateEverything,me1|me2,overall,0.7684,0.7644,0.7724,48740,33
+ThermoMPNN,tmpnn|tmpnnd,overall,0.7465,0.7424,0.7506,48740,33
+SPURS,spurs|spursm,overall,0.7796,0.7760,0.7831,48740,33
+ESM3-small-open,msrrel@0:comb,overall,0.5944,0.5886,0.6002,48740,33
+ProteinMPNN,pmpnn,overall,0.6265,0.6212,0.6320,48740,33
+ProSST,prosst,overall,0.6844,0.6798,0.6884,48740,33
+best other ddG,geoddg,overall,0.6313,0.6258,0.6368,48740,33
+Rosetta,rosetta,overall,0.6763,0.6711,0.6817,48740,33
+ESM3-small-open (alt),esm3avg,overall,0.5751,0.5690,0.5811,48740,33

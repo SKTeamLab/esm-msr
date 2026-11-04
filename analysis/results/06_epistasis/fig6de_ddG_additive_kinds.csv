@@ -1,0 +1,4 @@
+singles,n,mean_ddG_additive,mean_dddG,share_positive,share_none,share_negative,share_double_stabilizing,spearman
+both destabilizing,6441,-2.0934,0.4140,0.3863,0.5730,0.0407,0.0118,-0.3824
+one stabilizing,940,-1.1115,0.0664,0.2191,0.6457,0.1351,0.1819,0.1466
+both stabilizing,24,0.7029,0.0251,0.1667,0.7500,0.0833,0.9583,-0.3974
