@@ -32,10 +32,10 @@ OUT = out_dir('05_proteingym')
 CATS = ['Activity', 'Binding', 'Expression', 'OrganismalFitness', 'Stability']
 CAT_LABEL = {'Activity': 'Activity (43)', 'Binding': 'Binding (13)', 'Expression': 'Expression (18)', 'OrganismalFitness': 'Org. fitness (73)',
              'Stability': 'Stability* (43/66)', 'PG avg': 'PG avg*', 'DMS mean': 'DMS mean* (190/213)'}
-STAB_NOTE = ('* The 23 Stability assays whose proteins the retrained models trained on (Tsuboyama libraries inside the capped train split, shared by ESM-MSR, ME, ThermoMPNN and SPURS) are removed from every model:\n'
+STAB_NOTE = ('* The 23 Stability assays whose proteins the retrained models trained on (Tsuboyama libraries inside the Homology-Restricted MegaScale train split, shared by ESM-MSR, ME, ThermoMPNN and SPURS) are removed from every model:\n'
              'Stability* keeps 43 of 66, PG avg* averages the five category means over the remaining assays, DMS mean* is over 190 of 213.  The unfiltered values (the documented table) are in pg_summary_all213.csv.')
 def trained_stability_assays():
-    """ProteinGym assays whose protein the retrained models trained on: any identical-mutation overlap, in the leak audit, of the capped train split
+    """ProteinGym assays whose protein the retrained models trained on: any identical-mutation overlap, in the leak audit, of the Homology-Restricted MegaScale train split
     (shared by ESM-MSR, ME, ThermoMPNN(-D) and the retrained SPURS) with the assay.  All of them are Tsuboyama Stability assays."""
     d = pd.read_csv(REFERENCE / 'leak_audit_pg_per_dms.csv')
     d = d[d.inventory.isin(['esm_msr_capped', 'me_stage1', 'me_stage2', 'tmpnn', 'tmpnnd', 'spurs_retrain_single', 'spurs_retrain_multi'])]
@@ -89,7 +89,7 @@ def build():
     for s in ('1.0', '0.75', '0.5', '0.25', '0'):
         T['ESM3-small-open, σ = 0 (ours)' if s == '0' else f'ESM-MSR (released) WT head σ={float(s):g}'] = a[f'ESM-MSR WT eps={s}']
     for s in ('1.0', '0.75', '0.5', '0.25'):
-        T[f'ESM-MSR (devel) σ={float(s):g}'] = dc[f'dc8 eps={s} mean']
+        T[f'ESM-MSR σ={float(s):g}'] = dc[f'dc8 eps={s} mean']
     T['SPURS'] = X['SPURS']
     T['SPURS multi'] = X['SPURS multi']
     T['SPURS (public checkpoint)'] = a['SPURS single-additive']
@@ -137,14 +137,14 @@ def summary_rows(T, cols):
 
 
 def sigma_paired(T, S):
-    """paired shift of each devel LoRA scale against the released checkpoint (table 3.2), mean over the assays of T"""
+    """paired shift of each ESM-MSR LoRA scale against the released checkpoint (table 3.2), mean over the assays of T"""
     rel = S['ESM-MSR (released) combined σ=1']
     prow = []
     for s_ in ('1', '0.75', '0.5', '0.25'):
-        m = f'ESM-MSR (devel) σ={s_}'
+        m = f'ESM-MSR σ={s_}'
         d = T[m] - T['ESM-MSR (released) combined σ=1']
         dd = S[m][1]['DMS mean'] - rel[1]['DMS mean']
-        prow.append(dict(setting=f'devel σ={s_}', pg_avg=S[m][0]['PG avg'], paired_delta_mean_over_dms=float(d.mean()), delta_lo=float(np.quantile(dd, .025)),
+        prow.append(dict(setting=f'ESM-MSR σ={s_}', pg_avg=S[m][0]['PG avg'], paired_delta_mean_over_dms=float(d.mean()), delta_lo=float(np.quantile(dd, .025)),
                          delta_hi=float(np.quantile(dd, .975)), better_on=int((d > 0).sum()), of=len(d)))
     return pd.DataFrame(prow)
 
@@ -172,13 +172,13 @@ def main():
     print('filtered:\n', P.round(4).to_string(index=False))
 
     # ---- figure: category dot panels --------------------------------------------------------------------
-    top = ['ESM-MSR (devel) σ=1', 'ESM-MSR (devel) σ=0.75', 'ESM-MSR (devel) σ=0.5', 'ESM-MSR (devel) σ=0.25',
+    top = ['ESM-MSR σ=1', 'ESM-MSR σ=0.75', 'ESM-MSR σ=0.5', 'ESM-MSR σ=0.25',
            'ESM3-small-open, σ = 0 (ours)', 'ESM3-open (ProteinGym reported)', 'ProteinMPNN (ours)', 'ProteinMPNN (ProteinGym reported)', 'ProSST (ProteinGym reported)']
     bot = ['ESM-MSR (baseline) WT head', 'ESM-MSR (baseline) combined', 'SPURS', 'SPURS multi', 'MutateEverything st1', 'ThermoMPNN',
            'SPURS (public checkpoint)']
     sty = {
-        'ESM-MSR (devel) σ=1': dict(color='#000000', marker='D', fill=True), 'ESM-MSR (devel) σ=0.75': dict(color='#333333', marker='D', fill=False),
-        'ESM-MSR (devel) σ=0.5': dict(color='#666666', marker='D', fill=False), 'ESM-MSR (devel) σ=0.25': dict(color='#999999', marker='D', fill=False),
+        'ESM-MSR σ=1': dict(color='#000000', marker='D', fill=True), 'ESM-MSR σ=0.75': dict(color='#333333', marker='D', fill=False),
+        'ESM-MSR σ=0.5': dict(color='#666666', marker='D', fill=False), 'ESM-MSR σ=0.25': dict(color='#999999', marker='D', fill=False),
         'ESM3-small-open, σ = 0 (ours)': dict(color='#7f8c8d', marker='^', fill=True), 'ProteinMPNN (ours)': dict(color='#34495e', marker='d', fill=True), 'ProSST (ProteinGym reported)': dict(color='#8e44ad', marker='X', fill=True),
         'ProteinMPNN (ProteinGym reported)': dict(color='#34495e', marker='d', fill=False), 'ESM3-open (ProteinGym reported)': dict(color='#7f8c8d', marker='^', fill=False),
         'ESM-MSR (baseline) WT head': dict(color='#000000', marker='o', fill=False), 'ESM-MSR (baseline) combined': dict(color='#000000', marker='D', fill=True),
@@ -189,10 +189,10 @@ def main():
     for k, v in sty.items():
         MODELS[k] = dict(label=k, group='pg', **v)
     fig, axes = plt.subplots(2, 1, figsize=(12, 9.0), sharex=True)
-    for ax, models, ttl in ((axes[0], top, 'ESM-MSR at lower LoRA scale σ, against zero-shot models'), (axes[1], bot, 'ESM-MSR against the models retrained on the capped split (σ = 1)')):
+    for ax, models, ttl in ((axes[0], top, 'ESM-MSR at lower LoRA scale σ, against zero-shot models'), (axes[1], bot, 'ESM-MSR against the models retrained on Homology-Restricted MegaScale (σ = 1)')):
         table = {(c, m): float(R[(R.model == m) & (R.column == c)].value.iloc[0]) for m in models for c in cols}
         ci = {(c, m): (float(R[(R.model == m) & (R.column == c)].lo.iloc[0]), float(R[(R.model == m) & (R.column == c)].hi.iloc[0])) for m in models for c in cols}
-        style.dot_panel(ax, cols, models, table, ci, highlight=['ESM-MSR (devel) σ=1', 'ESM-MSR (baseline) combined'], ylabel='Spearman ρ (mean over assays)',
+        style.dot_panel(ax, cols, models, table, ci, highlight=['ESM-MSR σ=1', 'ESM-MSR (baseline) combined'], ylabel='Spearman ρ (mean over assays)',
                         xlabels=[CAT_LABEL[c] for c in cols], rot=0, size=6)
         style.model_legend(ax, models, loc='upper left', ncol=2, fontsize=8)
         ax.set_title(ttl, loc='left')
@@ -224,8 +224,8 @@ def main():
     # ---- figure: per-assay raw data -------------------------------------------------------------------
     colors = dict(zip(CATS, ['#1f77b4', '#ff7f0e', '#2ca02c', '#9467bd', '#d62728']))
     fig, axes = plt.subplots(1, 3, figsize=(14, 4.4))
-    for ax, (xm, ym, xl, yl) in zip(axes[:2], [('ProSST (ProteinGym reported)', 'ESM-MSR (devel) σ=1', 'ProSST (zero-shot)', 'ESM-MSR (devel) σ=1'),
-                                               ('ESM3-small-open, σ = 0 (ours)', 'ESM-MSR (devel) σ=1', 'σ = 0 (LoRA off, zero-shot readout)', 'ESM-MSR (devel) σ=1')]):
+    for ax, (xm, ym, xl, yl) in zip(axes[:2], [('ProSST (ProteinGym reported)', 'ESM-MSR σ=1', 'ProSST (zero-shot)', 'ESM-MSR σ=1'),
+                                               ('ESM3-small-open, σ = 0 (ours)', 'ESM-MSR σ=1', 'σ = 0 (LoRA off, zero-shot readout)', 'ESM-MSR σ=1')]):
         for c in CATS:
             s = T[T.category == c]
             ax.scatter(s[xm], s[ym], s=16, color=colors[c], alpha=.75, lw=0, label=CAT_LABEL[c])
@@ -236,13 +236,13 @@ def main():
     axes[0].legend(fontsize=7.5, loc='lower right')
     ax = axes[2]
     for i, s in enumerate(('0.75', '0.5', '0.25')):
-        d = (T[f'ESM-MSR (devel) σ={s}'] - T['ESM-MSR (devel) σ=1'])
+        d = (T[f'ESM-MSR σ={s}'] - T['ESM-MSR σ=1'])
         for c in CATS:
             dc_ = d[T.category == c]
             ax.scatter(np.full(len(dc_), i) + np.random.default_rng(i).uniform(-.28, .28, len(dc_)), dc_, s=10, color=colors[c], alpha=.7, lw=0)
         ax.plot([i - .35, i + .35], [d.mean()] * 2, color='k', lw=2)
     ax.axhline(0, color='#999', lw=.8, ls=':')
-    ax.set_xticks(range(3)); ax.set_xticklabels(['σ=0.75', 'σ=0.5', 'σ=0.25']); ax.set_ylabel('per-assay ρ(σ) − ρ(σ=1), devel seeds')
+    ax.set_xticks(range(3)); ax.set_xticklabels(['σ=0.75', 'σ=0.5', 'σ=0.25']); ax.set_ylabel('per-assay ρ(σ) − ρ(σ=1), ESM-MSR seeds')
     ax.set_title('effect of lowering the LoRA scale, assay by assay')
     fig.tight_layout()
     style.save(fig, OUT / 'pg_per_dms_scatter')

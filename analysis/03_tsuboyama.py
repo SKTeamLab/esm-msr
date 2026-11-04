@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Tsuboyama (Megascale) capped validation and test libraries: BENCHMARKS tables 1.2 and 1.6 (Tsuboyama part), and the
+"""Tsuboyama (Megascale) Homology-Restricted validation and test libraries: BENCHMARKS tables 1.2 and 1.6 (Tsuboyama part), and the
 singles / doubles split of table 2.3.
 
 ``tsuboyama_overview``   mean per-library rho of every model on the validation (23) and test (33) libraries, 95% intervals from resampling

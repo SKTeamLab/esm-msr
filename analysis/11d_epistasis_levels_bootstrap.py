@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-"""The epistasis hierarchy of every model on the capped Tsuboyama doubles, recomputed with ``esm_msr.epi_metrics`` (the suite behind BENCHMARKS tables 2.0-2.2) and bootstrapped over
+"""The epistasis hierarchy of every model on the Homology-Restricted MegaScale doubles, recomputed with ``esm_msr.epi_metrics`` (the suite behind BENCHMARKS tables 2.0-2.2) and bootstrapped over
 domains: naive rho, saturation-subtracted ("beyond") rho, pair rho, line rho and cell rank, for the test and the validation doubles.
 
 Models and the predicted epistasis dddG' the suite reads (always the double prediction of one model against the additive reading of another or of another head):
-  ESM-MSR devel, three seeds   epi  = MT(AB) - WT(AB)            the checkpoint's own link and per-library floors, as ``analysis_scripts/rescore_epistasis.py``
+  ESM-MSR, three seeds         epi  = MT(AB) - WT(AB)            the suite's epistasis head, on the latent scale (no link: naive rho is then the latent one), as ``analysis_scripts/rescore_epistasis.py``
                                ctx  = ~WT(AB) - WT(AB)           the WT adapter read on the mutated sequence (the cluster's ctx run; ``reference/ctx_wt_rev_devel.csv.gz``)
   ME stage 2, ThermoMPNN-D, SPURS multi (three seeds each)       direct double - the same seed's sum of singles
-  ESM3-small-open (sigma = 0 control)   independent-masking mutant pass - masked-marginal WT pass
+  ESM3-small-open (sigma = 0 control)   unmasked combined head - unmasked WT head
   ProteinMPNN, GeoDDG-3D, Rosetta      direct double - sum of the model's singles
 Rows are the measured doubles of ``cens == 0`` libraries with both singles measured (12,455 test, 8,494 validation), as the tables.  The point value of a multi-seed model is the
 seed mean.  The interval resamples the *domains* (the libraries that have doubles: 13 in test, 9 in validation) with replacement, the same draw for every model and seed, recomputes
@@ -14,7 +14,7 @@ the suite on the resample (a repeated domain is a new domain: its pairs and resi
 values reproduce the document's rows (checked below).
 
     python 11d_epistasis_levels_bootstrap.py [--B 300] [--ctx DIR]    # --ctx rebuilds reference/ctx_wt_rev_devel.csv.gz from outputs/ctx_run/predictions on the cluster
-Writes ``results/11_publication/fig5_epistasis_levels_bootstrap_{test,val}.csv``.
+Writes ``results/06_epistasis/fig5_epistasis_levels_bootstrap_{test,val}.csv``.
 """
 import argparse
 import copy
@@ -36,21 +36,20 @@ from esm_msr import epi_metrics as E  # noqa: E402
 from esm_msr.link import numpy_link_from_state_dict  # noqa: E402
 
 from msr_analysis.common import out_dir  # noqa: E402
-from msr_analysis.data import add_esm3_masked, load_frame  # noqa: E402
+from msr_analysis.data import load_frame  # noqa: E402
 from msr_analysis.registry import REFERENCE, ROOT  # noqa: E402
 
-OUT = out_dir('11_publication')
+OUT = out_dir('06_epistasis')
 DS = {'test': 'tsuboyama_capped_test', 'val': 'tsuboyama_capped_val'}
 CKPT = {1: 'epoch=04-val_rho_combined_avg=0.840.ckpt', 2: 'epoch=07-val_rho_combined_avg=0.839.ckpt', 3: 'epoch=05-val_rho_combined_avg=0.841.ckpt'}
 METRICS = {'naive_rho': None, 'beyond_rho': None, 'pair_rho': None, 'line_rho': None, 'cell_rank': None}      # head list filled per table
 # model -> (frame key of the direct double, frame key of the additive reading) for the models without heads of their own
-PLAIN = [('ME stage 2', 'me2', 'me1'), ('ThermoMPNN-D', 'tmpnnd', 'tmpnn'), ('SPURS multi', 'spursm', 'spurs'), ('ESM3-small-open', 'esm3ind', 'esm3mm'),
+PLAIN = [('ME stage 2', 'me2', 'me1'), ('ThermoMPNN-D', 'tmpnnd', 'tmpnn'), ('SPURS multi', 'spursm', 'spurs'), ('ESM3-small-open', 'msrrel@0:comb', 'msrrel@0:wt'),
          ('ProteinMPNN', 'pmpnn', 'pmpnn+'), ('GeoDDG-3D', 'geoddg', 'geoddg+'), ('Rosetta', 'rosetta', 'rosetta+')]
 DOC = {   # BENCHMARKS table 2.2, test: naive, beyond, pair, line, cell rank (the check)
     ('test', 'ME stage 2'): (0.405, 0.223, 0.124, 0.225, 0.112), ('test', 'ThermoMPNN-D'): (0.077, 0.071, -0.003, 0.197, 0.016),
     ('test', 'SPURS multi'): (0.308, 0.278, 0.399, 0.270, 0.041), ('test', 'ProteinMPNN'): (0.314, 0.273, 0.473, 0.125, 0.064),
-    ('test', 'GeoDDG-3D'): (0.055, 0.046, 0.083, 0.087, 0.054), ('test', 'Rosetta'): (0.381, 0.207, 0.258, 0.195, 0.066),
-    ('test', 'ESM-MSR devel · MT − WT'): (0.464, 0.487, 0.606, 0.382, 0.209)}
+    ('test', 'GeoDDG-3D'): (0.055, 0.046, 0.083, 0.087, 0.054), ('test', 'Rosetta'): (0.381, 0.207, 0.258, 0.195, 0.066),}
 NAMES = ['naive_rho', 'beyond_rho', 'pair_rho', 'line_rho', 'cell_rank']
 _MUT = re.compile(r'^([A-Za-z])(-?\d+)([A-Za-z])$')
 TABLES = {}          # (model, seed) -> Table, shared with the fork workers
@@ -101,17 +100,16 @@ def make_table(sp, wt, mt, heads, wt_rev=None, link=None, y_floor=None):
 
 def build(split, ctx_rev):
     fr = load_frame(DS[split])
-    add_esm3_masked(fr, DS[split])
     sp, p = fr.spine, fr.preds
     dg = json.load(open(REFERENCE / 'dG_wt.json'))
     y_floor = json.load(open(REFERENCE / 'y_floor.json'))
     TABLES.clear()
     models = []
-    for seed in (1, 2, 3):                                  # ESM-MSR devel: two heads of one table per seed
+    for seed in (1, 2, 3):                                  # ESM-MSR: two heads of one table per seed
         c = ctx_rev[(ctx_rev.split == split) & (ctx_rev.seed == seed)]
         rev = pd.DataFrame({'code': sp['code'].astype(str), 'mut_type': sp['mut']}).merge(c[['code', 'mut_type', 'wt_rev']], on=['code', 'mut_type'], how='left')['wt_rev'].to_numpy(float)
-        TABLES[('devel', seed)] = make_table(sp, p['msrdev:wt'][seed - 1], p['msrdev:mt'][seed - 1], ('epi', 'ctx', 'add'), wt_rev=rev, link=link_of(seed), y_floor=y_floor)
-    models += [('ESM-MSR devel · MT − WT', 'devel', 'epi'), ('ESM-MSR devel · ~WT − WT', 'devel', 'ctx')]
+        TABLES[('devel', seed)] = make_table(sp, p['msrdev:wt'][seed - 1], p['msrdev:mt'][seed - 1], ('epi', 'ctx', 'add'), wt_rev=rev, link=None, y_floor=y_floor)
+    models += [('ESM-MSR · MT − WT', 'devel', 'epi'), ('ESM-MSR · ~WT − WT', 'devel', 'ctx')]
     for name, direct, add in PLAIN:
         if direct not in p or add not in p:
             print('skip', name)

@@ -4,7 +4,7 @@
 * ``leak_matrix_external`` / ``leak_matrix_other``  the leak-code tables (1.1, 1.2, 1.3, 1.4) as colour maps: the worst class a model has with a
   dataset (classes of table 6.2: M identical mutation, m constituent mutations, P same protein, H strong homolog, h weak similarity, D documented
   training on the source set, C pretraining only, # the cell is a training-set score), thresholded at 0.5% of rows like the document.
-* ``leak_overlap_tsuboyama_test``  table 6.5 'what the audit finds' for the capped test libraries: the fraction of rows each model has seen.
+* ``leak_overlap_tsuboyama_test``  table 6.5 'what the audit finds' for the Homology-Restricted MegaScale test libraries: the fraction of rows each model has seen.
 * ``clean_means``  table 6.5 'clean external-set means': the mean over the 12 sets with and without the cells that carry overlap.
 * ``spurs_published_vs_retrained``  the overlap made visible: SPURS' public checkpoint (leaky; values frozen from the earlier tables, no longer in the document) against the retrained one.
 * ``published_reference``  table 1.5, the evaluation of the published paper (hyperopt split, earlier models; compare within it only).
@@ -106,9 +106,9 @@ def overlap_bars():
         v = t[c].fillna(0).to_numpy()
         ax.barh(y, v, left=left, color=col, label=lab, height=.7)
         left += v
-    ax.set_yticks(y); ax.set_yticklabels([m.replace('ESM-MSR (released)', 'ESM-MSR (baseline, devel)').replace(' (retrained)', '').replace('ESM3dG', 'ESM3ΔG').replace('ESMtherm', 'ESMtherm*').replace('IFUM (WT backbone)', 'IFUM, WT backbone*') for m in t.index]); ax.invert_yaxis()
-    ax.set_xlabel('fraction of the capped Tsuboyama test rows'); ax.set_xlim(0, 1.2)
-    ax.legend(fontsize=7.5, loc='lower right'); ax.set_title('What each model has seen of the capped test libraries (leak audit); * trained on Megascale data', loc='left', fontsize=9)
+    ax.set_yticks(y); ax.set_yticklabels([m.replace(' (retrained)', '').replace('ESM3dG', 'ESM3ΔG').replace('ESMtherm', 'ESMtherm*').replace('IFUM (WT backbone)', 'IFUM, WT backbone*') for m in t.index]); ax.invert_yaxis()
+    ax.set_xlabel('fraction of the Homology-Restricted MegaScale test rows'); ax.set_xlim(0, 1.2)
+    ax.legend(fontsize=7.5, loc='lower right'); ax.set_title('What each model has seen of the Homology-Restricted MegaScale test libraries (leak audit); * trained on Megascale data', loc='left', fontsize=9)
     fig.tight_layout()
     style.save(fig, OUT / 'leak_overlap_tsuboyama_test')
 
@@ -154,7 +154,7 @@ def spurs_pub_vs_retrained():
         ax.errorbar([i], [v[0]], yerr=[[v[0] - v[1]], [v[2] - v[0]]], fmt='s', color='#d35400', capsize=2, zorder=3, ms=6)
         ax.plot([i], [p], marker='s', mfc='white', mec='#d35400', ms=7, ls='none', zorder=4)
         rows.append(dict(dataset=d, retrained=v[0], published=p, inflation=p - v[0]))
-    ax.plot([], [], 's', color='#d35400', label='retrained on the capped split (3 seeds; the SPURS of the other figures)'); ax.plot([], [], 's', mfc='white', mec='#d35400', label='public checkpoint (trained on 24 of the 33 test libraries)')
+    ax.plot([], [], 's', color='#d35400', label='retrained on Homology-Restricted MegaScale (3 seeds; the SPURS of the other figures)'); ax.plot([], [], 's', mfc='white', mec='#d35400', label='public checkpoint (trained on 24 of the 33 test libraries)')
     ax.set_xticks(range(len(ds))); ax.set_xticklabels([LABEL[d] for d in ds], rotation=35, ha='right'); ax.set_ylabel('Spearman ρ'); ax.legend(fontsize=8, loc='lower left')
     ax.set_title('SPURS: what training overlap adds (public checkpoint, frozen from the earlier BENCHMARKS tables, against the retrained SPURS)', loc='left', fontsize=9.5)
     fig.tight_layout()

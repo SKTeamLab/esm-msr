@@ -7,7 +7,7 @@
 * ``length_vs_performance``  per-protein Spearman rho, and per-protein RMSE after the one-dataset recalibration of
   ``07_rmse_calibration.py``, against sequence length, for ESM-MSR (WT head), ME stage 1, ThermoMPNN and SPURS multi, on the ten single-mutant sets, with the Spearman correlation between length and the per-protein metric and its protein-level
   bootstrap interval.  Pooled over the single-mutant external stability sets (a protein in two sets counts twice); the calibration set
-  S461, its superset S669 and S571 (labels not in kcal/mol) are left out of the RMSE panels.
+  S461, its superset S669 and S571 are not in the RMSE panels.
 
 The full-sized proteins are the external stability sets (20-780 residues) and the single-protein DMS; the Tsuboyama libraries
 (40-72) and Domainome domains (19-97) are small domains and are shown for contrast.
@@ -76,7 +76,7 @@ def fig_distribution(d, per_prot):
     ax.set_xticks(range(len(order))); ax.set_xticklabels([names[o] for o in order], rotation=30, ha='right')
     ax.set_ylabel('wild-type sequence length (residues)')
     ax.set_title('Protein sizes in the test sets (median and range above each column; black bar = median, line = IQR)', fontsize=10)
-    fig.text(0.01, -0.02, f'Single-protein DMS (not shown; one protein each): {dms} residues.  Grey: small domains (Domainome, Tsuboyama).', fontsize=8)
+    fig.text(0.01, -0.02, f'Single-protein DMS: {dms} residues.  Grey: small domains (Domainome, Tsuboyama).', fontsize=8)
     style.save(fig, OUT / 'sequence_length_distribution')
 
 

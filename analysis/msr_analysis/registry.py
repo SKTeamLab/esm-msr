@@ -54,28 +54,28 @@ TSU_CODE = 'code_wt'
 # models.  A model key is "<family>[@sigma]:<head>"; the family says where the file is.
 # ----------------------------------------------------------------------------------------------
 # display: label, colour, marker, fill, group
-#   group: 'msr' ESM-MSR; 'retrain' retrained on the capped split; 'public' held-out or leaky third party;
+#   group: 'msr' ESM-MSR; 'retrain' retrained on Homology-Restricted MegaScale; 'public' held-out or leaky third party;
 #          'zeroshot' no training on stability data
 C = dict(msr='#000000', msr_dev='#555555', me1='#2ecc71', me2='#1b8a4b', tm='#3498db', tmd='#1f5f8b',
          spurs='#d35400', spursm='#e59866', zero='#888888', pmpnn='#34495e', prosst='#8e44ad',
          esm3='#e74c3c', ros='#1abc9c', other='#95a5a6')
 
 MODELS = {
-    'msr': dict(label='ESM-MSR (WT head; combined for multi-mutant sets)', color=C['msr'], marker='o', fill=True, group='msr'),
+    'msr': dict(label='ESM-MSR (baseline; WT head, combined for multi-mutant sets)', color=C['msr'], marker='o', fill=True, group='msr'),
     # --- ESM-MSR -------------------------------------------------------------------------
-    'msr:wt':      dict(label='ESM-MSR WT head', color=C['msr'], marker='o', fill=False, group='msr'),
-    'msr:comb':    dict(label='ESM-MSR combined', color=C['msr'], marker='D', fill=True, group='msr'),
-    'msrdev:wt':   dict(label='ESM-MSR (devel) WT head', color=C['msr_dev'], marker='o', fill=False, group='msr'),
-    'msrdev:comb': dict(label='ESM-MSR (devel) combined', color=C['msr_dev'], marker='D', fill=True, group='msr'),
+    'msr:wt':      dict(label='ESM-MSR (baseline) WT head', color=C['msr'], marker='o', fill=False, group='msr'),
+    'msr:comb':    dict(label='ESM-MSR (baseline) combined', color=C['msr'], marker='D', fill=True, group='msr'),
+    'msrdev:wt':   dict(label='ESM-MSR WT head', color=C['msr_dev'], marker='o', fill=False, group='msr'),
+    'msrdev:comb': dict(label='ESM-MSR combined', color=C['msr_dev'], marker='D', fill=True, group='msr'),
     'msrrel:wt':   dict(label='ESM-MSR (released) WT head', color=C['msr_dev'], marker='o', fill=False, group='msr'),
     'msrrel:comb': dict(label='ESM-MSR (released) combined', color=C['msr_dev'], marker='D', fill=True, group='msr'),
     'msrsmall:comb': dict(label='ESM-MSR-small (March)', color='#7f8c8d', marker='D', fill=False, group='msr'),
-    'msr:epi': dict(label='ESM-MSR epistasis head (MT − WT)', color=C['msr'], marker='D', fill=True, group='msr'),
-    'msr:cdddg': dict(label='ESM-MSR combined, vs additive', color='#555555', marker='D', fill=False, group='msr'),
+    'msr:epi': dict(label='ESM-MSR (baseline) epistasis head (MT − WT)', color=C['msr'], marker='D', fill=True, group='msr'),
+    'msr:cdddg': dict(label='ESM-MSR (baseline) combined, vs additive', color='#555555', marker='D', fill=False, group='msr'),
     'me2:epi': dict(label='MutateEverything st2 (vs st1 singles)', color=C['me2'], marker='H', fill=True, group='retrain'),
     'tmpnnd:epi': dict(label='ThermoMPNN-D (vs ThermoMPNN)', color=C['tmd'], marker='P', fill=True, group='retrain'),
     'spursm:epi': dict(label='SPURS multi (vs SPURS singles)', color=C['spursm'], marker='s', fill=False, group='retrain'),
-    # --- retrained on the capped split ----------------------------------------------------
+    # --- retrained on Homology-Restricted MegaScale ----------------------------------------------------
     'me1':     dict(label='MutateEverything st1', color=C['me1'], marker='h', fill=True, group='retrain'),
     'me2':     dict(label='MutateEverything st2', color=C['me2'], marker='H', fill=True, group='retrain'),
     'me1+':    dict(label='MutateEverything st1, additive', color=C['me1'], marker='h', fill=False, group='retrain'),
@@ -102,9 +102,9 @@ MODELS = {
     'msrrel@0:comb': dict(label='ESM3-small-open, σ = 0 (zero-shot)', color=C['zero'], marker='^', fill=True, group='zeroshot'),
 }
 for _s in ('0.25', '0.5', '0.75'):
-    for _fam, _lab in (('msrdev', 'devel'), ('msrrel', 'released')):
+    for _fam, _lab in (('msrdev', ''), ('msrrel', ' (released)')):
         for _h, _hl in (('wt', 'WT head'), ('comb', 'combined')):
-            MODELS[f'{_fam}@{_s}:{_h}'] = dict(label=f'ESM-MSR ({_lab}) σ = {_s} {_hl}', color=C['msr_dev'],
+            MODELS[f'{_fam}@{_s}:{_h}'] = dict(label=f'ESM-MSR{_lab} σ = {_s} {_hl}', color=C['msr_dev'],
                                                marker='o' if _h == 'wt' else 'D', fill=False, group='msr')
 MODELS['msrrel@0:wt'] = dict(label='ESM3-small-open, σ = 0 WT head', color=C['zero'], marker='^', fill=False, group='zeroshot')
 

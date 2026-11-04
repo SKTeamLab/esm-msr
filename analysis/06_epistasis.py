@@ -38,8 +38,8 @@ TSU = ['tsuboyama_capped_val', 'tsuboyama_capped_test']
 EPI_KEYS = ['msr:epi', 'msr:cdddg', 'msrrel:epi', 'msrdev:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
 EPI_PLOT = ['msr:epi', 'msrrel:epi', 'msrdev:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
 MODELS['msrrel:epi'] = dict(label='ESM-MSR released (link intrinsic)', color='#555555', marker='D', fill=True, group='msr')
-MODELS['msrdev:epi_obs'] = dict(label='ESM-MSR devel, post-link', color='#7f7f7f', marker='D', fill=True, group='msr')
-MODELS['msrdev:epi'] = dict(label='ESM-MSR devel (latent MT − WT)', color='#7f7f7f', marker='D', fill=False, group='msr')
+MODELS['msrdev:epi_obs'] = dict(label='ESM-MSR, post-link', color='#7f7f7f', marker='D', fill=True, group='msr')
+MODELS['msrdev:epi'] = dict(label='ESM-MSR (latent MT − WT)', color='#7f7f7f', marker='D', fill=False, group='msr')
 
 
 def add_linked(fr):
@@ -163,7 +163,7 @@ def naive_recomputed():
         for _, r in d.iterrows():
             lab = clean_label(r.iloc[0])
             doc[(ds, lab)] = (num(r['naive ρ'])[0], num(r['global_err ↓'])[0])
-    names = {'msr:epi': 'ESM-MSR (baseline)', 'msrdev:epi': 'ESM-MSR (devel) (3 seeds)', 'me2:epi': 'MutateEverything stage 2', 'tmpnnd:epi': 'ThermoMPNN-D', 'spursm:epi': 'SPURS multi (retrained, 3 seeds)'}
+    names = {'msr:epi': 'ESM-MSR (baseline)', 'msrdev:epi': 'ESM-MSR (3 seeds)', 'me2:epi': 'MutateEverything stage 2', 'tmpnnd:epi': 'ThermoMPNN-D', 'spursm:epi': 'SPURS multi (retrained, 3 seeds)'}
     R['doc_naive_rho'] = [doc.get((r.dataset, names.get(r.key, '')), (np.nan, np.nan))[0] for r in R.itertuples()]
     R['doc_global_err'] = [doc.get((r.dataset, names.get(r.key, '')), (np.nan, np.nan))[1] for r in R.itertuples()]
     R.to_csv(OUT / 'epistasis_naive_recomputed.csv', index=False, float_format='%.4f')
@@ -230,8 +230,8 @@ def doubles_ddg():
     y = sp['y'].to_numpy()
     m = ((sp['n_mut'] == 2) & sp['use']).to_numpy()
     groups = sp['group'].to_numpy()
-    items = [('msrrel:comb', 'ESM-MSR released\n(link intrinsic), combined'), ('msr:comb', 'ESM-MSR baseline,\ncombined'), ('msrdev:comb', 'ESM-MSR devel,\nlatent (no link)'),
-             ('msrdev:comb_obs', 'ESM-MSR devel,\npost-link'), ('spursm', 'SPURS multi'), ('me1', 'MutateEverything st1'), ('me2', 'MutateEverything st2'), ('tmpnn', 'ThermoMPNN'),
+    items = [('msrrel:comb', 'ESM-MSR released\n(link intrinsic), combined'), ('msr:comb', 'ESM-MSR baseline,\ncombined'), ('msrdev:comb', 'ESM-MSR,\nlatent (no link)'),
+             ('msrdev:comb_obs', 'ESM-MSR,\npost-link'), ('spursm', 'SPURS multi'), ('me1', 'MutateEverything st1'), ('me2', 'MutateEverything st2'), ('tmpnn', 'ThermoMPNN'),
              ('tmpnnd', 'ThermoMPNN + D'), ('spurs', 'SPURS')]
     extra = [('msr:wt', ''), ('msrrel:wt', ''), ('msrdev:wt', ''), ('msrdev:wt_obs', '')]
     rows = []
@@ -263,7 +263,7 @@ def doubles_ddg():
         ax.set_xlabel('predicted ddG of the double')
     for ax in axes[:, 0]:
         ax.set_ylabel('measured ddG (kcal/mol)')
-    fig.suptitle(f'Tsuboyama test doubles (n = {int(m.sum()):,}; seed 1 shown, rho is the seed mean).  Pooled ρ counts between-library offsets and saturation; the link (devel) raises it, '
+    fig.suptitle(f'Tsuboyama test doubles (n = {int(m.sum()):,}; seed 1 shown, rho is the seed mean).  Pooled ρ counts between-library offsets and saturation; the link raises it, '
                  'per-library ρ (the benchmark metric) is unchanged by it.\nLink rebuilt from each checkpoint with its one learned floor (the per-item floors of the cluster are not collected).', y=1.01, fontsize=9)
     fig.tight_layout()
     style.save(fig, OUT / 'epistasis_scatter_ddG_doubles')
@@ -299,7 +299,7 @@ def ddg_ranking():
     fig, ax = plt.subplots(figsize=(11, 4.4))
     style.dot_panel(ax, gnames, ms, table, cis, highlight=['msr:comb'], ylabel='mean per-protein Spearman ρ', xlabels=labels, rot=0, size=6.5)
     style.model_legend(ax, ms, loc='upper center', bbox_to_anchor=(0.5, -0.22), ncol=8, fontsize=7.5, columnspacing=1.0, handletextpad=0.3)
-    ax.set_title('Table 2.3: ddG ranking; whiskers 95% protein-level bootstrap.  The additive models (WT head, ME st1, ThermoMPNN, SPURS) have dddG = 0 by construction (not shown)', loc='left', fontsize=9)
+    ax.set_title('Table 2.3: ddG ranking; whiskers 95% protein-level bootstrap', loc='left', fontsize=9)
     fig.tight_layout()
     style.save(fig, OUT / 'ddg_ranking')
     print(R.pivot_table(index=['split', 'metric'], columns='model', values='rho').round(3).to_string())

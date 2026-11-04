@@ -355,6 +355,7 @@ def add_esm3_masked(frame, ds):
     ``esm3ind``    independent masking, mutant pass: each mutated position masked on its own with the other mutations visible
     ``esm3ind+``   independent masking, WT pass: each position masked on its own in the wild-type sequence (the additive reading)
     ``esm3ind:epi``  ``esm3ind`` - ``esm3ind+`` (the checkpoint's own MT - WT)
+    ``esm3avg``    mean of ``esm3ind`` and ``esm3ind+``: the combined readout of the checkpoint, as ESM-MSR's combined head and ProteinMPNN's 0.5 (WT + MT); the one the figures draw
     Returns the keys added (none until the cluster jobs are copied)."""
     ids = frame.spine['id'].to_numpy(dtype=object)
     added = []
@@ -369,6 +370,9 @@ def add_esm3_masked(frame, ds):
             if col in d:
                 frame.preds[key] = _align_id(ids, d['id'].astype(str).to_numpy(), d[col].to_numpy())[None, :]
                 added.append(key)
+    if 'esm3ind' in added and 'esm3ind+' in added:
+        frame.preds['esm3avg'] = 0.5 * (frame.preds['esm3ind'] + frame.preds['esm3ind+'])
+        added.append('esm3avg')
     return added
 
 

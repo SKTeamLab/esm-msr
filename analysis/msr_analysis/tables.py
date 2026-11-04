@@ -34,4 +34,4 @@ def numeric(df, first_col=True):
 
 def clean_label(s):
     s = re.sub(r'[ᴹᵐᴾᴴʰᴰᶜᵁ‡]', '', s)
-    return s.replace('  ', ' ').strip()
+    return s.replace('  ', ' ').replace('ESM-MSR (devel)', 'ESM-MSR').strip()                   # the devel triplicate is the model; the baseline and the released checkpoint keep their tags

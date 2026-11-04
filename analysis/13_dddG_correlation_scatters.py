@@ -1,18 +1,16 @@
 #!/usr/bin/env python
-"""Predicted against measured epistasis (dddG) of every model on the capped Tsuboyama test doubles with both singles measured (12,455), density scatters without marginals and with the
+"""Predicted against measured epistasis (dddG) of every model on the Homology-Restricted MegaScale test doubles with both singles measured (12,455), density scatters without marginals and with the
 line x = y, in three versions:
 
   results/13_dddG_scatters/all_dG_additive/<model>.png        every double
   results/13_dddG_scatters/dG_additive_positive/<model>.png   only doubles whose additive dG = dG_wt + ddG_A + ddG_B (the measured singles) is above 0, i.e. not already lost to the
                                                               assay floor if the singles add: where the measured dddG is not the floor's
-  results/13_dddG_scatters/dG_additive_gt1/<model>.png        only those above 1 kcal/mol, where the link is the identity for practical purposes: ESM-MSR devel is drawn from its
-                                                              latent prediction (the other two versions use the observed one)
+  results/13_dddG_scatters/dG_additive_gt1/<model>.png        only those above 1 kcal/mol, where the link is the identity for practical purposes
 
-The predicted epistasis of a model is the one of the pair heat maps (``12_pair_epistasis_heatmaps.py``): ESM-MSR MT - WT, ME stage 2 / ThermoMPNN-D / SPURS multi minus their singles
-(seed means), ESM3-small-open independent mutant pass minus masked-marginal WT pass, the public models minus their sum of singles; Rosetta is divided by 2.94 (REU to kcal/mol, see
-``rosetta_unit_check.csv``).  The measurement is on the observed scale (dddG = ddG_AB - ddG_A - ddG_B), so ESM-MSR devel, whose checkpoints write latent ddG, is put on it the way the
-epistasis suite's naive epistasis does: obs(MT(AB)) - [obs(WT(A)) + obs(WT(B))] through each seed's link (the baseline triplicate has no link: MT - WT).  ``stats.csv`` has n, Spearman
-rho, Pearson r and the RMSE of every panel; ``latent_vs_observed.csv`` compares the two predictions of ESM-MSR devel in each subset.
+The predicted epistasis of a model is the one of the pair heat maps (``12_pair_epistasis_heatmaps.py``): ESM-MSR comb - WT, ME stage 2 / ThermoMPNN-D / SPURS multi minus their singles
+(seed means), ESM3-small-open unmasked combined head minus WT head, the public models minus their sum of singles; Rosetta is divided by 2.94 (REU to kcal/mol, see
+``rosetta_unit_check.csv``).  ESM-MSR's epistasis is the combined head's latent interaction, comb - WT (no link), for the baseline and the devel checkpoints.  ``stats.csv`` has n, Spearman
+rho, Pearson r and the RMSE of every panel; ``latent_vs_observed.csv`` compares the latent prediction of ESM-MSR with its observed-scale one, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's link, in each subset.
 """
 import importlib
 import re
@@ -34,7 +32,7 @@ h12 = importlib.import_module('12_pair_epistasis_heatmaps')      # build(), MODE
 OUT = out_dir('13_dddG_scatters')
 Y_LABEL = 'measured δΔΔG = dddG (kcal/mol)'
 VERSIONS = {'all_dG_additive': ('all doubles', None), 'dG_additive_positive': ('doubles with ΔG additive > 0', 0.0), 'dG_additive_gt1': ('doubles with ΔG additive > 1', 1.0)}
-LINK_MODEL = 'ESM-MSR (devel)'
+LINK_MODEL = 'ESM-MSR'
 
 
 def slug(label):
@@ -63,7 +61,7 @@ def diagnostics(fr, fit, model, dG_add, y):
     v = model[LINK_MODEL]
     c = sp['dG_wt'].to_numpy(float)
     x_model = c + np.nanmean(p['msrdev:wt'], axis=0)                                  # the model's additive dG of the double: c + WT(A) + WT(B), latent
-    df = pd.DataFrame(dict(domain=sp['group'].to_numpy(), dG_wt=c, measured_dG_additive=dG_add, model_dG_additive=x_model, measured=y, latent=v['latent'], linked=v['raw']))[fit].dropna()
+    df = pd.DataFrame(dict(domain=sp['group'].to_numpy(), dG_wt=c, measured_dG_additive=dG_add, model_dG_additive=x_model, measured=y, latent=v['latent'], linked=v['linked']))[fit].dropna()
     df['measured_gt1'], df['model_gt1'] = df.measured_dG_additive > 1, df.model_dG_additive > 1
     t = df.groupby(['measured_gt1', 'model_gt1']).agg(n=('measured', 'size'), measured_dddG=('measured', 'mean'), latent=('latent', 'mean'), linked=('linked', 'mean'),
                                                        mean_measured_dG_additive=('measured_dG_additive', 'mean'), mean_model_dG_additive=('model_dG_additive', 'mean')).reset_index()
@@ -80,15 +78,15 @@ def diagnostics(fr, fit, model, dG_add, y):
         c2 = s2['dG_wt'].to_numpy(float)
         xm = c2 + s2['ddG_additive_ML'].to_numpy(float)
         for key in ('msrdev', 'msr'):
-            W, M = np.nanmean(q[f'{key}:wt'], 0), np.nanmean(q[f'{key}:mt'], 0)
+            W, M = np.nanmean(q[f'{key}:wt'], 0), np.nanmean(q[f'{key}:comb'], 0)
             lat, d3, xp = M - W, s2['dddG_ML'].to_numpy(float), c2 + W
             for sel_name, sel in (('measured dG_additive > 1', xm > 1), ('measured and model dG_additive > 1', (xm > 1) & (xp > 1))):
                 k = m2 & sel & np.isfinite(lat) & np.isfinite(d3)
-                rows.append(dict(split=tag, checkpoint='ESM-MSR devel' if key == 'msrdev' else 'ESM-MSR baseline', subset=sel_name, n=int(k.sum()), measured_dddG=d3[k].mean(), latent=lat[k].mean(), bias=(lat[k] - d3[k]).mean()))
+                rows.append(dict(split=tag, checkpoint='ESM-MSR' if key == 'msrdev' else 'ESM-MSR (baseline)', subset=sel_name, n=int(k.sum()), measured_dddG=d3[k].mean(), latent=lat[k].mean(), bias=(lat[k] - d3[k]).mean()))
     pd.DataFrame(rows).to_csv(OUT / 'bias_test_vs_validation.csv', index=False, float_format='%.4f')
     sel = df.measured_gt1
-    fig = style.density_scatter_plain(df.linked[sel], df.latent[sel], 'ESM-MSR devel linked epistasis (kcal/mol)', 'ESM-MSR devel latent epistasis (kcal/mol)', ref='xy', rmse=True,
-                                      title=f'ESM-MSR devel, doubles with ΔG additive > 1 (n = {int(sel.sum()):,}): latent against linked')
+    fig = style.density_scatter_plain(df.linked[sel], df.latent[sel], 'ESM-MSR linked epistasis (kcal/mol)', 'ESM-MSR latent epistasis (kcal/mol)', ref='xy', rmse=True,
+                                      title=f'ESM-MSR, doubles with ΔG additive > 1 (n = {int(sel.sum()):,}): latent against linked')
     fig.savefig(OUT / 'latent_vs_linked_gt1.png', dpi=150)
     plt.close(fig)
     print(t.round(3).to_string()); print(pd.DataFrame(rows).round(3).to_string())
@@ -104,26 +102,25 @@ def main():
     for label, v in model.items():
         star = '*' if label.endswith('*') else ''
         for ver, (desc, cut) in VERSIONS.items():
-            latent_here = label == LINK_MODEL and ver == 'dG_additive_gt1'
-            x = v['latent'] if latent_here else v['raw']
+            x = v['raw']
             ok = fit & np.isfinite(x) & np.isfinite(y) & (True if cut is None else (dG_add > cut))
-            note = ' (latent)' if latent_here else (' (observed)' if label == LINK_MODEL else '')
+            note = ' (latent)' if label.startswith('ESM-MSR') else ''
             fig = style.density_scatter_plain(x[ok], y[ok], f'{label.rstrip("*")}{star} predicted dddG (kcal/mol)', Y_LABEL, ref='xy', rmse=True,
                                               title=f'{label}{note}: {desc} (n = {int(ok.sum()):,})')
             folder = OUT / ver
             folder.mkdir(parents=True, exist_ok=True)
             fig.savefig(folder / f'{slug(label)}.png', dpi=150)
             plt.close(fig)
-            rows.append(dict(model=label, version=ver, prediction='latent' if latent_here else ('observed' if label == LINK_MODEL else 'as is'), n=int(ok.sum()),
+            rows.append(dict(model=label, version=ver, prediction='latent' if label.startswith('ESM-MSR') else 'as is', n=int(ok.sum()),
                              spearman=spearmanr(x[ok], y[ok])[0], pearson=pearsonr(x[ok], y[ok])[0], rmse=float(np.sqrt(np.mean((x[ok] - y[ok]) ** 2)))))
     T = pd.DataFrame(rows)
     T.to_csv(OUT / 'stats.csv', index=False, float_format='%.4f')
-    # ESM-MSR devel: observed against latent prediction, in every subset
+    # ESM-MSR: observed against latent prediction, in every subset
     v = model[LINK_MODEL]
     cmp_rows = []
     for ver, (desc, cut) in VERSIONS.items():
-        ok = fit & np.isfinite(v['raw']) & np.isfinite(v['latent']) & np.isfinite(y) & (True if cut is None else (dG_add > cut))
-        o, l = v['raw'][ok], v['latent'][ok]
+        ok = fit & np.isfinite(v['linked']) & np.isfinite(v['latent']) & np.isfinite(y) & (True if cut is None else (dG_add > cut))
+        o, l = v['linked'][ok], v['latent'][ok]
         cmp_rows.append(dict(version=ver, n=int(ok.sum()), pearson_observed_vs_latent=pearsonr(o, l)[0], spearman_observed_vs_latent=spearmanr(o, l)[0], mean_abs_diff=float(np.mean(np.abs(o - l))),
                              max_abs_diff=float(np.max(np.abs(o - l))), rho_observed=spearmanr(o, y[ok])[0], rho_latent=spearmanr(l, y[ok])[0],
                              rmse_observed=float(np.sqrt(np.mean((o - y[ok]) ** 2))), rmse_latent=float(np.sqrt(np.mean((l - y[ok]) ** 2)))))

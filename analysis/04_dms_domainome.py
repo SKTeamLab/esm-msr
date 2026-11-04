@@ -28,7 +28,7 @@ from msr_analysis.registry import CACHE, DMS7, LABEL, MODELS  # noqa: E402
 OUT = out_dir('04_dms_domainome')
 DS = DMS7[:6] + [DMS7[6], 'domainome']                    # GB1 last among the DMS, as in the tables
 COLS = DS[:7] + ['mean of 7 DMS'] + ['domainome']
-FAMS = {'devel σ = 1': ('msrdev', None), 'devel σ = 0.75': ('msrdev@0.75', None), 'devel σ = 0.5': ('msrdev@0.5', None), 'devel σ = 0.25': ('msrdev@0.25', None),
+FAMS = {'ESM-MSR σ = 1': ('msrdev', None), 'ESM-MSR σ = 0.75': ('msrdev@0.75', None), 'ESM-MSR σ = 0.5': ('msrdev@0.5', None), 'ESM-MSR σ = 0.25': ('msrdev@0.25', None),
         'σ = 0 (zero-shot control)': ('msrrel@0', None)}
 
 
@@ -79,12 +79,12 @@ def main():
         MODELS[name] = dict(label=name, group='dms', **kw)
     zs = {'ProSST (zero-shot)': 'prosst', 'ProteinMPNN (zero-shot)': 'pmpnn', 'ESM3-small (Forge)': 'esm3s', 'ESM3ΔG': 'esm3dg'}
     models1 = {}
-    sig_style = {'devel σ = 1': ('#000000', 'D', True), 'devel σ = 0.75': ('#333333', 'D', False), 'devel σ = 0.5': ('#666666', 'D', False), 'devel σ = 0.25': ('#999999', 'D', False),
+    sig_style = {'ESM-MSR σ = 1': ('#000000', 'D', True), 'ESM-MSR σ = 0.75': ('#333333', 'D', False), 'ESM-MSR σ = 0.5': ('#666666', 'D', False), 'ESM-MSR σ = 0.25': ('#999999', 'D', False),
                  'σ = 0 (zero-shot control)': ('#7f8c8d', '^', True)}
     for n, (b, _) in FAMS.items():
         models1[n] = (lambda b: (lambda d: head(b, d)))(b)
         c, m, f = sig_style[n]
-        MODELS[n] = dict(label=n if 'devel' not in n else 'ESM-MSR ' + n, color=c, marker=m, fill=f, group='dms')
+        MODELS[n] = dict(label=n, color=c, marker=m, fill=f, group='dms')
     for n, k in zs.items():
         models1[n] = (lambda k: (lambda d: k))(k)
         MODELS[n] = dict(MODELS[k], label=n)
@@ -92,9 +92,9 @@ def main():
     pd.DataFrame([dict(column=k[0], model=k[1], rho=t[k], lo=c[k][0], hi=c[k][1]) for k in t]).to_csv(OUT / 'dms_sigma_vs_zero_shot.csv', index=False, float_format='%.4f')
     names = list(models1)
     fig, ax = plt.subplots(figsize=(13, 4.8))
-    style.dot_panel(ax, COLS, names, t, c, highlight=['devel σ = 1'], ylabel='Spearman ρ', xlabels=[LABEL.get(x, x) for x in COLS], size=6.2, spread=.8, ylim=(0.0, 0.95))
+    style.dot_panel(ax, COLS, names, t, c, highlight=['ESM-MSR σ = 1'], ylabel='Spearman ρ', xlabels=[LABEL.get(x, x) for x in COLS], size=6.2, spread=.8, ylim=(0.0, 0.95))
     style.model_legend(ax, names, loc='lower left', ncol=3, fontsize=7.5)
-    ax.set_title('ESM-MSR (devel seeds) at lower LoRA scale, against zero-shot models; whiskers: 95% bootstrap over sites (DMS) / domains (Domainome)', loc='left', fontsize=9.5)
+    ax.set_title('ESM-MSR (3 seeds) at lower LoRA scale, against zero-shot models; whiskers: 95% bootstrap over sites (DMS) / domains (Domainome)', loc='left', fontsize=9.5)
     fig.tight_layout()
     style.save(fig, OUT / 'dms_sigma_vs_zero_shot')
 
@@ -102,7 +102,7 @@ def main():
     fig, axes = plt.subplots(1, 8, figsize=(16, 2.9), sharey=False)
     sig = [0, 0.25, 0.5, 0.75, 1.0]
     for ax, col in zip(axes, DMS7 + ['domainome']):
-        for fam, lab, colr in (('msrdev', 'devel (3 seeds)', 'k'), ('msrrel', 'released', '#888888')):
+        for fam, lab, colr in (('msrdev', 'ESM-MSR (3 seeds)', 'k'), ('msrrel', 'released', '#888888')):
             ys, los, his, xs = [], [], [], []
             for s in sig:
                 key = head('msrrel@0' if s == 0 else (fam if s == 1.0 else f'{fam}@{s:g}'), col)
@@ -120,11 +120,11 @@ def main():
     # retrains
     def fixed(k):
         return lambda d: k
-    mod2 = {'ESM-MSR (baseline)': lambda d: head('msr', d), 'ESM-MSR (devel)': lambda d: head('msrdev', d),
+    mod2 = {'ESM-MSR (baseline)': lambda d: head('msr', d), 'ESM-MSR': lambda d: head('msrdev', d),
             'MutateEverything st1': fixed('me1'), 'MutateEverything st1, additive': fixed('me1+'), 'MutateEverything st2': fixed('me2'),
             'MutateEverything st2, additive': fixed('me2+'), 'ThermoMPNN': fixed('tmpnn'), 'ThermoMPNN + ThermoMPNN-D': fixed('tmpnnd'),
             'SPURS': fixed('spurs'), 'SPURS multi': fixed('spursm')}
-    sty = {'ESM-MSR (baseline)': ('msr', 'ESM-MSR (baseline)'), 'ESM-MSR (devel)': ('msrdev:comb', 'ESM-MSR (devel)'), 'MutateEverything st1': ('me1', None),
+    sty = {'ESM-MSR (baseline)': ('msr', 'ESM-MSR (baseline)'), 'ESM-MSR': ('msrdev:comb', 'ESM-MSR'), 'MutateEverything st1': ('me1', None),
            'MutateEverything st1, additive': ('me1+', None), 'MutateEverything st2': ('me2', None), 'MutateEverything st2, additive': ('me2+', None), 'ThermoMPNN': ('tmpnn', None),
            'ThermoMPNN + ThermoMPNN-D': ('tmpnnd', None), 'SPURS': ('spurs', None), 'SPURS multi': ('spursm', None)}
     for n, (k, _) in sty.items():

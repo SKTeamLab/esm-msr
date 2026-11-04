@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Pair-epistasis heat maps (the notebooks' ``plot_joint_with_marginals``) for every test position pair whose identity pairs are all in the data, raw and saturation-corrected.
 
-A position pair (i, j) of a capped Tsuboyama test domain is *fully characterized* when all 19 x 19 = 361 substitution pairs (a at i, b at j) are in the dataset (15 of the 45
+A position pair (i, j) of a Homology-Restricted MegaScale test domain is *fully characterized* when all 19 x 19 = 361 substitution pairs (a at i, b at j) are in the dataset (15 of the 45
 test pairs; the others lack up to 64 cells).  Each figure is one such pair: a heat map of the epistasis dddG = ddG_AB - ddG_A - ddG_B over the identity pairs, one panel for the
 measurement and one per model, in the notebooks' layout (residue order K R H D E S T N Q Y C A V I L M F W P G, bars of the single-substitution scores of each position on the
 margins: measured ddG for the measurement, the model's single-mutant prediction for a model).  A grey × = no usable value (the double sits at an assay bound, or a single is
@@ -16,9 +16,10 @@ Colour: blue = positive epistasis, red = negative, × = no usable value.  One sc
 |measured value| over the usable cells of the 15 pairs: raw and saturation-corrected each have their own, printed on the colour bar); a model's values beyond it are clipped to the end
 colour.  Each panel title carries the Spearman rho of the model against the measured cells of the pair.
 Layout: ``results/12_pair_heatmaps/<raw|saturation_corrected>/<domain>/<wt><pos>_<wt><pos>.png``, ``pairs.csv`` (the pairs) and ``agreement.csv`` (rho of each model, per pair and mode).
-ESM-MSR's epistasis is the MT head against the WT head: for the baseline triplicate, which has no link, MT(AB) - WT(AB); for the devel checkpoints (which write latent ddG) the raw panels are on the observed scale like the
-measurement, obs(MT(AB)) - [obs(WT(A)) + obs(WT(B))] through each seed's link and library floors (``msr_analysis.link.observed_epistasis``, the epistasis suite's naive definition); the predictions are never saturation-corrected.
-Rosetta is divided by 2.94 (REU to kcal/mol).  Multi-seed models are averaged over seeds first; ESM3ΔG is not shown (its fine-tune overlaps the test proteins), the Megascale-trained ESMtherm and IFUM carry an asterisk.
+ESM-MSR's epistasis is the combined head's latent interaction, comb(AB) - WT(AB) = (MT(AB) - WT(AB)) / 2, for the baseline triplicate and the devel checkpoints alike (no link).  The devel
+checkpoints' observed-scale version, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's link and library floors (``msr_analysis.link.observed_epistasis``), is kept as
+``linked`` for the diagnostics of ``13_dddG_correlation_scatters.py``.  The predictions are never saturation-corrected.
+Rosetta is divided by 2.94 (REU to kcal/mol).  Multi-seed models are averaged over seeds first; The Megascale-trained ESMtherm and IFUM carry an asterisk.
 """
 import json
 import re
@@ -35,7 +36,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable  # noqa: E402
 
 from msr_analysis.common import epi_rows, out_dir  # noqa: E402
 from msr_analysis.registry import REFERENCE  # noqa: E402
-from msr_analysis.data import add_esm3_masked, load_frame  # noqa: E402
+from msr_analysis.data import load_frame  # noqa: E402
 from msr_analysis.link import observed_epistasis  # noqa: E402
 
 DS = 'tsuboyama_capped_test'
@@ -50,12 +51,12 @@ DPI = 85
 UNIT = {'Rosetta': 1 / 2.94}
 
 # (label, epistasis builder, additive key, singles key); builders are ('diff', a, b) = a - b or ('key', k).  Order = the panels after the measurement.
-MODELS = [('ESM-MSR', ('diff', 'msr:mt', 'msr:wt'), 'msr:wt', 'msr:wt'),
-          ('ESM-MSR (devel)', ('diff', 'msrdev:mt', 'msrdev:wt'), 'msrdev:wt', 'msrdev:wt'),
+MODELS = [('ESM-MSR (baseline)', ('diff', 'msr:comb', 'msr:wt'), 'msr:wt', 'msr:wt'),
+          ('ESM-MSR', ('diff', 'msrdev:comb', 'msrdev:wt'), 'msrdev:wt', 'msrdev:wt'),
           ('MutateEverything st2', ('key', 'me2:epi'), 'me1', 'me1'),
           ('ThermoMPNN-D', ('key', 'tmpnnd:epi'), 'tmpnn', 'tmpnn'),
           ('SPURS multi', ('key', 'spursm:epi'), 'spurs', 'spurs'),
-          ('ESM3-small-open', ('diff', 'esm3ind', 'esm3mm'), 'esm3mm', 'esm3mm'),
+          ('ESM3-small-open', ('diff', 'msrrel@0:comb', 'msrrel@0:wt'), 'msrrel@0:wt', 'msrrel@0:wt'),
           ('ProteinMPNN', ('diff', 'pmpnn', 'pmpnn+'), 'pmpnn+', 'pmpnn'),
           ('GeoDDG-3D', ('diff', 'geoddg', 'geoddg+'), 'geoddg+', 'geoddg'),
           ('DDGemb', ('diff', 'ddgemb', 'ddgemb+'), 'ddgemb+', 'ddgemb'),
@@ -110,7 +111,6 @@ def parse_double(s):
 
 def build():
     fr = load_frame(DS)
-    add_esm3_masked(fr, DS)
     sp, p = fr.spine, fr.preds
     n = len(sp)
     y_floor = json.load(open(REFERENCE / 'y_floor.json'))
@@ -128,8 +128,8 @@ def build():
         u = UNIT.get(label, 1.0)
         e = u * (mean_seeds(p[build_[1]]) - (mean_seeds(p[build_[2]]) if build_[0] == 'diff' else 0.0))
         model[label] = dict(raw=e, saturation_corrected=e, single=u * mean_seeds(p[sk]), latent=e)       # predictions are not saturation-corrected
-        if label == 'ESM-MSR (devel)':       # the raw panels are on the observed scale, like the measurement: obs(MT(AB)) - [obs(WT(A)) + obs(WT(B))] through each seed's link (the suite's naive definition)
-            model[label]['raw'] = model[label]['saturation_corrected'] = np.nanmean([observed_epistasis(sp, p['msrdev:wt'][s], p['msrdev:mt'][s], s + 1, y_floor) for s in range(3)], axis=0)
+        if label == 'ESM-MSR':       # the observed-scale version, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's link, for the diagnostics of 13
+            model[label]['linked'] = np.nanmean([observed_epistasis(sp, p['msrdev:wt'][s], p['msrdev:comb'][s], s + 1, y_floor) for s in range(3)], axis=0)
     mut = sp['mut'].to_numpy(dtype=object)
     nm = sp['n_mut'].to_numpy()
     d = pd.DataFrame({'i': np.flatnonzero(nm == 2)})
@@ -228,7 +228,7 @@ def figure(mode, pair, d, fit, meas, model, singles, sp, vmax):
     cb = fig.colorbar(im, cax=cax, orientation='horizontal')
     cb.set_label(('measured dddG − E[dddG | additive]; predictions as is' if mode == 'saturation_corrected' else 'dddG') + f' (kcal/mol); values beyond ±{vmax:.2f} are clipped', fontsize=7.6)
     cb.ax.tick_params(labelsize=7.5)
-    fig.suptitle(f'{code} {wt1}{pos1} × {wt2}{pos2}: pair epistasis dddG, {"measurement saturation-corrected, predictions as is" if mode == "saturation_corrected" else "raw"} (capped Tsuboyama test)', fontsize=12, y=0.995)
+    fig.suptitle(f'{code} {wt1}{pos1} × {wt2}{pos2}: pair epistasis dddG, {"measurement saturation-corrected, predictions as is" if mode == "saturation_corrected" else "raw"} (Homology-Restricted MegaScale test)', fontsize=12, y=0.995)
     fig.subplots_adjust(hspace=0.42, wspace=0.42, left=0.05, right=0.985, top=0.95, bottom=0.03)
     folder = OUT / mode / code
     folder.mkdir(parents=True, exist_ok=True)
