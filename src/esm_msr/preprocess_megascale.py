@@ -634,7 +634,7 @@ def setup_dataloaders(args: argparse.Namespace, add_benchmarks_to_val: bool = Fa
         from esm_msr import blocks
         consolidated_loader = blocks.build_block_loader(
             [dl.dataset for dl in train_dataloaders], train_loader_names, args.block_positions, args.seed, num_workers=args.num_workers,
-            singles='single' in args.subsets, pairs='double' in args.subsets)
+            singles='single' in args.subsets, pairs='double' in args.subsets and args.block_pair_weight > 0, domain_steps=args.block_domain_steps)
     else:
         consolidated_loader = create_consolidated_dataloader(
             dataloaders=train_dataloaders, train_list=train_loader_names, batch_size=args.batch_size, collate_fn=collate_fn_twopass,

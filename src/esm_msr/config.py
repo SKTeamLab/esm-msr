@@ -412,6 +412,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     opt.add_argument('--learning_rate', type=float, default=2e-4)
     opt.add_argument('--grad_clip_norm', type=float, default=0.0,
                      help="Global L2 gradient norm clip across all trainable parameters before optim.step() (0 = disabled).")
+    opt.add_argument('--grad_clip_per_head', action=argparse.BooleanOptionalAction, default=False,
+                     help="Apply --grad_clip_norm to the WT parameters and the MT parameters separately (adapter and calibration head each; anything else is "
+                          "its own group), so the MT head's doubles do not shrink the WT head's step.")
     opt.add_argument('--calib_lr_mult', type=float, default=20.0,
                      help="Learning-rate multiplier for calibration heads relative to --learning_rate (default 20.0; 5.0 recommended with cosine).")
     opt.add_argument('--batch_size', type=int, default=256, help="Items per optimizer step of the per-item path (--block_training: a step is one block and ignores this; validation uses 64).")
@@ -485,6 +488,14 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                               "so a run at small B takes K x fewer, K x smoother steps. The summed gradient is divided by K before the clip; --lr_warmup_steps "
                               "and the cosine length count OPTIMIZER steps (set warmup to a quarter for the same warmup in blocks); logged train/* losses are "
                               "the mean over the K blocks; blocks left over at the end of an epoch carry into the next, and a resume starts a fresh window.")
+    train_g.add_argument('--block_domain_steps', action=argparse.BooleanOptionalAction, default=False,
+                         help="--block_training: one optimizer step is one library: all of its positions as one singles block (--block_positions no longer "
+                              "sizes it) plus all of its pair blocks, their gradients summed before the clip. An epoch is one step per library. A pair's "
+                              "gradient is weighted --block_pair_weight / (the library's pairs), so the ratio of doubles to singles survives the clip, and a "
+                              "library counts once however many pairs it has. The largest training domain peaks at 26.9 GB: smaller cards need --block_row_chunk.")
+    train_g.add_argument('--block_pair_weight', type=float, default=1.0,
+                         help="--block_domain_steps: weight of a library's doubles (mean over its pairs) against its singles. Reaches the MT head only. 0 runs no "
+                              "pair blocks, which leaves the fully masked MT head without any partner to read: a control, not a recipe.")
     train_g.add_argument('--block_mask_wt', type=float, default=1.0,
                          help="--block_training: probability that the WT head reads a position with its site MASKED (1, the default, always; 0 = the "
                               "plain wild-type sequence every time, the unmasked WT readout; in between, drawn per position of a singles block and per "
@@ -510,6 +521,8 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                           "and a run trained on visible sites sets --monitor_metric val_unmasked_epi_composite and --mt_convergence_metric unmasked_epi_composite. "
                           "The matched regime of a run trained on visible sites (--block_mask_wt/_mt < 1, --mask_strategy_* none or random). The MT "
                           "side is one forward per variant, the cost the validation had before it was consolidated.")
+    val.add_argument('--val_every_epochs', type=int, default=1,
+                     help="Validate every N epochs. --early_stopping_patience and the plateaus count validations, not epochs.")
     val.add_argument('--skip_val', action=argparse.BooleanOptionalAction, default=False)
 
     _add_retired(parser)
@@ -717,6 +730,18 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         for f in ('block_mask_wt', 'block_mask_mt'):
             if not 0.0 <= getattr(args, f) <= 1.0:
                 parser.error(f"--{f} is a probability in [0, 1]")
+    if args.block_domain_steps and not args.block_training:
+        parser.error("--block_domain_steps needs --block_training")
+    if args.block_domain_steps and args.grad_accum_blocks > 1:
+        parser.error("--block_domain_steps sets the step itself: leave --grad_accum_blocks at 1")
+    if args.block_pair_weight < 0:
+        parser.error("--block_pair_weight must be >= 0")
+    if args.block_pair_weight != 1.0 and not args.block_domain_steps:
+        parser.error("--block_pair_weight needs --block_domain_steps (the clip cancels a weight on a pair block's own step)")
+    if args.grad_clip_per_head and args.grad_clip_norm <= 0:
+        parser.error("--grad_clip_per_head needs --grad_clip_norm > 0")
+    if args.val_every_epochs < 1:
+        parser.error("--val_every_epochs must be >= 1")
     if args.grad_accum_blocks < 1:
         parser.error("--grad_accum_blocks must be >= 1")
     if args.grad_accum_blocks > 1 and not args.block_training:

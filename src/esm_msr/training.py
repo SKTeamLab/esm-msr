@@ -1454,6 +1454,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self._block_sums['cycle'] += float(L_cyc.detach()); self._block_cnts['cycle'] += 1
         if float(hp.get('lambda_cond_mt', 0.0) or 0.0) > 0 and llr_m is not None:       # the conditional legs are the masked row / column passes
             terms += self._block_cond_legs(b, llr_m, Xa, Ya, wi, wj, full, ident_cells)
+        if 'n_lib_pairs' in b:                                                             # --block_domain_steps: this pair's share of its library's doubles
+            w = float(hp.block_pair_weight) / int(b['n_lib_pairs'])
+            terms = [w * t for t in terms]
         self._block_backward(terms, 'MT')
 
     def _log_lrs(self):
@@ -1521,21 +1524,26 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         # --grad_accum_blocks K: the K blocks' gradients add up in .grad and the optimizer steps once, after the K-th. Everything below (norms, clip, step,
         # scheduler, logs) therefore runs once per K blocks, on the mean gradient and the mean of the K blocks' losses.
+        # --block_domain_steps: the same, closed by the sampler at the end of a library, on the plain sum (the pair blocks carry their own weight); the
+        # singles' and the doubles' losses are logged apart.
         accum = max(1, int(self.hparams.get('grad_accum_blocks', 1) or 1))
-        if accum > 1:
+        domain = bool(self.hparams.get('block_domain_steps', False))
+        if accum > 1 or domain:
             self._accum_n = getattr(self, '_accum_n', 0) + 1
-            acc = getattr(self, '_accum_logs', None) or {}
+            if domain and batch.get('block') == 'pair':
+                logs = {f'{k}_pair': v for k, v in logs.items()}
+            acc, cnt = getattr(self, '_accum_logs', None) or {}, getattr(self, '_accum_cnts', None) or {}
             for k, v in logs.items():
-                acc[k] = acc.get(k, 0.0) + float(v)
-            self._accum_logs = acc
-            if self._accum_n < accum:
+                acc[k], cnt[k] = acc.get(k, 0.0) + float(v), cnt.get(k, 0) + 1
+            self._accum_logs, self._accum_cnts = acc, cnt
+            if not (batch['step_end'] if domain else self._accum_n >= accum):
                 return torch.tensor(0.0, device=self.device)
-            logs = {k: v / accum for k, v in acc.items()}
-            self._accum_n, self._accum_logs = 0, {}
+            logs = {k: v / (cnt[k] if domain else accum) for k, v in acc.items()}
+            self._accum_n, self._accum_logs, self._accum_cnts = 0, {}, {}
             seen_g = set()
             for g in optim.param_groups:
                 for p in g["params"]:
-                    if p.grad is not None and id(p) not in seen_g:
+                    if accum > 1 and p.grad is not None and id(p) not in seen_g:
                         seen_g.add(id(p))
                         p.grad.div_(accum)
             self._opt_steps = getattr(self, '_opt_steps', -1) + 1
@@ -1558,17 +1566,20 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         clip_val = float(self.hparams.get('grad_clip_norm', 0.0) or 0.0)
         if clip_val > 0.0:
+            per_head = bool(self.hparams.get('grad_clip_per_head', False))
             seen_p = set()
-            trainable_params = []
+            clip_sets = {}
             for g in optim.param_groups:
+                name = str(g.get("name", ""))
+                key = 'total' if not per_head else 'wt' if name.endswith('_wt') else 'mt' if name.endswith('_mt') else 'other'
                 for p in g["params"]:
                     if p.grad is not None and id(p) not in seen_p:
                         seen_p.add(id(p))
-                        trainable_params.append(p)
-            if trainable_params:
+                        clip_sets.setdefault(key, []).append(p)
+            for key, trainable_params in clip_sets.items():
                 pre_clip_norm = torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=clip_val)
                 if batch_idx == 0 or (batch_idx + 1) % log_every == 0:
-                    self.log("norm_grad/pre_clip_total", float(pre_clip_norm), on_step=True, on_epoch=False, logger=True, sync_dist=True)
+                    self.log(f"norm_grad/pre_clip_{key}", float(pre_clip_norm), on_step=True, on_epoch=False, logger=True, sync_dist=True)
 
         optim.step()
         optim.zero_grad(set_to_none=True)
@@ -2207,6 +2218,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             accum = max(1, int(self.hparams.get('grad_accum_blocks', 1) or 1))
             if accum > 1:                                       # the scheduler counts optimizer steps, one per --grad_accum_blocks blocks
                 total_steps = max(warmup + 1, -(-total_steps // accum))
+            if bool(self.hparams.get('block_domain_steps', False)) and getattr(self, '_trainer', None) is not None:
+                loader = self.trainer.train_dataloader              # fit is handed a one-element list
+                sampler = (loader[0] if isinstance(loader, (list, tuple)) else loader).sampler      # it knows how many blocks make a step; the estimate above counts blocks
+                total_steps = max(warmup + 1, -(-total_steps * sampler.n_steps() // len(sampler)))
 
             def _cos_fn(step, warmup=warmup, total_steps=total_steps, min_ratio=min_ratio):
                 if warmup > 0 and step < warmup:
@@ -2503,7 +2518,7 @@ def main():
 
     try:
         trainer = Trainer(max_epochs=args.num_epochs, accelerator=accelerator, devices=1, logger=loggers, callbacks=callbacks,
-                          enable_checkpointing=True, num_sanity_val_steps=0, log_every_n_steps=25, check_val_every_n_epoch=1,
+                          enable_checkpointing=True, num_sanity_val_steps=0, log_every_n_steps=25, check_val_every_n_epoch=args.val_every_epochs,
                           precision=os.environ.get('ESM_MSR_PRECISION', 'bf16-mixed'))   # bf16-mixed always; fp32 only for the CPU smoke test
     except Exception as e:
         logging.error(f"Trainer init failed: {e}", exc_info=True)

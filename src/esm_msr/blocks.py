@@ -237,26 +237,53 @@ class BlockSampler(Sampler):
     """
     The blocks of one epoch, as descriptors: every library's singles blocks (B random positions of one library each) in random order, then
     every pair block in random order. Seeded by ``(seed, epoch)``, so an epoch is reproducible and ``set_epoch`` is all a resume needs.
+
+    ``domain_steps``: the libraries in random order, each as its one whole-domain singles block followed by all of its pair blocks, and each
+    descriptor carries a fourth field saying whether it closes the library's optimizer step.
     """
 
-    def __init__(self, libs: List[Library], positions_per_block: int, seed: int = 0, singles: bool = True, pairs: bool = True):
+    def __init__(self, libs: List[Library], positions_per_block: int, seed: int = 0, singles: bool = True, pairs: bool = True, domain_steps: bool = False):
         self.libs, self.B, self.seed, self.epoch = libs, max(1, int(positions_per_block)), int(seed or 0), 0
-        self.singles, self.pairs = singles, pairs
+        self.singles, self.pairs, self.domain_steps = singles, pairs, domain_steps
 
     def set_epoch(self, epoch: int) -> None:
         self.epoch = int(epoch)
 
     def n_single_blocks(self) -> int:
+        if self.domain_steps:
+            return sum(1 for l in self.libs if len(l.single_pos)) if self.singles else 0
         return sum(-(-len(l.single_pos) // self.B) for l in self.libs) if self.singles else 0
 
     def n_pair_blocks(self) -> int:
         return sum(l.n_pairs for l in self.libs) if self.pairs else 0
 
+    def n_steps(self) -> int:
+        """Optimizer steps per epoch, before --grad_accum_blocks."""
+        if not self.domain_steps:
+            return len(self)
+        return sum(1 for l in self.libs if (self.singles and len(l.single_pos)) or (self.pairs and l.n_pairs))
+
     def __len__(self) -> int:
         return self.n_single_blocks() + self.n_pair_blocks()
 
+    def _iter_domains(self, rng):
+        order = list(range(len(self.libs)))
+        rng.shuffle(order)
+        for li in order:
+            lib = self.libs[li]
+            step = [('s', li, tuple(range(len(lib.single_pos))))] if self.singles and len(lib.single_pos) else []
+            if self.pairs:
+                qs = list(range(lib.n_pairs))
+                rng.shuffle(qs)
+                step += [('p', li, q) for q in qs]
+            for k, desc in enumerate(step):
+                yield (*desc, k == len(step) - 1)
+
     def __iter__(self):
         rng = random.Random(self.seed * 1_000_003 + self.epoch)
+        if self.domain_steps:
+            yield from self._iter_domains(rng)
+            return
         sing, pair = [], []
         for li, lib in enumerate(self.libs):
             if self.singles:
@@ -280,10 +307,12 @@ class BlockDataset(Dataset):
         return len(self.libs)
 
     def __getitem__(self, desc):
-        kind, li, sel = desc
+        kind, li, sel, *end = desc
         lib = self.libs[li]
         t = lambda a: torch.as_tensor(a)
         batch = {'pdb': lib.name, 'seq': lib.seq, 'coords': lib.coords, 'structure_tokens': lib.structure_tokens}
+        if end:                                                 # --block_domain_steps
+            batch.update(step_end=end[0], n_lib_pairs=lib.n_pairs)
         if kind == 's':
             idx = np.asarray(sel, dtype=np.int64)
             pos = lib.single_pos[idx]
@@ -304,7 +333,7 @@ class BlockDataset(Dataset):
 
 
 def build_block_loader(datasets: Sequence, names: Sequence[str], positions_per_block: int, seed: int, num_workers: int = 0,
-                       singles: bool = True, pairs: bool = True):
+                       singles: bool = True, pairs: bool = True, domain_steps: bool = False):
     """The training DataLoader of the block paradigm, from the per-library ``MutationStabilityDataset`` objects."""
     from torch.utils.data import DataLoader
     libs = []
@@ -312,7 +341,8 @@ def build_block_loader(datasets: Sequence, names: Sequence[str], positions_per_b
         lib = build_library(name, ds.data)
         if lib is not None:
             libs.append(lib)
-    sampler = BlockSampler(libs, positions_per_block, seed, singles=singles, pairs=pairs)
+    sampler = BlockSampler(libs, positions_per_block, seed, singles=singles, pairs=pairs, domain_steps=domain_steps)
     logging.info(f"Block training: {len(libs)} libraries, {sum(len(l.single_pos) for l in libs)} single positions in "
-                 f"{sampler.n_single_blocks()} blocks of up to {sampler.B}, {sampler.n_pair_blocks()} pair blocks")
+                 f"{sampler.n_single_blocks()} blocks of up to {'a whole domain' if domain_steps else sampler.B}, {sampler.n_pair_blocks()} pair blocks, "
+                 f"{sampler.n_steps()} steps per epoch")
     return DataLoader(BlockDataset(libs), sampler=sampler, batch_size=None, num_workers=num_workers, pin_memory=True)
