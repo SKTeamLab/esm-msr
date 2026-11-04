@@ -32,7 +32,6 @@ TOKEN_TO_AA = {t: k for k, t in enumerate(CANON_IDS)}
 MASK = int(C.SEQUENCE_MASK_TOKEN)
 
 SINGLE_FIELDS = ('y', 'cens', 'bound', 'dG_meas', 'dG_wt', 'y_floor', 'cens_src')
-PAIR_FIELDS = SINGLE_FIELDS + ('yA', 'yB')
 
 
 @dataclass
@@ -64,8 +63,8 @@ def build_library(name: str, items: Sequence[dict]) -> 'Library | None':
     The dense label tensors of one library from its (already filtered and censored) per-item records.
 
     Only ``single`` and ``double`` items with canonical amino acids count; a position whose wild type is not canonical is dropped. A cell
-    seen twice keeps the last record. ``y`` is the item's ddG (the censored bound lives in ``bound``), ``yA`` / ``yB`` the measured
-    singles of a double, which teacher forcing de-links.
+    seen twice keeps the last record. ``y`` is the item's ddG (the censored bound lives in ``bound``). A double's teacher-forcing singles are read
+    from ``singles``, not from its ``ddG_A`` / ``ddG_B``, which are both NaN when either single is tagged or missing.
     """
     items = [it for it in items if it.get('subset_type') in ('single', 'double')]
     if not items:
@@ -92,11 +91,10 @@ def build_library(name: str, items: Sequence[dict]) -> 'Library | None':
             for f in SINGLE_FIELDS:
                 d[f][TOKEN_TO_AA[mts[0]]] = vals[f]
         else:
-            d = pairs.setdefault((pos[0], pos[1]), {f: _fill((20, 20), f) for f in PAIR_FIELDS})
+            d = pairs.setdefault((pos[0], pos[1]), {f: _fill((20, 20), f) for f in SINGLE_FIELDS})
             cell = (TOKEN_TO_AA[mts[0]], TOKEN_TO_AA[mts[1]])
             for f in SINGLE_FIELDS:
                 d[f][cell] = vals[f]
-            d['yA'][cell], d['yB'][cell] = it.get('ddG_A', np.nan), it.get('ddG_B', np.nan)
     if not singles and not pairs:
         return None
     sp = np.array(sorted(singles), dtype=np.int64)
@@ -108,7 +106,7 @@ def build_library(name: str, items: Sequence[dict]) -> 'Library | None':
         wt_tok=wt_tok, single_pos=sp,
         singles={f: np.stack([singles[int(p)][f] for p in sp]) for f in SINGLE_FIELDS} if len(sp) else {},
         pairs=sorted(pairs),
-        pair_data={f: np.stack([pairs[k][f] for k in sorted(pairs)]) for f in PAIR_FIELDS} if pairs else {})
+        pair_data={f: np.stack([pairs[k][f] for k in sorted(pairs)]) for f in SINGLE_FIELDS} if pairs else {})
     return lib
 
 
@@ -210,9 +208,8 @@ def pair_labels(b: dict, Xa: Sequence[int], Ya: Sequence[int], wi: int, wj: int)
 
     The double cells come from the library's doubles; the identity row and column are the SINGLES at j and at i (cell (x, wt_j) is the single x
     at i), and the wild type itself is 0. The library constants dG_wt and the floor are filled into every cell, so no cell hands the link a NaN.
-    Returns ``(lab, A, B, ident, full)``: ``lab`` the six label fields restricted to ``Xa`` x ``Ya``; ``A`` / ``B`` the two measured singles
-    of each cell (their de-linked sum is the teacher-forcing label; the identity cells carry the one single and a 0 for the wild type);
-    ``ident`` marks the identity cells; ``full`` the same fields over the whole 20 x 20 alphabet, which the conditional legs index.
+    Returns ``(lab, ident, full)``: ``lab`` the six label fields restricted to ``Xa`` x ``Ya``; ``ident`` marks the identity cells; ``full`` the
+    same fields over the whole 20 x 20 alphabet, which the conditional legs index.
     """
     dev = b['y'].device
     X, Y = torch.as_tensor(list(Xa), device=dev), torch.as_tensor(list(Ya), device=dev)
@@ -227,14 +224,11 @@ def pair_labels(b: dict, Xa: Sequence[int], Ya: Sequence[int], wi: int, wj: int)
     M['dG_wt'] = torch.full_like(M['dG_wt'], float(dG))
     M['y_floor'] = torch.full_like(M['y_floor'], float(fl.mean()) if fl.numel() else float('nan'))
     M['y'][wi, wj], M['cens'][wi, wj], M['bound'][wi, wj], M['dG_meas'][wi, wj] = 0.0, 0, float('nan'), float(dG)
-    A, Bm = b['yA'].clone(), b['yB'].clone()
-    A[:, wj], Bm[:, wj] = b['si_y'], 0.0
-    A[wi, :], Bm[wi, :] = 0.0, b['sj_y']
     ident = torch.zeros(20, 20, dtype=torch.bool, device=dev)
     ident[:, wj] = True
     ident[wi, :] = True
     sl = lambda t: t[X][:, Y]
-    return {f: sl(M[f]) for f in M}, sl(A), sl(Bm), sl(ident), M
+    return {f: sl(M[f]) for f in M}, sl(ident), M
 
 
 # ---------------------------------------------------------------------------------------------------------------- dataset and sampler
@@ -305,7 +299,7 @@ class BlockDataset(Dataset):
                     partners[tag + f] = t(lib.singles[f][r]) if r is not None else t(_fill(20, f))
             batch.update(block='pair', positions=t(np.array([i, j], dtype=np.int64)),
                          wt_ids=t(np.array([lib.wt_tok[i], lib.wt_tok[j]], dtype=np.int64)),
-                         **{f: t(lib.pair_data[f][sel]) for f in PAIR_FIELDS}, **partners)
+                         **{f: t(lib.pair_data[f][sel]) for f in SINGLE_FIELDS}, **partners)
         return batch
 
 

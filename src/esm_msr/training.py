@@ -171,7 +171,7 @@ TF_CLAMP_Y0 = 0.25   # kcal/mol: the lowest reading --tf_label clamped inverts; 
 def tf_single_label(kind, link, y, cens, cens_src, wt_lat, dG_wt, y_floor):
     """The latent ddG label of one measured single under --tf_label clamped / posterior, detached; ``y`` and ``wt_lat`` (the WT head's read) on the ddG scale, ``dG_wt`` finite.
 
-    posterior is defined everywhere (no reading: the prior; a range tag: the survival term, its ``y`` being the tag's bound). clamped is NaN with no reading. A floor-censored number
+    posterior is defined everywhere (no reading: the prior; a range tag: the survival term, its ``y`` being the tag's bound). clamped is NaN with no reading, so the caller reads it from the WT head. A floor-censored number
     (--censor_threshold) is a number: only the assay's own tags count as bounds, as in the Tobit regression.
     """
     if kind == 'posterior':
@@ -1341,7 +1341,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         wt_i, wt_j = int(b['wt_ids'][0]), int(b['wt_ids'][1])
         wi, wj = blocks.TOKEN_TO_AA[wt_i], blocks.TOKEN_TO_AA[wt_j]
         wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(b['seq'], i, j, wt_i, wt_j, identity=ident)
-        lab, tfA, tfB, ident_cells, full = blocks.pair_labels(b, Xa, Ya, wi, wj)
+        lab, ident_cells, full = blocks.pair_labels(b, Xa, Ya, wi, wj)
         lam_cyc = float(hp.get('lambda_cycle', 0.0) or 0.0)
         if lam_cyc <= 0 and not bool((torch.isfinite(lab['y']) & ~ident_cells).any()):
             return
@@ -1380,29 +1380,35 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             llr_m = self._block_llr(b, mt_seqs, read, wt_at, 'mt', grad=True)
             wt_raw, mt_raw = blocks.assemble_pair(llr_w[0], llr_w[1], llr_m[:nx], llr_m[nx:], Xa, Ya)
         wt_cal, mt_cal = self._block_cal('wt')(wt_raw, n), self._block_cal('mt')(mt_raw, n)
-        # the teacher-forcing label of a cell: its measured singles, de-linked one at a time and summed
-        yA, yB = tfA.float(), tfB.float()
-        dG, fl = c.dG_wt, c.floor
+        # The teacher-forcing label of a cell: its two singles, one at a time and summed, each from the block's own singles (a double with a tagged or missing single has no ddG_A / ddG_B).
+        # A single without a usable measurement is read from the WT head, so it never costs its partner's measurement: one measurement and one guess beat two guesses.
         tf_label = hp.get('tf_label', 'inverse') or 'inverse'
-        if tf_label == 'inverse':
-            lat = (link.latent_ddG(yA, dG, fl) + link.latent_ddG(yB, dG, fl)).detach()
-            t_single, tf_cut = hp.get('censor_threshold'), hp.get('tf_cut')
-            cut = torch.full_like(fl, float(tf_cut)) if tf_cut is not None else torch.full_like(fl, float(t_single)) if t_single is not None else fl
-            has = torch.isfinite(lat) & c.link_ok & ~teacher_forcing_unusable(dG, yA, yB, cut)
-        else:
-            # One single at a time, from the block's own singles (a double with a '<-1' single has no yA / yB) and the WT head's read of each, so a live single keeps its measurement beside a dead one.
-            cal_w = self._block_cal('wt')
+        t_single, tf_cut = hp.get('censor_threshold'), hp.get('tf_cut')
+        dG0, fl0 = c.dG_wt.reshape(-1)[0], c.floor.reshape(-1)[0]
+        cut = float(tf_cut) if tf_cut is not None else float(t_single) if t_single is not None else fl0
+        cal_w = self._block_cal('wt')
 
-            def one(aa, wt_aa, llr, tag):
-                w = cal_w(llr[aa], (aa != wt_aa).long()).detach()
-                z = tf_single_label(tf_label, link, b[tag + 'y'][aa].float(), b[tag + 'cens'][aa], b[tag + 'cens_src'][aa], w, dG.reshape(-1)[0], fl.reshape(-1)[0])
-                return torch.where(aa == wt_aa, torch.zeros_like(z), z)
-            lat = one(xi, wi, llr_w[0], 'si_').unsqueeze(1) + one(yj, wj, llr_w[1], 'sj_').unsqueeze(0)
-            has = torch.isfinite(lat) & c.link_ok
+        def one(aa, wt_aa, llr, tag):
+            """The labels of one position's singles, and which of them carry a measurement; the wild type has no effect to estimate."""
+            w = cal_w(llr[aa], (aa != wt_aa).long()).detach()
+            y, cens, src = b[tag + 'y'][aa].float(), b[tag + 'cens'][aa], b[tag + 'cens_src'][aa]
+            if tf_label == 'inverse':
+                z = link.latent_ddG(y, dG0, fl0).detach()
+                ok = torch.isfinite(z) & ((dG0 + y) > cut) & ~((cens != 0) & (src == censoring.SRC_RANGE))
+            else:
+                z = tf_single_label(tf_label, link, y, cens, src, w, dG0, fl0)
+                ok = torch.isfinite(z)
+            wild = aa == wt_aa
+            return torch.where(wild, torch.zeros_like(z), torch.where(ok, z, w)), ok & ~wild
+        zA, measA = one(xi, wi, llr_w[0], 'si_')
+        zB, measB = one(yj, wj, llr_w[1], 'sj_')
+        lat = zA.unsqueeze(1) + zB.unsqueeze(0)
+        measA, measB = measA.unsqueeze(1), measB.unsqueeze(0)
+        has = (measA | measB | (n == 0)) & c.link_ok                         # with neither single measured the WT half stays the WT head's own (live under --joint_doubles)
         f_cal, f_raw = self._block_forced(c, wt_cal, wt_raw, n, lat, has, live=joint)
         comb_cal, comb_raw = combine_predictions(f_cal, mt_cal), combine_predictions(f_raw, mt_raw)
         no_label_mt = (hp.get('tf_no_label', 'wt') or 'wt') == 'mt'
-        dead = (n == 2) & ~has & c.link_ok                                   # --tf_no_label mt: these doubles are the MT head's alone
+        dead = (n == 2) & ~(measA & measB) & c.link_ok                       # --tf_no_label mt: a double missing a measurement is the MT head's alone
         if no_label_mt:
             comb_cal, comb_raw = torch.where(dead, mt_cal, comb_cal), torch.where(dead, mt_raw, comb_raw)
         if rank_sg:

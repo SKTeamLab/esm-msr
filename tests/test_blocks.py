@@ -62,7 +62,6 @@ def test_build_library_lays_singles_and_doubles_into_dense_tensors():
     assert lib.singles['cens'][1, 1] == -1 and lib.singles['bound'][1, 1] == pytest.approx(0.3) and lib.singles['cens'][0, 1] == 0
     # the double's cell is [residue at i, residue at j] whichever order the item listed them in
     assert lib.pair_data['y'][0, 1, 2] == pytest.approx(0.7) and np.isnan(lib.pair_data['y'][0, 2, 1])
-    assert lib.pair_data['yA'][0, 1, 2] == pytest.approx(0.1) and lib.pair_data['yB'][0, 1, 2] == pytest.approx(0.2)
     assert lib.wt_tok[I] == WT_I and lib.wt_tok[J] == WT_J and lib.coords.shape == (1, 1, 9, 37, 3) and lib.structure_tokens.shape == (1, 9)
 
 
@@ -163,7 +162,7 @@ def test_a_block_is_one_library_and_the_dataset_returns_tensors():
     assert sb['block'] == 'single' and sb['pdb'] == 'B' and sb['positions'].shape == (3,) and sb['y'].shape == (3, 20)
     assert sb['seq'].shape == (9,) and sb['wt_ids'].tolist() == [int(SEQ[p]) for p in sb['positions'].tolist()]
     pb = ds[('p', 0, 0)]
-    assert pb['block'] == 'pair' and pb['positions'].tolist() == [2, 5] and pb['y'].shape == (20, 20) and pb['yA'].shape == (20, 20)
+    assert pb['block'] == 'pair' and pb['positions'].tolist() == [2, 5] and pb['y'].shape == (20, 20) and pb['si_y'].shape == (20,)
 
 
 # ---------------------------------------------------------------------------------------------------------------- the losses
@@ -274,7 +273,7 @@ def test_a_pair_block_uses_thirty_eight_passes_forty_with_the_identity_and_regre
 def test_joint_doubles_make_the_pair_blocks_wt_half_live_and_tf_mix_one_takes_the_gradient_away():
     for mix, expect in ((0.0, True), (1.0, False)):
         s = _module(joint_doubles='both', tf_mix=mix, lambda_rank_mt=0.0)
-        b = _blk('pair', yA=torch.full((20, 20), 0.3), yB=torch.full((20, 20), 0.2))              # every cell has a usable additive label
+        b = _blk('pair', si_y=torch.full((20,), 0.3), sj_y=torch.full((20,), 0.2))                # every cell has a usable additive label
         M._block_step(s, b)
         g = s.model.w_wt.grad
         assert (g is not None and float(g.abs()) > 0) == expect, (mix, g)
@@ -385,7 +384,7 @@ def test_the_real_link_gives_finite_gradients_although_most_cells_are_unobserved
     for kind in ('single', 'pair'):
         s = _module(joint_doubles='both', tf_mix=0.5)
         s.link_head = link()
-        b = _blk(kind, yA=torch.full((20, 20), 0.3), yB=torch.full((20, 20), 0.2)) if kind == 'pair' else _blk(kind)
+        b = _blk(kind, si_y=torch.full((20,), 0.3), sj_y=torch.full((20,), 0.2)) if kind == 'pair' else _blk(kind)
         M._block_step(s, b)
         grads = [p.grad for p in list(s.model.parameters()) if p.grad is not None]
         assert grads and all(bool(torch.isfinite(g).all()) for g in grads), kind
@@ -432,14 +431,14 @@ class _Rec(ListMLELoss):
 
 
 def test_pair_labels_put_the_singles_on_the_identity_row_and_column_and_zero_on_the_wild_type():
-    b = _blk('pair', yA=torch.full((20, 20), 0.3), yB=torch.full((20, 20), 0.2))
+    b = _blk('pair')
     wi, wj = blocks.TOKEN_TO_AA[WT_I], blocks.TOKEN_TO_AA[int(SEQ[5])]
     wi = blocks.TOKEN_TO_AA[int(SEQ[2])]
-    lab, A, B, ident, full = blocks.pair_labels(b, list(range(20)), list(range(20)), wi, wj)
+    lab, ident, full = blocks.pair_labels(b, list(range(20)), list(range(20)), wi, wj)
     assert lab['y'].shape == (20, 20) and ident.sum() == 39 and bool(ident[wi, wj])
     assert lab['y'][wi, wj] == 0.0 and lab['cens'][wi, wj] == 0
     for x in (0, 1, 2):                                                  # (x, wt_j) is the single x at position 2
-        assert lab['y'][x, wj] == pytest.approx(float(b['si_y'][x])) and float(A[x, wj]) == pytest.approx(float(b['si_y'][x])) and float(B[x, wj]) == 0.0
+        assert lab['y'][x, wj] == pytest.approx(float(b['si_y'][x]))
     assert torch.isnan(lab['y'][wi, 3]) or float(lab['y'][wi, 3]) == pytest.approx(float(b['sj_y'][3]), nan_ok=True)
     assert torch.isfinite(lab['dG_wt']).all() and torch.isfinite(lab['y_floor']).all()      # no cell hands the link a NaN
     lab19, *_ = blocks.pair_labels(b, [a for a in range(20) if a != wi], [a for a in range(20) if a != wj], wi, wj)
@@ -530,7 +529,7 @@ def test_a_conditional_list_holds_the_partner_single_as_its_identity_cell():
     b = _blk('pair')
     wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(b['seq'], 2, 5, WT_I, int(SEQ[5]), identity=True)
     wi, wj = blocks.TOKEN_TO_AA[int(SEQ[2])], blocks.TOKEN_TO_AA[int(SEQ[5])]
-    lab, A, Bm, ident_cells, full = blocks.pair_labels(b, Xa, Ya, wi, wj)
+    lab, ident_cells, full = blocks.pair_labels(b, Xa, Ya, wi, wj)
     llr_m = s.model.forward_site_llr(torch.cat([row_seqs, col_seqs]), torch.as_tensor([5] * 20 + [2] * 20), torch.as_tensor([int(SEQ[5])] * 20 + [WT_I] * 20), 'mt')
     s.crit_rank_mt = rec = _Rec()
     s._block_sums, s._block_cnts = defaultdict_float(), defaultdict_float()
@@ -564,7 +563,7 @@ def test_row_chunks_give_the_same_gradient_as_all_rows_at_once():
         torch.manual_seed(5)
         s = _module(lambda_cond_mt=1.0, joint_doubles='both', tf_mix=0.5, block_row_chunk=chunk)
         s.model.forward_site_llr = content_llr(s.model)
-        M._block_step(s, _blk('pair', yA=torch.full((20, 20), 0.3), yB=torch.full((20, 20), 0.2)))
+        M._block_step(s, _blk('pair', si_y=torch.full((20,), 0.3), sj_y=torch.full((20,), 0.2)))
         grads.append((s.model.w_mt.grad.clone(), s.model.w_wt.grad.clone(), s.model.calibration_head_mt.scale.grad.clone()))
     for a, b_ in zip(*grads):
         assert torch.allclose(a, b_, rtol=1e-5, atol=1e-7)
@@ -652,7 +651,7 @@ def test_a_probability_between_draws_masked_and_visible_positions_in_one_block()
 def test_pair_block_with_mask_wt_zero_is_one_wild_type_forward_and_mask_mt_zero_reads_both_sites_of_every_cell():
     s = _module(block_mask_wt=0.0, block_mask_mt=0.0, lambda_cond_mt=1.0, block_positions=8)
     seen = _content_net(s.model)
-    M._block_step(s, _blk('pair', yA=torch.full((20, 20), 0.3), yB=torch.full((20, 20), 0.2)))
+    M._block_step(s, _blk('pair', si_y=torch.full((20,), 0.3), sj_y=torch.full((20,), 0.2)))
     wt = [x for x in seen if x[0] == 'wt'][0][1]
     mt = [x for x in seen if x[0] == 'mt'][0][1]
     assert not (wt == blocks.MASK).any() and torch.equal(wt[0], wt[1])

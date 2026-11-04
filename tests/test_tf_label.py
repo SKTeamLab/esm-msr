@@ -7,7 +7,7 @@ import sys
 import pytest
 import torch
 
-from esm_msr import censoring, config
+from esm_msr import blocks, censoring, config
 from esm_msr.link import LeakyFloorLink, SaturatingLink
 from esm_msr.losses import TF_PRIOR_SD, TOBIT_SIGMA_Y, tobit_posterior_mean, tobit_regression_loss
 from esm_msr.training import ESM3EpistasisLightningModule as M, TF_CLAMP_Y0, tf_single_label
@@ -99,24 +99,79 @@ def _spy(s):
     return seen
 
 
+def _reads(s, b):
+    """The WT head's calibrated read of each single at the block's two positions, as the block computes it; alphabet-indexed."""
+    i, j = int(b['positions'][0]), int(b['positions'][1])
+    wt_i, wt_j = int(b['wt_ids'][0]), int(b['wt_ids'][1])
+    wt_rows, *_ = blocks.pair_sequences(b['seq'], i, j, wt_i, wt_j, identity=True)
+    llr = s.model.forward_site_llr(wt_rows, torch.as_tensor([i, j]), torch.as_tensor([wt_i, wt_j]), 'wt').detach()
+    cal = s._block_cal('wt')
+    w = [blocks.TOKEN_TO_AA[wt_i], blocks.TOKEN_TO_AA[wt_j]]
+    return [cal(llr[k], (torch.arange(20) != w[k]).long()).detach() for k in (0, 1)], w
+
+
+def _single_tensors(y_i, y_j, **kw):
+    t = lambda v: torch.full((20,), float(v))
+    return dict(si_y=t(y_i), sj_y=t(y_j), **kw)
+
+
 def test_the_default_label_is_the_inverse_whether_or_not_the_flags_are_set():
-    full = lambda v: torch.full((20, 20), v)
     a, c = _module(lambda_rank_mt=0.0), _module(lambda_rank_mt=0.0, tf_label='inverse', tf_no_label='wt')
     sa, sc = _spy(a), _spy(c)
-    M._block_step(a, _blk('pair', yA=full(0.3), yB=full(0.2)))
-    M._block_step(c, _blk('pair', yA=full(0.3), yB=full(0.2)))
+    M._block_step(a, _blk('pair', **_single_tensors(0.3, 0.2)))
+    M._block_step(c, _blk('pair', **_single_tensors(0.3, 0.2)))
     assert sa['has'].any() and torch.equal(sa['has'], sc['has']) and torch.equal(sa['lat'].nan_to_num(), sc['lat'].nan_to_num())
     assert float(a.model.w_mt.grad) == pytest.approx(float(c.model.w_mt.grad), rel=1e-7)
+
+
+def test_a_single_below_the_cut_costs_only_itself_and_its_partner_keeps_its_measurement():
+    s = _module(lambda_rank_mt=0.0, tf_cut=0.5)
+    seen = _spy(s)
+    b = _blk('pair', **_single_tensors(-1.9, 0.5))                                 # at the stub's dG_wt of 2: i reads 0.1 (below the cut), j reads 2.5 (above it)
+    (ri, _), (wi, wj) = _reads(s, b)
+    M._block_step(s, b)
+    lat, has, n = seen['lat'], seen['has'], seen['n']
+    x, y = [a for a in range(20) if a != wi][0], [a for a in range(20) if a != wj][0]
+    assert n[x, y] == 2 and bool(has[x, y])
+    assert float(lat[x, y]) == pytest.approx(float(ri[x]) + 0.5, abs=1e-5)         # the WT head's read of i, the measurement of j (the identity link inverts to itself)
+
+
+def test_two_dead_singles_are_two_reads_and_two_live_ones_two_measurements():
+    s = _module(lambda_rank_mt=0.0, tf_cut=0.5)
+    seen = _spy(s)
+    b = _blk('pair', **_single_tensors(-1.9, -1.8))
+    reads, (wi, wj) = _reads(s, b)
+    M._block_step(s, b)
+    x, y = [a for a in range(20) if a != wi][0], [a for a in range(20) if a != wj][0]
+    assert float(seen['lat'][x, y]) == pytest.approx(float(reads[0][x] + reads[1][y]), abs=1e-5) and not bool(seen['has'][x, y])
+    s = _module(lambda_rank_mt=0.0, tf_cut=0.5)
+    seen = _spy(s)
+    M._block_step(s, _blk('pair', **_single_tensors(0.3, 0.2)))
+    assert float(seen['lat'][x, y]) == pytest.approx(0.5, abs=1e-5) and bool(seen['has'][x, y])
+
+
+def test_a_tagged_or_missing_single_is_read_from_the_wt_head_and_the_wild_type_is_zero():
+    s = _module(lambda_rank_mt=0.0)
+    seen = _spy(s)
+    b = _blk('pair', **_single_tensors(-3.0, 0.5))
+    b['si_cens'], b['si_cens_src'] = torch.full_like(b['si_cens'], -1), torch.full_like(b['si_cens_src'], censoring.SRC_RANGE)
+    b['sj_y'] = b['sj_y'].clone()
+    reads, (wi, wj) = _reads(s, b)
+    b['sj_y'][(wj + 1) % 20] = float('nan')                                        # one single at j has no reading at all
+    M._block_step(s, b)
+    x, y = [a for a in range(20) if a != wi][0], [a for a in range(20) if a not in (wj, (wj + 1) % 20)][0]
+    assert float(seen['lat'][x, y]) == pytest.approx(float(reads[0][x]) + 0.5, abs=1e-5) and bool(seen['has'][x, y])
+    assert float(seen['lat'][x, (wj + 1) % 20]) == pytest.approx(float(reads[0][x] + reads[1][(wj + 1) % 20]), abs=1e-5)
+    assert float(seen['lat'][wi, wj]) == 0.0 and bool(seen['has'][wi, wj])
 
 
 def test_the_posterior_labels_every_double_even_with_a_tagged_single():
     s = _module(lambda_rank_mt=0.0, tf_label='posterior')
     seen = _spy(s)
     b = _blk('pair')
-    b['si_y'] = torch.full_like(b['si_y'], -3.0)                                    # every single at i tagged '<-1', so the cached yA / yB are NaN
+    b['si_y'] = torch.full_like(b['si_y'], -3.0)                                    # every single at i tagged '<-1', so the item's own ddG_A / ddG_B would be NaN
     b['si_cens'] = torch.full_like(b['si_cens'], -1)
     b['si_cens_src'] = torch.full_like(b['si_cens_src'], censoring.SRC_RANGE)
-    b['yA'], b['yB'] = torch.full((20, 20), float('nan')), torch.full((20, 20), float('nan'))
     logs = M._block_step(s, b)
     assert seen['has'].all() and torch.isfinite(seen['lat']).all()
     assert logs['L_reg_combined'] == logs['L_reg_combined']
@@ -135,13 +190,13 @@ def test_the_posterior_is_one_label_per_single_and_the_wild_type_has_no_effect()
     assert float(lat[r, k] + lat[r2, k2]) == pytest.approx(float(lat[r, k2] + lat[r2, k]), abs=1e-4)     # every cell is its row's single plus its column's
 
 
-def test_tf_no_label_mt_changes_only_the_doubles_without_a_label():
-    nolab = lambda: _blk('pair', yA=torch.full((20, 20), float('nan')), yB=torch.full((20, 20), float('nan')))
-    wt, mt = _module(lambda_rank_mt=0.0), _module(lambda_rank_mt=0.0, tf_no_label='mt')
-    M._block_step(wt, nolab())
-    M._block_step(mt, nolab())
+def test_tf_no_label_mt_changes_only_the_doubles_missing_a_measurement():
+    one_dead = lambda: _blk('pair', **_single_tensors(-1.9, 0.5))                   # at a cut of 0.5, every double has one dead single and one live one
+    wt, mt = _module(lambda_rank_mt=0.0, tf_cut=0.5), _module(lambda_rank_mt=0.0, tf_cut=0.5, tf_no_label='mt')
+    M._block_step(wt, one_dead())
+    M._block_step(mt, one_dead())
     assert float(wt.model.w_mt.grad) != pytest.approx(float(mt.model.w_mt.grad), rel=1e-3)
-    lab = lambda: _blk('pair', yA=torch.full((20, 20), 0.3), yB=torch.full((20, 20), 0.2))
+    lab = lambda: _blk('pair', **_single_tensors(0.3, 0.2))
     a, c = _module(lambda_rank_mt=0.0), _module(lambda_rank_mt=0.0, tf_no_label='mt')
     M._block_step(a, lab())
     M._block_step(c, lab())
