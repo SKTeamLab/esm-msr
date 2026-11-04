@@ -1971,8 +1971,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         Heads: epi (~MT, evaluated relative to the WT additive baseline), ctx ((WT + ~WT)/2, needs --val_cycle_passes),
         comb ((WT + ~MT)/2, reported prediction, naive_rho only), add (WT, additive by construction - the control for
-        what saturation alone can earn). With --link the metrics put each head on the observed scale through the run's
-        link, bending at each library's own floor. Never raises.
+        what saturation alone can earn). Every head is scored on the LATENT scale, whatever link the run trained with (commit after
+        28b5275; before it the metrics went through the run's link, bending at each library's own floor, so those runs' val_epi_* are on the observed scale
+        and rescore from their dumps). Never raises.
         """
         try:
             keys = pooled['mut_key']
@@ -2012,8 +2013,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             canon = items['cens_src'] != censoring.SRC_RANGE
             scored = {k: ([v[i] for i in np.flatnonzero(canon)] if isinstance(v, list) else np.asarray(v)[canon])
                       for k, v in items.items()}
-            link = self.link_head.numpy()
-            tbl = epi_metrics.Table(scored, link)
+            # LATENT scale: the epistasis is scored on the predictions as they are (observed = latent), not through the run's link. The link bends the additive expectation at the
+            # floor, which scores saturation back into the metric (the link costs correlation, and the figures and the main-baseline metrics are latent), and it makes a
+            # run's numbers depend on the link it trained with. The link still reports RMSE and the observed-scale diagnostics elsewhere; the dump records link_summary.
+            tbl = epi_metrics.Table(scored, None)
             res = epi_metrics.compute(tbl)
             diag = epi_metrics.compute_clean_diagnostics(tbl)
             for name, val in epi_log_names(res, diag, prefix).items():
