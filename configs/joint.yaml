@@ -12,8 +12,7 @@ lora_dropout_mt: 0.1
 subsets: [single, double]
 censor_threshold: 0.5
 censor_range: true
-link_floor: 0.0
-link_tau: 0.59
+y_floor: 0.0
 
 lambda_rank_wt: 1.0
 lambda_reg_wt: 1.0

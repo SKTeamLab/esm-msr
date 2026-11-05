@@ -40,6 +40,9 @@ MODES = {
     'joint_alternate_mask_ind': ['--joint_doubles', 'alternate', '--tf_mix', '0.5', '--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent',
                                            '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'block_training': ['--block_training', '--block_positions', '4', '--joint_doubles', 'both', '--tf_mix', '0.5', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
+    # the T objective (Tobit likelihood, posterior teacher-forcing label, no rank loss) read through the Tobit expected reading: columns val_rmse_* on the observed scale
+    'block_tobit_posterior': ['--block_training', '--block_positions', '4', '--reg_nll', 'tobit', '--tf_label', 'posterior', '--lambda_rank_wt', '0', '--lambda_rank_mt', '0',
+                              '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'block_training_old_objective': ['--block_training', '--block_positions', '4', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'block_joint_clean_cond_chunked': ['--config', 'configs/joint_clean.yaml', '--block_training', '--block_positions', '4', '--block_row_chunk', '10',
                                        '--no-rank_calibrated_stopgrad', '--lambda_cond_mt', '7.5', '--joint_doubles', 'both', '--tf_mix', '0.5', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined', '--early_stopping_patience', '0'],

@@ -23,7 +23,7 @@ from esm_msr import config
 from esm_msr.losses import ListMLELoss
 from esm_msr.training import ESM3EpistasisLightningModule as M
 
-from _stubs import compose_hparams, with_identity_link
+from _stubs import compose_hparams, with_masks
 
 BASE = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
 
@@ -144,7 +144,7 @@ def _stub(mode='off', mask_wt=None, mask_mt=None, **hp):
     s = types.SimpleNamespace()
     s.hparams = _HP(base)
     s.model = _Model()
-    with_identity_link(s)
+    with_masks(s)
     s.mask_wt, s.mask_mt = mask_wt, mask_mt
     s.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
     s.crit_reg = torch.nn.MSELoss(reduction='none')
@@ -288,7 +288,7 @@ def test_tf_detach_wt_is_on_by_default_and_the_alternate_conflict_is_refused():
     assert parse('--no-tf_detach_wt', '--joint_doubles', 'both', '--tf_mix', '0.5').joint_doubles == 'both'
 
 
-@pytest.mark.parametrize('extra', [('--reg_nll', 'tobit'), ('--latent_censor_hinge',), ('--wt_supervise_doubles',)])
+@pytest.mark.parametrize('extra', [('--reg_nll', 'tobit'), ('--wt_supervise_doubles',)])
 def test_the_live_double_is_not_defined_with_the_audits_alternative_regressions(extra):
     with pytest.raises(SystemExit):
         parse('--joint_doubles', 'both', *extra)

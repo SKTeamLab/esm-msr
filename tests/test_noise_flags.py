@@ -32,10 +32,10 @@ def test_non_positive_widths_are_refused():
 def test_the_posterior_label_uses_the_run_s_constants():
     y, wt_lat = torch.tensor([1.0, 0.05, 2.0]), torch.tensor([0.2, 0.8, 1.0])
     dg, cens, src = torch.full((3,), 2.0), torch.zeros(3, dtype=torch.long), torch.zeros(3, dtype=torch.long)
-    default = tf_single_label('posterior', None, y, cens, src, wt_lat, dg, None)
-    explicit = tf_single_label('posterior', None, y, cens, src, wt_lat, dg, None,
+    default = tf_single_label(y, cens, src, wt_lat, dg)
+    explicit = tf_single_label(y, cens, src, wt_lat, dg,
                                post=dict(s=losses.TF_PRIOR_SD, sigma_y=losses.TOBIT_SIGMA_Y, mu_f=losses.TOBIT_MU_F, sigma_f=losses.TOBIT_SIGMA_F))
-    wide = tf_single_label('posterior', None, y, cens, src, wt_lat, dg, None, post=dict(s=1.5, sigma_y=losses.TOBIT_SIGMA_Y, mu_f=losses.TOBIT_MU_F, sigma_f=losses.TOBIT_SIGMA_F))
+    wide = tf_single_label(y, cens, src, wt_lat, dg, post=dict(s=1.5, sigma_y=losses.TOBIT_SIGMA_Y, mu_f=losses.TOBIT_MU_F, sigma_f=losses.TOBIT_SIGMA_F))
     assert torch.equal(default, explicit)
     assert not torch.allclose(default, wide)                                       # a wider prior trusts the reading more
     assert (wide - y).abs().sum() < (default - y).abs().sum()

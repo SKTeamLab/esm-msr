@@ -14,7 +14,6 @@ from esm_msr import config
 from esm_msr.models import MSRModel
 from esm_msr.training import ESM3EpistasisLightningModule as M
 
-from _stubs import IdentityLink
 
 import sys
 
@@ -113,11 +112,10 @@ def _stub(val_wt_only=True, val_cycle_passes=True):
     s = types.SimpleNamespace()
     s.hparams = _HP(val_wt_only=val_wt_only, val_cycle_passes=val_cycle_passes)
     s.model = _ValModel(val_wt_only)
-    s.link_head = IdentityLink()
     s.mask_wt = s.mask_mt = None
     s.mask_strategy = {'wt': None, 'mt': None}
     s.val_regimes = [('', {'wt': None, 'mt': None})]            # one regime, so the call lists below are the forwards of the run's own regime
-    s.link_reporting = False
+    s.obs_link = None
     s.val_mask_wt = s.val_mask_mt = None
     s.val_mask_strategy = {'wt': None, 'mt': None}
     from collections import defaultdict

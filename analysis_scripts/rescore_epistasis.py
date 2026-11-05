@@ -24,7 +24,10 @@ import pandas as pd
 import torch
 
 from esm_msr import epi_metrics as E
-from esm_msr.link import numpy_link_from_state_dict
+try:
+    from esm_msr.link import numpy_link_from_state_dict
+except ImportError:             # the links were removed on 2026-11-05; a checkpoint trained with one is read by the archived code
+    raise SystemExit("rescore_epistasis.py reads each checkpoint's own link: run it from a checkout of the tag archive/link-code-2026-11-05.")
 
 REPO = os.environ.get('ESM_MSR_REPO', '/home/sreeves/esm-msr-devel')
 PRED = os.path.join(REPO, 'analysis_notebooks', 'predictions')

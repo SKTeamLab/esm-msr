@@ -7,7 +7,6 @@ import torch.nn as nn
 
 from esm_msr import config, epi_metrics as E, training
 from esm_msr.data import ProteinCyclingBatchSampler
-from esm_msr.link import SaturatingLink
 from esm_msr.losses import ListMLELoss
 
 
@@ -78,7 +77,6 @@ def _make_stub_module(**hp_overrides):
         cond_partner_min_dg=1.0,
         mt_single_loss_weight=1.0,
         rank_calibrated_stopgrad=False,
-        latent_censor_hinge=False,
         rank_list_size=4,
         micro_batch_size=8,
         censor_threshold=-1.0,
@@ -104,7 +102,6 @@ def _make_stub_module(**hp_overrides):
     mod.crit_rank_wt = ListMLELoss()
     mod.crit_rank_mt = ListMLELoss()
     mod.crit_reg = nn.MSELoss(reduction='none')
-    mod.link_head = SaturatingLink(tau=0.59, floor=0.0)
     mod.mask_wt = None
     mod.mask_mt = 'independent'
     mod.manual_backward = lambda loss: loss.backward()
@@ -191,7 +188,7 @@ def test_stopgrad_calibrated_rank_loss_never_touches_calibration_params():
 
 def test_two_conditional_masked_supervision_and_single_downweighting():
     """Verify lambda_cond_mt produces finite gradients on MT adapter + calibration without extra forward passes."""
-    mod = _make_stub_module(lambda_cond_mt=7.5, mt_single_loss_weight=0.1, rank_calibrated_stopgrad=True, latent_censor_hinge=True)
+    mod = _make_stub_module(lambda_cond_mt=7.5, mt_single_loss_weight=0.1, rank_calibrated_stopgrad=True)
     batch = _make_batch(8)
     logs = mod._compose_losses_streaming_and_backward(batch)
     assert 'L_cond_mt' in logs and logs['L_cond_mt'] > 0.0
@@ -238,7 +235,6 @@ def test_new_cli_flags_parse_and_cosine_scheduler_steps():
         '--rank_calibrated_stopgrad',
         '--mt_single_loss_weight', '0.1',
         '--lambda_cond_mt', '7.5',
-        '--latent_censor_hinge',
         '--grad_clip_norm', '1.0',
         '--calib_lr_mult', '5.0',
         '--lr_schedule', 'cosine',
@@ -249,7 +245,6 @@ def test_new_cli_flags_parse_and_cosine_scheduler_steps():
     assert args.rank_calibrated_stopgrad is True
     assert args.mt_single_loss_weight == pytest.approx(0.1)
     assert args.lambda_cond_mt == pytest.approx(7.5)
-    assert args.latent_censor_hinge is True
     assert args.grad_clip_norm == pytest.approx(1.0)
     assert args.calib_lr_mult == pytest.approx(5.0)
     assert args.lr_schedule == 'cosine'

@@ -139,7 +139,7 @@ def test_both_flags_give_both_copies():
 
 def _stub(model, regimes, cycle=False):
     s = types.SimpleNamespace(model=model, hparams=_HP(mt_direct_pred=False, val_wt_only=False, val_cycle_passes=cycle), validation_step_outputs=defaultdict(list),
-                              link_head=None, link_reporting=False, val_regimes=regimes)
+                              obs_link=None, val_regimes=regimes)
     s.val_mask_strategy = regimes[0][1]
     s.val_mask_wt, s.val_mask_mt = s.val_mask_strategy['wt'], s.val_mask_strategy['mt']
     return s

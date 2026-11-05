@@ -1,27 +1,4 @@
 """Shared stand-ins for the tests that drive ``ESM3EpistasisLightningModule`` methods on a stub ``self`` (no backbone, CPU)."""
-import types
-
-import torch
-
-
-class IdentityLink:
-    """A link that does nothing: observed == latent. The tests that read an exact loss value out of the composition use it so the
-    arithmetic stays checkable by hand; the real link has its own tests (test_link*.py, test_floor_hinge_knee.py)."""
-
-    def effective_floor(self, y_floor):
-        return torch.as_tensor(y_floor, dtype=torch.float32)
-
-    def __call__(self, z, y_floor):
-        return z
-
-    def obs_ddG(self, latent, dG_wt, y_floor):
-        return latent
-
-    def latent_ddG(self, observed, dG_wt, y_floor):
-        return observed
-
-    def summary(self):
-        return {'tau': 0.59, 'floor_min': 0.0, 'floor_max': 0.001, 'global_floor': 0.0}
 
 
 def compose_hparams(**over):
@@ -33,9 +10,8 @@ def compose_hparams(**over):
     return hp
 
 
-def with_identity_link(stub):
-    """Give a hand-built stub ``self`` the pieces the composition now always uses."""
-    stub.link_head = IdentityLink()
+def with_masks(stub):
+    """Give a hand-built stub ``self`` the pieces the composition always uses."""
     stub.mask_wt = stub.mask_mt = None
     stub.mask_strategy = {'wt': None, 'mt': None}
     return stub

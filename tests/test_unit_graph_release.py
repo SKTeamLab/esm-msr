@@ -16,7 +16,7 @@ import torch
 from esm_msr.losses import ListMLELoss
 from esm_msr.training import ESM3EpistasisLightningModule as M
 
-from _stubs import compose_hparams, with_identity_link
+from _stubs import compose_hparams, with_masks
 
 
 class _HP(dict):
@@ -73,7 +73,7 @@ def _stub(**hp):
     s = types.SimpleNamespace()
     s.hparams = _HP(base)
     s.model = TrackingStub()
-    with_identity_link(s)
+    with_masks(s)
     s.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
     s.crit_reg = torch.nn.MSELoss(reduction='none')
     s.crit_rank_wt = s.crit_rank_mt = ListMLELoss()

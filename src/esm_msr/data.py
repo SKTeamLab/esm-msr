@@ -66,12 +66,12 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
 
     * ``native_cond`` is assigned by :meth:`_label_native_cond` for libraries whose code carries a mutation suffix, i.e. whose
       measurements were all made in a mutant background. See ``esm_msr.routing`` for what each subset means and which head owns it.
-    * every item gets ``y_floor = link_floor`` (the link's one knee), so a dump written by this code is read by the same
+    * every item gets ``y_floor`` (``--y_floor``, the assay floor), so a dump written by this code is read by the same
       ``epi_metrics`` as an old one.
     * ``--censor_threshold`` censors the items measured at or below it (``esm_msr.censoring``).
 
     Every item carries the raw measurement row it came from (``meas``, see ``MEAS_COLUMNS``), the absolute dG that measurement describes
-    (``dG_meas``) and its library's starting dG (``dG_wt``), which together let the loss put a prediction on the assay's observed scale
+    (``dG_meas``) and its library's starting dG (``dG_wt``), which together let the loss write a prediction on the assay's absolute dG
     and recognise a measurement that is only a bound.
     """
 
@@ -93,7 +93,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         label_native_cond: bool = False,
         censor_range: bool = True,
         cache_version: Optional[str] = None,
-        link_floor: float = 0.0,
+        y_floor: float = 0.0,
         censor_threshold: Optional[float] = None,
     ):
         """
@@ -109,14 +109,14 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 singles either way.
             censor_range: Keep the rows the assay bounded rather than fitted (``<-1`` / ``>5``), which the cache always stores. False
                 drops them, restoring the selected-on-outcome population; see ``esm_msr.censoring``.
-            link_floor: The link's knee, stamped on every item as ``y_floor``.
+            y_floor: The assay floor, stamped on every item as ``y_floor``.
             censor_threshold: Items measured at or below this dG become lower-censored, bounded by it. None censors nothing here.
         """
         self.score_name = score_name
         self.cache_version = cache_version or self.CACHE_VERSION
         self.dms_name = dms_name
         self.include = set(subsets)
-        self.link_floor = float(link_floor)
+        self.y_floor = float(y_floor)
         self.censor_threshold = censor_threshold
         self.cache_path = os.path.join(path, f"{self.dms_name}_{self.score_name}_{self.cache_version}.pkl")
         if not os.path.exists(self.cache_path):
@@ -179,9 +179,9 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         logging.info(f"Filtered dataset from {before} to {len(self.data)} items based on allowed types: {sorted(self.include)}")
 
     def _stamp_floor(self) -> None:
-        """Give every item the link's one knee, as ``y_floor``."""
+        """Give every item the assay floor, as ``y_floor``."""
         for item in self.data:
-            item['y_floor'] = self.link_floor
+            item['y_floor'] = self.y_floor
 
     def _apply_censoring(self) -> None:
         """Finalise ``cens`` / ``cens_bound`` on every item (see ``esm_msr.censoring``)."""

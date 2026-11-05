@@ -109,6 +109,54 @@ def test_the_ddg_metrics_a_library_reports():
     assert m2['rmse_combined'] > m['rmse_combined'] and m2['rmse_singles_wt'] > m['rmse_singles_wt'] and m2['rho_combined'] == m['rho_combined']
 
 
+SY, MU, SF = 0.28, 0.05, 0.38
+
+
+def test_the_tobit_link_is_the_mean_of_the_larger_of_two_normals():
+    """E[max(X, F)], X ~ N(z, sy^2), F ~ N(mu, sf^2): the closed form against a Monte Carlo of the observation model itself."""
+    h = val_stats.tobit_link(SY, MU, SF)
+    rng = np.random.default_rng(0)
+    n = 2_000_000
+    f = rng.normal(MU, SF, n)
+    for z in (-2.0, -0.5, 0.0, 0.3, 1.0, 3.0):
+        mc = np.maximum(rng.normal(z, SY, n), f).mean()
+        assert float(h(z)) == pytest.approx(mc, abs=2e-3), z
+
+
+def test_the_tobit_link_is_a_smooth_monotone_map_between_the_floor_and_the_identity():
+    h = val_stats.tobit_link(SY, MU, SF)
+    z = np.linspace(-8.0, 8.0, 4001)
+    out = h(z)
+    assert np.all(np.diff(out) >= -1e-12)                                      # monotone, so no rank is ever changed (flat to rounding far below the floor)
+    mid = (z > -2.0) & (z < 6.0)
+    assert np.all(np.diff(out[mid]) > 0)
+    slope = np.diff(out) / np.diff(z)
+    assert slope.min() >= -1e-9 and slope.max() <= 1.0 + 1e-9                  # it only compresses (the slope reaches 1 only far above the floor)
+    assert slope[z[1:] < 1.0].max() < 0.99                                    # the slope is Phi(a): still bending at one kcal/mol above the floor
+    assert float(h(-30.0)) == pytest.approx(MU, abs=1e-9)                      # far below the floor: the floor's mean
+    assert float(h(30.0)) == pytest.approx(30.0, abs=1e-9)                     # far above it: the identity
+    assert np.all(out >= np.maximum(z, MU) - 1e-12)                            # a mean of a maximum is at least the larger mean
+    assert h(np.array([[0.0, 1.0], [2.0, 3.0]])).shape == (2, 2) and np.isfinite(h(np.array([np.nan, 1.0]))[1])
+
+
+def test_the_link_summary_holds_what_a_dump_needs_to_rescore_itself():
+    assert val_stats.tobit_link_summary(SY, MU, SF) == {'kind': 'tobit', 'sigma_y': SY, 'mu_f': MU, 'sigma_f': SF}
+
+
+def test_the_observed_scale_rmse_of_a_tobit_run_reads_the_prediction_through_the_link():
+    """A latent prediction below the floor is penalised against a floored reading unless it is read through the link."""
+    h = val_stats.tobit_link(SY, MU, SF)
+    dg = np.full(6, 2.0)
+    gt = np.array([-2.0, -2.0, -2.0, 0.5, 0.2, 0.0])                 # three variants read at the floor (absolute dG 0), the rest above it
+    latent = np.array([-4.0, -3.0, -2.5, 0.5, 0.2, 0.0])             # the model says they are far below it
+    st = np.array(['single'] * 6)
+    plain = stats.compute_metrics(latent, latent, latent, gt, st)
+    obs = {'comb': h(dg + latent) - dg, 'wt': h(dg + latent) - dg}
+    linked = stats.compute_metrics(latent, latent, latent, gt, st, obs=obs)
+    assert linked['rmse_combined'] < plain['rmse_combined']
+    assert linked['rho_combined'] == plain['rho_combined']           # the link is monotone
+
+
 def test_a_library_without_singles_has_no_wt_rmse_and_the_run_does_not_fail():
     m = stats.compute_metrics(np.arange(5.), np.arange(5.), np.arange(5.), np.arange(5.) + 0.1, np.array(['double'] * 5))
     assert np.isnan(m['rmse_singles_wt']) and np.isfinite(m['rho_wt'])

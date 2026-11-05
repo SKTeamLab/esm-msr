@@ -4,7 +4,7 @@ About 55 flags (it was 160; ``docs/trim_audit.md`` has the verdict on each). Thr
 
 * ``RETIRED`` - a table of removed flags. Given the one value they used to carry as a default, a retired flag is accepted and dropped from
   the namespace (so it never reaches ``hparams.yaml``); given any other value it is an error that says what replaced it. A few are
-  translated (``--subset_caps`` -> ``--subsets``, ``--assay_floor`` -> ``--link_floor``, ``--comet_api_key`` -> the environment).
+  translated (``--subset_caps`` -> ``--subsets``, ``--assay_floor`` / ``--link_floor`` -> ``--y_floor``, ``--tf_label inverse`` -> ``measured``, ``--comet_api_key`` -> the environment).
 * ``--config recipe.yaml`` - YAML defaults under the command line. Keys are flag names; the command line wins.
 * ``DERIVED`` - values the model and the scripts that read ``hparams.yaml`` still need (``per_mutation_bias``, ``lora_mode``),
   recorded as constants.
@@ -24,6 +24,8 @@ SUBSETS = ('single', 'double')          # what --subsets may name. Mutant-backgr
 DERIVED = {'lora_mode': 'ensemble', 'per_mutation_bias': True}
 
 _ANY = object()                          # any value is ignored
+_LINK_GONE = ('the links (softplus, leaky) were removed: a model is trained and read on the latent dG, and a --reg_nll tobit run is validated through the Tobit '
+              'expected reading (val_stats.tobit_link); archive/link-code-2026-11-05 has the old code')
 
 
 def _r(kind, ok=None, why=''):
@@ -56,15 +58,20 @@ RETIRED = {
     'cond_weight': _r('val', 0.5, 'the cond subset is gone'),
     'native_cond_weight': _r('val', 1.0, 'removed'),
     'incl_cond': _r('bool', False, 'the cond subset is gone'),
-    # the link is two set numbers
-    'learn_link_tau': _r('bool', False, 'the link is fixed: --link_floor / --link_tau'),
-    'learn_global_floor': _r('bool', False, 'the link is fixed: --link_floor / --link_tau'),
-    'learn_link_floor_bounds': _r('bool', False, 'the link is fixed'),
-    'learn_link_ceiling': _r('bool', False, 'the upper clamp was removed'),
-    'link_ceiling': _r('val', None, 'the upper clamp was removed (the 4-parameter link, dc7, matched the floor-only one, dc8)'),
-    'link_tau_hi': _r('val', None, 'the upper clamp was removed'),
+    # the links are gone (archive/link-code-2026-11-05 has them): a model is trained and read on the latent dG, and a Tobit run's validation reads it through the Tobit
+    # expected reading (val_stats.tobit_link), which has no parameter of its own
+    'link': _r('bool', _ANY, _LINK_GONE),
+    'link_tau': _r('val', _ANY, _LINK_GONE), 'link_kind': _r('val', _ANY, _LINK_GONE), 'link_alpha': _r('val', _ANY, _LINK_GONE), 'link_clamp': _r('val', _ANY, _LINK_GONE),
+    'learn_link_tau': _r('bool', False, _LINK_GONE),
+    'learn_global_floor': _r('bool', False, _LINK_GONE),
+    'learn_link_floor_bounds': _r('bool', False, _LINK_GONE),
+    'learn_link_ceiling': _r('bool', False, _LINK_GONE),
+    'link_ceiling': _r('val', None, _LINK_GONE),
+    'link_tau_hi': _r('val', None, _LINK_GONE),
     'link_tau_penalty': _r('val', _ANY), 'link_floor_penalty': _r('val', _ANY), 'link_floor_prior_sd': _r('val', _ANY),
     'link_lr': _r('val', _ANY), 'link_floor_min': _r('val', _ANY), 'link_floor_max': _r('val', _ANY),
+    # with the link gone a hinge on the latent is the only hinge
+    'latent_censor_hinge': _r('bool', _ANY, 'the link is gone, so the censoring hinge is always on the latent dG'),
     'nonspecific_term': _r('val', 'none', 'the nonspecific term was removed (docs/trim_audit.md §2.2)'),
     **{k: _r('val', _ANY) for k in ('ns_knot_lo', 'ns_knot_hi', 'ns_knot_step', 'ns_lr')},
     # censoring and floors
@@ -112,7 +119,7 @@ RETIRED = {
     'mask_native_cond_struct': _r('bool', False, 'removed with the native_cond routing'),
 }
 # retired flags that carry a value worth translating or cross-checking; handled in parse_arguments
-_TRANSLATED_VAL = ('subset_caps', 'assay_floor', 'comet_api_key', 'split_file', 'censor_threshold_double', 'reg_loss', 'early_stopping_metric',
+_TRANSLATED_VAL = ('subset_caps', 'assay_floor', 'link_floor', 'comet_api_key', 'split_file', 'censor_threshold_double', 'reg_loss', 'early_stopping_metric',
                    'wt_plateau_patience', 'wt_plateau_factor', 'wt_freeze_after_decays',
                    'mt_plateau_patience', 'mt_plateau_factor', 'mt_freeze_after_decays')
 _TRANSLATED_BOOL = ('incl_singles', 'incl_doubles', 'incl_native_cond', 'freeze_wt_adapter')
@@ -282,17 +289,13 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                            "the common latent scale; with an independent MT scale the raw-scale rank loss weights the two halves differently from the "
                            "calibrated combined prediction. Default OFF (independent scales, as the released models and every MT run so far); "
                            "pass --tie_mt_scale to share the WT scale. Recorded in hparams.yaml: inference reads it back.")
-    arch.add_argument('--link', action=argparse.BooleanOptionalAction, default=True,
-                      help="Enable the saturating assay link (default True). Pass --no-link to disable.")
-    arch.add_argument('--link_floor', type=float, default=0.0,
-                      help="The link's one knee (kcal/mol of absolute dG): 0.0 is the physical floor, the unfolded state. Stamped on every item.")
-    arch.add_argument('--link_tau', type=float, default=0.59, help="Width of the link's knee in kcal/mol (RT).")
-    arch.add_argument('--link_kind', type=str, default='softplus', choices=['softplus', 'leaky'],
-                      help="softplus: h = f + tau*softplus((z-f)/tau), one number f is both the knee and the asymptote (the released link). leaky: the knee "
-                           "(--link_floor, --link_tau) and the asymptote (--link_clamp) are different numbers, with slope --link_alpha below the knee: "
-                           "every numeric reading is inside the range and the inverse is defined for all of them (esm_msr.link.LeakyFloorLink).")
-    arch.add_argument('--link_alpha', type=float, default=0.10, help="--link_kind leaky: the slope below the knee (0 < alpha < 1).")
-    arch.add_argument('--link_clamp', type=float, default=-1.0, help="--link_kind leaky: the asymptote, the lowest dG the link can report (the assay's -1).")
+    arch.add_argument('--y_floor', type=float, default=0.0,
+                      help="The assay floor (kcal/mol of absolute dG) stamped on every item as y_floor: 0.0 is the physical floor, the unfolded state. It is the default "
+                           "teacher-forcing cut when neither --tf_cut nor --censor_threshold is set.")
+    arch.add_argument('--val_tobit_link', action=argparse.BooleanOptionalAction, default=True,
+                      help="A --reg_nll tobit run is validated on the assay's observed scale: the RMSE statistics and the one observed-scale epistasis statistic (naive_rho_comb) read "
+                           "the predictions through the expected reading under the Tobit observation model (val_stats.tobit_link: a closed form of the likelihood, no parameter of its own). "
+                           "Reporting only. --no-val_tobit_link reads the latent. Rank metrics never see it; a run that did not train with Tobit is read as it is.")
     for flag, side in (('mask_strategy_wt', 'WT'), ('mask_strategy_mt', 'MT')):
         arch.add_argument(f'--{flag}', type=str, default=None, choices=['none', 'marginal', 'independent'],
                           help=f"Sequence masking of the {side} pass. marginal masks every mutated site at once (the pass knows WHICH sites changed, "
@@ -306,12 +309,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                           help="Direct prediction via MT head: zero-shot WT adapter is frozen, only MT adapter trains. "
                                "Skips teacher forcing and blends, evaluating MT directly on singles and doubles.")
     paradigm.add_argument('--init_wt_from_checkpoint', type=str, default=None,
-                          help="Warm-start the WT model from an existing checkpoint: its WT adapter, its calibration head AND its link are copied in "
+                          help="Warm-start the WT model from an existing checkpoint: its WT adapter and its calibration head are copied in "
                                "before training. Accepts a full Lightning checkpoint or a converged_wt_*.pt file. Nothing else is loaded: the MT path "
                                "is always fresh (use --resume_from_checkpoint for a true resume).")
     paradigm.add_argument('--frozen_wt_mt_only', action=argparse.BooleanOptionalAction, default=False,
                           help="The 'frozen WT, MT-only' paradigm: requires --init_wt_from_checkpoint, freezes the WT adapter (its calibration head "
-                               "and link are fixed anyway) and sets --lambda_reg_wt 0 --lambda_rank_wt 0. Only the MT path trains. Validation "
+                               "is fixed anyway) and sets --lambda_reg_wt 0 --lambda_rank_wt 0. Only the MT path trains. Validation "
                                "always keeps singles and doubles, so rho_singles_wt stays a guard.")
     paradigm.add_argument('--freeze_mt_adapter', action=argparse.BooleanOptionalAction, default=False,
                           help="Keep the MT adapter frozen for the whole run: a WT-only arm (pair with --val_wt_only, --subsets single and the MT lambdas at 0).")
@@ -345,20 +348,19 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                           "LLR. Either way the rank loss sends no gradient to the calibration heads. --block_training honours it too (a conditional "
                           "leg's list is always calibrated).")
     obj.add_argument('--reg_nll', type=str, default='none', choices=['none', 'tobit'],
-                     help="Regression likelihood. none: MSE/Huber on the observed scale through the link, one-sided at --censor_threshold (the default). "
-                          "tobit: the noisy-floor Tobit mixture on the LATENT absolute dG (losses.tobit_regression_loss; its noise constants are losses.TOBIT_*); the link is then only the "
-                          "forward map used to report the observed scale, and --censor_threshold only ties the floor items' ranks (the regression ignores it). "
-                          "'<-1' / '>5' range tags are scored with the survival term.")
+                     help="Regression likelihood. none: MSE/Huber on the latent dG, one-sided at --censor_threshold (the default). "
+                          "tobit: the noisy-floor Tobit mixture on the LATENT absolute dG (losses.tobit_regression_loss; its noise constants are --tobit_*), and --censor_threshold only ties "
+                          "the floor items' ranks (the regression ignores it). '<-1' / '>5' range tags are scored with the survival term. A tobit run is validated on the observed "
+                          "scale through the Tobit expected reading (--val_tobit_link).")
     obj.add_argument('--tf_cut', type=_threshold, default=None,
-                     help="Teacher forcing uses a measured single (or a double's two singles) only when its absolute dG is ABOVE this. Unset keeps the old "
-                          "coupling to --censor_threshold (or the link floor): that coupling made a censor threshold at or below the floor feed "
-                          "near-floor readings to the inverse link, which explodes there. Set it (0.5) to choose the teacher-forcing cut on its own.")
-    obj.add_argument('--tf_label', type=str, default='inverse', choices=['inverse', 'clamped', 'posterior'],
-                     help="The teacher-forcing label of one measured single. inverse: the inverse link above --tf_cut, and below it the WT head's read of that single alone, so its partner keeps its "
-                          "measurement (the default, in both training paths). --block_training only: posterior, E[z | reading] under the Tobit likelihood with the WT head's detached read as the prior "
-                          "(losses.tobit_posterior_mean), at every reading, with no cut; clamped, the inverse link with the reading raised to 0.25 (training.TF_CLAMP_Y0).")
+                     help="Teacher forcing uses a measured single (or a double's two singles) only when its absolute dG is ABOVE this. Unset keeps the coupling to "
+                          "--censor_threshold (or --y_floor). Set it (0.5) to choose the teacher-forcing cut on its own.")
+    obj.add_argument('--tf_label', type=str, default='measured', choices=['measured', 'posterior', 'inverse', 'clamped'],
+                     help="The teacher-forcing label of one measured single. measured: the reading itself above --tf_cut, and below it the WT head's read of that single alone, so its partner keeps its "
+                          "measurement (the default, in both training paths; 'inverse' is its old name). --block_training only: posterior, E[z | reading] under the Tobit likelihood with the WT "
+                          "head's detached read as the prior (losses.tobit_posterior_mean), at every reading, with no cut. ('clamped' needed the link and is gone.)")
     obj.add_argument('--tf_no_label', type=str, default='wt', choices=['wt', 'mt'],
-                     help="--block_training with --tf_label inverse: what a double missing a measurement is regressed through. wt: 0.5 (WT + MT), the WT head reading the missing single (the default). "
+                     help="--block_training with --tf_label measured: what a double missing a measurement is regressed through. wt: 0.5 (WT + MT), the WT head reading the missing single (the default). "
                           "mt: the MT head alone, which is on half the epistasis scale of a labelled double.")
     obj.add_argument('--tf_prior_sd', type=float, default=0.75,
                      help="--tf_label posterior: the width (kcal/mol) of the prior on a single's latent dG around the WT head's read (losses.TF_PRIOR_SD).")
@@ -383,12 +385,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                           "(default); off lets the cycle loss train the WT head too.")
     obj.add_argument('--cond_partner_min_dg', type=float, default=1.0,
                      help="Minimum absolute partner stability dG_wt + ddG_partner (kcal/mol) required to supervise a conditional leg.")
-    obj.add_argument('--latent_censor_hinge', action=argparse.BooleanOptionalAction, default=False,
-                     help="Evaluate censored items' one-sided hinge directly on latent stability (dG_wt + pred_cal vs unclamped dG_bound) "
-                          "instead of clamping bounds upward to +0.409 via reachable_bounds, while keeping SaturatingLink on uncensored items.")
     obj.add_argument('--wt_supervise_doubles', action=argparse.BooleanOptionalAction, default=False,
-                     help="Supervise the WT head on all true single and double ddG labels (passing doubles through the observed-scale link "
-                          "and censoring bounds identically to singles). Designed for --mask_strategy_wt marginal, where simultaneous pair "
+                     help="Supervise the WT head on all true single and double ddG labels (doubles regressed and "
+                          "censored identically to singles). Designed for --mask_strategy_wt marginal, where simultaneous pair "
                           "masking gives the WT head awareness of both mutated sites (pair and line effects).")
     obj.add_argument('--tf_detach_wt', action=argparse.BooleanOptionalAction, default=True,
                      help="The WT half that teacher-forces the MT head carries no gradient to the WT head (the default, and what every run so far did): the "
@@ -583,10 +582,17 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         parser.error(f"--subsets must be a comma-separated subset of {list(SUBSETS)}, got {args.subsets}")
     args.subsets = [s for s in SUBSETS if s in args.subsets]
 
-    if args.assay_floor is not None:
-        args.link_floor = float(args.assay_floor)
-        notes.append(f"--assay_floor is retired: translated to --link_floor {args.link_floor}.")
-    del args.assay_floor
+    for old in ('assay_floor', 'link_floor'):
+        if getattr(args, old) is not None:
+            args.y_floor = float(getattr(args, old))
+            notes.append(f"--{old} is retired: translated to --y_floor {args.y_floor} (the floor stamped on every item; there is no link any more).")
+        delattr(args, old)
+    if args.tf_label == 'inverse':
+        args.tf_label = 'measured'
+        notes.append("--tf_label inverse is retired: translated to --tf_label measured (with no link the label is the reading itself).")
+    elif args.tf_label == 'clamped':
+        parser.error("--tf_label clamped is retired and its behaviour is gone: it inverted the link with the reading raised to 0.25, and the links were removed "
+                     "(archive/link-code-2026-11-05 has them); use --tf_label measured or posterior")
     if args.comet_api_key:
         os.environ['COMET_API_KEY'] = args.comet_api_key
         notes.append("--comet_api_key is retired: the key was moved into the environment and is not recorded.")
@@ -630,15 +636,6 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         parser.error("--huber_delta must be >= 0")
     if args.rank_list_size < 1:
         parser.error("--rank_list_size must be >= 1")
-    if args.link_tau <= 0:
-        parser.error("--link_tau must be positive")
-    if args.link_kind == 'leaky':
-        if not 0.0 < args.link_alpha < 1.0:
-            parser.error("--link_alpha must be in (0, 1)")
-        if args.link_clamp >= args.link_floor:
-            parser.error(f"--link_clamp {args.link_clamp} must be below the knee --link_floor {args.link_floor}")
-    if args.reg_nll == 'tobit' and not args.link:
-        parser.error("--reg_nll tobit with --no-link: the observed-scale report would be the latent itself; use the link (it only reports, it is not trained through)")
     for flag in ('tf_prior_sd', 'tobit_sigma_y', 'tobit_sigma_f'):
         if getattr(args, flag) <= 0:
             parser.error(f"--{flag} must be positive")
@@ -704,20 +701,19 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     if not args.tf_detach_wt and args.joint_doubles == 'alternate':
         parser.error("--no-tf_detach_wt keeps the WT graph alive for every item, but --joint_doubles alternate frees it before the MT pass: use --joint_doubles both (or off)")
     if args.joint_doubles != 'off' and not args.block_training:
-        clash = [f for f, on in (('--reg_nll tobit', args.reg_nll == 'tobit'), ('--latent_censor_hinge', args.latent_censor_hinge),
-                                 ('--wt_supervise_doubles', args.wt_supervise_doubles)) if on]
+        clash = [f for f, on in (('--reg_nll tobit', args.reg_nll == 'tobit'), ('--wt_supervise_doubles', args.wt_supervise_doubles)) if on]
         if clash:
-            parser.error(f"--joint_doubles regresses the live double through the standard observed-scale hinge; it is not defined with {', '.join(clash)}")
-    if (args.tf_label != 'inverse' or args.tf_no_label != 'wt') and not args.block_training:
-        parser.error("--tf_label clamped / posterior and --tf_no_label mt are defined for --block_training only")
-    if args.tf_label != 'inverse' and args.tf_cut is not None:
+            parser.error(f"--joint_doubles regresses the live double through the standard hinge; it is not defined with {', '.join(clash)}")
+    if (args.tf_label != 'measured' or args.tf_no_label != 'wt') and not args.block_training:
+        parser.error("--tf_label posterior and --tf_no_label mt are defined for --block_training only")
+    if args.tf_label != 'measured' and args.tf_cut is not None:
         parser.error(f"--tf_label {args.tf_label} has no cut: every single keeps a label, so --tf_cut means nothing")
-    if args.tf_no_label != 'wt' and args.tf_label != 'inverse':
-        parser.error("--tf_no_label mt needs --tf_label inverse: the other labels leave no double without one")
+    if args.tf_no_label != 'wt' and args.tf_label != 'measured':
+        parser.error("--tf_no_label mt needs --tf_label measured: the other labels leave no double without one")
     if args.block_training:
-        # Block training regresses on tensors: the observed-scale hinge or, with --reg_nll tobit, the Tobit likelihood on the latent dG. The per-item
+        # Block training regresses on tensors: the hinge or, with --reg_nll tobit, the Tobit likelihood on the latent dG. The per-item
         # extras below have no block form.
-        clash = [f for f, on in (('--latent_censor_hinge', args.latent_censor_hinge), ('--wt_supervise_doubles', args.wt_supervise_doubles),
+        clash = [f for f, on in (('--wt_supervise_doubles', args.wt_supervise_doubles),
                                  ('--mt_single_loss_weight', args.mt_single_loss_weight != 1.0)) if on]
         if clash:
             parser.error(f"--block_training has its own tensor losses; it is not defined with {', '.join(clash)}")

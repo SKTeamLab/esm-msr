@@ -53,7 +53,7 @@ def test_range_censored_rows_are_dropped_unless_admitted(tmp_path):
 
 def test_one_floor_is_stamped_and_one_threshold_censors(tmp_path):
     _write(tmp_path, '1ABC', [_item('1ABC', 'single', ddG=-3.0, dG_meas=0.2), _item('1ABC', 'double', ddG=-1.0, dG_meas=2.0)])
-    ds = _ds(tmp_path, link_floor=0.25, censor_threshold=0.5)
+    ds = _ds(tmp_path, y_floor=0.25, censor_threshold=0.5)
     assert [i['y_floor'] for i in ds] == [0.25, 0.25]
     assert [i['cens'] for i in ds] == [censoring.CENS_LO, 0]
     assert list(ds.cens_arr) == [-1, 0]
@@ -96,7 +96,7 @@ def test_the_sampler_drops_a_remainder_smaller_than_a_batch(tmp_path):
 
 def _args(tmp_path, **kw):
     a = dict(cache_path=str(tmp_path), cache_version='c6', batch_size=4, num_workers=0, subsets=['single', 'double'],
-             exclude_mutbg=False, censor_range=False, link_floor=0.0, censor_threshold=0.5, seed=1)
+             exclude_mutbg=False, censor_range=False, y_floor=0.0, censor_threshold=0.5, seed=1)
     a.update(kw)
     return argparse.Namespace(**a)
 

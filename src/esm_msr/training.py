@@ -20,7 +20,6 @@ from lightning.pytorch.loggers import CometLogger, CSVLogger
 
 from esm_msr.models import MSRModel, combine_predictions, pass_mask_strategy
 from esm_msr import blocks, censoring, epi_metrics, stats, utils, val_stats
-from esm_msr.link import SaturatingLink, LeakyFloorLink, IdentityLink
 from esm_msr.losses import ListMLELoss, hinge_regression_loss, tobit_posterior_mean, tobit_regression_loss, TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F, TF_PRIOR_SD
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
@@ -41,15 +40,6 @@ SAVE_TOP_K = 3
 UNLOGGED_ARGS = ('log_dir', 'cache_path', 'comet', 'comet_project_name', 'comet_offline', 'comet_experiment_key')
 
 
-def build_link(hp):
-    """The observed-scale link of a run: one floor and one knee width, both set by flags and neither learned."""
-    if not getattr(hp, 'link', True):
-        return IdentityLink()
-    if hp.get('link_kind', 'softplus') == 'leaky':
-        return LeakyFloorLink(tau=hp.link_tau, knee=hp.link_floor, alpha=hp.get('link_alpha', 0.10), clamp=hp.get('link_clamp', -1.0))
-    return SaturatingLink(tau=hp.link_tau, floor=hp.link_floor)
-
-
 def validation_regimes(hp, mask_wt=None, mask_mt=None) -> list:
     """The regimes validation reads, ``[(prefix, {'wt': ..., 'mt': ...}), ...]``, the main one first with prefix ''. The main regime is ``--val_masking_strategy``; ``--val_unmasked`` /
     ``--val_masked`` append the other one ('unmasked_' / 'masked_') unless the main regime already is that one (an unmasked-trained run on ``train`` is unmasked)."""
@@ -66,14 +56,13 @@ def validation_regimes(hp, mask_wt=None, mask_mt=None) -> list:
     return regimes
 
 
-def link_in_training(hp) -> bool:
-    """Whether the run's link shaped training. The observed-scale RMSE of validation goes through the link only then; otherwise the link is not part of this run's model
-    and the prediction is read as it is. It shapes training through the observed-scale regression (anything but ``--reg_nll tobit``), through the de-linking inverse that builds
-    the teacher-forcing label (``--tf_label inverse`` / ``clamped``), and through the conditional legs (``--lambda_cond_mt``); it needs ``--link``."""
-    if not hp.get('link', True):
-        return False
-    return (hp.get('reg_nll', 'none') != 'tobit' or (hp.get('tf_label', 'inverse') or 'inverse') in ('inverse', 'clamped')
-            or float(hp.get('lambda_cond_mt', 0.0) or 0.0) > 0.0)
+def observed_scale_link(hp):
+    """The only link there is: the expected reading under the noisy-floor Tobit observation model (``val_stats.tobit_link``), applied to a Tobit run's predictions when validation
+    scores them on the assay's observed scale (RMSE and the observed-scale epistasis). Reporting only; it takes no part in training. None for a run that did not train with Tobit
+    (its predictions are read as they are) or that was given ``--no-val_tobit_link``."""
+    if hp.get('reg_nll', 'none') != 'tobit' or not hp.get('val_tobit_link', True):
+        return None
+    return val_stats.tobit_link(float(hp.get('tobit_sigma_y', TOBIT_SIGMA_Y)), float(hp.get('tobit_mu_f', TOBIT_MU_F)), float(hp.get('tobit_sigma_f', TOBIT_SIGMA_F)))
 
 
 # What validation sends to the logger lives in val_stats (shared verbatim with main-baseline). These names stay importable from here.
@@ -163,38 +152,19 @@ def compute_nat_debiased_rho(nat_single_records: list) -> float:
 
 def teacher_forcing_unusable(dG_wt, ddG_A, ddG_B, cut):
     """Multi-mutants whose measured additive label cannot stand in for the latent sum: a single read at or below ``cut``
-    (the library floor, the learned global floor, or --censor_threshold) reports where the assay saturates, not its own
-    effect, and de-linking it is undefined at the floor and explosively noisy just above it."""
+    (the library floor or --censor_threshold) reports where the assay saturates, not its own effect."""
     return ((dG_wt + ddG_A) <= cut) | ((dG_wt + ddG_B) <= cut)
 
 
-TF_CLAMP_Y0 = 0.25   # kcal/mol: the lowest reading --tf_label clamped inverts; a single read below it counts as read here
+def tf_single_label(y, cens, cens_src, wt_lat, dG_wt, post=None):
+    """The latent ddG label of one measured single under --tf_label posterior, detached; ``y`` and ``wt_lat`` (the WT head's read) on the ddG scale, ``dG_wt`` finite.
 
-
-def tf_single_label(kind, link, y, cens, cens_src, wt_lat, dG_wt, y_floor, post=None):
-    """The latent ddG label of one measured single under --tf_label clamped / posterior, detached; ``y`` and ``wt_lat`` (the WT head's read) on the ddG scale, ``dG_wt`` finite.
-
-    posterior is defined everywhere (no reading: the prior; a range tag: the survival term, its ``y`` being the tag's bound). clamped is NaN with no reading, so the caller reads it from the WT head. A floor-censored number
-    (--censor_threshold) is a number: only the assay's own tags count as bounds, as in the Tobit regression. ``post`` carries the posterior's constants
-    (``s`` the prior width, ``sigma_y``, ``mu_f``, ``sigma_f``; --tf_prior_sd and the --tobit_* flags); None is the defaults of ``losses``.
+    Defined everywhere (no reading: the prior; a range tag: the survival term, its ``y`` being the tag's bound). A floor-censored number (--censor_threshold) is a number: only
+    the assay's own tags count as bounds, as in the Tobit regression. ``post`` carries the posterior's constants (``s`` the prior width, ``sigma_y``, ``mu_f``, ``sigma_f``;
+    --tf_prior_sd and the --tobit_* flags); None is the defaults of ``losses``.
     """
-    if kind == 'posterior':
-        tag = torch.where(cens_src == censoring.SRC_RANGE, cens, torch.zeros_like(cens))
-        return tobit_posterior_mean(dG_wt + y, dG_wt + wt_lat, tag, **(post or {})) - dG_wt
-    return link.latent_ddG(torch.maximum(y, TF_CLAMP_Y0 - dG_wt), dG_wt, y_floor).detach()
-
-
-def reachable_bounds(link, bound, y_floor, offset):
-    """Censoring bounds (on each item's own ddG scale) moved inside what the link can report; see the comment at the call site.
-
-    Raised to the knee's reading h(floor) = floor + tau*ln2, so a lower-censored item's hinge holds exactly when its latent is at or below
-    the floor. ``offset`` = ddG - dG_meas converts absolute dG to the item's scale. Detached: a bound never trains the link it comes from.
-    """
-    if isinstance(link, IdentityLink):
-        return bound
-    knee_ddG = link(link.effective_floor(y_floor), y_floor).detach() + offset
-    # Only where computable: torch.maximum propagates NaN, which would destroy a good bound.
-    return torch.where(torch.isfinite(knee_ddG), torch.maximum(bound, knee_ddG), bound)
+    tag = torch.where(cens_src == censoring.SRC_RANGE, cens, torch.zeros_like(cens))
+    return tobit_posterior_mean(dG_wt + y, dG_wt + wt_lat, tag, **(post or {})) - dG_wt
 
 
 class ESM3EpistasisLightningModule(pl.LightningModule):
@@ -222,7 +192,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # --frozen_wt_mt_only holds exactly the loaded model fixed.
         if hp.get('init_wt_from_checkpoint'):
             self._load_wt_weights(hp.init_wt_from_checkpoint)
-        # on_save_checkpoint deliberately keeps only the lora / calibration / link_head entries, so a
+        # on_save_checkpoint deliberately keeps only the lora / calibration entries, so a
         # checkpoint is missing every frozen base weight. Lightning's default strict load would then refuse
         # to resume from our own checkpoints; the base comes from the pretrained weights either way.
         self.strict_loading = False
@@ -234,22 +204,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.crit_rank_mt = ListMLELoss() if hp.lambda_rank_mt > 0 else None
         self.crit_reg = nn.HuberLoss(reduction='none', delta=float(hp.huber_delta)) if hp.huber_delta > 0 else nn.MSELoss(reduction='none')
 
-        # The observed-scale link. Regression goes through it; ranking does not, because it is monotone. Nothing in it is learned.
-        self.link_head = build_link(hp)
-        logging.info(f"Observed-scale link: {self.link_head.summary()}")
-        # --reg_nll tobit: regression is the noisy-floor Tobit likelihood on the latent absolute dG, not MSE through the link.
+        # --reg_nll tobit: regression is the noisy-floor Tobit likelihood on the latent absolute dG, not MSE on the reading.
         self.tobit = hp.get('reg_nll', 'none') == 'tobit'
         # the noise model's constants (--tobit_sigma_y / _mu_f / _sigma_f) and the width of the teacher-forcing prior around the WT head's read (--tf_prior_sd); the defaults are the constants of losses.py
         self.tobit_params = dict(sigma_y=float(hp.get('tobit_sigma_y', TOBIT_SIGMA_Y)), mu_f=float(hp.get('tobit_mu_f', TOBIT_MU_F)),
                                  sigma_f=float(hp.get('tobit_sigma_f', TOBIT_SIGMA_F)))
         self.tf_post = dict(s=float(hp.get('tf_prior_sd', TF_PRIOR_SD)), **self.tobit_params)
         if self.tobit:
-            logging.info(f"Regression: noisy-floor Tobit NLL {self.tobit_params} on latent dG (the link only reports the observed scale)"
-                         + (f"; teacher-forcing prior width {self.tf_post['s']}" if hp.get('tf_label', 'inverse') == 'posterior' else ''))
-        # The link is part of the pre-trained WT model, not a separate piece: a frozen WT adapter paired with a different floor or
-        # width is a different model than the one being frozen.
-        if hp.get('init_wt_from_checkpoint'):
-            self._load_link_weights(hp.init_wt_from_checkpoint)
+            logging.info(f"Regression: noisy-floor Tobit NLL {self.tobit_params} on latent dG"
+                         + (f"; teacher-forcing prior width {self.tf_post['s']}" if hp.get('tf_label', 'measured') == 'posterior' else ''))
+        # The one link: the Tobit expected reading, applied to a Tobit run's predictions when validation scores the observed scale. Reporting only.
+        self.obs_link = observed_scale_link(hp)
+        if self.obs_link is not None:
+            logging.info("Validation reports RMSE and the observed-scale epistasis through the Tobit expected reading (--no-val_tobit_link reads the latent)")
 
         # sequence masking, per pass (models.pass_mask_strategy)
         self.mask_wt, self.mask_mt = pass_mask_strategy(hp, 'wt'), pass_mask_strategy(hp, 'mt')
@@ -261,8 +228,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.val_regimes = validation_regimes(hp, self.mask_wt, self.mask_mt)
         self.val_mask_strategy = self.val_regimes[0][1]
         self.val_mask_wt, self.val_mask_mt = self.val_mask_strategy['wt'], self.val_mask_strategy['mt']
-        # the observed-scale RMSE goes through the link only when the link was part of training; otherwise the prediction is read as it is
-        self.link_reporting = link_in_training(hp)
         if self.mask_wt or self.mask_mt:
             logging.info(f"sequence masking: WT pass {self.mask_wt or 'none'}, MT pass {self.mask_mt or 'none'}")
 
@@ -602,16 +567,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             return z, z.clone()
         return cal, raw
 
-    def _joint_reg(self, wt_half, mt_half, label, has_label, tf_mix, link, dGwt, floor, ddG, bound, cens, rows, denom):
+    def _joint_reg(self, wt_half, mt_half, label, has_label, tf_mix, ddG, bound, cens, rows, denom):
         """
-        The observed-scale regression of ``0.5 * (WT half + MT half)`` on the measured doubles in ``rows`` (``_reg_loss``'s three values).
+        The regression of ``0.5 * (WT half + MT half)`` on the measured doubles in ``rows`` (``_reg_loss``'s three values).
 
-        The WT half is ``--tf_mix`` of the de-linked additive ``label`` where there is a usable one (``has_label``) and the WT prediction
+        The WT half is ``--tf_mix`` of the additive ``label`` where there is a usable one (``has_label``) and the WT prediction
         for the rest, so tf_mix 1 gives a labelled double no WT gradient and tf_mix 0 sends all of it. ``wt_half`` is live (``both``'s WT
         graph, ``alternate``'s owner) or a constant (the other side); the label never carries a gradient.
         """
         half = torch.where(has_label, tf_mix * label + (1.0 - tf_mix) * wt_half, wt_half)
-        return self._reg_loss(link.obs_ddG(combine_predictions(half, mt_half), dGwt, floor), ddG, bound, cens, rows, denom)
+        return self._reg_loss(combine_predictions(half, mt_half), ddG, bound, cens, rows, denom)
 
     def _reg_loss(self, pred, target, bound, cens, mask, denom, weights=None, dgwt=None):
         """
@@ -626,7 +591,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             raise AssertionError(f"regression mask must be bool, got {mask.dtype}: an integer mask indexes rows "
                                  f"instead of selecting them, which fails silently.")
         if getattr(self, 'tobit', False) and dgwt is not None:
-            # ``pred`` is the LATENT ddG here (not linked); the likelihood lives on absolute dG, so each item is shifted by its library's dG_wt.
+            # ``pred`` is the LATENT ddG; the likelihood lives on absolute dG, so each item is shifted by its library's dG_wt.
             off = dgwt[mask]
             L = tobit_regression_loss(off + pred[mask], off + target[mask], off + bound[mask], cens[mask], **self.tobit_params)
         else:
@@ -646,27 +611,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         global_num_lists = max(1, B // list_size)
 
-        # Regression on the observed scale: observed ddG = h(dG_wt + latent) - dG_wt, with the knee at the item's floor. An item whose
-        # library has no measured dG_wt (the external benchmarks, which this assay never measured) cannot be put on that scale, so it
-        # leaves the linked regressions but keeps its rank terms, which the link would not have changed anyway.
-        link = self.link_head
+        # An item whose library has no measured dG_wt (the external benchmarks, which this assay never measured) has no absolute scale, so it
+        # leaves the regressions that need one (the Tobit likelihood, the teacher-forcing labels) but keeps its rank terms.
         dGwt_all = batch.get('dG_wt', torch.full((B,), float('nan'), device=device)).float()
         floor_all = batch.get('y_floor', torch.full((B,), float('nan'), device=device)).float()
-        link_ok_all = torch.isfinite(dGwt_all)
+        dg_ok_all = torch.isfinite(dGwt_all)
         cens_all = batch.get('cens', torch.zeros(B, dtype=torch.long, device=device)).long()
         bound_all = batch.get('cens_bound', torch.full((B,), float('nan'), device=device)).float()
 
-        # A bound below what the link can even report is not a bound the model can honour. A softplus link only reaches the floor itself
-        # as the latent goes to -inf, so a bound AT the floor is never satisfiable: every floor-censored item would keep a penalty and a
-        # push toward -inf. The bound is raised to the link's KNEE, h(floor) = floor + tau*ln2 on the observed scale: the reading of a
-        # variant whose latent dG sits exactly at the floor, i.e. half unfolded. There the hinge says exactly what the censoring means -
-        # the latent is at or below the floor - and switches off once that holds. Detached, so a bound never trains the floor.
-        # The floor is on the ITEM'S OWN ddG scale: the offset between an item's label and the absolute dG its measurement describes is
-        # a constant of the item, the same shift that defines cens_bound.
-        offset = batch.get('ddG').float() - batch.get('dG_meas', torch.full((B,), float('nan'), device=device)).float()
-        raw_bound_all = bound_all
-        if not tobit:          # the Tobit survival term is exact at the tag's own bound: nothing has to be made reachable
-            bound_all = reachable_bounds(link, bound_all, floor_all, offset)
         # What the regression sees as censored. Under Tobit only the assay's own '<-1' / '>5' tags are: a floor-censored item (--censor_threshold)
         # has a number, which the mixture uses, and the threshold stays a rank-tie device.
         if tobit:
@@ -687,7 +639,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         mt_sng_w = float(hp.get('mt_single_loss_weight', 1.0))
         lambda_cond_mt = float(hp.get('lambda_cond_mt', 0.0) or 0.0)
         cond_min_dg = float(hp.get('cond_partner_min_dg', 1.0))
-        lat_hinge = bool(hp.get('latent_censor_hinge', False))
         wt_sup_dbl = bool(hp.get('wt_supervise_doubles', False))
         # --joint_doubles: both adapters train on the real doubles. It needs both paths trainable and a regression weight to carry it;
         # a run that froze either path partway (the plateau schedule) simply falls back to the detached WT half from then on.
@@ -708,17 +659,17 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # stays alive through these names and peak memory doubles. That happens once the WT path is frozen or when a unit's masks
             # come up empty. Fixed on devel as acf6026, where a lossless unit pinned ~20 GB.
             wt_out = wt_pred_cal = wt_pred_raw = mt_out = mt_pred_cal = mt_pred_raw = None
-            p_obs = p_wt = p_comb = base_wt_cal = base_wt_raw = forced_wt_cal = forced_wt_raw = None
+            base_wt_cal = base_wt_raw = forced_wt_cal = forced_wt_raw = None
             combined_pred_raw = combined_pred_cal = total_wt = total_mt = L_rank = term = None
-            wt_rank_in = rank_pred_in = b_wt_use = b_comb_use = mt_cal_stop = epi_pred_mb = None
-            u_llr = u_llr_f = leg0_cal = leg1_cal = lat_ab = obs_ab = p_leg = b_leg = t_c = None
+            wt_rank_in = rank_pred_in = mt_cal_stop = epi_pred_mb = None
+            u_llr = u_llr_f = leg0_cal = leg1_cal = lat_ab = t_c = None
             wt_losses = mt_losses = mt_nog = None
 
             idx = torch.arange(start, min(start + mb, B), device=device)
             micro = utils.slice_batch_by_index(batch, idx)
             ddG_mb = micro['ddG'].float()
-            dGwt_mb, floor_mb, link_ok = dGwt_all[idx], floor_all[idx], link_ok_all[idx]
-            cens_mb, bound_mb, raw_bound_mb = cens_all[idx], bound_all[idx], raw_bound_all[idx]
+            dGwt_mb, floor_mb, dg_ok = dGwt_all[idx], floor_all[idx], dg_ok_all[idx]
+            cens_mb, bound_mb = cens_all[idx], bound_all[idx]
             cens_reg_mb = cens_reg_all[idx]
             n_mut_mb = micro['mut_mask'].sum(dim=1)
             is_single = n_mut_mb == 1
@@ -734,12 +685,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             valid_wt_mask = torch.isfinite(ddG_mb) if wt_sup_dbl else (torch.isfinite(ddG_mb) & is_single)
 
             # Teacher forcing: the measured additive expectation replaces the WT half of the combined latent, so the MT head only has to
-            # learn the correction. The label is on the OBSERVED scale and is about to be added to a LATENT prediction, so it is put on
-            # the latent scale first. The inverse is NONLINEAR, so a double's label is de-linked ONE SINGLE AT A TIME and then summed -
-            # de-linking ddG_A + ddG_B as a sum is a different and wrong number. Detached: a label must never train the link it was
-            # inverted through. A single at or below the link's floor has no invertible latent value and returns NaN, which drops it from
-            # teacher forcing.
-            lat = lambda o: link.latent_ddG(o.float(), dGwt_mb, floor_mb).detach()
+            # learn the correction. The label is the reading itself (a double's is the sum of its two singles' readings), detached.
+            lat = lambda o: o.float().detach()
             if 'ddG_A' in micro and 'ddG_B' in micro:
                 # tf_A / tf_B: the item's ddG_A / ddG_B are both NaN beside a tagged or missing single, and these keep the other one
                 yA, yB = micro.get('tf_A', micro['ddG_A']).float(), micro.get('tf_B', micro['ddG_B']).float()
@@ -749,10 +696,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 tf_lat = torch.full_like(ddG_mb, float('nan'))
                 if not getattr(self, '_warned_tf_delink_missing', False):
                     self._warned_tf_delink_missing = True
-                    logging.warning("The batch has no ddG_A/ddG_B columns, so the additive label cannot be de-linked: teacher forcing is "
+                    logging.warning("The batch has no ddG_A/ddG_B columns, so the additive label cannot be built: teacher forcing is "
                                     "unavailable for this batch and the WT pass is used.")
             tf_additive_labels = torch.where(is_single, lat(ddG_mb), tf_lat)
-            has_add_label = torch.isfinite(tf_additive_labels) & link_ok
+            has_add_label = torch.isfinite(tf_additive_labels) & dg_ok
 
             # ... but only where that measured sum is a usable stand-in for the LATENT sum. A single measured at the floor reports the
             # floor, not its own effect, so injecting it into a latent average biases the combined prediction by however much that single
@@ -770,7 +717,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 has_add_label = has_add_label & ~tf_saturated
                 useA, useB = torch.isfinite(zA) & ((dGwt_mb + yA) > cut), torch.isfinite(zB) & ((dGwt_mb + yB) > cut)
                 if not (wt_sup_dbl and self.mask_wt == 'marginal'):
-                    one_measured = (useA ^ useB) & (n_mut_mb == 2) & link_ok
+                    one_measured = (useA ^ useB) & (n_mut_mb == 2) & dg_ok
             if tf_cut_hp is not None:
                 # a single read at or below the cut gives no label for itself either (it is not censored, so cens does not say so)
                 has_add_label = has_add_label & ~(is_single & ((dGwt_mb + ddG_mb) <= float(tf_cut_hp)))
@@ -788,7 +735,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             joint_rows = torch.zeros_like(is_single)
             own_w = own_m = joint_rows
             if joint_mode != 'off':
-                joint_rows = ~is_single & reg_mask & link_ok & torch.isfinite(ddG_mb)
+                joint_rows = ~is_single & reg_mask & dg_ok & torch.isfinite(ddG_mb)
                 if joint_rows.any():
                     own_w, own_m = self._joint_owners(joint_rows, joint_mode, int(getattr(self, '_joint_turn', 0)))
                     self._joint_turn = int(getattr(self, '_joint_turn', 0)) + 1
@@ -845,21 +792,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 cens_wt = cens_mb if wt_sup_dbl else torch.where(is_single, cens_mb, torch.zeros_like(cens_mb))
                 wt_losses = []
                 if hp.lambda_reg_wt > 0:
-                    # Assembled in latent (the pass's own sum over the item's positions), linked once, at the end. When --wt_supervise_doubles
-                    # is enabled, wt_targets carries true observed-scale single and double ddG labels, so multi-mutants pass through link.obs_ddG too.
-                    p_obs = link.obs_ddG(wt_pred_cal, dGwt_mb, floor_mb)
-                    p_wt = p_obs if wt_sup_dbl else torch.where(is_single, p_obs, wt_pred_cal)
-                    b_wt_use = bound_mb
-                    if lat_hinge:
-                        p_wt = torch.where(cens_wt != 0, wt_pred_cal, p_wt)
-                        b_wt_use = torch.where(cens_wt != 0, raw_bound_mb, bound_mb)
-                    reg_wt_mask = (valid_wt_mask & link_ok) if (wt_sup_dbl or tobit) else (valid_wt_mask & (link_ok | ~is_single))
+                    # With --wt_supervise_doubles, wt_targets carries the true single and double ddG labels, so multi-mutants are regressed too.
+                    reg_wt_mask = (valid_wt_mask & dg_ok) if (wt_sup_dbl or tobit) else (valid_wt_mask & (dg_ok | ~is_single))
                     if reg_wt_mask.any():
                         if tobit:
                             cens_wt_reg = cens_reg_mb if wt_sup_dbl else torch.where(is_single, cens_reg_mb, torch.zeros_like(cens_reg_mb))
-                            term, val, wsum = self._reg_loss(wt_pred_cal, wt_targets, raw_bound_mb, cens_wt_reg, reg_wt_mask, denom, dgwt=dGwt_mb)
+                            term, val, wsum = self._reg_loss(wt_pred_cal, wt_targets, bound_mb, cens_wt_reg, reg_wt_mask, denom, dgwt=dGwt_mb)
                         else:
-                            term, val, wsum = self._reg_loss(p_wt, wt_targets, b_wt_use, cens_wt, reg_wt_mask, denom)
+                            term, val, wsum = self._reg_loss(wt_pred_cal, wt_targets, bound_mb, cens_wt, reg_wt_mask, denom)
                         wt_losses.append(hp.lambda_reg_wt * term)
                         sums['reg_wt'] += val; cnts['reg_wt'] += wsum
 
@@ -882,7 +822,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if joint_mode == 'alternate' and own_w.any():
                     # The doubles the WT graph owns: 0.5 * (live WT + the MT half read above) against the measured double. Doubled, because
                     # a double trains only one adapter per visit and the owner alternates, so the expected update is 'both''s.
-                    term, val, wsum = self._joint_reg(wt_pred_cal, mt_nog[0], tf_additive_labels, has_add_label, tf_mix, link, dGwt_mb, floor_mb,
+                    term, val, wsum = self._joint_reg(wt_pred_cal, mt_nog[0], tf_additive_labels, has_add_label, tf_mix,
                                                       ddG_mb, bound_mb, cens_mb, own_w, denom)
                     wt_losses.append(hp.lambda_reg_mt * joint_scale * term)
                     for k in ('reg_combined', 'reg_joint'):
@@ -953,18 +893,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
                 # Mut pass strictly relies on combined losses
                 if hp.lambda_reg_mt > 0:
-                    p_comb = link.obs_ddG(combined_pred_cal, dGwt_mb, floor_mb)
-                    b_comb_use = bound_mb
-                    if lat_hinge:
-                        p_comb = torch.where(cens_mb != 0, combined_pred_cal, p_comb)
-                        b_comb_use = torch.where(cens_mb != 0, raw_bound_mb, bound_mb)
-                    reg_c_mask = reg_mask & link_ok & ~joint_rows            # the joint doubles are regressed below, through a live WT half
+                    reg_c_mask = reg_mask & dg_ok & ~joint_rows              # the joint doubles are regressed below, through a live WT half
                     if reg_c_mask.any():
                         if tobit:
-                            term, val, wsum = self._reg_loss(combined_pred_cal, ddG_mb, raw_bound_mb, cens_reg_mb, reg_c_mask, denom, weights=mt_item_w,
+                            term, val, wsum = self._reg_loss(combined_pred_cal, ddG_mb, bound_mb, cens_reg_mb, reg_c_mask, denom, weights=mt_item_w,
                                                              dgwt=dGwt_mb)
                         else:
-                            term, val, wsum = self._reg_loss(p_comb, ddG_mb, b_comb_use, cens_mb, reg_c_mask, denom, weights=mt_item_w)
+                            term, val, wsum = self._reg_loss(combined_pred_cal, ddG_mb, bound_mb, cens_mb, reg_c_mask, denom, weights=mt_item_w)
                         mt_losses.append(hp.lambda_reg_mt * term)
                         sums['reg_combined'] += val; cnts['reg_combined'] += wsum
                     # both: every joint double, WT half live (the WT graph is still alive); alternate: the doubles this graph owns, WT half
@@ -972,7 +907,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     j_rows = joint_rows if joint_mode == 'both' else own_m
                     if j_rows.any():
                         term, val, wsum = self._joint_reg(wt_pred_cal if joint_mode == 'both' else base_wt_cal, mt_pred_cal, tf_additive_labels,
-                                                          has_add_label, tf_mix, link, dGwt_mb, floor_mb, ddG_mb, bound_mb, cens_mb, j_rows, denom)
+                                                          has_add_label, tf_mix, ddG_mb, bound_mb, cens_mb, j_rows, denom)
                         mt_losses.append(hp.lambda_reg_mt * joint_scale * term)
                         for k in ('reg_combined', 'reg_joint'):
                             sums[k] += val; cnts[k] += wsum
@@ -995,22 +930,18 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                             leg0_cal = cal_mt_c(u_llr_f[:, 0], ones_mb)
                             leg1_cal = cal_mt_c(u_llr_f[:, 1], ones_mb)
                         ddG_A_mb, ddG_B_mb = micro['ddG_A'].float(), micro['ddG_B'].float()
-                        is_dbl_mb = (n_mut_mb == 2) & reg_mask & link_ok & torch.isfinite(ddG_mb)
-                        floor_eff = link.effective_floor(floor_mb).detach() if not isinstance(link, IdentityLink) else torch.full_like(floor_mb, -1e9)
-                        ok_leg0 = is_dbl_mb & torch.isfinite(ddG_B_mb) & ((dGwt_mb + ddG_B_mb) > cond_min_dg) & ((dGwt_mb + ddG_B_mb) > floor_eff + 1e-3)
-                        ok_leg1 = is_dbl_mb & torch.isfinite(ddG_A_mb) & ((dGwt_mb + ddG_A_mb) > cond_min_dg) & ((dGwt_mb + ddG_A_mb) > floor_eff + 1e-3)
+                        is_dbl_mb = (n_mut_mb == 2) & reg_mask & dg_ok & torch.isfinite(ddG_mb)
+                        ok_leg0 = is_dbl_mb & torch.isfinite(ddG_B_mb) & ((dGwt_mb + ddG_B_mb) > cond_min_dg)
+                        ok_leg1 = is_dbl_mb & torch.isfinite(ddG_A_mb) & ((dGwt_mb + ddG_A_mb) > cond_min_dg)
                         for ok_leg, partner_ddg, leg_cal in ((ok_leg0, ddG_B_mb, leg0_cal), (ok_leg1, ddG_A_mb, leg1_cal)):
                             if ok_leg.any():
                                 safe_partner = torch.where(ok_leg, partner_ddg, torch.zeros_like(partner_ddg))
                                 lat_partner = torch.nan_to_num(lat(safe_partner), nan=0.0)
                                 lat_ab = lat_partner + leg_cal
-                                obs_ab = link.obs_ddG(lat_ab, dGwt_mb, floor_mb)
-                                p_leg = torch.where(cens_mb != 0, lat_ab, obs_ab) if lat_hinge else obs_ab
-                                b_leg = torch.where(cens_mb != 0, raw_bound_mb, bound_mb) if lat_hinge else bound_mb
                                 if tobit:
-                                    t_c, v_c, w_c = self._reg_loss(lat_ab, ddG_mb, raw_bound_mb, cens_reg_mb, ok_leg, 2.0 * denom, dgwt=dGwt_mb)
+                                    t_c, v_c, w_c = self._reg_loss(lat_ab, ddG_mb, bound_mb, cens_reg_mb, ok_leg, 2.0 * denom, dgwt=dGwt_mb)
                                 else:
-                                    t_c, v_c, w_c = self._reg_loss(p_leg, ddG_mb, b_leg, cens_mb, ok_leg, 2.0 * denom)
+                                    t_c, v_c, w_c = self._reg_loss(lat_ab, ddG_mb, bound_mb, cens_mb, ok_leg, 2.0 * denom)
                                 mt_losses.append(lambda_cond_mt * t_c)
                                 sums['cond_mt'] += v_c; cnts['cond_mt'] += w_c
 
@@ -1139,42 +1070,36 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         ``reg_exclude`` takes cells out of the regression only (the identity cells, whose prediction is the constant 0); ``rank_exclude`` out of
         the lists (a conditional leg whose partner is unusable).
         """
-        link = self.link_head
         y = lab['y']
         tobit = bool(getattr(self, 'tobit', False))
-        link_ok = torch.isfinite(lab['dG_wt'])
+        dg_ok = torch.isfinite(lab['dG_wt'])
         obs_rank = torch.isfinite(y)
         if rank_exclude is not None:
             obs_rank = obs_rank & ~rank_exclude
-        obs_reg = obs_rank & link_ok
+        obs_reg = obs_rank & dg_ok
         if reg_exclude is not None:
             obs_reg = obs_reg & ~reg_exclude
-        # An unobserved cell has no dG_wt or floor. Every cell goes through the link, and masking a NaN output out of the loss is not enough:
-        # backward multiplies the zero gradient of a masked cell by the link's NaN derivative there, and 0 * NaN poisons every parameter. So the
-        # link inputs are finite everywhere; link_ok / obs_* say which cells count.
-        dG_wt = torch.where(link_ok, lab['dG_wt'], torch.zeros_like(lab['dG_wt']))
-        floor = torch.nan_to_num(lab['y_floor'], nan=0.0)
+        # An unobserved cell has no dG_wt: its input is 0 so nothing is NaN, and dg_ok / obs_* say which cells count.
+        dG_wt = torch.where(dg_ok, lab['dG_wt'], torch.zeros_like(lab['dG_wt']))
         if tobit:
             # --reg_nll tobit: the likelihood is on the latent absolute dG and takes the tag's own bound; only the assay's '<-1' / '>5' range tags are
             # censored for the regression, a floor-censored cell (--censor_threshold) has a number the mixture scores and only ties its rank.
-            bound = lab['bound']
             cens_reg = torch.where(lab['cens_src'] == censoring.SRC_RANGE, lab['cens'], torch.zeros_like(lab['cens']))
         else:
-            bound = reachable_bounds(link, lab['bound'], floor, y - lab['dG_meas'])
             cens_reg = lab['cens']
         return types.SimpleNamespace(
-            y=y, y_safe=torch.nan_to_num(y, nan=0.0), cens=lab['cens'], cens_reg=cens_reg, dG_wt=dG_wt, floor=floor,
-            link_ok=link_ok, obs_rank=obs_rank, obs_reg=obs_reg, groups=rank_groups, bound=bound)
+            y=y, y_safe=torch.nan_to_num(y, nan=0.0), cens=lab['cens'], cens_reg=cens_reg, dG_wt=dG_wt, floor=torch.nan_to_num(lab['y_floor'], nan=0.0),
+            dg_ok=dg_ok, obs_rank=obs_rank, obs_reg=obs_reg, groups=rank_groups, bound=lab['bound'])
 
     def _block_reg_rank(self, c, pred_cal, rank_pred, lam_reg, lam_rank, crit_rank, name):
-        """Regression on the observed scale over the observed cells + ListMLE of ``rank_pred`` over each list; returns the weighted terms and logs them."""
-        terms, link, flat = [], self.link_head, (lambda t: t.reshape(-1))
+        """Regression over the observed cells + ListMLE of ``rank_pred`` over each list; returns the weighted terms and logs them."""
+        terms, flat = [], (lambda t: t.reshape(-1))
         if lam_reg > 0 and bool(c.obs_reg.any()):
             denom = float(max(1, int(c.obs_reg.sum())))
             if getattr(self, 'tobit', False):
                 term, val, w = self._reg_loss(flat(pred_cal), flat(c.y_safe), flat(c.bound), flat(c.cens_reg), flat(c.obs_reg), denom, dgwt=flat(c.dG_wt))
             else:
-                term, val, w = self._reg_loss(flat(link.obs_ddG(pred_cal, c.dG_wt, c.floor)), flat(c.y_safe), flat(c.bound), flat(c.cens), flat(c.obs_reg), denom)
+                term, val, w = self._reg_loss(flat(pred_cal), flat(c.y_safe), flat(c.bound), flat(c.cens), flat(c.obs_reg), denom)
             terms.append(lam_reg * term)
             self._block_sums[f'reg_{name}'] += val; self._block_cnts[f'reg_{name}'] += w
         if lam_rank > 0 and crit_rank is not None:
@@ -1199,7 +1124,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.manual_backward(total)
 
     def _block_forced(self, c, wt_cal, wt_raw, n, label_lat, has_label, live):
-        """The WT half of the combined prediction, as the per-item loop builds it: tf_mix of the de-linked label where one is usable, else the WT head."""
+        """The WT half of the combined prediction, as the per-item loop builds it: tf_mix of the label where one is usable, else the WT head."""
         hp, cal_w = self.hparams, self._block_cal('wt')
         tf_mix = float(hp.tf_mix)
         base_cal, base_raw = (wt_cal, wt_raw) if live else (wt_cal.detach(), wt_raw.detach())
@@ -1219,7 +1144,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         return logs
 
     def _block_singles(self, b):
-        hp, link = self.hparams, self.link_head
+        hp = self.hparams
         pos, wt_ids = b['positions'], b['wt_ids']
         dev = b['y'].device
         ident = bool(hp.get('block_identity', True))
@@ -1264,19 +1189,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             return
         llr_mt = self._block_singles_llr(b, seqs, pos, wt_ids, 'mt', grad=True)       # with --block_mask_* 1 a masked single is the same input for both adapters
         mt_cal = self._block_cal('mt')(llr_mt, n)
-        tf_label = hp.get('tf_label', 'inverse') or 'inverse'
-        if tf_label == 'inverse':
-            lat = link.latent_ddG(c.y, c.dG_wt, c.floor).detach()
-            has = torch.isfinite(lat) & c.link_ok & c.obs_rank
+        tf_label = hp.get('tf_label', 'measured') or 'measured'
+        if tf_label == 'measured':
+            lat = c.y.detach()
+            has = torch.isfinite(lat) & c.dg_ok & c.obs_rank
             t_single, tf_cut = hp.get('censor_threshold'), hp.get('tf_cut')
             if tf_cut is not None:                               # the audit's own cut: a single read at or below it gives no label (not tied to --censor_threshold)
                 has = has & ~((c.dG_wt + c.y) <= float(tf_cut))
             elif t_single is not None:
                 has = has & (c.cens == 0)
         else:
-            lat = tf_single_label(tf_label, link, c.y, c.cens, lab['cens_src'], wt_cal.detach(), c.dG_wt, c.floor, post=self.tf_post)
+            lat = tf_single_label(c.y, c.cens, lab['cens_src'], wt_cal.detach(), c.dG_wt, post=self.tf_post)
             lat = torch.where(n == 0, torch.zeros_like(lat), lat)      # the identity cell: the wild type has no effect to estimate
-            has = torch.isfinite(lat) & c.link_ok & c.obs_rank
+            has = torch.isfinite(lat) & c.dg_ok & c.obs_rank
         f_cal, f_raw = self._block_forced(c, wt_cal, llr_wt, n, lat, has, live=live)
         comb_cal, comb_raw = combine_predictions(f_cal, mt_cal), combine_predictions(f_raw, llr_mt)
         if rank_sg:
@@ -1316,19 +1241,17 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         The MT head's conditional legs trained directly (--lambda_cond_mt, the audit's two-conditional supervision on the block's passes).
 
         Row pass x (the substitution x at i, j masked) reads ddG(Y | X) for every y at j in one forward, column pass y the other way. Each leg is
-        scored as the partner single's latent plus the calibrated leg, ``lat(single_x) + cal(Row[x][y])``, through the link against the DOUBLE's
-        own label (so a saturated reading is never differenced), over the cells whose partner single is usable: finite, its absolute dG above
-        ``--cond_partner_min_dg`` (an unfolded partner leaves nothing to condition on) and above the link's floor. With ``--block_identity`` the
+        scored as the partner single's reading plus the calibrated leg, ``single_x + cal(Row[x][y])``, against the DOUBLE's own label (so a
+        saturated reading is never differenced), over the cells whose partner single is usable: finite and its absolute dG above
+        ``--cond_partner_min_dg`` (an unfolded partner leaves nothing to condition on). With ``--block_identity`` the
         lists also hold the identity cell of each pass: no second mutation, so the prediction is the partner single itself.
         """
-        hp, link = self.hparams, self.link_head
+        hp = self.hparams
         lam = float(hp.get('lambda_cond_mt', 0.0) or 0.0)
         dev = llr_m.device
         nx, ny = len(Xa), len(Ya)
         Row, Col = llr_m[:nx], llr_m[nx:]
         dG = torch.nanmean(full['dG_wt'])
-        fl = full['y_floor'][0, 0]
-        floor_eff = link.effective_floor(fl).detach() if not isinstance(link, IdentityLink) else torch.tensor(-1e9, device=dev)
         cutoff = float(hp.get('cond_partner_min_dg', 1.0))
         rank_w = lam * float(hp.lambda_rank_mt) / max(float(hp.lambda_reg_mt), 1e-8)
         B = max(1, int(hp.get('block_list_rows', 0) or 0) or int(hp.get('block_positions', 8)))
@@ -1348,8 +1271,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             n_leg[:, wt_read] = 0                                                                    # reading the wild type: no second mutation
             leg = self._block_cal('mt')(raw, n_leg)
             s = partner[aa]                                                                          # the partner single's ddG
-            ok = torch.isfinite(s) & ((dG + s) > cutoff) & ((dG + s) > floor_eff + 1e-3)
-            lat_p = torch.nan_to_num(link.latent_ddG(torch.where(ok, s, torch.zeros_like(s)), dG.expand_as(s), fl.expand_as(s)).detach(), nan=0.0)
+            ok = torch.isfinite(s) & ((dG + s) > cutoff)
+            lat_p = torch.nan_to_num(torch.where(ok, s, torch.zeros_like(s)).detach(), nan=0.0)
             lab = lab_rows(aa)
             ident_cols = torch.zeros(raw.shape, dtype=torch.bool, device=dev)
             ident_cols[:, wt_read] = True
@@ -1364,7 +1287,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         return terms
 
     def _block_pair(self, b):
-        hp, link = self.hparams, self.link_head
+        hp = self.hparams
         dev = b['y'].device
         ident = bool(hp.get('block_identity', True))
         rank_sg = bool(hp.get('rank_calibrated_stopgrad', False))
@@ -1413,7 +1336,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         wt_cal, mt_cal = self._block_cal('wt')(wt_raw, n), self._block_cal('mt')(mt_raw, n)
         # The teacher-forcing label of a cell: its two singles, one at a time and summed, each from the block's own singles (a double with a tagged or missing single has no ddG_A / ddG_B).
         # A single without a usable measurement is read from the WT head, so it never costs its partner's measurement: one measurement and one guess beat two guesses.
-        tf_label = hp.get('tf_label', 'inverse') or 'inverse'
+        tf_label = hp.get('tf_label', 'measured') or 'measured'
         t_single, tf_cut = hp.get('censor_threshold'), hp.get('tf_cut')
         dG0, fl0 = c.dG_wt.reshape(-1)[0], c.floor.reshape(-1)[0]
         cut = float(tf_cut) if tf_cut is not None else float(t_single) if t_single is not None else fl0
@@ -1423,11 +1346,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             """The labels of one position's singles, and which of them carry a measurement; the wild type has no effect to estimate."""
             w = cal_w(llr[aa], (aa != wt_aa).long()).detach()
             y, cens, src = b[tag + 'y'][aa].float(), b[tag + 'cens'][aa], b[tag + 'cens_src'][aa]
-            if tf_label == 'inverse':
-                z = link.latent_ddG(y, dG0, fl0).detach()
+            if tf_label == 'measured':
+                z = y.detach()
                 ok = torch.isfinite(z) & ((dG0 + y) > cut) & ~((cens != 0) & (src == censoring.SRC_RANGE))
             else:
-                z = tf_single_label(tf_label, link, y, cens, src, w, dG0, fl0, post=self.tf_post)
+                z = tf_single_label(y, cens, src, w, dG0, post=self.tf_post)
                 ok = torch.isfinite(z)
             wild = aa == wt_aa
             return torch.where(wild, torch.zeros_like(z), torch.where(ok, z, w)), ok & ~wild
@@ -1435,11 +1358,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         zB, measB = one(yj, wj, llr_w[1], 'sj_')
         lat = zA.unsqueeze(1) + zB.unsqueeze(0)
         measA, measB = measA.unsqueeze(1), measB.unsqueeze(0)
-        has = (measA | measB | (n == 0)) & c.link_ok                         # with neither single measured the WT half stays the WT head's own (live under --joint_doubles)
+        has = (measA | measB | (n == 0)) & c.dg_ok                           # with neither single measured the WT half stays the WT head's own (live under --joint_doubles)
         f_cal, f_raw = self._block_forced(c, wt_cal, wt_raw, n, lat, has, live=joint)
         comb_cal, comb_raw = combine_predictions(f_cal, mt_cal), combine_predictions(f_raw, mt_raw)
         no_label_mt = (hp.get('tf_no_label', 'wt') or 'wt') == 'mt'
-        dead = (n == 2) & ~(measA & measB) & c.link_ok                       # --tf_no_label mt: a double missing a measurement is the MT head's alone
+        dead = (n == 2) & ~(measA & measB) & c.dg_ok                         # --tf_no_label mt: a double missing a measurement is the MT head's alone
         if no_label_mt:
             comb_cal, comb_raw = torch.where(dead, mt_cal, comb_cal), torch.where(dead, mt_raw, comb_raw)
         if rank_sg:
@@ -1652,18 +1575,17 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         nan_col = lambda: np.full(B, np.nan, dtype=np.float32)
         get = lambda k: batch[k].detach().cpu().float().numpy() if torch.is_tensor(batch.get(k)) else nan_col()
 
-        # The epistasis metrics read the LATENT scores. The observed scale is carried separately, for the rmse metrics only, and only for a run whose training used
-        # the link (link_in_training): any other run's prediction is read as it is.
+        # The rank metrics read the latent scores (a monotone link leaves them alone). The observed scale is carried separately, for the rmse metrics, and only for a Tobit run
+        # (observed_scale_link): observed ddG = h(dG_wt + latent) - dG_wt with h the Tobit expected reading. Any other run's prediction is read as it is.
         def observed_scale(out):
             res = {}
-            if self.link_reporting and torch.is_tensor(batch.get('dG_wt')):
-                dgw, foff = batch['dG_wt'].float(), batch['y_floor'].float()
-                ok = torch.isfinite(dgw)
-                z = torch.where(ok, dgw, torch.zeros_like(dgw))
-                with torch.inference_mode():
-                    for key, src in (('wt', out['wt_lora_pred']), ('comb', out['combined_pred'])):
-                        v = src.float()
-                        res[key] = torch.where(ok, self.link_head.obs_ddG(v, z, foff), v).detach().cpu().numpy()
+            if self.obs_link is not None and torch.is_tensor(batch.get('dG_wt')):
+                dgw = batch['dG_wt'].detach().cpu().double().numpy()
+                ok = np.isfinite(dgw)
+                z = np.where(ok, dgw, 0.0)
+                for key, src in (('wt', out['wt_lora_pred']), ('comb', out['combined_pred'])):
+                    v = src.detach().cpu().double().numpy()
+                    res[key] = np.where(ok, self.obs_link(z + v) - z, v)
             return res
         obs = observed_scale(out_dict)
 
@@ -1868,9 +1790,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         Heads: epi (~MT, evaluated relative to the WT additive baseline), ctx ((WT + ~WT)/2, needs --val_cycle_passes),
         comb ((WT + ~MT)/2, reported prediction, naive_rho only), add (WT, additive by construction - the control for
-        what saturation alone can earn). Every head is scored on the LATENT scale, whatever link the run trained with (commit after
-        28b5275; before it the metrics went through the run's link, bending at each library's own floor, so those runs' val_epi_* are on the observed scale
-        and rescore from their dumps). Never raises.
+        what saturation alone can earn). A Tobit run is read through the Tobit expected reading (``obs_link``), which only the observed-scale metrics see (of the logged epistasis
+        statistics, naive_rho_comb alone): every residual, pair, line and cell metric reads the latent scores, which is what makes them blind to saturation. A run that did not train with
+        Tobit (or ``--no-val_tobit_link``) is read as it is. Never raises.
         """
         try:
             keys = pooled['mut_key']
@@ -1892,7 +1814,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if dump and self.hparams.val_dump and log_dir:
                 tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
                 os.makedirs(log_dir, exist_ok=True)
-                extra = {'link_summary': np.array(json.dumps(self.link_head.summary()))} if self.link_reporting else {}
+                extra = {'link_summary': np.array(json.dumps(val_stats.tobit_link_summary(**self.tobit_params)))} if self.obs_link is not None else {}
                 for p in [p for p, _ in self.val_regimes[1:]]:
                     if len(pooled.get(f'comb_scores@{p}', [])) == len(keys):
                         extra.update({f'{h}_{p.rstrip("_")}': f(f'{h}_scores@{p}') for h in ('wt', 'mt', 'comb')})
@@ -1912,10 +1834,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             canon = items['cens_src'] != censoring.SRC_RANGE
             scored = {k: ([v[i] for i in np.flatnonzero(canon)] if isinstance(v, list) else np.asarray(v)[canon])
                       for k, v in items.items()}
-            # LATENT scale: the epistasis is scored on the predictions as they are (observed = latent), not through the run's link. The link bends the additive expectation at the
-            # floor, which scores saturation back into the metric (the link costs correlation, and the figures and the main-baseline metrics are latent), and it makes a
-            # run's numbers depend on the link it trained with. The link still reports RMSE and the observed-scale diagnostics elsewhere; the dump records link_summary.
-            tbl = epi_metrics.Table(scored, None)
+            # The dump holds the latent scores and link_summary, so any scale can be rescored offline. Of the logged epistasis metrics only naive_rho_comb looks at the
+            # observed scale (a Tobit run's Tobit expected reading: see docs/FEATURES.md §4.5 for what it does to its seed-to-seed spread).
+            tbl = epi_metrics.Table(scored, self.obs_link)
             res = epi_metrics.compute(tbl)
             diag = epi_metrics.compute_clean_diagnostics(tbl)
             for name, val in epi_log_names(res, diag, prefix).items():
@@ -2103,7 +2024,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if calib_wt_params: main_groups.append({"params": calib_wt_params, "lr": base_lr * calib_mult, "weight_decay": 0.0, "name": "calib_wt"})
         if calib_mt_params: main_groups.append({"params": calib_mt_params, "lr": base_lr * calib_mult, "weight_decay": 0.0, "name": "calib_mt"})
         if other_params: main_groups.append({"params": other_params, "lr": base_lr, "weight_decay": wd, "name": "other"})
-        # The link has no trainable parameters, so it has no group.
 
         if not main_groups:
             logging.warning("No param groups found; defaulting to all trainables.")
@@ -2150,15 +2070,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         Accepts either a full Lightning checkpoint (the queue's arms: ``checkpoint['state_dict']``, keys prefixed
         ``model.``) or a ``converged_wt_*.pt`` file written by ``_save_converged_wt_weights`` (``{'state_dict': ...}``,
         bare model-parameter names). Only parameters named by ``peft_manager.wt_parameter_names()`` are touched, so
-        the MT adapter, the link and the nonspecific term are never silently overwritten: the link and the term are
-        configured by their own flags (an old learned link would otherwise be smuggled in), and the MT path must
-        start fresh. Raises when nothing matches, because a path typo must not quietly train a random WT head.
+        the MT adapter is never silently overwritten (the MT path must start fresh), and the ``link_head.*`` entries of a checkpoint written
+        before the links were removed are ignored. Raises when nothing matches, because a path typo must not quietly train a random WT head.
         """
         obj = torch.load(path, map_location='cpu')
         src = obj.get('state_dict', obj) if isinstance(obj, dict) else obj
         if not isinstance(src, dict):
             raise RuntimeError(f"--init_wt_from_checkpoint: {path} does not contain a state dict")
-        self._init_wt_src = src            # re-used by _load_link_weights; the file is 225 MB, read it once
         current = {n: p for n, p in self.model.named_parameters()}
         loaded, missing, mismatched = [], [], []
         with torch.no_grad():
@@ -2180,39 +2098,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         logging.info(f"WT path warm-started from {path}: {len(loaded)} tensors loaded"
                      + (f", {len(missing)} name(s) not present" if missing else "")
                      + (f", {len(mismatched)} shape mismatch(es) skipped ({', '.join(mismatched[:3])}...)" if mismatched else ""))
-        return loaded
-
-    def _load_link_weights(self, path):
-        """Copy the link (``link_head.*``) out of the same checkpoint the WT adapter came from.
-
-        The link is the last stage of the WT readout (latent -> observed ddG), so a frozen WT model without its link
-        is not the model that was measured: its floors, temperature and global floor all shape the observed-scale
-        prediction the WT loss and the rmse guard are computed from. A checkpoint that has no ``link_head.*`` keys
-        (the released model, or a ``converged_wt_*.pt``) leaves the link as its own flags configured it - that is
-        logged, not an error.
-        """
-        src = getattr(self, '_init_wt_src', None)
-        if src is None:
-            obj = torch.load(path, map_location='cpu')
-            src = obj.get('state_dict', obj) if isinstance(obj, dict) else obj
-            if not isinstance(src, dict):
-                return []
-        targets = dict(self.link_head.named_parameters())
-        targets.update(self.link_head.named_buffers())
-        loaded = []
-        with torch.no_grad():
-            for name, tensor in targets.items():
-                key = 'link_head.' + name
-                if key not in src:
-                    continue
-                value = src[key]
-                if torch.is_tensor(value) and tuple(value.shape) == tuple(tensor.shape):
-                    tensor.copy_(value.to(device=tensor.device, dtype=tensor.dtype))
-                    loaded.append(name)
-        if loaded:
-            logging.info(f"Link warm-started from {path}: {len(loaded)}/{len(targets)} tensor(s) ({', '.join(loaded)})")
-        else:
-            logging.info(f"Link NOT loaded from {path}: no link_head.* keys in it (the link stays as its flags set it)")
         return loaded
 
     def _save_converged_wt_weights(self):
@@ -2249,12 +2134,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         """
         state_dict = checkpoint.get('state_dict', {})
         
-        # 'link_head' matters: its parameters (global_floor, raw_tau, and the ceiling when enabled) define the
-        # observed scale, so a checkpoint without them cannot reproduce the predictions the run was scored on, and
-        # link.numpy_link_from_state_dict - which exists for exactly that - returns None for every checkpoint.
         filtered_state_dict = {
             k: v for k, v in state_dict.items()
-            if 'lora' in k.lower() or 'calibration' in k.lower() or 'link_head' in k.lower()
+            if 'lora' in k.lower() or 'calibration' in k.lower()
         }
         
         if not filtered_state_dict:

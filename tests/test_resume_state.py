@@ -48,7 +48,7 @@ def test_the_base_weights_are_stripped_so_a_strict_load_would_fail():
     CLS.on_save_checkpoint(src, ck)
     kept = set(ck['state_dict'])
     assert 'model.base_model.transformer.blocks.0.attn.weight' not in kept
-    assert kept == {'model.peft_wt.lora_A.weight', 'calibration_head_wt.bias', 'link_head.raw_tau'}
+    assert kept == {'model.peft_wt.lora_A.weight', 'calibration_head_wt.bias'}          # a checkpoint keeps the adapters and calibration heads, nothing else
 
 
 def test_resuming_after_the_transition_refreezes_wt_and_thaws_mt():

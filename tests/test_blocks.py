@@ -14,8 +14,6 @@ from esm_msr import blocks, config
 from esm_msr.losses import ListMLELoss
 from esm_msr.training import ESM3EpistasisLightningModule as M
 
-from esm_msr.link import LeakyFloorLink, SaturatingLink
-from _stubs import IdentityLink
 from test_pass_masking import _model
 
 CANON = torch.tensor(blocks.CANON_IDS)
@@ -217,8 +215,7 @@ def _module(**hp):
     s = types.SimpleNamespace()
     s.hparams = _hp(**hp)
     s.model = _Net()
-    s.link_head = IdentityLink()
-    s.tf_post = {}                                      # the posterior label's constants: losses.py's defaults
+    s.tf_post = {}                                    # the posterior label's constants: losses.py's defaults
     s.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
     s.crit_reg = torch.nn.MSELoss(reduction='none')
     s.crit_rank_wt = s.crit_rank_mt = ListMLELoss()
@@ -378,14 +375,13 @@ def test_the_flags():
         sys.argv = old
 
 
-@pytest.mark.parametrize('link', [lambda: SaturatingLink(tau=0.59, floor=0.0), lambda: LeakyFloorLink(tau=0.59, knee=0.0, alpha=0.10, clamp=-1.0)],
-                         ids=['softplus', 'leaky'])
-def test_the_real_link_gives_finite_gradients_although_most_cells_are_unobserved(link):
-    """Unobserved cells have no dG_wt: the link must not see NaN there, or 0 * NaN in backward poisons every parameter."""
+@pytest.mark.parametrize('tobit', [False, True], ids=['mse', 'tobit'])
+def test_gradients_are_finite_although_most_cells_are_unobserved(tobit):
+    """Unobserved cells have no dG_wt: the loss must not see NaN there, or 0 * NaN in backward poisons every parameter."""
     for kind in ('single', 'pair'):
         s = _module(joint_doubles='both', tf_mix=0.5)
-        s.link_head = link()
-        b = _blk(kind, si_y=torch.full((20,), 0.3), sj_y=torch.full((20,), 0.2)) if kind == 'pair' else _blk(kind)
+        s.tobit, s.tobit_params = tobit, dict(sigma_y=0.28, mu_f=0.05, sigma_f=0.38)
+        b =_blk(kind, si_y=torch.full((20,), 0.3), sj_y=torch.full((20,), 0.2)) if kind == 'pair' else _blk(kind)
         M._block_step(s, b)
         grads = [p.grad for p in list(s.model.parameters()) if p.grad is not None]
         assert grads and all(bool(torch.isfinite(g).all()) for g in grads), kind
@@ -409,7 +405,7 @@ def test_block_clashes_with_the_per_item_only_losses_are_refused():
     try:
         sys.argv = argv + ['--lambda_cond_mt', '7.5']                         # the conditional legs ARE defined for blocks
         assert config.parse_arguments().lambda_cond_mt == 7.5
-        for bad in (['--wt_supervise_doubles'], ['--mt_single_loss_weight', '0.1'], ['--latent_censor_hinge']):
+        for bad in (['--wt_supervise_doubles'], ['--mt_single_loss_weight', '0.1']):
             sys.argv = argv + bad
             with pytest.raises(SystemExit):
                 config.parse_arguments()

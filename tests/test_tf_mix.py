@@ -18,7 +18,7 @@ from esm_msr import config
 from esm_msr.losses import ListMLELoss
 from esm_msr.training import ESM3EpistasisLightningModule as M
 
-from _stubs import compose_hparams, with_identity_link
+from _stubs import compose_hparams, with_masks
 
 BASE = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
 
@@ -107,7 +107,7 @@ def _stub(tf_mix=None, wt_value=2.0, mt_value=0.0):
     s = types.SimpleNamespace()
     s.hparams = _HP(base)
     s.model = _EnsembleModel(wt_value, mt_value)
-    with_identity_link(s)
+    with_masks(s)
     s.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
     s.crit_reg = torch.nn.MSELoss(reduction='none')
     s.crit_rank_wt = s.crit_rank_mt = ListMLELoss()

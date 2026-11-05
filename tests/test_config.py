@@ -1,5 +1,5 @@
 """The command line after the trim: about 55 flags, a table of retired ones that old launchers still pass, YAML defaults, and the few
-translations (subset caps -> subsets, assay floor -> link floor, the Comet key -> the environment)."""
+translations (subset caps -> subsets, assay floor / link floor -> y_floor, the Comet key -> the environment)."""
 import os
 import sys
 
@@ -82,10 +82,18 @@ def test_bad_subsets_are_refused():
             parse('--subsets', bad)
 
 
-def test_assay_floor_becomes_link_floor_and_threshold_is_one_number():
+def test_assay_floor_and_link_floor_become_y_floor_and_threshold_is_one_number():
     a = parse('--assay_floor', '0.0', '--link_floor_min', '0.0', '--link_floor_max', '0.001')
-    assert a.link_floor == 0.0 and not hasattr(a, 'assay_floor')
-    assert parse('--assay_floor', '0.25').link_floor == 0.25
+    assert a.y_floor == 0.0 and not hasattr(a, 'assay_floor') and not hasattr(a, 'link_floor')
+    assert parse('--assay_floor', '0.25').y_floor == 0.25
+    assert parse('--link_floor', '0.25').y_floor == 0.25 and parse('--y_floor', '0.1').y_floor == 0.1
+
+
+def test_every_link_flag_of_an_old_launcher_is_accepted_and_dropped():
+    a = parse('--link', '--link_kind', 'leaky', '--link_tau', '0.59', '--link_alpha', '0.1', '--link_clamp', '-1.0', '--link_floor', '0.0', '--latent_censor_hinge')
+    assert not {k for k in vars(a) if k.startswith('link') or k == 'latent_censor_hinge'}
+    assert parse('--no-link').y_floor == 0.0
+    assert parse('--reg_nll', 'tobit').val_tobit_link is True and parse('--reg_nll', 'tobit', '--no-val_tobit_link').val_tobit_link is False
     assert parse().censor_threshold == 0.5
     assert parse('--censor_threshold', 'none').censor_threshold is None
     assert parse('--censor_threshold', '0.0', '--censor_threshold_double', '0').censor_threshold == 0.0
@@ -150,7 +158,8 @@ def test_the_number_of_flags_is_small():
     # + 2026-11-04: --block_domain_steps, --block_pair_weight, --grad_clip_per_head, --val_every_epochs.
     # + 2026-11-04 (validation): --val_masking_strategy (was --val_masking), --val_masked, --exclude_mutbg (replaces --native_cond_for_wt / _for_mt / --mask_native_cond_struct),
     # --tf_prior_sd, --tobit_sigma_y / _mu_f / _sigma_f: 108 -> 110.
-    assert len(keys) <= 110, sorted(keys)   # + --lambda_cycle, --cycle_detach_wt (2026-11-02 night), --grad_accum_blocks, --tf_label, --tf_no_label (2026-11-03)
+    # - 2026-11-05: the links are gone (--link, --link_floor / _tau / _kind / _alpha / _clamp, --latent_censor_hinge); + --y_floor (the floor stamped on every item), --val_tobit_link: 110 -> 105.
+    assert len(keys) <= 105, sorted(keys)   # + --lambda_cycle, --cycle_detach_wt (2026-11-02 night), --grad_accum_blocks, --tf_label, --tf_no_label (2026-11-03)
 
 
 # ---------------------------------------------------------------------------------------------------------------- yaml

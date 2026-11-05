@@ -273,8 +273,8 @@ class MegaScaleDatasetPreprocessor:
 
         Averaging the ``wt`` rows instead (what this used to do) matched it in only 7 of 412 libraries, with a
         median error of 0.015 and a maximum of 0.197 kcal/mol; their median matches in 250 but still misses by up
-        to 0.146. Either way ``dG_wt + ddG`` would not equal the item's own ``dG_meas``, which is the axis the
-        link places its knee on - and the error is a per-library constant, so it biases a library's whole knee.
+        to 0.146. Either way ``dG_wt + ddG`` would not equal the item's own ``dG_meas``, the axis the Tobit
+        likelihood is written on - and the error is a per-library constant, so it biases a library's whole floor.
         """
         if 'dG_ML' not in df.columns or 'ddG_ML' not in df.columns:
             return {}
@@ -579,13 +579,12 @@ def _library_loaders(codes: List[str], cache_path: str, *, batch_size: int, num_
     return loaders, names
 
 
-def load_benchmark_datasets(manifest: Dict[str, Any], cache_path: str, cache_version: str, link_floor: float) -> Tuple[List[DataLoader], List[str]]:
-    """Loads the static benchmark datasets the manifest lists. Nothing here is censored, but the link reads ``y_floor`` on every
-    item it scores, so the knee must match the training run."""
+def load_benchmark_datasets(manifest: Dict[str, Any], cache_path: str, cache_version: str, y_floor: float) -> Tuple[List[DataLoader], List[str]]:
+    """Loads the static benchmark datasets the manifest lists. Nothing here is censored, but every item carries ``y_floor``, so it must match the training run."""
     loaders, names = [], []
     for name in manifest.get('benchmarks', []):
         dataset = MutationStabilityDataset(name, cache_path, 'ddG', subsets=('single', 'double'), cache_version=cache_version,
-                                           link_floor=link_floor, censor_threshold=None)
+                                           y_floor=y_floor, censor_threshold=None)
         if len(dataset) == 0:
             continue
         loaders.append(PooledDataLoader([DataLoader(dataset, batch_size=1, collate_fn=collate_fn_twopass, num_workers=0,
@@ -612,7 +611,7 @@ def setup_dataloaders(args: argparse.Namespace, add_benchmarks_to_val: bool = Fa
     # Mutant-background libraries ('2M7O_I21A': one introduced mutation, then a scan): their measurements are ordinary singles to both heads, the released behaviour.
     # --exclude_mutbg leaves the libraries out of TRAINING (validation scores them either way).
     common = dict(label_native_cond=False, censor_range=args.censor_range,
-                  cache_version=args.cache_version, link_floor=args.link_floor, censor_threshold=args.censor_threshold)
+                  cache_version=args.cache_version, y_floor=args.y_floor, censor_threshold=args.censor_threshold)
     train_subsets = set(args.subsets)
     train_libraries = list(manifest['train'])
     if getattr(args, 'exclude_mutbg', False):
@@ -628,7 +627,7 @@ def setup_dataloaders(args: argparse.Namespace, add_benchmarks_to_val: bool = Fa
         manifest['val'], args.cache_path, batch_size=64, num_workers=args.num_workers, desc='val',
         subsets=('single', 'double', 'native_cond'), **common)
 
-    bench_loaders, bench_names = load_benchmark_datasets(manifest, args.cache_path, args.cache_version, args.link_floor)
+    bench_loaders, bench_names = load_benchmark_datasets(manifest, args.cache_path, args.cache_version, args.y_floor)
     if add_benchmarks_to_val:
         val_dataloaders.extend(bench_loaders)
         val_loader_names.extend(bench_names)

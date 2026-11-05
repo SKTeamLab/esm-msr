@@ -11,9 +11,8 @@ import torch
 
 from esm_msr import blocks, censoring, config
 from esm_msr.data import stamp_tf_singles
-from esm_msr.link import LeakyFloorLink, SaturatingLink
 from esm_msr.losses import TF_PRIOR_SD, TOBIT_SIGMA_Y, tobit_posterior_mean, tobit_regression_loss
-from esm_msr.training import ESM3EpistasisLightningModule as M, TF_CLAMP_Y0, tf_single_label
+from esm_msr.training import ESM3EpistasisLightningModule as M, tf_single_label
 from test_blocks import _blk, _module
 from test_tf_mix import _EnsembleModel, _batch, _combined_loss, _stub
 
@@ -44,7 +43,7 @@ def test_it_is_continuous_in_the_reading_with_no_cut():
     for m in (-3.0, -1.0, 0.0, 1.0, 3.0):
         z = tobit_posterior_mean(y, torch.full_like(y, m), torch.zeros_like(y, dtype=torch.long))
         assert torch.isfinite(z).all()
-        assert float(z.diff().abs().max()) < 0.02, m                                # no jump anywhere: the inverse link has one at its asymptote
+        assert float(z.diff().abs().max()) < 0.02, m                                # no jump anywhere
 
 
 def test_the_limits_above_the_floor_at_the_floor_and_with_no_reading():
@@ -65,26 +64,18 @@ def test_it_stays_finite_at_the_extremes_in_single_precision():
 
 
 def test_the_single_label_only_treats_the_assays_own_tags_as_bounds():
-    dG, wt, fl = torch.tensor(3.0), torch.tensor(-1.0), torch.tensor(0.0)           # the WT head reads this single at absolute dG 2
+    dG, wt = torch.tensor(3.0), torch.tensor(-1.0)                                  # the WT head reads this single at absolute dG 2
     y = torch.tensor(-3.5)                                                          # read at absolute -0.5
-    link = SaturatingLink()
-    tag = tf_single_label('posterior', link, y, torch.tensor(-1), torch.tensor(censoring.SRC_RANGE), wt, dG, fl)
-    num = tf_single_label('posterior', link, y, torch.tensor(-1), torch.tensor(censoring.SRC_FLOOR), wt, dG, fl)
+    tag = tf_single_label(y, torch.tensor(-1), torch.tensor(censoring.SRC_RANGE), wt, dG)
+    num = tf_single_label(y, torch.tensor(-1), torch.tensor(censoring.SRC_FLOOR), wt, dG)
     assert float(num) == pytest.approx(float(tobit_posterior_mean(dG + y, dG + wt, torch.tensor(0))) - 3.0)
     assert float(tag) != pytest.approx(float(num), abs=1e-3)
 
 
-@pytest.mark.parametrize('link', [SaturatingLink(tau=0.59), LeakyFloorLink(tau=0.59)])
-def test_clamped_inverts_one_fixed_reading_below_y0_and_is_nan_with_no_reading(link):
-    dG, fl = torch.tensor(3.0), torch.tensor(0.0)
+def test_the_posterior_label_with_no_reading_is_the_prior():
+    dG, wt = torch.tensor(3.0), torch.tensor(-1.0)
     zero = torch.tensor(0)
-
-    def at(v):
-        return tf_single_label('clamped', link, torch.tensor(float(v)) - 3.0, zero, zero, torch.tensor(0.0), dG, fl)
-    want = float(link.inverse(torch.tensor(TF_CLAMP_Y0), fl)) - 3.0
-    assert float(at(-0.9)) == pytest.approx(want, abs=1e-5) and float(at(0.0)) == pytest.approx(want, abs=1e-5)
-    assert float(at(2.0)) == pytest.approx(float(link.inverse(torch.tensor(2.0), fl)) - 3.0, abs=1e-5)
-    assert torch.isnan(at(float('nan')))
+    assert float(tf_single_label(torch.tensor(float('nan')), zero, zero, wt, dG)) == pytest.approx(-1.0)
 
 
 # ---------------------------------------------------------------------------------------------------------------- through the block step
@@ -119,8 +110,8 @@ def _single_tensors(y_i, y_j, **kw):
     return dict(si_y=t(y_i), sj_y=t(y_j), **kw)
 
 
-def test_the_default_label_is_the_inverse_whether_or_not_the_flags_are_set():
-    a, c = _module(lambda_rank_mt=0.0), _module(lambda_rank_mt=0.0, tf_label='inverse', tf_no_label='wt')
+def test_the_default_label_is_the_measured_one_whether_or_not_the_flags_are_set():
+    a, c = _module(lambda_rank_mt=0.0), _module(lambda_rank_mt=0.0, tf_label='measured', tf_no_label='wt')
     sa, sc = _spy(a), _spy(c)
     M._block_step(a, _blk('pair', **_single_tensors(0.3, 0.2)))
     M._block_step(c, _blk('pair', **_single_tensors(0.3, 0.2)))
@@ -137,7 +128,7 @@ def test_a_single_below_the_cut_costs_only_itself_and_its_partner_keeps_its_meas
     lat, has, n = seen['lat'], seen['has'], seen['n']
     x, y = [a for a in range(20) if a != wi][0], [a for a in range(20) if a != wj][0]
     assert n[x, y] == 2 and bool(has[x, y])
-    assert float(lat[x, y]) == pytest.approx(float(ri[x]) + 0.5, abs=1e-5)         # the WT head's read of i, the measurement of j (the identity link inverts to itself)
+    assert float(lat[x, y]) == pytest.approx(float(ri[x]) + 0.5, abs=1e-5)         # the WT head's read of i, the measurement of j
 
 
 def test_two_dead_singles_are_two_reads_and_two_live_ones_two_measurements():
@@ -208,7 +199,7 @@ def test_tf_no_label_mt_changes_only_the_doubles_missing_a_measurement():
 
 
 def test_the_singles_block_takes_the_same_labels():
-    for kind in ('posterior', 'clamped'):
+    for kind in ('posterior', 'measured'):
         s = _module(lambda_rank_mt=0.0, lambda_rank_wt=0.0, tf_label=kind)
         logs = M._block_step(s, _blk('single'))
         assert logs['L_reg_combined'] == logs['L_reg_combined'], kind
@@ -301,9 +292,10 @@ def _parse(monkeypatch, *a):
 
 def test_the_flags_default_to_todays_behaviour_and_refuse_what_they_cannot_mean(monkeypatch):
     a = _parse(monkeypatch)
-    assert a.tf_label == 'inverse' and a.tf_no_label == 'wt'
+    assert a.tf_label == 'measured' and a.tf_no_label == 'wt'
     assert _parse(monkeypatch, '--block_training', '--tf_label', 'posterior').tf_label == 'posterior'
+    assert _parse(monkeypatch, '--tf_label', 'inverse').tf_label == 'measured'               # the old name of the label is translated
     for bad in (['--tf_label', 'posterior'], ['--tf_no_label', 'mt'], ['--block_training', '--tf_label', 'posterior', '--tf_cut', '0.5'],
-                ['--block_training', '--tf_label', 'clamped', '--tf_no_label', 'mt']):
+                ['--block_training', '--tf_label', 'clamped'], ['--block_training', '--tf_label', 'posterior', '--tf_no_label', 'mt']):
         with pytest.raises(SystemExit):
             _parse(monkeypatch, *bad)

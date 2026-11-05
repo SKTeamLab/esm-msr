@@ -13,7 +13,10 @@ import numpy as np
 
 from esm_msr import epi_metrics, stats
 from esm_msr.censoring import SRC_RANGE
-from esm_msr.link import numpy_link, numpy_link_from_summary
+try:
+    from esm_msr.link import numpy_link, numpy_link_from_summary
+except ImportError:             # the links were removed on 2026-11-05; a dump written by a run that used one is rescored by the archived code
+    raise SystemExit("comet_rescore.py rescores dumps through the run's own link: run it from a checkout of the tag archive/link-code-2026-11-05.")
 
 POOLED_4 = ('val_rho_ungrouped_wt', 'val_rho_ungrouped_combined',
             'val_ndcg@k=96_ungrouped_combined', 'val_ndcg@k>0_ungrouped_combined')

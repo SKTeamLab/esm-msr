@@ -51,7 +51,7 @@ travels with each run and with generated frozen-WT blocks.
 | group | name | read it as | higher is |
 |---|---|---|---|
 | ddG product | `val_rho_combined_avg` | ranking of all measured items by the reported prediction, mean over libraries | better |
-| | `val_rmse_combined_avg` | calibration of the reported prediction (observed scale under `--link`), kcal/mol | worse |
+| | `val_rmse_combined_avg` | calibration of the reported prediction (observed scale, through the Tobit expected reading, for a `--reg_nll tobit` run), kcal/mol | worse |
 | | `val_rho_wt_valid_avg` | the WT head on singles (drives the WT plateau and `--wt_early_stop_patience`) | better |
 | epistasis, holistic | `val_epi_naive_rho_comb` | Spearman of predicted vs measured dddG, all doubles. **Mostly saturation under a link** | (summary only) |
 | | `val_epi_naive_rho_epi` | the same for the epistasis head | better |

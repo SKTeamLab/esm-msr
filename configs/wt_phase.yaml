@@ -10,8 +10,7 @@ val_wt_only: true
 subsets: [single]
 censor_threshold: 0.5
 censor_range: false
-link_floor: 0.0
-link_tau: 0.59
+y_floor: 0.0
 
 lambda_rank_wt: 1.0
 lambda_reg_wt: 1.0
