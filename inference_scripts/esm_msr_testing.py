@@ -606,7 +606,11 @@ def main_(args):
         
         res_combined = []
 
+        skip_dms_sets = [s for s in str(getattr(args, 'skip_dms_sets', '') or '').split(',') if s.strip()]
         for mem_size, prot in list(zip(mem_sizes, prots))[:args.max_proteins or None]:
+            if any(s.strip() in prot for s in skip_dms_sets):
+                print(f'Skipping DMS {prot} (--skip_dms_sets {args.skip_dms_sets})')
+                continue
             batch_sz = mem_size * 32
 
             # the repo's own data/preprocessed, not the software/esm-msr copy: that copy's GB1 is missing V39A/V39C/
@@ -775,6 +779,8 @@ if __name__ == "__main__":
         parser.add_argument('--skip_tsuboyama', action='store_true')
         parser.add_argument('--skip_ctx', action='store_true')
         parser.add_argument('--skip_dms', action='store_true')
+        parser.add_argument('--skip_dms_sets', type=str, default='',
+                            help="Comma-separated substrings of DMS set names to leave out of the DMS block (e.g. GB1: its 149,360 variants cost one forward each when unmasked); the other sets still run")
         parser.add_argument('--skip_functional', action='store_true')
         parser.add_argument('--skip_domainome', action='store_true')
         parser.add_argument('--skip_additive', action='store_true')
