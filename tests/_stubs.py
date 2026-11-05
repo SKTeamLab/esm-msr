@@ -26,7 +26,7 @@ class IdentityLink:
 
 def compose_hparams(**over):
     """The hparams ``_compose_losses_streaming_and_backward`` reads, at the standing recipe's values."""
-    hp = dict(rank_list_size=4, micro_batch_size=3, native_cond_for_wt=True, native_cond_for_mt=False, censor_threshold=None, tf_mix=1.0,
+    hp = dict(rank_list_size=4, micro_batch_size=3, censor_threshold=None, tf_mix=1.0,
               lambda_reg_wt=0.0, lambda_rank_wt=0.0, lambda_reg_mt=1.0, lambda_rank_mt=0.0, huber_delta=0.0,
               freeze_wt_adapter=False, freeze_mt_adapter=False)
     hp.update(over)

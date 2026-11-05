@@ -19,13 +19,19 @@ import tempfile
 os.environ.setdefault('CUDA_VISIBLE_DEVICES', '')
 
 NATIVE = re.compile(r'_[A-Z]\d+[A-Z]$')
+# summary columns a mode must have written (and the ones no mode may write any more)
+EXPECT = {'val_unmasked_copy': ['val_unmasked_rho_combined_avg', 'val_unmasked_rho_singles_wt_avg'], 'val_masked_copy': ['val_masked_rho_combined_avg', 'val_masked_rho_singles_wt_avg']}
+CULLED = ('val_cycle_gap', 'val_rho_ungrouped', 'val_diag_', 'link/', 'val_rho_singles_combined', 'val_rho_doubles_wt')
 MODES = {
     'dual_joint': [],
     'frozen_wt': ['--frozen_wt_mt_only'],
     'fused': ['--adapter_mode', 'fused'],
     'mask_mt_independent': ['--frozen_wt_mt_only', '--mask_strategy_mt', 'independent'],
     'mask_wt_marginal_mt_independent': ['--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent'],
-    'native_cond_for_mt': ['--frozen_wt_mt_only', '--native_cond_for_mt'],
+    'exclude_mutbg': ['--frozen_wt_mt_only', '--exclude_mutbg'],
+    # the extra validation regimes: a copy of every statistic under val_unmasked_* / val_masked_*, ctx included (the cycle passes are on by default)
+    'val_unmasked_copy': ['--val_unmasked'],
+    'val_masked_copy': ['--val_masking_strategy', 'unmasked', '--val_masked'],
     'huber': ['--frozen_wt_mt_only', '--huber_delta', '1.0'],
     # the one truncated validation library is too small for the epistasis metrics, so these watch rho_combined
     'joint_both': ['--joint_doubles', 'both', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
@@ -114,9 +120,10 @@ def main():
             df = pd.read_csv(csv)
             rho = df['val_rho_combined_avg'].dropna().tolist() if 'val_rho_combined_avg' in df.columns else []
             ok = len(rho) >= 2 and bool(np.isfinite(rho).all()) and os.path.exists(os.path.join(root, 'logs', f'smoke_{mode}', '0', 'last.ckpt'))
-            gap = df['val_cycle_gap_avg'].dropna().tolist() if 'val_cycle_gap_avg' in df.columns else []         # --val_masking independent is the default
-            ok = ok and len(gap) >= 1 and bool(np.isfinite(gap).all())
-            print(f"[{mode}] val_cycle_gap_avg {['%.4f' % r for r in gap]}", flush=True)
+            missing = [c for c in EXPECT.get(mode, []) if c not in df.columns or not df[c].notna().any()]
+            culled = [c for c in df.columns if any(c.startswith(g) for g in CULLED)]
+            ok = ok and not missing and not culled
+            print(f"[{mode}] missing {missing or 'none'}, culled columns still logged {culled[:3] or 'none'}, validation columns {len([c for c in df.columns if c.startswith('val_')])}", flush=True)
             print(f"[{mode}] validations {len(rho)}, val_rho_combined_avg {['%.4f' % r for r in rho]}", flush=True)
         if not ok:
             failed.append(mode)

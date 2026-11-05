@@ -14,8 +14,10 @@ import logging
 import os
 import re
 
+from esm_msr import val_stats
+
 DEFAULT_CACHE_VERSION = 'c6'            # data.MutationStabilityDataset.CACHE_VERSION (a test pins them together)
-SUBSETS = ('single', 'double')          # what --subsets may name. `native_cond` is routed by --native_cond_for_wt / --native_cond_for_mt
+SUBSETS = ('single', 'double')          # what --subsets may name. Mutant-background libraries are singles to both heads (--exclude_mutbg leaves them out)
 
 # What the model and the readers of hparams.yaml (inference.parse_hparams_to_lora_config, make_fwt_block.py, gate_capacity.py) still need
 # to find, written as constants: the code behind them is gone, but a checkpoint trained here must say how its calibration is built.
@@ -103,6 +105,11 @@ RETIRED = {
     'remove_spurs_homologs': _r('bool', False, 'a cache-build option'),
     'regenerate_cache': _r('flag', None, 'training never builds a cache: use analysis_scripts/build_cache.py'),
     'mask_strategy': _r('val', None, 'per pass now: --mask_strategy_wt / --mask_strategy_mt'),
+    # a mutant-background library is a set of ordinary singles to both heads; the only choice left is whether to train on it
+    'native_cond_for_wt': _r('bool', True, 'a mutant-background library trains both heads as ordinary singles; --exclude_mutbg leaves them out'),
+    'native_cond_as_single': _r('bool', True, 'a mutant-background library trains both heads as ordinary singles; --exclude_mutbg leaves them out'),
+    'native_cond_for_mt': _r('bool', False, 'a mutant-background library trains both heads as ordinary singles; --exclude_mutbg leaves them out'),
+    'mask_native_cond_struct': _r('bool', False, 'removed with the native_cond routing'),
 }
 # retired flags that carry a value worth translating or cross-checking; handled in parse_arguments
 _TRANSLATED_VAL = ('subset_caps', 'assay_floor', 'comet_api_key', 'split_file', 'censor_threshold_double', 'reg_loss', 'early_stopping_metric',
@@ -184,8 +191,6 @@ def current_metric_name(name, monitor):
     val = val or ''
     if metric in _EPI_SAME_AS_COMB:
         return f'{val}{unmasked}epi_{metric}_comb'
-    if metric == 'cell_rank' and monitor:
-        return f'val_{unmasked}diag_epi_cell_rank_mt_legacy'
     return None if monitor else name
 
 
@@ -225,7 +230,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                            "whatever the code's default is by the time it starts.")
     data.add_argument('--subsets', type=str, default=None,
                       help="The measured subsets the run trains on, comma-separated: single, double (default both). Validation always scores "
-                           "both. Mutant-background libraries are routed by --native_cond_for_wt / --native_cond_for_mt instead.")
+                           "both. Mutant-background libraries are left out of training by --exclude_mutbg.")
     data.add_argument('--censor_threshold', type=_threshold, default=0.5,
                       help="Censor every item whose measured dG is at or below this, in every library, bounded by it (kcal/mol): regression "
                            "becomes one-sided and the item's rank is tied at the bottom. 'none' censors nothing. 0.5 sits a little above the "
@@ -234,20 +239,10 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                       help="Admit the rows the assay bounded rather than fitted ('<-1' / '>5') as censored items instead of dropping them. "
                            "Dropping them selects the double set on its own outcome: fit failure rises from 0.7%% of shallow doubles to 24%% "
                            "of those below -5 kcal/mol, so the survivors at depth are those that came out better than their additive expectation.")
-    data.add_argument('--native_cond_for_wt', '--native_cond_as_single', dest='native_cond_for_wt',
-                      action=argparse.BooleanOptionalAction, default=True,
-                      help="Keep a mutant-background library's measurements as ordinary 'single' items, which train the WT head: the released "
-                           "behaviour, and strictly wrong (they are conditional effects ddG(X | background)). Off, they are labelled "
-                           "'native_cond' and the WT head does not train on them.")
-    data.add_argument('--native_cond_for_mt', action=argparse.BooleanOptionalAction, default=False,
-                      help="Label a mutant-background library's measurements 'native_cond' and route them to the MT/combined loss. This adds NO examples: "
-                           "under the default routing (--native_cond_for_wt) they already train as ordinary singles (3 training libraries, 3,782 items, "
-                           "1.7%% of the stream). What changes is the MT pass input for them: the library's background sequence (what the WT pass reads) "
-                           "instead of background + the scored mutation, so the item is a forward mutation from the background, the MT adapter's mt_fwd "
-                           "probe regime. The same swap applies at validation to mutant-background libraries. Independent of --native_cond_for_wt.")
-    data.add_argument('--mask_native_cond_struct', action=argparse.BooleanOptionalAction, default=False,
-                      help="Mask the VQ-VAE structure token at the background mutation position on native_cond rows (e.g. pos 54 on 2KT8_G54S), "
-                           "preventing the frozen structure track from asserting wild-type sidechain packing at the substituted background site.")
+    data.add_argument('--exclude_mutbg', action=argparse.BooleanOptionalAction, default=False,
+                      help="Leave the mutant-background libraries (one introduced mutation, then a scan of single mutants: '2M7O_I21A') out of TRAINING. Off (the default and "
+                           "the released behaviour): both heads train on their measurements as ordinary singles, whose 'wild type' is the background sequence and whose dG_wt is "
+                           "the background's own dG (3 training libraries, 3,782 items, 1.7%% of the stream). Validation scores these libraries either way.")
     data.add_argument('--external_val_sets', type=str, default='ptmuld,s461,ssym',
                       help="Comma-separated validation loaders scored as OUT-OF-DISTRIBUTION benchmarks: logged per loader (val_<metric>/<name>) "
                            "but held OUT of every aggregate (val_*_avg, the pooled ranking, the epistasis levels), and summarised as "
@@ -365,6 +360,11 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     obj.add_argument('--tf_no_label', type=str, default='wt', choices=['wt', 'mt'],
                      help="--block_training with --tf_label inverse: what a double missing a measurement is regressed through. wt: 0.5 (WT + MT), the WT head reading the missing single (the default). "
                           "mt: the MT head alone, which is on half the epistasis scale of a labelled double.")
+    obj.add_argument('--tf_prior_sd', type=float, default=0.75,
+                     help="--tf_label posterior: the width (kcal/mol) of the prior on a single's latent dG around the WT head's read (losses.TF_PRIOR_SD).")
+    obj.add_argument('--tobit_sigma_y', type=float, default=0.28, help="--reg_nll tobit (and the posterior label): the assay's noise on a reading, kcal/mol (losses.TOBIT_SIGMA_Y).")
+    obj.add_argument('--tobit_mu_f', type=float, default=0.05, help="--reg_nll tobit: the mean of the unfolded floor, kcal/mol (losses.TOBIT_MU_F).")
+    obj.add_argument('--tobit_sigma_f', type=float, default=0.38, help="--reg_nll tobit: the spread of the unfolded floor, kcal/mol (losses.TOBIT_SIGMA_F).")
     obj.add_argument('--mt_single_loss_weight', type=float, default=1.0,
                      help="Relative loss weight on single-mutant items vs multi-mutants (1.0) in the MT regression and ranking losses "
                           "(e.g. 0.1 downweights singles 10x while preserving domain-context regularisation).")
@@ -459,7 +459,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                               "structural (the site read is masked; a double's mutant pass shows the partner), so --mask_strategy_* and "
                               "--batch_size / --micro_batch_size do not apply to training (--rank_list_size is only the reference "
                               "length of --block_rank_norm ref); validation is "
-                              "unchanged. --joint_doubles other than off makes a pair's WT half live. native_cond items are left out.")
+                              "unchanged. --joint_doubles other than off makes a pair's WT half live.")
     train_g.add_argument('--block_identity', action=argparse.BooleanOptionalAction, default=True,
                          help="--block_training: the wild-type residue is a cell of every ListMLE list, with label 0 and prediction 0 (no mutation, so no "
                               "bias): a singles block holds B x 20 cells with the wild type in its own column, a pair block is the 20 x 20 matrix whose "
@@ -506,21 +506,21 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                               "drawn per position of a singles block; a pair block is drawn once per block and, unmasked, reads all 20 x 20 sequences "
                               "at both sites (no row / column passes, so no --lambda_cond_mt legs for that block). Expensive: set --block_row_chunk "
                               "(an even number, so a sequence's two reads share a chunk).")
-    val.add_argument('--val_masking', choices=['independent', 'train'], default='independent',
-                     help="How validation reads the passes. 'independent' (default): BOTH adapters read every mutated site masked on its own, with the "
-                          "partner's mutant residue visible (the singles' masked sequences, so it comes free): WT(a, b masked) + WT(b, a masked) and "
-                          "MT(B | A) + MT(A | B), the thermodynamic cycle, which is the regime block training and the random-mask paradigm train "
-                          "on. Every val_* metric, the plateau schedule, early stopping and the checkpoint monitor read this regime, and "
-                          "val_cycle_gap is the mean |path 1 - path 2| of the double's two paths around the cycle. 'train': the run's own "
-                          "--mask_strategy_wt/_mt (unmasked when unset, and an eval pass of 'random' is unmasked), which is what validation was before "
-                          "and what an unmasked-trained run is matched to; no cycle gap.")
+    val.add_argument('--val_masking_strategy', '--val_masking', dest='val_masking_strategy', default='masked', choices=['masked', 'unmasked', 'train'],
+                     type=lambda v: 'masked' if v == 'independent' else v,
+                     help="The MAIN validation regime, the one the unprefixed val_* statistics and --monitor_metric read. 'masked' (default; 'independent' is the old name): BOTH adapters read "
+                          "every mutated site masked on its own, with the partner's mutant residue visible (the singles' masked sequences, so it comes free): WT(a, b masked) + WT(b, a masked) "
+                          "and MT(B | A) + MT(A | B), the thermodynamic cycle, which is the regime block training and the random-mask paradigm train on. 'unmasked': neither adapter masks (the plain "
+                          "wild type for WT, the full mutant sequence for MT: the per-item readout, what an unmasked-trained run is matched to). 'train': the run's own "
+                          "--mask_strategy_wt/_mt (unmasked when unset).")
     val.add_argument('--val_unmasked', action=argparse.BooleanOptionalAction, default=False,
-                     help="Also score validation with NEITHER adapter masked (the plain wild-type sequence for WT, the full mutant sequence for MT: the "
-                          "per-item readout), logged as val_unmasked_* (per-library metrics and their _avg, and the epistasis hierarchy as "
-                          "val_unmasked_epi_*, with val_unmasked_epi_composite). Not watched unless pointed at: the plateau, early stopping and the checkpoint monitor read the default regime, "
-                          "and a run trained on visible sites sets --monitor_metric val_unmasked_epi_composite and --mt_convergence_metric unmasked_epi_composite. "
-                          "The matched regime of a run trained on visible sites (--block_mask_wt/_mt < 1, --mask_strategy_* none or random). The MT "
-                          "side is one forward per variant, the cost the validation had before it was consolidated.")
+                     help="Also score validation with NEITHER adapter masked and log a copy of every statistic of the main regime under val_unmasked_* (the per-library categories, "
+                          "their means, the groups, the external summary and the epistasis, ctx included with --val_cycle_passes). Nothing is added when the main regime already is "
+                          "unmasked. Not watched unless pointed at: the plateau, early stopping and the checkpoint monitor read the main regime, and a run trained on visible sites sets "
+                          "--monitor_metric val_unmasked_rho_combined_avg. The MT side is one forward per variant (plus the two cycle passes with --val_cycle_passes).")
+    val.add_argument('--val_masked', action=argparse.BooleanOptionalAction, default=False,
+                     help="The mirror of --val_unmasked: also score validation with every mutated site masked on its own and log the copy as val_masked_* (nothing is added when the "
+                          "main regime already is masked). For a run whose main regime is unmasked.")
     val.add_argument('--val_every_epochs', type=int, default=1,
                      help="Validate every N epochs. --early_stopping_patience and the plateaus count validations, not epochs.")
     val.add_argument('--skip_val', action=argparse.BooleanOptionalAction, default=False)
@@ -571,7 +571,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                 keep[key] = bool(flags[flag])
         legacy = [k for k in SUBSETS if keep[k]]
         notes.append(f"--subset_caps / --incl_* are retired: translated to --subsets {','.join(legacy)} "
-                     f"(mutant-background libraries are routed by --native_cond_for_wt / --native_cond_for_mt).")
+                     f"(mutant-background libraries are singles to both heads; --exclude_mutbg leaves them out).")
     if args.subsets is None:
         args.subsets = legacy if legacy is not None else list(SUBSETS)
     else:
@@ -639,6 +639,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
             parser.error(f"--link_clamp {args.link_clamp} must be below the knee --link_floor {args.link_floor}")
     if args.reg_nll == 'tobit' and not args.link:
         parser.error("--reg_nll tobit with --no-link: the observed-scale report would be the latent itself; use the link (it only reports, it is not trained through)")
+    for flag in ('tf_prior_sd', 'tobit_sigma_y', 'tobit_sigma_f'):
+        if getattr(args, flag) <= 0:
+            parser.error(f"--{flag} must be positive")
     if args.mt_single_loss_weight < 0:
         parser.error("--mt_single_loss_weight must be >= 0")
     if args.lambda_cond_mt < 0:
@@ -661,7 +664,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         new_name = current_metric_name(old_name, monitor)
         if new_name is None:
             parser.error(f"--{flag} {old_name}: the _epi head is no longer logged; use its _comb twin (the reported prediction), "
-                         f"or val_diag_epi_cell_rank_mt_legacy for the MT head's cell rank")
+                         f"(the MT head's own cell rank is no longer logged)")
         if new_name != old_name:
             logging.info(f"--{flag} {old_name} is retired; using {new_name}")
             setattr(args, flag, new_name)
@@ -740,6 +743,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         parser.error("--block_pair_weight needs --block_domain_steps (the clip cancels a weight on a pair block's own step)")
     if args.grad_clip_per_head and args.grad_clip_norm <= 0:
         parser.error("--grad_clip_per_head needs --grad_clip_norm > 0")
+    if args.monitor_metric not in val_stats.logged_summary_names():
+        parser.error(f"--monitor_metric {args.monitor_metric} is not a statistic validation logs (val_stats.logged_summary_names): e.g. val_rho_combined_avg, val_rho_singles_wt_avg, "
+                     f"val_epi_cell_rank_comb, val_epi_composite, or the same with a val_unmasked_ / val_masked_ prefix")
     if args.val_every_epochs < 1:
         parser.error("--val_every_epochs must be >= 1")
     if args.grad_accum_blocks < 1:

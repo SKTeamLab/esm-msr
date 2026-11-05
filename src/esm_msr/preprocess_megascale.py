@@ -10,6 +10,7 @@ import pandas as pd
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
+from esm_msr import val_stats
 from esm_msr.censoring import SRC_NONE, SRC_RANGE, range_tag
 from esm_msr.data import (
     MEAS_COLUMNS,
@@ -608,13 +609,17 @@ def setup_dataloaders(args: argparse.Namespace, add_benchmarks_to_val: bool = Fa
     if overlap:
         logging.warning(f"Overlap detected between train/val libraries: {len(overlap)}.")
 
-    # Mutant-background libraries: native_cond_for_wt keeps their measurements as ordinary singles (the released behaviour);
-    # native_cond_for_mt relabels them 'native_cond' and adds the subset, so the MT loss can train on them.
-    common = dict(label_native_cond=(args.native_cond_for_mt or not args.native_cond_for_wt), censor_range=args.censor_range,
+    # Mutant-background libraries ('2M7O_I21A': one introduced mutation, then a scan): their measurements are ordinary singles to both heads, the released behaviour.
+    # --exclude_mutbg leaves the libraries out of TRAINING (validation scores them either way).
+    common = dict(label_native_cond=False, censor_range=args.censor_range,
                   cache_version=args.cache_version, link_floor=args.link_floor, censor_threshold=args.censor_threshold)
-    train_subsets = set(args.subsets) | ({'native_cond'} if args.native_cond_for_mt else set())
+    train_subsets = set(args.subsets)
+    train_libraries = list(manifest['train'])
+    if getattr(args, 'exclude_mutbg', False):
+        train_libraries = [n for n in train_libraries if not val_stats.is_mutbg_library(n)]
+        logging.info(f"--exclude_mutbg: {len(manifest['train']) - len(train_libraries)} mutant-background training libraries left out")
     train_dataloaders, train_loader_names = _library_loaders(
-        manifest['train'], args.cache_path, batch_size=args.batch_size, num_workers=args.num_workers, desc='train',
+        train_libraries, args.cache_path, batch_size=args.batch_size, num_workers=args.num_workers, desc='train',
         subsets=train_subsets, **common)
     if not train_dataloaders:
         raise RuntimeError("No valid training dataloaders created.")

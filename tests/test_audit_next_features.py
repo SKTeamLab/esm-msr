@@ -83,8 +83,6 @@ def _make_stub_module(**hp_overrides):
         micro_batch_size=8,
         censor_threshold=-1.0,
         tf_mix=1.0,
-        native_cond_for_wt=True,
-        native_cond_for_mt=False,
         mt_direct_pred=False,
         rank_group_by='none',
         huber_delta=0.0,

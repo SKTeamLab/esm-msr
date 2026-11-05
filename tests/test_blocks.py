@@ -218,6 +218,7 @@ def _module(**hp):
     s.hparams = _hp(**hp)
     s.model = _Net()
     s.link_head = IdentityLink()
+    s.tf_post = {}                                      # the posterior label's constants: losses.py's defaults
     s.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
     s.crit_reg = torch.nn.MSELoss(reduction='none')
     s.crit_rank_wt = s.crit_rank_mt = ListMLELoss()

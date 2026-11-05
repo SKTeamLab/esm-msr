@@ -19,9 +19,9 @@ from lightning.pytorch.callbacks import ModelCheckpoint, TQDMProgressBar, EarlyS
 from lightning.pytorch.loggers import CometLogger, CSVLogger
 
 from esm_msr.models import MSRModel, combine_predictions, pass_mask_strategy
-from esm_msr import blocks, censoring, epi_metrics, stats, utils
+from esm_msr import blocks, censoring, epi_metrics, stats, utils, val_stats
 from esm_msr.link import SaturatingLink, LeakyFloorLink, IdentityLink
-from esm_msr.losses import ListMLELoss, hinge_regression_loss, tobit_posterior_mean, tobit_regression_loss, TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F
+from esm_msr.losses import ListMLELoss, hinge_regression_loss, tobit_posterior_mean, tobit_regression_loss, TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F, TF_PRIOR_SD
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.peft_manager import PEFTStateManager
 from esm_msr.config import parse_arguments
@@ -50,42 +50,49 @@ def build_link(hp):
     return SaturatingLink(tau=hp.link_tau, floor=hp.link_floor)
 
 
-EXTERNAL_SUMMARY_METRICS = ('rho_combined', 'rmse_combined')
+def validation_regimes(hp, mask_wt=None, mask_mt=None) -> list:
+    """The regimes validation reads, ``[(prefix, {'wt': ..., 'mt': ...}), ...]``, the main one first with prefix ''. The main regime is ``--val_masking_strategy``; ``--val_unmasked`` /
+    ``--val_masked`` append the other one ('unmasked_' / 'masked_') unless the main regime already is that one (an unmasked-trained run on ``train`` is unmasked)."""
+    strategies = {'masked': {'wt': 'independent', 'mt': 'independent'}, 'unmasked': {'wt': None, 'mt': None}, 'train': {'wt': mask_wt, 'mt': mask_mt}}
+    main_name = str(hp.get('val_masking_strategy', 'masked'))
+    main_kind = main_name if main_name != 'train' else ('unmasked' if not (mask_wt or mask_mt) else 'train')
+    regimes = [('', strategies[main_name])]
+    for flag, kind in (('val_unmasked', 'unmasked'), ('val_masked', 'masked')):
+        if hp.get(flag, False):
+            if main_kind == kind:
+                logging.info(f"--{flag}: the main validation regime is already {kind} (--val_masking_strategy {main_name}), so there is no second copy")
+            else:
+                regimes.append((f'{kind}_', strategies[kind]))
+    return regimes
 
-# ``epi_<metric>_epi`` is the MT head's epistasis at twice the reported scale (MT - WT, where the reported double is 0.5 (WT + MT)). Every rank
-# level that is blind to scale (beyond_rho, beyond_lib, beyond_rho_pairavg, pair_rho, line_rho) is bit-identical to its ``_comb`` twin, and the
-# others (cell_mag, cell_flipacc, class3_*, global_err / global_bias, naive_rho) differ only by the 2x scale or the observed-scale link, so
-# ``_comb`` (the reported prediction) is the one that is logged. ``epi_cell_rank_epi`` equals ``val_diag_epi_cell_rank_mt_legacy`` exactly, which
-# is kept as the MT head on its own. The values still reach ``res`` (the plateaus read them by name); they are just not sent to the logger.
-RETIRED_EPI_LOG = re.compile(r'^epi_.+_epi$')
+
+def link_in_training(hp) -> bool:
+    """Whether the run's link shaped training. The observed-scale RMSE of validation goes through the link only then; otherwise the link is not part of this run's model
+    and the prediction is read as it is. It shapes training through the observed-scale regression (anything but ``--reg_nll tobit``), through the de-linking inverse that builds
+    the teacher-forcing label (``--tf_label inverse`` / ``clamped``), and through the conditional legs (``--lambda_cond_mt``); it needs ``--link``."""
+    if not hp.get('link', True):
+        return False
+    return (hp.get('reg_nll', 'none') != 'tobit' or (hp.get('tf_label', 'inverse') or 'inverse') in ('inverse', 'clamped')
+            or float(hp.get('lambda_cond_mt', 0.0) or 0.0) > 0.0)
+
+
+# What validation sends to the logger lives in val_stats (shared verbatim with main-baseline). These names stay importable from here.
+EXTERNAL_SUMMARY_METRICS = val_stats.EXTERNAL_LOGGED
 
 
 def epi_log_names(res: dict, diag: dict, prefix: str = '') -> dict:
-    """The ``val_*`` scalars one validation regime sends to the logger: finite values only, no ``_epi``-head duplicates.
-    ``diag`` (the audit diagnostics) belongs to the default regime, except the MT head's own cell rank, which both regimes log."""
-    out = {f'val_{prefix}{k}': v for k, v in res.items() if not RETIRED_EPI_LOG.match(k)}
-    for k, v in diag.items():
-        if RETIRED_EPI_LOG.match(k) or (prefix and k != 'epi_cell_rank_mt_legacy'):
-            continue
-        out[f'val_{prefix}diag_{k}'] = v
-    return {k: float(v) for k, v in out.items() if np.isfinite(v)}
+    """The ``val_*`` epistasis scalars one validation regime sends to the logger (val_stats.epi_log_names): the kept names only, finite values only."""
+    return val_stats.epi_log_names(res, diag, prefix)
 
 
-def summarise_external_benchmarks(per_loader: dict, external: set) -> dict:
-    """OOD validation loaders summarised as ``val_<metric>_external``: the mean of rho_combined and rmse_combined.
+def summarise_external_benchmarks(per_loader: dict, external: set, prefix: str = '') -> dict:
+    """OOD validation loaders summarised as ``val_<metric>_external`` (val_stats.summarise_external): rho_combined, rho_wt, rmse_combined, rmse_singles_wt.
 
     ``per_loader`` maps loader name -> {metric: value}. These libraries are deliberately kept out of every aggregate
     (``val_*_avg``, the pooled global ranking, the epistasis levels): they are out of the training distribution, so
     including them makes the aggregate incomparable across runs and inconsistent with what the model was trained on.
-    Their per-loader columns are still logged by the caller, so nothing diagnostic is lost.
     """
-    out = {}
-    for metric in EXTERNAL_SUMMARY_METRICS:
-        vals = [v[metric] for name, v in per_loader.items()
-                if name in external and metric in v and np.isfinite(v[metric])]
-        if vals:
-            out[f'val_{metric}_external'] = float(np.mean(vals))
-    return out
+    return val_stats.summarise_external(per_loader, external, prefix)
 
 
 _AA20 = 'ACDEFGHIKLMNPQRSTVWY'
@@ -93,12 +100,8 @@ _AA_TO_IDX = {a: i for i, a in enumerate(_AA20)}
 
 
 def classify_megascale_library(name: str) -> str:
-    """Classify an in-distribution MegaScale library name into ``'natural_wt'``, ``'designed'``, or ``'mutant_bg'``."""
-    if re.match(r'^v2[A-Z0-9_]+_[0-9][A-Za-z0-9]{3}$', name) or re.match(r'^[0-9][A-Za-z0-9]{3}_', name):
-        return 'mutant_bg'
-    if re.match(r'^[0-9][A-Za-z0-9]{3}$', name):
-        return 'natural_wt'
-    return 'designed'
+    """Classify an in-distribution MegaScale library name into ``'natural_wt'``, ``'designed'``, or ``'mutant_bg'`` (val_stats.library_group: nat / des / mutbg)."""
+    return {'nat': 'natural_wt', 'des': 'designed', 'mutbg': 'mutant_bg'}[val_stats.library_group(name)]
 
 
 def _parse_single_aa_pair(mut):
@@ -168,15 +171,16 @@ def teacher_forcing_unusable(dG_wt, ddG_A, ddG_B, cut):
 TF_CLAMP_Y0 = 0.25   # kcal/mol: the lowest reading --tf_label clamped inverts; a single read below it counts as read here
 
 
-def tf_single_label(kind, link, y, cens, cens_src, wt_lat, dG_wt, y_floor):
+def tf_single_label(kind, link, y, cens, cens_src, wt_lat, dG_wt, y_floor, post=None):
     """The latent ddG label of one measured single under --tf_label clamped / posterior, detached; ``y`` and ``wt_lat`` (the WT head's read) on the ddG scale, ``dG_wt`` finite.
 
     posterior is defined everywhere (no reading: the prior; a range tag: the survival term, its ``y`` being the tag's bound). clamped is NaN with no reading, so the caller reads it from the WT head. A floor-censored number
-    (--censor_threshold) is a number: only the assay's own tags count as bounds, as in the Tobit regression.
+    (--censor_threshold) is a number: only the assay's own tags count as bounds, as in the Tobit regression. ``post`` carries the posterior's constants
+    (``s`` the prior width, ``sigma_y``, ``mu_f``, ``sigma_f``; --tf_prior_sd and the --tobit_* flags); None is the defaults of ``losses``.
     """
     if kind == 'posterior':
         tag = torch.where(cens_src == censoring.SRC_RANGE, cens, torch.zeros_like(cens))
-        return tobit_posterior_mean(dG_wt + y, dG_wt + wt_lat, tag) - dG_wt
+        return tobit_posterior_mean(dG_wt + y, dG_wt + wt_lat, tag, **(post or {})) - dG_wt
     return link.latent_ddG(torch.maximum(y, TF_CLAMP_Y0 - dG_wt), dG_wt, y_floor).detach()
 
 
@@ -209,8 +213,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.model = MSRModel(
             lora_config=lora_config, shared_scale_init=SHARED_SCALE_INIT, shared_bias_init=SHARED_BIAS_INIT, adapter_mode=hp.adapter_mode,
             model_dtype=torch.float32, per_mutation_bias=True, tie_mt_scale=bool(hp.tie_mt_scale),
-            native_cond_mt_input=bool(hp.native_cond_for_mt),
-            mask_native_cond_struct=bool(hp.get('mask_native_cond_struct', False)),
+            native_cond_mt_input=False, mask_native_cond_struct=False,       # a mutant-background library is a set of ordinary singles to both heads (--exclude_mutbg drops them)
             fused_antisymmetric=bool(hp.get('fused_antisymmetric', False)),
         )
 
@@ -236,9 +239,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         logging.info(f"Observed-scale link: {self.link_head.summary()}")
         # --reg_nll tobit: regression is the noisy-floor Tobit likelihood on the latent absolute dG, not MSE through the link.
         self.tobit = hp.get('reg_nll', 'none') == 'tobit'
-        self.tobit_params = dict(sigma_y=TOBIT_SIGMA_Y, mu_f=TOBIT_MU_F, sigma_f=TOBIT_SIGMA_F)
+        # the noise model's constants (--tobit_sigma_y / _mu_f / _sigma_f) and the width of the teacher-forcing prior around the WT head's read (--tf_prior_sd); the defaults are the constants of losses.py
+        self.tobit_params = dict(sigma_y=float(hp.get('tobit_sigma_y', TOBIT_SIGMA_Y)), mu_f=float(hp.get('tobit_mu_f', TOBIT_MU_F)),
+                                 sigma_f=float(hp.get('tobit_sigma_f', TOBIT_SIGMA_F)))
+        self.tf_post = dict(s=float(hp.get('tf_prior_sd', TF_PRIOR_SD)), **self.tobit_params)
         if self.tobit:
-            logging.info(f"Regression: noisy-floor Tobit NLL {self.tobit_params} on latent dG (the link only reports the observed scale)")
+            logging.info(f"Regression: noisy-floor Tobit NLL {self.tobit_params} on latent dG (the link only reports the observed scale)"
+                         + (f"; teacher-forcing prior width {self.tf_post['s']}" if hp.get('tf_label', 'inverse') == 'posterior' else ''))
         # The link is part of the pre-trained WT model, not a separate piece: a frozen WT adapter paired with a different floor or
         # width is a different model than the one being frozen.
         if hp.get('init_wt_from_checkpoint'):
@@ -247,11 +254,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # sequence masking, per pass (models.pass_mask_strategy)
         self.mask_wt, self.mask_mt = pass_mask_strategy(hp, 'wt'), pass_mask_strategy(hp, 'mt')
         self.mask_strategy = {'wt': self.mask_wt, 'mt': self.mask_mt}
-        # Validation reads the passes the way --val_masking says: 'independent' = both adapters see every mutated site masked on its own (the regime
-        # block training and random masks train on, and the one a double's thermodynamic cycle is built from); 'train' = the run's own strategies.
-        self.val_independent = str(hp.get('val_masking', 'independent')) == 'independent'
-        self.val_mask_wt, self.val_mask_mt = ('independent', 'independent') if self.val_independent else (self.mask_wt, self.mask_mt)
-        self.val_mask_strategy = {'wt': self.val_mask_wt, 'mt': self.val_mask_mt}
+        # Validation reads the passes the way --val_masking_strategy says: 'masked' = both adapters see every mutated site masked on its own (the regime
+        # block training and random masks train on, and the one a double's thermodynamic cycle is built from); 'unmasked' = neither adapter masks; 'train' = the run's
+        # own strategies. That regime is the MAIN one (the unprefixed val_* statistics, what --monitor_metric reads). --val_unmasked / --val_masked add a copy of
+        # every statistic in the other regime, prefixed val_unmasked_* / val_masked_*, unless the main regime already is that one.
+        self.val_regimes = validation_regimes(hp, self.mask_wt, self.mask_mt)
+        self.val_mask_strategy = self.val_regimes[0][1]
+        self.val_mask_wt, self.val_mask_mt = self.val_mask_strategy['wt'], self.val_mask_strategy['mt']
+        # the observed-scale RMSE goes through the link only when the link was part of training; otherwise the prediction is read as it is
+        self.link_reporting = link_in_training(hp)
         if self.mask_wt or self.mask_mt:
             logging.info(f"sequence masking: WT pass {self.mask_wt or 'none'}, MT pass {self.mask_mt or 'none'}")
 
@@ -633,8 +644,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         list_size = max(1, int(hp.rank_list_size))
         mb = self._micro_batch(B, list_size, hp.micro_batch_size)
 
-        st_all = batch.get('subset_type', ['single'] * B)
-        is_native_cond_all = torch.as_tensor([t == 'native_cond' for t in st_all], device=device)
         global_num_lists = max(1, B // list_size)
 
         # Regression on the observed scale: observed ddG = h(dG_wt + latent) - dG_wt, with the knee at the item's floor. An item whose
@@ -671,7 +680,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         n_tf_drop = 0
         n_cens_lo = int((cens_all < 0).sum().item())
         n_cens_hi = int((cens_all > 0).sum().item())
-        nc_for_wt, nc_for_mt = bool(hp.native_cond_for_wt), bool(hp.native_cond_for_mt)
         t_single = hp.get('censor_threshold')
         tf_mix = float(hp.tf_mix)
         rank_group_by = str(hp.get('rank_group_by', 'none') or 'none')
@@ -714,21 +722,16 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             cens_reg_mb = cens_reg_all[idx]
             n_mut_mb = micro['mut_mask'].sum(dim=1)
             is_single = n_mut_mb == 1
-            is_native_cond = is_native_cond_all[idx]
             denom = float(B)
 
-            # native_cond routing is independent per head: with --native_cond_for_mt the mutant-background item joins the MT/combined
-            # loss; without it, it is not an MT item at all.
-            reg_mask = torch.ones_like(is_single, dtype=torch.bool) if nc_for_mt else ~is_native_cond
+            # A mutant-background library's measurements are singles to both heads (--exclude_mutbg drops the libraries before they get here), so every item joins
+            # the MT/combined loss.
+            reg_mask = torch.ones_like(is_single, dtype=torch.bool)
 
             # The WT head trains on singles only. Multi-mutants still teacher-force the WT half of the combined prediction below, so the
-            # WT path still SHAPES a double's prediction - it just takes no gradient from one. ... and whether it trains on native_cond
-            # is its own flag (the released default is on, via the 'single' label; with --native_cond_for_mt it is a native_cond item
-            # and this mask decides).
+            # WT path still SHAPES a double's prediction - it just takes no gradient from one.
             wt_targets = ddG_mb
             valid_wt_mask = torch.isfinite(ddG_mb) if wt_sup_dbl else (torch.isfinite(ddG_mb) & is_single)
-            if not nc_for_wt:
-                valid_wt_mask = valid_wt_mask & ~is_native_cond
 
             # Teacher forcing: the measured additive expectation replaces the WT half of the combined latent, so the MT head only has to
             # learn the correction. The label is on the OBSERVED scale and is about to be added to a LATENT prediction, so it is put on
@@ -1271,7 +1274,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             elif t_single is not None:
                 has = has & (c.cens == 0)
         else:
-            lat = tf_single_label(tf_label, link, c.y, c.cens, lab['cens_src'], wt_cal.detach(), c.dG_wt, c.floor)
+            lat = tf_single_label(tf_label, link, c.y, c.cens, lab['cens_src'], wt_cal.detach(), c.dG_wt, c.floor, post=self.tf_post)
             lat = torch.where(n == 0, torch.zeros_like(lat), lat)      # the identity cell: the wild type has no effect to estimate
             has = torch.isfinite(lat) & c.link_ok & c.obs_rank
         f_cal, f_raw = self._block_forced(c, wt_cal, llr_wt, n, lat, has, live=live)
@@ -1424,7 +1427,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 z = link.latent_ddG(y, dG0, fl0).detach()
                 ok = torch.isfinite(z) & ((dG0 + y) > cut) & ~((cens != 0) & (src == censoring.SRC_RANGE))
             else:
-                z = tf_single_label(tf_label, link, y, cens, src, w, dG0, fl0)
+                z = tf_single_label(tf_label, link, y, cens, src, w, dG0, fl0, post=self.tf_post)
                 ok = torch.isfinite(z)
             wild = aa == wt_aa
             return torch.where(wild, torch.zeros_like(z), torch.where(ok, z, w)), ok & ~wild
@@ -1610,35 +1613,6 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         return torch.tensor(0.0, device=self.device)
 
-    def _cycle_gap(self, batch: dict):
-        """
-        The closing error of a double's thermodynamic cycle, ``[B]`` (NaN for a single), on the independent masking of both adapters::
-
-            WT(a, b masked)   WT(b, a masked)   each single's own readout: its site masked, the partner still wild type
-            MT(B | A)         MT(A | B)         the conditional readouts: the site masked, the partner's MUTANT residue visible
-
-        Path 1 = WT(a) + MT(B|A) and path 2 = WT(b) + MT(A|B) are the two ways round ddG(AB) = ddG(A) + ddG(B|A) = ddG(B) + ddG(A|B). Their
-        mean is exactly the reported 0.5 * (WT + MT) of the ``independent`` regime and their difference is what this returns.
-
-        Cheap by construction. Read in eval mode on one library's batch, ``forward_partitioned`` keeps every unique masked sequence's logits
-        in the model's per-library cache: a WT pass masks one site of the wild-type sequence, so a library of N sites needs N forwards for
-        every single and double in it, and an MT pass masks one site of a mutant sequence, so the doubles of a position pair share their
-        (mutation, partner site) sequences. The passes validation already ran on this batch under ``--val_masking independent`` cost a lookup.
-        """
-        wt = self.model.forward_partitioned(batch, pass_type='wt', mask_strategy='independent')
-        mt = self.model.forward_partitioned(batch, pass_type='mt', mask_strategy='independent')
-        gap = torch.full_like(wt['pred_calibrated'].float(), float('nan'))
-        m = batch['mut_mask']
-        dbl = m.sum(dim=1) == 2
-        if m.shape[1] >= 2 and self.model.adapter_mode != 'fused' and bool(dbl.any()):
-            one = torch.ones(gap.shape[0], dtype=torch.long, device=gap.device)
-            site = lambda out, head, j: out['unsummed_llr'][:, j].float() if head is None else head(out['unsummed_llr'][:, j].float(), one)
-            hw, hm = getattr(self.model, 'calibration_head_wt', None), getattr(self.model, 'calibration_head_mt', None)
-            path1 = site(wt, hw, 0) + site(mt, hm, 1)
-            path2 = site(wt, hw, 1) + site(mt, hm, 0)
-            gap = torch.where(dbl & m[:, 0] & m[:, 1], path1 - path2, gap)
-        return gap.detach().cpu().float().numpy()
-
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         if getattr(self, '_val_cache_dl_idx', None) != dataloader_idx:
             self._val_cache_dl_idx = dataloader_idx
@@ -1678,11 +1652,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         nan_col = lambda: np.full(B, np.nan, dtype=np.float32)
         get = lambda k: batch[k].detach().cpu().float().numpy() if torch.is_tensor(batch.get(k)) else nan_col()
 
-        # The epistasis metrics need the LATENT scores and apply the link themselves. The observed scale is carried
-        # separately, for the rmse metrics only, so they stay comparable with a run that has no link.
+        # The epistasis metrics read the LATENT scores. The observed scale is carried separately, for the rmse metrics only, and only for a run whose training used
+        # the link (link_in_training): any other run's prediction is read as it is.
         def observed_scale(out):
             res = {}
-            if torch.is_tensor(batch.get('dG_wt')):
+            if self.link_reporting and torch.is_tensor(batch.get('dG_wt')):
                 dgw, foff = batch['dG_wt'].float(), batch['y_floor'].float()
                 ok = torch.isfinite(dgw)
                 z = torch.where(ok, dgw, torch.zeros_like(dgw))
@@ -1720,17 +1694,24 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         }
         if obs:
             rec['obs'] = obs
-        if self.hparams.get('val_unmasked', False) and not (mt_direct or wt_only):
-            # --val_unmasked: the same items read with NEITHER adapter masked (the plain wild type for WT, the full mutant sequence for MT)
-            with torch.inference_mode():
-                un = self.model.forward_batch(batch, mask_strategy={'wt': None, 'mt': None})
-            rec.update(wtU_scores=un['wt_lora_pred'].detach().cpu().float().numpy(), mtU_scores=un['mt_lora_pred'].detach().cpu().float().numpy(),
-                       combU_scores=un['combined_pred'].detach().cpu().float().numpy())
-            if obs:
-                rec['obsU'] = observed_scale(un)
-        if self.val_independent and not (mt_direct or wt_only):
-            with torch.inference_mode():
-                rec['gap_scores'] = self._cycle_gap(batch)
+        if len(self.val_regimes) > 1 and not (mt_direct or wt_only):
+            # --val_unmasked / --val_masked: the same items read in the other regime, scored beside the main one under a prefix
+            rec['regimes'] = {}
+            for prefix, strategy in self.val_regimes[1:]:
+                with torch.inference_mode():
+                    r = self.model.forward_batch(batch, mask_strategy=strategy)
+                e = {'wt_scores': r['wt_lora_pred'].detach().cpu().float().numpy(), 'mt_scores': r['mt_lora_pred'].detach().cpu().float().numpy(),
+                     'comb_scores': r['combined_pred'].detach().cpu().float().numpy()}
+                ex_obs = observed_scale(r)
+                if ex_obs:
+                    e['obs'] = ex_obs
+                if self.hparams.val_cycle_passes:
+                    with torch.inference_mode():
+                        c = self.model.forward_cycle(batch, mask_strategy=strategy, include_mt=True)
+                    e['wt_rev_scores'] = c['wt_rev'].detach().cpu().float().numpy()
+                    if 'mt_fwd' in c:
+                        e['mt_fwd_scores'] = c['mt_fwd'].detach().cpu().float().numpy()
+                rec['regimes'][prefix] = e
         self.validation_step_outputs[dataloader_idx].append(rec)
 
     def on_validation_epoch_start(self):
@@ -1761,195 +1742,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         avg_metrics = defaultdict(list)
-        cat_metrics = {'natural_wt': defaultdict(list), 'designed': defaultdict(list), 'mutant_bg': defaultdict(list)}
-        nat_alive_rhos = []
-        nat_single_records = []
-        avgU = defaultdict(list)              # --val_unmasked: logged as val_unmasked_<metric>_avg
-        pooled = defaultdict(list)
-        ext_per_loader = {}          # OOD loaders: kept out of avg_metrics/pooled, survived by _external summaries
-
-        for dataloader_idx, valid_outputs in self.validation_step_outputs.items():
-            name = (self.val_dataloader_names[dataloader_idx] if dataloader_idx < len(self.val_dataloader_names)
-                    else f"unknown_dl_{dataloader_idx}")
-
-            cat = lambda key: (np.concatenate([np.atleast_1d(np.asarray(o[key])) for o in valid_outputs])
-                               if valid_outputs else np.array([]))
-            wt, mt, comb = cat('wt_scores'), cat('mt_scores'), cat('comb_scores')
-            gt, cens, dddG = cat('ground_truths'), cat('cens'), cat('dddG_truths')
-            cens_src = cat('cens_src')
-            # Score every run on the released labelling, where a mutant-background library's measurements are
-            # singles. --native_cond_for_wt / --native_cond_for_mt relabel them 'native_cond' to decide which head
-            # trains on them and what the MT pass sees, and that routing must not move the yardstick: with the label
-            # left in place rho_singles_wt drops the five mutant-background validation libraries (the frozen gold
-            # head reads 0.8536 on the other 20 against 0.8510 on all 25). The dump and the epistasis pool get the
-            # same canonical label.
-            subset_types = ['single' if t == 'native_cond' else t for o in valid_outputs for t in o['subset_types']]
-            obs = None
-            if valid_outputs and 'obs' in valid_outputs[0]:
-                obs = {k: np.concatenate([o['obs'][k] for o in valid_outputs]) for k in valid_outputs[0]['obs']}
-
-            if not len(gt):
-                continue
-
-            # Score the CANONICAL population: every item the assay actually fitted, censored or not. Floor- and
-            # gap-censored items are scored like any other, because censoring belongs in the loss and excluding
-            # them makes the numbers incomparable to a run that censors nothing. The rows the assay only bounded
-            # (--censor_range) are held back instead: their label IS their bound and is a library constant, so
-            # scoring them would compare predictions against a flat line. They are still dumped in full below.
-            canon = cens_src != censoring.SRC_RANGE
-            sub = lambda a: np.asarray(a)[canon]
-            metrics = stats.compute_metrics(
-                sub(wt), sub(mt), sub(comb), sub(gt), [t for t, k in zip(subset_types, canon) if k],
-                obs=None if obs is None else {k: sub(v) for k, v in obs.items()})
-            is_external = name in self.external_val_sets
-            lib_cat = None if is_external else classify_megascale_library(name)
-            for metric, val in metrics.items():
-                if val is not None and np.isfinite(val):
-                    self.log(f"val_{metric}/{name}", float(val), on_epoch=True, sync_dist=True)
-                    if not is_external:
-                        avg_metrics[metric].append(float(val))
-                        cat_metrics[lib_cat][metric].append(float(val))
-            if valid_outputs and 'combU_scores' in valid_outputs[0]:       # --val_unmasked: the same library with neither adapter masked
-                obsU = ({k: np.concatenate([o['obsU'][k] for o in valid_outputs]) for k in valid_outputs[0]['obsU']}
-                        if 'obsU' in valid_outputs[0] else None)
-                mu = stats.compute_metrics(sub(cat('wtU_scores')), sub(cat('mtU_scores')), sub(cat('combU_scores')), sub(gt),
-                                           [t for t, k in zip(subset_types, canon) if k],
-                                           obs=None if obsU is None else {k: sub(v) for k, v in obsU.items()})
-                for metric, val in mu.items():
-                    if val is not None and np.isfinite(val):
-                        self.log(f"val_unmasked_{metric}/{name}", float(val), on_epoch=True, sync_dist=True)
-                        if not is_external:
-                            avgU[metric].append(float(val))
-            if valid_outputs and 'gap_scores' in valid_outputs[0]:         # --val_masking independent: the closing error of the double's cycle
-                g = np.abs(sub(cat('gap_scores')))
-                if np.isfinite(g).any():
-                    self.log(f"val_cycle_gap/{name}", float(np.nanmean(g)), on_epoch=True, sync_dist=True)
-                    if not is_external:
-                        avg_metrics['cycle_gap'].append(float(np.nanmean(g)))
-            if is_external:
-                # OOD benchmark: scored and logged above, but out of every aggregate - avg_metrics, the pooled global
-                # ranking and the epistasis hierarchy - and dropped before the pooling below. Only its own rho/rmse
-                # summary survives (summarise_external_benchmarks).
-                ext_per_loader[name] = {k: metrics[k] for k in EXTERNAL_SUMMARY_METRICS if k in metrics}
-                continue
-
-            dg_wt_arr = cat('dG_wt')
-            muts_flat = [m for o in valid_outputs for m in o['mutations']]
-            if lib_cat == 'natural_wt':
-                is_sng_arr = np.asarray([t == 'single' for t in subset_types], dtype=bool)
-                alive_m = canon & is_sng_arr & np.isfinite(gt) & np.isfinite(wt) & np.isfinite(dg_wt_arr) & ((dg_wt_arr + gt) > 1.0)
-                if alive_m.sum() >= 5:
-                    r_alive = stats.safe_spearman(wt[alive_m], gt[alive_m])
-                    if np.isfinite(r_alive):
-                        nat_alive_rhos.append(float(r_alive))
-                deb_idx = np.flatnonzero(canon & is_sng_arr & np.isfinite(gt) & np.isfinite(wt))
-                if len(deb_idx) >= 5 and len(muts_flat) == len(gt):
-                    w_sub, g_sub, aa_pairs = [], [], []
-                    for ii in deb_idx:
-                        ap = _parse_single_aa_pair(muts_flat[ii])
-                        if ap is not None:
-                            w_sub.append(float(wt[ii])); g_sub.append(float(gt[ii])); aa_pairs.append(ap)
-                    if len(w_sub) >= 5:
-                        nat_single_records.append((name, w_sub, g_sub, aa_pairs))
-
-            # Pool for the global ranking and for the epistasis hierarchy, which needs every library at once.
-            keys = [k for o in valid_outputs for k in self._mut_keys(o['pdb'], o['mutations'])]
-            pooled['mut_key'].extend(keys)
-            pooled['subset_type'].extend(subset_types)
-            pooled['loader'].extend([name] * len(keys))
-            pooled['n_mut'].extend([len(k) if k else 0 for k in keys])
-            for field, arr in (('wt_scores', wt), ('mt_scores', mt), ('comb_scores', comb),
-                               ('ground_truths', gt), ('dddG', dddG), ('cens', cens), ('cens_src', cens_src),
-                               ('dG_wt', dg_wt_arr), ('y_floor', cat('y_floor'))):
-                pooled[field].extend(np.asarray(arr).tolist())
-            if valid_outputs and 'combU_scores' in valid_outputs[0]:
-                for field in ('wtU_scores', 'mtU_scores', 'combU_scores'):
-                    pooled[field].extend(cat(field).tolist())
-            for field in ('wt_rev_scores', 'mt_fwd_scores'):
-                have = valid_outputs and field in valid_outputs[0]
-                pooled[field].extend(cat(field).tolist() if have else [float('nan')] * len(keys))
-
-        for key, values in avg_metrics.items():
-            if values:
-                self.log(f'val_{key}_avg', float(np.nanmean(values)), on_epoch=True,
-                         prog_bar=key in self._VAL_PROGRESS_BAR, sync_dist=True)
-
-        for key, values in avgU.items():
-            if values:
-                self.log(f'val_unmasked_{key}_avg', float(np.nanmean(values)), on_epoch=True, sync_dist=True)
-
-        # Flagged new validation splits: natural WT vs de novo designed vs mutant-background MegaScale libraries.
-        nat_sng_wt = float(np.nanmean(cat_metrics['natural_wt']['rho_singles_wt'])) if cat_metrics['natural_wt']['rho_singles_wt'] else float('nan')
-        des_sng_wt = float(np.nanmean(cat_metrics['designed']['rho_singles_wt'])) if cat_metrics['designed']['rho_singles_wt'] else float('nan')
-        for prefix, cat_key in (('nat', 'natural_wt'), ('des', 'designed'), ('mutbg', 'mutant_bg')):
-            for m_key in ('rho_singles_wt', 'rho_combined'):
-                vals = cat_metrics[cat_key].get(m_key, [])
-                if vals:
-                    v_mean = float(np.nanmean(vals))
-                    if np.isfinite(v_mean):
-                        self.log(f'val_{prefix}_{m_key}_avg', v_mean, on_epoch=True, sync_dist=True)
-                        avg_metrics[f'{prefix}_{m_key}'].append(v_mean)
-        if np.isfinite(nat_sng_wt) and np.isfinite(des_sng_wt):
-            self.log('val_diag_des_minus_nat', float(des_sng_wt - nat_sng_wt), on_epoch=True, sync_dist=True)
-        if nat_alive_rhos:
-            v_alive = float(np.mean(nat_alive_rhos))
-            self.log('val_nat_alive_rho_singles_wt_avg', v_alive, on_epoch=True, sync_dist=True)
-            avg_metrics['nat_alive_rho_singles_wt'].append(v_alive)
-        if nat_single_records:
-            v_deb = compute_nat_debiased_rho(nat_single_records)
-            if np.isfinite(v_deb):
-                self.log('val_nat_debiased_rho_singles_wt_avg', float(v_deb), on_epoch=True, sync_dist=True)
-                avg_metrics['nat_debiased_rho_singles_wt'].append(float(v_deb))
-
-        # Epoch-level LoRA adapter weight-norm budget tracking.
-        mdl = getattr(self, 'model', None)
-        if mdl is not None and hasattr(mdl, 'named_parameters'):
-            wt_tag = getattr(mdl, 'wt_adapter_name', 'wt_adapter').lower()
-            mt_tag = getattr(mdl, 'mt_adapter_name', 'mt_adapter').lower()
-            wt_np, mt_np = [], []
-            for n_p, p_t in mdl.named_parameters():
-                ln_p = n_p.lower()
-                if 'lora_' not in ln_p:
-                    continue
-                if mt_tag in ln_p and getattr(mdl, 'adapter_mode', 'dual') == 'dual':
-                    mt_np.append((n_p, p_t))
-                elif wt_tag in ln_p or 'default' in ln_p:
-                    wt_np.append((n_p, p_t))
-            if wt_np:
-                self.log('val_diag_norm_lora_wt', float(utils.l2_weight_norm(wt_np)), on_epoch=True, sync_dist=True)
-            if mt_np:
-                self.log('val_diag_norm_lora_mt', float(utils.l2_weight_norm(mt_np)), on_epoch=True, sync_dist=True)
-
-        # OOD benchmarks, as their own section: mean rho/rmse over the external loaders, never inside an aggregate.
-        for _k, _v in summarise_external_benchmarks(ext_per_loader, self.external_val_sets).items():
-            self.log(_k, _v, on_epoch=True, sync_dist=True)
-
-        # Pooled across every library at once: one global ranking, which punishes a model whose per-library scales
-        # disagree even when each library's own ordering is fine.
-        if pooled['ground_truths']:
-            g_wt = np.array(pooled['wt_scores']); g_comb = np.array(pooled['comb_scores'])
-            g_gt = np.array(pooled['ground_truths']); g_src = np.array(pooled['cens_src'])
-            ok = np.isfinite(g_gt) & (g_src != censoring.SRC_RANGE)
-            if ok.any():
-                self.log("val_rho_ungrouped_wt", stats.safe_spearman(g_wt[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
-                self.log("val_rho_ungrouped_combined", stats.safe_spearman(g_comb[ok], g_gt[ok]), on_epoch=True, sync_dist=True)
-            # The epistasis scalars are pooled over every library at once, so they are not per-library values and
-            # never entered avg_metrics. Merge them in as single-element lists AFTER the val_<key>_avg logging loop
-            # above - so nothing is logged twice - and the plateau steps can then read any metric by name.
-            if not bool(getattr(self.hparams, 'mt_direct_pred', False)):
-                for _k, _v in (self._log_epistasis(pooled) or {}).items():
-                    if np.isfinite(_v):
-                        avg_metrics[_k].append(float(_v))
-                if pooled.get('combU_scores') and len(pooled['combU_scores']) == len(pooled['ground_truths']):
-                    # the same epistasis hierarchy on the unmasked regime, as val_unmasked_epi_*; the composite and the clean diagnostics stay on the default one
-                    for _k, _v in (self._log_epistasis(dict(pooled, wt_scores=pooled['wtU_scores'], mt_scores=pooled['mtU_scores'],
-                                                            comb_scores=pooled['combU_scores']), prefix='unmasked_', dump=False) or {}).items():
-                        if np.isfinite(_v):
-                            avg_metrics['unmasked_' + _k].append(float(_v))
-
-        for k, v in self.link_head.summary().items():
-            if not isinstance(v, (str, bytes)):
-                self.log(f"link/{k}", v, on_epoch=True, sync_dist=True)
+        for prefix, _ in self.val_regimes:
+            self._score_regime(prefix, avg_metrics)
 
         if not self.trainer.sanity_checking:
             lr_schedule = str(self.hparams.get('lr_schedule', 'plateau') or 'plateau')
@@ -1962,6 +1756,109 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.validation_step_outputs.clear()
         torch.cuda.empty_cache()
         gc.collect()
+
+    def _score_regime(self, prefix: str, avg_metrics: dict) -> None:
+        """
+        Scores and logs one validation regime: the main one (``prefix`` '') or the copy ``--val_unmasked`` / ``--val_masked`` adds ('unmasked_' / 'masked_'). What is logged is
+        decided in ``esm_msr.val_stats``: five per-library ddG metrics, their means and the group means, the external summary and the pooled epistasis. ``avg_metrics`` collects every
+        value under ``prefix + name``, logged or not, so the plateaus can read any of them by name.
+        """
+        groups = {g: [] for g in val_stats.GROUPS}
+        pooled = defaultdict(list)
+        ext_per_loader = {}          # OOD loaders: kept out of avg_metrics/pooled, survived by the _external summaries
+        extra_prefixes = [p for p, _ in self.val_regimes[1:]]
+
+        for dataloader_idx, valid_outputs in self.validation_step_outputs.items():
+            name = (self.val_dataloader_names[dataloader_idx] if dataloader_idx < len(self.val_dataloader_names)
+                    else f"unknown_dl_{dataloader_idx}")
+            if prefix:
+                if not all(prefix in o.get('regimes', {}) for o in valid_outputs):
+                    continue
+                valid_outputs = [{**o, **o['regimes'][prefix]} for o in valid_outputs]
+
+            cat = lambda key: (np.concatenate([np.atleast_1d(np.asarray(o[key])) for o in valid_outputs])
+                               if valid_outputs else np.array([]))
+            wt, mt, comb = cat('wt_scores'), cat('mt_scores'), cat('comb_scores')
+            gt, cens, dddG = cat('ground_truths'), cat('cens'), cat('dddG_truths')
+            cens_src = cat('cens_src')
+            # Score every run on the released labelling: a mutant-background library's measurements are singles to both heads. A cache that still carries the 'native_cond'
+            # label (a run that predates --exclude_mutbg) is read as singles too, so the yardstick never depends on how a run routed them.
+            subset_types = ['single' if t == 'native_cond' else t for o in valid_outputs for t in o['subset_types']]
+            obs = None
+            if valid_outputs and 'obs' in valid_outputs[0]:
+                obs = {k: np.concatenate([o['obs'][k] for o in valid_outputs]) for k in valid_outputs[0]['obs']}
+
+            if not len(gt):
+                continue
+
+            # Score the CANONICAL population: every item the assay actually fitted, censored or not. Floor-censored items are scored like any other, because censoring belongs
+            # in the loss and excluding them makes the numbers incomparable to a run that censors nothing. The rows the assay only bounded (--censor_range) are held back
+            # instead: their label IS their bound and is a library constant, so scoring them would compare predictions against a flat line. They are still dumped in full.
+            canon = cens_src != censoring.SRC_RANGE
+            sub = lambda a: np.asarray(a)[canon]
+            metrics = stats.compute_metrics(
+                sub(wt), sub(mt), sub(comb), sub(gt), [t for t, k in zip(subset_types, canon) if k],
+                obs=None if obs is None else {k: sub(v) for k, v in obs.items()})
+            is_external = name in self.external_val_sets
+            for metric, val in metrics.items():
+                if val is None or not np.isfinite(val):
+                    continue
+                if metric in val_stats.PER_LIBRARY_LOGGED:
+                    self.log(f"val_{prefix}{metric}/{name}", float(val), on_epoch=True, sync_dist=True)
+                if not is_external:
+                    avg_metrics[prefix + metric].append(float(val))
+            if is_external:
+                # OOD benchmark: scored and logged above, but out of every aggregate - avg_metrics, the groups, the pooled epistasis - and dropped before the pooling below.
+                # Only its own summary survives (val_stats.summarise_external).
+                ext_per_loader[name] = {k: metrics[k] for k in val_stats.EXTERNAL_LOGGED if k in metrics}
+                continue
+            if np.isfinite(metrics.get('rho_combined', np.nan)):
+                groups[val_stats.library_group(name)].append(float(metrics['rho_combined']))
+
+            # Pool for the epistasis hierarchy, which needs every library at once.
+            keys = [k for o in valid_outputs for k in self._mut_keys(o['pdb'], o['mutations'])]
+            pooled['mut_key'].extend(keys)
+            pooled['subset_type'].extend(subset_types)
+            pooled['loader'].extend([name] * len(keys))
+            pooled['n_mut'].extend([len(k) if k else 0 for k in keys])
+            for field, arr in (('wt_scores', wt), ('mt_scores', mt), ('comb_scores', comb),
+                               ('ground_truths', gt), ('dddG', dddG), ('cens', cens), ('cens_src', cens_src),
+                               ('dG_wt', cat('dG_wt')), ('y_floor', cat('y_floor'))):
+                pooled[field].extend(np.asarray(arr).tolist())
+            for field in ('wt_rev_scores', 'mt_fwd_scores'):
+                have = valid_outputs and field in valid_outputs[0]
+                pooled[field].extend(cat(field).tolist() if have else [float('nan')] * len(keys))
+            if not prefix:       # the dump carries the other regimes' scores too, so any of them can be rescored offline
+                for p in extra_prefixes:
+                    if valid_outputs and all(p in o.get('regimes', {}) for o in self.validation_step_outputs[dataloader_idx]):
+                        for field in ('wt_scores', 'mt_scores', 'comb_scores'):
+                            pooled[f'{field}@{p}'].extend(np.concatenate([np.atleast_1d(np.asarray(o['regimes'][p][field]))
+                                                                          for o in self.validation_step_outputs[dataloader_idx]]).tolist())
+
+        for key in val_stats.AVG_LOGGED:
+            values = avg_metrics.get(prefix + key)
+            if values:
+                self.log(f'val_{prefix}{key}_avg', float(np.nanmean(values)), on_epoch=True,
+                         prog_bar=(not prefix) and key in self._VAL_PROGRESS_BAR, sync_dist=True)
+
+        # natural WT vs de novo designed vs mutant-background MegaScale libraries: the mean of rho_combined over each group
+        for g, vals in groups.items():
+            if vals:
+                v_mean = float(np.nanmean(vals))
+                if np.isfinite(v_mean):
+                    self.log(f'val_{prefix}{g}_rho_combined_avg', v_mean, on_epoch=True, sync_dist=True)
+                    avg_metrics[f'{prefix}{g}_rho_combined'].append(v_mean)
+
+        # OOD benchmarks, as their own section: mean over the external loaders, never inside an aggregate.
+        for _k, _v in summarise_external_benchmarks(ext_per_loader, self.external_val_sets, prefix).items():
+            self.log(_k, _v, on_epoch=True, sync_dist=True)
+
+        # The epistasis scalars are pooled over every library at once, so they are not per-library values and never entered avg_metrics. Merge them in as single-element
+        # lists AFTER the val_<key>_avg logging above - so nothing is logged twice - and the plateau steps can then read any metric by name.
+        if pooled['ground_truths'] and not bool(getattr(self.hparams, 'mt_direct_pred', False)):
+            for _k, _v in (self._log_epistasis(pooled, prefix=prefix, dump=not prefix) or {}).items():
+                if np.isfinite(_v):
+                    avg_metrics[prefix + _k].append(float(_v))
 
     def _log_epistasis(self, pooled, prefix: str = '', dump: bool = True):
         """
@@ -1995,7 +1892,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if dump and self.hparams.val_dump and log_dir:
                 tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
                 os.makedirs(log_dir, exist_ok=True)
-                extra = {'link_summary': np.array(json.dumps(self.link_head.summary()))}
+                extra = {'link_summary': np.array(json.dumps(self.link_head.summary()))} if self.link_reporting else {}
+                for p in [p for p, _ in self.val_regimes[1:]]:
+                    if len(pooled.get(f'comb_scores@{p}', [])) == len(keys):
+                        extra.update({f'{h}_{p.rstrip("_")}': f(f'{h}_scores@{p}') for h in ('wt', 'mt', 'comb')})
                 np.savez_compressed(
                     os.path.join(log_dir, f'val_dump_{tag}.npz'),
                     wt=items['wt'], mt=items['mt'], comb=items['comb'], wt_rev=items['wt_rev'],
@@ -2004,8 +1904,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                     cens_src=items['cens_src'],
                     n_mut=np.asarray(pooled['n_mut']), subset_type=np.asarray(items['subset_type'], dtype=str),
                     loader=np.asarray(pooled['loader']),
-                    mut_key=np.asarray([json.dumps(k) for k in keys]), **extra,
-                    **({'wt_unmasked': f('wtU_scores'), 'mt_unmasked': f('mtU_scores'), 'comb_unmasked': f('combU_scores')} if pooled.get('combU_scores') else {}))
+                    mut_key=np.asarray([json.dumps(k) for k in keys]), **extra)
 
             # The dump above carries every mutant, so any of this can be rescored offline. The metrics are
             # computed on the canonical population only - the same one the per-library metrics use - so that a
@@ -2021,7 +1920,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             diag = epi_metrics.compute_clean_diagnostics(tbl)
             for name, val in epi_log_names(res, diag, prefix).items():
                 self.log(name, val, on_epoch=True, sync_dist=True,
-                         prog_bar=name in (f'val_{prefix}epi_cell_rank_comb', f'val_{prefix}diag_epi_cell_rank_mt_legacy'))
+                         prog_bar=name == f'val_{prefix}epi_cell_rank_comb')
             cr = res.get('epi_cell_rank_comb', res.get('epi_cell_rank_epi', float('nan')))
             bl = res.get('epi_beyond_lib_comb', res.get('epi_beyond_lib_epi', float('nan')))
             if np.isfinite(cr) and np.isfinite(bl):

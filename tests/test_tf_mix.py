@@ -153,24 +153,16 @@ def test_singles_are_mixed_like_doubles():
     assert _combined_loss(_stub(tf_mix=0.0), _batch(doubles=False)) == pytest.approx(4.0, abs=1e-6)
 
 
-def test_native_cond_is_an_mt_item_even_under_doubles_only():
-    """routing.py puts native_cond on the MT head: excluded from the WT loss, included in the combined loss even
-    under --mt_reg_mask doubles (which keys on the mutation count and would call it a single)."""
+def test_a_mutant_background_single_trains_both_heads_like_any_single():
+    """A mutant-background library's measurements are ordinary singles to both heads (--exclude_mutbg is the only switch, and it acts on the libraries before they get here): a
+    single trains the WT head and joins the combined loss."""
     batch = _batch(doubles=False)
-    batch['subset_type'] = ['native_cond'] * 6
+    batch['subset_type'] = ['single'] * 6
     stub = _stub()
     stub.hparams['lambda_reg_wt'] = 1.0
-    stub.hparams['mt_reg_mask'] = 'doubles'
-    stub.hparams['native_cond_for_mt'] = True
-    stub.hparams['native_cond_for_wt'] = False
     logs = M._compose_losses_streaming_and_backward(stub, batch)
-    assert float(logs.get('L_reg_wt', 0.0)) == 0.0                     # no WT gradient from a conditional item
-    assert float(logs['L_reg_combined']) == pytest.approx(0.25, abs=1e-6)   # the MT head still sees it
-    # positive control: the same harness on an ordinary single DOES compute a WT loss
-    single = dict(batch)
-    single['subset_type'] = ['single'] * 6
-    logs_s = M._compose_losses_streaming_and_backward(stub, single)
-    assert float(logs_s.get('L_reg_wt', 0.0)) > 0.0
+    assert float(logs.get('L_reg_wt', 0.0)) > 0.0
+    assert float(logs['L_reg_combined']) > 0.0
 
 
 def test_items_without_a_usable_label_fall_back_to_the_wt_head_for_any_mix():

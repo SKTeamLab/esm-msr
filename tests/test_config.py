@@ -148,7 +148,9 @@ def test_the_number_of_flags_is_small():
     # + 2026-11-02: --joint_doubles, --tf_detach_wt, --val_masking, --val_unmasked and the --block_* family (training by blocks: --block_training / _positions / _identity /
     # _row_chunk / _list_rows / _rank_norm / _mask_wt / _mask_mt). --mask_prob, --mask_dist_wt/_mt and --group_by_site were removed again the same night.
     # + 2026-11-04: --block_domain_steps, --block_pair_weight, --grad_clip_per_head, --val_every_epochs.
-    assert len(keys) <= 108, sorted(keys)   # + --lambda_cycle, --cycle_detach_wt (2026-11-02 night), --grad_accum_blocks, --tf_label, --tf_no_label (2026-11-03)
+    # + 2026-11-04 (validation): --val_masking_strategy (was --val_masking), --val_masked, --exclude_mutbg (replaces --native_cond_for_wt / _for_mt / --mask_native_cond_struct),
+    # --tf_prior_sd, --tobit_sigma_y / _mu_f / _sigma_f: 108 -> 110.
+    assert len(keys) <= 110, sorted(keys)   # + --lambda_cycle, --cycle_detach_wt (2026-11-02 night), --grad_accum_blocks, --tf_label, --tf_no_label (2026-11-03)
 
 
 # ---------------------------------------------------------------------------------------------------------------- yaml

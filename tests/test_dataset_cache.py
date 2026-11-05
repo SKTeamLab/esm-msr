@@ -96,7 +96,7 @@ def test_the_sampler_drops_a_remainder_smaller_than_a_batch(tmp_path):
 
 def _args(tmp_path, **kw):
     a = dict(cache_path=str(tmp_path), cache_version='c6', batch_size=4, num_workers=0, subsets=['single', 'double'],
-             native_cond_for_wt=True, native_cond_for_mt=False, censor_range=False, link_floor=0.0, censor_threshold=0.5, seed=1)
+             exclude_mutbg=False, censor_range=False, link_floor=0.0, censor_threshold=0.5, seed=1)
     a.update(kw)
     return argparse.Namespace(**a)
 
@@ -115,13 +115,22 @@ def test_setup_builds_loaders_in_manifest_order_and_skips_empty_libraries(tmp_pa
     assert [len(d) for d in train[0].dataset.datasets] == [8, 8]    # 1BBB then 1AAA; 1DDD was empty and skipped
 
 
-def test_native_cond_for_mt_adds_the_subset_to_training_only(tmp_path):
+def test_a_mutant_background_library_is_trained_on_as_ordinary_singles(tmp_path):
     _write(tmp_path, '1A0N_L7S', [_item('1A0N_L7S', 'single') for _ in range(8)])
     _library(tmp_path, '1AAA')
     write_manifest(str(tmp_path), 'c6', {'train': ['1A0N_L7S', '1AAA'], 'val': ['1A0N_L7S']}, [], 'splits.pkl')
-    train, val, *_ = setup_dataloaders(_args(tmp_path, native_cond_for_mt=True))
-    assert sorted({i['subset_type'] for d in train[0].dataset.datasets for i in d}) == ['native_cond', 'single']
-    assert len(val[0].dataset) == 8                                  # validation keeps native_cond (scored as singles)
+    train, val, _, tn, vn, _ = setup_dataloaders(_args(tmp_path))
+    assert sorted({i['subset_type'] for d in train[0].dataset.datasets for i in d}) == ['single']          # no 'native_cond' label: both heads see singles
+    assert [len(d) for d in train[0].dataset.datasets] == [8, 8] and vn == ['1A0N_L7S'] and len(val[0].dataset) == 8
+
+
+def test_exclude_mutbg_leaves_the_mutant_background_libraries_out_of_training_only(tmp_path):
+    _write(tmp_path, '1A0N_L7S', [_item('1A0N_L7S', 'single') for _ in range(8)])
+    _library(tmp_path, '1AAA')
+    write_manifest(str(tmp_path), 'c6', {'train': ['1A0N_L7S', '1AAA'], 'val': ['1A0N_L7S']}, [], 'splits.pkl')
+    train, val, _, tn, vn, _ = setup_dataloaders(_args(tmp_path, exclude_mutbg=True))
+    assert [len(d) for d in train[0].dataset.datasets] == [8]                                              # only 1AAA
+    assert vn == ['1A0N_L7S'] and len(val[0].dataset) == 8                                                 # validation still scores the mutant-background library
 
 
 def test_a_split_file_that_is_not_the_manifests_is_refused(tmp_path):
