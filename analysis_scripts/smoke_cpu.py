@@ -28,10 +28,11 @@ MODES = {
     'fused': ['--adapter_mode', 'fused'],
     'mask_mt_independent': ['--frozen_wt_mt_only', '--mask_strategy_mt', 'independent'],
     'mask_wt_marginal_mt_independent': ['--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent'],
-    'exclude_mutbg': ['--frozen_wt_mt_only', '--exclude_mutbg'],
+    'exclude_mutbg': ['--exclude_mutbg', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     # the extra validation regimes: a copy of every statistic under val_unmasked_* / val_masked_*, ctx included (the cycle passes are on by default)
-    'val_unmasked_copy': ['--val_unmasked'],
-    'val_masked_copy': ['--val_masking_strategy', 'unmasked', '--val_masked'],
+    # the one truncated validation library is too small for the epistasis metrics, so these watch rho_combined
+    'val_unmasked_copy': ['--val_unmasked', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
+    'val_masked_copy': ['--val_masking_strategy', 'unmasked', '--val_masked', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
     'huber': ['--frozen_wt_mt_only', '--huber_delta', '1.0'],
     # the one truncated validation library is too small for the epistasis metrics, so these watch rho_combined
     'joint_both': ['--joint_doubles', 'both', '--monitor_metric', 'val_rho_combined_avg', '--mt_convergence_metric', 'rho_combined'],
