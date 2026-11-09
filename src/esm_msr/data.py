@@ -2,6 +2,7 @@ import os
 import pickle
 import random
 import re
+import sys
 import logging
 from collections import Counter, defaultdict
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
@@ -9,6 +10,10 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
+
+if not hasattr(np, '_core'):  # allow NumPy 1.x environments to unpickle caches built under NumPy 2.x
+    for _sub in ('', '.numeric', '.multiarray', '.umath', '._multiarray_umath'):
+        sys.modules.setdefault(f'numpy._core{_sub}', getattr(np.core, _sub[1:]) if _sub else np.core)
 
 from esm.utils.constants import esm3 as C
 
