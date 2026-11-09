@@ -4,12 +4,11 @@ import random
 import re
 import logging
 from collections import Counter, defaultdict
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union, Iterator
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Sampler, ConcatDataset
 
 from esm.utils.constants import esm3 as C
 
@@ -66,9 +65,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
 
     * ``native_cond`` is assigned by :meth:`_label_native_cond` for libraries whose code carries a mutation suffix, i.e. whose
       measurements were all made in a mutant background. See ``esm_msr.routing`` for what each subset means and which head owns it.
-    * every item gets ``y_floor`` (``--y_floor``, the assay floor), so a dump written by this code is read by the same
-      ``epi_metrics`` as an old one.
-    * ``--censor_threshold`` censors the items measured at or below it (``esm_msr.censoring``).
+    * ``--rank_censor_threshold`` censors the items measured at or below it (``esm_msr.censoring``).
 
     Every item carries the raw measurement row it came from (``meas``, see ``MEAS_COLUMNS``), the absolute dG that measurement describes
     (``dG_meas``) and its library's starting dG (``dG_wt``), which together let the loss write a prediction on the assay's absolute dG
@@ -93,7 +90,6 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         label_native_cond: bool = False,
         censor_range: bool = True,
         cache_version: Optional[str] = None,
-        y_floor: float = 0.0,
         censor_threshold: Optional[float] = None,
     ):
         """
@@ -109,14 +105,12 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
                 singles either way.
             censor_range: Keep the rows the assay bounded rather than fitted (``<-1`` / ``>5``), which the cache always stores. False
                 drops them, restoring the selected-on-outcome population; see ``esm_msr.censoring``.
-            y_floor: The assay floor, stamped on every item as ``y_floor``.
             censor_threshold: Items measured at or below this dG become lower-censored, bounded by it. None censors nothing here.
         """
         self.score_name = score_name
         self.cache_version = cache_version or self.CACHE_VERSION
         self.dms_name = dms_name
         self.include = set(subsets)
-        self.y_floor = float(y_floor)
         self.censor_threshold = censor_threshold
         self.cache_path = os.path.join(path, f"{self.dms_name}_{self.score_name}_{self.cache_version}.pkl")
         if not os.path.exists(self.cache_path):
@@ -135,7 +129,6 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         if label_native_cond:
             self._label_native_cond()
         self._filter_dataset()
-        self._stamp_floor()
         self._apply_censoring()
         self._extract_scalars()
 
@@ -177,11 +170,6 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         before = len(self.data)
         self.data = [item for item in self.data if item.get('subset_type') in self.include]
         logging.info(f"Filtered dataset from {before} to {len(self.data)} items based on allowed types: {sorted(self.include)}")
-
-    def _stamp_floor(self) -> None:
-        """Give every item the assay floor, as ``y_floor``."""
-        for item in self.data:
-            item['y_floor'] = self.y_floor
 
     def _apply_censoring(self) -> None:
         """Finalise ``cens`` / ``cens_bound`` on every item (see ``esm_msr.censoring``)."""
@@ -248,7 +236,6 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     # The assay's own scale: the library's starting dG and floor, and what this item's measurement bounds.
     dG_wt = torch.tensor([float(item.get('dG_wt', float('nan'))) for item in batch], dtype=torch.float32)
-    y_floor = torch.tensor([float(item.get('y_floor', float('nan'))) for item in batch], dtype=torch.float32)
     dG_meas = torch.tensor([float(item.get('dG_meas', float('nan'))) for item in batch], dtype=torch.float32)
     cens = torch.tensor([int(item.get('cens', 0)) for item in batch], dtype=torch.long)
     cens_src = torch.tensor([int(item.get('cens_src', 0)) for item in batch], dtype=torch.long)
@@ -318,7 +305,6 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         'tf_B': tf_B,
         'valid_dddG_mask': valid_dddG_mask,
         'dG_wt': dG_wt,
-        'y_floor': y_floor,
         'dG_meas': dG_meas,
         'cens': cens,
         'cens_src': cens_src,
@@ -339,184 +325,6 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-class ProteinCyclingBatchSampler(Sampler[List[int]]):
-    """
-    Consolidated, high-performance BatchSampler for cycling through multiple protein datasets. Yields grouped indices for a
-    ConcatDataset, every batch holding the items of ONE library (the homogeneous-microbatch assumption the model's collate relies on).
-
-    Each epoch every library's items are shuffled, cut into full batches (a remainder smaller than ``batch_size`` is dropped, a
-    different one each epoch), and the batches of all libraries are shuffled together. Which subsets a run trains on is decided
-    earlier, when the dataset is built (``--subsets``); there is deliberately no density-based subsampling or per-subset capping here
-    (an earlier version binned the doubles over (additive expectation, dddG) and capped each bin, which reshapes the ddG
-    distribution the model is trained on).
-    """
-    SUBSET_ORDER = ['single', 'double', 'native_cond']      # the order items are laid out in before the shuffle: it fixes the RNG stream
-
-    def __init__(
-        self,
-        datasets: List[Any],
-        batch_size: int,
-        train_list: List[str],
-        *,
-        rng_seed: Optional[int] = None,
-        verbose: bool = True,
-        drop_last: bool = True,
-        min_batch_size: int = 32,
-    ):
-        self.datasets = datasets
-        self.batch_size = batch_size
-        self.train_list = train_list
-        self.verbose = verbose
-        self.rng_seed = rng_seed
-        self.drop_last = bool(drop_last)
-        self.min_batch_size = max(1, int(min_batch_size))
-        self.sampler = self      # allows Lightning _set_sampler_epoch to discover set_epoch on this batch_sampler
-
-        self._completed_epochs = 0
-        self._active_batches: Optional[List[List[int]]] = None
-        self._rng = random.Random(rng_seed)
-
-        # 1. Map cumulative offsets for ConcatDataset
-        self.cumulative_sizes = ConcatDataset(self.datasets).cumulative_sizes
-        self.offsets = [0] + self.cumulative_sizes[:-1]
-
-        # 2. Cache subset classifications ONCE during initialization
-        self._cached_buckets: List[Dict[str, List[int]]] = []
-
-        logging.info("Caching dataset subsets for Sampler...")
-        for ds_idx, ds in enumerate(self.datasets):
-            buckets = {k: [] for k in self.SUBSET_ORDER}
-            first_pdb = ds[0].get('pdb') if len(ds) > 0 else None
-
-            for i in range(len(ds)):
-                item = ds[i]
-                if item.get('pdb') != first_pdb:
-                    raise AssertionError(f"PDB ID mismatch in {self.train_list[ds_idx]}: item {i} has {item.get('pdb')}, expected {first_pdb}")
-
-                stype = item.get('subset_type', 'single')
-                if stype not in buckets:
-                    stype = 'single'
-                buckets[stype].append(i)
-
-            self._cached_buckets.append(buckets)
-
-        # 3. Perform a dry-run to calculate exact batch sizes for the DataLoader __len__
-        # Matches the exact initial RNG consumption of the continuous run.
-        self.num_batches = self._calculate_epoch_batches(dry_run=True)
-
-    def _calculate_epoch_batches(self, dry_run: bool = False) -> int:
-        """Core logic to shuffle and chunk datasets."""
-        self.all_batches = []   # List of dataset batch lists
-
-        for idx, ds in enumerate(self.datasets):
-            protein_name = self.train_list[idx]
-            buckets = self._cached_buckets[idx]
-            if sum(len(v) for v in buckets.values()) == 0:
-                raise AssertionError(f"No samples for {protein_name}.")
-
-            # Flatten and global offset map for ConcatDataset
-            flat_indices = []
-            for items in buckets.values():
-                flat_indices.extend(items)
-
-            self._rng.shuffle(flat_indices)
-            offset = self.offsets[idx]
-
-            # Create batches for this dataset
-            ds_batches = [
-                [i + offset for i in flat_indices[start:start + self.batch_size]]
-                for start in range(0, len(flat_indices), self.batch_size)
-            ]
-
-            # Filter out undersized batches (or retain tail batches >= min_batch_size when drop_last=False)
-            min_keep = self.batch_size if self.drop_last else min(self.batch_size, self.min_batch_size)
-            ds_batches = [b for b in ds_batches if len(b) >= min_keep]
-            self.all_batches.append(ds_batches)
-
-        final_batches = []
-        for ds_batch_list in self.all_batches:
-            final_batches.extend(ds_batch_list)
-        self._rng.shuffle(final_batches)
-
-        if not dry_run:
-            self._active_batches = final_batches
-
-        return len(final_batches)
-
-    def set_epoch(self, epoch: int) -> None:
-        """Set the epoch for resumable and deterministic shuffling across preemptions."""
-        if epoch == self._completed_epochs and self._active_batches is not None:
-            return
-
-        if self.rng_seed is not None and epoch != self._completed_epochs:
-            logging.info(f"ProteinCyclingBatchSampler: fast-forwarding RNG stream from epoch {self._completed_epochs} to {epoch}")
-            self._rng = random.Random(self.rng_seed)
-            self._calculate_epoch_batches(dry_run=True)
-            for _ in range(epoch):
-                self._calculate_epoch_batches(dry_run=True)
-            self._completed_epochs = epoch
-
-        self._calculate_epoch_batches(dry_run=False)
-
-    def state_dict(self) -> dict:
-        return {
-            'epoch': self._completed_epochs,
-            'batch_size': self.batch_size,
-            'rng_seed': self.rng_seed,
-        }
-
-    def load_state_dict(self, state: dict) -> None:
-        if 'epoch' in state:
-            self.set_epoch(state['epoch'])
-
-    def __iter__(self) -> Iterator[List[int]]:
-        """Invoked by PyTorch workers at the start of every epoch."""
-        if self._active_batches is None:
-            self._calculate_epoch_batches(dry_run=False)
-        batches = self._active_batches
-        self._active_batches = None
-        self._completed_epochs += 1
-        yield from batches
-
-    def __len__(self) -> int:
-        return self.num_batches
-
-
-def create_consolidated_dataloader(
-    dataloaders: List[DataLoader],
-    train_list: List[str],
-    batch_size: int,
-    collate_fn: Callable,
-    num_workers: int = 4,
-    pin_memory: bool = True,
-    rng_seed: Optional[int] = None,
-    drop_last: bool = True,
-    min_batch_size: int = 32,
-) -> DataLoader:
-    """A DataLoader over every library's dataset at once, batched by ProteinCyclingBatchSampler so each batch
-    holds one library (the homogeneous-microbatch assumption the model's collate relies on)."""
-    datasets = [dl.dataset for dl in dataloaders]
-
-    sampler = ProteinCyclingBatchSampler(
-        datasets=datasets,
-        batch_size=batch_size,
-        train_list=train_list,
-        # Without this the sampler seeds itself from system entropy, so --seed controlled only the model init: the batch
-        # composition differed every run, runs were not reproducible, and two configurations could not be paired on a seed.
-        rng_seed=rng_seed,
-        drop_last=drop_last,
-        min_batch_size=min_batch_size,
-    )
-
-    concat_dataset = ConcatDataset(datasets)
-
-    return DataLoader(
-        concat_dataset,
-        batch_sampler=sampler,
-        collate_fn=collate_fn,
-        num_workers=num_workers,
-        pin_memory=pin_memory
-    )
 
 
 class PooledDataLoader:
@@ -792,7 +600,6 @@ class PooledDataLoader:
         tf_B = torch.tensor([float(it.get('tf_B', it.get('ddG_B', float('nan')))) for it in batch], dtype=torch.float32)
         valid_dddG_mask = torch.tensor([bool(it.get('valid_dddG_mask', False)) for it in batch], dtype=torch.bool)
         dG_wt = torch.tensor([float(it.get('dG_wt', float('nan'))) for it in batch], dtype=torch.float32)
-        y_floor = torch.tensor([float(it.get('y_floor', float('nan'))) for it in batch], dtype=torch.float32)
         dG_meas = torch.tensor([float(it.get('dG_meas', float('nan'))) for it in batch], dtype=torch.float32)
         cens = torch.tensor([int(it.get('cens', 0)) for it in batch], dtype=torch.long)
         cens_src = torch.tensor([int(it.get('cens_src', 0)) for it in batch], dtype=torch.long)
@@ -852,7 +659,6 @@ class PooledDataLoader:
             "tf_B": tf_B,
             "valid_dddG_mask": valid_dddG_mask,
             "dG_wt": dG_wt,
-            "y_floor": y_floor,
             "dG_meas": dG_meas,
             "cens": cens,
             "cens_src": cens_src,

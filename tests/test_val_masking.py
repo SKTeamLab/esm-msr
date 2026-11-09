@@ -1,10 +1,10 @@
-"""``--val_masking_strategy masked`` (the default): validation reads BOTH adapters with every mutated site masked on its own, the partner's mutant residue visible.
+"""Validation reads BOTH adapters with every mutated site masked on its own, the partner's mutant residue visible.
 
     path 1 = WT(a) + MT(B|A)      path 2 = WT(b) + MT(A|B)      mean of the two == the reported 0.5 * (WT + MT) of that regime
 
 On the stand-in backbone of test_pass_masking.py (logits depend on the context a pass can see), with the model's per-library logit cache switched on the way validation
 switches it on, these tests pin the arithmetic, the claim that makes the strategy cheap (every unique masked sequence is computed once per library), the regimes
-validation_step reads, and the rules for the extra regimes ``--val_unmasked`` / ``--val_masked`` add (a copy in the other regime, never a duplicate of the main one).
+validation_step reads, and the rules for the unmasked copy (only when a head trains on visible sites).
 """
 import sys
 import types
@@ -113,39 +113,24 @@ class _HP(dict):
         return dict.get(self, k, default)
 
 
-def _hp(strategy='masked', unmasked=False, masked=False, **kw):
-    return _HP(val_masking_strategy=strategy, val_unmasked=unmasked, val_masked=masked, mt_direct_pred=False, val_wt_only=False, val_cycle_passes=False, **kw)
+def _hp(**kw):
+    return _HP({'block_mask_wt': 1.0, 'block_mask_mt': 1.0, **kw})
 
 
-def test_the_main_regime_is_the_strategy_and_the_flags_add_the_other_one():
+def test_the_main_regime_is_masked_and_the_unmasked_copy_comes_only_when_a_head_trains_on_visible_sites():
     assert validation_regimes(_hp()) == [('', INDEP)]
-    assert validation_regimes(_hp('unmasked')) == [('', NONE)]
-    assert validation_regimes(_hp(unmasked=True)) == [('', INDEP), ('unmasked_', NONE)]
-    assert validation_regimes(_hp('unmasked', masked=True)) == [('', NONE), ('masked_', INDEP)]
+    assert validation_regimes(_hp(block_mask_mt=0.0)) == [('', INDEP), ('unmasked_', NONE)]
+    assert validation_regimes(_hp(block_mask_wt=0.0)) == [('', INDEP), ('unmasked_', NONE)]
+    assert validation_regimes(_hp(block_mask_wt=0.5, block_mask_mt=0.75)) == [('', INDEP), ('unmasked_', NONE)]
 
 
-def test_a_flag_that_repeats_the_main_regime_adds_nothing():
-    assert validation_regimes(_hp('unmasked', unmasked=True)) == [('', NONE)]
-    assert validation_regimes(_hp('masked', masked=True)) == [('', INDEP)]
-    assert validation_regimes(_hp('train', unmasked=True), None, None) == [('', NONE)]           # nothing masked in training: 'train' IS the unmasked regime
-    assert validation_regimes(_hp('train', unmasked=True), 'marginal', 'independent') == [('', {'wt': 'marginal', 'mt': 'independent'}), ('unmasked_', NONE)]
-
-
-def test_both_flags_give_both_copies():
-    assert [p for p, _ in validation_regimes(_hp('train'), 'marginal', None)] == ['']
-    r = validation_regimes(_hp('train', unmasked=True, masked=True), 'marginal', 'marginal')
-    assert [p for p, _ in r] == ['', 'unmasked_', 'masked_']
-
-
-def _stub(model, regimes, cycle=False):
-    s = types.SimpleNamespace(model=model, hparams=_HP(mt_direct_pred=False, val_wt_only=False, val_cycle_passes=cycle), validation_step_outputs=defaultdict(list),
-                              obs_link=None, val_regimes=regimes)
+def _stub(model, regimes):
+    s = types.SimpleNamespace(model=model, validation_step_outputs=defaultdict(list), obs_link=lambda v: v, val_regimes=regimes)
     s.val_mask_strategy = regimes[0][1]
-    s.val_mask_wt, s.val_mask_mt = s.val_mask_strategy['wt'], s.val_mask_strategy['mt']
     return s
 
 
-def _validate(hp, train=(None, None), cycle=False):
+def _validate(hp):
     m = _model()
     m.eval()
     seen = []
@@ -155,32 +140,22 @@ def _validate(hp, train=(None, None), cycle=False):
         seen.append((pass_type, mask_strategy))
         return inner(batch, pass_type=pass_type, mask_strategy=mask_strategy, **k)
     m.forward_partitioned = spy
-    s = _stub(m, validation_regimes(hp, *train), cycle)
+    s = _stub(m, validation_regimes(hp))
     b = _cat([_double(), _single()])
     b['ddG'] = torch.zeros(2)
     M.validation_step(s, b, 0)
     return seen, s.validation_step_outputs[0][0]
 
 
-def test_validation_reads_every_site_masked_on_its_own_by_default_whatever_the_run_trained_with():
-    seen, rec = _validate(_hp())                           # an unmasked-trained run: validation still reads the masked regime
+def test_validation_reads_every_site_masked_on_its_own_whatever_the_run_trained_with():
+    seen, rec = _validate(_hp())
     assert seen and all(st == 'independent' for _, st in seen), seen
-    assert 'regimes' not in rec and 'gap_scores' not in rec
+    assert 'regimes' not in rec
 
 
-def test_the_train_strategy_reads_the_runs_own_masks_and_the_unmasked_strategy_reads_none():
-    seen, rec = _validate(_hp('train'), train=('marginal', 'independent'))
-    assert ('wt', 'marginal') in seen and ('mt', 'independent') in seen and ('wt', 'independent') not in seen, seen
-    seen, rec = _validate(_hp('train'))                    # nothing set: unmasked, as before
-    assert seen and all(st is None for _, st in seen), seen
-    seen, rec = _validate(_hp('unmasked'), train=('marginal', 'marginal'))
-    assert seen and all(st is None for _, st in seen), seen
-
-
-def test_val_unmasked_adds_the_regime_with_neither_adapter_masked_and_leaves_the_main_one_alone():
+def test_the_unmasked_copy_reads_neither_adapter_masked_and_leaves_the_main_regime_alone():
     seen0, rec0 = _validate(_hp())
-    seen, rec = _validate(_hp(unmasked=True))
-    assert 'regimes' not in rec0
+    seen, rec = _validate(_hp(block_mask_mt=0.0))
     assert {x for x in seen if x[1] is None} and {x for x in seen if x[1] == 'independent'}, seen             # both regimes were read
     e = rec['regimes']['unmasked_']
     assert e['wt_scores'].shape == e['mt_scores'].shape == e['comb_scores'].shape == (2,)
@@ -188,55 +163,7 @@ def test_val_unmasked_adds_the_regime_with_neither_adapter_masked_and_leaves_the
     assert not (e['comb_scores'] == rec['comb_scores']).all()                                                 # and the unmasked ones differ from them
 
 
-def test_val_masked_mirrors_it_for_an_unmasked_main_regime():
-    seen0, rec0 = _validate(_hp('unmasked'))
-    seen, rec = _validate(_hp('unmasked', masked=True))
-    assert 'regimes' not in rec0 and all(st is None for _, st in seen0)
-    assert {x for x in seen if x[1] == 'independent'}, seen
-    e = rec['regimes']['masked_']
-    assert (rec['comb_scores'] == rec0['comb_scores']).all()
-    assert not (e['comb_scores'] == rec['comb_scores']).all()
-
-
-def test_the_extra_regime_gets_its_own_cycle_legs_for_the_ctx_copy():
-    class Cyc:
-        def __init__(self, inner):
-            self.inner, self.calls = inner, []
-
-        def __getattr__(self, k):
-            return getattr(self.inner, k)
-
-        def forward_cycle(self, batch, mask_strategy=None, include_mt=True):
-            self.calls.append(mask_strategy)
-            return {'wt_rev': torch.zeros(2), 'mt_fwd': torch.ones(2)}
-    m = _model()
-    m.eval()
-    c = Cyc(m)
-    s = _stub(c, validation_regimes(_hp(unmasked=True)), cycle=True)
-    b = _cat([_double(), _single()])
-    b['ddG'] = torch.zeros(2)
-    M.validation_step(s, b, 0)
-    rec = s.validation_step_outputs[0][0]
-    assert c.calls == [INDEP, NONE] and 'wt_rev_scores' in rec and 'wt_rev_scores' in rec['regimes']['unmasked_'] and 'mt_fwd_scores' in rec['regimes']['unmasked_']
-
-
-def test_the_flag_defaults_to_masked_the_old_name_still_works_and_the_four_pass_flag_is_gone():
-    argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
-    old = sys.argv
-    try:
-        sys.argv = argv
-        a = config.parse_arguments()
-        assert a.val_masking_strategy == 'masked' and a.val_unmasked is False and a.val_masked is False
-        for given, want in (('independent', 'masked'), ('masked', 'masked'), ('unmasked', 'unmasked'), ('train', 'train')):
-            for flag in ('--val_masking_strategy', '--val_masking'):
-                sys.argv = argv + [flag, given]
-                assert config.parse_arguments().val_masking_strategy == want
-        sys.argv = argv + ['--val_unmasked', '--val_masked']
-        b = config.parse_arguments()
-        assert b.val_unmasked is True and b.val_masked is True
-        for bad in (['--val_masking_strategy', 'marginal'], ['--val_four_pass']):
-            sys.argv = argv + bad
-            with pytest.raises(SystemExit):
-                config.parse_arguments()
-    finally:
-        sys.argv = old
+def test_the_retired_validation_flags_are_gone():
+    for gone in ('--val_masking_strategy', '--val_unmasked', '--val_masked', '--val_cycle_passes', '--monitor_metric', '--skip_val'):
+        with pytest.raises(SystemExit):
+            config.parse_arguments(['--experiment_name', 'x', gone, 'masked'] if gone == '--val_masking_strategy' else ['--experiment_name', 'x', gone])

@@ -8,7 +8,7 @@ An item is *censored* when its measurement only bounds the true value:
 
 Two sources set it, recorded in ``cens_src``:
 
-* ``SRC_FLOOR`` (2): the variant has a number, but that number is at or below ``--censor_threshold``, a few tenths above the assay's floor.
+* ``SRC_FLOOR`` (2): the variant has a number, but that number is at or below ``--rank_censor_threshold``, a few tenths above the assay's floor.
   Such a measurement reports the floor rather than the variant: the composition model's error for that sequence, not its stability. Its
   order among its equally-dead peers is noise (the two proteases' rank agreement is 0.20 below dG 0) and its value is not the variant's.
   (This used to be the item's own library floor, estimated per library; one threshold replaced it, ``docs/trim_audit.md`` §2.2.)
@@ -83,7 +83,7 @@ def apply_item_censoring(data: Iterable[Dict[str, Any]], threshold: Optional[flo
     """
     Finalise the censoring fields of one library's items and return ``(items, counts)``.
 
-    With ``threshold`` (``--censor_threshold``), an item whose measured dG (``dG_meas``) is at or below it becomes lower-censored,
+    With ``threshold`` (``--rank_censor_threshold``), an item whose measured dG (``dG_meas``) is at or below it becomes lower-censored,
     bounded by it (``SRC_FLOOR``), in every library. One number serves singles and multi-mutants alike. ``None`` censors nothing here.
     An item that already carries ``SRC_RANGE`` from preprocessing is left as it is.
 

@@ -85,8 +85,6 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         if key + '_mt' not in hparams:
             logging.warning(f"Expected base parameter '{key}_mt' missing from hparams. Defaulting to {default_mt[key]}.")
 
-    if 'adapter_mode' not in hparams:
-        logging.warning("Expected 'adapter_mode' missing from hparams. Defaulting to 'dual'.")
 
     wt_config = {
         'lora_rank': hparams.get('lora_rank_wt', default_wt['lora_rank']),

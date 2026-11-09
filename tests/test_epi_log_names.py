@@ -1,50 +1,26 @@
-"""A flag that still names a retired ``_epi``-head epistasis metric is rewritten to its kept twin, and a monitor must be a statistic validation logs."""
-import sys
+"""The statistic that picks checkpoints is not a flag: ``config.monitor_metric`` reads the validation regime the MT head trained on, and it is always one validation logs."""
+import os
 
 import pytest
+import yaml
 
-from esm_msr import config
-
-BASE = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
-
-
-def parse(*extra):
-    argv = sys.argv
-    try:
-        sys.argv = BASE + list(extra)
-        return config.parse_arguments()
-    finally:
-        sys.argv = argv
+from esm_msr import config, val_stats
 
 
-def test_a_retired_monitor_is_rewritten():
-    a = parse('--monitor_metric', 'val_epi_beyond_lib_epi', '--mt_convergence_metric', 'epi_beyond_rho_epi')
-    assert a.monitor_metric == 'val_epi_beyond_lib_comb' and a.mt_convergence_metric == 'epi_beyond_rho_comb'
-    a = parse('--monitor_metric', 'val_unmasked_epi_pair_rho_epi')
-    assert a.monitor_metric == 'val_unmasked_epi_pair_rho_comb'
+def test_the_monitored_regime_is_the_one_the_mt_head_trained_on():
+    assert config.monitor_metric({'block_mask_mt': 1.0}) == 'val_rho_combined_avg'
+    assert config.monitor_metric({'block_mask_mt': 0.0}) == 'val_unmasked_rho_combined_avg'
+    assert config.monitor_metric({'block_mask_mt': 0.5}) == 'val_unmasked_rho_combined_avg'      # visible at least half the time
+    assert config.monitor_metric({'block_mask_mt': 0.75}) == 'val_rho_combined_avg'
+    assert config.monitor_metric({}) == 'val_rho_combined_avg'                                  # the default is the masked read
 
 
-def test_a_monitor_with_no_exact_twin_is_refused_but_a_plateau_metric_is_left_alone():
-    for retired in ('val_epi_global_err_epi', 'val_epi_cell_rank_epi', 'val_unmasked_epi_cell_rank_epi'):
-        with pytest.raises(SystemExit):
-            parse('--monitor_metric', retired)
-    assert parse('--mt_convergence_metric', 'epi_global_err_epi').mt_convergence_metric == 'epi_global_err_epi'   # read from the internal results
+@pytest.mark.parametrize('p', [0.0, 0.25, 0.5, 0.75, 1.0])
+def test_the_inferred_monitor_is_a_statistic_validation_logs(p):
+    assert config.monitor_metric({'block_mask_mt': p}) in val_stats.logged_summary_names()
 
 
-def test_a_monitor_that_validation_does_not_log_is_refused_at_parse_time():
-    for gone in ('val_cycle_gap_avg', 'val_diag_epi_cell_rank_mt_legacy', 'val_epi_global_err_comb', 'val_rho_singles_combined_avg', 'val_typo_avg'):
-        with pytest.raises(SystemExit):
-            parse('--monitor_metric', gone)
-    for ok in ('val_rho_combined_avg', 'val_rho_singles_wt_avg', 'val_unmasked_rho_combined_avg', 'val_masked_epi_composite', 'val_epi_bias_xgt1_comb'):
-        assert parse('--monitor_metric', ok).monitor_metric == ok
-
-
-def test_the_defaults_and_the_recipes_name_logged_metrics():
-    a = parse()
-    assert a.monitor_metric == 'val_epi_beyond_rho_comb' and a.mt_convergence_metric == 'epi_beyond_rho_comb'
-    assert parse('--monitor_metric', 'val_epi_composite').monitor_metric == 'val_epi_composite'
-    import os, yaml
-    from esm_msr import val_stats
-    for recipe in ('joint', 'joint_clean', 'mt_frozen', 'wt_phase'):
-        cfg = yaml.safe_load(open(os.path.join(os.path.dirname(__file__), '..', 'configs', f'{recipe}.yaml')))
-        assert cfg['monitor_metric'] in val_stats.logged_summary_names(), recipe
+def test_the_recipe_parses_and_monitors_the_unmasked_regime():
+    a = config.parse_arguments(['--config', os.path.join(os.path.dirname(__file__), '..', 'configs', 'recipe.yaml'), '--experiment_name', 'x'])
+    assert config.monitor_metric(a) == 'val_unmasked_rho_combined_avg'
+    assert yaml.safe_load(open(os.path.join(os.path.dirname(__file__), '..', 'configs', 'recipe.yaml')))['block_mask_mt'] == 0.0

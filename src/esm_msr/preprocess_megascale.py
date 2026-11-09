@@ -16,7 +16,6 @@ from esm_msr.data import (
     MEAS_COLUMNS,
     MutationStabilityDataset,
     collate_fn_twopass,
-    create_consolidated_dataloader,
     PooledDataLoader
 )
 
@@ -566,25 +565,29 @@ def read_manifest(cache_path: str, cache_version: str) -> Dict[str, Any]:
         return json.load(f)
 
 
-def _library_loaders(codes: List[str], cache_path: str, *, batch_size: int, num_workers: int, desc: str, **dataset_kw) -> Tuple[List[DataLoader], List[str]]:
-    loaders, names = [], []
+def _library_datasets(codes: List[str], cache_path: str, *, desc: str, **dataset_kw) -> Tuple[List[MutationStabilityDataset], List[str]]:
+    datasets, names = [], []
     for code in tqdm(codes, desc=desc):
         dataset = MutationStabilityDataset(code, cache_path, 'ddG_ML', **dataset_kw)
         if len(dataset) == 0:
             logging.warning(f"{desc}: dataset for '{code}' is empty. Skipping.")
             continue
-        loaders.append(DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn_twopass,
-                                  num_workers=num_workers, shuffle=False, pin_memory=True))
+        datasets.append(dataset)
         names.append(code)
+    return datasets, names
+
+
+def _library_loaders(codes: List[str], cache_path: str, *, batch_size: int, num_workers: int, desc: str, **dataset_kw) -> Tuple[List[DataLoader], List[str]]:
+    datasets, names = _library_datasets(codes, cache_path, desc=desc, **dataset_kw)
+    loaders = [DataLoader(ds, batch_size=batch_size, collate_fn=collate_fn_twopass, num_workers=num_workers, shuffle=False, pin_memory=True) for ds in datasets]
     return loaders, names
 
 
-def load_benchmark_datasets(manifest: Dict[str, Any], cache_path: str, cache_version: str, y_floor: float) -> Tuple[List[DataLoader], List[str]]:
-    """Loads the static benchmark datasets the manifest lists. Nothing here is censored, but every item carries ``y_floor``, so it must match the training run."""
+def load_benchmark_datasets(manifest: Dict[str, Any], cache_path: str, cache_version: str) -> Tuple[List[DataLoader], List[str]]:
+    """Loads the static benchmark datasets the manifest lists. Nothing here is censored."""
     loaders, names = [], []
     for name in manifest.get('benchmarks', []):
-        dataset = MutationStabilityDataset(name, cache_path, 'ddG', subsets=('single', 'double'), cache_version=cache_version,
-                                           y_floor=y_floor, censor_threshold=None)
+        dataset = MutationStabilityDataset(name, cache_path, 'ddG', subsets=('single', 'double'), cache_version=cache_version, censor_threshold=None)
         if len(dataset) == 0:
             continue
         loaders.append(PooledDataLoader([DataLoader(dataset, batch_size=1, collate_fn=collate_fn_twopass, num_workers=0,
@@ -595,56 +598,39 @@ def load_benchmark_datasets(manifest: Dict[str, Any], cache_path: str, cache_ver
 
 
 def setup_dataloaders(args: argparse.Namespace, add_benchmarks_to_val: bool = False) -> Tuple[List[DataLoader], List[DataLoader], List[DataLoader], List[str], List[str], List[str]]:
-    """Main orchestrator: the train / validation / benchmark loaders of a run, read from the prebuilt cache and its manifest."""
+    """Main orchestrator: the block loader and the validation / benchmark loaders of a run, read from the prebuilt cache and its manifest."""
+    from esm_msr import blocks, config
     manifest = read_manifest(args.cache_path, args.cache_version)
     args.split_name = manifest.get('split_file')        # provenance: the split the manifest was built from, recorded in hparams
-    requested = getattr(args, 'requested_split_file', None)       # a retired --split_file: the manifest IS the split now
-    if requested and manifest.get('split_file') and os.path.basename(requested) != manifest['split_file']:
-        raise ValueError(f"--split_file {requested} is not the split this cache manifest was built from ({manifest['split_file']}). "
-                         f"Training reads the split from the manifest; build a cache for the other split instead.")
-    if hasattr(args, 'requested_split_file'):
-        delattr(args, 'requested_split_file')
     overlap = set(manifest['train']) & set(manifest['val'])
     if overlap:
         logging.warning(f"Overlap detected between train/val libraries: {len(overlap)}.")
 
-    # Mutant-background libraries ('2M7O_I21A': one introduced mutation, then a scan): their measurements are ordinary singles to both heads, the released behaviour.
+    # Mutant-background libraries ('2M7O_I21A': one introduced mutation, then a scan): their measurements are ordinary singles to both heads.
     # --exclude_mutbg leaves the libraries out of TRAINING (validation scores them either way).
-    common = dict(label_native_cond=False, censor_range=args.censor_range,
-                  cache_version=args.cache_version, y_floor=args.y_floor, censor_threshold=args.censor_threshold)
-    train_subsets = set(args.subsets)
+    common = dict(label_native_cond=False, censor_range=config.CENSOR_RANGE, cache_version=args.cache_version, censor_threshold=args.rank_censor_threshold)
     train_libraries = list(manifest['train'])
-    if getattr(args, 'exclude_mutbg', False):
+    if args.exclude_mutbg:
         train_libraries = [n for n in train_libraries if not val_stats.is_mutbg_library(n)]
         logging.info(f"--exclude_mutbg: {len(manifest['train']) - len(train_libraries)} mutant-background training libraries left out")
-    train_dataloaders, train_loader_names = _library_loaders(
-        train_libraries, args.cache_path, batch_size=args.batch_size, num_workers=args.num_workers, desc='train',
-        subsets=train_subsets, **common)
-    if not train_dataloaders:
-        raise RuntimeError("No valid training dataloaders created.")
+    train_datasets, train_loader_names = _library_datasets(train_libraries, args.cache_path, desc='train', subsets=set(config.SUBSETS), **common)
+    if not train_datasets:
+        raise RuntimeError("No valid training datasets created.")
 
     val_dataloaders, val_loader_names = _library_loaders(
-        manifest['val'], args.cache_path, batch_size=64, num_workers=args.num_workers, desc='val',
+        manifest['val'], args.cache_path, batch_size=config.VAL_BATCH_SIZE, num_workers=args.num_workers, desc='val',
         subsets=('single', 'double', 'native_cond'), **common)
 
-    bench_loaders, bench_names = load_benchmark_datasets(manifest, args.cache_path, args.cache_version, args.y_floor)
+    bench_loaders, bench_names = load_benchmark_datasets(manifest, args.cache_path, args.cache_version)
     if add_benchmarks_to_val:
         val_dataloaders.extend(bench_loaders)
         val_loader_names.extend(bench_names)
     if not val_dataloaders:
         logging.warning("No validation dataloaders created.")
 
-    if getattr(args, 'block_training', False):
-        from esm_msr import blocks
-        consolidated_loader = blocks.build_block_loader(
-            [dl.dataset for dl in train_dataloaders], train_loader_names, args.block_positions, args.seed, num_workers=args.num_workers,
-            singles='single' in args.subsets, pairs='double' in args.subsets and args.block_pair_weight > 0, domain_steps=args.block_domain_steps)
-    else:
-        consolidated_loader = create_consolidated_dataloader(
-            dataloaders=train_dataloaders, train_list=train_loader_names, batch_size=args.batch_size, collate_fn=collate_fn_twopass,
-            num_workers=args.num_workers, rng_seed=args.seed,
-            drop_last=bool(getattr(args, 'drop_last', True)), min_batch_size=int(getattr(args, 'min_batch_size', 32)),
-        )
+    consolidated_loader = blocks.build_block_loader(
+        train_datasets, train_loader_names, args.block_positions, args.seed, num_workers=args.num_workers,
+        singles=True, pairs=args.block_pair_weight > 0, domain_steps=args.block_domain_steps)
     train_dataloaders_final, train_loader_names_final = [consolidated_loader], ['cycled_train']
 
     logging.info(f"Setup complete. Final Training loaders: {len(train_dataloaders_final)} (Names: {train_loader_names_final}), Final Validation loaders: {len(val_dataloaders)} (Names: {val_loader_names})")

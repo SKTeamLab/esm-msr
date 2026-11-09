@@ -1,5 +1,4 @@
-"""--grad_accum_blocks K: K blocks' gradients add up in .grad, one optimizer step follows the K-th, on the mean gradient."""
-import sys
+"""--grad_accum_blocks K: K blocks' gradients add up in .grad, one optimizer step follows the K-th, on the mean gradient (the gradient clip is 1.0 per head)."""
 import types
 
 import pytest
@@ -10,39 +9,29 @@ from esm_msr import config, training
 
 
 def parse(*extra):
-    argv = sys.argv
-    try:
-        sys.argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x'] + list(extra)
-        return config.parse_arguments()
-    finally:
-        sys.argv = argv
+    return config.parse_arguments(['--experiment_name', 'x'] + list(extra))
 
 
-def test_the_flag_parses_defaults_to_one_and_needs_block_training():
+def test_the_flag_parses_defaults_to_one_and_must_be_positive():
     assert parse().grad_accum_blocks == 1
-    assert parse('--block_training', '--grad_accum_blocks', '4').grad_accum_blocks == 4
+    assert parse('--grad_accum_blocks', '4').grad_accum_blocks == 4
     with pytest.raises(SystemExit):
-        parse('--grad_accum_blocks', '2')                      # the per-item path already has micro-batches
-    with pytest.raises(SystemExit):
-        parse('--block_training', '--grad_accum_blocks', '0')
+        parse('--grad_accum_blocks', '0')
 
 
 class Sched:
-    last_epoch = 10 ** 9                                       # warm-up is over, so only the cosine branch runs
     def __init__(self): self.n = 0
     def step(self): self.n += 1
 
 
-def module(accum, grads, clip=0.0):
+def module(accum, grads):
     """A stub with one trainable vector and a _block_step that deposits ``grads[i]`` for block i and reports its 'loss'."""
     mod = training.ESM3EpistasisLightningModule.__new__(training.ESM3EpistasisLightningModule)
     nn.Module.__init__(mod)
     mod._device = torch.device('cpu')
-    hp = dict(grad_accum_blocks=accum, grad_clip_norm=clip, freeze_wt_adapter=False, freeze_mt_adapter=False, lr_warmup_steps=0,
-              lr_schedule='cosine')
+    hp = dict(grad_accum_blocks=accum, lr_warmup_steps=0)
     mod._hparams = types.SimpleNamespace(**hp, get=lambda k, d=None: hp.get(k, d))
     mod.model = nn.Module()
-    mod.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, has_transitioned=False, enforce_freezing=lambda *a, **k: None)
     p = nn.Parameter(torch.zeros(2))
     opt = torch.optim.SGD([{'params': [p], 'lr': 1.0, 'name': 'g'}], lr=1.0)
     sched, calls = Sched(), {'i': 0}
@@ -67,35 +56,35 @@ def run(mod, n):
 
 
 def test_k_blocks_make_one_step_on_their_mean_gradient():
-    grads = [torch.tensor([1., 0.]), torch.tensor([3., 2.]), torch.tensor([2., 4.]), torch.tensor([6., 2.])]
+    grads = [torch.tensor([.1, 0.]), torch.tensor([.3, .2]), torch.tensor([.2, .4]), torch.tensor([.6, .2])]
     mod, p, opt, sched, logged = module(2, grads)
     run(mod, 4)
-    # SGD lr 1: first step -mean(g0, g1) = -[2, 1], second -mean(g2, g3) = -[4, 3]
-    assert torch.allclose(p, torch.tensor([-6., -4.]))
+    # SGD lr 1: first step -mean(g0, g1) = -[.2, .1], second -mean(g2, g3) = -[.4, .3] (both norms below the clip of 1)
+    assert torch.allclose(p, torch.tensor([-.6, -.4]))
     assert sched.n == 2 and p.grad is None
     losses = [v for n, v in logged if n == 'train/L_x']
-    assert losses == [pytest.approx(3.0), pytest.approx(7.0)]       # the mean of each window's two block losses
+    assert losses == [pytest.approx(.3), pytest.approx(.7)]         # the mean of each window's two block losses
 
 
 def test_k_equal_one_is_the_unchanged_step():
-    grads = [torch.tensor([1., 0.]), torch.tensor([3., 2.])]
+    grads = [torch.tensor([.1, 0.]), torch.tensor([.3, .2])]
     mod, p, opt, sched, logged = module(1, grads)
     run(mod, 2)
-    assert torch.allclose(p, torch.tensor([-4., -2.])) and sched.n == 2
+    assert torch.allclose(p, torch.tensor([-.4, -.2])) and sched.n == 2
 
 
 def test_an_unfinished_window_carries_across_calls_and_takes_no_step():
-    grads = [torch.tensor([1., 1.]), torch.tensor([1., 1.]), torch.tensor([1., 1.])]
+    grads = [torch.tensor([.1, .1]), torch.tensor([.1, .1]), torch.tensor([.1, .1])]
     mod, p, opt, sched, logged = module(3, grads)
     run(mod, 2)
     assert torch.equal(p, torch.zeros(2)) and sched.n == 0 and not logged
     run(mod, 1)
-    assert torch.allclose(p, torch.tensor([-1., -1.])) and sched.n == 1
+    assert torch.allclose(p, torch.tensor([-.1, -.1])) and sched.n == 1
 
 
 def test_the_clip_sees_the_mean_gradient():
     grads = [torch.tensor([3., 0.]), torch.tensor([3., 0.]), torch.tensor([3., 0.]), torch.tensor([3., 0.])]
-    mod, p, opt, sched, logged = module(4, grads, clip=1.0)
+    mod, p, opt, sched, logged = module(4, grads)
     run(mod, 4)
     assert torch.allclose(p, torch.tensor([-1., 0.]))                # mean [3, 0] has norm 3, clipped to 1
 
@@ -104,7 +93,7 @@ def test_the_cosine_length_counts_optimizer_steps():
     from test_audit_next_features import _make_stub_module
     base = {}
     for accum in (1, 4):
-        mod = _make_stub_module(lr_schedule='cosine', lr_warmup_steps=4, num_epochs=1, grad_accum_blocks=accum)    # no trainer: 900 blocks
+        mod = _make_stub_module(lr_warmup_steps=4, num_epochs=1, grad_accum_blocks=accum)    # no trainer: 900 blocks
         opts, scheds = mod.configure_optimizers()
         for _ in range(230):
             scheds[0]['scheduler'].step()

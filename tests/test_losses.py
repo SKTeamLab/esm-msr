@@ -135,23 +135,6 @@ def _mb(B, list_size, micro_batch_size=64):
     return M._micro_batch(B, list_size, micro_batch_size)
 
 
-def test_the_cap_is_the_micro_batch_size():
-    assert _mb(256, 16) == 64
-
-
-def test_result_is_always_whole_lists():
-    for cap in (16, 20, 31, 48, 64, 70):
-        assert _mb(256, 16, cap) % 16 == 0
-
-
-def test_never_below_one_list_even_for_a_tiny_cap():
-    assert _mb(256, 16, 3) == 16
-
-
-def test_never_exceeds_the_batch():
-    assert _mb(8, 16) == 8
-
-
 # ---- forward-only treatment of an upper-censored block (2026-10-20) ----
 import itertools
 import math

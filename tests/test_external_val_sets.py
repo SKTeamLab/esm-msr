@@ -25,15 +25,6 @@ def parse(*extra):
         sys.argv = argv
 
 
-def test_default_set_is_the_three_benchmarks():
-    assert parse().external_val_sets == 'ptmuld,s461,ssym'
-
-
-def test_it_can_be_overridden_or_emptied():
-    assert parse('--external_val_sets', 's461').external_val_sets == 's461'
-    assert parse('--external_val_sets', '').external_val_sets == ''
-
-
 def test_summary_uses_only_the_external_loaders():
     per_loader = {
         'ptmuld': {'rho_combined': 0.6, 'rmse_combined': 1.0},

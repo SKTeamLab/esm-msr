@@ -14,7 +14,6 @@ from esm_msr.data import stamp_tf_singles
 from esm_msr.losses import TF_PRIOR_SD, TOBIT_SIGMA_Y, tobit_posterior_mean, tobit_regression_loss
 from esm_msr.training import ESM3EpistasisLightningModule as M, tf_single_label
 from test_blocks import _blk, _module
-from test_tf_mix import _EnsembleModel, _batch, _combined_loss, _stub
 
 
 def _brute(y, m, cens=0, s=TF_PRIOR_SD):
@@ -85,11 +84,10 @@ def _spy(s):
     seen = {}
     forced = s._block_forced
 
-    def wrap(c, wt_cal, wt_raw, n, lat, has, live):
+    def wrap(wt_cal, lat, has):
         seen.setdefault('lat', lat.detach().clone())
         seen.setdefault('has', has.detach().clone())
-        seen.setdefault('n', n.clone())
-        return forced(c, wt_cal, wt_raw, n, lat, has, live)
+        return forced(wt_cal, lat, has)
     s._block_forced = wrap
     return seen
 
@@ -98,7 +96,7 @@ def _reads(s, b):
     """The WT head's calibrated read of each single at the block's two positions, as the block computes it; alphabet-indexed."""
     i, j = int(b['positions'][0]), int(b['positions'][1])
     wt_i, wt_j = int(b['wt_ids'][0]), int(b['wt_ids'][1])
-    wt_rows, *_ = blocks.pair_sequences(b['seq'], i, j, wt_i, wt_j, identity=True)
+    wt_rows, *_ = blocks.pair_sequences(b['seq'], i, j, wt_i, wt_j)
     llr = s.model.forward_site_llr(wt_rows, torch.as_tensor([i, j]), torch.as_tensor([wt_i, wt_j]), 'wt').detach()
     cal = s._block_cal('wt')
     w = [blocks.TOKEN_TO_AA[wt_i], blocks.TOKEN_TO_AA[wt_j]]
@@ -110,24 +108,15 @@ def _single_tensors(y_i, y_j, **kw):
     return dict(si_y=t(y_i), sj_y=t(y_j), **kw)
 
 
-def test_the_default_label_is_the_measured_one_whether_or_not_the_flags_are_set():
-    a, c = _module(lambda_rank_mt=0.0), _module(lambda_rank_mt=0.0, tf_label='measured', tf_no_label='wt')
-    sa, sc = _spy(a), _spy(c)
-    M._block_step(a, _blk('pair', **_single_tensors(0.3, 0.2)))
-    M._block_step(c, _blk('pair', **_single_tensors(0.3, 0.2)))
-    assert sa['has'].any() and torch.equal(sa['has'], sc['has']) and torch.equal(sa['lat'].nan_to_num(), sc['lat'].nan_to_num())
-    assert float(a.model.w_mt.grad) == pytest.approx(float(c.model.w_mt.grad), rel=1e-7)
-
-
 def test_a_single_below_the_cut_costs_only_itself_and_its_partner_keeps_its_measurement():
     s = _module(lambda_rank_mt=0.0, tf_cut=0.5)
     seen = _spy(s)
     b = _blk('pair', **_single_tensors(-1.9, 0.5))                                 # at the stub's dG_wt of 2: i reads 0.1 (below the cut), j reads 2.5 (above it)
     (ri, _), (wi, wj) = _reads(s, b)
     M._block_step(s, b)
-    lat, has, n = seen['lat'], seen['has'], seen['n']
+    lat, has = seen['lat'], seen['has']
     x, y = [a for a in range(20) if a != wi][0], [a for a in range(20) if a != wj][0]
-    assert n[x, y] == 2 and bool(has[x, y])
+    assert bool(has[x, y])
     assert float(lat[x, y]) == pytest.approx(float(ri[x]) + 0.5, abs=1e-5)         # the WT head's read of i, the measurement of j
 
 
@@ -176,26 +165,17 @@ def test_the_posterior_labels_every_double_even_with_a_tagged_single():
 def test_the_posterior_is_one_label_per_single_and_the_wild_type_has_no_effect():
     s = _module(lambda_rank_mt=0.0, tf_label='posterior')
     seen = _spy(s)
-    M._block_step(s, _blk('pair'))
-    lat, n = seen['lat'], seen['n']
+    b = _blk('pair')
+    wi, wj = blocks.TOKEN_TO_AA[int(b['wt_ids'][0])], blocks.TOKEN_TO_AA[int(b['wt_ids'][1])]
+    M._block_step(s, b)
+    lat = seen['lat']
+    a = torch.arange(20)
+    n = (a != wi).long().view(-1, 1) + (a != wj).long().view(1, -1)                 # mutations per cell
     assert float(lat[n == 0].abs().max()) == 0.0
     idx = torch.nonzero(n == 2)
     r, k = idx[0].tolist()
     r2, k2 = idx[-1].tolist()
     assert float(lat[r, k] + lat[r2, k2]) == pytest.approx(float(lat[r, k2] + lat[r2, k]), abs=1e-4)     # every cell is its row's single plus its column's
-
-
-def test_tf_no_label_mt_changes_only_the_doubles_missing_a_measurement():
-    one_dead = lambda: _blk('pair', **_single_tensors(-1.9, 0.5))                   # at a cut of 0.5, every double has one dead single and one live one
-    wt, mt = _module(lambda_rank_mt=0.0, tf_cut=0.5), _module(lambda_rank_mt=0.0, tf_cut=0.5, tf_no_label='mt')
-    M._block_step(wt, one_dead())
-    M._block_step(mt, one_dead())
-    assert float(wt.model.w_mt.grad) != pytest.approx(float(mt.model.w_mt.grad), rel=1e-3)
-    lab = lambda: _blk('pair', **_single_tensors(0.3, 0.2))
-    a, c = _module(lambda_rank_mt=0.0), _module(lambda_rank_mt=0.0, tf_no_label='mt')
-    M._block_step(a, lab())
-    M._block_step(c, lab())
-    assert float(a.model.w_mt.grad) == pytest.approx(float(c.model.w_mt.grad), rel=1e-6)
 
 
 def test_the_singles_block_takes_the_same_labels():
@@ -223,79 +203,7 @@ def test_stamp_tf_singles_keeps_each_measured_single_where_the_cache_blanks_both
     assert 'tf_A' not in items[0]
 
 
-class _SlotModel(_EnsembleModel):
-    """The WT pass reads 1.5 at the first mutated site and 0.5 at the second, so a label can only be right by using the matching slot."""
-
-    def forward_partitioned(self, micro, pass_type, mask_strategy=None, cached_wt_esm3=None):
-        out = super().forward_partitioned(micro, pass_type, mask_strategy, cached_wt_esm3)
-        B = int(micro['ddG'].shape[0])
-        out['unsummed_llr'] = torch.tensor([[1.5, 0.5]]).repeat(B, 1) * self.w[0]
-        return out
 
 
-def _per_item(batch, **hp):
-    s = _stub()
-    s.model = _SlotModel(2.0, 0.0)
-    for k, v in hp.items():
-        s.hparams[k] = v
-    return _combined_loss(s, batch)
 
 
-# With MT at 0 and a target of -1, the loss is (0.5 * WT half + 1)^2. dG_wt 2, cut 2.3: a single with ddG 0.2 reads 2.2 (dead), one with ddG 0.5 reads 2.5 (live).
-_half = lambda h: (0.5 * h + 1.0) ** 2
-
-
-@pytest.mark.parametrize('a,b,want', [(0.2, 0.5, 1.5 + 0.5),      # A dead: the read of slot 0 and the measurement of B
-                                      (0.5, 0.2, 0.5 + 0.5),      # B dead: the measurement of A and the read of slot 1
-                                      (0.5, 0.5, 1.0),            # both measured
-                                      (0.2, 0.2, 2.0)])           # neither: the WT head's own sum
-def test_a_per_item_double_below_the_cut_costs_only_the_dead_single(a, b, want):
-    batch = _batch()
-    batch['ddG_A'], batch['ddG_B'] = torch.full((6,), a), torch.full((6,), b)
-    assert _per_item(batch, tf_cut=2.3) == pytest.approx(_half(want), abs=1e-5)
-
-
-def test_a_per_item_double_beside_a_tagged_single_keeps_its_partner_through_tf_a_and_tf_b():
-    nan = float('nan')
-    batch = _batch()
-    batch['ddG_A'], batch['ddG_B'] = torch.full((6,), nan), torch.full((6,), nan)    # the cache blanks both
-    batch['tf_A'], batch['tf_B'] = torch.full((6,), 0.5), torch.full((6,), nan)
-    assert _per_item(batch, tf_cut=2.3) == pytest.approx(_half(0.5 + 0.5), abs=1e-5)
-    batch['tf_A'], batch['tf_B'] = torch.full((6,), nan), torch.full((6,), nan)      # neither single measured
-    assert _per_item(batch, tf_cut=2.3) == pytest.approx(_half(2.0), abs=1e-5)
-
-
-def test_a_missing_per_position_read_refuses_rather_than_labels_with_a_zero():
-    batch = _batch()
-    batch['ddG_A'], batch['ddG_B'] = torch.full((6,), 0.2), torch.full((6,), 0.5)
-    s = _stub()                                                                      # this stub's model returns no unsummed_llr
-    s.hparams['tf_cut'] = 2.3
-    with pytest.raises(AssertionError, match='per-position'):
-        _combined_loss(s, batch)
-
-
-def test_forward_rows_hands_back_the_per_position_reads_of_each_forward():
-    s = types.SimpleNamespace(model=_SlotModel(2.0, 0.0))
-    micro = {'ddG': torch.zeros(4)}
-    slots = []
-    M._forward_rows(s, micro, 'wt', None, torch.tensor([True, False, True, False]), slots=slots)
-    rows = torch.cat([r for r, _ in slots]).sort().values.tolist()
-    assert rows == [0, 1, 2, 3] and all(not u.requires_grad and u.shape[1] == 2 for _, u in slots)
-
-
-# ---------------------------------------------------------------------------------------------------------------- flags
-
-def _parse(monkeypatch, *a):
-    monkeypatch.setattr(sys, 'argv', ['x', '--experiment_name', 't', *a])
-    return config.parse_arguments()
-
-
-def test_the_flags_default_to_todays_behaviour_and_refuse_what_they_cannot_mean(monkeypatch):
-    a = _parse(monkeypatch)
-    assert a.tf_label == 'measured' and a.tf_no_label == 'wt'
-    assert _parse(monkeypatch, '--block_training', '--tf_label', 'posterior').tf_label == 'posterior'
-    assert _parse(monkeypatch, '--tf_label', 'inverse').tf_label == 'measured'               # the old name of the label is translated
-    for bad in (['--tf_label', 'posterior'], ['--tf_no_label', 'mt'], ['--block_training', '--tf_label', 'posterior', '--tf_cut', '0.5'],
-                ['--block_training', '--tf_label', 'clamped'], ['--block_training', '--tf_label', 'posterior', '--tf_no_label', 'mt']):
-        with pytest.raises(SystemExit):
-            _parse(monkeypatch, *bad)

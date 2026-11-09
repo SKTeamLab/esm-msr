@@ -1,5 +1,5 @@
 """
-Block training (``--block_training``): a training step is a BLOCK of a library, not a list of variants.
+Block training: a training step is a BLOCK of a library, not a list of variants.
 
 A masked site reads out the whole alphabet at once: one forward of the wild-type sequence with position p masked gives the 20 logits at p,
 so ``logit[x] - logit[wt]`` is the LLR of every substitution there, the wild-type residue itself reading exactly 0. So
@@ -31,7 +31,7 @@ CANON_IDS = [C.SEQUENCE_VOCAB.index(a) for a in AAS]
 TOKEN_TO_AA = {t: k for k, t in enumerate(CANON_IDS)}
 MASK = int(C.SEQUENCE_MASK_TOKEN)
 
-SINGLE_FIELDS = ('y', 'cens', 'bound', 'dG_meas', 'dG_wt', 'y_floor', 'cens_src')
+SINGLE_FIELDS = ('y', 'cens', 'bound', 'dG_meas', 'dG_wt', 'cens_src')
 
 
 @dataclass
@@ -84,7 +84,7 @@ def build_library(name: str, items: Sequence[dict]) -> 'Library | None':
         for p, w in zip(pos, wts):
             wt_tok[p] = w
         vals = {'y': it.get('ddG', np.nan), 'cens': int(it.get('cens', 0)), 'bound': it.get('cens_bound', np.nan),
-                'dG_meas': it.get('dG_meas', np.nan), 'dG_wt': it.get('dG_wt', np.nan), 'y_floor': it.get('y_floor', np.nan),
+                'dG_meas': it.get('dG_meas', np.nan), 'dG_wt': it.get('dG_wt', np.nan),
                 'cens_src': int(it.get('cens_src', 0))}
         if len(pos) == 1:
             d = singles.setdefault(pos[0], {f: _fill(20, f) for f in SINGLE_FIELDS})
@@ -119,21 +119,21 @@ def single_sequences(seq: torch.Tensor, positions: torch.Tensor) -> torch.Tensor
     return out
 
 
-def pair_sequences(seq: torch.Tensor, i: int, j: int, wt_i: int, wt_j: int, identity: bool = False):
+def pair_sequences(seq: torch.Tensor, i: int, j: int, wt_i: int, wt_j: int):
     """
-    The passes of a pair block, as ``(wt_rows [2, L], row_seqs [19, L], col_seqs [19, L], Xa, Ya)``.
+    The passes of a pair block, as ``(wt_rows [2, L], row_seqs [20, L], col_seqs [20, L], Xa, Ya)``.
 
-    With ``identity`` the alphabet is all 20 residues on both axes: the row pass of the wild-type residue at i is the wild type with j masked
-    (its read is the single at j, seen by the mutant adapter) and the column pass of the wild type at j likewise, so the matrices are 20 x 20
-    with the singles on the identity row and column, from 40 mutant passes instead of 38.
+    The alphabet is all 20 residues on both axes: the row pass of the wild-type residue at i is the wild type with j masked (its read is the single at j,
+    seen by the mutant adapter) and the column pass of the wild type at j likewise, so the matrices are 20 x 20 with the singles on the identity row and column,
+    from 40 mutant passes.
 
     ``wt_rows[0]`` is the wild type with i masked (read at i), ``wt_rows[1]`` with j masked (read at j). Row pass x carries substitution x
     at i and masks j (read at j: the conditional readout of every y given x); column pass y carries y at j and masks i (read at i).
-    ``Xa`` / ``Ya`` are the alphabet indices of the 19 substitutions at i / j.
+    ``Xa`` / ``Ya`` are the alphabet indices of the residues at i / j (all 20).
     """
     canon = torch.tensor(CANON_IDS, dtype=torch.long, device=seq.device)
-    Xa = [a for a in range(20) if identity or CANON_IDS[a] != wt_i]
-    Ya = [a for a in range(20) if identity or CANON_IDS[a] != wt_j]
+    Xa = list(range(20))
+    Ya = list(range(20))
     wt_rows = seq.unsqueeze(0).repeat(2, 1)
     wt_rows[0, i] = MASK
     wt_rows[1, j] = MASK
@@ -220,9 +220,7 @@ def pair_labels(b: dict, Xa: Sequence[int], Ya: Sequence[int], wi: int, wj: int)
     finite = torch.cat([t.reshape(-1) for t in (b['dG_wt'], b['si_dG_wt'], b['sj_dG_wt'])])
     finite = finite[torch.isfinite(finite)]
     dG = finite.mean() if finite.numel() else torch.tensor(float('nan'), device=dev)
-    fl = b['y_floor'][torch.isfinite(b['y_floor'])]
     M['dG_wt'] = torch.full_like(M['dG_wt'], float(dG))
-    M['y_floor'] = torch.full_like(M['y_floor'], float(fl.mean()) if fl.numel() else float('nan'))
     M['y'][wi, wj], M['cens'][wi, wj], M['bound'][wi, wj], M['dG_meas'][wi, wj] = 0.0, 0, float('nan'), float(dG)
     ident = torch.zeros(20, 20, dtype=torch.bool, device=dev)
     ident[:, wj] = True

@@ -77,12 +77,12 @@ def test_a_singles_block_masks_one_site_per_row():
         assert s[r, p] == blocks.MASK and (s[r] != blocks.MASK).sum() == 8 and torch.equal(s[r][s[r] != blocks.MASK], SEQ[SEQ.new_tensor([k for k in range(9) if k != p])])
 
 
-def test_a_pair_block_has_two_wt_passes_and_thirty_eight_mutant_passes():
+def test_a_pair_block_has_two_wt_passes_and_forty_mutant_passes():
     wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(SEQ, I, J, WT_I, WT_J)
-    assert wt_rows.shape == (2, 9) and row_seqs.shape == (19, 9) and col_seqs.shape == (19, 9) and len(Xa) == len(Ya) == 19
+    assert wt_rows.shape == (2, 9) and row_seqs.shape == (20, 9) and col_seqs.shape == (20, 9) and len(Xa) == len(Ya) == 20
     assert wt_rows[0, I] == blocks.MASK and wt_rows[0, J] == WT_J and wt_rows[1, J] == blocks.MASK and wt_rows[1, I] == WT_I
     assert (row_seqs[:, J] == blocks.MASK).all() and (col_seqs[:, I] == blocks.MASK).all()
-    assert row_seqs[:, I].tolist() == [blocks.CANON_IDS[a] for a in Xa] and WT_I not in row_seqs[:, I].tolist()
+    assert row_seqs[:, I].tolist() == [blocks.CANON_IDS[a] for a in Xa] and WT_I in row_seqs[:, I].tolist()      # the identity row: the wild-type residue at i, j masked
     assert col_seqs[:, J].tolist() == [blocks.CANON_IDS[a] for a in Ya]
 
 
@@ -102,11 +102,14 @@ def test_every_cell_of_a_pair_block_equals_the_per_item_independent_readout():
     wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(SEQ, I, J, WT_I, WT_J)
     llr = lambda seqs, pos, wt: m.forward_site_llr(seqs, torch.as_tensor(pos), torch.as_tensor(wt), 'wt')
     llr_w = llr(wt_rows, [I, J], [WT_I, WT_J])
-    llr_m = llr(torch.cat([row_seqs, col_seqs]), [J] * 19 + [I] * 19, [WT_J] * 19 + [WT_I] * 19)
-    wt_raw, mt_raw = blocks.assemble_pair(llr_w[0], llr_w[1], llr_m[:19], llr_m[19:], Xa, Ya)
-    assert wt_raw.shape == mt_raw.shape == (19, 19)
+    llr_m = llr(torch.cat([row_seqs, col_seqs]), [J] * 20 + [I] * 20, [WT_J] * 20 + [WT_I] * 20)
+    wt_raw, mt_raw = blocks.assemble_pair(llr_w[0], llr_w[1], llr_m[:20], llr_m[20:], Xa, Ya)
+    assert wt_raw.shape == mt_raw.shape == (20, 20)
+    wi, wj = blocks.TOKEN_TO_AA[WT_I], blocks.TOKEN_TO_AA[WT_J]
     for r, x in enumerate(Xa):
         for c, y in enumerate(Ya):
+            if x == wi or y == wj:                      # the identity row and column are singles, not doubles
+                continue
             w, t = _reference_cell(m, x, y)
             assert float(wt_raw[r, c]) == pytest.approx(w, rel=1e-5, abs=1e-4), (x, y)
             assert float(mt_raw[r, c]) == pytest.approx(t, rel=1e-5, abs=1e-4), (x, y)
@@ -199,8 +202,7 @@ class _Net(torch.nn.Module):
 
 
 def _hp(**kw):
-    d = dict(tf_mix=1.0, lambda_reg_wt=1.0, lambda_rank_wt=1.0, lambda_reg_mt=1.0, lambda_rank_mt=1.0, censor_threshold=None, block_positions=8,
-             joint_doubles='off')
+    d = dict(tf_mix=1.0, lambda_reg_wt=1.0, lambda_rank_wt=1.0, lambda_reg_mt=1.0, lambda_rank_mt=1.0, rank_censor_threshold=None, block_positions=8, rank_list_size=16)
     d.update(kw)
 
     class HP(dict):
@@ -216,8 +218,7 @@ def _module(**hp):
     s.hparams = _hp(**hp)
     s.model = _Net()
     s.tf_post = {}                                    # the posterior label's constants: losses.py's defaults
-    s.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, mt_path_is_frozen=False)
-    s.crit_reg = torch.nn.MSELoss(reduction='none')
+    s.tobit_params = dict(sigma_y=0.28, mu_f=0.05, sigma_f=0.38)
     s.crit_rank_wt = s.crit_rank_mt = ListMLELoss()
     s.manual_backward = lambda loss, retain_graph=False: loss.backward()
     for name in ('_reg_loss', '_compute_rank_loss', '_block_cal', '_block_cal_sg', '_block_s_wt', '_block_llr', '_block_ctx', '_block_reg_rank',
@@ -234,14 +235,17 @@ def _blk(kind, **over):
     return b
 
 
-def test_a_singles_block_trains_both_heads_and_its_wt_loss_is_the_mean_squared_error_on_the_observed_cells():
+def test_a_singles_block_trains_both_heads_and_its_wt_loss_is_the_tobit_likelihood_on_the_observed_cells():
+    from esm_msr.losses import tobit_regression_loss
     s = _module(lambda_rank_wt=0.0, lambda_rank_mt=0.0)
     b = _blk('single')
     logs = M._block_step(s, b)
     y = b['y']
     obs = torch.isfinite(y)
     llr = s.model.w_wt.detach() * (torch.arange(20).float().view(1, 20) + 1 + 0.1 * torch.arange(3).float().view(3, 1))
-    assert logs['L_reg_wt'] == pytest.approx(float(((llr - y)[obs] ** 2).mean()), rel=1e-5)
+    off = b['dG_wt'][obs]
+    want = tobit_regression_loss(off + llr[obs], off + y[obs], off + torch.zeros_like(off), torch.zeros_like(off, dtype=torch.long), **s.tobit_params).mean()
+    assert logs['L_reg_wt'] == pytest.approx(float(want), rel=1e-5)
     assert s.model.w_wt.grad is not None and s.model.w_mt.grad is not None and float(s.model.w_wt.grad.abs()) > 0
     assert [c[0] for c in s.model.calls] == ['wt', 'mt'] and all(c[1] == 3 for c in s.model.calls)            # B rows each, 2 passes
 
@@ -258,23 +262,8 @@ def test_a_singles_block_is_ranked_as_one_list_of_b_times_twenty_cells():
     assert seen and all(sh == (1, 60) for sh in seen)
 
 
-@pytest.mark.parametrize('ident,rows', [(False, 38), (True, 40)])
-def test_a_pair_block_uses_thirty_eight_passes_forty_with_the_identity_and_regresses_the_cycle_prediction(ident, rows):
-    s = _module(lambda_rank_mt=0.0, block_identity=ident)
-    b = _blk('pair')
-    logs = M._block_step(s, b)
-    assert sorted((c[0], c[1]) for c in s.model.calls) == [('mt', rows), ('wt', 2)]
-    assert 'L_reg_combined' in logs and logs['L_reg_combined'] > 0
-    assert s.model.w_mt.grad is not None and (s.model.w_wt.grad is None or float(s.model.w_wt.grad.abs()) == 0.0)   # joint off: WT half detached
 
 
-def test_joint_doubles_make_the_pair_blocks_wt_half_live_and_tf_mix_one_takes_the_gradient_away():
-    for mix, expect in ((0.0, True), (1.0, False)):
-        s = _module(joint_doubles='both', tf_mix=mix, lambda_rank_mt=0.0)
-        b = _blk('pair', si_y=torch.full((20,), 0.3), sj_y=torch.full((20,), 0.2))                # every cell has a usable additive label
-        M._block_step(s, b)
-        g = s.model.w_wt.grad
-        assert (g is not None and float(g.abs()) > 0) == expect, (mix, g)
 
 
 def test_block_list_rows_cuts_the_lists_into_rows_of_positions():
@@ -314,22 +303,6 @@ def test_rank_norm_ref_scales_a_list_to_the_reference_length_not_its_own():
     assert float(own) == pytest.approx(7.0 * 40 / 30) and float(ref) == pytest.approx(7.0 * 16 / 30)
 
 
-def test_the_list_flags_default_to_the_old_behaviour_and_are_validated():
-    import sys
-    argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x', '--block_training']
-    old = sys.argv
-    try:
-        sys.argv = argv
-        a = config.parse_arguments()
-        assert a.block_list_rows == 0 and a.block_rank_norm == 'sum'
-        sys.argv = argv + ['--block_list_rows', '1', '--block_rank_norm', 'ref']
-        a = config.parse_arguments()
-        assert a.block_list_rows == 1 and a.block_rank_norm == 'ref'
-        sys.argv = argv + ['--block_list_rows', '-1']
-        with pytest.raises(SystemExit):
-            config.parse_arguments()
-    finally:
-        sys.argv = old
 
 
 def test_pair_rank_lists_cover_every_cell_once_in_rows_or_columns():
@@ -350,37 +323,14 @@ def test_pair_rank_lists_cover_every_cell_once_in_rows_or_columns():
     assert all(max(t) <= 8 * 19 for t in sizes)                                                  # at most B rows (or columns) per list
 
 
-def test_a_frozen_wt_head_is_read_without_a_graph_and_gets_no_loss():
-    s = _module()
-    s.peft_manager.wt_path_is_frozen = True
-    M._block_step(s, _blk('single'))
-    assert s.model.calls[0] == ('wt', 3, False) and s.model.w_wt.grad is None
 
 
-def test_the_flags():
-    argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
-    import sys
-    old = sys.argv
-    try:
-        sys.argv = argv + ['--block_training', '--block_positions', '16']
-        a = config.parse_arguments()
-        assert a.block_training is True and a.block_positions == 16
-        sys.argv = argv
-        assert config.parse_arguments().block_training is False
-        for bad in (['--block_training', '--mt_direct_pred'], ['--block_training', '--adapter_mode', 'fused'], ['--block_training', '--block_positions', '0']):
-            sys.argv = argv + bad
-            with pytest.raises(SystemExit):
-                config.parse_arguments()
-    finally:
-        sys.argv = old
 
 
-@pytest.mark.parametrize('tobit', [False, True], ids=['mse', 'tobit'])
-def test_gradients_are_finite_although_most_cells_are_unobserved(tobit):
+def test_gradients_are_finite_although_most_cells_are_unobserved():
     """Unobserved cells have no dG_wt: the loss must not see NaN there, or 0 * NaN in backward poisons every parameter."""
     for kind in ('single', 'pair'):
-        s = _module(joint_doubles='both', tf_mix=0.5)
-        s.tobit, s.tobit_params = tobit, dict(sigma_y=0.28, mu_f=0.05, sigma_f=0.38)
+        s = _module(tf_mix=0.5)
         b =_blk(kind, si_y=torch.full((20,), 0.3), sj_y=torch.full((20,), 0.2)) if kind == 'pair' else _blk(kind)
         M._block_step(s, b)
         grads = [p.grad for p in list(s.model.parameters()) if p.grad is not None]
@@ -388,29 +338,8 @@ def test_gradients_are_finite_although_most_cells_are_unobserved(tobit):
         assert float(s.model.w_mt.grad.abs()) > 0
 
 
-def test_block_tf_detach_wt_default_keeps_the_wt_head_out_of_the_combined_loss():
-    for kind in ('single', 'pair'):
-        s = _module(lambda_reg_wt=0.0, lambda_rank_wt=0.0, tf_mix=0.0)
-        M._block_step(s, _blk(kind))
-        assert s.model.w_wt.grad is None and float(s.model.w_mt.grad.abs()) > 0, kind
-        s = _module(lambda_reg_wt=0.0, lambda_rank_wt=0.0, tf_mix=0.0, tf_detach_wt=False)
-        M._block_step(s, _blk(kind))
-        assert s.model.w_wt.grad is not None and float(s.model.w_wt.grad.abs()) > 0, kind
 
 
-def test_block_clashes_with_the_per_item_only_losses_are_refused():
-    import sys
-    argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x', '--block_training']
-    old = sys.argv
-    try:
-        sys.argv = argv + ['--lambda_cond_mt', '7.5']                         # the conditional legs ARE defined for blocks
-        assert config.parse_arguments().lambda_cond_mt == 7.5
-        for bad in (['--wt_supervise_doubles'], ['--mt_single_loss_weight', '0.1']):
-            sys.argv = argv + bad
-            with pytest.raises(SystemExit):
-                config.parse_arguments()
-    finally:
-        sys.argv = old
 
 
 # ---------------------------------------------------------------------------------------------------------------- identity, conditional legs, chunks
@@ -437,14 +366,14 @@ def test_pair_labels_put_the_singles_on_the_identity_row_and_column_and_zero_on_
     for x in (0, 1, 2):                                                  # (x, wt_j) is the single x at position 2
         assert lab['y'][x, wj] == pytest.approx(float(b['si_y'][x]))
     assert torch.isnan(lab['y'][wi, 3]) or float(lab['y'][wi, 3]) == pytest.approx(float(b['sj_y'][3]), nan_ok=True)
-    assert torch.isfinite(lab['dG_wt']).all() and torch.isfinite(lab['y_floor']).all()      # no cell hands the link a NaN
+    assert torch.isfinite(lab['dG_wt']).all()                                                 # no cell hands the likelihood a NaN
     lab19, *_ = blocks.pair_labels(b, [a for a in range(20) if a != wi], [a for a in range(20) if a != wj], wi, wj)
     assert lab19['y'].shape == (19, 19)
 
 
 def test_the_identity_cells_of_a_pair_block_are_the_per_item_singles():
     m = _stand_in()
-    wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(SEQ, I, J, WT_I, WT_J, identity=True)
+    wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(SEQ, I, J, WT_I, WT_J)
     assert len(Xa) == len(Ya) == 20 and row_seqs.shape == (20, 9)
     llr = lambda seqs, pos, wt: m.forward_site_llr(seqs, torch.as_tensor(pos), torch.as_tensor(wt), 'wt')
     llr_w = llr(wt_rows, [I, J], [WT_I, WT_J])
@@ -463,28 +392,19 @@ def test_the_identity_cells_of_a_pair_block_are_the_per_item_singles():
         assert float(wt_raw[x, wj]) == pytest.approx(w, rel=1e-5, abs=1e-4) and float(mt_raw[x, wj]) == pytest.approx(t, rel=1e-5, abs=1e-4)
 
 
-def test_a_singles_list_holds_the_wild_type_with_label_and_prediction_zero_when_asked():
-    for ident, extra in ((True, 3), (False, 0)):
-        s = _module(lambda_reg_wt=0.0, lambda_reg_mt=0.0, block_identity=ident)
-        s.crit_rank_wt = s.crit_rank_mt = rec = _Rec()
-        b = _blk('single')
-        M._block_step(s, b)
-        p, t, m = rec.lists[0]
-        n_obs = int(torch.isfinite(b['y']).sum())
-        assert int(m.sum()) == n_obs + extra and p.shape == (60,)
-        if ident:
-            wi = torch.as_tensor([blocks.TOKEN_TO_AA[int(w)] for w in b['wt_ids']])
-            cells = torch.arange(3) * 20 + wi
-            assert m[cells].all() and (t[cells] == 0).all() and (p[cells] == 0).all()
+def test_a_singles_list_holds_the_wild_type_with_label_and_prediction_zero():
+    s = _module(lambda_reg_wt=0.0, lambda_reg_mt=0.0)
+    s.crit_rank_wt = s.crit_rank_mt = rec = _Rec()
+    b = _blk('single')
+    M._block_step(s, b)
+    p, t, m = rec.lists[0]
+    n_obs = int(torch.isfinite(b['y']).sum())
+    assert int(m.sum()) == n_obs + 3 and p.shape == (60,)
+    wi = torch.as_tensor([blocks.TOKEN_TO_AA[int(w)] for w in b['wt_ids']])
+    cells = torch.arange(3) * 20 + wi
+    assert m[cells].all() and (t[cells] == 0).all() and (p[cells] == 0).all()
 
 
-def test_the_identity_cell_has_no_regression_and_the_regression_count_is_unchanged():
-    logs = {}
-    for ident in (True, False):
-        s = _module(lambda_rank_wt=0.0, lambda_rank_mt=0.0, block_identity=ident)
-        logs[ident] = M._block_step(s, _blk('single'))
-        logs[ident]['n'] = s._block_cnts['reg_wt']
-    assert logs[True]['n'] == logs[False]['n'] and logs[True]['L_reg_wt'] == pytest.approx(logs[False]['L_reg_wt'])
 
 
 def test_a_pair_block_ranks_the_singles_and_the_wild_type_with_the_doubles():
@@ -524,7 +444,7 @@ def test_the_partner_cutoff_removes_the_legs_whose_partner_is_not_stable_enough(
 def test_a_conditional_list_holds_the_partner_single_as_its_identity_cell():
     s = _module(lambda_reg_mt=0.0, lambda_reg_wt=0.0, lambda_rank_wt=0.0, lambda_rank_mt=1.0, lambda_cond_mt=1.0, block_positions=19)
     b = _blk('pair')
-    wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(b['seq'], 2, 5, WT_I, int(SEQ[5]), identity=True)
+    wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(b['seq'], 2, 5, WT_I, int(SEQ[5]))
     wi, wj = blocks.TOKEN_TO_AA[int(SEQ[2])], blocks.TOKEN_TO_AA[int(SEQ[5])]
     lab, ident_cells, full = blocks.pair_labels(b, Xa, Ya, wi, wj)
     llr_m = s.model.forward_site_llr(torch.cat([row_seqs, col_seqs]), torch.as_tensor([5] * 20 + [2] * 20), torch.as_tensor([int(SEQ[5])] * 20 + [WT_I] * 20), 'mt')
@@ -558,10 +478,10 @@ def test_row_chunks_give_the_same_gradient_as_all_rows_at_once():
     grads = []
     for chunk in (0, 7):
         torch.manual_seed(5)
-        s = _module(lambda_cond_mt=1.0, joint_doubles='both', tf_mix=0.5, block_row_chunk=chunk)
+        s = _module(lambda_cond_mt=1.0, tf_mix=0.5, block_row_chunk=chunk)
         s.model.forward_site_llr = content_llr(s.model)
         M._block_step(s, _blk('pair', si_y=torch.full((20,), 0.3), sj_y=torch.full((20,), 0.2)))
-        grads.append((s.model.w_mt.grad.clone(), s.model.w_wt.grad.clone(), s.model.calibration_head_mt.scale.grad.clone()))
+        grads.append((s.model.w_mt.grad.clone(), s.model.calibration_head_mt.scale.grad.clone()))
     for a, b_ in zip(*grads):
         assert torch.allclose(a, b_, rtol=1e-5, atol=1e-7)
 
@@ -679,23 +599,6 @@ def test_the_unmasked_pair_cell_is_the_sum_of_the_two_visible_readouts():
     assert torch.equal(seqs[c], seqs[c + 1]) and read[c].item() == I and read[c + 1].item() == J
 
 
-def test_the_masking_probabilities_are_validated():
-    import sys
-    argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x', '--block_training']
-    old = sys.argv
-    try:
-        sys.argv = argv
-        a = config.parse_arguments()
-        assert a.block_mask_wt == 1.0 and a.block_mask_mt == 1.0
-        sys.argv = argv + ['--block_mask_wt', '0', '--block_mask_mt', '0.25']
-        a = config.parse_arguments()
-        assert a.block_mask_wt == 0.0 and a.block_mask_mt == 0.25
-        for bad in (['--block_mask_mt', '1.5'], ['--block_mask_wt', '-0.1']):
-            sys.argv = argv + bad
-            with pytest.raises(SystemExit):
-                config.parse_arguments()
-    finally:
-        sys.argv = old
 
 
 def test_identical_rows_are_one_forward_and_give_the_numbers_of_separate_ones():
@@ -724,25 +627,12 @@ def test_identical_rows_are_one_forward_and_give_the_numbers_of_separate_ones():
 
 # ---------------------------------------------------------------------------------------------------------------- --reg_nll tobit, the rank scale, the censoring source
 
-def test_tobit_and_the_rank_scale_flag_are_accepted_by_block_training_and_joint_stays_refused_without_blocks():
-    import sys
-    argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
-    old = sys.argv
-    try:
-        sys.argv = argv + ['--block_training', '--reg_nll', 'tobit', '--rank_calibrated_stopgrad', '--joint_doubles', 'both', '--tf_mix', '0.5']
-        a = config.parse_arguments()
-        assert a.reg_nll == 'tobit' and a.rank_calibrated_stopgrad and a.joint_doubles == 'both'
-        sys.argv = argv + ['--joint_doubles', 'both', '--reg_nll', 'tobit', '--tf_mix', '0.5']
-        with pytest.raises(SystemExit):
-            config.parse_arguments()
-    finally:
-        sys.argv = old
 
 
 def test_the_tobit_block_regression_is_the_noisy_floor_likelihood_on_the_latent_dG_of_the_observed_cells():
     from esm_msr.losses import tobit_regression_loss, TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F
-    s = _module(lambda_rank_wt=0.0, lambda_rank_mt=0.0, lambda_reg_mt=0.0, block_identity=False)
-    s.tobit, s.tobit_params = True, dict(sigma_y=TOBIT_SIGMA_Y, mu_f=TOBIT_MU_F, sigma_f=TOBIT_SIGMA_F)
+    s = _module(lambda_rank_wt=0.0, lambda_rank_mt=0.0, lambda_reg_mt=0.0)
+    s.tobit_params = dict(sigma_y=TOBIT_SIGMA_Y, mu_f=TOBIT_MU_F, sigma_f=TOBIT_SIGMA_F)
     b = _blk('single')
     logs = M._block_step(s, b)
     obs = torch.isfinite(b['y'])
@@ -756,106 +646,23 @@ def test_the_tobit_block_regression_is_the_noisy_floor_likelihood_on_the_latent_
 def test_only_the_assay_range_tags_are_censored_for_the_tobit_regression():
     from esm_msr import censoring
     s = _module()
-    s.tobit = True
     lab = {'y': torch.tensor([[0.5, 0.2]]), 'cens': torch.tensor([[-1, -1]]), 'bound': torch.tensor([[0.1, 0.3]]), 'dG_meas': torch.zeros(1, 2),
-           'dG_wt': torch.full((1, 2), 2.0), 'y_floor': torch.zeros(1, 2), 'cens_src': torch.tensor([[censoring.SRC_RANGE, 0]])}
+           'dG_wt': torch.full((1, 2), 2.0), 'cens_src': torch.tensor([[censoring.SRC_RANGE, 0]])}
     c = s._block_ctx(lab, [torch.arange(2)])
     assert c.cens.tolist() == [[-1, -1]]                                   # both still tie their ranks ...
     assert c.cens_reg.tolist() == [[-1, 0]]                                # ... but only the range tag is a bound for the likelihood
     assert torch.equal(c.bound, lab['bound'])                              # raw bound: nothing is made reachable under Tobit
 
 
-def test_the_rank_scale_follows_rank_calibrated_stopgrad_not_the_identity_cell():
-    seen = {}
-    for flag in (True, False):
-        s = _module(lambda_reg_wt=0.0, lambda_reg_mt=0.0, lambda_rank_mt=0.0, block_identity=True, rank_calibrated_stopgrad=flag)
-        s.model.calibration_head_wt.bias.data = torch.tensor(0.5)
-        s.crit_rank_wt = rec = _Rec()
-        b = _blk('single')
-        M._block_step(s, b)
-        seen[flag] = rec.lists[0][0]
-    raw = seen[False]
-    wt_cols = [blocks.TOKEN_TO_AA[int(t)] for t in b['wt_ids']]
-    assert not torch.allclose(seen[True], raw)                            # calibrated: every mutation carries the bias ...
-    d = (seen[True] - raw).view(3, 20)
-    for r, wa in enumerate(wt_cols):
-        assert float(d[r, wa]) == pytest.approx(0.0, abs=1e-6)            # ... and the wild-type cell, no mutation, stays 0
-        assert all(float(d[r, a]) == pytest.approx(0.5, abs=1e-5) for a in range(20) if a != wa)
 
 
 # ---------------------------------------------------------------------------------------------------------------- --lambda_cycle
 
-def _cycle_module(**hp):
-    """Only the cycle loss is on, so what trains is exactly what the cycle reaches."""
-    s = _module(lambda_reg_wt=0.0, lambda_rank_wt=0.0, lambda_reg_mt=0.0, lambda_rank_mt=0.0, lambda_cycle=1.0, **hp)
-    s._block_cycle = types.MethodType(M._block_cycle, s)
-    return s
 
 
-def test_the_cycle_loss_is_the_mean_squared_closing_error_of_every_real_double_with_calibration_held_constant():
-    s = _cycle_module()
-    s.model.calibration_head_wt.bias.data, s.model.calibration_head_mt.bias.data = torch.tensor(0.2), torch.tensor(-0.3)
-    s.model.calibration_head_wt.scale.data, s.model.calibration_head_mt.scale.data = torch.tensor(1.5), torch.tensor(0.5)
-    seen = _content_net(s.model)
-    logs = M._block_step(s, _blk('pair'))
-    wt_rows, row_seqs, col_seqs, Xa, Ya = blocks.pair_sequences(SEQ, I, J, WT_I, WT_J, identity=True)
-    f = lambda side, sq, pos, wt: s.model.forward_site_llr(sq.unsqueeze(0), torch.tensor([pos]), torch.tensor([wt]), side)[0]
-    wi, wj = blocks.TOKEN_TO_AA[WT_I], blocks.TOKEN_TO_AA[WT_J]
-    cw = lambda v: 1.5 * v + 0.2
-    cm = lambda v: 0.5 * v - 0.3
-    res = []
-    for x in range(20):
-        for y in range(20):
-            if x == wi or y == wj:
-                continue
-            p1 = cw(f('wt', wt_rows[0], I, WT_I)[x]) + cm(f('mt', row_seqs[x], J, WT_J)[y])        # WT(x) + MT(Y | X)
-            p2 = cw(f('wt', wt_rows[1], J, WT_J)[y]) + cm(f('mt', col_seqs[y], I, WT_I)[x])        # WT(y) + MT(X | Y)
-            res.append(float(p1 - p2) ** 2)
-    assert logs['L_cycle'] == pytest.approx(sum(res) / len(res), rel=1e-4)
-    assert len(res) == 19 * 19                                                                      # every real double, observed or not
-    assert s.model.calibration_head_mt.scale.grad is None and s.model.calibration_head_mt.bias.grad is None      # the cycle never moves the calibration
 
 
-def test_the_cycle_loss_trains_the_mt_conditionals_and_only_touches_the_wt_head_when_asked():
-    s = _cycle_module()
-    _content_net(s.model)
-    M._block_step(s, _blk('pair'))
-    assert s.model.w_mt.grad is not None and float(s.model.w_mt.grad.abs()) > 0
-    assert s.model.w_wt.grad is None                                                                # --cycle_detach_wt (default): the singles are constants
-    s = _cycle_module(cycle_detach_wt=False)
-    _content_net(s.model)
-    M._block_step(s, _blk('pair'))
-    assert s.model.w_wt.grad is not None and float(s.model.w_wt.grad.abs()) > 0
 
 
-def test_a_visible_site_block_has_no_cycle_and_a_block_without_labels_still_gets_one():
-    s = _cycle_module(block_mask_mt=0.0)
-    _content_net(s.model)
-    logs = M._block_step(s, _blk('pair'))
-    assert 'L_cycle' not in logs                                                                    # the unmasked MT block has no row / column passes
-    s = _cycle_module()
-    _content_net(s.model)
-    b = _blk('pair')
-    b['y'] = torch.full_like(b['y'], float('nan'))                                                  # no doubles measured: the label-free loss does not need them
-    for k in ('si_y',):
-        b[k] = torch.full_like(b[k], float('nan'))
-    assert 'L_cycle' in M._block_step(s, b)
 
 
-def test_the_cycle_flags_parse_and_need_block_training():
-    import sys
-    argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
-    old = sys.argv
-    try:
-        sys.argv = argv + ['--block_training', '--lambda_cycle', '5', '--no-cycle_detach_wt']
-        a = config.parse_arguments()
-        assert a.lambda_cycle == 5.0 and a.cycle_detach_wt is False
-        sys.argv = argv
-        a = config.parse_arguments()
-        assert a.lambda_cycle == 0.0 and a.cycle_detach_wt is True
-        for bad in (['--lambda_cycle', '1'], ['--block_training', '--lambda_cycle', '-1']):
-            sys.argv = argv + bad
-            with pytest.raises(SystemExit):
-                config.parse_arguments()
-    finally:
-        sys.argv = old

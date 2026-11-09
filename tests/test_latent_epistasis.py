@@ -39,14 +39,11 @@ def test_a_tobit_run_hands_the_table_its_link(monkeypatch):
     assert _tables_seen(monkeypatch, link) == [link]
 
 
-def test_the_link_is_the_runs_only_when_it_trained_with_tobit_and_did_not_opt_out():
+def test_the_observed_scale_link_is_the_tobit_expected_reading_with_the_runs_constants():
     hp = lambda **k: types.SimpleNamespace(get=lambda key, d=None: k.get(key, d))
-    assert training.observed_scale_link(hp()) is None
-    assert training.observed_scale_link(hp(reg_nll='none')) is None
-    assert training.observed_scale_link(hp(reg_nll='tobit', val_tobit_link=False)) is None
-    h = training.observed_scale_link(hp(reg_nll='tobit'))
+    h = training.observed_scale_link(hp())
     ref = val_stats.tobit_link(0.28, 0.05, 0.38)
     z = np.linspace(-2.0, 6.0, 17)
     np.testing.assert_allclose(h(z), ref(z), rtol=0, atol=0)
-    wide = training.observed_scale_link(hp(reg_nll='tobit', tobit_sigma_f=0.8))               # the constants are the run's own flags
+    wide = training.observed_scale_link(hp(tobit_sigma_f=0.8))               # the constants are the run's own flags
     assert not np.allclose(wide(z), ref(z))

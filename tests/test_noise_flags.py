@@ -11,7 +11,7 @@ from esm_msr.training import tf_single_label
 def parse(*extra):
     old = sys.argv
     try:
-        sys.argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x'] + list(extra)
+        sys.argv = ['training.py', '--experiment_name', 'x'] + list(extra)
         return config.parse_arguments()
     finally:
         sys.argv = old

@@ -1,5 +1,4 @@
-"""--block_domain_steps: one optimizer step per library, singles + w * mean(pairs), with --grad_clip_per_head clipping each head on its own."""
-import sys
+"""--block_domain_steps: one optimizer step per library, singles + w * mean(pairs), with the gradient clip applied to each head on its own."""
 import types
 
 import numpy as np
@@ -11,12 +10,7 @@ from esm_msr import blocks, config, training
 
 
 def parse(*extra):
-    argv = sys.argv
-    try:
-        sys.argv = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x'] + list(extra)
-        return config.parse_arguments()
-    finally:
-        sys.argv = argv
+    return config.parse_arguments(['--experiment_name', 'x'] + list(extra))
 
 
 def lib(name, positions, n_pairs):
@@ -28,13 +22,10 @@ LIBS = [lib('a', 3, 0), lib('b', 2, 2), lib('c', 0, 1), lib('d', 0, 0)]
 
 
 def test_the_flags_refuse_what_would_mean_nothing():
-    assert parse('--block_training', '--block_domain_steps', '--block_pair_weight', '0.1').block_pair_weight == 0.1
-    for bad in (['--block_domain_steps'],
-                ['--block_training', '--block_pair_weight', '0.5'],
-                ['--block_training', '--block_domain_steps', '--block_pair_weight', '-1'],
-                ['--block_training', '--block_domain_steps', '--grad_accum_blocks', '2'],
-                ['--grad_clip_per_head', '--grad_clip_norm', '0'],
-                ['--val_every_epochs', '0']):
+    assert parse('--block_domain_steps', '--block_pair_weight', '0.1').block_pair_weight == 0.1
+    for bad in (['--block_pair_weight', '0.5'],
+                ['--block_domain_steps', '--block_pair_weight', '-1'],
+                ['--block_domain_steps', '--grad_accum_blocks', '2']):
         with pytest.raises(SystemExit):
             parse(*bad)
 
@@ -72,20 +63,17 @@ def test_the_plain_sampler_is_unchanged():
 
 
 class Sched:
-    last_epoch = 10 ** 9
     def __init__(self): self.n = 0
     def step(self): self.n += 1
 
 
-def module(blocks_grads, clip=0.0, per_head=False):
+def module(blocks_grads):
     mod = training.ESM3EpistasisLightningModule.__new__(training.ESM3EpistasisLightningModule)
     nn.Module.__init__(mod)
     mod._device = torch.device('cpu')
-    hp = dict(block_domain_steps=True, grad_accum_blocks=1, grad_clip_norm=clip, grad_clip_per_head=per_head, freeze_wt_adapter=False, freeze_mt_adapter=False,
-              lr_warmup_steps=0, lr_schedule='cosine')
+    hp = dict(block_domain_steps=True, grad_accum_blocks=1, lr_warmup_steps=0)
     mod._hparams = types.SimpleNamespace(**hp, get=lambda k, d=None: hp.get(k, d))
     mod.model = nn.Module()
-    mod.peft_manager = types.SimpleNamespace(wt_path_is_frozen=False, has_transitioned=False, enforce_freezing=lambda *a, **k: None)
     wt, mt = nn.Parameter(torch.zeros(1)), nn.Parameter(torch.zeros(1))
     opt = torch.optim.SGD([{'params': [wt], 'lr': 1.0, 'name': 'lora_wt'}, {'params': [mt], 'lr': 1.0, 'name': 'lora_mt'}], lr=1.0)
     sched, calls = Sched(), {'i': 0}
@@ -108,25 +96,22 @@ def module(blocks_grads, clip=0.0, per_head=False):
 
 
 def test_the_step_comes_at_the_end_of_the_library_on_the_summed_gradient_and_logs_apart():
-    mod, wt, mt, sched, logged = module([(1., 2.), (None, 3.), (None, 5.)])
+    mod, wt, mt, sched, logged = module([(.1, .1), (None, .2), (None, .3)])
     mod.training_step({'block': 'single', 'step_end': False}, 0)
     mod.training_step({'block': 'pair', 'step_end': False}, 1)
     assert sched.n == 0 and wt.item() == 0 and not logged
     mod.training_step({'block': 'pair', 'step_end': True}, 2)
-    assert sched.n == 1 and wt.item() == -1 and mt.item() == -10
-    assert ('train/L_reg_combined', 2.) in logged and ('train/L_reg_combined_pair', 4.) in logged
+    assert sched.n == 1 and wt.item() == pytest.approx(-.1) and mt.item() == pytest.approx(-.6)
+    logs = dict(logged)
+    assert logs['train/L_reg_combined'] == pytest.approx(.1) and logs['train/L_reg_combined_pair'] == pytest.approx(.25)
 
 
-def test_one_clip_lets_the_doubles_shrink_the_wt_step_and_per_head_does_not():
+def test_the_doubles_do_not_shrink_the_wt_step_because_each_head_is_clipped_on_its_own():
     grads = [(1., 0.), (None, 100.)]
-    mod, wt, mt, *_ = module(grads, clip=1.0, per_head=False)
+    mod, wt, mt, _, logged = module(grads)
     mod.training_step({'block': 'single', 'step_end': False}, 0)
     mod.training_step({'block': 'pair', 'step_end': True}, 1)
-    assert abs(wt.item()) < 0.011
-    mod, wt, mt, _, logged = module(grads, clip=1.0, per_head=True)
-    mod.training_step({'block': 'single', 'step_end': False}, 0)
-    mod.training_step({'block': 'pair', 'step_end': True}, 1)
-    assert wt.item() == pytest.approx(-1.0) and mt.item() == pytest.approx(-1.0)
+    assert wt.item() == pytest.approx(-1.0, abs=1e-5) and mt.item() == pytest.approx(-1.0, abs=1e-5)
     assert dict(logged)['norm_grad/pre_clip_mt'] == pytest.approx(100.0) and dict(logged)['norm_grad/pre_clip_wt'] == pytest.approx(1.0)
 
 
@@ -155,7 +140,7 @@ def M_step(s, b):
 
 def test_the_cosine_length_counts_domain_steps():
     from test_audit_next_features import _make_stub_module
-    mod = _make_stub_module(lr_schedule='cosine', lr_warmup_steps=4, num_epochs=1, block_domain_steps=True)
+    mod = _make_stub_module(lr_warmup_steps=4, num_epochs=1, block_domain_steps=True)
 
     class S:
         def n_steps(self): return 90

@@ -63,45 +63,5 @@ class TestPerMutationBias(unittest.TestCase):
         self.assertTrue(torch.allclose(back, raw, atol=1e-5), back)
 
 
-class TestStopWhenNothingTrains(unittest.TestCase):
-    def _stub(self, groups, frozen=(True, True)):
-        from esm_msr import training
-        cls = training.ESM3EpistasisLightningModule
-        p = torch.nn.Parameter(torch.zeros(1))
-        for g in groups:
-            g.setdefault('params', [p])
-        opt = types.SimpleNamespace(param_groups=groups)
-        stub = types.SimpleNamespace(
-            optimizers=lambda: opt,
-            trainer=types.SimpleNamespace(should_stop=False, current_epoch=7),
-            peft_manager=types.SimpleNamespace(wt_path_is_frozen=frozen[0], mt_path_is_frozen=frozen[1]))
-        stub._stop_if_nothing_is_training = types.MethodType(cls._stop_if_nothing_is_training, stub)
-        return stub
-
-    def test_it_stops_when_every_group_is_at_zero(self):
-        stub = self._stub([{'name': 'lora_wt', 'lr': 0.0}, {'name': 'lora_mt', 'lr': 0.0}])
-        stub._stop_if_nothing_is_training()
-        self.assertTrue(stub.trainer.should_stop)
-
-    def test_it_keeps_going_while_one_group_still_has_a_rate(self):
-        stub = self._stub([{'name': 'lora_wt', 'lr': 0.0}, {'name': 'lora_mt', 'lr': 1.8e-5}], frozen=(True, False))
-        stub._stop_if_nothing_is_training()
-        self.assertFalse(stub.trainer.should_stop)
-
-    def test_a_zero_lr_group_of_frozen_parameters_does_not_hold_the_run_open(self):
-        # requires_grad False AND lr 0: on_validation_end re-applies baseline requires_grad every epoch, so the
-        # lr is the durable signal.
-        p = torch.nn.Parameter(torch.zeros(1), requires_grad=False)
-        stub = self._stub([{'name': 'lora_mt', 'lr': 0.0, 'params': [p]}])
-        stub._stop_if_nothing_is_training()
-        self.assertTrue(stub.trainer.should_stop)
-
-    def test_a_rate_on_frozen_parameters_does_not_hold_it_open_either(self):
-        p = torch.nn.Parameter(torch.zeros(1), requires_grad=False)
-        stub = self._stub([{'name': 'link', 'lr': 0.005, 'params': [p]}])
-        stub._stop_if_nothing_is_training()
-        self.assertTrue(stub.trainer.should_stop)
-
-
 if __name__ == '__main__':
     unittest.main()

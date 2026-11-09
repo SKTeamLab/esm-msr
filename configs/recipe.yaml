@@ -1,0 +1,39 @@
+# The recipe of tfl_T_p0_fw_r05_tm1: block training with domain steps, both heads reading every site VISIBLE (unmasked), the Tobit likelihood with the wide floor
+# (mu_f -0.14, sigma_f 0.5), the posterior teacher-forcing label, rank 0.5 : regression 15 on both heads, ListMLE ties at or below -1 kcal/mol (nothing numeric is censored).
+# Everything else is a constant of the code (esm_msr/config.py): cosine schedule, no weight decay, gradient clip 1.0 per head, calibration heads at 5x the rate, the 'expanded' LoRA targets.
+#
+#   python -m esm_msr.training --config configs/recipe.yaml --experiment_name NAME --seed 1 [--cache_path ...] [changes]
+#
+# MT-masked read (WT unmasked): add  --block_mask_mt 1 --block_row_chunk 40
+block_domain_steps: true
+block_positions: 40
+block_list_rows: 4
+block_pair_weight: 0.38
+block_row_chunk: 20
+block_mask_wt: 0.0
+block_mask_mt: 0.0
+
+tf_label: posterior
+rank_censor_threshold: -1.0
+tobit_mu_f: -0.14
+tobit_sigma_f: 0.5
+lambda_rank_wt: 0.5
+lambda_rank_mt: 0.5
+lambda_reg_wt: 15.0
+lambda_reg_mt: 15.0
+rank_list_size: 16
+
+lora_rank_wt: 2
+lora_alpha_wt: 4
+lora_dropout_wt: 0.1
+lora_rank_mt: 16
+lora_alpha_mt: 16
+lora_dropout_mt: 0.1
+
+learning_rate: 2.0e-4
+lr_warmup_steps: 125
+num_epochs: 10
+early_stopping_patience: 3
+
+cache_version: c6
+num_workers: 2
