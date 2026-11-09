@@ -19,7 +19,7 @@ def parse(*extra, base=BASE):
 @pytest.mark.parametrize('flag', [
     '--block_training', '--block_identity', '--block_rank_norm', '--censor_threshold', '--cycle_detach_wt', '--drop_last', '--freeze_after_decays', '--fused_antisymmetric',
     '--grad_clip_per_head', '--huber_delta', '--joint_doubles', '--lambda_cycle', '--link_kind', '--link_tau', '--lora_mode', '--monitor_metric', '--mt_direct_pred',
-    '--per_mutation_bias', '--plateau_patience', '--plateau_factor', '--lr_schedule', '--mt_convergence_metric', '--rank_calibrated_stopgrad', '--rank_group_by', '--tf_detach_wt',
+    '--per_mutation_bias', '--plateau_factor', '--lr_schedule', '--rank_calibrated_stopgrad', '--rank_group_by', '--tf_detach_wt',
     '--tf_no_label', '--y_floor', '--adapter_mode', '--reg_nll', '--mt_single_loss_weight', '--mask_strategy_wt', '--mask_strategy_mt', '--batch_size', '--micro_batch_size',
     '--min_batch_size', '--skip_val', '--val_every_epochs', '--val_dump', '--val_unmasked', '--val_masked', '--val_masking_strategy', '--val_cycle_passes', '--val_tobit_link',
     '--external_val_sets', '--subsets', '--censor_range', '--calib_lr_mult', '--grad_clip_norm', '--cosine_min_lr_ratio', '--target_mode_wt', '--target_mode_mt', '--tie_mt_scale',
@@ -50,7 +50,22 @@ def test_defaults():
     assert a.rank_censor_threshold == 0.5 and a.tf_label == 'measured' and a.tf_mix == 1.0 and a.rank_list_size == 16
     assert a.block_mask_wt == 1.0 and a.block_mask_mt == 1.0 and a.block_positions == 8 and a.block_list_rows == 0 and a.grad_accum_blocks == 1
     assert a.lambda_cond_mt == 0.0 and a.cond_partner_min_dg == 1.0 and a.exclude_mutbg is False
+    assert a.plateau_patience == 1 and a.wt_convergence_metric is None and a.mt_convergence_metric is None
+    assert config.convergence_metric(a, 'wt') == 'val_rho_singles_wt_avg'
+    assert config.convergence_metric(a, 'mt') == 'val_rho_combined_avg'
     assert a.cache_version == config.DEFAULT_CACHE_VERSION
+
+
+def test_convergence_metric_follows_head_masking_and_overrides():
+    p0 = parse('--block_mask_wt', '0', '--block_mask_mt', '0')
+    assert config.convergence_metric(p0, 'wt') == 'val_unmasked_rho_singles_wt_avg'
+    assert config.convergence_metric(p0, 'mt') == 'val_unmasked_rho_combined_avg'
+    mixed = parse('--block_mask_wt', '0', '--block_mask_mt', '1')
+    assert config.convergence_metric(mixed, 'wt') == 'val_unmasked_rho_singles_wt_avg'
+    assert config.convergence_metric(mixed, 'mt') == 'val_rho_combined_avg'
+    custom = parse('--wt_convergence_metric', 'val_rho_singles_wt_avg', '--mt_convergence_metric', 'val_epi_composite')
+    assert config.convergence_metric(custom, 'wt') == 'val_rho_singles_wt_avg'
+    assert config.convergence_metric(custom, 'mt') == 'val_epi_composite'
 
 
 def test_the_rank_censor_threshold_can_be_off_or_negative():
@@ -69,7 +84,7 @@ def test_the_posterior_label_has_no_cut_and_the_measured_one_may():
 def test_ranges_are_validated():
     for bad in (['--tf_mix', '1.5'], ['--tf_mix', '-0.1'], ['--rank_list_size', '0'], ['--tf_prior_sd', '0'], ['--tobit_sigma_y', '-1'], ['--tobit_sigma_f', '0'],
                 ['--lambda_cond_mt', '-1'], ['--block_positions', '0'], ['--block_list_rows', '-1'], ['--block_mask_mt', '1.5'], ['--block_mask_wt', '-0.1'],
-                ['--block_pair_weight', '-1'], ['--grad_accum_blocks', '0']):
+                ['--block_pair_weight', '-1'], ['--grad_accum_blocks', '0'], ['--plateau_patience', '-1']):
         with pytest.raises(SystemExit):
             parse(*bad)
     assert parse('--tobit_mu_f', '-0.1').tobit_mu_f == -0.1                   # a mean may be anything
@@ -86,7 +101,7 @@ def test_domain_steps_set_the_step_themselves():
 def test_the_number_of_flags_is_small():
     """The point of the strip. A new flag is allowed, but it has to be a decision: raise this bound on purpose."""
     keys = set(vars(parse()))
-    assert len(keys) <= 50, sorted(keys)
+    assert len(keys) <= 53, sorted(keys)
 
 
 # ---------------------------------------------------------------------------------------------------------------- yaml

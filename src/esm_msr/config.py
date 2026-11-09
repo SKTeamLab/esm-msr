@@ -29,11 +29,29 @@ def _threshold(v):
     return None if str(v).lower() in ('none', 'null', '') else float(v)
 
 
+def _hp_get(hp, key, default=None):
+    return hp.get(key, default) if hasattr(hp, 'get') else getattr(hp, key, default)
+
+
 def monitor_metric(hp) -> str:
     """The validation statistic that picks checkpoints and drives early stopping: rho_combined of the regime the MT head trained on (unmasked when it read its site visible more often than
     masked, the main masked regime otherwise)."""
-    p_mt = float(hp.get('block_mask_mt', 1.0) if hasattr(hp, 'get') else getattr(hp, 'block_mask_mt', 1.0))
+    p_mt = float(_hp_get(hp, 'block_mask_mt', 1.0))
     return 'val_unmasked_rho_combined_avg' if p_mt <= 0.5 else 'val_rho_combined_avg'
+
+
+def convergence_metric(hp, head: str) -> str:
+    """The validation statistic whose plateau starts ``head``'s ('wt' or 'mt') cosine decay: ``--{head}_convergence_metric`` if set, else the head's default metric
+    (``rho_singles_wt`` for WT, ``rho_combined`` for MT) in the validation regime that head trained on (``unmasked_`` when ``block_mask_{head} <= 0.5``, else masked)."""
+    if head not in ('wt', 'mt'):
+        raise ValueError(f"head must be 'wt' or 'mt', got {head!r}")
+    override = _hp_get(hp, f'{head}_convergence_metric', None)
+    if override:
+        return str(override)
+    p = float(_hp_get(hp, f'block_mask_{head}', 1.0))
+    prefix = 'unmasked_' if p <= 0.5 else ''
+    base = 'rho_singles_wt' if head == 'wt' else 'rho_combined'
+    return f'val_{prefix}{base}_avg'
 
 
 def parse_arguments(argv=None) -> argparse.Namespace:
@@ -121,10 +139,17 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     obj.add_argument('--cond_partner_min_dg', type=float, default=1.0,
                      help="--lambda_cond_mt: the minimum absolute partner stability dG_wt + ddG_partner (kcal/mol) required to supervise a conditional leg.")
 
-    opt = parser.add_argument_group("Optimisation (cosine schedule with linear warmup; no weight decay; gradient clip 1.0 per head)")
+    opt = parser.add_argument_group("Optimisation (per-head convergence-gated cosine schedule with linear warmup; no weight decay; gradient clip 1.0 per head)")
     opt.add_argument('--learning_rate', type=float, default=2e-4)
     opt.add_argument('--num_epochs', type=int, default=20)
     opt.add_argument('--lr_warmup_steps', type=int, default=500)
+    opt.add_argument('--plateau_patience', type=int, default=1,
+                     help="Validations without improvement in a head's convergence metric before that head starts cosine decay (default 1: decay starts when a validation does not "
+                          "exceed the previous best; 0 starts cosine decay immediately after warmup).")
+    opt.add_argument('--wt_convergence_metric', type=str, default=None,
+                     help="Validation statistic whose plateau starts the WT head's cosine decay (default: val_unmasked_rho_singles_wt_avg when --block_mask_wt <= 0.5, else val_rho_singles_wt_avg).")
+    opt.add_argument('--mt_convergence_metric', type=str, default=None,
+                     help="Validation statistic whose plateau starts the MT head's cosine decay (default: val_unmasked_rho_combined_avg when --block_mask_mt <= 0.5, else val_rho_combined_avg).")
     opt.add_argument('--early_stopping_patience', type=int, default=0,
                      help="Stop when the monitored validation statistic has not improved for this many validations. 0 (the default) never early-stops.")
 
@@ -202,4 +227,6 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         parser.error("--block_pair_weight needs --block_domain_steps (the clip cancels a weight on a pair block's own step)")
     if args.grad_accum_blocks < 1:
         parser.error("--grad_accum_blocks must be >= 1")
+    if args.plateau_patience < 0:
+        parser.error("--plateau_patience must be >= 0")
     return args

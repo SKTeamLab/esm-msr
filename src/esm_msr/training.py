@@ -19,7 +19,7 @@ from esm_msr.models import MSRModel, combine_predictions
 from esm_msr import blocks, censoring, config, epi_metrics, stats, utils, val_stats
 from esm_msr.losses import ListMLELoss, tobit_posterior_mean, tobit_regression_loss, TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F, TF_PRIOR_SD
 from esm_msr.preprocess_megascale import setup_dataloaders
-from esm_msr.config import parse_arguments, monitor_metric
+from esm_msr.config import parse_arguments, monitor_metric, convergence_metric
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -183,6 +183,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.val_regimes = validation_regimes(hp)
         self.val_mask_strategy = self.val_regimes[0][1]
         self.monitor_metric = monitor_metric(hp)
+
+        patience = int(hp.get('plateau_patience', 0) or 0)
+        warmup = int(hp.get('lr_warmup_steps', 0) or 0)
+        self._decay_start_step = {'wt': None if patience > 0 else warmup, 'mt': None if patience > 0 else warmup}
+        self._wt_plateau_best, self._wt_plateau_bad = -float('inf'), 0
+        self._mt_plateau_best, self._mt_plateau_bad = -float('inf'), 0
 
         self.automatic_optimization = False
         self.validation_step_outputs = defaultdict(list)
@@ -882,9 +888,61 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         for prefix, _ in self.val_regimes:
             self._score_regime(prefix, avg_metrics)
 
+        if not self.trainer.sanity_checking and self.global_step > 0:
+            self._convergence_step('wt', avg_metrics)
+            self._convergence_step('mt', avg_metrics)
+
         self.validation_step_outputs.clear()
         torch.cuda.empty_cache()
         gc.collect()
+
+    def _convergence_step(self, head: str, avg_metrics: dict) -> None:
+        """Start ``head``'s ('wt' or 'mt') cosine decay once its convergence metric fails to improve by > 1e-4 for ``--plateau_patience`` validations."""
+        patience = int(self.hparams.get('plateau_patience', 0) or 0)
+        warmup = int(self.hparams.get('lr_warmup_steps', 0) or 0)
+        if not hasattr(self, '_decay_start_step'):
+            self._decay_start_step = {'wt': None if patience > 0 else warmup, 'mt': None if patience > 0 else warmup}
+        if patience <= 0 or self._decay_start_step.get(head) is not None:
+            return
+
+        raw_key = convergence_metric(self.hparams, head)
+        stripped = raw_key.removeprefix('val_').removesuffix('_avg')
+        key = None
+        if not raw_key.startswith('val_') and not stripped.startswith('unmasked_') and float(self.hparams.get(f'block_mask_{head}', 1.0)) <= 0.5:
+            if avg_metrics.get(f'unmasked_{stripped}'):
+                key = f'unmasked_{stripped}'
+        if key is None:
+            if avg_metrics.get(stripped):
+                key = stripped
+            elif avg_metrics.get(raw_key):
+                key = raw_key
+        if key is None:
+            if not getattr(self, f'_warned_no_{head}_metric', False):
+                setattr(self, f'_warned_no_{head}_metric', True)
+                logging.warning(f"--plateau_patience is set but '{raw_key}' is not among the validation metrics {sorted(avg_metrics)}, "
+                                f"so the {head.upper()} cosine decay will never start.")
+            return
+
+        current = float(np.nanmean(avg_metrics[key]))
+        if not np.isfinite(current):
+            return
+
+        best = getattr(self, f'_{head}_plateau_best', -float('inf'))
+        if current > best + 1e-4:
+            setattr(self, f'_{head}_plateau_best', current)
+            setattr(self, f'_{head}_plateau_bad', 0)
+            return
+
+        bad = getattr(self, f'_{head}_plateau_bad', 0) + 1
+        setattr(self, f'_{head}_plateau_bad', bad)
+        if bad < patience:
+            return
+
+        sch = self.lr_schedulers() if getattr(self, '_trainer', None) is not None else None
+        step_now = int(getattr(sch, 'last_epoch', None) if sch is not None else getattr(self, 'global_step', 0))
+        start_step = max(warmup, step_now)
+        self._decay_start_step[head] = start_step
+        logging.info(f"{head.upper()} convergence on {raw_key} (best={best:.4f}, now={current:.4f}) at step {step_now}: starting cosine decay from step {start_step}")
 
     def _score_regime(self, prefix: str, avg_metrics: dict) -> None:
         """
@@ -1102,8 +1160,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         opt_main = torch.optim.AdamW(main_groups, lr=base_lr, betas=(0.9, 0.999), fused=torch.cuda.is_available(), weight_decay=wd)
 
-        # Linear warmup, then cosine decay to config.COSINE_MIN_LR_RATIO of the peak, one schedule for every group (adapters and calibration heads alike).
+        # Linear warmup, then hold at peak until each head's convergence metric plateaus (or immediately if --plateau_patience 0), then cosine decay to config.COSINE_MIN_LR_RATIO.
         warmup = int(self.hparams.lr_warmup_steps)
+        patience = int(self.hparams.get('plateau_patience', 0) or 0)
+        if not hasattr(self, '_decay_start_step'):
+            self._decay_start_step = {'wt': None if patience > 0 else warmup, 'mt': None if patience > 0 else warmup}
+        else:
+            for h in ('wt', 'mt'):
+                if h not in self._decay_start_step:
+                    self._decay_start_step[h] = None if patience > 0 else warmup
         min_ratio = config.COSINE_MIN_LR_RATIO
         est_steps = getattr(self.trainer, 'estimated_stepping_batches', None) if getattr(self, '_trainer', None) is not None else None
         total_steps = int(est_steps) if (est_steps is not None and math.isfinite(est_steps) and est_steps > 0) else max(warmup + 1, int(self.hparams.num_epochs) * 900)
@@ -1115,17 +1180,23 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             sampler = (loader[0] if isinstance(loader, (list, tuple)) else loader).sampler      # it knows how many blocks make a step; the estimate above counts blocks
             total_steps = max(warmup + 1, -(-total_steps * sampler.n_steps() // len(sampler)))
 
-        def _cos_fn(step, warmup=warmup, total_steps=total_steps, min_ratio=min_ratio):
-            if warmup > 0 and step < warmup:
-                return max(1e-4, step / float(warmup))
-            prog = min(1.0, max(0.0, (step - warmup) / float(max(1, total_steps - warmup))))
-            return min_ratio + 0.5 * (1.0 - min_ratio) * (1.0 + math.cos(math.pi * prog))
+        def _make_cos_fn(head, warmup=warmup, total_steps=total_steps, min_ratio=min_ratio):
+            def _cos_fn(step):
+                if warmup > 0 and step < warmup:
+                    return max(1e-4, step / float(warmup))
+                start = self._decay_start_step.get(head)
+                if start is None or step <= start:
+                    return 1.0
+                prog = min(1.0, max(0.0, (step - start) / float(max(1, total_steps - start))))
+                return min_ratio + 0.5 * (1.0 - min_ratio) * (1.0 + math.cos(math.pi * prog))
+            return _cos_fn
 
-        warmup_main = torch.optim.lr_scheduler.LambdaLR(opt_main, lr_lambda=[_cos_fn for _ in main_groups])
+        lambdas_main = [_make_cos_fn('wt' if g.get('name', '').endswith('_wt') else 'mt') for g in main_groups]
+        warmup_main = torch.optim.lr_scheduler.LambdaLR(opt_main, lr_lambda=lambdas_main)
         return [opt_main], [{"scheduler": warmup_main, "interval": "step", "frequency": 1}]
 
 
-    
+
     def on_save_checkpoint(self, checkpoint: dict) -> None:
         """
         Intercepts the checkpoint before it saves to disk and strips out
@@ -1147,6 +1218,25 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             'epoch': getattr(trainer, 'current_epoch', 0) if trainer else 0,
             'global_step': getattr(trainer, 'global_step', 0) if trainer else 0,
         }
+        checkpoint['schedule_state'] = {
+            'decay_start_step': dict(getattr(self, '_decay_start_step', {})),
+            'wt_plateau_best': getattr(self, '_wt_plateau_best', -float('inf')),
+            'wt_plateau_bad': getattr(self, '_wt_plateau_bad', 0),
+            'mt_plateau_best': getattr(self, '_mt_plateau_best', -float('inf')),
+            'mt_plateau_bad': getattr(self, '_mt_plateau_bad', 0),
+        }
+
+    def on_load_checkpoint(self, checkpoint: dict) -> None:
+        sched_state = checkpoint.get('schedule_state', {})
+        if not hasattr(self, '_decay_start_step'):
+            self._decay_start_step = {}
+        if 'decay_start_step' in sched_state:
+            self._decay_start_step.update(sched_state['decay_start_step'])
+        for head in ('wt', 'mt'):
+            if f'{head}_plateau_best' in sched_state:
+                setattr(self, f'_{head}_plateau_best', sched_state[f'{head}_plateau_best'])
+            if f'{head}_plateau_bad' in sched_state:
+                setattr(self, f'_{head}_plateau_bad', sched_state[f'{head}_plateau_bad'])
 
 
 class OfflineCometLogger(CometLogger):

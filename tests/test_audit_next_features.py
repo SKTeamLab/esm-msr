@@ -49,6 +49,65 @@ def test_the_schedule_is_a_linear_warmup_then_a_cosine_decay_to_the_floor_ratio(
     assert base['calib_wt'] == pytest.approx(5.0 * base['lora_wt'])       # the calibration heads learn at config.CALIB_LR_MULT times the adapters' rate
 
 
+def test_per_head_convergence_gates_the_start_of_cosine_decay():
+    """With plateau_patience >= 1, each head holds its peak LR after warmup until its own convergence metric stops improving, then cosine-decays to COSINE_MIN_LR_RATIO."""
+    mod = _make_stub_module(lr_warmup_steps=4, num_epochs=1, plateau_patience=1, block_mask_wt=0.0, block_mask_mt=1.0)
+    mod._fabric, mod._jit_is_scripting = None, False
+    mod._trainer = types.SimpleNamespace(estimated_stepping_batches=20)
+    opts, scheds = mod.configure_optimizers()
+    opt, sch = opts[0], scheds[0]['scheduler']
+    mod.lr_schedulers = lambda: sch
+    lr_of = lambda name: next(g['lr'] for g in opt.param_groups if g['name'] == name)
+
+    # Epoch 0 (steps 1..5): warmup finishes at step 4, step 5 holds at peak LR for both heads
+    for _ in range(5):
+        sch.step()
+    assert lr_of('lora_wt') == pytest.approx(2e-4) and lr_of('calib_wt') == pytest.approx(1e-3)
+    assert lr_of('lora_mt') == pytest.approx(2e-4) and lr_of('calib_mt') == pytest.approx(1e-3)
+
+    # Validation after Epoch 0: both metrics set their initial best
+    mod._convergence_step('wt', {'unmasked_rho_singles_wt': [0.81], 'rho_singles_wt': [0.79], 'rho_combined': [0.82]})
+    mod._convergence_step('mt', {'unmasked_rho_singles_wt': [0.81], 'rho_singles_wt': [0.79], 'rho_combined': [0.82]})
+    assert mod._decay_start_step == {'wt': None, 'mt': None}
+
+    # Epoch 1 (steps 6..10): both heads still at peak LR
+    for _ in range(5):
+        sch.step()
+    assert lr_of('lora_wt') == pytest.approx(2e-4) and lr_of('lora_mt') == pytest.approx(2e-4)
+
+    # Validation after Epoch 1 (step 10): WT fails to exceed 0.81 (0.809 <= 0.81), while MT improves (0.84 > 0.82)
+    mod._convergence_step('wt', {'unmasked_rho_singles_wt': [0.809], 'rho_combined': [0.84]})
+    mod._convergence_step('mt', {'unmasked_rho_singles_wt': [0.809], 'rho_combined': [0.84]})
+    assert mod._decay_start_step == {'wt': 10, 'mt': None}
+
+    # Epoch 2 (steps 11..15): WT decays along cosine (from step 10 -> 20), while MT stays flat at peak 2e-4!
+    for _ in range(5):
+        sch.step()
+    assert lr_of('lora_wt') == pytest.approx(2e-4 * 0.525, rel=1e-4)      # midpoint of cosine (prog=0.5): 0.05 + 0.5*0.95*(1+0) = 0.525
+    assert lr_of('calib_wt') == pytest.approx(1e-3 * 0.525, rel=1e-4)
+    assert lr_of('lora_mt') == pytest.approx(2e-4)
+    assert lr_of('calib_mt') == pytest.approx(1e-3)
+
+    # Validation after Epoch 2 (step 15): MT now plateaus (0.840 <= 0.84 + 1e-4) -> MT starts cosine decay at step 15
+    mod._convergence_step('wt', {'unmasked_rho_singles_wt': [0.82], 'rho_combined': [0.840]})   # WT stays latched at 10 even if metric rises later
+    mod._convergence_step('mt', {'unmasked_rho_singles_wt': [0.82], 'rho_combined': [0.840]})
+    assert mod._decay_start_step == {'wt': 10, 'mt': 15}
+
+    # Epoch 3 (steps 16..20): both heads reach COSINE_MIN_LR_RATIO (0.05) at step 20
+    for _ in range(5):
+        sch.step()
+    assert lr_of('lora_wt') == pytest.approx(2e-4 * config.COSINE_MIN_LR_RATIO)
+    assert lr_of('lora_mt') == pytest.approx(2e-4 * config.COSINE_MIN_LR_RATIO)
+
+    # Checkpoint round-trip preserves schedule_state
+    ckpt = {'state_dict': {'lora_wt': torch.zeros(1)}}
+    mod.on_save_checkpoint(ckpt)
+    mod2 = _make_stub_module(lr_warmup_steps=4, num_epochs=1, plateau_patience=1)
+    mod2.on_load_checkpoint(ckpt)
+    assert mod2._decay_start_step == {'wt': 10, 'mt': 15}
+    assert mod2._mt_plateau_best == pytest.approx(0.84)
+
+
 def test_epi_metrics_1x_dddg_and_preserved_cell_rank():
     """Verify comb = 0.5*(WT + MT) fixes the 2x epistasis bias & achieves 1.000 oracle cell_rank_comb while epi retains raw MT."""
     rng = np.random.default_rng(42)
