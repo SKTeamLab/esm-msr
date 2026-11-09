@@ -11,9 +11,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-if not hasattr(np, '_core'):  # allow NumPy 1.x environments to unpickle caches built under NumPy 2.x
-    for _sub in ('', '.numeric', '.multiarray', '.umath', '._multiarray_umath'):
-        sys.modules.setdefault(f'numpy._core{_sub}', getattr(np.core, _sub[1:]) if _sub else np.core)
+for _sub in ('', '.numeric', '.multiarray', '.umath', '._multiarray_umath', '.fromnumeric', '.records', '.memmap'):
+    if f'numpy._core{_sub}' not in sys.modules:
+        sys.modules[f'numpy._core{_sub}'] = getattr(np.core, _sub[1:]) if _sub else np.core
 
 from esm.utils.constants import esm3 as C
 
