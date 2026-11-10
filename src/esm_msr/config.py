@@ -42,7 +42,7 @@ def monitor_metric(hp) -> str:
 
 def convergence_metric(hp, head: str) -> str:
     """The validation statistic whose plateau starts ``head``'s ('wt' or 'mt') cosine decay: ``--{head}_convergence_metric`` if set, else the head's default metric
-    (``rho_singles_wt`` for WT, ``rho_combined`` for MT) in the validation regime that head trained on (``unmasked_`` when ``block_mask_{head} <= 0.5``, else masked)."""
+    (``rho_singles_wt`` for WT, ``epi_cell_mag_comb`` for MT) in the validation regime that head trained on (``unmasked_`` when ``block_mask_{head} <= 0.5``, else masked)."""
     if head not in ('wt', 'mt'):
         raise ValueError(f"head must be 'wt' or 'mt', got {head!r}")
     override = _hp_get(hp, f'{head}_convergence_metric', None)
@@ -50,8 +50,9 @@ def convergence_metric(hp, head: str) -> str:
         return str(override)
     p = float(_hp_get(hp, f'block_mask_{head}', 1.0))
     prefix = 'unmasked_' if p <= 0.5 else ''
-    base = 'rho_singles_wt' if head == 'wt' else 'rho_combined'
-    return f'val_{prefix}{base}_avg'
+    if head == 'wt':
+        return f'val_{prefix}rho_singles_wt_avg'
+    return f'val_{prefix}epi_cell_mag_comb'
 
 
 def parse_arguments(argv=None) -> argparse.Namespace:
@@ -152,8 +153,8 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     opt.add_argument('--learning_rate', type=float, default=2e-4)
     opt.add_argument('--num_epochs', type=int, default=20)
     opt.add_argument('--lr_warmup_steps', type=int, default=500)
-    opt.add_argument('--plateau_patience', type=int, default=1,
-                     help="Validations without improvement in a head's convergence metric before that head starts cosine decay (default 1: decay starts when a validation does not "
+    opt.add_argument('--plateau_patience', type=int, default=2,
+                     help="Validations without improvement in a head's convergence metric before that head starts cosine decay (default 2: decay starts after 2 consecutive validations do not "
                           "exceed the previous best; 0 starts cosine decay immediately after warmup).")
     opt.add_argument('--cosine_decay_epochs', type=int, default=5,
                      help="Epochs over which a head's learning rate cosine-decays from peak to COSINE_MIN_LR_RATIO (0.05) once its convergence metric plateaus, before dropping to 0 (freezing). "
@@ -161,7 +162,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     opt.add_argument('--wt_convergence_metric', type=str, default=None,
                      help="Validation statistic whose plateau starts the WT head's cosine decay (default: val_unmasked_rho_singles_wt_avg when --block_mask_wt <= 0.5, else val_rho_singles_wt_avg).")
     opt.add_argument('--mt_convergence_metric', type=str, default=None,
-                     help="Validation statistic whose plateau starts the MT head's cosine decay (default: val_unmasked_rho_combined_avg when --block_mask_mt <= 0.5, else val_rho_combined_avg).")
+                     help="Validation statistic whose plateau starts the MT head's cosine decay (default: val_unmasked_epi_cell_mag_comb when --block_mask_mt <= 0.5, else val_epi_cell_mag_comb).")
     opt.add_argument('--early_stopping_patience', type=int, default=0,
                      help="Stop when the monitored validation statistic has not improved for this many validations. 0 (the default) never early-stops.")
 

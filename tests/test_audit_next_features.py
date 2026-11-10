@@ -68,8 +68,8 @@ def test_per_head_convergence_gates_the_start_of_cosine_decay():
     assert lr_of('lora_mt') == pytest.approx(2e-4) and lr_of('calib_mt') == pytest.approx(1e-3)
 
     # Validation after Epoch 0: both metrics set their initial best
-    mod._convergence_step('wt', {'unmasked_rho_singles_wt': [0.81], 'rho_singles_wt': [0.79], 'rho_combined': [0.82]})
-    mod._convergence_step('mt', {'unmasked_rho_singles_wt': [0.81], 'rho_singles_wt': [0.79], 'rho_combined': [0.82]})
+    mod._convergence_step('wt', {'unmasked_rho_singles_wt': [0.81], 'rho_singles_wt': [0.79], 'epi_cell_mag_comb': [0.82]})
+    mod._convergence_step('mt', {'unmasked_rho_singles_wt': [0.81], 'rho_singles_wt': [0.79], 'epi_cell_mag_comb': [0.82]})
     mod._stop_if_nothing_is_training()
     assert mod._decay_start_step == {'wt': None, 'mt': None} and not mod.trainer.should_stop
 
@@ -79,8 +79,8 @@ def test_per_head_convergence_gates_the_start_of_cosine_decay():
     assert lr_of('lora_wt') == pytest.approx(2e-4) and lr_of('lora_mt') == pytest.approx(2e-4)
 
     # Validation after Epoch 1 (step 10): WT fails to exceed 0.81 (0.809 <= 0.81), while MT improves (0.84 > 0.82)
-    mod._convergence_step('wt', {'unmasked_rho_singles_wt': [0.809], 'rho_combined': [0.84]})
-    mod._convergence_step('mt', {'unmasked_rho_singles_wt': [0.809], 'rho_combined': [0.84]})
+    mod._convergence_step('wt', {'unmasked_rho_singles_wt': [0.809], 'epi_cell_mag_comb': [0.84]})
+    mod._convergence_step('mt', {'unmasked_rho_singles_wt': [0.809], 'epi_cell_mag_comb': [0.84]})
     assert mod._decay_start_step == {'wt': 10, 'mt': None}
 
     # Epoch 2 (steps 11..15): WT is 1 epoch into its 2-epoch (10-step) cosine decay, while MT stays flat at peak 2e-4!
@@ -91,8 +91,8 @@ def test_per_head_convergence_gates_the_start_of_cosine_decay():
     assert lr_of('lora_mt') == pytest.approx(2e-4) and lr_of('calib_mt') == pytest.approx(1e-3)
 
     # Validation after Epoch 2 (step 15): MT now plateaus (0.840 <= 0.84 + 1e-4) -> MT starts cosine decay at step 15
-    mod._convergence_step('wt', {'unmasked_rho_singles_wt': [0.82], 'rho_combined': [0.840]})   # WT stays latched at 10 even if metric rises later
-    mod._convergence_step('mt', {'unmasked_rho_singles_wt': [0.82], 'rho_combined': [0.840]})
+    mod._convergence_step('wt', {'unmasked_rho_singles_wt': [0.82], 'epi_cell_mag_comb': [0.840]})   # WT stays latched at 10 even if metric rises later
+    mod._convergence_step('mt', {'unmasked_rho_singles_wt': [0.82], 'epi_cell_mag_comb': [0.840]})
     assert mod._decay_start_step == {'wt': 10, 'mt': 15}
 
     # Epoch 3 (steps 16..20): on step 19 WT hits COSINE_MIN_LR_RATIO (0.05), and on step 20 (end of WT's 2nd decay epoch) WT drops to 0.0 (frozen) while MT is mid-decay!
