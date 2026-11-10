@@ -222,3 +222,36 @@ def test_epi_metrics_credits_marginal_wt_pair_and_line_effects():
     assert res['epi_line_rho_comb'] > 0.85
     assert res['epi_beyond_lib_comb'] > 0.85
     assert res['epi_cell_rank_comb'] == 0.0
+
+
+def test_min_double_dg_add_omits_doubles_with_additive_dg_below_threshold_only(tmp_path):
+    """Verify --min_double_dg_add omits double mutants with dG_wt + tf_A + tf_B <= threshold while keeping all singles."""
+    import pickle
+    from esm_msr import config, data, censoring
+
+    args = config.parse_arguments(['--experiment_name', 't', '--min_double_dg_add', '0.0'])
+    assert args.min_double_dg_add == 0.0
+
+    items = [
+        {'subset_type': 'single', 'mut_pos': [1], 'wt_id': [5], 'mt_id': [6], 'ddG': -1.5, 'dG_wt': 2.0, 'dG_meas': 0.5, 'cens': 0, 'cens_src': 0},
+        {'subset_type': 'single', 'mut_pos': [2], 'wt_id': [7], 'mt_id': [8], 'ddG': -0.8, 'dG_wt': 2.0, 'dG_meas': 1.2, 'cens': 0, 'cens_src': 0},
+        {'subset_type': 'single', 'mut_pos': [2], 'wt_id': [7], 'mt_id': [10], 'ddG': -0.2, 'dG_wt': 2.0, 'dG_meas': 1.8, 'cens': 0, 'cens_src': 0},
+        # dG_add = 2.0 - 1.5 - 0.8 = -0.3 <= 0 -> dropped even if dG_meas > 0
+        {'subset_type': 'double', 'mut_pos': [1, 2], 'wt_id': [5, 7], 'mt_id': [6, 8], 'ddG': -1.8, 'dG_wt': 2.0, 'dG_meas': 0.2, 'cens': 0, 'cens_src': 0},
+        # partner 9 missing -> dG_add is NaN -> dropped
+        {'subset_type': 'double', 'mut_pos': [1, 2], 'wt_id': [5, 7], 'mt_id': [6, 9], 'ddG': -1.0, 'dG_wt': 2.0, 'dG_meas': 1.0, 'cens': 0, 'cens_src': 0},
+        # dG_add = 2.0 - 1.5 - 0.2 = +0.3 > 0 -> kept even if dG_meas < 0
+        {'subset_type': 'double', 'mut_pos': [1, 2], 'wt_id': [5, 7], 'mt_id': [6, 10], 'ddG': -2.2, 'dG_wt': 2.0, 'dG_meas': -0.2, 'cens': 0, 'cens_src': 0},
+    ]
+    cache_file = tmp_path / "1ABC_ddG_ML_c6.pkl"
+    with open(cache_file, 'wb') as f:
+        pickle.dump({'items': items}, f)
+
+    ds_all = data.MutationStabilityDataset('1ABC', str(tmp_path), 'ddG_ML', cache_version='c6', min_double_dg_add=None)
+    ds_cut = data.MutationStabilityDataset('1ABC', str(tmp_path), 'ddG_ML', cache_version='c6', min_double_dg_add=0.0)
+
+    assert len([x for x in ds_all.data if x['subset_type'] == 'single']) == 3
+    assert len([x for x in ds_all.data if x['subset_type'] == 'double']) == 3
+    assert len([x for x in ds_cut.data if x['subset_type'] == 'single']) == 3
+    assert len([x for x in ds_cut.data if x['subset_type'] == 'double']) == 1
+    assert ds_cut.data[-1]['mt_id'] == [6, 10]

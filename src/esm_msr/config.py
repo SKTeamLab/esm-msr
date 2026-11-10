@@ -94,6 +94,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                       help="Leave the mutant-background libraries (one introduced mutation, then a scan of single mutants: '2M7O_I21A') out of TRAINING. Off (the default): both heads "
                            "train on their measurements as ordinary singles, whose 'wild type' is the background sequence and whose dG_wt is the background's own dG "
                            "(3 training libraries, 3,782 items, 1.7%% of the stream). Validation scores these libraries either way.")
+    data.add_argument('--min_double_dg_add', type=_threshold, default=None,
+                      help="Omit TRAINING double mutants whose additive stability expectation dG_add = dG_wt + ddG_A + ddG_B is at or below this threshold (kcal/mol; "
+                           "e.g. 0.0 keeps only doubles with both singles measured and dG_add > 0). Singles are unaffected, and validation scores all doubles regardless.")
     data.add_argument('--num_workers', type=int, default=4)
 
     arch = parser.add_argument_group("Architecture")

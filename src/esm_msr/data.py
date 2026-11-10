@@ -96,6 +96,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         censor_range: bool = True,
         cache_version: Optional[str] = None,
         censor_threshold: Optional[float] = None,
+        min_double_dg_add: Optional[float] = None,
     ):
         """
         Args:
@@ -111,12 +112,14 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
             censor_range: Keep the rows the assay bounded rather than fitted (``<-1`` / ``>5``), which the cache always stores. False
                 drops them, restoring the selected-on-outcome population; see ``esm_msr.censoring``.
             censor_threshold: Items measured at or below this dG become lower-censored, bounded by it. None censors nothing here.
+            min_double_dg_add: Omit double mutants whose additive stability expectation ``dG_wt + tf_A + tf_B`` is at or below this threshold (kcal/mol). None keeps all doubles.
         """
         self.score_name = score_name
         self.cache_version = cache_version or self.CACHE_VERSION
         self.dms_name = dms_name
         self.include = set(subsets)
         self.censor_threshold = censor_threshold
+        self.min_double_dg_add = min_double_dg_add
         self.cache_path = os.path.join(path, f"{self.dms_name}_{self.score_name}_{self.cache_version}.pkl")
         if not os.path.exists(self.cache_path):
             raise FileNotFoundError(
@@ -131,6 +134,8 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         stamp_tf_singles(self.data)
         if not censor_range:
             self._drop_range_censored()
+        if self.min_double_dg_add is not None:
+            self._drop_doubles_below_dg_add(float(self.min_double_dg_add))
         if label_native_cond:
             self._label_native_cond()
         self._filter_dataset()
@@ -138,6 +143,24 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         self._extract_scalars()
 
     # ------------------------------------------------------------------ post-load filters
+
+    def _drop_doubles_below_dg_add(self, min_dg_add: float) -> None:
+        """Omit double mutants whose additive stability expectation ``dG_wt + tf_A + tf_B`` is not strictly above ``min_dg_add``."""
+        before = len(self.data)
+        kept = []
+        for i in self.data:
+            if i.get('subset_type') != 'double':
+                kept.append(i)
+                continue
+            dg_wt = float(i.get('dG_wt', float('nan')))
+            tfa = float(i.get('tf_A', i.get('ddG_A', float('nan'))))
+            tfb = float(i.get('tf_B', i.get('ddG_B', float('nan'))))
+            dg_add = dg_wt + tfa + tfb
+            if np.isfinite(dg_add) and dg_add > min_dg_add:
+                kept.append(i)
+        self.data = kept
+        if len(self.data) != before:
+            logging.info(f"[{self.dms_name}] dropped {before - len(self.data)} doubles with dG_add <= {min_dg_add} (--min_double_dg_add)")
 
     def _drop_range_censored(self) -> None:
         """

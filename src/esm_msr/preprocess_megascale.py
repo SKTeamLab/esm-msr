@@ -613,7 +613,9 @@ def setup_dataloaders(args: argparse.Namespace, add_benchmarks_to_val: bool = Fa
     if args.exclude_mutbg:
         train_libraries = [n for n in train_libraries if not val_stats.is_mutbg_library(n)]
         logging.info(f"--exclude_mutbg: {len(manifest['train']) - len(train_libraries)} mutant-background training libraries left out")
-    train_datasets, train_loader_names = _library_datasets(train_libraries, args.cache_path, desc='train', subsets=set(config.SUBSETS), **common)
+    train_datasets, train_loader_names = _library_datasets(
+        train_libraries, args.cache_path, desc='train', subsets=set(config.SUBSETS),
+        min_double_dg_add=getattr(args, 'min_double_dg_add', None), **common)
     if not train_datasets:
         raise RuntimeError("No valid training datasets created.")
 
