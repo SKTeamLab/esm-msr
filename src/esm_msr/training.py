@@ -318,6 +318,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
     def on_train_start(self):
         self._prepare_device_weights()
+        sch = self.lr_schedulers() if getattr(self, '_trainer', None) is not None else None
+        if sch is not None and hasattr(sch, 'lr_lambdas') and hasattr(sch, 'base_lrs'):
+            step = int(getattr(sch, 'last_epoch', 0))
+            for g, base_lr, fn in zip(sch.optimizer.param_groups, sch.base_lrs, sch.lr_lambdas):
+                if callable(fn):
+                    g['lr'] = float(base_lr) * float(fn(step))
 
     def _compute_rank_loss(self, pred, targets, mask, cens, list_size, crit_fn, norm_to=None):
         """
@@ -1260,6 +1266,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         }
 
     def on_load_checkpoint(self, checkpoint: dict) -> None:
+        dl_state = checkpoint.get('dataloader_state', {})
+        if 'global_step' in dl_state:
+            self._opt_steps = int(dl_state['global_step']) - 1
         sched_state = checkpoint.get('schedule_state', {})
         if not hasattr(self, '_decay_start_step'):
             self._decay_start_step = {}
@@ -1352,6 +1361,21 @@ def main():
     csv_logger = CSVLogger(save_dir=args.log_dir, name=args.experiment_name, version=args.version)
     loggers = [csv_logger]
     checkpoint_dir = csv_logger.log_dir
+    if args.resume_from_checkpoint:
+        import csv as _csv
+        metrics_path = os.path.join(checkpoint_dir, 'metrics.csv')
+        if os.path.isfile(metrics_path):
+            with open(metrics_path, newline='') as f:
+                reader = _csv.DictReader(f)
+                fields = list(reader.fieldnames or [])
+                rows = list(reader)
+            exp = csv_logger.experiment                      # triggers _check_log_dir_exists (which deletes metrics.csv) once
+            if fields and rows:
+                exp.metrics_keys = fields
+                with open(metrics_path, 'w', newline='') as f:
+                    writer = _csv.DictWriter(f, fieldnames=fields)
+                    writer.writeheader()
+                    writer.writerows(rows)
 
     if args.comet or args.comet_offline:
         key = _comet_api_key()
@@ -1390,14 +1414,15 @@ def main():
         logging.error(f"Trainer init failed: {e}", exc_info=True)
         return
 
-    # verbose=False: Lightning's own table repeats every epoch-level metric under every dataloader (one per protein), so the
-    # zero-shot validation is printed once here instead
-    results = trainer.validate(lightning_model, dataloaders=val_loaders, verbose=False)
-    if trainer.is_global_zero:
-        logging.info("Zero-shot validation:\n" + format_validation_results(results))
     ckpt = args.resume_from_checkpoint
     if ckpt:
         logging.info(f"Resuming from {ckpt}")
+    else:
+        # verbose=False: Lightning's own table repeats every epoch-level metric under every dataloader (one per protein), so the
+        # zero-shot validation is printed once here instead
+        results = trainer.validate(lightning_model, dataloaders=val_loaders, verbose=False)
+        if trainer.is_global_zero:
+            logging.info("Zero-shot validation:\n" + format_validation_results(results))
     trainer.fit(lightning_model, train_dataloaders=train_loaders, val_dataloaders=val_loaders, ckpt_path=ckpt)
     if args.comet_offline and len(loggers) > 1 and trainer.is_global_zero:
         loggers[1].experiment.end()  # writes the archive to upload with `comet upload`
