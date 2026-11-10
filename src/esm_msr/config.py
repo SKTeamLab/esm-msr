@@ -100,9 +100,15 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     arch.add_argument('--lora_rank_mt', type=int, default=16)
     arch.add_argument('--lora_alpha_mt', type=int, default=16)
     arch.add_argument('--lora_dropout_mt', type=float, default=0.1)
+    arch.add_argument('--target_mode_mt', type=str, default=LORA_TARGET_MODE,
+                      choices=['expanded', 'qkv_outproj', 'baseline', 'all', 'ffn', 'ffn_outproj'],
+                      help="LoRA target modules for MT adapter: expanded (QKV+FFN, default), qkv_outproj (attention only: QKV+out_proj, skipping FFN), baseline (QKV only), all (QKV+out_proj+FFN), ffn, or ffn_outproj.")
     arch.add_argument('--lora_rank_wt', type=int, default=2)
     arch.add_argument('--lora_alpha_wt', type=int, default=4)
     arch.add_argument('--lora_dropout_wt', type=float, default=0.1)
+    arch.add_argument('--target_mode_wt', type=str, default=LORA_TARGET_MODE,
+                      choices=['expanded', 'qkv_outproj', 'baseline', 'all', 'ffn', 'ffn_outproj'],
+                      help="LoRA target modules for WT adapter: expanded (QKV+FFN, default), qkv_outproj (attention only: QKV+out_proj, skipping FFN), baseline (QKV only), all (QKV+out_proj+FFN), ffn, or ffn_outproj.")
     arch.add_argument('--incl_sequence_head_wt', action=argparse.BooleanOptionalAction, default=True,
                       help="Include ESM3's sequence LM output head in the WT LoRA targets (default True). Pass --no-incl_sequence_head_wt to freeze.")
     arch.add_argument('--incl_sequence_head_mt', action=argparse.BooleanOptionalAction, default=True,
@@ -146,6 +152,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     opt.add_argument('--plateau_patience', type=int, default=1,
                      help="Validations without improvement in a head's convergence metric before that head starts cosine decay (default 1: decay starts when a validation does not "
                           "exceed the previous best; 0 starts cosine decay immediately after warmup).")
+    opt.add_argument('--cosine_decay_epochs', type=int, default=3,
+                     help="Epochs over which a head's learning rate cosine-decays from peak to COSINE_MIN_LR_RATIO (0.05) once its convergence metric plateaus, before dropping to 0 (freezing). "
+                          "The run ends when all trainable parameter groups reach lr 0.")
     opt.add_argument('--wt_convergence_metric', type=str, default=None,
                      help="Validation statistic whose plateau starts the WT head's cosine decay (default: val_unmasked_rho_singles_wt_avg when --block_mask_wt <= 0.5, else val_rho_singles_wt_avg).")
     opt.add_argument('--mt_convergence_metric', type=str, default=None,
@@ -229,4 +238,6 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         parser.error("--grad_accum_blocks must be >= 1")
     if args.plateau_patience < 0:
         parser.error("--plateau_patience must be >= 0")
+    if args.cosine_decay_epochs < 1:
+        parser.error("--cosine_decay_epochs must be >= 1")
     return args

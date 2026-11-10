@@ -151,8 +151,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.save_hyperparameters(ignore=['val_dataloader_names'])
         hp = self.hparams
 
-        lora = lambda side: {"lora_rank": hp[f'lora_rank_{side}'], "lora_alpha": hp[f'lora_alpha_{side}'], "lora_dropout": hp[f'lora_dropout_{side}'], "seed": hp.seed,
-                             "incl_sequence_head": bool(hp[f'incl_sequence_head_{side}']), **LORA_CONSTANTS}
+        lora = lambda side: {**LORA_CONSTANTS, "lora_rank": hp[f'lora_rank_{side}'], "lora_alpha": hp[f'lora_alpha_{side}'], "lora_dropout": hp[f'lora_dropout_{side}'],
+                             "target_mode": hp.get(f'target_mode_{side}', config.LORA_TARGET_MODE), "seed": hp.seed, "incl_sequence_head": bool(hp[f'incl_sequence_head_{side}'])}
         lora_config = {'wt_config': lora('wt'), 'mt_config': lora('mt'), 'seed': hp.seed}
 
         self.model = MSRModel(lora_config=lora_config, shared_scale_init=SHARED_SCALE_INIT, shared_bias_init=SHARED_BIAS_INIT, model_dtype=torch.float32)
@@ -514,8 +514,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         else:
             groups = [torch.arange(n_all, device=dev)]                                     # one list: the whole [B, 20] block
         c = self._block_ctx(lab, groups, reg_exclude=ident_cells)
-        wt_train = hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0
-        mt_on = hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0
+        wt_train = (hp.lambda_reg_wt > 0 or hp.lambda_rank_wt > 0) and not ESM3EpistasisLightningModule._head_is_frozen(self, 'wt')
+        mt_on = (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0) and not ESM3EpistasisLightningModule._head_is_frozen(self, 'mt')
         llr_wt = self._block_singles_llr(b, seqs, pos, wt_ids, 'wt', grad=wt_train)
         wt_cal = self._block_cal('wt')(llr_wt, n)
         s_wt = self._block_s_wt()
@@ -614,7 +614,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         groups = [g.reshape(-1) for g in torch.tensor_split(units, max(1, -(-units.shape[0] // B)))]
         c = self._block_ctx(lab, groups, reg_exclude=ident_cells)
         lam_cond = float(hp.get('lambda_cond_mt', 0.0) or 0.0)
-        if not (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0 or lam_cond > 0):
+        if not (hp.lambda_reg_mt > 0 or hp.lambda_rank_mt > 0 or lam_cond > 0) or ESM3EpistasisLightningModule._head_is_frozen(self, 'mt'):
             return
         wt_pos = torch.as_tensor([i, j], device=dev)
         p_wt, p_mt = float(hp.get('block_mask_wt', 1.0)), float(hp.get('block_mask_mt', 1.0))
@@ -891,10 +891,33 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if not self.trainer.sanity_checking and self.global_step > 0:
             self._convergence_step('wt', avg_metrics)
             self._convergence_step('mt', avg_metrics)
+            self._stop_if_nothing_is_training()
 
         self.validation_step_outputs.clear()
         torch.cuda.empty_cache()
         gc.collect()
+
+    def _head_is_frozen(self, head: str) -> bool:
+        """True once ``head`` ('wt' or 'mt') has started and finished its post-convergence cosine decay (all its optimizer groups at lr <= 0)."""
+        if getattr(self, '_trainer', None) is None or not getattr(self.trainer, 'optimizers', None):
+            return False
+        if getattr(self, '_decay_start_step', {}).get(head) is None:
+            return False
+        names = (f'lora_{head}', f'calib_{head}')
+        groups = [g for opt in self.trainer.optimizers for g in getattr(opt, 'optimizer', opt).param_groups if g.get('name') in names]
+        return bool(groups) and all(float(g.get('lr', 0.0)) <= 0.0 for g in groups)
+
+    def _stop_if_nothing_is_training(self) -> None:
+        """End the run once every optimizer group that holds trainable parameters has reached lr 0."""
+        if getattr(self, '_trainer', None) is None or not getattr(self.trainer, 'optimizers', None):
+            return
+        for opt in self.trainer.optimizers:
+            for g in getattr(opt, 'optimizer', opt).param_groups:
+                if float(g.get('lr', 0.0)) > 0.0 and any(p.requires_grad for p in g['params']):
+                    return
+        if not self.trainer.should_stop:
+            logging.info(f"Every trainable group is at lr 0 after epoch {self.trainer.current_epoch}; stopping.")
+            self.trainer.should_stop = True
 
     def _convergence_step(self, head: str, avg_metrics: dict) -> None:
         """Start ``head``'s ('wt' or 'mt') cosine decay once its convergence metric fails to improve by > 1e-4 for ``--plateau_patience`` validations."""
@@ -1170,8 +1193,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if h not in self._decay_start_step:
                     self._decay_start_step[h] = None if patience > 0 else warmup
         min_ratio = config.COSINE_MIN_LR_RATIO
+        num_epochs = max(1, int(self.hparams.get('num_epochs', 20) or 20))
         est_steps = getattr(self.trainer, 'estimated_stepping_batches', None) if getattr(self, '_trainer', None) is not None else None
-        total_steps = int(est_steps) if (est_steps is not None and math.isfinite(est_steps) and est_steps > 0) else max(warmup + 1, int(self.hparams.num_epochs) * 900)
+        total_steps = int(est_steps) if (est_steps is not None and math.isfinite(est_steps) and est_steps > 0) else max(warmup + 1, num_epochs * 900)
         accum = max(1, int(self.hparams.get('grad_accum_blocks', 1) or 1))
         if accum > 1:                                       # the scheduler counts optimizer steps, one per --grad_accum_blocks blocks
             total_steps = max(warmup + 1, -(-total_steps // accum))
@@ -1179,15 +1203,24 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             loader = self.trainer.train_dataloader              # fit is handed a one-element list
             sampler = (loader[0] if isinstance(loader, (list, tuple)) else loader).sampler      # it knows how many blocks make a step; the estimate above counts blocks
             total_steps = max(warmup + 1, -(-total_steps * sampler.n_steps() // len(sampler)))
+        steps_per_epoch = max(1, total_steps // num_epochs)
+        decay_epochs = max(1, int(self.hparams.get('cosine_decay_epochs', 3) or 3))
+        decay_steps = max(1, decay_epochs * steps_per_epoch)
 
-        def _make_cos_fn(head, warmup=warmup, total_steps=total_steps, min_ratio=min_ratio):
+        def _make_cos_fn(head, warmup=warmup, total_steps=total_steps, decay_steps=decay_steps, patience=patience, min_ratio=min_ratio):
             def _cos_fn(step):
                 if warmup > 0 and step < warmup:
                     return max(1e-4, step / float(warmup))
                 start = self._decay_start_step.get(head)
                 if start is None or step <= start:
                     return 1.0
-                prog = min(1.0, max(0.0, (step - start) / float(max(1, total_steps - start))))
+                if patience <= 0:
+                    prog = min(1.0, max(0.0, (step - start) / float(max(1, total_steps - start))))
+                    return min_ratio + 0.5 * (1.0 - min_ratio) * (1.0 + math.cos(math.pi * prog))
+                elapsed = step - start
+                if elapsed >= decay_steps:
+                    return 0.0
+                prog = elapsed / float(max(1, decay_steps - 1)) if decay_steps > 1 else 1.0
                 return min_ratio + 0.5 * (1.0 - min_ratio) * (1.0 + math.cos(math.pi * prog))
             return _cos_fn
 

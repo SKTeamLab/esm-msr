@@ -32,8 +32,8 @@ lora_dropout_mt: 0.1
 
 learning_rate: 2.0e-4
 lr_warmup_steps: 125
-num_epochs: 10
-early_stopping_patience: 3
+num_epochs: 20
+early_stopping_patience: 0
 
 cache_version: c6
 num_workers: 2
