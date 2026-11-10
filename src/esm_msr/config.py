@@ -152,7 +152,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     opt.add_argument('--plateau_patience', type=int, default=1,
                      help="Validations without improvement in a head's convergence metric before that head starts cosine decay (default 1: decay starts when a validation does not "
                           "exceed the previous best; 0 starts cosine decay immediately after warmup).")
-    opt.add_argument('--cosine_decay_epochs', type=int, default=3,
+    opt.add_argument('--cosine_decay_epochs', type=int, default=5,
                      help="Epochs over which a head's learning rate cosine-decays from peak to COSINE_MIN_LR_RATIO (0.05) once its convergence metric plateaus, before dropping to 0 (freezing). "
                           "The run ends when all trainable parameter groups reach lr 0.")
     opt.add_argument('--wt_convergence_metric', type=str, default=None,

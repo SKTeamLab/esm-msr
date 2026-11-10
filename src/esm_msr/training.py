@@ -1199,18 +1199,19 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 if h not in self._decay_start_step:
                     self._decay_start_step[h] = None if patience > 0 else warmup
         min_ratio = config.COSINE_MIN_LR_RATIO
-        num_epochs = max(1, int(self.hparams.get('num_epochs', 20) or 20))
+        num_epochs = max(1, int(getattr(getattr(self, '_trainer', None), 'max_epochs', None) or self.hparams.get('num_epochs', 20) or 20))
         est_steps = getattr(self.trainer, 'estimated_stepping_batches', None) if getattr(self, '_trainer', None) is not None else None
         total_steps = int(est_steps) if (est_steps is not None and math.isfinite(est_steps) and est_steps > 0) else max(warmup + 1, num_epochs * 900)
         accum = max(1, int(self.hparams.get('grad_accum_blocks', 1) or 1))
         if accum > 1:                                       # the scheduler counts optimizer steps, one per --grad_accum_blocks blocks
             total_steps = max(warmup + 1, -(-total_steps // accum))
+        steps_per_epoch = max(1, total_steps // num_epochs)
         if bool(self.hparams.get('block_domain_steps', False)) and getattr(self, '_trainer', None) is not None:
             loader = self.trainer.train_dataloader              # fit is handed a one-element list
             sampler = (loader[0] if isinstance(loader, (list, tuple)) else loader).sampler      # it knows how many blocks make a step; the estimate above counts blocks
-            total_steps = max(warmup + 1, -(-total_steps * sampler.n_steps() // len(sampler)))
-        steps_per_epoch = max(1, total_steps // num_epochs)
-        decay_epochs = max(1, int(self.hparams.get('cosine_decay_epochs', 3) or 3))
+            steps_per_epoch = max(1, int(sampler.n_steps()))
+            total_steps = max(warmup + 1, -(-total_steps * steps_per_epoch // len(sampler)))
+        decay_epochs = max(1, int(self.hparams.get('cosine_decay_epochs', 5) or 5))
         decay_steps = max(1, decay_epochs * steps_per_epoch)
 
         def _make_cos_fn(head, warmup=warmup, total_steps=total_steps, decay_steps=decay_steps, patience=patience, min_ratio=min_ratio):

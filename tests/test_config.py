@@ -50,7 +50,7 @@ def test_defaults():
     assert a.rank_censor_threshold == 0.5 and a.tf_label == 'measured' and a.tf_mix == 1.0 and a.rank_list_size == 16
     assert a.block_mask_wt == 1.0 and a.block_mask_mt == 1.0 and a.block_positions == 8 and a.block_list_rows == 0 and a.grad_accum_blocks == 1
     assert a.lambda_cond_mt == 0.0 and a.cond_partner_min_dg == 1.0 and a.exclude_mutbg is False
-    assert a.plateau_patience == 1 and a.cosine_decay_epochs == 3 and a.wt_convergence_metric is None and a.mt_convergence_metric is None
+    assert a.plateau_patience == 1 and a.cosine_decay_epochs == 5 and a.wt_convergence_metric is None and a.mt_convergence_metric is None
     assert a.target_mode_wt == 'expanded' and a.target_mode_mt == 'expanded'
     assert config.convergence_metric(a, 'wt') == 'val_rho_singles_wt_avg'
     assert config.convergence_metric(a, 'mt') == 'val_rho_combined_avg'
