@@ -118,6 +118,9 @@ torch.serialization.add_safe_globals([
     omegaconf.listconfig.ListConfig, omegaconf.dictconfig.DictConfig, omegaconf.base.ContainerMetadata,
     omegaconf.base.Metadata, omegaconf.nodes.AnyNode, typing.Any, list, dict, int, collections.defaultdict])
 
+import paths  # noqa: E402
+sys.path.insert(0, str(paths.SPURS_DIR))
+
 # SPURS Imports
 from spurs.utils import seed_everything
 from spurs.models.stability.spurs import SPURS
@@ -127,7 +130,6 @@ from spurs.inference import parse_pdb, get_SPURS_from_hub, get_SPURS_multi_from_
 
 warnings.filterwarnings('ignore') # Consider removing this to catch legitimate deprecations
 
-import paths  # noqa: E402
 import resource_tracker  # noqa: E402
 import batching  # noqa: E402
 import calibration  # noqa: E402

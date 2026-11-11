@@ -1,0 +1,73 @@
+{
+ "run_id": "spurs-local-20261111T143034",
+ "label": "spurs",
+ "started": "2026-11-11T14:30:34",
+ "host": "local-rtx5090",
+ "pid": 128324,
+ "argv": [
+  "inference_scripts/baselines/spurs_inference.py",
+  "--out",
+  "runs/spurs_s1",
+  "--models",
+  "both",
+  "--mutants",
+  "both",
+  "--split",
+  "splits_oct06_capped",
+  "--checkpoint_single",
+  "oct06_leg_seed1.ckpt",
+  "--checkpoint_multi",
+  "oct06_legmulti_seed1.ckpt",
+  "--pgym_dir",
+  "pgym_inputs",
+  "--pgym_dms",
+  "all",
+  "--batch_mode",
+  "fixed"
+ ],
+ "slurm": {
+  "SLURM_JOB_ID": null,
+  "SLURM_JOB_NAME": null,
+  "SLURM_JOB_NODELIST": null,
+  "SLURM_CPUS_PER_TASK": null,
+  "SLURM_MEM_PER_NODE": null,
+  "SLURM_JOB_GPUS": null,
+  "SLURM_STEP_GPUS": null,
+  "CUDA_VISIBLE_DEVICES": null,
+  "OMP_NUM_THREADS": null
+ },
+ "python": "3.10.20",
+ "model": "SPURS",
+ "checkpoint_single": "oct06_leg_seed1.ckpt",
+ "checkpoint_multi": "oct06_legmulti_seed1.ckpt",
+ "models": "both",
+ "mutants": "both",
+ "dtype": "fp32",
+ "batch_mode": "fixed",
+ "batch_size_arg": null,
+ "auto_batch_headroom": null,
+ "batch_table": null,
+ "torch": "2.10.0+cu128",
+ "torch_threads": 8,
+ "gpu": {
+  "name": "NVIDIA GeForce RTX 5090",
+  "total_gb": 31.82,
+  "capability": "12.0"
+ },
+ "cpus_visible": 8,
+ "cgroup_memory": {
+  "limit_gb": null,
+  "peak_gb": null
+ },
+ "git": "93b7854",
+ "neighbours_at_start": null,
+ "finished": "2026-11-11T14:39:47",
+ "total_wall_s": 553.89,
+ "process_peak_rss_gb": 9.4867,
+ "cgroup_memory_at_exit": {
+  "limit_gb": null,
+  "peak_gb": null
+ },
+ "neighbours_at_end": null,
+ "process_peak_vram_alloc_gb": 6.6781
+}

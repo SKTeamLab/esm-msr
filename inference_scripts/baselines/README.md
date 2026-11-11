@@ -1,136 +1,119 @@
-# Baseline inference on every benchmark, with resource tracking
+# Baseline Inference Across All Benchmarks
 
-One script per baseline, each runs **every** benchmark (Tsuboyama val + test, the 12 external sets, the 7 DMS, Domainome,
-ProteinGym), records per-dataset and per-protein wall time, CPU, RAM, VRAM and I/O of the inference calls
-(`../resource_tracker.py`, [`docs/INFERENCE_RESOURCES.md`](../../docs/INFERENCE_RESOURCES.md)), and writes predictions in the
-same row order for the same rows, so any two baselines can be scored against ESM-MSR's with the same tools. ESM-MSR itself is
-`../esm_msr_testing.py`.
+Standardized evaluation scripts for each external baseline across all benchmark suites (Tsuboyama validation and test splits, the 12 external thermostability sets, the 7 multi-mutant DMS assays, Domainome, and ProteinGym), with optional per-dataset and per-protein resource tracking (`../resource_tracker.py`). All scripts evaluate identical variant rows (`benchmark_rows.py`) in consistent order so predictions can be compared directly against ESM-MSR (`../esm_msr_testing.py`).
 
-| script | model | what one file covers |
+| Script | Model | Key Options |
 |---|---|---|
-| `thermompnn_inference.py` | ThermoMPNN / ThermoMPNN-D (also `train`) | `--single_ckpt` and/or `--epistatic_ckpt`; `--mutants single\|multi\|both`; modes `all`, `test`, `external`, `dms`, `domainome`, `pgym` |
-| `mutate_everything_inference.py` | MutateEverything | any checkpoint (`--resume`: stage 1 singles, stage 2 doubles); `--mutants`; `--sets all` or any group / set names |
-| `spurs_inference.py` | SPURS and SPURS-multi | `--models single\|multi\|both`; `--mutants`; `--checkpoint_single/multi` (retrained files: `--spurs_ckpt_dir`) |
-| `proteinmpnn_inference.py` | ProteinMPNN `v_48_020` | `--mutants`; `--n_samples`, `--coord_noise` for the test-time ensemble |
+| `thermompnn_inference.py` | ThermoMPNN & ThermoMPNN-D (also `train`) | `--single_ckpt` and/or `--epistatic_ckpt`; `--mutants single\|multi\|both`; modes `all`, `test`, `external`, `dms`, `domainome`, `pgym` |
+| `mutate_everything_inference.py` | MutateEverything (Stage 1 & Stage 2) | `--resume <ckpt>`; `--split_name`; `--mutants single\|multi\|both`; `--sets all` or group/dataset names |
+| `spurs_inference.py` | SPURS & SPURS-multi | `--models single\|multi\|both`; `--mutants single\|multi\|both`; `--checkpoint_single` / `--checkpoint_multi` (`hf` or retrained filename under `--spurs_ckpt_dir`) |
+| `proteinmpnn_inference.py` | ProteinMPNN `v_48_020` (zero-shot) | `--mutants single\|multi\|both`; `--n_samples`, `--coord_noise` |
 
-`--mutants single|multi|both` chooses which rows are scored (the others are NaN and cost nothing). With one network or model
-missing, the readouts that need it are NaN and the combined readout falls back to what exists (ThermoMPNN: additive from the
-single network; SPURS: its own four columns).
+`--mutants single|multi|both` selects which variant rows are scored (unselected rows remain `NaN` without running forward passes). When only one network or model is provided, columns requiring the other remain `NaN` and the combined readout falls back to the loaded model (e.g., additive single-mutant sum for ThermoMPNN). Mutant-background Tsuboyama libraries are evaluated against their corresponding mutant-background reference sequence across all baselines.
 
-## Batch sizing
+## Setup & Prerequisites
 
-One policy for every method that batches variants (`batching.py`; `--batch_mode table|auto|fixed`, `--batch_size`,
-`--auto_batch_headroom`, `--batch_table`; the job script takes `BATCH_MODE` and `BATCH_SIZE`). The unit is what one forward call
-does for one protein: ESM-MSR variant sequences, ThermoMPNN mutation items (per network), SPURS-multi variants, ProteinMPNN
-decoder rows. MutateEverything does not batch variants (one forward predicts every mutation of a protein).
+1. **Upstream repositories**: Clone the unmodified baseline repositories at the commits pinned in `third_party.lock`:
+   ```bash
+   bash inference_scripts/baselines/setup_third_party.sh   # clones into $THIRD_PARTY_DIR (default ~/software)
+   ```
+2. **Python environments**:
+   - Modern CUDA 12.8 environments supporting Ampere, Hopper, and Blackwell (`sm_120`) GPUs (`ThermoMPNN-D`, `spurs`, and `mutate_everything_cu128`) are documented in [`training_scripts/baselines/requirements/README.md`](../../training_scripts/baselines/requirements/README.md).
+   - Original environment specifications are also preserved in `envs/` (`msr_venv.yml` for ESM-MSR and ProteinMPNN, `spurs_higher.yml`, `mutate_everything.yml`, and `thermompnn_venv_requirements.txt`).
+   - Override environment names or interpreters if needed via `MSR_ENV`, `SPURS_ENV`, `ME_ENV`, `THERMOMPNN_PY`, and `CONDA_SH`.
+3. **Paths & data (`paths.py`)**: All external locations are configured via environment variables with defaults relative to `$HOME` and the repository root:
+   - `THIRD_PARTY_DIR` (or per-repo `THERMOMPNN_DIR`, `MUTATE_EVERYTHING_DIR`, `SPURS_DIR`, `PROTEINMPNN_DIR`)
+   - `MSR_DATA_DIR` (`$REPO_ROOT/data`), `MSR_TSUBOYAMA_DIR` (Tsuboyama CSV and `AlphaFold_model_PDBs/`), `MSR_STRUCTURES_DIR`, `MSR_DOMAINOME_TABLE` (`domainome_mapped_2026.csv`), and `MSR_PGYM_INPUTS` / `MSR_PGYM_STRUCTURES` (`preprocessing/pgym_preprocess.py`)
+   - `MSR_BASELINE_DATA`: output directory of `prepare/prepare_baseline_data.py` for the target Tsuboyama split
+   - `SPURS_CKPT_DIR`: directory containing retrained SPURS checkpoints (used when `--checkpoint_single` / `--checkpoint_multi` is not `hf`)
+4. **Prepared split inputs & checkpoints**:
+   - ESM-MSR, SPURS, and ProteinMPNN read the Tsuboyama split `.pkl` under `data/` directly; ThermoMPNN and MutateEverything read split-specific item tables and inputs generated by `prepare/prepare_baseline_data.py` and `prepare/build_*_me_data.py` (see [`training_scripts/baselines/README.md`](../../training_scripts/baselines/README.md) for the preparation and retraining recipe). Both scripts verify `variant.json` to prevent accidentally scoring with tables built from a different split.
+   - Checkpoints used in the benchmark tables (filenames, sizes, and MD5 prefixes) are cataloged in [`docs/benchmarks/checkpoints.csv`](../../docs/benchmarks/checkpoints.csv).
 
-* `table` (default): one batch size per model and dataset, read from [`batch_sizes_gpu4.json`](batch_sizes_gpu4.json), made once
-  on the target GPU (below). ProteinGym is `auto` in the table, because its proteins differ too much for one size per dataset.
-* `auto`: the `AutoBatchSizer` of `src/esm_msr/auto_batch.py` per protein, 90 % GPU headroom for every method.
-* `fixed`: `--batch_size N` items per call (without it, the method's historical size). `--batch_size N` in table mode overrides
-  the table.
+## Running Inference
 
-Each protein's resource row records `batch_mode`, `batch_max`, `n_chunks` and `batch_ooms`. ESM-MSR's own script keeps its
-historical per-block sizes unless `--batch_mode` is given.
-
-**Making the table** (`calibration.py`; once per GPU, headroom and precision; the table's `_meta` records them): each script's
-`--calibrate_batch_sizes OUT.json` (job script: `CALIBRATE=1`) takes the two longest structures of every dataset (memory per item
-grows with length), scores a saturated mixed list of single and double mutants with the sizer, and keeps the smaller batch the
-sizer settled on. A list the sizer gets through before memory stops it is repeated four times longer (up to 65,536 variants), so
-the size is the memory limit and not the list length; `_detail` records the proteins, lengths, list lengths and OOMs behind each
-size. `calibration.py merge a.json b.json ... -o batch_sizes_gpu4.json` builds the table.
-
-## Reproducing
-
-1. **Upstream code**, unmodified, at the commits in `third_party.lock`: `./setup_third_party.sh` (clones into
-   `$THIRD_PARTY_DIR`, default `~/software`, and checks out the pinned commit; warns if a tracked file was modified). These
-   scripts are the only additions to those repositories: nothing is patched.
-2. **Environments** in `envs/` (what the October runs used): `msr_venv.yml` (ESM-MSR and ProteinMPNN), `spurs_higher.yml`,
-   `mutate_everything.yml`, `thermompnn_venv_requirements.txt` (a venv in the ThermoMPNN-D checkout).
-3. **Where things are**: every location comes from `paths.py` and can be moved with an environment variable
-   (`THIRD_PARTY_DIR`, `THERMOMPNN_DIR`, `MUTATE_EVERYTHING_DIR`, `SPURS_DIR`, `PROTEINMPNN_DIR`, `MSR_DATA_DIR`,
-   `MSR_STRUCTURES_DIR`, `MSR_DOMAINOME_TABLE`, `MSR_BASELINE_DATA`, `MSR_PGYM_INPUTS`, `MSR_PGYM_STRUCTURES`). The
-   preprocessed tables (`data/preprocessed/*.csv`) carry the structure prefix of the machine that built them;
-   `paths.fix_pdb_path` points them at `MSR_STRUCTURES_DIR`.
-4. **Inputs that are data, not code**, and so not in the repository: MutateEverything's weights
-   (`models/finetuning_ptm_2.pt`, from its README) and its prepared inputs under `$MUTATE_EVERYTHING_DIR/data/`
-   (`prepare/build_*_me_data.py` write them from the preprocessed tables; the MSAs they reuse are ColabFold output, searched
-   by `prepare/find_dms_msas.py` / `index_msas.py`, locations in `MSR_ME_*` variables), SPURS's weights (Hugging Face hub),
-   the ThermoMPNN-D item tables (`prepare/prepare_baseline_data.py`, `MSR_BASELINE_DATA`) and checkpoints, the ProteinGym
-   inputs (`preprocessing/pgym_preprocess.py`) and structures.
-5. **Run**, in the fixed gpu4 slot (1 GPU, 6 CPUs, 60 GB), one job per model. `SPLIT` is the Tsuboyama split to score, a pickle
-   under `data/` (any split; the ones below use `splits_oct06_capped`). ESM-MSR, SPURS and ProteinMPNN read the pickle;
-   ThermoMPNN and MutateEverything read tables prepared from the split (`prepare_baseline_data.py`,
-   `build_mutate_everything_data.py`, [training recipe](../../training_scripts/baselines/README.md)): `MSR_BASELINE_DATA` is the
-   prepared directory, `SPLIT_NAME` the ME `data/<name>` directory. They stop if those tables were prepared from another split.
+`slurm_inference.sh` runs locally with `bash` or on Slurm via `sbatch` (or `inference_scripts/sbatch_fixed_slot.sh` for fixed CPU/RAM/GPU resource tracking):
 
 ```bash
 export SPLIT=splits_oct06_capped
-MODEL=thermompnn SINGLE=/path/single.ckpt EPISTATIC=/path/epistatic.ckpt MSR_BASELINE_DATA=$PWD/outputs/baselines/oct06_capped_allbl/data \
-    OUT=runs/thermompnn inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
-MODEL=mutate_everything CKPT=logs/af_double_oct06_capped_allbl_seed1/checkpoint-99.pth SPLIT_NAME=oct06_capped_allbl OUT=runs/me \
-    inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
-MODEL=spurs OUT=runs/spurs inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
-MODEL=proteinmpnn OUT=runs/proteinmpnn inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
-MODEL=esm_msr CKPT=release-baseline/s1/epoch=04-val_rho_combined_avg=0.855.ckpt OUT=runs/esm_msr \
-    inference_scripts/sbatch_fixed_slot.sh inference_scripts/baselines/slurm_inference.sh
-python analysis_scripts/resource_report.py runs/*/resources --out runs/summary.csv     # the resource table
+
+# ThermoMPNN + ThermoMPNN-D
+MODEL=thermompnn \
+  SINGLE=/path/to/single.ckpt \
+  EPISTATIC=/path/to/epistatic.ckpt \
+  MSR_BASELINE_DATA=$PWD/outputs/baselines/oct06_capped_allbl/data \
+  OUT=runs/thermompnn \
+  bash inference_scripts/baselines/slurm_inference.sh
+
+# MutateEverything (Stage 1 or Stage 2 checkpoint)
+MODEL=mutate_everything \
+  CKPT=/path/to/checkpoint-99.pth \
+  SPLIT_NAME=oct06_capped_allbl \
+  OUT=runs/mutate_everything \
+  bash inference_scripts/baselines/slurm_inference.sh
+
+# SPURS + SPURS-multi (published 'hf' defaults, or retrained checkpoints in $SPURS_CKPT_DIR)
+MODEL=spurs \
+  SPURS_CKPT_DIR=/path/to/spurs/checkpoints \
+  SPURS_SINGLE=oct06_leg_seed1.ckpt \
+  SPURS_MULTI=oct06_legmulti_seed1.ckpt \
+  OUT=runs/spurs \
+  bash inference_scripts/baselines/slurm_inference.sh
+
+# ProteinMPNN (zero-shot)
+MODEL=proteinmpnn OUT=runs/proteinmpnn \
+  bash inference_scripts/baselines/slurm_inference.sh
 ```
 
-Each script also runs by hand (`python thermompnn_inference.py all --help`).
+Each baseline script can also be invoked directly for individual benchmark subsets (run `<script> --help` for full CLI flags), for example:
 
-## Another machine
+```bash
+python inference_scripts/baselines/thermompnn_inference.py all \
+  --single_ckpt /path/to/single.ckpt --epistatic_ckpt /path/to/epistatic.ckpt \
+  --data_dir $PWD/outputs/baselines/oct06_capped_allbl/data \
+  --tsuboyama_split splits_oct06_capped --batch_mode auto --out runs/thermompnn
 
-Everything the scripts need that is not in the repository is a path variable (`paths.py`) or an environment name:
+python inference_scripts/baselines/mutate_everything_inference.py \
+  --resume /path/to/checkpoint-99.pth --split_name oct06_capped_allbl \
+  --tsuboyama_split splits_oct06_capped --sets tsuboyama,external,dms,domainome \
+  --output_dir runs/mutate_everything
 
-* **Checkpoints**: [`docs/benchmarks/checkpoints.csv`](../../docs/benchmarks/checkpoints.csv) lists the 31 checkpoints behind the benchmark
-  tables (ESM-MSR, ThermoMPNN, ThermoMPNN-D, MutateEverything stage 1 and 2, SPURS and SPURS-multi, 19.3 GiB) with size, md5, the tables
-  each was trained on and where it sits on the cluster; `rsync -aL <cluster>:<cluster_path_under_home> <here>` and compare md5. The
-  released ESM-MSR models are also on Hugging Face. SPURS-multi needs the same seed's SPURS single (`SPURS_SINGLE`, `SPURS_MULTI`).
-* **Code and data**: `setup_third_party.sh` (pinned upstream clones; `THIRD_PARTY_DIR`, or one variable per repository), then
-  `MSR_TSUBOYAMA_DIR` (the Tsuboyama CSV and `AlphaFold_model_PDBs`), `MSR_STRUCTURES_DIR`, `MSR_DOMAINOME_TABLE` (`domainome_mapped_2026.csv`,
-  293 MB, `preprocessing/domainome_preprocessing.ipynb`), `MSR_PGYM_INPUTS` / `MSR_PGYM_STRUCTURES` (`preprocessing/pgym_preprocess.py`),
-  `MSR_ROSETTA_DIR` (Tsuboyama's Rosetta models, 30 GB: only ThermoMPNN-D's double augmentation in *training* reads them),
-  `MSR_BASELINE_DATA` and, for MutateEverything, `models/finetuning_ptm_2.pt` plus `data/<variant>` in its checkout (`prepare/`).
-  `prepare/prepare_baseline_data.py` run on another machine reproduced the cluster's capped-split training tables byte for byte.
-* **Environments**: `envs/` has the specifications; if yours are named differently set `MSR_ENV` (ESM-MSR, ProteinMPNN), `SPURS_ENV`,
-  `ME_ENV` and `THERMOMPNN_PY` (the python of the ThermoMPNN-D environment), and `CONDA_SH`. `bash slurm_inference.sh` runs outside Slurm.
-* **GPU generation**: the MutateEverything environment (`envs/mutate_everything.yml`: Python 3.7, torch 1.12 for CUDA 11.3) has no kernels
-  for Blackwell cards (RTX 50 series, sm_120); the others (torch 2.7+ for CUDA 12.8) do. Inference and training of the other models need no
-  change; ME on such a card needs a newer environment that these scripts have not been run in.
+python inference_scripts/baselines/spurs_inference.py \
+  --spurs_ckpt_dir /path/to/spurs/checkpoints \
+  --checkpoint_single oct06_leg_seed1.ckpt --checkpoint_multi oct06_legmulti_seed1.ckpt \
+  --split splits_oct06_capped --batch_mode auto --out runs/spurs
+```
 
-## Outputs
+## Batch Sizing
 
-`$OUT/predictions` per benchmark (ESM-MSR: `$OUT/analysis/{predictions,stats}`, so a tracked run never overwrites `analysis_notebooks/` files of the same checkpoint; `external_<set>.csv`, `dms_<assay>.csv`, `domainome.csv`, `tsuboyama_{val,test}.csv`, ProteinGym's
-per-DMS CSVs and `summary.csv`; ME writes upstream's `results_<set>.csv`) and `$OUT/resources/<run_id>/`. Positive means
-stabilizing in every prediction column, except that MutateEverything's `ddg_pred` is upstream's ddG (positive = destabilizing,
-`ddg_pred = -scores`), as in its October files.
+Variant-batching baselines (`thermompnn_inference.py`, `spurs_inference.py`, `proteinmpnn_inference.py`, and `../esm_msr_testing.py`) share a unified batch-sizing policy (`batching.py`):
 
-## What changed from the October scripts (so older predictions are not directly the same runs)
+- `--batch_mode table` (default): uses a pre-calibrated per-model, per-dataset batch size from `--batch_table` (with ProteinGym dynamically sized per assay). Note that pre-calibrated tables depend on PyTorch/CUDA memory footprint; when switching GPUs or PyTorch versions without recalibrating, prefer `--batch_mode fixed` or `--batch_mode auto`.
+- `--batch_mode fixed`: uses a fixed `--batch_size N` per forward call, or the method's built-in length-scaled / chunk default when `--batch_size` is omitted (`min(256, 16000 // L)` for ThermoMPNN single, `min(256, 8000 // L)` for ThermoMPNN-D epistatic, and `4096` variants for SPURS-multi). Passing `--batch_size N` in `table` mode also overrides the table.
+- `--batch_mode auto`: dynamically sizes batches per protein using `AutoBatchSizer` (`src/esm_msr/auto_batch.py`) within `--auto_batch_headroom` (default `0.90` of GPU memory). On WSL2/WDDM, `batching.py` caps PyTorch's per-process memory fraction (`MSR_CUDA_MEMORY_FRACTION`, default `0.85`) so allocations stay inside physical VRAM rather than spilling into shared host RAM.
 
-* **ThermoMPNN**: batches never span proteins and follow the shared batch policy (below); epistatic checkpoint optional; one
-  process for `all`.
-* **MutateEverything**: one GPU, one process (upstream's `--dist_eval` sharded over 3); the loader runs in-process; the metric
-  that cannot run on the DMS is dropped, as in the October `predict_dms.py`.
-* **SPURS**: the four per-block copies of the scoring loop are one function; DMS rows come from the complete tables (the old
-  script read the copy of GB1 that lacks V39A/V39C/V39D); Tsuboyama mutant-background libraries are scored on their own
-  background sequence, as in the harness rerun; Domainome's target is `scaled_fitness` as in `esm_msr_testing.py` (the old
-  script negated it before flipping the prediction).
-* **ProteinMPNN**: every block uses the batched `score_unmasked_fast` that ProteinGym used (one background order per position,
-  seed 0) instead of the row-by-row scorer; mutant-background libraries are scored on their background sequence; the legacy
-  `functional` block (data outside the repository) is gone. The row-by-row scorers stay in the file as the reference.
+MutateEverything scores all single and double mutants of a protein in a single forward pass (`batch_size=1` protein) and does not batch variants (nor cap per-process VRAM by default, as long external proteins up to `L = 782` reserve ~31 GiB).
 
-## Training
+To calibrate a new batch-size table for a target GPU (`calibration.py`), run each script with `--calibrate_batch_sizes OUT.json` (or `CALIBRATE=1` in `slurm_inference.sh`) and merge the per-model outputs:
 
-The launchers, the SPURS training patch and the step-by-step recipe from this repository to the retrained ThermoMPNN-D,
-MutateEverything and SPURS checkpoints are in [`training_scripts/baselines`](../../training_scripts/baselines/README.md).
+```bash
+python inference_scripts/baselines/calibration.py merge out_a.json out_b.json ... -o batch_sizes.json
+```
 
-## Not in this directory
+## Reference Runtime & Memory (NVIDIA GeForce RTX 5090, 32 GB)
 
-The scoring and epistasis scripts that turn predictions into the tables (`score_baselines.py`, `final_tables.py`, `epi_*.py`),
-the GB1 and audit scripts and the October data-preparation launchers (`slurm_prep_nobb.sh`, `build_valfull.py`) live outside the
-repository on the cluster (`~/esm-msr-devel/baselines/`). They are not needed to produce predictions. Several of them import
-`dms_source`, `prepare_oct06_data` and `build_mutate_everything_data`, which is why copies of those three remain there, in their
-October form with the capped split built in. The repository's versions replace them for any split: `prepare/prepare_baseline_data.py`
-(formerly `prepare_oct06_data.py`; it also writes the unfiltered `items_valfull.csv` that `build_valfull.py` made, and `--mut_backbones
-exclude` is what `slurm_prep_nobb.sh` ran) and `prepare/build_mutate_everything_data.py`.
+Measured single-GPU wall-clock runtimes and peak memory on an NVIDIA GeForce RTX 5090 (32 GB, CUDA 12.8 environments `ThermoMPNN-D`, `spurs`, and `mutate_everything_cu128`). Full `resource_tracker.py` run logs (`resources_run.json`, `resources_scopes.jsonl`, `resources_scopes.csv`) and per-dataset `resource_report.py` summaries are archived in [`resources_rtx5090/`](resources_rtx5090/):
+
+| Model (Seed-1 Checkpoint) | Batch Policy | Total Wall | Peak Alloc VRAM | Peak Reserved / Device VRAM | Peak Host RSS | Suite Breakdown (Dataset Wall) |
+|---|---|---:|---:|---:|---:|---|
+| **SPURS + SPURS-multi** | `fixed` (`4096`) | **9.2 min** (`554 s`) | `6.68 GiB` | `8.69 GiB` / `10.44 GiB` | `9.49 GiB` | Tsuboyama val+test `11.3 s`, 12 External `238.7 s` (`4.0 min`), 7 DMS `7.9 s`, Domainome (522 domains) `67.9 s` (`1.1 min`), ProteinGym (all 217 DMS) `137.6 s` (`2.3 min`), model load `62.4 s` |
+| **ThermoMPNN + ThermoMPNN-D** | `fixed` (`16000 // L` single, `8000 // L` siamese) | **33.8 min** (`2028 s`) | `7.88 GiB` | `15.70 GiB` (steady) / `25.05 GiB` (`27.33 GiB` dev) | `15.79 GiB` (`GB1`) | Tsuboyama val+test `178.0 s` (`3.0 min`), 12 External `86.3 s` (`1.4 min`), 7 DMS `1040.0 s` (`17.3 min`; `GB1` `611 s`), Domainome `643.8 s` (`10.7 min`), ProteinGym (3-DMS sample) `98.5 s` |
+| **MutateEverything Stage 2** | `batch_size=1` protein | **108.3 min** (`6499 s`, excl. full 217-DMS PG) | `12.15 GiB` (`k3822`) | `31.15 GiB` / `31.82 GiB` (`k3822`, `L=782`; `<=3.69 GiB` on Tsuboyama/DMS/Domainome) | `6.68 GiB` | Tsuboyama val+test+testcomp `181.5 s` (`3.0 min`), 7 DMS `147.1 s` (`2.5 min`), Domainome `1000.3 s` (`16.7 min`), 12 External `5309.5 s` (`88.5 min`; `s8754` `27.2 min`), 1-DMS PG sample `1.9 s` |
+
+## Outputs & Sign Conventions
+
+Predictions are written under `$OUT` alongside resource logs in `$OUT/resources/<run_id>/` (scored and summarized via `analysis/scoring/score_baseline_runs.py`, `analysis/scoring/score_me_proteingym.py`, and `analysis/scoring/resource_report.py`):
+
+- **ThermoMPNN / SPURS / ProteinMPNN**: `predictions_{val,test}.csv` (ThermoMPNN) or `tsuboyama_{val,test}.csv` (SPURS, ProteinMPNN), `external_<set>.csv`, `dms_<assay>.csv`, `domainome.csv`, and `proteingym/{<DMS_id>.csv,summary.csv}`.
+- **MutateEverything**: `results_<set>.csv` (`pdb_id`, `mut_info`, `scores`, `ddg_pred`) matching upstream's output format.
+- **Sign convention**: Higher values mean **more stabilizing / higher fitness** across all standardized prediction columns (`pred_single_additive`, `pred_combined`, `SPURS_*`, `mpnn_score*`, and MutateEverything's `scores`). MutateEverything's `ddg_pred` column preserves upstream's destabilizing-positive convention (`ddg_pred = -scores`).

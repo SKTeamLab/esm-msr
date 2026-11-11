@@ -27,10 +27,33 @@ Three modes, the same flags in every script (`add_batch_args`):
 """
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
 _SIZER = None
+_WSL_CAP_SET = False
+
+
+def _cap_wsl_cuda_memory(headroom=0.85):
+    """On WSL2/WDDM, cudaMalloc silently spills past physical VRAM into shared host RAM instead of raising OOM;
+    capping PyTorch's per-process memory fraction keeps allocations strictly inside physical GPU memory."""
+    global _WSL_CAP_SET
+    if _WSL_CAP_SET:
+        return
+    _WSL_CAP_SET = True
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return
+        env_frac = os.environ.get('MSR_CUDA_MEMORY_FRACTION')
+        is_wsl = Path('/proc/version').exists() and 'microsoft' in Path('/proc/version').read_text(errors='ignore').lower()
+        if env_frac or is_wsl:
+            frac = float(env_frac) if env_frac else min(0.85, float(headroom))
+            if 0.0 < frac <= 1.0:
+                torch.cuda.set_per_process_memory_fraction(frac)
+    except Exception:
+        pass
 
 
 def _sizer_class():
@@ -84,6 +107,7 @@ class Batching:
         self.mode = args.batch_mode
         self.batch_size = args.batch_size
         self.headroom = args.auto_batch_headroom
+        _cap_wsl_cuda_memory(self.headroom)
         self.model, self.dataset, self.device, self.log = model, None, device, log
         self._sizer = None
         self.table = None
