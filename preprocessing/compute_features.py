@@ -1,25 +1,20 @@
 import os
+import time
 import argparse
 import numpy as np
 import pandas as pd
-import requests
 import urllib
 import tempfile
 
 from tqdm import tqdm
-from quantiprot.metrics import aaindex
-from Bio import ExPASy, SwissProt, AlignIO, pairwise2
-from Bio.PDB import *
-from Bio.PDB.DSSP import DSSP, dssp_dict_from_pdb_file
+from Bio import ExPASy, SwissProt, AlignIO
+from Bio.PDB import PDBParser, NeighborSearch, Selection, HSExposureCA
+from Bio.PDB.DSSP import DSSP
 from scipy.stats import entropy
-from Bio.SeqUtils import seq1
-
-from Bio import AlignIO
 from Bio import SeqIO 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-import argparse # For handling command-line arguments
 
 def remove_lowercase_from_sequence(sequence_str):
     """Removes lowercase characters from a sequence string."""
@@ -464,7 +459,8 @@ def get_residue_interactions(model, target_chain_id, residue_id):
     return h_bonds, salt_bridges, b_factor, h_bond_identities
 
 
-def extract_features(database_loc, path):
+def extract_features(database_loc, path, alistat_loc, msa_dir='./data/tsuboyama/tsuboyama_msas',
+                     reduced_msa_dir='./data/tsuboyama/tsuboyama_msas_reduced'):
     """
     Generate all the features and add them to the dataset_mapped.csv
     """
@@ -482,12 +478,15 @@ def extract_features(database_loc, path):
         db['position'] = db['mut_type'].str[1:-1].astype(int)
         db['mutation'] = db['mut_type'].str[-1]
         print(db.head())
-        db['msa_file'] = '/home/sareeves/PSLMs/data/tsuboyama/tsuboyama_msas/' + db['WT_name'].apply(lambda x: x.split('.')[0].replace('|', '_')) + '.a3m'
-        db['reduced_msa_file'] = '/home/sareeves/PSLMs/data/tsuboyama/tsuboyama_msas_reduced/' + db['WT_name'].apply(lambda x: x.split('.')[0].replace('|', '_')) + '.a3m'
+        os.makedirs(reduced_msa_dir, exist_ok=True)
+        stems = db['WT_name'].apply(lambda x: x.split('.')[0].replace('|', '_'))
+        db['msa_file'] = stems.apply(lambda s: os.path.join(msa_dir, f'{s}.a3m'))
+        db['reduced_msa_file'] = stems.apply(lambda s: os.path.join(reduced_msa_dir, f'{s}.a3m'))
         db['uniprot_seq'] = db['aa_seq']
         db['offset_up'] = 0
-        for msa in db['msa_file'].unique():
-            reformat_sequences_remove_insertions(msa, msa.replace('_msas', '_msas_reduced'), 'fasta')
+        for msa, red_msa in zip(db['msa_file'], db['reduced_msa_file']):
+            if not os.path.exists(red_msa):
+                reformat_sequences_remove_insertions(msa, red_msa, 'fasta')
 
     # construct the output dataframe
     df_out = pd.DataFrame(index=db.index, 
@@ -500,6 +499,12 @@ def extract_features(database_loc, path):
     df_out['on_interface'] = False
 
     # sequence-based features from QuantiProt
+    try:
+        from quantiprot.metrics import aaindex
+    except ImportError as exc:
+        raise ImportError(
+            "compute_features.py requires the optional 'quantiprot' package (`pip install quantiprot`)."
+        ) from exc
     vol = aaindex.get_aa2volume() # residue total volume
     kdh = aaindex.get_aa2hydropathy() # Kyte-Doolittle hydrophobicity
     chg = aaindex.get_aa2charge() # neutral-pH charge
@@ -587,12 +592,12 @@ def extract_features(database_loc, path):
         if code_ in ['1A0F', '1A5E', '1BA3', '1CEY', '1FH5', '1IGV', '1IHB', '1IOJ', '1JLV', '1LVE', 
             '1SUP', '1TIT', '1XWS', '2IMM', '2MMX', '2PR5', '2TRX', '3DV0', '3MBP', '451C', '6TQ3']:
             run_alistat(
-                alignment_file, args.alistat_loc,
+                alignment_file, alistat_loc,
                 os.path.join(out_loc, ''), 100000
                 )           
         else:
             run_alistat(
-                alignment_file, args.alistat_loc,
+                alignment_file, alistat_loc,
                 os.path.join(out_loc, ''), 0
                 )
 
@@ -640,7 +645,7 @@ def extract_features(database_loc, path):
             # next section uses sequence-features, which are indexed differently
 
             # -1 for 0-based indexing
-            if 'fireprot' not in args.db_loc.lower():
+            if 'fireprot' not in database_loc.lower():
                 target_pos_up = int(row['position'] + \
                     -row['offset_up'] - 1)
             else:
@@ -685,7 +690,7 @@ def extract_features(database_loc, path):
             #df_out.at[uid, 'b_factor'] = b_factor
 
     os.makedirs(os.path.join(path, 'data', 'features'), exist_ok=True)
-    outloc = os.path.join(path, 'data', 'features', database_loc.replace('.csv', '_feats.csv'))
+    outloc = os.path.join(path, 'data', 'features', os.path.basename(database_loc).replace('.csv', '_feats.csv'))
     df_out.to_csv(outloc) 
 
     return df_out.drop('code', axis=1), pd.concat(dfs_acc)
@@ -705,6 +710,10 @@ if __name__=='__main__':
     parser.add_argument('--alistat_loc', help='location of the Alistat repo. \
                             Do not use the relative path, ~/software... is ok',
                         required=True)
+    parser.add_argument('--msa_dir', help='directory containing raw .a3m MSAs for Tsuboyama inputs',
+                        default='./data/tsuboyama/tsuboyama_msas')
+    parser.add_argument('--reduced_msa_dir', help='directory for insertion-stripped .a3m MSAs',
+                        default='./data/tsuboyama/tsuboyama_msas_reduced')
     parser.add_argument('-o', '--output_root', 
                         help='root of folder to store outputs',
                         default='.')
@@ -719,6 +728,7 @@ if __name__=='__main__':
         args.dataset = 's669'
     elif args.dataset.lower() in ['ssym']:
         args.db_loc = './data/preprocessed/ssym_mapped.csv'
+        args.dataset = 'ssym'
     elif args.dataset.lower() in ['korpm', 'korpm_reduced', 'k2369', 'k3822']:
         args.dataset = 'k3822'
         args.db_loc = './data/preprocessed/k3822_mapped.csv'
@@ -736,13 +746,15 @@ if __name__=='__main__':
         db['position'] = db['mut_type'].str[1:-1].astype(int)
         db['mutation'] = db['mut_type'].str[-1]
         print(db.head())
-        db['msa_file'] = '/home/sareeves/PSLMs/data/tsuboyama/tsuboyama_msas/' + db['WT_name'].apply(lambda x: x.split('.')[0].replace('|', '_')) + '.a3m'
-        db['reduced_msa_file'] = '/home/sareeves/PSLMs/data/tsuboyama/tsuboyama_msas_reduced/' + db['WT_name'].apply(lambda x: x.split('.')[0].replace('|', '_')) + '.a3m'
+        stems = db['WT_name'].apply(lambda x: x.split('.')[0].replace('|', '_'))
+        db['msa_file'] = stems.apply(lambda s: os.path.join(args.msa_dir, f'{s}.a3m'))
+        db['reduced_msa_file'] = stems.apply(lambda s: os.path.join(args.reduced_msa_dir, f'{s}.a3m'))
         db['uniprot_seq'] = db['aa_seq']
         db['offset_up'] = 0
 
     feat, dssp = extract_features(
-        args.db_loc, args.output_root)
+        args.db_loc, args.output_root, args.alistat_loc,
+        msa_dir=args.msa_dir, reduced_msa_dir=args.reduced_msa_dir)
 
     feat_2 = db.join(feat, how='left')
 

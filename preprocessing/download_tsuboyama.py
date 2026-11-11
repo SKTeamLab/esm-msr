@@ -7,8 +7,8 @@ Writes, under --out (default <repo>/data/tsuboyama):
     AlphaFold_model_PDBs/                           -> --af_model_folder
 
 The structures keep their Zenodo names (':' where the table's WT_name has '|'); the preprocessor maps between them.
-Each zip is checked against the md5 Zenodo publishes. Run on a node with internet (a login node on the Alliance
-clusters); steps whose output already exists are skipped.
+Each zip is checked against the md5 Zenodo publishes. Run on a machine with internet access (e.g. a cluster login
+node); steps whose output already exists are skipped.
 
 Usage:
     python preprocessing/download_tsuboyama.py [--out DIR] [--keep_zips]
