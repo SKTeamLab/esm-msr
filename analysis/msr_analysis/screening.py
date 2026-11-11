@@ -79,28 +79,34 @@ def summarize(tab, only_recoverable=True):
                 rand_hit=tab['rand_hit'].mean(), n_proteins=len(tab), n_recoverable=len(rec))
 
 
-def boot_summary(tab, B=1000, seed=0, only_recoverable=True):
-    """Protein-level bootstrap of ``summarize``: dict metric -> (mean, lo, hi)."""
+def boot_summary(tabs, B=1000, seed=0, only_recoverable=True):
+    """Protein-level (and seed-level, when ``tabs`` is a list of per-seed tables) bootstrap of ``summarize``: dict metric -> (mean, lo, hi)."""
+    if not isinstance(tabs, (list, tuple)):
+        tabs = [tabs]
     rng = np.random.default_rng(seed)
-    n = len(tab)
+    rng_s = np.random.default_rng(seed + 17)
+    n = len(tabs[0])
+    n_seeds = len(tabs)
     if n == 0:
         return {}
-    arrs = {m: tab[m].to_numpy() for m in ('hit', 'rec', 'best', 'oracle', 'rand_best', 'rand_rec', 'rand_hit')}
-    has = tab['hits'].to_numpy() > 0
+    cols = ('hit', 'rec', 'best', 'oracle', 'rand_best', 'rand_rec', 'rand_hit')
+    arrs = {m: np.column_stack([t[m].to_numpy() for t in tabs]) for m in cols}
+    has = tabs[0]['hits'].to_numpy() > 0
     out = {m: [] for m in ('hit_rate', 'p_recover', 'best', 'oracle', 'rand_best', 'rand_rec', 'rand_hit')}
     for _ in range(B):
         c = rng.multinomial(n, np.full(n, 1.0 / n)).astype(float)
+        sw = rng_s.multinomial(n_seeds, np.full(n_seeds, 1.0 / n_seeds)).astype(float) / n_seeds if n_seeds > 1 else np.ones(1)
         cw = c * (has if only_recoverable else 1.0)
-        out['hit_rate'].append(np.dot(c, arrs['hit']) / n)
-        out['p_recover'].append(np.dot(cw, arrs['rec']) / max(cw.sum(), 1))
-        out['rand_rec'].append(np.dot(cw, arrs['rand_rec']) / max(cw.sum(), 1))
+        out['hit_rate'].append(np.dot(c, arrs['hit'] @ sw) / n)
+        out['p_recover'].append(np.dot(cw, arrs['rec'] @ sw) / max(cw.sum(), 1))
+        out['rand_rec'].append(np.dot(cw, arrs['rand_rec'] @ sw) / max(cw.sum(), 1))
         for m in ('best', 'oracle', 'rand_best', 'rand_hit'):
-            out[m].append(np.dot(c, arrs[m]) / n)
-    s = summarize(tab, only_recoverable)
+            out[m].append(np.dot(c, arrs[m] @ sw) / n)
+    sums = [summarize(t, only_recoverable) for t in tabs]
     res = {}
     for m, v in out.items():
         lo, hi = np.quantile(v, [0.025, 0.975])
-        res[m] = (float(s[m]), float(lo), float(hi))
+        res[m] = (float(np.mean([s[m] for s in sums])), float(lo), float(hi))
     return res
 
 

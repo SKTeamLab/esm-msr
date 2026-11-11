@@ -136,8 +136,9 @@ def density_scatter(ax, x, y, s=5, cmap='viridis', max_points=60000, line=True, 
     return n
 
 
-def density_scatter_plain(x, y, xlabel, ylabel, ref='xy', ref_label=None, highlight=None, highlight_label=None, highlight_color='#1a9850', title=None, cmap='plasma', s=8,
-                          point_alpha=0.3, figsize=(6.6, 5.8), max_kde=15000, rng=0, clip_pct=0.3, rmse=False):
+def density_scatter_plain(x, y, xlabel, ylabel, ref='xy', ref_label=None, highlight=None, highlight_label=None, highlight_color='#1a9850', title=None, foot=None, cmap='plasma', s=8,
+                          point_alpha=0.3, figsize=(6.6, 5.8), max_kde=15000, rng=0, clip_pct=0.3, rmse=False,
+                          label_fontsize=None, tick_fontsize=None, stats_fontsize=9, legend_fontsize=8, title_fontsize=9.5, foot_fontsize=9.2, cbar_fontsize=None, cbar_tick_fontsize=7.5, legend_loc='lower right'):
     """The notebooks' density scatter (``analysis_utils_msr.density_scatter``) without the marginal histograms: points coloured by their kernel density, a colour bar on the right,
     Spearman / Pearson / n in the corner.  ``ref``: 'xy' draws y = x over equal axis limits, 'neg' draws y = -x, None draws no line (the notebooks drew a dashed linear fit).
     ``highlight`` (boolean, same length as x) paints those points in a flat high-contrast colour on top of the density colours, with its own legend entry.  The axis limits are the
@@ -145,9 +146,45 @@ def density_scatter_plain(x, y, xlabel, ylabel, ref='xy', ref_label=None, highli
     from matplotlib.colors import Normalize
     from scipy.stats import gaussian_kde, pearsonr, spearmanr
     x = np.asarray(x, float); y = np.asarray(y, float)
-    ok = np.isfinite(x) & np.isfinite(y)
-    hl = np.zeros(len(x), bool) if highlight is None else np.asarray(highlight, bool)
-    x, y, hl = x[ok], y[ok], hl[ok]
+    if x.ndim == 2:
+        n_seeds = x.shape[0]
+        ok = np.isfinite(x).all(axis=0) & np.isfinite(y)
+        hl_1d = np.zeros(len(y), bool) if highlight is None else np.asarray(highlight, bool)
+        x_seeds, y_1d, hl_1d = x[:, ok], y[ok], hl_1d[ok]
+        n_var = len(y_1d)
+        n_hl_var = int(hl_1d.sum())
+        rho_val = float(np.mean([spearmanr(x_seeds[s], y_1d)[0] for s in range(n_seeds)]))
+        r_val = float(np.mean([pearsonr(x_seeds[s], y_1d)[0] for s in range(n_seeds)]))
+        rmse_val = float(np.mean([np.sqrt(np.mean((x_seeds[s] - y_1d) ** 2)) for s in range(n_seeds)]))
+        x = x_seeds.ravel()
+        y = np.tile(y_1d, n_seeds)
+        hl = np.tile(hl_1d, n_seeds)
+        n_txt = f'{n_var:,} (×{n_seeds} seeds)' if n_seeds > 1 else f'{n_var:,}'
+    elif y.ndim == 2:
+        n_seeds = y.shape[0]
+        ok = np.isfinite(x) & np.isfinite(y).all(axis=0)
+        hl_1d = np.zeros(len(x), bool) if highlight is None else np.asarray(highlight, bool)
+        x_1d, y_seeds, hl_1d = x[ok], y[:, ok], hl_1d[ok]
+        n_var = len(x_1d)
+        n_hl_var = int(hl_1d.sum())
+        rho_val = float(np.mean([spearmanr(x_1d, y_seeds[s])[0] for s in range(n_seeds)]))
+        r_val = float(np.mean([pearsonr(x_1d, y_seeds[s])[0] for s in range(n_seeds)]))
+        rmse_val = float(np.mean([np.sqrt(np.mean((x_1d - y_seeds[s]) ** 2)) for s in range(n_seeds)]))
+        x = np.tile(x_1d, n_seeds)
+        y = y_seeds.ravel()
+        hl = np.tile(hl_1d, n_seeds)
+        n_txt = f'{n_var:,} (×{n_seeds} seeds)' if n_seeds > 1 else f'{n_var:,}'
+    else:
+        n_seeds = 1
+        ok = np.isfinite(x) & np.isfinite(y)
+        hl = np.zeros(len(x), bool) if highlight is None else np.asarray(highlight, bool)
+        x, y, hl = x[ok], y[ok], hl[ok]
+        n_var = len(x)
+        n_hl_var = int(hl.sum())
+        rho_val = float(spearmanr(x, y)[0])
+        r_val = float(pearsonr(x, y)[0])
+        rmse_val = float(np.sqrt(np.mean((x - y) ** 2)))
+        n_txt = f'{n_var:,}'
     n = len(x)
     sub = np.random.default_rng(rng).choice(n, min(n, max_kde), replace=False)
     z = gaussian_kde(np.vstack([x[sub], y[sub]]))(np.vstack([x, y]))
@@ -159,13 +196,13 @@ def density_scatter_plain(x, y, xlabel, ylabel, ref='xy', ref_label=None, highli
     fig, ax = plt.subplots(figsize=figsize)
     norm = Normalize(z.min(), z.max())
     cm = plt.get_cmap(cmap)
-    col = cm(norm(z)); col[:, 3] = point_alpha
+    col = cm(norm(z)); col[:, 3] = point_alpha / np.sqrt(n_seeds)
     keep = o[~hl[o]]
     ax.scatter(x[keep], y[keep], c=col[keep], s=s, edgecolors='none', rasterized=True)
     handles = []
     if hl.any():
-        ax.scatter(x[hl], y[hl], c=highlight_color, s=s, alpha=0.55, edgecolors='none', rasterized=True, zorder=3)
-        handles.append(plt.Line2D([0], [0], marker='o', ls='', color=highlight_color, alpha=0.8, label=f'{highlight_label} (n = {int(hl.sum()):,})'))
+        ax.scatter(x[hl], y[hl], c=highlight_color, s=s, alpha=0.55 / np.sqrt(n_seeds), edgecolors='none', rasterized=True, zorder=3)
+        handles.append(plt.Line2D([0], [0], marker='o', ls='', color=highlight_color, alpha=0.8, label=f'{highlight_label} (n = {n_hl_var:,})'))
     if ref == 'xy':
         ax.plot(lim, lim, color='#c0392b', ls='--', lw=1.6, zorder=4)
         handles.append(plt.Line2D([0], [0], color='#c0392b', ls='--', lw=1.6, label=ref_label or 'x = y'))
@@ -173,16 +210,20 @@ def density_scatter_plain(x, y, xlabel, ylabel, ref='xy', ref_label=None, highli
         ax.plot(lim, [-lim[0], -lim[1]], color='#c0392b', ls='--', lw=1.6, zorder=4)
         handles.append(plt.Line2D([0], [0], color='#c0392b', ls='--', lw=1.6, label=ref_label or 'y = −x'))
     ax.set_xlim(lim); ax.set_ylim(lim if ref == 'xy' else ax.get_ylim())
-    ax.set_xlabel(xlabel); ax.set_ylabel(ylabel)
-    txt = f'ρ = {spearmanr(x, y)[0]:.2f}\nr = {pearsonr(x, y)[0]:.2f}\nn = {n:,}' + (f'\nRMSE = {np.sqrt(np.mean((x - y) ** 2)):.2f}' if rmse else '')
-    ax.text(0.04, 0.96, txt, transform=ax.transAxes, va='top', fontsize=9, bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#cccccc', alpha=0.9))
+    ax.set_xlabel(xlabel, fontsize=label_fontsize); ax.set_ylabel(ylabel, fontsize=label_fontsize)
+    if tick_fontsize is not None:
+        ax.tick_params(axis='both', labelsize=tick_fontsize)
+    txt = f'ρ = {rho_val:.2f}\nr = {r_val:.2f}\nn = {n_txt}' + (f'\nRMSE = {rmse_val:.2f}' if rmse else '')
+    ax.text(0.04, 0.96, txt, transform=ax.transAxes, va='top', fontsize=stats_fontsize, zorder=10, bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#cccccc', alpha=0.94))
     if handles:
-        ax.legend(handles=handles, loc='lower right', fontsize=8, framealpha=0.92)
+        ax.legend(handles=handles, loc=legend_loc, fontsize=legend_fontsize, framealpha=0.92)
     sm = plt.cm.ScalarMappable(norm=norm, cmap=cm); sm.set_array([])
     cb = fig.colorbar(sm, ax=ax, pad=0.02, fraction=0.05)
-    cb.set_label('density'); cb.ax.tick_params(labelsize=7.5)
+    cb.set_label('density', fontsize=cbar_fontsize); cb.ax.tick_params(labelsize=cbar_tick_fontsize)
     cb.ax.yaxis.set_major_formatter(plt.FormatStrFormatter('%.2f'))
     if title:
-        ax.set_title(title, fontsize=9.5, loc='left')
+        ax.set_title(title, fontsize=title_fontsize, loc='left')
     fig.tight_layout()
+    if foot:
+        fig.text(0.015, -0.01, foot, fontsize=foot_fontsize, va='top', ha='left', color='#444444')
     return fig

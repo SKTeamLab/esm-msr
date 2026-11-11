@@ -9,9 +9,10 @@ LO = 0, TAU = 0.59 (h^-1 clipped at LO + 0.05):
   eps      epistasis as measured, floor included: Y - (A + B - W) = ddG_AB - ddG_A - ddG_B
   net      the singles' summed effect, ddG_A + ddG_B = (A - W) + (B - W): only the counts below the bars are split by its sign (net < 0, net > 0)
 
-The types are a ladder on eps (D = 0.5, S = 1.0 kcal/mol; D is about twice the noise of eps):
+The types are a ladder on eps (D = 0.5, S = 1.0, U = 2.0 kcal/mol; D is about twice the noise of eps):
 
-  compensation / positive sign  eps > S
+  implausible epistasis         eps > U
+  compensation / positive sign  S < eps <= U
   weak positive                 D < eps <= S
   near-neutral                  |eps| <= D
   weak negative                 -S <= eps < -D
@@ -40,10 +41,11 @@ from msr_analysis.link import singles_of_doubles  # noqa: E402
 OUT = out_dir('06_epistasis')
 DS = 'tsuboyama_capped_test'
 LO, TAU, EPS, CLIP = 0.0, 0.59, 0.05, -1.0       # the link (floor, tau), the clip of h^-1, the clip of the measured dG
-D, S = 0.5, 1.0                                  # epistasis is called beyond +-D; strong beyond +-S (kcal/mol)
-TYPES = ['compensation / positive sign', 'weak positive', 'near-neutral', 'weak negative', 'clash / negative sign']
-RANGES = [f'ε > {S:g}', f'{D:g} < ε ≤ {S:g}', f'|ε| ≤ {D:g}', f'−{S:g} ≤ ε < −{D:g}', f'ε < −{S:g}']
-COLOURS = ['#2166ac', '#92c5de', '#d9d9d9', '#f4a582', '#b2182b']
+D, S, U = 0.5, 1.0, 2.0                          # epistasis is called beyond +-D; strong beyond +-S; implausible above U (kcal/mol)
+TYPES = ['implausible epistasis', 'compensation / positive sign', 'weak positive', 'near-neutral', 'weak negative', 'clash / negative sign']
+RANGES = [f'ε > {U:g}', f'{S:g} < ε ≤ {U:g}', f'{D:g} < ε ≤ {S:g}', f'|ε| ≤ {D:g}', f'−{S:g} ≤ ε < −{D:g}', f'ε < −{S:g}']
+COLOURS = ['#000000', '#2166ac', '#92c5de', '#d9d9d9', '#f4a582', '#b2182b']
+HATCH_EC = ['white', 'black', 'black', 'black', 'black', 'black']
 HALVES = ['negative', 'positive']
 EDGES = np.arange(-6, 7)
 LABELS = [f'{a}..{b}' for a, b in zip(EDGES[:-1], EDGES[1:])]
@@ -58,13 +60,13 @@ def hinv(y):
 
 
 def ladder(eps):
-    return np.where(eps > S, 0, np.where(eps > D, 1, np.where(eps >= -D, 2, np.where(eps >= -S, 3, 4))))
+    return np.where(eps > U, 0, np.where(eps > S, 1, np.where(eps > D, 2, np.where(eps >= -D, 3, np.where(eps >= -S, 4, 5)))))
 
 
-def shares(bi, half, cat, flag, dom, doms, counts):
+def shares(bi, half, cat, flag, dom, doms, counts, labels):
     """Per bin and type: the share of the bin's doubles and the part of it that the floor decides, with 95% intervals over domains (``counts``: one multinomial draw per replicate); also the number of
     doubles of each bin with the singles' net ddG below and above 0."""
-    nb, nc = len(LABELS), len(TYPES)
+    nb, nc = len(labels), len(TYPES)
     N, F, H = np.zeros((len(doms), nb, nc)), np.zeros((len(doms), nb, nc)), np.zeros((len(doms), nb, 2))
     for k, d in enumerate(doms):
         m = dom == d
@@ -79,11 +81,7 @@ def shares(bi, half, cat, flag, dom, doms, counts):
     return dict(share=tot / nbin, floor=fl / nbin, n=tot, nbin=tot.sum(1), half=H.sum(0), ci=ci(rn), ci_floor=ci(rf))
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=200)
-    ap.add_argument('--x', choices=['latent', 'observed'], default='latent', help='x axis: the latent additive expectation z (default) or the observed additive dG = dG_wt + ddG_A + ddG_B (file fig7_alt_observed_additive_dG)')
-    a = ap.parse_args()
+def run_one(x_kind, B):
     fr = load_frame(DS)
     sp = fr.spine
     ddg = sp['y'].to_numpy(float)
@@ -98,60 +96,87 @@ def main():
     x = A + Bm - W
     eps = Y - x
     net = (A - W) + (Bm - W)
-    if a.x == 'observed':
+    if x_kind == 'observed':
         z = x                                                                     # bin by the observed additive dG; the floor decides where h(x) - x is beyond D
+        edges = np.arange(-5, 6)                                                  # -6..-5 and 5..6 are empty for observed additive dG
+    else:
+        edges = np.arange(-6, 6)                                                  # 5..6 is empty for latent additive dG
+    labels_bin = [f'{a}..{b}' for a, b in zip(edges[:-1], edges[1:])]
     flag = np.abs(h(z) - x) > D
-    bi = np.clip(np.floor(z).astype(int) + 6, 0, len(LABELS) - 1)
+    bi = np.clip(np.floor(z).astype(int) - int(edges[0]), 0, len(labels_bin) - 1)
     half = (net > 0).astype(int)
     cat = ladder(eps)
     doms = np.unique(dom)
-    counts = np.random.default_rng(5).multinomial(len(doms), np.full(len(doms), 1.0 / len(doms)), size=a.B).astype(float)
-    r = shares(bi, half, cat, flag, dom, doms, counts)
+    counts = np.random.default_rng(5).multinomial(len(doms), np.full(len(doms), 1.0 / len(doms)), size=B).astype(float)
+    r = shares(bi, half, cat, flag, dom, doms, counts, labels_bin)
+    keep = r['nbin'] > 0
+    if not keep.all():
+        labels_bin = [lab for lab, k in zip(labels_bin, keep) if k]
+        r = dict(
+            share=r['share'][keep],
+            floor=r['floor'][keep],
+            n=r['n'][keep],
+            nbin=r['nbin'][keep],
+            half=r['half'][keep],
+            ci=(r['ci'][0][keep], r['ci'][1][keep]),
+            ci_floor=(r['ci_floor'][0][keep], r['ci_floor'][1][keep]),
+        )
     rows = []
-    for b in range(len(LABELS)):
+    for b in range(len(labels_bin)):
         for t in range(len(TYPES)):
-            rows.append(dict(z_bin=LABELS[b], type=TYPES[t], n_bin=int(r['nbin'][b]), n_net_ddG_additive_negative=int(r['half'][b, 0]), n_net_ddG_additive_positive=int(r['half'][b, 1]), n=int(r['n'][b, t]), share=r['share'][b, t],
+            rows.append(dict(z_bin=labels_bin[b], type=TYPES[t], n_bin=int(r['nbin'][b]), n_net_ddG_additive_negative=int(r['half'][b, 0]), n_net_ddG_additive_positive=int(r['half'][b, 1]), n=int(r['n'][b, t]), share=r['share'][b, t],
                              lo=r['ci'][0][b, t], hi=r['ci'][1][b, t], share_floor_decides=r['floor'][b, t], lo_floor=r['ci_floor'][0][b, t], hi_floor=r['ci_floor'][1][b, t]))
-    stem = 'fig7_epistasis_types_by_additive_dG' if a.x == 'latent' else 'fig7_alt_observed_additive_dG'
+    stem = 'fig7_epistasis_types_by_additive_dG' if x_kind == 'latent' else 'fig7_alt_observed_additive_dG'
     pd.DataFrame(rows).to_csv(OUT / f'{stem}.csv', index=False, float_format='%.4f')
 
     plt.rcParams['hatch.linewidth'] = 0.7
-    fig, (ax, an) = plt.subplots(2, 1, figsize=(8.6, 7.4), gridspec_kw={'height_ratios': [4, 1]}, sharex=True)
-    nb, nc = len(LABELS), len(TYPES)
+    fig, (ax, an) = plt.subplots(2, 1, figsize=(8.2, 8.24), gridspec_kw={'height_ratios': [4, 1]}, sharex=True)
+    nb, nc = len(labels_bin), len(TYPES)
     xs = np.arange(nb)
     bottom = np.zeros(nb)
     for t in range(nc):
         rest = r['share'][:, t] - r['floor'][:, t]
-        ax.bar(xs, r['floor'][:, t], bottom=bottom, color=COLOURS[t], width=0.9, edgecolor='black', lw=0, hatch='////')          # the hatched part at the bottom of each type
+        ax.bar(xs, r['floor'][:, t], bottom=bottom, color=COLOURS[t], width=0.9, edgecolor=HATCH_EC[t], lw=0, hatch='////')          # the hatched part at the bottom of each type
         bottom += r['floor'][:, t]
         ax.bar(xs, rest, bottom=bottom, color=COLOURS[t], width=0.9, edgecolor='white', lw=0.4)
         bottom += rest
     ax.set_ylim(0, 1)
-    ax.set_ylabel('fraction of doubles')
+    ax.set_ylabel('fraction of doubles', fontsize=13.0)
+    ax.tick_params(axis='y', labelsize=11.5)
     ov = np.bincount(cat, minlength=nc) / len(cat)
     handles = [Patch(fc=COLOURS[t], ec='#999999', lw=0.4) for t in range(nc)] + [Patch(fc='white', ec='black', lw=0, hatch='////')]
     labels = [f'{TYPES[t]} ({RANGES[t]}; {100 * ov[t]:.0f}%)' for t in range(nc)] + [f'hatched: floor decides ({100 * flag.mean():.0f}%)']
-    ax.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.0, 1.0), fontsize=6.5, handlelength=1.3, frameon=True, facecolor='white', framealpha=1.0, edgecolor='#999999', borderpad=0.45, labelspacing=0.3).set_zorder(10)
+    ax.legend(handles, labels, loc='lower left', bbox_to_anchor=(0.008, 0.02), fontsize=10.8, handlelength=1.4, frameon=True, facecolor='white', framealpha=0.86, edgecolor='#999999', borderpad=0.5, labelspacing=0.35).set_zorder(10)
     wd = 0.45
     an.bar(xs - wd / 2, r['half'][:, 0], color='#888888', width=wd, edgecolor='white', lw=0.4, label='singles\' summed ΔΔG < 0')
     an.bar(xs + wd / 2, r['half'][:, 1], color='#222222', width=wd, edgecolor='white', lw=0.4, label='singles\' summed ΔΔG > 0')
     an.set_yscale('log')
-    an.set_ylabel('n')
-    an.legend(loc='upper right', fontsize=7.4, frameon=False, handlelength=1.2)
+    an.set_ylabel('n', fontsize=13.0)
+    an.tick_params(axis='y', labelsize=11.0)
+    an.legend(loc='upper right', fontsize=10.5, frameon=False, handlelength=1.3)
     an.set_xticks(range(nb))
-    an.set_xticklabels(LABELS, rotation=45, fontsize=8)
-    an.set_xlabel('additive expected dG: latent z (kcal/mol)' if a.x == 'latent' else 'additive dG = dG_wt + ΔΔG_A + ΔΔG_B of the measured singles (kcal/mol)')
+    an.set_xticklabels(labels_bin, rotation=45, fontsize=11.5)
+    an.set_xlabel('additive expected dG: latent z (kcal/mol)' if x_kind == 'latent' else 'additive dG = dG_wt + ΔΔG_A + ΔΔG_B of the measured singles (kcal/mol)', fontsize=12.5)
     for a_ in (ax, an):
         for sp_ in ('top', 'right'):
             a_.spines[sp_].set_visible(False)
     fig.suptitle(f'Homology-Restricted MegaScale test doubles with both singles measured (n = {len(z):,}):\nkinds of epistasis as the additive expectation falls into the assay floor (uncorrected; hatched: the floor decides)',
-                 fontsize=9.5, x=0.01, ha='left')
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
+                 fontsize=10.2, x=0.015, ha='left', y=0.985)
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
     style.save(fig, OUT / stem)
     pd.set_option('display.width', 240)
-    print(f'n = {len(z):,}; net ddG additive > 0: {int(half.sum())} ({100 * half.mean():.1f}%); floor decides {100 * flag.mean():.1f}%')
+    print(f'[{x_kind}] n = {len(z):,}; net ddG additive > 0: {int(half.sum())} ({100 * half.mean():.1f}%); floor decides {100 * flag.mean():.1f}%')
     print('overall shares of all doubles:', {TYPES[t]: round(float(ov[t]), 3) for t in range(nc)})
-    print(pd.DataFrame({TYPES[t]: [f'{100 * r["share"][b, t]:.0f} ({100 * r["floor"][b, t]:.0f})' for b in range(nb)] for t in range(nc)}, index=LABELS).assign(n=r['nbin'].astype(int), n_net_pos=r['half'][:, 1].astype(int)).to_string())
+    print(pd.DataFrame({TYPES[t]: [f'{100 * r["share"][b, t]:.0f} ({100 * r["floor"][b, t]:.0f})' for b in range(nb)] for t in range(nc)}, index=labels_bin).assign(n=r['nbin'].astype(int), n_net_pos=r['half'][:, 1].astype(int)).to_string())
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--B', type=int, default=200)
+    ap.add_argument('--x', choices=['latent', 'observed', 'both'], default='both', help='x axis: the latent additive expectation z, the observed additive dG = dG_wt + ddG_A + ddG_B (file fig7_alt_observed_additive_dG), or both')
+    a = ap.parse_args()
+    for x_kind in (('latent', 'observed') if a.x == 'both' else (a.x,)):
+        run_one(x_kind, a.B)
 
 if __name__ == '__main__':
     main()

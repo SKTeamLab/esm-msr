@@ -46,13 +46,13 @@ IDX = {a: i for i, a in enumerate(AA)}
 SMOOTH_BINS = 25                                      # esm_msr.epi_metrics.SMOOTH_BINS
 FLAT = 0.02                                           # esm_msr.epi_metrics.FLAT: a flatter prediction scores 0 beyond the global curve
 DPI = 85
-# Rosetta Cartesian ddG is in Rosetta energy units; 1 kcal/mol = 2.94 REU.  Dividing by it takes the RMSE of the predicted dddG against the measured one on the 12,455 test doubles
-# from 3.08 to 1.15 and that of ddG from 6.9 / 9.8 (singles / doubles) to 1.9 / 2.5; every other model is already in kcal/mol.
-UNIT = {'Rosetta': 1 / 2.94}
+# Rosetta Cartesian ddG is already scaled by 1 / 2.94 (REU to kcal/mol) in msr_analysis.data.
+UNIT = {}
 
 # (label, epistasis builder, additive key, singles key); builders are ('diff', a, b) = a - b or ('key', k).  Order = the panels after the measurement.
 MODELS = [('ESM-MSR (baseline)', ('diff', 'msr:comb', 'msr:wt'), 'msr:wt', 'msr:wt'),
           ('ESM-MSR', ('diff', 'msrdev:comb', 'msrdev:wt'), 'msrdev:wt', 'msrdev:wt'),
+          ('ESM-MSR (p0)', ('diff', 'msrp0:comb', 'msrp0:wt'), 'msrp0:wt', 'msrp0:wt'),
           ('MutateEverything st2', ('key', 'me2:epi'), 'me1', 'me1'),
           ('ThermoMPNN-D', ('key', 'tmpnnd:epi'), 'tmpnn', 'tmpnn'),
           ('SPURS multi', ('key', 'spursm:epi'), 'spurs', 'spurs'),
@@ -126,8 +126,9 @@ def build():
             print('skip (missing predictions):', label, [k for k in need if k not in p])
             continue
         u = UNIT.get(label, 1.0)
-        e = u * (mean_seeds(p[build_[1]]) - (mean_seeds(p[build_[2]]) if build_[0] == 'diff' else 0.0))
-        model[label] = dict(raw=e, saturation_corrected=e, single=u * mean_seeds(p[sk]), latent=e)       # predictions are not saturation-corrected
+        e_seeds = u * (p[build_[1]] - (p[build_[2]] if build_[0] == 'diff' else 0.0))
+        e = mean_seeds(e_seeds)
+        model[label] = dict(raw=e, raw_seeds=e_seeds, saturation_corrected=e, single=u * mean_seeds(p[sk]), latent=e)       # predictions are not saturation-corrected
         if label == 'ESM-MSR':       # the observed-scale version, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's link, for the diagnostics of 13
             model[label]['linked'] = np.nanmean([observed_epistasis(sp, p['msrdev:wt'][s], p['msrdev:comb'][s], s + 1, y_floor) for s in range(3)], axis=0)
     mut = sp['mut'].to_numpy(dtype=object)

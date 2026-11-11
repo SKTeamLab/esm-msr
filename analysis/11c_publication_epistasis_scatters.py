@@ -41,34 +41,132 @@ def main():
     m = epi_rows(fr)
     y = sp['dddG_ML'].to_numpy()
     dG_add = sp['dG_wt'].to_numpy(float) + sp['ddG_additive_ML'].to_numpy(float)          # dG_wt is the domain's wild-type stability
-    wt, mt = fr.preds['msrdev:wt'], fr.preds['msrdev:mt']
-    pred = np.mean(0.5 * (mt - wt), axis=0)                                                 # comb(AB) - WT(A) - WT(B) = (MT(AB) - WT(AB)) / 2, latent
+    pred_base = fr.preds['msr:comb'] - fr.preds['msr:wt']
+    pred_dev = fr.preds['msrdev:comb'] - fr.preds['msrdev:wt']
+    pred_p0 = fr.preds['msrp0:comb'] - fr.preds['msrp0:wt']
+    pred = pred_dev                                                                         # comb(AB) - WT(A) - WT(B) = (MT(AB) - WT(AB)) / 2, latent (3 seeds, not ensemble-averaged)
     rows = []
-    jobs = [('fig6a_dG_additive_vs_dddG', dG_add, 'ΔG additive = ΔG_wt + ΔΔG_A + ΔΔG_B (kcal/mol)', dict(ref='neg', ref_label='y = −x: dG_AB = 0, where the unfolded doubles pile up')),
-            ('fig6b_esm_msr_dddG_pred_vs_true', pred, 'ESM-MSR predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True)),
-            ('fig6c_esm_msr_dddG_pred_vs_true_dG_additive_lt0', pred, 'ESM-MSR predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True, highlight=dG_add < 0, highlight_label='ΔG additive < 0'))]
+    SCATTER_FONT = dict(
+        label_fontsize=13.5,
+        tick_fontsize=12.0,
+        stats_fontsize=11.5,
+        legend_fontsize=10.5,
+        foot_fontsize=9.5,
+        cbar_fontsize=12.5,
+        cbar_tick_fontsize=10.5,
+    )
+    jobs = [('fig6a_dG_additive_vs_dddG', dG_add, 'ΔG additive = ΔG_wt + ΔΔG_A + ΔΔG_B (kcal/mol)', dict(ref='neg', ref_label='y = −x: dG_AB = 0,\nwhere the unfolded doubles pile up')),
+            ('fig6b_esm_msr_dddG_pred_vs_true', pred_dev, 'ESM-MSR predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True)),
+            ('fig6c_esm_msr_dddG_pred_vs_true_dG_additive_lt0', pred_dev, 'ESM-MSR predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True, highlight=dG_add < 0, highlight_label='ΔG additive < 0')),
+            ('fig6b_esm_msr_baseline_dddG_pred_vs_true', pred_base, 'ESM-MSR (baseline) predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True)),
+            ('fig6c_esm_msr_baseline_dddG_pred_vs_true_dG_additive_lt0', pred_base, 'ESM-MSR (baseline) predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True, highlight=dG_add < 0, highlight_label='ΔG additive < 0')),
+            ('fig6b_esm_msr_p0_dddG_pred_vs_true', pred_p0, 'ESM-MSR (p0) predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True)),
+            ('fig6c_esm_msr_p0_dddG_pred_vs_true_dG_additive_lt0', pred_p0, 'ESM-MSR (p0) predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True, highlight=dG_add < 0, highlight_label='ΔG additive < 0'))]
     for name, x, xl, kw in jobs:
-        ok = m & np.isfinite(x) & np.isfinite(y)
+        if x.ndim == 2:
+            ok = m & np.isfinite(x).all(axis=0) & np.isfinite(y)
+            xs_in = x[:, ok]
+            n_seeds = xs_in.shape[0]
+            rho_v = float(np.mean([spearmanr(xs_in[s], y[ok])[0] for s in range(n_seeds)]))
+            r_v = float(np.mean([pearsonr(xs_in[s], y[ok])[0] for s in range(n_seeds)]))
+            rmse_v = float(np.mean([np.sqrt(np.mean((xs_in[s] - y[ok]) ** 2)) for s in range(n_seeds)])) if kw.get('ref') == 'xy' else np.nan
+            rho_pool = float(spearmanr(xs_in.ravel(), np.tile(y[ok], n_seeds))[0])
+            r_pool = float(pearsonr(xs_in.ravel(), np.tile(y[ok], n_seeds))[0])
+        else:
+            ok = m & np.isfinite(x) & np.isfinite(y)
+            xs_in = x[ok]
+            n_seeds = 1
+            rho_v = rho_pool = float(spearmanr(xs_in, y[ok])[0])
+            r_v = r_pool = float(pearsonr(xs_in, y[ok])[0])
+            rmse_v = float(np.sqrt(np.mean((xs_in - y[ok]) ** 2))) if kw.get('ref') == 'xy' else np.nan
         if 'highlight' in kw:
             kw = {**kw, 'highlight': kw['highlight'][ok]}
-        fig = style.density_scatter_plain(x[ok], y[ok], xl, Y_LABEL, title=f'{TITLE} (n = {int(ok.sum()):,})', **kw)
+        fig = style.density_scatter_plain(xs_in, y[ok], xl, Y_LABEL, title=None, foot=f'{TITLE} (n = {int(ok.sum()):,})', **SCATTER_FONT, **kw)
         if name.startswith('fig6a'):                  # the double's dG is dddG + the additive dG: 0 is where the unfolded doubles pile up, -1 the lowest value the assay reports
             ax = fig.axes[0]
             xl_, yl_ = ax.get_xlim(), ax.get_ylim()
-            ax.plot(xl_, [-v - 1.0 for v in xl_], color='#c0392b', ls=':', lw=1.4, zorder=4)
+            ax.plot(xl_, [-v - 1.0 for v in xl_], color='#c0392b', ls=':', lw=1.6, zorder=4)
             ax.set_xlim(xl_)
             ax.set_ylim(yl_)
-            ax.legend(handles=ax.get_legend().legend_handles + [plt.Line2D([0], [0], color='#c0392b', ls=':', lw=1.4, label='y = −x − 1: dG_AB = −1, the lowest value the assay reports')], loc='lower right', fontsize=7.5, framealpha=0.92)
+            ax.legend(handles=ax.get_legend().legend_handles + [plt.Line2D([0], [0], color='#c0392b', ls=':', lw=1.6, label='y = −x − 1: dG_AB = −1,\nthe lowest value the assay reports')],
+                      loc='lower left', fontsize=10.2, frameon=False, labelspacing=0.45)
         style.save(fig, OUT / name)
-        rows.append(dict(figure=name, n=int(ok.sum()), spearman=spearmanr(x[ok], y[ok])[0], pearson=pearsonr(x[ok], y[ok])[0], share_dG_additive_lt0=float(np.mean(dG_add[ok] < 0)), rmse_to_xy=float(np.sqrt(np.mean((x[ok] - y[ok]) ** 2))) if kw.get('ref') == 'xy' else np.nan))
+        rows.append(dict(figure=name, n=int(ok.sum()), n_seeds=n_seeds, spearman=rho_v, pearson=r_v, spearman_stacked=rho_pool, pearson_stacked=r_pool,
+                         share_dG_additive_lt0=float(np.mean(dG_add[ok] < 0)), rmse_to_xy=rmse_v))
+    compare_models_scatters(m, y, dG_add, [('ESM-MSR (baseline)', pred_base), ('ESM-MSR', pred_dev), ('ESM-MSR (p0)', pred_p0)], SCATTER_FONT)
     T = pd.DataFrame(rows)
     T.to_csv(OUT / 'fig6_epistasis_scatters.csv', index=False, float_format='%.4f')
     print(T.to_string())
-    kinds(fr, m, y, dG_add)
+    kinds(fr, m, y, dG_add, SCATTER_FONT)
     singles_plane(fr, m, y, dG_add)
 
 
-def kinds(fr, m, y, dG_add):
+def compare_models_scatters(m, y, dG_add, model_preds, scatter_font):
+    """Side-by-side 1x3 density scatters comparing ESM-MSR (baseline), ESM-MSR, and ESM-MSR (p0) predicted dddG vs measured dddG across all triplicate seeds without ensemble averaging."""
+    from matplotlib.colors import Normalize
+    from scipy.stats import gaussian_kde
+    ok = m & np.isfinite(y)
+    for _, p in model_preds:
+        ok &= np.isfinite(p).all(axis=0)
+    yv_1d = y[ok]
+    hl_1d = (dG_add < 0)[ok]
+    n_var = len(yv_1d)
+    all_vals = np.concatenate([yv_1d] + [p[:, ok].ravel() for _, p in model_preds])
+    lo, hi = np.percentile(all_vals, [0.3, 99.7])
+    pad = 0.05 * (hi - lo)
+    lim = (lo - pad, hi + pad)
+    cm = plt.get_cmap('plasma')
+
+    for fname, use_hl in (
+        ('fig6b_esm_msr_models_dddG_pred_vs_true', False),
+        ('fig6c_esm_msr_models_dddG_pred_vs_true_dG_additive_lt0', True),
+    ):
+        fig, axes = plt.subplots(1, len(model_preds), figsize=(18.0, 5.8), sharex=True, sharey=True)
+        for idx, (ax, (m_label, p)) in enumerate(zip(axes, model_preds)):
+            p_ok = p[:, ok]
+            n_seeds = p_ok.shape[0]
+            xv = p_ok.ravel()
+            yv = np.tile(yv_1d, n_seeds)
+            n_pts = len(xv)
+            sub = np.random.default_rng(0).choice(n_pts, min(n_pts, 15000), replace=False)
+            z = gaussian_kde(np.vstack([xv[sub], yv[sub]]))(np.vstack([xv, yv]))
+            o = np.argsort(z)
+            norm = Normalize(z.min(), z.max())
+            col = cm(norm(z))
+            col[:, 3] = 0.3 / np.sqrt(n_seeds)
+            hl = np.tile(hl_1d, n_seeds) if use_hl else np.zeros(n_pts, bool)
+            keep = o[~hl[o]]
+            ax.scatter(xv[keep], yv[keep], c=col[keep], s=8, edgecolors='none', rasterized=True)
+            handles = []
+            if hl.any():
+                ax.scatter(xv[hl], yv[hl], c='#1a9850', s=8, alpha=0.55 / np.sqrt(n_seeds), edgecolors='none', rasterized=True, zorder=3)
+                handles.append(plt.Line2D([0], [0], marker='o', ls='', color='#1a9850', alpha=0.8, label=f'ΔG additive < 0 (n = {int(hl_1d.sum()):,})'))
+            ax.plot(lim, lim, color='#c0392b', ls='--', lw=1.6, zorder=4)
+            handles.append(plt.Line2D([0], [0], color='#c0392b', ls='--', lw=1.6, label='x = y'))
+            ax.set_xlim(lim)
+            ax.set_ylim(lim)
+            ax.set_aspect('equal', adjustable='box')
+            ax.set_xlabel(f'{m_label} predicted δΔΔG = dddG (kcal/mol)', fontsize=scatter_font['label_fontsize'])
+            if idx == 0:
+                ax.set_ylabel(Y_LABEL, fontsize=scatter_font['label_fontsize'])
+            ax.tick_params(axis='both', labelsize=scatter_font['tick_fontsize'])
+            rho_v = float(np.mean([spearmanr(p_ok[s], yv_1d)[0] for s in range(n_seeds)]))
+            r_v = float(np.mean([pearsonr(p_ok[s], yv_1d)[0] for s in range(n_seeds)]))
+            rmse_v = float(np.mean([np.sqrt(np.mean((p_ok[s] - yv_1d) ** 2)) for s in range(n_seeds)]))
+            txt = f'ρ = {rho_v:.2f}\nr = {r_v:.2f}\nn = {n_var:,} (×{n_seeds} seeds)\nRMSE = {rmse_v:.2f}'
+            ax.text(0.04, 0.96, txt, transform=ax.transAxes, va='top', fontsize=scatter_font['stats_fontsize'], zorder=10,
+                    bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#cccccc', alpha=0.94))
+            ax.legend(handles=handles, loc='lower right', fontsize=scatter_font['legend_fontsize'], framealpha=0.92)
+            ax.set_title(m_label, fontsize=13.5, fontweight='bold', pad=8)
+            for sp_ in ('top', 'right'):
+                ax.spines[sp_].set_visible(False)
+        fig.tight_layout()
+        fig.text(0.012, -0.01, f'{TITLE} (n = {n_var:,}, 3 triplicate seeds integrated without ensemble averaging); predicted epistasis = combined_AB − WT_AB (no linking)',
+                 fontsize=scatter_font['foot_fontsize'], va='top', ha='left', color='#444444')
+        style.save(fig, OUT / fname)
+
+
+def kinds(fr, m, y, dG_add, scatter_font):
     """fig6d / fig6e: the additive ddG of the two measured singles against the measured dddG for the doubles that are not already lost to the assay floor (dG_additive > 0): which kinds of epistasis
     the data hold.  A double on y = 0 does not interact; on y = -x it is as stable as the wild type (ddG_AB = 0), the strongest compensation the data can show.  fig6e colours the same points by the
     signs of the two singles (stabilizing = ddG > 0)."""
@@ -82,11 +180,11 @@ def kinds(fr, m, y, dG_add):
     sa, sb = ddg[ia[ok]], ddg[ib[ok]]
     ttl = f'{TITLE}, dG additive > 0 (n = {int(ok.sum()):,})'
     xl = 'ΔΔG additive = ΔΔG_A + ΔΔG_B (kcal/mol)'
-    fig = style.density_scatter_plain(xs, ys, xl, Y_LABEL, title=ttl, ref='neg', ref_label='y = −x: ΔΔG_AB = 0')
+    fig = style.density_scatter_plain(xs, ys, xl, Y_LABEL, title=None, foot=ttl, ref='neg', ref_label='y = −x: ΔΔG_AB = 0', **scatter_font)
     ax = fig.axes[0]
     ax.axhline(0, color='#555555', lw=1.2, ls=':', zorder=4)
     handles = ax.get_legend().legend_handles + [Line2D([0], [0], color='#555555', lw=1.2, ls=':', label='y = 0: no epistasis')]
-    ax.legend(handles=handles, loc='lower right', fontsize=8, framealpha=0.92)
+    ax.legend(handles=handles, loc='lower left', fontsize=10.5, frameon=False)
     style.save(fig, OUT / 'fig6d_ddG_additive_vs_dddG_dG_additive_gt0')
 
     kind = np.where((sa > 0) & (sb > 0), 'both stabilizing', np.where((sa > 0) | (sb > 0), 'one stabilizing', 'both destabilizing'))
@@ -108,13 +206,14 @@ def kinds(fr, m, y, dG_add):
     handles += [Line2D([0], [0], color='#c0392b', ls='--', lw=1.6, label='y = −x: ΔΔG_AB = 0'), Line2D([0], [0], color='#555555', lw=1.2, ls=':', label='y = 0: no epistasis')]
     ax.set_xlim(limx[0] - padx, limx[1] + padx)
     ax.set_ylim(limy[0] - pady, limy[1] + pady)
-    ax.set_xlabel(xl)
-    ax.set_ylabel(Y_LABEL)
-    ax.set_title(ttl, fontsize=9, fontweight='bold')
-    ax.legend(handles=handles, loc='upper right', fontsize=7.5, framealpha=0.92)
+    ax.set_xlabel(xl, fontsize=13.5)
+    ax.set_ylabel(Y_LABEL, fontsize=13.5)
+    ax.tick_params(axis='both', labelsize=12.0)
+    ax.legend(handles=handles, loc='upper right', fontsize=10.0, framealpha=0.92)
     for sp_ in ('top', 'right'):
         ax.spines[sp_].set_visible(False)
     fig.tight_layout()
+    fig.text(0.015, -0.01, ttl, fontsize=9.5, va='top', ha='left', color='#444444')
     style.save(fig, OUT / 'fig6e_ddG_additive_vs_dddG_by_singles')
     K = pd.DataFrame(rows)
     K.to_csv(OUT / 'fig6de_ddG_additive_kinds.csv', index=False, float_format='%.4f')

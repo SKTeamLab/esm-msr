@@ -101,8 +101,10 @@ def load():
     added = add_esm3_masked(fr, DS)
     if 'msrrel@0:comb' in p and 'msrrel@0:wt' in p:
         p['msrrel@0:epi'] = p['msrrel@0:comb'] - p['msrrel@0:wt']                   # the combined head's epistasis, no link (sigma = 0 checkpoint): comb(AB) - WT(A) - WT(B), WT(AB) = WT(A) + WT(B)
-    # ESM-MSR's epistasis is always the combined head's latent interaction, comb(AB) - WT(A) - WT(B) = (MT(AB) - WT(AB)) / 2 (WT(AB) = WT(A) + WT(B)), on the latent scale: no link
-    p['msrdev:epi'] = 0.5 * (p['msrdev:mt'] - p['msrdev:wt'])
+    # ESM-MSR's epistasis is always the combined head's latent interaction, comb(AB) - WT(AB) = (MT(AB) - WT(AB)) / 2, on the latent scale: no link
+    for _spec in ('msr', 'msrdev', 'msrp0'):
+        if f'{_spec}:comb' in p and f'{_spec}:wt' in p:
+            p[f'{_spec}:epi'] = p[f'{_spec}:comb'] - p[f'{_spec}:wt']
     if 'esm3ind' in p and 'esm3ind+' in p:
         # esm3avg (data.add_esm3_masked): like ProteinMPNN and ESM-MSR's combined head, the mean of the independent-masking WT and mutant passes
         p['esm3:epi'] = p['esm3avg'] - p['esm3ind+']                              # the direct double minus the sum of the singles, as for the other models (= half of MT - WT)
@@ -115,7 +117,7 @@ def load():
 
 
 def per_library(fr, key, mask, fn, min_n, y=None):
-    """{library: value}, the value of ``fn(pred, y)`` averaged over the model's seeds; domains with fewer than ``min_n`` rows in ``mask`` are left out."""
+    """DataFrame (index=library, columns=0..n_seeds-1) of ``fn(pred_seed, y)`` evaluated per seed without ensemble averaging; domains with fewer than ``min_n`` rows in ``mask`` are left out."""
     sp = fr.spine
     y = sp['y'].to_numpy() if y is None else y
     g = sp['group'].to_numpy()
@@ -125,10 +127,27 @@ def per_library(fr, key, mask, fn, min_n, y=None):
         if m.sum() < min_n:
             continue
         vals = [fn(p[m], y[m]) for p in fr.preds[key]]
-        v = np.nanmean(vals) if np.isfinite(vals).any() else np.nan
-        if np.isfinite(v):
-            out[lib] = v
-    return pd.Series(out, dtype=float)
+        if np.isfinite(vals).any():
+            out[lib] = vals
+    if not out:
+        return pd.DataFrame(dtype=float)
+    return pd.DataFrame.from_dict(out, orient='index', dtype=float)
+
+
+def _mean_val(values):
+    """Grand mean over domains and seeds of a Series or DataFrame."""
+    if isinstance(values, pd.DataFrame):
+        return float(values.mean(axis=1).mean())
+    return float(values.mean())
+
+
+def _diff_df(va, vb, both=None):
+    """Per-domain, per-seed difference (va - vb), broadcasting 1-seed models against multi-seed models."""
+    da = va.to_frame() if isinstance(va, pd.Series) else va
+    db = vb.to_frame() if isinstance(vb, pd.Series) else vb
+    if both is not None:
+        da, db = da.reindex(both), db.reindex(both)
+    return pd.DataFrame(da.to_numpy(dtype=float) - db.to_numpy(dtype=float), index=da.index)
 
 
 def rho(p, y):
@@ -143,26 +162,36 @@ def ndcg96(p, y):
 
 
 def boot_reps(values, libs, counts):
-    """Replicates of the mean of ``values`` (Series library -> value) under the shared library resamples ``counts`` (B x n_libs, columns = ``libs``)."""
-    v = values.reindex(libs)
-    ok = v.notna().to_numpy()
+    """Replicates of the mean of ``values`` (Series or DataFrame library x seeds) under shared library resamples ``counts`` (B x n_libs) and triplicate seed resamples."""
+    df = values.to_frame() if isinstance(values, pd.Series) else values
+    v = df.reindex(libs)
+    ok = v.notna().any(axis=1).to_numpy()
     c = counts[:, ok]
-    den = c.sum(axis=1)
-    return (c @ v[ok].to_numpy()) / np.where(den > 0, den, np.nan)
+    V = v.loc[ok].to_numpy(dtype=float)
+    n_seeds = V.shape[1]
+    fin = np.isfinite(V).astype(float)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        dom_per_seed = np.where((c @ fin) > 0, (c @ np.where(np.isfinite(V), V, 0.0)) / (c @ fin), np.nan)
+    if n_seeds == 1:
+        return dom_per_seed[:, 0]
+    seed_w = np.random.default_rng(17).multinomial(n_seeds, np.full(n_seeds, 1.0 / n_seeds), size=len(counts)).astype(float) / n_seeds
+    return np.nansum(dom_per_seed * seed_w, axis=1)
 
 
 def boot_mean(values, libs, counts):
-    """values: Series library -> value.  Returns (mean, lo, hi, n_libraries) under the shared library resamples ``counts`` (B x n_libs, columns = ``libs``)."""
-    v = values.reindex(libs)
+    """values: Series or DataFrame (library x seeds).  Returns (mean, lo, hi, n_libraries) integrating domain and seed resamples."""
+    df = values.to_frame() if isinstance(values, pd.Series) else values
+    v = df.reindex(libs)
+    ok = v.notna().any(axis=1)
     lo, hi = ci(boot_reps(values, libs, counts))
-    return float(v.mean()), lo, hi, int(v.notna().sum())
+    return float(v.loc[ok].mean(axis=1).mean()), lo, hi, int(ok.sum())
 
 
 def best_other(fr):
     """The supervised, not-Megascale-trained published ddG predictor with the highest mean per-library singles rho."""
     sp = fr.spine
     single = sp['use'].to_numpy() & (sp['n_mut'] == 1).to_numpy()
-    sc = {k: per_library(fr, k, single, rho, MIN_N).mean() for k in BEST_LABEL if k in fr.preds}
+    sc = {k: _mean_val(per_library(fr, k, single, rho, MIN_N)) for k in BEST_LABEL if k in fr.preds}
     best = max(sc, key=sc.get)
     pd.Series(sc, name='mean per-library singles rho').rename_axis('model').to_csv(OUT / 'best_other_ddg_model.csv', float_format='%.4f')
     return best, sc
@@ -190,8 +219,12 @@ def esm3_choice(fr, want):
 
 def main_columns(fr, best, esm3_want):
     ek, el, alt = esm3_choice(fr, esm3_want)
-    cols = [col('ESM-MSR WT head', 'retrained', '#000000', 'ESM-MSR\nWT head', 'msr:wt'),
-            col('ESM-MSR combined', 'retrained', '#666666', 'ESM-MSR\ncombined', 'msr:comb'),
+    cols = [col('ESM-MSR (baseline) WT head', 'retrained', '#7f8c8d', 'ESM-MSR\n(baseline)\nWT head', 'msr:wt'),
+            col('ESM-MSR (baseline) combined', 'retrained', '#95a5a6', 'ESM-MSR\n(baseline)\ncombined', 'msr:comb'),
+            col('ESM-MSR WT head', 'retrained', '#000000', 'ESM-MSR\nWT head', 'msrdev:wt'),
+            col('ESM-MSR combined', 'retrained', '#555555', 'ESM-MSR\ncombined', 'msrdev:comb'),
+            col('ESM-MSR (p0) WT head', 'retrained', '#6c3483', 'ESM-MSR\n(p0)\nWT head', 'msrp0:wt'),
+            col('ESM-MSR (p0) combined', 'retrained', '#9b59b6', 'ESM-MSR\n(p0)\ncombined', 'msrp0:comb'),
             col('MutateEverything', 'retrained', '#1b8a4b', 'MutateEverything\n(1+2)', 'me1', 'me2', label_s='ME\nst1', label_d='ME\nst2'),
             col('ThermoMPNN', 'retrained', '#1f5f8b', 'ThermoMPNN\n(-D)', 'tmpnn', 'tmpnnd', label_s='ThermoMPNN', label_d='ThermoMPNN-D'),
             col('SPURS', 'retrained', '#d35400', 'SPURS\n(-multi)', 'spurs', 'spursm', label_s='SPURS', label_d='SPURS multi'),
@@ -214,7 +247,9 @@ def pair_columns(fr, best):
     """Fig 3: single = the additive version's key, double = the epistatic version's key."""
     p = fr.preds
     es = col('ESM3-small-open', 'zeroshot', '#7f8c8d', 'ESM3-small-open\nunmasked\nWT → combined', 'msrrel@0:wt', 'msrrel@0:comb')
-    cols = [col('ESM-MSR', 'retrained', '#000000', 'ESM-MSR\nWT head\n→ combined', 'msr:wt', 'msr:comb'),
+    cols = [col('ESM-MSR (baseline)', 'retrained', '#7f8c8d', 'ESM-MSR\n(baseline)\nWT → comb', 'msr:wt', 'msr:comb'),
+            col('ESM-MSR', 'retrained', '#000000', 'ESM-MSR\nWT head\n→ combined', 'msrdev:wt', 'msrdev:comb'),
+            col('ESM-MSR (p0)', 'retrained', '#6c3483', 'ESM-MSR\n(p0)\nWT → comb', 'msrp0:wt', 'msrp0:comb'),
             col('MutateEverything', 'retrained', '#1b8a4b', 'ME\nst1\n→ st2', 'me1', 'me2'),
             col('ThermoMPNN', 'retrained', '#1f5f8b', 'ThermoMPNN\n→ ThermoMPNN-D', 'tmpnn', 'tmpnnd'),
             col('SPURS', 'retrained', '#d35400', 'SPURS\n→ SPURS multi', 'spurs', 'spursm'),
@@ -232,7 +267,9 @@ def epi_columns(fr, best):
     extra = [col('ESM3-small-open (independent masking)', 'zeroshot', '#7f8c8d', 'ESM3-small-open', None, 'esm3:epi', draw=False)] if 'esm3:epi' in p else []
     if 'esm3mm:epi' in p:
         extra.append(col('ESM3-small-open (MT independent − WT marginal)', 'zeroshot', '#7f8c8d', 'ESM3-small-open', None, 'esm3mm:epi', draw=False))
-    cols = [col('ESM-MSR', 'retrained', '#000000', 'ESM-MSR\ncomb − WT\n(latent)', None, 'msrdev:epi'),
+    cols = [col('ESM-MSR (baseline)', 'retrained', '#7f8c8d', 'ESM-MSR\n(baseline)\ncomb − WT', None, 'msr:epi'),
+            col('ESM-MSR', 'retrained', '#000000', 'ESM-MSR\ncomb − WT', None, 'msrdev:epi'),
+            col('ESM-MSR (p0)', 'retrained', '#6c3483', 'ESM-MSR\n(p0)\ncomb − WT', None, 'msrp0:epi'),
             col('MutateEverything', 'retrained', '#1b8a4b', 'ME\nst2 − st1', None, 'me2:epi'),
             col('ThermoMPNN', 'retrained', '#1f5f8b', 'ThermoMPNN\n-D − single', None, 'tmpnnd:epi'),
             col('SPURS', 'retrained', '#d35400', 'SPURS\nmulti − single', None, 'spursm:epi'),
@@ -342,7 +379,7 @@ def row_of(sub, a, b, va, vb, d, reps, n, bootstrap, what):
 
 def compare_grouped(fr, vals, subsets, counts, libs, kind='domain', B_mut=1000, seed=13, what='mean over domains'):
     """Paired bootstrap of (model a - model b) for the per-domain-mean bars.  Domain level: the two models' per-domain values on the domains both have, under the
-    shared domain resamples of the figure.  Mutation level: the rows of each domain are resampled, the same draw for both models (Spearman's rho only)."""
+    shared domain and seed resamples of the figure.  Mutation level: the rows of each domain are resampled, the same draw for both models (Spearman's rho only)."""
     rows = []
     for sub in subsets:
         names = [n for (n, s_) in vals if s_ == sub]
@@ -352,7 +389,7 @@ def compare_grouped(fr, vals, subsets, counts, libs, kind='domain', B_mut=1000, 
             both = va.index.intersection(vb.index)
             if len(both) < 2:
                 continue
-            d = (va - vb).reindex(both)
+            d = _diff_df(va, vb, both)
             if kind == 'domain':
                 reps = boot_reps(d, libs, counts)
             else:
@@ -360,7 +397,7 @@ def compare_grouped(fr, vals, subsets, counts, libs, kind='domain', B_mut=1000, 
                 m2 = ma & np.isin(g, both) & np.isfinite(ya) & np.isfinite(fr.preds[ka]).all(axis=0) & np.isfinite(fr.preds[kb]).all(axis=0)
                 _, r = bootstrap_rho({DS: subframe(fr, m2, y=ya, keys=[ka, kb])}, [ka, kb], kind='mutation', B=B_mut, seed=seed, per_protein=True)
                 reps = r[DS][ka] - r[DS][kb]
-            rows.append(row_of(sub, a, b, va[both].mean(), vb[both].mean(), d.mean(), reps, len(both), 'domains' if kind == 'domain' else 'mutations', what))
+            rows.append(row_of(sub, a, b, _mean_val(va.loc[both]), _mean_val(vb.loc[both]), _mean_val(d), reps, len(both), 'domains' if kind == 'domain' else 'mutations', what))
     return rows
 
 
@@ -470,7 +507,6 @@ def foots(*extra, best, composite=False):
     out = []
     if composite:
         out.append(F_COMPOSITE)
-    out.append(F_BEST_PLAIN.format(m=BEST_LABEL[best]))
     return out + list(extra)
 
 
@@ -486,6 +522,7 @@ def fig2(fr, cols, best, use, single, double, y, counts, libs, kind, B_mut):
     foot = lambda **k: foots(best=best, **k)
     split = f'{SPLIT} test'
     nlab = lambda ov: f'overall (n = {int(ov.n_variants.max()):,})'
+    w_fig = fig_width(cols)
 
     cells = {'stabilizing': (use & (y > 0), 'all'), 'destabilizing': (use & (y < 0), 'all')}
     v2 = {}
@@ -493,7 +530,7 @@ def fig2(fr, cols, best, use, single, double, y, counts, libs, kind, B_mut):
     ov2 = table_grouped(fr, cols, {'overall': (use, 'all')}, rho, 3, counts, libs, vals=v2, **kw)
     save_tab(pd.concat([T2, ov2]), f'fig2_spearman_stab_destab{tag}')
     save_p(compare_grouped(fr, v2, ['stabilizing', 'destabilizing', 'overall'], counts, libs, **kw), f'fig2_spearman_stab_destab{tag}')
-    fig, ax = plt.subplots(figsize=(12.5, 4.9))
+    fig, ax = plt.subplots(figsize=(w_fig, 4.9))
     bars(ax, cols, T2, ['stabilizing', 'destabilizing'], [count_text(T2, 'stabilizing', 'stabilizing, ddG > 0'), count_text(T2, 'destabilizing', 'destabilizing, ddG < 0')],
          "Spearman's ρ (mean over test domains)", (-0.2, 1.12), overall=ov2, overall_label=nlab(ov2), zero_line=True, cats=CATS)
     finish(fig, f'{split}, all variants (singles and doubles): Spearman ρ of stabilizing against destabilizing variants (domains with at least {MIN_N} in the subset); '
@@ -505,7 +542,7 @@ def fig2(fr, cols, best, use, single, double, y, counts, libs, kind, B_mut):
     Tp2 = table_pooled(fr, cols, pc, y, kind=kind, reps_out=rp2)
     save_tab(Tp2, f'fig2_spearman_stab_destab_pooled{tag}')
     save_p(compare_pooled(Tp2, rp2, ['stabilizing', 'destabilizing', 'overall'], kind), f'fig2_spearman_stab_destab_pooled{tag}')
-    fig, ax = plt.subplots(figsize=(12.5, 4.9))
+    fig, ax = plt.subplots(figsize=(w_fig, 4.9))
     pv2, po2 = Tp2[Tp2.subset != 'overall'], Tp2[Tp2.subset == 'overall']
     bars(ax, cols, pv2, ['stabilizing', 'destabilizing'], [count_text(pv2, 'stabilizing', 'stabilizing, ddG > 0'), count_text(pv2, 'destabilizing', 'destabilizing, ddG < 0')],
          "Spearman's ρ pooled over test domains", (-0.3, 1.12), overall=po2, overall_label=nlab(po2), zero_line=True, cats=CATS)
@@ -515,8 +552,8 @@ def fig2(fr, cols, best, use, single, double, y, counts, libs, kind, B_mut):
 
     # fig 2b: the same for singles and for doubles, each panel with the model that fits it
     tabs, tabs_p, ps, ps_p = [], [], [], []
-    fig, axes = plt.subplots(2, 1, figsize=(12.5, 8.6))
-    figp, axesp = plt.subplots(2, 1, figsize=(12.5, 8.6))
+    fig, axes = plt.subplots(2, 1, figsize=(w_fig, 8.6))
+    figp, axesp = plt.subplots(2, 1, figsize=(w_fig, 8.6))
     for ax, axp, (which, base) in zip(axes, axesp, (('singles', single), ('doubles', double))):
         tk = 'label_s' if which == 'singles' else 'label_d'
         cells = {'stabilizing': (base & (y > 0), which), 'destabilizing': (base & (y < 0), which)}
@@ -595,7 +632,7 @@ def main():
           f'{"drawn as the overall line" if draw_overall else "not drawn, footnote instead"}')
     note1 = ([f'Overall = NDCG@96 of a library with its singles and doubles ranked together (singles are 73% of the rows); it differs from the singles bar by {d1.min():+.2f} to {d1.max():+.2f}.']
              if draw_overall else [])
-    fig, ax = plt.subplots(figsize=(12.5, 4.9))
+    fig, ax = plt.subplots(figsize=(fig_width(cols), 4.9))
     bars(ax, cols, T1, ['singles', 'doubles'], [count_text(T1, 'singles', 'singles'), count_text(T1, 'doubles', 'doubles')], f'NDCG@{K} (mean over test domains)', (0, 1.12),
          overall=ov1 if draw_overall else None, overall_label=f'overall (n = {int(ov1.n_variants.max()):,})')
     finish(fig, f'{SPLIT} test, NDCG@{K} per library, 95% intervals from resampling domains (doubles: the domains with a stabilizing double)',
@@ -618,7 +655,7 @@ def main():
             continue
         va, ve = per_library(fr, c['single'], double, rho, MIN_N), per_library(fr, c['double'], double, rho, MIN_N)
         both = va.index.intersection(ve.index)
-        pt, lo, hi, n = boot_mean((ve - va).reindex(both), libs, counts)
+        pt, lo, hi, n = boot_mean(_diff_df(ve, va, both), libs, counts)
         d_rows.append(dict(column=c['name'], delta=pt, lo=lo, hi=hi, n_libraries=n))
     save_tab(pd.DataFrame(d_rows), 'fig3_spearman_doubles_additive_vs_epistatic_paired_difference')
     # p-values: ESM-MSR's additive version against the other models' additive versions, epistatic against epistatic, and the gain (epistatic - additive) against the other gains
@@ -629,9 +666,9 @@ def main():
             ka, va, ma, ya = v3[(c['name'], 'additive')]
             ke, ve, me, ye = v3[(c['name'], 'epistatic')]
             both = va.index.intersection(ve.index)
-            v3[(c['name'], gain)] = (None, (ve - va).reindex(both), None, None)
-            d = (ve - va).reindex(both)
-            p3.append(row_of('own gain', f"{NAMES.get(c['name'], c['name'])} (epistatic)", f"{NAMES.get(c['name'], c['name'])} (additive)", ve[both].mean(), va[both].mean(), d.mean(), boot_reps(d, libs, counts), len(both), 'domains', 'mean over domains'))
+            d = _diff_df(ve, va, both)
+            v3[(c['name'], gain)] = (None, d, None, None)
+            p3.append(row_of('own gain', f"{NAMES.get(c['name'], c['name'])} (epistatic)", f"{NAMES.get(c['name'], c['name'])} (additive)", _mean_val(ve.loc[both]), _mean_val(va.loc[both]), _mean_val(d), boot_reps(d, libs, counts), len(both), 'domains', 'mean over domains'))
     p3 = compare_grouped(fr, v3, ['additive', 'epistatic', gain], counts, libs) + p3
     save_p(p3, 'fig3_spearman_doubles_additive_vs_epistatic')
     fig, ax = plt.subplots(figsize=(fig_width(cols3), 4.9))

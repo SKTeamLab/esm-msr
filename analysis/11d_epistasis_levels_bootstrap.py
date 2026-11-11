@@ -3,7 +3,7 @@
 domains: naive rho, saturation-subtracted ("beyond") rho, pair rho, line rho and cell rank, for the test and the validation doubles.
 
 Models and the predicted epistasis dddG' the suite reads (always the double prediction of one model against the additive reading of another or of another head):
-  ESM-MSR, three seeds         epi  = MT(AB) - WT(AB)            the suite's epistasis head, on the latent scale (no link: naive rho is then the latent one), as ``analysis_scripts/rescore_epistasis.py``
+  ESM-MSR, three seeds         epi  = combined(AB) - WT(AB)      the combined head's latent interaction (no linking: naive rho is then the latent one)
                                ctx  = ~WT(AB) - WT(AB)           the WT adapter read on the mutated sequence (the cluster's ctx run; ``reference/ctx_wt_rev_devel.csv.gz``)
   ME stage 2, ThermoMPNN-D, SPURS multi (three seeds each)       direct double - the same seed's sum of singles
   ESM3-small-open (sigma = 0 control)   unmasked combined head - unmasked WT head
@@ -36,13 +36,14 @@ from esm_msr import epi_metrics as E  # noqa: E402
 from esm_msr.link import numpy_link_from_state_dict  # noqa: E402
 
 from msr_analysis.common import out_dir  # noqa: E402
-from msr_analysis.data import load_frame  # noqa: E402
+from msr_analysis.data import load_frame, sum_singles  # noqa: E402
+from msr_analysis.link import link_fn  # noqa: E402
 from msr_analysis.registry import REFERENCE, ROOT  # noqa: E402
 
 OUT = out_dir('06_epistasis')
 DS = {'test': 'tsuboyama_capped_test', 'val': 'tsuboyama_capped_val'}
 CKPT = {1: 'epoch=04-val_rho_combined_avg=0.840.ckpt', 2: 'epoch=07-val_rho_combined_avg=0.839.ckpt', 3: 'epoch=05-val_rho_combined_avg=0.841.ckpt'}
-METRICS = {'naive_rho': None, 'beyond_rho': None, 'pair_rho': None, 'line_rho': None, 'cell_rank': None}      # head list filled per table
+METRICS = {'naive_rho': None, 'beyond_rho': None, 'pair_rho': None, 'line_rho': None, 'cell_rank': None, 'cell_mag': None}      # head list filled per table
 # model -> (frame key of the direct double, frame key of the additive reading) for the models without heads of their own
 PLAIN = [('ME stage 2', 'me2', 'me1'), ('ThermoMPNN-D', 'tmpnnd', 'tmpnn'), ('SPURS multi', 'spursm', 'spurs'), ('ESM3-small-open', 'msrrel@0:comb', 'msrrel@0:wt'),
          ('ProteinMPNN', 'pmpnn', 'pmpnn+'), ('GeoDDG-3D', 'geoddg', 'geoddg+'), ('Rosetta', 'rosetta', 'rosetta+')]
@@ -50,7 +51,11 @@ DOC = {   # BENCHMARKS table 2.2, test: naive, beyond, pair, line, cell rank (th
     ('test', 'ME stage 2'): (0.405, 0.223, 0.124, 0.225, 0.112), ('test', 'ThermoMPNN-D'): (0.077, 0.071, -0.003, 0.197, 0.016),
     ('test', 'SPURS multi'): (0.308, 0.278, 0.399, 0.270, 0.041), ('test', 'ProteinMPNN'): (0.314, 0.273, 0.473, 0.125, 0.064),
     ('test', 'GeoDDG-3D'): (0.055, 0.046, 0.083, 0.087, 0.054), ('test', 'Rosetta'): (0.381, 0.207, 0.258, 0.195, 0.066),}
-NAMES = ['naive_rho', 'beyond_rho', 'pair_rho', 'line_rho', 'cell_rank']
+NAMES = [
+    'naive_rho', 'beyond_rho', 'pair_rho', 'line_rho', 'cell_rank', 'cell_mag', 'cell_mag_pooled', 'cell_mag_gt0',
+    'naive_rho_gt1', 'beyond_rho_gt1', 'pair_rho_gt1', 'line_rho_gt1', 'cell_rank_gt1', 'cell_mag_gt1', 'cell_mag_pooled_gt1',
+    'naive_rho_sub0', 'beyond_rho_sub0', 'pair_rho_sub0', 'line_rho_sub0', 'cell_rank_sub0', 'cell_mag_sub0', 'cell_mag_pooled_sub0',
+]
 _MUT = re.compile(r'^([A-Za-z])(-?\d+)([A-Za-z])$')
 TABLES = {}          # (model, seed) -> Table, shared with the fork workers
 
@@ -105,11 +110,25 @@ def build(split, ctx_rev):
     y_floor = json.load(open(REFERENCE / 'y_floor.json'))
     TABLES.clear()
     models = []
-    for seed in (1, 2, 3):                                  # ESM-MSR: two heads of one table per seed
+    c_wt = sp['dG_wt'].to_numpy(float)
+    fl = np.array([float(y_floor.get(k, np.nan)) for k in sp['code'].astype(str)])
+    for seed in (1, 2, 3):                                  # ESM-MSR (baseline, devel, p0): combined_AB - WT_AB (no linking), tobit-linked devel, and context control ~WT_AB - WT_AB
         c = ctx_rev[(ctx_rev.split == split) & (ctx_rev.seed == seed)]
         rev = pd.DataFrame({'code': sp['code'].astype(str), 'mut_type': sp['mut']}).merge(c[['code', 'mut_type', 'wt_rev']], on=['code', 'mut_type'], how='left')['wt_rev'].to_numpy(float)
-        TABLES[('devel', seed)] = make_table(sp, p['msrdev:wt'][seed - 1], p['msrdev:mt'][seed - 1], ('epi', 'ctx', 'add'), wt_rev=rev, link=None, y_floor=y_floor)
-    models += [('ESM-MSR · MT − WT', 'devel', 'epi'), ('ESM-MSR · ~WT − WT', 'devel', 'ctx')]
+        TABLES[('baseline', seed)] = make_table(sp, p['msr:wt'][seed - 1], p['msr:comb'][seed - 1], ('epi', 'add'), link=None, y_floor=y_floor)
+        TABLES[('devel', seed)] = make_table(sp, p['msrdev:wt'][seed - 1], p['msrdev:comb'][seed - 1], ('epi', 'ctx', 'add'), wt_rev=rev, link=None, y_floor=y_floor)
+        TABLES[('p0', seed)] = make_table(sp, p['msrp0:wt'][seed - 1], p['msrp0:comb'][seed - 1], ('epi', 'add'), link=None, y_floor=y_floor)
+        lfn = link_fn(seed)
+        comb_linked = lfn(c_wt + p['msrdev:comb'][seed - 1], fl) - c_wt
+        add_linked = sum_singles(sp, comb_linked)
+        TABLES[('devel_link', seed)] = make_table(sp, add_linked, comb_linked, ('epi', 'add'), link=None)
+    models += [
+        ('ESM-MSR (baseline) · combined_AB − WT_AB', 'baseline', 'epi'),
+        ('ESM-MSR · combined_AB − WT_AB', 'devel', 'epi'),
+        ('ESM-MSR (p0) · combined_AB − WT_AB', 'p0', 'epi'),
+        ('ESM-MSR · tobit link', 'devel_link', 'epi'),
+        ('ESM-MSR · ~WT − WT', 'devel', 'ctx'),
+    ]
     for name, direct, add in PLAIN:
         if direct not in p or add not in p:
             print('skip', name)
@@ -118,11 +137,94 @@ def build(split, ctx_rev):
         for s in range(ns):
             TABLES[(name, s + 1)] = make_table(sp, p[add][min(s, p[add].shape[0] - 1)], p[direct][s], ('epi', 'add'))
         models.append((name, name, 'epi'))
+    c_exact = np.array([float(dg.get(k, np.nan)) for k in sp['code'].astype(str)])
+    wt_true = np.where((sp['n_mut'] == 1).to_numpy(), sp['y'].to_numpy(float), sp['ddG_additive_ML'].to_numpy(float))
+    TABLES[('neg_dg_add', 1)] = make_table(sp, wt_true, -c_exact, ('epi', 'add'), link=None)
+    models.append(('−dG_add', 'neg_dg_add', 'epi'))
     return models
 
 
+def _dc_nan(M, min_line=3, n_iter=8):
+    X = M.copy()
+    while True:
+        fin = np.isfinite(X)
+        bad_r = (fin.sum(1) > 0) & (fin.sum(1) < min_line)
+        bad_c = (fin.sum(0) > 0) & (fin.sum(0) < min_line)
+        if not bad_r.any() and not bad_c.any():
+            break
+        X[bad_r, :] = np.nan
+        X[:, bad_c] = np.nan
+    for _ in range(n_iter):
+        with np.errstate(invalid='ignore'):
+            X = X - np.nanmean(X, axis=1, keepdims=True)
+            X = X - np.nanmean(X, axis=0, keepdims=True)
+    return X
+
+
+def subset_table(t, mask):
+    r = copy.copy(t)
+    idx = np.flatnonzero(mask)
+    n0 = t.n
+    for name, v in vars(t).items():
+        if isinstance(v, np.ndarray) and v.ndim == 1 and len(v) == n0:
+            setattr(r, name, v[idx])
+        elif isinstance(v, dict):
+            setattr(r, name, {k: (a[idx] if isinstance(a, np.ndarray) and a.ndim == 1 and len(a) == n0 else a) for k, a in v.items()})
+    r.n = len(idx)
+    r._mats = None
+    return r
+
+
+def _pooled_cell_mag(t, head):
+    rm, rp = E.beyond_global(t, head)
+    blk_m, blk_p = [], []
+    for M in t.matrices():
+        Rm, Rp = E._lay(M, rm), E._lay(M, rp)
+        ok = np.isfinite(Rm) & np.isfinite(Rp)
+        if ok.sum() < E.MIN_PAIR_CELLS:
+            continue
+        Rm_ok, Rp_ok = np.where(ok, Rm, np.nan), np.where(ok, Rp, np.nan)
+        blk = E._complete_block(Rm_ok)
+        if blk is not None:
+            ix = np.ix_(*blk)
+            blk_m.extend(E._dc(Rm_ok[ix]).ravel())
+            blk_p.extend(E._dc(Rp_ok[ix]).ravel())
+    return E._rho(blk_p, blk_m) if len(blk_m) >= 9 else np.nan
+
+
 def metrics_of(t, head):
-    r = E.compute(t, {m: (head,) for m in NAMES})
+    base_names = ['naive_rho', 'beyond_rho', 'pair_rho', 'line_rho', 'cell_rank', 'cell_mag']
+    r = E.compute(t, {m: (head,) for m in base_names})
+    t_gt1 = subset_table(t, t.x > 1.0)
+    r_gt1 = E.compute(t_gt1, {m: (head,) for m in base_names})
+    t_sub0 = subset_table(t, t.x > 0.0)
+    r_sub0 = E.compute(t_sub0, {m: (head,) for m in base_names})
+    for m in base_names:
+        r[f'epi_{m}_gt1_{head}'] = r_gt1.get(f'epi_{m}_{head}', np.nan)
+        r[f'epi_{m}_sub0_{head}'] = r_sub0.get(f'epi_{m}_{head}', np.nan)
+    r[f'epi_cell_mag_pooled_gt1_{head}'] = _pooled_cell_mag(t_gt1, head)
+    r[f'epi_cell_mag_pooled_sub0_{head}'] = _pooled_cell_mag(t_sub0, head)
+    rm, rp = E.beyond_global(t, head)
+    blk_m, blk_p, gt0_rhos = [], [], []
+    for M in t.matrices():
+        Rm, Rp, X = E._lay(M, rm), E._lay(M, rp), E._lay(M, t.x)
+        ok = np.isfinite(Rm) & np.isfinite(Rp)
+        if ok.sum() < E.MIN_PAIR_CELLS:
+            continue
+        Rm_ok, Rp_ok = np.where(ok, Rm, np.nan), np.where(ok, Rp, np.nan)
+        blk = E._complete_block(Rm_ok)
+        if blk is not None:
+            ix = np.ix_(*blk)
+            blk_m.extend(E._dc(Rm_ok[ix]).ravel())
+            blk_p.extend(E._dc(Rp_ok[ix]).ravel())
+        ok_u = ok & (X > 0.0)
+        Rm_u, Rp_u = np.where(ok_u, Rm, np.nan), np.where(ok_u, Rp, np.nan)
+        Cm_u, Cp_u = _dc_nan(Rm_u), _dc_nan(Rp_u)
+        fin_u = np.isfinite(Cm_u) & np.isfinite(Cp_u)
+        if fin_u.sum() >= 9:
+            gt0_rhos.append(E._rho(Cp_u[fin_u], Cm_u[fin_u]))
+    r[f'epi_cell_mag_pooled_{head}'] = E._rho(blk_p, blk_m) if len(blk_m) >= 9 else np.nan
+    r[f'epi_cell_mag_gt0_{head}'] = E._mean(gt0_rhos)
     return [r.get(f'epi_{m}_{head}', np.nan) for m in NAMES]
 
 
@@ -144,8 +246,8 @@ def resampled(t, idx, rep):
 
 
 def draw(args):
-    """One bootstrap replicate: the seed-mean metrics of every model on the same domain resample."""
-    counts, models = args
+    """One bootstrap replicate: metrics of every model under the domain resample ``counts`` and seed resample ``seed_w``."""
+    counts, seed_w, models = args
     t0 = TABLES[('devel', 1)]
     libs = np.unique(t0.lib)
     by = {l: np.flatnonzero(t0.lib == l) for l in libs}
@@ -157,15 +259,24 @@ def draw(args):
     out = []
     cache = {}
     for name, key, head in models:
-        vals = []
-        for (k_, s), t in TABLES.items():
-            if k_ != key:
+        sub_tabs = [(s, t) for (k_, s), t in TABLES.items() if k_ == key]
+        ns = len(sub_tabs)
+        sw = seed_w[:ns] if ns > 1 else np.ones(ns, float)
+        vals, weights = [], []
+        for (s, t), w_s in zip(sub_tabs, sw):
+            if w_s <= 0:
                 continue
-            ck = (k_, s)
+            ck = (key, s)
             if ck not in cache:
                 cache[ck] = resampled(t, idx, rep)
             vals.append(metrics_of(cache[ck], head))
-        out.append(np.nanmean(np.array(vals, float), axis=0))
+            weights.append(w_s)
+        V = np.array(vals, float)
+        W = np.array(weights, float)[:, None]
+        fin = np.isfinite(V)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            den = np.sum(np.where(fin, W, 0.0), axis=0)
+            out.append(np.where(den > 0, np.nansum(V * W, axis=0) / den, np.nan))
     return np.array(out)
 
 
@@ -192,8 +303,9 @@ def main():
         point = np.array(point)
         rng = np.random.default_rng(11)
         counts = rng.multinomial(len(libs), np.full(len(libs), 1.0 / len(libs)), size=a.B)
+        seed_ws = rng.multinomial(3, np.full(3, 1.0 / 3.0), size=a.B).astype(float) / 3.0
         with mp.get_context('fork').Pool(a.procs) as pool:
-            reps = np.array(pool.map(draw, [(c, models) for c in counts], chunksize=4))          # B x models x metrics
+            reps = np.array(pool.map(draw, [(c, sw, models) for c, sw in zip(counts, seed_ws)], chunksize=4))          # B x models x metrics
         rows = []
         for i, (name, key, head) in enumerate(models):
             for j, m in enumerate(NAMES):

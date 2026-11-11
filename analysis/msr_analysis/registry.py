@@ -15,6 +15,7 @@ from pathlib import Path
 
 ROOT = Path(os.environ.get('MSR_ROOT', '~/playground/esm-msr-devel')).expanduser()
 MSR = ROOT / 'msr_predictions'
+P0 = ROOT / 'p0_fir_bench' / 'predictions'
 BASE = ROOT / 'baselines'
 RETRAINED = BASE / 'retrained'
 PUBLIC = BASE / 'public'
@@ -56,7 +57,7 @@ TSU_CODE = 'code_wt'
 # display: label, colour, marker, fill, group
 #   group: 'msr' ESM-MSR; 'retrain' retrained on Homology-Restricted MegaScale; 'public' held-out or leaky third party;
 #          'zeroshot' no training on stability data
-C = dict(msr='#000000', msr_dev='#555555', me1='#2ecc71', me2='#1b8a4b', tm='#3498db', tmd='#1f5f8b',
+C = dict(msr='#7f8c8d', msr_dev='#000000', msr_p0='#6c3483', me1='#2ecc71', me2='#1b8a4b', tm='#3498db', tmd='#1f5f8b',
          spurs='#d35400', spursm='#e59866', zero='#888888', pmpnn='#34495e', prosst='#8e44ad',
          esm3='#e74c3c', ros='#1abc9c', other='#95a5a6')
 
@@ -67,11 +68,15 @@ MODELS = {
     'msr:comb':    dict(label='ESM-MSR (baseline) combined', color=C['msr'], marker='D', fill=True, group='msr'),
     'msrdev:wt':   dict(label='ESM-MSR WT head', color=C['msr_dev'], marker='o', fill=False, group='msr'),
     'msrdev:comb': dict(label='ESM-MSR combined', color=C['msr_dev'], marker='D', fill=True, group='msr'),
+    'msrp0:wt':    dict(label='ESM-MSR (p0) WT head', color=C['msr_p0'], marker='o', fill=False, group='msr'),
+    'msrp0:comb':  dict(label='ESM-MSR (p0) combined', color=C['msr_p0'], marker='D', fill=True, group='msr'),
     'msrrel:wt':   dict(label='ESM-MSR (released) WT head', color=C['msr_dev'], marker='o', fill=False, group='msr'),
     'msrrel:comb': dict(label='ESM-MSR (released) combined', color=C['msr_dev'], marker='D', fill=True, group='msr'),
     'msrsmall:comb': dict(label='ESM-MSR-small (March)', color='#7f8c8d', marker='D', fill=False, group='msr'),
     'msr:epi': dict(label='ESM-MSR (baseline) epistasis head (MT − WT)', color=C['msr'], marker='D', fill=True, group='msr'),
     'msr:cdddg': dict(label='ESM-MSR (baseline) combined, vs additive', color='#555555', marker='D', fill=False, group='msr'),
+    'msrp0:epi': dict(label='ESM-MSR (p0) epistasis head (MT − WT)', color=C['msr_p0'], marker='D', fill=True, group='msr'),
+    'msrp0:cdddg': dict(label='ESM-MSR (p0) combined, vs additive', color=C['msr_p0'], marker='D', fill=False, group='msr'),
     'me2:epi': dict(label='MutateEverything st2 (vs st1 singles)', color=C['me2'], marker='H', fill=True, group='retrain'),
     'tmpnnd:epi': dict(label='ThermoMPNN-D (vs ThermoMPNN)', color=C['tmd'], marker='P', fill=True, group='retrain'),
     'spursm:epi': dict(label='SPURS multi (vs SPURS singles)', color=C['spursm'], marker='s', fill=False, group='retrain'),

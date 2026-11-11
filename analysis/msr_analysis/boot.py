@@ -151,8 +151,8 @@ class DatasetBoot:
         return len(np.unique(self.cluster_names['protein'][idx]))
 
     # -- one replicate for all models --------------------------------------------------------------
-    def replicate(self, w_full):
-        """rho of every model under full-length multiplicities ``w_full``; returns {key: seed-mean rho}."""
+    def replicate(self, w_full, seed_w=None):
+        """rho of every model under full-length multiplicities ``w_full`` and optional seed weights ``seed_w``."""
         out = {}
         ycache = {}
         for k in self.keys:
@@ -161,22 +161,32 @@ class DatasetBoot:
             w = w_full[idx]
             if mk not in ycache:
                 ycache[mk] = eng.ry.ranks(w)
-            rs = []
-            for xr in self._xr[k]:
-                r = eng.rho(xr, w, ycache[mk])
-                rs.append(np.nanmean(r) if self.per_protein else r[0])
-            out[k] = float(np.mean(rs))
+            rs = np.array([
+                np.nanmean(eng.rho(xr, w, ycache[mk])) if self.per_protein else eng.rho(xr, w, ycache[mk])[0]
+                for xr in self._xr[k]
+            ], dtype=float)
+            if seed_w is not None and len(rs) > 1 and len(seed_w) >= len(rs):
+                sw = seed_w[:len(rs)]
+                ok = np.isfinite(rs) & (sw > 0)
+                out[k] = float(np.dot(sw[ok], rs[ok]) / sw[ok].sum()) if ok.any() else np.nan
+            else:
+                out[k] = float(np.nanmean(rs))
         return out
 
     def per_protein_rho(self, k):
         """Per-protein rho of every protein (unit weights), seed-averaged; used by the protein-level bootstrap of the
         per-protein-mean datasets, which is exact and needs no re-ranking."""
+        names, r_seeds = self.per_protein_rho_seeds(k)
+        return names, np.nanmean(r_seeds, axis=0)
+
+    def per_protein_rho_seeds(self, k):
+        """Per-seed, per-protein rho of every protein (unit weights), shape (n_seeds, G)."""
         idx, g, G, eng = self._engines[self.valid[k].tobytes()]
         w = np.ones(len(idx))
-        r = np.nanmean([eng.rho(xr, w) for xr in self._xr[k]], axis=0)
+        r_seeds = np.array([eng.rho(xr, w) for xr in self._xr[k]], dtype=float)
         names = np.empty(G, object)
         names[g] = self.frame.spine['group'].to_numpy()[idx]
-        return names, r
+        return names, r_seeds
 
 
 def draw_weights(kind, boot, rng, cluster_counts=None, cluster_idx=None):
@@ -224,33 +234,38 @@ def bootstrap_rho(frames, keys, kind='protein', B=1000, seed=0, per_protein=None
     if kind in ('protein', 'site'):
         names = {ds: b.cluster_names[kind] for ds, b in boots.items() if not b.per_protein}
         gidx, ncl = global_cluster_index(names)
-        # per-protein-mean datasets: exact, from per-protein rhos (clusters = proteins of that dataset)
+        # per-protein-mean datasets: exact, from per-seed per-protein rhos (clusters = proteins of that dataset)
         pp_tables, pp_pos = {}, {}
         for ds, b in boots.items():
             if b.per_protein:
-                pp_tables[ds] = {k: b.per_protein_rho(k) for k in b.keys}
+                pp_tables[ds] = {k: b.per_protein_rho_seeds(k) for k in b.keys}
                 allp, inv = np.unique(b.frame.spine['group'].to_numpy().astype(str), return_inverse=True)
                 pp_pos[ds] = {p: i for i, p in enumerate(allp)}
         for bi in range(B):
             counts = rng.multinomial(ncl, np.full(ncl, 1.0 / ncl)) if ncl else np.zeros(0)
+            seed_w = rng.multinomial(3, np.full(3, 1.0 / 3.0)).astype(float)
             for ds, b in boots.items():
                 if b.per_protein:
-                    # each dataset resamples its own proteins; one draw is shared by every model
+                    # each dataset resamples its own proteins and triplicate seeds; one draw is shared by every model
                     npro = len(pp_pos[ds])
-                    cnt = rng.multinomial(npro, np.full(npro, 1.0 / npro))
-                    for k, (nm, r) in pp_tables[ds].items():
+                    cnt = rng.multinomial(npro, np.full(npro, 1.0 / npro)).astype(float)
+                    for k, (nm, r_seeds) in pp_tables[ds].items():
                         c = cnt[[pp_pos[ds][str(x)] for x in nm]]
-                        ok = np.isfinite(r) & (c > 0)
-                        reps[ds][k][bi] = float(np.dot(c[ok], r[ok]) / c[ok].sum())
+                        ns = r_seeds.shape[0]
+                        sw = seed_w[:ns] if ns > 1 and len(seed_w) >= ns else np.ones(ns, float)
+                        W = np.outer(sw, c)
+                        ok = np.isfinite(r_seeds) & (W > 0)
+                        reps[ds][k][bi] = float(np.sum(W[ok] * r_seeds[ok]) / np.sum(W[ok])) if ok.any() else np.nan
                 else:
                     w = draw_weights('protein', b, rng, counts, gidx[ds])
-                    for k, v in b.replicate(w).items():
+                    for k, v in b.replicate(w, seed_w=seed_w).items():
                         reps[ds][k][bi] = v
     else:
         for bi in range(B):
+            seed_w = rng.multinomial(3, np.full(3, 1.0 / 3.0)).astype(float)
             for ds, b in boots.items():
                 w = draw_weights('mutation', b, rng)
-                for k, v in b.replicate(w).items():
+                for k, v in b.replicate(w, seed_w=seed_w).items():
                     reps[ds][k][bi] = v
     return point, reps
 

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from .registry import (BASE, CACHE, MSR, PUBLIC, RETRAINED, TASKS, PER_PROTEIN, DMS7, EXT12, TSU)
+from .registry import (BASE, CACHE, MSR, P0, PUBLIC, RETRAINED, TASKS, PER_PROTEIN, DMS7, EXT12, TSU)
 
 TSU_SETS = set(TSU)
 
@@ -146,17 +146,26 @@ def _msr_dir(spec, seed, sigma):
     raise KeyError(spec)
 
 
+_P0_FOLDER = {'tsuboyama_capped_val': 'splits_oct06_capped-val', 'tsuboyama_capped_test': 'splits_oct06_capped-test', 'ptmul': 'PTMUL'}
+
+
+def _msr_file(spec, ds, seed, sigma):
+    if spec == 'msrp0':
+        return P0 / _P0_FOLDER.get(ds, ds) / 'ckpt_p0_fir' / f's{seed}' / f'best.ckpt_sigma{float(sigma):.1f}_unmasked_predictions.csv'
+    return _msr_dir(spec, seed, sigma) / f'{ds}.csv'
+
+
 def _load_msr(frame, ds, out):
     sp = frame.spine
     ids = sp['id'].to_numpy(dtype=object)
     heads = dict(wt='wt_lora_pred', comb='combined_pred', mt='mt_lora_pred', epi='epi_pred', cdddg='combined_dddg_pred')
     for spec, sigmas, seeds in (('msr', ['1'], SEEDS), ('msrdev', ['1', '0.75', '0.5', '0.25'], SEEDS),
-                                ('msrrel', ['1', '0.75', '0.5', '0.25', '0'], (None,))):
+                                ('msrp0', ['1'], SEEDS), ('msrrel', ['1', '0.75', '0.5', '0.25', '0'], (None,))):
         for sg in sigmas:
             arrs = {h: [] for h in heads}
             ok = True
             for sd in seeds:
-                p = _msr_dir(spec, sd, sg) / f'{ds}.csv'
+                p = _msr_file(spec, ds, sd, sg)
                 if not p.exists():
                     ok = False
                     break
@@ -292,9 +301,10 @@ def _load_public(frame, ds, out):
         d = pd.read_csv(p, low_memory=False)
         if 'pred' not in d or 'row_id' not in d:
             continue
-        out[f'{key}:'] = _align_rowid(sp['row_id'].to_numpy(), d['row_id'].to_numpy(), d['pred'].to_numpy())[None, :]
+        scale = (1.0 / 2.94) if key == 'rosetta' else 1.0
+        out[f'{key}:'] = _align_rowid(sp['row_id'].to_numpy(), d['row_id'].to_numpy(), d['pred'].to_numpy(dtype=float) * scale)[None, :]
         if 'pred_additive' in d:      # the model summed over a multi-mutant's single substitutions (harness column); equals `pred` for additive models
-            out[f'{key}+:'] = _align_rowid(sp['row_id'].to_numpy(), d['row_id'].to_numpy(), d['pred_additive'].to_numpy())[None, :]
+            out[f'{key}+:'] = _align_rowid(sp['row_id'].to_numpy(), d['row_id'].to_numpy(), d['pred_additive'].to_numpy(dtype=float) * scale)[None, :]
 
 
 FORGE = {'esm3s': 'esm3-small-2024-08', 'esm3m': 'esm3-medium-2024-08', 'esm3l': 'esm3-large-2024-03'}

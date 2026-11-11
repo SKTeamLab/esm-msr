@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from msr_analysis import screening as scr, style  # noqa: E402
 from msr_analysis.common import has_multi, out_dir, primary_key  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
-from msr_analysis.registry import LABEL, MODELS  # noqa: E402
+from msr_analysis.registry import LABEL, MODELS, REFERENCE, ROOT  # noqa: E402
 
 OUT = out_dir('08_screening')
 POOLED_SETS = ['s783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld']   # S571's labels are not ddG
@@ -40,8 +40,35 @@ for _f, _k in FAM_STYLE.items():          # the dot panels look families up in t
     MODELS.setdefault(_f, dict(MODELS[_k]))
 
 
-def fam_key(fam, fr):
+def domainome_overlap_domains(seq_evalue=1e-3, struct_evalue=1e-3, max_identity=0.40, max_tm=0.70):
+    """Domainome domains that overlap Tsuboyama train or val libraries under the exact homology edge rule of
+    ``preprocessing/split_tsuboyama.py`` and ``preprocessing/homology.py``:
+        MMseqs2 E <= 1e-3  |  Foldseek E <= 1e-3  |  BLOSUM62 local identity > 0.40  |  Foldseek TM_max > 0.70
+    Reads precomputed cross-set extremes from ``reference/domainome_tsuboyama_overlap.csv``."""
+    ref_csv = REFERENCE / 'domainome_tsuboyama_overlap.csv'
+    df = pd.read_csv(ref_csv)
+    mask = ((df['min_seq_evalue'] <= seq_evalue) |
+            (df['min_struct_evalue'] <= struct_evalue) |
+            (df['max_identity'] > max_identity) |
+            (df['max_struct_tm_max'] > max_tm)).fillna(False)
+    return set(df.loc[mask, 'domain_id'].astype(str))
+
+
+def fam_key(fam, fr, mode='default'):
+    if mode == 'singles':
+        k = {'msr': 'msr:wt', 'me': 'me1', 'tm': 'tmpnn', 'spurs': 'spurs'}[fam]
+        return k if k in fr.preds else None
     mm = has_multi(fr)
+    if mode == 'composite' and mm:
+        ks = {'msr': 'msr:wt', 'me': 'me1', 'tm': 'tmpnn', 'spurs': 'spurs'}[fam]
+        kd = {'msr': 'msr:comb', 'me': 'me2', 'tm': 'tmpnnd', 'spurs': 'spursm'}[fam]
+        if ks not in fr.preds or kd not in fr.preds:
+            return None
+        ck = f'{ks}|{kd}'
+        if ck not in fr.preds:
+            n1 = (fr.spine['n_mut'] == 1).to_numpy()
+            fr.preds[ck] = np.where(n1[None, :], fr.preds[ks], fr.preds[kd])
+        return ck
     k = {'msr': primary_key(fr), 'me': 'me2' if mm else 'me1', 'tm': 'tmpnnd' if mm else 'tmpnn', 'spurs': 'spursm' if mm else 'spurs'}[fam]
     return k if k in fr.preds else None
 
@@ -59,7 +86,12 @@ def pooled(tau, B, frac):
             y = sp['y'].to_numpy()[ok]
             cl = sp['cluster'].to_numpy()[ok]
             outs = [scr.pooled_screen(p[ok], y, cl, frac, tau, B, seed=5) for p in fr.preds[k]]
-            reps = np.mean([o['reps'] for o in outs], axis=0)
+            n_seeds = len(outs)
+            if n_seeds == 1:
+                reps = outs[0]['reps']
+            else:
+                sw = np.random.default_rng(17).multinomial(n_seeds, np.full(n_seeds, 1.0 / n_seeds), size=B).astype(float) / n_seeds
+                reps = np.einsum('sbm,bs->bm', np.stack([o['reps'] for o in outs], axis=0), sw)
             base = np.mean([o['base'] for o in outs], axis=0)
             reps_store[(ds, fam)] = reps
             for j, m in enumerate(('hit_rate', 'best', 'base_rate', 'gain')):
@@ -105,42 +137,47 @@ def fig_pooled(P, reps_store, tau, frac):
     style.save(fig, OUT / 'screening_pooled_external')
 
 
-def per_protein(ds, Ks, tau, B):
+FAM_LABEL_SINGLES = {'msr': 'ESM-MSR (WT head)', 'me': 'MutateEverything (st1)', 'tm': 'ThermoMPNN', 'spurs': 'SPURS (single)'}
+FAM_LABEL_COMPOSITE = {'msr': 'ESM-MSR (WT | comb)', 'me': 'MutateEverything (st1 | st2)', 'tm': 'ThermoMPNN (single | -D)', 'spurs': 'SPURS (single | multi)'}
+
+
+def per_protein(ds, Ks, tau, B, exclude_groups=None, mode='default'):
     fr = load_frame(ds)
     sp = fr.spine
+    keep = ~sp['group'].astype(str).isin(exclude_groups).to_numpy() if exclude_groups else np.ones(len(sp), dtype=bool)
+    if mode == 'singles':
+        keep = keep & (sp['n_mut'].to_numpy() == 1)
     rows = []
     for fam in FAM:
-        k = fam_key(fam, fr)
+        k = fam_key(fam, fr, mode=mode)
         if k is None:
             continue
-        ok = sp['use'].to_numpy() & np.isfinite(fr.preds[k]).all(axis=0)
+        ok = sp['use'].to_numpy() & keep & np.isfinite(fr.preds[k]).all(axis=0)
         y = sp['y'].to_numpy()[ok]
         g = sp['group'].to_numpy()[ok]
         for K in Ks:
             tabs = [scr.per_protein_table(g, p[ok], y, K, tau) for p in fr.preds[k]]
-            tab = tabs[0].copy()
-            for c in ('hit', 'rec', 'best', 'oracle', 'rand_best', 'rand_rec', 'rand_hit'):
-                tab[c] = np.mean([t[c].to_numpy() for t in tabs], axis=0)
-            res = scr.boot_summary(tab, B=B, seed=K)
+            res = scr.boot_summary(tabs, B=B, seed=K)
             for m, (v, lo, hi) in res.items():
-                rows.append(dict(dataset=ds, family=fam, key=k, K=K, metric=m, value=v, lo=lo, hi=hi, n_proteins=len(tab)))
+                rows.append(dict(dataset=ds, family=fam, key=k, K=K, metric=m, value=v, lo=lo, hi=hi, n_proteins=len(tabs[0])))
     return pd.DataFrame(rows)
 
 
-def fig_per_protein(D, tau):
-    tau_of = lambda ds: TAU_DS.get(ds, tau)
+def fig_per_protein(D, tau, stem='screening_per_protein', mode='default'):
     sets = list(D.dataset.unique())
     fig, axes = plt.subplots(len(sets), 3, figsize=(12, 3.4 * len(sets)))
     axes = np.atleast_2d(axes)
+    flab = FAM_LABEL_SINGLES if mode == 'singles' else (FAM_LABEL_COMPOSITE if mode == 'composite' else FAM_LABEL)
     for r, ds in enumerate(sets):
         d = D[D.dataset == ds]
-        for c, (metric, yl, ref) in enumerate((('hit_rate', f'hit rate (> {tau_of(ds)})', 'rand_hit'), ('p_recover', f'P(at least one hit in top K)', 'rand_rec'),
+        hr_yl = 'hit rate (abundance > wild type)' if ds == 'domainome' else f'hit rate (>{tau:g} kcal/mol)'
+        for c, (metric, yl, ref) in enumerate((('hit_rate', hr_yl, 'rand_hit'), ('p_recover', 'P(at least one hit in top K)', 'rand_rec'),
                                                ('best', 'best measured value in top K', 'rand_best'))):
             ax = axes[r, c]
             for f in FAM:
                 x = d[(d.family == f) & (d.metric == metric)].sort_values('K')
                 col = style.style_of(FAM_STYLE[f] if f != 'msr' else 'msr')['color']
-                ax.plot(x.K, x.value, color=col, lw=2.2 if f == 'msr' else 1.3, marker=style.style_of(FAM_STYLE[f] if f != 'msr' else 'msr')['marker'], ms=4.5, label=FAM_LABEL[f], zorder=4 if f == 'msr' else 3)
+                ax.plot(x.K, x.value, color=col, lw=2.2 if f == 'msr' else 1.3, marker=style.style_of(FAM_STYLE[f] if f != 'msr' else 'msr')['marker'], ms=4.5, label=flab[f], zorder=4 if f == 'msr' else 3)
                 ax.fill_between(x.K, x.lo, x.hi, color=col, alpha=.12, lw=0)
             rr = d[(d.family == 'msr') & (d.metric == ref)].sort_values('K')
             ax.plot(rr.K, rr.value, color='#c0392b', ls='--', lw=1.1, label='random picks')
@@ -150,11 +187,13 @@ def fig_per_protein(D, tau):
             ax.set_xscale('log'); ax.set_xlabel('variants screened per protein (K)'); ax.set_ylabel(yl)
             ax.set_xticks(sorted(d.K.unique())); ax.set_xticklabels(sorted(d.K.unique()))
             if c == 0:
-                ax.set_title(f'{LABEL[ds]}  ({int(d.n_proteins.iloc[0])} proteins)', loc='left')
+                sub_note = ' [singles only]' if (mode == 'singles' and ds == 'tsuboyama_capped_test') else (
+                           ' [singles: single model | doubles: multi model]' if (mode == 'composite' and ds == 'tsuboyama_capped_test') else '')
+                ax.set_title(f'{LABEL[ds]}{sub_note}  ({int(d.n_proteins.iloc[0])} proteins)', loc='left')
             if r == 0 and c == 2:
                 ax.legend(fontsize=7.5, loc='lower right')
     fig.tight_layout()
-    style.save(fig, OUT / 'screening_per_protein')
+    style.save(fig, OUT / stem)
 
 
 def main():
@@ -174,13 +213,20 @@ def main():
                 d = reps[(ds, 'msr')][:, 0] - reps[(ds, f)][:, 0]
                 rows.append(dict(dataset=ds, baseline=f, d_hit_rate=float(np.nanmean(d)), lo=float(np.nanquantile(d, .025)), hi=float(np.nanquantile(d, .975))))
     pd.DataFrame(rows).to_csv(OUT / 'screening_pooled_paired_diff.csv', index=False, float_format='%.4f')
-    D = pd.concat([per_protein('tsuboyama_capped_test', [1, 3, 5, 10, 20, 50], a.tau, a.B),
-                   per_protein('domainome', [1, 3, 5, 10, 20, 50], TAU_DS['domainome'], a.B)])
-    D.to_csv(OUT / 'screening_per_protein.csv', index=False, float_format='%.4f')
-    fig_per_protein(D, a.tau)
+    ks = [1, 3, 5, 10, 20, 50, 100]
+    dom_exclude = domainome_overlap_domains()
+    dom_df = per_protein('domainome', ks, TAU_DS['domainome'], a.B, exclude_groups=dom_exclude, mode='default')
+    for mode, stem in (('default', 'screening_per_protein'),
+                       ('singles', 'screening_per_protein_singles'),
+                       ('composite', 'screening_per_protein_composite')):
+        tsu_df = per_protein('tsuboyama_capped_test', ks, a.tau, a.B, mode=mode)
+        D = pd.concat([tsu_df, dom_df], ignore_index=True)
+        D.to_csv(OUT / f'{stem}.csv', index=False, float_format='%.4f')
+        fig_per_protein(D, a.tau, stem=stem, mode=mode)
+        print(f'=== {stem} (K=10) ===')
+        print(D[(D.metric.isin(['hit_rate', 'p_recover'])) & (D.K == 10)].pivot_table(index=['dataset', 'metric'], columns='family', values='value').round(3))
     print(P[P.metric == 'hit_rate'].pivot_table(index='family', columns='dataset', values='value')[POOLED_SETS].round(3).to_string())
     print(P[P.metric == 'base_rate'].groupby('dataset').value.first().round(3).to_dict())
-    print(D[(D.metric.isin(['hit_rate', 'p_recover'])) & (D.K == 10)].pivot_table(index=['dataset', 'metric'], columns='family', values='value').round(3))
 
 
 if __name__ == '__main__':
