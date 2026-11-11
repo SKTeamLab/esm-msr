@@ -676,7 +676,8 @@ def main(args):
 
     ds = MegaScaleDatasetPreprocessor(
         data_file=os.path.join(DATA_ROOT, 'tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv'), 
-        af_model_folder=os.path.join(DATA_ROOT, 'tsuboyama/AlphaFold_model_PDBs')
+        af_model_folder=os.path.join(DATA_ROOT, 'tsuboyama/AlphaFold_model_PDBs'),
+        censor_range=args.censor_range,
     )
     df = ds.df
     ref = df.groupby('code_wt').first().reset_index()
@@ -816,7 +817,11 @@ def main(args):
         with open(os.path.join(REPO_ROOT, 'data', f'{args.output}.pkl'), 'wb') as f: pickle.dump(splits, f)
 
     split_file_path = args.input_split if args.input_split else os.path.join(REPO_ROOT, 'data', f'{args.output}.pkl')
-    ds_post = MegaScaleDatasetPreprocessor(data_file=os.path.join(DATA_ROOT, 'tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv'), af_model_folder=os.path.join(DATA_ROOT, 'tsuboyama/AlphaFold_model_PDBs'))
+    ds_post = MegaScaleDatasetPreprocessor(
+        data_file=os.path.join(DATA_ROOT, 'tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv'),
+        af_model_folder=os.path.join(DATA_ROOT, 'tsuboyama/AlphaFold_model_PDBs'),
+        censor_range=args.censor_range,
+    )
     post_processed_splits = ds_post.create_training_splits(str(split_file_path), -1)
     splits.update({k: post_processed_splits[k] for k in ['train', 'val', 'test']})
 
@@ -992,6 +997,8 @@ if __name__ == "__main__":
         parser.add_argument('--max_component_frac', type=float, default=0.25,
                             help='Clusters with more libraries than this fraction of the test library target go to train (and are candidates for bridge pruning).')
         parser.add_argument('--n_restarts', type=int, default=2000)
+        parser.add_argument('--censor_range', action='store_true', default=False,
+                            help='Include assay-bounded censored rows when computing library variant strata (default: False, matching splits_oct06_capped.pkl).')
 
         args = parser.parse_args()
         main(args)

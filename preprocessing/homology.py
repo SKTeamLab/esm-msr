@@ -258,7 +258,7 @@ def prune_bridges(nodes: Iterable[str], edges: Iterable[Tuple[str, str]], max_co
     changed = True
     while changed:
         changed = False
-        for comp in sorted(nx.connected_components(g), key=len, reverse=True):
+        for comp in sorted(nx.connected_components(g), key=lambda c: (-len(c), sorted(c))):
             if len(comp) <= max_component_size:
                 continue
             sub = g.subgraph(comp)
@@ -270,8 +270,8 @@ def prune_bridges(nodes: Iterable[str], edges: Iterable[Tuple[str, str]], max_co
                 if len(fam) < min_family_size or not rest:
                     continue
                 k = nx.Graph(sub)
-                k.add_edges_from(('__src__', n) for n in fam)
-                k.add_edges_from(('__snk__', n) for n in rest)
+                k.add_edges_from(('__src__', n) for n in sorted(fam))
+                k.add_edges_from(('__snk__', n) for n in sorted(rest))
                 cut = nx.minimum_node_cut(k, '__src__', '__snk__')
                 if len(cut) <= max_cut_frac * len(fam) and (best is None or len(cut) < len(best)):
                     best = cut

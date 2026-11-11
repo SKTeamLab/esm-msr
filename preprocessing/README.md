@@ -45,7 +45,6 @@ External thermostability benchmarks (`s669`, `ssym`, `q3421`, `k3822`, `fireprot
 ```bash
 PYTHONPATH=src python -m esm_msr.preprocess \
     --dataset s669 \
-    --data_root data \
     --output data/preprocessed
 ```
 
@@ -101,33 +100,31 @@ python preprocessing/pgym_preprocess.py \
     --out pgym_inputs
 ```
 
-For multi-fragment proteins >2,700 aa (`BRCA2_HUMAN`, `TTN_HUMAN`, etc.), `pgym_preprocess.py` automatically selects the overlapping AlphaFold2 fragment and applies the appropriate residue coordinate offset, emitting `pgym_inputs/<DMS_id>.csv` and `pgym_inputs/manifest.csv` for `inference_scripts/esm_msr_proteingym.py` and baseline scorers.
+For multi-fragment proteins >2,700 aa (`BRCA2_HUMAN`, `TTN_HUMAN`, etc.), `pgym_preprocess.py` automatically selects the overlapping AlphaFold2 fragment and applies the appropriate residue coordinate offset, emitting `pgym_inputs/<DMS_id>.csv` and `pgym_inputs/manifest.csv` for `inference_scripts/esm_msr_testing.py --protein_gym` and baseline scorers.
 
 ---
 
 ## 5. Homology-Controlled MegaScale Splits & Overlap Auditing
 
-MegaScale train/validation/test splits (`data/splits_oct06_capped.pkl`) exclude homologs of held-out benchmarks (`s669`, `ssym`, `fireprot`, `k3822`, `q3421`, `ptmul`, `gb1`, `trpb`, `ube4b`, `avgfp`, `pab1`, `bgl3`, `domainome1`) using sequence search (`mmseqs`), structure alignment (`foldseek`), exact BLOSUM62 local Smith–Waterman verification, and connected-component bridge pruning (`preprocessing/homology.py`).
+MegaScale train/validation/test splits (`data/splits_oct06_capped.pkl`) exclude homologs of held-out thermostability and functional benchmarks using sequence search (`mmseqs`), structure alignment (`foldseek`), exact BLOSUM62 local Smith–Waterman verification, and connected-component bridge pruning (`preprocessing/homology.py`).
 
-Requires external CLI binaries `mmseqs` and `foldseek` on `PATH`:
+Requires external CLI binaries `mmseqs` (MMseqs2) and `foldseek`. Running with default parameters (`censor_range=False`, `--homology both`, `--seq_evalue 1e-3`, `--struct_evalue 1e-3`, `--max_identity 0.40`, `--max_tm 0.70`, `--tm_norm max`, `--seed 42`) reproduces `data/splits_oct06_capped.pkl`, `data/splits_oct06_capped.csv`, and `data/splits_oct06_capped_library_assignment.csv` byte-for-byte:
 
 ```bash
-python preprocessing/split_tsuboyama.py \
+PYTHONPATH=src:preprocessing python preprocessing/split_tsuboyama.py \
+    --output splits_oct06_capped \
     --data_root data \
-    --holdouts s669,ssym,fireprot,k3822,q3421,ptmul,gb1,trpb,ube4b,avgfp,pab1,bgl3,domainome1 \
-    --seq_pident 0.25 \
-    --tm_thresh 0.5 \
-    --prune_bridges \
-    --output data/splits_oct06_capped.pkl
+    --mmseqs_bin mmseqs \
+    --foldseek_bin foldseek
 ```
 
-To audit any existing split pickle/CSV against held-out benchmarks without regenerating splits:
+To audit one or more split pickles against the pairwise homology table emitted by `split_tsuboyama.py`:
 
 ```bash
-python preprocessing/split_overlap_report.py \
-    --split_file data/splits_oct06_capped.pkl \
-    --data_root data \
-    --benchmarks s669,ssym,k3822,q3421,ptmul,domainome1 \
+PYTHONPATH=src:preprocessing python preprocessing/split_overlap_report.py \
+    --pairs data/splits_oct06_capped_homology_pairs.csv \
+    --library_table data/splits_oct06_capped_library_assignment.csv \
+    --splits capped=data/splits_oct06_capped.pkl \
     --out_prefix data/split_overlap_audit
 ```
 
