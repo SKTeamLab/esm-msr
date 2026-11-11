@@ -47,7 +47,7 @@ def run_multi_mutation_additive_prediction(model, model_path, cfg, prefix, max_m
         max_mutations: Maximum number of mutations to handle (default: 10)
     """
     # Create output directory
-    os.makedirs(REPO_ROOT / 'analysis_notebooks' / f'predictions/PTMUL/thermompnnd', exist_ok=True)
+    os.makedirs(REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/PTMUL/thermompnnd', exist_ok=True)
     
     # Set base configuration
     cfg.training.batch_size = 1
@@ -430,7 +430,7 @@ def split_and_process_domainome(model, model_path, cfg, prefix, n_splits=5):
         n_splits: Number of splits to create
     """
     # Create output directory
-    output_dir = REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/thermompnnd/{model_path.split("/")[-1]+("_excl_destab" if args.excl_destab else "")}'
+    output_dir = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/domainome/thermompnnd/{model_path.split("/")[-1]+("_excl_destab" if args.excl_destab else "")}'
     os.makedirs(os.path.dirname(output_dir), exist_ok=True)
 
     # Read the original CSV file
@@ -660,12 +660,12 @@ def calculate_and_save_stats(eval_dfs, checkpoint_name, model_type, args):
 
         # Save the per-protein breakdown to an individual dataset directory
         safe_name = name.split('_')[0] if '-' in name else name # Simple sanitization for splits
-        prot_out_dir = REPO_ROOT / f'analysis_notebooks/stats/{safe_name}/thermompnnd/{checkpoint_name}'
+        prot_out_dir = REPO_ROOT / f'analysis/notebooks/stats/{safe_name}/thermompnnd/{checkpoint_name}'
         os.makedirs(prot_out_dir, exist_ok=True)
         stats_per_prot.to_csv(prot_out_dir / f'{model_type}{"_excl_destab" if args.excl_destab else ""}_per_protein_stats.csv', na_rep='', float_format='%.6f')
 
     # Save the global aggregated stats
-    out_stats_dir = REPO_ROOT / f'analysis_notebooks/stats/thermompnnd/{checkpoint_name}'
+    out_stats_dir = REPO_ROOT / f'analysis/notebooks/stats/thermompnnd/{checkpoint_name}'
     os.makedirs(out_stats_dir, exist_ok=True)
     stats_df.to_csv(out_stats_dir / f'{model_type}{"_excl_destab" if args.excl_destab else ""}_global_stats.csv', na_rep='', float_format='%.6f')
     print(f"\n--- Global Stats ({model_type}) ---")
@@ -796,7 +796,7 @@ def main(args):
     epi_eval_dfs = {}
 
     for name in ['s669', 'ssym', 'q3421', 'k3822', 's783', 's2648', 's8754', 's571']:
-        out_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/{name}/thermompnnd/{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
+        out_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{name}/thermompnnd/{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
         if not os.path.exists(out_path) or args.regenerate_results:
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             dataset = ddgBenchDatasetv3(cfg, csv_fname=os.path.join(data_prefix, f'preprocessed/{name}_mapped.csv'), pdb_dir=name)
@@ -838,7 +838,7 @@ def main(args):
         single_eval_dfs['k2369'] = new_df_k2369
 
     ########## DOMAINOME ################
-    domainome_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/thermompnnd/{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
+    domainome_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/domainome/thermompnnd/{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
     if not os.path.exists(domainome_path) or args.regenerate_results:
         df_preds_domainome = split_and_process_domainome(model, model_path, cfg, data_prefix)
     else:
@@ -862,7 +862,7 @@ def main(args):
             scaffold_ = 'val' if scaffold == 'validation' else 'test'
             
             # --- Megascale Singles ---
-            single_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold}/thermompnnd/{checkpoint_name+("_excl_destab" if args.excl_destab else "")}_singles.csv'
+            single_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{split_name}-{scaffold}/thermompnnd/{checkpoint_name+("_excl_destab" if args.excl_destab else "")}_singles.csv'
             if not os.path.exists(single_path) or args.regenerate_results:
                 os.makedirs(os.path.dirname(single_path), exist_ok=True)
                 cfg_mega_mut1.training.batch_size = 128
@@ -885,7 +885,7 @@ def main(args):
             single_eval_dfs[f'{split_name}-{scaffold}-s'.lower()] = df_preds_megascale_singles
 
             # --- Megascale Doubles Additive ---
-            additive_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold}/thermompnnd/additive_{checkpoint_name+("_excl_destab" if args.excl_destab else "")}_doubles.csv'
+            additive_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{split_name}-{scaffold}/thermompnnd/additive_{checkpoint_name+("_excl_destab" if args.excl_destab else "")}_doubles.csv'
             if not os.path.exists(additive_path) or args.regenerate_results:
                 os.makedirs(os.path.dirname(additive_path), exist_ok=True)
                 cfg_mega_mut1.training.batch_size = 128
@@ -922,7 +922,7 @@ def main(args):
             df_preds_megascale_doubles_additive['ddG_pred'] = df_preds_megascale_doubles_additive['ddG_pred_additive']
             results_megascale_combined = pd.concat([df_preds_megascale_singles, df_preds_megascale_doubles_additive], axis=0)
             
-            results_megascale_combined.to_csv(REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold}/thermompnnd/additive_{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv') 
+            results_megascale_combined.to_csv(REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{split_name}-{scaffold}/thermompnnd/additive_{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv') 
             single_eval_dfs[f'{split_name}-{scaffold}'.lower()] = results_megascale_combined
 
     ############## REPEAT WITH Fitness ################
@@ -943,7 +943,7 @@ def main(args):
         cfg_dms_mut1.data_loc.megascale_splits = f'/home/sareeves/software/esm-msr/data/preprocessed/{short_name}_splits.pkl'
         cfg_dms_mut1.data_loc.megascale_pdbs = '/home/sareeves/software/esm-msr/data/structures/'  
 
-        single_prot_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/thermompnnd/{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
+        single_prot_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{prot}/thermompnnd/{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
         if not os.path.exists(single_prot_path) or args.regenerate_results:
             os.makedirs(os.path.dirname(single_prot_path), exist_ok=True)
             cfg_dms_mut1.training.batch_size = 24
@@ -963,7 +963,7 @@ def main(args):
         else:
             df_preds_cur = pd.read_csv(single_prot_path, index_col=0) 
 
-        additive_prot_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/thermompnnd/additive_{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
+        additive_prot_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{prot}/thermompnnd/additive_{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
         if not os.path.exists(additive_prot_path) or args.regenerate_results:
             os.makedirs(os.path.dirname(additive_prot_path), exist_ok=True)
             cfg_dms_mut1.training.batch_size = 24
@@ -1003,7 +1003,7 @@ def main(args):
     cfg_nutschel.data_loc.megascale_splits = '/home/sareeves/software/esm-msr/data/preprocessed/esta_nutschel_splits.pkl'
     cfg_nutschel.data_loc.megascale_pdbs = '/home/sareeves/software/esm-msr/data/structures/'  
 
-    nutschel_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/ESTA_BACSU_Nutschel_2020_dTm/thermompnnd/{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
+    nutschel_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/ESTA_BACSU_Nutschel_2020_dTm/thermompnnd/{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
     if not os.path.exists(nutschel_path) or args.regenerate_results:
         os.makedirs(os.path.dirname(nutschel_path), exist_ok=True)
         cfg_nutschel.training.batch_size = 24
@@ -1026,7 +1026,7 @@ def main(args):
     single_eval_dfs['ESTA_BACSU_Nutschel_2020_dTm'] = df_preds_nutschel
 
     # --- PTMULD Additive ---
-    ptmuld_add_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/ptmuld/thermompnnd/additive_{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
+    ptmuld_add_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/ptmuld/thermompnnd/additive_{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
     if not os.path.exists(ptmuld_add_path) or args.regenerate_results:
         os.makedirs(os.path.dirname(ptmuld_add_path), exist_ok=True)
         cfg.training.batch_size = 1
@@ -1059,7 +1059,7 @@ def main(args):
     single_eval_dfs['PTMULD'.lower()] = results_1_ptmuld
 
     # --- PTMUL Additive ---
-    ptmul_add_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/PTMUL/thermompnnd/additive_{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
+    ptmul_add_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/PTMUL/thermompnnd/additive_{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
     if not os.path.exists(ptmul_add_path) or args.regenerate_results:
         results_1_ptmul = run_multi_mutation_additive_prediction(model, model_path, cfg, data_prefix, max_mutations=10)
         results_1_ptmul['ddG_pred_additive'] *= -1
@@ -1096,7 +1096,7 @@ def main(args):
 
             for scaffold in ['validation', 'test']:
                 scaffold_ = 'val' if scaffold == 'validation' else 'test'
-                epi_split_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold}/thermompnnd/{checkpoint_name_epi+("_excl_destab" if args.excl_destab else "")}.csv'
+                epi_split_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{split_name}-{scaffold}/thermompnnd/{checkpoint_name_epi+("_excl_destab" if args.excl_destab else "")}.csv'
                 
                 if not os.path.exists(epi_split_path) or args.regenerate_results:
                     os.makedirs(os.path.dirname(epi_split_path), exist_ok=True)
@@ -1136,7 +1136,7 @@ def main(args):
             cfg_dms_epi.data_loc.megascale_splits = f'/home/sareeves/software/esm-msr/data/preprocessed/{short_name}_splits.pkl'
             cfg_dms_epi.data_loc.megascale_pdbs = '/home/sareeves/software/esm-msr/data/structures/'  
 
-            epi_prot_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/thermompnnd/{checkpoint_name_epi+("_excl_destab" if args.excl_destab else "")}.csv'
+            epi_prot_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{prot}/thermompnnd/{checkpoint_name_epi+("_excl_destab" if args.excl_destab else "")}.csv'
             if not os.path.exists(epi_prot_path) or args.regenerate_results:
                 os.makedirs(os.path.dirname(epi_prot_path), exist_ok=True)
                 cfg_dms_epi.training.batch_size = 24
@@ -1158,7 +1158,7 @@ def main(args):
             epi_eval_dfs[prot] = results_cur_epistatic
 
         #########################################################
-        ptmuld_epi_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/ptmuld/thermompnnd/{checkpoint_name_epi+("_excl_destab" if args.excl_destab else "")}.csv'
+        ptmuld_epi_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/ptmuld/thermompnnd/{checkpoint_name_epi+("_excl_destab" if args.excl_destab else "")}.csv'
         if not os.path.exists(ptmuld_epi_path) or args.regenerate_results:
             cfg.training.batch_size = 1
             cfg.data.dataset = 'ptmul'
@@ -1183,7 +1183,7 @@ def main(args):
 
         # Additional DMS specific datasets
         #for name in ['D7PM05_CLYGR', 'GFP_AEQVI', 'HIS7_YEAST', 'Q6WV12_9MAXI', 'Q8WTC7_9CNID', 'RASK_HUMAN']:
-        #    extra_dms_path = REPO_ROOT / 'analysis_notebooks' / f'predictions/{name}/thermompnnd/{checkpoint_name_epi+("_excl_destab" if args.excl_destab else "")}.csv'
+        #    extra_dms_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{name}/thermompnnd/{checkpoint_name_epi+("_excl_destab" if args.excl_destab else "")}.csv'
         #    if not os.path.exists(extra_dms_path) or args.regenerate_results:
         #        os.makedirs(os.path.dirname(extra_dms_path), exist_ok=True)
         #        cfg.training.batch_size = 32

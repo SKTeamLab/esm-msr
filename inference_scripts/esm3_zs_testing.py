@@ -112,7 +112,7 @@ def calculate_and_save_stats(eval_dfs, checkpoint_name, category_name, args):
                 pass
         
         safe_name = name.replace('/', '_')
-        prot_out_dir = REPO_ROOT / f'analysis_notebooks/stats/{safe_name}/esm3_forge/{checkpoint_name}'
+        prot_out_dir = REPO_ROOT / f'analysis/notebooks/stats/{safe_name}/esm3_forge/{checkpoint_name}'
         os.makedirs(prot_out_dir, exist_ok=True)
         stats_per_prot.to_csv(prot_out_dir / 'per_protein_stats.csv')
         
@@ -120,7 +120,7 @@ def calculate_and_save_stats(eval_dfs, checkpoint_name, category_name, args):
         if args.split and str(args.split) in name:
             stats_per_prot.mean(axis=0).to_csv(prot_out_dir / 'avg_stats.csv')
 
-    out_stats_dir = REPO_ROOT / f'analysis_notebooks/stats/esm3_forge/{checkpoint_name}'
+    out_stats_dir = REPO_ROOT / f'analysis/notebooks/stats/esm3_forge/{checkpoint_name}'
     os.makedirs(out_stats_dir, exist_ok=True)
     stats_df.to_csv(out_stats_dir / f'{category_name}_global_stats.csv')
     print(f"\n--- Global Stats ({category_name}) ---")
@@ -789,7 +789,7 @@ def main_(args):
 
                 res_masked = pd.concat(res_masked_list, axis=0)
                 
-                out_dir = REPO_ROOT / 'analysis_notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/esm3_forge/{CHECKPOINT}'
+                out_dir = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{name if name!= "ptmul" else "PTMUL"}/esm3_forge/{CHECKPOINT}'
                 os.makedirs(out_dir, exist_ok=True)
                 res_masked.to_csv(out_dir / f'predictions{"_masked" if args.use_masks else "_unmasked"}.csv')
 
@@ -812,7 +812,7 @@ def main_(args):
             scaffold_ = {'validation': 'val', 'testing': 'test'}[scaffold]
             tsu_dfs = {}
             
-            out_dir = REPO_ROOT / 'analysis_notebooks' / f'predictions/{split_name}-{scaffold_}/esm3_forge/{CHECKPOINT}'
+            out_dir = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{split_name}-{scaffold_}/esm3_forge/{CHECKPOINT}'
             if not os.path.exists(out_dir / f'predictions{"_masked" if args.use_masks else "_unmasked"}.csv'):
                 results_masked = []
 
@@ -881,7 +881,7 @@ def main_(args):
         dms_dfs = {}
     
         for prot in prots:
-            out_dir = REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/esm3_forge/{CHECKPOINT}'
+            out_dir = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{prot}/esm3_forge/{CHECKPOINT}'
             if os.path.exists(out_dir / f'predictions{"_masked" if args.use_masks else "_unmasked"}.csv'):
                 res_masked = pd.read_csv(out_dir / f'predictions{"_masked" if args.use_masks else "_unmasked"}.csv', index_col=0)
             else:          
@@ -952,7 +952,7 @@ def main_(args):
         df['chain'] = 'A'
         
         dom_dfs = {}
-        out_dir = REPO_ROOT / 'analysis_notebooks' / f'predictions/domainome/esm3_forge/{CHECKPOINT}'
+        out_dir = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/domainome/esm3_forge/{CHECKPOINT}'
         
         if os.path.exists(out_dir / f'predictions{"_masked" if args.use_masks else "_unmasked"}.csv'):
             results_masked_out = pd.read_csv(out_dir / f'predictions{"_masked" if args.use_masks else "_unmasked"}.csv', index_col=0)
@@ -984,7 +984,7 @@ def main_(args):
         func_dfs = {}
 
         for mem_size, prot in zip([8,8,8,8,8,8], test_list_DMS):
-            out_dir = REPO_ROOT / 'analysis_notebooks' / f'predictions/{prot}/esm3_forge/{CHECKPOINT}'
+            out_dir = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/{prot}/esm3_forge/{CHECKPOINT}'
             if os.path.exists(out_dir / f'predictions{"_masked" if args.use_masks else "_unmasked"}.csv'):
                 res = pd.read_csv(out_dir / f'predictions{"_masked" if args.use_masks else "_unmasked"}.csv', index_col=0)
             else:

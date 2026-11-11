@@ -12,7 +12,7 @@ write it (its MT pass is the MT adapter), so this launcher runs that script UNCH
          mt_lora_pred  = ~WT                    (the reverse leg alone)
          combined_pred = (WT + ~WT)/2           (ctx)
      so a downstream scorer reads them with its usual head columns: 'mt' = ~WT alone, 'comb' = ctx.
-  2. Outputs go under OUT (default outputs/ctx_run/) instead of analysis_notebooks/, so no existing prediction or stats
+  2. Outputs go under OUT (default outputs/ctx_run/) instead of analysis/notebooks/, so no existing prediction or stats
      file can be overwritten. Inputs resolve exactly as in the original.
 
 Usage (same arguments as esm_msr_testing.py, through the pdbfixer/openmm stubs of baselines/run_msr_testing.py):
@@ -57,8 +57,8 @@ def forward_batch_ctx(self, batch_in, cached_wt_esm3=None, skip_reverse=False, m
 models.MSRModel.forward_batch = forward_batch_ctx
 
 src = TARGET.read_text()
-root = "REPO_ROOT / 'analysis_notebooks'"
-assert src.count(root) >= 8, f'expected the output paths of esm_msr_testing.py, found {src.count(root)}'
+root = "REPO_ROOT / 'analysis' / 'notebooks'"
+assert src.count(root) == 1, f'expected the output path of esm_msr_testing.py, found {src.count(root)}'
 src = src.replace(root, f'Path({str(OUT)!r})')
 if os.environ.get('CTX_SMOKE'):
     loop = "for code in tqdm(data_scaffold['code_wt'].unique()):"

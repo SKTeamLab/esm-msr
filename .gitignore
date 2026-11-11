@@ -1,8 +1,10 @@
 __pycache__/
 *.py[cod]
 
-# bootstrap_external.py merged-prediction cache
-analysis_notebooks/bootstrap_external_results/_cache/
+# Untracked notebook prediction / stats / resource outputs
+/analysis/notebooks/predictions/
+/analysis/notebooks/resources/
+/analysis/notebooks/stats/
 
 # Python
 *.pyc

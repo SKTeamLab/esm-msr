@@ -258,9 +258,9 @@ def main_(args):
         args.batch_mode, args.no_resource_tracking = 'auto', True
 
     CHECKPOINT_STR = str(args.checkpoint) if args.checkpoint else "zeroshot"
-    # a --max_proteins subset must never share a file name with a real run (analysis_notebooks/{predictions,stats,resources})
+    # a --max_proteins subset must never share a file name with a real run (analysis/notebooks/{predictions,stats,resources})
     OUT_STR = CHECKPOINT_STR + (f"_smoke{args.max_proteins}" if args.max_proteins else "")
-    ANALYSIS = Path(args.analysis_root) if args.analysis_root else REPO_ROOT / 'analysis_notebooks'      # where predictions/, stats/ and resources/ go
+    ANALYSIS = Path(args.analysis_root) if args.analysis_root else REPO_ROOT / 'analysis' / 'notebooks'      # where predictions/, stats/ and resources/ go
 
     print('\n\n\n\n\n')
     print(f"Running Inference for Checkpoint: {CHECKPOINT_STR}")
@@ -797,7 +797,7 @@ if __name__ == "__main__":
 
         # ProteinGym (all-DMS) benchmark mode
         parser.add_argument('--analysis_root', default=None,
-                            help='directory for predictions/, stats/ and resources/ (default: <repo>/analysis_notebooks, where a real run '
+                            help='directory for predictions/, stats/ and resources/ (default: <repo>/analysis/notebooks, where a real run '
                                  'of the same checkpoint would overwrite files of the same name)')
         parser.add_argument('--max_proteins', type=int, default=0,
                             help='Smoke test: only the first N proteins of every external set / Tsuboyama split / Domainome and the first N DMS assays (0 = all). Writes partial outputs: use a checkpoint path nobody else reads.')
