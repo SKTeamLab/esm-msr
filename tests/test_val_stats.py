@@ -104,7 +104,7 @@ def test_the_ddg_metrics_a_library_reports():
     assert m['rho_wt'] == pytest.approx(stats.safe_spearman(wt, gt))
     for k in val_stats.AVG_LOGGED:
         assert k in m, k
-    obs = {'comb': comb + 1.0, 'wt': wt + 2.0}              # the observed scale, when the run's link was part of training
+    obs = {'comb': comb + 1.0, 'wt': wt + 2.0}              # optional observed-scale dict (e.g. from tobit_link)
     m2 = stats.compute_metrics(wt, mt, comb, gt, st, obs=obs)
     assert m2['rmse_combined'] > m['rmse_combined'] and m2['rmse_singles_wt'] > m['rmse_singles_wt'] and m2['rho_combined'] == m['rho_combined']
 

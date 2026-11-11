@@ -120,9 +120,9 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     * ``rho_combined``   - the reported two-path average, on measured items only (singles, doubles,
       native-background items).
     * ``rmse_combined``  - calibration of that average in kcal/mol. With ``obs`` (a dict whose ``comb`` holds the
-      predictions on the assay's OBSERVED scale, ``h(dG_wt + latent) - dG_wt``, for a model whose training used the
-      link) it is computed there, so it stays comparable with a model trained without the link; rank metrics
-      always use the latent scores, which ``h`` leaves alone because it is monotone.
+      predictions on the assay's OBSERVED scale, ``h(dG_wt + latent) - dG_wt``, where ``h`` is the Tobit expected
+      reading ``val_stats.tobit_link``) it is computed there; rank metrics always use the latent scores, which ``h``
+      leaves alone because it is monotone.
     * ``rho_wt`` - the WT head over every measured item, singles and multi-mutants together (the external summary's ``val_rho_wt_external``).
     * ``rmse_singles_wt`` - the WT head's calibration on the library's singles, on the observed scale like ``rmse_combined`` when ``obs`` carries ``wt``.
     * ``ndcg@k=96`` / ``ndcg>0`` - top-of-list retrieval for the WT head and the combined path.

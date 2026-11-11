@@ -11,7 +11,6 @@ Two sources set it, recorded in ``cens_src``:
 * ``SRC_FLOOR`` (2): the variant has a number, but that number is at or below ``--rank_censor_threshold``, a few tenths above the assay's floor.
   Such a measurement reports the floor rather than the variant: the composition model's error for that sequence, not its stability. Its
   order among its equally-dead peers is noise (the two proteases' rank agreement is 0.20 below dG 0) and its value is not the variant's.
-  (This used to be the item's own library floor, estimated per library; one threshold replaced it, ``docs/trim_audit.md`` §2.2.)
 
 * ``SRC_GAP`` (3): REMOVED. It censored a variant whose two protease fits disagreed by more than 2 kcal/mol. At the standing threshold it
   added almost nothing (92% of the rows it flags already sit below dG 0.5; what it alone caught was 0.2% of singles and 1.8% of doubles), so

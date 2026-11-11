@@ -3,10 +3,9 @@ Epistasis validation metrics: what a model has learned about how two substitutio
 other levels kept out of each level's number. Full argument, measurements and reading guide: docs/epistasis_metrics_report.html on the devel
 branch.
 
-This file is shared VERBATIM by claude/main-baseline and the devel branches - keep it that way, so neither has to resolve it against the other.
-It therefore assumes nothing about the link: the caller passes one (or None) and its arity decides what happens. A link taking only an absolute
-dG bends at one fixed knee (the baseline's assay clamp); one that also takes a per-item floor bends each double at its own library's floor (the
-devel branches' trainable link). Nor does it choose the population: see ``Table`` below.
+This module assumes only a 1-argument observation map ``link`` (or ``None``): specifically ``val_stats.tobit_link``,
+the expected reading under the noisy-floor Tobit observation model on absolute dG, ``observed = h(dG_wt + latent) - dG_wt``.
+Nor does it choose the population: see ``Table`` below.
 
 The data. Each validation double (residue a at position i < j, residue b at j) of a library with wild-type stability c = dG_wt has a measured
 ddG_AB, both measured singles ddG_A, ddG_B, and the usual epistasis score dddG = ddG_AB - ddG_A - ddG_B. Its ADDITIVE EXPECTATION is
@@ -185,15 +184,6 @@ def smooth_on(x, v, nbins: int = SMOOTH_BINS):
     return out
 
 
-def _takes_offset(link) -> bool:
-    """True when ``link`` accepts a per-item floor as its second argument, which the devel branches' link does and a fixed clamp does not."""
-    try:
-        link(np.zeros(1), np.zeros(1))
-        return True
-    except TypeError:
-        return False
-
-
 def _complete_block(M):
     """Row / column indices of a complete block of M (the most-missing row or column is dropped first), or None below MIN_BLOCK."""
     r, c = np.arange(M.shape[0]), np.arange(M.shape[1])
@@ -236,7 +226,7 @@ class Table:
           identify the library, so keys never pair across libraries), ``subset_type``, ``ddG`` (measured), ``dddG``
           (measured, doubles), ``dG_wt``, and the latent scores ``wt`` (WT pass), ``mt`` (MT pass), ``comb`` and optionally ``wt_rev`` (the WT
           adapter's reverse leg on the mutated sequence, forward sign; --val_cycle_passes).
-        ``link``: the run's monotone link h on ABSOLUTE dG (numpy), or None. Observed = h(dG_wt + latent) - dG_wt.
+        ``link``: the Tobit expected-reading map ``h`` on ABSOLUTE dG (``val_stats.tobit_link``), or None. Observed = h(dG_wt + latent) - dG_wt.
         """
         keys = list(items['mut_key'])
         st = np.asarray([str(s) for s in items['subset_type']])
@@ -288,20 +278,8 @@ class Table:
         self.col = np.array([res_id.setdefault(('c', p, b), len(res_id)) for p, b in zip(self.pair, cols)], int)
         self.y, self.yA, self.yB, self.dddG, self.c = (gt[I], gt[IA], gt[IB], dddG[I], c[I]) if self.n else (np.array([]),) * 5
         self.x = self.c + self.yA + self.yB
-        # the observed scale: h(dG_wt + latent) - dG_wt. Where the link takes a per-item floor, each double bends at its own library's floor
-        # (that link clips a NaN floor into its band, so a library without one still gets a sane knee); otherwise it bends at the link's own knee.
-        fo = items.get('y_floor')
-        fo = np.asarray(fo, float) if fo is not None else None
-        if fo is None or len(fo) != n:                     # a field on_validation_epoch_end did not pool
-            self.floor_off = np.full(self.n, np.nan)
-        else:
-            self.floor_off = fo[I]
-        if link is None:
-            obs = lambda v, cc: v
-        elif _takes_offset(link):
-            obs = lambda v, cc: link(cc + v, self.floor_off) - cc
-        else:
-            obs = lambda v, cc: link(cc + v) - cc
+        # the observed scale: h(dG_wt + latent) - dG_wt via the Tobit expected reading (or identity when link is None).
+        obs = (lambda v, cc: v) if link is None else (lambda v, cc: link(cc + v) - cc)
         self.L, self.LA, self.LB, self.P, self.PA, self.PB, self.PX = ({} for _ in range(7))
         for h in self.heads:
             v = lat[h]

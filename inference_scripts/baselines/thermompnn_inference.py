@@ -31,10 +31,13 @@ Outputs under --out: predictions_{val,test}.csv, external_<set>.csv, dms_<assay>
 CSVs and summary.csv, and resources/<run_id>/.
 """
 import argparse
+import inspect
 import json
 import os
 import sys
 from pathlib import Path
+
+os.environ.setdefault('TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD', '1')
 
 import numpy as np
 import pandas as pd
@@ -92,15 +95,28 @@ class OctItemsDataset(MegaScaleDatasetv2):
         df_list = [df]
         if 'double-aug' in cfg.data.mut_types:
             tmp = items.loc[(items['kind'] == 'single')].reset_index(drop=True)
-            has_model = tmp.apply(lambda r: os.path.isfile(os.path.join(
-                ROSETTA, r['code'], 'pdb_models', f"A[{r['mut_type']}].pdb")), axis=1)
+            pdb_sets = {}
+            for code in tmp['code'].unique():
+                d = os.path.join(ROSETTA, code, 'pdb_models')
+                if os.path.isdir(d):
+                    pdb_sets[code] = set(os.listdir(d))
+                    os.makedirs(os.path.join(ROSETTA, code, 'pt_models'), exist_ok=True)
+                else:
+                    pdb_sets[code] = set()
+            has_model = pd.Series(
+                [f"A[{mt}].pdb" in pdb_sets[c] for c, mt in zip(tmp['code'], tmp['mut_type'])],
+                dtype=bool,
+            )
             print(f'[{split}] augmentation pool: {int(has_model.sum())} of {len(tmp)} WT-backbone singles have a Rosetta model')
             tmp = tmp.loc[has_model].reset_index(drop=True)
-            double_aug = self._augment_double_mutants(tmp, c=1)
-            print('Generated %s augmented double mutations' % str(double_aug.shape[0]))
-            double_aug['DIRECT'] = False
-            self.tmp = tmp
-            df_list.append(double_aug)
+            if len(tmp):
+                double_aug = self._augment_double_mutants(tmp, c=1)
+                print('Generated %s augmented double mutations' % str(double_aug.shape[0]))
+                double_aug['DIRECT'] = False
+                self.tmp = tmp
+                df_list.append(double_aug)
+            else:
+                print(f'[{split}] WARNING: no Rosetta single-mutant models found under {ROSETTA}; skipping double-aug')
         self.df = pd.concat(df_list, axis=0).sort_values(by='WT_name').reset_index(drop=True)
         print(f'[{split}] {len(self.df)} rows ({int(self.df.DIRECT.sum())} direct) over {len(self.wt_names)} libraries')
         self._sort_dataset()
@@ -122,6 +138,16 @@ def train(args):
     from torch.utils.data import DataLoader
     from thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
 
+    rlrop = torch.optim.lr_scheduler.ReduceLROnPlateau
+    if 'verbose' not in inspect.signature(rlrop.__init__).parameters:
+        orig_init = rlrop.__init__
+
+        def _compat_init(self, *a, **kw):
+            kw.pop('verbose', None)
+            return orig_init(self, *a, **kw)
+
+        rlrop.__init__ = _compat_init
+
     pl.seed_everything(args.seed, workers=True)
     cfg = load_cfg(args.model, args.seed, paths.variant_info(DATA).get('name'))
     if args.num_workers is not None:
@@ -136,10 +162,13 @@ def train(args):
 
     train_ds, val_ds = OctItemsDataset(cfg, 'train'), OctItemsDataset(cfg, 'val')
     collate = lambda b: tied_featurize_mut(b, side_chains=cfg.data.side_chains)  # noqa: E731
+    nw = cfg.training.num_workers
     train_loader = DataLoader(train_ds, collate_fn=collate, shuffle=cfg.training.shuffle,
-                              num_workers=cfg.training.num_workers, batch_size=cfg.training.batch_size)
+                              num_workers=nw, batch_size=cfg.training.batch_size,
+                              pin_memory=True, persistent_workers=(nw > 0))
     val_loader = DataLoader(val_ds, collate_fn=collate, shuffle=False,
-                            num_workers=cfg.training.num_workers, batch_size=cfg.training.batch_size)
+                            num_workers=nw, batch_size=cfg.training.batch_size,
+                            pin_memory=True, persistent_workers=(nw > 0))
     model_pl = TransferModelPLv2Siamese(cfg) if cfg.model.aggregation == 'siamese' else TransferModelPLv2(cfg)
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, 'train_data.json'), 'w') as f:      # a Lightning checkpoint does not say which tables it was trained on

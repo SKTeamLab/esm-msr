@@ -18,9 +18,9 @@ def parse(*extra, base=BASE):
 
 @pytest.mark.parametrize('flag', [
     '--block_training', '--block_identity', '--block_rank_norm', '--censor_threshold', '--cycle_detach_wt', '--drop_last', '--freeze_after_decays', '--fused_antisymmetric',
-    '--grad_clip_per_head', '--huber_delta', '--joint_doubles', '--lambda_cycle', '--link_kind', '--link_tau', '--lora_mode', '--monitor_metric', '--mt_direct_pred',
+    '--grad_clip_per_head', '--huber_delta', '--joint_doubles', '--lambda_cycle', '--lora_mode', '--monitor_metric', '--mt_direct_pred',
     '--per_mutation_bias', '--plateau_factor', '--lr_schedule', '--rank_calibrated_stopgrad', '--rank_group_by', '--tf_detach_wt',
-    '--tf_no_label', '--y_floor', '--adapter_mode', '--reg_nll', '--mt_single_loss_weight', '--mask_strategy_wt', '--mask_strategy_mt', '--batch_size', '--micro_batch_size',
+    '--tf_no_label', '--adapter_mode', '--reg_nll', '--mt_single_loss_weight', '--mask_strategy_wt', '--mask_strategy_mt', '--batch_size', '--micro_batch_size',
     '--min_batch_size', '--skip_val', '--val_every_epochs', '--val_dump', '--val_unmasked', '--val_masked', '--val_masking_strategy', '--val_cycle_passes', '--val_tobit_link',
     '--external_val_sets', '--subsets', '--censor_range', '--calib_lr_mult', '--grad_clip_norm', '--cosine_min_lr_ratio', '--tie_mt_scale',
     '--freeze_wt_adapter', '--freeze_mt_adapter', '--frozen_wt_mt_only', '--init_wt_from_checkpoint', '--val_wt_only', '--wt_supervise_doubles', '--weight_decay'])

@@ -326,10 +326,8 @@ regression moves the validation flip score so little.
 1. **Add a per-pair flip metric to validation** (one matrix per position pair, columns indexed by
    partner residue only), log it beside `val_rho_flip`, and select checkpoints on it. This removes
    the position-specific component. It is a small change to `stats.flip_signature_rho`.
-2. **Move the nonlinearity out of the regression.** Replace the linear calibration with a monotone
-   saturating link on (ΔG_wt + latent additive sum + MT term). The assay floor then becomes part of the
-   measurement model instead of something the MT head has to imitate, and it pairs naturally with the
-   censored loss.
+2. **Move the nonlinearity into the observation model.** Model the assay floor explicitly on
+   (ΔG_wt + latent additive sum + MT term) via a Tobit floor likelihood rather than forcing the MT head to imitate floor truncation.
 3. **Train the interaction head on the residual** after the identity-independent terms (the
    deviation-targeted loss), or project the MT head's output onto the interaction subspace.
 4. **Noise: done as far as the table allows.** The table holds replicate rows for 4,552 mutants (Section 2), which settle the noise at about
@@ -339,9 +337,7 @@ regression moves the validation flip score so little.
 
 ---
 
-**Status.** Steps 1 to 3 are implemented behind flags (training handoff §2f): `val_rho_flip_pair`, `--link softclamp`, and the interaction-only loss
-(`--lambda_int_mt` with `--flip_pair_groups` and `--flip_align_units`), plus `decompose_predictions.py` to check what a model's predictions capture. None has been
-run on a GPU yet. Step 4 is done as far as the table allows (Section 2).
+**Status.** Step 4 is done as far as the table allows (Section 2).
 
 ## 7. Caveats
 

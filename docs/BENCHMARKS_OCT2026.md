@@ -858,9 +858,7 @@ Paired against the released checkpoint over the 213 common DMS (3 seeds × 4 σ,
    has to predict the superset. The link is exact for *predictions* (same code, mutation, reference sequence and PDB
    on every child row) but not for *labels*: S461 revised 40 of its 461 labels (12 sign flips) and PTMUL-D differs
    from PTMUL on 41 of 536, so a child is always scored against its own labels.
-8. **The link is applied in training only.** For link-trained checkpoints (devel), `esm_msr_testing.py` writes
-   *latent* ddG; `epi_baselines.msr_link` rebuilds the link from the checkpoint for the observed-scale epistasis
-   metrics. Rank metrics within a dataset are unaffected.
+8. **Inference outputs latent ddG.** `esm_msr_testing.py` writes calibrated *latent* ddG; rank metrics within a dataset are invariant to any monotone observation map.
 9. **Check the label column, and link by variant, before trusting a statistic from someone else's prediction
    file.** The ESM3 Forge files carry no label for 343 of PTMUL's 914 rows (all triple-or-higher mutants), so their
    own statistics silently score the 571 doubles; the numbers here score all 914 against the harness labels. Their

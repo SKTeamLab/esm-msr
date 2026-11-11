@@ -17,7 +17,7 @@ def _pooled():
     z = np.zeros(n)
     return {'mut_key': keys, 'subset_type': ['single', 'single', 'double'] * 2, 'cens': z.astype(int), 'cens_src': z.astype(int),
             'ground_truths': np.array([0.5, -0.2, 0.1, 0.3, 0.2, 0.9]), 'dddG': np.array([np.nan, np.nan, -0.2, np.nan, np.nan, 0.4]),
-            'dG_wt': np.full(n, 2.0), 'y_floor': np.zeros(n), 'wt_scores': np.arange(n) * 0.1, 'mt_scores': np.arange(n) * 0.2, 'comb_scores': np.arange(n) * 0.15,
+            'dG_wt': np.full(n, 2.0), 'wt_scores': np.arange(n) * 0.1, 'mt_scores': np.arange(n) * 0.2, 'comb_scores': np.arange(n) * 0.15,
             'wt_rev_scores': z, 'n_mut': np.array([1, 1, 2] * 2), 'loader': ['L'] * n}
 
 

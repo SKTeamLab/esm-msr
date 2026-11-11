@@ -84,7 +84,7 @@ def test_collapse_replicates_keeps_the_declared_censoring():
 
 def _item(**kw):
     base = dict(subset_type='double', cens=0, cens_src=SRC_NONE, dG_bound=float('nan'),
-                dG_meas=float('nan'), y_floor=float('nan'), protease_gap=float('nan'), ddG=float('nan'))
+                dG_meas=float('nan'), protease_gap=float('nan'), ddG=float('nan'))
     base.update(kw)
     return base
 
@@ -101,7 +101,7 @@ def test_a_range_item_keeps_its_bound_as_its_own_label():
 def test_the_threshold_never_overwrites_an_assay_bound():
     """The threshold would fire on this item (dG -1 is below 0.5); the assay's own statement must win."""
     it = _item(cens=CENS_LO, cens_src=SRC_RANGE, dG_bound=DG_RANGE_LOW, dG_meas=DG_RANGE_LOW, ddG=-3.5,
-               y_floor=0.1, protease_gap=9.0)
+               protease_gap=9.0)
     (out,), counts = apply_item_censoring([it], threshold=0.5)
     assert out['cens_src'] == SRC_RANGE
     assert out['dG_bound'] == DG_RANGE_LOW
@@ -174,7 +174,7 @@ def test_wt_dG_is_the_exact_reference_the_labels_were_built_against():
 
 
 def test_wt_dG_makes_dG_wt_plus_ddG_equal_the_measurement():
-    """The identity the link depends on: its knee and the measurement must sit on one axis."""
+    """The identity the Tobit observation model depends on: dG_wt + ddG equals dG_meas."""
     from esm_msr.preprocess_megascale import MegaScaleDatasetPreprocessor
     df = pd.DataFrame({
         'WT_name': ['1ABC.pdb'] * 4, 'mut_type': ['wt', 'A1G', 'A2G', 'A3G'],

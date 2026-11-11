@@ -242,7 +242,7 @@ def pair_labels(b: dict, Xa: Sequence[int], Ya: Sequence[int], wi: int, wj: int)
     residues at i and j).
 
     The double cells come from the library's doubles; the identity row and column are the SINGLES at j and at i (cell (x, wt_j) is the single x
-    at i), and the wild type itself is 0. The library constants dG_wt and the floor are filled into every cell, so no cell hands the link a NaN.
+    at i), and the wild type itself is 0. The library constant dG_wt is filled into every cell so every cell carries a finite wild-type reference.
     Returns ``(lab, ident, full)``: ``lab`` the six label fields restricted to ``Xa`` x ``Ya``; ``ident`` marks the identity cells; ``full`` the
     same fields over the whole 20 x 20 alphabet, which the conditional legs index.
     """

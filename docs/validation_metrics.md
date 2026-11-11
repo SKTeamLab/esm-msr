@@ -53,7 +53,7 @@ travels with each run and with generated frozen-WT blocks.
 | ddG product | `val_rho_combined_avg` | ranking of all measured items by the reported prediction, mean over libraries | better |
 | | `val_rmse_combined_avg` | calibration of the reported prediction (observed scale, through the Tobit expected reading, for a `--reg_nll tobit` run), kcal/mol | worse |
 | | `val_rho_wt_valid_avg` | the WT head on singles (drives the WT plateau and `--wt_early_stop_patience`) | better |
-| epistasis, holistic | `val_epi_naive_rho_comb` | Spearman of predicted vs measured dddG, all doubles. **Mostly saturation under a link** | (summary only) |
+| epistasis, holistic | `val_epi_naive_rho_comb` | Spearman of predicted vs measured dddG, all doubles. **Mostly saturation under the Tobit observation map** | (summary only) |
 | | `val_epi_naive_rho_epi` | the same for the epistasis head | better |
 | | `val_epi_naive_rho_ctx` | the same for the context control | (control) |
 | | `val_epi_naive_rho_add` | the same for the saturation-only control | (control) |
@@ -115,10 +115,9 @@ predictor that knows only the saturation 0.71 (pair), 0.48 (line) and 0.10 (doub
 real validation set. Two devices remove it:
 
 * **Beyond-global residuals** (magnitude metrics: `beyond_rho`, `pair_rho`, `line_rho`, `cell_mag`). Measured: dG_AB - E[dG_AB | x], which equals
-  dddG - E[dddG | x] (a 25-bin piecewise-linear smoother of the measured x). Predicted, for a head: its observed-scale double minus its own
-  additive prediction pushed through its own link, e = P_AB - obs(L_A + L_B + o) (o, the head's median second difference, removes a
-  calibration bias), then minus E[e | x_hat]. A head that is additive before its link has e = 0 and scores exactly 0 at every level here,
-  whatever its link does to the singles. Pair offsets are the matrix means of these residuals, line effects their row and column means centred on
+  dddG - E[dddG | x] (a 25-bin piecewise-linear smoother of the measured x). Predicted, for a head: its latent epistasis
+  e = L_AB - (L_A + L_B), then minus E[e | x_hat]. A head that is additive on the latent scale has e = 0 and scores exactly 0 at every level here.
+  Pair offsets are the matrix means of these residuals, line effects their row and column means centred on
   the matrix mean, cells the double-centred residuals of a complete block.
 * **Within-column order** (`cell_rank`, `cell_flipacc`, `cell_sigsd`). Inside one column (one library, so one c and one h; one partner) a
   monotone assay cannot change which of two doubles is more stable, so the order of ddG_AB there is saturation-free on the measured side, exactly.
@@ -133,12 +132,12 @@ Specificity in simulation (the real validation design, known components, a satur
 
 | predictor knows | naive | beyond | pair | line | cell_mag | cell_rank | flipacc |
 |---|---|---|---|---|---|---|---|
-| saturation only (additive + true link) | 0.58 | -0.04 | -0.05 | -0.03 | 0.01 | 0.00 | 0.55 |
-| saturation imitated with noise, no link | 0.54 | 0.00 | 0.07 | -0.01 | 0.00 | 0.00 | 0.51 |
+| saturation only (additive + Tobit expected reading) | 0.58 | -0.04 | -0.05 | -0.03 | 0.01 | 0.00 | 0.55 |
+| saturation imitated with noise, latent only | 0.54 | 0.00 | 0.07 | -0.01 | 0.00 | 0.00 | 0.51 |
 | + pair offsets | 0.72 | 0.63 | 0.84 | 0.11 | 0.02 | 0.00 | 0.54 |
 | + line effects | 0.61 | 0.25 | 0.08 | 0.50 | 0.01 | 0.01 | 0.54 |
 | + cell interaction | 0.60 | 0.18 | 0.10 | 0.13 | 0.37 | 0.29 | 0.89 |
-| everything, with the link | 0.75 | 0.70 | 0.83 | 0.54 | 0.36 | 0.29 | 0.89 |
+| everything, with Tobit expected reading | 0.75 | 0.70 | 0.83 | 0.54 | 0.36 | 0.29 | 0.89 |
 | everything, no saturation | 0.42 | 0.71 | 0.84 | 0.53 | 0.36 | 0.26 | 0.90 |
 
 Read across a row: each level credits its own component. The naive metric credits saturation above everything else (a model that knows all of
@@ -153,8 +152,8 @@ neither leak.
 |---|---|---|
 | `epi` | ~MT, evaluated relative to WT: $\sim\text{MT}(AB) - \text{WT}(AB)$ | **AUTHORITATIVE EPISTASIS**: the MT pass alone beyond the WT additive baseline. Evaluates the non-additive interaction the model would actually report, without querying singles from the MT head. |
 | `ctx` | ~WT, evaluated relative to WT: $\sim\text{WT}(AB) - \text{WT}(AB)$ | CONTROL: what the backbone plus single-mutant training already know about epistasis. Built from the reverse leg `wt_rev` on the mutated sequence. Needs `--val_cycle_passes`. |
-| `comb` | (WT + ~MT)/2 | the reported prediction (inference `combined_pred`). Logged only for `val_epi_naive_rho_comb` (overall observed-scale benchmark). |
-| `add` | WT, additive by construction | CONTROL for saturation: through the link it scores only by saturation. Logged for `val_epi_naive_rho_add` only; on every other level it is 0. |
+| `comb` | (WT + ~MT)/2 | the reported prediction (inference `combined_pred`). Logged for `val_epi_naive_rho_comb` (overall observed-scale benchmark) and all `val_epi_*_comb` levels. |
+| `add` | WT, additive by construction | CONTROL for saturation: through the Tobit expected reading it scores only by saturation (`val_epi_naive_rho_add`); on every other level it is 0. |
 
 ## What to optimise and stop on
 
@@ -166,7 +165,7 @@ neither leak.
    magnitudes, reversal classification ($|\Delta| > 0.6$ kcal/mol), and 3-class residual categorization.
 4. **Attribute with the controls:** `cell_rank_epi - cell_rank_ctx` is what the MT adapter adds over the WT adapter read in context.
 5. **Guards:** `val_rmse_combined_avg` and `val_rho_wt_valid_avg` must not regress; `val_epi_global_err_epi` tracks epistasis calibration.
-6. **Do not optimise** `naive_rho` (under the link it is mostly the link), `pair_rho` (24 pairs from 9 libraries).
+6. **Do not optimise** `naive_rho` (dominated by floor saturation), `pair_rho` (24 pairs from 9 libraries).
 
 ## Retired names (old -> now)
 
@@ -188,52 +187,9 @@ For double mutants, $\text{WT}(AB)$ is additive by construction ($\text{WT}(A) +
 evaluates the epistasis component the model predicts on the double alone. The legacy `combined_dddg_pred` ($0.5 \times (\text{MT} - \text{WT})$)
 is preserved for backwards compatibility with earlier combined-head tables, but `mt_lora_dddg_pred` / `epi_pred` is the authoritative epistasis prediction.
 
-### `--recalibrate linear|nonlinear` (proof of concept)
-
-Replaces the checkpoint's calibration / link with one fitted to each whole evaluated dataset (a MegaScale scaffold, an external benchmark, a DMS,
-the domainome set), per head, before any statistic or prediction file: `linear` is y = s * latent + b; `nonlinear` is
-y = h(dG_wt + s * latent + b) - dG_wt with a freshly fitted monotone link h of the training link's family (floor, ceiling and softness all
-learned; dG_wt = 0 where there is no dG scale). The latent columns are kept as `*_uncal`, the `*_dddg_pred` columns are recomputed on the new
-scale, the fits and the RMSE before / after go to `<stats>_Recalibration.json`, and every output name gets `_recal-<mode>`. The stats files now
-also carry `rmse_all`, `rmse_singles`, `rmse_doubles`, since rank statistics within a library cannot change under a monotone map. Fitted on
-the evaluated data, it is an upper bound on what a recalibration can recover. On the capped validation libraries (o6g6_c10_hier, epoch 5) the
-combined head's RMSE goes 0.745 -> 0.632 (linear) -> 0.585 (nonlinear), and the refitted floor lands at +0.29 kcal/mol, not the training
-link's -0.99: the practical floor of the report, found independently.
-
-## The training objective that goes with the cell level: `--lambda_mt_flip`
-
-The confident-reversal loss (default off) trains the MT pass on the same information `cell_flipacc` scores: for every 2 x 2 sub-block of one
-position pair inside a micro-batch whose measured within-column order reverses by more than `--flip_delta` (0.6 kcal/mol) on both sides, a
-logistic loss `softplus(-sign * contrast / --flip_scale)` on the MT pass's latent contrast. Pair, line and single effects cancel and the
-assay cannot create a reversal, so it pressures only the interaction, and only where the measurement is reliable. Columns of a pair travel
-together when it is on (as for the `--mt_comp_*` weights). Logged: `train/L_flip_mt` (mean loss per reversal; log 2 = 0.69 for an additive
-prediction), `train/flip_rev` (reversals in the batch) and `train/flip_rev_acc` (the share the MT pass already orders right). Its gradient
-scale against the other terms is uncalibrated: probe it with `scripts/grad_share_probe.py` before choosing a weight. With three columns per
-pair in a micro-batch a unit holds about 1.4 reversals on average (30% of units hold any), so the signal per step is thin.
-
-## Whole-matrix losses: `--pack_pair_matrices`
-
-Without it, the structured MT losses see only what one 64-row micro-batch holds: about three columns of a pair matrix. The component
-regression then splits the error of a 19 x 3 slice (its "offset" is the pair offset plus three column effects, its "line" effects are means
-over three partners), and the reversal loss finds about 1.4 confident reversals per unit. With `--pack_pair_matrices` (needs `--batch_size`
->= 361; use 400) every oriented pair matrix (one scored position x one partner position, up to 19 x 19 conditional items) travels whole in one
-batch, and when the `--mt_comp_*` components or `--lambda_mt_flip` are on:
-
-1. each batch first runs a no-grad MT forward over its matrix rows (a cache of latent predictions);
-2. every MT micro-batch computes the components and the reversal loss on the WHOLE matrices of the batch, with its own rows live and the others
-   from the cache. Its gradient reaches only its own rows, so the sum over micro-batches is the gradient of the whole-matrix losses exactly
-   (tested against one micro-batch holding the whole batch), up to the dropout draw of the cached rows;
-3. the logged `train/L_comp_*`, `train/L_flip_mt`, `train/flip_rev` come from the cache once per batch.
-
-The components then are the hierarchy's levels (matrix offset, row and column effects over all partners, double-centred 19 x 19 interaction),
-and every confident reversal of a matrix reaches the reversal loss. Costs: one extra no-grad MT forward per matrix row (about a third of the
-MT pass's training cost on those rows), and fewer, larger steps per epoch (batch 400 instead of 256). The within-column ListMLE is unchanged
-(its columns were already whole). Caveat: the `--reg_balance` constants were measured on 3-column blocks; whole-matrix components have a
-different gradient scale (the offset of a 361-cell block is a mean over many more cells), so re-probe with `scripts/grad_share_probe.py`.
-
 ## Offline recomputation
 
-Every validation writes `training_logs/<run>/0/val_dump_<tag>.npz` (all items' latent scores, the reverse leg, dG_wt, the link). Score any dump,
+Every validation writes `training_logs/<run>/0/val_dump_<tag>.npz` (all items' latent scores, the reverse leg, dG_wt, and `link_summary` for the Tobit expected reading). Score any dump,
 past runs included, with the current definitions, optionally with pair-bootstrap intervals:
 
 ```

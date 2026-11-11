@@ -150,7 +150,7 @@ def calibration_from_hparams(hparams: dict) -> dict:
       per_mutation_bias True  the bias once per mutated position. This one is a decision, not a fact: the released and
                               the dc8 checkpoints were trained with one bias per item, so scoring them per mutation
                               shifts a k-mutant's calibrated prediction by (k - 1) * bias and leaves every single
-                              unchanged. It is the one convention the project keeps (it was mandatory with the link), so
+                              unchanged. It is the one convention the project keeps, so
                               anything computed per item before 2026-10-23 has to be rerun to be comparable.
     """
     return {'tie_mt_scale': bool(hparams.get('tie_mt_scale', False)),

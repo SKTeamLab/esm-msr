@@ -20,7 +20,7 @@ matter; anything older than the date below is marked as history in `docs/EXPERIM
 
 The repo ships the published **ESM-MSR** model (ESM3-small + LoRA, mutant stability ddG). The research line
 on this checkout extends it to **double mutants and epistasis**: a dual-adapter architecture (WT head for
-singles, MT head for multi-mutants), a link that models the readout with a saturation floor, censoring for
+singles, MT head for multi-mutants), the noisy-floor Tobit likelihood on latent stability, censoring for
 bounded rows, and a cell-level epistasis metric suite. Epistasis is authoritatively defined as ~MT(AB) - WT(AB)
 (the MT head evaluated relative to the additive WT baseline). The target is `val_epi_cell_rank_epi` plus its two
 companions (`val_epi_cell_mag_epi`, `val_epi_cell_flipacc_epi`) with `val_rho_wt_valid_avg` /
@@ -35,7 +35,7 @@ Current standing paradigms: **Canonical joint training** (`configs/joint.yaml`),
 | ref | path | what it is |
 |---|---|---|
 | `devel-revision` (workspace root) | `repo/` | Authoritative consolidated development & evaluation branch: modern trimmed training, `AutoBatchSizer`, `configs/`, benchmark suites, and canonical docs. |
-| `pin_trim_912e38d` (detached `5e9ae92`) | `dc_runs/pin_trim_912e38d` | Locked training pin incorporating commit `d9a60c3` (identity link and target module ablations). Isolates headless GPU queue runs from workspace code edits. |
+| `pin_trim_912e38d` (detached `5e9ae92`) | `dc_runs/pin_trim_912e38d` | Locked training pin isolating headless GPU queue runs from workspace code edits. |
 | legacy pins | `dc_runs/pin_*` | Preserved execution snapshots for earlier experimental series (`pin_ciw_f666366`, `pin_wtd_1872858`, etc.). |
 
 **Consolidated October 2026**: `repo/` on `devel-revision` carries both the modern code and the documentation. Launchers `cd` into the pinned tree (`dc_runs/pin_trim_912e38d`) and log their tree and commit as the first output line (`tree=... commit=... branch=...`).
@@ -174,15 +174,12 @@ they are archived, not superseded, and their failure modes are recorded in §4.
 8. **Validation never sees training-side flags** (`--censor_floor`, `--min_additive_dG`,
    `--subfloor_rank_only`, `--flip_pair_groups`). `--include_out_of_range` does add censored items, but every
    metric is computed on uncensored items only.
-9. **Inference ignores the link** (`link_head.*` keys): loading a link-trained checkpoint returns the latent
-   ddG. It also ignores `ns_head.*` (the nonspecific term), so such a checkpoint must not be shipped until
-   the inference plumbing is extended.
+9. **Inference returns latent ddG**: loading any checkpoint evaluates the calibrated latent adapters directly.
 10. **Do not change without reading the design doc**: `--subset_caps` must leave one family `None`;
    `--incl_reversions` stays off; `--mask_structure` must match between training and inference;
    `--mask_strategy` (sequence masking) stays off; do not reintroduce density capping or target-conditioned
    resampling.
-11. **`--lambda_reg_mt` must be > 0** for `--mt_single_anchor_weight > 0`; `--nonspecific_term fx`
-    required `--link` (the links were removed on 2026-11-05; see docs/FEATURES.md §2.2).
+11. **`--lambda_reg_mt` must be > 0** for `--mt_single_anchor_weight > 0`.
 12. **Restarting `launch_wtsweep.sh` used to wipe the stack it was resuming.** It truncated `wt_stack.txt` and
     deleted `wt_best.txt` at start, which is right for a fresh sweep and wrong for a *rescheduled* one: on
     2026-10-19 that silently dropped rank16/α32/dropout 0.2 before the floor0 arm, which then ran at the base
@@ -221,20 +218,12 @@ they are archived, not superseded, and their failure modes are recorded in §4.
 
 ## 8. Design facts a reader would otherwise have to rediscover
 
-* **Teacher forcing (2026-10-19 defaults).** `--tf_delink` is **ON**: the measured additive label is de-linked
-  **per single** through the link and summed (the inverse is nonlinear; inverting the sum is a different number), and
-  singles at/below their floor drop out. The ensemble is `mean` — each head is a TOTAL ddG-like prediction, which is
+* **Teacher forcing.** Each single's teacher-forcing label is constructed via `--tf_label` (`measured` above the cut or Tobit `posterior` mean) and summed on the latent scale. The ensemble is `mean` — each head is a TOTAL ddG-like prediction, which is
   what its per-position LLR sum computes; `sum` was **removed** (it asked the LLR-sum head for a pure difference and
   for zero on singles, which the architecture cannot produce). With the label in place the MT head's target is
-  `2y − label` (a total, not a residual). **Singles are kept** in the frozen-WT training stream by default
-  (`--no-incl_singles` gives the old doubles-only stream). `--per_mutation_bias` defaults **ON** and is refused with
-  `--link` + ensemble (a scalar bias puts a double one bias below its two singles, 0.1065 kcal/mol).
-  `--tie_mt_scale` defaults **OFF** (changed 2026-10-23; it was ON): the MT head keeps its own scale. Pass
-  `--tie_mt_scale` to share the WT head's scale (bias separate), so the raw and calibrated combinations weight the
-  halves identically; a run that needs it, such as the teacher-forcing recipe in `docs/FEATURES.md`, must now say so
-  explicitly. Both defaults are the same everywhere they are read: the training config, `MSRModel`, and the inference
-  fallback for a checkpoint whose hparams lack the keys (untied, bias per mutated position). `--nonspecific_term fx`
-  requires `mean`, which the block uses, so the ns arms run.
+  `2y − label` (a total, not a residual). `per_mutation_bias` is **ON** (`CalibrationHead` scales bias by `n_mut` so a single-trained WT head remains additive on multi-mutants).
+  `tie_mt_scale` defaults **OFF** (changed 2026-10-23; it was ON): the MT head keeps its own scale. Both defaults are the same everywhere they are read: the training config, `MSRModel`, and the inference
+  fallback for a checkpoint whose hparams lack the keys (untied, bias per mutated position).
 
 * **Censoring** is one mechanism (`src/esm_msr/censoring.py`): per item `cens` (−1 / 0 / +1), `cens_src`
   (1 assay range, 2 floor), `cens_bound` on the item's own ddG scale. Lower-censored items tie at the bottom
@@ -242,9 +231,7 @@ they are archived, not superseded, and their failure modes are recorded in §4.
   first in any order", the exact factor P(block first) x PL(rest), so every list stays forward/top-weighted
   (since 2026-10-20; before, any list with an upper-censored member switched to reverse PL). Only plain singles censor the WT head; a censored single never supplies a double's
   additive expectation.
-* **The link** is `h(z) = hi − tau_hi·softplus((hi−u)/tau_hi)` with `u = lo + tau_lo·softplus((z−lo)/tau_lo)`;
-  when a temperature is not small against the span the plateaus differ from `lo`/`hi` (logged as
-  `link/floor`, `link/ceiling`). A conditional item is scored as its double: `h(dG_wt + bg_offset + latent) − dG_wt`.
+* **The observation model** is the noisy-floor Tobit likelihood (`losses.tobit_regression_loss`), with observed-scale validation metrics reported through `val_stats.tobit_link`.
 * **The interaction loss** is a function of total predictions only (double-centring), so no second output
   head exists; identity-independent effects are still learned through the ordinary regression.
 * **Per-library floors are data**, not parameters: only ~20-47 of 198 libraries yield a floor estimate, most

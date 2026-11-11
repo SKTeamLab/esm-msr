@@ -1,5 +1,5 @@
 """Training reads a prebuilt cache and its manifest: the dataset keeps the subsets a run asks for, relabels mutant-background libraries,
-stamps the link's one floor, censors at one threshold, and refuses (loudly) to run without a cache."""
+censors at one threshold, and refuses (loudly) to run without a cache."""
 import argparse
 import pickle
 

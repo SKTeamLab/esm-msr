@@ -12,9 +12,9 @@ The passes are a 2 x 2 of {which adapter} x {which sequence it was given}:
 GPU and no rerun. Only ``wt`` + ``mt`` (as ``comb``) and ``wt_rev`` (as ``ctx``) are scored during training;
 ``mt_fwd`` is dumped and otherwise unused, and no ensemble beyond those two is ever looked at.
 
-Every metric here is RANK based - per-library Spearman, and the epistasis cell rank - so a monotone link cannot
-change any of them and none of this depends on reconstructing the run's link. That is also why RMSE is absent:
-it would need the link, and on the latent scale it is meaningless.
+Every metric here is RANK based - per-library Spearman, and the epistasis cell rank - so a monotone observation map
+(such as ``val_stats.tobit_link``) cannot change any of them. That is also why RMSE is absent: it requires observed-scale
+expected readings rather than raw latent scores.
 
   PYTHONPATH=src python analysis_scripts/ensemble_rescore.py DUMP [DUMP ...] [--csv out.csv] [--no-epi]
 """
@@ -95,7 +95,7 @@ def score_dump(path, want_epi=True):
             keys = [tuple(tuple(m) for m in json.loads(k)) for k in d['mut_key']]
             items = {'mut_key': keys, 'subset_type': list(st), 'ddG': gt, 'dddG': d['dddG'].astype(float),
                      'dG_wt': d['dG_wt'].astype(float), 'wt': d['wt'].astype(float), 'mt': sc, 'comb': sc,
-                     'wt_rev': None, 'y_floor': d['y_floor'].astype(float) if 'y_floor' in d.files else None}
+                     'wt_rev': None}
             res = epi_metrics.compute(epi_metrics.Table(items), {'cell_rank': ('comb',), 'cell_flipacc': ('comb',)})
             row['epi_cell_rank'] = res.get('epi_cell_rank_comb', np.nan)
             row['epi_cell_flipacc'] = res.get('epi_cell_flipacc_comb', np.nan)

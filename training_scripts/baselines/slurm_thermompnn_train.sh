@@ -6,24 +6,67 @@
 #SBATCH --mem=48G
 #SBATCH --time=24:00:00
 #SBATCH --output=slurm-%x-%j.out
-# ThermoMPNN-D (upstream train_single.yaml / train_epistatic.yaml, unchanged) on the ESM-MSR-matched tables of one split.
-# Usage: MODEL=single|epistatic SEED=1 MSR_BASELINE_DATA=<tables> [SPLIT=<split>] [BASE_OUT=<dir>] [RUN=name] \
-#          sbatch training_scripts/baselines/slurm_thermompnn_train.sh [extra args]   (from the repo root)
-#
-# MSR_BASELINE_DATA is the output directory of prepare/prepare_baseline_data.py for the split and variant to train on (every
-# measured double kept or not, mutant-background libraries in or out: those are choices made when preparing). SPLIT, when set,
-# makes the run stop if the tables were prepared from another split. The run is written to $BASE_OUT/thermompnn/$RUN, BASE_OUT
-# defaulting to the directory above the tables' data/.
+# Train ThermoMPNN (MODEL=single) or ThermoMPNN-D (MODEL=epistatic) on the default capped split.
+# Usage (from repo root, locally with `bash` or on Slurm with `sbatch`):
+#   MODEL=single|epistatic [SEED=1] [EPOCHS=100] [BASE_OUT=...] \
+#     bash training_scripts/baselines/slurm_thermompnn_train.sh [extra args]
 set -euo pipefail
-REPO=${MSR_REPO:-${SLURM_SUBMIT_DIR:-$PWD}}          # sbatch runs a copy of this script, so the repo cannot be found from $0
-THERMOMPNN_DIR=${THERMOMPNN_DIR:-${THIRD_PARTY_DIR:-$HOME/software}/ThermoMPNN-D}
-hostname; nvidia-smi -i "$CUDA_VISIBLE_DEVICES" || { echo "unhealthy GPU in allocation ($CUDA_VISIBLE_DEVICES)"; exit 1; }  # gpu2 idx 3 (D8:00.0) is unresponsive
+
+REPO=${MSR_REPO:-${SLURM_SUBMIT_DIR:-$PWD}}
+if [ -z "${THIRD_PARTY_DIR:-}" ]; then
+  if [ -d "$HOME/software/MutateEverything-oct06" ]; then
+    THIRD_PARTY_DIR="$HOME/software"
+  elif [ -d "$HOME/software/msr_baselines" ]; then
+    THIRD_PARTY_DIR="$HOME/software/msr_baselines"
+  else
+    THIRD_PARTY_DIR="$HOME/software"
+  fi
+fi
+export THIRD_PARTY_DIR
+THERMOMPNN_DIR=${THERMOMPNN_DIR:-$THIRD_PARTY_DIR/ThermoMPNN-D}
+
+hostname
+if [ -n "${CUDA_VISIBLE_DEVICES:-}" ]; then
+  nvidia-smi -i "$CUDA_VISIBLE_DEVICES" || { echo "unhealthy GPU ($CUDA_VISIBLE_DEVICES)"; exit 1; }
+else
+  nvidia-smi || { echo "unhealthy GPU"; exit 1; }
+fi
+
 unset PYTHONPATH
-module load cuda/12.1
-MODEL=${MODEL:?set MODEL}; SEED=${SEED:-1}; RUN=${RUN:-${MODEL}_seed${SEED}}
-export MSR_BASELINE_DATA=${MSR_BASELINE_DATA:?set MSR_BASELINE_DATA (the output directory of prepare/prepare_baseline_data.py)}
+module load cuda/12.1 2>/dev/null || true
+export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
+
+if [ -z "${THERMOMPNN_PY:-}" ]; then
+  for cand in \
+    "$THERMOMPNN_DIR/.venv/bin/python" \
+    "$HOME/miniconda3/envs/ThermoMPNN-D/bin/python" \
+    "$HOME/.conda/envs/ThermoMPNN-D/bin/python"; do
+    if [ -x "$cand" ]; then
+      THERMOMPNN_PY=$cand
+      break
+    fi
+  done
+fi
+: "${THERMOMPNN_PY:?set THERMOMPNN_PY or create the ThermoMPNN-D environment (see training_scripts/baselines/requirements/README.md)}"
+ENV_LIB="$(cd "$(dirname "$THERMOMPNN_PY")/.." && pwd)/lib"
+if [ -d "$ENV_LIB" ]; then
+  export LD_LIBRARY_PATH="$ENV_LIB:${LD_LIBRARY_PATH:-}"
+fi
+
+MODEL=${MODEL:?set MODEL (single or epistatic)}
+SEED=${SEED:-1}
+RUN=${RUN:-${MODEL}_seed${SEED}}
+export MSR_BASELINE_DATA=${MSR_BASELINE_DATA:?set MSR_BASELINE_DATA (e.g. $REPO/outputs/baselines/oct06_capped_allbl/data)}
 OUT=${BASE_OUT:-$(dirname "$MSR_BASELINE_DATA")}/thermompnn/$RUN
-mkdir -p $OUT
-echo "data=$MSR_BASELINE_DATA out=$OUT"
-"${THERMOMPNN_PY:-$THERMOMPNN_DIR/.venv/bin/python}" -u "$REPO/inference_scripts/baselines/thermompnn_inference.py" train \
-  --model $MODEL --seed $SEED --out $OUT --num_workers 10 ${SPLIT:+--tsuboyama_split "$SPLIT"} "$@"
+NUM_WORKERS=${NUM_WORKERS:-10}
+
+mkdir -p "$OUT"
+echo "data=$MSR_BASELINE_DATA out=$OUT py=$THERMOMPNN_PY"
+"$THERMOMPNN_PY" -u "$REPO/inference_scripts/baselines/thermompnn_inference.py" train \
+  --model "$MODEL" \
+  --seed "$SEED" \
+  --out "$OUT" \
+  --num_workers "$NUM_WORKERS" \
+  ${SPLIT:+--tsuboyama_split "$SPLIT"} \
+  ${EPOCHS:+--epochs "$EPOCHS"} \
+  "$@"

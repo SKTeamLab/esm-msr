@@ -11,21 +11,20 @@ The repository consolidates model architectures, training recipes, inference too
 | Checkout / Worktree | Branch / Ref (`HEAD`) | Primary Role & Operational Status |
 | :--- | :--- | :--- |
 | [`repo/`](file:///home/sareeves/playground/esm-msr-devel/repo) | `devel-revision` (`c5b96e5`) | **Active Workspace Root**: Consolidated codebase containing modern trimmed training (`src/esm_msr/`), preset YAML configurations (`configs/`), authoritative evaluation suite ([`inference_scripts/esm_msr_testing.py`](file:///home/sareeves/playground/esm-msr-devel/repo/inference_scripts/esm_msr_testing.py)), canonical docs ([`BENCHMARKS_OCT2026.md`](file:///home/sareeves/playground/esm-msr-devel/repo/docs/BENCHMARKS_OCT2026.md)), and the [`ChimeraX-ESM_MSR`](file:///home/sareeves/playground/esm-msr-devel/repo/ChimeraX-ESM_MSR/src/tool.py) extension bundle. |
-| [`dc_runs/pin_trim_912e38d/`](file:///home/sareeves/playground/esm-msr-devel/dc_runs/pin_trim_912e38d) | `5e9ae92` (detached) | **Pinned Training Worktree**: Locked snapshot incorporating commit `d9a60c3` (identity link and target module ablation support). Isolates long-running GPU training jobs from active workspace file modifications. |
+| [`dc_runs/pin_trim_912e38d/`](file:///home/sareeves/playground/esm-msr-devel/dc_runs/pin_trim_912e38d) | `5e9ae92` (detached) | **Pinned Training Worktree**: Locked snapshot for headless training runs. Isolates long-running GPU training jobs from active workspace file modifications. |
 | [`dc_runs/`](file:///home/sareeves/playground/esm-msr-devel/dc_runs) | Host file system | **Harness & Queue Automation**: Shell runners ([`queue_ns.sh`](file:///home/sareeves/playground/esm-msr-devel/dc_runs/queue_ns.sh), [`trim_run.sh`](file:///home/sareeves/playground/esm-msr-devel/dc_runs/trim_run.sh)) managing sequential batch executions, PID handover, and GPU health checks on the local RTX 5090 (GPU 0). |
 
 ```mermaid
 flowchart LR
     RAW["MegaScale CSV + AF2 PDBs + splits_oct06_capped.pkl"] --> CB["LibraryCacheBuilder (cache_build.py -> c6 pickles + manifest_c6.json)"]
-    CB --> DS["MutationStabilityDataset + ProteinCyclingBatchSampler (data.py)"]
+    CB --> DS["MutationStabilityDataset + Block Tensors (data.py, blocks.py)"]
     DS --> TR["ESM3EpistasisLightningModule (training.py)"]
     subgraph MODEL["MSRModel (models.py) on esm3_sm_open_v1 (1.4B, bf16)"]
-        WT["peft_wt (rsLoRA r=2/a=4, or r=1/a=4) + CalibrationHead (b * n_mut)"]
-        MT["peft_mt (rsLoRA r=16/a=16, or r=8/a=11) + CalibrationHead (b * n_mut)"]
-        LK["SaturatingLink (floor=0.0, tau=0.59 kcal/mol) / IdentityLink"]
+        WT["peft_wt (rsLoRA r=2/a=4) + CalibrationHead (b * n_mut)"]
+        MT["peft_mt (rsLoRA r=16/a=16) + CalibrationHead (b * n_mut)"]
     end
     TR --> MODEL
-    MODEL --> VAL["Validation & Epistasis Hierarchy (epi_metrics.py)"]
+    MODEL --> VAL["Validation & Tobit Expected Reading (val_stats.py, epi_metrics.py)"]
     MODEL --> INF["inference.py / esm_msr_testing.py (AutoBatchSizer) / ChimeraX GUI"]
 ```
 
@@ -43,41 +42,36 @@ flowchart LR
   2. `SRC_FLOOR` (2): numeric rows with $\Delta G_{\text{meas}} \le \text{censor\_threshold}$ (`0.5` kcal/mol default; `cens = -1`, bound $\text{threshold} - \Delta G_{\text{wt}}$).
   3. `SRC_GAP` (3): Permanently removed; protease disagreement thresholding was found to introduce selection bias.
 
-### 2. Model, Readout, Calibration & Saturating Link
-- **Backbone & PEFT** ([`MSRModel`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/models.py#L248-L630), [`PEFTStateManager`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/peft_manager.py#L3-L90)): Wraps `esm3_sm_open_v1` (1.4B, bf16) in `dual` mode (`peft_wt` at $r=2, \alpha=4$ rsLoRA; `peft_mt` at $r=16, \alpha=16$ rsLoRA across all 4 attention projections and FFN linears; halving ranks to $r=1, \alpha=4$ and $r=8, \alpha=11$ evaluated in half-rank ablations). Base frozen Linear weights are deduplicated across adapters via `data_ptr` sharing ([`_dedup_dual_base_tensors`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/training.py#L190-L245)), eliminating ~2.73 GB of redundant VRAM.
-- **Logit scoring** ([`_process_logits`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/models.py#L702-L713), [`forward_partitioned`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/models.py#L714-L850)): Sequence logits are normalized via `log_softmax` restricted to the 20 canonical amino acid token IDs:
+### 2. Model, Readout, Calibration & Tobit Floor Observation Model
+- **Backbone & PEFT** ([`MSRModel`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/models.py#L248-L630)): Wraps `esm3_sm_open_v1` (1.4B, bf16) in `dual` mode (`peft_wt` at $r=2, \alpha=4$ rsLoRA; `peft_mt` at $r=16, \alpha=16$ rsLoRA across attention and FFN linears). Base frozen Linear weights are deduplicated across adapters via `data_ptr` sharing ([`_dedup_dual_base_tensors`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/training.py)), eliminating ~2.73 GB of redundant VRAM.
+- **Logit scoring** ([`_process_logits`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/models.py), [`forward_partitioned`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/models.py)): Sequence logits are normalized via `log_softmax` restricted to the 20 canonical amino acid token IDs:
   - **Unmasked**: WT pass evaluates `wt_sequence_tokens` and sums $\log P(m_i \mid \text{WT}) - \log P(w_i \mid \text{WT})$; MT pass evaluates `mt_sequence_tokens` and sums $\log P(m_i \mid \text{MT}) - \log P(w_i \mid \text{MT})$.
   - **Masked**: `'independent'` masks one mutated site $i$ at a time while leaving partner sites $j \ne i$ unmasked on the MT pass (conditional masked marginal); `'marginal'` masks all mutated sites simultaneously.
 - **Calibration & combination** ([`CalibrationHead`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/models.py#L102-L150), [`combine_predictions`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/models.py#L232-L245)):
   $$y_{\text{cal}} = \bigl(\operatorname{softplus}(s_{\text{raw}}) + 10^{-6}\bigr) y_{\text{raw}} + b \cdot n_{\text{mut}}, \qquad y_{\text{comb}} = (1 - \lambda) y_{\text{WT}} + \lambda y_{\text{MT}} \quad (\lambda = 0.5 \text{ default})$$
   Scaling bias $b$ by $n_{\text{mut}}$ (`per_mutation_bias=True` standard) ensures $y_{\text{WT}}(AB) - y_{\text{WT}}(A) - y_{\text{WT}}(B) \equiv 0$.
-- **Assay link** ([`SaturatingLink`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/link.py#L75-L167)): Maps latent $\Delta G_{\text{lat}} = \Delta G_{\text{wt}} + \Delta\Delta G_{\text{lat}}$ onto the experimental unfolding floor via $h(x) = f + \tau \operatorname{softplus}((x - f)/\tau)$ with fixed physical parameters $f = 0.0$ kcal/mol and $\tau = RT \approx 0.59$ kcal/mol, producing $\Delta\Delta G_{\text{obs}} = h(\Delta G_{\text{wt}} + \Delta\Delta G_{\text{lat}}) - \Delta G_{\text{wt}}$. When unlinked scoring is explicitly configured via `--no-link`, [`IdentityLink`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/link.py#L168-L190) is used.
+- **Tobit floor observation model** ([`tobit_regression_loss`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/losses.py#L186-L235), [`tobit_link`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/val_stats.py#L63-L82)): Models experimental measurements as $Y = \max(X, F)$ on latent $\Delta G_{\text{lat}} = \Delta G_{\text{wt}} + \Delta\Delta G_{\text{lat}}$ with assay noise $X \sim N(z, \sigma_y^2)$ and unfolded floor $F \sim N(\mu_f, \sigma_f^2)$. Validation reports observed-scale RMSE and `naive_rho_comb` through the closed-form Tobit expected reading $h(z)$.
 
-### 3. Training Recipes, Streaming Optimization & Losses
-- **YAML presets** ([`configs/wt_phase.yaml`](file:///home/sareeves/playground/esm-msr-devel/repo/configs/wt_phase.yaml), [`configs/mt_frozen.yaml`](file:///home/sareeves/playground/esm-msr-devel/repo/configs/mt_frozen.yaml), [`configs/joint.yaml`](file:///home/sareeves/playground/esm-msr-devel/repo/configs/joint.yaml)):
-  1. `wt_phase`: Pretrains `peft_wt` ($r=2, \alpha=4$) exclusively on single mutations (`censor_range: false`, `censor_threshold: 0.5`).
-  2. `mt_frozen`: Loads a converged WT checkpoint (`wt_r2a4_f0_cthr05`), freezes `peft_wt`, and trains `peft_mt` ($r=16, \alpha=16$) on singles + doubles (`censor_range: true`, `mt_convergence_metric: rho_combined`).
-  3. `joint`: Canonical simultaneous training of both heads from scratch (`mt_convergence_metric: epi_beyond_rho_epi`).
-- **Streaming two-phase micro-batching** ([`training_step`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/training.py#L723-L765), [`_compose_losses_streaming_and_backward`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/training.py#L440-L680)): Partitions `batch_size=256` into micro-batches (`64` unmasked, `32` masked). Phase 1 runs WT forward + `manual_backward` immediately so the WT activation graph is deallocated before Phase 2 builds the MT graph, maintaining RTX 5090 reserved VRAM at ~24.8 GB (comfortably below the 32 GB driver ceiling).
-- **De-linked teacher forcing** ([`_compose_losses_streaming_and_backward`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/training.py#L520-L555)): Inverts `SaturatingLink` on constituent singles (`ddG_A`, `ddG_B`) via [`latent_ddG`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/link.py#L125-L150) before summing, skips doubles whose constituent singles hit the floor (`teacher_forcing_unusable`), de-calibrates via $(y_{\text{tf}} - b \cdot n_{\text{mut}})/s$, and mixes with base WT via `tf_mix: 1.0`.
+### 3. Training Recipes, Block Optimization & Losses
+- **YAML recipe** ([`configs/recipe.yaml`](file:///home/sareeves/playground/esm-msr-devel/repo/configs/recipe.yaml)): Canonical simultaneous block-training recipe for both heads with per-head convergence-gated cosine schedules.
+- **Teacher forcing** ([`training.py`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/training.py)): Builds single-mutant labels on the latent scale (`measured` with floor cut or closed-form Tobit `posterior` mean via [`tobit_posterior_mean`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/losses.py#L237-L280)) and mixes with the detached WT prediction via `tf_mix`.
 - **Objectives** ([`losses.py`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/losses.py)):
-  - [`ListMLELoss`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/losses.py#L19-L150) (`forward_censored`): Plackett-Luce ranking on raw/unlinked scores in library-pure chunks of 16. Skipping rank loss entirely ($\lambda_{\text{rank}}=0$, tested in `trim_joint_rank0_s1`) severely degraded multi-mutant correlation (`ptmul` 0.525 vs 0.58 in control; GB1 0.349 vs 0.364 devel), confirming rank supervision is essential.
-  - [`hinge_regression_loss`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/losses.py#L158-L200): MSE or Huber ($\delta=1.0$) on linked $\Delta\Delta G_{\text{obs}}$, applying exact loss on uncensored variants and a one-sided hinge clamped at the link knee `eff_bound = max(bound, floor - dG_wt)` on censored variants. High regression weighting ($\lambda_{\text{reg}}=10$) was ruled unpromising and parked.
-- **Plateau schedules** ([`training.py`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/training.py#L1060-L1220)): 500-step linear warmup (`LambdaLR`) followed by independent WT (`rho_wt_valid`) and MT (`mt_convergence_metric`) plateau trackers (`patience=1`, `factor=0.3`, `freeze_after_decays=3`).
+  - [`ListMLELoss`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/losses.py#L19-L150) (`forward_censored`): Plackett-Luce ranking on stop-gradient calibrated scores.
+  - [`tobit_regression_loss`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/losses.py#L186-L235): Noisy-floor Tobit negative log-likelihood on latent absolute $\Delta G$, with exact survival terms on `SRC_RANGE` bounded variants.
+- **Convergence-gated cosine schedules** ([`training.py`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/training.py)): Linear warmup followed by independent WT and MT plateau-triggered cosine decays to zero.
 
 ### 4. Benchmark Suite & Epistasis Hierarchy
-- **Evaluation suites** ([`esm_msr_testing.py`](file:///home/sareeves/playground/esm-msr-devel/repo/inference_scripts/esm_msr_testing.py), [`pgym_runner.py`](file:///home/sareeves/playground/esm-msr-devel/repo/inference_scripts/pgym_runner.py), [`benchmark_matrix.py`](file:///home/sareeves/playground/esm-msr-devel/repo/analysis_scripts/benchmark_matrix.py)): Covers 12 external stability benchmarks (quarantining OOD sets `ptmuld`, `s461`, and `ssym` per [`LEAKAGE_AUDIT_OCT2026.md`](file:///home/sareeves/playground/esm-msr-devel/repo/docs/LEAKAGE_AUDIT_OCT2026.md)), Tsuboyama Oct06 capped val/test (`cens == 0`), 7 functional DMS benchmarks, Domainome (522 domains), and ProteinGym (213 DMS assays).
-- **Epistasis hierarchy** ([`epi_metrics.py`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/epi_metrics.py#L222-L520)): Scores additive (`add`), context (`ctx`), and epistatic (`epi`) heads across:
-  - Global metrics: `naive_rho` (evaluated on `add`, `ctx`, `epi`), `global_err`, `global_bias`.
-  - PAVA isotonic-residual metrics: `beyond_rho_epi`, `beyond_lib_epi`, `beyond_rho_pairavg_epi`, `pair_rho_epi`, `line_rho_epi`, `cell_mag_epi` (and `*_ctx`).
-  - Link-free rank metrics: `cell_rank_epi`, `cell_sigsd_epi` (and `*_ctx`).
-  - Sign-epistasis classification: `cell_flipacc_epi` (and `cell_flipacc_ctx`) at $\delta = 0.5$ kcal/mol.
+- **Evaluation suites** ([`esm_msr_testing.py`](file:///home/sareeves/playground/esm-msr-devel/repo/inference_scripts/esm_msr_testing.py), [`pgym_runner.py`](file:///home/sareeves/playground/esm-msr-devel/repo/inference_scripts/pgym_runner.py), [`benchmark_matrix.py`](file:///home/sareeves/playground/esm-msr-devel/repo/analysis_scripts/benchmark_matrix.py)): Covers 12 external stability benchmarks (quarantining OOD sets `ptmuld`, `s461`, and `ssym` per [`LEAKAGE_AUDIT_OCT2026.md`](file:///home/sareeves/playground/esm-msr-devel/repo/docs/LEAKAGE_AUDIT_OCT2026.md)), Tsuboyama Oct06 capped val/test (`cens == 0`), 7 functional DMS benchmarks, Domainome (522 domains), and ProteinGym (217 DMS assays).
+- **Epistasis hierarchy** ([`epi_metrics.py`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/epi_metrics.py)): Scores additive (`add`), context (`ctx`), combined (`comb`), and epistatic (`epi`) heads across:
+  - Global metrics: `naive_rho` (evaluated through `val_stats.tobit_link` for Tobit runs), `global_err`, `global_bias`.
+  - Residual metrics: `beyond_rho`, `beyond_lib`, `beyond_rho_pairavg`, `pair_rho`, `line_rho`, `cell_mag`.
+  - Saturation-free rank metrics: `cell_rank`, `cell_flipacc`.
 
 ---
 
 ## Part II: Active Infrastructure Fragilities & Mitigations
 
-This section tracks open operational fragilities in the training and execution infrastructure that require operational mitigations or code hardening. Fully resolved issues from prior audits (including fused adapter premature freezing, `create_training_splits` signature breaks, colon PDB stem fallbacks, LoRA dropout on frozen adapters, checkpoint link-head persistence, and benchmark table leak rendering) have been verified and removed.
+This section tracks open operational fragilities in the training and execution infrastructure that require operational mitigations or code hardening. Fully resolved issues from prior audits (including fused adapter premature freezing, `create_training_splits` signature breaks, colon PDB stem fallbacks, LoRA dropout on frozen adapters, and benchmark table leak rendering) have been verified and removed.
 
 ### 1. [MITIGATED] Unclipped Gradient Spikes under Manual Optimization
 - **Where**: [`src/esm_msr/training.py`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/training.py#L748-L755)
@@ -92,7 +86,7 @@ This section tracks open operational fragilities in the training and execution i
 ### 3. [MITIGATED] Pre-Fit Validation on Checkpoint Resume
 - **Where**: [`src/esm_msr/training.py`](file:///home/sareeves/playground/esm-msr-devel/repo/src/esm_msr/training.py#L1520-L1528)
 - **Mechanism**: When `--resume_from_checkpoint <path>` is passed without `--skip_val`, `trainer.validate(lightning_model)` executes *before* `trainer.fit(..., ckpt_path=...)` is called. At that point, weights have not yet been restored from the checkpoint, executing an expensive zero-shot validation pass that writes an untrained row to `metrics.csv`.
-- **Status & Operational Mitigation**: Persisting link parameters and plateau counters across checkpoints is resolved in `on_save_checkpoint`. When launching resumed runs, `--skip_val` must always be explicitly provided.
+- **Status & Operational Mitigation**: Persisting plateau counters across checkpoints is resolved in `on_save_checkpoint`. When launching resumed runs, `--resume_from_checkpoint` restores optimizer and scheduler state directly.
 
 ---
 

@@ -95,7 +95,7 @@ def _loader_output(pdb, n=24, shift=0.0, seed=0):
     return dict(wt_scores=wt, mt_scores=mt, comb_scores=0.5 * (wt + mt), ground_truths=gt,
                 cens=np.zeros(n), dddG_truths=gt, cens_src=np.zeros(n),
                 subset_types=['single'] * n, pdb=pdb, mutations=['A12G'] * n,
-                dG_wt=np.zeros(n), y_floor=np.zeros(n), wt_rev_scores=wt, mt_fwd_scores=mt)
+                dG_wt=np.zeros(n), wt_rev_scores=wt, mt_fwd_scores=mt)
 
 
 def test_validation_epoch_end_runs_with_an_ood_loader_and_keeps_it_out_of_the_average():
@@ -138,7 +138,7 @@ def test_the_cull_logs_only_the_kept_statistics():
                  'val_des_rho_combined_avg', 'val_rho_combined_external', 'val_rho_wt_external', 'val_rmse_combined_external', 'val_rmse_singles_wt_external'):
         assert name in got, name
     gone = ('val_rho_singles_combined', 'val_rho_doubles_wt', 'val_ndcg>0/', 'val_ndcg@k=96/', 'val_rho_ungrouped', 'val_cycle_gap', 'val_diag_', 'val_nat_alive', 'val_nat_debiased',
-            'val_nat_rho_singles_wt', 'val_des_rho_singles_wt', 'link/', 'val_rho_wt/')
+            'val_nat_rho_singles_wt', 'val_des_rho_singles_wt', 'val_rho_wt/')
     assert not [k for k in got if any(k.startswith(g) for g in gone)], sorted(k for k in got if any(k.startswith(g) for g in gone))
     assert not [k for k in got if k.startswith('val_unmasked_') or k.startswith('val_masked_')]
 

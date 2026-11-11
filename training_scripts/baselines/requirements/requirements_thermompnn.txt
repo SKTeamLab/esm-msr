@@ -1,0 +1,18 @@
+# ThermoMPNN / ThermoMPNN-D baseline training requirements
+# Install PyTorch first (e.g., CUDA 12.8 for Ampere/Hopper/Blackwell GPUs):
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
+# Then:
+#   pip install -r training_scripts/baselines/requirements/requirements_thermompnn.txt
+
+numpy>=1.26,<3.0
+pandas>=2.0,<3.1
+scipy>=1.11,<2.0
+scikit-learn>=1.3,<2.0
+biopython>=1.81,<2.0
+pytorch-lightning>=2.4,<2.7
+torchmetrics>=1.4,<2.0
+omegaconf>=2.3,<2.4
+einops>=0.7,<1.0
+joblib>=1.3,<2.0
+PyYAML>=6.0,<7.0
+tqdm>=4.65,<5.0

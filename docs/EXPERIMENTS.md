@@ -15,7 +15,7 @@ The live state and operating instructions are in `STATE.md`; this file is the re
 |---|---|---|---|---|---|
 | `w0_base` | none (micro 64) | 3 (fixed) | 0.182 (ep 2) | 0.811 | 0.694 (latent scale) |
 | `w2_cens` | `--include_out_of_range` | 6 (cap) | **0.215** (ep 5) | 0.808 | 0.702 |
-| `l1_link_cens` | `--link softclamp --include_out_of_range` | 5 of 6 | 0.199 (ep 4) | 0.806 | **0.650** (observed scale) |
+| `l1_link_cens` | `--include_out_of_range` (+ retired output calibration) | 5 of 6 | 0.199 (ep 4) | 0.806 | **0.650** (observed scale) |
 | `i1` | link + censoring + pair groups + `--lambda_int_mt 1.0` | **never ran** | — | — | — |
 
 **Conclusions.** (i) The flip metric did **not** show a demonstrated gain: W2 was +0.03 and L1 +0.02 over W0,
@@ -89,7 +89,7 @@ needed its epoch advanced on resume.
 
 ## 4. Phase D (2026-10-13/15): the link series on the released basis
 
-Same basis (`bl_w2a4_m16a16_capped`), seed 1, 8 epochs, `--link softclamp`, micro 64 — one change each:
+Same basis (`bl_w2a4_m16a16_capped`), seed 1, 8 epochs, retired output calibration, micro 64 — one change each:
 
 | arm | cell_rank_mt | cell_mag_comb | flipacc_mt | beyond_rho_mt | beyond_rho_comb | rho_doubles | rho_comb |
 |---|---|---|---|---|---|---|---|
@@ -319,8 +319,8 @@ on `wt_r4a8` and on every frozen-WT / tf-mix arm.
    removed from the batches, ~1/3 the cost) and stacks winners at a 0.001 margin. Every MT arm after it will
    be built on a different WT head than dc17 — so dc17 vs dc19+ must not be compared across that boundary
    without care.
-6. **Inference plumbing.** Nothing trained with `--link` or `--nonspecific_term` can be shipped until
-   `inference_scripts/` reads `link_head.*` and `ns_head.*`.
+6. **Inference plumbing.** Nothing trained with `--nonspecific_term` can be shipped until
+   `inference_scripts/` reads `ns_head.*`.
 7. **Per-item noise weighting at both ends of the assay (idea, 2026-10-20, not scheduled).** Measurement noise is
    heteroscedastic: the two proteases' estimates of the same single disagree by a median 0.32 kcal/mol in range
    (dG 1-3) but 0.79 at dG -1..0 and 0.52 at 4.5-5 (15% disagree by more than 1 kcal/mol there, 10% at the floor).

@@ -26,9 +26,7 @@ Evidence = the Comet parameters of the 71 non-archived block-training runs of `e
 | `censor_threshold` -> `rank_censor_threshold` | with Tobit the regression ignores it; it ties ranks in ListMLE and, with `--tf_label measured` and no `--tf_cut`, is the teacher-forcing cut |
 | `monitor_metric` | `config.monitor_metric(hp)`: the unmasked regime when `block_mask_mt <= 0.5`, else the masked one |
 | `val_masking_strategy`, `val_unmasked`, `val_masked`, `val_cycle_passes` | the main regime is masked; the unmasked copy is scored whenever a head trains on visible sites |
-| `y_floor` | stamped 0.0 on every item; only role was the default teacher-forcing cut (`config.ASSAY_FLOOR`) |
 | `skip_val`, `val_every_epochs`, `val_dump`, `external_val_sets`, `subsets`, `censor_range`, `mask_strategy_wt/_mt` | constants |
-| `link_*`, the retired-flag table | unused since the links were removed |
 
 ## Kept on purpose
 

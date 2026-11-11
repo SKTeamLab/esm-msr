@@ -37,7 +37,7 @@ class LibraryCacheBuilder:
     """Builds and saves the cache of one library from its rows of the (preprocessed) raw table."""
 
     # Bump when the emitted items change shape or meaning, so a stale cache is never served. c3: first conservative-branch cache
-    # (every item carries meas / dG_meas / dG_wt / y_floor-era fields). c5: dG_wt is the exact per-library reference recovered
+    # (every item carries meas / dG_meas / dG_wt). c5: dG_wt is the exact per-library reference recovered
     # from dG_ML - ddG_ML rather than the mean of the 'wt' rows. c6 = c5 without the cond items.
     CACHE_VERSION = 'c5'
 

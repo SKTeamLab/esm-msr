@@ -32,7 +32,10 @@ def _env(name, default):
     return Path(os.environ.get(name) or default)
 
 
-THIRD_PARTY_DIR = _env('THIRD_PARTY_DIR', HOME / 'software')
+_default_tp = HOME / 'software'
+if not (_default_tp / 'MutateEverything-oct06').is_dir() and (_default_tp / 'msr_baselines').is_dir():
+    _default_tp = _default_tp / 'msr_baselines'
+THIRD_PARTY_DIR = _env('THIRD_PARTY_DIR', _default_tp)
 THERMOMPNN_DIR = _env('THERMOMPNN_DIR', THIRD_PARTY_DIR / 'ThermoMPNN-D')
 MUTATE_EVERYTHING_DIR = _env('MUTATE_EVERYTHING_DIR', THIRD_PARTY_DIR / 'MutateEverything-oct06')
 SPURS_DIR = _env('SPURS_DIR', THIRD_PARTY_DIR / 'SPURS')
@@ -41,9 +44,15 @@ PROTEINMPNN_DIR = _env('PROTEINMPNN_DIR', THIRD_PARTY_DIR / 'ProteinMPNN')
 DATA_DIR = _env('MSR_DATA_DIR', REPO_ROOT / 'data')
 PREPROCESSED = DATA_DIR / 'preprocessed'
 TSUBOYAMA_DIR = _env('MSR_TSUBOYAMA_DIR', DATA_DIR / 'tsuboyama')
-STRUCTURES_DIR = _env('MSR_STRUCTURES_DIR', THIRD_PARTY_DIR / 'esm-msr' / 'data' / 'structures')
-DOMAINOME_TABLE = _env('MSR_DOMAINOME_TABLE', THIRD_PARTY_DIR / 'esm-msr' / 'data' / 'domainome1' / 'domainome_mapped_2026.csv')
-ROSETTA_DIR = _env('MSR_ROSETTA_DIR', THIRD_PARTY_DIR / 'esm-msr' / 'data' / 'tsuboyama' / 'FINAL_results')
+_esm_msr_data = THIRD_PARTY_DIR / 'esm-msr' / 'data'
+if not _esm_msr_data.is_dir():
+    _esm_msr_data = HOME / 'software' / 'esm-msr' / 'data'
+STRUCTURES_DIR = _env('MSR_STRUCTURES_DIR', _esm_msr_data / 'structures')
+DOMAINOME_TABLE = _env('MSR_DOMAINOME_TABLE', _esm_msr_data / 'domainome1' / 'domainome_mapped_2026.csv')
+_default_rosetta = TSUBOYAMA_DIR / 'FINAL_results'
+if not _default_rosetta.exists():
+    _default_rosetta = _esm_msr_data / 'tsuboyama' / 'FINAL_results'
+ROSETTA_DIR = _env('MSR_ROSETTA_DIR', _default_rosetta)
 BASELINE_DATA = os.environ.get('MSR_BASELINE_DATA') or None      # a prepared directory belongs to one split: no default
 PGYM_INPUTS = _env('MSR_PGYM_INPUTS', REPO_ROOT / 'pgym_inputs')
 PGYM_STRUCTURES = _env('MSR_PGYM_STRUCTURES', HOME / 'ProteinGym' / 'ProteinGym_AF2_structures')

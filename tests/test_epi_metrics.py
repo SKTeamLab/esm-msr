@@ -3,26 +3,12 @@ import unittest
 
 import numpy as np
 
-from esm_msr import epi_metrics as E
+from esm_msr import epi_metrics as E, val_stats
 
 ROWS, COLS = 'ACDEFG', 'HIKLMN'
 
-
-def assay_clamp(lo=-1.0, hi=5.0, tau=0.3):
-    """The assay as two soft clamps in series, a floor at ``lo`` then a ceiling at ``hi``.
-
-    Written out here rather than imported from a branch's link module: this file tests epi_metrics, which takes
-    whatever link the caller hands it, so the test should not care which link module the branch happens to ship.
-    That also keeps this file byte-identical on claude/main-baseline and the devel branches.
-    """
-    def h(z):
-        z = np.asarray(z, dtype=np.float64)
-        u = lo + tau * np.logaddexp(0.0, (z - lo) / tau)
-        return hi - tau * np.logaddexp(0.0, (hi - u) / tau)
-    return h
-
-
-FLOOR = assay_clamp()
+# Tobit expected-reading map under the noisy-floor observation model (val_stats.tobit_link).
+FLOOR = val_stats.tobit_link(0.28, -1.0, 0.38)
 
 
 def synthetic(seed=0, n_pairs=10, measure=FLOOR):
@@ -101,7 +87,7 @@ class TestLevelIsolation(unittest.TestCase):
         self.assertGreater(pair['epi_pair_rho_epi'], 0.7)
         self.assertGreater(line['epi_line_rho_epi'], 0.7)
         self.assertGreater(cell['epi_cell_mag_epi'], 0.7)
-        # a higher level does not score at the cell level (up to the smoother's curvature). Through a saturating link it can: line effects
+        # a higher level does not score at the cell level (up to the smoother's curvature). Through the Tobit floor map it can: line effects
         # pushed through the floor are non-additive on the observed scale, for the measurement and a model that knows them alike
         self.assertLess(abs(pair['epi_cell_mag_epi']), 0.25)
         self.assertLess(abs(line['epi_cell_mag_epi']), 0.25)

@@ -21,7 +21,7 @@ os.environ.setdefault('CUDA_VISIBLE_DEVICES', '')
 NATIVE = re.compile(r'_[A-Z]\d+[A-Z]$')
 # summary columns a mode must have written (and the ones no mode may write any more)
 EXPECT = {}
-CULLED = ('val_cycle_gap', 'val_rho_ungrouped', 'val_diag_', 'link/', 'val_rho_singles_combined', 'val_rho_doubles_wt')
+CULLED = ('val_cycle_gap', 'val_rho_ungrouped', 'val_diag_', 'val_rho_singles_combined', 'val_rho_doubles_wt')
 # The one truncated validation library is too small for the epistasis metrics, so the modes watch rho_combined (the main, masked regime). A CPU run cannot hold the unmasked block shape
 # (host memory), so the unmasked recipe is smoke-tested on the cluster, not here.
 MODES = {

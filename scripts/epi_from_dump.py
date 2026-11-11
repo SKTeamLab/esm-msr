@@ -14,8 +14,7 @@ sampling uncertainty of the validation set itself for a fixed model.
 import argparse, json, os, pickle, sys
 import numpy as np
 
-from esm_msr import censoring, epi_metrics as E
-from esm_msr.link import numpy_link, numpy_link_from_summary
+from esm_msr import censoring, epi_metrics as E, val_stats
 
 _DGWT = {}
 
@@ -36,15 +35,13 @@ def cache_dg_wt(cache, lib):
 
 
 def _parse_link(z):
-    """Reconstruct numpy link from link_summary if present in the npz."""
+    """Reconstruct Tobit expected-reading link from link_summary if present in the npz."""
     if 'link_summary' not in z.files:
         return None
     ls = z['link_summary']
     s = json.loads(str(ls.item()) if hasattr(ls, 'item') and ls.ndim == 0 else str(ls))
-    if 'tau' in s:
-        return numpy_link_from_summary(s)
-    if 'tau_lo' in s:
-        return numpy_link(s['tau_lo'], s['lo'], s['hi'], ceiling=s.get('ceiling'), tau_hi=s.get('tau_hi'))
+    if s.get('kind') == 'tobit':
+        return val_stats.tobit_link(s['sigma_y'], s['mu_f'], s['sigma_f'])
     return None
 
 
@@ -67,8 +64,6 @@ def load_items(path, cache=None):
                  'wt': z['wt'], 'mt': z['mt'], 'comb': z['comb'], 'wt_rev': z['wt_rev'] if 'wt_rev' in z.files else None}
         if 'cens_src' in z.files:
             items['cens_src'] = z['cens_src']
-        if 'y_floor' in z.files:
-            items['y_floor'] = z['y_floor']
         return items, link
 
     libs = sorted({k.split('|')[0] for k in z.files if '|' in k})

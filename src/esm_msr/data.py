@@ -262,7 +262,7 @@ def collate_fn_twopass(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     tf_B = torch.tensor([float(item.get('tf_B', item.get('ddG_B', float('nan')))) for item in batch], dtype=torch.float32)
     valid_dddG_mask = torch.tensor([bool(item.get('valid_dddG_mask', False)) for item in batch], dtype=torch.bool)
 
-    # The assay's own scale: the library's starting dG and floor, and what this item's measurement bounds.
+    # The assay's own scale: the library's starting dG, measured dG, and censoring bounds.
     dG_wt = torch.tensor([float(item.get('dG_wt', float('nan'))) for item in batch], dtype=torch.float32)
     dG_meas = torch.tensor([float(item.get('dG_meas', float('nan'))) for item in batch], dtype=torch.float32)
     cens = torch.tensor([int(item.get('cens', 0)) for item in batch], dtype=torch.long)

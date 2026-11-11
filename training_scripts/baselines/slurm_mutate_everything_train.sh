@@ -6,56 +6,104 @@
 #SBATCH --mem=200G
 #SBATCH --time=2-00:00:00
 #SBATCH --output=slurm-%x-%j.out
-# Upstream MutateEverything (AF backbone), README recipe unchanged: stage 1 singles (20 ep), stage 2 doubles (100 ep)
-# fine-tuned from stage 1, 3 GPUs, batch 1. Data: the ESM-MSR-matched tables of one split
-# (prepare/prepare_baseline_data.py, then prepare/build_mutate_everything_data.py).
-# Past runs of this recipe on gpu2: ~17 h for both stages on a 118-protein train set; this one has 192.
-# Usage: SEED=1 SPLIT_NAME=<name> [STAGE=single|double|both] [STAGE1_SPLIT=<name>] sbatch training_scripts/baselines/slurm_mutate_everything_train.sh
-# SPLIT_NAME: data/<name>/mutations of the MutateEverything checkout, as build_mutate_everything_data.py wrote it (the variant name
-# paths.variant_name gives: the split's stem without `splits_`, plus `_allbl` when every measured double is kept, `_nobb` when
-# mutant-background libraries are left out; those are choices made when preparing).
-# STAGE1_SPLIT: take the stage-1 checkpoint from logs/af_single_<STAGE1_SPLIT>_seed<SEED> (default: SPLIT_NAME), e.g. a stage 2
-# on <split>_allbl starts from the <split> stage 1, whose single mutations are the same rows
-# (checkpoints and logs land in logs/ of the MutateEverything checkout, which is also where the inference script reads them)
+# Train MutateEverything (AlphaFold backbone) on the default capped split (`oct06_capped_allbl`):
+#   Stage 1 (`STAGE=single`): single-mutation pretraining (20 epochs, --lambda_double 0. --lambda_single 1.)
+#   Stage 2 (`STAGE=double`): double-mutation fine-tuning from Stage 1 (100 epochs, --lambda_double 1. --lambda_single 0.1)
+# Usage (from repo root, locally with `bash` or on Slurm with `sbatch`):
+#   [STAGE=both|single|double] [SEED=1] [SPLIT_NAME=oct06_capped_allbl] [OUT_ROOT=logs] \
+#     bash training_scripts/baselines/slurm_mutate_everything_train.sh
 set -eo pipefail
-hostname; nvidia-smi -i "$CUDA_VISIBLE_DEVICES" || { echo "unhealthy GPU in allocation ($CUDA_VISIBLE_DEVICES)"; exit 1; }  # gpu2 idx 3 (D8:00.0) is unresponsive
-module purge
+
+if [ -z "${THIRD_PARTY_DIR:-}" ]; then
+  if [ -d "$HOME/software/MutateEverything-oct06" ]; then
+    THIRD_PARTY_DIR="$HOME/software"
+  elif [ -d "$HOME/software/msr_baselines" ]; then
+    THIRD_PARTY_DIR="$HOME/software/msr_baselines"
+  else
+    THIRD_PARTY_DIR="$HOME/software"
+  fi
+fi
+export THIRD_PARTY_DIR
+MUTATE_EVERYTHING_DIR=${MUTATE_EVERYTHING_DIR:-$THIRD_PARTY_DIR/MutateEverything-oct06}
+
+hostname
+if [ -n "${CUDA_VISIBLE_DEVICES:-}" ]; then
+  nvidia-smi -i "$CUDA_VISIBLE_DEVICES" || { echo "unhealthy GPU ($CUDA_VISIBLE_DEVICES)"; exit 1; }
+else
+  nvidia-smi || { echo "unhealthy GPU"; exit 1; }
+fi
+
+module purge 2>/dev/null || true
 unset PYTHONPATH
-export PATH=${ME_ENV_BIN:-$HOME/.conda/envs/mutate_everything/bin}:$PATH        # the conda env of envs/mutate_everything.yml
-cd "${MUTATE_EVERYTHING_DIR:-${THIRD_PARTY_DIR:-$HOME/software}/MutateEverything-oct06}"
-SEED=${SEED:-1}; STAGE=${STAGE:-both}
-S=${SPLIT_NAME:?set SPLIT_NAME (the data/<name> directory build_mutate_everything_data.py wrote)}
+export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
+
+if [ -z "${ME_ENV_BIN:-}" ]; then
+  for cand in \
+    "$HOME/miniconda3/envs/mutate_everything_cu128/bin" \
+    "$HOME/.conda/envs/mutate_everything_cu128/bin" \
+    "$HOME/miniconda3/envs/mutate_everything/bin" \
+    "$HOME/.conda/envs/mutate_everything/bin"; do
+    if [ -x "$cand/python" ]; then
+      ME_ENV_BIN=$cand
+      break
+    fi
+  done
+fi
+: "${ME_ENV_BIN:?set ME_ENV_BIN or create mutate_everything_cu128 (see training_scripts/baselines/requirements/README.md)}"
+export PATH="$ME_ENV_BIN:$PATH"
+ENV_LIB="$(cd "$ME_ENV_BIN/.." && pwd)/lib"
+if [ -d "$ENV_LIB" ]; then
+  export LD_LIBRARY_PATH="$ENV_LIB:${LD_LIBRARY_PATH:-}"
+fi
+
+if [ -z "${NPROC:-}" ]; then
+  if [ -n "${CUDA_VISIBLE_DEVICES:-}" ]; then
+    NPROC=$(awk -F',' '{print NF}' <<< "$CUDA_VISIBLE_DEVICES")
+  else
+    NPROC=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l)
+  fi
+fi
+
+cd "$MUTATE_EVERYTHING_DIR"
+SEED=${SEED:-1}
+STAGE=${STAGE:-both}
+S=${SPLIT_NAME:?set SPLIT_NAME (e.g. oct06_capped_allbl)}
 D=data/$S/mutations
-echo "split_name=$S stage=$STAGE seed=$SEED"
+OUT_ROOT=${OUT_ROOT:-logs}
+EP1=${STAGE1_EPOCHS:-${EPOCHS:-20}}
+EP2=${STAGE2_EPOCHS:-${EPOCHS:-100}}
+STAGE1_CKPT=${STAGE1_CKPT:-$OUT_ROOT/af_single_${S}_seed${SEED}/checkpoint-$((EP1 - 1)).pth}
 EVAL=$D/${S}_val.csv,$D/${S}_test.csv
-PORT=$((29500 + SLURM_JOB_ID % 1000))
+PORT=$((29500 + ${SLURM_JOB_ID:-$$} % 1000))
+
+echo "split_name=$S stage=$STAGE seed=$SEED nproc=$NPROC env=$ME_ENV_BIN out_root=$OUT_ROOT"
 
 if [ "$STAGE" != double ]; then
-torchrun --nproc_per_node=3 --master_port=$PORT main_train.py \
+  torchrun --nproc_per_node="$NPROC" --master_port="$PORT" main_train.py \
     --batch_size 1 \
     --finetune_backbone models/finetuning_ptm_2.pt \
-    --data_path $D/${S}_train.csv \
-    --eval_data_paths $EVAL \
+    --data_path "$D/${S}_train.csv" \
+    --eval_data_paths "$EVAL" \
     --dist_eval \
     --backbone af \
     --lambda_double 0. --lambda_single 1. \
-    --eval_period 999 --epochs 20 --warmup_epochs 2 --save_period 20 \
-    --seed $SEED \
+    --eval_period 999 --epochs "$EP1" --warmup_epochs 2 --save_period "$EP1" \
+    --seed "$SEED" \
     --disable_wandb \
-    --output_dir logs/af_single_${S}_seed$SEED
+    --output_dir "$OUT_ROOT/af_single_${S}_seed${SEED}"
 fi
 
 if [ "$STAGE" != single ]; then
-torchrun --nproc_per_node=3 --master_port=$PORT main_train.py \
+  torchrun --nproc_per_node="$NPROC" --master_port="$PORT" main_train.py \
     --batch_size 1 \
     --finetune_backbone models/finetuning_ptm_2.pt \
-    --data_path $D/${S}_train.csv \
-    --eval_data_paths $EVAL \
+    --data_path "$D/${S}_train.csv" \
+    --eval_data_paths "$EVAL" \
     --dist_eval \
     --backbone af \
-    --eval_period 1000 --epochs 100 --warmup_epochs 10 --save_period 100 \
-    --finetune logs/af_single_${STAGE1_SPLIT:-$S}_seed$SEED/checkpoint-19.pth \
-    --seed $SEED \
+    --eval_period 1000 --epochs "$EP2" --warmup_epochs 10 --save_period "$EP2" \
+    --finetune "$STAGE1_CKPT" \
+    --seed "$SEED" \
     --disable_wandb \
-    --output_dir logs/af_double_${S}_seed$SEED
+    --output_dir "$OUT_ROOT/af_double_${S}_seed${SEED}"
 fi

@@ -35,7 +35,7 @@ WT_I, WT_J = int(SEQ[I]), int(SEQ[J])
 def _item(pos, mts, y, **kw):
     pos = list(pos)
     d = {'subset_type': 'single' if len(pos) == 1 else 'double', 'mut_pos': np.array(pos), 'wt_id': np.array([int(SEQ[p]) for p in pos]),
-         'mt_id': np.array(mts), 'ddG': y, 'cens': 0, 'cens_bound': float('nan'), 'dG_meas': 1.0, 'dG_wt': 2.0, 'y_floor': 0.0,
+         'mt_id': np.array(mts), 'ddG': y, 'cens': 0, 'cens_bound': float('nan'), 'dG_meas': 1.0, 'dG_wt': 2.0,
          'ddG_A': float('nan'), 'ddG_B': float('nan'),
          'wt_sequence_tokens': SEQ.numpy(), 'coords_orig': np.zeros((1, 9, 37, 3), dtype=np.float32), 'structure_tokens_orig': np.zeros(9, dtype=np.int64)}
     d.update(kw)

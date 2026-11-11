@@ -13,7 +13,7 @@ Status key:
 | :--- | :--- | :--- |
 | [`STATE.md`](STATE.md) | **CURRENT** | Active workspace state, queue runner status, running and queued arms on GPU 0, pitfalls, and design facts. **Read first upon context reset.** |
 | [`codebase_spec_and_audit.md`](codebase_spec_and_audit.md) | **CURRENT** | Full architectural and infrastructure specification, prioritized bug resolutions/mitigations, efficiency shortcuts in training and inference, and active modeling directions. |
-| [`FEATURES.md`](FEATURES.md) | **CURRENT** | Comprehensive consolidated guide to model features: dual-adapter design, readout links, two-source censoring, frozen-WT paradigm, and de-linked teacher forcing (`tf_mix`). |
+| [`FEATURES.md`](FEATURES.md) | **CURRENT** | Comprehensive consolidated guide to model features: dual-adapter design, the Tobit floor observation model, two-source censoring, and teacher forcing (`tf_mix`). |
 | [`EXPERIMENTS.md`](EXPERIMENTS.md) | **CURRENT** | Chronological experiment history, measured metric progressions across lineages, triage records, and open questions. |
 | [`OUTSTANDING_EXPERIMENTS.md`](OUTSTANDING_EXPERIMENTS.md) | **CURRENT** | Tracker for in-flight, queued, and blocked benchmark evaluations and ablations. |
 
@@ -37,7 +37,7 @@ Status key:
 | :--- | :--- | :--- |
 | [`known_issues.md`](known_issues.md) | **REFERENCE** | Practical workarounds for long structures, WSL driver memory behavior, and allocator configurations. |
 | [`vram_and_batch_sizes.md`](vram_and_batch_sizes.md) | **REFERENCE** | Quadratic VRAM model and batch size bounds on RTX 5090 (32 GB). |
-| [`trim_audit.md`](trim_audit.md) | **REFERENCE** | Census of the 160 legacy flags, run evidence, and rationale behind the consolidation into modern YAML recipes. |
+| [`rc_branch.md`](rc_branch.md) | **REFERENCE** | Summary of the streamlined block-training CLI and Tobit-only architecture (`configs/recipe.yaml`). |
 
 ---
 
