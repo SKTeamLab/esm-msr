@@ -37,7 +37,7 @@ TABLE_FIGURES = {
     '6.5.1': ['10_leakage_and_reference/leak_overlap_tsuboyama_test', '10_leakage_and_reference/leak_audit_text_tables'],
     '6.5.2': ['10_leakage_and_reference/clean_means'],
 }
-NOT_A_RESULT = {'7.1': 'file-location table (cluster paths); replaced by the "where things are" section of analysis/README.md'}
+NOT_A_RESULT = {}
 
 
 def main():
