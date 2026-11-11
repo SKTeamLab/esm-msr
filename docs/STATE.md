@@ -182,7 +182,7 @@ they are archived, not superseded, and their failure modes are recorded in §4.
    `--mask_strategy` (sequence masking) stays off; do not reintroduce density capping or target-conditioned
    resampling.
 11. **`--lambda_reg_mt` must be > 0** for `--mt_single_anchor_weight > 0`; `--nonspecific_term fx`
-    requires `--link`.
+    required `--link` (the links were removed on 2026-11-05; see docs/FEATURES.md §2.2).
 12. **Restarting `launch_wtsweep.sh` used to wipe the stack it was resuming.** It truncated `wt_stack.txt` and
     deleted `wt_best.txt` at start, which is right for a fresh sweep and wrong for a *rescheduled* one: on
     2026-10-19 that silently dropped rank16/α32/dropout 0.2 before the floor0 arm, which then ran at the base

@@ -6,7 +6,8 @@ import pickle
 import pytest
 
 from esm_msr import censoring
-from esm_msr.data import MutationStabilityDataset, ProteinCyclingBatchSampler
+from esm_msr import blocks
+from esm_msr.data import MutationStabilityDataset
 from esm_msr.preprocess_megascale import read_manifest, setup_dataloaders, write_manifest
 
 
@@ -51,10 +52,9 @@ def test_range_censored_rows_are_dropped_unless_admitted(tmp_path):
     assert len(_ds(tmp_path, censor_range=False)) == 1
 
 
-def test_one_floor_is_stamped_and_one_threshold_censors(tmp_path):
+def test_one_threshold_censors(tmp_path):
     _write(tmp_path, '1ABC', [_item('1ABC', 'single', ddG=-3.0, dG_meas=0.2), _item('1ABC', 'double', ddG=-1.0, dG_meas=2.0)])
-    ds = _ds(tmp_path, link_floor=0.25, censor_threshold=0.5)
-    assert [i['y_floor'] for i in ds] == [0.25, 0.25]
+    ds = _ds(tmp_path, censor_threshold=0.5)
     assert [i['cens'] for i in ds] == [censoring.CENS_LO, 0]
     assert list(ds.cens_arr) == [-1, 0]
     assert [i['cens'] for i in _ds(tmp_path, censor_threshold=None)] == [0, 0]
@@ -73,30 +73,13 @@ def test_the_manifest_round_trips_and_is_required(tmp_path):
     assert m['train'] == ['A', 'B'] and m['val'] == ['C'] and m['benchmarks'] == ['ptmuld'] and m['split_file'] == 'splits.pkl'
 
 
-def test_the_sampler_keeps_a_batch_inside_one_library_and_is_seeded(tmp_path):
-    for code in ('1AAA', '1BBB'):
-        _write(tmp_path, code, [_item(code, 'single') for _ in range(8)])
-    ds = [_ds(tmp_path, c) for c in ('1AAA', '1BBB')]
-
-    def batches(seed):
-        sam = ProteinCyclingBatchSampler(ds, 4, ['1AAA', '1BBB'], rng_seed=seed)
-        return list(sam), sam
-
-    a, sam = batches(1)
-    assert len(a) == 4 and len(sam) == 4
-    for b in a:
-        assert len({i // 8 for i in b}) == 1                 # one library per batch
-    assert a == batches(1)[0] and a != batches(2)[0]
 
 
-def test_the_sampler_drops_a_remainder_smaller_than_a_batch(tmp_path):
-    _write(tmp_path, '1AAA', [_item('1AAA', 'single') for _ in range(10)])
-    assert len(list(ProteinCyclingBatchSampler([_ds(tmp_path, '1AAA')], 4, ['1AAA'], rng_seed=1))) == 2
 
 
 def _args(tmp_path, **kw):
-    a = dict(cache_path=str(tmp_path), cache_version='c6', batch_size=4, num_workers=0, subsets=['single', 'double'],
-             native_cond_for_wt=True, native_cond_for_mt=False, censor_range=False, link_floor=0.0, censor_threshold=0.5, seed=1)
+    a = dict(cache_path=str(tmp_path), cache_version='c6', num_workers=0, exclude_mutbg=False, rank_censor_threshold=0.5, seed=1,
+             block_positions=8, block_pair_weight=1.0, block_domain_steps=False)
     a.update(kw)
     return argparse.Namespace(**a)
 
@@ -105,28 +88,42 @@ def _library(tmp_path, code, n=8):
     _write(tmp_path, code, [_item(code, 'single') for _ in range(n)])
 
 
-def test_setup_builds_loaders_in_manifest_order_and_skips_empty_libraries(tmp_path):
+@pytest.fixture
+def captured(monkeypatch):
+    """The block loader needs real sequences; what these tests look at is which datasets reach it."""
+    seen = {}
+    monkeypatch.setattr(blocks, 'build_block_loader', lambda datasets, names, *a, **k: (seen.update(datasets=list(datasets), names=list(names), kwargs=k), 'block loader')[1])
+    return seen
+
+
+def test_setup_hands_the_block_loader_the_training_libraries_in_manifest_order_and_skips_empty_ones(tmp_path, captured):
     for code in ('1AAA', '1BBB', '1CCC'):
         _library(tmp_path, code)
-    _write(tmp_path, '1DDD', [_item('1DDD', 'double')])             # only a double: empty under --subsets single
+    _write(tmp_path, '1DDD', [])                                      # nothing in it
     write_manifest(str(tmp_path), 'c6', {'train': ['1BBB', '1AAA', '1DDD'], 'val': ['1CCC']}, [], 'splits.pkl')
-    train, val, bench, tn, vn, bn = setup_dataloaders(_args(tmp_path, subsets=['single']))
-    assert vn == ['1CCC'] and bn == [] and tn == ['cycled_train']
-    assert [len(d) for d in train[0].dataset.datasets] == [8, 8]    # 1BBB then 1AAA; 1DDD was empty and skipped
+    train, val, bench, tn, vn, bn = setup_dataloaders(_args(tmp_path))
+    assert vn == ['1CCC'] and bn == [] and tn == ['cycled_train'] and train == ['block loader']
+    assert captured['names'] == ['1BBB', '1AAA'] and [len(d) for d in captured['datasets']] == [8, 8]    # 1DDD was empty and skipped
+    assert captured['kwargs']['singles'] is True and captured['kwargs']['pairs'] is True
+    setup_dataloaders(_args(tmp_path, block_pair_weight=0.0))
+    assert captured['kwargs']['pairs'] is False                        # a pair weight of 0 runs no pair blocks
 
 
-def test_native_cond_for_mt_adds_the_subset_to_training_only(tmp_path):
+def test_a_mutant_background_library_is_trained_on_as_ordinary_singles(tmp_path, captured):
     _write(tmp_path, '1A0N_L7S', [_item('1A0N_L7S', 'single') for _ in range(8)])
     _library(tmp_path, '1AAA')
     write_manifest(str(tmp_path), 'c6', {'train': ['1A0N_L7S', '1AAA'], 'val': ['1A0N_L7S']}, [], 'splits.pkl')
-    train, val, *_ = setup_dataloaders(_args(tmp_path, native_cond_for_mt=True))
-    assert sorted({i['subset_type'] for d in train[0].dataset.datasets for i in d}) == ['native_cond', 'single']
-    assert len(val[0].dataset) == 8                                  # validation keeps native_cond (scored as singles)
+    train, val, _, tn, vn, _ = setup_dataloaders(_args(tmp_path))
+    assert sorted({i['subset_type'] for d in captured['datasets'] for i in d}) == ['single']               # no 'native_cond' label: both heads see singles
+    assert [len(d) for d in captured['datasets']] == [8, 8] and vn == ['1A0N_L7S'] and len(val[0].dataset) == 8
 
 
-def test_a_split_file_that_is_not_the_manifests_is_refused(tmp_path):
+def test_exclude_mutbg_leaves_the_mutant_background_libraries_out_of_training_only(tmp_path, captured):
+    _write(tmp_path, '1A0N_L7S', [_item('1A0N_L7S', 'single') for _ in range(8)])
     _library(tmp_path, '1AAA')
-    write_manifest(str(tmp_path), 'c6', {'train': ['1AAA'], 'val': ['1AAA']}, [], 'splits_a.pkl')
-    setup_dataloaders(_args(tmp_path, requested_split_file='/some/where/splits_a.pkl'))
-    with pytest.raises(ValueError, match='manifest'):
-        setup_dataloaders(_args(tmp_path, requested_split_file='/some/where/splits_b.pkl'))
+    write_manifest(str(tmp_path), 'c6', {'train': ['1A0N_L7S', '1AAA'], 'val': ['1A0N_L7S']}, [], 'splits.pkl')
+    train, val, _, tn, vn, _ = setup_dataloaders(_args(tmp_path, exclude_mutbg=True))
+    assert [len(d) for d in captured['datasets']] == [8]                                                   # only 1AAA
+    assert vn == ['1A0N_L7S'] and len(val[0].dataset) == 8                                                 # validation still scores the mutant-background library
+
+

@@ -11,7 +11,6 @@ import numpy as np
 import pytest
 
 from esm_msr import config
-from esm_msr.link import SaturatingLink
 from esm_msr.training import summarise_external_benchmarks
 
 BASE = ['training.py', '--raw_data_file', 'x.csv', '--af_model_folder', 'x', '--experiment_name', 'x']
@@ -24,15 +23,6 @@ def parse(*extra):
         return config.parse_arguments()
     finally:
         sys.argv = argv
-
-
-def test_default_set_is_the_three_benchmarks():
-    assert parse().external_val_sets == 'ptmuld,s461,ssym'
-
-
-def test_it_can_be_overridden_or_emptied():
-    assert parse('--external_val_sets', 's461').external_val_sets == 's461'
-    assert parse('--external_val_sets', '').external_val_sets == ''
 
 
 def test_summary_uses_only_the_external_loaders():
@@ -91,7 +81,8 @@ def _bare_module():
     obj._hparams = SimpleNamespace(freeze_wt_after_epoch=99, lr_warmup_steps=0, val_dump=False)
     obj._trainer = SimpleNamespace(sanity_checking=True, current_epoch=0, global_step=0)
     obj._fabric = None
-    obj.link_head = SaturatingLink()
+    obj.obs_link = None
+    obj.val_regimes = [('', {'wt': None, 'mt': None})]
     obj._mut_keys = lambda pdb, muts: [('lib', str(i)) for i in range(len(muts))]
     return obj
 
@@ -121,3 +112,40 @@ def test_validation_epoch_end_runs_with_an_ood_loader_and_keeps_it_out_of_the_av
     assert got['val_rho_combined_external'] == pytest.approx(got['val_rho_combined/ptmuld'])
     # ...and the two are genuinely different here, so the assertion above is not vacuous.
     assert abs(got['val_rho_combined/LIB1'] - got['val_rho_combined/ptmuld']) > 1e-6
+
+
+def _logged(regimes=None, loaders=(('LIB1', 0), ('ptmuld', 1))):
+    from esm_msr.training import ESM3EpistasisLightningModule
+    obj = _bare_module()
+    if regimes:
+        obj.val_regimes = regimes
+    outs = {}
+    for i, (name, seed) in enumerate(loaders):
+        o = _loader_output(name, shift=0.5 * (name == 'ptmuld'), seed=seed)
+        if regimes and len(regimes) > 1:
+            o['regimes'] = {p: {k: v + 0.5 * (n + 1) * np.sin(7.0 * np.arange(len(v))) for k, v in o.items() if k in ('wt_scores', 'mt_scores', 'comb_scores')}
+                            for n, (p, _) in enumerate(regimes[1:])}
+        outs[i] = [o]
+    obj.validation_step_outputs = outs
+    ESM3EpistasisLightningModule.on_validation_epoch_end(obj)
+    return obj.logged
+
+
+def test_the_cull_logs_only_the_kept_statistics():
+    got = _logged()
+    for name in ('val_rho_combined/LIB1', 'val_rho_singles_wt/LIB1', 'val_rmse_combined/LIB1', 'val_rmse_singles_wt/LIB1', 'val_rho_combined/ptmuld',
+                 'val_rho_combined_avg', 'val_rho_singles_wt_avg', 'val_rmse_combined_avg', 'val_ndcg>0_avg', 'val_ndcg@k=96_wt_avg',
+                 'val_des_rho_combined_avg', 'val_rho_combined_external', 'val_rho_wt_external', 'val_rmse_combined_external', 'val_rmse_singles_wt_external'):
+        assert name in got, name
+    gone = ('val_rho_singles_combined', 'val_rho_doubles_wt', 'val_ndcg>0/', 'val_ndcg@k=96/', 'val_rho_ungrouped', 'val_cycle_gap', 'val_diag_', 'val_nat_alive', 'val_nat_debiased',
+            'val_nat_rho_singles_wt', 'val_des_rho_singles_wt', 'link/', 'val_rho_wt/')
+    assert not [k for k in got if any(k.startswith(g) for g in gone)], sorted(k for k in got if any(k.startswith(g) for g in gone))
+    assert not [k for k in got if k.startswith('val_unmasked_') or k.startswith('val_masked_')]
+
+
+def test_an_extra_regime_logs_a_copy_of_the_main_statistics_under_its_prefix():
+    got = _logged([('', {'wt': 'independent', 'mt': 'independent'}), ('unmasked_', {'wt': None, 'mt': None})])
+    main = {k for k in got if not k.startswith('val_unmasked_')}
+    copy = {k for k in got if k.startswith('val_unmasked_')}
+    assert copy and {'val_unmasked_' + k[len('val_'):] for k in main} == copy, sorted({'val_unmasked_' + k[len('val_'):] for k in main} ^ copy)
+    assert got['val_unmasked_rho_combined_avg'] != got['val_rho_combined_avg']                  # the copy is the other regime's numbers, not the main ones twice

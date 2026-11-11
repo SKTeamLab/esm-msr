@@ -85,8 +85,6 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         if key + '_mt' not in hparams:
             logging.warning(f"Expected base parameter '{key}_mt' missing from hparams. Defaulting to {default_mt[key]}.")
 
-    if 'adapter_mode' not in hparams:
-        logging.warning("Expected 'adapter_mode' missing from hparams. Defaulting to 'dual'.")
 
     wt_config = {
         'lora_rank': hparams.get('lora_rank_wt', default_wt['lora_rank']),
@@ -116,6 +114,14 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
     m_mt = hparams.get('mask_strategy_mt', hparams.get('mask_strategy', None))
     if isinstance(m_wt, str) and m_wt.lower() == 'none': m_wt = None
     if isinstance(m_mt, str) and m_mt.lower() == 'none': m_mt = None
+    if m_wt is None and 'mask_strategy_wt' not in hparams and 'mask_strategy' not in hparams and 'block_mask_wt' in hparams:
+        m_wt = 'independent' if float(hparams['block_mask_wt']) > 0.5 else None
+    if m_mt is None and 'mask_strategy_mt' not in hparams and 'mask_strategy' not in hparams and 'block_mask_mt' in hparams:
+        m_mt = ('marginal' if bool(hparams.get('block_marginal_mt', False)) else 'independent') if float(hparams['block_mask_mt']) > 0.5 else None
+    # 'random' (each mutated site masked with probability --mask_prob) is a training-time regime: a model trained that way is scored
+    # unmasked unless the caller asks for marginal / independent.
+    if m_wt == 'random': m_wt = None
+    if m_mt == 'random': m_mt = None
     if m_wt == m_mt:
         ckpt_mask_strategy = m_wt
     else:
@@ -144,7 +150,7 @@ def calibration_from_hparams(hparams: dict) -> dict:
       per_mutation_bias True  the bias once per mutated position. This one is a decision, not a fact: the released and
                               the dc8 checkpoints were trained with one bias per item, so scoring them per mutation
                               shifts a k-mutant's calibrated prediction by (k - 1) * bias and leaves every single
-                              unchanged. It is the one convention the project keeps (it is mandatory with --link), so
+                              unchanged. It is the one convention the project keeps (it was mandatory with the link), so
                               anything computed per item before 2026-10-23 has to be rerun to be comparable.
     """
     return {'tie_mt_scale': bool(hparams.get('tie_mt_scale', False)),
@@ -279,7 +285,7 @@ def _dtype_autocast(model, dev):
 
 
 @torch.no_grad()
-def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, backbone_mutation=None, optimize_wt_pass=True, quiet=False, skip_additive=True, skip_reverse=False, mask_strategy=None, calculate_distances=False, ignore_mismatch=True, auto_batch=None) -> pd.DataFrame:
+def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, backbone_mutation=None, optimize_wt_pass=True, quiet=False, skip_additive=True, skip_reverse=False, mask_strategy=None, calculate_distances=False, ignore_mismatch=True, auto_batch=None, gate_singles_epistasis: bool = False) -> pd.DataFrame:
     """
     A unified, highly interpretable pipeline to evaluate mutational stability.
     """
@@ -427,27 +433,31 @@ def infer_mutants(model, df: pd.DataFrame, batch_size: int = 16, device=None, ba
         if skip_additive or len(muts) == 1:
             wt_tot = preds[muts_tup]['wt_lora']
             mt_tot = preds[muts_tup]['mt_lora']
-            comb_tot = preds[muts_tup]['combined']
-            epi_tot = mt_tot - wt_tot if len(muts) > 1 else 0.0
+            comb_tot = wt_tot if (gate_singles_epistasis and len(muts) == 1) else preds[muts_tup]['combined']
+            # Ensemble epistasis: comb(AB) - WT(AB) = epistasis_weight * (MT(AB) - WT(AB)) = 0.5 * (MT - WT) at default weight 0.5;
+            # identically 0.0 on single mutants. Raw MT - WT (= 2 * dddG) is retained separately as mt_lora_dddg_pred.
+            epi_tot = (comb_tot - wt_tot) if len(muts) > 1 else 0.0
+            mt_dddg = (mt_tot - wt_tot) if len(muts) > 1 else 0.0
             res_dict.update({
                 'wt_lora_pred': wt_tot, 'mt_lora_pred': mt_tot, 
-                'combined_pred': comb_tot, 'combined_dddg_pred': 0.5 * mt_tot - 0.5 * wt_tot,
-                'epi_pred': epi_tot, 'mt_lora_dddg_pred': epi_tot,
+                'combined_pred': comb_tot, 'combined_dddg_pred': epi_tot,
+                'epi_pred': epi_tot, 'mt_lora_dddg_pred': mt_dddg,
             })
         else:
             wt_add = sum(preds[(m,)]['wt_lora'] for m in muts)
             mt_add = sum(preds[(m,)]['mt_lora'] for m in muts)
-            comb_add = sum(preds[(m,)]['combined'] for m in muts)
+            comb_add = wt_add if gate_singles_epistasis else sum(preds[(m,)]['combined'] for m in muts)
             
             wt_tot = preds[muts_tup]['wt_lora']
             mt_tot = preds[muts_tup]['mt_lora']
             comb_tot = preds[muts_tup]['combined']
-            # Authoritative epistasis: ~MT(AB) - WT(AB), where WT(AB) = WT(A) + WT(B) on the additive baseline.
-            epi_tot = mt_tot - wt_tot
+            # Authoritative 1x ensemble epistasis: comb(AB) - WT(AB) = epistasis_weight * (MT(AB) - WT(AB)).
+            epi_tot = comb_tot - wt_tot
+            mt_dddg = mt_tot - wt_tot
             
             res_dict.update({
                 'wt_lora_pred_additive': wt_add, 'wt_lora_dddg_pred': wt_tot - wt_add, 'wt_lora_pred': wt_tot, 
-                'mt_lora_pred_additive': mt_add, 'mt_lora_dddg_pred': epi_tot, 'mt_lora_pred': mt_tot, 
+                'mt_lora_pred_additive': mt_add, 'mt_lora_dddg_pred': mt_dddg, 'mt_lora_pred': mt_tot, 
                 'combined_pred_additive': comb_add, 'combined_dddg_pred': comb_tot - comb_add, 'combined_pred': comb_tot,
                 'epi_pred': epi_tot,
             })
@@ -514,6 +524,8 @@ if __name__ == "__main__":
     parser.add_argument("--epistasis_weight", type=float, default=0.5,
                         help="Blend weight lambda in (1 - lambda) * y_WT + lambda * y_MT (default 0.5). Lower values (e.g. 0.1-0.33) "
                              "favor additive main effects on functional/DMS assays; 0.5-0.6 favors thermodynamic stability.")
+    parser.add_argument("--gate_singles_epistasis", action=argparse.BooleanOptionalAction, default=False,
+                        help="When enabled, set combined_pred = wt_lora_pred on k=1 single mutants (where epistasis is identically zero).")
     parser.add_argument("--tie_mt_scale", action=argparse.BooleanOptionalAction, default=None,
                         help="Share the WT calibration scale with the MT head. Default: what the checkpoint was trained "
                              "with (its hparams; OFF when the key is missing, as for the released models).")
@@ -752,7 +764,8 @@ if __name__ == "__main__":
         skip_additive=args.skip_additive,
         skip_reverse=args.skip_reverse,
         mask_strategy=eff_mask_strategy,
-        calculate_distances=args.calculate_distances
+        calculate_distances=args.calculate_distances,
+        gate_singles_epistasis=args.gate_singles_epistasis,
     )
 
     if results_df.empty:

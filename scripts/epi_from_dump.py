@@ -14,8 +14,8 @@ sampling uncertainty of the validation set itself for a fixed model.
 import argparse, json, os, pickle, sys
 import numpy as np
 
-from esm_msr import epi_metrics as E
-from esm_msr.link import numpy_link
+from esm_msr import censoring, epi_metrics as E
+from esm_msr.link import numpy_link, numpy_link_from_summary
 
 _DGWT = {}
 
@@ -42,7 +42,7 @@ def _parse_link(z):
     ls = z['link_summary']
     s = json.loads(str(ls.item()) if hasattr(ls, 'item') and ls.ndim == 0 else str(ls))
     if 'tau' in s:
-        return numpy_link(s['tau'], s['floor_min'], s['floor_max'], s.get('global_floor', 0.0))
+        return numpy_link_from_summary(s)
     if 'tau_lo' in s:
         return numpy_link(s['tau_lo'], s['lo'], s['hi'], ceiling=s.get('ceiling'), tau_hi=s.get('tau_hi'))
     return None
@@ -143,10 +143,20 @@ def main():
     rows = []
     for path in a.dumps:
         items, link = load_items(path, a.cache)
-        res = E.compute(E.Table(items, link))
+        if 'cens_src' in items:
+            canon = np.asarray(items['cens_src']) != censoring.SRC_RANGE
+            items = {k: ([v[i] for i in np.flatnonzero(canon)] if isinstance(v, list)
+                         else (np.asarray(v)[canon] if v is not None else None))
+                     for k, v in items.items()}
+        tbl = E.Table(items, link)
+        res = E.compute(tbl)
+        diag = E.compute_clean_diagnostics(tbl)
+        res.update(diag)
+        if np.isfinite(res.get('epi_cell_rank_epi', np.nan)) and np.isfinite(res.get('epi_beyond_lib_epi', np.nan)):
+            res['epi_composite'] = 0.5 * (res['epi_cell_rank_epi'] + res['epi_beyond_lib_epi'])
         ci = bootstrap(items, link, a.boot) if a.boot else {}
         print(f'\n{path}  (link: {"yes" if link else "no"}; doubles {int(res["epi_n_doubles"])}, pairs {int(res["epi_n_pairs"])})')
-        for name in E.logged_names():
+        for name in E.logged_names() + ['epi_clean_err_epi', 'epi_clean_bias_epi', 'epi_cell_rank_mt_legacy', 'wt_doubles_clean_rmse', 'wt_doubles_clean_slope', 'epi_composite']:
             if name in res:
                 extra = f'   [{ci[name][0]:.3f}, {ci[name][1]:.3f}]' if name in ci else ''
                 print(f'  val_{name:28s} {res[name]:8.3f}{extra}')

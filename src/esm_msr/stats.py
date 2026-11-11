@@ -120,9 +120,11 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
     * ``rho_combined``   - the reported two-path average, on measured items only (singles, doubles,
       native-background items).
     * ``rmse_combined``  - calibration of that average in kcal/mol. With ``obs`` (a dict whose ``comb`` holds the
-      predictions on the assay's OBSERVED scale, ``h(dG_wt + latent) - dG_wt``, for a model trained with
-      ``--link``) it is computed there, so it stays comparable with a model trained without the link; rank metrics
+      predictions on the assay's OBSERVED scale, ``h(dG_wt + latent) - dG_wt``, for a model whose training used the
+      link) it is computed there, so it stays comparable with a model trained without the link; rank metrics
       always use the latent scores, which ``h`` leaves alone because it is monotone.
+    * ``rho_wt`` - the WT head over every measured item, singles and multi-mutants together (the external summary's ``val_rho_wt_external``).
+    * ``rmse_singles_wt`` - the WT head's calibration on the library's singles, on the observed scale like ``rmse_combined`` when ``obs`` carries ``wt``.
     * ``ndcg@k=96`` / ``ndcg>0`` - top-of-list retrieval for the WT head and the combined path.
 
     Retired 2026-10-24: ``rho_wt_all`` / ``rho_mt_all`` (each head on singles and doubles mixed, which answered
@@ -156,10 +158,17 @@ def compute_metrics(wt_scores, mt_scores, comb_scores, ground_truths, subset_typ
         'rho_combined': safe_spearman(comb_scores[is_measured], gt[is_measured]),
         'rmse_combined': safe_rmse(comb_scores[is_measured], gt[is_measured]),
     }
+    # the WT head over every measured item (the external summary's rho_wt) and its calibration on the singles (rmse_singles_wt)
+    metrics['rho_wt'] = safe_spearman(wt_scores[is_measured], gt[is_measured])
+    wt_obs = wt_scores.astype(np.float64)
     if obs is not None:
         oc = np.asarray(obs['comb'], dtype=np.float64)
         ok = is_measured & np.isfinite(oc)
         metrics['rmse_combined'] = safe_rmse(oc[ok], gt[ok]) if ok.any() else np.nan
+        if 'wt' in obs:
+            wt_obs = np.asarray(obs['wt'], dtype=np.float64)
+    ok_wt = is_single & np.isfinite(wt_obs)
+    metrics['rmse_singles_wt'] = safe_rmse(wt_obs[ok_wt], gt[ok_wt]) if ok_wt.any() else np.nan
 
     if is_measured.any():
         metrics['ndcg@k=96'] = safe_ndcg_k96(comb_scores[is_measured], gt[is_measured])

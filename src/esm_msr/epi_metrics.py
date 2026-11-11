@@ -78,14 +78,14 @@ The metrics (``METRICS`` below; logged as ``val_epi_<metric>_<head>``).
     class3_pos_recall_{epi,ctx}     recall on confident positive epistasis (r > 0.6 kcal/mol).
     class3_neg_recall_{epi,ctx}     recall on confident negative epistasis (r < -0.6 kcal/mol).
 
-Changed 2026-10-24:
-  - Global calibration/scale metrics anchored to 'epi' (formerly 'mt'): kept only global_err and global_bias, dropping
-    global_dddg_bias* (which conflated single-mutant shrinkage with epistasis bias).
-  - Deleted all comb epistasis metrics except naive_rho_comb: comb mixes 50% additive WT head, diluting epistatic contrast
-    and compressing residuals by 2x.
-  - Renamed _mt to _epi across all epistasis metrics to reflect that the head is evaluated as ~MT(AB) - WT(AB) (the epistasis increment).
-  - Added beyond_rho_pairavg, class3_acc, class3_pos_recall, and class3_neg_recall.
-  - Library-centred beyond_lib.
+Changed 2026-11-01:
+  - Added ``comb`` (the 1x ensemble prediction ``0.5 * WT + 0.5 * MT``, or ``WT`` in WT-only runs) to ``HEADS``, ``EPI_HEADS``,
+    and ``global_err`` / ``global_bias``, so ``val_epi_*_comb`` reports exact 1x epistasis across all metrics (including
+    ``cell_rank_comb`` where a noiseless oracle achieves 1.000, ``global_err_comb``, ``global_bias_comb``, ``class3_*_comb``)
+    and can be cleanly backfilled onto append-only historical Comet runs without colliding with legacy 2x ``val_epi_*_epi``
+    (``lat['epi'] = items['mt']``, kept identical to historical runs).
+  - Updated ``predicted_dddg`` to subtract ``LA['add'] + LB['add']`` (WT single sum) so marginal-masked WT heads get full credit
+    for position-pair and line epistasis.
 
 Counts (logged as ``val_epi_n_<name>``): doubles, pairs, complete blocks, confident flips.
 """
@@ -109,15 +109,15 @@ MIN_PAIRS = 8            # the pair level needs this many matrices
 MIN_LINE = 3             # a line needs this many cells for its mean
 MIN_BLOCK = 3            # a complete block needs at least this many rows and columns
 
-HEADS = ('epi', 'ctx', 'add')
-EPI_HEADS = ('epi', 'ctx')
-# Heads whose dddG' is their DOUBLE minus the WT-additive double (head -> the latent whose double is read); see predicted_dddg.
-WT_REFERENCED = {'epi': 'epi', 'ctx': 'rev', 'mt': 'epi'}
+HEADS = ('comb', 'epi', 'ctx', 'add')
+EPI_HEADS = ('comb', 'epi', 'ctx')
+# Heads whose dddG' is their DOUBLE minus the WT-additive singles sum (head -> the latent whose double is read); see predicted_dddg.
+WT_REFERENCED = {'comb': 'comb', 'epi': 'epi', 'ctx': 'ctx', 'mt': 'mt'}
 # name -> heads it is logged for. The order is the reading order of the hierarchy.
 METRICS = {
     'naive_rho': HEADS,
-    'global_err': ('epi',),
-    'global_bias': ('epi',),
+    'global_err': ('comb', 'epi'),
+    'global_bias': ('comb', 'epi'),
     'beyond_rho': EPI_HEADS,
     'beyond_lib': EPI_HEADS,
     'beyond_rho_pairavg': EPI_HEADS,
@@ -244,14 +244,20 @@ class Table:
         gt, dddG = np.asarray(items['ddG'], float), np.asarray(items['dddG'], float)
         c = np.asarray(items['dG_wt'], float) if items.get('dG_wt') is not None else np.full(n, np.nan)
         mt_arr = items['mt'] if 'mt' in items else items.get('epi')
-        lat = {'add': np.asarray(items['wt'], float), 'comb': np.asarray(items['comb'], float)}
+        self._explicit_epi = 'epi' in items
+        lat = {'add': np.asarray(items['wt'], float)}
+        if 'comb' in items and items['comb'] is not None:
+            lat['comb'] = np.asarray(items['comb'], float)
         if mt_arr is not None:
             lat['mt'] = np.asarray(mt_arr, float)
-            lat['epi'] = np.asarray(items['epi'], float) if 'epi' in items else lat['mt']
+            if 'comb' not in lat:
+                lat['comb'] = 0.5 * (lat['add'] + lat['mt'])
+            lat['epi'] = np.asarray(items['epi'], float) if self._explicit_epi else lat['mt']
         if items.get('wt_rev') is not None and np.isfinite(np.asarray(items['wt_rev'], float)).any():
             lat['rev'] = np.asarray(items['wt_rev'], float)
             lat['ctx'] = 0.5 * (lat['add'] + lat['rev'])
-        self.heads = [h for h in heads if h in lat] + (['rev'] if 'rev' in lat else []) + (['comb'] if 'comb' in lat and 'comb' not in heads else [])
+        extra_heads = [k for k in ('mt', 'rev', 'comb') if k in lat and k not in heads]
+        self.heads = [h for h in heads if h in lat] + extra_heads
 
         single = {}
         for i, k in enumerate(keys):
@@ -338,6 +344,9 @@ def predicted_dddg(t: Table, h: str):
     """(dddG'_h in latent space, x'_h): the head's predicted latent epistasis and its additive expectation."""
     if h in WT_REFERENCED:
         ref = WT_REFERENCED[h]
+        if ref in t.L and 'add' in t.LA and 'add' in t.LB:
+            add_lat = t.LA['add'] + t.LB['add']
+            return t.L[ref] - add_lat, t.c + add_lat
         if ref in t.L and 'add' in t.L:
             return t.L[ref] - t.L['add'], t.c + t.L['add']
         if h in t.L:
@@ -502,6 +511,42 @@ def flip_accuracy(t: Table, h: str, delta: float = FLIP_DELTA):
             hits += float(np.where(np.abs(con) < FLAT, 0.5, (np.sign(con) == want).astype(float)).sum())
             n += int(flip.sum())
     return (hits / n if n else NAN), n
+
+
+def compute_clean_diagnostics(t: Table, min_x: float = 1.0) -> Dict[str, float]:
+    """Supplementary clean-regime epistasis & WT-additive diagnostics (flagged separately from standard ``METRICS``):
+      - ``epi_clean_err_epi`` / ``epi_clean_bias_epi``: RMSE and bias of ``0.5 * (MT - WT)`` against measured ``dddG``
+        restricted to doubles with additive expectation ``x = dG_wt + ddG_A + ddG_B > min_x`` (above assay floor saturation).
+      - ``epi_cell_rank_mt_legacy``: ``cell_rank`` evaluated on pure ``L['mt']`` (``WT_add + 2 * dddG_pred``) for 1-to-1
+        historical comparison against un-rescored ``esm-msr-oct24-final`` runs.
+      - ``wt_doubles_clean_rmse`` / ``wt_doubles_clean_slope``: WT additive double prediction RMSE and OLS slope
+        ``Cov(P_add, y) / Var(y)`` on clean unsaturated doubles ``x > min_x``.
+    """
+    out: Dict[str, float] = {}
+    if t.n == 0:
+        return out
+    if t.head_ok('comb'):
+        pred_dddG, _ = predicted_dddg(t, 'comb')
+        clean = np.isfinite(pred_dddG) & np.isfinite(t.dddG) & np.isfinite(t.x) & (t.x > min_x)
+        if clean.any():
+            d = pred_dddG[clean] - t.dddG[clean]
+            err_c = float(np.sqrt(np.mean(d ** 2)))
+            bias_c = float(np.mean(d))
+            out['epi_clean_err_comb'] = err_c
+            out['epi_clean_bias_comb'] = bias_c
+            out['epi_clean_err_epi'] = err_c
+            out['epi_clean_bias_epi'] = bias_c
+    if t.head_ok('mt'):
+        out['epi_cell_rank_mt_legacy'] = rank_levels(t, 'mt')['cell_rank']
+    if t.head_ok('add') and 'add' in t.P:
+        clean_wt = np.isfinite(t.P['add']) & np.isfinite(t.y) & np.isfinite(t.x) & (t.x > min_x)
+        if clean_wt.sum() >= 3:
+            pw, ym = t.P['add'][clean_wt], t.y[clean_wt]
+            out['wt_doubles_clean_rmse'] = float(np.sqrt(np.mean((pw - ym) ** 2)))
+            vy = float(np.var(ym))
+            if vy > 1e-12:
+                out['wt_doubles_clean_slope'] = float(np.mean((pw - pw.mean()) * (ym - ym.mean())) / vy)
+    return out
 
 
 # ---------------------------------------------------------------- everything

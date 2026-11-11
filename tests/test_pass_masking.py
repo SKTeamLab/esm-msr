@@ -67,15 +67,6 @@ def test_a_dict_or_a_string_reaches_each_pass():
     assert _per_pass(None, 'mt') is None
 
 
-def test_the_flags_exist_per_pass_and_the_global_one_is_retired():
-    a = config.parse_arguments(['--experiment_name', 'x', '--mask_strategy_mt', 'independent'])
-    assert a.mask_strategy_mt == 'independent' and a.mask_strategy_wt is None
-    with pytest.raises(SystemExit):
-        config.parse_arguments(['--experiment_name', 'x', '--mask_strategy', 'marginal'])
-    with pytest.raises(SystemExit):
-        config.parse_arguments(['--experiment_name', 'x', '--mask_strategy_mt', 'chain'])
-
-
 def test_marginal_hides_both_sites_from_each_other():
     m, b = _model(), _double()
     visible_both_masked = float(b['mt_sequence_tokens'][0].sum() - b['mt_sequence_tokens'][0, 1] - b['mt_sequence_tokens'][0, 3])

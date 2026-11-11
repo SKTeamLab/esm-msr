@@ -89,6 +89,8 @@ def pass_mask_strategy(hp, pass_type: str) -> Optional[str]:
     reads each site masked with the partner's mutant residue visible, the conditional masked marginal of ddG(A|B). The same strategy on
     both passes cannot do this: ``marginal`` on the MT pass hides the partner, so the model cannot represent an interaction at all
     (``cell_rank`` is exactly 0).
+
+    Block training has its own per-position form of this, ``--block_mask_wt/_mt`` (the probability a head reads a site masked).
     """
     v = hp.get(f'mask_strategy_{pass_type}', None)
     return None if v in (None, 'none') else v
@@ -662,9 +664,9 @@ class MSRModel(ESM3PredictorBase):
 
         combined_pred = combine_predictions(wt_pred_cal, mt_pred_cal, epistasis_weight=getattr(self, 'epistasis_weight', 0.5))
 
-        # Epistasis prediction: authoritatively defined as ~MT(AB) - WT(AB) (the epistasis component of the MT pass alone
-        # beyond the wild-type additive baseline).
-        epi_pred = mt_pred_cal - wt_pred_cal
+        # Epistasis prediction: ensemble combined prediction minus the wild-type additive baseline,
+        # i.e. epistasis_weight * (mt_pred_cal - wt_pred_cal) = 0.5 * (MT - WT) at default epistasis_weight=0.5.
+        epi_pred = combined_pred - wt_pred_cal
 
         if skip_reverse:
             mt_pred_raw, mt_pred_cal, combined_pred, epi_pred = float('nan'), float('nan'), float('nan'), float('nan')
@@ -710,6 +712,34 @@ class MSRModel(ESM3PredictorBase):
     def _mt_pass_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
         """The MT pass's input: native_cond rows get the WT pass's sequence only in a --native_cond_for_mt model."""
         return native_cond_mt_batch(batch) if self.native_cond_mt_input else batch
+
+    def forward_site_llr(self, seqs: torch.Tensor, read_pos: torch.Tensor, wt_at_read: torch.Tensor, pass_type: str,
+                         coords: Optional[torch.Tensor] = None, struct_tokens: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        The raw LLR of all 20 residues at one position per row, ``[R, 20]``: ``logit[x] - logit[wt]`` at ``read_pos[r]``, in the order of
+        ``valid_canonical_aas``. One forward per row reads the whole alphabet, and the wild-type residue itself reads exactly 0. ``seqs`` are
+        complete input sequences (the caller has masked the site and applied any partner mutation); every row shares the library's structure.
+        This is the pass of block training (``esm_msr.blocks``).
+        """
+        R = int(seqs.shape[0])
+        if getattr(self, 'adapter_mode', 'dual') == 'dual':
+            active_model = self.peft_wt if pass_type == 'wt' else self.peft_mt
+        else:
+            active_model = self.peft_fused
+        # Identical rows are one forward: an UNMASKED wild-type pass carries the same sequence for every position it reads, and a pair block's
+        # unmasked mutant passes read both sites of one sequence. Rows that are all different (masked sites) take the plain path unchanged.
+        uniq, inv = torch.unique(seqs, dim=0, return_inverse=True)
+        n = int(uniq.shape[0]) if uniq.shape[0] < R else R
+        one = lambda t: None if t is None else t[0:1].expand(n, *([-1] * (t.ndim - 1)))
+        if n < R:
+            out = self._get_esm3_outputs(uniq, one(coords), one(struct_tokens), None, active_model=active_model)
+            logits = self._process_logits(out.sequence_logits.float())
+            row = logits[inv, read_pos]
+        else:
+            out = self._get_esm3_outputs(seqs, one(coords), one(struct_tokens), None, active_model=active_model)
+            logits = self._process_logits(out.sequence_logits.float())
+            row = logits[torch.arange(R, device=seqs.device), read_pos]
+        return row[:, self.canonical_idx_tensor] - row.gather(1, wt_at_read.view(-1, 1))
 
     def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
         if pass_type not in ['wt', 'mt']: raise AssertionError(f"pass_type must be 'wt' or 'mt'. Received: {pass_type}")

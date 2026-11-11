@@ -1,11 +1,11 @@
 """End-to-end smoke of ``training.main()`` on CPU, on a handful of truncated real libraries from a cache.
 
 Builds a tiny cache (a few libraries cut to a few singles and doubles, plus a manifest) in a temp directory and runs the real entry point
-for each mode: model construction, the cache loader, one epoch of the streaming loss with the real backbone, a real validation (all four
-passes, the epistasis metrics, the dump), checkpointing, the plateau hooks. It cannot say whether a recipe is any good; it says that the
+for each mode: model construction, the cache loader, one epoch of block training with the real backbone, a real validation (both
+passes, the epistasis metrics, the dump), checkpointing, the cosine schedule. It cannot say whether a recipe is any good; it says that the
 code path runs and every loss is finite. CUDA is hidden, so it cannot contend with a live job (it does compete for CPU: run it niced).
 
-    python analysis_scripts/smoke_cpu.py --cache_path CACHE --cache_version c6 [--modes dual_joint fused ...] [--wt_ckpt WT.ckpt]
+    python analysis_scripts/smoke_cpu.py --cache_path CACHE --cache_version c6 [--modes blocks blocks_domain_rank ...]
 """
 import argparse
 import json
@@ -19,16 +19,22 @@ import tempfile
 os.environ.setdefault('CUDA_VISIBLE_DEVICES', '')
 
 NATIVE = re.compile(r'_[A-Z]\d+[A-Z]$')
+# summary columns a mode must have written (and the ones no mode may write any more)
+EXPECT = {}
+CULLED = ('val_cycle_gap', 'val_rho_ungrouped', 'val_diag_', 'link/', 'val_rho_singles_combined', 'val_rho_doubles_wt')
+# The one truncated validation library is too small for the epistasis metrics, so the modes watch rho_combined (the main, masked regime). A CPU run cannot hold the unmasked block shape
+# (host memory), so the unmasked recipe is smoke-tested on the cluster, not here.
 MODES = {
-    'dual_joint': [],
-    'frozen_wt': ['--frozen_wt_mt_only'],
-    'fused': ['--adapter_mode', 'fused'],
-    'mask_mt_independent': ['--frozen_wt_mt_only', '--mask_strategy_mt', 'independent'],
-    'mask_wt_marginal_mt_independent': ['--mask_strategy_wt', 'marginal', '--mask_strategy_mt', 'independent'],
-    'native_cond_for_mt': ['--frozen_wt_mt_only', '--native_cond_for_mt'],
-    'huber': ['--frozen_wt_mt_only', '--huber_delta', '1.0'],
-    'comet_offline': ['--frozen_wt_mt_only', '--comet', '--comet_offline'],      # the key lookup and the logger path, without uploading anything
-    'wt_only': ['--freeze_mt_adapter', '--val_wt_only', '--subsets', 'single', '--lambda_rank_mt', '0', '--lambda_reg_mt', '0'],
+    'blocks': ['--block_positions', '4'],
+    # the T objective (Tobit likelihood, posterior teacher-forcing label, no rank loss) read through the Tobit expected reading: columns val_rmse_* on the observed scale
+    'blocks_tobit_posterior': ['--block_positions', '4', '--tf_label', 'posterior', '--lambda_rank_wt', '0', '--lambda_rank_mt', '0'],
+    # the recipe's moving parts on a masked read: domain steps, list rows, pair weight, rank 0.5 : reg 15, the rank-tie threshold, the wide floor
+    'blocks_domain_rank': ['--block_positions', '4', '--block_domain_steps', '--block_pair_weight', '0.38', '--block_list_rows', '4', '--tf_label', 'posterior',
+                           '--lambda_rank_wt', '0.5', '--lambda_rank_mt', '0.5', '--lambda_reg_wt', '15', '--lambda_reg_mt', '15', '--rank_censor_threshold', '-1.0',
+                           '--tobit_mu_f', '-0.14', '--tobit_sigma_f', '0.5'],
+    'blocks_cond_chunked': ['--block_positions', '4', '--block_row_chunk', '10', '--lambda_cond_mt', '7.5'],
+    'exclude_mutbg': ['--block_positions', '4', '--exclude_mutbg'],
+    'comet_offline': ['--block_positions', '4', '--comet', '--comet_offline'],      # the key lookup and the logger path, without uploading anything
 }
 
 
@@ -71,7 +77,6 @@ def main():
     ap.add_argument('--cache_path', required=True)
     ap.add_argument('--cache_version', default='c6')
     ap.add_argument('--modes', nargs='*', default=list(MODES))
-    ap.add_argument('--wt_ckpt', default=None, help="a WT checkpoint (rank 2 / alpha 4) for the frozen-WT modes")
     ap.add_argument('--keep', action='store_true')
     a = ap.parse_args()
     root = tempfile.mkdtemp(prefix='smoke_')
@@ -82,13 +87,8 @@ def main():
     failed = []
     for mode in a.modes:
         extra = list(MODES[mode])
-        if '--frozen_wt_mt_only' in extra:
-            if not a.wt_ckpt:
-                print(f"[{mode}] skipped: needs --wt_ckpt")
-                continue
-            extra += ['--init_wt_from_checkpoint', a.wt_ckpt]
         cmd = [sys.executable, '-m', 'esm_msr.training', '--experiment_name', f'smoke_{mode}', '--version', '0', '--log_dir', os.path.join(root, 'logs'),
-               '--cache_path', cache, '--cache_version', a.cache_version, '--num_epochs', '1', '--batch_size', '8', '--micro_batch_size', '4',
+               '--cache_path', cache, '--cache_version', a.cache_version, '--num_epochs', '1',
                '--num_workers', '0', '--no-comet', '--rank_list_size', '4', '--lr_warmup_steps', '2'] + extra
         env = dict(os.environ, PYTHONPATH=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'), HF_HUB_OFFLINE='1', ESM_MSR_PRECISION='32')   # CPU bf16 autocast fails inside ESM3's geometric attention; production is bf16-mixed on GPU
         print(f"[{mode}] {' '.join(extra) or '(defaults)'}", flush=True)
@@ -104,6 +104,10 @@ def main():
             df = pd.read_csv(csv)
             rho = df['val_rho_combined_avg'].dropna().tolist() if 'val_rho_combined_avg' in df.columns else []
             ok = len(rho) >= 2 and bool(np.isfinite(rho).all()) and os.path.exists(os.path.join(root, 'logs', f'smoke_{mode}', '0', 'last.ckpt'))
+            missing = [c for c in EXPECT.get(mode, []) if c not in df.columns or not df[c].notna().any()]
+            culled = [c for c in df.columns if any(c.startswith(g) for g in CULLED)]
+            ok = ok and not missing and not culled
+            print(f"[{mode}] missing {missing or 'none'}, culled columns still logged {culled[:3] or 'none'}, validation columns {len([c for c in df.columns if c.startswith('val_')])}", flush=True)
             print(f"[{mode}] validations {len(rho)}, val_rho_combined_avg {['%.4f' % r for r in rho]}", flush=True)
         if not ok:
             failed.append(mode)
