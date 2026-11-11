@@ -2,9 +2,8 @@
 """Publication figure 8 (drafts): the saturating link against the data.  The doubles are the 12,455 Homology-Restricted MegaScale test doubles with both singles measured; the link is applied to
 absolute dG (dG_wt + ddG).  Two links are drawn on every option:
 
-  softplus  h(z) = f + tau softplus((z - f) / tau), floor f = 0, tau = 0.59: the link of the training runs (``--link_kind softplus``)
+  softplus  h(z) = f + tau softplus((z - f) / tau), floor f = 0, tau = 0.59: the softplus floor link
   leaky     u(z) = k + alpha (z - k) + (1 - alpha) tau softplus((z - k) / tau), h(z) = c + w softplus((u - c) / w), knee k = 0, tau = 0.59, alpha = 0.10, clamp c = -1, w = 0.25
-            (``--link_kind leaky``, ``esm_msr.link.LeakyFloorLink``)
 
 The additive expectation of a double is dG_wt + ddG_A + ddG_B (``x``, observed) or, undoing each link on the measured dG of the two singles and of the wild type, z = h^-1(A) + h^-1(B) - h^-1(W)
 (``z``, latent; the leaky inverse is defined down to the clamp, the softplus one is clipped at 0.05).  A "distant" double has its two residues more than 8 A apart (CB-CB, AlphaFold models of the
@@ -37,7 +36,7 @@ from msr_analysis.link import singles_of_doubles  # noqa: E402
 
 OUT = out_dir('06_epistasis')
 DS = 'tsuboyama_capped_test'
-PDB = Path('/home/sareeves/software/esm-msr-release/data/tsuboyama/AlphaFold_model_PDBs')
+PDB = Path(os.environ.get('MSR_TSUBOYAMA_PDB_DIR', Path.home() / 'software/esm-msr/data/tsuboyama/AlphaFold_model_PDBs'))
 TITLE = 'Homology-Restricted MegaScale test doubles with both singles measured'
 TAU, KNEE, ALPHA, CLAMP, WIDTH = 0.59, 0.0, 0.10, -1.0, 0.25
 DISTANT = 8.0                                     # CB-CB distance (A) beyond which a double counts as distant
@@ -68,7 +67,7 @@ def inv_leaky(y):
     v = (y - CLAMP) / WIDTH
     u = CLAMP + WIDTH * np.where(v > 20, v, np.log(np.expm1(np.maximum(v, 1e-12))))
     d = (u - KNEE) / ALPHA
-    for _ in range(80):                                                    # Newton from the upper bound, as ``LeakyFloorLink.inverse``
+    for _ in range(80):                                                    # Newton iteration from the upper bound
         s = d / TAU
         f = ALPHA * d + (1 - ALPHA) * TAU * softplus(s) - (u - KNEE)
         d = d - f / (ALPHA + (1 - ALPHA) * (1.0 / (1.0 + np.exp(-s))))

@@ -20,7 +20,7 @@ import pandas as pd
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE / 'reference' / 'benchmark_tables'
-DEFAULT = '/home/sareeves/playground/esm-msr-devel/repo/.claude/worktrees/devel-main-conservative-merge-5e554f/docs/BENCHMARKS_OCT2026.md'
+DEFAULT = str(HERE.parent / 'docs' / 'BENCHMARKS_OCT2026.md')
 
 
 def split_row(line):

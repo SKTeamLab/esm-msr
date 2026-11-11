@@ -581,7 +581,7 @@ def read_manifest(cache_path: str, cache_version: str) -> Dict[str, Any]:
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"no cache manifest {path}. Training reads a prebuilt cache and its manifest (the list of libraries per split); "
-            f"build both with analysis_scripts/build_cache.py (`build` from the raw table, or `convert` from an older cache version).")
+            f"build both with scripts/build_cache.py (`build` from the raw table, or `convert` from an older cache version).")
     with open(path) as f:
         return json.load(f)
 

@@ -77,7 +77,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
     and recognise a measurement that is only a bound.
     """
 
-    # The cache version a run reads when it does not pin one. c6 is c5 without the `cond` items (analysis_scripts/build_cache.py convert).
+    # The cache version a run reads when it does not pin one. c6 is c5 without the `cond` items (scripts/build_cache.py convert).
     # A run pins it with --cache_version, so a code change cannot silently hand a queued job a different dataset under the same name.
     CACHE_VERSION = 'c6'
 
@@ -124,7 +124,7 @@ class MutationStabilityDataset(torch.utils.data.Dataset):
         if not os.path.exists(self.cache_path):
             raise FileNotFoundError(
                 f"no cache for library {dms_name!r}: {self.cache_path}. Training reads a prebuilt cache; build or convert one with "
-                f"analysis_scripts/build_cache.py (cache version {self.cache_version}).")
+                f"scripts/build_cache.py (cache version {self.cache_version}).")
 
         logging.info(f"Loading cached data for {self.dms_name}")
         with open(self.cache_path, 'rb') as f:

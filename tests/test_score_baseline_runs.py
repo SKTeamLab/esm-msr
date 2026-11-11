@@ -1,4 +1,4 @@
-"""analysis_scripts/score_baseline_runs.py: the filters and aggregation that put the retrained SPURS rows in the BENCHMARKS tables."""
+"""analysis/scoring/score_baseline_runs.py: the filters and aggregation that put the retrained SPURS rows in the BENCHMARKS tables."""
 import sys
 from pathlib import Path
 
@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'analysis_scripts'))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'analysis' / 'scoring'))
 import score_baseline_runs as S
 
 

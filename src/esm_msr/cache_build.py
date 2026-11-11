@@ -2,7 +2,7 @@
 
 Training does not import this. It reads a cache that was built once (MutationStabilityDataset in data.py), so a training run
 starts without the raw table, without the structure encoder and without any of the structure-file plumbing below. The code here was
-moved out of data.py unchanged; analysis_scripts/build_cache.py is its command line.
+moved out of data.py unchanged; scripts/build_cache.py is its command line.
 
 One library (one code) of measurements is expanded into items and pickled to <path>/<code>_<score>_<version>.pkl:
 

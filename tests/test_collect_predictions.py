@@ -1,11 +1,11 @@
-"""analysis_scripts/collect_predictions.py: the naming rules that decide where each collected prediction file goes (no cluster needed)."""
+"""analysis/scoring/collect_predictions.py: the naming rules that decide where each collected prediction file goes (no cluster needed)."""
 import os
 import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'analysis_scripts'))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'analysis' / 'scoring'))
 import collect_predictions as C
 
 
@@ -47,7 +47,7 @@ def test_rerunning_skips_a_destination_that_already_holds_the_file(tmp_path, mon
     src.parent.mkdir()
     src.write_text('x' * 10)
     plan = C.Plan()
-    plan.add('new/a.csv', '/home/sreeves/a.csv', 10, 0.0, local=str(src))
+    plan.add('new/a.csv', '/remote/a.csv', 10, 0.0, local=str(src))
     C.run(plan)
     assert (tmp_path / 'new' / 'a.csv').read_text() == 'x' * 10 and not src.exists()      # moved, not copied
     C.run(plan)                                                                           # second run: nothing to do, nothing breaks

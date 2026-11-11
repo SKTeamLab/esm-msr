@@ -1,4 +1,4 @@
-"""analysis_scripts/score_me_proteingym.py: the sign, the join and the summary rule of ME's ProteinGym rows (toy data, no cluster)."""
+"""analysis/scoring/score_me_proteingym.py: the sign, the join and the summary rule of ME's ProteinGym rows (toy data, no cluster)."""
 import sys
 from pathlib import Path
 
@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'analysis_scripts'))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'analysis' / 'scoring'))
 import score_me_proteingym as S
 
 

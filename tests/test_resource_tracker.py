@@ -173,7 +173,7 @@ def test_pgym_runner_without_tracker_is_unchanged(tmp_path):
 
 
 def test_resource_report_sums_inference_rows_only(tmp_path):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'analysis_scripts'))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'analysis' / 'scoring'))
     import resource_report
     t = rt.Tracker(tmp_path, 'demo', interval=0.05)
     with t.stage('model_load'):

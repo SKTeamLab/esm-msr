@@ -82,7 +82,7 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                      help="Write the Comet experiment to <log_dir>/comet_offline instead of uploading it: for nodes without internet. "
                           "Upload afterwards from a node that has it: comet upload <log_dir>/comet_offline/*.zip")
 
-    data = parser.add_argument_group("Data (a prebuilt cache; analysis_scripts/build_cache.py makes one)")
+    data = parser.add_argument_group("Data (a prebuilt cache; scripts/build_cache.py makes one)")
     data.add_argument('--cache_path', type=str, default=os.environ.get('ESM_MSR_CACHE_PATH', './data_cache'))
     data.add_argument('--cache_version', type=str, default=None,
                       help=f"The cache version this run reads (default {DEFAULT_CACHE_VERSION}). Pin it: a launcher that does not is handed "

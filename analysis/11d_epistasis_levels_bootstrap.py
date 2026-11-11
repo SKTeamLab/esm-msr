@@ -27,18 +27,16 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import torch
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / 'src'))
 from esm_msr import epi_metrics as E  # noqa: E402
-from esm_msr.link import numpy_link_from_state_dict  # noqa: E402
 
 from msr_analysis.common import out_dir  # noqa: E402
 from msr_analysis.data import load_frame, sum_singles  # noqa: E402
 from msr_analysis.link import link_fn  # noqa: E402
-from msr_analysis.registry import REFERENCE, ROOT  # noqa: E402
+from msr_analysis.registry import REFERENCE  # noqa: E402
 
 OUT = out_dir('06_epistasis')
 DS = {'test': 'tsuboyama_capped_test', 'val': 'tsuboyama_capped_val'}
@@ -79,12 +77,6 @@ def extract_ctx(ctx_dir):
             c['code'], c['mut_type'] = c['code'].astype(str), c['mut_type'].astype(str)
             rows.append(c.drop_duplicates(['code', 'mut_type']).rename(columns={'mt_lora_pred': 'wt_rev'}).assign(split=split, seed=seed))
     pd.concat(rows).to_csv(REFERENCE / 'ctx_wt_rev_devel.csv.gz', index=False, float_format='%.6g')
-
-
-def link_of(seed):
-    p = glob.glob(str(ROOT / f'dc_runs/logs/dc8_floorlink_canon_w2a4_m16a16_s{seed}/0/{CKPT[seed]}'))[0]
-    sd = torch.load(p, map_location='cpu', weights_only=False)
-    return numpy_link_from_state_dict(sd.get('state_dict', sd))
 
 
 def make_table(sp, wt, mt, heads, wt_rev=None, link=None, y_floor=None):

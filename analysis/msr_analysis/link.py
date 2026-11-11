@@ -1,7 +1,7 @@
-"""The saturating link of the devel (floor-link) ESM-MSR checkpoints, applied offline.
+"""The saturating floor link of the devel ESM-MSR checkpoints, applied offline.
 
 Devel checkpoints write *latent* ddG: the model's additive-in-effects opinion, unsaturated.  What the assay reports is
-``h(dG_wt + latent) - dG_wt`` with ``h(z) = f + tau * softplus((z - f) / tau)`` (``src/esm_msr/link.py``).  Ranking within a library is unchanged by ``h`` (it is
+``h(dG_wt + latent) - dG_wt`` with ``h(z) = f + tau * softplus((z - f) / tau)``.  Ranking within a library is unchanged by ``h`` (it is
 monotone), but anything that mixes libraries, reads levels, or differences two predictions (dddG) must go through it.  The parameters
 are read from the checkpoints' ``link_head`` (``reference/devel_link_params.json``, extracted once by ``extract_link_params``).  The
 per-item floors cached on the cluster (``y_floor.json``) are not collected locally, so every item uses the checkpoint's one learned floor.
@@ -48,8 +48,8 @@ def observed(latent, dg_wt, seed):
 
 
 def link_fn(seed):
-    """The checkpoint's observed-scale link of devel seed ``seed`` as a numpy function ``link(dG, y_floor) -> dG_obs`` on absolute dG, as ``esm_msr.link.numpy_link_from_state_dict``
-    builds it: ``h(z) = f + tau softplus((z - f) / tau)`` with the knee ``f`` the item's library floor clipped into [floor_min, floor_max] (global_floor where it has none)."""
+    """The checkpoint's observed-scale link of devel seed ``seed`` as a numpy function ``link(dG, y_floor) -> dG_obs`` on absolute dG:
+    ``h(z) = f + tau softplus((z - f) / tau)`` with the knee ``f`` the item's library floor clipped into [floor_min, floor_max] (global_floor where it has none)."""
     p = load_params()[str(seed)]
     lo = p['floor_min']
     hi = max(p['floor_max'], lo + 1e-3)
