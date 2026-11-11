@@ -1,11 +1,11 @@
 finding,size,affected rows
-23 ProteinGym assays are fully inside the capped train split,"23/213 DMS, all Stability","45,623/2,446,730 rows (100 % of those 23 DMS)"
-ME stage 1/2 and ThermoMPNN on those assays,"singles (24,252 exact) + constituent (21,331) for ME; 24,252 exact for TMPNN",same 23 DMS
-Domainome domain `O95155_PF04564_1229` (UBE4B) is Megascale library 3L1X,1 of 522 domains,"1,134 exact + 3,177 same-protein rows (0.8 % of Domainome)"
-"EsmTherm's 80/10/10 is per row, not per domain: 27/33 test libraries contribute training mutants",82.2 % of test rows same-protein,"`P`, `M?` expected ≈ 0.8"
-IFUM trained on 21/33 test libraries,45.2 % of test rows same-protein,"`P`, `M?` = same rows"
-ESM3ΔG is zero-shot on Megascale,0 exact sequences anywhere in the benchmark,40.7 % strong + 50.3 % weak homologs
-DDGemb = S2450,92.5 % of S2648; 30 % of S8754; 28 % of Ssym; 45 % of Q3421; 26 % of K3822; 24 % of K2369,upper bounds via S2648
-DDMut = S9028 + SM1242,88.8 % of S2648; 60.3 % of S8754; 42.1 % of S783; 19.6 % of S571; 29.7 % of Ssym; 58.9 % of PTMUL; 36.2 % of PTMUL-D,exact
-GeoDDG = S8754,S8754 is its training set (`#`); 97.7 % of S2648; 88.3 % of S783; 38.5 % of S571; 68.7 % of Q3421; 69.3 % of K3822; 76.1 % of K2369,exact
-"the ""six clean sets"" claim",only S669 and S461 have zero identical mutations for every model,"DDMut shares 11 %/16 % of them at protein level, GeoDDG 1 %/3 %"
+23 ProteinGym assays are fully inside the capped train split (+ 3 strong 3D structural homologs),"23/217 `M` + 3/217 `H` DMS, all Stability","45,623 `M` + 2 `m` + 4,607 `H` / 2,465,767 rows"
+"ME stage 1/2, ThermoMPNN and retrained SPURS on those assays","singles (24,252 exact) + constituent (21,331) for ME/SPURS; 24,252 exact for TMPNN",same 23 `M` + 3 `H` DMS
+"Two Domainome domains (`O95155_PF04564_1229` = `3L1X`, `Q9H161_PF00046_216` = `2M0C`) match capped train at 100 % identity (+ 60 strong 2D/3D homolog domains)",2 `M` + 2 `P` + 60 `H` of 522 domains,"2,023 exact + 2,288 `P` (0.8 %) + 58,422 `H` rows (10.9 %)"
+"EsmTherm's 80/10/10 is per row, not per domain: 27/33 test libraries (including mutant backgrounds) contribute training mutants",85.6 % of test rows same-protein (`P.86`),"`P`, `M?` expected ≈ 0.8 (`M?.68`)"
+IFUM trained on 21/33 test libraries (including mutant backgrounds),48.6 % of test rows same-protein (`P.49`),"`P`, `M?` = same rows (`M?.49`)"
+ESM3ΔG is zero-shot on Megascale,0 exact sequences anywhere in the benchmark,40.7 % strong (`8/33` libs) + 50.3 % weak (`21/33`) homologs
+DDGemb = S2450 (sequence-aligned `S2450.tsv` + `S2450.fasta`),"92.5 % of S2648; 63.4 % of Q3421; 43.6 % of S8754; 38.3 % of K3822; 33.0 % of K2369; 29.7 % of Ssym; `m.48`/`m.54` on PTMUL/PTMUL-D; 0 % on S783, S669, S461",verified exact / constituent
+DDMut = S9028 + SM1242 (forward + reverse structures),98.2 % of S2648; 88.3 % of Ssym; 83.5 % of Q3421; 74.3 % of K2369; 72.2 % of K3822; 69.5 % of S8754; 60.9 % of S783; 58.9 %/71.1 % of PTMUL/PTMUL-D; 10.0 %/14.5 % of S669/S461,verified exact
+GeoDDG = S8754 (construct-aligned),S8754 is its training set (`#`); 100 % of S2648; 97.9 % of Q3421; 91.2 % of K2369; 89.1 % of K3822; 88.4 % of S783; 50.0 % of Ssym; `m.73`/`m.78` on PTMUL/PTMUL-D; 1.2 % of S669,verified exact / constituent
+"the ""six clean sets"" claim",only S461 has zero identical mutations across all full-coverage models,DDMut has `M.10`/`M.15` on S669/S461; GeoDDG has `M.01 H.03` on S669

@@ -1,18 +1,18 @@
 model,PG avg (leak code),Stability (leak code),DMS mean (leak code)
-"ESM-MSR (released), combined",M.02 m<.001 h<.001,M.02 m<.001 h<.001,M.02 m<.001 h<.001
-"ESM-MSR (released), WT head",M.02 m<.001 h<.001,M.02 m<.001 h<.001,M.02 m<.001 h<.001
-"ESM-MSR (devel), combined (3 seeds)",M.02 m<.001 h<.001,M.02 m<.001 h<.001,M.02 m<.001 h<.001
-MutateEverything st1 (3 seeds),M.010 m.009 P<.001 h<.001,M.010 m.009 P<.001 h<.001,M.010 m.009 P<.001 h<.001
-MutateEverything st2 (3 seeds),M.02 m<.001 h<.001,M.02 m<.001 h<.001,M.02 m<.001 h<.001
-"ThermoMPNN (additive, 3 seeds)",M.010 m.009 P<.001 h<.001,M.010 m.009 P<.001 h<.001,M.010 m.009 P<.001 h<.001
-"SPURS (retrained, 3 seeds)",M.010 m.009 P<.001 h<.001,M.010 m.009 P<.001 h<.001,M.010 m.009 P<.001 h<.001
-"SPURS multi (retrained, 3 seeds)",M.02 m<.001 h<.001,M.02 m<.001 h<.001,M.02 m<.001 h<.001
-ESMtherm,P.04 M?.03 H<.001 h<.001,P.04 M?.03 H<.001 h<.001,P.04 M?.03 H<.001 h<.001
+"ESM-MSR (released), combined",M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003
+"ESM-MSR (released), WT head",M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003
+"ESM-MSR (devel), combined (3 seeds)",M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003
+MutateEverything st1 (3 seeds),M.010 m.009 P<.001 H.002 h.003,M.010 m.009 P<.001 H.002 h.003,M.010 m.009 P<.001 H.002 h.003
+MutateEverything st2 (3 seeds),M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003
+"ThermoMPNN (additive, 3 seeds)",M.010 m.009 P<.001 H.002 h.003,M.010 m.009 P<.001 H.002 h.003,M.010 m.009 P<.001 H.002 h.003
+"SPURS (retrained, 3 seeds)",M.010 m.009 P<.001 H.002 h.003,M.010 m.009 P<.001 H.002 h.003,M.010 m.009 P<.001 H.002 h.003
+"SPURS multi (retrained, 3 seeds)",M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003
+ESMtherm,P.04 M?.03 H.004 h<.001,P.04 M?.03 H.004 h<.001,P.04 M?.03 H.004 h<.001
 GeoDDG-3D (FASPR),n.a.,n.a.,n.a.
-ESM3ΔG,H.02 h.32,H.02 h.32,H.02 h.32
-ProSST (zero-shot),C,C,C
+ESM3ΔG,H.02 h.33,H.02 h.33,H.02 h.33
+ProSST (zero-shot),–,–,–
 Rosetta Cartesian ΔΔG,–,–,–
-ProteinMPNN (zero-shot),C,C,C
-"ProteinMPNN, ProteinGym published recipe",C,C,C
-"ESM3-small-open, σ = 0 (zero-shot)",C,C,C
-"ESM3-open, ProteinGym published recipe",C,C,C
+ProteinMPNN (zero-shot),–,–,–
+"ProteinMPNN, ProteinGym published recipe",–,–,–
+"ESM3-small-open, σ = 0 (zero-shot)",–,–,–
+"ESM3-open, ProteinGym published recipe",–,–,–

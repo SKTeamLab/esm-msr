@@ -1,75 +1,104 @@
 {
+  "n_libraries_total": 370,
+  "n_external_classical_nodes": 771,
+  "n_external_dms_nodes": 5,
+  "n_external_nodes_total": 776,
   "default_edges_total": 25027,
-  "default_cross_edges_involving_excluded": 366,
+  "default_cross_edges_involving_excluded": 880,
   "default_cross_edges_real": 0,
   "sweep": [
     {
-      "rule": "split rule (E1e-3, id>0.40)",
-      "edges": 24427,
-      "cross_any": 235,
+      "rule": "split rule + TM>0.70 (actual)",
+      "edges": 25027,
+      "cross_any": 880,
       "cross_real": 0,
+      "cross_internal": 0,
+      "cross_external": 0,
+      "pairs": 0
+    },
+    {
+      "rule": "E<=1e-3 or id>0.40 (no TM cap)",
+      "edges": 24427,
+      "cross_any": 676,
+      "cross_real": 0,
+      "cross_internal": 0,
+      "cross_external": 0,
       "pairs": 0
     },
     {
       "rule": "E<=1e-3 only",
       "edges": 24353,
-      "cross_any": 210,
+      "cross_any": 638,
       "cross_real": 0,
+      "cross_internal": 0,
+      "cross_external": 0,
       "pairs": 0
     },
     {
       "rule": "identity>0.30",
       "edges": 26301,
-      "cross_any": 736,
-      "cross_real": 218,
-      "pairs": 218
+      "cross_any": 2592,
+      "cross_real": 1220,
+      "cross_internal": 206,
+      "cross_external": 1014,
+      "pairs": 1220
     },
     {
       "rule": "identity>0.25",
       "edges": 36001,
-      "cross_any": 1883,
-      "cross_real": 610,
-      "pairs": 610
+      "cross_any": 11086,
+      "cross_real": 6453,
+      "cross_internal": 560,
+      "cross_external": 5893,
+      "pairs": 6453
     },
     {
       "rule": "E<=1e-2",
       "edges": 25052,
-      "cross_any": 307,
-      "cross_real": 4,
-      "pairs": 4
+      "cross_any": 811,
+      "cross_real": 10,
+      "cross_internal": 4,
+      "cross_external": 6,
+      "pairs": 10
     },
     {
       "rule": "E<=1e-1",
       "edges": 26302,
-      "cross_any": 660,
-      "cross_real": 48,
-      "pairs": 48
+      "cross_any": 1315,
+      "cross_real": 113,
+      "cross_internal": 37,
+      "cross_external": 76,
+      "pairs": 113
     },
     {
-      "rule": "TM_max>=0.5",
+      "rule": "TM_max>0.50",
       "edges": 27666,
-      "cross_any": 1289,
-      "cross_real": 177,
-      "pairs": 177
+      "cross_any": 2642,
+      "cross_real": 667,
+      "cross_internal": 145,
+      "cross_external": 522,
+      "pairs": 667
     },
     {
-      "rule": "TM_max>=0.4",
+      "rule": "TM_max>0.40",
       "edges": 34217,
-      "cross_any": 3041,
-      "cross_real": 681,
-      "pairs": 681
-    },
-    {
-      "rule": "split rule + TM>=0.7",
-      "edges": 25027,
-      "cross_any": 366,
-      "cross_real": 0,
-      "pairs": 0
+      "cross_any": 6946,
+      "cross_real": 2400,
+      "cross_internal": 631,
+      "cross_external": 1769,
+      "pairs": 2400
     }
   ],
   "pairs_struct_only": 550,
+  "pairs_struct_or_tm70_only": 1150,
   "struct_only_cross_real": 0,
+  "struct_only_cross_with_excluded": 86,
   "struct_only_external": 0,
+  "kept_graph_transitive_external": {
+    "train": 0,
+    "val": 0,
+    "test": 0
+  },
   "transitive_connected": {
     "train": 134,
     "val": 7,
@@ -80,7 +109,16 @@
     "max_tm": 0.6998
   },
   "transitive_has_no_direct_pair": 0,
-  "excluded_direct_pairs": 109482,
-  "excluded_libs_with_direct": 142,
-  "excluded_direct_identity_gt90": 90
+  "excluded_libs_total": 142,
+  "excluded_direct_raw_prefilter_pairs": 110192,
+  "excluded_direct_pairs": 560,
+  "excluded_libs_with_direct": 132,
+  "excluded_external_component_libs": 140,
+  "excluded_bridge_libs": 2,
+  "excluded_bridge_lib_names": [
+    "HEEH_KT_rd6_0872",
+    "HHH_rd4_0124"
+  ],
+  "excluded_direct_identity_gt90": 91,
+  "excluded_direct_tm_gt90": 149
 }

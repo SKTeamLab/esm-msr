@@ -142,7 +142,10 @@ AlphaFold model exactly for all 363 libraries that have a `wt` row.
 This affected `preprocessing/split_tsuboyama.py`, whose homology FASTA
 carried mutant sequences. One designed library then measured 40.0%
 identity to an external benchmark instead of its true 42.5%, landing
-exactly on the 40% cap and escaping exclusion. Fixed 2026-10-06; the
-splits in `data/splits_oct06_capped.*` were regenerated from wild-type
-sequences. `aa_seq` is not used as wild-type model context anywhere, so
-training was not affected.
+exactly on the 40% cap and escaping exclusion. Fixed 2026-10-06 on `devel-experimental` (`0ccfc28`) and cherry-picked onto
+`devel-revision` (`e6fe2bd`..`24cb698`, bringing in `self.aa_seq_wt` in
+`src/esm_msr/preprocess_megascale.py` along with `preprocessing/homology.py`,
+`preprocessing/split_overlap_report.py`, `preprocessing/split_tsuboyama.py`, and
+`data/splits_oct06_capped_library_assignment.csv`; see
+[`SPLITTING_AND_HOMOLOGY_AUDIT.md`](SPLITTING_AND_HOMOLOGY_AUDIT.md)). `aa_seq` is not
+used as wild-type model context anywhere, so training was not affected.

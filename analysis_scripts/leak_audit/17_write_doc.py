@@ -1,8 +1,14 @@
-import os, re, json
+"""One-off migration script used when initially adding leak annotations and §6 to BENCHMARKS_OCT2026.md.
+
+Retained for provenance; subsequent updates edit ``docs/BENCHMARKS_OCT2026.md`` directly from
+``docs/benchmarks/leak_audit_matrix.csv`` while preserving section/table numbering for
+``analysis/00_parse_benchmark_tables.py``.
+"""
+import os, re, json, sys
 import pandas as pd, numpy as np
-ROOT=os.environ.get('LEAK_ROOT','/home/sareeves/playground/esm-msr-devel'); W=os.path.join(ROOT,'repo/.claude/worktrees/devel-main-conservative-merge-5e554f')
-DOC=os.path.join(W,'docs/BENCHMARKS_OCT2026.md')
-OUT=os.path.join(ROOT,'leak_audit','out')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from lib import OUT_DIR as OUT, REPO_ROOT
+DOC=os.path.join(REPO_ROOT,'docs','BENCHMARKS_OCT2026.md')
 s=open(DOC).read()
 tabs=open(os.path.join(OUT,'tables.md')).read().split('\n\n')
 t11,c11,t12,c12,t13,c13,t14,c14=tabs
@@ -30,10 +36,10 @@ assert len(blocks)==14, len(blocks)
 def wrap_ds(block):
     return '| | |\n|---|---|\n| **Leak code per cell** (same row/column order as above; see §6.2) |\n\n'+block
 # add the two published-recipe rows that are not in the long table
-t14=t14.replace('| ESM3-small-open, σ = 0 (zero-shot) | 0.448ᶜ | 0.621ᶜ | 0.470ᶜ |',
- '| ESM3-small-open, σ = 0 (zero-shot) | 0.448ᶜ | 0.621ᶜ | 0.470ᶜ |\n| ProteinMPNN, ProteinGym published recipe | 0.257ᶜ | 0.565ᶜ | 0.298ᶜ |\n| ESM3-open, ProteinGym published recipe | 0.466ᶜ | 0.641ᶜ | 0.486ᶜ |')
-c14=c14.replace('| ESM3-small-open, σ = 0 (zero-shot) | C | C | C |',
- '| ESM3-small-open, σ = 0 (zero-shot) | C | C | C |\n| ProteinMPNN, ProteinGym published recipe | C | C | C |\n| ESM3-open, ProteinGym published recipe | C | C | C |')
+t14=t14.replace('| ESM3-small-open, σ = 0 (zero-shot) | 0.448 | 0.621 | 0.470 |',
+ '| ESM3-small-open, σ = 0 (zero-shot) | 0.448 | 0.621 | 0.470 |\n| ProteinMPNN, ProteinGym published recipe | 0.257 | 0.565 | 0.298 |\n| ESM3-open, ProteinGym published recipe | 0.466 | 0.641 | 0.486 |')
+c14=c14.replace('| ESM3-small-open, σ = 0 (zero-shot) | – | – | – |',
+ '| ESM3-small-open, σ = 0 (zero-shot) | – | – | – |\n| ProteinMPNN, ProteinGym published recipe | – | – | – |\n| ESM3-open, ProteinGym published recipe | – | – | – |')
 note12='\n\n*The legacy hyperopt val/test columns are omitted here: those rows predate the Oct06 split and are out of this audit\'s scope (their values are in §1.5).*\n'
 new_tables={0:t11+'\n\n'+c11, 1:t12+note12+c12, 2:t13+'\n\n'+c13, 4:t14+'\n\n'+c14}
 # rebuild document table by table (reverse order to keep offsets)

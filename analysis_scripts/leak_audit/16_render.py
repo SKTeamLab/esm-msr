@@ -1,9 +1,14 @@
-"""Render the annotated BENCHMARKS tables from the ORIGINAL doc's numbers + the leak matrix."""
-import os, re, subprocess, json
+"""Render annotated BENCHMARKS_OCT2026.md tables + companion leak-code tables from leak_matrix.csv.
+
+Historical table-rendering helper used during the initial benchmark-table annotation pass; reads
+benchmark Spearman scores from ``docs/BENCHMARKS_OCT2026.md`` and cell codes/superscripts from
+``$LEAK_OUT_DIR/leak_matrix.csv``, writing ``$LEAK_OUT_DIR/tables.md``.
+"""
+import os, re, subprocess, json, sys
 import pandas as pd, numpy as np
-ROOT=os.environ.get('LEAK_ROOT','/home/sareeves/playground/esm-msr-devel'); OUT=os.path.join(ROOT,'leak_audit','out')
-W=os.path.join(ROOT,'repo/.claude/worktrees/devel-main-conservative-merge-5e554f')
-DOC=os.path.join(W,'docs/BENCHMARKS_OCT2026.md')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from lib import OUT_DIR as OUT, REPO_ROOT
+DOC=os.path.join(REPO_ROOT,'docs','BENCHMARKS_OCT2026.md')
 mx=pd.read_csv(os.path.join(OUT,'leak_matrix.csv'))
 CODE={(r.model,r.dataset):(r.code, r.sup if isinstance(r.sup,str) else '') for r in mx.itertuples()}
 def code_for(model,ds):
@@ -11,7 +16,7 @@ def code_for(model,ds):
     if model=='DDMut' and ds in ('s669','s461'): return CODE.get(('DDMut [partial]',ds))
     return None
 EXCL={'ᴹ','ᵐ','ᴾ','ᴴ','ᴰ','ᵁ','ⱽ','#'}
-FLAGS=dict.fromkeys(map(ord,'†‡‽'),None)
+FLAGS=dict.fromkeys(map(ord,'†‡‽ᴹᵐᴾᴴʰᴰᵁⱽᶜ#'),None)
 def norm(x):
     return re.sub(r'\s+',' ',x.translate(FLAGS).replace('*','').replace('_','').replace('**','')).strip()
 # parse original tables

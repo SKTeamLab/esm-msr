@@ -1,0 +1,1290 @@
+code,split,n_rows,n_rows_basis,dataset2_proxy_total,in_all_three_splits,test_only_wildtype,in_capped_train,in_capped_val,in_capped_test
+1A0N,test,130.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1303.0,True,False,False,False,False
+1A0N,train,1043.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1303.0,True,False,False,False,False
+1A0N,val,130.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1303.0,True,False,False,False,False
+1A32,test,110.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1105.0,True,False,True,False,False
+1A32,train,885.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1105.0,True,False,True,False,False
+1A32,val,110.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1105.0,True,False,True,False,False
+1AOY,test,662.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,662.0,False,True,True,False,False
+1B7I,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1B7I,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1B7I,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1B7J,test,20.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,195.0,True,False,False,False,False
+1B7J,train,155.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,195.0,True,False,False,False,False
+1B7J,val,20.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,195.0,True,False,False,False,False
+1BK2,test,161.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1610.0,True,False,False,False,False
+1BK2,train,1288.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1610.0,True,False,False,False,False
+1BK2,val,161.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1610.0,True,False,False,False,False
+1BNZ,test,11.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,112.0,True,False,False,False,False
+1BNZ,train,90.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,112.0,True,False,False,False,False
+1BNZ,val,11.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,112.0,True,False,False,False,False
+1CSQ,test,2020.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,2020.0,False,True,False,False,False
+1E0L,test,31.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,311.0,True,False,False,False,False
+1E0L,train,249.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,311.0,True,False,False,False,False
+1E0L,val,31.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,311.0,True,False,False,False,False
+1E6H,test,29.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,292.0,True,False,False,False,False
+1E6H,train,234.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,292.0,True,False,False,False,False
+1E6H,val,29.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,292.0,True,False,False,False,False
+1EKL,test,23.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,228.0,True,False,False,False,False
+1EKL,train,182.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,228.0,True,False,False,False,False
+1EKL,val,23.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,228.0,True,False,False,False,False
+1EM7,test,86.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,858.0,True,False,False,False,False
+1EM7,train,686.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,858.0,True,False,False,False,False
+1EM7,val,86.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,858.0,True,False,False,False,False
+1ENH,test,80.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,804.0,True,False,True,False,False
+1ENH,train,644.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,804.0,True,False,True,False,False
+1ENH,val,80.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,804.0,True,False,True,False,False
+1F0M,test,28.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,282.0,True,False,False,True,False
+1F0M,train,226.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,282.0,True,False,False,True,False
+1F0M,val,28.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,282.0,True,False,False,True,False
+1GB4,test,204.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2045.0,True,False,False,False,False
+1GB4,train,1637.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2045.0,True,False,False,False,False
+1GB4,val,204.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2045.0,True,False,False,False,False
+1GJS,test,20.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,195.0,True,False,False,False,False
+1GJS,train,155.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,195.0,True,False,False,False,False
+1GJS,val,20.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,195.0,True,False,False,False,False
+1GL5,test,90.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,898.0,True,False,False,False,False
+1GL5,train,718.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,898.0,True,False,False,False,False
+1GL5,val,90.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,898.0,True,False,False,False,False
+1GXI,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1GXI,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1GXI,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1GYZ,test,12.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,117.0,True,False,False,False,True
+1GYZ,train,93.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,117.0,True,False,False,False,True
+1GYZ,val,12.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,117.0,True,False,False,False,True
+1H8K,test,177.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1767.0,True,False,False,False,False
+1H8K,train,1413.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1767.0,True,False,False,False,False
+1H8K,val,177.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1767.0,True,False,False,False,False
+1H92,test,92.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,925.0,True,False,False,False,False
+1H92,train,741.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,925.0,True,False,False,False,False
+1H92,val,92.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,925.0,True,False,False,False,False
+1I2T,test,48.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,478.0,True,False,False,True,False
+1I2T,train,382.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,478.0,True,False,False,True,False
+1I2T,val,48.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,478.0,True,False,False,True,False
+1I6C,test,71.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,714.0,True,False,False,False,False
+1I6C,train,572.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,714.0,True,False,False,False,False
+1I6C,val,71.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,714.0,True,False,False,False,False
+1IFY,test,38.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,378.0,True,False,False,False,True
+1IFY,train,302.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,378.0,True,False,False,False,True
+1IFY,val,38.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,378.0,True,False,False,False,True
+1IGD,test,14.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,144.0,True,False,False,False,False
+1IGD,train,116.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,144.0,True,False,False,False,False
+1IGD,val,14.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,144.0,True,False,False,False,False
+1JIC,test,20.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,202.0,True,False,False,False,False
+1JIC,train,162.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,202.0,True,False,False,False,False
+1JIC,val,20.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,202.0,True,False,False,False,False
+1K1V,test,77.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,774.0,True,False,False,False,True
+1K1V,train,620.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,774.0,True,False,False,False,True
+1K1V,val,77.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,774.0,True,False,False,False,True
+1LP1,test,101.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1014.0,True,False,False,False,False
+1LP1,train,812.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1014.0,True,False,False,False,False
+1LP1,val,101.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1014.0,True,False,False,False,False
+1MHN,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1MHN,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1MHN,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1MJC,test,260.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2600.0,True,False,False,False,False
+1MJC,train,2080.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2600.0,True,False,False,False,False
+1MJC,val,260.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2600.0,True,False,False,False,False
+1MSJ,test,29.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,288.0,True,False,False,False,False
+1MSJ,train,230.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,288.0,True,False,False,False,False
+1MSJ,val,29.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,288.0,True,False,False,False,False
+1O6X,test,17.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,172.0,True,False,False,False,False
+1O6X,train,138.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,172.0,True,False,False,False,False
+1O6X,val,17.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,172.0,True,False,False,False,False
+1OPS,test,154.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1543.0,True,False,False,False,False
+1OPS,train,1235.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1543.0,True,False,False,False,False
+1OPS,val,154.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1543.0,True,False,False,False,False
+1ORC,test,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,323.0,True,False,False,False,False
+1ORC,train,259.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,323.0,True,False,False,False,False
+1ORC,val,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,323.0,True,False,False,False,False
+1PGA,test,242.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2423.0,True,False,False,False,False
+1PGA,train,1939.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2423.0,True,False,False,False,False
+1PGA,val,242.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2423.0,True,False,False,False,False
+1PGX,test,138.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1384.0,True,False,False,False,False
+1PGX,train,1108.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1384.0,True,False,False,False,False
+1PGX,val,138.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1384.0,True,False,False,False,False
+1PSE,test,127.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1272.0,True,False,True,False,False
+1PSE,train,1018.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1272.0,True,False,True,False,False
+1PSE,val,127.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1272.0,True,False,True,False,False
+1PV0,test,30.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,299.0,True,False,True,False,False
+1PV0,train,239.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,299.0,True,False,True,False,False
+1PV0,val,30.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,299.0,True,False,True,False,False
+1PWT,test,34.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,344.0,True,False,False,False,False
+1PWT,train,276.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,344.0,True,False,False,False,False
+1PWT,val,34.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,344.0,True,False,False,False,False
+1QKH,test,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,320.0,True,False,False,True,False
+1QKH,train,256.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,320.0,True,False,False,True,False
+1QKH,val,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,320.0,True,False,False,True,False
+1QKX,test,416.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,416.0,False,True,False,False,False
+1QLY,test,36.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,361.0,True,False,False,False,False
+1QLY,train,289.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,361.0,True,False,False,False,False
+1QLY,val,36.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,361.0,True,False,False,False,False
+1QP2,test,107.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1074.0,True,False,True,False,False
+1QP2,train,860.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1074.0,True,False,True,False,False
+1QP2,val,107.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1074.0,True,False,True,False,False
+1R69,test,688.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,688.0,False,True,False,False,False
+1S1N,test,126.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1259.0,True,False,False,False,False
+1S1N,train,1007.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1259.0,True,False,False,False,False
+1S1N,val,126.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1259.0,True,False,False,False,False
+1SIF,test,122.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1222.0,True,False,False,False,False
+1SIF,train,978.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1222.0,True,False,False,False,False
+1SIF,val,122.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1222.0,True,False,False,False,False
+1SRM,test,339.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,339.0,False,True,False,False,False
+1TG0,test,71.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,711.0,True,False,False,False,False
+1TG0,train,569.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,711.0,True,False,False,False,False
+1TG0,val,71.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,711.0,True,False,False,False,False
+1TUC,test,51.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,511.0,True,False,False,False,False
+1TUC,train,409.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,511.0,True,False,False,False,False
+1TUC,val,51.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,511.0,True,False,False,False,False
+1TUD,test,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,456.0,True,False,False,False,False
+1TUD,train,364.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,456.0,True,False,False,False,False
+1TUD,val,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,456.0,True,False,False,False,False
+1UBQ,test,332.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,3324.0,True,False,False,False,False
+1UBQ,train,2660.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,3324.0,True,False,False,False,False
+1UBQ,val,332.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,3324.0,True,False,False,False,False
+1UCS,test,93.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,934.0,True,False,False,False,False
+1UCS,train,748.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,934.0,True,False,False,False,False
+1UCS,val,93.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,934.0,True,False,False,False,False
+1UFM,test,593.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,593.0,False,True,True,False,False
+1URF,test,132.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1320.0,True,False,False,False,False
+1URF,train,1056.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1320.0,True,False,False,False,False
+1URF,val,132.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1320.0,True,False,False,False,False
+1UZC,test,79.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,792.0,True,False,False,False,False
+1UZC,train,634.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,792.0,True,False,False,False,False
+1UZC,val,79.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,792.0,True,False,False,False,False
+1V1C,test,53.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,526.0,True,False,False,False,False
+1V1C,train,420.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,526.0,True,False,False,False,False
+1V1C,val,53.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,526.0,True,False,False,False,False
+1VII,test,58.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,584.0,True,False,False,False,False
+1VII,train,468.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,584.0,True,False,False,False,False
+1VII,val,58.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,584.0,True,False,False,False,False
+1W4E,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1W4E,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1W4E,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1W4F,test,25.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,246.0,True,False,False,False,False
+1W4F,train,196.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,246.0,True,False,False,False,False
+1W4F,val,25.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,246.0,True,False,False,False,False
+1W4G,test,67.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,670.0,True,False,False,False,False
+1W4G,train,536.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,670.0,True,False,False,False,False
+1W4G,val,67.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,670.0,True,False,False,False,False
+1W4H,test,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,317.0,True,False,False,False,False
+1W4H,train,253.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,317.0,True,False,False,False,False
+1W4H,val,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,317.0,True,False,False,False,False
+1WCL,test,41.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,414.0,True,False,False,True,False
+1WCL,train,332.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,414.0,True,False,False,True,False
+1WCL,val,41.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,414.0,True,False,False,True,False
+1WR7,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1WR7,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1WR7,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1Y0M,test,90.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,904.0,True,False,False,False,False
+1Y0M,train,724.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,904.0,True,False,False,False,False
+1Y0M,val,90.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,904.0,True,False,False,False,False
+1YG0,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1YG0,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1YG0,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1YP5,test,101.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1011.0,True,False,False,False,False
+1YP5,train,809.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1011.0,True,False,False,False,False
+1YP5,val,101.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1011.0,True,False,False,False,False
+1YU5,test,56.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,561.0,True,False,False,False,False
+1YU5,train,449.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,561.0,True,False,False,False,False
+1YU5,val,56.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,561.0,True,False,False,False,False
+1ZLM,test,73.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,727.0,True,False,False,False,False
+1ZLM,train,581.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,727.0,True,False,False,False,False
+1ZLM,val,73.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,727.0,True,False,False,False,False
+1ZRJ,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1ZRJ,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+1ZRJ,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2AME,test,36.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,365.0,True,False,False,False,False
+2AME,train,293.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,365.0,True,False,False,False,False
+2AME,val,36.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,365.0,True,False,False,False,False
+2AMI,test,121.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1208.0,True,False,False,False,False
+2AMI,train,966.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1208.0,True,False,False,False,False
+2AMI,val,121.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1208.0,True,False,False,False,False
+2B88,test,74.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,739.0,True,False,False,False,False
+2B88,train,591.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,739.0,True,False,False,False,False
+2B88,val,74.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,739.0,True,False,False,False,False
+2B89,test,862.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,862.0,False,True,False,False,False
+2BTH,test,44.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,443.0,True,False,False,False,False
+2BTH,train,355.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,443.0,True,False,False,False,False
+2BTH,val,44.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,443.0,True,False,False,False,False
+2BTT,test,93.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,930.0,True,False,False,False,False
+2BTT,train,744.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,930.0,True,False,False,False,False
+2BTT,val,93.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,930.0,True,False,False,False,False
+2CDT,test,41.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,410.0,True,False,False,False,False
+2CDT,train,328.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,410.0,True,False,False,False,False
+2CDT,val,41.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,410.0,True,False,False,False,False
+2D1U,test,132.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1322.0,True,False,False,False,True
+2D1U,train,1058.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1322.0,True,False,False,False,True
+2D1U,val,132.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1322.0,True,False,False,False,True
+2EKK,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2EKK,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2EKK,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2EXD,test,5.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,53.0,True,False,False,False,False
+2EXD,train,43.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,53.0,True,False,False,False,False
+2EXD,val,5.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,53.0,True,False,False,False,False
+2GP8,test,74.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,742.0,True,False,False,False,False
+2GP8,train,594.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,742.0,True,False,False,False,False
+2GP8,val,74.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,742.0,True,False,False,False,False
+2HBB,test,241.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2413.0,True,False,False,False,False
+2HBB,train,1931.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2413.0,True,False,False,False,False
+2HBB,val,241.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2413.0,True,False,False,False,False
+2HBB_con,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2HBB_con,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2HBB_con,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2J6K,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2J6K,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2J6K,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2J6K_con,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2J6K_con,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2J6K_con,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2JN4,test,103.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1031.0,True,False,True,False,False
+2JN4,train,825.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1031.0,True,False,True,False,False
+2JN4,val,103.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1031.0,True,False,True,False,False
+2JRO,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2JRO,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2JRO,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2JRR,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2JRR,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2JRR,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2JT1,test,57.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,573.0,True,False,True,False,False
+2JT1,train,459.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,573.0,True,False,True,False,False
+2JT1,val,57.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,573.0,True,False,True,False,False
+2JTV,test,41.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,413.0,True,False,True,False,False
+2JTV,train,331.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,413.0,True,False,True,False,False
+2JTV,val,41.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,413.0,True,False,True,False,False
+2JVD,test,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,680.0,True,False,True,False,False
+2JVD,train,544.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,680.0,True,False,True,False,False
+2JVD,val,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,680.0,True,False,True,False,False
+2JWS,test,23.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,230.0,True,False,False,False,False
+2JWS,train,184.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,230.0,True,False,False,False,False
+2JWS,val,23.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,230.0,True,False,False,False,False
+2JWT,test,941.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,941.0,False,True,True,False,False
+2JY8,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2JY8,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2JY8,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2JZ2,test,45.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,449.0,True,False,True,False,False
+2JZ2,train,359.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,449.0,True,False,True,False,False
+2JZ2,val,45.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,449.0,True,False,True,False,False
+2K1B,test,78.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,780.0,True,False,True,False,False
+2K1B,train,624.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,780.0,True,False,True,False,False
+2K1B,val,78.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,780.0,True,False,True,False,False
+2K28,test,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,684.0,True,False,True,False,False
+2K28,train,548.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,684.0,True,False,True,False,False
+2K28,val,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,684.0,True,False,True,False,False
+2K2A,test,78.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,777.0,True,False,False,False,False
+2K2A,train,621.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,777.0,True,False,False,False,False
+2K2A,val,78.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,777.0,True,False,False,False,False
+2K52,test,299.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2989.0,True,False,False,False,True
+2K52,train,2391.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2989.0,True,False,False,False,True
+2K52,val,299.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2989.0,True,False,False,False,True
+2K5H,test,243.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2427.0,True,False,False,False,True
+2K5H,train,1941.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2427.0,True,False,False,False,True
+2K5H,val,243.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2427.0,True,False,False,False,True
+2K5N,test,43.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,427.0,True,False,False,False,False
+2K5N,train,341.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,427.0,True,False,False,False,False
+2K5N,val,43.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,427.0,True,False,False,False,False
+2K5P,test,49.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,489.0,True,False,True,False,False
+2K5P,train,391.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,489.0,True,False,True,False,False
+2K5P,val,49.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,489.0,True,False,True,False,False
+2KCF,test,66.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,656.0,True,False,False,False,False
+2KCF,train,524.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,656.0,True,False,False,False,False
+2KCF,val,66.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,656.0,True,False,False,False,False
+2KCM,test,51.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,510.0,True,False,False,False,False
+2KCM,train,408.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,510.0,True,False,False,False,False
+2KCM,val,51.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,510.0,True,False,False,False,False
+2KFV,test,753.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,753.0,False,True,True,False,False
+2KGT,test,108.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1080.0,True,False,False,False,False
+2KGT,train,864.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1080.0,True,False,False,False,False
+2KGT,val,108.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1080.0,True,False,False,False,False
+2KR3,test,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,685.0,True,False,False,False,False
+2KR3,train,549.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,685.0,True,False,False,False,False
+2KR3,val,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,685.0,True,False,False,False,False
+2KRS,test,223.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2228.0,True,False,False,False,False
+2KRS,train,1782.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2228.0,True,False,False,False,False
+2KRS,val,223.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2228.0,True,False,False,False,False
+2KRU,test,36.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,355.0,True,False,False,False,True
+2KRU,train,283.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,355.0,True,False,False,False,True
+2KRU,val,36.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,355.0,True,False,False,False,True
+2KT8,test,171.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1706.0,True,False,False,True,False
+2KT8,train,1364.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1706.0,True,False,False,True,False
+2KT8,val,171.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1706.0,True,False,False,True,False
+2KVS,test,35.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,352.0,True,False,False,False,True
+2KVS,train,282.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,352.0,True,False,False,False,True
+2KVS,val,35.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,352.0,True,False,False,False,True
+2KVT,test,24.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,238.0,True,False,True,False,False
+2KVT,train,190.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,238.0,True,False,True,False,False
+2KVT,val,24.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,238.0,True,False,True,False,False
+2KWH,test,96.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,957.0,True,False,False,False,False
+2KWH,train,765.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,957.0,True,False,False,False,False
+2KWH,val,96.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,957.0,True,False,False,False,False
+2KXD,test,27.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,274.0,True,False,False,False,False
+2KXD,train,220.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,274.0,True,False,False,False,False
+2KXD,val,27.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,274.0,True,False,False,False,False
+2KYB,test,126.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1257.0,True,False,False,True,False
+2KYB,train,1005.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1257.0,True,False,False,True,False
+2KYB,val,126.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1257.0,True,False,False,True,False
+2KZI,test,7.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,67.0,True,False,False,False,False
+2KZI,train,53.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,67.0,True,False,False,False,False
+2KZI,val,7.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,67.0,True,False,False,False,False
+2KZJ,test,21.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,213.0,True,False,False,False,False
+2KZJ,train,171.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,213.0,True,False,False,False,False
+2KZJ,val,21.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,213.0,True,False,False,False,False
+2L09,test,556.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,556.0,False,True,False,False,True
+2L2P,test,64.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,637.0,True,False,False,False,False
+2L2P,train,509.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,637.0,True,False,False,False,False
+2L2P,val,64.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,637.0,True,False,False,False,False
+2L6Q,test,93.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,927.0,True,False,True,False,False
+2L6Q,train,741.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,927.0,True,False,True,False,False
+2L6Q,val,93.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,927.0,True,False,True,False,False
+2L7F,test,96.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,956.0,True,False,True,False,False
+2L7F,train,764.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,956.0,True,False,True,False,False
+2L7F,val,96.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,956.0,True,False,True,False,False
+2L7M,test,95.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,953.0,True,False,True,False,False
+2L7M,train,763.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,953.0,True,False,True,False,False
+2L7M,val,95.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,953.0,True,False,True,False,False
+2L8D,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,False,True,False,False,False
+2L9R,test,116.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1163.0,True,False,True,False,False
+2L9R,train,931.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1163.0,True,False,True,False,False
+2L9R,val,116.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1163.0,True,False,True,False,False
+2LC2,test,87.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,868.0,True,False,False,False,True
+2LC2,train,694.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,868.0,True,False,False,False,True
+2LC2,val,87.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,868.0,True,False,False,False,True
+2LGW,test,409.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,409.0,False,True,True,False,False
+2LHR,test,1037.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,1037.0,False,True,True,False,False
+2LJ3,test,38.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,378.0,True,False,False,False,False
+2LJ3,train,302.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,378.0,True,False,False,False,False
+2LJ3,val,38.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,378.0,True,False,False,False,False
+2LLV,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2LLV,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2LLV,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2LO1,test,351.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,351.0,False,True,True,False,False
+2LP5,test,28.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,283.0,True,False,False,False,False
+2LP5,train,227.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,283.0,True,False,False,False,False
+2LP5,val,28.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,283.0,True,False,False,False,False
+2LQK,test,1183.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,1183.0,False,True,True,False,False
+2LSS,test,184.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1842.0,True,False,False,False,False
+2LSS,train,1474.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1842.0,True,False,False,False,False
+2LSS,val,184.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1842.0,True,False,False,False,False
+2LT1,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2LT1,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2LT1,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2LUM,test,22.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,219.0,True,False,False,False,False
+2LUM,train,175.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,219.0,True,False,False,False,False
+2LUM,val,22.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,219.0,True,False,False,False,False
+2LVN,test,61.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,610.0,True,False,False,False,False
+2LVN,train,488.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,610.0,True,False,False,False,False
+2LVN,val,61.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,610.0,True,False,False,False,False
+2LX2,test,94.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,936.0,True,False,False,False,False
+2LX2,train,748.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,936.0,True,False,False,False,False
+2LX2,val,94.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,936.0,True,False,False,False,False
+2LX3,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2LX3,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2LX3,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2LXK,test,258.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2576.0,True,False,False,False,False
+2LXK,train,2060.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2576.0,True,False,False,False,False
+2LXK,val,258.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2576.0,True,False,False,False,False
+2LYP,test,158.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1575.0,True,False,False,False,False
+2LYP,train,1259.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1575.0,True,False,False,False,False
+2LYP,val,158.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1575.0,True,False,False,False,False
+2LYQ,test,39.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,388.0,True,False,False,False,False
+2LYQ,train,310.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,388.0,True,False,False,False,False
+2LYQ,val,39.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,388.0,True,False,False,False,False
+2LYR,test,44.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,436.0,True,False,False,False,False
+2LYR,train,348.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,436.0,True,False,False,False,False
+2LYR,val,44.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,436.0,True,False,False,False,False
+2M0C,test,42.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,423.0,True,False,True,False,False
+2M0C,train,339.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,423.0,True,False,True,False,False
+2M0C,val,42.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,423.0,True,False,True,False,False
+2M0X,test,27.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,267.0,True,False,False,False,False
+2M0X,train,213.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,267.0,True,False,False,False,False
+2M0X,val,27.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,267.0,True,False,False,False,False
+2M0Y,test,112.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1124.0,True,False,False,False,False
+2M0Y,train,900.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1124.0,True,False,False,False,False
+2M0Y,val,112.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1124.0,True,False,False,False,False
+2M2J,test,128.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1276.0,True,False,False,True,False
+2M2J,train,1020.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1276.0,True,False,False,True,False
+2M2J,val,128.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1276.0,True,False,False,True,False
+2M2L,test,78.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,781.0,True,False,True,False,False
+2M2L,train,625.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,781.0,True,False,True,False,False
+2M2L,val,78.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,781.0,True,False,True,False,False
+2M51,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2M51,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2M51,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2M7O,test,69.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,694.0,True,False,True,False,False
+2M7O,train,556.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,694.0,True,False,True,False,False
+2M7O,val,69.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,694.0,True,False,True,False,False
+2M8E,test,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,679.0,True,False,True,False,False
+2M8E,train,543.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,679.0,True,False,True,False,False
+2M8E,val,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,679.0,True,False,True,False,False
+2M8I,test,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,685.0,True,False,False,False,False
+2M8I,train,549.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,685.0,True,False,False,False,False
+2M8I,val,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,685.0,True,False,False,False,False
+2M8J,test,49.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,493.0,True,False,False,False,False
+2M8J,train,395.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,493.0,True,False,False,False,False
+2M8J,val,49.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,493.0,True,False,False,False,False
+2M8U,test,26.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,258.0,True,False,False,False,False
+2M8U,train,206.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,258.0,True,False,False,False,False
+2M8U,val,26.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,258.0,True,False,False,False,False
+2M9F,test,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,317.0,True,False,False,False,False
+2M9F,train,253.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,317.0,True,False,False,False,False
+2M9F,val,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,317.0,True,False,False,False,False
+2M9I,test,62.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,620.0,True,False,False,False,False
+2M9I,train,496.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,620.0,True,False,False,False,False
+2M9I,val,62.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,620.0,True,False,False,False,False
+2MA4,test,755.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,755.0,False,True,True,False,False
+2MC5,test,132.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1315.0,True,False,True,False,False
+2MC5,train,1051.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1315.0,True,False,True,False,False
+2MC5,val,132.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1315.0,True,False,True,False,False
+2MCD,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2MCD,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2MCD,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2MCH,test,56.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,563.0,True,False,True,False,False
+2MCH,train,451.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,563.0,True,False,True,False,False
+2MCH,val,56.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,563.0,True,False,True,False,False
+2MCK,test,92.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,919.0,True,False,True,False,False
+2MCK,train,735.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,919.0,True,False,True,False,False
+2MCK,val,92.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,919.0,True,False,True,False,False
+2MI6,test,34.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,345.0,True,False,True,False,False
+2MI6,train,277.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,345.0,True,False,True,False,False
+2MI6,val,34.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,345.0,True,False,True,False,False
+2MKX,test,117.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1172.0,True,False,False,False,True
+2MKX,train,938.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1172.0,True,False,False,False,True
+2MKX,val,117.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1172.0,True,False,False,False,True
+2MKY,test,58.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,576.0,True,False,True,False,False
+2MKY,train,460.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,576.0,True,False,True,False,False
+2MKY,val,58.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,576.0,True,False,True,False,False
+2MLB,test,17.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,172.0,True,False,False,False,False
+2MLB,train,138.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,172.0,True,False,False,False,False
+2MLB,val,17.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,172.0,True,False,False,False,False
+2MPK,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2MPK,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2MPK,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2MRL,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2MRL,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2MRL,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2MSJ,test,24.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,238.0,True,False,False,False,False
+2MSJ,train,190.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,238.0,True,False,False,False,False
+2MSJ,val,24.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,238.0,True,False,False,False,False
+2MW9,test,34.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,341.0,True,False,False,False,False
+2MW9,train,273.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,341.0,True,False,False,False,False
+2MW9,val,34.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,341.0,True,False,False,False,False
+2MWA,test,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,522.0,True,False,False,False,False
+2MWA,train,418.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,522.0,True,False,False,False,False
+2MWA,val,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,522.0,True,False,False,False,False
+2MWB,test,30.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,297.0,True,False,False,False,False
+2MWB,train,237.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,297.0,True,False,False,False,False
+2MWB,val,30.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,297.0,True,False,False,False,False
+2MXD,test,30.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,299.0,True,False,True,False,False
+2MXD,train,239.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,299.0,True,False,True,False,False
+2MXD,val,30.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,299.0,True,False,True,False,False
+2MYX,test,585.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,585.0,False,True,True,False,False
+2N4R,test,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,322.0,True,False,False,False,False
+2N4R,train,258.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,322.0,True,False,False,False,False
+2N4R,val,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,322.0,True,False,False,False,False
+2N4S,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2N4S,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2N4S,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2N4T,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2N4T,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2N4T,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2N7Y,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2N7Y,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2N7Y,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2N88,test,34.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,340.0,True,False,True,False,False
+2N88,train,272.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,340.0,True,False,True,False,False
+2N88,val,34.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,340.0,True,False,True,False,False
+2N9L,test,14.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,138.0,True,False,False,False,False
+2N9L,train,110.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,138.0,True,False,False,False,False
+2N9L,val,14.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,138.0,True,False,False,False,False
+2O2W,test,49.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,491.0,True,False,False,False,False
+2O2W,train,393.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,491.0,True,False,False,False,False
+2O2W,val,49.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,491.0,True,False,False,False,False
+2OCH,test,118.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1182.0,True,False,True,False,False
+2OCH,train,946.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1182.0,True,False,True,False,False
+2OCH,val,118.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1182.0,True,False,True,False,False
+2ON8,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2ON8,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2ON8,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2ONQ,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2ONQ,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2ONQ,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2OP7,test,486.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,486.0,False,True,False,False,False
+2PDD,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2PDD,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2PDD,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+2PFU,test,23.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,226.0,True,False,False,False,False
+2PFU,train,180.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,226.0,True,False,False,False,False
+2PFU,val,23.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,226.0,True,False,False,False,False
+2PTL,test,134.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1342.0,True,False,False,False,False
+2PTL,train,1074.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1342.0,True,False,False,False,False
+2PTL,val,134.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1342.0,True,False,False,False,False
+2QFF,test,1216.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,1216.0,False,True,False,True,False
+2RJV,test,51.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,508.0,True,False,False,False,False
+2RJV,train,406.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,508.0,True,False,False,False,False
+2RJV,val,51.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,508.0,True,False,False,False,False
+2ROT,test,249.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2493.0,True,False,False,False,False
+2ROT,train,1995.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2493.0,True,False,False,False,False
+2ROT,val,249.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2493.0,True,False,False,False,False
+2RRT,test,25.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,249.0,True,False,False,False,False
+2RRT,train,199.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,249.0,True,False,False,False,False
+2RRT,val,25.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,249.0,True,False,False,False,False
+2RRU,test,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,680.0,True,False,False,False,True
+2RRU,train,544.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,680.0,True,False,False,False,True
+2RRU,val,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,680.0,True,False,False,False,True
+2RU9,test,92.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,923.0,True,False,True,False,False
+2RU9,train,739.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,923.0,True,False,True,False,False
+2RU9,val,92.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,923.0,True,False,True,False,False
+2WNM,test,59.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,594.0,True,False,False,False,True
+2WNM,train,476.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,594.0,True,False,False,False,True
+2WNM,val,59.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,594.0,True,False,False,False,True
+2WQG,test,744.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,744.0,False,True,False,False,False
+2WXC,test,58.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,583.0,True,False,False,False,False
+2WXC,train,467.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,583.0,True,False,False,False,False
+2WXC,val,58.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,583.0,True,False,False,False,False
+2YSB,test,74.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,740.0,True,False,False,False,False
+2YSB,train,592.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,740.0,True,False,False,False,False
+2YSB,val,74.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,740.0,True,False,False,False,False
+2YSC,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,False,True,False,False,False
+2YSF,test,61.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,611.0,True,False,False,False,False
+2YSF,train,489.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,611.0,True,False,False,False,False
+2YSF,val,61.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,611.0,True,False,False,False,False
+2YSH,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,False,True,False,False,False
+2ZW1,test,73.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,727.0,True,False,False,False,False
+2ZW1,train,581.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,727.0,True,False,False,False,False
+2ZW1,val,73.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,727.0,True,False,False,False,False
+3AME,test,25.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,247.0,True,False,False,False,False
+3AME,train,197.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,247.0,True,False,False,False,False
+3AME,val,25.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,247.0,True,False,False,False,False
+3CQT,test,23.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,227.0,True,False,False,False,False
+3CQT,train,181.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,227.0,True,False,False,False,False
+3CQT,val,23.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,227.0,True,False,False,False,False
+3DKM,test,113.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1128.0,True,False,False,False,True
+3DKM,train,902.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1128.0,True,False,False,False,True
+3DKM,val,113.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1128.0,True,False,False,False,True
+3I35,test,75.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,752.0,True,False,False,False,False
+3I35,train,602.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,752.0,True,False,False,False,False
+3I35,val,75.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,752.0,True,False,False,False,False
+3L1X,test,122.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1219.0,True,False,True,False,False
+3L1X,train,975.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1219.0,True,False,True,False,False
+3L1X,val,122.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1219.0,True,False,True,False,False
+3MYC,test,84.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,837.0,True,False,False,False,False
+3MYC,train,669.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,837.0,True,False,False,False,False
+3MYC,val,84.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,837.0,True,False,False,False,False
+3NGP,test,13.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,127.0,True,False,False,False,False
+3NGP,train,101.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,127.0,True,False,False,False,False
+3NGP,val,13.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,127.0,True,False,False,False,False
+3QF6,test,26.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,258.0,True,False,False,False,False
+3QF6,train,206.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,258.0,True,False,False,False,False
+3QF6,val,26.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,258.0,True,False,False,False,False
+3V1A,test,30.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,299.0,True,False,False,False,False
+3V1A,train,239.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,299.0,True,False,False,False,False
+3V1A,val,30.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,299.0,True,False,False,False,False
+3ZGK,test,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,516.0,True,False,False,False,True
+3ZGK,train,412.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,516.0,True,False,False,False,True
+3ZGK,val,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,516.0,True,False,False,False,True
+3ZOB,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+3ZOB,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+3ZOB,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+4AME,test,30.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,303.0,True,False,False,False,False
+4AME,train,243.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,303.0,True,False,False,False,False
+4AME,val,30.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,303.0,True,False,False,False,False
+4C26,test,29.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,288.0,True,False,True,False,False
+4C26,train,230.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,288.0,True,False,True,False,False
+4C26,val,29.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,288.0,True,False,True,False,False
+4G3O,test,58.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,575.0,True,False,False,False,False
+4G3O,train,459.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,575.0,True,False,False,False,False
+4G3O,val,58.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,575.0,True,False,False,False,False
+4HCK,test,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,520.0,True,False,False,False,False
+4HCK,train,416.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,520.0,True,False,False,False,False
+4HCK,val,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,520.0,True,False,False,False,False
+4L5E,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+4L5E,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+4L5E,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+4UR4,test,19.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,194.0,True,False,False,False,False
+4UR4,train,156.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,194.0,True,False,False,False,False
+4UR4,val,19.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,194.0,True,False,False,False,False
+4UZW,test,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,464.0,True,False,False,False,False
+4UZW,train,372.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,464.0,True,False,False,False,False
+4UZW,val,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,464.0,True,False,False,False,False
+5AHT,test,81.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,806.0,True,False,False,False,False
+5AHT,train,644.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,806.0,True,False,False,False,False
+5AHT,val,81.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,806.0,True,False,False,False,False
+5ECA,test,128.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1275.0,True,False,False,False,False
+5ECA,train,1019.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1275.0,True,False,False,False,False
+5ECA,val,128.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1275.0,True,False,False,False,False
+5FW9,test,22.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,223.0,True,False,False,False,False
+5FW9,train,179.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,223.0,True,False,False,False,False
+5FW9,val,22.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,223.0,True,False,False,False,False
+5FWB,test,182.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1821.0,True,False,False,False,False
+5FWB,train,1457.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1821.0,True,False,False,False,False
+5FWB,val,182.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1821.0,True,False,False,False,False
+5GU9,test,254.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2540.0,True,False,True,False,False
+5GU9,train,2032.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2540.0,True,False,True,False,False
+5GU9,val,254.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,2540.0,True,False,True,False,False
+5JRT,test,44.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,437.0,True,False,False,True,False
+5JRT,train,349.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,437.0,True,False,False,True,False
+5JRT,val,44.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,437.0,True,False,False,True,False
+5KPH,test,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,320.0,True,False,True,False,False
+5KPH,train,256.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,320.0,True,False,True,False,False
+5KPH,val,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,320.0,True,False,True,False,False
+5LXJ,test,27.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,272.0,True,False,False,True,False
+5LXJ,train,218.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,272.0,True,False,False,True,False
+5LXJ,val,27.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,272.0,True,False,False,True,False
+5UB0,test,20.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,197.0,True,False,False,False,False
+5UB0,train,157.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,197.0,True,False,False,False,False
+5UB0,val,20.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,197.0,True,False,False,False,False
+5UBS,test,31.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,307.0,True,False,False,False,False
+5UBS,train,245.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,307.0,True,False,False,False,False
+5UBS,val,31.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,307.0,True,False,False,False,False
+5UCE,test,83.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,831.0,True,False,False,False,False
+5UCE,train,665.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,831.0,True,False,False,False,False
+5UCE,val,83.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,831.0,True,False,False,False,False
+5UOI,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+5UOI,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+5UOI,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+5UP5,test,26.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,260.0,True,False,True,False,False
+5UP5,train,208.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,260.0,True,False,True,False,False
+5UP5,val,26.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,260.0,True,False,True,False,False
+5UYO,test,22.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,220.0,True,False,False,False,True
+5UYO,train,176.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,220.0,True,False,False,False,True
+5UYO,val,22.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,220.0,True,False,False,False,True
+5VNT,test,118.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1178.0,True,False,False,False,False
+5VNT,train,942.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1178.0,True,False,False,False,False
+5VNT,val,118.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1178.0,True,False,False,False,False
+5XR0,test,97.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,967.0,True,False,False,False,False
+5XR0,train,773.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,967.0,True,False,False,False,False
+5XR0,val,97.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,967.0,True,False,False,False,False
+5Z2S,test,79.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,786.0,True,False,True,False,False
+5Z2S,train,628.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,786.0,True,False,True,False,False
+5Z2S,val,79.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,786.0,True,False,True,False,False
+5ZD0,test,141.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,141.0,False,True,False,False,False
+6ACV,test,56.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,562.0,True,False,False,False,False
+6ACV,train,450.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,562.0,True,False,False,False,False
+6ACV,val,56.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,562.0,True,False,False,False,False
+6AME,test,48.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,478.0,True,False,False,False,False
+6AME,train,382.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,478.0,True,False,False,False,False
+6AME,val,48.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,478.0,True,False,False,False,False
+6EWS,test,29.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,291.0,True,False,True,False,False
+6EWS,train,233.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,291.0,True,False,True,False,False
+6EWS,val,29.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,291.0,True,False,True,False,False
+6EWT,test,21.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,211.0,True,False,True,False,False
+6EWT,train,169.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,211.0,True,False,True,False,False
+6EWT,val,21.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,211.0,True,False,True,False,False
+6EWU,test,25.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,246.0,True,False,True,False,False
+6EWU,train,196.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,246.0,True,False,True,False,False
+6EWU,val,25.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,246.0,True,False,True,False,False
+6FVC,test,82.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,823.0,True,False,True,False,False
+6FVC,train,659.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,823.0,True,False,True,False,False
+6FVC,val,82.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,823.0,True,False,True,False,False
+6HQ1,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+6HQ1,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+6HQ1,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+6IPY,test,18.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,178.0,True,False,False,False,False
+6IPY,train,142.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,178.0,True,False,False,False,False
+6IPY,val,18.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,178.0,True,False,False,False,False
+6IWS,test,18.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,180.0,True,False,True,False,False
+6IWS,train,144.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,180.0,True,False,True,False,False
+6IWS,val,18.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,180.0,True,False,True,False,False
+6M3N,test,66.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,662.0,True,False,False,True,False
+6M3N,train,530.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,662.0,True,False,False,True,False
+6M3N,val,66.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,662.0,True,False,False,True,False
+6MSI,test,24.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,241.0,True,False,False,False,False
+6MSI,train,193.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,241.0,True,False,False,False,False
+6MSI,val,24.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,241.0,True,False,False,False,False
+6NJF,test,12.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,122.0,True,False,False,False,False
+6NJF,train,98.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,122.0,True,False,False,False,False
+6NJF,val,12.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,122.0,True,False,False,False,False
+6NMW,test,529.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,529.0,False,True,False,False,False
+6NS8,test,96.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,964.0,True,False,False,True,False
+6NS8,train,772.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,964.0,True,False,False,True,False
+6NS8,val,96.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,964.0,True,False,False,True,False
+6OBK,test,5.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,51.0,True,False,True,False,False
+6OBK,train,41.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,51.0,True,False,True,False,False
+6OBK,val,5.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,51.0,True,False,True,False,False
+6RO9,test,11.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,107.0,True,False,False,False,False
+6RO9,train,85.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,107.0,True,False,False,False,False
+6RO9,val,11.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,107.0,True,False,False,False,False
+6SCW,test,395.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,395.0,False,True,False,False,False
+6SOW,test,7.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,73.0,True,False,False,False,False
+6SOW,train,59.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,73.0,True,False,False,False,False
+6SOW,val,7.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,73.0,True,False,False,False,False
+6YSE,test,676.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,676.0,False,True,False,False,False
+7BPM,test,101.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1012.0,True,False,True,False,False
+7BPM,train,810.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1012.0,True,False,True,False,False
+7BPM,val,101.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1012.0,True,False,True,False,False
+7JJK,test,49.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,490.0,True,False,False,False,False
+7JJK,train,392.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,490.0,True,False,False,False,False
+7JJK,val,49.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,490.0,True,False,False,False,False
+7MSI,test,19.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,189.0,True,False,False,False,False
+7MSI,train,151.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,189.0,True,False,False,False,False
+7MSI,val,19.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,189.0,True,False,False,False,False
+8AME,test,34.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,341.0,True,False,False,False,False
+8AME,train,273.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,341.0,True,False,False,False,False
+8AME,val,34.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,341.0,True,False,False,False,False
+8MSI,test,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,322.0,True,False,False,False,False
+8MSI,train,258.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,322.0,True,False,False,False,False
+8MSI,val,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,322.0,True,False,False,False,False
+9AME,test,12.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,123.0,True,False,False,False,False
+9AME,train,99.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,123.0,True,False,False,False,False
+9AME,val,12.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,123.0,True,False,False,False,False
+EA_run2_0290_0001,test,8.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,82.0,True,False,True,False,False
+EA_run2_0290_0001,train,66.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,82.0,True,False,True,False,False
+EA_run2_0290_0001,val,8.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,82.0,True,False,True,False,False
+EA_run2_0325_0005,test,11.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,108.0,True,False,True,False,False
+EA_run2_0325_0005,train,86.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,108.0,True,False,True,False,False
+EA_run2_0325_0005,val,11.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,108.0,True,False,True,False,False
+EA_run2_0779_0006,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EA_run2_0779_0006,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EA_run2_0779_0006,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EA_run3_0321_0005,test,38.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,38.0,False,True,True,False,False
+EA_run3_0525_0006,test,9.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,90.0,True,False,True,False,False
+EA_run3_0525_0006,train,72.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,90.0,True,False,True,False,False
+EA_run3_0525_0006,val,9.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,90.0,True,False,True,False,False
+EA_run3_1140_0005,test,7.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,74.0,True,False,True,False,False
+EA_run3_1140_0005,train,60.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,74.0,True,False,True,False,False
+EA_run3_1140_0005,val,7.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,74.0,True,False,True,False,False
+EA_run5_0050_0004,test,8.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,78.0,True,False,True,False,False
+EA_run5_0050_0004,train,62.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,78.0,True,False,True,False,False
+EA_run5_0050_0004,val,8.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,78.0,True,False,True,False,False
+EA_run5_1055_0002,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EA_run5_1055_0002,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EA_run5_1055_0002,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EA_run6_1429_0006,test,14.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,136.0,True,False,True,False,False
+EA_run6_1429_0006,train,108.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,136.0,True,False,True,False,False
+EA_run6_1429_0006,val,14.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,136.0,True,False,True,False,False
+EA_run7_1572_0002,test,44.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,44.0,False,True,True,False,False
+EEHEE_rd2_0770,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd2_0770,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd2_0770,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd3_0019,test,54.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,538.0,True,False,True,False,False
+EEHEE_rd3_0019,train,430.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,538.0,True,False,True,False,False
+EEHEE_rd3_0019,val,54.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,538.0,True,False,True,False,False
+EEHEE_rd3_0094,test,78.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,780.0,True,False,True,False,False
+EEHEE_rd3_0094,train,624.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,780.0,True,False,True,False,False
+EEHEE_rd3_0094,val,78.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,780.0,True,False,True,False,False
+EEHEE_rd3_0144,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,False,True,False,False,False
+EEHEE_rd3_0146,test,80.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,803.0,True,False,True,False,False
+EEHEE_rd3_0146,train,643.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,803.0,True,False,True,False,False
+EEHEE_rd3_0146,val,80.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,803.0,True,False,True,False,False
+EEHEE_rd3_0602,test,28.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,283.0,True,False,True,False,False
+EEHEE_rd3_0602,train,227.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,283.0,True,False,True,False,False
+EEHEE_rd3_0602,val,28.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,283.0,True,False,True,False,False
+EEHEE_rd3_0657,test,35.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,354.0,True,False,True,False,False
+EEHEE_rd3_0657,train,284.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,354.0,True,False,True,False,False
+EEHEE_rd3_0657,val,35.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,354.0,True,False,True,False,False
+EEHEE_rd3_1049,test,66.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,665.0,True,False,False,False,False
+EEHEE_rd3_1049,train,533.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,665.0,True,False,False,False,False
+EEHEE_rd3_1049,val,66.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,665.0,True,False,False,False,False
+EEHEE_rd3_1058,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd3_1058,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd3_1058,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd3_1367,test,540.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,540.0,False,True,True,False,False
+EEHEE_rd3_1498,test,797.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,797.0,False,True,True,False,False
+EEHEE_rd3_1558,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd3_1558,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd3_1558,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd3_1587,test,79.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,791.0,True,False,True,False,False
+EEHEE_rd3_1587,train,633.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,791.0,True,False,True,False,False
+EEHEE_rd3_1587,val,79.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,791.0,True,False,True,False,False
+EEHEE_rd3_1615,test,55.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,548.0,True,False,True,False,False
+EEHEE_rd3_1615,train,438.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,548.0,True,False,True,False,False
+EEHEE_rd3_1615,val,55.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,548.0,True,False,True,False,False
+EEHEE_rd3_1627,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd3_1627,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd3_1627,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd3_1702,test,53.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,528.0,True,False,True,False,False
+EEHEE_rd3_1702,train,422.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,528.0,True,False,True,False,False
+EEHEE_rd3_1702,val,53.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,528.0,True,False,True,False,False
+EEHEE_rd3_1810,test,70.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,698.0,True,False,True,False,False
+EEHEE_rd3_1810,train,558.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,698.0,True,False,True,False,False
+EEHEE_rd3_1810,val,70.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,698.0,True,False,True,False,False
+EEHEE_rd3_1817,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd3_1817,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd3_1817,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0003,test,42.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,422.0,True,False,False,False,False
+EEHEE_rd4_0003,train,338.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,422.0,True,False,False,False,False
+EEHEE_rd4_0003,val,42.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,422.0,True,False,False,False,False
+EEHEE_rd4_0077,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0077,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0077,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0256,test,45.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,446.0,True,False,True,False,False
+EEHEE_rd4_0256,train,356.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,446.0,True,False,True,False,False
+EEHEE_rd4_0256,val,45.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,446.0,True,False,True,False,False
+EEHEE_rd4_0323,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0323,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0323,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0363,test,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,516.0,True,False,True,False,False
+EEHEE_rd4_0363,train,412.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,516.0,True,False,True,False,False
+EEHEE_rd4_0363,val,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,516.0,True,False,True,False,False
+EEHEE_rd4_0371,test,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,317.0,True,False,True,False,False
+EEHEE_rd4_0371,train,253.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,317.0,True,False,True,False,False
+EEHEE_rd4_0371,val,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,317.0,True,False,True,False,False
+EEHEE_rd4_0399,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,False,True,False,False,False
+EEHEE_rd4_0418,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0418,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0418,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0424,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0424,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0424,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0469,test,81.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,809.0,True,False,True,False,False
+EEHEE_rd4_0469,train,647.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,809.0,True,False,True,False,False
+EEHEE_rd4_0469,val,81.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,809.0,True,False,True,False,False
+EEHEE_rd4_0470,test,80.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,802.0,True,False,True,False,False
+EEHEE_rd4_0470,train,642.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,802.0,True,False,True,False,False
+EEHEE_rd4_0470,val,80.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,802.0,True,False,True,False,False
+EEHEE_rd4_0481,test,80.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,805.0,True,False,True,False,False
+EEHEE_rd4_0481,train,645.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,805.0,True,False,True,False,False
+EEHEE_rd4_0481,val,80.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,805.0,True,False,True,False,False
+EEHEE_rd4_0570,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0570,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0570,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0642,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0642,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0642,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0647,test,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,464.0,True,False,False,False,False
+EEHEE_rd4_0647,train,372.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,464.0,True,False,False,False,False
+EEHEE_rd4_0647,val,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,464.0,True,False,False,False,False
+EEHEE_rd4_0759,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0759,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0759,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0763,test,79.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,794.0,True,False,True,False,False
+EEHEE_rd4_0763,train,636.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,794.0,True,False,True,False,False
+EEHEE_rd4_0763,val,79.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,794.0,True,False,True,False,False
+EEHEE_rd4_0784,test,82.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,819.0,True,False,True,False,False
+EEHEE_rd4_0784,train,655.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,819.0,True,False,True,False,False
+EEHEE_rd4_0784,val,82.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,819.0,True,False,True,False,False
+EEHEE_rd4_0794,test,387.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,387.0,False,True,False,False,False
+EEHEE_rd4_0848,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0848,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0848,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0870,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0870,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0870,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0871,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0871,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0871,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0953,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0953,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0953,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0998,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0998,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EEHEE_rd4_0998,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd1_0101,test,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,685.0,True,False,True,False,False
+EHEE_rd1_0101,train,549.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,685.0,True,False,True,False,False
+EHEE_rd1_0101,val,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,685.0,True,False,True,False,False
+EHEE_rd1_0407,test,43.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,434.0,True,False,True,False,False
+EHEE_rd1_0407,train,348.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,434.0,True,False,True,False,False
+EHEE_rd1_0407,val,43.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,434.0,True,False,True,False,False
+EHEE_rd2_0152,test,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,684.0,True,False,True,False,False
+EHEE_rd2_0152,train,548.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,684.0,True,False,True,False,False
+EHEE_rd2_0152,val,68.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,684.0,True,False,True,False,False
+EHEE_rd2_0191,test,66.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,662.0,True,False,True,False,False
+EHEE_rd2_0191,train,530.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,662.0,True,False,True,False,False
+EHEE_rd2_0191,val,66.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,662.0,True,False,True,False,False
+EHEE_rd2_0196,test,23.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,232.0,True,False,True,False,False
+EHEE_rd2_0196,train,186.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,232.0,True,False,True,False,False
+EHEE_rd2_0196,val,23.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,232.0,True,False,True,False,False
+EHEE_rd2_0251,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,False,True,False,False,False
+EHEE_rd2_0341,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd2_0341,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd2_0341,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd2_0372,test,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,461.0,True,False,True,False,False
+EHEE_rd2_0372,train,369.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,461.0,True,False,True,False,False
+EHEE_rd2_0372,val,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,461.0,True,False,True,False,False
+EHEE_rd2_0487,test,40.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,405.0,True,False,False,False,False
+EHEE_rd2_0487,train,325.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,405.0,True,False,False,False,False
+EHEE_rd2_0487,val,40.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,405.0,True,False,False,False,False
+EHEE_rd2_0601,test,73.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,734.0,True,False,True,False,False
+EHEE_rd2_0601,train,588.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,734.0,True,False,True,False,False
+EHEE_rd2_0601,val,73.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,734.0,True,False,True,False,False
+EHEE_rd2_0628,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,False,True,False,False,False
+EHEE_rd2_0751,test,72.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,716.0,True,False,True,False,False
+EHEE_rd2_0751,train,572.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,716.0,True,False,True,False,False
+EHEE_rd2_0751,val,72.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,716.0,True,False,True,False,False
+EHEE_rd2_0801,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd2_0801,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd2_0801,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd2_0840,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,False,True,False,False,False
+EHEE_rd2_1257,test,63.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,630.0,True,False,False,False,False
+EHEE_rd2_1257,train,504.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,630.0,True,False,False,False,False
+EHEE_rd2_1257,val,63.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,630.0,True,False,False,False,False
+EHEE_rd3_0035,test,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,457.0,True,False,False,False,False
+EHEE_rd3_0035,train,365.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,457.0,True,False,False,False,False
+EHEE_rd3_0035,val,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,457.0,True,False,False,False,False
+EHEE_rd3_0053,test,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,518.0,True,False,False,False,False
+EHEE_rd3_0053,train,414.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,518.0,True,False,False,False,False
+EHEE_rd3_0053,val,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,518.0,True,False,False,False,False
+EHEE_rd3_0067,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd3_0067,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd3_0067,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd4_0044,test,55.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,550.0,True,False,True,False,False
+EHEE_rd4_0044,train,440.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,550.0,True,False,True,False,False
+EHEE_rd4_0044,val,55.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,550.0,True,False,True,False,False
+EHEE_rd4_0069,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd4_0069,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd4_0069,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd4_0086,test,71.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,712.0,True,False,True,False,False
+EHEE_rd4_0086,train,570.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,712.0,True,False,True,False,False
+EHEE_rd4_0086,val,71.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,712.0,True,False,True,False,False
+EHEE_rd4_0098,test,57.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,571.0,True,False,True,False,False
+EHEE_rd4_0098,train,457.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,571.0,True,False,True,False,False
+EHEE_rd4_0098,val,57.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,571.0,True,False,True,False,False
+EHEE_rd4_0172,test,75.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,747.0,True,False,True,False,False
+EHEE_rd4_0172,train,597.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,747.0,True,False,True,False,False
+EHEE_rd4_0172,val,75.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,747.0,True,False,True,False,False
+EHEE_rd4_0195,test,38.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,377.0,True,False,True,False,False
+EHEE_rd4_0195,train,301.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,377.0,True,False,True,False,False
+EHEE_rd4_0195,val,38.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,377.0,True,False,True,False,False
+EHEE_rd4_0300,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd4_0300,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd4_0300,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd4_0325,test,72.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,721.0,True,False,True,False,False
+EHEE_rd4_0325,train,577.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,721.0,True,False,True,False,False
+EHEE_rd4_0325,val,72.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,721.0,True,False,True,False,False
+EHEE_rd4_0340,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd4_0340,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd4_0340,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd4_0394,test,54.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,535.0,True,False,True,False,False
+EHEE_rd4_0394,train,427.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,535.0,True,False,True,False,False
+EHEE_rd4_0394,val,54.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,535.0,True,False,True,False,False
+EHEE_rd4_0463,test,45.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,449.0,True,False,True,False,False
+EHEE_rd4_0463,train,359.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,449.0,True,False,True,False,False
+EHEE_rd4_0463,val,45.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,449.0,True,False,True,False,False
+EHEE_rd4_0726,test,454.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,454.0,False,True,True,False,False
+EHEE_rd4_0840,test,73.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,734.0,True,False,True,False,False
+EHEE_rd4_0840,train,588.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,734.0,True,False,True,False,False
+EHEE_rd4_0840,val,73.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,734.0,True,False,True,False,False
+EHEE_rd4_0864,test,75.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,747.0,True,False,True,False,False
+EHEE_rd4_0864,train,597.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,747.0,True,False,True,False,False
+EHEE_rd4_0864,val,75.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,747.0,True,False,True,False,False
+EHEE_rd4_0929,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd4_0929,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+EHEE_rd4_0929,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+GG_run1_1390_0006,test,5.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,50.0,True,False,True,False,False
+GG_run1_1390_0006,train,40.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,50.0,True,False,True,False,False
+GG_run1_1390_0006,val,5.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,50.0,True,False,True,False,False
+GG_run2_0085_0001,test,9.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,90.0,True,False,True,False,False
+GG_run2_0085_0001,train,72.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,90.0,True,False,True,False,False
+GG_run2_0085_0001,val,9.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,90.0,True,False,True,False,False
+GG_run3_0396_0003,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+GG_run3_0396_0003,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+GG_run3_0396_0003,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+GG_run3_0687_0004,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+GG_run3_0687_0004,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+GG_run3_0687_0004,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+GG_run3_0695_0006,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+GG_run3_0695_0006,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+GG_run3_0695_0006,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+GG_run3_1315_0003,test,38.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,375.0,True,False,True,False,False
+GG_run3_1315_0003,train,299.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,375.0,True,False,True,False,False
+GG_run3_1315_0003,val,38.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,375.0,True,False,True,False,False
+GG_run3_1365_0003,test,17.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,167.0,True,False,True,False,False
+GG_run3_1365_0003,train,133.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,167.0,True,False,True,False,False
+GG_run3_1365_0003,val,17.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,167.0,True,False,True,False,False
+GG_run4_0284_0002,test,6.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,55.0,True,False,True,False,False
+GG_run4_0284_0002,train,43.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,55.0,True,False,True,False,False
+GG_run4_0284_0002,val,6.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,55.0,True,False,True,False,False
+GG_run4_0467_0002,test,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,320.0,True,False,True,False,False
+GG_run4_0467_0002,train,256.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,320.0,True,False,True,False,False
+GG_run4_0467_0002,val,32.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,320.0,True,False,True,False,False
+GG_run5_0637_0006,test,7.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,70.0,True,False,True,False,False
+GG_run5_0637_0006,train,56.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,70.0,True,False,True,False,False
+GG_run5_0637_0006,val,7.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,70.0,True,False,True,False,False
+GG_run5_0650_0005,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,False,True,False,False,False
+GG_run5_1147_0004,test,13.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,134.0,True,False,True,False,False
+GG_run5_1147_0004,train,108.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,134.0,True,False,True,False,False
+GG_run5_1147_0004,val,13.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,134.0,True,False,True,False,False
+GG_run5_1309_0004,test,16.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,157.0,True,False,True,False,False
+GG_run5_1309_0004,train,125.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,157.0,True,False,True,False,False
+GG_run5_1309_0004,val,16.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,157.0,True,False,True,False,False
+GG_run6_0775_0006,test,4.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,35.0,True,False,True,False,False
+GG_run6_0775_0006,train,27.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,35.0,True,False,True,False,False
+GG_run6_0775_0006,val,4.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,35.0,True,False,True,False,False
+GG_run6_0851_0003,test,6.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,63.0,True,False,True,False,False
+GG_run6_0851_0003,train,51.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,63.0,True,False,True,False,False
+GG_run6_0851_0003,val,6.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,63.0,True,False,True,False,False
+GG_run6_1310_0004,test,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,462.0,True,False,True,False,False
+GG_run6_1310_0004,train,370.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,462.0,True,False,True,False,False
+GG_run6_1310_0004,val,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,462.0,True,False,True,False,False
+HEEH_KT_rd6_0007,test,81.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,808.0,True,False,False,False,True
+HEEH_KT_rd6_0007,train,646.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,808.0,True,False,False,False,True
+HEEH_KT_rd6_0007,val,81.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,808.0,True,False,False,False,True
+HEEH_KT_rd6_0200,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_KT_rd6_0200,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_KT_rd6_0200,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_KT_rd6_0280,test,41.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,408.0,True,False,False,True,False
+HEEH_KT_rd6_0280,train,326.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,408.0,True,False,False,True,False
+HEEH_KT_rd6_0280,val,41.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,408.0,True,False,False,True,False
+HEEH_KT_rd6_0746,test,76.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,761.0,True,False,False,True,False
+HEEH_KT_rd6_0746,train,609.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,761.0,True,False,False,True,False
+HEEH_KT_rd6_0746,val,76.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,761.0,True,False,False,True,False
+HEEH_KT_rd6_0790,test,786.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,786.0,False,True,False,False,True
+HEEH_KT_rd6_0793,test,73.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,726.0,True,False,False,False,True
+HEEH_KT_rd6_0793,train,580.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,726.0,True,False,False,False,True
+HEEH_KT_rd6_0793,val,73.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,726.0,True,False,False,False,True
+HEEH_KT_rd6_0872,test,79.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,790.0,True,False,False,False,False
+HEEH_KT_rd6_0872,train,632.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,790.0,True,False,False,False,False
+HEEH_KT_rd6_0872,val,79.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,790.0,True,False,False,False,False
+HEEH_KT_rd6_0961,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_KT_rd6_0961,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_KT_rd6_0961,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_KT_rd6_1415,test,273.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,273.0,False,True,False,True,False
+HEEH_KT_rd6_2408,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_KT_rd6_2408,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_KT_rd6_2408,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_KT_rd6_3504,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_KT_rd6_3504,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_KT_rd6_3504,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_KT_rd6_3632,test,17.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,166.0,True,False,False,False,True
+HEEH_KT_rd6_3632,train,132.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,166.0,True,False,False,False,True
+HEEH_KT_rd6_3632,val,17.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,166.0,True,False,False,False,True
+HEEH_rd2_0750,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_rd2_0750,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_rd2_0750,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_rd3_0002,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_rd3_0002,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_rd3_0002,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HEEH_rd3_0055,test,81.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,808.0,True,False,False,False,True
+HEEH_rd3_0055,train,646.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,808.0,True,False,False,False,True
+HEEH_rd3_0055,val,81.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,808.0,True,False,False,False,True
+HEEH_rd3_0223,test,80.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,799.0,True,False,False,False,True
+HEEH_rd3_0223,train,639.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,799.0,True,False,False,False,True
+HEEH_rd3_0223,val,80.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,799.0,True,False,False,False,True
+HEEH_rd4_0094,test,71.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,706.0,True,False,False,True,False
+HEEH_rd4_0094,train,564.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,706.0,True,False,False,True,False
+HEEH_rd4_0094,val,71.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,706.0,True,False,False,True,False
+HEEH_rd4_0097,test,19.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,192.0,True,False,False,False,True
+HEEH_rd4_0097,train,154.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,192.0,True,False,False,False,True
+HEEH_rd4_0097,val,19.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,192.0,True,False,False,False,True
+HEEH_rd4_0349,test,21.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,213.0,True,False,False,False,True
+HEEH_rd4_0349,train,171.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,213.0,True,False,False,False,True
+HEEH_rd4_0349,val,21.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,213.0,True,False,False,False,True
+HHH_rd1_0033,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd1_0033,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd1_0033,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd1_0142,test,19.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,188.0,True,False,False,False,False
+HHH_rd1_0142,train,150.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,188.0,True,False,False,False,False
+HHH_rd1_0142,val,19.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,188.0,True,False,False,False,False
+HHH_rd1_0196,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd1_0196,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd1_0196,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd1_0197,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd1_0197,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd1_0197,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd1_0244,test,47.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,472.0,True,False,False,False,True
+HHH_rd1_0244,train,378.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,472.0,True,False,False,False,True
+HHH_rd1_0244,val,47.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,472.0,True,False,False,False,True
+HHH_rd1_0335,test,76.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,758.0,True,False,False,True,False
+HHH_rd1_0335,train,606.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,758.0,True,False,False,True,False
+HHH_rd1_0335,val,76.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,758.0,True,False,False,True,False
+HHH_rd1_0473,test,74.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,742.0,True,False,True,False,False
+HHH_rd1_0473,train,594.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,742.0,True,False,True,False,False
+HHH_rd1_0473,val,74.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,742.0,True,False,True,False,False
+HHH_rd1_0493,test,28.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,278.0,True,False,False,False,False
+HHH_rd1_0493,train,222.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,278.0,True,False,False,False,False
+HHH_rd1_0493,val,28.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,278.0,True,False,False,False,False
+HHH_rd1_0516,test,78.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,776.0,True,False,True,False,False
+HHH_rd1_0516,train,620.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,776.0,True,False,True,False,False
+HHH_rd1_0516,val,78.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,776.0,True,False,True,False,False
+HHH_rd1_0578,test,71.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,707.0,True,False,False,False,True
+HHH_rd1_0578,train,565.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,707.0,True,False,False,False,True
+HHH_rd1_0578,val,71.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,707.0,True,False,False,False,True
+HHH_rd1_0598,test,80.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,802.0,True,False,True,False,False
+HHH_rd1_0598,train,642.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,802.0,True,False,True,False,False
+HHH_rd1_0598,val,80.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,802.0,True,False,True,False,False
+HHH_rd1_0606,test,60.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,605.0,True,False,True,False,False
+HHH_rd1_0606,train,485.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,605.0,True,False,True,False,False
+HHH_rd1_0606,val,60.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,605.0,True,False,True,False,False
+HHH_rd1_0756,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd1_0756,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd1_0756,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd1_0949,test,70.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,704.0,True,False,False,False,True
+HHH_rd1_0949,train,564.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,704.0,True,False,False,False,True
+HHH_rd1_0949,val,70.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,704.0,True,False,False,False,True
+HHH_rd2_0090,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd2_0090,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd2_0090,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd2_0155,test,77.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,767.0,True,False,True,False,False
+HHH_rd2_0155,train,613.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,767.0,True,False,True,False,False
+HHH_rd2_0155,val,77.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,767.0,True,False,True,False,False
+HHH_rd2_0158,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd2_0158,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd2_0158,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd2_0160,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd2_0160,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd2_0160,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd2_0181,test,19.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,188.0,True,False,True,False,False
+HHH_rd2_0181,train,150.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,188.0,True,False,True,False,False
+HHH_rd2_0181,val,19.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,188.0,True,False,True,False,False
+HHH_rd3_0008,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd3_0008,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd3_0008,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd3_0159,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd3_0159,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd3_0159,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd3_0164,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd3_0164,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd3_0164,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd3_0224,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd3_0224,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd3_0224,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd4_0124,test,81.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,811.0,True,False,False,False,False
+HHH_rd4_0124,train,649.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,811.0,True,False,False,False,False
+HHH_rd4_0124,val,81.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,811.0,True,False,False,False,False
+HHH_rd4_0125,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd4_0125,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd4_0125,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+HHH_rd4_0557,test,20.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,205.0,True,False,True,False,False
+HHH_rd4_0557,train,165.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,205.0,True,False,True,False,False
+HHH_rd4_0557,val,20.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,205.0,True,False,True,False,False
+HHH_rd4_0613,test,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,523.0,True,False,True,False,False
+HHH_rd4_0613,train,419.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,523.0,True,False,True,False,False
+HHH_rd4_0613,val,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,523.0,True,False,True,False,False
+HHH_rd4_0676,test,59.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,594.0,True,False,True,False,False
+HHH_rd4_0676,train,476.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,594.0,True,False,True,False,False
+HHH_rd4_0676,val,59.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,594.0,True,False,True,False,False
+HHH_rd4_0816,test,81.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,806.0,True,False,False,True,False
+HHH_rd4_0816,train,644.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,806.0,True,False,False,True,False
+HHH_rd4_0816,val,81.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,806.0,True,False,False,True,False
+HHH_rd4_0849,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,False,True,False,False,False
+HHH_rd4_0870,test,249.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,249.0,False,True,True,False,False
+XX_run10_1081_0004,test,6.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,57.0,True,False,True,False,False
+XX_run10_1081_0004,train,45.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,57.0,True,False,True,False,False
+XX_run10_1081_0004,val,6.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,57.0,True,False,True,False,False
+XX_run1_0254_0003,test,5.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,52.0,True,False,True,False,False
+XX_run1_0254_0003,train,42.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,52.0,True,False,True,False,False
+XX_run1_0254_0003,val,5.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,52.0,True,False,True,False,False
+XX_run1_0367_0004,test,6.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,63.0,True,False,True,False,False
+XX_run1_0367_0004,train,51.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,63.0,True,False,True,False,False
+XX_run1_0367_0004,val,6.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,63.0,True,False,True,False,False
+XX_run1_0455_0002,test,4.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,41.0,True,False,True,False,False
+XX_run1_0455_0002,train,33.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,41.0,True,False,True,False,False
+XX_run1_0455_0002,val,4.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,41.0,True,False,True,False,False
+XX_run1_0461_0006,test,21.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,206.0,True,False,True,False,False
+XX_run1_0461_0006,train,164.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,206.0,True,False,True,False,False
+XX_run1_0461_0006,val,21.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,206.0,True,False,True,False,False
+XX_run3_1384_0005,test,8.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,77.0,True,False,True,False,False
+XX_run3_1384_0005,train,61.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,77.0,True,False,True,False,False
+XX_run3_1384_0005,val,8.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,77.0,True,False,True,False,False
+XX_run5_0283_0004,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+XX_run5_0283_0004,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+XX_run5_0283_0004,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+XX_run5_0690_0002,test,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,464.0,True,False,True,False,False
+XX_run5_0690_0002,train,372.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,464.0,True,False,True,False,False
+XX_run5_0690_0002,val,46.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,464.0,True,False,True,False,False
+XX_run5_1034_0004,test,205.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,205.0,False,True,False,False,False
+XX_run6_1020_0004,test,127.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,127.0,False,True,True,False,False
+XX_run6_1081_0004,test,90.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,90.0,False,True,True,False,False
+XX_run7_0974_0003,test,30.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,297.0,True,False,True,False,False
+XX_run7_0974_0003,train,237.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,297.0,True,False,True,False,False
+XX_run7_0974_0003,val,30.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,297.0,True,False,True,False,False
+XX_run8_0733_0006,test,14.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,143.0,True,False,True,False,False
+XX_run8_0733_0006,train,115.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,143.0,True,False,True,False,False
+XX_run8_0733_0006,val,14.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,143.0,True,False,True,False,False
+XX_run8_1063_0003,test,14.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,145.0,True,False,True,False,False
+XX_run8_1063_0003,train,117.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,145.0,True,False,True,False,False
+XX_run8_1063_0003,val,14.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,145.0,True,False,True,False,False
+XX_run8_1098_0003,test,21.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,212.0,True,False,True,False,False
+XX_run8_1098_0003,train,170.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,212.0,True,False,True,False,False
+XX_run8_1098_0003,val,21.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,212.0,True,False,True,False,False
+XX_run8_1203_0001,test,6.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,57.0,True,False,False,False,False
+XX_run8_1203_0001,train,45.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,57.0,True,False,False,False,False
+XX_run8_1203_0001,val,6.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,57.0,True,False,False,False,False
+r10_1151_TrROS_Hall,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r10_1151_TrROS_Hall,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r10_1151_TrROS_Hall,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r10_437_TrROS_Hall,test,37.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,373.0,True,False,True,False,False
+r10_437_TrROS_Hall,train,299.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,373.0,True,False,True,False,False
+r10_437_TrROS_Hall,val,37.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,373.0,True,False,True,False,False
+r10_572_TrROS_Hall,test,17.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,172.0,True,False,True,False,False
+r10_572_TrROS_Hall,train,138.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,172.0,True,False,True,False,False
+r10_572_TrROS_Hall,val,17.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,172.0,True,False,True,False,False
+r11_233_TrROS_Hall,test,257.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,257.0,False,True,True,False,False
+r11_569_TrROS_Hall,test,29.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,290.0,True,False,True,False,False
+r11_569_TrROS_Hall,train,232.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,290.0,True,False,True,False,False
+r11_569_TrROS_Hall,val,29.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,290.0,True,False,True,False,False
+r11_692_TrROS_Hall,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r11_692_TrROS_Hall,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r11_692_TrROS_Hall,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r11_797_TrROS_Hall,test,13.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,127.0,True,False,False,False,False
+r11_797_TrROS_Hall,train,101.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,127.0,True,False,False,False,False
+r11_797_TrROS_Hall,val,13.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,127.0,True,False,False,False,False
+r11_829_TrROS_Hall,test,216.0,test-only wildtype: all rows forced to test; Dataset2 proxy N,216.0,False,True,True,False,False
+r11_943_TrROS_Hall,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r11_943_TrROS_Hall,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r11_943_TrROS_Hall,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r11_951_TrROS_Hall,test,4.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,37.0,True,False,False,False,False
+r11_951_TrROS_Hall,train,29.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,37.0,True,False,False,False,False
+r11_951_TrROS_Hall,val,4.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,37.0,True,False,False,False,False
+r14_568_TrROS_Hall,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r14_568_TrROS_Hall,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r14_568_TrROS_Hall,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r15_550_TrROS_Hall,test,5.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,48.0,True,False,True,False,False
+r15_550_TrROS_Hall,train,38.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,48.0,True,False,True,False,False
+r15_550_TrROS_Hall,val,5.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,48.0,True,False,True,False,False
+r18_3_TrROS_Hall,test,3.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,34.0,True,False,True,False,False
+r18_3_TrROS_Hall,train,28.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,34.0,True,False,True,False,False
+r18_3_TrROS_Hall,val,3.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,34.0,True,False,True,False,False
+r3_162_TrROS_Hall,test,1.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,12.0,True,False,True,False,False
+r3_162_TrROS_Hall,train,10.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,12.0,True,False,True,False,False
+r3_162_TrROS_Hall,val,1.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,12.0,True,False,True,False,False
+r3_35_TrROS_Hall,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r3_35_TrROS_Hall,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r3_35_TrROS_Hall,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r4_412_TrROS_Hall,test,19.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,187.0,True,False,True,False,False
+r4_412_TrROS_Hall,train,149.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,187.0,True,False,True,False,False
+r4_412_TrROS_Hall,val,19.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,187.0,True,False,True,False,False
+r6_560_TrROS_Hall,test,16.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,159.0,True,False,False,True,False
+r6_560_TrROS_Hall,train,127.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,159.0,True,False,False,True,False
+r6_560_TrROS_Hall,val,16.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,159.0,True,False,False,True,False
+r6_831_TrROS_Hall,test,18.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,182.0,True,False,False,False,True
+r6_831_TrROS_Hall,train,146.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,182.0,True,False,False,False,True
+r6_831_TrROS_Hall,val,18.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,182.0,True,False,False,False,True
+r7_307_TrROS_Hall,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r7_307_TrROS_Hall,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r7_307_TrROS_Hall,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r7_562_TrROS_Hall,test,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r7_562_TrROS_Hall,train,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r7_562_TrROS_Hall,val,,unknown: K50_dG_Dataset1_Dataset2.csv not cloned; code absent from Dataset2 proxy,,True,False,False,False,False
+r7_587_TrROS_Hall,test,15.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,149.0,True,False,False,True,False
+r7_587_TrROS_Hall,train,119.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,149.0,True,False,False,True,False
+r7_587_TrROS_Hall,val,15.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,149.0,True,False,False,True,False
+v2K43S_2KVV,test,56.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,561.0,True,False,False,True,False
+v2K43S_2KVV,train,449.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,561.0,True,False,False,True,False
+v2K43S_2KVV,val,56.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,561.0,True,False,False,True,False
+v2R14S_R16S_2L3X,test,41.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,413.0,True,False,False,False,False
+v2R14S_R16S_2L3X,train,331.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,413.0,True,False,False,False,False
+v2R14S_R16S_2L3X,val,41.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,413.0,True,False,False,False,False
+v2R31S_R32S_2N5D,test,36.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,357.0,True,False,False,True,False
+v2R31S_R32S_2N5D,train,285.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,357.0,True,False,False,True,False
+v2R31S_R32S_2N5D,val,36.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,357.0,True,False,False,True,False
+v2_1OGW,test,24.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,238.0,True,False,False,False,False
+v2_1OGW,train,190.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,238.0,True,False,False,False,False
+v2_1OGW,val,24.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,238.0,True,False,False,False,False
+v2_2HDZ,test,56.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,556.0,True,False,False,False,False
+v2_2HDZ,train,444.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,556.0,True,False,False,False,False
+v2_2HDZ,val,56.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,556.0,True,False,False,False,False
+v2_2L15,test,23.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,226.0,True,False,False,False,False
+v2_2L15,train,180.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,226.0,True,False,False,False,False
+v2_2L15,val,23.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,226.0,True,False,False,False,False
+v2_2LC2,test,103.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1033.0,True,False,False,False,True
+v2_2LC2,train,827.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1033.0,True,False,False,False,True
+v2_2LC2,val,103.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,1033.0,True,False,False,False,True
+v2_2LDM,test,76.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,760.0,True,False,True,False,False
+v2_2LDM,train,608.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,760.0,True,False,True,False,False
+v2_2LDM,val,76.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,760.0,True,False,True,False,False
+v2_2LXE,test,94.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,935.0,True,False,True,False,False
+v2_2LXE,train,747.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,935.0,True,False,True,False,False
+v2_2LXE,val,94.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,935.0,True,False,True,False,False
+v2_2M5A,test,6.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,64.0,True,False,False,False,False
+v2_2M5A,train,52.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,64.0,True,False,False,False,False
+v2_2M5A,val,6.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,64.0,True,False,False,False,False
+v2_4UZX,test,78.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,778.0,True,False,True,False,False
+v2_4UZX,train,622.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,778.0,True,False,True,False,False
+v2_4UZX,val,78.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,778.0,True,False,True,False,False
+v2_5XK5,test,24.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,240.0,True,False,False,False,False
+v2_5XK5,train,192.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,240.0,True,False,False,False,False
+v2_5XK5,val,24.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,240.0,True,False,False,False,False
+v2_6IVS,test,13.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,132.0,True,False,True,False,False
+v2_6IVS,train,106.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,132.0,True,False,True,False,False
+v2_6IVS,val,13.0,expected from 80/10/10 per-row random assignment (build_dataset.py) applied to Dataset2 proxy N,132.0,True,False,True,False,False

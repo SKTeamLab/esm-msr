@@ -9,14 +9,14 @@ MutateEverything st2 (3 seeds),h.20 V,h.16
 ThermoMPNN + ThermoMPNN-D (3 seeds),h.07 V,h.12
 "SPURS (retrained, 3 seeds)",h.20 V,h.16
 "SPURS multi (retrained, 3 seeds)",h.20 V,h.16
-ESMtherm,P.87 M?.70 H.03 h.02 V,P.82 M?.66 H.04 h.03
+ESMtherm,P.91 M?.73 H.03 h.02 V,P.86 M?.68 H.04 h.03
 DDGemb (server),V,h.02
 DDMut (server),–,–
-"IFUM, WT backbone",P.68 M?.68 h.07 V,P.45 M?.45 H.07 h.06
-"IFUM, ESMFold per variant",P.68 M?.68 h.07 V,P.45 M?.45 H.07 h.06
+"IFUM, WT backbone",P.72 M?.72 h.07 V,P.49 M?.49 H.07 h.06
+"IFUM, ESMFold per variant",P.72 M?.72 h.07 V,P.49 M?.49 H.07 h.06
 GeoDDG-3D (FASPR),V,h.07
 ESM3ΔG,H.49 h.24 V,H.41 h.50
-ProSST (zero-shot),C.73,C.78
-ProteinMPNN (zero-shot),C.73,C.78
-"ESM3-small-open, σ = 0 (zero-shot)",C.73,C.78
+ProSST (zero-shot),–,–
+ProteinMPNN (zero-shot),–,–
+"ESM3-small-open, σ = 0 (zero-shot)",–,–
 "ESM3-large (Forge, zero-shot)",–,–

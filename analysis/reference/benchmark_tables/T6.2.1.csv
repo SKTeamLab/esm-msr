@@ -1,11 +1,11 @@
 code,meaning,evidence
-`M`,"identical variant row in training (same protein family, identical mutation set)",verified
+`M`,"identical variant row in training (same protein family, identical mutation set, including reverse structures)",verified
 `m`,"every mutation in the row appears in training in the same protein, but not this combination (e.g. a test double whose two singles were trained)",verified
-`P`,"same protein (≥95 % identity over ≥90 % coverage, or ≥90 % identity over ≥50 %) in training, no mutation match",verified
-`H`,strong homolog in training: MMseqs2 E ≤ 1e-3 over ≥50 % of the test protein,verified
-`h`,weak/ambiguous: E ≤ 1e-2 or ≥30 % identity over ≥30 % of the test protein,measured
+`P`,"same protein (≥95 % identity over ≥90 % shorter-sequence coverage, or ≥90 % identity over ≥50 %) in training, no mutation match",verified
+`H`,strong homolog in training: MMseqs2 E ≤ 1e-3 over ≥50 % of the test protein (plus Foldseek E ≤ 1e-3 or qTM > 0.70 over ≥50 % on Domainome and ProteinGym),verified
+`h`,weak/ambiguous: MMseqs2 E ≤ 1e-2 or ≥30 % identity over ≥30 % of the test protein (plus Foldseek E ≤ 1e-2 over ≥30 % on Domainome and ProteinGym),measured
 `D`,documented training on the same source dataset; rows not reconstructable,documented
-`C`,"pretraining-corpus exposure only (WT sequence/structure, no mutation supervision)",documented
+`–`,no supervised ΔΔG training overlap (includes physics-based and unsupervised pretraining-only models),verified / documented
 `U`,training data not disclosed,documented
 `V`,the dataset was used for validation or model selection,documented
 `#`,the number is not a test result (the dataset is the training set),verified

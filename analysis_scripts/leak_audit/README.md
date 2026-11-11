@@ -1,65 +1,88 @@
-# Leak-audit scripts (October 2026)
+# Leak-Audit Pipeline (`analysis_scripts/leak_audit/`)
 
-These scripts produced [`docs/LEAKAGE_AUDIT_OCT2026.md`](../../docs/LEAKAGE_AUDIT_OCT2026.md),
-[`docs/BENCHMARKS_OCT2026.md`](../../docs/BENCHMARKS_OCT2026.md) §6, and the machine-readable tables under
-[`docs/benchmarks/`](../../docs/benchmarks/): `leak_audit_matrix.csv`, `leak_audit_inventories.csv`,
-`leak_audit_pg_per_dms.csv`, `leak_audit_homology.csv`, `leak_audit_code_exact.csv`, `split_homology_audit.json`,
-`leak_audit.sqlite`.
+End-to-end reproducible pipeline producing [`docs/LEAKAGE_AUDIT_OCT2026.md`](../../docs/LEAKAGE_AUDIT_OCT2026.md),
+[`docs/SPLITTING_AND_HOMOLOGY_AUDIT.md`](../../docs/SPLITTING_AND_HOMOLOGY_AUDIT.md),
+[`docs/BENCHMARKS_OCT2026.md`](../../docs/BENCHMARKS_OCT2026.md) §6, and all machine-readable audit artifacts in
+[`docs/benchmarks/`](../../docs/benchmarks/) (synced to [`analysis/reference/`](../../analysis/reference/)):
 
-## Layout and inputs
+- `docs/benchmarks/leak_audit_matrix.csv` — per-`(model, dataset)` row counts, leak fractions, compact codes, and superscripts
+- `docs/benchmarks/leak_audit_inventories.csv` — provenance and scope of all 18 training inventories
+- `docs/benchmarks/leak_audit_pg_per_dms.csv` — per-assay ProteinGym exact/constituent/same-protein/sequence+Foldseek homology breakdown (all 217 DMS)
+- `docs/benchmarks/leak_audit_homology.csv` — protein-level (`P` / `H` / `h` / `low` / `none`) row counts across all `(inventory, dataset)` pairs
+- `docs/benchmarks/leak_audit_structure_homology.csv` — Foldseek 3D vs MMseqs2 sequence homology summary on Domainome (522 domains) and ProteinGym (all 217 DMS)
+- `docs/benchmarks/leak_audit_code_exact.csv` — verified mutation-level overlaps for `DDGemb` (`S2450`), `DDMut` (`S9028` + `SM1242`), and `GeoDDG` (`S8754`)
+- `docs/benchmarks/leak_audit_esm3dg_libraries.csv` — per-scaffold MGnify homology audit across the 33 capped-test scaffolds
+- `docs/benchmarks/split_homology_audit.json` — verification of the `splits_oct06_capped` quarantine, bridge pruning, and threshold sensitivity sweep
+- `docs/benchmarks/leak_audit.sqlite` — consolidated SQLite database containing all audit tables
 
-The scripts were run from the audit workspace (`LEAK_ROOT`, default `/home/sareeves/playground/esm-msr-devel`),
-with inputs under `leak_audit/data/` and outputs under `leak_audit/out/`. `13_matrix.py` reads
-`docs/benchmarks/all_by_all_long.csv` of the checkout it is in (override with `LONG_CSV`); `16_render.py` and `17_write_doc.py` still read the
-devel-revision worktree at `repo/.claude/worktrees/devel-main-conservative-merge-5e554f` (for `docs/BENCHMARKS_OCT2026.md` and the repo `data/`).
-They also read the public training files listed in the report's §3,
-the local model clones (`~/software/{SPURS_mod,EsmTherm,ThermoMPNN,esm-msr}`), and the split's saved pair table
-under `analysis/salvaged_2026-10-16/structure-homology-splits-e5ca04/`.
+---
 
-External inputs needed before a full re-run (all public; URLs in the report §3): `S2450.tsv/.fasta`,
-`S9028.csv`, `SM1242.csv`, `S8754.csv`, the IFUM `dataset_splits.pdf`, the EsmTherm `wildtype_split.csv`,
-the MGnify `mgnify_training_index.csv`, the ProteinGym DMS files, the Domainome supplementary table.
+## Directory Layout & Tracked Reference Data
 
-## Order
+Small plain-text upstream split and training reference tables (**< 800 KB total**) are tracked directly under
+[`analysis_scripts/leak_audit/data/`](data/), while large raw datasets, intermediate pickles, FASTA databases, and
+MMseqs2/Foldseek alignments live in `$LEAK_DATA_DIR` (default `../leak_audit/data`) and `$LEAK_OUT_DIR`
+(default `../leak_audit/out`) and are excluded via [`data/.gitignore`](data/.gitignore):
 
+| Tracked file in `data/` | Size | Source / Generator |
+|---|---:|---|
+| `S2450.tsv`, `S2450.fasta` | 87 KB | DDGemb training set ([Savojardo et al. 2024](https://ddgemb.biocomp.unibo.it/datasets/)) |
+| `S9028.csv`, `DD_SM1242.csv` | 386 KB | DDMut single- and multi-mutant training sets ([Zhou et al. 2023](https://biosig.lab.uq.edu.au/ddmut/data)) |
+| `ifum_train_proteins.csv` | 27 KB | Parsed from IFUM supplementary `dataset_splits.pdf` (`00b_extract_ifum_split.py`) |
+| `esmtherm_split.csv`, `esmtherm_train_proteins.csv` | 206 KB | EsmTherm mutant-level split (`00_build_inventories.py`) |
+| `tmpnnd_train_proteins.csv` | 5 KB | 134 of 172 capped-train scaffolds seen by retrained ThermoMPNN-D (`05c_tmpnnd_inventory.py`) |
+| `spurs_single_train_proteins.csv`, `spurs_multi_train_proteins.csv` | 43 KB | Upstream SPURS MegaScale protein inventories (`00_build_inventories.py`) |
+| `thermompnn_upstream_train_proteins.csv` | 20 KB | Upstream ThermoMPNN Zenodo MegaScale/FireProt protein index (`00_build_inventories.py`) |
+
+Large external inputs expected in `$LEAK_DATA_DIR` / `$SOFTWARE_DIR` for a full cold rebuild (all public; URLs in
+[`docs/LEAKAGE_AUDIT_OCT2026.md`](../../docs/LEAKAGE_AUDIT_OCT2026.md) §3):
+- Tsuboyama MegaScale CSV + `AlphaFold_model_PDBs/` (`$SOFTWARE_DIR/esm-msr/data/tsuboyama/`)
+- Preprocessed benchmark CSVs and original/processed PDBs (`repo/data/preprocessed/`, `$SOFTWARE_DIR/esm-msr/data/structures/`)
+- GeoDDG `GS_S8754.csv` (`$LEAK_DATA_DIR/raw/GS_S8754.csv`, 2.7 MB)
+- ESM3ΔG `mgnify_index.csv` (`$LEAK_DATA_DIR/raw/mgnify_index.csv`, 138 MB; 960,216 `train` sequences)
+- Domainome supplementary table & structures (`$SOFTWARE_DIR/esm-msr/data/domainome1/`)
+- ProteinGym v1.3 substitutions & AF2 structures (`$LEAK_ROOT/ProteinGym/`, Zenodo record `15293562`)
+
+---
+
+## Regenerating Everything
+
+Run the complete pipeline in topological dependency order with a single command:
+
+```bash
+python analysis_scripts/leak_audit/run_all.py
 ```
-01_megascale.py            # Megascale library/variant tables
-02_testsets.py             # test rows -> (protein, mutation) for every dataset
-05_proteins.py             # protein corpus + MMseqs2 all-vs-all
-05b_inventory_proteins.py  # PDB sequences for the code/position inventories
-05c_tmpnnd_inventory.py    # the capped-train libraries ThermoMPNN-D can see (measured doubles + Rosetta-augmented singles)
-06_families.py             # same-protein families + representative position maps
-07_relations.py            # test-protein relation to the capped train set (early check)
-09_homology_audit.py       # split rule, sensitivity, transitive/structure-only analysis
-10_overlap_engine.py       # per-inventory exact/constituent/same-protein counts
-11_homology_classes.py     # P/H/h classification
-12_code_exact.py           # exact counts for DDGemb/DDMut/GeoDDG
-13_matrix.py               # cell codes and fractions
-14_pg.py                   # per-DMS ProteinGym leakage + clean aggregates
-15_mgnify.py               # ESM3dG MGnify corpus homology (needs the mgnify .m8)
-16_render.py               # annotated table fragments (reads the ORIGINAL BENCHMARKS doc)
-17_write_doc.py            # splices the tables and §6 into docs/BENCHMARKS_OCT2026.md
-18_db.py                   # SQLite + committed CSVs
-19_esm3dg_exact.py         # exact WT/mutant SHA-1 join against the MGnify train split
+
+Or resume from any step substring (e.g. `--from-step 09` or `--skip-upstream`):
+
+```bash
+python analysis_scripts/leak_audit/run_all.py --from-step 09
 ```
 
-`16_render.py` and `17_write_doc.py` must be run against the unmodified `BENCHMARKS_OCT2026.md`; check the file out
-of `devel-revision` before re-running them. They regenerate whole tables and §6, so they were not rerun for the retrained-SPURS update
-(2026-10-29): there the regenerated `leak_matrix.csv` was used to patch the doc's tables in place, which leaves later hand edits alone.
+### Execution DAG (`run_all.py`)
 
-Every model retrained on the capped split (ESM-MSR, ME stage 1/2, ThermoMPNN, SPURS, SPURS multi) shares one protein set in `11_homology_classes.py`
-(so `P`/`H`/`h` are identical for them); ThermoMPNN-D uses the subset from `05c_tmpnnd_inventory.py`. The cell codes are deterministic given the inputs; `13_matrix.py` also
-needs `ifum_train_proteins.csv` and `esmtherm_train_proteins.csv` from the inventory data.
+```text
+00_build_inventories.py     # Upstream SPURS, EsmTherm, and ThermoMPNN CSVs (with .pdb_<mut> normalization)
+00b_extract_ifum_split.py   # Parse IFUM dataset_splits.pdf -> data/ifum_train_proteins.csv
+01_megascale.py             # MegaScale library & variant tables (synthesizing base code_wt entries)
+02_testsets.py              # Parse all 23 benchmark datasets into canonical (pid, seq, muts) tables
+04_overlap_repo_models.py   # Direct MegaScale split sanity check -> capped_split_sets.pkl
+05b_inventory_proteins.py   # Extract WT sequences & author->0-idx PDB residue maps (_original.pdb preferred)
+05_proteins.py              # Unified protein corpus + MMseqs2 all-vs-all (-s 7.5, SHA-1 cache-invalidated)
+05c_tmpnnd_inventory.py     # Determine the 134/172 capped-train scaffolds seen by retrained ThermoMPNN-D
+05d_structure_homology.py   # Foldseek exhaustive 3D structural search on Domainome (522) & ProteinGym (217)
+00c_prepare_mgnify.py       # Build mgnify_train.fa + test_queries.fa and run MMseqs2 (-s 7.5)
+06_families.py              # Symmetric >=95% id / >=90% cov / >=0.80 len_ratio families & position maps
+07_relations.py             # Quick relation summary against the 172 capped-train scaffolds
+09_homology_audit.py        # Verify splits_oct06_capped quarantine, bridge cuts, and threshold sensitivity
+10_overlap_engine.py        # Exact (M), constituent (m), and same-protein (P) engine for MegaScale models
+11_homology_classes.py      # Non-shadowed P / H / h classification (MMseqs2 + Foldseek on Domainome & PG)
+12_code_exact.py            # Sequence-verified M / m counts for DDGemb S2450, DDMut S9028+SM1242, GeoDDG S8754
+15_mgnify.py                # Non-shadowed ESM3dG MGnify homology + 33-scaffold capped-test breakdown
+19_esm3dg_exact.py          # Exact WT & mutant SHA-1 check against the 960,216 MGnify train sequences
+14_pg.py                    # Per-DMS ProteinGym overlap + Foldseek homology -> leak_audit_pg_per_dms.csv
+13_matrix.py                # Assemble per-(model, dataset) leak codes (retrained SPURS/TMPNN-D; '–' for zero-shot)
+18_db.py                    # Export leak_audit.sqlite and CSV/JSON artifacts to docs/benchmarks/ & analysis/reference/
+```
 
-## ESM3dG training-corpus check (October 30 2026)
-
-`19_esm3dg_exact.py` does the exact check: a SHA-1 join of every benchmark row's wild-type and mutant sequence
-against the 960,216-sequence MGnify train split (`data/raw/mgnify_index.csv`, `split == 'train'`). It returns 0
-matches for every dataset. `15_mgnify.py` then classifies homology from
-
-    mmseqs easy-search data/raw/test_queries.fa data/raw/mgnify_train.fa data/raw/test_vs_mgnify_s75.m8 \
-        /tmp/mm_tmp -s 7.5 -e 10 --max-seqs 500 --threads 8 \
-        --format-output query,target,fident,alnlen,qlen,tlen,evalue,bits
-
-which takes 9.7 s for all 2,583 test proteins (1.5 GB RSS) and 4.7-5.8 s for the 33 capped test libraries. The
-older `test_vs_mgnify.m8` (s = 5.5, max-seqs 50) is used only if the s75 file is absent.
+*(Historical note: `16_render.py` and `17_write_doc.py` were one-off migration helpers from the initial annotation pass and are retained for provenance, not invoked by `run_all.py`.)*

@@ -1,0 +1,15 @@
+# Never commit large intermediates, search databases, or raw corpora (>500 KB)
+*.pkl
+*.gz
+*.m8
+*.fa
+*.fasta
+!S2450.fasta
+GS_S8754.csv
+mgnify*
+mmseqs*
+foldseek*
+testsets/
+inventory_proteins/
+work/
+out/

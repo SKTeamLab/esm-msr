@@ -24,7 +24,8 @@ Status key:
 | Document | Status | Description |
 | :--- | :--- | :--- |
 | [`BENCHMARKS_OCT2026.md`](BENCHMARKS_OCT2026.md) | **CURRENT** | Canonical evaluation benchmark comparing ESM-MSR against baseline and third-party models across 12 external $\Delta\Delta G$ sets, Tsuboyama, 7 DMS sets, Domainome, and ProteinGym (213 assays), with full training-data leak annotations. |
-| [`LEAKAGE_AUDIT_OCT2026.md`](LEAKAGE_AUDIT_OCT2026.md) | **CURRENT** | Systematic audit of sequence and structural overlap between external benchmark sets and training data across all evaluated models. |
+| [`LEAKAGE_AUDIT_OCT2026.md`](LEAKAGE_AUDIT_OCT2026.md) | **CURRENT** | Systematic audit of sequence and structural overlap between external benchmark sets and training data across all evaluated models (using retrained Homology-Restricted MegaScale inventories for SPURS and ThermoMPNN-D). |
+| [`SPLITTING_AND_HOMOLOGY_AUDIT.md`](SPLITTING_AND_HOMOLOGY_AUDIT.md) | **CURRENT** | Technical audit of the `splits_oct06_capped` train/val/test splitting procedure and the cross-set homology/leakage pipeline: reproducibility, robustness, quarantine design, resolved pipeline bugs, and assumptions. |
 | [`validation_metrics.md`](validation_metrics.md) | **CURRENT** | Formal definitions of all validation and epistasis metrics, covering the authoritative $\sim\text{MT}(AB) - \text{WT}(AB)$ formulation and the `_epi` metric hierarchy. |
 | [`INFERENCE_RESOURCES.md`](INFERENCE_RESOURCES.md) | **REFERENCE** | Fixed-slot runtime, CPU, RAM, and VRAM profiling across models and datasets. |
 

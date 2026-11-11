@@ -22,4 +22,4 @@ table,section,heading,columns,rows
 6.3.1,6.3,Training inventories,inventory | training data | source | evidence,17
 6.5.1,6.5,What the audit finds,finding | size | affected rows,10
 6.5.2,6.5,What the audit finds,model | clean mean (n of 12) | all-12 mean | cells excluded,15
-7.1,7,Where the code and results live,path | what,13
+7.1,7,Where the code and results live,path | what,14

@@ -16,7 +16,7 @@ DDMut (server),–,–
 "IFUM, ESMFold per variant",0.713ᴾ,0.752ᴾ
 GeoDDG-3D (FASPR),0.595,0.609ʰ
 ESM3ΔG,0.811ᴴ,0.811ᴴ
-ProSST (zero-shot),0.593ᶜ,0.596ᶜ
-ProteinMPNN (zero-shot),0.541ᶜ,0.542ᶜ
-"ESM3-small-open, σ = 0 (zero-shot)",0.565ᶜ,0.578ᶜ
+ProSST (zero-shot),0.593,0.596
+ProteinMPNN (zero-shot),0.541,0.542
+"ESM3-small-open, σ = 0 (zero-shot)",0.565,0.578
 "ESM3-large (Forge, zero-shot)",–,–
