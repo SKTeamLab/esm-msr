@@ -36,6 +36,8 @@ fi
 module purge 2>/dev/null || true
 unset PYTHONPATH
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
+# Suppress per-step OpenFold/PyTorch UserWarnings (e.g. non-tuple sequence indexing) by default.
+export PYTHONWARNINGS=${PYTHONWARNINGS:-ignore}
 
 if [ -z "${ME_ENV_BIN:-}" ]; then
   for cand in \

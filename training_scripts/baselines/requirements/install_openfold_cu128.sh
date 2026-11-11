@@ -35,16 +35,20 @@ TMP_BUILD=$(mktemp -d "${TMPDIR:-/tmp}/openfold_build_XXXXXX")
 trap 'rm -rf "$TMP_BUILD"' EXIT
 cp -r "$MUTATE_EVERYTHING_DIR/openfold/." "$TMP_BUILD/"
 
-# Patch setup.py in the temporary build tree:
+# Patch the temporary OpenFold build tree before installing:
 # 1. PyTorch >= 2.1 C++/CUDA headers require C++17 (-std=c++17 instead of -std=c++14).
 # 2. CUDA 12.8 removed sm_37 / sm_52 and WSL2/headless nodes may not expose libcuda.so to
-#    scripts.utils.get_nvidia_cc(); compile fatbins for sm_80..sm_120 (or $OPENFOLD_ARCHS).
-"$PYTHON" - "$TMP_BUILD/setup.py" <<'PY'
+#    scripts.utils.get_nvidia_cc(); compile fatbins for sm_80..sm_120 (or $OPENFOLD_CUDA_ARCHS).
+# 3. NumPy >= 1.24 removed deprecated scalar/type aliases (np.object, np.int, np.float,
+#    np.bool, np.str) used in openfold/data/templates.py and openfold/np/relax/utils.py.
+"$PYTHON" - "$TMP_BUILD" <<'PY'
 from pathlib import Path
 import os
+import re
 import sys
 
-p = Path(sys.argv[1])
+root = Path(sys.argv[1])
+p = root / "setup.py"
 src = p.read_text()
 src = src.replace("'-std=c++14'", "'-std=c++17'")
 src = src.replace("'cxx': ['-O3'] + version_dependent_macros,", "'cxx': ['-O3', '-std=c++17'] + version_dependent_macros,")
@@ -71,6 +75,16 @@ compute_capabilities = sorted({tuple(int(x) for x in item.strip().split(".")) fo
 assert old_cc in src, "Unexpected OpenFold setup.py layout"
 src = src.replace(old_cc, new_cc, 1)
 p.write_text(src)
+
+np_alias_re = re.compile(r"(?<!openfold\.)\bnp\.(object|int|float|bool|str)\b")
+patched_files = 0
+for py_file in sorted(root.rglob("*.py")):
+    text = py_file.read_text(encoding="utf-8")
+    new_text, count = np_alias_re.subn(r"\1", text)
+    if count:
+        py_file.write_text(new_text, encoding="utf-8")
+        patched_files += 1
+print(f"Patched deprecated NumPy aliases in {patched_files} OpenFold file(s).")
 PY
 
 export CUDA_HOME
