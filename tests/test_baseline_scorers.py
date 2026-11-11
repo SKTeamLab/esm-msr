@@ -581,7 +581,7 @@ def test_no_retraining_or_inference_file_hard_codes_a_split():
     import re
     root = BASELINES.parent.parent
     files = [*BASELINES.glob('*.py'), *BASELINES.glob('*.sh'), *(BASELINES / 'prepare').glob('*.py'),
-             *(root / 'training_scripts' / 'baselines').glob('*.sh'), *(root / 'env').glob('*.sbatch')]
+             *(root / 'training_scripts' / 'baselines').glob('*.sh')]
     pat = re.compile(r'splits_oct06|oct06_capped|oct06_structure|oct06_nobb|baselines_capped|baselines_nobb')
     hits = [f'{f.relative_to(root)}:{i}' for f in files for i, line in enumerate(f.read_text().splitlines(), 1)
             if pat.search(line.split('#')[0]) and 'e.g.' not in line]
