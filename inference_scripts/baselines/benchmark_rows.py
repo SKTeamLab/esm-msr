@@ -61,7 +61,7 @@ def dms_rows(prot):
 def domainome_rows():
     """ESM-MSR's domainome rows (domainome_mapped_2026.csv, code = domain_ID with '/'->'_', target scaled_fitness),
     keyed and deduplicated as esm_msr_testing.py's domainome block does. All 536k rows are single mutants; audited:
-    every row's position and wild-type residue match its spurs_structures chain A."""
+    every row's position and wild-type residue match chain A of its Domainome 1.0 domain structure (Beltran et al., 2025)."""
     df = pd.read_csv(paths.require(paths.DOMAINOME_TABLE, 'the Domainome table'),
                      usecols=['domain_ID', 'mut_type', 'scaled_fitness', 'pdb_file', 'position', 'wild_type',
                               'mutation'], low_memory=False)

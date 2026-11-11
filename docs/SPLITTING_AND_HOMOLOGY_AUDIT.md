@@ -21,7 +21,7 @@ The split is implemented in `preprocessing/split_tsuboyama.py` and `preprocessin
 3. **Quarantine scope**:
    - `S669`- and `K3822`-specific proteins outside their curated subsets `S461` and `K2369` were not added to the pre-split quarantine list; empirically, 0 of those 35 proteins exceed the 40% BLOSUM62 local-identity threshold against any kept MegaScale scaffold.
    - `PTMUL-D` is an exact subset of `PTMUL`, which is quarantined.
-   - `ProteinGym` (217 DMS assays) and `Domainome` (522 human Pfam domains) span a broad fraction of natural protein families and cannot be quarantined a priori without collapsing the MegaScale training pool; their sequence and 3D structural overlaps with the training split are instead quantified post-hoc in [`LEAKAGE_AUDIT_OCT2026.md`](LEAKAGE_AUDIT_OCT2026.md).
+   - `ProteinGym` (217 DMS assays) and `Domainome` (522 domains; Beltran et al., *Nature* 2025, Zenodo record `14356805`, DOI `10.5281/zenodo.11043642`) span a broad fraction of natural protein families and cannot be quarantined a priori without collapsing the MegaScale training pool; their sequence and 3D structural overlaps with the training split are instead quantified post-hoc in [`LEAKAGE_AUDIT_OCT2026.md`](LEAKAGE_AUDIT_OCT2026.md).
 
 ### 1.2 Three-Channel Sequence & Structural Homology Graph
 
@@ -84,7 +84,7 @@ To evaluate training–test overlap uniformly across both in-house/retrained mod
 
 3. **Coverage-Tiered Sequence & 3D Structural Homology Assignment**:
    - Candidate hits for each `(training_inventory, query_protein)` pair are partitioned by test-protein coverage tier prior to ranking by E-value: hits covering $\text{cov}_{\text{test}} \ge 0.50$ are evaluated first for strong homology (`H`), and hits covering $\text{cov}_{\text{test}} \ge 0.30$ are evaluated next for weak/ambiguous similarity (`h`). Evaluating coverage tiers before selecting the minimum E-value ensures short, high-identity local motif hits ($\text{cov}_{\text{test}} < 0.30$) never shadow full-domain homologs.
-   - On **Domainome** and **ProteinGym**, MMseqs2 sequence homology is augmented with exhaustive Foldseek 3D structural alignment of all query PDB/AlphaFold2 structures against the 172 capped-train scaffold structures (`docs/benchmarks/leak_audit_structure_homology.csv`):
+   - On **Domainome** and **ProteinGym**, MMseqs2 sequence homology is augmented with exhaustive Foldseek 3D structural alignment of all query structures (the 522 Domainome 1.0 domain PDBs from Beltran et al., 2025, Zenodo `14356805`, and the 217 ProteinGym v1.3 AlphaFold2 structures) against the 172 capped-train scaffold structures (`docs/benchmarks/leak_audit_structure_homology.csv`):
      - **Strong homolog (`H`)**: $E_{\text{MMseqs2}} \le 10^{-3}$ over $\text{cov}_{\text{test}} \ge 0.50$, or $E_{\text{Foldseek}} \le 10^{-3}$ / $\text{qTM} > 0.70$ over $\text{qcov} \ge 0.50$.
      - **Weak/twilight similarity (`h`)**: $E_{\text{MMseqs2}} \le 10^{-2}$ or sequence identity $\ge 30\%$ over $\text{cov}_{\text{test}} \ge 0.30$, or $E_{\text{Foldseek}} \le 10^{-2}$ over $\text{qcov} \ge 0.30$.
 

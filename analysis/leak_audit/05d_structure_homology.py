@@ -1,7 +1,7 @@
 """Foldseek 3D structural homology search for Domainome and ProteinGym against training inventories.
 
 Extracts single-chain query PDBs for:
-  - Domainome (522 Pfam domains from ``spurs_structures/<domain_ID>.pdb``)
+  - Domainome 1.0 (522 domains from Beltran et al., 2025; ``alphafold_structures/<domain_ID>.pdb``)
   - ProteinGym (217 DMS assays from ``ProteinGym_AF2_structures/<pdb_file>``)
 and single-chain target PDBs for all structure-bearing training inventories:
   - MegaScale libraries (AlphaFold PDBs per ``code_wt``, mapped to every ``lib:<code>``)
@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lib import FOLDSEEK_BIN, LEAK_ROOT, OUT_DIR, SOFTWARE_DIR, WORK_DATA_DIR
+from lib import FOLDSEEK_BIN, LEAK_ROOT, OUT_DIR, REPO_ROOT, SOFTWARE_DIR, WORK_DATA_DIR
 
 os.makedirs(WORK_DATA_DIR, exist_ok=True)
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -73,11 +73,11 @@ def main():
     os.makedirs(q_dir, exist_ok=True)
     os.makedirs(t_dir, exist_ok=True)
 
-    # 1. Queries: Domainome (522) + ProteinGym (217)
-    dom_pdb_dir = os.environ.get(
-        'DOMAINOME_PDB_DIR',
-        os.path.join(SOFTWARE_DIR, 'esm-msr', 'data', 'domainome1', 'spurs_structures'),
-    )
+    # 1. Queries: Domainome 1.0 (522 domains; Beltran et al., 2025) + ProteinGym (217)
+    default_dom_pdb_dir = os.path.join(REPO_ROOT, 'data', 'domainome1', 'alphafold_structures')
+    if not os.path.isdir(default_dom_pdb_dir):
+        default_dom_pdb_dir = os.path.join(SOFTWARE_DIR, 'esm-msr', 'data', 'domainome1', 'alphafold_structures')
+    dom_pdb_dir = os.environ.get('DOMAINOME_PDB_DIR', default_dom_pdb_dir)
     pg_root = os.environ.get('PROTEINGYM_DIR', os.path.join(LEAK_ROOT, 'ProteinGym'))
     pg_pdb_dir = os.path.join(pg_root, 'ProteinGym_AF2_structures')
     pgm = pd.read_csv(os.path.join(pg_root, 'DMS_substitutions.csv'))

@@ -38,6 +38,7 @@ venv_*/
 msr_venv/
 logs/
 data/tsuboyama/
+data/domainome1/
 
 # test artifacts: tests/test_resumable_dataloading.py writes Lightning checkpoints here
 /checkpoints/

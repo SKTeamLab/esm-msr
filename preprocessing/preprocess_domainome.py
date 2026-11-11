@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Preprocess Domainome 1.0 (Beltran et al., Nature 2025) into `domainome_mapped_2026.csv`.
 
-Maps every missense mutation in Domainome Supplementary Table 5 onto the 522 domain PDB
-structures distributed by SPURS (`download_domainome_structures.py`), truncating and
+Maps every missense mutation in Domainome 1.0 Supplementary Table 5 onto the 522 domain PDB
+structures published by Beltran et al. (Nature 2025; Zenodo record 14356805, DOI
+10.5281/zenodo.11043642; downloaded via `download_domainome_structures.py`), truncating and
 sequentially renumbering each domain structure to 1-based construct coordinates
 (`<domain_ID>_truncated_renumbered.pdb`) and validating wild-type/mutant sequence agreement.
 

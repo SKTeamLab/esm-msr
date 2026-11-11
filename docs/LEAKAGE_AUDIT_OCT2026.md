@@ -37,7 +37,7 @@ The audit runs end-to-end via `analysis/leak_audit/run_all.py` (`00_build_invent
    construct truncations (such as 48-aa `2M0C` inside 56-aa Domainome `Q9H161_PF00046_216`) cluster cleanly at ≥95 %
    identity and ≥90 % shorter-sequence coverage. Each family member is globally aligned (Biopython, BLOSUM62) to its
    representative so mutations can be matched across alternate PDB entries, chain offsets, and construct truncations.
-   For **Domainome** and **ProteinGym**, exhaustive Foldseek 3D structural search (`05d_structure_homology.py`) is
+   For **Domainome** (522 domain PDB structures from the Domainome 1.0 release; Beltran et al., *Nature* 2025, Zenodo record `14356805`, DOI `10.5281/zenodo.11043642`) and **ProteinGym** (217 AlphaFold2 structures), exhaustive Foldseek 3D structural search (`05d_structure_homology.py`) is
    additionally run against all 172 capped-train scaffold structures.
 3. **Reconstruct each model's training inventory (`00`, `00b`, `00c`, `01`, `04`, `05c`).** For in-house and retrained
    models (`ESM-MSR`, `MutateEverything` st1/st2, `ThermoMPNN`, `ThermoMPNN-D`, `SPURS (retrained)`, `SPURS multi (retrained)`),
@@ -175,7 +175,7 @@ sets, both Tsuboyama capped splits, and all 7 functional DMS assays.
   - Across all 217 assays (ESM-MSR devel 3-seed mean), removing the 23 `M` assays (194 DMS) moves DMS mean `0.557 → 0.516`,
     Stability `0.880 → 0.871`, and PG average `0.515 → 0.513`; also removing the 3 Foldseek `H` assays (191 DMS) puts
     DMS mean at `0.510` and PG average at `0.513` (on the 213-DMS common subset: `213 → 190 → 187` DMS, DMS mean `0.561 → 0.520 → 0.514`, PG average `0.516 → 0.514 → 0.514`).
-- **Domainome (522 human Pfam domains; 2D MMseqs2 + 3D Foldseek).**
+- **Domainome 1.0 (522 domains, Beltran et al., 2025; 2D MMseqs2 + 3D Foldseek).**
   - **2 domains** match capped-train libraries at 100 % sequence identity over the full MegaScale construct:
     `O95155_PF04564_1229` (UBE4B = `3L1X`, `1,134 / 1,206` rows exact) and `Q9H161_PF00046_216` (ALX4 homeodomain =
     `2M0C`, `889 / 1,038` rows exact), totalling **2,023 exact rows (`0.38 %`, `M.004`)** plus **2,288 same-protein

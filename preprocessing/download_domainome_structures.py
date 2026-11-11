@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
 """Download and extract the 522 Domainome 1.0 domain structures used in benchmarking.
 
-Domainome benchmarking (Beltran et al., Nature 2025) uses the pre-sliced domain PDB
-structures distributed in the SPURS benchmark archive (`cyclization9/SPURS` on HuggingFace:
-`data/dataset/Domainome/files_to_reproduce_analyses/analysis_files/pdb_files/<domain_ID>.pdb`,
-522 structures covering all human and designed Rocklin domains in Domainome 1.0, including
-constructs from >2,700-aa proteins absent from AlphaFold DB single-fragment entries). The
-same `files_to_reproduce_analyses/analysis_files/pdb_files/` directory is also published in
-the upstream Domainome 1.0 Zenodo record (14356805 / DOI 10.5281/zenodo.11043642), alongside
-`Supplementary_Table_5_aPCA_vs_variant_effect_predictors.txt.zip`.
+Domainome 1.0 benchmarking (Beltran et al., Nature 2025) uses the 522 pre-sliced domain PDB
+structures published in the official Domainome 1.0 Zenodo release (`https://zenodo.org/records/14356805`,
+concept DOI `10.5281/zenodo.11043642`, `files_to_reproduce_analyses.tar.gz`, under
+`files_to_reproduce_analyses/analysis_files/pdb_files/<domain_ID>.pdb`). This structure set covers
+all 522 human Pfam and designed control domains assayed in Domainome 1.0, including constructs from
+>2,700-residue human proteins and de novo designed domains absent from single-fragment AlphaFold DB
+entries.
 
 Writes, under `--out` (default `<repo>/data/domainome1/alphafold_structures`):
 
     <domain_ID>.pdb    (522 raw domain structures consumed by preprocess_domainome.py)
 
-With `--download_table`, also downloads and extracts the raw Domainome Supplementary Table 5
+With `--download_table`, also downloads and extracts the raw Domainome 1.0 Supplementary Table 5
 TSV (`Extended_data_Table_5_aPCA_vs_variant_effect_predictors.txt`) from Zenodo record 14356805
 to `--table_out` (default `<repo>/data/domainome1/SupplementaryTable5.txt`).
 
 Usage:
     python preprocessing/download_domainome_structures.py [--out DIR] [--download_table]
-    python preprocessing/download_domainome_structures.py --source zenodo --download_table
-    python preprocessing/download_domainome_structures.py --archive /path/to/data.tar.gz [--out DIR]
+    python preprocessing/download_domainome_structures.py --archive /path/to/files_to_reproduce_analyses.tar.gz [--out DIR]
 """
 import argparse
 import hashlib
@@ -34,34 +32,13 @@ from pathlib import Path
 
 EXPECTED_PDB_COUNT = 522
 
-SOURCES = {
-    "spurs-hf": {
-        "url": "https://huggingface.co/cyclization9/SPURS/resolve/main/data.tar.gz",
-        "filename": "spurs_data.tar.gz",
-        "algo": "sha256",
-        "checksum": "f2e2c1e32320392df7d837fa9b66b65076cb6d3e5e638163888cd40b2a857330",
-        "pdb_suffix": "files_to_reproduce_analyses/analysis_files/pdb_files/",
-        "description": "SPURS HuggingFace archive (cyclization9/SPURS data.tar.gz, ~12.1 GB)",
-    },
-    "spurs-dropbox": {
-        "url": (
-            "https://www.dropbox.com/scl/fi/uo4e6lvptyy9df5xfulsc/data.tar.gz"
-            "?rlkey=voi6fxu6ojbzwdk67jlooy8kb&st=4iinnpbc&dl=1"
-        ),
-        "filename": "spurs_data.tar.gz",
-        "algo": "sha256",
-        "checksum": "f2e2c1e32320392df7d837fa9b66b65076cb6d3e5e638163888cd40b2a857330",
-        "pdb_suffix": "files_to_reproduce_analyses/analysis_files/pdb_files/",
-        "description": "SPURS Dropbox mirror (data.tar.gz, ~12.1 GB)",
-    },
-    "zenodo": {
-        "url": "https://zenodo.org/api/records/14356805/files/files_to_reproduce_analyses.tar.gz/content",
-        "filename": "files_to_reproduce_analyses.tar.gz",
-        "algo": "md5",
-        "checksum": "330ac11247bdccc7ea994c5f9d700048",
-        "pdb_suffix": "files_to_reproduce_analyses/analysis_files/pdb_files/",
-        "description": "Domainome 1.0 Zenodo record 14356805 (files_to_reproduce_analyses.tar.gz, ~4.1 GB)",
-    },
+STRUCTURES_ZENODO = {
+    "url": "https://zenodo.org/api/records/14356805/files/files_to_reproduce_analyses.tar.gz/content",
+    "filename": "files_to_reproduce_analyses.tar.gz",
+    "algo": "md5",
+    "checksum": "330ac11247bdccc7ea994c5f9d700048",
+    "pdb_suffix": "files_to_reproduce_analyses/analysis_files/pdb_files/",
+    "description": "Domainome 1.0 Zenodo record 14356805 (files_to_reproduce_analyses.tar.gz, ~4.1 GB)",
 }
 
 TABLE_ZENODO = {
@@ -106,11 +83,12 @@ def download_with_checksum(url: str, dest: Path, algo: str, expected: str, label
 def extract_domainome_pdbs(
     archive_path: Path,
     out_dir: Path,
-    pdb_dir_suffix: str = "files_to_reproduce_analyses/analysis_files/pdb_files/",
+    pdb_dir_suffix: str = STRUCTURES_ZENODO["pdb_suffix"],
+    clean_stale: bool = True,
 ) -> int:
-    """Extract only Domainome `<domain_ID>.pdb` files from a `.tar.gz` archive into `out_dir`."""
+    """Extract only Domainome `<domain_ID>.pdb` files from `files_to_reproduce_analyses.tar.gz` into `out_dir`."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    extracted = 0
+    extracted_names = set()
     with tarfile.open(archive_path, mode="r:*") as tf:
         for member in tf:
             if not member.isfile():
@@ -133,8 +111,14 @@ def extract_domainome_pdbs(
             dest = out_dir / base
             with src, open(dest, "wb") as dst:
                 shutil.copyfileobj(src, dst)
-            extracted += 1
-    return extracted
+            extracted_names.add(base)
+
+    if clean_stale and len(extracted_names) == EXPECTED_PDB_COUNT:
+        for p in out_dir.glob("*.pdb"):
+            if not p.name.endswith("_truncated_renumbered.pdb") and p.name not in extracted_names:
+                p.unlink()
+
+    return len(extracted_names)
 
 
 def download_supplementary_table5(table_out: Path, cache_dir: Path, keep_archive: bool = False) -> None:
@@ -189,20 +173,10 @@ def main() -> None:
         help=f"Output directory for extracted <domain_ID>.pdb files (default: {default_out}).",
     )
     p.add_argument(
-        "--source",
-        choices=list(SOURCES.keys()),
-        default="spurs-hf",
-        help=(
-            "Upstream archive source when --archive is not passed: 'spurs-hf' (HuggingFace "
-            "cyclization9/SPURS data.tar.gz, default), 'spurs-dropbox' (SPURS Dropbox mirror), "
-            "or 'zenodo' (Domainome 1.0 Zenodo record 14356805 files_to_reproduce_analyses.tar.gz)."
-        ),
-    )
-    p.add_argument(
         "--archive",
         type=Path,
         default=None,
-        help="Optional local path to an already-downloaded data.tar.gz or files_to_reproduce_analyses.tar.gz.",
+        help="Optional local path to an already-downloaded files_to_reproduce_analyses.tar.gz.",
     )
     p.add_argument(
         "--download_table",
@@ -231,27 +205,30 @@ def main() -> None:
     cache_dir = out_dir / "_downloads"
 
     existing = count_raw_pdbs(out_dir)
-    if existing >= EXPECTED_PDB_COUNT and not args.force:
+    if existing == EXPECTED_PDB_COUNT and not args.force:
         print(f"{out_dir} already has {existing} raw Domainome PDB structures, skipping.", flush=True)
     else:
-        spec = SOURCES[args.source]
         if args.archive is not None:
             archive_path = args.archive.resolve()
             if not archive_path.is_file():
                 raise FileNotFoundError(f"Archive not found: {archive_path}")
         else:
             cache_dir.mkdir(parents=True, exist_ok=True)
-            archive_path = cache_dir / spec["filename"]
+            archive_path = cache_dir / STRUCTURES_ZENODO["filename"]
             download_with_checksum(
-                spec["url"], archive_path, spec["algo"], spec["checksum"], spec["description"]
+                STRUCTURES_ZENODO["url"],
+                archive_path,
+                STRUCTURES_ZENODO["algo"],
+                STRUCTURES_ZENODO["checksum"],
+                STRUCTURES_ZENODO["description"],
             )
 
         print(f"Extracting Domainome PDB structures from {archive_path} into {out_dir} ...", flush=True)
-        n_extracted = extract_domainome_pdbs(archive_path, out_dir, spec["pdb_suffix"])
+        n_extracted = extract_domainome_pdbs(archive_path, out_dir, STRUCTURES_ZENODO["pdb_suffix"])
         print(f"Extracted {n_extracted} PDB structures to {out_dir}.", flush=True)
-        if n_extracted < EXPECTED_PDB_COUNT:
+        if n_extracted != EXPECTED_PDB_COUNT:
             raise RuntimeError(
-                f"Expected at least {EXPECTED_PDB_COUNT} Domainome PDB structures, extracted {n_extracted}."
+                f"Expected {EXPECTED_PDB_COUNT} Domainome PDB structures, extracted {n_extracted}."
             )
         if args.archive is None and not args.keep_archive:
             shutil.rmtree(cache_dir, ignore_errors=True)

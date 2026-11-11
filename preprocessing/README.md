@@ -11,7 +11,7 @@ This directory contains the standalone scripts for downloading raw datasets and 
 | `preprocessing/download_tsuboyama.py` | Download MegaScale (Tsuboyama et al., *Nature* 2023) ΔΔG dataset and AlphaFold2 PDBs from Zenodo (`7992926`) | `data/tsuboyama/Tsuboyama2023_Dataset2_Dataset3_20230416.csv`, `data/tsuboyama/AlphaFold_model_PDBs/*.pdb` |
 | `src/esm_msr/preprocess_megascale.py` | Parse, filter, deduplicate, and standardize MegaScale single/double/epistasis stability splits | In-memory DataFrames for training, evaluation (`inference_scripts/esm_msr_testing.py`), and `src/esm_msr/cache_build.py` |
 | `src/esm_msr/preprocess.py` | Map external ΔΔG (`q3421`, `s669`, `ssym`, `k3822`, `fireprot`, `protherm`, `ddgun`, `ptmul`) and functional DMS (`gb1`, `trpb`, `ube4b`, `avgfp`, `pab1`, `bgl3`) datasets onto cleaned/repaired PDB structures | `data/preprocessed/<dataset>_mapped.csv`, `data/structures/*.pdb` |
-| `preprocessing/download_domainome_structures.py` | Download and extract the 522 Domainome 1.0 domain structures distributed with SPURS (and optional Supplementary Table 5 TSV) | `data/domainome1/alphafold_structures/<domain_ID>.pdb`, `data/domainome1/SupplementaryTable5.txt` |
+| `preprocessing/download_domainome_structures.py` | Download and extract the 522 Domainome 1.0 domain structures and optional Supplementary Table 5 TSV (Beltran et al., *Nature* 2025; Zenodo `14356805`) | `data/domainome1/alphafold_structures/<domain_ID>.pdb`, `data/domainome1/SupplementaryTable5.txt` |
 | `preprocessing/preprocess_domainome.py` | Truncate/renumber Domainome 1.0 structures to 1-based construct coordinates and map missense mutations | `data/domainome1/alphafold_structures/<domain_ID>_truncated_renumbered.pdb`, `data/domainome1/domainome_mapped_2026.csv` |
 | `preprocessing/pgym_preprocess.py` | Map the 217 ProteinGym v1.3 DMS substitution assays onto AlphaFold2 structures | `pgym_inputs/<DMS_id>.csv`, `pgym_inputs/manifest.csv` |
 | `preprocessing/split_tsuboyama.py` & `preprocessing/homology.py` | Build sequence- and structure-homology-controlled MegaScale splits against held-out benchmarks via MMseqs2, Foldseek, local BLOSUM62 identity, and bridge pruning | `data/splits_oct06_capped.pkl` (`.csv` optional) |
@@ -56,15 +56,15 @@ Each run fetches the corresponding RCSB PDB or UniProt AlphaFold structure as ne
 
 ### Provenance of Domainome Benchmark Structures
 
-**Domainome benchmarking (both ESM-MSR evaluation in `inference_scripts/esm_msr_testing.py` and all baseline evaluations in `inference_scripts/baselines/`) uses the 522 pre-sliced domain PDB structures distributed in the SPURS paper.**
+Domainome 1.0 benchmarking (both ESM-MSR evaluation in `inference_scripts/esm_msr_testing.py` and all baseline evaluations in `inference_scripts/baselines/`) uses the 522 pre-sliced domain PDB structures and Supplementary Table 5 from the official Domainome 1.0 release (Beltran et al., *Nature* 2025; [Zenodo record 14356805](https://zenodo.org/records/14356805), DOI `10.5281/zenodo.11043642`):
 
-Specifically:
-- SPURS distributes all 522 Domainome domain structures inside `data.tar.gz` on HuggingFace ([`cyclization9/SPURS`](https://huggingface.co/cyclization9/SPURS/resolve/main/data.tar.gz), under `data/dataset/Domainome/files_to_reproduce_analyses/analysis_files/pdb_files/<domain_ID>.pdb`), mirroring the `files_to_reproduce_analyses/analysis_files/pdb_files/` structure set from the Domainome 1.0 release ([Zenodo record 14356805](https://zenodo.org/records/14356805) / DOI `10.5281/zenodo.11043642`).
-- Unlike generic single-entry UniProt AlphaFold DB downloads—which omit de novo designed Rocklin domains (`*_rockdoms_1`), non-human controls, and human proteins exceeding 2,700 residues (23 of the 522 domains)—this structure set provides complete coverage of all 522 assayed domains.
+- `files_to_reproduce_analyses.tar.gz` (`files_to_reproduce_analyses/analysis_files/pdb_files/<domain_ID>.pdb`, ~4.1 GB, MD5 `330ac11247bdccc7ea994c5f9d700048`) provides the 522 raw domain PDB structures.
+- `Supplementary_Table_5_aPCA_vs_variant_effect_predictors.txt.zip` (~40 MB, MD5 `2f3ff661e25aa5e6d92b664dc0709c17`) provides the raw aPCA missense mutation table (`Extended_data_Table_5_aPCA_vs_variant_effect_predictors.txt`).
+- Unlike generic single-entry UniProt AlphaFold DB downloads—which omit de novo designed Rocklin control domains (`*_rockdoms_1`), non-human controls, and human proteins exceeding 2,700 residues (23 of the 522 domains)—Beltran et al.'s Domainome 1.0 structure archive provides complete coverage of all 522 assayed domains.
 
 ### Step 3a: Download Domainome Structures and Raw Table
 
-Download and extract the 522 `<domain_ID>.pdb` structures into `data/domainome1/alphafold_structures` (default `--out` path) and fetch Domainome Supplementary Table 5 (`data/domainome1/SupplementaryTable5.txt`):
+Download and extract the 522 `<domain_ID>.pdb` structures from Zenodo record `14356805` into `data/domainome1/alphafold_structures` (default `--out` path) and fetch Domainome Supplementary Table 5 (`data/domainome1/SupplementaryTable5.txt`):
 
 ```bash
 python preprocessing/download_domainome_structures.py --download_table
@@ -72,8 +72,9 @@ python preprocessing/download_domainome_structures.py --download_table
 
 Useful options:
 - `--out <dir>`: Target directory for extracted `<domain_ID>.pdb` files (defaults to `<repo_root>/data/domainome1/alphafold_structures`).
-- `--source {spurs-hf,spurs-dropbox,zenodo}`: Upstream archive (`spurs-hf` downloads `cyclization9/SPURS` `data.tar.gz`; `zenodo` downloads the smaller 4.1 GB `files_to_reproduce_analyses.tar.gz` directly from Zenodo record `14356805`).
-- `--archive /path/to/data.tar.gz`: Extract from an already-downloaded archive without network transfer.
+- `--archive /path/to/files_to_reproduce_analyses.tar.gz`: Extract from an already-downloaded Zenodo archive without network transfer.
+- `--table_out <file>`: Destination path for Supplementary Table 5 TSV when `--download_table` is passed (defaults to `<repo_root>/data/domainome1/SupplementaryTable5.txt`).
+- `--force`: Re-extract structures even if 522 raw PDBs already exist in `--out`.
 
 ### Step 3b: Truncate, Renumber, and Map Mutations
 
