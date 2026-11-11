@@ -114,6 +114,10 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
     m_mt = hparams.get('mask_strategy_mt', hparams.get('mask_strategy', None))
     if isinstance(m_wt, str) and m_wt.lower() == 'none': m_wt = None
     if isinstance(m_mt, str) and m_mt.lower() == 'none': m_mt = None
+    if m_wt is None and 'mask_strategy_wt' not in hparams and 'mask_strategy' not in hparams and 'block_mask_wt' in hparams:
+        m_wt = 'independent' if float(hparams['block_mask_wt']) > 0.5 else None
+    if m_mt is None and 'mask_strategy_mt' not in hparams and 'mask_strategy' not in hparams and 'block_mask_mt' in hparams:
+        m_mt = ('marginal' if bool(hparams.get('block_marginal_mt', False)) else 'independent') if float(hparams['block_mask_mt']) > 0.5 else None
     # 'random' (each mutated site masked with probability --mask_prob) is a training-time regime: a model trained that way is scored
     # unmasked unless the caller asks for marginal / independent.
     if m_wt == 'random': m_wt = None

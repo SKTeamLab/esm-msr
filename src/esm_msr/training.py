@@ -35,9 +35,10 @@ UNLOGGED_ARGS = ('log_dir', 'cache_path', 'comet', 'comet_project_name', 'comet_
 
 def validation_regimes(hp) -> list:
     """The regimes validation reads, ``[(prefix, {'wt': ..., 'mt': ...}), ...]``, the main one first with prefix ''. The main regime masks every mutated site on its own for both adapters
-    (the partner's mutant residue visible: the readout block training's masked passes train). A run in which either head reads its site visible with some probability
-    (``--block_mask_wt`` / ``--block_mask_mt`` below 1) also scores the unmasked regime (neither adapter masks), logged under ``val_unmasked_*``."""
-    regimes = [('', {'wt': 'independent', 'mt': 'independent'})]
+    (the partner's mutant residue visible: the readout block training's masked passes train), or simultaneously on the MT pass under ``--block_marginal_mt``. A run in which either head
+    reads its site visible with some probability (``--block_mask_wt`` / ``--block_mask_mt`` below 1) also scores the unmasked regime (neither adapter masks), logged under ``val_unmasked_*``."""
+    mt_masked = 'marginal' if bool(hp.get('block_marginal_mt', False)) else 'independent'
+    regimes = [('', {'wt': 'independent', 'mt': mt_masked})]
     if float(hp.get('block_mask_wt', 1.0)) < 1.0 or float(hp.get('block_mask_mt', 1.0)) < 1.0:
         regimes.append(('unmasked_', {'wt': None, 'mt': None}))
     return regimes
@@ -636,6 +637,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             cell = torch.arange(nx * ny, device=dev)
             mt_raw = (out[0::2][cell, xi.repeat_interleave(ny)] + out[1::2][cell, yj.repeat(nx)]).view(nx, ny)
             wt_raw = llr_w[0][xi].unsqueeze(1) + llr_w[1][yj].unsqueeze(0)
+        elif bool(hp.get('block_marginal_mt', False)):
+            # --block_marginal_mt: mask all mutated residues simultaneously on the MT pass (both i and j masked on doubles; single site masked on the identity row / column).
+            mseqs = blocks.pair_marginal_sequences(b['seq'], i, j, wt_rows)
+            mread = torch.as_tensor([i, j, i, j], device=dev)
+            mwt = torch.as_tensor([wt_i, wt_j, wt_i, wt_j], device=dev)
+            out = self._block_llr(b, mseqs, mread, mwt, 'mt', grad=True)
+            wt_raw, mt_raw = blocks.assemble_pair_marginal(llr_w[0], llr_w[1], out, Xa, Ya, wi, wj)
         else:
             mt_seqs = torch.cat([row_seqs, col_seqs])                                          # 40 mutant passes
             read = torch.as_tensor([j] * nx + [i] * ny, device=dev)

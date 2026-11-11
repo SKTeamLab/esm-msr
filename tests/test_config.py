@@ -102,7 +102,12 @@ def test_domain_steps_set_the_step_themselves():
 def test_the_number_of_flags_is_small():
     """The point of the strip. A new flag is allowed, but it has to be a decision: raise this bound on purpose."""
     keys = set(vars(parse()))
-    assert len(keys) <= 56, sorted(keys)
+    assert len(keys) <= 57, sorted(keys)
+    with pytest.raises(SystemExit):
+        parse('--block_marginal_mt', '--block_mask_mt', '0.0')
+    with pytest.raises(SystemExit):
+        parse('--block_marginal_mt', '--lambda_cond_mt', '1.0')
+    assert parse('--block_marginal_mt').block_marginal_mt is True
 
 
 # ---------------------------------------------------------------------------------------------------------------- yaml

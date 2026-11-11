@@ -201,6 +201,41 @@ def assemble_pair(llr_i: torch.Tensor, llr_j: torch.Tensor, row: torch.Tensor, c
     return wt_raw, mt_raw
 
 
+def pair_marginal_sequences(seq: torch.Tensor, i: int, j: int, wt_rows: torch.Tensor) -> torch.Tensor:
+    """
+    The 4 MT readout rows for a simultaneous-masked ('marginal') pair block (i, j), ``[4, L]``:
+      row 0: both i and j masked, read at i (for double cells x != wi, y != wj)
+      row 1: both i and j masked, read at j (identical sequence to row 0; deduplicated by forward_site_llr)
+      row 2: only i masked (wt_rows[0]), read at i (for the identity column y == wj, single mutants at i)
+      row 3: only j masked (wt_rows[1]), read at j (for the identity row x == wi, single mutants at j)
+    """
+    both = seq.clone()
+    both[i] = MASK
+    both[j] = MASK
+    return torch.stack([both, both, wt_rows[0], wt_rows[1]], dim=0)
+
+
+def assemble_pair_marginal(llr_i: torch.Tensor, llr_j: torch.Tensor, llr_m: torch.Tensor, Xa: Sequence[int], Ya: Sequence[int], wi: int, wj: int):
+    """
+    Assemble ``(wt_raw, mt_raw)`` over ``Xa`` x ``Ya`` when the MT head masks all mutated sites simultaneously (``--block_marginal_mt``).
+    ``llr_m`` is ``[4, 20]`` from ``pair_marginal_sequences``: ``llr_m[0]`` / ``llr_m[1]`` read i / j with both sites masked (used on double
+    cells ``x != wi, y != wj``); ``llr_m[2]`` / ``llr_m[3]`` read i / j with only that single site masked (used on the identity column ``y == wj``
+    and identity row ``x == wi``).
+    """
+    dev = llr_i.device
+    x, y = torch.as_tensor(list(Xa), device=dev), torch.as_tensor(list(Ya), device=dev)
+    wt_raw = llr_i[x].unsqueeze(1) + llr_j[y].unsqueeze(0)
+    mt_raw = llr_m[0][x].unsqueeze(1) + llr_m[1][y].unsqueeze(0)
+    is_wi = (x == wi).unsqueeze(1)
+    is_wj = (y == wj).unsqueeze(0)
+    single_i = llr_m[2][x].unsqueeze(1).expand_as(mt_raw)
+    single_j = llr_m[3][y].unsqueeze(0).expand_as(mt_raw)
+    mt_raw = torch.where(is_wj & ~is_wi, single_i, mt_raw)
+    mt_raw = torch.where(is_wi & ~is_wj, single_j, mt_raw)
+    mt_raw = torch.where(is_wi & is_wj, torch.zeros_like(mt_raw), mt_raw)
+    return wt_raw, mt_raw
+
+
 def pair_labels(b: dict, Xa: Sequence[int], Ya: Sequence[int], wi: int, wj: int):
     """
     The label matrices of a pair block over the alphabet rows ``Xa`` and columns ``Ya`` (alphabet indices; ``wi`` / ``wj`` the wild-type

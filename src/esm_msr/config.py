@@ -193,6 +193,10 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                           "substitutions is its own sequence (19 passes instead of 1), drawn per position of a singles block; a pair block is drawn once per block and, unmasked, reads all "
                           "20 x 20 sequences at both sites (no row / column passes, so no --lambda_cond_mt legs for that block). Expensive: set --block_row_chunk "
                           "(an even number, so a sequence's two reads share a chunk). This probability also decides which validation regime is monitored (monitor_metric).")
+    blk.add_argument('--block_marginal_mt', action=argparse.BooleanOptionalAction, default=False,
+                     help="Mask all mutated sites of a pair block simultaneously on the MT pass ('marginal' masking: 1 doubly-masked sequence for the 19x19 doubles plus the 2 singly-masked "
+                          "sequences for the identity row and column) instead of one site at a time with the partner visible ('independent'). Validation and inference score the MT pass with "
+                          "mask_strategy='marginal'.")
 
     if pre_args.config:
         import yaml
@@ -232,6 +236,10 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     for f in ('block_mask_wt', 'block_mask_mt'):
         if not 0.0 <= getattr(args, f) <= 1.0:
             parser.error(f"--{f} is a probability in [0, 1]")
+    if args.block_marginal_mt and args.block_mask_mt < 1.0:
+        parser.error("--block_marginal_mt requires --block_mask_mt 1.0")
+    if args.block_marginal_mt and args.lambda_cond_mt > 0:
+        parser.error("--block_marginal_mt has no conditional legs (--lambda_cond_mt requires independent row/col passes)")
     if args.block_domain_steps and args.grad_accum_blocks > 1:
         parser.error("--block_domain_steps sets the step itself: leave --grad_accum_blocks at 1")
     if args.block_pair_weight < 0:
