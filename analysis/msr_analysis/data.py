@@ -119,11 +119,15 @@ def _align_rowid(spine_rowid, rowid, vals):
 
 def sum_singles(spine, pred):
     """Additive prediction of every multi-mutant: the sum of its constituent singles' predictions taken from
-    the same file (NaN when a constituent has no single row).  Singles keep their own prediction."""
+    the same file (NaN when a constituent has no single row).  Singles keep their own prediction.
+    Accepts 1D ``(n,)`` or 2D ``(n_seeds, n)`` arrays."""
+    arr = np.asarray(pred, dtype=float)
+    if arr.ndim == 2:
+        return np.vstack([sum_singles(spine, r) for r in arr])
     ids = spine['id'].to_numpy(dtype=object)
     nm = spine['n_mut'].to_numpy()
-    single = {i: p for i, p in zip(ids[nm == 1], pred[nm == 1])}
-    out = pred.copy()
+    single = {i: p for i, p in zip(ids[nm == 1], arr[nm == 1])}
+    out = arr.copy()
     for k in np.flatnonzero(nm > 1):
         prefix, mut = ids[k].rsplit('_', 1) if '_' in ids[k] else ('', ids[k])
         tot = 0.0
@@ -158,7 +162,7 @@ def _msr_file(spec, ds, seed, sigma):
 def _load_msr(frame, ds, out):
     sp = frame.spine
     ids = sp['id'].to_numpy(dtype=object)
-    heads = dict(wt='wt_lora_pred', comb='combined_pred', mt='mt_lora_pred', epi='epi_pred', cdddg='combined_dddg_pred')
+    heads = dict(wt='wt_lora_pred', comb='combined_pred', mt='mt_lora_pred')
     for spec, sigmas, seeds in (('msr', ['1'], SEEDS), ('msrdev', ['1', '0.75', '0.5', '0.25'], SEEDS),
                                 ('msrp0', ['1'], SEEDS), ('msrrel', ['1', '0.75', '0.5', '0.25', '0'], (None,))):
         for sg in sigmas:
@@ -179,8 +183,16 @@ def _load_msr(frame, ds, out):
                 continue
             tag = spec if sg == '1' else f'{spec}@{sg}'
             for h, lst in arrs.items():
-                if lst and (h in ('wt', 'comb') or sg == '1'):
+                if lst and (h in ('wt', 'comb', 'mt') or sg == '1'):
                     out[f'{tag}:{h}'] = np.vstack(lst)
+            if f'{tag}:comb' not in out and f'{tag}:wt' in out and f'{tag}:mt' in out:
+                out[f'{tag}:comb'] = 0.5 * (out[f'{tag}:mt'] + out[f'{tag}:wt'])
+            if (sp['n_mut'] > 1).any() and f'{tag}:comb' in out and f'{tag}:wt' in out:
+                wt_add = sum_singles(sp, out[f'{tag}:wt'])
+                out[f'{tag}:wt+'] = wt_add
+                if sg in ('1', '0'):
+                    # Consistent 1x generalized epistasis: 1/2(MT_AB + WT_AB) - WT_A - WT_B = comb_AB - WT_A - WT_B
+                    out[f'{tag}:epi'] = out[f'{tag}:comb'] - wt_add
 
 
 def _read_seeded(path_fmt, seeds=SEEDS):
@@ -361,16 +373,21 @@ def _esm3_file(strategy, ds):
 def add_esm3_masked(frame, ds):
     """Add ESM3-small-open scored with masking to ``frame.preds`` (not cached with the frame: the runs may finish after it was built).
 
-    ``esm3mm``     canonical masked marginal: every mutated position masked at once in the wild-type sequence (WT pass; the mutant pass sees the same input)
-    ``esm3ind``    independent masking, mutant pass: each mutated position masked on its own with the other mutations visible
-    ``esm3ind+``   independent masking, WT pass: each position masked on its own in the wild-type sequence (the additive reading)
-    ``esm3ind:epi``  ``esm3ind`` - ``esm3ind+`` (the checkpoint's own MT - WT)
-    ``esm3avg``    mean of ``esm3ind`` and ``esm3ind+``: the combined readout of the checkpoint, as ESM-MSR's combined head and ProteinMPNN's 0.5 (WT + MT); the one the figures draw
+    ``esm3mm``       canonical masked marginal: every mutated position masked at once in the wild-type sequence
+    ``esm3mm+``      additive sum of single-mutant masked marginals: WT_A + WT_B (each single position masked on its own)
+    ``esm3mm:epi``   ``esm3mm`` - ``esm3mm+`` (masked-marginal double minus sum of masked-marginal singles)
+    ``esm3ind``      independent masking, mutant pass: each mutated position masked on its own with the other mutations visible
+    ``esm3ind:wt``   independent masking, WT pass
+    ``esm3ind+``     additive sum of independent-masked WT singles: WT_A + WT_B
+    ``esm3avg``      1/2(MT + WT) under independent masking: the combined readout of the checkpoint
+    ``esm3avg:epi``  1/2(MT_AB + WT_AB) - WT_A - WT_B (consistent 1x generalized epistasis)
+    ``esm3ind:epi``  MT_AB - WT_A - WT_B
     Returns the keys added (none until the cluster jobs are copied)."""
-    ids = frame.spine['id'].to_numpy(dtype=object)
+    sp = frame.spine
+    ids = sp['id'].to_numpy(dtype=object)
     added = []
     for strategy, cols in (('marginal', {'esm3mm': 'wt_lora_pred'}),
-                           ('independent', {'esm3ind': 'mt_lora_pred', 'esm3ind+': 'wt_lora_pred', 'esm3ind:epi': 'epi_pred'})):
+                           ('independent', {'esm3ind': 'mt_lora_pred', 'esm3ind:wt': 'wt_lora_pred'})):
         p = _esm3_file(strategy, ds)
         if p is None:
             continue
@@ -380,9 +397,16 @@ def add_esm3_masked(frame, ds):
             if col in d:
                 frame.preds[key] = _align_id(ids, d['id'].astype(str).to_numpy(), d[col].to_numpy())[None, :]
                 added.append(key)
-    if 'esm3ind' in added and 'esm3ind+' in added:
-        frame.preds['esm3avg'] = 0.5 * (frame.preds['esm3ind'] + frame.preds['esm3ind+'])
-        added.append('esm3avg')
+    if 'esm3mm' in added:
+        frame.preds['esm3mm+'] = sum_singles(sp, frame.preds['esm3mm'])
+        frame.preds['esm3mm:epi'] = frame.preds['esm3mm'] - frame.preds['esm3mm+']
+        added.extend(['esm3mm+', 'esm3mm:epi'])
+    if 'esm3ind' in added and 'esm3ind:wt' in added:
+        frame.preds['esm3ind+'] = sum_singles(sp, frame.preds['esm3ind:wt'])
+        frame.preds['esm3avg'] = 0.5 * (frame.preds['esm3ind'] + frame.preds['esm3ind:wt'])
+        frame.preds['esm3avg:epi'] = frame.preds['esm3avg'] - frame.preds['esm3ind+']
+        frame.preds['esm3ind:epi'] = frame.preds['esm3ind'] - frame.preds['esm3ind+']
+        added.extend(['esm3ind+', 'esm3avg', 'esm3avg:epi', 'esm3ind:epi'])
     return added
 
 

@@ -1,6 +1,7 @@
 mode,domain,pos1,pos2,model,spearman,n_cells
 raw,2D1U,61,71,ESM-MSR (baseline),0.7473,287
 raw,2D1U,61,71,ESM-MSR,0.7253,287
+raw,2D1U,61,71,ESM-MSR (p0),0.6649,287
 raw,2D1U,61,71,MutateEverything st2,0.5608,287
 raw,2D1U,61,71,ThermoMPNN-D,0.0096,287
 raw,2D1U,61,71,SPURS multi,0.5199,287
@@ -14,6 +15,7 @@ raw,2D1U,61,71,"IFUM, WT backbone*",0.5340,287
 raw,2D1U,61,71,"IFUM, ESMFold*",0.3709,287
 raw,2KRU,28,32,ESM-MSR (baseline),0.5381,324
 raw,2KRU,28,32,ESM-MSR,0.5051,324
+raw,2KRU,28,32,ESM-MSR (p0),0.5178,324
 raw,2KRU,28,32,MutateEverything st2,0.4342,324
 raw,2KRU,28,32,ThermoMPNN-D,0.2243,324
 raw,2KRU,28,32,SPURS multi,0.4065,324
@@ -27,6 +29,7 @@ raw,2KRU,28,32,"IFUM, WT backbone*",0.5511,324
 raw,2KRU,28,32,"IFUM, ESMFold*",0.3826,324
 raw,2KRU,42,46,ESM-MSR (baseline),0.4162,353
 raw,2KRU,42,46,ESM-MSR,0.4443,353
+raw,2KRU,42,46,ESM-MSR (p0),0.4185,353
 raw,2KRU,42,46,MutateEverything st2,0.3766,353
 raw,2KRU,42,46,ThermoMPNN-D,0.3165,353
 raw,2KRU,42,46,SPURS multi,0.1040,353
@@ -40,6 +43,7 @@ raw,2KRU,42,46,"IFUM, WT backbone*",0.4810,353
 raw,2KRU,42,46,"IFUM, ESMFold*",0.4281,353
 raw,2KVS,2,63,ESM-MSR (baseline),0.5859,341
 raw,2KVS,2,63,ESM-MSR,0.5875,341
+raw,2KVS,2,63,ESM-MSR (p0),0.5182,341
 raw,2KVS,2,63,MutateEverything st2,0.4834,341
 raw,2KVS,2,63,ThermoMPNN-D,0.5806,341
 raw,2KVS,2,63,SPURS multi,0.5579,341
@@ -53,6 +57,7 @@ raw,2KVS,2,63,"IFUM, WT backbone*",-0.0572,341
 raw,2KVS,2,63,"IFUM, ESMFold*",-0.0055,341
 raw,2KVS,3,31,ESM-MSR (baseline),0.6623,361
 raw,2KVS,3,31,ESM-MSR,0.6733,361
+raw,2KVS,3,31,ESM-MSR (p0),0.5808,361
 raw,2KVS,3,31,MutateEverything st2,0.6210,361
 raw,2KVS,3,31,ThermoMPNN-D,0.7033,361
 raw,2KVS,3,31,SPURS multi,0.8157,361
@@ -66,6 +71,7 @@ raw,2KVS,3,31,"IFUM, WT backbone*",-0.0616,361
 raw,2KVS,3,31,"IFUM, ESMFold*",-0.0286,361
 raw,2KVS,33,35,ESM-MSR (baseline),0.5815,323
 raw,2KVS,33,35,ESM-MSR,0.5830,323
+raw,2KVS,33,35,ESM-MSR (p0),0.3985,323
 raw,2KVS,33,35,MutateEverything st2,0.3622,323
 raw,2KVS,33,35,ThermoMPNN-D,0.0161,323
 raw,2KVS,33,35,SPURS multi,0.3248,323
@@ -79,6 +85,7 @@ raw,2KVS,33,35,"IFUM, WT backbone*",-0.2020,323
 raw,2KVS,33,35,"IFUM, ESMFold*",-0.2496,323
 raw,2L09,28,32,ESM-MSR (baseline),0.6277,324
 raw,2L09,28,32,ESM-MSR,0.5859,324
+raw,2L09,28,32,ESM-MSR (p0),0.5334,324
 raw,2L09,28,32,MutateEverything st2,0.3583,324
 raw,2L09,28,32,ThermoMPNN-D,0.0570,324
 raw,2L09,28,32,SPURS multi,0.4254,324
@@ -86,12 +93,13 @@ raw,2L09,28,32,ESM3-small-open,0.5153,324
 raw,2L09,28,32,ProteinMPNN,0.2406,324
 raw,2L09,28,32,GeoDDG-3D,-0.0574,324
 raw,2L09,28,32,DDGemb,0.0804,324
-raw,2L09,28,32,Rosetta,0.0497,324
+raw,2L09,28,32,Rosetta,0.0498,324
 raw,2L09,28,32,ESMtherm*,0.3802,324
 raw,2L09,28,32,"IFUM, WT backbone*",0.3857,324
 raw,2L09,28,32,"IFUM, ESMFold*",0.4283,324
 raw,2LC2,36,39,ESM-MSR (baseline),0.7595,361
 raw,2LC2,36,39,ESM-MSR,0.7351,361
+raw,2LC2,36,39,ESM-MSR (p0),0.7199,361
 raw,2LC2,36,39,MutateEverything st2,0.4282,361
 raw,2LC2,36,39,ThermoMPNN-D,0.2854,361
 raw,2LC2,36,39,SPURS multi,0.4964,361
@@ -105,6 +113,7 @@ raw,2LC2,36,39,"IFUM, WT backbone*",0.4190,361
 raw,2LC2,36,39,"IFUM, ESMFold*",0.3066,361
 raw,3DKM,18,28,ESM-MSR (baseline),0.3512,342
 raw,3DKM,18,28,ESM-MSR,0.4116,342
+raw,3DKM,18,28,ESM-MSR (p0),0.4816,342
 raw,3DKM,18,28,MutateEverything st2,0.3835,342
 raw,3DKM,18,28,ThermoMPNN-D,0.2478,342
 raw,3DKM,18,28,SPURS multi,0.2994,342
@@ -118,6 +127,7 @@ raw,3DKM,18,28,"IFUM, WT backbone*",-0.0012,342
 raw,3DKM,18,28,"IFUM, ESMFold*",0.0556,342
 raw,3DKM,27,56,ESM-MSR (baseline),0.3108,361
 raw,3DKM,27,56,ESM-MSR,0.3628,361
+raw,3DKM,27,56,ESM-MSR (p0),-0.1143,361
 raw,3DKM,27,56,MutateEverything st2,0.4039,361
 raw,3DKM,27,56,ThermoMPNN-D,-0.2810,361
 raw,3DKM,27,56,SPURS multi,-0.0294,361
@@ -131,6 +141,7 @@ raw,3DKM,27,56,"IFUM, WT backbone*",0.1414,361
 raw,3DKM,27,56,"IFUM, ESMFold*",0.2296,361
 raw,3DKM,59,67,ESM-MSR (baseline),0.2184,227
 raw,3DKM,59,67,ESM-MSR,0.1813,227
+raw,3DKM,59,67,ESM-MSR (p0),0.2207,227
 raw,3DKM,59,67,MutateEverything st2,0.1099,227
 raw,3DKM,59,67,ThermoMPNN-D,0.1522,227
 raw,3DKM,59,67,SPURS multi,0.2267,227
@@ -144,6 +155,7 @@ raw,3DKM,59,67,"IFUM, WT backbone*",0.2123,227
 raw,3DKM,59,67,"IFUM, ESMFold*",0.1702,227
 raw,3ZGK,11,41,ESM-MSR (baseline),0.5526,361
 raw,3ZGK,11,41,ESM-MSR,0.5998,361
+raw,3ZGK,11,41,ESM-MSR (p0),0.5231,361
 raw,3ZGK,11,41,MutateEverything st2,0.3882,361
 raw,3ZGK,11,41,ThermoMPNN-D,0.4188,361
 raw,3ZGK,11,41,SPURS multi,0.5046,361
@@ -157,6 +169,7 @@ raw,3ZGK,11,41,"IFUM, WT backbone*",-0.1733,361
 raw,3ZGK,11,41,"IFUM, ESMFold*",0.0810,361
 raw,3ZGK,33,68,ESM-MSR (baseline),0.7151,328
 raw,3ZGK,33,68,ESM-MSR,0.6992,328
+raw,3ZGK,33,68,ESM-MSR (p0),0.6978,328
 raw,3ZGK,33,68,MutateEverything st2,0.6509,328
 raw,3ZGK,33,68,ThermoMPNN-D,0.4536,328
 raw,3ZGK,33,68,SPURS multi,0.5789,328
@@ -170,6 +183,7 @@ raw,3ZGK,33,68,"IFUM, WT backbone*",-0.2240,328
 raw,3ZGK,33,68,"IFUM, ESMFold*",-0.0996,328
 raw,3ZGK,42,45,ESM-MSR (baseline),0.5949,361
 raw,3ZGK,42,45,ESM-MSR,0.5871,361
+raw,3ZGK,42,45,ESM-MSR (p0),0.6252,361
 raw,3ZGK,42,45,MutateEverything st2,0.3892,361
 raw,3ZGK,42,45,ThermoMPNN-D,0.4560,361
 raw,3ZGK,42,45,SPURS multi,0.5035,361
@@ -183,6 +197,7 @@ raw,3ZGK,42,45,"IFUM, WT backbone*",0.0718,361
 raw,3ZGK,42,45,"IFUM, ESMFold*",0.2363,361
 raw,3ZGK,52,57,ESM-MSR (baseline),0.2389,361
 raw,3ZGK,52,57,ESM-MSR,0.2848,361
+raw,3ZGK,52,57,ESM-MSR (p0),0.2582,361
 raw,3ZGK,52,57,MutateEverything st2,0.1422,361
 raw,3ZGK,52,57,ThermoMPNN-D,0.3117,361
 raw,3ZGK,52,57,SPURS multi,0.2268,361
@@ -196,6 +211,7 @@ raw,3ZGK,52,57,"IFUM, WT backbone*",-0.1398,361
 raw,3ZGK,52,57,"IFUM, ESMFold*",-0.0326,361
 saturation_corrected,2D1U,61,71,ESM-MSR (baseline),0.6020,287
 saturation_corrected,2D1U,61,71,ESM-MSR,0.5928,287
+saturation_corrected,2D1U,61,71,ESM-MSR (p0),0.7053,287
 saturation_corrected,2D1U,61,71,MutateEverything st2,0.1172,287
 saturation_corrected,2D1U,61,71,ThermoMPNN-D,0.4018,287
 saturation_corrected,2D1U,61,71,SPURS multi,0.1413,287
@@ -209,6 +225,7 @@ saturation_corrected,2D1U,61,71,"IFUM, WT backbone*",0.4570,287
 saturation_corrected,2D1U,61,71,"IFUM, ESMFold*",0.4668,287
 saturation_corrected,2KRU,28,32,ESM-MSR (baseline),0.2503,324
 saturation_corrected,2KRU,28,32,ESM-MSR,0.2322,324
+saturation_corrected,2KRU,28,32,ESM-MSR (p0),0.3439,324
 saturation_corrected,2KRU,28,32,MutateEverything st2,-0.0647,324
 saturation_corrected,2KRU,28,32,ThermoMPNN-D,-0.1731,324
 saturation_corrected,2KRU,28,32,SPURS multi,-0.1525,324
@@ -222,6 +239,7 @@ saturation_corrected,2KRU,28,32,"IFUM, WT backbone*",0.4017,324
 saturation_corrected,2KRU,28,32,"IFUM, ESMFold*",0.1835,324
 saturation_corrected,2KRU,42,46,ESM-MSR (baseline),0.0364,353
 saturation_corrected,2KRU,42,46,ESM-MSR,0.0553,353
+saturation_corrected,2KRU,42,46,ESM-MSR (p0),0.1274,353
 saturation_corrected,2KRU,42,46,MutateEverything st2,0.1414,353
 saturation_corrected,2KRU,42,46,ThermoMPNN-D,0.2048,353
 saturation_corrected,2KRU,42,46,SPURS multi,-0.2692,353
@@ -235,6 +253,7 @@ saturation_corrected,2KRU,42,46,"IFUM, WT backbone*",0.4442,353
 saturation_corrected,2KRU,42,46,"IFUM, ESMFold*",0.3959,353
 saturation_corrected,2KVS,2,63,ESM-MSR (baseline),0.0156,341
 saturation_corrected,2KVS,2,63,ESM-MSR,0.0108,341
+saturation_corrected,2KVS,2,63,ESM-MSR (p0),0.1138,341
 saturation_corrected,2KVS,2,63,MutateEverything st2,-0.2206,341
 saturation_corrected,2KVS,2,63,ThermoMPNN-D,0.1802,341
 saturation_corrected,2KVS,2,63,SPURS multi,-0.1070,341
@@ -248,6 +267,7 @@ saturation_corrected,2KVS,2,63,"IFUM, WT backbone*",0.4012,341
 saturation_corrected,2KVS,2,63,"IFUM, ESMFold*",0.3656,341
 saturation_corrected,2KVS,3,31,ESM-MSR (baseline),0.4671,361
 saturation_corrected,2KVS,3,31,ESM-MSR,0.4654,361
+saturation_corrected,2KVS,3,31,ESM-MSR (p0),0.5476,361
 saturation_corrected,2KVS,3,31,MutateEverything st2,0.3704,361
 saturation_corrected,2KVS,3,31,ThermoMPNN-D,0.5524,361
 saturation_corrected,2KVS,3,31,SPURS multi,0.5085,361
@@ -261,6 +281,7 @@ saturation_corrected,2KVS,3,31,"IFUM, WT backbone*",-0.1858,361
 saturation_corrected,2KVS,3,31,"IFUM, ESMFold*",-0.1180,361
 saturation_corrected,2KVS,33,35,ESM-MSR (baseline),0.5428,323
 saturation_corrected,2KVS,33,35,ESM-MSR,0.5350,323
+saturation_corrected,2KVS,33,35,ESM-MSR (p0),0.3892,323
 saturation_corrected,2KVS,33,35,MutateEverything st2,0.3214,323
 saturation_corrected,2KVS,33,35,ThermoMPNN-D,0.0460,323
 saturation_corrected,2KVS,33,35,SPURS multi,0.2514,323
@@ -274,6 +295,7 @@ saturation_corrected,2KVS,33,35,"IFUM, WT backbone*",-0.1938,323
 saturation_corrected,2KVS,33,35,"IFUM, ESMFold*",-0.2386,323
 saturation_corrected,2L09,28,32,ESM-MSR (baseline),0.5923,324
 saturation_corrected,2L09,28,32,ESM-MSR,0.5430,324
+saturation_corrected,2L09,28,32,ESM-MSR (p0),0.5608,324
 saturation_corrected,2L09,28,32,MutateEverything st2,0.1027,324
 saturation_corrected,2L09,28,32,ThermoMPNN-D,0.0600,324
 saturation_corrected,2L09,28,32,SPURS multi,0.0995,324
@@ -287,6 +309,7 @@ saturation_corrected,2L09,28,32,"IFUM, WT backbone*",0.4800,324
 saturation_corrected,2L09,28,32,"IFUM, ESMFold*",0.4702,324
 saturation_corrected,2LC2,36,39,ESM-MSR (baseline),0.6050,361
 saturation_corrected,2LC2,36,39,ESM-MSR,0.5897,361
+saturation_corrected,2LC2,36,39,ESM-MSR (p0),0.6105,361
 saturation_corrected,2LC2,36,39,MutateEverything st2,0.4273,361
 saturation_corrected,2LC2,36,39,ThermoMPNN-D,0.2863,361
 saturation_corrected,2LC2,36,39,SPURS multi,0.4045,361
@@ -300,6 +323,7 @@ saturation_corrected,2LC2,36,39,"IFUM, WT backbone*",0.4013,361
 saturation_corrected,2LC2,36,39,"IFUM, ESMFold*",0.3381,361
 saturation_corrected,3DKM,18,28,ESM-MSR (baseline),-0.0395,342
 saturation_corrected,3DKM,18,28,ESM-MSR,-0.0777,342
+saturation_corrected,3DKM,18,28,ESM-MSR (p0),-0.0060,342
 saturation_corrected,3DKM,18,28,MutateEverything st2,0.2852,342
 saturation_corrected,3DKM,18,28,ThermoMPNN-D,0.2250,342
 saturation_corrected,3DKM,18,28,SPURS multi,-0.0076,342
@@ -313,6 +337,7 @@ saturation_corrected,3DKM,18,28,"IFUM, WT backbone*",0.2260,342
 saturation_corrected,3DKM,18,28,"IFUM, ESMFold*",0.1870,342
 saturation_corrected,3DKM,27,56,ESM-MSR (baseline),-0.0552,361
 saturation_corrected,3DKM,27,56,ESM-MSR,-0.0669,361
+saturation_corrected,3DKM,27,56,ESM-MSR (p0),-0.3405,361
 saturation_corrected,3DKM,27,56,MutateEverything st2,-0.1457,361
 saturation_corrected,3DKM,27,56,ThermoMPNN-D,-0.3606,361
 saturation_corrected,3DKM,27,56,SPURS multi,-0.2163,361
@@ -326,6 +351,7 @@ saturation_corrected,3DKM,27,56,"IFUM, WT backbone*",-0.0089,361
 saturation_corrected,3DKM,27,56,"IFUM, ESMFold*",0.2751,361
 saturation_corrected,3DKM,59,67,ESM-MSR (baseline),-0.2391,227
 saturation_corrected,3DKM,59,67,ESM-MSR,-0.3661,227
+saturation_corrected,3DKM,59,67,ESM-MSR (p0),0.2172,227
 saturation_corrected,3DKM,59,67,MutateEverything st2,-0.2538,227
 saturation_corrected,3DKM,59,67,ThermoMPNN-D,0.0323,227
 saturation_corrected,3DKM,59,67,SPURS multi,0.3010,227
@@ -339,6 +365,7 @@ saturation_corrected,3DKM,59,67,"IFUM, WT backbone*",-0.3635,227
 saturation_corrected,3DKM,59,67,"IFUM, ESMFold*",-0.2093,227
 saturation_corrected,3ZGK,11,41,ESM-MSR (baseline),0.1811,361
 saturation_corrected,3ZGK,11,41,ESM-MSR,0.2622,361
+saturation_corrected,3ZGK,11,41,ESM-MSR (p0),0.4969,361
 saturation_corrected,3ZGK,11,41,MutateEverything st2,0.0313,361
 saturation_corrected,3ZGK,11,41,ThermoMPNN-D,0.0274,361
 saturation_corrected,3ZGK,11,41,SPURS multi,0.0104,361
@@ -352,6 +379,7 @@ saturation_corrected,3ZGK,11,41,"IFUM, WT backbone*",-0.0999,361
 saturation_corrected,3ZGK,11,41,"IFUM, ESMFold*",0.1255,361
 saturation_corrected,3ZGK,33,68,ESM-MSR (baseline),0.0297,328
 saturation_corrected,3ZGK,33,68,ESM-MSR,-0.0051,328
+saturation_corrected,3ZGK,33,68,ESM-MSR (p0),0.0676,328
 saturation_corrected,3ZGK,33,68,MutateEverything st2,0.0445,328
 saturation_corrected,3ZGK,33,68,ThermoMPNN-D,-0.2226,328
 saturation_corrected,3ZGK,33,68,SPURS multi,-0.1608,328
@@ -365,6 +393,7 @@ saturation_corrected,3ZGK,33,68,"IFUM, WT backbone*",-0.0669,328
 saturation_corrected,3ZGK,33,68,"IFUM, ESMFold*",0.0107,328
 saturation_corrected,3ZGK,42,45,ESM-MSR (baseline),0.3960,361
 saturation_corrected,3ZGK,42,45,ESM-MSR,0.3837,361
+saturation_corrected,3ZGK,42,45,ESM-MSR (p0),0.4475,361
 saturation_corrected,3ZGK,42,45,MutateEverything st2,0.2397,361
 saturation_corrected,3ZGK,42,45,ThermoMPNN-D,0.3219,361
 saturation_corrected,3ZGK,42,45,SPURS multi,0.3087,361
@@ -378,6 +407,7 @@ saturation_corrected,3ZGK,42,45,"IFUM, WT backbone*",0.0946,361
 saturation_corrected,3ZGK,42,45,"IFUM, ESMFold*",0.1485,361
 saturation_corrected,3ZGK,52,57,ESM-MSR (baseline),0.1498,361
 saturation_corrected,3ZGK,52,57,ESM-MSR,0.1712,361
+saturation_corrected,3ZGK,52,57,ESM-MSR (p0),0.2336,361
 saturation_corrected,3ZGK,52,57,MutateEverything st2,0.1414,361
 saturation_corrected,3ZGK,52,57,ThermoMPNN-D,0.2154,361
 saturation_corrected,3ZGK,52,57,SPURS multi,0.1082,361

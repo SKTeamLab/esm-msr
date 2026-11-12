@@ -26,10 +26,10 @@ OUT = out_dir('06_epistasis')
 
 # (model as named in the bootstrap csv, category, colour, axis label)
 MODELS = [
-    ('ESM-MSR (baseline) · combined_AB − WT_AB', 'retrained', '#7f8c8d', 'ESM-MSR (baseline)'),
-    ('ESM-MSR · combined_AB − WT_AB', 'retrained', '#000000', 'ESM-MSR'),
-    ('ESM-MSR (p0) · combined_AB − WT_AB', 'retrained', '#6c3483', 'ESM-MSR (p0)'),
-    ('ESM-MSR · ~WT − WT', 'retrained', '#b2babb', 'ESM-MSR ctx ctrl'),
+    ('ESM-MSR (baseline) · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'retrained', '#7f8c8d', 'ESM-MSR (baseline)'),
+    ('ESM-MSR · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'retrained', '#000000', 'ESM-MSR'),
+    ('ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'retrained', '#6c3483', 'ESM-MSR (p0)'),
+    ('ESM-MSR · 1/2(~WT_AB+WT_AB) − WT_A − WT_B', 'retrained', '#b2babb', 'ESM-MSR ctx ctrl'),
     ('ME stage 2', 'retrained', '#1b8a4b', 'ME stage 2'),
     ('ThermoMPNN-D', 'retrained', '#1f5f8b', 'ThermoMPNN-D'),
     ('SPURS multi', 'retrained', '#d35400', 'SPURS multi'),
@@ -66,16 +66,16 @@ SHORT_CATS = {
 BAR_W = 0.68
 TITLE = {'test': 'Test', 'val': 'Validation'}
 FOOT = [
-    'Epistasis = double-mutant prediction minus additive singles: ESM-MSR = combined_AB − WT_AB (no linking), ESM-MSR ctx ctrl = ~WT − WT; ME stage 2, ThermoMPNN-D, SPURS multi minus',
-    'the same seed\'s singles (3-seed means); ESM3-small-open unmasked combined − WT; ProteinMPNN, GeoDDG-3D, Rosetta minus sum of singles. Intervals: 95% bootstrap over domains.',
+    'Epistasis = double-mutant prediction minus additive singles: ESM-MSR = 1/2(MT_AB+WT_AB) − WT_A − WT_B (no linking), ESM-MSR ctx ctrl = 1/2(~WT_AB+WT_AB) − WT_A − WT_B; ME stage 2, ThermoMPNN-D, SPURS multi minus',
+    'the same seed\'s singles (3-seed means); ESM3-small-open unmasked 1/2(MT_AB+WT_AB) − WT_A − WT_B; ProteinMPNN, GeoDDG-3D, Rosetta minus sum of singles. Intervals: 95% bootstrap over domains.',
     'Levels (residuals r = dddG − E[dddG | x] and r\' = dddG\' − E[dddG\' | x\'] via 25-quantile-bin smoothers on additive dG expectations x, x\'): (1) naive / raw ρ: single Spearman ρ pooled over all doubles on raw dddG;',
     '(2) saturation-subtracted ρ: single Spearman ρ pooled over all doubles on residuals r\', r; (3) pair ρ: single Spearman ρ across position-pair matrices (≥20 doubles) of each pair\'s mean residual;',
     '(4) line ρ: single Spearman ρ pooled over all row/column lines (≥3 cells) of line-mean residuals minus their pair mean; (5) cell rank: computed per position-pair complete block (≥3×3) and averaged',
     'across blocks — within each block, column ranks of ddG_AB are double-centred (row, column and block means removed) and correlated by Spearman ρ (averaged over both row/column orientations).',
 ]
 FOOT_CELL_MAG = [
-    'Epistasis = double-mutant prediction minus additive singles: ESM-MSR = combined_AB − WT_AB (no linking), ESM-MSR ctx ctrl = ~WT − WT; ME stage 2, ThermoMPNN-D, SPURS multi minus',
-    'the same seed\'s singles (3-seed means); ESM3-small-open unmasked combined − WT; ProteinMPNN, GeoDDG-3D, Rosetta minus sum of singles. Intervals: 95% bootstrap over domains.',
+    'Epistasis = double-mutant prediction minus additive singles: ESM-MSR = 1/2(MT_AB+WT_AB) − WT_A − WT_B (no linking), ESM-MSR ctx ctrl = 1/2(~WT_AB+WT_AB) − WT_A − WT_B; ME stage 2, ThermoMPNN-D, SPURS multi minus',
+    'the same seed\'s singles (3-seed means); ESM3-small-open unmasked 1/2(MT_AB+WT_AB) − WT_A − WT_B; ProteinMPNN, GeoDDG-3D, Rosetta minus sum of singles. Intervals: 95% bootstrap over domains.',
     'Horizontal line behind each bar = the same level metric restricted to doubles with additive expectation dG_additive = dG_wt + ddG_A + ddG_B > 0 kcal/mol (7,405 test, 5,500 val doubles).',
     'Sequential residual hierarchy (all 5 levels pooled; r = dddG − E[dddG | x] and r\' = dddG\' − E[dddG\' | x\'] via 25-quantile-bin smoothers): (1) naive / raw ρ: pooled over all doubles on raw dddG;',
     '(2) saturation-subtracted ρ: pooled over all doubles on residuals r\', r; (3) pair ρ: across position-pair matrices (≥20 doubles) of each pair\'s mean residual;',
@@ -104,11 +104,11 @@ def _layout_compact(cols, gap=1.25):
     return xs, spans
 
 
-def draw_version(T, split, levels=LEVELS, foot=FOOT, suffix='', title_desc='epistasis predicted level by level', overlay_sub0=False):
+def draw_version(T, split, levels=LEVELS, foot=FOOT, suffix='', title_desc='epistasis predicted level by level', overlay_sub0=False, models=MODELS):
     nd, nn = int(T.n_domains.iloc[0]), int(T.n_doubles.iloc[0])
     cols = [
         dict(name=n, cat=c, color=col, label=lab)
-        for n, c, col, lab in MODELS
+        for n, c, col, lab in models
         if (T.model == n).any()
     ]
     xs, spans = _layout_compact(cols)
@@ -227,11 +227,12 @@ def draw_version(T, split, levels=LEVELS, foot=FOOT, suffix='', title_desc='epis
 def main():
     for split in ('test', 'val'):
         T = pd.read_csv(OUT / f'fig5_epistasis_levels_bootstrap_{split}.csv')
-        draw_version(T, split, levels=LEVELS, foot=FOOT, suffix='')
+        draw_version(T, split, levels=LEVELS, foot=FOOT, suffix='', models=MODELS)
         if (T.metric == 'cell_mag_pooled').any():
-            draw_version(T, split, levels=LEVELS_CELL_MAG, foot=FOOT_CELL_MAG, suffix='_cell_mag', overlay_sub0=True)
-            draw_version(T, split, levels=LEVELS_CELL_COMPARE, foot=FOOT_CELL_COMPARE, suffix='_cell_compare', title_desc='cell-level epistasis formulations compared')
+            draw_version(T, split, levels=LEVELS_CELL_MAG, foot=FOOT_CELL_MAG, suffix='_cell_mag', overlay_sub0=True, models=MODELS)
+            draw_version(T, split, levels=LEVELS_CELL_COMPARE, foot=FOOT_CELL_COMPARE, suffix='_cell_compare', title_desc='cell-level epistasis formulations compared', models=MODELS)
         order = [m[0] for m in MODELS if (T.model == m[0]).any()]
+        order = list(dict.fromkeys(order))
         cols_order = [m for m in ('naive_rho', 'beyond_rho', 'pair_rho', 'line_rho', 'cell_rank', 'cell_mag', 'cell_mag_pooled', 'cell_mag_gt0') if m in T.metric.values]
         print(split, T.pivot(index='model', columns='metric', values='value').reindex(index=order, columns=cols_order).round(3).to_string())
 

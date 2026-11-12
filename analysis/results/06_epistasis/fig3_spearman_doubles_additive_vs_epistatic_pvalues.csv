@@ -1,31 +1,86 @@
 comparison,model_a,model_b,value_a,value_b,delta,lo,hi,p,n_libraries,bootstrap,statistic,p_holm
-additive,ESM-MSR,MutateEverything,0.7093,0.6171,0.09211,0.04313,0.148,0.004975,13,domains,mean over domains,0.0398
-additive,ESM-MSR,ThermoMPNN,0.7093,0.6726,0.03663,-0.033,0.09911,0.26,13,domains,mean over domains,0.52
-additive,ESM-MSR,SPURS,0.7093,0.6994,0.009881,-0.02445,0.044,0.5,13,domains,mean over domains,0.52
-additive,ESM-MSR,ESM3-small-open,0.7093,0.4205,0.2887,0.2404,0.3364,0.004975,13,domains,mean over domains,0.0398
-additive,ESM-MSR,ProteinMPNN,0.7093,0.3484,0.3608,0.2532,0.4562,0.004975,13,domains,mean over domains,0.0398
-additive,ESM-MSR,ProSST,0.7093,0.4204,0.2889,0.2039,0.3539,0.004975,13,domains,mean over domains,0.0398
-additive,ESM-MSR,GeoDDG-3D,0.7093,0.4562,0.2531,0.1336,0.363,0.004975,13,domains,mean over domains,0.0398
-additive,ESM-MSR,Rosetta,0.7093,0.4775,0.2317,0.1477,0.3134,0.004975,13,domains,mean over domains,0.0398
-epistatic,ESM-MSR,MutateEverything,0.7662,0.6521,0.1141,0.0602,0.1785,0.004975,13,domains,mean over domains,0.03483
-epistatic,ESM-MSR,ThermoMPNN,0.7662,0.6678,0.09834,0.03793,0.1574,0.004975,13,domains,mean over domains,0.03483
-epistatic,ESM-MSR,SPURS,0.7662,0.6926,0.07361,0.03248,0.1079,0.004975,13,domains,mean over domains,0.03483
-epistatic,ESM-MSR,ESM3-small-open,0.7662,0.4137,0.3525,0.2848,0.4172,0.004975,13,domains,mean over domains,0.03483
-epistatic,ESM-MSR,ProteinMPNN,0.7662,0.3301,0.4361,0.3131,0.5481,0.004975,13,domains,mean over domains,0.03483
-epistatic,ESM-MSR,GeoDDG-3D,0.7662,0.456,0.3102,0.1937,0.4194,0.004975,13,domains,mean over domains,0.03483
-epistatic,ESM-MSR,Rosetta,0.7662,0.499,0.2671,0.1905,0.3457,0.004975,13,domains,mean over domains,0.03483
-gain (epistatic - additive),ESM-MSR,MutateEverything,0.05691,0.03496,0.02194,-0.01598,0.06226,0.18,13,domains,mean over domains,0.18
-gain (epistatic - additive),ESM-MSR,ThermoMPNN,0.05691,-0.004803,0.06171,0.02709,0.09538,0.004975,13,domains,mean over domains,0.03483
-gain (epistatic - additive),ESM-MSR,SPURS,0.05691,-0.006823,0.06373,0.02806,0.1002,0.004975,13,domains,mean over domains,0.03483
-gain (epistatic - additive),ESM-MSR,ESM3-small-open,0.05691,-0.00686,0.06377,0.0377,0.08989,0.004975,13,domains,mean over domains,0.03483
-gain (epistatic - additive),ESM-MSR,ProteinMPNN,0.05691,-0.01837,0.07527,0.03377,0.1169,0.004975,13,domains,mean over domains,0.03483
-gain (epistatic - additive),ESM-MSR,GeoDDG-3D,0.05691,-0.0001989,0.0571,0.008312,0.108,0.02,13,domains,mean over domains,0.06
-gain (epistatic - additive),ESM-MSR,Rosetta,0.05691,0.02149,0.03542,0.00634,0.07256,0.03,13,domains,mean over domains,0.06
-own gain,ESM-MSR (epistatic),ESM-MSR (additive),0.7662,0.7093,0.05691,0.0328,0.08139,0.004975,13,domains,mean over domains,0.004975
-own gain,MutateEverything (epistatic),MutateEverything (additive),0.6521,0.6171,0.03496,-0.003606,0.06881,0.07,13,domains,mean over domains,0.07
-own gain,ThermoMPNN (epistatic),ThermoMPNN (additive),0.6678,0.6726,-0.004803,-0.03731,0.03667,0.86,13,domains,mean over domains,0.86
-own gain,SPURS (epistatic),SPURS (additive),0.6926,0.6994,-0.006823,-0.05546,0.03246,0.91,13,domains,mean over domains,0.91
-own gain,ESM3-small-open (epistatic),ESM3-small-open (additive),0.4137,0.4205,-0.00686,-0.03322,0.01994,0.66,13,domains,mean over domains,0.66
+additive,ESM-MSR (baseline),ESM-MSR,0.7076,0.7171,-0.009574,-0.03212,0.007335,0.4,13,domains,mean over domains,1
+additive,ESM-MSR (baseline),ESM-MSR (p0),0.7076,0.7217,-0.01412,-0.04809,0.01369,0.49,13,domains,mean over domains,1
+additive,ESM-MSR (baseline),MutateEverything,0.7076,0.6171,0.09043,0.03496,0.1443,0.004975,13,domains,mean over domains,0.04975
+additive,ESM-MSR (baseline),ThermoMPNN,0.7076,0.6726,0.03495,-0.03472,0.09721,0.28,13,domains,mean over domains,1
+additive,ESM-MSR (baseline),SPURS,0.7076,0.6994,0.008198,-0.03824,0.04578,0.57,13,domains,mean over domains,1
+additive,ESM-MSR (baseline),ESM3-small-open,0.7076,0.432,0.2755,0.2222,0.3275,0.004975,13,domains,mean over domains,0.04975
+additive,ESM-MSR (baseline),ProteinMPNN,0.7076,0.3484,0.3591,0.2556,0.4548,0.004975,13,domains,mean over domains,0.04975
+additive,ESM-MSR (baseline),ProSST,0.7076,0.4204,0.2872,0.203,0.3535,0.004975,13,domains,mean over domains,0.04975
+additive,ESM-MSR (baseline),GeoDDG-3D,0.7076,0.4562,0.2514,0.1228,0.3598,0.004975,13,domains,mean over domains,0.04975
+additive,ESM-MSR (baseline),Rosetta,0.7076,0.4775,0.23,0.145,0.3124,0.004975,13,domains,mean over domains,0.04975
+additive,ESM-MSR,ESM-MSR (p0),0.7171,0.7217,-0.004551,-0.02603,0.01452,0.67,13,domains,mean over domains,0.76
+additive,ESM-MSR,MutateEverything,0.7171,0.6171,0.1,0.03813,0.1633,0.004975,13,domains,mean over domains,0.04478
+additive,ESM-MSR,ThermoMPNN,0.7171,0.6726,0.04452,-0.03065,0.1091,0.19,13,domains,mean over domains,0.57
+additive,ESM-MSR,SPURS,0.7171,0.6994,0.01777,-0.02292,0.0526,0.38,13,domains,mean over domains,0.76
+additive,ESM-MSR,ESM3-small-open,0.7171,0.432,0.2851,0.2395,0.3278,0.004975,13,domains,mean over domains,0.04478
+additive,ESM-MSR,ProteinMPNN,0.7171,0.3484,0.3687,0.2877,0.4592,0.004975,13,domains,mean over domains,0.04478
+additive,ESM-MSR,ProSST,0.7171,0.4204,0.2968,0.2084,0.3593,0.004975,13,domains,mean over domains,0.04478
+additive,ESM-MSR,GeoDDG-3D,0.7171,0.4562,0.2609,0.1317,0.368,0.004975,13,domains,mean over domains,0.04478
+additive,ESM-MSR,Rosetta,0.7171,0.4775,0.2396,0.1505,0.3239,0.004975,13,domains,mean over domains,0.04478
+additive,ESM-MSR (p0),MutateEverything,0.7217,0.6171,0.1046,0.03453,0.1743,0.004975,13,domains,mean over domains,0.0398
+additive,ESM-MSR (p0),ThermoMPNN,0.7217,0.6726,0.04907,-0.02534,0.1225,0.17,13,domains,mean over domains,0.34
+additive,ESM-MSR (p0),SPURS,0.7217,0.6994,0.02232,-0.02439,0.06653,0.39,13,domains,mean over domains,0.39
+additive,ESM-MSR (p0),ESM3-small-open,0.7217,0.432,0.2896,0.2389,0.3328,0.004975,13,domains,mean over domains,0.0398
+additive,ESM-MSR (p0),ProteinMPNN,0.7217,0.3484,0.3732,0.2965,0.4667,0.004975,13,domains,mean over domains,0.0398
+additive,ESM-MSR (p0),ProSST,0.7217,0.4204,0.3013,0.2182,0.3652,0.004975,13,domains,mean over domains,0.0398
+additive,ESM-MSR (p0),GeoDDG-3D,0.7217,0.4562,0.2655,0.1344,0.3931,0.004975,13,domains,mean over domains,0.0398
+additive,ESM-MSR (p0),Rosetta,0.7217,0.4775,0.2442,0.1535,0.3354,0.004975,13,domains,mean over domains,0.0398
+epistatic,ESM-MSR (baseline),ESM-MSR,0.7662,0.7815,-0.01533,-0.04883,0.001086,0.12,13,domains,mean over domains,0.24
+epistatic,ESM-MSR (baseline),ESM-MSR (p0),0.7662,0.7761,-0.009964,-0.04901,0.01821,0.73,13,domains,mean over domains,0.73
+epistatic,ESM-MSR (baseline),MutateEverything,0.7662,0.6521,0.1141,0.05545,0.1879,0.004975,13,domains,mean over domains,0.04478
+epistatic,ESM-MSR (baseline),ThermoMPNN,0.7662,0.6678,0.09834,0.03476,0.1593,0.004975,13,domains,mean over domains,0.04478
+epistatic,ESM-MSR (baseline),SPURS,0.7662,0.6926,0.07361,0.02561,0.1138,0.004975,13,domains,mean over domains,0.04478
+epistatic,ESM-MSR (baseline),ESM3-small-open,0.7662,0.4137,0.3525,0.2871,0.4172,0.004975,13,domains,mean over domains,0.04478
+epistatic,ESM-MSR (baseline),ProteinMPNN,0.7662,0.3301,0.4361,0.3132,0.5492,0.004975,13,domains,mean over domains,0.04478
+epistatic,ESM-MSR (baseline),GeoDDG-3D,0.7662,0.456,0.3102,0.1926,0.4175,0.004975,13,domains,mean over domains,0.04478
+epistatic,ESM-MSR (baseline),Rosetta,0.7662,0.499,0.2671,0.1843,0.3437,0.004975,13,domains,mean over domains,0.04478
+epistatic,ESM-MSR,ESM-MSR (p0),0.7815,0.7761,0.005365,-0.01817,0.02414,0.53,13,domains,mean over domains,0.53
+epistatic,ESM-MSR,MutateEverything,0.7815,0.6521,0.1294,0.06238,0.1965,0.004975,13,domains,mean over domains,0.0398
+epistatic,ESM-MSR,ThermoMPNN,0.7815,0.6678,0.1137,0.05002,0.167,0.004975,13,domains,mean over domains,0.0398
+epistatic,ESM-MSR,SPURS,0.7815,0.6926,0.08894,0.03827,0.1285,0.004975,13,domains,mean over domains,0.0398
+epistatic,ESM-MSR,ESM3-small-open,0.7815,0.4137,0.3678,0.3134,0.427,0.004975,13,domains,mean over domains,0.0398
+epistatic,ESM-MSR,ProteinMPNN,0.7815,0.3301,0.4514,0.3464,0.5573,0.004975,13,domains,mean over domains,0.0398
+epistatic,ESM-MSR,GeoDDG-3D,0.7815,0.456,0.3255,0.2059,0.4314,0.004975,13,domains,mean over domains,0.0398
+epistatic,ESM-MSR,Rosetta,0.7815,0.499,0.2825,0.2093,0.3611,0.004975,13,domains,mean over domains,0.0398
+epistatic,ESM-MSR (p0),MutateEverything,0.7761,0.6521,0.124,0.05047,0.203,0.004975,13,domains,mean over domains,0.03483
+epistatic,ESM-MSR (p0),ThermoMPNN,0.7761,0.6678,0.1083,0.03093,0.1685,0.004975,13,domains,mean over domains,0.03483
+epistatic,ESM-MSR (p0),SPURS,0.7761,0.6926,0.08357,0.02276,0.136,0.02,13,domains,mean over domains,0.03483
+epistatic,ESM-MSR (p0),ESM3-small-open,0.7761,0.4137,0.3625,0.3113,0.416,0.004975,13,domains,mean over domains,0.03483
+epistatic,ESM-MSR (p0),ProteinMPNN,0.7761,0.3301,0.446,0.3573,0.5504,0.004975,13,domains,mean over domains,0.03483
+epistatic,ESM-MSR (p0),GeoDDG-3D,0.7761,0.456,0.3201,0.1917,0.4299,0.004975,13,domains,mean over domains,0.03483
+epistatic,ESM-MSR (p0),Rosetta,0.7761,0.499,0.2771,0.2006,0.3579,0.004975,13,domains,mean over domains,0.03483
+gain (epistatic - additive),ESM-MSR (baseline),ESM-MSR,0.05859,0.06434,-0.005755,-0.01983,0.0091,0.4,13,domains,mean over domains,0.72
+gain (epistatic - additive),ESM-MSR (baseline),ESM-MSR (p0),0.05859,0.05443,0.00416,-0.006623,0.0202,0.36,13,domains,mean over domains,0.72
+gain (epistatic - additive),ESM-MSR (baseline),MutateEverything,0.05859,0.03496,0.02363,-0.01517,0.07243,0.19,13,domains,mean over domains,0.57
+gain (epistatic - additive),ESM-MSR (baseline),ThermoMPNN,0.05859,-0.004803,0.06339,0.02611,0.1225,0.004975,13,domains,mean over domains,0.04478
+gain (epistatic - additive),ESM-MSR (baseline),SPURS,0.05859,-0.006823,0.06541,0.02216,0.116,0.004975,13,domains,mean over domains,0.04478
+gain (epistatic - additive),ESM-MSR (baseline),ESM3-small-open,0.05859,-0.01839,0.07698,0.04959,0.1075,0.004975,13,domains,mean over domains,0.04478
+gain (epistatic - additive),ESM-MSR (baseline),ProteinMPNN,0.05859,-0.01837,0.07696,0.03376,0.1228,0.004975,13,domains,mean over domains,0.04478
+gain (epistatic - additive),ESM-MSR (baseline),GeoDDG-3D,0.05859,-0.0001989,0.05879,0.005499,0.1141,0.04,13,domains,mean over domains,0.16
+gain (epistatic - additive),ESM-MSR (baseline),Rosetta,0.05859,0.02149,0.0371,0.004175,0.07832,0.02,13,domains,mean over domains,0.1
+gain (epistatic - additive),ESM-MSR,ESM-MSR (p0),0.06434,0.05443,0.009916,-0.002089,0.022,0.08,13,domains,mean over domains,0.16
+gain (epistatic - additive),ESM-MSR,MutateEverything,0.06434,0.03496,0.02938,-0.008174,0.07772,0.15,13,domains,mean over domains,0.16
+gain (epistatic - additive),ESM-MSR,ThermoMPNN,0.06434,-0.004803,0.06915,0.02744,0.1253,0.004975,13,domains,mean over domains,0.0398
+gain (epistatic - additive),ESM-MSR,SPURS,0.06434,-0.006823,0.07117,0.02745,0.128,0.004975,13,domains,mean over domains,0.0398
+gain (epistatic - additive),ESM-MSR,ESM3-small-open,0.06434,-0.01839,0.08273,0.05188,0.1104,0.004975,13,domains,mean over domains,0.0398
+gain (epistatic - additive),ESM-MSR,ProteinMPNN,0.06434,-0.01837,0.08271,0.03879,0.1254,0.004975,13,domains,mean over domains,0.0398
+gain (epistatic - additive),ESM-MSR,GeoDDG-3D,0.06434,-0.0001989,0.06454,0.01971,0.1137,0.004975,13,domains,mean over domains,0.0398
+gain (epistatic - additive),ESM-MSR,Rosetta,0.06434,0.02149,0.04286,0.01484,0.08066,0.02,13,domains,mean over domains,0.06
+gain (epistatic - additive),ESM-MSR (p0),MutateEverything,0.05443,0.03496,0.01947,-0.01525,0.06326,0.32,13,domains,mean over domains,0.32
+gain (epistatic - additive),ESM-MSR (p0),ThermoMPNN,0.05443,-0.004803,0.05923,0.01471,0.1153,0.004975,13,domains,mean over domains,0.03483
+gain (epistatic - additive),ESM-MSR (p0),SPURS,0.05443,-0.006823,0.06125,0.01531,0.1133,0.004975,13,domains,mean over domains,0.03483
+gain (epistatic - additive),ESM-MSR (p0),ESM3-small-open,0.05443,-0.01839,0.07282,0.04793,0.1027,0.004975,13,domains,mean over domains,0.03483
+gain (epistatic - additive),ESM-MSR (p0),ProteinMPNN,0.05443,-0.01837,0.0728,0.03259,0.1168,0.004975,13,domains,mean over domains,0.03483
+gain (epistatic - additive),ESM-MSR (p0),GeoDDG-3D,0.05443,-0.0001989,0.05463,0.009017,0.1068,0.02,13,domains,mean over domains,0.06
+gain (epistatic - additive),ESM-MSR (p0),Rosetta,0.05443,0.02149,0.03294,0.002417,0.07571,0.02,13,domains,mean over domains,0.06
+own gain,ESM-MSR (baseline) (epistatic),ESM-MSR (baseline) (additive),0.7662,0.7076,0.05859,0.03219,0.0873,0.004975,13,domains,mean over domains,0.004975
+own gain,ESM-MSR (epistatic),ESM-MSR (additive),0.7815,0.7171,0.06434,0.04004,0.08778,0.004975,13,domains,mean over domains,0.004975
+own gain,ESM-MSR (p0) (epistatic),ESM-MSR (p0) (additive),0.7761,0.7217,0.05443,0.0318,0.08135,0.004975,13,domains,mean over domains,0.004975
+own gain,MutateEverything (epistatic),MutateEverything (additive),0.6521,0.6171,0.03496,-0.009286,0.07892,0.11,13,domains,mean over domains,0.11
+own gain,ThermoMPNN (epistatic),ThermoMPNN (additive),0.6678,0.6726,-0.004803,-0.05683,0.03804,0.99,13,domains,mean over domains,0.99
+own gain,SPURS (epistatic),SPURS (additive),0.6926,0.6994,-0.006823,-0.06121,0.03835,0.95,13,domains,mean over domains,0.95
+own gain,ESM3-small-open (epistatic),ESM3-small-open (additive),0.4137,0.432,-0.01839,-0.03667,0.002644,0.08,13,domains,mean over domains,0.08
 own gain,ProteinMPNN (epistatic),ProteinMPNN (additive),0.3301,0.3484,-0.01837,-0.0477,0.01306,0.33,13,domains,mean over domains,0.33
 own gain,GeoDDG-3D (epistatic),GeoDDG-3D (additive),0.456,0.4562,-0.0001989,-0.02893,0.02697,0.77,13,domains,mean over domains,0.77
 own gain,Rosetta (epistatic),Rosetta (additive),0.499,0.4775,0.02149,-0.008784,0.05335,0.12,13,domains,mean over domains,0.12

@@ -1,4 +1,8 @@
-figure,n,spearman,pearson,share_dG_additive_lt0,rmse_to_xy
-fig6a_dG_additive_vs_dddG,12455,-0.6420,-0.6765,0.4055,
-fig6b_esm_msr_dddG_pred_vs_true,12455,0.4796,0.4465,0.4055,0.7804
-fig6c_esm_msr_dddG_pred_vs_true_dG_additive_lt0,12455,0.4796,0.4465,0.4055,0.7804
+figure,n,n_seeds,spearman,pearson,spearman_stacked,pearson_stacked,share_dG_additive_lt0,rmse_to_xy
+fig6a_dG_additive_vs_dddG,12455,1,-0.6420,-0.6765,-0.6420,-0.6765,0.4055,
+fig6b_esm_msr_dddG_pred_vs_true,12455,3,0.4735,0.4414,0.4733,0.4412,0.4055,0.7843
+fig6c_esm_msr_dddG_pred_vs_true_dG_additive_lt0,12455,3,0.4735,0.4414,0.4733,0.4412,0.4055,0.7843
+fig6b_esm_msr_baseline_dddG_pred_vs_true,12455,3,0.4522,0.4288,0.4491,0.4265,0.4055,0.7969
+fig6c_esm_msr_baseline_dddG_pred_vs_true_dG_additive_lt0,12455,3,0.4522,0.4288,0.4491,0.4265,0.4055,0.7969
+fig6b_esm_msr_p0_dddG_pred_vs_true,12455,3,0.4713,0.4467,0.4670,0.4437,0.4055,0.7843
+fig6c_esm_msr_p0_dddG_pred_vs_true_dG_additive_lt0,12455,3,0.4713,0.4467,0.4670,0.4437,0.4055,0.7843

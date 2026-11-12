@@ -5,21 +5,21 @@ gain,Total,Δ volume > 1,31.1966,23.0467,41.4399,21.6464,33
 gain,Top 96 per Domain,Δ volume ≤ −1,8.6725,6.8276,11.0714,7.4229,33
 gain,Top 96 per Domain,−1 < Δ volume ≤ 1,13.2508,10.2821,16.1301,10.6734,33
 gain,Top 96 per Domain,Δ volume > 1,22.4663,17.3031,27.5202,17.8507,33
-gain,ESM-MSR (baseline) WT head,Δ volume ≤ −1,4.6605,3.6627,5.8384,4.1376,33
-gain,ESM-MSR (baseline) WT head,−1 < Δ volume ≤ 1,8.8373,6.9116,10.5841,7.9198,33
-gain,ESM-MSR (baseline) WT head,Δ volume > 1,13.7189,10.5731,16.7215,12.3817,33
-gain,ESM-MSR WT head,Δ volume ≤ −1,4.4480,3.4029,5.7598,3.5552,33
-gain,ESM-MSR WT head,−1 < Δ volume ≤ 1,9.1093,7.1219,10.9845,7.4601,33
-gain,ESM-MSR WT head,Δ volume > 1,13.5858,10.4700,16.7109,11.1458,33
-gain,MutateEverything st1,Δ volume ≤ −1,3.6376,2.7525,4.7928,3.2376,33
-gain,MutateEverything st1,−1 < Δ volume ≤ 1,6.9414,5.3477,8.5475,5.8196,33
-gain,MutateEverything st1,Δ volume > 1,10.5418,8.0449,13.0105,8.6216,33
-gain,ThermoMPNN,Δ volume ≤ −1,3.8143,2.9502,4.9036,3.2551,33
-gain,ThermoMPNN,−1 < Δ volume ≤ 1,8.4645,6.6658,10.4330,6.8285,33
-gain,ThermoMPNN,Δ volume > 1,12.9016,9.9670,16.0899,10.3547,33
-gain,SPURS,Δ volume ≤ −1,4.1964,3.2627,5.3030,4.1298,33
-gain,SPURS,−1 < Δ volume ≤ 1,8.3432,6.4894,10.1824,6.4622,33
-gain,SPURS,Δ volume > 1,13.7631,10.6433,17.1986,10.7731,33
+gain,ESM-MSR (p0) WT head,Δ volume ≤ −1,4.4527,3.4772,5.5548,3.7137,33
+gain,ESM-MSR (p0) WT head,−1 < Δ volume ≤ 1,9.0989,7.0182,10.9715,7.5864,33
+gain,ESM-MSR (p0) WT head,Δ volume > 1,14.2326,10.9966,17.6213,11.9554,33
+gain,ESM-MSR (p0) combined,Δ volume ≤ −1,5.0324,3.9542,6.4312,4.6672,33
+gain,ESM-MSR (p0) combined,−1 < Δ volume ≤ 1,9.4463,7.5004,11.2535,8.1372,33
+gain,ESM-MSR (p0) combined,Δ volume > 1,15.0712,11.5807,18.6841,11.6904,33
+gain,MutateEverything st1,Δ volume ≤ −1,3.6376,2.7525,4.8361,3.0785,33
+gain,MutateEverything st1,−1 < Δ volume ≤ 1,6.9414,5.3600,8.6947,5.7924,33
+gain,MutateEverything st1,Δ volume > 1,10.5418,8.0459,13.1340,8.5812,33
+gain,ThermoMPNN,Δ volume ≤ −1,3.8143,2.9514,4.9897,3.3045,33
+gain,ThermoMPNN,−1 < Δ volume ≤ 1,8.4645,6.6639,10.5176,6.7712,33
+gain,ThermoMPNN,Δ volume > 1,12.9016,10.0137,16.0470,10.3547,33
+gain,SPURS,Δ volume ≤ −1,4.1964,3.2153,5.3185,3.8538,33
+gain,SPURS,−1 < Δ volume ≤ 1,8.3432,6.4936,10.1743,6.6412,33
+gain,SPURS,Δ volume > 1,13.7631,10.6087,17.2322,10.5551,33
 gain,ESM3-small-open,Δ volume ≤ −1,4.2485,3.2560,5.4071,3.4870,33
 gain,ESM3-small-open,−1 < Δ volume ≤ 1,4.8768,3.8926,5.8027,4.3676,33
 gain,ESM3-small-open,Δ volume > 1,6.0060,4.5507,7.9277,3.7708,33
@@ -41,21 +41,21 @@ picks,Total,Δ volume > 1,419.1818,345.6015,512.3871,327.0000,33
 picks,Top 96 per Domain,Δ volume ≤ −1,21.5758,19.0273,24.9144,20.0000,33
 picks,Top 96 per Domain,−1 < Δ volume ≤ 1,30.2424,28.3303,31.8212,31.0000,33
 picks,Top 96 per Domain,Δ volume > 1,44.1818,41.2098,47.0318,43.0000,33
-picks,ESM-MSR (baseline) WT head,Δ volume ≤ −1,20.0909,18.0301,22.1987,18.6667,33
-picks,ESM-MSR (baseline) WT head,−1 < Δ volume ≤ 1,33.5455,31.2422,35.4346,33.6667,33
-picks,ESM-MSR (baseline) WT head,Δ volume > 1,42.3636,38.9341,46.0328,43.0000,33
-picks,ESM-MSR WT head,Δ volume ≤ −1,19.5960,17.5250,21.7985,18.0000,33
-picks,ESM-MSR WT head,−1 < Δ volume ≤ 1,34.4242,32.0793,36.7588,34.3333,33
-picks,ESM-MSR WT head,Δ volume > 1,41.9798,38.5942,45.6881,41.6667,33
-picks,MutateEverything st1,Δ volume ≤ −1,19.9293,18.1005,21.8962,20.0000,33
-picks,MutateEverything st1,−1 < Δ volume ≤ 1,32.5354,30.9591,34.0237,32.6667,33
-picks,MutateEverything st1,Δ volume > 1,43.5354,41.0194,46.2740,43.3333,33
-picks,ThermoMPNN,Δ volume ≤ −1,17.3737,15.3227,19.3644,17.6667,33
-picks,ThermoMPNN,−1 < Δ volume ≤ 1,33.7071,31.1705,35.4859,34.0000,33
-picks,ThermoMPNN,Δ volume > 1,44.9192,41.8104,48.9222,44.3333,33
-picks,SPURS,Δ volume ≤ −1,18.5960,16.8462,20.4566,18.6667,33
-picks,SPURS,−1 < Δ volume ≤ 1,31.5455,29.5141,33.5667,31.6667,33
-picks,SPURS,Δ volume > 1,45.8586,42.5422,49.0505,44.3333,33
+picks,ESM-MSR (p0) WT head,Δ volume ≤ −1,19.2929,17.3818,21.6298,17.6667,33
+picks,ESM-MSR (p0) WT head,−1 < Δ volume ≤ 1,33.4242,30.6043,35.7290,33.3333,33
+picks,ESM-MSR (p0) WT head,Δ volume > 1,43.2828,39.6866,47.1475,43.0000,33
+picks,ESM-MSR (p0) combined,Δ volume ≤ −1,20.0202,18.1609,22.3742,19.6667,33
+picks,ESM-MSR (p0) combined,−1 < Δ volume ≤ 1,32.3535,30.1237,34.0944,32.3333,33
+picks,ESM-MSR (p0) combined,Δ volume > 1,43.6263,40.1955,46.7078,44.0000,33
+picks,MutateEverything st1,Δ volume ≤ −1,19.9293,17.9371,21.9343,19.0000,33
+picks,MutateEverything st1,−1 < Δ volume ≤ 1,32.5354,30.8467,34.0311,32.0000,33
+picks,MutateEverything st1,Δ volume > 1,43.5354,40.6947,46.3689,42.6667,33
+picks,ThermoMPNN,Δ volume ≤ −1,17.3737,15.2013,19.5492,17.0000,33
+picks,ThermoMPNN,−1 < Δ volume ≤ 1,33.7071,31.1194,35.5424,33.6667,33
+picks,ThermoMPNN,Δ volume > 1,44.9192,41.4538,48.8533,44.6667,33
+picks,SPURS,Δ volume ≤ −1,18.5960,16.6634,20.6568,18.6667,33
+picks,SPURS,−1 < Δ volume ≤ 1,31.5455,29.3836,33.6475,31.6667,33
+picks,SPURS,Δ volume > 1,45.8586,42.3975,49.2677,44.6667,33
 picks,ESM3-small-open,Δ volume ≤ −1,38.6364,36.7561,40.8803,40.0000,33
 picks,ESM3-small-open,−1 < Δ volume ≤ 1,31.2121,29.3629,32.6977,30.0000,33
 picks,ESM3-small-open,Δ volume > 1,26.1515,24.4826,27.7902,26.0000,33

@@ -63,6 +63,9 @@ if os.path.isdir(REF_DIR):
     mx.to_csv(os.path.join(REF_DIR, 'leak_audit_matrix.csv'), index=False)
     inv_desc.to_csv(os.path.join(REF_DIR, 'leak_audit_inventories.csv'), index=False)
     pg.to_csv(os.path.join(REF_DIR, 'leak_audit_pg_per_dms.csv'), index=False)
+    st_src = os.path.join(OUT_DIR, 'structure_homology_domainome_pg.csv')
+    if os.path.exists(st_src):
+        shutil.copy(st_src, os.path.join(REF_DIR, 'leak_audit_structure_homology.csv'))
 
 # Build SQLite database
 db = os.path.join(BENCH_DIR, 'leak_audit.sqlite')

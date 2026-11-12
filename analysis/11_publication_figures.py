@@ -40,7 +40,7 @@ from matplotlib.patches import Patch  # noqa: E402
 from msr_analysis import style  # noqa: E402
 from msr_analysis.boot import bootstrap_rho, ci  # noqa: E402
 from msr_analysis.common import epi_rows, out_dir, subframe  # noqa: E402
-from msr_analysis.data import add_esm3_masked, load_frame  # noqa: E402
+from msr_analysis.data import add_esm3_masked, load_frame, sum_singles  # noqa: E402
 
 OUT_TSU = out_dir('03_tsuboyama')          # figures 1 and 2: the Tsuboyama test benchmark
 OUT_EPI = out_dir('06_epistasis')          # figures 3 to 7: epistasis
@@ -98,18 +98,16 @@ F_BEST_PLAIN = '{m}: the better of GeoDDG-3D and DDGemb by mean per-library sing
 def load():
     fr = load_frame(DS)
     p = fr.preds
+    sp = fr.spine
     added = add_esm3_masked(fr, DS)
-    if 'msrrel@0:comb' in p and 'msrrel@0:wt' in p:
-        p['msrrel@0:epi'] = p['msrrel@0:comb'] - p['msrrel@0:wt']                   # the combined head's epistasis, no link (sigma = 0 checkpoint): comb(AB) - WT(A) - WT(B), WT(AB) = WT(A) + WT(B)
-    # ESM-MSR's epistasis is always the combined head's latent interaction, comb(AB) - WT(AB) = (MT(AB) - WT(AB)) / 2, on the latent scale: no link
-    for _spec in ('msr', 'msrdev', 'msrp0'):
-        if f'{_spec}:comb' in p and f'{_spec}:wt' in p:
-            p[f'{_spec}:epi'] = p[f'{_spec}:comb'] - p[f'{_spec}:wt']
-    if 'esm3ind' in p and 'esm3ind+' in p:
-        # esm3avg (data.add_esm3_masked): like ProteinMPNN and ESM-MSR's combined head, the mean of the independent-masking WT and mutant passes
-        p['esm3:epi'] = p['esm3avg'] - p['esm3ind+']                              # the direct double minus the sum of the singles, as for the other models (= half of MT - WT)
-    if 'esm3ind' in p and 'esm3mm' in p:
-        p['esm3mm:epi'] = p['esm3ind'] - p['esm3mm']                              # the earlier definition: mutant pass minus the canonical masked marginal of the wild type (tables only)
+    # Consistent 1x generalized epistasis (populated by data._load_msr via sum_singles):
+    #   :epi = 1/2(MT_AB + WT_AB) - WT_A - WT_B = comb_AB - WT_A - WT_B
+    for _spec in ('msr', 'msrdev', 'msrp0', 'msrrel', 'msrrel@0'):
+        if f'{_spec}:comb' in p and f'{_spec}:wt' in p and f'{_spec}:epi' not in p:
+            p[f'{_spec}:wt+'] = sum_singles(sp, p[f'{_spec}:wt'])
+            p[f'{_spec}:epi'] = p[f'{_spec}:comb'] - p[f'{_spec}:wt+']
+    if 'esm3avg:epi' in p:
+        p['esm3:epi'] = p['esm3avg:epi']
     for k in ('rosetta', 'geoddg', 'ddgemb', 'pmpnn'):
         if k in p and k + '+' in p:
             p[k + ':epi'] = p[k] - p[k + '+']                                      # direct double minus the sum of the model's singles
@@ -244,12 +242,11 @@ def main_columns(fr, best, esm3_want):
 
 
 def pair_columns(fr, best):
-    """Fig 3: single = the additive version's key, double = the epistatic version's key."""
-    p = fr.preds
-    es = col('ESM3-small-open', 'zeroshot', '#7f8c8d', 'ESM3-small-open\nunmasked\nWT → combined', 'msrrel@0:wt', 'msrrel@0:comb')
-    cols = [col('ESM-MSR (baseline)', 'retrained', '#7f8c8d', 'ESM-MSR\n(baseline)\nWT → comb', 'msr:wt', 'msr:comb'),
-            col('ESM-MSR', 'retrained', '#000000', 'ESM-MSR\nWT head\n→ combined', 'msrdev:wt', 'msrdev:comb'),
-            col('ESM-MSR (p0)', 'retrained', '#6c3483', 'ESM-MSR\n(p0)\nWT → comb', 'msrp0:wt', 'msrp0:comb'),
+    """Fig 3: single = the additive version's key (sum of singles), double = the epistatic version's key."""
+    es = col('ESM3-small-open', 'zeroshot', '#7f8c8d', 'ESM3-small-open\nunmasked\nWT_A+B → comb_AB', 'msrrel@0:wt+', 'msrrel@0:comb')
+    cols = [col('ESM-MSR (baseline)', 'retrained', '#7f8c8d', 'ESM-MSR\n(baseline)\nWT_A+B → comb_AB', 'msr:wt+', 'msr:comb'),
+            col('ESM-MSR', 'retrained', '#000000', 'ESM-MSR\nWT_A+B\n→ comb_AB', 'msrdev:wt+', 'msrdev:comb'),
+            col('ESM-MSR (p0)', 'retrained', '#6c3483', 'ESM-MSR\n(p0)\nWT_A+B → comb_AB', 'msrp0:wt+', 'msrp0:comb'),
             col('MutateEverything', 'retrained', '#1b8a4b', 'ME\nst1\n→ st2', 'me1', 'me2'),
             col('ThermoMPNN', 'retrained', '#1f5f8b', 'ThermoMPNN\n→ ThermoMPNN-D', 'tmpnn', 'tmpnnd'),
             col('SPURS', 'retrained', '#d35400', 'SPURS\n→ SPURS multi', 'spurs', 'spursm'),
@@ -263,13 +260,14 @@ def pair_columns(fr, best):
 
 def epi_columns(fr, best):
     p = fr.preds
-    es = col('ESM3-small-open', 'zeroshot', '#7f8c8d', 'ESM3-small-open\ncombined − WT\n(unmasked)', None, 'msrrel@0:epi')
+    f_lbl = 'comb_AB −\nWT_A − WT_B'
+    es = col('ESM3-small-open', 'zeroshot', '#7f8c8d', f'ESM3-small-open\n{f_lbl}\n(unmasked)', None, 'msrrel@0:epi')
     extra = [col('ESM3-small-open (independent masking)', 'zeroshot', '#7f8c8d', 'ESM3-small-open', None, 'esm3:epi', draw=False)] if 'esm3:epi' in p else []
     if 'esm3mm:epi' in p:
-        extra.append(col('ESM3-small-open (MT independent − WT marginal)', 'zeroshot', '#7f8c8d', 'ESM3-small-open', None, 'esm3mm:epi', draw=False))
-    cols = [col('ESM-MSR (baseline)', 'retrained', '#7f8c8d', 'ESM-MSR\n(baseline)\ncomb − WT', None, 'msr:epi'),
-            col('ESM-MSR', 'retrained', '#000000', 'ESM-MSR\ncomb − WT', None, 'msrdev:epi'),
-            col('ESM-MSR (p0)', 'retrained', '#6c3483', 'ESM-MSR\n(p0)\ncomb − WT', None, 'msrp0:epi'),
+        extra.append(col('ESM3-small-open (masked marginal)', 'zeroshot', '#7f8c8d', 'ESM3-small-open', None, 'esm3mm:epi', draw=False))
+    cols = [col('ESM-MSR (baseline)', 'retrained', '#7f8c8d', f'ESM-MSR\n(baseline)\n{f_lbl}', None, 'msr:epi'),
+            col('ESM-MSR', 'retrained', '#000000', f'ESM-MSR\n{f_lbl}', None, 'msrdev:epi'),
+            col('ESM-MSR (p0)', 'retrained', '#6c3483', f'ESM-MSR\n(p0)\n{f_lbl}', None, 'msrp0:epi'),
             col('MutateEverything', 'retrained', '#1b8a4b', 'ME\nst2 − st1', None, 'me2:epi'),
             col('ThermoMPNN', 'retrained', '#1f5f8b', 'ThermoMPNN\n-D − single', None, 'tmpnnd:epi'),
             col('SPURS', 'retrained', '#d35400', 'SPURS\nmulti − single', None, 'spursm:epi'),
@@ -658,7 +656,6 @@ def main():
         pt, lo, hi, n = boot_mean(_diff_df(ve, va, both), libs, counts)
         d_rows.append(dict(column=c['name'], delta=pt, lo=lo, hi=hi, n_libraries=n))
     save_tab(pd.DataFrame(d_rows), 'fig3_spearman_doubles_additive_vs_epistatic_paired_difference')
-    # p-values: ESM-MSR's additive version against the other models' additive versions, epistatic against epistatic, and the gain (epistatic - additive) against the other gains
     gain = 'gain (epistatic - additive)'
     p3 = []
     for c in cols3:
@@ -678,9 +675,10 @@ def main():
     style.save(fig, OUT / 'fig3_spearman_doubles_additive_vs_epistatic')
 
     # ---- fig 4: naive epistasis rho, positive against negative epistasis ------------------------------------------
-    cols4 = epi_columns(fr, best)
     erows = epi_rows(fr)
     cells = {'positive': (erows & (dd > 0), 'doubles'), 'negative': (erows & (dd < 0), 'doubles')}
+    f_desc = '1/2(MT_AB+WT_AB) − WT_A − WT_B'
+    cols4 = epi_columns(fr, best)
     v4 = {}
     Tg = table_grouped(fr, cols4, cells, rho, MIN_N, counts, libs, y=dd, vals=v4)
     Og = table_grouped(fr, cols4, {'overall': (erows, 'doubles')}, rho, MIN_N, counts, libs, y=dd, vals=v4)
@@ -698,8 +696,8 @@ def main():
         fig, ax = plt.subplots(figsize=(fig_width(cols4), 5.15 - 2.0 * (1.6 - (1.0 - ylo))))      # the height follows the range, the horizontal scale stays that of the other figures
         bars(ax, cols4, tab, ['positive', 'negative'], [count_text(tab, 'positive', 'positive epistasis, dddG > 0'), count_text(tab, 'negative', 'negative epistasis, dddG < 0')], yl, (ylo, 1.0),
              overall=ov, overall_label=f'overall (n = {int(ov.n_variants.max()):,})', zero_line=True)
-        ax.set_xlabel('predicted epistasis = prediction for the double − the additive reading of its two singles (as named under each column)', fontsize=8.3)
-        finish(fig, f'{SPLIT} test doubles with both singles measured: predicted against measured dddG; 95% intervals from resampling domains', foots(best=best), top=0.95)
+        ax.set_xlabel(f'predicted epistasis ({f_desc} for ESM-MSR / ESM3; direct − sum of singles for others)', fontsize=8.3)
+        finish(fig, f'{SPLIT} test doubles with both singles measured: predicted against measured dddG ({f_desc}); 95% intervals from resampling domains', foots(best=best), top=0.95)
         style.save(fig, OUT / name)
 
     # ---- console summary -------------------------------------------------------------------------------------

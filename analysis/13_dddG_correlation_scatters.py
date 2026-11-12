@@ -75,7 +75,7 @@ def diagnostics(fr, fit, model, dG_add, y):
     sp, p = fr.spine, fr.preds
     v = model[LINK_MODEL]
     c = sp['dG_wt'].to_numpy(float)
-    x_model = c + np.nanmean(p['msrdev:wt'], axis=0)                                  # the model's additive dG of the double: c + WT(A) + WT(B), latent
+    x_model = c + np.nanmean(p['msrdev:wt+'], axis=0)                                 # the model's additive dG of the double: c + WT(A) + WT(B), latent
     df = pd.DataFrame(dict(domain=sp['group'].to_numpy(), dG_wt=c, measured_dG_additive=dG_add, model_dG_additive=x_model, measured=y, latent=v['latent'], linked=v['linked']))[fit].dropna()
     df['measured_gt1'], df['model_gt1'] = df.measured_dG_additive > 1, df.model_dG_additive > 1
     t = df.groupby(['measured_gt1', 'model_gt1']).agg(n=('measured', 'size'), measured_dddG=('measured', 'mean'), latent=('latent', 'mean'), linked=('linked', 'mean'),
@@ -93,8 +93,8 @@ def diagnostics(fr, fit, model, dG_add, y):
         c2 = s2['dG_wt'].to_numpy(float)
         xm = c2 + s2['ddG_additive_ML'].to_numpy(float)
         for key in ('msrdev', 'msr'):
-            W, M = np.nanmean(q[f'{key}:wt'], 0), np.nanmean(q[f'{key}:comb'], 0)
-            lat, d3, xp = M - W, s2['dddG_ML'].to_numpy(float), c2 + W
+            W = np.nanmean(q[f'{key}:wt+'], 0)
+            lat, d3, xp = np.nanmean(q[f'{key}:epi'], 0), s2['dddG_ML'].to_numpy(float), c2 + W
             for sel_name, sel in (('measured dG_additive > 1', xm > 1), ('measured and model dG_additive > 1', (xm > 1) & (xp > 1))):
                 k = m2 & sel & np.isfinite(lat) & np.isfinite(d3)
                 rows.append(dict(split=tag, checkpoint='ESM-MSR' if key == 'msrdev' else 'ESM-MSR (baseline)', subset=sel_name, n=int(k.sum()), measured_dddG=d3[k].mean(), latent=lat[k].mean(), bias=(lat[k] - d3[k]).mean()))
@@ -146,59 +146,62 @@ def draw_dG_additive_vs_pred_dddG(fit, dG_add, model):
     T_dg.to_csv(OUT_DG_ADD / 'stats.csv', index=False, float_format='%.4f')
 
     # Side-by-side 1x3 comparison for ESM-MSR (baseline), ESM-MSR, and ESM-MSR (p0)
-    msr_names = [m for m in ('ESM-MSR (baseline)', 'ESM-MSR', 'ESM-MSR (p0)') if m in model]
-    if len(msr_names) == 3:
-        ok = fit & np.isfinite(dG_add)
-        for m_name in msr_names:
-            ok &= np.isfinite(model[m_name]['raw_seeds']).all(axis=0)
-        xv_1d = dG_add[ok]
-        n_var = len(xv_1d)
-        limx = np.percentile(xv_1d, [0.3, 99.7])
-        padx = 0.05 * (limx[1] - limx[0])
-        xlim = (limx[0] - padx, limx[1] + padx)
-        all_y = np.concatenate([model[m_name]['raw_seeds'][:, ok].ravel() for m_name in msr_names])
-        limy = np.percentile(all_y, [0.3, 99.7])
-        pady = 0.05 * (limy[1] - limy[0])
-        ylim = (limy[0] - pady, limy[1] + pady)
-        cm = plt.get_cmap('plasma')
-        fig, axes = plt.subplots(1, 3, figsize=(18.0, 5.8), sharex=True, sharey=True)
-        for idx, (ax, m_name) in enumerate(zip(axes, msr_names)):
-            y_ok = model[m_name]['raw_seeds'][:, ok]
-            n_seeds = y_ok.shape[0]
-            xv = np.tile(xv_1d, n_seeds)
-            yv = y_ok.ravel()
-            sub = np.random.default_rng(0).choice(len(xv), min(len(xv), 15000), replace=False)
-            z = gaussian_kde(np.vstack([xv[sub], yv[sub]]))(np.vstack([xv, yv]))
-            o = np.argsort(z)
-            norm = Normalize(z.min(), z.max())
-            col = cm(norm(z))
-            col[:, 3] = 0.3 / np.sqrt(n_seeds)
-            ax.scatter(xv[o], yv[o], c=col[o], s=8, edgecolors='none', rasterized=True)
-            ax.plot(xlim, [-xlim[0], -xlim[1]], color='#c0392b', ls='--', lw=1.6, zorder=4)
-            ax.axhline(0, color='#555555', lw=1.2, ls=':', zorder=4)
-            ax.set_xlim(xlim)
-            ax.set_ylim(ylim)
-            ax.set_xlabel(X_DG_ADD_LABEL, fontsize=SCATTER_FONT['label_fontsize'])
-            if idx == 0:
-                ax.set_ylabel('predicted δΔΔG = dddG (kcal/mol)', fontsize=SCATTER_FONT['label_fontsize'])
-            ax.tick_params(axis='both', labelsize=SCATTER_FONT['tick_fontsize'])
-            rho_v = float(np.mean([spearmanr(xv_1d, y_ok[s])[0] for s in range(n_seeds)]))
-            r_v = float(np.mean([pearsonr(xv_1d, y_ok[s])[0] for s in range(n_seeds)]))
-            txt = f'ρ = {rho_v:.2f}\nr = {r_v:.2f}\nn = {n_var:,} (×{n_seeds} seeds)'
-            ax.text(0.04, 0.96, txt, transform=ax.transAxes, va='top', fontsize=SCATTER_FONT['stats_fontsize'], zorder=10,
-                    bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#cccccc', alpha=0.94))
-            handles = [
-                plt.Line2D([0], [0], color='#c0392b', ls='--', lw=1.6, label='y = −x: dG_AB = 0'),
-                plt.Line2D([0], [0], color='#555555', ls=':', lw=1.2, label='y = 0: no epistasis'),
-            ]
-            ax.legend(handles=handles, loc='lower left', fontsize=SCATTER_FONT['legend_fontsize'], frameon=False)
-            ax.set_title(m_name, fontsize=13.5, fontweight='bold', pad=8)
-            for sp_ in ('top', 'right'):
-                ax.spines[sp_].set_visible(False)
-        fig.tight_layout()
-        fig.text(0.012, -0.01, f'{TITLE} (n = {n_var:,}, 3 triplicate seeds integrated without ensemble averaging); true ΔG additive vs predicted epistasis = combined_AB − WT_AB',
-                 fontsize=SCATTER_FONT['foot_fontsize'], va='top', ha='left', color='#444444')
-        style.save(fig, OUT_DG_ADD / 'esm_msr_models_dG_additive_vs_pred_dddG')
+    for msr_tuple, suffix, formula in (
+        (('ESM-MSR (baseline)', 'ESM-MSR', 'ESM-MSR (p0)'), '', '1/2(MT_AB+WT_AB) − WT_A − WT_B'),
+    ):
+        msr_names = [m for m in msr_tuple if m in model]
+        if len(msr_names) == 3:
+            ok = fit & np.isfinite(dG_add)
+            for m_name in msr_names:
+                ok &= np.isfinite(model[m_name]['raw_seeds']).all(axis=0)
+            xv_1d = dG_add[ok]
+            n_var = len(xv_1d)
+            limx = np.percentile(xv_1d, [0.3, 99.7])
+            padx = 0.05 * (limx[1] - limx[0])
+            xlim = (limx[0] - padx, limx[1] + padx)
+            all_y = np.concatenate([model[m_name]['raw_seeds'][:, ok].ravel() for m_name in msr_names])
+            limy = np.percentile(all_y, [0.3, 99.7])
+            pady = 0.05 * (limy[1] - limy[0])
+            ylim = (limy[0] - pady, limy[1] + pady)
+            cm = plt.get_cmap('plasma')
+            fig, axes = plt.subplots(1, 3, figsize=(18.0, 5.8), sharex=True, sharey=True)
+            for idx, (ax, m_name) in enumerate(zip(axes, msr_names)):
+                y_ok = model[m_name]['raw_seeds'][:, ok]
+                n_seeds = y_ok.shape[0]
+                xv = np.tile(xv_1d, n_seeds)
+                yv = y_ok.ravel()
+                sub = np.random.default_rng(0).choice(len(xv), min(len(xv), 15000), replace=False)
+                z = gaussian_kde(np.vstack([xv[sub], yv[sub]]))(np.vstack([xv, yv]))
+                o = np.argsort(z)
+                norm = Normalize(z.min(), z.max())
+                col = cm(norm(z))
+                col[:, 3] = 0.3 / np.sqrt(n_seeds)
+                ax.scatter(xv[o], yv[o], c=col[o], s=8, edgecolors='none', rasterized=True)
+                ax.plot(xlim, [-xlim[0], -xlim[1]], color='#c0392b', ls='--', lw=1.6, zorder=4)
+                ax.axhline(0, color='#555555', lw=1.2, ls=':', zorder=4)
+                ax.set_xlim(xlim)
+                ax.set_ylim(ylim)
+                ax.set_xlabel(X_DG_ADD_LABEL, fontsize=SCATTER_FONT['label_fontsize'])
+                if idx == 0:
+                    ax.set_ylabel('predicted δΔΔG = dddG (kcal/mol)', fontsize=SCATTER_FONT['label_fontsize'])
+                ax.tick_params(axis='both', labelsize=SCATTER_FONT['tick_fontsize'])
+                rho_v = float(np.mean([spearmanr(xv_1d, y_ok[s])[0] for s in range(n_seeds)]))
+                r_v = float(np.mean([pearsonr(xv_1d, y_ok[s])[0] for s in range(n_seeds)]))
+                txt = f'ρ = {rho_v:.2f}\nr = {r_v:.2f}\nn = {n_var:,} (×{n_seeds} seeds)'
+                ax.text(0.04, 0.96, txt, transform=ax.transAxes, va='top', fontsize=SCATTER_FONT['stats_fontsize'], zorder=10,
+                        bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#cccccc', alpha=0.94))
+                handles = [
+                    plt.Line2D([0], [0], color='#c0392b', ls='--', lw=1.6, label='y = −x: dG_AB = 0'),
+                    plt.Line2D([0], [0], color='#555555', ls=':', lw=1.2, label='y = 0: no epistasis'),
+                ]
+                ax.legend(handles=handles, loc='lower left', fontsize=SCATTER_FONT['legend_fontsize'], frameon=False)
+                ax.set_title(m_name, fontsize=13.5, fontweight='bold', pad=8)
+                for sp_ in ('top', 'right'):
+                    ax.spines[sp_].set_visible(False)
+            fig.tight_layout()
+            fig.text(0.012, -0.01, f'{TITLE} (n = {n_var:,}, 3 triplicate seeds integrated without ensemble averaging); true ΔG additive vs predicted epistasis = {formula}',
+                     fontsize=SCATTER_FONT['foot_fontsize'], va='top', ha='left', color='#444444')
+            style.save(fig, OUT_DG_ADD / f'esm_msr_models_dG_additive_vs_pred_dddG{suffix}')
     print('\ndG_additive vs predicted dddG:\n', T_dg.round(3).to_string())
 
 

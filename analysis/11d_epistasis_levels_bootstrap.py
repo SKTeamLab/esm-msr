@@ -3,10 +3,10 @@
 domains: naive rho, saturation-subtracted ("beyond") rho, pair rho, line rho and cell rank, for the test and the validation doubles.
 
 Models and the predicted epistasis dddG' the suite reads (always the double prediction of one model against the additive reading of another or of another head):
-  ESM-MSR, three seeds         epi  = combined(AB) - WT(AB)      the combined head's latent interaction (no linking: naive rho is then the latent one)
-                               ctx  = ~WT(AB) - WT(AB)           the WT adapter read on the mutated sequence (the cluster's ctx run; ``reference/ctx_wt_rev_devel.csv.gz``)
+  ESM-MSR, three seeds         epi      = 1/2(MT_AB + WT_AB) - WT_A - WT_B = comb(AB) - WT(A) - WT(B)
+                               ctx      = 1/2(~WT_AB + WT_AB) - WT_A - WT_B           the WT adapter read on the mutated sequence (``reference/ctx_wt_rev_devel.csv.gz``)
   ME stage 2, ThermoMPNN-D, SPURS multi (three seeds each)       direct double - the same seed's sum of singles
-  ESM3-small-open (sigma = 0 control)   unmasked combined head - unmasked WT head
+  ESM3-small-open (sigma = 0 control)   unmasked 1/2(MT_AB + WT_AB) - WT_A - WT_B
   ProteinMPNN, GeoDDG-3D, Rosetta      direct double - sum of the model's singles
 Rows are the measured doubles of ``cens == 0`` libraries with both singles measured (12,455 test, 8,494 validation), as the tables.  The point value of a multi-seed model is the
 seed mean.  The interval resamples the *domains* (the libraries that have doubles: 13 in test, 9 in validation) with replacement, the same draw for every model and seed, recomputes
@@ -104,22 +104,22 @@ def build(split, ctx_rev):
     models = []
     c_wt = sp['dG_wt'].to_numpy(float)
     fl = np.array([float(y_floor.get(k, np.nan)) for k in sp['code'].astype(str)])
-    for seed in (1, 2, 3):                                  # ESM-MSR (baseline, devel, p0): combined_AB - WT_AB (no linking), tobit-linked devel, and context control ~WT_AB - WT_AB
+    for seed in (1, 2, 3):                                  # ESM-MSR (baseline, devel, p0): 1/2(MT_AB+WT_AB) - WT_A - WT_B
         c = ctx_rev[(ctx_rev.split == split) & (ctx_rev.seed == seed)]
         rev = pd.DataFrame({'code': sp['code'].astype(str), 'mut_type': sp['mut']}).merge(c[['code', 'mut_type', 'wt_rev']], on=['code', 'mut_type'], how='left')['wt_rev'].to_numpy(float)
         TABLES[('baseline', seed)] = make_table(sp, p['msr:wt'][seed - 1], p['msr:comb'][seed - 1], ('epi', 'add'), link=None, y_floor=y_floor)
         TABLES[('devel', seed)] = make_table(sp, p['msrdev:wt'][seed - 1], p['msrdev:comb'][seed - 1], ('epi', 'ctx', 'add'), wt_rev=rev, link=None, y_floor=y_floor)
         TABLES[('p0', seed)] = make_table(sp, p['msrp0:wt'][seed - 1], p['msrp0:comb'][seed - 1], ('epi', 'add'), link=None, y_floor=y_floor)
         lfn = link_fn(seed)
+        wt_linked = lfn(c_wt + p['msrdev:wt'][seed - 1], fl) - c_wt
         comb_linked = lfn(c_wt + p['msrdev:comb'][seed - 1], fl) - c_wt
-        add_linked = sum_singles(sp, comb_linked)
-        TABLES[('devel_link', seed)] = make_table(sp, add_linked, comb_linked, ('epi', 'add'), link=None)
+        TABLES[('devel_link', seed)] = make_table(sp, wt_linked, comb_linked, ('epi', 'add'), link=None)
     models += [
-        ('ESM-MSR (baseline) · combined_AB − WT_AB', 'baseline', 'epi'),
-        ('ESM-MSR · combined_AB − WT_AB', 'devel', 'epi'),
-        ('ESM-MSR (p0) · combined_AB − WT_AB', 'p0', 'epi'),
+        ('ESM-MSR (baseline) · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'baseline', 'epi'),
+        ('ESM-MSR · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'devel', 'epi'),
+        ('ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'p0', 'epi'),
         ('ESM-MSR · tobit link', 'devel_link', 'epi'),
-        ('ESM-MSR · ~WT − WT', 'devel', 'ctx'),
+        ('ESM-MSR · 1/2(~WT_AB+WT_AB) − WT_A − WT_B', 'devel', 'ctx'),
     ]
     for name, direct, add in PLAIN:
         if direct not in p or add not in p:

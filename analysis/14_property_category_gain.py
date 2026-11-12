@@ -44,7 +44,7 @@ SPLIT = pub.SPLIT
 MIN_N = 10
 CATS = {'oracle': 'Oracle', **pub.CATS}
 
-PALETTE = ['#2c7bb6', '#abd9e9', '#fdae61', '#d7191c']        # the notebook's category colours
+PALETTE = ['#2c7bb6', '#fdae61', '#abd9e9', '#d7191c']        # alternating cool/warm colours across adjacent property categories
 AA_GROUPS = {'Hydrophobic': (['A', 'V', 'L', 'I', 'M', 'F', 'W', 'P', 'G'], plt.cm.Blues), 'Polar': (['S', 'T', 'Y', 'N', 'Q'], plt.cm.Greens),
              'Positive': (['R', 'H', 'K'], plt.cm.Reds), 'Negative': (['D', 'E'], plt.cm.Purples)}
 AA_ORDER = ['C'] + [a for g, _ in AA_GROUPS.values() for a in g]  # cysteine first, so it stacks at the bottom
@@ -124,17 +124,36 @@ def with_oracle_col(cols, k):
     return [orc] + list(cols)
 
 
-def _draw_category_spans(ax, xs, spans, headers=True, cats=CATS, xpad=pub.XPAD):
+CAT_GAP = 0.28
+XPAD_DIST = (0.58, 0.58)
+
+
+def layout_cols(cols, gap=CAT_GAP):
+    """Column positions with a tighter inter-category gap than ``pub.layout``."""
+    xs, spans, x, prev = [], {}, 0.0, None
+    for c in cols:
+        if prev is not None and c['cat'] != prev:
+            x += gap
+        xs.append(x)
+        lo, hi = spans.get(c['cat'], (x, x))
+        spans[c['cat']] = (min(lo, x), max(hi, x))
+        prev = c['cat']
+        x += 1.0
+    return xs, spans
+
+
+def _draw_category_spans(ax, xs, spans, headers=True, cats=CATS, xpad=XPAD_DIST, gap=CAT_GAP, header_fs=13.0):
     ax.set_xlim(xs[0] - xpad[0], xs[-1] + xpad[1])
+    half_gap = 0.5 + gap / 2.0
     for cat, (x0, x1) in spans.items():
         if cat in ('oracle', 'zeroshot'):
-            left_pad = 0.5 if cat == 'oracle' else 0.85
-            right_pad = 0.85
+            left_pad = xpad[0] if cat == 'oracle' else half_gap
+            right_pad = half_gap
             ax.axvspan(x0 - left_pad, x1 + right_pad, color='#000000', alpha=0.045, lw=0, zorder=0)
         if headers and cat in cats:
             tr_ax = ax.get_xaxis_transform()
-            ax.plot([x0 - 0.45, x1 + 0.45], [1.012, 1.012], transform=tr_ax, clip_on=False, color='#444444', lw=1.1)
-            ax.text((x0 + x1) / 2, 1.02, cats[cat], transform=tr_ax, ha='center', va='bottom', fontsize=8.8, fontweight='bold', color='#333333')
+            ax.plot([x0 - 0.44, x1 + 0.44], [1.014, 1.014], transform=tr_ax, clip_on=False, color='#444444', lw=1.3)
+            ax.text((x0 + x1) / 2, 1.024, cats[cat], transform=tr_ax, ha='center', va='bottom', fontsize=header_fs, fontweight='bold', color='#333333')
 
 
 # ----------------------------------------------------------------------------------------------
@@ -202,121 +221,149 @@ def ticks(top):
     return tr(v), [f'{x:g}' for x in v]
 
 
-def rain(ax, x0, V_seeds, color, mean, lo, hi, width=0.82, rng=None, text=True, fs=5.8):
+def rain(ax, x0, V_seeds, color, mean, lo, hi, width=0.82, rng=None, text=True, fs=8.2):
     """One distribution: full interquartile box, jittered domain dots, and median line with horizontal annotation text right over it.
     ``V_seeds`` is (n_seeds, n_domains) or (n_domains,); statistics are computed per seed and averaged across seeds without ensemble averaging."""
     V2 = V_seeds[None, :] if V_seeds.ndim == 1 else V_seeds
     t_dom = tr(V2.mean(axis=0))
     c = x0
-    box_w = width * 0.78
+    box_w = width * 0.88
     q1, med, q3 = np.mean(np.quantile(tr(V2), [0.25, 0.5, 0.75], axis=1), axis=1)
     ax.add_patch(plt.Rectangle((c - box_w / 2, q1), box_w, q3 - q1, fc=color, alpha=0.22, ec='none', zorder=1))
     jit = (rng.random(len(t_dom)) - 0.5) * (box_w * 0.70) + c
-    ax.plot(jit, t_dom, 'o', ms=1.8, color=color, alpha=0.8, mew=0, zorder=3)
-    ax.plot([c - box_w / 2, c + box_w / 2], [med, med], color='#444444', lw=1.6, zorder=5)
+    ax.plot(jit, t_dom, 'o', ms=2.2, color=color, alpha=0.8, mew=0, zorder=3)
+    ax.plot([c - box_w / 2, c + box_w / 2], [med, med], color='#444444', lw=1.8, zorder=5)
     if text:
         ax.text(
             c, med + 0.035,
             f'{mean:.2f}' if mean < 100 else f'{mean:.0f}',
-            rotation=0, ha='center', va='bottom', fontsize=fs, zorder=8,
-            bbox=dict(fc='white', ec='none', alpha=0.65, pad=0.3),
+            rotation=0, ha='center', va='bottom', fontsize=fs, fontweight='semibold', zorder=8,
+            bbox=dict(fc='white', ec='none', alpha=0.68, pad=0.10),
         )
 
 
 def distribution_figure(path, dcols, stats_k, total, counts, cat_labels, k, gain_label_total='Rectified total gain (kcal/mol)', note='', include_picks=True):
     """stats_k: {model_name: (gain_seeds, picks_seeds)}; total: (gain_seeds, picks_seeds) of every variant.
-    When ``include_picks=True``: two rows (gain, picks), two columns (Total, models).
-    When ``include_picks=False``: single row (gain only, no lower panel), two columns (Total, models)."""
+    When ``include_picks=True``: two rows (gain, picks), single column (Top k per domain + models; no Total side panel).
+    When ``include_picks=False``: single main panel (gain) with a compact horizontal stacked preference bar per model immediately below the x-axis (above ticks/labels), annotated with category pick percentages."""
     ncat = len(cat_labels)
     mcols = with_oracle_col(dcols, k)
-    xs, spans = pub.layout(mcols)
+    xs, spans = layout_cols(mcols, gap=CAT_GAP)
     rng = np.random.default_rng(3)
     colors = PALETTE[:ncat]
-    slot = 1.0
-    cw = slot / (ncat + 0.5)
-    x_units = xs[-1] - xs[0] + sum(pub.XPAD)
-    fig_w = 2.2 + 1.25 * x_units
+    slot = 0.85
+    cw = slot / ncat
+    x_units = xs[-1] - xs[0] + sum(XPAD_DIST)
+    fig_w = 1.48 * x_units
     row_specs = [('gain', gain_label_total, f'Rectified gain @ k={k} (kcal/mol)')]
     if include_picks:
         row_specs.append(('picks', 'Total # substitutions per domain', 'Predicted most stabilizing per domain'))
     n_rows = len(row_specs)
-    fig_h = 9.2 if include_picks else 5.5
+    fig_h = 10.2 if include_picks else 6.4
     fig = plt.figure(figsize=(fig_w, fig_h))
     if include_picks:
         gs = fig.add_gridspec(
-            2, 2,
-            width_ratios=[1.15, x_units],
-            height_ratios=[1, 0.82],
-            hspace=0.07, wspace=0.11,
-            left=0.055, right=0.992, top=0.935, bottom=0.19,
+            2, 1,
+            height_ratios=[1, 0.86],
+            hspace=0.14,
+            left=0.055, right=0.992, top=0.915, bottom=0.20,
         )
+        axs = [fig.add_subplot(gs[r, 0]) for r in range(n_rows)]
+        ax_pref = None
     else:
         gs = fig.add_gridspec(
-            1, 2,
-            width_ratios=[1.15, x_units],
-            wspace=0.11,
-            left=0.055, right=0.992, top=0.895, bottom=0.29,
+            2, 1,
+            height_ratios=[1, 0.095],
+            hspace=0.025,
+            left=0.055, right=0.992, top=0.875, bottom=0.30,
         )
-    axs = {(r, c): fig.add_subplot(gs[r, c]) for r in range(n_rows) for c in range(2)}
+        axs = [fig.add_subplot(gs[0, 0])]
+        ax_pref = fig.add_subplot(gs[1, 0])
     table = []
-    for r, (what, ylab_t, ylab_m) in enumerate(row_specs):
+    fs_txt = 8.3 if ncat >= 4 else 9.2
+    for r, (what, _ylab_t, ylab_m) in enumerate(row_specs):
         idx = 0 if what == 'gain' else 1
         # the oracle's means, as the dashed lines
         omean, _, _ = boot_mean_ci(stats_k[mcols[0]['name']][idx], counts)
         tmean, tlo, thi = boot_mean_ci(total[idx], counts)
         top = 0.0
 
-        # Left column: Total
-        fs_txt = 5.6 if ncat >= 4 else 6.0
-        ax_t = axs[r, 0]
+        # Record Total in the CSV table (no Total side panel in the figure)
         V_tot = total[idx]
         for c_idx in range(ncat):
-            x0 = (c_idx - (ncat - 1) / 2) * cw
-            rain(ax_t, x0, V_tot[:, :, c_idx], colors[c_idx], tmean[c_idx], tlo[c_idx], thi[c_idx], width=cw * 0.95, rng=rng, text=True, fs=fs_txt)
-            top = max(top, float(tr(thi[c_idx])), float(tr(V_tot[:, :, c_idx]).max()))
             med_tot = float(np.mean(np.median(V_tot[:, :, c_idx], axis=1)))
             table.append(dict(statistic=what, model='Total', category=cat_labels[c_idx], mean=tmean[c_idx], lo=tlo[c_idx], hi=thi[c_idx], median=med_tot, n_domains=V_tot.shape[1]))
-        ax_t.set_xlim(-0.55, 0.55)
 
-        # Right column: Top k per domain + models in publication bar-chart order and layout
-        ax_m = axs[r, 1]
+        # Main column: Top k per domain + models in publication bar-chart order and layout
+        ax_m = axs[r]
         for mc, x_col in zip(mcols, xs):
             m = mc['name']
             V_m = stats_k[m][idx]
             mean, lo, hi = boot_mean_ci(V_m, counts)
             for c_idx in range(ncat):
                 x0 = x_col + (c_idx - (ncat - 1) / 2) * cw
-                rain(ax_m, x0, V_m[:, :, c_idx], colors[c_idx], mean[c_idx], lo[c_idx], hi[c_idx], width=cw * 0.95, rng=rng, text=True, fs=fs_txt)
+                rain(ax_m, x0, V_m[:, :, c_idx], colors[c_idx], mean[c_idx], lo[c_idx], hi[c_idx], width=cw * 0.96, rng=rng, text=True, fs=fs_txt)
                 top = max(top, float(tr(hi[c_idx])), float(tr(V_m[:, :, c_idx]).max()))
                 med_m = float(np.mean(np.median(V_m[:, :, c_idx], axis=1)))
                 table.append(dict(statistic=what, model=m, category=cat_labels[c_idx], mean=mean[c_idx], lo=lo[c_idx], hi=hi[c_idx], median=med_m, n_domains=V_m.shape[1]))
-        _draw_category_spans(ax_m, xs, spans, headers=(r == 0))
+        _draw_category_spans(ax_m, xs, spans, headers=(r == 0), xpad=XPAD_DIST, gap=CAT_GAP, header_fs=15.0)
 
-        for ax in (ax_t, ax_m):
-            tk, tl = ticks(10 ** (top - 1) if top > 1 else 1)
-            ax.set_yticks(tk)
-            ax.set_yticklabels(tl)
-            ax.set_ylim(-0.28, top + 0.65)
-            ax.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
-            for c_idx in range(ncat):
-                ax.axhline(tr(omean[c_idx]), color=colors[c_idx], ls='--', lw=0.9, alpha=0.9, zorder=1)
-        ax_t.set_ylabel(ylab_t)
-        ax_m.set_ylabel(ylab_m)
+        tk, tl = ticks(10 ** (top - 1) if top > 1 else 1)
+        ax_m.set_yticks(tk)
+        ax_m.set_yticklabels(tl, fontsize=13.5)
+        ax_m.set_ylim(-0.18, top + 0.14)
+        ax_m.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+        for c_idx in range(ncat):
+            ax_m.axhline(tr(omean[c_idx]), color=colors[c_idx], ls='--', lw=1.0, alpha=0.9, zorder=1)
+        ax_m.set_ylabel(ylab_m, fontsize=14.0)
     if include_picks:
-        for c_col in (0, 1):
-            axs[0, c_col].set_xticks([])
-    bot_r = n_rows - 1
-    axs[bot_r, 0].set_xticks([0])
-    axs[bot_r, 0].set_xticklabels(['Total'], fontsize=pub.TICK_FS + 0.5)
-    axs[bot_r, 1].set_xticks(xs)
-    axs[bot_r, 1].set_xticklabels([mc['label'] for mc in mcols], fontsize=pub.TICK_FS)
+        axs[0].set_xticks([])
+        bot_ax = axs[n_rows - 1]
+    else:
+        axs[0].set_xticks([])
+        _draw_category_spans(ax_pref, xs, spans, headers=False, xpad=XPAD_DIST, gap=CAT_GAP)
+        ax_pref.set_ylim(0, 1)
+        ax_pref.set_yticks([0.5])
+        ax_pref.set_yticklabels(['Picks (%)'], fontsize=12.5, fontweight='semibold')
+        ax_pref.tick_params(axis='y', length=0, pad=6)
+        for sp_name in ('top', 'right', 'left', 'bottom'):
+            ax_pref.spines[sp_name].set_visible(False)
+        for mc, x_col in zip(mcols, xs):
+            m = mc['name']
+            p_mean, _, _ = boot_mean_ci(stats_k[m][1], counts)
+            p_sum = float(p_mean.sum())
+            pcts = (100.0 * p_mean / p_sum) if p_sum > 0 else np.zeros(ncat)
+            x_cur = x_col - slot / 2.0
+            for c_idx in range(ncat):
+                w_seg = slot * (pcts[c_idx] / 100.0)
+                if w_seg <= 0:
+                    continue
+                ax_pref.add_patch(plt.Rectangle(
+                    (x_cur, 0.08), w_seg, 0.84,
+                    fc=colors[c_idx], alpha=0.55, ec='white', lw=1.0, zorder=3,
+                ))
+                if pcts[c_idx] >= 5.0:
+                    lbl_str = f'{pcts[c_idx]:.0f}'
+                    ax_pref.text(
+                        x_cur + w_seg / 2.0, 0.50, lbl_str,
+                        ha='center', va='center', fontsize=8.8 if pcts[c_idx] >= 12.0 else 7.6,
+                        fontweight='bold', color='#1a1a1a', zorder=5,
+                    )
+                x_cur += w_seg
+            ax_pref.add_patch(plt.Rectangle(
+                (x_col - slot / 2.0, 0.08), slot, 0.84,
+                fc='none', ec='#555555', lw=0.8, zorder=4,
+            ))
+        bot_ax = ax_pref
+    bot_ax.set_xticks(xs)
+    bot_ax.set_xticklabels([mc['label'] for mc in mcols], fontsize=12.4)
     fig.legend(
         handles=[Patch(fc=colors[c_idx], alpha=0.8, label=cat_labels[c_idx]) for c_idx in range(ncat)],
         loc='lower center', ncol=2 if ncat == 4 else ncat,
-        bbox_to_anchor=(0.5, 0.045 if include_picks else 0.06), fontsize=9.5, frameon=False,
+        bbox_to_anchor=(0.5, 0.040 if include_picks else 0.055), fontsize=14.0, frameon=False,
     )
     if note:
-        fig.text(0.055, 0.008 if include_picks else 0.012, note, fontsize=7.5, va='bottom', ha='left', color='#444444')
+        fig.text(0.055, 0.008 if include_picks else 0.012, note, fontsize=10.5, va='bottom', ha='left', color='#444444')
     style.save(fig, path)
     return pd.DataFrame(table)
 
@@ -452,7 +499,7 @@ def main():
             OUT / f'gain_aa_stacked_k{k}', cols,
             {m: st[m][0] for m in models}, {m: st[m][1] for m in models},
             counts, k,
-            note=f'Top {k} of each of the {len(libs)} {SPLIT} test domains (single mutants); gain = sum of max(ddG, 0) over the picks, whiskers: 95% interval over domains (B = {a.B}).',
+            note=f'Top {k} of each of the {len(libs)} {SPLIT} test domains (single mutants); gain = sum of max(ddG, 0) over the picks;\nwhiskers: 95% interval over domains (B = {a.B}).',
         )
         t.to_csv(OUT / f'gain_aa_stacked_k{k}.csv', index=False, float_format='%.4f')
 
@@ -460,8 +507,8 @@ def main():
     f = feat
     asa, dh, dv, cons, nseq = (f[c].to_numpy() for c in ('rel_ASA', 'd_hydrophobicity', 'd_volume', 'conservation', 'n_seqs'))
     splits = [
-        dict(name='asa_hydrophobicity', ks=(24, 96), pool=single & np.isfinite(asa) & np.isfinite(dh), cat=2 * (asa > 0.5) + (dh > 0),
-             labels=['relative ASA ≤ 0.5 & Δ hydrophobicity ≤ 0', 'relative ASA ≤ 0.5 & Δ hydrophobicity > 0', 'relative ASA > 0.5 & Δ hydrophobicity ≤ 0', 'relative ASA > 0.5 & Δ hydrophobicity > 0']),
+        dict(name='asa_hydrophobicity', ks=(24, 96), pool=single & np.isfinite(asa) & np.isfinite(dh), cat=2 * (dh > 0) + (asa > 0.5),
+             labels=['Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5', 'Δ hydrophobicity ≤ 0 & relative ASA > 0.5', 'Δ hydrophobicity > 0 & relative ASA ≤ 0.5', 'Δ hydrophobicity > 0 & relative ASA > 0.5']),
         dict(name='volume', ks=(96,), pool=single & np.isfinite(dv), cat=(dv > -1).astype(int) + (dv > 1), labels=['Δ volume ≤ −1', '−1 < Δ volume ≤ 1', 'Δ volume > 1']),
         dict(name='conservation', ks=(96,), pool=single & np.isfinite(cons) & np.isfinite(nseq) & (nseq > 2), cat=(cons > 25).astype(int) + (cons > 75),
              labels=['% conservation ≤ 25', '25 < % conservation ≤ 75', '% conservation > 75']),
@@ -479,7 +526,7 @@ def main():
         for k in s['ks']:
             for suffix, positive_only, dcols, rule in rules:
                 st = model_stats(fr, dcols, y, cat, len(s['labels']), dom, k, positive_only=positive_only)
-                note = (f'Top {k} per {SPLIT} test domain ({len(dom)} domains with the feature, {int(s["pool"].sum()):,} single mutants); gain = sum of max(ddG, 0) over {rule}; '
+                note = (f'Top {k} per {SPLIT} test domain ({len(dom)} domains with the feature, {int(s["pool"].sum()):,} single mutants); gain = sum of max(ddG, 0) over {rule};\n'
                         f'boxes: interquartile range with median line; dots: domains; annotations: mean over domains; dashed lines: oracle mean.')
                 t = distribution_figure(OUT / f'gain_{s["name"]}_k{k}{suffix}', dcols, st, tot, cnt, s['labels'], k, note=note, include_picks=True)
                 t.to_csv(OUT / f'gain_{s["name"]}_k{k}{suffix}.csv', index=False, float_format='%.4f')

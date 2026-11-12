@@ -13,9 +13,11 @@
 * ``lambda_scan``  table 2.6: rho of (1 - lam) * WT + lam * MT on multi-mutants, with mutation-level bootstrap bands.
 * ``nobb_ablation``  table 2.5 (no predictions of the ablation runs are collected; drawn from the document).
 
-Predicted epistasis: ESM-MSR ``epi_pred`` = MT(AB) - WT(AB); ME stage 2 = ME2(AB) - sum of the same seed's ME1 singles; ThermoMPNN-D =
-TM-D(AB) - sum of ThermoMPNN singles; SPURS multi = multi(AB) - sum of SPURS singles.  Doubles: measured, both singles measured.
+Predicted epistasis: ESM-MSR = 1/2(MT_AB + WT_AB) - WT_A - WT_B = comb(AB) - WT(A) - WT(B);
+ME stage 2 = ME2(AB) - sum of the same seed's ME1 singles; ThermoMPNN-D = TM-D(AB) - sum of ThermoMPNN singles;
+SPURS multi = multi(AB) - sum of SPURS singles.  Doubles: measured, both singles measured.
 """
+import json
 import sys
 from pathlib import Path
 
@@ -30,29 +32,30 @@ from msr_analysis import link, style  # noqa: E402
 from msr_analysis.boot import SpearmanEngine, _Ranks, bootstrap_rho, ci  # noqa: E402
 from msr_analysis.common import epi_rows, out_dir, subframe  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
-from msr_analysis.registry import LABEL, MEGASCALE_NOTE, MODELS, PER_PROTEIN  # noqa: E402
+from msr_analysis.registry import LABEL, MEGASCALE_NOTE, MODELS, PER_PROTEIN, REFERENCE  # noqa: E402
 from msr_analysis.tables import clean_label, num, numeric, read_table  # noqa: E402
 
 OUT = out_dir('06_epistasis')
 TSU = ['tsuboyama_capped_val', 'tsuboyama_capped_test']
-EPI_KEYS = ['msr:epi', 'msr:cdddg', 'msrrel:epi', 'msrdev:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
+EPI_KEYS = ['msr:epi', 'msrrel:epi', 'msrdev:epi', 'msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
 EPI_PLOT = ['msr:epi', 'msrrel:epi', 'msrdev:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
-MODELS['msrrel:epi'] = dict(label='ESM-MSR released (link intrinsic)', color='#555555', marker='D', fill=True, group='msr')
-MODELS['msrdev:epi_obs'] = dict(label='ESM-MSR, post-link', color='#7f7f7f', marker='D', fill=True, group='msr')
-MODELS['msrdev:epi'] = dict(label='ESM-MSR (latent MT − WT)', color='#7f7f7f', marker='D', fill=False, group='msr')
+MODELS['msrrel:epi'] = dict(label='ESM-MSR released (1/2(MT+WT)_AB − WT_A − WT_B)', color='#555555', marker='D', fill=True, group='msr')
+MODELS['msrdev:epi_obs'] = dict(label='ESM-MSR, post-link (obs(comb_AB) − obs(WT_A) − obs(WT_B))', color='#7f7f7f', marker='D', fill=True, group='msr')
+MODELS['msrdev:epi'] = dict(label='ESM-MSR (1/2(MT+WT)_AB − WT_A − WT_B)', color='#7f7f7f', marker='D', fill=False, group='msr')
+MODELS['msrp0:epi'] = dict(label='ESM-MSR (p0) (1/2(MT+WT)_AB − WT_A − WT_B)', color='#1f618d', marker='D', fill=False, group='msr')
 
 
 def add_linked(fr):
-    """devel (floor-link) checkpoints write latent ddG: put them on the observed scale, per seed, with the checkpoint's own link (msr_analysis/link.py).
-    Approximation: one learned floor for every item (the cluster's per-item floors are not collected).  With it the post-link epistasis does NOT reproduce the document's
-    devel naive rho (val 0.42 against 0.643), so post-link values are used only to show what the link does to the pooled ranking of doubles, never as an epistasis score."""
-    dg = fr.spine['dG_wt'].to_numpy()
-    for fam in ('msrrel', 'msrdev'):          # the released / devel prediction files carry no epi_pred column: MT(AB) - WT(AB) on the latent scale
-        fr.preds[f'{fam}:epi'] = fr.preds[f'{fam}:mt'] - fr.preds[f'{fam}:wt']
-    wt, mt, comb = fr.preds['msrdev:wt'], fr.preds['msrdev:mt'], fr.preds['msrdev:comb']
-    fr.preds['msrdev:epi_obs'] = np.stack([link.observed(mt[i], dg, i + 1) - link.observed(wt[i], dg, i + 1) for i in range(3)])
-    fr.preds['msrdev:comb_obs'] = np.stack([link.observed(comb[i], dg, i + 1) for i in range(3)])
-    fr.preds['msrdev:wt_obs'] = np.stack([link.observed(wt[i], dg, i + 1) for i in range(3)])
+    """Add observed-scale (post-link) predictions for ``msrdev`` using each seed's learned link and per-library floors (``reference/y_floor.json``).
+    Latent ``:epi`` = 1/2(MT_AB + WT_AB) - WT_A - WT_B is already populated by ``data.py``."""
+    sp = fr.spine
+    dg = sp['dG_wt'].to_numpy()
+    codes = sp['code'].astype(str).to_numpy()
+    yf = json.loads((REFERENCE / 'y_floor.json').read_text()) if (REFERENCE / 'y_floor.json').exists() else None
+    wt, comb = fr.preds['msrdev:wt'], fr.preds['msrdev:comb']
+    fr.preds['msrdev:epi_obs'] = np.stack([link.observed_epistasis(sp, wt[i], comb[i], i + 1, yf) for i in range(3)])
+    fr.preds['msrdev:comb_obs'] = np.stack([link.observed(comb[i], dg, i + 1, yf, codes) for i in range(3)])
+    fr.preds['msrdev:wt_obs'] = np.stack([link.observed(wt[i], dg, i + 1, yf, codes) for i in range(3)])
     return fr
 DMS_D = ['GB1_Wu_2016_binding_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain',
          'DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain']
@@ -197,7 +200,7 @@ def naive_recomputed():
 # --------------------------------------------------------------------------------------------------
 def scatter_figures():
     sets = [('tsuboyama_capped_test', 'Tsuboyama test'), ('GB1_Wu_2016_binding_domain', 'GB1'), ('GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2 abund.')]
-    keys = ['msr:epi', 'msr:cdddg', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
+    keys = ['msr:epi', 'msrdev:epi', 'msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
     fig, axes = plt.subplots(len(sets), len(keys), figsize=(3.0 * len(keys), 3.0 * len(sets)))
     for r, (ds, lab) in enumerate(sets):
         fr = load_frame(ds)
@@ -264,7 +267,7 @@ def doubles_ddg():
     for ax in axes[:, 0]:
         ax.set_ylabel('measured ddG (kcal/mol)')
     fig.suptitle(f'Tsuboyama test doubles (n = {int(m.sum()):,}; seed 1 shown, rho is the seed mean).  Pooled ρ counts between-library offsets and saturation; the link raises it, '
-                 'per-library ρ (the benchmark metric) is unchanged by it.\nLink rebuilt from each checkpoint with its one learned floor (the per-item floors of the cluster are not collected).', y=1.01, fontsize=9)
+                 'per-library ρ (the benchmark metric) is unchanged by it.\nLink rebuilt from each checkpoint with per-library floors (reference/y_floor.json).', y=1.01, fontsize=9)
     fig.tight_layout()
     style.save(fig, OUT / 'epistasis_scatter_ddG_doubles')
 
@@ -281,8 +284,8 @@ def ddg_ranking():
         dbl = (sp['n_mut'] == 2).to_numpy() & sp['use'].to_numpy()
         e = (dbl & np.isfinite(sp['dddG_ML'].to_numpy()))      # table 2.3 uses every double with a measured dddG
         sets = {'all variants': (fr, ms), 'doubles': (subframe(fr, dbl, keys=ms), ms),
-                'dddG of doubles': (subframe(fr, e, y=sp['dddG_ML'].to_numpy(), keys=['msr:cdddg', 'me2:epi', 'tmpnnd:epi', 'spursm:epi'],
-                                             rename={'msr:cdddg': 'msr:comb', 'me2:epi': 'me2', 'tmpnnd:epi': 'tmpnnd', 'spursm:epi': 'spursm'}),
+                'dddG of doubles': (subframe(fr, e, y=sp['dddG_ML'].to_numpy(), keys=['msr:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi'],
+                                             rename={'msr:epi': 'msr:comb', 'me2:epi': 'me2', 'tmpnnd:epi': 'tmpnnd', 'spursm:epi': 'spursm'}),
                                     ['msr:comb', 'me2', 'tmpnnd', 'spursm'])}
         for nm, (f, keys) in sets.items():
             point, reps = bootstrap_rho({ds: f}, keys, kind='protein', B=1000, seed=4, per_protein=True)

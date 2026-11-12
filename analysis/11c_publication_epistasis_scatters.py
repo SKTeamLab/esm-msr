@@ -6,7 +6,7 @@ MegaScale test doubles with both singles measured (12,455, the doubles of the ep
          epistasis dddG = ddG_AB - ddG_A - ddG_B.  The double's own dG is dddG + dG_additive, so a double that sits at dG_AB = 0, where the unfolded doubles pile up (the median of the doubles at
          dG_additive <= -2 is -0.04), falls on the dashed line y = -x whatever the stability of its domain; the dotted line y = -x - 1 is dG_AB = -1, the lowest value the assay reports (0.2% of the
          doubles are there).  The rise of dddG as dG_additive falls is that floor, not interaction.  (In ddG the floor is at -dG_wt, a different line for every domain.)
-  fig6b  ESM-MSR's predicted epistasis, the combined head's latent interaction comb(AB) - WT(A) - WT(B) = (MT(AB) - WT(AB)) / 2 (mean of the three seeds, no link), against the
+  fig6b  ESM-MSR's predicted epistasis, 1/2(MT_AB+WT_AB) - WT_A - WT_B, against the
          measured dddG, with the line x = y.
   fig6c  fig6b with the doubles whose dG_additive is below 0 (already lost to the floor if the singles add) in green.
   fig6d  for the doubles that are not lost to the floor (dG_additive > 0): the additive ddG of the two singles against dddG, with the lines y = 0 (no epistasis) and y = -x (ddG_AB = 0).
@@ -41,10 +41,9 @@ def main():
     m = epi_rows(fr)
     y = sp['dddG_ML'].to_numpy()
     dG_add = sp['dG_wt'].to_numpy(float) + sp['ddG_additive_ML'].to_numpy(float)          # dG_wt is the domain's wild-type stability
-    pred_base = fr.preds['msr:comb'] - fr.preds['msr:wt']
-    pred_dev = fr.preds['msrdev:comb'] - fr.preds['msrdev:wt']
-    pred_p0 = fr.preds['msrp0:comb'] - fr.preds['msrp0:wt']
-    pred = pred_dev                                                                         # comb(AB) - WT(A) - WT(B) = (MT(AB) - WT(AB)) / 2, latent (3 seeds, not ensemble-averaged)
+    pred_base = fr.preds['msr:epi']
+    pred_dev = fr.preds['msrdev:epi']
+    pred_p0 = fr.preds['msrp0:epi']
     rows = []
     SCATTER_FONT = dict(
         label_fontsize=13.5,
@@ -93,7 +92,8 @@ def main():
         style.save(fig, OUT / name)
         rows.append(dict(figure=name, n=int(ok.sum()), n_seeds=n_seeds, spearman=rho_v, pearson=r_v, spearman_stacked=rho_pool, pearson_stacked=r_pool,
                          share_dG_additive_lt0=float(np.mean(dG_add[ok] < 0)), rmse_to_xy=rmse_v))
-    compare_models_scatters(m, y, dG_add, [('ESM-MSR (baseline)', pred_base), ('ESM-MSR', pred_dev), ('ESM-MSR (p0)', pred_p0)], SCATTER_FONT)
+    compare_models_scatters(m, y, dG_add, [('ESM-MSR (baseline)', pred_base), ('ESM-MSR', pred_dev), ('ESM-MSR (p0)', pred_p0)], SCATTER_FONT,
+                            suffix='', formula='1/2(MT_AB+WT_AB) − WT_A − WT_B (no linking)')
     T = pd.DataFrame(rows)
     T.to_csv(OUT / 'fig6_epistasis_scatters.csv', index=False, float_format='%.4f')
     print(T.to_string())
@@ -101,7 +101,7 @@ def main():
     singles_plane(fr, m, y, dG_add)
 
 
-def compare_models_scatters(m, y, dG_add, model_preds, scatter_font):
+def compare_models_scatters(m, y, dG_add, model_preds, scatter_font, suffix='', formula='1/2(MT_AB+WT_AB) − WT_A − WT_B (no linking)'):
     """Side-by-side 1x3 density scatters comparing ESM-MSR (baseline), ESM-MSR, and ESM-MSR (p0) predicted dddG vs measured dddG across all triplicate seeds without ensemble averaging."""
     from matplotlib.colors import Normalize
     from scipy.stats import gaussian_kde
@@ -118,8 +118,8 @@ def compare_models_scatters(m, y, dG_add, model_preds, scatter_font):
     cm = plt.get_cmap('plasma')
 
     for fname, use_hl in (
-        ('fig6b_esm_msr_models_dddG_pred_vs_true', False),
-        ('fig6c_esm_msr_models_dddG_pred_vs_true_dG_additive_lt0', True),
+        (f'fig6b_esm_msr_models_dddG_pred_vs_true{suffix}', False),
+        (f'fig6c_esm_msr_models_dddG_pred_vs_true_dG_additive_lt0{suffix}', True),
     ):
         fig, axes = plt.subplots(1, len(model_preds), figsize=(18.0, 5.8), sharex=True, sharey=True)
         for idx, (ax, (m_label, p)) in enumerate(zip(axes, model_preds)):
@@ -161,7 +161,7 @@ def compare_models_scatters(m, y, dG_add, model_preds, scatter_font):
             for sp_ in ('top', 'right'):
                 ax.spines[sp_].set_visible(False)
         fig.tight_layout()
-        fig.text(0.012, -0.01, f'{TITLE} (n = {n_var:,}, 3 triplicate seeds integrated without ensemble averaging); predicted epistasis = combined_AB − WT_AB (no linking)',
+        fig.text(0.012, -0.01, f'{TITLE} (n = {n_var:,}, 3 triplicate seeds integrated without ensemble averaging); predicted epistasis = {formula}',
                  fontsize=scatter_font['foot_fontsize'], va='top', ha='left', color='#444444')
         style.save(fig, OUT / fname)
 

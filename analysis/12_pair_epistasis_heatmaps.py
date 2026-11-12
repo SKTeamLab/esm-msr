@@ -16,7 +16,7 @@ Colour: blue = positive epistasis, red = negative, × = no usable value.  One sc
 |measured value| over the usable cells of the 15 pairs: raw and saturation-corrected each have their own, printed on the colour bar); a model's values beyond it are clipped to the end
 colour.  Each panel title carries the Spearman rho of the model against the measured cells of the pair.
 Layout: ``results/12_pair_heatmaps/<raw|saturation_corrected>/<domain>/<wt><pos>_<wt><pos>.png``, ``pairs.csv`` (the pairs) and ``agreement.csv`` (rho of each model, per pair and mode).
-ESM-MSR's epistasis is the combined head's latent interaction, comb(AB) - WT(AB) = (MT(AB) - WT(AB)) / 2, for the baseline triplicate and the devel checkpoints alike (no link).  The devel
+ESM-MSR's epistasis is 1/2(MT_AB+WT_AB) - WT_A - WT_B for the baseline triplicate, p0, and the devel checkpoints alike (no link).  The devel
 checkpoints' observed-scale version, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's link and library floors (``msr_analysis.link.observed_epistasis``), is kept as
 ``linked`` for the diagnostics of ``13_dddG_correlation_scatters.py``.  The predictions are never saturation-corrected.
 Rosetta is divided by 2.94 (REU to kcal/mol).  Multi-seed models are averaged over seeds first; The Megascale-trained ESMtherm and IFUM carry an asterisk.
@@ -50,13 +50,13 @@ DPI = 85
 UNIT = {}
 
 # (label, epistasis builder, additive key, singles key); builders are ('diff', a, b) = a - b or ('key', k).  Order = the panels after the measurement.
-MODELS = [('ESM-MSR (baseline)', ('diff', 'msr:comb', 'msr:wt'), 'msr:wt', 'msr:wt'),
-          ('ESM-MSR', ('diff', 'msrdev:comb', 'msrdev:wt'), 'msrdev:wt', 'msrdev:wt'),
-          ('ESM-MSR (p0)', ('diff', 'msrp0:comb', 'msrp0:wt'), 'msrp0:wt', 'msrp0:wt'),
+MODELS = [('ESM-MSR (baseline)', ('key', 'msr:epi'), 'msr:wt+', 'msr:wt'),
+          ('ESM-MSR', ('key', 'msrdev:epi'), 'msrdev:wt+', 'msrdev:wt'),
+          ('ESM-MSR (p0)', ('key', 'msrp0:epi'), 'msrp0:wt+', 'msrp0:wt'),
           ('MutateEverything st2', ('key', 'me2:epi'), 'me1', 'me1'),
           ('ThermoMPNN-D', ('key', 'tmpnnd:epi'), 'tmpnn', 'tmpnn'),
           ('SPURS multi', ('key', 'spursm:epi'), 'spurs', 'spurs'),
-          ('ESM3-small-open', ('diff', 'msrrel@0:comb', 'msrrel@0:wt'), 'msrrel@0:wt', 'msrrel@0:wt'),
+          ('ESM3-small-open', ('key', 'msrrel@0:epi'), 'msrrel@0:wt+', 'msrrel@0:wt'),
           ('ProteinMPNN', ('diff', 'pmpnn', 'pmpnn+'), 'pmpnn+', 'pmpnn'),
           ('GeoDDG-3D', ('diff', 'geoddg', 'geoddg+'), 'geoddg+', 'geoddg'),
           ('DDGemb', ('diff', 'ddgemb', 'ddgemb+'), 'ddgemb+', 'ddgemb'),
