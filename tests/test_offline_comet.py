@@ -12,6 +12,11 @@ def test_offline_logger_is_a_live_offline_experiment(tmp_path, monkeypatch):
     experiment = logger.experiment
     assert type(experiment).__name__ == 'OfflineExperiment'
     assert not experiment.disabled
+    experiment.add_tags(['authoritative'])
     logger.log_metrics({'x': 1.0}, step=0)
     experiment.end()
-    assert list(tmp_path.glob('*.zip'))
+    zips = list(tmp_path.glob('*.zip'))
+    assert zips
+    import zipfile
+    with zipfile.ZipFile(zips[0]) as zf:
+        assert '"authoritative"' in zf.read('experiment.json').decode('utf-8')

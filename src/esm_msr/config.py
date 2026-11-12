@@ -55,6 +55,19 @@ def convergence_metric(hp, head: str) -> str:
     return f'val_{prefix}epi_cell_mag_comb'
 
 
+def head_patience(hp, head: str) -> int:
+    """Validations without improvement (> 1e-4) in ``head``'s ('wt' or 'mt') convergence metric before that head starts cosine decay."""
+    if head not in ('wt', 'mt'):
+        raise ValueError(f"head must be 'wt' or 'mt', got {head!r}")
+    both = _hp_get(hp, 'plateau_patience', None)
+    if both is not None:
+        return int(both)
+    per_head = _hp_get(hp, f'{head}_plateau_patience', None)
+    if per_head is not None:
+        return int(per_head)
+    return 0
+
+
 def parse_arguments(argv=None) -> argparse.Namespace:
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument('--config', type=str, default=None)
@@ -81,6 +94,8 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     run.add_argument('--comet_offline', action='store_true',
                      help="Write the Comet experiment to <log_dir>/comet_offline instead of uploading it: for nodes without internet. "
                           "Upload afterwards from a node that has it: comet upload <log_dir>/comet_offline/*.zip")
+    run.add_argument('--comet_tags', type=str, nargs='*', default=None,
+                     help="Tags to attach to the Comet experiment (space- or comma-separated, e.g. --comet_tags authoritative).")
 
     data = parser.add_argument_group("Data (a prebuilt cache; scripts/build_cache.py makes one)")
     data.add_argument('--cache_path', type=str, default=os.environ.get('ESM_MSR_CACHE_PATH', './data_cache'))
@@ -153,10 +168,13 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     opt.add_argument('--learning_rate', type=float, default=2e-4)
     opt.add_argument('--num_epochs', type=int, default=20)
     opt.add_argument('--lr_warmup_steps', type=int, default=500)
-    opt.add_argument('--plateau_patience', type=int, default=2,
-                     help="Validations without improvement in a head's convergence metric before that head starts cosine decay (default 2: decay starts after 2 consecutive validations do not "
-                          "exceed the previous best; 0 starts cosine decay immediately after warmup).")
-    opt.add_argument('--cosine_decay_epochs', type=int, default=5,
+    opt.add_argument('--wt_plateau_patience', type=int, default=1,
+                     help="Validations without improvement (> 1e-4) in the WT convergence metric before the WT head starts cosine decay (default 1; 0 starts cosine decay immediately after warmup).")
+    opt.add_argument('--mt_plateau_patience', type=int, default=2,
+                     help="Validations without improvement (> 1e-4) in the MT convergence metric before the MT head starts cosine decay (default 2; 0 starts cosine decay immediately after warmup).")
+    opt.add_argument('--plateau_patience', type=int, default=None,
+                     help="Optional shorthand setting both --wt_plateau_patience and --mt_plateau_patience to the same value.")
+    opt.add_argument('--cosine_decay_epochs', type=int, default=3,
                      help="Epochs over which a head's learning rate cosine-decays from peak to COSINE_MIN_LR_RATIO (0.05) once its convergence metric plateaus, before dropping to 0 (freezing). "
                           "The run ends when all trainable parameter groups reach lr 0.")
     opt.add_argument('--wt_convergence_metric', type=str, default=None,
@@ -248,8 +266,17 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         parser.error("--block_pair_weight needs --block_domain_steps (the clip cancels a weight on a pair block's own step)")
     if args.grad_accum_blocks < 1:
         parser.error("--grad_accum_blocks must be >= 1")
-    if args.plateau_patience < 0:
-        parser.error("--plateau_patience must be >= 0")
+    if args.comet_tags is not None:
+        args.comet_tags = [t for item in args.comet_tags for t in item.split(',') if t]
+    if args.plateau_patience is not None:
+        if args.plateau_patience < 0:
+            parser.error("--plateau_patience must be >= 0")
+        args.wt_plateau_patience = args.plateau_patience
+        args.mt_plateau_patience = args.plateau_patience
+    if args.wt_plateau_patience < 0:
+        parser.error("--wt_plateau_patience must be >= 0")
+    if args.mt_plateau_patience < 0:
+        parser.error("--mt_plateau_patience must be >= 0")
     if args.cosine_decay_epochs < 1:
         parser.error("--cosine_decay_epochs must be >= 1")
     return args

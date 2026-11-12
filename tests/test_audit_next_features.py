@@ -123,6 +123,50 @@ def test_per_head_convergence_gates_the_start_of_cosine_decay():
     assert mod2._mt_plateau_best == pytest.approx(0.84)
 
 
+def test_default_wt_patience_1_mt_patience_2_and_3_epoch_cosine_decay():
+    """Verify the default schedule: WT decays after 1 non-improving validation on singles_wt_rho, MT after 2 on cell_mag_comb, each over 3 epochs."""
+    mod = _make_stub_module(lr_warmup_steps=4, num_epochs=6, wt_plateau_patience=1, mt_plateau_patience=2,
+                            cosine_decay_epochs=3, block_mask_wt=0.0, block_mask_mt=0.0)
+    mod._fabric, mod._jit_is_scripting = None, False
+    opts, scheds = [], []
+    mod._trainer = types.SimpleNamespace(estimated_stepping_batches=30, current_epoch=0, should_stop=False, optimizers=opts)
+    opts[:], scheds[:] = mod.configure_optimizers()
+    opt, sch = opts[0], scheds[0]['scheduler']
+    mod.lr_schedulers = lambda: sch
+    lr_of = lambda name: next(g['lr'] for g in opt.param_groups if g['name'] == name)
+
+    # Epoch 0 (5 steps): initial best recorded for both heads
+    for _ in range(5):
+        sch.step()
+    m0 = {'unmasked_rho_singles_wt': [0.80], 'unmasked_epi_cell_mag_comb': [0.40]}
+    mod._convergence_step('wt', m0); mod._convergence_step('mt', m0)
+    assert mod._decay_start_step == {'wt': None, 'mt': None}
+
+    # Epoch 1 (step 10): FIRST non-improving validation for BOTH heads -> WT starts decay immediately (patience 1), MT waits (patience 2)!
+    for _ in range(5):
+        sch.step()
+    m1 = {'unmasked_rho_singles_wt': [0.799], 'unmasked_epi_cell_mag_comb': [0.399]}
+    mod._convergence_step('wt', m1); mod._convergence_step('mt', m1)
+    assert mod._decay_start_step == {'wt': 10, 'mt': None}
+
+    # Epoch 2 (step 15): SECOND non-improving validation for MT -> MT now starts its 3-epoch (15-step) cosine decay at step 15!
+    for _ in range(5):
+        sch.step()
+    assert lr_of('lora_mt') == pytest.approx(2e-4)
+    mod._convergence_step('wt', m1); mod._convergence_step('mt', m1)
+    assert mod._decay_start_step == {'wt': 10, 'mt': 15}
+
+    # WT finishes its 3-epoch (15-step) decay at step 25; MT finishes at step 30
+    for _ in range(10):
+        sch.step()
+    assert lr_of('lora_wt') == 0.0 and lr_of('lora_mt') > 0.0
+    for _ in range(5):
+        sch.step()
+    assert lr_of('lora_mt') == 0.0
+    mod._stop_if_nothing_is_training()
+    assert mod.trainer.should_stop
+
+
 def test_epi_metrics_1x_dddg_and_preserved_cell_rank():
     """Verify comb = 0.5*(WT + MT) fixes the 2x epistasis bias & achieves 1.000 oracle cell_rank_comb while epi retains raw MT."""
     rng = np.random.default_rng(42)

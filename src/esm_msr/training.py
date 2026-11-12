@@ -19,7 +19,7 @@ from esm_msr.models import MSRModel, combine_predictions
 from esm_msr import blocks, censoring, config, epi_metrics, stats, utils, val_stats
 from esm_msr.losses import ListMLELoss, tobit_posterior_mean, tobit_regression_loss, TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F, TF_PRIOR_SD
 from esm_msr.preprocess_megascale import setup_dataloaders
-from esm_msr.config import parse_arguments, monitor_metric, convergence_metric
+from esm_msr.config import parse_arguments, monitor_metric, convergence_metric, head_patience
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -30,7 +30,7 @@ LORA_CONSTANTS = dict(target_mode=config.LORA_TARGET_MODE, last_n_layers=0, incl
 SHARED_SCALE_INIT, SHARED_BIAS_INIT = 0.3, 0.0       # the calibration heads' starting scale and bias
 SAVE_TOP_K = 3
 # command-line values that say where things are, not what the run is: kept out of hparams.yaml (and so out of Comet)
-UNLOGGED_ARGS = ('log_dir', 'cache_path', 'comet', 'comet_project_name', 'comet_offline', 'comet_experiment_key')
+UNLOGGED_ARGS = ('log_dir', 'cache_path', 'comet', 'comet_project_name', 'comet_offline', 'comet_experiment_key', 'comet_tags')
 
 
 def validation_regimes(hp) -> list:
@@ -185,9 +185,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.val_mask_strategy = self.val_regimes[0][1]
         self.monitor_metric = monitor_metric(hp)
 
-        patience = int(hp.get('plateau_patience', 0) or 0)
+        p_wt, p_mt = head_patience(hp, 'wt'), head_patience(hp, 'mt')
         warmup = int(hp.get('lr_warmup_steps', 0) or 0)
-        self._decay_start_step = {'wt': None if patience > 0 else warmup, 'mt': None if patience > 0 else warmup}
+        self._decay_start_step = {'wt': None if p_wt > 0 else warmup, 'mt': None if p_mt > 0 else warmup}
         self._wt_plateau_best, self._wt_plateau_bad = -float('inf'), 0
         self._mt_plateau_best, self._mt_plateau_bad = -float('inf'), 0
 
@@ -934,11 +934,11 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             self.trainer.should_stop = True
 
     def _convergence_step(self, head: str, avg_metrics: dict) -> None:
-        """Start ``head``'s ('wt' or 'mt') cosine decay once its convergence metric fails to improve by > 1e-4 for ``--plateau_patience`` validations."""
-        patience = int(self.hparams.get('plateau_patience', 0) or 0)
+        """Start ``head``'s ('wt' or 'mt') cosine decay once its convergence metric fails to improve by > 1e-4 for ``--{head}_plateau_patience`` validations."""
+        patience = head_patience(self.hparams, head)
         warmup = int(self.hparams.get('lr_warmup_steps', 0) or 0)
         if not hasattr(self, '_decay_start_step'):
-            self._decay_start_step = {'wt': None if patience > 0 else warmup, 'mt': None if patience > 0 else warmup}
+            self._decay_start_step = {h: (None if head_patience(self.hparams, h) > 0 else warmup) for h in ('wt', 'mt')}
         if patience <= 0 or self._decay_start_step.get(head) is not None:
             return
 
@@ -956,7 +956,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if key is None:
             if not getattr(self, f'_warned_no_{head}_metric', False):
                 setattr(self, f'_warned_no_{head}_metric', True)
-                logging.warning(f"--plateau_patience is set but '{raw_key}' is not among the validation metrics {sorted(avg_metrics)}, "
+                logging.warning(f"--{head}_plateau_patience is set ({patience}) but '{raw_key}' is not among the validation metrics {sorted(avg_metrics)}, "
                                 f"so the {head.upper()} cosine decay will never start.")
             return
 
@@ -1197,15 +1197,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         opt_main = torch.optim.AdamW(main_groups, lr=base_lr, betas=(0.9, 0.999), fused=torch.cuda.is_available(), weight_decay=wd)
 
-        # Linear warmup, then hold at peak until each head's convergence metric plateaus (or immediately if --plateau_patience 0), then cosine decay to config.COSINE_MIN_LR_RATIO.
+        # Linear warmup, then hold at peak until each head's convergence metric plateaus (or immediately if its patience is 0), then cosine decay to config.COSINE_MIN_LR_RATIO.
         warmup = int(self.hparams.lr_warmup_steps)
-        patience = int(self.hparams.get('plateau_patience', 0) or 0)
+        patiences = {h: head_patience(self.hparams, h) for h in ('wt', 'mt')}
         if not hasattr(self, '_decay_start_step'):
-            self._decay_start_step = {'wt': None if patience > 0 else warmup, 'mt': None if patience > 0 else warmup}
+            self._decay_start_step = {h: (None if patiences[h] > 0 else warmup) for h in ('wt', 'mt')}
         else:
             for h in ('wt', 'mt'):
                 if h not in self._decay_start_step:
-                    self._decay_start_step[h] = None if patience > 0 else warmup
+                    self._decay_start_step[h] = None if patiences[h] > 0 else warmup
         min_ratio = config.COSINE_MIN_LR_RATIO
         num_epochs = max(1, int(getattr(getattr(self, '_trainer', None), 'max_epochs', None) or self.hparams.get('num_epochs', 20) or 20))
         est_steps = getattr(self.trainer, 'estimated_stepping_batches', None) if getattr(self, '_trainer', None) is not None else None
@@ -1219,10 +1219,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             sampler = (loader[0] if isinstance(loader, (list, tuple)) else loader).sampler      # it knows how many blocks make a step; the estimate above counts blocks
             steps_per_epoch = max(1, int(sampler.n_steps()))
             total_steps = max(warmup + 1, -(-total_steps * steps_per_epoch // len(sampler)))
-        decay_epochs = max(1, int(self.hparams.get('cosine_decay_epochs', 5) or 5))
+        decay_epochs = max(1, int(self.hparams.get('cosine_decay_epochs', 3) or 3))
         decay_steps = max(1, decay_epochs * steps_per_epoch)
 
-        def _make_cos_fn(head, warmup=warmup, total_steps=total_steps, decay_steps=decay_steps, patience=patience, min_ratio=min_ratio):
+        def _make_cos_fn(head, warmup=warmup, total_steps=total_steps, decay_steps=decay_steps, patience=patiences['mt'], min_ratio=min_ratio):
             def _cos_fn(step):
                 if warmup > 0 and step < warmup:
                     return max(1e-4, step / float(warmup))
@@ -1239,7 +1239,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                 return min_ratio + 0.5 * (1.0 - min_ratio) * (1.0 + math.cos(math.pi * prog))
             return _cos_fn
 
-        lambdas_main = [_make_cos_fn('wt' if g.get('name', '').endswith('_wt') else 'mt') for g in main_groups]
+        lambdas_main = [_make_cos_fn(h := ('wt' if g.get('name', '').endswith('_wt') else 'mt'), patience=patiences[h]) for g in main_groups]
         warmup_main = torch.optim.lr_scheduler.LambdaLR(opt_main, lr_lambda=lambdas_main)
         return [opt_main], [{"scheduler": warmup_main, "interval": "step", "frequency": 1}]
 
@@ -1401,6 +1401,8 @@ def main():
                 comet_logger = OfflineCometLogger(**comet_kwargs)
             else:
                 comet_logger = CometLogger(**comet_kwargs)
+            if args.comet_tags:
+                comet_logger.experiment.add_tags(list(args.comet_tags))
             loggers.append(comet_logger)
         else:
             logging.warning("No Comet key (COMET_API_KEY or ~/.comet.config): this run logs to CSV only.")

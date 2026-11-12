@@ -50,11 +50,15 @@ def test_defaults():
     assert a.rank_censor_threshold == 0.5 and a.tf_label == 'measured' and a.tf_mix == 1.0 and a.rank_list_size == 16
     assert a.block_mask_wt == 1.0 and a.block_mask_mt == 1.0 and a.block_positions == 8 and a.block_list_rows == 0 and a.grad_accum_blocks == 1
     assert a.lambda_cond_mt == 0.0 and a.cond_partner_min_dg == 1.0 and a.exclude_mutbg is False
-    assert a.plateau_patience == 2 and a.cosine_decay_epochs == 5 and a.wt_convergence_metric is None and a.mt_convergence_metric is None
+    assert a.wt_plateau_patience == 1 and a.mt_plateau_patience == 2 and a.plateau_patience is None and a.cosine_decay_epochs == 3
+    assert config.head_patience(a, 'wt') == 1 and config.head_patience(a, 'mt') == 2
+    assert a.wt_convergence_metric is None and a.mt_convergence_metric is None and a.comet_tags is None
     assert a.target_mode_wt == 'expanded' and a.target_mode_mt == 'expanded'
     assert config.convergence_metric(a, 'wt') == 'val_rho_singles_wt_avg'
     assert config.convergence_metric(a, 'mt') == 'val_epi_cell_mag_comb'
     assert a.cache_version == config.DEFAULT_CACHE_VERSION
+    shorthand = parse('--plateau_patience', '3', '--comet_tags', 'authoritative,final')
+    assert shorthand.wt_plateau_patience == 3 and shorthand.mt_plateau_patience == 3 and shorthand.comet_tags == ['authoritative', 'final']
 
 
 def test_convergence_metric_follows_head_masking_and_overrides():
@@ -85,7 +89,8 @@ def test_the_posterior_label_has_no_cut_and_the_measured_one_may():
 def test_ranges_are_validated():
     for bad in (['--tf_mix', '1.5'], ['--tf_mix', '-0.1'], ['--rank_list_size', '0'], ['--tf_prior_sd', '0'], ['--tobit_sigma_y', '-1'], ['--tobit_sigma_f', '0'],
                 ['--lambda_cond_mt', '-1'], ['--block_positions', '0'], ['--block_list_rows', '-1'], ['--block_mask_mt', '1.5'], ['--block_mask_wt', '-0.1'],
-                ['--block_pair_weight', '-1'], ['--grad_accum_blocks', '0'], ['--plateau_patience', '-1'], ['--cosine_decay_epochs', '0']):
+                ['--block_pair_weight', '-1'], ['--grad_accum_blocks', '0'], ['--plateau_patience', '-1'],
+                ['--wt_plateau_patience', '-1'], ['--mt_plateau_patience', '-1'], ['--cosine_decay_epochs', '0']):
         with pytest.raises(SystemExit):
             parse(*bad)
     assert parse('--tobit_mu_f', '-0.1').tobit_mu_f == -0.1                   # a mean may be anything
@@ -102,7 +107,7 @@ def test_domain_steps_set_the_step_themselves():
 def test_the_number_of_flags_is_small():
     """The point of the strip. A new flag is allowed, but it has to be a decision: raise this bound on purpose."""
     keys = set(vars(parse()))
-    assert len(keys) <= 57, sorted(keys)
+    assert len(keys) <= 60, sorted(keys)
     with pytest.raises(SystemExit):
         parse('--block_marginal_mt', '--block_mask_mt', '0.0')
     with pytest.raises(SystemExit):
