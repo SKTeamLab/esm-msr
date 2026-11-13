@@ -7,7 +7,7 @@ PY=${PYTHON:-python}
 export PYTHONPATH=.
 $PY 00_validate_against_tables.py
 $PY 01_core_rho.py
-for s in 02_thermostability 03_tsuboyama 04_dms_domainome 05_proteingym 06_epistasis 07_rmse_calibration 08_screening 14_property_category_gain 15_tsuboyama_single_screening 09_sequence_length 10_leakage_and_reference 11_publication_figures 11d_epistasis_levels_bootstrap 11b_publication_epistasis_levels 11c_publication_epistasis_scatters 11f_epistasis_types 11g_link_figure 12_pair_epistasis_heatmaps 13_dddG_correlation_scatters; do
+for s in 02_thermostability 03_tsuboyama 04_dms_domainome 05_proteingym 06_epistasis 07_rmse_calibration 08_screening 14_property_category_gain 15_tsuboyama_single_screening 09_sequence_length 10_leakage_and_reference 11_publication_figures 11d_epistasis_levels_bootstrap 11b_publication_epistasis_levels 11c_publication_epistasis_scatters 11f_epistasis_types 11g_link_figure 12_pair_epistasis_heatmaps 13_dddG_correlation_scatters 16_final_ablation_table; do
   echo "== $s"; $PY $s.py
 done
 $PY 99_table_coverage.py

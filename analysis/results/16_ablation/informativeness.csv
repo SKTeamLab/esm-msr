@@ -1,0 +1,230 @@
+column,head,n_families,spread,noise,snr,best,range
+s8754,comb,7,0.0113,0.0026,7.6660,no rank loss,0.0286
+q3421,comb,7,0.0125,0.0038,5.7487,no rank loss,0.0291
+k3822,comb,7,0.0080,0.0025,5.5007,no pair loss,0.0195
+tsuboyama_capped_test|multi,comb,7,0.0173,0.0056,5.3359,rank censor 0,0.0505
+k2369,comb,7,0.0068,0.0023,5.1674,no pair loss,0.0181
+s2648,comb,7,0.0133,0.0045,5.1228,no rank loss,0.0312
+ext_singles_mean,comb,7,0.0067,0.0025,4.6750,no pair loss,0.0163
+GRB2_HUMAN_Faure_2021_binding_domain|multi,comb,7,0.0145,0.0069,3.6384,p1 MT marginal,0.0298
+GRB2_HUMAN_Faure_2021_binding_domain,comb,7,0.0144,0.0069,3.6219,p1 MT marginal,0.0296
+ptmuld,comb,7,0.0140,0.0074,3.3046,no pair loss,0.0383
+ext_multi_mean,comb,7,0.0153,0.0083,3.2199,rank censor 0,0.0401
+GB1_Wu_2016_binding_domain|multi,comb,7,0.0175,0.0096,3.1681,MT LoRA r2,0.0534
+GB1_Wu_2016_binding_domain,comb,7,0.0175,0.0096,3.1659,MT LoRA r2,0.0533
+ptmul,comb,7,0.0170,0.0095,3.0884,rank censor 0,0.0433
+DLG4_HUMAN_Faure_2021_binding_domain|singles,comb,7,0.0149,0.0086,3.0073,p1 masked,0.0404
+s669,comb,7,0.0065,0.0038,2.9524,MT LoRA r2,0.0172
+tsuboyama_capped_val|singles,comb,7,0.0027,0.0016,2.8570,p1 masked,0.0074
+tsuboyama_capped_val,comb,7,0.0029,0.0018,2.7768,p1 masked,0.0085
+GRB2_HUMAN_Faure_2021_binding_domain|singles,comb,7,0.0120,0.0084,2.4807,p1 masked,0.0307
+s461,comb,7,0.0050,0.0036,2.4411,no pair loss,0.0128
+tsuboyama_capped_test,comb,7,0.0035,0.0025,2.4263,rank censor 0,0.0086
+DLG4_HUMAN_Faure_2021_abundance_domain|singles,comb,7,0.0099,0.0072,2.3651,p1 masked,0.0283
+DLG4_HUMAN_Faure_2021_binding_domain|multi,comb,7,0.0094,0.0077,2.1168,no rank loss,0.0309
+DLG4_HUMAN_Faure_2021_binding_domain,comb,7,0.0086,0.0072,2.0639,no rank loss,0.0281
+DLG4_HUMAN_Faure_2021_abundance_domain|multi,comb,7,0.0064,0.0054,2.0409,no rank loss,0.0190
+DLG4_HUMAN_Faure_2021_abundance_domain,comb,7,0.0056,0.0049,1.9898,no rank loss,0.0164
+ssym,comb,7,0.0063,0.0055,1.9761,MT LoRA r2,0.0156
+GRB2_HUMAN_Faure_2021_abundance_domain|multi,comb,7,0.0065,0.0059,1.9228,no rank loss,0.0195
+GRB2_HUMAN_Faure_2021_abundance_domain,comb,7,0.0064,0.0058,1.9187,no rank loss,0.0191
+s571,comb,7,0.0047,0.0046,1.7659,p1 masked,0.0153
+tsuboyama_capped_test|singles,comb,7,0.0023,0.0022,1.7637,rank censor 0,0.0058
+MYO_HUMAN_Kung_2025_display,comb,7,0.0018,0.0019,1.6330,no rank loss,0.0050
+MYO_HUMAN_Kung_2025_display|singles,comb,7,0.0018,0.0020,1.5547,no seq. head,0.0052
+tsuboyama_capped_val|multi,comb,7,0.0073,0.0088,1.4363,p1 masked,0.0215
+GRB2_HUMAN_Faure_2021_abundance_domain|singles,comb,7,0.0038,0.0047,1.4146,no seq. head,0.0110
+ESTA_BACSU_Nutschel_2020_dTm,comb,7,0.0058,0.0081,1.2374,no seq. head,0.0165
+MYO_HUMAN_Kung_2025_display|multi,comb,7,0.0016,0.0022,1.2357,no rank loss,0.0045
+dms_mean,comb,7,0.0028,0.0043,1.1152,p1 MT marginal,0.0089
+dms_multi_mean,comb,7,0.0027,0.0042,1.1151,p1 MT marginal,0.0080
+GB1_Wu_2016_binding_domain|singles,comb,7,0.0152,0.0246,1.0678,no seq. head,0.0432
+s783,comb,7,0.0034,0.0055,1.0550,no pair loss,0.0095
+tsuboyama_capped_val|cell_rank,epi,7,0.0570,0.0040,24.5437,p1 masked,0.1730
+tsuboyama_capped_test|cell_rank,epi,7,0.0613,0.0070,15.0914,p1 masked,0.1759
+tsuboyama_capped_test|cell_mag,epi,7,0.0861,0.0114,13.0490,p1 masked,0.2448
+tsuboyama_capped_val|cell_mag,epi,7,0.1063,0.0155,11.8535,p1 masked,0.3202
+tsuboyama_capped_val|naive_rho,epi,7,0.0533,0.0366,2.5173,no rank loss,0.1425
+tsuboyama_capped_val|dddG,epi,7,0.0533,0.0366,2.5173,no rank loss,0.1425
+tsuboyama_capped_test|beyond_rho,epi,7,0.0296,0.0265,1.9372,p1 masked,0.0860
+tsuboyama_capped_val|beyond_rho,epi,7,0.0178,0.0235,1.3118,MT LoRA r2,0.0491
+tsuboyama_capped_test|dddG,epi,7,0.0112,0.0191,1.0163,no seq. head,0.0341
+tsuboyama_capped_test|naive_rho,epi,7,0.0112,0.0191,1.0163,no seq. head,0.0341
+tsuboyama_capped_test|multi,mt,7,0.0388,0.0121,5.5470,no pair loss,0.1165
+tsuboyama_capped_val|singles,mt,7,0.0060,0.0020,5.2589,p1 MT marginal,0.0171
+q3421,mt,7,0.0119,0.0047,4.3576,no pair loss,0.0296
+s8754,mt,7,0.0108,0.0044,4.2481,no pair loss,0.0259
+tsuboyama_capped_val,mt,7,0.0080,0.0035,4.0063,p1 MT marginal,0.0230
+s669,mt,7,0.0099,0.0043,4.0050,MT LoRA r2,0.0252
+s2648,mt,7,0.0119,0.0052,3.9202,no pair loss,0.0314
+DLG4_HUMAN_Faure_2021_binding_domain|singles,mt,7,0.0316,0.0143,3.8229,p1 masked,0.0928
+GRB2_HUMAN_Faure_2021_binding_domain|multi,mt,7,0.0212,0.0103,3.5596,p1 MT marginal,0.0530
+GRB2_HUMAN_Faure_2021_binding_domain,mt,7,0.0211,0.0103,3.5474,p1 MT marginal,0.0524
+s571,mt,7,0.0132,0.0074,3.1035,p1 masked,0.0416
+tsuboyama_capped_test,mt,7,0.0078,0.0044,3.0716,no pair loss,0.0194
+GRB2_HUMAN_Faure_2021_binding_domain|singles,mt,7,0.0191,0.0120,2.7467,p1 masked,0.0587
+DLG4_HUMAN_Faure_2021_binding_domain,mt,7,0.0258,0.0168,2.6651,no rank loss,0.0722
+ext_singles_mean,mt,7,0.0041,0.0027,2.6378,no pair loss,0.0097
+DLG4_HUMAN_Faure_2021_binding_domain|multi,mt,7,0.0299,0.0200,2.5856,no rank loss,0.0849
+DLG4_HUMAN_Faure_2021_abundance_domain|singles,mt,7,0.0195,0.0139,2.4244,p1 masked,0.0581
+DLG4_HUMAN_Faure_2021_abundance_domain,mt,7,0.0215,0.0156,2.3948,p1 MT marginal,0.0589
+DLG4_HUMAN_Faure_2021_abundance_domain|multi,mt,7,0.0258,0.0187,2.3863,p1 MT marginal,0.0709
+dms_multi_mean,mt,7,0.0152,0.0110,2.3789,p1 MT marginal,0.0491
+dms_mean,mt,7,0.0133,0.0100,2.2890,p1 MT marginal,0.0429
+ptmul,mt,7,0.0175,0.0137,2.2224,no pair loss,0.0494
+k2369,mt,7,0.0052,0.0040,2.2216,no pair loss,0.0154
+tsuboyama_capped_test|singles,mt,7,0.0040,0.0032,2.2106,p1 MT marginal,0.0129
+GRB2_HUMAN_Faure_2021_abundance_domain|multi,mt,7,0.0170,0.0135,2.1883,p1 MT marginal,0.0484
+GRB2_HUMAN_Faure_2021_abundance_domain,mt,7,0.0167,0.0133,2.1772,p1 MT marginal,0.0477
+GRB2_HUMAN_Faure_2021_abundance_domain|singles,mt,7,0.0132,0.0107,2.1324,p1 masked,0.0371
+GB1_Wu_2016_binding_domain,mt,7,0.0282,0.0231,2.1173,p1 MT marginal,0.0948
+GB1_Wu_2016_binding_domain|multi,mt,7,0.0282,0.0230,2.1163,p1 MT marginal,0.0947
+ext_multi_mean,mt,7,0.0131,0.0118,1.9211,no pair loss,0.0388
+tsuboyama_capped_val|multi,mt,7,0.0132,0.0130,1.7586,p1 MT marginal,0.0386
+k3822,mt,7,0.0053,0.0053,1.7483,no pair loss,0.0161
+MYO_HUMAN_Kung_2025_display|multi,mt,7,0.0047,0.0047,1.7154,p1 MT marginal,0.0123
+ssym,mt,7,0.0084,0.0087,1.6653,MT LoRA r2,0.0246
+s461,mt,7,0.0071,0.0075,1.6572,p1 masked,0.0168
+s783,mt,7,0.0048,0.0051,1.6334,no pair loss,0.0139
+ptmuld,mt,7,0.0097,0.0105,1.5921,no pair loss,0.0282
+ESTA_BACSU_Nutschel_2020_dTm,mt,7,0.0119,0.0152,1.3512,p1 MT marginal,0.0356
+MYO_HUMAN_Kung_2025_display,mt,7,0.0030,0.0041,1.2604,p1 masked,0.0093
+MYO_HUMAN_Kung_2025_display|singles,mt,7,0.0027,0.0039,1.1958,p1 masked,0.0078
+GB1_Wu_2016_binding_domain|singles,mt,7,0.0247,0.0420,1.0163,p1 masked,0.0639
+tsuboyama_capped_val|cell_rank,primary,7,0.0570,0.0040,24.5437,p1 masked,0.1730
+tsuboyama_capped_test|cell_rank,primary,7,0.0613,0.0070,15.0914,p1 masked,0.1759
+tsuboyama_capped_test|cell_mag,primary,7,0.0861,0.0114,13.0490,p1 masked,0.2448
+tsuboyama_capped_val|cell_mag,primary,7,0.1063,0.0155,11.8535,p1 masked,0.3202
+tsuboyama_capped_test|multi,primary,7,0.0173,0.0056,5.3359,rank censor 0,0.0505
+GRB2_HUMAN_Faure_2021_binding_domain|multi,primary,7,0.0145,0.0069,3.6384,p1 MT marginal,0.0298
+GRB2_HUMAN_Faure_2021_binding_domain,primary,7,0.0144,0.0069,3.6219,p1 MT marginal,0.0296
+MYO_HUMAN_Kung_2025_display|singles,primary,7,0.0020,0.0011,3.3051,p1 masked,0.0053
+ptmuld,primary,7,0.0140,0.0074,3.3046,no pair loss,0.0383
+s8754,primary,7,0.0078,0.0042,3.2502,no rank loss,0.0237
+ext_multi_mean,primary,7,0.0153,0.0083,3.2199,rank censor 0,0.0401
+GB1_Wu_2016_binding_domain|multi,primary,7,0.0175,0.0096,3.1681,MT LoRA r2,0.0534
+GB1_Wu_2016_binding_domain,primary,7,0.0175,0.0096,3.1659,MT LoRA r2,0.0533
+ptmul,primary,7,0.0170,0.0095,3.0884,rank censor 0,0.0433
+GB1_Wu_2016_binding_domain|singles,primary,7,0.0387,0.0219,3.0510,no seq. head,0.1023
+s461,primary,7,0.0086,0.0053,2.8063,no pair loss,0.0201
+tsuboyama_capped_val|singles,primary,7,0.0036,0.0022,2.7813,p1 masked,0.0102
+tsuboyama_capped_val,primary,7,0.0029,0.0018,2.7768,p1 masked,0.0085
+q3421,primary,7,0.0082,0.0051,2.7654,no rank loss,0.0228
+k3822,primary,7,0.0070,0.0044,2.7630,no rank loss,0.0173
+pg|OrganismalFitness,primary,6,0.0049,0.0031,2.7479,rank censor 0,0.0125
+s2648,primary,7,0.0092,0.0063,2.5449,no rank loss,0.0263
+tsuboyama_capped_val|naive_rho,primary,7,0.0533,0.0366,2.5173,no rank loss,0.1425
+tsuboyama_capped_val|dddG,primary,7,0.0533,0.0366,2.5173,no rank loss,0.1425
+k2369,primary,7,0.0058,0.0040,2.4927,no pair loss,0.0150
+tsuboyama_capped_test,primary,7,0.0035,0.0025,2.4263,rank censor 0,0.0086
+pg|Activity,primary,6,0.0042,0.0030,2.3900,rank censor 0,0.0104
+DLG4_HUMAN_Faure_2021_abundance_domain|singles,primary,7,0.0087,0.0071,2.1247,p1 MT marginal,0.0243
+DLG4_HUMAN_Faure_2021_binding_domain|multi,primary,7,0.0094,0.0077,2.1168,no rank loss,0.0309
+ext_singles_mean,primary,7,0.0050,0.0041,2.0780,no rank loss,0.0136
+DLG4_HUMAN_Faure_2021_binding_domain,primary,7,0.0086,0.0072,2.0639,no rank loss,0.0281
+DLG4_HUMAN_Faure_2021_abundance_domain|multi,primary,7,0.0064,0.0054,2.0409,no rank loss,0.0190
+GRB2_HUMAN_Faure_2021_binding_domain|singles,primary,7,0.0117,0.0100,2.0181,p1 MT marginal,0.0300
+DLG4_HUMAN_Faure_2021_abundance_domain,primary,7,0.0056,0.0049,1.9898,no rank loss,0.0164
+pg|avg_lowid,primary,6,0.0023,0.0020,1.9443,rank censor 0,0.0059
+tsuboyama_capped_test|beyond_rho,primary,7,0.0296,0.0265,1.9372,p1 masked,0.0860
+GRB2_HUMAN_Faure_2021_abundance_domain|multi,primary,7,0.0065,0.0059,1.9228,no rank loss,0.0195
+GRB2_HUMAN_Faure_2021_abundance_domain,primary,7,0.0064,0.0058,1.9187,no rank loss,0.0191
+pg|Expression,primary,6,0.0013,0.0012,1.8903,no seq. head,0.0039
+s571,primary,7,0.0046,0.0044,1.8148,no seq. head,0.0126
+pg|Stability,primary,6,0.0028,0.0029,1.6717,p1 masked,0.0077
+MYO_HUMAN_Kung_2025_display,primary,7,0.0018,0.0019,1.6330,no rank loss,0.0050
+pg|avg,primary,6,0.0019,0.0020,1.6271,rank censor 0,0.0052
+tsuboyama_capped_val|multi,primary,7,0.0073,0.0088,1.4363,p1 masked,0.0215
+tsuboyama_capped_test|singles,primary,7,0.0020,0.0025,1.3782,rank censor 0,0.0053
+tsuboyama_capped_val|beyond_rho,primary,7,0.0178,0.0235,1.3118,MT LoRA r2,0.0491
+MYO_HUMAN_Kung_2025_display|multi,primary,7,0.0016,0.0022,1.2357,no rank loss,0.0045
+GRB2_HUMAN_Faure_2021_abundance_domain|singles,primary,7,0.0038,0.0053,1.2194,no seq. head,0.0110
+DLG4_HUMAN_Faure_2021_binding_domain|singles,primary,7,0.0058,0.0083,1.2119,p1 MT marginal,0.0174
+dms_multi_mean,primary,7,0.0027,0.0042,1.1151,p1 MT marginal,0.0080
+pg|Binding,primary,6,0.0018,0.0029,1.0540,no seq. head,0.0048
+ssym,primary,7,0.0045,0.0075,1.0442,no rank loss,0.0133
+tsuboyama_capped_test|dddG,primary,7,0.0112,0.0191,1.0163,no seq. head,0.0341
+tsuboyama_capped_test|naive_rho,primary,7,0.0112,0.0191,1.0163,no seq. head,0.0341
+dms_mean,primary,7,0.0023,0.0043,0.9391,p1 MT marginal,0.0073
+s669,primary,7,0.0031,0.0058,0.9183,no seq. head,0.0088
+pg|Stability_lowid,primary,6,0.0011,0.0022,0.8700,rank censor 0,0.0027
+domainome|lowid,primary,7,0.0016,0.0047,0.6043,no seq. head,0.0054
+domainome,primary,7,0.0017,0.0051,0.5872,no seq. head,0.0056
+s783,primary,7,0.0021,0.0071,0.5190,no rank loss,0.0055
+ESTA_BACSU_Nutschel_2020_dTm,primary,7,0.0028,0.0095,0.5123,no seq. head,0.0074
+GB1_Wu_2016_binding_domain,wt,7,0.0225,0.0100,3.8911,rank censor 0,0.0535
+GB1_Wu_2016_binding_domain|multi,wt,7,0.0225,0.0100,3.8844,rank censor 0,0.0534
+MYO_HUMAN_Kung_2025_display|singles,wt,7,0.0020,0.0011,3.3051,p1 masked,0.0053
+s8754,wt,7,0.0078,0.0042,3.2502,no rank loss,0.0237
+GB1_Wu_2016_binding_domain|singles,wt,7,0.0387,0.0219,3.0510,no seq. head,0.1023
+GRB2_HUMAN_Faure_2021_binding_domain|multi,wt,7,0.0118,0.0070,2.9263,p1 MT marginal,0.0295
+GRB2_HUMAN_Faure_2021_binding_domain,wt,7,0.0118,0.0070,2.9122,p1 MT marginal,0.0294
+s461,wt,7,0.0086,0.0053,2.8063,no pair loss,0.0201
+tsuboyama_capped_val|singles,wt,7,0.0036,0.0022,2.7813,p1 masked,0.0102
+q3421,wt,7,0.0082,0.0051,2.7654,no rank loss,0.0228
+k3822,wt,7,0.0070,0.0044,2.7630,no rank loss,0.0173
+pg|OrganismalFitness,wt,6,0.0049,0.0031,2.7479,rank censor 0,0.0125
+s2648,wt,7,0.0092,0.0063,2.5449,no rank loss,0.0263
+k2369,wt,7,0.0058,0.0040,2.4927,no pair loss,0.0150
+ptmuld,wt,7,0.0100,0.0069,2.4861,no rank loss,0.0300
+pg|Activity,wt,6,0.0042,0.0030,2.3900,rank censor 0,0.0104
+tsuboyama_capped_val,wt,7,0.0035,0.0026,2.3209,p1 masked,0.0095
+ext_multi_mean,wt,7,0.0119,0.0093,2.2096,no rank loss,0.0311
+DLG4_HUMAN_Faure_2021_abundance_domain|singles,wt,7,0.0087,0.0071,2.1247,p1 MT marginal,0.0243
+ext_singles_mean,wt,7,0.0050,0.0041,2.0780,no rank loss,0.0136
+ptmul,wt,7,0.0144,0.0122,2.0410,rank censor 0,0.0358
+GRB2_HUMAN_Faure_2021_binding_domain|singles,wt,7,0.0117,0.0100,2.0181,p1 MT marginal,0.0300
+pg|avg_lowid,wt,6,0.0023,0.0020,1.9443,rank censor 0,0.0059
+pg|Expression,wt,6,0.0013,0.0012,1.8903,no seq. head,0.0039
+s571,wt,7,0.0046,0.0044,1.8148,no seq. head,0.0126
+dms_multi_mean,wt,7,0.0030,0.0029,1.8083,rank censor 0,0.0096
+tsuboyama_capped_val|multi,wt,7,0.0086,0.0087,1.7149,p1 masked,0.0217
+tsuboyama_capped_test|multi,wt,7,0.0061,0.0063,1.6837,rank censor 0,0.0149
+pg|Stability,wt,6,0.0028,0.0029,1.6717,p1 masked,0.0077
+pg|avg,wt,6,0.0019,0.0020,1.6271,rank censor 0,0.0052
+DLG4_HUMAN_Faure_2021_binding_domain|multi,wt,7,0.0046,0.0052,1.5376,no rank loss,0.0144
+GRB2_HUMAN_Faure_2021_abundance_domain|multi,wt,7,0.0039,0.0045,1.5076,no rank loss,0.0104
+GRB2_HUMAN_Faure_2021_abundance_domain,wt,7,0.0038,0.0045,1.4946,no rank loss,0.0102
+tsuboyama_capped_test|singles,wt,7,0.0020,0.0025,1.3782,rank censor 0,0.0053
+MYO_HUMAN_Kung_2025_display|multi,wt,7,0.0015,0.0020,1.3259,no rank loss,0.0041
+DLG4_HUMAN_Faure_2021_binding_domain,wt,7,0.0040,0.0054,1.2896,no rank loss,0.0128
+GRB2_HUMAN_Faure_2021_abundance_domain|singles,wt,7,0.0038,0.0053,1.2194,no seq. head,0.0110
+DLG4_HUMAN_Faure_2021_binding_domain|singles,wt,7,0.0058,0.0083,1.2119,p1 MT marginal,0.0174
+dms_mean,wt,7,0.0023,0.0033,1.2062,rank censor 0,0.0077
+pg|Binding,wt,6,0.0018,0.0029,1.0540,no seq. head,0.0048
+ssym,wt,7,0.0045,0.0075,1.0442,no rank loss,0.0133
+MYO_HUMAN_Kung_2025_display,wt,7,0.0008,0.0014,0.9731,no seq. head,0.0022
+tsuboyama_capped_test,wt,7,0.0017,0.0032,0.9242,rank censor 0,0.0048
+s669,wt,7,0.0031,0.0058,0.9183,no seq. head,0.0088
+pg|Stability_lowid,wt,6,0.0011,0.0022,0.8700,rank censor 0,0.0027
+DLG4_HUMAN_Faure_2021_abundance_domain,wt,7,0.0021,0.0057,0.6359,p1 MT marginal,0.0057
+DLG4_HUMAN_Faure_2021_abundance_domain|multi,wt,7,0.0022,0.0060,0.6267,rank censor 0,0.0054
+domainome|lowid,wt,7,0.0016,0.0047,0.6043,no seq. head,0.0054
+domainome,wt,7,0.0017,0.0051,0.5872,no seq. head,0.0056
+s783,wt,7,0.0021,0.0071,0.5190,no rank loss,0.0055
+ESTA_BACSU_Nutschel_2020_dTm,wt,7,0.0028,0.0095,0.5123,no seq. head,0.0074
+GB1_Wu_2016_binding_domain,wt+,7,0.0225,0.0100,3.8908,rank censor 0,0.0535
+GB1_Wu_2016_binding_domain|multi,wt+,7,0.0225,0.0100,3.8841,rank censor 0,0.0534
+MYO_HUMAN_Kung_2025_display|singles,wt+,7,0.0020,0.0011,3.3051,p1 masked,0.0053
+GB1_Wu_2016_binding_domain|singles,wt+,7,0.0387,0.0219,3.0510,no seq. head,0.1023
+GRB2_HUMAN_Faure_2021_binding_domain|multi,wt+,7,0.0119,0.0070,2.9464,p1 MT marginal,0.0296
+GRB2_HUMAN_Faure_2021_binding_domain,wt+,7,0.0119,0.0070,2.9318,p1 MT marginal,0.0296
+tsuboyama_capped_val|singles,wt+,7,0.0036,0.0022,2.7813,p1 masked,0.0102
+tsuboyama_capped_val,wt+,7,0.0035,0.0026,2.3259,p1 masked,0.0095
+DLG4_HUMAN_Faure_2021_abundance_domain|singles,wt+,7,0.0087,0.0071,2.1247,p1 MT marginal,0.0243
+GRB2_HUMAN_Faure_2021_binding_domain|singles,wt+,7,0.0117,0.0100,2.0181,p1 MT marginal,0.0300
+dms_multi_mean,wt+,7,0.0030,0.0029,1.8308,rank censor 0,0.0098
+tsuboyama_capped_val|multi,wt+,7,0.0082,0.0087,1.6356,p1 masked,0.0207
+DLG4_HUMAN_Faure_2021_binding_domain|multi,wt+,7,0.0048,0.0053,1.5898,no rank loss,0.0149
+tsuboyama_capped_test|multi,wt+,7,0.0057,0.0063,1.5773,rank censor 0,0.0141
+GRB2_HUMAN_Faure_2021_abundance_domain|multi,wt+,7,0.0039,0.0045,1.4989,no rank loss,0.0103
+GRB2_HUMAN_Faure_2021_abundance_domain,wt+,7,0.0038,0.0045,1.4860,no rank loss,0.0101
+MYO_HUMAN_Kung_2025_display|multi,wt+,7,0.0017,0.0020,1.4470,no rank loss,0.0046
+tsuboyama_capped_test|singles,wt+,7,0.0020,0.0025,1.3782,rank censor 0,0.0053
+DLG4_HUMAN_Faure_2021_binding_domain,wt+,7,0.0041,0.0054,1.3210,no rank loss,0.0131
+GRB2_HUMAN_Faure_2021_abundance_domain|singles,wt+,7,0.0038,0.0053,1.2194,no seq. head,0.0110
+DLG4_HUMAN_Faure_2021_binding_domain|singles,wt+,7,0.0058,0.0083,1.2119,p1 MT marginal,0.0174
+MYO_HUMAN_Kung_2025_display,wt+,7,0.0008,0.0014,1.0441,no seq. head,0.0024
+tsuboyama_capped_test,wt+,7,0.0017,0.0031,0.9474,rank censor 0,0.0048
+DLG4_HUMAN_Faure_2021_abundance_domain,wt+,7,0.0020,0.0055,0.6329,p1 MT marginal,0.0055
+DLG4_HUMAN_Faure_2021_abundance_domain|multi,wt+,7,0.0020,0.0058,0.6090,rank censor 0,0.0055
