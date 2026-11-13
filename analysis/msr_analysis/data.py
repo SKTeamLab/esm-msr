@@ -156,7 +156,7 @@ _P0_FOLDER = {'tsuboyama_capped_val': 'splits_oct06_capped-val', 'tsuboyama_capp
 
 def _msr_file(spec, ds, seed, sigma):
     if spec == 'msrp0':
-        base = P0 / _P0_FOLDER.get(ds, ds) / 'ckpt_p0_fir' / f's{seed}'
+        base = P0 / _P0_FOLDER.get(ds, ds) / 'final_checkpoints' / 'FINAL_p0' / f's{seed}'
         p = base / f'best.ckpt_sigma{float(sigma):.1f}_unmasked_predictions.csv'
         if not p.exists():
             p = base / f'best.ckpt_sigma{float(sigma):.1f}_skip_reverse_unmasked_predictions.csv'
@@ -169,7 +169,7 @@ def _load_msr(frame, ds, out):
     ids = sp['id'].to_numpy(dtype=object)
     heads = dict(wt='wt_lora_pred', comb='combined_pred', mt='mt_lora_pred')
     for spec, sigmas, seeds in (('msr', ['1'], SEEDS), ('msrdev', ['1', '0.75', '0.5', '0.25'], SEEDS),
-                                ('msrp0', ['1'], SEEDS), ('msrrel', ['1', '0.75', '0.5', '0.25', '0'], (None,))):
+                                ('msrp0', ['1'], (1,)), ('msrrel', ['1', '0.75', '0.5', '0.25', '0'], (None,))):
         for sg in sigmas:
             arrs = {h: [] for h in heads}
             ok = True

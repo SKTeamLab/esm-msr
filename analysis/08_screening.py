@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from msr_analysis import screening as scr, style  # noqa: E402
 from msr_analysis.common import has_multi, out_dir, primary_key  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
-from msr_analysis.registry import HERE, LABEL, MODELS, REFERENCE  # noqa: E402
+from msr_analysis.registry import PUBLIC, HERE, LABEL, MODELS, REFERENCE, RETRAINED, ROOT  # noqa: E402
 
 OUT = out_dir('08_screening')
 POOLED_SETS = ['s783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld']   # S571's labels are not ddG
@@ -46,7 +46,7 @@ FAM_LABEL = {
     'geoddg': 'GeoDDG-3D',
     'rosetta': 'Rosetta',
 }
-TAU_DS = {'domainome': 0.0}      # Domainome's label is a change in expression: a hit is any increase (> 0), not > 0.5 kcal/mol
+TAU_DS = {'domainome': 0.0, 'pg_activity': 2.0}      # Domainome's label is a change in expression: a hit is any increase (> 0), not > 0.5 kcal/mol
 FAM_STYLE = {
     'msr': 'msr',
     'msrp0': 'msrp0:wt',
@@ -72,6 +72,62 @@ FAM_COLOR_ALL = {
 }
 for _f, _k in FAM_STYLE.items():          # the dot panels look families up in the registry
     MODELS.setdefault(_f, dict(MODELS[_k]))
+MODELS['msr'] = dict(MODELS['msr'], label='ESM-MSR', color='#000000')     # family 'msr' is FINAL_p0 seed 1 here (SINGLE_KEY / MULTI_KEY), drawn in black
+
+
+PG_DIR = ROOT / 'final_pgym_wt' / 'FINAL_p0' / 's1'      # FINAL_p0 seed 1, WT head, one file per assay
+PG_MIN_HITS = 10
+
+
+def pg_wt_like(score, cut):
+    """WT-like (fully functional) level of an assay and its spread: the mode of a Gaussian KDE of the scores above the assay's binarization cutoff (``cut``; the median
+    where fewer than 5% or more than 95% of the singles are above it), and the robust SD (1.4826 x MAD) of the scores above that mode's cutoff around it."""
+    from scipy.stats import gaussian_kde
+    frac = (score > cut).mean()
+    if frac < 0.05 or frac > 0.95:
+        cut = np.median(score)
+    up = score[score > cut]
+    xs = np.linspace(up.min(), up.max(), 400)
+    w = float(xs[np.argmax(gaussian_kde(up)(xs))])
+    return w, float(1.4826 * np.median(np.abs(up - w)))
+
+
+def pg_activity_frame():
+    """ProteinGym Activity (43 assays), single mutants, as a Frame for ``per_protein``.  The label is the assay score on a scale whose zero is the WT-like level and whose unit is the assay's
+    robust SD (``pg_wt_like``): y = (score - w) / sd, so a hit (y > ``TAU_DS['pg_activity']`` = 2) is a variant well above the functional plateau, and the rectified gain max(y, 0) is the
+    summed excess over it.  Assays with fewer than ``PG_MIN_HITS`` hits (or no spread) are left out.  Predictions are the singles models' stabilizing-positive scores, ranked as they are."""
+    ref = pd.read_csv(ROOT / 'ProteinGym' / 'DMS_substitutions.csv')
+    ref = ref[ref.coarse_selection_type == 'Activity'].set_index('DMS_id')
+    srcs = {'msrp0:wt': (PG_DIR, 'wt_lora_pred'),
+            'me1': (RETRAINED / 'mutate_everything' / 'predictions' / 'stage1' / 'seed1' / 'proteingym', 'pred_combined'),
+            'tmpnn': (RETRAINED / 'thermompnn' / 'predictions' / 'single_additive' / 'seed1' / 'proteingym', 'pred_single_additive'),
+            'spurs': (RETRAINED / 'spurs' / 'predictions' / 'seed1' / 'proteingym', 'SPURS_single_additive')}
+    pub_cols = {'prosst': 'ProSST-2048', 'pmpnn': 'ProteinMPNN', 'msrrel@0:comb': 'ESM3'}   # the authors' published zero-shot scores (baselines/public/proteingym_published)
+    extra = list(pub_cols)
+    rows, preds, info = [], {k: [] for k in list(srcs) + extra}, []
+    for dms, r in ref.iterrows():
+        base = pd.read_csv(PG_DIR / f'{dms}.csv', usecols=['mutant', 'DMS_score'])
+        base = base[~base['mutant'].str.contains(':')].reset_index(drop=True)
+        w, sd = pg_wt_like(base['DMS_score'].to_numpy(), r.DMS_binarization_cutoff)
+        y = (base['DMS_score'].to_numpy() - w) / sd if sd > 0 else np.full(len(base), np.nan)
+        n_hits = int((y > TAU_DS['pg_activity']).sum())
+        keep = bool(np.isfinite(y).all() and n_hits >= PG_MIN_HITS)
+        info.append(dict(DMS_id=dms, n_singles=len(base), wt_like=w, robust_sd=sd, n_hits=n_hits, hit_frac=n_hits / len(base), included=keep))
+        if not keep:
+            continue
+        for k, (d, col) in srcs.items():
+            t = pd.read_csv(d / f'{dms}.csv', usecols=['mutant', col]).drop_duplicates('mutant').set_index('mutant')[col]
+            preds[k].append(t.reindex(base['mutant']).to_numpy(dtype=float))
+        pub = pd.read_csv(PUBLIC / 'proteingym_published' / f'{dms}.csv', usecols=['mutant'] + list(pub_cols.values())).drop_duplicates('mutant').set_index('mutant')
+        for k, col in pub_cols.items():                                  # variants a model has no score for stay NaN: that model skips them
+            preds[k].append(pub[col].reindex(base['mutant']).to_numpy(dtype=float))
+        rows.append(pd.DataFrame({'id': dms + '_' + base['mutant'], 'y': y, 'group': dms, 'mut': base['mutant'], 'n_mut': 1, 'use': True}))
+    spine = pd.concat(rows, ignore_index=True)
+    cov = {k: float(np.isfinite(np.concatenate(v)).mean()) for k, v in preds.items()}
+    print('pg_activity coverage of singles (kept assays):', {k: round(c, 3) for k, c in cov.items()})
+    pd.DataFrame(info).to_csv(OUT / 'pg_activity_hit_definition.csv', index=False, float_format='%.4f')
+    from msr_analysis.data import Frame
+    return Frame('pg_activity', spine, {k: np.concatenate(v)[None, :] for k, v in preds.items()})
 
 
 def domainome_overlap_domains(classes=('P', 'H')):
@@ -89,9 +145,10 @@ def domainome_overlap_domains(classes=('P', 'H')):
     return set(df['item_id'].astype(str))
 
 
-SINGLE_KEY = {'msr': 'msr:wt', 'msrp0': 'msrp0:wt', 'me': 'me1', 'tm': 'tmpnn', 'spurs': 'spurs'}
-MULTI_KEY = {'msr': 'msr:comb', 'msrp0': 'msrp0:wt', 'me': 'me2', 'tm': 'tmpnnd', 'spurs': 'spursm'}
-FIXED_KEY = {'msrp0': 'msrp0:wt', 'esm3': 'msrrel@0:comb', 'pmpnn': 'pmpnn', 'prosst': 'prosst', 'geoddg': 'geoddg', 'rosetta': 'rosetta'}
+# ESM-MSR is FINAL_p0, seed 1 (msr_analysis.data, key msrp0): WT head on singles, combined head on multi-mutants
+SINGLE_KEY = {'msr': 'msrp0:wt', 'msrp0': 'msrp0:wt', 'me': 'me1', 'tm': 'tmpnn', 'spurs': 'spurs'}
+MULTI_KEY = {'msr': 'msrp0:comb', 'msrp0': 'msrp0:wt', 'me': 'me2', 'tm': 'tmpnnd', 'spurs': 'spursm'}
+FIXED_KEY = {'esm3': 'msrrel@0:comb', 'pmpnn': 'pmpnn', 'prosst': 'prosst', 'geoddg': 'geoddg', 'rosetta': 'rosetta'}
 
 
 def fam_key(fam, fr, mode='default'):
@@ -194,7 +251,7 @@ FAM_LABEL_SINGLES = {
 }
 FAM_LABEL_COMPOSITE = {
     'msr': 'ESM-MSR (WT | comb)',
-    'msrp0': 'ESM-MSR (WT head)',
+    'msrp0': 'ESM-MSR (WT | comb)',
     'me': 'MutateEverything (st1 | st2)',
     'tm': 'ThermoMPNN (single | -D)',
     'spurs': 'SPURS (single | multi)',
@@ -206,8 +263,8 @@ FAM_LABEL_COMPOSITE = {
 }
 
 
-def per_protein(ds, Ks, tau, B, exclude_groups=None, mode='default', exclude_cys=False, fams=FAM):
-    fr = load_frame(ds)
+def per_protein(ds, Ks, tau, B, exclude_groups=None, mode='default', exclude_cys=False, fams=FAM, fr=None):
+    fr = load_frame(ds) if fr is None else fr
     sp = fr.spine
     keep = ~sp['group'].astype(str).isin(exclude_groups).to_numpy() if exclude_groups else np.ones(len(sp), dtype=bool)
     if exclude_cys:
@@ -237,14 +294,15 @@ def fig_per_protein(D, tau, stem='screening_per_protein', mode='default', fams=F
     fig, axes = plt.subplots(len(sets), 3, figsize=(13.5 if not markers else 12, 3.8 * len(sets) if not markers else 3.5 * len(sets)))
     axes = np.atleast_2d(axes)
     flab = FAM_LABEL_SINGLES if mode == 'singles' else (FAM_LABEL_COMPOSITE if mode == 'composite' else FAM_LABEL)
-    ds_titles = {'tsuboyama_capped_test': 'Homology-Restricted MegaScale test set'}
+    ds_titles = {'tsuboyama_capped_test': 'Homology-Restricted MegaScale test set', 'pg_activity': 'ProteinGym Activity, single mutants'}
     for r, ds in enumerate(sets):
         d = D[D.dataset == ds]
-        hr_yl = 'hit rate (abundance > wild type)' if ds == 'domainome' else f'hit rate (>{tau:g} kcal/mol)'
+        hr_yl = {'domainome': 'hit rate (abundance > wild type)', 'pg_activity': f'hit rate (> WT-like + {TAU_DS["pg_activity"]:g} SD)'}.get(ds, f'hit rate (>{tau:g} kcal/mol)')
+        gain_yl = {'domainome': 'rectified gain @ K (abundance)', 'pg_activity': 'rectified gain @ K (WT-like SD units)'}.get(ds, 'rectified gain @ K (kcal/mol)')
         for c, (metric, yl, ref, orc_ref) in enumerate((
             ('hit_rate', hr_yl, 'rand_hit', 'oracle_hit'),
             ('p_recover', 'P(at least one hit in top K)', 'rand_rec', 'oracle_rec'),
-            ('best', 'best measured value in top K', 'rand_best', 'oracle'),
+            ('gain', gain_yl, 'rand_gain', 'oracle_gain'),
         )):
             ax = axes[r, c]
             for f in fams:
@@ -272,10 +330,10 @@ def fig_per_protein(D, tau, stem='screening_per_protein', mode='default', fams=F
                 sub_note = ' [singles only, excl. Cys]' if (mode == 'singles' and ds == 'tsuboyama_capped_test') else (
                            ' [singles: single model | doubles: multi model, excl. Cys]' if (mode == 'composite' and ds == 'tsuboyama_capped_test') else (
                            ' [excl. Cys]' if ds == 'tsuboyama_capped_test' else ''))
-                ds_label = ds_titles.get(ds, LABEL[ds])
-                ax.set_title(f'{ds_label}{sub_note}  ({int(d.n_proteins.iloc[0])} proteins)', loc='left')
+                ds_label = ds_titles[ds] if ds in ds_titles else LABEL[ds]
+                ax.set_title(f'{ds_label}{sub_note}  ({int(d.n_proteins.iloc[0])} {"assays" if ds == "pg_activity" else "proteins"})', loc='left')
             if markers and r == 0 and c == 2:
-                ax.legend(fontsize=7.5, loc='lower right')
+                ax.legend(fontsize=7.5, loc='upper left')
     if not markers:
         handles = []
         for f in fams:
@@ -288,7 +346,7 @@ def fig_per_protein(D, tau, stem='screening_per_protein', mode='default', fams=F
             handles=handles,
             loc='upper center',
             bbox_to_anchor=(0.5, 1.0),
-            ncol=4,
+            ncol=5,
             fontsize=9.2,
             handlelength=2.8,
             handletextpad=0.6,
@@ -297,7 +355,7 @@ def fig_per_protein(D, tau, stem='screening_per_protein', mode='default', fams=F
             facecolor='white',
             edgecolor='#cccccc',
         )
-        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.89))
+        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.89 if len(sets) > 1 else 0.80))
     else:
         fig.tight_layout()
     style.save(fig, OUT / stem)
@@ -321,6 +379,13 @@ def main():
                 rows.append(dict(dataset=ds, baseline=f, d_hit_rate=float(np.nanmean(d)), lo=float(np.nanquantile(d, .025)), hi=float(np.nanquantile(d, .975))))
     pd.DataFrame(rows).to_csv(OUT / 'screening_pooled_paired_diff.csv', index=False, float_format='%.4f')
     ks = [1, 3, 5, 10, 20, 50, 100]
+    pg = pg_activity_frame()
+    pg_df = per_protein('pg_activity', ks, TAU_DS['pg_activity'], a.B, mode='singles', fams=FAM, fr=pg)
+    pg_df.to_csv(OUT / 'screening_per_protein_pg_activity.csv', index=False, float_format='%.4f')
+    fig_per_protein(pg_df, TAU_DS['pg_activity'], stem='screening_per_protein_pg_activity', mode='singles', fams=FAM, markers=True)
+    pg_df_all = per_protein('pg_activity', ks, TAU_DS['pg_activity'], a.B, mode='singles', fams=[f for f in FAM_ALL if f not in ('rosetta', 'geoddg')], fr=pg)
+    pg_df_all.to_csv(OUT / 'screening_per_protein_pg_activity_all_models.csv', index=False, float_format='%.4f')
+    fig_per_protein(pg_df_all, TAU_DS['pg_activity'], stem='screening_per_protein_pg_activity_all_models', mode='singles', fams=[f for f in FAM_ALL if f not in ('rosetta', 'geoddg')], markers=False)
     dom_exclude = domainome_overlap_domains()
     dom_df = per_protein('domainome', ks, TAU_DS['domainome'], a.B, exclude_groups=dom_exclude, mode='default', fams=FAM)
     dom_df_all = per_protein('domainome', ks, TAU_DS['domainome'], a.B, exclude_groups=dom_exclude, mode='default', fams=FAM_ALL)

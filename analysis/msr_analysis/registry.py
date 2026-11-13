@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(os.environ.get('MSR_ROOT', '~/playground/esm-msr-devel')).expanduser()
 MSR = ROOT / 'msr_predictions'
-P0 = ROOT / 'p0_fir_bench' / 'predictions'
+P0 = ROOT / 'final_bench' / 'predictions'        # FINAL_p0 (seed 1 only): <P0>/<folder>/final_checkpoints/FINAL_p0/s<seed>/
 BASE = ROOT / 'baselines'
 RETRAINED = BASE / 'retrained'
 PUBLIC = BASE / 'public'
