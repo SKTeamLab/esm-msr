@@ -17,7 +17,7 @@ Colour: blue = positive epistasis, red = negative, × = no usable value.  One sc
 colour.  Each panel title carries the Spearman rho of the model against the measured cells of the pair.
 Layout: ``results/12_pair_heatmaps/<raw|saturation_corrected>/<domain>/<wt><pos>_<wt><pos>.png``, ``pairs.csv`` (the pairs) and ``agreement.csv`` (rho of each model, per pair and mode).
 ESM-MSR's epistasis is 1/2(MT_AB+WT_AB) - WT_A - WT_B for the baseline triplicate, p0, and the devel checkpoints alike (no link).  The devel
-checkpoints' observed-scale version, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's link and library floors (``msr_analysis.link.observed_epistasis``), is kept as
+checkpoints' observed-scale version, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's learned link (``msr_analysis.link.observed_epistasis``), is kept as
 ``linked`` for the diagnostics of ``13_dddG_correlation_scatters.py``.  The predictions are never saturation-corrected.
 Rosetta is divided by 2.94 (REU to kcal/mol).  Multi-seed models are averaged over seeds first; The Megascale-trained ESMtherm and IFUM carry an asterisk.
 """
@@ -113,7 +113,6 @@ def build():
     fr = load_frame(DS)
     sp, p = fr.spine, fr.preds
     n = len(sp)
-    y_floor = json.load(open(REFERENCE / 'y_floor.json'))
     fit = epi_rows(fr)
     c = sp['dG_wt'].to_numpy(float)
     meas = {'raw': sp['dddG_ML'].to_numpy(float)}
@@ -129,8 +128,8 @@ def build():
         e_seeds = u * (p[build_[1]] - (p[build_[2]] if build_[0] == 'diff' else 0.0))
         e = mean_seeds(e_seeds)
         model[label] = dict(raw=e, raw_seeds=e_seeds, saturation_corrected=e, single=u * mean_seeds(p[sk]), latent=e)       # predictions are not saturation-corrected
-        if label == 'ESM-MSR':       # the observed-scale version, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's link, for the diagnostics of 13
-            model[label]['linked'] = np.nanmean([observed_epistasis(sp, p['msrdev:wt'][s], p['msrdev:comb'][s], s + 1, y_floor) for s in range(3)], axis=0)
+        if label == 'ESM-MSR':       # the observed-scale version, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's learned link, for the diagnostics of 13
+            model[label]['linked'] = np.nanmean([observed_epistasis(sp, p['msrdev:wt'][s], p['msrdev:comb'][s], s + 1) for s in range(3)], axis=0)
     mut = sp['mut'].to_numpy(dtype=object)
     nm = sp['n_mut'].to_numpy()
     d = pd.DataFrame({'i': np.flatnonzero(nm == 2)})

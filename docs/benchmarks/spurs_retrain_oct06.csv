@@ -71,3 +71,5 @@ SPURS multi (retrained),PG DMS mean,0.46152433333333337,0.006121581195519118,3,"
 "SPURS retrained, trained adapter (1 seed)",ESTA_BACSU_Nutschel_2020_dTm,0.462000,,1,harness spurs_inference.py + score_spurs_harness.py
 "SPURS retrained, trained adapter (1 seed)",GB1_Wu_2016_binding_domain,0.326700,,1,harness spurs_inference.py + score_spurs_harness.py
 "SPURS retrained, trained adapter (1 seed)",domainome,0.494500,,1,harness spurs_inference.py + score_spurs_harness.py
+SPURS (retrained),domainome_low_id,0.476767,0.010124,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis/scoring/score_baseline_runs.py (458 low-id domains)"
+SPURS multi (retrained),domainome_low_id,0.382996,0.008707,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis/scoring/score_baseline_runs.py (458 low-id domains)"

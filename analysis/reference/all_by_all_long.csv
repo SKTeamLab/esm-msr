@@ -705,3 +705,32 @@ DDGemb,tsu_capped_val,0.4896418470168683,,1,harness ddgemb cov=1.00
 DDGemb,tsu_capped_test,0.5075246745472338,,1,harness ddgemb cov=1.00
 Rosetta,tsu_capped_val,0.6827383095316205,,1,harness rosetta cov=1.00
 Rosetta,tsu_capped_test,0.6625513977830332,,1,harness rosetta cov=1.00
+ESM-MSR (released),domainome_low_id,0.53562,0.001422,3,esm_msr_testing stats (458 low-id domains)
+ESM-MSR (released) WT,domainome_low_id,0.534315,0.003562,3,esm_msr_testing stats (458 low-id domains)
+ESM-MSR (released) MT,domainome_low_id,0.513473,0.008445,3,esm_msr_testing stats (458 low-id domains)
+ESM-MSR (devel),domainome_low_id,0.535998,0.002082,3,esm_msr_testing stats (458 low-id domains)
+ESM-MSR (devel) WT,domainome_low_id,0.541849,0.001053,3,esm_msr_testing stats (458 low-id domains)
+ESM-MSR (devel) MT,domainome_low_id,0.499709,0.005391,3,esm_msr_testing stats (458 low-id domains)
+"ESM3-small-open (σ=0, MSR readout)",domainome_low_id,0.54548,,1,esm_msr_testing stats (458 low-id domains)
+"ESM3-small-open (σ=0, MSR readout) WT",domainome_low_id,0.549472,,1,esm_msr_testing stats (458 low-id domains)
+"ESM3-small-open (σ=0, MSR readout) MT",domainome_low_id,0.480705,,1,esm_msr_testing stats (458 low-id domains)
+ESM-MSR (released) σ=0.75,domainome_low_id,0.554231,,1,esm_msr_testing stats (458 low-id domains)
+ESM-MSR (devel) σ=0.75,domainome_low_id,0.553881,0.001944,3,esm_msr_testing stats (458 low-id domains)
+ESM-MSR (released) σ=0.5,domainome_low_id,0.567495,,1,esm_msr_testing stats (458 low-id domains)
+ESM-MSR (devel) σ=0.5,domainome_low_id,0.566298,0.001552,3,esm_msr_testing stats (458 low-id domains)
+ESM-MSR (released) σ=0.25,domainome_low_id,0.568285,,1,esm_msr_testing stats (458 low-id domains)
+ESM-MSR (devel) σ=0.25,domainome_low_id,0.567448,0.000782,3,esm_msr_testing stats (458 low-id domains)
+TMPNN,domainome_low_id,0.437007,0.007694,3,final_domainome_table (458 low-id domains)
+ME stage1,domainome_low_id,0.51062,0.004475,3,final_domainome_table (458 low-id domains)
+ME stage2,domainome_low_id,0.498602,0.003967,3,corrected 2026-10-27 (me_audit score tables) (458 low-id domains)
+ESMtherm,domainome_low_id,0.183261,,1,FINAL_TABLE (458 low-id domains)
+DDGemb,domainome_low_id,0.343415,,1,FINAL_TABLE (458 low-id domains)
+IFUM (WT backbone),domainome_low_id,0.459403,,1,FINAL_TABLE (458 low-id domains)
+"IFUM (native, ESMFold)",domainome_low_id,0.466946,,1,FINAL_TABLE (458 low-id domains)
+GeoDDG-3D,domainome_low_id,0.411959,,1,FINAL_TABLE (458 low-id domains)
+ProSST,domainome_low_id,0.526355,,1,FINAL_TABLE (458 low-id domains)
+ESM3dG,domainome_low_id,0.502342,,1,FINAL_TABLE (458 low-id domains)
+ESM3-large zero-shot,domainome_low_id,0.515829,,1,"esm3 forge zero-shot, per-domain mean (458 low-id domains)"
+SPURS (retrained),domainome_low_id,0.476767,0.010124,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis/scoring/score_baseline_runs.py (458 low-id domains)"
+SPURS multi (retrained),domainome_low_id,0.382996,0.008707,3,"outputs/tracked/spurs_retrain_s{1,2,3} (tracked slot runs) scored by analysis/scoring/score_baseline_runs.py (458 low-id domains)"
+ProteinMPNN,domainome_low_id,0.543702,,1,harness proteinmpnn (458 low-id domains)

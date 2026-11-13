@@ -1,7 +1,7 @@
 finding,size,affected rows
 23 ProteinGym assays are fully inside the capped train split (+ 3 strong 3D structural homologs),"23/217 `M` + 3/217 `H` DMS, all Stability","45,623 `M` + 2 `m` + 4,607 `H` / 2,465,767 rows"
 "ME stage 1/2, ThermoMPNN and retrained SPURS on those assays","singles (24,252 exact) + constituent (21,331) for ME/SPURS; 24,252 exact for TMPNN",same 23 `M` + 3 `H` DMS
-"Two Domainome domains (`O95155_PF04564_1229` = `3L1X`, `Q9H161_PF00046_216` = `2M0C`) match capped train at 100 % identity (+ 60 strong 2D/3D homolog domains)",2 `M` + 2 `P` + 60 `H` of 522 domains,"2,023 exact + 2,288 `P` (0.8 %) + 58,422 `H` rows (10.9 %)"
+"Two Domainome domains (`O95155_PF04564_1229` = `3L1X`, `Q9H161_PF00046_216` = `2M0C`) match capped train at 100 % identity (+ 60 strong 2D/3D homolog domains)",2 `M` + 2 `P` + 60 `H` of 522 domains (458 low-id clean of `M`/`P`/`H`),"2,023 exact + 2,288 `P` (0.8 %) + 58,422 `H` rows (10.9 %); `h.03` on the 458-domain subset"
 "EsmTherm's 80/10/10 is per row, not per domain: 27/33 test libraries (including mutant backgrounds) contribute training mutants",85.6 % of test rows same-protein (`P.86`),"`P`, `M?` expected ≈ 0.8 (`M?.68`)"
 IFUM trained on 21/33 test libraries (including mutant backgrounds),48.6 % of test rows same-protein (`P.49`),"`P`, `M?` = same rows (`M?.49`)"
 ESM3ΔG is zero-shot on Megascale,0 exact sequences anywhere in the benchmark,40.7 % strong (`8/33` libs) + 50.3 % weak (`21/33`) homologs

@@ -1,4 +1,4 @@
 version,n,pearson_observed_vs_latent,spearman_observed_vs_latent,mean_abs_diff,max_abs_diff,rho_observed,rho_latent,rmse_observed,rmse_latent
-all_dG_additive,12455,0.9764,0.9826,0.0554,1.0390,0.4609,0.4796,0.8024,0.7804
-dG_additive_positive,7405,0.9826,0.9862,0.0335,0.9760,0.4334,0.4404,0.5625,0.5570
-dG_additive_gt1,3907,0.9925,0.9962,0.0161,0.6803,0.4350,0.4388,0.4985,0.4954
+all_dG_additive,12455,0.9760,0.9817,0.0558,1.0390,0.4606,0.4796,0.8025,0.7804
+dG_additive_positive,7405,0.9817,0.9847,0.0343,0.9760,0.4319,0.4404,0.5629,0.5570
+dG_additive_gt1,3907,0.9922,0.9956,0.0163,0.6803,0.4345,0.4388,0.4986,0.4954

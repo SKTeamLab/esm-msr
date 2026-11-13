@@ -13,14 +13,14 @@ HERE = Path(__file__).resolve().parent
 RES = HERE / 'results'
 T = '02_thermostability/'
 TABLE_FIGURES = {
-    '1.1.1': [T + 'thermo_all_models', T + 'thermo_vs_retrains', T + 'thermo_scatter_external'],
-    '1.1.2': ['10_leakage_and_reference/leak_matrix_external', T + 'thermo_all_models'],
+    '1.1.1': [T + 'thermo_external_rho', T + 'thermo_overview'],
+    '1.1.2': ['10_leakage_and_reference/leak_matrix_external', T + 'thermo_external_rho', T + 'thermo_overview'],
     '1.2.1': ['03_tsuboyama/tsuboyama_overview', '03_tsuboyama/tsuboyama_per_library', '03_tsuboyama/tsuboyama_singles_doubles'],
     '1.2.2': ['10_leakage_and_reference/leak_matrix_other', '03_tsuboyama/tsuboyama_overview'],
-    '1.3.1': ['04_dms_domainome/dms_vs_retrains', '04_dms_domainome/dms_sigma_vs_zero_shot'],
+    '1.3.1': ['04_dms_domainome/dms_vs_retrains', '04_dms_domainome/dms_sigma_vs_zero_shot', '05_proteingym/pg_categories'],
     '1.3.2': ['10_leakage_and_reference/leak_matrix_other'],
     '1.3.3': ['04_dms_domainome/dms_sigma_sweep', '04_dms_domainome/dms_sigma_vs_zero_shot'],
-    '1.4.1': ['05_proteingym/pg_categories', '05_proteingym/pg_table_heatmap'],
+    '1.4.1': ['05_proteingym/pg_categories', '05_proteingym/pg_table_heatmap', '05_proteingym/pg_overview'],
     '1.4.2': ['10_leakage_and_reference/leak_matrix_other'],
     '1.5.1': ['10_leakage_and_reference/published_reference'],
     '2.0.1': ['06_epistasis/epistasis_authoritative_metrics'],
@@ -30,7 +30,7 @@ TABLE_FIGURES = {
     '2.3.1': ['06_epistasis/ddg_ranking', '06_epistasis/epistasis_scatter_ddG_doubles'],
     '2.5.1': ['06_epistasis/nobb_ablation'],
     '2.6.1': ['06_epistasis/lambda_scan'],
-    '3.1': ['05_proteingym/pg_categories', '05_proteingym/pg_table_heatmap'],
+    '3.1': ['05_proteingym/pg_categories', '05_proteingym/pg_table_heatmap', '05_proteingym/pg_overview'],
     '3.2': ['05_proteingym/pg_per_dms_scatter'],
     '6.2.1': ['10_leakage_and_reference/leak_audit_text_tables', '10_leakage_and_reference/leak_matrix_external'],
     '6.3.1': ['10_leakage_and_reference/leak_audit_text_tables'],

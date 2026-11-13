@@ -10,6 +10,7 @@ import pickle
 import re
 import warnings
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -155,7 +156,11 @@ _P0_FOLDER = {'tsuboyama_capped_val': 'splits_oct06_capped-val', 'tsuboyama_capp
 
 def _msr_file(spec, ds, seed, sigma):
     if spec == 'msrp0':
-        return P0 / _P0_FOLDER.get(ds, ds) / 'ckpt_p0_fir' / f's{seed}' / f'best.ckpt_sigma{float(sigma):.1f}_unmasked_predictions.csv'
+        base = P0 / _P0_FOLDER.get(ds, ds) / 'ckpt_p0_fir' / f's{seed}'
+        p = base / f'best.ckpt_sigma{float(sigma):.1f}_unmasked_predictions.csv'
+        if not p.exists():
+            p = base / f'best.ckpt_sigma{float(sigma):.1f}_skip_reverse_unmasked_predictions.csv'
+        return p
     return _msr_dir(spec, seed, sigma) / f'{ds}.csv'
 
 
@@ -319,6 +324,53 @@ def _load_public(frame, ds, out):
             out[f'{key}+:'] = _align_rowid(sp['row_id'].to_numpy(), d['row_id'].to_numpy(), d['pred_additive'].to_numpy(dtype=float) * scale)[None, :]
 
 
+_ROSETTA_FOLDER = {'ptmul': 'PTMUL'}
+
+
+def _rosetta_ext_root():
+    for cand in (
+        os.environ.get('MSR_ROSETTA_EXT', '~/software/esm-msr-release/analysis_notebooks/predictions'),
+        '~/software/esm-msr/analysis_notebooks/predictions',
+    ):
+        p = Path(cand).expanduser()
+        if p.is_dir():
+            return p
+    return None
+
+
+def _load_rosetta_ext(frame, ds, out):
+    """Load Rosetta cartesian_ddg predictions for external sets from the notebook prediction tree.
+
+    Files are already stabilizing-positive (cartesian_ddg_1..3 in REU; divided by 2.94 for kcal/mol).
+    Skipped when ``rosetta:`` is already populated (e.g. Tsuboyama sets from PUBLIC / 'rosetta').
+    """
+    if 'rosetta:' in out:
+        return
+    root = _rosetta_ext_root()
+    if root is None:
+        return
+    p = root / _ROSETTA_FOLDER.get(ds, ds) / 'rosetta' / 'cartesian_ddg.csv'
+    if not p.exists():
+        return
+    d = pd.read_csv(p, index_col=0)
+    uids = d['uid_true'].astype(str) if 'uid_true' in d.columns else d.index.astype(str)
+    rep_cols = [f'cartesian_ddg_{s}' for s in SEEDS]
+    add_cols = [f'cartesian_ddg_{s}_additive' for s in SEEDS]
+    cols = [c for c in rep_cols + add_cols if c in d.columns]
+    if not cols:
+        return
+    d = d[cols].copy()
+    d['_uid'] = uids.to_numpy()
+    d = d.groupby('_uid', sort=False)[cols].mean()
+    ids = frame.spine['id'].to_numpy(dtype=object)
+    d_ids = d.index.to_numpy(dtype=object)
+    if all(c in d.columns for c in rep_cols):
+        out['rosetta:'] = np.vstack([_align_id(ids, d_ids, d[c].to_numpy(dtype=float) / 2.94) for c in rep_cols])
+    if all(c in d.columns for c in add_cols) and 'rosetta:' in out:
+        out['rosetta+:'] = np.vstack([_align_id(ids, d_ids, d[c].to_numpy(dtype=float) / 2.94) for c in add_cols])
+        out['rosetta:epi'] = out['rosetta:'] - out['rosetta+:']
+
+
 FORGE = {'esm3s': 'esm3-small-2024-08', 'esm3m': 'esm3-medium-2024-08', 'esm3l': 'esm3-large-2024-03'}
 
 
@@ -365,7 +417,8 @@ _ESM3_FOLDER = {'tsuboyama_capped_val': 'splits_oct06_capped-val', 'tsuboyama_ca
 
 
 def _esm3_file(strategy, ds):
-    d = ESM3_MASKED / strategy / 'analysis' / 'predictions' / _ESM3_FOLDER.get(ds, ds)
+    parent = PARENT.get(ds, ds)
+    d = ESM3_MASKED / strategy / 'analysis' / 'predictions' / _ESM3_FOLDER.get(parent, parent)
     hits = sorted(p for p in d.rglob(f'*_sigma0.0*_{strategy}_predictions.csv') if '_smoke' not in p.name) if d.is_dir() else []   # <folder>/<checkpoint directory>/<file>
     return hits[-1] if hits else None
 
@@ -425,17 +478,26 @@ def load_frame(ds, refresh=False):
             return pickle.load(fh)
     spine = build_spine(ds)
     fr = Frame(ds, spine)
-    out = {}
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        _load_msr(fr, ds, out)
-        _load_me(fr, ds, out)
-        _load_tmpnn(fr, ds, out)
-        _load_spurs(fr, ds, out)
-        _load_public(fr, ds, out)
-        _load_forge(fr, ds, out)
-        _load_small(fr, ds, out)
-    fr.preds = {k: np.asarray(v, dtype=np.float64) for k, v in _tidy(out).items()}
+    if ds in PARENT:
+        # S461 (subset of S669), K2369 (subset of K3822), and PTMUL-D (subset of PTMUL) ALWAYS slice every model's
+        # predictions from their parent superset and merge by variant id onto the child's own corrected label table.
+        pfr = load_frame(PARENT[ds], refresh=refresh)
+        ids_c = spine['id'].to_numpy(dtype=object)
+        ids_p = pfr.spine['id'].to_numpy(dtype=object)
+        fr.preds = {k: np.vstack([_align_id(ids_c, ids_p, r) for r in v]).astype(np.float64) for k, v in pfr.preds.items()}
+    else:
+        out = {}
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            _load_msr(fr, ds, out)
+            _load_me(fr, ds, out)
+            _load_tmpnn(fr, ds, out)
+            _load_spurs(fr, ds, out)
+            _load_public(fr, ds, out)
+            _load_rosetta_ext(fr, ds, out)
+            _load_forge(fr, ds, out)
+            _load_small(fr, ds, out)
+        fr.preds = {k: np.asarray(v, dtype=np.float64) for k, v in _tidy(out).items()}
     fr.notes['coverage'] = {k: float(np.isfinite(v).all(axis=0)[spine['use'].to_numpy()].mean()) for k, v in fr.preds.items()}
     CACHE.mkdir(parents=True, exist_ok=True)
     with open(pkl, 'wb') as fh:

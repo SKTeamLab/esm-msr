@@ -1,18 +1,24 @@
 #!/usr/bin/env python
-"""Thermostability: the 12 external sets (BENCHMARKS tables 1.1 and the external-set part of 1.6).
+"""Thermostability: the 10 external sets, unified main models (including Rosetta), seed 1, mutation-level bootstrap.
 
-Three figures, all with protein-level bootstrap intervals (whole proteins resampled, the same proteins for every model, so
-differences are paired):
+Datasets (10 sets; S669, K3822, and mean-of-12 aggregate excluded):
+- 8 single-mutant sets: S571, S783, S2648, S8754, S461 (sliced from S669 onto S461 labels),
+  Ssym, Q3421, K2369 (sliced from K3822 onto K2369 labels).
+- 2 multi-mutant sets: PTMUL and PTMUL-D (doubles only, sliced from PTMUL onto PTMUL-D labels).
 
-``thermo_all_models``      ESM-MSR against every model of the benchmark, one small panel per set, models sorted by their mean over the
-                           12 sets (the column on the right, with its own interval).  Red rings mark cells whose model has documented training
-                           overlap with the set (leak audit, BENCHMARKS section 6); the retrained baselines and ESM-MSR have none.
-``thermo_vs_retrains``     the central comparison: ESM-MSR (WT head and combined) against the models retrained on the same split, set by set, and the
-                           paired difference (ESM-MSR minus each baseline) with its interval.
-``thermo_interval_types``  how much wider the interval is when proteins, not mutations, are resampled.
+Models (9 unified models, seed 1 only):
+- Singles sets use singles models (ESM-MSR p0 WT head, MutateEverything st1, ThermoMPNN, SPURS,
+  ESM3-small-open WT head) plus ProteinMPNN, ProSST, GeoDDG-3D, and Rosetta Cartesian ddG.
+- Multi-mutant sets use multi models (ESM-MSR p0 combined, MutateEverything st2, ThermoMPNN additive on PTMUL /
+  ThermoMPNN-D on PTMUL-D, SPURS multi, ESM3-small-open combined, ProteinMPNN, ProSST, GeoDDG-3D,
+  and Rosetta Cartesian ddG).
 
-ESM-MSR is shown by its WT head on the ten single-mutant sets and by its combined prediction on PTMUL and PTMUL-D.
+Outputs:
+- ``thermo_external_rho.{png,pdf}`` and ``thermostability_rho.csv``: Spearman's rho across models (vertical dataset bands).
+- ``thermo_overview.{png,pdf}``: 2x5 horizontal forest overview across all models in the external frames.
+- ``thermo_interval_types.{png,pdf}``: mutation-level vs. protein-level 95% bootstrap interval half-widths.
 """
+import argparse
 import pickle
 import sys
 from pathlib import Path
@@ -25,166 +31,252 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 
 from msr_analysis import style  # noqa: E402
-from msr_analysis.boot import ci  # noqa: E402
-from msr_analysis.common import leak_table, load_rho_df, out_dir, primary_ci  # noqa: E402
-from msr_analysis.registry import CACHE, EXT12, LABEL, MEGASCALE_NOTE, MEGASCALE_TRAINED, MODELS, RETRAINS  # noqa: E402
+from msr_analysis.boot import bootstrap_rho, ci  # noqa: E402
+from msr_analysis.common import leak_table, out_dir  # noqa: E402
+from msr_analysis.data import Frame, load_frame  # noqa: E402
+from msr_analysis.external_s1 import (  # noqa: E402
+    EXT_ORDER,
+    load_s1_mutation_boot,
+    model_key_for_dataset,
+    register_ext_styles,
+)
+from msr_analysis.registry import CACHE, LABEL, MODELS  # noqa: E402
 
 OUT = out_dir('02_thermostability')
-MULTI = {'ptmul', 'ptmuld'}
-ALL_KEYS = ['msr:wt', 'msr:comb', 'msrdev:wt', 'msrdev:comb', 'me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm', 'esmtherm', 'ddgemb', 'ddmut', 'ifum_wt',
-            'ifum_esmfold', 'geoddg', 'esm3dg', 'prosst', 'pmpnn', 'esm3s', 'esm3m', 'esm3l', 'msrrel@0:comb']
+EXT10 = ['s571', 's783', 's2648', 's8754', 's461', 'ssym', 'q3421', 'k2369', 'ptmul', 'ptmuld']
+THERMO_OVERVIEW_KEYS = [
+    'msrp0:comb', 'msrp0:wt',
+    'msrdev:comb', 'msrdev:wt',
+    'msr:comb', 'msr:wt',
+    'msrrel:comb', 'msrrel:wt',
+    'me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm',
+    'esm3dg', 'rosetta', 'ifum_esmfold', 'ifum_wt', 'esmtherm', 'ddgemb', 'ddmut', 'geoddg',
+    'prosst', 'pmpnn', 'msrrel@0:comb', 'esm3s', 'esm3m', 'esm3l',
+]
+DB_TRAINED = ['ddmut', 'ddgemb', 'geoddg']
+THEMES_NOTE = (
+    'Seed 1 only; 95% mutation-level bootstrap. Singles models on the 8 single-mutant sets; '
+    'multi models on PTMUL/PTMUL-D (ThermoMPNN additive on PTMUL, -D on PTMUL-D; Rosetta Cartesian ddG throughout). '
+    'Red ring = GeoDDG-3D documented training overlap.'
+)
 
 
-def msr_primary(ds, fam='msr'):
-    return f'{fam}:comb' if ds in MULTI else f'{fam}:wt'
+def _ensure_rosetta_frames(refresh=False):
+    need_boot = refresh
+    if not refresh:
+        for d in EXT10:
+            if 'rosetta' not in load_frame(d).preds:
+                need_boot = True
+                break
+    if need_boot:
+        # Refresh non-parent sets and child sets (which recursively refresh s669, k3822, ptmul).
+        for d in ['s571', 's783', 's2648', 's8754', 'ssym', 'q3421', 's461', 'k2369', 'ptmuld']:
+            load_frame(d, refresh=True)
+    return need_boot
 
 
-def main():
-    df = load_rho_df()
-    P = primary_ci(df[df.dataset.isin(EXT12)])
-    reps = pickle.load(open(CACHE / 'boot_protein.pkl', 'rb'))
+def main(refresh=False):
+    register_ext_styles()
+    need_boot = _ensure_rosetta_frames(refresh=refresh)
+    boot = load_s1_mutation_boot(refresh=need_boot)
+    P, reps, keys_used = boot['point'], boot['reps'], boot['keys']
     leak = leak_table()
-    # ---- mean over the 12 sets, with interval, for models scored on all twelve -------------------------------
-    mean12 = {}
-    for k in ALL_KEYS:
-        if all(k in reps[d] for d in EXT12):
-            r = np.mean([reps[d][k] for d in EXT12], axis=0)
-            pt = np.mean([P[(d, k)][0] for d in EXT12])
-            mean12[k] = (pt,) + ci(r)
-    order = sorted(mean12, key=lambda k: mean12[k][0])
-    partial = [k for k in ALL_KEYS if k not in mean12]
+
+    active_models = [m for m in EXT_ORDER if any((d, m) in P for d in EXT10)]
+
     rows = []
-    for k in ALL_KEYS:
-        for d in EXT12:
-            if (d, k) in P:
-                rows.append(dict(model=k, dataset=d, rho=P[(d, k)][0], lo=P[(d, k)][1], hi=P[(d, k)][2], leak_flag=leak.get((k, d), False)))
-        if k in mean12:
-            rows.append(dict(model=k, dataset='mean of 12', rho=mean12[k][0], lo=mean12[k][1], hi=mean12[k][2], leak_flag=any(leak.get((k, d), False) for d in EXT12)))
+    for m in active_models:
+        for d in EXT10:
+            if (d, m) not in P:
+                continue
+            raw_k = keys_used[(d, m)]
+            v = P[(d, m)]
+            rows.append(dict(
+                model=m, key=raw_k, dataset=d,
+                rho=v[0], lo=v[1], hi=v[2],
+                leak_flag=bool(leak.get((raw_k, d), False)),
+            ))
     S = pd.DataFrame(rows)
     S.to_csv(OUT / 'thermostability_rho.csv', index=False, float_format='%.4f')
 
-    # ---- figure 1: every model ---------------------------------------------------------------------------------
-    mega = [k for k in order if k in MEGASCALE_TRAINED]                   # trained on Megascale: last (bottom), greyed, starred
-    models = mega + [k for k in partial if any((d, k) in P for d in EXT12)] + [k for k in order if k not in MEGASCALE_TRAINED]
-    fig, axes = plt.subplots(1, 13, figsize=(17, 0.34 * len(models) + 1.6), sharey=True, gridspec_kw=dict(width_ratios=[1] * 12 + [1.15]))
-    ypos = {k: i for i, k in enumerate(models)}
-    for ax, d in zip(axes, EXT12 + ['mean of 12']):
-        for k, i in ypos.items():
-            v = (mean12[k] if d == 'mean of 12' else P.get((d, k))) if (d != 'mean of 12' or k in mean12) else None
-            if v is None:
-                continue
-            kw = style.marker_kwargs(k, size=5.5 if not k.startswith('msr:') else 7)
-            if k.startswith('msr') and not k.startswith('msrdev') and not k.startswith('msrrel'):
-                kw['color'] = kw['mec'] = 'k'
-            ax.plot([v[1], v[2]], [i, i], color=kw['color'], lw=1.0, alpha=.8, zorder=2)
-            ax.plot(v[0], i, zorder=4, **kw)
-            if d != 'mean of 12' and leak.get((k, d), False):
-                ax.plot(v[0], i, marker='o', ms=10, mfc='none', mec='#c0392b', mew=1.0, ls='none', zorder=5)
-        for k in ('msr:wt', 'msr:comb'):
-            ax.axhspan(ypos[k] - .5, ypos[k] + .5, color='#f2f2f2', zorder=0)
-        ax.axhspan(-.5, len(mega) - .5, color='#bdbdbd', alpha=.35, zorder=0)
-        ax.set_title(LABEL.get(d, d), fontsize=9)
-        ax.grid(axis='x', color=style.GRID, lw=.6)
-        ax.set_ylim(-.7, len(models) - .3)
-        ax.tick_params(axis='x', labelsize=7.5)
-    axes[0].set_yticks(range(len(models)))
-    axes[0].set_yticklabels([MODELS[k]['label'] for k in models], fontsize=8.5)
-    for t, k in zip(axes[0].get_yticklabels(), models):
-        t.set_color({'msr': 'k', 'retrain': '#1b6f3a', 'public': '#8a5a00', 'zeroshot': '#555555'}[MODELS[k]['group']])
-        if MODELS[k]['group'] == 'msr':
-            t.set_fontweight('bold')
-    fig.supxlabel('Spearman ρ (95% protein-level bootstrap); red ring = documented training overlap with the set.   ' + MEGASCALE_NOTE + ' (grey rows)', fontsize=9.5, y=-0.01)
-    fig.tight_layout(w_pad=0.3)
-    style.save(fig, OUT / 'thermo_all_models')
+    # ---- figure 1: standalone single-panel dot plot across EXT10 (vertical panels per dataset) ----------
+    table = {(d, m): P[(d, m)][0] for d in EXT10 for m in active_models if (d, m) in P}
+    cis = {(d, m): (P[(d, m)][1], P[(d, m)][2]) for d in EXT10 for m in active_models if (d, m) in P}
+    min_lo = min(v[0] for v in cis.values() if np.isfinite(v[0]))
+    ymin = min(0.10, float(np.floor((min_lo - 0.03) * 20) / 20))
 
-    # ---- figure 2: ESM-MSR vs the retrained baselines ------------------------------------------------------------------
-    cols = ['msr:wt', 'msr:comb'] + RETRAINS
-    table = {(d, k): P[(d, k)][0] for d in EXT12 for k in cols if (d, k) in P}
-    cis = {(d, k): P[(d, k)][1:] for d in EXT12 for k in cols if (d, k) in P}
-    fig = plt.figure(figsize=(14, 9.2))
-    gs = fig.add_gridspec(2, 2, height_ratios=[1.15, 1], width_ratios=[4.3, 1], hspace=0.38, wspace=0.05)
-    ax = fig.add_subplot(gs[0, :])
-    style.dot_panel(ax, EXT12, cols, table, cis, highlight=['msr:wt', 'msr:comb'], ylabel='Spearman ρ', ylim=(0.2, 0.97), spread=0.78, size=6.2)
-    style.model_legend(ax, cols, loc='upper center', ncol=8, fontsize=7.5, columnspacing=0.9, handletextpad=0.2)
-    ax.set_title('A  ESM-MSR against the baselines retrained on the same split (seed means; whiskers: 95% protein-level bootstrap)', loc='left')
-    # paired differences against the primary head
-    ax2 = fig.add_subplot(gs[1, 0])
-    n = len(EXT12)
-    style.band_axis(ax2, n)
-    offs = np.linspace(-.34, .34, len(RETRAINS))
-    summary = []
-    for j, k in enumerate(RETRAINS):
-        xs, ys, lo, hi = [], [], [], []
-        dm = []
-        for i, d in enumerate(EXT12):
-            if k not in reps[d]:
-                continue
-            a = reps[d][msr_primary(d)]
-            diff = a - reps[d][k]
-            pt = P[(d, msr_primary(d))][0] - P[(d, k)][0]
-            l, h = ci(diff)
-            xs.append(i + offs[j]); ys.append(pt); lo.append(pt - l); hi.append(h - pt)
-            dm.append(diff)
-            summary.append(dict(dataset=d, baseline=k, delta=pt, lo=l, hi=h, p_two_sided=float(2 * min((diff <= 0).mean(), (diff >= 0).mean()))))
-        kw = style.marker_kwargs(k, size=5.8)
-        ax2.errorbar(xs, ys, yerr=[lo, hi], fmt='none', ecolor=kw['color'], elinewidth=1, capsize=1.4, zorder=2)
-        ax2.plot(xs, ys, zorder=3, **kw)
-        if len(dm) == n:
-            m = np.mean(dm, axis=0)
-            pt = np.mean([P[(d, msr_primary(d))][0] - P[(d, k)][0] for d in EXT12])
-            l, h = ci(m)
-            summary.append(dict(dataset='mean of 12', baseline=k, delta=pt, lo=l, hi=h, p_two_sided=float(2 * min((m <= 0).mean(), (m >= 0).mean()))))
-    ax2.axhline(0, color='k', lw=.8)
-    ax2.set_xticks(range(n)); ax2.set_xticklabels([LABEL[d] for d in EXT12], rotation=30, ha='right')
-    ax2.set_ylabel('Δρ = ESM-MSR − baseline'); ax2.set_title('B  Paired difference per set (positive: ESM-MSR ahead)', loc='left')
-    ax3 = fig.add_subplot(gs[1, 1], sharey=ax2)
-    S2 = pd.DataFrame(summary)
-    S2.to_csv(OUT / 'thermo_paired_vs_retrains.csv', index=False, float_format='%.4f')
-    m12 = S2[S2.dataset == 'mean of 12']
-    for j, r in enumerate(m12.itertuples()):
-        kw = style.marker_kwargs(r.baseline, size=7)
-        ax3.errorbar([j], [r.delta], yerr=[[r.delta - r.lo], [r.hi - r.delta]], fmt='none', ecolor=kw['color'], capsize=2)
-        ax3.plot([j], [r.delta], **kw)
-    ax3.axhline(0, color='k', lw=.8); ax3.set_xticks(range(len(m12))); ax3.set_xticklabels([MODELS[b]['label'].replace(' (retrained)', '').replace('MutateEverything', 'ME').replace('ThermoMPNN + ThermoMPNN-D', 'TM+D') for b in m12.baseline], rotation=60, ha='right', fontsize=8)
-    ax3.set_title('C  Mean of 12', loc='left'); plt.setp(ax3.get_yticklabels(), visible=False)
-    style.save(fig, OUT / 'thermo_vs_retrains')
-    print(S2[S2.dataset == 'mean of 12'].round(4).to_string(index=False))
+    fig, ax = plt.subplots(figsize=(13.5, 5.8))
+    spread = 0.78
+    style.dot_panel(
+        ax, EXT10, active_models, table, cis,
+        highlight=['ESM-MSR'], ylabel='Spearman ρ',
+        xlabels=[LABEL.get(d, d) for d in EXT10],
+        ylim=(ymin, 0.98), spread=spread, size=6.0,
+    )
+    offs = np.linspace(-spread / 2, spread / 2, len(active_models))
+    for i, d in enumerate(EXT10):
+        for j, m in enumerate(active_models):
+            if (d, m) in P and leak.get((keys_used[(d, m)], d), False):
+                v = P[(d, m)][0]
+                ax.plot(i + offs[j], v, marker='o', ms=10.5, mfc='none', mec='#c0392b', mew=1.1, ls='none', zorder=6)
 
-    # ---- figure 3: what the interval depends on -------------------------------------------------------------------------
-    M = df[df.kind == 'mutation'].set_index(['dataset', 'model'])
+    hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8)) for m in active_models]
+    hs.append(Line2D([0], [0], marker='o', ms=8.5, mfc='none', mec='#c0392b', mew=1.1, ls='none', label='training overlap (GeoDDG-3D)'))
+    fig.legend(
+        handles=hs, loc='upper center', bbox_to_anchor=(0.5, 0.942), ncol=5, fontsize=8.0,
+        frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.1, handletextpad=0.3,
+    )
+    fig.suptitle(
+        'External thermostability sets: Spearman ρ across all models (seed 1; whiskers: 95% mutation-level bootstrap)',
+        x=0.012, ha='left', y=0.985, fontsize=10.5, fontweight='bold',
+    )
+    fig.text(0.012, 0.01, THEMES_NOTE, fontsize=8.0, va='bottom', ha='left', color='#444444')
+    fig.tight_layout(rect=(0.0, 0.045, 1.0, 0.84))
+    style.save(fig, OUT / 'thermo_external_rho')
+
+    # ---- figure 2: mutation-level vs protein-level bootstrap intervals (ESM-MSR p0, seed 1) -------------
+    p0_frames = {}
+    for d in EXT10:
+        fr = load_frame(d)
+        k = model_key_for_dataset('ESM-MSR', fr)
+        p0_frames[d] = Frame(d, fr.spine, {'ESM-MSR': fr.preds[k][:1]})
+    _, prot_reps = bootstrap_rho(p0_frames, ['ESM-MSR'], kind='protein', B=1000, seed=21, per_protein=False)
+    wp, wm = [], []
+    for d in EXT10:
+        pl, ph = ci(prot_reps[d]['ESM-MSR'])
+        ml, mh = P[(d, 'ESM-MSR')][1], P[(d, 'ESM-MSR')][2]
+        wp.append((ph - pl) / 2.0)
+        wm.append((mh - ml) / 2.0)
     fig, ax = plt.subplots(figsize=(9, 3.2))
-    x = np.arange(n)
-    wp = [(P[(d, msr_primary(d))][2] - P[(d, msr_primary(d))][1]) / 2 for d in EXT12]
-    wm = [(M.loc[(d, msr_primary(d)), 'hi'] - M.loc[(d, msr_primary(d)), 'lo']) / 2 for d in EXT12]
-    ax.bar(x - .2, wm, .4, color='#9ecae1', label='resampling mutations')
-    ax.bar(x + .2, wp, .4, color='#08519c', label='resampling proteins')
-    ax.set_xticks(x); ax.set_xticklabels([LABEL[d] for d in EXT12], rotation=30, ha='right'); ax.set_ylabel('95% interval half-width of ρ')
-    ax.legend(); ax.set_title('Intervals for ESM-MSR (WT head / combined): mutations in one protein are not independent', loc='left')
+    x = np.arange(len(EXT10))
+    ax.bar(x - 0.2, wm, 0.4, color='#9ecae1', label='resampling mutations')
+    ax.bar(x + 0.2, wp, 0.4, color='#08519c', label='resampling proteins')
+    ax.set_xticks(x); ax.set_xticklabels([LABEL[d] for d in EXT10], rotation=30, ha='right')
+    ax.set_ylabel('95% interval half-width of ρ')
+    ax.legend()
+    ax.set_title('Intervals for ESM-MSR (p0, seed 1; WT head on singles sets / combined on PTMUL(-D))', loc='left')
     fig.tight_layout()
     style.save(fig, OUT / 'thermo_interval_types')
 
+    # ---- figure 3: tsuboyama_overview-style 2x5 horizontal forest plot across EXT10 --------------------
+    thermo_overview(leak, refresh=need_boot)
 
-def scatter():
-    """raw predictions against measurements for the 12 sets (ESM-MSR, seed 1, the head the set calls for)"""
-    from msr_analysis.data import load_frame
-    fig, axes = plt.subplots(3, 4, figsize=(13, 9.4))
-    for ax, d in zip(axes.ravel(), EXT12):
+
+def _load_thermo_overview_boot(refresh=False):
+    cache_path = CACHE / 'thermo_overview_s1_boot.pkl'
+    if cache_path.exists() and not refresh:
+        with open(cache_path, 'rb') as fh:
+            cached = pickle.load(fh)
+        if isinstance(cached, dict) and set(cached.get('keys', [])) == set(THERMO_OVERVIEW_KEYS):
+            return cached
+
+    s1_frames = {}
+    meta = {}
+    for d in EXT10:
         fr = load_frame(d)
-        k = msr_primary(d)
-        ok = fr.spine['use'].to_numpy() & np.isfinite(fr.preds[k][0])
-        style.density_scatter(ax, fr.preds[k][0][ok], fr.spine['y'].to_numpy()[ok], s=6, line=False, max_points=9000)
-        ax.set_title(f'{LABEL[d]}  ({"combined" if d in MULTI else "WT head"})', fontsize=9)
-        if d == 's571':
-            ax.set_ylabel('measured (S571 labels are not in kcal/mol)')
-    for ax in axes[:, 0]:
-        ax.set_ylabel('measured ddG (kcal/mol)')
-    for ax in axes[-1]:
-        ax.set_xlabel('ESM-MSR prediction')
-    fig.suptitle('ESM-MSR prediction against measurement on the external stability sets (seed 1, all variants)', y=1.0, fontsize=10)
-    fig.tight_layout()
-    style.save(fig, OUT / 'thermo_scatter_external')
+        sp = fr.spine
+        u = sp['use'].to_numpy()
+        meta[d] = (int(u.sum()), int(sp.loc[u, 'cluster'].nunique()))
+        s1_frames[d] = Frame(d, sp, {k: fr.preds[k][:1] for k in THERMO_OVERVIEW_KEYS if k in fr.preds})
+
+    pt_p, rep_p = bootstrap_rho(s1_frames, THERMO_OVERVIEW_KEYS, kind='protein', B=1000, seed=11, per_protein=False)
+    pt_m, rep_m = bootstrap_rho(s1_frames, THERMO_OVERVIEW_KEYS, kind='mutation', B=1000, seed=11, per_protein=False)
+
+    P_prot, P_mut = {}, {}
+    for d in EXT10:
+        for k in THERMO_OVERVIEW_KEYS:
+            if k in pt_p[d]:
+                lo_p, hi_p = ci(rep_p[d][k])
+                P_prot[(d, k)] = (float(pt_p[d][k][0]), float(lo_p), float(hi_p))
+            if k in pt_m[d]:
+                lo_m, hi_m = ci(rep_m[d][k])
+                P_mut[(d, k)] = (float(pt_m[d][k][0]), float(lo_m), float(hi_m))
+
+    payload = dict(keys=list(THERMO_OVERVIEW_KEYS), meta=meta, P_prot=P_prot, P_mut=P_mut)
+    CACHE.mkdir(parents=True, exist_ok=True)
+    with open(cache_path, 'wb') as fh:
+        pickle.dump(payload, fh, protocol=4)
+    return payload
+
+
+def thermo_overview(leak, refresh=False):
+    ov = _load_thermo_overview_boot(refresh=refresh)
+    P_prot, P_mut, meta = ov['P_prot'], ov['P_mut'], ov['meta']
+
+    label_overrides = {
+        'msrdev:comb': 'ESM-MSR (devel) combined',
+        'msrdev:wt':   'ESM-MSR (devel) WT head',
+        'geoddg':      'GeoDDG-3D*',
+        'ddgemb':      'DDGemb*',
+        'ddmut':       'DDMut*',
+    }
+    saved_labels = {k: MODELS[k]['label'] for k in label_overrides}
+    for k, lab in label_overrides.items():
+        MODELS[k]['label'] = lab
+
+    try:
+        mean_rho = {k: float(np.mean([P_prot[(d, k)][0] for d in EXT10])) for k in THERMO_OVERVIEW_KEYS}
+        db_keys = sorted([k for k in THERMO_OVERVIEW_KEYS if k in DB_TRAINED], key=lambda k: mean_rho[k])
+        held_keys = sorted([k for k in THERMO_OVERVIEW_KEYS if k not in DB_TRAINED], key=lambda k: mean_rho[k])
+        keys = db_keys + held_keys
+
+        rows = [EXT10[:5], EXT10[5:]]
+        fig, axes = plt.subplots(2, 5, figsize=(17.8, 2 * (0.28 * len(keys) + 1.2)), sharey=True)
+        for r_idx, row_ds in enumerate(rows):
+            for c_idx, ds in enumerate(row_ds):
+                ax = axes[r_idx, c_idx]
+                vals = [P_prot[(ds, k)] for k in keys if (ds, k) in P_prot]
+                mut_vals = [P_mut[(ds, k)] for k in keys if (ds, k) in P_mut]
+                min_lo = min(min(lo for _v, lo, _hi in vals), min(lo for _v, lo, _hi in mut_vals))
+                max_hi = max(max(hi for _v, _lo, hi in vals), max(hi for _v, _lo, hi in mut_vals))
+                x_lo = float(np.floor((min_lo - 0.03) * 20) / 20)
+                span = max(0.30, max_hi - x_lo)
+                x_hi = max_hi + 0.24 * span
+
+                for i, k in enumerate(keys):
+                    v, lo, hi = P_prot[(ds, k)]
+                    m = P_mut.get((ds, k))
+                    kw = style.marker_kwargs(k, size=5.6)
+                    ax.plot([lo, hi], [i, i], color=kw['color'], lw=2.3, alpha=0.45, solid_capstyle='butt')
+                    if m:
+                        ax.plot([m[1], m[2]], [i, i], color=kw['color'], lw=0.8)
+                    ax.plot(v, i, **kw)
+                    if leak.get((k, ds), False):
+                        ax.plot(v, i, marker='o', ms=9.5, mfc='none', mec='#c0392b', mew=0.95, ls='none')
+                    r_edge = max(hi, m[2] if m else hi)
+                    ax.text(r_edge + 0.022 * span, i, f'{v:.3f}', va='center', fontsize=6.9, color='#444')
+
+                ax.axhspan(-0.5, len(db_keys) - 0.5, color='#bdbdbd', alpha=0.35, zorder=0)
+                n_use, n_prot = meta[ds]
+                ax.set_title(f'{LABEL[ds]} (n = {n_use:,}, {n_prot} prot.)', loc='left', fontsize=9.3)
+                ax.grid(axis='x', color=style.GRID, lw=0.6)
+                ax.set_xlim(x_lo, x_hi)
+                if r_idx == 1:
+                    ax.set_xlabel('Spearman ρ', fontsize=9.0)
+
+            ax_l = axes[r_idx, 0]
+            ax_l.set_yticks(range(len(keys)))
+            ax_l.set_yticklabels([MODELS[k]['label'] for k in keys], fontsize=8.0)
+            ax_l.set_ylim(-0.6, len(keys) - 0.4)
+            for t, k in zip(ax_l.get_yticklabels(), keys):
+                t.set_color({'msr': 'k', 'retrain': '#1b6f3a', 'public': '#8a5a00', 'zeroshot': '#555'}[MODELS[k]['group']])
+                if MODELS[k]['group'] == 'msr':
+                    t.set_fontweight('bold')
+
+        fig.suptitle(
+            'External thermostability sets (seed 1): thick bar = resampling proteins; thin line = resampling mutations; red ring = documented training overlap\n'
+            '* trained on ProThermDB / ThermoMutDB / S2648 / S8754: not held out (grey rows, at the bottom)',
+            fontsize=9.2, y=1.01,
+        )
+        fig.tight_layout()
+        style.save(fig, OUT / 'thermo_overview')
+    finally:
+        for k, lab in saved_labels.items():
+            MODELS[k]['label'] = lab
 
 
 if __name__ == '__main__':
-    main()
-    scatter()
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--refresh', action='store_true', help='Recompute external frames and seed-1 mutation bootstrap cache')
+    args = ap.parse_args()
+    main(refresh=args.refresh)

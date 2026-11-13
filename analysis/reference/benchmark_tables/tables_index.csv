@@ -3,9 +3,9 @@ table,section,heading,columns,rows
 1.1.2,1.1,Thermostability: the 12 external sets,model | s571 (leak code) | s783 (leak code) | s2648 (leak code) | s8754 (leak code) | s669 (leak code) | s461 (leak code) | ssym (leak code) | q3421 (leak code),24
 1.2.1,1.2,Tsuboyama,model | capped val | capped test,21
 1.2.2,1.2,Tsuboyama,model | capped val (leak code) | capped test (leak code),21
-1.3.1,1.3,DMS and Domainome,model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome,24
+1.3.1,1.3,DMS and Domainome,"model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome | Domainome (low-id, 458)",24
 1.3.2,1.3,DMS and Domainome,model | DLG4 abund. (leak code) | DLG4 bind. (leak code) | GRB2 abund. (leak code) | GRB2 bind. (leak code) | MYO (leak code) | ESTA dTm (leak code) | GB1 (leak,24
-1.3.3,1.3,ESM-MSR LoRA scale σ on the DMS and Domainome,model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome,9
+1.3.3,1.3,ESM-MSR LoRA scale σ on the DMS and Domainome,"model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome | Domainome (low-id, 458)",9
 1.4.1,1.4,ProteinGym (213 DMS),model | PG avg | Stability | DMS mean,17
 1.4.2,1.4,ProteinGym (213 DMS),model | PG avg (leak code) | Stability (leak code) | DMS mean (leak code),17
 1.5.1,1.5,Published-paper evaluation (reference; earlier models and row sets),dataset | ESM-MSR (published) | ProteinMPNN | Rosetta cart. ΔΔG | ESM3-small-open | ESM3-small | ESM3-medium | ESM3-large | ME (hyperopt) | ME additive (hyperop,20

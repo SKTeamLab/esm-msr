@@ -46,16 +46,14 @@ MODELS['msrp0:epi'] = dict(label='ESM-MSR (p0) (1/2(MT+WT)_AB − WT_A − WT_B)
 
 
 def add_linked(fr):
-    """Add observed-scale (post-link) predictions for ``msrdev`` using each seed's learned link and per-library floors (``reference/y_floor.json``).
+    """Add observed-scale (post-link) predictions for ``msrdev`` using each seed's learned link parameters (``reference/devel_link_params.json``).
     Latent ``:epi`` = 1/2(MT_AB + WT_AB) - WT_A - WT_B is already populated by ``data.py``."""
     sp = fr.spine
     dg = sp['dG_wt'].to_numpy()
-    codes = sp['code'].astype(str).to_numpy()
-    yf = json.loads((REFERENCE / 'y_floor.json').read_text()) if (REFERENCE / 'y_floor.json').exists() else None
     wt, comb = fr.preds['msrdev:wt'], fr.preds['msrdev:comb']
-    fr.preds['msrdev:epi_obs'] = np.stack([link.observed_epistasis(sp, wt[i], comb[i], i + 1, yf) for i in range(3)])
-    fr.preds['msrdev:comb_obs'] = np.stack([link.observed(comb[i], dg, i + 1, yf, codes) for i in range(3)])
-    fr.preds['msrdev:wt_obs'] = np.stack([link.observed(wt[i], dg, i + 1, yf, codes) for i in range(3)])
+    fr.preds['msrdev:epi_obs'] = np.stack([link.observed_epistasis(sp, wt[i], comb[i], i + 1) for i in range(3)])
+    fr.preds['msrdev:comb_obs'] = np.stack([link.observed(comb[i], dg, i + 1) for i in range(3)])
+    fr.preds['msrdev:wt_obs'] = np.stack([link.observed(wt[i], dg, i + 1) for i in range(3)])
     return fr
 DMS_D = ['GB1_Wu_2016_binding_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain',
          'DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain']
@@ -267,7 +265,7 @@ def doubles_ddg():
     for ax in axes[:, 0]:
         ax.set_ylabel('measured ddG (kcal/mol)')
     fig.suptitle(f'Tsuboyama test doubles (n = {int(m.sum()):,}; seed 1 shown, rho is the seed mean).  Pooled ρ counts between-library offsets and saturation; the link raises it, '
-                 'per-library ρ (the benchmark metric) is unchanged by it.\nLink rebuilt from each checkpoint with per-library floors (reference/y_floor.json).', y=1.01, fontsize=9)
+                 'per-library ρ (the benchmark metric) is unchanged by it.\nLink rebuilt from each checkpoint\'s learned link parameters (reference/devel_link_params.json).', y=1.01, fontsize=9)
     fig.tight_layout()
     style.save(fig, OUT / 'epistasis_scatter_ddG_doubles')
 

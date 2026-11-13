@@ -241,3 +241,7 @@ table,row,column,mean,sd_n_minus_1,n_seeds
 2.3 ddG ranking (mean per-protein Spearman),test dddG of doubles (`spearman_doubles_epi`),ESM-MSR (baseline) combined ʰ,0.574,0.013,3
 2.3 ddG ranking (mean per-protein Spearman),test dddG of doubles (`spearman_doubles_epi`),ESM-MSR (devel) WT ʰ,-0.022,0.026,3
 2.3 ddG ranking (mean per-protein Spearman),test dddG of doubles (`spearman_doubles_epi`),ESM-MSR (devel) combined ʰ,0.575,0.007,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)","Domainome (low-id, 458)",0.536,0.001,3
+1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)","Domainome (low-id, 458)",0.534,0.004,3
+1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)","Domainome (low-id, 458)",0.477,0.010,3
+1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)","Domainome (low-id, 458)",0.383,0.009,3

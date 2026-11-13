@@ -708,3 +708,32 @@ Rosetta,tsu_capped_test,0.6625513977830332,none,52071.0,0,0,0,0,0,0.0,0,0,0,0,,�
 ESM3dG,PG avg,0.38,esm3dg_mgnify,2465767.0,0,0,0,46259,810928,0.0,0,0,0,0,,H.02 h.33,ᴴ
 ESM3dG,PG Stability,0.788,esm3dg_mgnify,2465767.0,0,0,0,46259,810928,0.0,0,0,0,0,,H.02 h.33,ᴴ
 ESM3dG,PG DMS mean,0.441,esm3dg_mgnify,2465767.0,0,0,0,46259,810928,0.0,0,0,0,0,,H.02 h.33,ᴴ
+ESM-MSR (released),domainome_low_id,0.53562,esm_msr_capped,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ESM-MSR (released) WT,domainome_low_id,0.534315,esm_msr_capped,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ESM-MSR (released) MT,domainome_low_id,0.513473,esm_msr_capped,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ESM-MSR (devel),domainome_low_id,0.535998,esm_msr_capped,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ESM-MSR (devel) WT,domainome_low_id,0.541849,esm_msr_capped,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ESM-MSR (devel) MT,domainome_low_id,0.499709,esm_msr_capped,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+"ESM3-small-open (σ=0, MSR readout)",domainome_low_id,0.54548,corpus,471652.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM3-small-open (σ=0, MSR readout) WT",domainome_low_id,0.549472,corpus,471652.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+"ESM3-small-open (σ=0, MSR readout) MT",domainome_low_id,0.480705,corpus,471652.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM-MSR (released) σ=0.75,domainome_low_id,0.554231,esm_msr_capped,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ESM-MSR (devel) σ=0.75,domainome_low_id,0.553881,esm_msr_capped,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ESM-MSR (released) σ=0.5,domainome_low_id,0.567495,esm_msr_capped,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ESM-MSR (devel) σ=0.5,domainome_low_id,0.566298,esm_msr_capped,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ESM-MSR (released) σ=0.25,domainome_low_id,0.568285,esm_msr_capped,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ESM-MSR (devel) σ=0.25,domainome_low_id,0.567448,esm_msr_capped,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+TMPNN,domainome_low_id,0.437007,tmpnn,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ME stage1,domainome_low_id,0.51062,me_stage1,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ME stage2,domainome_low_id,0.498602,me_stage2,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ESMtherm,domainome_low_id,0.183261,esmtherm,471652.0,0,0,21094,141125,19175,0.0,0,0,0,0,,P.04 M?.04 H.30 h.04,ᴾ
+DDGemb,domainome_low_id,0.343415,ddgemb_s2450,471652.0,189,0,16418,88955,36074,0.0,0,0,0,0,,M<.001 P.03 H.19 h.08,ᴾ
+IFUM (WT backbone),domainome_low_id,0.459403,ifum,471652.0,0,0,21728,138070,19423,0.0,0,0,0,0,,P.05 M?.05 H.29 h.04,ᴾ
+"IFUM (native, ESMFold)",domainome_low_id,0.466946,ifum,471652.0,0,0,21728,138070,19423,0.0,0,0,0,0,,P.05 M?.05 H.29 h.04,ᴾ
+GeoDDG-3D,domainome_low_id,0.411959,geoddg_s8754,471652.0,590,0,24308,144537,36392,0.0,0,0,0,0,,M.001 P.05 H.31 h.08,ᴾ
+ProSST,domainome_low_id,0.526355,corpus,471652.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+ESM3dG,domainome_low_id,0.502342,esm3dg_mgnify,471652.0,0,0,0,70636,264941,0.0,0,0,0,0,,H.15 h.56,ᴴ
+ESM3-large zero-shot,domainome_low_id,0.515829,corpus,471652.0,0,0,0,0,0,0.0,0,0,0,0,,–,
+SPURS (retrained),domainome_low_id,0.476767,spurs_retrain_single,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+SPURS multi (retrained),domainome_low_id,0.382996,spurs_retrain_multi,471652.0,0,0,0,0,12498,0.0,0,0,0,0,,h.03,ʰ
+ProteinMPNN,domainome_low_id,0.543702,corpus,471652.0,0,0,0,0,0,0.0,0,0,0,0,,–,

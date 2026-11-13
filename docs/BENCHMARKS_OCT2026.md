@@ -111,7 +111,7 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
   multi-mutant model applied to *every* variant, singles included. Both were retrained on the capped split, three seeds each and paired by seed (the multi model of
   seed *s* starts from the single model of seed *s*; recipe in §1.6), so they are held out like ESM-MSR, ME and ThermoMPNN. Held out, SPURS is level with ThermoMPNN
   on the 12-set mean (0.588 against 0.585) and 0.06 behind ESM-MSR (devel 0.652). SPURS multi is the weaker predictor on singles: 12-set mean 0.556 against 0.588,
-  7-DMS mean 0.523 against 0.578, Domainome 0.393 against 0.489, capped test 0.772 against 0.801 (S669 0.471 against 0.497, K3822 0.598 against 0.621). It is
+  7-DMS mean 0.523 against 0.578, Domainome 0.393 against 0.489 (0.383 vs 0.477 on the 458 low-id subset), capped test 0.772 against 0.801 (S669 0.471 against 0.497, K3822 0.598 against 0.621). It is
   also lower on the multi-mutant sets (PTMUL 0.403 against 0.427, PTMUL-D 0.481 against 0.537), so the multi model is not buying anything even where it was
   designed to be used.
 - **ESM3 through Forge** (small, medium, large). Predictions exist only for the parent sets, so S461, K2369 and
@@ -204,61 +204,61 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 
 ### 1.3 DMS and Domainome
 
-| model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome |
-|---|---|---|---|---|---|---|---|---|
-| ESM-MSR (baseline), combined (3 seeds) | 0.737 | 0.737 | 0.675 | 0.627 | 0.638 | 0.480 | 0.318 | 0.543ᴴ |
-| ESM-MSR (baseline), WT head (3 seeds) | 0.733 | 0.736 | 0.670 | 0.636 | 0.637 | 0.462 | 0.341 | 0.541ᴴ |
-| ESM-MSR (devel), combined (3 seeds) | 0.745 | 0.742 | 0.681 | 0.636 | 0.639 | 0.481 | 0.337 | 0.543ᴴ |
-| ESM-MSR (devel), WT head | 0.751 | 0.754 | 0.684 | 0.655 | **0.640** | 0.478 | **0.364** | 0.548ᴴ |
-| MutateEverything st1 (3 seeds) | 0.707 | 0.681 | 0.646 | 0.581 | 0.580 | 0.483 | 0.299 | 0.520ᴴ |
-| MutateEverything st1, additive | 0.729 | 0.714 | 0.690 | 0.615 | 0.603 | 0.483 | 0.294 | – |
-| MutateEverything st2 (3 seeds) | 0.645 | 0.635 | 0.605 | 0.598 | 0.560 | 0.439 | 0.253 | 0.509ᴴ |
-| MutateEverything st2, additive | 0.715 | 0.699 | 0.669 | 0.642 | 0.599 | 0.439 | 0.281 | – |
-| ThermoMPNN (additive, 3 seeds) | 0.626 | 0.632 | 0.613 | 0.569 | 0.570 | 0.405 | 0.319 | 0.450ᴴ |
-| ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.568 | 0.582 | 0.560 | 0.549 | 0.535 | 0.405 | 0.318 | – |
-| SPURS (retrained, 3 seeds) | 0.715 | 0.729 | 0.674 | 0.589 | 0.583 | 0.449 | 0.308 | 0.489ᴴ |
-| SPURS multi (retrained, 3 seeds) | 0.658 | 0.673 | 0.576 | 0.545 | 0.539 | 0.335 | 0.333 | 0.393ᴴ |
-| ESMtherm | 0.093 | 0.136 | 0.484 | 0.466 | 0.229 | -0.000 | 0.214ᴾ | 0.201ᴾ |
-| DDGemb (server) | 0.103 | 0.123 | 0.457 | 0.469 | 0.475ᴴ | 0.188 | 0.154 | 0.351ᴾ |
-| IFUM, WT backbone | 0.766 | 0.768 | 0.648 | 0.565 | 0.507 | 0.190 | 0.262ᴾ | 0.464ᴾ |
-| IFUM, ESMFold per variant | 0.762 | 0.747 | 0.697 | 0.575 | 0.523 | 0.217 | 0.284ᴾ | 0.473ᴾ |
-| GeoDDG-3D (FASPR) | 0.351 | 0.431 | 0.604 | 0.481 | 0.395ᴾ | 0.240 | 0.200ᵐ | 0.413ᴾ |
-| ESM3ΔG | 0.763 | 0.766 | **0.749** | 0.646 | 0.594ʰ | 0.280ʰ | 0.324 | 0.512ᴴ |
-| ProSST (zero-shot) | **0.776** | **0.796** | 0.711 | 0.702 | 0.538 | 0.356 | 0.258 | 0.519 |
-| ProteinMPNN (zero-shot) | 0.619 | 0.613 | 0.667 | 0.538 | 0.498 | **0.544** | 0.119 | **0.548** |
-| ESM3-small-open, σ = 0 (zero-shot) | 0.689 | 0.742 | 0.627 | 0.723 | 0.536 | 0.483 | 0.259 | 0.540 |
-| ESM3-large (Forge, zero-shot) | 0.624 | 0.606 | 0.557 | 0.582 | 0.458 | 0.432 | – | 0.510 |
-| ESM3-medium (Forge, zero-shot) | 0.734 | 0.779 | 0.664 | – | – | – | – | – |
-| ESM3-small (Forge, zero-shot) | 0.769 | 0.785 | 0.673 | **0.731** | 0.568 | 0.498 | – | – |
+| model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome | Domainome (low-id, 458) |
+|---|---|---|---|---|---|---|---|---|---|
+| ESM-MSR (baseline), combined (3 seeds) | 0.737 | 0.737 | 0.675 | 0.627 | 0.638 | 0.480 | 0.318 | 0.543ᴴ | 0.536ʰ |
+| ESM-MSR (baseline), WT head (3 seeds) | 0.733 | 0.736 | 0.670 | 0.636 | 0.637 | 0.462 | 0.341 | 0.541ᴴ | 0.534ʰ |
+| ESM-MSR (devel), combined (3 seeds) | 0.745 | 0.742 | 0.681 | 0.636 | 0.639 | 0.481 | 0.337 | 0.543ᴴ | 0.536ʰ |
+| ESM-MSR (devel), WT head | 0.751 | 0.754 | 0.684 | 0.655 | **0.640** | 0.478 | **0.364** | 0.548ᴴ | 0.542ʰ |
+| MutateEverything st1 (3 seeds) | 0.707 | 0.681 | 0.646 | 0.581 | 0.580 | 0.483 | 0.299 | 0.520ᴴ | 0.511ʰ |
+| MutateEverything st1, additive | 0.729 | 0.714 | 0.690 | 0.615 | 0.603 | 0.483 | 0.294 | – | – |
+| MutateEverything st2 (3 seeds) | 0.645 | 0.635 | 0.605 | 0.598 | 0.560 | 0.439 | 0.253 | 0.509ᴴ | 0.499ʰ |
+| MutateEverything st2, additive | 0.715 | 0.699 | 0.669 | 0.642 | 0.599 | 0.439 | 0.281 | – | – |
+| ThermoMPNN (additive, 3 seeds) | 0.626 | 0.632 | 0.613 | 0.569 | 0.570 | 0.405 | 0.319 | 0.450ᴴ | 0.437ʰ |
+| ThermoMPNN + ThermoMPNN-D (3 seeds) | 0.568 | 0.582 | 0.560 | 0.549 | 0.535 | 0.405 | 0.318 | – | – |
+| SPURS (retrained, 3 seeds) | 0.715 | 0.729 | 0.674 | 0.589 | 0.583 | 0.449 | 0.308 | 0.489ᴴ | 0.477ʰ |
+| SPURS multi (retrained, 3 seeds) | 0.658 | 0.673 | 0.576 | 0.545 | 0.539 | 0.335 | 0.333 | 0.393ᴴ | 0.383ʰ |
+| ESMtherm | 0.093 | 0.136 | 0.484 | 0.466 | 0.229 | -0.000 | 0.214ᴾ | 0.201ᴾ | 0.183ᴾ |
+| DDGemb (server) | 0.103 | 0.123 | 0.457 | 0.469 | 0.475ᴴ | 0.188 | 0.154 | 0.351ᴾ | 0.343ᴾ |
+| IFUM, WT backbone | 0.766 | 0.768 | 0.648 | 0.565 | 0.507 | 0.190 | 0.262ᴾ | 0.464ᴾ | 0.459ᴾ |
+| IFUM, ESMFold per variant | 0.762 | 0.747 | 0.697 | 0.575 | 0.523 | 0.217 | 0.284ᴾ | 0.473ᴾ | 0.467ᴾ |
+| GeoDDG-3D (FASPR) | 0.351 | 0.431 | 0.604 | 0.481 | 0.395ᴾ | 0.240 | 0.200ᵐ | 0.413ᴾ | 0.412ᴾ |
+| ESM3ΔG | 0.763 | 0.766 | **0.749** | 0.646 | 0.594ʰ | 0.280ʰ | 0.324 | 0.512ᴴ | 0.502ᴴ |
+| ProSST (zero-shot) | **0.776** | **0.796** | 0.711 | 0.702 | 0.538 | 0.356 | 0.258 | 0.519 | 0.526 |
+| ProteinMPNN (zero-shot) | 0.619 | 0.613 | 0.667 | 0.538 | 0.498 | **0.544** | 0.119 | **0.548** | 0.544 |
+| ESM3-small-open, σ = 0 (zero-shot) | 0.689 | 0.742 | 0.627 | 0.723 | 0.536 | 0.483 | 0.259 | 0.540 | **0.545** |
+| ESM3-large (Forge, zero-shot) | 0.624 | 0.606 | 0.557 | 0.582 | 0.458 | 0.432 | – | 0.510 | 0.516 |
+| ESM3-medium (Forge, zero-shot) | 0.734 | 0.779 | 0.664 | – | – | – | – | – | – |
+| ESM3-small (Forge, zero-shot) | 0.769 | 0.785 | 0.673 | **0.731** | 0.568 | 0.498 | – | – | – |
 
-| model | DLG4 abund. (leak code) | DLG4 bind. (leak code) | GRB2 abund. (leak code) | GRB2 bind. (leak code) | MYO (leak code) | ESTA dTm (leak code) | GB1 (leak code) | Domainome (leak code) |
-|---|---|---|---|---|---|---|---|---|
-| ESM-MSR (baseline), combined (3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 |
-| ESM-MSR (baseline), WT head (3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 |
-| ESM-MSR (devel), combined (3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 |
-| ESM-MSR (devel), WT head | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 |
-| MutateEverything st1 (3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 |
-| MutateEverything st1, additive | – | – | – | – | – | – | – | – |
-| MutateEverything st2 (3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 |
-| MutateEverything st2, additive | – | – | – | – | – | – | – | – |
-| ThermoMPNN (additive, 3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 |
-| ThermoMPNN + ThermoMPNN-D (3 seeds) | – | – | – | – | – | – | – | – |
-| SPURS (retrained, 3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 |
-| SPURS multi (retrained, 3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 |
-| ESMtherm | – | – | – | – | – | – | P1 M?.80 | P.05 M?.04 H.37 h.04 |
-| DDGemb (server) | – | – | – | – | H1 | – | – | M<.001 P.03 H.17 h.07 |
-| IFUM, WT backbone | – | – | – | – | – | – | P1 M?1 | P.05 M?.05 H.36 h.04 |
-| IFUM, ESMFold per variant | – | – | – | – | – | – | P1 M?1 | P.05 M?.05 H.36 h.04 |
-| GeoDDG-3D (FASPR) | – | – | – | – | M<.001 P1 | – | M<.001 m.41 P.59 | M.001 P.05 H.28 h.08 |
-| ESM3ΔG | – | – | – | – | h1 | h1 | – | H.23 h.51 |
-| ProSST (zero-shot) | – | – | – | – | – | – | – | – |
-| ProteinMPNN (zero-shot) | – | – | – | – | – | – | – | – |
-| ESM3-small-open, σ = 0 (zero-shot) | – | – | – | – | – | – | – | – |
-| ESM3-large (Forge, zero-shot) | – | – | – | – | – | – | – | – |
-| ESM3-medium (Forge, zero-shot) | – | – | – | – | – | – | – | – |
-| ESM3-small (Forge, zero-shot) | – | – | – | – | – | – | – | – |
+| model | DLG4 abund. (leak code) | DLG4 bind. (leak code) | GRB2 abund. (leak code) | GRB2 bind. (leak code) | MYO (leak code) | ESTA dTm (leak code) | GB1 (leak code) | Domainome (leak code) | Domainome (low-id, 458) (leak code) |
+|---|---|---|---|---|---|---|---|---|---|
+| ESM-MSR (baseline), combined (3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 | h.03 |
+| ESM-MSR (baseline), WT head (3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 | h.03 |
+| ESM-MSR (devel), combined (3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 | h.03 |
+| ESM-MSR (devel), WT head | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 | h.03 |
+| MutateEverything st1 (3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 | h.03 |
+| MutateEverything st1, additive | – | – | – | – | – | – | – | – | – |
+| MutateEverything st2 (3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 | h.03 |
+| MutateEverything st2, additive | – | – | – | – | – | – | – | – | – |
+| ThermoMPNN (additive, 3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 | h.03 |
+| ThermoMPNN + ThermoMPNN-D (3 seeds) | – | – | – | – | – | – | – | – | – |
+| SPURS (retrained, 3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 | h.03 |
+| SPURS multi (retrained, 3 seeds) | – | – | – | – | – | – | – | M.004 P.004 H.11 h.02 | h.03 |
+| ESMtherm | – | – | – | – | – | – | P1 M?.80 | P.05 M?.04 H.37 h.04 | P.04 M?.04 H.30 h.04 |
+| DDGemb (server) | – | – | – | – | H1 | – | – | M<.001 P.03 H.17 h.07 | M<.001 P.03 H.19 h.08 |
+| IFUM, WT backbone | – | – | – | – | – | – | P1 M?1 | P.05 M?.05 H.36 h.04 | P.05 M?.05 H.29 h.04 |
+| IFUM, ESMFold per variant | – | – | – | – | – | – | P1 M?1 | P.05 M?.05 H.36 h.04 | P.05 M?.05 H.29 h.04 |
+| GeoDDG-3D (FASPR) | – | – | – | – | M<.001 P1 | – | M<.001 m.41 P.59 | M.001 P.05 H.28 h.08 | M.001 P.05 H.31 h.08 |
+| ESM3ΔG | – | – | – | – | h1 | h1 | – | H.23 h.51 | H.15 h.56 |
+| ProSST (zero-shot) | – | – | – | – | – | – | – | – | – |
+| ProteinMPNN (zero-shot) | – | – | – | – | – | – | – | – | – |
+| ESM3-small-open, σ = 0 (zero-shot) | – | – | – | – | – | – | – | – | – |
+| ESM3-large (Forge, zero-shot) | – | – | – | – | – | – | – | – | – |
+| ESM3-medium (Forge, zero-shot) | – | – | – | – | – | – | – | – | – |
+| ESM3-small (Forge, zero-shot) | – | – | – | – | – | – | – | – | – |
 - **Mean over the 7 DMS** (models with all seven): ESM-MSR (devel) WT head 0.618, (devel) combined 0.609, ESM-MSR (baseline) 0.602, ProSST 0.591, ME st1 additive 0.590, ESM3ΔG 0.589, ESM3-small-open σ = 0 0.580, SPURS (retrained) 0.578, ThermoMPNN 0.533, SPURS multi (retrained) 0.523, ProteinMPNN 0.514, GeoDDG 0.386, DDGemb 0.281, ESMtherm 0.232. **The GB1 and MYO columns are not clean for all third-party models:** on GB1, ESMtherm and IFUM trained on the Megascale 1PGA/GB1 library and GeoDDG trained on 1,538 1PGA/GB1 single mutants in S8754 (61 of the Wu rows exact and 61,880 constituent); on MYO, GeoDDG trained on human myoglobin (`3RGK` in S8754; 3 exact rows, rest `P`) and DDGemb trained on sperm whale myoglobin (`H1`). ESM-MSR/ME/ThermoMPNN and the retrained SPURS are clean on all seven because GB1 and MYO were quarantined from the capped split. GB1 is the lowest of the seven for every model, so dropping it moves the means up by 0.00–0.07 and leaves the top two unchanged (ESM-MSR devel WT 0.660, devel 0.654) with ESM-MSR (baseline) third (0.649); ProSST moves from fifth to fourth, ahead of ESM-MSR (released).
-- **Retrained SPURS on Domainome and GB1.** On Domainome (mean per-domain ρ) the retrained SPURS is at 0.489, ahead of ThermoMPNN (0.450) and behind ME stage 1 (0.520), ME stage 2 (0.509) and the ESM-MSR baseline (0.543); SPURS multi is at 0.393. SPURS multi is below SPURS on every DMS column except GB1 (0.333 against 0.308).
+- **Retrained SPURS on Domainome and GB1.** On Domainome (mean per-domain ρ) the retrained SPURS is at 0.489, ahead of ThermoMPNN (0.450) and behind ME stage 1 (0.520), ME stage 2 (0.509) and the ESM-MSR baseline (0.543); SPURS multi is at 0.393. On the 458 low-homology Domainome subset (`Domainome (low-id, 458)`), the ordering is unchanged: SPURS 0.477 ahead of ThermoMPNN (0.437) and behind ME stage 1 (0.511), ME stage 2 (0.499) and ESM-MSR baseline (0.536), with SPURS multi at 0.383. SPURS multi is below SPURS on every DMS column except GB1 (0.333 against 0.308).
 - **The literature-ΔΔG models invert here:** GeoDDG and DDGemb, which lead the external sets, are near the bottom
   on the deep-mutational scans; ProSST, a zero-shot model, leads both DLG4 assays (0.776 and 0.796) among the
   models that cover all seven. ESM3-small through Forge is also ahead of ESM-MSR (devel) on the Faure assays it
@@ -266,7 +266,7 @@ val and 9 of 33 test libraries with capped, so the two are not comparable with e
 - **These assays discriminate much less than the stability benchmarks do:** the zero-shot σ = 0 control (0.580) is
   within 0.04 of the best supervised model, against a 0.27 gap on Tsuboyama. Rankings this tight should not be
   read as model quality without interval estimates (§1.5 has them for the published subset).
-- **Domainome is not clean either.** Domainome 1.0 evaluations and 3D homology checks use the 522 domain PDB structures and Supplementary Table 5 from Beltran et al. (*Nature* 2025; Zenodo record `14356805`, DOI `10.5281/zenodo.11043642`). Two Domainome domains match capped-train Megascale libraries at 100 % sequence identity: `O95155_PF04564_1229` (UBE4B = `3L1X`, 1,134 of 1,206 rows exact) and `Q9H161_PF00046_216` (ALX4 homeodomain = `2M0C`, 889 of 1,038 rows exact), giving 2,023 identical mutations (0.38 % of Domainome) in ESM-MSR's, ME's, ThermoMPNN's and SPURS's training data, plus 2,288 more same-protein rows (0.43 %) across four domains (`M.004 P.004`). Combined MMseqs2 sequence + Foldseek 3D structure homology flags 60 of the 522 domains (58,422 rows, 10.9 %, `H.11`; 40 by sequence plus 20 additional 3D structural homologs) as strong homologs of capped-train scaffolds and 12 domains (2.3 %, `h.02`) as weak homologs. ESMtherm (25,498 rows, `P.05`), IFUM (24,522 rows, `P.05`), DDGemb (`P.03`) and GeoDDG (`P.05`) are same-protein on other domains, and ESM3ΔG has strong homologs for 22.7 % of rows and weak ones for 51.2 % in its MGnify fine-tune. The 0.548 leaderboard is therefore an upper bound for several models; the two memorised domains are 2 of 522 in a per-domain mean, so their direct effect on that mean is at most about 0.002 ρ, but their own scores should be discarded.
+- **Domainome is not clean either — companion low-homology column `Domainome (low-id, 458)`.** Domainome 1.0 evaluations and 3D homology checks use the 522 domain PDB structures and Supplementary Table 5 from Beltran et al. (*Nature* 2025; Zenodo record `14356805`, DOI `10.5281/zenodo.11043642`). Two Domainome domains match capped-train Megascale libraries at 100 % sequence identity: `O95155_PF04564_1229` (UBE4B = `3L1X`, 1,134 of 1,206 rows exact) and `Q9H161_PF00046_216` (ALX4 homeodomain = `2M0C`, 889 of 1,038 rows exact), giving 2,023 identical mutations (0.38 % of Domainome) in ESM-MSR's, ME's, ThermoMPNN's and SPURS's training data, plus 2,288 more same-protein rows (0.43 %) across four domains (`M.004 P.004`). Combined MMseqs2 sequence + Foldseek 3D structure homology flags 60 of the 522 domains (58,422 rows, 10.9 %, `H.11`; 40 by sequence plus 20 additional 3D structural homologs) as strong homologs of capped-train scaffolds and 12 domains (2.3 %, `h.02`) as weak homologs. ESMtherm (25,498 rows, `P.05`), IFUM (24,522 rows, `P.05`), DDGemb (`P.03`) and GeoDDG (`P.05`) are same-protein on other domains, and ESM3ΔG has strong homologs for 22.7 % of rows and weak ones for 51.2 % in its MGnify fine-tune. Removing the 4 `P` + 60 `H` capped-train overlap domains leaves **458 low-homology domains** (471,652 audit rows; weak `h.03` only across all capped-train models): supervised models drop by 0.006–0.013 ρ (ESM-MSR devel WT 0.548 → 0.542, baseline/devel combined 0.543 → 0.536, ME st1 0.520 → 0.511, ME st2 0.509 → 0.499, SPURS 0.489 → 0.477, ThermoMPNN 0.450 → 0.437, ESM3ΔG 0.512 → 0.502), while zero-shot models hold or rise (ESM3-small-open σ = 0: 0.540 → 0.545 combined / 0.544 → 0.549 WT head; ProteinMPNN 0.548 → 0.544; ProSST 0.519 → 0.526; ESM3-large 0.510 → 0.516).
 
 #### ESM-MSR LoRA scale σ on the DMS and Domainome
 
@@ -274,24 +274,24 @@ ProteinGym showed that the right LoRA scale depends on the assay (§3), so the D
 σ = 0.75, 0.5 and 0.25 for both checkpoints (`released` is the single released capped checkpoint; `devel` is the three-seed
 mean; the combined head is shown).
 
-| model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome |
-|---|---|---|---|---|---|---|---|---|
-| released, σ = 1 | 0.728 | 0.727 | 0.673 | 0.620 | **0.639** | 0.478 | 0.345 | 0.542 |
-| released, σ = 0.75 | 0.751 | 0.764 | 0.707 | 0.660 | **0.639** | 0.510 | 0.340 | 0.560 |
-| released, σ = 0.5 | 0.762 | 0.791 | **0.718** | 0.696 | 0.627 | **0.526** | 0.342 | **0.572** |
-| released, σ = 0.25 | 0.748 | 0.793 | 0.688 | 0.721 | 0.596 | 0.516 | 0.320 | 0.568 |
-| devel, σ = 1 | 0.745 | 0.742 | 0.681 | 0.636 | **0.639** | 0.481 | 0.337 | 0.543 |
-| devel, σ = 0.75 | 0.762 | 0.773 | 0.713 | 0.674 | **0.639** | 0.510 | 0.345 | 0.560 |
-| devel, σ = 0.5 | **0.768** | **0.796** | 0.716 | 0.705 | 0.627 | 0.525 | **0.349** | 0.570 |
-| devel, σ = 0.25 | 0.749 | 0.793 | 0.687 | **0.726** | 0.596 | 0.516 | 0.318 | 0.567 |
-| σ = 0 (zero-shot control) | 0.689 | 0.743 | 0.627 | 0.723 | 0.536 | 0.483 | 0.260 | 0.540 |
+| model | DLG4 abund. | DLG4 bind. | GRB2 abund. | GRB2 bind. | MYO | ESTA dTm | GB1 | Domainome | Domainome (low-id, 458) |
+|---|---|---|---|---|---|---|---|---|---|
+| released, σ = 1 | 0.728 | 0.727 | 0.673 | 0.620 | **0.639** | 0.478 | 0.345 | 0.542 | 0.535 |
+| released, σ = 0.75 | 0.751 | 0.764 | 0.707 | 0.660 | **0.639** | 0.510 | 0.340 | 0.560 | 0.554 |
+| released, σ = 0.5 | 0.762 | 0.791 | **0.718** | 0.696 | 0.627 | **0.526** | 0.342 | **0.572** | 0.567 |
+| released, σ = 0.25 | 0.748 | 0.793 | 0.688 | 0.721 | 0.596 | 0.516 | 0.320 | 0.568 | **0.568** |
+| devel, σ = 1 | 0.745 | 0.742 | 0.681 | 0.636 | **0.639** | 0.481 | 0.337 | 0.543 | 0.536 |
+| devel, σ = 0.75 | 0.762 | 0.773 | 0.713 | 0.674 | **0.639** | 0.510 | 0.345 | 0.560 | 0.554 |
+| devel, σ = 0.5 | **0.768** | **0.796** | 0.716 | 0.705 | 0.627 | 0.525 | **0.349** | 0.570 | 0.566 |
+| devel, σ = 0.25 | 0.749 | 0.793 | 0.687 | **0.726** | 0.596 | 0.516 | 0.318 | 0.567 | 0.567 |
+| σ = 0 (zero-shot control) | 0.689 | 0.743 | 0.627 | 0.723 | 0.536 | 0.483 | 0.260 | 0.540 | 0.545 |
 
 - **Released, a lower LoRA scale is clearly better on these assays.** At σ = 0.5 the 7-DMS mean is 0.637 against
-  0.601 at σ = 1 (0.624 at 0.75, 0.626 at 0.25), and σ = 0.5 beats σ = 1 on 6 of the 8 columns,
-  including Domainome (0.572 against 0.542), DLG4 binding (0.791 against 0.727) and GRB2 binding (0.696 against
+  0.601 at σ = 1 (0.624 at 0.75, 0.626 at 0.25), and σ = 0.5 beats σ = 1 on 7 of the 9 columns,
+  including Domainome (0.572 against 0.542), Domainome (low-id, 458) (0.567 against 0.535; 0.568 at σ = 0.25), DLG4 binding (0.791 against 0.727) and GRB2 binding (0.696 against
   0.620; 0.721 at σ = 0.25). Only MYO and GB1 prefer σ = 1, and by at most 0.012. This is the same direction as
   ProteinGym's functional categories (§3), and at σ = 0.5 ESM-MSR (released) is ahead of ProSST (0.591) on the 7-DMS
-  mean.
+  mean, while reaching 0.567–0.568 on the 458 low-homology Domainome subset (+0.022–0.024 over σ = 0 and ProteinMPNN).
 - **The caveat that goes with it:** the best σ per assay is chosen by looking at these same assays, so these numbers
   are an upper bound on what tuning the scale buys, not a held-out result. The stability benchmarks (§1.1, §1.2) use
   σ = 1, fixed in advance, and a fair version of this comparison fixes one σ before looking.
@@ -626,7 +626,7 @@ only gap. Regenerated by `analysis/scoring/benchmark_matrix.py ddg`. Validation 
   against ESM-MSR's 0.316 and ME stage 2's 0.177). ME stage 1 is reliably negative.
 - **Domainome** (singles): ESM-MSR (baseline) combined 0.543 ≈ WT head 0.541 > ME stage 1 0.520 > ME stage 2 0.509
   > ThermoMPNN 0.450 (ME stage 2: 0.512 / 0.509 / 0.505 over the three seeds; all 536,145 predictions merge onto
-  the Domainome table, none missing).
+  the Domainome table, none missing). On the 458 low-homology subset (`Domainome (low-id, 458)`), the 3-seed ordering is ESM-MSR (baseline) combined 0.536 ≈ WT head 0.534 > ME stage 1 0.511 > ME stage 2 0.499 > SPURS 0.477 > ThermoMPNN 0.437.
 
 ### 2.5 Mutant-background ablation (nobb)
 
@@ -915,7 +915,7 @@ pair table contains 408,330 pairs and 25,027 default homology edges (`09_homolog
 |---|---|---|
 | 23 ProteinGym assays are fully inside the capped train split (+ 3 strong 3D structural homologs) | 23/217 `M` + 3/217 `H` DMS, all Stability | 45,623 `M` + 2 `m` + 4,607 `H` / 2,465,767 rows |
 | ME stage 1/2, ThermoMPNN and retrained SPURS on those assays | singles (24,252 exact) + constituent (21,331) for ME/SPURS; 24,252 exact for TMPNN | same 23 `M` + 3 `H` DMS |
-| Two Domainome domains (`O95155_PF04564_1229` = `3L1X`, `Q9H161_PF00046_216` = `2M0C`) match capped train at 100 % identity (+ 60 strong 2D/3D homolog domains) | 2 `M` + 2 `P` + 60 `H` of 522 domains | 2,023 exact + 2,288 `P` (0.8 %) + 58,422 `H` rows (10.9 %) |
+| Two Domainome domains (`O95155_PF04564_1229` = `3L1X`, `Q9H161_PF00046_216` = `2M0C`) match capped train at 100 % identity (+ 60 strong 2D/3D homolog domains) | 2 `M` + 2 `P` + 60 `H` of 522 domains (458 low-id clean of `M`/`P`/`H`) | 2,023 exact + 2,288 `P` (0.8 %) + 58,422 `H` rows (10.9 %); `h.03` on the 458-domain subset |
 | EsmTherm's 80/10/10 is per row, not per domain: 27/33 test libraries (including mutant backgrounds) contribute training mutants | 85.6 % of test rows same-protein (`P.86`) | `P`, `M?` expected ≈ 0.8 (`M?.68`) |
 | IFUM trained on 21/33 test libraries (including mutant backgrounds) | 48.6 % of test rows same-protein (`P.49`) | `P`, `M?` = same rows (`M?.49`) |
 | ESM3ΔG is zero-shot on Megascale | 0 exact sequences anywhere in the benchmark | 40.7 % strong (`8/33` libs) + 50.3 % weak (`21/33`) homologs |
@@ -1009,7 +1009,7 @@ The per-library table is `docs/benchmarks/leak_audit_esm3dg_libraries.csv`.
   singles-only Rosetta rows on multi-mutant sets are never bolded. Consequently, on §1.1 the clean leaders are s571 ESM-MSR (baseline)
   0.455 (GeoDDG 0.526 is `M`), s783 ESM-MSR (devel) 0.725 (GeoDDG `M`, DDGemb `P`), s2648 ME stage 1 0.701 (GeoDDG `M`), s8754
   ESM-MSR (devel) 0.625 (GeoDDG `#`, DDGemb/DDMut `M`), S669 DDGemb 0.570 (GeoDDG/DDMut `M`), and S461 ESM-MSR (devel) 0.753; on §1.3
-  Domainome, ProteinMPNN leads at 0.548 (ESM-MSR `H.11`, `M.004 P.004`); and on §1.4 ProteinGym, ProSST leads at 0.514 / 0.653 / 0.528 (all trained rows carry `M` on the 23 Tsuboyama DMS).
+  Domainome, ProteinMPNN leads at 0.548 on all 522 domains (ESM-MSR `H.11`, `M.004 P.004`), and on `Domainome (low-id, 458)` ESM3-small-open, σ = 0 leads at 0.545 ahead of ProteinMPNN (0.544) and ESM-MSR (devel) WT head (0.542ʰ, weak `h.03` only, eligible); and on §1.4 ProteinGym, ProSST leads at 0.514 / 0.653 / 0.528 (all trained rows carry `M` on the 23 Tsuboyama DMS).
 - **Model-specific external-set overlap.** Across the 12 classical external sets, DDMut and GeoDDG overlap S571, Ssym, S669 and PTMUL; DDGemb overlaps S571, Ssym, Q3421, K3822 and
   K2369 at the mutation level (and PTMUL at the constituent level); and EsmTherm/IFUM are same-protein on most classical sets through the
   Megascale natural libraries. Only S461 has zero identical mutations across all full-coverage predictors (§1.1).
@@ -1018,7 +1018,7 @@ The per-library table is `docs/benchmarks/leak_audit_esm3dg_libraries.csv`.
 - **S8754 is GeoDDG's training set (`#`).** GeoDDG's 0.841 on S8754 is an in-sample training score rather than a held-out evaluation.
 - **ProteinGym Stability overlap.** ESM-MSR's 0.510 vs ProSST's 0.514 global average reflects 23 Tsuboyama Stability assays inside the capped training split; on the 190/187 held-out DMS, ProSST leads the unweighted DMS mean while the category-balanced PG average remains tied (0.514 vs 0.514).
 
-**Consistency across models trained on `splits_oct06_capped`.** Every model trained on the 172 capped-train libraries (ESM-MSR, MutateEverything stage 1/2, ThermoMPNN, retrained SPURS, and SPURS multi) shares the exact same scaffold set: `H` and `h` fractions are identical across all 25 dataset columns, and `M`/`m`/`P` fractions are identical within the singles-only group (ME stage 1, ThermoMPNN, SPURS) and within the singles+doubles group (ESM-MSR, ME stage 2, SPURS multi). ThermoMPNN-D differs only because its training inventory spans the 134 scaffolds with measured doubles or Rosetta augmentation models (`analysis/leak_audit/05c_tmpnnd_inventory.py`). On Domainome, two domains (`Q9H161_PF00046_216` = `2M0C` and `O95155_PF04564_1229` = `3L1X`) match capped-train scaffolds at 100 % sequence identity (`M.004 P.004`), and combined MMseqs2 + Foldseek 3D homology flags 60 domains (`H.11`, superscript `ᴴ`).
+**Consistency across models trained on `splits_oct06_capped`.** Every model trained on the 172 capped-train libraries (ESM-MSR, MutateEverything stage 1/2, ThermoMPNN, retrained SPURS, and SPURS multi) shares the exact same scaffold set: `H` and `h` fractions are identical across all 25 dataset columns, and `M`/`m`/`P` fractions are identical within the singles-only group (ME stage 1, ThermoMPNN, SPURS) and within the singles+doubles group (ESM-MSR, ME stage 2, SPURS multi). ThermoMPNN-D differs only because its training inventory spans the 134 scaffolds with measured doubles or Rosetta augmentation models (`analysis/leak_audit/05c_tmpnnd_inventory.py`). On Domainome, two domains (`Q9H161_PF00046_216` = `2M0C` and `O95155_PF04564_1229` = `3L1X`) match capped-train scaffolds at 100 % sequence identity (`M.004 P.004`), and combined MMseqs2 + Foldseek 3D homology flags 60 domains (`H.11`, superscript `ᴴ`); excluding those 64 domains leaves the 458-domain low-homology subset (`h.03` weak similarity only).
 
 ### 6.7 Reproducibility, assumptions and limits
 

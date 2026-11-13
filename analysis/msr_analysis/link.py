@@ -40,30 +40,20 @@ def h(z, tau, floor):
     return floor + tau * np.logaddexp(0.0, (z - floor) / tau)
 
 
-def observed(latent, dg_wt, seed, y_floor=None, codes=None):
-    """latent ddG -> ddG on the observed (assay) scale for devel seed ``seed`` (1..3)."""
+def observed(latent, dg_wt, seed):
+    """latent ddG -> ddG on the observed (assay) scale for devel seed ``seed`` (1..3) using the checkpoint's learned link parameters."""
     link = link_fn(seed)
-    fl = None
-    if y_floor is not None and codes is not None:
-        fl = np.array([float(y_floor.get(k, np.nan)) for k in codes])
-    return link(dg_wt + np.asarray(latent, float), fl) - dg_wt
+    return link(dg_wt + np.asarray(latent, float)) - dg_wt
 
 
 def link_fn(seed):
-    """The checkpoint's observed-scale link of devel seed ``seed`` as a numpy function ``link(dG, y_floor) -> dG_obs`` on absolute dG:
-    ``h(z) = f + tau softplus((z - f) / tau)`` with the knee ``f`` the item's library floor clipped into [floor_min, floor_max] (global_floor where it has none)."""
+    """The checkpoint's observed-scale link of devel seed ``seed`` as a numpy function ``link(dG) -> dG_obs`` on absolute dG:
+    ``h(z) = f + tau softplus((z - f) / tau)`` using the checkpoint's learned ``tau`` and ``global_floor`` from ``reference/devel_link_params.json``."""
     p = load_params()[str(seed)]
-    lo = p['floor_min']
-    hi = max(p['floor_max'], lo + 1e-3)
 
-    def link(z, y_floor=None):
+    def link(z):
         z = np.asarray(z, float)
-        if y_floor is None:
-            f = np.full(z.shape, p['global_floor'])
-        else:
-            yf = np.asarray(y_floor, float)
-            f = np.where(np.isfinite(yf), np.clip(yf, lo, hi), p['global_floor'])
-        return h(z, p['tau'], f)
+        return h(z, p['tau'], p['global_floor'])
     return link
 
 
@@ -78,16 +68,13 @@ def singles_of_doubles(spine):
     return ia, ib
 
 
-def observed_epistasis(spine, wt, mt, seed, y_floor=None):
+def observed_epistasis(spine, wt, mt, seed):
     """Predicted epistasis of a devel checkpoint on the observed (assay) scale: the observed double minus the observed singles,
-    ``obs(mt(AB)) - [obs(wt(A)) + obs(wt(B))]`` with ``obs(L) = link(dG_wt + L, floor) - dG_wt``.
+    ``obs(mt(AB)) - [obs(wt(A)) + obs(wt(B))]`` with ``obs(L) = link(dG_wt + L) - dG_wt``.
     Pass ``wt = WT, mt = 1/2(MT + WT)`` for the consistent definition ``obs(1/2(MT_AB + WT_AB)) - obs(WT_A) - obs(WT_B)``."""
-    if y_floor is None and (REFERENCE / 'y_floor.json').exists():
-        y_floor = json.loads((REFERENCE / 'y_floor.json').read_text())
     link = link_fn(seed)
     c = spine['dG_wt'].to_numpy(float)
-    fl = np.array([float(y_floor.get(k, np.nan)) for k in spine['code'].astype(str)]) if y_floor is not None else None
-    obs = lambda lat: link(c + lat, fl) - c
+    obs = lambda lat: link(c + lat) - c
     ia, ib = singles_of_doubles(spine)
     om, ow = obs(np.asarray(mt, float)), obs(np.asarray(wt, float))
     out = np.full(len(spine), np.nan)

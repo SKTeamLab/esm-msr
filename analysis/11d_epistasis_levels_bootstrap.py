@@ -79,7 +79,7 @@ def extract_ctx(ctx_dir):
     pd.concat(rows).to_csv(REFERENCE / 'ctx_wt_rev_devel.csv.gz', index=False, float_format='%.6g')
 
 
-def make_table(sp, wt, mt, heads, wt_rev=None, link=None, y_floor=None):
+def make_table(sp, wt, mt, heads, wt_rev=None, link=None):
     use = sp['use'].to_numpy()
     idx = np.flatnonzero(use)
     code, mut = sp['code'].astype(str).to_numpy()[idx], sp['mut'].to_numpy()[idx]
@@ -90,8 +90,6 @@ def make_table(sp, wt, mt, heads, wt_rev=None, link=None, y_floor=None):
     if wt_rev is not None:
         items['wt_rev'] = wt_rev[idx]
     arr = {k: (v if k in ('mut_key', 'subset_type') else np.asarray(v, float)) for k, v in items.items()}
-    if y_floor is not None:
-        arr['y_floor'] = np.array([float(y_floor.get(c, np.nan)) for c in code])
     return E.Table(arr, link, heads=heads)
 
 
@@ -99,20 +97,18 @@ def build(split, ctx_rev):
     fr = load_frame(DS[split])
     sp, p = fr.spine, fr.preds
     dg = json.load(open(REFERENCE / 'dG_wt.json'))
-    y_floor = json.load(open(REFERENCE / 'y_floor.json'))
     TABLES.clear()
     models = []
     c_wt = sp['dG_wt'].to_numpy(float)
-    fl = np.array([float(y_floor.get(k, np.nan)) for k in sp['code'].astype(str)])
     for seed in (1, 2, 3):                                  # ESM-MSR (baseline, devel, p0): 1/2(MT_AB+WT_AB) - WT_A - WT_B
         c = ctx_rev[(ctx_rev.split == split) & (ctx_rev.seed == seed)]
         rev = pd.DataFrame({'code': sp['code'].astype(str), 'mut_type': sp['mut']}).merge(c[['code', 'mut_type', 'wt_rev']], on=['code', 'mut_type'], how='left')['wt_rev'].to_numpy(float)
-        TABLES[('baseline', seed)] = make_table(sp, p['msr:wt'][seed - 1], p['msr:comb'][seed - 1], ('epi', 'add'), link=None, y_floor=y_floor)
-        TABLES[('devel', seed)] = make_table(sp, p['msrdev:wt'][seed - 1], p['msrdev:comb'][seed - 1], ('epi', 'ctx', 'add'), wt_rev=rev, link=None, y_floor=y_floor)
-        TABLES[('p0', seed)] = make_table(sp, p['msrp0:wt'][seed - 1], p['msrp0:comb'][seed - 1], ('epi', 'add'), link=None, y_floor=y_floor)
+        TABLES[('baseline', seed)] = make_table(sp, p['msr:wt'][seed - 1], p['msr:comb'][seed - 1], ('epi', 'add'), link=None)
+        TABLES[('devel', seed)] = make_table(sp, p['msrdev:wt'][seed - 1], p['msrdev:comb'][seed - 1], ('epi', 'ctx', 'add'), wt_rev=rev, link=None)
+        TABLES[('p0', seed)] = make_table(sp, p['msrp0:wt'][seed - 1], p['msrp0:comb'][seed - 1], ('epi', 'add'), link=None)
         lfn = link_fn(seed)
-        wt_linked = lfn(c_wt + p['msrdev:wt'][seed - 1], fl) - c_wt
-        comb_linked = lfn(c_wt + p['msrdev:comb'][seed - 1], fl) - c_wt
+        wt_linked = lfn(c_wt + p['msrdev:wt'][seed - 1]) - c_wt
+        comb_linked = lfn(c_wt + p['msrdev:comb'][seed - 1]) - c_wt
         TABLES[('devel_link', seed)] = make_table(sp, wt_linked, comb_linked, ('epi', 'add'), link=None)
     models += [
         ('ESM-MSR (baseline) · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'baseline', 'epi'),

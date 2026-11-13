@@ -221,21 +221,34 @@ def ticks(top):
     return tr(v), [f'{x:g}' for x in v]
 
 
+def _darken(hex_color):
+    """Return a darker, richly saturated shade of ``hex_color`` for the box median line."""
+    import colorsys
+    import matplotlib.colors as mcolors
+    r, g, b = mcolors.to_rgb(hex_color)
+    h, l, s = colorsys.rgb_to_hls(r, g, b)
+    l_new = max(0.22, min(0.42, l * 0.56))
+    s_new = min(1.0, max(s, 0.72))
+    return mcolors.to_hex(colorsys.hls_to_rgb(h, l_new, s_new))
+
+
 def rain(ax, x0, V_seeds, color, mean, lo, hi, width=0.82, rng=None, text=True, fs=8.2):
-    """One distribution: full interquartile box, jittered domain dots, and median line with horizontal annotation text right over it.
+    """One distribution: full interquartile box, thin darker-colored median line, jittered domain dots, and dark mean line with horizontal mean annotation right over it.
     ``V_seeds`` is (n_seeds, n_domains) or (n_domains,); statistics are computed per seed and averaged across seeds without ensemble averaging."""
     V2 = V_seeds[None, :] if V_seeds.ndim == 1 else V_seeds
     t_dom = tr(V2.mean(axis=0))
     c = x0
     box_w = width * 0.88
     q1, med, q3 = np.mean(np.quantile(tr(V2), [0.25, 0.5, 0.75], axis=1), axis=1)
+    y_mean = float(tr(mean))
     ax.add_patch(plt.Rectangle((c - box_w / 2, q1), box_w, q3 - q1, fc=color, alpha=0.22, ec='none', zorder=1))
+    ax.plot([c - box_w / 2, c + box_w / 2], [med, med], color=_darken(color), lw=1.1, zorder=4, solid_capstyle='butt')
     jit = (rng.random(len(t_dom)) - 0.5) * (box_w * 0.70) + c
     ax.plot(jit, t_dom, 'o', ms=2.2, color=color, alpha=0.8, mew=0, zorder=3)
-    ax.plot([c - box_w / 2, c + box_w / 2], [med, med], color='#444444', lw=1.8, zorder=5)
+    ax.plot([c - box_w / 2, c + box_w / 2], [y_mean, y_mean], color='#333333', lw=1.8, zorder=5)
     if text:
         ax.text(
-            c, med + 0.035,
+            c, y_mean + 0.035,
             f'{mean:.2f}' if mean < 100 else f'{mean:.0f}',
             rotation=0, ha='center', va='bottom', fontsize=fs, fontweight='semibold', zorder=8,
             bbox=dict(fc='white', ec='none', alpha=0.68, pad=0.10),
@@ -313,8 +326,12 @@ def distribution_figure(path, dcols, stats_k, total, counts, cat_labels, k, gain
         ax_m.set_yticklabels(tl, fontsize=13.5)
         ax_m.set_ylim(-0.18, top + 0.14)
         ax_m.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+        y_orc = [float(tr(omean[c_idx])) for c_idx in range(ncat)]
         for c_idx in range(ncat):
-            ax_m.axhline(tr(omean[c_idx]), color=colors[c_idx], ls='--', lw=1.0, alpha=0.9, zorder=1)
+            # Stagger dash phase when two oracle means are nearly identical so neither line is hidden
+            near_prev = any(abs(y_orc[c_idx] - y_orc[j]) < 0.025 for j in range(c_idx))
+            ls = (4.0, (4.0, 4.0)) if near_prev else (0.0, (4.0, 4.0))
+            ax_m.axhline(y_orc[c_idx], color=colors[c_idx], ls=ls, lw=1.15, alpha=0.92, zorder=2)
         ax_m.set_ylabel(ylab_m, fontsize=14.0)
     if include_picks:
         axs[0].set_xticks([])
@@ -527,7 +544,7 @@ def main():
             for suffix, positive_only, dcols, rule in rules:
                 st = model_stats(fr, dcols, y, cat, len(s['labels']), dom, k, positive_only=positive_only)
                 note = (f'Top {k} per {SPLIT} test domain ({len(dom)} domains with the feature, {int(s["pool"].sum()):,} single mutants); gain = sum of max(ddG, 0) over {rule};\n'
-                        f'boxes: interquartile range with median line; dots: domains; annotations: mean over domains; dashed lines: oracle mean.')
+                        f'boxes: interquartile range with darker colored median line; dots: domains; dark bars & annotations: mean over domains; dashed lines: oracle mean.')
                 t = distribution_figure(OUT / f'gain_{s["name"]}_k{k}{suffix}', dcols, st, tot, cnt, s['labels'], k, note=note, include_picks=True)
                 t.to_csv(OUT / f'gain_{s["name"]}_k{k}{suffix}.csv', index=False, float_format='%.4f')
                 distribution_figure(OUT / f'gain_{s["name"]}_k{k}{suffix}_gainonly', dcols, st, tot, cnt, s['labels'], k, note=note, include_picks=False)

@@ -1,0 +1,169 @@
+model,column,value,lo,hi,n_dms
+pg:msrp0:wt,Activity,0.4349,0.3897,0.4818,43
+pg:msrp0:wt,Binding,0.3495,0.2323,0.4501,13
+pg:msrp0:wt,Expression,0.5193,0.4438,0.5805,18
+pg:msrp0:wt,OrganismalFitness,0.4051,0.3655,0.4425,73
+pg:msrp0:wt,Stability,0.8230,0.7929,0.8484,66
+pg:msrp0:wt,PG avg,0.5063,0.4759,0.5345,213
+pg:msrp0:wt,DMS mean,0.5469,0.5254,0.5662,213
+pg:msrdev:comb,Activity,0.4264,0.3814,0.4722,43
+pg:msrdev:comb,Binding,0.3474,0.2298,0.4464,13
+pg:msrdev:comb,Expression,0.5156,0.4406,0.5752,18
+pg:msrdev:comb,OrganismalFitness,0.3956,0.3582,0.4330,73
+pg:msrdev:comb,Stability,0.8667,0.8380,0.8909,66
+pg:msrdev:comb,PG avg,0.5104,0.4806,0.5381,213
+pg:msrdev:comb,DMS mean,0.5550,0.5346,0.5744,213
+pg:msrdev:wt,Activity,0.4383,0.3933,0.4842,43
+pg:msrdev:wt,Binding,0.3553,0.2419,0.4540,13
+pg:msrdev:wt,Expression,0.5196,0.4451,0.5811,18
+pg:msrdev:wt,OrganismalFitness,0.4128,0.3747,0.4498,73
+pg:msrdev:wt,Stability,0.8289,0.7999,0.8534,66
+pg:msrdev:wt,PG avg,0.5110,0.4814,0.5384,213
+pg:msrdev:wt,DMS mean,0.5524,0.5317,0.5720,213
+pg:msr:comb,Activity,0.4280,0.3817,0.4743,43
+pg:msr:comb,Binding,0.3481,0.2311,0.4463,13
+pg:msr:comb,Expression,0.5157,0.4409,0.5757,18
+pg:msr:comb,OrganismalFitness,0.3952,0.3570,0.4332,73
+pg:msr:comb,Stability,0.8631,0.8334,0.8879,66
+pg:msr:comb,PG avg,0.5100,0.4798,0.5371,213
+pg:msr:comb,DMS mean,0.5541,0.5334,0.5736,213
+pg:msr:wt,Activity,0.4353,0.3898,0.4820,43
+pg:msr:wt,Binding,0.3526,0.2386,0.4492,13
+pg:msr:wt,Expression,0.5155,0.4403,0.5765,18
+pg:msr:wt,OrganismalFitness,0.4093,0.3714,0.4464,73
+pg:msr:wt,Stability,0.8233,0.7935,0.8494,66
+pg:msr:wt,PG avg,0.5072,0.4777,0.5347,213
+pg:msr:wt,DMS mean,0.5483,0.5276,0.5677,213
+pg:msrrel:comb,Activity,0.4247,0.3798,0.4702,43
+pg:msrrel:comb,Binding,0.3449,0.2223,0.4473,13
+pg:msrrel:comb,Expression,0.5155,0.4418,0.5747,18
+pg:msrrel:comb,OrganismalFitness,0.3943,0.3564,0.4308,73
+pg:msrrel:comb,Stability,0.8704,0.8400,0.8956,66
+pg:msrrel:comb,PG avg,0.5100,0.4792,0.5383,213
+pg:msrrel:comb,DMS mean,0.5552,0.5344,0.5748,213
+pg:msrrel:wt,Activity,0.4341,0.3896,0.4798,43
+pg:msrrel:wt,Binding,0.3486,0.2313,0.4471,13
+pg:msrrel:wt,Expression,0.5152,0.4418,0.5761,18
+pg:msrrel:wt,OrganismalFitness,0.4107,0.3730,0.4480,73
+pg:msrrel:wt,Stability,0.8282,0.7984,0.8534,66
+pg:msrrel:wt,PG avg,0.5074,0.4774,0.5348,213
+pg:msrrel:wt,DMS mean,0.5498,0.5292,0.5695,213
+pg:me1,Activity,0.3777,0.3313,0.4248,43
+pg:me1,Binding,0.3386,0.2708,0.4110,13
+pg:me1,Expression,0.4686,0.4043,0.5235,18
+pg:me1,OrganismalFitness,0.3543,0.3219,0.3890,73
+pg:me1,Stability,0.8065,0.7744,0.8334,66
+pg:me1,PG avg,0.4691,0.4459,0.4904,213
+pg:me1,DMS mean,0.5078,0.4891,0.5257,213
+pg:me2,Activity,0.3530,0.3098,0.3985,43
+pg:me2,Binding,0.2997,0.2425,0.3656,13
+pg:me2,Expression,0.4398,0.3778,0.4913,18
+pg:me2,OrganismalFitness,0.3387,0.3103,0.3687,73
+pg:me2,Stability,0.7957,0.7605,0.8278,66
+pg:me2,PG avg,0.4454,0.4235,0.4663,213
+pg:me2,DMS mean,0.4893,0.4707,0.5075,213
+pg:tmpnnd,Activity,0.3527,0.3104,0.3938,43
+pg:tmpnnd,Binding,0.3011,0.2085,0.3807,13
+pg:tmpnnd,Expression,0.4421,0.3816,0.4943,18
+pg:tmpnnd,OrganismalFitness,0.3394,0.3057,0.3713,73
+pg:tmpnnd,Stability,0.7870,0.7539,0.8165,66
+pg:tmpnnd,PG avg,0.4445,0.4189,0.4678,213
+pg:tmpnnd,DMS mean,0.4871,0.4683,0.5050,213
+pg:tmpnn,Activity,0.3547,0.3123,0.3958,43
+pg:tmpnn,Binding,0.2978,0.2059,0.3773,13
+pg:tmpnn,Expression,0.4426,0.3822,0.4943,18
+pg:tmpnn,OrganismalFitness,0.3422,0.3089,0.3748,73
+pg:tmpnn,Stability,0.7803,0.7533,0.8046,66
+pg:tmpnn,PG avg,0.4435,0.4180,0.4662,213
+pg:tmpnn,DMS mean,0.4862,0.4682,0.5036,213
+pg:spurs,Activity,0.3710,0.3288,0.4138,43
+pg:spurs,Binding,0.3111,0.2082,0.3969,13
+pg:spurs,Expression,0.4679,0.3892,0.5288,18
+pg:spurs,OrganismalFitness,0.3396,0.2977,0.3775,73
+pg:spurs,Stability,0.8006,0.7738,0.8257,66
+pg:spurs,PG avg,0.4580,0.4298,0.4832,213
+pg:spurs,DMS mean,0.4979,0.4776,0.5170,213
+pg:spursm,Activity,0.3312,0.2926,0.3707,43
+pg:spursm,Binding,0.2681,0.1536,0.3601,13
+pg:spursm,Expression,0.4190,0.3450,0.4813,18
+pg:spursm,OrganismalFitness,0.3036,0.2655,0.3371,73
+pg:spursm,Stability,0.7733,0.7428,0.8008,66
+pg:spursm,PG avg,0.4190,0.3896,0.4434,213
+pg:spursm,DMS mean,0.4623,0.4428,0.4804,213
+pg:esm3dg,Activity,0.3019,0.2562,0.3457,43
+pg:esm3dg,Binding,0.2094,0.0617,0.3494,13
+pg:esm3dg,Expression,0.3201,0.2251,0.4009,18
+pg:esm3dg,OrganismalFitness,0.2799,0.2305,0.3263,73
+pg:esm3dg,Stability,0.7883,0.7537,0.8191,66
+pg:esm3dg,PG avg,0.3799,0.3421,0.4168,213
+pg:esm3dg,DMS mean,0.4410,0.4157,0.4659,213
+pg:geoddg,Activity,0.3412,0.2933,0.3871,43
+pg:geoddg,Binding,0.2489,0.1282,0.3582,13
+pg:geoddg,Expression,0.3711,0.3046,0.4318,18
+pg:geoddg,OrganismalFitness,0.3185,0.2728,0.3599,73
+pg:geoddg,Stability,0.6378,0.5986,0.6744,66
+pg:geoddg,PG avg,0.3835,0.3525,0.4128,213
+pg:geoddg,DMS mean,0.4222,0.3993,0.4454,213
+pg:rosetta,Activity,0.3113,0.2712,0.3528,43
+pg:rosetta,Binding,0.2914,0.1356,0.4319,13
+pg:rosetta,Expression,0.3359,0.2694,0.3931,18
+pg:rosetta,OrganismalFitness,0.2963,0.2624,0.3298,72
+pg:rosetta,Stability,0.6399,0.6073,0.6664,66
+pg:rosetta,PG avg,0.3750,0.3398,0.4087,212
+pg:rosetta,DMS mean,0.4094,0.3889,0.4291,212
+pg:prosst,Activity,0.4862,0.4408,0.5317,43
+pg:prosst,Binding,0.4487,0.3562,0.5437,13
+pg:prosst,Expression,0.5302,0.4773,0.5793,18
+pg:prosst,OrganismalFitness,0.4526,0.4178,0.4862,73
+pg:prosst,Stability,0.6526,0.6185,0.6858,66
+pg:prosst,PG avg,0.5141,0.4876,0.5390,213
+pg:prosst,DMS mean,0.5277,0.5079,0.5478,213
+pg:esm3_pub,Activity,0.4294,0.3838,0.4721,43
+pg:esm3_pub,Binding,0.3904,0.3084,0.4758,13
+pg:esm3_pub,Expression,0.4703,0.4089,0.5281,18
+pg:esm3_pub,OrganismalFitness,0.4013,0.3637,0.4387,73
+pg:esm3_pub,Stability,0.6406,0.6074,0.6706,66
+pg:esm3_pub,PG avg,0.4664,0.4417,0.4907,213
+pg:esm3_pub,DMS mean,0.4863,0.4673,0.5069,213
+pg:msrrel@0:wt,Activity,0.4157,0.3725,0.4574,43
+pg:msrrel@0:wt,Binding,0.3740,0.2944,0.4566,13
+pg:msrrel@0:wt,Expression,0.4392,0.3823,0.4923,18
+pg:msrrel@0:wt,OrganismalFitness,0.3906,0.3536,0.4276,73
+pg:msrrel@0:wt,Stability,0.6196,0.5861,0.6500,66
+pg:msrrel@0:wt,PG avg,0.4478,0.4238,0.4713,213
+pg:msrrel@0:wt,DMS mean,0.4697,0.4509,0.4900,213
+pg:pmpnn,Activity,0.3426,0.2997,0.3844,43
+pg:pmpnn,Binding,0.3234,0.2511,0.3946,13
+pg:pmpnn,Expression,0.4364,0.3781,0.4913,18
+pg:pmpnn,OrganismalFitness,0.3092,0.2724,0.3455,73
+pg:pmpnn,Stability,0.6277,0.5987,0.6566,66
+pg:pmpnn,PG avg,0.4079,0.3849,0.4304,213
+pg:pmpnn,DMS mean,0.4263,0.4076,0.4442,213
+pg:pmpnn_pub,Activity,0.1943,0.1632,0.2312,43
+pg:pmpnn_pub,Binding,0.1600,0.1202,0.1983,13
+pg:pmpnn_pub,Expression,0.1976,0.1602,0.2329,18
+pg:pmpnn_pub,OrganismalFitness,0.1685,0.1422,0.1968,73
+pg:pmpnn_pub,Stability,0.5647,0.5323,0.5959,66
+pg:pmpnn_pub,PG avg,0.2570,0.2414,0.2721,213
+pg:pmpnn_pub,DMS mean,0.2984,0.2830,0.3144,213
+pg:spurs_pub,Activity,0.3839,0.3401,0.4274,43
+pg:spurs_pub,Binding,0.3336,0.2156,0.4303,13
+pg:spurs_pub,Expression,0.4905,0.4204,0.5456,18
+pg:spurs_pub,OrganismalFitness,0.3677,0.3298,0.4053,73
+pg:spurs_pub,Stability,0.8371,0.8098,0.8596,66
+pg:spurs_pub,PG avg,0.4826,0.4533,0.5088,213
+pg:spurs_pub,DMS mean,0.5247,0.5045,0.5438,213
+pg:spursm_pub,Activity,0.3259,0.2878,0.3651,43
+pg:spursm_pub,Binding,0.2669,0.1600,0.3570,13
+pg:spursm_pub,Expression,0.4097,0.3380,0.4655,18
+pg:spursm_pub,OrganismalFitness,0.3202,0.2882,0.3510,73
+pg:spursm_pub,Stability,0.8077,0.7794,0.8309,66
+pg:spursm_pub,PG avg,0.4261,0.3989,0.4508,213
+pg:spursm_pub,DMS mean,0.4767,0.4593,0.4937,213
+pg:esmtherm,Activity,0.0920,0.0578,0.1272,43
+pg:esmtherm,Binding,0.0752,0.0055,0.1518,13
+pg:esmtherm,Expression,0.0920,0.0506,0.1335,18
+pg:esmtherm,OrganismalFitness,0.0833,0.0519,0.1106,73
+pg:esmtherm,Stability,0.7201,0.6518,0.7831,66
+pg:esmtherm,PG avg,0.2125,0.1902,0.2369,213
+pg:esmtherm,DMS mean,0.2826,0.2589,0.3071,213
