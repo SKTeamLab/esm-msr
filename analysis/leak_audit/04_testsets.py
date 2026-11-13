@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lib import LEAK_ROOT, REPO_ROOT, SOFTWARE_DIR, WORK_DATA_DIR, check_against_seq, norm_wt_name, parse_mut_str
+from lib import LEAK_ROOT, REPO_ROOT, SOFTWARE_DIR, WORK_DATA_DIR, check_against_seq, data_file, norm_wt_name, parse_mut_str
 
 OUT = os.path.join(WORK_DATA_DIR, 'testsets')
 os.makedirs(OUT, exist_ok=True)
@@ -146,10 +146,14 @@ for name, (f, lab) in dms.items():
     ext_adapter(name, f, mutcol='mut_type', labelcol=lab, fixed_seq=GB1_SEQ if name == 'GB1' else None)
 
 # ---------------------------------------------------------------- Domainome
-dom_f = os.environ.get(
-    'DOMAINOME_CSV',
-    os.path.join(SOFTWARE_DIR, 'SPURS_mod', 'data', 'dataset', 'Domainome', 'Supplementary_Table_5_aPCA_vs_variant_effect_predictors.csv'),
-)
+# Beltran et al. (2025) Supplementary Table 5 (Domainome 1.0 variant table). Looked up in $LEAK_DATA_DIR/raw first; the
+# only other local copy is the one shipped inside the SPURS repository's data folder.
+DOM_TABLE = 'Supplementary_Table_5_aPCA_vs_variant_effect_predictors.csv'
+dom_f = os.environ.get('DOMAINOME_CSV') or next(
+    (c for c in (data_file('raw', DOM_TABLE),
+                 os.path.join(SOFTWARE_DIR, 'SPURS_mod', 'data', 'dataset', 'Domainome', DOM_TABLE),
+                 os.path.join(SOFTWARE_DIR, 'SPURS', 'data', 'dataset', 'Domainome', DOM_TABLE)) if os.path.exists(c)),
+    data_file('raw', DOM_TABLE))
 dd = pd.read_csv(dom_f, low_memory=False)
 rows, bad, nbadseq = [], 0, 0
 for dom, v, umut, seq, fit in zip(

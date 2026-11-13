@@ -7,11 +7,11 @@ MutateEverything st2 (3 seeds),M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003,M
 "ThermoMPNN (additive, 3 seeds)",M.010 m.009 P<.001 H.002 h.003,M.010 m.009 P<.001 H.002 h.003,M.010 m.009 P<.001 H.002 h.003
 "SPURS (retrained, 3 seeds)",M.010 m.009 P<.001 H.002 h.003,M.010 m.009 P<.001 H.002 h.003,M.010 m.009 P<.001 H.002 h.003
 "SPURS multi (retrained, 3 seeds)",M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003,M.02 m<.001 H.002 h.003
-ESMtherm,P.04 M?.03 H.004 h<.001,P.04 M?.03 H.004 h<.001,P.04 M?.03 H.004 h<.001
+ESMtherm,M.02 P.02 H.004 h<.001 V.003,M.02 P.02 H.004 h<.001 V.003,M.02 P.02 H.004 h<.001 V.003
 GeoDDG-3D (FASPR),n.a.,n.a.,n.a.
-ESM3ΔG,H.02 h.33,H.02 h.33,H.02 h.33
+ESM3ΔG,P.003 H.02 h.33,P.003 H.02 h.33,P.003 H.02 h.33
 ProSST (zero-shot),–,–,–
-Rosetta Cartesian ΔΔG,–,–,–
+Rosetta Cartesian ΔΔG,V.002,V.002,V.002
 ProteinMPNN (zero-shot),–,–,–
 "ProteinMPNN, ProteinGym published recipe",–,–,–
 "ESM3-small-open, σ = 0 (zero-shot)",–,–,–

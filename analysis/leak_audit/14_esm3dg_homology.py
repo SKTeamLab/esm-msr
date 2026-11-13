@@ -1,4 +1,8 @@
-"""ESM3dG (MGnify Stability fine-tune) vs the benchmark: exact-sequence and non-shadowed homology overlap."""
+"""ESM3dG (MGnify Stability fine-tune) vs the benchmark: protein-level relation of every test protein to the
+960,216 MGnify training sequences, by the same rule as ``11_homology_classes.py`` (``lib.classify_hits``; an exact
+sequence match also counts as same protein). Writes ``esm3dg_homology.csv`` (same columns as ``homology_classes.csv``)
+and the per-scaffold summary over the 33 capped-test scaffolds (``esm3dg_tsu_libraries.csv``).
+Mutation-level (exact variant sequence) overlap is ``15_esm3dg_exact.py``."""
 import collections
 import hashlib
 import os
@@ -9,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lib import OUT_DIR, WORK_DATA_DIR, data_file, norm_wt_name
+from lib import OUT_DIR, WORK_DATA_DIR, classify_hits, data_file, load_testsets, norm_wt_name
 
 os.makedirs(OUT_DIR, exist_ok=True)
 h = lambda s: hashlib.sha1(s.encode()).hexdigest()
@@ -36,71 +40,44 @@ tq['h'] = tq['seq'].map(h)
 exact = set(tq.loc[tq['h'].isin(train_hashes), 'pid'])
 print('test proteins with an exact MGnify sequence:', len(exact), sorted(exact)[:10])
 
-# Evaluate all hits per query pid without E-value shadowing
+# Evaluate all hits per query pid (no E-value shadowing)
 hits_by_q = collections.defaultdict(list)
 for q, f, c, e in zip(m8['q'], m8['fident'], m8['cov'], m8['evalue']):
     hits_by_q[q].append((float(f), float(c), float(e)))
 
-cls = {}
-best_qual_hit = {}
-for q, qhits in hits_by_q.items():
-    if q in exact:
-        cls[q] = 'P'
-        best_qual_hit[q] = min(qhits, key=lambda x: (x[2], -x[0]))
-        continue
-    h_strong = [x for x in qhits if x[1] >= 0.50 and x[2] <= 1e-3]
-    if h_strong:
-        cls[q] = 'H'
-        best_qual_hit[q] = min(h_strong, key=lambda x: (x[2], -x[0]))
-        continue
-    h_weak = [x for x in qhits if x[1] >= 0.30 and (x[2] <= 1e-2 or x[0] >= 0.30)]
-    if h_weak:
-        cls[q] = 'h'
-        best_qual_hit[q] = min(h_weak, key=lambda x: (x[2], -x[0]))
-        continue
-    cls[q] = 'low'
-    best_qual_hit[q] = min(qhits, key=lambda x: (x[2], -x[0]))
+cls = {q: classify_hits(qhits) for q, qhits in hits_by_q.items()}
+cls.update({q: 'sameprot' for q in exact})
+LABEL = {'sameprot': 'P', 'H': 'H', 'h': 'h', 'low': 'low', 'none': 'none'}
+cls = {q: LABEL[c] for q, c in cls.items()}
 
-for q in exact:
-    cls[q] = 'P'
+
+def best_hit(q):
+    """Lowest-E hit among those that set the class (for the per-scaffold table)."""
+    qhits = hits_by_q.get(q, [])
+    c = cls.get(q, 'none')
+    keep = {
+        'P': [x for x in qhits if x[0] >= 0.90 and x[1] >= 0.50],
+        'H': [x for x in qhits if x[1] >= 0.50 and x[2] <= 1e-3],
+        'h': [x for x in qhits if x[1] >= 0.30 and (x[2] <= 1e-2 or x[0] >= 0.30)],
+    }.get(c) or qhits
+    return min(keep, key=lambda x: (x[2], -x[0])) if keep else None
+
+
+best_qual_hit = {q: best_hit(q) for q in hits_by_q}
 
 rows = []
-tdir = os.path.join(WORK_DATA_DIR, 'testsets')
-for f in sorted(os.listdir(tdir)):
-    if not f.endswith('.pkl'):
-        continue
-    ds = f[:-4]
-    if ds.startswith('tsu_hyperopt'):
-        continue
-    d = pd.read_pickle(os.path.join(tdir, f))
-    d_cls = d['pid'].map(lambda x: cls.get(x, 'none'))
-    rc = d_cls.value_counts().to_dict()
-    rows.append(dict(
-        inventory='esm3dg_mgnify',
-        dataset=ds,
-        n=len(d),
-        n_sameprot=rc.get('P', 0),
-        n_H=rc.get('H', 0),
-        n_h=rc.get('h', 0),
-        n_low=rc.get('low', 0),
-        n_none=rc.get('none', 0),
-    ))
-    print(
-        f'{ds:22s} n={len(d):8d} P={rc.get("P", 0):6d} H={rc.get("H", 0):6d} '
-        f'h={rc.get("h", 0):6d} low={rc.get("low", 0):6d} none={rc.get("none", 0):6d}'
-    )
-
-df = pd.DataFrame(rows)
-hc_csv = os.path.join(OUT_DIR, 'homology_classes.csv')
-old = pd.read_csv(hc_csv)
-old = old[old['inventory'] != 'esm3dg_mgnify']
-df_all = pd.concat([old, df], ignore_index=True)
-df_all.to_csv(hc_csv, index=False)
+tests = load_testsets()
+for ds, d in tests.items():
+    rc = d['pid'].map(lambda x: cls.get(x, 'none')).value_counts().to_dict()
+    rows.append(dict(inventory='esm3dg_mgnify', dataset=ds, n=len(d), n_sameprot=rc.get('P', 0), n_H=rc.get('H', 0),
+                     n_h=rc.get('h', 0), n_low=rc.get('low', 0), n_none=rc.get('none', 0)))
+    print(f'{ds:42s} n={len(d):8d} P={rc.get("P", 0):6d} H={rc.get("H", 0):6d} h={rc.get("h", 0):6d}')
+pd.DataFrame(rows).to_csv(os.path.join(OUT_DIR, 'esm3dg_homology.csv'), index=False)
 
 # Per-scaffold summary for the 33 Homology-Restricted MegaScale test scaffolds (leak_audit_esm3dg_libraries.csv)
 sp = pickle.load(open(os.path.join(WORK_DATA_DIR, 'capped_split_sets.pkl'), 'rb'))
 lib = pd.read_pickle(os.path.join(WORK_DATA_DIR, 'megascale_libraries.pkl'))
-ttest = pd.read_pickle(os.path.join(tdir, 'tsu_capped_test.pkl'))
+ttest = tests['tsu_capped_test'].copy()
 ttest['code_wt'] = [lib['code_wt'].get(x[4:], norm_wt_name(x[4:])[1]) for x in ttest['pid']]
 rank_order = {'P': 4, 'H': 3, 'h': 2, 'low': 1, 'none': 0}
 
@@ -130,4 +107,4 @@ for sc in sorted(sp['test']):
         lib_rows.append(dict(library=sc, n_rows=n_rows, best_query='', fident=np.nan, evalue=np.nan, cov_test=np.nan, **{'class': 'none'}))
 
 pd.DataFrame(lib_rows).to_csv(os.path.join(OUT_DIR, 'esm3dg_tsu_libraries.csv'), index=False)
-print('saved updated homology_classes.csv and esm3dg_tsu_libraries.csv')
+print('saved esm3dg_homology.csv and esm3dg_tsu_libraries.csv')

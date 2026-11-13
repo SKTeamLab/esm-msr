@@ -1,11 +1,11 @@
 """Exact-mutation and constituent-mutation overlaps for code/sequence-table inventories:
-DDMut (S9028 + SM1242), GeoDDG (S8754), and DDGemb (S2450).
+DDMut (S9028 + SM1662 = SM1218 + SM444), GeoDDG (S8754), and DDGemb (S2450 forward + reverse).
 
 Combines three complementary matchers so identical variants are caught across alternate PDB IDs,
 construct/signal-peptide truncations, and mutant-crystal reverse rows:
   1. Direct ``(code, chain, author_pos, wt, mt)`` key match (when test dataset carries PDB author numbering).
-  2. Exact ``(start_seq, target_seq)`` full-sequence pair match (using PDB residue maps from ``05b`` for
-     S9028 Forward + Reverse rows and SM1242 F + R rows, ``GS_S8754`` / ``s8754`` sequences, and ``S2450``).
+  2. Exact ``(start_seq, target_seq)`` full-sequence pair match (using PDB residue maps from ``05_inventory_proteins.py`` for
+     S9028 Forward + Reverse rows and SM1662 F + R rows, ``GS_S8754`` / ``s8754`` sequences, and ``S2450``).
   3. Semiglobal alignment coordinate mapping (free end gaps on ``>=90%``-identity, ``>=80%``-shorter-coverage
      MMseqs2 pairs) from each inventory protein into each test protein's 1-based sequence coordinates,
      validating both wild-type and mutant amino acids at the aligned position(s).
@@ -165,11 +165,13 @@ for x, rtype in zip(S9['pdb_mut_chain'].astype(str), S9['type'].astype(str)):
 s9028_tvars, s9028_tsgls = project_inv_variants(s9028_by_pid)
 print(f'S9028: author_keys={len(s9028_author)}, seq_pairs={len(s9028_seq_pairs)}, projected_test_pids={len(s9028_tvars)}')
 
-# ---------------------------------------------------------------- 2. Build SM1242 inventory
-SM = pd.read_csv(data_file('DD_SM1242.csv'))
-sm1242_author = set()
-sm1242_seq_pairs = set()
-sm1242_by_pid = collections.defaultdict(list)
+# ---------------------------------------------------------------- 2. Build SM1662 inventory
+# The deployed multi-mutant model was built on the training (SM1218) plus blind-test (SM444) sets (DDMut paper;
+# biosig.lab.uq.edu.au/ddmut/data), 831 forward + 831 reverse rows
+SM = pd.concat([pd.read_csv(data_file('DD_SM1218.csv')), pd.read_csv(data_file('DD_SM444.csv'))], ignore_index=True)
+sm1662_author = set()
+sm1662_seq_pairs = set()
+sm1662_by_pid = collections.defaultdict(list)
 
 for struc, mmlab, rtype in zip(SM['struc'].astype(str), SM['mm_label'].astype(str), SM['type'].astype(str)):
     m_st = re.match(r'^([0-9A-Za-z]{4})_([A-Za-z0-9]+)$', struc.strip())
@@ -180,7 +182,7 @@ for struc, mmlab, rtype in zip(SM['struc'].astype(str), SM['mm_label'].astype(st
     parsed_tokens = [re.match(r'^([A-Z])(-?\d+[A-Za-z]?)([A-Z])$', p) for p in parts]
     if not parsed_tokens or any(t is None for t in parsed_tokens):
         continue
-    sm1242_author.add((f'{code}_{ch}', tuple(sorted(parts))))
+    sm1662_author.add((f'{code}_{ch}', tuple(sorted(parts))))
     rl = resmaps.get(f'{code}_{ch}')
     if not rl:
         continue
@@ -188,7 +190,7 @@ for struc, mmlab, rtype in zip(SM['struc'].astype(str), SM['mm_label'].astype(st
     if any(t.group(2) not in idx_map for t in parsed_tokens):
         continue
     pdb_seq = ''.join(aa for _, aa in rl)
-    ipid = f'inv:ddmutsm1242:{code}_{ch}'
+    ipid = f'inv:ddmutsm1662:{code}_{ch}'
     if rtype.strip() == 'F' and all(pdb_seq[idx_map[t.group(2)]] == t.group(1) for t in parsed_tokens):
         arr = list(pdb_seq)
         mlist = []
@@ -196,8 +198,8 @@ for struc, mmlab, rtype in zip(SM['struc'].astype(str), SM['mm_label'].astype(st
             ix = idx_map[t.group(2)]
             arr[ix] = t.group(3)
             mlist.append((t.group(1), ix + 1, t.group(3)))
-        sm1242_seq_pairs.add((pdb_seq, ''.join(arr)))
-        sm1242_by_pid[ipid].append(mlist)
+        sm1662_seq_pairs.add((pdb_seq, ''.join(arr)))
+        sm1662_by_pid[ipid].append(mlist)
     elif rtype.strip() == 'R' and all(pdb_seq[idx_map[t.group(2)]] == t.group(3) for t in parsed_tokens):
         arr = list(pdb_seq)
         mlist = []
@@ -205,11 +207,11 @@ for struc, mmlab, rtype in zip(SM['struc'].astype(str), SM['mm_label'].astype(st
             ix = idx_map[t.group(2)]
             arr[ix] = t.group(1)
             mlist.append((t.group(1), ix + 1, t.group(3)))
-        sm1242_seq_pairs.add((''.join(arr), pdb_seq))
-        sm1242_by_pid[ipid].append(mlist)
+        sm1662_seq_pairs.add((''.join(arr), pdb_seq))
+        sm1662_by_pid[ipid].append(mlist)
 
-sm1242_tvars, sm1242_tsgls = project_inv_variants(sm1242_by_pid)
-print(f'SM1242: author_keys={len(sm1242_author)}, seq_pairs={len(sm1242_seq_pairs)}, projected_test_pids={len(sm1242_tvars)}')
+sm1662_tvars, sm1662_tsgls = project_inv_variants(sm1662_by_pid)
+print(f'SM1662: author_keys={len(sm1662_author)}, seq_pairs={len(sm1662_seq_pairs)}, projected_test_pids={len(sm1662_tvars)}')
 
 # ---------------------------------------------------------------- 3. Build GeoDDG S8754 inventory
 gs_author = set()
@@ -262,6 +264,9 @@ for r in s24_tsv.itertuples(index=False):
         msq = sq[:pos_i - 1] + mt_c + sq[pos_i:]
         s24_seq_pairs.add((sq, msq))
         s24_by_pid[f'inv:ddgemb2450:{hid}'].append([(wt_c, pos_i, mt_c)])
+        # DDGemb's training set was "artificially doubled to include reverse variations" (Savojardo et al. 2025)
+        s24_seq_pairs.add((msq, sq))
+        s24_by_pid[f'inv:ddgemb2450:{hid}'].append([(mt_c, pos_i, wt_c)])
 
 s24_tvars, s24_tsgls = project_inv_variants(s24_by_pid)
 print(f'S2450: seq_pairs={len(s24_seq_pairs)}, projected_test_pids={len(s24_tvars)}')
@@ -288,7 +293,7 @@ ALL_DS = [
     's571', 's783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369',
     'ptmul', 'ptmuld', 'tsu_capped_val', 'tsu_capped_test',
     'DLG4 abund.', 'DLG4 bind.', 'GRB2 abund.', 'GRB2 bind.', 'MYO', 'ESTA', 'GB1',
-    'domainome',
+    'domainome', 'domainome_low_id',
 ]
 
 res = []
@@ -364,25 +369,31 @@ def eval_on_dataset(ds: str, author_single_set, author_multi_set, seq_pairs_set,
     return n, exact, const
 
 
-for ds in ALL_DS:
-    # DDMut S9028 (combined with SM1242 for DDMut's multi-mutant head on multi-mutant sets in 13_matrix.py)
-    n, ex9, co9 = eval_on_dataset(ds, s9028_author, None, s9028_seq_pairs, s9028_tvars, s9028_tsgls)
-    add_row('ddmut_s9028', ds, n, ex9, co9)
+def union(a, b):
+    out = collections.defaultdict(set)
+    for d in (a, b):
+        for k, v in d.items():
+            out[k] |= v
+    return out
 
-    n, exm, com = eval_on_dataset(ds, None, sm1242_author, sm1242_seq_pairs, sm1242_tvars, sm1242_tsgls)
-    if exm > 0 or com > 0 or ds in ('ptmul', 'ptmuld', 'GB1'):
-        add_row('ddmut_sm1242', ds, n, exm, com)
+
+# DDMut as deployed: single-mutant model (S9028) for singles, multi-mutant model (SM1662) for multi-mutants; a row is
+# exact if either training set holds the identical variant, constituent if all its substitutions are in their union
+ddmut_pairs = s9028_seq_pairs | sm1662_seq_pairs
+ddmut_tvars, ddmut_tsgls = union(s9028_tvars, sm1662_tvars), union(s9028_tsgls, sm1662_tsgls)
+
+for ds in ALL_DS:
+    n, exd, cod = eval_on_dataset(ds, s9028_author, sm1662_author, ddmut_pairs, ddmut_tvars, ddmut_tsgls)
+    add_row('ddmut', ds, n, exd, cod, note='S9028 + SM1662 (SM1218 + SM444)')
 
     n, exg, cog = eval_on_dataset(ds, gs_author, None, gs_seq_pairs, gs_tvars, gs_tsgls)
     add_row('geoddg_s8754', ds, n, exg, cog)
 
     n, ex24, co24 = eval_on_dataset(ds, None, None, s24_seq_pairs, s24_tvars, s24_tsgls)
-    if ds == 's2648':
-        note24 = f'S2450 = S2648 - 198 documented (2450; sequence-aligned={ex24})'
-        ex24 = max(2450, ex24)
-    else:
-        note24 = 'verified via S2450.tsv + S2450.fasta alignment'
-    add_row('ddgemb_s2450', ds, n, ex24, co24, note=note24)
+    # S2450 is documented as S2648 minus 198 S669-homologous mutations (2,450 of S2648's rows); only the
+    # sequence-verified count is reported, the documented relation is carried as the D flag in 18_matrix.py
+    add_row('ddgemb_s2450', ds, n, ex24, co24, note='verified via S2450.tsv + S2450.fasta alignment')
 
 pd.DataFrame(res).to_csv(os.path.join(OUT_DIR, 'code_inventory_exact.csv'), index=False)
 print('saved code_inventory_exact.csv:', len(res), 'rows')
+

@@ -5,11 +5,12 @@ Extracts single-chain query PDBs for:
   - ProteinGym (217 DMS assays from ``ProteinGym_AF2_structures/<pdb_file>``)
 and single-chain target PDBs for all structure-bearing training inventories:
   - MegaScale libraries (AlphaFold PDBs per ``code_wt``, mapped to every ``lib:<code>``)
-  - DDMut S9028 / SM1242 and GeoDDG S8754 PDB chains (plus S2450 proteins sharing >=95% identity
+  - DDMut S9028 / SM1662 and GeoDDG S8754 PDB chains (plus S2450 proteins sharing >=95% identity
     over >=90% coverage with a structure-mapped S2648/S9028 chain)
 
 Runs ``foldseek easy-search --exhaustive-search 1 -e 10.0`` (with SHA-1 manifest caching) and writes:
   - ``$LEAK_DATA_DIR/foldseek_hits_dom_pg.pkl`` (directed query ``pid`` -> target ``pid`` structural hits)
+  - ``$LEAK_DATA_DIR/testsets/domainome_low_id.pkl`` (the Domainome domains with no P / H relation to capped train)
   - ``$LEAK_OUT_DIR/structure_homology_domainome_pg.csv`` (per-domain / per-DMS sequence vs structure
     summary against the 172 Homology-Restricted MegaScale capped-train scaffolds)
 """
@@ -26,7 +27,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lib import FOLDSEEK_BIN, LEAK_ROOT, OUT_DIR, REPO_ROOT, SOFTWARE_DIR, WORK_DATA_DIR
+from lib import FOLDSEEK_BIN, LEAK_ROOT, OUT_DIR, REPO_ROOT, SOFTWARE_DIR, THREADS, WORK_DATA_DIR, repo_data
 
 os.makedirs(WORK_DATA_DIR, exist_ok=True)
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -74,10 +75,7 @@ def main():
     os.makedirs(t_dir, exist_ok=True)
 
     # 1. Queries: Domainome 1.0 (522 domains; Beltran et al., 2025) + ProteinGym (217)
-    default_dom_pdb_dir = os.path.join(REPO_ROOT, 'data', 'domainome1', 'alphafold_structures')
-    if not os.path.isdir(default_dom_pdb_dir):
-        default_dom_pdb_dir = os.path.join(SOFTWARE_DIR, 'esm-msr', 'data', 'domainome1', 'alphafold_structures')
-    dom_pdb_dir = os.environ.get('DOMAINOME_PDB_DIR', default_dom_pdb_dir)
+    dom_pdb_dir = os.environ.get('DOMAINOME_PDB_DIR', repo_data('domainome1', 'alphafold_structures'))
     pg_root = os.environ.get('PROTEINGYM_DIR', os.path.join(LEAK_ROOT, 'ProteinGym'))
     pg_pdb_dir = os.path.join(pg_root, 'ProteinGym_AF2_structures')
     pgm = pd.read_csv(os.path.join(pg_root, 'DMS_substitutions.csv'))
@@ -115,7 +113,13 @@ def main():
             q_stem_to_pids[stem].append(pid)
             q_manifest[stem] = (src, os.path.getsize(src))
 
-    print(f'Foldseek queries prepared: {len(q_stem_to_pids)} structures ({len(dom_pids)} Domainome, {len(pg_pids)} ProteinGym)')
+    n_q = sum(1 for v in q_stem_to_pids.values() for p in v)
+    print(f'Foldseek queries prepared: {len(q_stem_to_pids)} structures for {n_q} of {len(dom_pids) + len(pg_pids)} '
+          f'test proteins ({len(dom_pids)} Domainome from {dom_pdb_dir}, {len(pg_pids)} ProteinGym)')
+    if n_q < len(dom_pids) + len(pg_pids):
+        missing = sorted((set(dom_pids) | pg_pids) - {p for v in q_stem_to_pids.values() for p in v})
+        raise FileNotFoundError(f'{len(missing)} Domainome / ProteinGym structures not found (e.g. {missing[:3]}); '
+                                'set DOMAINOME_PDB_DIR / PROTEINGYM_DIR')
 
     # 2. Targets: MegaScale AlphaFold PDBs + inventory PDB chains
     af_dir = os.environ.get(
@@ -161,10 +165,7 @@ def main():
         t_stem_to_pids[chain_key_to_stem[ck]].append(str(row.pid))
 
     # Map S2450 sequence-only entries to S2648/inventory single-chain PDBs when in the same >=95% identity family
-    s2648_csv = os.path.join(LEAK_ROOT, 'repo', 'data', 'preprocessed', 's2648_mapped.csv')
-    if not os.path.exists(s2648_csv):
-        from lib import REPO_ROOT
-        s2648_csv = os.path.join(REPO_ROOT, 'data', 'preprocessed', 's2648_mapped.csv')
+    s2648_csv = os.path.join(REPO_ROOT, 'data', 'preprocessed', 's2648_mapped.csv')
     if os.path.exists(s2648_csv) and os.path.exists(os.path.join(WORK_DATA_DIR, 'mmseqs_pairs.csv')):
         s26 = pd.read_csv(s2648_csv, usecols=['code', 'chain', 'pdb_file']).drop_duplicates()
         s26_pdb = {f"s2648:{r.code}_{r.chain}": (str(r.pdb_file), str(r.chain), str(r.code)) for r in s26.itertuples(index=False)}
@@ -218,7 +219,7 @@ def main():
             '--exhaustive-search', '1',
             '-e', '10.0',
             '--format-output', ','.join(FOLDSEEK_COLS),
-            '--threads', os.environ.get('THREADS', '8'),
+            '--threads', THREADS,
         ]
         print(' '.join(cmd))
         subprocess.run(cmd, check=True)
@@ -331,6 +332,15 @@ def main():
     sum_df.to_csv(out_csv, index=False)
     for ds_name, g in sum_df.groupby('dataset'):
         print(f'[{ds_name}] seq_only: {g.class_seq_only.value_counts().to_dict()} -> with_struct: {g.class_with_struct.value_counts().to_dict()}')
+
+    # Low-homology Domainome subset (BENCHMARKS column `Domainome (low-id, 458)`): the domains with no same-protein (P,
+    # exact rows included) or strong 2D/3D homolog (H) relation to the capped-train scaffolds. Written as its own test
+    # set so every later step audits it like any other dataset.
+    keep = set(sum_df.loc[(sum_df['dataset'] == 'domainome') & ~sum_df['class_with_struct'].isin(['P', 'H']), 'pid'])
+    low = dom_df[dom_df['pid'].isin(keep)].copy()
+    low['dataset'] = 'domainome_low_id'
+    low.to_pickle(os.path.join(WORK_DATA_DIR, 'testsets', 'domainome_low_id.pkl'))
+    print(f'domainome_low_id: {low.pid.nunique()} of {len(dom_pids)} domains, {len(low)} of {len(dom_df)} rows')
 
 
 if __name__ == '__main__':

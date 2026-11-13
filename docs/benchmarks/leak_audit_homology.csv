@@ -7,6 +7,7 @@ esm_msr_capped,GRB2 abund.,63366,0,0,0,0,63366
 esm_msr_capped,GRB2 bind.,33441,0,0,0,0,33441
 esm_msr_capped,MYO,5905,0,0,0,0,5905
 esm_msr_capped,domainome,534385,4311,58422,12498,450137,9017
+esm_msr_capped,domainome_low_id,471652,0,0,12498,450137,9017
 esm_msr_capped,k2369,2369,0,0,1,72,2296
 esm_msr_capped,k3822,3822,0,0,1,121,3700
 esm_msr_capped,proteingym,2465767,45625,4607,6305,2383795,25435
@@ -22,190 +23,30 @@ esm_msr_capped,s8754,8754,0,0,0,277,8477
 esm_msr_capped,ssym,684,0,0,0,0,684
 esm_msr_capped,tsu_capped_test,52071,0,0,8114,0,43957
 esm_msr_capped,tsu_capped_val,35473,0,0,7210,2534,25729
-me_stage1,DLG4 abund.,6976,0,0,0,0,6976
-me_stage1,DLG4 bind.,8251,0,0,0,0,8251
-me_stage1,ESTA,2172,0,0,0,0,2172
-me_stage1,GB1,149360,0,0,0,0,149360
-me_stage1,GRB2 abund.,63366,0,0,0,0,63366
-me_stage1,GRB2 bind.,33441,0,0,0,0,33441
-me_stage1,MYO,5905,0,0,0,0,5905
-me_stage1,domainome,534385,4311,58422,12498,450137,9017
-me_stage1,k2369,2369,0,0,1,72,2296
-me_stage1,k3822,3822,0,0,1,121,3700
-me_stage1,proteingym,2465767,45625,4607,6305,2383795,25435
-me_stage1,ptmul,914,0,0,0,18,896
-me_stage1,ptmuld,536,0,0,0,18,518
-me_stage1,q3421,3421,0,0,0,101,3320
-me_stage1,s2648,2648,0,0,0,53,2595
-me_stage1,s461,461,0,0,1,13,447
-me_stage1,s571,571,0,0,0,68,503
-me_stage1,s669,669,0,0,1,74,594
-me_stage1,s783,783,0,0,0,20,763
-me_stage1,s8754,8754,0,0,0,277,8477
-me_stage1,ssym,684,0,0,0,0,684
-me_stage1,tsu_capped_test,52071,0,0,8114,0,43957
-me_stage1,tsu_capped_val,35473,0,0,7210,2534,25729
-me_stage2,DLG4 abund.,6976,0,0,0,0,6976
-me_stage2,DLG4 bind.,8251,0,0,0,0,8251
-me_stage2,ESTA,2172,0,0,0,0,2172
-me_stage2,GB1,149360,0,0,0,0,149360
-me_stage2,GRB2 abund.,63366,0,0,0,0,63366
-me_stage2,GRB2 bind.,33441,0,0,0,0,33441
-me_stage2,MYO,5905,0,0,0,0,5905
-me_stage2,domainome,534385,4311,58422,12498,450137,9017
-me_stage2,k2369,2369,0,0,1,72,2296
-me_stage2,k3822,3822,0,0,1,121,3700
-me_stage2,proteingym,2465767,45625,4607,6305,2383795,25435
-me_stage2,ptmul,914,0,0,0,18,896
-me_stage2,ptmuld,536,0,0,0,18,518
-me_stage2,q3421,3421,0,0,0,101,3320
-me_stage2,s2648,2648,0,0,0,53,2595
-me_stage2,s461,461,0,0,1,13,447
-me_stage2,s571,571,0,0,0,68,503
-me_stage2,s669,669,0,0,1,74,594
-me_stage2,s783,783,0,0,0,20,763
-me_stage2,s8754,8754,0,0,0,277,8477
-me_stage2,ssym,684,0,0,0,0,684
-me_stage2,tsu_capped_test,52071,0,0,8114,0,43957
-me_stage2,tsu_capped_val,35473,0,0,7210,2534,25729
-tmpnn,DLG4 abund.,6976,0,0,0,0,6976
-tmpnn,DLG4 bind.,8251,0,0,0,0,8251
-tmpnn,ESTA,2172,0,0,0,0,2172
-tmpnn,GB1,149360,0,0,0,0,149360
-tmpnn,GRB2 abund.,63366,0,0,0,0,63366
-tmpnn,GRB2 bind.,33441,0,0,0,0,33441
-tmpnn,MYO,5905,0,0,0,0,5905
-tmpnn,domainome,534385,4311,58422,12498,450137,9017
-tmpnn,k2369,2369,0,0,1,72,2296
-tmpnn,k3822,3822,0,0,1,121,3700
-tmpnn,proteingym,2465767,45625,4607,6305,2383795,25435
-tmpnn,ptmul,914,0,0,0,18,896
-tmpnn,ptmuld,536,0,0,0,18,518
-tmpnn,q3421,3421,0,0,0,101,3320
-tmpnn,s2648,2648,0,0,0,53,2595
-tmpnn,s461,461,0,0,1,13,447
-tmpnn,s571,571,0,0,0,68,503
-tmpnn,s669,669,0,0,1,74,594
-tmpnn,s783,783,0,0,0,20,763
-tmpnn,s8754,8754,0,0,0,277,8477
-tmpnn,ssym,684,0,0,0,0,684
-tmpnn,tsu_capped_test,52071,0,0,8114,0,43957
-tmpnn,tsu_capped_val,35473,0,0,7210,2534,25729
-spurs_retrain_single,DLG4 abund.,6976,0,0,0,0,6976
-spurs_retrain_single,DLG4 bind.,8251,0,0,0,0,8251
-spurs_retrain_single,ESTA,2172,0,0,0,0,2172
-spurs_retrain_single,GB1,149360,0,0,0,0,149360
-spurs_retrain_single,GRB2 abund.,63366,0,0,0,0,63366
-spurs_retrain_single,GRB2 bind.,33441,0,0,0,0,33441
-spurs_retrain_single,MYO,5905,0,0,0,0,5905
-spurs_retrain_single,domainome,534385,4311,58422,12498,450137,9017
-spurs_retrain_single,k2369,2369,0,0,1,72,2296
-spurs_retrain_single,k3822,3822,0,0,1,121,3700
-spurs_retrain_single,proteingym,2465767,45625,4607,6305,2383795,25435
-spurs_retrain_single,ptmul,914,0,0,0,18,896
-spurs_retrain_single,ptmuld,536,0,0,0,18,518
-spurs_retrain_single,q3421,3421,0,0,0,101,3320
-spurs_retrain_single,s2648,2648,0,0,0,53,2595
-spurs_retrain_single,s461,461,0,0,1,13,447
-spurs_retrain_single,s571,571,0,0,0,68,503
-spurs_retrain_single,s669,669,0,0,1,74,594
-spurs_retrain_single,s783,783,0,0,0,20,763
-spurs_retrain_single,s8754,8754,0,0,0,277,8477
-spurs_retrain_single,ssym,684,0,0,0,0,684
-spurs_retrain_single,tsu_capped_test,52071,0,0,8114,0,43957
-spurs_retrain_single,tsu_capped_val,35473,0,0,7210,2534,25729
-spurs_retrain_multi,DLG4 abund.,6976,0,0,0,0,6976
-spurs_retrain_multi,DLG4 bind.,8251,0,0,0,0,8251
-spurs_retrain_multi,ESTA,2172,0,0,0,0,2172
-spurs_retrain_multi,GB1,149360,0,0,0,0,149360
-spurs_retrain_multi,GRB2 abund.,63366,0,0,0,0,63366
-spurs_retrain_multi,GRB2 bind.,33441,0,0,0,0,33441
-spurs_retrain_multi,MYO,5905,0,0,0,0,5905
-spurs_retrain_multi,domainome,534385,4311,58422,12498,450137,9017
-spurs_retrain_multi,k2369,2369,0,0,1,72,2296
-spurs_retrain_multi,k3822,3822,0,0,1,121,3700
-spurs_retrain_multi,proteingym,2465767,45625,4607,6305,2383795,25435
-spurs_retrain_multi,ptmul,914,0,0,0,18,896
-spurs_retrain_multi,ptmuld,536,0,0,0,18,518
-spurs_retrain_multi,q3421,3421,0,0,0,101,3320
-spurs_retrain_multi,s2648,2648,0,0,0,53,2595
-spurs_retrain_multi,s461,461,0,0,1,13,447
-spurs_retrain_multi,s571,571,0,0,0,68,503
-spurs_retrain_multi,s669,669,0,0,1,74,594
-spurs_retrain_multi,s783,783,0,0,0,20,763
-spurs_retrain_multi,s8754,8754,0,0,0,277,8477
-spurs_retrain_multi,ssym,684,0,0,0,0,684
-spurs_retrain_multi,tsu_capped_test,52071,0,0,8114,0,43957
-spurs_retrain_multi,tsu_capped_val,35473,0,0,7210,2534,25729
-tmpnnd,DLG4 abund.,6976,0,0,0,0,6976
-tmpnnd,DLG4 bind.,8251,0,0,0,0,8251
-tmpnnd,ESTA,2172,0,0,0,0,2172
-tmpnnd,GB1,149360,0,0,0,0,149360
-tmpnnd,GRB2 abund.,63366,0,0,0,0,63366
-tmpnnd,GRB2 bind.,33441,0,0,0,0,33441
-tmpnnd,MYO,5905,0,0,0,0,5905
-tmpnnd,domainome,534385,4311,58422,11009,448156,12487
-tmpnnd,k2369,2369,0,0,1,38,2330
-tmpnnd,k3822,3822,0,0,1,53,3768
-tmpnnd,proteingym,2465767,45625,4607,4277,2385823,25435
-tmpnnd,ptmul,914,0,0,0,7,907
-tmpnnd,ptmuld,536,0,0,0,7,529
-tmpnnd,q3421,3421,0,0,0,44,3377
-tmpnnd,s2648,2648,0,0,0,24,2624
-tmpnnd,s461,461,0,0,1,13,447
-tmpnnd,s571,571,0,0,0,22,549
-tmpnnd,s669,669,0,0,1,23,645
-tmpnnd,s783,783,0,0,0,0,783
-tmpnnd,s8754,8754,0,0,0,104,8650
-tmpnnd,ssym,684,0,0,0,0,684
-tmpnnd,tsu_capped_test,52071,0,0,6495,812,44764
-tmpnnd,tsu_capped_val,35473,0,0,2427,2534,30512
-spurs_single,DLG4 abund.,6976,0,0,0,0,6976
-spurs_single,DLG4 bind.,8251,0,0,0,0,8251
-spurs_single,ESTA,2172,0,0,0,0,2172
-spurs_single,GB1,149360,149360,0,0,0,0
-spurs_single,GRB2 abund.,63366,0,0,0,0,63366
-spurs_single,GRB2 bind.,33441,0,0,0,0,33441
-spurs_single,MYO,5905,0,0,0,0,5905
-spurs_single,domainome,534385,19767,181630,21688,306011,5289
-spurs_single,k2369,2369,799,54,28,348,1140
-spurs_single,k3822,3822,901,78,39,711,2093
-spurs_single,proteingym,2465767,108105,3435,6090,2342248,5889
-spurs_single,ptmul,914,92,46,14,255,507
-spurs_single,ptmuld,536,12,23,11,144,346
-spurs_single,q3421,3421,91,65,36,737,2492
-spurs_single,s2648,2648,53,42,46,575,1932
-spurs_single,s461,461,0,0,1,48,412
-spurs_single,s571,571,48,15,0,22,486
-spurs_single,s669,669,0,2,1,70,596
-spurs_single,s783,783,53,0,59,83,588
-spurs_single,s8754,8754,1725,165,70,1629,5165
-spurs_single,ssym,684,0,0,0,67,617
-spurs_single,tsu_capped_test,52071,46482,0,0,0,5589
-spurs_single,tsu_capped_val,35473,28142,0,0,0,7331
-spurs_multi,DLG4 abund.,6976,0,0,0,0,6976
-spurs_multi,DLG4 bind.,8251,0,0,0,0,8251
-spurs_multi,ESTA,2172,0,0,0,0,2172
-spurs_multi,GB1,149360,149360,0,0,0,0
-spurs_multi,GRB2 abund.,63366,0,0,0,0,63366
-spurs_multi,GRB2 bind.,33441,0,0,0,0,33441
-spurs_multi,MYO,5905,0,0,0,0,5905
-spurs_multi,domainome,534385,19316,175592,20302,309686,9489
-spurs_multi,k2369,2369,839,52,44,58,1376
-spurs_multi,k3822,3822,1021,77,86,127,2511
-spurs_multi,proteingym,2465767,103055,2709,1813,2332590,25600
-spurs_multi,ptmul,914,92,39,15,7,761
-spurs_multi,ptmuld,536,12,21,12,6,485
-spurs_multi,q3421,3421,148,62,67,122,3022
-spurs_multi,s2648,2648,108,39,46,26,2429
-spurs_multi,s461,461,95,0,62,44,260
-spurs_multi,s571,571,48,15,0,17,491
-spurs_multi,s669,669,95,2,62,57,453
-spurs_multi,s783,783,53,0,89,14,627
-spurs_multi,s8754,8754,1887,107,66,370,6324
-spurs_multi,ssym,684,0,0,0,10,674
-spurs_multi,tsu_capped_test,52071,30654,3515,796,795,16311
-spurs_multi,tsu_capped_val,35473,18830,866,810,1055,13912
+esm_msr_small_hyperopt,DLG4 abund.,6976,0,0,0,0,6976
+esm_msr_small_hyperopt,DLG4 bind.,8251,0,0,0,0,8251
+esm_msr_small_hyperopt,ESTA,2172,0,0,0,0,2172
+esm_msr_small_hyperopt,GB1,149360,0,0,0,0,149360
+esm_msr_small_hyperopt,GRB2 abund.,63366,0,0,0,0,63366
+esm_msr_small_hyperopt,GRB2 bind.,33441,0,0,0,0,33441
+esm_msr_small_hyperopt,MYO,5905,0,0,0,0,5905
+esm_msr_small_hyperopt,domainome,534385,3491,113183,10303,397024,10384
+esm_msr_small_hyperopt,domainome_low_id,471652,2285,92885,9104,356994,10384
+esm_msr_small_hyperopt,k2369,2369,0,10,9,294,2056
+esm_msr_small_hyperopt,k3822,3822,0,12,10,593,3207
+esm_msr_small_hyperopt,proteingym,2465767,59804,8793,7478,2361085,28607
+esm_msr_small_hyperopt,ptmul,914,0,43,8,246,617
+esm_msr_small_hyperopt,ptmuld,536,0,14,6,136,380
+esm_msr_small_hyperopt,q3421,3421,0,40,6,606,2769
+esm_msr_small_hyperopt,s2648,2648,0,43,9,533,2063
+esm_msr_small_hyperopt,s461,461,0,0,0,22,439
+esm_msr_small_hyperopt,s571,571,0,0,0,17,554
+esm_msr_small_hyperopt,s669,669,0,2,0,33,634
+esm_msr_small_hyperopt,s783,783,0,1,0,56,726
+esm_msr_small_hyperopt,s8754,8754,0,125,10,1221,7398
+esm_msr_small_hyperopt,ssym,684,0,0,0,57,627
+esm_msr_small_hyperopt,tsu_capped_test,52071,25466,5879,2402,0,18324
+esm_msr_small_hyperopt,tsu_capped_val,35473,21154,866,0,0,13453
 esmtherm,DLG4 abund.,6976,0,0,0,0,6976
 esmtherm,DLG4 bind.,8251,0,0,0,0,8251
 esmtherm,ESTA,2172,0,0,0,0,2172
@@ -214,6 +55,7 @@ esmtherm,GRB2 abund.,63366,0,0,0,0,63366
 esmtherm,GRB2 bind.,33441,0,0,0,0,33441
 esmtherm,MYO,5905,0,0,0,0,5905
 esmtherm,domainome,534385,25405,195958,20296,287764,4962
+esmtherm,domainome_low_id,471652,21094,141125,19175,285296,4962
 esmtherm,k2369,2369,910,67,38,377,977
 esmtherm,k3822,3822,1169,97,79,773,1704
 esmtherm,proteingym,2465767,100873,9663,1813,2347359,6059
@@ -237,6 +79,7 @@ ifum,GRB2 abund.,63366,0,0,0,0,63366
 ifum,GRB2 bind.,33441,0,0,0,0,33441
 ifum,MYO,5905,0,0,0,0,5905
 ifum,domainome,534385,26039,194157,20544,288266,5379
+ifum,domainome_low_id,471652,21728,138070,19423,287052,5379
 ifum,k2369,2369,894,36,30,381,1028
 ifum,k3822,3822,1105,65,63,774,1815
 ifum,proteingym,2465767,95854,8425,2860,2341767,16861
@@ -252,29 +95,6 @@ ifum,s8754,8754,1955,156,30,1808,4805
 ifum,ssym,684,0,0,0,74,610
 ifum,tsu_capped_test,52071,25296,3515,3080,0,20180
 ifum,tsu_capped_val,35473,25372,0,2419,0,7682
-esm3dg_released,DLG4 abund.,6976,0,0,0,0,6976
-esm3dg_released,DLG4 bind.,8251,0,0,0,0,8251
-esm3dg_released,ESTA,2172,0,0,0,0,2172
-esm3dg_released,GB1,149360,149360,0,0,0,0
-esm3dg_released,GRB2 abund.,63366,0,0,0,0,63366
-esm3dg_released,GRB2 bind.,33441,0,0,0,0,33441
-esm3dg_released,MYO,5905,0,0,0,0,5905
-esm3dg_released,domainome,534385,29057,201273,25200,273476,5379
-esm3dg_released,k2369,2369,945,40,30,386,968
-esm3dg_released,k3822,3822,1212,70,63,785,1692
-esm3dg_released,proteingym,2465767,108070,6928,1813,2334592,14364
-esm3dg_released,ptmul,914,150,26,5,277,456
-esm3dg_released,ptmuld,536,50,19,5,166,296
-esm3dg_released,q3421,3421,266,56,40,790,2269
-esm3dg_released,s2648,2648,181,46,17,618,1786
-esm3dg_released,s461,461,163,0,63,49,186
-esm3dg_released,s571,571,39,43,0,232,257
-esm3dg_released,s669,669,163,2,63,125,316
-esm3dg_released,s783,783,125,25,30,103,500
-esm3dg_released,s8754,8754,2067,161,39,1854,4633
-esm3dg_released,ssym,684,0,0,0,80,604
-esm3dg_released,tsu_capped_test,52071,35054,3515,1938,0,11564
-esm3dg_released,tsu_capped_val,35473,32370,0,802,0,2301
 ddgemb_s2450,DLG4 abund.,6976,0,0,0,0,6976
 ddgemb_s2450,DLG4 bind.,8251,0,0,0,0,8251
 ddgemb_s2450,ESTA,2172,0,0,0,0,2172
@@ -283,6 +103,7 @@ ddgemb_s2450,GRB2 abund.,63366,0,0,0,0,63366
 ddgemb_s2450,GRB2 bind.,33441,0,0,0,0,33441
 ddgemb_s2450,MYO,5905,0,5905,0,0,0
 ddgemb_s2450,domainome,534385,16607,92767,36074,381077,7860
+ddgemb_s2450,domainome_low_id,471652,16607,88955,36074,322608,7408
 ddgemb_s2450,k2369,2369,1190,64,6,28,1081
 ddgemb_s2450,k3822,3822,2177,101,22,57,1465
 ddgemb_s2450,proteingym,2465767,57375,99662,18184,2267907,22639
@@ -305,7 +126,8 @@ ddmut_s9028,GB1,149360,149360,0,0,0,0
 ddmut_s9028,GRB2 abund.,63366,0,0,0,0,63366
 ddmut_s9028,GRB2 bind.,33441,0,0,0,0,33441
 ddmut_s9028,MYO,5905,0,5905,0,0,0
-ddmut_s9028,domainome,534385,19861,145931,30211,334530,3852
+ddmut_s9028,domainome,534385,19861,145931,29736,335005,3852
+ddmut_s9028,domainome_low_id,471652,19218,142119,26811,279652,3852
 ddmut_s9028,k2369,2369,2062,79,0,49,179
 ddmut_s9028,k3822,3822,3239,124,0,105,354
 ddmut_s9028,proteingym,2465767,44927,50183,35417,2332498,2742
@@ -321,52 +143,78 @@ ddmut_s9028,s8754,8754,7838,319,17,276,304
 ddmut_s9028,ssym,684,684,0,0,0,0
 ddmut_s9028,tsu_capped_test,52071,0,0,0,1043,51028
 ddmut_s9028,tsu_capped_val,35473,0,0,0,0,35473
-ddmut_sm1242,DLG4 abund.,6976,0,0,0,0,6976
-ddmut_sm1242,DLG4 bind.,8251,0,0,0,0,8251
-ddmut_sm1242,ESTA,2172,0,0,0,0,2172
-ddmut_sm1242,GB1,149360,149360,0,0,0,0
-ddmut_sm1242,GRB2 abund.,63366,0,0,0,0,63366
-ddmut_sm1242,GRB2 bind.,33441,0,0,0,0,33441
-ddmut_sm1242,MYO,5905,0,5905,0,0,0
-ddmut_sm1242,domainome,534385,15477,118980,21033,368297,10598
-ddmut_sm1242,k2369,2369,1796,86,0,62,425
-ddmut_sm1242,k3822,3822,2697,143,0,146,836
-ddmut_sm1242,proteingym,2465767,24829,46206,62012,2329978,2742
-ddmut_sm1242,ptmul,914,876,17,0,1,20
-ddmut_sm1242,ptmuld,536,511,14,0,0,11
-ddmut_sm1242,q3421,3421,2709,130,0,84,498
-ddmut_sm1242,s2648,2648,2042,123,0,22,461
-ddmut_sm1242,s461,461,109,0,2,71,279
-ddmut_sm1242,s571,571,186,39,0,16,330
-ddmut_sm1242,s669,669,120,8,3,76,462
-ddmut_sm1242,s783,783,621,5,0,59,98
-ddmut_sm1242,s8754,8754,6742,369,1,261,1381
-ddmut_sm1242,ssym,684,676,6,0,2,0
-ddmut_sm1242,tsu_capped_test,52071,0,0,0,1043,51028
-ddmut_sm1242,tsu_capped_val,35473,0,0,0,0,35473
-geoddg_s8754,DLG4 abund.,6976,0,0,0,0,6976
-geoddg_s8754,DLG4 bind.,8251,0,0,0,0,8251
+ddmut_sm1662,DLG4 abund.,6976,0,0,0,0,6976
+ddmut_sm1662,DLG4 bind.,8251,0,0,0,0,8251
+ddmut_sm1662,ESTA,2172,0,0,0,0,2172
+ddmut_sm1662,GB1,149360,149360,0,0,0,0
+ddmut_sm1662,GRB2 abund.,63366,0,0,0,0,63366
+ddmut_sm1662,GRB2 bind.,33441,0,0,0,0,33441
+ddmut_sm1662,MYO,5905,0,5905,0,0,0
+ddmut_sm1662,domainome,534385,15477,118980,22481,368963,8484
+ddmut_sm1662,domainome_low_id,471652,15477,117870,19556,310908,7841
+ddmut_sm1662,k2369,2369,1832,106,30,68,333
+ddmut_sm1662,k3822,3822,2788,169,69,175,621
+ddmut_sm1662,proteingym,2465767,48278,60240,47978,2306529,2742
+ddmut_sm1662,ptmul,914,896,16,0,0,2
+ddmut_sm1662,ptmuld,536,523,13,0,0,0
+ddmut_sm1662,q3421,3421,2838,133,0,79,371
+ddmut_sm1662,s2648,2648,2163,138,26,18,303
+ddmut_sm1662,s461,461,109,0,2,98,252
+ddmut_sm1662,s571,571,194,40,0,8,329
+ddmut_sm1662,s669,669,120,8,3,108,430
+ddmut_sm1662,s783,783,668,5,0,59,51
+ddmut_sm1662,s8754,8754,6945,418,96,252,1043
+ddmut_sm1662,ssym,684,676,6,0,2,0
+ddmut_sm1662,tsu_capped_test,52071,0,0,0,1043,51028
+ddmut_sm1662,tsu_capped_val,35473,0,0,0,0,35473
+geoddg_s8754,DLG4 abund.,6976,6976,0,0,0,0
+geoddg_s8754,DLG4 bind.,8251,8251,0,0,0,0
 geoddg_s8754,ESTA,2172,0,0,0,0,2172
 geoddg_s8754,GB1,149360,149360,0,0,0,0
 geoddg_s8754,GRB2 abund.,63366,0,0,0,0,63366
 geoddg_s8754,GRB2 bind.,33441,0,0,0,0,33441
 geoddg_s8754,MYO,5905,5905,0,0,0,0
-geoddg_s8754,domainome,534385,25541,149594,44553,312634,2063
+geoddg_s8754,domainome,534385,28074,149594,44553,310101,2063
+geoddg_s8754,domainome_low_id,471652,27431,144537,36392,261229,2063
 geoddg_s8754,k2369,2369,2168,8,4,44,145
 geoddg_s8754,k3822,3822,3414,9,6,123,270
-geoddg_s8754,proteingym,2465767,761924,64794,147863,1490941,245
+geoddg_s8754,proteingym,2465767,1640082,44031,119964,661445,245
 geoddg_s8754,ptmul,914,890,4,0,0,20
 geoddg_s8754,ptmuld,536,522,3,0,0,11
 geoddg_s8754,q3421,3421,3358,0,0,1,62
 geoddg_s8754,s2648,2648,2648,0,0,0,0
-geoddg_s8754,s461,461,0,2,14,155,290
-geoddg_s8754,s571,571,283,25,0,44,219
-geoddg_s8754,s669,669,8,22,17,187,435
+geoddg_s8754,s461,461,49,2,14,106,290
+geoddg_s8754,s571,571,289,25,0,44,213
+geoddg_s8754,s669,669,57,22,17,138,435
 geoddg_s8754,s783,783,691,0,58,0,34
 geoddg_s8754,s8754,8754,8754,0,0,0,0
 geoddg_s8754,ssym,684,684,0,0,0,0
 geoddg_s8754,tsu_capped_test,52071,0,0,3870,1043,47158
 geoddg_s8754,tsu_capped_val,35473,0,0,0,0,35473
+ddmut,DLG4 abund.,6976,0,0,0,0,6976
+ddmut,DLG4 bind.,8251,0,0,0,0,8251
+ddmut,ESTA,2172,2172,0,0,0,0
+ddmut,GB1,149360,149360,0,0,0,0
+ddmut,GRB2 abund.,63366,0,0,0,0,63366
+ddmut,GRB2 bind.,33441,0,0,0,0,33441
+ddmut,MYO,5905,0,5905,0,0,0
+ddmut,domainome,534385,21949,144647,31494,333190,3105
+ddmut,domainome_low_id,471652,21306,140835,28569,277837,3105
+ddmut,k2369,2369,2100,74,0,48,147
+ddmut,k3822,3822,3333,116,0,104,269
+ddmut,proteingym,2465767,74101,50745,42807,2295372,2742
+ddmut,ptmul,914,899,15,0,0,0
+ddmut,ptmuld,536,525,11,0,0,0
+ddmut,q3421,3421,3242,35,0,61,83
+ddmut,s2648,2648,2629,19,0,0,0
+ddmut,s461,461,177,2,2,43,237
+ddmut,s571,571,265,27,0,14,265
+ddmut,s669,669,191,13,3,75,387
+ddmut,s783,783,750,4,0,0,29
+ddmut,s8754,8754,7938,278,17,234,287
+ddmut,ssym,684,684,0,0,0,0
+ddmut,tsu_capped_test,52071,0,0,0,1043,51028
+ddmut,tsu_capped_val,35473,0,0,0,0,35473
 esm3dg_mgnify,DLG4 abund.,6976,0,0,0,0,6976
 esm3dg_mgnify,DLG4 bind.,8251,0,0,0,0,8251
 esm3dg_mgnify,ESTA,2172,0,0,2172,0,0
@@ -374,19 +222,20 @@ esm3dg_mgnify,GB1,149360,0,0,0,0,149360
 esm3dg_mgnify,GRB2 abund.,63366,0,0,0,0,63366
 esm3dg_mgnify,GRB2 bind.,33441,0,0,0,0,33441
 esm3dg_mgnify,MYO,5905,0,0,5905,0,0
-esm3dg_mgnify,domainome,534385,0,121388,273806,4379,134812
+esm3dg_mgnify,domainome,534385,2860,118528,273806,4379,134812
+esm3dg_mgnify,domainome_low_id,471652,2860,67776,264941,4379,131696
 esm3dg_mgnify,k2369,2369,0,16,615,221,1517
 esm3dg_mgnify,k3822,3822,0,34,1123,417,2248
-esm3dg_mgnify,proteingym,2465767,0,46259,810928,531939,1076641
+esm3dg_mgnify,proteingym,2465767,8498,37761,810928,531939,1076641
 esm3dg_mgnify,ptmul,914,0,8,308,71,527
 esm3dg_mgnify,ptmuld,536,0,6,170,59,301
 esm3dg_mgnify,q3421,3421,0,12,1268,389,1752
 esm3dg_mgnify,s2648,2648,0,56,881,336,1375
 esm3dg_mgnify,s461,461,0,0,295,39,127
-esm3dg_mgnify,s571,571,0,9,187,259,116
+esm3dg_mgnify,s571,571,6,3,187,259,116
 esm3dg_mgnify,s669,669,0,0,366,117,186
 esm3dg_mgnify,s783,783,0,0,346,29,408
 esm3dg_mgnify,s8754,8754,0,100,2674,977,5003
 esm3dg_mgnify,ssym,684,0,0,492,45,147
 esm3dg_mgnify,tsu_capped_test,52071,0,21185,26204,0,4682
-esm3dg_mgnify,tsu_capped_val,35473,0,17448,8382,0,9643
+esm3dg_mgnify,tsu_capped_val,35473,6737,10711,8382,0,9643

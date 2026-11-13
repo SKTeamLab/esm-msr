@@ -1,5 +1,11 @@
-"""Per-DMS ProteinGym leak coverage (exact, constituent, and sequence + Foldseek structure homology)
-and the effect of removing contaminated DMS assays on ESM-MSR aggregates."""
+"""Per-DMS ProteinGym overlap of the ESM-MSR capped-train inventory (exact, constituent, same protein, and sequence +
+Foldseek structure homology by ``lib.classify_hits``), and the effect of removing the overlapping assays on the
+ESM-MSR (devel) ProteinGym aggregates.
+
+The aggregate block (``esm_msr_pg_clean.json``, quoted in LEAKAGE_AUDIT_OCT2026.md section 6.1) needs the per-seed
+ProteinGym summaries in ``$LEAK_ROOT/pgym_results/unmasked-esm-msr-seed{1,2,3}/sigma1.0/summary.csv`` and
+``$LEAK_ROOT/ProteinGym/DMS_substitutions.csv``; it is skipped when they are absent.
+"""
 import collections
 import json
 import os
@@ -10,12 +16,13 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lib import LEAK_ROOT, OUT_DIR, WORK_DATA_DIR, data_file, norm_wt_name, parse_mut_str
+from lib import LEAK_ROOT, OUT_DIR, WORK_DATA_DIR, classify_hits, expand_lib_pids, make_canon, parse_mut_str
 
 os.makedirs(OUT_DIR, exist_ok=True)
 fm = pickle.load(open(os.path.join(WORK_DATA_DIR, 'family_maps.pkl'), 'rb'))
 maps = fm['maps']
 pid_fam = {p: v[0] for p, v in maps.items()}
+canon = make_canon(maps)
 
 prots = pd.read_pickle(os.path.join(WORK_DATA_DIR, 'proteins.pkl'))
 seq_lens = dict(zip(prots['pid'], prots['seq'].str.len()))
@@ -33,186 +40,66 @@ if os.path.exists(fs_pkl):
     for r in fs_df.itertuples(index=False):
         fs_adj[r.q_pid].append((r.t_pid, float(r.struct_evalue), float(r.qcov), float(r.qtmscore)))
 
+
+def canon_keys(pid, mutstr):
+    keys = set()
+    for wt, pos, mt in parse_mut_str(mutstr) or []:
+        c = canon(pid, wt, pos, mt)
+        if c is None:
+            return None
+        keys.add(c)
+    return frozenset(keys)
+
+
 pg = pd.read_pickle(os.path.join(WORK_DATA_DIR, 'testsets', 'proteingym.pkl'))
 pg['DMS'] = pg['pid'].str.replace('pg:', '', regex=False)
 
-_pos = {}
-
-
-def canon_one(pid, wt, pos, mt):
-    k = (pid, pos, wt)
-    if k in _pos:
-        rp = _pos[k]
-    else:
-        fam, mp, rs = maps[pid]
-        rp = mp.get(pos)
-        if rp is not None and (rp < 1 or rp > len(rs) or rs[rp - 1] != wt):
-            alt = None
-            for d in (1, -1, 2, -2, 3, -3):
-                q = rp + d
-                if 1 <= q <= len(rs) and rs[q - 1] == wt:
-                    alt = q
-                    break
-            rp = alt
-        _pos[k] = rp
-    return None if rp is None else (maps[pid][0], rp, wt, mt)
-
-
 msv = pd.read_pickle(os.path.join(WORK_DATA_DIR, 'megascale_variants.pkl'))
-msv = msv[msv['mutation'].notna()].copy()
-msv['n'] = msv['mutation'].str.count(';') + 1
+msv = msv[msv['mutation'].notna()]
 sp = pickle.load(open(os.path.join(WORK_DATA_DIR, 'capped_split_sets.pkl'), 'rb'))
 lib = pd.read_pickle(os.path.join(WORK_DATA_DIR, 'megascale_libraries.pkl'))
 
 
-def expand_lib_pids(scaffolds):
-    sc = set(scaffolds)
-    out = set()
-    for c, cwt in lib['code_wt'].items():
-        if c in sc or cwt in sc:
-            out.add('lib:' + str(c))
-    for c in sc:
-        if c in lib.index:
-            out.add('lib:' + str(c))
-    return out
-
-
-INV = {}
-
-
-def add_ms(iid, scaffolds, keep=None):
+def add_ms(scaffolds):
     sc_set = set(scaffolds)
     v = collections.defaultdict(set)
     s = collections.defaultdict(set)
-    pids = expand_lib_pids(sc_set)
+    pids = expand_lib_pids(lib, sc_set)
     fams = {pid_fam[p] for p in pids if p in pid_fam}
     sub = msv[msv['code_wt'].isin(sc_set) | msv['code'].isin(sc_set)]
-    if keep is not None:
-        sub = sub[keep(sub)]
     for code, mutstr in zip(sub['code'], sub['mutation']):
         pid = 'lib:' + str(code)
         if pid not in maps:
             continue
-        keys = set()
-        ok = True
-        for wt, pos, mt in parse_mut_str(mutstr) or []:
-            c = canon_one(pid, wt, pos, mt)
-            if c is None:
-                ok = False
-                break
-            keys.add(c)
-        if not ok:
+        keys = canon_keys(pid, mutstr)
+        if not keys:
             continue
         f = pid_fam[pid]
-        v[f].add(frozenset(keys))
+        v[f].add(keys)
         s[f].update(keys)
         fams.add(f)
-    INV[iid] = (v, s, fams, pids)
+    return v, s, fams, pids
 
 
-_td = pd.read_csv(data_file('tmpnnd_train_proteins.csv'))
-tmpnnd_scaffolds = set(_td.loc[_td['retained'], 'code_wt'].astype(str))
+INV = {'esm_msr_capped': add_ms(sp['train'])}
 
-add_ms('esm_msr_capped', sp['train'])
-add_ms('me_stage1', sp['train'], lambda d: d['n'] == 1)
-add_ms('me_stage2', sp['train'])
-add_ms('tmpnn', sp['train'], lambda d: d['n'] == 1)
-add_ms('tmpnnd', tmpnnd_scaffolds, lambda d: d['n'] >= 2)
-add_ms('spurs_retrain_single', sp['train'], lambda d: d['n'] == 1)
-add_ms('spurs_retrain_multi', sp['train'])
-
-tm_up = pd.read_csv(data_file('thermompnn_upstream_train_proteins.csv'))
-tmtest = {norm_wt_name(x)[1] for x in tm_up.loc[tm_up['split'] == 'test', 'code'].astype(str)}
-add_ms('esm3dg_released', [cwt for cwt in set(lib['code_wt']) if cwt not in tmtest])
-
-spurs_gz = os.path.join(WORK_DATA_DIR, 'spurs_train_mutations.csv.gz')
-if os.path.exists(spurs_gz):
-    spm = pd.read_csv(spurs_gz)
-    for iid, pcsv in [('spurs_single', 'spurs_single_train_proteins.csv'), ('spurs_multi', 'spurs_multi_train_proteins.csv')]:
-        v = collections.defaultdict(set)
-        s = collections.defaultdict(set)
-        sm_df = pd.read_csv(data_file(pcsv))
-        pids = expand_lib_pids(norm_wt_name(x)[1] for x in sm_df.loc[sm_df['retained'] == True, 'code_wt'].astype(str))
-        fams = {pid_fam[p] for p in pids if p in pid_fam}
-        sub = spm[spm['model'] == iid]
-        ccol = 'code' if 'code' in sub.columns else 'code_wt'
-        for code, mutstr in zip(sub[ccol], sub['mutation']):
-            pid = 'lib:' + str(code)
-            if pid not in maps:
-                continue
-            keys = set()
-            ok = True
-            for wt, pos, mt in parse_mut_str(mutstr) or []:
-                c = canon_one(pid, wt, pos, mt)
-                if c is None:
-                    ok = False
-                    break
-                keys.add(c)
-            if not ok:
-                continue
-            f = pid_fam[pid]
-            v[f].add(frozenset(keys))
-            s[f].update(keys)
-            fams.add(f)
-        INV[iid] = (v, s, fams, pids)
-
-pgkey = []
-for pid, mut in zip(pg['pid'], pg['mutation']):
-    if pid not in maps:
-        pgkey.append(None)
-        continue
-    keys = set()
-    ok = True
-    for wt, pos, mt in parse_mut_str(mut) or []:
-        c = canon_one(pid, wt, pos, mt)
-        if c is None:
-            ok = False
-            break
-        keys.add(c)
-    pgkey.append(frozenset(keys) if ok else None)
+pgkey = [canon_keys(pid, mut) if pid in maps else None for pid, mut in zip(pg['pid'], pg['mutation'])]
 pg['keys'] = pgkey
 pg['family'] = pg['pid'].map(pid_fam)
 
 
 def dms_homology_flags(dms_id: str, inv_fams: set, inv_pids: set):
+    """``(sameprot, H, h, min seq E, min struct E, max struct qTM)`` of one assay's protein against the inventory."""
     pid = 'pg:' + dms_id
     L = seq_lens.get(pid, 1)
-    same = int(pid_fam.get(pid) in inv_fams)
-    is_H = False
-    is_h = False
-    min_se = np.nan
-    for q, f, e, al in mm_adj.get(pid, ()):
-        if q not in inv_pids:
-            continue
-        if np.isnan(min_se) or e < min_se:
-            min_se = e
-        cov = al / L
-        if f >= 0.90 and cov >= 0.50:
-            same = 1
-        elif cov >= 0.50 and e <= 1e-3:
-            is_H = True
-        elif cov >= 0.30 and (e <= 1e-2 or f >= 0.30):
-            is_h = True
-    min_ste = np.nan
-    max_qtm = np.nan
-    for t_pid, st_e, qcov, qtm in fs_adj.get(pid, ()):
-        if t_pid not in inv_pids:
-            continue
-        if np.isnan(min_ste) or st_e < min_ste:
-            min_ste = st_e
-        if np.isnan(max_qtm) or qtm > max_qtm:
-            max_qtm = qtm
-        if qcov >= 0.50 and (st_e <= 1e-3 or qtm > 0.70):
-            is_H = True
-        elif qcov >= 0.30 and st_e <= 1e-2:
-            is_h = True
-    if same:
-        return 1, 0, 0, min_se, min_ste, max_qtm
-    if is_H:
-        return 0, 1, 0, min_se, min_ste, max_qtm
-    if is_h:
-        return 0, 0, 1, min_se, min_ste, max_qtm
-    return 0, 0, 0, min_se, min_ste, max_qtm
+    seq = [(q, f, e, al) for q, f, e, al in mm_adj.get(pid, ()) if q in inv_pids]
+    st = [(t, e, cov, qtm) for t, e, cov, qtm in fs_adj.get(pid, ()) if t in inv_pids]
+    min_se = min((e for _, _, e, _ in seq), default=np.nan)
+    min_ste = min((e for _, e, _, _ in st), default=np.nan)
+    max_qtm = max((qtm for _, _, _, qtm in st), default=np.nan)
+    c = 'sameprot' if pid_fam.get(pid) in inv_fams else classify_hits(
+        [(f, al / L, e) for _, f, e, al in seq], [(e, cov, qtm) for _, e, cov, qtm in st])
+    return int(c == 'sameprot'), int(c == 'H'), int(c == 'h'), min_se, min_ste, max_qtm
 
 
 rows = []

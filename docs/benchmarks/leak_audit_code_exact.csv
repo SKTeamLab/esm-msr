@@ -1,70 +1,70 @@
 inventory,dataset,n,exact,constituent,frac,note
-ddmut_s9028,s571,571,118,0,0.2066549912434325,
+ddmut,s571,571,118,0,0.2066549912434325,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,s571,571,235,0,0.4115586690017513,
 ddgemb_s2450,s571,571,48,0,0.0840630472854641,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,s783,783,477,0,0.6091954022988506,
+ddmut,s783,783,477,0,0.6091954022988506,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,s783,783,691,0,0.8825031928480205,
 ddgemb_s2450,s783,783,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,s2648,2648,2599,0,0.9814954682779456,
+ddmut,s2648,2648,2599,0,0.9814954682779456,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,s2648,2648,2648,0,1.0,
-ddgemb_s2450,s2648,2648,2450,0,0.925226586102719,S2450 = S2648 - 198 documented (2450; sequence-aligned=2429)
-ddmut_s9028,s8754,8754,6081,0,0.6946538725154215,
+ddgemb_s2450,s2648,2648,2429,0,0.9172960725075529,verified via S2450.tsv + S2450.fasta alignment
+ddmut,s8754,8754,6081,0,0.6946538725154215,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,s8754,8754,8754,0,1.0,
 ddgemb_s2450,s8754,8754,3821,0,0.4364861777473155,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,s669,669,67,0,0.1001494768310911,
+ddmut,s669,669,67,0,0.1001494768310911,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,s669,669,8,0,0.0119581464872944,
 ddgemb_s2450,s669,669,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,s461,461,67,0,0.1453362255965292,
+ddmut,s461,461,67,0,0.1453362255965292,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,s461,461,0,0,0.0,
 ddgemb_s2450,s461,461,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,ssym,684,604,0,0.8830409356725146,
+ddmut,ssym,684,604,0,0.8830409356725146,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,ssym,684,342,0,0.5,
-ddgemb_s2450,ssym,684,204,0,0.2982456140350877,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,q3421,3421,2857,0,0.8351359251680796,
+ddgemb_s2450,ssym,684,408,0,0.5964912280701754,verified via S2450.tsv + S2450.fasta alignment
+ddmut,q3421,3421,2857,0,0.8351359251680796,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,q3421,3421,3350,0,0.9792458345513008,
 ddgemb_s2450,q3421,3421,2169,0,0.6340251388482899,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,k3822,3822,2760,0,0.7221350078492935,
+ddmut,k3822,3822,2760,0,0.7221350078492935,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,k3822,3822,3405,0,0.890894819466248,
 ddgemb_s2450,k3822,3822,1465,0,0.3833071690214547,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,k2369,2369,1759,0,0.7425073870831574,
+ddmut,k2369,2369,1759,0,0.7425073870831574,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,k2369,2369,2160,0,0.9117771211481638,
 ddgemb_s2450,k2369,2369,782,0,0.3300970873786408,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,ptmul,914,0,588,0.0,
-ddmut_sm1242,ptmul,914,540,153,0.5908096280087527,
+ddmut,ptmul,914,727,103,0.7954048140043763,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,ptmul,914,0,670,0.0,
 ddgemb_s2450,ptmul,914,0,436,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,ptmuld,536,0,351,0.0,
-ddmut_sm1242,ptmuld,536,381,58,0.710820895522388,
+ddmut,ptmuld,536,509,1,0.9496268656716418,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,ptmuld,536,0,416,0.0,
 ddgemb_s2450,ptmuld,536,0,288,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,tsu_capped_val,35473,0,0,0.0,
+ddmut,tsu_capped_val,35473,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,tsu_capped_val,35473,0,0,0.0,
 ddgemb_s2450,tsu_capped_val,35473,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,tsu_capped_test,52071,0,0,0.0,
+ddmut,tsu_capped_test,52071,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,tsu_capped_test,52071,0,0,0.0,
 ddgemb_s2450,tsu_capped_test,52071,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,DLG4 abund.,6976,0,0,0.0,
+ddmut,DLG4 abund.,6976,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,DLG4 abund.,6976,0,0,0.0,
 ddgemb_s2450,DLG4 abund.,6976,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,DLG4 bind.,8251,0,0,0.0,
+ddmut,DLG4 bind.,8251,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,DLG4 bind.,8251,0,0,0.0,
 ddgemb_s2450,DLG4 bind.,8251,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,GRB2 abund.,63366,0,0,0.0,
+ddmut,GRB2 abund.,63366,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,GRB2 abund.,63366,0,0,0.0,
 ddgemb_s2450,GRB2 abund.,63366,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,GRB2 bind.,33441,0,0,0.0,
+ddmut,GRB2 bind.,33441,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,GRB2 bind.,33441,0,0,0.0,
 ddgemb_s2450,GRB2 bind.,33441,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,MYO,5905,0,0,0.0,
+ddmut,MYO,5905,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,MYO,5905,3,0,0.0005080440304826,
 ddgemb_s2450,MYO,5905,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,ESTA,2172,4,0,0.001841620626151,
+ddmut,ESTA,2172,4,0,0.001841620626151,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,ESTA,2172,0,0,0.0,
 ddgemb_s2450,ESTA,2172,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,GB1,149360,69,103334,0.0004619710765934,
-ddmut_sm1242,GB1,149360,0,0,0.0,
+ddmut,GB1,149360,69,103334,0.0004619710765934,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,GB1,149360,61,61880,0.0004084092126405,
 ddgemb_s2450,GB1,149360,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut_s9028,domainome,534385,371,0,0.0006942560139225,
+ddmut,domainome,534385,371,0,0.0006942560139225,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,domainome,534385,604,0,0.001130271246386,
 ddgemb_s2450,domainome,534385,189,0,0.0003536775919982,verified via S2450.tsv + S2450.fasta alignment
+ddmut,domainome_low_id,471652,364,0,0.0007717554468124,S9028 + SM1662 (SM1218 + SM444)
+geoddg_s8754,domainome_low_id,471652,590,0,0.001250922290163,
+ddgemb_s2450,domainome_low_id,471652,189,0,0.0004007191743064,verified via S2450.tsv + S2450.fasta alignment

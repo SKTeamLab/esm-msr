@@ -13,4 +13,4 @@ ME stage 1,0.615,12,0.615,none
 ESM3ΔG,0.641,5,0.582,"s571, s2648, s8754, k3822, k2369, ptmul, ptmuld"
 ESM-MSR (baseline),0.646,12,0.646,none
 ESM-MSR,0.652,12,0.652,none
-GeoDDG-3D,0.664,1,0.767,"s571, s783, s2648, s8754, s669, ssym, q3421, k3822, k2369, ptmul, ptmuld"
+ESM-MSR-small (March reference),0.662,7,0.639,"s2648, s8754, q3421, ptmul, ptmuld (`H`, hyperopt-split homologs)"

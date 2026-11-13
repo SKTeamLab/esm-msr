@@ -95,8 +95,9 @@ def overlap_bars():
     for c in ('exact', 'constituent', 'P', 'H', 'h'):
         t[c] = t[c].fillna(0) / t['n']
     t['seen'] = t['exact'] + t['constituent']
-    keep = ['SPURS (public checkpoint)', 'SPURS multi (public checkpoint)', 'ESMtherm', 'IFUM (WT backbone)', 'ESM3dG', 'DDGemb', 'GeoDDG-3D', 'ESM-MSR (released)', 'ME stage1', 'ME stage2', 'TMPNN', 'TMPNN+D',
-            'SPURS (retrained)', 'SPURS multi (retrained)', 'ProSST', 'ProteinMPNN']
+    # the retrained baselines (ME, ThermoMPNN(-D), SPURS) share ESM-MSR's capped-train scaffolds and are not audited separately
+    keep = ['SPURS (public checkpoint)', 'SPURS multi (public checkpoint)', 'ESMtherm', 'IFUM (WT backbone)', 'ESM3dG', 'DDGemb', 'GeoDDG-3D', 'ESM-MSR (released)',
+            'ProSST', 'ProteinMPNN']
     t = t[t.model.isin(keep)].drop_duplicates('model').set_index('model').reindex(keep)
     fig, ax = plt.subplots(figsize=(8.2, 4.4))
     y = np.arange(len(t))
@@ -118,6 +119,8 @@ def clean_means():
     rows = []
     for _, r in d.iterrows():
         m = re.match(r'\s*\**\s*([\d.]+)\s*\**\s*\((\d+)\)', r['clean mean (n of 12)'])
+        if m is None:  # no clean set (e.g. GeoDDG-3D: '– (0)')
+            continue
         rows.append(dict(model=clean_label(r['model']), clean=float(m.group(1)), n_clean=int(m.group(2)), all12=num(r['all-12 mean'])[0], excluded=r['cells excluded']))
     R = pd.DataFrame(rows).sort_values('clean')
     R.to_csv(OUT / 'clean_means.csv', index=False, float_format='%.3f')

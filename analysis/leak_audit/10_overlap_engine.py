@@ -1,13 +1,21 @@
-"""Core leak-overlap engine for MegaScale-based training inventories.
+"""Mutation-level overlap of the Megascale-trained inventories (ESM-MSR, ESM-MSR-small, EsmTherm, IFUM) with every
+benchmark dataset.
 
-For every MegaScale training inventory and every benchmark dataset, counts the test rows whose:
-  - ``exact``       : identical variant (same protein family + identical canonical mutation set) was trained
-  - ``constituent`` : every mutation in the row was trained somewhere in the same protein family, but not
-                      this exact combination (e.g. a test double whose two singles were trained)
-  - ``sameprot``    : the protein family is in training, none of its mutations were
-  - ``homolog``     : coarse family-graph homolog (superseded in the final matrix by ``11_homology_classes.py``)
-  - ``weak``        : coarse family-graph weak hit (superseded in the final matrix by ``11_homology_classes.py``)
-  - ``none``        : no detected relation
+Inventories (every substitution row of every training scaffold, mutant-background libraries included; an upper
+bound on what any one checkpoint consumed, so exact counts err upward):
+  - ``esm_msr_capped``         : the 172 capped-train scaffolds of ``data/splits_oct06_capped.pkl`` (ESM-MSR released,
+                                 baseline and devel checkpoints, every head and sigma).
+  - ``esm_msr_small_hyperopt`` : the train libraries of ``data/hyperopt_splits.pkl`` (ESM-MSR-small, March reference).
+
+For each test row (canonicalised into its >=95%-identity family by ``08_families.py``) the engine counts:
+  - ``exact``       : identical variant (same family, identical canonical mutation set) in training
+  - ``constituent`` : every mutation of the row trained in the same family, but not this exact combination
+  - ``sameprot``    : the family is in training, its mutations are not
+  - ``unmapped``    : the test protein has no family map (not related to any inventory protein)
+
+EsmTherm and IFUM are evaluated by an exact join on the full mutant sequence (see the block at the end): ``exact``
+plus ``val`` (rows only in the model's validation data). Protein-level homology (``P`` / ``H`` / ``h``) is classified
+separately by ``11_homology_classes.py``.
 """
 import collections
 import os
@@ -17,343 +25,118 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lib import OUT_DIR, REPO_ROOT, WORK_DATA_DIR, data_file, norm_wt_name, parse_mut_str
+from lib import (OUT_DIR, REPO_ROOT, WORK_DATA_DIR, apply_mutations, check_against_seq, data_file, expand_lib_pids,
+                 load_testsets, make_canon, norm_wt_name, parse_mut_str)
 
 os.makedirs(OUT_DIR, exist_ok=True)
 fm = pickle.load(open(os.path.join(WORK_DATA_DIR, 'family_maps.pkl'), 'rb'))
-maps, seqs, reps = fm['maps'], fm['seqs'], fm['reps']
+maps = fm['maps']
 pid_fam = {pid: v[0] for pid, v in maps.items()}
-
-_pos_cache = {}
-
-
-def canon_one(pid, wt, pos, mt):
-    """Canonical ``(family, rep_pos, wt, mt)`` or ``None``."""
-    key = (pid, pos, wt)
-    if key in _pos_cache:
-        rp = _pos_cache[key]
-    else:
-        fam, mp, rs = maps[pid]
-        rp = mp.get(pos)
-        if rp is not None and (rp < 1 or rp > len(rs) or rs[rp - 1] != wt):
-            alt = None
-            for d in (1, -1, 2, -2, 3, -3):
-                q = rp + d
-                if 1 <= q <= len(rs) and rs[q - 1] == wt:
-                    alt = q
-                    break
-            rp = alt
-        _pos_cache[key] = rp
-    if rp is None:
-        return None
-    return (maps[pid][0], rp, wt, mt)
+canon = make_canon(maps)
 
 
-_parsed = {}
-
-
-def parse_muts(s):
-    if s in _parsed:
-        return _parsed[s]
-    m = parse_mut_str(s) or []
-    _parsed[s] = m
-    return m
-
-
-class Inventory:
-    def __init__(self, iid, description, provenance, variants=None, protein_pids=None, exact_status='verified'):
-        self.iid = iid
-        self.description = description
-        self.provenance = provenance
-        self.exact_status = exact_status
-        self.variants = collections.defaultdict(set)
-        self.singles = collections.defaultdict(set)
-        self.protein_pids = set(protein_pids or [])
-        self.families = set()
-        for pid in self.protein_pids:
-            if pid in pid_fam:
-                self.families.add(pid_fam[pid])
-        if variants:
-            for pid, mutstr in variants:
-                if pid not in maps:
-                    continue
-                muts = parse_muts(mutstr)
-                if not muts:
-                    continue
-                keys = set()
-                ok = True
-                for wt, pos, mt in muts:
-                    c = canon_one(pid, wt, pos, mt)
-                    if c is None:
-                        ok = False
-                        break
-                    keys.add(c)
-                if not ok:
-                    continue
-                fam = maps[pid][0]
-                fs = frozenset(keys)
-                self.variants[fam].add(fs)
-                self.singles[fam].update(keys)
-                self.families.add(fam)
-        self.singles_fams = set(self.singles)
+def canon_keys(pid, mutstr):
+    """Frozenset of canonical mutation keys, or None when any mutation cannot be mapped."""
+    keys = set()
+    for wt, pos, mt in parse_mut_str(mutstr) or []:
+        c = canon(pid, wt, pos, mt)
+        if c is None:
+            return None
+        keys.add(c)
+    return frozenset(keys)
 
 
 msv = pd.read_pickle(os.path.join(WORK_DATA_DIR, 'megascale_variants.pkl'))
-msv = msv[msv['mutation'].notna()].copy()
-msv['n'] = msv['mutation'].str.count(';') + 1
-sp = pickle.load(open(os.path.join(WORK_DATA_DIR, 'capped_split_sets.pkl'), 'rb'))
-capped = set(sp['train'])
+msv = msv[msv['mutation'].notna()]
 lib = pd.read_pickle(os.path.join(WORK_DATA_DIR, 'megascale_libraries.pkl'))
-
-
-def expand_lib_pids(scaffolds):
-    sc = set(scaffolds)
-    out = set()
-    for c, cwt in lib['code_wt'].items():
-        if c in sc or cwt in sc:
-            out.add('lib:' + str(c))
-    for c in sc:
-        if c in lib.index:
-            out.add('lib:' + str(c))
-    return out
-
-
-INV = []
-
-
-def ms_inv(iid, desc, codes, keep=None, prov='', exact_status='verified', prot_codes=None):
-    codes_set = set(codes)
-    sub = msv[msv['code_wt'].isin(codes_set) | msv['code'].isin(codes_set)]
-    if keep is not None:
-        sub = sub[keep(sub)]
-    variants = [('lib:' + c, m) for c, m in zip(sub['code'], sub['mutation'])]
-    prot = expand_lib_pids(prot_codes if prot_codes is not None else codes_set)
-    return Inventory(iid, desc, prov, variants=variants, protein_pids=prot, exact_status=exact_status)
-
-
-_td = pd.read_csv(data_file('tmpnnd_train_proteins.csv'))
-tmpnnd_scaffolds = set(_td.loc[_td['retained'], 'code_wt'].astype(str))
-
-INV.append(ms_inv(
-    'esm_msr_capped',
-    'ESM-MSR (released & devel), all substitutions of the 172 capped-train scaffolds',
-    capped,
-    prov='splits_oct06_capped.pkl train + Tsuboyama2023 Dataset2+3',
-))
-INV.append(ms_inv(
-    'me_stage1',
-    'MutateEverything stage 1 (singles), capped-train scaffolds',
-    capped,
-    keep=lambda d: d['n'] == 1,
-    prov='capped train; ME recipe stage1 = singles',
-))
-INV.append(ms_inv(
-    'me_stage2',
-    'MutateEverything stage 2 (singles then doubles), capped-train scaffolds',
-    capped,
-    prov='capped train; stage2 initialised from stage1',
-))
-INV.append(ms_inv(
-    'tmpnn',
-    'ThermoMPNN additive (singles), capped-train scaffolds',
-    capped,
-    keep=lambda d: d['n'] == 1,
-    prov='capped train; train_single.yaml',
-))
-INV.append(ms_inv(
-    'tmpnnd',
-    'ThermoMPNN-D (doubles + Rosetta single-augmented scaffolds), 134 of 172 capped-train scaffolds',
-    tmpnnd_scaffolds,
-    keep=lambda d: d['n'] >= 2,
-    prot_codes=tmpnnd_scaffolds,
-    prov='capped train; train_epistatic.yaml; 05c_tmpnnd_inventory.py',
-))
-INV.append(ms_inv(
-    'spurs_retrain_single',
-    'SPURS retrained (single model: single + native_cond rows), capped-train scaffolds',
-    capped,
-    keep=lambda d: d['n'] == 1,
-    prov='capped train; datamodule items, singles',
-))
-INV.append(ms_inv(
-    'spurs_retrain_multi',
-    'SPURS-multi retrained (initialised from same-seed single model, then doubles), capped-train scaffolds',
-    capped,
-    prov='capped train; datamodule items, doubles after single-model initialisation',
-))
-INV.append(ms_inv(
-    'esm3dg_released',
-    'ESM3dG (hypothetical MegaScale hypothesis; superseded by esm3dg_mgnify)',
-    list(lib.index),
-    prov='superseded diagnostic inventory',
-    exact_status='likely-unverified',
-))
-
-# Upstream SPURS checkpoints (kept for historical comparison with retrained SPURS)
-spurs_muts_gz = os.path.join(WORK_DATA_DIR, 'spurs_train_mutations.csv.gz')
-if os.path.exists(spurs_muts_gz):
-    spm_all = pd.read_csv(spurs_muts_gz)
-    for iid, desc, pcsv in [
-        ('spurs_single', 'Published SPURS single-mutant checkpoint (upstream ThermoMPNN split + m8 de-leak)', 'spurs_single_train_proteins.csv'),
-        ('spurs_multi', 'Published SPURS multi-mutant checkpoint (upstream ThermoMPNN split + m8 de-leak)', 'spurs_multi_train_proteins.csv'),
-    ]:
-        sm = pd.read_csv(data_file(pcsv))
-        use_scaffolds = {norm_wt_name(x)[1] for x in sm.loc[sm['retained'] == True, 'code_wt'].astype(str)}
-        muts = spm_all[spm_all['model'] == iid]
-        ccol = 'code' if 'code' in muts.columns else 'code_wt'
-        variants = [('lib:' + str(c), m) for c, m in zip(muts[ccol], muts['mutation'])]
-        INV.append(Inventory(iid, desc, 'SPURS_mod upstream split', variants=variants, protein_pids=expand_lib_pids(use_scaffolds)))
-
-# EsmTherm (protein-level)
-et = pd.read_csv(data_file('esmtherm_train_proteins.csv'))
-et_scaffolds = {norm_wt_name(x)[1] for x in et.loc[et['split'].isin(['train', 'val']), 'code'].astype(str)}
-INV.append(Inventory(
-    'esmtherm',
-    'EsmTherm (K50_dG Dataset1+2; mutant-level 80/10/10, train+val domains)',
-    'datasets/split/wildtype_split.csv; mutation-level rows unavailable',
-    protein_pids=expand_lib_pids(et_scaffolds),
-    exact_status='protein-only',
-))
-
-# IFUM (protein-level)
-ifum_csv = data_file('ifum_train_proteins.csv')
-if os.path.exists(ifum_csv):
-    fi = pd.read_csv(ifum_csv)
-    if_scaffolds = {norm_wt_name(x)[1] for x in fi.loc[fi['split'].isin(['train', 'val']), 'code'].astype(str)}
-    INV.append(Inventory(
-        'ifum',
-        'IFUM (MegaScale Dataset2; clustered split, 322 train, 86 val/test scaffolds)',
-        'IFUM published dataset_splits.pdf',
-        protein_pids=expand_lib_pids(if_scaffolds),
-        exact_status='protein-only',
-    ))
-
-# Legacy hyperopt ESM-MSR-small
+sp = pickle.load(open(os.path.join(WORK_DATA_DIR, 'capped_split_sets.pkl'), 'rb'))
 hyp = pd.read_pickle(os.path.join(REPO_ROOT, 'data', 'hyperopt_splits.pkl'))
-hcodes = {norm_wt_name(x)[1] for x in hyp['train']}
-INV.append(ms_inv(
-    'esm_msr_small_hyperopt',
-    'ESM-MSR-small (March reference), hyperopt-train libraries',
-    hcodes,
-    prov='hyperopt_splits.pkl train (legacy split; out of Oct-split audit scope)',
-))
 
-with open(os.path.join(WORK_DATA_DIR, 'inventories_megascale.pkl'), 'wb') as f:
-    pickle.dump(INV, f)
-print('inventories:', [(i.iid, len(i.families), len(i.variants)) for i in INV])
-
-edges = pd.read_pickle(os.path.join(WORK_DATA_DIR, 'protein_homologs.pkl'))
-fam_h = collections.defaultdict(set)
-fam_w = collections.defaultdict(set)
-for a, b, h, w in zip(edges['a'], edges['b'], edges['homolog'], edges['weak']):
-    fa, fb = pid_fam.get(a), pid_fam.get(b)
-    if fa is None or fb is None or fa == fb:
-        continue
-    if h:
-        fam_h[fa].add(fb)
-        fam_h[fb].add(fa)
-    if w:
-        fam_w[fa].add(fb)
-        fam_w[fb].add(fa)
-
-all_inv_fams = set()
-for inv in INV:
-    all_inv_fams |= inv.families
+SCAFFOLDS = {
+    'esm_msr_capped': set(sp['train']),
+    'esm_msr_small_hyperopt': {norm_wt_name(x)[1] for x in hyp['train']},
+}
 
 
-def canon_testsets():
-    out = {}
-    tdir = os.path.join(WORK_DATA_DIR, 'testsets')
-    for f in sorted(os.listdir(tdir)):
-        if not f.endswith('.pkl'):
-            continue
-        ds = f[:-4]
-        if ds.startswith('tsu_hyperopt'):
-            continue
-        d = pd.read_pickle(os.path.join(tdir, f))
-        fams = [pid_fam.get(pid) for pid in d['pid']]
-        keys = [None] * len(d)
-        for i, (pid, mut, fam) in enumerate(zip(d['pid'], d['mutation'], fams)):
-            if fam is None or fam not in all_inv_fams:
+class Inventory:
+    def __init__(self, iid, scaffolds):
+        self.iid = iid
+        self.variants = collections.defaultdict(set)
+        self.singles = collections.defaultdict(set)
+        self.families = {pid_fam[p] for p in expand_lib_pids(lib, scaffolds) if p in pid_fam}
+        sub = msv[msv['code_wt'].isin(scaffolds) | msv['code'].isin(scaffolds)]
+        for code, mutstr in zip(sub['code'], sub['mutation']):
+            pid = 'lib:' + str(code)
+            if pid not in maps:
                 continue
-            muts = parse_muts(mut)
-            acc = set()
-            ok = True
-            for wt, pos, mt in muts:
-                c = canon_one(pid, wt, pos, mt)
-                if c is None:
-                    ok = False
-                    break
-                acc.add(c)
-            keys[i] = frozenset(acc) if ok else None
-        d['family'] = fams
-        d['keys'] = keys
-        out[ds] = d
-        print('  canonicalised', ds, len(d), 'rows;', sum(1 for x in keys if x is not None), 'mutation-checked')
-    return out
+            keys = canon_keys(pid, mutstr)
+            if not keys:
+                continue
+            fam = pid_fam[pid]
+            self.variants[fam].add(keys)
+            self.singles[fam].update(keys)
+            self.families.add(fam)
 
 
-tests = canon_testsets()
-_hc = {}
-_wc = {}
-
-
-def fam_h_union(inv):
-    if inv.iid not in _hc:
-        s = set()
-        for fam in inv.families:
-            s |= fam_h.get(fam, set())
-        _hc[inv.iid] = s
-    return _hc[inv.iid]
-
-
-def fam_w_union(inv):
-    if inv.iid not in _wc:
-        s = set()
-        for fam in inv.families:
-            s |= fam_w.get(fam, set())
-        _wc[inv.iid] = s
-    return _wc[inv.iid]
-
-
-def eval_inventory(inv, ds):
-    d = tests[ds]
-    counts = collections.Counter()
-    hom = fam_h_union(inv)
-    wk = fam_w_union(inv)
-    for fam, keys in zip(d['family'], d['keys']):
-        if fam is None:
-            counts['unmapped'] += 1
-            continue
-        if fam in inv.families:
-            if keys is not None and keys:
-                if keys in inv.variants.get(fam, ()):
-                    counts['exact'] += 1
-                elif keys <= inv.singles.get(fam, set()):
-                    counts['constituent'] += 1
-                else:
-                    counts['sameprot'] += 1
-            else:
-                counts['sameprot'] += 1
-        elif fam in hom:
-            counts['homolog'] += 1
-        elif fam in wk:
-            counts['weak'] += 1
-        else:
-            counts['none'] += 1
-    return dict(n=len(d), **counts)
-
+INV = [Inventory(iid, sc) for iid, sc in SCAFFOLDS.items()]
+for inv in INV:
+    print(f'{inv.iid:24s} families={len(inv.families):4d} variants={sum(len(v) for v in inv.variants.values()):7d}')
+inv_fams = set().union(*(inv.families for inv in INV))
 
 rows = []
-for inv in INV:
-    for ds in tests:
-        c = eval_inventory(inv, ds)
-        rows.append(dict(inventory=inv.iid, dataset=ds, **c))
-ov = pd.DataFrame(rows).fillna(0)
-for c in ('exact', 'constituent', 'sameprot', 'homolog', 'weak', 'none', 'unmapped'):
-    if c not in ov:
-        ov[c] = 0
-ov['frac_exact'] = ov['exact'] / ov['n']
-ov['frac_any_mut'] = (ov['exact'] + ov['constituent']) / ov['n']
-ov.to_csv(os.path.join(OUT_DIR, 'inventory_overlaps.csv'), index=False)
+for ds, d in load_testsets().items():
+    fams = [pid_fam.get(pid) for pid in d['pid']]
+    keys = [canon_keys(pid, mut) if fam in inv_fams else None for pid, mut, fam in zip(d['pid'], d['mutation'], fams)]
+    for inv in INV:
+        c = collections.Counter()
+        for fam, k in zip(fams, keys):
+            if fam is None:
+                c['unmapped'] += 1
+            elif fam not in inv.families:
+                c['other'] += 1
+            elif k and k in inv.variants.get(fam, ()):
+                c['exact'] += 1
+            elif k and k <= inv.singles.get(fam, set()):
+                c['constituent'] += 1
+            else:
+                c['sameprot'] += 1
+        rows.append(dict(inventory=inv.iid, dataset=ds, n=len(d), **{k: c.get(k, 0) for k in ('exact', 'constituent', 'sameprot', 'other', 'unmapped')}))
+        print(f'  {inv.iid:24s} {ds:42s} n={len(d):8d} exact={c["exact"]:7d} constituent={c["constituent"]:6d} sameprot={c["sameprot"]:7d}')
+
+# ---------------------------------------------------------------- EsmTherm and IFUM: exact variant sequences
+# EsmTherm publishes every training / validation sequence (PLoS Comput Biol 2024, S2 Spreadsheet
+# pcbi.1012248.s006.csv: 527,785 rows with split + sequence), so its identical-variant overlap is verified by an
+# exact join on the full mutant sequence. IFUM publishes only its domain split (322 train / 86 val-or-test
+# Dataset2 domains); every Dataset2 row of a train domain is in its training pool, so the same join against those
+# rows gives the identical-variant ceiling (reported as M?; row filters and the released checkpoint's exact split are
+# not public). Rows that hit only the validation sequences are V (EsmTherm) or V? (IFUM's merged val/test block).
+def mutant_seq(seq, mutstr):
+    muts = parse_mut_str(mutstr)
+    if not muts or not check_against_seq(seq, muts)[0]:
+        return None
+    return apply_mutations(seq, muts)
+
+
+et = pd.read_csv(data_file('raw', 'esmtherm_pcbi.1012248.s006.csv'), usecols=['split', 'sequence'])
+et_train, et_val = set(et.loc[et['split'] == 'train', 'sequence']), set(et.loc[et['split'] == 'val', 'sequence'])
+print(f'EsmTherm S2: {len(et)} rows, {len(et_train)} train / {len(et_val)} val sequences')
+
+ifum = pd.read_csv(data_file('ifum_train_proteins.csv'))
+d2 = msv[pd.to_numeric(msv['dG_ML'], errors='coerce').notna()]
+d2_seq = [mutant_seq(lib.at[c, 'wt_seq'], m) if c in lib.index else None for c, m in zip(d2['code'], d2['mutation'])]
+d2 = d2.assign(mseq=d2_seq)
+if_train = set(d2.loc[d2['code_wt'].isin(set(ifum.loc[ifum['split'] == 'train', 'code'])), 'mseq'].dropna())
+if_valtest = set(d2.loc[d2['code_wt'].isin(set(ifum.loc[ifum['split'] != 'train', 'code'])), 'mseq'].dropna())
+print(f'IFUM Dataset2 pool: {len(if_train)} train-domain / {len(if_valtest)} val-or-test-domain variant sequences')
+
+for ds, d in load_testsets().items():
+    ms = [mutant_seq(s, m) for s, m in zip(d['seq'], d['mutation'])]
+    for iid, tr, va in (('esmtherm', et_train, et_val), ('ifum', if_train, if_valtest)):
+        ex = sum(1 for x in ms if x and x in tr)
+        vo = sum(1 for x in ms if x and x in va and x not in tr)
+        rows.append(dict(inventory=iid, dataset=ds, n=len(d), exact=ex, constituent=0, sameprot=0, other=0, unmapped=0, val=vo))
+        if ex or vo:
+            print(f'  {iid:24s} {ds:42s} n={len(d):8d} exact={ex:7d} val-only={vo:7d}')
+
+pd.DataFrame(rows).fillna({'val': 0}).to_csv(os.path.join(OUT_DIR, 'inventory_overlaps.csv'), index=False)
 print('saved inventory_overlaps.csv')

@@ -11,12 +11,12 @@ MutateEverything st2 (3 seeds),–,–,–,–,–,–,–,M.004 P.004 H.11 h.02
 ThermoMPNN + ThermoMPNN-D (3 seeds),–,–,–,–,–,–,–,–,–
 "SPURS (retrained, 3 seeds)",–,–,–,–,–,–,–,M.004 P.004 H.11 h.02,h.03
 "SPURS multi (retrained, 3 seeds)",–,–,–,–,–,–,–,M.004 P.004 H.11 h.02,h.03
-ESMtherm,–,–,–,–,–,–,P1 M?.80,P.05 M?.04 H.37 h.04,P.04 M?.04 H.30 h.04
+ESMtherm,–,–,–,–,–,–,M<.001 P1 V<.001,M.001 P.05 H.37 h.04 V<.001,M.002 P.04 H.30 h.04 V<.001
 DDGemb (server),–,–,–,–,H1,–,–,M<.001 P.03 H.17 h.07,M<.001 P.03 H.19 h.08
-"IFUM, WT backbone",–,–,–,–,–,–,P1 M?1,P.05 M?.05 H.36 h.04,P.05 M?.05 H.29 h.04
-"IFUM, ESMFold per variant",–,–,–,–,–,–,P1 M?1,P.05 M?.05 H.36 h.04,P.05 M?.05 H.29 h.04
-GeoDDG-3D (FASPR),–,–,–,–,M<.001 P1,–,M<.001 m.41 P.59,M.001 P.05 H.28 h.08,M.001 P.05 H.31 h.08
-ESM3ΔG,–,–,–,–,h1,h1,–,H.23 h.51,H.15 h.56
+"IFUM, WT backbone",–,–,–,–,–,–,M?<.001 P1,M?.004 P.04 H.36 h.04 V?.001,M?.005 P.04 H.29 h.04 V?.002
+"IFUM, ESMFold per variant",–,–,–,–,–,–,M?<.001 P1,M?.004 P.04 H.36 h.04 V?.001,M?.005 P.04 H.29 h.04 V?.002
+GeoDDG-3D (FASPR),P1,P1,–,–,M<.001 P1,–,M<.001 m.41 P.59,M.001 P.05 H.28 h.08,M.001 P.06 H.31 h.08
+ESM3ΔG,–,–,–,–,h1,h1,–,P.005 H.22 h.51,P.006 H.14 h.56
 ProSST (zero-shot),–,–,–,–,–,–,–,–,–
 ProteinMPNN (zero-shot),–,–,–,–,–,–,–,–,–
 "ESM3-small-open, σ = 0 (zero-shot)",–,–,–,–,–,–,–,–,–

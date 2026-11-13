@@ -9,13 +9,13 @@ MutateEverything st2 (3 seeds),0.730ʰ,0.760ʰ
 ThermoMPNN + ThermoMPNN-D (3 seeds),0.785ʰ,0.784ʰ
 "SPURS (retrained, 3 seeds)",0.803ʰ,0.801ʰ
 "SPURS multi (retrained, 3 seeds)",0.763ʰ,0.772ʰ
-ESMtherm,0.716ᴾ,0.774ᴾ
+ESMtherm,0.716ᴹ,0.774ᴹ
 DDGemb (server),0.490,0.508ʰ
 DDMut (server),–,–
-"IFUM, WT backbone",0.666ᴾ,0.711ᴾ
-"IFUM, ESMFold per variant",0.713ᴾ,0.752ᴾ
+"IFUM, WT backbone",0.666ᴹ,0.711ᴹ
+"IFUM, ESMFold per variant",0.713ᴹ,0.752ᴹ
 GeoDDG-3D (FASPR),0.595,0.609ʰ
-ESM3ΔG,0.811ᴴ,0.811ᴴ
+ESM3ΔG,0.811ᴾ,0.811ᴴ
 ProSST (zero-shot),0.593,0.596
 ProteinMPNN (zero-shot),0.541,0.542
 "ESM3-small-open, σ = 0 (zero-shot)",0.565,0.578

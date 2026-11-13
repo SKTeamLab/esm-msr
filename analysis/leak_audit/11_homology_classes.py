@@ -1,7 +1,7 @@
 """Refined per-test-protein homology classification against every training inventory.
 
 Evaluates *all* sequence hits (MMseqs2) and, for Domainome and ProteinGym, *all* 3D structural hits
-(Foldseek from ``05d_structure_homology.py``) without E-value shadowing (a short low-coverage domain/motif
+(Foldseek from ``07_structure_homology.py``, whose targets are the 172 capped-train scaffold structures) without E-value shadowing (a short low-coverage domain/motif
 hit can never hide a longer qualifying homolog alignment):
 
   - ``sameprot`` : same >=95%-identity protein family, or any MMseqs2 hit with ``fident >= 0.90``
@@ -14,6 +14,8 @@ hit can never hide a longer qualifying homolog alignment):
                     hit covering ``>= 30%`` of the test protein with ``E_struct <= 1e-2``.
   - ``low``       : only hits below the ``h`` thresholds (not counted as leakage).
   - ``none``      : no sequence or structural hit to any protein in the inventory.
+
+The rule itself lives in ``lib.classify_hits`` and is shared with ``14_esm3dg_homology.py`` and ``17_proteingym.py``.
 """
 import collections
 import os
@@ -23,12 +25,11 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lib import OUT_DIR, WORK_DATA_DIR, data_file, norm_wt_name
+from lib import OUT_DIR, REPO_ROOT, WORK_DATA_DIR, classify_hits, data_file, expand_lib_pids, load_testsets, norm_wt_name
 
 os.makedirs(OUT_DIR, exist_ok=True)
 p = pd.read_pickle(os.path.join(WORK_DATA_DIR, 'proteins.pkl'))
-seqs = dict(zip(p['pid'], p['seq']))
-seq_lens = {pid: len(s) for pid, s in seqs.items()}
+seq_lens = {pid: len(s) for pid, s in zip(p['pid'], p['seq'])}
 fam = dict(zip(p['pid'], p['family']))
 
 pairs = pd.read_csv(os.path.join(WORK_DATA_DIR, 'mmseqs_pairs.csv'))
@@ -47,130 +48,73 @@ if os.path.exists(fs_pkl):
 
 sp = pickle.load(open(os.path.join(WORK_DATA_DIR, 'capped_split_sets.pkl'), 'rb'))
 lib = pd.read_pickle(os.path.join(WORK_DATA_DIR, 'megascale_libraries.pkl'))
+hyp = pd.read_pickle(os.path.join(REPO_ROOT, 'data', 'hyperopt_splits.pkl'))
 
 
-def expand_lib_pids(scaffolds):
-    sc = set(scaffolds)
-    out = set()
-    for c, cwt in lib['code_wt'].items():
-        if c in sc or cwt in sc:
-            out.add('lib:' + str(c))
-    for c in sc:
-        if c in lib.index:
-            out.add('lib:' + str(c))
-    return out
+def split_scaffolds(csv_name, splits=('train', 'val')):
+    d = pd.read_csv(data_file(csv_name))
+    return {norm_wt_name(x)[1] for x in d.loc[d['split'].isin(splits), 'code'].astype(str)}
 
 
-INV = {}
-INV['esm_msr_capped'] = expand_lib_pids(sp['train'])
-for _k in ('me_stage1', 'me_stage2', 'tmpnn', 'spurs_retrain_single', 'spurs_retrain_multi'):
-    INV[_k] = INV['esm_msr_capped']
+INV = {
+    'esm_msr_capped': expand_lib_pids(lib, sp['train']),
+    'esm_msr_small_hyperopt': expand_lib_pids(lib, {norm_wt_name(x)[1] for x in hyp['train']}),
+    'esmtherm': expand_lib_pids(lib, split_scaffolds('esmtherm_train_proteins.csv')),
+    'ifum': expand_lib_pids(lib, split_scaffolds('ifum_train_proteins.csv')),
+}
+for iid, prefix in [('ddgemb_s2450', 'inv:ddgemb2450:'), ('ddmut_s9028', 'inv:ddmut9028:'),
+                    ('ddmut_sm1662', 'inv:ddmutsm1662:'), ('geoddg_s8754', 'inv:geoddg8754:')]:
+    INV[iid] = {x for x in p['pid'] if str(x).startswith(prefix)}
+INV['ddmut'] = INV['ddmut_s9028'] | INV['ddmut_sm1662']  # the deployed DDMut: both models' training proteins
+for k, v in INV.items():
+    print(f'inventory {k:24s}: {len(v):5d} pids')
 
-_td = pd.read_csv(data_file('tmpnnd_train_proteins.csv'))
-INV['tmpnnd'] = expand_lib_pids(_td.loc[_td['retained'], 'code_wt'].astype(str))
+tests = load_testsets()
 
-for iid, pcsv in [
-    ('spurs_single', 'spurs_single_train_proteins.csv'),
-    ('spurs_multi', 'spurs_multi_train_proteins.csv'),
-]:
-    sm = pd.read_csv(data_file(pcsv))
-    INV[iid] = expand_lib_pids(norm_wt_name(x)[1] for x in sm.loc[sm['retained'] == True, 'code_wt'].astype(str))
+# GeoDDG-3D's encoder starts from GeoFitness, trained on 74 DMS fitness sets (52 MaveDB + 22 DeepSequence; GeoStab
+# data/dms/dms.csv, 70/10/20 per-mutation split within each protein). Only the wild types are audited
+# (raw/geofitness_dms_wt.fasta): a test protein whose sequence equals, contains or is contained in one (>= 30 aa) is
+# the same protein (P) for the GeoDDG-3D inventory.
+gf, name = {}, ''
+for line in open(data_file('raw', 'geofitness_dms_wt.fasta')):
+    if line.startswith('>'):
+        name = line[1:].strip()
+    elif line.strip():
+        gf[name] = gf.get(name, '') + line.strip()
+GEOFIT = set()
+grows = []
+for ds, d in tests.items():
+    prot = d[['pid', 'seq']].drop_duplicates('pid')
+    hit = {pid for pid, s in prot.itertuples(index=False) if len(s) >= 30 and any(s in g or g in s for g in gf.values())}
+    GEOFIT |= hit
+    m = d['pid'].isin(hit)
+    grows.append(dict(inventory='geofitness_dms', dataset=ds, n=len(d), n_sameprot=int(m.sum()), n_proteins=len(hit)))
+pd.DataFrame(grows).to_csv(os.path.join(OUT_DIR, 'geofitness_proteins.csv'), index=False)
+print('GeoFitness DMS proteins among test proteins:', len(GEOFIT))
 
-et = pd.read_csv(data_file('esmtherm_train_proteins.csv'))
-INV['esmtherm'] = expand_lib_pids(norm_wt_name(x)[1] for x in et.loc[et['split'].isin(['train', 'val']), 'code'].astype(str))
-
-ifum_f = data_file('ifum_train_proteins.csv')
-if os.path.exists(ifum_f):
-    fi = pd.read_csv(ifum_f)
-    INV['ifum'] = expand_lib_pids(norm_wt_name(x)[1] for x in fi.loc[fi['split'].isin(['train', 'val']), 'code'].astype(str))
-
-tm_up = pd.read_csv(data_file('thermompnn_upstream_train_proteins.csv'))
-tm_trn_val = {norm_wt_name(x)[1] for x in tm_up.loc[tm_up['split'].isin(['train', 'val']), 'code'].astype(str)}
-tm_test = {norm_wt_name(x)[1] for x in tm_up.loc[tm_up['split'] == 'test', 'code'].astype(str)}
-INV['esm3dg_released'] = {f'lib:{c}' for c, cwt in lib['code_wt'].items() if cwt not in tm_test}
-
-INV['ddgemb_s2450'] = {x for x in p['pid'] if str(x).startswith('inv:ddgemb2450:')}
-INV['ddmut_s9028'] = {x for x in p['pid'] if str(x).startswith('inv:ddmut9028:')}
-INV['ddmut_sm1242'] = {x for x in p['pid'] if str(x).startswith('inv:ddmutsm1242:')}
-INV['geoddg_s8754'] = {x for x in p['pid'] if str(x).startswith('inv:geoddg8754:')}
-
-for k in INV:
-    print(f'inventory {k:22s}: {len(INV[k]):5d} pids')
-
-tests = {}
-tdir = os.path.join(WORK_DATA_DIR, 'testsets')
-for f in sorted(os.listdir(tdir)):
-    if not f.endswith('.pkl'):
-        continue
-    ds = f[:-4]
-    if ds.startswith('tsu_hyperopt'):
-        continue
-    tests[ds] = pd.read_pickle(os.path.join(tdir, f))
-
-STRUCT_DATASETS = {'domainome', 'proteingym'}
+STRUCT_DATASETS = {'domainome', 'domainome_low_id', 'proteingym'}
 
 
-def classify_pid(pid: str, inv_set: set, inv_fams: set, use_struct: bool) -> str:
-    if fam.get(pid) in inv_fams:
+def classify_pid(pid, inv_set, inv_fams, use_struct, extra_same=frozenset()):
+    if fam.get(pid) in inv_fams or pid in extra_same:
         return 'sameprot'
     L = seq_lens.get(pid, 0)
     if L <= 0:
         return 'none'
-
-    has_any = False
-    is_H = False
-    is_h = False
-
-    for q, f, e, al in mm_adj.get(pid, ()):
-        if q not in inv_set:
-            continue
-        has_any = True
-        cov = al / L
-        if f >= 0.90 and cov >= 0.50:
-            return 'sameprot'
-        if cov >= 0.50 and e <= 1e-3:
-            is_H = True
-        elif cov >= 0.30 and (e <= 1e-2 or f >= 0.30):
-            is_h = True
-
-    if use_struct and not is_H:
-        for t_pid, st_e, qcov, qtm in fs_adj.get(pid, ()):
-            if t_pid not in inv_set:
-                continue
-            has_any = True
-            if qcov >= 0.50 and (st_e <= 1e-3 or qtm > 0.70):
-                is_H = True
-                break
-            elif qcov >= 0.30 and st_e <= 1e-2:
-                is_h = True
-    elif use_struct and is_H:
-        pass
-
-    if is_H:
-        return 'H'
-    if is_h:
-        return 'h'
-    return 'low' if has_any else 'none'
+    seq_hits = [(f, al / L, e) for q, f, e, al in mm_adj.get(pid, ()) if q in inv_set]
+    struct_hits = [(e, cov, qtm) for t, e, cov, qtm in fs_adj.get(pid, ()) if t in inv_set] if use_struct else []
+    return classify_hits(seq_hits, struct_hits)
 
 
 rows = []
 for iid, inv_set in INV.items():
     inv_fams = {fam[x] for x in inv_set if x in fam}
+    extra = GEOFIT if iid == 'geoddg_s8754' else frozenset()
     for ds, d in tests.items():
-        use_struct = ds in STRUCT_DATASETS
-        rel = {pid: classify_pid(pid, inv_set, inv_fams, use_struct) for pid in d['pid'].unique()}
+        rel = {pid: classify_pid(pid, inv_set, inv_fams, ds in STRUCT_DATASETS, extra) for pid in d['pid'].unique()}
         rc = d['pid'].map(rel).value_counts().to_dict()
-        rows.append(dict(
-            inventory=iid,
-            dataset=ds,
-            n=len(d),
-            **{'n_' + k: rc.get(k, 0) for k in ('sameprot', 'H', 'h', 'low', 'none')},
-        ))
-        print(
-            f'{iid:20s} {ds:20s} P={rc.get("sameprot", 0):7d} '
-            f'H={rc.get("H", 0):7d} h={rc.get("h", 0):7d} low={rc.get("low", 0):7d} none={rc.get("none", 0):7d}'
-        )
+        rows.append(dict(inventory=iid, dataset=ds, n=len(d), **{'n_' + k: rc.get(k, 0) for k in ('sameprot', 'H', 'h', 'low', 'none')}))
+        print(f'{iid:24s} {ds:42s} P={rc.get("sameprot", 0):7d} H={rc.get("H", 0):7d} h={rc.get("h", 0):7d}')
 
-df = pd.DataFrame(rows).fillna(0)
-df.to_csv(os.path.join(OUT_DIR, 'homology_classes.csv'), index=False)
+pd.DataFrame(rows).to_csv(os.path.join(OUT_DIR, 'homology_classes.csv'), index=False)
 print('saved homology_classes.csv')

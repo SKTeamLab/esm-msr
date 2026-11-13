@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lib import MMSEQS_BIN, WORK_DATA_DIR, hash_seq
+from lib import DERIVED_TESTSETS, MMSEQS_BIN, THREADS, WORK_DATA_DIR, hash_seq
 
 os.makedirs(WORK_DATA_DIR, exist_ok=True)
 
@@ -39,17 +39,17 @@ def add(pid: str, seq: str, source: str):
 # 1. Test-side proteins
 test_dir = os.path.join(WORK_DATA_DIR, 'testsets')
 for f in sorted(os.listdir(test_dir)):
-    if not f.endswith('.pkl'):
+    if not f.endswith('.pkl') or f[:-4] in DERIVED_TESTSETS:
         continue
     d = pd.read_pickle(os.path.join(test_dir, f))
     for pid, seq in d[['pid', 'seq']].drop_duplicates().itertuples(index=False):
         add(pid, seq, 'test:' + f[:-4])
 
-# 2. Inventory proteins (DDMut S9028/SM1242, DDGemb S2450, GeoDDG S8754) — require 05b output
+# 2. Inventory proteins (DDMut S9028/SM1662, DDGemb S2450, GeoDDG S8754) — require 05_inventory_proteins.py output
 inv_fa = os.path.join(WORK_DATA_DIR, 'inventory_proteins', 'inventory_proteins.fasta')
 if not os.path.exists(inv_fa):
     raise FileNotFoundError(
-        f'Missing {inv_fa}; run 05b_inventory_proteins.py before 05_proteins.py so code-table inventories are indexed.'
+        f'Missing {inv_fa}; run 05_inventory_proteins.py before 06_sequence_homology.py so code-table inventories are indexed.'
     )
 cur_pid = None
 for line in open(inv_fa):
@@ -90,7 +90,7 @@ if not os.path.exists(out_tsv) or cached_sha1 != fa_sha1:
         MMSEQS_BIN, 'easy-search', fa, fa, out_tsv, tmp_dir,
         '-s', '7.5', '-e', '10.0', '--max-seqs', '20000',
         '--format-output', 'query,target,fident,alnlen,qlen,tlen,evalue,bits',
-        '--threads', os.environ.get('THREADS', '8'),
+        '--threads', THREADS,
     ]
     print(' '.join(cmd))
     subprocess.run(cmd, check=True)

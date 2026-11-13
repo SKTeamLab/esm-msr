@@ -3,16 +3,17 @@ inventory,training data,source,evidence
 MutateEverything st1,"the 172 capped-train libraries: 154,358 valid singles (150,815 wild-type-backbone + 3,543 mutant-background)","capped split; ME README recipe, stage 1 (20 epochs)",verified
 MutateEverything st2,"the same singles plus all 53,188 measured doubles (207,546 rows); stage 2 (100 epochs) initialised from the same seed's stage 1",capped split; ME README recipe,verified
 ThermoMPNN (additive),"the same 154,358 singles",capped split; `train_single.yaml`,verified
-ThermoMPNN-D,"134 of the 172 capped-train libraries: the 53,188 measured doubles (52 libraries) plus 118,963 Rosetta-augmented doubles (82 additional natural libraries)",capped split; `train_epistatic.yaml` (`05c_tmpnnd_inventory.py`),verified
+ThermoMPNN-D,"134 of the 172 capped-train libraries: the 53,188 measured doubles (52 libraries) plus 118,963 Rosetta-augmented doubles (82 additional natural libraries)","capped split; `train_epistatic.yaml` (October audit; the retrained-baseline inventories were retired from the pipeline on 2026-11-12, LEAKAGE_AUDIT_OCT2026.md §11)",verified
 SPURS (retrained),"the 172 capped-train libraries: 154,358 valid singles (150,815 wild-type-backbone + 3,543 mutant-background)","capped split; patched SPURS training code, three seeds",verified
 SPURS multi (retrained),"the same singles (through its same-seed SPURS initialisation) and the 53,188 measured doubles","capped split; patched SPURS training code, three seeds",verified
-EsmTherm,`K50_dG_Dataset1_Dataset2` domains; 414 wildtypes contribute train mutants under a per-row 80/10/10 split; only 47 domains are test-only,`EsmTherm/datasets/split/wildtype_split.csv`,protein-level (mutation rows unavailable)
-IFUM,"Megascale Dataset2: 322 train libraries, 86 in an unseparated val/test block",IFUM published `dataset_splits.pdf`,protein-level
-DDGemb,"S2450 = S2648 − 18 sequences/198 mutations >25 % identity to S669; 2,450 mutations / 115 UniProt",`ddgemb.biocomp.unibo.it` `S2450.tsv` + `S2450.fasta`,verified (sequence-aligned)
-DDMut,"S9028 = S2648 + FireProtDB, 4,514 forward + 4,514 reverse; multi-mutant branch SM1242","`biosig.lab.uq.edu.au` `S9028.csv`, `DD_SM1242.csv`",verified (forward + reverse)
-GeoDDG-3D,"S8754 = 8,754 single mutations / 301 proteins (ProThermDB + ThermoMutDB)",`GeoStab` `S8754.csv`,verified (construct-aligned)
+EsmTherm,"`K50_dG_Dataset1_Dataset2`: 47 test-only domains; the other 414 split 80/10/10 per sequence (527,785 sequences with split labels)",S2 Spreadsheet `pcbi.1012248.s006.csv` (PLoS Comput Biol 2024) + `wildtype_split.csv`,verified (exact-sequence join)
+IFUM,"Megascale Dataset2, MMseqs2-30 % cluster split: 322 train domains, 86 in an unseparated val/test block",IFUM published `dataset_splits.pdf`,protein-level (`M?` / `V?` ceilings from the public Dataset2 rows of those domains)
+DDGemb,"S2450 = S2648 − 18 sequences/198 mutations >25 % identity to S669; 2,450 mutations / 115 UniProt, doubled with reverse variants",`ddgemb.biocomp.unibo.it` `S2450.tsv` + `S2450.fasta`,"verified (sequence-aligned, forward + reverse)"
+DDMut,"single-mutant model: S9028 = S2648 + FireProtDB, 4,514 forward + 4,514 reverse; deployed multi-mutant model: SM1218 training + SM444 blind test (831 + 831 reverse)","`biosig.lab.uq.edu.au` `S9028.csv`, `DD_SM1218.csv`, `DD_SM444.csv`","verified (forward + reverse, union of both models)"
+GeoDDG-3D,"S8754 = 8,754 single mutations / 301 proteins (ProThermDB + ThermoMutDB); encoder pretrained as GeoFitness on 74 DMS fitness sets (52 MaveDB + 22 DeepSequence)",`GeoStab` `S8754.csv`; `data/dms/dms.csv`,verified (construct-aligned); GeoFitness protein-level
 ESM3ΔG,"960,216-sequence **MGnify Stability** fine-tune (525,127 WT + 435,089 point mutants); Megascale is its held-out test",Zenodo 19411306 `mgnify_training_index.csv`,verified (0 exact sequences)
 ProSST,18.8 M AlphaFoldDB structures (masked-LM); no ΔΔG fine-tune (`–`),ProSST paper,documented only
 ProteinMPNN,PDB assemblies deposited before 2021-08-02; no mutation-level supervision (`–`),ProteinMPNN paper,documented only
 "ESM3 (small/medium/large, and the σ = 0 control)",UniRef/MGnify/JGI + PDB pre-2020-05-01 + AFDB v4; no mutation-level supervision (`–`),ESM3 paper,documented only
-Rosetta Cartesian ΔΔG,no training data (`–`),physics-based,n/a
+"Rosetta Cartesian ΔΔG (2019, `beta_nov16_cart`)","no per-variant training; 20 reference energies fit with Kellogg-2011 ProTherm ΔΔG ranks and Rocklin-2017 design stabilities in the objective, REU → kcal/mol 1/2.94 fit on Kellogg",Rosetta docs `Updates-beta-nov16`; Park et al. 2016 JCTC SI,calibration (`V`)
+ESM-MSR-small (March reference),the 120 train libraries of the legacy hyperopt split; selected on its 26 val libraries,`data/hyperopt_splits.pkl`,verified

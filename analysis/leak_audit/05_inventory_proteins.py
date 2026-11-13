@@ -1,8 +1,8 @@
 """Extract protein sequences and PDB residue-number maps for code/position inventories
-(DDMut S9028 + SM1242, DDGemb S2450, GeoDDG S8754).
+(DDMut S9028 + SM1662, DDGemb S2450, GeoDDG S8754).
 
-Prefers ``_original.pdb`` over ``_processed.pdb`` so author residue numbers in S9028 and SM1242
-align 1-to-1 with PDB ATOM records for downstream sequence-pair exact matching in ``12_code_exact.py``.
+Prefers ``_original.pdb`` over ``_processed.pdb`` so author residue numbers in S9028 and SM1662
+align 1-to-1 with PDB ATOM records for downstream sequence-pair exact matching in ``12_literature_exact.py``.
 """
 import collections
 import os
@@ -43,7 +43,7 @@ def pdb_chain_residues(path: str):
 
 
 def find_pdb(code: str, chain: str):
-    """Prefer _original.pdb so author residue numbers match S9028 / SM1242 tables."""
+    """Prefer _original.pdb so author residue numbers match S9028 / SM1662 tables."""
     for pat in [f'{code}_{chain}_original.pdb', f'{code}_{chain}.pdb', f'{code}_{chain}_processed.pdb']:
         p = os.path.join(STDIR, pat)
         if os.path.exists(p):
@@ -78,8 +78,8 @@ for code, chain in recs:
     s9028.append((f'inv:ddmut9028:{code}_{chain}', seq, code, chain, p))
 print('S9028 proteins:', len(s9028), 'with seq:', sum(1 for r in s9028 if r[1]))
 
-# DDMut SM1242
-sm = pd.read_csv(data_file('DD_SM1242.csv'))
+# DDMut SM1662
+sm = pd.concat([pd.read_csv(data_file('DD_SM1218.csv')), pd.read_csv(data_file('DD_SM444.csv'))], ignore_index=True)
 recs2 = {}
 for x in sm['struc'].astype(str):
     m = re.match(r'^([0-9A-Za-z]{4})_([A-Za-z0-9]+)$', x)
@@ -96,8 +96,8 @@ for code, chain in recs2:
     rl = ch_map.get(chosen_ch, [])
     seq = ''.join(aa for _, aa in rl)
     resmaps[f'{code}_{chain}'] = rl
-    sm2.append((f'inv:ddmutsm1242:{code}_{chain}', seq, code, chain, p))
-print('SM1242 proteins:', len(sm2))
+    sm2.append((f'inv:ddmutsm1662:{code}_{chain}', seq, code, chain, p))
+print('SM1662 proteins:', len(sm2))
 
 # DDGemb S2450 fasta
 fa = []

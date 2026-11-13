@@ -1,6 +1,6 @@
 """Align every protein to its family representative and store 1-based position maps.
 
-A ``family`` (from ``05_proteins.py``) is a single-linkage connected component at >=95% sequence
+A ``family`` (from ``06_sequence_homology.py``) is a single-linkage connected component at >=95% sequence
 identity, >=90% shorter-sequence coverage, and >=0.80 length ratio—i.e. structures/constructs of
 the same protein. Exact-mutation comparisons across datasets are evaluated in the representative's
 residue coordinates.

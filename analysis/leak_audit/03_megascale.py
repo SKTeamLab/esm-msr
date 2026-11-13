@@ -1,18 +1,19 @@
-"""Build the compact Megascale/Tsuboyama library and variant tables used by Megascale inventories.
+"""Build the compact Megascale/Tsuboyama library and variant tables used by Megascale inventories, and the
+``capped_split_sets.pkl`` scaffold lists (train / val / test ``code_wt``) of ``data/splits_oct06_capped.pkl``.
 
 Normalizes both ``code`` (preserving mutant-background suffixes such as ``2MKX_R27A``) and ``code_wt``
 (base scaffold such as ``2MKX``), and synthesizes base ``code_wt`` library entries when a scaffold exists
 solely as mutant-background libraries so protein-level inventories (IFUM, EsmTherm) never miss scaffolds.
 """
 import os
-import re
+import pickle
 import sys
 
 import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lib import SOFTWARE_DIR, WORK_DATA_DIR, check_against_seq, hash_seq, norm_wt_name, parse_mut_str
+from lib import REPO_ROOT, SOFTWARE_DIR, WORK_DATA_DIR, check_against_seq, hash_seq, norm_wt_name, parse_mut_str
 
 os.makedirs(WORK_DATA_DIR, exist_ok=True)
 CSV = os.environ.get(
@@ -114,14 +115,10 @@ if synth_rows:
     synth_df = pd.DataFrame(synth_rows).set_index('code')
     lib = pd.concat([lib, synth_df]).sort_index()
 
-lib['natural'] = [
-    bool(re.match(r'^[0-9][A-Za-z0-9]{3}$', str(cwt))) or str(cwt).startswith('v2_')
-    for cwt in lib['code_wt']
-]
 lib['seq_hash'] = lib['wt_seq'].map(hash_seq)
 lib.index.name = 'code'
 lib.to_pickle(os.path.join(WORK_DATA_DIR, 'megascale_libraries.pkl'))
-print(lib[['n_single', 'n_double', 'n_multi', 'natural']].sum().to_string())
+print(lib[['n_single', 'n_double', 'n_multi']].sum().to_string())
 
 # Variant table (mutants only), with parsed mutations validated against their library's starting sequence
 v = df.loc[~df['is_wt']].copy()
@@ -138,3 +135,10 @@ v[['code', 'code_wt', 'mut_type', 'mutation', 'n_mut', 'ddG_ML', 'dG_ML', 'pair_
     os.path.join(WORK_DATA_DIR, 'megascale_variants.pkl')
 )
 print('written', len(v))
+
+# Scaffold (code_wt) sets of the Oct06 capped split, shared by every downstream step
+sp = pickle.load(open(os.path.join(REPO_ROOT, 'data', 'splits_oct06_capped.pkl'), 'rb'))
+sets = {k: sorted({norm_wt_name(x)[1] for x in sp[k]}) for k in ('train', 'val', 'test')}
+print('capped train/val/test scaffolds:', {k: len(v) for k, v in sets.items()})
+with open(os.path.join(WORK_DATA_DIR, 'capped_split_sets.pkl'), 'wb') as f:
+    pickle.dump(sets, f)

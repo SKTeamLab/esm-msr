@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Build ``mgnify_train.fa``, ``test_queries.fa``, and ``test_vs_mgnify_s75.m8`` from ``mgnify_index.csv``.
 
-Must run after ``05_proteins.py`` (which creates ``proteins.pkl``) and before ``15_mgnify.py`` whenever the test
+Must run after ``06_sequence_homology.py`` (which creates ``proteins.pkl``) and before ``14_esm3dg_homology.py`` whenever the test
 protein corpus changes or when regenerating from raw Zenodo 19411306 ``mgnify_training_index.csv``.
 """
 import argparse
@@ -13,7 +13,7 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lib import MMSEQS_BIN, WORK_DATA_DIR, data_file
+from lib import MMSEQS_BIN, THREADS, WORK_DATA_DIR, data_file
 
 
 def sha1_file(path: str) -> str:
@@ -28,7 +28,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--index_csv', default=data_file('raw', 'mgnify_index.csv'))
     ap.add_argument('--proteins_pkl', default=os.path.join(WORK_DATA_DIR, 'proteins.pkl'))
-    ap.add_argument('--threads', type=int, default=8)
+    ap.add_argument('--threads', type=int, default=int(THREADS))
     ap.add_argument('--force', action='store_true')
     a = ap.parse_args()
 

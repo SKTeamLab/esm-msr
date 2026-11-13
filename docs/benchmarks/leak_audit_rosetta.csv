@@ -1,0 +1,16 @@
+dataset,n,n_tuned,n_sameprot,basis,frac_tuned
+s571,571,24,61,Kellogg 2011 mutation (PDB or UniProt position),0.042031523642732
+s783,783,169,518,Kellogg 2011 mutation (PDB or UniProt position),0.2158365261813537
+s2648,2648,415,1528,Kellogg 2011 mutation (PDB or UniProt position),0.1567220543806646
+s8754,8754,1064,5013,Kellogg 2011 mutation (PDB or UniProt position),0.1215444368288782
+s669,669,4,11,Kellogg 2011 mutation (PDB or UniProt position),0.0059790732436472
+s461,461,4,11,Kellogg 2011 mutation (PDB or UniProt position),0.0086767895878524
+ssym,684,128,620,Kellogg 2011 mutation (PDB or UniProt position),0.1871345029239766
+q3421,3421,955,2010,Kellogg 2011 mutation (PDB or UniProt position),0.2791581408944753
+k3822,3822,691,2221,Kellogg 2011 mutation (PDB or UniProt position),0.1807953950811093
+k2369,2369,305,1505,Kellogg 2011 mutation (PDB or UniProt position),0.1287463064584212
+ptmul,914,133,603,Kellogg 2011 mutation (PDB or UniProt position),0.1455142231947483
+ptmuld,536,20,326,Kellogg 2011 mutation (PDB or UniProt position),0.0373134328358208
+tsu_capped_val,35473,2400,2400,Rocklin 2017 design library (protein level),0.0676570913088828
+tsu_capped_test,52071,6304,6304,Rocklin 2017 design library (protein level),0.1210654683028941
+proteingym,2465767,5279,5279,same family as a Kellogg protein or Rocklin 2017 design (protein level),0.0021409159908458
