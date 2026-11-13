@@ -13,6 +13,10 @@ For a pool of variants and a selection of the ``K`` best-scored (or the top frac
 ``gain``            rectified gain @ K: the sum of max(y, 0) over the K selected (labels clipped at zero, predictions never), averaged
                     over proteins; ``oracle_gain`` is the K largest max(y, 0), ``rand_gain`` = K x mean max(y, 0) (K random picks).
                     ``y`` must be on a scale whose zero is the wild type (ddG; for other assays the caller shifts and scales it)
+``net``             net change @ K: the sum of y over the K selected (not rectified: the expected aggregate change), averaged over proteins;
+                    ``oracle_net`` the K largest y, ``rand_net`` = K x mean y
+``loss``            rectified loss @ K: the sum of max(-y, 0) over the K selected (what the screen costs); ``rand_loss`` = K x mean max(-y, 0);
+                    the oracle loss (the K smallest) is 0 whenever a protein has K variants at or above zero, so it is not drawn
 
 Everything is computed per protein (one screen per protein) unless ``pooled`` is asked for (one screen over a whole set, K a
 fraction of the set).  Proteins are the resampling unit of every interval.
@@ -54,8 +58,11 @@ def protein_screen(score, y, K, tau=0.5, rng=None):
     p_rand = 1.0 - (np.exp(logc(n - hits, k) - logc(n, k)) if n - hits >= k else 0.0)
     rect = np.maximum(y, 0.0)
     gain, oracle_gain, rand_gain = float(rect[sel].sum()), float(np.sort(rect)[-k:].sum()), float(k * rect.mean())
+    loss = np.maximum(-y, 0.0)
     return dict(hit=float((ys > tau).mean()), rec=float((ys > tau).any()), best=float(ys.max()), oracle=float(ysort[-k:].max()),
                 gain=gain, oracle_gain=oracle_gain, rand_gain=rand_gain,
+                net=float(ys.sum()), oracle_net=float(ysort[-k:].sum()), rand_net=float(k * y.mean()),
+                loss=float(loss[sel].sum()), rand_loss=float(k * loss.mean()),
                 oracle_hit=float(min(hits, k) / k), oracle_rec=float(hits > 0),
                 rand_best=rand_best, rand_rec=float(p_rand), rand_hit=hits / n, hits=hits, n=n)
 
@@ -86,6 +93,7 @@ def summarize(tab, only_recoverable=True):
                 oracle_rec=rec['oracle_rec'].mean() if len(rec) else np.nan,
                 rand_best=tab['rand_best'].mean(), rand_rec=rec['rand_rec'].mean() if len(rec) else np.nan,
                 rand_hit=tab['rand_hit'].mean(), gain=tab['gain'].mean(), oracle_gain=tab['oracle_gain'].mean(), rand_gain=tab['rand_gain'].mean(),
+                net=tab['net'].mean(), oracle_net=tab['oracle_net'].mean(), rand_net=tab['rand_net'].mean(), loss=tab['loss'].mean(), rand_loss=tab['rand_loss'].mean(),
                 n_proteins=len(tab), n_recoverable=len(rec))
 
 
@@ -99,11 +107,11 @@ def boot_summary(tabs, B=1000, seed=0, only_recoverable=True):
     n_seeds = len(tabs)
     if n == 0:
         return {}
-    cols = ('hit', 'rec', 'best', 'oracle', 'oracle_hit', 'oracle_rec', 'rand_best', 'rand_rec', 'rand_hit', 'gain', 'oracle_gain', 'rand_gain')
+    cols = ('hit', 'rec', 'best', 'oracle', 'oracle_hit', 'oracle_rec', 'rand_best', 'rand_rec', 'rand_hit', 'gain', 'oracle_gain', 'rand_gain', 'net', 'oracle_net', 'rand_net', 'loss', 'rand_loss')
     arrs = {m: np.column_stack([t[m].to_numpy() for t in tabs]) for m in cols}
     has = tabs[0]['hits'].to_numpy() > 0
     out = {m: [] for m in ('hit_rate', 'p_recover', 'best', 'oracle', 'oracle_hit', 'oracle_rec', 'rand_best', 'rand_rec', 'rand_hit',
-                                     'gain', 'oracle_gain', 'rand_gain')}
+                                     'gain', 'oracle_gain', 'rand_gain', 'net', 'oracle_net', 'rand_net', 'loss', 'rand_loss')}
     for _ in range(B):
         c = rng.multinomial(n, np.full(n, 1.0 / n)).astype(float)
         sw = rng_s.multinomial(n_seeds, np.full(n_seeds, 1.0 / n_seeds)).astype(float) / n_seeds if n_seeds > 1 else np.ones(1)
@@ -112,7 +120,7 @@ def boot_summary(tabs, B=1000, seed=0, only_recoverable=True):
         out['p_recover'].append(np.dot(cw, arrs['rec'] @ sw) / max(cw.sum(), 1))
         out['oracle_rec'].append(np.dot(cw, arrs['oracle_rec'] @ sw) / max(cw.sum(), 1))
         out['rand_rec'].append(np.dot(cw, arrs['rand_rec'] @ sw) / max(cw.sum(), 1))
-        for m in ('best', 'oracle', 'oracle_hit', 'rand_best', 'rand_hit', 'gain', 'oracle_gain', 'rand_gain'):
+        for m in ('best', 'oracle', 'oracle_hit', 'rand_best', 'rand_hit', 'gain', 'oracle_gain', 'rand_gain', 'net', 'oracle_net', 'rand_net', 'loss', 'rand_loss'):
             out[m].append(np.dot(c, arrs[m] @ sw) / n)
     sums = [summarize(t, only_recoverable) for t in tabs]
     res = {}

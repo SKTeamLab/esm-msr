@@ -46,7 +46,7 @@ FAM_LABEL = {
     'geoddg': 'GeoDDG-3D',
     'rosetta': 'Rosetta',
 }
-TAU_DS = {'domainome': 0.0, 'pg_activity': 2.0}      # Domainome's label is a change in expression: a hit is any increase (> 0), not > 0.5 kcal/mol
+TAU_DS = {'domainome': 0.0, 'pg_activity': 0.0}      # Domainome's label is a change in expression: a hit is any increase (> 0), not > 0.5 kcal/mol
 FAM_STYLE = {
     'msr': 'msr',
     'msrp0': 'msrp0:wt',
@@ -94,8 +94,8 @@ def pg_wt_like(score, cut):
 
 def pg_activity_frame():
     """ProteinGym Activity (43 assays), single mutants, as a Frame for ``per_protein``.  The label is the assay score on a scale whose zero is the WT-like level and whose unit is the assay's
-    robust SD (``pg_wt_like``): y = (score - w) / sd, so a hit (y > ``TAU_DS['pg_activity']`` = 2) is a variant well above the functional plateau, and the rectified gain max(y, 0) is the
-    summed excess over it.  Assays with fewer than ``PG_MIN_HITS`` hits (or no spread) are left out.  Predictions are the singles models' stabilizing-positive scores, ranked as they are."""
+    robust SD (``pg_wt_like``): y = (score - w) / sd, so a hit (y > ``TAU_DS['pg_activity']`` = 0) is a variant more active than the WT-like level (the files carry no WT row: it is the estimated plateau), the rectified gain
+    max(y, 0) is the summed excess over it, and the rectified loss max(-y, 0) the summed shortfall.  Assays with fewer than ``PG_MIN_HITS`` hits (or no spread) are left out.  Predictions are the singles models' stabilizing-positive scores, ranked as they are."""
     ref = pd.read_csv(ROOT / 'ProteinGym' / 'DMS_substitutions.csv')
     ref = ref[ref.coarse_selection_type == 'Activity'].set_index('DMS_id')
     srcs = {'msrp0:wt': (PG_DIR, 'wt_lora_pred'),
@@ -288,7 +288,7 @@ def per_protein(ds, Ks, tau, B, exclude_groups=None, mode='default', exclude_cys
     return pd.DataFrame(rows)
 
 
-def fig_per_protein(D, tau, stem='screening_per_protein', mode='default', fams=FAM, markers=True):
+def fig_per_protein(D, tau, stem='screening_per_protein', mode='default', fams=FAM, markers=True, panels='hits'):
     from matplotlib.lines import Line2D
     sets = list(D.dataset.unique())
     fig, axes = plt.subplots(len(sets), 3, figsize=(13.5 if not markers else 12, 3.8 * len(sets) if not markers else 3.5 * len(sets)))
@@ -297,13 +297,16 @@ def fig_per_protein(D, tau, stem='screening_per_protein', mode='default', fams=F
     ds_titles = {'tsuboyama_capped_test': 'Homology-Restricted MegaScale test set', 'pg_activity': 'ProteinGym Activity, single mutants'}
     for r, ds in enumerate(sets):
         d = D[D.dataset == ds]
-        hr_yl = {'domainome': 'hit rate (abundance > wild type)', 'pg_activity': f'hit rate (> WT-like + {TAU_DS["pg_activity"]:g} SD)'}.get(ds, f'hit rate (>{tau:g} kcal/mol)')
+        hr_yl = {'domainome': 'hit rate (abundance > wild type)', 'pg_activity': 'hit rate (activity > WT-like level)'}.get(ds, f'hit rate (>{tau:g} kcal/mol)')
         gain_yl = {'domainome': 'rectified gain @ K (abundance)', 'pg_activity': 'rectified gain @ K (WT-like SD units)'}.get(ds, 'rectified gain @ K (kcal/mol)')
-        for c, (metric, yl, ref, orc_ref) in enumerate((
-            ('hit_rate', hr_yl, 'rand_hit', 'oracle_hit'),
-            ('p_recover', 'P(at least one hit in top K)', 'rand_rec', 'oracle_rec'),
-            ('gain', gain_yl, 'rand_gain', 'oracle_gain'),
-        )):
+        unit = 'WT-like SD units' if ds == 'pg_activity' else ('abundance' if ds == 'domainome' else 'kcal/mol')
+        spec = {'hits': (('hit_rate', hr_yl, 'rand_hit', 'oracle_hit'),
+                         ('p_recover', 'P(at least one hit in top K)', 'rand_rec', 'oracle_rec'),
+                         ('gain', gain_yl, 'rand_gain', 'oracle_gain')),
+                'gainloss': (('gain', gain_yl, 'rand_gain', 'oracle_gain'),
+                             ('net', f'net change @ K ({unit})', 'rand_net', 'oracle_net'),
+                             ('loss', f'rectified loss @ K ({unit})', 'rand_loss', None))}[panels]
+        for c, (metric, yl, ref, orc_ref) in enumerate(spec):
             ax = axes[r, c]
             for f in fams:
                 x = d[(d.family == f) & (d.metric == metric)].sort_values('K')
@@ -321,10 +324,15 @@ def fig_per_protein(D, tau, stem='screening_per_protein', mode='default', fams=F
             ref_fam = 'msrp0' if 'msrp0' in d.family.values else 'msr'
             rr = d[(d.family == ref_fam) & (d.metric == ref)].sort_values('K')
             ax.plot(rr.K, rr.value, color='#c0392b', ls=(0, (3, 2)) if not markers else '--', lw=1.4 if not markers else 1.1, label='random picks', zorder=3)
-            oo = d[(d.family == ref_fam) & (d.metric == orc_ref)].sort_values('K')
+            oo = d[(d.family == ref_fam) & (d.metric == orc_ref)].sort_values('K') if orc_ref else d.iloc[:0]
             if not oo.empty:
                 ax.plot(oo.K, oo.value, color='#2c3e50', ls=':', lw=1.7 if not markers else 1.2, label='oracle', zorder=7)
             ax.set_xscale('log'); ax.set_xlabel('variants screened per protein (K)'); ax.set_ylabel(yl)
+            if metric in ('gain', 'loss'):
+                ax.set_yscale('log', nonpositive='clip')          # rectified sums grow ~linearly in K and span decades: log scale
+            elif metric == 'net':
+                ax.set_yscale('symlog', linthresh=1.0)             # signed: linear within +-1, decades beyond
+                ax.axhline(0, color='#999999', lw=0.6, zorder=0)
             ax.set_xticks(sorted(d.K.unique())); ax.set_xticklabels(sorted(d.K.unique()))
             if c == 0:
                 sub_note = ' [singles only, excl. Cys]' if (mode == 'singles' and ds == 'tsuboyama_capped_test') else (
@@ -383,9 +391,11 @@ def main():
     pg_df = per_protein('pg_activity', ks, TAU_DS['pg_activity'], a.B, mode='singles', fams=FAM, fr=pg)
     pg_df.to_csv(OUT / 'screening_per_protein_pg_activity.csv', index=False, float_format='%.4f')
     fig_per_protein(pg_df, TAU_DS['pg_activity'], stem='screening_per_protein_pg_activity', mode='singles', fams=FAM, markers=True)
+    fig_per_protein(pg_df, TAU_DS['pg_activity'], stem='screening_per_protein_pg_activity_gainloss', mode='singles', fams=FAM, markers=True, panels='gainloss')
     pg_df_all = per_protein('pg_activity', ks, TAU_DS['pg_activity'], a.B, mode='singles', fams=[f for f in FAM_ALL if f not in ('rosetta', 'geoddg')], fr=pg)
     pg_df_all.to_csv(OUT / 'screening_per_protein_pg_activity_all_models.csv', index=False, float_format='%.4f')
     fig_per_protein(pg_df_all, TAU_DS['pg_activity'], stem='screening_per_protein_pg_activity_all_models', mode='singles', fams=[f for f in FAM_ALL if f not in ('rosetta', 'geoddg')], markers=False)
+    fig_per_protein(pg_df_all, TAU_DS['pg_activity'], stem='screening_per_protein_pg_activity_gainloss_all_models', mode='singles', fams=[f for f in FAM_ALL if f not in ('rosetta', 'geoddg')], markers=False, panels='gainloss')
     dom_exclude = domainome_overlap_domains()
     dom_df = per_protein('domainome', ks, TAU_DS['domainome'], a.B, exclude_groups=dom_exclude, mode='default', fams=FAM)
     dom_df_all = per_protein('domainome', ks, TAU_DS['domainome'], a.B, exclude_groups=dom_exclude, mode='default', fams=FAM_ALL)
