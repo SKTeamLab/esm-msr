@@ -638,7 +638,7 @@ class ESM_MSR_Tool(ToolInstance):
         else:
             self.python_script_path = os.path.normpath(os.path.join(base_path, "src", "esm_msr", "inference.py"))
             if not is_init or not self.checkpoint_path:
-                self.checkpoint_path = os.path.normpath(os.path.join(base_path, "LoRA_models", "esm-msr-small", "epoch=03-val_rho_combined_avg=0.816.ckpt"))
+                self.checkpoint_path = os.path.normpath(os.path.join(base_path, "LoRA_models", "esm-msr-small", "lora_seed1.safetensors"))
             if not is_init or not self.script_output_csv_path:
                 self.script_output_csv_path = os.path.normpath(os.path.join(base_path, "example_inference.csv"))
             if not is_init or not self.python_env:

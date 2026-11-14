@@ -71,15 +71,15 @@ From here you have two options:
 
 You should now have everything you need to make your first predictions from the command line, except for a pdb/mmcif structure of interest, which you should download if following this step.
 
-We include a small version of our LoRA model in this repository for convenience, which is used in the example below. If you want to use other models, please see our [HuggingFace page](https://huggingface.co/sareeves96/esm-msr), download the models to the LoRA_models folder, and change the path specified in the command.
+We include a small version of our LoRA model in this repository for convenience (`LoRA_models/esm-msr-small`: three training seeds, `lora_seed1.safetensors` to `lora_seed3.safetensors`, with rank-2 adapters on both passes), which is used in the example below. If you want to use other models, please see our [HuggingFace page](https://huggingface.co/sareeves96/esm-msr), download the models to the LoRA_models folder, and change the path specified in the command.
 
 Inference strategies, performance and compute time are discussed in the paper. The below command is a fast approximation of single mutant saturation mutagenesis that should take less than a minute even on a CPU, apart from loading the model weights which is very hardware dependent.
 
-`python src/esm_msr/inference.py --checkpoint_path LoRA_models/esm-msr-small/epoch\=03-val_rho_combined_avg\=0.816.ckpt --pdb_file path_to_your_structure_file --mode singles --skip_reverse --output_csv ./example_output.csv`
+`python src/esm_msr/inference.py --checkpoint_path LoRA_models/esm-msr-small/lora_seed1.safetensors --pdb_file path_to_your_structure_file --mode singles --skip_reverse --output_csv ./example_output.csv`
 
 Or, if you want to directly use a PDB structure:
 
-`python src/esm_msr/inference.py --checkpoint_path LoRA_models/esm-msr-small/epoch\=03-val_rho_combined_avg\=0.816.ckpt --code 1A0F --chain A --mode singles --skip_reverse --output_csv ./example_1A0F.csv`
+`python src/esm_msr/inference.py --checkpoint_path LoRA_models/esm-msr-small/lora_seed1.safetensors --code 1A0F --chain A --mode singles --skip_reverse --output_csv ./example_1A0F.csv`
 
 Remove the `--skip_reverse` flag for a much slower, slightly higher accuracy screen (proportional to total possible mutations). Change the screening `--mode` to `singles+doubles` to screen all double and single mutants (the singles are comparatively almost free and useful for visualization later). It is not recommended to use `--skip_reverse` for `--mode doubles` because this ignores epistasis. A full double mutant screen on a protein greater than 200 residues is very compute expensive. It is therefore recommended to screen only double mutants where the wild-type residues are within 6 Angstrom heavy atom distance. This is controlled with the `--distance_threshold` parameter. Multi-mutants must be screened individually, either by generating an `--input_csv` with columns `pdb_file, code, chain, mut_type` and mutations (`mut_type`) specified like A2C:D3E, or individually passing in comma separated mutations via `--mutations`. An example can be seen in `data/preprocessed/ptmul_mapped.csv`; extra columns are allowed.
 
@@ -89,7 +89,7 @@ The visualizer generates predictions using this script. You can read the GUI sec
 
 If you want to reproduce the benchmarks without running preprocessing, you can download the relevant data from Zenodo (https://doi.org/10.5281/zenodo.21539277; `preprocessed_data.tar.gz`), place the contents in the data folder, and then run this command:
 
-`python inference_scripts/esm_msr_testing.py --checkpoint esm-msr-small/epoch=03-val_rho_combined_avg=0.816.ckpt --split hyperopt_splits --local_path_to_structures path_to_structures_from_zenodo`
+`python inference_scripts/esm_msr_testing.py --checkpoint esm-msr-small/lora_seed1.safetensors --split splits_oct06_capped --local_path_to_structures path_to_structures_from_zenodo`
 
 Note that the model selected here is included in the repo due to its small size and will have very similar performance to the one used in the paper, but the exact model(s) must be downloaded from HuggingFace and the `--checkpoint` argument must be updated accordingly. Benchmarking will take at least an hour even on a powerful GPU.
 
@@ -129,7 +129,7 @@ This aligns each DMS's mutations to the corresponding AlphaFold2 structure (re-n
 
 ### Reference run and expected results
 
-Our reference runs score **all 217 of 217 DMS** on a single RTX 5090 (32 GB): the full model at σ=1.0 for all three training seeds (`esm-msr/lora_seed1.safetensors`, `lora_seed2.safetensors`, `lora_seed3.safetensors`) — each also scored in WT-only mode (`--skip_reverse`, the additive approximation, scored on `wt_lora_pred`) — and the small demo model (`esm-msr-small/epoch=03-...ckpt`) at σ=1.0, 0.5, and 0.0 (zero-shot ESM3 control), and the legacy chain model (`esm-msr-chain/epoch=04-...ckpt`) at σ=1.0:
+These reference numbers were measured with the previous release of the adapters, which is kept on the [`archive-2026-11`](https://huggingface.co/sareeves96/esm-msr/tree/archive-2026-11) branch of the HuggingFace repository (the current `main` holds the final-recipe triplicate, and `esm-msr-small` in this repository was replaced the same way); they will be refreshed for the current models. Our reference runs score **all 217 of 217 DMS** on a single RTX 5090 (32 GB): the full model at σ=1.0 for all three training seeds (`esm-msr/lora_seed1.safetensors`, `lora_seed2.safetensors`, `lora_seed3.safetensors`) — each also scored in WT-only mode (`--skip_reverse`, the additive approximation, scored on `wt_lora_pred`) — and the small demo model (`esm-msr-small/epoch=03-...ckpt`) at σ=1.0, 0.5, and 0.0 (zero-shot ESM3 control), and the legacy chain model (`esm-msr-chain/epoch=04-...ckpt`) at σ=1.0:
 
 | Model | σ | mean Spearman | median | DMS positive | best DMS (ρ) | worst DMS (ρ) |
 |---|---|---|---|---|---|---|
