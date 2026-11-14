@@ -29,11 +29,21 @@ esm_msr_fl0_s3,ESM-MSR,fl0 (PG WT-only),3.0000,True,External,1734,0,23273.0000,0
 esm_msr_fl0_s3,ESM-MSR,fl0 (PG WT-only),3.0000,True,DMS,7,0,269471.0000,0.4121,181.6445,0.9984,6.7113,17.3859,15.8289
 esm_msr_fl0_s3,ESM-MSR,fl0 (PG WT-only),3.0000,True,Domainome,522,0,572204.0000,0.9308,170.7553,0.9976,6.6153,16.7531,15.2178
 esm_msr_fl0_s3,ESM-MSR,fl0 (PG WT-only),3.0000,True,ProteinGym,213,4,2447730.0000,0.0276,24617.3580,1.0734,7.1416,19.4855,13.8207
+esm_msr_final_p0_wt_s1,ESM-MSR,"FINAL_p0, WT head only (all sets)",1.0000,True,Tsuboyama,62,0,87506.0000,0.0017,14207.1339,0.9904,6.4813,8.7491,5.5313
+esm_msr_final_p0_wt_s1,ESM-MSR,"FINAL_p0, WT head only (all sets)",1.0000,True,External,1734,0,23273.0000,0.0571,113.2167,1.0595,6.2837,8.7491,8.1121
+esm_msr_final_p0_wt_s1,ESM-MSR,"FINAL_p0, WT head only (all sets)",1.0000,True,DMS,7,0,269471.0000,0.0012,64229.0375,0.9939,6.7077,5.9718,5.6648
+esm_msr_final_p0_wt_s1,ESM-MSR,"FINAL_p0, WT head only (all sets)",1.0000,True,Domainome,522,0,572204.0000,0.0132,12010.0689,1.0010,6.6085,5.8644,5.5619
+esm_msr_final_p0_wt_s1,ESM-MSR,"FINAL_p0, WT head only (all sets)",1.0000,True,ProteinGym,213,4,2447730.0000,0.0269,25241.1867,1.0740,7.1302,19.4855,13.8207
 me_st1_s1,MutateEverything,stage 1,1.0000,True,Tsuboyama,99,0,97315.0000,0.0641,421.4117,1.4191,2.4084,7.6475,2.5677
 me_st1_s1,MutateEverything,stage 1,1.0000,True,External,1380,0,19454.0000,3.0319,1.7824,1.1419,5.8817,17.6495,12.1367
 me_st1_s1,MutateEverything,stage 1,1.0000,True,DMS,7,0,9192.0000,0.0065,393.3808,1.3151,3.1908,16.6143,1.2738
 me_st1_s1,MutateEverything,stage 1,1.0000,True,Domainome,522,0,536145.0000,0.3234,460.4718,1.4568,3.2973,16.6143,2.7621
 me_st1_s1,MutateEverything,stage 1,1.0000,True,ProteinGym,215,1,685741.0000,4.6761,40.7352,1.0225,15.3843,23.1241,20.6622
+me_st1_s1_a4500,MutateEverything,stage 1,1.0000,True,Tsuboyama,99,0,97315.0000,0.0401,673.6981,1.6882,2.6441,7.7628,2.5677
+me_st1_s1_a4500,MutateEverything,stage 1,1.0000,True,External,1380,0,19454.0000,3.0366,1.7796,1.1384,5.7639,17.7648,12.1367
+me_st1_s1_a4500,MutateEverything,stage 1,1.0000,True,DMS,7,0,9192.0000,0.0058,436.4768,1.3438,2.8725,16.7296,1.2738
+me_st1_s1_a4500,MutateEverything,stage 1,1.0000,True,Domainome,522,0,536145.0000,0.2304,646.3530,1.6353,2.9424,16.7296,2.7621
+me_st1_s1_a4500,MutateEverything,stage 1,1.0000,True,ProteinGym,214,2,683904.0000,3.9350,48.2783,1.0254,10.2045,19.6710,15.2613
 me_st2_s1,MutateEverything,stage 2,1.0000,True,Tsuboyama,99,0,119181.0000,0.0401,826.1875,1.7073,2.6704,3.8468,2.7692
 me_st2_s1,MutateEverything,stage 2,1.0000,True,External,1470,0,20366.0000,3.2403,1.7459,1.1394,5.5579,17.7511,12.1367
 me_st2_s1,MutateEverything,stage 2,1.0000,True,DMS,7,0,269471.0000,0.0135,5545.6841,1.2095,2.9792,17.8741,2.8317

@@ -1,8 +1,8 @@
 model,label,status,run,job,gpu,inference_h,tsuboyama_h,external_h,dms_h,domainome_h,proteingym_h,n_proteins,n_failed,failed,ram_peak_gb,vram_device_peak_gb,model_load_s
-"ESM-MSR, WT + MT passes",esm_msr_devel_s1,measured,dc8 (devel) seed 1,387814,NVIDIA RTX A4500,34.8158,0.1300,0.1741,0.4099,0.9255,33.1763,2538.0000,4.0000,"BRCA1_HUMAN_Findlay_2018, BRCA2_HUMAN_Erwood_2022_HEK293T, POLG_CXB3N_Mattenberger_2021, SCN5A_HUMAN_Glazer_2019",7.1415,19.4972,23.8937
-"ESM-MSR, WT head only",esm_msr_fl0_s1,measured,fl0 (PG WT-only) (until esm_msr_final_p0_wt_s1 lands),387960,NVIDIA RTX A4500,1.6719,0.1305,0.1742,0.4110,0.9291,0.0270,2538.0000,4.0000,"BRCA1_HUMAN_Findlay_2018, BRCA2_HUMAN_Erwood_2022_HEK293T, POLG_CXB3N_Mattenberger_2021, SCN5A_HUMAN_Glazer_2019",7.1284,19.4855,30.8469
-MutateEverything stage 2,me_st2_s1,measured,seed 1,387860,NVIDIA RTX A4500,7.5254,0.0401,3.2403,0.0135,0.2302,4.0013,2312.0000,2.0000,"BRCA1_HUMAN, POLG_CXB3N",11.7070,19.6710,7.6402
-MutateEverything stage 1,me_st1_s1_a4500,pending,,,,,,,,,,,,,,,
-ThermoMPNN + ThermoMPNN-D,thermompnn_s1,measured,seed 1,387802,NVIDIA RTX A4500,6.5618,0.0907,0.0319,0.4538,0.2950,5.6904,2875.0000,0.0000,,15.2232,18.2140,0.4102
-SPURS + SPURS-multi,spurs_retrain_s1,measured,"retrained, seed 1",387798,NVIDIA RTX A4500,0.2857,0.0024,0.0638,0.0026,0.0162,0.2007,2542.0000,0.0000,,9.6127,9.9738,100.4881
-ProteinMPNN,proteinmpnn,measured,zero-shot,387855,NVIDIA RTX A4500,1.8103,0.0019,0.0189,0.0139,0.0095,1.7661,2542.0000,0.0000,,4.4656,17.7140,0.0734
+"ESM-MSR, WT + MT passes",esm_msr_devel_s1,measured,dc8 (devel) seed 1,387814,NVIDIA RTX A4500,34.8158,0.1300,0.1741,0.4099,0.9255,33.1763,2538,4,"BRCA1_HUMAN_Findlay_2018, BRCA2_HUMAN_Erwood_2022_HEK293T, POLG_CXB3N_Mattenberger_2021, SCN5A_HUMAN_Glazer_2019",7.1415,19.4972,23.8937
+"ESM-MSR, WT head only",esm_msr_final_p0_wt_s1,measured,"FINAL_p0, WT head only (all sets)",388812,NVIDIA RTX A4500,0.1001,0.0017,0.0571,0.0012,0.0132,0.0269,2538,4,"BRCA1_HUMAN_Findlay_2018, BRCA2_HUMAN_Erwood_2022_HEK293T, POLG_CXB3N_Mattenberger_2021, SCN5A_HUMAN_Glazer_2019",7.1302,19.4855,35.3990
+MutateEverything stage 2,me_st2_s1,measured,seed 1,387860,NVIDIA RTX A4500,7.5254,0.0401,3.2403,0.0135,0.2302,4.0013,2312,2,"BRCA1_HUMAN, POLG_CXB3N",11.7070,19.6710,7.6402
+MutateEverything stage 1,me_st1_s1_a4500,measured,"seed 1, singles",388811,NVIDIA RTX A4500,7.2480,0.0401,3.0366,0.0058,0.2304,3.9350,2222,2,"BRCA1_HUMAN, POLG_CXB3N",10.2045,19.6710,9.3079
+ThermoMPNN + ThermoMPNN-D,thermompnn_s1,measured,seed 1,387802,NVIDIA RTX A4500,6.5618,0.0907,0.0319,0.4538,0.2950,5.6904,2875,0,,15.2232,18.2140,0.4102
+SPURS + SPURS-multi,spurs_retrain_s1,measured,"retrained, seed 1",387798,NVIDIA RTX A4500,0.2857,0.0024,0.0638,0.0026,0.0162,0.2007,2542,0,,9.6127,9.9738,100.4881
+ProteinMPNN,proteinmpnn,measured,zero-shot,387855,NVIDIA RTX A4500,1.8103,0.0019,0.0189,0.0139,0.0095,1.7661,2542,0,,4.4656,17.7140,0.0734

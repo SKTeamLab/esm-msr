@@ -10,7 +10,8 @@ One tracked run per model type, each scoring every benchmark set: Tsuboyama vali
   CPU affinity and cgroup memory limit, recorded in `resources_run.json`. Other jobs shared the node (three at the start and
   end of each run). They held their own GPUs, CPUs and memory, so they share only the node's I/O and bus.
 - **Job:** `inference_scripts/baselines/slurm_inference.sh`, one model per job, from the cluster checkout of `devel-revision`
-  at the time. Tracked runs ran 2026-10-28 to 2026-10-31; the two pending rows were submitted 2026-11-13.
+  at the time. Tracked runs ran 2026-10-28 to 2026-10-31. MutateEverything stage 1 (job 388811) and FINAL_p0 WT head only (job 388812)
+  ran 2026-11-14 from the same checkout at commit 3bbb795.
 - **What is measured:** `inference_scripts/resource_tracker.py` records one scope per protein. *Inference h* is the sum of
   the protein scopes, so model loading and data handling are excluded. Model-load time is in the CSV column `model_load_s`.
   Peak RAM is the host RSS high-water mark; peak GPU memory is the device high-water mark over the run's proteins.
@@ -21,9 +22,9 @@ One tracked run per model type, each scoring every benchmark set: Tsuboyama vali
 | Model | Run | Job | Inference h | Tsuboyama h | External h | DMS h | Domainome h | ProteinGym h | Proteins (failed) | Peak RAM GB | Peak GPU GB |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | ESM-MSR, WT + MT passes | dc8 (devel) seed 1 | 387814 | 34.82 | 0.13 | 0.17 | 0.41 | 0.93 | 33.18 | 2538 (4) | 7.1 | 19.5 |
-| ESM-MSR, WT head only | fl0 (PG WT-only) (until esm_msr_final_p0_wt_s1 lands) | 387960 | 1.67 | 0.13 | 0.17 | 0.41 | 0.93 | 0.03 | 2538 (4) | 7.1 | 19.5 |
+| ESM-MSR, WT head only | FINAL_p0, WT head only (all sets) | 388812 | 0.10 | 0.00 | 0.06 | 0.00 | 0.01 | 0.03 | 2538 (4) | 7.1 | 19.5 |
 | MutateEverything stage 2 | seed 1 | 387860 | 7.53 | 0.04 | 3.24 | 0.01 | 0.23 | 4.00 | 2312 (2) | 11.7 | 19.7 |
-| MutateEverything stage 1 | pending | gpu4 job 388811 | — | — | — | — | — | — | — | — | — |
+| MutateEverything stage 1 | seed 1, singles | 388811 | 7.25 | 0.04 | 3.04 | 0.01 | 0.23 | 3.93 | 2222 (2) | 10.2 | 19.7 |
 | ThermoMPNN + ThermoMPNN-D | seed 1 | 387802 | 6.56 | 0.09 | 0.03 | 0.45 | 0.30 | 5.69 | 2875 (0) | 15.2 | 18.2 |
 | SPURS + SPURS-multi | retrained, seed 1 | 387798 | 0.29 | 0.00 | 0.06 | 0.00 | 0.02 | 0.20 | 2542 (0) | 9.6 | 10.0 |
 | ProteinMPNN | zero-shot | 387855 | 1.81 | 0.00 | 0.02 | 0.01 | 0.01 | 1.77 | 2542 (0) | 4.5 | 17.7 |
@@ -34,8 +35,8 @@ One tracked run per model type, each scoring every benchmark set: Tsuboyama vali
 - **ESM-MSR rows.** *WT + MT passes* is the deployed predictor: an MT pass for every variant, plus the WT pass. On ProteinGym
   each variant needs its own forward pass over sequences up to thousands of residues, which is most of the run (about 33 of
   35 h, ~20 variants/s). The *WT head only* row reads the WT adapter alone (`--skip_reverse`), which scores every single
-  mutant of a protein from one forward pass. Until FINAL_p0's all-WT run (gpu4 job 388812) lands, this row is fl0 seed 1:
-  WT head only on ProteinGym (0.03 h for all 217 assays), both passes on the other sets.
+  mutant of a protein from one forward pass. It is FINAL_p0 seed 1, the published checkpoint, read this way on every set:
+  0.10 h for the whole benchmark. Its peak GPU memory is again the batch fill, not the requirement.
 - **Rows differ between models.** Each model scores the rows its own scripts produce: ThermoMPNN counts extra DMS passes;
   MutateEverything stage 1 scores singles only and has no K2369 or PTMUL-D. Compare speed per dataset with
   `rows_per_s` in `analysis/results/inference_resources/per_group.csv`, not the row totals.
@@ -45,11 +46,14 @@ One tracked run per model type, each scoring every benchmark set: Tsuboyama vali
 - **Failures** are proteins whose inference raised.
   - ESM-MSR: four ProteinGym assays longer than the card allows (BRCA1_HUMAN_Findlay_2018, BRCA2_HUMAN_Erwood_2022_HEK293T,
     POLG_CXB3N_Mattenberger_2021, SCN5A_HUMAN_Glazer_2019). The ProteinGym tables drop these four for every model.
-  - MutateEverything stage 2: BRCA1_HUMAN and POLG_CXB3N. BRCA2 never loaded ("muts too far away"), so it is not counted.
+  - ESM-MSR WT head only: the same four assays.
+  - MutateEverything stage 1 and stage 2: BRCA1_HUMAN and POLG_CXB3N, out of memory on the 20 GB card. Stage 1 fits BRCA1
+    on a 24 GB RTX 6000 (22.8 GB device peak); stage 2 does not fit either assay there. BRCA2 never loaded ("muts too far
+    away", a MutateEverything input limit on every card), so it is not counted.
 - **Replicates agree.** Seeds and checkpoints of one architecture differ by about 1 % in inference time (ESM-MSR ×6,
   SPURS ×4, MutateEverything stage 2 ×2 on this card). That is why one run per type is listed. Every run is in
   `analysis/results/inference_resources/per_run.csv`.
-- **Excluded.** Runs on other hardware are not in this table. That covers MutateEverything stage 1 and stage-2 seed 3 on an
+- **Excluded.** Runs on other hardware are not in this table. That covers MutateEverything stage 1 seed 1 and stage-2 seed 3 on an
   RTX 6000 (24 GB), and the RTX 5090 runs in `inference_scripts/baselines/README.md`. A one-of-each RTX 5090 set with a
   32 GB batch table is queued locally.
 
