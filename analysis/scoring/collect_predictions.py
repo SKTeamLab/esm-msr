@@ -5,6 +5,7 @@ from earlier local pulls.
   <root>/msr_predictions/<spec>[/seed<k>]/sigma<s>/<dataset>.csv         ESM-MSR (also .../proteingym[_wt_only]/<DMS>.csv, stats/)
   <root>/baselines/retrained/<model>/predictions/<variant>/seed<k>/...    models retrained on the capped split
   <root>/baselines/public/<model>[/<variant>]/<dataset>.csv               every other model in the tables
+  <root>/resources_tracked/<label>/<run>/resources_*                      every fixed-slot resource-tracker run (group `resources`)
 
 Files are copied byte for byte; only their path changes. Dataset names are the ones benchmark_matrix.py uses (s571 ...
 k2369, ptmul, ptmuld, the seven DMS ids, domainome, tsuboyama_capped_{val,test}). Each model directory gets a
@@ -447,11 +448,26 @@ def pg_published():
     print(f'{len(list(dest.glob("*.csv")))} DMS files in {dest}')
 
 
+# ------------------------------------------------------------------------------------------------ resource tracking
+# Every resource-tracker run of the fixed-slot benchmark jobs (outputs/tracked/<label>/resources/<model>-<job>-<time>/), mirrored
+# as is: resources_run.json (slot, GPU, neighbours), resources_scopes.jsonl / .csv (one row per protein, load and stage scope).
+# An ESM-MSR job writes two runs (the benchmark gamut, then ProteinGym). Failed and cancelled attempts (label suffix _failed_* /
+# _cancelled_*) are kept too: resource_report.py flags each run, and analysis/scoring/resource_summary.py reads only the final one
+# per label. Some of these runs also sit in the model folders (seed<k>_tracked/resources, .../resources/...); this copy is the one
+# place that holds all of them.
+def plan_resources(plan):
+    base = f'{DEV}/outputs/tracked'
+    for size, mt, path in remote_find(base):
+        parts = path[len(base) + 1:].split('/')
+        if len(parts) == 4 and parts[1] == 'resources' and parts[3].startswith('resources_'):
+            plan.add(f'resources_tracked/{parts[0]}/{parts[2]}/{parts[3]}', path, size, mt, None, f'resources:{parts[0]}')
+
+
 # ------------------------------------------------------------------------------------------------ execution
 def build_plan(groups):
     plan = Plan()
     for g in groups:
-        {'msr': plan_msr, 'retrained': plan_retrained, 'public': plan_public}[g](plan)
+        {'msr': plan_msr, 'retrained': plan_retrained, 'public': plan_public, 'resources': plan_resources}[g](plan)
     dsts = [p['dst'] for p in plan]
     dup = {d for d in dsts if dsts.count(d) > 1}
     if dup:
@@ -540,7 +556,7 @@ def write_manifests(plan):
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('cmd', choices=['plan', 'run', 'manifest', 'pgpublished'])
-    ap.add_argument('--groups', default='msr,retrained,public')
+    ap.add_argument('--groups', default='msr,retrained,public', help='comma list of msr, retrained, public, resources')
     a = ap.parse_args()
     if a.cmd == 'pgpublished':
         pg_published()

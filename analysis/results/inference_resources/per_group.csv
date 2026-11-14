@@ -1,0 +1,81 @@
+label,model,variant,seed,transfer_learned,group,n_proteins,n_failed,n_rows,wall_h,rows_per_s,cpu_cores_mean,ram_peak_gb,vram_device_peak_gb,vram_alloc_peak_gb
+esm_msr_baseline_s1,ESM-MSR,baseline recipe,1.0000,True,Tsuboyama,62,0,87506.0000,0.1318,184.4170,0.9988,6.3951,16.7687,15.1925
+esm_msr_baseline_s1,ESM-MSR,baseline recipe,1.0000,True,External,1734,0,23273.0000,0.1737,37.2259,1.0187,6.2226,15.9855,14.6202
+esm_msr_baseline_s1,ESM-MSR,baseline recipe,1.0000,True,DMS,7,0,269471.0000,0.4154,180.2150,0.9988,6.6534,17.3859,15.8289
+esm_msr_baseline_s1,ESM-MSR,baseline recipe,1.0000,True,Domainome,522,0,572204.0000,0.9375,169.5345,0.9988,6.5414,16.7531,15.2178
+esm_msr_baseline_s1,ESM-MSR,baseline recipe,1.0000,True,ProteinGym,213,4,2447730.0000,33.5148,20.2873,1.0086,7.1354,19.4972,19.1425
+esm_msr_devel_s1,ESM-MSR,dc8 (devel),1.0000,True,Tsuboyama,62,0,87506.0000,0.1300,187.0410,0.9989,6.4794,16.7687,15.1925
+esm_msr_devel_s1,ESM-MSR,dc8 (devel),1.0000,True,External,1734,0,23273.0000,0.1741,37.1253,1.0185,6.2911,15.9855,14.6202
+esm_msr_devel_s1,ESM-MSR,dc8 (devel),1.0000,True,DMS,7,0,269471.0000,0.4099,182.6138,0.9986,6.7249,17.3859,15.8289
+esm_msr_devel_s1,ESM-MSR,dc8 (devel),1.0000,True,Domainome,522,0,572204.0000,0.9255,171.7354,0.9986,6.6135,16.7531,15.2178
+esm_msr_devel_s1,ESM-MSR,dc8 (devel),1.0000,True,ProteinGym,213,4,2447730.0000,33.1763,20.4943,1.0086,7.1415,19.4972,19.1425
+esm_msr_released,ESM-MSR,released checkpoint,,True,Tsuboyama,62,0,87506.0000,0.1300,187.0273,0.9984,6.4754,16.7687,15.1925
+esm_msr_released,ESM-MSR,released checkpoint,,True,External,1734,0,23273.0000,0.1726,37.4490,1.0177,6.2953,15.9855,14.6202
+esm_msr_released,ESM-MSR,released checkpoint,,True,DMS,7,0,269471.0000,0.4090,183.0178,0.9981,6.7264,17.3859,15.8289
+esm_msr_released,ESM-MSR,released checkpoint,,True,Domainome,522,0,572204.0000,0.9244,171.9533,0.9986,6.6169,16.7531,15.2178
+esm_msr_released,ESM-MSR,released checkpoint,,True,ProteinGym,213,4,2447730.0000,33.1352,20.5197,1.0087,7.1436,19.4972,19.1425
+esm_msr_fl0_s1,ESM-MSR,fl0 (PG WT-only),1.0000,True,Tsuboyama,62,0,87506.0000,0.1305,186.3288,0.9977,6.4735,16.7687,15.1925
+esm_msr_fl0_s1,ESM-MSR,fl0 (PG WT-only),1.0000,True,External,1734,0,23273.0000,0.1742,37.1091,1.0180,6.2795,15.9855,14.6202
+esm_msr_fl0_s1,ESM-MSR,fl0 (PG WT-only),1.0000,True,DMS,7,0,269471.0000,0.4110,182.1123,0.9987,6.6937,17.3859,15.8289
+esm_msr_fl0_s1,ESM-MSR,fl0 (PG WT-only),1.0000,True,Domainome,522,0,572204.0000,0.9291,171.0695,0.9986,6.6004,16.7531,15.2178
+esm_msr_fl0_s1,ESM-MSR,fl0 (PG WT-only),1.0000,True,ProteinGym,213,4,2447730.0000,0.0270,25144.2229,1.0722,7.1284,19.4855,13.8207
+esm_msr_fl0_s2,ESM-MSR,fl0 (PG WT-only),2.0000,True,Tsuboyama,62,0,87506.0000,0.1317,184.6143,0.9989,6.4917,16.7687,15.1925
+esm_msr_fl0_s2,ESM-MSR,fl0 (PG WT-only),2.0000,True,External,1734,0,23273.0000,0.1735,37.2504,1.0189,6.2900,15.9855,14.6202
+esm_msr_fl0_s2,ESM-MSR,fl0 (PG WT-only),2.0000,True,DMS,7,0,269471.0000,0.4148,180.4550,0.9988,6.7306,17.3859,15.8289
+esm_msr_fl0_s2,ESM-MSR,fl0 (PG WT-only),2.0000,True,Domainome,522,0,572204.0000,0.9385,169.3594,0.9988,6.6124,16.7531,15.2178
+esm_msr_fl0_s2,ESM-MSR,fl0 (PG WT-only),2.0000,True,ProteinGym,213,4,2447730.0000,0.0259,26273.4249,1.0776,7.1324,19.4855,13.8207
+esm_msr_fl0_s3,ESM-MSR,fl0 (PG WT-only),3.0000,True,Tsuboyama,62,0,87506.0000,0.1309,185.7489,0.9987,6.4784,16.7687,15.1925
+esm_msr_fl0_s3,ESM-MSR,fl0 (PG WT-only),3.0000,True,External,1734,0,23273.0000,0.1779,36.3344,1.0179,6.2919,15.9855,14.6202
+esm_msr_fl0_s3,ESM-MSR,fl0 (PG WT-only),3.0000,True,DMS,7,0,269471.0000,0.4121,181.6445,0.9984,6.7113,17.3859,15.8289
+esm_msr_fl0_s3,ESM-MSR,fl0 (PG WT-only),3.0000,True,Domainome,522,0,572204.0000,0.9308,170.7553,0.9976,6.6153,16.7531,15.2178
+esm_msr_fl0_s3,ESM-MSR,fl0 (PG WT-only),3.0000,True,ProteinGym,213,4,2447730.0000,0.0276,24617.3580,1.0734,7.1416,19.4855,13.8207
+me_st1_s1,MutateEverything,stage 1,1.0000,True,Tsuboyama,99,0,97315.0000,0.0641,421.4117,1.4191,2.4084,7.6475,2.5677
+me_st1_s1,MutateEverything,stage 1,1.0000,True,External,1380,0,19454.0000,3.0319,1.7824,1.1419,5.8817,17.6495,12.1367
+me_st1_s1,MutateEverything,stage 1,1.0000,True,DMS,7,0,9192.0000,0.0065,393.3808,1.3151,3.1908,16.6143,1.2738
+me_st1_s1,MutateEverything,stage 1,1.0000,True,Domainome,522,0,536145.0000,0.3234,460.4718,1.4568,3.2973,16.6143,2.7621
+me_st1_s1,MutateEverything,stage 1,1.0000,True,ProteinGym,215,1,685741.0000,4.6761,40.7352,1.0225,15.3843,23.1241,20.6622
+me_st2_s1,MutateEverything,stage 2,1.0000,True,Tsuboyama,99,0,119181.0000,0.0401,826.1875,1.7073,2.6704,3.8468,2.7692
+me_st2_s1,MutateEverything,stage 2,1.0000,True,External,1470,0,20366.0000,3.2403,1.7459,1.1394,5.5579,17.7511,12.1367
+me_st2_s1,MutateEverything,stage 2,1.0000,True,DMS,7,0,269471.0000,0.0135,5545.6841,1.2095,2.9792,17.8741,2.8317
+me_st2_s1,MutateEverything,stage 2,1.0000,True,Domainome,522,0,536145.0000,0.2302,646.9591,1.6304,3.1434,17.8741,2.7622
+me_st2_s1,MutateEverything,stage 2,1.0000,True,ProteinGym,214,2,2453360.0000,4.0013,170.3169,1.0264,11.7070,19.6710,15.2613
+me_st2_s2,MutateEverything,stage 2,2.0000,True,Tsuboyama,99,0,119181.0000,0.0402,823.5744,1.6994,2.6363,3.8468,2.7692
+me_st2_s2,MutateEverything,stage 2,2.0000,True,External,1470,0,20366.0000,3.2450,1.7434,1.1381,4.6224,17.7511,12.1367
+me_st2_s2,MutateEverything,stage 2,2.0000,True,DMS,7,0,269471.0000,0.0136,5519.9932,1.2047,2.9559,17.8741,2.8317
+me_st2_s2,MutateEverything,stage 2,2.0000,True,Domainome,522,0,536145.0000,0.2295,648.8463,1.6377,3.1163,17.8741,2.7622
+me_st2_s2,MutateEverything,stage 2,2.0000,True,ProteinGym,214,2,2453360.0000,4.0006,170.3483,1.0263,12.1506,19.6710,15.2613
+me_st2_s3,MutateEverything,stage 2,3.0000,True,Tsuboyama,99,0,119181.0000,0.0636,520.6662,1.4329,2.4092,3.7315,2.7692
+me_st2_s3,MutateEverything,stage 2,3.0000,True,External,1470,0,20366.0000,3.1789,1.7796,1.1460,5.7990,23.6006,12.1367
+me_st2_s3,MutateEverything,stage 2,3.0000,True,DMS,7,0,269471.0000,0.0196,3811.2877,1.1510,3.2447,17.8780,2.8317
+me_st2_s3,MutateEverything,stage 2,3.0000,True,Domainome,522,0,536145.0000,0.3220,462.5341,1.4594,3.4095,17.8780,2.7622
+me_st2_s3,MutateEverything,stage 2,3.0000,True,ProteinGym,214,2,2453360.0000,4.2224,161.4002,1.0256,13.2891,23.1241,20.6623
+thermompnn_s1,ThermoMPNN,single + ThermoMPNN-D,1.0000,True,Tsuboyama,128,0,127429.0000,0.0907,390.1076,1.0940,1.1715,15.7101,13.7073
+thermompnn_s1,ThermoMPNN,single + ThermoMPNN-D,1.0000,True,External,1894,0,28809.0000,0.0319,250.7804,1.5057,1.8245,15.7159,11.3767
+thermompnn_s1,ThermoMPNN,single + ThermoMPNN-D,1.0000,True,DMS,13,0,911203.0000,0.4538,557.8014,1.0956,15.0409,16.5167,14.4881
+thermompnn_s1,ThermoMPNN,single + ThermoMPNN-D,1.0000,True,Domainome,522,0,572204.0000,0.2950,538.7654,1.1626,1.7688,16.6730,14.6008
+thermompnn_s1,ThermoMPNN,single + ThermoMPNN-D,1.0000,True,ProteinGym,318,0,1527965.0000,5.6904,74.5877,1.1083,15.2232,18.2140,16.4030
+spurs_retrain_s1,SPURS,retrained (single + multi),1.0000,True,Tsuboyama,62,0,87544.0000,0.0024,10266.1526,1.9185,9.5047,5.2902,5.0541
+spurs_retrain_s1,SPURS,retrained (single + multi),1.0000,True,External,1734,0,25632.0000,0.0638,111.6153,1.5909,9.4592,5.6437,5.3711
+spurs_retrain_s1,SPURS,retrained (single + multi),1.0000,True,DMS,7,0,269471.0000,0.0026,28635.0807,1.2996,9.4080,5.7804,5.5388
+spurs_retrain_s1,SPURS,retrained (single + multi),1.0000,True,Domainome,522,0,572204.0000,0.0162,9833.1436,2.3258,9.4033,5.2355,4.9926
+spurs_retrain_s1,SPURS,retrained (single + multi),1.0000,True,ProteinGym,217,0,2465767.0000,0.2007,3412.3626,1.3451,9.6127,9.9738,9.7338
+spurs_retrain_s2,SPURS,retrained (single + multi),2.0000,True,Tsuboyama,62,0,87544.0000,0.0024,10203.3585,1.9056,9.5051,5.2902,5.0541
+spurs_retrain_s2,SPURS,retrained (single + multi),2.0000,True,External,1734,0,25632.0000,0.0638,111.6022,1.5905,9.4607,5.6437,5.3711
+spurs_retrain_s2,SPURS,retrained (single + multi),2.0000,True,DMS,7,0,269471.0000,0.0026,28406.5130,1.2966,9.4097,5.7804,5.5388
+spurs_retrain_s2,SPURS,retrained (single + multi),2.0000,True,Domainome,522,0,572204.0000,0.0163,9753.7477,2.3254,9.4050,5.2355,4.9926
+spurs_retrain_s2,SPURS,retrained (single + multi),2.0000,True,ProteinGym,217,0,2465767.0000,0.2007,3411.9059,1.3452,9.6108,9.9738,9.7338
+spurs_retrain_s3,SPURS,retrained (single + multi),3.0000,True,Tsuboyama,62,0,87544.0000,0.0024,10139.8715,1.8961,9.5828,5.2902,5.0541
+spurs_retrain_s3,SPURS,retrained (single + multi),3.0000,True,External,1734,0,25632.0000,0.0637,111.8593,1.5940,9.5345,5.6437,5.3711
+spurs_retrain_s3,SPURS,retrained (single + multi),3.0000,True,DMS,7,0,269471.0000,0.0026,28536.1951,1.2983,9.4807,5.7804,5.5388
+spurs_retrain_s3,SPURS,retrained (single + multi),3.0000,True,Domainome,522,0,572204.0000,0.0162,9816.1282,2.3302,9.4760,5.2355,4.9926
+spurs_retrain_s3,SPURS,retrained (single + multi),3.0000,True,ProteinGym,217,0,2465767.0000,0.2003,3419.8625,1.3458,9.6890,9.9738,9.7338
+spurs_published,SPURS,published checkpoint,,False,Tsuboyama,62,0,87544.0000,0.0024,10189.0012,1.9053,7.0629,5.2902,5.0541
+spurs_published,SPURS,published checkpoint,,False,External,1734,0,25632.0000,0.0639,111.4084,1.5898,7.0220,5.6437,5.3711
+spurs_published,SPURS,published checkpoint,,False,DMS,7,0,269471.0000,0.0027,28169.9873,1.2921,6.9750,5.7804,5.5388
+spurs_published,SPURS,published checkpoint,,False,Domainome,522,0,572204.0000,0.0162,9802.9739,2.3269,6.9698,5.2355,4.9926
+spurs_published,SPURS,published checkpoint,,False,ProteinGym,217,0,2465767.0000,0.2007,3413.2749,1.3451,7.1719,9.9738,9.7338
+proteinmpnn,ProteinMPNN,zero-shot,,False,Tsuboyama,62,0,87544.0000,0.0019,12964.2190,0.9966,1.5308,6.0519,5.9590
+proteinmpnn,ProteinMPNN,zero-shot,,False,External,1734,0,25632.0000,0.0189,376.2754,1.0157,1.4057,9.8995,10.5230
+proteinmpnn,ProteinMPNN,zero-shot,,False,DMS,7,0,269471.0000,0.0139,5386.2023,1.0062,1.3482,17.2648,14.9587
+proteinmpnn,ProteinMPNN,zero-shot,,False,Domainome,522,0,572204.0000,0.0095,16762.0719,0.9975,1.3697,1.4054,1.0864
+proteinmpnn,ProteinMPNN,zero-shot,,False,ProteinGym,217,0,2465767.0000,1.7661,387.8286,1.0074,4.4656,17.7140,15.3285
