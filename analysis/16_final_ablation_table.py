@@ -21,7 +21,8 @@ Outputs in ``results/16_ablation/``:
   summary.csv        seed mean / SD / n_seeds per family x head x column
   delta_s1.csv       paired bootstrap of (family - FINAL_p0) at seed 1 (the only seed FINAL_p0 has so far) on the
                      headline columns, B draws (protein level; site level for the single-protein DMS; assays for PG)
-  table_main_delta.{md,csv,tex}   the main table: delta vs FINAL_p0, deployed readout, seed + sampling noise
+  table_main_delta.{md,csv,tex}   delta vs FINAL_p0 under the deployed readout, seed + sampling noise
+  table_wt_delta.{md,csv,tex}     the same under the WT head alone (WT-relevant ablations only, no epistasis columns)
   layout_*.md        candidate tables (see ``LAYOUTS``)
   informativeness.csv / head_choice.csv   per column: family spread vs seed noise; comb - wt and whether the heads agree
   coverage.csv       which family / seed / dataset predictions were found
@@ -224,6 +225,9 @@ def boot_deltas(frames, B, pg=None):
     mfr = subframe(tsu, tsu.spine['use'].to_numpy() & (nm > 1))
     mfr.notes = tsu.notes
     groups.append(('tsu_test_multi', 'protein', {'tsuboyama_capped_test|multi': mfr}))
+    sfr = subframe(tsu, tsu.spine['use'].to_numpy() & (nm == 1))
+    sfr.notes = tsu.notes
+    groups.append(('tsu_test_singles', 'protein', {'tsuboyama_capped_test|singles': sfr}))
     reps_all = {}
     for name, kind, fs in groups:
         fs = {c: seed1(f) for c, f in fs.items()}
@@ -529,50 +533,80 @@ def write_informativeness(summ):
 
 
 # ----------------------------------------------------------------------------------------------
-# the main table: deltas vs FINAL_p0 under the deployed readout
+# the ablation tables: deltas vs FINAL_p0, deployed readout (`main`) and WT head alone (`wt`)
 # ----------------------------------------------------------------------------------------------
-# The single-protein DMS sets are left out of the main table (ProteinGym and Domainome cover out-of-distribution
+# The single-protein DMS sets are left out of both tables (ProteinGym and Domainome cover out-of-distribution
 # fitness); they stay in summary.csv and layout_D / layout_E.
 # FINAL_p0_mega belongs with the retrained-methods comparison, not here (it stays in the CSVs and layout_*).
-MAIN_COLS = ['tsuboyama_capped_test', 'tsuboyama_capped_test|multi', 'tsuboyama_capped_test|beyond_rho',
-             'tsuboyama_capped_test|cell_mag', 'ext_singles_mean', 'ext_multi_mean', 'domainome|lowid', 'pg|avg']
-MAIN_EXCLUDE = {'FINAL_p0_mega'}
-MAIN_LABEL = {'tsuboyama_capped_test': 'Tsuboyama test', 'tsuboyama_capped_test|multi': 'Tsuboyama doubles',
-              'ext_singles_mean': 'External singles (10)', 'ext_multi_mean': 'PTMUL / PTMUL-D', 'dms_mean': 'DMS (7)',
-              'domainome|lowid': 'Domainome low-id', 'pg|avg': 'ProteinGym avg',
-              'tsuboyama_capped_test|beyond_rho': 'Epistasis beyond ρ', 'tsuboyama_capped_test|cell_mag': 'Epistasis cell mag.'}
-GROUP_LABEL = {'masking': 'Masking', 'loss': 'Loss', 'architecture': 'Architecture', 'data': 'Training data',
-               'cross-mask': 'Cross-masking (evaluation only)'}
-
-
-def pooled_seed_sd(summ, col):
-    """RMS seed SD of a column (deployed readout) over the capped-split ablation families with >= 2 seeds: the seed noise
-    of one run, used for a family whose own SD is not estimable (FINAL_p0 while it has one seed)."""
-    d = summ[(summ['head'] == 'primary') & (summ['column'] == col) & (summ['n_seeds'] >= 2)
+def pooled_seed_sd(summ, col, head='primary'):
+    """RMS seed SD of a column (one readout) over the capped-split ablation families with >= 2 seeds: the seed noise of
+    one run, used for a family whose own SD is not estimable (a single-seed run)."""
+    d = summ[(summ['head'] == head) & (summ['column'] == col) & (summ['n_seeds'] >= 2)
              & ~summ['family'].isin([REF, 'FINAL_p0_mega']) & ~summ['family'].str.contains('@')]
     return float(np.sqrt(np.mean(d['sd'] ** 2))) if len(d) else np.nan
 
 
-def main_delta_table(summ, deltas, z=2.0):
-    """Delta = family seed mean - FINAL_p0 seed mean (deployed readout).  Its standard error combines
+NOISE_NOTE = ('Bold: |Δ| > {z:g} SE, where SE combines seed noise (family SD, or the pooled seed SD of the column for a '
+              'single-seed run) and the paired seed-1 bootstrap over proteins / sites / assays. ')
+SEED_NOTE = ('‡: fewer seeds than the rest of the row (the cell\'s seeds are in {csv}). —: not yet run.')
+EPI_NOTE = ('Epistasis columns: comb(AB) − WT(A) − WT(B) against measured ΔΔΔG on the 12,455 Tsuboyama test doubles with both '
+            'singles measured (esm_msr.epi_metrics; beyond ρ = Spearman above the global saturation curve, cell mag. = '
+            'double-centred residuals within complete blocks of each position pair), sampling noise by a paired bootstrap over '
+            'the 13 test domains. ')
+
+# The two tables.  `main`: the deployed readout (WT head on singles-only sets, 1/2(MT + WT) where multi-mutants are scored).
+# `wt`: the WT head alone on every row (wt_lora_pred, what a WT-only deployment outputs: on a multi-mutant row its own
+# prediction of that row). Rows whose change reaches the MT head only are left out of `wt`: their WT heads move only through
+# joint training, by less than FINAL_p0's seeds differ from each other (matched-seed WT r 0.995-0.999 vs 0.992 between p0
+# seeds on the Tsuboyama test singles). The epistasis columns are left out of `wt`: the WT head is additive by construction.
+MT_ONLY = {'FINAL_p0_pw0', 'FINAL_p0_r2a4', 'FINAL_p1_marg'}
+TABLES = {
+    'main': dict(head='primary', exclude={'FINAL_p0_mega'},
+                 cols=['tsuboyama_capped_test', 'tsuboyama_capped_test|multi', 'tsuboyama_capped_test|beyond_rho',
+                       'tsuboyama_capped_test|cell_mag', 'ext_singles_mean', 'ext_multi_mean', 'domainome|lowid', 'pg|avg'],
+                 note='p0 row: Spearman ρ (seed mean; seeds listed). Other rows: Δρ = family seed mean − p0, deployed readout '
+                      '(WT head on singles-only sets, 1/2(MT + WT) where multi-mutants are scored). ' + NOISE_NOTE + EPI_NOTE),
+    'wt': dict(head='wt', exclude={'FINAL_p0_mega'} | MT_ONLY,
+               cols=['tsuboyama_capped_test', 'tsuboyama_capped_test|singles', 'tsuboyama_capped_test|multi',
+                     'ext_singles_mean', 'ext_multi_mean', 'domainome|lowid', 'pg|avg'],
+               note='WT head alone on every row (wt_lora_pred). p0 row: Spearman ρ (seed mean; seeds listed). Other rows: '
+                    'Δρ = family seed mean − p0 under the same readout. Left out: ablations that reach the MT head only '
+                    '(no pair loss, MT LoRA rank 2, p1 MT marginal), whose WT heads differ from p0 by less than p0\'s own '
+                    'seeds do, and the epistasis columns (the WT head is additive by construction). ' + NOISE_NOTE),
+}
+COL_LABEL = {'tsuboyama_capped_test': 'Tsuboyama test', 'tsuboyama_capped_test|multi': 'Tsuboyama doubles',
+             'tsuboyama_capped_test|singles': 'Tsuboyama singles',
+             'ext_singles_mean': 'External singles (10)', 'ext_multi_mean': 'PTMUL / PTMUL-D', 'dms_mean': 'DMS (7)',
+             'domainome|lowid': 'Domainome low-id', 'pg|avg': 'ProteinGym avg',
+             'tsuboyama_capped_test|beyond_rho': 'Epistasis beyond ρ', 'tsuboyama_capped_test|cell_mag': 'Epistasis cell mag.'}
+GROUP_LABEL = {'masking': 'Masking', 'loss': 'Loss', 'architecture': 'Architecture', 'data': 'Training data',
+               'cross-mask': 'Cross-masking (evaluation only)'}
+
+
+def delta_table(summ, deltas, name, z=2.0):
+    """Delta = family seed mean - FINAL_p0 seed mean under the table's readout.  Its standard error combines
       seed noise:      sqrt(sd_f^2 / n_f + sd_ref^2 / n_ref), each SD the family's own, or the pooled seed SD of the
-                       column when a family has one seed (FINAL_p0 until s2 / s3 land), and
-      sampling noise:  the paired seed-1 bootstrap (delta_s1.csv; 95% CI width / 3.92) of the same column.
-    A delta is flagged (bold) when |delta| > z * SE.  Writes table_main_delta.{csv,md,tex}."""
-    S = summ[summ['head'] == 'primary'].set_index(['family', 'column'])
-    D = deltas[deltas['head'] == 'primary'].set_index(['family', 'column']) if len(deltas) else None
+                       column when a family has one seed, and
+      sampling noise:  the paired seed-1 bootstrap (delta_s1.csv; 95% CI width / 3.92) of the same column and readout.
+    A delta is flagged (bold) when |delta| > z * SE.  Writes table_<name>_delta.{csv,md,tex}."""
+    spec = TABLES[name]
+    head, cols = spec['head'], spec['cols']
+    csv_name = f'table_{name}_delta.csv'
+    # the epistasis columns hold the 'epi' readout under every head name
+    S = summ[(summ['head'] == head) | ((summ['head'] == 'primary') & summ['column'].str.endswith(('|beyond_rho', '|cell_mag')))]
+    S = S[(S['head'] == head) | ~S.duplicated(['family', 'column'], keep=False)].set_index(['family', 'column'])
+    D = deltas[deltas['head'] == head].set_index(['family', 'column']) if len(deltas) else None
+    if D is not None and head != 'primary':
+        D = pd.concat([D, deltas[deltas['head'] == 'primary'].set_index(['family', 'column'])]).loc[lambda x: ~x.index.duplicated()]
     rows = []
-    for fam, meta in FAMILIES.items():
-        if fam in MAIN_EXCLUDE:
+    for fam in FAMILIES:
+        if fam in spec['exclude']:
             continue
-        for col in MAIN_COLS:
-            if fam == 'FINAL_p0_mega' and col.startswith('tsuboyama'):
-                rows.append(dict(family=fam, column=col, note='other split'))
-                continue
+        for col in cols:
             if (fam, col) not in S.index or (REF, col) not in S.index:
                 continue
             f, r = S.loc[(fam, col)], S.loc[(REF, col)]
-            pooled = pooled_seed_sd(summ, col)
+            pooled = pooled_seed_sd(summ, col, head)
             sd_f = f['sd'] if f['n_seeds'] > 1 and np.isfinite(f['sd']) else pooled
             sd_r = r['sd'] if r['n_seeds'] > 1 and np.isfinite(r['sd']) else pooled
             se_seed = float(np.sqrt(sd_f ** 2 / f['n_seeds'] + sd_r ** 2 / r['n_seeds']))
@@ -582,58 +616,57 @@ def main_delta_table(summ, deltas, z=2.0):
                 se_boot = float((b['hi'] - b['lo']) / 3.92)
             se = float(np.sqrt(se_seed ** 2 + (se_boot if np.isfinite(se_boot) else 0.0) ** 2))
             delta = float(f['mean'] - r['mean']) if fam != REF else np.nan
-            rows.append(dict(family=fam, column=col, value=float(f['mean']), n_seeds=int(f['n_seeds']), seeds=f['seeds'],
-                             delta=delta, se_seed=se_seed, se_boot=se_boot, se=se,
+            rows.append(dict(family=fam, column=col, head=head, value=float(f['mean']), n_seeds=int(f['n_seeds']),
+                             seeds=f['seeds'], delta=delta, se_seed=se_seed, se_boot=se_boot, se=se,
                              flag=bool(fam != REF and abs(delta) > z * se)))
     T = pd.DataFrame(rows)
-    T.to_csv(OUT / 'table_main_delta.csv', index=False, float_format='%.5f')
+    T.to_csv(OUT / csv_name, index=False, float_format='%.5f')
 
     def cell(fam, col, tex=False):
-        r = T[(T['family'] == fam) & (T['column'] == col)]
+        r = T[(T['family'] == fam) & (T['column'] == col)] if len(T) else T
         if r.empty:
             return '—' if not tex else '--'
         r = r.iloc[0]
-        if isinstance(r.get('note'), str):
-            return 'n/c' if not tex else 'n/c'
+        few = r['n_seeds'] < T.loc[T['family'] == fam, 'n_seeds'].max()        # fewer seeds than the rest of the row
+        mark = ('‡' if not tex else '$^\\ddagger$') if few else ''
         if fam == REF:
-            return f"{r['value']:.3f}"
+            return f"{r['value']:.3f}{mark}"
         s = '0.000' if round(r['delta'], 3) == 0 else f"{r['delta']:+.3f}".replace('-', '−' if not tex else '$-$')
         if r['flag']:
             s = f'**{s}**' if not tex else f'\\textbf{{{s}}}'
-        return s
+        return s + mark
 
-    hdr = ['Ablation', 'Change from p0', 'Seeds'] + [MAIN_LABEL[c] for c in MAIN_COLS]
+    def seeds(fam):
+        x = T.loc[T['family'] == fam, 'seeds'].dropna() if len(T) else []
+        return x.iloc[0] if len(x) else '—'
+
+    hdr = ['Ablation', 'Change from p0', 'Seeds'] + [COL_LABEL[c] for c in cols]
     md = ['| ' + ' | '.join(hdr) + ' |', '|' + '---|' * len(hdr)]
-    tex = ['\\begin{tabular}{ll' + 'r' * len(MAIN_COLS) + '}', '\\toprule',
-           'Ablation & Change & ' + ' & '.join(MAIN_LABEL[c] for c in MAIN_COLS) + ' \\\\', '\\midrule']
-    seeds = lambda fam: (T.loc[T['family'] == fam, 'seeds'].dropna().iloc[0] if T.loc[T['family'] == fam, 'seeds'].notna().any() else '—')
+    tex = ['\\begin{tabular}{ll' + 'r' * len(cols) + '}', '\\toprule',
+           'Ablation & Change & ' + ' & '.join(COL_LABEL[c] for c in cols) + ' \\\\', '\\midrule']
     md.append(f"| **{FAMILIES[REF]['short']}** | {FAMILIES[REF]['change']} | {seeds(REF)} | "
-              + ' | '.join(cell(REF, c) for c in MAIN_COLS) + ' |')
-    tex.append(f"p0 (reference) & -- & " + ' & '.join(cell(REF, c, True) for c in MAIN_COLS) + ' \\\\')
+              + ' | '.join(cell(REF, c) for c in cols) + ' |')
+    tex.append('p0 (reference) & -- & ' + ' & '.join(cell(REF, c, True) for c in cols) + ' \\\\')
     for grp, glabel in GROUP_LABEL.items():
-        fams = [f for f, m in FAMILIES.items() if m['group'] == grp and f not in MAIN_EXCLUDE]
+        fams = [f for f, m in FAMILIES.items() if m['group'] == grp and f not in spec['exclude']]
         if not fams:
             continue
         md.append(f"| *{glabel}* |" + ' |' * (len(hdr) - 1))
-        tex.append('\\midrule\n\\multicolumn{' + str(len(MAIN_COLS) + 2) + '}{l}{\\textit{' + glabel + '}} \\\\')
+        tex.append('\\midrule\n\\multicolumn{' + str(len(cols) + 2) + '}{l}{\\textit{' + glabel + '}} \\\\')
         for fam in fams:
             short, change = FAMILIES[fam]['short'], FAMILIES[fam]['change'].split(' (')[0]
-            md.append(f"| {short} | {change} | {seeds(fam)} | " + ' | '.join(cell(fam, c) for c in MAIN_COLS) + ' |')
+            md.append(f"| {short} | {change} | {seeds(fam)} | " + ' | '.join(cell(fam, c) for c in cols) + ' |')
             change_tex = change.replace('_', '\\_').replace('->', '$\\to$')
-            tex.append(f"{short} & {change_tex} & "
-                       + ' & '.join(cell(fam, c, True) for c in MAIN_COLS) + ' \\\\')
+            tex.append(f"{short} & {change_tex} & " + ' & '.join(cell(fam, c, True) for c in cols) + ' \\\\')
     tex += ['\\bottomrule', '\\end{tabular}']
-    note = ('p0 row: Spearman ρ (seed mean; seeds listed). Other rows: Δρ = family seed mean − p0, deployed readout '
-            '(WT head on singles-only sets, 1/2(MT + WT) where multi-mutants are scored). '
-            f'Bold: |Δ| > {z:g} SE, where SE combines seed noise (family SD, or the pooled seed SD of the column for a '
-            'single-seed run) and the paired seed-1 bootstrap over proteins / sites / assays. '
-            'Epistasis columns: comb(AB) − WT(A) − WT(B) against measured ΔΔΔG on the 12,455 Tsuboyama test doubles with both '
-            'singles measured (esm_msr.epi_metrics; beyond ρ = Spearman above the global saturation curve, cell mag. = '
-            'double-centred residuals within complete blocks of each position pair), sampling noise by a paired bootstrap over '
-            'the 13 test domains. —: not yet run.')
-    (OUT / 'table_main_delta.md').write_text('\n'.join(md) + '\n\n' + note + '\n')
-    (OUT / 'table_main_delta.tex').write_text('\n'.join(tex) + '\n% ' + note + '\n')
+    note = spec['note'].format(z=z) + SEED_NOTE.format(csv=csv_name)
+    (OUT / f'table_{name}_delta.md').write_text('\n'.join(md) + '\n\n' + note + '\n')
+    (OUT / f'table_{name}_delta.tex').write_text('\n'.join(tex) + '\n% ' + note + '\n')
     return '\n'.join(md) + '\n\n' + note
+
+
+def main_delta_table(summ, deltas, z=2.0):
+    return '\n\n'.join(delta_table(summ, deltas, name, z) for name in TABLES)
 
 
 # ----------------------------------------------------------------------------------------------

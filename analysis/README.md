@@ -61,4 +61,30 @@ Scores the nine FINAL_* families (FINAL_p0 reference; masking: p1, p1_marg; loss
 
 **Scoring** follows `01_core_rho` / `05_proteingym` / `06_epistasis`: measured rows; Tsuboyama = mean per-library ρ, Domainome = mean per-domain ρ; low-id drops the P/H MegaScale-homologous domains and assays; ΔΔΔG = pooled ρ over doubles with both singles measured, wild-type backbone. `primary` is the deployed readout: wt on singles-only columns and comb where multi-mutants are scored. FINAL_p0_mega trains on `mega_splits`, so its Tsuboyama cells are on its own split (marked †, `cells_long_mega_own_split.csv`).
 
-**Outputs** in `results/16_ablation/`: `cells_long.csv`, `summary.csv` (seed mean / SD), `delta_s1.csv` (paired bootstrap of family − FINAL_p0 at seed 1, the only FINAL_p0 seed staged on 2026-11-13; protein level, site level for the DMS, assays within category for ProteinGym), `table_main_delta.{md,csv,tex}` (the main table: Δρ vs FINAL_p0 under the deployed readout on Tsuboyama test and doubles, the epistasis `beyond_rho` and `cell_mag` of `esm_msr.epi_metrics` on the 12,455 test doubles (comb(AB) − WT(A) − WT(B), paired bootstrap over the 13 test domains), external singles, PTMUL/PTMUL-D, Domainome low-id and ProteinGym avg; the single-protein DMS sets and FINAL_p0_mega, which belongs with the retrained-methods comparison, are left out of it; bold when |Δ| > 2 SE, with seed and sampling noise combined), `informativeness.csv` (family spread vs seed noise per column), `head_choice.csv` (comb − wt and whether the two readouts rank the families alike) and `layout_*.md` (candidate tables). `--render-only` redraws the layouts from the CSVs. `--B` sets the number of bootstrap draws (default 200 while drafting).
+**Outputs** in `results/16_ablation/`: `cells_long.csv`, `summary.csv` (seed mean / SD), `delta_s1.csv` (paired bootstrap of family − FINAL_p0 at seed 1; protein level, site level for the DMS, assays within category for ProteinGym), `table_main_delta.{md,csv,tex}` and `table_wt_delta.{md,csv,tex}` (the two ablation tables, below), `informativeness.csv` (family spread vs seed noise per column), `head_choice.csv` (comb − wt and whether the two readouts rank the families alike) and `layout_*.md` (candidate tables). `--render-only` redraws the layouts from the CSVs. `--B` sets the number of bootstrap draws (default 200 while drafting).
+
+### The two ablation tables
+
+Both tables list FINAL_p0 in absolute Spearman ρ (seed mean) and every other family as Δρ against it, grouped by the axis it changes. FINAL_p0_mega is left out of both: it belongs in the retrained-methods comparison. The single-protein DMS sets are left out too, since ProteinGym and Domainome cover out-of-distribution fitness. Both remain in `summary.csv` and `layout_D`.
+
+- **Uncertainty:** a cell is bold when |Δ| > 2 SE. The SE combines seed noise and sampling noise.
+  - Seed noise is each family's own seed SD. For a single-seed run it is the column's pooled SD.
+  - Sampling noise comes from the paired seed-1 bootstrap in `delta_s1.csv`, over proteins, sites, assays or the 13 test domains.
+- **‡:** the cell rests on fewer seeds than the rest of its row. Each cell's seeds are listed in the table's CSV.
+
+**`table_main_delta`: deployed readout.** Each dataset is scored the way the model is used: the WT head on singles-only sets, and ½(MT + WT) where multi-mutants are scored.
+- Columns: Tsuboyama test, Tsuboyama doubles, epistasis beyond ρ, epistasis cell magnitude, external singles (mean of 10), PTMUL / PTMUL-D, Domainome low-id and ProteinGym avg.
+- The epistasis columns score comb(AB) − WT(A) − WT(B) against measured ΔΔΔG on the 12,455 Tsuboyama test doubles that have both singles measured, using `esm_msr.epi_metrics`, the code training validation uses.
+  - *Beyond ρ* is the Spearman ρ above the global saturation curve.
+  - *Cell magnitude* is computed on double-centred residuals within complete blocks of each position pair. Of the two it separates the families more cleanly; beyond ρ is noisy.
+- Rows: every capped-split ablation, plus the two cross-masking rows once the queue's xmask tiers have run.
+
+**`table_wt_delta`: WT head alone.** Every row is read from `wt_lora_pred`, which is what a WT-only deployment (`--skip_reverse`) outputs. On a multi-mutant row it is the WT head's own prediction of that row.
+- Columns: Tsuboyama test, Tsuboyama singles, Tsuboyama doubles, external singles, PTMUL / PTMUL-D, Domainome low-id and ProteinGym avg.
+- **Rows left out:** ablations that reach the MT head only: no pair loss (pair blocks backpropagate into the MT head only, per the `--block_pair_weight` help), MT LoRA rank 2, and p1 MT marginal (which differs from p1 only in the MT pass's masking).
+  - Their WT heads still differ from FINAL_p0's, because training is joint. At matched seed the WT predictions on the Tsuboyama test singles correlate at r = 0.995–0.999, closer than FINAL_p0's own seeds (r ≈ 0.992).
+  - So those rows would show seed noise, not an ablation effect. `MT_ONLY` in the script lists them.
+- **Columns left out:** the two epistasis columns. The WT head is additive by construction, so a WT-only model has no epistasis to score.
+- **Rows kept:** the ones whose change reaches the WT head: p1 masked, no rank loss, rank censor 0 and no sequence head. The cross-masking rows are kept too, since they change how the WT head is read at test time.
+
+Both tables come from one function, `delta_table`, configured by `TABLES` in `16_final_ablation_table.py`. `--render-only` redraws them from the CSVs.

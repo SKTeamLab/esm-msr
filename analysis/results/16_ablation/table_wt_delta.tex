@@ -1,0 +1,22 @@
+\begin{tabular}{llrrrrrrr}
+\toprule
+Ablation & Change & Tsuboyama test & Tsuboyama singles & Tsuboyama doubles & External singles (10) & PTMUL / PTMUL-D & Domainome low-id & ProteinGym avg \\
+\midrule
+p0 (reference) & -- & 0.827 & 0.833 & 0.723 & 0.654 & 0.587 & 0.540 & 0.509$^\ddagger$ \\
+\midrule
+\multicolumn{9}{l}{\textit{Masking}} \\
+p1 masked & block\_mask\_wt/mt 0 $\to$ 1 & 0.000 & +0.001 & $-$0.011 & $-$0.007 & $-$0.021 & +0.001 & $-$0.004 \\
+\midrule
+\multicolumn{9}{l}{\textit{Loss}} \\
+no rank loss & lambda\_rank\_wt/mt 0.5 $\to$ 0 & $-$0.002 & $-$0.003 & $-$0.001 & +0.003 & 0.000 & +0.002 & $-$0.003 \\
+rank censor 0 & rank\_censor\_threshold -1 $\to$ 0 & +0.003 & +0.002 & +0.004 & $-$0.001 & $-$0.002 & +0.001 & +0.001 \\
+\midrule
+\multicolumn{9}{l}{\textit{Architecture}} \\
+no seq. head & incl\_sequence\_head\_wt/mt True $\to$ False & +0.001 & +0.001 & 0.000 & +0.001 & \textbf{$-$0.018} & +0.005 & 0.000 \\
+\midrule
+\multicolumn{9}{l}{\textit{Cross-masking (evaluation only)}} \\
+p0, tested masked & FINAL\_p0 checkpoint evaluated with independent masking & -- & -- & -- & -- & -- & -- & -- \\
+p1, tested unmasked & FINAL\_p1 checkpoint evaluated unmasked & -- & -- & -- & -- & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+% WT head alone on every row (wt_lora_pred). p0 row: Spearman ρ (seed mean; seeds listed). Other rows: Δρ = family seed mean − p0 under the same readout. Left out: ablations that reach the MT head only (no pair loss, MT LoRA rank 2, p1 MT marginal), whose WT heads differ from p0 by less than p0's own seeds do, and the epistasis columns (the WT head is additive by construction). Bold: |Δ| > 2 SE, where SE combines seed noise (family SD, or the pooled seed SD of the column for a single-seed run) and the paired seed-1 bootstrap over proteins / sites / assays. ‡: fewer seeds than the rest of the row (the cell's seeds are in table_wt_delta.csv). —: not yet run.
