@@ -16,7 +16,7 @@ Readouts (``head``): ``wt`` = WT head (on a multi-mutant row: the WT head's own 
 1/2(MT + WT), ``mt`` = MT head, ``wt+`` = sum of the WT head's single-mutant predictions (additive), ``primary`` = wt on a
 singles-only column and comb on a column with multi-mutants (the deployed readout).
 
-Outputs in ``results/16_ablation/``:
+Outputs in ``results/98_ablation/``:
   cells_long.csv     one row per family x seed x head x column (point rho, n rows, n proteins)
   summary.csv        seed mean / SD / n_seeds per family x head x column
   delta_s1.csv       paired bootstrap of (family - FINAL_p0) at seed 1 (the only seed FINAL_p0 has so far) on the
@@ -27,7 +27,7 @@ Outputs in ``results/16_ablation/``:
   informativeness.csv / head_choice.csv   per column: family spread vs seed noise; comb - wt and whether the heads agree
   coverage.csv       which family / seed / dataset predictions were found
 
-Usage:  python 16_final_ablation_table.py [--B 200] [--sigma 1.0] [--skip-boot]
+Usage:  python 98_final_ablation_table.py [--B 200] [--sigma 1.0] [--skip-boot]
 """
 import argparse
 import copy
@@ -48,7 +48,7 @@ from msr_analysis.data import Frame  # noqa: E402
 from msr_analysis.final_runs import FAMILIES, REFERENCE as REF, SEEDS, load_final_frame, pgym_per_dms  # noqa: E402
 from msr_analysis.registry import DMS7, EXT12, LABEL, PER_PROTEIN, PGYM, REFERENCE  # noqa: E402
 
-OUT = out_dir('16_ablation')
+OUT = out_dir('98_ablation')
 EXT_SINGLE = [d for d in EXT12 if d not in ('ptmul', 'ptmuld')]
 EXT_MULTI = ['ptmul', 'ptmuld']
 DMS_MULTI = [d for d in DMS7 if d != 'ESTA_BACSU_Nutschel_2020_dTm']
@@ -675,7 +675,7 @@ def main():
     ap.add_argument('--B', type=int, default=200, help='bootstrap draws (draft default 200; paper 1000-2000)')
     ap.add_argument('--sigma', default='1.0')
     ap.add_argument('--skip-boot', action='store_true')
-    ap.add_argument('--render-only', action='store_true', help='re-draw the layouts from the CSVs already in results/16_ablation')
+    ap.add_argument('--render-only', action='store_true', help='re-draw the layouts from the CSVs already in results/98_ablation')
     args = ap.parse_args()
     if args.render_only:
         summ = pd.read_csv(OUT / 'summary.csv', dtype={'seeds': str})

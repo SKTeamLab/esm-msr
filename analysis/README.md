@@ -1,6 +1,6 @@
 # `analysis/`: Benchmark Scoring, Figures, and Leak Audit
 
-Benchmark scoring, figure generation, and homology leak auditing for the repository. All figures and CSV tables in `results/` are computed by the top-level numbered scripts (`00_*.py`–`17_*.py`, `99_*.py`; the DMS benchmark is DLG4 binding, GRB2 binding and MYO: the abundance, ESTA and GB1 sets of the earlier benchmark duplicate ProteinGym assays and were removed) from `msr_predictions/`, `baselines/{retrained,public}/` and, for the FINAL_* ablations (`16_final_ablation_table.py`), the testing queue's `final_bench/` and `final_pgym_*/`.
+Benchmark scoring, figure generation, and homology leak auditing for the repository. All figures and CSV tables in `results/` are computed by the top-level numbered scripts (`00_*.py`–`17_*.py`, `98_*.py`, `99_*.py`; the DMS benchmark is DLG4 binding, GRB2 binding and MYO: the abundance, ESTA and GB1 sets of the earlier benchmark duplicate ProteinGym assays and were removed) from `msr_predictions/`, `baselines/{retrained,public}/` and, for the FINAL_* ablations (`98_final_ablation_table.py`), the testing queue's `final_bench/` and `final_pgym_*/`.
 
 Run all scripts (CPU only, using `msr_venv`):
 ```bash
@@ -51,7 +51,7 @@ stored as `:epi`, with corresponding additive expectation `:wt+ = WT_A + WT_B`. 
 
 **ProteinGym Activity** has its own folder, [`pg_activity/`](pg_activity/README.md): the wild-type score of each of the 43 Activity assays (read from the raw DMS files and the original papers), the screening curves against that measured WT (three definitions of "hurts", with a floor audit) for the 18 enzymes and for all assays, and the scripts, data and write-up behind them. It is not produced by `08_screening.py`.
 
-## FINAL_* ablation table (`16_final_ablation_table.py`)
+## FINAL_* ablation table (`98_final_ablation_table.py`)
 
 Scores the nine FINAL_* families (FINAL_p0 reference; masking: p1, p1_marg; losses: pw0, norank, rcthr0; architecture: noseqhwm, r2a4; data: mega). Each family differs from FINAL_p0 in one hparam group, listed in `msr_analysis/final_runs.py::FAMILIES`. Every family x seed x readout (wt, comb, mt, wt+ = sum of WT singles, epi = comb − WT_A − WT_B) is scored on every benchmark. Each checkpoint is tested under its own masking strategy, as the testing queue ran it.
 
@@ -59,7 +59,7 @@ Scores the nine FINAL_* families (FINAL_p0 reference; masking: p1, p1_marg; loss
 
 **Scoring** follows `01_core_rho` / `05_proteingym` / `06_epistasis`: measured rows; Tsuboyama = mean per-library ρ, Domainome = mean per-domain ρ; low-id drops the P/H MegaScale-homologous domains and assays; ΔΔΔG = pooled ρ over doubles with both singles measured, wild-type backbone. `primary` is the deployed readout: wt on singles-only columns and comb where multi-mutants are scored. FINAL_p0_mega trains on `mega_splits`, so its Tsuboyama cells are on its own split (marked †, `cells_long_mega_own_split.csv`).
 
-**Outputs** in `results/16_ablation/`: `cells_long.csv`, `summary.csv` (seed mean / SD), `delta_s1.csv` (paired bootstrap of family − FINAL_p0 at seed 1; protein level, site level for the DMS, assays within category for ProteinGym), `table_main_delta.{md,csv,tex}` and `table_wt_delta.{md,csv,tex}` (the two ablation tables, below), `informativeness.csv` (family spread vs seed noise per column), `head_choice.csv` (comb − wt and whether the two readouts rank the families alike) and `layout_*.md` (candidate tables). `--render-only` redraws the layouts from the CSVs. `--B` sets the number of bootstrap draws (default 200 while drafting).
+**Outputs** in `results/98_ablation/`: `cells_long.csv`, `summary.csv` (seed mean / SD), `delta_s1.csv` (paired bootstrap of family − FINAL_p0 at seed 1; protein level, site level for the DMS, assays within category for ProteinGym), `table_main_delta.{md,csv,tex}` and `table_wt_delta.{md,csv,tex}` (the two ablation tables, below), `informativeness.csv` (family spread vs seed noise per column), `head_choice.csv` (comb − wt and whether the two readouts rank the families alike) and `layout_*.md` (candidate tables). `--render-only` redraws the layouts from the CSVs. `--B` sets the number of bootstrap draws (default 200 while drafting).
 
 ### The two ablation tables
 
@@ -85,4 +85,4 @@ Both tables list FINAL_p0 in absolute Spearman ρ (seed mean) and every other fa
 - **Columns left out:** the two epistasis columns. The WT head is additive by construction, so a WT-only model has no epistasis to score.
 - **Rows kept:** the ones whose change reaches the WT head: p1 masked, no rank loss, rank censor 0 and no sequence head. The cross-masking rows are kept too, since they change how the WT head is read at test time.
 
-Both tables come from one function, `delta_table`, configured by `TABLES` in `16_final_ablation_table.py`. `--render-only` redraws them from the CSVs.
+Both tables come from one function, `delta_table`, configured by `TABLES` in `98_final_ablation_table.py`. `--render-only` redraws them from the CSVs.
