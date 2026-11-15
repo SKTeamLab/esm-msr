@@ -51,9 +51,11 @@ def train_overlap():
 
 
 def per_assay(source='ProteinGym'):
-    """``results/per_assay_rho.csv`` without the assays that overlap the training data (the DMS-benchmark rows are kept when ``source`` is None)."""
+    """``results/per_assay_rho.csv`` without the assays that overlap the training data (the DMS-benchmark rows are kept when ``source`` is None), with the column ``leaked`` of the per-assay leak test."""
     t = pd.read_csv(OUT / 'per_assay_rho.csv')
     t = t[~t.assay.isin(train_overlap())]
+    lk = OUT / 'leak_per_assay.csv'                                        # 04_leak_per_assay.py: TM > 0.7 or sequence identity > 0.4 to a training protein
+    t['leaked'] = t.assay.map(pd.read_csv(lk).set_index('assay').leaked).astype('boolean').fillna(False).astype(bool) if lk.exists() else False
     return t if source is None else t[t.source == source].copy()
 
 

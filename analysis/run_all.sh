@@ -12,7 +12,7 @@ for s in 02_thermostability 03_tsuboyama 04_dms_domainome 05_proteingym 06_epist
 done
 # ProteinGym Activity (own folder).  pg_activity/01_wt_reference.py rebuilds data/wt_reference.csv from the raw DMS files (ProteinGym/substitutions_raw_DMS) and is run on demand.
 echo "== pg_activity"; $PY pg_activity/02_activity_screening.py
-echo "== proteingym/p0_sigma"; for s in 01_per_assay_rho 02_fig_multi_property 03_fig_property_summary; do $PY proteingym/p0_sigma/$s.py; done
+echo "== proteingym/p0_sigma"; for s in 01_per_assay_rho 04_leak_per_assay 02_fig_multi_property 03_fig_property_summary; do $PY proteingym/p0_sigma/$s.py; done
 echo "== 16_screening_overview"; $PY 16_screening_overview.py          # needs the curve tables of 08_screening and pg_activity/02
 echo "== 17_gain_per_variant_fit"; $PY 17_gain_per_variant_fit.py          # the log-linear fit of the gain per variant
 echo "== 98_final_ablation_table"; $PY 98_final_ablation_table.py          # the FINAL_* ablation tables: needs the testing queue's final_bench/ and final_pgym_*/
