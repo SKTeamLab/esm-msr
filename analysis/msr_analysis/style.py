@@ -227,3 +227,50 @@ def density_scatter_plain(x, y, xlabel, ylabel, ref='xy', ref_label=None, highli
     if foot:
         fig.text(0.015, -0.01, foot, fontsize=foot_fontsize, va='top', ha='left', color='#444444')
     return fig
+
+
+# ----------------------------------------------------------------------------------------------
+# text that has to fit: wrapping to a pixel width and a check that no text leaves the figure box
+# ----------------------------------------------------------------------------------------------
+def _text_width(fig, text, **kw):
+    r = fig.canvas.get_renderer()
+    t = fig.text(0, 0, text, **kw)
+    w = t.get_window_extent(r).width
+    t.remove()
+    return w
+
+
+def wrap_to_px(fig, text, max_px, **kw):
+    """Break ``text`` at spaces so that no line is wider than ``max_px`` pixels (at the figure's dpi) when drawn with the text properties ``kw`` (fontsize, family, fontweight, ...).
+    Existing newlines are kept and each line is wrapped on its own; leading spaces (an indent) are kept on every line it wraps into."""
+    out = []
+    for para in text.split('\n'):
+        stripped = para.lstrip(' ')
+        indent = ' ' * (len(para) - len(stripped))
+        line = ''
+        for w in stripped.split(' '):
+            cand = (line + ' ' + w) if line else w
+            if line and _text_width(fig, indent + cand, **kw) > max_px:
+                out.append(indent + line)
+                line = w
+            else:
+                line = cand
+        out.append(indent + line)
+    return '\n'.join(out)
+
+
+def text_outside(fig, margin_px=3):
+    """Titles, axis labels, texts, figure texts and legends whose box leaves the figure box (or comes closer than ``margin_px`` to its edge): a list of (text, box)."""
+    r = fig.canvas.get_renderer()
+    W, H = fig.bbox.width, fig.bbox.height
+    arts = list(fig.texts) + list(fig.legends)
+    for ax in fig.axes:
+        arts += [ax.title, ax._left_title, ax._right_title, ax.xaxis.label, ax.yaxis.label] + list(ax.texts) + ([ax.get_legend()] if ax.get_legend() is not None else [])
+    bad = []
+    for a in arts:
+        if not a.get_visible() or (hasattr(a, 'get_text') and not a.get_text().strip()):
+            continue
+        bb = a.get_window_extent(r)
+        if bb.x0 < margin_px or bb.y0 < margin_px or bb.x1 > W - margin_px or bb.y1 > H - margin_px:
+            bad.append((a.get_text()[:50] if hasattr(a, 'get_text') else 'legend', [round(v) for v in (bb.x0, bb.y0, bb.x1, bb.y1)]))
+    return bad

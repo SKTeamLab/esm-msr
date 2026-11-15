@@ -15,14 +15,14 @@ ESM-MSR combined,msrdev:comb,precision_ddG_gt_0.5,0.4508,0.3931,0.5073,33,1018.6
 ESM-MSR combined,msrdev:comb,precision_ddG_gt_0,0.8587,0.8080,0.9129,33,1018.6667,458.3333
 ESM-MSR combined,msrdev:comb,recall_ddG_gt_0.5,0.3589,0.2760,0.4177,33,1018.6667,458.3333
 ESM-MSR combined,msrdev:comb,recall_ddG_gt_0,0.1232,0.0904,0.1467,33,1018.6667,458.3333
-ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0.5,0.4102,0.3342,0.4711,33,1122.0000,459.6667
-ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0,0.8441,0.8018,0.8908,33,1122.0000,459.6667
-ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0.5,0.3600,0.2752,0.4195,33,1122.0000,459.6667
-ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0,0.1332,0.1012,0.1616,33,1122.0000,459.6667
-ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0.5,0.3789,0.3106,0.4344,33,1560.3333,589.6667
-ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0,0.8273,0.7910,0.8675,33,1560.3333,589.6667
-ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0.5,0.4618,0.3678,0.5299,33,1560.3333,589.6667
-ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0,0.1816,0.1441,0.2158,33,1560.3333,589.6667
+ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0.5,0.4704,0.3956,0.5235,32,827.0000,389.0000
+ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0,0.8646,0.8254,0.9076,32,827.0000,389.0000
+ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0.5,0.3046,0.2181,0.3711,33,827.0000,389.0000
+ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0,0.1007,0.0715,0.1265,33,827.0000,389.0000
+ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0.5,0.4066,0.3394,0.4578,33,1370.0000,557.0000
+ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0,0.8394,0.7986,0.8828,33,1370.0000,557.0000
+ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0.5,0.4362,0.3492,0.4951,33,1370.0000,557.0000
+ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0,0.1619,0.1279,0.1906,33,1370.0000,557.0000
 MutateEverything st1,me1,precision_ddG_gt_0.5,0.3615,0.2645,0.4261,32,512.6667,185.3333
 MutateEverything st1,me1,precision_ddG_gt_0,0.7744,0.7463,0.8022,32,512.6667,185.3333
 MutateEverything st1,me1,recall_ddG_gt_0.5,0.1451,0.0886,0.1953,33,512.6667,185.3333

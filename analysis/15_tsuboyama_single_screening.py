@@ -625,14 +625,16 @@ def compute_best_ddg_curve(fr, cols, pool_mask, libs, counts, ks):
     return pd.DataFrame(rows), vals
 
 
+# the CI band is drawn for ESM-MSR only (FINAL_p0 seed 1, WT head); bands under every model, or under all six ESM-MSR variants, hide each other
+BAND_MODELS = {'ESM-MSR (p0) WT head'}
+
+
 def _plot_best_ddg_ax(ax, D, models_to_draw, ks_ticks, ribbon_names, title=None):
     ks = sorted(D['K'].unique())
     orc = D[D.column == 'Oracle (best in domain)'].sort_values('K')
     rnd = D[D.column == 'Random picks'].sort_values('K')
     ax.plot(orc.K, orc.value, color='#2c3e50', ls=':', lw=1.6, label='Oracle (best in domain)', zorder=2)
-    ax.fill_between(orc.K, orc.lo, orc.hi, color='#2c3e50', alpha=0.07, lw=0, zorder=1)
     ax.plot(rnd.K, rnd.value, color='#c0392b', ls='--', lw=1.4, label='Random picks (exact expectation)', zorder=2)
-    ax.fill_between(rnd.K, rnd.lo, rnd.hi, color='#c0392b', alpha=0.08, lw=0, zorder=1)
 
     ax.axhline(0.0, color='#888888', lw=0.7, ls=':', zorder=1)
     for b_k in (6, 24, 96):
@@ -647,7 +649,7 @@ def _plot_best_ddg_ax(ax, D, models_to_draw, ks_ticks, ribbon_names, title=None)
         # Single continuous curve over every discrete budget K = 1 .. 96, no markers
         ax.plot(sub.K, sub.value, color=c['color'], ls=c.get('ls', '-'), lw=lw, label=c['name'], zorder=z)
         if c['name'] in ribbon_names:
-            ax.fill_between(sub.K, sub.lo, sub.hi, color=c['color'], alpha=0.11, lw=0, zorder=z - 1)
+            ax.fill_between(sub.K, sub.lo, sub.hi, color=c['color'], alpha=0.16, lw=0, zorder=z - 1)
 
     ax.set_xscale('log')
     ax.set_xticks(ks_ticks)
@@ -669,12 +671,12 @@ def draw_best_ddg_figures(cols, D, ks_ticks, sfx='', pool_title='single mutants'
     others = [c for c in drawn if c['name'].startswith('ESM-MSR') or c['cat'] in ('zeroshot', 'supervised')]
     _plot_best_ddg_ax(
         ax1, D, retrained, ks_ticks,
-        ribbon_names={c['name'] for c in retrained},
+        ribbon_names=BAND_MODELS,
         title=f'A. Retrained on {SPLIT}',
     )
     _plot_best_ddg_ax(
         ax2, D, others, ks_ticks,
-        ribbon_names={c['name'] for c in others if c['name'].startswith('ESM-MSR') or c['cat'] == 'supervised'},
+        ribbon_names=BAND_MODELS,
         title='B. ESM-MSR vs Zero-shot & Supervised (not Megascale-trained)',
     )
     ax2.set_ylabel('')
@@ -682,7 +684,7 @@ def draw_best_ddg_figures(cols, D, ks_ticks, sfx='', pool_title='single mutants'
     ax2.legend(loc='lower right', ncol=2, fontsize=7.6, framealpha=0.92)
     pub.finish(
         fig,
-        f'{SPLIT} test, {pool_title}: best measured ddG recovered among top K per protein (K = 1 .. 96; 95% domain-bootstrap bands)',
+        f'{SPLIT} test, {pool_title}: best measured ddG recovered among top K per protein (K = 1 .. 96; 95% domain-bootstrap band for ESM-MSR (p0) WT head)',
         [],
     )
     style.save(fig, OUT / f'fig_best_ddg_vs_k_panels{sfx}')
@@ -691,7 +693,7 @@ def draw_best_ddg_figures(cols, D, ks_ticks, sfx='', pool_title='single mutants'
     fig, ax = plt.subplots(figsize=(8.8, 5.2))
     _plot_best_ddg_ax(
         ax, D, drawn, ks_ticks,
-        ribbon_names={c['name'] for c in drawn if c['name'].startswith('ESM-MSR')},
+        ribbon_names=BAND_MODELS,
     )
     ax.legend(loc='lower right', ncol=2, fontsize=7.4, framealpha=0.92)
     pub.finish(

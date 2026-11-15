@@ -23,18 +23,18 @@ ESM-MSR combined,msrdev:comb,recall_ddG_gt_0.5,0.3457,0.2782,0.4046,32,1018.6667
 ESM-MSR combined,msrdev:comb,recall_ddG_gt_0,0.1358,0.1049,0.1706,33,1018.6667,458.3333
 ESM-MSR combined,msrdev:comb,n_suggested_per_domain,30.8687,20.4619,45.5381,33,1018.6667,458.3333
 ESM-MSR combined,msrdev:comb,n_hits_recovered_per_domain,13.8889,8.2788,21.3674,33,1018.6667,458.3333
-ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0.5,0.3548,0.2862,0.4270,33,1122.0000,459.6667
-ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0,0.8564,0.8139,0.9089,33,1122.0000,459.6667
-ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0.5,0.3207,0.2515,0.3876,32,1122.0000,459.6667
-ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0,0.1369,0.1079,0.1749,33,1122.0000,459.6667
-ESM-MSR (p0) WT head,msrp0:wt,n_suggested_per_domain,34.0000,22.5482,51.6629,33,1122.0000,459.6667
-ESM-MSR (p0) WT head,msrp0:wt,n_hits_recovered_per_domain,13.9293,8.5030,21.4987,33,1122.0000,459.6667
-ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0.5,0.3193,0.2582,0.3755,33,1560.3333,589.6667
-ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0,0.8346,0.7801,0.8829,33,1560.3333,589.6667
-ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0.5,0.4453,0.3713,0.5063,32,1560.3333,589.6667
-ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0,0.1968,0.1586,0.2394,33,1560.3333,589.6667
-ESM-MSR (p0) combined,msrp0:comb,n_suggested_per_domain,47.2828,33.6742,67.0121,33,1560.3333,589.6667
-ESM-MSR (p0) combined,msrp0:comb,n_hits_recovered_per_domain,17.8687,11.1288,26.7788,33,1560.3333,589.6667
+ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0.5,0.4072,0.3290,0.4822,32,827.0000,389.0000
+ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0,0.8870,0.8399,0.9312,32,827.0000,389.0000
+ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0.5,0.2528,0.1946,0.3118,32,827.0000,389.0000
+ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0,0.1014,0.0776,0.1352,33,827.0000,389.0000
+ESM-MSR (p0) WT head,msrp0:wt,n_suggested_per_domain,25.0606,15.8727,38.3955,33,827.0000,389.0000
+ESM-MSR (p0) WT head,msrp0:wt,n_hits_recovered_per_domain,11.7879,6.6030,18.5955,33,827.0000,389.0000
+ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0.5,0.3553,0.2861,0.4083,33,1370.0000,557.0000
+ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0,0.8574,0.8067,0.8992,33,1370.0000,557.0000
+ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0.5,0.4175,0.3396,0.4883,32,1370.0000,557.0000
+ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0,0.1766,0.1430,0.2147,33,1370.0000,557.0000
+ESM-MSR (p0) combined,msrp0:comb,n_suggested_per_domain,41.5152,29.1742,58.4992,33,1370.0000,557.0000
+ESM-MSR (p0) combined,msrp0:comb,n_hits_recovered_per_domain,16.8788,10.7485,25.0371,33,1370.0000,557.0000
 MutateEverything st1,me1,precision_ddG_gt_0.5,0.2783,0.1738,0.3894,32,512.6667,185.3333
 MutateEverything st1,me1,precision_ddG_gt_0,0.7353,0.6153,0.8117,32,512.6667,185.3333
 MutateEverything st1,me1,recall_ddG_gt_0.5,0.0942,0.0610,0.1279,32,512.6667,185.3333

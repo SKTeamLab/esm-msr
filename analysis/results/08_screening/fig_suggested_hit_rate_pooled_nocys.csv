@@ -15,14 +15,14 @@ ESM-MSR combined,msrdev:comb,precision_ddG_gt_0.5,0.4505,0.3884,0.5040,33,917.33
 ESM-MSR combined,msrdev:comb,precision_ddG_gt_0,0.8697,0.8256,0.9196,33,917.3333,412.3333
 ESM-MSR combined,msrdev:comb,recall_ddG_gt_0.5,0.3675,0.2902,0.4229,33,917.3333,412.3333
 ESM-MSR combined,msrdev:comb,recall_ddG_gt_0,0.1214,0.0895,0.1432,33,917.3333,412.3333
-ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0.5,0.4134,0.3403,0.4768,33,1008.0000,416.3333
-ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0,0.8579,0.8171,0.8983,33,1008.0000,416.3333
-ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0.5,0.3711,0.2930,0.4324,33,1008.0000,416.3333
-ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0,0.1316,0.1017,0.1599,33,1008.0000,416.3333
-ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0.5,0.3785,0.3065,0.4339,33,1388.6667,524.3333
-ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0,0.8378,0.7994,0.8784,33,1388.6667,524.3333
-ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0.5,0.4673,0.3784,0.5381,33,1388.6667,524.3333
-ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0,0.1770,0.1408,0.2090,33,1388.6667,524.3333
+ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0.5,0.4726,0.3981,0.5225,32,749.0000,354.0000
+ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0,0.8785,0.8408,0.9235,32,749.0000,354.0000
+ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0.5,0.3155,0.2346,0.3841,33,749.0000,354.0000
+ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0,0.1002,0.0735,0.1251,33,749.0000,354.0000
+ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0.5,0.4054,0.3411,0.4579,33,1226.0000,497.0000
+ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0,0.8499,0.8030,0.8961,33,1226.0000,497.0000
+ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0.5,0.4430,0.3612,0.5025,33,1226.0000,497.0000
+ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0,0.1586,0.1258,0.1870,33,1226.0000,497.0000
 MutateEverything st1,me1,precision_ddG_gt_0.5,0.3574,0.2681,0.4167,32,453.3333,162.0000
 MutateEverything st1,me1,precision_ddG_gt_0,0.7781,0.7441,0.8118,32,453.3333,162.0000
 MutateEverything st1,me1,recall_ddG_gt_0.5,0.1444,0.0882,0.1935,33,453.3333,162.0000

@@ -11,7 +11,8 @@ A *hit* is a variant measured more stabilizing than ``--tau`` (default 0.5 kcal/
   could contain) and the average of K random picks.
 
 Two designs: one pooled screen per external stability set (a budget of the top 10 % of the set, proteins resampled in the
-bootstrap) and one screen per protein (Tsuboyama test libraries, Domainome domains) as the budget K grows.  The retrained
+bootstrap) and one screen per protein (Tsuboyama test libraries, Domainome domains) as the budget K grows; the per-protein curve tables (``screening_per_protein*.csv``) are drawn by
+``16_screening_overview.py``, together with the ProteinGym Activity curves.  The retrained
 baselines are drawn with the head their training calls for on each set (singles models on singles-only sets, the doubles
 models where the set has multi-mutants); ESM-MSR is its WT head on singles-only sets and its combined prediction elsewhere.
 """
@@ -28,7 +29,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from msr_analysis import screening as scr, style  # noqa: E402
 from msr_analysis.common import has_multi, out_dir, primary_key  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
-from msr_analysis.registry import PUBLIC, HERE, LABEL, MODELS, REFERENCE, RETRAINED, ROOT  # noqa: E402
+from msr_analysis.registry import HERE, LABEL, MODELS, REFERENCE  # noqa: E402
 
 OUT = out_dir('08_screening')
 POOLED_SETS = ['s783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld']   # S571's labels are not ddG
@@ -46,7 +47,7 @@ FAM_LABEL = {
     'geoddg': 'GeoDDG-3D',
     'rosetta': 'Rosetta',
 }
-TAU_DS = {'domainome': 0.0, 'pg_activity': 0.0}      # Domainome's label is a change in expression: a hit is any increase (> 0), not > 0.5 kcal/mol
+TAU_DS = {'domainome': 0.0}      # Domainome's label is a change in expression: a hit is any increase (> 0), not > 0.5 kcal/mol
 FAM_STYLE = {
     'msr': 'msr',
     'msrp0': 'msrp0:wt',
@@ -64,70 +65,15 @@ FAM_COLOR_ALL = {
     'spurs':  ('#ff7f0e', '-',  2.0, 6),
     'tm':     ('#1f77b4', '-',  2.0, 6),
     'me':     ('#2ca02c', '-',  2.0, 6),
-    'esm3':   ('#8e44ad', '-',  2.0, 5),
+    'esm3':   ('#7f7f7f', '-',  2.0, 5),
     'pmpnn':  ('#b8860b', '-.', 2.0, 5),
-    'prosst': ('#d81b60', '-.', 2.0, 5),
+    'prosst': ('#8e44ad', '-',  2.0, 5),
     'geoddg': ('#008b8b', '--', 2.0, 4),
-    'rosetta': ('#8c564b', '--', 2.0, 4),
+    'rosetta': ('#17becf', '--', 2.0, 4),
 }
 for _f, _k in FAM_STYLE.items():          # the dot panels look families up in the registry
     MODELS.setdefault(_f, dict(MODELS[_k]))
 MODELS['msr'] = dict(MODELS['msr'], label='ESM-MSR', color='#000000')     # family 'msr' is FINAL_p0 seed 1 here (SINGLE_KEY / MULTI_KEY), drawn in black
-
-
-PG_DIR = ROOT / 'final_pgym_wt' / 'FINAL_p0' / 's1'      # FINAL_p0 seed 1, WT head, one file per assay
-PG_MIN_HITS = 10
-
-
-def pg_wt_like(score, cut):
-    """WT-like (fully functional) level of an assay and its spread: the mode of a Gaussian KDE of the scores above the assay's binarization cutoff (``cut``; the median
-    where fewer than 5% or more than 95% of the singles are above it), and the robust SD (1.4826 x MAD) of the scores above that mode's cutoff around it."""
-    from scipy.stats import gaussian_kde
-    frac = (score > cut).mean()
-    if frac < 0.05 or frac > 0.95:
-        cut = np.median(score)
-    up = score[score > cut]
-    xs = np.linspace(up.min(), up.max(), 400)
-    w = float(xs[np.argmax(gaussian_kde(up)(xs))])
-    return w, float(1.4826 * np.median(np.abs(up - w)))
-
-
-def pg_activity_frame():
-    """ProteinGym Activity (43 assays), single mutants, as a Frame for ``per_protein``.  The label is the assay score on a scale whose zero is the WT-like level and whose unit is the assay's
-    robust SD (``pg_wt_like``): y = (score - w) / sd, so a hit (y > ``TAU_DS['pg_activity']`` = 0) is a variant more active than the WT-like level (the files carry no WT row: it is the estimated plateau), the rectified gain
-    max(y, 0) is the summed excess over it, and the rectified loss max(-y, 0) the summed shortfall.  Assays with fewer than ``PG_MIN_HITS`` hits (or no spread) are left out.  Predictions are the singles models' stabilizing-positive scores, ranked as they are."""
-    ref = pd.read_csv(ROOT / 'ProteinGym' / 'DMS_substitutions.csv')
-    ref = ref[ref.coarse_selection_type == 'Activity'].set_index('DMS_id')
-    srcs = {'msrp0:wt': (PG_DIR, 'wt_lora_pred'),
-            'me1': (RETRAINED / 'mutate_everything' / 'predictions' / 'stage1' / 'seed1' / 'proteingym', 'pred_combined'),
-            'tmpnn': (RETRAINED / 'thermompnn' / 'predictions' / 'single_additive' / 'seed1' / 'proteingym', 'pred_single_additive'),
-            'spurs': (RETRAINED / 'spurs' / 'predictions' / 'seed1' / 'proteingym', 'SPURS_single_additive')}
-    pub_cols = {'prosst': 'ProSST-2048', 'pmpnn': 'ProteinMPNN', 'msrrel@0:comb': 'ESM3'}   # the authors' published zero-shot scores (baselines/public/proteingym_published)
-    extra = list(pub_cols)
-    rows, preds, info = [], {k: [] for k in list(srcs) + extra}, []
-    for dms, r in ref.iterrows():
-        base = pd.read_csv(PG_DIR / f'{dms}.csv', usecols=['mutant', 'DMS_score'])
-        base = base[~base['mutant'].str.contains(':')].reset_index(drop=True)
-        w, sd = pg_wt_like(base['DMS_score'].to_numpy(), r.DMS_binarization_cutoff)
-        y = (base['DMS_score'].to_numpy() - w) / sd if sd > 0 else np.full(len(base), np.nan)
-        n_hits = int((y > TAU_DS['pg_activity']).sum())
-        keep = bool(np.isfinite(y).all() and n_hits >= PG_MIN_HITS)
-        info.append(dict(DMS_id=dms, n_singles=len(base), wt_like=w, robust_sd=sd, n_hits=n_hits, hit_frac=n_hits / len(base), included=keep))
-        if not keep:
-            continue
-        for k, (d, col) in srcs.items():
-            t = pd.read_csv(d / f'{dms}.csv', usecols=['mutant', col]).drop_duplicates('mutant').set_index('mutant')[col]
-            preds[k].append(t.reindex(base['mutant']).to_numpy(dtype=float))
-        pub = pd.read_csv(PUBLIC / 'proteingym_published' / f'{dms}.csv', usecols=['mutant'] + list(pub_cols.values())).drop_duplicates('mutant').set_index('mutant')
-        for k, col in pub_cols.items():                                  # variants a model has no score for stay NaN: that model skips them
-            preds[k].append(pub[col].reindex(base['mutant']).to_numpy(dtype=float))
-        rows.append(pd.DataFrame({'id': dms + '_' + base['mutant'], 'y': y, 'group': dms, 'mut': base['mutant'], 'n_mut': 1, 'use': True}))
-    spine = pd.concat(rows, ignore_index=True)
-    cov = {k: float(np.isfinite(np.concatenate(v)).mean()) for k, v in preds.items()}
-    print('pg_activity coverage of singles (kept assays):', {k: round(c, 3) for k, c in cov.items()})
-    pd.DataFrame(info).to_csv(OUT / 'pg_activity_hit_definition.csv', index=False, float_format='%.4f')
-    from msr_analysis.data import Frame
-    return Frame('pg_activity', spine, {k: np.concatenate(v)[None, :] for k, v in preds.items()})
 
 
 def domainome_overlap_domains(classes=('P', 'H')):
@@ -288,87 +234,6 @@ def per_protein(ds, Ks, tau, B, exclude_groups=None, mode='default', exclude_cys
     return pd.DataFrame(rows)
 
 
-def fig_per_protein(D, tau, stem='screening_per_protein', mode='default', fams=FAM, markers=True, panels='hits'):
-    from matplotlib.lines import Line2D
-    sets = list(D.dataset.unique())
-    fig, axes = plt.subplots(len(sets), 3, figsize=(13.5 if not markers else 12, 3.8 * len(sets) if not markers else 3.5 * len(sets)))
-    axes = np.atleast_2d(axes)
-    flab = FAM_LABEL_SINGLES if mode == 'singles' else (FAM_LABEL_COMPOSITE if mode == 'composite' else FAM_LABEL)
-    ds_titles = {'tsuboyama_capped_test': 'Homology-Restricted MegaScale test set', 'pg_activity': 'ProteinGym Activity, single mutants'}
-    for r, ds in enumerate(sets):
-        d = D[D.dataset == ds]
-        hr_yl = {'domainome': 'hit rate (abundance > wild type)', 'pg_activity': 'hit rate (activity > WT-like level)'}.get(ds, f'hit rate (>{tau:g} kcal/mol)')
-        gain_yl = {'domainome': 'rectified gain @ K (abundance)', 'pg_activity': 'rectified gain @ K (WT-like SD units)'}.get(ds, 'rectified gain @ K (kcal/mol)')
-        unit = 'WT-like SD units' if ds == 'pg_activity' else ('abundance' if ds == 'domainome' else 'kcal/mol')
-        spec = {'hits': (('hit_rate', hr_yl, 'rand_hit', 'oracle_hit'),
-                         ('p_recover', 'P(at least one hit in top K)', 'rand_rec', 'oracle_rec'),
-                         ('gain', gain_yl, 'rand_gain', 'oracle_gain')),
-                'gainloss': (('gain', gain_yl, 'rand_gain', 'oracle_gain'),
-                             ('net', f'net change @ K ({unit})', 'rand_net', 'oracle_net'),
-                             ('loss', f'rectified loss @ K ({unit})', 'rand_loss', None))}[panels]
-        for c, (metric, yl, ref, orc_ref) in enumerate(spec):
-            ax = axes[r, c]
-            for f in fams:
-                x = d[(d.family == f) & (d.metric == metric)].sort_values('K')
-                if x.empty:
-                    continue
-                if markers:
-                    col = style.style_of(FAM_STYLE[f] if f != 'msr' else 'msr')['color']
-                    mk = style.style_of(FAM_STYLE[f] if f != 'msr' else 'msr')['marker']
-                    ax.plot(x.K, x.value, color=col, lw=2.2 if f in ('msr', 'msrp0') else 1.3, marker=mk, ms=4.5, label=flab[f], zorder=4 if f in ('msr', 'msrp0') else 3)
-                    ax.fill_between(x.K, x.lo, x.hi, color=col, alpha=.12, lw=0, zorder=1)
-                else:
-                    col, ls, lw, zo = FAM_COLOR_ALL[f]
-                    ax.plot(x.K, x.value, color=col, ls=ls, lw=lw, label=flab[f], zorder=zo)
-                    ax.fill_between(x.K, x.lo, x.hi, color=col, alpha=.08, lw=0, zorder=1)
-            ref_fam = 'msrp0' if 'msrp0' in d.family.values else 'msr'
-            rr = d[(d.family == ref_fam) & (d.metric == ref)].sort_values('K')
-            ax.plot(rr.K, rr.value, color='#c0392b', ls=(0, (3, 2)) if not markers else '--', lw=1.4 if not markers else 1.1, label='random picks', zorder=3)
-            oo = d[(d.family == ref_fam) & (d.metric == orc_ref)].sort_values('K') if orc_ref else d.iloc[:0]
-            if not oo.empty:
-                ax.plot(oo.K, oo.value, color='#2c3e50', ls=':', lw=1.7 if not markers else 1.2, label='oracle', zorder=7)
-            ax.set_xscale('log'); ax.set_xlabel('variants screened per protein (K)'); ax.set_ylabel(yl)
-            if metric in ('gain', 'loss'):
-                ax.set_yscale('log', nonpositive='clip')          # rectified sums grow ~linearly in K and span decades: log scale
-            elif metric == 'net':
-                ax.set_yscale('symlog', linthresh=1.0)             # signed: linear within +-1, decades beyond
-                ax.axhline(0, color='#999999', lw=0.6, zorder=0)
-            ax.set_xticks(sorted(d.K.unique())); ax.set_xticklabels(sorted(d.K.unique()))
-            if c == 0:
-                sub_note = ' [singles only, excl. Cys]' if (mode == 'singles' and ds == 'tsuboyama_capped_test') else (
-                           ' [singles: single model | doubles: multi model, excl. Cys]' if (mode == 'composite' and ds == 'tsuboyama_capped_test') else (
-                           ' [excl. Cys]' if ds == 'tsuboyama_capped_test' else ''))
-                ds_label = ds_titles[ds] if ds in ds_titles else LABEL[ds]
-                ax.set_title(f'{ds_label}{sub_note}  ({int(d.n_proteins.iloc[0])} {"assays" if ds == "pg_activity" else "proteins"})', loc='left')
-            if markers and r == 0 and c == 2:
-                ax.legend(fontsize=7.5, loc='upper left')
-    if not markers:
-        handles = []
-        for f in fams:
-            if f in D.family.values:
-                col, ls, lw, _ = FAM_COLOR_ALL[f]
-                handles.append(Line2D([0], [0], color=col, ls=ls, lw=lw + 0.4, label=flab[f]))
-        handles.append(Line2D([0], [0], color='#2c3e50', ls=':', lw=2.0, label='oracle'))
-        handles.append(Line2D([0], [0], color='#c0392b', ls=(0, (3, 2)), lw=1.8, label='random picks'))
-        fig.legend(
-            handles=handles,
-            loc='upper center',
-            bbox_to_anchor=(0.5, 1.0),
-            ncol=5,
-            fontsize=9.2,
-            handlelength=2.8,
-            handletextpad=0.6,
-            columnspacing=1.6,
-            frameon=True,
-            facecolor='white',
-            edgecolor='#cccccc',
-        )
-        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.89 if len(sets) > 1 else 0.80))
-    else:
-        fig.tight_layout()
-    style.save(fig, OUT / stem)
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--tau', type=float, default=0.5)
@@ -387,15 +252,6 @@ def main():
                 rows.append(dict(dataset=ds, baseline=f, d_hit_rate=float(np.nanmean(d)), lo=float(np.nanquantile(d, .025)), hi=float(np.nanquantile(d, .975))))
     pd.DataFrame(rows).to_csv(OUT / 'screening_pooled_paired_diff.csv', index=False, float_format='%.4f')
     ks = [1, 3, 5, 10, 20, 50, 100]
-    pg = pg_activity_frame()
-    pg_df = per_protein('pg_activity', ks, TAU_DS['pg_activity'], a.B, mode='singles', fams=FAM, fr=pg)
-    pg_df.to_csv(OUT / 'screening_per_protein_pg_activity.csv', index=False, float_format='%.4f')
-    fig_per_protein(pg_df, TAU_DS['pg_activity'], stem='screening_per_protein_pg_activity', mode='singles', fams=FAM, markers=True)
-    fig_per_protein(pg_df, TAU_DS['pg_activity'], stem='screening_per_protein_pg_activity_gainloss', mode='singles', fams=FAM, markers=True, panels='gainloss')
-    pg_df_all = per_protein('pg_activity', ks, TAU_DS['pg_activity'], a.B, mode='singles', fams=[f for f in FAM_ALL if f not in ('rosetta', 'geoddg')], fr=pg)
-    pg_df_all.to_csv(OUT / 'screening_per_protein_pg_activity_all_models.csv', index=False, float_format='%.4f')
-    fig_per_protein(pg_df_all, TAU_DS['pg_activity'], stem='screening_per_protein_pg_activity_all_models', mode='singles', fams=[f for f in FAM_ALL if f not in ('rosetta', 'geoddg')], markers=False)
-    fig_per_protein(pg_df_all, TAU_DS['pg_activity'], stem='screening_per_protein_pg_activity_gainloss_all_models', mode='singles', fams=[f for f in FAM_ALL if f not in ('rosetta', 'geoddg')], markers=False, panels='gainloss')
     dom_exclude = domainome_overlap_domains()
     dom_df = per_protein('domainome', ks, TAU_DS['domainome'], a.B, exclude_groups=dom_exclude, mode='default', fams=FAM)
     dom_df_all = per_protein('domainome', ks, TAU_DS['domainome'], a.B, exclude_groups=dom_exclude, mode='default', fams=FAM_ALL)
@@ -405,13 +261,11 @@ def main():
         tsu_df = per_protein('tsuboyama_capped_test', ks, a.tau, a.B, mode=mode, exclude_cys=True, fams=FAM)
         D = pd.concat([tsu_df, dom_df], ignore_index=True)
         D.to_csv(OUT / f'{stem}.csv', index=False, float_format='%.4f')
-        fig_per_protein(D, a.tau, stem=stem, mode=mode, fams=FAM, markers=True)
 
         tsu_df_all = per_protein('tsuboyama_capped_test', ks, a.tau, a.B, mode=mode, exclude_cys=True, fams=FAM_ALL)
         D_all = pd.concat([tsu_df_all, dom_df_all], ignore_index=True)
         stem_all = f'{stem}_all_models'
         D_all.to_csv(OUT / f'{stem_all}.csv', index=False, float_format='%.4f')
-        fig_per_protein(D_all, a.tau, stem=stem_all, mode=mode, fams=FAM_ALL, markers=False)
         print(f'=== {stem_all} (K=10) ===')
         print(D_all[(D_all.metric.isin(['hit_rate', 'p_recover'])) & (D_all.K == 10)].pivot_table(index=['dataset', 'metric'], columns='family', values='value').round(3))
     print(P[P.metric == 'hit_rate'].pivot_table(index='family', columns='dataset', values='value')[POOLED_SETS].round(3).to_string())
