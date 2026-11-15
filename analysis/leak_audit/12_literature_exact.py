@@ -292,7 +292,7 @@ EXT_MULTI_CSVS = {
 ALL_DS = [
     's571', 's783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369',
     'ptmul', 'ptmuld', 'tsu_capped_val', 'tsu_capped_test',
-    'DLG4 abund.', 'DLG4 bind.', 'GRB2 abund.', 'GRB2 bind.', 'MYO', 'ESTA', 'GB1',
+    'DLG4 bind.', 'GRB2 bind.', 'MYO',
     'domainome', 'domainome_low_id',
 ]
 

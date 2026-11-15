@@ -1,51 +1,11 @@
 {
  "_detail": {
   "esm_msr": {
-   "DLG4_HUMAN_Faure_2021_abundance_domain": [
-    {
-     "batch": 280,
-     "code": "DLG4_HUMAN",
-     "length": 84,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 4096
-    }
-   ],
    "DLG4_HUMAN_Faure_2021_binding_domain": [
     {
      "batch": 280,
      "code": "DLG4_HUMAN",
      "length": 84,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 4096
-    }
-   ],
-   "ESTA_BACSU_Nutschel_2020_dTm": [
-    {
-     "batch": 69,
-     "code": "ESTA_BACSU",
-     "length": 181,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 4096
-    }
-   ],
-   "GB1_Wu_2016_binding_domain": [
-    {
-     "batch": 587,
-     "code": "GB1",
-     "length": 56,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 4096
-    }
-   ],
-   "GRB2_HUMAN_Faure_2021_abundance_domain": [
-    {
-     "batch": 587,
-     "code": "GRB2_HUMAN",
-     "length": 56,
      "list_bounded": false,
      "ooms": 0,
      "variants": 4096
@@ -343,51 +303,11 @@
    ]
   },
   "proteinmpnn": {
-   "DLG4_HUMAN_Faure_2021_abundance_domain": [
-    {
-     "batch": 534,
-     "code": "DLG4_HUMAN",
-     "length": 84,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 4096
-    }
-   ],
    "DLG4_HUMAN_Faure_2021_binding_domain": [
     {
      "batch": 534,
      "code": "DLG4_HUMAN",
      "length": 84,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 4096
-    }
-   ],
-   "ESTA_BACSU_Nutschel_2020_dTm": [
-    {
-     "batch": 256,
-     "code": "ESTA_BACSU",
-     "length": 181,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 4096
-    }
-   ],
-   "GB1_Wu_2016_binding_domain": [
-    {
-     "batch": 802,
-     "code": "GB1",
-     "length": 56,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 4096
-    }
-   ],
-   "GRB2_HUMAN_Faure_2021_abundance_domain": [
-    {
-     "batch": 802,
-     "code": "GRB2_HUMAN",
-     "length": 56,
      "list_bounded": false,
      "ooms": 0,
      "variants": 4096
@@ -685,51 +605,11 @@
    ]
   },
   "spurs": {
-   "DLG4_HUMAN_Faure_2021_abundance_domain": [
-    {
-     "batch": 16384,
-     "code": "DLG4_HUMAN",
-     "length": 84,
-     "list_bounded": true,
-     "ooms": 0,
-     "variants": 65536
-    }
-   ],
    "DLG4_HUMAN_Faure_2021_binding_domain": [
     {
      "batch": 16384,
      "code": "DLG4_HUMAN",
      "length": 84,
-     "list_bounded": true,
-     "ooms": 0,
-     "variants": 65536
-    }
-   ],
-   "ESTA_BACSU_Nutschel_2020_dTm": [
-    {
-     "batch": 16384,
-     "code": "ESTA_BACSU",
-     "length": 181,
-     "list_bounded": true,
-     "ooms": 0,
-     "variants": 65536
-    }
-   ],
-   "GB1_Wu_2016_binding_domain": [
-    {
-     "batch": 16384,
-     "code": "GB1",
-     "length": 56,
-     "list_bounded": true,
-     "ooms": 0,
-     "variants": 65536
-    }
-   ],
-   "GRB2_HUMAN_Faure_2021_abundance_domain": [
-    {
-     "batch": 16384,
-     "code": "GRB2_HUMAN",
-     "length": 56,
      "list_bounded": true,
      "ooms": 0,
      "variants": 65536
@@ -1027,16 +907,6 @@
    ]
   },
   "thermompnn_epistatic": {
-   "DLG4_HUMAN_Faure_2021_abundance_domain": [
-    {
-     "batch": 327,
-     "code": "DLG4_HUMAN",
-     "length": 84,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 4096
-    }
-   ],
    "DLG4_HUMAN_Faure_2021_binding_domain": [
     {
      "batch": 327,
@@ -1045,26 +915,6 @@
      "list_bounded": false,
      "ooms": 0,
      "variants": 4096
-    }
-   ],
-   "GB1_Wu_2016_binding_domain": [
-    {
-     "batch": 513,
-     "code": "GB1",
-     "length": 56,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 16384
-    }
-   ],
-   "GRB2_HUMAN_Faure_2021_abundance_domain": [
-    {
-     "batch": 513,
-     "code": "GRB2_HUMAN",
-     "length": 56,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 16384
     }
    ],
    "GRB2_HUMAN_Faure_2021_binding_domain": [
@@ -1161,16 +1011,6 @@
    ]
   },
   "thermompnn_single": {
-   "DLG4_HUMAN_Faure_2021_abundance_domain": [
-    {
-     "batch": 327,
-     "code": "DLG4_HUMAN",
-     "length": 84,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 4096
-    }
-   ],
    "DLG4_HUMAN_Faure_2021_binding_domain": [
     {
      "batch": 327,
@@ -1179,36 +1019,6 @@
      "list_bounded": false,
      "ooms": 0,
      "variants": 4096
-    }
-   ],
-   "ESTA_BACSU_Nutschel_2020_dTm": [
-    {
-     "batch": 164,
-     "code": "ESTA_BACSU",
-     "length": 181,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 4096
-    }
-   ],
-   "GB1_Wu_2016_binding_domain": [
-    {
-     "batch": 513,
-     "code": "GB1",
-     "length": 56,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 16384
-    }
-   ],
-   "GRB2_HUMAN_Faure_2021_abundance_domain": [
-    {
-     "batch": 513,
-     "code": "GRB2_HUMAN",
-     "length": 56,
-     "list_bounded": false,
-     "ooms": 0,
-     "variants": 16384
     }
    ],
    "GRB2_HUMAN_Faure_2021_binding_domain": [
@@ -1560,11 +1370,7 @@
   }
  },
  "esm_msr": {
-  "DLG4_HUMAN_Faure_2021_abundance_domain": 280,
   "DLG4_HUMAN_Faure_2021_binding_domain": 280,
-  "ESTA_BACSU_Nutschel_2020_dTm": 69,
-  "GB1_Wu_2016_binding_domain": 587,
-  "GRB2_HUMAN_Faure_2021_abundance_domain": 587,
   "GRB2_HUMAN_Faure_2021_binding_domain": 587,
   "MYO_HUMAN_Kung_2025_display": 89,
   "domainome": 214,
@@ -1585,11 +1391,7 @@
   "tsuboyama_val": 382
  },
  "proteinmpnn": {
-  "DLG4_HUMAN_Faure_2021_abundance_domain": 534,
   "DLG4_HUMAN_Faure_2021_binding_domain": 534,
-  "ESTA_BACSU_Nutschel_2020_dTm": 256,
-  "GB1_Wu_2016_binding_domain": 802,
-  "GRB2_HUMAN_Faure_2021_abundance_domain": 802,
   "GRB2_HUMAN_Faure_2021_binding_domain": 802,
   "MYO_HUMAN_Kung_2025_display": 291,
   "domainome": 463,
@@ -1610,11 +1412,7 @@
   "tsuboyama_val": 632
  },
  "spurs": {
-  "DLG4_HUMAN_Faure_2021_abundance_domain": 16384,
   "DLG4_HUMAN_Faure_2021_binding_domain": 16384,
-  "ESTA_BACSU_Nutschel_2020_dTm": 16384,
-  "GB1_Wu_2016_binding_domain": 16384,
-  "GRB2_HUMAN_Faure_2021_abundance_domain": 16384,
   "GRB2_HUMAN_Faure_2021_binding_domain": 16384,
   "MYO_HUMAN_Kung_2025_display": 16384,
   "domainome": 16384,
@@ -1635,10 +1433,7 @@
   "tsuboyama_val": 16384
  },
  "thermompnn_epistatic": {
-  "DLG4_HUMAN_Faure_2021_abundance_domain": 327,
   "DLG4_HUMAN_Faure_2021_binding_domain": 327,
-  "GB1_Wu_2016_binding_domain": 513,
-  "GRB2_HUMAN_Faure_2021_abundance_domain": 513,
   "GRB2_HUMAN_Faure_2021_binding_domain": 513,
   "MYO_HUMAN_Kung_2025_display": 192,
   "proteingym": "auto",
@@ -1648,11 +1443,7 @@
   "tsuboyama_val": 387
  },
  "thermompnn_single": {
-  "DLG4_HUMAN_Faure_2021_abundance_domain": 327,
   "DLG4_HUMAN_Faure_2021_binding_domain": 327,
-  "ESTA_BACSU_Nutschel_2020_dTm": 164,
-  "GB1_Wu_2016_binding_domain": 513,
-  "GRB2_HUMAN_Faure_2021_abundance_domain": 513,
   "GRB2_HUMAN_Faure_2021_binding_domain": 513,
   "MYO_HUMAN_Kung_2025_display": 192,
   "domainome": 309,

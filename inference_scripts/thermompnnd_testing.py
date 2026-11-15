@@ -926,15 +926,11 @@ def main(args):
             single_eval_dfs[f'{split_name}-{scaffold}'.lower()] = results_megascale_combined
 
     ############## REPEAT WITH Fitness ################
-    for batch_size, prot in zip([16,16,16,16,4,512,4], ['DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display', 'GB1_Wu_2016_binding_domain']):
+    for batch_size, prot in zip([16,16,4], ['DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display']):
         short_name = prot.split('_')[0] + '_' + prot.split('_')[2]
         short_name = short_name.lower()
-        if short_name == 'gb1_2016':
-            short_name = 'gb1_wu'
 
         wt_name = prot.split('_')[0] + '_' + prot.split('_')[1] + '.pdb'
-        if short_name == 'gb1_wu':
-            wt_name = 'GB1.pdb'
         print(short_name)
         print(wt_name)
 
@@ -996,34 +992,6 @@ def main(args):
         preds_mut1['ddG_pred'] = preds_mut1['ddG_pred_additive']
         results_cur_combined = pd.concat([df_preds_cur, preds_mut1], axis=0)
         single_eval_dfs[prot] = results_cur_combined
-
-    ############## REPEAT WITH ESTA_BACSU ################
-    cfg_nutschel = deepcopy(cfg)
-    cfg_nutschel.data_loc.megascale_csv = '/home/sareeves/software/esm-msr/data/preprocessed/ESTA_BACSU_Nutschel_2020_dTm.csv'
-    cfg_nutschel.data_loc.megascale_splits = '/home/sareeves/software/esm-msr/data/preprocessed/esta_nutschel_splits.pkl'
-    cfg_nutschel.data_loc.megascale_pdbs = '/home/sareeves/software/esm-msr/data/structures/'  
-
-    nutschel_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/ESTA_BACSU_Nutschel_2020_dTm/thermompnnd/{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
-    if not os.path.exists(nutschel_path) or args.regenerate_results:
-        os.makedirs(os.path.dirname(nutschel_path), exist_ok=True)
-        cfg_nutschel.training.batch_size = 24
-        cfg_nutschel.data.dataset = 'megascale'
-        cfg_nutschel.data.splits = ['test']
-        cfg_nutschel.data.mut_types = ['single']
-        dataset = FunctionalDataset(cfg_nutschel, wt_name='ESTA_BACSU.pdb')
-        
-        df_preds_nutschel = run_prediction_batched(name='ThermoMPNN_single', model=model, dataset_name=f'megascale-S-ESTA_BACSU_Nutschel_2020_dTm', results=[], dataset=dataset, keep=True, zero_shot=False, cfg=cfg_nutschel)
-        df_preds_nutschel['WT_name'] = df_preds_nutschel['WT_name'].apply(lambda x: x.split('.')[0])
-        df_preds_nutschel['code'] = df_preds_nutschel['WT_name']
-        df_preds_nutschel = df_preds_nutschel.set_index('uid').sort_index()
-        df_preds_nutschel['ddG_pred'] *= -1
-        df_preds_nutschel['ddG_true'] *= -1  
-        df_preds_nutschel.to_csv(nutschel_path)
-        del dataset
-    else:
-        df_preds_nutschel = pd.read_csv(nutschel_path, index_col=0) 
-        
-    single_eval_dfs['ESTA_BACSU_Nutschel_2020_dTm'] = df_preds_nutschel
 
     # --- PTMULD Additive ---
     ptmuld_add_path = REPO_ROOT / 'analysis' / 'notebooks' / f'predictions/ptmuld/thermompnnd/additive_{checkpoint_name+("_excl_destab" if args.excl_destab else "")}.csv'
@@ -1119,15 +1087,11 @@ def main(args):
                 epi_eval_dfs[f'{split_name}-{scaffold}'.lower()] = results_megascale_epistatic
 
         ############## REPEAT WITH EXTERNAL ################
-        for batch_size, prot in zip([16,16,16,16,4,512], ['DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display', 'GB1_Wu_2016_binding_domain']):
+        for batch_size, prot in zip([16,16,4], ['DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display']):
             short_name = prot.split('_')[0] + '_' + prot.split('_')[2]
             short_name = short_name.lower()
-            if short_name == 'gb1_2016':
-                short_name = 'gb1_wu'
 
             wt_name = prot.split('_')[0] + '_' + prot.split('_')[1] + '.pdb'
-            if short_name == 'gb1_wu':
-                wt_name = 'GB1.pdb'
             print(short_name)
             print(wt_name)
 

@@ -38,9 +38,7 @@ def external_rows(name):
     return df[['id', 'code', 'chain', 'pdb_file', 'mut_type', 'ddG']]
 
 
-DMS = ['DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain',
-       'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain',
-       'MYO_HUMAN_Kung_2025_display', 'ESTA_BACSU_Nutschel_2020_dTm', 'GB1_Wu_2016_binding_domain']
+DMS = ['DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display']
 
 
 def dms_rows(prot):
@@ -48,8 +46,7 @@ def dms_rows(prot):
     deduplicated, target ddG_ML). Audited: for all seven assays every mutation's position and wild-type residue match
     the parsed chain exactly, and the chain sequence equals wt_seq wherever the table carries one, so the positions are
     already in structure numbering and need no renumbering."""
-    # dms_source.load: the complete tables, with the completeness guard (the old software/esm-msr copy of GB1 was
-    # missing V39A/V39C/V39D, which silently cost 152 of its 2,091 scorable doubles).
+    # dms_source.load: the complete tables, with the completeness guard.
     df = dms_source.load(prot)
     df['mut_type'] = df['mut_info'].map(lambda s: ':'.join(sorted(str(s).split(':'), key=lambda m: int(m[1:-1]))))
     df['id'] = df['code'] + '_' + df['mut_info']

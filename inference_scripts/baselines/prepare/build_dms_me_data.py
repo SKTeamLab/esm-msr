@@ -30,14 +30,10 @@ AA3 = {'ALA': 'A', 'ARG': 'R', 'ASN': 'N', 'ASP': 'D', 'CYS': 'C', 'GLN': 'Q', '
 # precomputed MSAs of the DMS query sequences (ColabFold; a data input, not in the repo), reused after an exact sequence match
 FORK = os.environ.get('MSR_ME_DMS_MSAS', str(paths.THIRD_PARTY_DIR / 'MutateEverything' / 'data' / 'dms'))
 OUT = str(paths.MUTATE_EVERYTHING_DIR / 'data' / 'dms_oct06')
-# assay -> (pdb_id used for the fasta/msa dirs). DLG4 and GRB2 each have two assays on one sequence.
-ASSAYS = {'DLG4_HUMAN_Faure_2021_abundance_domain': 'DLG4_HUMAN',
-          'DLG4_HUMAN_Faure_2021_binding_domain': 'DLG4_HUMAN',
-          'GRB2_HUMAN_Faure_2021_abundance_domain': 'GRB2_HUMAN',
+# assay -> (pdb_id used for the fasta/msa dirs).
+ASSAYS = {'DLG4_HUMAN_Faure_2021_binding_domain': 'DLG4_HUMAN',
           'GRB2_HUMAN_Faure_2021_binding_domain': 'GRB2_HUMAN',
-          'MYO_HUMAN_Kung_2025_display': 'MYO_HUMAN',
-          'ESTA_BACSU_Nutschel_2020_dTm': 'ESTA_BACSU',
-          'GB1_Wu_2016_binding_domain': 'GB1A'}
+          'MYO_HUMAN_Kung_2025_display': 'MYO_HUMAN'}
 
 
 def chain_seq(path, chain):

@@ -69,13 +69,9 @@ UNVERIFIED_M = {'ifum'}
 DS = {
     **{k: k for k in ('s571', 's783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul',
                       'ptmuld', 'tsu_capped_val', 'tsu_capped_test', 'domainome', 'domainome_low_id')},
-    'DLG4_HUMAN_Faure_2021_abundance_domain': 'DLG4 abund.',
     'DLG4_HUMAN_Faure_2021_binding_domain': 'DLG4 bind.',
-    'GRB2_HUMAN_Faure_2021_abundance_domain': 'GRB2 abund.',
     'GRB2_HUMAN_Faure_2021_binding_domain': 'GRB2 bind.',
     'MYO_HUMAN_Kung_2025_display': 'MYO',
-    'ESTA_BACSU_Nutschel_2020_dTm': 'ESTA',
-    'GB1_Wu_2016_binding_domain': 'GB1',
     'PG avg': 'proteingym',
     'PG Stability': 'proteingym',
     'PG DMS mean': 'proteingym',

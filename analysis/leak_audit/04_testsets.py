@@ -133,17 +133,12 @@ for name, (f, kw) in ext.items():
 
 # ---------------------------------------------------------------- DMS assays
 dms = {
-    'DLG4 abund.': ('DLG4_HUMAN_Faure_2021_abundance_domain.csv', 'ddG_ML'),
     'DLG4 bind.': ('DLG4_HUMAN_Faure_2021_binding_domain.csv', 'ddG_ML'),
-    'GRB2 abund.': ('GRB2_HUMAN_Faure_2021_abundance_domain.csv', 'ddG_ML'),
     'GRB2 bind.': ('GRB2_HUMAN_Faure_2021_binding_domain.csv', 'ddG_ML'),
     'MYO': ('MYO_HUMAN_Kung_2025_display.csv', 'ddG_ML'),
-    'ESTA': ('ESTA_BACSU_Nutschel_2020_dTm.csv', 'ddG_ML'),
-    'GB1': ('GB1_Wu_2016_binding_domain.csv', 'ddG_ML'),
 }
-GB1_SEQ = 'MTYKLILNGKTLKGETTTEAVDAATAEKVFKQYANDNGVDGEWTYDDATKTFTVTE'
 for name, (f, lab) in dms.items():
-    ext_adapter(name, f, mutcol='mut_type', labelcol=lab, fixed_seq=GB1_SEQ if name == 'GB1' else None)
+    ext_adapter(name, f, mutcol='mut_type', labelcol=lab)
 
 # ---------------------------------------------------------------- Domainome
 # Beltran et al. (2025) Supplementary Table 5 (Domainome 1.0 variant table). Looked up in $LEAK_DATA_DIR/raw first; the

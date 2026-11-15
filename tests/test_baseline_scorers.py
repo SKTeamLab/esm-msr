@@ -296,7 +296,7 @@ def _load_me_module(monkeypatch, tmp_path):
 def test_me_set_resolution_and_mutant_filter(monkeypatch, tmp_path):
     mod = _load_me_module(monkeypatch, tmp_path)
     allsets = mod.resolve_sets('all', 'oct06_capped_allbl')
-    assert len(allsets) == 3 + 10 + 7 + 1 + 2                       # tsuboyama, external (incl. s461), DMS, domainome, 2 ProteinGym
+    assert len(allsets) == 3 + 10 + 3 + 1 + 2                       # tsuboyama, external (incl. s461), DMS, domainome, 2 ProteinGym
     assert [p.stem for p in mod.resolve_sets('tsuboyama', 'oct06_capped_allbl')] == ['oct06_capped_allbl_val', 'oct06_capped_allbl_test', 'oct06_capped_allbl_testcomp']
     assert [p.stem for p in mod.resolve_sets('s669,val', 'oct06_capped_allbl')] == ['s669', 'oct06_capped_allbl_val']
     assert [p.stem for p in mod.resolve_sets('PG_B', 'oct06_capped_allbl')] == ['PG_B']              # one ProteinGym DMS by id

@@ -42,9 +42,7 @@ DEV = os.environ.get('MSR_DEV_ROOT', os.path.expanduser('~/esm-msr-devel'))
 NB_OUT = os.environ.get('MSR_NOTEBOOK_OUT_DIR', f'{DEV}/analysis/notebooks')
 SB = os.environ.get('MSR_BASELINES_ROOT', os.path.expanduser('~/stability-baselines'))
 EXT = ['s571', 's783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld']
-DMS = ['DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain',
-       'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain',
-       'MYO_HUMAN_Kung_2025_display', 'ESTA_BACSU_Nutschel_2020_dTm', 'GB1_Wu_2016_binding_domain']
+DMS = ['DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display']
 # >1,800 residues: out of memory for at least one model, so left out of every ProteinGym comparison
 PG_DROP = {'BRCA1_HUMAN_Findlay_2018', 'SCN5A_HUMAN_Glazer_2019', 'POLG_CXB3N_Mattenberger_2021',
            'BRCA2_HUMAN_Erwood_2022_HEK293T'}
@@ -503,7 +501,7 @@ def cmd_tables(a):
             out.append(f'| {lab} | ' + ' | '.join(cs) + (f' | {tail}' if tail is not None else '') + ' |')
         return '\n'.join(out)
 
-    short = ['DLG4 abund.', 'DLG4 bind.', 'GRB2 abund.', 'GRB2 bind.', 'MYO', 'ESTA dTm', 'GB1']
+    short = ['DLG4 bind.', 'GRB2 bind.', 'MYO']
     # the σ sweep: combined head, σ = 1 (the main tables), the three sweep points, and the σ = 0 control
     sigma_rows = []
     for name in (REL, DEVEL):

@@ -41,27 +41,15 @@ ddgemb_s2450,tsu_capped_val,35473,0,0,0.0,verified via S2450.tsv + S2450.fasta a
 ddmut,tsu_capped_test,52071,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,tsu_capped_test,52071,0,0,0.0,
 ddgemb_s2450,tsu_capped_test,52071,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut,DLG4 abund.,6976,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
-geoddg_s8754,DLG4 abund.,6976,0,0,0.0,
-ddgemb_s2450,DLG4 abund.,6976,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
 ddmut,DLG4 bind.,8251,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,DLG4 bind.,8251,0,0,0.0,
 ddgemb_s2450,DLG4 bind.,8251,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut,GRB2 abund.,63366,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
-geoddg_s8754,GRB2 abund.,63366,0,0,0.0,
-ddgemb_s2450,GRB2 abund.,63366,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
 ddmut,GRB2 bind.,33441,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,GRB2 bind.,33441,0,0,0.0,
 ddgemb_s2450,GRB2 bind.,33441,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
 ddmut,MYO,5905,0,0,0.0,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,MYO,5905,3,0,0.0005080440304826,
 ddgemb_s2450,MYO,5905,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut,ESTA,2172,4,0,0.001841620626151,S9028 + SM1662 (SM1218 + SM444)
-geoddg_s8754,ESTA,2172,0,0,0.0,
-ddgemb_s2450,ESTA,2172,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
-ddmut,GB1,149360,69,103334,0.0004619710765934,S9028 + SM1662 (SM1218 + SM444)
-geoddg_s8754,GB1,149360,61,61880,0.0004084092126405,
-ddgemb_s2450,GB1,149360,0,0,0.0,verified via S2450.tsv + S2450.fasta alignment
 ddmut,domainome,534385,371,0,0.0006942560139225,S9028 + SM1662 (SM1218 + SM444)
 geoddg_s8754,domainome,534385,604,0,0.001130271246386,
 ddgemb_s2450,domainome,534385,189,0,0.0003536775919982,verified via S2450.tsv + S2450.fasta alignment

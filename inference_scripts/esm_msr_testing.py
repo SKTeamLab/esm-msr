@@ -595,8 +595,8 @@ def main_(args):
     # DMS DATASETS
     # =========================================================================
     if not args.skip_dms:
-        prots = ['DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display', 'ESTA_BACSU_Nutschel_2020_dTm', 'GB1_Wu_2016_binding_domain']
-        mem_sizes = [4, 4, 8, 8, 1, 1, 8]
+        prots = ['DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display']
+        mem_sizes = [4, 8, 1]
         
         assert len(prots) == len(mem_sizes), f"Length mismatch: {len(prots)} proteins vs {len(mem_sizes)} memory sizes."
 

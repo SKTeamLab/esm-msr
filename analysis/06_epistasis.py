@@ -55,8 +55,7 @@ def add_linked(fr):
     fr.preds['msrdev:comb_obs'] = np.stack([link.observed(comb[i], dg, i + 1) for i in range(3)])
     fr.preds['msrdev:wt_obs'] = np.stack([link.observed(wt[i], dg, i + 1) for i in range(3)])
     return fr
-DMS_D = ['GB1_Wu_2016_binding_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain',
-         'DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain']
+DMS_D = ['GRB2_HUMAN_Faure_2021_binding_domain', 'DLG4_HUMAN_Faure_2021_binding_domain']
 
 
 # --------------------------------------------------------------------------------------------------
@@ -172,7 +171,7 @@ def naive_recomputed():
     # figure
     fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.6), gridspec_kw=dict(width_ratios=[1.5, 1]))
     groups = TSU + DMS_D
-    glabels = ['Tsuboyama val', 'Tsuboyama test', 'GB1', 'GRB2 abund.', 'GRB2 bind.', 'DLG4 abund.', 'DLG4 bind.']
+    glabels = ['Tsuboyama val', 'Tsuboyama test', 'GRB2 bind.', 'DLG4 bind.']
     keys = EPI_PLOT
     table = {(r.dataset, r.key): r.naive_rho for r in R.itertuples()}
     cis = {(r.dataset, r.key): (r.lo, r.hi) for r in R.itertuples()}
@@ -197,7 +196,7 @@ def naive_recomputed():
 # 3. raw scatter
 # --------------------------------------------------------------------------------------------------
 def scatter_figures():
-    sets = [('tsuboyama_capped_test', 'Tsuboyama test'), ('GB1_Wu_2016_binding_domain', 'GB1'), ('GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2 abund.')]
+    sets = [('tsuboyama_capped_test', 'Tsuboyama test'), ('GRB2_HUMAN_Faure_2021_binding_domain', 'GRB2 bind.')]
     keys = ['msr:epi', 'msrdev:epi', 'msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
     fig, axes = plt.subplots(len(sets), len(keys), figsize=(3.0 * len(keys), 3.0 * len(sets)))
     for r, (ds, lab) in enumerate(sets):
@@ -310,8 +309,8 @@ def ddg_ranking():
 # 5. table 2.6: how much predicted epistasis to keep
 # --------------------------------------------------------------------------------------------------
 LAMBDAS = np.round(np.arange(0, 1.0001, 0.05), 2)
-SCAN_SETS = [('tsuboyama_capped_test', 'Tsuboyama test'), ('ptmul', 'PTMUL'), ('ptmuld', 'PTMUL-D'), ('GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2 abund.'),
-             ('DLG4_HUMAN_Faure_2021_binding_domain', 'DLG4 bind.'), ('GB1_Wu_2016_binding_domain', 'GB1')]
+SCAN_SETS = [('tsuboyama_capped_test', 'Tsuboyama test'), ('ptmul', 'PTMUL'), ('ptmuld', 'PTMUL-D'), ('GRB2_HUMAN_Faure_2021_binding_domain', 'GRB2 bind.'),
+             ('DLG4_HUMAN_Faure_2021_binding_domain', 'DLG4 bind.')]
 
 
 def lambda_scan():

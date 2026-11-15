@@ -59,8 +59,8 @@ def summary():
 def fig_distribution(d, per_prot):
     order = EXT12 + ['domainome', TSU[1]]           # the single-protein DMS are one length each: in the text, not the figure
     names = LABEL
-    dms = ', '.join(f'{n} {int(per_prot[d].iloc[0])}' for n, d in (('DLG4', 'DLG4_HUMAN_Faure_2021_abundance_domain'), ('GRB2', 'GRB2_HUMAN_Faure_2021_abundance_domain'),
-                                                                 ('MYO', 'MYO_HUMAN_Kung_2025_display'), ('ESTA', 'ESTA_BACSU_Nutschel_2020_dTm'), ('GB1', 'GB1_Wu_2016_binding_domain')))
+    dms = ', '.join(f'{n} {int(per_prot[d].iloc[0])}' for n, d in (('DLG4', 'DLG4_HUMAN_Faure_2021_binding_domain'), ('GRB2', 'GRB2_HUMAN_Faure_2021_binding_domain'),
+                                                                 ('MYO', 'MYO_HUMAN_Kung_2025_display')))
     fig, ax = plt.subplots(figsize=(10, 4.1))
     style.band_axis(ax, len(order))
     rng = np.random.default_rng(0)

@@ -202,12 +202,9 @@ ME_TRACKED_SETS = {'oct06_capped_allbl_val': 'tsuboyama_capped_val', 'oct06_capp
                    'oct06_capped_allbl_testcomp': 'tsuboyama_capped_testcomp',
                    's571': 's571', 's783': 's783', 's2648': 's2648', 's8754': 's8754', 's669': 's669', 's461': 's461', 'ssym': 'ssym',
                    'q3421': 'q3421', 'k3822': 'k3822', 'k2369': 'k2369', 'ptmul': 'ptmul', 'ptmuld': 'ptmuld', 'domainome': 'domainome',
-                   'DLG4_HUMAN_Faure_2021_abundance_domain': 'DLG4_HUMAN_Faure_2021_abundance_domain',
                    'DLG4_HUMAN_Faure_2021_binding_domain': 'DLG4_HUMAN_Faure_2021_binding_domain',
-                   'GRB2_HUMAN_Faure_2021_abundance_domain': 'GRB2_HUMAN_Faure_2021_abundance_domain',
                    'GRB2_HUMAN_Faure_2021_binding_domain': 'GRB2_HUMAN_Faure_2021_binding_domain',
-                   'MYO_HUMAN_Kung_2025_display': 'MYO_HUMAN_Kung_2025_display', 'ESTA_BACSU_Nutschel_2020_dTm': 'ESTA_BACSU_Nutschel_2020_dTm',
-                   'GB1_Wu_2016_binding_domain': 'GB1_Wu_2016_binding_domain'}
+                   'MYO_HUMAN_Kung_2025_display': 'MYO_HUMAN_Kung_2025_display'}
 
 
 def tracked_me_dst(stage, k, rel):

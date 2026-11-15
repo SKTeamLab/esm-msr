@@ -4,10 +4,10 @@
 Evaluates the unified model roster across the 7 external DMS datasets, their mean, and Domainome
 using seed 1 only and 95% mutation-level bootstrap intervals (within-domain mutation resampling
 for Domainome):
-- Singles-only assays (ESTA dTm, Domainome): singles models (ESM-MSR p0 WT head, MutateEverything st1,
+- Singles-only assays (Domainome): singles models (ESM-MSR p0 WT head, MutateEverything st1,
   ThermoMPNN, SPURS, ESM3-small-open WT head) plus ProteinMPNN, ProSST, GeoDDG-3D.
-- Multi-mutant assays (DLG4 x2, GRB2 x2, MYO, GB1): multi models (ESM-MSR p0 combined,
-  MutateEverything st2, ThermoMPNN-D on 2-mutant sets / additive ThermoMPNN on GB1 with 3-4-mutants,
+- Multi-mutant assays (DLG4 binding, GRB2 binding, MYO): multi models (ESM-MSR p0 combined,
+  MutateEverything st2, ThermoMPNN-D on the 2-mutant sets,
   SPURS multi, ESM3-small-open combined) plus ProteinMPNN, ProSST, GeoDDG-3D.
 - Excludes sigma in {0.75, 0.5, 0.25} sweep points (not computed for p0).
 """
@@ -26,15 +26,15 @@ from msr_analysis import style  # noqa: E402
 from msr_analysis.boot import ci  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
 from msr_analysis.external_s1 import EXT_ORDER, load_s1_mutation_boot, register_ext_styles  # noqa: E402
-from msr_analysis.registry import DMS7, LABEL, MODELS  # noqa: E402
+from msr_analysis.registry import DMS3, LABEL, MODELS  # noqa: E402
 
 OUT = out_dir('04_dms_domainome')
-DS = DMS7 + ['domainome']
-COLS = DMS7 + ['mean of 7 DMS', 'domainome']
+DS = DMS3 + ['domainome']
+COLS = DMS3 + ['mean of 3 DMS', 'domainome']
 NOTE = (
     'Seed 1 only; 95% mutation-level bootstrap (within-domain mutations for Domainome). '
-    'Singles models on ESTA dTm and Domainome; multi models on DLG4/GRB2/MYO/GB1 '
-    '(ThermoMPNN-D on 2-mutant sets, additive ThermoMPNN on GB1).'
+    'Singles models on Domainome; multi models on DLG4 binding / GRB2 binding / MYO '
+    '(ThermoMPNN-D on the 2-mutant sets).'
 )
 
 
@@ -49,14 +49,14 @@ def build_table(models, P, reps, keys_used):
             t[(d, m)] = v[0]
             c[(d, m)] = (v[1], v[2])
             rows.append(dict(column=d, model=m, key=keys_used.get((d, m), ''), rho=v[0], lo=v[1], hi=v[2]))
-        if all((d, m) in P for d in DMS7):
-            pt = float(np.mean([P[(d, m)][0] for d in DMS7]))
-            b_min = min(len(reps[d][m]) for d in DMS7)
-            r = np.mean([reps[d][m][:b_min] for d in DMS7], axis=0)
+        if all((d, m) in P for d in DMS3):
+            pt = float(np.mean([P[(d, m)][0] for d in DMS3]))
+            b_min = min(len(reps[d][m]) for d in DMS3)
+            r = np.mean([reps[d][m][:b_min] for d in DMS3], axis=0)
             lo, hi = ci(r)
-            t[('mean of 7 DMS', m)] = pt
-            c[('mean of 7 DMS', m)] = (lo, hi)
-            rows.append(dict(column='mean of 7 DMS', model=m, key='wt|comb', rho=pt, lo=lo, hi=hi))
+            t[('mean of 3 DMS', m)] = pt
+            c[('mean of 3 DMS', m)] = (lo, hi)
+            rows.append(dict(column='mean of 3 DMS', model=m, key='wt|comb', rho=pt, lo=lo, hi=hi))
     return t, c, pd.DataFrame(rows)
 
 
@@ -75,7 +75,7 @@ def main(refresh=False):
 
     active_models = [m for m in EXT_ORDER if all((d, m) in P for d in DS)]
 
-    # ---- figure 1: unified all-model comparison across DMS7 + mean + Domainome -------------------------
+    # ---- figure 1: unified all-model comparison across DMS3 + mean + Domainome -------------------------
     t_all, c_all, df_all = build_table(active_models, P, reps, keys_used)
     df_all.to_csv(OUT / 'dms_vs_retrains.csv', index=False, float_format='%.4f')
     df_all.to_csv(OUT / 'dms_external_rho.csv', index=False, float_format='%.4f')

@@ -21,7 +21,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from msr_analysis.boot import bootstrap_rho, ci  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
-from msr_analysis.registry import (ALL_DATASETS, CACHE, DMS7, EXT12, MODELS, RESULTS, TSU)  # noqa: E402
+from msr_analysis.registry import (ALL_DATASETS, CACHE, DMS3, EXT12, MODELS, RESULTS, TSU)  # noqa: E402
 
 OUT = RESULTS / '00_core'
 OUT.mkdir(parents=True, exist_ok=True)
@@ -62,9 +62,9 @@ def main():
     # protein level: the external sets resample the union of their proteins; each other set on its own
     rows += run('protein', {'external': EXT12, 'tsu_val': [TSU[0]], 'tsu_test': [TSU[1]], 'domainome': ['domainome']}, 'protein')
     # site level for the single-protein DMS (proteins cannot be resampled there)
-    rows += run('site', {d: [d] for d in DMS7}, 'site')
+    rows += run('site', {d: [d] for d in DMS3}, 'site')
     # mutation level everywhere (Domainome / GB1 with few replicates)
-    rows += run('mutation', {**{'external': EXT12}, **{d: [d] for d in DMS7 + TSU + ['domainome']}}, 'mutation')
+    rows += run('mutation', {**{'external': EXT12}, **{d: [d] for d in DMS3 + TSU + ['domainome']}}, 'mutation')
     d = pd.DataFrame(rows)
     d.to_csv(OUT / 'rho_bootstrap.csv', index=False, float_format='%.5f')
     print(d.groupby('kind').size())

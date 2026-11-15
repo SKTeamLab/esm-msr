@@ -877,7 +877,7 @@ def main_(args):
 
     # ================= DMS PROCESSING =================
     if not args.skip_dms:
-        prots = ['GB1_Wu_2016_binding_domain'] #'DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display', 'ESTA_BACSU_Nutschel_2020_dTm', 
+        prots = ['DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display']
         dms_dfs = {}
     
         for prot in prots:

@@ -74,7 +74,7 @@ Scaffolds sharing remote 30–40% sequence similarity without triggering the $E 
 To evaluate training–test overlap uniformly across both in-house/retrained models and external predictors trained on literature or metagenomic datasets, the benchmark leakage audit applies a four-step classification protocol (full results and model inventories in [`LEAKAGE_AUDIT_OCT2026.md`](LEAKAGE_AUDIT_OCT2026.md)):
 
 1. **Variant & Mutant-Background Normalization**:
-   - Every benchmark variant across the 12 external $\Delta\Delta G$ datasets (25,632 rows), Tsuboyama capped validation and test sets (87,544 rows), 7 functional DMS assays (269,471 rows, including 149,360 GB1 rows), Domainome (534,385 rows across 522 domains), and ProteinGym (2,465,767 rows across 217 DMS assays) is normalized to `(protein_id, wild-type sequence, 1-based substitution set)` and verified against its wild-type sequence.
+   - Every benchmark variant across the 12 external $\Delta\Delta G$ datasets (25,632 rows), Tsuboyama capped validation and test sets (87,544 rows), 3 functional DMS assays (47,597 rows), Domainome (534,385 rows across 522 domains), and ProteinGym (2,465,767 rows across 217 DMS assays) is normalized to `(protein_id, wild-type sequence, 1-based substitution set)` and verified against its wild-type sequence.
    - Stabilizing mutant-background MegaScale libraries (`<PDB>.pdb_<mut>`) preserve their background-substituted reference sequence under library code `<PDB>_<mut>` while mapping to their parent wild-type scaffold `<PDB>` (`code_wt`) for protein-level and domain-level overlap checks.
 
 2. **Same-Protein Family Clustering & Construct Alignment**:

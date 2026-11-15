@@ -31,19 +31,15 @@ RESULTS = HERE / 'results'
 # datasets
 # ----------------------------------------------------------------------------------------------
 EXT12 = ['s571', 's783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld']
-DMS7 = ['DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain',
-        'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain',
-        'MYO_HUMAN_Kung_2025_display', 'ESTA_BACSU_Nutschel_2020_dTm', 'GB1_Wu_2016_binding_domain']
+DMS3 = ['DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display']
 TSU = ['tsuboyama_capped_val', 'tsuboyama_capped_test']
-ALL_DATASETS = EXT12 + DMS7 + ['domainome'] + TSU
+ALL_DATASETS = EXT12 + DMS3 + ['domainome'] + TSU
 
 LABEL = {
     's571': 'S571', 's783': 'S783', 's2648': 'S2648', 's8754': 'S8754', 's669': 'S669', 's461': 'S461',
     'ssym': 'Ssym', 'q3421': 'Q3421', 'k3822': 'K3822', 'k2369': 'K2369', 'ptmul': 'PTMUL', 'ptmuld': 'PTMUL-D',
-    'DLG4_HUMAN_Faure_2021_abundance_domain': 'DLG4 abund.', 'DLG4_HUMAN_Faure_2021_binding_domain': 'DLG4 bind.',
-    'GRB2_HUMAN_Faure_2021_abundance_domain': 'GRB2 abund.', 'GRB2_HUMAN_Faure_2021_binding_domain': 'GRB2 bind.',
-    'MYO_HUMAN_Kung_2025_display': 'MYO', 'ESTA_BACSU_Nutschel_2020_dTm': 'ESTA dTm',
-    'GB1_Wu_2016_binding_domain': 'GB1', 'domainome': 'Domainome',
+    'DLG4_HUMAN_Faure_2021_binding_domain': 'DLG4 bind.', 'GRB2_HUMAN_Faure_2021_binding_domain': 'GRB2 bind.',
+    'MYO_HUMAN_Kung_2025_display': 'MYO', 'domainome': 'Domainome',
     'tsuboyama_capped_val': 'Tsuboyama val', 'tsuboyama_capped_test': 'Tsuboyama test',
 }
 # per-protein-mean datasets (the metric is the mean over proteins of a per-protein statistic)

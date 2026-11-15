@@ -14,7 +14,7 @@ import pickle
 
 from .boot import bootstrap_rho, ci
 from .data import Frame, load_frame
-from .registry import CACHE, DMS7, EXT12, MODELS
+from .registry import CACHE, DMS3, EXT12, MODELS
 
 EXT_ORDER = [
     'ESM-MSR',
@@ -82,7 +82,7 @@ def _seed1_frame(ds, fr):
 
 
 def load_s1_mutation_boot(refresh=False):
-    """Compute (or load cached) seed-1 mutation-level bootstrap intervals across EXT12, DMS7, and Domainome.
+    """Compute (or load cached) seed-1 mutation-level bootstrap intervals across EXT12, DMS3, and Domainome.
 
     Returns dict with:
       - ``point``: ``{(dataset, model_name): (rho, lo, hi)}``
@@ -118,7 +118,7 @@ def load_s1_mutation_boot(refresh=False):
     ext_keys = sorted({m for fr in ext_frames.values() for m in fr.preds})
     _run_group(ext_frames, ext_keys, kind='mutation', B=1000, seed=11, per_protein=False)
 
-    for i, ds in enumerate(DMS7):
+    for i, ds in enumerate(DMS3):
         fr, used = _seed1_frame(ds, load_frame(ds))
         for m, rk in used.items():
             keys_out[(ds, m)] = rk

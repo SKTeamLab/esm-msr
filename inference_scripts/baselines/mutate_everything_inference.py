@@ -13,8 +13,8 @@ requested. `single` requests no doubles, so the pair head is skipped (upstream's
 way to benchmark a singles model; `multi` requests only rows with two or more mutations; `both` is everything.
 
   everything: python mutate_everything_inference.py --resume CKPT --output_dir OUT --sets all
-              (Tsuboyama val/test/testcomp, the 12 external sets, the 7 DMS, Domainome, ProteinGym)
-  some:       --sets tsuboyama | external | dms | domainome | pgym | s669,ssym,val,test,DLG4_HUMAN_Faure_2021_abundance_domain,...
+              (Tsuboyama val/test/testcomp, the 12 external sets, the 3 DMS, Domainome, ProteinGym)
+  some:       --sets tsuboyama | external | dms | domainome | pgym | s669,ssym,val,test,DLG4_HUMAN_Faure_2021_binding_domain,...
 
 The prepared inputs live under $MUTATE_EVERYTHING_DIR/data/ (prepare/build_*_me_data.py write them; the MSAs are data).
 Per-protein wall time, CPU, RAM, VRAM and I/O of the forward pass (and, separately, of the batch featurization, which
@@ -49,9 +49,7 @@ from modeling.mutate_everything import MutateEverything  # noqa: E402
 
 EXTERNAL_E = ['s669', 'ssym', 'q3421', 'k3822', 'ptmul']           # data/external_test_feb
 EXTERNAL_A = ['s571', 's783', 's2648', 's8754']                    # data/additional_test_march
-DMS = ['DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain',
-       'GRB2_HUMAN_Faure_2021_abundance_domain', 'GRB2_HUMAN_Faure_2021_binding_domain',
-       'MYO_HUMAN_Kung_2025_display', 'ESTA_BACSU_Nutschel_2020_dTm', 'GB1_Wu_2016_binding_domain']
+DMS = ['DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display']
 
 
 def resolve_sets(sets, split_name):

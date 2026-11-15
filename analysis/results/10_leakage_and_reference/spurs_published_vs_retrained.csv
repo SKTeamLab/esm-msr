@@ -13,11 +13,7 @@ ptmul,0.4269,0.3994,-0.0275
 ptmuld,0.5369,0.4949,-0.0419
 tsuboyama_capped_val,0.8028,0.8408,0.0380
 tsuboyama_capped_test,0.8014,0.8645,0.0631
-DLG4_HUMAN_Faure_2021_abundance_domain,0.7155,0.6887,-0.0268
 DLG4_HUMAN_Faure_2021_binding_domain,0.7289,0.7107,-0.0182
-GRB2_HUMAN_Faure_2021_abundance_domain,0.6739,0.7359,0.0620
 GRB2_HUMAN_Faure_2021_binding_domain,0.5891,0.6351,0.0460
 MYO_HUMAN_Kung_2025_display,0.5828,0.6024,0.0196
-ESTA_BACSU_Nutschel_2020_dTm,0.4486,0.5345,0.0859
-GB1_Wu_2016_binding_domain,0.3077,0.3298,0.0222
 domainome,0.4888,0.5133,0.0245

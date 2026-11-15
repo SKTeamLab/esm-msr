@@ -59,37 +59,21 @@ table,row,column,mean,sd_n_minus_1,n_seeds
 1.2 Tsuboyama,"SPURS (retrained, 3 seeds)",capped test,0.801,0.004,3
 1.2 Tsuboyama,"SPURS multi (retrained, 3 seeds)",capped val,0.763,0.005,3
 1.2 Tsuboyama,"SPURS multi (retrained, 3 seeds)",capped test,0.772,0.002,3
-1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",DLG4 abund.,0.737,0.004,3
 1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",DLG4 bind.,0.737,0.003,3
-1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",GRB2 abund.,0.675,0.019,3
 1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",GRB2 bind.,0.627,0.011,3
 1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",MYO,0.638,0.003,3
-1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",ESTA dTm,0.480,0.007,3
-1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",GB1,0.318,0.012,3
 1.3 DMS and Domainome,"ESM-MSR (baseline), combined (3 seeds)",Domainome,0.543,0.001,3
-1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",DLG4 abund.,0.733,0.001,3
 1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",DLG4 bind.,0.736,0.003,3
-1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",GRB2 abund.,0.670,0.015,3
 1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",GRB2 bind.,0.636,0.005,3
 1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",MYO,0.637,0.001,3
-1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",ESTA dTm,0.462,0.010,3
-1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",GB1,0.341,0.013,3
 1.3 DMS and Domainome,"ESM-MSR (baseline), WT head (3 seeds)",Domainome,0.541,0.004,3
-1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",DLG4 abund.,0.715,0.009,3
 1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",DLG4 bind.,0.729,0.006,3
-1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",GRB2 abund.,0.674,0.013,3
 1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",GRB2 bind.,0.589,0.007,3
 1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",MYO,0.583,0.007,3
-1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",ESTA dTm,0.449,0.012,3
-1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",GB1,0.308,0.004,3
 1.3 DMS and Domainome,"SPURS (retrained, 3 seeds)",Domainome,0.489,0.009,3
-1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",DLG4 abund.,0.658,0.023,3
 1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",DLG4 bind.,0.673,0.020,3
-1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",GRB2 abund.,0.576,0.003,3
 1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",GRB2 bind.,0.545,0.036,3
 1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",MYO,0.539,0.019,3
-1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",ESTA dTm,0.335,0.021,3
-1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",GB1,0.333,0.002,3
 1.3 DMS and Domainome,"SPURS multi (retrained, 3 seeds)",Domainome,0.393,0.008,3
 1.4 ProteinGym (213 DMS),"SPURS (retrained, 3 seeds)",PG avg,0.462,0.004,3
 1.4 ProteinGym (213 DMS),"SPURS (retrained, 3 seeds)",Stability,0.805,0.005,3

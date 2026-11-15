@@ -142,8 +142,8 @@ def spurs_pub_vs_retrained():
     pub = ref[ref.model == 'SPURS (public checkpoint)'].set_index('dataset').rho
     df = load_rho_df()
     P = primary_ci(df)
-    ds = EXT12 + ['tsuboyama_capped_val', 'tsuboyama_capped_test', 'DLG4_HUMAN_Faure_2021_abundance_domain', 'DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_abundance_domain',
-                  'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display', 'ESTA_BACSU_Nutschel_2020_dTm', 'GB1_Wu_2016_binding_domain', 'domainome']
+    ds = EXT12 + ['tsuboyama_capped_val', 'tsuboyama_capped_test', 'DLG4_HUMAN_Faure_2021_binding_domain',
+                  'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display', 'domainome']
     ren = {'tsuboyama_capped_val': 'tsu_capped_val', 'tsuboyama_capped_test': 'tsu_capped_test'}
     from msr_analysis.registry import LABEL
     fig, ax = plt.subplots(figsize=(12, 3.6))

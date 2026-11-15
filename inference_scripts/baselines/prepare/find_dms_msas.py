@@ -7,9 +7,8 @@ import dms_source  # noqa: E402
 AA3 = {'ALA':'A','ARG':'R','ASN':'N','ASP':'D','CYS':'C','GLN':'Q','GLU':'E','GLY':'G','HIS':'H','ILE':'I',
        'LEU':'L','LYS':'K','MET':'M','PHE':'F','PRO':'P','SER':'S','THR':'T','TRP':'W','TYR':'Y','VAL':'V'}
 P = dms_source.PRE
-PROTS = {'DLG4': 'DLG4_HUMAN_Faure_2021_abundance_domain', 'GRB2': 'GRB2_HUMAN_Faure_2021_abundance_domain',
-         'MYO': 'MYO_HUMAN_Kung_2025_display', 'ESTA': 'ESTA_BACSU_Nutschel_2020_dTm',
-         'GB1': 'GB1_Wu_2016_binding_domain'}
+PROTS = {'DLG4': 'DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2': 'GRB2_HUMAN_Faure_2021_binding_domain',
+         'MYO': 'MYO_HUMAN_Kung_2025_display'}
 
 def chain_seq(path, chain):
     seq, seen = [], set()

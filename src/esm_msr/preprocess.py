@@ -1291,23 +1291,13 @@ def main(args):
         db['mutation'] = db['mut_info'].str[-1]
         print(db.head())
         dataset_outname = 's8754'
-    elif 'grb2_abundance' == dataset:
-        db['code'] = '2VWF'
-        db['chain'] = 'A'
     elif 'grb2_binding' == dataset:
         db['code'] = '2VWF'
-        db['chain'] = 'A'
-    elif 'dlg4_abundance' == dataset:
-        db['code'] = '1BE9'
         db['chain'] = 'A'
     elif 'dlg4_binding' == dataset:
         db['code'] = '1BE9'
         db['chain'] = 'A'
     elif 'myo_kung' == dataset:
-        raise NotImplementedError
-    elif 'esta_nutschel' == dataset:
-        raise NotImplementedError
-    elif 'gb1_wu' == dataset:
         raise NotImplementedError
     else:
         raise NotImplementedError      
@@ -1315,7 +1305,7 @@ def main(args):
     if sym:
         db['uid'] = db['structure'] + db['chain'] + '_' + db['wild_type'] + db['position'].astype(str) + db['mutation']
         grouper = ['code', 'structure', 'chain']
-    elif dataset in ['ptmul_filtered', 'ptmul_orig', 'grb2_abundance', 'grb2_binding', 'dlg4_abundance', 'dlg4_binding']:
+    elif dataset in ['ptmul_filtered', 'ptmul_orig', 'grb2_binding', 'dlg4_binding']:
         db['uid'] = db['code'] + db['chain'] + '_' + db['mut_info']
         grouper = ['code', 'code', 'chain']
     else:
@@ -1560,24 +1550,12 @@ if __name__ == "__main__":
     elif 'grb2_binding' in args.dataset.lower():
         args.dataset = 'grb2_binding'
         args.db_loc = os.path.join(REPO_ROOT, 'data/external_datasets/GRB2_HUMAN_Faure_2021_binding_domain.csv')
-    elif 'grb2_abundance' in args.dataset.lower():
-        args.dataset = 'grb2_abundance'
-        args.db_loc = os.path.join(REPO_ROOT, 'data/external_datasets/GRB2_HUMAN_Faure_2021_abundance_domain.csv')
     elif 'dlg4_binding' in args.dataset.lower():
         args.dataset = 'dlg4_binding'
         args.db_loc = os.path.join(REPO_ROOT, 'data/external_datasets/DLG4_HUMAN_Faure_2021_binding_domain.csv')
-    elif 'dlg4_abundance' in args.dataset.lower():
-        args.dataset = 'dlg4_abundance'
-        args.db_loc = os.path.join(REPO_ROOT, 'data/external_datasets/DLG4_HUMAN_Faure_2021_abundance_domain.csv')
     elif 'myo' in args.dataset.lower():
         args.dataset = 'myo_kung'
         args.db_loc = os.path.join(REPO_ROOT, 'data/external_datasets/MYO_HUMAN_Kung_2025_display.csv')
-    elif 'gb1' in args.dataset.lower():
-        args.dataset = 'gb1_wu'
-        args.db_loc = os.path.join(REPO_ROOT, 'data/external_datasets/GB1_Wu_2016_binding_domain.csv')
-    elif 'esta' in args.dataset.lower():
-        args.dataset = 'esta_nutschel'
-        args.db_loc = os.path.join(REPO_ROOT, 'data/external_datasets/ESTA_BACSU_Nutschel_2020.csv')
 
     else:
         print('Inferred use of user-created database. Note: this must '

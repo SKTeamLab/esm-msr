@@ -60,16 +60,15 @@ order; the number is the dependency order (§10).
      1-based sequence coordinates:
      - 0 mismatches on Tsuboyama val/test and ProteinGym;
      - 1,779 Domainome construct/numbering edge-case rows (0.33 %) dropped and recorded.
-   - Rows audited: 3,382,799 in total.
+   - Rows audited: 3,160,925 in total.
 
      | dataset | rows |
      |---|---|
      | ProteinGym, all 217 DMS (including the 4 >1,800-residue proteins outside the 213-assay common subset) | 2,465,767 |
      | Domainome (522 domains) | 534,385 |
-     | GB1 | 149,360 |
      | Tsuboyama capped val + test, keyed by exact library code (including `.pdb_<mut>` mutant-background libraries) | 87,544 |
      | 12 external sets | 25,632 |
-     | the other 6 DMS assays | 120,111 |
+     | the 3 DMS assays | 47,597 |
 
 2. **Build same-protein families and 2D/3D homology maps (`05`–`08`).**
    - **MMseqs2:** all test proteins and all inventory proteins are searched all-vs-all (`easy-search -s 7.5 -e 10
@@ -172,8 +171,7 @@ by sequence. Codes without `?`:
   - capped test: `M.51` (26,789 rows);
   - capped val: `M.44`;
   - ProteinGym: `M.02`;
-  - Domainome: `M.001`;
-  - GB1: 42 rows.
+  - Domainome: `M.001`.
 - **DDGemb, DDMut, GeoDDG-3D (S8754):** every `M` / `m`, construct-aligned (forward and reverse).
 - **ESM3ΔG:** 0 identical sequences.
 - **All third-party `P`, `H`, `h` classes:** sequence (and, on Domainome / ProteinGym, structure) homology against
@@ -184,7 +182,7 @@ by sequence. Codes without `?`:
   - Its domain-level split means every Dataset2 row of a train domain is in the training pool, so on Tsuboyama this
     is exact by construction: capped test `M?.46` (24,200 rows).
   - What is unverified is the row filters and whether the released checkpoint used this split.
-  - The previous rule `M? = P` overstated GB1 (`M?1` → `M?<.001`) and Domainome (`M?.05` → `M?.004`).
+  - The previous rule `M? = P` overstated Domainome (`M?.05` → `M?.004`).
 - **IFUM `V?`:** rows of its 86-domain merged validation/test block, about half of which was used for model
   selection: capped test `V?.47`.
 
@@ -375,7 +373,6 @@ their parent scaffolds brings in the `2MKX` test rows and `6NS8` validation rows
 |---|---|---|
 | ProteinGym | `M.02 P.02` | not run |
 | Domainome | `M.001 P.05 H.37` | `M?.004 P.04 H.36` |
-| GB1 | `M<.001 P1` | `M?<.001 P1` |
 | K2369 | `M.03 P.36` | `M?.21 P.17` |
 
 The external sets are mostly `P`, plus the `M`/`M?` rows that Megascale also measured.
@@ -389,22 +386,18 @@ The external sets are mostly `P`, plus the `M`/`M?` rows that Megascale also mea
 | GeoDDG-3D | `S8754` (+ GeoFitness proteins) | `S8754` `M1 #`; `S2648` `M1`; `Q3421` `M.98`; `K2369` `M.91`; `K3822` `M.89`; `S783` `M.88`; `Ssym` `M.50` (all forward halves); `S571` `M.41`; `PTMUL` `m.73`; `PTMUL-D` `m.78`; `S669` `M.01 P.07`; **`S461` `P.11`** (GeoFitness pretraining protein) | no external set is clean for GeoDDG-3D |
 
 **DMS assays:**
-- **GB1 (`1PGA`):**
-  - EsmTherm `M<.001 P1` and IFUM `M?<.001 P1`, from the Megascale `1PGA` library;
-  - GeoDDG-3D `M<.001 m.41 P.59`: 1,538 `1PGA` singles in S8754.
 - **MYO (human myoglobin):**
   - GeoDDG-3D `M<.001 P1` (`3RGK` in S8754);
   - DDGemb `H1` (sperm-whale myoglobin);
   - ESM3ΔG `h1`.
-- **DLG4 abundance / binding:** GeoDDG-3D `P1`: the PSD95 domain's sequence matches a GeoFitness pretraining wild
+- **DLG4 binding:** GeoDDG-3D `P1`: the PSD95 domain's sequence matches a GeoFitness pretraining wild
   type.
-- **ESTA:** ESM3ΔG `h1`.
 - **Everything else** is `–` for every model.
 
 ### 7.5 ESM3ΔG, verified
 
 1. **Exact (`15_esm3dg_exact.py`).** A SHA-1 join of every benchmark row's wild-type *and* mutant sequence against
-   all 960,216 training sequences returns **0 matches** in all 3,382,799 rows.
+   all 960,216 training sequences returns **0 matches** in all 3,160,925 rows.
 2. **Homology (`14_esm3dg_homology.py`).** High-sensitivity MMseqs2 (`s = 7.5, e = 10, max-seqs 500`) is scored with
    the shared rule.
    - **Capped test** (`leak_audit_esm3dg_libraries.csv`):
@@ -600,7 +593,7 @@ error if any Domainome or ProteinGym structure is missing.
 **Inventories corrected:**
 - **EsmTherm:** `M?` (estimated as 0.8 × `P`) is replaced by a verified exact-sequence join against its published
   S2 Spreadsheet. Its validation-only rows are `V`.
-- **IFUM:** `M?` is now the exact-sequence ceiling from its domain split; it was `M? = P`, which overstated GB1 and
+- **IFUM:** `M?` is now the exact-sequence ceiling from its domain split; it was `M? = P`, which overstated
   Domainome. `V?` is added for its val/test block.
 - **DDGemb:** reverse variants added; Ssym `M.30` → `M.60`. The S2648 count is the verified 2,429; it had been
   overwritten with the paper's 2,450.
@@ -629,4 +622,4 @@ error if any Domainome or ProteinGym structure is missing.
   hard-codes rho values.
 - **Fixed:** step 07 crashed on `REPO_ROOT` and silently ran without Domainome structures inside a worktree.
 - **Checked:** the mutation-mapping ±3-residue fallback was removed; no ESM-MSR count changed.
-- **Corrected numbers:** 370 (not 412) libraries in the split audit; 3,382,799 (not 3.53 M) audited rows.
+- **Corrected numbers:** 370 (not 412) libraries in the split audit; 3,160,925 (not 3.53 M) audited rows.

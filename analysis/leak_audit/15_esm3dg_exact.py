@@ -79,7 +79,7 @@ res.append(dict(dataset='proteingym_tsuboyama', n=int(pg[pg['tsuboyama']]['n'].s
 
 for ds in [
     's571', 's783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld',
-    'DLG4 abund.', 'DLG4 bind.', 'GRB2 abund.', 'GRB2 bind.', 'MYO', 'ESTA', 'GB1', 'domainome',
+    'DLG4 bind.', 'GRB2 bind.', 'MYO', 'domainome',
 ]:
     d = pd.read_pickle(os.path.join(WORK_DATA_DIR, 'testsets', f'{ds}.pkl'))
     res.append(check(d, ds))

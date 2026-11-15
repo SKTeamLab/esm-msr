@@ -11,7 +11,7 @@ import collect_predictions as C
 
 @pytest.mark.parametrize('raw,want', [('PTMUL', 'ptmul'), ('s571', 's571'), ('splits_oct06_capped-val', 'tsuboyama_capped_val'),
                                       ('splits_oct06_capped-test', 'tsuboyama_capped_test'), ('hyperopt_splits-val', 'tsuboyama_hyperopt_val'),
-                                      ('GB1_Wu_2016_binding_domain', 'GB1_Wu_2016_binding_domain')])
+                                      ('GRB2_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_binding_domain')])
 def test_dataset_names_are_the_ones_benchmark_matrix_uses(raw, want):
     assert C.ds_name(raw) == want
 
@@ -114,7 +114,7 @@ def test_tracked_me_gamut_reruns_sit_apart_and_s461_stays_out_of_the_tables():
     RT = 'baselines/retrained/mutate_everything'
     assert C.tracked_me_dst('stage2', 1, 's669'.join(['results_', '.csv'])) == f'{RT}/tracked/stage2/seed1/s669.csv'
     assert C.tracked_me_dst('stage2', 1, 'results_oct06_capped_allbl_test.csv') == f'{RT}/tracked/stage2/seed1/tsuboyama_capped_test.csv'
-    assert C.tracked_me_dst('stage2', 3, 'results_GB1_Wu_2016_binding_domain.csv') == f'{RT}/tracked/stage2/seed3/GB1_Wu_2016_binding_domain.csv'
+    assert C.tracked_me_dst('stage2', 3, 'results_GRB2_HUMAN_Faure_2021_binding_domain.csv') == f'{RT}/tracked/stage2/seed3/GRB2_HUMAN_Faure_2021_binding_domain.csv'
     assert C.tracked_me_dst('stage2', 1, 'results_s461.csv') == 'msr_predictions/_not_in_benchmarks/me_upstream_s461/predictions_tracked/stage2/seed1.csv'
 
 

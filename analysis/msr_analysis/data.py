@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .registry import (BASE, CACHE, MSR, P0, PUBLIC, RETRAINED, TASKS, PER_PROTEIN, DMS7, EXT12, TSU)
+from .registry import (BASE, CACHE, MSR, P0, PUBLIC, RETRAINED, TASKS, PER_PROTEIN, DMS3, EXT12, TSU)
 
 TSU_SETS = set(TSU)
 
@@ -242,10 +242,10 @@ def _load_me(frame, ds, out):
         # S461, K2369 and PTMUL-D are scored from their parent set's predictions, matched on (PDB entry + mutation), against the subset's own labels (BENCHMARKS
         # sections 1.1 and 5.7).  ME's own S461 file is a different input (other constructs and MSAs) and must not be used; K2369 and PTMUL-D have no ME file.
         psp = build_spine_ids(PARENT[ds])
-        par = _me_stage_arrays(PARENT[ds], psp, additive=ds in DMS7)
+        par = _me_stage_arrays(PARENT[ds], psp, additive=ds in DMS3)
         res = {st: np.vstack([_align_id(ids, psp['id'].to_numpy(dtype=object), r) for r in v]) for st, v in par.items()}
     else:
-        res = _me_stage_arrays(ds, sp, additive=ds in DMS7)
+        res = _me_stage_arrays(ds, sp, additive=ds in DMS3)
     for stage, key in (('stage1', 'me1'), ('stage2', 'me2')):
         if stage in res:
             out[f'{key}:'] = res[stage]
