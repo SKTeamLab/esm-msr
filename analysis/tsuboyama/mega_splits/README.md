@@ -174,6 +174,19 @@ seed. The released SPURS multi reaches validation 0.749 (116 steps per epoch for
 **Queued 2026-11-16** (gpu4, three paired seeds, same recipe as `leg_*` with `model.legacy_esm_forward=false`): trained-adapter single `spurs_ta_s{1,2,3}` (jobs 389770, 389773, 389776), multi `spurs_tam_s*`
 (389771, 389774, 389777) and the full tracked test `spurs_mega_ta_s*` (389772, 389775, 389778; outputs `outputs/tracked/spurs_mega_ta_s{1,2,3}`).
 
+**Which SPURS to present (manuscript).** The released weights were trained by code that no longer exists in the public repository, so the public repository's current forward (trained adapter) and the
+released checkpoint are different models. Our frozen-adapter retrain already matches the released validation score (0.804 / 0.813 / 0.811 against 0.809), which points to the frozen recipe as the faithful one;
+whether it also reproduces the published *test* result (median per-protein Spearman 0.83 against our 0.817) is exactly what the trained-adapter runs and the public-checkpoint run are for. Do not choose a version
+before they land. Decision rule once they do: present the recipe whose single- and multi-mutant predictions are closest to the public checkpoint's on the mega_splits test set (per-library ρ, and the correlation of
+the predictions variant by variant), and state the adapter setting in the methods.
+
+**Standing rule: the public SPURS checkpoint is always included in mega_splits analyses.** It appears to have been trained on exactly this split (the released run is 212 steps per epoch for 25 epochs, which is the
+mega_splits training set of 239 libraries minus 27 without a wild-type row, selected on the split's validation set; the checkpoint reproduces its stored validation score of 0.8088 exactly, with pooled train / val / test
+Spearman 0.908 / 0.809 / 0.741 and per-protein means 0.898 / 0.827 / 0.797). Its test libraries are therefore held out by the split, though not homology-clean (see above), and its training set is the 64-library-filtered
+one. **Queued 2026-11-16:** `spurs_mega_public` (job 389779, `outputs/tracked/spurs_mega_public`; single and multi, tracked slot, same harness as `spurs_mega_s*`). Still to do when it lands: collect it into
+`baselines/retrained/mega_splits/tracked/`, give it keys in `msr_analysis.data._load_mega` (one checkpoint, so one seed) and the registry, add it to `01_rho_overview.py` and to the epistasis, screening and gain-fit
+panels, and add the per-variant agreement of the public checkpoint with each retrain (frozen, trained adapter) to this README.
+
 ### What I could not verify
 
 * The ThermoMPNN paper's own text (PNAS 2024 / bioRxiv) was not retrievable here (403); ThermoMPNN's split procedure rests on its repository, on its loader and on the SPURS and ThermoMPNN-D papers' descriptions. The 0.77 for
