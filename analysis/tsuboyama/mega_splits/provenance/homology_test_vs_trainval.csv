@@ -1,0 +1,5 @@
+split,against,homologous_pairs,test_libraries_linked,test_libraries,seq_evalue,struct_evalue,identity_gt_0_4,tm_gt_0_7,max_identity,max_tm
+mega_splits,train,70,16,28,48,22,30,37,0.75,0.9063
+mega_splits,val,5,4,28,0,0,3,2,0.4423076923076923,0.8662
+capped,train,0,0,33,0,0,0,0,,
+capped,val,0,0,33,0,0,0,0,,

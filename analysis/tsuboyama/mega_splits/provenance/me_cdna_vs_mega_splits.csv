@@ -1,0 +1,4 @@
+me_set,rows,singles,doubles,proteins,in_mega_train,in_mega_val,in_mega_test,in_no_mega_split
+cdna_train,213798,116688,97110,116,75,14,13,14
+cdna1_test,19645,19645,0,19,19,0,0,0
+cdna2_test,22913,0,22913,18,18,0,0,0
