@@ -142,6 +142,38 @@ lost 0.013), so a smaller deviation in the SPURS retrain recipe is more likely t
 (`../../../baselines/retrained/spurs/README.md`) and uses early stopping with patience 30. The three medians use wild-type-backbone singles only; adding the 2,302 mutant-background singles
 moves them by at most 0.006 (SPURS 0.817 to 0.817, ThermoMPNN 0.773 to 0.779, ESM-MSR WT head 0.846 to 0.848), so the mutant backgrounds do not drive any comparison.
 
+### How SPURS was retrained: the adapter question (frozen random vs trained)
+
+No training code for the published SPURS is available, so the retrain follows the public repository plus two findings from the retraining work (hand-off notes in `baselines/retrained/spurs/docs/`; cluster
+workspace `~/spurs_retrain`, logs in `SPURS/logs/{oct06,mega}`):
+
+* **Pretrained ProteinMPNN initialisation.** The public code stopped loading `v_48_020.pt`; the released checkpoint's ProteinMPNN is cos 0.9996 to it. Without it a retrain peaks at validation 0.74 against the
+  released 0.809 (epoch-0 validation 0.54–0.60 against 0.76–0.77). All our retrains restore it.
+* **The structural adapter (ESM layer 30, `adapter_layer_indices: [-3]`) of the released checkpoint was never trained.** Before the August 2025 code change (`cc854c1`) the forward pass ran the plain ESM layers under
+  `no_grad`, which also cut the gradient path to an adapter placed before them: the released run's optimizer state has 126 tensors against 142 for a run of the current code, the 16 missing being the adapter, so the adapter keeps its random
+  initialisation (inference from the optimizer state; the multi checkpoint's adapter equals the single's, cos 1.0000). `model.legacy_esm_forward=true` reproduces that forward (adapter keeps its random init,
+  adapter layer in `train()` mode, other layers in `eval()` under `no_grad`); `false` is the current public forward, which trains the adapter. The released checkpoint scores the same under both forwards at inference
+  (validation differs by < 0.001).
+* **The frozen-adapter choice** (`legacy_esm_forward=true`, the `leg_*` runs) is therefore the retrain that matches how the published model was trained, and it is the recipe of every SPURS number in the BENCHMARKS
+  tables and in this folder. The trained-adapter variant was tried as a control (`pub_*` and `ta_*` runs; `ta_idx1_seed1` moves the adapter to ESM layer −1).
+
+What the two variants did where they were compared:
+
+| Split | Run | Adapter | Best validation (pooled Spearman) | Notes |
+|---|---|---|---|---|
+| capped | `leg_seed1/2/3` | frozen | 0.790 (seed 1) | the headline triplicate: Tsuboyama val 0.803 ± 0.002, test 0.801 ± 0.004 |
+| capped | `pub_seed1/2/3` | trained | 0.786 / 0.792 / 0.789 | `pub_seed2/3` were cancelled mid-training; only `pub_seed1` was scored (val 0.798, test 0.799; 12-set mean 0.586, DMS 0.583, Domainome 0.494 against 0.588, 0.578, 0.489) |
+| capped | `ta_seed2/3`, `ta_multi_seed1/2/3` | trained | 0.792 / 0.795 (single) | trained by 2026-10-29; no scores in BENCHMARKS or the hand-off (I found none), so treat as **unscored** |
+| capped | `s45_pretrained_legacy` / `_public` | frozen / trained | 0.791 / 0.790 | same seed 45, otherwise identical: no difference |
+| **mega_splits** | `leg_seed1/2/3` (our retrains) | frozen | 0.804 / 0.813 / 0.811 (multi 0.669–0.697) | every `spurs_mega_*` number in this folder |
+| **mega_splits** | `mega/r1_pretrained_public` | trained | 0.803 at epoch 15, still rising when cancelled at epoch 16 | upstream data loader on `mega_splits.pkl`, pretrained MPNN, seed 45; **never tested** |
+| mega_splits | `mega/r2_pretrained_legacy` | frozen | 0.785 after epoch 1 | cancelled after one epoch, as were `r0` and `r3` (random ProteinMPNN) |
+
+So the trained adapter has **not** been tested properly on mega_splits: no completed run, no test evaluation, no multi model. On the capped split it was indistinguishable from the frozen adapter within seed noise, one scored
+seed. The released SPURS multi reaches validation 0.749 (116 steps per epoch for 22 epochs, doubles only), against 0.669–0.697 for our frozen-adapter multi retrain, which is the largest gap to the published model.
+**Queued 2026-11-16** (gpu4, three paired seeds, same recipe as `leg_*` with `model.legacy_esm_forward=false`): trained-adapter single `spurs_ta_s{1,2,3}` (jobs 389770, 389773, 389776), multi `spurs_tam_s*`
+(389771, 389774, 389777) and the full tracked test `spurs_mega_ta_s*` (389772, 389775, 389778; outputs `outputs/tracked/spurs_mega_ta_s{1,2,3}`).
+
 ### What I could not verify
 
 * The ThermoMPNN paper's own text (PNAS 2024 / bioRxiv) was not retrievable here (403); ThermoMPNN's split procedure rests on its repository, on its loader and on the SPURS and ThermoMPNN-D papers' descriptions. The 0.77 for

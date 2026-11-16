@@ -42,3 +42,6 @@ data/domainome1/
 
 # test artifacts: tests/test_resumable_dataloading.py writes Lightning checkpoints here
 /checkpoints/
+
+# Private working notes (not published)
+/docs/OUTSTANDING_EXPERIMENTS.md
