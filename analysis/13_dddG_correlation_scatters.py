@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from msr_analysis import style  # noqa: E402
 from msr_analysis.common import epi_rows, out_dir  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
+from msr_analysis.registry import TSU, TSU_SPLIT  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 h12 = importlib.import_module('12_pair_epistasis_heatmaps')      # build(), MODELS, UNIT
 EPI_OUT = out_dir('06_epistasis')
@@ -32,6 +33,10 @@ OUT_DG_ADD.mkdir(parents=True, exist_ok=True)
 Y_LABEL = 'measured δΔΔG = dddG (kcal/mol)'
 X_DG_ADD_LABEL = 'ΔG additive = ΔG_wt + ΔΔG_A + ΔΔG_B (kcal/mol)'
 TITLE = 'Homology-Restricted MegaScale test doubles with both singles measured'
+# mega_splits (MSR_TSU_SPLIT=mega): no devel link, no Rosetta; the side-by-side panel compares ESM-MSR (FINAL_p0_mega) with the retrained baselines
+MEGA = TSU_SPLIT == 'mega'
+if MEGA:
+    TITLE = 'MegaScale mega_splits test doubles with both singles measured'
 VERSIONS = {'all_dG_additive': ('all doubles', None), 'dG_additive_positive': ('doubles with ΔG additive > 0', 0.0), 'dG_additive_gt1': ('doubles with ΔG additive > 1', 1.0)}
 LINK_MODEL = 'ESM-MSR'
 SCATTER_FONT = dict(
@@ -86,7 +91,7 @@ def diagnostics(fr, fit, model, dG_add, y):
     g = both.groupby('domain').agg(n=('bias', 'size'), dG_wt=('dG_wt', 'mean'), measured=('measured', 'mean'), latent=('latent', 'mean'), bias=('bias', 'mean')).reset_index()
     g.to_csv(OUT / 'bias_by_domain_both_gt1.csv', index=False, float_format='%.4f')
     rows = []
-    for ds, tag in (('tsuboyama_capped_test', 'test'), ('tsuboyama_capped_val', 'validation')):
+    for ds, tag in ((TSU[1], 'test'), (TSU[0], 'validation')):
         f2 = load_frame(ds)
         m2 = epi_rows(f2)
         s2, q = f2.spine, f2.preds
@@ -146,11 +151,11 @@ def draw_dG_additive_vs_pred_dddG(fit, dG_add, model):
     T_dg.to_csv(OUT_DG_ADD / 'stats.csv', index=False, float_format='%.4f')
 
     # Side-by-side 1x3 comparison for ESM-MSR (baseline), ESM-MSR, and ESM-MSR (p0)
-    for msr_tuple, suffix, formula in (
-        (('ESM-MSR (baseline)', 'ESM-MSR', 'ESM-MSR (p0)'), '', '1/2(MT_AB+WT_AB) − WT_A − WT_B'),
-    ):
+    panels = ((('ESM-MSR', 'MutateEverything st2', 'ThermoMPNN-D', 'SPURS multi'), '', 'ESM-MSR 1/2(MT_AB+WT_AB) − WT_A − WT_B; baselines: double − singles') if MEGA else
+              (('ESM-MSR (baseline)', 'ESM-MSR', 'ESM-MSR (p0)'), '', '1/2(MT_AB+WT_AB) − WT_A − WT_B'),)
+    for msr_tuple, suffix, formula in panels:
         msr_names = [m for m in msr_tuple if m in model]
-        if len(msr_names) == 3:
+        if len(msr_names) == len(msr_tuple):
             ok = fit & np.isfinite(dG_add)
             for m_name in msr_names:
                 ok &= np.isfinite(model[m_name]['raw_seeds']).all(axis=0)
@@ -164,7 +169,7 @@ def draw_dG_additive_vs_pred_dddG(fit, dG_add, model):
             pady = 0.05 * (limy[1] - limy[0])
             ylim = (limy[0] - pady, limy[1] + pady)
             cm = plt.get_cmap('plasma')
-            fig, axes = plt.subplots(1, 3, figsize=(18.0, 5.8), sharex=True, sharey=True)
+            fig, axes = plt.subplots(1, len(msr_names), figsize=(6.0 * len(msr_names), 5.8), sharex=True, sharey=True)
             for idx, (ax, m_name) in enumerate(zip(axes, msr_names)):
                 y_ok = model[m_name]['raw_seeds'][:, ok]
                 n_seeds = y_ok.shape[0]
@@ -210,7 +215,8 @@ def main():
     sp = fr.spine
     y = meas['raw']
     dG_add = sp['dG_wt'].to_numpy(float) + sp['ddG_additive_ML'].to_numpy(float)
-    rosetta_unit_check(fr, fit).to_csv(OUT / 'rosetta_unit_check.csv', index=False, float_format='%.4f')
+    if not MEGA:
+        rosetta_unit_check(fr, fit).to_csv(OUT / 'rosetta_unit_check.csv', index=False, float_format='%.4f')
     rows = []
     for label, v in model.items():
         star = '*' if label.endswith('*') else ''
@@ -232,6 +238,10 @@ def main():
                              spearman=rho_v, pearson=r_v, rmse=rmse_v))
     T = pd.DataFrame(rows)
     T.to_csv(OUT / 'stats.csv', index=False, float_format='%.4f')
+    if MEGA:
+        draw_dG_additive_vs_pred_dddG(fit, dG_add, model)
+        print(T.pivot(index='model', columns='version', values=['spearman', 'rmse']).round(3).reindex([m[0] for m in h12.MODELS if m[0] in model]).to_string())
+        return
     # ESM-MSR: observed against latent prediction, in every subset
     v = model[LINK_MODEL]
     cmp_rows = []

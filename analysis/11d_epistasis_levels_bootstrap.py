@@ -37,9 +37,13 @@ from msr_analysis.common import out_dir  # noqa: E402
 from msr_analysis.data import load_frame, sum_singles  # noqa: E402
 from msr_analysis.link import link_fn  # noqa: E402
 from msr_analysis.registry import REFERENCE  # noqa: E402
+from msr_analysis.registry import TSU, TSU_SPLIT  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 OUT = out_dir('06_epistasis')
-DS = {'test': 'tsuboyama_capped_test', 'val': 'tsuboyama_capped_val'}
+DS = {'test': TSU[1], 'val': TSU[0]}
+# mega_splits (MSR_TSU_SPLIT=mega): ESM-MSR is FINAL_p0_mega alone (key msrp0, three seeds); no baseline/devel/link/ctx tables
+MEGA = TSU_SPLIT == 'mega'
+REF = 'p0' if MEGA else 'devel'           # the table every other table must agree with on the doubles
 CKPT = {1: 'epoch=04-val_rho_combined_avg=0.840.ckpt', 2: 'epoch=07-val_rho_combined_avg=0.839.ckpt', 3: 'epoch=05-val_rho_combined_avg=0.841.ckpt'}
 METRICS = {'naive_rho': None, 'beyond_rho': None, 'pair_rho': None, 'line_rho': None, 'cell_rank': None, 'cell_mag': None}      # head list filled per table
 # model -> (frame key of the direct double, frame key of the additive reading) for the models without heads of their own
@@ -101,16 +105,20 @@ def build(split, ctx_rev):
     models = []
     c_wt = sp['dG_wt'].to_numpy(float)
     for seed in (1, 2, 3):                                  # ESM-MSR (baseline, devel, p0): 1/2(MT_AB+WT_AB) - WT_A - WT_B
+        if MEGA:
+            TABLES[('p0', seed)] = make_table(sp, p['msrp0:wt'][seed - 1], p['msrp0:comb'][seed - 1], ('epi', 'add'), link=None)
+            continue
         c = ctx_rev[(ctx_rev.split == split) & (ctx_rev.seed == seed)]
         rev = pd.DataFrame({'code': sp['code'].astype(str), 'mut_type': sp['mut']}).merge(c[['code', 'mut_type', 'wt_rev']], on=['code', 'mut_type'], how='left')['wt_rev'].to_numpy(float)
         TABLES[('baseline', seed)] = make_table(sp, p['msr:wt'][seed - 1], p['msr:comb'][seed - 1], ('epi', 'add'), link=None)
         TABLES[('devel', seed)] = make_table(sp, p['msrdev:wt'][seed - 1], p['msrdev:comb'][seed - 1], ('epi', 'ctx', 'add'), wt_rev=rev, link=None)
-        TABLES[('p0', seed)] = make_table(sp, p['msrp0:wt'][seed - 1], p['msrp0:comb'][seed - 1], ('epi', 'add'), link=None)
+        if seed <= p['msrp0:wt'].shape[0]:                 # capped split: FINAL_p0 is seed 1 only (registry.P0)
+            TABLES[('p0', seed)] = make_table(sp, p['msrp0:wt'][seed - 1], p['msrp0:comb'][seed - 1], ('epi', 'add'), link=None)
         lfn = link_fn(seed)
         wt_linked = lfn(c_wt + p['msrdev:wt'][seed - 1]) - c_wt
         comb_linked = lfn(c_wt + p['msrdev:comb'][seed - 1]) - c_wt
         TABLES[('devel_link', seed)] = make_table(sp, wt_linked, comb_linked, ('epi', 'add'), link=None)
-    models += [
+    models += [('ESM-MSR · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'p0', 'epi')] if MEGA else [
         ('ESM-MSR (baseline) · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'baseline', 'epi'),
         ('ESM-MSR · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'devel', 'epi'),
         ('ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'p0', 'epi'),
@@ -126,6 +134,9 @@ def build(split, ctx_rev):
             TABLES[(name, s + 1)] = make_table(sp, p[add][min(s, p[add].shape[0] - 1)], p[direct][s], ('epi', 'add'))
         models.append((name, name, 'epi'))
     c_exact = np.array([float(dg.get(k, np.nan)) for k in sp['code'].astype(str)])
+    if MEGA:      # mega_splits libraries missing from reference/dG_wt.json: the library constant dG_ML - ddG_ML of the spine
+        lib_c = sp.groupby(sp['code'].astype(str))['dG_wt'].median()
+        c_exact = np.where(np.isfinite(c_exact), c_exact, sp['code'].astype(str).map(lib_c).to_numpy(float))
     wt_true = np.where((sp['n_mut'] == 1).to_numpy(), sp['y'].to_numpy(float), sp['ddG_additive_ML'].to_numpy(float))
     TABLES[('neg_dg_add', 1)] = make_table(sp, wt_true, -c_exact, ('epi', 'add'), link=None)
     models.append(('−dG_add', 'neg_dg_add', 'epi'))
@@ -236,7 +247,7 @@ def resampled(t, idx, rep):
 def draw(args):
     """One bootstrap replicate: metrics of every model under the domain resample ``counts`` and seed resample ``seed_w``."""
     counts, seed_w, models = args
-    t0 = TABLES[('devel', 1)]
+    t0 = TABLES[(REF, 1)]
     libs = np.unique(t0.lib)
     by = {l: np.flatnonzero(t0.lib == l) for l in libs}
     idx_l, rep_l, k = [], [], 0
@@ -276,17 +287,17 @@ def main():
     a = ap.parse_args()
     if a.ctx:
         extract_ctx(a.ctx)
-    ctx_rev = pd.read_csv(REFERENCE / 'ctx_wt_rev_devel.csv.gz', dtype={'code': str, 'mut_type': str})
+    ctx_rev = None if MEGA else pd.read_csv(REFERENCE / 'ctx_wt_rev_devel.csv.gz', dtype={'code': str, 'mut_type': str})
     for split in ('test', 'val'):
         models = build(split, ctx_rev)
-        t0 = TABLES[('devel', 1)]
+        t0 = TABLES[(REF, 1)]
         assert all(np.array_equal(t.lib, t0.lib) for t in TABLES.values()), 'tables disagree on the doubles'
         libs = np.unique(t0.lib)
         point = []
         for name, key, head in models:
             v = np.array([metrics_of(t, head) for (k_, s), t in TABLES.items() if k_ == key], float)
             point.append(np.nanmean(v, axis=0))
-            if (split, name) in DOC:
+            if (split, name) in DOC and not MEGA:
                 print(f'  {split} {name:26s} suite {np.round(point[-1], 3)}  document {DOC[(split, name)]}')
         point = np.array(point)
         rng = np.random.default_rng(11)

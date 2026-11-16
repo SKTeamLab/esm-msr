@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 
-from .registry import LABEL, MODELS  # noqa: E402
+from .registry import LABEL, MODELS, TSU_SPLIT  # noqa: E402
 
 BAND = '#f0f0f0'
 GRID = '#e3e3e3'
@@ -26,9 +26,27 @@ def setup():
 setup()
 
 
+# MSR_TSU_SPLIT=mega: the shared scripts' figure text names the capped split and FINAL_p0 ("(p0)"); on mega_splits the split is
+# MegaScale mega_splits and the only ESM-MSR is FINAL_p0_mega, so save() rewrites those strings in every text artist
+MEGA_TEXT = (('Homology-Restricted MegaScale', 'MegaScale mega_splits'), ('ESM-MSR (p0)', 'ESM-MSR'), ('ESM-MSR\n(p0)\n', 'ESM-MSR\n'))
+
+
+def _mega_text(fig):
+    from matplotlib.text import Text
+    for t in fig.findobj(Text):
+        s = t.get_text()
+        if s:
+            for a, b in MEGA_TEXT:
+                s = s.replace(a, b)
+            if s != t.get_text():
+                t.set_text(s)
+
+
 def save(fig, path, close=True):
     """png + pdf side by side; ``path`` has no suffix."""
     path = str(path)
+    if TSU_SPLIT == 'mega':
+        _mega_text(fig)
     fig.savefig(path + '.png')
     fig.savefig(path + '.pdf')
     if close:

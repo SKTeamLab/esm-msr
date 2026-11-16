@@ -3,8 +3,8 @@ ESM-MSR (baseline),msr:wt+,additive,0.7076,0.6394,0.7616,13,13319
 ESM-MSR (baseline),msr:comb,epistatic,0.7662,0.6909,0.8289,13,13319
 ESM-MSR,msrdev:wt+,additive,0.7171,0.6332,0.7681,13,13319
 ESM-MSR,msrdev:comb,epistatic,0.7815,0.7070,0.8318,13,13319
-ESM-MSR (p0),msrp0:wt+,additive,0.7217,0.6316,0.7811,13,13319
-ESM-MSR (p0),msrp0:comb,epistatic,0.7761,0.6883,0.8296,13,13319
+ESM-MSR (p0),msrp0:wt+,additive,0.7207,0.6304,0.7778,13,13319
+ESM-MSR (p0),msrp0:comb,epistatic,0.7715,0.6851,0.8286,13,13319
 MutateEverything,me1,additive,0.6171,0.5479,0.6962,13,13319
 MutateEverything,me2,epistatic,0.6521,0.5692,0.7491,13,13319
 ThermoMPNN,tmpnn,additive,0.6726,0.6015,0.7388,13,13319

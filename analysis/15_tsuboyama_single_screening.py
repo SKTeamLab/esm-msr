@@ -54,11 +54,12 @@ from msr_analysis import style  # noqa: E402
 from msr_analysis.boot import ci  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
+from msr_analysis.registry import TSU  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 pub = importlib.import_module('11_publication_figures')
 
 OUT = out_dir('08_screening')
-DS = 'tsuboyama_capped_test'
+DS = TSU[1]
 SPLIT = pub.SPLIT
 B_DEFAULT = 200
 KS_TICKS = [1, 2, 3, 6, 12, 24, 48, 96]
@@ -94,8 +95,8 @@ def single_columns(fr, best):
              label='ProteinMPNN', key='pmpnn', draw=True),
         dict(name='ProSST', cat='zeroshot', color='#8e44ad', ls='-',
              label='ProSST', key='prosst', draw=True),
-        dict(name=pub.BEST_LABEL[best], cat='supervised', color=pub.BEST_COLOR[best], ls='-',
-             label=pub.BEST_LABEL[best], key=best, draw=True),
+        *([dict(name=pub.BEST_LABEL[best], cat='supervised', color=pub.BEST_COLOR[best], ls='-',
+                label=pub.BEST_LABEL[best], key=best, draw=True)] if best else []),
         dict(name='Rosetta', cat='supervised', color='#1abc9c', ls='-',
              label='Rosetta', key='rosetta', draw=True),
     ]

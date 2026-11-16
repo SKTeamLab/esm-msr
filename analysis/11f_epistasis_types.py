@@ -37,9 +37,10 @@ from msr_analysis import style  # noqa: E402
 from msr_analysis.common import epi_rows, out_dir  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
 from msr_analysis.link import singles_of_doubles  # noqa: E402
+from msr_analysis.registry import TSU  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 OUT = out_dir('06_epistasis')
-DS = 'tsuboyama_capped_test'
+DS = TSU[1]
 LO, TAU, EPS, CLIP = 0.0, 0.59, 0.05, -1.0       # the link (floor, tau), the clip of h^-1, the clip of the measured dG
 D, S, U = 0.5, 1.0, 2.0                          # epistasis is called beyond +-D; strong beyond +-S; implausible above U (kcal/mol)
 TYPES = ['implausible epistasis', 'compensation / positive sign', 'weak positive', 'near-neutral', 'weak negative', 'clash / negative sign']

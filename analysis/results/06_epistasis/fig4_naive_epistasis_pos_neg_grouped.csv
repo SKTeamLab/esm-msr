@@ -3,8 +3,8 @@ ESM-MSR (baseline),msr:epi,positive,0.5140,0.4214,0.6060,13,10444
 ESM-MSR (baseline),msr:epi,negative,0.0780,-0.0462,0.2011,12,2010
 ESM-MSR,msrdev:epi,positive,0.5308,0.4157,0.6273,13,10444
 ESM-MSR,msrdev:epi,negative,0.0561,-0.0755,0.1652,12,2010
-ESM-MSR (p0),msrp0:epi,positive,0.5060,0.4009,0.6002,13,10444
-ESM-MSR (p0),msrp0:epi,negative,0.1134,-0.0315,0.2300,12,2010
+ESM-MSR (p0),msrp0:epi,positive,0.4977,0.3970,0.5829,13,10444
+ESM-MSR (p0),msrp0:epi,negative,0.0908,-0.0638,0.2236,12,2010
 MutateEverything,me2:epi,positive,0.3680,0.2610,0.4685,13,10444
 MutateEverything,me2:epi,negative,-0.0677,-0.2031,0.0698,12,2010
 ThermoMPNN,tmpnnd:epi,positive,0.1765,0.0788,0.2680,13,10444
@@ -25,7 +25,7 @@ ESM3-small-open (masked marginal),esm3mm:epi,positive,0.1924,0.0832,0.3010,13,10
 ESM3-small-open (masked marginal),esm3mm:epi,negative,0.0392,-0.0670,0.1209,12,2010
 ESM-MSR (baseline),msr:epi,overall,0.5560,0.4542,0.6586,13,12455
 ESM-MSR,msrdev:epi,overall,0.5718,0.4647,0.6606,13,12455
-ESM-MSR (p0),msrp0:epi,overall,0.5547,0.4623,0.6413,13,12455
+ESM-MSR (p0),msrp0:epi,overall,0.5546,0.4750,0.6363,13,12455
 MutateEverything,me2:epi,overall,0.3479,0.2368,0.4608,13,12455
 ThermoMPNN,tmpnnd:epi,overall,0.1837,0.0547,0.2943,13,12455
 SPURS,spursm:epi,overall,0.3613,0.2325,0.4773,13,12455

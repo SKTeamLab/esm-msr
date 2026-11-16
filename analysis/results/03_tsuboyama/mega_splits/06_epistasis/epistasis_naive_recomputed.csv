@@ -1,0 +1,9 @@
+dataset,key,kind,naive_rho,lo,hi,n_doubles,n_libraries,seed_sd,global_err,global_err_lo,global_err_hi,global_bias,doc_naive_rho,doc_global_err
+tsuboyama_mega_val,msrp0:epi,protein,0.6076,0.5582,0.6839,9704,17,0.0184,0.6903,0.6056,0.7693,-0.0994,,
+tsuboyama_mega_val,me2:epi,protein,0.5597,0.4343,0.6613,9704,17,0.0274,0.7798,0.6805,0.8676,0.0578,,
+tsuboyama_mega_val,tmpnnd:epi,protein,0.2886,0.0151,0.5697,9704,17,0.0364,0.9972,0.8412,1.1286,-0.3323,,
+tsuboyama_mega_val,spursm:epi,protein,0.5577,0.3568,0.7141,9704,17,0.0088,0.7898,0.7038,0.8816,-0.1895,,
+tsuboyama_mega_test,msrp0:epi,protein,0.5071,0.3981,0.6489,16923,20,0.0137,0.8622,0.7367,0.9403,-0.2216,,
+tsuboyama_mega_test,me2:epi,protein,0.4802,0.4139,0.5706,16923,20,0.0482,0.9807,0.8755,1.0630,0.3215,,
+tsuboyama_mega_test,tmpnnd:epi,protein,0.3542,0.2173,0.5511,16923,20,0.0207,1.0061,0.8260,1.1385,-0.3675,,
+tsuboyama_mega_test,spursm:epi,protein,0.3972,0.3062,0.5135,16923,20,0.0234,0.9398,0.8403,1.0067,-0.2868,,

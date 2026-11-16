@@ -28,11 +28,16 @@ from msr_analysis import style  # noqa: E402
 from msr_analysis.common import epi_rows, out_dir  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
 from msr_analysis.link import singles_of_doubles  # noqa: E402
+from msr_analysis.registry import TSU, TSU_SPLIT  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 OUT = out_dir('06_epistasis')
-DS = 'tsuboyama_capped_test'
+DS = TSU[1]
 Y_LABEL = 'measured δΔΔG = dddG (kcal/mol)'
 TITLE = 'Homology-Restricted MegaScale test doubles with both singles measured'
+# mega_splits (MSR_TSU_SPLIT=mega): ESM-MSR = FINAL_p0_mega (msrp0); the side-by-side panel compares it with the retrained baselines
+MEGA = TSU_SPLIT == 'mega'
+if MEGA:
+    TITLE = 'MegaScale mega_splits test doubles with both singles measured'
 
 
 def main():
@@ -41,9 +46,13 @@ def main():
     m = epi_rows(fr)
     y = sp['dddG_ML'].to_numpy()
     dG_add = sp['dG_wt'].to_numpy(float) + sp['ddG_additive_ML'].to_numpy(float)          # dG_wt is the domain's wild-type stability
-    pred_base = fr.preds['msr:epi']
-    pred_dev = fr.preds['msrdev:epi']
-    pred_p0 = fr.preds['msrp0:epi']
+    if MEGA:
+        pred_dev = fr.preds['msrp0:epi']          # the fig6b / fig6c ESM-MSR panels
+        pred_base = pred_p0 = None
+    else:
+        pred_base = fr.preds['msr:epi']
+        pred_dev = fr.preds['msrdev:epi']
+        pred_p0 = fr.preds['msrp0:epi']
     rows = []
     SCATTER_FONT = dict(
         label_fontsize=13.5,
@@ -62,6 +71,8 @@ def main():
             ('fig6b_esm_msr_p0_dddG_pred_vs_true', pred_p0, 'ESM-MSR (p0) predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True)),
             ('fig6c_esm_msr_p0_dddG_pred_vs_true_dG_additive_lt0', pred_p0, 'ESM-MSR (p0) predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True, highlight=dG_add < 0, highlight_label='ΔG additive < 0'))]
     for name, x, xl, kw in jobs:
+        if x is None:
+            continue
         if x.ndim == 2:
             ok = m & np.isfinite(x).all(axis=0) & np.isfinite(y)
             xs_in = x[:, ok]
@@ -92,8 +103,13 @@ def main():
         style.save(fig, OUT / name)
         rows.append(dict(figure=name, n=int(ok.sum()), n_seeds=n_seeds, spearman=rho_v, pearson=r_v, spearman_stacked=rho_pool, pearson_stacked=r_pool,
                          share_dG_additive_lt0=float(np.mean(dG_add[ok] < 0)), rmse_to_xy=rmse_v))
-    compare_models_scatters(m, y, dG_add, [('ESM-MSR (baseline)', pred_base), ('ESM-MSR', pred_dev), ('ESM-MSR (p0)', pred_p0)], SCATTER_FONT,
-                            suffix='', formula='1/2(MT_AB+WT_AB) − WT_A − WT_B (no linking)')
+    if MEGA:
+        compare_models_scatters(m, y, dG_add, [('ESM-MSR', pred_dev), ('ME stage 2', fr.preds['me2:epi']), ('ThermoMPNN-D', fr.preds['tmpnnd:epi']),
+                                               ('SPURS multi', fr.preds['spursm:epi'])], SCATTER_FONT, suffix='',
+                                formula='ESM-MSR 1/2(MT_AB+WT_AB) − WT_A − WT_B; baselines: direct double − the same seed\'s singles')
+    else:
+        compare_models_scatters(m, y, dG_add, [('ESM-MSR (baseline)', pred_base), ('ESM-MSR', pred_dev), ('ESM-MSR (p0)', pred_p0)], SCATTER_FONT,
+                                suffix='', formula='1/2(MT_AB+WT_AB) − WT_A − WT_B (no linking)')
     T = pd.DataFrame(rows)
     T.to_csv(OUT / 'fig6_epistasis_scatters.csv', index=False, float_format='%.4f')
     print(T.to_string())
@@ -121,7 +137,7 @@ def compare_models_scatters(m, y, dG_add, model_preds, scatter_font, suffix='', 
         (f'fig6b_esm_msr_models_dddG_pred_vs_true{suffix}', False),
         (f'fig6c_esm_msr_models_dddG_pred_vs_true_dG_additive_lt0{suffix}', True),
     ):
-        fig, axes = plt.subplots(1, len(model_preds), figsize=(18.0, 5.8), sharex=True, sharey=True)
+        fig, axes = plt.subplots(1, len(model_preds), figsize=(6.0 * len(model_preds), 5.8), sharex=True, sharey=True)
         for idx, (ax, (m_label, p)) in enumerate(zip(axes, model_preds)):
             p_ok = p[:, ok]
             n_seeds = p_ok.shape[0]

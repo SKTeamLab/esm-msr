@@ -190,6 +190,8 @@ def best_other(fr):
     sp = fr.spine
     single = sp['use'].to_numpy() & (sp['n_mut'] == 1).to_numpy()
     sc = {k: _mean_val(per_library(fr, k, single, rho, MIN_N)) for k in BEST_LABEL if k in fr.preds}
+    if not sc:
+        return None, sc          # no published supervised model on this split (mega_splits)
     best = max(sc, key=sc.get)
     pd.Series(sc, name='mean per-library singles rho').rename_axis('model').to_csv(OUT / 'best_other_ddg_model.csv', float_format='%.4f')
     return best, sc

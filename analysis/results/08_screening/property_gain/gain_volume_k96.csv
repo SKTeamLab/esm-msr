@@ -5,12 +5,12 @@ gain,Total,Δ volume > 1,31.1966,23.0467,41.4399,21.6464,33
 gain,Top 96 per Domain,Δ volume ≤ −1,8.6725,6.8276,11.0714,7.4229,33
 gain,Top 96 per Domain,−1 < Δ volume ≤ 1,13.2508,10.2821,16.1301,10.6734,33
 gain,Top 96 per Domain,Δ volume > 1,22.4663,17.3031,27.5202,17.8507,33
-gain,ESM-MSR (p0) WT head,Δ volume ≤ −1,4.4493,3.4738,5.5548,3.7046,33
-gain,ESM-MSR (p0) WT head,−1 < Δ volume ≤ 1,9.0989,7.0182,10.9715,7.5864,33
-gain,ESM-MSR (p0) WT head,Δ volume > 1,14.2147,10.9790,17.6039,11.9554,33
-gain,ESM-MSR (p0) combined,Δ volume ≤ −1,5.0273,3.9512,6.4265,4.6672,33
-gain,ESM-MSR (p0) combined,−1 < Δ volume ≤ 1,9.4454,7.4986,11.2526,8.1233,33
-gain,ESM-MSR (p0) combined,Δ volume > 1,15.0680,11.5783,18.6808,11.6904,33
+gain,ESM-MSR (p0) WT head,Δ volume ≤ −1,4.3878,3.3434,5.6750,4.0082,33
+gain,ESM-MSR (p0) WT head,−1 < Δ volume ≤ 1,9.2106,7.1663,10.9925,7.8955,33
+gain,ESM-MSR (p0) WT head,Δ volume > 1,14.2690,10.9987,17.7790,11.5387,33
+gain,ESM-MSR (p0) combined,Δ volume ≤ −1,4.7861,3.6647,6.2351,4.0967,33
+gain,ESM-MSR (p0) combined,−1 < Δ volume ≤ 1,9.1992,7.2388,10.9471,8.0614,33
+gain,ESM-MSR (p0) combined,Δ volume > 1,15.5732,11.9515,19.3333,12.2626,33
 gain,MutateEverything st1,Δ volume ≤ −1,3.5121,2.6718,4.7531,2.8293,33
 gain,MutateEverything st1,−1 < Δ volume ≤ 1,6.6644,5.0516,8.3134,5.4564,33
 gain,MutateEverything st1,Δ volume > 1,10.0549,7.5009,12.6482,7.8307,33
@@ -41,12 +41,12 @@ picks,Total,Δ volume > 1,419.1818,345.6015,512.3871,327.0000,33
 picks,Top 96 per Domain,Δ volume ≤ −1,21.5758,19.0273,24.9144,20.0000,33
 picks,Top 96 per Domain,−1 < Δ volume ≤ 1,30.2424,28.3303,31.8212,31.0000,33
 picks,Top 96 per Domain,Δ volume > 1,44.1818,41.2098,47.0318,43.0000,33
-picks,ESM-MSR (p0) WT head,Δ volume ≤ −1,19.2929,17.3818,21.6298,17.6667,33
-picks,ESM-MSR (p0) WT head,−1 < Δ volume ≤ 1,33.4242,30.6043,35.7290,33.3333,33
-picks,ESM-MSR (p0) WT head,Δ volume > 1,43.2828,39.6866,47.1475,43.0000,33
-picks,ESM-MSR (p0) combined,Δ volume ≤ −1,20.0202,18.1609,22.3742,19.6667,33
-picks,ESM-MSR (p0) combined,−1 < Δ volume ≤ 1,32.3535,30.1237,34.0944,32.3333,33
-picks,ESM-MSR (p0) combined,Δ volume > 1,43.6263,40.1955,46.7078,44.0000,33
+picks,ESM-MSR (p0) WT head,Δ volume ≤ −1,18.9394,17.1485,21.0606,17.0000,33
+picks,ESM-MSR (p0) WT head,−1 < Δ volume ≤ 1,34.3333,31.5735,36.7879,32.0000,33
+picks,ESM-MSR (p0) WT head,Δ volume > 1,42.7273,39.3606,46.6970,41.0000,33
+picks,ESM-MSR (p0) combined,Δ volume ≤ −1,18.3333,16.5750,20.4879,18.0000,33
+picks,ESM-MSR (p0) combined,−1 < Δ volume ≤ 1,31.9394,29.5447,33.7636,32.0000,33
+picks,ESM-MSR (p0) combined,Δ volume > 1,45.7273,42.3606,48.8803,46.0000,33
 picks,MutateEverything st1,Δ volume ≤ −1,19.9293,17.9371,21.9343,19.0000,33
 picks,MutateEverything st1,−1 < Δ volume ≤ 1,32.5354,30.8467,34.0311,32.0000,33
 picks,MutateEverything st1,Δ volume > 1,43.5354,40.6947,46.3689,42.6667,33

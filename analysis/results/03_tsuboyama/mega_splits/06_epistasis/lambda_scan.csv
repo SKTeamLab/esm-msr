@@ -1,0 +1,2 @@
+checkpoint,dataset,n,rho_lam0,rho_lam05,rho_lam1,best_lambda,rho_best,gap_05_to_best,gap_lo,gap_hi
+"ESM-MSR (FINAL_p0_mega, 3 seeds)",tsuboyama_mega_test,18574,0.5690,0.6620,0.5744,0.5000,0.6620,0.0000,0.0000,0.0000

@@ -32,10 +32,11 @@ from msr_analysis import screening as scr_core  # noqa: E402
 from msr_analysis import style  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
+from msr_analysis.registry import TSU  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 scr = importlib.import_module('08_screening')
 OUT = out_dir('17_gain_fit')
-DS = 'tsuboyama_capped_test'
+DS = TSU[1]
 KS = [1, 3, 5, 10, 20, 50, 100]
 LK = np.log(KS)
 EXTRA = ['esm3', 'pmpnn', 'prosst', 'rosetta']
@@ -55,6 +56,8 @@ def tables(fam, mode):
     to_cys = np.array([any(part.endswith('C') for part in str(m).split(':')) for m in sp['mut']], dtype=bool)
     keep = ~to_cys & ((sp['n_mut'].to_numpy() == 1) if mode == 'singles' else True)
     k = scr.fam_key(fam, fr, mode=mode)
+    if k is None:
+        return None                       # no predictions for this family on this split (e.g. the zero-shot models on mega_splits)
     ok = sp['use'].to_numpy() & keep & np.isfinite(fr.preds[k]).all(axis=0)
     y, g = sp['y'].to_numpy()[ok], sp['group'].to_numpy()[ok]
     return {K: scr_core.per_protein_table(g, fr.preds[k][0][ok], y, K, 0.5) for K in KS}
@@ -115,6 +118,8 @@ def main():
         cur, nmed = {}, {}
         for fam in fams:
             tabs = tables(fam, mode)
+            if tabs is None:
+                continue
             M = matrix(tabs, 'gain')
             m = np.isfinite(M)
             g = np.array([M[m[:, j], j].mean() for j in range(len(KS))])

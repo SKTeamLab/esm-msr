@@ -18,6 +18,7 @@ MSR = ROOT / 'msr_predictions'
 P0 = ROOT / 'final_bench' / 'predictions'        # FINAL_p0 (seed 1 only): <P0>/<folder>/final_checkpoints/FINAL_p0/s<seed>/
 BASE = ROOT / 'baselines'
 RETRAINED = BASE / 'retrained'
+MEGA_RAW = RETRAINED / 'mega_splits' / 'tracked'     # the cluster's mega_splits retrain runs (outputs/tracked/*mega*), as collected
 PUBLIC = BASE / 'public'
 TASKS = PUBLIC / '_tasks'
 PGYM = BASE / 'pgym_per_dms'
@@ -26,13 +27,23 @@ HERE = Path(__file__).resolve().parent.parent          # analysis/
 CACHE = HERE / 'cache'
 REFERENCE = HERE / 'reference'
 RESULTS = HERE / 'results'
+if os.environ.get('MSR_TSU_SPLIT') == 'mega':
+    RESULTS = RESULTS / '03_tsuboyama' / 'mega_splits'
 
 # ----------------------------------------------------------------------------------------------
 # datasets
 # ----------------------------------------------------------------------------------------------
 EXT12 = ['s571', 's783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld']
 DMS3 = ['DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display']
-TSU = ['tsuboyama_capped_val', 'tsuboyama_capped_test']
+TSU_CAPPED = ['tsuboyama_capped_val', 'tsuboyama_capped_test']
+TSU_MEGA = ['tsuboyama_mega_val', 'tsuboyama_mega_test']
+# MSR_TSU_SPLIT=mega re-points every Tsuboyama analysis at the full-MegaScale split (`mega_splits`): TSU becomes the mega pair, the
+# models are the mega_splits retrains (ESM-MSR = FINAL_p0_mega under the `msrp0` keys) and RESULTS moves to
+# results/03_tsuboyama/mega_splits/ (analysis/tsuboyama/mega_splits/run_all.sh).
+TSU_SPLIT = os.environ.get('MSR_TSU_SPLIT', 'capped')
+if TSU_SPLIT not in ('capped', 'mega'):
+    raise ValueError(f'MSR_TSU_SPLIT must be capped or mega, not {TSU_SPLIT!r}')
+TSU = TSU_MEGA if TSU_SPLIT == 'mega' else TSU_CAPPED
 ALL_DATASETS = EXT12 + DMS3 + ['domainome'] + TSU
 
 LABEL = {
@@ -41,9 +52,10 @@ LABEL = {
     'DLG4_HUMAN_Faure_2021_binding_domain': 'DLG4 bind.', 'GRB2_HUMAN_Faure_2021_binding_domain': 'GRB2 bind.',
     'MYO_HUMAN_Kung_2025_display': 'MYO', 'domainome': 'Domainome',
     'tsuboyama_capped_val': 'Tsuboyama val', 'tsuboyama_capped_test': 'Tsuboyama test',
+    'tsuboyama_mega_val': 'Tsuboyama val (mega_splits)', 'tsuboyama_mega_test': 'Tsuboyama test (mega_splits)',
 }
 # per-protein-mean datasets (the metric is the mean over proteins of a per-protein statistic)
-PER_PROTEIN = {'domainome', 'tsuboyama_capped_val', 'tsuboyama_capped_test'}
+PER_PROTEIN = {'domainome', *TSU_CAPPED, *TSU_MEGA}
 # the spine's `id` is not unique in some datasets; the column that names a protein for clustering
 TSU_CODE = 'code_wt'
 

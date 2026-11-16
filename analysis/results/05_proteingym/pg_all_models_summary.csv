@@ -1,11 +1,18 @@
 model,column,value,lo,hi,n_dms
-pg:msrp0:wt,Activity,0.4349,0.3897,0.4818,43
-pg:msrp0:wt,Binding,0.3495,0.2323,0.4501,13
-pg:msrp0:wt,Expression,0.5193,0.4438,0.5805,18
-pg:msrp0:wt,OrganismalFitness,0.4051,0.3655,0.4425,73
-pg:msrp0:wt,Stability,0.8100,0.7657,0.8465,40
-pg:msrp0:wt,PG avg,0.5037,0.4720,0.5321,187
-pg:msrp0:wt,DMS mean,0.5057,0.4833,0.5274,187
+pg:msrp0:comb,Activity,0.4209,0.3739,0.4672,43
+pg:msrp0:comb,Binding,0.3473,0.2440,0.4408,13
+pg:msrp0:comb,Expression,0.5115,0.4307,0.5759,18
+pg:msrp0:comb,OrganismalFitness,0.3859,0.3472,0.4225,73
+pg:msrp0:comb,Stability,0.8273,0.7813,0.8640,40
+pg:msrp0:comb,PG avg,0.4986,0.4688,0.5259,187
+pg:msrp0:comb,DMS mean,0.4978,0.4747,0.5191,187
+pg:msrp0:wt,Activity,0.4371,0.3912,0.4837,43
+pg:msrp0:wt,Binding,0.3588,0.2469,0.4564,13
+pg:msrp0:wt,Expression,0.5185,0.4402,0.5818,18
+pg:msrp0:wt,OrganismalFitness,0.4105,0.3723,0.4480,73
+pg:msrp0:wt,Stability,0.8105,0.7666,0.8464,40
+pg:msrp0:wt,PG avg,0.5070,0.4762,0.5349,187
+pg:msrp0:wt,DMS mean,0.5089,0.4867,0.5306,187
 pg:msrdev:comb,Activity,0.4264,0.3814,0.4722,43
 pg:msrdev:comb,Binding,0.3474,0.2298,0.4464,13
 pg:msrdev:comb,Expression,0.5156,0.4406,0.5752,18

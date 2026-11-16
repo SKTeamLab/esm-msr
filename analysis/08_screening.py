@@ -30,6 +30,7 @@ from msr_analysis import screening as scr, style  # noqa: E402
 from msr_analysis.common import has_multi, out_dir, primary_key  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
 from msr_analysis.registry import HERE, LABEL, MODELS, REFERENCE  # noqa: E402
+from msr_analysis.registry import TSU, TSU_SPLIT  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 OUT = out_dir('08_screening')
 POOLED_SETS = ['s783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld']   # S571's labels are not ddG
@@ -240,6 +241,14 @@ def main():
     ap.add_argument('--frac', type=float, default=0.10)
     ap.add_argument('--B', type=int, default=500)
     a = ap.parse_args()
+    if TSU_SPLIT == 'mega':           # mega_splits: only the Tsuboyama test tables (the external sets and Domainome do not depend on the split)
+        for mode, stem in (('default', 'screening_per_protein'), ('singles', 'screening_per_protein_singles'), ('composite', 'screening_per_protein_composite')):
+            for fams, sfx in ((FAM, ''), (FAM_ALL, '_all_models')):
+                D = per_protein(TSU[1], [1, 3, 5, 10, 20, 50, 100], a.tau, a.B, mode=mode, exclude_cys=True, fams=fams)
+                D.to_csv(OUT / f'{stem}{sfx}.csv', index=False, float_format='%.4f')
+            print(f'=== {stem} (K=10) ===')
+            print(D[(D.metric.isin(['hit_rate', 'p_recover', 'gain'])) & (D.K == 10)].pivot_table(index=['dataset', 'metric'], columns='family', values='value').round(3))
+        return
     P, reps = pooled(a.tau, a.B, a.frac)
     P.to_csv(OUT / 'screening_pooled_external.csv', index=False, float_format='%.4f')
     fig_pooled(P, reps, a.tau, a.frac)
@@ -258,11 +267,11 @@ def main():
     for mode, stem in (('default', 'screening_per_protein'),
                        ('singles', 'screening_per_protein_singles'),
                        ('composite', 'screening_per_protein_composite')):
-        tsu_df = per_protein('tsuboyama_capped_test', ks, a.tau, a.B, mode=mode, exclude_cys=True, fams=FAM)
+        tsu_df = per_protein(TSU[1], ks, a.tau, a.B, mode=mode, exclude_cys=True, fams=FAM)
         D = pd.concat([tsu_df, dom_df], ignore_index=True)
         D.to_csv(OUT / f'{stem}.csv', index=False, float_format='%.4f')
 
-        tsu_df_all = per_protein('tsuboyama_capped_test', ks, a.tau, a.B, mode=mode, exclude_cys=True, fams=FAM_ALL)
+        tsu_df_all = per_protein(TSU[1], ks, a.tau, a.B, mode=mode, exclude_cys=True, fams=FAM_ALL)
         D_all = pd.concat([tsu_df_all, dom_df_all], ignore_index=True)
         stem_all = f'{stem}_all_models'
         D_all.to_csv(OUT / f'{stem_all}.csv', index=False, float_format='%.4f')

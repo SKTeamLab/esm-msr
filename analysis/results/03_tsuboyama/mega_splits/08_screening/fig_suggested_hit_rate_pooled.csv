@@ -1,0 +1,21 @@
+column,key,subset,value,lo,hi,n_libraries,n_suggested_total,n_hits_total
+ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0.5,0.4424,0.3247,0.5390,28,725.0000,318.0000
+ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0,0.8713,0.8125,0.9232,28,725.0000,318.0000
+ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0.5,0.2284,0.1600,0.2926,28,725.0000,318.0000
+ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0,0.0777,0.0529,0.1016,28,725.0000,318.0000
+ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0.5,0.3997,0.3017,0.4950,28,1013.0000,403.0000
+ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0,0.8776,0.8046,0.9289,28,1013.0000,403.0000
+ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0.5,0.2895,0.2006,0.3967,28,1013.0000,403.0000
+ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0,0.1095,0.0769,0.1384,28,1013.0000,403.0000
+MutateEverything st1,me1,precision_ddG_gt_0.5,0.3684,0.2728,0.4718,28,573.6667,211.6667
+MutateEverything st1,me1,precision_ddG_gt_0,0.7763,0.7105,0.8441,28,573.6667,211.6667
+MutateEverything st1,me1,recall_ddG_gt_0.5,0.1521,0.1070,0.1978,28,573.6667,211.6667
+MutateEverything st1,me1,recall_ddG_gt_0,0.0549,0.0383,0.0680,28,573.6667,211.6667
+ThermoMPNN,tmpnn,precision_ddG_gt_0.5,0.4958,0.3302,0.5947,28,196.0000,97.0000
+ThermoMPNN,tmpnn,precision_ddG_gt_0,0.8232,0.7295,0.8861,28,196.0000,97.0000
+ThermoMPNN,tmpnn,recall_ddG_gt_0.5,0.0697,0.0428,0.0990,28,196.0000,97.0000
+ThermoMPNN,tmpnn,recall_ddG_gt_0,0.0199,0.0117,0.0293,28,196.0000,97.0000
+SPURS,spurs,precision_ddG_gt_0.5,0.4681,0.3552,0.5698,28,555.0000,259.6667
+SPURS,spurs,precision_ddG_gt_0,0.8524,0.7981,0.8997,28,555.0000,259.6667
+SPURS,spurs,recall_ddG_gt_0.5,0.1865,0.1339,0.2331,28,555.0000,259.6667
+SPURS,spurs,recall_ddG_gt_0,0.0582,0.0417,0.0746,28,555.0000,259.6667

@@ -5,12 +5,12 @@ gain,Total,% conservation > 75,4.2200,1.9875,6.5971,2.0100,23
 gain,Top 96 per Domain,% conservation ≤ 25,27.7953,19.1510,37.0493,23.9706,23
 gain,Top 96 per Domain,25 < % conservation ≤ 75,14.8142,11.4273,17.9705,11.9345,23
 gain,Top 96 per Domain,% conservation > 75,3.3777,1.6432,5.3409,1.6866,23
-gain,ESM-MSR (p0) WT head,% conservation ≤ 25,17.6864,11.8572,23.7174,13.7425,23
-gain,ESM-MSR (p0) WT head,25 < % conservation ≤ 75,9.1125,6.8218,11.5331,7.6508,23
-gain,ESM-MSR (p0) WT head,% conservation > 75,1.6241,0.7142,2.9070,0.3426,23
-gain,ESM-MSR (p0) combined,% conservation ≤ 25,19.0971,12.7976,25.5041,14.4856,23
-gain,ESM-MSR (p0) combined,25 < % conservation ≤ 75,9.7656,7.3783,12.2132,6.3247,23
-gain,ESM-MSR (p0) combined,% conservation > 75,1.8741,0.8056,3.2733,0.6086,23
+gain,ESM-MSR (p0) WT head,% conservation ≤ 25,18.2544,11.9167,25.0667,13.9965,23
+gain,ESM-MSR (p0) WT head,25 < % conservation ≤ 75,9.2787,6.9889,11.7161,6.7858,23
+gain,ESM-MSR (p0) WT head,% conservation > 75,1.4794,0.6975,2.6960,0.5115,23
+gain,ESM-MSR (p0) combined,% conservation ≤ 25,19.2862,12.9452,25.9919,16.3397,23
+gain,ESM-MSR (p0) combined,25 < % conservation ≤ 75,9.6818,7.3369,12.0024,6.4910,23
+gain,ESM-MSR (p0) combined,% conservation > 75,1.8396,0.7948,3.2475,0.5555,23
 gain,MutateEverything st1,% conservation ≤ 25,14.2630,9.6152,19.4620,11.7045,23
 gain,MutateEverything st1,25 < % conservation ≤ 75,6.3475,4.6595,8.0737,4.5329,23
 gain,MutateEverything st1,% conservation > 75,1.0446,0.3853,2.0355,0.2095,23
@@ -41,12 +41,12 @@ picks,Total,% conservation > 75,199.6087,163.8598,242.1391,190.0000,23
 picks,Top 96 per Domain,% conservation ≤ 25,50.6522,40.4228,58.8717,61.0000,23
 picks,Top 96 per Domain,25 < % conservation ≤ 75,34.3043,27.1228,41.1924,32.0000,23
 picks,Top 96 per Domain,% conservation > 75,11.0435,6.5641,18.0902,4.0000,23
-picks,ESM-MSR (p0) WT head,% conservation ≤ 25,51.8261,40.5931,61.2105,69.6667,23
-picks,ESM-MSR (p0) WT head,25 < % conservation ≤ 75,33.6087,27.1007,42.1283,26.0000,23
-picks,ESM-MSR (p0) WT head,% conservation > 75,10.5652,6.5928,16.1609,4.0000,23
-picks,ESM-MSR (p0) combined,% conservation ≤ 25,51.6522,39.6656,61.2830,66.0000,23
-picks,ESM-MSR (p0) combined,25 < % conservation ≤ 75,33.5362,26.7764,42.0446,25.3333,23
-picks,ESM-MSR (p0) combined,% conservation > 75,10.8116,6.7243,16.4913,4.3333,23
+picks,ESM-MSR (p0) WT head,% conservation ≤ 25,52.3478,40.8641,62.0880,70.0000,23
+picks,ESM-MSR (p0) WT head,25 < % conservation ≤ 75,33.7826,26.9511,42.1043,26.0000,23
+picks,ESM-MSR (p0) WT head,% conservation > 75,9.8696,5.8250,15.2239,2.0000,23
+picks,ESM-MSR (p0) combined,% conservation ≤ 25,51.7391,39.8196,61.0087,63.0000,23
+picks,ESM-MSR (p0) combined,25 < % conservation ≤ 75,33.7826,26.5620,42.3565,24.0000,23
+picks,ESM-MSR (p0) combined,% conservation > 75,10.4783,6.4761,16.1761,3.0000,23
 picks,MutateEverything st1,% conservation ≤ 25,54.2319,42.1442,63.2920,63.6667,23
 picks,MutateEverything st1,25 < % conservation ≤ 75,33.4493,24.6804,43.5667,30.6667,23
 picks,MutateEverything st1,% conservation > 75,8.3188,4.3616,13.7917,1.3333,23
