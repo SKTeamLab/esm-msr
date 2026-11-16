@@ -187,6 +187,25 @@ one. **Queued 2026-11-16:** `spurs_mega_public` (job 389779, `outputs/tracked/sp
 `baselines/retrained/mega_splits/tracked/`, give it keys in `msr_analysis.data._load_mega` (one checkpoint, so one seed) and the registry, add it to `01_rho_overview.py` and to the epistasis, screening and gain-fit
 panels, and add the per-variant agreement of the public checkpoint with each retrain (frozen, trained adapter) to this README.
 
+### Published checkpoints trained on these splits (searched 2026-11-16)
+
+| Model | Released checkpoints | Trained on | Usable as the "original" for our retrains? |
+|---|---|---|---|
+| **SPURS** | HF checkpoint `luo-group/SPURS` (single and multi) | mega_splits train, selected on val (see above) | **Yes**: queued (`spurs_mega_public`, job 389779) |
+| **ThermoMPNN** (PNAS 2024) | `models/thermoMPNN_default.pt` in `Kuhlman-Lab/ThermoMPNN` ("best ThermoMPNN model trained on Megascale training dataset"); the split files are in its `dataset_splits/` | mega_splits | The original PNAS model; not downloaded here |
+| **ThermoMPNN / ThermoMPNN-D v2** | `Kuhlman-Lab/ThermoMPNN-D` `model_weights/`: `ThermoMPNN-ens{1,2,3}.ckpt` (single) and `ThermoMPNN-D-ens{1,2,3}.ckpt` (doubles), committed 2024-08-01; on the cluster in `~/software/ThermoMPNN-D/model_weights` | the repo's `train_single.yaml` / `train_epistatic.yaml`: `megascale`, `mega_splits.pkl`, `splits: [train, val]` (singles; doubles plus augmented doubles), 100 epochs, lr 1e-5. The checkpoints themselves embed no hyper-parameters, so this rests on the configs and the paper | **Yes**: queued as three ensemble members (see below) |
+| **Mutate Everything** | four checkpoints on Box (ESM2 and AlphaFold, each full and "single only"); `mutate_everything_{af,esm,af_old}.pth` are on the cluster in `~/software/MutateEverything/models` | **its own cDNA split** (`cdna_train`); the README mentions no Megascale, ThermoMPNN or mega_splits data; the repository has 7 commits and no releases | **No.** No ME checkpoint trained on mega_splits exists in any release I could find |
+
+The ThermoMPNN-D Zenodo record (13345274, "Double mutant stability data and single mutant structures") holds only data archives (`Megascale.tar.gz`, `DMS`, `PTMUL-D`, `Megascale-Rosetta-Sweeps`), no checkpoints or split
+files (archive contents not opened). ThermoMPNN-D's own code does carry hooks for ME's cDNA split (`train_cdna`, `test_cdna`, `cdna2_test_ThermoMPNN.csv`), which matches the paper: the ThermoMPNN group retrained **ThermoMPNN on ME's
+split**, not ME on theirs. ME's training set contains 13 of the 28 mega test proteins and its evaluation sets lie inside the mega train set, so even the public ME checkpoints cannot be scored on mega_splits as a clean comparison
+(running them would give a labelled cDNA-trained reference only; not queued).
+
+**What the published ThermoMPNN checkpoints isolate.** They were trained by the authors with the same code as our `tmpnn` / `tmpnnd` retrains, but on mega_splits **train + val** with no validation selection, no mutant-background
+libraries, and the paper's doubles set, whereas ours train on train only, select on val, add the 3,538 mutant-background singles and use 109,280 doubles. Scoring the three ensemble members on our test tables (single and epistatic
+pairs `ens1-3` as three "seeds", `outputs/tracked/thermompnn_mega_public_ens{1,2,3}`, jobs 389780–389782, ProteinGym restricted to one assay) shows how much those data differences move the numbers; compare per-library
+ρ, doubles ρ and the 2,302 mutant-background test rows separately.
+
 ### What I could not verify
 
 * The ThermoMPNN paper's own text (PNAS 2024 / bioRxiv) was not retrievable here (403); ThermoMPNN's split procedure rests on its repository, on its loader and on the SPURS and ThermoMPNN-D papers' descriptions. The 0.77 for
