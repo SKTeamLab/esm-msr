@@ -17,6 +17,7 @@
 # size per model and dataset from the calibrated batch-size table (ProteinGym dynamic); BATCH_SIZE overrides the table (fixed: items per
 # call; auto: a cap). CALIBRATE=1 instead of benchmarking runs the sizer on each dataset's worst-case proteins and writes
 # $OUT/batch_sizes_$MODEL.json (calibration.py merge builds the table); do it on the GPU the table is for.
+# TSUBOYAMA_ONLY=1 (ThermoMPNN and SPURS): score only the Tsuboyama val and test sets of SPURS / SPLIT (no external sets, DMS, Domainome or ProteinGym).
 # Optional, any model:
 # MUTANTS=single|multi|both (which rows; default both), PGYM_DMS=id,id (ProteinGym subset; default all), EXTRA="..." (appended to the model's command line;
 # EXTRA="--max_proteins 2" is the smoke subset). Model specific: ThermoMPNN accepts SINGLE only,
@@ -109,8 +110,15 @@ case $MODEL in
     ENV_LIB="$(cd "$(dirname "$PY")/.." && pwd)/lib"
     [ -d "$ENV_LIB" ] && export LD_LIBRARY_PATH="$ENV_LIB:${LD_LIBRARY_PATH:-}"
     [ -n "${SINGLE:-}${EPISTATIC:-}" ] || { echo "set SINGLE and/or EPISTATIC (ThermoMPNN-D checkpoints)"; exit 1; }
+    if [ -n "${TSUBOYAMA_ONLY:-}" ]; then
+      for _sp in val test; do
+        "$PY" -u "$B/thermompnn_inference.py" test --split "$_sp" ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
+            --tsuboyama_split "$SPLIT" --out "$OUT" --mutants "$MUTANTS" "${BATCH[@]}" $EXTRA
+      done
+    else
     "$PY" -u "$B/thermompnn_inference.py" all ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
-        --tsuboyama_split "$SPLIT" --out "$OUT" --mutants "$MUTANTS" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;
+        --tsuboyama_split "$SPLIT" --out "$OUT" --mutants "$MUTANTS" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA
+    fi;;
   mutate_everything)
     CKPT=${CKPT:?set CKPT (a MutateEverything checkpoint, relative to the ME checkout or absolute)}
     module purge 2>/dev/null || true
@@ -129,7 +137,8 @@ case $MODEL in
     fi
     activate "$SPURS_ENV"
     python -u "$B/spurs_inference.py" --out "$OUT" --models "${MODELS:-both}" --mutants "$MUTANTS" --split "$SPLIT" \
-        --checkpoint_single "${SPURS_SINGLE:-hf}" --checkpoint_multi "${SPURS_MULTI:-hf}" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;
+        --checkpoint_single "${SPURS_SINGLE:-hf}" --checkpoint_multi "${SPURS_MULTI:-hf}" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} \
+        ${TSUBOYAMA_ONLY:+--skip_external --skip_dms --skip_domainome --skip_pgym} $EXTRA;;
   proteinmpnn)
     activate "${MSR_ENV:-msr_venv}"
     python -u "$B/proteinmpnn_inference.py" --out "$OUT" --mutants "$MUTANTS" --split "$SPLIT" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;

@@ -172,7 +172,7 @@ What the two variants did where they were compared:
 So the trained adapter has **not** been tested properly on mega_splits: no completed run, no test evaluation, no multi model. On the capped split it was indistinguishable from the frozen adapter within seed noise, one scored
 seed. The released SPURS multi reaches validation 0.749 (116 steps per epoch for 22 epochs, doubles only), against 0.669–0.697 for our frozen-adapter multi retrain, which is the largest gap to the published model.
 **Queued 2026-11-16** (gpu4, three paired seeds, same recipe as `leg_*` with `model.legacy_esm_forward=false`): trained-adapter single `spurs_ta_s{1,2,3}` (jobs 389770, 389773, 389776), multi `spurs_tam_s*`
-(389771, 389774, 389777) and the full tracked test `spurs_mega_ta_s*` (389772, 389775, 389778; outputs `outputs/tracked/spurs_mega_ta_s{1,2,3}`).
+(389771, 389774, 389777) and the val/test-only tracked test `spurs_mega_ta_s*` (389787, 389788, 389789; outputs `outputs/tracked/spurs_mega_ta_s{1,2,3}`).
 
 **Which SPURS to present (manuscript).** The released weights were trained by code that no longer exists in the public repository, so the public repository's current forward (trained adapter) and the
 released checkpoint are different models. Our frozen-adapter retrain already matches the released validation score (0.804 / 0.813 / 0.811 against 0.809), which points to the frozen recipe as the faithful one;
@@ -183,15 +183,18 @@ the predictions variant by variant), and state the adapter setting in the method
 **Standing rule: the public SPURS checkpoint is always included in mega_splits analyses.** It appears to have been trained on exactly this split (the released run is 212 steps per epoch for 25 epochs, which is the
 mega_splits training set of 239 libraries minus 27 without a wild-type row, selected on the split's validation set; the checkpoint reproduces its stored validation score of 0.8088 exactly, with pooled train / val / test
 Spearman 0.908 / 0.809 / 0.741 and per-protein means 0.898 / 0.827 / 0.797). Its test libraries are therefore held out by the split, though not homology-clean (see above), and its training set is the 64-library-filtered
-one. **Queued 2026-11-16:** `spurs_mega_public` (job 389779, `outputs/tracked/spurs_mega_public`; single and multi, tracked slot, same harness as `spurs_mega_s*`). Still to do when it lands: collect it into
+one. **Queued 2026-11-16:** `spurs_mega_public` (job 389783, `outputs/tracked/spurs_mega_public`; single and multi, tracked slot, same harness as `spurs_mega_s*`). Still to do when it lands: collect it into
 `baselines/retrained/mega_splits/tracked/`, give it keys in `msr_analysis.data._load_mega` (one checkpoint, so one seed) and the registry, add it to `01_rho_overview.py` and to the epistasis, screening and gain-fit
 panels, and add the per-variant agreement of the public checkpoint with each retrain (frozen, trained adapter) to this README.
 
 ### Published checkpoints trained on these splits (searched 2026-11-16)
 
+**Scope.** These comparisons only need the Tsuboyama **validation and test** sets of mega_splits: they exist to show the effect of our altered retraining procedure on the baselines' own split. Whether a model generalizes is
+tested on the capped splits, not here. The queued runs therefore score val and test only (`TSUBOYAMA_ONLY=1` in `inference_scripts/baselines/slurm_inference.sh`; no external sets, DMS, Domainome or ProteinGym).
+
 | Model | Released checkpoints | Trained on | Usable as the "original" for our retrains? |
 |---|---|---|---|
-| **SPURS** | HF checkpoint `luo-group/SPURS` (single and multi) | mega_splits train, selected on val (see above) | **Yes**: queued (`spurs_mega_public`, job 389779) |
+| **SPURS** | HF checkpoint `luo-group/SPURS` (single and multi) | mega_splits train, selected on val (see above) | **Yes**: queued (`spurs_mega_public`, job 389783) |
 | **ThermoMPNN** (PNAS 2024) | `models/thermoMPNN_default.pt` in `Kuhlman-Lab/ThermoMPNN` ("best ThermoMPNN model trained on Megascale training dataset"); the split files are in its `dataset_splits/` | mega_splits | The original PNAS model; not downloaded here |
 | **ThermoMPNN / ThermoMPNN-D v2** | `Kuhlman-Lab/ThermoMPNN-D` `model_weights/`: `ThermoMPNN-ens{1,2,3}.ckpt` (single) and `ThermoMPNN-D-ens{1,2,3}.ckpt` (doubles), committed 2024-08-01; on the cluster in `~/software/ThermoMPNN-D/model_weights` | the repo's `train_single.yaml` / `train_epistatic.yaml`: `megascale`, `mega_splits.pkl`, `splits: [train, val]` (singles; doubles plus augmented doubles), 100 epochs, lr 1e-5. The checkpoints themselves embed no hyper-parameters, so this rests on the configs and the paper | **Yes**: queued as three ensemble members (see below) |
 | **Mutate Everything** | four checkpoints on Box (ESM2 and AlphaFold, each full and "single only"); `mutate_everything_{af,esm,af_old}.pth` are on the cluster in `~/software/MutateEverything/models` | **its own cDNA split** (`cdna_train`); the README mentions no Megascale, ThermoMPNN or mega_splits data; the repository has 7 commits and no releases | **No.** No ME checkpoint trained on mega_splits exists in any release I could find |
@@ -203,7 +206,7 @@ split**, not ME on theirs. ME's training set contains 13 of the 28 mega test pro
 
 **What the published ThermoMPNN checkpoints isolate.** They were trained by the authors with the same code as our `tmpnn` / `tmpnnd` retrains, but on mega_splits **train + val** with no validation selection, no mutant-background
 libraries, and the paper's doubles set, whereas ours train on train only, select on val, add the 3,538 mutant-background singles and use 109,280 doubles. Scoring the three ensemble members on our test tables (single and epistatic
-pairs `ens1-3` as three "seeds", `outputs/tracked/thermompnn_mega_public_ens{1,2,3}`, jobs 389780–389782, ProteinGym restricted to one assay) shows how much those data differences move the numbers; compare per-library
+pairs `ens1-3` as three "seeds", `outputs/tracked/thermompnn_mega_public_ens{1,2,3}`, jobs 389784–389786, val and test only) shows how much those data differences move the numbers; compare per-library
 ρ, doubles ρ and the 2,302 mutant-background test rows separately.
 
 ### What I could not verify
