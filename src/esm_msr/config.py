@@ -128,6 +128,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     arch.add_argument('--target_mode_wt', type=str, default=LORA_TARGET_MODE,
                       choices=['expanded', 'qkv_outproj', 'baseline', 'all', 'ffn', 'ffn_outproj'],
                       help="LoRA target modules for WT adapter: expanded (QKV+FFN, default), qkv_outproj (attention only: QKV+out_proj, skipping FFN), baseline (QKV only), all (QKV+out_proj+FFN), ffn, or ffn_outproj.")
+    arch.add_argument('--last_n_layers_wt', type=int, default=0,
+                      help="LoRA only in the last N of ESM3's 48 transformer blocks for the WT adapter (0, the default: every block). The sequence head's LoRA (--incl_sequence_head_wt) is separate and unchanged.")
+    arch.add_argument('--last_n_layers_mt', type=int, default=0,
+                      help="The same for the MT adapter.")
+    arch.add_argument('--substitution_calibration', action='store_true',
+                      help="Add a learned 20 x 20 from-residue x to-residue offset (raw-LLR units, zero at the start, one table per head) to every mutation's LLR before the calibration head. Default off.")
     arch.add_argument('--incl_sequence_head_wt', action=argparse.BooleanOptionalAction, default=True,
                       help="Include ESM3's sequence LM output head in the WT LoRA targets (default True). Pass --no-incl_sequence_head_wt to freeze.")
     arch.add_argument('--incl_sequence_head_mt', action=argparse.BooleanOptionalAction, default=True,

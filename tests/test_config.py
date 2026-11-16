@@ -107,7 +107,7 @@ def test_domain_steps_set_the_step_themselves():
 def test_the_number_of_flags_is_small():
     """The point of the strip. A new flag is allowed, but it has to be a decision: raise this bound on purpose."""
     keys = set(vars(parse()))
-    assert len(keys) <= 60, sorted(keys)
+    assert len(keys) <= 63, sorted(keys)      # 60 + --last_n_layers_wt/_mt and --substitution_calibration (Nov 16, the last-4-layers and from x to ablations)
     with pytest.raises(SystemExit):
         parse('--block_marginal_mt', '--block_mask_mt', '0.0')
     with pytest.raises(SystemExit):
