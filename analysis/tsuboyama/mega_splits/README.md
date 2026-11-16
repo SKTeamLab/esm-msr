@@ -135,11 +135,12 @@ shipped `mmseq_mut_search_0.25.m8` file may be used elsewhere; I did not establi
 | ThermoMPNN, same statistic | 0.77 (SPURS paper) | **0.773** (mean 0.768) |
 | ThermoMPNN-D, Spearman pooled over the 18,574 test doubles | 0.53 ± 0.02 (PCC 0.52 ± 0.02) | **0.529** |
 | ME | no result on this split | st1 0.779 / st2 0.769 median on singles; 0.545 pooled on doubles (st2) |
-| SPURS and ThermoMPNN test rows | 28,312 mutants (third-party summary of the SPURS paper) | 28,172 (−140, unexplained) |
+| SPURS and ThermoMPNN test rows | 28,312 mutants over 28 proteins (the SPURS paper, Results) | 28,172 (−140, unexplained) |
 
-SPURS is 0.013 below its published median, ThermoMPNN and ThermoMPNN-D match. Both of the SPURS-side differences run against a simple "more data helps" reading (we trained on 46 more libraries than upstream and
-lost 0.013), so a smaller deviation in the SPURS retrain recipe is more likely than a data effect: ours restores the ProteinMPNN `v_48_020` initialisation the public code no longer loads
-(`../../../baselines/retrained/spurs/README.md`) and uses early stopping with patience 30. The three medians use wild-type-backbone singles only; adding the 2,302 mutant-background singles
+SPURS is 0.013 below its published median; ThermoMPNN and ThermoMPNN-D match. How much that gap means is not established: our three seeds spread by SD 0.007 (medians 0.810 / 0.818 / 0.824), and a bootstrap over the 28
+test libraries puts the seed-mean median at 0.775–0.844, an interval that contains 0.83. The published number is a single model scored by the authors on their own rows, and the public checkpoint has not yet been scored on ours
+(job 389783), so part of the gap could be the row set or the statistic rather than the model. The retrain recipe differs from upstream in ways that could matter: ours restores the ProteinMPNN `v_48_020` initialisation the public code no longer loads
+(`../../../baselines/retrained/spurs/README.md`), uses early stopping with patience 30, and (see above) trained on 46 libraries upstream removed. I had argued that extra training data cannot explain a *lower* score, which is a heuristic, not a result; no cause is established. The three medians use wild-type-backbone singles only; adding the 2,302 mutant-background singles
 moves them by at most 0.006 (SPURS 0.817 to 0.817, ThermoMPNN 0.773 to 0.779, ESM-MSR WT head 0.846 to 0.848), so the mutant backgrounds do not drive any comparison.
 
 ### How SPURS was retrained: the adapter question (frozen random vs trained)
@@ -154,7 +155,19 @@ workspace `~/spurs_retrain`, logs in `SPURS/logs/{oct06,mega}`):
   initialisation (inference from the optimizer state; the multi checkpoint's adapter equals the single's, cos 1.0000). `model.legacy_esm_forward=true` reproduces that forward (adapter keeps its random init,
   adapter layer in `train()` mode, other layers in `eval()` under `no_grad`); `false` is the current public forward, which trains the adapter. The released checkpoint scores the same under both forwards at inference
   (validation differs by < 0.001).
-* **The frozen-adapter choice** (`legacy_esm_forward=true`, the `leg_*` runs) is therefore the retrain that matches how the published model was trained, and it is the recipe of every SPURS number in the BENCHMARKS
+* **The paper says the adapter is trained.** Methods: "During training, only Adapter and ProteinMPNN parameters are updated", "we froze the ESM2 parameters (650 million parameters)", "optimized only the Adapter and ProteinMPNN
+  parameters (9.9 million parameters)", the Adapter "inserted after the 31st layer (out of 33 layers) of ESM2". The paper nowhere says the adapter stayed untrained; that is a property of the released checkpoint, inferred from its optimizer state
+  (re-checked 2026-11-16, below) and from the pre-`cc854c1` code, whose `no_grad` on the two ESM layers after the adapter cut its gradient. It reads as an unintended bug, but that is my inference.
+  The paper and the released weights therefore disagree about the adapter, and the public repository's current code (after `cc854c1`, in `spurs/models/stability/modules/esm2_adapter.py::forward_layers`, which no longer wraps any layer in `no_grad`) trains it
+  as the paper describes. The `legacy_esm_forward` switch is **our patch**, not an upstream option.
+* **Checked directly on the checkpoints (2026-11-16):** optimizer tensors with state and trained parameters are 126 / 4.34 M for the released SPURS and for our frozen-adapter retrain (`leg_seed1`), and **142 / 9.92 M for a trained-adapter retrain
+  (`ta_seed1`)**. The paper's "9.9 million" trainable parameters is the trained-adapter number, so the released checkpoint trained 4.34 M parameters and did not match the method the paper describes. ESM2 is frozen in the code
+  (`esm2_adapter.py` sets `requires_grad=False` on every non-adapter parameter) in both variants.
+* **Decision (user, 2026-11-16): the manuscript SPURS must match what the paper presents, i.e. the unfrozen adapter, regardless of how the comparison with the public checkpoint comes out.** The frozen-adapter retrains stay as the
+  control that matches the released weights. Capped-split triplicate queued 2026-11-16 with the frozen recipe's overrides and only `model.legacy_esm_forward=false` changed (`oct06/unf_seed{1,2,3}`, multi `oct06/unf_multi_seed{1,2,3}`,
+  in `~/spurs_retrain/SPURS/logs/oct06`; jobs 389790 / 389793 / 389796 → 389791 / 389794 / 389797 → full tracked tests 389792 / 389795 / 389798, `outputs/tracked/spurs_unfrozen_s{1,2,3}`). The earlier `pub_*` / `ta_*` capped runs were not reused
+  (mixed names, two cancelled, multi initialised from different singles).
+* **The frozen-adapter choice** (`legacy_esm_forward=true`, the `leg_*` runs) is the retrain that matches how the *released checkpoint* was trained, not how the paper describes training, and it is the recipe of every SPURS number in the BENCHMARKS
   tables and in this folder. The trained-adapter variant was tried as a control (`pub_*` and `ta_*` runs; `ta_idx1_seed1` moves the adapter to ESM layer −1).
 
 What the two variants did where they were compared:
@@ -213,7 +226,7 @@ pairs `ens1-3` as three "seeds", `outputs/tracked/thermompnn_mega_public_ens{1,2
 
 * The ThermoMPNN paper's own text (PNAS 2024 / bioRxiv) was not retrievable here (403); ThermoMPNN's split procedure rests on its repository, on its loader and on the SPURS and ThermoMPNN-D papers' descriptions. The 0.77 for
   ThermoMPNN is SPURS's, not ThermoMPNN's own figure.
-* The SPURS median comes from Tamarind's summary page of the paper; the paper itself was not opened.
+* The SPURS paper's Results (28,312 mutants over 28 proteins, median 0.83 against 0.77 for ThermoMPNN in Spearman, SPURS better in 24 of 28 proteins) was read through Europe PMC (PMC12830971); the remainder of its Methods (about 158k characters) was not read, so it may say more about adapter training or epochs.
 * The 140-row gap in single-mutant test rows (28,172 against 28,312) is not explained.
 * Whether Mutate Everything was ever retrained on mega_splits or on another split by the ThermoMPNN group (the recollection that prompted this section) is not supported by anything I could read.
 
