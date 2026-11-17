@@ -1,129 +1,129 @@
 column,key,K,value,lo,hi,n_libraries
-Oracle (best in domain),oracle,1,1.4533,1.2190,1.7173,33
-Random picks,random,1,-0.7364,-0.8388,-0.6443,33
-Oracle (best in domain),oracle,2,1.4533,1.2190,1.7173,33
-Random picks,random,2,-0.2760,-0.3684,-0.2025,33
-Oracle (best in domain),oracle,3,1.4533,1.2190,1.7173,33
-Random picks,random,3,-0.0806,-0.1681,-0.0093,33
-Oracle (best in domain),oracle,6,1.4533,1.2190,1.7173,33
-Random picks,random,6,0.1680,0.0823,0.2382,33
-Oracle (best in domain),oracle,12,1.4533,1.2190,1.7173,33
-Random picks,random,12,0.3629,0.2750,0.4402,33
-Oracle (best in domain),oracle,24,1.4533,1.2190,1.7173,33
-Random picks,random,24,0.5399,0.4456,0.6200,33
-Oracle (best in domain),oracle,48,1.4533,1.2190,1.7173,33
-Random picks,random,48,0.7120,0.6030,0.8052,33
-Oracle (best in domain),oracle,96,1.4533,1.2190,1.7173,33
-Random picks,random,96,0.8853,0.7607,1.0011,33
-ESM-MSR (baseline) WT head,msr:wt,1,0.7282,0.5143,0.9651,33
-ESM-MSR (baseline) WT head,msr:wt,2,0.9445,0.7327,1.1676,33
-ESM-MSR (baseline) WT head,msr:wt,3,1.0051,0.8011,1.2317,33
-ESM-MSR (baseline) WT head,msr:wt,6,1.1040,0.8900,1.3181,33
-ESM-MSR (baseline) WT head,msr:wt,12,1.2117,0.9884,1.4427,33
-ESM-MSR (baseline) WT head,msr:wt,24,1.2760,1.0538,1.5062,33
-ESM-MSR (baseline) WT head,msr:wt,48,1.3229,1.0988,1.5396,33
-ESM-MSR (baseline) WT head,msr:wt,96,1.3499,1.1310,1.5723,33
-ESM-MSR (baseline) combined,msr:comb,1,0.8204,0.5363,1.0854,33
-ESM-MSR (baseline) combined,msr:comb,2,0.9782,0.7484,1.2275,33
-ESM-MSR (baseline) combined,msr:comb,3,1.0158,0.7809,1.2501,33
-ESM-MSR (baseline) combined,msr:comb,6,1.1146,0.8870,1.3417,33
-ESM-MSR (baseline) combined,msr:comb,12,1.2598,1.0429,1.5136,33
-ESM-MSR (baseline) combined,msr:comb,24,1.3189,1.1097,1.5323,33
-ESM-MSR (baseline) combined,msr:comb,48,1.3754,1.1278,1.6286,33
-ESM-MSR (baseline) combined,msr:comb,96,1.3970,1.1512,1.6500,33
-ESM-MSR WT head,msrdev:wt,1,0.7603,0.4716,0.9991,33
-ESM-MSR WT head,msrdev:wt,2,0.9567,0.7345,1.2034,33
-ESM-MSR WT head,msrdev:wt,3,1.0355,0.8116,1.2631,33
-ESM-MSR WT head,msrdev:wt,6,1.1221,0.9057,1.3456,33
-ESM-MSR WT head,msrdev:wt,12,1.2446,1.0144,1.4780,33
-ESM-MSR WT head,msrdev:wt,24,1.2849,1.0615,1.5008,33
-ESM-MSR WT head,msrdev:wt,48,1.2992,1.0741,1.5192,33
-ESM-MSR WT head,msrdev:wt,96,1.3398,1.1113,1.5626,33
-ESM-MSR combined,msrdev:comb,1,0.8754,0.6313,1.1296,33
-ESM-MSR combined,msrdev:comb,2,1.0058,0.7657,1.2611,33
-ESM-MSR combined,msrdev:comb,3,1.0569,0.8351,1.2889,33
-ESM-MSR combined,msrdev:comb,6,1.1441,0.9329,1.3768,33
-ESM-MSR combined,msrdev:comb,12,1.2621,1.0372,1.4940,33
-ESM-MSR combined,msrdev:comb,24,1.3284,1.1108,1.5521,33
-ESM-MSR combined,msrdev:comb,48,1.3598,1.1333,1.6030,33
-ESM-MSR combined,msrdev:comb,96,1.4007,1.1531,1.6673,33
-ESM-MSR (p0) WT head,msrp0:wt,1,0.8158,0.5301,1.0769,33
-ESM-MSR (p0) WT head,msrp0:wt,2,0.9614,0.7003,1.2154,33
-ESM-MSR (p0) WT head,msrp0:wt,3,1.0169,0.7732,1.2608,33
-ESM-MSR (p0) WT head,msrp0:wt,6,1.1048,0.8843,1.3269,33
-ESM-MSR (p0) WT head,msrp0:wt,12,1.2103,0.9749,1.4713,33
-ESM-MSR (p0) WT head,msrp0:wt,24,1.3030,1.0634,1.5358,33
-ESM-MSR (p0) WT head,msrp0:wt,48,1.3197,1.0767,1.5496,33
-ESM-MSR (p0) WT head,msrp0:wt,96,1.3577,1.1287,1.5887,33
-ESM-MSR (p0) combined,msrp0:comb,1,0.8514,0.5509,1.1137,33
-ESM-MSR (p0) combined,msrp0:comb,2,1.0218,0.7744,1.2657,33
-ESM-MSR (p0) combined,msrp0:comb,3,1.0604,0.8048,1.2987,33
-ESM-MSR (p0) combined,msrp0:comb,6,1.1853,0.9812,1.4007,33
-ESM-MSR (p0) combined,msrp0:comb,12,1.3141,1.0868,1.5509,33
-ESM-MSR (p0) combined,msrp0:comb,24,1.3647,1.1264,1.6192,33
-ESM-MSR (p0) combined,msrp0:comb,48,1.3910,1.1521,1.6590,33
-ESM-MSR (p0) combined,msrp0:comb,96,1.4095,1.1703,1.6849,33
-MutateEverything st1,me1,1,0.4258,0.1961,0.6816,33
-MutateEverything st1,me1,2,0.6116,0.3928,0.8670,33
-MutateEverything st1,me1,3,0.7176,0.4767,0.9573,33
-MutateEverything st1,me1,6,0.8582,0.6118,1.0981,33
-MutateEverything st1,me1,12,0.9647,0.7138,1.2059,33
-MutateEverything st1,me1,24,1.0807,0.8618,1.3140,33
-MutateEverything st1,me1,48,1.1940,0.9720,1.4246,33
-MutateEverything st1,me1,96,1.2572,1.0352,1.5169,33
-ThermoMPNN,tmpnn,1,0.6007,0.3860,0.8667,33
-ThermoMPNN,tmpnn,2,0.8056,0.5792,1.0686,33
-ThermoMPNN,tmpnn,3,0.8823,0.6656,1.1255,33
-ThermoMPNN,tmpnn,6,0.9645,0.7557,1.1853,33
-ThermoMPNN,tmpnn,12,1.0701,0.8810,1.2945,33
-ThermoMPNN,tmpnn,24,1.2539,1.0374,1.4722,33
-ThermoMPNN,tmpnn,48,1.3083,1.0811,1.5268,33
-ThermoMPNN,tmpnn,96,1.3587,1.1336,1.5795,33
-SPURS,spurs,1,0.7193,0.4340,1.0263,33
-SPURS,spurs,2,0.8674,0.6018,1.1752,33
-SPURS,spurs,3,0.9317,0.6725,1.2188,33
-SPURS,spurs,6,1.0996,0.8693,1.3695,33
-SPURS,spurs,12,1.2333,0.9839,1.5059,33
-SPURS,spurs,24,1.3033,1.0556,1.5615,33
-SPURS,spurs,48,1.3408,1.1050,1.5950,33
-SPURS,spurs,96,1.3779,1.1431,1.6433,33
-ESM3-small-open,msrrel@0:comb,1,0.3950,0.0515,0.7821,33
-ESM3-small-open,msrrel@0:comb,2,0.6382,0.3819,0.9741,33
-ESM3-small-open,msrrel@0:comb,3,0.7181,0.4604,1.0302,33
-ESM3-small-open,msrrel@0:comb,6,0.8715,0.6347,1.1968,33
-ESM3-small-open,msrrel@0:comb,12,0.9934,0.7677,1.2562,33
-ESM3-small-open,msrrel@0:comb,24,1.0711,0.8403,1.3228,33
-ESM3-small-open,msrrel@0:comb,48,1.1570,0.9279,1.3957,33
-ESM3-small-open,msrrel@0:comb,96,1.1918,0.9649,1.4335,33
-ProteinMPNN,pmpnn,1,0.4644,0.1388,0.7781,33
-ProteinMPNN,pmpnn,2,0.6059,0.2853,0.9299,33
-ProteinMPNN,pmpnn,3,0.7717,0.4591,1.0674,33
-ProteinMPNN,pmpnn,6,0.9384,0.6897,1.2154,33
-ProteinMPNN,pmpnn,12,1.0349,0.7755,1.3151,33
-ProteinMPNN,pmpnn,24,1.0964,0.8485,1.3810,33
-ProteinMPNN,pmpnn,48,1.1465,0.8966,1.4109,33
-ProteinMPNN,pmpnn,96,1.2590,1.0180,1.5389,33
-ProSST,prosst,1,0.1187,-0.2357,0.5472,33
-ProSST,prosst,2,0.6530,0.3644,1.0142,33
-ProSST,prosst,3,0.7740,0.4964,1.0898,33
-ProSST,prosst,6,0.9045,0.6396,1.1593,33
-ProSST,prosst,12,0.9735,0.7255,1.2251,33
-ProSST,prosst,24,1.0205,0.7607,1.2640,33
-ProSST,prosst,48,1.1148,0.8902,1.3625,33
-ProSST,prosst,96,1.1772,0.9463,1.4172,33
-GeoDDG-3D,geoddg,1,0.3922,0.0119,0.7771,33
-GeoDDG-3D,geoddg,2,0.6193,0.3497,0.9798,33
-GeoDDG-3D,geoddg,3,0.7008,0.4297,1.0040,33
-GeoDDG-3D,geoddg,6,0.8853,0.5926,1.1787,33
-GeoDDG-3D,geoddg,12,1.1036,0.8242,1.3946,33
-GeoDDG-3D,geoddg,24,1.2137,0.9690,1.4668,33
-GeoDDG-3D,geoddg,48,1.2902,1.0474,1.5453,33
-GeoDDG-3D,geoddg,96,1.3452,1.1152,1.6065,33
-Rosetta,rosetta,1,0.5110,0.2273,0.8774,33
-Rosetta,rosetta,2,0.6541,0.3718,0.9709,33
-Rosetta,rosetta,3,0.7271,0.4455,1.0460,33
-Rosetta,rosetta,6,0.9592,0.7057,1.2221,33
-Rosetta,rosetta,12,1.1066,0.8402,1.3996,33
-Rosetta,rosetta,24,1.1501,0.8864,1.4361,33
-Rosetta,rosetta,48,1.2236,0.9974,1.5096,33
-Rosetta,rosetta,96,1.2857,1.0714,1.5630,33
+Oracle (best in domain),oracle,1,1.4533,1.2308,1.6651,33
+Random picks,random,1,-0.7364,-0.8413,-0.6482,33
+Oracle (best in domain),oracle,2,1.4533,1.2308,1.6651,33
+Random picks,random,2,-0.2760,-0.3710,-0.1999,33
+Oracle (best in domain),oracle,3,1.4533,1.2308,1.6651,33
+Random picks,random,3,-0.0806,-0.1741,-0.0119,33
+Oracle (best in domain),oracle,6,1.4533,1.2308,1.6651,33
+Random picks,random,6,0.1680,0.0757,0.2363,33
+Oracle (best in domain),oracle,12,1.4533,1.2308,1.6651,33
+Random picks,random,12,0.3629,0.2700,0.4367,33
+Oracle (best in domain),oracle,24,1.4533,1.2308,1.6651,33
+Random picks,random,24,0.5399,0.4372,0.6197,33
+Oracle (best in domain),oracle,48,1.4533,1.2308,1.6651,33
+Random picks,random,48,0.7120,0.5902,0.8048,33
+Oracle (best in domain),oracle,96,1.4533,1.2308,1.6651,33
+Random picks,random,96,0.8853,0.7397,0.9934,33
+ESM-MSR (baseline) WT head,msr:wt,1,0.7282,0.5145,0.9731,33
+ESM-MSR (baseline) WT head,msr:wt,2,0.9445,0.7314,1.1564,33
+ESM-MSR (baseline) WT head,msr:wt,3,1.0051,0.8045,1.2242,33
+ESM-MSR (baseline) WT head,msr:wt,6,1.1040,0.8896,1.3127,33
+ESM-MSR (baseline) WT head,msr:wt,12,1.2117,0.9813,1.4265,33
+ESM-MSR (baseline) WT head,msr:wt,24,1.2760,1.0565,1.5040,33
+ESM-MSR (baseline) WT head,msr:wt,48,1.3229,1.1006,1.5293,33
+ESM-MSR (baseline) WT head,msr:wt,96,1.3499,1.1343,1.5471,33
+ESM-MSR (baseline) combined,msr:comb,1,0.8204,0.5574,1.0954,33
+ESM-MSR (baseline) combined,msr:comb,2,0.9782,0.7561,1.2103,33
+ESM-MSR (baseline) combined,msr:comb,3,1.0158,0.7908,1.2469,33
+ESM-MSR (baseline) combined,msr:comb,6,1.1146,0.8931,1.3144,33
+ESM-MSR (baseline) combined,msr:comb,12,1.2598,1.0427,1.5047,33
+ESM-MSR (baseline) combined,msr:comb,24,1.3189,1.1108,1.5483,33
+ESM-MSR (baseline) combined,msr:comb,48,1.3754,1.1381,1.5755,33
+ESM-MSR (baseline) combined,msr:comb,96,1.3970,1.1537,1.6053,33
+ESM-MSR WT head,msrdev:wt,1,0.7603,0.4586,0.9828,33
+ESM-MSR WT head,msrdev:wt,2,0.9567,0.7313,1.1887,33
+ESM-MSR WT head,msrdev:wt,3,1.0355,0.8126,1.2502,33
+ESM-MSR WT head,msrdev:wt,6,1.1221,0.8941,1.3322,33
+ESM-MSR WT head,msrdev:wt,12,1.2446,1.0298,1.4746,33
+ESM-MSR WT head,msrdev:wt,24,1.2849,1.0682,1.4989,33
+ESM-MSR WT head,msrdev:wt,48,1.2992,1.0790,1.5091,33
+ESM-MSR WT head,msrdev:wt,96,1.3398,1.1119,1.5420,33
+ESM-MSR combined,msrdev:comb,1,0.8754,0.6364,1.1398,33
+ESM-MSR combined,msrdev:comb,2,1.0058,0.7829,1.2118,33
+ESM-MSR combined,msrdev:comb,3,1.0569,0.8477,1.2757,33
+ESM-MSR combined,msrdev:comb,6,1.1441,0.9495,1.3438,33
+ESM-MSR combined,msrdev:comb,12,1.2621,1.0424,1.5005,33
+ESM-MSR combined,msrdev:comb,24,1.3284,1.1152,1.5613,33
+ESM-MSR combined,msrdev:comb,48,1.3598,1.1293,1.5747,33
+ESM-MSR combined,msrdev:comb,96,1.4007,1.1494,1.6012,33
+ESM-MSR (p0) WT head,msrp0:wt,1,0.8158,0.5210,1.0724,33
+ESM-MSR (p0) WT head,msrp0:wt,2,0.9614,0.7022,1.2033,33
+ESM-MSR (p0) WT head,msrp0:wt,3,1.0169,0.7728,1.2321,33
+ESM-MSR (p0) WT head,msrp0:wt,6,1.1048,0.8861,1.3187,33
+ESM-MSR (p0) WT head,msrp0:wt,12,1.2103,0.9800,1.4569,33
+ESM-MSR (p0) WT head,msrp0:wt,24,1.3030,1.0696,1.5296,33
+ESM-MSR (p0) WT head,msrp0:wt,48,1.3197,1.0892,1.5442,33
+ESM-MSR (p0) WT head,msrp0:wt,96,1.3577,1.1310,1.5752,33
+ESM-MSR (p0) combined,msrp0:comb,1,0.8514,0.5871,1.1133,33
+ESM-MSR (p0) combined,msrp0:comb,2,1.0218,0.7757,1.2669,33
+ESM-MSR (p0) combined,msrp0:comb,3,1.0604,0.8170,1.2881,33
+ESM-MSR (p0) combined,msrp0:comb,6,1.1853,0.9885,1.3890,33
+ESM-MSR (p0) combined,msrp0:comb,12,1.3141,1.0992,1.5486,33
+ESM-MSR (p0) combined,msrp0:comb,24,1.3647,1.1481,1.5826,33
+ESM-MSR (p0) combined,msrp0:comb,48,1.3910,1.1741,1.5923,33
+ESM-MSR (p0) combined,msrp0:comb,96,1.4095,1.1857,1.6064,33
+MutateEverything st1,me1,1,0.4258,0.1577,0.6685,33
+MutateEverything st1,me1,2,0.6116,0.3525,0.8454,33
+MutateEverything st1,me1,3,0.7176,0.4548,0.9360,33
+MutateEverything st1,me1,6,0.8582,0.5839,1.0663,33
+MutateEverything st1,me1,12,0.9647,0.7117,1.1772,33
+MutateEverything st1,me1,24,1.0807,0.8529,1.2911,33
+MutateEverything st1,me1,48,1.1940,0.9703,1.3940,33
+MutateEverything st1,me1,96,1.2572,1.0145,1.4853,33
+ThermoMPNN,tmpnn,1,0.6007,0.3878,0.8408,33
+ThermoMPNN,tmpnn,2,0.8056,0.5781,1.0146,33
+ThermoMPNN,tmpnn,3,0.8823,0.6532,1.1038,33
+ThermoMPNN,tmpnn,6,0.9645,0.7630,1.1777,33
+ThermoMPNN,tmpnn,12,1.0701,0.8815,1.2777,33
+ThermoMPNN,tmpnn,24,1.2539,1.0488,1.4711,33
+ThermoMPNN,tmpnn,48,1.3083,1.0821,1.5239,33
+ThermoMPNN,tmpnn,96,1.3587,1.1301,1.5649,33
+SPURS,spurs,1,0.6777,0.4575,0.9111,33
+SPURS,spurs,2,0.8683,0.6301,1.0895,33
+SPURS,spurs,3,0.9458,0.6928,1.1666,33
+SPURS,spurs,6,1.1009,0.8412,1.3728,33
+SPURS,spurs,12,1.2533,1.0022,1.5008,33
+SPURS,spurs,24,1.2961,1.0525,1.5287,33
+SPURS,spurs,48,1.3324,1.0990,1.5674,33
+SPURS,spurs,96,1.3746,1.1490,1.6178,33
+ESM3-small-open,msrrel@0:comb,1,0.3950,0.0299,0.7557,33
+ESM3-small-open,msrrel@0:comb,2,0.6382,0.3949,0.9592,33
+ESM3-small-open,msrrel@0:comb,3,0.7181,0.4908,1.0205,33
+ESM3-small-open,msrrel@0:comb,6,0.8715,0.6577,1.1824,33
+ESM3-small-open,msrrel@0:comb,12,0.9934,0.7719,1.2385,33
+ESM3-small-open,msrrel@0:comb,24,1.0711,0.8437,1.2942,33
+ESM3-small-open,msrrel@0:comb,48,1.1570,0.9240,1.3801,33
+ESM3-small-open,msrrel@0:comb,96,1.1918,0.9714,1.4133,33
+ProteinMPNN,pmpnn,1,0.4644,0.1342,0.7532,33
+ProteinMPNN,pmpnn,2,0.6059,0.3097,0.9371,33
+ProteinMPNN,pmpnn,3,0.7717,0.4727,1.0892,33
+ProteinMPNN,pmpnn,6,0.9384,0.6889,1.2148,33
+ProteinMPNN,pmpnn,12,1.0349,0.7676,1.2841,33
+ProteinMPNN,pmpnn,24,1.0964,0.8420,1.3840,33
+ProteinMPNN,pmpnn,48,1.1465,0.8960,1.4107,33
+ProteinMPNN,pmpnn,96,1.2590,1.0181,1.4912,33
+ProSST,prosst,1,0.1187,-0.2630,0.4106,33
+ProSST,prosst,2,0.6530,0.3525,0.9317,33
+ProSST,prosst,3,0.7740,0.4677,1.0301,33
+ProSST,prosst,6,0.9045,0.6386,1.1500,33
+ProSST,prosst,12,0.9735,0.7018,1.2279,33
+ProSST,prosst,24,1.0205,0.7574,1.2631,33
+ProSST,prosst,48,1.1148,0.8781,1.3299,33
+ProSST,prosst,96,1.1772,0.9507,1.3983,33
+GeoDDG-3D,geoddg,1,0.3922,-0.1096,0.6938,33
+GeoDDG-3D,geoddg,2,0.6193,0.3392,0.9289,33
+GeoDDG-3D,geoddg,3,0.7008,0.4133,0.9778,33
+GeoDDG-3D,geoddg,6,0.8853,0.5810,1.1139,33
+GeoDDG-3D,geoddg,12,1.1036,0.8376,1.3582,33
+GeoDDG-3D,geoddg,24,1.2137,0.9711,1.4100,33
+GeoDDG-3D,geoddg,48,1.2902,1.0436,1.5129,33
+GeoDDG-3D,geoddg,96,1.3452,1.1181,1.5748,33
+Rosetta,rosetta,1,0.5110,0.2271,0.8481,33
+Rosetta,rosetta,2,0.6541,0.3876,0.9548,33
+Rosetta,rosetta,3,0.7271,0.4659,1.0325,33
+Rosetta,rosetta,6,0.9592,0.7205,1.1992,33
+Rosetta,rosetta,12,1.1066,0.8464,1.3646,33
+Rosetta,rosetta,24,1.1501,0.8866,1.3939,33
+Rosetta,rosetta,48,1.2236,1.0040,1.4728,33
+Rosetta,rosetta,96,1.2857,1.0671,1.5215,33

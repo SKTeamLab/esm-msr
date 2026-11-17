@@ -1,208 +1,208 @@
 comparison,model_a,model_b,value_a,value_b,delta,lo,hi,p,n_libraries,bootstrap,statistic,p_holm
-stabilizing,ESM-MSR (baseline) WT head,ESM-MSR (baseline) combined,0.2684,0.3265,-0.05804,-0.08083,-0.0404,0.004975,33,domains,mean over domains,0.06965
-stabilizing,ESM-MSR (baseline) WT head,ESM-MSR WT head,0.2684,0.2524,0.01606,-0.004978,0.03731,0.19,33,domains,mean over domains,0.57
-stabilizing,ESM-MSR (baseline) WT head,ESM-MSR combined,0.2684,0.3128,-0.04434,-0.07396,-0.01899,0.004975,33,domains,mean over domains,0.06965
-stabilizing,ESM-MSR (baseline) WT head,ESM-MSR (p0) WT head,0.2684,0.271,-0.002599,-0.0254,0.01794,0.86,33,domains,mean over domains,1
-stabilizing,ESM-MSR (baseline) WT head,ESM-MSR (p0) combined,0.2684,0.3464,-0.07795,-0.1242,-0.03853,0.004975,33,domains,mean over domains,0.06965
-stabilizing,ESM-MSR (baseline) WT head,MutateEverything,0.2684,0.1584,0.11,0.04677,0.166,0.004975,33,domains,mean over domains,0.06965
-stabilizing,ESM-MSR (baseline) WT head,ThermoMPNN,0.2684,0.2189,0.0495,-0.006734,0.1007,0.13,33,domains,mean over domains,0.52
-stabilizing,ESM-MSR (baseline) WT head,SPURS,0.2684,0.2665,0.001874,-0.06564,0.05131,0.99,33,domains,mean over domains,1
-stabilizing,ESM-MSR (baseline) WT head,ESM3-small-open,0.2684,0.02828,0.2401,0.1631,0.3088,0.004975,33,domains,mean over domains,0.06965
-stabilizing,ESM-MSR (baseline) WT head,ProteinMPNN,0.2684,0.0617,0.2067,0.1362,0.2594,0.004975,33,domains,mean over domains,0.06965
-stabilizing,ESM-MSR (baseline) WT head,ProSST,0.2684,0.04872,0.2197,0.1455,0.2754,0.004975,33,domains,mean over domains,0.06965
-stabilizing,ESM-MSR (baseline) WT head,GeoDDG-3D,0.2684,0.1893,0.07909,-0.01309,0.1475,0.08,33,domains,mean over domains,0.4
-stabilizing,ESM-MSR (baseline) WT head,Rosetta,0.2684,0.07926,0.1892,0.133,0.2422,0.004975,33,domains,mean over domains,0.06965
-stabilizing,ESM-MSR (baseline) WT head,"ESM3-small-open independent masking (WT, MT average)",0.2684,0.02514,0.2433,0.1605,0.3056,0.004975,33,domains,mean over domains,0.06965
-stabilizing,ESM-MSR (baseline) combined,ESM-MSR WT head,0.3265,0.2524,0.0741,0.05064,0.09885,0.004975,33,domains,mean over domains,0.06468
-stabilizing,ESM-MSR (baseline) combined,ESM-MSR combined,0.3265,0.3128,0.01369,-0.002385,0.0273,0.1,33,domains,mean over domains,0.21
-stabilizing,ESM-MSR (baseline) combined,ESM-MSR (p0) WT head,0.3265,0.271,0.05544,0.02977,0.08143,0.004975,33,domains,mean over domains,0.06468
-stabilizing,ESM-MSR (baseline) combined,ESM-MSR (p0) combined,0.3265,0.3464,-0.01991,-0.04887,0.004455,0.16,33,domains,mean over domains,0.21
-stabilizing,ESM-MSR (baseline) combined,MutateEverything,0.3265,0.1584,0.168,0.114,0.2197,0.004975,33,domains,mean over domains,0.06468
-stabilizing,ESM-MSR (baseline) combined,ThermoMPNN,0.3265,0.2189,0.1075,0.05777,0.1503,0.004975,33,domains,mean over domains,0.06468
-stabilizing,ESM-MSR (baseline) combined,SPURS,0.3265,0.2665,0.05991,-0.003694,0.1112,0.07,33,domains,mean over domains,0.21
-stabilizing,ESM-MSR (baseline) combined,ESM3-small-open,0.3265,0.02828,0.2982,0.2303,0.3615,0.004975,33,domains,mean over domains,0.06468
-stabilizing,ESM-MSR (baseline) combined,ProteinMPNN,0.3265,0.0617,0.2648,0.1913,0.3144,0.004975,33,domains,mean over domains,0.06468
-stabilizing,ESM-MSR (baseline) combined,ProSST,0.3265,0.04872,0.2777,0.2111,0.3313,0.004975,33,domains,mean over domains,0.06468
-stabilizing,ESM-MSR (baseline) combined,GeoDDG-3D,0.3265,0.1893,0.1371,0.06606,0.1994,0.004975,33,domains,mean over domains,0.06468
-stabilizing,ESM-MSR (baseline) combined,Rosetta,0.3265,0.07926,0.2472,0.1989,0.2955,0.004975,33,domains,mean over domains,0.06468
-stabilizing,ESM-MSR (baseline) combined,"ESM3-small-open independent masking (WT, MT average)",0.3265,0.02514,0.3013,0.2303,0.3625,0.004975,33,domains,mean over domains,0.06468
-stabilizing,ESM-MSR WT head,ESM-MSR combined,0.2524,0.3128,-0.0604,-0.08733,-0.04103,0.004975,33,domains,mean over domains,0.0597
-stabilizing,ESM-MSR WT head,ESM-MSR (p0) WT head,0.2524,0.271,-0.01866,-0.03678,-0.0006117,0.04,33,domains,mean over domains,0.16
-stabilizing,ESM-MSR WT head,ESM-MSR (p0) combined,0.2524,0.3464,-0.09401,-0.1413,-0.05908,0.004975,33,domains,mean over domains,0.0597
-stabilizing,ESM-MSR WT head,MutateEverything,0.2524,0.1584,0.09391,0.03557,0.1468,0.004975,33,domains,mean over domains,0.0597
-stabilizing,ESM-MSR WT head,ThermoMPNN,0.2524,0.2189,0.03344,-0.02004,0.07689,0.19,33,domains,mean over domains,0.38
-stabilizing,ESM-MSR WT head,SPURS,0.2524,0.2665,-0.01418,-0.07453,0.02823,0.56,33,domains,mean over domains,0.56
-stabilizing,ESM-MSR WT head,ESM3-small-open,0.2524,0.02828,0.2241,0.1563,0.2738,0.004975,33,domains,mean over domains,0.0597
-stabilizing,ESM-MSR WT head,ProteinMPNN,0.2524,0.0617,0.1907,0.1296,0.2431,0.004975,33,domains,mean over domains,0.0597
-stabilizing,ESM-MSR WT head,ProSST,0.2524,0.04872,0.2036,0.1362,0.2561,0.004975,33,domains,mean over domains,0.0597
-stabilizing,ESM-MSR WT head,GeoDDG-3D,0.2524,0.1893,0.06304,-0.02216,0.1195,0.1,33,domains,mean over domains,0.3
-stabilizing,ESM-MSR WT head,Rosetta,0.2524,0.07926,0.1731,0.1252,0.2171,0.004975,33,domains,mean over domains,0.0597
-stabilizing,ESM-MSR WT head,"ESM3-small-open independent masking (WT, MT average)",0.2524,0.02514,0.2272,0.1523,0.2823,0.004975,33,domains,mean over domains,0.0597
-stabilizing,ESM-MSR combined,ESM-MSR (p0) WT head,0.3128,0.271,0.04175,0.02233,0.06533,0.004975,33,domains,mean over domains,0.05473
-stabilizing,ESM-MSR combined,ESM-MSR (p0) combined,0.3128,0.3464,-0.0336,-0.05727,-0.01358,0.004975,33,domains,mean over domains,0.05473
-stabilizing,ESM-MSR combined,MutateEverything,0.3128,0.1584,0.1543,0.1018,0.2013,0.004975,33,domains,mean over domains,0.05473
-stabilizing,ESM-MSR combined,ThermoMPNN,0.3128,0.2189,0.09385,0.05533,0.1313,0.004975,33,domains,mean over domains,0.05473
-stabilizing,ESM-MSR combined,SPURS,0.3128,0.2665,0.04622,-0.006501,0.08919,0.08,33,domains,mean over domains,0.08
-stabilizing,ESM-MSR combined,ESM3-small-open,0.3128,0.02828,0.2845,0.224,0.3417,0.004975,33,domains,mean over domains,0.05473
-stabilizing,ESM-MSR combined,ProteinMPNN,0.3128,0.0617,0.2511,0.1881,0.298,0.004975,33,domains,mean over domains,0.05473
-stabilizing,ESM-MSR combined,ProSST,0.3128,0.04872,0.264,0.1995,0.315,0.004975,33,domains,mean over domains,0.05473
-stabilizing,ESM-MSR combined,GeoDDG-3D,0.3128,0.1893,0.1234,0.05573,0.1808,0.004975,33,domains,mean over domains,0.05473
-stabilizing,ESM-MSR combined,Rosetta,0.3128,0.07926,0.2335,0.1938,0.2753,0.004975,33,domains,mean over domains,0.05473
-stabilizing,ESM-MSR combined,"ESM3-small-open independent masking (WT, MT average)",0.3128,0.02514,0.2876,0.222,0.3477,0.004975,33,domains,mean over domains,0.05473
-stabilizing,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.271,0.3464,-0.07535,-0.1139,-0.04988,0.004975,33,domains,mean over domains,0.04975
-stabilizing,ESM-MSR (p0) WT head,MutateEverything,0.271,0.1584,0.1126,0.04663,0.1633,0.004975,33,domains,mean over domains,0.04975
-stabilizing,ESM-MSR (p0) WT head,ThermoMPNN,0.271,0.2189,0.0521,0.001563,0.09558,0.05,33,domains,mean over domains,0.15
-stabilizing,ESM-MSR (p0) WT head,SPURS,0.271,0.2665,0.004473,-0.04739,0.0498,0.88,33,domains,mean over domains,0.88
-stabilizing,ESM-MSR (p0) WT head,ESM3-small-open,0.271,0.02828,0.2427,0.1823,0.2985,0.004975,33,domains,mean over domains,0.04975
-stabilizing,ESM-MSR (p0) WT head,ProteinMPNN,0.271,0.0617,0.2093,0.153,0.2564,0.004975,33,domains,mean over domains,0.04975
-stabilizing,ESM-MSR (p0) WT head,ProSST,0.271,0.04872,0.2223,0.155,0.2739,0.004975,33,domains,mean over domains,0.04975
-stabilizing,ESM-MSR (p0) WT head,GeoDDG-3D,0.271,0.1893,0.08169,-4.407e-05,0.1373,0.05,33,domains,mean over domains,0.15
-stabilizing,ESM-MSR (p0) WT head,Rosetta,0.271,0.07926,0.1918,0.1428,0.2419,0.004975,33,domains,mean over domains,0.04975
-stabilizing,ESM-MSR (p0) WT head,"ESM3-small-open independent masking (WT, MT average)",0.271,0.02514,0.2459,0.1786,0.296,0.004975,33,domains,mean over domains,0.04975
-stabilizing,ESM-MSR (p0) combined,MutateEverything,0.3464,0.1584,0.1879,0.1341,0.2423,0.004975,33,domains,mean over domains,0.04478
-stabilizing,ESM-MSR (p0) combined,ThermoMPNN,0.3464,0.2189,0.1274,0.08949,0.1696,0.004975,33,domains,mean over domains,0.04478
-stabilizing,ESM-MSR (p0) combined,SPURS,0.3464,0.2665,0.07982,0.03752,0.1239,0.004975,33,domains,mean over domains,0.04478
-stabilizing,ESM-MSR (p0) combined,ESM3-small-open,0.3464,0.02828,0.3181,0.2574,0.3756,0.004975,33,domains,mean over domains,0.04478
-stabilizing,ESM-MSR (p0) combined,ProteinMPNN,0.3464,0.0617,0.2847,0.2207,0.338,0.004975,33,domains,mean over domains,0.04478
-stabilizing,ESM-MSR (p0) combined,ProSST,0.3464,0.04872,0.2976,0.2253,0.3526,0.004975,33,domains,mean over domains,0.04478
-stabilizing,ESM-MSR (p0) combined,GeoDDG-3D,0.3464,0.1893,0.157,0.09823,0.2131,0.004975,33,domains,mean over domains,0.04478
-stabilizing,ESM-MSR (p0) combined,Rosetta,0.3464,0.07926,0.2671,0.2286,0.3211,0.004975,33,domains,mean over domains,0.04478
-stabilizing,ESM-MSR (p0) combined,"ESM3-small-open independent masking (WT, MT average)",0.3464,0.02514,0.3212,0.2617,0.3781,0.004975,33,domains,mean over domains,0.04478
-destabilizing,ESM-MSR (baseline) WT head,ESM-MSR (baseline) combined,0.8037,0.8223,-0.01857,-0.02839,-0.008908,0.004975,33,domains,mean over domains,0.06965
-destabilizing,ESM-MSR (baseline) WT head,ESM-MSR WT head,0.8037,0.8058,-0.002106,-0.00825,0.003119,0.39,33,domains,mean over domains,0.78
-destabilizing,ESM-MSR (baseline) WT head,ESM-MSR combined,0.8037,0.8256,-0.02191,-0.03072,-0.01492,0.004975,33,domains,mean over domains,0.06965
-destabilizing,ESM-MSR (baseline) WT head,ESM-MSR (p0) WT head,0.8037,0.8074,-0.00372,-0.01245,0.005698,0.44,33,domains,mean over domains,0.78
-destabilizing,ESM-MSR (baseline) WT head,ESM-MSR (p0) combined,0.8037,0.8205,-0.01675,-0.02731,-0.005714,0.004975,33,domains,mean over domains,0.06965
-destabilizing,ESM-MSR (baseline) WT head,MutateEverything,0.8037,0.7546,0.04912,0.02833,0.0671,0.004975,33,domains,mean over domains,0.06965
-destabilizing,ESM-MSR (baseline) WT head,ThermoMPNN,0.8037,0.7602,0.04352,0.03211,0.05589,0.004975,33,domains,mean over domains,0.06965
-destabilizing,ESM-MSR (baseline) WT head,SPURS,0.8037,0.7736,0.0301,0.01549,0.04405,0.004975,33,domains,mean over domains,0.06965
-destabilizing,ESM-MSR (baseline) WT head,ESM3-small-open,0.8037,0.5624,0.2413,0.2098,0.2784,0.004975,33,domains,mean over domains,0.06965
-destabilizing,ESM-MSR (baseline) WT head,ProteinMPNN,0.8037,0.5028,0.3009,0.2623,0.3463,0.004975,33,domains,mean over domains,0.06965
-destabilizing,ESM-MSR (baseline) WT head,ProSST,0.8037,0.593,0.2107,0.1769,0.2476,0.004975,33,domains,mean over domains,0.06965
-destabilizing,ESM-MSR (baseline) WT head,GeoDDG-3D,0.8037,0.5661,0.2376,0.1777,0.2898,0.004975,33,domains,mean over domains,0.06965
-destabilizing,ESM-MSR (baseline) WT head,Rosetta,0.8037,0.6498,0.1539,0.1278,0.183,0.004975,33,domains,mean over domains,0.06965
-destabilizing,ESM-MSR (baseline) WT head,"ESM3-small-open independent masking (WT, MT average)",0.8037,0.5735,0.2302,0.2003,0.2645,0.004975,33,domains,mean over domains,0.06965
-destabilizing,ESM-MSR (baseline) combined,ESM-MSR WT head,0.8223,0.8058,0.01647,0.00257,0.02782,0.03,33,domains,mean over domains,0.12
-destabilizing,ESM-MSR (baseline) combined,ESM-MSR combined,0.8223,0.8256,-0.003334,-0.01108,0.001271,0.22,33,domains,mean over domains,0.44
-destabilizing,ESM-MSR (baseline) combined,ESM-MSR (p0) WT head,0.8223,0.8074,0.01485,-0.0008518,0.02737,0.06,33,domains,mean over domains,0.18
-destabilizing,ESM-MSR (baseline) combined,ESM-MSR (p0) combined,0.8223,0.8205,0.001823,-0.006796,0.01036,0.62,33,domains,mean over domains,0.62
-destabilizing,ESM-MSR (baseline) combined,MutateEverything,0.8223,0.7546,0.06769,0.04483,0.08642,0.004975,33,domains,mean over domains,0.06468
-destabilizing,ESM-MSR (baseline) combined,ThermoMPNN,0.8223,0.7602,0.0621,0.04811,0.07603,0.004975,33,domains,mean over domains,0.06468
-destabilizing,ESM-MSR (baseline) combined,SPURS,0.8223,0.7736,0.04868,0.03586,0.06281,0.004975,33,domains,mean over domains,0.06468
-destabilizing,ESM-MSR (baseline) combined,ESM3-small-open,0.8223,0.5624,0.2598,0.2265,0.296,0.004975,33,domains,mean over domains,0.06468
-destabilizing,ESM-MSR (baseline) combined,ProteinMPNN,0.8223,0.5028,0.3194,0.2805,0.367,0.004975,33,domains,mean over domains,0.06468
-destabilizing,ESM-MSR (baseline) combined,ProSST,0.8223,0.593,0.2293,0.1941,0.2662,0.004975,33,domains,mean over domains,0.06468
-destabilizing,ESM-MSR (baseline) combined,GeoDDG-3D,0.8223,0.5661,0.2561,0.193,0.3077,0.004975,33,domains,mean over domains,0.06468
-destabilizing,ESM-MSR (baseline) combined,Rosetta,0.8223,0.6498,0.1725,0.1452,0.2043,0.004975,33,domains,mean over domains,0.06468
-destabilizing,ESM-MSR (baseline) combined,"ESM3-small-open independent masking (WT, MT average)",0.8223,0.5735,0.2488,0.2155,0.2816,0.004975,33,domains,mean over domains,0.06468
-destabilizing,ESM-MSR WT head,ESM-MSR combined,0.8058,0.8256,-0.0198,-0.02852,-0.01073,0.004975,33,domains,mean over domains,0.0597
-destabilizing,ESM-MSR WT head,ESM-MSR (p0) WT head,0.8058,0.8074,-0.001613,-0.00852,0.007058,0.72,33,domains,mean over domains,0.72
-destabilizing,ESM-MSR WT head,ESM-MSR (p0) combined,0.8058,0.8205,-0.01465,-0.0253,-0.002411,0.01,33,domains,mean over domains,0.0597
-destabilizing,ESM-MSR WT head,MutateEverything,0.8058,0.7546,0.05122,0.03073,0.06916,0.004975,33,domains,mean over domains,0.0597
-destabilizing,ESM-MSR WT head,ThermoMPNN,0.8058,0.7602,0.04563,0.03235,0.06306,0.004975,33,domains,mean over domains,0.0597
-destabilizing,ESM-MSR WT head,SPURS,0.8058,0.7736,0.03221,0.01721,0.04795,0.004975,33,domains,mean over domains,0.0597
-destabilizing,ESM-MSR WT head,ESM3-small-open,0.8058,0.5624,0.2434,0.2159,0.2833,0.004975,33,domains,mean over domains,0.0597
-destabilizing,ESM-MSR WT head,ProteinMPNN,0.8058,0.5028,0.303,0.2675,0.3468,0.004975,33,domains,mean over domains,0.0597
-destabilizing,ESM-MSR WT head,ProSST,0.8058,0.593,0.2128,0.1818,0.2468,0.004975,33,domains,mean over domains,0.0597
-destabilizing,ESM-MSR WT head,GeoDDG-3D,0.8058,0.5661,0.2397,0.1806,0.2863,0.004975,33,domains,mean over domains,0.0597
-destabilizing,ESM-MSR WT head,Rosetta,0.8058,0.6498,0.156,0.1296,0.1898,0.004975,33,domains,mean over domains,0.0597
-destabilizing,ESM-MSR WT head,"ESM3-small-open independent masking (WT, MT average)",0.8058,0.5735,0.2323,0.2042,0.2686,0.004975,33,domains,mean over domains,0.0597
-destabilizing,ESM-MSR combined,ESM-MSR (p0) WT head,0.8256,0.8074,0.01819,0.007426,0.03028,0.01,33,domains,mean over domains,0.05473
-destabilizing,ESM-MSR combined,ESM-MSR (p0) combined,0.8256,0.8205,0.005157,-0.001604,0.01492,0.18,33,domains,mean over domains,0.18
-destabilizing,ESM-MSR combined,MutateEverything,0.8256,0.7546,0.07103,0.04924,0.08773,0.004975,33,domains,mean over domains,0.05473
-destabilizing,ESM-MSR combined,ThermoMPNN,0.8256,0.7602,0.06543,0.05335,0.07935,0.004975,33,domains,mean over domains,0.05473
-destabilizing,ESM-MSR combined,SPURS,0.8256,0.7736,0.05201,0.04032,0.06433,0.004975,33,domains,mean over domains,0.05473
-destabilizing,ESM-MSR combined,ESM3-small-open,0.8256,0.5624,0.2632,0.2314,0.2989,0.004975,33,domains,mean over domains,0.05473
-destabilizing,ESM-MSR combined,ProteinMPNN,0.8256,0.5028,0.3228,0.2881,0.3677,0.004975,33,domains,mean over domains,0.05473
-destabilizing,ESM-MSR combined,ProSST,0.8256,0.593,0.2326,0.201,0.269,0.004975,33,domains,mean over domains,0.05473
-destabilizing,ESM-MSR combined,GeoDDG-3D,0.8256,0.5661,0.2595,0.1991,0.3083,0.004975,33,domains,mean over domains,0.05473
-destabilizing,ESM-MSR combined,Rosetta,0.8256,0.6498,0.1758,0.1501,0.2077,0.004975,33,domains,mean over domains,0.05473
-destabilizing,ESM-MSR combined,"ESM3-small-open independent masking (WT, MT average)",0.8256,0.5735,0.2521,0.2206,0.2861,0.004975,33,domains,mean over domains,0.05473
-destabilizing,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.8074,0.8205,-0.01303,-0.02474,-0.003278,0.03,33,domains,mean over domains,0.04975
-destabilizing,ESM-MSR (p0) WT head,MutateEverything,0.8074,0.7546,0.05284,0.02838,0.07125,0.004975,33,domains,mean over domains,0.04975
-destabilizing,ESM-MSR (p0) WT head,ThermoMPNN,0.8074,0.7602,0.04724,0.02906,0.06528,0.004975,33,domains,mean over domains,0.04975
-destabilizing,ESM-MSR (p0) WT head,SPURS,0.8074,0.7736,0.03382,0.0149,0.05479,0.004975,33,domains,mean over domains,0.04975
-destabilizing,ESM-MSR (p0) WT head,ESM3-small-open,0.8074,0.5624,0.245,0.217,0.2834,0.004975,33,domains,mean over domains,0.04975
-destabilizing,ESM-MSR (p0) WT head,ProteinMPNN,0.8074,0.5028,0.3046,0.2679,0.3464,0.004975,33,domains,mean over domains,0.04975
-destabilizing,ESM-MSR (p0) WT head,ProSST,0.8074,0.593,0.2144,0.1863,0.2461,0.004975,33,domains,mean over domains,0.04975
-destabilizing,ESM-MSR (p0) WT head,GeoDDG-3D,0.8074,0.5661,0.2413,0.1776,0.29,0.004975,33,domains,mean over domains,0.04975
-destabilizing,ESM-MSR (p0) WT head,Rosetta,0.8074,0.6498,0.1576,0.1274,0.1964,0.004975,33,domains,mean over domains,0.04975
-destabilizing,ESM-MSR (p0) WT head,"ESM3-small-open independent masking (WT, MT average)",0.8074,0.5735,0.2339,0.2087,0.2657,0.004975,33,domains,mean over domains,0.04975
-destabilizing,ESM-MSR (p0) combined,MutateEverything,0.8205,0.7546,0.06587,0.04235,0.08377,0.004975,33,domains,mean over domains,0.04478
-destabilizing,ESM-MSR (p0) combined,ThermoMPNN,0.8205,0.7602,0.06027,0.04144,0.07658,0.004975,33,domains,mean over domains,0.04478
-destabilizing,ESM-MSR (p0) combined,SPURS,0.8205,0.7736,0.04685,0.02982,0.062,0.004975,33,domains,mean over domains,0.04478
-destabilizing,ESM-MSR (p0) combined,ESM3-small-open,0.8205,0.5624,0.258,0.226,0.294,0.004975,33,domains,mean over domains,0.04478
-destabilizing,ESM-MSR (p0) combined,ProteinMPNN,0.8205,0.5028,0.3176,0.275,0.3651,0.004975,33,domains,mean over domains,0.04478
-destabilizing,ESM-MSR (p0) combined,ProSST,0.8205,0.593,0.2274,0.1932,0.2648,0.004975,33,domains,mean over domains,0.04478
-destabilizing,ESM-MSR (p0) combined,GeoDDG-3D,0.8205,0.5661,0.2543,0.1869,0.3075,0.004975,33,domains,mean over domains,0.04478
-destabilizing,ESM-MSR (p0) combined,Rosetta,0.8205,0.6498,0.1706,0.1384,0.2026,0.004975,33,domains,mean over domains,0.04478
-destabilizing,ESM-MSR (p0) combined,"ESM3-small-open independent masking (WT, MT average)",0.8205,0.5735,0.247,0.2175,0.2799,0.004975,33,domains,mean over domains,0.04478
-overall,ESM-MSR (baseline) WT head,ESM-MSR (baseline) combined,0.8286,0.8474,-0.01878,-0.02917,-0.01007,0.004975,33,domains,mean over domains,0.06965
-overall,ESM-MSR (baseline) WT head,ESM-MSR WT head,0.8286,0.8276,0.001096,-0.005738,0.007146,0.84,33,domains,mean over domains,1
-overall,ESM-MSR (baseline) WT head,ESM-MSR combined,0.8286,0.8487,-0.02006,-0.02954,-0.01243,0.004975,33,domains,mean over domains,0.06965
-overall,ESM-MSR (baseline) WT head,ESM-MSR (p0) WT head,0.8286,0.8281,0.0005031,-0.007803,0.009017,0.98,33,domains,mean over domains,1
-overall,ESM-MSR (baseline) WT head,ESM-MSR (p0) combined,0.8286,0.845,-0.01632,-0.02891,-0.004458,0.004975,33,domains,mean over domains,0.06965
-overall,ESM-MSR (baseline) WT head,MutateEverything,0.8286,0.7699,0.05875,0.03897,0.07537,0.004975,33,domains,mean over domains,0.06965
-overall,ESM-MSR (baseline) WT head,ThermoMPNN,0.8286,0.784,0.04461,0.0332,0.05597,0.004975,33,domains,mean over domains,0.06965
-overall,ESM-MSR (baseline) WT head,SPURS,0.8286,0.7979,0.03074,0.01723,0.04518,0.004975,33,domains,mean over domains,0.06965
-overall,ESM-MSR (baseline) WT head,ESM3-small-open,0.8286,0.5772,0.2515,0.2132,0.2931,0.004975,33,domains,mean over domains,0.06965
-overall,ESM-MSR (baseline) WT head,ProteinMPNN,0.8286,0.5417,0.287,0.2438,0.3388,0.004975,33,domains,mean over domains,0.06965
-overall,ESM-MSR (baseline) WT head,ProSST,0.8286,0.5965,0.2322,0.1897,0.2803,0.004975,33,domains,mean over domains,0.06965
-overall,ESM-MSR (baseline) WT head,GeoDDG-3D,0.8286,0.6086,0.2201,0.1643,0.2738,0.004975,33,domains,mean over domains,0.06965
-overall,ESM-MSR (baseline) WT head,Rosetta,0.8286,0.6626,0.1661,0.1443,0.1943,0.004975,33,domains,mean over domains,0.06965
-overall,ESM-MSR (baseline) WT head,"ESM3-small-open independent masking (WT, MT average)",0.8286,0.5819,0.2468,0.2116,0.2897,0.004975,33,domains,mean over domains,0.06965
-overall,ESM-MSR (baseline) combined,ESM-MSR WT head,0.8474,0.8276,0.01988,0.007507,0.03203,0.004975,33,domains,mean over domains,0.06468
-overall,ESM-MSR (baseline) combined,ESM-MSR combined,0.8474,0.8487,-0.001275,-0.007217,0.002759,0.58,33,domains,mean over domains,1
-overall,ESM-MSR (baseline) combined,ESM-MSR (p0) WT head,0.8474,0.8281,0.01929,0.004133,0.03103,0.004975,33,domains,mean over domains,0.06468
-overall,ESM-MSR (baseline) combined,ESM-MSR (p0) combined,0.8474,0.845,0.002462,-0.005531,0.01081,0.54,33,domains,mean over domains,1
-overall,ESM-MSR (baseline) combined,MutateEverything,0.8474,0.7699,0.07753,0.05754,0.09447,0.004975,33,domains,mean over domains,0.06468
-overall,ESM-MSR (baseline) combined,ThermoMPNN,0.8474,0.784,0.06339,0.051,0.0738,0.004975,33,domains,mean over domains,0.06468
-overall,ESM-MSR (baseline) combined,SPURS,0.8474,0.7979,0.04953,0.03567,0.06556,0.004975,33,domains,mean over domains,0.06468
-overall,ESM-MSR (baseline) combined,ESM3-small-open,0.8474,0.5772,0.2703,0.2277,0.3197,0.004975,33,domains,mean over domains,0.06468
-overall,ESM-MSR (baseline) combined,ProteinMPNN,0.8474,0.5417,0.3057,0.2602,0.3581,0.004975,33,domains,mean over domains,0.06468
-overall,ESM-MSR (baseline) combined,ProSST,0.8474,0.5965,0.2509,0.204,0.2987,0.004975,33,domains,mean over domains,0.06468
-overall,ESM-MSR (baseline) combined,GeoDDG-3D,0.8474,0.6086,0.2389,0.1819,0.2913,0.004975,33,domains,mean over domains,0.06468
-overall,ESM-MSR (baseline) combined,Rosetta,0.8474,0.6626,0.1849,0.1619,0.2113,0.004975,33,domains,mean over domains,0.06468
-overall,ESM-MSR (baseline) combined,"ESM3-small-open independent masking (WT, MT average)",0.8474,0.5819,0.2655,0.2257,0.3123,0.004975,33,domains,mean over domains,0.06468
-overall,ESM-MSR WT head,ESM-MSR combined,0.8276,0.8487,-0.02115,-0.03143,-0.01141,0.004975,33,domains,mean over domains,0.0597
-overall,ESM-MSR WT head,ESM-MSR (p0) WT head,0.8276,0.8281,-0.000593,-0.005867,0.007146,0.88,33,domains,mean over domains,0.88
-overall,ESM-MSR WT head,ESM-MSR (p0) combined,0.8276,0.845,-0.01742,-0.02992,-0.005011,0.004975,33,domains,mean over domains,0.0597
-overall,ESM-MSR WT head,MutateEverything,0.8276,0.7699,0.05765,0.04012,0.07363,0.004975,33,domains,mean over domains,0.0597
-overall,ESM-MSR WT head,ThermoMPNN,0.8276,0.784,0.04351,0.03029,0.05789,0.004975,33,domains,mean over domains,0.0597
-overall,ESM-MSR WT head,SPURS,0.8276,0.7979,0.02965,0.01542,0.04309,0.004975,33,domains,mean over domains,0.0597
-overall,ESM-MSR WT head,ESM3-small-open,0.8276,0.5772,0.2504,0.2128,0.2948,0.004975,33,domains,mean over domains,0.0597
-overall,ESM-MSR WT head,ProteinMPNN,0.8276,0.5417,0.2859,0.2427,0.3322,0.004975,33,domains,mean over domains,0.0597
-overall,ESM-MSR WT head,ProSST,0.8276,0.5965,0.2311,0.1929,0.2734,0.004975,33,domains,mean over domains,0.0597
-overall,ESM-MSR WT head,GeoDDG-3D,0.8276,0.6086,0.219,0.1646,0.2668,0.004975,33,domains,mean over domains,0.0597
-overall,ESM-MSR WT head,Rosetta,0.8276,0.6626,0.165,0.1433,0.1956,0.004975,33,domains,mean over domains,0.0597
-overall,ESM-MSR WT head,"ESM3-small-open independent masking (WT, MT average)",0.8276,0.5819,0.2457,0.2116,0.2869,0.004975,33,domains,mean over domains,0.0597
-overall,ESM-MSR combined,ESM-MSR (p0) WT head,0.8487,0.8281,0.02056,0.01046,0.0315,0.004975,33,domains,mean over domains,0.05473
-overall,ESM-MSR combined,ESM-MSR (p0) combined,0.8487,0.845,0.003736,-0.003105,0.01431,0.4,33,domains,mean over domains,0.4
-overall,ESM-MSR combined,MutateEverything,0.8487,0.7699,0.07881,0.05915,0.09461,0.004975,33,domains,mean over domains,0.05473
-overall,ESM-MSR combined,ThermoMPNN,0.8487,0.784,0.06467,0.05361,0.07563,0.004975,33,domains,mean over domains,0.05473
-overall,ESM-MSR combined,SPURS,0.8487,0.7979,0.0508,0.03843,0.06279,0.004975,33,domains,mean over domains,0.05473
-overall,ESM-MSR combined,ESM3-small-open,0.8487,0.5772,0.2715,0.2314,0.3176,0.004975,33,domains,mean over domains,0.05473
-overall,ESM-MSR combined,ProteinMPNN,0.8487,0.5417,0.307,0.2648,0.3554,0.004975,33,domains,mean over domains,0.05473
-overall,ESM-MSR combined,ProSST,0.8487,0.5965,0.2522,0.2073,0.2999,0.004975,33,domains,mean over domains,0.05473
-overall,ESM-MSR combined,GeoDDG-3D,0.8487,0.6086,0.2401,0.1842,0.2895,0.004975,33,domains,mean over domains,0.05473
-overall,ESM-MSR combined,Rosetta,0.8487,0.6626,0.1862,0.1654,0.2125,0.004975,33,domains,mean over domains,0.05473
-overall,ESM-MSR combined,"ESM3-small-open independent masking (WT, MT average)",0.8487,0.5819,0.2668,0.2274,0.3101,0.004975,33,domains,mean over domains,0.05473
-overall,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.8281,0.845,-0.01683,-0.02954,-0.005961,0.004975,33,domains,mean over domains,0.04975
-overall,ESM-MSR (p0) WT head,MutateEverything,0.8281,0.7699,0.05824,0.03653,0.07561,0.004975,33,domains,mean over domains,0.04975
-overall,ESM-MSR (p0) WT head,ThermoMPNN,0.8281,0.784,0.04411,0.02566,0.06192,0.004975,33,domains,mean over domains,0.04975
-overall,ESM-MSR (p0) WT head,SPURS,0.8281,0.7979,0.03024,0.01373,0.04658,0.004975,33,domains,mean over domains,0.04975
-overall,ESM-MSR (p0) WT head,ESM3-small-open,0.8281,0.5772,0.251,0.2157,0.2907,0.004975,33,domains,mean over domains,0.04975
-overall,ESM-MSR (p0) WT head,ProteinMPNN,0.8281,0.5417,0.2865,0.2395,0.3329,0.004975,33,domains,mean over domains,0.04975
-overall,ESM-MSR (p0) WT head,ProSST,0.8281,0.5965,0.2317,0.1948,0.2735,0.004975,33,domains,mean over domains,0.04975
-overall,ESM-MSR (p0) WT head,GeoDDG-3D,0.8281,0.6086,0.2196,0.1622,0.2671,0.004975,33,domains,mean over domains,0.04975
-overall,ESM-MSR (p0) WT head,Rosetta,0.8281,0.6626,0.1656,0.1384,0.1959,0.004975,33,domains,mean over domains,0.04975
-overall,ESM-MSR (p0) WT head,"ESM3-small-open independent masking (WT, MT average)",0.8281,0.5819,0.2462,0.2139,0.2855,0.004975,33,domains,mean over domains,0.04975
-overall,ESM-MSR (p0) combined,MutateEverything,0.845,0.7699,0.07507,0.05208,0.09178,0.004975,33,domains,mean over domains,0.04478
-overall,ESM-MSR (p0) combined,ThermoMPNN,0.845,0.784,0.06093,0.04233,0.07546,0.004975,33,domains,mean over domains,0.04478
-overall,ESM-MSR (p0) combined,SPURS,0.845,0.7979,0.04707,0.02885,0.06323,0.004975,33,domains,mean over domains,0.04478
-overall,ESM-MSR (p0) combined,ESM3-small-open,0.845,0.5772,0.2678,0.2229,0.3176,0.004975,33,domains,mean over domains,0.04478
-overall,ESM-MSR (p0) combined,ProteinMPNN,0.845,0.5417,0.3033,0.2517,0.3549,0.004975,33,domains,mean over domains,0.04478
-overall,ESM-MSR (p0) combined,ProSST,0.845,0.5965,0.2485,0.201,0.3012,0.004975,33,domains,mean over domains,0.04478
-overall,ESM-MSR (p0) combined,GeoDDG-3D,0.845,0.6086,0.2364,0.1748,0.2899,0.004975,33,domains,mean over domains,0.04478
-overall,ESM-MSR (p0) combined,Rosetta,0.845,0.6626,0.1824,0.1538,0.2105,0.004975,33,domains,mean over domains,0.04478
-overall,ESM-MSR (p0) combined,"ESM3-small-open independent masking (WT, MT average)",0.845,0.5819,0.2631,0.2214,0.3096,0.004975,33,domains,mean over domains,0.04478
+stabilizing,ESM-MSR (baseline) WT head,ESM-MSR (baseline) combined,0.2684,0.3265,-0.05804,-0.07726,-0.03992,0.009901,33,domains,mean over domains,0.1386
+stabilizing,ESM-MSR (baseline) WT head,ESM-MSR WT head,0.2684,0.2524,0.01606,-0.01029,0.03627,0.22,33,domains,mean over domains,0.66
+stabilizing,ESM-MSR (baseline) WT head,ESM-MSR combined,0.2684,0.3128,-0.04434,-0.07393,-0.01842,0.009901,33,domains,mean over domains,0.1386
+stabilizing,ESM-MSR (baseline) WT head,ESM-MSR (p0) WT head,0.2684,0.271,-0.002599,-0.02997,0.01934,0.92,33,domains,mean over domains,1
+stabilizing,ESM-MSR (baseline) WT head,ESM-MSR (p0) combined,0.2684,0.3464,-0.07795,-0.1173,-0.03789,0.009901,33,domains,mean over domains,0.1386
+stabilizing,ESM-MSR (baseline) WT head,MutateEverything,0.2684,0.1584,0.11,0.05371,0.1683,0.009901,33,domains,mean over domains,0.1386
+stabilizing,ESM-MSR (baseline) WT head,ThermoMPNN,0.2684,0.2189,0.0495,-0.002486,0.0952,0.08,33,domains,mean over domains,0.4
+stabilizing,ESM-MSR (baseline) WT head,SPURS,0.2684,0.2571,0.01132,-0.05869,0.05956,0.7,33,domains,mean over domains,1
+stabilizing,ESM-MSR (baseline) WT head,ESM3-small-open,0.2684,0.02828,0.2401,0.1656,0.2948,0.009901,33,domains,mean over domains,0.1386
+stabilizing,ESM-MSR (baseline) WT head,ProteinMPNN,0.2684,0.0617,0.2067,0.1386,0.2618,0.009901,33,domains,mean over domains,0.1386
+stabilizing,ESM-MSR (baseline) WT head,ProSST,0.2684,0.04872,0.2197,0.1508,0.28,0.009901,33,domains,mean over domains,0.1386
+stabilizing,ESM-MSR (baseline) WT head,GeoDDG-3D,0.2684,0.1893,0.07909,-0.009395,0.1501,0.08,33,domains,mean over domains,0.4
+stabilizing,ESM-MSR (baseline) WT head,Rosetta,0.2684,0.07926,0.1892,0.13,0.2506,0.009901,33,domains,mean over domains,0.1386
+stabilizing,ESM-MSR (baseline) WT head,"ESM3-small-open independent masking (WT, MT average)",0.2684,0.02514,0.2433,0.1658,0.3045,0.009901,33,domains,mean over domains,0.1386
+stabilizing,ESM-MSR (baseline) combined,ESM-MSR WT head,0.3265,0.2524,0.0741,0.05074,0.09873,0.009901,33,domains,mean over domains,0.1287
+stabilizing,ESM-MSR (baseline) combined,ESM-MSR combined,0.3265,0.3128,0.01369,-0.002929,0.02874,0.1,33,domains,mean over domains,0.2
+stabilizing,ESM-MSR (baseline) combined,ESM-MSR (p0) WT head,0.3265,0.271,0.05544,0.02844,0.08269,0.009901,33,domains,mean over domains,0.1287
+stabilizing,ESM-MSR (baseline) combined,ESM-MSR (p0) combined,0.3265,0.3464,-0.01991,-0.04504,0.007958,0.24,33,domains,mean over domains,0.24
+stabilizing,ESM-MSR (baseline) combined,MutateEverything,0.3265,0.1584,0.168,0.1166,0.2225,0.009901,33,domains,mean over domains,0.1287
+stabilizing,ESM-MSR (baseline) combined,ThermoMPNN,0.3265,0.2189,0.1075,0.06916,0.1467,0.009901,33,domains,mean over domains,0.1287
+stabilizing,ESM-MSR (baseline) combined,SPURS,0.3265,0.2571,0.06936,0.009069,0.1225,0.02,33,domains,mean over domains,0.1287
+stabilizing,ESM-MSR (baseline) combined,ESM3-small-open,0.3265,0.02828,0.2982,0.2339,0.351,0.009901,33,domains,mean over domains,0.1287
+stabilizing,ESM-MSR (baseline) combined,ProteinMPNN,0.3265,0.0617,0.2648,0.1946,0.3177,0.009901,33,domains,mean over domains,0.1287
+stabilizing,ESM-MSR (baseline) combined,ProSST,0.3265,0.04872,0.2777,0.202,0.3355,0.009901,33,domains,mean over domains,0.1287
+stabilizing,ESM-MSR (baseline) combined,GeoDDG-3D,0.3265,0.1893,0.1371,0.0664,0.2025,0.009901,33,domains,mean over domains,0.1287
+stabilizing,ESM-MSR (baseline) combined,Rosetta,0.3265,0.07926,0.2472,0.2004,0.3023,0.009901,33,domains,mean over domains,0.1287
+stabilizing,ESM-MSR (baseline) combined,"ESM3-small-open independent masking (WT, MT average)",0.3265,0.02514,0.3013,0.2298,0.3603,0.009901,33,domains,mean over domains,0.1287
+stabilizing,ESM-MSR WT head,ESM-MSR combined,0.2524,0.3128,-0.0604,-0.08166,-0.04086,0.009901,33,domains,mean over domains,0.1188
+stabilizing,ESM-MSR WT head,ESM-MSR (p0) WT head,0.2524,0.271,-0.01866,-0.03794,5.08e-05,0.06,33,domains,mean over domains,0.24
+stabilizing,ESM-MSR WT head,ESM-MSR (p0) combined,0.2524,0.3464,-0.09401,-0.1275,-0.05717,0.009901,33,domains,mean over domains,0.1188
+stabilizing,ESM-MSR WT head,MutateEverything,0.2524,0.1584,0.09391,0.04565,0.1466,0.009901,33,domains,mean over domains,0.1188
+stabilizing,ESM-MSR WT head,ThermoMPNN,0.2524,0.2189,0.03344,-0.01204,0.07483,0.14,33,domains,mean over domains,0.3
+stabilizing,ESM-MSR WT head,SPURS,0.2524,0.2571,-0.004739,-0.05912,0.03363,0.8,33,domains,mean over domains,0.8
+stabilizing,ESM-MSR WT head,ESM3-small-open,0.2524,0.02828,0.2241,0.158,0.2791,0.009901,33,domains,mean over domains,0.1188
+stabilizing,ESM-MSR WT head,ProteinMPNN,0.2524,0.0617,0.1907,0.1289,0.2453,0.009901,33,domains,mean over domains,0.1188
+stabilizing,ESM-MSR WT head,ProSST,0.2524,0.04872,0.2036,0.141,0.2603,0.009901,33,domains,mean over domains,0.1188
+stabilizing,ESM-MSR WT head,GeoDDG-3D,0.2524,0.1893,0.06304,-0.01483,0.1187,0.1,33,domains,mean over domains,0.3
+stabilizing,ESM-MSR WT head,Rosetta,0.2524,0.07926,0.1731,0.1266,0.2286,0.009901,33,domains,mean over domains,0.1188
+stabilizing,ESM-MSR WT head,"ESM3-small-open independent masking (WT, MT average)",0.2524,0.02514,0.2272,0.1593,0.2879,0.009901,33,domains,mean over domains,0.1188
+stabilizing,ESM-MSR combined,ESM-MSR (p0) WT head,0.3128,0.271,0.04175,0.01977,0.06561,0.009901,33,domains,mean over domains,0.1089
+stabilizing,ESM-MSR combined,ESM-MSR (p0) combined,0.3128,0.3464,-0.0336,-0.05476,-0.01305,0.009901,33,domains,mean over domains,0.1089
+stabilizing,ESM-MSR combined,MutateEverything,0.3128,0.1584,0.1543,0.1099,0.2055,0.009901,33,domains,mean over domains,0.1089
+stabilizing,ESM-MSR combined,ThermoMPNN,0.3128,0.2189,0.09385,0.0599,0.1294,0.009901,33,domains,mean over domains,0.1089
+stabilizing,ESM-MSR combined,SPURS,0.3128,0.2571,0.05566,0.008178,0.09546,0.04,33,domains,mean over domains,0.1089
+stabilizing,ESM-MSR combined,ESM3-small-open,0.3128,0.02828,0.2845,0.2246,0.3396,0.009901,33,domains,mean over domains,0.1089
+stabilizing,ESM-MSR combined,ProteinMPNN,0.3128,0.0617,0.2511,0.1926,0.3003,0.009901,33,domains,mean over domains,0.1089
+stabilizing,ESM-MSR combined,ProSST,0.3128,0.04872,0.264,0.1985,0.3148,0.009901,33,domains,mean over domains,0.1089
+stabilizing,ESM-MSR combined,GeoDDG-3D,0.3128,0.1893,0.1234,0.05689,0.1815,0.009901,33,domains,mean over domains,0.1089
+stabilizing,ESM-MSR combined,Rosetta,0.3128,0.07926,0.2335,0.1976,0.282,0.009901,33,domains,mean over domains,0.1089
+stabilizing,ESM-MSR combined,"ESM3-small-open independent masking (WT, MT average)",0.3128,0.02514,0.2876,0.2201,0.3462,0.009901,33,domains,mean over domains,0.1089
+stabilizing,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.271,0.3464,-0.07535,-0.1052,-0.0487,0.009901,33,domains,mean over domains,0.09901
+stabilizing,ESM-MSR (p0) WT head,MutateEverything,0.271,0.1584,0.1126,0.06317,0.1668,0.009901,33,domains,mean over domains,0.09901
+stabilizing,ESM-MSR (p0) WT head,ThermoMPNN,0.271,0.2189,0.0521,0.01123,0.09209,0.04,33,domains,mean over domains,0.12
+stabilizing,ESM-MSR (p0) WT head,SPURS,0.271,0.2571,0.01392,-0.03847,0.05163,0.6,33,domains,mean over domains,0.6
+stabilizing,ESM-MSR (p0) WT head,ESM3-small-open,0.271,0.02828,0.2427,0.1828,0.3047,0.009901,33,domains,mean over domains,0.09901
+stabilizing,ESM-MSR (p0) WT head,ProteinMPNN,0.271,0.0617,0.2093,0.1541,0.2579,0.009901,33,domains,mean over domains,0.09901
+stabilizing,ESM-MSR (p0) WT head,ProSST,0.271,0.04872,0.2223,0.1609,0.2742,0.009901,33,domains,mean over domains,0.09901
+stabilizing,ESM-MSR (p0) WT head,GeoDDG-3D,0.271,0.1893,0.08169,0.002834,0.1334,0.06,33,domains,mean over domains,0.12
+stabilizing,ESM-MSR (p0) WT head,Rosetta,0.271,0.07926,0.1918,0.1408,0.2472,0.009901,33,domains,mean over domains,0.09901
+stabilizing,ESM-MSR (p0) WT head,"ESM3-small-open independent masking (WT, MT average)",0.271,0.02514,0.2459,0.1861,0.3068,0.009901,33,domains,mean over domains,0.09901
+stabilizing,ESM-MSR (p0) combined,MutateEverything,0.3464,0.1584,0.1879,0.1392,0.2415,0.009901,33,domains,mean over domains,0.08911
+stabilizing,ESM-MSR (p0) combined,ThermoMPNN,0.3464,0.2189,0.1274,0.09368,0.1635,0.009901,33,domains,mean over domains,0.08911
+stabilizing,ESM-MSR (p0) combined,SPURS,0.3464,0.2571,0.08927,0.04286,0.1312,0.009901,33,domains,mean over domains,0.08911
+stabilizing,ESM-MSR (p0) combined,ESM3-small-open,0.3464,0.02828,0.3181,0.2552,0.3741,0.009901,33,domains,mean over domains,0.08911
+stabilizing,ESM-MSR (p0) combined,ProteinMPNN,0.3464,0.0617,0.2847,0.2217,0.3388,0.009901,33,domains,mean over domains,0.08911
+stabilizing,ESM-MSR (p0) combined,ProSST,0.3464,0.04872,0.2976,0.2246,0.3513,0.009901,33,domains,mean over domains,0.08911
+stabilizing,ESM-MSR (p0) combined,GeoDDG-3D,0.3464,0.1893,0.157,0.09385,0.2125,0.009901,33,domains,mean over domains,0.08911
+stabilizing,ESM-MSR (p0) combined,Rosetta,0.3464,0.07926,0.2671,0.2264,0.3221,0.009901,33,domains,mean over domains,0.08911
+stabilizing,ESM-MSR (p0) combined,"ESM3-small-open independent masking (WT, MT average)",0.3464,0.02514,0.3212,0.2581,0.3794,0.009901,33,domains,mean over domains,0.08911
+destabilizing,ESM-MSR (baseline) WT head,ESM-MSR (baseline) combined,0.8037,0.8223,-0.01857,-0.0272,-0.009205,0.009901,33,domains,mean over domains,0.1386
+destabilizing,ESM-MSR (baseline) WT head,ESM-MSR WT head,0.8037,0.8058,-0.002106,-0.00753,0.002703,0.4,33,domains,mean over domains,0.76
+destabilizing,ESM-MSR (baseline) WT head,ESM-MSR combined,0.8037,0.8256,-0.02191,-0.02997,-0.01529,0.009901,33,domains,mean over domains,0.1386
+destabilizing,ESM-MSR (baseline) WT head,ESM-MSR (p0) WT head,0.8037,0.8074,-0.00372,-0.01214,0.006039,0.38,33,domains,mean over domains,0.76
+destabilizing,ESM-MSR (baseline) WT head,ESM-MSR (p0) combined,0.8037,0.8205,-0.01675,-0.02624,-0.005396,0.009901,33,domains,mean over domains,0.1386
+destabilizing,ESM-MSR (baseline) WT head,MutateEverything,0.8037,0.7546,0.04912,0.03368,0.06734,0.009901,33,domains,mean over domains,0.1386
+destabilizing,ESM-MSR (baseline) WT head,ThermoMPNN,0.8037,0.7602,0.04352,0.03135,0.05688,0.009901,33,domains,mean over domains,0.1386
+destabilizing,ESM-MSR (baseline) WT head,SPURS,0.8037,0.779,0.0247,0.01144,0.0413,0.009901,33,domains,mean over domains,0.1386
+destabilizing,ESM-MSR (baseline) WT head,ESM3-small-open,0.8037,0.5624,0.2413,0.2122,0.2772,0.009901,33,domains,mean over domains,0.1386
+destabilizing,ESM-MSR (baseline) WT head,ProteinMPNN,0.8037,0.5028,0.3009,0.2626,0.3497,0.009901,33,domains,mean over domains,0.1386
+destabilizing,ESM-MSR (baseline) WT head,ProSST,0.8037,0.593,0.2107,0.1739,0.2481,0.009901,33,domains,mean over domains,0.1386
+destabilizing,ESM-MSR (baseline) WT head,GeoDDG-3D,0.8037,0.5661,0.2376,0.1774,0.2813,0.009901,33,domains,mean over domains,0.1386
+destabilizing,ESM-MSR (baseline) WT head,Rosetta,0.8037,0.6498,0.1539,0.1244,0.1849,0.009901,33,domains,mean over domains,0.1386
+destabilizing,ESM-MSR (baseline) WT head,"ESM3-small-open independent masking (WT, MT average)",0.8037,0.5735,0.2302,0.2005,0.2649,0.009901,33,domains,mean over domains,0.1386
+destabilizing,ESM-MSR (baseline) combined,ESM-MSR WT head,0.8223,0.8058,0.01647,0.003539,0.02728,0.04,33,domains,mean over domains,0.16
+destabilizing,ESM-MSR (baseline) combined,ESM-MSR combined,0.8223,0.8256,-0.003334,-0.01118,0.001102,0.22,33,domains,mean over domains,0.44
+destabilizing,ESM-MSR (baseline) combined,ESM-MSR (p0) WT head,0.8223,0.8074,0.01485,-0.001366,0.02628,0.08,33,domains,mean over domains,0.24
+destabilizing,ESM-MSR (baseline) combined,ESM-MSR (p0) combined,0.8223,0.8205,0.001823,-0.006654,0.01081,0.66,33,domains,mean over domains,0.66
+destabilizing,ESM-MSR (baseline) combined,MutateEverything,0.8223,0.7546,0.06769,0.04771,0.08733,0.009901,33,domains,mean over domains,0.1287
+destabilizing,ESM-MSR (baseline) combined,ThermoMPNN,0.8223,0.7602,0.0621,0.04735,0.07562,0.009901,33,domains,mean over domains,0.1287
+destabilizing,ESM-MSR (baseline) combined,SPURS,0.8223,0.779,0.04328,0.02957,0.0575,0.009901,33,domains,mean over domains,0.1287
+destabilizing,ESM-MSR (baseline) combined,ESM3-small-open,0.8223,0.5624,0.2598,0.2247,0.2948,0.009901,33,domains,mean over domains,0.1287
+destabilizing,ESM-MSR (baseline) combined,ProteinMPNN,0.8223,0.5028,0.3194,0.2795,0.3673,0.009901,33,domains,mean over domains,0.1287
+destabilizing,ESM-MSR (baseline) combined,ProSST,0.8223,0.593,0.2293,0.1919,0.2691,0.009901,33,domains,mean over domains,0.1287
+destabilizing,ESM-MSR (baseline) combined,GeoDDG-3D,0.8223,0.5661,0.2561,0.192,0.3019,0.009901,33,domains,mean over domains,0.1287
+destabilizing,ESM-MSR (baseline) combined,Rosetta,0.8223,0.6498,0.1725,0.1447,0.2047,0.009901,33,domains,mean over domains,0.1287
+destabilizing,ESM-MSR (baseline) combined,"ESM3-small-open independent masking (WT, MT average)",0.8223,0.5735,0.2488,0.2147,0.2828,0.009901,33,domains,mean over domains,0.1287
+destabilizing,ESM-MSR WT head,ESM-MSR combined,0.8058,0.8256,-0.0198,-0.02835,-0.01095,0.009901,33,domains,mean over domains,0.1188
+destabilizing,ESM-MSR WT head,ESM-MSR (p0) WT head,0.8058,0.8074,-0.001613,-0.008642,0.007185,0.64,33,domains,mean over domains,0.64
+destabilizing,ESM-MSR WT head,ESM-MSR (p0) combined,0.8058,0.8205,-0.01465,-0.02479,-0.00191,0.02,33,domains,mean over domains,0.1188
+destabilizing,ESM-MSR WT head,MutateEverything,0.8058,0.7546,0.05122,0.03485,0.07088,0.009901,33,domains,mean over domains,0.1188
+destabilizing,ESM-MSR WT head,ThermoMPNN,0.8058,0.7602,0.04563,0.03099,0.06348,0.009901,33,domains,mean over domains,0.1188
+destabilizing,ESM-MSR WT head,SPURS,0.8058,0.779,0.02681,0.01404,0.04371,0.009901,33,domains,mean over domains,0.1188
+destabilizing,ESM-MSR WT head,ESM3-small-open,0.8058,0.5624,0.2434,0.2165,0.2818,0.009901,33,domains,mean over domains,0.1188
+destabilizing,ESM-MSR WT head,ProteinMPNN,0.8058,0.5028,0.303,0.2676,0.348,0.009901,33,domains,mean over domains,0.1188
+destabilizing,ESM-MSR WT head,ProSST,0.8058,0.593,0.2128,0.1815,0.247,0.009901,33,domains,mean over domains,0.1188
+destabilizing,ESM-MSR WT head,GeoDDG-3D,0.8058,0.5661,0.2397,0.1838,0.2841,0.009901,33,domains,mean over domains,0.1188
+destabilizing,ESM-MSR WT head,Rosetta,0.8058,0.6498,0.156,0.1268,0.1916,0.009901,33,domains,mean over domains,0.1188
+destabilizing,ESM-MSR WT head,"ESM3-small-open independent masking (WT, MT average)",0.8058,0.5735,0.2323,0.2054,0.2698,0.009901,33,domains,mean over domains,0.1188
+destabilizing,ESM-MSR combined,ESM-MSR (p0) WT head,0.8256,0.8074,0.01819,0.007617,0.02975,0.009901,33,domains,mean over domains,0.1089
+destabilizing,ESM-MSR combined,ESM-MSR (p0) combined,0.8256,0.8205,0.005157,-0.0009489,0.01464,0.18,33,domains,mean over domains,0.18
+destabilizing,ESM-MSR combined,MutateEverything,0.8256,0.7546,0.07103,0.05163,0.08755,0.009901,33,domains,mean over domains,0.1089
+destabilizing,ESM-MSR combined,ThermoMPNN,0.8256,0.7602,0.06543,0.05306,0.07908,0.009901,33,domains,mean over domains,0.1089
+destabilizing,ESM-MSR combined,SPURS,0.8256,0.779,0.04661,0.03546,0.05831,0.009901,33,domains,mean over domains,0.1089
+destabilizing,ESM-MSR combined,ESM3-small-open,0.8256,0.5624,0.2632,0.2325,0.2974,0.009901,33,domains,mean over domains,0.1089
+destabilizing,ESM-MSR combined,ProteinMPNN,0.8256,0.5028,0.3228,0.288,0.3684,0.009901,33,domains,mean over domains,0.1089
+destabilizing,ESM-MSR combined,ProSST,0.8256,0.593,0.2326,0.1985,0.27,0.009901,33,domains,mean over domains,0.1089
+destabilizing,ESM-MSR combined,GeoDDG-3D,0.8256,0.5661,0.2595,0.1978,0.3042,0.009901,33,domains,mean over domains,0.1089
+destabilizing,ESM-MSR combined,Rosetta,0.8256,0.6498,0.1758,0.1498,0.2097,0.009901,33,domains,mean over domains,0.1089
+destabilizing,ESM-MSR combined,"ESM3-small-open independent masking (WT, MT average)",0.8256,0.5735,0.2521,0.2203,0.2864,0.009901,33,domains,mean over domains,0.1089
+destabilizing,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.8074,0.8205,-0.01303,-0.02444,-0.002886,0.02,33,domains,mean over domains,0.09901
+destabilizing,ESM-MSR (p0) WT head,MutateEverything,0.8074,0.7546,0.05284,0.02609,0.07198,0.009901,33,domains,mean over domains,0.09901
+destabilizing,ESM-MSR (p0) WT head,ThermoMPNN,0.8074,0.7602,0.04724,0.0274,0.06798,0.009901,33,domains,mean over domains,0.09901
+destabilizing,ESM-MSR (p0) WT head,SPURS,0.8074,0.779,0.02842,0.009958,0.04833,0.009901,33,domains,mean over domains,0.09901
+destabilizing,ESM-MSR (p0) WT head,ESM3-small-open,0.8074,0.5624,0.245,0.2181,0.2815,0.009901,33,domains,mean over domains,0.09901
+destabilizing,ESM-MSR (p0) WT head,ProteinMPNN,0.8074,0.5028,0.3046,0.2656,0.3472,0.009901,33,domains,mean over domains,0.09901
+destabilizing,ESM-MSR (p0) WT head,ProSST,0.8074,0.593,0.2144,0.1821,0.2458,0.009901,33,domains,mean over domains,0.09901
+destabilizing,ESM-MSR (p0) WT head,GeoDDG-3D,0.8074,0.5661,0.2413,0.1796,0.2873,0.009901,33,domains,mean over domains,0.09901
+destabilizing,ESM-MSR (p0) WT head,Rosetta,0.8074,0.6498,0.1576,0.1245,0.1942,0.009901,33,domains,mean over domains,0.09901
+destabilizing,ESM-MSR (p0) WT head,"ESM3-small-open independent masking (WT, MT average)",0.8074,0.5735,0.2339,0.2096,0.2679,0.009901,33,domains,mean over domains,0.09901
+destabilizing,ESM-MSR (p0) combined,MutateEverything,0.8205,0.7546,0.06587,0.04257,0.08415,0.009901,33,domains,mean over domains,0.08911
+destabilizing,ESM-MSR (p0) combined,ThermoMPNN,0.8205,0.7602,0.06027,0.04024,0.07639,0.009901,33,domains,mean over domains,0.08911
+destabilizing,ESM-MSR (p0) combined,SPURS,0.8205,0.779,0.04146,0.02034,0.05816,0.009901,33,domains,mean over domains,0.08911
+destabilizing,ESM-MSR (p0) combined,ESM3-small-open,0.8205,0.5624,0.258,0.2219,0.293,0.009901,33,domains,mean over domains,0.08911
+destabilizing,ESM-MSR (p0) combined,ProteinMPNN,0.8205,0.5028,0.3176,0.2768,0.3667,0.009901,33,domains,mean over domains,0.08911
+destabilizing,ESM-MSR (p0) combined,ProSST,0.8205,0.593,0.2274,0.1891,0.2651,0.009901,33,domains,mean over domains,0.08911
+destabilizing,ESM-MSR (p0) combined,GeoDDG-3D,0.8205,0.5661,0.2543,0.1887,0.2993,0.009901,33,domains,mean over domains,0.08911
+destabilizing,ESM-MSR (p0) combined,Rosetta,0.8205,0.6498,0.1706,0.137,0.2042,0.009901,33,domains,mean over domains,0.08911
+destabilizing,ESM-MSR (p0) combined,"ESM3-small-open independent masking (WT, MT average)",0.8205,0.5735,0.247,0.2172,0.2797,0.009901,33,domains,mean over domains,0.08911
+overall,ESM-MSR (baseline) WT head,ESM-MSR (baseline) combined,0.8286,0.8474,-0.01878,-0.02864,-0.00976,0.009901,33,domains,mean over domains,0.1386
+overall,ESM-MSR (baseline) WT head,ESM-MSR WT head,0.8286,0.8276,0.001096,-0.004454,0.006611,0.74,33,domains,mean over domains,1
+overall,ESM-MSR (baseline) WT head,ESM-MSR combined,0.8286,0.8487,-0.02006,-0.02898,-0.01326,0.009901,33,domains,mean over domains,0.1386
+overall,ESM-MSR (baseline) WT head,ESM-MSR (p0) WT head,0.8286,0.8281,0.0005031,-0.007009,0.00887,0.94,33,domains,mean over domains,1
+overall,ESM-MSR (baseline) WT head,ESM-MSR (p0) combined,0.8286,0.845,-0.01632,-0.0277,-0.00384,0.009901,33,domains,mean over domains,0.1386
+overall,ESM-MSR (baseline) WT head,MutateEverything,0.8286,0.7699,0.05875,0.04014,0.07506,0.009901,33,domains,mean over domains,0.1386
+overall,ESM-MSR (baseline) WT head,ThermoMPNN,0.8286,0.784,0.04461,0.03227,0.05632,0.009901,33,domains,mean over domains,0.1386
+overall,ESM-MSR (baseline) WT head,SPURS,0.8286,0.8008,0.02783,0.01471,0.04311,0.009901,33,domains,mean over domains,0.1386
+overall,ESM-MSR (baseline) WT head,ESM3-small-open,0.8286,0.5772,0.2515,0.2138,0.2939,0.009901,33,domains,mean over domains,0.1386
+overall,ESM-MSR (baseline) WT head,ProteinMPNN,0.8286,0.5417,0.287,0.2446,0.3382,0.009901,33,domains,mean over domains,0.1386
+overall,ESM-MSR (baseline) WT head,ProSST,0.8286,0.5965,0.2322,0.1895,0.2824,0.009901,33,domains,mean over domains,0.1386
+overall,ESM-MSR (baseline) WT head,GeoDDG-3D,0.8286,0.6086,0.2201,0.1655,0.2612,0.009901,33,domains,mean over domains,0.1386
+overall,ESM-MSR (baseline) WT head,Rosetta,0.8286,0.6626,0.1661,0.1379,0.1927,0.009901,33,domains,mean over domains,0.1386
+overall,ESM-MSR (baseline) WT head,"ESM3-small-open independent masking (WT, MT average)",0.8286,0.5819,0.2468,0.2121,0.2893,0.009901,33,domains,mean over domains,0.1386
+overall,ESM-MSR (baseline) combined,ESM-MSR WT head,0.8474,0.8276,0.01988,0.007291,0.03154,0.009901,33,domains,mean over domains,0.1287
+overall,ESM-MSR (baseline) combined,ESM-MSR combined,0.8474,0.8487,-0.001275,-0.006902,0.002401,0.54,33,domains,mean over domains,1
+overall,ESM-MSR (baseline) combined,ESM-MSR (p0) WT head,0.8474,0.8281,0.01929,0.005257,0.02967,0.009901,33,domains,mean over domains,0.1287
+overall,ESM-MSR (baseline) combined,ESM-MSR (p0) combined,0.8474,0.845,0.002462,-0.004935,0.01066,0.6,33,domains,mean over domains,1
+overall,ESM-MSR (baseline) combined,MutateEverything,0.8474,0.7699,0.07753,0.05753,0.09388,0.009901,33,domains,mean over domains,0.1287
+overall,ESM-MSR (baseline) combined,ThermoMPNN,0.8474,0.784,0.06339,0.05021,0.0736,0.009901,33,domains,mean over domains,0.1287
+overall,ESM-MSR (baseline) combined,SPURS,0.8474,0.8008,0.04661,0.03047,0.0598,0.009901,33,domains,mean over domains,0.1287
+overall,ESM-MSR (baseline) combined,ESM3-small-open,0.8474,0.5772,0.2703,0.2289,0.3152,0.009901,33,domains,mean over domains,0.1287
+overall,ESM-MSR (baseline) combined,ProteinMPNN,0.8474,0.5417,0.3057,0.2622,0.3575,0.009901,33,domains,mean over domains,0.1287
+overall,ESM-MSR (baseline) combined,ProSST,0.8474,0.5965,0.2509,0.2042,0.3019,0.009901,33,domains,mean over domains,0.1287
+overall,ESM-MSR (baseline) combined,GeoDDG-3D,0.8474,0.6086,0.2389,0.1803,0.28,0.009901,33,domains,mean over domains,0.1287
+overall,ESM-MSR (baseline) combined,Rosetta,0.8474,0.6626,0.1849,0.1593,0.2098,0.009901,33,domains,mean over domains,0.1287
+overall,ESM-MSR (baseline) combined,"ESM3-small-open independent masking (WT, MT average)",0.8474,0.5819,0.2655,0.2261,0.3098,0.009901,33,domains,mean over domains,0.1287
+overall,ESM-MSR WT head,ESM-MSR combined,0.8276,0.8487,-0.02115,-0.03161,-0.01151,0.009901,33,domains,mean over domains,0.1188
+overall,ESM-MSR WT head,ESM-MSR (p0) WT head,0.8276,0.8281,-0.000593,-0.00582,0.007317,0.8,33,domains,mean over domains,0.8
+overall,ESM-MSR WT head,ESM-MSR (p0) combined,0.8276,0.845,-0.01742,-0.03073,-0.003551,0.009901,33,domains,mean over domains,0.1188
+overall,ESM-MSR WT head,MutateEverything,0.8276,0.7699,0.05765,0.03894,0.07351,0.009901,33,domains,mean over domains,0.1188
+overall,ESM-MSR WT head,ThermoMPNN,0.8276,0.784,0.04351,0.02962,0.058,0.009901,33,domains,mean over domains,0.1188
+overall,ESM-MSR WT head,SPURS,0.8276,0.8008,0.02673,0.01493,0.04042,0.009901,33,domains,mean over domains,0.1188
+overall,ESM-MSR WT head,ESM3-small-open,0.8276,0.5772,0.2504,0.2152,0.2937,0.009901,33,domains,mean over domains,0.1188
+overall,ESM-MSR WT head,ProteinMPNN,0.8276,0.5417,0.2859,0.245,0.3327,0.009901,33,domains,mean over domains,0.1188
+overall,ESM-MSR WT head,ProSST,0.8276,0.5965,0.2311,0.1904,0.2776,0.009901,33,domains,mean over domains,0.1188
+overall,ESM-MSR WT head,GeoDDG-3D,0.8276,0.6086,0.219,0.1691,0.2607,0.009901,33,domains,mean over domains,0.1188
+overall,ESM-MSR WT head,Rosetta,0.8276,0.6626,0.165,0.1373,0.1958,0.009901,33,domains,mean over domains,0.1188
+overall,ESM-MSR WT head,"ESM3-small-open independent masking (WT, MT average)",0.8276,0.5819,0.2457,0.2104,0.2883,0.009901,33,domains,mean over domains,0.1188
+overall,ESM-MSR combined,ESM-MSR (p0) WT head,0.8487,0.8281,0.02056,0.01094,0.03135,0.009901,33,domains,mean over domains,0.1089
+overall,ESM-MSR combined,ESM-MSR (p0) combined,0.8487,0.845,0.003736,-0.00259,0.01443,0.4,33,domains,mean over domains,0.4
+overall,ESM-MSR combined,MutateEverything,0.8487,0.7699,0.07881,0.05901,0.09422,0.009901,33,domains,mean over domains,0.1089
+overall,ESM-MSR combined,ThermoMPNN,0.8487,0.784,0.06467,0.05293,0.07542,0.009901,33,domains,mean over domains,0.1089
+overall,ESM-MSR combined,SPURS,0.8487,0.8008,0.04788,0.03557,0.06094,0.009901,33,domains,mean over domains,0.1089
+overall,ESM-MSR combined,ESM3-small-open,0.8487,0.5772,0.2715,0.2316,0.3147,0.009901,33,domains,mean over domains,0.1089
+overall,ESM-MSR combined,ProteinMPNN,0.8487,0.5417,0.307,0.2676,0.3563,0.009901,33,domains,mean over domains,0.1089
+overall,ESM-MSR combined,ProSST,0.8487,0.5965,0.2522,0.2081,0.302,0.009901,33,domains,mean over domains,0.1089
+overall,ESM-MSR combined,GeoDDG-3D,0.8487,0.6086,0.2401,0.1853,0.2803,0.009901,33,domains,mean over domains,0.1089
+overall,ESM-MSR combined,Rosetta,0.8487,0.6626,0.1862,0.1628,0.2132,0.009901,33,domains,mean over domains,0.1089
+overall,ESM-MSR combined,"ESM3-small-open independent masking (WT, MT average)",0.8487,0.5819,0.2668,0.2268,0.3094,0.009901,33,domains,mean over domains,0.1089
+overall,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.8281,0.845,-0.01683,-0.02876,-0.005869,0.009901,33,domains,mean over domains,0.09901
+overall,ESM-MSR (p0) WT head,MutateEverything,0.8281,0.7699,0.05824,0.03427,0.07595,0.009901,33,domains,mean over domains,0.09901
+overall,ESM-MSR (p0) WT head,ThermoMPNN,0.8281,0.784,0.04411,0.02431,0.06199,0.009901,33,domains,mean over domains,0.09901
+overall,ESM-MSR (p0) WT head,SPURS,0.8281,0.8008,0.02732,0.009279,0.04466,0.009901,33,domains,mean over domains,0.09901
+overall,ESM-MSR (p0) WT head,ESM3-small-open,0.8281,0.5772,0.251,0.2164,0.2901,0.009901,33,domains,mean over domains,0.09901
+overall,ESM-MSR (p0) WT head,ProteinMPNN,0.8281,0.5417,0.2865,0.2442,0.3335,0.009901,33,domains,mean over domains,0.09901
+overall,ESM-MSR (p0) WT head,ProSST,0.8281,0.5965,0.2317,0.1932,0.2739,0.009901,33,domains,mean over domains,0.09901
+overall,ESM-MSR (p0) WT head,GeoDDG-3D,0.8281,0.6086,0.2196,0.1681,0.2637,0.009901,33,domains,mean over domains,0.09901
+overall,ESM-MSR (p0) WT head,Rosetta,0.8281,0.6626,0.1656,0.1305,0.196,0.009901,33,domains,mean over domains,0.09901
+overall,ESM-MSR (p0) WT head,"ESM3-small-open independent masking (WT, MT average)",0.8281,0.5819,0.2462,0.2133,0.2851,0.009901,33,domains,mean over domains,0.09901
+overall,ESM-MSR (p0) combined,MutateEverything,0.845,0.7699,0.07507,0.05251,0.09193,0.009901,33,domains,mean over domains,0.08911
+overall,ESM-MSR (p0) combined,ThermoMPNN,0.845,0.784,0.06093,0.04217,0.07504,0.009901,33,domains,mean over domains,0.08911
+overall,ESM-MSR (p0) combined,SPURS,0.845,0.8008,0.04415,0.02335,0.06215,0.009901,33,domains,mean over domains,0.08911
+overall,ESM-MSR (p0) combined,ESM3-small-open,0.845,0.5772,0.2678,0.2254,0.3124,0.009901,33,domains,mean over domains,0.08911
+overall,ESM-MSR (p0) combined,ProteinMPNN,0.845,0.5417,0.3033,0.257,0.3548,0.009901,33,domains,mean over domains,0.08911
+overall,ESM-MSR (p0) combined,ProSST,0.845,0.5965,0.2485,0.2012,0.3031,0.009901,33,domains,mean over domains,0.08911
+overall,ESM-MSR (p0) combined,GeoDDG-3D,0.845,0.6086,0.2364,0.1762,0.2782,0.009901,33,domains,mean over domains,0.08911
+overall,ESM-MSR (p0) combined,Rosetta,0.845,0.6626,0.1824,0.1497,0.2095,0.009901,33,domains,mean over domains,0.08911
+overall,ESM-MSR (p0) combined,"ESM3-small-open independent masking (WT, MT average)",0.845,0.5819,0.2631,0.2214,0.3071,0.009901,33,domains,mean over domains,0.08911

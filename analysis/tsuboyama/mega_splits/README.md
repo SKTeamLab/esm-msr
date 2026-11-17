@@ -164,11 +164,11 @@ workspace `~/spurs_retrain`, logs in `SPURS/logs/{oct06,mega}`):
   (`ta_seed1`)**. The paper's "9.9 million" trainable parameters is the trained-adapter number, so the released checkpoint trained 4.34 M parameters and did not match the method the paper describes. ESM2 is frozen in the code
   (`esm2_adapter.py` sets `requires_grad=False` on every non-adapter parameter) in both variants.
 * **Decision (user, 2026-11-16): the manuscript SPURS must match what the paper presents, i.e. the unfrozen adapter, regardless of how the comparison with the public checkpoint comes out.** The frozen-adapter retrains stay as the
-  control that matches the released weights. Capped-split triplicate queued 2026-11-16 with the frozen recipe's overrides and only `model.legacy_esm_forward=false` changed (`oct06/unf_seed{1,2,3}`, multi `oct06/unf_multi_seed{1,2,3}`,
+  control that matches the released weights. Capped-split triplicate run 2026-11-16 (completed; it is now the authoritative SPURS in the BENCHMARKS tables and `analysis/` results, the frozen triplicate is the control) with the frozen recipe's overrides and only `model.legacy_esm_forward=false` changed (`oct06/unf_seed{1,2,3}`, multi `oct06/unf_multi_seed{1,2,3}`,
   in `~/spurs_retrain/SPURS/logs/oct06`; jobs 389790 / 389793 / 389796 → 389791 / 389794 / 389797 → full tracked tests 389792 / 389795 / 389798, `outputs/tracked/spurs_unfrozen_s{1,2,3}`). The earlier `pub_*` / `ta_*` capped runs were not reused
   (mixed names, two cancelled, multi initialised from different singles).
-* **The frozen-adapter choice** (`legacy_esm_forward=true`, the `leg_*` runs) is the retrain that matches how the *released checkpoint* was trained, not how the paper describes training, and it is the recipe of every SPURS number in the BENCHMARKS
-  tables and in this folder. The trained-adapter variant was tried as a control (`pub_*` and `ta_*` runs; `ta_idx1_seed1` moves the adapter to ESM layer −1).
+* **The frozen-adapter choice** (`legacy_esm_forward=true`, the `leg_*` runs) is the retrain that matches how the *released checkpoint* was trained, not how the paper describes training, and it is the recipe of every SPURS number in this folder's mega_splits retrains
+  (`spurs`, `spursm`; the trained-adapter mega_splits retrain is `spursu`, `spursum`). Until 2026-11-16 it was also the recipe of the capped-split BENCHMARKS numbers, which now use the trained adapter. The trained-adapter variant was tried as a control (`pub_*` and `ta_*` runs; `ta_idx1_seed1` moves the adapter to ESM layer −1).
 
 What the two variants did where they were compared:
 
@@ -182,9 +182,9 @@ What the two variants did where they were compared:
 | **mega_splits** | `mega/r1_pretrained_public` | trained | 0.803 at epoch 15, still rising when cancelled at epoch 16 | upstream data loader on `mega_splits.pkl`, pretrained MPNN, seed 45; **never tested** |
 | mega_splits | `mega/r2_pretrained_legacy` | frozen | 0.785 after epoch 1 | cancelled after one epoch, as were `r0` and `r3` (random ProteinMPNN) |
 
-So the trained adapter has **not** been tested properly on mega_splits: no completed run, no test evaluation, no multi model. On the capped split it was indistinguishable from the frozen adapter within seed noise, one scored
+The trained adapter was **first run to completion on mega_splits on 2026-11-16** (three paired seeds, single and multi, val/test scored; results in the next section): indistinguishable from the frozen adapter for singles, lower on all variants but higher on doubles for the multi model. On the capped split it was indistinguishable from the frozen adapter within seed noise, one scored
 seed. The released SPURS multi reaches validation 0.749 (116 steps per epoch for 22 epochs, doubles only), against 0.669–0.697 for our frozen-adapter multi retrain, which is the largest gap to the published model.
-**Queued 2026-11-16** (gpu4, three paired seeds, same recipe as `leg_*` with `model.legacy_esm_forward=false`): trained-adapter single `spurs_ta_s{1,2,3}` (jobs 389770, 389773, 389776), multi `spurs_tam_s*`
+**Run 2026-11-16** (gpu4, three paired seeds, same recipe as `leg_*` with `model.legacy_esm_forward=false`; all completed): trained-adapter single `spurs_ta_s{1,2,3}` (jobs 389770, 389773, 389776), multi `spurs_tam_s*`
 (389771, 389774, 389777) and the val/test-only tracked test `spurs_mega_ta_s*` (389787, 389788, 389789; outputs `outputs/tracked/spurs_mega_ta_s{1,2,3}`).
 
 **Which SPURS to present (manuscript).** The released weights were trained by code that no longer exists in the public repository, so the public repository's current forward (trained adapter) and the
@@ -196,9 +196,62 @@ the predictions variant by variant), and state the adapter setting in the method
 **Standing rule: the public SPURS checkpoint is always included in mega_splits analyses.** It appears to have been trained on exactly this split (the released run is 212 steps per epoch for 25 epochs, which is the
 mega_splits training set of 239 libraries minus 27 without a wild-type row, selected on the split's validation set; the checkpoint reproduces its stored validation score of 0.8088 exactly, with pooled train / val / test
 Spearman 0.908 / 0.809 / 0.741 and per-protein means 0.898 / 0.827 / 0.797). Its test libraries are therefore held out by the split, though not homology-clean (see above), and its training set is the 64-library-filtered
-one. **Queued 2026-11-16:** `spurs_mega_public` (job 389783, `outputs/tracked/spurs_mega_public`; single and multi, tracked slot, same harness as `spurs_mega_s*`). Still to do when it lands: collect it into
-`baselines/retrained/mega_splits/tracked/`, give it keys in `msr_analysis.data._load_mega` (one checkpoint, so one seed) and the registry, add it to `01_rho_overview.py` and to the epistasis, screening and gain-fit
-panels, and add the per-variant agreement of the public checkpoint with each retrain (frozen, trained adapter) to this README.
+one. **Done 2026-11-16:** `spurs_mega_public` (job 389783) was collected, given keys (`spurspub`, `spurspubm`) and added to the overview, epistasis and screening scripts and to the version comparison (next section).
+
+### SPURS versions and the published checkpoints on mega_splits (results, 2026-11-16)
+
+Collected from the cluster (`spurs_mega_ta_s{1,2,3}`, `spurs_mega_public`, `thermompnn_mega_public_ens{1,2,3}` into `baselines/retrained/mega_splits/tracked/`) and run through the same pipeline
+(`01_rho_overview.py`, `03_version_comparison.py`, and the epistasis, screening scripts, which now draw the extra rows under `MSR_TSU_SPLIT=mega`). Keys: `spurs`/`spursm` = frozen random adapter
+(the released checkpoint's configuration), `spursu`/`spursum` = adapter trained (the paper's configuration, `legacy_esm_forward=false`), `spurspub`/`spurspubm` = the published checkpoint (one run),
+`tmpnnpub`/`tmpnndpub` = the published ThermoMPNN / -D ensemble members (three, standing in for seeds). The manuscript will use the trained-adapter version; the frozen one stays as the control.
+
+**The "missing keys" lines in the SPURS inference logs are not a problem.** They come from `esm2_adapter.py` loading the *pretrained ESM2* weights into the adapter-equipped model when it is built (the adapter is
+not in ESM2, so its 17 tensors are reported missing at that point), before our checkpoint is loaded. Our retrained checkpoints are loaded with `load_state_dict(..., strict=True)` (`spurs_inference.py`), which would
+fail on any missing adapter key, and both retrains hold all 717 (single) / 726 (multi) tensors including the 17 adapter ones. The published checkpoint is loaded by upstream's `get_SPURS_from_hub` with
+`strict=False`, which would silently drop a missing key; checked directly (2026-11-16): the published single and multi checkpoints contain exactly the same 717 / 726 keys as our retrains, adapter included
+(none missing, none unexpected), so nothing is dropped and the published adapter weights are the ones used.
+
+**Mean per-library Spearman ρ** (`03_tsuboyama/table_mega_split.md`, three seeds each except the published SPURS):
+
+| Model | val | test | test singles | test doubles |
+|---|---|---|---|---|
+| SPURS, trained adapter | 0.812 | 0.800 | 0.796 | 0.570 |
+| SPURS, frozen adapter | 0.813 | 0.799 | 0.796 | 0.567 |
+| SPURS, published | 0.813 | 0.794 | 0.798 | 0.543 |
+| SPURS multi, frozen adapter | 0.768 | 0.771 | 0.738 | 0.598 |
+| SPURS multi, published | 0.765 | 0.762 | 0.726 | 0.617 |
+| SPURS multi, trained adapter | 0.755 | 0.761 | 0.721 | 0.612 |
+| ThermoMPNN retrain / published (3 ensemble members) | 0.782 / 0.787 | 0.777 / 0.777 | 0.769 / 0.765 | 0.557 / 0.564 |
+| ThermoMPNN-D retrain / published | 0.788 / 0.792 | 0.779 / 0.775 | 0.769 / 0.765 | 0.615 / 0.611 |
+
+* **Trained and frozen adapter are the same model for singles.** Per-library difference (trained − frozen) +0.001 on test (95 % interval −0.001 to +0.003; higher in 11 of 28 libraries) and −0.001 on val;
+  the per-variant Spearman correlation between the two (different seeds) is 0.986, the same as between two seeds of one version (0.987). Adapter training changes the predictions no more than a seed does.
+* **The published SPURS is level with both on the mean per-library ρ** (test −0.005 against the frozen retrain, interval −0.015 to +0.005; val 0.000). Its per-variant agreement with a retrain is 0.975–0.98,
+  slightly below the seed-to-seed 0.987, i.e. a little further from our retrains than they are from each other.
+* **The paper's own statistic** (median per-protein ρ over the wild-type-backbone singles of the 28 test libraries; `table_mega_split.md`, `tsuboyama_mega_test_medians.csv`): the **published checkpoint gives
+  0.826, matching the paper's 0.83**, which also confirms the checkpoint is what the paper evaluated. Our retrains give **0.818 (frozen; seeds 0.810–0.824) and 0.812 (trained adapter; 0.810–0.815)**, i.e.
+  0.008–0.014 below it; the frozen retrain's top seed (0.824) nearly reaches it, the trained-adapter seeds do not. ThermoMPNN's retrain gives 0.773 against the paper's 0.77 and the published ensemble 0.766.
+  (An earlier version of this section said the medians were about 0.80 for all three and that the paper's 0.83 was not reproduced: that confused the mean per-library ρ, 0.794–0.800, with the median, which is
+  what the paper reports.) The 0.01 gap between our SPURS retrains and the published checkpoint is therefore not explained by the adapter setting (both retrains sit below it) and stays within a bootstrap over
+  28 libraries; the published SPURS is one run, so its own seed spread is unknown.
+* **SPURS multi differs more.** On all variants the trained-adapter multi is lower than the frozen one (val −0.013 [−0.021, −0.005], test −0.010 [−0.016, −0.005]), because its single-mutation predictions are
+  lower (0.721 vs 0.738 on test singles); on doubles it is higher (val +0.040 [+0.017, +0.068], test +0.014 [−0.005, +0.035]). The published multi sits at the trained one on doubles (0.617, 0.612) and at the frozen
+  one overall, and is above the trained retrain on val (+0.009 [+0.002, +0.017]). On the multi model the published checkpoint is closer to the trained-adapter recipe on doubles, the metric the model is for.
+* **Epistasis term** (multi minus the family's own single-additive prediction, per-variant Spearman between versions, different seeds): frozen vs trained multi 0.87, frozen vs published 0.83, trained vs
+  published 0.84, against 0.83 (frozen) and 0.90 (trained) between two seeds of one version: the three multi versions agree about as well as two seeds do.
+* **Epistasis levels** (test, `06_epistasis/fig5_epistasis_levels_bootstrap_test.csv`; 20 domains, B = 300, intervals are wide): SPURS multi frozen / trained / published reach beyond-global ρ 0.309 / 0.347 / 0.361,
+  pair 0.394 / 0.426 / 0.465, line 0.289 / 0.345 / 0.317, `cell_rank` 0.049 / 0.063 / 0.084, `cell_mag` 0.039 / 0.058 / 0.053. The order frozen < trained ≲ published holds at every level, but every difference is
+  inside the intervals (`cell_rank` 0.049 [0.022, 0.081] against 0.084 [0.063, 0.125]); all three stay far below ESM-MSR (beyond 0.455, pair 0.560, `cell_rank` 0.108, `cell_mag` 0.158). Published ThermoMPNN-D is
+  below the retrain at every level (beyond 0.244 against 0.305), also inside the intervals. These are exploratory, one published run each.
+* **ThermoMPNN**: the published ensemble members and our retrain are indistinguishable (ThermoMPNN test −0.000 [−0.008, +0.006], ThermoMPNN-D −0.003 [−0.011, +0.003]; per-variant correlation 0.97 for
+  singles, 0.70 for the D epistasis term against 0.79 between two seeds). The effect of our different training data (train only, mutant-background singles, 109 k doubles) on the retrained numbers is within seed
+  noise for both ThermoMPNN models, which supports using the retrains as stand-ins for the originals.
+* **Decision rule status.** "Closest to the public checkpoint" cannot separate the two single-mutation recipes (both within noise of it) and favours the trained adapter only for the multi model's doubles; neither
+  result argues against the user's decision to present the unfrozen adapter.
+
+Figures: `03_tsuboyama/version_paired_rho`, `03_tsuboyama/version_agreement`; the extra rows also appear in `tsuboyama_mega_overview`, `tsuboyama_mega_per_library`, `06_epistasis/*` and `08_screening/*`
+(the gain-fit and pair-heatmap scripts were not extended). Mean per-library numbers here use the pipeline's population (28 test libraries, mutant backgrounds pooled into their wild type), so they are
+lower than a median over wild-type singles only.
 
 ### Published checkpoints trained on these splits (searched 2026-11-16)
 
@@ -207,9 +260,9 @@ tested on the capped splits, not here. The queued runs therefore score val and t
 
 | Model | Released checkpoints | Trained on | Usable as the "original" for our retrains? |
 |---|---|---|---|
-| **SPURS** | HF checkpoint `luo-group/SPURS` (single and multi) | mega_splits train, selected on val (see above) | **Yes**: queued (`spurs_mega_public`, job 389783) |
+| **SPURS** | HF checkpoint `luo-group/SPURS` (single and multi) | mega_splits train, selected on val (see above) | **Yes**: run (`spurs_mega_public`, job 389783; results below) |
 | **ThermoMPNN** (PNAS 2024) | `models/thermoMPNN_default.pt` in `Kuhlman-Lab/ThermoMPNN` ("best ThermoMPNN model trained on Megascale training dataset"); the split files are in its `dataset_splits/` | mega_splits | The original PNAS model; not downloaded here |
-| **ThermoMPNN / ThermoMPNN-D v2** | `Kuhlman-Lab/ThermoMPNN-D` `model_weights/`: `ThermoMPNN-ens{1,2,3}.ckpt` (single) and `ThermoMPNN-D-ens{1,2,3}.ckpt` (doubles), committed 2024-08-01; on the cluster in `~/software/ThermoMPNN-D/model_weights` | the repo's `train_single.yaml` / `train_epistatic.yaml`: `megascale`, `mega_splits.pkl`, `splits: [train, val]` (singles; doubles plus augmented doubles), 100 epochs, lr 1e-5. The checkpoints themselves embed no hyper-parameters, so this rests on the configs and the paper | **Yes**: queued as three ensemble members (see below) |
+| **ThermoMPNN / ThermoMPNN-D v2** | `Kuhlman-Lab/ThermoMPNN-D` `model_weights/`: `ThermoMPNN-ens{1,2,3}.ckpt` (single) and `ThermoMPNN-D-ens{1,2,3}.ckpt` (doubles), committed 2024-08-01; on the cluster in `~/software/ThermoMPNN-D/model_weights` | the repo's `train_single.yaml` / `train_epistatic.yaml`: `megascale`, `mega_splits.pkl`, `splits: [train, val]` (singles; doubles plus augmented doubles), 100 epochs, lr 1e-5. The checkpoints themselves embed no hyper-parameters, so this rests on the configs and the paper | **Yes**: run as three ensemble members (jobs 389784-86; results above) |
 | **Mutate Everything** | four checkpoints on Box (ESM2 and AlphaFold, each full and "single only"); `mutate_everything_{af,esm,af_old}.pth` are on the cluster in `~/software/MutateEverything/models` | **its own cDNA split** (`cdna_train`); the README mentions no Megascale, ThermoMPNN or mega_splits data; the repository has 7 commits and no releases | **No.** No ME checkpoint trained on mega_splits exists in any release I could find |
 
 The ThermoMPNN-D Zenodo record (13345274, "Double mutant stability data and single mutant structures") holds only data archives (`Megascale.tar.gz`, `DMS`, `PTMUL-D`, `Megascale-Rosetta-Sweeps`), no checkpoints or split

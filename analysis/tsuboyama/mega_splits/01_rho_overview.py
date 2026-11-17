@@ -46,13 +46,19 @@ SPLITS = ('val', 'test')
 DS = {'val': TSU_MEGA[0], 'test': TSU_MEGA[1]}
 MSR = ['msrp0:wt', 'msrp0:comb']
 RETR = ['me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm']
-KEYS = MSR + RETR
-LABEL = {'msrp0:wt': 'ESM-MSR WT head', 'msrp0:comb': 'ESM-MSR combined', **{k: MODELS[k]['label'] for k in RETR}}
+# mega_splits only (no capped-split counterpart): SPURS with the adapter trained, the published SPURS checkpoint, and the published ThermoMPNN / -D ensemble
+# members (three members stand in for three seeds). ``spurs`` / ``spursm`` above are the retrains with the frozen random adapter.
+EXTRA = ['spursu', 'spursum', 'spurspub', 'spurspubm', 'tmpnnpub', 'tmpnndpub']
+BASE = MSR + RETR                     # the models that also exist on the capped split
+RETR_ALL = RETR + EXTRA
+KEYS = BASE + EXTRA
+LABEL = {'msrp0:wt': 'ESM-MSR WT head', 'msrp0:comb': 'ESM-MSR combined', **{k: MODELS[k]['label'] for k in RETR_ALL}}
+LABEL.update(spurs='SPURS, frozen adapter (retrain)', spursm='SPURS multi, frozen adapter (retrain)')
 
 
 def mega_frame(split):
     fr = load_frame(DS[split])
-    missing = [k for k in KEYS if k not in fr.preds or fr.preds[k].shape[0] != 3]
+    missing = [k for k in KEYS if k not in fr.preds or fr.preds[k].shape[0] not in ((1, 3) if k.startswith('spurspub') else (3,))]
     if missing:
         raise SystemExit(f'{DS[split]}: missing or not three seeds: {missing}')
     return fr
@@ -70,11 +76,12 @@ def capped_frame():
     return Frame(fr.name, fr.spine, preds)
 
 
-def score(frames, B, subsets=None, kind='protein'):
-    point, reps = bootstrap_rho(frames, KEYS, kind=kind, B=B, seed=18, per_protein=True)
+def score(frames, B, subsets=None, kind='protein', keys=None):
+    keys = keys or KEYS
+    point, reps = bootstrap_rho(frames, keys, kind=kind, B=B, seed=18, per_protein=True)
     rows = []
     for ds in frames:
-        for k in KEYS:
+        for k in keys:
             if k not in point[ds]:
                 continue
             rho, seeds, n, ng = point[ds][k]
@@ -125,6 +132,29 @@ def paired(reps, ds, a, b):
     return float(np.mean(d > 0)) if len(d) else np.nan
 
 
+def medians(fr):
+    """Median over libraries of the per-library Spearman rho, per seed, then the mean over seeds (and the seed range): on every measured variant (this table's population) and on the
+    wild-type-backbone singles only, which is the population of the SPURS paper's statistic (median per protein, 28 proteins, 28,172 of its 28,312 mutants)."""
+    sp = fr.spine
+    y = sp['y'].to_numpy()
+    base = sp['use'].to_numpy()
+    sets = {'all': base, 'singles_wt': base & (sp['n_mut'] == 1).to_numpy() & sp['wt_backbone'].to_numpy().astype(bool)}
+    rows = []
+    for k in KEYS:
+        row = dict(model=k)
+        for nm, ok in sets.items():
+            per_seed = []
+            for p in np.atleast_2d(fr.preds[k]):
+                r = [spearmanr(p[m], y[m])[0] for g in sp['group'][ok].unique()
+                     for m in [ok & (sp['group'] == g).to_numpy() & np.isfinite(p)] if m.sum() >= 5]
+                per_seed.append(np.median(r))
+            row[f'median_{nm}'], row[f'median_{nm}_min'], row[f'median_{nm}_max'] = np.mean(per_seed), np.min(per_seed), np.max(per_seed)
+        rows.append(row)
+    M = pd.DataFrame(rows).set_index('model')
+    M.to_csv(OUT / 'tsuboyama_mega_test_medians.csv', float_format='%.4f')
+    return M
+
+
 def per_library(fr):
     sp = fr.spine
     ok = sp['use'].to_numpy()
@@ -139,14 +169,18 @@ def per_library(fr):
         return pd.Series(out)
     R = pd.DataFrame({k: lib_rho(k) for k in KEYS})
     R.to_csv(OUT / 'per_library_rho_mega_test.csv', float_format='%.4f')
-    fig, axes = plt.subplots(1, len(RETR), figsize=(2.6 * len(RETR), 3.0), sharex=True, sharey=True)
-    for ax, k in zip(axes, RETR):
+    ncol = 6
+    fig, axes = plt.subplots(-(-len(RETR_ALL) // ncol), ncol, figsize=(2.6 * ncol, 3.0 * -(-len(RETR_ALL) // ncol)), sharex=True, sharey=True, squeeze=False)
+    axes = axes.ravel()
+    for ax, k in zip(axes, RETR_ALL):
         ax.scatter(R[k], R['msrp0:comb'], s=22, color=MODELS[k]['color'], alpha=.8, lw=0)
         ax.plot([.2, 1], [.2, 1], color='#999', lw=.8, ls='--')
         ax.set_title(LABEL[k], fontsize=8.5)
         ax.text(.04, .95, f'ESM-MSR higher in {(R["msrp0:comb"] > R[k]).sum()} / {len(R)}', transform=ax.transAxes, va='top', fontsize=8)
         ax.set_xlabel('ρ of the baseline')
     axes[0].set_ylabel('ρ of ESM-MSR combined')
+    for ax in axes[len(RETR_ALL):]:
+        ax.axis('off')
     fig.suptitle('mega_splits test: each dot is one library', fontsize=9, y=1.0)
     fig.tight_layout()
     style.save(fig, OUT / 'tsuboyama_mega_per_library')
@@ -207,13 +241,13 @@ def scatter(fr):
 
 def capped_vs_mega(mega_test, B):
     cap = capped_frame()
-    C, _ = score({'capped': cap}, B)
-    M, _ = score({'mega': mega_test}, B)
+    C, _ = score({'capped': cap}, B, keys=BASE)
+    M, _ = score({'mega': mega_test}, B, keys=BASE)
     R = pd.concat([C, M])
     R.to_csv(OUT / 'tsuboyama_capped_vs_mega.csv', index=False, float_format='%.4f')
     c = {r.model: r for r in C.itertuples()}
     m = {r.model: r for r in M.itertuples()}
-    keys = sorted(KEYS, key=lambda k: m[k].rho)
+    keys = sorted(BASE, key=lambda k: m[k].rho)
     fig, ax = plt.subplots(figsize=(6.8, 0.36 * len(keys) + 1.3))
     for i, k in enumerate(keys):
         kw = style.marker_kwargs(k, size=6.5)
@@ -234,19 +268,21 @@ def capped_vs_mega(mega_test, B):
     return R
 
 
-def table_md(P, reps, SD, CM):
+def table_md(P, reps, SD, CM, MED):
     p = {(r.dataset, r.model): r for r in P.itertuples()}
     sd = {(r.dataset, r.subset, r.model): r for r in SD.itertuples()}
     cm = {(r.dataset, r.model): r for r in CM.itertuples()}
     ref = 'msrp0:comb'
-    lines = ['| Model | val ρ | test ρ | test singles | test doubles | Homology-Restricted test ρ | P(ESM-MSR comb > model), test |', '|---|---|---|---|---|---|---|']
+    lines = ['| Model | val ρ | test ρ | test singles | test doubles | test median ρ (all variants) | test median ρ, WT-backbone singles (paper statistic) | Homology-Restricted test ρ | P(ESM-MSR comb > model), test |', '|---|---|---|---|---|---|---|---|---|']
     for k in sorted(KEYS, key=lambda k: -p[('test', k)].rho):
         f = lambda r: f'{r.rho:.3f} [{r.lo:.3f}, {r.hi:.3f}]'
         pr = '' if k == ref else f'{paired(reps, "test", ref, k):.2f}'
+        cap = f'{cm[("capped", k)].rho:.3f}' if ('capped', k) in cm else '–'
         lines.append(f'| {LABEL[k]} | {f(p[("val", k)])} | {f(p[("test", k)])} | {sd[("test", "singles", k)].rho:.3f} | {sd[("test", "doubles", k)].rho:.3f} | '
-                     f'{cm[("capped", k)].rho:.3f} | {pr} |')
+                     f'{MED.loc[k, "median_all"]:.3f} | {MED.loc[k, "median_singles_wt"]:.3f} | {cap} | {pr} |')
     n = p[('test', ref)]
-    lines += ['', f'Mean per-library Spearman ρ, seed mean of three seeds per model; [95% interval] from resampling libraries and seeds '
+    lines += ['', 'Medians: median over the test libraries of the per-library ρ (per seed, then the mean over seeds; the seed range is in `tsuboyama_mega_test_medians.csv`). The paper statistic is the SPURS paper\'s: '
+              'median per protein over the wild-type-backbone singles (SPURS 0.83, ThermoMPNN 0.77 as reported there).', f'Mean per-library Spearman ρ, seed mean of three seeds per model; [95% interval] from resampling libraries and seeds '
               f'(B = {len(reps["test"][ref])}). mega_splits test: {n.n_libraries} libraries, {n.n:,} measured variants.']
     txt = '\n'.join(lines) + '\n'
     (OUT / 'table_mega_split.md').write_text(txt)
@@ -255,7 +291,7 @@ def table_md(P, reps, SD, CM):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
-    ap.add_argument('--B', type=int, default=200, help='bootstrap replicates (draft 200; paper 2000)')
+    ap.add_argument('--B', type=int, default=100, help='bootstrap replicates (draft 100; paper 2000)')
     a = ap.parse_args()
     fr = {s: mega_frame(s) for s in SPLITS}
     for s in SPLITS:
@@ -268,7 +304,8 @@ def main():
     SD = singles_doubles(fr, a.B)
     scatter(fr['test'])
     CM = capped_vs_mega(fr['test'], a.B)
-    print(table_md(P, reps, SD, CM))
+    MED = medians(fr['test'])
+    print(table_md(P, reps, SD, CM, MED))
 
 
 if __name__ == '__main__':

@@ -14,9 +14,9 @@ MutateEverything st2,dG_additive_gt1,as is,3907,3,0.0417,0.0103,0.8177
 ThermoMPNN-D,all_dG_additive,as is,12455,3,0.0763,0.0691,1.0308
 ThermoMPNN-D,dG_additive_positive,as is,7405,3,-0.0331,-0.0422,0.8374
 ThermoMPNN-D,dG_additive_gt1,as is,3907,3,-0.0195,-0.0479,0.7399
-SPURS multi,all_dG_additive,as is,12455,3,0.3079,0.3208,0.8830
-SPURS multi,dG_additive_positive,as is,7405,3,0.0747,0.0592,0.8176
-SPURS multi,dG_additive_gt1,as is,3907,3,0.0066,-0.0325,0.7745
+SPURS multi,all_dG_additive,as is,12455,3,0.3714,0.3731,0.8779
+SPURS multi,dG_additive_positive,as is,7405,3,0.1309,0.1131,0.8146
+SPURS multi,dG_additive_gt1,as is,3907,3,0.0548,0.0101,0.7724
 ESM3-small-open,all_dG_additive,as is,12455,1,0.2891,0.3189,0.9473
 ESM3-small-open,dG_additive_positive,as is,7405,1,0.2228,0.2594,0.9365
 ESM3-small-open,dG_additive_gt1,as is,3907,1,0.2153,0.2274,0.9220

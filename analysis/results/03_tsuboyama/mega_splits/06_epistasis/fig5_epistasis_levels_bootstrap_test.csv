@@ -87,6 +87,72 @@ test,SPURS multi,line_rho_sub0,0.21502,0.11915,0.29028,20,16923,300
 test,SPURS multi,cell_rank_sub0,0.02493,-0.01649,0.05419,20,16923,300
 test,SPURS multi,cell_mag_sub0,0.01407,-0.06562,0.07462,20,16923,300
 test,SPURS multi,cell_mag_pooled_sub0,0.05013,0.00699,0.08354,20,16923,300
+test,SPURS multi (trained adapter),naive_rho,0.42307,0.32087,0.54928,20,16923,300
+test,SPURS multi (trained adapter),beyond_rho,0.34732,0.21705,0.46701,20,16923,300
+test,SPURS multi (trained adapter),pair_rho,0.42553,0.16571,0.64435,20,16923,300
+test,SPURS multi (trained adapter),line_rho,0.34452,0.26597,0.41825,20,16923,300
+test,SPURS multi (trained adapter),cell_rank,0.06329,0.04300,0.08152,20,16923,300
+test,SPURS multi (trained adapter),cell_mag,0.05802,0.00131,0.09978,20,16923,300
+test,SPURS multi (trained adapter),cell_mag_pooled,0.05548,0.00468,0.09595,20,16923,300
+test,SPURS multi (trained adapter),cell_mag_gt0,0.02708,-0.03358,0.10125,20,16923,300
+test,SPURS multi (trained adapter),naive_rho_gt1,0.00207,-0.10703,0.12047,20,16923,300
+test,SPURS multi (trained adapter),beyond_rho_gt1,0.25424,0.12694,0.34992,20,16923,300
+test,SPURS multi (trained adapter),pair_rho_gt1,0.26246,0.04923,0.46477,20,16923,300
+test,SPURS multi (trained adapter),line_rho_gt1,0.11332,-0.01591,0.26194,20,16923,300
+test,SPURS multi (trained adapter),cell_rank_gt1,0.06216,0.01819,0.10934,20,16923,300
+test,SPURS multi (trained adapter),cell_mag_gt1,0.05918,-0.01753,0.14126,20,16923,300
+test,SPURS multi (trained adapter),cell_mag_pooled_gt1,0.07956,0.01432,0.15261,20,16923,300
+test,SPURS multi (trained adapter),naive_rho_sub0,0.09809,-0.03891,0.24028,20,16923,300
+test,SPURS multi (trained adapter),beyond_rho_sub0,0.31191,0.18218,0.41086,20,16923,300
+test,SPURS multi (trained adapter),pair_rho_sub0,0.34891,0.08115,0.57192,20,16923,300
+test,SPURS multi (trained adapter),line_rho_sub0,0.27596,0.15987,0.36795,20,16923,300
+test,SPURS multi (trained adapter),cell_rank_sub0,0.04428,0.01414,0.06762,20,16923,300
+test,SPURS multi (trained adapter),cell_mag_sub0,0.01807,-0.04831,0.08175,20,16923,300
+test,SPURS multi (trained adapter),cell_mag_pooled_sub0,0.05648,0.00599,0.10143,20,16923,300
+test,SPURS multi (published),naive_rho,0.38445,0.25080,0.51447,20,16923,300
+test,SPURS multi (published),beyond_rho,0.36115,0.24979,0.46223,20,16923,300
+test,SPURS multi (published),pair_rho,0.46516,0.25695,0.67650,20,16923,300
+test,SPURS multi (published),line_rho,0.31729,0.25309,0.39396,20,16923,300
+test,SPURS multi (published),cell_rank,0.08364,0.06309,0.12509,20,16923,300
+test,SPURS multi (published),cell_mag,0.05313,-0.00409,0.10599,20,16923,300
+test,SPURS multi (published),cell_mag_pooled,0.05270,0.00960,0.10737,20,16923,300
+test,SPURS multi (published),cell_mag_gt0,0.01580,-0.05604,0.07898,20,16923,300
+test,SPURS multi (published),naive_rho_gt1,0.02330,-0.12302,0.16575,20,16923,300
+test,SPURS multi (published),beyond_rho_gt1,0.33693,0.18850,0.41918,20,16923,300
+test,SPURS multi (published),pair_rho_gt1,0.34440,0.01640,0.58530,20,16923,300
+test,SPURS multi (published),line_rho_gt1,0.18103,0.06899,0.30151,20,16923,300
+test,SPURS multi (published),cell_rank_gt1,0.07497,0.02770,0.10845,20,16923,300
+test,SPURS multi (published),cell_mag_gt1,0.08296,-0.01483,0.13806,20,16923,300
+test,SPURS multi (published),cell_mag_pooled_gt1,0.09063,0.01741,0.15211,20,16923,300
+test,SPURS multi (published),naive_rho_sub0,0.08916,-0.03072,0.25496,20,16923,300
+test,SPURS multi (published),beyond_rho_sub0,0.36265,0.20838,0.44845,20,16923,300
+test,SPURS multi (published),pair_rho_sub0,0.30592,-0.00148,0.61453,20,16923,300
+test,SPURS multi (published),line_rho_sub0,0.28727,0.17726,0.37113,20,16923,300
+test,SPURS multi (published),cell_rank_sub0,0.04591,0.00059,0.08099,20,16923,300
+test,SPURS multi (published),cell_mag_sub0,0.01187,-0.05720,0.06971,20,16923,300
+test,SPURS multi (published),cell_mag_pooled_sub0,0.05489,0.00545,0.08850,20,16923,300
+test,ThermoMPNN-D (published),naive_rho,0.33294,0.18218,0.48798,20,16923,300
+test,ThermoMPNN-D (published),beyond_rho,0.24438,0.11044,0.39100,20,16923,300
+test,ThermoMPNN-D (published),pair_rho,0.27517,0.06042,0.52857,20,16923,300
+test,ThermoMPNN-D (published),line_rho,0.22565,0.16894,0.27025,20,16923,300
+test,ThermoMPNN-D (published),cell_rank,0.00907,-0.00421,0.01934,20,16923,300
+test,ThermoMPNN-D (published),cell_mag,0.01994,-0.02407,0.06184,20,16923,300
+test,ThermoMPNN-D (published),cell_mag_pooled,0.01987,-0.01312,0.05541,20,16923,300
+test,ThermoMPNN-D (published),cell_mag_gt0,0.04308,-0.01560,0.07539,20,16923,300
+test,ThermoMPNN-D (published),naive_rho_gt1,0.10817,-0.18273,0.36880,20,16923,300
+test,ThermoMPNN-D (published),beyond_rho_gt1,0.31480,0.09812,0.48102,20,16923,300
+test,ThermoMPNN-D (published),pair_rho_gt1,0.19013,-0.09926,0.51385,20,16923,300
+test,ThermoMPNN-D (published),line_rho_gt1,0.15285,0.02790,0.26076,20,16923,300
+test,ThermoMPNN-D (published),cell_rank_gt1,0.01930,-0.01855,0.05136,20,16923,300
+test,ThermoMPNN-D (published),cell_mag_gt1,-0.00410,-0.08148,0.08631,20,16923,300
+test,ThermoMPNN-D (published),cell_mag_pooled_gt1,-0.00040,-0.04328,0.07237,20,16923,300
+test,ThermoMPNN-D (published),naive_rho_sub0,0.16647,-0.06446,0.36691,20,16923,300
+test,ThermoMPNN-D (published),beyond_rho_sub0,0.29414,0.10846,0.44918,20,16923,300
+test,ThermoMPNN-D (published),pair_rho_sub0,0.33677,0.09704,0.57778,20,16923,300
+test,ThermoMPNN-D (published),line_rho_sub0,0.20420,0.12814,0.27438,20,16923,300
+test,ThermoMPNN-D (published),cell_rank_sub0,0.00511,-0.00829,0.02252,20,16923,300
+test,ThermoMPNN-D (published),cell_mag_sub0,0.03939,-0.03489,0.09160,20,16923,300
+test,ThermoMPNN-D (published),cell_mag_pooled_sub0,0.02624,-0.01906,0.06384,20,16923,300
 test,−dG_add,naive_rho,0.61808,0.49082,0.71687,20,16923,300
 test,−dG_add,beyond_rho,0.00000,0.00000,0.00000,20,16923,300
 test,−dG_add,pair_rho,0.00000,0.00000,0.00000,20,16923,300
