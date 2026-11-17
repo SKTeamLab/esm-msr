@@ -1,0 +1,7 @@
+dataset,family,n,rho_epi,lo,hi
+tsuboyama_capped_val,FINAL_p0,8494,0.6280,0.4278,0.7615
+tsuboyama_capped_val,FINAL_p1,8494,0.5347,0.2163,0.7442
+tsuboyama_capped_val,FINAL_p0_pw0,8494,0.5433,0.3503,0.6951
+tsuboyama_capped_test,FINAL_p0,12455,0.4791,0.3453,0.6627
+tsuboyama_capped_test,FINAL_p1,12455,0.4465,0.3143,0.6812
+tsuboyama_capped_test,FINAL_p0_pw0,12455,0.4407,0.3246,0.5889

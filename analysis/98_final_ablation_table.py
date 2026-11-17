@@ -46,12 +46,12 @@ from msr_analysis.boot import DatasetBoot, bootstrap_rho, ci  # noqa: E402
 from msr_analysis.common import epi_rows, out_dir, subframe  # noqa: E402
 from msr_analysis.data import Frame  # noqa: E402
 from msr_analysis.final_runs import FAMILIES, REFERENCE as REF, SEEDS, load_final_frame, pgym_per_dms  # noqa: E402
-from msr_analysis.registry import DMS7, EXT12, LABEL, PER_PROTEIN, PGYM, REFERENCE  # noqa: E402
+from msr_analysis.registry import DMS3, EXT12, LABEL, PER_PROTEIN, PGYM, REFERENCE  # noqa: E402
 
 OUT = out_dir('98_ablation')
 EXT_SINGLE = [d for d in EXT12 if d not in ('ptmul', 'ptmuld')]
 EXT_MULTI = ['ptmul', 'ptmuld']
-DMS_MULTI = [d for d in DMS7 if d != 'ESTA_BACSU_Nutschel_2020_dTm']
+DMS_MULTI = list(DMS3)
 PG_CATS = ['Activity', 'Binding', 'Expression', 'OrganismalFitness', 'Stability']
 PG_DROP = {'BRCA1_HUMAN_Findlay_2018', 'BRCA2_HUMAN_Erwood_2022_HEK293T', 'POLG_CXB3N_Mattenberger_2021', 'SCN5A_HUMAN_Glazer_2019'}
 HEADS = ['wt', 'comb', 'mt', 'wt+']
@@ -165,7 +165,7 @@ def add_primary(cells):
 COMPOSITES = {
     'ext_singles_mean': EXT_SINGLE,
     'ext_multi_mean': EXT_MULTI,
-    'dms_mean': DMS7,
+    'dms_mean': DMS3,
     'dms_multi_mean': [f'{d}|multi' for d in DMS_MULTI],
 }
 
@@ -207,7 +207,7 @@ def boot_deltas(frames, B, pg=None):
     """Paired (family - REF) at seed 1 on the headline columns, primary readout and wt / comb separately."""
     groups = [  # (name, kind, {column: (frame, per_protein)})
         ('external', 'protein', {d: frames[d] for d in EXT12 if d in frames}),
-        ('dms', 'site', {d: frames[d] for d in DMS7 if d in frames}),
+        ('dms', 'site', {d: frames[d] for d in DMS3 if d in frames}),
         ('tsu_test', 'protein', {'tsuboyama_capped_test': frames['tsuboyama_capped_test']}),
         ('domainome', 'protein', {'domainome': frames['domainome']}),
     ]
@@ -246,7 +246,7 @@ def boot_deltas(frames, B, pg=None):
             fam, head = k.rsplit(':', 1)
             if head == h:
                 d[f'{fam}:primary'] = d[k]
-    comp = {'ext_singles_mean': EXT_SINGLE, 'ext_multi_mean': EXT_MULTI, 'dms_mean': DMS7}
+    comp = {'ext_singles_mean': EXT_SINGLE, 'ext_multi_mean': EXT_MULTI, 'dms_mean': DMS3}
     for nm, cols in comp.items():
         ks = set.intersection(*[set(reps_all[c]) for c in cols if c in reps_all])
         reps_all[nm] = {k: np.nanmean([reps_all[c][k] for c in cols], axis=0) for k in ks}
@@ -408,11 +408,11 @@ def epi_boot(fr, B, procs=8):
 COLLABEL = {
     'tsuboyama_capped_test': 'Tsu test', 'tsuboyama_capped_test|singles': 'Tsu test singles',
     'tsuboyama_capped_test|multi': 'Tsu test doubles', 'tsuboyama_capped_test|dddG': 'Tsu test ΔΔΔG',
-    'ext_singles_mean': 'Ext. singles (10)', 'ext_multi_mean': 'PTMUL/-D', 'dms_mean': 'DMS (7)',
-    'dms_multi_mean': 'DMS multis (6)', 'domainome': 'Domainome', 'domainome|lowid': 'Domainome low-id',
+    'ext_singles_mean': 'Ext. singles (10)', 'ext_multi_mean': 'PTMUL/-D', 'dms_mean': 'DMS (3)',
+    'dms_multi_mean': 'DMS multis (3)', 'domainome': 'Domainome', 'domainome|lowid': 'Domainome low-id',
     'pg|avg': 'PG avg', 'pg|avg_lowid': 'PG avg low-id', 'pg|Stability': 'PG Stab.', 'pg|Stability_lowid': 'PG Stab. low-id',
 }
-for _d in EXT12 + DMS7:
+for _d in EXT12 + DMS3:
     COLLABEL.setdefault(_d, LABEL.get(_d, _d))
     COLLABEL.setdefault(f'{_d}|multi', LABEL.get(_d, _d) + ' multi')
     COLLABEL.setdefault(f'{_d}|singles', LABEL.get(_d, _d) + ' singles')
@@ -433,7 +433,7 @@ LAYOUTS = {
     'C2_out_of_distribution': dict(heads=['primary'], cols=['ext_singles_mean', 'ext_multi_mean', 'dms_mean', 'domainome',
                                    'domainome|lowid', 'pg|avg', 'pg|avg_lowid', 'pg|Stability_lowid']),
     # D: every dataset, deployed readout (the detailed supplementary table)
-    'D_full_primary': dict(heads=['primary'], cols=['tsuboyama_capped_test', 'tsuboyama_capped_test|dddG'] + EXT12 + DMS7
+    'D_full_primary': dict(heads=['primary'], cols=['tsuboyama_capped_test', 'tsuboyama_capped_test|dddG'] + EXT12 + DMS3
                            + ['domainome', 'domainome|lowid', 'pg|avg']),
     # E: multi-mutant sets only, every readout (where the comb/wt+ question lives)
     'E_multi_readouts': dict(heads=['wt', 'wt+', 'comb'], cols=['tsuboyama_capped_test|multi', 'ptmul', 'ptmuld']
@@ -576,7 +576,7 @@ TABLES = {
 }
 COL_LABEL = {'tsuboyama_capped_test': 'Tsuboyama test', 'tsuboyama_capped_test|multi': 'Tsuboyama doubles',
              'tsuboyama_capped_test|singles': 'Tsuboyama singles',
-             'ext_singles_mean': 'External singles (10)', 'ext_multi_mean': 'PTMUL / PTMUL-D', 'dms_mean': 'DMS (7)',
+             'ext_singles_mean': 'External singles (10)', 'ext_multi_mean': 'PTMUL / PTMUL-D', 'dms_mean': 'DMS (3)',
              'domainome|lowid': 'Domainome low-id', 'pg|avg': 'ProteinGym avg',
              'tsuboyama_capped_test|beyond_rho': 'Epistasis beyond ρ', 'tsuboyama_capped_test|cell_mag': 'Epistasis cell mag.'}
 GROUP_LABEL = {'masking': 'Masking', 'loss': 'Loss', 'architecture': 'Architecture', 'data': 'Training data',
@@ -687,7 +687,7 @@ def main():
             print(render(name, spec, summ, deltas, mega_own))
         return
 
-    datasets = EXT12 + DMS7 + ['domainome', 'tsuboyama_capped_val', 'tsuboyama_capped_test']
+    datasets = EXT12 + DMS3 + ['domainome', 'tsuboyama_capped_val', 'tsuboyama_capped_test']
     frames, cov = {}, []
     for ds in datasets:
         fr = load_final_frame(ds, sigma=args.sigma)
