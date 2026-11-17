@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import os
 import sys
@@ -213,6 +214,274 @@ def run_protein_gym(args, model, tracker=None, plan=None):
     pgym_runner.run_protein_gym(pgym_dir, out_dir, score_fn, pred_col=pred_col, dms=args.pgym_dms, tag=tag, log=log,
                                 tracker=tracker)
 
+
+def _mgnify_corr_row(sub: pd.DataFrame, true_col: str, pred_col: str, regime: str, subset_name: str) -> dict:
+    from scipy.stats import pearsonr, spearmanr
+    if true_col not in sub.columns or pred_col not in sub.columns:
+        return {}
+    valid = sub[[true_col, pred_col]].dropna()
+    n = len(valid)
+    if n < 2 or valid[true_col].nunique() < 2 or valid[pred_col].nunique() < 2:
+        rho, pr = float('nan'), float('nan')
+    else:
+        rho = float(spearmanr(valid[pred_col], valid[true_col])[0])
+        pr = float(pearsonr(valid[pred_col], valid[true_col])[0])
+    if n > 0:
+        err = valid[pred_col].to_numpy(dtype=float) - valid[true_col].to_numpy(dtype=float)
+        rmse = float(np.sqrt(np.mean(err ** 2)))
+        mae = float(np.mean(np.abs(err)))
+    else:
+        rmse, mae = float('nan'), float('nan')
+    return {
+        'regime': regime,
+        'subset': subset_name,
+        'true_col': true_col,
+        'pred_col': pred_col,
+        'n': int(n),
+        'spearman_r': rho,
+        'pearson_r': pr,
+        'rmse': rmse,
+        'mae': mae,
+    }
+
+
+def run_mgnify(args, model, tracker=None, plan=None, out_str=None, analysis_root=None):
+    """Run ESM-MSR over the preprocessed MGnify Stability dataset (`data/mgnify/mgnify_mapped.csv`).
+
+    Processes scaffolds in resumable shards of 2,000 scaffolds, retains all singles, doubles, and higher-order
+    multi-mutants (regardless of whether constituent singles exist), and summarizes metrics on both in-range
+    (`cens == 0` / `[-1, 5]` kcal/mol) and all rows.
+    """
+    mgn_dir = Path(args.mgnify_dir).resolve()
+    table_path = Path(args.mgnify_table).resolve() if args.mgnify_table else (mgn_dir / 'mgnify_mapped.csv')
+    if not table_path.is_file():
+        raise FileNotFoundError(f"MGnify input table not found at {table_path}. Run preprocessing/preprocess_mgnify.py first.")
+
+    mask_tag = _mask_strategy_tag(args.mask_strategy)
+    if args.mgnify_out:
+        out_dir = Path(args.mgnify_out).resolve()
+    else:
+        base_analysis = Path(analysis_root) if analysis_root else (REPO_ROOT / 'analysis' / 'notebooks')
+        ckpt_tag = out_str or (str(args.checkpoint) if args.checkpoint else 'zeroshot')
+        out_dir = base_analysis / 'mgnify' / f"{ckpt_tag}_sigma{args.sigma}{'_skip_reverse' if args.skip_reverse else ''}_{mask_tag}"
+    shards_out = out_dir / 'shards'
+    shards_out.mkdir(parents=True, exist_ok=True)
+
+    print(f"[MGNIFY] Loading {table_path} ...", flush=True)
+    df = pd.read_csv(table_path, low_memory=False)
+    if args.mgnify_splits and args.mgnify_splits.lower() != 'all':
+        want_splits = {s.strip() for s in args.mgnify_splits.split(',') if s.strip()}
+        split_col = 'mgnify_split' if 'mgnify_split' in df.columns else 'split'
+        if split_col not in df.columns:
+            raise AssertionError(f"--mgnify_splits requested but '{split_col}' column is absent from {table_path}")
+        df = df[df[split_col].astype(str).isin(want_splits)].copy()
+
+    sub_opt = (args.mgnify_subsets or 'all').lower()
+    if sub_opt != 'all':
+        if 'n_mut' not in df.columns:
+            df['n_mut'] = df['mut_type'].astype(str).str.count(':') + 1
+        if sub_opt == 'singles':
+            df = df[df['n_mut'] == 1].copy()
+        elif sub_opt == 'doubles':
+            df = df[df['n_mut'] == 2].copy()
+        elif sub_opt == 'multis':
+            df = df[df['n_mut'] >= 2].copy()
+        elif sub_opt == 'gt2':
+            df = df[df['n_mut'] >= 3].copy()
+        else:
+            raise ValueError(f"Unsupported --mgnify_subsets: {args.mgnify_subsets}")
+
+    if df.empty:
+        raise AssertionError("No MGnify rows remain after filtering.")
+
+    if 'chain' not in df.columns:
+        df['chain'] = 'A'
+    if 'backbone_mutation' not in df.columns:
+        df['backbone_mutation'] = ''
+    df['backbone_mutation'] = df['backbone_mutation'].fillna('').astype(str)
+    df['pdb_file'] = df['pdb_file'].astype(str).apply(
+        lambda p: p if os.path.isabs(p) else str((mgn_dir / p).resolve())
+    )
+
+    group_cols = ['code', 'pdb_file', 'chain', 'backbone_mutation']
+    grouped = list(df.groupby(group_cols, sort=False, dropna=False))
+    if args.max_proteins and args.max_proteins > 0:
+        grouped = grouped[:args.max_proteins]
+
+    n_scaffolds = len(grouped)
+    n_rows_total = sum(len(g) for _, g in grouped)
+    print(f"[MGNIFY] Scoring {n_rows_total:,} variants across {n_scaffolds:,} scaffolds -> {out_dir}", flush=True)
+
+    tracker = tracker or resource_tracker.NullTracker()
+    plan = plan or _Plan(args, model)
+    if plan.mode == 'table' and args.batch_size is None:
+        table_map = (plan.bt.table or {}).get('esm_msr', {})
+        if 'mgnify' in table_map:
+            mgn_bs, sizer = plan.for_dataset('mgnify', 32)
+        else:
+            mgn_bs, sizer = 32, plan.sizer
+    else:
+        mgn_bs, sizer = plan.for_dataset('mgnify', args.batch_size or 32)
+
+    shard_size = max(1, int(args.mgnify_shard_size))
+    shard_paths = []
+    ds_scope = tracker.scope('dataset', 'mgnify', n_rows=n_rows_total)
+    ds_scope.__enter__()
+    try:
+        for s_start in range(0, n_scaffolds, shard_size):
+            shard_idx = s_start // shard_size
+            shard_csv = shards_out / f"shard_{shard_idx:05d}.csv"
+            shard_paths.append(shard_csv)
+            if shard_csv.is_file():
+                print(f"[MGNIFY] Shard {shard_idx} exists ({shard_csv.name}), skipping.", flush=True)
+                continue
+
+            chunk_groups = grouped[s_start : s_start + shard_size]
+            shard_rows = sum(len(g) for _, g in chunk_groups)
+            shard_results = []
+            with tracker.scope('shard', f'shard_{shard_idx:05d}', n_rows=shard_rows) as sc:
+                n_rep_before = len(sizer.reports) if sizer else 0
+                for (code, _pdb, _chain, bb_mut), grp in tqdm(
+                    chunk_groups, desc=f"MGnify shard {shard_idx}", leave=False
+                ):
+                    bb_arg = bb_mut if bb_mut else None
+                    has_pre_cols = (
+                        'mut_type_renumbered' in grp.columns
+                        and 'mut_type_pdb' in grp.columns
+                        and grp['mut_type_renumbered'].notna().all()
+                        and grp['mut_type_pdb'].notna().all()
+                    )
+                    input_data = grp if has_pre_cols else inference.standardize_input_df(
+                        grp, backbone_mutation=bb_arg, quiet=True
+                    )
+                    pred_df = inference.infer_mutants(
+                        model=model,
+                        df=input_data,
+                        batch_size=mgn_bs,
+                        backbone_mutation=bb_arg,
+                        quiet=True,
+                        optimize_wt_pass=True,
+                        skip_additive=args.skip_additive,
+                        skip_reverse=args.skip_reverse,
+                        mask_strategy=args.mask_strategy,
+                        auto_batch=sizer,
+                    )
+                    assert len(pred_df) == len(grp), f"Length mismatch on {code}: {len(pred_df)} != {len(grp)}"
+                    assert (pred_df['mut_type_renumbered'].values == input_data['mut_type_renumbered'].values).all(), (
+                        f"Row alignment mismatch on {code}"
+                    )
+                    extra_cols = [c for c in pred_df.columns if c not in grp.columns]
+                    merged = pd.concat(
+                        [grp.reset_index(drop=True), pred_df[extra_cols].reset_index(drop=True)], axis=1
+                    )
+                    shard_results.append(merged)
+                sc.note(**_batch_note(sizer, n_rep_before, mgn_bs, plan.label))
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            shard_df = pd.concat(shard_results, axis=0, ignore_index=True)
+            tmp_shard = shard_csv.with_name(shard_csv.name + '.tmp')
+            shard_df.to_csv(tmp_shard, index=False)
+            tmp_shard.replace(shard_csv)
+    finally:
+        ds_scope.__exit__(None, None, None)
+
+    res_df = pd.concat([pd.read_csv(p, low_memory=False) for p in shard_paths], axis=0, ignore_index=True)
+    pred_out_gz = out_dir / 'predictions.csv.gz'
+    tmp_gz = out_dir / 'predictions.csv.gz.tmp'
+    res_df.to_csv(tmp_gz, index=False, compression='gzip')
+    tmp_gz.replace(pred_out_gz)
+
+    if 'n_mut' not in res_df.columns:
+        res_df['n_mut'] = res_df['mut_type_renumbered'].astype(str).str.count(':') + 1
+    if 'has_all_singles' not in res_df.columns:
+        res_df['has_all_singles'] = res_df['dddG_ML'].notna() if 'dddG_ML' in res_df.columns else False
+
+    if 'cens' in res_df.columns:
+        in_range_mask = res_df['cens'] == 0
+    elif 'in_range_1_5' in res_df.columns:
+        in_range_mask = res_df['in_range_1_5'].astype(bool)
+    else:
+        in_range_mask = pd.Series(True, index=res_df.index)
+
+    pred_cols = ['wt_lora_pred']
+    if not args.skip_reverse:
+        pred_cols.extend(['mt_lora_pred', 'combined_pred'])
+
+    subsets = {
+        'all': pd.Series(True, index=res_df.index),
+        'singles': res_df['n_mut'] == 1,
+        'doubles': res_df['n_mut'] == 2,
+        'higher_order': res_df['n_mut'] >= 3,
+        'all_multis': res_df['n_mut'] >= 2,
+        'multis_with_singles': (res_df['n_mut'] >= 2) & res_df['has_all_singles'].astype(bool),
+        'multis_without_singles': (res_df['n_mut'] >= 2) & ~res_df['has_all_singles'].astype(bool),
+    }
+
+    stats_rows = []
+    for regime_name, rmask in [('in_range_1_5', in_range_mask), ('all_rows', pd.Series(True, index=res_df.index))]:
+        for sub_name, smask in subsets.items():
+            sub = res_df.loc[rmask & smask]
+            if sub.empty:
+                continue
+            for pcol in pred_cols:
+                row = _mgnify_corr_row(sub, 'ddG_ML', pcol, regime_name, sub_name)
+                if row:
+                    stats_rows.append(row)
+        if 'dddG_ML' in res_df.columns and res_df['dddG_ML'].notna().any():
+            epi_sub = res_df.loc[rmask & (res_df['n_mut'] >= 2) & res_df['dddG_ML'].notna()]
+            if not epi_sub.empty:
+                for ep_col in (['wt_lora_dddg_pred'] if args.skip_reverse else ['wt_lora_dddg_pred', 'mt_lora_dddg_pred', 'combined_dddg_pred']):
+                    row = _mgnify_corr_row(epi_sub, 'dddG_ML', ep_col, regime_name, 'epistasis_dddG')
+                    if row:
+                        stats_rows.append(row)
+
+    # Per-split breakdown on in-range rows
+    for sp_col in ('mgnify_split', 'wt_split'):
+        if sp_col in res_df.columns:
+            for sp_val, grp_sp in res_df.loc[in_range_mask].groupby(sp_col, dropna=False):
+                for pcol in pred_cols:
+                    row = _mgnify_corr_row(grp_sp, 'ddG_ML', pcol, f'in_range_{sp_col}', str(sp_val))
+                    if row:
+                        stats_rows.append(row)
+
+    # Per-scaffold mean Spearman on scaffolds with >= 10 measured variants
+    from scipy.stats import spearmanr
+    per_scaf_rhos = {}
+    in_df = res_df.loc[in_range_mask]
+    for pcol in pred_cols:
+        if pcol not in in_df.columns:
+            continue
+        rhos = []
+        for _c, g_c in in_df.groupby('code'):
+            v = g_c[['ddG_ML', pcol]].dropna()
+            if len(v) >= 10 and v['ddG_ML'].nunique() >= 2 and v[pcol].nunique() >= 2:
+                rhos.append(float(spearmanr(v[pcol], v['ddG_ML'])[0]))
+        per_scaf_rhos[pcol] = {
+            'n_scaffolds_ge10': len(rhos),
+            'mean_spearman': float(np.mean(rhos)) if rhos else float('nan'),
+            'median_spearman': float(np.median(rhos)) if rhos else float('nan'),
+        }
+
+    stats_df = pd.DataFrame(stats_rows)
+    stats_csv = out_dir / 'stats.csv'
+    stats_df.to_csv(stats_csv, index=False, float_format='%.6f')
+
+    summary = {
+        'table_path': str(table_path),
+        'n_scaffolds': int(n_scaffolds),
+        'n_rows': int(len(res_df)),
+        'n_in_range': int(in_range_mask.sum()),
+        'n_mut_counts': {str(k): int(v) for k, v in res_df['n_mut'].value_counts().sort_index().items()},
+        'per_scaffold_ge10_in_range': per_scaf_rhos,
+        'stats_csv': str(stats_csv),
+        'predictions_csv_gz': str(pred_out_gz),
+    }
+    with open(out_dir / 'summary.json', 'w', encoding='utf-8') as f:
+        json.dump(summary, f, indent=2)
+    print(f"[MGNIFY] Wrote {stats_csv} and {pred_out_gz} ({len(res_df):,} rows)", flush=True)
+
 def calibrate_batch_sizes(args, model, plan):
     """--calibrate_batch_sizes: the batch the dynamic sizer settles on for the heaviest proteins of every dataset
     (baselines/calibration.py), written to args.calibrate_batch_sizes. ProteinGym stays dynamic in the table."""
@@ -333,6 +602,7 @@ def main_(args):
     _model_load.__enter__()
     cal = inference.resolve_calibration(checkpoint_cal, args.tie_mt_scale, args.per_mutation_bias)
     print(f"[MODEL] calibration: tie_mt_scale={cal['tie_mt_scale']} per_mutation_bias={cal['per_mutation_bias']}")
+    target_device = args.device or ('cuda:0' if torch.cuda.is_available() else 'cpu')
     model = models.MSRModel(
         lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
         lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True,
@@ -342,7 +612,7 @@ def main_(args):
         mask_native_cond_struct=mask_native_cond_struct,
         fused_antisymmetric=fused_antisymmetric,
         epistasis_weight=args.epistasis_weight,
-    ).to('cuda:0')
+    ).to(target_device)
 
     # ---------------------------------------------------------
     # Robust Checkpoint Loading
@@ -376,6 +646,16 @@ def main_(args):
     if getattr(args, 'protein_gym', False):
         try:
             run_protein_gym(args, model, tracker, plan)
+        finally:
+            tracker.close()
+        return
+
+    # =========================================================================
+    # MGNIFY STABILITY BENCHMARK (preprocessed singles, doubles, multi-mutants)
+    # =========================================================================
+    if getattr(args, 'mgnify', False):
+        try:
+            run_mgnify(args, model, tracker, plan, out_str=OUT_STR, analysis_root=ANALYSIS)
         finally:
             tracker.close()
         return
@@ -806,6 +1086,14 @@ if __name__ == "__main__":
         parser.add_argument('--pgym_dir', type=str, default=None, help='Directory with per-DMS input CSVs + manifest.csv')
         parser.add_argument('--pgym_out', type=str, default=None, help='Output directory for ProteinGym results (per-DMS CSVs + summary.csv)')
         parser.add_argument('--pgym_dms', type=str, default='all', help="Comma-separated DMS ids, or 'all'")
+        parser.add_argument('--mgnify', action='store_true', help='Run esm-msr over the preprocessed MGnify Stability dataset and exit')
+        parser.add_argument('--mgnify_dir', type=str, default=str(REPO_ROOT / 'data' / 'mgnify'), help='Root directory containing mgnify_mapped.csv and structures/ (default: data/mgnify)')
+        parser.add_argument('--mgnify_table', type=str, default=None, help='Optional MGnify CSV override (e.g. data/mgnify/mgnify_multis_only.csv)')
+        parser.add_argument('--mgnify_out', type=str, default=None, help='Output directory for MGnify shard predictions, stats.csv, and summary.json')
+        parser.add_argument('--mgnify_splits', type=str, default='all', help="Comma-separated MGnify split filter (e.g. 'test' or 'validation,validation_online,test'), or 'all'")
+        parser.add_argument('--mgnify_subsets', type=str, default='all', choices=['all', 'singles', 'doubles', 'multis', 'gt2'], help='Filter MGnify rows by mutation order')
+        parser.add_argument('--mgnify_shard_size', type=int, default=2000, help='Number of scaffolds per resumable MGnify output shard')
+        parser.add_argument('--device', type=str, default=None, help="Torch device (default: 'cuda:0' if CUDA is available else 'cpu')")
         parser.add_argument('--batch_mode', choices=['table', 'auto', 'fixed'], default=None,
                             help="The batch policy shared by every baseline script (baselines/batching.py). auto: size each protein's batches dynamically against the GPU (= --auto_batch_size; --batch_size or --auto_batch_max caps it); fixed: --batch_size for every block. Unset: the historical per-block sizes (1 / 16 / mem_size*32 / 32 for external / Tsuboyama / DMS / Domainome, --batch_size for ProteinGym).")
         parser.add_argument('--batch_size', type=int, default=None, help='Inference batch size: ProteinGym (default 16) and, with --batch_mode fixed, every block; with --batch_mode auto a cap')
