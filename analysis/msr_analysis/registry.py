@@ -95,6 +95,16 @@ MODELS = {
     'tmpnnd':  dict(label='ThermoMPNN + ThermoMPNN-D', color=C['tmd'], marker='P', fill=True, group='retrain'),
     'spurs':   dict(label='SPURS', color=C['spurs'], marker='s', fill=True, group='retrain'),
     'spursm':  dict(label='SPURS multi', color=C['spursm'], marker='s', fill=False, group='retrain'),
+    # --- mega_splits only: other SPURS / ThermoMPNN versions (data._load_mega) -------------------------
+    'spursu':    dict(label='SPURS, trained adapter (retrain)', color='#a04000', marker='s', fill=True, group='retrain'),
+    'spursum':   dict(label='SPURS multi, trained adapter (retrain)', color='#dc7633', marker='s', fill=False, group='retrain'),
+    'spursum:epi': dict(label='SPURS multi, trained adapter (vs its singles)', color='#dc7633', marker='s', fill=False, group='retrain'),
+    'spurspub':  dict(label='SPURS, published checkpoint', color='#6e2c00', marker='*', fill=True, group='public'),
+    'spurspubm': dict(label='SPURS multi, published checkpoint', color='#b9770e', marker='*', fill=False, group='public'),
+    'spurspubm:epi': dict(label='SPURS multi, published (vs its singles)', color='#b9770e', marker='*', fill=False, group='public'),
+    'tmpnnpub':  dict(label='ThermoMPNN, published (3 ensemble members)', color='#154360', marker='p', fill=False, group='public'),
+    'tmpnndpub': dict(label='ThermoMPNN-D, published (3 ensemble members)', color='#5dade2', marker='P', fill=False, group='public'),
+    'tmpnndpub:epi': dict(label='ThermoMPNN-D, published (vs ThermoMPNN)', color='#5dade2', marker='P', fill=False, group='public'),
     # --- third party ------------------------------------------------------------------------
     'esmtherm':  dict(label='ESMtherm*', color='#7d6608', marker='<', fill=True, group='public'),
     'ddgemb':    dict(label='DDGemb', color='#b7950b', marker='>', fill=True, group='public'),

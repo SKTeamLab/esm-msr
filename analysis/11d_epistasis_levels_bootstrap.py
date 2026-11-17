@@ -49,6 +49,9 @@ METRICS = {'naive_rho': None, 'beyond_rho': None, 'pair_rho': None, 'line_rho': 
 # model -> (frame key of the direct double, frame key of the additive reading) for the models without heads of their own
 PLAIN = [('ME stage 2', 'me2', 'me1'), ('ThermoMPNN-D', 'tmpnnd', 'tmpnn'), ('SPURS multi', 'spursm', 'spurs'), ('ESM3-small-open', 'msrrel@0:comb', 'msrrel@0:wt'),
          ('ProteinMPNN', 'pmpnn', 'pmpnn+'), ('GeoDDG-3D', 'geoddg', 'geoddg+'), ('Rosetta', 'rosetta', 'rosetta+')]
+if MEGA:      # mega_splits: the other SPURS versions and the published ThermoMPNN-D (data._load_mega; the published SPURS is one run, the ThermoMPNN-D members stand in for seeds)
+    PLAIN = PLAIN[:3] + [('SPURS multi (trained adapter)', 'spursum', 'spursu'), ('SPURS multi (published)', 'spurspubm', 'spurspub'),
+                         ('ThermoMPNN-D (published)', 'tmpnndpub', 'tmpnnpub')] + PLAIN[3:]
 DOC = {   # BENCHMARKS table 2.2, test: naive, beyond, pair, line, cell rank (the check)
     ('test', 'ME stage 2'): (0.405, 0.223, 0.124, 0.225, 0.112), ('test', 'ThermoMPNN-D'): (0.077, 0.071, -0.003, 0.197, 0.016),
     ('test', 'SPURS multi'): (0.308, 0.278, 0.399, 0.270, 0.041), ('test', 'ProteinMPNN'): (0.314, 0.273, 0.473, 0.125, 0.064),
@@ -281,7 +284,7 @@ def draw(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=300)
+    ap.add_argument('--B', type=int, default=100)
     ap.add_argument('--ctx', default=None)
     ap.add_argument('--procs', type=int, default=7)
     a = ap.parse_args()

@@ -209,6 +209,16 @@ FAM_LABEL_COMPOSITE = {
     'rosetta': 'Rosetta',
 }
 
+if TSU_SPLIT == 'mega':      # mega_splits: SPURS with the adapter trained, the published SPURS, the published ThermoMPNN / -D (data._load_mega); drawn in the all-models panels
+    _X = {'spursu': ('SPURS, trained adapter', 'SPURS multi, trained adapter', 'spursu', 'spursum', 'spursu', ('#a04000', '-', 2.0, 6)),
+          'spurspub': ('SPURS, published', 'SPURS multi, published', 'spurspub', 'spurspubm', 'spurspub', ('#6e2c00', '--', 2.0, 6)),
+          'tmpub': ('ThermoMPNN, published', 'ThermoMPNN-D, published', 'tmpnnpub', 'tmpnndpub', 'tmpnnpub', ('#154360', '--', 2.0, 6))}
+    for _f, (_ls, _lc, _sk, _mk, _st, _col) in _X.items():
+        FAM_LABEL[_f], FAM_LABEL_SINGLES[_f], FAM_LABEL_COMPOSITE[_f] = _ls, _ls, f'{_ls} | {_lc.split(",")[0]}'
+        SINGLE_KEY[_f], MULTI_KEY[_f], FAM_STYLE[_f], FAM_COLOR_ALL[_f] = _sk, _mk, _st, _col
+        MODELS.setdefault(_f, dict(MODELS[_st]))
+    FAM_ALL = FAM_ALL[:3] + list(_X) + FAM_ALL[3:]
+
 
 def per_protein(ds, Ks, tau, B, exclude_groups=None, mode='default', exclude_cys=False, fams=FAM, fr=None):
     fr = load_frame(ds) if fr is None else fr
@@ -239,7 +249,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--tau', type=float, default=0.5)
     ap.add_argument('--frac', type=float, default=0.10)
-    ap.add_argument('--B', type=int, default=500)
+    ap.add_argument('--B', type=int, default=100)
     a = ap.parse_args()
     if TSU_SPLIT == 'mega':           # mega_splits: only the Tsuboyama test tables (the external sets and Domainome do not depend on the split)
         for mode, stem in (('default', 'screening_per_protein'), ('singles', 'screening_per_protein_singles'), ('composite', 'screening_per_protein_composite')):

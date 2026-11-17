@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .registry import (BASE, CACHE, MEGA_RAW, MSR, P0, PUBLIC, RETRAINED, TASKS, PER_PROTEIN, DMS3, EXT12, TSU, TSU_CAPPED, TSU_MEGA)
+from .registry import (BASE, ROOT, CACHE, MEGA_RAW, MSR, P0, PUBLIC, RETRAINED, TASKS, PER_PROTEIN, DMS3, EXT12, TSU, TSU_CAPPED, TSU_MEGA)
 
 TSU_SETS = set(TSU_CAPPED) | set(TSU_MEGA)
 
@@ -331,13 +331,29 @@ _ROSETTA_FOLDER = {'ptmul': 'PTMUL'}
 
 def _rosetta_ext_root():
     for cand in (
-        os.environ.get('MSR_ROSETTA_EXT', '~/software/esm-msr-release/analysis_notebooks/predictions'),
+        os.environ.get('MSR_ROSETTA_EXT', str(ROOT / 'rosetta_external_predictions')),     # <set>/rosetta/cartesian_ddg.csv, copied 2026-11-16 from esm-msr-data-oct-14/analysis_notebooks/additional/predictions
+        '~/software/esm-msr-release/analysis_notebooks/predictions',
         '~/software/esm-msr/analysis_notebooks/predictions',
     ):
         p = Path(cand).expanduser()
         if p.is_dir():
             return p
     return None
+
+
+def _rosetta_ext_saved(frame, ds, out):
+    """Fallback when the notebook prediction tree is gone: the Rosetta predictions of the external sets saved from the last frames built while it existed
+    (``public/rosetta/external_rosetta_preds.pkl``: per set, the spine ids and the ``rosetta`` / ``rosetta+`` / ``rosetta:epi`` arrays, already in kcal/mol)."""
+    p = PUBLIC / 'rosetta' / 'external_rosetta_preds.pkl'
+    if not p.exists():
+        return
+    with open(p, 'rb') as fh:
+        saved = pickle.load(fh)
+    if ds not in saved:
+        return
+    ids = frame.spine['id'].to_numpy(dtype=object)
+    for k, arr in saved[ds]['preds'].items():
+        out[k if k.endswith(':epi') else k + ':'] = np.vstack([_align_id(ids, saved[ds]['ids'], row) for row in np.atleast_2d(arr)])
 
 
 def _load_rosetta_ext(frame, ds, out):
@@ -350,10 +366,10 @@ def _load_rosetta_ext(frame, ds, out):
         return
     root = _rosetta_ext_root()
     if root is None:
-        return
+        return _rosetta_ext_saved(frame, ds, out)
     p = root / _ROSETTA_FOLDER.get(ds, ds) / 'rosetta' / 'cartesian_ddg.csv'
     if not p.exists():
-        return
+        return _rosetta_ext_saved(frame, ds, out)
     d = pd.read_csv(p, index_col=0)
     uids = d['uid_true'].astype(str) if 'uid_true' in d.columns else d.index.astype(str)
     rep_cols = [f'cartesian_ddg_{s}' for s in SEEDS]
@@ -508,6 +524,27 @@ def _load_mega(frame, ds, out):
     out['spurs:'] = np.vstack([_align_id(ids, k, d['SPURS_single_additive'].to_numpy()) for k, d in zip(uid, sps)])
     out['spursm:'] = np.vstack([_align_id(ids, k, d['SPURS_multi'].to_numpy()) for k, d in zip(uid, sps)])
     out['spursm:epi'] = out['spursm:'] - out['spurs:']
+    # SPURS with the adapter trained (spurs_mega_ta_s<k>: the paper's configuration; ``spurs`` above is the frozen random adapter, the released-checkpoint
+    # configuration), and the published checkpoint (spurs_mega_public, one run): same files, keys spursu* / spurspub*. The published ThermoMPNN / ThermoMPNN-D
+    # ensemble members (thermompnn_mega_public_ens<k>, trained by their authors on mega_splits) stand in for three seeds: tmpnnpub / tmpnndpub.
+    # Present only once collected; the mega scripts use whichever exist.
+    def _opt(fmt, seeds=SEEDS):
+        paths = [MEGA_RAW / fmt.format(seed=s) for s in seeds]
+        return [pd.read_csv(q, low_memory=False) for q in paths] if all(q.exists() for q in paths) else None
+    for tag, fmt in (('spursu', f'spurs_mega_ta_s{{seed}}/tsuboyama_{split}.csv'), ('spurspub', f'spurs_mega_public/tsuboyama_{split}.csv')):
+        d = _opt(fmt, SEEDS if tag == 'spursu' else [0])
+        if d is None:
+            continue
+        u = [x['uid'].astype(str).to_numpy(dtype=object) for x in d]
+        a = np.vstack([_align_id(ids, k, x['SPURS_single_additive'].to_numpy()) for k, x in zip(u, d)])
+        m = np.vstack([_align_id(ids, k, x['SPURS_multi'].to_numpy()) for k, x in zip(u, d)])
+        out[f'{tag}:'], out[f'{tag}m:'], out[f'{tag}m:epi'] = a, m, m - a
+    d = _opt(f'thermompnn_mega_public_ens{{seed}}/predictions_{split}.csv')
+    if d is not None:
+        k = [(x['code'].astype(str) + '_' + x['mut_type'].astype(str)).to_numpy(dtype=object) for x in d]
+        a = np.vstack([_align_id(ids, kk, x['pred_single_additive'].to_numpy()) for kk, x in zip(k, d)])
+        c = np.vstack([_align_id(ids, kk, x['pred_combined'].to_numpy()) for kk, x in zip(k, d)])
+        out['tmpnnpub:'], out['tmpnndpub:'], out['tmpnndpub:epi'] = a, c, c - a
 
 
 def _tidy(out):

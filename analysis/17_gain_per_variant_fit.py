@@ -111,7 +111,7 @@ def r2(g, pred):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=200)
+    ap.add_argument('--B', type=int, default=100)
     B = ap.parse_args().B
     rows, srows, curves = [], [], {}
     for ver, (mode, fams) in VERSIONS.items():

@@ -22,7 +22,8 @@ Companion technical documentation for the ESM-MSR evaluation benchmarks, dataset
 | :--- | :--- |
 | [`benchmarks/all_by_all_long.csv`](benchmarks/all_by_all_long.csv) | Long-format Spearman $\rho$ means, multi-seed standard deviations, seed counts, and provenance across models and datasets (§1 of [`BENCHMARKS_OCT2026.md`](BENCHMARKS_OCT2026.md)). |
 | [`benchmarks/seed_sd_by_table_cell.csv`](benchmarks/seed_sd_by_table_cell.csv) | Per-cell three-seed standard deviations across benchmark and epistasis tables. |
-| [`benchmarks/spurs_retrain_oct06.csv`](benchmarks/spurs_retrain_oct06.csv) | Three-seed summary metrics for SPURS and SPURS multi retrained on `splits_oct06_capped`. |
+| [`benchmarks/spurs_retrain_oct06.csv`](benchmarks/spurs_retrain_oct06.csv) | Three-seed summary metrics for SPURS and SPURS multi retrained on `splits_oct06_capped` with the **trained adapter** (the paper's configuration; since 2026-11-16). |
+| [`benchmarks/spurs_retrain_oct06_frozen_adapter.csv`](benchmarks/spurs_retrain_oct06_frozen_adapter.csv) | The earlier frozen-adapter triplicate (the released checkpoint's configuration), kept as the control, with the one trained-adapter seed it was compared to. |
 | [`benchmarks/checkpoints.csv`](benchmarks/checkpoints.csv) | File sizes, 12-character MD5 prefixes, and training split metadata for ESM-MSR and retrained baseline checkpoints. |
 | [`benchmarks/inference_resources_a4500.csv`](benchmarks/inference_resources_a4500.csv) | The rows of [`INFERENCE_RESOURCES.md`](INFERENCE_RESOURCES.md) with full precision, the run label and job, failed proteins and model-load time. |
 | [`benchmarks/leak_audit.sqlite`](benchmarks/leak_audit.sqlite) & `benchmarks/leak_audit_*.csv` | SQLite database and exported CSV tables (`inventories`, `matrix`, `pg_per_dms`, `homology`, `structure_homology`, `code_exact`, `esm3dg_libraries`) from the cross-set leakage audit. |

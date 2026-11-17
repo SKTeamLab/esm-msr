@@ -83,22 +83,26 @@ if [ "${NAME:-}" = "$(hostname)" ]; then
   unset NAME
 fi
 
+# The structural adapter (ESM layer 30): SPURS_LEGACY_ESM=true freezes it at its random initialisation (the released checkpoints' configuration, run names leg_*);
+# the default trains it, as the SPURS paper describes (run names unf_*) and as every capped-split SPURS number of BENCHMARKS has used since 2026-11-16.
+SPURS_LEGACY_ESM=${SPURS_LEGACY_ESM:-false}
+if [ "$SPURS_LEGACY_ESM" = true ]; then ADAPTER_TAG=leg; else ADAPTER_TAG=unf; fi
 if [ -z "${OVERRIDES:-}" ]; then
   COMMON="datamodule._target_=items ++datamodule.data_dir=$MSR_BASELINE_DATA \
     ++datamodule.structure_json=$SPURS_TRAIN_DIR/parsed_structure_${SPLIT_NAME}.json \
     trainer.max_epochs=$EPOCHS \
     callbacks.model_checkpoint.save_last=false \
     model.encoder.pretrained_weights=data/checkpoints/ThermoMPNN/vanilla_model_weights/v_48_020.pt \
-    model.legacy_esm_forward=true seed=$SEED train.seed=$SEED ${NUM_WORKERS:+datamodule.num_workers=$NUM_WORKERS}"
+    model.legacy_esm_forward=$SPURS_LEGACY_ESM seed=$SEED train.seed=$SEED ${NUM_WORKERS:+datamodule.num_workers=$NUM_WORKERS}"
   if [ "$MODEL" = "multi" ]; then
     CONFIG_NAME=${CONFIG_NAME:-train_multi}
-    RUN_NAME=${SPURS_RUN_NAME:-${NAME:-${SPLIT_NAME}/leg_multi_seed${SEED}}}
-    SINGLE_CKPT=${SINGLE_CKPT:-$SPURS_TRAIN_DIR/logs/${SPLIT_NAME}/leg_seed${SEED}/checkpoints/best.ckpt}
+    RUN_NAME=${SPURS_RUN_NAME:-${NAME:-${SPLIT_NAME}/${ADAPTER_TAG}_multi_seed${SEED}}}
+    SINGLE_CKPT=${SINGLE_CKPT:-$SPURS_TRAIN_DIR/logs/${SPLIT_NAME}/${ADAPTER_TAG}_seed${SEED}/checkpoints/best.ckpt}
     [ -f "$SINGLE_CKPT" ] || { echo "SPURS single checkpoint not found at $SINGLE_CKPT (train MODEL=single first)"; exit 1; }
     OVERRIDES="$COMMON model.init_from=$SINGLE_CKPT"
   elif [ "$MODEL" = "single" ]; then
     CONFIG_NAME=${CONFIG_NAME:-train}
-    RUN_NAME=${SPURS_RUN_NAME:-${NAME:-${SPLIT_NAME}/leg_seed${SEED}}}
+    RUN_NAME=${SPURS_RUN_NAME:-${NAME:-${SPLIT_NAME}/${ADAPTER_TAG}_seed${SEED}}}
     OVERRIDES="$COMMON"
   else
     echo "Unknown MODEL=$MODEL (expected single or multi)" >&2

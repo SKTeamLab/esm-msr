@@ -66,4 +66,6 @@ for s in 1 2 3; do
 done
 ```
 
-On first run, `slurm_spurs_train.sh` creates `outputs/baselines/oct06_capped_allbl/spurs_train` from `$SPURS_DIR`, applies `spurs/spurs_retrain.patch`, and stages ProteinMPNN `v_48_020.pt`. Checkpoints are written to `spurs_train/logs/oct06_capped_allbl/{leg_seed<s>,leg_multi_seed<s>}/checkpoints/best.ckpt` and evaluated via [`inference_scripts/baselines`](../../inference_scripts/baselines/README.md).
+By default the structural adapter is **trained** (`model.legacy_esm_forward=false`, run names `unf_seed<s>` / `unf_multi_seed<s>`), as the SPURS paper describes and as every capped-split SPURS number of BENCHMARKS uses (since 2026-11-16); `SPURS_LEGACY_ESM=true` freezes it at its random initialisation, the configuration the released checkpoints were trained in (run names `leg_*`; the earlier frozen-adapter triplicate).
+
+On first run, `slurm_spurs_train.sh` creates `outputs/baselines/oct06_capped_allbl/spurs_train` from `$SPURS_DIR`, applies `spurs/spurs_retrain.patch`, and stages ProteinMPNN `v_48_020.pt`. Checkpoints are written to `spurs_train/logs/oct06_capped_allbl/{unf_seed<s>,unf_multi_seed<s>} (leg_* with SPURS_LEGACY_ESM=true)/checkpoints/best.ckpt` and evaluated via [`inference_scripts/baselines`](../../inference_scripts/baselines/README.md).

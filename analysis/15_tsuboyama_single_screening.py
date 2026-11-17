@@ -61,7 +61,7 @@ pub = importlib.import_module('11_publication_figures')
 OUT = out_dir('08_screening')
 DS = TSU[1]
 SPLIT = pub.SPLIT
-B_DEFAULT = 200
+B_DEFAULT = 100
 KS_TICKS = [1, 2, 3, 6, 12, 24, 48, 96]
 
 
@@ -772,7 +772,7 @@ def run_pool(fr, cols, pool_mask, libs, counts, a, sfx, pool_title):
 # ----------------------------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=B_DEFAULT, help='domain bootstrap resamples (draft default: 200)')
+    ap.add_argument('--B', type=int, default=B_DEFAULT, help='domain bootstrap resamples (draft default: 100)')
     ap.add_argument('--tau', type=float, default=0.5, help='ddG threshold in kcal/mol (default: 0.5)')
     ap.add_argument('--top_n', type=int, default=6, help='N most stabilizing variants per protein to recover (default: 6)')
     ap.add_argument('--budgets', nargs='+', type=int, default=[6, 24, 96], help='fixed screening budgets K (default: 6 24 96)')

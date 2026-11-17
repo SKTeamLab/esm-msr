@@ -55,9 +55,9 @@ class _Out:
 
 OUT = _Out()
 DS = 'tsuboyama_capped_test'
-B = 200                                   # draft sizes; the figures of the paper want --B 2000 --B_mut 1000 --B_pooled 1000
-B_MUT = 100
-POOLED_B = 200
+B = 100                                   # draft sizes; the figures of the paper want --B 2000 --B_mut 1000 --B_pooled 1000
+B_MUT = 50
+POOLED_B = 100
 MIN_N = 10
 K = 96
 

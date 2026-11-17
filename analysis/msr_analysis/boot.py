@@ -214,7 +214,7 @@ def draw_weights(kind, boot, rng, cluster_counts=None, cluster_idx=None):
     raise ValueError(kind)
 
 
-def bootstrap_rho(frames, keys, kind='protein', B=1000, seed=0, per_protein=None, common=False, subsets=None):
+def bootstrap_rho(frames, keys, kind='protein', B=100, seed=0, per_protein=None, common=False, subsets=None):
     """Bootstrap seed-mean rho for every model on every dataset.
 
     frames: {dataset: Frame}.  Returns (point, reps) where point[ds][key] = (rho, per-seed rhos, n, n_proteins)

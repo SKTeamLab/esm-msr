@@ -672,7 +672,7 @@ def main_delta_table(summ, deltas, z=2.0):
 # ----------------------------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('--B', type=int, default=200, help='bootstrap draws (draft default 200; paper 1000-2000)')
+    ap.add_argument('--B', type=int, default=100, help='bootstrap draws (draft default 100; paper 1000-2000)')
     ap.add_argument('--sigma', default='1.0')
     ap.add_argument('--skip-boot', action='store_true')
     ap.add_argument('--render-only', action='store_true', help='re-draw the layouts from the CSVs already in results/98_ablation')

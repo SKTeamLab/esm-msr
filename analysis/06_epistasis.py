@@ -48,7 +48,9 @@ MODELS['msrp0:epi'] = dict(label='ESM-MSR (p0) (1/2(MT+WT)_AB − WT_A − WT_B)
 MEGA = TSU_SPLIT == 'mega'
 ESM = 'msrp0' if MEGA else 'msr'          # the ESM-MSR family the headline panels use
 if MEGA:
-    EPI_KEYS = EPI_PLOT = ['msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
+    EPI_KEYS = EPI_PLOT = ['msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi', 'spursum:epi', 'spurspubm:epi', 'tmpnndpub:epi']
+    for _k, _l in (('spursm:epi', 'SPURS multi, frozen adapter (vs singles)'),):
+        MODELS[_k] = dict(MODELS[_k], label=_l)
     MODELS['msrp0:epi'] = dict(label='ESM-MSR (1/2(MT+WT)_AB − WT_A − WT_B)', color='#6c3483', marker='D', fill=True, group='msr')
 
 
@@ -127,7 +129,7 @@ def hierarchy_figures():
 # --------------------------------------------------------------------------------------------------
 # 2. naive rho and RMSE recomputed
 # --------------------------------------------------------------------------------------------------
-def rmse_boot(fr, mask, key, B=500, seed=0):
+def rmse_boot(fr, mask, key, B=100, seed=0):
     sp = fr.spine
     y = sp['dddG_ML'].to_numpy()
     cl = sp['cluster'].astype(str).to_numpy()
@@ -287,6 +289,8 @@ def doubles_ddg():
 # --------------------------------------------------------------------------------------------------
 def ddg_ranking():
     ms = [f'{ESM}:wt', f'{ESM}:comb', 'me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm']       # SPURS (single, additive) and SPURS multi
+    if MEGA:
+        ms += ['spursu', 'spursum', 'spurspub', 'spurspubm', 'tmpnnpub', 'tmpnndpub']
     rows = []
     for ds, sp_ in zip(TSU, ('val', 'test')):
         fr = load_frame(ds)
@@ -294,11 +298,12 @@ def ddg_ranking():
         dbl = (sp['n_mut'] == 2).to_numpy() & sp['use'].to_numpy()
         e = (dbl & np.isfinite(sp['dddG_ML'].to_numpy()))      # table 2.3 uses every double with a measured dddG
         sets = {'all variants': (fr, ms), 'doubles': (subframe(fr, dbl, keys=ms), ms),
-                'dddG of doubles': (subframe(fr, e, y=sp['dddG_ML'].to_numpy(), keys=[f'{ESM}:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi'],
-                                             rename={f'{ESM}:epi': f'{ESM}:comb', 'me2:epi': 'me2', 'tmpnnd:epi': 'tmpnnd', 'spursm:epi': 'spursm'}),
-                                    [f'{ESM}:comb', 'me2', 'tmpnnd', 'spursm'])}
+                'dddG of doubles': (subframe(fr, e, y=sp['dddG_ML'].to_numpy(), keys=[f'{ESM}:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi'] + (['spursum:epi', 'spurspubm:epi', 'tmpnndpub:epi'] if MEGA else []),
+                                             rename={f'{ESM}:epi': f'{ESM}:comb', 'me2:epi': 'me2', 'tmpnnd:epi': 'tmpnnd', 'spursm:epi': 'spursm', 'spursum:epi': 'spursum',
+                                                     'spurspubm:epi': 'spurspubm', 'tmpnndpub:epi': 'tmpnndpub'}),
+                                    [f'{ESM}:comb', 'me2', 'tmpnnd', 'spursm'] + (['spursum', 'spurspubm', 'tmpnndpub'] if MEGA else []))}
         for nm, (f, keys) in sets.items():
-            point, reps = bootstrap_rho({ds: f}, keys, kind='protein', B=1000, seed=4, per_protein=True)
+            point, reps = bootstrap_rho({ds: f}, keys, kind='protein', B=100, seed=4, per_protein=True)
             for k, (rho, per_seed, n, ng) in point[ds].items():
                 lo, hi = ci(reps[ds][k])
                 rows.append(dict(split=sp_, metric=nm, model=k, rho=rho, lo=lo, hi=hi, seed_sd=float(np.std(per_seed, ddof=1)) if len(per_seed) > 1 else np.nan, n=n, n_proteins=ng))

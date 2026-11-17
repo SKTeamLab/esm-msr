@@ -67,7 +67,7 @@ DROP = {
     'POLG_CXB3N_Mattenberger_2021',
     'SCN5A_HUMAN_Glazer_2019',
 }
-B = 2000
+B = 100              # draft size (was 2000; the cache below is keyed on B, so the first run recomputes); paper 2000
 
 ALL_PG_MODELS = [
     'pg:msrp0:comb',

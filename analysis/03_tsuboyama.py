@@ -110,7 +110,7 @@ def singles_doubles():
         sp = fr.spine
         for nm, m in (('singles', (sp['n_mut'] == 1).to_numpy() & sp['use'].to_numpy()), ('doubles', (sp['n_mut'] == 2).to_numpy() & sp['use'].to_numpy())):
             sub = subframe(fr, m, keys=KEYS)
-            point, reps = bootstrap_rho({ds: sub}, KEYS, kind='protein', B=1000, seed=6, per_protein=True)
+            point, reps = bootstrap_rho({ds: sub}, KEYS, kind='protein', B=100, seed=6, per_protein=True)
             for k, (rho, ps, n, ng) in point[ds].items():
                 lo, hi = ci(reps[ds][k])
                 rows.append(dict(dataset=ds, subset=nm, model=k, rho=rho, lo=lo, hi=hi, n=n, n_libraries=ng))
