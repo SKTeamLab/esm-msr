@@ -1,0 +1,29 @@
+comparison,model_a,model_b,value_a,value_b,delta,lo,hi,p,n_libraries,bootstrap,statistic,p_holm
+precision_ddG_gt_0.5,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.4424,0.3997,0.04269,0.00256,0.07326,0.05,28,domains,pooled over domains,0.2
+precision_ddG_gt_0.5,ESM-MSR (p0) WT head,MutateEverything st1,0.4424,0.3684,0.07397,-0.0172,0.1517,0.11,28,domains,pooled over domains,0.33
+precision_ddG_gt_0.5,ESM-MSR (p0) WT head,ThermoMPNN,0.4424,0.4958,-0.05336,-0.1214,0.04146,0.22,28,domains,pooled over domains,0.44
+precision_ddG_gt_0.5,ESM-MSR (p0) WT head,SPURS,0.4424,0.4681,-0.02572,-0.09322,0.02704,0.38,28,domains,pooled over domains,0.44
+precision_ddG_gt_0.5,ESM-MSR (p0) combined,MutateEverything st1,0.3997,0.3684,0.03127,-0.03997,0.09425,0.42,28,domains,pooled over domains,0.42
+precision_ddG_gt_0.5,ESM-MSR (p0) combined,ThermoMPNN,0.3997,0.4958,-0.09605,-0.1629,-0.003333,0.05,28,domains,pooled over domains,0.1
+precision_ddG_gt_0.5,ESM-MSR (p0) combined,SPURS,0.3997,0.4681,-0.06841,-0.118,-0.02633,0.004975,28,domains,pooled over domains,0.01493
+precision_ddG_gt_0,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.8713,0.8776,-0.006266,-0.03405,0.02578,0.66,28,domains,pooled over domains,1
+precision_ddG_gt_0,ESM-MSR (p0) WT head,MutateEverything st1,0.8713,0.7763,0.09504,0.03091,0.1457,0.004975,28,domains,pooled over domains,0.0199
+precision_ddG_gt_0,ESM-MSR (p0) WT head,ThermoMPNN,0.8713,0.8232,0.04809,-0.009352,0.145,0.09,28,domains,pooled over domains,0.27
+precision_ddG_gt_0,ESM-MSR (p0) WT head,SPURS,0.8713,0.8524,0.0189,-0.02719,0.05737,0.52,28,domains,pooled over domains,1
+precision_ddG_gt_0,ESM-MSR (p0) combined,MutateEverything st1,0.8776,0.7763,0.1013,0.04375,0.1483,0.004975,28,domains,pooled over domains,0.01493
+precision_ddG_gt_0,ESM-MSR (p0) combined,ThermoMPNN,0.8776,0.8232,0.05436,-0.006861,0.1394,0.08,28,domains,pooled over domains,0.16
+precision_ddG_gt_0,ESM-MSR (p0) combined,SPURS,0.8776,0.8524,0.02517,-0.03694,0.06966,0.43,28,domains,pooled over domains,0.43
+recall_ddG_gt_0.5,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.2284,0.2895,-0.06106,-0.1134,-0.017,0.02,28,domains,pooled over domains,0.04
+recall_ddG_gt_0.5,ESM-MSR (p0) WT head,MutateEverything st1,0.2284,0.1521,0.07639,0.03107,0.1271,0.004975,28,domains,pooled over domains,0.0199
+recall_ddG_gt_0.5,ESM-MSR (p0) WT head,ThermoMPNN,0.2284,0.06968,0.1588,0.09836,0.2224,0.004975,28,domains,pooled over domains,0.0199
+recall_ddG_gt_0.5,ESM-MSR (p0) WT head,SPURS,0.2284,0.1865,0.04191,-0.002867,0.08186,0.06,28,domains,pooled over domains,0.06
+recall_ddG_gt_0.5,ESM-MSR (p0) combined,MutateEverything st1,0.2895,0.1521,0.1375,0.0756,0.2208,0.004975,28,domains,pooled over domains,0.01493
+recall_ddG_gt_0.5,ESM-MSR (p0) combined,ThermoMPNN,0.2895,0.06968,0.2198,0.1305,0.333,0.004975,28,domains,pooled over domains,0.01493
+recall_ddG_gt_0.5,ESM-MSR (p0) combined,SPURS,0.2895,0.1865,0.103,0.04307,0.1735,0.004975,28,domains,pooled over domains,0.01493
+recall_ddG_gt_0,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.07769,0.1095,-0.03185,-0.04702,-0.01489,0.004975,28,domains,pooled over domains,0.0199
+recall_ddG_gt_0,ESM-MSR (p0) WT head,MutateEverything st1,0.07769,0.05487,0.02282,0.006805,0.0391,0.01,28,domains,pooled over domains,0.02
+recall_ddG_gt_0,ESM-MSR (p0) WT head,ThermoMPNN,0.07769,0.01986,0.05783,0.03773,0.07953,0.004975,28,domains,pooled over domains,0.0199
+recall_ddG_gt_0,ESM-MSR (p0) WT head,SPURS,0.07769,0.05824,0.01945,0.005348,0.03443,0.01,28,domains,pooled over domains,0.02
+recall_ddG_gt_0,ESM-MSR (p0) combined,MutateEverything st1,0.1095,0.05487,0.05467,0.02787,0.08122,0.004975,28,domains,pooled over domains,0.01493
+recall_ddG_gt_0,ESM-MSR (p0) combined,ThermoMPNN,0.1095,0.01986,0.08967,0.06093,0.1202,0.004975,28,domains,pooled over domains,0.01493
+recall_ddG_gt_0,ESM-MSR (p0) combined,SPURS,0.1095,0.05824,0.0513,0.02452,0.07733,0.004975,28,domains,pooled over domains,0.01493

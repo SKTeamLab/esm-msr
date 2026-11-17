@@ -1,0 +1,57 @@
+column,key,K,value,lo,hi,n_libraries
+Oracle (best in domain),oracle,1,1.2514,1.0153,1.5047,28
+Random picks,random,1,-0.6950,-0.8233,-0.5663,28
+Oracle (best in domain),oracle,2,1.2514,1.0153,1.5047,28
+Random picks,random,2,-0.1937,-0.2871,-0.0948,28
+Oracle (best in domain),oracle,3,1.2514,1.0153,1.5047,28
+Random picks,random,3,0.0018,-0.0873,0.0837,28
+Oracle (best in domain),oracle,6,1.2514,1.0153,1.5047,28
+Random picks,random,6,0.2329,0.1405,0.3068,28
+Oracle (best in domain),oracle,12,1.2514,1.0153,1.5047,28
+Random picks,random,12,0.4067,0.3029,0.5029,28
+Oracle (best in domain),oracle,24,1.2514,1.0153,1.5047,28
+Random picks,random,24,0.5629,0.4426,0.6722,28
+Oracle (best in domain),oracle,48,1.2514,1.0153,1.5047,28
+Random picks,random,48,0.7107,0.5793,0.8459,28
+Oracle (best in domain),oracle,96,1.2514,1.0153,1.5047,28
+Random picks,random,96,0.8511,0.6973,1.0082,28
+ESM-MSR (p0) WT head,msrp0:wt,1,0.6506,0.4429,0.8925,28
+ESM-MSR (p0) WT head,msrp0:wt,2,0.7624,0.5582,0.9963,28
+ESM-MSR (p0) WT head,msrp0:wt,3,0.8105,0.6058,1.0283,28
+ESM-MSR (p0) WT head,msrp0:wt,6,0.8798,0.6704,1.0928,28
+ESM-MSR (p0) WT head,msrp0:wt,12,0.9908,0.7460,1.2099,28
+ESM-MSR (p0) WT head,msrp0:wt,24,1.0326,0.7978,1.2545,28
+ESM-MSR (p0) WT head,msrp0:wt,48,1.0693,0.8302,1.2999,28
+ESM-MSR (p0) WT head,msrp0:wt,96,1.1217,0.9129,1.3517,28
+ESM-MSR (p0) combined,msrp0:comb,1,0.6234,0.4053,0.8800,28
+ESM-MSR (p0) combined,msrp0:comb,2,0.7820,0.5790,1.0193,28
+ESM-MSR (p0) combined,msrp0:comb,3,0.8438,0.6261,1.0772,28
+ESM-MSR (p0) combined,msrp0:comb,6,0.9384,0.7177,1.1755,28
+ESM-MSR (p0) combined,msrp0:comb,12,1.0095,0.7890,1.2189,28
+ESM-MSR (p0) combined,msrp0:comb,24,1.0522,0.8235,1.2704,28
+ESM-MSR (p0) combined,msrp0:comb,48,1.0761,0.8497,1.2992,28
+ESM-MSR (p0) combined,msrp0:comb,96,1.1295,0.9121,1.3566,28
+MutateEverything st1,me1,1,0.4459,0.2274,0.7018,28
+MutateEverything st1,me1,2,0.5840,0.3713,0.8249,28
+MutateEverything st1,me1,3,0.6708,0.4232,0.9186,28
+MutateEverything st1,me1,6,0.8413,0.6401,1.0604,28
+MutateEverything st1,me1,12,0.9730,0.7510,1.1849,28
+MutateEverything st1,me1,24,1.0415,0.8330,1.2578,28
+MutateEverything st1,me1,48,1.0926,0.8980,1.3169,28
+MutateEverything st1,me1,96,1.1498,0.9291,1.3798,28
+ThermoMPNN,tmpnn,1,0.5050,0.2730,0.7491,28
+ThermoMPNN,tmpnn,2,0.7042,0.4701,0.9447,28
+ThermoMPNN,tmpnn,3,0.7829,0.5541,1.0216,28
+ThermoMPNN,tmpnn,6,0.9013,0.6697,1.1463,28
+ThermoMPNN,tmpnn,12,0.9914,0.7415,1.2408,28
+ThermoMPNN,tmpnn,24,1.0829,0.8197,1.3711,28
+ThermoMPNN,tmpnn,48,1.1367,0.8900,1.4073,28
+ThermoMPNN,tmpnn,96,1.1752,0.9268,1.4374,28
+SPURS,spurs,1,0.6972,0.4708,0.9563,28
+SPURS,spurs,2,0.7896,0.5533,1.0681,28
+SPURS,spurs,3,0.8386,0.6181,1.1058,28
+SPURS,spurs,6,0.9622,0.7348,1.2047,28
+SPURS,spurs,12,1.0728,0.8289,1.3283,28
+SPURS,spurs,24,1.1125,0.8534,1.3952,28
+SPURS,spurs,48,1.1344,0.8993,1.4001,28
+SPURS,spurs,96,1.1863,0.9493,1.4265,28

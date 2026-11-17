@@ -116,18 +116,18 @@ def load_s1_mutation_boot(refresh=False):
         for m, rk in used.items():
             keys_out[(ds, m)] = rk
     ext_keys = sorted({m for fr in ext_frames.values() for m in fr.preds})
-    _run_group(ext_frames, ext_keys, kind='mutation', B=1000, seed=11, per_protein=False)
+    _run_group(ext_frames, ext_keys, kind='mutation', B=100, seed=11, per_protein=False)
 
     for i, ds in enumerate(DMS3):
         fr, used = _seed1_frame(ds, load_frame(ds))
         for m, rk in used.items():
             keys_out[(ds, m)] = rk
-        _run_group({ds: fr}, list(fr.preds), kind='mutation', B=500, seed=12 + i, per_protein=False)
+        _run_group({ds: fr}, list(fr.preds), kind='mutation', B=100, seed=12 + i, per_protein=False)
 
     dom_fr, dom_used = _seed1_frame('domainome', load_frame('domainome'))
     for m, rk in dom_used.items():
         keys_out[('domainome', m)] = rk
-    _run_group({'domainome': dom_fr}, list(dom_fr.preds), kind='mutation', B=250, seed=30, per_protein=True)
+    _run_group({'domainome': dom_fr}, list(dom_fr.preds), kind='mutation', B=100, seed=30, per_protein=True)
 
     payload = dict(version=_CACHE_VERSION, point=point_out, reps=reps_out, keys=keys_out)
     CACHE.mkdir(parents=True, exist_ok=True)

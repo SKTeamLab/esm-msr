@@ -24,7 +24,7 @@ BLAT_ECOLX_Firnberg_2014,ProteinGym,BLAT_ECOLX,OrganismalFitness,4783,False,,0.7
 BLAT_ECOLX_Jacquier_2013,ProteinGym,BLAT_ECOLX,OrganismalFitness,989,False,,0.6781,0.7114,0.7165
 BLAT_ECOLX_Stiffler_2015,ProteinGym,BLAT_ECOLX,OrganismalFitness,4996,False,,0.7281,0.7757,0.7992
 BRCA1_HUMAN_Findlay_2018,ProteinGym,BRCA1_HUMAN,OrganismalFitness,1837,False,,0.4910,0.4976,0.4866
-BRCA2_HUMAN_Erwood_2022_HEK293T,ProteinGym,BRCA2_HUMAN,OrganismalFitness,265,False,0.0 1.0,0.4658,0.4790,0.4884
+BRCA2_HUMAN_Erwood_2022_HEK293T,ProteinGym,BRCA2_HUMAN,OrganismalFitness,265,False,0.0,0.4658,0.4790,0.4884
 C6KNH7_9INFA_Lee_2018,ProteinGym,C6KNH7_9INFA,OrganismalFitness,10754,False,,0.4304,0.4890,0.5047
 CALM1_HUMAN_Weile_2017,ProteinGym,CALM1_HUMAN,OrganismalFitness,1813,False,,0.1926,0.1747,0.1317
 CAPSD_AAV2S_Sinai_2021,ProteinGym,CAPSD_AAV2S,OrganismalFitness,42328,False,,0.3402,0.3491,0.3451

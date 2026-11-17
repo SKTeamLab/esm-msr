@@ -147,9 +147,13 @@ def load_final_frame(ds, families=None, sigma='1.0', seeds=SEEDS, mega_own_split
 # ----------------------------------------------------------------------------------------------
 # ProteinGym (per-DMS Spearman from the per-assay files; summary.csv of a resumed run is incomplete)
 # ----------------------------------------------------------------------------------------------
+MIN_PGYM_ASSAYS = 213          # the testing queue's completion rule (BRCA2 and the large assays can fail transiently)
+
+
 def pgym_per_dms(family, seed, mode='wt', dms_ids=None):
     """Series DMS_id -> Spearman rho of one family/seed.  mode 'wt' reads wt_lora_pred from final_pgym_wt,
-    mode 'comb' reads combined_pred from final_pgym_comb.  Missing assays are NaN."""
+    mode 'comb' reads combined_pred from final_pgym_comb.  Missing assays are NaN; a run with fewer than MIN_PGYM_ASSAYS
+    scored assays (still running) returns None."""
     from scipy.stats import spearmanr
     fam, _, cross = split_family(family)
     if cross and mode != 'wt':
@@ -166,5 +170,7 @@ def pgym_per_dms(family, seed, mode='wt', dms_ids=None):
             continue
         d = pd.read_csv(p, usecols=[col, 'DMS_score'])
         out[p.stem] = float(spearmanr(d[col], d['DMS_score'], nan_policy='omit')[0])
+    if len(out) < MIN_PGYM_ASSAYS:
+        return None                   # a run still in progress (or failed early): treated as not run, like a missing folder
     s = pd.Series(out, dtype=float)
     return s.reindex(dms_ids) if dms_ids is not None else s

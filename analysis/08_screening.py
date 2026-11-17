@@ -30,6 +30,7 @@ from msr_analysis import screening as scr, style  # noqa: E402
 from msr_analysis.common import has_multi, out_dir, primary_key  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
 from msr_analysis.registry import HERE, LABEL, MODELS, REFERENCE  # noqa: E402
+from msr_analysis.registry import TSU, TSU_SPLIT  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 OUT = out_dir('08_screening')
 POOLED_SETS = ['s783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld']   # S571's labels are not ddG
@@ -208,6 +209,16 @@ FAM_LABEL_COMPOSITE = {
     'rosetta': 'Rosetta',
 }
 
+if TSU_SPLIT == 'mega':      # mega_splits: SPURS with the adapter trained, the published SPURS, the published ThermoMPNN / -D (data._load_mega); drawn in the all-models panels
+    _X = {'spursu': ('SPURS, trained adapter', 'SPURS multi, trained adapter', 'spursu', 'spursum', 'spursu', ('#a04000', '-', 2.0, 6)),
+          'spurspub': ('SPURS, published', 'SPURS multi, published', 'spurspub', 'spurspubm', 'spurspub', ('#6e2c00', '--', 2.0, 6)),
+          'tmpub': ('ThermoMPNN, published', 'ThermoMPNN-D, published', 'tmpnnpub', 'tmpnndpub', 'tmpnnpub', ('#154360', '--', 2.0, 6))}
+    for _f, (_ls, _lc, _sk, _mk, _st, _col) in _X.items():
+        FAM_LABEL[_f], FAM_LABEL_SINGLES[_f], FAM_LABEL_COMPOSITE[_f] = _ls, _ls, f'{_ls} | {_lc.split(",")[0]}'
+        SINGLE_KEY[_f], MULTI_KEY[_f], FAM_STYLE[_f], FAM_COLOR_ALL[_f] = _sk, _mk, _st, _col
+        MODELS.setdefault(_f, dict(MODELS[_st]))
+    FAM_ALL = FAM_ALL[:3] + list(_X) + FAM_ALL[3:]
+
 
 def per_protein(ds, Ks, tau, B, exclude_groups=None, mode='default', exclude_cys=False, fams=FAM, fr=None):
     fr = load_frame(ds) if fr is None else fr
@@ -238,8 +249,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--tau', type=float, default=0.5)
     ap.add_argument('--frac', type=float, default=0.10)
-    ap.add_argument('--B', type=int, default=500)
+    ap.add_argument('--B', type=int, default=100)
     a = ap.parse_args()
+    if TSU_SPLIT == 'mega':           # mega_splits: only the Tsuboyama test tables (the external sets and Domainome do not depend on the split)
+        for mode, stem in (('default', 'screening_per_protein'), ('singles', 'screening_per_protein_singles'), ('composite', 'screening_per_protein_composite')):
+            for fams, sfx in ((FAM, ''), (FAM_ALL, '_all_models')):
+                D = per_protein(TSU[1], [1, 3, 5, 10, 20, 50, 100], a.tau, a.B, mode=mode, exclude_cys=True, fams=fams)
+                D.to_csv(OUT / f'{stem}{sfx}.csv', index=False, float_format='%.4f')
+            print(f'=== {stem} (K=10) ===')
+            print(D[(D.metric.isin(['hit_rate', 'p_recover', 'gain'])) & (D.K == 10)].pivot_table(index=['dataset', 'metric'], columns='family', values='value').round(3))
+        return
     P, reps = pooled(a.tau, a.B, a.frac)
     P.to_csv(OUT / 'screening_pooled_external.csv', index=False, float_format='%.4f')
     fig_pooled(P, reps, a.tau, a.frac)
@@ -258,11 +277,11 @@ def main():
     for mode, stem in (('default', 'screening_per_protein'),
                        ('singles', 'screening_per_protein_singles'),
                        ('composite', 'screening_per_protein_composite')):
-        tsu_df = per_protein('tsuboyama_capped_test', ks, a.tau, a.B, mode=mode, exclude_cys=True, fams=FAM)
+        tsu_df = per_protein(TSU[1], ks, a.tau, a.B, mode=mode, exclude_cys=True, fams=FAM)
         D = pd.concat([tsu_df, dom_df], ignore_index=True)
         D.to_csv(OUT / f'{stem}.csv', index=False, float_format='%.4f')
 
-        tsu_df_all = per_protein('tsuboyama_capped_test', ks, a.tau, a.B, mode=mode, exclude_cys=True, fams=FAM_ALL)
+        tsu_df_all = per_protein(TSU[1], ks, a.tau, a.B, mode=mode, exclude_cys=True, fams=FAM_ALL)
         D_all = pd.concat([tsu_df_all, dom_df_all], ignore_index=True)
         stem_all = f'{stem}_all_models'
         D_all.to_csv(OUT / f'{stem_all}.csv', index=False, float_format='%.4f')

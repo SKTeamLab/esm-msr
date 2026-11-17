@@ -1,46 +1,46 @@
 column,key,subset,value,lo,hi,n_variants,n_libraries
-ESM-MSR (baseline) WT head,msr:wt,stabilizing,0.2887,0.2636,0.3102,7417,33
-ESM-MSR (baseline) combined,msr:comb,stabilizing,0.3472,0.3235,0.3661,7417,33
-ESM-MSR WT head,msrdev:wt,stabilizing,0.2771,0.2559,0.2986,7417,33
-ESM-MSR combined,msrdev:comb,stabilizing,0.3376,0.3173,0.3578,7417,33
-ESM-MSR (p0) WT head,msrp0:wt,stabilizing,0.2949,0.2706,0.3147,7417,33
-ESM-MSR (p0) combined,msrp0:comb,stabilizing,0.3633,0.3416,0.3849,7417,33
-MutateEverything,me1|me2,stabilizing,0.1930,0.1678,0.2220,7417,33
-ThermoMPNN,tmpnn|tmpnnd,stabilizing,0.2288,0.2092,0.2485,7417,33
-SPURS,spurs|spursm,stabilizing,0.2686,0.2450,0.2881,7417,33
-ESM3-small-open,msrrel@0:comb,stabilizing,0.0173,-0.0058,0.0428,7417,33
-ProteinMPNN,pmpnn,stabilizing,0.0599,0.0374,0.0820,7417,33
-ProSST,prosst,stabilizing,0.0169,-0.0033,0.0378,7417,33
-best other ddG,geoddg,stabilizing,0.1959,0.1716,0.2184,7417,33
-Rosetta,rosetta,stabilizing,0.1060,0.0848,0.1285,7417,33
-ESM3-small-open (alt),esm3avg,stabilizing,0.0170,-0.0054,0.0414,7417,33
-ESM-MSR (baseline) WT head,msr:wt,destabilizing,0.7167,0.7082,0.7270,41323,33
-ESM-MSR (baseline) combined,msr:comb,destabilizing,0.6873,0.6789,0.6980,41323,33
-ESM-MSR WT head,msrdev:wt,destabilizing,0.7397,0.7327,0.7483,41323,33
-ESM-MSR combined,msrdev:comb,destabilizing,0.7149,0.7058,0.7269,41323,33
-ESM-MSR (p0) WT head,msrp0:wt,destabilizing,0.7215,0.7138,0.7316,41323,33
-ESM-MSR (p0) combined,msrp0:comb,destabilizing,0.6787,0.6653,0.6948,41323,33
-MutateEverything,me1|me2,destabilizing,0.7267,0.7217,0.7329,41323,33
-ThermoMPNN,tmpnn|tmpnnd,destabilizing,0.6967,0.6889,0.7044,41323,33
-SPURS,spurs|spursm,destabilizing,0.7204,0.7049,0.7386,41323,33
-ESM3-small-open,msrrel@0:comb,destabilizing,0.5544,0.5481,0.5622,41323,33
-ProteinMPNN,pmpnn,destabilizing,0.5733,0.5667,0.5794,41323,33
-ProSST,prosst,destabilizing,0.6555,0.6507,0.6602,41323,33
-best other ddG,geoddg,destabilizing,0.5834,0.5781,0.5897,41323,33
-Rosetta,rosetta,destabilizing,0.6419,0.6364,0.6476,41323,33
-ESM3-small-open (alt),esm3avg,destabilizing,0.5348,0.5286,0.5431,41323,33
-ESM-MSR (baseline) WT head,msr:wt,overall,0.7781,0.7715,0.7852,48740,33
-ESM-MSR (baseline) combined,msr:comb,overall,0.7633,0.7560,0.7700,48740,33
-ESM-MSR WT head,msrdev:wt,overall,0.7946,0.7893,0.8008,48740,33
-ESM-MSR combined,msrdev:comb,overall,0.7837,0.7766,0.7917,48740,33
-ESM-MSR (p0) WT head,msrp0:wt,overall,0.7783,0.7719,0.7849,48740,33
-ESM-MSR (p0) combined,msrp0:comb,overall,0.7508,0.7416,0.7617,48740,33
-MutateEverything,me1|me2,overall,0.7684,0.7641,0.7723,48740,33
-ThermoMPNN,tmpnn|tmpnnd,overall,0.7465,0.7399,0.7543,48740,33
-SPURS,spurs|spursm,overall,0.7796,0.7618,0.7941,48740,33
-ESM3-small-open,msrrel@0:comb,overall,0.5944,0.5883,0.6002,48740,33
-ProteinMPNN,pmpnn,overall,0.6265,0.6213,0.6319,48740,33
-ProSST,prosst,overall,0.6844,0.6795,0.6882,48740,33
-best other ddG,geoddg,overall,0.6313,0.6258,0.6369,48740,33
+ESM-MSR (baseline) WT head,msr:wt,stabilizing,0.2887,0.2647,0.3079,7417,33
+ESM-MSR (baseline) combined,msr:comb,stabilizing,0.3472,0.3222,0.3647,7417,33
+ESM-MSR WT head,msrdev:wt,stabilizing,0.2771,0.2544,0.2971,7417,33
+ESM-MSR combined,msrdev:comb,stabilizing,0.3376,0.3136,0.3554,7417,33
+ESM-MSR (p0) WT head,msrp0:wt,stabilizing,0.2977,0.2697,0.3174,7417,33
+ESM-MSR (p0) combined,msrp0:comb,stabilizing,0.3694,0.3446,0.3905,7417,33
+MutateEverything,me1|me2,stabilizing,0.1930,0.1680,0.2203,7417,33
+ThermoMPNN,tmpnn|tmpnnd,stabilizing,0.2288,0.2109,0.2499,7417,33
+SPURS,spurs|spursm,stabilizing,0.2570,0.2355,0.2832,7417,33
+ESM3-small-open,msrrel@0:comb,stabilizing,0.0173,-0.0061,0.0370,7417,33
+ProteinMPNN,pmpnn,stabilizing,0.0599,0.0391,0.0843,7417,33
+ProSST,prosst,stabilizing,0.0169,-0.0050,0.0364,7417,33
+best other ddG,geoddg,stabilizing,0.1959,0.1710,0.2186,7417,33
+Rosetta,rosetta,stabilizing,0.1060,0.0836,0.1280,7417,33
+ESM3-small-open (alt),esm3avg,stabilizing,0.0170,-0.0050,0.0377,7417,33
+ESM-MSR (baseline) WT head,msr:wt,destabilizing,0.7167,0.7080,0.7262,41323,33
+ESM-MSR (baseline) combined,msr:comb,destabilizing,0.6873,0.6790,0.6976,41323,33
+ESM-MSR WT head,msrdev:wt,destabilizing,0.7397,0.7334,0.7487,41323,33
+ESM-MSR combined,msrdev:comb,destabilizing,0.7149,0.7069,0.7273,41323,33
+ESM-MSR (p0) WT head,msrp0:wt,destabilizing,0.7286,0.7239,0.7354,41323,33
+ESM-MSR (p0) combined,msrp0:comb,destabilizing,0.6901,0.6843,0.6986,41323,33
+MutateEverything,me1|me2,destabilizing,0.7267,0.7220,0.7323,41323,33
+ThermoMPNN,tmpnn|tmpnnd,destabilizing,0.6967,0.6907,0.7049,41323,33
+SPURS,spurs|spursm,destabilizing,0.7256,0.7028,0.7498,41323,33
+ESM3-small-open,msrrel@0:comb,destabilizing,0.5544,0.5482,0.5615,41323,33
+ProteinMPNN,pmpnn,destabilizing,0.5733,0.5680,0.5795,41323,33
+ProSST,prosst,destabilizing,0.6555,0.6508,0.6598,41323,33
+best other ddG,geoddg,destabilizing,0.5834,0.5782,0.5896,41323,33
+Rosetta,rosetta,destabilizing,0.6419,0.6368,0.6475,41323,33
+ESM3-small-open (alt),esm3avg,destabilizing,0.5348,0.5291,0.5428,41323,33
+ESM-MSR (baseline) WT head,msr:wt,overall,0.7781,0.7717,0.7847,48740,33
+ESM-MSR (baseline) combined,msr:comb,overall,0.7633,0.7577,0.7698,48740,33
+ESM-MSR WT head,msrdev:wt,overall,0.7946,0.7898,0.8003,48740,33
+ESM-MSR combined,msrdev:comb,overall,0.7837,0.7770,0.7916,48740,33
+ESM-MSR (p0) WT head,msrp0:wt,overall,0.7841,0.7805,0.7882,48740,33
+ESM-MSR (p0) combined,msrp0:comb,overall,0.7605,0.7570,0.7653,48740,33
+MutateEverything,me1|me2,overall,0.7684,0.7646,0.7725,48740,33
+ThermoMPNN,tmpnn|tmpnnd,overall,0.7465,0.7396,0.7526,48740,33
+SPURS,spurs|spursm,overall,0.7824,0.7525,0.8000,48740,33
+ESM3-small-open,msrrel@0:comb,overall,0.5944,0.5882,0.6002,48740,33
+ProteinMPNN,pmpnn,overall,0.6265,0.6214,0.6317,48740,33
+ProSST,prosst,overall,0.6844,0.6798,0.6878,48740,33
+best other ddG,geoddg,overall,0.6313,0.6258,0.6366,48740,33
 Rosetta,rosetta,overall,0.6763,0.6709,0.6816,48740,33
-ESM3-small-open (alt),esm3avg,overall,0.5751,0.5684,0.5812,48740,33
+ESM3-small-open (alt),esm3avg,overall,0.5751,0.5687,0.5815,48740,33

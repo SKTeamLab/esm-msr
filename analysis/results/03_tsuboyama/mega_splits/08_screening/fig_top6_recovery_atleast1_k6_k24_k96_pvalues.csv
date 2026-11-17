@@ -1,0 +1,22 @@
+comparison,model_a,model_b,value_a,value_b,delta,lo,hi,p,n_libraries,bootstrap,statistic,p_holm
+K = 6,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.5476,0.5952,-0.04762,-0.1786,0.07173,0.55,28,domains,mean over domains,1
+K = 6,ESM-MSR (p0) WT head,MutateEverything st1,0.5476,0.4881,0.05952,-0.1554,0.2143,0.69,28,domains,mean over domains,1
+K = 6,ESM-MSR (p0) WT head,ThermoMPNN,0.5476,0.5357,0.0119,-0.1789,0.1908,1.05,28,domains,mean over domains,1
+K = 6,ESM-MSR (p0) WT head,SPURS,0.5476,0.6548,-0.1071,-0.2857,0.03571,0.21,28,domains,mean over domains,0.84
+K = 6,ESM-MSR (p0) combined,MutateEverything st1,0.5952,0.4881,0.1071,-0.04762,0.2503,0.29,28,domains,mean over domains,0.87
+K = 6,ESM-MSR (p0) combined,ThermoMPNN,0.5952,0.5357,0.05952,-0.1074,0.2262,0.61,28,domains,mean over domains,0.96
+K = 6,ESM-MSR (p0) combined,SPURS,0.5952,0.6548,-0.05952,-0.2027,0.1071,0.48,28,domains,mean over domains,0.96
+K = 24,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.8095,0.7976,0.0119,0,0.07143,1.04,28,domains,mean over domains,1
+K = 24,ESM-MSR (p0) WT head,MutateEverything st1,0.8095,0.7976,0.0119,-0.1432,0.1429,0.9,28,domains,mean over domains,1
+K = 24,ESM-MSR (p0) WT head,ThermoMPNN,0.8095,0.8095,-7.93e-18,-0.1429,0.1548,1.07,28,domains,mean over domains,1
+K = 24,ESM-MSR (p0) WT head,SPURS,0.8095,0.8452,-0.03571,-0.167,0.09524,0.77,28,domains,mean over domains,1
+K = 24,ESM-MSR (p0) combined,MutateEverything st1,0.7976,0.7976,0,-0.1432,0.1429,1.1,28,domains,mean over domains,1
+K = 24,ESM-MSR (p0) combined,ThermoMPNN,0.7976,0.8095,-0.0119,-0.1429,0.1429,0.9,28,domains,mean over domains,1
+K = 24,ESM-MSR (p0) combined,SPURS,0.7976,0.8452,-0.04762,-0.1786,0.07143,0.64,28,domains,mean over domains,1
+K = 96,ESM-MSR (p0) WT head,ESM-MSR (p0) combined,0.9048,0.9405,-0.03571,-0.1429,0.04762,0.51,28,domains,mean over domains,1
+K = 96,ESM-MSR (p0) WT head,MutateEverything st1,0.9048,0.9643,-0.05952,-0.1429,0,0.29,28,domains,mean over domains,1
+K = 96,ESM-MSR (p0) WT head,ThermoMPNN,0.9048,0.9524,-0.04762,-0.167,0.07143,0.46,28,domains,mean over domains,1
+K = 96,ESM-MSR (p0) WT head,SPURS,0.9048,0.9643,-0.05952,-0.1789,0.07143,0.45,28,domains,mean over domains,1
+K = 96,ESM-MSR (p0) combined,MutateEverything st1,0.9405,0.9643,-0.02381,-0.1429,0.09524,0.68,28,domains,mean over domains,1
+K = 96,ESM-MSR (p0) combined,ThermoMPNN,0.9405,0.9524,-0.0119,-0.1071,0.09524,0.76,28,domains,mean over domains,1
+K = 96,ESM-MSR (p0) combined,SPURS,0.9405,0.9643,-0.02381,-0.1196,0.07143,0.63,28,domains,mean over domains,1

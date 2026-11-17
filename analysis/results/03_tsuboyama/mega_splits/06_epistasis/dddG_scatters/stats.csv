@@ -1,0 +1,13 @@
+model,version,prediction,n,n_seeds,spearman,pearson,rmse
+ESM-MSR,all_dG_additive,latent,16923,3,0.5071,0.4828,0.8622
+ESM-MSR,dG_additive_positive,latent,9146,3,0.5288,0.5054,0.6559
+ESM-MSR,dG_additive_gt1,latent,4544,3,0.5711,0.5566,0.6221
+MutateEverything st2,all_dG_additive,as is,16923,3,0.4802,0.4922,0.9807
+MutateEverything st2,dG_additive_positive,as is,9146,3,0.2472,0.2736,0.9533
+MutateEverything st2,dG_additive_gt1,as is,4544,3,0.2667,0.2738,0.8963
+ThermoMPNN-D,all_dG_additive,as is,16923,3,0.3542,0.3483,1.0061
+ThermoMPNN-D,dG_additive_positive,as is,9146,3,0.2223,0.2047,0.8750
+ThermoMPNN-D,dG_additive_gt1,as is,4544,3,0.1969,0.1773,0.8355
+SPURS multi,all_dG_additive,as is,16923,3,0.3972,0.4318,0.9398
+SPURS multi,dG_additive_positive,as is,9146,3,0.0580,0.0730,0.8988
+SPURS multi,dG_additive_gt1,as is,4544,3,-0.0668,-0.0635,0.9089

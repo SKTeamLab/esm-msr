@@ -1,0 +1,29 @@
+set,a,b,spearman
+singles,spurs,spursu,0.9855
+singles,spurs,spurspub,0.9755
+singles,spurs,tmpnn,0.9100
+singles,spurs,tmpnnpub,0.9027
+singles,spursu,spurspub,0.9743
+singles,spursu,tmpnn,0.9045
+singles,spursu,tmpnnpub,0.8966
+singles,spurspub,tmpnn,0.9035
+singles,spurspub,tmpnnpub,0.8961
+singles,tmpnn,tmpnnpub,0.9727
+singles,spurs,spurs (other seed),0.9872
+singles,spursu,spursu (other seed),0.9866
+singles,tmpnn,tmpnn (other seed),0.9836
+singles,tmpnnpub,tmpnnpub (other seed),0.9832
+"doubles, epistasis term (multi - own-family singles)",spursm:epi,spursum:epi,0.8735
+"doubles, epistasis term (multi - own-family singles)",spursm:epi,spurspubm:epi,0.8277
+"doubles, epistasis term (multi - own-family singles)",spursm:epi,tmpnndpub:epi,0.4847
+"doubles, epistasis term (multi - own-family singles)",spursm:epi,tmpnnd:epi,0.5104
+"doubles, epistasis term (multi - own-family singles)",spursum:epi,spurspubm:epi,0.8401
+"doubles, epistasis term (multi - own-family singles)",spursum:epi,tmpnndpub:epi,0.4894
+"doubles, epistasis term (multi - own-family singles)",spursum:epi,tmpnnd:epi,0.5227
+"doubles, epistasis term (multi - own-family singles)",spurspubm:epi,tmpnndpub:epi,0.5201
+"doubles, epistasis term (multi - own-family singles)",spurspubm:epi,tmpnnd:epi,0.5692
+"doubles, epistasis term (multi - own-family singles)",tmpnndpub:epi,tmpnnd:epi,0.6956
+"doubles, epistasis term (multi - own-family singles)",spursm:epi,spursm:epi (other seed),0.8338
+"doubles, epistasis term (multi - own-family singles)",spursum:epi,spursum:epi (other seed),0.8984
+"doubles, epistasis term (multi - own-family singles)",tmpnndpub:epi,tmpnndpub:epi (other seed),0.7872
+"doubles, epistasis term (multi - own-family singles)",tmpnnd:epi,tmpnnd:epi (other seed),0.7894

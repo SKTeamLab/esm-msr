@@ -53,7 +53,7 @@ def fit(fam, ds):
     return [calib.fit_scale_bias(p[m], y) for p in fr.preds[k]]       # one (a, b) per seed
 
 
-def boot_sd(v, cluster, B=400, seed=0):
+def boot_sd(v, cluster, B=100, seed=0):
     """95% percentile interval of the standard deviation of ``v`` when the proteins (``cluster``) are resampled with replacement (per-protein n, sum and sum of squares)."""
     v, cl = np.asarray(v, float), np.asarray(cluster)
     u, inv = np.unique(cl, return_inverse=True)
@@ -66,7 +66,7 @@ def boot_sd(v, cluster, B=400, seed=0):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=500)
+    ap.add_argument('--B', type=int, default=100)
     b = ap.parse_args()
     # the sacrificial set the document suggests (S461: one-sided, sd 1.25) and one with more dynamic range (Ssym: both directions of every mutation, 5-95% range
     # -3.1 to +3.1, sd 1.83); starred sets are the donor and the sets that contain it

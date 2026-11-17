@@ -1,0 +1,673 @@
+column,key,K,value,lo,hi,n_libraries
+Oracle (best in domain),oracle,1,1.2514,1.0153,1.5047,28
+Random picks,random,1,-0.6950,-0.8233,-0.5663,28
+Oracle (best in domain),oracle,2,1.2514,1.0153,1.5047,28
+Random picks,random,2,-0.1937,-0.2871,-0.0948,28
+Oracle (best in domain),oracle,3,1.2514,1.0153,1.5047,28
+Random picks,random,3,0.0018,-0.0873,0.0837,28
+Oracle (best in domain),oracle,4,1.2514,1.0153,1.5047,28
+Random picks,random,4,0.1093,0.0221,0.1886,28
+Oracle (best in domain),oracle,5,1.2514,1.0153,1.5047,28
+Random picks,random,5,0.1805,0.0905,0.2564,28
+Oracle (best in domain),oracle,6,1.2514,1.0153,1.5047,28
+Random picks,random,6,0.2329,0.1405,0.3068,28
+Oracle (best in domain),oracle,7,1.2514,1.0153,1.5047,28
+Random picks,random,7,0.2744,0.1848,0.3481,28
+Oracle (best in domain),oracle,8,1.2514,1.0153,1.5047,28
+Random picks,random,8,0.3087,0.2155,0.3831,28
+Oracle (best in domain),oracle,9,1.2514,1.0153,1.5047,28
+Random picks,random,9,0.3380,0.2416,0.4188,28
+Oracle (best in domain),oracle,10,1.2514,1.0153,1.5047,28
+Random picks,random,10,0.3636,0.2644,0.4501,28
+Oracle (best in domain),oracle,11,1.2514,1.0153,1.5047,28
+Random picks,random,11,0.3863,0.2847,0.4779,28
+Oracle (best in domain),oracle,12,1.2514,1.0153,1.5047,28
+Random picks,random,12,0.4067,0.3029,0.5029,28
+Oracle (best in domain),oracle,13,1.2514,1.0153,1.5047,28
+Random picks,random,13,0.4253,0.3194,0.5222,28
+Oracle (best in domain),oracle,14,1.2514,1.0153,1.5047,28
+Random picks,random,14,0.4424,0.3338,0.5393,28
+Oracle (best in domain),oracle,15,1.2514,1.0153,1.5047,28
+Random picks,random,15,0.4581,0.3475,0.5551,28
+Oracle (best in domain),oracle,16,1.2514,1.0153,1.5047,28
+Random picks,random,16,0.4728,0.3612,0.5697,28
+Oracle (best in domain),oracle,17,1.2514,1.0153,1.5047,28
+Random picks,random,17,0.4864,0.3739,0.5835,28
+Oracle (best in domain),oracle,18,1.2514,1.0153,1.5047,28
+Random picks,random,18,0.4993,0.3855,0.5965,28
+Oracle (best in domain),oracle,19,1.2514,1.0153,1.5047,28
+Random picks,random,19,0.5113,0.3963,0.6109,28
+Oracle (best in domain),oracle,20,1.2514,1.0153,1.5047,28
+Random picks,random,20,0.5227,0.4065,0.6245,28
+Oracle (best in domain),oracle,21,1.2514,1.0153,1.5047,28
+Random picks,random,21,0.5335,0.4162,0.6373,28
+Oracle (best in domain),oracle,22,1.2514,1.0153,1.5047,28
+Random picks,random,22,0.5438,0.4254,0.6495,28
+Oracle (best in domain),oracle,23,1.2514,1.0153,1.5047,28
+Random picks,random,23,0.5536,0.4342,0.6611,28
+Oracle (best in domain),oracle,24,1.2514,1.0153,1.5047,28
+Random picks,random,24,0.5629,0.4426,0.6722,28
+Oracle (best in domain),oracle,25,1.2514,1.0153,1.5047,28
+Random picks,random,25,0.5718,0.4506,0.6828,28
+Oracle (best in domain),oracle,26,1.2514,1.0153,1.5047,28
+Random picks,random,26,0.5803,0.4584,0.6929,28
+Oracle (best in domain),oracle,27,1.2514,1.0153,1.5047,28
+Random picks,random,27,0.5885,0.4658,0.7026,28
+Oracle (best in domain),oracle,28,1.2514,1.0153,1.5047,28
+Random picks,random,28,0.5964,0.4729,0.7119,28
+Oracle (best in domain),oracle,29,1.2514,1.0153,1.5047,28
+Random picks,random,29,0.6040,0.4797,0.7209,28
+Oracle (best in domain),oracle,30,1.2514,1.0153,1.5047,28
+Random picks,random,30,0.6113,0.4864,0.7295,28
+Oracle (best in domain),oracle,31,1.2514,1.0153,1.5047,28
+Random picks,random,31,0.6183,0.4928,0.7378,28
+Oracle (best in domain),oracle,32,1.2514,1.0153,1.5047,28
+Random picks,random,32,0.6252,0.4989,0.7459,28
+Oracle (best in domain),oracle,33,1.2514,1.0153,1.5047,28
+Random picks,random,33,0.6317,0.5049,0.7536,28
+Oracle (best in domain),oracle,34,1.2514,1.0153,1.5047,28
+Random picks,random,34,0.6381,0.5107,0.7611,28
+Oracle (best in domain),oracle,35,1.2514,1.0153,1.5047,28
+Random picks,random,35,0.6443,0.5164,0.7684,28
+Oracle (best in domain),oracle,36,1.2514,1.0153,1.5047,28
+Random picks,random,36,0.6503,0.5218,0.7754,28
+Oracle (best in domain),oracle,37,1.2514,1.0153,1.5047,28
+Random picks,random,37,0.6561,0.5272,0.7822,28
+Oracle (best in domain),oracle,38,1.2514,1.0153,1.5047,28
+Random picks,random,38,0.6617,0.5326,0.7888,28
+Oracle (best in domain),oracle,39,1.2514,1.0153,1.5047,28
+Random picks,random,39,0.6672,0.5378,0.7953,28
+Oracle (best in domain),oracle,40,1.2514,1.0153,1.5047,28
+Random picks,random,40,0.6725,0.5430,0.8015,28
+Oracle (best in domain),oracle,41,1.2514,1.0153,1.5047,28
+Random picks,random,41,0.6777,0.5479,0.8076,28
+Oracle (best in domain),oracle,42,1.2514,1.0153,1.5047,28
+Random picks,random,42,0.6828,0.5528,0.8135,28
+Oracle (best in domain),oracle,43,1.2514,1.0153,1.5047,28
+Random picks,random,43,0.6877,0.5576,0.8192,28
+Oracle (best in domain),oracle,44,1.2514,1.0153,1.5047,28
+Random picks,random,44,0.6925,0.5622,0.8248,28
+Oracle (best in domain),oracle,45,1.2514,1.0153,1.5047,28
+Random picks,random,45,0.6972,0.5668,0.8303,28
+Oracle (best in domain),oracle,46,1.2514,1.0153,1.5047,28
+Random picks,random,46,0.7018,0.5712,0.8356,28
+Oracle (best in domain),oracle,47,1.2514,1.0153,1.5047,28
+Random picks,random,47,0.7063,0.5756,0.8408,28
+Oracle (best in domain),oracle,48,1.2514,1.0153,1.5047,28
+Random picks,random,48,0.7107,0.5793,0.8459,28
+Oracle (best in domain),oracle,49,1.2514,1.0153,1.5047,28
+Random picks,random,49,0.7150,0.5827,0.8509,28
+Oracle (best in domain),oracle,50,1.2514,1.0153,1.5047,28
+Random picks,random,50,0.7192,0.5860,0.8557,28
+Oracle (best in domain),oracle,51,1.2514,1.0153,1.5047,28
+Random picks,random,51,0.7233,0.5893,0.8605,28
+Oracle (best in domain),oracle,52,1.2514,1.0153,1.5047,28
+Random picks,random,52,0.7273,0.5925,0.8651,28
+Oracle (best in domain),oracle,53,1.2514,1.0153,1.5047,28
+Random picks,random,53,0.7312,0.5961,0.8696,28
+Oracle (best in domain),oracle,54,1.2514,1.0153,1.5047,28
+Random picks,random,54,0.7351,0.5997,0.8741,28
+Oracle (best in domain),oracle,55,1.2514,1.0153,1.5047,28
+Random picks,random,55,0.7388,0.6032,0.8784,28
+Oracle (best in domain),oracle,56,1.2514,1.0153,1.5047,28
+Random picks,random,56,0.7425,0.6066,0.8827,28
+Oracle (best in domain),oracle,57,1.2514,1.0153,1.5047,28
+Random picks,random,57,0.7462,0.6100,0.8869,28
+Oracle (best in domain),oracle,58,1.2514,1.0153,1.5047,28
+Random picks,random,58,0.7497,0.6133,0.8910,28
+Oracle (best in domain),oracle,59,1.2514,1.0153,1.5047,28
+Random picks,random,59,0.7532,0.6165,0.8950,28
+Oracle (best in domain),oracle,60,1.2514,1.0153,1.5047,28
+Random picks,random,60,0.7567,0.6195,0.8990,28
+Oracle (best in domain),oracle,61,1.2514,1.0153,1.5047,28
+Random picks,random,61,0.7600,0.6224,0.9028,28
+Oracle (best in domain),oracle,62,1.2514,1.0153,1.5047,28
+Random picks,random,62,0.7634,0.6255,0.9066,28
+Oracle (best in domain),oracle,63,1.2514,1.0153,1.5047,28
+Random picks,random,63,0.7666,0.6281,0.9104,28
+Oracle (best in domain),oracle,64,1.2514,1.0153,1.5047,28
+Random picks,random,64,0.7698,0.6308,0.9140,28
+Oracle (best in domain),oracle,65,1.2514,1.0153,1.5047,28
+Random picks,random,65,0.7730,0.6334,0.9177,28
+Oracle (best in domain),oracle,66,1.2514,1.0153,1.5047,28
+Random picks,random,66,0.7761,0.6359,0.9212,28
+Oracle (best in domain),oracle,67,1.2514,1.0153,1.5047,28
+Random picks,random,67,0.7791,0.6384,0.9247,28
+Oracle (best in domain),oracle,68,1.2514,1.0153,1.5047,28
+Random picks,random,68,0.7821,0.6409,0.9281,28
+Oracle (best in domain),oracle,69,1.2514,1.0153,1.5047,28
+Random picks,random,69,0.7851,0.6433,0.9315,28
+Oracle (best in domain),oracle,70,1.2514,1.0153,1.5047,28
+Random picks,random,70,0.7880,0.6457,0.9348,28
+Oracle (best in domain),oracle,71,1.2514,1.0153,1.5047,28
+Random picks,random,71,0.7909,0.6480,0.9381,28
+Oracle (best in domain),oracle,72,1.2514,1.0153,1.5047,28
+Random picks,random,72,0.7937,0.6504,0.9413,28
+Oracle (best in domain),oracle,73,1.2514,1.0153,1.5047,28
+Random picks,random,73,0.7965,0.6526,0.9445,28
+Oracle (best in domain),oracle,74,1.2514,1.0153,1.5047,28
+Random picks,random,74,0.7992,0.6549,0.9479,28
+Oracle (best in domain),oracle,75,1.2514,1.0153,1.5047,28
+Random picks,random,75,0.8019,0.6571,0.9513,28
+Oracle (best in domain),oracle,76,1.2514,1.0153,1.5047,28
+Random picks,random,76,0.8046,0.6593,0.9546,28
+Oracle (best in domain),oracle,77,1.2514,1.0153,1.5047,28
+Random picks,random,77,0.8072,0.6614,0.9578,28
+Oracle (best in domain),oracle,78,1.2514,1.0153,1.5047,28
+Random picks,random,78,0.8098,0.6635,0.9610,28
+Oracle (best in domain),oracle,79,1.2514,1.0153,1.5047,28
+Random picks,random,79,0.8123,0.6656,0.9642,28
+Oracle (best in domain),oracle,80,1.2514,1.0153,1.5047,28
+Random picks,random,80,0.8149,0.6677,0.9673,28
+Oracle (best in domain),oracle,81,1.2514,1.0153,1.5047,28
+Random picks,random,81,0.8173,0.6697,0.9704,28
+Oracle (best in domain),oracle,82,1.2514,1.0153,1.5047,28
+Random picks,random,82,0.8198,0.6717,0.9734,28
+Oracle (best in domain),oracle,83,1.2514,1.0153,1.5047,28
+Random picks,random,83,0.8222,0.6737,0.9764,28
+Oracle (best in domain),oracle,84,1.2514,1.0153,1.5047,28
+Random picks,random,84,0.8246,0.6757,0.9794,28
+Oracle (best in domain),oracle,85,1.2514,1.0153,1.5047,28
+Random picks,random,85,0.8270,0.6776,0.9823,28
+Oracle (best in domain),oracle,86,1.2514,1.0153,1.5047,28
+Random picks,random,86,0.8293,0.6795,0.9852,28
+Oracle (best in domain),oracle,87,1.2514,1.0153,1.5047,28
+Random picks,random,87,0.8316,0.6814,0.9877,28
+Oracle (best in domain),oracle,88,1.2514,1.0153,1.5047,28
+Random picks,random,88,0.8339,0.6832,0.9901,28
+Oracle (best in domain),oracle,89,1.2514,1.0153,1.5047,28
+Random picks,random,89,0.8361,0.6851,0.9925,28
+Oracle (best in domain),oracle,90,1.2514,1.0153,1.5047,28
+Random picks,random,90,0.8383,0.6869,0.9948,28
+Oracle (best in domain),oracle,91,1.2514,1.0153,1.5047,28
+Random picks,random,91,0.8405,0.6887,0.9971,28
+Oracle (best in domain),oracle,92,1.2514,1.0153,1.5047,28
+Random picks,random,92,0.8427,0.6905,0.9994,28
+Oracle (best in domain),oracle,93,1.2514,1.0153,1.5047,28
+Random picks,random,93,0.8448,0.6922,1.0016,28
+Oracle (best in domain),oracle,94,1.2514,1.0153,1.5047,28
+Random picks,random,94,0.8469,0.6939,1.0038,28
+Oracle (best in domain),oracle,95,1.2514,1.0153,1.5047,28
+Random picks,random,95,0.8490,0.6956,1.0060,28
+Oracle (best in domain),oracle,96,1.2514,1.0153,1.5047,28
+Random picks,random,96,0.8511,0.6973,1.0082,28
+ESM-MSR (p0) WT head,msrp0:wt,1,0.6506,0.4429,0.8925,28
+ESM-MSR (p0) WT head,msrp0:wt,2,0.7624,0.5582,0.9963,28
+ESM-MSR (p0) WT head,msrp0:wt,3,0.8105,0.6058,1.0283,28
+ESM-MSR (p0) WT head,msrp0:wt,4,0.8420,0.6472,1.0507,28
+ESM-MSR (p0) WT head,msrp0:wt,5,0.8684,0.6568,1.0876,28
+ESM-MSR (p0) WT head,msrp0:wt,6,0.8798,0.6704,1.0928,28
+ESM-MSR (p0) WT head,msrp0:wt,7,0.9387,0.7122,1.1579,28
+ESM-MSR (p0) WT head,msrp0:wt,8,0.9583,0.7304,1.1760,28
+ESM-MSR (p0) WT head,msrp0:wt,9,0.9632,0.7340,1.1781,28
+ESM-MSR (p0) WT head,msrp0:wt,10,0.9813,0.7421,1.2005,28
+ESM-MSR (p0) WT head,msrp0:wt,11,0.9836,0.7421,1.2058,28
+ESM-MSR (p0) WT head,msrp0:wt,12,0.9908,0.7460,1.2099,28
+ESM-MSR (p0) WT head,msrp0:wt,13,0.9911,0.7471,1.2104,28
+ESM-MSR (p0) WT head,msrp0:wt,14,1.0021,0.7694,1.2357,28
+ESM-MSR (p0) WT head,msrp0:wt,15,1.0021,0.7694,1.2357,28
+ESM-MSR (p0) WT head,msrp0:wt,16,1.0100,0.7744,1.2398,28
+ESM-MSR (p0) WT head,msrp0:wt,17,1.0107,0.7746,1.2398,28
+ESM-MSR (p0) WT head,msrp0:wt,18,1.0132,0.7843,1.2399,28
+ESM-MSR (p0) WT head,msrp0:wt,19,1.0168,0.7849,1.2465,28
+ESM-MSR (p0) WT head,msrp0:wt,20,1.0222,0.7850,1.2465,28
+ESM-MSR (p0) WT head,msrp0:wt,21,1.0277,0.7944,1.2491,28
+ESM-MSR (p0) WT head,msrp0:wt,22,1.0280,0.7950,1.2491,28
+ESM-MSR (p0) WT head,msrp0:wt,23,1.0297,0.7972,1.2492,28
+ESM-MSR (p0) WT head,msrp0:wt,24,1.0326,0.7978,1.2545,28
+ESM-MSR (p0) WT head,msrp0:wt,25,1.0353,0.7978,1.2545,28
+ESM-MSR (p0) WT head,msrp0:wt,26,1.0392,0.8003,1.2545,28
+ESM-MSR (p0) WT head,msrp0:wt,27,1.0399,0.8013,1.2549,28
+ESM-MSR (p0) WT head,msrp0:wt,28,1.0405,0.8019,1.2553,28
+ESM-MSR (p0) WT head,msrp0:wt,29,1.0445,0.8037,1.2621,28
+ESM-MSR (p0) WT head,msrp0:wt,30,1.0450,0.8038,1.2627,28
+ESM-MSR (p0) WT head,msrp0:wt,31,1.0492,0.8060,1.2703,28
+ESM-MSR (p0) WT head,msrp0:wt,32,1.0500,0.8075,1.2703,28
+ESM-MSR (p0) WT head,msrp0:wt,33,1.0552,0.8100,1.2883,28
+ESM-MSR (p0) WT head,msrp0:wt,34,1.0557,0.8124,1.2895,28
+ESM-MSR (p0) WT head,msrp0:wt,35,1.0563,0.8132,1.2905,28
+ESM-MSR (p0) WT head,msrp0:wt,36,1.0570,0.8132,1.2919,28
+ESM-MSR (p0) WT head,msrp0:wt,37,1.0590,0.8141,1.2952,28
+ESM-MSR (p0) WT head,msrp0:wt,38,1.0596,0.8146,1.2953,28
+ESM-MSR (p0) WT head,msrp0:wt,39,1.0596,0.8146,1.2953,28
+ESM-MSR (p0) WT head,msrp0:wt,40,1.0600,0.8161,1.2953,28
+ESM-MSR (p0) WT head,msrp0:wt,41,1.0628,0.8235,1.2953,28
+ESM-MSR (p0) WT head,msrp0:wt,42,1.0633,0.8244,1.2953,28
+ESM-MSR (p0) WT head,msrp0:wt,43,1.0640,0.8244,1.2953,28
+ESM-MSR (p0) WT head,msrp0:wt,44,1.0644,0.8244,1.2957,28
+ESM-MSR (p0) WT head,msrp0:wt,45,1.0651,0.8258,1.2987,28
+ESM-MSR (p0) WT head,msrp0:wt,46,1.0673,0.8280,1.2999,28
+ESM-MSR (p0) WT head,msrp0:wt,47,1.0673,0.8280,1.2999,28
+ESM-MSR (p0) WT head,msrp0:wt,48,1.0693,0.8302,1.2999,28
+ESM-MSR (p0) WT head,msrp0:wt,49,1.0743,0.8531,1.3049,28
+ESM-MSR (p0) WT head,msrp0:wt,50,1.0743,0.8531,1.3049,28
+ESM-MSR (p0) WT head,msrp0:wt,51,1.0768,0.8532,1.3065,28
+ESM-MSR (p0) WT head,msrp0:wt,52,1.0774,0.8545,1.3071,28
+ESM-MSR (p0) WT head,msrp0:wt,53,1.0774,0.8545,1.3071,28
+ESM-MSR (p0) WT head,msrp0:wt,54,1.0837,0.8545,1.3131,28
+ESM-MSR (p0) WT head,msrp0:wt,55,1.0841,0.8552,1.3131,28
+ESM-MSR (p0) WT head,msrp0:wt,56,1.0921,0.8704,1.3307,28
+ESM-MSR (p0) WT head,msrp0:wt,57,1.0921,0.8704,1.3307,28
+ESM-MSR (p0) WT head,msrp0:wt,58,1.0921,0.8704,1.3307,28
+ESM-MSR (p0) WT head,msrp0:wt,59,1.0921,0.8704,1.3307,28
+ESM-MSR (p0) WT head,msrp0:wt,60,1.0921,0.8704,1.3307,28
+ESM-MSR (p0) WT head,msrp0:wt,61,1.0921,0.8704,1.3307,28
+ESM-MSR (p0) WT head,msrp0:wt,62,1.0921,0.8704,1.3307,28
+ESM-MSR (p0) WT head,msrp0:wt,63,1.0950,0.8712,1.3336,28
+ESM-MSR (p0) WT head,msrp0:wt,64,1.0972,0.8755,1.3377,28
+ESM-MSR (p0) WT head,msrp0:wt,65,1.0977,0.8755,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,66,1.0977,0.8755,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,67,1.0983,0.8766,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,68,1.0983,0.8766,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,69,1.0983,0.8766,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,70,1.0983,0.8766,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,71,1.1002,0.8790,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,72,1.1003,0.8791,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,73,1.1003,0.8791,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,74,1.1003,0.8791,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,75,1.1003,0.8791,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,76,1.1003,0.8791,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,77,1.1003,0.8791,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,78,1.1003,0.8791,1.3383,28
+ESM-MSR (p0) WT head,msrp0:wt,79,1.1020,0.8807,1.3481,28
+ESM-MSR (p0) WT head,msrp0:wt,80,1.1020,0.8807,1.3481,28
+ESM-MSR (p0) WT head,msrp0:wt,81,1.1065,0.8906,1.3482,28
+ESM-MSR (p0) WT head,msrp0:wt,82,1.1065,0.8906,1.3482,28
+ESM-MSR (p0) WT head,msrp0:wt,83,1.1066,0.8906,1.3482,28
+ESM-MSR (p0) WT head,msrp0:wt,84,1.1066,0.8906,1.3482,28
+ESM-MSR (p0) WT head,msrp0:wt,85,1.1066,0.8908,1.3482,28
+ESM-MSR (p0) WT head,msrp0:wt,86,1.1069,0.8908,1.3485,28
+ESM-MSR (p0) WT head,msrp0:wt,87,1.1069,0.8908,1.3485,28
+ESM-MSR (p0) WT head,msrp0:wt,88,1.1069,0.8908,1.3485,28
+ESM-MSR (p0) WT head,msrp0:wt,89,1.1069,0.8908,1.3485,28
+ESM-MSR (p0) WT head,msrp0:wt,90,1.1132,0.9096,1.3485,28
+ESM-MSR (p0) WT head,msrp0:wt,91,1.1147,0.9096,1.3485,28
+ESM-MSR (p0) WT head,msrp0:wt,92,1.1167,0.9096,1.3485,28
+ESM-MSR (p0) WT head,msrp0:wt,93,1.1217,0.9129,1.3517,28
+ESM-MSR (p0) WT head,msrp0:wt,94,1.1217,0.9129,1.3517,28
+ESM-MSR (p0) WT head,msrp0:wt,95,1.1217,0.9129,1.3517,28
+ESM-MSR (p0) WT head,msrp0:wt,96,1.1217,0.9129,1.3517,28
+ESM-MSR (p0) combined,msrp0:comb,1,0.6234,0.4053,0.8800,28
+ESM-MSR (p0) combined,msrp0:comb,2,0.7820,0.5790,1.0193,28
+ESM-MSR (p0) combined,msrp0:comb,3,0.8438,0.6261,1.0772,28
+ESM-MSR (p0) combined,msrp0:comb,4,0.8920,0.6546,1.1276,28
+ESM-MSR (p0) combined,msrp0:comb,5,0.9047,0.6784,1.1435,28
+ESM-MSR (p0) combined,msrp0:comb,6,0.9384,0.7177,1.1755,28
+ESM-MSR (p0) combined,msrp0:comb,7,0.9513,0.7253,1.1774,28
+ESM-MSR (p0) combined,msrp0:comb,8,0.9601,0.7442,1.1818,28
+ESM-MSR (p0) combined,msrp0:comb,9,0.9835,0.7769,1.2030,28
+ESM-MSR (p0) combined,msrp0:comb,10,0.9887,0.7786,1.2132,28
+ESM-MSR (p0) combined,msrp0:comb,11,1.0055,0.7857,1.2168,28
+ESM-MSR (p0) combined,msrp0:comb,12,1.0095,0.7890,1.2189,28
+ESM-MSR (p0) combined,msrp0:comb,13,1.0106,0.7908,1.2207,28
+ESM-MSR (p0) combined,msrp0:comb,14,1.0185,0.7913,1.2305,28
+ESM-MSR (p0) combined,msrp0:comb,15,1.0211,0.7914,1.2349,28
+ESM-MSR (p0) combined,msrp0:comb,16,1.0211,0.7914,1.2349,28
+ESM-MSR (p0) combined,msrp0:comb,17,1.0236,0.7956,1.2374,28
+ESM-MSR (p0) combined,msrp0:comb,18,1.0269,0.7972,1.2392,28
+ESM-MSR (p0) combined,msrp0:comb,19,1.0317,0.7994,1.2463,28
+ESM-MSR (p0) combined,msrp0:comb,20,1.0387,0.8059,1.2529,28
+ESM-MSR (p0) combined,msrp0:comb,21,1.0390,0.8063,1.2531,28
+ESM-MSR (p0) combined,msrp0:comb,22,1.0463,0.8208,1.2545,28
+ESM-MSR (p0) combined,msrp0:comb,23,1.0463,0.8208,1.2545,28
+ESM-MSR (p0) combined,msrp0:comb,24,1.0522,0.8235,1.2704,28
+ESM-MSR (p0) combined,msrp0:comb,25,1.0522,0.8235,1.2704,28
+ESM-MSR (p0) combined,msrp0:comb,26,1.0522,0.8235,1.2704,28
+ESM-MSR (p0) combined,msrp0:comb,27,1.0546,0.8244,1.2727,28
+ESM-MSR (p0) combined,msrp0:comb,28,1.0546,0.8244,1.2727,28
+ESM-MSR (p0) combined,msrp0:comb,29,1.0551,0.8255,1.2738,28
+ESM-MSR (p0) combined,msrp0:comb,30,1.0551,0.8255,1.2738,28
+ESM-MSR (p0) combined,msrp0:comb,31,1.0553,0.8262,1.2745,28
+ESM-MSR (p0) combined,msrp0:comb,32,1.0559,0.8268,1.2756,28
+ESM-MSR (p0) combined,msrp0:comb,33,1.0559,0.8268,1.2756,28
+ESM-MSR (p0) combined,msrp0:comb,34,1.0559,0.8268,1.2756,28
+ESM-MSR (p0) combined,msrp0:comb,35,1.0559,0.8268,1.2756,28
+ESM-MSR (p0) combined,msrp0:comb,36,1.0566,0.8275,1.2763,28
+ESM-MSR (p0) combined,msrp0:comb,37,1.0568,0.8276,1.2766,28
+ESM-MSR (p0) combined,msrp0:comb,38,1.0574,0.8276,1.2771,28
+ESM-MSR (p0) combined,msrp0:comb,39,1.0577,0.8279,1.2776,28
+ESM-MSR (p0) combined,msrp0:comb,40,1.0606,0.8331,1.2833,28
+ESM-MSR (p0) combined,msrp0:comb,41,1.0657,0.8336,1.2920,28
+ESM-MSR (p0) combined,msrp0:comb,42,1.0670,0.8374,1.2920,28
+ESM-MSR (p0) combined,msrp0:comb,43,1.0722,0.8469,1.2940,28
+ESM-MSR (p0) combined,msrp0:comb,44,1.0722,0.8469,1.2940,28
+ESM-MSR (p0) combined,msrp0:comb,45,1.0723,0.8469,1.2940,28
+ESM-MSR (p0) combined,msrp0:comb,46,1.0748,0.8493,1.2989,28
+ESM-MSR (p0) combined,msrp0:comb,47,1.0760,0.8495,1.2989,28
+ESM-MSR (p0) combined,msrp0:comb,48,1.0761,0.8497,1.2992,28
+ESM-MSR (p0) combined,msrp0:comb,49,1.0761,0.8497,1.2992,28
+ESM-MSR (p0) combined,msrp0:comb,50,1.0761,0.8497,1.2992,28
+ESM-MSR (p0) combined,msrp0:comb,51,1.0761,0.8497,1.2992,28
+ESM-MSR (p0) combined,msrp0:comb,52,1.0761,0.8497,1.2992,28
+ESM-MSR (p0) combined,msrp0:comb,53,1.0768,0.8504,1.2993,28
+ESM-MSR (p0) combined,msrp0:comb,54,1.0768,0.8504,1.2993,28
+ESM-MSR (p0) combined,msrp0:comb,55,1.0837,0.8669,1.2998,28
+ESM-MSR (p0) combined,msrp0:comb,56,1.0837,0.8669,1.2998,28
+ESM-MSR (p0) combined,msrp0:comb,57,1.0837,0.8669,1.2998,28
+ESM-MSR (p0) combined,msrp0:comb,58,1.0837,0.8669,1.2998,28
+ESM-MSR (p0) combined,msrp0:comb,59,1.0952,0.8862,1.3077,28
+ESM-MSR (p0) combined,msrp0:comb,60,1.0952,0.8862,1.3077,28
+ESM-MSR (p0) combined,msrp0:comb,61,1.0952,0.8862,1.3077,28
+ESM-MSR (p0) combined,msrp0:comb,62,1.0972,0.8902,1.3117,28
+ESM-MSR (p0) combined,msrp0:comb,63,1.0993,0.8943,1.3117,28
+ESM-MSR (p0) combined,msrp0:comb,64,1.0993,0.8943,1.3117,28
+ESM-MSR (p0) combined,msrp0:comb,65,1.0993,0.8943,1.3117,28
+ESM-MSR (p0) combined,msrp0:comb,66,1.1035,0.8943,1.3200,28
+ESM-MSR (p0) combined,msrp0:comb,67,1.1098,0.8945,1.3202,28
+ESM-MSR (p0) combined,msrp0:comb,68,1.1115,0.8945,1.3202,28
+ESM-MSR (p0) combined,msrp0:comb,69,1.1115,0.8945,1.3202,28
+ESM-MSR (p0) combined,msrp0:comb,70,1.1133,0.8945,1.3227,28
+ESM-MSR (p0) combined,msrp0:comb,71,1.1133,0.8945,1.3227,28
+ESM-MSR (p0) combined,msrp0:comb,72,1.1152,0.8965,1.3266,28
+ESM-MSR (p0) combined,msrp0:comb,73,1.1153,0.8965,1.3267,28
+ESM-MSR (p0) combined,msrp0:comb,74,1.1216,0.9092,1.3428,28
+ESM-MSR (p0) combined,msrp0:comb,75,1.1216,0.9092,1.3428,28
+ESM-MSR (p0) combined,msrp0:comb,76,1.1216,0.9092,1.3428,28
+ESM-MSR (p0) combined,msrp0:comb,77,1.1216,0.9092,1.3428,28
+ESM-MSR (p0) combined,msrp0:comb,78,1.1216,0.9092,1.3428,28
+ESM-MSR (p0) combined,msrp0:comb,79,1.1216,0.9092,1.3428,28
+ESM-MSR (p0) combined,msrp0:comb,80,1.1236,0.9110,1.3448,28
+ESM-MSR (p0) combined,msrp0:comb,81,1.1236,0.9110,1.3448,28
+ESM-MSR (p0) combined,msrp0:comb,82,1.1236,0.9110,1.3448,28
+ESM-MSR (p0) combined,msrp0:comb,83,1.1236,0.9110,1.3448,28
+ESM-MSR (p0) combined,msrp0:comb,84,1.1236,0.9110,1.3448,28
+ESM-MSR (p0) combined,msrp0:comb,85,1.1236,0.9110,1.3448,28
+ESM-MSR (p0) combined,msrp0:comb,86,1.1236,0.9110,1.3448,28
+ESM-MSR (p0) combined,msrp0:comb,87,1.1254,0.9121,1.3472,28
+ESM-MSR (p0) combined,msrp0:comb,88,1.1254,0.9121,1.3472,28
+ESM-MSR (p0) combined,msrp0:comb,89,1.1254,0.9121,1.3472,28
+ESM-MSR (p0) combined,msrp0:comb,90,1.1295,0.9121,1.3566,28
+ESM-MSR (p0) combined,msrp0:comb,91,1.1295,0.9121,1.3566,28
+ESM-MSR (p0) combined,msrp0:comb,92,1.1295,0.9121,1.3566,28
+ESM-MSR (p0) combined,msrp0:comb,93,1.1295,0.9121,1.3566,28
+ESM-MSR (p0) combined,msrp0:comb,94,1.1295,0.9121,1.3566,28
+ESM-MSR (p0) combined,msrp0:comb,95,1.1295,0.9121,1.3566,28
+ESM-MSR (p0) combined,msrp0:comb,96,1.1295,0.9121,1.3566,28
+MutateEverything st1,me1,1,0.4459,0.2274,0.7018,28
+MutateEverything st1,me1,2,0.5840,0.3713,0.8249,28
+MutateEverything st1,me1,3,0.6708,0.4232,0.9186,28
+MutateEverything st1,me1,4,0.7586,0.5604,0.9812,28
+MutateEverything st1,me1,5,0.8105,0.6144,1.0340,28
+MutateEverything st1,me1,6,0.8413,0.6401,1.0604,28
+MutateEverything st1,me1,7,0.8680,0.6535,1.0888,28
+MutateEverything st1,me1,8,0.8942,0.6943,1.1100,28
+MutateEverything st1,me1,9,0.9182,0.7124,1.1283,28
+MutateEverything st1,me1,10,0.9491,0.7361,1.1575,28
+MutateEverything st1,me1,11,0.9551,0.7376,1.1616,28
+MutateEverything st1,me1,12,0.9730,0.7510,1.1849,28
+MutateEverything st1,me1,13,0.9825,0.7574,1.2085,28
+MutateEverything st1,me1,14,0.9934,0.7722,1.2147,28
+MutateEverything st1,me1,15,1.0075,0.7880,1.2276,28
+MutateEverything st1,me1,16,1.0125,0.7971,1.2320,28
+MutateEverything st1,me1,17,1.0211,0.7984,1.2373,28
+MutateEverything st1,me1,18,1.0222,0.7987,1.2373,28
+MutateEverything st1,me1,19,1.0268,0.8159,1.2428,28
+MutateEverything st1,me1,20,1.0375,0.8253,1.2527,28
+MutateEverything st1,me1,21,1.0380,0.8263,1.2527,28
+MutateEverything st1,me1,22,1.0380,0.8263,1.2527,28
+MutateEverything st1,me1,23,1.0415,0.8330,1.2578,28
+MutateEverything st1,me1,24,1.0415,0.8330,1.2578,28
+MutateEverything st1,me1,25,1.0422,0.8330,1.2594,28
+MutateEverything st1,me1,26,1.0439,0.8338,1.2600,28
+MutateEverything st1,me1,27,1.0467,0.8365,1.2602,28
+MutateEverything st1,me1,28,1.0506,0.8366,1.2730,28
+MutateEverything st1,me1,29,1.0523,0.8387,1.2758,28
+MutateEverything st1,me1,30,1.0528,0.8387,1.2767,28
+MutateEverything st1,me1,31,1.0541,0.8387,1.2844,28
+MutateEverything st1,me1,32,1.0541,0.8387,1.2844,28
+MutateEverything st1,me1,33,1.0541,0.8387,1.2844,28
+MutateEverything st1,me1,34,1.0637,0.8393,1.2961,28
+MutateEverything st1,me1,35,1.0641,0.8393,1.2961,28
+MutateEverything st1,me1,36,1.0664,0.8437,1.2984,28
+MutateEverything st1,me1,37,1.0698,0.8472,1.3015,28
+MutateEverything st1,me1,38,1.0699,0.8472,1.3016,28
+MutateEverything st1,me1,39,1.0707,0.8486,1.3016,28
+MutateEverything st1,me1,40,1.0748,0.8487,1.3099,28
+MutateEverything st1,me1,41,1.0748,0.8487,1.3099,28
+MutateEverything st1,me1,42,1.0748,0.8487,1.3099,28
+MutateEverything st1,me1,43,1.0760,0.8524,1.3119,28
+MutateEverything st1,me1,44,1.0786,0.8574,1.3144,28
+MutateEverything st1,me1,45,1.0786,0.8574,1.3144,28
+MutateEverything st1,me1,46,1.0922,0.8980,1.3165,28
+MutateEverything st1,me1,47,1.0922,0.8980,1.3165,28
+MutateEverything st1,me1,48,1.0926,0.8980,1.3169,28
+MutateEverything st1,me1,49,1.0926,0.8980,1.3169,28
+MutateEverything st1,me1,50,1.0928,0.8980,1.3170,28
+MutateEverything st1,me1,51,1.0929,0.8980,1.3172,28
+MutateEverything st1,me1,52,1.0929,0.8980,1.3172,28
+MutateEverything st1,me1,53,1.0929,0.8980,1.3172,28
+MutateEverything st1,me1,54,1.1030,0.9034,1.3286,28
+MutateEverything st1,me1,55,1.1048,0.9035,1.3328,28
+MutateEverything st1,me1,56,1.1096,0.9035,1.3353,28
+MutateEverything st1,me1,57,1.1096,0.9035,1.3353,28
+MutateEverything st1,me1,58,1.1177,0.9035,1.3514,28
+MutateEverything st1,me1,59,1.1177,0.9035,1.3514,28
+MutateEverything st1,me1,60,1.1290,0.9035,1.3578,28
+MutateEverything st1,me1,61,1.1290,0.9035,1.3578,28
+MutateEverything st1,me1,62,1.1335,0.9126,1.3585,28
+MutateEverything st1,me1,63,1.1335,0.9126,1.3585,28
+MutateEverything st1,me1,64,1.1335,0.9126,1.3585,28
+MutateEverything st1,me1,65,1.1360,0.9132,1.3639,28
+MutateEverything st1,me1,66,1.1360,0.9132,1.3639,28
+MutateEverything st1,me1,67,1.1360,0.9132,1.3639,28
+MutateEverything st1,me1,68,1.1368,0.9146,1.3642,28
+MutateEverything st1,me1,69,1.1385,0.9146,1.3659,28
+MutateEverything st1,me1,70,1.1385,0.9146,1.3659,28
+MutateEverything st1,me1,71,1.1402,0.9147,1.3660,28
+MutateEverything st1,me1,72,1.1429,0.9229,1.3740,28
+MutateEverything st1,me1,73,1.1429,0.9229,1.3740,28
+MutateEverything st1,me1,74,1.1429,0.9229,1.3740,28
+MutateEverything st1,me1,75,1.1429,0.9229,1.3740,28
+MutateEverything st1,me1,76,1.1429,0.9229,1.3740,28
+MutateEverything st1,me1,77,1.1430,0.9232,1.3740,28
+MutateEverything st1,me1,78,1.1431,0.9233,1.3740,28
+MutateEverything st1,me1,79,1.1431,0.9233,1.3740,28
+MutateEverything st1,me1,80,1.1454,0.9264,1.3763,28
+MutateEverything st1,me1,81,1.1454,0.9264,1.3763,28
+MutateEverything st1,me1,82,1.1463,0.9282,1.3787,28
+MutateEverything st1,me1,83,1.1463,0.9282,1.3787,28
+MutateEverything st1,me1,84,1.1490,0.9282,1.3790,28
+MutateEverything st1,me1,85,1.1490,0.9282,1.3790,28
+MutateEverything st1,me1,86,1.1490,0.9282,1.3790,28
+MutateEverything st1,me1,87,1.1490,0.9282,1.3790,28
+MutateEverything st1,me1,88,1.1490,0.9282,1.3790,28
+MutateEverything st1,me1,89,1.1490,0.9282,1.3790,28
+MutateEverything st1,me1,90,1.1491,0.9283,1.3790,28
+MutateEverything st1,me1,91,1.1491,0.9283,1.3790,28
+MutateEverything st1,me1,92,1.1498,0.9291,1.3798,28
+MutateEverything st1,me1,93,1.1498,0.9291,1.3798,28
+MutateEverything st1,me1,94,1.1498,0.9291,1.3798,28
+MutateEverything st1,me1,95,1.1498,0.9291,1.3798,28
+MutateEverything st1,me1,96,1.1498,0.9291,1.3798,28
+ThermoMPNN,tmpnn,1,0.5050,0.2730,0.7491,28
+ThermoMPNN,tmpnn,2,0.7042,0.4701,0.9447,28
+ThermoMPNN,tmpnn,3,0.7829,0.5541,1.0216,28
+ThermoMPNN,tmpnn,4,0.8545,0.6315,1.0885,28
+ThermoMPNN,tmpnn,5,0.8853,0.6671,1.1152,28
+ThermoMPNN,tmpnn,6,0.9013,0.6697,1.1463,28
+ThermoMPNN,tmpnn,7,0.9121,0.6788,1.1631,28
+ThermoMPNN,tmpnn,8,0.9197,0.6802,1.1690,28
+ThermoMPNN,tmpnn,9,0.9394,0.7059,1.1891,28
+ThermoMPNN,tmpnn,10,0.9482,0.7071,1.2200,28
+ThermoMPNN,tmpnn,11,0.9755,0.7357,1.2228,28
+ThermoMPNN,tmpnn,12,0.9914,0.7415,1.2408,28
+ThermoMPNN,tmpnn,13,0.9964,0.7531,1.2424,28
+ThermoMPNN,tmpnn,14,1.0252,0.7638,1.3107,28
+ThermoMPNN,tmpnn,15,1.0281,0.7723,1.3107,28
+ThermoMPNN,tmpnn,16,1.0349,0.7816,1.3109,28
+ThermoMPNN,tmpnn,17,1.0489,0.7980,1.3475,28
+ThermoMPNN,tmpnn,18,1.0572,0.7982,1.3549,28
+ThermoMPNN,tmpnn,19,1.0682,0.8040,1.3552,28
+ThermoMPNN,tmpnn,20,1.0706,0.8117,1.3552,28
+ThermoMPNN,tmpnn,21,1.0775,0.8141,1.3710,28
+ThermoMPNN,tmpnn,22,1.0794,0.8194,1.3710,28
+ThermoMPNN,tmpnn,23,1.0801,0.8197,1.3710,28
+ThermoMPNN,tmpnn,24,1.0829,0.8197,1.3711,28
+ThermoMPNN,tmpnn,25,1.0854,0.8248,1.3711,28
+ThermoMPNN,tmpnn,26,1.0905,0.8325,1.3714,28
+ThermoMPNN,tmpnn,27,1.0974,0.8325,1.3784,28
+ThermoMPNN,tmpnn,28,1.1030,0.8387,1.3889,28
+ThermoMPNN,tmpnn,29,1.1030,0.8387,1.3889,28
+ThermoMPNN,tmpnn,30,1.1030,0.8387,1.3889,28
+ThermoMPNN,tmpnn,31,1.1069,0.8469,1.3927,28
+ThermoMPNN,tmpnn,32,1.1069,0.8469,1.3927,28
+ThermoMPNN,tmpnn,33,1.1092,0.8469,1.3927,28
+ThermoMPNN,tmpnn,34,1.1092,0.8469,1.3927,28
+ThermoMPNN,tmpnn,35,1.1116,0.8515,1.3927,28
+ThermoMPNN,tmpnn,36,1.1116,0.8515,1.3927,28
+ThermoMPNN,tmpnn,37,1.1116,0.8515,1.3927,28
+ThermoMPNN,tmpnn,38,1.1116,0.8515,1.3927,28
+ThermoMPNN,tmpnn,39,1.1116,0.8515,1.3927,28
+ThermoMPNN,tmpnn,40,1.1153,0.8686,1.3964,28
+ThermoMPNN,tmpnn,41,1.1153,0.8686,1.3964,28
+ThermoMPNN,tmpnn,42,1.1171,0.8686,1.3964,28
+ThermoMPNN,tmpnn,43,1.1275,0.8793,1.4068,28
+ThermoMPNN,tmpnn,44,1.1323,0.8868,1.4071,28
+ThermoMPNN,tmpnn,45,1.1323,0.8868,1.4071,28
+ThermoMPNN,tmpnn,46,1.1323,0.8868,1.4071,28
+ThermoMPNN,tmpnn,47,1.1367,0.8900,1.4073,28
+ThermoMPNN,tmpnn,48,1.1367,0.8900,1.4073,28
+ThermoMPNN,tmpnn,49,1.1418,0.9000,1.4092,28
+ThermoMPNN,tmpnn,50,1.1449,0.9000,1.4092,28
+ThermoMPNN,tmpnn,51,1.1449,0.9000,1.4092,28
+ThermoMPNN,tmpnn,52,1.1449,0.9000,1.4092,28
+ThermoMPNN,tmpnn,53,1.1494,0.9058,1.4092,28
+ThermoMPNN,tmpnn,54,1.1526,0.9091,1.4220,28
+ThermoMPNN,tmpnn,55,1.1534,0.9091,1.4220,28
+ThermoMPNN,tmpnn,56,1.1534,0.9091,1.4220,28
+ThermoMPNN,tmpnn,57,1.1555,0.9091,1.4260,28
+ThermoMPNN,tmpnn,58,1.1555,0.9091,1.4260,28
+ThermoMPNN,tmpnn,59,1.1557,0.9093,1.4260,28
+ThermoMPNN,tmpnn,60,1.1557,0.9093,1.4260,28
+ThermoMPNN,tmpnn,61,1.1557,0.9093,1.4260,28
+ThermoMPNN,tmpnn,62,1.1557,0.9093,1.4260,28
+ThermoMPNN,tmpnn,63,1.1557,0.9094,1.4261,28
+ThermoMPNN,tmpnn,64,1.1557,0.9094,1.4261,28
+ThermoMPNN,tmpnn,65,1.1562,0.9114,1.4261,28
+ThermoMPNN,tmpnn,66,1.1562,0.9114,1.4261,28
+ThermoMPNN,tmpnn,67,1.1562,0.9114,1.4261,28
+ThermoMPNN,tmpnn,68,1.1565,0.9117,1.4261,28
+ThermoMPNN,tmpnn,69,1.1565,0.9117,1.4261,28
+ThermoMPNN,tmpnn,70,1.1570,0.9117,1.4272,28
+ThermoMPNN,tmpnn,71,1.1574,0.9121,1.4276,28
+ThermoMPNN,tmpnn,72,1.1588,0.9121,1.4276,28
+ThermoMPNN,tmpnn,73,1.1588,0.9121,1.4276,28
+ThermoMPNN,tmpnn,74,1.1588,0.9121,1.4276,28
+ThermoMPNN,tmpnn,75,1.1601,0.9172,1.4276,28
+ThermoMPNN,tmpnn,76,1.1601,0.9172,1.4276,28
+ThermoMPNN,tmpnn,77,1.1601,0.9172,1.4276,28
+ThermoMPNN,tmpnn,78,1.1601,0.9172,1.4276,28
+ThermoMPNN,tmpnn,79,1.1607,0.9183,1.4282,28
+ThermoMPNN,tmpnn,80,1.1607,0.9183,1.4282,28
+ThermoMPNN,tmpnn,81,1.1607,0.9183,1.4282,28
+ThermoMPNN,tmpnn,82,1.1607,0.9183,1.4282,28
+ThermoMPNN,tmpnn,83,1.1626,0.9183,1.4282,28
+ThermoMPNN,tmpnn,84,1.1626,0.9183,1.4282,28
+ThermoMPNN,tmpnn,85,1.1626,0.9183,1.4282,28
+ThermoMPNN,tmpnn,86,1.1626,0.9183,1.4282,28
+ThermoMPNN,tmpnn,87,1.1626,0.9183,1.4282,28
+ThermoMPNN,tmpnn,88,1.1626,0.9183,1.4282,28
+ThermoMPNN,tmpnn,89,1.1678,0.9209,1.4332,28
+ThermoMPNN,tmpnn,90,1.1698,0.9209,1.4372,28
+ThermoMPNN,tmpnn,91,1.1698,0.9209,1.4372,28
+ThermoMPNN,tmpnn,92,1.1713,0.9209,1.4372,28
+ThermoMPNN,tmpnn,93,1.1752,0.9268,1.4374,28
+ThermoMPNN,tmpnn,94,1.1752,0.9268,1.4374,28
+ThermoMPNN,tmpnn,95,1.1752,0.9268,1.4374,28
+ThermoMPNN,tmpnn,96,1.1752,0.9268,1.4374,28
+SPURS,spurs,1,0.6972,0.4708,0.9563,28
+SPURS,spurs,2,0.7896,0.5533,1.0681,28
+SPURS,spurs,3,0.8386,0.6181,1.1058,28
+SPURS,spurs,4,0.9075,0.6587,1.1538,28
+SPURS,spurs,5,0.9373,0.7058,1.1878,28
+SPURS,spurs,6,0.9622,0.7348,1.2047,28
+SPURS,spurs,7,1.0032,0.7893,1.2548,28
+SPURS,spurs,8,1.0298,0.8063,1.2836,28
+SPURS,spurs,9,1.0486,0.8137,1.3136,28
+SPURS,spurs,10,1.0624,0.8266,1.3266,28
+SPURS,spurs,11,1.0700,0.8266,1.3281,28
+SPURS,spurs,12,1.0728,0.8289,1.3283,28
+SPURS,spurs,13,1.0754,0.8297,1.3295,28
+SPURS,spurs,14,1.0827,0.8385,1.3329,28
+SPURS,spurs,15,1.0892,0.8400,1.3532,28
+SPURS,spurs,16,1.0906,0.8408,1.3537,28
+SPURS,spurs,17,1.0958,0.8418,1.3732,28
+SPURS,spurs,18,1.1017,0.8418,1.3734,28
+SPURS,spurs,19,1.1042,0.8418,1.3734,28
+SPURS,spurs,20,1.1075,0.8418,1.3736,28
+SPURS,spurs,21,1.1109,0.8505,1.3940,28
+SPURS,spurs,22,1.1120,0.8534,1.3951,28
+SPURS,spurs,23,1.1120,0.8534,1.3951,28
+SPURS,spurs,24,1.1125,0.8534,1.3952,28
+SPURS,spurs,25,1.1125,0.8534,1.3952,28
+SPURS,spurs,26,1.1125,0.8534,1.3952,28
+SPURS,spurs,27,1.1126,0.8534,1.3952,28
+SPURS,spurs,28,1.1139,0.8584,1.3969,28
+SPURS,spurs,29,1.1170,0.8585,1.3969,28
+SPURS,spurs,30,1.1172,0.8589,1.3974,28
+SPURS,spurs,31,1.1172,0.8589,1.3974,28
+SPURS,spurs,32,1.1174,0.8589,1.3974,28
+SPURS,spurs,33,1.1214,0.8590,1.3975,28
+SPURS,spurs,34,1.1222,0.8590,1.3975,28
+SPURS,spurs,35,1.1228,0.8608,1.3975,28
+SPURS,spurs,36,1.1228,0.8608,1.3975,28
+SPURS,spurs,37,1.1228,0.8609,1.3975,28
+SPURS,spurs,38,1.1235,0.8618,1.3975,28
+SPURS,spurs,39,1.1254,0.8648,1.4000,28
+SPURS,spurs,40,1.1254,0.8648,1.4000,28
+SPURS,spurs,41,1.1269,0.8649,1.4000,28
+SPURS,spurs,42,1.1269,0.8649,1.4000,28
+SPURS,spurs,43,1.1322,0.8936,1.4000,28
+SPURS,spurs,44,1.1344,0.8993,1.4001,28
+SPURS,spurs,45,1.1344,0.8993,1.4001,28
+SPURS,spurs,46,1.1344,0.8993,1.4001,28
+SPURS,spurs,47,1.1344,0.8993,1.4001,28
+SPURS,spurs,48,1.1344,0.8993,1.4001,28
+SPURS,spurs,49,1.1399,0.9042,1.4134,28
+SPURS,spurs,50,1.1421,0.9042,1.4134,28
+SPURS,spurs,51,1.1495,0.9072,1.4136,28
+SPURS,spurs,52,1.1495,0.9073,1.4136,28
+SPURS,spurs,53,1.1580,0.9170,1.4138,28
+SPURS,spurs,54,1.1587,0.9170,1.4145,28
+SPURS,spurs,55,1.1632,0.9170,1.4189,28
+SPURS,spurs,56,1.1632,0.9170,1.4189,28
+SPURS,spurs,57,1.1632,0.9170,1.4189,28
+SPURS,spurs,58,1.1632,0.9170,1.4189,28
+SPURS,spurs,59,1.1632,0.9170,1.4189,28
+SPURS,spurs,60,1.1632,0.9170,1.4189,28
+SPURS,spurs,61,1.1706,0.9301,1.4196,28
+SPURS,spurs,62,1.1706,0.9301,1.4196,28
+SPURS,spurs,63,1.1720,0.9328,1.4205,28
+SPURS,spurs,64,1.1724,0.9328,1.4210,28
+SPURS,spurs,65,1.1728,0.9328,1.4210,28
+SPURS,spurs,66,1.1738,0.9328,1.4220,28
+SPURS,spurs,67,1.1738,0.9328,1.4220,28
+SPURS,spurs,68,1.1738,0.9328,1.4220,28
+SPURS,spurs,69,1.1738,0.9328,1.4220,28
+SPURS,spurs,70,1.1738,0.9328,1.4220,28
+SPURS,spurs,71,1.1738,0.9328,1.4220,28
+SPURS,spurs,72,1.1738,0.9328,1.4220,28
+SPURS,spurs,73,1.1738,0.9328,1.4220,28
+SPURS,spurs,74,1.1757,0.9365,1.4220,28
+SPURS,spurs,75,1.1757,0.9365,1.4220,28
+SPURS,spurs,76,1.1757,0.9365,1.4220,28
+SPURS,spurs,77,1.1803,0.9405,1.4220,28
+SPURS,spurs,78,1.1803,0.9405,1.4220,28
+SPURS,spurs,79,1.1803,0.9405,1.4220,28
+SPURS,spurs,80,1.1803,0.9405,1.4220,28
+SPURS,spurs,81,1.1803,0.9405,1.4220,28
+SPURS,spurs,82,1.1807,0.9411,1.4220,28
+SPURS,spurs,83,1.1807,0.9411,1.4220,28
+SPURS,spurs,84,1.1818,0.9441,1.4241,28
+SPURS,spurs,85,1.1818,0.9441,1.4241,28
+SPURS,spurs,86,1.1818,0.9441,1.4241,28
+SPURS,spurs,87,1.1844,0.9441,1.4241,28
+SPURS,spurs,88,1.1844,0.9441,1.4241,28
+SPURS,spurs,89,1.1844,0.9441,1.4241,28
+SPURS,spurs,90,1.1844,0.9441,1.4241,28
+SPURS,spurs,91,1.1844,0.9441,1.4241,28
+SPURS,spurs,92,1.1844,0.9441,1.4241,28
+SPURS,spurs,93,1.1844,0.9441,1.4241,28
+SPURS,spurs,94,1.1844,0.9441,1.4241,28
+SPURS,spurs,95,1.1863,0.9493,1.4265,28
+SPURS,spurs,96,1.1863,0.9493,1.4265,28

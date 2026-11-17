@@ -7,8 +7,8 @@ MutateEverything st1 (3 seeds),0.754ʰ,0.771ʰ
 MutateEverything st2 (3 seeds),0.730ʰ,0.760ʰ
 "ThermoMPNN (additive, 3 seeds)",0.787ʰ,0.794ʰ
 ThermoMPNN + ThermoMPNN-D (3 seeds),0.785ʰ,0.784ʰ
-"SPURS (retrained, 3 seeds)",0.803ʰ,0.801ʰ
-"SPURS multi (retrained, 3 seeds)",0.763ʰ,0.772ʰ
+"SPURS (retrained, 3 seeds)",0.801ʰ,0.800ʰ
+"SPURS multi (retrained, 3 seeds)",0.765ʰ,0.775ʰ
 ESMtherm,0.716ᴹ,0.774ᴹ
 DDGemb (server),0.490,0.508ʰ
 DDMut (server),–,–

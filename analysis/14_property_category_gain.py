@@ -483,7 +483,7 @@ def comparison_figure(path, d, dcols):
 # ----------------------------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=200, help='domain resamples (draft size)')
+    ap.add_argument('--B', type=int, default=100, help='domain resamples (draft size)')
     ap.add_argument('--msr', choices=['p0', 'devel', 'baseline', 'all'], default='p0', help='which ESM-MSR model(s) to draw (default: p0 only)')
     ap.add_argument('--heads', nargs='+', choices=['wt', 'comb'], default=['wt', 'comb'], help='ESM-MSR heads drawn (default: wt comb)')
     ap.add_argument('--no-prosst', action='store_true', help='omit ProSST from the notebook-rule distribution plots')

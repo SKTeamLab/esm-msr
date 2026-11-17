@@ -140,7 +140,7 @@ def main(refresh=False):
         fr = load_frame(d)
         k = model_key_for_dataset('ESM-MSR', fr)
         p0_frames[d] = Frame(d, fr.spine, {'ESM-MSR': fr.preds[k][:1]})
-    _, prot_reps = bootstrap_rho(p0_frames, ['ESM-MSR'], kind='protein', B=1000, seed=21, per_protein=False)
+    _, prot_reps = bootstrap_rho(p0_frames, ['ESM-MSR'], kind='protein', B=100, seed=21, per_protein=False)
     wp, wm = [], []
     for d in EXT10:
         pl, ph = ci(prot_reps[d]['ESM-MSR'])
@@ -179,8 +179,8 @@ def _load_thermo_overview_boot(refresh=False):
         meta[d] = (int(u.sum()), int(sp.loc[u, 'cluster'].nunique()))
         s1_frames[d] = Frame(d, sp, {k: fr.preds[k][:1] for k in THERMO_OVERVIEW_KEYS if k in fr.preds})
 
-    pt_p, rep_p = bootstrap_rho(s1_frames, THERMO_OVERVIEW_KEYS, kind='protein', B=1000, seed=11, per_protein=False)
-    pt_m, rep_m = bootstrap_rho(s1_frames, THERMO_OVERVIEW_KEYS, kind='mutation', B=1000, seed=11, per_protein=False)
+    pt_p, rep_p = bootstrap_rho(s1_frames, THERMO_OVERVIEW_KEYS, kind='protein', B=100, seed=11, per_protein=False)
+    pt_m, rep_m = bootstrap_rho(s1_frames, THERMO_OVERVIEW_KEYS, kind='mutation', B=100, seed=11, per_protein=False)
 
     P_prot, P_mut = {}, {}
     for d in EXT10:

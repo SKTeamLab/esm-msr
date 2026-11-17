@@ -54,13 +54,14 @@ from msr_analysis import style  # noqa: E402
 from msr_analysis.boot import ci  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
+from msr_analysis.registry import TSU  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 pub = importlib.import_module('11_publication_figures')
 
 OUT = out_dir('08_screening')
-DS = 'tsuboyama_capped_test'
+DS = TSU[1]
 SPLIT = pub.SPLIT
-B_DEFAULT = 200
+B_DEFAULT = 100
 KS_TICKS = [1, 2, 3, 6, 12, 24, 48, 96]
 
 
@@ -94,8 +95,8 @@ def single_columns(fr, best):
              label='ProteinMPNN', key='pmpnn', draw=True),
         dict(name='ProSST', cat='zeroshot', color='#8e44ad', ls='-',
              label='ProSST', key='prosst', draw=True),
-        dict(name=pub.BEST_LABEL[best], cat='supervised', color=pub.BEST_COLOR[best], ls='-',
-             label=pub.BEST_LABEL[best], key=best, draw=True),
+        *([dict(name=pub.BEST_LABEL[best], cat='supervised', color=pub.BEST_COLOR[best], ls='-',
+                label=pub.BEST_LABEL[best], key=best, draw=True)] if best else []),
         dict(name='Rosetta', cat='supervised', color='#1abc9c', ls='-',
              label='Rosetta', key='rosetta', draw=True),
     ]
@@ -771,7 +772,7 @@ def run_pool(fr, cols, pool_mask, libs, counts, a, sfx, pool_title):
 # ----------------------------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=B_DEFAULT, help='domain bootstrap resamples (draft default: 200)')
+    ap.add_argument('--B', type=int, default=B_DEFAULT, help='domain bootstrap resamples (draft default: 100)')
     ap.add_argument('--tau', type=float, default=0.5, help='ddG threshold in kcal/mol (default: 0.5)')
     ap.add_argument('--top_n', type=int, default=6, help='N most stabilizing variants per protein to recover (default: 6)')
     ap.add_argument('--budgets', nargs='+', type=int, default=[6, 24, 96], help='fixed screening budgets K (default: 6 24 96)')

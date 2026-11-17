@@ -34,6 +34,8 @@ MODES = {
                            '--tobit_mu_f', '-0.14', '--tobit_sigma_f', '0.5'],
     'blocks_cond_chunked': ['--block_positions', '4', '--block_row_chunk', '10', '--lambda_cond_mt', '7.5'],
     'exclude_mutbg': ['--block_positions', '4', '--exclude_mutbg'],
+    # LoRA in the last 4 blocks only, and the learned from x to substitution table (both heads); validation, checkpoint and dump must carry the table
+    'last4_subcal': ['--block_positions', '4', '--last_n_layers_wt', '4', '--last_n_layers_mt', '4', '--substitution_calibration'],
     'comet_offline': ['--block_positions', '4', '--comet', '--comet_offline'],      # the key lookup and the logger path, without uploading anything
 }
 

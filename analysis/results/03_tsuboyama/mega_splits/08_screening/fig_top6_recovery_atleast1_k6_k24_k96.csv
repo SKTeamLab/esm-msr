@@ -1,0 +1,16 @@
+column,key,subset,budget,top_n,metric,value,lo,hi,random_expectation,n_libraries,n_variants
+ESM-MSR (p0) WT head,msrp0:wt,K = 6,6,6,p_recover_at_least_1_of_topN,0.5476,0.3571,0.7024,0.0355,28,30474
+ESM-MSR (p0) combined,msrp0:comb,K = 6,6,6,p_recover_at_least_1_of_topN,0.5952,0.4164,0.7506,0.0355,28,30474
+MutateEverything st1,me1,K = 6,6,6,p_recover_at_least_1_of_topN,0.4881,0.3214,0.6551,0.0355,28,30474
+ThermoMPNN,tmpnn,K = 6,6,6,p_recover_at_least_1_of_topN,0.5357,0.3810,0.7143,0.0355,28,30474
+SPURS,spurs,K = 6,6,6,p_recover_at_least_1_of_topN,0.6548,0.4881,0.8214,0.0355,28,30474
+ESM-MSR (p0) WT head,msrp0:wt,K = 24,24,6,p_recover_at_least_1_of_topN,0.8095,0.6667,0.9286,0.1355,28,30474
+ESM-MSR (p0) combined,msrp0:comb,K = 24,24,6,p_recover_at_least_1_of_topN,0.7976,0.6548,0.9286,0.1355,28,30474
+MutateEverything st1,me1,K = 24,24,6,p_recover_at_least_1_of_topN,0.7976,0.6071,0.9167,0.1355,28,30474
+ThermoMPNN,tmpnn,K = 24,24,6,p_recover_at_least_1_of_topN,0.8095,0.6545,0.9286,0.1355,28,30474
+SPURS,spurs,K = 24,24,6,p_recover_at_least_1_of_topN,0.8452,0.7021,0.9646,0.1355,28,30474
+ESM-MSR (p0) WT head,msrp0:wt,K = 96,96,6,p_recover_at_least_1_of_topN,0.9048,0.7976,1.0000,0.4504,28,30474
+ESM-MSR (p0) combined,msrp0:comb,K = 96,96,6,p_recover_at_least_1_of_topN,0.9405,0.8214,1.0000,0.4504,28,30474
+MutateEverything st1,me1,K = 96,96,6,p_recover_at_least_1_of_topN,0.9643,0.8571,1.0000,0.4504,28,30474
+ThermoMPNN,tmpnn,K = 96,96,6,p_recover_at_least_1_of_topN,0.9524,0.8571,1.0000,0.4504,28,30474
+SPURS,spurs,K = 96,96,6,p_recover_at_least_1_of_topN,0.9643,0.8571,1.0000,0.4504,28,30474

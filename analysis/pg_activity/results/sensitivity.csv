@@ -17,11 +17,11 @@ enzymes,sd: 0.5 assay SD (the definition of the figures),18,tm,10,hit_rate,0.416
 enzymes,sd: 0.5 assay SD (the definition of the figures),18,tm,10,rand_hit,0.4974,0.4154,0.5900
 enzymes,sd: 0.5 assay SD (the definition of the figures),18,tm,100,hit_rate,0.4011,0.3300,0.4898
 enzymes,sd: 0.5 assay SD (the definition of the figures),18,tm,100,rand_hit,0.4974,0.4160,0.5691
-enzymes,sd: 0.5 assay SD (the definition of the figures),18,spurs,1,hit_rate,0.3889,0.2222,0.6111
+enzymes,sd: 0.5 assay SD (the definition of the figures),18,spurs,1,hit_rate,0.4444,0.2486,0.6667
 enzymes,sd: 0.5 assay SD (the definition of the figures),18,spurs,1,rand_hit,0.4974,0.4374,0.5826
-enzymes,sd: 0.5 assay SD (the definition of the figures),18,spurs,10,hit_rate,0.3722,0.2658,0.4725
+enzymes,sd: 0.5 assay SD (the definition of the figures),18,spurs,10,hit_rate,0.3667,0.2693,0.4585
 enzymes,sd: 0.5 assay SD (the definition of the figures),18,spurs,10,rand_hit,0.4974,0.4154,0.5900
-enzymes,sd: 0.5 assay SD (the definition of the figures),18,spurs,100,hit_rate,0.3633,0.2975,0.4575
+enzymes,sd: 0.5 assay SD (the definition of the figures),18,spurs,100,hit_rate,0.3683,0.3021,0.4473
 enzymes,sd: 0.5 assay SD (the definition of the figures),18,spurs,100,rand_hit,0.4974,0.4160,0.5691
 enzymes,floor: lost > 5% of the way to the floor,12,msr,1,hit_rate,0.4167,0.1667,0.6667
 enzymes,floor: lost > 5% of the way to the floor,12,msr,1,rand_hit,0.6275,0.5432,0.7281
@@ -41,11 +41,11 @@ enzymes,floor: lost > 5% of the way to the floor,12,tm,10,hit_rate,0.5667,0.4456
 enzymes,floor: lost > 5% of the way to the floor,12,tm,10,rand_hit,0.6275,0.5526,0.7111
 enzymes,floor: lost > 5% of the way to the floor,12,tm,100,hit_rate,0.5242,0.4255,0.6175
 enzymes,floor: lost > 5% of the way to the floor,12,tm,100,rand_hit,0.6275,0.5385,0.7187
-enzymes,floor: lost > 5% of the way to the floor,12,spurs,1,hit_rate,0.5000,0.2500,0.7500
+enzymes,floor: lost > 5% of the way to the floor,12,spurs,1,hit_rate,0.6667,0.4167,0.8333
 enzymes,floor: lost > 5% of the way to the floor,12,spurs,1,rand_hit,0.6275,0.5432,0.7281
-enzymes,floor: lost > 5% of the way to the floor,12,spurs,10,hit_rate,0.5417,0.4540,0.6333
+enzymes,floor: lost > 5% of the way to the floor,12,spurs,10,hit_rate,0.4917,0.4206,0.5710
 enzymes,floor: lost > 5% of the way to the floor,12,spurs,10,rand_hit,0.6275,0.5526,0.7111
-enzymes,floor: lost > 5% of the way to the floor,12,spurs,100,hit_rate,0.4983,0.3904,0.5898
+enzymes,floor: lost > 5% of the way to the floor,12,spurs,100,hit_rate,0.5033,0.4027,0.5896
 enzymes,floor: lost > 5% of the way to the floor,12,spurs,100,rand_hit,0.6275,0.5385,0.7187
 enzymes,floor: lost > 10% of the way,12,msr,1,hit_rate,0.3333,0.0833,0.6667
 enzymes,floor: lost > 10% of the way,12,msr,1,rand_hit,0.5802,0.4952,0.7014
@@ -65,11 +65,11 @@ enzymes,floor: lost > 10% of the way,12,tm,10,hit_rate,0.4750,0.3329,0.5917
 enzymes,floor: lost > 10% of the way,12,tm,10,rand_hit,0.5802,0.4935,0.6674
 enzymes,floor: lost > 10% of the way,12,tm,100,hit_rate,0.4675,0.3595,0.5675
 enzymes,floor: lost > 10% of the way,12,tm,100,rand_hit,0.5802,0.4863,0.6783
-enzymes,floor: lost > 10% of the way,12,spurs,1,hit_rate,0.5000,0.2500,0.7500
+enzymes,floor: lost > 10% of the way,12,spurs,1,hit_rate,0.5833,0.3333,0.8333
 enzymes,floor: lost > 10% of the way,12,spurs,1,rand_hit,0.5802,0.4952,0.7014
-enzymes,floor: lost > 10% of the way,12,spurs,10,hit_rate,0.5083,0.3873,0.6044
+enzymes,floor: lost > 10% of the way,12,spurs,10,hit_rate,0.4500,0.3623,0.5544
 enzymes,floor: lost > 10% of the way,12,spurs,10,rand_hit,0.5802,0.4935,0.6674
-enzymes,floor: lost > 10% of the way,12,spurs,100,hit_rate,0.4408,0.3190,0.5423
+enzymes,floor: lost > 10% of the way,12,spurs,100,hit_rate,0.4483,0.3407,0.5460
 enzymes,floor: lost > 10% of the way,12,spurs,100,rand_hit,0.5802,0.4863,0.6783
 enzymes,"floor: lost > 5%, floors with window >= 3 only",7,msr,1,hit_rate,0.7143,0.4286,1.0000
 enzymes,"floor: lost > 5%, floors with window >= 3 only",7,msr,1,rand_hit,0.7053,0.6060,0.8165
@@ -89,11 +89,11 @@ enzymes,"floor: lost > 5%, floors with window >= 3 only",7,tm,10,hit_rate,0.6286
 enzymes,"floor: lost > 5%, floors with window >= 3 only",7,tm,10,rand_hit,0.7053,0.5817,0.8412
 enzymes,"floor: lost > 5%, floors with window >= 3 only",7,tm,100,hit_rate,0.6000,0.5091,0.7016
 enzymes,"floor: lost > 5%, floors with window >= 3 only",7,tm,100,rand_hit,0.7053,0.6067,0.8051
-enzymes,"floor: lost > 5%, floors with window >= 3 only",7,spurs,1,hit_rate,0.7143,0.3536,1.0000
+enzymes,"floor: lost > 5%, floors with window >= 3 only",7,spurs,1,hit_rate,0.7143,0.2857,1.0000
 enzymes,"floor: lost > 5%, floors with window >= 3 only",7,spurs,1,rand_hit,0.7053,0.6060,0.8165
-enzymes,"floor: lost > 5%, floors with window >= 3 only",7,spurs,10,hit_rate,0.5571,0.4000,0.6857
+enzymes,"floor: lost > 5%, floors with window >= 3 only",7,spurs,10,hit_rate,0.5143,0.4000,0.6075
 enzymes,"floor: lost > 5%, floors with window >= 3 only",7,spurs,10,rand_hit,0.7053,0.5817,0.8412
-enzymes,"floor: lost > 5%, floors with window >= 3 only",7,spurs,100,hit_rate,0.5786,0.4550,0.6994
+enzymes,"floor: lost > 5%, floors with window >= 3 only",7,spurs,100,hit_rate,0.5914,0.4904,0.6957
 enzymes,"floor: lost > 5%, floors with window >= 3 only",7,spurs,100,rand_hit,0.7053,0.6067,0.8051
 enzymes,variance: sd^2 = 5% of the assay variance,18,msr,1,hit_rate,0.3333,0.1375,0.5000
 enzymes,variance: sd^2 = 5% of the assay variance,18,msr,1,rand_hit,0.5142,0.4535,0.5987
@@ -113,11 +113,11 @@ enzymes,variance: sd^2 = 5% of the assay variance,18,tm,10,hit_rate,0.4278,0.324
 enzymes,variance: sd^2 = 5% of the assay variance,18,tm,10,rand_hit,0.5142,0.4327,0.6074
 enzymes,variance: sd^2 = 5% of the assay variance,18,tm,100,hit_rate,0.4194,0.3485,0.5117
 enzymes,variance: sd^2 = 5% of the assay variance,18,tm,100,rand_hit,0.5142,0.4321,0.5869
-enzymes,variance: sd^2 = 5% of the assay variance,18,spurs,1,hit_rate,0.4444,0.2778,0.6667
+enzymes,variance: sd^2 = 5% of the assay variance,18,spurs,1,hit_rate,0.5556,0.3333,0.7514
 enzymes,variance: sd^2 = 5% of the assay variance,18,spurs,1,rand_hit,0.5142,0.4535,0.5987
-enzymes,variance: sd^2 = 5% of the assay variance,18,spurs,10,hit_rate,0.3944,0.2971,0.4807
+enzymes,variance: sd^2 = 5% of the assay variance,18,spurs,10,hit_rate,0.3833,0.2804,0.4751
 enzymes,variance: sd^2 = 5% of the assay variance,18,spurs,10,rand_hit,0.5142,0.4327,0.6074
-enzymes,variance: sd^2 = 5% of the assay variance,18,spurs,100,hit_rate,0.3744,0.3078,0.4667
+enzymes,variance: sd^2 = 5% of the assay variance,18,spurs,100,hit_rate,0.3794,0.3112,0.4570
 enzymes,variance: sd^2 = 5% of the assay variance,18,spurs,100,rand_hit,0.5142,0.4321,0.5869
 enzymes,variance: sd^2 = 10% of the assay variance,18,msr,1,hit_rate,0.3333,0.1375,0.5000
 enzymes,variance: sd^2 = 10% of the assay variance,18,msr,1,rand_hit,0.4562,0.3990,0.5422
@@ -137,11 +137,11 @@ enzymes,variance: sd^2 = 10% of the assay variance,18,tm,10,hit_rate,0.3833,0.30
 enzymes,variance: sd^2 = 10% of the assay variance,18,tm,10,rand_hit,0.4562,0.3734,0.5521
 enzymes,variance: sd^2 = 10% of the assay variance,18,tm,100,hit_rate,0.3611,0.2880,0.4506
 enzymes,variance: sd^2 = 10% of the assay variance,18,tm,100,rand_hit,0.4562,0.3774,0.5242
-enzymes,variance: sd^2 = 10% of the assay variance,18,spurs,1,hit_rate,0.3889,0.2222,0.6111
+enzymes,variance: sd^2 = 10% of the assay variance,18,spurs,1,hit_rate,0.4444,0.2486,0.6667
 enzymes,variance: sd^2 = 10% of the assay variance,18,spurs,1,rand_hit,0.4562,0.3990,0.5422
-enzymes,variance: sd^2 = 10% of the assay variance,18,spurs,10,hit_rate,0.3389,0.2381,0.4278
+enzymes,variance: sd^2 = 10% of the assay variance,18,spurs,10,hit_rate,0.3389,0.2360,0.4307
 enzymes,variance: sd^2 = 10% of the assay variance,18,spurs,10,rand_hit,0.4562,0.3734,0.5521
-enzymes,variance: sd^2 = 10% of the assay variance,18,spurs,100,hit_rate,0.3300,0.2654,0.4185
+enzymes,variance: sd^2 = 10% of the assay variance,18,spurs,100,hit_rate,0.3322,0.2677,0.4139
 enzymes,variance: sd^2 = 10% of the assay variance,18,spurs,100,rand_hit,0.4562,0.3774,0.5242
 enzymes,ladder: sd from paper / replicates / plateau,18,msr,1,hit_rate,0.3333,0.1375,0.5000
 enzymes,ladder: sd from paper / replicates / plateau,18,msr,1,rand_hit,0.4040,0.3489,0.4815
@@ -161,11 +161,11 @@ enzymes,ladder: sd from paper / replicates / plateau,18,tm,10,hit_rate,0.3444,0.
 enzymes,ladder: sd from paper / replicates / plateau,18,tm,10,rand_hit,0.4040,0.3306,0.4898
 enzymes,ladder: sd from paper / replicates / plateau,18,tm,100,hit_rate,0.3167,0.2419,0.3970
 enzymes,ladder: sd from paper / replicates / plateau,18,tm,100,rand_hit,0.4040,0.3254,0.4614
-enzymes,ladder: sd from paper / replicates / plateau,18,spurs,1,hit_rate,0.3889,0.2222,0.6111
+enzymes,ladder: sd from paper / replicates / plateau,18,spurs,1,hit_rate,0.3889,0.1667,0.6111
 enzymes,ladder: sd from paper / replicates / plateau,18,spurs,1,rand_hit,0.4040,0.3489,0.4815
-enzymes,ladder: sd from paper / replicates / plateau,18,spurs,10,hit_rate,0.2833,0.2026,0.3699
+enzymes,ladder: sd from paper / replicates / plateau,18,spurs,10,hit_rate,0.3111,0.2222,0.4085
 enzymes,ladder: sd from paper / replicates / plateau,18,spurs,10,rand_hit,0.4040,0.3306,0.4898
-enzymes,ladder: sd from paper / replicates / plateau,18,spurs,100,hit_rate,0.2783,0.2094,0.3460
+enzymes,ladder: sd from paper / replicates / plateau,18,spurs,100,hit_rate,0.2822,0.2160,0.3434
 enzymes,ladder: sd from paper / replicates / plateau,18,spurs,100,rand_hit,0.4040,0.3254,0.4614
 enzymes,same assays as the floor definition: 0.5 assay SD,12,msr,1,hit_rate,0.3333,0.0833,0.6667
 enzymes,same assays as the floor definition: 0.5 assay SD,12,msr,1,rand_hit,0.4648,0.3731,0.5934
@@ -185,11 +185,11 @@ enzymes,same assays as the floor definition: 0.5 assay SD,12,tm,10,hit_rate,0.34
 enzymes,same assays as the floor definition: 0.5 assay SD,12,tm,10,rand_hit,0.4648,0.3779,0.5536
 enzymes,same assays as the floor definition: 0.5 assay SD,12,tm,100,hit_rate,0.3458,0.2679,0.4209
 enzymes,same assays as the floor definition: 0.5 assay SD,12,tm,100,rand_hit,0.4648,0.3759,0.5724
-enzymes,same assays as the floor definition: 0.5 assay SD,12,spurs,1,hit_rate,0.3333,0.0833,0.5833
+enzymes,same assays as the floor definition: 0.5 assay SD,12,spurs,1,hit_rate,0.4167,0.1667,0.6271
 enzymes,same assays as the floor definition: 0.5 assay SD,12,spurs,1,rand_hit,0.4648,0.3731,0.5934
-enzymes,same assays as the floor definition: 0.5 assay SD,12,spurs,10,hit_rate,0.3583,0.2662,0.4417
+enzymes,same assays as the floor definition: 0.5 assay SD,12,spurs,10,hit_rate,0.3250,0.2333,0.4127
 enzymes,same assays as the floor definition: 0.5 assay SD,12,spurs,10,rand_hit,0.4648,0.3779,0.5536
-enzymes,same assays as the floor definition: 0.5 assay SD,12,spurs,100,hit_rate,0.3200,0.2286,0.3971
+enzymes,same assays as the floor definition: 0.5 assay SD,12,spurs,100,hit_rate,0.3358,0.2545,0.4111
 enzymes,same assays as the floor definition: 0.5 assay SD,12,spurs,100,rand_hit,0.4648,0.3759,0.5724
 enzymes,same assays as the floor definition: variance 5%,12,msr,1,hit_rate,0.3333,0.0833,0.6667
 enzymes,same assays as the floor definition: variance 5%,12,msr,1,rand_hit,0.4804,0.3899,0.6051
@@ -209,11 +209,11 @@ enzymes,same assays as the floor definition: variance 5%,12,tm,10,hit_rate,0.350
 enzymes,same assays as the floor definition: variance 5%,12,tm,10,rand_hit,0.4804,0.3952,0.5671
 enzymes,same assays as the floor definition: variance 5%,12,tm,100,hit_rate,0.3617,0.2833,0.4363
 enzymes,same assays as the floor definition: variance 5%,12,tm,100,rand_hit,0.4804,0.3930,0.5874
-enzymes,same assays as the floor definition: variance 5%,12,spurs,1,hit_rate,0.4167,0.1667,0.7104
+enzymes,same assays as the floor definition: variance 5%,12,spurs,1,hit_rate,0.5000,0.2896,0.7500
 enzymes,same assays as the floor definition: variance 5%,12,spurs,1,rand_hit,0.4804,0.3899,0.6051
-enzymes,same assays as the floor definition: variance 5%,12,spurs,10,hit_rate,0.3833,0.2873,0.4583
+enzymes,same assays as the floor definition: variance 5%,12,spurs,10,hit_rate,0.3417,0.2583,0.4294
 enzymes,same assays as the floor definition: variance 5%,12,spurs,10,rand_hit,0.4804,0.3952,0.5671
-enzymes,same assays as the floor definition: variance 5%,12,spurs,100,hit_rate,0.3300,0.2354,0.4034
+enzymes,same assays as the floor definition: variance 5%,12,spurs,100,hit_rate,0.3442,0.2633,0.4164
 enzymes,same assays as the floor definition: variance 5%,12,spurs,100,rand_hit,0.4804,0.3930,0.5874
 enzymes,same assays as the floor definition: ladder,12,msr,1,hit_rate,0.3333,0.0833,0.6667
 enzymes,same assays as the floor definition: ladder,12,msr,1,rand_hit,0.3756,0.2856,0.4746
@@ -233,11 +233,11 @@ enzymes,same assays as the floor definition: ladder,12,tm,10,hit_rate,0.2833,0.1
 enzymes,same assays as the floor definition: ladder,12,tm,10,rand_hit,0.3756,0.2772,0.4568
 enzymes,same assays as the floor definition: ladder,12,tm,100,hit_rate,0.2567,0.1724,0.3406
 enzymes,same assays as the floor definition: ladder,12,tm,100,rand_hit,0.3756,0.2862,0.4712
-enzymes,same assays as the floor definition: ladder,12,spurs,1,hit_rate,0.3333,0.0833,0.5833
+enzymes,same assays as the floor definition: ladder,12,spurs,1,hit_rate,0.4167,0.1667,0.6271
 enzymes,same assays as the floor definition: ladder,12,spurs,1,rand_hit,0.3756,0.2856,0.4746
-enzymes,same assays as the floor definition: ladder,12,spurs,10,hit_rate,0.2667,0.1706,0.3500
+enzymes,same assays as the floor definition: ladder,12,spurs,10,hit_rate,0.2583,0.1750,0.3417
 enzymes,same assays as the floor definition: ladder,12,spurs,10,rand_hit,0.3756,0.2772,0.4568
-enzymes,same assays as the floor definition: ladder,12,spurs,100,hit_rate,0.2308,0.1558,0.3101
+enzymes,same assays as the floor definition: ladder,12,spurs,100,hit_rate,0.2517,0.1749,0.3314
 enzymes,same assays as the floor definition: ladder,12,spurs,100,rand_hit,0.3756,0.2862,0.4712
 enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,msr,1,hit_rate,0.5714,0.2857,0.8571
 enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,msr,1,rand_hit,0.5683,0.4631,0.6894
@@ -257,11 +257,11 @@ enzymes,"same assays as the floor definition: variance 5%, floors with window >=
 enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,tm,10,rand_hit,0.5683,0.4443,0.7125
 enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,tm,100,hit_rate,0.4400,0.3506,0.5338
 enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,tm,100,rand_hit,0.5683,0.4759,0.6721
-enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,spurs,1,hit_rate,0.5714,0.1429,0.8571
+enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,spurs,1,hit_rate,0.5714,0.2857,0.8571
 enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,spurs,1,rand_hit,0.5683,0.4631,0.6894
-enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,spurs,10,hit_rate,0.4429,0.3429,0.5286
+enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,spurs,10,hit_rate,0.4143,0.3068,0.5218
 enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,spurs,10,rand_hit,0.5683,0.4443,0.7125
-enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,spurs,100,hit_rate,0.4143,0.2918,0.5317
+enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,spurs,100,hit_rate,0.4357,0.3383,0.5294
 enzymes,"same assays as the floor definition: variance 5%, floors with window >= 3",7,spurs,100,rand_hit,0.5683,0.4759,0.6721
 enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,msr,1,hit_rate,0.5714,0.2857,0.8571
 enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,msr,1,rand_hit,0.4691,0.3774,0.5903
@@ -281,11 +281,11 @@ enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7
 enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,tm,10,rand_hit,0.4691,0.3744,0.5910
 enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,tm,100,hit_rate,0.3371,0.2418,0.4129
 enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,tm,100,rand_hit,0.4691,0.3972,0.5610
-enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,spurs,1,hit_rate,0.5714,0.1429,0.8571
+enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,spurs,1,hit_rate,0.4286,0.1429,0.7143
 enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,spurs,1,rand_hit,0.4691,0.3774,0.5903
-enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,spurs,10,hit_rate,0.3429,0.2571,0.4286
+enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,spurs,10,hit_rate,0.3286,0.2354,0.4075
 enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,spurs,10,rand_hit,0.4691,0.3744,0.5910
-enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,spurs,100,hit_rate,0.3071,0.2256,0.3895
+enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,spurs,100,hit_rate,0.3300,0.2433,0.4171
 enzymes,"same assays as the floor definition: ladder, floors with window >= 3",7,spurs,100,rand_hit,0.4691,0.3972,0.5610
 enzymes,"measured WT, plateau sd",18,msr,1,hit_rate,0.2778,0.0819,0.4736
 enzymes,"measured WT, plateau sd",18,msr,1,rand_hit,0.4011,0.3578,0.4716
@@ -305,11 +305,11 @@ enzymes,"measured WT, plateau sd",18,tm,10,hit_rate,0.3444,0.2860,0.4196
 enzymes,"measured WT, plateau sd",18,tm,10,rand_hit,0.4011,0.3495,0.4722
 enzymes,"measured WT, plateau sd",18,tm,100,hit_rate,0.3111,0.2461,0.3756
 enzymes,"measured WT, plateau sd",18,tm,100,rand_hit,0.4011,0.3460,0.4533
-enzymes,"measured WT, plateau sd",18,spurs,1,hit_rate,0.3889,0.2222,0.6111
+enzymes,"measured WT, plateau sd",18,spurs,1,hit_rate,0.4444,0.2222,0.6667
 enzymes,"measured WT, plateau sd",18,spurs,1,rand_hit,0.4011,0.3578,0.4716
-enzymes,"measured WT, plateau sd",18,spurs,10,hit_rate,0.3000,0.2386,0.3696
+enzymes,"measured WT, plateau sd",18,spurs,10,hit_rate,0.3167,0.2389,0.3918
 enzymes,"measured WT, plateau sd",18,spurs,10,rand_hit,0.4011,0.3495,0.4722
-enzymes,"measured WT, plateau sd",18,spurs,100,hit_rate,0.2767,0.2220,0.3432
+enzymes,"measured WT, plateau sd",18,spurs,100,hit_rate,0.2800,0.2242,0.3360
 enzymes,"measured WT, plateau sd",18,spurs,100,rand_hit,0.4011,0.3460,0.4533
 enzymes,old: plateau WT and plateau sd,18,msr,1,hit_rate,0.1667,0.0000,0.3361
 enzymes,old: plateau WT and plateau sd,18,msr,1,rand_hit,0.3507,0.2862,0.3995
@@ -329,11 +329,11 @@ enzymes,old: plateau WT and plateau sd,18,tm,10,hit_rate,0.3222,0.2415,0.3889
 enzymes,old: plateau WT and plateau sd,18,tm,10,rand_hit,0.3507,0.2929,0.4066
 enzymes,old: plateau WT and plateau sd,18,tm,100,hit_rate,0.2617,0.2048,0.3095
 enzymes,old: plateau WT and plateau sd,18,tm,100,rand_hit,0.3507,0.2916,0.4002
-enzymes,old: plateau WT and plateau sd,18,spurs,1,hit_rate,0.3889,0.2222,0.6111
+enzymes,old: plateau WT and plateau sd,18,spurs,1,hit_rate,0.4444,0.2222,0.6667
 enzymes,old: plateau WT and plateau sd,18,spurs,1,rand_hit,0.3507,0.2862,0.3995
-enzymes,old: plateau WT and plateau sd,18,spurs,10,hit_rate,0.2889,0.2249,0.3474
+enzymes,old: plateau WT and plateau sd,18,spurs,10,hit_rate,0.2889,0.1944,0.3669
 enzymes,old: plateau WT and plateau sd,18,spurs,10,rand_hit,0.3507,0.2929,0.4066
-enzymes,old: plateau WT and plateau sd,18,spurs,100,hit_rate,0.2333,0.1805,0.2820
+enzymes,old: plateau WT and plateau sd,18,spurs,100,hit_rate,0.2311,0.1807,0.2725
 enzymes,old: plateau WT and plateau sd,18,spurs,100,rand_hit,0.3507,0.2916,0.4002
 all,sd: 0.5 assay SD (the definition of the figures),43,msr,1,hit_rate,0.3488,0.2081,0.4884
 all,sd: 0.5 assay SD (the definition of the figures),43,msr,1,rand_hit,0.4598,0.4169,0.4958
@@ -353,11 +353,11 @@ all,sd: 0.5 assay SD (the definition of the figures),43,tm,10,hit_rate,0.4209,0.
 all,sd: 0.5 assay SD (the definition of the figures),43,tm,10,rand_hit,0.4598,0.4129,0.4940
 all,sd: 0.5 assay SD (the definition of the figures),43,tm,100,hit_rate,0.3660,0.3225,0.4077
 all,sd: 0.5 assay SD (the definition of the figures),43,tm,100,rand_hit,0.4598,0.4113,0.5060
-all,sd: 0.5 assay SD (the definition of the figures),43,spurs,1,hit_rate,0.4186,0.2901,0.5581
+all,sd: 0.5 assay SD (the definition of the figures),43,spurs,1,hit_rate,0.5116,0.4064,0.6634
 all,sd: 0.5 assay SD (the definition of the figures),43,spurs,1,rand_hit,0.4598,0.4169,0.4958
-all,sd: 0.5 assay SD (the definition of the figures),43,spurs,10,hit_rate,0.3581,0.3022,0.4082
+all,sd: 0.5 assay SD (the definition of the figures),43,spurs,10,hit_rate,0.3628,0.3022,0.4154
 all,sd: 0.5 assay SD (the definition of the figures),43,spurs,10,rand_hit,0.4598,0.4129,0.4940
-all,sd: 0.5 assay SD (the definition of the figures),43,spurs,100,hit_rate,0.3387,0.2993,0.3755
+all,sd: 0.5 assay SD (the definition of the figures),43,spurs,100,hit_rate,0.3415,0.3012,0.3855
 all,sd: 0.5 assay SD (the definition of the figures),43,spurs,100,rand_hit,0.4598,0.4113,0.5060
 all,floor: lost > 5% of the way to the floor,17,msr,1,hit_rate,0.4706,0.2353,0.7059
 all,floor: lost > 5% of the way to the floor,17,msr,1,rand_hit,0.6017,0.5264,0.6679
@@ -377,11 +377,11 @@ all,floor: lost > 5% of the way to the floor,17,tm,10,hit_rate,0.5824,0.4557,0.6
 all,floor: lost > 5% of the way to the floor,17,tm,10,rand_hit,0.6017,0.5290,0.6770
 all,floor: lost > 5% of the way to the floor,17,tm,100,hit_rate,0.4794,0.4070,0.5622
 all,floor: lost > 5% of the way to the floor,17,tm,100,rand_hit,0.6017,0.5524,0.6824
-all,floor: lost > 5% of the way to the floor,17,spurs,1,hit_rate,0.5294,0.2632,0.7647
+all,floor: lost > 5% of the way to the floor,17,spurs,1,hit_rate,0.6471,0.4118,0.8544
 all,floor: lost > 5% of the way to the floor,17,spurs,1,rand_hit,0.6017,0.5264,0.6679
-all,floor: lost > 5% of the way to the floor,17,spurs,10,hit_rate,0.5529,0.4647,0.6325
+all,floor: lost > 5% of the way to the floor,17,spurs,10,hit_rate,0.5294,0.4291,0.6031
 all,floor: lost > 5% of the way to the floor,17,spurs,10,rand_hit,0.6017,0.5290,0.6770
-all,floor: lost > 5% of the way to the floor,17,spurs,100,hit_rate,0.4682,0.4011,0.5524
+all,floor: lost > 5% of the way to the floor,17,spurs,100,hit_rate,0.4688,0.3996,0.5575
 all,floor: lost > 5% of the way to the floor,17,spurs,100,rand_hit,0.6017,0.5524,0.6824
 all,floor: lost > 10% of the way,17,msr,1,hit_rate,0.4118,0.1765,0.6471
 all,floor: lost > 10% of the way,17,msr,1,rand_hit,0.5452,0.4686,0.6123
@@ -401,11 +401,11 @@ all,floor: lost > 10% of the way,17,tm,10,hit_rate,0.5118,0.3669,0.6353
 all,floor: lost > 10% of the way,17,tm,10,rand_hit,0.5452,0.4757,0.6215
 all,floor: lost > 10% of the way,17,tm,100,hit_rate,0.4253,0.3653,0.5115
 all,floor: lost > 10% of the way,17,tm,100,rand_hit,0.5452,0.4927,0.6390
-all,floor: lost > 10% of the way,17,spurs,1,hit_rate,0.5294,0.2632,0.7647
+all,floor: lost > 10% of the way,17,spurs,1,hit_rate,0.5882,0.3529,0.7956
 all,floor: lost > 10% of the way,17,spurs,1,rand_hit,0.5452,0.4686,0.6123
-all,floor: lost > 10% of the way,17,spurs,10,hit_rate,0.5118,0.4115,0.5885
+all,floor: lost > 10% of the way,17,spurs,10,hit_rate,0.4882,0.3734,0.5706
 all,floor: lost > 10% of the way,17,spurs,10,rand_hit,0.5452,0.4757,0.6215
-all,floor: lost > 10% of the way,17,spurs,100,hit_rate,0.4059,0.3418,0.5063
+all,floor: lost > 10% of the way,17,spurs,100,hit_rate,0.4106,0.3381,0.5121
 all,floor: lost > 10% of the way,17,spurs,100,rand_hit,0.5452,0.4927,0.6390
 all,"floor: lost > 5%, floors with window >= 3 only",9,msr,1,hit_rate,0.7778,0.4444,1.0000
 all,"floor: lost > 5%, floors with window >= 3 only",9,msr,1,rand_hit,0.6876,0.5819,0.7814
@@ -425,11 +425,11 @@ all,"floor: lost > 5%, floors with window >= 3 only",9,tm,10,hit_rate,0.6111,0.5
 all,"floor: lost > 5%, floors with window >= 3 only",9,tm,10,rand_hit,0.6876,0.5919,0.8022
 all,"floor: lost > 5%, floors with window >= 3 only",9,tm,100,hit_rate,0.5644,0.4876,0.6872
 all,"floor: lost > 5%, floors with window >= 3 only",9,tm,100,rand_hit,0.6876,0.6118,0.7866
-all,"floor: lost > 5%, floors with window >= 3 only",9,spurs,1,hit_rate,0.6667,0.3333,0.8889
+all,"floor: lost > 5%, floors with window >= 3 only",9,spurs,1,hit_rate,0.6667,0.3333,1.0000
 all,"floor: lost > 5%, floors with window >= 3 only",9,spurs,1,rand_hit,0.6876,0.5819,0.7814
-all,"floor: lost > 5%, floors with window >= 3 only",9,spurs,10,hit_rate,0.5556,0.4275,0.6614
+all,"floor: lost > 5%, floors with window >= 3 only",9,spurs,10,hit_rate,0.5444,0.4497,0.6333
 all,"floor: lost > 5%, floors with window >= 3 only",9,spurs,10,rand_hit,0.6876,0.5919,0.8022
-all,"floor: lost > 5%, floors with window >= 3 only",9,spurs,100,hit_rate,0.5522,0.4548,0.6901
+all,"floor: lost > 5%, floors with window >= 3 only",9,spurs,100,hit_rate,0.5544,0.4616,0.6864
 all,"floor: lost > 5%, floors with window >= 3 only",9,spurs,100,rand_hit,0.6876,0.6118,0.7866
 all,variance: sd^2 = 5% of the assay variance,43,msr,1,hit_rate,0.3488,0.2081,0.4884
 all,variance: sd^2 = 5% of the assay variance,43,msr,1,rand_hit,0.4772,0.4328,0.5128
@@ -449,11 +449,11 @@ all,variance: sd^2 = 5% of the assay variance,43,tm,10,hit_rate,0.4279,0.3523,0.
 all,variance: sd^2 = 5% of the assay variance,43,tm,10,rand_hit,0.4772,0.4295,0.5127
 all,variance: sd^2 = 5% of the assay variance,43,tm,100,hit_rate,0.3827,0.3406,0.4248
 all,variance: sd^2 = 5% of the assay variance,43,tm,100,rand_hit,0.4772,0.4291,0.5229
-all,variance: sd^2 = 5% of the assay variance,43,spurs,1,hit_rate,0.4419,0.3023,0.5936
+all,variance: sd^2 = 5% of the assay variance,43,spurs,1,hit_rate,0.5581,0.4297,0.6744
 all,variance: sd^2 = 5% of the assay variance,43,spurs,1,rand_hit,0.4772,0.4328,0.5128
-all,variance: sd^2 = 5% of the assay variance,43,spurs,10,hit_rate,0.3698,0.3140,0.4222
+all,variance: sd^2 = 5% of the assay variance,43,spurs,10,hit_rate,0.3721,0.3127,0.4248
 all,variance: sd^2 = 5% of the assay variance,43,spurs,10,rand_hit,0.4772,0.4295,0.5127
-all,variance: sd^2 = 5% of the assay variance,43,spurs,100,hit_rate,0.3543,0.3185,0.3890
+all,variance: sd^2 = 5% of the assay variance,43,spurs,100,hit_rate,0.3564,0.3172,0.3988
 all,variance: sd^2 = 5% of the assay variance,43,spurs,100,rand_hit,0.4772,0.4291,0.5229
 all,variance: sd^2 = 10% of the assay variance,43,msr,1,hit_rate,0.3488,0.2081,0.4884
 all,variance: sd^2 = 10% of the assay variance,43,msr,1,rand_hit,0.4179,0.3748,0.4537
@@ -473,11 +473,11 @@ all,variance: sd^2 = 10% of the assay variance,43,tm,10,hit_rate,0.3907,0.3278,0
 all,variance: sd^2 = 10% of the assay variance,43,tm,10,rand_hit,0.4179,0.3724,0.4462
 all,variance: sd^2 = 10% of the assay variance,43,tm,100,hit_rate,0.3272,0.2909,0.3730
 all,variance: sd^2 = 10% of the assay variance,43,tm,100,rand_hit,0.4179,0.3711,0.4628
-all,variance: sd^2 = 10% of the assay variance,43,spurs,1,hit_rate,0.3488,0.2326,0.5116
+all,variance: sd^2 = 10% of the assay variance,43,spurs,1,hit_rate,0.4651,0.3599,0.6169
 all,variance: sd^2 = 10% of the assay variance,43,spurs,1,rand_hit,0.4179,0.3748,0.4537
-all,variance: sd^2 = 10% of the assay variance,43,spurs,10,hit_rate,0.3279,0.2744,0.3687
+all,variance: sd^2 = 10% of the assay variance,43,spurs,10,hit_rate,0.3326,0.2755,0.3747
 all,variance: sd^2 = 10% of the assay variance,43,spurs,10,rand_hit,0.4179,0.3724,0.4462
-all,variance: sd^2 = 10% of the assay variance,43,spurs,100,hit_rate,0.3026,0.2642,0.3429
+all,variance: sd^2 = 10% of the assay variance,43,spurs,100,hit_rate,0.3063,0.2673,0.3470
 all,variance: sd^2 = 10% of the assay variance,43,spurs,100,rand_hit,0.4179,0.3711,0.4628
 all,ladder: sd from paper / replicates / plateau,43,msr,1,hit_rate,0.3488,0.1971,0.5006
 all,ladder: sd from paper / replicates / plateau,43,msr,1,rand_hit,0.3987,0.3441,0.4342
@@ -497,11 +497,11 @@ all,ladder: sd from paper / replicates / plateau,43,tm,10,hit_rate,0.3535,0.2802
 all,ladder: sd from paper / replicates / plateau,43,tm,10,rand_hit,0.3987,0.3402,0.4308
 all,ladder: sd from paper / replicates / plateau,43,tm,100,hit_rate,0.3085,0.2701,0.3530
 all,ladder: sd from paper / replicates / plateau,43,tm,100,rand_hit,0.3987,0.3510,0.4395
-all,ladder: sd from paper / replicates / plateau,43,spurs,1,hit_rate,0.3488,0.2326,0.5116
+all,ladder: sd from paper / replicates / plateau,43,spurs,1,hit_rate,0.4186,0.2791,0.5703
 all,ladder: sd from paper / replicates / plateau,43,spurs,1,rand_hit,0.3987,0.3441,0.4342
-all,ladder: sd from paper / replicates / plateau,43,spurs,10,hit_rate,0.2977,0.2326,0.3395
+all,ladder: sd from paper / replicates / plateau,43,spurs,10,hit_rate,0.3140,0.2523,0.3652
 all,ladder: sd from paper / replicates / plateau,43,spurs,10,rand_hit,0.3987,0.3402,0.4308
-all,ladder: sd from paper / replicates / plateau,43,spurs,100,hit_rate,0.2837,0.2451,0.3222
+all,ladder: sd from paper / replicates / plateau,43,spurs,100,hit_rate,0.2827,0.2442,0.3194
 all,ladder: sd from paper / replicates / plateau,43,spurs,100,rand_hit,0.3987,0.3510,0.4395
 all,same assays as the floor definition: 0.5 assay SD,17,msr,1,hit_rate,0.4118,0.1765,0.6471
 all,same assays as the floor definition: 0.5 assay SD,17,msr,1,rand_hit,0.4237,0.3467,0.4985
@@ -521,11 +521,11 @@ all,same assays as the floor definition: 0.5 assay SD,17,tm,10,hit_rate,0.3882,0
 all,same assays as the floor definition: 0.5 assay SD,17,tm,10,rand_hit,0.4237,0.3627,0.5053
 all,same assays as the floor definition: 0.5 assay SD,17,tm,100,hit_rate,0.3118,0.2608,0.4023
 all,same assays as the floor definition: 0.5 assay SD,17,tm,100,rand_hit,0.4237,0.3701,0.5177
-all,same assays as the floor definition: 0.5 assay SD,17,spurs,1,hit_rate,0.4118,0.1765,0.5882
+all,same assays as the floor definition: 0.5 assay SD,17,spurs,1,hit_rate,0.4118,0.1765,0.6191
 all,same assays as the floor definition: 0.5 assay SD,17,spurs,1,rand_hit,0.4237,0.3467,0.4985
-all,same assays as the floor definition: 0.5 assay SD,17,spurs,10,hit_rate,0.3647,0.2851,0.4474
+all,same assays as the floor definition: 0.5 assay SD,17,spurs,10,hit_rate,0.3529,0.2647,0.4294
 all,same assays as the floor definition: 0.5 assay SD,17,spurs,10,rand_hit,0.4237,0.3627,0.5053
-all,same assays as the floor definition: 0.5 assay SD,17,spurs,100,hit_rate,0.2924,0.2346,0.3861
+all,same assays as the floor definition: 0.5 assay SD,17,spurs,100,hit_rate,0.3000,0.2411,0.3939
 all,same assays as the floor definition: 0.5 assay SD,17,spurs,100,rand_hit,0.4237,0.3701,0.5177
 all,same assays as the floor definition: variance 5%,17,msr,1,hit_rate,0.4118,0.1765,0.6471
 all,same assays as the floor definition: variance 5%,17,msr,1,rand_hit,0.4396,0.3620,0.5121
@@ -545,11 +545,11 @@ all,same assays as the floor definition: variance 5%,17,tm,10,hit_rate,0.3941,0.
 all,same assays as the floor definition: variance 5%,17,tm,10,rand_hit,0.4396,0.3804,0.5207
 all,same assays as the floor definition: variance 5%,17,tm,100,hit_rate,0.3265,0.2770,0.4121
 all,same assays as the floor definition: variance 5%,17,tm,100,rand_hit,0.4396,0.3872,0.5327
-all,same assays as the floor definition: variance 5%,17,spurs,1,hit_rate,0.4706,0.2353,0.7059
+all,same assays as the floor definition: variance 5%,17,spurs,1,hit_rate,0.4706,0.2353,0.6779
 all,same assays as the floor definition: variance 5%,17,spurs,1,rand_hit,0.4396,0.3620,0.5121
-all,same assays as the floor definition: variance 5%,17,spurs,10,hit_rate,0.3824,0.3028,0.4591
+all,same assays as the floor definition: variance 5%,17,spurs,10,hit_rate,0.3647,0.2765,0.4325
 all,same assays as the floor definition: variance 5%,17,spurs,10,rand_hit,0.4396,0.3804,0.5207
-all,same assays as the floor definition: variance 5%,17,spurs,100,hit_rate,0.3029,0.2473,0.3944
+all,same assays as the floor definition: variance 5%,17,spurs,100,hit_rate,0.3088,0.2514,0.4031
 all,same assays as the floor definition: variance 5%,17,spurs,100,rand_hit,0.4396,0.3872,0.5327
 all,same assays as the floor definition: ladder,17,msr,1,hit_rate,0.4118,0.1765,0.6471
 all,same assays as the floor definition: ladder,17,msr,1,rand_hit,0.3682,0.2882,0.4289
@@ -569,11 +569,11 @@ all,same assays as the floor definition: ladder,17,tm,10,hit_rate,0.3529,0.2294,
 all,same assays as the floor definition: ladder,17,tm,10,rand_hit,0.3682,0.3027,0.4488
 all,same assays as the floor definition: ladder,17,tm,100,hit_rate,0.2559,0.1890,0.3279
 all,same assays as the floor definition: ladder,17,tm,100,rand_hit,0.3682,0.3008,0.4514
-all,same assays as the floor definition: ladder,17,spurs,1,hit_rate,0.4118,0.1765,0.5882
+all,same assays as the floor definition: ladder,17,spurs,1,hit_rate,0.4118,0.1765,0.6191
 all,same assays as the floor definition: ladder,17,spurs,1,rand_hit,0.3682,0.2882,0.4289
-all,same assays as the floor definition: ladder,17,spurs,10,hit_rate,0.3118,0.2235,0.3854
+all,same assays as the floor definition: ladder,17,spurs,10,hit_rate,0.3118,0.2174,0.3944
 all,same assays as the floor definition: ladder,17,spurs,10,rand_hit,0.3682,0.3027,0.4488
-all,same assays as the floor definition: ladder,17,spurs,100,hit_rate,0.2435,0.1872,0.3187
+all,same assays as the floor definition: ladder,17,spurs,100,hit_rate,0.2518,0.1906,0.3287
 all,same assays as the floor definition: ladder,17,spurs,100,rand_hit,0.3682,0.3008,0.4514
 all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,msr,1,hit_rate,0.6667,0.3333,0.8889
 all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,msr,1,rand_hit,0.5300,0.4211,0.6543
@@ -593,11 +593,11 @@ all,"same assays as the floor definition: variance 5%, floors with window >= 3",
 all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,tm,10,rand_hit,0.5300,0.4310,0.6610
 all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,tm,100,hit_rate,0.4044,0.3143,0.5231
 all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,tm,100,rand_hit,0.5300,0.4396,0.6481
-all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,spurs,1,hit_rate,0.5556,0.2222,0.8889
+all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,spurs,1,hit_rate,0.4444,0.1639,0.7778
 all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,spurs,1,rand_hit,0.5300,0.4211,0.6543
-all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,spurs,10,hit_rate,0.4000,0.2889,0.5000
+all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,spurs,10,hit_rate,0.4000,0.3275,0.4889
 all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,spurs,10,rand_hit,0.5300,0.4310,0.6610
-all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,spurs,100,hit_rate,0.3789,0.2753,0.5143
+all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,spurs,100,hit_rate,0.3889,0.2867,0.5198
 all,"same assays as the floor definition: variance 5%, floors with window >= 3",9,spurs,100,rand_hit,0.5300,0.4396,0.6481
 all,"same assays as the floor definition: ladder, floors with window >= 3",9,msr,1,hit_rate,0.6667,0.3333,0.8889
 all,"same assays as the floor definition: ladder, floors with window >= 3",9,msr,1,rand_hit,0.4609,0.3731,0.5433
@@ -617,11 +617,11 @@ all,"same assays as the floor definition: ladder, floors with window >= 3",9,tm,
 all,"same assays as the floor definition: ladder, floors with window >= 3",9,tm,10,rand_hit,0.4609,0.3714,0.5426
 all,"same assays as the floor definition: ladder, floors with window >= 3",9,tm,100,hit_rate,0.3333,0.2459,0.4186
 all,"same assays as the floor definition: ladder, floors with window >= 3",9,tm,100,rand_hit,0.4609,0.3977,0.5389
-all,"same assays as the floor definition: ladder, floors with window >= 3",9,spurs,1,hit_rate,0.5556,0.2222,0.8889
+all,"same assays as the floor definition: ladder, floors with window >= 3",9,spurs,1,hit_rate,0.3333,0.1111,0.6139
 all,"same assays as the floor definition: ladder, floors with window >= 3",9,spurs,1,rand_hit,0.4609,0.3731,0.5433
-all,"same assays as the floor definition: ladder, floors with window >= 3",9,spurs,10,hit_rate,0.3556,0.2667,0.4281
+all,"same assays as the floor definition: ladder, floors with window >= 3",9,spurs,10,hit_rate,0.3556,0.2719,0.4444
 all,"same assays as the floor definition: ladder, floors with window >= 3",9,spurs,10,rand_hit,0.4609,0.3714,0.5426
-all,"same assays as the floor definition: ladder, floors with window >= 3",9,spurs,100,hit_rate,0.3133,0.2427,0.3978
+all,"same assays as the floor definition: ladder, floors with window >= 3",9,spurs,100,hit_rate,0.3200,0.2464,0.4134
 all,"same assays as the floor definition: ladder, floors with window >= 3",9,spurs,100,rand_hit,0.4609,0.3977,0.5389
 all,"ladder, plateau-proxy assays dropped",36,msr,1,hit_rate,0.3889,0.2222,0.5556
 all,"ladder, plateau-proxy assays dropped",36,msr,1,rand_hit,0.4171,0.3684,0.4732
@@ -641,11 +641,11 @@ all,"ladder, plateau-proxy assays dropped",36,tm,10,hit_rate,0.3833,0.3152,0.440
 all,"ladder, plateau-proxy assays dropped",36,tm,10,rand_hit,0.4171,0.3697,0.4687
 all,"ladder, plateau-proxy assays dropped",36,tm,100,hit_rate,0.3285,0.2723,0.3829
 all,"ladder, plateau-proxy assays dropped",36,tm,100,rand_hit,0.4171,0.3645,0.4680
-all,"ladder, plateau-proxy assays dropped",36,spurs,1,hit_rate,0.4167,0.2632,0.5701
+all,"ladder, plateau-proxy assays dropped",36,spurs,1,hit_rate,0.5000,0.3611,0.6812
 all,"ladder, plateau-proxy assays dropped",36,spurs,1,rand_hit,0.4171,0.3684,0.4732
-all,"ladder, plateau-proxy assays dropped",36,spurs,10,hit_rate,0.3194,0.2680,0.3865
+all,"ladder, plateau-proxy assays dropped",36,spurs,10,hit_rate,0.3389,0.2750,0.4083
 all,"ladder, plateau-proxy assays dropped",36,spurs,10,rand_hit,0.4171,0.3697,0.4687
-all,"ladder, plateau-proxy assays dropped",36,spurs,100,hit_rate,0.2996,0.2477,0.3495
+all,"ladder, plateau-proxy assays dropped",36,spurs,100,hit_rate,0.2977,0.2502,0.3467
 all,"ladder, plateau-proxy assays dropped",36,spurs,100,rand_hit,0.4171,0.3645,0.4680
 all,"0.5 assay SD, plateau-proxy assays dropped",36,msr,1,hit_rate,0.3889,0.2500,0.5556
 all,"0.5 assay SD, plateau-proxy assays dropped",36,msr,1,rand_hit,0.4619,0.4135,0.5156
@@ -665,11 +665,11 @@ all,"0.5 assay SD, plateau-proxy assays dropped",36,tm,10,hit_rate,0.4417,0.3652
 all,"0.5 assay SD, plateau-proxy assays dropped",36,tm,10,rand_hit,0.4619,0.4134,0.5205
 all,"0.5 assay SD, plateau-proxy assays dropped",36,tm,100,hit_rate,0.3699,0.3094,0.4227
 all,"0.5 assay SD, plateau-proxy assays dropped",36,tm,100,rand_hit,0.4619,0.4063,0.5125
-all,"0.5 assay SD, plateau-proxy assays dropped",36,spurs,1,hit_rate,0.4444,0.3056,0.5979
+all,"0.5 assay SD, plateau-proxy assays dropped",36,spurs,1,hit_rate,0.5278,0.3889,0.6667
 all,"0.5 assay SD, plateau-proxy assays dropped",36,spurs,1,rand_hit,0.4619,0.4135,0.5156
-all,"0.5 assay SD, plateau-proxy assays dropped",36,spurs,10,hit_rate,0.3694,0.3082,0.4377
+all,"0.5 assay SD, plateau-proxy assays dropped",36,spurs,10,hit_rate,0.3750,0.3124,0.4376
 all,"0.5 assay SD, plateau-proxy assays dropped",36,spurs,10,rand_hit,0.4619,0.4134,0.5205
-all,"0.5 assay SD, plateau-proxy assays dropped",36,spurs,100,hit_rate,0.3402,0.2742,0.3912
+all,"0.5 assay SD, plateau-proxy assays dropped",36,spurs,100,hit_rate,0.3421,0.2815,0.3920
 all,"0.5 assay SD, plateau-proxy assays dropped",36,spurs,100,rand_hit,0.4619,0.4063,0.5125
 all,"variance 5%, plateau-proxy assays dropped",36,msr,1,hit_rate,0.3889,0.2500,0.5556
 all,"variance 5%, plateau-proxy assays dropped",36,msr,1,rand_hit,0.4788,0.4311,0.5316
@@ -689,11 +689,11 @@ all,"variance 5%, plateau-proxy assays dropped",36,tm,10,hit_rate,0.4500,0.3693,
 all,"variance 5%, plateau-proxy assays dropped",36,tm,10,rand_hit,0.4788,0.4308,0.5395
 all,"variance 5%, plateau-proxy assays dropped",36,tm,100,hit_rate,0.3854,0.3256,0.4376
 all,"variance 5%, plateau-proxy assays dropped",36,tm,100,rand_hit,0.4788,0.4229,0.5275
-all,"variance 5%, plateau-proxy assays dropped",36,spurs,1,hit_rate,0.4722,0.3188,0.6257
+all,"variance 5%, plateau-proxy assays dropped",36,spurs,1,hit_rate,0.5833,0.4722,0.6944
 all,"variance 5%, plateau-proxy assays dropped",36,spurs,1,rand_hit,0.4788,0.4311,0.5316
-all,"variance 5%, plateau-proxy assays dropped",36,spurs,10,hit_rate,0.3806,0.3278,0.4476
+all,"variance 5%, plateau-proxy assays dropped",36,spurs,10,hit_rate,0.3833,0.3291,0.4474
 all,"variance 5%, plateau-proxy assays dropped",36,spurs,10,rand_hit,0.4788,0.4308,0.5395
-all,"variance 5%, plateau-proxy assays dropped",36,spurs,100,hit_rate,0.3527,0.2878,0.4041
+all,"variance 5%, plateau-proxy assays dropped",36,spurs,100,hit_rate,0.3543,0.2932,0.4054
 all,"variance 5%, plateau-proxy assays dropped",36,spurs,100,rand_hit,0.4788,0.4229,0.5275
 all,"measured WT, plateau sd",43,msr,1,hit_rate,0.3023,0.1860,0.4186
 all,"measured WT, plateau sd",43,msr,1,rand_hit,0.3914,0.3463,0.4274
@@ -713,11 +713,11 @@ all,"measured WT, plateau sd",43,tm,10,hit_rate,0.3535,0.2918,0.4047
 all,"measured WT, plateau sd",43,tm,10,rand_hit,0.3914,0.3455,0.4253
 all,"measured WT, plateau sd",43,tm,100,hit_rate,0.2997,0.2623,0.3397
 all,"measured WT, plateau sd",43,tm,100,rand_hit,0.3914,0.3535,0.4248
-all,"measured WT, plateau sd",43,spurs,1,hit_rate,0.3488,0.2326,0.5116
+all,"measured WT, plateau sd",43,spurs,1,hit_rate,0.4419,0.3023,0.5826
 all,"measured WT, plateau sd",43,spurs,1,rand_hit,0.3914,0.3463,0.4274
-all,"measured WT, plateau sd",43,spurs,10,hit_rate,0.2977,0.2372,0.3419
+all,"measured WT, plateau sd",43,spurs,10,hit_rate,0.3093,0.2475,0.3562
 all,"measured WT, plateau sd",43,spurs,10,rand_hit,0.3914,0.3455,0.4253
-all,"measured WT, plateau sd",43,spurs,100,hit_rate,0.2760,0.2373,0.3102
+all,"measured WT, plateau sd",43,spurs,100,hit_rate,0.2769,0.2373,0.3091
 all,"measured WT, plateau sd",43,spurs,100,rand_hit,0.3914,0.3535,0.4248
 all,old: plateau WT and plateau sd,43,msr,1,hit_rate,0.2558,0.1384,0.3610
 all,old: plateau WT and plateau sd,43,msr,1,rand_hit,0.3579,0.3228,0.3930
@@ -737,9 +737,9 @@ all,old: plateau WT and plateau sd,43,tm,10,hit_rate,0.3395,0.2719,0.3978
 all,old: plateau WT and plateau sd,43,tm,10,rand_hit,0.3579,0.3214,0.3897
 all,old: plateau WT and plateau sd,43,tm,100,hit_rate,0.2632,0.2336,0.2971
 all,old: plateau WT and plateau sd,43,tm,100,rand_hit,0.3579,0.3260,0.3874
-all,old: plateau WT and plateau sd,43,spurs,1,hit_rate,0.3256,0.2093,0.4895
+all,old: plateau WT and plateau sd,43,spurs,1,hit_rate,0.3953,0.2436,0.5116
 all,old: plateau WT and plateau sd,43,spurs,1,rand_hit,0.3579,0.3228,0.3930
-all,old: plateau WT and plateau sd,43,spurs,10,hit_rate,0.2907,0.2393,0.3362
+all,old: plateau WT and plateau sd,43,spurs,10,hit_rate,0.2953,0.2395,0.3480
 all,old: plateau WT and plateau sd,43,spurs,10,rand_hit,0.3579,0.3214,0.3897
-all,old: plateau WT and plateau sd,43,spurs,100,hit_rate,0.2421,0.2095,0.2761
+all,old: plateau WT and plateau sd,43,spurs,100,hit_rate,0.2412,0.2098,0.2737
 all,old: plateau WT and plateau sd,43,spurs,100,rand_hit,0.3579,0.3260,0.3874

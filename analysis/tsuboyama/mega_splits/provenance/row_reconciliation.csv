@@ -1,0 +1,4 @@
+split,upstream_rows,upstream_singles,upstream_doubles,our_rows,our_singles,our_doubles,our_mutant_backbone_rows
+train,341242,215731,125511,328549.0,219269.0,109280.0,3538.0
+val,38787,27328,11459,37610.0,27328.0,10282.0,0.0
+test,50253,28172,22081,49048.0,30474.0,18574.0,2302.0

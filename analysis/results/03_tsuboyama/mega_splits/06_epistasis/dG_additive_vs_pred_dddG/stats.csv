@@ -1,0 +1,5 @@
+model,n,n_seeds,spearman,pearson,spearman_dG_add_gt0,pearson_dG_add_gt0
+ESM-MSR,16923,3,-0.2602,-0.3056,-0.0262,-0.0716
+MutateEverything st2,16923,3,-0.5200,-0.5348,-0.2296,-0.2352
+ThermoMPNN-D,16923,3,-0.3259,-0.3374,-0.1921,-0.1912
+SPURS multi,16923,3,-0.5500,-0.5558,-0.3634,-0.3222

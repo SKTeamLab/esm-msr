@@ -55,9 +55,9 @@ class _Out:
 
 OUT = _Out()
 DS = 'tsuboyama_capped_test'
-B = 200                                   # draft sizes; the figures of the paper want --B 2000 --B_mut 1000 --B_pooled 1000
-B_MUT = 100
-POOLED_B = 200
+B = 100                                   # draft sizes; the figures of the paper want --B 2000 --B_mut 1000 --B_pooled 1000
+B_MUT = 50
+POOLED_B = 100
 MIN_N = 10
 K = 96
 
@@ -190,6 +190,8 @@ def best_other(fr):
     sp = fr.spine
     single = sp['use'].to_numpy() & (sp['n_mut'] == 1).to_numpy()
     sc = {k: _mean_val(per_library(fr, k, single, rho, MIN_N)) for k in BEST_LABEL if k in fr.preds}
+    if not sc:
+        return None, sc          # no published supervised model on this split (mega_splits)
     best = max(sc, key=sc.get)
     pd.Series(sc, name='mean per-library singles rho').rename_axis('model').to_csv(OUT / 'best_other_ddg_model.csv', float_format='%.4f')
     return best, sc

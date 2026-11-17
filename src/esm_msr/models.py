@@ -42,6 +42,10 @@ class ESM3PredictorBase(nn.Module):
             raise AssertionError("Failed to map some canonical amino acids to tokenizer vocabulary.")
             
         self.register_buffer('canonical_idx_tensor', torch.tensor(self.canonical_aa_token_ids, dtype=torch.long))
+        # token id -> position in valid_canonical_aas (-1 elsewhere), for the substitution calibration table; not part of any checkpoint
+        tok2can = torch.full((max(self.vocab.values()) + 1,), -1, dtype=torch.long)
+        tok2can[torch.tensor(self.canonical_aa_token_ids)] = torch.arange(len(self.canonical_aa_token_ids))
+        self.register_buffer('token_to_canonical', tok2can, persistent=False)
 
     def _get_esm3_outputs(self, sequence_tokens: torch.Tensor, structure_coords: Optional[torch.Tensor] = None, structure_tokens: Optional[torch.Tensor] = None, per_res_plddt: Optional[torch.Tensor] = None, active_model: Optional[nn.Module] = None):
         """Internal helper to run the underlying ESM model's forward pass."""
@@ -261,7 +265,7 @@ class MSRModel(ESM3PredictorBase):
             adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
             combined_mode: str = 'mean', per_mutation_bias: bool = True, tie_mt_scale: bool = False,
             native_cond_mt_input: bool = False, mask_native_cond_struct: bool = False,
-            fused_antisymmetric: bool = False, epistasis_weight: float = 0.5
+            fused_antisymmetric: bool = False, epistasis_weight: float = 0.5, substitution_calibration: bool = False
         ):
         if (combined_mode or 'mean') != 'mean':
             raise AssertionError(f"combined_mode {combined_mode!r} was removed: the reported prediction is the mean of the two heads.")
@@ -297,6 +301,17 @@ class MSRModel(ESM3PredictorBase):
                     self.calibration_head_mt.scale_ref = _ScaleSource(self.calibration_head_wt)
                     self.calibration_head_mt.raw_scale.requires_grad_(False)
         
+        # 1b. Substitution calibration: one learned from-residue x to-residue offset per head, in raw-LLR units (so the head's scale applies to it), zero at the start, so the model
+        # begins as the plain model. It is added to every per-mutation LLR the head reads (forward_site_llr, forward_partitioned, forward_cycle), which is every place the
+        # calibration head's input is formed. The names start with ``calibration_head_`` so the optimizer groups, checkpoints and loaders treat them as calibration parameters.
+        self.substitution_calibration = bool(substitution_calibration)
+        if self.substitution_calibration:
+            if self.adapter_mode != 'dual':
+                raise AssertionError("substitution_calibration needs the dual adapter model.")
+            self.calibration_head_wt_sub = nn.Parameter(torch.zeros(20, 20), requires_grad=not inference_mode)
+            self.calibration_head_mt_sub = nn.Parameter(torch.zeros(20, 20), requires_grad=not inference_mode)
+            self.register_buffer('_sub_offdiag', 1.0 - torch.eye(20), persistent=False)
+
         # 2. Add LoRAs using config
         logging.info(f"Injecting Adapters (Mode: {self.adapter_mode.upper()} | Strategy: {self.lora_mode.upper()})...")
         self.lora_config = lora_config
@@ -713,6 +728,21 @@ class MSRModel(ESM3PredictorBase):
         """The MT pass's input: native_cond rows get the WT pass's sequence only in a --native_cond_for_mt model."""
         return native_cond_mt_batch(batch) if self.native_cond_mt_input else batch
 
+    def _sub_table(self, side: str):
+        """The head's substitution table ``[20, 20]`` (from, to) with a zero diagonal, or None when the model has none."""
+        if not getattr(self, 'substitution_calibration', False):
+            return None
+        return getattr(self, f'calibration_head_{side}_sub').float() * self._sub_offdiag
+
+    def _sub_llr(self, side: str, wt_tok: torch.Tensor, mt_tok: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        """The table's offset for each (from, to) token pair, 0 where ``mask`` is False or a token is not a canonical residue. Same shape as the tokens."""
+        T = self._sub_table(side)
+        if T is None:
+            return torch.zeros(wt_tok.shape, dtype=torch.float32, device=wt_tok.device)
+        f, t = self.token_to_canonical[wt_tok], self.token_to_canonical[mt_tok]
+        ok = mask & (f >= 0) & (t >= 0)
+        return torch.where(ok, T[f.clamp(min=0), t.clamp(min=0)], torch.zeros_like(T[0, 0]))
+
     def forward_site_llr(self, seqs: torch.Tensor, read_pos: torch.Tensor, wt_at_read: torch.Tensor, pass_type: str,
                          coords: Optional[torch.Tensor] = None, struct_tokens: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
@@ -739,7 +769,12 @@ class MSRModel(ESM3PredictorBase):
             out = self._get_esm3_outputs(seqs, one(coords), one(struct_tokens), None, active_model=active_model)
             logits = self._process_logits(out.sequence_logits.float())
             row = logits[torch.arange(R, device=seqs.device), read_pos]
-        return row[:, self.canonical_idx_tensor] - row.gather(1, wt_at_read.view(-1, 1))
+        llr = row[:, self.canonical_idx_tensor] - row.gather(1, wt_at_read.view(-1, 1))
+        T = self._sub_table(pass_type)
+        if T is not None:                       # the wild-type column stays exactly 0: the table's diagonal is zero
+            f = self.token_to_canonical[wt_at_read]
+            llr = llr + torch.where((f >= 0).unsqueeze(1), T[f.clamp(min=0)], torch.zeros_like(T[0:1]))
+        return llr
 
     def forward_partitioned(self, batch: Dict[str, Any], pass_type: str, cached_wt_esm3: Optional[Dict[str, torch.Tensor]] = None, mask_strategy: Optional[str] = None) -> Dict[str, torch.Tensor]:
         if pass_type not in ['wt', 'mt']: raise AssertionError(f"pass_type must be 'wt' or 'mt'. Received: {pass_type}")
@@ -927,6 +962,7 @@ class MSRModel(ESM3PredictorBase):
                 unsummed_llr = -torch.where(mut_mask, wt_logits - mt_logits, torch.zeros_like(wt_logits))
 
         # --- Shared Post-Processing & Calibration ---
+        unsummed_llr = unsummed_llr + self._sub_llr(pass_type, safe_wt_id, safe_mt_id, mut_mask)
         llr_sum_raw = unsummed_llr.sum(dim=1)
         # Both the sum above and a per-mutation bias are per-position quantities, so the count comes from the
         # same mask that selected the positions.
@@ -1145,7 +1181,7 @@ class MSRModel(ESM3PredictorBase):
                     wt_logits_1L = self._process_logits(out_wt.sequence_logits.float())
                 wt_pass_mt = wt_logits_1L[0, safe_pos, safe_mt]
                 wt_pass_wt = wt_logits_1L[0, safe_pos, safe_wt]
-                unsummed_llr_wt = torch.where(mut_mask, wt_pass_mt - wt_pass_wt, torch.zeros_like(wt_pass_mt))
+                unsummed_llr_wt = torch.where(mut_mask, wt_pass_mt - wt_pass_wt, torch.zeros_like(wt_pass_mt)) + self._sub_llr('wt', safe_wt, safe_mt, mut_mask)
                 wt_cache = {}
             else:
                 wt_cache = compute_cache(wt_state_reqs, active_wt, label=f'wt-L{_L}')
@@ -1215,6 +1251,11 @@ class MSRModel(ESM3PredictorBase):
                             mt_pass_wt_logit = mt_cache[mt_tup][pos][w_id]
                             mt_pass_mt_logit = mt_cache[mt_tup][pos][m_id]
                             unsummed_llr_mt[b, i] = mt_pass_mt_logit - mt_pass_wt_logit
+            # The cached (masked) reads were assembled above from raw logits; the dense reads already carry the table (dense WT just above, dense MT inside forward_partitioned).
+            if mask_wt is not None:
+                unsummed_llr_wt = unsummed_llr_wt + self._sub_llr('wt', safe_wt, safe_mt, mut_mask)
+            if not skip_reverse and mask_mt is not None:
+                unsummed_llr_mt = unsummed_llr_mt + self._sub_llr('mt', safe_wt, safe_mt, mut_mask)
             if skip_reverse:
                 unsummed_llr_mt = unsummed_llr_wt.clone()
 

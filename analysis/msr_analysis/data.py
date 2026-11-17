@@ -15,9 +15,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .registry import (BASE, CACHE, MSR, P0, PUBLIC, RETRAINED, TASKS, PER_PROTEIN, DMS3, EXT12, TSU)
+from .registry import (BASE, ROOT, CACHE, MEGA_RAW, MSR, P0, PUBLIC, RETRAINED, TASKS, PER_PROTEIN, DMS3, EXT12, TSU, TSU_CAPPED, TSU_MEGA)
 
-TSU_SETS = set(TSU)
+TSU_SETS = set(TSU_CAPPED) | set(TSU_MEGA)
 
 SEEDS = (1, 2, 3)
 SPINE_COLS = ['id', 'row_id', 'code', 'group', 'truth', 'mut_type', 'ref_seq', 'cens', 'mut_structure', 'code_wt',
@@ -151,12 +151,14 @@ def _msr_dir(spec, seed, sigma):
     raise KeyError(spec)
 
 
-_P0_FOLDER = {'tsuboyama_capped_val': 'splits_oct06_capped-val', 'tsuboyama_capped_test': 'splits_oct06_capped-test', 'ptmul': 'PTMUL'}
+_P0_FOLDER = {'tsuboyama_capped_val': 'splits_oct06_capped-val', 'tsuboyama_capped_test': 'splits_oct06_capped-test', 'ptmul': 'PTMUL',
+              'tsuboyama_mega_val': 'mega_splits-val', 'tsuboyama_mega_test': 'mega_splits-test'}
 
 
 def _msr_file(spec, ds, seed, sigma):
     if spec == 'msrp0':
-        base = P0 / _P0_FOLDER.get(ds, ds) / 'final_checkpoints' / 'FINAL_p0' / f's{seed}'
+        fam = 'FINAL_p0_mega' if ds in TSU_MEGA else 'FINAL_p0'          # mega_splits: the FINAL_p0 recipe retrained on mega_splits
+        base = P0 / _P0_FOLDER.get(ds, ds) / 'final_checkpoints' / fam / f's{seed}'
         p = base / f'best.ckpt_sigma{float(sigma):.1f}_unmasked_predictions.csv'
         if not p.exists():
             p = base / f'best.ckpt_sigma{float(sigma):.1f}_skip_reverse_unmasked_predictions.csv'
@@ -169,7 +171,7 @@ def _load_msr(frame, ds, out):
     ids = sp['id'].to_numpy(dtype=object)
     heads = dict(wt='wt_lora_pred', comb='combined_pred', mt='mt_lora_pred')
     for spec, sigmas, seeds in (('msr', ['1'], SEEDS), ('msrdev', ['1', '0.75', '0.5', '0.25'], SEEDS),
-                                ('msrp0', ['1'], (1,)), ('msrrel', ['1', '0.75', '0.5', '0.25', '0'], (None,))):
+                                ('msrp0', ['1'], SEEDS if ds in TSU_MEGA else (1,)), ('msrrel', ['1', '0.75', '0.5', '0.25', '0'], (None,))):
         for sg in sigmas:
             arrs = {h: [] for h in heads}
             ok = True
@@ -329,13 +331,29 @@ _ROSETTA_FOLDER = {'ptmul': 'PTMUL'}
 
 def _rosetta_ext_root():
     for cand in (
-        os.environ.get('MSR_ROSETTA_EXT', '~/software/esm-msr-release/analysis_notebooks/predictions'),
+        os.environ.get('MSR_ROSETTA_EXT', str(ROOT / 'rosetta_external_predictions')),     # <set>/rosetta/cartesian_ddg.csv, copied 2026-11-16 from esm-msr-data-oct-14/analysis_notebooks/additional/predictions
+        '~/software/esm-msr-release/analysis_notebooks/predictions',
         '~/software/esm-msr/analysis_notebooks/predictions',
     ):
         p = Path(cand).expanduser()
         if p.is_dir():
             return p
     return None
+
+
+def _rosetta_ext_saved(frame, ds, out):
+    """Fallback when the notebook prediction tree is gone: the Rosetta predictions of the external sets saved from the last frames built while it existed
+    (``public/rosetta/external_rosetta_preds.pkl``: per set, the spine ids and the ``rosetta`` / ``rosetta+`` / ``rosetta:epi`` arrays, already in kcal/mol)."""
+    p = PUBLIC / 'rosetta' / 'external_rosetta_preds.pkl'
+    if not p.exists():
+        return
+    with open(p, 'rb') as fh:
+        saved = pickle.load(fh)
+    if ds not in saved:
+        return
+    ids = frame.spine['id'].to_numpy(dtype=object)
+    for k, arr in saved[ds]['preds'].items():
+        out[k if k.endswith(':epi') else k + ':'] = np.vstack([_align_id(ids, saved[ds]['ids'], row) for row in np.atleast_2d(arr)])
 
 
 def _load_rosetta_ext(frame, ds, out):
@@ -348,10 +366,10 @@ def _load_rosetta_ext(frame, ds, out):
         return
     root = _rosetta_ext_root()
     if root is None:
-        return
+        return _rosetta_ext_saved(frame, ds, out)
     p = root / _ROSETTA_FOLDER.get(ds, ds) / 'rosetta' / 'cartesian_ddg.csv'
     if not p.exists():
-        return
+        return _rosetta_ext_saved(frame, ds, out)
     d = pd.read_csv(p, index_col=0)
     uids = d['uid_true'].astype(str) if 'uid_true' in d.columns else d.index.astype(str)
     rep_cols = [f'cartesian_ddg_{s}' for s in SEEDS]
@@ -463,6 +481,72 @@ def add_esm3_masked(frame, ds):
     return added
 
 
+# ----------------------------------------------------------------------------------------------
+# mega_splits retrains (MSR_TSU_SPLIT=mega): cluster tracked runs outputs/tracked/<model>_mega*_s<k>, collected to MEGA_RAW
+# ----------------------------------------------------------------------------------------------
+_MEGA_SPLIT = {'tsuboyama_mega_val': 'val', 'tsuboyama_mega_test': 'test'}
+
+
+def _mega_seeded(fmt):
+    paths = [MEGA_RAW / fmt.format(seed=s) for s in SEEDS]
+    if not all(p.exists() for p in paths):
+        missing = [str(p) for p in paths if not p.exists()]
+        raise FileNotFoundError(f'mega_splits retrain files missing (collect them from the cluster): {missing}')
+    return [pd.read_csv(p, low_memory=False) for p in paths]
+
+
+def _load_mega(frame, ds, out):
+    """The mega_splits retrains, with the same keys and epistasis definitions as their capped-split counterparts:
+    ``me1`` / ``me2`` (``me2:epi`` = st2 double - same-seed st1 singles), ``tmpnn`` / ``tmpnnd`` (``tmpnnd:epi`` = combined -
+    single-additive), ``spurs`` / ``spursm`` (``spursm:epi`` = multi - single-additive).  All stabilizing-positive."""
+    sp = frame.spine
+    ids = sp['id'].to_numpy(dtype=object)
+    split = _MEGA_SPLIT[ds]
+    me = {}
+    for stage, key in (('st1', 'me1'), ('st2', 'me2')):
+        main = _mega_seeded(f'me_mega_{stage}_s{{seed}}/results_mega_splits_allbl_{split}.csv')
+        # the test run also scores the constituent singles of every double (unmeasured ones included) in a separate file
+        comp = _mega_seeded(f'me_mega_{stage}_s{{seed}}/results_mega_splits_allbl_{split}comp.csv') if split == 'test' else [None] * len(main)
+        arr = []
+        for d, c in zip(main, comp):
+            d = d if c is None else pd.concat([d, c], ignore_index=True)       # _align_id keeps the first (main-file) row on overlaps
+            arr.append(_align_id(ids, (d['pdb_id'].astype(str) + '_' + d['mut_info'].astype(str)).to_numpy(dtype=object), -d['ddg_pred'].to_numpy()))
+        me[key] = np.vstack(arr)
+        out[f'{key}:'] = me[key]
+    out['me2:epi'] = me['me2'] - sum_singles(sp, me['me1'])
+    tm = _mega_seeded(f'thermompnn_mega_s{{seed}}/predictions_{split}.csv')
+    key = [(d['code'].astype(str) + '_' + d['mut_type'].astype(str)).to_numpy(dtype=object) for d in tm]
+    out['tmpnn:'] = np.vstack([_align_id(ids, k, d['pred_single_additive'].to_numpy()) for k, d in zip(key, tm)])
+    out['tmpnnd:'] = np.vstack([_align_id(ids, k, d['pred_combined'].to_numpy()) for k, d in zip(key, tm)])
+    out['tmpnnd:epi'] = out['tmpnnd:'] - out['tmpnn:']
+    sps = _mega_seeded(f'spurs_mega_s{{seed}}/tsuboyama_{split}.csv')
+    uid = [d['uid'].astype(str).to_numpy(dtype=object) for d in sps]
+    out['spurs:'] = np.vstack([_align_id(ids, k, d['SPURS_single_additive'].to_numpy()) for k, d in zip(uid, sps)])
+    out['spursm:'] = np.vstack([_align_id(ids, k, d['SPURS_multi'].to_numpy()) for k, d in zip(uid, sps)])
+    out['spursm:epi'] = out['spursm:'] - out['spurs:']
+    # SPURS with the adapter trained (spurs_mega_ta_s<k>: the paper's configuration; ``spurs`` above is the frozen random adapter, the released-checkpoint
+    # configuration), and the published checkpoint (spurs_mega_public, one run): same files, keys spursu* / spurspub*. The published ThermoMPNN / ThermoMPNN-D
+    # ensemble members (thermompnn_mega_public_ens<k>, trained by their authors on mega_splits) stand in for three seeds: tmpnnpub / tmpnndpub.
+    # Present only once collected; the mega scripts use whichever exist.
+    def _opt(fmt, seeds=SEEDS):
+        paths = [MEGA_RAW / fmt.format(seed=s) for s in seeds]
+        return [pd.read_csv(q, low_memory=False) for q in paths] if all(q.exists() for q in paths) else None
+    for tag, fmt in (('spursu', f'spurs_mega_ta_s{{seed}}/tsuboyama_{split}.csv'), ('spurspub', f'spurs_mega_public/tsuboyama_{split}.csv')):
+        d = _opt(fmt, SEEDS if tag == 'spursu' else [0])
+        if d is None:
+            continue
+        u = [x['uid'].astype(str).to_numpy(dtype=object) for x in d]
+        a = np.vstack([_align_id(ids, k, x['SPURS_single_additive'].to_numpy()) for k, x in zip(u, d)])
+        m = np.vstack([_align_id(ids, k, x['SPURS_multi'].to_numpy()) for k, x in zip(u, d)])
+        out[f'{tag}:'], out[f'{tag}m:'], out[f'{tag}m:epi'] = a, m, m - a
+    d = _opt(f'thermompnn_mega_public_ens{{seed}}/predictions_{split}.csv')
+    if d is not None:
+        k = [(x['code'].astype(str) + '_' + x['mut_type'].astype(str)).to_numpy(dtype=object) for x in d]
+        a = np.vstack([_align_id(ids, kk, x['pred_single_additive'].to_numpy()) for kk, x in zip(k, d)])
+        c = np.vstack([_align_id(ids, kk, x['pred_combined'].to_numpy()) for kk, x in zip(k, d)])
+        out['tmpnnpub:'], out['tmpnndpub:'], out['tmpnndpub:epi'] = a, c, c - a
+
+
 def _tidy(out):
     """Registry keys are 'family:head'; heads that carry no suffix are the model's main readout."""
     fixed = {}
@@ -490,6 +574,10 @@ def load_frame(ds, refresh=False):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             _load_msr(fr, ds, out)
+            if ds in TSU_MEGA:
+                _load_mega(fr, ds, out)
+                fr.preds = {k: np.asarray(v, dtype=np.float64) for k, v in _tidy(out).items()}
+                return _finish(fr, pkl)
             _load_me(fr, ds, out)
             _load_tmpnn(fr, ds, out)
             _load_spurs(fr, ds, out)
@@ -498,7 +586,11 @@ def load_frame(ds, refresh=False):
             _load_forge(fr, ds, out)
             _load_small(fr, ds, out)
         fr.preds = {k: np.asarray(v, dtype=np.float64) for k, v in _tidy(out).items()}
-    fr.notes['coverage'] = {k: float(np.isfinite(v).all(axis=0)[spine['use'].to_numpy()].mean()) for k, v in fr.preds.items()}
+    return _finish(fr, pkl)
+
+
+def _finish(fr, pkl):
+    fr.notes['coverage'] = {k: float(np.isfinite(v).all(axis=0)[fr.spine['use'].to_numpy()].mean()) for k, v in fr.preds.items()}
     CACHE.mkdir(parents=True, exist_ok=True)
     with open(pkl, 'wb') as fh:
         pickle.dump(fr, fh, protocol=4)

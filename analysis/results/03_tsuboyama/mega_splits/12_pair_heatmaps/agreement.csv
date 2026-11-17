@@ -1,0 +1,145 @@
+mode,domain,pos1,pos2,model,spearman,n_cells
+raw,1PSE,8,65,ESM-MSR,0.5540,254
+raw,1PSE,8,65,MutateEverything st2,0.5340,254
+raw,1PSE,8,65,ThermoMPNN-D,0.4872,254
+raw,1PSE,8,65,SPURS multi,0.5825,254
+raw,1QKH,4,27,ESM-MSR,0.2536,361
+raw,1QKH,4,27,MutateEverything st2,0.3810,361
+raw,1QKH,4,27,ThermoMPNN-D,0.4024,361
+raw,1QKH,4,27,SPURS multi,0.2688,361
+raw,1QP2,7,23,ESM-MSR,0.6558,330
+raw,1QP2,7,23,MutateEverything st2,0.4292,330
+raw,1QP2,7,23,ThermoMPNN-D,0.5847,330
+raw,1QP2,7,23,SPURS multi,0.7171,330
+raw,1QP2,7,41,ESM-MSR,0.3720,360
+raw,1QP2,7,41,MutateEverything st2,0.3909,360
+raw,1QP2,7,41,ThermoMPNN-D,0.3719,360
+raw,1QP2,7,41,SPURS multi,0.7216,360
+raw,1QP2,12,57,ESM-MSR,0.5995,271
+raw,1QP2,12,57,MutateEverything st2,0.2514,271
+raw,1QP2,12,57,ThermoMPNN-D,0.2592,271
+raw,1QP2,12,57,SPURS multi,0.2190,271
+raw,1QP2,28,30,ESM-MSR,0.2859,361
+raw,1QP2,28,30,MutateEverything st2,0.5629,361
+raw,1QP2,28,30,ThermoMPNN-D,0.4479,361
+raw,1QP2,28,30,SPURS multi,0.4903,361
+raw,1QP2,35,49,ESM-MSR,0.5210,361
+raw,1QP2,35,49,MutateEverything st2,0.2508,361
+raw,1QP2,35,49,ThermoMPNN-D,0.3128,361
+raw,1QP2,35,49,SPURS multi,0.5390,361
+raw,1QP2,35,50,ESM-MSR,-0.2098,342
+raw,1QP2,35,50,MutateEverything st2,0.0846,342
+raw,1QP2,35,50,ThermoMPNN-D,-0.0729,342
+raw,1QP2,35,50,SPURS multi,0.2796,342
+raw,1QP2,41,42,ESM-MSR,0.4029,342
+raw,1QP2,41,42,MutateEverything st2,0.4495,342
+raw,1QP2,41,42,ThermoMPNN-D,-0.3218,342
+raw,1QP2,41,42,SPURS multi,0.6742,342
+raw,2KVS,2,63,ESM-MSR,0.5456,341
+raw,2KVS,2,63,MutateEverything st2,0.5110,341
+raw,2KVS,2,63,ThermoMPNN-D,0.5126,341
+raw,2KVS,2,63,SPURS multi,0.5855,341
+raw,2KVS,3,31,ESM-MSR,0.5844,361
+raw,2KVS,3,31,MutateEverything st2,0.6052,361
+raw,2KVS,3,31,ThermoMPNN-D,0.7593,361
+raw,2KVS,3,31,SPURS multi,0.6941,361
+raw,2KVS,33,35,ESM-MSR,0.3396,323
+raw,2KVS,33,35,MutateEverything st2,0.3531,323
+raw,2KVS,33,35,ThermoMPNN-D,0.4204,323
+raw,2KVS,33,35,SPURS multi,0.0692,323
+raw,2KXD,37,42,ESM-MSR,0.7134,314
+raw,2KXD,37,42,MutateEverything st2,0.4239,314
+raw,2KXD,37,42,ThermoMPNN-D,0.5398,314
+raw,2KXD,37,42,SPURS multi,0.3630,314
+raw,3DKM,18,28,ESM-MSR,0.4230,342
+raw,3DKM,18,28,MutateEverything st2,0.3094,342
+raw,3DKM,18,28,ThermoMPNN-D,0.1818,342
+raw,3DKM,18,28,SPURS multi,0.1789,342
+raw,3DKM,27,56,ESM-MSR,-0.0177,361
+raw,3DKM,27,56,MutateEverything st2,0.3060,361
+raw,3DKM,27,56,ThermoMPNN-D,-0.1092,361
+raw,3DKM,27,56,SPURS multi,0.2077,361
+raw,3DKM,59,67,ESM-MSR,0.1981,230
+raw,3DKM,59,67,MutateEverything st2,0.0798,230
+raw,3DKM,59,67,ThermoMPNN-D,0.1412,230
+raw,3DKM,59,67,SPURS multi,0.2210,230
+raw,4C26,6,43,ESM-MSR,0.4245,361
+raw,4C26,6,43,MutateEverything st2,0.3705,361
+raw,4C26,6,43,ThermoMPNN-D,0.1018,361
+raw,4C26,6,43,SPURS multi,0.2371,361
+raw,6EWT,44,47,ESM-MSR,0.7192,358
+raw,6EWT,44,47,MutateEverything st2,0.4539,358
+raw,6EWT,44,47,ThermoMPNN-D,-0.0916,358
+raw,6EWT,44,47,SPURS multi,0.5678,358
+saturation_corrected,1PSE,8,65,ESM-MSR,0.2313,254
+saturation_corrected,1PSE,8,65,MutateEverything st2,0.1243,254
+saturation_corrected,1PSE,8,65,ThermoMPNN-D,0.3359,254
+saturation_corrected,1PSE,8,65,SPURS multi,0.1748,254
+saturation_corrected,1QKH,4,27,ESM-MSR,0.2327,361
+saturation_corrected,1QKH,4,27,MutateEverything st2,0.4232,361
+saturation_corrected,1QKH,4,27,ThermoMPNN-D,0.3885,361
+saturation_corrected,1QKH,4,27,SPURS multi,0.2411,361
+saturation_corrected,1QP2,7,23,ESM-MSR,0.5329,330
+saturation_corrected,1QP2,7,23,MutateEverything st2,0.0633,330
+saturation_corrected,1QP2,7,23,ThermoMPNN-D,0.3353,330
+saturation_corrected,1QP2,7,23,SPURS multi,0.0854,330
+saturation_corrected,1QP2,7,41,ESM-MSR,0.3520,360
+saturation_corrected,1QP2,7,41,MutateEverything st2,0.1374,360
+saturation_corrected,1QP2,7,41,ThermoMPNN-D,0.3015,360
+saturation_corrected,1QP2,7,41,SPURS multi,0.3780,360
+saturation_corrected,1QP2,12,57,ESM-MSR,0.4090,271
+saturation_corrected,1QP2,12,57,MutateEverything st2,0.3118,271
+saturation_corrected,1QP2,12,57,ThermoMPNN-D,0.2685,271
+saturation_corrected,1QP2,12,57,SPURS multi,0.1860,271
+saturation_corrected,1QP2,28,30,ESM-MSR,0.3903,361
+saturation_corrected,1QP2,28,30,MutateEverything st2,0.2683,361
+saturation_corrected,1QP2,28,30,ThermoMPNN-D,0.3644,361
+saturation_corrected,1QP2,28,30,SPURS multi,0.4063,361
+saturation_corrected,1QP2,35,49,ESM-MSR,0.5766,361
+saturation_corrected,1QP2,35,49,MutateEverything st2,0.2365,361
+saturation_corrected,1QP2,35,49,ThermoMPNN-D,0.3228,361
+saturation_corrected,1QP2,35,49,SPURS multi,0.4963,361
+saturation_corrected,1QP2,35,50,ESM-MSR,-0.1407,342
+saturation_corrected,1QP2,35,50,MutateEverything st2,0.0302,342
+saturation_corrected,1QP2,35,50,ThermoMPNN-D,-0.0167,342
+saturation_corrected,1QP2,35,50,SPURS multi,0.2888,342
+saturation_corrected,1QP2,41,42,ESM-MSR,0.2084,342
+saturation_corrected,1QP2,41,42,MutateEverything st2,0.3752,342
+saturation_corrected,1QP2,41,42,ThermoMPNN-D,-0.2430,342
+saturation_corrected,1QP2,41,42,SPURS multi,0.6231,342
+saturation_corrected,2KVS,2,63,ESM-MSR,0.2418,341
+saturation_corrected,2KVS,2,63,MutateEverything st2,-0.0336,341
+saturation_corrected,2KVS,2,63,ThermoMPNN-D,0.3717,341
+saturation_corrected,2KVS,2,63,SPURS multi,0.0475,341
+saturation_corrected,2KVS,3,31,ESM-MSR,0.6085,361
+saturation_corrected,2KVS,3,31,MutateEverything st2,0.5780,361
+saturation_corrected,2KVS,3,31,ThermoMPNN-D,0.6615,361
+saturation_corrected,2KVS,3,31,SPURS multi,0.5479,361
+saturation_corrected,2KVS,33,35,ESM-MSR,0.3207,323
+saturation_corrected,2KVS,33,35,MutateEverything st2,0.2710,323
+saturation_corrected,2KVS,33,35,ThermoMPNN-D,0.3730,323
+saturation_corrected,2KVS,33,35,SPURS multi,-0.0017,323
+saturation_corrected,2KXD,37,42,ESM-MSR,0.6155,314
+saturation_corrected,2KXD,37,42,MutateEverything st2,0.1464,314
+saturation_corrected,2KXD,37,42,ThermoMPNN-D,0.5000,314
+saturation_corrected,2KXD,37,42,SPURS multi,0.0889,314
+saturation_corrected,3DKM,18,28,ESM-MSR,0.0760,342
+saturation_corrected,3DKM,18,28,MutateEverything st2,0.3057,342
+saturation_corrected,3DKM,18,28,ThermoMPNN-D,0.2904,342
+saturation_corrected,3DKM,18,28,SPURS multi,0.1322,342
+saturation_corrected,3DKM,27,56,ESM-MSR,-0.2608,361
+saturation_corrected,3DKM,27,56,MutateEverything st2,-0.1850,361
+saturation_corrected,3DKM,27,56,ThermoMPNN-D,-0.4351,361
+saturation_corrected,3DKM,27,56,SPURS multi,-0.1656,361
+saturation_corrected,3DKM,59,67,ESM-MSR,0.1614,230
+saturation_corrected,3DKM,59,67,MutateEverything st2,0.0482,230
+saturation_corrected,3DKM,59,67,ThermoMPNN-D,0.0267,230
+saturation_corrected,3DKM,59,67,SPURS multi,0.3863,230
+saturation_corrected,4C26,6,43,ESM-MSR,0.1861,361
+saturation_corrected,4C26,6,43,MutateEverything st2,0.1758,361
+saturation_corrected,4C26,6,43,ThermoMPNN-D,-0.0972,361
+saturation_corrected,4C26,6,43,SPURS multi,0.1531,361
+saturation_corrected,6EWT,44,47,ESM-MSR,0.5639,358
+saturation_corrected,6EWT,44,47,MutateEverything st2,0.2808,358
+saturation_corrected,6EWT,44,47,ThermoMPNN-D,-0.0774,358
+saturation_corrected,6EWT,44,47,SPURS multi,0.1633,358

@@ -1,21 +1,21 @@
 column,model,key,rho,lo,hi
-DLG4_HUMAN_Faure_2021_binding_domain,ESM-MSR,msrp0:comb,0.7279,0.7188,0.7373
-GRB2_HUMAN_Faure_2021_binding_domain,ESM-MSR,msrp0:comb,0.6330,0.6262,0.6398
-MYO_HUMAN_Kung_2025_display,ESM-MSR,msrp0:comb,0.6341,0.6165,0.6511
+DLG4_HUMAN_Faure_2021_binding_domain,ESM-MSR,msrp0:comb,0.7279,0.7183,0.7354
+GRB2_HUMAN_Faure_2021_binding_domain,ESM-MSR,msrp0:comb,0.6330,0.6266,0.6408
+MYO_HUMAN_Kung_2025_display,ESM-MSR,msrp0:comb,0.6341,0.6181,0.6519
 domainome,ESM-MSR,msrp0:wt,0.5493,0.5468,0.5508
-mean of 3 DMS,ESM-MSR,wt|comb,0.6650,0.6586,0.6721
-DLG4_HUMAN_Faure_2021_binding_domain,ESM3-small-open,msrrel@0:comb,0.7432,0.7336,0.7532
-GRB2_HUMAN_Faure_2021_binding_domain,ESM3-small-open,msrrel@0:comb,0.7232,0.7180,0.7289
-MYO_HUMAN_Kung_2025_display,ESM3-small-open,msrrel@0:comb,0.5358,0.5166,0.5534
-domainome,ESM3-small-open,msrrel@0:wt,0.5443,0.5418,0.5458
-mean of 3 DMS,ESM3-small-open,wt|comb,0.6674,0.6602,0.6744
-DLG4_HUMAN_Faure_2021_binding_domain,ProteinMPNN,pmpnn,0.6126,0.5990,0.6261
-GRB2_HUMAN_Faure_2021_binding_domain,ProteinMPNN,pmpnn,0.5382,0.5304,0.5462
-MYO_HUMAN_Kung_2025_display,ProteinMPNN,pmpnn,0.4978,0.4775,0.5161
-domainome,ProteinMPNN,pmpnn,0.5476,0.5449,0.5491
-mean of 3 DMS,ProteinMPNN,wt|comb,0.5496,0.5414,0.5586
-DLG4_HUMAN_Faure_2021_binding_domain,ProSST,prosst,0.7964,0.7890,0.8038
-GRB2_HUMAN_Faure_2021_binding_domain,ProSST,prosst,0.7019,0.6961,0.7085
-MYO_HUMAN_Kung_2025_display,ProSST,prosst,0.5382,0.5188,0.5562
-domainome,ProSST,prosst,0.5193,0.5168,0.5208
-mean of 3 DMS,ProSST,wt|comb,0.6788,0.6719,0.6861
+mean of 3 DMS,ESM-MSR,wt|comb,0.6650,0.6596,0.6709
+DLG4_HUMAN_Faure_2021_binding_domain,ESM3-small-open,msrrel@0:comb,0.7432,0.7343,0.7538
+GRB2_HUMAN_Faure_2021_binding_domain,ESM3-small-open,msrrel@0:comb,0.7232,0.7189,0.7293
+MYO_HUMAN_Kung_2025_display,ESM3-small-open,msrrel@0:comb,0.5358,0.5173,0.5538
+domainome,ESM3-small-open,msrrel@0:wt,0.5443,0.5423,0.5459
+mean of 3 DMS,ESM3-small-open,wt|comb,0.6674,0.6599,0.6745
+DLG4_HUMAN_Faure_2021_binding_domain,ProteinMPNN,pmpnn,0.6126,0.5996,0.6284
+GRB2_HUMAN_Faure_2021_binding_domain,ProteinMPNN,pmpnn,0.5382,0.5309,0.5459
+MYO_HUMAN_Kung_2025_display,ProteinMPNN,pmpnn,0.4978,0.4771,0.5174
+domainome,ProteinMPNN,pmpnn,0.5476,0.5456,0.5491
+mean of 3 DMS,ProteinMPNN,wt|comb,0.5496,0.5402,0.5589
+DLG4_HUMAN_Faure_2021_binding_domain,ProSST,prosst,0.7964,0.7906,0.8041
+GRB2_HUMAN_Faure_2021_binding_domain,ProSST,prosst,0.7019,0.6963,0.7084
+MYO_HUMAN_Kung_2025_display,ProSST,prosst,0.5382,0.5206,0.5588
+domainome,ProSST,prosst,0.5193,0.5171,0.5208
+mean of 3 DMS,ProSST,wt|comb,0.6788,0.6715,0.6867

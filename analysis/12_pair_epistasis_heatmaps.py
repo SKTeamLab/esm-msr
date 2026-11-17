@@ -34,12 +34,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import matplotlib.pyplot as plt  # noqa: E402
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # noqa: E402
 
+from msr_analysis import style  # noqa: E402
 from msr_analysis.common import epi_rows, out_dir  # noqa: E402
 from msr_analysis.registry import REFERENCE  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
 from msr_analysis.link import observed_epistasis  # noqa: E402
+from msr_analysis.registry import TSU, TSU_SPLIT  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
-DS = 'tsuboyama_capped_test'
+DS = TSU[1]
 OUT = out_dir('12_pair_heatmaps')
 AA = list('KRHDESTNQYCAVILMFWPG')                    # the notebooks' order
 IDX = {a: i for i, a in enumerate(AA)}
@@ -64,6 +66,8 @@ MODELS = [('ESM-MSR (baseline)', ('key', 'msr:epi'), 'msr:wt+', 'msr:wt'),
           ('ESMtherm*', ('diff', 'esmtherm', 'esmtherm+'), 'esmtherm+', 'esmtherm'),
           ('IFUM, WT backbone*', ('diff', 'ifum_wt', 'ifum_wt+'), 'ifum_wt+', 'ifum_wt'),
           ('IFUM, ESMFold*', ('diff', 'ifum_esmfold', 'ifum_esmfold+'), 'ifum_esmfold+', 'ifum_esmfold')]
+if TSU_SPLIT == 'mega':      # mega_splits: the only ESM-MSR is FINAL_p0_mega (msrp0), drawn as plain "ESM-MSR"
+    MODELS = [('ESM-MSR', ('key', 'msrp0:epi'), 'msrp0:wt+', 'msrp0:wt')] + [m for m in MODELS if not m[0].startswith('ESM-MSR')]
 
 
 def smooth_on(x, v, nbins=SMOOTH_BINS):
@@ -128,7 +132,7 @@ def build():
         e_seeds = u * (p[build_[1]] - (p[build_[2]] if build_[0] == 'diff' else 0.0))
         e = mean_seeds(e_seeds)
         model[label] = dict(raw=e, raw_seeds=e_seeds, saturation_corrected=e, single=u * mean_seeds(p[sk]), latent=e)       # predictions are not saturation-corrected
-        if label == 'ESM-MSR':       # the observed-scale version, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's learned link, for the diagnostics of 13
+        if label == 'ESM-MSR' and 'msrdev:wt' in p:       # the observed-scale version, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's learned link, for the diagnostics of 13
             model[label]['linked'] = np.nanmean([observed_epistasis(sp, p['msrdev:wt'][s], p['msrdev:comb'][s], s + 1) for s in range(3)], axis=0)
     mut = sp['mut'].to_numpy(dtype=object)
     nm = sp['n_mut'].to_numpy()
@@ -232,6 +236,8 @@ def figure(mode, pair, d, fit, meas, model, singles, sp, vmax):
     fig.subplots_adjust(hspace=0.42, wspace=0.42, left=0.05, right=0.985, top=0.95, bottom=0.03)
     folder = OUT / mode / code
     folder.mkdir(parents=True, exist_ok=True)
+    if TSU_SPLIT == 'mega':
+        style._mega_text(fig)
     fig.savefig(folder / f'{wt1}{pos1}_{wt2}{pos2}.png', dpi=DPI)
     plt.close(fig)
     return rows, dict(domain=code, pos1=pos1, pos2=pos2, wt1=wt1, wt2=wt2, identity_pairs=len(sub), usable_cells=n_meas)

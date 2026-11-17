@@ -32,7 +32,7 @@ def keys_for(fr):
 
 
 def n_boot(n):
-    return 1000 if n <= 12000 else (500 if n <= 70000 else 200)
+    return 100          # draft size for every dataset (was 1000 / 500 / 200 by size; paper sizes only on request)
 
 
 def run(kind, groups, label):
@@ -43,7 +43,7 @@ def run(kind, groups, label):
         keys = sorted({k for f in frames.values() for k in keys_for(f)})
         B = min(n_boot(len(f)) for f in frames.values())
         if kind == 'mutation':
-            B = max(100, B // 2)
+            B = max(50, B // 2)
         point, reps = bootstrap_rho(frames, keys, kind=kind, B=B, seed=11)
         for ds in dss:
             for k, (rho, per_seed, n, ng) in point[ds].items():
