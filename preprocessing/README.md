@@ -14,6 +14,8 @@ This directory contains the standalone scripts for downloading raw datasets and 
 | `preprocessing/download_domainome_structures.py` | Download and extract the 522 Domainome 1.0 domain structures and optional Supplementary Table 5 TSV (Beltran et al., *Nature* 2025; Zenodo `14356805`) | `data/domainome1/alphafold_structures/<domain_ID>.pdb`, `data/domainome1/SupplementaryTable5.txt` |
 | `preprocessing/preprocess_domainome.py` | Truncate/renumber Domainome 1.0 structures to 1-based construct coordinates and map missense mutations | `data/domainome1/alphafold_structures/<domain_ID>_truncated_renumbered.pdb`, `data/domainome1/domainome_mapped_2026.csv` |
 | `preprocessing/pgym_preprocess.py` | Map the 217 ProteinGym v1.3 DMS substitution assays onto AlphaFold2 structures | `pgym_inputs/<DMS_id>.csv`, `pgym_inputs/manifest.csv` |
+| `preprocessing/download_mgnify.py` | Download the MGnify Stability Dataset tables (Zenodo `19411306`) and convert needed AlphaFold2 `.cif.gz` shards (Google Drive) into 1-indexed Chain-A `.pdb` files | `data/mgnify/raw/*.csv`, `data/mgnify/structures/<bucket>/*.pdb` |
+| `preprocessing/preprocess_mgnify.py` | Derive all MGnify single-, double-, and higher-order multi-mutant ΔΔGs, indels, and close natural homolog pairs; validate against extracted PDBs | `data/mgnify/mgnify_mapped.csv`, `data/mgnify/mgnify_multis_only.csv`, `data/mgnify/mgnify_indels.csv.gz`, `data/mgnify/mgnify_homolog_pairs.csv` |
 | `preprocessing/split_tsuboyama.py` & `preprocessing/homology.py` | Build sequence- and structure-homology-controlled MegaScale splits against held-out benchmarks via MMseqs2, Foldseek, local BLOSUM62 identity, and bridge pruning | `data/splits_oct06_capped.pkl` (`.csv` optional) |
 | `preprocessing/split_overlap_report.py` | Audit an existing MegaScale split file against held-out benchmarks and generate leakage summary CSVs | `<out_prefix>_summary_by_benchmark.csv`, `<out_prefix>_flagged_pairs.csv` |
 | `preprocessing/compute_features.py` | Optional biophysical & MSA feature extraction (DSSP `rel_ASA`/`SS`, QuantiProt AAIndex, interface, AliStat conservation) for property-category analysis | `data/features/<dataset>_mapped_feats.csv` |
@@ -145,3 +147,38 @@ python preprocessing/compute_features.py \
 ```
 
 Optional external requirements for this step: `quantiprot` (`pip install quantiprot`), `mkdssp` on `PATH`, and [AliStat](https://github.com/thomaskf/AliStat).
+
+---
+
+## 7. MGnify Stability Dataset Preparation (Cho, Tsuboyama et al., 2026)
+
+Download the full MGnify Stability Dataset tables (`mgnify_training_index.csv` and `230515_K50dG_dmsv4_dmsv5_dmsv7_concat260429.csv` from [Zenodo record 19411306](https://zenodo.org/records/19411306)) and the needed AlphaFold2 domain structures from the official Google Drive archive (`1SPHsaC2tcwtnQuU0gbZeEFUuol-bhSZM`), then derive all single-, double-, and higher-order multi-mutant ΔΔG tables under `data/mgnify/` (git-ignored):
+
+```bash
+# 1. Download raw CSV tables
+python preprocessing/download_mgnify.py --tables_only --out data/mgnify
+
+# 2. Preprocess all mutations, extract needed AF2 structures (converting .cif.gz -> 1-indexed Chain-A .pdb), and validate sequences
+python preprocessing/preprocess_mgnify.py --out_dir data/mgnify --download
+```
+
+This writes:
+- `data/mgnify/mgnify_mapped.csv`: all structure-backed engineered substitution variants (singles, doubles, and `k >= 3` multi-mutants, retaining all multi-mutants even without constituent singles; `has_all_singles`, `ddG_additive_ML`, and `dddG_ML` are populated whenever all constituent singles were co-assayed).
+- `data/mgnify/mgnify_multis_only.csv`: subset (`n_mut >= 2`) of `mgnify_mapped.csv` for rapid multi-mutant evaluation.
+- `data/mgnify/mgnify_all_mutations.csv.gz`: all uncollapsed substitution rows across `dms5` and `dms7` (including any unindexed `dms5` rows without an extracted AF2 structure).
+- `data/mgnify/mgnify_indels.csv.gz`: all `dms7` insertion/deletion variants with derived `ddG_ML`.
+- `data/mgnify/mgnify_homolog_pairs.csv`: natural close-homolog WT-to-WT equal-length substitution pairs (`>= 90%` identity, `1 <= Hamming distance <= 5`).
+- `data/mgnify/summary.json`: full provenance and variant counts.
+
+Evaluate ESM-MSR on the preprocessed tables using `inference_scripts/esm_msr_testing.py --mgnify`:
+
+```bash
+# Full dataset (resumable 2,000-scaffold shards)
+python inference_scripts/esm_msr_testing.py --checkpoint esm-msr/lora_seed1.safetensors --mgnify --auto_batch_size --dtype bf16
+
+# Held-out MGnify test split only
+python inference_scripts/esm_msr_testing.py --checkpoint esm-msr/lora_seed1.safetensors --mgnify --mgnify_splits test --auto_batch_size --dtype bf16
+
+# Multi-mutants only (all doubles and k>=3 mutants)
+python inference_scripts/esm_msr_testing.py --checkpoint esm-msr/lora_seed1.safetensors --mgnify --mgnify_table data/mgnify/mgnify_multis_only.csv --auto_batch_size --dtype bf16
+```
