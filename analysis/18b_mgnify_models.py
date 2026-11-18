@@ -10,7 +10,7 @@ Homologs are excluded with the rule that built the Homology-Restricted MegaScale
 95% intervals resample scaffolds (``--B`` draws, the same draws for every model of a set).
 
 Readouts follow the deployed rule: both sets hold multi-mutants, so the multi-mutant version of each model is read (ESM-MSR combined head, SPURS-multi, ThermoMPNN-D; ProteinMPNN and ProSST score every
-variant directly).  ESM3-small-open (sigma 0) is the exception: its MGnify run holds the WT head only (the combined columns are placeholders), and it has not been run on the Rocklin designs.  A model enters
+variant directly).  ESM3-small-open (sigma 0) is the exception: its run holds the WT head only (the combined columns are placeholders).  A model enters
 a set on the scaffolds it has scored completely (the baselines write whole chunks); ``coverage`` is that share of the set's scaffolds, and a model with partial coverage also gets an ESM-MSR row on the same
 scaffolds / rows (``ESM-MSR, same scaffolds as ...``).
 
@@ -49,11 +49,16 @@ def chunks(tpl, seed, src, col):
 
 
 def esm3_wt(ids):
-    fs = glob.glob(str(BASE / 'esm3_zeroshot' / 'mgnify' / 'shards' / 'shard_*.csv'))
-    if not fs:
-        return None
-    d = pd.concat([pd.read_csv(f, usecols=['uid', 'wt_lora_pred'], low_memory=False) for f in fs]).drop_duplicates('uid')
-    return d.set_index('uid')['wt_lora_pred'].reindex(ids).to_numpy(float)
+    """ESM3-small-open (sigma 0) WT head on the rows ``ids``: the finished run's ``predictions.csv.gz`` (MGnify scaffolds and Rocklin designs together), else its shards so far."""
+    f = BASE / 'esm3_zeroshot' / 'mgnify' / 'predictions.csv.gz'
+    if f.exists():
+        d = pd.read_csv(f, usecols=['uid', 'wt_lora_pred'], low_memory=False)
+    else:
+        fs = glob.glob(str(BASE / 'esm3_zeroshot' / 'mgnify' / 'shards' / 'shard_*.csv'))
+        if not fs:
+            return None
+        d = pd.concat([pd.read_csv(g, usecols=['uid', 'wt_lora_pred'], low_memory=False) for g in fs])
+    return d.drop_duplicates('uid').set_index('uid')['wt_lora_pred'].reindex(ids).to_numpy(float)
 
 
 def scaffold_rho(code, pred, y):
@@ -104,9 +109,9 @@ def main():
                 P.append(None if c is None else c.reindex(d['id'].values).to_numpy(float))
             if not any(p is None for p in P):
                 preds[mn] = (readout, P, P)
-        if name == 'MGnify':
+        if True:
             e3 = esm3_wt(d['id'].values)
-            if e3 is not None:
+            if e3 is not None and np.isfinite(e3).any():
                 preds['ESM3-small-open'] = ('WT head (sigma 0)', [e3], [e3])
         # per-scaffold mean rho over the scaffolds with >= MIN_N variants; scaffolds drawn once for the set
         n_big = int(big.sum())

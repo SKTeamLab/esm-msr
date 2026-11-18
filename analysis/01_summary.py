@@ -116,7 +116,7 @@ def pg_prepare(pooled=True):
     mm_note = (f'ESM-MSR σ = 1, σ = 0.5 and ESM3-small-open (σ = 0, the same architecture with the adapters off) are read as deployed: the combined prediction on the {n_mm} ProteinGym assays with multi-mutants, the WT head on the others '
                f'(Domainome has no multi-mutants, so its models with two versions are the hollow singles versions). The σ = 0.5 combined prediction exists for {k05} of the {n_mm} multi-mutant assays' + (' (the others read the WT head until the queued runs finish)' if k05 < n_mm else '')
                + '; the σ = 0 combined prediction is the March ESM-MSR-small checkpoint\'s σ = 0 run (adapters off, unmasked; its calibration heads), the WT head that of the released σ = 0 run. '
-               'Right panel: the same readout per ProteinGym assay (assays homologous to the training set left out, as on the left; one dot per assay, faint lines join an assay; box = IQR, thin line = median, dark line = mean with its value; p under the ticks: '
+               'Right panel: the same readout per ProteinGym assay (assays homologous to the training set left out, as on the left; one dot per assay, faint lines join an assay; box = IQR, thick line = median with its value, thin line = mean; p under the ticks: '
                'two-sided bootstrap over assays that the mean Δρ is 0, Holm-adjusted over the ten category × σ comparisons).')
     note += '\n' + mm_note
     if extra:
@@ -124,9 +124,9 @@ def pg_prepare(pooled=True):
         how = ('one Spearman rho over all measured variants of the set (seeds 1-3 averaged where a model has them), whiskers resample scaffolds; ESM-MSR is read on the observed scale, h(dG_wt + latent) - dG_wt (the Tobit link, the checkpoints\' constants), '
                'the other models raw' if pooled else
                'mean over WTs of the per-WT rho of the WT\'s measured variants, WTs with at least 10 variants (a within-WT rank is unaffected by the Tobit link), seeds 1-3 averaged where a model has them, whiskers resample WTs')
-        note += ('\nMGnify and Rocklin Designs Inferred DDGs: ' + how + '. Multi-mutant versions are read (ESM-MSR combined head, SPURS-multi, ThermoMPNN-D; ProteinMPNN and ProSST score every variant directly); ESM3-small-open on MGnify is the WT head '
-                 '(its combined prediction was not run on these sets) and was not run on the Rocklin designs. '
-                 + ('Models scored on part of a set only: ' + '; '.join(part) + '. ' if part else '') + 'ProSST on MGnify (a few percent of the scaffolds so far) is left out; the harness models and Rosetta are not in yet.')
+        note += ('\nMGnify and Rocklin Designs Inferred DDGs: ' + how + '. Multi-mutant versions are read (ESM-MSR combined head, SPURS-multi, ThermoMPNN-D; ProteinMPNN and ProSST score every variant directly); ESM3-small-open is the WT head '
+                 '(its combined prediction was not run on these sets). '
+                 + ('Models scored on part of a set only: ' + '; '.join(part) + '. ' if part else '') + 'IFUM, ESMtherm and DDGemb are left to the supplement (they do not beat the other transfer models and saw part of the test sets in training); GeoDDG-3D, ESM3dG and Rosetta are not in these two columns yet (running or not collected).')
     return dict(pooled=pooled, groups=groups, cols=cols, labels=labels, table=table, cis=cis, hollow=hollow, extra=extra, fps=fps, t=t, Rp=Rp, note=note)
 
 
