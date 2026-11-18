@@ -17,6 +17,8 @@
 # size per model and dataset from the calibrated batch-size table (ProteinGym dynamic); BATCH_SIZE overrides the table (fixed: items per
 # call; auto: a cap). CALIBRATE=1 instead of benchmarking runs the sizer on each dataset's worst-case proteins and writes
 # $OUT/batch_sizes_$MODEL.json (calibration.py merge builds the table); do it on the GPU the table is for.
+# MGNIFY_DIR=<dir> (ThermoMPNN and SPURS): score only the MGnify scaffolds and Rocklin designs of <dir> (codes.csv.gz, rows.csv.gz, structures/,
+# structures_af2_denovo/; mgnify_rows.py) into $OUT/mgnify/<source>/chunk_NNNN.csv.gz, resumable (resubmit the same line); SPLIT is then unused but still required.
 # TSUBOYAMA_ONLY=1 (ThermoMPNN and SPURS): score only the Tsuboyama val and test sets of SPURS / SPLIT (no external sets, DMS, Domainome or ProteinGym).
 # Optional, any model:
 # MUTANTS=single|multi|both (which rows; default both), PGYM_DMS=id,id (ProteinGym subset; default all), EXTRA="..." (appended to the model's command line;
@@ -110,7 +112,10 @@ case $MODEL in
     ENV_LIB="$(cd "$(dirname "$PY")/.." && pwd)/lib"
     [ -d "$ENV_LIB" ] && export LD_LIBRARY_PATH="$ENV_LIB:${LD_LIBRARY_PATH:-}"
     [ -n "${SINGLE:-}${EPISTATIC:-}" ] || { echo "set SINGLE and/or EPISTATIC (ThermoMPNN-D checkpoints)"; exit 1; }
-    if [ -n "${TSUBOYAMA_ONLY:-}" ]; then
+    if [ -n "${MGNIFY_DIR:-}" ]; then
+      "$PY" -u "$B/thermompnn_inference.py" mgnify ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
+          --mgnify_dir "$MGNIFY_DIR" --out "$OUT" --mutants "$MUTANTS" "${BATCH[@]}" $EXTRA
+    elif [ -n "${TSUBOYAMA_ONLY:-}" ]; then
       for _sp in val test; do
         "$PY" -u "$B/thermompnn_inference.py" test --split "$_sp" ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
             --tsuboyama_split "$SPLIT" --out "$OUT" --mutants "$MUTANTS" "${BATCH[@]}" $EXTRA
@@ -138,7 +143,8 @@ case $MODEL in
     activate "$SPURS_ENV"
     python -u "$B/spurs_inference.py" --out "$OUT" --models "${MODELS:-both}" --mutants "$MUTANTS" --split "$SPLIT" \
         --checkpoint_single "${SPURS_SINGLE:-hf}" --checkpoint_multi "${SPURS_MULTI:-hf}" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} \
-        ${TSUBOYAMA_ONLY:+--skip_external --skip_dms --skip_domainome --skip_pgym} $EXTRA;;
+        ${TSUBOYAMA_ONLY:+--skip_external --skip_dms --skip_domainome --skip_pgym} \
+        ${MGNIFY_DIR:+--mgnify_dir "$MGNIFY_DIR" --skip_tsuboyama --skip_external --skip_dms --skip_domainome --skip_pgym} $EXTRA;;
   proteinmpnn)
     activate "${MSR_ENV:-msr_venv}"
     python -u "$B/proteinmpnn_inference.py" --out "$OUT" --mutants "$MUTANTS" --split "$SPLIT" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;
