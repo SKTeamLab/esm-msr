@@ -1,5 +1,5 @@
 table,heading,status,figures
-1.1.1,Thermostability: the 12 external sets,drawn,02_thermostability/thermo_external_rho; 02_thermostability/thermo_overview
+1.1.1,Thermostability: the 12 external sets,drawn,02_thermostability/thermo_external_rho; 02_thermostability/thermo_overview; 01_summary/thermostability_sets
 1.1.2,Thermostability: the 12 external sets,drawn,10_leakage_and_reference/leak_matrix_external; 02_thermostability/thermo_external_rho; 02_thermostability/thermo_overview
 1.2.1,Tsuboyama,drawn,03_tsuboyama/tsuboyama_overview; 03_tsuboyama/tsuboyama_per_library; 03_tsuboyama/tsuboyama_singles_doubles
 1.2.2,Tsuboyama,drawn,10_leakage_and_reference/leak_matrix_other; 03_tsuboyama/tsuboyama_overview
@@ -12,6 +12,7 @@ table,heading,status,figures
 1.7.1,MGnify,drawn,18_mgnify/mgnify_overview; 18_mgnify/mgnify_per_scaffold; 18_mgnify/mgnify_scatter; 01_summary/pg_categories
 1.7.2,MGnify,drawn,18_mgnify/mgnify_homology
 1.7.3,MGnify,drawn,18_mgnify/mgnify_homology
+1.7.4,Rocklin de novo designs,drawn,18_mgnify/rocklin_overview; 01_summary/pg_categories
 2.0.1,Extended epistasis metrics,drawn,06_epistasis/epistasis_authoritative_metrics
 2.0.2,Extended epistasis metrics,drawn,06_epistasis/epistasis_authoritative_metrics
 2.1.1,"Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",drawn,06_epistasis/epistasis_hierarchy_val; 06_epistasis/epistasis_naive_recomputed

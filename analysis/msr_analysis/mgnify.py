@@ -1,6 +1,6 @@
 """The MGnify stability set scored with ESM-MSR (FINAL_p0): labels, predictions of the three heads, the Tobit-linked reading, homology classes.
 
-MGnify (766,790 variants of 180,367 scaffolds of 60-80 residues; ``data/mgnify_v2/mgnify_mapped.csv``) is a stability set of the same kind as Megascale that ESM-MSR never
+MGnify (766,790 variants of 180,367 scaffolds of 60-80 residues; ``data/mgnify/mgnify_mapped.csv``) is a stability set of the same kind as Megascale that ESM-MSR never
 trained on.  The testing queue's ``esm_msr_testing.py --mgnify`` run writes, per checkpoint, ``final_mgnify/<family>/s<seed>/all/predictions.csv.gz``: one row per variant with the WT head
 (``wt_lora_pred``), the MT head (``mt_lora_pred``) and the combined prediction (``combined_pred`` = 1/2 (MT + WT)), all latent ddG.  The labels stored in a run are the v1 table's; the v2 table
 re-derives the wild-type dG of 1,772 scaffolds, so they are replaced by joining the v2 columns on ``uid`` (predictions do not depend on them).
@@ -11,7 +11,8 @@ Two readings of every head, both returned by ``load_mgnify``:
   linked   the Tobit link applied post hoc, ``h(dG_wt + latent) - dG_wt`` (``esm_msr.val_stats.tobit_link``; the constants are the ones the checkpoints were fit with: sigma_y 0.28, mu_f -0.14,
            sigma_f 0.5).  The link is monotone, so it cannot change a rank within one scaffold (``dG_wt`` is constant there); it changes ranks across scaffolds, and the scale (RMSE).
 
-``MSR_ROOT`` (default ``~/playground/esm-msr-devel``) holds ``final_mgnify/``; ``MSR_MGNIFY_TABLE`` overrides the v2 table path.
+``MSR_ROOT`` (default ``~/playground/esm-msr-devel``) holds ``final_mgnify/``; ``MSR_MGNIFY_TABLE`` overrides the table path.  ``run='rdenovo'`` is the run on the 1,000 Rocklin de novo designs of the same table
+(``final_mgnify/<family>/s<seed>/rdenovo``), ``run='all'`` the MGnify scaffolds.
 """
 import os
 import pickle
@@ -28,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src'))
 from esm_msr.val_stats import tobit_link  # noqa: E402
 
 RUNS = Path(os.environ.get('MSR_MGNIFY_RUNS', ROOT / 'final_mgnify')).expanduser()
-TABLE = Path(os.environ.get('MSR_MGNIFY_TABLE', ROOT / 'repo' / 'data' / 'mgnify_v2' / 'mgnify_mapped.csv')).expanduser()
+TABLE = Path(os.environ.get('MSR_MGNIFY_TABLE', ROOT / 'repo' / 'data' / 'mgnify' / 'mgnify_mapped.csv')).expanduser()
 CLASSES = REFERENCE / 'mgnify_homology_classes.csv.gz'
 TOBIT = dict(sigma_y=0.28, mu_f=-0.14, sigma_f=0.5)           # hparams of FINAL_p0 s1-s3 (tobit_sigma_y / tobit_mu_f / tobit_sigma_f)
 HEADS = dict(wt='wt_lora_pred', mt='mt_lora_pred', comb='combined_pred')
@@ -79,8 +80,11 @@ def load_mgnify(family='FINAL_p0', run='all', seeds=None, refresh=False):
     sp['split'] = base['mgnify_split'].to_numpy()
     sp['has_all_singles'] = base['has_all_singles'].to_numpy()
     sp['use'] = (np.isfinite(sp['y']) & (sp['cens'] == 0)).to_numpy()
-    cls = pd.read_csv(CLASSES if CLASSES.exists() else ROOT / 'leak_audit' / 'out' / 'mgnify_homology_classes.csv', usecols=['code_wt', 'cls']).set_index('code_wt')['cls']
-    sp['cls'] = sp['code_wt'].map(cls).fillna('none')
+    if run == 'rdenovo':                                # the Rocklin de novo designs: no homology classes (they are not MGnify scaffolds)
+        sp['cls'] = 'n/a'
+    else:
+        cls = pd.read_csv(CLASSES if CLASSES.exists() else ROOT / 'leak_audit' / 'out' / 'mgnify_homology_classes.csv', usecols=['code_wt', 'cls']).set_index('code_wt')['cls']
+        sp['cls'] = sp['code_wt'].map(cls).fillna('none')
     h = tobit_link(**TOBIT)
     dg = sp['dG_wt'].to_numpy(float)
     preds = {}

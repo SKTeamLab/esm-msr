@@ -19,6 +19,9 @@ PG = {1.0: ROOT / 'final_pgym_wt' / 'FINAL_p0' / 's1',                # FINAL_p0
       0.0: ROOT / 'msr_predictions' / 'released_capped_w2a4_m16a16' / 'sigma0' / 'proteingym_wt_only'}   # ESM3-small-open unmasked (adapter scaled to 0)
 FALLBACK = {1.0: ROOT / 'final_pgym_comb' / 'FINAL_p0' / 's1',       # same checkpoint and read: its wt_lora_pred equals the WT-only run's to the last digit (checked on 6 assays; used for BRCA2 at sigma 1)
             0.0: ROOT / 'pgym_results' / 'unmasked-esm-msr-small' / 'sigma0.0'}   # an older ESM-MSR-small run at sigma 0: tracks the released sigma-0 read closely (per-assay rho differs by 0.002 on average, 0.02 at most, over 214 assays) but is not identical; used only where the released read is missing (BRCA2, POLG_CXB3N, SCN5A)
+COMB = {1.0: ROOT / 'final_pgym_comb' / 'FINAL_p0' / 's1',            # combined (1/2 (MT + WT)) and WT head, every assay
+        0.5: ROOT / 'final_pgym_comb_sigma0.5' / 'FINAL_p0' / 's1',   # queued 2026-11-17 (tier pgym_comb_s05): the 69 multi-mutant assays only; assays missing here read the WT head
+        0.0: ROOT / 'pgym_results' / 'unmasked-esm-msr-small' / 'sigma0.0'}   # the March ESM-MSR-small checkpoint at sigma 0 (adapters off, unmasked; pgym_results/FINDINGS.md section 14): the zero-shot combined read, with that checkpoint's calibration heads
 DMS_P0 = ROOT / 'final_bench' / 'predictions'
 DMS_S0 = ROOT / 'msr_predictions' / 'released_capped_w2a4_m16a16' / 'sigma0'
 DMS_SETS = ['DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_binding_domain', 'MYO_HUMAN_Kung_2025_display']     # the DMS-benchmark sets that are not in ProteinGym
@@ -81,3 +84,40 @@ def load_assay(name):
         d = pd.read_csv(f, usecols=[key, lab, 'wt_lora_pred']).drop_duplicates(key).rename(columns={'wt_lora_pred': f's{s}', lab: 'y'}).set_index(key)
         out = d if out is None else out.join(d[[f's{s}']], how='inner')
     return out.reset_index(drop=True)[['y'] + [f's{s}' for s in SIGMAS]]
+
+
+def load_assay_dep(name):
+    """The deployed readout of one ProteinGym assay at every sigma: ``(DataFrame, has_multi, heads)``.  The frame has ``y`` and ``d<sigma>`` (the combined prediction on an assay with multi-mutants, the WT head
+    on a singles-only assay; a multi-mutant assay without a combined file at that sigma reads the WT head) plus ``w<sigma>`` (the WT head), over the variants present in every file used.  ``heads[sigma]`` is
+    'combined', 'wt' (singles-only assay) or 'wt_fallback'.  None when the WT predictions of a sigma are missing."""
+    d = load_assay_frame(name)
+    if d is None:
+        return None
+    multi = d['mutant'].astype(str).str.contains(':').any()
+    heads = {}
+    for s_ in SIGMAS:
+        f = COMB[s_] / f'{name}.csv'
+        comb = None
+        if multi and f.exists() and 'combined_pred' in pd.read_csv(f, nrows=0).columns:
+            comb = pd.read_csv(f, usecols=['mutant', 'combined_pred']).drop_duplicates('mutant').set_index('mutant')['combined_pred'].rename(f'c{s_}')
+        if comb is not None:
+            d = d.join(comb, on='mutant', how='inner')
+            d[f'd{s_}'] = d[f'c{s_}']
+            heads[s_] = 'combined'
+        else:
+            d[f'd{s_}'] = d[f'w{s_}']
+            heads[s_] = 'wt_fallback' if multi else 'wt'
+    return d, bool(multi), heads
+
+
+def load_assay_frame(name):
+    """``mutant``, ``y`` and the WT head ``w<sigma>`` of a ProteinGym assay over the variants present at all three sigmas (``load_assay`` with the mutant column kept); None if a file is missing."""
+    files = {s_: (PG[s_] if (PG[s_] / f'{name}.csv').exists() or s_ not in FALLBACK else FALLBACK[s_]) / f'{name}.csv' for s_ in SIGMAS}
+    if not all(f.exists() for f in files.values()):
+        return None
+    out = None
+    for s_, f in files.items():
+        d = pd.read_csv(f, usecols=['mutant', 'DMS_score', 'wt_lora_pred']).drop_duplicates('mutant').rename(columns={'wt_lora_pred': f'w{s_}', 'DMS_score': 'y'}).set_index('mutant')
+        out = d if out is None else out.join(d[[f'w{s_}']], how='inner')
+    return out.reset_index()
+
