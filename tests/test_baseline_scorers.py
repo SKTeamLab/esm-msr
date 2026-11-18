@@ -327,7 +327,7 @@ def test_no_baseline_script_shadows_a_package_it_imports():
     import ast
     scripts = sorted(BASELINES.glob('*.py')) + sorted((BASELINES / 'prepare').glob('*.py'))
     stems = {p.stem for p in scripts}
-    local_helpers = {'paths', 'benchmark_rows', 'dms_source', 'batching', 'calibration'}
+    local_helpers = {'paths', 'benchmark_rows', 'dms_source', 'batching', 'calibration', 'mgnify_rows'}
     imported = set()
     for p in scripts:
         for node in ast.walk(ast.parse(p.read_text())):

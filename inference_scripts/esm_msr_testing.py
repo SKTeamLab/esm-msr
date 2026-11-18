@@ -607,7 +607,6 @@ def main_(args):
         lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
         lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True,
         tie_mt_scale=cal['tie_mt_scale'], per_mutation_bias=cal['per_mutation_bias'],
-        substitution_calibration=cal['substitution_calibration'],
         native_cond_mt_input=native_cond_for_mt,
         mask_native_cond_struct=mask_native_cond_struct,
         fused_antisymmetric=fused_antisymmetric,

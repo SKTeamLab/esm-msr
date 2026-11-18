@@ -17,7 +17,7 @@
 # size per model and dataset from the calibrated batch-size table (ProteinGym dynamic); BATCH_SIZE overrides the table (fixed: items per
 # call; auto: a cap). CALIBRATE=1 instead of benchmarking runs the sizer on each dataset's worst-case proteins and writes
 # $OUT/batch_sizes_$MODEL.json (calibration.py merge builds the table); do it on the GPU the table is for.
-# MGNIFY_DIR=<dir> (ThermoMPNN and SPURS): score only the MGnify scaffolds and Rocklin designs of <dir> (codes.csv.gz, rows.csv.gz, structures/,
+# MGNIFY_DIR=<dir> (ThermoMPNN, SPURS, ProteinMPNN; MODEL=prosst and MODEL=esm3 always): score only the MGnify scaffolds and Rocklin designs of <dir> (codes.csv.gz, rows.csv.gz, structures/,
 # structures_af2_denovo/; mgnify_rows.py) into $OUT/mgnify/<source>/chunk_NNNN.csv.gz, resumable (resubmit the same line); SPLIT is then unused but still required.
 # TSUBOYAMA_ONLY=1 (ThermoMPNN and SPURS): score only the Tsuboyama val and test sets of SPURS / SPLIT (no external sets, DMS, Domainome or ProteinGym).
 # Optional, any model:
@@ -147,7 +147,24 @@ case $MODEL in
         ${MGNIFY_DIR:+--mgnify_dir "$MGNIFY_DIR" --skip_tsuboyama --skip_external --skip_dms --skip_domainome --skip_pgym} $EXTRA;;
   proteinmpnn)
     activate "${MSR_ENV:-msr_venv}"
-    python -u "$B/proteinmpnn_inference.py" --out "$OUT" --mutants "$MUTANTS" --split "$SPLIT" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA;;
+    python -u "$B/proteinmpnn_inference.py" --out "$OUT" --mutants "$MUTANTS" --split "$SPLIT" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} \
+        ${MGNIFY_DIR:+--mgnify_dir "$MGNIFY_DIR" --skip_tsuboyama --skip_external --skip_dms --skip_domainome --skip_pgym} $EXTRA;;
+  esm3)
+    # ESM3-small-open zero-shot: the ESM-MSR runner with the LoRA adapters switched off (--sigma 0) and canonical masked marginals
+    # (every mutated position masked at once in the wild-type sequence, so only the WT pass is needed: --skip_reverse).
+    # Needs the runner with --mgnify_sources (the v2 MGnify handling) and the labelled table (MGNIFY_TABLE, default $MGNIFY_DIR/mgnify_mapped.csv.gz).
+    [ -n "${MGNIFY_DIR:-}" ] || { echo "MODEL=esm3 scores the MGnify/Rocklin sets only: set MGNIFY_DIR"; exit 1; }
+    CKPT=${CKPT:-esm-msr-baseline-w2a4-m16a16-capped/epoch=07-val_rho_combined_avg=0.839.ckpt}    # under LoRA_models/; at sigma 0 only the calibration head remains
+    activate "${MSR_ENV:-msr_venv}"
+    cd "$REPO/inference_scripts"
+    python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
+        --analysis_root "$OUT/analysis" --resource_dir "$OUT/resources" --batch_mode "${BATCH_MODE_ESM3:-auto}" \
+        --sigma 0 --mask_strategy marginal --skip_reverse --skip_ctx \
+        --mgnify --mgnify_dir "$MGNIFY_DIR" --mgnify_table "${MGNIFY_TABLE:-$MGNIFY_DIR/mgnify_mapped.csv.gz}" --mgnify_out "$OUT/mgnify" $EXTRA;;
+  prosst)
+    [ -n "${MGNIFY_DIR:-}" ] || { echo "MODEL=prosst scores the MGnify/Rocklin sets only: set MGNIFY_DIR"; exit 1; }
+    export TRANSFORMERS_OFFLINE=1 HF_HUB_OFFLINE=1
+    "${PROSST_PY:-$HOME/prosst_env/bin/python}" -u "$B/prosst_inference.py" --mgnify_dir "$MGNIFY_DIR" --out "$OUT" ${PROSST_DIR:+--prosst_dir "$PROSST_DIR"} $EXTRA;;
   *) echo "unknown MODEL=$MODEL"; exit 1;;
 esac
 echo "done: $OUT  (resource summary: python $REPO/analysis/scoring/resource_report.py $OUT)"

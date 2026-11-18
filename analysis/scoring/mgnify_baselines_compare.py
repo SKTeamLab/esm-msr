@@ -92,6 +92,9 @@ def main():
             raw.setdefault(m, {})[s] = d[col].astype(float)
             if acol:
                 add.setdefault(m, {})[s] = d[acol].astype(float)
+    for m in [m for m, v in raw.items() if len(v) < len(SEEDS)]:           # a model joins the comparison once all its seeds have chunks (else the common rows collapse to its first chunk)
+        print(f'{m}: only seeds {sorted(raw[m])} have output so far, left out')
+        raw.pop(m); add.pop(m, None)
     have = {m: sorted(v) for m, v in raw.items()}
     print('baselines with data (seeds):', have)
     ids = esm[1].index
