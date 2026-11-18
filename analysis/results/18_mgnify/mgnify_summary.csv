@@ -1,0 +1,415 @@
+dataset,stratum,subset,unit,head,form,rho,lo,hi,n_rows,n_scaffolds,seeds
+MGnify,all,overall,pooled,wt,latent,0.6136,0.6090,0.6180,705864,167379,0.613/0.616/0.612
+MGnify,all,overall,pooled,wt,linked,0.6427,0.6385,0.6473,705864,167379,0.642/0.644/0.642
+MGnify,all,overall,pooled,wt,linked - latent,0.0291,0.0281,0.0301,705864,167379,p=0.0099
+MGnify,all,overall,pooled,comb,latent,0.6310,0.6261,0.6355,705864,167379,0.630/0.633/0.629
+MGnify,all,overall,pooled,comb,linked,0.6556,0.6512,0.6602,705864,167379,0.655/0.657/0.654
+MGnify,all,overall,pooled,comb,linked - latent,0.0247,0.0240,0.0254,705864,167379,p=0.0099
+MGnify,all,overall,pooled,mt,latent,0.6268,0.6226,0.6312,705864,167379,0.626/0.627/0.627
+MGnify,all,overall,pooled,mt,linked,0.6475,0.6436,0.6519,705864,167379,0.647/0.648/0.648
+MGnify,all,overall,pooled,mt,linked - latent,0.0207,0.0202,0.0212,705864,167379,p=0.0099
+MGnify,all,overall,per scaffold,wt,latent,0.6738,0.6671,0.6814,294670,6066,0.673/0.674/0.674
+MGnify,all,overall,per scaffold,wt,linked,0.6738,0.6671,0.6814,294670,6066,0.673/0.674/0.674
+MGnify,all,overall,per scaffold,wt,linked - latent,-0.0000,-0.0000,0.0000,294670,6066,identical (monotone within a scaffold)
+MGnify,all,overall,per scaffold,comb,latent,0.6860,0.6794,0.6934,294670,6066,0.686/0.686/0.686
+MGnify,all,overall,per scaffold,comb,linked,0.6860,0.6794,0.6934,294670,6066,0.686/0.686/0.686
+MGnify,all,overall,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,294670,6066,identical (monotone within a scaffold)
+MGnify,all,overall,per scaffold,mt,latent,0.6725,0.6655,0.6790,294670,6066,0.673/0.669/0.676
+MGnify,all,overall,per scaffold,mt,linked,0.6725,0.6655,0.6790,294670,6066,0.673/0.669/0.676
+MGnify,all,overall,per scaffold,mt,linked - latent,0.0000,0.0000,0.0000,294670,6066,identical (monotone within a scaffold)
+MGnify,all,singles,pooled,wt,latent,0.5926,0.5888,0.5958,565504,167375,0.591/0.595/0.592
+MGnify,all,singles,pooled,wt,linked,0.6255,0.6221,0.6287,565504,167375,0.624/0.627/0.625
+MGnify,all,singles,pooled,wt,linked - latent,0.0329,0.0319,0.0339,565504,167375,p=0.0099
+MGnify,all,singles,pooled,comb,latent,0.6117,0.6081,0.6148,565504,167375,0.611/0.614/0.611
+MGnify,all,singles,pooled,comb,linked,0.6398,0.6365,0.6430,565504,167375,0.639/0.641/0.639
+MGnify,all,singles,pooled,comb,linked - latent,0.0281,0.0273,0.0289,565504,167375,p=0.0099
+MGnify,all,singles,pooled,mt,latent,0.6105,0.6074,0.6135,565504,167375,0.610/0.611/0.611
+MGnify,all,singles,pooled,mt,linked,0.6343,0.6314,0.6374,565504,167375,0.634/0.634/0.635
+MGnify,all,singles,pooled,mt,linked - latent,0.0238,0.0230,0.0244,565504,167375,p=0.0099
+MGnify,all,singles,per scaffold,wt,latent,0.6543,0.6471,0.6616,154321,6065,0.654/0.655/0.654
+MGnify,all,singles,per scaffold,wt,linked,0.6543,0.6471,0.6616,154321,6065,0.654/0.655/0.654
+MGnify,all,singles,per scaffold,wt,linked - latent,0.0000,0.0000,0.0000,154321,6065,identical (monotone within a scaffold)
+MGnify,all,singles,per scaffold,comb,latent,0.6668,0.6596,0.6742,154321,6065,0.667/0.667/0.667
+MGnify,all,singles,per scaffold,comb,linked,0.6668,0.6596,0.6742,154321,6065,0.667/0.667/0.667
+MGnify,all,singles,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,154321,6065,identical (monotone within a scaffold)
+MGnify,all,singles,per scaffold,mt,latent,0.6547,0.6476,0.6615,154321,6065,0.655/0.652/0.657
+MGnify,all,singles,per scaffold,mt,linked,0.6547,0.6476,0.6615,154321,6065,0.655/0.652/0.657
+MGnify,all,singles,per scaffold,mt,linked - latent,0.0000,0.0000,0.0000,154321,6065,identical (monotone within a scaffold)
+MGnify,all,doubles,pooled,wt,latent,0.6471,0.6377,0.6570,140357,6017,0.646/0.650/0.646
+MGnify,all,doubles,pooled,wt,linked,0.6555,0.6460,0.6656,140357,6017,0.654/0.658/0.654
+MGnify,all,doubles,pooled,wt,linked - latent,0.0084,0.0071,0.0096,140357,6017,p=0.0099
+MGnify,all,doubles,pooled,comb,latent,0.6643,0.6540,0.6741,140357,6017,0.660/0.667/0.665
+MGnify,all,doubles,pooled,comb,linked,0.6708,0.6608,0.6807,140357,6017,0.667/0.673/0.672
+MGnify,all,doubles,pooled,comb,linked - latent,0.0066,0.0056,0.0075,140357,6017,p=0.0099
+MGnify,all,doubles,pooled,mt,latent,0.6546,0.6437,0.6623,140357,6017,0.648/0.654/0.661
+MGnify,all,doubles,pooled,mt,linked,0.6595,0.6485,0.6674,140357,6017,0.654/0.659/0.666
+MGnify,all,doubles,pooled,mt,linked - latent,0.0049,0.0041,0.0057,140357,6017,p=0.0099
+MGnify,all,doubles,per scaffold,wt,latent,0.6627,0.6567,0.6717,140237,5991,0.663/0.663/0.662
+MGnify,all,doubles,per scaffold,wt,linked,0.6627,0.6567,0.6717,140237,5991,0.663/0.663/0.662
+MGnify,all,doubles,per scaffold,wt,linked - latent,-0.0000,-0.0000,0.0000,140237,5991,identical (monotone within a scaffold)
+MGnify,all,doubles,per scaffold,comb,latent,0.6759,0.6692,0.6850,140237,5991,0.677/0.675/0.676
+MGnify,all,doubles,per scaffold,comb,linked,0.6759,0.6692,0.6850,140237,5991,0.677/0.675/0.676
+MGnify,all,doubles,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,140237,5991,identical (monotone within a scaffold)
+MGnify,all,doubles,per scaffold,mt,latent,0.6604,0.6530,0.6701,140237,5991,0.662/0.654/0.665
+MGnify,all,doubles,per scaffold,mt,linked,0.6604,0.6530,0.6701,140237,5991,0.662/0.654/0.665
+MGnify,all,doubles,per scaffold,mt,linked - latent,0.0000,0.0000,0.0000,140237,5991,identical (monotone within a scaffold)
+MGnify,all,dG > 0,pooled,wt,latent,0.5850,0.5804,0.5893,664236,163277,0.585/0.587/0.583
+MGnify,all,dG > 0,pooled,wt,linked,0.6147,0.6104,0.6192,664236,163277,0.615/0.616/0.614
+MGnify,all,dG > 0,pooled,wt,linked - latent,0.0297,0.0287,0.0307,664236,163277,p=0.0099
+MGnify,all,dG > 0,pooled,comb,latent,0.6035,0.5984,0.6080,664236,163277,0.603/0.606/0.602
+MGnify,all,dG > 0,pooled,comb,linked,0.6283,0.6236,0.6329,664236,163277,0.628/0.630/0.626
+MGnify,all,dG > 0,pooled,comb,linked - latent,0.0249,0.0243,0.0254,664236,163277,p=0.0099
+MGnify,all,dG > 0,pooled,mt,latent,0.5995,0.5951,0.6040,664236,163277,0.599/0.600/0.600
+MGnify,all,dG > 0,pooled,mt,linked,0.6200,0.6158,0.6245,664236,163277,0.620/0.621/0.620
+MGnify,all,dG > 0,pooled,mt,linked - latent,0.0205,0.0200,0.0211,664236,163277,p=0.0099
+MGnify,all,dG > 0,per scaffold,wt,latent,0.6506,0.6435,0.6581,278965,6062,0.650/0.651/0.651
+MGnify,all,dG > 0,per scaffold,wt,linked,0.6506,0.6435,0.6581,278965,6062,0.650/0.651/0.651
+MGnify,all,dG > 0,per scaffold,wt,linked - latent,-0.0000,-0.0000,0.0000,278965,6062,identical (monotone within a scaffold)
+MGnify,all,dG > 0,per scaffold,comb,latent,0.6644,0.6577,0.6721,278965,6062,0.665/0.664/0.664
+MGnify,all,dG > 0,per scaffold,comb,linked,0.6644,0.6577,0.6721,278965,6062,0.665/0.664/0.664
+MGnify,all,dG > 0,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,278965,6062,identical (monotone within a scaffold)
+MGnify,all,dG > 0,per scaffold,mt,latent,0.6498,0.6435,0.6561,278965,6062,0.651/0.646/0.653
+MGnify,all,dG > 0,per scaffold,mt,linked,0.6498,0.6435,0.6561,278965,6062,0.651/0.646/0.653
+MGnify,all,dG > 0,per scaffold,mt,linked - latent,0.0000,0.0000,0.0000,278965,6062,identical (monotone within a scaffold)
+MGnify,all,stabilizing (ddG > 0),pooled,wt,latent,0.1376,0.1312,0.1443,208708,103662,0.134/0.141/0.138
+MGnify,all,stabilizing (ddG > 0),pooled,wt,linked,0.1583,0.1522,0.1655,208708,103662,0.155/0.161/0.158
+MGnify,all,stabilizing (ddG > 0),pooled,wt,linked - latent,0.0209,0.0190,0.0227,208708,103662,p=0.0099
+MGnify,all,stabilizing (ddG > 0),pooled,comb,latent,0.1699,0.1627,0.1753,208708,103662,0.171/0.169/0.170
+MGnify,all,stabilizing (ddG > 0),pooled,comb,linked,0.1884,0.1820,0.1944,208708,103662,0.189/0.187/0.189
+MGnify,all,stabilizing (ddG > 0),pooled,comb,linked - latent,0.0186,0.0169,0.0202,208708,103662,p=0.0099
+MGnify,all,stabilizing (ddG > 0),pooled,mt,latent,0.1848,0.1762,0.1913,208708,103662,0.188/0.178/0.188
+MGnify,all,stabilizing (ddG > 0),pooled,mt,linked,0.2004,0.1920,0.2073,208708,103662,0.203/0.194/0.204
+MGnify,all,stabilizing (ddG > 0),pooled,mt,linked - latent,0.0157,0.0141,0.0171,208708,103662,p=0.0099
+MGnify,all,stabilizing (ddG > 0),per scaffold,wt,latent,0.2092,0.1995,0.2229,44147,2519,0.206/0.211/0.211
+MGnify,all,stabilizing (ddG > 0),per scaffold,wt,linked,0.2092,0.1995,0.2229,44147,2519,0.206/0.211/0.211
+MGnify,all,stabilizing (ddG > 0),per scaffold,wt,linked - latent,-0.0000,-0.0000,0.0000,44147,2519,identical (monotone within a scaffold)
+MGnify,all,stabilizing (ddG > 0),per scaffold,comb,latent,0.2430,0.2314,0.2561,44147,2519,0.244/0.240/0.246
+MGnify,all,stabilizing (ddG > 0),per scaffold,comb,linked,0.2430,0.2314,0.2561,44147,2519,0.244/0.240/0.246
+MGnify,all,stabilizing (ddG > 0),per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,44147,2519,identical (monotone within a scaffold)
+MGnify,all,stabilizing (ddG > 0),per scaffold,mt,latent,0.2468,0.2331,0.2607,44147,2519,0.247/0.240/0.253
+MGnify,all,stabilizing (ddG > 0),per scaffold,mt,linked,0.2468,0.2331,0.2607,44147,2519,0.247/0.240/0.253
+MGnify,all,stabilizing (ddG > 0),per scaffold,mt,linked - latent,0.0000,0.0000,0.0000,44147,2519,identical (monotone within a scaffold)
+MGnify,all,destabilizing (ddG < 0),pooled,wt,latent,0.6066,0.6018,0.6107,497156,145550,0.607/0.608/0.606
+MGnify,all,destabilizing (ddG < 0),pooled,wt,linked,0.6352,0.6314,0.6390,497156,145550,0.635/0.636/0.635
+MGnify,all,destabilizing (ddG < 0),pooled,wt,linked - latent,0.0286,0.0276,0.0296,497156,145550,p=0.0099
+MGnify,all,destabilizing (ddG < 0),pooled,comb,latent,0.6128,0.6082,0.6171,497156,145550,0.611/0.615/0.612
+MGnify,all,destabilizing (ddG < 0),pooled,comb,linked,0.6377,0.6335,0.6419,497156,145550,0.636/0.639/0.637
+MGnify,all,destabilizing (ddG < 0),pooled,comb,linked - latent,0.0249,0.0240,0.0258,497156,145550,p=0.0099
+MGnify,all,destabilizing (ddG < 0),pooled,mt,latent,0.5978,0.5933,0.6022,497156,145550,0.595/0.599/0.600
+MGnify,all,destabilizing (ddG < 0),pooled,mt,linked,0.6190,0.6148,0.6231,497156,145550,0.617/0.619/0.621
+MGnify,all,destabilizing (ddG < 0),pooled,mt,linked - latent,0.0212,0.0204,0.0221,497156,145550,p=0.0099
+MGnify,all,destabilizing (ddG < 0),per scaffold,wt,latent,0.6641,0.6573,0.6709,232201,6005,0.664/0.664/0.664
+MGnify,all,destabilizing (ddG < 0),per scaffold,wt,linked,0.6641,0.6573,0.6709,232201,6005,0.664/0.664/0.664
+MGnify,all,destabilizing (ddG < 0),per scaffold,wt,linked - latent,0.0000,-0.0000,0.0000,232201,6005,identical (monotone within a scaffold)
+MGnify,all,destabilizing (ddG < 0),per scaffold,comb,latent,0.6703,0.6636,0.6772,232201,6005,0.671/0.671/0.670
+MGnify,all,destabilizing (ddG < 0),per scaffold,comb,linked,0.6703,0.6636,0.6772,232201,6005,0.671/0.671/0.670
+MGnify,all,destabilizing (ddG < 0),per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,232201,6005,identical (monotone within a scaffold)
+MGnify,all,destabilizing (ddG < 0),per scaffold,mt,latent,0.6499,0.6436,0.6562,232201,6005,0.650/0.647/0.653
+MGnify,all,destabilizing (ddG < 0),per scaffold,mt,linked,0.6499,0.6436,0.6562,232201,6005,0.650/0.647/0.653
+MGnify,all,destabilizing (ddG < 0),per scaffold,mt,linked - latent,0.0000,0.0000,0.0000,232201,6005,identical (monotone within a scaffold)
+MGnify,all,dG <= 0,pooled,wt,latent,0.6638,0.6562,0.6699,41628,24711,0.667/0.665/0.660
+MGnify,all,dG <= 0,pooled,wt,linked,0.9142,0.9095,0.9186,41628,24711,0.915/0.911/0.917
+MGnify,all,dG <= 0,pooled,wt,linked - latent,0.2499,0.2443,0.2566,41628,24711,p=0.0099
+MGnify,all,dG <= 0,pooled,comb,latent,0.6846,0.6769,0.6912,41628,24711,0.684/0.687/0.683
+MGnify,all,dG <= 0,pooled,comb,linked,0.9067,0.9023,0.9105,41628,24711,0.907/0.905/0.908
+MGnify,all,dG <= 0,pooled,comb,linked - latent,0.2217,0.2169,0.2269,41628,24711,p=0.0099
+MGnify,all,dG <= 0,pooled,mt,latent,0.6826,0.6755,0.6913,41628,24711,0.677/0.683/0.688
+MGnify,all,dG <= 0,pooled,mt,linked,0.8858,0.8807,0.8904,41628,24711,0.886/0.884/0.888
+MGnify,all,dG <= 0,pooled,mt,linked - latent,0.2030,0.1972,0.2083,41628,24711,p=0.0099
+MGnify,all,dG <= 0,per scaffold,wt,latent,0.2103,0.1771,0.2494,2953,238,0.216/0.210/0.205
+MGnify,all,dG <= 0,per scaffold,wt,linked,0.2103,0.1771,0.2494,2953,238,0.216/0.210/0.205
+MGnify,all,dG <= 0,per scaffold,wt,linked - latent,-0.0000,-0.0000,0.0000,2953,238,identical (monotone within a scaffold)
+MGnify,all,dG <= 0,per scaffold,comb,latent,0.2229,0.1876,0.2644,2953,238,0.227/0.219/0.223
+MGnify,all,dG <= 0,per scaffold,comb,linked,0.2229,0.1876,0.2644,2953,238,0.227/0.219/0.223
+MGnify,all,dG <= 0,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,2953,238,identical (monotone within a scaffold)
+MGnify,all,dG <= 0,per scaffold,mt,latent,0.2121,0.1757,0.2606,2953,238,0.212/0.200/0.224
+MGnify,all,dG <= 0,per scaffold,mt,linked,0.2121,0.1757,0.2606,2953,238,0.212/0.200/0.224
+MGnify,all,dG <= 0,per scaffold,mt,linked - latent,0.0000,0.0000,0.0000,2953,238,identical (monotone within a scaffold)
+MGnify,lowid,overall,pooled,wt,latent,0.6095,0.6049,0.6139,692708,163757,0.609/0.611/0.608
+MGnify,lowid,overall,pooled,wt,linked,0.6388,0.6347,0.6435,692708,163757,0.638/0.640/0.638
+MGnify,lowid,overall,pooled,wt,linked - latent,0.0293,0.0283,0.0303,692708,163757,p=0.0099
+MGnify,lowid,overall,pooled,comb,latent,0.6271,0.6222,0.6317,692708,163757,0.627/0.629/0.625
+MGnify,lowid,overall,pooled,comb,linked,0.6519,0.6474,0.6566,692708,163757,0.652/0.654/0.650
+MGnify,lowid,overall,pooled,comb,linked - latent,0.0248,0.0241,0.0255,692708,163757,p=0.0099
+MGnify,lowid,overall,per scaffold,wt,latent,0.6707,0.6637,0.6787,290498,5976,0.670/0.671/0.671
+MGnify,lowid,overall,per scaffold,wt,linked,0.6707,0.6637,0.6787,290498,5976,0.670/0.671/0.671
+MGnify,lowid,overall,per scaffold,wt,linked - latent,-0.0000,-0.0000,0.0000,290498,5976,identical (monotone within a scaffold)
+MGnify,lowid,overall,per scaffold,comb,latent,0.6830,0.6764,0.6907,290498,5976,0.683/0.683/0.683
+MGnify,lowid,overall,per scaffold,comb,linked,0.6830,0.6764,0.6907,290498,5976,0.683/0.683/0.683
+MGnify,lowid,overall,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,290498,5976,identical (monotone within a scaffold)
+MGnify,lowid,singles,pooled,wt,latent,0.5882,0.5846,0.5914,554283,163753,0.587/0.590/0.587
+MGnify,lowid,singles,pooled,wt,linked,0.6213,0.6180,0.6246,554283,163753,0.620/0.623/0.621
+MGnify,lowid,singles,pooled,wt,linked - latent,0.0331,0.0321,0.0342,554283,163753,p=0.0099
+MGnify,lowid,singles,pooled,comb,latent,0.6075,0.6040,0.6107,554283,163753,0.607/0.610/0.606
+MGnify,lowid,singles,pooled,comb,linked,0.6358,0.6323,0.6390,554283,163753,0.635/0.637/0.635
+MGnify,lowid,singles,pooled,comb,linked - latent,0.0283,0.0275,0.0290,554283,163753,p=0.0099
+MGnify,lowid,singles,per scaffold,wt,latent,0.6511,0.6438,0.6586,152084,5975,0.651/0.652/0.651
+MGnify,lowid,singles,per scaffold,wt,linked,0.6511,0.6438,0.6586,152084,5975,0.651/0.652/0.651
+MGnify,lowid,singles,per scaffold,wt,linked - latent,0.0000,0.0000,0.0000,152084,5975,identical (monotone within a scaffold)
+MGnify,lowid,singles,per scaffold,comb,latent,0.6637,0.6568,0.6712,152084,5975,0.664/0.664/0.663
+MGnify,lowid,singles,per scaffold,comb,linked,0.6637,0.6568,0.6712,152084,5975,0.664/0.664/0.663
+MGnify,lowid,singles,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,152084,5975,identical (monotone within a scaffold)
+MGnify,lowid,doubles,pooled,wt,latent,0.6434,0.6341,0.6540,138422,5927,0.642/0.646/0.642
+MGnify,lowid,doubles,pooled,wt,linked,0.6517,0.6424,0.6624,138422,5927,0.650/0.654/0.651
+MGnify,lowid,doubles,pooled,wt,linked - latent,0.0083,0.0070,0.0095,138422,5927,p=0.0099
+MGnify,lowid,doubles,pooled,comb,latent,0.6610,0.6505,0.6714,138422,5927,0.657/0.664/0.662
+MGnify,lowid,doubles,pooled,comb,linked,0.6674,0.6572,0.6779,138422,5927,0.664/0.670/0.668
+MGnify,lowid,doubles,pooled,comb,linked - latent,0.0065,0.0056,0.0074,138422,5927,p=0.0099
+MGnify,lowid,doubles,per scaffold,wt,latent,0.6600,0.6537,0.6690,138302,5901,0.660/0.660/0.660
+MGnify,lowid,doubles,per scaffold,wt,linked,0.6600,0.6537,0.6690,138302,5901,0.660/0.660/0.660
+MGnify,lowid,doubles,per scaffold,wt,linked - latent,-0.0000,-0.0000,0.0000,138302,5901,identical (monotone within a scaffold)
+MGnify,lowid,doubles,per scaffold,comb,latent,0.6733,0.6665,0.6827,138302,5901,0.674/0.672/0.674
+MGnify,lowid,doubles,per scaffold,comb,linked,0.6733,0.6665,0.6827,138302,5901,0.674/0.672/0.674
+MGnify,lowid,doubles,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,138302,5901,identical (monotone within a scaffold)
+MGnify,clean,overall,pooled,wt,latent,0.6082,0.6035,0.6127,666365,156635,0.608/0.610/0.607
+MGnify,clean,overall,pooled,wt,linked,0.6376,0.6335,0.6422,666365,156635,0.637/0.639/0.637
+MGnify,clean,overall,pooled,wt,linked - latent,0.0294,0.0283,0.0304,666365,156635,p=0.0099
+MGnify,clean,overall,pooled,comb,latent,0.6260,0.6210,0.6306,666365,156635,0.625/0.628/0.624
+MGnify,clean,overall,pooled,comb,linked,0.6508,0.6462,0.6556,666365,156635,0.650/0.653/0.649
+MGnify,clean,overall,pooled,comb,linked - latent,0.0248,0.0241,0.0255,666365,156635,p=0.0099
+MGnify,clean,overall,per scaffold,wt,latent,0.6693,0.6621,0.6775,281937,5798,0.669/0.670/0.669
+MGnify,clean,overall,per scaffold,wt,linked,0.6693,0.6621,0.6775,281937,5798,0.669/0.670/0.669
+MGnify,clean,overall,per scaffold,wt,linked - latent,-0.0000,-0.0000,0.0000,281937,5798,identical (monotone within a scaffold)
+MGnify,clean,overall,per scaffold,comb,latent,0.6816,0.6747,0.6895,281937,5798,0.682/0.681/0.682
+MGnify,clean,overall,per scaffold,comb,linked,0.6816,0.6747,0.6895,281937,5798,0.682/0.681/0.682
+MGnify,clean,overall,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,281937,5798,identical (monotone within a scaffold)
+MGnify,clean,singles,pooled,wt,latent,0.5866,0.5830,0.5899,532030,156631,0.585/0.589/0.586
+MGnify,clean,singles,pooled,wt,linked,0.6198,0.6164,0.6232,532030,156631,0.619/0.621/0.620
+MGnify,clean,singles,pooled,wt,linked - latent,0.0332,0.0321,0.0343,532030,156631,p=0.0099
+MGnify,clean,singles,pooled,comb,latent,0.6060,0.6024,0.6094,532030,156631,0.605/0.608/0.605
+MGnify,clean,singles,pooled,comb,linked,0.6344,0.6308,0.6378,532030,156631,0.634/0.636/0.633
+MGnify,clean,singles,pooled,comb,linked - latent,0.0283,0.0275,0.0291,532030,156631,p=0.0099
+MGnify,clean,singles,per scaffold,wt,latent,0.6499,0.6423,0.6574,147613,5797,0.650/0.650/0.650
+MGnify,clean,singles,per scaffold,wt,linked,0.6499,0.6423,0.6574,147613,5797,0.650/0.650/0.650
+MGnify,clean,singles,per scaffold,wt,linked - latent,0.0000,0.0000,0.0000,147613,5797,identical (monotone within a scaffold)
+MGnify,clean,singles,per scaffold,comb,latent,0.6625,0.6553,0.6700,147613,5797,0.663/0.662/0.662
+MGnify,clean,singles,per scaffold,comb,linked,0.6625,0.6553,0.6700,147613,5797,0.663/0.662/0.662
+MGnify,clean,singles,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,147613,5797,identical (monotone within a scaffold)
+MGnify,clean,doubles,pooled,wt,latent,0.6428,0.6336,0.6534,134332,5749,0.641/0.646/0.642
+MGnify,clean,doubles,pooled,wt,linked,0.6511,0.6415,0.6618,134332,5749,0.650/0.653/0.650
+MGnify,clean,doubles,pooled,wt,linked - latent,0.0083,0.0070,0.0094,134332,5749,p=0.0099
+MGnify,clean,doubles,pooled,comb,latent,0.6604,0.6500,0.6708,134332,5749,0.657/0.663/0.661
+MGnify,clean,doubles,pooled,comb,linked,0.6668,0.6566,0.6773,134332,5749,0.663/0.669/0.668
+MGnify,clean,doubles,pooled,comb,linked - latent,0.0064,0.0054,0.0074,134332,5749,p=0.0099
+MGnify,clean,doubles,per scaffold,wt,latent,0.6585,0.6520,0.6679,134220,5724,0.659/0.659/0.658
+MGnify,clean,doubles,per scaffold,wt,linked,0.6585,0.6520,0.6679,134220,5724,0.659/0.659/0.658
+MGnify,clean,doubles,per scaffold,wt,linked - latent,-0.0000,-0.0000,0.0000,134220,5724,identical (monotone within a scaffold)
+MGnify,clean,doubles,per scaffold,comb,latent,0.6718,0.6649,0.6813,134220,5724,0.673/0.671/0.672
+MGnify,clean,doubles,per scaffold,comb,linked,0.6718,0.6649,0.6813,134220,5724,0.673/0.671/0.672
+MGnify,clean,doubles,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,134220,5724,identical (monotone within a scaffold)
+MGnify,clean,dG > 0,pooled,wt,latent,0.5801,0.5754,0.5844,627382,152714,0.580/0.582/0.578
+MGnify,clean,dG > 0,pooled,wt,linked,0.6100,0.6056,0.6146,627382,152714,0.610/0.611/0.609
+MGnify,clean,dG > 0,pooled,wt,linked - latent,0.0299,0.0289,0.0309,627382,152714,p=0.0099
+MGnify,clean,dG > 0,pooled,comb,latent,0.5990,0.5938,0.6035,627382,152714,0.598/0.601/0.597
+MGnify,clean,dG > 0,pooled,comb,linked,0.6239,0.6190,0.6286,627382,152714,0.624/0.626/0.622
+MGnify,clean,dG > 0,pooled,comb,linked - latent,0.0250,0.0244,0.0256,627382,152714,p=0.0099
+MGnify,clean,dG > 0,per scaffold,wt,latent,0.6463,0.6391,0.6544,267264,5794,0.646/0.647/0.646
+MGnify,clean,dG > 0,per scaffold,wt,linked,0.6463,0.6391,0.6544,267264,5794,0.646/0.647/0.646
+MGnify,clean,dG > 0,per scaffold,wt,linked - latent,-0.0000,-0.0000,0.0000,267264,5794,identical (monotone within a scaffold)
+MGnify,clean,dG > 0,per scaffold,comb,latent,0.6601,0.6531,0.6681,267264,5794,0.660/0.660/0.660
+MGnify,clean,dG > 0,per scaffold,comb,linked,0.6601,0.6531,0.6681,267264,5794,0.660/0.660/0.660
+MGnify,clean,dG > 0,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,267264,5794,identical (monotone within a scaffold)
+MGnify,clean,stabilizing (ddG > 0),pooled,wt,latent,0.1362,0.1301,0.1427,198397,97690,0.133/0.140/0.136
+MGnify,clean,stabilizing (ddG > 0),pooled,wt,linked,0.1564,0.1505,0.1635,198397,97690,0.153/0.159/0.157
+MGnify,clean,stabilizing (ddG > 0),pooled,wt,linked - latent,0.0204,0.0185,0.0223,198397,97690,p=0.0099
+MGnify,clean,stabilizing (ddG > 0),pooled,comb,latent,0.1683,0.1610,0.1738,198397,97690,0.169/0.167/0.169
+MGnify,clean,stabilizing (ddG > 0),pooled,comb,linked,0.1864,0.1799,0.1923,198397,97690,0.187/0.185/0.187
+MGnify,clean,stabilizing (ddG > 0),pooled,comb,linked - latent,0.0182,0.0165,0.0198,198397,97690,p=0.0099
+MGnify,clean,stabilizing (ddG > 0),per scaffold,wt,latent,0.2077,0.1966,0.2210,42680,2432,0.204/0.209/0.210
+MGnify,clean,stabilizing (ddG > 0),per scaffold,wt,linked,0.2077,0.1966,0.2210,42680,2432,0.204/0.209/0.210
+MGnify,clean,stabilizing (ddG > 0),per scaffold,wt,linked - latent,-0.0000,-0.0000,0.0000,42680,2432,identical (monotone within a scaffold)
+MGnify,clean,stabilizing (ddG > 0),per scaffold,comb,latent,0.2414,0.2293,0.2546,42680,2432,0.241/0.238/0.245
+MGnify,clean,stabilizing (ddG > 0),per scaffold,comb,linked,0.2414,0.2293,0.2546,42680,2432,0.241/0.238/0.245
+MGnify,clean,stabilizing (ddG > 0),per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,42680,2432,identical (monotone within a scaffold)
+MGnify,clean,destabilizing (ddG < 0),pooled,wt,latent,0.6012,0.5962,0.6056,467968,135794,0.601/0.602/0.600
+MGnify,clean,destabilizing (ddG < 0),pooled,wt,linked,0.6299,0.6254,0.6340,467968,135794,0.630/0.631/0.630
+MGnify,clean,destabilizing (ddG < 0),pooled,wt,linked - latent,0.0288,0.0278,0.0299,467968,135794,p=0.0099
+MGnify,clean,destabilizing (ddG < 0),pooled,comb,latent,0.6076,0.6027,0.6124,467968,135794,0.606/0.610/0.607
+MGnify,clean,destabilizing (ddG < 0),pooled,comb,linked,0.6326,0.6281,0.6372,467968,135794,0.631/0.634/0.632
+MGnify,clean,destabilizing (ddG < 0),pooled,comb,linked - latent,0.0251,0.0242,0.0259,467968,135794,p=0.0099
+MGnify,clean,destabilizing (ddG < 0),per scaffold,wt,latent,0.6594,0.6524,0.6667,221732,5740,0.660/0.660/0.659
+MGnify,clean,destabilizing (ddG < 0),per scaffold,wt,linked,0.6594,0.6524,0.6667,221732,5740,0.660/0.660/0.659
+MGnify,clean,destabilizing (ddG < 0),per scaffold,wt,linked - latent,0.0000,-0.0000,0.0000,221732,5740,identical (monotone within a scaffold)
+MGnify,clean,destabilizing (ddG < 0),per scaffold,comb,latent,0.6657,0.6585,0.6728,221732,5740,0.666/0.666/0.665
+MGnify,clean,destabilizing (ddG < 0),per scaffold,comb,linked,0.6657,0.6585,0.6728,221732,5740,0.666/0.666/0.665
+MGnify,clean,destabilizing (ddG < 0),per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,221732,5740,identical (monotone within a scaffold)
+MGnify,h,overall,pooled,wt,latent,0.6398,0.6228,0.6520,26343,7122,0.640/0.642/0.637
+MGnify,h,overall,pooled,wt,linked,0.6685,0.6506,0.6805,26343,7122,0.669/0.670/0.666
+MGnify,h,overall,pooled,wt,linked - latent,0.0287,0.0258,0.0318,26343,7122,p=0.0099
+MGnify,h,overall,pooled,comb,latent,0.6546,0.6384,0.6674,26343,7122,0.655/0.657/0.652
+MGnify,h,overall,pooled,comb,linked,0.6796,0.6624,0.6926,26343,7122,0.680/0.682/0.677
+MGnify,h,overall,pooled,comb,linked - latent,0.0249,0.0223,0.0279,26343,7122,p=0.0099
+MGnify,h,overall,per scaffold,wt,latent,0.7167,0.6819,0.7387,8561,178,0.716/0.718/0.716
+MGnify,h,overall,per scaffold,wt,linked,0.7167,0.6819,0.7387,8561,178,0.716/0.718/0.716
+MGnify,h,overall,per scaffold,wt,linked - latent,0.0000,0.0000,0.0000,8561,178,identical (monotone within a scaffold)
+MGnify,h,overall,per scaffold,comb,latent,0.7300,0.6982,0.7515,8561,178,0.731/0.731/0.728
+MGnify,h,overall,per scaffold,comb,linked,0.7300,0.6982,0.7515,8561,178,0.731/0.731/0.728
+MGnify,h,overall,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,8561,178,identical (monotone within a scaffold)
+MGnify,h,singles,pooled,wt,latent,0.6262,0.6148,0.6363,22253,7122,0.625/0.629/0.625
+MGnify,h,singles,pooled,wt,linked,0.6575,0.6440,0.6670,22253,7122,0.657/0.659/0.657
+MGnify,h,singles,pooled,wt,linked - latent,0.0313,0.0282,0.0346,22253,7122,p=0.0099
+MGnify,h,singles,pooled,comb,latent,0.6420,0.6296,0.6536,22253,7122,0.642/0.644/0.641
+MGnify,h,singles,pooled,comb,linked,0.6693,0.6556,0.6800,22253,7122,0.669/0.671/0.668
+MGnify,h,singles,pooled,comb,linked - latent,0.0274,0.0247,0.0305,22253,7122,p=0.0099
+MGnify,h,singles,per scaffold,wt,latent,0.6916,0.6556,0.7193,4471,178,0.688/0.695/0.692
+MGnify,h,singles,per scaffold,wt,linked,0.6916,0.6556,0.7193,4471,178,0.688/0.695/0.692
+MGnify,h,singles,per scaffold,wt,linked - latent,0.0000,0.0000,0.0000,4471,178,identical (monotone within a scaffold)
+MGnify,h,singles,per scaffold,comb,latent,0.7030,0.6659,0.7315,4471,178,0.705/0.704/0.700
+MGnify,h,singles,per scaffold,comb,linked,0.7030,0.6659,0.7315,4471,178,0.705/0.704/0.700
+MGnify,h,singles,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,4471,178,identical (monotone within a scaffold)
+MGnify,h,doubles,pooled,wt,latent,0.6605,0.6093,0.6998,4090,178,0.662/0.664/0.656
+MGnify,h,doubles,pooled,wt,linked,0.6705,0.6204,0.7104,4090,178,0.672/0.674/0.666
+MGnify,h,doubles,pooled,wt,linked - latent,0.0095,0.0041,0.0159,4090,178,p=0.0099
+MGnify,h,doubles,pooled,comb,latent,0.6785,0.6334,0.7159,4090,178,0.677/0.683/0.676
+MGnify,h,doubles,pooled,comb,linked,0.6859,0.6402,0.7236,4090,178,0.684/0.690/0.684
+MGnify,h,doubles,pooled,comb,linked - latent,0.0070,0.0024,0.0133,4090,178,p=0.0099
+MGnify,h,doubles,per scaffold,wt,latent,0.7098,0.6771,0.7306,4082,177,0.710/0.711/0.709
+MGnify,h,doubles,per scaffold,wt,linked,0.7098,0.6771,0.7306,4082,177,0.710/0.711/0.709
+MGnify,h,doubles,per scaffold,wt,linked - latent,0.0000,0.0000,0.0000,4082,177,identical (monotone within a scaffold)
+MGnify,h,doubles,per scaffold,comb,latent,0.7245,0.6932,0.7453,4082,177,0.725/0.725/0.723
+MGnify,h,doubles,per scaffold,comb,linked,0.7245,0.6932,0.7453,4082,177,0.725/0.725/0.723
+MGnify,h,doubles,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,4082,177,identical (monotone within a scaffold)
+MGnify,strong,overall,pooled,wt,latent,0.8150,0.8056,0.8258,13156,3622,0.815/0.816/0.814
+MGnify,strong,overall,pooled,wt,linked,0.8270,0.8189,0.8369,13156,3622,0.827/0.828/0.826
+MGnify,strong,overall,pooled,wt,linked - latent,0.0122,0.0086,0.0155,13156,3622,p=0.0099
+MGnify,strong,overall,pooled,comb,latent,0.8182,0.8084,0.8287,13156,3622,0.818/0.819/0.818
+MGnify,strong,overall,pooled,comb,linked,0.8294,0.8213,0.8396,13156,3622,0.829/0.830/0.829
+MGnify,strong,overall,pooled,comb,linked - latent,0.0114,0.0082,0.0146,13156,3622,p=0.0099
+MGnify,strong,overall,per scaffold,wt,latent,0.8801,0.8666,0.8896,4172,90,0.879/0.881/0.880
+MGnify,strong,overall,per scaffold,wt,linked,0.8801,0.8666,0.8896,4172,90,0.879/0.881/0.880
+MGnify,strong,overall,per scaffold,wt,linked - latent,0.0000,0.0000,0.0000,4172,90,identical (monotone within a scaffold)
+MGnify,strong,overall,per scaffold,comb,latent,0.8833,0.8705,0.8923,4172,90,0.883/0.884/0.883
+MGnify,strong,overall,per scaffold,comb,linked,0.8833,0.8705,0.8923,4172,90,0.883/0.884/0.883
+MGnify,strong,overall,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,4172,90,identical (monotone within a scaffold)
+MGnify,strong,singles,pooled,wt,latent,0.7950,0.7865,0.8055,11221,3622,0.794/0.796/0.795
+MGnify,strong,singles,pooled,wt,linked,0.8069,0.7995,0.8169,11221,3622,0.806/0.808/0.806
+MGnify,strong,singles,pooled,wt,linked - latent,0.0121,0.0082,0.0161,11221,3622,p=0.0099
+MGnify,strong,singles,pooled,comb,latent,0.8016,0.7932,0.8125,11221,3622,0.801/0.802/0.802
+MGnify,strong,singles,pooled,comb,linked,0.8126,0.8056,0.8230,11221,3622,0.812/0.813/0.813
+MGnify,strong,singles,pooled,comb,linked - latent,0.0112,0.0076,0.0149,11221,3622,p=0.0099
+MGnify,strong,singles,per scaffold,wt,latent,0.8631,0.8422,0.8750,2237,90,0.860/0.864/0.865
+MGnify,strong,singles,per scaffold,wt,linked,0.8631,0.8422,0.8750,2237,90,0.860/0.864/0.865
+MGnify,strong,singles,per scaffold,wt,linked - latent,0.0000,0.0000,0.0000,2237,90,identical (monotone within a scaffold)
+MGnify,strong,singles,per scaffold,comb,latent,0.8721,0.8530,0.8845,2237,90,0.871/0.871/0.874
+MGnify,strong,singles,per scaffold,comb,linked,0.8721,0.8530,0.8845,2237,90,0.871/0.871/0.874
+MGnify,strong,singles,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,2237,90,identical (monotone within a scaffold)
+MGnify,strong,doubles,pooled,wt,latent,0.8499,0.8260,0.8730,1935,90,0.850/0.850/0.850
+MGnify,strong,doubles,pooled,wt,linked,0.8709,0.8484,0.8907,1935,90,0.871/0.871/0.870
+MGnify,strong,doubles,pooled,wt,linked - latent,0.0209,0.0121,0.0320,1935,90,p=0.0099
+MGnify,strong,doubles,pooled,comb,latent,0.8515,0.8267,0.8731,1935,90,0.853/0.851/0.850
+MGnify,strong,doubles,pooled,comb,linked,0.8724,0.8485,0.8926,1935,90,0.873/0.872/0.872
+MGnify,strong,doubles,pooled,comb,linked - latent,0.0207,0.0125,0.0311,1935,90,p=0.0099
+MGnify,strong,doubles,per scaffold,wt,latent,0.8399,0.8157,0.8573,1935,90,0.837/0.843/0.840
+MGnify,strong,doubles,per scaffold,wt,linked,0.8399,0.8157,0.8573,1935,90,0.837/0.843/0.840
+MGnify,strong,doubles,per scaffold,wt,linked - latent,0.0000,0.0000,0.0000,1935,90,identical (monotone within a scaffold)
+MGnify,strong,doubles,per scaffold,comb,latent,0.8410,0.8148,0.8615,1935,90,0.841/0.842/0.840
+MGnify,strong,doubles,per scaffold,comb,linked,0.8410,0.8148,0.8615,1935,90,0.841/0.842/0.840
+MGnify,strong,doubles,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,1935,90,identical (monotone within a scaffold)
+Tsuboyama capped test,all,overall,pooled,wt,latent,0.7785,0.6867,0.8649,48740,33,0.784/0.772/0.779
+Tsuboyama capped test,all,overall,pooled,wt,linked,0.7877,0.6939,0.8748,48740,33,0.793/0.782/0.789
+Tsuboyama capped test,all,overall,pooled,wt,linked - latent,0.0085,0.0020,0.0165,48740,33,p=0.0099
+Tsuboyama capped test,all,overall,pooled,comb,latent,0.7578,0.6345,0.8656,48740,33,0.761/0.749/0.764
+Tsuboyama capped test,all,overall,pooled,comb,linked,0.7661,0.6448,0.8765,48740,33,0.768/0.757/0.773
+Tsuboyama capped test,all,overall,pooled,comb,linked - latent,0.0076,0.0018,0.0146,48740,33,p=0.0099
+Tsuboyama capped test,all,overall,pooled,mt,latent,0.6628,0.5007,0.8016,48740,33,0.665/0.648/0.676
+Tsuboyama capped test,all,overall,pooled,mt,linked,0.6699,0.5108,0.8088,48740,33,0.672/0.655/0.683
+Tsuboyama capped test,all,overall,pooled,mt,linked - latent,0.0066,0.0013,0.0133,48740,33,p=0.0099
+Tsuboyama capped test,all,overall,per scaffold,wt,latent,0.8271,0.7885,0.8597,48740,33,0.828/0.823/0.830
+Tsuboyama capped test,all,overall,per scaffold,wt,linked,0.8268,0.7883,0.8589,48740,33,0.828/0.823/0.829
+Tsuboyama capped test,all,overall,per scaffold,wt,linked - latent,-0.0003,-0.0010,-0.0000,48740,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,overall,per scaffold,comb,latent,0.8451,0.8096,0.8725,48740,33,0.845/0.845/0.846
+Tsuboyama capped test,all,overall,per scaffold,comb,linked,0.8449,0.8092,0.8720,48740,33,0.845/0.845/0.845
+Tsuboyama capped test,all,overall,per scaffold,comb,linked - latent,-0.0002,-0.0006,0.0000,48740,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,overall,per scaffold,mt,latent,0.8085,0.7748,0.8408,48740,33,0.807/0.809/0.809
+Tsuboyama capped test,all,overall,per scaffold,mt,linked,0.8084,0.7747,0.8404,48740,33,0.807/0.809/0.809
+Tsuboyama capped test,all,overall,per scaffold,mt,linked - latent,-0.0001,-0.0004,0.0000,48740,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,singles,pooled,wt,latent,0.8072,0.7688,0.8429,35421,33,0.810/0.804/0.808
+Tsuboyama capped test,all,singles,pooled,wt,linked,0.8114,0.7713,0.8488,35421,33,0.814/0.808/0.812
+Tsuboyama capped test,all,singles,pooled,wt,linked - latent,0.0038,-0.0011,0.0104,35421,33,p=0.22
+Tsuboyama capped test,all,singles,pooled,comb,latent,0.8129,0.7804,0.8449,35421,33,0.815/0.811/0.812
+Tsuboyama capped test,all,singles,pooled,comb,linked,0.8165,0.7814,0.8514,35421,33,0.819/0.815/0.816
+Tsuboyama capped test,all,singles,pooled,comb,linked - latent,0.0033,-0.0010,0.0097,35421,33,p=0.24
+Tsuboyama capped test,all,singles,pooled,mt,latent,0.7878,0.7532,0.8205,35421,33,0.790/0.785/0.789
+Tsuboyama capped test,all,singles,pooled,mt,linked,0.7909,0.7536,0.8269,35421,33,0.793/0.788/0.792
+Tsuboyama capped test,all,singles,pooled,mt,linked - latent,0.0028,-0.0011,0.0090,35421,33,p=0.32
+Tsuboyama capped test,all,singles,per scaffold,wt,latent,0.8327,0.7990,0.8562,35421,33,0.835/0.830/0.834
+Tsuboyama capped test,all,singles,per scaffold,wt,linked,0.8324,0.7983,0.8556,35421,33,0.834/0.829/0.834
+Tsuboyama capped test,all,singles,per scaffold,wt,linked - latent,-0.0003,-0.0010,-0.0000,35421,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,singles,per scaffold,comb,latent,0.8463,0.8155,0.8680,35421,33,0.848/0.846/0.845
+Tsuboyama capped test,all,singles,per scaffold,comb,linked,0.8462,0.8150,0.8672,35421,33,0.848/0.846/0.845
+Tsuboyama capped test,all,singles,per scaffold,comb,linked - latent,-0.0002,-0.0006,0.0000,35421,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,singles,per scaffold,mt,latent,0.8292,0.8025,0.8477,35421,33,0.830/0.829/0.829
+Tsuboyama capped test,all,singles,per scaffold,mt,linked,0.8291,0.8022,0.8474,35421,33,0.830/0.828/0.829
+Tsuboyama capped test,all,singles,per scaffold,mt,linked - latent,-0.0001,-0.0004,0.0000,35421,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,doubles,pooled,wt,latent,0.4902,0.2911,0.7825,13319,13,0.493/0.481/0.497
+Tsuboyama capped test,all,doubles,pooled,wt,linked,0.5300,0.3235,0.8314,13319,13,0.530/0.524/0.536
+Tsuboyama capped test,all,doubles,pooled,wt,linked - latent,0.0386,-0.0030,0.0837,13319,13,p=0.1
+Tsuboyama capped test,all,doubles,pooled,comb,latent,0.5185,0.3129,0.8177,13319,13,0.521/0.505/0.530
+Tsuboyama capped test,all,doubles,pooled,comb,linked,0.5458,0.3364,0.8486,13319,13,0.546/0.534/0.558
+Tsuboyama capped test,all,doubles,pooled,comb,linked - latent,0.0270,-0.0011,0.0573,13319,13,p=0.08
+Tsuboyama capped test,all,doubles,pooled,mt,latent,0.4767,0.2897,0.7572,13319,13,0.477/0.452/0.501
+Tsuboyama capped test,all,doubles,pooled,mt,linked,0.4948,0.3015,0.7906,13319,13,0.494/0.473/0.517
+Tsuboyama capped test,all,doubles,pooled,mt,linked - latent,0.0190,-0.0002,0.0497,13319,13,p=0.08
+Tsuboyama capped test,all,doubles,per scaffold,wt,latent,0.7234,0.6578,0.7896,13319,13,0.721/0.722/0.727
+Tsuboyama capped test,all,doubles,per scaffold,wt,linked,0.7234,0.6578,0.7897,13319,13,0.721/0.722/0.727
+Tsuboyama capped test,all,doubles,per scaffold,wt,linked - latent,-0.0000,-0.0001,0.0000,13319,13,identical (monotone within a scaffold)
+Tsuboyama capped test,all,doubles,per scaffold,comb,latent,0.7772,0.7254,0.8271,13319,13,0.771/0.780/0.780
+Tsuboyama capped test,all,doubles,per scaffold,comb,linked,0.7772,0.7254,0.8271,13319,13,0.771/0.780/0.780
+Tsuboyama capped test,all,doubles,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,13319,13,identical (monotone within a scaffold)
+Tsuboyama capped test,all,doubles,per scaffold,mt,latent,0.6917,0.6259,0.7766,13319,13,0.683/0.687/0.705
+Tsuboyama capped test,all,doubles,per scaffold,mt,linked,0.6917,0.6259,0.7766,13319,13,0.683/0.687/0.705
+Tsuboyama capped test,all,doubles,per scaffold,mt,linked - latent,-0.0000,-0.0000,0.0000,13319,13,identical (monotone within a scaffold)
+Tsuboyama capped test,all,dG > 0,pooled,wt,latent,0.7786,0.6998,0.8574,43941,33,0.782/0.775/0.779
+Tsuboyama capped test,all,dG > 0,pooled,wt,linked,0.7891,0.7065,0.8635,43941,33,0.792/0.785/0.790
+Tsuboyama capped test,all,dG > 0,pooled,wt,linked - latent,0.0099,0.0048,0.0162,43941,33,p=0.0099
+Tsuboyama capped test,all,dG > 0,pooled,comb,latent,0.7631,0.6624,0.8550,43941,33,0.766/0.756/0.767
+Tsuboyama capped test,all,dG > 0,pooled,comb,linked,0.7707,0.6705,0.8644,43941,33,0.773/0.764/0.775
+Tsuboyama capped test,all,dG > 0,pooled,comb,linked - latent,0.0072,0.0029,0.0121,43941,33,p=0.0099
+Tsuboyama capped test,all,dG > 0,pooled,mt,latent,0.6696,0.5421,0.7822,43941,33,0.674/0.657/0.678
+Tsuboyama capped test,all,dG > 0,pooled,mt,linked,0.6755,0.5480,0.7861,43941,33,0.680/0.663/0.683
+Tsuboyama capped test,all,dG > 0,pooled,mt,linked - latent,0.0056,0.0023,0.0101,43941,33,p=0.0099
+Tsuboyama capped test,all,dG > 0,per scaffold,wt,latent,0.8038,0.7667,0.8350,43941,33,0.805/0.800/0.806
+Tsuboyama capped test,all,dG > 0,per scaffold,wt,linked,0.8037,0.7666,0.8350,43941,33,0.805/0.800/0.806
+Tsuboyama capped test,all,dG > 0,per scaffold,wt,linked - latent,-0.0001,-0.0002,0.0000,43941,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,dG > 0,per scaffold,comb,latent,0.8229,0.7867,0.8492,43941,33,0.823/0.823/0.823
+Tsuboyama capped test,all,dG > 0,per scaffold,comb,linked,0.8228,0.7866,0.8492,43941,33,0.823/0.823/0.823
+Tsuboyama capped test,all,dG > 0,per scaffold,comb,linked - latent,-0.0001,-0.0002,0.0000,43941,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,dG > 0,per scaffold,mt,latent,0.7811,0.7453,0.8144,43941,33,0.781/0.782/0.780
+Tsuboyama capped test,all,dG > 0,per scaffold,mt,linked,0.7810,0.7452,0.8144,43941,33,0.781/0.782/0.780
+Tsuboyama capped test,all,dG > 0,per scaffold,mt,linked - latent,-0.0001,-0.0002,0.0000,43941,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,stabilizing (ddG > 0),pooled,wt,latent,0.2960,0.2175,0.3565,7417,33,0.298/0.292/0.298
+Tsuboyama capped test,all,stabilizing (ddG > 0),pooled,wt,linked,0.2965,0.2177,0.3570,7417,33,0.298/0.293/0.298
+Tsuboyama capped test,all,stabilizing (ddG > 0),pooled,wt,linked - latent,0.0005,0.0001,0.0011,7417,33,p=0.0099
+Tsuboyama capped test,all,stabilizing (ddG > 0),pooled,comb,latent,0.3679,0.3075,0.4199,7417,33,0.369/0.370/0.365
+Tsuboyama capped test,all,stabilizing (ddG > 0),pooled,comb,linked,0.3682,0.3079,0.4202,7417,33,0.370/0.370/0.365
+Tsuboyama capped test,all,stabilizing (ddG > 0),pooled,comb,linked - latent,0.0003,0.0001,0.0008,7417,33,p=0.0099
+Tsuboyama capped test,all,stabilizing (ddG > 0),pooled,mt,latent,0.3794,0.3282,0.4220,7417,33,0.382/0.381/0.375
+Tsuboyama capped test,all,stabilizing (ddG > 0),pooled,mt,linked,0.3796,0.3285,0.4222,7417,33,0.382/0.381/0.376
+Tsuboyama capped test,all,stabilizing (ddG > 0),pooled,mt,linked - latent,0.0003,0.0001,0.0005,7417,33,p=0.0099
+Tsuboyama capped test,all,stabilizing (ddG > 0),per scaffold,wt,latent,0.2766,0.2080,0.3271,7417,33,0.271/0.284/0.274
+Tsuboyama capped test,all,stabilizing (ddG > 0),per scaffold,wt,linked,0.2766,0.2080,0.3271,7417,33,0.271/0.284/0.274
+Tsuboyama capped test,all,stabilizing (ddG > 0),per scaffold,wt,linked - latent,0.0000,0.0000,0.0001,7417,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,stabilizing (ddG > 0),per scaffold,comb,latent,0.3462,0.2775,0.3912,7417,33,0.346/0.351/0.342
+Tsuboyama capped test,all,stabilizing (ddG > 0),per scaffold,comb,linked,0.3462,0.2775,0.3913,7417,33,0.346/0.351/0.342
+Tsuboyama capped test,all,stabilizing (ddG > 0),per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,7417,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,stabilizing (ddG > 0),per scaffold,mt,latent,0.3503,0.2983,0.3917,7417,33,0.352/0.350/0.350
+Tsuboyama capped test,all,stabilizing (ddG > 0),per scaffold,mt,linked,0.3503,0.2983,0.3918,7417,33,0.352/0.350/0.350
+Tsuboyama capped test,all,stabilizing (ddG > 0),per scaffold,mt,linked - latent,0.0000,-0.0000,0.0000,7417,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,destabilizing (ddG < 0),pooled,wt,latent,0.7224,0.6042,0.8387,41323,33,0.729/0.715/0.724
+Tsuboyama capped test,all,destabilizing (ddG < 0),pooled,wt,linked,0.7370,0.6159,0.8530,41323,33,0.742/0.730/0.739
+Tsuboyama capped test,all,destabilizing (ddG < 0),pooled,wt,linked - latent,0.0135,0.0029,0.0277,41323,33,p=0.0099
+Tsuboyama capped test,all,destabilizing (ddG < 0),pooled,comb,latent,0.6872,0.5320,0.8293,41323,33,0.690/0.676/0.696
+Tsuboyama capped test,all,destabilizing (ddG < 0),pooled,comb,linked,0.7006,0.5507,0.8455,41323,33,0.703/0.689/0.710
+Tsuboyama capped test,all,destabilizing (ddG < 0),pooled,comb,linked - latent,0.0123,0.0027,0.0246,41323,33,p=0.0099
+Tsuboyama capped test,all,destabilizing (ddG < 0),pooled,mt,latent,0.5711,0.3773,0.7448,41323,33,0.573/0.552/0.588
+Tsuboyama capped test,all,destabilizing (ddG < 0),pooled,mt,linked,0.5825,0.3926,0.7592,41323,33,0.585/0.564/0.599
+Tsuboyama capped test,all,destabilizing (ddG < 0),pooled,mt,linked - latent,0.0107,0.0023,0.0207,41323,33,p=0.0099
+Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,wt,latent,0.8055,0.7698,0.8353,41323,33,0.807/0.800/0.809
+Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,wt,linked,0.8048,0.7691,0.8339,41323,33,0.807/0.800/0.808
+Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,wt,linked - latent,-0.0007,-0.0024,-0.0000,41323,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,comb,latent,0.8208,0.7893,0.8482,41323,33,0.820/0.820/0.822
+Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,comb,linked,0.8203,0.7889,0.8480,41323,33,0.820/0.819/0.822
+Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,comb,linked - latent,-0.0004,-0.0015,0.0000,41323,33,identical (monotone within a scaffold)
+Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,mt,latent,0.7759,0.7400,0.8101,41323,33,0.774/0.775/0.778
+Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,mt,linked,0.7757,0.7398,0.8095,41323,33,0.774/0.775/0.778
+Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,mt,linked - latent,-0.0003,-0.0009,0.0000,41323,33,identical (monotone within a scaffold)

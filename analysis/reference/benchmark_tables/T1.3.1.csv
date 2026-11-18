@@ -9,8 +9,8 @@ MutateEverything st2 (3 seeds),0.635,0.598,0.560,0.509ᴴ,0.499ʰ
 "MutateEverything st2, additive",0.699,0.642,0.599,–,–
 "ThermoMPNN (additive, 3 seeds)",0.632,0.569,0.570,0.450ᴴ,0.437ʰ
 ThermoMPNN + ThermoMPNN-D (3 seeds),0.582,0.549,0.535,–,–
-"SPURS (retrained, 3 seeds)",0.729,0.589,0.583,0.489ᴴ,0.477ʰ
-"SPURS multi (retrained, 3 seeds)",0.673,0.545,0.539,0.393ᴴ,0.383ʰ
+"SPURS (retrained, 3 seeds)",0.736,0.589,0.591,0.494ᴴ,0.482ʰ
+"SPURS multi (retrained, 3 seeds)",0.617,0.544,0.532,0.399ᴴ,0.387ʰ
 ESMtherm,0.136,0.466,0.229,0.201ᴾ,0.183ᴾ
 DDGemb (server),0.123,0.469,0.475ᴴ,0.351ᴾ,0.343ᴾ
 "IFUM, WT backbone",0.768,0.565,0.507,0.464ᴾ,0.459ᴹ

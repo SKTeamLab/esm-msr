@@ -422,6 +422,57 @@ SPURS and SPURS multi were retrained on `data/splits_oct06_capped.pkl` so that t
 
 The results are reported in the SPURS rows of §1.1 (12 external sets), §1.2 (Tsuboyama), §1.3 (DMS and Domainome), §1.4 (ProteinGym), and §2 (epistasis), with summary CSVs in [`benchmarks/spurs_retrain_oct06.csv`](benchmarks/spurs_retrain_oct06.csv), [`benchmarks/all_by_all_long.csv`](benchmarks/all_by_all_long.csv), and [`benchmarks/checkpoints.csv`](benchmarks/checkpoints.csv), and reproducible retraining code in `training_scripts/baselines/`.
 
+### 1.7 MGnify
+
+ESM-MSR p0 (`FINAL_p0`, seeds 1–3, seed mean) on MGnify, a stability set of the Megascale kind that it never trained on (it trained on `splits_oct06_capped` alone; MGnify's own train, validation and test splits are all unseen, so every row is held out). **No other model was run on MGnify**, so this section has no comparison rows. The set (`data/mgnify_v2`): 766,790 variants of 180,367 scaffolds of 60–80 residues (616,655 singles, 150,127 doubles, 8 triples; median 3 variants per scaffold). Scored here: the 705,864 measured variants (`cens == 0`) of 167,379 scaffolds, with the labels of the v2 table. Every statistic is given twice: **latent**, the model's ddG as it is, and **Tobit-linked**, the link applied post hoc, `h(dG_wt + latent) − dG_wt` (`esm_msr.val_stats.tobit_link`, with the constants the checkpoints were fit with: σ_y 0.28, μ_f −0.14, σ_f 0.5). **Pooled** is one Spearman ρ over all variants of the subset, with intervals from resampling scaffolds and the three seeds; **per-scaffold** is the mean over scaffolds of each scaffold's own ρ, for scaffolds with at least 10 variants in the subset (the Tsuboyama convention). The link is monotone and `dG_wt` is constant within a scaffold, so it cannot change a per-scaffold ρ; it changes pooled ranks and the scale (RMSE, kcal/mol). Subsets as in §1.2 and `11_publication_figures` fig2: singles, doubles, dG > 0 (the variant's measured dG_ML above 0), stabilizing (measured ddG > 0) and destabilizing (< 0). Tsuboyama capped-test rows of the same prediction are the reference (per library on the 33 libraries; doubles: the 13 libraries that have them).
+
+| set | subset | variants | scaffolds | pooled ρ, latent | pooled ρ, Tobit-linked | per-scaffold ρ | scaffolds (per-scaffold) | RMSE latent | RMSE linked |
+|---|---|---|---|---|---|---|---|---|---|
+| MGnify | overall | 705,864 | 167,379 | 0.631 | 0.656 | 0.686 | 6,066 | 0.844 | 0.718 |
+| MGnify | singles | 565,504 | 167,375 | 0.612 | 0.640 | 0.667 | 6,065 | 0.817 | 0.698 |
+| MGnify | doubles | 140,357 | 6,017 | 0.664 | 0.671 | 0.676 | 5,991 | 0.946 | 0.793 |
+| MGnify | dG > 0 | 664,236 | 163,277 | 0.604 | 0.628 | 0.664 | 6,062 | 0.830 | 0.714 |
+| MGnify | stabilizing (ddG > 0) | 208,708 | 103,662 | 0.170 | 0.188 | 0.243 | 2,519 | 0.891 | 0.791 |
+| MGnify | destabilizing (ddG < 0) | 497,156 | 145,550 | 0.613 | 0.638 | 0.670 | 6,005 | 0.824 | 0.684 |
+| Tsuboyama capped test | overall | 48,740 | 33 | 0.758 | 0.766 | 0.845 | 33 | 0.774 | 0.731 |
+| Tsuboyama capped test | singles | 35,421 | 33 | 0.813 | 0.817 | 0.846 | 33 | 0.588 | 0.541 |
+| Tsuboyama capped test | doubles | 13,319 | 13 | 0.518 | 0.546 | 0.777 | 13 | 1.129 | 1.085 |
+| Tsuboyama capped test | dG > 0 | 43,941 | 33 | 0.763 | 0.771 | 0.823 | 33 | 0.678 | 0.640 |
+| Tsuboyama capped test | stabilizing (ddG > 0) | 7,417 | 33 | 0.368 | 0.368 | 0.346 | 33 | 0.488 | 0.481 |
+| Tsuboyama capped test | destabilizing (ddG < 0) | 41,323 | 33 | 0.687 | 0.701 | 0.821 | 33 | 0.815 | 0.767 |
+
+| set | leak code |
+|---|---|
+| MGnify (variants by the scaffold's homology to the capped training libraries) | H.02 h.04 |
+| Tsuboyama capped test | h.16 |
+
+Homology strata of the combined prediction (sequence evidence, MMseqs2 `-s 7.5` against the training libraries' wild types; `lowid` = all but H and same protein, `clean` = none and low homology, `h` weak homolog, `strong` = H and same protein):
+
+| stratum | subset | scaffolds | pooled ρ, latent | pooled ρ, Tobit-linked | per-scaffold ρ |
+|---|---|---|---|---|---|
+| all | overall | 167,379 | 0.631 [0.626, 0.635] | 0.656 [0.651, 0.660] | 0.686 [0.679, 0.693] |
+| all | singles | 167,375 | 0.612 [0.608, 0.615] | 0.640 [0.636, 0.643] | 0.667 [0.660, 0.674] |
+| all | doubles | 6,017 | 0.664 [0.654, 0.674] | 0.671 [0.661, 0.681] | 0.676 [0.669, 0.685] |
+| lowid | overall | 163,757 | 0.627 [0.622, 0.632] | 0.652 [0.647, 0.657] | 0.683 [0.676, 0.691] |
+| lowid | singles | 163,753 | 0.608 [0.604, 0.611] | 0.636 [0.632, 0.639] | 0.664 [0.657, 0.671] |
+| lowid | doubles | 5,927 | 0.661 [0.650, 0.671] | 0.667 [0.657, 0.678] | 0.673 [0.666, 0.683] |
+| clean | overall | 156,635 | 0.626 [0.621, 0.631] | 0.651 [0.646, 0.656] | 0.682 [0.675, 0.690] |
+| clean | singles | 156,631 | 0.606 [0.602, 0.609] | 0.634 [0.631, 0.638] | 0.662 [0.655, 0.670] |
+| clean | doubles | 5,749 | 0.660 [0.650, 0.671] | 0.667 [0.657, 0.677] | 0.672 [0.665, 0.681] |
+| h | overall | 7,122 | 0.655 [0.638, 0.667] | 0.680 [0.662, 0.693] | 0.730 [0.698, 0.751] |
+| h | singles | 7,122 | 0.642 [0.630, 0.654] | 0.669 [0.656, 0.680] | 0.703 [0.666, 0.732] |
+| h | doubles | 178 | 0.678 [0.633, 0.716] | 0.686 [0.640, 0.724] | 0.725 [0.693, 0.745] |
+| strong | overall | 3,622 | 0.818 [0.808, 0.829] | 0.829 [0.821, 0.840] | 0.883 [0.871, 0.892] |
+| strong | singles | 3,622 | 0.802 [0.793, 0.812] | 0.813 [0.806, 0.823] | 0.872 [0.853, 0.884] |
+| strong | doubles | 90 | 0.852 [0.827, 0.873] | 0.872 [0.849, 0.893] | 0.841 [0.815, 0.862] |
+
+- **Overall.** Pooled ρ 0.631 latent and 0.656 linked, mean per-scaffold ρ 0.686 over 6,066 scaffolds; the WT head alone gives 0.614 / 0.643 pooled and 0.674 per scaffold, so the combined prediction leads on all three. The Tsuboyama capped test of the same checkpoints reads 0.845 per library. MGnify's labels are smaller (measured ddG SD 0.92 against 1.09, median |ddG| 0.45 against 0.92, 30 % stabilizing against 15 %), and a scaffold has few variants.
+- **The Tobit link** adds +0.025 to the pooled ρ overall (paired interval [0.024, 0.025]), +0.028 on singles and +0.007 on doubles, and takes the RMSE from 0.844 to 0.718. On the Tsuboyama test the same link adds +0.008 pooled [0.002, 0.015]: its 33 libraries span a narrow range of `dG_wt`, MGnify's 167,379 scaffolds do not.
+- **Singles and doubles.** Pooled 0.612 / 0.640 on singles and 0.664 / 0.671 on doubles (6,017 scaffolds); per scaffold 0.667 and 0.676. The doubles are scored by the combined prediction, which beats its WT head by 0.013 per scaffold (0.676 against 0.663).
+- **dG > 0** removes 6 % of the variants and moves little: 0.604 / 0.628 pooled, 0.664 per scaffold.
+- **Stabilizing variants** are hard: 0.170 / 0.188 pooled and 0.243 per scaffold (2,519 scaffolds), against 0.613 / 0.638 and 0.670 for destabilizing ones. The Tsuboyama test has 0.368 pooled and 0.346 per library for the stabilizing subset.
+- **Homology.** The 3,622 scaffolds with a strong homolog or the same protein in the capped training set score 0.883 per scaffold, against 0.682 for the clean ones; they are 2 % of the variants, so dropping them moves the all-scaffold numbers by 0.004–0.005.
+- Scripts and outputs: `analysis/18_mgnify.py` (`results/18_mgnify/`: `mgnify_summary.csv` with every cell and interval, `mgnify_rmse.csv`, `table_mgnify_ci.md`, figures `mgnify_overview`, `mgnify_homology`, `mgnify_per_scaffold`, `mgnify_scatter`); the summary figure `01_summary/pg_categories` carries the MGnify column.
 
 ## 2. Epistasis: ESM-MSR vs the retrained baselines and the third-party models
 

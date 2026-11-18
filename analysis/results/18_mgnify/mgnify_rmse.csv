@@ -1,0 +1,49 @@
+dataset,subset,head,form,n,rmse,mae,pearson,mean_pred,mean_measured
+MGnify,overall,wt,latent,705864,0.9328,0.6359,0.6415,-0.8268,-0.5098
+MGnify,overall,wt,linked,705864,0.7426,0.5294,0.6957,-0.6941,-0.5098
+MGnify,overall,comb,latent,705864,0.8442,0.5914,0.6621,-0.7356,-0.5098
+MGnify,overall,comb,linked,705864,0.7175,0.5156,0.7025,-0.6344,-0.5098
+MGnify,singles,wt,latent,565504,0.8982,0.6107,0.6282,-0.7422,-0.4335
+MGnify,singles,wt,linked,565504,0.7225,0.5110,0.6877,-0.6176,-0.4335
+MGnify,singles,comb,latent,565504,0.8170,0.5690,0.6466,-0.6557,-0.4335
+MGnify,singles,comb,linked,565504,0.6976,0.4972,0.6929,-0.5596,-0.4335
+MGnify,doubles,wt,latent,140357,1.0608,0.7377,0.6444,-1.1675,-0.8172
+MGnify,doubles,wt,linked,140357,0.8186,0.6034,0.6853,-1.0026,-0.8172
+MGnify,doubles,comb,latent,140357,0.9461,0.6815,0.6729,-1.0576,-0.8172
+MGnify,doubles,comb,linked,140357,0.7930,0.5895,0.6980,-0.9357,-0.8172
+MGnify,dG > 0,wt,latent,664236,0.9155,0.6207,0.5986,-0.7495,-0.4278
+MGnify,dG > 0,wt,linked,664236,0.7432,0.5296,0.6612,-0.6559,-0.4278
+MGnify,dG > 0,comb,latent,664236,0.8298,0.5785,0.6222,-0.6639,-0.4278
+MGnify,dG > 0,comb,linked,664236,0.7135,0.5124,0.6689,-0.5951,-0.4278
+MGnify,stabilizing (ddG > 0),wt,latent,208708,0.9821,0.6492,0.0442,-0.2087,0.3594
+MGnify,stabilizing (ddG > 0),wt,linked,208708,0.8406,0.5733,0.0726,-0.1251,0.3594
+MGnify,stabilizing (ddG > 0),comb,latent,208708,0.8913,0.5941,0.0809,-0.1102,0.3594
+MGnify,stabilizing (ddG > 0),comb,linked,208708,0.7907,0.5366,0.1038,-0.0447,0.3594
+MGnify,destabilizing (ddG < 0),wt,latent,497156,0.9114,0.6304,0.6366,-1.0862,-0.8747
+MGnify,destabilizing (ddG < 0),wt,linked,497156,0.6973,0.5110,0.6935,-0.9330,-0.8747
+MGnify,destabilizing (ddG < 0),comb,latent,497156,0.8237,0.5903,0.6479,-0.9981,-0.8747
+MGnify,destabilizing (ddG < 0),comb,linked,497156,0.6845,0.5067,0.6916,-0.8820,-0.8747
+Tsuboyama capped test,overall,wt,latent,48740,0.8641,0.5886,0.7606,-1.1796,-1.0857
+Tsuboyama capped test,overall,wt,linked,48740,0.6978,0.4884,0.7931,-1.0393,-1.0857
+Tsuboyama capped test,overall,comb,latent,48740,0.7745,0.5422,0.7554,-0.9527,-1.0857
+Tsuboyama capped test,overall,comb,linked,48740,0.7309,0.5066,0.7761,-0.8824,-1.0857
+Tsuboyama capped test,singles,wt,latent,35421,0.6304,0.4441,0.8102,-0.8563,-0.7673
+Tsuboyama capped test,singles,wt,linked,35421,0.5392,0.3891,0.8340,-0.7701,-0.7673
+Tsuboyama capped test,singles,comb,latent,35421,0.5880,0.4251,0.8142,-0.7655,-0.7673
+Tsuboyama capped test,singles,comb,linked,35421,0.5407,0.3936,0.8319,-0.7047,-0.7673
+Tsuboyama capped test,doubles,wt,latent,13319,1.2944,0.9729,0.5567,-2.0393,-1.9325
+Tsuboyama capped test,doubles,wt,linked,13319,1.0042,0.7522,0.5759,-1.7551,-1.9325
+Tsuboyama capped test,doubles,comb,latent,13319,1.1295,0.8535,0.5890,-1.4506,-1.9325
+Tsuboyama capped test,doubles,comb,linked,13319,1.0850,0.8072,0.6136,-1.3552,-1.9325
+Tsuboyama capped test,dG > 0,wt,latent,43941,0.7730,0.5283,0.7735,-1.0315,-0.9209
+Tsuboyama capped test,dG > 0,wt,linked,43941,0.6351,0.4555,0.8073,-0.9548,-0.9209
+Tsuboyama capped test,dG > 0,comb,latent,43941,0.6780,0.4854,0.7726,-0.8328,-0.9209
+Tsuboyama capped test,dG > 0,comb,linked,43941,0.6404,0.4571,0.7901,-0.8000,-0.9209
+Tsuboyama capped test,stabilizing (ddG > 0),wt,latent,7417,0.5800,0.3888,0.2609,0.0237,0.3034
+Tsuboyama capped test,stabilizing (ddG > 0),wt,linked,7417,0.5617,0.3832,0.2729,0.0294,0.3034
+Tsuboyama capped test,stabilizing (ddG > 0),comb,latent,7417,0.4885,0.3397,0.3672,0.1330,0.3034
+Tsuboyama capped test,stabilizing (ddG > 0),comb,linked,7417,0.4809,0.3373,0.3727,0.1355,0.3034
+Tsuboyama capped test,destabilizing (ddG < 0),wt,latent,41323,0.9058,0.6245,0.7205,-1.3956,-1.3350
+Tsuboyama capped test,destabilizing (ddG < 0),wt,linked,41323,0.7195,0.5072,0.7542,-1.2311,-1.3350
+Tsuboyama capped test,destabilizing (ddG < 0),comb,latent,41323,0.8153,0.5785,0.7007,-1.1476,-1.3350
+Tsuboyama capped test,destabilizing (ddG < 0),comb,linked,41323,0.7672,0.5370,0.7251,-1.0651,-1.3350

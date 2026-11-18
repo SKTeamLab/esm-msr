@@ -1,0 +1,15 @@
+set,doubles,pairs_ge20,model_beyond_rho,model_naive_rho,stratum,blocks,cells,noise_model,ceiling_spearman,ceiling_pearson,signal_sd,noise_sd,model_cell_mag
+DLG4_HUMAN_Faure_2021_abundance_domain,5010,3,0.0339,0.5876,no complete block,0,0,,,,,,
+DLG4_HUMAN_Faure_2021_binding_domain,6459,11,0.06345,0.6231,no complete block,0,0,,,,,,
+GRB2_HUMAN_Faure_2021_abundance_domain,62189,745,-2.927e-05,0.3443,all blocks,415,15940,nominal,0.3279,0.3345,0.03287,0.09262,0.03432
+GRB2_HUMAN_Faure_2021_abundance_domain,62189,745,-2.927e-05,0.3443,all blocks,415,15940,R=0.87,0.5088,0.5224,0.05134,0.0838,0.03432
+GRB2_HUMAN_Faure_2021_abundance_domain,62189,745,-2.927e-05,0.3443,all blocks,415,15940,R=0.92,0.7325,0.7595,0.07464,0.06393,0.03432
+GRB2_HUMAN_Faure_2021_abundance_domain,62189,745,-2.927e-05,0.3443,blocks above floor,129,5897,nominal,0.6302,0.6762,0.0639,0.06962,0.07343
+GRB2_HUMAN_Faure_2021_abundance_domain,62189,745,-2.927e-05,0.3443,blocks above floor,129,5897,R=0.87,0.4315,0.4353,0.04114,0.08508,0.07343
+GRB2_HUMAN_Faure_2021_abundance_domain,62189,745,-2.927e-05,0.3443,blocks above floor,129,5897,R=0.92,0.6977,0.7269,0.06869,0.0649,0.07343
+GRB2_HUMAN_Faure_2021_binding_domain,32258,910,0.04378,0.2366,all blocks,895,15516,nominal,0.2485,0.2523,0.01803,0.06913,0.03645
+GRB2_HUMAN_Faure_2021_binding_domain,32258,910,0.04378,0.2366,all blocks,895,15516,R=0.87,0.6255,0.717,0.05123,0.0498,0.03645
+GRB2_HUMAN_Faure_2021_binding_domain,32258,910,0.04378,0.2366,all blocks,895,15516,R=0.92,0.7618,0.8469,0.06051,0.03799,0.03645
+GRB2_HUMAN_Faure_2021_binding_domain,32258,910,0.04378,0.2366,blocks above floor,558,9826,nominal,0.4622,0.494,0.0308,0.05421,0.06131
+GRB2_HUMAN_Faure_2021_binding_domain,32258,910,0.04378,0.2366,blocks above floor,558,9826,R=0.87,0.5135,0.5991,0.03735,0.04993,0.06131
+GRB2_HUMAN_Faure_2021_binding_domain,32258,910,0.04378,0.2366,blocks above floor,558,9826,R=0.92,0.7014,0.7918,0.04937,0.03809,0.06131

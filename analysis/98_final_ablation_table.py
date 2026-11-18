@@ -51,7 +51,7 @@ from msr_analysis.registry import DMS3, EXT12, LABEL, PER_PROTEIN, PGYM, REFEREN
 OUT = out_dir('98_ablation')
 EXT_SINGLE = [d for d in EXT12 if d not in ('ptmul', 'ptmuld')]
 EXT_MULTI = ['ptmul', 'ptmuld']
-DMS_MULTI = [d for d in DMS3 if d != 'ESTA_BACSU_Nutschel_2020_dTm']
+DMS_MULTI = list(DMS3)
 PG_CATS = ['Activity', 'Binding', 'Expression', 'OrganismalFitness', 'Stability']
 PG_DROP = {'BRCA1_HUMAN_Findlay_2018', 'BRCA2_HUMAN_Erwood_2022_HEK293T', 'POLG_CXB3N_Mattenberger_2021', 'SCN5A_HUMAN_Glazer_2019'}
 HEADS = ['wt', 'comb', 'mt', 'wt+']
@@ -408,8 +408,8 @@ def epi_boot(fr, B, procs=8):
 COLLABEL = {
     'tsuboyama_capped_test': 'Tsu test', 'tsuboyama_capped_test|singles': 'Tsu test singles',
     'tsuboyama_capped_test|multi': 'Tsu test doubles', 'tsuboyama_capped_test|dddG': 'Tsu test ΔΔΔG',
-    'ext_singles_mean': 'Ext. singles (10)', 'ext_multi_mean': 'PTMUL/-D', 'dms_mean': 'DMS (7)',
-    'dms_multi_mean': 'DMS multis (6)', 'domainome': 'Domainome', 'domainome|lowid': 'Domainome low-id',
+    'ext_singles_mean': 'Ext. singles (10)', 'ext_multi_mean': 'PTMUL/-D', 'dms_mean': 'DMS (3)',
+    'dms_multi_mean': 'DMS multis (3)', 'domainome': 'Domainome', 'domainome|lowid': 'Domainome low-id',
     'pg|avg': 'PG avg', 'pg|avg_lowid': 'PG avg low-id', 'pg|Stability': 'PG Stab.', 'pg|Stability_lowid': 'PG Stab. low-id',
 }
 for _d in EXT12 + DMS3:
@@ -576,7 +576,7 @@ TABLES = {
 }
 COL_LABEL = {'tsuboyama_capped_test': 'Tsuboyama test', 'tsuboyama_capped_test|multi': 'Tsuboyama doubles',
              'tsuboyama_capped_test|singles': 'Tsuboyama singles',
-             'ext_singles_mean': 'External singles (10)', 'ext_multi_mean': 'PTMUL / PTMUL-D', 'dms_mean': 'DMS (7)',
+             'ext_singles_mean': 'External singles (10)', 'ext_multi_mean': 'PTMUL / PTMUL-D', 'dms_mean': 'DMS (3)',
              'domainome|lowid': 'Domainome low-id', 'pg|avg': 'ProteinGym avg',
              'tsuboyama_capped_test|beyond_rho': 'Epistasis beyond ρ', 'tsuboyama_capped_test|cell_mag': 'Epistasis cell mag.'}
 GROUP_LABEL = {'masking': 'Masking', 'loss': 'Loss', 'architecture': 'Architecture', 'data': 'Training data',

@@ -7,7 +7,7 @@ with same-protein (P, 23) or strong structural/sequence homolog (H, 3) overlap i
 40 of 66 Stability assays and 187 of 213 total assays; Activity 43, Binding 13, Expression 18,
 OrganismalFitness 73 unfiltered):
 
-- Unified roster (``EXT_ORDER``, for ``pg_categories`` and ``pg_per_dms_scatter``):
+- Unified roster (``EXT_ORDER``, for ``pg_categories`` (drawn by ``01_summary.py`` from ``pg_summary.csv``) and ``pg_per_dms_scatter``):
   - Singles-only assays use singles models (ESM-MSR WT head, MutateEverything st1,
     ThermoMPNN single-additive, SPURS single-additive);
   - Multi-mutant assays use multi models (ESM-MSR p0 combined when finished else WT fallback,
@@ -530,30 +530,8 @@ def main(refresh=False):
         'Rosetta: PGym singles only (no Domainome).'
     )
 
-    # ---- figure 1: ProteinGym categories + Domainome dot panel (unified 9 models, seed 1) -----------
-    cat_cols = pg_cols + ['Domainome']
-    table = {(r.column, r.model): r.value for r in R_uni.itertuples()}
-    cis = {(r.column, r.model): (r.lo, r.hi) for r in R_uni.itertuples()}
-
-    fig, ax = plt.subplots(figsize=(14.4, 5.9))
-    style.dot_panel(
-        ax, cat_cols, EXT_ORDER, table, cis,
-        highlight=['ESM-MSR'], ylabel='Spearman ρ (mean over assays / domains)',
-        xlabels=[CAT_LABEL[c] for c in cat_cols], rot=0, size=6.2, spread=0.76, ylim=(0.12, 0.96),
-    )
-    ax.axvline(6.5, color='#999999', lw=0.95, ls='--', zorder=2)
-    hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8)) for m in EXT_ORDER]
-    fig.legend(
-        handles=hs, loc='upper center', bbox_to_anchor=(0.5, 0.942), ncol=5, fontsize=8.0,
-        frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.1, handletextpad=0.35,
-    )
-    fig.suptitle(
-        'ProteinGym (187 DMS assays) & Domainome (458 low-homology domains): Spearman ρ across models (p0, seed 1; whiskers: 95% assay / domain bootstrap)',
-        x=0.012, ha='left', y=0.985, fontsize=10.0, fontweight='bold',
-    )
-    fig.text(0.012, 0.008, stab_note, fontsize=7.6, va='bottom', ha='left', color='#444444')
-    fig.tight_layout(rect=(0.0, 0.065, 1.0, 0.84))
-    style.save(fig, OUT / 'pg_categories')
+    # ---- figure 1 (pg_categories) moved to 01_summary.py (it also carries the MGnify column); the footnote travels as a text file ----
+    (OUT / 'pg_categories_note.txt').write_text(stab_note + '\n')
 
     # ---- figure 2: ranked heatmap table across ALL models with PGym data ----------------------------
     Z = R_full.pivot(index='model', columns='column', values='value')[pg_cols]

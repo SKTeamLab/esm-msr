@@ -6,6 +6,7 @@ as per-assay Spearman rho over all variants of the assay (ProteinGym's conventio
 ```bash
 python analysis/proteingym/p0_sigma/01_per_assay_rho.py          # results/per_assay_rho.csv: the 217 assays (flags train_overlap marks the 23 left out of every figure) + the three DMS-benchmark sets that are not in ProteinGym (DLG4 binding, GRB2 binding, MYO)
 python analysis/proteingym/p0_sigma/04_leak_per_assay.py         # results/leak_per_assay.csv: per assay, the highest TM-score and sequence identity to a training protein (the leak audit's tables); leaked = TM > 0.7 or identity > 0.4
+python analysis/proteingym/p0_sigma/05_worst_assays.py          # results/worst_assays_sigma1.csv: where the loss of the worst assays at sigma 1 comes from (added signal, position vs substitution level, hydropathy)
 python analysis/proteingym/p0_sigma/02_fig_multi_property.py     # results/multi_property_index.csv and multi_property_rho_vs_sigma
 python analysis/proteingym/p0_sigma/03_fig_property_summary.py   # results/property_delta_paired_boxes (every assay in the statistics, nothing marked) and property_delta_paired_boxes_leaks_black (every assay drawn, leaked ones black and left out of the statistics)
 ```

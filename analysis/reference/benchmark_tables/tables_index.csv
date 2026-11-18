@@ -9,6 +9,9 @@ table,section,heading,columns,rows
 1.4.1,1.4,ProteinGym (213 DMS),model | PG avg | Stability | DMS mean,17
 1.4.2,1.4,ProteinGym (213 DMS),model | PG avg (leak code) | Stability (leak code) | DMS mean (leak code),17
 1.5.1,1.5,Published-paper evaluation (reference; earlier models and row sets),dataset | ESM-MSR (published) | ProteinMPNN | Rosetta cart. ΔΔG | ESM3-small-open | ESM3-small | ESM3-medium | ESM3-large | ME (hyperopt) | ME additive (hyperop,17
+1.7.1,1.7,MGnify,"set | subset | variants | scaffolds | pooled ρ, latent | pooled ρ, Tobit-linked | per-scaffold ρ | scaffolds (per-scaffold) | RMSE latent | RMSE linked",12
+1.7.2,1.7,MGnify,set | leak code,2
+1.7.3,1.7,MGnify,"stratum | subset | scaffolds | pooled ρ, latent | pooled ρ, Tobit-linked | per-scaffold ρ",15
 2.0.1,2.0,Extended epistasis metrics,model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias,5
 2.0.2,2.0,Extended epistasis metrics,model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias,5
 2.1.1,2.1,"Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",model | naive ρ | beyond ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | global_err ↓,14
