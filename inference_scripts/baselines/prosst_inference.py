@@ -41,7 +41,16 @@ def main():
     ap.add_argument('--num_processes', type=int, default=4, help='graph building workers of the structure quantizer')
     a = ap.parse_args()
     sys.path.insert(0, a.prosst_dir)
+    import prosst.structure.get_sst_seq as gss
     from prosst.structure.get_sst_seq import SSTPredictor
+
+    def spawn_map(func, data, workers=2):
+        # ProSST's own iter_parallel_map forks a pool that is never closed; from the second chunk on, forking this multi-threaded
+        # (torch/CUDA) process deadlocked (job 389886 sat at "Building Subgraphs 0/94" for hours).  A spawned, closed pool does not.
+        import multiprocess
+        with multiprocess.get_context('spawn').Pool(workers) as pool:
+            yield from pool.imap(func, list(data))
+    gss.iter_parallel_map = spawn_map
     from transformers import AutoModelForMaskedLM, AutoTokenizer
 
     dev = 'cuda' if torch.cuda.is_available() else 'cpu'
