@@ -1,0 +1,14 @@
+dataset,model,readout,rho,lo,hi,n_scaffolds,n_set,coverage
+MGnify,ESM-MSR,combined (latent),0.6808,0.6742,0.6870,5546,5546,1.0000
+MGnify,SPURS,SPURS-multi,0.6177,0.6119,0.6231,5546,5546,1.0000
+MGnify,ThermoMPNN,ThermoMPNN-D,0.6024,0.5965,0.6082,5546,5546,1.0000
+MGnify,ProteinMPNN,direct,0.3962,0.3895,0.4032,5546,5546,1.0000
+MGnify,ProSST,direct,0.4212,0.3894,0.4526,307,5546,0.0554
+MGnify,"ESM-MSR, same scaffolds as ProSST",combined (latent),0.6880,0.6600,0.7171,307,5546,0.0554
+MGnify,ESM3-small-open,WT head (sigma 0),0.3852,0.3777,0.3925,4841,5546,0.8729
+MGnify,"ESM-MSR, same scaffolds as ESM3-small-open",combined (latent),0.6780,0.6709,0.6847,4841,5546,0.8729
+Rocklin designs,ESM-MSR,combined (latent),0.2833,0.2646,0.3024,701,701,1.0000
+Rocklin designs,SPURS,SPURS-multi,0.2537,0.2349,0.2718,701,701,1.0000
+Rocklin designs,ThermoMPNN,ThermoMPNN-D,0.2167,0.2001,0.2340,701,701,1.0000
+Rocklin designs,ProteinMPNN,direct,0.0982,0.0828,0.1145,701,701,1.0000
+Rocklin designs,ProSST,direct,0.1098,0.0931,0.1255,701,701,1.0000

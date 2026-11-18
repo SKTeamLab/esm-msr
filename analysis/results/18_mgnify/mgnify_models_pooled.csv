@@ -1,0 +1,14 @@
+dataset,model,readout,rho,lo,hi,n_variants,n_set,coverage
+MGnify,ESM-MSR,"combined (latent), Tobit-linked",0.6510,0.6477,0.6549,629570,629570,1.0000
+MGnify,SPURS,SPURS-multi,0.5950,0.5922,0.5982,629570,629570,1.0000
+MGnify,ThermoMPNN,ThermoMPNN-D,0.5590,0.5560,0.5625,629570,629570,1.0000
+MGnify,ProteinMPNN,direct,0.3988,0.3949,0.4025,629570,629570,1.0000
+MGnify,ProSST,direct,0.4122,0.3938,0.4282,32885,629570,0.0522
+MGnify,"ESM-MSR, same rows as ProSST",combined (Tobit-linked),0.6577,0.6402,0.6758,32885,629570,0.0522
+MGnify,ESM3-small-open,WT head (sigma 0),0.3847,0.3810,0.3884,547007,629570,0.8689
+MGnify,"ESM-MSR, same rows as ESM3-small-open",combined (Tobit-linked),0.6507,0.6474,0.6547,547007,629570,0.8689
+Rocklin designs,ESM-MSR,"combined (latent), Tobit-linked",0.4491,0.4234,0.4824,124670,124670,1.0000
+Rocklin designs,SPURS,SPURS-multi,0.2646,0.2414,0.2900,124670,124670,1.0000
+Rocklin designs,ThermoMPNN,ThermoMPNN-D,0.2044,0.1800,0.2314,124670,124670,1.0000
+Rocklin designs,ProteinMPNN,direct,0.1235,0.0995,0.1569,124670,124670,1.0000
+Rocklin designs,ProSST,direct,0.1286,0.1060,0.1537,124670,124670,1.0000

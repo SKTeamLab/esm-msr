@@ -7,6 +7,7 @@ PY=${PYTHON:-python}
 export PYTHONPATH=.
 $PY 00_validate_against_tables.py
 $PY 01_core_rho.py
+echo "== leak_audit/21_tsuboyama_rule (reference/tsuboyama_rule_flags.csv: which proteins are homologous to the training set under the split's own rule; 05_proteingym and 18b read it)"; $PY leak_audit/21_tsuboyama_rule.py
 echo "== proteingym/p0_sigma/01_per_assay_rho (05_proteingym reads its per-assay table: the deployed-readout rho at sigma 0 / 0.5 / 1)"; $PY proteingym/p0_sigma/01_per_assay_rho.py
 for s in 02_thermostability 03_tsuboyama 04_dms_domainome 05_proteingym 06_epistasis 07_rmse_calibration 08_screening 14_property_category_gain 15_tsuboyama_single_screening 09_sequence_length 10_leakage_and_reference 11_publication_figures 11d_epistasis_levels_bootstrap 11b_publication_epistasis_levels 11c_publication_epistasis_scatters 11f_epistasis_types 11g_link_figure 12_pair_epistasis_heatmaps 13_dddG_correlation_scatters; do
   echo "== $s"; $PY $s.py
@@ -21,6 +22,7 @@ echo "== combined_vs_wt"; for s in 01_benchmark_delta 02_pg_per_assay 03_unit_rh
 echo "== faure_epistasis"; for s in 01_proximity 02_snr 03_cell_ceiling 04_fig_ceiling 05_cell_mag_significance; do PYTHONPATH=.:../src $PY faure_epistasis/$s.py; done          # epistasis of the DLG4 / GRB2 abundance and binding datasets: proximity, signal-to-noise, cell_mag ceiling
 echo "== ablation_vs_p0"; for s in 01_paired_vs_p0 02_pg_vs_p0 03_fig_heatmap 04_fig_thermostability 05_fig_forest 06_tables; do $PY ablation_vs_p0/$s.py; done          # every FINAL_* ablation against p0, paired, on every set (needs combined_vs_wt/02_pg_per_assay)
 echo "== 18_mgnify"; $PY 18_mgnify.py          # MGnify: the Tsuboyama analyses on a set ESM-MSR never saw (p0 only), latent and Tobit-linked; needs final_mgnify/ and data/mgnify
+echo "== 18b_mgnify_models"; $PY 18b_mgnify_models.py          # per-scaffold rho of ESM-MSR p0 and the baselines on MGnify / Rocklin (the inferred-ddG columns of the 01_summary figure); needs final_mgnify/baselines
 echo "== 19_rosetta_multi_vs_additive"; $PY 19_rosetta_multi_vs_additive.py          # Rosetta Cartesian ddG on multi-mutants: scored directly vs the single predictions summed (~3 min on 6 cores)
 echo "== 98_final_ablation_table"; $PY 98_final_ablation_table.py          # the FINAL_* ablation tables: needs the testing queue's final_bench/ and final_pgym_*/
 echo "== 01_summary"; $PY 01_summary.py          # summary figures (pg_categories, thermostability_sets): needs 02_thermostability, 05_proteingym, 18_mgnify and, for the set order, 98
