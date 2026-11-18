@@ -1,6 +1,6 @@
 """The MGnify stability set scored with ESM-MSR (FINAL_p0): labels, predictions of the three heads, the Tobit-linked reading, homology classes.
 
-MGnify (766,790 variants of 180,367 scaffolds of 60-80 residues; ``data/mgnify_v2/mgnify_mapped.csv``) is a stability set of the same kind as Megascale that ESM-MSR never
+MGnify (766,790 variants of 180,367 scaffolds of 60-80 residues; ``data/mgnify/mgnify_mapped.csv``) is a stability set of the same kind as Megascale that ESM-MSR never
 trained on.  The testing queue's ``esm_msr_testing.py --mgnify`` run writes, per checkpoint, ``final_mgnify/<family>/s<seed>/all/predictions.csv.gz``: one row per variant with the WT head
 (``wt_lora_pred``), the MT head (``mt_lora_pred``) and the combined prediction (``combined_pred`` = 1/2 (MT + WT)), all latent ddG.  The labels stored in a run are the v1 table's; the v2 table
 re-derives the wild-type dG of 1,772 scaffolds, so they are replaced by joining the v2 columns on ``uid`` (predictions do not depend on them).
@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src'))
 from esm_msr.val_stats import tobit_link  # noqa: E402
 
 RUNS = Path(os.environ.get('MSR_MGNIFY_RUNS', ROOT / 'final_mgnify')).expanduser()
-TABLE = Path(os.environ.get('MSR_MGNIFY_TABLE', ROOT / 'repo' / 'data' / 'mgnify_v2' / 'mgnify_mapped.csv')).expanduser()
+TABLE = Path(os.environ.get('MSR_MGNIFY_TABLE', ROOT / 'repo' / 'data' / 'mgnify' / 'mgnify_mapped.csv')).expanduser()
 CLASSES = REFERENCE / 'mgnify_homology_classes.csv.gz'
 TOBIT = dict(sigma_y=0.28, mu_f=-0.14, sigma_f=0.5)           # hparams of FINAL_p0 s1-s3 (tobit_sigma_y / tobit_mu_f / tobit_sigma_f)
 HEADS = dict(wt='wt_lora_pred', mt='mt_lora_pred', comb='combined_pred')

@@ -1,4 +1,4 @@
-"""Triplicate stats of ESM-MSR (FINAL_p0, seeds 1-3) on the 1,000 Rocklin de novo designs of data/mgnify_v2 (source == rocklin_denovo).
+"""Triplicate stats of ESM-MSR (FINAL_p0, seeds 1-3) on the 1,000 Rocklin de novo designs of data/mgnify (source == rocklin_denovo).
 
 The designs' variants are sequential edits of the design scaffold (n_mut 1 / 2 / 3), so the mutation-count subsets are 10,873 / 45,889 / 153,056 rows.
 Measured epistasis (a double vs its two assayed singles) exists for only a few hundred rows: singles are sparse (~11 per scaffold).  Stats:

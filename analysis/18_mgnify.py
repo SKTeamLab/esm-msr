@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """MGnify: the Tsuboyama analyses (03_tsuboyama) repeated on a stability set ESM-MSR never saw.  ESM-MSR p0 only (FINAL_p0 seeds 1-3; the other models were not run on MGnify).
 
-MGnify = 766,790 variants of 180,367 scaffolds (60-80 residues; 616,655 singles, 150,127 doubles, 8 triples) with Megascale-style ddG labels (``data/mgnify_v2``).  Rows: the measured ones (cens == 0,
+MGnify = 766,790 variants of 180,367 scaffolds (60-80 residues; 616,655 singles, 150,127 doubles, 8 triples) with Megascale-style ddG labels (``data/mgnify``).  Rows: the measured ones (cens == 0,
 dG of the wild type and of the variant inside the assay's range), 705,864 variants of 167,379 scaffolds.  Every statistic is given for the **latent** ddG of the model and for the **Tobit-linked** one
 (``h(dG_wt + latent) - dG_wt``, the link of ``esm_msr.val_stats.tobit_link`` with the constants the checkpoints were fit with), for the WT head, the MT head and the combined prediction.
 
