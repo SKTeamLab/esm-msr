@@ -42,7 +42,13 @@ BASELINES = {
     'ThermoMPNN': ('thermompnn_s{}', 'pred_single_additive', None, ESM_WT),
     'SPURS-multi': ('spurs_unfrozen_s{}', 'SPURS_multi', 'SPURS_multi_additive', ESM_COMB),
     'ThermoMPNN-D': ('thermompnn_s{}', 'pred_combined', 'pred_single_additive', ESM_COMB),
+    # zero-shot models: one run, no seeds (the template has no {}); they have no WT/combined split, so they pair with the WT head.  Run them with
+    # --models SPURS,ThermoMPNN,<zero-shot model> so the common rows are the zero-shot model's own coverage (it may still be running).
+    'ProteinMPNN': ('proteinmpnn', 'mpnn_score', None, ESM_WT),
+    'ProSST': ('prosst', 'prosst', None, ESM_WT),
+    'ESM3 (zero-shot)': ('esm3_zeroshot', 'wt_lora_pred', None, ESM_WT),
 }
+TRAINED = 'SPURS,ThermoMPNN,SPURS-multi,ThermoMPNN-D'
 REFERENCE = ['ESM-MSR WT head (latent)', 'ESM-MSR combined (latent)']       # point values only
 LAB = ['uid', 'source', 'code', 'code_wt', 'n_mut', 'mut_type', 'ddG_ML', 'dddG_ML', 'dG_wt', 'cens', 'in_range_1_5', 'backbone_mutation', 'has_all_singles']
 
@@ -61,11 +67,19 @@ def load_esm(root, cols):
     return out
 
 
+_CACHE = {}
+
+
 def load_chunks(root, tpl, s):
-    fs = glob.glob(os.path.join(root, 'baselines', tpl.format(s), 'mgnify', '*', 'chunk_*.csv.gz'))
-    if not fs:
-        return None
-    return pd.concat([pd.read_csv(f, low_memory=False) for f in fs], ignore_index=True).drop_duplicates('id').set_index('id')
+    d = os.path.join(root, 'baselines', tpl.format(s))
+    if d not in _CACHE:
+        fs = glob.glob(os.path.join(d, 'mgnify', '*', 'chunk_*.csv.gz'))
+        if fs:
+            _CACHE[d] = pd.concat([pd.read_csv(f, low_memory=False) for f in fs], ignore_index=True).drop_duplicates('id').set_index('id')
+        else:                                                   # the ESM3 runner writes shards keyed by uid
+            fs = sorted(glob.glob(os.path.join(d, 'mgnify', 'shards', 'shard_*.csv')))
+            _CACHE[d] = pd.concat([pd.read_csv(f, usecols=['uid', 'wt_lora_pred'], low_memory=False) for f in fs], ignore_index=True).drop_duplicates('uid').set_index('uid') if fs else None
+    return _CACHE[d]
 
 
 def sp(a, b):
@@ -76,6 +90,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('root')
     ap.add_argument('--boot', type=int, default=100)
+    ap.add_argument('--models', default=TRAINED, help='comma list of BASELINES keys to compare (default: the four trained baselines)')
     ap.add_argument('--out', default=None)
     a = ap.parse_args()
     out = a.out or os.path.join(a.root, 'baselines_vs_msr')
@@ -84,7 +99,7 @@ def main():
     esm = load_esm(a.root, ['wt_lora_pred', 'combined_pred', 'combined_pred_additive'])
     raw = {}                                         # name -> seed -> Series over uid (baselines) ; own-additive likewise
     add = {}
-    for m, (tpl, col, acol, _) in BASELINES.items():
+    for m, (tpl, col, acol, _) in {k: v for k, v in BASELINES.items() if k in a.models.split(',')}.items():
         for s in SEEDS:
             d = load_chunks(a.root, tpl, s)
             if d is None:
