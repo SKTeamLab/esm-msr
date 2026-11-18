@@ -12,6 +12,7 @@ table,section,heading,columns,rows
 1.7.1,1.7,MGnify,"set | subset | variants | scaffolds | pooled ρ, latent | pooled ρ, Tobit-linked | per-scaffold ρ | scaffolds (per-scaffold) | RMSE latent | RMSE linked",12
 1.7.2,1.7,MGnify,set | leak code,2
 1.7.3,1.7,MGnify,"stratum | subset | scaffolds | pooled ρ, latent | pooled ρ, Tobit-linked | per-scaffold ρ",15
+1.7.4,1.7,Rocklin de novo designs,"set | subset | variants | designs | pooled ρ, latent | pooled ρ, Tobit-linked | per-design ρ | designs (per-design) | RMSE latent | RMSE linked",7
 2.0.1,2.0,Extended epistasis metrics,model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias,5
 2.0.2,2.0,Extended epistasis metrics,model | naive ρ | beyond ρ | beyond_lib | pair-avg ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | class3 acc | global_err ↓ | global_bias,5
 2.1.1,2.1,"Validation, epistasis hierarchy (valfull: 34,957 rows, 8,494 doubles, 24 pairs, 2,509 flips)",model | naive ρ | beyond ρ | pair ρ | line ρ | cell_mag | cell_rank | flipacc | global_err ↓,14

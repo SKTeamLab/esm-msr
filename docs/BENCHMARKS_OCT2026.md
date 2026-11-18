@@ -474,6 +474,25 @@ Homology strata of the combined prediction (sequence evidence, MMseqs2 `-s 7.5` 
 - **Homology.** The 3,622 scaffolds with a strong homolog or the same protein in the capped training set score 0.883 per scaffold, against 0.682 for the clean ones; they are 2 % of the variants, so dropping them moves the all-scaffold numbers by 0.004–0.005.
 - Scripts and outputs: `analysis/18_mgnify.py` (`results/18_mgnify/`: `mgnify_summary.csv` with every cell and interval, `mgnify_rmse.csv`, `table_mgnify_ci.md`, figures `mgnify_overview`, `mgnify_homology`, `mgnify_per_scaffold`, `mgnify_scatter`); the summary figure `01_summary/pg_categories` carries the MGnify column.
 
+#### Rocklin de novo designs
+
+The same checkpoints on the 1,000 Rocklin de novo design scaffolds of the same table (`source == rocklin_denovo`; structures predicted with AlphaFold2): 209,818 variants of one, two and three edits, of which 149,119 are measured (`cens == 0`); the 848 designs whose wild type is inside the assay's range are the ones with a measured variant. Scored exactly as above (`analysis/18_mgnify.py`, `final_mgnify/FINAL_p0/s<seed>/rdenovo`, three seeds; per-design = per-WT mean ρ over the designs with at least 10 measured variants). The designs carry no homology class, and their homology to the capped training libraries was not checked.
+
+| set | subset | variants | designs | pooled ρ, latent | pooled ρ, Tobit-linked | per-design ρ | designs (per-design) | RMSE latent | RMSE linked |
+|---|---|---|---|---|---|---|---|---|---|
+| Rocklin designs | overall | 149,119 | 848 | 0.313 | 0.459 | 0.296 | 843 | 1.264 | 0.725 |
+| Rocklin designs | singles | 8,188 | 846 | 0.257 | 0.369 | 0.288 | 564 | 0.748 | 0.576 |
+| Rocklin designs | doubles | 33,495 | 845 | 0.305 | 0.437 | 0.282 | 817 | 1.067 | 0.679 |
+| Rocklin designs | 3 mutations | 107,436 | 844 | 0.316 | 0.469 | 0.290 | 840 | 1.349 | 0.749 |
+| Rocklin designs | dG > 0 | 109,721 | 845 | 0.312 | 0.530 | 0.242 | 834 | 1.303 | 0.767 |
+| Rocklin designs | stabilizing (ddG > 0) | 62,412 | 846 | 0.113 | 0.278 | 0.136 | 797 | 1.415 | 0.841 |
+| Rocklin designs | destabilizing (ddG < 0) | 86,707 | 843 | 0.238 | 0.317 | 0.215 | 810 | 1.143 | 0.628 |
+
+- **Overall.** Pooled ρ 0.313 latent and 0.459 linked, mean per-design ρ 0.296 over 843 designs (WT head 0.285, MT head 0.287): far below MGnify (0.686) and the Tsuboyama capped test (0.845) on the same statistic. The per-design ρ is the same for one, two and three edits (0.288 / 0.282 / 0.290).
+- **The Tobit link** adds +0.143 to the pooled ρ (paired interval [0.118, 0.168]; MGnify +0.025) and takes the RMSE from 1.264 to 0.725, because the designs' wild types sit low on the scale (median dG_wt 0.33) and many variants of them are at the unfolded floor. It cannot change a per-design ρ.
+- **Stabilizing variants** (ddG > 0, 62,412) are the hardest subset, as on MGnify: 0.113 / 0.278 pooled and 0.136 per design.
+- Outputs in `results/18_mgnify/`: `rocklin_overview`, `table_rocklin_ci.md` and the `Rocklin designs` rows of `mgnify_summary.csv`; the designs' own within-design and epistasis statistics are in `results/18_mgnify/rocklin_designs/`. The summary figure `01_summary/pg_categories` carries both inferred-ddG sets.
+
 ## 2. Epistasis: ESM-MSR vs the retrained baselines and the third-party models
 
 **Leak note (§6).** The capped val/test rows used here are clean for ESM-MSR, MutateEverything, ThermoMPNN and the retrained SPURS multi (identical mutations 0, same protein 0). ESMtherm trained on 51 % of the test rows as identical variants (verified) and IFUM on up to 46 % (`M?`); ESM3ΔG is zero-shot with 40.7 % strong/50.3 % weak homologs. Read the ‡ rows (documented Megascale training; §6.5 quantifies it) accordingly; the "Among models that did not train on Tsuboyama" comparison is the only like-for-like interaction comparison in this section. Model names carry the Tsuboyama leak superscript of §6.

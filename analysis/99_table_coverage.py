@@ -13,7 +13,7 @@ HERE = Path(__file__).resolve().parent
 RES = HERE / 'results'
 T = '02_thermostability/'
 TABLE_FIGURES = {
-    '1.1.1': [T + 'thermo_external_rho', T + 'thermo_overview'],
+    '1.1.1': [T + 'thermo_external_rho', T + 'thermo_overview', '01_summary/thermostability_sets'],
     '1.1.2': ['10_leakage_and_reference/leak_matrix_external', T + 'thermo_external_rho', T + 'thermo_overview'],
     '1.2.1': ['03_tsuboyama/tsuboyama_overview', '03_tsuboyama/tsuboyama_per_library', '03_tsuboyama/tsuboyama_singles_doubles'],
     '1.2.2': ['10_leakage_and_reference/leak_matrix_other', '03_tsuboyama/tsuboyama_overview'],
@@ -26,6 +26,7 @@ TABLE_FIGURES = {
     '1.7.1': ['18_mgnify/mgnify_overview', '18_mgnify/mgnify_per_scaffold', '18_mgnify/mgnify_scatter', '01_summary/pg_categories'],
     '1.7.2': ['18_mgnify/mgnify_homology'],
     '1.7.3': ['18_mgnify/mgnify_homology'],
+    '1.7.4': ['18_mgnify/rocklin_overview', '01_summary/pg_categories'],
     '2.0.1': ['06_epistasis/epistasis_authoritative_metrics'],
     '2.0.2': ['06_epistasis/epistasis_authoritative_metrics'],
     '2.1.1': ['06_epistasis/epistasis_hierarchy_val', '06_epistasis/epistasis_naive_recomputed'],

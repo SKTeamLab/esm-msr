@@ -11,7 +11,8 @@ Two readings of every head, both returned by ``load_mgnify``:
   linked   the Tobit link applied post hoc, ``h(dG_wt + latent) - dG_wt`` (``esm_msr.val_stats.tobit_link``; the constants are the ones the checkpoints were fit with: sigma_y 0.28, mu_f -0.14,
            sigma_f 0.5).  The link is monotone, so it cannot change a rank within one scaffold (``dG_wt`` is constant there); it changes ranks across scaffolds, and the scale (RMSE).
 
-``MSR_ROOT`` (default ``~/playground/esm-msr-devel``) holds ``final_mgnify/``; ``MSR_MGNIFY_TABLE`` overrides the v2 table path.
+``MSR_ROOT`` (default ``~/playground/esm-msr-devel``) holds ``final_mgnify/``; ``MSR_MGNIFY_TABLE`` overrides the table path.  ``run='rdenovo'`` is the run on the 1,000 Rocklin de novo designs of the same table
+(``final_mgnify/<family>/s<seed>/rdenovo``), ``run='all'`` the MGnify scaffolds.
 """
 import os
 import pickle
@@ -79,8 +80,11 @@ def load_mgnify(family='FINAL_p0', run='all', seeds=None, refresh=False):
     sp['split'] = base['mgnify_split'].to_numpy()
     sp['has_all_singles'] = base['has_all_singles'].to_numpy()
     sp['use'] = (np.isfinite(sp['y']) & (sp['cens'] == 0)).to_numpy()
-    cls = pd.read_csv(CLASSES if CLASSES.exists() else ROOT / 'leak_audit' / 'out' / 'mgnify_homology_classes.csv', usecols=['code_wt', 'cls']).set_index('code_wt')['cls']
-    sp['cls'] = sp['code_wt'].map(cls).fillna('none')
+    if run == 'rdenovo':                                # the Rocklin de novo designs: no homology classes (they are not MGnify scaffolds)
+        sp['cls'] = 'n/a'
+    else:
+        cls = pd.read_csv(CLASSES if CLASSES.exists() else ROOT / 'leak_audit' / 'out' / 'mgnify_homology_classes.csv', usecols=['code_wt', 'cls']).set_index('code_wt')['cls']
+        sp['cls'] = sp['code_wt'].map(cls).fillna('none')
     h = tobit_link(**TOBIT)
     dg = sp['dG_wt'].to_numpy(float)
     preds = {}

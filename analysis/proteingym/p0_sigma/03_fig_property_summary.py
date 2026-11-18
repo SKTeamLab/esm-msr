@@ -7,7 +7,8 @@
   property_delta_paired_boxes_leaks_black  the same, every assay drawn, the assays whose protein has a training-set homolog (``04_leak_per_assay.py``: TM-score > 0.7 or sequence identity > 0.4) in black and left
                                          out of the statistics: the boxes, medians, means, counts and p-values are those of the other assays
 
-Delta rho = rho of the WT-adapter prediction at sigma minus rho at sigma 0; sigma = 1, 0.5: FINAL_p0 seed 1 WT head; sigma = 0: ESM3-small-open, unmasked.  The ProteinGym assays with predictions at all three
+Delta rho = rho of the deployed ESM-MSR prediction at sigma minus rho at sigma 0 (combined prediction on the assays with multi-mutants, WT head on the others; ``pgsigma.load_assay_dep``); sigma = 1, 0.5: FINAL_p0 seed 1;
+sigma = 0: ESM3-small-open, unmasked (the combined read from the ESM-MSR-small checkpoint's sigma-0 run).  ``draw_paired`` draws the figure on a given axis (``compact=True`` is the panel of ``01_summary.py``).  The ProteinGym assays with predictions at all three
 sigmas (``results/per_assay_rho.csv``) except the 23 stability assays whose variants are in the training data (``pgsigma.train_overlap``).  The p-value under each sigma tick: is the mean delta rho of the category
 different from 0?  Two-sided bootstrap over assays (20000 resamples, ``msr_analysis.boot.paired_diff``'s convention), Holm-adjusted over the ten category x sigma comparisons of the figure; the Wilcoxon signed-rank
 p is in the csv (``results/property_delta_pvalues.csv`` for all assays, ``property_delta_pvalues_nonleaked.csv`` for the figure with the black assays left out of the statistics).
@@ -36,8 +37,8 @@ def darker(c):
 
 def data():
     t = P.per_assay()                                                      # ProteinGym assays that do not overlap the training data, with the per-assay leak flag
-    for s in (0.5, 1.0):
-        t[f'd_{s}'] = t[f'rho_{s}'] - t['rho_0.0']
+    for s in (0.5, 1.0):                                                   # the deployed readout (combined on the multi-mutant assays, WT head elsewhere); the WT head alone is ``rho_<sigma>``
+        t[f'd_{s}'] = t[f'rho_dep_{s}'] - t['rho_dep_0.0']
     return t
 
 
@@ -99,10 +100,15 @@ def finish(fig, ax_titles, note, stem):
     style.save(fig, P.OUT / stem)
 
 
-def paired_boxes(t, R, stem, note, mark_leaks=False, stats_without_leaks=False):
-    """All assays of ``t`` are drawn; ``mark_leaks`` draws the leaked ones black, ``stats_without_leaks`` leaves them out of the boxes, medians, means and counts (``R`` must then be the p-values of the others)."""
+CAT_SHORT = {'Stability': 'Stability', 'Expression': 'Expression', 'Activity': 'Activity', 'Binding': 'Binding', 'OrganismalFitness': 'Org. fitness'}
+
+
+def draw_paired(ax, t, R, mark_leaks=False, stats_without_leaks=False, compact=False):
+    """Draw the paired box / dot plot on ``ax``: all assays of ``t`` are drawn; ``mark_leaks`` draws the leaked ones black, ``stats_without_leaks`` leaves them out of the boxes, medians, means and counts
+    (``R`` must then be the p-values of the others).  ``compact`` is the small-panel layout (two-line category headers, smaller text) that ``01_summary.py`` puts next to the model comparison."""
     rng = np.random.default_rng(1)
-    gap, w = 0.9, 0.82
+    gap, w = (0.7, 0.8) if compact else (0.9, 0.82)
+    f_mean, f_head, f_tick, ms = (6.4, 7.4, 6.0, 2.0) if compact else (8.0, 10.5, None, 2.6)
     pos, spans, x = {}, {}, 0.0
     for cat in P.CATS:
         for k in range(3):
@@ -110,47 +116,62 @@ def paired_boxes(t, R, stem, note, mark_leaks=False, stats_without_leaks=False):
             x += 1.0
         spans[cat] = (pos[(cat, 0)], pos[(cat, 2)])
         x += gap
+    ax.grid(axis='y', color=P.GRID, lw=0.7)
+    ax.grid(axis='x', visible=False)
+    ax.set_axisbelow(True)
+    for i, cat in enumerate(P.CATS):
+        x0, x1 = spans[cat]
+        if i % 2 == 0:
+            ax.axvspan(x0 - 0.5 - gap / 2, x1 + 0.5 + gap / 2, color='#000000', alpha=0.045, lw=0, zorder=0)
+        g = t[t.category == cat]
+        col = P.CAT_COLOR[cat]
+        Y = np.column_stack([np.zeros(len(g)), g['d_0.5'], g['d_1.0']])
+        jit = (rng.random(len(g)) - 0.5) * (w * 0.56)                      # one offset per assay, so the connecting lines stay tidy
+        leaked = g['leaked'].to_numpy()
+        lk = leaked if mark_leaks else np.zeros(len(g), bool)               # drawn black
+        use = ~leaked if stats_without_leaks else np.ones(len(g), bool)      # enter the statistics
+        for r, y in enumerate(Y):
+            ax.plot([pos[(cat, k)] + jit[r] for k in range(3)], y, color='#000000' if lk[r] else col, alpha=0.4 if lk[r] else 0.16, lw=0.6, zorder=2.5 if lk[r] else 2)
+        for k in range(3):
+            c = pos[(cat, k)]
+            y = Y[:, k]
+            if k > 0:
+                q1, med, q3 = np.quantile(y[use], [0.25, 0.5, 0.75])
+                ax.add_patch(plt.Rectangle((c - w / 2, q1), w, q3 - q1, fc=col, alpha=0.22, ec='none', zorder=1))
+                ax.plot([c - w / 2, c + w / 2], [med, med], color=darker(col), lw=1.1, zorder=4, solid_capstyle='butt')
+            ax.plot((c + jit)[~lk], y[~lk], 'o', ms=ms, color=col, alpha=0.8, mew=0, zorder=3)
+            ax.plot((c + jit)[lk], y[lk], 'o', ms=ms + 0.4, color='#000000', alpha=0.95, mew=0, zorder=3.5)
+            mean = float(y[use].mean())
+            ax.plot([c - w / 2, c + w / 2], [mean, mean], color='#333333', lw=1.8, zorder=5)
+            if k > 0:
+                ax.text(c, mean + 0.012, f'{mean:+.3f}', ha='center', va='bottom', fontsize=f_mean, fontweight='semibold', zorder=8, bbox=dict(fc='white', ec='none', alpha=0.68, pad=0.1))
+        tr = ax.get_xaxis_transform()
+        n = f'{int(use.sum())}' + (f' of {len(g)}' if use.sum() < len(g) else '')
+        ax.plot([x0 - 0.44, x1 + 0.44], [1.012, 1.012], transform=tr, clip_on=False, color='#444444', lw=1.3)
+        ax.text((x0 + x1) / 2, 1.022, f'{CAT_SHORT[cat]}\n({n})' if compact else f'{P.CAT_LABEL[cat]} ({n})', transform=tr, ha='center', va='bottom', fontsize=f_head, fontweight='bold', color='#333333', linespacing=1.05)
+    ax.axhline(0, color=P.MUTED, lw=1, zorder=1)
+    ax.set_xticks([pos[(c, k)] for c in P.CATS for k in range(3)])
+    ax.set_xticklabels([l for c in P.CATS for l in tick_labels(R, c)], fontsize=f_tick)
+    ax.set_xlim(-0.8, x - gap - 0.2)
+    ax.set_xlabel('σ (LoRA scale)' if compact else 'sigma')
+    ax.set_ylabel('Δρ versus σ = 0' if compact else 'delta rho versus sigma = 0')
+
+
+def readout_note(t):
+    """Which readout the figure shows: the deployed one of ESM-MSR p0 (combined prediction on the assays with multi-mutants, WT head on the others), and how many multi-mutant assays have the combined prediction at each sigma."""
+    mm = t[t.has_multi]
+    k = {s: int((mm[f'dep_head_{s}'] == 'combined').sum()) for s in ('0.0', '0.5', '1.0')}
+    return (f'Deployed ESM-MSR readout: the combined prediction (1/2 (MT + WT)) on the {len(mm)} assays with multi-mutants, the WT head on the others; the combined prediction exists at sigma 1 for {k["1.0"]}, at sigma 0.5 for {k["0.5"]} '
+            f'and at sigma 0 for {k["0.0"]} of them (the missing ones read the WT head).')
+
+
+def paired_boxes(t, R, stem, note, mark_leaks=False, stats_without_leaks=False):
     with plt.rc_context(P.RC):
         fig, ax = plt.subplots(figsize=(13.5, 5.6))
-        ax.grid(axis='x', visible=False)
-        for i, cat in enumerate(P.CATS):
-            x0, x1 = spans[cat]
-            if i % 2 == 0:
-                ax.axvspan(x0 - 0.5 - gap / 2, x1 + 0.5 + gap / 2, color='#000000', alpha=0.045, lw=0, zorder=0)
-            g = t[t.category == cat]
-            col = P.CAT_COLOR[cat]
-            Y = np.column_stack([np.zeros(len(g)), g['d_0.5'], g['d_1.0']])
-            jit = (rng.random(len(g)) - 0.5) * (w * 0.56)                      # one offset per assay, so the connecting lines stay tidy
-            leaked = g['leaked'].to_numpy()
-            lk = leaked if mark_leaks else np.zeros(len(g), bool)               # drawn black
-            use = ~leaked if stats_without_leaks else np.ones(len(g), bool)      # enter the statistics
-            for r, y in enumerate(Y):
-                ax.plot([pos[(cat, k)] + jit[r] for k in range(3)], y, color='#000000' if lk[r] else col, alpha=0.4 if lk[r] else 0.16, lw=0.6, zorder=2.5 if lk[r] else 2)
-            for k, lab in enumerate(['0', '0.5', '1']):
-                c = pos[(cat, k)]
-                y = Y[:, k]
-                if k > 0:
-                    q1, med, q3 = np.quantile(y[use], [0.25, 0.5, 0.75])
-                    ax.add_patch(plt.Rectangle((c - w / 2, q1), w, q3 - q1, fc=col, alpha=0.22, ec='none', zorder=1))
-                    ax.plot([c - w / 2, c + w / 2], [med, med], color=darker(col), lw=1.1, zorder=4, solid_capstyle='butt')
-                ax.plot((c + jit)[~lk], y[~lk], 'o', ms=2.6, color=col, alpha=0.8, mew=0, zorder=3)
-                ax.plot((c + jit)[lk], y[lk], 'o', ms=3.0, color='#000000', alpha=0.95, mew=0, zorder=3.5)
-                mean = float(y[use].mean())
-                ax.plot([c - w / 2, c + w / 2], [mean, mean], color='#333333', lw=1.8, zorder=5)
-                if k > 0:
-                    ax.text(c, mean + 0.012, f'{mean:+.3f}', ha='center', va='bottom', fontsize=8, fontweight='semibold', zorder=8, bbox=dict(fc='white', ec='none', alpha=0.68, pad=0.1))
-            tr = ax.get_xaxis_transform()
-            ax.plot([x0 - 0.44, x1 + 0.44], [1.012, 1.012], transform=tr, clip_on=False, color='#444444', lw=1.3)
-            ax.text((x0 + x1) / 2, 1.022, f'{P.CAT_LABEL[cat]} ({int(use.sum())}' + (f' of {len(g)})' if use.sum() < len(g) else ')'), transform=tr, ha='center', va='bottom', fontsize=10.5, fontweight='bold', color='#333333')
-        ax.axhline(0, color=P.MUTED, lw=1, zorder=1)
-        ax.set_xticks([pos[(c, k)] for c in P.CATS for k in range(3)])
-        ax.set_xticklabels([l for c in P.CATS for l in tick_labels(R, c)])
-        ax.set_xlim(-0.8, x - gap - 0.2)
-        ax.set_xlabel('sigma')
-        ax.set_ylabel('delta rho versus sigma = 0')
+        draw_paired(ax, t, R, mark_leaks=mark_leaks, stats_without_leaks=stats_without_leaks)
         finish(fig, [], 'One dot per ProteinGym assay; faint thin lines connect the same assay at sigma 0 (delta = 0 by definition: the anchor), 0.5 and 1. Box = interquartile range, thin darker line = median, '
                'dark line = mean (value printed); p under the ticks: two-sided bootstrap test over assays that the mean delta rho is 0 (20000 resamples), Holm-adjusted over the ten category x sigma comparisons. '
-               f'Delta rho = Spearman rho of the WT-adapter prediction at sigma minus rho at sigma = 0 (ESM3-small-open, unmasked); sigma = 0.5 and 1: FINAL_p0 seed 1; {len(t)} assays. ' + note, stem)
+               f'Delta rho = Spearman rho of the ESM-MSR prediction at sigma minus rho at sigma = 0 (ESM3-small-open, unmasked); sigma = 0.5 and 1: FINAL_p0 seed 1; {len(t)} assays. ' + readout_note(t) + ' ' + note, stem)
 
 
 def main():

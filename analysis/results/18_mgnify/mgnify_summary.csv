@@ -413,3 +413,129 @@ Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,comb,linked - lat
 Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,mt,latent,0.7759,0.7400,0.8101,41323,33,0.774/0.775/0.778
 Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,mt,linked,0.7757,0.7398,0.8095,41323,33,0.774/0.775/0.778
 Tsuboyama capped test,all,destabilizing (ddG < 0),per scaffold,mt,linked - latent,-0.0003,-0.0009,0.0000,41323,33,identical (monotone within a scaffold)
+Rocklin designs,all,overall,pooled,wt,latent,0.2974,0.2752,0.3279,149119,848,0.291/0.302/0.299
+Rocklin designs,all,overall,pooled,wt,linked,0.4554,0.4274,0.4797,149119,848,0.453/0.458/0.455
+Rocklin designs,all,overall,pooled,wt,linked - latent,0.1551,0.1289,0.1819,149119,848,p=0.0099
+Rocklin designs,all,overall,pooled,comb,latent,0.3129,0.2908,0.3430,149119,848,0.309/0.317/0.313
+Rocklin designs,all,overall,pooled,comb,linked,0.4589,0.4325,0.4857,149119,848,0.456/0.464/0.457
+Rocklin designs,all,overall,pooled,comb,linked - latent,0.1432,0.1183,0.1675,149119,848,p=0.0099
+Rocklin designs,all,overall,pooled,mt,latent,0.3089,0.2854,0.3396,149119,848,0.306/0.311/0.310
+Rocklin designs,all,overall,pooled,mt,linked,0.4420,0.4177,0.4717,149119,848,0.436/0.452/0.438
+Rocklin designs,all,overall,pooled,mt,linked - latent,0.1306,0.1065,0.1518,149119,848,p=0.0099
+Rocklin designs,all,overall,per scaffold,wt,latent,0.2853,0.2685,0.3023,149090,843,0.282/0.289/0.285
+Rocklin designs,all,overall,per scaffold,wt,linked,0.2853,0.2685,0.3023,149090,843,0.282/0.289/0.285
+Rocklin designs,all,overall,per scaffold,wt,linked - latent,0.0000,-0.0000,0.0000,149090,843,identical (monotone within a scaffold)
+Rocklin designs,all,overall,per scaffold,comb,latent,0.2959,0.2792,0.3127,149090,843,0.290/0.302/0.295
+Rocklin designs,all,overall,per scaffold,comb,linked,0.2959,0.2792,0.3127,149090,843,0.290/0.302/0.295
+Rocklin designs,all,overall,per scaffold,comb,linked - latent,-0.0000,-0.0000,-0.0000,149090,843,identical (monotone within a scaffold)
+Rocklin designs,all,overall,per scaffold,mt,latent,0.2871,0.2699,0.3037,149090,843,0.282/0.293/0.286
+Rocklin designs,all,overall,per scaffold,mt,linked,0.2871,0.2699,0.3037,149090,843,0.282/0.293/0.286
+Rocklin designs,all,overall,per scaffold,mt,linked - latent,0.0000,-0.0000,0.0000,149090,843,identical (monotone within a scaffold)
+Rocklin designs,all,singles,pooled,wt,latent,0.2514,0.2259,0.2761,8188,846,0.247/0.255/0.253
+Rocklin designs,all,singles,pooled,wt,linked,0.3673,0.3349,0.3981,8188,846,0.365/0.369/0.368
+Rocklin designs,all,singles,pooled,wt,linked - latent,0.1135,0.0918,0.1339,8188,846,p=0.0099
+Rocklin designs,all,singles,pooled,comb,latent,0.2572,0.2337,0.2823,8188,846,0.252/0.263/0.257
+Rocklin designs,all,singles,pooled,comb,linked,0.3692,0.3363,0.4009,8188,846,0.364/0.374/0.370
+Rocklin designs,all,singles,pooled,comb,linked - latent,0.1098,0.0898,0.1299,8188,846,p=0.0099
+Rocklin designs,all,singles,pooled,mt,latent,0.2497,0.2279,0.2779,8188,846,0.244/0.256/0.249
+Rocklin designs,all,singles,pooled,mt,linked,0.3575,0.3265,0.3883,8188,846,0.349/0.366/0.357
+Rocklin designs,all,singles,pooled,mt,linked - latent,0.1059,0.0852,0.1237,8188,846,p=0.0099
+Rocklin designs,all,singles,per scaffold,wt,latent,0.2785,0.2512,0.3075,6117,564,0.274/0.278/0.284
+Rocklin designs,all,singles,per scaffold,wt,linked,0.2785,0.2512,0.3075,6117,564,0.274/0.278/0.284
+Rocklin designs,all,singles,per scaffold,wt,linked - latent,0.0000,0.0000,0.0000,6117,564,identical (monotone within a scaffold)
+Rocklin designs,all,singles,per scaffold,comb,latent,0.2883,0.2595,0.3213,6117,564,0.283/0.293/0.289
+Rocklin designs,all,singles,per scaffold,comb,linked,0.2883,0.2595,0.3213,6117,564,0.283/0.293/0.289
+Rocklin designs,all,singles,per scaffold,comb,linked - latent,0.0000,0.0000,0.0000,6117,564,identical (monotone within a scaffold)
+Rocklin designs,all,singles,per scaffold,mt,latent,0.2821,0.2543,0.3161,6117,564,0.273/0.288/0.285
+Rocklin designs,all,singles,per scaffold,mt,linked,0.2821,0.2543,0.3161,6117,564,0.273/0.288/0.285
+Rocklin designs,all,singles,per scaffold,mt,linked - latent,0.0000,0.0000,0.0000,6117,564,identical (monotone within a scaffold)
+Rocklin designs,all,doubles,pooled,wt,latent,0.2935,0.2700,0.3290,33495,845,0.289/0.298/0.294
+Rocklin designs,all,doubles,pooled,wt,linked,0.4344,0.4116,0.4650,33495,845,0.433/0.437/0.433
+Rocklin designs,all,doubles,pooled,wt,linked - latent,0.1387,0.1110,0.1633,33495,845,p=0.0099
+Rocklin designs,all,doubles,pooled,comb,latent,0.3051,0.2797,0.3400,33495,845,0.301/0.311/0.304
+Rocklin designs,all,doubles,pooled,comb,linked,0.4374,0.4147,0.4701,33495,845,0.434/0.443/0.435
+Rocklin designs,all,doubles,pooled,comb,linked - latent,0.1301,0.1035,0.1527,33495,845,p=0.0099
+Rocklin designs,all,doubles,pooled,mt,latent,0.2990,0.2729,0.3326,33495,845,0.295/0.303/0.298
+Rocklin designs,all,doubles,pooled,mt,linked,0.4224,0.3980,0.4560,33495,845,0.416/0.432/0.419
+Rocklin designs,all,doubles,pooled,mt,linked - latent,0.1214,0.0962,0.1416,33495,845,p=0.0099
+Rocklin designs,all,doubles,per scaffold,wt,latent,0.2709,0.2523,0.2914,33295,817,0.267/0.274/0.271
+Rocklin designs,all,doubles,per scaffold,wt,linked,0.2709,0.2523,0.2914,33295,817,0.267/0.274/0.271
+Rocklin designs,all,doubles,per scaffold,wt,linked - latent,0.0000,-0.0000,0.0000,33295,817,identical (monotone within a scaffold)
+Rocklin designs,all,doubles,per scaffold,comb,latent,0.2816,0.2614,0.3049,33295,817,0.277/0.285/0.282
+Rocklin designs,all,doubles,per scaffold,comb,linked,0.2816,0.2614,0.3049,33295,817,0.277/0.285/0.282
+Rocklin designs,all,doubles,per scaffold,comb,linked - latent,-0.0000,-0.0000,0.0000,33295,817,identical (monotone within a scaffold)
+Rocklin designs,all,doubles,per scaffold,mt,latent,0.2744,0.2532,0.2965,33295,817,0.270/0.278/0.276
+Rocklin designs,all,doubles,per scaffold,mt,linked,0.2744,0.2532,0.2965,33295,817,0.270/0.278/0.276
+Rocklin designs,all,doubles,per scaffold,mt,linked - latent,0.0000,0.0000,0.0000,33295,817,identical (monotone within a scaffold)
+Rocklin designs,all,3 mutations,pooled,wt,latent,0.3004,0.2752,0.3298,107436,844,0.294/0.305/0.302
+Rocklin designs,all,3 mutations,pooled,wt,linked,0.4660,0.4353,0.4886,107436,844,0.464/0.468/0.466
+Rocklin designs,all,3 mutations,pooled,wt,linked - latent,0.1623,0.1335,0.1905,107436,844,p=0.0099
+Rocklin designs,all,3 mutations,pooled,comb,latent,0.3163,0.2927,0.3473,107436,844,0.312/0.320/0.316
+Rocklin designs,all,3 mutations,pooled,comb,linked,0.4691,0.4408,0.4941,107436,844,0.466/0.474/0.468
+Rocklin designs,all,3 mutations,pooled,comb,linked - latent,0.1496,0.1241,0.1750,107436,844,p=0.0099
+Rocklin designs,all,3 mutations,pooled,mt,latent,0.3124,0.2883,0.3433,107436,844,0.310/0.313/0.314
+Rocklin designs,all,3 mutations,pooled,mt,linked,0.4509,0.4239,0.4792,107436,844,0.446/0.460/0.447
+Rocklin designs,all,3 mutations,pooled,mt,linked - latent,0.1358,0.1117,0.1585,107436,844,p=0.0099
+Rocklin designs,all,3 mutations,per scaffold,wt,latent,0.2796,0.2641,0.2982,107419,840,0.277/0.283/0.279
+Rocklin designs,all,3 mutations,per scaffold,wt,linked,0.2796,0.2641,0.2982,107419,840,0.277/0.283/0.279
+Rocklin designs,all,3 mutations,per scaffold,wt,linked - latent,0.0000,-0.0001,0.0001,107419,840,identical (monotone within a scaffold)
+Rocklin designs,all,3 mutations,per scaffold,comb,latent,0.2903,0.2742,0.3075,107419,840,0.285/0.297/0.288
+Rocklin designs,all,3 mutations,per scaffold,comb,linked,0.2902,0.2742,0.3075,107419,840,0.285/0.297/0.288
+Rocklin designs,all,3 mutations,per scaffold,comb,linked - latent,-0.0000,-0.0001,0.0000,107419,840,identical (monotone within a scaffold)
+Rocklin designs,all,3 mutations,per scaffold,mt,latent,0.2815,0.2662,0.2982,107419,840,0.276/0.288/0.280
+Rocklin designs,all,3 mutations,per scaffold,mt,linked,0.2815,0.2662,0.2982,107419,840,0.276/0.288/0.280
+Rocklin designs,all,3 mutations,per scaffold,mt,linked - latent,0.0000,-0.0000,0.0000,107419,840,identical (monotone within a scaffold)
+Rocklin designs,all,dG > 0,pooled,wt,latent,0.2928,0.2640,0.3298,109721,845,0.286/0.297/0.295
+Rocklin designs,all,dG > 0,pooled,wt,linked,0.5460,0.5184,0.5717,109721,845,0.550/0.547/0.542
+Rocklin designs,all,dG > 0,pooled,wt,linked - latent,0.2495,0.2222,0.2763,109721,845,p=0.0099
+Rocklin designs,all,dG > 0,pooled,comb,latent,0.3123,0.2859,0.3492,109721,845,0.309/0.315/0.313
+Rocklin designs,all,dG > 0,pooled,comb,linked,0.5305,0.5047,0.5588,109721,845,0.531/0.539/0.522
+Rocklin designs,all,dG > 0,pooled,comb,linked - latent,0.2148,0.1910,0.2408,109721,845,p=0.0099
+Rocklin designs,all,dG > 0,pooled,mt,latent,0.3120,0.2880,0.3475,109721,845,0.311/0.310/0.314
+Rocklin designs,all,dG > 0,pooled,mt,linked,0.4938,0.4642,0.5278,109721,845,0.491/0.509/0.482
+Rocklin designs,all,dG > 0,pooled,mt,linked - latent,0.1789,0.1601,0.2047,109721,845,p=0.0099
+Rocklin designs,all,dG > 0,per scaffold,wt,latent,0.2249,0.2083,0.2438,109662,834,0.221/0.229/0.225
+Rocklin designs,all,dG > 0,per scaffold,wt,linked,0.2250,0.2083,0.2439,109662,834,0.221/0.229/0.225
+Rocklin designs,all,dG > 0,per scaffold,wt,linked - latent,0.0000,-0.0000,0.0001,109662,834,identical (monotone within a scaffold)
+Rocklin designs,all,dG > 0,per scaffold,comb,latent,0.2418,0.2247,0.2595,109662,834,0.238/0.244/0.244
+Rocklin designs,all,dG > 0,per scaffold,comb,linked,0.2418,0.2247,0.2595,109662,834,0.238/0.244/0.244
+Rocklin designs,all,dG > 0,per scaffold,comb,linked - latent,-0.0000,-0.0000,0.0000,109662,834,identical (monotone within a scaffold)
+Rocklin designs,all,dG > 0,per scaffold,mt,latent,0.2415,0.2263,0.2581,109662,834,0.237/0.241/0.246
+Rocklin designs,all,dG > 0,per scaffold,mt,linked,0.2415,0.2263,0.2581,109662,834,0.237/0.241/0.246
+Rocklin designs,all,dG > 0,per scaffold,mt,linked - latent,0.0000,-0.0000,0.0000,109662,834,identical (monotone within a scaffold)
+Rocklin designs,all,stabilizing (ddG > 0),pooled,wt,latent,0.0851,0.0592,0.1122,62412,846,0.075/0.089/0.092
+Rocklin designs,all,stabilizing (ddG > 0),pooled,wt,linked,0.2679,0.2291,0.3004,62412,846,0.264/0.270/0.269
+Rocklin designs,all,stabilizing (ddG > 0),pooled,wt,linked - latent,0.1806,0.1420,0.2232,62412,846,p=0.0099
+Rocklin designs,all,stabilizing (ddG > 0),pooled,comb,latent,0.1134,0.0878,0.1428,62412,846,0.109/0.112/0.119
+Rocklin designs,all,stabilizing (ddG > 0),pooled,comb,linked,0.2777,0.2378,0.3114,62412,846,0.275/0.281/0.277
+Rocklin designs,all,stabilizing (ddG > 0),pooled,comb,linked - latent,0.1620,0.1283,0.2016,62412,846,p=0.0099
+Rocklin designs,all,stabilizing (ddG > 0),pooled,mt,latent,0.1319,0.1094,0.1608,62412,846,0.132/0.124/0.139
+Rocklin designs,all,stabilizing (ddG > 0),pooled,mt,linked,0.2730,0.2347,0.3029,62412,846,0.270/0.279/0.270
+Rocklin designs,all,stabilizing (ddG > 0),pooled,mt,linked - latent,0.1389,0.1069,0.1724,62412,846,p=0.0099
+Rocklin designs,all,stabilizing (ddG > 0),per scaffold,wt,latent,0.1116,0.0955,0.1310,62150,797,0.105/0.115/0.114
+Rocklin designs,all,stabilizing (ddG > 0),per scaffold,wt,linked,0.1117,0.0955,0.1310,62150,797,0.105/0.115/0.114
+Rocklin designs,all,stabilizing (ddG > 0),per scaffold,wt,linked - latent,0.0000,-0.0000,0.0001,62150,797,identical (monotone within a scaffold)
+Rocklin designs,all,stabilizing (ddG > 0),per scaffold,comb,latent,0.1356,0.1226,0.1490,62150,797,0.134/0.133/0.139
+Rocklin designs,all,stabilizing (ddG > 0),per scaffold,comb,linked,0.1356,0.1226,0.1489,62150,797,0.134/0.133/0.139
+Rocklin designs,all,stabilizing (ddG > 0),per scaffold,comb,linked - latent,-0.0000,-0.0001,0.0000,62150,797,identical (monotone within a scaffold)
+Rocklin designs,all,stabilizing (ddG > 0),per scaffold,mt,latent,0.1457,0.1312,0.1632,62150,797,0.147/0.137/0.153
+Rocklin designs,all,stabilizing (ddG > 0),per scaffold,mt,linked,0.1457,0.1312,0.1632,62150,797,0.147/0.137/0.153
+Rocklin designs,all,stabilizing (ddG > 0),per scaffold,mt,linked - latent,0.0000,-0.0000,0.0000,62150,797,identical (monotone within a scaffold)
+Rocklin designs,all,destabilizing (ddG < 0),pooled,wt,latent,0.2393,0.2131,0.2694,86707,843,0.240/0.242/0.236
+Rocklin designs,all,destabilizing (ddG < 0),pooled,wt,linked,0.3226,0.2944,0.3489,86707,843,0.324/0.324/0.320
+Rocklin designs,all,destabilizing (ddG < 0),pooled,wt,linked - latent,0.0803,0.0585,0.1008,86707,843,p=0.0099
+Rocklin designs,all,destabilizing (ddG < 0),pooled,comb,latent,0.2383,0.2134,0.2707,86707,843,0.235/0.247/0.233
+Rocklin designs,all,destabilizing (ddG < 0),pooled,comb,linked,0.3167,0.2885,0.3447,86707,843,0.314/0.323/0.313
+Rocklin designs,all,destabilizing (ddG < 0),pooled,comb,linked - latent,0.0757,0.0566,0.0930,86707,843,p=0.0099
+Rocklin designs,all,destabilizing (ddG < 0),pooled,mt,latent,0.2234,0.1996,0.2567,86707,843,0.217/0.236/0.218
+Rocklin designs,all,destabilizing (ddG < 0),pooled,mt,linked,0.2965,0.2656,0.3251,86707,843,0.289/0.310/0.290
+Rocklin designs,all,destabilizing (ddG < 0),pooled,mt,linked - latent,0.0709,0.0561,0.0848,86707,843,p=0.0099
+Rocklin designs,all,destabilizing (ddG < 0),per scaffold,wt,latent,0.2176,0.2026,0.2341,86537,810,0.218/0.220/0.215
+Rocklin designs,all,destabilizing (ddG < 0),per scaffold,wt,linked,0.2176,0.2025,0.2341,86537,810,0.218/0.220/0.215
+Rocklin designs,all,destabilizing (ddG < 0),per scaffold,wt,linked - latent,-0.0000,-0.0001,0.0000,86537,810,identical (monotone within a scaffold)
+Rocklin designs,all,destabilizing (ddG < 0),per scaffold,comb,latent,0.2154,0.1978,0.2328,86537,810,0.209/0.226/0.211
+Rocklin designs,all,destabilizing (ddG < 0),per scaffold,comb,linked,0.2154,0.1978,0.2328,86537,810,0.209/0.226/0.211
+Rocklin designs,all,destabilizing (ddG < 0),per scaffold,comb,linked - latent,-0.0000,-0.0000,0.0000,86537,810,identical (monotone within a scaffold)
+Rocklin designs,all,destabilizing (ddG < 0),per scaffold,mt,latent,0.1980,0.1787,0.2178,86537,810,0.189/0.213/0.192
+Rocklin designs,all,destabilizing (ddG < 0),per scaffold,mt,linked,0.1980,0.1787,0.2178,86537,810,0.189/0.213/0.192
+Rocklin designs,all,destabilizing (ddG < 0),per scaffold,mt,linked - latent,-0.0000,-0.0000,0.0000,86537,810,identical (monotone within a scaffold)

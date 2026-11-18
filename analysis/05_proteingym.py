@@ -40,6 +40,7 @@ from msr_analysis.boot import bootstrap_rho, ci  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
 from msr_analysis.data import Frame, load_frame  # noqa: E402
 from msr_analysis.external_s1 import EXT_ORDER, _seed1_frame, register_ext_styles  # noqa: E402
+from msr_analysis.final_runs import load_final_frame  # noqa: E402
 from msr_analysis.registry import C, CACHE, MODELS, MSR, PGYM, PUBLIC, REFERENCE, RETRAINED, ROOT  # noqa: E402
 
 OUT = out_dir('05_proteingym')
@@ -68,6 +69,9 @@ DROP = {
     'SCN5A_HUMAN_Glazer_2019',
 }
 B = 100              # draft size (was 2000; the cache below is keyed on B, so the first run recomputes); paper 2000
+SIGMA_RHO = Path(__file__).resolve().parent / 'proteingym' / 'p0_sigma' / 'results' / 'per_assay_rho.csv'      # FINAL_p0 seed 1, WT head, per-assay rho at sigma 0, 0.5, 1 (proteingym/p0_sigma/01_per_assay_rho.py)
+SIGMA_MODELS = ('ESM-MSR σ=1', 'ESM-MSR σ=0.5')
+ESM3_S0_COMB = ROOT / 'pgym_results' / 'unmasked-esm-msr-small' / 'sigma0.0'      # ESM3-small-open as the sigma-0 read of the ESM-MSR-small checkpoint (adapters off, unmasked), with the combined prediction: the zero-shot reference on the multi-mutant assays
 
 ALL_PG_MODELS = [
     'pg:msrp0:comb',
@@ -200,7 +204,7 @@ def homologous_domainome_domains():
 def _score_all_pgym_models(dms_ids, refresh=False):
     """Compute (or load cached) per-DMS seed-1 Spearman rhos across all 213 assays."""
     cache = CACHE / 'pg_all_models_s1.csv'
-    req_cols = set(EXT_ORDER) | (set(ALL_PG_MODELS) - {'pg:msrp0:comb'}) | {'has_multi', 'has_double', 'msr_p0_head'}
+    req_cols = set(EXT_ORDER) | (set(ALL_PG_MODELS) - {'pg:msrp0:comb'}) | {'has_multi', 'has_double', 'msr_p0_head', 'esm3_0_head'}
     if cache.exists() and not refresh:
         df = pd.read_csv(cache, index_col=0)
         if set(dms_ids) <= set(df.index) and req_cols <= set(df.columns):
@@ -321,13 +325,20 @@ def _score_all_pgym_models(dms_ids, refresh=False):
 
         rho_prosst = float(pub.loc[dms, 'ProSST-2048 rho_full'])
         rho_pmpnn = float(pm.loc[dms, 'mpnn_score_s0'])
-        rho_e3_0 = float(a.loc[dms, 'ESM-MSR WT eps=0'])
+        rho_e3_0_wt = float(a.loc[dms, 'ESM-MSR WT eps=0'])
+        e3_file = ESM3_S0_COMB / f'{dms}.csv'
+        if has_mm and e3_file.exists():                  # ESM3-small-open follows the same rule as the models it is compared with: combined on multi-mutant assays, WT head on the others
+            de3 = pd.read_csv(e3_file, usecols=['combined_pred', 'DMS_score'])
+            rho_e3_0, e3_head = float(spearmanr(de3['combined_pred'], de3['DMS_score'], nan_policy='omit')[0]), 'combined'
+        else:
+            rho_e3_0, e3_head = rho_e3_0_wt, 'wt'
         rho_ros = float(ro.loc[dms, 'rho']) if dms in ro.index else np.nan
 
         rows[dms] = {
             'has_multi': has_mm,
             'has_double': has_dbl,
             'msr_p0_head': p0_head,
+            'esm3_0_head': e3_head,
             # Unified 9 models (for pg_categories / pg_per_dms_scatter)
             'ESM-MSR': rho_msr_uni,
             'MutateEverything': rho_me_uni,
@@ -358,7 +369,7 @@ def _score_all_pgym_models(dms_ids, refresh=False):
             'pg:rosetta': rho_ros,
             'pg:prosst': rho_prosst,
             'pg:esm3_pub': float(pub.loc[dms, 'ESM3 rho_full']),
-            'pg:msrrel@0:wt': rho_e3_0,
+            'pg:msrrel@0:wt': rho_e3_0_wt,
             'pg:pmpnn': rho_pmpnn,
             'pg:pmpnn_pub': float(pub.loc[dms, 'ProteinMPNN rho_full']),
             'pg:spurs_pub': float(a.loc[dms, 'SPURS single-additive']),
@@ -382,7 +393,7 @@ def _domainome_summary(refresh=False):
             isinstance(cached, dict)
             and cached.get('B') == B
             and cached.get('n_domains') == 458
-            and set(cached.get('summary', {})) >= set(EXT_ORDER) - {'Rosetta'}
+            and set(cached.get('summary', {})) >= (set(EXT_ORDER) - {'Rosetta'}) | {'ESM-MSR σ=0.5'}
         ):
             return cached['summary']
 
@@ -396,6 +407,9 @@ def _domainome_summary(refresh=False):
         {k: v[:, keep] for k, v in raw_dom.preds.items()},
     )
     dom_fr, _ = _seed1_frame('domainome', dom_458)
+    s05 = load_final_frame('domainome', families=['FINAL_p0'], sigma='0.5', seeds=(1,))             # FINAL_p0 seed 1 at LoRA scale 0.5, WT head (the sigma = 1 reading is 'ESM-MSR': singles, so WT head)
+    assert (s05.spine['id'].to_numpy() == raw_dom.spine['id'].to_numpy()).all()
+    dom_fr.preds['ESM-MSR σ=0.5'] = s05.preds['FINAL_p0:wt'][:1, keep]
     pt, rp = bootstrap_rho({'domainome': dom_fr}, list(dom_fr.preds), kind='protein', B=B, seed=30, per_protein=True)
     out = {}
     for m, (rho, _ps, _n, ng) in pt['domainome'].items():
@@ -505,6 +519,20 @@ def main(refresh=False):
     R_uni = pd.concat([R_uni_pg, dom_rows], ignore_index=True)
     R_uni.to_csv(OUT / 'pg_summary.csv', index=False, float_format='%.4f')
 
+    # ESM-MSR p0 at sigma 1 (the deployed readout: combined on the multi-mutant assays, WT head elsewhere) and at sigma 0.5 (WT head on every assay: the only readout run at that scale), on the figure's assays and draws
+    A = pd.read_csv(SIGMA_RHO).set_index('assay')
+    Ts = Tf[['category']].copy()
+    Ts['ESM-MSR σ=1'] = Tf['ESM-MSR']
+    Ts['ESM-MSR σ=0.5'] = A['rho_dep_0.5'].reindex(Ts.index)               # combined on the multi-mutant assays whose sigma-0.5 combined run exists, the WT head on the others
+    assert int(Ts[list(SIGMA_MODELS)].isna().sum().sum()) == 0
+    R_sig, _ = summary_rows(Ts, list(SIGMA_MODELS), pg_cols)
+    dom_sig = pd.DataFrame([dict(model='ESM-MSR σ=1', column='Domainome', value=dom['ESM-MSR'][0], lo=dom['ESM-MSR'][1], hi=dom['ESM-MSR'][2], n_dms=dom['ESM-MSR'][3]),
+                            dict(model='ESM-MSR σ=0.5', column='Domainome', value=dom['ESM-MSR σ=0.5'][0], lo=dom['ESM-MSR σ=0.5'][1], hi=dom['ESM-MSR σ=0.5'][2], n_dms=dom['ESM-MSR σ=0.5'][3])])
+    pd.concat([R_sig, dom_sig], ignore_index=True).to_csv(OUT / 'pg_sigma_summary.csv', index=False, float_format='%.4f')
+    mm = A[(A.source == 'ProteinGym') & A.has_multi.astype(bool)]
+    k05 = int((mm['dep_head_0.5'] == 'combined').sum())
+    (OUT / 'pg_sigma_note.txt').write_text(f'{k05} of {len(mm)}\n')
+
     Tf_all = T_all[~T_all.index.isin(stab_hom)]
     R_full_213, _ = summary_rows(T_all, full_models, pg_cols)
     R_full_213.to_csv(OUT / 'pg_all_models_summary_all213.csv', index=False, float_format='%.4f')
@@ -526,7 +554,7 @@ def main(refresh=False):
         '* Homologous proteins excluded for PGym Stability (23 same-protein P + 3 strong homolog H = 26/66 removed) '
         'and Domainome (4 P + 60 H = 64/522 removed) via leak_audit_structure_homology.csv; other PGym categories unfiltered.\n'
         f'Seed 1 only. Singles models on singles assays / Domainome; multi on PGym multi-mutants '
-        f'(ESM-MSR {p0_desc}; ME st1/st2; ThermoMPNN additive / -D on doubles; SPURS single/multi). '
+        f'(ME st1/st2; ThermoMPNN additive / -D on doubles; SPURS single/multi). '
         'Rosetta: PGym singles only (no Domainome).'
     )
 

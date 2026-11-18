@@ -5,6 +5,10 @@ MGnify = 766,790 variants of 180,367 scaffolds (60-80 residues; 616,655 singles,
 dG of the wild type and of the variant inside the assay's range), 705,864 variants of 167,379 scaffolds.  Every statistic is given for the **latent** ddG of the model and for the **Tobit-linked** one
 (``h(dG_wt + latent) - dG_wt``, the link of ``esm_msr.val_stats.tobit_link`` with the constants the checkpoints were fit with), for the WT head, the MT head and the combined prediction.
 
+**Rocklin designs** (the same table, ``source == rocklin_denovo``: 1,000 de novo design scaffolds, 209,818 variants of one, two and three edits, 149,119 measured) are scored the same way
+(``final_mgnify/FINAL_p0/s<seed>/rdenovo``, three seeds) and written to the same folder: dataset ``Rocklin designs`` in ``mgnify_summary.csv`` / ``mgnify_rmse.csv``, ``table_rocklin*.md``, figure ``rocklin_overview``.
+They have no homology classes, and a mutation-count subset ``3 mutations`` (153,056 of the variants).  The designs' own within-design stats (``scoring/mgnify_rdenovo_stats.py``) are in ``rocklin_designs/``.
+
 Subsets (the Tsuboyama analyses' cells):  overall; singles; doubles (the 8 triples are in overall only); dG > 0 (the variant's measured dG_ML above 0: the variants the assay saw folded), also dG <= 0;
 stabilizing (measured ddG > 0) and destabilizing (ddG < 0), as in 11_publication_figures fig2.  Strata by the scaffold's homology to the capped training set (sequence evidence, MMseqs2): all, clean (none + low),
 h, strong (H + same protein).
@@ -55,12 +59,15 @@ SUBSETS = {                       # name -> mask on a spine (rows already measur
     'overall': lambda s: np.ones(len(s), bool),
     'singles': lambda s: (s['n_mut'] == 1).to_numpy(),
     'doubles': lambda s: (s['n_mut'] == 2).to_numpy(),
+    '3 mutations': lambda s: (s['n_mut'] == 3).to_numpy(),
     'dG > 0': lambda s: (s['dG_ML'] > 0).to_numpy(),
     'dG <= 0': lambda s: (s['dG_ML'] <= 0).to_numpy(),
     'stabilizing (ddG > 0)': lambda s: (s['y'] > 0).to_numpy(),
     'destabilizing (ddG < 0)': lambda s: (s['y'] < 0).to_numpy(),
 }
 MAIN_SUBSETS = ['overall', 'singles', 'doubles', 'dG > 0', 'stabilizing (ddG > 0)', 'destabilizing (ddG < 0)']
+ROCKLIN_SUBSETS = ['overall', 'singles', 'doubles', '3 mutations', 'dG > 0', 'stabilizing (ddG > 0)', 'destabilizing (ddG < 0)']
+DATASET = {'mgnify': 'MGnify', 'tsuboyama': 'Tsuboyama capped test', 'rocklin': 'Rocklin designs'}
 COLORS = {'latent': '#2a78d6', 'linked': '#eb6834'}
 TSU_COLOR = '#777777'
 
@@ -122,11 +129,11 @@ def _job(args):
     which, stratum, name, B, seed, heads = args
     fr = _FR[which]
     sp = fr.spine
-    classes = STRATA.get(stratum) if which == 'mgnify' else None
+    classes = STRATA.get(stratum) if which == 'mgnify' else None             # homology strata: MGnify scaffolds only
     mask = SUBSETS[name](sp)
     if classes is not None:
         mask &= sp['cls'].isin(classes).to_numpy()
-    dataset = 'MGnify' if which == 'mgnify' else 'Tsuboyama capped test'
+    dataset = DATASET[which]
     out = [dict(dataset=dataset, stratum=stratum, **r) for r in cell_stats(fr, mask, name, B, seed, heads)]
     print(dataset, stratum, name, flush=True)
     return out
@@ -140,7 +147,11 @@ def run_stats(B, workers):
     seeds = finished_seeds()
     fr = load_mgnify(seeds=seeds)
     tf = tsuboyama_frame()
-    _FR.update(mgnify=fr, tsuboyama=tf)
+    rk_seeds = finished_seeds(run='rdenovo')
+    rk = load_mgnify(run='rdenovo', seeds=rk_seeds) if rk_seeds else None
+    _FR.update(mgnify=fr, tsuboyama=tf, **({'rocklin': rk} if rk is not None else {}))
+    if rk is not None:
+        print(f'Rocklin designs FINAL_p0 seeds {rk_seeds}: {int(rk.spine["use"].sum()):,} measured variants, {rk.spine.loc[rk.spine["use"], "group"].nunique():,} designs', flush=True)
     print(f'MGnify FINAL_p0 seeds {seeds}: {int(fr.spine["use"].sum()):,} measured variants, {fr.spine.loc[fr.spine["use"], "group"].nunique():,} scaffolds', flush=True)
     jobs = []
     for stratum in STRATA:
@@ -149,18 +160,23 @@ def run_stats(B, workers):
             jobs.append(('mgnify', stratum, name, B, 11, ('wt', 'comb', 'mt') if stratum == 'all' else ('wt', 'comb')))
     for name in MAIN_SUBSETS:
         jobs.append(('tsuboyama', 'all', name, B, 12, ('wt', 'comb', 'mt')))
+    if rk is not None:
+        for name in ROCKLIN_SUBSETS:
+            jobs.append(('rocklin', 'all', name, B, 13, ('wt', 'comb', 'mt')))
     with mp.get_context('fork').Pool(workers) as pool:
         res = pool.map(_job, jobs, chunksize=1)
     S = pd.DataFrame([r for part in res for r in part])
     S.to_csv(OUT / 'mgnify_summary.csv', index=False, float_format='%.4f')
-    return fr, tf, S
+    return fr, tf, rk, S
 
 
-def run_rmse(fr, tf):
+def run_rmse(fr, tf, rk=None):
     rows = []
-    for ds, f in (('MGnify', fr), ('Tsuboyama capped test', tf)):
+    for ds, f in (('MGnify', fr), ('Tsuboyama capped test', tf), ('Rocklin designs', rk)):
+        if f is None:
+            continue
         sp = f.spine
-        for name in MAIN_SUBSETS:
+        for name in (ROCKLIN_SUBSETS if ds == 'Rocklin designs' else MAIN_SUBSETS):
             m = sp['use'].to_numpy() & SUBSETS[name](sp)
             y = sp['y'].to_numpy()[m]
             for h in ('wt', 'comb'):
@@ -180,9 +196,9 @@ def foot(fig, text):
     return t.get_window_extent(fig.canvas.get_renderer()).height / fig.bbox.height
 
 
-def finish(fig, text, stem, pad=0.04):
+def finish(fig, text, stem, pad=0.04, top=1.0):
     fh = foot(fig, text)
-    fig.tight_layout(rect=(0, fh + pad, 1, 1))
+    fig.tight_layout(rect=(0, fh + pad, 1, top))
     bad = style.text_outside(fig)
     if bad:
         print('WARNING: text outside the figure box in', stem, bad)
@@ -194,40 +210,40 @@ def get(S, ds, stratum, subset, unit, head, form):
     return (float(t.rho.iloc[0]), float(t.lo.iloc[0]), float(t.hi.iloc[0])) if len(t) else (np.nan,) * 3
 
 
-def fig_overview(S, B):
-    fig, axes = plt.subplots(1, 2, figsize=(12.6, 5.4), sharey=True)
-    ys = np.arange(len(MAIN_SUBSETS))[::-1]
-    for ax, unit, ttl in zip(axes, ('pooled', 'per scaffold'), ('A  Pooled Spearman rho', f'B  Mean per-scaffold rho (>= {MIN_VARIANTS} variants)')):
-        ax.axhspan(-0.5, -0.5, color='none')
+def fig_overview(S, B, ds_main='MGnify', subsets=MAIN_SUBSETS, stem='mgnify_overview'):
+    unit_word = 'scaffolds' if ds_main == 'MGnify' else 'designs'
+    fig, axes = plt.subplots(1, 2, figsize=(12.6, 0.9 * len(subsets) + 0.2), sharey=True)
+    ys = np.arange(len(subsets))[::-1]
+    for ax, unit, ttl in zip(axes, ('pooled', 'per scaffold'), ('A  Pooled Spearman rho', f'B  Mean per-{unit_word[:-1]} rho (>= {MIN_VARIANTS} variants)')):
         for j, (head, hl) in enumerate((('wt', 'WT head'), ('comb', 'combined'))):
-            for ds, off0, mk in (('MGnify', 0.0, 'o'), ('Tsuboyama capped test', 0.0, 's')):
+            for ds, off0, mk in ((ds_main, 0.0, 'o'), ('Tsuboyama capped test', 0.0, 's')):
                 for fi, (form, _) in enumerate(FORMS):
                     if unit == 'per scaffold' and form == 'linked':
                         continue                               # identical to latent per scaffold
-                    off = (0.34 if ds == 'MGnify' else -0.06) - 0.17 * j - (0.085 if fi else 0)
-                    xs = [get(S, ds, 'all', s, unit, head, form) for s in MAIN_SUBSETS]
+                    off = (0.34 if ds == ds_main else -0.06) - 0.17 * j - (0.085 if fi else 0)
+                    xs = [get(S, ds, 'all', s, unit, head, form) for s in subsets]
                     for y, (v, lo, hi) in zip(ys, xs):
                         if not np.isfinite(v):
                             continue
-                        col = COLORS[form] if ds == 'MGnify' else TSU_COLOR
+                        col = COLORS[form] if ds == ds_main else TSU_COLOR
                         ax.plot([lo, hi], [y + off] * 2, color=col, lw=1.6, alpha=0.55, solid_capstyle='butt')
                         ax.plot(v, y + off, marker=mk, ms=6.4, mfc=col if head == 'comb' else 'white', mec=col, mew=1.3, ls='none')
         ax.set_yticks(ys)
-        ax.set_yticklabels(MAIN_SUBSETS)
+        ax.set_yticklabels(subsets)
         ax.set_xlabel('Spearman rho')
         ax.set_title(ttl, loc='left')
         ax.grid(axis='x', color=style.GRID, lw=0.6)
         ax.set_xlim(0.0, 1.0)
     from matplotlib.lines import Line2D
-    h = [Line2D([0], [0], marker='o', color=COLORS['latent'], mfc=COLORS['latent'], ls='none', label='MGnify, latent'),
-         Line2D([0], [0], marker='o', color=COLORS['linked'], mfc=COLORS['linked'], ls='none', label='MGnify, Tobit-linked'),
+    h = [Line2D([0], [0], marker='o', color=COLORS['latent'], mfc=COLORS['latent'], ls='none', label=f'{ds_main}, latent'),
+         Line2D([0], [0], marker='o', color=COLORS['linked'], mfc=COLORS['linked'], ls='none', label=f'{ds_main}, Tobit-linked'),
          Line2D([0], [0], marker='s', color=TSU_COLOR, mfc=TSU_COLOR, ls='none', label='Tsuboyama capped test (33 libraries)'),
          Line2D([0], [0], marker='o', color='#555555', mfc='#555555', ls='none', label='filled: combined'),
          Line2D([0], [0], marker='o', color='#555555', mfc='white', ls='none', label='open: WT head')]
-    axes[0].legend(handles=h, loc='lower left', fontsize=8, handletextpad=0.3)
-    finish(fig, f'ESM-MSR p0, seed mean of FINAL_p0 s1-s3, measured variants (cens == 0). Pooled: one Spearman rho over all variants of the subset, 95% interval from resampling scaffolds (libraries on Tsuboyama) and seeds, B = {B}. '
-                'Per scaffold: mean over scaffolds of the Spearman rho of the scaffold\'s variants; the Tobit link (h(dG_wt + latent) - dG_wt) is monotone within a scaffold, so latent and linked are the same number there. '
-                'dG > 0: variants with measured dG_ML above 0; stabilizing / destabilizing: measured ddG above / below 0.', 'mgnify_overview')
+    fig.legend(handles=h, loc='upper center', ncol=3, fontsize=8, handletextpad=0.3, columnspacing=1.6, bbox_to_anchor=(0.5, 1.0))
+    finish(fig, f'ESM-MSR p0, seed mean of FINAL_p0 s1-s3, measured variants (cens == 0). Pooled: one Spearman rho over all variants of the subset, 95% interval from resampling {unit_word} (libraries on Tsuboyama) and seeds, B = {B}. '
+                f'Per {unit_word[:-1]}: mean over {unit_word} of the Spearman rho of the {unit_word[:-1]}\'s variants; the Tobit link (h(dG_wt + latent) - dG_wt) is monotone within a {unit_word[:-1]}, so latent and linked are the same number there. '
+                'dG > 0: variants with measured dG_ML above 0; stabilizing / destabilizing: measured ddG above / below 0.', stem, top=0.9)
 
 
 def fig_homology(S, B):
@@ -350,6 +366,22 @@ def write_tables(S, R):
                                  f'{rmse(ds, sub, head, "latent") if head != "mt" else "–"} | {rmse(ds, sub, head, "linked") if head != "mt" else "–"} |')
             lines.append('')
         (OUT / f'{tag}.md').write_text('\n'.join(lines) + '\n')
+    for tag, ci_ in (('table_rocklin', False), ('table_rocklin_ci', True)):
+        lines = []
+        for head in ('comb', 'wt', 'mt'):
+            lines += [f'**{HEAD_LABEL[head]}**', '', '| set | subset | variants | designs | pooled ρ, latent | pooled ρ, Tobit-linked | per-design ρ | designs (per-design) | RMSE latent | RMSE linked |', '|---|---|---|---|---|---|---|---|---|---|']
+            for sub in ROCKLIN_SUBSETS:
+                if head != 'comb' and sub not in ('overall', 'singles', 'doubles', '3 mutations'):
+                    continue
+                n, ns = n_of('Rocklin designs', 'all', sub, 'pooled', head)
+                _, nps = n_of('Rocklin designs', 'all', sub, 'per scaffold', head)
+                if not n:
+                    continue
+                lines.append(f'| Rocklin designs | {sub} | {n:,} | {ns:,} | {cell("Rocklin designs", "all", sub, "pooled", head, "latent", ci_)} | {cell("Rocklin designs", "all", sub, "pooled", head, "linked", ci_)} | '
+                             f'{cell("Rocklin designs", "all", sub, "per scaffold", head, "latent", ci_)} | {nps:,} | {rmse("Rocklin designs", sub, head, "latent") if head != "mt" else "–"} | {rmse("Rocklin designs", sub, head, "linked") if head != "mt" else "–"} |')
+            lines.append('')
+        if len(lines) > 4:
+            (OUT / f'{tag}.md').write_text('\n'.join(lines) + '\n')
     lines = ['| stratum | subset | scaffolds | pooled ρ, latent | pooled ρ, Tobit-linked | per-scaffold ρ |', '|---|---|---|---|---|---|']
     for st in STRATA:
         for sub in ('overall', 'singles', 'doubles'):
@@ -371,16 +403,18 @@ def main():
         S.loc[(S.form == 'linked - latent') & (S.unit == 'per scaffold'), 'seeds'] = 'identical (monotone within a scaffold)'
         S.to_csv(OUT / 'mgnify_summary.csv', index=False, float_format='%.4f')
     else:
-        fr, tf, S = run_stats(a.B, a.workers)
-        run_rmse(fr, tf)
+        fr, tf, rk, S = run_stats(a.B, a.workers)
+        run_rmse(fr, tf, rk)
     R = pd.read_csv(OUT / 'mgnify_rmse.csv')
     pd.set_option('display.width', 250, 'display.max_columns', 30, 'display.max_rows', 500)
-    show = S[(S.stratum == 'all') & S['head'].isin(['wt', 'comb']) & S['subset'].isin(MAIN_SUBSETS)]
+    show = S[(S.stratum == 'all') & S['head'].isin(['wt', 'comb']) & S['subset'].isin(ROCKLIN_SUBSETS)]
     print(show.drop(columns=['seeds']).round(3).to_string(index=False))
     print(R.round(3).to_string(index=False))
     B = a.B
     write_tables(S, R)
     fig_overview(S, B)
+    if (S.dataset == 'Rocklin designs').any():
+        fig_overview(S, B, 'Rocklin designs', ROCKLIN_SUBSETS, 'rocklin_overview')
     fig_homology(S, B)
     fig_per_scaffold(fr)
     fig_scatter(fr, tf)

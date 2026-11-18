@@ -47,3 +47,31 @@ Tsuboyama capped test,destabilizing (ddG < 0),wt,latent,41323,0.9058,0.6245,0.72
 Tsuboyama capped test,destabilizing (ddG < 0),wt,linked,41323,0.7195,0.5072,0.7542,-1.2311,-1.3350
 Tsuboyama capped test,destabilizing (ddG < 0),comb,latent,41323,0.8153,0.5785,0.7007,-1.1476,-1.3350
 Tsuboyama capped test,destabilizing (ddG < 0),comb,linked,41323,0.7672,0.5370,0.7251,-1.0651,-1.3350
+Rocklin designs,overall,wt,latent,149119,1.4481,1.0703,0.2635,-1.0296,-0.1138
+Rocklin designs,overall,wt,linked,149119,0.7411,0.5401,0.4569,-0.3678,-0.1138
+Rocklin designs,overall,comb,latent,149119,1.2638,0.9303,0.2835,-0.8225,-0.1138
+Rocklin designs,overall,comb,linked,149119,0.7251,0.5251,0.4521,-0.2890,-0.1138
+Rocklin designs,singles,wt,latent,8188,0.7852,0.5449,0.2289,-0.3804,-0.0630
+Rocklin designs,singles,wt,linked,8188,0.5754,0.4005,0.3654,-0.1186,-0.0630
+Rocklin designs,singles,comb,latent,8188,0.7484,0.5206,0.2366,-0.3128,-0.0630
+Rocklin designs,singles,comb,linked,8188,0.5764,0.4006,0.3626,-0.0775,-0.0630
+Rocklin designs,doubles,wt,latent,33495,1.1782,0.8631,0.2621,-0.7780,-0.0967
+Rocklin designs,doubles,wt,linked,33495,0.6869,0.4977,0.4304,-0.2889,-0.0967
+Rocklin designs,doubles,comb,latent,33495,1.0670,0.7798,0.2758,-0.6328,-0.0967
+Rocklin designs,doubles,comb,linked,33495,0.6787,0.4885,0.4244,-0.2208,-0.0967
+Rocklin designs,3 mutations,wt,latent,107436,1.5591,1.1749,0.2671,-1.1575,-0.1229
+Rocklin designs,3 mutations,wt,linked,107436,0.7681,0.5640,0.4687,-0.4114,-0.1229
+Rocklin designs,3 mutations,comb,latent,107436,1.3487,1.0084,0.2879,-0.9205,-0.1229
+Rocklin designs,3 mutations,comb,linked,107436,0.7489,0.5460,0.4631,-0.3264,-0.1229
+Rocklin designs,dG > 0,wt,latent,109721,1.4843,1.1059,0.2438,-0.9686,0.0339
+Rocklin designs,dG > 0,wt,linked,109721,0.8006,0.5926,0.5168,-0.4470,0.0339
+Rocklin designs,dG > 0,comb,latent,109721,1.3031,0.9591,0.2675,-0.7657,0.0339
+Rocklin designs,dG > 0,comb,linked,109721,0.7675,0.5583,0.4964,-0.3547,0.0339
+Rocklin designs,stabilizing (ddG > 0),wt,latent,62412,1.6076,1.2374,0.0276,-0.7426,0.4698
+Rocklin designs,stabilizing (ddG > 0),wt,linked,62412,0.8912,0.6503,0.1785,-0.1121,0.4698
+Rocklin designs,stabilizing (ddG > 0),comb,latent,62412,1.4145,1.0631,0.0560,-0.5360,0.4698
+Rocklin designs,stabilizing (ddG > 0),comb,linked,62412,0.8413,0.5988,0.1851,-0.0261,0.4698
+Rocklin designs,destabilizing (ddG < 0),wt,latent,86707,1.3213,0.9499,0.2281,-1.2361,-0.5338
+Rocklin designs,destabilizing (ddG < 0),wt,linked,86707,0.6106,0.4609,0.3944,-0.5519,-0.5338
+Rocklin designs,destabilizing (ddG < 0),comb,latent,86707,1.1429,0.8347,0.2307,-1.0287,-0.5338
+Rocklin designs,destabilizing (ddG < 0),comb,linked,86707,0.6282,0.4720,0.3733,-0.4783,-0.5338

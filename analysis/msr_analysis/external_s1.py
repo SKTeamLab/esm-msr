@@ -12,6 +12,9 @@ Spearman's rho figure shares:
 """
 import pickle
 
+import numpy as np
+from scipy.stats import spearmanr
+
 from .boot import bootstrap_rho, ci
 from .data import Frame, load_frame
 from .registry import CACHE, DMS3, EXT12, MODELS
@@ -134,3 +137,29 @@ def load_s1_mutation_boot(refresh=False):
     with open(cache_path, 'wb') as fh:
         pickle.dump(payload, fh, protocol=4)
     return payload
+
+
+def point_rho(fr, key):
+    """Full-sample seed-1 rho of prediction ``key`` over the rows of ``use`` with a finite prediction (the point estimate of ``bootstrap_rho``), and the number of rows."""
+    sp = fr.spine
+    ok = (sp['use'] & np.isfinite(sp['y'])).to_numpy() & np.isfinite(fr.preds[key][0])
+    return float(spearmanr(fr.preds[key][0][ok], sp['y'].to_numpy()[ok])[0]), int(ok.sum())
+
+
+def fresh_frames(S, tol=5e-4):
+    """{dataset: Frame} of the datasets of ``S`` (rows of ``02_thermostability/thermostability_rho.csv``: dataset, key, rho) that reproduce ``S``.
+
+    The frame cache of ``analysis/cache`` can be older than the prediction files (SPURS: the trained-adapter predictions replaced the frozen ones on 2026-11-16), so when a seed-1 rho of a frame differs
+    from the one in ``S`` by more than ``tol`` the frames are rebuilt once; if they still differ the error names the cells."""
+    out = {}
+    for attempt in (0, 1):
+        bad = []
+        for ds in sorted(S.dataset.unique()):
+            if attempt:
+                load_frame(ds, refresh=True)
+            out[ds] = load_frame(ds)
+            bad += [(ds, r.key, round(point_rho(out[ds], r.key)[0], 4), round(r.rho, 4)) for r in S[S.dataset == ds].itertuples() if abs(point_rho(out[ds], r.key)[0] - r.rho) > tol]
+        if not bad:
+            return out
+        print(('frame cache disagrees with the figure data for %d cells, rebuilding: ' % len(bad)) if not attempt else 'STILL DISAGREES:', bad[:6], flush=True)
+    raise SystemExit('the frames do not reproduce thermostability_rho.csv: rerun 02_thermostability.py --refresh first')
