@@ -736,8 +736,9 @@ class Mpnn:
         pos = {i: k for k, i in enumerate(df.index)}
         with self.batching.dataset_scope(self.tracker, label, n_rows=len(df)):
             for (pdb_path, code, chain), g in df.groupby(['pdb_file', 'code', 'chain'], sort=False):
+                ow = g['overwrite'].iloc[0] if 'overwrite' in g.columns else None      # a backbone-mutated library: its own sequence on this backbone
                 try:
-                    feats = self.featurize(code, pdb_path, chain)
+                    feats = self.featurize(code, pdb_path, chain, seq=ow if isinstance(ow, str) else None)
                 except Exception as e:
                     print(f'Skipping {code}{chain}: failed featurizing: {e}')
                     self.skipped.append(f'{label}/{code}{chain}')
@@ -750,6 +751,27 @@ class Mpnn:
         for c, v in cols.items():
             out[c] = v
         return out
+
+    def mgnify(self, data_dir, out_dir, sources, chunk, max_proteins=0):
+        """The MGnify scaffolds and Rocklin designs (mgnify_rows.py), about `chunk` rows at a time into
+        <out>/mgnify/<source>/chunk_NNNN.csv.gz (id, code, mut_type, predictions); finished chunks are skipped on a rerun."""
+        import time
+        import mgnify_rows
+        for source in sources:
+            df = mgnify_rows.load(data_dir, (source,))
+            df = df[df['code'].isin(list(dict.fromkeys(df['code']))[:max_proteins])] if max_proteins else df
+            dest = Path(out_dir) / 'mgnify' / source
+            dest.mkdir(parents=True, exist_ok=True)
+            todo = list(mgnify_rows.chunks(df, chunk))
+            t0 = time.time()
+            for k, part in todo:
+                path = dest / f'chunk_{k:04d}.csv.gz'
+                if path.exists():
+                    continue
+                res = self.score_table(part.reset_index(drop=True), f'mgnify_{source}').drop(columns=['pdb_file', 'overwrite', 'chain'])
+                res.to_csv(str(path) + '.tmp', index=False, compression='gzip')
+                os.replace(str(path) + '.tmp', path)
+                print(f'mgnify {source}: chunk {k + 1}/{len(todo)} ({len(part)} rows) done, {(time.time() - t0) / 60:.1f} min elapsed', flush=True)
 
     def calibrate(self, args):
         """--calibrate_batch_sizes: the decoder-row batch for the heaviest proteins of every dataset (calibration.py)."""
@@ -854,6 +876,8 @@ def main(args):
             dest = out / 'domainome.csv'
             if not (args.skip_existing and dest.exists()):
                 mpnn.score_table(_limit(domainome_rows(), args.max_proteins), 'domainome').to_csv(dest, index=False)
+        if args.mgnify_dir:
+            mpnn.mgnify(args.mgnify_dir, out, args.mgnify_sources.split(','), args.mgnify_chunk, args.max_proteins)
         if not args.skip_pgym:
             import pgym_runner
             args.batching.dataset = 'proteingym'
@@ -875,6 +899,9 @@ if __name__ == '__main__':
     parser.add_argument('--split', default='hyperopt_splits', help='Tsuboyama split pickle under data/ (without .pkl)')
     for b in ('tsuboyama', 'external', 'dms', 'domainome', 'pgym'):
         parser.add_argument(f'--skip_{b}', action='store_true')
+    parser.add_argument('--mgnify_dir', default=None, help='score the MGnify scaffolds / Rocklin designs of this directory (codes.csv.gz, rows.csv.gz, structures/; mgnify_rows.py)')
+    parser.add_argument('--mgnify_sources', default='rocklin_denovo,mgnify')
+    parser.add_argument('--mgnify_chunk', type=int, default=20000, help='rows per output chunk, whole scaffolds (a rerun resumes after the finished chunks)')
     parser.add_argument('--max_proteins', type=int, default=0, help='smoke test: only the first N proteins of every benchmark (0 = all); ProteinGym: use --pgym_dms')
     parser.add_argument('--skip_existing', action='store_true', help='skip an external/DMS/Domainome output that exists')
     parser.add_argument('--pgym_dir', default=str(paths.PGYM_INPUTS), help='pgym_inputs (preprocessing/pgym_preprocess.py)')

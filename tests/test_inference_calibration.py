@@ -13,19 +13,19 @@ from esm_msr.inference import calibration_from_hparams, resolve_calibration
 
 
 def test_missing_keys_mean_the_project_defaults():
-    assert calibration_from_hparams({}) == {'tie_mt_scale': False, 'per_mutation_bias': True, 'substitution_calibration': False}
+    assert calibration_from_hparams({}) == {'tie_mt_scale': False, 'per_mutation_bias': True}
 
 
 def test_recorded_settings_are_used():
     assert calibration_from_hparams({'tie_mt_scale': True, 'per_mutation_bias': True}) == \
-        {'tie_mt_scale': True, 'per_mutation_bias': True, 'substitution_calibration': False}
+        {'tie_mt_scale': True, 'per_mutation_bias': True}
 
 
 @pytest.mark.parametrize('ckpt', [None, {'tie_mt_scale': True, 'per_mutation_bias': True}])
 def test_explicit_flags_win(ckpt):
     assert resolve_calibration(ckpt, tie_mt_scale=False, per_mutation_bias=False) == \
-        {'tie_mt_scale': False, 'per_mutation_bias': False, 'substitution_calibration': False}
-    assert resolve_calibration(ckpt) == ({**ckpt, 'substitution_calibration': False} if ckpt else {'tie_mt_scale': False, 'per_mutation_bias': True, 'substitution_calibration': False})
+        {'tie_mt_scale': False, 'per_mutation_bias': False}
+    assert resolve_calibration(ckpt) == (ckpt or {'tie_mt_scale': False, 'per_mutation_bias': True})
 
 
 def test_model_defaults_match_the_project_defaults():

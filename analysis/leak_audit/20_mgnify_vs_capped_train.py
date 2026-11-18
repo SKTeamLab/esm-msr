@@ -3,7 +3,7 @@
 
 The audit's steps 13-15 ask the reverse question (benchmarks vs ESM3dG's MGnify training index).  ESM-MSR never trained on
 MGnify, so here the training side is the 172 ``splits_oct06_capped`` train scaffolds (all their library WTs, mutant
-backbones included) and the query side is the 180,367 MGnify scaffold WTs of ``data/mgnify/mgnify_mapped.csv``.
+backbones included) and the query side is the 180,367 MGnify scaffold WTs of ``data/mgnify/mgnify_mapped.csv`` (pass --mgnify with a filtered table to restrict to one source).
 
 Classes follow ``lib.classify_hits`` (sequence evidence only; no Foldseek here): ``sameprot`` / ``H`` / ``h`` / ``low`` /
 ``none``, with coverage taken over the query (MGnify) protein.  Output ``mgnify_homology_classes.csv`` in

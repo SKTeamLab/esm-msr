@@ -250,7 +250,7 @@ def run_mgnify(args, model, tracker=None, plan=None, out_str=None, analysis_root
 
     Processes scaffolds in resumable shards of 2,000 scaffolds, retains all singles, doubles, and higher-order
     multi-mutants (regardless of whether constituent singles exist), and summarizes metrics on both in-range
-    (`cens == 0` / `[-1, 5]` kcal/mol) and all rows.
+    (`cens == 'default'` / legacy `0` in `[-1, 5]` kcal/mol) and all rows.
     """
     mgn_dir = Path(args.mgnify_dir).resolve()
     table_path = Path(args.mgnify_table).resolve() if args.mgnify_table else (mgn_dir / 'mgnify_mapped.csv')
@@ -275,6 +275,18 @@ def run_mgnify(args, model, tracker=None, plan=None, out_str=None, analysis_root
         if split_col not in df.columns:
             raise AssertionError(f"--mgnify_splits requested but '{split_col}' column is absent from {table_path}")
         df = df[df[split_col].astype(str).isin(want_splits)].copy()
+
+    if getattr(args, 'mgnify_sources', None) and args.mgnify_sources.lower() != 'all':
+        want_sources = {s.strip() for s in args.mgnify_sources.split(',') if s.strip()}
+        if 'source' not in df.columns:
+            raise AssertionError(f"--mgnify_sources requested but 'source' column is absent from {table_path}")
+        df = df[df['source'].astype(str).isin(want_sources)].copy()
+
+    has_pdb = df['pdb_file'].notna() & (df['pdb_file'].astype(str).str.strip() != '')
+    if not has_pdb.all():
+        n_drop = int((~has_pdb).sum())
+        print(f"[MGNIFY] Skipping {n_drop:,} rows with empty pdb_file (no 3D structure).", flush=True)
+        df = df[has_pdb].copy()
 
     sub_opt = (args.mgnify_subsets or 'all').lower()
     if sub_opt != 'all':
@@ -302,6 +314,20 @@ def run_mgnify(args, model, tracker=None, plan=None, out_str=None, analysis_root
     df['pdb_file'] = df['pdb_file'].astype(str).apply(
         lambda p: p if os.path.isabs(p) else str((mgn_dir / p).resolve())
     )
+    unique_pdbs = df['pdb_file'].unique()
+    existing_pdbs = {p for p in unique_pdbs if os.path.isfile(p)}
+    if len(existing_pdbs) < len(unique_pdbs):
+        missing_pdb_mask = ~df['pdb_file'].isin(existing_pdbs)
+        n_miss_rows = int(missing_pdb_mask.sum())
+        n_miss_pdbs = len(unique_pdbs) - len(existing_pdbs)
+        print(
+            f"[MGNIFY] Skipping {n_miss_rows:,} rows across {n_miss_pdbs:,} structures not yet on disk "
+            f"({len(existing_pdbs):,}/{len(unique_pdbs):,} PDB files available).",
+            flush=True,
+        )
+        df = df[~missing_pdb_mask].copy()
+        if df.empty:
+            raise AssertionError("No MGnify rows have an existing PDB file on disk after filtering.")
 
     group_cols = ['code', 'pdb_file', 'chain', 'backbone_mutation']
     grouped = list(df.groupby(group_cols, sort=False, dropna=False))
@@ -399,7 +425,7 @@ def run_mgnify(args, model, tracker=None, plan=None, out_str=None, analysis_root
         res_df['has_all_singles'] = res_df['dddG_ML'].notna() if 'dddG_ML' in res_df.columns else False
 
     if 'cens' in res_df.columns:
-        in_range_mask = res_df['cens'] == 0
+        in_range_mask = res_df['cens'].isin([0, '0', 'default'])
     elif 'in_range_1_5' in res_df.columns:
         in_range_mask = res_df['in_range_1_5'].astype(bool)
     else:
@@ -607,7 +633,6 @@ def main_(args):
         lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
         lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True,
         tie_mt_scale=cal['tie_mt_scale'], per_mutation_bias=cal['per_mutation_bias'],
-        substitution_calibration=cal['substitution_calibration'],
         native_cond_mt_input=native_cond_for_mt,
         mask_native_cond_struct=mask_native_cond_struct,
         fused_antisymmetric=fused_antisymmetric,
@@ -1091,6 +1116,7 @@ if __name__ == "__main__":
         parser.add_argument('--mgnify_table', type=str, default=None, help='Optional MGnify CSV override (e.g. data/mgnify/mgnify_multis_only.csv)')
         parser.add_argument('--mgnify_out', type=str, default=None, help='Output directory for MGnify shard predictions, stats.csv, and summary.json')
         parser.add_argument('--mgnify_splits', type=str, default='all', help="Comma-separated MGnify split filter (e.g. 'test' or 'validation,validation_online,test'), or 'all'")
+        parser.add_argument('--mgnify_sources', type=str, default='all', help="Comma-separated source filter (e.g. 'mgnify', 'rocklin_denovo'), or 'all'")
         parser.add_argument('--mgnify_subsets', type=str, default='all', choices=['all', 'singles', 'doubles', 'multis', 'gt2'], help='Filter MGnify rows by mutation order')
         parser.add_argument('--mgnify_shard_size', type=int, default=2000, help='Number of scaffolds per resumable MGnify output shard')
         parser.add_argument('--device', type=str, default=None, help="Torch device (default: 'cuda:0' if CUDA is available else 'cpu')")

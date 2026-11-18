@@ -1,4 +1,4 @@
-"""Swap the labels of a finished MGnify run for those of the v2 table (``data/mgnify_v2/mgnify_mapped.csv``).
+"""Swap the labels of a finished MGnify run for those of the v2 table (``data/mgnify/mgnify_mapped.csv``).
 
 The v2 preprocessing keeps every v1 row (same uid, sequences, structures, split) but re-derives the WT dG of 1,772 scaffolds from additional WT
 measurements, which changes dG_wt / ddG_ML on 6,035 rows (dddG_ML on 13).  Predictions do not depend on those labels, so a v1 run is re-scored by joining
@@ -16,12 +16,12 @@ def default_table():
     here = os.path.dirname(os.path.abspath(__file__))
     d = here
     while d != os.path.dirname(d):
-        for sub in ('data/mgnify_v2', 'repo/data/mgnify_v2'):
+        for sub in ('data/mgnify', 'repo/data/mgnify'):
             f = os.path.join(d, sub, 'mgnify_mapped.csv')
             if os.path.exists(f):
                 return f
         d = os.path.dirname(d)
-    return os.path.join('data', 'mgnify_v2', 'mgnify_mapped.csv')
+    return os.path.join('data', 'mgnify', 'mgnify_mapped.csv')
 
 
 def legacy_cens(s):

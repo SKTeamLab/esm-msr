@@ -546,9 +546,83 @@ def calibrate(args, models):
                              calibration.gpu_meta(args.auto_batch_headroom, 'fp32', args.calibration_k, args.calibration_cap))
 
 
+def mgnify(args, tracker, models):
+    """The MGnify scaffolds and Rocklin designs (mgnify_rows.py), about --mgnify_chunk rows at a time into
+    <out>/mgnify/<source>/chunk_NNNN.csv.gz (id, code, mut_type, pred_single_additive, pred_combined); a rerun skips finished chunks.
+    A scaffold is parsed once; every distinct single of it is predicted once (the additive prediction of a multi-mutant sums them);
+    doubles also go to the epistatic network, order>2 rows get only the additive prediction. A backbone-mutated scaffold reads
+    its library's own wild-type sequence on the structure's backbone."""
+    import time
+    from copy import deepcopy
+    from thermompnn.datasets.dataset_utils import Mutation
+    from thermompnn.protein_mpnn_utils import alt_parse_PDB
+    import mgnify_rows
+    for source in args.mgnify_sources.split(','):
+        df = mgnify_rows.load(args.mgnify_dir, (source,))
+        df = _limit(df, args.max_proteins)
+        dest = os.path.join(args.out, 'mgnify', source)
+        os.makedirs(dest, exist_ok=True)
+        todo = list(mgnify_rows.chunks(df, args.mgnify_chunk))
+        t0 = time.time()
+        for k, part in todo:
+            path = os.path.join(dest, f'chunk_{k:04d}.csv.gz')
+            if os.path.exists(path):
+                continue
+            part = part.reset_index(drop=True)
+            n_mut = _n_mut(part.mut_type)
+            wanted = _wanted(n_mut, args.mutants)
+            pdbs, singles, epi_items, bad = {}, {}, [], 0
+            row_keys = [None] * len(part)
+            for i, r in enumerate(part.itertuples()):
+                if not wanted[i]:
+                    continue
+                if r.code not in pdbs:
+                    p = alt_parse_PDB(r.pdb_file, input_chain_list=[r.chain])[0]
+                    if isinstance(r.overwrite, str):
+                        assert len(r.overwrite) == len(p['seq']) and '-' not in p['seq'], r.code
+                        p['seq'] = r.overwrite
+                        p['seq_chain_' + r.chain] = r.overwrite
+                    pdbs[r.code] = (p, [j for j, a in enumerate(p['seq']) if a != '-'])
+                p, nongap = pdbs[r.code]
+                muts = [(m[0], int(m[1:-1]), m[-1]) for m in r.mut_type.split(':')]
+                idx = [nongap[pos - 1] if pos - 1 < len(nongap) else None for _, pos, _ in muts]
+                if any(j is None or p['seq'][j] != w for j, (w, _, _) in zip(idx, muts)):
+                    bad += 1
+                    continue
+                keys = [(r.code, m) for m in r.mut_type.split(':')]
+                row_keys[i] = keys
+                if 'single' in models:
+                    for key, j, (w, _, t) in zip(keys, idx, muts):
+                        if key not in singles:
+                            it = deepcopy(p); it['mutation'] = Mutation([j], [w], [t], 0.0, r.code); singles[key] = it
+                if len(muts) == 2 and 'epistatic' in models:
+                    it = deepcopy(p)
+                    it['mutation'] = Mutation(idx, [m[0] for m in muts], [m[2] for m in muts], 0.0, r.code)
+                    epi_items.append((i, it))
+            add = np.full(len(part), np.nan); epi = np.full(len(part), np.nan)
+            with args.batching.dataset_scope(tracker, f'mgnify_{source}', n_rows=int(wanted.sum())):
+                if singles:
+                    skeys = list(singles)
+                    s_pred = predict(models['single'], [singles[q] for q in skeys], tracker=tracker, groups=[q[0] for q in skeys],
+                                     tag={'model': 'single'}, batching=args.batching)
+                    lookup = dict(zip(skeys, s_pred))
+                    for i, keys in enumerate(row_keys):
+                        if keys is not None:
+                            add[i] = sum(lookup[q] for q in keys)
+                if epi_items:
+                    rows, its = zip(*epi_items)
+                    epi[list(rows)] = predict(models['epistatic'], list(its), siamese=True, tracker=tracker,
+                                              groups=part['code'].to_numpy()[list(rows)], tag={'model': 'epistatic'}, batching=args.batching)
+            out = part[['id', 'code', 'mut_type', 'source']].copy()
+            out['pred_single_additive'], out['pred_combined'] = _combine(add, epi, n_mut, models)
+            out.to_csv(path + '.tmp', index=False, compression='gzip')
+            os.replace(path + '.tmp', path)
+            print(f'mgnify {source}: chunk {k + 1}/{len(todo)} ({len(part)} rows, {bad} unmappable) done, {(time.time() - t0) / 60:.1f} min elapsed', flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('mode', choices=['train', 'test', 'external', 'dms', 'domainome', 'pgym', 'all'])
+    ap.add_argument('mode', choices=['train', 'test', 'external', 'dms', 'domainome', 'pgym', 'mgnify', 'all'])
     ap.add_argument('--model', choices=list(CONFIGS), help='train: which network')
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--out', required=True)
@@ -564,6 +638,9 @@ def main():
                     help='smoke test: only the first N proteins of every benchmark (0 = all); ProteinGym: use --pgym_dms')
     ap.add_argument('--mutants', choices=['single', 'multi', 'both'], default='both',
                     help='which rows to score (the others get NaN predictions and no inference)')
+    ap.add_argument('--mgnify_dir', default=None, help='mgnify: the directory with codes.csv.gz, rows.csv.gz and structures/ (mgnify_rows.py)')
+    ap.add_argument('--mgnify_sources', default='rocklin_denovo,mgnify')
+    ap.add_argument('--mgnify_chunk', type=int, default=20000, help='mgnify: rows per output chunk (whole scaffolds); a rerun resumes after the finished chunks')
     ap.add_argument('--pgym_dir', default=str(paths.PGYM_INPUTS))
     ap.add_argument('--pgym_dms', default='all', help="comma-separated DMS ids, or 'all'")
     ap.add_argument('--chunk', type=int, default=20000, help='pgym: structure copies built per predict() call')
@@ -571,7 +648,7 @@ def main():
     calibration.add_calibration_args(ap)
     resource_tracker.add_tracking_args(ap)
     a = ap.parse_args()
-    for k in ('out', 'single_ckpt', 'epistatic_ckpt', 'pgym_dir', 'resource_dir'):   # the loaders chdir into ThermoMPNN-D
+    for k in ('out', 'single_ckpt', 'epistatic_ckpt', 'pgym_dir', 'resource_dir', 'mgnify_dir'):   # the loaders chdir into ThermoMPNN-D
         if getattr(a, k, None):
             setattr(a, k, os.path.abspath(getattr(a, k)))
     if a.mode in ('train', 'test', 'all'):
@@ -599,6 +676,8 @@ def main():
             domainome(a, tracker, models)
         if a.mode in ('pgym', 'all'):
             pgym(a, tracker, models)
+        if a.mode == 'mgnify':
+            mgnify(a, tracker, models)
     finally:
         tracker.close()
 
