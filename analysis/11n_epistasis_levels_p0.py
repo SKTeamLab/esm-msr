@@ -82,7 +82,7 @@ def build():
     models = [(P0_EPI, 'p0', 'epi')] + ([(P0_CTX, 'p0', 'ctx')] if have_ctx else [])
     print('p0 ctx control:', 'included' if have_ctx else 'NOT available yet (final_ctx not complete): drawn without it')
     plain = [('ME stage 2', 'me2', 'me1'), ('ThermoMPNN-D', 'tmpnnd', 'tmpnn'), ('SPURS multi', 'spursunm', 'spursun'), ('ESM3-small-open', 'msrrel@0:comb', 'msrrel@0:wt'),
-             ('ProteinMPNN', 'pmpnn', 'pmpnn+'), ('GeoDDG-3D', 'geoddg', 'geoddg+'), ('Rosetta', 'rosetta', 'rosetta+')]
+             ('ProteinMPNN', 'pmpnn', 'pmpnn+'), ('GeoDDG-3D', 'geoddg', 'geoddg+'), ('Rosetta', 'rosetta', 'rosetta+'), ('ESM3ΔG', 'esm3dg', 'esm3dg+')]
     for name, direct, add in plain:
         ns = p[direct].shape[0]
         for s in range(ns):
@@ -177,7 +177,7 @@ def _models(masking=False):
         return [e(P0_EPI, 'ESM-MSR', 'ESM-MSR\n(unmasked)'), e(P0_CTX, 'ESM-MSR', 'ESM-MSR\nctx ctrl', c['ESM-MSR ctx ctrl']),
                 e(P1_EPI, 'ESM-MSR', 'ESM-MSR\n(independent masking)', c['ESM-MSR independent masking']), e(P1M_EPI, 'ESM-MSR', 'ESM-MSR\n(masked marginal)', c['ESM-MSR masked marginal'])]
     return [e('ProteinMPNN', 'ProteinMPNN'), e('ESM3-small-open', 'ESM3-small-open'), e(P0_EPI, 'ESM-MSR'), e(P0_CTX, 'ESM-MSR', 'ESM-MSR ctx ctrl', c['ESM-MSR ctx ctrl']),
-            e('ME stage 2', 'MutateEverything'), e('ThermoMPNN-D', 'ThermoMPNN'), e('SPURS multi', 'SPURS'), e('GeoDDG-3D', 'GeoDDG-3D'), e('Rosetta', 'Rosetta')]
+            e('ME stage 2', 'MutateEverything'), e('ThermoMPNN-D', 'ThermoMPNN'), e('SPURS multi', 'SPURS'), e('GeoDDG-3D', 'GeoDDG-3D'), e('Rosetta', 'Rosetta'), e('ESM3ΔG', 'ESM3ΔG')]
 
 
 def draw(T):

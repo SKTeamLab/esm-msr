@@ -63,5 +63,6 @@ def test_bar_columns():
     c = M.column('ESM-MSR', 'all')
     assert (c['single'], c['double'], c['cat']) == ('msrp0:wt', 'msrp0:comb', 'transfer')
     assert M.column('ProSST', 'pair')['double'] is None                      # additive only
-    assert M.column('ESM3ΔG', 'pair') is None and M.column('ESM3ΔG', 'epi') is None
+    assert M.column('ESM3ΔG', 'pair')['single'] == 'esm3dg+' and M.column('ESM3ΔG', 'epi')['double'] == 'esm3dg:epi'
+    assert M.column('ProSST', 'epi') is None                                 # ProSST has no epistatic version
     assert M.ordered(['SPURS', 'ProSST', 'ESM3ΔG', 'ESM-MSR']) == ['ProSST', 'ESM-MSR', 'SPURS', 'ESM3ΔG']

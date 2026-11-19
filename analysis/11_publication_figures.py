@@ -108,7 +108,7 @@ def load():
             p[f'{_spec}:epi'] = p[f'{_spec}:comb'] - p[f'{_spec}:wt+']
     if 'esm3avg:epi' in p:
         p['esm3:epi'] = p['esm3avg:epi']
-    for k in ('rosetta', 'geoddg', 'ddgemb', 'pmpnn'):
+    for k in ('rosetta', 'geoddg', 'ddgemb', 'pmpnn', 'esm3dg'):
         if k in p and k + '+' in p:
             p[k + ':epi'] = p[k] - p[k + '+']                                      # direct double minus the sum of the model's singles
     return fr, added

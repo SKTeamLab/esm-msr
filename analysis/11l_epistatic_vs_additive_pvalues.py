@@ -34,7 +34,7 @@ spec.loader.exec_module(m11i)
 pub, holm, fmt_p = m11i.pub, m11i.holm, m11i.fmt_p
 
 OUT = out_dir('06_epistasis')
-KEEP = ['ProteinMPNN', 'ESM3-small-open', 'ESM-MSR', 'MutateEverything', 'ThermoMPNN', 'SPURS', 'best other ddG', 'Rosetta']        # the columns of figure 3 with an epistatic version, in the roster order
+KEEP = ['ProteinMPNN', 'ESM3-small-open', 'ESM-MSR', 'MutateEverything', 'ThermoMPNN', 'SPURS', 'best other ddG', 'Rosetta', 'ESM3ΔG']        # the columns of figure 3 with an epistatic version, in the roster order
 HEAD0 = ['Model', 'Additive →\nepistatic', 'ρ\nadditive', 'ρ\nepistatic', 'Δρ [95% CI]', 'Domains\nepistatic higher', 'p\none-sided', 'p one-sided\n(Holm)', 'p\ntwo-sided']
 
 
@@ -93,7 +93,7 @@ def table(res):
 
 LABELS = {'msrp0:wt+': 'WT_A + WT_B', 'msrp0:comb': 'Dual-view', 'me1': 'Stage 1', 'me2': 'Stage 2', 'tmpnn': 'ThermoMPNN', 'tmpnnd': 'ThermoMPNN-D', 'spurs': 'SPURS single', 'spursm': 'SPURS-multi',
           'msrrel@0:wt+': 'WT_A + WT_B', 'msrrel@0:comb': 'Dual-view', 'pmpnn+': 'sum of singles', 'pmpnn': 'direct double', 'geoddg+': 'sum of singles', 'geoddg': 'direct double',
-          'rosetta+': 'sum of singles', 'rosetta': 'direct double', 'ddgemb+': 'sum of singles', 'ddgemb': 'direct double'}
+          'rosetta+': 'sum of singles', 'rosetta': 'direct double', 'esm3dg+': 'sum of singles', 'esm3dg': 'direct double', 'ddgemb+': 'sum of singles', 'ddgemb': 'direct double'}
 
 
 def render(res, metric='spearman'):

@@ -46,7 +46,7 @@ CKPT = {1: 'epoch=04-val_rho_combined_avg=0.840.ckpt', 2: 'epoch=07-val_rho_comb
 METRICS = {'naive_rho': None, 'beyond_rho': None, 'pair_rho': None, 'line_rho': None, 'cell_rank': None, 'cell_mag': None}      # head list filled per table
 # model -> (frame key of the direct double, frame key of the additive reading) for the models without heads of their own
 PLAIN = [('ME stage 2', 'me2', 'me1'), ('ThermoMPNN-D', 'tmpnnd', 'tmpnn'), ('SPURS multi', 'spursm', 'spurs'), ('ESM3-small-open', 'msrrel@0:comb', 'msrrel@0:wt'),
-         ('ProteinMPNN', 'pmpnn', 'pmpnn+'), ('GeoDDG-3D', 'geoddg', 'geoddg+'), ('Rosetta', 'rosetta', 'rosetta+')]
+         ('ProteinMPNN', 'pmpnn', 'pmpnn+'), ('GeoDDG-3D', 'geoddg', 'geoddg+'), ('Rosetta', 'rosetta', 'rosetta+'), ('ESM3ΔG', 'esm3dg', 'esm3dg+')]
 if MEGA:      # mega_splits: the other SPURS versions and the published ThermoMPNN-D (data._load_mega; the published SPURS is one run, the ThermoMPNN-D members stand in for seeds)
     PLAIN = PLAIN[:3] + [('SPURS multi (trained adapter)', 'spursum', 'spursu'), ('SPURS multi (published)', 'spurspubm', 'spurspub'),
                          ('ThermoMPNN-D (published)', 'tmpnndpub', 'tmpnnpub')] + PLAIN[3:]

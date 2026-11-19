@@ -43,6 +43,7 @@ MODELS = [        # the canonical order of the roster: zero-shot, retrained, sup
     entry('SPURS multi', 'SPURS'),
     entry('GeoDDG-3D', 'GeoDDG-3D'),
     entry('Rosetta', 'Rosetta'),
+    entry('ESM3ΔG', 'ESM3ΔG'),
 ]
 LEVELS = [
     ('naive_rho', 'naive / raw ρ'),

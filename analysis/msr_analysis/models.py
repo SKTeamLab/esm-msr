@@ -78,7 +78,8 @@ ROSTER = [
           label_pair='GeoDDG-3D\nAdd. singles → sim. double', label_epi='GeoDDG-3D\ndirect −\nsum of singles'),
     Model('Rosetta', 'supervised', '#8c564b', 'P', ls='--', single='rosetta', multi='rosetta', epi='rosetta:epi', add='rosetta+', label_all='Rosetta',
           label_pair='Rosetta\nAdd. singles → sim. double', label_epi='Rosetta\ndirect −\nsum of singles'),
-    Model('ESM3ΔG', 'supervised', '#cb4335', '*', ls=':', single='esm3dg', multi='esm3dg', label_all='ESM3ΔG', label_pair='ESM3ΔG', label_epi='ESM3ΔG'),
+    Model('ESM3ΔG', 'supervised', '#cb4335', '*', ls=':', single='esm3dg', multi='esm3dg', epi='esm3dg:epi', add='esm3dg+', label_all='ESM3ΔG',
+          label_pair='ESM3ΔG\nAdd. singles → sim. double', label_epi='ESM3ΔG\ndirect −\nsum of singles'),
     # ---- trained on Megascale: supplement only ----------------------------------------------------------------------------------------------------------------
     Model('ESMtherm', 'megascale', '#7d6608', '<', single='esmtherm', multi='esmtherm', legend='ESMtherm*', label_all='ESMtherm*'),
     Model('IFUM', 'megascale', '#8d6e63', 'v', single='ifum_wt', multi='ifum_wt', legend='IFUM*', label_all='IFUM*'),

@@ -57,6 +57,7 @@ MODELS = [('ProteinMPNN', ('diff', 'pmpnn', 'pmpnn+'), 'pmpnn+', 'pmpnn'),      
           ('SPURS-multi', ('key', 'spursm:epi'), 'spurs', 'spurs'),
           ('GeoDDG-3D', ('diff', 'geoddg', 'geoddg+'), 'geoddg+', 'geoddg'),
           ('Rosetta', ('diff', 'rosetta', 'rosetta+'), 'rosetta+', 'rosetta'),
+          ('ESM3ΔG', ('diff', 'esm3dg', 'esm3dg+'), 'esm3dg+', 'esm3dg'),
           ('ESMtherm*', ('diff', 'esmtherm', 'esmtherm+'), 'esmtherm+', 'esmtherm'),
           ('IFUM*', ('diff', 'ifum_wt', 'ifum_wt+'), 'ifum_wt+', 'ifum_wt'),
           ('DDGemb', ('diff', 'ddgemb', 'ddgemb+'), 'ddgemb+', 'ddgemb')]
