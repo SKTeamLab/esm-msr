@@ -20,7 +20,7 @@ def parse(*extra, base=BASE):
     '--block_training', '--block_identity', '--block_rank_norm', '--censor_threshold', '--cycle_detach_wt', '--drop_last', '--freeze_after_decays', '--fused_antisymmetric',
     '--grad_clip_per_head', '--huber_delta', '--joint_doubles', '--lambda_cycle', '--lora_mode', '--monitor_metric', '--mt_direct_pred',
     '--per_mutation_bias', '--plateau_factor', '--lr_schedule', '--rank_calibrated_stopgrad', '--rank_group_by', '--tf_detach_wt',
-    '--tf_no_label', '--adapter_mode', '--reg_nll', '--mt_single_loss_weight', '--mask_strategy_wt', '--mask_strategy_mt', '--batch_size', '--micro_batch_size',
+    '--tf_no_label', '--adapter_mode', '--mt_single_loss_weight', '--mask_strategy_wt', '--mask_strategy_mt', '--batch_size', '--micro_batch_size',
     '--min_batch_size', '--skip_val', '--val_every_epochs', '--val_dump', '--val_unmasked', '--val_masked', '--val_masking_strategy', '--val_cycle_passes', '--val_tobit_link',
     '--external_val_sets', '--subsets', '--censor_range', '--calib_lr_mult', '--grad_clip_norm', '--cosine_min_lr_ratio', '--tie_mt_scale',
     '--freeze_wt_adapter', '--freeze_mt_adapter', '--frozen_wt_mt_only', '--init_wt_from_checkpoint', '--val_wt_only', '--wt_supervise_doubles', '--weight_decay'])
@@ -107,7 +107,7 @@ def test_domain_steps_set_the_step_themselves():
 def test_the_number_of_flags_is_small():
     """The point of the strip. A new flag is allowed, but it has to be a decision: raise this bound on purpose."""
     keys = set(vars(parse()))
-    assert len(keys) <= 62, sorted(keys)      # 60 + --last_n_layers_wt/_mt (Nov 16, the last-4-layers ablation)
+    assert len(keys) <= 64, sorted(keys)      # 60 + --last_n_layers_wt/_mt (Nov 16, the last-4-layers ablation) + --reg_nll/--reg_exclude_range (Nov 19, the regression ablations)
     with pytest.raises(SystemExit):
         parse('--block_marginal_mt', '--block_mask_mt', '0.0')
     with pytest.raises(SystemExit):

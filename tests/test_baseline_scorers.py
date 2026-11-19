@@ -327,7 +327,8 @@ def test_no_baseline_script_shadows_a_package_it_imports():
     import ast
     scripts = sorted(BASELINES.glob('*.py')) + sorted((BASELINES / 'prepare').glob('*.py'))
     stems = {p.stem for p in scripts}
-    local_helpers = {'paths', 'benchmark_rows', 'dms_source', 'batching', 'calibration', 'mgnify_rows'}
+    local_helpers = {'paths', 'benchmark_rows', 'dms_source', 'batching', 'calibration', 'mgnify_rows',
+                     'build_pgym_me_data'}                 # build_mgnify_me_data.py imports its sibling on purpose (canon, me_row): the ME table rows must follow the ProteinGym builder
     imported = set()
     for p in scripts:
         for node in ast.walk(ast.parse(p.read_text())):
