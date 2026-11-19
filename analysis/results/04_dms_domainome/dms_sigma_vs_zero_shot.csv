@@ -1,21 +1,21 @@
 column,model,key,rho,lo,hi
-DLG4_HUMAN_Faure_2021_binding_domain,ESM-MSR,msrp0:comb,0.7342,0.7236,0.7433
-GRB2_HUMAN_Faure_2021_binding_domain,ESM-MSR,msrp0:comb,0.6314,0.6243,0.6399
-MYO_HUMAN_Kung_2025_display,ESM-MSR,msrp0:comb,0.6381,0.6218,0.6556
-domainome,ESM-MSR,msrp0:wt,0.5395,0.5352,0.5426
-mean of 3 DMS,ESM-MSR,wt|comb,0.6679,0.6613,0.6744
-DLG4_HUMAN_Faure_2021_binding_domain,ESM3-small-open,msrrel@0:comb,0.7432,0.7343,0.7538
-GRB2_HUMAN_Faure_2021_binding_domain,ESM3-small-open,msrrel@0:comb,0.7232,0.7189,0.7293
-MYO_HUMAN_Kung_2025_display,ESM3-small-open,msrrel@0:comb,0.5358,0.5173,0.5538
-domainome,ESM3-small-open,msrrel@0:wt,0.5501,0.5471,0.5521
-mean of 3 DMS,ESM3-small-open,wt|comb,0.6674,0.6599,0.6745
-DLG4_HUMAN_Faure_2021_binding_domain,ProteinMPNN,pmpnn,0.6126,0.5996,0.6284
-GRB2_HUMAN_Faure_2021_binding_domain,ProteinMPNN,pmpnn,0.5382,0.5309,0.5459
-MYO_HUMAN_Kung_2025_display,ProteinMPNN,pmpnn,0.4978,0.4771,0.5174
-domainome,ProteinMPNN,pmpnn,0.5438,0.5411,0.5455
-mean of 3 DMS,ProteinMPNN,wt|comb,0.5496,0.5402,0.5589
-DLG4_HUMAN_Faure_2021_binding_domain,ProSST,prosst,0.7964,0.7906,0.8041
-GRB2_HUMAN_Faure_2021_binding_domain,ProSST,prosst,0.7019,0.6963,0.7084
-MYO_HUMAN_Kung_2025_display,ProSST,prosst,0.5382,0.5206,0.5588
-domainome,ProSST,prosst,0.5267,0.5239,0.5285
-mean of 3 DMS,ProSST,wt|comb,0.6788,0.6715,0.6867
+DLG4_HUMAN_Faure_2021_binding_domain,ProSST,prosst,0.7964,0.7894,0.8039
+GRB2_HUMAN_Faure_2021_binding_domain,ProSST,prosst,0.7019,0.6961,0.7082
+MYO_HUMAN_Kung_2025_display,ProSST,prosst,0.5382,0.5178,0.5561
+domainome,ProSST,prosst,0.5267,0.5237,0.5286
+mean of 3 DMS,ProSST,wt|comb,0.6788,0.6713,0.6860
+DLG4_HUMAN_Faure_2021_binding_domain,ProteinMPNN,pmpnn,0.6126,0.5989,0.6265
+GRB2_HUMAN_Faure_2021_binding_domain,ProteinMPNN,pmpnn,0.5382,0.5305,0.5463
+MYO_HUMAN_Kung_2025_display,ProteinMPNN,pmpnn,0.4978,0.4775,0.5165
+domainome,ProteinMPNN,pmpnn,0.5438,0.5408,0.5456
+mean of 3 DMS,ProteinMPNN,wt|comb,0.5496,0.5408,0.5583
+DLG4_HUMAN_Faure_2021_binding_domain,ESM3-small-open,msrrel@0:comb,0.7432,0.7339,0.7532
+GRB2_HUMAN_Faure_2021_binding_domain,ESM3-small-open,msrrel@0:comb,0.7232,0.7175,0.7289
+MYO_HUMAN_Kung_2025_display,ESM3-small-open,msrrel@0:comb,0.5358,0.5168,0.5546
+domainome,ESM3-small-open,msrrel@0:wt,0.5501,0.5471,0.5519
+mean of 3 DMS,ESM3-small-open,wt|comb,0.6674,0.6602,0.6745
+DLG4_HUMAN_Faure_2021_binding_domain,ESM-MSR,msrp0:comb,0.7342,0.7220,0.7461
+GRB2_HUMAN_Faure_2021_binding_domain,ESM-MSR,msrp0:comb,0.6314,0.6240,0.6391
+MYO_HUMAN_Kung_2025_display,ESM-MSR,msrp0:comb,0.6381,0.6192,0.6556
+domainome,ESM-MSR,msrp0:wt,0.5395,0.5348,0.5430
+mean of 3 DMS,ESM-MSR,wt|comb,0.6679,0.6600,0.6753

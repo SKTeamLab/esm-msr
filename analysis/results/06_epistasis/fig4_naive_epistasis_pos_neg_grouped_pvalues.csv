@@ -1,91 +1,31 @@
 comparison,model_a,model_b,value_a,value_b,delta,lo,hi,p,n_libraries,bootstrap,statistic,p_holm
-positive,ESM-MSR (baseline),ESM-MSR,0.514,0.5308,-0.01679,-0.0446,0.01707,0.26,13,domains,mean over domains,0.52
-positive,ESM-MSR (baseline),ESM-MSR (p0),0.514,0.5079,0.006066,-0.03863,0.04912,0.56,13,domains,mean over domains,0.56
-positive,ESM-MSR (baseline),MutateEverything,0.514,0.368,0.146,0.05479,0.2187,0.009901,13,domains,mean over domains,0.1089
-positive,ESM-MSR (baseline),ThermoMPNN,0.514,0.1765,0.3375,0.2526,0.4593,0.009901,13,domains,mean over domains,0.1089
-positive,ESM-MSR (baseline),SPURS,0.514,0.4024,0.1116,0.03744,0.1939,0.009901,13,domains,mean over domains,0.1089
-positive,ESM-MSR (baseline),ESM3-small-open,0.514,0.3986,0.1154,0.0501,0.2119,0.009901,13,domains,mean over domains,0.1089
-positive,ESM-MSR (baseline),ProteinMPNN,0.514,0.2442,0.2698,0.05362,0.5005,0.009901,13,domains,mean over domains,0.1089
-positive,ESM-MSR (baseline),GeoDDG-3D,0.514,0.02348,0.4905,0.3688,0.6018,0.009901,13,domains,mean over domains,0.1089
-positive,ESM-MSR (baseline),Rosetta,0.514,0.2545,0.2595,0.1592,0.3741,0.009901,13,domains,mean over domains,0.1089
-positive,ESM-MSR (baseline),ESM3-small-open (independent masking),0.514,0.4002,0.1138,0.04667,0.1948,0.009901,13,domains,mean over domains,0.1089
-positive,ESM-MSR (baseline),ESM3-small-open (masked marginal),0.514,0.1924,0.3216,0.2156,0.4447,0.009901,13,domains,mean over domains,0.1089
-positive,ESM-MSR,ESM-MSR (p0),0.5308,0.5079,0.02285,-0.01388,0.05634,0.16,13,domains,mean over domains,0.16
-positive,ESM-MSR,MutateEverything,0.5308,0.368,0.1628,0.09668,0.2311,0.009901,13,domains,mean over domains,0.09901
-positive,ESM-MSR,ThermoMPNN,0.5308,0.1765,0.3543,0.2741,0.4798,0.009901,13,domains,mean over domains,0.09901
-positive,ESM-MSR,SPURS,0.5308,0.4024,0.1284,0.06738,0.2035,0.009901,13,domains,mean over domains,0.09901
-positive,ESM-MSR,ESM3-small-open,0.5308,0.3986,0.1322,0.06957,0.2123,0.009901,13,domains,mean over domains,0.09901
-positive,ESM-MSR,ProteinMPNN,0.5308,0.2442,0.2866,0.05554,0.5276,0.009901,13,domains,mean over domains,0.09901
-positive,ESM-MSR,GeoDDG-3D,0.5308,0.02348,0.5073,0.3941,0.6199,0.009901,13,domains,mean over domains,0.09901
-positive,ESM-MSR,Rosetta,0.5308,0.2545,0.2763,0.1681,0.3934,0.009901,13,domains,mean over domains,0.09901
-positive,ESM-MSR,ESM3-small-open (independent masking),0.5308,0.4002,0.1306,0.07573,0.2054,0.009901,13,domains,mean over domains,0.09901
-positive,ESM-MSR,ESM3-small-open (masked marginal),0.5308,0.1924,0.3384,0.2077,0.4581,0.009901,13,domains,mean over domains,0.09901
-positive,ESM-MSR (p0),MutateEverything,0.5079,0.368,0.14,0.06433,0.2146,0.009901,13,domains,mean over domains,0.08911
-positive,ESM-MSR (p0),ThermoMPNN,0.5079,0.1765,0.3314,0.2486,0.4377,0.009901,13,domains,mean over domains,0.08911
-positive,ESM-MSR (p0),SPURS,0.5079,0.4024,0.1055,0.04678,0.1724,0.009901,13,domains,mean over domains,0.08911
-positive,ESM-MSR (p0),ESM3-small-open,0.5079,0.3986,0.1093,0.03983,0.1912,0.009901,13,domains,mean over domains,0.08911
-positive,ESM-MSR (p0),ProteinMPNN,0.5079,0.2442,0.2637,0.03564,0.4934,0.009901,13,domains,mean over domains,0.08911
-positive,ESM-MSR (p0),GeoDDG-3D,0.5079,0.02348,0.4844,0.3667,0.6087,0.009901,13,domains,mean over domains,0.08911
-positive,ESM-MSR (p0),Rosetta,0.5079,0.2545,0.2534,0.1428,0.379,0.009901,13,domains,mean over domains,0.08911
-positive,ESM-MSR (p0),ESM3-small-open (independent masking),0.5079,0.4002,0.1077,0.05043,0.1743,0.009901,13,domains,mean over domains,0.08911
-positive,ESM-MSR (p0),ESM3-small-open (masked marginal),0.5079,0.1924,0.3155,0.1852,0.433,0.009901,13,domains,mean over domains,0.08911
-negative,ESM-MSR (baseline),ESM-MSR,0.07804,0.05605,0.02198,-0.02221,0.06377,0.24,12,domains,mean over domains,1
-negative,ESM-MSR (baseline),ESM-MSR (p0),0.07804,0.102,-0.02398,-0.1159,0.07541,0.72,12,domains,mean over domains,1
-negative,ESM-MSR (baseline),MutateEverything,0.07804,-0.06768,0.1457,0.005476,0.2922,0.04,12,domains,mean over domains,0.4
-negative,ESM-MSR (baseline),ThermoMPNN,0.07804,0.007338,0.0707,-0.06532,0.178,0.4,12,domains,mean over domains,1
-negative,ESM-MSR (baseline),SPURS,0.07804,-0.07672,0.1548,0.01298,0.2893,0.02,12,domains,mean over domains,0.22
-negative,ESM-MSR (baseline),ESM3-small-open,0.07804,-0.01308,0.09112,0.005963,0.1676,0.06,12,domains,mean over domains,0.54
-negative,ESM-MSR (baseline),ProteinMPNN,0.07804,0.09438,-0.01634,-0.1256,0.1323,0.74,12,domains,mean over domains,1
-negative,ESM-MSR (baseline),GeoDDG-3D,0.07804,0.01185,0.06618,-0.07803,0.2665,0.38,12,domains,mean over domains,1
-negative,ESM-MSR (baseline),Rosetta,0.07804,0.06515,0.01289,-0.1052,0.1261,0.88,12,domains,mean over domains,1
-negative,ESM-MSR (baseline),ESM3-small-open (independent masking),0.07804,0.01327,0.06477,-0.03501,0.1622,0.26,12,domains,mean over domains,1
-negative,ESM-MSR (baseline),ESM3-small-open (masked marginal),0.07804,0.03923,0.03881,-0.0829,0.1826,0.54,12,domains,mean over domains,1
-negative,ESM-MSR,ESM-MSR (p0),0.05605,0.102,-0.04597,-0.1264,0.02462,0.24,12,domains,mean over domains,1
-negative,ESM-MSR,MutateEverything,0.05605,-0.06768,0.1237,-0.01672,0.2774,0.1,12,domains,mean over domains,0.9
-negative,ESM-MSR,ThermoMPNN,0.05605,0.007338,0.04872,-0.1006,0.1716,0.58,12,domains,mean over domains,1
-negative,ESM-MSR,SPURS,0.05605,-0.07672,0.1328,-0.01437,0.2758,0.14,12,domains,mean over domains,1
-negative,ESM-MSR,ESM3-small-open,0.05605,-0.01308,0.06914,0.00514,0.1415,0.04,12,domains,mean over domains,0.4
-negative,ESM-MSR,ProteinMPNN,0.05605,0.09438,-0.03832,-0.1399,0.1127,0.5,12,domains,mean over domains,1
-negative,ESM-MSR,GeoDDG-3D,0.05605,0.01185,0.0442,-0.08008,0.2287,0.44,12,domains,mean over domains,1
-negative,ESM-MSR,Rosetta,0.05605,0.06515,-0.009094,-0.1291,0.09092,0.98,12,domains,mean over domains,1
-negative,ESM-MSR,ESM3-small-open (independent masking),0.05605,0.01327,0.04279,-0.05068,0.1334,0.42,12,domains,mean over domains,1
-negative,ESM-MSR,ESM3-small-open (masked marginal),0.05605,0.03923,0.01683,-0.08377,0.1358,0.62,12,domains,mean over domains,1
-negative,ESM-MSR (p0),MutateEverything,0.102,-0.06768,0.1697,-0.004588,0.35,0.06,12,domains,mean over domains,0.48
-negative,ESM-MSR (p0),ThermoMPNN,0.102,0.007338,0.09468,-0.07596,0.2906,0.32,12,domains,mean over domains,1
-negative,ESM-MSR (p0),SPURS,0.102,-0.07672,0.1787,-0.02828,0.3722,0.1,12,domains,mean over domains,0.7
-negative,ESM-MSR (p0),ESM3-small-open,0.102,-0.01308,0.1151,0.0192,0.2485,0.04,12,domains,mean over domains,0.36
-negative,ESM-MSR (p0),ProteinMPNN,0.102,0.09438,0.007644,-0.1089,0.1764,0.96,12,domains,mean over domains,1
-negative,ESM-MSR (p0),GeoDDG-3D,0.102,0.01185,0.09016,-0.009509,0.2349,0.12,12,domains,mean over domains,0.72
-negative,ESM-MSR (p0),Rosetta,0.102,0.06515,0.03687,-0.1117,0.1496,0.62,12,domains,mean over domains,1
-negative,ESM-MSR (p0),ESM3-small-open (independent masking),0.102,0.01327,0.08875,-0.0373,0.2437,0.22,12,domains,mean over domains,1
-negative,ESM-MSR (p0),ESM3-small-open (masked marginal),0.102,0.03923,0.06279,-0.03175,0.163,0.26,12,domains,mean over domains,1
-overall,ESM-MSR (baseline),ESM-MSR,0.556,0.5718,-0.01586,-0.03892,0.02105,0.28,13,domains,mean over domains,0.56
-overall,ESM-MSR (baseline),ESM-MSR (p0),0.556,0.5556,0.0003732,-0.05546,0.05282,0.7,13,domains,mean over domains,0.7
-overall,ESM-MSR (baseline),MutateEverything,0.556,0.3479,0.2081,0.09588,0.2959,0.009901,13,domains,mean over domains,0.1089
-overall,ESM-MSR (baseline),ThermoMPNN,0.556,0.1837,0.3722,0.2829,0.5143,0.009901,13,domains,mean over domains,0.1089
-overall,ESM-MSR (baseline),SPURS,0.556,0.3921,0.1639,0.05211,0.2638,0.009901,13,domains,mean over domains,0.1089
-overall,ESM-MSR (baseline),ESM3-small-open,0.556,0.3946,0.1613,0.07099,0.2513,0.009901,13,domains,mean over domains,0.1089
-overall,ESM-MSR (baseline),ProteinMPNN,0.556,0.3177,0.2382,0.01424,0.4945,0.02,13,domains,mean over domains,0.1089
-overall,ESM-MSR (baseline),GeoDDG-3D,0.556,0.05195,0.504,0.3808,0.6639,0.009901,13,domains,mean over domains,0.1089
-overall,ESM-MSR (baseline),Rosetta,0.556,0.2825,0.2734,0.1612,0.3964,0.009901,13,domains,mean over domains,0.1089
-overall,ESM-MSR (baseline),ESM3-small-open (independent masking),0.556,0.405,0.151,0.06618,0.238,0.009901,13,domains,mean over domains,0.1089
-overall,ESM-MSR (baseline),ESM3-small-open (masked marginal),0.556,0.2332,0.3228,0.1769,0.5152,0.009901,13,domains,mean over domains,0.1089
-overall,ESM-MSR,ESM-MSR (p0),0.5718,0.5556,0.01624,-0.02098,0.05822,0.3,13,domains,mean over domains,0.3
-overall,ESM-MSR,MutateEverything,0.5718,0.3479,0.224,0.1318,0.3111,0.009901,13,domains,mean over domains,0.09901
-overall,ESM-MSR,ThermoMPNN,0.5718,0.1837,0.3881,0.2997,0.5188,0.009901,13,domains,mean over domains,0.09901
-overall,ESM-MSR,SPURS,0.5718,0.3921,0.1797,0.08403,0.2745,0.009901,13,domains,mean over domains,0.09901
-overall,ESM-MSR,ESM3-small-open,0.5718,0.3946,0.1772,0.08401,0.2692,0.009901,13,domains,mean over domains,0.09901
-overall,ESM-MSR,ProteinMPNN,0.5718,0.3177,0.2541,0.03226,0.5048,0.02,13,domains,mean over domains,0.09901
-overall,ESM-MSR,GeoDDG-3D,0.5718,0.05195,0.5199,0.409,0.6646,0.009901,13,domains,mean over domains,0.09901
-overall,ESM-MSR,Rosetta,0.5718,0.2825,0.2893,0.1719,0.4129,0.009901,13,domains,mean over domains,0.09901
-overall,ESM-MSR,ESM3-small-open (independent masking),0.5718,0.405,0.1668,0.08485,0.2498,0.009901,13,domains,mean over domains,0.09901
-overall,ESM-MSR,ESM3-small-open (masked marginal),0.5718,0.2332,0.3387,0.1838,0.5236,0.009901,13,domains,mean over domains,0.09901
-overall,ESM-MSR (p0),MutateEverything,0.5556,0.3479,0.2077,0.1031,0.3076,0.009901,13,domains,mean over domains,0.08911
-overall,ESM-MSR (p0),ThermoMPNN,0.5556,0.1837,0.3719,0.2756,0.4815,0.009901,13,domains,mean over domains,0.08911
-overall,ESM-MSR (p0),SPURS,0.5556,0.3921,0.1635,0.07455,0.2594,0.009901,13,domains,mean over domains,0.08911
-overall,ESM-MSR (p0),ESM3-small-open,0.5556,0.3946,0.161,0.06186,0.2535,0.009901,13,domains,mean over domains,0.08911
-overall,ESM-MSR (p0),ProteinMPNN,0.5556,0.3177,0.2379,0.03088,0.4727,0.04,13,domains,mean over domains,0.08911
-overall,ESM-MSR (p0),GeoDDG-3D,0.5556,0.05195,0.5036,0.4045,0.6417,0.009901,13,domains,mean over domains,0.08911
-overall,ESM-MSR (p0),Rosetta,0.5556,0.2825,0.273,0.1583,0.4024,0.009901,13,domains,mean over domains,0.08911
-overall,ESM-MSR (p0),ESM3-small-open (independent masking),0.5556,0.405,0.1506,0.06465,0.2222,0.009901,13,domains,mean over domains,0.08911
-overall,ESM-MSR (p0),ESM3-small-open (masked marginal),0.5556,0.2332,0.3224,0.189,0.4806,0.009901,13,domains,mean over domains,0.08911
+positive,ESM-MSR,ProteinMPNN,0.5079,0.2442,0.2637,0.07168,0.4699,0.002,13,domains,mean over domains,0.00999
+positive,ESM-MSR,ESM3-small-open,0.5079,0.3986,0.1093,0.03123,0.2063,0.000999,13,domains,mean over domains,0.00999
+positive,ESM-MSR,MutateEverything,0.5079,0.368,0.14,0.05599,0.2345,0.000999,13,domains,mean over domains,0.00999
+positive,ESM-MSR,ThermoMPNN,0.5079,0.1765,0.3314,0.2348,0.442,0.000999,13,domains,mean over domains,0.00999
+positive,ESM-MSR,SPURS,0.5079,0.4024,0.1055,0.02891,0.1919,0.01,13,domains,mean over domains,0.02
+positive,ESM-MSR,GeoDDG-3D,0.5079,0.02348,0.4844,0.3634,0.6125,0.000999,13,domains,mean over domains,0.00999
+positive,ESM-MSR,Rosetta,0.5079,0.2545,0.2534,0.1306,0.3622,0.000999,13,domains,mean over domains,0.00999
+positive,ESM-MSR,ESM3ΔG,0.5079,0.4948,0.0131,-0.07126,0.1123,0.818,13,domains,mean over domains,0.818
+positive,ESM-MSR,ESM3-small-open (independent masking),0.5079,0.4002,0.1077,0.03954,0.1905,0.002,13,domains,mean over domains,0.00999
+positive,ESM-MSR,ESM3-small-open (masked marginal),0.5079,0.1924,0.3155,0.185,0.4494,0.000999,13,domains,mean over domains,0.00999
+negative,ESM-MSR,ProteinMPNN,0.102,0.09438,0.007644,-0.1195,0.1539,0.95,12,domains,mean over domains,1
+negative,ESM-MSR,ESM3-small-open,0.102,-0.01308,0.1151,0.009589,0.2487,0.04,12,domains,mean over domains,0.4
+negative,ESM-MSR,MutateEverything,0.102,-0.06768,0.1697,0.01224,0.3404,0.042,12,domains,mean over domains,0.4
+negative,ESM-MSR,ThermoMPNN,0.102,0.007338,0.09468,-0.06141,0.2646,0.26,12,domains,mean over domains,1
+negative,ESM-MSR,SPURS,0.102,-0.07672,0.1787,0.00241,0.3707,0.048,12,domains,mean over domains,0.4
+negative,ESM-MSR,GeoDDG-3D,0.102,0.01185,0.09016,-0.02984,0.2187,0.13,12,domains,mean over domains,0.91
+negative,ESM-MSR,Rosetta,0.102,0.06515,0.03687,-0.0966,0.1691,0.574,12,domains,mean over domains,1
+negative,ESM-MSR,ESM3ΔG,0.102,0.09858,0.003435,-0.1416,0.1431,0.944,12,domains,mean over domains,1
+negative,ESM-MSR,ESM3-small-open (independent masking),0.102,0.01327,0.08875,-0.0333,0.2483,0.168,12,domains,mean over domains,1
+negative,ESM-MSR,ESM3-small-open (masked marginal),0.102,0.03923,0.06279,-0.03326,0.1564,0.194,12,domains,mean over domains,1
+overall,ESM-MSR,ProteinMPNN,0.5556,0.3177,0.2379,0.06127,0.4429,0.006,13,domains,mean over domains,0.018
+overall,ESM-MSR,ESM3-small-open,0.5556,0.3946,0.161,0.06174,0.2809,0.000999,13,domains,mean over domains,0.00999
+overall,ESM-MSR,MutateEverything,0.5556,0.3479,0.2077,0.1082,0.3391,0.000999,13,domains,mean over domains,0.00999
+overall,ESM-MSR,ThermoMPNN,0.5556,0.1837,0.3719,0.2613,0.482,0.000999,13,domains,mean over domains,0.00999
+overall,ESM-MSR,SPURS,0.5556,0.3921,0.1635,0.05739,0.2914,0.008,13,domains,mean over domains,0.018
+overall,ESM-MSR,GeoDDG-3D,0.5556,0.05195,0.5036,0.3845,0.6263,0.000999,13,domains,mean over domains,0.00999
+overall,ESM-MSR,Rosetta,0.5556,0.2825,0.273,0.1467,0.3902,0.000999,13,domains,mean over domains,0.00999
+overall,ESM-MSR,ESM3ΔG,0.5556,0.5518,0.003811,-0.0657,0.091,0.984,13,domains,mean over domains,0.984
+overall,ESM-MSR,ESM3-small-open (independent masking),0.5556,0.405,0.1506,0.05951,0.2524,0.000999,13,domains,mean over domains,0.00999
+overall,ESM-MSR,ESM3-small-open (masked marginal),0.5556,0.2332,0.3224,0.1886,0.4548,0.000999,13,domains,mean over domains,0.00999

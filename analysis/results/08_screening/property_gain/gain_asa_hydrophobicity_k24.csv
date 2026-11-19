@@ -1,97 +1,97 @@
 statistic,model,category,mean,lo,hi,median,n_domains
-gain,Total,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,8.7276,6.3314,12.2727,5.7747,33
-gain,Total,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,10.7458,7.6741,15.3760,8.8191,33
-gain,Total,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,17.1814,13.1787,23.2785,11.4472,33
-gain,Total,Δ hydrophobicity > 0 & relative ASA > 0.5,25.3143,19.2456,31.4143,19.6915,33
-gain,Top 24 per Domain,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.2839,2.1854,4.4257,2.0653,33
-gain,Top 24 per Domain,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,1.8049,1.2461,2.4943,1.3351,33
-gain,Top 24 per Domain,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,6.6846,5.0157,8.9258,5.8408,33
-gain,Top 24 per Domain,Δ hydrophobicity > 0 & relative ASA > 0.5,6.0872,4.3278,8.0905,5.4509,33
-gain,ESM-MSR (p0) WT head,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.1843,0.7785,1.5787,0.8356,33
-gain,ESM-MSR (p0) WT head,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.9642,0.5725,1.4123,0.4153,33
-gain,ESM-MSR (p0) WT head,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,4.9090,3.5461,6.4600,3.8684,33
-gain,ESM-MSR (p0) WT head,Δ hydrophobicity > 0 & relative ASA > 0.5,3.2784,2.2576,4.0863,2.9700,33
-gain,ESM-MSR (p0) combined,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.4630,0.9268,2.1072,0.9030,33
-gain,ESM-MSR (p0) combined,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.9296,0.5877,1.2614,0.4969,33
-gain,ESM-MSR (p0) combined,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,4.7806,3.4099,6.3521,3.4992,33
-gain,ESM-MSR (p0) combined,Δ hydrophobicity > 0 & relative ASA > 0.5,3.8618,2.8168,4.7105,2.8981,33
-gain,MutateEverything st1,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,0.7614,0.4582,1.1805,0.3089,33
-gain,MutateEverything st1,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.7811,0.3801,1.1354,0.4386,33
-gain,MutateEverything st1,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,2.7533,1.7642,3.8475,1.7374,33
-gain,MutateEverything st1,Δ hydrophobicity > 0 & relative ASA > 0.5,2.6045,1.8583,3.2969,2.0495,33
-gain,ThermoMPNN,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.0397,0.6719,1.4370,0.6308,33
-gain,ThermoMPNN,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.5612,0.3018,0.8513,0.1380,33
-gain,ThermoMPNN,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,4.2078,2.8556,5.8402,2.9078,33
-gain,ThermoMPNN,Δ hydrophobicity > 0 & relative ASA > 0.5,2.9067,1.9042,3.7980,1.9635,33
-gain,SPURS,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.2412,0.6963,2.0169,0.5298,33
-gain,SPURS,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.7111,0.3899,1.0563,0.3257,33
-gain,SPURS,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,4.9809,3.4705,6.5878,3.2532,33
-gain,SPURS,Δ hydrophobicity > 0 & relative ASA > 0.5,2.3524,1.5095,3.1488,1.2677,33
-gain,ESM3-small-open,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.0536,0.6550,1.4287,0.3663,33
-gain,ESM3-small-open,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,1.2530,0.8827,1.6596,0.8482,33
-gain,ESM3-small-open,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,1.3101,0.7422,2.0995,0.7479,33
-gain,ESM3-small-open,Δ hydrophobicity > 0 & relative ASA > 0.5,1.3230,0.9828,1.7423,0.9881,33
-gain,ProteinMPNN,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.4393,0.8920,1.9623,1.0244,33
-gain,ProteinMPNN,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,1.7681,1.2434,2.3536,1.3193,33
-gain,ProteinMPNN,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,1.6537,0.8992,2.7916,0.9896,33
-gain,ProteinMPNN,Δ hydrophobicity > 0 & relative ASA > 0.5,1.1778,0.7150,1.5401,0.8513,33
-gain,ProSST,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,0.3981,0.1566,0.6443,0.0000,33
-gain,ProSST,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.2393,0.0844,0.4158,0.0000,33
-gain,ProSST,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,0.8205,0.3529,1.2575,0.0000,33
-gain,ProSST,Δ hydrophobicity > 0 & relative ASA > 0.5,0.3909,0.1162,0.7956,0.0000,33
-gain,GeoDDG-3D,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.0689,0.7077,1.5076,0.5410,33
-gain,GeoDDG-3D,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.3031,0.0893,0.5746,0.0000,33
-gain,GeoDDG-3D,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,3.1402,2.2769,4.0473,2.3227,33
-gain,GeoDDG-3D,Δ hydrophobicity > 0 & relative ASA > 0.5,1.1855,0.7129,1.5293,0.8655,33
-gain,Rosetta,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,0.9936,0.5349,1.6580,0.2000,33
-gain,Rosetta,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.4977,0.2170,0.7585,0.1588,33
-gain,Rosetta,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,2.8633,1.8150,3.8496,1.8142,33
-gain,Rosetta,Δ hydrophobicity > 0 & relative ASA > 0.5,1.8850,1.1941,2.5176,1.3150,33
-picks,Total,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,350.8182,292.6992,423.1652,272.0000,33
-picks,Total,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,179.0303,144.0515,222.6288,147.0000,33
-picks,Total,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,231.7273,196.4455,262.7348,224.0000,33
-picks,Total,Δ hydrophobicity > 0 & relative ASA > 0.5,307.9697,269.0348,358.2136,271.0000,33
-picks,Top 24 per Domain,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,4.0000,3.0303,5.0159,4.0000,33
-picks,Top 24 per Domain,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,2.6667,2.0000,3.4402,2.0000,33
-picks,Top 24 per Domain,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,8.6061,7.1515,10.2659,8.0000,33
-picks,Top 24 per Domain,Δ hydrophobicity > 0 & relative ASA > 0.5,8.7273,7.3333,10.4894,9.0000,33
-picks,ESM-MSR (p0) WT head,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,2.7374,2.2823,3.3586,2.6667,33
-picks,ESM-MSR (p0) WT head,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,2.4747,1.6614,3.1770,1.6667,33
-picks,ESM-MSR (p0) WT head,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,10.3636,8.8667,12.1270,9.6667,33
-picks,ESM-MSR (p0) WT head,Δ hydrophobicity > 0 & relative ASA > 0.5,8.4242,7.0793,9.7985,8.6667,33
-picks,ESM-MSR (p0) combined,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,2.8788,2.2520,3.5152,3.0000,33
-picks,ESM-MSR (p0) combined,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,2.3030,1.6907,2.9616,2.3333,33
-picks,ESM-MSR (p0) combined,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,9.8990,8.4987,11.1626,9.6667,33
-picks,ESM-MSR (p0) combined,Δ hydrophobicity > 0 & relative ASA > 0.5,8.9192,7.5098,10.2096,9.6667,33
-picks,MutateEverything st1,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,2.7475,2.0048,3.4705,2.3333,33
-picks,MutateEverything st1,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,3.4242,2.7167,4.3157,3.0000,33
-picks,MutateEverything st1,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,8.3838,7.0333,9.7697,8.0000,33
-picks,MutateEverything st1,Δ hydrophobicity > 0 & relative ASA > 0.5,9.4444,8.0702,10.8270,9.3333,33
-picks,ThermoMPNN,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.1515,2.4722,4.2417,2.6667,33
-picks,ThermoMPNN,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,2.1010,1.3530,3.0477,1.0000,33
-picks,ThermoMPNN,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,10.7980,8.9884,12.6250,11.0000,33
-picks,ThermoMPNN,Δ hydrophobicity > 0 & relative ASA > 0.5,7.9495,6.0682,9.8851,7.3333,33
-picks,SPURS,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.1616,2.4290,4.2311,2.3333,33
-picks,SPURS,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,2.1111,1.2255,3.1720,1.3333,33
-picks,SPURS,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,12.3232,10.6583,14.1621,12.0000,33
-picks,SPURS,Δ hydrophobicity > 0 & relative ASA > 0.5,6.4040,5.0144,7.9795,6.3333,33
-picks,ESM3-small-open,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,5.0909,4.0591,6.0606,5.0000,33
-picks,ESM3-small-open,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,8.1515,6.8023,9.5311,9.0000,33
-picks,ESM3-small-open,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,3.8485,3.1197,4.6826,3.0000,33
-picks,ESM3-small-open,Δ hydrophobicity > 0 & relative ASA > 0.5,6.9091,5.9795,7.8977,6.0000,33
-picks,ProteinMPNN,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,6.3333,5.3333,7.6826,7.0000,33
-picks,ProteinMPNN,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,8.4545,6.9682,10.3667,9.0000,33
-picks,ProteinMPNN,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,4.4848,3.3636,5.6076,4.0000,33
-picks,ProteinMPNN,Δ hydrophobicity > 0 & relative ASA > 0.5,4.7273,3.6811,5.4705,5.0000,33
-picks,ProSST,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,6.6364,5.4977,7.7462,6.0000,33
-picks,ProSST,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,5.5758,4.5598,6.6523,6.0000,33
-picks,ProSST,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,6.2121,4.7417,7.6439,5.0000,33
-picks,ProSST,Δ hydrophobicity > 0 & relative ASA > 0.5,5.5758,4.3477,7.0909,6.0000,33
-picks,GeoDDG-3D,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,5.5455,4.4962,6.3667,5.0000,33
-picks,GeoDDG-3D,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,1.4242,0.9682,1.9856,1.0000,33
-picks,GeoDDG-3D,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,11.1818,9.8485,12.5023,11.0000,33
-picks,GeoDDG-3D,Δ hydrophobicity > 0 & relative ASA > 0.5,5.8485,4.6364,6.9091,5.0000,33
-picks,Rosetta,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.4242,2.6811,4.3508,3.0000,33
-picks,Rosetta,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,3.1515,2.2553,4.1083,2.0000,33
-picks,Rosetta,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,8.8485,7.1947,10.2758,8.0000,33
-picks,Rosetta,Δ hydrophobicity > 0 & relative ASA > 0.5,8.5758,7.3303,9.8644,8.0000,33
+gain,Total,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,8.7276,6.1300,12.1935,5.7747,33
+gain,Total,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,10.7458,7.2768,15.4733,8.8191,33
+gain,Total,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,17.1814,12.5598,23.4762,11.4472,33
+gain,Total,Δ hydrophobicity > 0 & relative ASA > 0.5,25.3143,18.5345,33.0249,19.6915,33
+gain,Top 24 per Domain,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.2839,2.2091,4.5629,2.0653,33
+gain,Top 24 per Domain,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,1.8049,1.2633,2.4740,1.3351,33
+gain,Top 24 per Domain,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,6.6846,5.0558,8.9074,5.8408,33
+gain,Top 24 per Domain,Δ hydrophobicity > 0 & relative ASA > 0.5,6.0872,4.5772,7.8503,5.4509,33
+gain,ProSST,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,0.3981,0.1940,0.6545,0.0000,33
+gain,ProSST,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.2393,0.0693,0.4334,0.0000,33
+gain,ProSST,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,0.8205,0.3889,1.3804,0.0000,33
+gain,ProSST,Δ hydrophobicity > 0 & relative ASA > 0.5,0.3909,0.1022,0.8498,0.0000,33
+gain,ProteinMPNN,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.4393,0.9423,1.9932,1.0244,33
+gain,ProteinMPNN,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,1.7681,1.2125,2.3596,1.3193,33
+gain,ProteinMPNN,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,1.6537,0.9499,2.7204,0.9896,33
+gain,ProteinMPNN,Δ hydrophobicity > 0 & relative ASA > 0.5,1.1778,0.7876,1.5947,0.8513,33
+gain,ESM3-small-open,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.0599,0.6501,1.5258,0.3663,33
+gain,ESM3-small-open,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,1.0997,0.7389,1.5337,0.6591,33
+gain,ESM3-small-open,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,1.2636,0.7059,2.0185,0.6452,33
+gain,ESM3-small-open,Δ hydrophobicity > 0 & relative ASA > 0.5,1.3217,0.9649,1.7499,1.1324,33
+gain,ESM-MSR,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.1843,0.8166,1.6700,0.8356,33
+gain,ESM-MSR,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.9642,0.5417,1.4918,0.4153,33
+gain,ESM-MSR,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,4.9090,3.6022,6.5830,3.8684,33
+gain,ESM-MSR,Δ hydrophobicity > 0 & relative ASA > 0.5,3.2784,2.4028,4.2731,2.9700,33
+gain,MutateEverything,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,0.7614,0.4411,1.1708,0.3089,33
+gain,MutateEverything,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.7811,0.4200,1.1844,0.4386,33
+gain,MutateEverything,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,2.7533,1.8676,3.8627,1.7374,33
+gain,MutateEverything,Δ hydrophobicity > 0 & relative ASA > 0.5,2.6045,1.8640,3.3645,2.0495,33
+gain,ThermoMPNN,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.0397,0.6672,1.4778,0.6308,33
+gain,ThermoMPNN,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.5612,0.2883,0.9281,0.1380,33
+gain,ThermoMPNN,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,4.2078,2.8603,5.9299,2.9078,33
+gain,ThermoMPNN,Δ hydrophobicity > 0 & relative ASA > 0.5,2.9067,1.9413,4.0217,1.9635,33
+gain,SPURS,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.2412,0.6735,2.0329,0.5298,33
+gain,SPURS,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.7111,0.3741,1.1552,0.3257,33
+gain,SPURS,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,4.9809,3.5862,6.7877,3.2532,33
+gain,SPURS,Δ hydrophobicity > 0 & relative ASA > 0.5,2.3524,1.4962,3.2919,1.2677,33
+gain,GeoDDG-3D,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.0689,0.6745,1.5827,0.5410,33
+gain,GeoDDG-3D,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.3031,0.0836,0.5831,0.0000,33
+gain,GeoDDG-3D,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,3.1402,2.2776,4.1298,2.3227,33
+gain,GeoDDG-3D,Δ hydrophobicity > 0 & relative ASA > 0.5,1.1855,0.7408,1.6278,0.8655,33
+gain,Rosetta,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,0.9936,0.4623,1.7175,0.2000,33
+gain,Rosetta,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.4977,0.2242,0.8402,0.1588,33
+gain,Rosetta,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,2.8633,1.8856,4.0931,1.8142,33
+gain,Rosetta,Δ hydrophobicity > 0 & relative ASA > 0.5,1.8850,1.2849,2.5383,1.3150,33
+gain,ESM3ΔG,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.7215,0.8846,2.8407,0.6237,33
+gain,ESM3ΔG,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.7069,0.3312,1.1877,0.1137,33
+gain,ESM3ΔG,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,5.3397,3.5208,8.0582,3.8777,33
+gain,ESM3ΔG,Δ hydrophobicity > 0 & relative ASA > 0.5,2.4658,1.5949,3.5538,1.7710,33
+picks,Total,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,350.8182,287.6091,428.7576,272.0000,33
+picks,Total,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,179.0303,143.3000,224.1977,147.0000,33
+picks,Total,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,231.7273,195.3894,271.8561,224.0000,33
+picks,Total,Δ hydrophobicity > 0 & relative ASA > 0.5,307.9697,267.2053,358.2636,271.0000,33
+picks,Top 24 per Domain,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,4.0000,3.1205,5.0008,4.0000,33
+picks,Top 24 per Domain,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,2.6667,1.9697,3.4242,2.0000,33
+picks,Top 24 per Domain,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,8.6061,7.0909,10.2432,8.0000,33
+picks,Top 24 per Domain,Δ hydrophobicity > 0 & relative ASA > 0.5,8.7273,7.1818,10.2129,9.0000,33
+picks,ProSST,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,6.6364,5.5152,7.6674,6.0000,33
+picks,ProSST,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,5.5758,4.4242,6.6667,6.0000,33
+picks,ProSST,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,6.2121,4.7568,7.5773,5.0000,33
+picks,ProSST,Δ hydrophobicity > 0 & relative ASA > 0.5,5.5758,4.3333,6.8182,6.0000,33
+picks,ProteinMPNN,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,6.3333,5.2727,7.4545,7.0000,33
+picks,ProteinMPNN,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,8.4545,6.9091,9.9705,9.0000,33
+picks,ProteinMPNN,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,4.4848,3.3939,5.7273,4.0000,33
+picks,ProteinMPNN,Δ hydrophobicity > 0 & relative ASA > 0.5,4.7273,3.8174,5.5765,5.0000,33
+picks,ESM3-small-open,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,5.5455,4.3932,6.6970,6.0000,33
+picks,ESM3-small-open,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,7.7879,6.6356,9.0614,9.0000,33
+picks,ESM3-small-open,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,3.9394,3.1212,4.7576,4.0000,33
+picks,ESM3-small-open,Δ hydrophobicity > 0 & relative ASA > 0.5,6.7273,5.6970,7.6970,6.0000,33
+picks,ESM-MSR,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,2.7374,2.1513,3.4040,2.6667,33
+picks,ESM-MSR,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,2.4747,1.6664,3.3242,1.6667,33
+picks,ESM-MSR,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,10.3636,8.6460,12.0609,9.6667,33
+picks,ESM-MSR,Δ hydrophobicity > 0 & relative ASA > 0.5,8.4242,6.8482,9.9303,8.6667,33
+picks,MutateEverything,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,2.7475,2.0604,3.4141,2.3333,33
+picks,MutateEverything,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,3.4242,2.6465,4.2629,3.0000,33
+picks,MutateEverything,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,8.3838,6.9795,9.8081,8.0000,33
+picks,MutateEverything,Δ hydrophobicity > 0 & relative ASA > 0.5,9.4444,8.1212,10.7980,9.3333,33
+picks,ThermoMPNN,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.1515,2.3535,3.9801,2.6667,33
+picks,ThermoMPNN,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,2.1010,1.2626,3.0508,1.0000,33
+picks,ThermoMPNN,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,10.7980,8.6058,13.0202,11.0000,33
+picks,ThermoMPNN,Δ hydrophobicity > 0 & relative ASA > 0.5,7.9495,5.9692,9.9904,7.3333,33
+picks,SPURS,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.1616,2.3331,3.9902,2.3333,33
+picks,SPURS,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,2.1111,1.3129,3.0609,1.3333,33
+picks,SPURS,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,12.3232,10.5146,14.1313,12.0000,33
+picks,SPURS,Δ hydrophobicity > 0 & relative ASA > 0.5,6.4040,4.6967,8.2232,6.3333,33
+picks,GeoDDG-3D,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,5.5455,4.6970,6.3939,5.0000,33
+picks,GeoDDG-3D,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,1.4242,0.8485,2.0909,1.0000,33
+picks,GeoDDG-3D,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,11.1818,9.7273,12.6364,11.0000,33
+picks,GeoDDG-3D,Δ hydrophobicity > 0 & relative ASA > 0.5,5.8485,4.6970,7.0606,5.0000,33
+picks,Rosetta,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.4242,2.5455,4.3636,3.0000,33
+picks,Rosetta,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,3.1515,2.2417,4.1515,2.0000,33
+picks,Rosetta,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,8.8485,7.2727,10.4250,8.0000,33
+picks,Rosetta,Δ hydrophobicity > 0 & relative ASA > 0.5,8.5758,7.2417,9.9091,8.0000,33
+picks,ESM3ΔG,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,4.0606,2.9083,5.3341,3.0000,33
+picks,ESM3ΔG,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,2.2121,1.3030,3.2121,1.0000,33
+picks,ESM3ΔG,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,10.6667,9.0303,12.4242,10.0000,33
+picks,ESM3ΔG,Δ hydrophobicity > 0 & relative ASA > 0.5,7.0606,5.4848,8.7576,6.0000,33

@@ -50,7 +50,7 @@ SCATTER_FONT = dict(
 
 
 def slug(label):
-    return re.sub(r'[^A-Za-z0-9-]+', '_', label.replace('*', '')).strip('_')
+    return re.sub(r'[^A-Za-z0-9-]+', '_', label.replace('*', '').replace('Δ', 'D')).strip('_')
 
 
 def rosetta_unit_check(fr, fit):

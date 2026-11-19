@@ -1,46 +1,34 @@
 column,key,subset,value,lo,hi,n_variants,n_libraries
-ESM-MSR (baseline) WT head,msr:wt,stabilizing,0.2887,0.2231,0.3482,7417,33
-ESM-MSR (baseline) combined,msr:comb,stabilizing,0.3472,0.2948,0.3994,7417,33
-ESM-MSR WT head,msrdev:wt,stabilizing,0.2771,0.2018,0.3393,7417,33
-ESM-MSR combined,msrdev:comb,stabilizing,0.3376,0.2753,0.3909,7417,33
-ESM-MSR (p0) WT head,msrp0:wt,stabilizing,0.2960,0.2263,0.3568,7417,33
-ESM-MSR (p0) combined,msrp0:comb,stabilizing,0.3679,0.3081,0.4252,7417,33
+ProSST,prosst,stabilizing,0.0169,-0.0387,0.0811,7417,33
+ProteinMPNN,pmpnn,stabilizing,0.0599,-0.0014,0.1073,7417,33
+ESM3-small-open,msrrel@0:wt|msrrel@0:comb,stabilizing,0.0129,-0.0465,0.0708,7417,33
+ESM-MSR,msrp0:wt|msrp0:comb,stabilizing,0.3191,0.2516,0.3728,7417,33
 MutateEverything,me1|me2,stabilizing,0.1930,0.1225,0.2599,7417,33
 ThermoMPNN,tmpnn|tmpnnd,stabilizing,0.2288,0.1853,0.2791,7417,33
 SPURS,spurs|spursm,stabilizing,0.2570,0.1842,0.3164,7417,33
-ESM3-small-open,msrrel@0:comb,stabilizing,0.0173,-0.0454,0.0781,7417,33
-ProteinMPNN,pmpnn,stabilizing,0.0599,-0.0014,0.1073,7417,33
-ProSST,prosst,stabilizing,0.0169,-0.0387,0.0811,7417,33
 best other ddG,geoddg,stabilizing,0.1959,0.1394,0.2329,7417,33
 Rosetta,rosetta,stabilizing,0.1060,0.0660,0.1537,7417,33
+ESM3ΔG,esm3dg,stabilizing,0.3522,0.2645,0.4180,7417,33
 ESM3-small-open (alt),esm3avg,stabilizing,0.0170,-0.0461,0.0717,7417,33
-ESM-MSR (baseline) WT head,msr:wt,destabilizing,0.7167,0.5920,0.8148,41323,33
-ESM-MSR (baseline) combined,msr:comb,destabilizing,0.6873,0.5391,0.8097,41323,33
-ESM-MSR WT head,msrdev:wt,destabilizing,0.7397,0.6309,0.8240,41323,33
-ESM-MSR combined,msrdev:comb,destabilizing,0.7149,0.5893,0.8211,41323,33
-ESM-MSR (p0) WT head,msrp0:wt,destabilizing,0.7224,0.5805,0.8266,41323,33
-ESM-MSR (p0) combined,msrp0:comb,destabilizing,0.6872,0.5234,0.8240,41323,33
+ProSST,prosst,destabilizing,0.6555,0.5996,0.6900,41323,33
+ProteinMPNN,pmpnn,destabilizing,0.5733,0.4981,0.6300,41323,33
+ESM3-small-open,msrrel@0:wt|msrrel@0:comb,destabilizing,0.4973,0.3358,0.6367,41323,33
+ESM-MSR,msrp0:wt|msrp0:comb,destabilizing,0.6819,0.5130,0.8254,41323,33
 MutateEverything,me1|me2,destabilizing,0.7267,0.6493,0.7880,41323,33
 ThermoMPNN,tmpnn|tmpnnd,destabilizing,0.6967,0.6088,0.7737,41323,33
 SPURS,spurs|spursm,destabilizing,0.7256,0.6410,0.7908,41323,33
-ESM3-small-open,msrrel@0:comb,destabilizing,0.5544,0.4181,0.6716,41323,33
-ProteinMPNN,pmpnn,destabilizing,0.5733,0.4981,0.6300,41323,33
-ProSST,prosst,destabilizing,0.6555,0.5996,0.6900,41323,33
 best other ddG,geoddg,destabilizing,0.5834,0.4726,0.6689,41323,33
 Rosetta,rosetta,destabilizing,0.6419,0.5909,0.6857,41323,33
+ESM3ΔG,esm3dg,destabilizing,0.5727,0.3505,0.7697,41323,33
 ESM3-small-open (alt),esm3avg,destabilizing,0.5348,0.3718,0.6732,41323,33
-ESM-MSR (baseline) WT head,msr:wt,overall,0.7781,0.6831,0.8502,48740,33
-ESM-MSR (baseline) combined,msr:comb,overall,0.7633,0.6403,0.8540,48740,33
-ESM-MSR WT head,msrdev:wt,overall,0.7946,0.7113,0.8560,48740,33
-ESM-MSR combined,msrdev:comb,overall,0.7837,0.6840,0.8601,48740,33
-ESM-MSR (p0) WT head,msrp0:wt,overall,0.7785,0.6593,0.8555,48740,33
-ESM-MSR (p0) combined,msrp0:comb,overall,0.7578,0.6146,0.8620,48740,33
+ProSST,prosst,overall,0.6844,0.6260,0.7135,48740,33
+ProteinMPNN,pmpnn,overall,0.6265,0.5588,0.6764,48740,33
+ESM3-small-open,msrrel@0:wt|msrrel@0:comb,overall,0.5410,0.3947,0.6539,48740,33
+ESM-MSR,msrp0:wt|msrp0:comb,overall,0.7478,0.6005,0.8573,48740,33
 MutateEverything,me1|me2,overall,0.7684,0.7132,0.8104,48740,33
 ThermoMPNN,tmpnn|tmpnnd,overall,0.7465,0.6743,0.8086,48740,33
 SPURS,spurs|spursm,overall,0.7824,0.7216,0.8264,48740,33
-ESM3-small-open,msrrel@0:comb,overall,0.5944,0.4783,0.6827,48740,33
-ProteinMPNN,pmpnn,overall,0.6265,0.5588,0.6764,48740,33
-ProSST,prosst,overall,0.6844,0.6260,0.7135,48740,33
 best other ddG,geoddg,overall,0.6313,0.5329,0.7040,48740,33
 Rosetta,rosetta,overall,0.6763,0.6310,0.7130,48740,33
+ESM3ΔG,esm3dg,overall,0.6454,0.4428,0.8092,48740,33
 ESM3-small-open (alt),esm3avg,overall,0.5751,0.4280,0.6839,48740,33

@@ -1,73 +1,73 @@
 statistic,model,category,mean,lo,hi,median,n_domains
-gain,Total,% conservation ≤ 25,43.2464,28.1505,63.3838,29.9329,23
-gain,Total,25 < % conservation ≤ 75,20.4859,15.5100,25.6912,16.6503,23
-gain,Total,% conservation > 75,4.2200,2.0470,6.3968,2.0100,23
-gain,Top 96 per Domain,% conservation ≤ 25,27.7953,19.3211,37.0159,23.9706,23
-gain,Top 96 per Domain,25 < % conservation ≤ 75,14.8142,11.7784,17.8196,11.9345,23
-gain,Top 96 per Domain,% conservation > 75,3.3777,1.6236,5.2949,1.6866,23
-gain,ESM-MSR (p0) WT head,% conservation ≤ 25,18.0193,12.5984,24.0636,13.7811,23
-gain,ESM-MSR (p0) WT head,25 < % conservation ≤ 75,9.1964,7.2345,11.2998,7.2662,23
-gain,ESM-MSR (p0) WT head,% conservation > 75,1.6044,0.7308,2.7680,0.5115,23
-gain,ESM-MSR (p0) combined,% conservation ≤ 25,19.1627,13.7520,25.5232,16.3224,23
-gain,ESM-MSR (p0) combined,25 < % conservation ≤ 75,9.7522,7.7292,12.0946,6.5496,23
-gain,ESM-MSR (p0) combined,% conservation > 75,1.8350,0.8389,3.1221,0.5265,23
-gain,MutateEverything st1,% conservation ≤ 25,14.2630,10.0418,19.1287,11.7045,23
-gain,MutateEverything st1,25 < % conservation ≤ 75,6.3475,4.8588,8.0633,4.5329,23
-gain,MutateEverything st1,% conservation > 75,1.0446,0.4161,1.9952,0.2095,23
-gain,ThermoMPNN,% conservation ≤ 25,15.6634,10.0208,22.4141,11.4437,23
-gain,ThermoMPNN,25 < % conservation ≤ 75,7.7390,5.8876,10.3105,5.9945,23
-gain,ThermoMPNN,% conservation > 75,1.4011,0.5553,2.2151,0.2285,23
-gain,SPURS,% conservation ≤ 25,17.0453,11.3906,23.6585,10.4629,23
-gain,SPURS,25 < % conservation ≤ 75,7.7516,5.9552,10.2227,5.6162,23
-gain,SPURS,% conservation > 75,1.4893,0.5290,2.5240,0.1902,23
-gain,ESM3-small-open,% conservation ≤ 25,10.3089,7.4251,13.0606,11.1476,23
-gain,ESM3-small-open,25 < % conservation ≤ 75,3.4954,2.3616,4.5720,2.4327,23
-gain,ESM3-small-open,% conservation > 75,0.3887,0.0943,0.8451,0.0000,23
-gain,ProteinMPNN,% conservation ≤ 25,12.4082,9.1846,15.7087,13.0819,23
-gain,ProteinMPNN,25 < % conservation ≤ 75,4.4907,3.4085,5.5627,3.7995,23
-gain,ProteinMPNN,% conservation > 75,0.7255,0.2746,1.0571,0.0727,23
-gain,ProSST,% conservation ≤ 25,2.2757,1.1074,3.8993,0.9131,23
-gain,ProSST,25 < % conservation ≤ 75,0.2735,0.0451,0.5402,0.0000,23
+gain,Total,% conservation ≤ 25,43.2464,27.1794,64.0122,29.9329,23
+gain,Total,25 < % conservation ≤ 75,20.4859,15.5383,25.9092,16.6503,23
+gain,Total,% conservation > 75,4.2200,2.0949,6.7906,2.0100,23
+gain,Top 96 per Domain,% conservation ≤ 25,27.7953,18.6442,38.2957,23.9706,23
+gain,Top 96 per Domain,25 < % conservation ≤ 75,14.8142,11.5624,18.2223,11.9345,23
+gain,Top 96 per Domain,% conservation > 75,3.3777,1.6127,5.6601,1.6866,23
+gain,ProSST,% conservation ≤ 25,2.2757,0.9532,4.2649,0.9131,23
+gain,ProSST,25 < % conservation ≤ 75,0.2735,0.0327,0.5412,0.0000,23
 gain,ProSST,% conservation > 75,0.0000,0.0000,0.0000,0.0000,23
-gain,GeoDDG-3D,% conservation ≤ 25,11.8388,7.6388,15.9293,8.8112,23
-gain,GeoDDG-3D,25 < % conservation ≤ 75,4.3369,3.1339,5.5394,3.5757,23
-gain,GeoDDG-3D,% conservation > 75,0.8201,0.2333,1.6788,0.0000,23
-gain,Rosetta,% conservation ≤ 25,11.3940,7.3435,15.4055,6.7863,23
-gain,Rosetta,25 < % conservation ≤ 75,5.9082,4.3193,7.4633,5.1462,23
-gain,Rosetta,% conservation > 75,1.3044,0.5820,2.0299,0.4516,23
-picks,Total,% conservation ≤ 25,476.1304,340.7587,625.9620,418.0000,23
-picks,Total,25 < % conservation ≤ 75,505.2609,435.3348,598.3902,433.0000,23
-picks,Total,% conservation > 75,199.6087,166.2098,241.8174,190.0000,23
-picks,Top 96 per Domain,% conservation ≤ 25,50.6522,40.7652,58.6261,61.0000,23
-picks,Top 96 per Domain,25 < % conservation ≤ 75,34.3043,28.2087,40.1435,32.0000,23
-picks,Top 96 per Domain,% conservation > 75,11.0435,6.6065,17.4261,4.0000,23
-picks,ESM-MSR (p0) WT head,% conservation ≤ 25,51.9275,40.3337,60.7123,70.6667,23
-picks,ESM-MSR (p0) WT head,25 < % conservation ≤ 75,33.9130,28.0877,40.5435,25.3333,23
-picks,ESM-MSR (p0) WT head,% conservation > 75,10.1594,6.0786,15.1982,3.0000,23
-picks,ESM-MSR (p0) combined,% conservation ≤ 25,51.9565,39.9616,60.7957,66.6667,23
-picks,ESM-MSR (p0) combined,25 < % conservation ≤ 75,33.7681,28.0736,40.2399,25.6667,23
-picks,ESM-MSR (p0) combined,% conservation > 75,10.2754,6.3181,15.3804,3.3333,23
-picks,MutateEverything st1,% conservation ≤ 25,54.2319,42.1297,62.7688,63.6667,23
-picks,MutateEverything st1,25 < % conservation ≤ 75,33.4493,26.3029,41.8290,30.6667,23
-picks,MutateEverything st1,% conservation > 75,8.3188,4.1812,13.4591,1.3333,23
-picks,ThermoMPNN,% conservation ≤ 25,48.7826,36.8348,58.9380,56.3333,23
-picks,ThermoMPNN,25 < % conservation ≤ 75,35.9855,29.0025,42.6681,32.6667,23
-picks,ThermoMPNN,% conservation > 75,11.2319,6.7964,16.7134,8.0000,23
-picks,SPURS,% conservation ≤ 25,50.7971,37.8873,60.4138,61.3333,23
-picks,SPURS,25 < % conservation ≤ 75,34.5217,27.8449,41.4264,29.3333,23
-picks,SPURS,% conservation > 75,10.6812,5.8399,15.8902,4.3333,23
-picks,ESM3-small-open,% conservation ≤ 25,61.6087,50.5380,71.1685,78.0000,23
-picks,ESM3-small-open,25 < % conservation ≤ 75,26.6957,19.2478,34.4522,16.0000,23
-picks,ESM3-small-open,% conservation > 75,7.6957,4.9337,11.4402,1.0000,23
-picks,ProteinMPNN,% conservation ≤ 25,54.3043,43.9717,63.1870,61.0000,23
-picks,ProteinMPNN,25 < % conservation ≤ 75,32.6522,25.8239,40.1391,30.0000,23
-picks,ProteinMPNN,% conservation > 75,9.0435,5.9728,11.8946,6.0000,23
-picks,ProSST,% conservation ≤ 25,55.2174,45.0174,64.7413,66.0000,23
-picks,ProSST,25 < % conservation ≤ 75,33.0435,25.3891,41.2391,29.0000,23
-picks,ProSST,% conservation > 75,7.7391,4.7370,11.8554,5.0000,23
-picks,GeoDDG-3D,% conservation ≤ 25,51.6522,37.9967,61.4913,65.0000,23
-picks,GeoDDG-3D,25 < % conservation ≤ 75,35.3478,27.2707,44.1207,27.0000,23
-picks,GeoDDG-3D,% conservation > 75,9.0000,5.6685,14.0902,2.0000,23
-picks,Rosetta,% conservation ≤ 25,46.4348,33.7576,55.5413,55.0000,23
-picks,Rosetta,25 < % conservation ≤ 75,38.2174,31.0793,45.7065,38.0000,23
-picks,Rosetta,% conservation > 75,11.3478,6.6272,17.3793,6.0000,23
+gain,ProteinMPNN,% conservation ≤ 25,12.4082,8.6774,16.8660,13.0819,23
+gain,ProteinMPNN,25 < % conservation ≤ 75,4.4907,3.2984,5.7437,3.7995,23
+gain,ProteinMPNN,% conservation > 75,0.7255,0.2911,1.2512,0.0727,23
+gain,ESM3-small-open,% conservation ≤ 25,10.1115,7.1386,13.4936,10.8453,23
+gain,ESM3-small-open,25 < % conservation ≤ 75,3.1363,1.9646,4.3812,1.8961,23
+gain,ESM3-small-open,% conservation > 75,0.3027,0.0604,0.6442,0.0000,23
+gain,ESM-MSR,% conservation ≤ 25,18.0193,11.6882,25.5887,13.7811,23
+gain,ESM-MSR,25 < % conservation ≤ 75,9.1964,6.8287,11.7193,7.2662,23
+gain,ESM-MSR,% conservation > 75,1.6044,0.6569,2.9359,0.5115,23
+gain,MutateEverything,% conservation ≤ 25,14.2630,9.3287,19.9924,11.7045,23
+gain,MutateEverything,25 < % conservation ≤ 75,6.3475,4.6580,8.2837,4.5329,23
+gain,MutateEverything,% conservation > 75,1.0446,0.3326,2.0570,0.2095,23
+gain,ThermoMPNN,% conservation ≤ 25,15.6634,9.3876,22.9992,11.4437,23
+gain,ThermoMPNN,25 < % conservation ≤ 75,7.7390,5.7579,10.4244,5.9945,23
+gain,ThermoMPNN,% conservation > 75,1.4011,0.5716,2.3294,0.2285,23
+gain,SPURS,% conservation ≤ 25,17.0453,10.4112,24.7207,10.4629,23
+gain,SPURS,25 < % conservation ≤ 75,7.7516,5.5976,10.3911,5.6162,23
+gain,SPURS,% conservation > 75,1.4893,0.5156,2.7363,0.1902,23
+gain,GeoDDG-3D,% conservation ≤ 25,11.8388,7.4318,16.6504,8.8112,23
+gain,GeoDDG-3D,25 < % conservation ≤ 75,4.3369,2.9174,5.8476,3.5757,23
+gain,GeoDDG-3D,% conservation > 75,0.8201,0.1702,1.7585,0.0000,23
+gain,Rosetta,% conservation ≤ 25,11.3940,6.9721,16.0951,6.7863,23
+gain,Rosetta,25 < % conservation ≤ 75,5.9082,4.2045,7.8327,5.1462,23
+gain,Rosetta,% conservation > 75,1.3044,0.5999,2.1567,0.4516,23
+gain,ESM3ΔG,% conservation ≤ 25,16.5942,10.5508,23.8712,13.6399,23
+gain,ESM3ΔG,25 < % conservation ≤ 75,9.0278,6.6893,11.7334,6.3658,23
+gain,ESM3ΔG,% conservation > 75,1.7258,0.7199,2.9787,0.5555,23
+picks,Total,% conservation ≤ 25,476.1304,328.0228,661.3478,418.0000,23
+picks,Total,25 < % conservation ≤ 75,505.2609,427.7554,599.6261,433.0000,23
+picks,Total,% conservation > 75,199.6087,159.7380,247.5707,190.0000,23
+picks,Top 96 per Domain,% conservation ≤ 25,50.6522,39.4761,60.8728,61.0000,23
+picks,Top 96 per Domain,25 < % conservation ≤ 75,34.3043,27.1739,41.9152,32.0000,23
+picks,Top 96 per Domain,% conservation > 75,11.0435,5.6957,17.8696,4.0000,23
+picks,ProSST,% conservation ≤ 25,55.2174,43.8576,66.2174,66.0000,23
+picks,ProSST,25 < % conservation ≤ 75,33.0435,24.5652,41.9185,29.0000,23
+picks,ProSST,% conservation > 75,7.7391,3.9120,12.0000,5.0000,23
+picks,ProteinMPNN,% conservation ≤ 25,54.3043,42.8663,65.3489,61.0000,23
+picks,ProteinMPNN,25 < % conservation ≤ 75,32.6522,24.2598,41.3087,30.0000,23
+picks,ProteinMPNN,% conservation > 75,9.0435,5.5652,12.7402,6.0000,23
+picks,ESM3-small-open,% conservation ≤ 25,61.0870,49.2978,72.7848,78.0000,23
+picks,ESM3-small-open,25 < % conservation ≤ 75,26.7391,18.6489,34.9130,17.0000,23
+picks,ESM3-small-open,% conservation > 75,8.1739,3.9989,12.2620,1.0000,23
+picks,ESM-MSR,% conservation ≤ 25,51.9275,40.2888,63.1460,70.6667,23
+picks,ESM-MSR,25 < % conservation ≤ 75,33.9130,26.7728,41.8739,25.3333,23
+picks,ESM-MSR,% conservation > 75,10.1594,4.7819,15.7837,3.0000,23
+picks,MutateEverything,% conservation ≤ 25,54.2319,42.4612,65.6239,63.6667,23
+picks,MutateEverything,25 < % conservation ≤ 75,33.4493,24.4899,42.1022,30.6667,23
+picks,MutateEverything,% conservation > 75,8.3188,3.4783,14.3663,1.3333,23
+picks,ThermoMPNN,% conservation ≤ 25,48.7826,36.5652,60.5960,56.3333,23
+picks,ThermoMPNN,25 < % conservation ≤ 75,35.9855,28.4199,43.8848,32.6667,23
+picks,ThermoMPNN,% conservation > 75,11.2319,6.0855,17.2178,8.0000,23
+picks,SPURS,% conservation ≤ 25,50.7971,38.4290,62.3649,61.3333,23
+picks,SPURS,25 < % conservation ≤ 75,34.5217,26.3906,43.1464,29.3333,23
+picks,SPURS,% conservation > 75,10.6812,5.6232,16.7989,4.3333,23
+picks,GeoDDG-3D,% conservation ≤ 25,51.6522,39.4783,63.8761,65.0000,23
+picks,GeoDDG-3D,25 < % conservation ≤ 75,35.3478,25.3467,44.8283,27.0000,23
+picks,GeoDDG-3D,% conservation > 75,9.0000,4.5207,14.0043,2.0000,23
+picks,Rosetta,% conservation ≤ 25,46.4348,34.3043,57.7837,55.0000,23
+picks,Rosetta,25 < % conservation ≤ 75,38.2174,30.0859,46.7402,38.0000,23
+picks,Rosetta,% conservation > 75,11.3478,6.0848,16.9587,6.0000,23
+picks,ESM3ΔG,% conservation ≤ 25,45.0435,33.6489,56.2185,60.0000,23
+picks,ESM3ΔG,25 < % conservation ≤ 75,37.6522,30.2163,44.7848,36.0000,23
+picks,ESM3ΔG,% conservation > 75,13.3043,7.6065,19.7391,10.0000,23
