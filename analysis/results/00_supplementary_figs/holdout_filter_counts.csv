@@ -1,0 +1,5 @@
+dataset,n,flagged,kept,f_seq_e,f_seq_e_only,f_identity,f_identity_only,f_struct_e,f_struct_e_only,f_tm,f_tm_only
+proteingym,217,41,176,24,0,33,9,28,1,31,4
+domainome,522,86,436,48,0,37,5,62,3,78,19
+mgnify,180367,27687,152680,3953,25,3964,1039,14738,4848,21707,11793
+rocklin_denovo,1000,258,742,2,0,226,213,7,3,40,26

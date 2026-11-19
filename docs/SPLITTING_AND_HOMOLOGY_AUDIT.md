@@ -35,6 +35,17 @@ An undirected homology edge connects two proteins $(u, v)$ if **any** of the fou
 
 $$\text{edge}(u, v) \iff \left(E_{\text{MMseqs2}} \le 10^{-3}\right) \lor \left(E_{\text{Foldseek}} \le 10^{-3}\right) \lor \left(\text{id}_{\text{BLOSUM62-local}} > 0.40\right) \lor \left(\text{TM}_{\max} > 0.70\right)$$
 
+**The four criteria.** The edge rule has four parts, two from each search, and a pair is joined when any one holds:
+
+| # | search | quantity | threshold for an edge |
+|---|---|---|---|
+| 1 | MMseqs2 (`-s 7.5 -e 10.0 --max-seqs 10000`) | E-value | $\le 10^{-3}$ |
+| 2 | BLOSUM62 local alignment (all pairs) | identity: matches / length of the shorter sequence (whole-protein normalisation; MMseqs2's default `fident`, identity over the aligned columns, is stored but not used) | $> 0.40$ |
+| 3 | Foldseek (`--exhaustive-search 1 -e 10.0`) | E-value | $\le 10^{-3}$ |
+| 4 | Foldseek | TM-score normalised by the shorter chain (max of the query and target TM-scores) | $> 0.70$ |
+
+These four are the quantities shown in `analysis/results/00_supplementary_figs/split_construction/split_best_partner_capped` (MMseqs2 identity and E-value, Foldseek TM-score and E-value) and used to filter every benchmark (section 2.1).
+
 ### 1.3 External Quarantine & Component Bridge Pruning
 
 Excluding scaffolds connected to external benchmarks and pruning oversized graph bridges removes **142 MegaScale scaffolds**:
@@ -92,6 +103,10 @@ To evaluate training–test overlap uniformly across both in-house/retrained mod
    - Every wild-type and mutant amino acid sequence across all 3.53 million benchmark rows is compared by exact SHA-1 hash join against the 960,216-sequence `MGnify Stability` training index (Zenodo `19411306`), followed by high-sensitivity MMseqs2 (`-s 7.5 -e 10 --max-seqs 500`) across all benchmark query proteins.
 
 ---
+
+### 2.1 The same four-part filter on the held-out benchmarks (`analysis/leak_audit/21_tsuboyama_rule.py`)
+
+Every benchmark that is scored as a held-out set, ProteinGym (217 assays), Domainome (522 domains), MGnify (180,367 scaffolds) and the Rocklin designs (1,000), is filtered with the four criteria of section 1.2 against the 172 **training** libraries (validation is not used), identically for all four: a protein is dropped when any criterion holds. E-values depend on the size of the searched database, so each benchmark protein is searched against the split's own 1,147-protein search corpus (the libraries and external chains of the split run) and only the hits to training libraries are kept; the reverse direction (a training library searched against the benchmark proteins) is rescaled to the same database size. Identity is computed exactly for every pair. As a check, the validation and test libraries run through the same code against the training libraries are all unflagged (maximum identity 0.395, TM-score 0.696). The result is `analysis/reference/tsuboyama_rule_flags.csv` (values, flags and the letters E, I, S, T of the criteria met), read through `analysis/msr_analysis/heldout.py` by every analysis script (`load_frame('domainome')`, `load_mgnify`, `pgsigma.train_overlap`, `05_proteingym.py`, `08_screening.py`, `98_final_ablation_table.py`). The thermostability sets and the five functional DMS targets were quarantined against both the training and the validation libraries when the split was built.
 
 ## 3. Methodological Assumptions & Boundaries
 
