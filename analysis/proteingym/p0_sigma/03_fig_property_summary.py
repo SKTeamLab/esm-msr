@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """How the WT adapter's sigma changes ProteinGym performance, by property (assay category): paired distributions.
 
-  property_delta_paired_boxes             one box per property and sigma (IQR box, median, jittered dots, mean line with its value): sigma 0 (the anchor, delta = 0), sigma 0.5 and sigma 1 side by side,
+  property_delta_paired_boxes             one box per property and sigma (IQR box, thick median line with its value, thin mean line, jittered dots): sigma 0 (the anchor, delta = 0), sigma 0.5 and sigma 1 side by side,
                                          faint thin lines connect the same assay across the sigmas (the style of the property-scaffold plots of ``14_property_category_gain.py``); every assay is drawn and
                                          counted, nothing is marked
   property_delta_paired_boxes_leaks_black  the same, every assay drawn, the assays whose protein has a training-set homolog (``04_leak_per_assay.py``: TM-score > 0.7 or sequence identity > 0.4) in black and left
@@ -138,13 +138,13 @@ def draw_paired(ax, t, R, mark_leaks=False, stats_without_leaks=False, compact=F
             if k > 0:
                 q1, med, q3 = np.quantile(y[use], [0.25, 0.5, 0.75])
                 ax.add_patch(plt.Rectangle((c - w / 2, q1), w, q3 - q1, fc=col, alpha=0.22, ec='none', zorder=1))
-                ax.plot([c - w / 2, c + w / 2], [med, med], color=darker(col), lw=1.1, zorder=4, solid_capstyle='butt')
+                ax.plot([c - w / 2, c + w / 2], [float(y[use].mean())] * 2, color=darker(col), lw=0.9, zorder=4, solid_capstyle='butt')      # the mean: thin
             ax.plot((c + jit)[~lk], y[~lk], 'o', ms=ms, color=col, alpha=0.8, mew=0, zorder=3)
             ax.plot((c + jit)[lk], y[lk], 'o', ms=ms + 0.4, color='#000000', alpha=0.95, mew=0, zorder=3.5)
-            mean = float(y[use].mean())
-            ax.plot([c - w / 2, c + w / 2], [mean, mean], color='#333333', lw=1.8, zorder=5)
+            med = float(np.median(y[use]))
+            ax.plot([c - w / 2, c + w / 2], [med, med], color='#333333', lw=1.8, zorder=5)                                                   # the median: thick, with its value
             if k > 0:
-                ax.text(c, mean + 0.012, f'{mean:+.3f}', ha='center', va='bottom', fontsize=f_mean, fontweight='semibold', zorder=8, bbox=dict(fc='white', ec='none', alpha=0.68, pad=0.1))
+                ax.text(c, med + 0.012, f'{med:+.3f}', ha='center', va='bottom', fontsize=f_mean, fontweight='semibold', zorder=8, bbox=dict(fc='white', ec='none', alpha=0.68, pad=0.1))
         tr = ax.get_xaxis_transform()
         n = f'{int(use.sum())}' + (f' of {len(g)}' if use.sum() < len(g) else '')
         ax.plot([x0 - 0.44, x1 + 0.44], [1.012, 1.012], transform=tr, clip_on=False, color='#444444', lw=1.3)
@@ -169,8 +169,8 @@ def paired_boxes(t, R, stem, note, mark_leaks=False, stats_without_leaks=False):
     with plt.rc_context(P.RC):
         fig, ax = plt.subplots(figsize=(13.5, 5.6))
         draw_paired(ax, t, R, mark_leaks=mark_leaks, stats_without_leaks=stats_without_leaks)
-        finish(fig, [], 'One dot per ProteinGym assay; faint thin lines connect the same assay at sigma 0 (delta = 0 by definition: the anchor), 0.5 and 1. Box = interquartile range, thin darker line = median, '
-               'dark line = mean (value printed); p under the ticks: two-sided bootstrap test over assays that the mean delta rho is 0 (20000 resamples), Holm-adjusted over the ten category x sigma comparisons. '
+        finish(fig, [], 'One dot per ProteinGym assay; faint thin lines connect the same assay at sigma 0 (delta = 0 by definition: the anchor), 0.5 and 1. Box = interquartile range, thin coloured line = mean, '
+               'thick dark line = median (value printed); p under the ticks: two-sided bootstrap test over assays that the mean delta rho is 0 (20000 resamples), Holm-adjusted over the ten category x sigma comparisons. '
                f'Delta rho = Spearman rho of the ESM-MSR prediction at sigma minus rho at sigma = 0 (ESM3-small-open, unmasked); sigma = 0.5 and 1: FINAL_p0 seed 1; {len(t)} assays. ' + readout_note(t) + ' ' + note, stem)
 
 

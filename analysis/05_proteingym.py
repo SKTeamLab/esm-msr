@@ -194,11 +194,21 @@ def homologous_stability_assays(cat_series):
     return set(sub[sub['class_with_struct'].isin(['P', 'H'])].index)
 
 
-def homologous_domainome_domains():
-    """Domainome domains with same-protein (P) or strong homolog (H) overlap against MegaScale."""
+def homologous_domainome_domains(rule='audit'):
+    """Domainome domains with same-protein (P) or strong homolog (H) overlap against MegaScale (``rule='audit'``), or homologous under the rule that built the split (``rule='tsu'``: MMseqs2 / Foldseek
+    E <= 1e-3, local identity > 0.40 or TM > 0.70; ``reference/tsuboyama_rule_flags.csv`` from ``leak_audit/21_tsuboyama_rule.py``)."""
+    if rule == 'tsu':
+        fl = pd.read_csv(REFERENCE / 'tsuboyama_rule_flags.csv')
+        return set(fl.loc[(fl['dataset'] == 'domainome') & fl['homologous'], 'item_id'].astype(str))
     sh = pd.read_csv(REFERENCE / 'leak_audit_structure_homology.csv')
     sh = sh[sh['dataset'] == 'domainome']
     return set(sh.loc[sh['class_with_struct'].isin(['P', 'H']), 'item_id'].astype(str))
+
+
+def tsuboyama_rule_assays():
+    """ProteinGym assays (all categories) homologous to the training set under the split's own rule."""
+    fl = pd.read_csv(REFERENCE / 'tsuboyama_rule_flags.csv')
+    return set(fl.loc[(fl['dataset'] == 'proteingym') & fl['homologous'], 'item_id'].astype(str))
 
 
 def _score_all_pgym_models(dms_ids, refresh=False):
@@ -383,22 +393,23 @@ def _score_all_pgym_models(dms_ids, refresh=False):
     return df
 
 
-def _domainome_summary(refresh=False):
+def _domainome_summary(refresh=False, rule='audit'):
     """Mean per-domain Spearman rho and 95% domain-resampling bootstrap (B = 2000) across the 458 low-homology domains."""
-    cache = CACHE / 'pg_domainome_458_s1_boot.pkl'
+    cache = CACHE / ('pg_domainome_458_s1_boot.pkl' if rule == 'audit' else 'pg_domainome_tsu_s1_boot.pkl')
+    dom_hom = homologous_domainome_domains(rule)
+    n_keep = 522 - len(dom_hom)
     if cache.exists() and not refresh:
         with open(cache, 'rb') as fh:
             cached = pickle.load(fh)
         if (
             isinstance(cached, dict)
             and cached.get('B') == B
-            and cached.get('n_domains') == 458
+            and cached.get('n_domains') == n_keep
             and set(cached.get('summary', {})) >= (set(EXT_ORDER) - {'Rosetta'}) | {'ESM-MSR σ=0.5'}
         ):
             return cached['summary']
 
-    dom_hom = homologous_domainome_domains()
-    assert len(dom_hom) == 64, f'Expected 64 Domainome P+H exclusions, got {len(dom_hom)}'
+    assert rule != 'audit' or len(dom_hom) == 64, f'Expected 64 Domainome P+H exclusions, got {len(dom_hom)}'
     raw_dom = load_frame('domainome')
     keep = ~raw_dom.spine['group'].astype(str).isin(dom_hom).to_numpy()
     dom_458 = Frame(
@@ -413,12 +424,12 @@ def _domainome_summary(refresh=False):
     pt, rp = bootstrap_rho({'domainome': dom_fr}, list(dom_fr.preds), kind='protein', B=B, seed=30, per_protein=True)
     out = {}
     for m, (rho, _ps, _n, ng) in pt['domainome'].items():
-        assert int(ng) == 458, f'Expected 458 low-homology Domainome domains for {m}, got {ng}'
+        assert int(ng) == n_keep, f'Expected {n_keep} Domainome domains for {m}, got {ng}'
         lo, hi = ci(rp['domainome'][m])
         out[m] = (float(rho), float(lo), float(hi), int(ng))
     CACHE.mkdir(parents=True, exist_ok=True)
     with open(cache, 'wb') as fh:
-        pickle.dump(dict(B=B, n_domains=458, summary=out), fh, protocol=4)
+        pickle.dump(dict(B=B, n_domains=n_keep, summary=out), fh, protocol=4)
     return out
 
 
@@ -532,6 +543,23 @@ def main(refresh=False):
     mm = A[(A.source == 'ProteinGym') & A.has_multi.astype(bool)]
     k05 = int((mm['dep_head_0.5'] == 'combined').sum())
     (OUT / 'pg_sigma_note.txt').write_text(f'{k05} of {len(mm)}\n')
+
+    # the same tables with every protein homologous to the training set under the split's own rule left out (all categories; Domainome likewise): pg_summary_tsu.csv, pg_sigma_summary_tsu.csv
+    tsu_assays = tsuboyama_rule_assays() & set(T.index)
+    Tt = T[~T.index.isin(tsu_assays)]
+    dom_t = _domainome_summary(refresh=refresh, rule='tsu')
+    R_t, _ = summary_rows(Tt, EXT_ORDER, pg_cols)
+    pd.concat([R_t, pd.DataFrame([dict(model=m, column='Domainome', value=v[0], lo=v[1], hi=v[2], n_dms=v[3]) for m, v in dom_t.items() if m in EXT_ORDER])], ignore_index=True).to_csv(OUT / 'pg_summary_tsu.csv', index=False, float_format='%.4f')
+    Tst = Tt[['category']].copy()
+    Tst['ESM-MSR σ=1'] = Tt['ESM-MSR']
+    Tst['ESM-MSR σ=0.5'] = A['rho_dep_0.5'].reindex(Tst.index)
+    R_st, _ = summary_rows(Tst, list(SIGMA_MODELS), pg_cols)
+    pd.concat([R_st, pd.DataFrame([dict(model='ESM-MSR σ=1', column='Domainome', value=dom_t['ESM-MSR'][0], lo=dom_t['ESM-MSR'][1], hi=dom_t['ESM-MSR'][2], n_dms=dom_t['ESM-MSR'][3]),
+                                   dict(model='ESM-MSR σ=0.5', column='Domainome', value=dom_t['ESM-MSR σ=0.5'][0], lo=dom_t['ESM-MSR σ=0.5'][1], hi=dom_t['ESM-MSR σ=0.5'][2], n_dms=dom_t['ESM-MSR σ=0.5'][3])])],
+              ignore_index=True).to_csv(OUT / 'pg_sigma_summary_tsu.csv', index=False, float_format='%.4f')
+    cnt = T.loc[sorted(tsu_assays)].category.value_counts().to_dict()
+    (OUT / 'pg_tsu_note.txt').write_text(f'{len(tsu_assays)} of {len(T)} ProteinGym assays ({", ".join(f"{k} {v}" for k, v in cnt.items())}) and {522 - dom_t["ESM-MSR"][3]} of 522 Domainome domains\n')
+    print('Tsuboyama-rule exclusions:', (OUT / 'pg_tsu_note.txt').read_text().strip())
 
     Tf_all = T_all[~T_all.index.isin(stab_hom)]
     R_full_213, _ = summary_rows(T_all, full_models, pg_cols)
