@@ -29,9 +29,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src'))
 from esm_msr.val_stats import tobit_link  # noqa: E402
 
 RUNS = Path(os.environ.get('MSR_MGNIFY_RUNS', ROOT / 'final_mgnify')).expanduser()
+RUNS_BY_SIGMA = {1.0: RUNS, 0.5: ROOT / 'final_mgnify_sigma0.5'}        # the LoRA scale of the run: sigma 1 is the deployed one; sigma 0.5 was run under the resource tracker (Nov 18) and fetched Nov 19
 TABLE = Path(os.environ.get('MSR_MGNIFY_TABLE', ROOT / 'repo' / 'data' / 'mgnify' / 'mgnify_mapped.csv')).expanduser()
 CLASSES = REFERENCE / 'mgnify_homology_classes.csv.gz'
-TOBIT = dict(sigma_y=0.28, mu_f=-0.14, sigma_f=0.5)           # hparams of FINAL_p0 s1-s3 (tobit_sigma_y / tobit_mu_f / tobit_sigma_f)
+from .tobit import TOBIT  # noqa: E402                        # hparams of FINAL_p0 s1-s3 (tobit_sigma_y / tobit_mu_f / tobit_sigma_f)
 HEADS = dict(wt='wt_lora_pred', mt='mt_lora_pred', comb='combined_pred')
 PRED_COLS = ['uid', 'code_wt', 'mut_type', 'n_mut', 'mgnify_split', 'has_all_singles', 'wt_lora_pred', 'mt_lora_pred', 'combined_pred', 'wt_lora_pred_additive', 'combined_pred_additive']
 LABEL_COLS = ['dG_wt', 'dG_ML', 'ddG_ML', 'dddG_ML', 'cens']
@@ -39,9 +40,10 @@ CENS_LEGACY = {'default': 0, 'mut_below_neg1': -1, 'wt_out_of_range': -2, 'mut_a
 STRATA = {'all': None, 'lowid': ['none', 'low', 'h'], 'clean': ['none', 'low'], 'h': ['h'], 'strong': ['H', 'sameprot']}     # homology of the scaffold to the capped training set (sequence evidence); lowid = without H and same protein, the rule of the Domainome low-id set
 
 
-def finished_seeds(family='FINAL_p0', run='all'):
+def finished_seeds(family='FINAL_p0', run='all', sigma=1.0):
     """Seeds whose run wrote its ``summary.json`` (the last file of a run)."""
-    return [s for s in (1, 2, 3) if (RUNS / family / f's{s}' / run / 'summary.json').exists() and (RUNS / family / f's{s}' / run / 'predictions.csv.gz').exists()]
+    root = RUNS_BY_SIGMA[float(sigma)]
+    return [s for s in (1, 2, 3) if (root / family / f's{s}' / run / 'summary.json').exists() and (root / family / f's{s}' / run / 'predictions.csv.gz').exists()]
 
 
 def _labels():
@@ -50,18 +52,32 @@ def _labels():
     return t
 
 
-def load_mgnify(family='FINAL_p0', run='all', seeds=None, refresh=False):
+def load_mgnify(family='FINAL_p0', run='all', seeds=None, refresh=False, heldout=True, sigma=1.0):
+    """``_load_mgnify`` with the scaffolds (designs) that are homologous to the training set under the split's four-part rule (``msr_analysis.heldout``) marked unused: ``spine['use']`` is False for their rows,
+    so every analysis that scores the measured rows sees held-out scaffolds only (``heldout=False`` keeps them, e.g. for the homology strata of ``18_mgnify.py``)."""
+    fr = _load_mgnify(family, run, seeds, refresh, sigma)
+    if heldout:
+        from .heldout import excluded
+        bad = excluded('rocklin_denovo' if run == 'rdenovo' else 'mgnify')
+        sp = fr.spine.copy()
+        sp['use'] = sp['use'].to_numpy() & ~sp['code_wt'].astype(str).isin(bad).to_numpy()
+        fr = Frame(fr.name, sp, fr.preds, notes=dict(fr.notes, heldout=True))
+    return fr
+
+
+def _load_mgnify(family='FINAL_p0', run='all', seeds=None, refresh=False, sigma=1.0):
     """Frame of the MGnify run: ``spine`` (labels, ``use`` = measured rows, i.e. cens == 0) and ``preds['<head>']`` / ``preds['<head>~']`` (n_seeds, n) for the latent and the Tobit-linked reading."""
-    seeds = list(seeds or finished_seeds(family, run))
+    root = RUNS_BY_SIGMA[float(sigma)]
+    seeds = list(seeds or finished_seeds(family, run, sigma))
     if not seeds:
-        raise FileNotFoundError(f'no finished MGnify run under {RUNS}/{family}')
-    pkl = CACHE / f'frame_mgnify_{family}_{run}_s{"".join(map(str, seeds))}.pkl'
+        raise FileNotFoundError(f'no finished MGnify run under {root}/{family}')
+    pkl = CACHE / f'frame_mgnify_{family}_{run}_s{"".join(map(str, seeds))}{"" if float(sigma) == 1.0 else f"_sigma{sigma}"}.pkl'
     if pkl.exists() and not refresh:
         with open(pkl, 'rb') as fh:
             return pickle.load(fh)
     base, P = None, {h: [] for h in HEADS}
     for s in seeds:
-        d = pd.read_csv(RUNS / family / f's{s}' / run / 'predictions.csv.gz', usecols=lambda c: c in PRED_COLS, low_memory=False)
+        d = pd.read_csv(root / family / f's{s}' / run / 'predictions.csv.gz', usecols=lambda c: c in PRED_COLS, low_memory=False)
         if base is None:
             base = d
         else:
@@ -92,7 +108,7 @@ def load_mgnify(family='FINAL_p0', run='all', seeds=None, refresh=False):
         a = np.vstack(a)
         preds[k] = a
         preds[k + '~'] = h(dg[None, :] + a) - dg[None, :]
-    fr = Frame(f'mgnify_{family}', sp, preds, notes=dict(seeds=seeds, family=family, run=run, tobit=TOBIT))
+    fr = Frame(f'mgnify_{family}', sp, preds, notes=dict(seeds=seeds, family=family, run=run, sigma=float(sigma), tobit=TOBIT))
     CACHE.mkdir(parents=True, exist_ok=True)
     with open(pkl, 'wb') as fh:
         pickle.dump(fr, fh, protocol=4)

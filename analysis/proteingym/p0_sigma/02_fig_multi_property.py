@@ -3,8 +3,8 @@
 
 Index (``results/multi_property_index.csv``): the ProteinGym proteins whose assays measure different properties (group A of the hand annotation in ``../sigma_tradeoff/scripts/common.py``:
 abundance, activity, binding, growth, drug resistance), plus DLG4 and GRB2, whose ProteinGym assay is the abundance-type Faure set (its scores equal those of the abundance sets of the earlier DMS benchmark)
-and whose binding set comes from the DMS benchmark.  One panel per protein, one line per assay coloured by property; sigma = 1, 0.5: FINAL_p0 seed 1 WT head; sigma = 0: ESM3-small-open unmasked;
-band = 95% bootstrap over variants (rows resampled jointly across the sigmas, 200 replicates).
+and whose binding set comes from the DMS benchmark.  One panel per protein, one line per assay coloured by property; sigma = 1, 0.5: FINAL_p0 WT head, mean over seeds 1-3; sigma = 0: ESM3-small-open unmasked;
+band = 95% bootstrap over variants (rows resampled jointly across the sigmas and seeds, 1000 replicates).
 
     python analysis/proteingym/p0_sigma/02_fig_multi_property.py
 """
@@ -21,7 +21,7 @@ sys.path.insert(0, str(P.HERE.parent / 'sigma_tradeoff' / 'scripts'))
 import common as earlier  # noqa: E402
 from msr_analysis import style  # noqa: E402
 
-B = 200
+B = 1000
 EXTRA = [('DLG4_HUMAN', 'DLG4_HUMAN_Faure_2021', 'ABUND', 'abundance PCA', 'DLG4_HUMAN_Faure_2021_binding_domain'),
          ('GRB2_HUMAN', 'GRB2_HUMAN_Faure_2021', 'ABUND', 'abundance PCA', 'GRB2_HUMAN_Faure_2021_binding_domain')]
 ORDER = {'ABUND': 0, 'BIND': 1, 'ACT': 2, 'FIT': 3, 'SPEC': 4}
@@ -45,16 +45,17 @@ def index():
 
 
 def bootstrap(name, rng):
-    d = P.load_assay(name)
-    y = d['y'].to_numpy(float)
-    X = np.column_stack([d[f's{s}'].to_numpy(float) for s in P.SIGMAS])
+    """Bootstrap over the variants of one assay (rows resampled jointly across the sigmas and the FINAL_p0 seeds); the statistic is the mean over the seeds of the rho (sigma 0 is one run)."""
+    ds = [d for d in (P.load_assay(name, k) for k in P.SEEDS) if d is not None]
+    ds = [d for d in ds if len(d) == len(ds[0])]                       # every seed scores the same variants in the same order; a seed that does not is left out
+    y = ds[0]['y'].to_numpy(float)
+    Xs = [np.column_stack([d[f's{s}'].to_numpy(float) for s in P.SIGMAS]) for d in ds]
     n = len(y)
     out = np.empty((B, len(P.SIGMAS)))
     for b in range(B):
         i = rng.integers(0, n, n)
         ry = rankdata(y[i])
-        for k in range(len(P.SIGMAS)):
-            out[b, k] = np.corrcoef(rankdata(X[i, k]), ry)[0, 1]
+        out[b] = np.mean([[np.corrcoef(rankdata(X[i, k]), ry)[0, 1] for k in range(len(P.SIGMAS))] for X in Xs], axis=0)
     return out
 
 

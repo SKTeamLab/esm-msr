@@ -2,7 +2,7 @@
 """The assays that lose most when the LoRA scale goes from sigma 0 to sigma 1: where does the loss come from?
 
 For the worst assay of every category but Stability (and the runners-up named in ``WORST``), with y = the measured score and s0, s1 = the WT-adapter predictions at sigma 0 (ESM3-small-open, unmasked) and 1
-(FINAL_p0 seed 1), delta = z(s1) - z(s0) the signal the adapter adds, Spearman rho of
+(FINAL_p0, each statistic per seed, then the mean over seeds 1-3), delta = z(s1) - z(s0) the signal the adapter adds, Spearman rho of
 
   rho0, rho1         s0 and s1 with y
   rho_added          delta with y (negative: what the adapter adds runs against the phenotype)
@@ -33,10 +33,10 @@ def rho(a, b):
     return float(spearmanr(a, b)[0])
 
 
-def load(a):
+def load(a, seed=1):
     d = None
     for s in P.SIGMAS:
-        x = pd.read_csv(P.PG[s] / f'{a}.csv', usecols=['mutant', 'DMS_score', 'wt_lora_pred']).drop_duplicates('mutant').set_index('mutant').rename(columns={'wt_lora_pred': f's{s}', 'DMS_score': 'y'})
+        x = pd.read_csv(P.at_seed(P.PG[s], seed) / f'{a}.csv', usecols=['mutant', 'DMS_score', 'wt_lora_pred']).drop_duplicates('mutant').set_index('mutant').rename(columns={'wt_lora_pred': f's{s}', 'DMS_score': 'y'})
         d = x if d is None else d.join(x[[f's{s}']], how='inner')
     return d[~d.index.str.contains(':')]
 
@@ -56,14 +56,19 @@ def main():
     print(t.sort_values('d1').groupby('category').head(1).query("category != 'Stability'")[['category', 'assay', 'n', 'rho_0.0', 'rho_1.0', 'd1', 'leaked']].round(3).to_string(index=False))
     rows = []
     for a in WORST:
-        d = load(a)
-        pos = d.index.str.extract(r'(\d+)')[0].astype(int).to_numpy()
-        y, s0, s1 = d.y.to_numpy(), d['s0.0'].to_numpy(), d['s1.0'].to_numpy()
-        dl = z(s1) - z(s0)
-        g = pd.DataFrame(dict(pos=pos, y=y, s0=s0, s1=s1)).groupby('pos').mean()
-        h = d.index.str[-1].map(KD).to_numpy(float)
-        rows.append(dict(assay=a, n=len(d), n_positions=len(g), rho0=rho(s0, y), rho1=rho(s1, y), rho_added=rho(dl, y), between0=rho(g.s0, g.y), between1=rho(g.s1, g.y),
-                         within0=within(pos, y, s0), within1=within(pos, y, s1), rho_s0_s1=rho(s0, s1), hydropathy_y=rho(h, y), hydropathy_s0=rho(h, s0), hydropathy_s1=rho(h, s1), hydropathy_added=rho(h, dl)))
+        per = []
+        for k in P.SEEDS:                                              # every column per FINAL_p0 seed (sigma 0 is one run), then the mean over the seeds
+            if not all((P.at_seed(P.PG[s], k) / f'{a}.csv').exists() for s in P.SIGMAS):
+                continue
+            d = load(a, k)
+            pos = d.index.str.extract(r'(\d+)')[0].astype(int).to_numpy()
+            y, s0, s1 = d.y.to_numpy(), d['s0.0'].to_numpy(), d['s1.0'].to_numpy()
+            dl = z(s1) - z(s0)
+            g = pd.DataFrame(dict(pos=pos, y=y, s0=s0, s1=s1)).groupby('pos').mean()
+            h = d.index.str[-1].map(KD).to_numpy(float)
+            per.append(dict(n=len(d), n_positions=len(g), rho0=rho(s0, y), rho1=rho(s1, y), rho_added=rho(dl, y), between0=rho(g.s0, g.y), between1=rho(g.s1, g.y),
+                            within0=within(pos, y, s0), within1=within(pos, y, s1), rho_s0_s1=rho(s0, s1), hydropathy_y=rho(h, y), hydropathy_s0=rho(h, s0), hydropathy_s1=rho(h, s1), hydropathy_added=rho(h, dl)))
+        rows.append(dict(assay=a, **pd.DataFrame(per).mean().to_dict(), n_seeds=len(per)))
     R = pd.DataFrame(rows)
     R.to_csv(P.OUT / 'worst_assays_sigma1.csv', index=False, float_format='%.4f')
     pd.set_option('display.width', 250)

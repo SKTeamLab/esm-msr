@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 """Summary figures: one panel that puts the benchmarks with many assays side by side.
 
-``pg_categories``   two panels.  Left: the ProteinGym average (mean of the five category means: Activity 43, Binding 13, Expression 18, Org. fitness 73, Stability 40/66), the 458 low-homology Domainome domains, then MGnify and
+``pg_categories``   two panels.  Left: the ProteinGym average (mean of the five category means, held-out assays only), the held-out Domainome domains, then MGnify and
                     Rocklin Designs Inferred DDGs (n WTs): mean Spearman rho per column.  Right: the ProteinGym assays by property, ESM-MSR only: delta rho versus sigma = 0 at sigma 0.5 and 1 (paired box / dot plot,
                     ``proteingym/p0_sigma/03_fig_property_summary.py``).  Left of every cluster, side by side: ESM-MSR p0 at LoRA scale sigma = 1 (deployed readout: combined on multi-mutant assays, WT head elsewhere), sigma = 0.5 (combined on the multi-mutant assays that have it, WT head otherwise)
-                    and ESM3-small-open (sigma = 0, WT head); then the other models (seed 1; each with its multi-mutant version on the multi-mutant assays).  ProteinGym and Domainome come from ``results/05_proteingym/pg_summary.csv`` and ``pg_sigma_summary.csv``
+                    and ESM3-small-open (sigma = 0, WT head); then the other models (the mean of seeds 1-3 for the retrained ones; each with its multi-mutant version on the multi-mutant assays).  ProteinGym and Domainome come from ``results/05_proteingym/pg_summary.csv`` and ``pg_sigma_summary.csv``
                     (``05_proteingym.py``); the two inferred-ddG columns are the mean per-WT rho (WTs with at least 10 measured variants; ``results/18_mgnify/mgnify_models_per_scaffold.csv`` from ``18b_mgnify_models.py``) of ESM-MSR p0 at sigma = 1,
-                    SPURS (-multi), ThermoMPNN (-D), ProteinMPNN, ProSST and, on MGnify, ESM3-small-open (WT head), each on the scaffolds it has scored completely (models with under 80% of a set's scaffolds are left out; MGnify without the
-                    scaffolds that have a strong homolog or the same protein in the capped training set).
-``thermostability_sets``   the external thermostability sets (S571 and PTMUL-D left out) for the nine unified models, seed 1, 95% mutation-level bootstrap, as ``02_thermostability/thermo_external_rho``,
-                    with the sets ordered left to right by the performance of ESM-MSR p0 (seed mean of FINAL_p0 s1-s3 from ``results/98_ablation/cells_long.csv``, the seed-1 value of
-                    ``results/02_thermostability/thermostability_rho.csv`` when that file is missing), highest first.  Hollow markers (thick edge): singles models (ESM-MSR WT head, MutateEverything st1, ThermoMPNN,
+                    SPURS (-multi), ThermoMPNN (-D), ProteinMPNN, ProSST and, on MGnify, ESM3-small-open (WT head), each on the scaffolds it has scored completely (models with under 80% of a set's scaffolds are left out).  Every set (ProteinGym, Domainome,
+                    MGnify, Rocklin) is held-out under the same four-part filter against the capped training libraries (``msr_analysis.heldout``).
+``thermostability_sets``   the external thermostability sets (S571 and PTMUL-D left out) for the nine unified models, seeds 1-3 averaged for the retrained ones (seeds resampled with the draws), 95% mutation-level bootstrap, as ``02_thermostability/thermo_external_rho``,
+                    with the sets ordered left to right by the performance of ESM-MSR p0 (seed mean of FINAL_p0 s1-s3 from ``results/98_ablation/cells_long.csv``, the value of
+                    ``results/02_thermostability/thermostability_rho.csv`` (also the seed mean) when that file is missing), highest first.  Hollow markers (thick edge): singles models (ESM-MSR WT head, MutateEverything st1, ThermoMPNN,
                     SPURS single); filled: models trained with doubles (ESM-MSR combined, MutateEverything st2, ThermoMPNN-D, SPURS multi) and the models with one version.  Writes ``thermostability_sets.csv``.
                     The p-values of the figure are in ``01b_thermostability_pvalues.py``.
 
@@ -31,12 +31,13 @@ from matplotlib.lines import Line2D  # noqa: E402
 
 from msr_analysis import style  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
-from msr_analysis.external_s1 import EXT_ORDER, register_ext_styles  # noqa: E402
+from msr_analysis.external import EXT_ORDER, register_ext_styles  # noqa: E402
 from msr_analysis.registry import LABEL, MODELS, REFERENCE, RESULTS  # noqa: E402
 
 OUT = out_dir('01_summary')
 CATS = ['Activity', 'Binding', 'Expression', 'OrganismalFitness', 'Stability']
-SIGMA_ORDER = ['ESM-MSR σ=1', 'ESM-MSR σ=0.5', 'ESM3-small-open', 'MutateEverything', 'ThermoMPNN', 'SPURS', 'ProteinMPNN', 'ProSST', 'GeoDDG-3D', 'Rosetta']
+LEFT_OUT = {'ESM3dG'}               # models kept out of the figures for now (still scored in results/18_mgnify/mgnify_models_*.csv): ESM3dG was trained on MGnify stability data, so its MGnify / Rocklin numbers are not held out
+SIGMA_ORDER = [m for m in ['ESM-MSR σ=1', 'ESM-MSR σ=0.5', 'ESM3-small-open', 'MutateEverything', 'ThermoMPNN', 'SPURS', 'ProteinMPNN', 'ProSST', 'GeoDDG-3D', 'ESM3dG', 'Rosetta'] if m not in LEFT_OUT]
 PG_LABEL = {
     'PG avg': 'ProteinGym\naverage* (5 categories)',
     'Activity': 'ProteinGym\nActivity (43)',
@@ -44,14 +45,15 @@ PG_LABEL = {
     'Expression': 'ProteinGym\nExpression (18)',
     'OrganismalFitness': 'ProteinGym\nOrg. fitness (73)',
     'Stability': 'ProteinGym\nStability* (40/66)',
-    'Domainome': 'Domainome*\n(458/522)',
+    'Domainome': 'Domainome*\n(held-out)',
 }
 PG_COLS = CATS + ['PG avg', 'DMS mean']
 HOLLOW_DOMAINOME = ['ESM-MSR σ=1', 'ESM-MSR σ=0.5', 'MutateEverything', 'ThermoMPNN', 'SPURS']      # models with a singles and a doubles version: Domainome is read with the singles one
 
 
 INFERRED = {'MGnify': 'MGnify Inferred\nDDGs', 'Rocklin designs': 'Rocklin Designs\nInferred DDGs'}
-INFERRED_MODEL = {'ESM-MSR': 'ESM-MSR σ=1', 'SPURS': 'SPURS', 'ThermoMPNN': 'ThermoMPNN', 'ProteinMPNN': 'ProteinMPNN', 'ProSST': 'ProSST', 'ESM3-small-open': 'ESM3-small-open'}
+INFERRED_MODEL = {'ESM-MSR': 'ESM-MSR σ=1', 'ESM-MSR σ=0.5': 'ESM-MSR σ=0.5', 'SPURS': 'SPURS', 'ThermoMPNN': 'ThermoMPNN', 'ProteinMPNN': 'ProteinMPNN', 'ProSST': 'ProSST', 'ESM3-small-open': 'ESM3-small-open',
+                  'GeoDDG-3D': 'GeoDDG-3D', 'ESM3dG': 'ESM3dG', 'MutateEverything': 'MutateEverything'}       # ESMtherm and IFUM are in the csv for the supplement and not drawn here
 MIN_COVERAGE = 0.8                                  # a model enters an inferred-ddG set when it has scored at least this share of the set's scaffolds completely
 
 
@@ -62,8 +64,8 @@ def inferred_models(pooled=False):
         return {}
     out = {}
     for r in pd.read_csv(f).itertuples():
-        if r.model in INFERRED_MODEL and r.coverage >= MIN_COVERAGE:
-            out.setdefault(r.dataset, (int(r.n_set), {}))[1][INFERRED_MODEL[r.model]] = (float(r.rho), float(r.lo), float(r.hi), int(r.n_variants if pooled else r.n_scaffolds), float(r.coverage))
+        if r.model in INFERRED_MODEL and INFERRED_MODEL[r.model] not in LEFT_OUT and r.coverage >= MIN_COVERAGE:
+            out.setdefault(r.dataset, (int(r.n_set), {}))[1][INFERRED_MODEL[r.model]] = (float(r.rho), float(r.lo), float(r.hi), int(r.n_variants if pooled else r.n_scaffolds), float(r.coverage), bool(getattr(r, 'overlap', False)))
     return out
 
 
@@ -85,16 +87,17 @@ def pg_prepare(pooled=True):
     MODELS['ESM-MSR σ=1'] = dict(MODELS['ESM-MSR'], label='ESM-MSR σ = 1')
     MODELS['ESM-MSR σ=0.5'] = dict(MODELS['ESM-MSR'], label='ESM-MSR σ = 0.5' + ('' if k05 == n_mm else f' (combined on {k05} of {n_mm})'), color='#4d4d4d')
     MODELS['ESM3-small-open'] = dict(MODELS['ESM3-small-open'], label='ESM3-small-open (σ = 0)')
+    MODELS['ESM3dG'] = dict(MODELS['esm3dg'], label='ESM3ΔG')
     R = pd.concat([pd.read_csv(RESULTS / '05_proteingym' / 'pg_summary_tsu.csv'), pd.read_csv(RESULTS / '05_proteingym' / 'pg_sigma_summary_tsu.csv')], ignore_index=True)
     fl = pd.read_csv(REFERENCE / 'tsuboyama_rule_flags.csv')
     n_fl = {d: (int(g.homologous.sum()), len(g)) for d, g in fl.groupby('dataset')}
     tsu_pg = set(fl.loc[(fl['dataset'] == 'proteingym') & fl.homologous, 'item_id'])
     n_pg = int(R[(R.model == 'ESM-MSR σ=1') & (R.column == 'PG avg')].n_dms.iloc[0])
     n_dom = int(R[(R.model == 'ESM-MSR σ=1') & (R.column == 'Domainome')].n_dms.iloc[0])
-    note = ('Held-out = not a homolog of the training set under the rule that built the Homology-Restricted MegaScale split (MMseqs2 or Foldseek E ≤ 1e-3, local sequence identity > 0.40, or TM-score > 0.70 to a capped-train scaffold); left out: '
+    note = ('Held-out = not a homolog of the training set under the rule that built the Homology-Restricted MegaScale split (any of: MMseqs2 E-value ≤ 1e-3, identity > 0.40 over the shorter sequence, Foldseek E-value ≤ 1e-3, Foldseek TM-score > 0.70, against the capped training libraries; the same four-part filter for every set); left out: '
             + (RESULTS / '05_proteingym' / 'pg_tsu_note.txt').read_text().strip() + f' ({n_pg} ProteinGym assays and {n_dom} domains remain); MGnify {n_fl["mgnify"][0]:,} of {n_fl["mgnify"][1]:,} scaffolds and Rocklin designs {n_fl["rocklin_denovo"][0]} of {n_fl["rocklin_denovo"][1]:,} '
-            '(sequence evidence only: no structure search was run on them).\n'
-            'Seed 1 only. Singles models on singles assays / Domainome; multi on PGym multi-mutants (ME st1/st2; ThermoMPNN additive / -D on doubles; SPURS single/multi). Rosetta: PGym singles only (no Domainome).')
+            '.\n'
+            'Seeds 1-3 averaged for the retrained models Singles models on singles assays / Domainome; multi on PGym multi-mutants (ME st1/st2; ThermoMPNN additive / -D on doubles; SPURS single/multi). Rosetta: PGym singles only (no Domainome).')
     table = {(r.column, r.model): r.value for r in R.itertuples()}
     cis = {(r.column, r.model): (r.lo, r.hi) for r in R.itertuples()}
     cols = ['PG avg', 'Domainome']
@@ -103,20 +106,24 @@ def pg_prepare(pooled=True):
     extra = [(INFERRED[d], inf[d][0], inf[d][1]) for d in INFERRED if d in inf]
     groups = cols + [f'x{i}' for i in range(len(extra))]
     labels += [f'{n.split(chr(10))[0].split()[0]} ' + ('Pooled' if pooled else 'Avg.') + f'\n({round(k / 1000):,}k variants)' if pooled else f'{n.split(chr(10))[0].split()[0]} Avg.\n({k:,} held-out WTs)' for n, k, _ in extra]
+    rings = set()                                                       # models with training overlap on a set (red ring): ESM3dG was trained on MGnify stability data
     for i, (_, _, vals) in enumerate(extra):
         for m, v in vals.items():
             table[(f'x{i}', m)], cis[(f'x{i}', m)] = v[0], (v[1], v[2])
+            if v[5]:
+                rings.add((f'x{i}', m))
     hollow = {('Domainome', m) for m in HOLLOW_DOMAINOME}          # Domainome holds singles only: the models with two versions are drawn as their singles version, hollow, as in the thermostability sets
 
     fps = _property_module()
     t = fps.data()                                                      # ProteinGym assays without training-data overlap: per-assay rho of the deployed ESM-MSR readout at sigma 0, 0.5, 1
     t = t[~t.assay.isin(tsu_pg)].reset_index(drop=True)                 # and without the homologs of the rule above
-    Rp = fps.pvalues(t, 'property_delta_pvalues_tsu.csv')
+    Rp = fps.pvalues(t, 'property_delta_pvalues_tsu.csv')                # statistics of the held-out assays only
+    t_all = fps.data(all_assays=True)                                    # every assay: the ones excluded by the overlap rule are drawn grey, outside the box, mean, median, counts and p-values
 
     mm_note = (f'ESM-MSR σ = 1, σ = 0.5 and ESM3-small-open (σ = 0, the same architecture with the adapters off) are read as deployed: the combined prediction on the {n_mm} ProteinGym assays with multi-mutants, the WT head on the others '
                f'(Domainome has no multi-mutants, so its models with two versions are the hollow singles versions). The σ = 0.5 combined prediction exists for {k05} of the {n_mm} multi-mutant assays' + (' (the others read the WT head until the queued runs finish)' if k05 < n_mm else '')
                + '; the σ = 0 combined prediction is the March ESM-MSR-small checkpoint\'s σ = 0 run (adapters off, unmasked; its calibration heads), the WT head that of the released σ = 0 run. '
-               'Right panel: the same readout per ProteinGym assay (assays homologous to the training set left out, as on the left; one dot per assay, faint lines join an assay; box = IQR, thick line = median with its value, thin line = mean; p under the ticks: '
+               'Right panel: the same readout per ProteinGym assay (one dot per assay; grey thin x = assays homologous to the training set, drawn but left out of the box, median, mean, the counts in the headers (held out of assays drawn) and the p-values, as on the left; faint lines join an assay; box = IQR, thick line = median with its value, thin line = mean; p under the ticks: '
                'two-sided bootstrap over assays that the mean Δρ is 0, Holm-adjusted over the ten category × σ comparisons).')
     note += '\n' + mm_note
     if extra:
@@ -124,10 +131,10 @@ def pg_prepare(pooled=True):
         how = ('one Spearman rho over all measured variants of the set (seeds 1-3 averaged where a model has them), whiskers resample scaffolds; ESM-MSR is read on the observed scale, h(dG_wt + latent) - dG_wt (the Tobit link, the checkpoints\' constants), '
                'the other models raw' if pooled else
                'mean over WTs of the per-WT rho of the WT\'s measured variants, WTs with at least 10 variants (a within-WT rank is unaffected by the Tobit link), seeds 1-3 averaged where a model has them, whiskers resample WTs')
-        note += ('\nMGnify and Rocklin Designs Inferred DDGs: ' + how + '. Multi-mutant versions are read (ESM-MSR combined head, SPURS-multi, ThermoMPNN-D; ProteinMPNN and ProSST score every variant directly); ESM3-small-open is the WT head '
-                 '(its combined prediction was not run on these sets). '
-                 + ('Models scored on part of a set only: ' + '; '.join(part) + '. ' if part else '') + 'IFUM, ESMtherm and DDGemb are left to the supplement (they do not beat the other transfer models and saw part of the test sets in training); GeoDDG-3D, ESM3dG and Rosetta are not in these two columns yet (running or not collected).')
-    return dict(pooled=pooled, groups=groups, cols=cols, labels=labels, table=table, cis=cis, hollow=hollow, extra=extra, fps=fps, t=t, Rp=Rp, note=note)
+        note += ('\nMGnify and Rocklin Designs Inferred DDGs: ' + how + '. Multi-mutant versions are read (ESM-MSR combined head, SPURS-multi, ThermoMPNN-D, MutateEverything stage 2; ProteinMPNN and ProSST score every variant directly); ESM3-small-open is the WT head '
+                 '(its combined prediction was not run on these sets); ESM-MSR σ = 0.5 is the combined head like σ = 1; GeoDDG-3D is one run, the direct prediction of every variant. '
+                 + ('Models scored on part of a set only: ' + '; '.join(part) + '. ' if part else '') + 'IFUM, ESMtherm and DDGemb are left to the supplement (they do not beat the other transfer models and saw part of the test sets in training); MutateEverything is on the Rocklin designs only (it needs an MSA per scaffold; stage 2, seeds 1-3). Rosetta was run on the Rocklin designs only and is not in these two columns yet (not collected).')
+    return dict(pooled=pooled, groups=groups, cols=cols, labels=labels, table=table, cis=cis, hollow=hollow, rings=rings, extra=extra, fps=fps, t=t, t_all=t_all, Rp=Rp, note=note)
 
 
 def style_kwargs(m, singles, size):
@@ -163,7 +170,13 @@ def draw_pg_left(ax, pg, ylim=(0.04, 1.0)):
         ax.plot([x], [v], zorder=5 if hl else 3, **kw)
     if len(groups) > len(pg['cols']):                                    # one dashed rule, where the figure turns from the ProteinGym / Domainome assay averages to the stability sets (MGnify, Rocklin)
         ax.axvline(len(pg['cols']) - 0.5, color='#999999', lw=0.95, ls='--', zorder=2)
-    hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8)) for m in SIGMA_ORDER] + version_handles()
+    offs_all = np.linspace(-0.42, 0.42, len(SIGMA_ORDER))
+    for (g, m) in sorted(pg.get('rings', ()), key=lambda k: SIGMA_ORDER.index(k[1])):                 # training overlap: red ring round the dot, as in panel a
+        ax.plot(groups.index(g) + offs_all[SIGMA_ORDER.index(m)], pg['table'][(g, m)], marker='o', ms=11.5, mfc='none', mec='#c0392b', mew=1.1, ls='none', zorder=6)
+    hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8)) for m in SIGMA_ORDER]
+    if pg.get('rings'):
+        hs.append(Line2D([0], [0], marker='o', ms=8.5, mfc='none', mec='#c0392b', mew=1.1, ls='none', label='training overlap (ESM3ΔG)'))
+    hs += version_handles()
     ax.legend(handles=hs, loc='upper center', bbox_to_anchor=(0.5, 0.995), ncol=3, fontsize=7.6, frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.0, handletextpad=0.3, borderpad=0.4, labelspacing=0.35)
 
 
@@ -175,7 +188,7 @@ def pg_categories(pooled=True):
     gs = fig.add_gridspec(1, 2, width_ratios=[0.43, 0.57], wspace=0.15)
     ax, ax2 = fig.add_subplot(gs[0]), fig.add_subplot(gs[1])
     draw_pg_left(ax, pg)
-    pg['fps'].draw_paired(ax2, pg['t'], pg['Rp'], compact=True)
+    pg['fps'].draw_paired(ax2, pg['t_all'], pg['Rp'], mark_leaks=True, stats_without_leaks=True, compact=True)
     kwt = dict(fontsize=7.4, color='#444444')
     tt = fig.text(0.012, 0.008, style.wrap_to_px(fig, pg['note'], 0.975 * fig.bbox.width, **kwt), va='bottom', ha='left', **kwt)
     foot = tt.get_window_extent(fig.canvas.get_renderer()).height / fig.bbox.height
@@ -197,13 +210,13 @@ EXCLUDE_THERMO = {'s571', 'ptmuld'}
 VERSIONS = {'ESM-MSR': ('msrp0:wt', 'msrp0:comb'), 'MutateEverything': ('me1', 'me2'), 'ThermoMPNN': ('tmpnn', 'tmpnnd'), 'SPURS': ('spurs', 'spursm')}
 HOLLOW_MEW = 2.0            # edge width of the hollow (singles) markers; the default is 1.2
 HOLLOW_SIZE = 1.2           # their size relative to a filled marker, so that the hole stays visible
-THERMO_NOTE = ('Seed 1 only; 95% mutation-level bootstrap. Singles models on the single-mutant sets, models trained with doubles on PTMUL (ThermoMPNN additive; Rosetta Cartesian ddG throughout). '
+THERMO_NOTE = ('Seeds 1-3 averaged for the retrained models (seeds resampled with the draws); 95% mutation-level bootstrap. Singles models on the single-mutant sets, models trained with doubles on PTMUL (ThermoMPNN additive; Rosetta Cartesian ddG throughout). '
                'Hollow markers: singles models (ESM-MSR WT head, MutateEverything st1, ThermoMPNN, SPURS single); filled: models trained with doubles (ESM-MSR combined, MutateEverything st2, SPURS multi) and the models '
                'with one version. SPURS is the retrain with the trained adapter. Sets ordered by the performance of ESM-MSR p0 (mean of seeds 1-3), highest first. Red ring = GeoDDG-3D documented training overlap.')
 
 
 def msr_order(sets, S):
-    """``sets`` sorted by the ESM-MSR p0 rho, highest first: the seed mean of FINAL_p0 (``98_ablation/cells_long.csv``, deployed readout) or, without it, the seed-1 value of ``S``."""
+    """``sets`` sorted by the ESM-MSR p0 rho, highest first: the seed mean of FINAL_p0 (``98_ablation/cells_long.csv``, deployed readout) or, without it, the value of ``S`` (also the seed mean)."""
     seed1 = S[S.model == 'ESM-MSR'].set_index('dataset')['rho']
     f = RESULTS / '98_ablation' / 'cells_long.csv'
     mean = {}
@@ -260,7 +273,7 @@ def thermostability_sets():
     fig, ax = plt.subplots(figsize=(11.2, 5.8))
     hs = draw_thermo(ax, th)
     fig.legend(handles=hs, loc='upper center', bbox_to_anchor=(0.5, 0.945), ncol=4, fontsize=8.0, frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.1, handletextpad=0.3)
-    fig.suptitle('External thermostability sets: Spearman ρ across models (seed 1; whiskers: 95% mutation-level bootstrap)', x=0.012, ha='left', y=0.985, fontsize=10.5, fontweight='bold')
+    fig.suptitle('External thermostability sets: Spearman ρ across models (seeds 1-3 averaged; whiskers: 95% mutation-level bootstrap)', x=0.012, ha='left', y=0.985, fontsize=10.5, fontweight='bold')
     kw = dict(fontsize=8.0, color='#444444')
     t = fig.text(0.012, 0.01, style.wrap_to_px(fig, THERMO_NOTE, 0.96 * fig.bbox.width, **kw), va='bottom', ha='left', **kw)
     foot = t.get_window_extent(fig.canvas.get_renderer()).height / fig.bbox.height
@@ -272,9 +285,9 @@ def thermostability_sets():
     write_thermo_table(th)
 
 
-def summary_abc(pooled=True):
-    """Main-text figure: a = the thermostability sets (whole top), b = ProteinGym / Domainome / MGnify / Rocklin, c = ESM-MSR against the LoRA scale per ProteinGym property; no titles, every note below.
-    Written to ``results/00_main_text_figs/summary_abc.{png,pdf}``."""
+def figure3(pooled=True):
+    """Figure 3 of the main text: a = the thermostability sets (whole top), b = ProteinGym / Domainome / MGnify / Rocklin, c = ESM-MSR against the LoRA scale per ProteinGym property; no titles, every note below.
+    Written to ``results/00_main_text_figs/figure3.{png,pdf}`` (it was ``summary_abc`` until Nov 19)."""
     th, pg = thermo_data(), pg_prepare(pooled)
     W, H = 15.6, 11.6
     fig = plt.figure(figsize=(W, H))
@@ -284,7 +297,7 @@ def summary_abc(pooled=True):
     axa.set_yticks([t for t in np.arange(np.ceil(th['ymin'] * 5) / 5, 1.0001, 0.2)])
     axa.legend(handles=hs, loc='upper center', bbox_to_anchor=(0.5, 0.995), ncol=5, fontsize=8.0, frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.1, handletextpad=0.3)
     draw_pg_left(axb, pg)
-    pg['fps'].draw_paired(axc, pg['t'], pg['Rp'], compact=True)
+    pg['fps'].draw_paired(axc, pg['t_all'], pg['Rp'], mark_leaks=True, stats_without_leaks=True, compact=True)
     note = 'a. ' + THERMO_NOTE + '\nb, c. ' + pg['note']
     kwt = dict(fontsize=7.4, color='#444444')
     tt = fig.text(0.012, 0.006, style.wrap_to_px(fig, note, 0.975 * fig.bbox.width, **kwt), va='bottom', ha='left', **kwt)
@@ -299,19 +312,19 @@ def summary_abc(pooled=True):
     fig.canvas.draw()
     bad = style.text_outside(fig)
     if bad:
-        print('WARNING: text outside the figure box in summary_abc', bad)
+        print('WARNING: text outside the figure box in figure3', bad)
     out = out_dir('00_main_text_figs')
     plt.rcParams['savefig.bbox'] = 'standard'
-    fig.savefig(out / 'summary_abc.png', dpi=300)
-    fig.savefig(out / 'summary_abc.pdf')
-    print('wrote', out / 'summary_abc.png', fig.get_size_inches())
+    fig.savefig(out / 'figure3.png', dpi=300)
+    fig.savefig(out / 'figure3.pdf')
+    print('wrote', out / 'figure3.png', fig.get_size_inches())
 
 
 def main():
     pg_categories()
     pg_categories(pooled=False)
     thermostability_sets()
-    summary_abc()
+    figure3()
 
 
 if __name__ == '__main__':

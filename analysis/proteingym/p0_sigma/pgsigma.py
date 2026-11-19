@@ -1,4 +1,4 @@
-"""Shared paths, loaders and plot style for the p0 sigma analysis of ProteinGym (sigma = 1, 0.5 from FINAL_p0 seed 1, sigma = 0 from the unmasked ESM3-small-open read)."""
+"""Shared paths, loaders and plot style for the p0 sigma analysis of ProteinGym (sigma = 1, 0.5 from FINAL_p0 seeds 1-3, sigma = 0 from the unmasked ESM3-small-open read, a single deterministic run)."""
 import sys
 from pathlib import Path
 
@@ -14,7 +14,12 @@ OUT = HERE / 'results'
 OUT.mkdir(exist_ok=True)
 LEAK_TABLE = HERE.parent.parent / 'reference' / 'leak_audit_pg_per_dms.csv'    # per-assay overlap of the ProteinGym assays with the ESM-MSR training inventory (leak_audit/17_proteingym.py)
 SIGMAS = [0.0, 0.5, 1.0]
-PG = {1.0: ROOT / 'final_pgym_wt' / 'FINAL_p0' / 's1',                # FINAL_p0 seed 1, WT head, one file per assay
+SEEDS = (1, 2, 3)                                                       # FINAL_p0 is a triplicate; the dicts below are the seed-1 folders, ``at_seed`` gives the others (sigma 0 is one deterministic run: unchanged)
+
+
+def at_seed(path, seed):
+    return path.with_name(f's{seed}') if path.name == 's1' else path
+PG = {1.0: ROOT / 'final_pgym_wt' / 'FINAL_p0' / 's1',                # FINAL_p0 (s1 here, at_seed for s2, s3), WT head, one file per assay
       0.5: ROOT / 'final_pgym_wt_sigma0.5' / 'FINAL_p0' / 's1',
       0.0: ROOT / 'msr_predictions' / 'released_capped_w2a4_m16a16' / 'sigma0' / 'proteingym_wt_only'}   # ESM3-small-open unmasked (adapter scaled to 0)
 FALLBACK = {1.0: ROOT / 'final_pgym_comb' / 'FINAL_p0' / 's1',       # same checkpoint and read: its wt_lora_pred equals the WT-only run's to the last digit (checked on 6 assays; used for BRCA2 at sigma 1)
@@ -47,10 +52,10 @@ def fallback_sigmas(name):
 
 
 def train_overlap():
-    """The ProteinGym assays that overlap the ESM-MSR training data (exact or constituent overlap with the capped MegaScale inventory, ``sameprot`` in the leak audit): 23 Tsuboyama stability assays.
-    Every figure of this folder leaves them out."""
-    t = pd.read_csv(LEAK_TABLE)
-    return set(t.loc[t.sameprot == 1, 'DMS'])
+    """The ProteinGym assays that are homologous to the training set under the split's four-part rule (MMseqs2 E <= 1e-3, identity > 0.40, Foldseek E <= 1e-3, Foldseek TM > 0.70 against the capped
+    training libraries; ``msr_analysis.heldout`` / ``leak_audit/21_tsuboyama_rule.py``).  Every figure of this folder leaves them out."""
+    from msr_analysis.heldout import excluded
+    return excluded('proteingym')
 
 
 def per_assay(source='ProteinGym'):
@@ -62,20 +67,28 @@ def per_assay(source='ProteinGym'):
     return t if source is None else t[t.source == source].copy()
 
 
+def per_assay_all(source='ProteinGym'):
+    """Every assay of ``results/per_assay_rho.csv`` (also the ones homologous to the training set), with ``leaked`` = the assay is excluded by the split's four-part rule (``train_overlap``): the figures that draw
+    these assays black and leave them out of their statistics (``03_fig_property_summary.draw_paired(mark_leaks=True, stats_without_leaks=True)``) read it."""
+    t = pd.read_csv(OUT / 'per_assay_rho.csv')
+    t['leaked'] = t.assay.isin(train_overlap())
+    return t if source is None else t[t.source == source].copy()
+
+
 def rho(pred, y):
     ok = np.isfinite(pred) & np.isfinite(y)
     return float(spearmanr(pred[ok], y[ok])[0]), int(ok.sum())
 
 
-def load_assay(name):
-    """DataFrame (key, y, s0.0, s0.5, s1.0) of the variants of one assay present in the predictions of all three sigmas, or None if one is missing.  ProteinGym assays are keyed by ``mutant``,
+def load_assay(name, seed=1):
+    """DataFrame (key, y, s0.0, s0.5, s1.0) of the variants of one assay present in the predictions of all three sigmas (FINAL_p0 seed ``seed``), or None if one is missing.  ProteinGym assays are keyed by ``mutant``,
     the DMS-benchmark sets by ``id`` (label column ``ddG_ML``, the repo's ground truth)."""
     if name in DMS_SETS:
-        files = {1.0: DMS_P0 / name / 'final_checkpoints' / 'FINAL_p0' / 's1' / 'best.ckpt_sigma1.0_unmasked_predictions.csv',
-                 0.5: DMS_P0 / name / 'final_checkpoints' / 'FINAL_p0' / 's1' / 'best.ckpt_sigma0.5_unmasked_predictions.csv', 0.0: DMS_S0 / f'{name}.csv'}
+        files = {1.0: DMS_P0 / name / 'final_checkpoints' / 'FINAL_p0' / f's{seed}' / 'best.ckpt_sigma1.0_unmasked_predictions.csv',
+                 0.5: DMS_P0 / name / 'final_checkpoints' / 'FINAL_p0' / f's{seed}' / 'best.ckpt_sigma0.5_unmasked_predictions.csv', 0.0: DMS_S0 / f'{name}.csv'}
         key, lab = 'id', 'ddG_ML'
     else:
-        files = {s: (PG[s] if (PG[s] / f'{name}.csv').exists() or s not in FALLBACK else FALLBACK[s]) / f'{name}.csv' for s in SIGMAS}
+        files = {s: at_seed(PG[s] if (PG[s] / f'{name}.csv').exists() or s not in FALLBACK else FALLBACK[s], seed) / f'{name}.csv' for s in SIGMAS}
         key, lab = 'mutant', 'DMS_score'
     if not all(f.exists() for f in files.values()):
         return None
@@ -86,17 +99,17 @@ def load_assay(name):
     return out.reset_index(drop=True)[['y'] + [f's{s}' for s in SIGMAS]]
 
 
-def load_assay_dep(name):
+def load_assay_dep(name, seed=1):
     """The deployed readout of one ProteinGym assay at every sigma: ``(DataFrame, has_multi, heads)``.  The frame has ``y`` and ``d<sigma>`` (the combined prediction on an assay with multi-mutants, the WT head
     on a singles-only assay; a multi-mutant assay without a combined file at that sigma reads the WT head) plus ``w<sigma>`` (the WT head), over the variants present in every file used.  ``heads[sigma]`` is
     'combined', 'wt' (singles-only assay) or 'wt_fallback'.  None when the WT predictions of a sigma are missing."""
-    d = load_assay_frame(name)
+    d = load_assay_frame(name, seed)
     if d is None:
         return None
     multi = d['mutant'].astype(str).str.contains(':').any()
     heads = {}
     for s_ in SIGMAS:
-        f = COMB[s_] / f'{name}.csv'
+        f = at_seed(COMB[s_], seed) / f'{name}.csv'
         comb = None
         if multi and f.exists() and 'combined_pred' in pd.read_csv(f, nrows=0).columns:
             comb = pd.read_csv(f, usecols=['mutant', 'combined_pred']).drop_duplicates('mutant').set_index('mutant')['combined_pred'].rename(f'c{s_}')
@@ -110,9 +123,9 @@ def load_assay_dep(name):
     return d, bool(multi), heads
 
 
-def load_assay_frame(name):
+def load_assay_frame(name, seed=1):
     """``mutant``, ``y`` and the WT head ``w<sigma>`` of a ProteinGym assay over the variants present at all three sigmas (``load_assay`` with the mutant column kept); None if a file is missing."""
-    files = {s_: (PG[s_] if (PG[s_] / f'{name}.csv').exists() or s_ not in FALLBACK else FALLBACK[s_]) / f'{name}.csv' for s_ in SIGMAS}
+    files = {s_: at_seed(PG[s_] if (PG[s_] / f'{name}.csv').exists() or s_ not in FALLBACK else FALLBACK[s_], seed) / f'{name}.csv' for s_ in SIGMAS}
     if not all(f.exists() for f in files.values()):
         return None
     out = None

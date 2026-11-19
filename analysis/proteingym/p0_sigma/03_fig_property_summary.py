@@ -4,14 +4,14 @@
   property_delta_paired_boxes             one box per property and sigma (IQR box, thick median line with its value, thin mean line, jittered dots): sigma 0 (the anchor, delta = 0), sigma 0.5 and sigma 1 side by side,
                                          faint thin lines connect the same assay across the sigmas (the style of the property-scaffold plots of ``14_property_category_gain.py``); every assay is drawn and
                                          counted, nothing is marked
-  property_delta_paired_boxes_leaks_black  the same, every assay drawn, the assays whose protein has a training-set homolog (``04_leak_per_assay.py``: TM-score > 0.7 or sequence identity > 0.4) in black and left
+  property_delta_paired_boxes_excluded    the same, every assay drawn, the assays whose protein is homologous to the training set under the split's four-part rule in grey (smaller markers, under the others; the included assays in a more saturated hue) and left
                                          out of the statistics: the boxes, medians, means, counts and p-values are those of the other assays
 
-Delta rho = rho of the deployed ESM-MSR prediction at sigma minus rho at sigma 0 (combined prediction on the assays with multi-mutants, WT head on the others; ``pgsigma.load_assay_dep``); sigma = 1, 0.5: FINAL_p0 seed 1;
+Delta rho = rho of the deployed ESM-MSR prediction at sigma minus rho at sigma 0 (combined prediction on the assays with multi-mutants, WT head on the others; ``pgsigma.load_assay_dep``); sigma = 1, 0.5: FINAL_p0 seeds 1-3 averaged per assay (the combined read at sigma 0.5: seeds 1-3 on the 69 multi-mutant assays);
 sigma = 0: ESM3-small-open, unmasked (the combined read from the ESM-MSR-small checkpoint's sigma-0 run).  ``draw_paired`` draws the figure on a given axis (``compact=True`` is the panel of ``01_summary.py``).  The ProteinGym assays with predictions at all three
-sigmas (``results/per_assay_rho.csv``) except the 23 stability assays whose variants are in the training data (``pgsigma.train_overlap``).  The p-value under each sigma tick: is the mean delta rho of the category
+sigmas (``results/per_assay_rho.csv``) except the assays homologous to the training set under the split's four-part rule (``pgsigma.train_overlap``).  The p-value under each sigma tick: is the mean delta rho of the category
 different from 0?  Two-sided bootstrap over assays (20000 resamples, ``msr_analysis.boot.paired_diff``'s convention), Holm-adjusted over the ten category x sigma comparisons of the figure; the Wilcoxon signed-rank
-p is in the csv (``results/property_delta_pvalues.csv`` for all assays, ``property_delta_pvalues_nonleaked.csv`` for the figure with the black assays left out of the statistics).
+p is in the csv (``results/property_delta_pvalues.csv`` for all assays, ``property_delta_pvalues_nonleaked.csv`` for the figure with the grey assays left out of the statistics).
 
     python analysis/proteingym/p0_sigma/03_fig_property_summary.py
 """
@@ -35,8 +35,9 @@ def darker(c):
     return mcolors.to_hex(colorsys.hls_to_rgb(h, max(0.22, min(0.42, l * 0.56)), min(1.0, max(s, 0.72))))
 
 
-def data():
-    t = P.per_assay()                                                      # ProteinGym assays that do not overlap the training data, with the per-assay leak flag
+def data(all_assays=False):
+    """The held-out ProteinGym assays; ``all_assays=True`` every assay with ``leaked`` marking the ones excluded by the split's four-part overlap rule."""
+    t = P.per_assay_all() if all_assays else P.per_assay()               # held-out assays (per_assay), or all assays with the overlap flag
     for s in (0.5, 1.0):                                                   # the deployed readout (combined on the multi-mutant assays, WT head elsewhere); the WT head alone is ``rho_<sigma>``
         t[f'd_{s}'] = t[f'rho_dep_{s}'] - t['rho_dep_0.0']
     return t
@@ -103,12 +104,23 @@ def finish(fig, ax_titles, note, stem):
 CAT_SHORT = {'Stability': 'Stability', 'Expression': 'Expression', 'Activity': 'Activity', 'Binding': 'Binding', 'OrganismalFitness': 'Org. fitness'}
 
 
+EXCLUDED = '#9a9a96'          # the assays left out by the overlap rule: one neutral grey for every category (none of the five category hues is grey, and it is lighter than all of them)
+
+
+def vivid(c, s_min=0.86, v_max=0.86):
+    """The category colour with its saturation raised to at least ``s_min`` and its value capped at ``v_max``: the dots of the assays that count stand out from the grey excluded ones."""
+    h, s, v = colorsys.rgb_to_hsv(*mcolors.to_rgb(c))
+    return mcolors.to_hex(colorsys.hsv_to_rgb(h, max(s, s_min), min(v, v_max)))
+
+
 def draw_paired(ax, t, R, mark_leaks=False, stats_without_leaks=False, compact=False):
-    """Draw the paired box / dot plot on ``ax``: all assays of ``t`` are drawn; ``mark_leaks`` draws the leaked ones black, ``stats_without_leaks`` leaves them out of the boxes, medians, means and counts
+    """Draw the paired box / dot plot on ``ax``: all assays of ``t`` are drawn; ``mark_leaks`` draws the excluded ones in grey (``EXCLUDED``: a thin x, thinner lines, under the others),
+    ``stats_without_leaks`` leaves them out of the boxes, medians, means and counts
     (``R`` must then be the p-values of the others).  ``compact`` is the small-panel layout (two-line category headers, smaller text) that ``01_summary.py`` puts next to the model comparison."""
     rng = np.random.default_rng(1)
     gap, w = (0.7, 0.8) if compact else (0.9, 0.82)
-    f_mean, f_head, f_tick, ms = (6.4, 7.4, 6.0, 2.0) if compact else (8.0, 10.5, None, 2.6)
+    f_mean, f_head, f_tick, ms = (6.4, 7.4, 6.0, 2.5) if compact else (8.0, 10.5, None, 3.2)
+    ms_ex = 1.15 * ms                                                      # the excluded assays: a thin x (its arms span about the width of an included dot)
     pos, spans, x = {}, {}, 0.0
     for cat in P.CATS:
         for k in range(3):
@@ -128,10 +140,11 @@ def draw_paired(ax, t, R, mark_leaks=False, stats_without_leaks=False, compact=F
         Y = np.column_stack([np.zeros(len(g)), g['d_0.5'], g['d_1.0']])
         jit = (rng.random(len(g)) - 0.5) * (w * 0.56)                      # one offset per assay, so the connecting lines stay tidy
         leaked = g['leaked'].to_numpy()
-        lk = leaked if mark_leaks else np.zeros(len(g), bool)               # drawn black
+        lk = leaked if mark_leaks else np.zeros(len(g), bool)               # drawn grey
         use = ~leaked if stats_without_leaks else np.ones(len(g), bool)      # enter the statistics
+        dot = vivid(col) if mark_leaks else col                              # the version that marks excluded assays also draws the others in the vivid hue
         for r, y in enumerate(Y):
-            ax.plot([pos[(cat, k)] + jit[r] for k in range(3)], y, color='#000000' if lk[r] else col, alpha=0.4 if lk[r] else 0.16, lw=0.6, zorder=2.5 if lk[r] else 2)
+            ax.plot([pos[(cat, k)] + jit[r] for k in range(3)], y, color=EXCLUDED if lk[r] else dot, alpha=0.55 if lk[r] else 0.2, lw=0.45 if lk[r] else 0.6, zorder=2 if lk[r] else 2.2)
         for k in range(3):
             c = pos[(cat, k)]
             y = Y[:, k]
@@ -139,8 +152,8 @@ def draw_paired(ax, t, R, mark_leaks=False, stats_without_leaks=False, compact=F
                 q1, med, q3 = np.quantile(y[use], [0.25, 0.5, 0.75])
                 ax.add_patch(plt.Rectangle((c - w / 2, q1), w, q3 - q1, fc=col, alpha=0.22, ec='none', zorder=1))
                 ax.plot([c - w / 2, c + w / 2], [float(y[use].mean())] * 2, color=darker(col), lw=0.9, zorder=4, solid_capstyle='butt')      # the mean: thin
-            ax.plot((c + jit)[~lk], y[~lk], 'o', ms=ms, color=col, alpha=0.8, mew=0, zorder=3)
-            ax.plot((c + jit)[lk], y[lk], 'o', ms=ms + 0.4, color='#000000', alpha=0.95, mew=0, zorder=3.5)
+            ax.plot((c + jit)[lk], y[lk], 'x', ms=ms_ex, color=EXCLUDED, alpha=0.95, mew=0.5, zorder=2.8)
+            ax.plot((c + jit)[~lk], y[~lk], 'o', ms=ms, color=dot, alpha=0.92 if mark_leaks else 0.8, mew=0, zorder=3.4)
             med = float(np.median(y[use]))
             ax.plot([c - w / 2, c + w / 2], [med, med], color='#333333', lw=1.8, zorder=5)                                                   # the median: thick, with its value
             if k > 0:
@@ -171,7 +184,7 @@ def paired_boxes(t, R, stem, note, mark_leaks=False, stats_without_leaks=False):
         draw_paired(ax, t, R, mark_leaks=mark_leaks, stats_without_leaks=stats_without_leaks)
         finish(fig, [], 'One dot per ProteinGym assay; faint thin lines connect the same assay at sigma 0 (delta = 0 by definition: the anchor), 0.5 and 1. Box = interquartile range, thin coloured line = mean, '
                'thick dark line = median (value printed); p under the ticks: two-sided bootstrap test over assays that the mean delta rho is 0 (20000 resamples), Holm-adjusted over the ten category x sigma comparisons. '
-               f'Delta rho = Spearman rho of the ESM-MSR prediction at sigma minus rho at sigma = 0 (ESM3-small-open, unmasked); sigma = 0.5 and 1: FINAL_p0 seed 1; {len(t)} assays. ' + readout_note(t) + ' ' + note, stem)
+               f'Delta rho = Spearman rho of the ESM-MSR prediction at sigma minus rho at sigma = 0 (ESM3-small-open, unmasked); sigma = 0.5 and 1: FINAL_p0 seeds 1-3 averaged per assay; {len(t)} assays. ' + readout_note(t) + ' ' + note, stem)
 
 
 def main():
@@ -180,13 +193,14 @@ def main():
     R = pvalues(t, 'property_delta_pvalues.csv')
     print(R[['category', 'sigma', 'n_assays', 'mean_delta', 'p_boot', 'p_holm', 'p_wilcoxon', 'p_wilcoxon_holm']].round(4).to_string())
     paired_boxes(t, R, 'property_delta_paired_boxes', 'Every assay enters the statistics.')
-    clean = t[~t.leaked].reset_index(drop=True)
+    ta = data(all_assays=True)                                             # every assay; the ones homologous to the training set are drawn grey
+    clean = ta[~ta.leaked].reset_index(drop=True)
     Rc = pvalues(clean, 'property_delta_pvalues_nonleaked.csv')
-    print(f'--- statistics of the {len(clean)} assays without a training-set homolog (the {int(t.leaked.sum())} others are drawn black) ---')
+    print(f'--- statistics of the {len(clean)} held-out assays (the {int(ta.leaked.sum())} assays homologous to the training set are drawn grey) ---')
     print(Rc[['category', 'sigma', 'n_assays', 'mean_delta', 'p_boot', 'p_holm', 'p_wilcoxon', 'p_wilcoxon_holm']].round(4).to_string())
-    paired_boxes(t, Rc, 'property_delta_paired_boxes_leaks_black',
-                 f'Black dots and lines: assays whose protein is a training-set homolog (TM-score > 0.7 or sequence identity > 0.4 to a training protein; {int(t.leaked.sum())} of {len(t)}); they are not used in the boxes, '
-                 f'medians, means, counts in the headers (n used of n drawn) and p-values.', mark_leaks=True, stats_without_leaks=True)
+    paired_boxes(ta, Rc, 'property_delta_paired_boxes_excluded',
+                 f'Grey dots and lines (smaller): assays homologous to the training set under the split\'s four-part rule (MMseqs2 E-value <= 1e-3, identity > 0.40, Foldseek E-value <= 1e-3, TM-score > 0.70; {int(ta.leaked.sum())} of {len(ta)}); they are not used in the boxes, '
+                 f'medians, means, counts in the headers (held out of assays drawn) and p-values.', mark_leaks=True, stats_without_leaks=True)
 
 
 if __name__ == '__main__':

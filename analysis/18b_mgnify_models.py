@@ -1,6 +1,6 @@
 """ESM-MSR p0 and the baselines on the MGnify scaffolds and the Rocklin designs: the per-scaffold mean rho and the pooled rho (the two inferred-ddG columns of ``01_summary``'s pg_categories figures).
 
-Homologs are excluded with the rule that built the Homology-Restricted MegaScale split (MMseqs2 E <= 1e-3, local identity > 0.40; no structure search was run on these sets; flags in
+Homologs are excluded with the four-part rule that built the Homology-Restricted MegaScale split (MMseqs2 E <= 1e-3, identity > 0.40, Foldseek E <= 1e-3, Foldseek TM > 0.70 against the training libraries; flags in
 ``reference/tsuboyama_rule_flags.csv`` from ``leak_audit/21_tsuboyama_rule.py``).  MGnify is every scaffold left after that (not the audit's low-identity stratum); the Rocklin designs likewise.
 
 ``per scaffold``  the mean over the scaffolds (designs) with at least 10 measured variants of the scaffold's own Spearman rho between prediction and ddG_ML, taken per seed and then averaged over the
@@ -8,6 +8,10 @@ Homologs are excluded with the rule that built the Homology-Restricted MegaScale
 ``pooled``        one Spearman rho over all measured variants of the set (per seed, then averaged).  Here the scale matters: the baselines learn the assay's saturation implicitly, so ESM-MSR is read on the
                   observed scale, ``h(dG_wt + latent) - dG_wt`` (``esm_msr.val_stats.tobit_link``, the checkpoints' constants), and the baselines raw.
 95% intervals resample scaffolds (``--B`` draws, the same draws for every model of a set).
+
+ESM-MSR p0 is scored at LoRA scale sigma = 1 (deployed) and sigma = 0.5 (``ESM-MSR σ=0.5``, ``final_mgnify_sigma0.5/``, the same rows and seeds).  MutateEverything (stage 2, seeds 1-3, every variant; Rocklin designs only: it needs an MSA per scaffold) is read from ``final_mgnify/baselines/me_st2_s<k>/results_rocklin_denovo.csv``.  The harness models GeoDDG-3D, ESM3dG, ESMtherm and IFUM
+(``baselines/public/<model>/mgnify/``, one run each, the direct prediction of every variant) are scored too; ESM3dG was trained on MGnify stability data and carries ``overlap = True`` (its numbers on these sets are not
+held out), and ESMtherm / IFUM are for the supplement only (``01_summary`` leaves them out of the main figure).
 
 Readouts follow the deployed rule: both sets hold multi-mutants, so the multi-mutant version of each model is read (ESM-MSR combined head, SPURS-multi, ThermoMPNN-D; ProteinMPNN and ProSST score every
 variant directly).  ESM3-small-open (sigma 0) is the exception: its run holds the WT head only (the combined columns are placeholders).  A model enters
@@ -25,7 +29,7 @@ from scipy.stats import rankdata
 
 from msr_analysis.common import out_dir
 from msr_analysis.mgnify import RUNS, load_mgnify
-from msr_analysis.registry import REFERENCE
+from msr_analysis.registry import PUBLIC, REFERENCE
 
 OUT = out_dir('18_mgnify')
 BASE = RUNS / 'baselines'
@@ -38,6 +42,9 @@ BASELINES = {
     'ProteinMPNN': ('proteinmpnn', 'mpnn_score', (None,), 'direct'),
     'ProSST': ('prosst', 'prosst', (None,), 'direct'),
 }
+HARNESS = {'GeoDDG-3D': 'geoddg', 'ESM3dG': 'esm3dg', 'ESMtherm': 'esmtherm', 'IFUM': 'ifum'}      # one run each: baselines/public/<dir>/mgnify/mg_*_NNN.csv (id, pred), stabilizing-positive
+OVERLAP = {'ESM3dG'}                                                                              # trained on MGnify stability data: not held out on these sets
+N_TABLES = 40
 
 
 def chunks(tpl, seed, src, col):
@@ -46,6 +53,26 @@ def chunks(tpl, seed, src, col):
         return None
     d = pd.concat([pd.read_csv(f, usecols=['id', col], low_memory=False) for f in fs]).drop_duplicates('id')
     return d.set_index('id')[col]
+
+
+def harness(model_dir, ids):
+    """Prediction of a harness model on the rows ``ids`` (the 40 task tables of ``build_mgnify_harness_tasks.py``; None unless all are there)."""
+    fs = sorted(glob.glob(str(PUBLIC / model_dir / 'mgnify' / 'mg_*_[0-9][0-9][0-9].csv')))
+    if len(fs) < N_TABLES:
+        return None
+    d = pd.concat([pd.read_csv(f, usecols=['id', 'pred']) for f in fs]).drop_duplicates('id').set_index('id')['pred']
+    return d.reindex(ids).to_numpy(float)
+
+
+def me_rocklin(seed, ids):
+    """MutateEverything stage 2 on the Rocklin designs (``me_st2_s<seed>/results_rocklin_denovo.csv``, run on the cluster Nov 19: it needs an MSA per scaffold, so MGnify was not run): ``scores`` (= -ddg_pred, stabilizing-positive)
+    of every variant (singles, doubles and triples), on the rows ``ids`` (``<design>_<mutations>``); None when the file is missing.  Stage 1 predicts singles only (5% of the rows) and is not scored."""
+    f = BASE / f'me_st2_s{seed}' / 'results_rocklin_denovo.csv'
+    if not f.exists():
+        return None
+    d = pd.read_csv(f, usecols=['pdb_id', 'mut_info', 'scores'])
+    s = pd.Series(d['scores'].to_numpy(float), index=(d['pdb_id'].astype(str) + '_' + d['mut_info'].astype(str)).to_numpy())
+    return s[~s.index.duplicated()].reindex(ids).to_numpy(float)
 
 
 def esm3_wt(ids):
@@ -80,6 +107,41 @@ def pooled_rho(p, y):
     return float(np.corrcoef(rankdata(p[ok]), rankdata(y[ok]))[0, 1])
 
 
+def prepare(name, cfg, flags):
+    """The measured, non-homologous variants of one set and every model's predictions on them: (spine rows ``d``, {model: (readout, per-seed raw predictions, per-seed predictions as pooled: ESM-MSR Tobit-linked)}, n scaffolds before the exclusion, n excluded)."""
+    fr = load_mgnify(run=cfg['run'])
+    sp = fr.spine
+    bad = set(flags.loc[(flags['dataset'] == cfg['flag']) & flags['homologous'], 'item_id'].astype(str))
+    m = sp['use'].to_numpy() & ~sp['code_wt'].astype(str).isin(bad).to_numpy()
+    d = sp[m].reset_index(drop=True)
+    n_all = sp.loc[sp['use'], 'code_wt'].nunique()
+    preds = {'ESM-MSR': ('combined (latent)', [fr.preds['comb'][i, m] for i in range(fr.preds['comb'].shape[0])],
+                         [fr.preds['comb~'][i, m] for i in range(fr.preds['comb~'].shape[0])])}
+    fr05 = load_mgnify(run=cfg['run'], sigma=0.5)                      # ESM-MSR at LoRA scale 0.5: the same rows in the same order (asserted), the three seeds
+    assert (fr05.spine['id'].to_numpy() == sp['id'].to_numpy()).all(), 'sigma 0.5 rows differ from sigma 1'
+    preds['ESM-MSR σ=0.5'] = ('combined (latent)', [fr05.preds['comb'][i, m] for i in range(fr05.preds['comb'].shape[0])],
+                              [fr05.preds['comb~'][i, m] for i in range(fr05.preds['comb~'].shape[0])])
+    for mn, (tpl, col, seeds, readout) in BASELINES.items():
+        P = []
+        for s in seeds:
+            c = chunks(tpl, s, cfg['src'], col)
+            P.append(None if c is None else c.reindex(d['id'].values).to_numpy(float))
+        if not any(p is None for p in P):
+            preds[mn] = (readout, P, P)
+    if cfg['src'] == 'rocklin_denovo':                                  # ME stage 2, seeds 1-3 (Rocklin designs only)
+        me = [me_rocklin(k, d['id'].values) for k in (1, 2, 3)]
+        if all(m is not None for m in me):
+            preds['MutateEverything'] = ('stage 2, every variant', me, me)
+    for mn, md in HARNESS.items():
+        h = harness(md, d['id'].values)
+        if h is not None and np.isfinite(h).any():
+            preds[mn] = ('direct', [h], [h])
+    e3 = esm3_wt(d['id'].values)
+    if e3 is not None and np.isfinite(e3).any():
+        preds['ESM3-small-open'] = ('WT head (sigma 0)', [e3], [e3])
+    return d, preds, n_all, len(bad)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--B', type=int, default=1000, help='scaffold bootstraps of the per-scaffold means')
@@ -89,30 +151,12 @@ def main():
     rng = np.random.default_rng(3)
     rows_s, rows_p = [], []
     for name, cfg in SETS.items():
-        fr = load_mgnify(run=cfg['run'])
-        sp = fr.spine
-        bad = set(flags.loc[(flags['dataset'] == cfg['flag']) & flags['homologous'], 'item_id'].astype(str))
-        m = sp['use'].to_numpy() & ~sp['code_wt'].astype(str).isin(bad).to_numpy()
-        d = sp[m].reset_index(drop=True)
-        n_all = sp.loc[sp['use'], 'code_wt'].nunique()
-        print(f'{name}: {d.code_wt.nunique()} of {n_all} scaffolds with a measured variant kept ({len(bad)} homologous by the rule), {len(d)} variants')
+        d, preds, n_all, n_bad = prepare(name, cfg, flags)
+        print(f'{name}: {d.code_wt.nunique()} of {n_all} scaffolds with a measured variant kept ({n_bad} homologous by the rule), {len(d)} variants')
         code, uniq = pd.factorize(d['code_wt'])
         y = d['y'].to_numpy(float)
         cnt = np.bincount(code)
         big = cnt >= MIN_N
-        preds = {'ESM-MSR': ('combined (latent)', [fr.preds['comb'][i, m] for i in range(fr.preds['comb'].shape[0])],
-                             [fr.preds['comb~'][i, m] for i in range(fr.preds['comb~'].shape[0])])}
-        for mn, (tpl, col, seeds, readout) in BASELINES.items():
-            P = []
-            for s in seeds:
-                c = chunks(tpl, s, cfg['src'], col)
-                P.append(None if c is None else c.reindex(d['id'].values).to_numpy(float))
-            if not any(p is None for p in P):
-                preds[mn] = (readout, P, P)
-        if True:
-            e3 = esm3_wt(d['id'].values)
-            if e3 is not None and np.isfinite(e3).any():
-                preds['ESM3-small-open'] = ('WT head (sigma 0)', [e3], [e3])
         # per-scaffold mean rho over the scaffolds with >= MIN_N variants; scaffolds drawn once for the set
         n_big = int(big.sum())
         draws = rng.integers(0, n_big, (a.B, n_big))
@@ -127,8 +171,8 @@ def main():
             if not ok.any():
                 continue
             lo, hi = boot_mean(v, ok)
-            rows_s.append(dict(dataset=name, model=mn, readout=readout, rho=float(v[ok].mean()), lo=lo, hi=hi, n_scaffolds=int(ok.sum()), n_set=n_big, coverage=float(ok.mean())))
-            if ok.mean() < 0.999 and mn != 'ESM-MSR':
+            rows_s.append(dict(dataset=name, model=mn, readout=readout, rho=float(v[ok].mean()), lo=lo, hi=hi, n_scaffolds=int(ok.sum()), n_set=n_big, coverage=float(ok.mean()), overlap=mn in OVERLAP))
+            if ok.mean() < 0.999 and not mn.startswith('ESM-MSR'):
                 b = per['ESM-MSR'].copy(); b[~ok] = np.nan
                 lo2, hi2 = boot_mean(b, np.isfinite(b))
                 rows_s.append(dict(dataset=name, model=f'ESM-MSR, same scaffolds as {mn}', readout='combined (latent)', rho=float(np.nanmean(b)), lo=lo2, hi=hi2, n_scaffolds=int(ok.sum()), n_set=n_big, coverage=float(ok.mean())))
@@ -149,8 +193,8 @@ def main():
                 continue
             msk = None if ok.all() else ok
             pt, lo, hi = pooled(P, msk)
-            rows_p.append(dict(dataset=name, model=mn, readout=readout + (', Tobit-linked' if mn == 'ESM-MSR' else ''), rho=pt, lo=lo, hi=hi, n_variants=int(ok.sum()), n_set=len(y), coverage=float(ok.mean())))
-            if mn != 'ESM-MSR' and msk is not None:
+            rows_p.append(dict(dataset=name, model=mn, readout=readout + (', Tobit-linked' if mn.startswith('ESM-MSR') else ''), rho=pt, lo=lo, hi=hi, n_variants=int(ok.sum()), n_set=len(y), coverage=float(ok.mean()), overlap=mn in OVERLAP))
+            if not mn.startswith('ESM-MSR') and msk is not None:
                 pt2, lo2, hi2 = pooled(preds['ESM-MSR'][2], ok)
                 rows_p.append(dict(dataset=name, model=f'ESM-MSR, same rows as {mn}', readout='combined (Tobit-linked)', rho=pt2, lo=lo2, hi=hi2, n_variants=int(ok.sum()), n_set=len(y), coverage=float(ok.mean())))
     for rows, f in ((rows_s, 'mgnify_models_per_scaffold.csv'), (rows_p, 'mgnify_models_pooled.csv')):
