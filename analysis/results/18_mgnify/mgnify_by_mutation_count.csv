@@ -1,0 +1,32 @@
+dataset,n_mut,metric,model,rho,lo,hi,n_variants,n_scaffolds
+MGnify,1,pooled,ESM-MSR,0.6253,0.6222,0.6287,484534,140690
+MGnify,1,pooled,ESM3-small-open,0.3391,0.3357,0.3423,484534,140690
+MGnify,1,pooled,SPURS,0.5667,0.5642,0.5695,484534,140690
+MGnify,1,pooled,ThermoMPNN,0.5459,0.5431,0.5486,484534,140690
+MGnify,1,pooled,ProteinMPNN,0.3508,0.3470,0.3540,484534,140690
+MGnify,1,pooled,ProSST,0.3583,0.3549,0.3613,484534,140690
+MGnify,2,pooled,ESM-MSR,0.6628,0.6535,0.6704,127869,5464
+MGnify,2,pooled,ESM3-small-open,0.3959,0.3870,0.4037,127869,5464
+MGnify,2,pooled,SPURS,0.5835,0.5750,0.5909,127869,5464
+MGnify,2,pooled,ThermoMPNN,0.5631,0.5543,0.5704,127869,5464
+MGnify,2,pooled,ProteinMPNN,0.4189,0.4089,0.4269,127869,5464
+MGnify,2,pooled,ProSST,0.3886,0.3797,0.3964,127869,5464
+MGnify,3,n,,,,,3,2
+Rocklin designs,1,pooled,ESM-MSR,0.3756,0.3424,0.4094,5926,621
+Rocklin designs,1,pooled,ESM3-small-open,0.0884,0.0619,0.1152,5926,621
+Rocklin designs,1,pooled,SPURS,0.2231,0.1940,0.2553,5926,621
+Rocklin designs,1,pooled,ThermoMPNN,0.1786,0.1485,0.2045,5926,621
+Rocklin designs,1,pooled,ProteinMPNN,0.0955,0.0595,0.1249,5926,621
+Rocklin designs,1,pooled,ProSST,0.1067,0.0769,0.1372,5926,621
+Rocklin designs,2,pooled,ESM-MSR,0.4315,0.3974,0.4685,24645,620
+Rocklin designs,2,pooled,ESM3-small-open,0.1081,0.0728,0.1391,24645,620
+Rocklin designs,2,pooled,SPURS,0.2537,0.2262,0.2863,24645,620
+Rocklin designs,2,pooled,ThermoMPNN,0.1866,0.1526,0.2178,24645,620
+Rocklin designs,2,pooled,ProteinMPNN,0.1101,0.0761,0.1406,24645,620
+Rocklin designs,2,pooled,ProSST,0.1199,0.0891,0.1484,24645,620
+Rocklin designs,3,pooled,ESM-MSR,0.4645,0.4329,0.4923,79010,619
+Rocklin designs,3,pooled,ESM3-small-open,0.1102,0.0773,0.1375,79010,619
+Rocklin designs,3,pooled,SPURS,0.2642,0.2338,0.2959,79010,619
+Rocklin designs,3,pooled,ThermoMPNN,0.1905,0.1598,0.2217,79010,619
+Rocklin designs,3,pooled,ProteinMPNN,0.1128,0.0832,0.1441,79010,619
+Rocklin designs,3,pooled,ProSST,0.1236,0.0996,0.1544,79010,619

@@ -1,0 +1,7 @@
+model,subset,scheme,rho,lo,hi,n_domains
+ESM3-small-open,doubles,unm,0.41366,0.33892,0.48302,13
+ESM3-small-open,doubles,ind,0.41098,0.32041,0.49173,13
+ESM3-small-open,doubles,mar,0.39815,0.30047,0.48345,13
+ESM-MSR,doubles,unm,0.77721,0.69646,0.83,13
+ESM-MSR,doubles,ind,0.74716,0.66484,0.81287,13
+ESM-MSR,doubles,mar,0.72143,0.64246,0.7869,13

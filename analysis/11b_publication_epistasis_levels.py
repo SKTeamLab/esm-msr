@@ -104,7 +104,8 @@ def _layout_compact(cols, gap=1.25):
     return xs, spans
 
 
-def draw_version(T, split, levels=LEVELS, foot=FOOT, suffix='', title_desc='epistasis predicted level by level', overlay_sub0=False, models=MODELS):
+def draw_version(T, split, levels=LEVELS, foot=FOOT, suffix='', title_desc='epistasis predicted level by level', overlay_sub0=False, models=MODELS, label=None, stem=None):
+    """``label`` (a panel letter) draws the main-text version: no suptitle and no footnote, the letter at the top left; ``stem`` overrides the output file name."""
     nd, nn = int(T.n_domains.iloc[0]), int(T.n_doubles.iloc[0])
     cols = [
         dict(name=n, cat=c, color=col, label=lab)
@@ -212,16 +213,20 @@ def draw_version(T, split, levels=LEVELS, foot=FOOT, suffix='', title_desc='epis
             )
         ax.set_title(level_title, fontsize=11.5 if '\n' in level_title else 13.0, fontweight='bold', pad=26)
 
-    fig.suptitle(
-        f'{TITLE[split]}: {title_desc}, {nn:,} doubles with both singles measured in {nd} domains',
-        x=0.012,
-        ha='left',
-        fontsize=13.8,
-        y=0.955 if len(levels) == 4 else 0.92,
-    )
-    fig.tight_layout(rect=(0, 0.12, 1, 0.90))
-    fig.text(0.012, -0.04, '\n'.join(foot), fontsize=9.2 if len(levels) == 4 else 9.5, va='top', ha='left', color='#444444')
-    style.save(fig, OUT / f'fig5a_epistasis_levels_bars_{split}{suffix}')
+    if label is None:
+        fig.suptitle(
+            f'{TITLE[split]}: {title_desc}, {nn:,} doubles with both singles measured in {nd} domains',
+            x=0.012,
+            ha='left',
+            fontsize=13.8,
+            y=0.955 if len(levels) == 4 else 0.92,
+        )
+        fig.tight_layout(rect=(0, 0.12, 1, 0.90))
+        fig.text(0.012, -0.04, '\n'.join(foot), fontsize=9.2 if len(levels) == 4 else 9.5, va='top', ha='left', color='#444444')
+    else:
+        fig.tight_layout(rect=(0.012, 0, 1, 0.985))
+        fig.text(0.004, 0.995, label, fontsize=15, fontweight='bold', va='top', ha='left')
+    style.save(fig, OUT / (stem or f'fig5a_epistasis_levels_bars_{split}{suffix}'))
 
 
 def main():

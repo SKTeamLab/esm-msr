@@ -115,7 +115,7 @@ def build(split, ctx_rev):
         rev = pd.DataFrame({'code': sp['code'].astype(str), 'mut_type': sp['mut']}).merge(c[['code', 'mut_type', 'wt_rev']], on=['code', 'mut_type'], how='left')['wt_rev'].to_numpy(float)
         TABLES[('baseline', seed)] = make_table(sp, p['msr:wt'][seed - 1], p['msr:comb'][seed - 1], ('epi', 'add'), link=None)
         TABLES[('devel', seed)] = make_table(sp, p['msrdev:wt'][seed - 1], p['msrdev:comb'][seed - 1], ('epi', 'ctx', 'add'), wt_rev=rev, link=None)
-        if seed <= p['msrp0:wt'].shape[0]:                 # capped split: FINAL_p0 is seed 1 only (registry.P0)
+        if seed <= p['msrp0:wt'].shape[0]:                 # every seed the frame holds (FINAL_p0: seeds 1-3 on both splits)
             TABLES[('p0', seed)] = make_table(sp, p['msrp0:wt'][seed - 1], p['msrp0:comb'][seed - 1], ('epi', 'add'), link=None)
         lfn = link_fn(seed)
         wt_linked = lfn(c_wt + p['msrdev:wt'][seed - 1]) - c_wt
@@ -284,7 +284,7 @@ def draw(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=100)
+    ap.add_argument('--B', type=int, default=1000)
     ap.add_argument('--ctx', default=None)
     ap.add_argument('--procs', type=int, default=7)
     a = ap.parse_args()

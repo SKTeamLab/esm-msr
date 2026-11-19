@@ -1,0 +1,5 @@
+model,same_predictions,headline,singles_version,doubles_version,n_domains,n_seeds,rho_singles,rho_doubles,delta,lo,hi,domains_worse,p,p_loss_one_sided,p_holm,B
+ESM-MSR p0,False,True,WT head,combined head,33,3,0.83268,0.84634,0.013667,0.0083567,0.019601,3,9.9999e-06,1,3e-05,100000
+MutateEverything,False,True,stage 1,stage 2,33,3,0.77059,0.75569,-0.014892,-0.022945,-0.0077491,28,6e-05,3e-05,0.00012,100000
+ThermoMPNN,True,True,ThermoMPNN,ThermoMPNN-D,33,3,0.78587,0.78587,-5.9309e-07,-4.044e-06,1.6365e-06,19,0.9685,0.48425,,100000
+SPURS (trained adapter),False,True,SPURS single,SPURS multi,33,3,0.80412,0.76108,-0.043033,-0.062272,-0.021941,29,0.00022,0.00011,0.00022,100000

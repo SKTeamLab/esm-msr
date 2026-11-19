@@ -4,6 +4,8 @@ Top: Spearman rho of stabilizing against destabilizing variants with the overall
 Bottom: Spearman rho on double mutants, the additive version of each model against its epistatic version (fig 3).
 Both panels are drawn from the tables 11_publication_figures wrote (``results/03_tsuboyama/fig2_spearman_stab_destab.csv`` and
 ``results/06_epistasis/fig3_spearman_doubles_additive_vs_epistatic.csv``; 95% intervals from resampling domains), so run that script first.
+Panel c carries a bracket over the additive / epistatic pair of every model with the one-sided p that the epistatic version beats the additive one (paired domain bootstrap, ``results/06_epistasis/epistatic_vs_additive_pvalues.csv``
+from ``11l_epistatic_vs_additive_pvalues.py``, run it first).
 Output: ``results/00_main_text_figs/fig2_fig3_stacked.{png,pdf}``, 12.5 x 12.5 in; the panels are lettered b and c (a is drawn elsewhere).
 """
 import importlib.util
@@ -13,7 +15,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from msr_analysis.common import out_dir
 from msr_analysis.data import _align_id
+from msr_analysis.final_runs import load_final_frame
 from msr_analysis.registry import BASE
 
 HERE = Path(__file__).resolve().parent
@@ -29,10 +33,48 @@ LAB_B = {'ESM-MSR (p0)': 'ESM-MSR\nWT-view → Dual-view', 'MutateEverything': '
          'ESM3-small-open': 'ESM3-small-open\nWT-view → Dual-view', 'ProteinMPNN': 'ProteinMPNN\nOne-shot singles → AR doubles', 'ProSST': 'ProSST\n(additive only)',
          'best other ddG': 'GeoDDG-3D\nAdd. singles → sim. double', 'Rosetta': 'Rosetta\nAdd. singles → sim. double'}
 
-from msr_analysis.common import out_dir
-
 OUT = out_dir('00_main_text_figs')
+EPI_P = out_dir('06_epistasis') / 'epistatic_vs_additive_pvalues.csv'    # 11l_epistatic_vs_additive_pvalues.py: one-sided p that the epistatic version beats the additive one
+P_NAME = {'ESM-MSR (p0)': 'ESM-MSR p0', 'MutateEverything': 'MutateEverything', 'ThermoMPNN': 'ThermoMPNN', 'SPURS': 'SPURS (trained adapter)', 'ESM3-small-open': 'ESM3-small-open',
+          'ProteinMPNN': 'ProteinMPNN', 'best other ddG': 'GeoDDG-3D', 'Rosetta': 'Rosetta'}
 SIDE = 12.5                                                      # inches; the width of figure 1, so the bars keep its scale
+
+
+def p0_three_seeds(fr):
+    """ESM-MSR p0 as the mean of FINAL_p0 seeds 1-3 (the frames of ``msr_analysis.data`` hold seeds 1-3 of p0 since Nov 18, so this is a check that the final-run frame agrees): replaces ``msrp0:wt`` / ``msrp0:comb`` / ``msrp0:wt+`` in place, so every figure and table drawn from it
+    (this one, ``11k``, and the p-value tables of ``11i`` - ``11m``) reports the same ESM-MSR p0 numbers."""
+    f = load_final_frame(pub.DS, families=['FINAL_p0'])
+    assert (f.spine['id'].to_numpy() == fr.spine['id'].to_numpy()).all()
+    for h in ('wt', 'comb', 'wt+'):
+        fr.preds['msrp0:' + h] = f.preds['FINAL_p0:' + h]
+
+
+def fmt_p(p):
+    return 'p < 1e-5' if p <= 1.5e-5 else f'p = {p:.1e}' if p < 1e-3 else f'p = {p:.3f}'
+
+
+def pair_brackets(ax, cols, T, subsets=('additive', 'epistatic')):
+    """A bracket over the two bars of every model that has both, labelled with the one-sided p that the epistatic version beats the additive one (``EPI_P``); the bracket spans the two bars."""
+    if not EPI_P.exists():
+        print(f'no {EPI_P}: brackets not drawn (run 11l_epistatic_vs_additive_pvalues.py)')
+        return
+    P = pd.read_csv(EPI_P).set_index('model')['p_one']
+    cols = [c for c in cols if c.get('draw', True)]
+    xs, _ = pub.layout(cols)
+    top = 0.0
+    for c, x in zip(cols, xs):
+        r = [T[(T.column == c['name']) & (T.subset == sub)] for sub in subsets]
+        name = P_NAME.get(c['name'])
+        if name not in P.index or not all(len(q) for q in r):
+            continue
+        hi = max(float(q.iloc[0].hi) for q in r)
+        y = hi + 0.115                                               # above the rotated value labels of the bars
+        x0, x1 = x + pub.PAIR_CENTRED[0], x + pub.PAIR_CENTRED[1]
+        h = 0.014
+        ax.plot([x0, x0, x1, x1], [y - h, y, y, y - h], color='#333333', lw=1.0, solid_capstyle='butt', clip_on=False, zorder=9)
+        ax.text((x0 + x1) / 2, y + 0.008, fmt_p(float(P[name])), ha='center', va='bottom', fontsize=8, color='#333333', zorder=9)
+        top = max(top, y + 0.075)
+    return top
 
 
 def main():
@@ -47,6 +89,7 @@ def main():
         S.append(_align_id(ids, d['uid'].astype(str).to_numpy(), d['SPURS_single_additive'].to_numpy()))
         M.append(_align_id(ids, d['uid'].astype(str).to_numpy(), d['SPURS_multi'].to_numpy()))
     fr.preds['spursun'], fr.preds['spursunm'] = np.vstack(S), np.vstack(M)
+    p0_three_seeds(fr)
     use = sp['use'].to_numpy()
     print(f'unfrozen SPURS: {np.isfinite(fr.preds["spursun"][:, use]).mean():.4f} of the scored rows covered (frozen: {np.isfinite(fr.preds["spurs"][:, use]).mean():.4f})')
     # ESM-MSR is the p0 model only, drawn in black: the combined head on all variants (a), WT_A+B -> comb_AB on doubles (b); the other ESM-MSR versions stay in the tables
@@ -74,12 +117,12 @@ def main():
     libs = sorted(np.unique(sp['group'].to_numpy()[use]))
     counts = np.random.default_rng(5).multinomial(len(libs), np.full(len(libs), 1.0 / len(libs)), size=pub.B).astype(float)
     sc2 = [c for c in cols2 if c['name'] in ('SPURS', 'ESM-MSR (p0) combined', 'ESM3-small-open')]
-    sc3 = [c for c in cols3 if c['name'] == 'SPURS']
+    sc3 = [c for c in cols3 if c['name'] in ('SPURS', 'ESM-MSR (p0)')]
     new2 = pd.concat([pub.table_grouped(fr, sc2, {'stabilizing': (use & (y > 0), 'all'), 'destabilizing': (use & (y < 0), 'all')}, pub.rho, pub.MIN_N, counts, libs),
                       pub.table_grouped(fr, sc2, {'overall': (use, 'all')}, pub.rho, 3, counts, libs)])
     new3 = pub.table_grouped(fr, sc3, {'additive': (double, 'singles'), 'epistatic': (double, 'doubles')}, pub.rho, pub.MIN_N, counts, libs)
     t2 = pd.concat([t2[~t2.column.isin([c['name'] for c in sc2])], new2])
-    t3 = pd.concat([t3[t3.column != 'SPURS'], new3])
+    t3 = pd.concat([t3[~t3.column.isin([c['name'] for c in sc3])], new3])
     T2, ov2 = t2[t2.subset != 'overall'], t2[t2.subset == 'overall']
 
     fig, (a, b) = plt.subplots(2, 1, figsize=(SIDE, SIDE))
@@ -87,6 +130,9 @@ def main():
              "Spearman's ρ (mean over test domains)", (-0.2, 1.12), overall=ov2, overall_label=f'overall (n = {int(ov2.n_variants.max()):,})', zero_line=True, cats=pub.CATS)
     pub.bars(b, cols3, t3, ['additive', 'epistatic'], [pub.count_text(t3, 'additive', 'additive: singles model summed'), pub.count_text(t3, 'epistatic', 'epistatic: model scores the double')],
              "Spearman's ρ, double mutants", (0, 1.12))
+    top = pair_brackets(b, cols3, t3)
+    if top and top > 1.12:                                           # make room for the bracket labels; the category headers sit above the axes
+        b.set_ylim(0, top)
     for ax, s in ((a, 'b'), (b, 'c')):                           # subplot a of the main-text figure is drawn elsewhere
         labs = [t.get_text() for t in ax.get_xticklabels()]
         ax.set_xticklabels(labs, rotation=30, ha='right', rotation_mode='anchor', fontsize=8.5)         # angled so neighbouring names never touch

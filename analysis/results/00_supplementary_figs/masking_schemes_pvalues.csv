@@ -1,0 +1,7 @@
+model,subset,scheme_a,scheme_b,delta,lo,hi,n_domains,p_two,p_one_a_beats_b,B
+ESM3-small-open,doubles,unm,mar,0.015507,-0.014715,0.051969,13,0.35602,0.17801,100000
+ESM3-small-open,doubles,ind,mar,0.012827,-0.006918,0.03533,13,0.22848,0.11424,100000
+ESM3-small-open,doubles,unm,ind,0.0026801,-0.019916,0.025325,13,0.81356,0.40678,100000
+ESM-MSR,doubles,unm,mar,0.055779,0.024882,0.091902,13,0.00052,0.00026,100000
+ESM-MSR,doubles,ind,mar,0.025733,-0.0054117,0.055883,13,0.10272,0.05136,100000
+ESM-MSR,doubles,unm,ind,0.030046,0.0041453,0.06157,13,0.0194,0.0097,100000
