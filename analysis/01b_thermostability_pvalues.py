@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """p-values for ``01_summary.thermostability_sets``: does ESM-MSR p0 beat the other models on each set?
 
-The figure's points are seed 1 of the nine unified models (ESM-MSR WT head on the single-mutant sets, combined on PTMUL).  Here the same predictions are bootstrapped with many draws and every model is
+The figure's points are the seed means (seeds 1-3 of every retrained model) of the nine unified models (ESM-MSR WT head on the single-mutant sets, combined on PTMUL).  Here the same predictions are bootstrapped with many draws and every model is
 compared with ESM-MSR **on the same draws** (paired), so the p-value of ``rho(ESM-MSR) - rho(model)`` is the share of draws on the other side of zero:
 
     p = max(2 min(P(d <= 0), P(d >= 0)), 1 / (B + 1)),   d = rho_ESM-MSR - rho_model over the draws.
@@ -14,7 +14,7 @@ Models with documented training overlap (the red rings of the figure: GeoDDG-3D 
                                      draw, so the choice of the runner-up is part of the test); p raw and Holm-adjusted over the sets
   thermostability_sets_pvalues.md    the same two tables
 
-    python analysis/01b_thermostability_pvalues.py [--b-mut 200000] [--b-prot 100000] [--workers 6] [--only-heads]
+    python analysis/01b_thermostability_pvalues.py [--b-mut 1000] [--b-prot 1000]   # the paper wants 200000 / 100000 [--workers 6] [--only-heads]
 """
 import argparse
 import multiprocessing as mp
@@ -27,9 +27,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from msr_analysis.boot import bootstrap_rho  # noqa: E402
 from msr_analysis.data import Frame  # noqa: E402
-from msr_analysis.final_runs import load_final_frame  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
-from msr_analysis.external_s1 import EXT_ORDER, _seed1_frame, fresh_frames  # noqa: E402
+from msr_analysis.external import EXT_ORDER, fresh_frames, seed_frame  # noqa: E402
 from msr_analysis.registry import LABEL, RESULTS  # noqa: E402
 
 OUT = out_dir('01_summary')
@@ -60,7 +59,7 @@ def _job(a):
 
 def run(sets, b_mut, b_prot, workers, S):
     for ds, fr in fresh_frames(S[S.dataset.isin(sets)]).items():
-        _FR[ds] = _seed1_frame(ds, fr)[0]
+        _FR[ds] = seed_frame(ds, fr)[0]
     jobs = []
     for ds in sets:
         for kind, B in (('mutation', b_mut), ('protein', b_prot)):
@@ -89,24 +88,14 @@ def _head_job(a):
 
 
 def msr_heads(b_mut, b_prot, workers, datasets=HEAD_SETS):
-    """ESM-MSR p0 combined against its WT head on the multi-mutant sets, paired: seed 1 (the figure's frames) and the mean of seeds 1-3 of FINAL_p0 (seeds resampled with the draws).
-    PTMUL-D is the doubles-only slice of PTMUL, so its three seeds are the PTMUL run's predictions aligned on the variant id."""
-    from msr_analysis.data import _align_id
+    """ESM-MSR p0 combined against its WT head on the multi-mutant sets, paired, on the mean of seeds 1-3 of FINAL_p0 (seeds resampled with the draws).
+    PTMUL-D is the doubles-only slice of PTMUL: its frame holds the PTMUL run's three seeds aligned on the variant id."""
     S = pd.read_csv(RESULTS / '02_thermostability' / 'thermostability_rho.csv')
-    ff = load_final_frame('ptmul', families=['FINAL_p0'])                      # the three seeds of FINAL_p0 on PTMUL (the figure's frames hold seed 1 only)
-    assert ff.preds['FINAL_p0:comb'].shape[0] == 3
     for ds in datasets:
         fr = fresh_frames(S[S.dataset == ds])[ds]
-        _HEADS[(ds, 1)] = Frame(ds, fr.spine, {'comb': fr.preds['msrp0:comb'][:1], 'wt': fr.preds['msrp0:wt'][:1]})
-        if ds == 'ptmul':
-            assert len(ff.spine) == len(fr.spine) and (ff.spine['id'].to_numpy() == fr.spine['id'].to_numpy()).all()
-            comb, wt = ff.preds['FINAL_p0:comb'], ff.preds['FINAL_p0:wt']
-        else:
-            ids_c, ids_p = fr.spine['id'].to_numpy(dtype=object), ff.spine['id'].to_numpy(dtype=object)
-            comb = np.vstack([_align_id(ids_c, ids_p, r) for r in ff.preds['FINAL_p0:comb']])
-            wt = np.vstack([_align_id(ids_c, ids_p, r) for r in ff.preds['FINAL_p0:wt']])
-        _HEADS[(ds, 3)] = Frame(ds, fr.spine, {'comb': comb, 'wt': wt})
-    jobs = [(ds, kind, min(CHUNK, B - i * CHUNK), 7000 + 100 * ns + i, ns) for ds in datasets for ns in (1, 3) for kind, B in (('mutation', b_mut), ('protein', b_prot)) for i in range(int(np.ceil(B / CHUNK)))]
+        assert fr.preds['msrp0:comb'].shape[0] == 3, 'FINAL_p0 seeds 1-3 expected in the frame (refresh the frame cache)'
+        _HEADS[(ds, 3)] = Frame(ds, fr.spine, {'comb': fr.preds['msrp0:comb'], 'wt': fr.preds['msrp0:wt']})
+    jobs = [(ds, kind, min(CHUNK, B - i * CHUNK), 7000 + 100 * ns + i, ns) for ds in datasets for ns in (3,) for kind, B in (('mutation', b_mut), ('protein', b_prot)) for i in range(int(np.ceil(B / CHUNK)))]
     with mp.get_context('fork').Pool(workers) as pool:
         res = pool.map(_head_job, jobs, chunksize=1)
     reps, pts = {}, {}
@@ -116,13 +105,13 @@ def msr_heads(b_mut, b_prot, workers, datasets=HEAD_SETS):
         pts[(ds, ns)] = pt
     rows = []
     for ds in datasets:
-        for ns in (1, 3):
+        for ns in (3,):
             for kind in ('mutation', 'protein'):
                 d = np.concatenate(reps[(ds, kind, ns, 'comb')]) - np.concatenate(reps[(ds, kind, ns, 'wt')])
                 d = d[np.isfinite(d)]
                 lo, hi = np.quantile(d, [0.025, 0.975])
                 pt = pts[(ds, ns)]
-                rows.append(dict(dataset=ds, seeds='seed 1' if ns == 1 else 'seeds 1-3 (mean)', unit=kind, rho_combined=pt['comb'], rho_wt=pt['wt'], delta=pt['comb'] - pt['wt'], lo=lo, hi=hi,
+                rows.append(dict(dataset=ds, seeds='seeds 1-3 (mean)', unit=kind, rho_combined=pt['comb'], rho_wt=pt['wt'], delta=pt['comb'] - pt['wt'], lo=lo, hi=hi,
                                  p_one_sided=float(max(np.mean(d <= 0), 1.0 / (len(d) + 1))), p_two_sided=p_two_sided(d), B=len(d)))
     H = pd.DataFrame(rows)
     H.to_csv(OUT / 'thermostability_sets_msr_heads.csv', index=False, float_format='%.6g')
@@ -132,8 +121,8 @@ def msr_heads(b_mut, b_prot, workers, datasets=HEAD_SETS):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--b-mut', type=int, default=200_000)
-    ap.add_argument('--b-prot', type=int, default=100_000)
+    ap.add_argument('--b-mut', type=int, default=1000)          # default size (paper: 200000)
+    ap.add_argument('--b-prot', type=int, default=1000)         # default size (paper: 100000)
     ap.add_argument('--workers', type=int, default=6)
     ap.add_argument('--only-heads', action='store_true', help='only the ESM-MSR combined vs WT head test on PTMUL and PTMUL-D')
     a = ap.parse_args()
@@ -176,7 +165,7 @@ def main():
     P.to_csv(OUT / 'thermostability_sets_pvalues.csv', index=False, float_format='%.6g')
     Bt.to_csv(OUT / 'thermostability_sets_best.csv', index=False, float_format='%.6g')
     fmt = lambda p: '<%.0e' % (1.0 / (a.b_mut + 1)) if p <= 1.0 / (a.b_mut + 1) + 1e-12 else f'{p:.4f}' if p >= 1e-4 else f'{p:.1e}'
-    lines = ['**ESM-MSR p0 against the best other model without training overlap** (paired bootstrap, seed 1)', '',
+    lines = ['**ESM-MSR p0 against the best other model without training overlap** (paired bootstrap, seeds 1-3 averaged)', '',
              '| set | ESM-MSR ρ | best other (ρ) | Δρ | p, mutation resampling | p, protein resampling | p vs best, Holm over sets (mutation / protein) |', '|---|---|---|---|---|---|---|']
     for ds in sets:
         m_, p_ = (Bt[(Bt.dataset == ds) & (Bt.unit == u)].iloc[0] for u in ('mutation', 'protein'))

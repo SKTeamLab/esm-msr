@@ -2,7 +2,7 @@
 """Per-protein rho of the WT head, the MT head and the combined prediction, for every protein of the per-protein-mean sets (Homology-Restricted MegaScale val and test, Domainome).
 
 One row per set x subset (all / single mutants / multi-mutants) x protein x family: the seed-mean Spearman rho of each head with the measurement over the protein's variants of that subset, the number of
-variants, and the Spearman correlation between the WT and the MT head (seed 1).  ProteinGym's per-assay table is ``02_pg_per_assay.py``.  Writes ``results/unit_rho.csv``.
+variants, and the Spearman correlation between the WT and the MT head (per seed, then the seed mean).  ProteinGym's per-assay table is ``02_pg_per_assay.py``.  Writes ``results/unit_rho.csv``.
 
     python analysis/combined_vs_wt/03_unit_rho.py
 """
@@ -40,12 +40,12 @@ def main():
                     per[k.split(':')[1]] = pd.Series(np.nanmean(r, axis=0), index=names)
                 idx = np.flatnonzero(b.valid[keys[0]])
                 g = sp['group'].to_numpy()[idx]
-                wt1, mt1 = fr.preds[f'{fam}:wt'][0][idx], fr.preds[f'{fam}:mt'][0][idx]
+                wts, mts = fr.preds[f'{fam}:wt'][:, idx], fr.preds[f'{fam}:mt'][:, idx]
                 n = pd.Series(1, index=g).groupby(level=0).sum()
                 rwm = {}
                 for name in per['wt'].index:
                     m = g == name
-                    rwm[name] = float(spearmanr(wt1[m], mt1[m])[0]) if m.sum() >= 10 else np.nan
+                    rwm[name] = float(np.mean([spearmanr(w[m], mt[m])[0] for w, mt in zip(wts, mts)])) if m.sum() >= 10 else np.nan
                 t = pd.DataFrame({f'rho_{h}': per[h] for h in C.HEADS})
                 t['n'] = n
                 t['r_wt_mt'] = pd.Series(rwm)

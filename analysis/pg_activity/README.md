@@ -1,6 +1,6 @@
 # ProteinGym Activity: does a suggested mutation hurt activity?
 
-Screening curves for the 43 ProteinGym assays in the **Activity** category (`coarse_selection_type == 'Activity'` in `ProteinGym/DMS_substitutions.csv`), single mutants only. The wild-type (WT) score of every assay is taken from the original measurements instead of being estimated from the score distribution, and a variant **hurts** when it lies **more than half an assay standard deviation below WT** (the assay SD is the standard deviation of all its single-mutant scores, in the assay's own units). The 18 enzyme assays are shown on their own and together with the 25 other function assays. ESM-MSR is FINAL_p0 seed 1 (the WT head on singles); the other models are drawn exactly as in `08_screening.py`.
+Screening curves for the 43 ProteinGym assays in the **Activity** category (`coarse_selection_type == 'Activity'` in `ProteinGym/DMS_substitutions.csv`), single mutants only. The wild-type (WT) score of every assay is taken from the original measurements instead of being estimated from the score distribution, and a variant **hurts** when it lies **more than half an assay standard deviation below WT** (the assay SD is the standard deviation of all its single-mutant scores, in the assay's own units). The 18 enzyme assays are shown on their own and together with the 25 other function assays. ESM-MSR is FINAL_p0 (the WT head on singles) and ME / ThermoMPNN / SPURS the retrains, seeds 1-3 of each; the other models are drawn exactly as in `08_screening.py`.
 
 ```bash
 python analysis/pg_activity/01_wt_reference.py          # WT and floor table from the raw DMS files (needs <root>/ProteinGym/substitutions_raw_DMS); writes data/wt_reference.csv
@@ -60,7 +60,7 @@ The paper-derived values were found by one literature agent per assay and every 
 
 ## Results
 
-Draft bootstrap (B = 200). Share of the K picks that hurt (x < WT − 0.5 assay SD), mean over assays (lower is better). Intervals are in `results/screening_*.csv`.
+Bootstrap B = 1000 by default (the files in results/ were made at 200). Share of the K picks that hurt (x < WT − 0.5 assay SD), mean over assays (lower is better). Intervals are in `results/screening_*.csv`.
 
 **Enzymes (18 assays)**
 

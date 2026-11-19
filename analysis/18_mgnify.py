@@ -145,10 +145,10 @@ _FR = {}
 def run_stats(B, workers):
     import multiprocessing as mp
     seeds = finished_seeds()
-    fr = load_mgnify(seeds=seeds)
+    fr = load_mgnify(seeds=seeds, heldout=False)               # this script IS the homology analysis: all scaffolds, stratified by homology class
     tf = tsuboyama_frame()
     rk_seeds = finished_seeds(run='rdenovo')
-    rk = load_mgnify(run='rdenovo', seeds=rk_seeds) if rk_seeds else None
+    rk = load_mgnify(run='rdenovo', seeds=rk_seeds, heldout=False) if rk_seeds else None
     _FR.update(mgnify=fr, tsuboyama=tf, **({'rocklin': rk} if rk is not None else {}))
     if rk is not None:
         print(f'Rocklin designs FINAL_p0 seeds {rk_seeds}: {int(rk.spine["use"].sum()):,} measured variants, {rk.spine.loc[rk.spine["use"], "group"].nunique():,} designs', flush=True)
@@ -393,12 +393,12 @@ def write_tables(S, R):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=100)
+    ap.add_argument('--B', type=int, default=1000)
     ap.add_argument('--workers', type=int, default=4)
     ap.add_argument('--figures-only', action='store_true', help='redraw the figures from the CSVs of an earlier run')
     a = ap.parse_args()
     if a.figures_only:
-        fr, tf = load_mgnify(seeds=finished_seeds()), tsuboyama_frame()
+        fr, tf = load_mgnify(seeds=finished_seeds(), heldout=False), tsuboyama_frame()
         S = pd.read_csv(OUT / 'mgnify_summary.csv')
         S.loc[(S.form == 'linked - latent') & (S.unit == 'per scaffold'), 'seeds'] = 'identical (monotone within a scaffold)'
         S.to_csv(OUT / 'mgnify_summary.csv', index=False, float_format='%.4f')

@@ -73,9 +73,9 @@ def write_md(R):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--b-mut', type=int, default=200_000)
-    ap.add_argument('--b-prot', type=int, default=100_000)
-    ap.add_argument('--b-pooled', type=int, default=20_000, help='draws for the pooled Tsuboyama rows (13k rows each)')
+    ap.add_argument('--b-mut', type=int, default=1000)          # default size (paper: 200000)
+    ap.add_argument('--b-prot', type=int, default=1000)         # default size (paper: 100000)
+    ap.add_argument('--b-pooled', type=int, default=1000, help='draws for the pooled Tsuboyama rows (13k rows each)')
     ap.add_argument('--workers', type=int, default=6)
     ap.add_argument('--figures-only', action='store_true', help='redraw the figure and the table from the CSV of an earlier run')
     a = ap.parse_args()

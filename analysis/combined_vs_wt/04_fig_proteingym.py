@@ -6,9 +6,9 @@
                       their multi-mutants, for the Stability assays and for the assays of the other categories together.  IQR box, median, jittered dots (circles p0, diamonds p1), faint lines
                       joining the same assay in p0 and p1, dark line = mean (value printed); under the ticks the p-value of the mean being 0.
 
-The 23 stability assays whose variants are in the training data are left out (``pgsigma.train_overlap``), which leaves 194 assays.  Seed 1 of both families.  p-values: two-sided bootstrap over assays
+The assays homologous to the training set under the split's four-part rule are left out (``pgsigma.train_overlap`` / ``msr_analysis.heldout``).  The mean over the complete seeds (p0: 1-3, p1: 1 and 3).  p-values: two-sided bootstrap over assays
 (20000 resamples, p = 2 min(P(mean <= 0), P(mean >= 0)), as ``msr_analysis.boot.paired_diff``), Holm-adjusted over the group x family comparisons of a row (groups with at least 10 assays); the
-Wilcoxon signed-rank p is in ``results/pg_delta_pvalues.csv`` (also the mean delta rho, its 95% interval, the share of assays that gain and, for p0, the mean over seeds 1-3).
+Wilcoxon signed-rank p is in ``results/pg_delta_pvalues.csv`` (also the mean delta rho, its 95% interval, the share of assays that gain).
 
     python analysis/combined_vs_wt/04_fig_proteingym.py
 """
@@ -33,8 +33,7 @@ def data():
     t = t[~t.train_overlap].copy()
     for sub in ('all', 'single', 'multi'):
         for fam, tag in FAMS:
-            t[f'd_{sub}_{tag}'] = t[f'{tag}_s1_{sub}_comb'] - t[f'{tag}_s1_{sub}_wt']
-    t['d_all_p0_3seed'] = np.mean([t[f'p0_s{s}_all_comb'] - t[f'p0_s{s}_all_wt'] for s in (1, 2, 3)], axis=0)
+            t[f'd_{sub}_{tag}'] = t[f'{tag}_{sub}_comb'] - t[f'{tag}_{sub}_wt']                  # the seed-mean rho of each head (02_pg_per_assay.py)
     return t
 
 
@@ -63,8 +62,6 @@ def pvalues(t, G, B=20000, seed=3):
             p = max(2 * min((b <= 0).mean(), (b >= 0).mean()), 1.0 / (B + 1))
             r = dict(row=row, group=gid, variants=sub, family=fam, n_assays=len(d), mean_delta=d.mean(), median_delta=np.median(d), ci_lo=np.quantile(b, .025), ci_hi=np.quantile(b, .975),
                      share_gain=float((d > 0).mean()), p_boot=p, p_wilcoxon=float(wilcoxon(d).pvalue))
-            if row == 'top' and tag == 'p0':
-                r['mean_delta_p0_3seed'] = float(t.loc[m, 'd_all_p0_3seed'].mean())
             rows.append(r)
     R = pd.DataFrame(rows)
     R['p_holm'] = np.nan
@@ -124,8 +121,8 @@ def figure(t, R, G):
         fig, axes = plt.subplots(2, 1, figsize=(12.5, 8.6))
         draw_row(axes[0], t, R, G, 'top', 'All variants of the assay, by category', rng)
         draw_row(axes[1], t, R, G, 'bottom', 'Single mutants and multi-mutants of the assays that have both', rng)
-        C.finish(fig, 'One dot per ProteinGym assay (194 assays); faint lines join the same assay for p0 (circles) and p1 (diamonds). '
-                 'Delta rho = Spearman rho of the combined prediction, 1/2 (MT + WT), minus rho of the WT head, on the same variants, sigma = 1, seed 1. Box = interquartile range, thin darker line = median, dark line = mean '
+        C.finish(fig, f'One dot per ProteinGym assay ({len(t)} held-out assays); faint lines join the same assay for p0 (circles) and p1 (diamonds). '
+                 'Delta rho = Spearman rho of the combined prediction, 1/2 (MT + WT), minus rho of the WT head, on the same variants, sigma = 1, mean over the complete seeds (p0: 1-3, p1: 1 and 3). Box = interquartile range, thin darker line = median, dark line = mean '
                  '(value printed). Bottom row: the assays with at least 20 single mutants and at least 20 multi-mutants, delta rho over their single mutants and over their multi-mutants. p under the ticks: two-sided '
                  'bootstrap test over assays that the mean delta rho is 0 (20000 resamples), Holm-adjusted over the group x family comparisons of the row (groups with at least 10 assays).', 'pg_combined_vs_wt')
 

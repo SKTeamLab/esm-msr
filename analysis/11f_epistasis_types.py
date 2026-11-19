@@ -173,7 +173,7 @@ def run_one(x_kind, B):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=100)
+    ap.add_argument('--B', type=int, default=1000)
     ap.add_argument('--x', choices=['latent', 'observed', 'both'], default='both', help='x axis: the latent additive expectation z, the observed additive dG = dG_wt + ddG_A + ddG_B (file fig7_alt_observed_additive_dG), or both')
     a = ap.parse_args()
     for x_kind in (('latent', 'observed') if a.x == 'both' else (a.x,)):

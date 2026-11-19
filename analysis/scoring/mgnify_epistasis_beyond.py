@@ -123,7 +123,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('root')
     ap.add_argument('--B', type=int, default=1000)
-    ap.add_argument('--B_scaf', type=int, default=200)
+    ap.add_argument('--B_scaf', type=int, default=1000)
     ap.add_argument('--jobs', type=int, default=5)
     ap.add_argument('--out', default=None)
     a = ap.parse_args()

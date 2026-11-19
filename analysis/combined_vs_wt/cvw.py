@@ -49,7 +49,7 @@ RC = {'figure.facecolor': SURFACE, 'axes.facecolor': SURFACE, 'savefig.facecolor
       'grid.linewidth': 0.7, 'axes.spines.top': False, 'axes.spines.right': False, 'axes.axisbelow': True, 'font.size': 9.5, 'legend.frameon': False, 'lines.linewidth': 1.4,
       'figure.dpi': 110, 'savefig.dpi': 150, 'savefig.bbox': 'tight'}
 
-B_DRAFT = 100                  # draft bootstrap size (feedback: never above 100 while the figures are drafts)
+B_DEFAULT = 1000                 # default bootstrap size (paper: 2000)
 
 
 def finish(fig, note, stem, ax_titles=(), out=None, pad=0.02, tight=True):

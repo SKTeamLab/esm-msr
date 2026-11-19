@@ -110,7 +110,7 @@ def singles_doubles():
         sp = fr.spine
         for nm, m in (('singles', (sp['n_mut'] == 1).to_numpy() & sp['use'].to_numpy()), ('doubles', (sp['n_mut'] == 2).to_numpy() & sp['use'].to_numpy())):
             sub = subframe(fr, m, keys=KEYS)
-            point, reps = bootstrap_rho({ds: sub}, KEYS, kind='protein', B=100, seed=6, per_protein=True)
+            point, reps = bootstrap_rho({ds: sub}, KEYS, kind='protein', B=1000, seed=6, per_protein=True)
             for k, (rho, ps, n, ng) in point[ds].items():
                 lo, hi = ci(reps[ds][k])
                 rows.append(dict(dataset=ds, subset=nm, model=k, rho=rho, lo=lo, hi=hi, n=n, n_libraries=ng))
@@ -137,9 +137,10 @@ def scatter():
               ('tmpnnd', 'doubles', 'ThermoMPNN + D'), ('spursm', 'doubles', 'SPURS multi')]
     fig, axes = plt.subplots(1, len(panels), figsize=(2.9 * len(panels), 3.2), sharey=True)
     for ax, (k, subset, t) in zip(axes, panels):
-        m = ok & ((sp['n_mut'] == (1 if subset == 'singles' else 2)).to_numpy()) & np.isfinite(fr.preds[k][0])
-        style.density_scatter(ax, fr.preds[k][0][m], y[m], s=3, line=True, max_points=40000)
-        ax.set_title(f'{t}\n{subset}', fontsize=8.5); ax.set_xlabel('predicted ddG')
+        pr = fr.preds[k].mean(axis=0)                                     # the prediction averaged over the seeds of a retrained model (one run: itself)
+        m = ok & ((sp['n_mut'] == (1 if subset == 'singles' else 2)).to_numpy()) & np.isfinite(pr)
+        style.density_scatter(ax, pr[m], y[m], s=3, line=True, max_points=40000)
+        ax.set_title(f'{t}\n{subset}', fontsize=8.5); ax.set_xlabel('predicted ddG (mean of seeds 1-3)')
     axes[0].set_ylabel('measured ddG (kcal/mol)')
     fig.tight_layout()
     style.save(fig, OUT / 'tsuboyama_scatter')

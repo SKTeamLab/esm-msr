@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-"""Thermostability: the 10 external sets, unified main models (including Rosetta), seed 1, mutation-level bootstrap.
+"""Thermostability: the 10 external sets, unified main models (including Rosetta), seeds 1-3 averaged, mutation-level bootstrap.
 
 Datasets (10 sets; S669, K3822, and mean-of-12 aggregate excluded):
 - 8 single-mutant sets: S571, S783, S2648, S8754, S461 (sliced from S669 onto S461 labels),
   Ssym, Q3421, K2369 (sliced from K3822 onto K2369 labels).
 - 2 multi-mutant sets: PTMUL and PTMUL-D (doubles only, sliced from PTMUL onto PTMUL-D labels).
 
-Models (9 unified models, seed 1 only):
+Models (9 unified models; the retrained ones are the mean of their three seeds):
 - Singles sets use singles models (ESM-MSR p0 WT head, MutateEverything st1, ThermoMPNN, SPURS,
   ESM3-small-open WT head) plus ProteinMPNN, ProSST, GeoDDG-3D, and Rosetta Cartesian ddG.
 - Multi-mutant sets use multi models (ESM-MSR p0 combined, MutateEverything st2, ThermoMPNN additive on PTMUL /
@@ -34,9 +34,9 @@ from msr_analysis import style  # noqa: E402
 from msr_analysis.boot import bootstrap_rho, ci  # noqa: E402
 from msr_analysis.common import leak_table, out_dir  # noqa: E402
 from msr_analysis.data import Frame, load_frame  # noqa: E402
-from msr_analysis.external_s1 import (  # noqa: E402
+from msr_analysis.external import (  # noqa: E402
     EXT_ORDER,
-    load_s1_mutation_boot,
+    load_mutation_boot,
     model_key_for_dataset,
     register_ext_styles,
 )
@@ -55,7 +55,7 @@ THERMO_OVERVIEW_KEYS = [
 ]
 DB_TRAINED = ['ddmut', 'ddgemb', 'geoddg']
 THEMES_NOTE = (
-    'Seed 1 only; 95% mutation-level bootstrap. Singles models on the 8 single-mutant sets; '
+    'Seeds 1-3 averaged for the retrained models (seeds resampled with the draws); 95% mutation-level bootstrap. Singles models on the 8 single-mutant sets; '
     'multi models on PTMUL/PTMUL-D (ThermoMPNN additive on PTMUL, -D on PTMUL-D; Rosetta Cartesian ddG throughout). '
     'Red ring = GeoDDG-3D documented training overlap.'
 )
@@ -78,7 +78,7 @@ def _ensure_rosetta_frames(refresh=False):
 def main(refresh=False):
     register_ext_styles()
     need_boot = _ensure_rosetta_frames(refresh=refresh)
-    boot = load_s1_mutation_boot(refresh=need_boot)
+    boot = load_mutation_boot(refresh=need_boot)
     P, reps, keys_used = boot['point'], boot['reps'], boot['keys']
     leak = leak_table()
 
@@ -127,20 +127,20 @@ def main(refresh=False):
         frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.1, handletextpad=0.3,
     )
     fig.suptitle(
-        'External thermostability sets: Spearman ρ across all models (seed 1; whiskers: 95% mutation-level bootstrap)',
+        'External thermostability sets: Spearman ρ across all models (seeds 1-3 averaged; whiskers: 95% mutation-level bootstrap)',
         x=0.012, ha='left', y=0.985, fontsize=10.5, fontweight='bold',
     )
     fig.text(0.012, 0.01, THEMES_NOTE, fontsize=8.0, va='bottom', ha='left', color='#444444')
     fig.tight_layout(rect=(0.0, 0.045, 1.0, 0.84))
     style.save(fig, OUT / 'thermo_external_rho')
 
-    # ---- figure 2: mutation-level vs protein-level bootstrap intervals (ESM-MSR p0, seed 1) -------------
+    # ---- figure 2: mutation-level vs protein-level bootstrap intervals (ESM-MSR p0, seeds 1-3) -------------
     p0_frames = {}
     for d in EXT10:
         fr = load_frame(d)
         k = model_key_for_dataset('ESM-MSR', fr)
-        p0_frames[d] = Frame(d, fr.spine, {'ESM-MSR': fr.preds[k][:1]})
-    _, prot_reps = bootstrap_rho(p0_frames, ['ESM-MSR'], kind='protein', B=100, seed=21, per_protein=False)
+        p0_frames[d] = Frame(d, fr.spine, {'ESM-MSR': fr.preds[k]})
+    _, prot_reps = bootstrap_rho(p0_frames, ['ESM-MSR'], kind='protein', B=1000, seed=21, per_protein=False)
     wp, wm = [], []
     for d in EXT10:
         pl, ph = ci(prot_reps[d]['ESM-MSR'])
@@ -154,7 +154,7 @@ def main(refresh=False):
     ax.set_xticks(x); ax.set_xticklabels([LABEL[d] for d in EXT10], rotation=30, ha='right')
     ax.set_ylabel('95% interval half-width of ρ')
     ax.legend()
-    ax.set_title('Intervals for ESM-MSR (p0, seed 1; WT head on singles sets / combined on PTMUL(-D))', loc='left')
+    ax.set_title('Intervals for ESM-MSR (p0, seeds 1-3; WT head on singles sets / combined on PTMUL(-D))', loc='left')
     fig.tight_layout()
     style.save(fig, OUT / 'thermo_interval_types')
 
@@ -163,11 +163,11 @@ def main(refresh=False):
 
 
 def _load_thermo_overview_boot(refresh=False):
-    cache_path = CACHE / 'thermo_overview_s1_boot.pkl'
+    cache_path = CACHE / 'thermo_overview_boot.pkl'
     if cache_path.exists() and not refresh:
         with open(cache_path, 'rb') as fh:
             cached = pickle.load(fh)
-        if isinstance(cached, dict) and set(cached.get('keys', [])) == set(THERMO_OVERVIEW_KEYS):
+        if isinstance(cached, dict) and set(cached.get('keys', [])) == set(THERMO_OVERVIEW_KEYS) and cached.get('B') == 1000:      # keyed on the bootstrap size
             return cached
 
     s1_frames = {}
@@ -177,10 +177,10 @@ def _load_thermo_overview_boot(refresh=False):
         sp = fr.spine
         u = sp['use'].to_numpy()
         meta[d] = (int(u.sum()), int(sp.loc[u, 'cluster'].nunique()))
-        s1_frames[d] = Frame(d, sp, {k: fr.preds[k][:1] for k in THERMO_OVERVIEW_KEYS if k in fr.preds})
+        s1_frames[d] = Frame(d, sp, {k: fr.preds[k] for k in THERMO_OVERVIEW_KEYS if k in fr.preds})
 
-    pt_p, rep_p = bootstrap_rho(s1_frames, THERMO_OVERVIEW_KEYS, kind='protein', B=100, seed=11, per_protein=False)
-    pt_m, rep_m = bootstrap_rho(s1_frames, THERMO_OVERVIEW_KEYS, kind='mutation', B=100, seed=11, per_protein=False)
+    pt_p, rep_p = bootstrap_rho(s1_frames, THERMO_OVERVIEW_KEYS, kind='protein', B=1000, seed=11, per_protein=False)
+    pt_m, rep_m = bootstrap_rho(s1_frames, THERMO_OVERVIEW_KEYS, kind='mutation', B=1000, seed=11, per_protein=False)
 
     P_prot, P_mut = {}, {}
     for d in EXT10:
@@ -192,7 +192,7 @@ def _load_thermo_overview_boot(refresh=False):
                 lo_m, hi_m = ci(rep_m[d][k])
                 P_mut[(d, k)] = (float(pt_m[d][k][0]), float(lo_m), float(hi_m))
 
-    payload = dict(keys=list(THERMO_OVERVIEW_KEYS), meta=meta, P_prot=P_prot, P_mut=P_mut)
+    payload = dict(keys=list(THERMO_OVERVIEW_KEYS), B=1000, meta=meta, P_prot=P_prot, P_mut=P_mut)
     CACHE.mkdir(parents=True, exist_ok=True)
     with open(cache_path, 'wb') as fh:
         pickle.dump(payload, fh, protocol=4)
@@ -264,7 +264,7 @@ def thermo_overview(leak, refresh=False):
                     t.set_fontweight('bold')
 
         fig.suptitle(
-            'External thermostability sets (seed 1): thick bar = resampling proteins; thin line = resampling mutations; red ring = documented training overlap\n'
+            'External thermostability sets (seeds 1-3 averaged): thick bar = resampling proteins; thin line = resampling mutations; red ring = documented training overlap\n'
             '* trained on ProThermDB / ThermoMutDB / S2648 / S8754: not held out (grey rows, at the bottom)',
             fontsize=9.2, y=1.01,
         )
@@ -277,6 +277,6 @@ def thermo_overview(leak, refresh=False):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('--refresh', action='store_true', help='Recompute external frames and seed-1 mutation bootstrap cache')
+    ap.add_argument('--refresh', action='store_true', help='Recompute external frames and the mutation bootstrap cache')
     args = ap.parse_args()
     main(refresh=args.refresh)

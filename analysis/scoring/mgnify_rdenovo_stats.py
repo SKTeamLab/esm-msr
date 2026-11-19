@@ -138,7 +138,7 @@ def main():
     global DS, ARGS
     ap = argparse.ArgumentParser()
     ap.add_argument('root', help='final_mgnify/FINAL_p0 (holds s1/rdenovo ...)')
-    ap.add_argument('--boot', type=int, default=100)
+    ap.add_argument('--boot', type=int, default=1000)
     ap.add_argument('--out', default=None)
     ap.add_argument('--jobs', type=int, default=4)
     a = ap.parse_args()

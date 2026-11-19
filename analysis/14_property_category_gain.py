@@ -15,7 +15,7 @@ Two families, both on the single mutants of the 33 test domains (measured rows, 
 Features are the notebooks' (``tsuboyama_all_subs_corrected_feats.csv``, joined on library + mutation; the labels of the joined rows equal the spine's exactly).  A multi-seed model is scored per seed and the
 per-domain value averaged over seeds, so every interval is the domain interval.  Columns: ESM-MSR (baseline) and ESM-MSR WT heads (``--heads wt comb`` adds the combined heads), the retrained baselines'
 singles models (ME stage 1, ThermoMPNN, SPURS), ESM3-small-open unmasked, ProteinMPNN, ProSST, the better of GeoDDG-3D / DDGemb and Rosetta.  Every distribution plot is made under two rules for what counts as gain: the notebook's (only picks the model predicts stabilizing, predicted ddG > 0; ProSST left out, ``--prosst`` keeps it) and every top-k pick
-(files with the suffix ``_allpicks``, every model including ProSST); ``gain_rule_comparison`` sets the two side by side.  Defaults are draft bootstrap sizes (``--B 200``).
+(files with the suffix ``_allpicks``, every model including ProSST); ``gain_rule_comparison`` sets the two side by side.  The default bootstrap size is 1000 (``--B``).
 """
 import argparse
 import importlib
@@ -483,7 +483,7 @@ def comparison_figure(path, d, dcols):
 # ----------------------------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=100, help='domain resamples (draft size)')
+    ap.add_argument('--B', type=int, default=1000, help='domain resamples')
     ap.add_argument('--msr', choices=['p0', 'devel', 'baseline', 'all'], default='p0', help='which ESM-MSR model(s) to draw (default: p0 only)')
     ap.add_argument('--heads', nargs='+', choices=['wt', 'comb'], default=['wt', 'comb'], help='ESM-MSR heads drawn (default: wt comb)')
     ap.add_argument('--no-prosst', action='store_true', help='omit ProSST from the notebook-rule distribution plots')

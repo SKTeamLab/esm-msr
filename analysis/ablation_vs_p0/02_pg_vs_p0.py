@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 """ProteinGym: every FINAL_* ablation against FINAL_p0, paired per assay, by category.
 
-Per assay: rho of the WT head (``final_pgym_wt/<family>/s1``) of the family minus that of p0 (seed 1; p0 has only seed 1 on ProteinGym), and for p1 also the combined prediction
-(``final_pgym_comb``, the only family besides p0 with a combined ProteinGym run).  The 23 stability assays whose variants are in the training data are left out (194 assays).  Per category and over the
+Per assay: rho of the WT head (``final_pgym_wt/<family>/s<seed>``, the mean over seeds 1-3) of the family minus that of p0 (the same seeds), and for p1 also the combined prediction
+(``final_pgym_comb``: the mean over the complete seeds, 1 and 3 for p1; the only family besides p0 with a combined ProteinGym run).  The ProteinGym assays homologous to the training set under the split's four-part rule are left out (``msr_analysis.heldout``).  Per category and over the
 five categories (the mean of the five category means, ``PG avg`` of the ablation table): mean delta rho over the assays, its 95% interval and the two-sided p of a bootstrap over assays (20000
 resamples, one draw of assays per category shared by every family; the draws of ``msr_analysis.boot.paired_diff``'s convention), Holm-adjusted over the families x categories of a head.
-A family that lacks more than 3 of the 194 assays is skipped.  Writes ``results/paired_vs_p0_pg.csv`` in the columns of ``paired_vs_p0.csv``.
+A family that lacks more than 3 of the held-out assays is skipped.  Writes ``results/paired_vs_p0_pg.csv`` in the columns of ``paired_vs_p0.csv``.
 
     python analysis/ablation_vs_p0/02_pg_vs_p0.py
 """
@@ -16,7 +16,7 @@ import pandas as pd
 
 import abl as A
 import pgsigma as P
-from msr_analysis.final_runs import pgym_per_dms
+from msr_analysis.final_runs import pgym_per_dms_seeds
 
 B = 20000
 CATS = A.C.CATS
@@ -28,14 +28,14 @@ def main():
     cat = leak.loc[keep, 'category']
     per = {}
     for fam in [A.REF] + A.ABL:
-        r = pgym_per_dms(fam, 1, 'wt', dms_ids=keep)
+        r, ns = pgym_per_dms_seeds(fam, 'wt', dms_ids=keep)                    # the mean over the seeds with a complete run
         if r is None or r.notna().sum() < len(keep) - 3:
             print(f'  skipped {fam}: {None if r is None else int(r.notna().sum())} assays')
             continue
         per[(fam, 'wt')] = r
     t = pd.read_csv(A.C.OUT / 'pg_per_assay.csv', index_col='assay').loc[keep]
-    per[(A.REF, 'comb')] = t['p0_s1_all_comb']
-    per[('FINAL_p1', 'comb')] = t['p1_s1_all_comb']
+    per[(A.REF, 'comb')] = t['p0_all_comb']
+    per[('FINAL_p1', 'comb')] = t['p1_all_comb']
     rng = np.random.default_rng(16)
     draws = {c: rng.choice(np.flatnonzero((cat == c).to_numpy()), (B, int((cat == c).sum()))) for c in CATS}
     rows = []

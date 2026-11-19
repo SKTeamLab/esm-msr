@@ -10,7 +10,7 @@ and the combined prediction (1/2 (MT + WT)), all read from the same prediction f
   Domainome, Homology-Restricted MegaScale   mean over proteins of the per-protein rho; the bootstrap resamples proteins (exact, from the per-protein rho)
   epistasis                                  rho of the predicted epistasis comb(AB) - WT(A) - WT(B) with the measured dddG, Tsuboyama doubles with both singles measured (pooled; proteins)
 
-The bootstrap draws are shared by the heads and families of a cell (one draw per replicate, ``msr_analysis.boot.bootstrap_rho``), so the differences are paired.  B = 100 (draft).
+The bootstrap draws are shared by the heads and families of a cell (one draw per replicate, ``msr_analysis.boot.bootstrap_rho``), so the differences are paired.  B = 1000 by default.
 Writes ``results/benchmark_delta.csv`` (one row per cell x family), ``results/epistasis_rho.csv``.
 
     python analysis/combined_vs_wt/01_benchmark_delta.py [--B 100]
@@ -92,7 +92,7 @@ def run(B):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=C.B_DRAFT)
+    ap.add_argument('--B', type=int, default=C.B_DEFAULT)
     a = ap.parse_args()
     D, E = run(a.B)
     pd.set_option('display.width', 250, 'display.max_rows', 400)

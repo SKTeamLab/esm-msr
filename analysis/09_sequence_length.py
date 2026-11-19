@@ -116,7 +116,7 @@ def calibration_for(key_family):
     return calib.fit_scale_bias(fr.preds[k].mean(axis=0)[ok], sp['y'].to_numpy()[ok])
 
 
-def boot_len_corr(df, col, B=100, seed=0):
+def boot_len_corr(df, col, B=1000, seed=0):
     """Spearman between length and a per-protein metric; bootstrap over (protein, dataset) rows grouped by protein cluster."""
     d = df.dropna(subset=[col])
     r0 = spearmanr(d['length'], d[col])[0]
@@ -159,7 +159,7 @@ def fig_performance(sets):
             dd = d if metric == 'rho' else d[~d.dataset.isin(['s461', 's669', 's571'])]
             ax.scatter(dd['length'], dd[metric], s=11, color=col, alpha=.5, lw=0, rasterized=True)
             ax.set_xscale('log')
-            r0, lo, hi, n = boot_len_corr(dd, metric, B=100)
+            r0, lo, hi, n = boot_len_corr(dd, metric, B=1000)
             stats.append(dict(model=key, metric=metric, spearman_length=r0, lo=lo, hi=hi, n_pairs=n))
             clip = ''
             if metric == 'rmse':

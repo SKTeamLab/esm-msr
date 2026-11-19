@@ -81,7 +81,7 @@ def main():
         for i, head in enumerate(A.HEADS):
             axes[i, 0].set_ylabel('WT head' if head == 'wt' else 'combined prediction', fontsize=10, fontweight='bold', labelpad=130)
         A.C.finish(fig, 'Delta rho = rho(family) - rho(FINAL_p0), the same readout on the same variants. Big marker and bar: composite of the group (the mean of the rho of its sets over one shared draw of proteins) and its '
-                   '95% bootstrap interval (100 resamples; seeds 1-3, full MegaScale 1-2); filled: the interval excludes 0; p: two-sided bootstrap p, not adjusted for multiple comparisons (smallest possible 0.01), bold when '
+                   '95% bootstrap interval (100 resamples; seeds 1-3); filled: the interval excludes 0; p: two-sided bootstrap p, not adjusted for multiple comparisons (smallest possible 0.01), bold when '
                    f'the interval is above 0. Small grey dots: the individual sets (Homology-Restricted MegaScale panel: validation set). Over the {nc} set x family x head cells of the 12 thermostability sets, {up} has '
                    f'an interval above 0 and {dn} have one below 0.', 'thermostability_vs_p0', out=A.OUT, pad=0.04)
 

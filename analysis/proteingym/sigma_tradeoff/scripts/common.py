@@ -5,6 +5,9 @@ exist in the sigma*_wt_only folders, so re-running after the missing (OOM) assay
 added needs no code change.
 """
 import os
+import sys
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -95,9 +98,12 @@ def short(dms):
 
 
 def ref_table():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+    from msr_analysis.heldout import excluded                           # leave out the assays homologous to the training set (the split's four-part rule)
     r = pd.read_csv(REF, usecols=["DMS_id", "UniProt_ID", "coarse_selection_type", "selection_type",
                                   "seq_len", "includes_multiple_mutants", "DMS_total_number_mutants",
                                   "DMS_number_single_mutants", "taxon", "title", "first_author", "year"])
+    r = r[~r["DMS_id"].isin(excluded('proteingym'))].copy()
     r["category"] = r["coarse_selection_type"]
     r["is_tsuboyama"] = r["DMS_id"].str.contains("Tsuboyama")
     r["n_assays_protein"] = r.groupby("UniProt_ID")["DMS_id"].transform("size")

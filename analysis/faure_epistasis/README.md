@@ -89,7 +89,7 @@ and the reported errors alone (the pessimistic model) give 0.25-0.33 over all bl
 
 ## 3b. Is ESM-MSR's `cell_mag` different from 0? (`05_cell_mag_significance.py`, `results/cell_mag_significance.csv`)
 
-Per block, the Spearman rho of ESM-MSR (FINAL_p0, mean of seeds 1-3) with the measured double-centred residuals; `cell_mag` is their mean. Block bootstrap: blocks resampled (B = 100, so the smallest p is 0.01). Position bootstrap: the positions
+Per block, the Spearman rho of ESM-MSR (FINAL_p0, mean of seeds 1-3) with the measured double-centred residuals; `cell_mag` is their mean. Block bootstrap: blocks resampled (B = 1000 by default; the files were made at 100, so the smallest p is 0.01). Position bootstrap: the positions
 are resampled and a block (i, j) weighted count(i) x count(j), because blocks that share a position are not independent. Permutation: the predicted residuals are permuted among the cells of each block, 200 times (smallest p 0.005).
 
 | dataset | blocks | ESM-MSR cell_mag (seeds 1 / 2 / 3) | block bootstrap 95% interval, p | position bootstrap 95% interval, p | permutation null (mean, SD), p | blocks with rho > 0 |

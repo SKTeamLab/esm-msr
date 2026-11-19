@@ -32,7 +32,7 @@ Three views of a virtual screen on single mutants only (measured rows, all backb
    - Panel B: ESM-MSR vs Zero-shot & Supervised (not Megascale-trained) models.
 
 Conventions: ESM-MSR WT head and ESM-MSR combined (no baseline); "Homology-Restricted MegaScale"; ESM3-small-open read
-unmasked; domain-level bootstrap (draft default --B 200); no GeoDDG-3D annotation; no exclusion text.
+unmasked; domain-level bootstrap (default --B 1000); no GeoDDG-3D annotation; no exclusion text.
 Outputs: ``results/08_screening/``.
 """
 import argparse
@@ -61,7 +61,7 @@ pub = importlib.import_module('11_publication_figures')
 OUT = out_dir('08_screening')
 DS = TSU[1]
 SPLIT = pub.SPLIT
-B_DEFAULT = 100
+B_DEFAULT = 1000
 KS_TICKS = [1, 2, 3, 6, 12, 24, 48, 96]
 
 
@@ -626,7 +626,7 @@ def compute_best_ddg_curve(fr, cols, pool_mask, libs, counts, ks):
     return pd.DataFrame(rows), vals
 
 
-# the CI band is drawn for ESM-MSR only (FINAL_p0 seed 1, WT head); bands under every model, or under all six ESM-MSR variants, hide each other
+# the CI band is drawn for ESM-MSR only (FINAL_p0 seeds 1-3, WT head); bands under every model, or under all six ESM-MSR variants, hide each other
 BAND_MODELS = {'ESM-MSR (p0) WT head'}
 
 
@@ -772,7 +772,7 @@ def run_pool(fr, cols, pool_mask, libs, counts, a, sfx, pool_title):
 # ----------------------------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=B_DEFAULT, help='domain bootstrap resamples (draft default: 100)')
+    ap.add_argument('--B', type=int, default=B_DEFAULT, help='domain bootstrap resamples (default: 1000)')
     ap.add_argument('--tau', type=float, default=0.5, help='ddG threshold in kcal/mol (default: 0.5)')
     ap.add_argument('--top_n', type=int, default=6, help='N most stabilizing variants per protein to recover (default: 6)')
     ap.add_argument('--budgets', nargs='+', type=int, default=[6, 24, 96], help='fixed screening budgets K (default: 6 24 96)')

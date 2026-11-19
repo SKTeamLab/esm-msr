@@ -19,7 +19,7 @@ singles-only column and comb on a column with multi-mutants (the deployed readou
 Outputs in ``results/98_ablation/``:
   cells_long.csv     one row per family x seed x head x column (point rho, n rows, n proteins)
   summary.csv        seed mean / SD / n_seeds per family x head x column
-  delta_s1.csv       paired bootstrap of (family - FINAL_p0) at seed 1 (the only seed FINAL_p0 has so far) on the
+  delta_paired.csv       paired bootstrap of (family - FINAL_p0) over seeds 1-3 on the
                      headline columns, B draws (protein level; site level for the single-protein DMS; assays for PG)
   table_main_delta.{md,csv,tex}   delta vs FINAL_p0 under the deployed readout, seed + sampling noise
   table_wt_delta.{md,csv,tex}     the same under the WT head alone (WT-relevant ablations only, no epistasis columns)
@@ -58,9 +58,9 @@ HEADS = ['wt', 'comb', 'mt', 'wt+']
 
 
 def homologous(dataset):
-    sh = pd.read_csv(REFERENCE / 'leak_audit_structure_homology.csv')
-    sh = sh[sh['dataset'] == dataset]
-    return set(sh.loc[sh['class_with_struct'].isin(['P', 'H']), 'item_id'].astype(str))
+    """Proteins homologous to the training set under the split's four-part rule (``msr_analysis.heldout``).  Domainome and ProteinGym are held-out everywhere in this table: the 'low-id' columns equal the plain ones."""
+    from msr_analysis.heldout import excluded
+    return excluded(dataset)
 
 
 # ----------------------------------------------------------------------------------------------
@@ -110,9 +110,9 @@ def score_columns(frames):
 # ----------------------------------------------------------------------------------------------
 def pg_table():
     a = pd.read_csv(PGYM / 'pgym_all_models_per_dms.csv').set_index('DMS_id')
-    a = a[~a.index.isin(PG_DROP)]
+    a = a[~a.index.isin(PG_DROP) & ~a.index.isin(homologous('proteingym'))]          # held-out assays only, all categories
     cat = a['category']
-    stab_hom = homologous('proteingym') & set(cat.index[cat == 'Stability'])
+    stab_hom = set()
     per = {}
     for fam in FAMILIES:
         for s in SEEDS:
@@ -191,20 +191,10 @@ def summarize(cells):
 
 
 # ----------------------------------------------------------------------------------------------
-# paired bootstrap at seed 1 against the reference
+# paired bootstrap (seeds 1-3) against the reference
 # ----------------------------------------------------------------------------------------------
-def seed1(fr):
-    """The frame restricted to seed 1 of every family (FINAL_p0 has seed 1 only)."""
-    f = Frame(fr.name, fr.spine, {}, notes=fr.notes)
-    for k, a in fr.preds.items():
-        fam = k.rsplit(':', 1)[0]
-        if 1 in fr.notes['seeds'].get(fam, []):
-            f.preds[k] = a[[fr.notes['seeds'][fam].index(1)]]
-    return f
-
-
 def boot_deltas(frames, B, pg=None):
-    """Paired (family - REF) at seed 1 on the headline columns, primary readout and wt / comb separately."""
+    """Paired (family - REF), seeds 1-3 resampled with the proteins / sites / assays, on the headline columns, primary readout and wt / comb separately."""
     groups = [  # (name, kind, {column: (frame, per_protein)})
         ('external', 'protein', {d: frames[d] for d in EXT12 if d in frames}),
         ('dms', 'site', {d: frames[d] for d in DMS3 if d in frames}),
@@ -230,7 +220,6 @@ def boot_deltas(frames, B, pg=None):
     groups.append(('tsu_test_singles', 'protein', {'tsuboyama_capped_test|singles': sfr}))
     reps_all = {}
     for name, kind, fs in groups:
-        fs = {c: seed1(f) for c, f in fs.items()}
         keys = sorted({k for f in fs.values() for k in f.preds if k.rsplit(':', 1)[1] in ('wt', 'comb', 'epi')})
         pp = {c: (c.split('|')[0] in PER_PROTEIN and not c.endswith('|dddG')) for c in fs}
         # bootstrap_rho decides per-protein from the dataset name; pass explicit frames one dataset name each
@@ -267,18 +256,24 @@ def boot_deltas(frames, B, pg=None):
     return pd.DataFrame(rows)
 
 
+def seed_mean_rho(per, fam, mode):
+    """The per-assay rho of ``fam`` averaged over its complete seeds (None when it has none)."""
+    rs = [r for (f, s_, m), r in per.items() if f == fam and m == mode]
+    return pd.concat(rs, axis=1).mean(axis=1) if rs else None
+
+
 def pg_boot(cat, stab_hom, per, B):
-    """Assays resampled within category, one draw shared by every family (seed 1)."""
+    """Assays resampled within category, one draw shared by every family; each family's per-assay rho is the mean over its seeds 1-3 (the seeds of a complete run)."""
     rng = np.random.default_rng(16)
     idx = {c: np.flatnonzero((cat == c).to_numpy()) for c in PG_CATS}
     draws = {c: rng.choice(v, (B, len(v))) for c, v in idx.items()}
     rows = []
     for mode in ('wt', 'comb'):
-        ref = per.get((REF, 1, mode))
+        ref = seed_mean_rho(per, REF, mode)
         if ref is None:
             continue
         for fam in FAMILIES:
-            r = per.get((fam, 1, mode))
+            r = seed_mean_rho(per, fam, mode)
             if fam == REF or r is None:
                 continue
             d = (r - ref).to_numpy()
@@ -363,7 +358,8 @@ def _resampled(t, idx, rep):
     return r
 
 
-def _epi_draw(counts):
+def _epi_draw(draw):
+    counts, sw = draw                                          # domain multiplicities and seed weights of this replicate
     t0 = next(iter(EPI_TABLES.values()))
     libs = np.unique(t0.lib)
     by = {l: np.flatnonzero(t0.lib == l) for l in libs}
@@ -372,23 +368,26 @@ def _epi_draw(counts):
         for _ in range(int(c)):
             idx_l.append(by[l]); rep_l.append(np.full(len(by[l]), k)); k += 1
     idx, rep = np.concatenate(idx_l), np.concatenate(rep_l)
-    return {fam: _epi_values(_resampled(t, idx, rep)) for (fam, _), t in EPI_TABLES.items()}
+    per = {}
+    for (fam, sd), t in EPI_TABLES.items():
+        per.setdefault(fam, []).append((sw[sd - 1], _epi_values(_resampled(t, idx, rep))))
+    return {fam: {m: float(sum(w * v[m] for w, v in L) / sum(w for w, _ in L)) for m in EPI_METRICS} for fam, L in per.items()}      # per family: the seed-weighted mean of the metric
 
 
 def epi_boot(fr, B, procs=8):
-    """Paired domain bootstrap of (family - REF) at seed 1 on the Tsuboyama test doubles; same draw for every family."""
+    """Paired domain bootstrap of (family - REF) on the Tsuboyama test doubles, seeds 1-3 (the seeds are resampled with the domains); same draw for every family."""
     EPI_TABLES.clear()
-    EPI_TABLES.update({k: t for k, t in epi_tables(fr).items() if k[1] == 1})
+    EPI_TABLES.update(epi_tables(fr))
     t0 = next(iter(EPI_TABLES.values()))
     assert all(np.array_equal(t.lib, t0.lib) for t in EPI_TABLES.values()), 'tables disagree on the doubles'
     nl = len(np.unique(t0.lib))
     rng = np.random.default_rng(16)
-    draws = [rng.multinomial(nl, np.full(nl, 1.0 / nl)) for _ in range(B)]
+    draws = [(rng.multinomial(nl, np.full(nl, 1.0 / nl)), rng.multinomial(3, np.full(3, 1.0 / 3.0)).astype(float)) for _ in range(B)]
     with mp.get_context('fork').Pool(procs) as pool:
         reps = pool.map(_epi_draw, draws)
     rows = []
     for m in EPI_METRICS:
-        for fam, _ in EPI_TABLES:
+        for fam in sorted({f for f, _ in EPI_TABLES}):                  # EPI_TABLES is keyed (family, seed)
             if fam == REF:
                 continue
             diff = np.array([r[fam][m] - r[REF][m] for r in reps])
@@ -481,7 +480,7 @@ def render(name, spec, summ, deltas, mega_own):
                     seeds.add(r['seeds'])
         sd = '/'.join(sorted(seeds)) if seeds else '—'
         lines.append(f"| {meta['short']} | {meta['change']} | {sd} | " + ' | '.join(cells) + ' |')
-    note = ('Cells: seed mean ± seed SD (Spearman ρ). In parentheses: paired bootstrap Δ vs p0 at seed 1 (bold: 95% CI excludes 0). '
+    note = ('Cells: seed mean ± seed SD (Spearman ρ). In parentheses: paired bootstrap Δ vs p0, seeds 1-3 (bold: 95% CI excludes 0). '
             '† FINAL_p0_mega on its own mega_splits Tsuboyama split (not comparable). ΔΔΔG = ρ of comb(AB) − WT(A) − WT(B) vs measured ΔΔΔG.')
     text = f'### {name}\n\n' + '\n'.join(lines) + f'\n\n{note}\n'
     (OUT / f'layout_{name}.md').write_text(text)
@@ -546,8 +545,8 @@ def pooled_seed_sd(summ, col, head='primary'):
     return float(np.sqrt(np.mean(d['sd'] ** 2))) if len(d) else np.nan
 
 
-NOISE_NOTE = ('Bold: |Δ| > {z:g} SE, where SE combines seed noise (family SD, or the pooled seed SD of the column for a '
-              'single-seed run) and the paired seed-1 bootstrap over proteins / sites / assays. ')
+NOISE_NOTE = ('Bold: |Δ| > {z:g} SE, where SE is the paired bootstrap over proteins / sites / assays with the three seeds resampled '
+              '(the pooled seed SD of the column where a column has no bootstrap). ')
 SEED_NOTE = ('‡: fewer seeds than the rest of the row (the cell\'s seeds are in {csv}). —: not yet run.')
 EPI_NOTE = ('Epistasis columns: comb(AB) − WT(A) − WT(B) against measured ΔΔΔG on the 12,455 Tsuboyama test doubles with both '
             'singles measured (esm_msr.epi_metrics; beyond ρ = Spearman above the global saturation curve, cell mag. = '
@@ -584,10 +583,9 @@ GROUP_LABEL = {'masking': 'Masking', 'loss': 'Loss', 'architecture': 'Architectu
 
 
 def delta_table(summ, deltas, name, z=2.0):
-    """Delta = family seed mean - FINAL_p0 seed mean under the table's readout.  Its standard error combines
-      seed noise:      sqrt(sd_f^2 / n_f + sd_ref^2 / n_ref), each SD the family's own, or the pooled seed SD of the
-                       column when a family has one seed, and
-      sampling noise:  the paired seed-1 bootstrap (delta_s1.csv; 95% CI width / 3.92) of the same column and readout.
+    """Delta = family seed mean - FINAL_p0 seed mean under the table's readout.  Its standard error is the paired bootstrap over proteins and seeds (delta_paired.csv; 95% CI width / 3.92) of the same
+    column and readout: the draws resample the three seeds together with the proteins, so seed noise is already in it (adding the seed SD would count it twice).  ``se_seed`` =
+    sqrt(sd_f^2 / n_f + sd_ref^2 / n_ref) (each SD the family's own, or the pooled seed SD of the column when a family has one seed) stays in the csv and is the fallback for a column without a bootstrap.
     A delta is flagged (bold) when |delta| > z * SE.  Writes table_<name>_delta.{csv,md,tex}."""
     spec = TABLES[name]
     head, cols = spec['head'], spec['cols']
@@ -614,7 +612,7 @@ def delta_table(summ, deltas, name, z=2.0):
             if D is not None and (fam, col) in D.index:
                 b = D.loc[(fam, col)]
                 se_boot = float((b['hi'] - b['lo']) / 3.92)
-            se = float(np.sqrt(se_seed ** 2 + (se_boot if np.isfinite(se_boot) else 0.0) ** 2))
+            se = float(se_boot if np.isfinite(se_boot) else se_seed)
             delta = float(f['mean'] - r['mean']) if fam != REF else np.nan
             rows.append(dict(family=fam, column=col, head=head, value=float(f['mean']), n_seeds=int(f['n_seeds']),
                              seeds=f['seeds'], delta=delta, se_seed=se_seed, se_boot=se_boot, se=se,
@@ -672,7 +670,7 @@ def main_delta_table(summ, deltas, z=2.0):
 # ----------------------------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('--B', type=int, default=100, help='bootstrap draws (draft default 100; paper 1000-2000)')
+    ap.add_argument('--B', type=int, default=1000, help='bootstrap draws (default 1000; paper 2000)')
     ap.add_argument('--sigma', default='1.0')
     ap.add_argument('--skip-boot', action='store_true')
     ap.add_argument('--render-only', action='store_true', help='re-draw the layouts from the CSVs already in results/98_ablation')
@@ -680,7 +678,7 @@ def main():
     if args.render_only:
         summ = pd.read_csv(OUT / 'summary.csv', dtype={'seeds': str})
         mega_own = summarize(pd.read_csv(OUT / 'cells_long_mega_own_split.csv')).set_index(['family', 'head', 'column'])
-        deltas = pd.read_csv(OUT / 'delta_s1.csv') if (OUT / 'delta_s1.csv').exists() else pd.DataFrame()
+        deltas = pd.read_csv(OUT / 'delta_paired.csv') if (OUT / 'delta_paired.csv').exists() else pd.DataFrame()
         write_informativeness(summ)
         print(main_delta_table(summ, deltas))
         for name, spec in LAYOUTS.items():
@@ -718,9 +716,9 @@ def main():
     if not args.skip_boot:
         deltas = boot_deltas(frames, args.B, pg=pg)
         deltas = pd.concat([deltas, epi_boot(frames['tsuboyama_capped_test'], args.B)], ignore_index=True)
-        deltas.to_csv(OUT / 'delta_s1.csv', index=False, float_format='%.5f')
-    elif (OUT / 'delta_s1.csv').exists():
-        deltas = pd.read_csv(OUT / 'delta_s1.csv')
+        deltas.to_csv(OUT / 'delta_paired.csv', index=False, float_format='%.5f')
+    elif (OUT / 'delta_paired.csv').exists():
+        deltas = pd.read_csv(OUT / 'delta_paired.csv')
 
     print(main_delta_table(summ, deltas))
     for name, spec in LAYOUTS.items():

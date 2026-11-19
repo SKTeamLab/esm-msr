@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""Deep-mutational scans and Domainome: unified main models, seed 1, mutation-level bootstrap.
+"""Deep-mutational scans and Domainome: unified main models, seeds 1-3 averaged, mutation-level bootstrap.
 
 Evaluates the unified model roster across the 7 external DMS datasets, their mean, and Domainome
-using seed 1 only and 95% mutation-level bootstrap intervals (within-domain mutation resampling
+using the seed mean of the retrained models (seeds resampled with the draws) and 95% mutation-level bootstrap intervals (within-domain mutation resampling
 for Domainome):
 - Singles-only assays (Domainome): singles models (ESM-MSR p0 WT head, MutateEverything st1,
   ThermoMPNN, SPURS, ESM3-small-open WT head) plus ProteinMPNN, ProSST, GeoDDG-3D.
@@ -25,14 +25,14 @@ from matplotlib.lines import Line2D  # noqa: E402
 from msr_analysis import style  # noqa: E402
 from msr_analysis.boot import ci  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
-from msr_analysis.external_s1 import EXT_ORDER, load_s1_mutation_boot, register_ext_styles  # noqa: E402
+from msr_analysis.external import EXT_ORDER, load_mutation_boot, register_ext_styles  # noqa: E402
 from msr_analysis.registry import DMS3, LABEL, MODELS  # noqa: E402
 
 OUT = out_dir('04_dms_domainome')
 DS = DMS3 + ['domainome']
 COLS = DMS3 + ['mean of 3 DMS', 'domainome']
 NOTE = (
-    'Seed 1 only; 95% mutation-level bootstrap (within-domain mutations for Domainome). '
+    'Seeds 1-3 averaged for the retrained models; 95% mutation-level bootstrap (within-domain mutations for Domainome). '
     'Singles models on Domainome; multi models on DLG4 binding / GRB2 binding / MYO '
     '(ThermoMPNN-D on the 2-mutant sets).'
 )
@@ -70,7 +70,7 @@ def _draw_top_legend(fig, models, bbox=(0.5, 0.94), ncol=4):
 
 def main(refresh=False):
     register_ext_styles()
-    boot = load_s1_mutation_boot(refresh=refresh)
+    boot = load_mutation_boot(refresh=refresh)
     P, reps, keys_used = boot['point'], boot['reps'], boot['keys']
 
     active_models = [m for m in EXT_ORDER if all((d, m) in P for d in DS)]
@@ -90,7 +90,7 @@ def main(refresh=False):
         )
         _draw_top_legend(fig, active_models, bbox=(0.5, 0.942), ncol=4)
         fig.suptitle(
-            'External DMS & Domainome: Spearman ρ across all models (p0, seed 1; 95% mutation-level bootstrap)',
+            'External DMS & Domainome: Spearman ρ across all models (p0; seeds 1-3 averaged; 95% mutation-level bootstrap)',
             x=0.012, ha='left', y=0.985, fontsize=10.2, fontweight='bold',
         )
         fig.text(0.012, 0.01, NOTE, fontsize=8.0, va='bottom', ha='left', color='#444444')
@@ -111,7 +111,7 @@ def main(refresh=False):
     )
     _draw_top_legend(fig3, zs_models, bbox=(0.5, 0.942), ncol=4)
     fig3.suptitle(
-        'ESM-MSR (p0, seed 1, σ = 1) vs zero-shot models (σ = 0 and baselines; 95% mutation-level bootstrap)',
+        'ESM-MSR (p0, seeds 1-3, σ = 1) vs zero-shot models (σ = 0 and baselines; 95% mutation-level bootstrap)',
         x=0.012, ha='left', y=0.985, fontsize=10.0, fontweight='bold',
     )
     fig3.tight_layout(rect=(0.0, 0.0, 1.0, 0.88))
@@ -136,7 +136,7 @@ def main(refresh=False):
         ax.set_xlim(-0.25, 1.25)
         ax.grid(axis='y', color=style.GRID, lw=0.6)
     axes4[0].set_ylabel('Spearman ρ')
-    fig4.suptitle('ESM-MSR (p0, seed 1) vs σ = 0 zero-shot control (95% mutation-level bootstrap)', fontsize=10, y=1.02)
+    fig4.suptitle('ESM-MSR (p0, seeds 1-3) vs σ = 0 zero-shot control (95% mutation-level bootstrap)', fontsize=10, y=1.02)
     fig4.tight_layout()
     style.save(fig4, OUT / 'dms_sigma_sweep')
 
@@ -145,6 +145,6 @@ def main(refresh=False):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('--refresh', action='store_true', help='Recompute seed-1 mutation bootstrap cache')
+    ap.add_argument('--refresh', action='store_true', help='Recompute the mutation bootstrap cache')
     args = ap.parse_args()
     main(refresh=args.refresh)

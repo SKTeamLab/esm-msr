@@ -4,7 +4,7 @@
 Per complete block (``blocks_of``) the Spearman rho between the double-centred predicted and measured beyond-global residuals, averaged over the three seeds; ``cell_mag`` is the mean over the blocks.
 Three tests, for all blocks and for the blocks above the floor (mean additive expectation > -0.5):
 
-  block bootstrap      the blocks are resampled (B = 100; two-sided p = 2 min(P(mean <= 0), P(mean >= 0)), at least 1 / (B + 1))
+  block bootstrap      the blocks are resampled (B = 1000; two-sided p = 2 min(P(mean <= 0), P(mean >= 0)), at least 1 / (B + 1))
   position bootstrap   the 55-56 positions are resampled with replacement and a block (i, j) gets the weight count(i) x count(j): blocks that share a position are not independent
   permutation          the predicted residuals are permuted among the cells of each block (before double-centring, the same permutation for the three seeds), 200 times: the null of a predictor with no
                        information about the cell, including the small bias double-centring gives a random predictor
@@ -24,7 +24,7 @@ import faure as F
 from esm_msr import epi_metrics as E
 
 C3 = importlib.import_module('03_cell_ceiling')
-B = 100
+B = 1000
 NPERM = 200
 FLOOR_X = C3.FLOOR_X
 

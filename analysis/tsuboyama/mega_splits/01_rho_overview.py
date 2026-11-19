@@ -230,9 +230,10 @@ def scatter(fr):
               ('tmpnnd', 'doubles', 'ThermoMPNN + D'), ('spursm', 'doubles', 'SPURS multi')]
     fig, axes = plt.subplots(1, len(panels), figsize=(2.9 * len(panels), 3.2), sharey=True)
     for ax, (k, subset, t) in zip(axes, panels):
-        m = ok & (sp['n_mut'] == (1 if subset == 'singles' else 2)).to_numpy() & np.isfinite(fr.preds[k][0])
-        style.density_scatter(ax, fr.preds[k][0][m], y[m], s=3, line=True, max_points=40000)
-        ax.set_title(f'{t}\n{subset} (seed 1)', fontsize=8.5)
+        pr = fr.preds[k].mean(axis=0)                                     # averaged over the three seeds
+        m = ok & (sp['n_mut'] == (1 if subset == 'singles' else 2)).to_numpy() & np.isfinite(pr)
+        style.density_scatter(ax, pr[m], y[m], s=3, line=True, max_points=40000)
+        ax.set_title(f'{t}\n{subset} (mean of seeds 1-3)', fontsize=8.5)
         ax.set_xlabel('predicted ddG')
     axes[0].set_ylabel('measured ddG (kcal/mol)')
     fig.tight_layout()
@@ -291,7 +292,7 @@ def table_md(P, reps, SD, CM, MED):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
-    ap.add_argument('--B', type=int, default=100, help='bootstrap replicates (draft 100; paper 2000)')
+    ap.add_argument('--B', type=int, default=1000, help='bootstrap replicates (default 1000; paper 2000)')
     a = ap.parse_args()
     fr = {s: mega_frame(s) for s in SPLITS}
     for s in SPLITS:

@@ -18,7 +18,7 @@ import abl as A
 HEADLINE = [('ext_singles', 'ext_singles_composite', 'all', 'Thermostability singles (10 sets, composite)'), ('ext_multi', 'ext_multi_composite', 'all', 'PTMUL / PTMUL-D (composite)'),
             ('tsuboyama', A.C.LABEL['tsuboyama_capped_test'], 'all', 'MegaScale test, all'), ('tsuboyama', A.C.LABEL['tsuboyama_capped_test'], 'doubles', 'MegaScale test, doubles'),
             ('tsuboyama', A.C.LABEL['tsuboyama_capped_test'], 'epistasis (dddG)', 'MegaScale test, epistasis'), ('domainome', 'Domainome', 'all', 'Domainome'),
-            ('dms', 'dms_composite', 'all', 'DMS benchmark (3, composite)'), ('proteingym', 'PG avg', 'all', 'ProteinGym average (194 assays)')]
+            ('dms', 'dms_composite', 'all', 'DMS benchmark (3, composite)'), ('proteingym', 'PG avg', 'all', 'ProteinGym average (held-out assays)')]
 
 
 def f(r):

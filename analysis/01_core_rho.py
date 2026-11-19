@@ -32,7 +32,7 @@ def keys_for(fr):
 
 
 def n_boot(n):
-    return 100          # draft size for every dataset (was 1000 / 500 / 200 by size; paper sizes only on request)
+    return 1000         # default size for every dataset (paper: 2000)
 
 
 def run(kind, groups, label):

@@ -71,7 +71,7 @@ def main():
     ap.add_argument('run_dirs', nargs='+')
     ap.add_argument('--classes', default=CLASSES)
     ap.add_argument('--hparams', default=None, help="checkpoint hparams.yaml for the Tobit constants (default FINAL_p0: 0.28/-0.14/0.5)")
-    ap.add_argument('--boot', type=int, default=100)
+    ap.add_argument('--boot', type=int, default=1000)
     ap.add_argument('--v1_labels', action='store_true', help='keep the labels stored in the run (v1 table) instead of the v2 table')
     a = ap.parse_args()
     c = dict(tobit_sigma_y=0.28, tobit_mu_f=-0.14, tobit_sigma_f=0.5)

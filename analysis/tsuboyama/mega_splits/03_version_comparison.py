@@ -37,7 +37,7 @@ NAME = {'spurs': 'SPURS frozen', 'spursu': 'SPURS trained', 'spurspub': 'SPURS p
 PAIRS = [('spursu', 'spurs'), ('spurspub', 'spurs'), ('spurspub', 'spursu'),
          ('spursum', 'spursm'), ('spurspubm', 'spursm'), ('spurspubm', 'spursum'),
          ('tmpnnpub', 'tmpnn'), ('tmpnndpub', 'tmpnnd')]
-B = 200               # draft size: this is a cheap resample of per-library differences, so it can be larger than the model bootstraps; paper 2000
+B = 1000              # default size (a cheap resample of per-library differences); paper 2000
 rng = np.random.default_rng(3)
 
 

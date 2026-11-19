@@ -67,7 +67,7 @@ def one(D, head):
         axes[0].set_ylim(y - 0.7, -0.8)
         axes[len(axes) // 2].set_xlabel('delta rho vs p0')
         A.C.finish(fig, f'{"WT head" if head == "wt" else "Combined prediction, 1/2 (MT + WT)"}: delta rho = rho(family) - rho(FINAL_p0) on the same variants, with the 95% bootstrap interval of the paired difference '
-                   '(100 resamples; ProteinGym: 20000 resamples over assays, seed 1); filled marker: the interval excludes 0; the axis is cut at +-0.06. Rows as in the heatmap: composite = mean of the rho of the sets of '
+                   '(100 resamples; ProteinGym: 20000 resamples over assays, seeds 1-3 averaged per assay); filled marker: the interval excludes 0; the axis is cut at +-0.06. Rows as in the heatmap: composite = mean of the rho of the sets of '
                    'the group over one shared draw of proteins; ProteinGym = mean over the assays of the category; epistasis = rho of comb(AB) - WT(A) - WT(B) with the measured dddG (combined only). Seeds 1-3 (full '
                    'MegaScale: 1-2; ProteinGym: 1). Blank: no prediction for that family and set.', f'ablation_forest_{head}', out=A.OUT, pad=0.045)
 

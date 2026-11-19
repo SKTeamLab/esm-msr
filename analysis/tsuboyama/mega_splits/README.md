@@ -286,7 +286,7 @@ pairs `ens1-3` as three "seeds", `outputs/tracked/thermompnn_mega_public_ens{1,2
 Sources: ThermoMPNN split file https://github.com/Kuhlman-Lab/ThermoMPNN/tree/main/dataset_splits; SPURS code and data layout https://github.com/luo-group/SPURS; Mutate Everything (Ouyang-Zhang et al., NeurIPS 2023, Appendix A.1) https://arxiv.org/abs/2310.12979 and
 its data https://github.com/jozhang97/MutateEverything; ThermoMPNN-D (Dieckhaus and Kuhlman 2024) https://www.biorxiv.org/content/10.1101/2024.08.20.608844 (read through Europe PMC, PMC11370451); SPURS summary https://www.tamarind.bio/tools/spurs.
 
-## Results (test set; seed means; bootstrap B = 200 for the ρ overview, 300 for the epistasis hierarchy)
+## Results (test set; seed means; bootstrap B = 200 for the ρ overview, 300 for the epistasis hierarchy as run; the scripts now default to 1000)
 
 **These are not held-out numbers**: 16 of the 28 test libraries have a training homolog under the capped split's rule (see above), and the test set includes two destabilized
 backgrounds the original ThermoMPNN/SPURS test did not.

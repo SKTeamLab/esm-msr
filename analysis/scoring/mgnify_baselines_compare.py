@@ -89,7 +89,7 @@ def sp(a, b):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('root')
-    ap.add_argument('--boot', type=int, default=100)
+    ap.add_argument('--boot', type=int, default=1000)
     ap.add_argument('--models', default=TRAINED, help='comma list of BASELINES keys to compare (default: the four trained baselines)')
     ap.add_argument('--out', default=None)
     a = ap.parse_args()

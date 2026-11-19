@@ -115,7 +115,17 @@ def _add_family(out, sp, tag, files):
             out[f'{tag}:epi'] = out[f'{tag}:comb'] - out[f'{tag}:wt+']  # comb_AB - WT_A - WT_B (README, analysis/)
 
 
-def load_final_frame(ds, families=None, sigma='1.0', seeds=SEEDS, mega_own_split=False):
+def load_final_frame(ds, families=None, sigma='1.0', seeds=SEEDS, mega_own_split=False, heldout=True):
+    """``_load_final_frame`` with the Domainome domains that are homologous to the training set under the split's four-part rule left out (``msr_analysis.heldout``; ``heldout=False`` keeps all rows)."""
+    fr = _load_final_frame(ds, families, sigma, seeds, mega_own_split)
+    if heldout and fr is not None and ds == 'domainome':
+        from .heldout import excluded
+        keep = ~fr.spine['group'].astype(str).isin(excluded('domainome')).to_numpy()
+        fr = Frame(fr.name, fr.spine.loc[keep].reset_index(drop=True), {k: v[..., keep] for k, v in fr.preds.items()}, notes=dict(fr.notes, heldout=True))
+    return fr
+
+
+def _load_final_frame(ds, families=None, sigma='1.0', seeds=SEEDS, mega_own_split=False):
     """Frame for ``ds`` whose ``preds`` hold ``<family>:<head>`` (n_seeds, n) arrays for every family with at least one
     finished seed, and ``notes['seeds'][family]`` = the seeds present.  Heads: wt, mt, comb (= 1/2(MT + WT) when the
     file has no combined column), and on multi-mutant sets wt+ (sum of WT singles) and epi (comb - wt+).
@@ -148,6 +158,15 @@ def load_final_frame(ds, families=None, sigma='1.0', seeds=SEEDS, mega_own_split
 # ProteinGym (per-DMS Spearman from the per-assay files; summary.csv of a resumed run is incomplete)
 # ----------------------------------------------------------------------------------------------
 MIN_PGYM_ASSAYS = 213          # the testing queue's completion rule (BRCA2 and the large assays can fail transiently)
+
+
+def pgym_per_dms_seeds(family, mode='wt', dms_ids=None, seeds=SEEDS):
+    """Series DMS_id -> the mean over the seeds of the per-assay Spearman rho of ``family`` (``pgym_per_dms`` of every seed with a run; an assay missing in a seed is averaged over the seeds that have it),
+    and the number of seeds used; None when no seed has a run."""
+    rs = [r for r in (pgym_per_dms(family, s, mode, dms_ids=dms_ids) for s in seeds) if r is not None]
+    if not rs:
+        return None, 0
+    return pd.concat(rs, axis=1).mean(axis=1), len(rs)
 
 
 def pgym_per_dms(family, seed, mode='wt', dms_ids=None):

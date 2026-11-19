@@ -129,7 +129,7 @@ def hierarchy_figures():
 # --------------------------------------------------------------------------------------------------
 # 2. naive rho and RMSE recomputed
 # --------------------------------------------------------------------------------------------------
-def rmse_boot(fr, mask, key, B=100, seed=0):
+def rmse_boot(fr, mask, key, B=1000, seed=0):
     sp = fr.spine
     y = sp['dddG_ML'].to_numpy()
     cl = sp['cluster'].astype(str).to_numpy()
@@ -155,7 +155,7 @@ def naive_recomputed():
         m = epi_rows(fr)
         sub = subframe(fr, m, y=fr.spine['dddG_ML'].to_numpy(), keys=EPI_KEYS)
         kind = 'protein' if ds in TSU else 'mutation'
-        B = 500 if ds in TSU else 100
+        B = 1000
         point, reps = bootstrap_rho({ds: sub}, EPI_KEYS, kind=kind, B=B, seed=3, per_protein=False)
         for k, (rho, per_seed, n, ng) in point[ds].items():
             lo, hi = ci(reps[ds][k])
@@ -214,7 +214,7 @@ def scatter_figures():
         y = fr.spine['dddG_ML'].to_numpy()
         for c, k in enumerate(keys):
             ax = axes[r, c]
-            p = fr.preds[k][0]
+            p = fr.preds[k].mean(axis=0)                                  # averaged over the seeds of a retrained model
             ok = m & np.isfinite(p)
             style.density_scatter(ax, p[ok], y[ok], s=4, cmap='viridis', line=True, max_points=40000)
             ax.axhline(0, color='#bbb', lw=.6); ax.axvline(0, color='#bbb', lw=.6)
@@ -224,7 +224,7 @@ def scatter_figures():
                 ax.set_ylabel(f'{lab}\nmeasured dddG (kcal/mol)')
             if r == len(sets) - 1:
                 ax.set_xlabel('predicted epistasis (kcal/mol)')
-    fig.suptitle('Predicted vs measured epistasis of double mutants (seed 1; ρ in each panel; dashed = y = x)', y=1.0, fontsize=10)
+    fig.suptitle('Predicted vs measured epistasis of double mutants (prediction averaged over seeds 1-3; ρ of the averaged prediction in each panel; dashed = y = x)', y=1.0, fontsize=10)
     fig.tight_layout()
     style.save(fig, OUT / 'epistasis_scatter_dddG')
     doubles_ddg()
@@ -266,7 +266,7 @@ def doubles_ddg():
     ncol = (len(items) + 1) // 2
     fig, axes = plt.subplots(2, ncol, figsize=(3.0 * ncol, 6.6), sharey=True)
     for ax, (k, t) in zip(axes.ravel(), items):
-        p = fr.preds[k][0]
+        p = fr.preds[k].mean(axis=0)
         ok = m & np.isfinite(p)
         style.density_scatter(ax, p[ok], y[ok], s=3, line=True, max_points=30000, label_stats=False)
         r = T[T.model == k].iloc[0]
@@ -279,7 +279,7 @@ def doubles_ddg():
         ax.set_ylabel('measured ddG (kcal/mol)')
     note = ('mega_splits retrains.' if MEGA else 'The link raises pooled ρ, per-library ρ (the benchmark metric) is unchanged by it.\nLink rebuilt from each checkpoint\'s '
             'learned link parameters (reference/devel_link_params.json).')
-    fig.suptitle(f'Tsuboyama test doubles (n = {int(m.sum()):,}; seed 1 shown, rho is the seed mean).  Pooled ρ counts between-library offsets and saturation; {note}', y=1.01, fontsize=9)
+    fig.suptitle(f'Tsuboyama test doubles (n = {int(m.sum()):,}; prediction averaged over seeds 1-3, rho is the seed mean).  Pooled ρ counts between-library offsets and saturation; {note}', y=1.01, fontsize=9)
     fig.tight_layout()
     style.save(fig, OUT / 'epistasis_scatter_ddG_doubles')
 
@@ -303,7 +303,7 @@ def ddg_ranking():
                                                      'spurspubm:epi': 'spurspubm', 'tmpnndpub:epi': 'tmpnndpub'}),
                                     [f'{ESM}:comb', 'me2', 'tmpnnd', 'spursm'] + (['spursum', 'spurspubm', 'tmpnndpub'] if MEGA else []))}
         for nm, (f, keys) in sets.items():
-            point, reps = bootstrap_rho({ds: f}, keys, kind='protein', B=100, seed=4, per_protein=True)
+            point, reps = bootstrap_rho({ds: f}, keys, kind='protein', B=1000, seed=4, per_protein=True)
             for k, (rho, per_seed, n, ng) in point[ds].items():
                 lo, hi = ci(reps[ds][k])
                 rows.append(dict(split=sp_, metric=nm, model=k, rho=rho, lo=lo, hi=hi, seed_sd=float(np.std(per_seed, ddof=1)) if len(per_seed) > 1 else np.nan, n=n, n_proteins=ng))

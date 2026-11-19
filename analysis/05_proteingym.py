@@ -1,25 +1,21 @@
 #!/usr/bin/env python
-"""ProteinGym (213 DMS) & Domainome: unified main models + full-model PGym evaluation (seed 1).
+"""ProteinGym (213 DMS) & Domainome: unified main models + full-model PGym evaluation (seeds 1-3 averaged).
 
-Evaluates seed 1 across all 213 non-dropped ProteinGym assays, excluding the 26 Stability assays
-with same-protein (P, 23) or strong structural/sequence homolog (H, 3) overlap in
-``reference/leak_audit_structure_homology.csv`` against Homology-Restricted MegaScale (leaving
-40 of 66 Stability assays and 187 of 213 total assays; Activity 43, Binding 13, Expression 18,
-OrganismalFitness 73 unfiltered):
+Evaluates the mean over seeds 1-3 of every retrained model across all 213 non-dropped ProteinGym assays, leaving out every assay (all categories) and every Domainome domain that is homologous to the training set under the split's own four-part
+rule (MMseqs2 E <= 1e-3, identity > 0.40, Foldseek E <= 1e-3, Foldseek TM > 0.70 against the capped training libraries; ``msr_analysis.heldout``, ``leak_audit/21_tsuboyama_rule.py``).
+``pg_summary_all213.csv`` / ``pg_all_models_summary_all213.csv`` keep every assay for reference.
 
 - Unified roster (``EXT_ORDER``, for ``pg_categories`` (drawn by ``01_summary.py`` from ``pg_summary.csv``) and ``pg_per_dms_scatter``):
   - Singles-only assays use singles models (ESM-MSR WT head, MutateEverything st1,
     ThermoMPNN single-additive, SPURS single-additive);
   - Multi-mutant assays use multi models (ESM-MSR p0 combined when finished else WT fallback,
     MutateEverything st2, ThermoMPNN-D on doubles / ThermoMPNN additive on singles & >2 via
-    corrected seed-1 run, SPURS multi);
-  - ``pg_categories`` appends ``Domainome* (458/522)`` (458 low-homology domains excluding the
-    64 P+H MegaScale-homologous domains via ``leak_audit_structure_homology.csv``, seed 1
-    singles, 2,000-draw domain bootstrap).
+    corrected run, seeds 1-3 (seeds 2 and 3 run on gpu4 on Nov 19), SPURS multi);
+  - ``pg_categories`` appends the held-out Domainome domains (seeds 1-3 singles, 1,000-draw domain bootstrap, seeds resampled).
 - Full ProteinGym roster (all models with PGym data, for ``pg_table_heatmap`` and ``pg_overview``).
 
-Bootstrap: resamples DMS assays with replacement within each category (B = 2000, paired across models),
-and resamples the 458 low-homology Domainome domains with replacement (B = 2000) for the appended Domainome column.
+Bootstrap: resamples DMS assays with replacement within each category (B = 1000, paired across models),
+and resamples the held-out Domainome domains with replacement (B = 1000) for the appended Domainome column.
 """
 import argparse
 import os
@@ -39,7 +35,7 @@ from msr_analysis import style  # noqa: E402
 from msr_analysis.boot import bootstrap_rho, ci  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
 from msr_analysis.data import Frame, load_frame  # noqa: E402
-from msr_analysis.external_s1 import EXT_ORDER, _seed1_frame, register_ext_styles  # noqa: E402
+from msr_analysis.external import EXT_ORDER, register_ext_styles, seed_frame  # noqa: E402
 from msr_analysis.final_runs import load_final_frame  # noqa: E402
 from msr_analysis.registry import C, CACHE, MODELS, MSR, PGYM, PUBLIC, REFERENCE, RETRAINED, ROOT  # noqa: E402
 
@@ -53,7 +49,7 @@ CAT_LABEL = {
     'Stability': 'Stability*\n(40/66)',
     'PG avg': 'PG avg*',
     'DMS mean': 'DMS mean*\n(187/213)',
-    'Domainome': 'Domainome*\n(458/522)',
+    'Domainome': 'Domainome*\n(held-out)',
 }
 OV_TITLES = {
     'Activity': 'Activity (43 assays)',
@@ -68,8 +64,8 @@ DROP = {
     'POLG_CXB3N_Mattenberger_2021',
     'SCN5A_HUMAN_Glazer_2019',
 }
-B = 100              # draft size (was 2000; the cache below is keyed on B, so the first run recomputes); paper 2000
-SIGMA_RHO = Path(__file__).resolve().parent / 'proteingym' / 'p0_sigma' / 'results' / 'per_assay_rho.csv'      # FINAL_p0 seed 1, WT head, per-assay rho at sigma 0, 0.5, 1 (proteingym/p0_sigma/01_per_assay_rho.py)
+B = 1000             # default size (the cache below is keyed on B, so the first run after a change recomputes); paper 2000
+SIGMA_RHO = Path(__file__).resolve().parent / 'proteingym' / 'p0_sigma' / 'results' / 'per_assay_rho.csv'      # FINAL_p0 seeds 1-3 (mean), WT head, per-assay rho at sigma 0, 0.5, 1 (proteingym/p0_sigma/01_per_assay_rho.py)
 SIGMA_MODELS = ('ESM-MSR σ=1', 'ESM-MSR σ=0.5')
 ESM3_S0_COMB = ROOT / 'pgym_results' / 'unmasked-esm-msr-small' / 'sigma0.0'      # ESM3-small-open as the sigma-0 read of the ESM-MSR-small checkpoint (adapters off, unmasked), with the combined prediction: the zero-shot reference on the multi-mutant assays
 
@@ -136,35 +132,38 @@ PG_MODEL_STYLES = {
 PG_STAB_LEAK = {'pg:esmtherm', 'pg:spurs_pub', 'pg:spursm_pub', 'pg:esm3dg'}
 
 
-def _p0_wt_candidates():
+SEEDS = (1, 2, 3)
+
+
+def _p0_wt_candidates(seed=1):
     cands = []
-    if os.environ.get('MSR_PGYM_P0_WT'):
+    if os.environ.get('MSR_PGYM_P0_WT') and seed == 1:
         cands.append(Path(os.environ['MSR_PGYM_P0_WT']).expanduser())
     cands.extend([
-        ROOT / 'final_pgym_wt' / 'FINAL_p0' / 's1',
-        ROOT / 'p0_fir_pgym_wt' / 's1',
+        ROOT / 'final_pgym_wt' / 'FINAL_p0' / f's{seed}',
+        ROOT / 'p0_fir_pgym_wt' / f's{seed}',
     ])
     return cands
 
 
-def _p0_comb_candidates():
+def _p0_comb_candidates(seed=1):
     cands = []
-    if os.environ.get('MSR_PGYM_P0_COMB'):
+    if os.environ.get('MSR_PGYM_P0_COMB') and seed == 1:
         cands.append(Path(os.environ['MSR_PGYM_P0_COMB']).expanduser())
     cands.extend([
-        ROOT / 'final_pgym_comb' / 'FINAL_p0' / 's1',
-        ROOT / 'final_pgym' / 'FINAL_p0' / 's1',
-        ROOT / 'p0_fir_pgym_comb' / 's1',
-        ROOT / 'p0_fir_pgym' / 's1',
-        MSR / 'p0' / 'seed1' / 'sigma1' / 'proteingym',
-        ROOT / 'final_pgym_wt' / 'FINAL_p0' / 's1',
-        ROOT / 'p0_fir_pgym_wt' / 's1',
+        ROOT / 'final_pgym_comb' / 'FINAL_p0' / f's{seed}',
+        ROOT / 'final_pgym' / 'FINAL_p0' / f's{seed}',
+        ROOT / 'p0_fir_pgym_comb' / f's{seed}',
+        ROOT / 'p0_fir_pgym' / f's{seed}',
+        MSR / 'p0' / f'seed{seed}' / 'sigma1' / 'proteingym',
+        ROOT / 'final_pgym_wt' / 'FINAL_p0' / f's{seed}',
+        ROOT / 'p0_fir_pgym_wt' / f's{seed}',
     ])
     return cands
 
 
-def _find_p0_comb_csv(dms):
-    for d in _p0_comb_candidates():
+def _find_p0_comb_csv(dms, seed=1):
+    for d in _p0_comb_candidates(seed):
         p = d / f'{dms}.csv'
         if not p.exists():
             continue
@@ -174,46 +173,39 @@ def _find_p0_comb_csv(dms):
     return None
 
 
-def _find_p0_wt_csv(dms):
-    for d in _p0_wt_candidates() + _p0_comb_candidates():
+def _find_p0_wt_csv(dms, seed=1):
+    for d in _p0_wt_candidates(seed) + _p0_comb_candidates(seed):
         p = d / f'{dms}.csv'
         if not p.exists():
             continue
         hdr = set(pd.read_csv(p, nrows=0).columns)
         if 'wt_lora_pred' in hdr:
             return p
-    raise FileNotFoundError(f'No p0 WT prediction CSV found for {dms}')
+    raise FileNotFoundError(f'No p0 WT prediction CSV found for {dms} (seed {seed})')
 
 
-def homologous_stability_assays(cat_series):
-    """Stability DMS assays with same-protein (P) or strong homolog (H) overlap against MegaScale."""
-    sh = pd.read_csv(REFERENCE / 'leak_audit_structure_homology.csv')
-    sh = sh[sh['dataset'] == 'proteingym'].set_index('item_id')
-    stab_ids = cat_series[cat_series == 'Stability'].index
-    sub = sh.reindex(stab_ids)
-    return set(sub[sub['class_with_struct'].isin(['P', 'H'])].index)
+def _seed_mean(vals):
+    """Mean over the seeds of a per-assay rho (the seeds with a finite value; NaN when there is none)."""
+    v = np.asarray([x for x in vals if x is not None], float)
+    v = v[np.isfinite(v)]
+    return float(v.mean()) if len(v) else np.nan
 
 
-def homologous_domainome_domains(rule='audit'):
-    """Domainome domains with same-protein (P) or strong homolog (H) overlap against MegaScale (``rule='audit'``), or homologous under the rule that built the split (``rule='tsu'``: MMseqs2 / Foldseek
-    E <= 1e-3, local identity > 0.40 or TM > 0.70; ``reference/tsuboyama_rule_flags.csv`` from ``leak_audit/21_tsuboyama_rule.py``)."""
-    if rule == 'tsu':
-        fl = pd.read_csv(REFERENCE / 'tsuboyama_rule_flags.csv')
-        return set(fl.loc[(fl['dataset'] == 'domainome') & fl['homologous'], 'item_id'].astype(str))
-    sh = pd.read_csv(REFERENCE / 'leak_audit_structure_homology.csv')
-    sh = sh[sh['dataset'] == 'domainome']
-    return set(sh.loc[sh['class_with_struct'].isin(['P', 'H']), 'item_id'].astype(str))
+def homologous_domainome_domains(rule='tsu'):
+    """Domainome domains homologous to the training set under the split's four-part rule (``msr_analysis.heldout``)."""
+    from msr_analysis.heldout import excluded
+    return excluded('domainome')
 
 
 def tsuboyama_rule_assays():
-    """ProteinGym assays (all categories) homologous to the training set under the split's own rule."""
-    fl = pd.read_csv(REFERENCE / 'tsuboyama_rule_flags.csv')
-    return set(fl.loc[(fl['dataset'] == 'proteingym') & fl['homologous'], 'item_id'].astype(str))
+    """ProteinGym assays (all categories) homologous to the training set under the split's four-part rule (``msr_analysis.heldout``)."""
+    from msr_analysis.heldout import excluded
+    return excluded('proteingym')
 
 
 def _score_all_pgym_models(dms_ids, refresh=False):
-    """Compute (or load cached) per-DMS seed-1 Spearman rhos across all 213 assays."""
-    cache = CACHE / 'pg_all_models_s1.csv'
+    """Compute (or load cached) per-DMS Spearman rhos across all 213 assays: the mean over seeds 1-3 of the per-assay rho for every retrained model."""
+    cache = CACHE / 'pg_all_models.csv'
     req_cols = set(EXT_ORDER) | (set(ALL_PG_MODELS) - {'pg:msrp0:comb'}) | {'has_multi', 'has_double', 'msr_p0_head', 'esm3_0_head'}
     if cache.exists() and not refresh:
         df = pd.read_csv(cache, index_col=0)
@@ -233,13 +225,16 @@ def _score_all_pgym_models(dms_ids, refresh=False):
     pm = pd.read_csv(PGYM / 'proteinmpnn_020_unmasked_fast_ensemble3_per_dms.csv').set_index('DMS_id')
     tmpd_ref = pd.read_csv(REFERENCE / 'pgym_thermompnn_corrected_s1_per_dms.csv').set_index('DMS_id')
 
-    tmp_sa_dir = RETRAINED / 'thermompnn' / 'predictions' / 'single_additive' / 'seed1' / 'proteingym'
-    tmp_d_dir = RETRAINED / 'thermompnn' / 'predictions' / 'epistatic_corrected' / 'seed1' / 'proteingym'
-    me1_dir = RETRAINED / 'mutate_everything' / 'predictions' / 'stage1' / 'seed1' / 'proteingym'
-    me2_dir = RETRAINED / 'mutate_everything' / 'predictions' / 'stage2' / 'seed1' / 'proteingym'
-    sp_dir = RETRAINED / 'spurs' / 'predictions' / 'seed1' / 'proteingym'
-    msrdev_dir = MSR / 'devel_dc8_floorlink_w2a4_m16a16' / 'seed1' / 'sigma1' / 'proteingym'
-    msrbase_dir = MSR / 'baseline_w2a4_m16a16' / 'seed1' / 'sigma1' / 'proteingym'
+    def _sd(*parts, tail='proteingym'):
+        """The directory of each seed: ``parts`` with ``seed{k}`` after the last one."""
+        return {k: RETRAINED.joinpath(*parts, f'seed{k}', tail) for k in SEEDS}
+    tmp_sa_dir = _sd('thermompnn', 'predictions', 'single_additive')
+    tmp_d_dir = _sd('thermompnn', 'predictions', 'epistatic_corrected')              # per-variant files of the corrected ThermoMPNN-D run, seeds 1-3 (collected Nov 19); ``tmpd_ref`` (seed 1 table) is only the fallback
+    me1_dir = _sd('mutate_everything', 'predictions', 'stage1')
+    me2_dir = _sd('mutate_everything', 'predictions', 'stage2')
+    sp_dir = _sd('spurs', 'predictions')
+    msrdev_dir = {k: MSR / 'devel_dc8_floorlink_w2a4_m16a16' / f'seed{k}' / 'sigma1' / 'proteingym' for k in SEEDS}
+    msrbase_dir = {k: MSR / 'baseline_w2a4_m16a16' / f'seed{k}' / 'sigma1' / 'proteingym' for k in SEEDS}
     esm3dg_dir = PUBLIC / 'esm3dg' / 'proteingym'
     esmtherm_dir = PUBLIC / 'esmtherm' / 'proteingym'
     geo_dir = PUBLIC / 'geoddg' / 'faspr' / 'proteingym'
@@ -258,21 +253,33 @@ def _score_all_pgym_models(dms_ids, refresh=False):
         assert rid.min() >= 0 and rid.max() < len(y_full), f'{folder.name}/{dms}: row_id out of bounds'
         return float(spearmanr(dp['pred'], y_full[rid], nan_policy='omit')[0])
 
+    def _rho_seeds(dirs, dms, pred, y='DMS_score'):
+        """Per-seed rho of column ``pred`` of every seed's file of ``dms``; the seed mean (seeds without the file are skipped)."""
+        out = []
+        for k in SEEDS:
+            f = dirs[k] / f'{dms}.csv'
+            if f.exists():
+                d = pd.read_csv(f, usecols=[pred, y])
+                out.append(float(spearmanr(d[pred], d[y], nan_policy='omit')[0]))
+        return _seed_mean(out)
+
     rows = {}
     for dms in dms_ids:
         dt = pd.read_csv(
-            tmp_sa_dir / f'{dms}.csv',
+            tmp_sa_dir[1] / f'{dms}.csv',
             usecols=['mut_type_renumbered', 'mutant', 'n_mut', 'pred_single_additive', 'DMS_score'],
         )
         y_full = dt['DMS_score'].to_numpy(dtype=float)
         has_mm = bool((dt['n_mut'] > 1).any())
         has_dbl = bool((dt['n_mut'] == 2).any())
 
-        # ESM-MSR p0 (WT head + combined when available)
-        dp0_wt = pd.read_csv(_find_p0_wt_csv(dms), usecols=['wt_lora_pred', 'DMS_score'])
-        rho_p0_wt = float(spearmanr(dp0_wt['wt_lora_pred'], dp0_wt['DMS_score'], nan_policy='omit')[0])
-        p0_comb_path = _find_p0_comb_csv(dms)
-        if p0_comb_path is not None:
+        # ESM-MSR p0 (WT head + combined when available): the seed mean of the per-assay rho (seeds 1-3)
+        rho_p0_wt = _seed_mean([float(spearmanr(*pd.read_csv(_find_p0_wt_csv(dms, k), usecols=['wt_lora_pred', 'DMS_score']).to_numpy().T, nan_policy='omit')[0]) for k in SEEDS])
+        rc = []
+        for k in SEEDS:
+            p0_comb_path = _find_p0_comb_csv(dms, k)
+            if p0_comb_path is None:
+                continue
             hdr = set(pd.read_csv(p0_comb_path, nrows=0).columns)
             use = [c for c in ('combined_pred', 'wt_lora_pred', 'mt_lora_pred', 'DMS_score') if c in hdr]
             dp0_c = pd.read_csv(p0_comb_path, usecols=use)
@@ -281,9 +288,8 @@ def _score_all_pgym_models(dms_ids, refresh=False):
                 if 'combined_pred' in dp0_c
                 else 0.5 * (dp0_c['wt_lora_pred'].to_numpy(dtype=float) + dp0_c['mt_lora_pred'].to_numpy(dtype=float))
             )
-            rho_p0_comb = float(spearmanr(comb_vals, dp0_c['DMS_score'], nan_policy='omit')[0])
-        else:
-            rho_p0_comb = np.nan
+            rc.append(float(spearmanr(comb_vals, dp0_c['DMS_score'], nan_policy='omit')[0]))
+        rho_p0_comb = _seed_mean(rc)
 
         if has_mm and np.isfinite(rho_p0_comb):
             rho_msr_uni = rho_p0_comb
@@ -296,37 +302,32 @@ def _score_all_pgym_models(dms_ids, refresh=False):
             p0_head = 'wt'
 
         # ThermoMPNN (additive) & ThermoMPNN + ThermoMPNN-D (corrected)
-        tmp_d_file = tmp_d_dir / f'{dms}.csv'
-        if tmp_d_file.exists():
-            dtd = pd.read_csv(tmp_d_file, usecols=['n_mut', 'pred_single_additive', 'pred_combined', 'DMS_score'])
-            rho_tmp_sa = float(spearmanr(dtd['pred_single_additive'], dtd['DMS_score'], nan_policy='omit')[0])
-            comb_t = np.where(dtd['n_mut'] == 2, dtd['pred_combined'], dtd['pred_single_additive'])
-            rho_tmp_d = float(spearmanr(comb_t, dtd['DMS_score'], nan_policy='omit')[0])
-        else:
-            rho_tmp_sa = float(tmpd_ref.loc[dms, 'rho_single_additive'])
-            rho_tmp_d = float(tmpd_ref.loc[dms, 'rho_tmpnnd'])
+        # ThermoMPNN additive and ThermoMPNN + ThermoMPNN-D (composite: the epistatic network on the doubles, the single network elsewhere): the seed mean of the three retrains.
+        # The corrected ThermoMPNN-D ProteinGym files of seeds 1-3 are in ``tmp_d_dir`` (seeds 2 and 3 were run on gpu4 on Nov 19); the seed-1 table ``tmpd_ref`` is the fallback for a seed without them.
+        rho_tmp_sa = _rho_seeds(tmp_sa_dir, dms, 'pred_single_additive')
+        d_seeds = []
+        for k in SEEDS:
+            f = tmp_d_dir[k] / f'{dms}.csv'
+            if f.exists():
+                dtd = pd.read_csv(f, usecols=['n_mut', 'pred_single_additive', 'pred_combined', 'DMS_score'])
+                comb_t = np.where(dtd['n_mut'] == 2, dtd['pred_combined'], dtd['pred_single_additive'])
+                d_seeds.append(float(spearmanr(comb_t, dtd['DMS_score'], nan_policy='omit')[0]))
+        rho_tmp_d = _seed_mean(d_seeds) if d_seeds else float(tmpd_ref.loc[dms, 'rho_tmpnnd'])
         rho_tmp_uni = rho_tmp_d if has_dbl else rho_tmp_sa
 
         # MutateEverything st1 and st2 (all 213 assays)
-        dm1 = pd.read_csv(me1_dir / f'{dms}.csv', usecols=['pred_combined', 'DMS_score'])
-        rho_me1 = float(spearmanr(dm1['pred_combined'], dm1['DMS_score'], nan_policy='omit')[0])
-        dm2 = pd.read_csv(me2_dir / f'{dms}.csv', usecols=['mut_info', 'ddg_pred'])
-        rho_me2 = _align_me2(dm2, dt)
+        rho_me1 = _rho_seeds(me1_dir, dms, 'pred_combined')
+        rho_me2 = _seed_mean([_align_me2(pd.read_csv(me2_dir[k] / f'{dms}.csv', usecols=['mut_info', 'ddg_pred']), dt) for k in SEEDS if (me2_dir[k] / f'{dms}.csv').exists()])
         rho_me_uni = rho_me2 if has_mm else rho_me1
 
-        # SPURS single & multi (retrained, seed 1)
-        dsp = pd.read_csv(sp_dir / f'{dms}.csv', usecols=['SPURS_single_additive', 'SPURS_multi', 'DMS_score'])
-        rho_sp_sa = float(spearmanr(dsp['SPURS_single_additive'], dsp['DMS_score'], nan_policy='omit')[0])
-        rho_sp_m = float(spearmanr(dsp['SPURS_multi'], dsp['DMS_score'], nan_policy='omit')[0])
+        # SPURS single & multi (retrained; seed mean)
+        rho_sp_sa = _rho_seeds(sp_dir, dms, 'SPURS_single_additive')
+        rho_sp_m = _rho_seeds(sp_dir, dms, 'SPURS_multi')
         rho_sp_uni = rho_sp_m if has_mm else rho_sp_sa
 
-        # ESM-MSR (devel) and (baseline) seed 1
-        d_dev = pd.read_csv(msrdev_dir / f'{dms}.csv', usecols=['combined_pred', 'wt_lora_pred', 'DMS_score'])
-        rho_dev_comb = float(spearmanr(d_dev['combined_pred'], d_dev['DMS_score'], nan_policy='omit')[0])
-        rho_dev_wt = float(spearmanr(d_dev['wt_lora_pred'], d_dev['DMS_score'], nan_policy='omit')[0])
-        d_bas = pd.read_csv(msrbase_dir / f'{dms}.csv', usecols=['combined_pred', 'wt_lora_pred', 'DMS_score'])
-        rho_bas_comb = float(spearmanr(d_bas['combined_pred'], d_bas['DMS_score'], nan_policy='omit')[0])
-        rho_bas_wt = float(spearmanr(d_bas['wt_lora_pred'], d_bas['DMS_score'], nan_policy='omit')[0])
+        # ESM-MSR (devel) and (baseline), seed mean (kept for the full-roster heat map only)
+        rho_dev_comb, rho_dev_wt = (_rho_seeds(msrdev_dir, dms, c) for c in ('combined_pred', 'wt_lora_pred'))
+        rho_bas_comb, rho_bas_wt = (_rho_seeds(msrbase_dir, dms, c) for c in ('combined_pred', 'wt_lora_pred'))
 
         # Public row_id-indexed models
         rho_geo = _score_rowid_dir(geo_dir, dms, y_full)
@@ -393,9 +394,9 @@ def _score_all_pgym_models(dms_ids, refresh=False):
     return df
 
 
-def _domainome_summary(refresh=False, rule='audit'):
-    """Mean per-domain Spearman rho and 95% domain-resampling bootstrap (B = 2000) across the 458 low-homology domains."""
-    cache = CACHE / ('pg_domainome_458_s1_boot.pkl' if rule == 'audit' else 'pg_domainome_tsu_s1_boot.pkl')
+def _domainome_summary(refresh=False, rule='tsu'):
+    """Mean per-domain Spearman rho and 95% domain-resampling bootstrap (B = 1000) across the held-out domains."""
+    cache = CACHE / 'pg_domainome_tsu_boot.pkl'
     dom_hom = homologous_domainome_domains(rule)
     n_keep = 522 - len(dom_hom)
     if cache.exists() and not refresh:
@@ -409,18 +410,17 @@ def _domainome_summary(refresh=False, rule='audit'):
         ):
             return cached['summary']
 
-    assert rule != 'audit' or len(dom_hom) == 64, f'Expected 64 Domainome P+H exclusions, got {len(dom_hom)}'
-    raw_dom = load_frame('domainome')
+    raw_dom = load_frame('domainome', heldout=False)               # all 522 domains: the final-run frame below has every row; the canonical four-part exclusion is applied through `keep`
     keep = ~raw_dom.spine['group'].astype(str).isin(dom_hom).to_numpy()
     dom_458 = Frame(
         'domainome',
         raw_dom.spine.loc[keep].reset_index(drop=True),
         {k: v[:, keep] for k, v in raw_dom.preds.items()},
     )
-    dom_fr, _ = _seed1_frame('domainome', dom_458)
-    s05 = load_final_frame('domainome', families=['FINAL_p0'], sigma='0.5', seeds=(1,))             # FINAL_p0 seed 1 at LoRA scale 0.5, WT head (the sigma = 1 reading is 'ESM-MSR': singles, so WT head)
+    dom_fr, _ = seed_frame('domainome', dom_458)
+    s05 = load_final_frame('domainome', families=['FINAL_p0'], sigma='0.5', seeds=(1, 2, 3), heldout=False)             # FINAL_p0 seeds 1-3 at LoRA scale 0.5, WT head (the sigma = 1 reading is 'ESM-MSR': singles, so WT head)
     assert (s05.spine['id'].to_numpy() == raw_dom.spine['id'].to_numpy()).all()
-    dom_fr.preds['ESM-MSR σ=0.5'] = s05.preds['FINAL_p0:wt'][:1, keep]
+    dom_fr.preds['ESM-MSR σ=0.5'] = s05.preds['FINAL_p0:wt'][:, keep]
     pt, rp = bootstrap_rho({'domainome': dom_fr}, list(dom_fr.preds), kind='protein', B=B, seed=30, per_protein=True)
     out = {}
     for m, (rho, _ps, _n, ng) in pt['domainome'].items():
@@ -511,8 +511,7 @@ def main(refresh=False):
     non_ros = [m for m in EXT_ORDER if m != 'Rosetta']
     assert int(T[non_ros].isna().sum().sum()) == 0, f'Unexpected NaNs: {T[non_ros].isna().sum().to_dict()}'
 
-    stab_hom = homologous_stability_assays(T['category'])
-    assert len(stab_hom) == 26, f'Expected 26 Stability P+H exclusions, got {len(stab_hom)}'
+    stab_hom = tsuboyama_rule_assays() & set(T.index)                    # every assay homologous to the training set (all categories), left out of every table below
 
     pg_cols = CATS + ['PG avg', 'DMS mean']
     dom = _domainome_summary(refresh=refresh)
@@ -567,8 +566,8 @@ def main(refresh=False):
     R_full, _ = summary_rows(Tf_all, full_models, pg_cols)
     R_full.to_csv(OUT / 'pg_all_models_summary.csv', index=False, float_format='%.4f')
 
-    print(f'Unfiltered: {len(T)} assays; Stability-homology filtered: {len(Tf)} assays '
-          f'({len(stab_hom)} Stability P+H removed; remaining Stability={(Tf.category == "Stability").sum()}/66)')
+    print(f'All: {len(T)} assays; held-out under the four-part rule: {len(Tf)} assays '
+          f'({len(stab_hom)} homologous assays removed; remaining Stability={(Tf.category == "Stability").sum()})')
     print(
         R_uni[R_uni.column.isin(['PG avg', 'Stability', 'DMS mean', 'Domainome'])]
         .pivot(index='model', columns='column', values='value')[['Stability', 'PG avg', 'DMS mean', 'Domainome']]
@@ -579,9 +578,9 @@ def main(refresh=False):
 
     p0_desc = 'p0 combined on multi-mutants' if n_p0_comb == n_mm else f'p0 WT head ({n_p0_comb}/{n_mm} multi-mutants combined)'
     stab_note = (
-        '* Homologous proteins excluded for PGym Stability (23 same-protein P + 3 strong homolog H = 26/66 removed) '
-        'and Domainome (4 P + 60 H = 64/522 removed) via leak_audit_structure_homology.csv; other PGym categories unfiltered.\n'
-        f'Seed 1 only. Singles models on singles assays / Domainome; multi on PGym multi-mutants '
+        f'* Proteins homologous to the training set under the split\'s four-part rule (MMseqs2 E <= 1e-3, identity > 0.40, Foldseek E <= 1e-3, TM-score > 0.70) are left out: {len(stab_hom)} of {len(T)} ProteinGym assays and '
+        f'{len(homologous_domainome_domains())} of 522 Domainome domains.\n'
+        f'Seeds 1-3 averaged Singles models on singles assays / Domainome; multi on PGym multi-mutants '
         f'(ME st1/st2; ThermoMPNN additive / -D on doubles; SPURS single/multi). '
         'Rosetta: PGym singles only (no Domainome).'
     )
@@ -606,14 +605,14 @@ def main(refresh=False):
     ax.set_yticks(range(len(Z)))
     ax.set_yticklabels([MODELS[m]['label'] for m in Z.index], fontsize=8.4)
     ax.set_title(
-        'ProteinGym summary across all models with PGym data (seed 1; Stability homologous proteins excluded): colour = rank in column',
+        'ProteinGym summary across all models with PGym data (seeds 1-3 averaged; homologous proteins excluded): colour = rank in column',
         loc='left', fontsize=9.3,
     )
     for sp_ in ax.spines.values():
         sp_.set_visible(False)
     fig.text(
         0.01, 0.008,
-        '* Stability* keeps 40/66 assays (26 P+H removed); ThermoMPNN + ThermoMPNN-D uses corrected seed 1. '
+        '* Stability* keeps 40/66 assays (26 P+H removed); ThermoMPNN + ThermoMPNN-D uses the corrected run (seeds 1-3). '
         'Models marked * in label (ESMtherm*, SPURS public ckpts*) trained directly on unsplit MegaScale libraries.',
         fontsize=7.1, va='bottom', ha='left', color='#444444',
     )
@@ -657,14 +656,14 @@ def main(refresh=False):
         if MODELS[k]['group'] == 'msr':
             t.set_fontweight('bold')
     fig.suptitle(
-        'ProteinGym per-category overview (seed 1; sorted by PG avg*): thick bar = 95% assay bootstrap; red ring = Stability training/homolog overlap\n'
+        'ProteinGym per-category overview (seeds 1-3 averaged; sorted by PG avg*): thick bar = 95% assay bootstrap; red ring = Stability training/homolog overlap\n'
         '* Stability excludes 26 MegaScale-homologous assays (40/66 kept); grey rows at bottom: checkpoints trained on unsplit MegaScale libraries',
         fontsize=8.8, y=1.01,
     )
     fig.tight_layout()
     style.save(fig, OUT / 'pg_overview')
 
-    # ---- figure 4: per-assay scatter (ESM-MSR p0 seed 1 vs ProSST & vs ESM3-small-open sigma=0) -----
+    # ---- figure 4: per-assay scatter (ESM-MSR p0 seed mean vs ProSST & vs ESM3-small-open sigma=0) -----
     colors = dict(zip(CATS, ['#1f77b4', '#ff7f0e', '#2ca02c', '#9467bd', '#d62728']))
     cat_leg = {
         'Activity': 'Activity (43)',
@@ -683,7 +682,7 @@ def main(refresh=False):
         ax.set_xlim(lim)
         ax.set_ylim(lim)
         ax.set_xlabel(f'ρ, {xl}')
-        ax.set_ylabel('ρ, ESM-MSR (p0, seed 1)')
+        ax.set_ylabel('ρ, ESM-MSR (p0, seeds 1-3)')
         ax.text(0.03, 0.97, f'ESM-MSR higher on {int((Tf["ESM-MSR"] > Tf[xm]).sum())} of {len(Tf)} assays', transform=ax.transAxes, va='top', fontsize=8.5)
     axes[0].legend(fontsize=7.8, loc='lower right')
     fig.suptitle('ProteinGym per-assay ρ (187 assays; homologous Stability proteins excluded)', fontsize=10, y=1.01)
@@ -693,6 +692,6 @@ def main(refresh=False):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('--refresh', action='store_true', help='Recompute per-DMS seed-1 & Domainome caches')
+    ap.add_argument('--refresh', action='store_true', help='Recompute the per-DMS (seed-mean) & Domainome caches')
     args = ap.parse_args()
     main(refresh=args.refresh)

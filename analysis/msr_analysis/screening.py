@@ -89,7 +89,7 @@ def summarize(tab, only_recoverable=True):
                 n_proteins=len(tab), n_recoverable=len(rec))
 
 
-def boot_summary(tabs, B=100, seed=0, only_recoverable=True):
+def boot_summary(tabs, B=1000, seed=0, only_recoverable=True):
     """Protein-level (and seed-level, when ``tabs`` is a list of per-seed tables) bootstrap of ``summarize``: dict metric -> (mean, lo, hi)."""
     if not isinstance(tabs, (list, tuple)):
         tabs = [tabs]
@@ -122,7 +122,7 @@ def boot_summary(tabs, B=100, seed=0, only_recoverable=True):
     return res
 
 
-def pooled_screen(score, y, clusters, frac, tau=0.5, B=100, seed=0, K=None):
+def pooled_screen(score, y, clusters, frac, tau=0.5, B=1000, seed=0, K=None):
     """One screen over the whole set: select the top ``frac`` of the set by score (or the top ``K``); the cluster bootstrap
     (whole proteins with replacement, selection recomputed on each replicate) gives intervals.
     Returns {metric: (value, lo, hi)} for hit_rate, best (best measured ddG among the selected) and the random expectation."""

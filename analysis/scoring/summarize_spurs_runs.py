@@ -1,7 +1,7 @@
 """Three-seed summary CSV of the retrained SPURS / SPURS multi (docs/benchmarks/spurs_retrain_oct06.csv) from the per-seed scorer outputs.
 
 Input: <scored>/{SPURS,SPURSm}_<tag>_s{1,2,3}_summary.csv written by score_baseline_runs.py, and the predictions' domainome.csv (the low-homology
-Domainome column is the mean per-domain rho over the 458 domains outside the 64 `P`/`H` domains of reference/leak_audit_structure_homology.csv).
+Domainome column is the mean per-domain rho over the Domainome domains that are not homologous to the training set under the split's four-part rule, reference/tsuboyama_rule_flags.csv).
 Rows: mean over seeds and the seed SD (ddof 1) of `spearman_all`, in the row order of the document's tables.
 
   python analysis/scoring/summarize_spurs_runs.py --scored baselines/retrained/spurs_unfrozen/scored --tag unf \\
@@ -38,8 +38,8 @@ def main():
     ap.add_argument('--source', required=True)
     ap.add_argument('--out', required=True)
     a = ap.parse_args()
-    ref = pd.read_csv(os.path.join(os.path.dirname(HERE), 'reference', 'leak_audit_structure_homology.csv'))
-    excluded = set(ref[(ref.dataset == 'domainome') & (ref.class_with_struct.isin(['P', 'H']))].item_id.astype(str))
+    ref = pd.read_csv(os.path.join(os.path.dirname(HERE), 'reference', 'tsuboyama_rule_flags.csv'), dtype={'item_id': str})      # the split's four-part rule against the training set
+    excluded = set(ref[(ref.dataset == 'domainome') & ref.homologous].item_id.astype(str))
     rows = []
     for model, prefix, col in (('SPURS (retrained)', 'SPURS', 'SPURS_single_additive'), ('SPURS multi (retrained)', 'SPURSm', 'SPURS_multi')):
         S = [pd.read_csv(os.path.join(a.scored, f'{prefix}_{a.tag}_s{k}_summary.csv'), index_col=0) for k in (1, 2, 3)]

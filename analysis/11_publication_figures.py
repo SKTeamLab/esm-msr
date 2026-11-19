@@ -55,8 +55,8 @@ class _Out:
 
 OUT = _Out()
 DS = 'tsuboyama_capped_test'
-B = 100                                   # draft sizes; the figures of the paper want --B 2000 --B_mut 1000 --B_pooled 1000
-B_MUT = 50
+B = 1000                                  # default sizes; the figures of the paper want --B 2000 --B_mut 1000 --B_pooled 1000 (the mutation-level and pooled bootstraps re-rank every model per draw, so they stay smaller)
+B_MUT = 100
 POOLED_B = 100
 MIN_N = 10
 K = 96

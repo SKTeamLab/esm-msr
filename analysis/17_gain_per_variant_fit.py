@@ -60,7 +60,9 @@ def tables(fam, mode):
         return None                       # no predictions for this family on this split (e.g. the zero-shot models on mega_splits)
     ok = sp['use'].to_numpy() & keep & np.isfinite(fr.preds[k]).all(axis=0)
     y, g = sp['y'].to_numpy()[ok], sp['group'].to_numpy()[ok]
-    return {K: scr_core.per_protein_table(g, fr.preds[k][0][ok], y, K, 0.5) for K in KS}
+    def seed_mean_table(K):                                   # the per-protein table of every seed (the three retrains), averaged over the seeds
+        return pd.concat([scr_core.per_protein_table(g, pr[ok], y, K, 0.5) for pr in fr.preds[k]]).groupby('group', as_index=False).mean(numeric_only=True)
+    return {K: seed_mean_table(K) for K in KS}
 
 
 def matrix(tabs, col):
@@ -111,7 +113,7 @@ def r2(g, pred):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=100)
+    ap.add_argument('--B', type=int, default=1000)
     B = ap.parse_args().B
     rows, srows, curves = [], [], {}
     for ver, (mode, fams) in VERSIONS.items():

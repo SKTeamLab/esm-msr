@@ -6,7 +6,7 @@
   masked marginal       sum of the singles' marginals (additive) -> the double scored with all its mutated positions masked at once (epistatic)
 
 Figure 2's version scores every variant (singles and doubles) with one readout per ESM3 column: the combined head unmasked, ``esm3avg`` (independent masking), ``esm3mm`` (masked
-marginal); the three agree on singles up to the readout.  Domain-level bootstrap (mean over domains), draft sizes, as in ``11_publication_figures.py``.
+marginal); the three agree on singles up to the readout.  Domain-level bootstrap (mean over domains), default sizes, as in ``11_publication_figures.py``.
 Outputs: ``results/06_epistasis/fig3_esm3_scoring_variants`` and ``results/03_tsuboyama/fig2_esm3_scoring_variants``.
 """
 import importlib

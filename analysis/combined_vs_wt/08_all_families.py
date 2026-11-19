@@ -38,7 +38,7 @@ def composite(point, reps, names):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=C.B_DRAFT)
+    ap.add_argument('--B', type=int, default=C.B_DEFAULT)
     B = ap.parse_args().B
     rows = []
     for group, names, kind, label in (('dms', C.DMS, 'site', 'DMS benchmark (3, composite)'), ('ext_singles', C.EXT_SINGLE, 'protein', 'External single-mutant sets (10, composite)'),

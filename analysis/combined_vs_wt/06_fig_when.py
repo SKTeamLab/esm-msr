@@ -3,7 +3,7 @@
 
 The combined prediction is 1/2 (MT + WT).  For one protein, assay or benchmark set: delta_comb = rho(combined) - rho(WT head) against delta_mt = rho(MT head) - rho(WT head).
 
-  when_rule   panels p0, p1: one dot per ProteinGym assay (colour = category; seed 1), per Homology-Restricted MegaScale library (val and test, all variants; seeds 1-3) and per Domainome domain;
+  when_rule   panels p0, p1: one dot per ProteinGym assay (colour = category; seed mean), per Homology-Restricted MegaScale library (val and test, all variants; seeds 1-3) and per Domainome domain;
               line = least squares of delta_comb on delta_mt over all dots of the panel, with the delta_mt at which the line crosses 0 (the break-even MT deficit).  Last panel: the benchmark sets
               of ``01_benchmark_delta.py`` (all / single mutants / multi-mutants cells) for p0, p1 and pw0.
 
@@ -27,7 +27,7 @@ def units():
     out = []
     pg = pd.read_csv(C.OUT / 'pg_per_assay.csv', index_col='assay')
     pg = pg[~pg.train_overlap]
-    for fam, tag in (('FINAL_p0', 'p0_s1'), ('FINAL_p1', 'p1_s1')):
+    for fam, tag in (('FINAL_p0', 'p0'), ('FINAL_p1', 'p1')):
         t = pd.DataFrame({'d_comb': pg[f'{tag}_all_comb'] - pg[f'{tag}_all_wt'], 'd_mt': pg[f'{tag}_all_mt'] - pg[f'{tag}_all_wt'], 'r_wt_mt': pg[f'{tag}_r_wt_mt']})
         t['family'], t['kind'], t['category'] = fam, 'ProteinGym', pg.category
         out.append(t.reset_index(drop=True))
@@ -110,7 +110,7 @@ def main():
         h += [plt.Line2D([], [], marker='o', color='white', mfc=c, mec=c, ms=6, label=n) for n, c in grp.items()]
         ax.legend(handles=h, loc='upper left', fontsize=7.8, borderaxespad=0.2)
         C.finish(fig, 'delta_comb = Spearman rho of the combined prediction, 1/2 (MT + WT), minus rho of the WT head; delta_mt = rho of the MT head minus rho of the WT head; sigma = 1, same variants and checkpoint. '
-                 'Dots of the first two panels: ProteinGym assays (seed 1, all variants), Homology-Restricted MegaScale libraries (val and test, all variants, seeds 1-3) and Domainome domains (seeds 1-3); red line: '
+                 'Dots of the first two panels: ProteinGym assays (seed mean, all variants), Homology-Restricted MegaScale libraries (val and test, all variants, seeds 1-3) and Domainome domains (seeds 1-3); red line: '
                  'least squares over the dots of the panel. Last panel: the sets of the overview (all variants, single mutants and multi-mutants of each set), one marker per family.', 'when_rule')
 
 

@@ -83,7 +83,7 @@ def main():
         cb.ax.tick_params(labelsize=8)
         A.C.finish(fig, 'Cell = delta rho x 1000 = rho(family) - rho(FINAL_p0) under the same readout on the same variants (+12 = +0.012; blue: better than p0, red: worse). Bold with an outline: the 95% bootstrap interval '
                    'of the paired difference excludes 0 (100 resamples; proteins for the external sets, PTMUL and the per-protein means of Homology-Restricted MegaScale and Domainome, sites for the DMS sets; '
-                   'ProteinGym: 20000 resamples over assays, seed 1, mean of the assays of the category). composite = mean of the rho of the sets of the group over one shared draw of proteins. Seeds 1-3 '
+                   'ProteinGym: 20000 resamples over assays, seeds 1-3 averaged per assay, mean of the assays of the category). composite = mean of the rho of the sets of the group over one shared draw of proteins. Seeds 1-3 '
                    '(full MegaScale: 1-2; ProteinGym: 1). Epistasis = rho of comb(AB) - WT(A) - WT(B) with the measured dddG. Hatched: no prediction (no combined run, or the family is not scored on the set).',
                    'ablation_heatmap', out=A.OUT, tight=False)
 

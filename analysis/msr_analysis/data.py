@@ -171,7 +171,7 @@ def _load_msr(frame, ds, out):
     ids = sp['id'].to_numpy(dtype=object)
     heads = dict(wt='wt_lora_pred', comb='combined_pred', mt='mt_lora_pred')
     for spec, sigmas, seeds in (('msr', ['1'], SEEDS), ('msrdev', ['1', '0.75', '0.5', '0.25'], SEEDS),
-                                ('msrp0', ['1'], SEEDS if ds in TSU_MEGA else (1,)), ('msrrel', ['1', '0.75', '0.5', '0.25', '0'], (None,))):
+                                ('msrp0', ['1'], SEEDS), ('msrrel', ['1', '0.75', '0.5', '0.25', '0'], (None,))):
         for sg in sigmas:
             arrs = {h: [] for h in heads}
             ok = True
@@ -555,7 +555,17 @@ def _tidy(out):
     return fixed
 
 
-def load_frame(ds, refresh=False):
+def load_frame(ds, refresh=False, heldout=True):
+    """The frame of dataset ``ds``.  Domainome comes without the domains that are homologous to the training set under the split's four-part rule (``msr_analysis.heldout``; ``heldout=False`` keeps all 522)."""
+    fr = _load_frame(ds, refresh)
+    if heldout and ds == 'domainome':
+        from .heldout import excluded
+        keep = ~fr.spine['group'].astype(str).isin(excluded('domainome')).to_numpy()
+        fr = Frame(fr.name, fr.spine.loc[keep].reset_index(drop=True), {k: v[:, keep] for k, v in fr.preds.items()}, notes=dict(fr.notes, heldout=True))
+    return fr
+
+
+def _load_frame(ds, refresh=False):
     pkl = CACHE / f'frame_{ds}.pkl'
     if pkl.exists() and not refresh:
         with open(pkl, 'rb') as fh:
@@ -565,7 +575,7 @@ def load_frame(ds, refresh=False):
     if ds in PARENT:
         # S461 (subset of S669), K2369 (subset of K3822), and PTMUL-D (subset of PTMUL) ALWAYS slice every model's
         # predictions from their parent superset and merge by variant id onto the child's own corrected label table.
-        pfr = load_frame(PARENT[ds], refresh=refresh)
+        pfr = _load_frame(PARENT[ds], refresh=refresh)
         ids_c = spine['id'].to_numpy(dtype=object)
         ids_p = pfr.spine['id'].to_numpy(dtype=object)
         fr.preds = {k: np.vstack([_align_id(ids_c, ids_p, r) for r in v]).astype(np.float64) for k, v in pfr.preds.items()}

@@ -4,7 +4,7 @@
 Per set and variant class, and family x head: the seed-mean Spearman rho of the family and of p0, the difference and its 95% bootstrap interval and two-sided p.  The bootstrap resamples the same units for
 p0 and for every family of a cell (one draw per replicate, ``msr_analysis.boot.bootstrap_rho``; the triplicate seeds are resampled too), so the interval is that of the paired difference.  FINAL_p0_mega
 has seeds 1-2 on the benchmark sets (p0 has 1-3), so its pairing with p0 is approximate; it is not scored on the Tsuboyama sets (it trains on a different split).  Units: proteins (the external sets,
-PTMUL), sites (DLG4 binding, GRB2 binding, MYO: first mutated position), the per-protein mean over proteins (Homology-Restricted MegaScale, Domainome).  B = 100 (draft).
+PTMUL), sites (DLG4 binding, GRB2 binding, MYO: first mutated position), the per-protein mean over proteins (Homology-Restricted MegaScale, Domainome).  B = 1000 by default.
 
   ext_singles    the 10 external single-mutant stability / thermostability sets and their composite (mean of the 10 rho; one protein draw shared by the 10 sets)
   ext_multi      PTMUL and PTMUL-D and their composite
@@ -56,7 +56,7 @@ def composite(point, reps, names):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=A.C.B_DRAFT)
+    ap.add_argument('--B', type=int, default=A.C.B_DEFAULT)
     B = ap.parse_args().B
     rows = []
     # external sets: composites share one protein draw

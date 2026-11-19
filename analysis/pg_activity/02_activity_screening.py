@@ -18,7 +18,7 @@ A screen of K variants takes the K with the highest model score (stabilizing-pos
 line is the share of all variants that hurt (random picks).  Intervals are 95% bootstrap over assays; the figures draw the band of ESM-MSR only (the csv files hold all).
 
 Outputs (``results/``): ``assay_definitions.csv`` (per assay: WT, floor and its evidence, the sd's, the share that hurts under each definition), ``landscape``, ``wt_vs_plateau``, ``floor_audit``,
-``screening_{enzymes,all}{,_all_models}`` (curves + csv), ``paired_vs_esm_msr.csv``, ``sensitivity.csv``.  ESM-MSR is FINAL_p0 seed 1 (WT head).
+``screening_{enzymes,all}{,_all_models}`` (curves + csv), ``paired_vs_esm_msr.csv``, ``sensitivity.csv``.  ESM-MSR is FINAL_p0 (WT head), and ME / ThermoMPNN / SPURS the retrains: seeds 1-3 of each (the screening statistics per seed, then the seed mean; the bootstrap resamples assays and seeds).
 
     python analysis/pg_activity/02_activity_screening.py [--B 200]
 """
@@ -43,7 +43,8 @@ scr = importlib.import_module('08_screening')          # per_protein() and the m
 DATA, OUT = HERE / 'data', HERE / 'results'
 OUT.mkdir(exist_ok=True)
 
-PG_DIR = ROOT / 'final_pgym_wt' / 'FINAL_p0' / 's1'      # FINAL_p0 seed 1, WT head, one file per assay
+PG_DIR = ROOT / 'final_pgym_wt' / 'FINAL_p0' / 's1'      # FINAL_p0 WT head, one file per assay (seed 1: the assay list and labels; the predictions of seeds 1-3 are read below)
+SEEDS = (1, 2, 3)
 ROSETTA_PG = PUBLIC / 'rosetta' / 'raw_narval' / 'proteingym_cartesian_preds_09_11.csv'     # Rosetta Cartesian ddG, ProteinGym singles (keys 'P<row of DMS_substitutions.csv>_<position><residue>')
 PG_FAM = scr.FAM
 PG_FAM_ALL = [f for f in scr.FAM_ALL if f != 'geoddg']        # GeoDDG-3D is not drawn (it is close to Rosetta)
@@ -115,22 +116,24 @@ def noise(t, plateau_sd):
 
 
 def load_assays():
-    """All 43 Activity assays as one Frame (``spine``: one row per single mutant with its labels under every definition; ``preds``: the models' scores) and the per-assay table."""
+    """All held-out Activity assays (of the 43; ``msr_analysis.heldout``) as one Frame (``spine``: one row per single mutant with its labels under every definition; ``preds``: the models' scores) and the per-assay table."""
     ref = pd.read_csv(ROOT / 'ProteinGym' / 'DMS_substitutions.csv')
     row_of = {d: i for i, d in enumerate(ref.DMS_id)}                   # the Rosetta file is keyed by the row of this table
     ref = ref[ref.coarse_selection_type == 'Activity'].set_index('DMS_id')
+    from msr_analysis.heldout import excluded                           # leave out the assays homologous to the training set (the split's four-part rule)
+    ref = ref[~ref.index.isin(excluded('proteingym'))]
     ros = pd.read_csv(ROSETTA_PG).rename(columns={'Unnamed: 0': 'key', 'cartesian_ddg_dir': 'cart'})
     ros['i'] = ros.key.str.extract(r'^P(\d+)_')[0].astype(int)
     ros['pm'] = ros.key.str.split('_', n=1).str[1]                       # '<position><substituted residue>', no wild-type letter
     ros = {i: g.drop_duplicates('pm').set_index('pm')['cart'] for i, g in ros.groupby('i')}
     wtref = pd.read_csv(DATA / 'wt_reference.csv').set_index('DMS_id')
     aicda = pd.read_csv(DATA / 'aicda_wt_by_position.csv').set_index('pos')
-    srcs = {'msrp0:wt': (PG_DIR, 'wt_lora_pred'),
-            'me1': (RETRAINED / 'mutate_everything' / 'predictions' / 'stage1' / 'seed1' / 'proteingym', 'pred_combined'),
-            'tmpnn': (RETRAINED / 'thermompnn' / 'predictions' / 'single_additive' / 'seed1' / 'proteingym', 'pred_single_additive'),
-            'spurs': (RETRAINED / 'spurs' / 'predictions' / 'seed1' / 'proteingym', 'SPURS_single_additive')}
+    srcs = {'msrp0:wt': (lambda k: ROOT / 'final_pgym_wt' / 'FINAL_p0' / f's{k}', 'wt_lora_pred'),            # the retrained models: one directory per seed
+            'me1': (lambda k: RETRAINED / 'mutate_everything' / 'predictions' / 'stage1' / f'seed{k}' / 'proteingym', 'pred_combined'),
+            'tmpnn': (lambda k: RETRAINED / 'thermompnn' / 'predictions' / 'single_additive' / f'seed{k}' / 'proteingym', 'pred_single_additive'),
+            'spurs': (lambda k: RETRAINED / 'spurs' / 'predictions' / f'seed{k}' / 'proteingym', 'SPURS_single_additive')}
     pub_cols = {'prosst': 'ProSST-2048', 'pmpnn': 'ProteinMPNN', 'msrrel@0:comb': 'ESM3'}   # the authors' published zero-shot scores (baselines/public/proteingym_published)
-    rows, preds, info = [], {k: [] for k in list(srcs) + list(pub_cols) + ['rosetta']}, []
+    rows, preds, info = [], {**{k: {sd: [] for sd in SEEDS} for k in srcs}, **{k: [] for k in list(pub_cols) + ['rosetta']}}, []
     for dms, r in ref.iterrows():
         base = pd.read_csv(PG_DIR / f'{dms}.csv', usecols=['mutant', 'DMS_score'])
         base = base[~base['mutant'].str.contains(':')].reset_index(drop=True)
@@ -179,9 +182,10 @@ def load_assays():
                          hurt_floor5=frac(r_floor > F_LOSS) if floor_ok else np.nan, hurt_floor10=frac(r_floor > 0.10) if floor_ok else np.nan,
                          hurt_sd=frac(z_sd < -DROP_SD), hurt_var5=frac(z_v5 < -TAU), hurt_var10=frac(z_v10 < -TAU), hurt_ladder=frac(z < -TAU),
                          hurt_plateau_sd=frac(z_pl < -TAU), hurt_old_proxy=float((z_old < -TAU).mean())))
-        for k, (d, col) in srcs.items():
-            s = pd.read_csv(d / f'{dms}.csv', usecols=['mutant', col]).drop_duplicates('mutant').set_index('mutant')[col]
-            preds[k].append(s.reindex(base['mutant']).to_numpy(dtype=float))
+        for k, (dirs, col) in srcs.items():
+            for sd in SEEDS:
+                s = pd.read_csv(dirs(sd) / f'{dms}.csv', usecols=['mutant', col]).drop_duplicates('mutant').set_index('mutant')[col]
+                preds[k][sd].append(s.reindex(base['mutant']).to_numpy(dtype=float))
         preds['rosetta'].append(ros.get(row_of[dms], pd.Series(dtype=float)).reindex(base['mutant'].str[1:]).to_numpy(dtype=float))   # Rosetta Cartesian ddG, already stabilizing-positive
         pub = pd.read_csv(PUBLIC / 'proteingym_published' / f'{dms}.csv', usecols=['mutant'] + list(pub_cols.values())).drop_duplicates('mutant').set_index('mutant')
         for k, col in pub_cols.items():                                  # variants a model has no score for stay NaN: that model skips them
@@ -190,9 +194,10 @@ def load_assays():
                                   'r_floor': r_floor, 'use_wt': use, 'use_floor': use & floor_ok, 'group': dms, 'mut': base['mutant'], 'n_mut': 1, 'use': True}))
     spine = pd.concat(rows, ignore_index=True)
     info = pd.DataFrame(info).set_index('DMS_id')
-    cov = {k: round(float(np.isfinite(np.concatenate(v)).mean()), 3) for k, v in preds.items()}
+    arr = {k: (np.stack([np.concatenate(v[sd]) for sd in SEEDS]) if k in srcs else np.concatenate(v)[None, :]) for k, v in preds.items()}      # (seeds, variants); one row for the models with a single run
+    cov = {k: round(float(np.isfinite(v).all(axis=0).mean()), 3) for k, v in arr.items()}
     print('coverage of the singles by each model:', cov)
-    return Frame('pg_activity', spine, {k: np.concatenate(v)[None, :] for k, v in preds.items()}), info
+    return Frame('pg_activity', spine, arr), info
 
 
 def label_frame(fr, groups, label, sign, use_col='use_wt'):
@@ -398,9 +403,9 @@ def paired(fr, info, B=10000, ks=(10, 100)):
                     k = scr.fam_key(fam, f, mode='singles')
                     if k is None:
                         continue
-                    m = sp['use'].to_numpy() & np.isfinite(f.preds[k][0])
-                    t = scr.scr.per_protein_table(sp['group'].to_numpy()[m], f.preds[k][0][m], sp['y'].to_numpy()[m], K, tau)
-                    tabs[fam] = t.set_index('group')['hit']
+                    m = sp['use'].to_numpy() & np.isfinite(f.preds[k]).all(axis=0)
+                    t = pd.concat([scr.scr.per_protein_table(sp['group'].to_numpy()[m], pr[m], sp['y'].to_numpy()[m], K, tau) for pr in f.preds[k]]).groupby('group').mean(numeric_only=True)       # the hit rate of every seed, averaged
+                    tabs[fam] = t['hit']
                 ref = tabs['msrp0']
                 for fam, t in tabs.items():
                     if fam in ('msr', 'msrp0'):
@@ -452,14 +457,14 @@ def sensitivity(fr, info, B):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--B', type=int, default=200, help='bootstrap replicates (200 while drafting)')
+    ap.add_argument('--B', type=int, default=1000, help='bootstrap replicates')
     a = ap.parse_args()
     fr, info = load_assays()
     info.to_csv(OUT / 'assay_definitions.csv', float_format='%.4f')
     fig_landscape(fr, info)
     fig_wt_vs_plateau(info)
     fig_floor_audit(info)
-    sets = (('enzymes', PG_ENZYME, 'ProteinGym Activity: enzymes (18 assays), single mutants'), ('all', set(info.index), 'ProteinGym Activity: all 43 assays, single mutants'))
+    sets = (('enzymes', PG_ENZYME, 'ProteinGym Activity: enzymes (18 assays), single mutants'), ('all', set(info.index), f'ProteinGym Activity: all {len(info)} held-out assays, single mutants'))
     for name, gs, title in sets:
         for fams, tag, mk in ((PG_FAM, '', True), (PG_FAM_ALL, '_all_models', False)):
             res = curves(fr, info, gs, fams, a.B)
