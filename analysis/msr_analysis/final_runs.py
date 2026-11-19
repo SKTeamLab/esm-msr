@@ -35,6 +35,8 @@ FAMILIES = {
     'FINAL_p0_pw0':      dict(short='no pair loss', group='loss', change='block_pair_weight 0.38 -> 0'),
     'FINAL_p0_norank':   dict(short='no rank loss', group='loss', change='lambda_rank_wt/mt 0.5 -> 0'),
     'FINAL_p0_rcthr0':   dict(short='rank censor 0', group='loss', change='rank_censor_threshold -1 -> 0'),
+    'FINAL_p0_norange':  dict(short='no range-tagged cells', group='loss', change='Tobit regression without the assay\'s range-tagged (<-1 / >5) cells (--reg_exclude_range)'),
+    'FINAL_p0_mse':      dict(short='MSE (no range-tagged)', group='loss', change='Tobit NLL -> plain MSE on ddG, range-tagged cells excluded (--reg_nll none)'),
     'FINAL_p0_noseqhwm': dict(short='no seq. head', group='architecture', change='incl_sequence_head_wt/mt True -> False'),
     'FINAL_p0_r2a4':     dict(short='MT LoRA r2', group='architecture', change='lora_rank/alpha_mt 16/16 -> 2/4'),
     'FINAL_p0_mega':     dict(short='full MegaScale', group='data', change='train split splits_oct06_capped -> mega_splits '

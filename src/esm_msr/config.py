@@ -156,6 +156,13 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                           "measurement. posterior: E[z | reading] under the Tobit likelihood with the WT head's detached read as the prior (losses.tobit_posterior_mean), at every reading, with no cut.")
     obj.add_argument('--tf_cut', type=_threshold, default=None,
                      help="--tf_label measured: a measured single (or a double's two singles) is used only when its absolute dG is ABOVE this. Unset: --rank_censor_threshold, or the assay floor.")
+    obj.add_argument('--reg_nll', type=str, default='tobit', choices=['tobit', 'none'],
+                     help="The regression term (weight --lambda_reg_wt / --lambda_reg_mt either way; the name and the choices follow main-baseline's --reg_nll). tobit: the noisy-floor Tobit NLL on the latent "
+                          "absolute dG (losses.tobit_regression_loss). none: plain MSE on ddG against the matched label (the Tobit loss away from the floor, with the library's dG_wt cancelling), over the same "
+                          "items and the same denominator, EXCEPT that the assay's range-tagged cells ('<-1' / '>5') are taken out of the regression, as with --reg_exclude_range (they have no reading to square). "
+                          "The posterior teacher-forcing label (--tf_label) and the reporting-only link keep using the --tobit_* constants.")
+    obj.add_argument('--reg_exclude_range', action='store_true',
+                     help="Take the assay's range-tagged cells ('<-1' / '>5') out of the regression and its denominator (the rank lists and the teacher-forcing labels are untouched). Implied by --reg_nll none.")
     obj.add_argument('--tf_prior_sd', type=float, default=0.75,
                      help="--tf_label posterior: the width (kcal/mol) of the prior on a single's latent dG around the WT head's read (losses.TF_PRIOR_SD).")
     obj.add_argument('--tobit_sigma_y', type=float, default=0.28, help="The Tobit likelihood (and the posterior label): the assay's noise on a reading, kcal/mol (losses.TOBIT_SIGMA_Y).")
