@@ -113,6 +113,8 @@ def pg_prepare(pooled=True):
             table[(f'x{i}', m)], cis[(f'x{i}', m)] = v[0], (v[1], v[2])
             if v[5]:
                 rings.add((f'x{i}', m))
+    if ('PG avg', 'ESM3ΔG') in table:                                  # ESM3ΔG's ProteinGym average includes the Stability assays (64 of 66 are Tsuboyama libraries its training data overlap): labelled, not excluded
+        rings.add(('PG avg', 'ESM3ΔG'))
     hollow = {('Domainome', m) for m in HOLLOW_DOMAINOME}          # Domainome holds singles only: the models with two versions are drawn as their singles version, hollow, as in the thermostability sets
 
     fps = _property_module()
@@ -133,7 +135,7 @@ def pg_prepare(pooled=True):
                'the other models raw' if pooled else
                'mean over WTs of the per-WT rho of the WT\'s measured variants, WTs with at least 10 variants (a within-WT rank is unaffected by the Tobit link), seeds 1-3 averaged where a model has them, whiskers resample WTs')
         note += ('\nMGnify and Rocklin Designs Inferred DDGs: ' + how + '. Multi-mutant versions are read (ESM-MSR combined head, SPURS-multi, ThermoMPNN-D, MutateEverything stage 2; ProteinMPNN and ProSST score every variant directly); ESM3-small-open is the WT head '
-                 '(its combined prediction was not run on these sets); ESM-MSR σ = 0.5 is the combined head like σ = 1; GeoDDG-3D and ESM3ΔG are one run each, the direct prediction of every variant (ESM3ΔG was fine-tuned on MGnify stability data, not Megascale, so its MGnify and Rocklin points are not held out: red ring). '
+                 '(its combined prediction was not run on these sets); ESM-MSR σ = 0.5 is the combined head like σ = 1; GeoDDG-3D and ESM3ΔG are one run each, the direct prediction of every variant (ESM3ΔG was fine-tuned on MGnify stability data, so its MGnify and Rocklin points are not held out; its ProteinGym average includes the Stability assays, which are Tsuboyama libraries its training data overlap: red rings, labelled and not excluded; it is not scored on the MegaScale val / test sets). '
                  + ('Models scored on part of a set only: ' + '; '.join(part) + '. ' if part else '') + 'IFUM, ESMtherm and DDGemb are left to the supplement (they do not beat the other transfer models and saw part of the test sets in training); MutateEverything is on the Rocklin designs only (it needs an MSA per scaffold; stage 2, seeds 1-3). Rosetta was run on the Rocklin designs only and is not in these two columns yet (not collected).')
     return dict(pooled=pooled, groups=groups, cols=cols, labels=labels, table=table, cis=cis, hollow=hollow, rings=rings, extra=extra, fps=fps, t=t, t_all=t_all, Rp=Rp, note=note)
 

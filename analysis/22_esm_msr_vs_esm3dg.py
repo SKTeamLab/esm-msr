@@ -1,11 +1,11 @@
 """ESM-MSR against ESM3dG on every benchmark where both have predictions (a curiosity table, not a paper figure).
 
 ESM-MSR is read as deployed (WT-view on singles-only sets, the Dual-view (combined head) where multi-mutants are scored; seeds 1-3 averaged) and ESM3dG is its single run (the direct prediction of every variant).
-Metrics are those of Figure 3 and its source scripts: pooled Spearman rho on the thermostability and DMS sets (mutation-level bootstrap), mean per-domain rho on Domainome (the held-out domains), the mean per-assay rho of ProteinGym by category (held-out assays; assays resampled within category; no Stability category) and the pooled / per-scaffold rho of
+Metrics are those of Figure 3 and its source scripts: pooled Spearman rho on the thermostability and DMS sets (mutation-level bootstrap), mean per-domain rho on Domainome (the held-out domains), the mean per-assay rho of ProteinGym by category (held-out assays; assays resampled within category) and the pooled / per-scaffold rho of
 MGnify and Rocklin (``18b_mgnify_models.py``).  Both models are scored on the same rows, and delta = ESM-MSR - ESM3dG has a paired bootstrap interval (shared draws, seeds resampled) everywhere except MGnify and
 Rocklin, whose two intervals come from separate scaffold bootstraps.
 
-ESM3dG is not scored on the Megascale (Tsuboyama) libraries, the Homology-Restricted MegaScale val / test sets and ProteinGym's 64 Tsuboyama Stability assays: its training data overlap them (so it has no ProteinGym average).
+ESM3dG is not scored on the Homology-Restricted MegaScale val / test sets (Tsuboyama): its training data overlap them.  ProteinGym's 64 Tsuboyama Stability assays overlap too, but stay in (labelled in the leak column).
 It is fine-tuned on MGnify stability data (960,216 training sequences; ``reference/leak_audit_inventories.csv``): MGnify and Rocklin are not held out for it, and the homology classes of the
 leak audit (``reference/leak_audit_matrix.csv``: P same protein, H strong homolog, h weak homolog; the fraction of the set's rows) show how much of every other set has a homolog in its training data.
 
@@ -76,7 +76,7 @@ def pg_rows(B, leak):
     a, b = T['ESM-MSR'].to_numpy(float), T['pg:esm3dg'].to_numpy(float)
     ok = np.isfinite(a) & np.isfinite(b)
     rng = np.random.default_rng(22)
-    cats = [c for c in PG_CATS if c != 'Stability']                       # ESM3ΔG is not scored on the Stability category: 64 of its 66 assays are Megascale libraries, which its training data overlap
+    cats = list(PG_CATS)                                                  # Stability included: 64 of its 66 assays are Megascale libraries, which ESM3ΔG's training data overlap (labelled in the leak column, not excluded)
     idx = {c: np.flatnonzero((cat == c).to_numpy() & ok) for c in cats}
     draws = {c: rng.choice(v, (B, len(v))) for c, v in idx.items()}
     def stats(x):
@@ -91,7 +91,7 @@ def pg_rows(B, leak):
     for c in ['PG average'] + cats:
         d = rm[c] - re[c]
         n = int(ok.sum()) if c == 'PG average' else len(idx[c])
-        rows.append(dict(group='ProteinGym (held-out assays, no Stability)', benchmark='PG average (4 categories)' if c == 'PG average' else c, metric='mean per-assay rho', n=n, msr=pm[c], msr_lo=np.quantile(rm[c], .025), msr_hi=np.quantile(rm[c], .975),
+        rows.append(dict(group='ProteinGym (held-out assays)', benchmark=c, metric='mean per-assay rho', n=n, msr=pm[c], msr_lo=np.quantile(rm[c], .025), msr_hi=np.quantile(rm[c], .975),
                          esm3dg=pe[c], e_lo=np.quantile(re[c], .025), e_hi=np.quantile(re[c], .975), delta=pm[c] - pe[c], d_lo=np.quantile(d, .025), d_hi=np.quantile(d, .975), p=p_two(d), paired=True,
                          leak=leak.get({'PG average': 'PG avg', 'Stability': 'PG Stability'}.get(c, ''), '')))
     return rows
@@ -179,8 +179,8 @@ def write_md(T):
 
 
 NOTE = ('ESM-MSR: deployed readout (WT-view on singles, Dual-view where multi-mutants are scored), seeds 1-3 averaged; ESM3ΔG: one run, direct prediction. Both on the same rows. Δρ intervals: paired bootstrap '
-        '(draws shared by both models, seeds resampled; mutation level for the thermostability and DMS sets, domain level for Domainome, assays within category for ProteinGym (no Stability: Megascale overlap); MGnify and Rocklin: '
-        'separate scaffold bootstraps). ESM3ΔG is not scored on Megascale (Tsuboyama) data, which its training data overlap. It is fine-tuned on MGnify stability data (960,216 sequences): MGnify and Rocklin are not held out for it. Overlap = the leak audit\'s share of the set\'s rows '
+        '(draws shared by both models, seeds resampled; mutation level for the thermostability and DMS sets, domain level for Domainome, assays within category for ProteinGym; MGnify and Rocklin: '
+        'separate scaffold bootstraps). ESM3ΔG is not scored on the MegaScale val / test sets, which its training data overlap (the Tsuboyama Stability assays of ProteinGym stay in, labelled). It is fine-tuned on MGnify stability data (960,216 sequences): MGnify and Rocklin are not held out for it. Overlap = the leak audit\'s share of the set\'s rows '
         'whose protein has a homolog in that training data (P same protein, H strong homolog, h weak homolog), before the four-part held-out filter. Green / red: Δρ interval excludes 0 (ESM-MSR higher / lower).')
 
 

@@ -10,7 +10,7 @@ A model has the same colour, marker, line style and position in every figure, ba
     trained on Megascale (supplement only, drawn last and marked with an asterisk)
                          ESMtherm, IFUM, SPURS (published checkpoint), DDGemb, DDMut
 
-ESM3ΔG is never drawn on Megascale (Tsuboyama) data, because its training data overlap it: ``data.load_frame`` gives it no predictions on the Tsuboyama sets and ``05_proteingym`` no Stability category (so no average).
+ESM3ΔG is never scored on the Tsuboyama val / test sets (capped and mega_splits), because its training data overlap them: ``data.load_frame`` gives it no predictions there.  On ProteinGym, whose Stability assays are Tsuboyama libraries too, it is kept and the overlap is labelled (red ring), not excluded.
 
 ESM-MSR is the final model (FINAL_p0, seeds 1-3) and is never labelled p0; no other version of it (devel, baseline, released) is drawn.  Every figure scores a variant with the model that fits it: the singles
 version on singles (ESM-MSR and ESM3-small-open: the WT-view; MutateEverything stage 1, ThermoMPNN, SPURS single) and the doubles version on multi-mutants (ESM-MSR and ESM3-small-open: the Dual-view, i.e. the

@@ -404,9 +404,6 @@ def summarize_cols(T, models, idx_by_cat):
         reps['PG avg'] = np.mean([reps[c] for c in CATS], axis=0)
         tot = sum(counts_cat.values())
         reps['DMS mean'] = sum(reps[c] * counts_cat[c] for c in CATS) / tot
-        if m == 'ESM3ΔG':                                    # no Stability category (Megascale overlap): neither the average nor the mean over the assays is comparable
-            point['DMS mean'] = np.nan
-            reps['DMS mean'] = np.full_like(reps['DMS mean'], np.nan)
         res[m] = (point, reps)
     return res
 
@@ -437,8 +434,7 @@ def main(refresh=False):
 
     scores = _score_all_pgym_models(dms_ids, refresh=refresh)
     prosst_src = 'ours' if all((PROSST_OURS / f'{d}.csv').exists() for d in dms_ids) else 'published'
-    (OUT / 'pg_zero_shot_sources.txt').write_text(f'ProSST: {prosst_src} (a run of ours on every assay: baselines/public/prosst/proteingym; otherwise the scores ProteinGym ships)\nProteinMPNN: our runs, the mean of three (baselines/public/proteinmpnn/proteingym)\nESM3-small-open: our sigma-0 read\nESM3ΔG: not scored on the Stability category (64 of its 66 assays are Megascale / Tsuboyama libraries, which its training data overlap), so it has no ProteinGym average\n')
-    scores.loc[(a.loc[scores.index, 'category'] == 'Stability').to_numpy(), 'ESM3ΔG'] = np.nan          # Megascale overlap: no Stability column, no average, for ESM3ΔG
+    (OUT / 'pg_zero_shot_sources.txt').write_text(f'ProSST: {prosst_src} (a run of ours on every assay: baselines/public/prosst/proteingym; otherwise the scores ProteinGym ships)\nProteinMPNN: our runs, the mean of three (baselines/public/proteinmpnn/proteingym)\nESM3-small-open: our sigma-0 read\nESM3ΔG: scored on every assay; its Stability assays (64 of 66 are Megascale / Tsuboyama libraries, which its training data overlap) are labelled with a red ring, not excluded\n')
 
     n_mm = int(scores['has_multi'].sum())
     n_p0_comb = int((scores['has_multi'] & (scores['msr_p0_head'] == 'combined')).sum())
@@ -447,7 +443,7 @@ def main(refresh=False):
           f'(WT fallback on {n_mm - n_p0_comb}); ThermoMPNN-D on {n_tmp_dbl}/{n_mm} double-containing assays.')
 
     # the full ProteinGym roster: every model of the unified roster that has scores on (almost) every assay, plus the supplement models
-    full_models = [m for m in ALL_PG_MODELS if int(scores[m].isna().sum()) <= 1 or m == 'ESM3ΔG']          # ESM3ΔG has no Stability column (Megascale overlap)
+    full_models = [m for m in ALL_PG_MODELS if int(scores[m].isna().sum()) <= 1]
 
     # Save unified + full-model per-DMS tables
     T = pd.DataFrame(index=dms_ids)
@@ -462,7 +458,7 @@ def main(refresh=False):
         T_all[m] = scores[m]
     T_all.to_csv(OUT / 'pg_all_models_per_dms.csv', float_format='%.4f')
 
-    non_ros = [m for m in EXT_ORDER if m not in ('Rosetta', 'ESM3ΔG')]
+    non_ros = [m for m in EXT_ORDER if m != 'Rosetta']
     assert int(T[non_ros].isna().sum().sum()) == 0, f'Unexpected NaNs: {T[non_ros].isna().sum().to_dict()}'
 
     stab_hom = tsuboyama_rule_assays() & set(T.index)                    # every assay homologous to the training set (all categories), left out of every table below
