@@ -23,7 +23,7 @@ Emits:
   - `summary.json` & `needed_stems.txt`
 
 Usage:
-    CUDA_VISIBLE_DEVICES="" python preprocessing/preprocess_mgnify.py --out_dir data/mgnify_v2 --workers 8
+    CUDA_VISIBLE_DEVICES="" python preprocessing/preprocess_mgnify.py --out_dir data/mgnify --workers 8
 """
 import argparse
 import collections

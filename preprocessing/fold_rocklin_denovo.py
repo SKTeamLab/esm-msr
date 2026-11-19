@@ -3,7 +3,7 @@
 
 Workflow:
   1. `prepare`: Infer exact `SAGGSAGG` display-linker padding bounds for all 1,000 mutated
-     `design_id_*` parent scaffolds in `data/mgnify_v2/mgnify_all_mutations.csv.gz`,
+     `design_id_*` parent scaffolds in `data/mgnify/mgnify_all_mutations.csv.gz`,
      verify 100% coordinate consistency across all 209,818 variants, write single-sequence
      `.a3m` files partitioned into 3 length-sorted shards, emit `manifest.csv` and
      `af2_rocklin_denovo.sbatch` for node `gpu2`.
@@ -981,7 +981,7 @@ def cmd_sync(
 
 
 def main() -> None:
-    default_dir = REPO_ROOT / "data" / "mgnify_v2"
+    default_dir = REPO_ROOT / "data" / "mgnify"
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -996,7 +996,7 @@ def main() -> None:
     p_col.add_argument("--spot_check_pdbs", type=int, default=20)
     p_col.add_argument("--allow_partial", action="store_true")
 
-    p_app = sub.add_parser("apply", help="Update mgnify_v2 CSVs with core coords and verified AF2 PDB paths")
+    p_app = sub.add_parser("apply", help="Update the data/mgnify CSVs with core coords and verified AF2 PDB paths")
     p_app.add_argument("--mgnify_dir", type=Path, default=default_dir)
     p_app.add_argument("--allow_missing_pdbs", action="store_true")
 
