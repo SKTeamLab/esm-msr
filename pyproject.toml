@@ -35,7 +35,14 @@ dev = [
     "pytorch-lightning>=2.0.0"
 ]
 
-[tool.setuptools]
-package-dir = {"" = "src"}
-# This tells it to find all packages inside the src/ directory
-packages = {find = {where = ["src"]}}
+[tool.setuptools.package-dir]
+"" = "src"
+"msr_analysis" = "analysis/msr_analysis"
+
+[tool.setuptools.packages.find]
+where = ["src", "analysis"]
+include = ["esm_msr*", "msr_analysis*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "analysis"]
+testpaths = ["tests", "analysis/tests"]

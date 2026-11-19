@@ -1,55 +1,44 @@
-"""Unified model selection (all seeds) and mutation-level bootstrap helpers for external benchmarks.
+"""Unified model selection (all seeds) and mutation-level bootstrap helpers for external benchmarks."""
+from __future__ import annotations
 
-Used by ``02_thermostability.py``, ``04_dms_domainome.py``, and ``05_proteingym.py`` so every external
-Spearman's rho figure shares:
-
-- The unified model roster (no sigma in {0.75, 0.5, 0.25} sweep points; p0 at sigma = 1 for ESM-MSR).
-- All three seeds of every retrained model (FINAL_p0, MutateEverything, ThermoMPNN, SPURS): the point estimate is the seed mean, the bootstrap resamples the seeds with the draws.
-- Dataset-appropriate head selection (singles models on singles-only datasets; multi models on
-  multi-mutant datasets, with ThermoMPNN additive on PTMUL / GB1 and ThermoMPNN-D on 2-mutant sets).
-- Mutation-level bootstrapping (``kind='mutation'`` in ``msr_analysis.boot.bootstrap_rho``), cached
-  separately in ``cache/boot_ext_mutation.pkl`` without altering ``01_core_rho.py`` / ``rho_bootstrap.csv``.
-"""
 import pickle
+from types import MappingProxyType
 
 import numpy as np
 from scipy.stats import spearmanr
 
+from . import models as R
 from .boot import bootstrap_rho, ci
 from .data import Frame, load_frame
-from . import models as R
-from .registry import CACHE, DMS3, EXT12, MODELS
+from .paths import CACHE, atomic_pickle_dump
+from .registry import DMS3, EXT12, MODELS
 
-EXT_ORDER = list(R.UNIFIED)             # the roster of the main figures, in the canonical order (``msr_analysis.models``): zero-shot, transfer models, supervised
-EXT_MODELS = {m.name: dict(label=m.label, color=m.color, marker=m.marker, fill=True, group='msr' if m.name == 'ESM-MSR' else {'zeroshot': 'zeroshot', 'transfer': 'retrain'}.get(m.group, 'public'), model=m.name, ls=m.ls)
-              for m in R.ROSTER}
+EXT_ORDER = list(R.UNIFIED)
+EXT_MODELS = MappingProxyType({m.name: MODELS[m.name] for m in R.ROSTER})
 
-
-_CACHE_VERSION = 6                      # 3: the Domainome frame is held-out (msr_analysis.heldout); 4: all three seeds (was seed 1); 5: B = 1000 (was 100); 6: ESM3ΔG in the roster
+_CACHE_VERSION = 6
 
 
-def register_ext_styles():
-    """Register unified display styles into ``msr_analysis.registry.MODELS``."""
-    for name, spec in EXT_MODELS.items():
-        MODELS[name] = dict(spec)
+def register_ext_styles() -> None:
+    """No-op kept for backwards compatibility: ``registry.MODELS`` already includes all canonical roster names."""
+    return None
 
 
-def model_key_for_dataset(model_name, fr):
+def model_key_for_dataset(model_name: str, fr: Frame) -> str | None:
     """Return the prediction key in ``fr.preds`` appropriate for ``model_name`` on dataset ``fr``."""
     sp = fr.spine[fr.spine['use']]
     is_multi = bool((sp['n_mut'] > 1).any())
     has_higher = bool((sp['n_mut'] > 2).any())
     m = R.BY_NAME[model_name]
     if model_name == 'ThermoMPNN':
-        key = ('tmpnn' if has_higher else 'tmpnnd') if is_multi else 'tmpnn'        # ThermoMPNN-D scores doubles only: additive ThermoMPNN where a set has 3+ mutants
+        key = ('tmpnn' if has_higher else 'tmpnnd') if is_multi else 'tmpnn'
     else:
-        key = m.multi if is_multi else m.single                                       # the doubles version on multi-mutants, the singles version on singles
+        key = m.multi if is_multi else m.single
     return key if key in fr.preds else None
 
 
-def seed_frame(ds, fr, models=None):
-    """Return (Frame with the arrays of every seed, keyed by roster model names, {model_name: raw_key}).  A model with one run (zero-shot models, the public checkpoints) has one row.
-    ``models``: the roster names to include (default: the unified roster of the main figures, ``EXT_ORDER``)."""
+def seed_frame(ds: str, fr: Frame, models=None) -> tuple[Frame, dict[str, str]]:
+    """Return ``(Frame keyed by roster model names, {model_name: raw_key})``."""
     preds = {}
     used = {}
     for m in (EXT_ORDER if models is None else models):
@@ -60,14 +49,8 @@ def seed_frame(ds, fr, models=None):
     return Frame(ds, fr.spine, preds), used
 
 
-def load_mutation_boot(refresh=False):
-    """Compute (or load cached) mutation-level bootstrap intervals (seed mean, seeds resampled) across EXT12, DMS3, and Domainome.
-
-    Returns dict with:
-      - ``point``: ``{(dataset, model_name): (rho, lo, hi)}``
-      - ``reps``: ``{dataset: {model_name: ndarray(B,)}}``
-      - ``keys``: ``{(dataset, model_name): raw_key}``
-    """
+def load_mutation_boot(refresh: bool = False) -> dict:
+    """Compute (or load cached) mutation-level bootstrap intervals across ``EXT12``, ``DMS3``, and ``domainome``."""
     cache_path = CACHE / 'boot_ext_mutation.pkl'
     if cache_path.exists() and not refresh:
         with open(cache_path, 'rb') as fh:
@@ -109,14 +92,12 @@ def load_mutation_boot(refresh=False):
     _run_group({'domainome': dom_fr}, list(dom_fr.preds), kind='mutation', B=1000, seed=30, per_protein=True)
 
     payload = dict(version=_CACHE_VERSION, point=point_out, reps=reps_out, keys=keys_out)
-    CACHE.mkdir(parents=True, exist_ok=True)
-    with open(cache_path, 'wb') as fh:
-        pickle.dump(payload, fh, protocol=4)
+    atomic_pickle_dump(payload, cache_path)
     return payload
 
 
-def point_rho(fr, key):
-    """Full-sample seed-mean rho of prediction ``key`` (the mean over the seeds of the pooled rho over the rows of ``use`` with a finite prediction: the point estimate of ``bootstrap_rho``), and the number of rows."""
+def point_rho(fr: Frame, key: str) -> tuple[float, int]:
+    """Return ``(seed_mean_pooled_rho, n_rows)`` for ``key`` on ``fr``."""
     sp = fr.spine
     y = sp['y'].to_numpy()
     rho, n = [], 0
@@ -127,11 +108,8 @@ def point_rho(fr, key):
     return float(np.mean(rho)), n
 
 
-def fresh_frames(S, tol=5e-4):
-    """{dataset: Frame} of the datasets of ``S`` (rows of ``02_thermostability/thermostability_rho.csv``: dataset, key, rho) that reproduce ``S``.
-
-    The frame cache of ``analysis/cache`` can be older than the prediction files (SPURS: the trained-adapter predictions replaced the frozen ones on 2026-11-16), so when a seed-mean rho of a frame differs
-    from the one in ``S`` by more than ``tol`` the frames are rebuilt once; if they still differ the error names the cells."""
+def fresh_frames(S: pd.DataFrame, tol: float = 5e-4) -> dict[str, Frame]:
+    """Verify ``{dataset: Frame}`` reproduces ``S`` (columns ``dataset, key, rho``), refreshing once if stale."""
     out = {}
     for attempt in (0, 1):
         bad = []
@@ -139,8 +117,12 @@ def fresh_frames(S, tol=5e-4):
             if attempt:
                 load_frame(ds, refresh=True)
             out[ds] = load_frame(ds)
-            bad += [(ds, r.key, round(point_rho(out[ds], r.key)[0], 4), round(r.rho, 4)) for r in S[S.dataset == ds].itertuples() if abs(point_rho(out[ds], r.key)[0] - r.rho) > tol]
+            bad += [
+                (ds, r.key, round(point_rho(out[ds], r.key)[0], 4), round(r.rho, 4))
+                for r in S[S.dataset == ds].itertuples()
+                if abs(point_rho(out[ds], r.key)[0] - r.rho) > tol
+            ]
         if not bad:
             return out
-        print(('frame cache disagrees with the figure data for %d cells, rebuilding: ' % len(bad)) if not attempt else 'STILL DISAGREES:', bad[:6], flush=True)
-    raise SystemExit('the frames do not reproduce thermostability_rho.csv: rerun 02_thermostability.py --refresh first')
+        print(('frame cache disagrees with figure data for %d cells, rebuilding: ' % len(bad)) if not attempt else 'STILL DISAGREES:', bad[:6], flush=True)
+    raise SystemExit('frames do not reproduce thermostability_rho.csv: rerun 02_thermostability.py --refresh first')

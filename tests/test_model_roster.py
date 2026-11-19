@@ -68,10 +68,31 @@ def test_bar_columns():
     assert M.ordered(['SPURS', 'ProSST', 'ESM3ΔG', 'ESM-MSR']) == ['ProSST', 'ESM-MSR', 'SPURS', 'ESM3ΔG']
 
 
-def test_esm3dg_is_never_scored_on_megascale_data():
+def test_esm3dg_is_never_scored_on_megascale_data(tmp_path, monkeypatch):
     """ESM3ΔG's training data overlap the Megascale (Tsuboyama) libraries: no predictions on those sets, no rows in the core table."""
+    import numpy as np
+    import pandas as pd
     from msr_analysis import common, data
+
     assert set(data.NO_ESM3DG) == set(registry.TSU_CAPPED) | set(registry.TSU_MEGA)
-    d = common.load_rho_df()
+    synthetic = pd.DataFrame([
+        {'dataset': 'tsuboyama_capped_test', 'subset': 'single', 'model': 'esm3dg', 'rho': 0.85},
+        {'dataset': 'tsuboyama_mega_test', 'subset': 'double', 'model': 'esm3dg+', 'rho': 0.80},
+        {'dataset': 'tsuboyama_capped_val', 'subset': 'double', 'model': 'esm3dg:epi', 'rho': 0.30},
+        {'dataset': 's669', 'subset': 'single', 'model': 'esm3dg', 'rho': 0.55},
+        {'dataset': 'tsuboyama_capped_test', 'subset': 'single', 'model': 'msrp0:wt', 'rho': 0.88},
+    ])
+    csv_path = tmp_path / 'rho_bootstrap.csv'
+    synthetic.to_csv(csv_path, index=False)
+    d = common.load_rho_df(csv_path)
     assert not d[d.model.str.startswith('esm3dg') & d.dataset.isin(data.NO_ESM3DG)].shape[0]
-    assert d[d.model.str.startswith('esm3dg')].shape[0] > 0                  # still there on the other sets
+    assert d[d.model.str.startswith('esm3dg')].shape[0] == 1 and d[d.model.str.startswith('esm3dg')].iloc[0]['dataset'] == 's669'
+
+    spine = pd.DataFrame({'id': ['P1_A1G'], 'group': ['P1'], 'n_mut': [1], 'use': [True], 'y': [0.1]})
+    preds = {'esm3dg': np.array([[0.2]]), 'esm3dg+': np.array([[0.2]]), 'msrp0:wt': np.array([[0.15]])}
+    monkeypatch.setattr(data, '_load_frame', lambda ds, refresh=False, check_sources=False: data.Frame(ds, spine, dict(preds)))
+    monkeypatch.setattr(data, '_maybe_attach_msrp0_s05', lambda fr, ds: fr.preds)
+    tsu_fr = data.load_frame('tsuboyama_capped_test')
+    assert not [k for k in tsu_fr.preds if k.startswith('esm3dg')] and 'msrp0:wt' in tsu_fr.preds
+    ext_fr = data.load_frame('s669')
+    assert 'esm3dg' in ext_fr.preds and 'esm3dg:epi' in ext_fr.preds
