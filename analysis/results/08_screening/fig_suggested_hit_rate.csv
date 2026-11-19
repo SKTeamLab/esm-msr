@@ -23,18 +23,18 @@ ESM-MSR combined,msrdev:comb,recall_ddG_gt_0.5,0.3457,0.2829,0.4025,32,1018.6667
 ESM-MSR combined,msrdev:comb,recall_ddG_gt_0,0.1358,0.1075,0.1688,33,1018.6667,458.3333
 ESM-MSR combined,msrdev:comb,n_suggested_per_domain,30.8687,19.9896,45.5937,33,1018.6667,458.3333
 ESM-MSR combined,msrdev:comb,n_hits_recovered_per_domain,13.8889,8.3914,20.6679,33,1018.6667,458.3333
-ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0.5,0.4072,0.3143,0.4836,32,827.0000,389.0000
-ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0,0.8870,0.8429,0.9278,32,827.0000,389.0000
-ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0.5,0.2528,0.1931,0.3133,32,827.0000,389.0000
-ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0,0.1014,0.0775,0.1355,33,827.0000,389.0000
-ESM-MSR (p0) WT head,msrp0:wt,n_suggested_per_domain,25.0606,16.3909,38.1955,33,827.0000,389.0000
-ESM-MSR (p0) WT head,msrp0:wt,n_hits_recovered_per_domain,11.7879,6.8811,18.2735,33,827.0000,389.0000
-ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0.5,0.3553,0.2806,0.4072,33,1370.0000,557.0000
-ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0,0.8574,0.8041,0.8993,33,1370.0000,557.0000
-ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0.5,0.4175,0.3426,0.4983,32,1370.0000,557.0000
-ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0,0.1766,0.1445,0.2137,33,1370.0000,557.0000
-ESM-MSR (p0) combined,msrp0:comb,n_suggested_per_domain,41.5152,29.5455,57.8068,33,1370.0000,557.0000
-ESM-MSR (p0) combined,msrp0:comb,n_hits_recovered_per_domain,16.8788,10.7682,24.7712,33,1370.0000,557.0000
+ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0.5,0.3823,0.2994,0.4433,33,970.3333,429.3333
+ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0,0.8730,0.8122,0.9132,33,970.3333,429.3333
+ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0.5,0.2984,0.2227,0.3765,32,970.3333,429.3333
+ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0,0.1202,0.0860,0.1587,33,970.3333,429.3333
+ESM-MSR (p0) WT head,msrp0:wt,n_suggested_per_domain,29.4040,19.4598,43.8268,33,970.3333,429.3333
+ESM-MSR (p0) WT head,msrp0:wt,n_hits_recovered_per_domain,13.0101,8.1884,20.2391,33,970.3333,429.3333
+ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0.5,0.3404,0.2658,0.3890,33,1463.6667,578.6667
+ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0,0.8431,0.7870,0.8835,33,1463.6667,578.6667
+ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0.5,0.4400,0.3763,0.5107,32,1463.6667,578.6667
+ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0,0.1860,0.1551,0.2272,33,1463.6667,578.6667
+ESM-MSR (p0) combined,msrp0:comb,n_suggested_per_domain,44.3535,32.9432,62.2556,33,1463.6667,578.6667
+ESM-MSR (p0) combined,msrp0:comb,n_hits_recovered_per_domain,17.5354,11.3972,26.0285,33,1463.6667,578.6667
 MutateEverything st1,me1,precision_ddG_gt_0.5,0.2783,0.1730,0.3709,32,512.6667,185.3333
 MutateEverything st1,me1,precision_ddG_gt_0,0.7353,0.6002,0.8065,32,512.6667,185.3333
 MutateEverything st1,me1,recall_ddG_gt_0.5,0.0942,0.0600,0.1275,32,512.6667,185.3333

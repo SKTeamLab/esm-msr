@@ -1,7 +1,7 @@
 k,rule,model,mean_gain,lo,hi,picks_counted
 24,notebook,Top 24 per Domain,17.8606,14.9875,20.4896,24.0000
-24,notebook,ESM-MSR (p0) WT head,10.3857,8.4383,11.9687,24.0000
-24,notebook,ESM-MSR (p0) combined,11.0434,8.9664,12.6418,24.0000
+24,notebook,ESM-MSR (p0) WT head,10.3359,8.4610,11.8982,24.0000
+24,notebook,ESM-MSR (p0) combined,11.0352,8.9646,12.5890,24.0000
 24,notebook,MutateEverything st1,6.9003,5.2062,7.9535,24.0000
 24,notebook,ThermoMPNN,8.7154,7.0046,10.3432,24.0000
 24,notebook,SPURS,9.2856,7.3450,11.0388,24.0000
@@ -11,8 +11,8 @@ k,rule,model,mean_gain,lo,hi,picks_counted
 24,notebook,GeoDDG-3D,5.6977,4.5032,6.8355,24.0000
 24,notebook,Rosetta,6.2397,4.7199,7.7652,24.0000
 24,all picks,Top 24 per Domain,17.8606,14.9875,20.4896,24.0000
-24,all picks,ESM-MSR (p0) WT head,10.3857,8.4383,11.9687,24.0000
-24,all picks,ESM-MSR (p0) combined,11.0434,8.9664,12.6418,24.0000
+24,all picks,ESM-MSR (p0) WT head,10.3359,8.4610,11.8982,24.0000
+24,all picks,ESM-MSR (p0) combined,11.0352,8.9646,12.5890,24.0000
 24,all picks,MutateEverything st1,6.9003,5.2062,7.9535,24.0000
 24,all picks,ThermoMPNN,8.7154,7.0046,10.3432,24.0000
 24,all picks,SPURS,9.2856,7.3450,11.0388,24.0000
@@ -22,8 +22,8 @@ k,rule,model,mean_gain,lo,hi,picks_counted
 24,all picks,GeoDDG-3D,5.6977,4.5032,6.8355,24.0000
 24,all picks,Rosetta,6.2397,4.7199,7.7652,24.0000
 96,notebook,Top 96 per Domain,42.8878,34.5912,51.2400,96.0000
-96,notebook,ESM-MSR (p0) WT head,26.5670,21.2602,31.7171,96.0000
-96,notebook,ESM-MSR (p0) combined,28.2068,22.6452,33.5668,96.0000
+96,notebook,ESM-MSR (p0) WT head,26.5477,21.2479,31.6926,96.0000
+96,notebook,ESM-MSR (p0) combined,28.2525,22.7466,33.4929,96.0000
 96,notebook,MutateEverything st1,19.3662,15.6464,23.4619,96.0000
 96,notebook,ThermoMPNN,23.0453,18.2830,27.9234,96.0000
 96,notebook,SPURS,24.0266,19.1338,29.0534,96.0000
@@ -33,8 +33,8 @@ k,rule,model,mean_gain,lo,hi,picks_counted
 96,notebook,GeoDDG-3D,16.4447,12.6542,19.9413,96.0000
 96,notebook,Rosetta,17.1739,13.4634,20.8383,96.0000
 96,all picks,Top 96 per Domain,42.8878,34.5912,51.2400,96.0000
-96,all picks,ESM-MSR (p0) WT head,26.6206,21.3201,31.7484,96.0000
-96,all picks,ESM-MSR (p0) combined,28.2634,22.6452,33.6235,96.0000
+96,all picks,ESM-MSR (p0) WT head,26.5724,21.2683,31.7073,96.0000
+96,all picks,ESM-MSR (p0) combined,28.2822,22.7466,33.5191,96.0000
 96,all picks,MutateEverything st1,20.2555,16.2387,24.5868,96.0000
 96,all picks,ThermoMPNN,23.7733,19.0563,28.3933,96.0000
 96,all picks,SPURS,24.7470,19.8923,29.7060,96.0000

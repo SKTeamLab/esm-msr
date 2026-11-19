@@ -47,22 +47,22 @@ ESM-MSR combined,msrdev:comb,12,1.2472,1.0143,1.4893,33
 ESM-MSR combined,msrdev:comb,24,1.3067,1.0834,1.5430,33
 ESM-MSR combined,msrdev:comb,48,1.3466,1.1117,1.5589,33
 ESM-MSR combined,msrdev:comb,96,1.3841,1.1338,1.5784,33
-ESM-MSR (p0) WT head,msrp0:wt,1,0.8158,0.5210,1.0724,33
-ESM-MSR (p0) WT head,msrp0:wt,2,0.9419,0.6733,1.1785,33
-ESM-MSR (p0) WT head,msrp0:wt,3,0.9980,0.7538,1.2103,33
-ESM-MSR (p0) WT head,msrp0:wt,6,1.0860,0.8623,1.3089,33
-ESM-MSR (p0) WT head,msrp0:wt,12,1.2094,0.9750,1.4550,33
-ESM-MSR (p0) WT head,msrp0:wt,24,1.2968,1.0661,1.5212,33
-ESM-MSR (p0) WT head,msrp0:wt,48,1.3134,1.0826,1.5283,33
-ESM-MSR (p0) WT head,msrp0:wt,96,1.3489,1.1193,1.5567,33
-ESM-MSR (p0) combined,msrp0:comb,1,0.8252,0.5476,1.0783,33
-ESM-MSR (p0) combined,msrp0:comb,2,0.9956,0.7459,1.2585,33
-ESM-MSR (p0) combined,msrp0:comb,3,1.0532,0.8219,1.2891,33
-ESM-MSR (p0) combined,msrp0:comb,6,1.1622,0.9630,1.3665,33
-ESM-MSR (p0) combined,msrp0:comb,12,1.3010,1.0862,1.5427,33
-ESM-MSR (p0) combined,msrp0:comb,24,1.3530,1.1298,1.5649,33
-ESM-MSR (p0) combined,msrp0:comb,48,1.3798,1.1535,1.5782,33
-ESM-MSR (p0) combined,msrp0:comb,96,1.3970,1.1618,1.5844,33
+ESM-MSR (p0) WT head,msrp0:wt,1,0.7791,0.5090,1.0297,33
+ESM-MSR (p0) WT head,msrp0:wt,2,0.9626,0.7209,1.1752,33
+ESM-MSR (p0) WT head,msrp0:wt,3,1.0222,0.7820,1.2645,33
+ESM-MSR (p0) WT head,msrp0:wt,6,1.1071,0.8860,1.3406,33
+ESM-MSR (p0) WT head,msrp0:wt,12,1.2200,0.9933,1.4190,33
+ESM-MSR (p0) WT head,msrp0:wt,24,1.2935,1.0697,1.5144,33
+ESM-MSR (p0) WT head,msrp0:wt,48,1.3297,1.1021,1.5385,33
+ESM-MSR (p0) WT head,msrp0:wt,96,1.3499,1.1198,1.5567,33
+ESM-MSR (p0) combined,msrp0:comb,1,0.7998,0.5283,1.0598,33
+ESM-MSR (p0) combined,msrp0:comb,2,0.9732,0.7269,1.2117,33
+ESM-MSR (p0) combined,msrp0:comb,3,1.0349,0.7982,1.2564,33
+ESM-MSR (p0) combined,msrp0:comb,6,1.1315,0.9322,1.3312,33
+ESM-MSR (p0) combined,msrp0:comb,12,1.2807,1.0708,1.5427,33
+ESM-MSR (p0) combined,msrp0:comb,24,1.3488,1.1129,1.5587,33
+ESM-MSR (p0) combined,msrp0:comb,48,1.3801,1.1500,1.5747,33
+ESM-MSR (p0) combined,msrp0:comb,96,1.4010,1.1621,1.5864,33
 MutateEverything st1,me1,1,0.4197,0.1500,0.6850,33
 MutateEverything st1,me1,2,0.6106,0.3608,0.8284,33
 MutateEverything st1,me1,3,0.7115,0.4505,0.9446,33

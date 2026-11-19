@@ -1,1 +1,1 @@
-41 of 213 ProteinGym assays (Stability 31, Activity 8, OrganismalFitness 2) and 83 of 522 Domainome domains
+40 of 213 ProteinGym assays (Stability 29, OrganismalFitness 6, Activity 5) and 86 of 522 Domainome domains

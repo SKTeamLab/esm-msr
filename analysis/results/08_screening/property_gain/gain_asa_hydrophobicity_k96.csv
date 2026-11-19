@@ -7,14 +7,14 @@ gain,Top 96 per Domain,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,6.5023,4.8
 gain,Top 96 per Domain,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,6.4885,4.8976,8.3565,5.8920,33
 gain,Top 96 per Domain,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,13.2482,10.2491,17.0843,10.8622,33
 gain,Top 96 per Domain,Δ hydrophobicity > 0 & relative ASA > 0.5,16.6487,12.4853,20.8231,14.9041,33
-gain,ESM-MSR (p0) WT head,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.4948,2.5319,4.6202,2.3847,33
-gain,ESM-MSR (p0) WT head,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,3.5671,2.6521,4.6408,3.1312,33
-gain,ESM-MSR (p0) WT head,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,9.6088,7.2752,12.7961,6.9081,33
-gain,ESM-MSR (p0) WT head,Δ hydrophobicity > 0 & relative ASA > 0.5,9.8964,7.2187,12.1518,8.7965,33
-gain,ESM-MSR (p0) combined,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.6676,2.6049,4.7354,2.3847,33
-gain,ESM-MSR (p0) combined,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,3.4311,2.4733,4.6430,2.4658,33
-gain,ESM-MSR (p0) combined,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,9.8219,7.4076,13.3023,7.7650,33
-gain,ESM-MSR (p0) combined,Δ hydrophobicity > 0 & relative ASA > 0.5,11.2862,8.4835,13.9017,10.3526,33
+gain,ESM-MSR (p0) WT head,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.4638,2.5646,4.5063,2.4082,33
+gain,ESM-MSR (p0) WT head,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,3.6317,2.7106,4.7253,2.9856,33
+gain,ESM-MSR (p0) WT head,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,9.3547,7.0637,12.3467,7.4258,33
+gain,ESM-MSR (p0) WT head,Δ hydrophobicity > 0 & relative ASA > 0.5,10.0974,7.4580,12.5537,9.0098,33
+gain,ESM-MSR (p0) combined,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.6550,2.6154,4.7709,2.3872,33
+gain,ESM-MSR (p0) combined,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,3.6520,2.7016,4.8924,2.4502,33
+gain,ESM-MSR (p0) combined,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,9.6299,7.3977,13.0063,7.3519,33
+gain,ESM-MSR (p0) combined,Δ hydrophobicity > 0 & relative ASA > 0.5,11.3155,8.5251,13.9054,10.7294,33
 gain,MutateEverything st1,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.9921,1.4416,2.5909,1.1116,33
 gain,MutateEverything st1,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,2.9658,2.0458,3.9627,2.2952,33
 gain,MutateEverything st1,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,6.2177,4.3969,8.9483,3.9332,33
@@ -55,14 +55,14 @@ picks,Top 96 per Domain,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,12.9697,1
 picks,Top 96 per Domain,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,17.1818,14.6576,20.6061,17.0000,33
 picks,Top 96 per Domain,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,26.8788,23.4295,31.1894,24.0000,33
 picks,Top 96 per Domain,Δ hydrophobicity > 0 & relative ASA > 0.5,38.9697,34.5841,42.8962,40.0000,33
-picks,ESM-MSR (p0) WT head,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,11.6970,9.9364,13.3045,12.0000,33
-picks,ESM-MSR (p0) WT head,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,16.1212,13.4598,18.9106,14.0000,33
-picks,ESM-MSR (p0) WT head,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,29.0303,25.6780,32.5962,28.0000,33
-picks,ESM-MSR (p0) WT head,Δ hydrophobicity > 0 & relative ASA > 0.5,39.1515,35.3288,42.4189,37.0000,33
-picks,ESM-MSR (p0) combined,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,11.0303,9.0705,12.9409,9.0000,33
-picks,ESM-MSR (p0) combined,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,14.9697,12.7545,17.6568,13.0000,33
-picks,ESM-MSR (p0) combined,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,28.8182,25.3636,32.4894,27.0000,33
-picks,ESM-MSR (p0) combined,Δ hydrophobicity > 0 & relative ASA > 0.5,41.1818,36.9394,44.6682,41.0000,33
+picks,ESM-MSR (p0) WT head,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,11.8586,10.2015,13.6985,12.3333,33
+picks,ESM-MSR (p0) WT head,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,16.4747,13.5492,19.1136,14.3333,33
+picks,ESM-MSR (p0) WT head,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,28.6465,24.9111,32.4720,27.3333,33
+picks,ESM-MSR (p0) WT head,Δ hydrophobicity > 0 & relative ASA > 0.5,39.0202,34.7285,42.2790,38.0000,33
+picks,ESM-MSR (p0) combined,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,11.2525,9.3659,13.2172,9.6667,33
+picks,ESM-MSR (p0) combined,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,15.7273,13.0402,18.3619,14.6667,33
+picks,ESM-MSR (p0) combined,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,27.9899,24.3515,31.2247,26.3333,33
+picks,ESM-MSR (p0) combined,Δ hydrophobicity > 0 & relative ASA > 0.5,41.0303,36.8470,44.2955,41.0000,33
 picks,MutateEverything st1,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,10.0202,8.0121,12.0530,9.0000,33
 picks,MutateEverything st1,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,17.9091,15.2250,21.0030,16.0000,33
 picks,MutateEverything st1,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,25.2929,21.4354,28.8212,24.0000,33

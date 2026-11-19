@@ -43,28 +43,28 @@ val,ESM-MSR · 1/2(MT_AB+WT_AB) − WT_A − WT_B,line_rho_sub0,0.49803,0.36660,
 val,ESM-MSR · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_rank_sub0,0.17165,0.08665,0.24478,9,8494,100
 val,ESM-MSR · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_sub0,0.28501,0.15353,0.36001,9,8494,100
 val,ESM-MSR · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_pooled_sub0,0.33216,0.15416,0.40967,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,naive_rho,0.57319,0.39191,0.76422,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,beyond_rho,0.56852,0.44102,0.62623,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,pair_rho,0.80000,0.48785,0.88330,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,line_rho,0.38570,0.26549,0.48637,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_rank,0.13713,0.06502,0.20595,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag,0.23391,0.14357,0.32911,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_pooled,0.25760,0.16384,0.33499,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_gt0,0.30447,0.17984,0.35644,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,naive_rho_gt1,0.57228,0.44716,0.66779,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,beyond_rho_gt1,0.60739,0.44430,0.62273,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,pair_rho_gt1,0.85113,0.52566,0.94956,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,line_rho_gt1,0.48159,0.34046,0.54348,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_rank_gt1,0.13107,0.04775,0.19849,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_gt1,0.27607,0.10407,0.37945,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_pooled_gt1,0.31747,0.14117,0.42783,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,naive_rho_sub0,0.59305,0.49475,0.69034,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,beyond_rho_sub0,0.65349,0.51401,0.66879,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,pair_rho_sub0,0.69466,0.36935,0.85725,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,line_rho_sub0,0.46631,0.31666,0.53599,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_rank_sub0,0.15382,0.07314,0.23000,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_sub0,0.25302,0.11681,0.34321,9,8494,100
-val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_pooled_sub0,0.30886,0.14762,0.39736,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,naive_rho,0.62804,0.46124,0.78906,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,beyond_rho,0.57241,0.42625,0.63062,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,pair_rho,0.76319,0.41739,0.85549,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,line_rho,0.39865,0.28888,0.48516,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_rank,0.14607,0.06532,0.22276,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag,0.25476,0.15221,0.34726,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_pooled,0.27763,0.16806,0.35505,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_gt0,0.30367,0.16897,0.36660,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,naive_rho_gt1,0.56402,0.44572,0.68099,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,beyond_rho_gt1,0.59695,0.46089,0.62738,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,pair_rho_gt1,0.81203,0.49837,0.88055,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,line_rho_gt1,0.46948,0.35019,0.55649,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_rank_gt1,0.15958,0.05362,0.24233,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_gt1,0.29379,0.10913,0.39842,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_pooled_gt1,0.32470,0.14697,0.43769,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,naive_rho_sub0,0.59294,0.46731,0.73032,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,beyond_rho_sub0,0.63915,0.49393,0.67646,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,pair_rho_sub0,0.66370,0.29504,0.83092,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,line_rho_sub0,0.46991,0.33288,0.54786,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_rank_sub0,0.16736,0.07460,0.25103,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_sub0,0.27180,0.10816,0.35029,9,8494,100
+val,ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,cell_mag_pooled_sub0,0.32115,0.14343,0.39929,9,8494,100
 val,ESM-MSR · tobit link,naive_rho,0.66567,0.56161,0.73603,9,8494,100
 val,ESM-MSR · tobit link,beyond_rho,0.60018,0.46768,0.66554,9,8494,100
 val,ESM-MSR · tobit link,pair_rho,0.77072,0.50477,0.85996,9,8494,100

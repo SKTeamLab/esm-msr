@@ -15,14 +15,14 @@ ESM-MSR combined,msrdev:comb,precision_ddG_gt_0.5,0.4505,0.3913,0.5058,33,917.33
 ESM-MSR combined,msrdev:comb,precision_ddG_gt_0,0.8697,0.8221,0.9189,33,917.3333,412.3333
 ESM-MSR combined,msrdev:comb,recall_ddG_gt_0.5,0.3675,0.2805,0.4213,33,917.3333,412.3333
 ESM-MSR combined,msrdev:comb,recall_ddG_gt_0,0.1214,0.0884,0.1422,33,917.3333,412.3333
-ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0.5,0.4726,0.3940,0.5223,32,749.0000,354.0000
-ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0,0.8785,0.8443,0.9268,32,749.0000,354.0000
-ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0.5,0.3155,0.2320,0.3847,33,749.0000,354.0000
-ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0,0.1002,0.0760,0.1230,33,749.0000,354.0000
-ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0.5,0.4054,0.3413,0.4547,33,1226.0000,497.0000
-ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0,0.8499,0.8106,0.8960,33,1226.0000,497.0000
-ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0.5,0.4430,0.3564,0.5008,33,1226.0000,497.0000
-ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0,0.1586,0.1277,0.1827,33,1226.0000,497.0000
+ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0.5,0.4455,0.3728,0.4978,33,884.0000,392.0000
+ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0,0.8718,0.8409,0.9099,33,884.0000,392.0000
+ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0.5,0.3494,0.2613,0.4136,33,884.0000,392.0000
+ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0,0.1173,0.0867,0.1457,33,884.0000,392.0000
+ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0.5,0.3956,0.3274,0.4451,33,1310.6667,518.0000
+ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0,0.8455,0.8108,0.8817,33,1310.6667,518.0000
+ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0.5,0.4617,0.3718,0.5290,33,1310.6667,518.0000
+ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0,0.1687,0.1359,0.1941,33,1310.6667,518.0000
 MutateEverything st1,me1,precision_ddG_gt_0.5,0.3574,0.2624,0.4184,32,453.3333,162.0000
 MutateEverything st1,me1,precision_ddG_gt_0,0.7781,0.7450,0.8061,32,453.3333,162.0000
 MutateEverything st1,me1,recall_ddG_gt_0.5,0.1444,0.0913,0.1879,33,453.3333,162.0000

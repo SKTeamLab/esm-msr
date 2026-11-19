@@ -385,12 +385,12 @@ tsuboyama,Homology-Restricted MegaScale test,epistasis (dddG),FINAL_p0_norank,ep
 tsuboyama,Homology-Restricted MegaScale test,epistasis (dddG),FINAL_p0_rcthr0,epi,0.4577,0.47909,-0.021387,-0.10256,0.021716,0.48,12455
 tsuboyama,Homology-Restricted MegaScale test,epistasis (dddG),FINAL_p0_noseqhwm,epi,0.46329,0.47909,-0.015798,-0.074971,0.02285,0.42,12455
 tsuboyama,Homology-Restricted MegaScale test,epistasis (dddG),FINAL_p0_r2a4,epi,0.45195,0.47909,-0.02714,-0.098352,0.021458,0.36,12455
-domainome,Domainome,all,FINAL_p1,wt,0.54644,0.54559,0.0008493,-0.010525,0.010355,0.78,5.4026e+05
-domainome,Domainome,all,FINAL_p1,comb,0.54413,0.53506,0.0090742,0.0060879,0.012682,0.009901,5.4026e+05
-domainome,Domainome,all,FINAL_p1_marg,wt,0.54643,0.54559,0.00083701,-0.0015212,0.0038012,0.64,5.4026e+05
-domainome,Domainome,all,FINAL_p0_pw0,wt,0.54484,0.54559,-0.00075101,-0.0024517,0.00026332,0.18,5.4026e+05
-domainome,Domainome,all,FINAL_p0_norank,wt,0.5478,0.54559,0.0022065,-0.0014987,0.005268,0.22,5.4026e+05
-domainome,Domainome,all,FINAL_p0_rcthr0,wt,0.54701,0.54559,0.0014184,0.00033632,0.002168,0.02,5.4026e+05
-domainome,Domainome,all,FINAL_p0_noseqhwm,wt,0.55044,0.54559,0.0048523,0.00050938,0.0080215,0.04,5.4026e+05
-domainome,Domainome,all,FINAL_p0_r2a4,wt,0.54773,0.54559,0.0021401,0.0005396,0.0041227,0.009901,5.4026e+05
-domainome,Domainome,all,FINAL_p0_mega,wt,0.55856,0.54559,0.012971,0.0059845,0.02073,0.009901,5.4026e+05
+domainome,Domainome,all,FINAL_p1,wt,0.53978,0.53954,0.00024015,-0.0096541,0.0092379,0.7,4.5157e+05
+domainome,Domainome,all,FINAL_p1,comb,0.53757,0.52799,0.0095804,0.0062673,0.014316,0.009901,4.5157e+05
+domainome,Domainome,all,FINAL_p1_marg,wt,0.54031,0.53954,0.00076785,-0.0024455,0.0037771,0.96,4.5157e+05
+domainome,Domainome,all,FINAL_p0_pw0,wt,0.5388,0.53954,-0.00074122,-0.0019348,0.00015211,0.16,4.5157e+05
+domainome,Domainome,all,FINAL_p0_norank,wt,0.54128,0.53954,0.0017411,-0.0013394,0.0043311,0.34,4.5157e+05
+domainome,Domainome,all,FINAL_p0_rcthr0,wt,0.5409,0.53954,0.0013651,0.00057571,0.0020224,0.009901,4.5157e+05
+domainome,Domainome,all,FINAL_p0_noseqhwm,wt,0.5442,0.53954,0.004658,0.001939,0.0071885,0.009901,4.5157e+05
+domainome,Domainome,all,FINAL_p0_r2a4,wt,0.54144,0.53954,0.0018988,0.00040295,0.0034044,0.009901,4.5157e+05
+domainome,Domainome,all,FINAL_p0_mega,wt,0.5531,0.53954,0.013565,0.0078388,0.022619,0.009901,4.5157e+05

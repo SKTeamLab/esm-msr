@@ -1,72 +1,72 @@
 model,column,value,lo,hi,n_dms
-ESM-MSR,Activity,0.4205,0.3670,0.4649,35
-ESM-MSR,Binding,0.3507,0.2276,0.4548,13
-ESM-MSR,Expression,0.5190,0.4361,0.5736,18
-ESM-MSR,OrganismalFitness,0.4153,0.3819,0.4457,71
-ESM-MSR,Stability,0.8358,0.8050,0.8703,35
-ESM-MSR,PG avg,0.5083,0.4776,0.5342,172
-ESM-MSR,DMS mean,0.5079,0.4855,0.5259,172
-MutateEverything,Activity,0.3628,0.3171,0.4044,35
-MutateEverything,Binding,0.3313,0.2699,0.4299,13
-MutateEverything,Expression,0.4671,0.4038,0.5164,18
-MutateEverything,OrganismalFitness,0.3538,0.3146,0.3855,71
-MutateEverything,Stability,0.7548,0.7222,0.7927,35
-MutateEverything,PG avg,0.4540,0.4314,0.4801,172
-MutateEverything,DMS mean,0.4474,0.4276,0.4647,172
-ThermoMPNN,Activity,0.3409,0.2901,0.3750,35
-ThermoMPNN,Binding,0.3011,0.1981,0.3901,13
-ThermoMPNN,Expression,0.4421,0.3788,0.4895,18
-ThermoMPNN,OrganismalFitness,0.3492,0.3146,0.3769,71
-ThermoMPNN,Stability,0.7669,0.7332,0.8051,35
-ThermoMPNN,PG avg,0.4400,0.4144,0.4630,172
-ThermoMPNN,DMS mean,0.4386,0.4179,0.4549,172
-SPURS,Activity,0.3641,0.3144,0.4095,35
-SPURS,Binding,0.3217,0.2152,0.4147,13
-SPURS,Expression,0.4722,0.3934,0.5291,18
-SPURS,OrganismalFitness,0.3506,0.3137,0.3813,71
-SPURS,Stability,0.7654,0.7280,0.8009,35
-SPURS,PG avg,0.4548,0.4158,0.4799,172
-SPURS,DMS mean,0.4483,0.4239,0.4657,172
-ESM3-small-open,Activity,0.3985,0.3442,0.4412,35
-ESM3-small-open,Binding,0.3706,0.2960,0.4487,13
-ESM3-small-open,Expression,0.4367,0.3711,0.4895,18
-ESM3-small-open,OrganismalFitness,0.3933,0.3540,0.4239,71
-ESM3-small-open,Stability,0.6325,0.5914,0.6840,35
-ESM3-small-open,PG avg,0.4463,0.4201,0.4696,172
-ESM3-small-open,DMS mean,0.4459,0.4236,0.4660,172
-ProteinMPNN,Activity,0.3288,0.2799,0.3742,35
-ProteinMPNN,Binding,0.3234,0.2572,0.4254,13
-ProteinMPNN,Expression,0.4364,0.3860,0.4822,18
-ProteinMPNN,OrganismalFitness,0.3122,0.2716,0.3488,71
-ProteinMPNN,Stability,0.6306,0.5953,0.6773,35
-ProteinMPNN,PG avg,0.4063,0.3860,0.4314,172
-ProteinMPNN,DMS mean,0.3942,0.3719,0.4178,172
-ProSST,Activity,0.4737,0.4216,0.5271,35
-ProSST,Binding,0.4487,0.3609,0.5578,13
-ProSST,Expression,0.5302,0.4835,0.5742,18
-ProSST,OrganismalFitness,0.4524,0.4225,0.4789,71
-ProSST,Stability,0.6587,0.6133,0.7131,35
-ProSST,PG avg,0.5127,0.4872,0.5450,172
-ProSST,DMS mean,0.5066,0.4879,0.5274,172
-GeoDDG-3D,Activity,0.3493,0.3043,0.3906,35
-GeoDDG-3D,Binding,0.2489,0.1202,0.3695,13
-GeoDDG-3D,Expression,0.3711,0.3021,0.4299,18
-GeoDDG-3D,OrganismalFitness,0.3304,0.2968,0.3688,71
-GeoDDG-3D,Stability,0.6394,0.5551,0.7031,35
-GeoDDG-3D,PG avg,0.3878,0.3525,0.4241,172
-GeoDDG-3D,DMS mean,0.3952,0.3704,0.4228,172
-Rosetta,Activity,0.3059,0.2629,0.3387,35
-Rosetta,Binding,0.2914,0.1345,0.4300,13
-Rosetta,Expression,0.3359,0.2706,0.3921,18
-Rosetta,OrganismalFitness,0.3036,0.2665,0.3375,70
-Rosetta,Stability,0.6482,0.6263,0.6792,35
-Rosetta,PG avg,0.3770,0.3428,0.4094,171
-Rosetta,DMS mean,0.3771,0.3550,0.3975,171
-ESM-MSR,Domainome,0.5425,0.5293,0.5544,439
-MutateEverything,Domainome,0.5130,0.4976,0.5276,439
-ThermoMPNN,Domainome,0.4411,0.4229,0.4556,439
-SPURS,Domainome,0.4639,0.4450,0.4778,439
-ESM3-small-open,Domainome,0.5487,0.5367,0.5615,439
-ProteinMPNN,Domainome,0.5436,0.5305,0.5556,439
-ProSST,Domainome,0.5254,0.5115,0.5375,439
-GeoDDG-3D,Domainome,0.4110,0.3988,0.4210,439
+ESM-MSR,Activity,0.4344,0.3796,0.4862,38
+ESM-MSR,Binding,0.3493,0.2405,0.4526,13
+ESM-MSR,Expression,0.5192,0.4402,0.5829,18
+ESM-MSR,OrganismalFitness,0.4149,0.3705,0.4570,67
+ESM-MSR,Stability,0.8269,0.7817,0.8648,37
+ESM-MSR,PG avg,0.5089,0.4781,0.5402,173
+ESM-MSR,DMS mean,0.5132,0.4885,0.5370,173
+MutateEverything,Activity,0.3699,0.3165,0.4178,38
+MutateEverything,Binding,0.3215,0.2491,0.3964,13
+MutateEverything,Expression,0.4683,0.4040,0.5271,18
+MutateEverything,OrganismalFitness,0.3596,0.3244,0.3943,67
+MutateEverything,Stability,0.7549,0.7098,0.7940,37
+MutateEverything,PG avg,0.4548,0.4291,0.4802,173
+MutateEverything,DMS mean,0.4548,0.4325,0.4751,173
+ThermoMPNN,Activity,0.3551,0.3042,0.3984,38
+ThermoMPNN,Binding,0.2986,0.2136,0.3771,13
+ThermoMPNN,Expression,0.4382,0.3766,0.4917,18
+ThermoMPNN,OrganismalFitness,0.3462,0.3080,0.3796,67
+ThermoMPNN,Stability,0.7558,0.7070,0.7992,37
+ThermoMPNN,PG avg,0.4388,0.4120,0.4636,173
+ThermoMPNN,DMS mean,0.4418,0.4203,0.4617,173
+SPURS,Activity,0.3749,0.3242,0.4192,38
+SPURS,Binding,0.3266,0.2339,0.4196,13
+SPURS,Expression,0.4746,0.3958,0.5384,18
+SPURS,OrganismalFitness,0.3528,0.3081,0.3913,67
+SPURS,Stability,0.7584,0.7159,0.7975,37
+SPURS,PG avg,0.4575,0.4270,0.4844,173
+SPURS,DMS mean,0.4551,0.4312,0.4760,173
+ESM3-small-open,Activity,0.4110,0.3602,0.4607,38
+ESM3-small-open,Binding,0.3706,0.2936,0.4532,13
+ESM3-small-open,Expression,0.4367,0.3801,0.4945,18
+ESM3-small-open,OrganismalFitness,0.3898,0.3536,0.4321,67
+ESM3-small-open,Stability,0.6274,0.5839,0.6703,37
+ESM3-small-open,PG avg,0.4471,0.4229,0.4713,173
+ESM3-small-open,DMS mean,0.4487,0.4270,0.4708,173
+ProteinMPNN,Activity,0.3366,0.2861,0.3821,38
+ProteinMPNN,Binding,0.3234,0.2538,0.3943,13
+ProteinMPNN,Expression,0.4364,0.3762,0.4946,18
+ProteinMPNN,OrganismalFitness,0.3228,0.2823,0.3619,67
+ProteinMPNN,Stability,0.6247,0.5835,0.6680,37
+ProteinMPNN,PG avg,0.4088,0.3844,0.4315,173
+ProteinMPNN,DMS mean,0.4023,0.3807,0.4226,173
+ProSST,Activity,0.4713,0.4215,0.5199,38
+ProSST,Binding,0.4487,0.3520,0.5416,13
+ProSST,Expression,0.5302,0.4758,0.5787,18
+ProSST,OrganismalFitness,0.4612,0.4252,0.4958,67
+ProSST,Stability,0.6536,0.6012,0.7030,37
+ProSST,PG avg,0.5130,0.4871,0.5419,173
+ProSST,DMS mean,0.5108,0.4887,0.5332,173
+GeoDDG-3D,Activity,0.3433,0.2966,0.3908,38
+GeoDDG-3D,Binding,0.2489,0.1316,0.3629,13
+GeoDDG-3D,Expression,0.3711,0.3055,0.4382,18
+GeoDDG-3D,OrganismalFitness,0.3245,0.2771,0.3697,67
+GeoDDG-3D,Stability,0.6326,0.5661,0.6891,37
+GeoDDG-3D,PG avg,0.3841,0.3511,0.4175,173
+GeoDDG-3D,DMS mean,0.3937,0.3668,0.4202,173
+Rosetta,Activity,0.3185,0.2721,0.3632,38
+Rosetta,Binding,0.2914,0.1479,0.4438,13
+Rosetta,Expression,0.3359,0.2720,0.3895,18
+Rosetta,OrganismalFitness,0.3043,0.2661,0.3432,66
+Rosetta,Stability,0.6391,0.5887,0.6795,37
+Rosetta,PG avg,0.3778,0.3421,0.4129,172
+Rosetta,DMS mean,0.3818,0.3571,0.4052,172
+ESM-MSR,Domainome,0.5395,0.5260,0.5531,436
+MutateEverything,Domainome,0.5096,0.4958,0.5232,436
+ThermoMPNN,Domainome,0.4351,0.4183,0.4515,436
+SPURS,Domainome,0.4801,0.4607,0.4977,436
+ESM3-small-open,Domainome,0.5501,0.5381,0.5627,436
+ProteinMPNN,Domainome,0.5438,0.5316,0.5568,436
+ProSST,Domainome,0.5267,0.5146,0.5393,436
+GeoDDG-3D,Domainome,0.4105,0.3991,0.4217,436

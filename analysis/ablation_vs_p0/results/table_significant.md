@@ -17,11 +17,11 @@
 | dms | GRB2 binding | all | p1 marg. | wt | +0.031 | [+0.019, +0.045] | 0.0099 |
 | dms | MYO display | all | full Mega | wt | +0.008 | [+0.002, +0.014] | 0.02 |
 | dms | MYO display | all | pw0 | wt | -0.002 | [-0.005, -0.000] | 0.04 |
-| domainome | Domainome | all | full Mega | wt | +0.013 | [+0.006, +0.021] | 0.0099 |
-| domainome | Domainome | all | no seq. head | wt | +0.005 | [+0.001, +0.008] | 0.04 |
-| domainome | Domainome | all | MT r2 | wt | +0.002 | [+0.001, +0.004] | 0.0099 |
-| domainome | Domainome | all | rank thr 0 | wt | +0.001 | [+0.000, +0.002] | 0.02 |
-| domainome | Domainome | all | p1 | comb | +0.009 | [+0.006, +0.013] | 0.0099 |
+| domainome | Domainome | all | full Mega | wt | +0.014 | [+0.008, +0.023] | 0.0099 |
+| domainome | Domainome | all | no seq. head | wt | +0.005 | [+0.002, +0.007] | 0.0099 |
+| domainome | Domainome | all | MT r2 | wt | +0.002 | [+0.000, +0.003] | 0.0099 |
+| domainome | Domainome | all | rank thr 0 | wt | +0.001 | [+0.001, +0.002] | 0.0099 |
+| domainome | Domainome | all | p1 | comb | +0.010 | [+0.006, +0.014] | 0.0099 |
 | ext_multi | PTMUL | all | p1 marg. | wt | -0.037 | [-0.064, -0.000] | 0.06 |
 | ext_singles | K2369 | all | MT r2 | wt | -0.003 | [-0.007, -0.000] | 0.06 |
 | ext_singles | K2369 | all | p1 marg. | comb | -0.017 | [-0.023, -0.002] | 0.04 |
@@ -43,25 +43,27 @@
 | ext_singles | S8754 | all | p1 | comb | -0.021 | [-0.032, -0.008] | 0.02 |
 | ext_singles | S8754 | all | p1 marg. | comb | -0.025 | [-0.035, -0.011] | 0.0099 |
 | ext_singles | S8754 | all | p1 marg. | wt | -0.012 | [-0.020, -0.004] | 0.0099 |
-| proteingym | Activity | all | full Mega | wt | +0.010 | [+0.005, +0.016] | 5e-05 |
-| proteingym | Activity | all | no rank | wt | -0.004 | [-0.008, -0.001] | 0.015 |
-| proteingym | Activity | all | p1 | comb | +0.007 | [+0.001, +0.013] | 0.031 |
-| proteingym | Activity | all | p1 | wt | -0.012 | [-0.019, -0.006] | 0.0001 |
-| proteingym | Activity | all | p1 marg. | wt | -0.008 | [-0.015, -0.002] | 0.016 |
-| proteingym | Expression | all | full Mega | wt | +0.006 | [+0.000, +0.014] | 0.035 |
-| proteingym | Expression | all | no seq. head | wt | +0.003 | [+0.000, +0.007] | 0.035 |
-| proteingym | Expression | all | p1 | comb | +0.006 | [+0.000, +0.014] | 0.038 |
-| proteingym | OrganismalFitness | all | full Mega | wt | +0.018 | [+0.013, +0.023] | 5e-05 |
-| proteingym | OrganismalFitness | all | no rank | wt | -0.007 | [-0.010, -0.003] | 5e-05 |
-| proteingym | OrganismalFitness | all | p1 | comb | +0.010 | [+0.005, +0.015] | 5e-05 |
-| proteingym | OrganismalFitness | all | p1 | wt | -0.014 | [-0.020, -0.009] | 5e-05 |
-| proteingym | OrganismalFitness | all | p1 marg. | wt | -0.011 | [-0.017, -0.004] | 0.0012 |
-| proteingym | PG avg | all | full Mega | wt | +0.019 | [+0.015, +0.023] | 5e-05 |
-| proteingym | PG avg | all | no rank | wt | -0.003 | [-0.005, -0.001] | 0.0027 |
-| proteingym | PG avg | all | pw0 | wt | -0.001 | [-0.001, -0.000] | 0.027 |
-| proteingym | PG avg | all | p1 | wt | -0.006 | [-0.010, -0.003] | 0.0002 |
-| proteingym | Stability | all | full Mega | wt | +0.049 | [+0.034, +0.066] | 5e-05 |
-| proteingym | Stability | all | rank thr 0 | wt | +0.002 | [+0.001, +0.003] | 0.0005 |
+| proteingym | Activity | all | no rank | wt | -0.006 | [-0.010, -0.002] | 0.002 |
+| proteingym | Activity | all | MT r2 | wt | -0.001 | [-0.002, -0.000] | 0.014 |
+| proteingym | Activity | all | p1 | comb | +0.007 | [+0.001, +0.013] | 0.024 |
+| proteingym | Activity | all | p1 | wt | -0.009 | [-0.015, -0.003] | 0.0014 |
+| proteingym | Activity | all | p1 marg. | wt | -0.007 | [-0.013, -0.001] | 0.021 |
+| proteingym | Expression | all | full Mega | wt | +0.007 | [+0.002, +0.013] | 0.0065 |
+| proteingym | OrganismalFitness | all | full Mega | wt | +0.013 | [+0.009, +0.018] | 5e-05 |
+| proteingym | OrganismalFitness | all | no rank | wt | -0.006 | [-0.009, -0.003] | 5e-05 |
+| proteingym | OrganismalFitness | all | no seq. head | wt | -0.002 | [-0.003, -0.000] | 0.0089 |
+| proteingym | OrganismalFitness | all | MT r2 | wt | -0.001 | [-0.001, -0.000] | 0.038 |
+| proteingym | OrganismalFitness | all | p1 | comb | +0.006 | [+0.000, +0.012] | 0.041 |
+| proteingym | OrganismalFitness | all | p1 | wt | -0.013 | [-0.020, -0.007] | 5e-05 |
+| proteingym | OrganismalFitness | all | p1 marg. | wt | -0.011 | [-0.018, -0.005] | 0.0002 |
+| proteingym | PG avg | all | full Mega | wt | +0.014 | [+0.011, +0.018] | 5e-05 |
+| proteingym | PG avg | all | no rank | wt | -0.003 | [-0.004, -0.001] | 0.0091 |
+| proteingym | PG avg | all | MT r2 | wt | -0.001 | [-0.001, -0.000] | 0.0085 |
+| proteingym | PG avg | all | rank thr 0 | wt | +0.001 | [+0.000, +0.001] | 0.015 |
+| proteingym | PG avg | all | p1 | wt | -0.005 | [-0.009, -0.002] | 0.0033 |
+| proteingym | PG avg | all | p1 marg. | wt | -0.004 | [-0.008, -0.000] | 0.037 |
+| proteingym | Stability | all | full Mega | wt | +0.038 | [+0.024, +0.054] | 5e-05 |
+| proteingym | Stability | all | rank thr 0 | wt | +0.002 | [+0.001, +0.003] | 0.004 |
 | tsuboyama | Homology-Restricted MegaScale test | single mutants | no rank | comb | -0.004 | [-0.008, -0.000] | 0.06 |
 | tsuboyama | Homology-Restricted MegaScale test | all | MT r2 | comb | -0.008 | [-0.014, -0.003] | 0.0099 |
 | tsuboyama | Homology-Restricted MegaScale test | single mutants | MT r2 | comb | -0.006 | [-0.010, -0.002] | 0.0099 |
