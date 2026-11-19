@@ -30,6 +30,7 @@ echo "== leak_audit/22_set_overlap_matrix + 20b_split_overlap_heatmaps"; $PY lea
 echo "== 21b_holdout_filter_figure"; $PY 21b_holdout_filter_figure.py   # the four-part filter on the held-out benchmarks (supplement)
 echo "== 11m_masking_schemes, 11n_epistasis_levels_p0"; $PY 11m_masking_schemes.py; $PY 11n_epistasis_levels_p0.py; $PY 11n_epistasis_levels_p0.py --variant masking   # inference masking schemes (supplement); epistasis levels with p0 + ctx control (main panel e + supplement; needs final_ctx)
 echo "== 98_final_ablation_table"; $PY 98_final_ablation_table.py          # the FINAL_* ablation tables: needs the testing queue's final_bench/ and final_pgym_*/
+echo "== 22_esm_msr_vs_esm3dg"; $PY 22_esm_msr_vs_esm3dg.py   # ESM-MSR p0 against ESM3dG on every benchmark (table; ESM3dG is not held out on MGnify / Rocklin)
 echo "== 01_summary"; $PY 01_summary.py          # Figure 3 (results/00_main_text_figs/figure3) and the summary figures (pg_categories, thermostability_sets): needs 02_thermostability, 05_proteingym, 18_mgnify and, for the set order, 98
 echo "== 01b_thermostability_pvalues"; $PY 01b_thermostability_pvalues.py          # p-values of ESM-MSR p0 against the other models on the sets of thermostability_sets (200k / 100k bootstrap draws, ~15 min on 6 cores)
 $PY 99_table_coverage.py
