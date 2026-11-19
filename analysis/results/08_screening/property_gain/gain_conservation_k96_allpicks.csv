@@ -32,9 +32,6 @@ gain,GeoDDG-3D,% conservation > 75,0.8201,0.1702,1.7585,0.0000,23
 gain,Rosetta,% conservation ≤ 25,11.3940,6.9721,16.0951,6.7863,23
 gain,Rosetta,25 < % conservation ≤ 75,5.9359,4.2051,7.8433,5.1462,23
 gain,Rosetta,% conservation > 75,1.3044,0.5999,2.1567,0.4516,23
-gain,ESM3ΔG,% conservation ≤ 25,16.6003,10.5536,23.8837,13.6399,23
-gain,ESM3ΔG,25 < % conservation ≤ 75,9.3256,6.8496,12.1997,6.3658,23
-gain,ESM3ΔG,% conservation > 75,1.8197,0.7972,3.1133,0.7211,23
 picks,Total,% conservation ≤ 25,476.1304,328.0228,661.3478,418.0000,23
 picks,Total,25 < % conservation ≤ 75,505.2609,427.7554,599.6261,433.0000,23
 picks,Total,% conservation > 75,199.6087,159.7380,247.5707,190.0000,23
@@ -68,6 +65,3 @@ picks,GeoDDG-3D,% conservation > 75,9.0000,4.5207,14.0043,2.0000,23
 picks,Rosetta,% conservation ≤ 25,46.4348,34.3043,57.7837,55.0000,23
 picks,Rosetta,25 < % conservation ≤ 75,38.2174,30.0859,46.7402,38.0000,23
 picks,Rosetta,% conservation > 75,11.3478,6.0848,16.9587,6.0000,23
-picks,ESM3ΔG,% conservation ≤ 25,45.0435,33.6489,56.2185,60.0000,23
-picks,ESM3ΔG,25 < % conservation ≤ 75,37.6522,30.2163,44.7848,36.0000,23
-picks,ESM3ΔG,% conservation > 75,13.3043,7.6065,19.7391,10.0000,23

@@ -13,7 +13,6 @@ tsuboyama_capped_val,singles,spurs,0.8037,0.7687,0.8338,26410,23
 tsuboyama_capped_val,singles,spursm,0.7595,0.7327,0.7858,26410,23
 tsuboyama_capped_val,singles,geoddg,0.5737,0.5153,0.6270,26410,23
 tsuboyama_capped_val,singles,rosetta,0.6702,0.6398,0.6969,26410,23
-tsuboyama_capped_val,singles,esm3dg,0.8041,0.7652,0.8383,26410,23
 tsuboyama_capped_val,singles,esmtherm,0.6924,0.6217,0.7585,26410,23
 tsuboyama_capped_val,singles,ifum_wt,0.6555,0.5978,0.7093,26410,23
 tsuboyama_capped_val,singles,ddgemb,0.4961,0.4153,0.5679,26410,23
@@ -31,7 +30,6 @@ tsuboyama_capped_val,doubles,spurs,0.6902,0.6016,0.7710,8547,9
 tsuboyama_capped_val,doubles,spursm,0.6917,0.5607,0.8063,8547,9
 tsuboyama_capped_val,doubles,geoddg,0.4844,0.3112,0.6360,8547,9
 tsuboyama_capped_val,doubles,rosetta,0.5436,0.4226,0.6526,8547,9
-tsuboyama_capped_val,doubles,esm3dg,0.6898,0.5214,0.8101,8547,9
 tsuboyama_capped_val,doubles,esmtherm,0.8888,0.8392,0.9264,8547,9
 tsuboyama_capped_val,doubles,ifum_wt,0.6800,0.5400,0.7799,8547,9
 tsuboyama_capped_val,doubles,ddgemb,0.3073,0.1254,0.4946,8547,9
@@ -49,7 +47,6 @@ tsuboyama_capped_test,singles,spurs,0.8041,0.7750,0.8298,35421,33
 tsuboyama_capped_test,singles,spursm,0.7611,0.7382,0.7849,35421,33
 tsuboyama_capped_test,singles,geoddg,0.5915,0.5385,0.6435,35421,33
 tsuboyama_capped_test,singles,rosetta,0.6594,0.6354,0.6828,35421,33
-tsuboyama_capped_test,singles,esm3dg,0.8142,0.7878,0.8374,35421,33
 tsuboyama_capped_test,singles,esmtherm,0.7488,0.6924,0.8001,35421,33
 tsuboyama_capped_test,singles,ifum_wt,0.6883,0.6470,0.7322,35421,33
 tsuboyama_capped_test,singles,ddgemb,0.5024,0.4373,0.5686,35421,33
@@ -67,7 +64,6 @@ tsuboyama_capped_test,doubles,spurs,0.6937,0.6011,0.7550,13319,13
 tsuboyama_capped_test,doubles,spursm,0.7031,0.6284,0.7653,13319,13
 tsuboyama_capped_test,doubles,geoddg,0.4560,0.3315,0.5800,13319,13
 tsuboyama_capped_test,doubles,rosetta,0.4990,0.4130,0.5772,13319,13
-tsuboyama_capped_test,doubles,esm3dg,0.7451,0.6323,0.8282,13319,13
 tsuboyama_capped_test,doubles,esmtherm,0.8136,0.6614,0.9219,13319,13
 tsuboyama_capped_test,doubles,ifum_wt,0.6292,0.5260,0.7176,13319,13
 tsuboyama_capped_test,doubles,ddgemb,0.4319,0.3342,0.5323,13319,13

@@ -9,7 +9,6 @@ k,rule,model,mean_gain,lo,hi,picks_counted
 24,notebook,SPURS,9.2856,7.3184,11.6028,24.0000
 24,notebook,GeoDDG-3D,5.6977,4.3445,7.1566,24.0000
 24,notebook,Rosetta,6.2397,4.7343,7.9565,24.0000
-24,notebook,ESM3ΔG,10.2339,7.7541,13.1051,24.0000
 24,all picks,Top 24 per Domain,17.8606,15.1609,20.8863,24.0000
 24,all picks,ProSST,5.5327,4.2244,6.9935,24.0000
 24,all picks,ProteinMPNN,6.0389,4.5118,7.7128,24.0000
@@ -20,7 +19,6 @@ k,rule,model,mean_gain,lo,hi,picks_counted
 24,all picks,SPURS,9.2856,7.3184,11.6028,24.0000
 24,all picks,GeoDDG-3D,5.6977,4.3445,7.1566,24.0000
 24,all picks,Rosetta,6.2397,4.7343,7.9565,24.0000
-24,all picks,ESM3ΔG,10.2339,7.7541,13.1051,24.0000
 96,notebook,Top 96 per Domain,42.8878,34.7181,52.1862,96.0000
 96,notebook,ProSST,2.0699,1.0948,3.2923,96.0000
 96,notebook,ProteinMPNN,14.0308,10.5769,17.8963,96.0000
@@ -31,7 +29,6 @@ k,rule,model,mean_gain,lo,hi,picks_counted
 96,notebook,SPURS,24.0266,18.6319,30.4273,96.0000
 96,notebook,GeoDDG-3D,16.4447,12.6129,20.5552,96.0000
 96,notebook,Rosetta,17.1739,13.3984,21.2487,96.0000
-96,notebook,ESM3ΔG,26.0454,20.1798,32.3850,96.0000
 96,all picks,Top 96 per Domain,42.8878,34.7181,52.1862,96.0000
 96,all picks,ProSST,15.0378,11.9932,18.3480,96.0000
 96,all picks,ProteinMPNN,15.6678,12.4132,19.4041,96.0000
@@ -42,4 +39,3 @@ k,rule,model,mean_gain,lo,hi,picks_counted
 96,all picks,SPURS,24.7470,19.4635,30.9533,96.0000
 96,all picks,GeoDDG-3D,16.4447,12.6129,20.5552,96.0000
 96,all picks,Rosetta,17.3334,13.5103,21.4078,96.0000
-96,all picks,ESM3ΔG,26.3323,20.5981,32.6048,96.0000

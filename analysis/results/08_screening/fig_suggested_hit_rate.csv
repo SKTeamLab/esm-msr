@@ -53,9 +53,3 @@ Rosetta,rosetta,recall_ddG_gt_0.5,0.3216,0.2611,0.3812,32,3070.0000,444.0000
 Rosetta,rosetta,recall_ddG_gt_0,0.2209,0.1905,0.2553,33,3070.0000,444.0000
 Rosetta,rosetta,n_suggested_per_domain,93.0303,66.5144,122.0811,33,3070.0000,444.0000
 Rosetta,rosetta,n_hits_recovered_per_domain,13.4545,8.3629,20.0311,33,3070.0000,444.0000
-ESM3ΔG,esm3dg,precision_ddG_gt_0.5,0.4976,0.3995,0.6050,23,734.0000,343.0000
-ESM3ΔG,esm3dg,precision_ddG_gt_0,0.7566,0.6626,0.8465,23,734.0000,343.0000
-ESM3ΔG,esm3dg,recall_ddG_gt_0.5,0.1892,0.1261,0.2679,32,734.0000,343.0000
-ESM3ΔG,esm3dg,recall_ddG_gt_0,0.0740,0.0408,0.1142,33,734.0000,343.0000
-ESM3ΔG,esm3dg,n_suggested_per_domain,22.2424,11.2409,35.0000,33,734.0000,343.0000
-ESM3ΔG,esm3dg,n_hits_recovered_per_domain,10.3939,4.9697,16.9394,33,734.0000,343.0000

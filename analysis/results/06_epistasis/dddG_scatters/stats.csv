@@ -23,9 +23,6 @@ GeoDDG-3D,dG_additive_gt1,as is,3907,1,0.0609,0.0820,0.6652
 Rosetta,all_dG_additive,as is,12455,1,0.3813,0.3427,1.1463
 Rosetta,dG_additive_positive,as is,7405,1,0.3119,0.2733,0.9718
 Rosetta,dG_additive_gt1,as is,3907,1,0.3167,0.2229,0.9995
-ESM3ΔG,all_dG_additive,as is,12455,1,0.4134,0.3670,0.9556
-ESM3ΔG,dG_additive_positive,as is,7405,1,0.4601,0.4167,0.5746
-ESM3ΔG,dG_additive_gt1,as is,3907,1,0.4324,0.3935,0.4821
 ESMtherm*,all_dG_additive,as is,12455,1,0.4952,0.5878,0.8056
 ESMtherm*,dG_additive_positive,as is,7405,1,0.2716,0.2785,0.6505
 ESMtherm*,dG_additive_gt1,as is,3907,1,0.1808,0.1579,0.5719

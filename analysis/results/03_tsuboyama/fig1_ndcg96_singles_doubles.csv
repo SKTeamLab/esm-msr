@@ -17,8 +17,6 @@ best other ddG,geoddg,singles,0.3555,0.3078,0.4006,33,35421
 best other ddG,geoddg,doubles,0.4009,0.1463,0.6534,8,10586
 Rosetta,rosetta,singles,0.3673,0.3206,0.4118,33,35421
 Rosetta,rosetta,doubles,0.2898,0.1277,0.4772,8,10586
-ESM3ΔG,esm3dg,singles,0.5793,0.5257,0.6309,33,35421
-ESM3ΔG,esm3dg,doubles,0.6274,0.4280,0.7785,8,10586
 ESM3-small-open (alt),esm3avg,singles,0.3224,0.2745,0.3657,33,35421
 ESM3-small-open (alt),esm3avg,doubles,0.4070,0.1953,0.6356,8,10586
 ProSST,prosst,overall,0.3326,0.2847,0.3808,33,48740
@@ -30,5 +28,4 @@ ThermoMPNN,tmpnn|tmpnnd,overall,0.4748,0.4192,0.5303,33,48740
 SPURS,spurs|spursm,overall,0.5253,0.4755,0.5756,33,48740
 best other ddG,geoddg,overall,0.3383,0.2871,0.3888,33,48740
 Rosetta,rosetta,overall,0.3440,0.2996,0.3890,33,48740
-ESM3ΔG,esm3dg,overall,0.5398,0.4713,0.5974,33,48740
 ESM3-small-open (alt),esm3avg,overall,0.3111,0.2634,0.3560,33,48740

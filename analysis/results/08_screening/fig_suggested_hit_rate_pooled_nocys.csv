@@ -35,7 +35,3 @@ Rosetta,rosetta,precision_ddG_gt_0.5,0.1441,0.1092,0.1771,33,3061.0000,441.0000
 Rosetta,rosetta,precision_ddG_gt_0,0.5230,0.4751,0.5668,33,3061.0000,441.0000
 Rosetta,rosetta,recall_ddG_gt_0.5,0.3930,0.3210,0.4538,33,3061.0000,441.0000
 Rosetta,rosetta,recall_ddG_gt_0,0.2438,0.2047,0.2793,33,3061.0000,441.0000
-ESM3ΔG,esm3dg,precision_ddG_gt_0.5,0.4660,0.3663,0.5796,23,676.0000,315.0000
-ESM3ΔG,esm3dg,precision_ddG_gt_0,0.7692,0.6695,0.8536,23,676.0000,315.0000
-ESM3ΔG,esm3dg,recall_ddG_gt_0.5,0.2807,0.1894,0.3690,33,676.0000,315.0000
-ESM3ΔG,esm3dg,recall_ddG_gt_0,0.0792,0.0442,0.1192,33,676.0000,315.0000

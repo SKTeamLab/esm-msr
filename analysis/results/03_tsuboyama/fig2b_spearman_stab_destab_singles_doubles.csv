@@ -17,8 +17,6 @@ best other ddG,geoddg,stabilizing,0.1984,0.1351,0.2625,33,7102,singles
 best other ddG,geoddg,destabilizing,0.5605,0.5074,0.6102,33,28319,singles
 Rosetta,rosetta,stabilizing,0.0954,0.0413,0.1459,33,7102,singles
 Rosetta,rosetta,destabilizing,0.6572,0.6353,0.6779,33,28319,singles
-ESM3ΔG,esm3dg,stabilizing,0.3359,0.2846,0.3854,33,7102,singles
-ESM3ΔG,esm3dg,destabilizing,0.7921,0.7640,0.8182,33,28319,singles
 ESM3-small-open (alt),esm3avg,stabilizing,0.0309,-0.0252,0.0890,33,7102,singles
 ESM3-small-open (alt),esm3avg,destabilizing,0.5810,0.5352,0.6249,33,28319,singles
 ProSST,prosst,overall,0.5843,0.5301,0.6345,33,35421,singles
@@ -30,7 +28,6 @@ ThermoMPNN,tmpnn,overall,0.7859,0.7602,0.8101,33,35421,singles
 SPURS,spurs,overall,0.8041,0.7753,0.8306,33,35421,singles
 best other ddG,geoddg,overall,0.5915,0.5398,0.6414,33,35421,singles
 Rosetta,rosetta,overall,0.6594,0.6354,0.6824,33,35421,singles
-ESM3ΔG,esm3dg,overall,0.8142,0.7888,0.8389,33,35421,singles
 ESM3-small-open (alt),esm3avg,overall,0.5737,0.5156,0.6257,33,35421,singles
 ProSST,prosst,stabilizing,0.0806,-0.1151,0.3315,7,310,doubles
 ProSST,prosst,destabilizing,0.4081,0.2947,0.5117,13,13004,doubles
@@ -50,8 +47,6 @@ best other ddG,geoddg,stabilizing,0.1928,-0.0087,0.4021,7,310,doubles
 best other ddG,geoddg,destabilizing,0.4316,0.3017,0.5399,13,13004,doubles
 Rosetta,rosetta,stabilizing,-0.0719,-0.2656,0.1182,7,310,doubles
 Rosetta,rosetta,destabilizing,0.4841,0.3944,0.5707,13,13004,doubles
-ESM3ΔG,esm3dg,stabilizing,0.3453,0.0310,0.6031,7,310,doubles
-ESM3ΔG,esm3dg,destabilizing,0.7294,0.6087,0.8110,13,13004,doubles
 ESM3-small-open (alt),esm3avg,stabilizing,0.2006,0.0579,0.4110,7,310,doubles
 ESM3-small-open (alt),esm3avg,destabilizing,0.3939,0.3021,0.4781,13,13004,doubles
 ProSST,prosst,overall,0.4204,0.3111,0.5145,13,13319,doubles
@@ -63,5 +58,4 @@ ThermoMPNN,tmpnnd,overall,0.6678,0.5966,0.7326,13,13319,doubles
 SPURS,spursm,overall,0.7031,0.6306,0.7701,13,13319,doubles
 best other ddG,geoddg,overall,0.4560,0.3211,0.5798,13,13319,doubles
 Rosetta,rosetta,overall,0.4990,0.4180,0.5791,13,13319,doubles
-ESM3ΔG,esm3dg,overall,0.7451,0.6253,0.8275,13,13319,doubles
 ESM3-small-open (alt),esm3avg,overall,0.4110,0.3202,0.4900,13,13319,doubles

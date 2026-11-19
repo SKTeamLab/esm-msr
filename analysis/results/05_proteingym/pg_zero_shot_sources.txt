@@ -1,0 +1,4 @@
+ProSST: published (a run of ours on every assay: baselines/public/prosst/proteingym; otherwise the scores ProteinGym ships)
+ProteinMPNN: our runs, the mean of three (baselines/public/proteinmpnn/proteingym)
+ESM3-small-open: our sigma-0 read
+ESM3ΔG: not scored on the Stability category (64 of its 66 assays are Megascale / Tsuboyama libraries, which its training data overlap), so it has no ProteinGym average

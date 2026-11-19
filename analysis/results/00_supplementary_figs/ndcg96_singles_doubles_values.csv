@@ -2,7 +2,6 @@ column,doubles,overall,singles
 ESM-MSR,0.911,0.907,0.921
 ESM3-small-open,0.769,0.819,0.833
 ESM3-small-open (alt),0.78,0.823,0.837
-ESM3ΔG,0.881,0.89,0.908
 MutateEverything,0.882,0.867,0.878
 ProSST,0.776,0.828,0.83
 ProteinMPNN,0.795,0.828,0.834

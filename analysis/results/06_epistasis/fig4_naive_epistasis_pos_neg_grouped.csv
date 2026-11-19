@@ -15,8 +15,6 @@ best other ddG,geoddg:epi,positive,0.0235,-0.0324,0.0862,13,10444
 best other ddG,geoddg:epi,negative,0.0119,-0.1286,0.1372,12,2010
 Rosetta,rosetta:epi,positive,0.2545,0.1479,0.3756,13,10444
 Rosetta,rosetta:epi,negative,0.0651,0.0066,0.1309,12,2010
-ESM3ΔG,esm3dg:epi,positive,0.4948,0.3842,0.6035,13,10444
-ESM3ΔG,esm3dg:epi,negative,0.0986,0.0150,0.1865,12,2010
 ESM3-small-open (independent masking),esm3:epi,positive,0.4002,0.2904,0.5213,13,10444
 ESM3-small-open (independent masking),esm3:epi,negative,0.0133,-0.0921,0.1198,12,2010
 ESM3-small-open (masked marginal),esm3mm:epi,positive,0.1924,0.0842,0.3090,13,10444
@@ -29,6 +27,5 @@ ThermoMPNN,tmpnnd:epi,overall,0.1837,0.0880,0.2872,13,12455
 SPURS,spursm:epi,overall,0.3921,0.2685,0.5089,13,12455
 best other ddG,geoddg:epi,overall,0.0519,-0.0241,0.1212,13,12455
 Rosetta,rosetta:epi,overall,0.2825,0.1717,0.4109,13,12455
-ESM3ΔG,esm3dg:epi,overall,0.5518,0.4498,0.6558,13,12455
 ESM3-small-open (independent masking),esm3:epi,overall,0.4050,0.2928,0.5200,13,12455
 ESM3-small-open (masked marginal),esm3mm:epi,overall,0.2332,0.1100,0.3616,13,12455

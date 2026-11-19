@@ -43,10 +43,6 @@ gain,Rosetta,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,0.9936,0.4623,1.7175
 gain,Rosetta,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.4977,0.2242,0.8402,0.1588,33
 gain,Rosetta,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,2.8633,1.8856,4.0931,1.8142,33
 gain,Rosetta,Δ hydrophobicity > 0 & relative ASA > 0.5,1.8850,1.2849,2.5383,1.3150,33
-gain,ESM3ΔG,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,1.7215,0.8846,2.8407,0.6237,33
-gain,ESM3ΔG,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,0.7069,0.3312,1.1877,0.1137,33
-gain,ESM3ΔG,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,5.3397,3.5208,8.0582,3.8777,33
-gain,ESM3ΔG,Δ hydrophobicity > 0 & relative ASA > 0.5,2.4658,1.5949,3.5538,1.7710,33
 picks,Total,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,350.8182,287.6091,428.7576,272.0000,33
 picks,Total,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,179.0303,143.3000,224.1977,147.0000,33
 picks,Total,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,231.7273,195.3894,271.8561,224.0000,33
@@ -91,7 +87,3 @@ picks,Rosetta,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,3.4242,2.5455,4.363
 picks,Rosetta,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,3.1515,2.2417,4.1515,2.0000,33
 picks,Rosetta,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,8.8485,7.2727,10.4250,8.0000,33
 picks,Rosetta,Δ hydrophobicity > 0 & relative ASA > 0.5,8.5758,7.2417,9.9091,8.0000,33
-picks,ESM3ΔG,Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5,4.0606,2.9083,5.3341,3.0000,33
-picks,ESM3ΔG,Δ hydrophobicity ≤ 0 & relative ASA > 0.5,2.2121,1.3030,3.2121,1.0000,33
-picks,ESM3ΔG,Δ hydrophobicity > 0 & relative ASA ≤ 0.5,10.6667,9.0303,12.4242,10.0000,33
-picks,ESM3ΔG,Δ hydrophobicity > 0 & relative ASA > 0.5,7.0606,5.4848,8.7576,6.0000,33
