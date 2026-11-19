@@ -40,6 +40,7 @@ logs/
 data/tsuboyama/
 data/domainome1/
 data/mgnify/
+data/mgnify_v2/
 
 # test artifacts: tests/test_resumable_dataloading.py writes Lightning checkpoints here
 /checkpoints/

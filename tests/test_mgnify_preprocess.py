@@ -18,6 +18,7 @@ if str(PREPROC_DIR) not in sys.path:
     sys.path.insert(0, str(PREPROC_DIR))
 
 import download_mgnify  # noqa: E402
+import fold_rocklin_denovo  # noqa: E402
 import preprocess_mgnify  # noqa: E402
 from esm.utils.structure.protein_chain import ProteinChain  # noqa: E402
 from esm_msr import inference, preprocess  # noqa: E402
@@ -250,8 +251,335 @@ def test_end_to_end_synthetic_preprocess_retains_all_edge_cases(tmp_path):
     assert r_dbl["backbone_mutation"] == "V1A"
     assert r_dbl["ddG_ML"] == pytest.approx(-1.5)
     assert bool(r_dbl["has_all_singles"]) is False
+    assert r_dbl["cens"] == "default"
 
     r_trp = mapped.loc[mapped["code_wt"] == "rocklin_batch2_20"].iloc[0]
     assert int(r_trp["n_mut"]) == 3
-    assert int(r_trp["cens"]) == -1  # dG_wt=1.5 in range, dG_mut=-1.5 < -1
+    assert r_trp["cens"] == "mut_below_neg1"  # dG_wt=1.5 in range, dG_mut=-1.5 < -1
     assert summary["mgnify_mapped"]["multis_without_all_singles"] == 2
+
+
+def test_annotate_censoring_descriptive_labels():
+    assert preprocess_mgnify.annotate_censoring_and_ddg(1.2, 2.0)["cens"] == "default"
+    assert preprocess_mgnify.annotate_censoring_and_ddg(-1.2, 2.0)["cens"] == "mut_below_neg1"
+    assert preprocess_mgnify.annotate_censoring_and_ddg(5.3, 2.0)["cens"] == "mut_above_pos5"
+    assert preprocess_mgnify.annotate_censoring_and_ddg(1.2, -1.5)["cens"] == "wt_out_of_range"
+    assert preprocess_mgnify.annotate_censoring_and_ddg(1.2, 5.4)["cens"] == "wt_out_of_range"
+
+
+def test_classify_source():
+    assert preprocess_mgnify.classify_source("True", "False", "rocklin_batch2_1") == (True, "mgnify")
+    assert preprocess_mgnify.classify_source("False", "True", "rocklin_batch2_9") == (False, "dm_design")
+    assert preprocess_mgnify.classify_source("False", "False", "design_id_10") == (False, "rocklin_denovo")
+    assert preprocess_mgnify.classify_source("False", "False", "rocklin_design_batch1_1") == (False, "rocklin_denovo")
+    assert preprocess_mgnify.classify_source("False", "False", "doublevillin_S1A") == (False, "villin_control")
+    assert preprocess_mgnify.classify_source("False", "False", "villintile_1") == (False, "villin_control")
+    assert preprocess_mgnify.classify_source("False", "False", "6i0a_A") == (False, "pdb_uniprot_control")
+
+
+def test_dms5_wt_incorporation_and_nonmgnify_sources(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    wt_mgn = "ACDEFGHIKLMNPQRSTVWYACDE"
+    wt_des = "MNPQRSTVWYACDEFGHIKLMNPQ"
+    wt_vil = "GMLSDEDFKAVFGMTRSAFANLPL"
+
+    with open(raw / "mgnify_training_index.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["name", "split", "seq", "dG", "PDB_name"])
+        w.writerow(["rocklin_batch2_100", "train", wt_mgn, "2.0", "rocklin_batch2_100"])
+
+    cols = [
+        "name", "dna_seq", "log10_K50_t", "log10_K50_t_95CI_high", "log10_K50_t_95CI_low",
+        "log10_K50_t_95CI", "fitting_error_t", "rmsd_t", "log10_K50unfolded_t", "deltaG_t",
+        "deltaG_t_95CI_high", "deltaG_t_95CI_low", "deltaG_t_95CI", "log10_K50_c",
+        "log10_K50_c_95CI_high", "log10_K50_c_95CI_low", "log10_K50_c_95CI", "fitting_error_c",
+        "rmsd_c", "log10_K50unfolded_c", "deltaG_c", "deltaG_c_95CI_high", "deltaG_c_95CI_low",
+        "deltaG_c_95CI", "log10_A0_K50", "deltaG", "deltaG_95CI_high", "deltaG_95CI_low",
+        "deltaG_95CI", "lib", "aa_seq", "aa_seq_full", "mgnify", "dm_design", "train_name",
+        "split", "train_seq", "train_dG_from_earlier_processing",
+    ]
+
+    def _row(name, lib, aa_seq, dg, mgn="True", dm="False", train_name="", split="train"):
+        d = {c: "" for c in cols}
+        d.update({
+            "name": name, "lib": lib, "aa_seq": aa_seq, "aa_seq_full": aa_seq,
+            "deltaG": str(dg), "deltaG_t": str(dg), "deltaG_c": str(dg),
+            "deltaG_95CI": "0.1", "mgnify": mgn, "dm_design": dm,
+            "train_name": train_name, "split": split,
+        })
+        return [d[c] for c in cols]
+
+    with open(raw / "230515_K50dG_dmsv4_dmsv5_dmsv7_concat260429.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        # mgnify=True WT in dms4 (2.0) + indexed dms5 hd=0 (2.6) + unindexed dms5 hd=0 (2.9) -> mean dG_wt = 2.5 across 3 reps
+        w.writerow(_row("rocklin_batch2_100", "dms4", wt_mgn, 2.0))
+        w.writerow(_row("rocklin_batch3_essential_1", "dms5", wt_mgn, 2.6, train_name="rocklin_batch2_100"))
+        w.writerow(_row("rocklin_batch3_essential_2", "dms5", wt_mgn, 2.9, train_name="", split=""))
+        # Single mutant of rocklin_batch2_100
+        w.writerow(_row("rocklin_batch2_100_A1K", "dms7", "K" + wt_mgn[1:], 1.0))
+        # Non-MGnify rows across all 4 sources
+        w.writerow(_row("rocklin_batch2_999", "dms4", "QQQ" + wt_des[3:], 1.2, mgn="False", dm="True", split=""))
+        w.writerow(_row("design_id_5", "dms7", wt_des, 3.0, mgn="False", split=""))
+        w.writerow(_row("design_id_5_M1A", "dms7", "A" + wt_des[1:], 2.0, mgn="False", split=""))
+        w.writerow(_row("doublevillin_WT", "dms7", wt_vil, 4.0, mgn="False", split=""))
+        w.writerow(_row("doublevillin_G1A", "dms7", "A" + wt_vil[1:], 3.2, mgn="False", split=""))
+        w.writerow(_row("6i0a_A", "dms7", "WWWW" + wt_vil[4:], 1.1, mgn="False", split=""))
+
+    preprocess_mgnify.preprocess_mgnify(
+        tmp_path, do_download=False, skip_homolog_pairs=True, spot_check_pdbs=0
+    )
+
+    mapped = pd.read_csv(tmp_path / "mgnify_mapped.csv")
+    all_col = pd.read_csv(tmp_path / "mgnify_all_collapsed.csv.gz")
+    wts = pd.read_csv(tmp_path / "mgnify_wildtypes.csv.gz")
+
+    assert len(mapped) == 1
+    r_m = mapped.iloc[0]
+    assert bool(r_m["mgnify"]) is True
+    assert r_m["source"] == "mgnify"
+    assert int(r_m["n_wt_replicates"]) == 3
+    assert r_m["dG_wt"] == pytest.approx(2.5)
+    assert r_m["ddG_ML"] == pytest.approx(-1.5)  # 1.0 - 2.5
+
+    assert len(all_col) == 3
+    assert set(all_col["source"]) == {"mgnify", "rocklin_denovo", "villin_control"}
+    r_des = all_col.loc[all_col["source"] == "rocklin_denovo"].iloc[0]
+    assert bool(r_des["mgnify"]) is False
+    assert r_des["mut_type"] == "M1A"
+    assert r_des["ddG_ML"] == pytest.approx(-1.0)
+    assert pd.isna(r_des["pdb_file"]) or r_des["pdb_file"] == ""
+
+    r_vil = all_col.loc[all_col["source"] == "villin_control"].iloc[0]
+    assert bool(r_vil["mgnify"]) is False
+    assert r_vil["ddG_ML"] == pytest.approx(-0.8)
+
+    assert set(wts["source"]) == {"mgnify", "dm_design", "rocklin_denovo", "villin_control", "pdb_uniprot_control"}
+
+
+def test_compose_trajectory_and_infer_design_id_core_bounds():
+    assert fold_rocklin_denovo.compose_trajectory_mutations(
+        "design_id_10", "design_id_10_R45L_K23G_G23H"
+    ) == [(23, "K", "H"), (45, "R", "L")]
+    assert fold_rocklin_denovo.compose_trajectory_mutations(
+        "design_id_10", "design_id_10_K34N_N34K_G29W"
+    ) == [(29, "G", "W")]
+
+    # Case 1: left_pad = 8, L_core = 63, right_pad = 9
+    core63 = ("AEKL" * 16)[:63]
+    wt80_p = "SAGGSAGG" + core63 + "SAGGSAGGS"
+    assert len(wt80_p) == 80
+    assert fold_rocklin_denovo.infer_design_id_core_bounds(
+        "design_id_1",
+        wt80_p,
+        ["design_id_1_A1G", "design_id_1_K3D_D3F"],
+        ["A9G", "K11F"],
+    ) == (8, 9, 63, core63)
+
+    # Case 2: left_pad = 0, ends with 'S' with max_core_pos = 79 -> L_core = 79
+    core79 = ("MDEK" * 20)[:79]
+    wt80_79 = core79 + "S"
+    assert fold_rocklin_denovo.infer_design_id_core_bounds(
+        "design_id_2",
+        wt80_79,
+        ["design_id_2_M1A", f"design_id_2_{core79[78]}79K"],
+        ["M1A", f"{core79[78]}79K"],
+    ) == (0, 1, 79, core79)
+
+    # Case 3: left_pad = 0, ends with 'S' with max_core_pos = 80 -> L_core = 80
+    wt80_80 = core79 + "S"
+    assert fold_rocklin_denovo.infer_design_id_core_bounds(
+        "design_id_3",
+        wt80_80,
+        ["design_id_3_M1A", "design_id_3_S80K"],
+        ["M1A", "S80K"],
+    ) == (0, 0, 80, wt80_80)
+
+
+def _write_synthetic_core_pdb(path: Path, seq: str, plddt: float = 91.5) -> None:
+    aa1_to_3 = {v: k for k, v in preprocess_mgnify.AA3_TO_1.items()}
+    lines = []
+    aid = 1
+    offsets = [("N", 0.0, 0.0, 0.0), ("CA", 1.458, 0.0, 0.0), ("C", 2.009, 1.420, 0.0), ("O", 1.251, 2.389, 0.0)]
+    for r_idx, ch in enumerate(seq, 1):
+        rn = aa1_to_3[ch]
+        bx = 3.8 * (r_idx - 1)
+        for aname, dx, dy, dz in offsets:
+            lines.append(
+                f"ATOM  {aid:5d} {aname:<4s} {rn:>3s} A{r_idx:4d}    "
+                f"{bx + dx:8.3f}{dy:8.3f}{dz:8.3f}  1.00{plddt:6.2f}           {aname[0]:>2s}"
+            )
+            aid += 1
+    lines.append("END")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_fold_rocklin_denovo_prepare_collect_apply_and_preprocess_roundtrip(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+
+    # Build 80-AA MGnify control (left untouched) + padded 64-AA core design_id_10
+    wt_mgn = ("ACDEFGHIKLMNPQRSTVWY" * 4)[:80]
+    core64 = ("AEKLVDQIFGHMNPQRTWYC" * 4)[:64]
+    wt_des = "SAGGSAGG" + core64 + "SAGGSAGG"
+    assert len(wt_des) == 80
+
+    with open(raw / "mgnify_training_index.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["name", "split", "seq", "dG", "PDB_name"])
+        w.writerow(["rocklin_batch2_1", "train", wt_mgn, "2.0", "rocklin_batch2_1"])
+
+    cols = [
+        "name", "dna_seq", "log10_K50_t", "log10_K50_t_95CI_high", "log10_K50_t_95CI_low",
+        "log10_K50_t_95CI", "fitting_error_t", "rmsd_t", "log10_K50unfolded_t", "deltaG_t",
+        "deltaG_t_95CI_high", "deltaG_t_95CI_low", "deltaG_t_95CI", "log10_K50_c",
+        "log10_K50_c_95CI_high", "log10_K50_c_95CI_low", "log10_K50_c_95CI", "fitting_error_c",
+        "rmsd_c", "log10_K50unfolded_c", "deltaG_c", "deltaG_c_95CI_high", "deltaG_c_95CI_low",
+        "deltaG_c_95CI", "log10_A0_K50", "deltaG", "deltaG_95CI_high", "deltaG_95CI_low",
+        "deltaG_95CI", "lib", "aa_seq", "aa_seq_full", "mgnify", "dm_design", "train_name",
+        "split", "train_seq", "train_dG_from_earlier_processing",
+    ]
+
+    def _row(name, lib, aa_seq, dg, mgn="True"):
+        d = {c: "" for c in cols}
+        d.update({
+            "name": name, "lib": lib, "aa_seq": aa_seq, "aa_seq_full": aa_seq,
+            "deltaG": str(dg), "deltaG_t": str(dg), "deltaG_c": str(dg),
+            "deltaG_95CI": "0.1", "mgnify": mgn, "dm_design": "False", "split": "train" if mgn == "True" else "",
+        })
+        return [d[c] for c in cols]
+
+    # Mutations in core: core pos 1 (A->G), core pos 2 (E->D), double A1G:E2D, composed K3M_M3W on pos 3
+    m_s1 = wt_des[:8] + "G" + wt_des[9:]
+    m_s2 = wt_des[:9] + "D" + wt_des[10:]
+    m_d = wt_des[:8] + "G" + "D" + wt_des[10:]
+    m_c3 = wt_des[:10] + "W" + wt_des[11:]
+
+    with open(raw / "230515_K50dG_dmsv4_dmsv5_dmsv7_concat260429.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        w.writerow(_row("rocklin_batch2_1", "dms4", wt_mgn, 2.0, mgn="True"))
+        w.writerow(_row("rocklin_batch2_1_A1G", "dms7", "G" + wt_mgn[1:], 1.5, mgn="True"))
+        w.writerow(_row("design_id_10", "dms7", wt_des, 1.0, mgn="False"))
+        w.writerow(_row("design_id_10_A1G", "dms7", m_s1, 0.8, mgn="False"))
+        w.writerow(_row("design_id_10_E2D", "dms7", m_s2, 0.7, mgn="False"))
+        w.writerow(_row("design_id_10_A1G_E2D", "dms7", m_d, 0.6, mgn="False"))
+        w.writerow(_row("design_id_10_K3M_M3W", "dms7", m_c3, 0.9, mgn="False"))
+
+    preprocess_mgnify.preprocess_mgnify(tmp_path, do_download=False, skip_homolog_pairs=True, spot_check_pdbs=0)
+    prep = fold_rocklin_denovo.cmd_prepare(tmp_path, n_shards=1)
+    assert prep["n_scaffolds"] == 1
+    assert prep["flank_mut_errors"] == 0
+    assert prep["shifted_mut_errors"] == 0
+
+    pred_dir = tmp_path / "af2_rocklin_denovo" / "raw_predictions"
+    pred_dir.mkdir(parents=True)
+    _write_synthetic_core_pdb(pred_dir / "design_id_10_relaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb", core64)
+    (pred_dir / "design_id_10_scores_rank_001_alphafold2_ptm_model_1_seed_000.json").write_text(
+        json.dumps({"plddt": [92.0] * 64, "ptm": 0.87}), encoding="utf-8"
+    )
+
+    col_stats = fold_rocklin_denovo.cmd_collect(tmp_path, spot_check_pdbs=1)
+    assert col_stats["n_collected"] == 1
+    assert col_stats["n_spot_checked"] == 1
+
+    app_stats = fold_rocklin_denovo.cmd_apply(tmp_path)
+    # Idempotency check: second apply should succeed identically
+    app_stats_2 = fold_rocklin_denovo.cmd_apply(tmp_path)
+    assert app_stats_2["mgnify_mapped_rows"] == app_stats["mgnify_mapped_rows"] == 5
+
+    mapped = pd.read_csv(tmp_path / "mgnify_mapped.csv")
+    assert len(mapped) == 5
+    rd_m = mapped[mapped["source"] == "rocklin_denovo"].copy()
+    assert len(rd_m) == 4
+    assert (rd_m["wt_seq"] == core64).all()
+    assert (rd_m["pdb_file"] == "structures_af2_denovo/010/design_id_10.pdb").all()
+    dbl = rd_m[rd_m["n_mut"] == 2].iloc[0]
+    assert dbl["mut_type"] == "A1G:E2D"
+    assert bool(dbl["has_all_singles"]) is True
+    assert dbl["dddG_ML"] == pytest.approx((-0.4) - ((-0.2) + (-0.3)))
+    assert "K3W" in set(rd_m["mut_type"])
+    # MGnify row untouched
+    assert mapped[mapped["source"] == "mgnify"].iloc[0]["wt_seq"] == wt_mgn
+
+    # Also test preprocess_mgnify auto-detecting existing manifest + PDBs on re-run
+    preprocess_mgnify.preprocess_mgnify(tmp_path, do_download=False, skip_homolog_pairs=True, spot_check_pdbs=0)
+    mapped_re = pd.read_csv(tmp_path / "mgnify_mapped.csv")
+    rd_re = mapped_re[mapped_re["source"] == "rocklin_denovo"]
+    assert len(rd_re) == 4
+    assert (rd_re["wt_seq"] == core64).all()
+    assert set(rd_re["mut_type"]) == {"A1G", "E2D", "A1G:E2D", "K3W"}
+
+
+def test_incremental_partial_collect_and_prefill_apply(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+
+    core64 = ("AEKLVDQIFGHMNPQRTWYC" * 4)[:64]
+    core66 = ("MNPQRTWYCAEKLVDQIFGH" * 4)[:66]
+    wt1 = "SAGGSAGG" + core64 + "SAGGSAGG"
+    wt2 = "SAGGSAG" + core66 + "SAGGSAG"
+    assert len(wt1) == len(wt2) == 80
+
+    with open(raw / "mgnify_training_index.csv", "w", newline="") as f:
+        csv.writer(f).writerow(["name", "split", "seq", "dG", "PDB_name"])
+
+    cols = [
+        "name", "dna_seq", "log10_K50_t", "log10_K50_t_95CI_high", "log10_K50_t_95CI_low",
+        "log10_K50_t_95CI", "fitting_error_t", "rmsd_t", "log10_K50unfolded_t", "deltaG_t",
+        "deltaG_t_95CI_high", "deltaG_t_95CI_low", "deltaG_t_95CI", "log10_K50_c",
+        "log10_K50_c_95CI_high", "log10_K50_c_95CI_low", "log10_K50_c_95CI", "fitting_error_c",
+        "rmsd_c", "log10_K50unfolded_c", "deltaG_c", "deltaG_c_95CI_high", "deltaG_c_95CI_low",
+        "deltaG_c_95CI", "log10_A0_K50", "deltaG", "deltaG_95CI_high", "deltaG_95CI_low",
+        "deltaG_95CI", "lib", "aa_seq", "aa_seq_full", "mgnify", "dm_design", "train_name",
+        "split", "train_seq", "train_dG_from_earlier_processing",
+    ]
+
+    def _row(name, aa_seq, dg):
+        d = {c: "" for c in cols}
+        d.update({
+            "name": name, "lib": "dms7", "aa_seq": aa_seq, "aa_seq_full": aa_seq,
+            "deltaG": str(dg), "deltaG_t": str(dg), "deltaG_c": str(dg),
+            "deltaG_95CI": "0.1", "mgnify": "False", "dm_design": "False",
+        })
+        return [d[c] for c in cols]
+
+    with open(raw / "230515_K50dG_dmsv4_dmsv5_dmsv7_concat260429.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        w.writerow(_row("design_id_10", wt1, 1.0))
+        w.writerow(_row("design_id_10_A1G", wt1[:8] + "G" + wt1[9:], 0.5))
+        w.writerow(_row("design_id_20", wt2, 1.2))
+        w.writerow(_row("design_id_20_M1W", wt2[:7] + "W" + wt2[8:], 0.8))
+
+    preprocess_mgnify.preprocess_mgnify(tmp_path, do_download=False, skip_homolog_pairs=True, spot_check_pdbs=0)
+    fold_rocklin_denovo.cmd_prepare(tmp_path, n_shards=2)
+
+    pred_dir = tmp_path / "af2_rocklin_denovo" / "raw_predictions"
+    pred_dir.mkdir(parents=True)
+    _write_synthetic_core_pdb(pred_dir / "design_id_10_relaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb", core64)
+    (pred_dir / "design_id_10_scores_rank_001_alphafold2_ptm_model_1_seed_000.json").write_text(
+        json.dumps({"plddt": [93.0] * 64, "ptm": 0.88}), encoding="utf-8"
+    )
+
+    c1 = fold_rocklin_denovo.cmd_collect(tmp_path, spot_check_pdbs=1, allow_partial=True)
+    assert (c1["n_target"], c1["n_collected"], c1["n_newly_installed"], c1["n_missing"]) == (2, 1, 1, 1)
+
+    dst10 = tmp_path / "structures_af2_denovo/010/design_id_10.pdb"
+    inode10 = dst10.stat().st_ino
+
+    app = fold_rocklin_denovo.cmd_apply(tmp_path, allow_missing_pdbs=True)
+    assert app["mgnify_mapped_rows"] == 2
+    assert app["rocklin_denovo_af2"]["n_structures_on_disk"] == 1
+    mapped = pd.read_csv(tmp_path / "mgnify_mapped.csv")
+    assert set(mapped["pdb_file"]) == {
+        "structures_af2_denovo/010/design_id_10.pdb",
+        "structures_af2_denovo/020/design_id_20.pdb",
+    }
+
+    # Add 2nd PDB incrementally; 1st PDB inode must remain untouched
+    _write_synthetic_core_pdb(pred_dir / "design_id_20_relaxed_rank_001_alphafold2_ptm_model_2_seed_000.pdb", core66)
+    c2 = fold_rocklin_denovo.cmd_collect(tmp_path, spot_check_pdbs=1, allow_partial=True)
+    assert (c2["n_target"], c2["n_collected"], c2["n_newly_installed"], c2["n_missing"]) == (2, 2, 1, 0)
+    assert dst10.stat().st_ino == inode10
