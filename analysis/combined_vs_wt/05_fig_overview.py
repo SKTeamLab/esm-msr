@@ -89,7 +89,7 @@ def forest(D, PG):
         ax.set_ylim(y, -0.7)
         ax.grid(axis='y', visible=False)
         ax.set_xlabel('delta rho: combined - WT head (> 0: combined is better)')
-        ax.text(1.015, 1.0, 'p0 rho: WT → comb.', transform=ax.transAxes, ha='left', va='bottom', fontsize=8.6, color='#444444')
+        ax.text(1.015, 1.0, 'ESM-MSR rho: WT-view → Dual-view', transform=ax.transAxes, ha='left', va='bottom', fontsize=8.6, color='#444444')
         h = [plt.Line2D([], [], marker=C.FAM_MARKER[f], color=C.FAM_COLOR[f], ls='-', lw=1.4, ms=5.2, label=C.FAM_LABEL[f]) for f in C.FAMS]
         ax.legend(handles=h, loc='lower right', fontsize=8.6, handlelength=2.2, ncol=1)
         C.finish(fig, 'Delta rho = Spearman rho of the combined prediction, 1/2 (MT + WT), minus rho of the WT head, on the same variants of one checkpoint, sigma = 1, seeds 1-3 (ProteinGym: seed 1). Bars: 95% bootstrap '

@@ -16,9 +16,7 @@ Colour: blue = positive epistasis, red = negative, × = no usable value.  One sc
 |measured value| over the usable cells of the 15 pairs: raw and saturation-corrected each have their own, printed on the colour bar); a model's values beyond it are clipped to the end
 colour.  Each panel title carries the Spearman rho of the model against the measured cells of the pair.
 Layout: ``results/12_pair_heatmaps/<raw|saturation_corrected>/<domain>/<wt><pos>_<wt><pos>.png``, ``pairs.csv`` (the pairs) and ``agreement.csv`` (rho of each model, per pair and mode).
-ESM-MSR's epistasis is 1/2(MT_AB+WT_AB) - WT_A - WT_B for the baseline triplicate, p0, and the devel checkpoints alike (no link).  The devel
-checkpoints' observed-scale version, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's learned link (``msr_analysis.link.observed_epistasis``), is kept as
-``linked`` for the diagnostics of ``13_dddG_correlation_scatters.py``.  The predictions are never saturation-corrected.
+ESM-MSR's epistasis is 1/2(MT_AB+WT_AB) - WT_A - WT_B (FINAL_p0, no link).  The panels follow the order of ``msr_analysis.models``.  The predictions are never saturation-corrected.
 Rosetta is divided by 2.94 (REU to kcal/mol).  Multi-seed models are averaged over seeds first; The Megascale-trained ESMtherm and IFUM carry an asterisk.
 """
 import json
@@ -38,7 +36,6 @@ from msr_analysis import style  # noqa: E402
 from msr_analysis.common import epi_rows, out_dir  # noqa: E402
 from msr_analysis.registry import REFERENCE  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
-from msr_analysis.link import observed_epistasis  # noqa: E402
 from msr_analysis.registry import TSU, TSU_SPLIT  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 DS = TSU[1]
@@ -52,22 +49,17 @@ DPI = 85
 UNIT = {}
 
 # (label, epistasis builder, additive key, singles key); builders are ('diff', a, b) = a - b or ('key', k).  Order = the panels after the measurement.
-MODELS = [('ESM-MSR (baseline)', ('key', 'msr:epi'), 'msr:wt+', 'msr:wt'),
-          ('ESM-MSR', ('key', 'msrdev:epi'), 'msrdev:wt+', 'msrdev:wt'),
-          ('ESM-MSR (p0)', ('key', 'msrp0:epi'), 'msrp0:wt+', 'msrp0:wt'),
-          ('MutateEverything st2', ('key', 'me2:epi'), 'me1', 'me1'),
-          ('ThermoMPNN-D', ('key', 'tmpnnd:epi'), 'tmpnn', 'tmpnn'),
-          ('SPURS multi', ('key', 'spursm:epi'), 'spurs', 'spurs'),
+MODELS = [('ProteinMPNN', ('diff', 'pmpnn', 'pmpnn+'), 'pmpnn+', 'pmpnn'),                 # the order of ``msr_analysis.models`` (zero-shot, retrained, supervised, then the Megascale-trained models); ESM-MSR is the only version of it drawn
           ('ESM3-small-open', ('key', 'msrrel@0:epi'), 'msrrel@0:wt+', 'msrrel@0:wt'),
-          ('ProteinMPNN', ('diff', 'pmpnn', 'pmpnn+'), 'pmpnn+', 'pmpnn'),
+          ('ESM-MSR', ('key', 'msrp0:epi'), 'msrp0:wt+', 'msrp0:wt'),
+          ('MutateEverything Stage 2', ('key', 'me2:epi'), 'me1', 'me1'),
+          ('ThermoMPNN-D', ('key', 'tmpnnd:epi'), 'tmpnn', 'tmpnn'),
+          ('SPURS-multi', ('key', 'spursm:epi'), 'spurs', 'spurs'),
           ('GeoDDG-3D', ('diff', 'geoddg', 'geoddg+'), 'geoddg+', 'geoddg'),
-          ('DDGemb', ('diff', 'ddgemb', 'ddgemb+'), 'ddgemb+', 'ddgemb'),
           ('Rosetta', ('diff', 'rosetta', 'rosetta+'), 'rosetta+', 'rosetta'),
           ('ESMtherm*', ('diff', 'esmtherm', 'esmtherm+'), 'esmtherm+', 'esmtherm'),
-          ('IFUM, WT backbone*', ('diff', 'ifum_wt', 'ifum_wt+'), 'ifum_wt+', 'ifum_wt'),
-          ('IFUM, ESMFold*', ('diff', 'ifum_esmfold', 'ifum_esmfold+'), 'ifum_esmfold+', 'ifum_esmfold')]
-if TSU_SPLIT == 'mega':      # mega_splits: the only ESM-MSR is FINAL_p0_mega (msrp0), drawn as plain "ESM-MSR"
-    MODELS = [('ESM-MSR', ('key', 'msrp0:epi'), 'msrp0:wt+', 'msrp0:wt')] + [m for m in MODELS if not m[0].startswith('ESM-MSR')]
+          ('IFUM*', ('diff', 'ifum_wt', 'ifum_wt+'), 'ifum_wt+', 'ifum_wt'),
+          ('DDGemb', ('diff', 'ddgemb', 'ddgemb+'), 'ddgemb+', 'ddgemb')]
 
 
 def smooth_on(x, v, nbins=SMOOTH_BINS):
@@ -132,8 +124,6 @@ def build():
         e_seeds = u * (p[build_[1]] - (p[build_[2]] if build_[0] == 'diff' else 0.0))
         e = mean_seeds(e_seeds)
         model[label] = dict(raw=e, raw_seeds=e_seeds, saturation_corrected=e, single=u * mean_seeds(p[sk]), latent=e)       # predictions are not saturation-corrected
-        if label == 'ESM-MSR' and 'msrdev:wt' in p:       # the observed-scale version, link((MT(AB) + WT(AB)) / 2) - link(WT(A)) - link(WT(B)) through each seed's learned link, for the diagnostics of 13
-            model[label]['linked'] = np.nanmean([observed_epistasis(sp, p['msrdev:wt'][s], p['msrdev:comb'][s], s + 1) for s in range(3)], axis=0)
     mut = sp['mut'].to_numpy(dtype=object)
     nm = sp['n_mut'].to_numpy()
     d = pd.DataFrame({'i': np.flatnonzero(nm == 2)})

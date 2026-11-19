@@ -27,11 +27,11 @@ Three views of a virtual screen on single mutants only (measured rows, all backb
 3. ``fig_best_ddg_vs_k_panels[_nocys]`` (+ ``fig_best_ddg_vs_k[_nocys]``)
    Best measured ddG recovered among the top K predicted single mutants per protein as a function of every discrete
    screening budget K = 1 .. 96 (one line per model, no markers), separated by model type:
-   - Panel A: Models retrained on Homology-Restricted MegaScale (ESM-MSR WT head, ESM-MSR combined, MutateEverything st1,
+   - Panel A: Models retrained on Homology-Restricted MegaScale (ESM-MSR WT-view, MutateEverything Stage 1,
      ThermoMPNN, SPURS).
    - Panel B: ESM-MSR vs Zero-shot & Supervised (not Megascale-trained) models.
 
-Conventions: ESM-MSR WT head and ESM-MSR combined (no baseline); "Homology-Restricted MegaScale"; ESM3-small-open read
+Conventions: ESM-MSR WT-view (singles only; no other ESM-MSR version); "Homology-Restricted MegaScale"; ESM3-small-open read
 unmasked; domain-level bootstrap (default --B 1000); no GeoDDG-3D annotation; no exclusion text.
 Outputs: ``results/08_screening/``.
 """
@@ -50,6 +50,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
 
+from msr_analysis import models as M  # noqa: E402
 from msr_analysis import style  # noqa: E402
 from msr_analysis.boot import ci  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
@@ -66,40 +67,18 @@ KS_TICKS = [1, 2, 3, 6, 12, 24, 48, 96]
 
 
 # ----------------------------------------------------------------------------------------------
-# model columns (single mutants only: ESM-MSR WT head and ESM-MSR combined)
+# model columns (single mutants only: the singles version of every model)
 # ----------------------------------------------------------------------------------------------
 def single_columns(fr, best):
-    """Columns in the three categories of 11_publication_figures.py, showing baseline, ESM-MSR (devel), and p0 (WT head and combined)."""
-    cols = [
-        dict(name='ESM-MSR (baseline) WT head', cat='retrained', color='#7f8c8d', ls='-',
-             label='ESM-MSR\n(baseline)\nWT head', key='msr:wt', draw=True),
-        dict(name='ESM-MSR (baseline) combined', cat='retrained', color='#95a5a6', ls='--',
-             label='ESM-MSR\n(baseline)\ncombined', key='msr:comb', draw=True),
-        dict(name='ESM-MSR WT head', cat='retrained', color='#000000', ls='-',
-             label='ESM-MSR\nWT head', key='msrdev:wt', draw=True),
-        dict(name='ESM-MSR combined', cat='retrained', color='#555555', ls='--',
-             label='ESM-MSR\ncombined', key='msrdev:comb', draw=True),
-        dict(name='ESM-MSR (p0) WT head', cat='retrained', color='#6c3483', ls='-',
-             label='ESM-MSR\n(p0)\nWT head', key='msrp0:wt', draw=True),
-        dict(name='ESM-MSR (p0) combined', cat='retrained', color='#9b59b6', ls='--',
-             label='ESM-MSR\n(p0)\ncombined', key='msrp0:comb', draw=True),
-        dict(name='MutateEverything st1', cat='retrained', color='#1b8a4b', ls='-',
-             label='MutateEverything\nst1', key='me1', draw=True),
-        dict(name='ThermoMPNN', cat='retrained', color='#1f5f8b', ls='-',
-             label='ThermoMPNN', key='tmpnn', draw=True),
-        dict(name='SPURS', cat='retrained', color='#d35400', ls='-',
-             label='SPURS', key='spurs', draw=True),
-        dict(name='ESM3-small-open', cat='zeroshot', color='#7f8c8d', ls='-',
-             label='ESM3-small-open\nunmasked', key='msrrel@0:comb', draw=True),
-        dict(name='ProteinMPNN', cat='zeroshot', color='#34495e', ls='-',
-             label='ProteinMPNN', key='pmpnn', draw=True),
-        dict(name='ProSST', cat='zeroshot', color='#8e44ad', ls='-',
-             label='ProSST', key='prosst', draw=True),
-        *([dict(name=pub.BEST_LABEL[best], cat='supervised', color=pub.BEST_COLOR[best], ls='-',
-                label=pub.BEST_LABEL[best], key=best, draw=True)] if best else []),
-        dict(name='Rosetta', cat='supervised', color='#1abc9c', ls='-',
-             label='Rosetta', key='rosetta', draw=True),
-    ]
+    """The columns in the order, colours and line styles of ``msr_analysis.models``; single mutants only, so each model is its singles version (ESM-MSR and ESM3-small-open: WT-view; MutateEverything Stage 1; ThermoMPNN; SPURS)."""
+    cols = []
+    for name in M.ZEROSHOT + M.TRANSFER + M.SUPERVISED:
+        if name == 'GeoDDG-3D':
+            if not best:
+                continue
+            name = pub.BEST_LABEL[best]
+        m = M.BY_NAME[name]
+        cols.append(dict(name=name, cat='supervised' if m.group == 'megascale' else m.group, color=m.color, ls=m.ls, label=M.tick_label(name, 0) if m.two_versions else name, key=m.single, draw=True))
     return [c for c in cols if c['key'] in fr.preds]
 
 
@@ -626,8 +605,8 @@ def compute_best_ddg_curve(fr, cols, pool_mask, libs, counts, ks):
     return pd.DataFrame(rows), vals
 
 
-# the CI band is drawn for ESM-MSR only (FINAL_p0 seeds 1-3, WT head); bands under every model, or under all six ESM-MSR variants, hide each other
-BAND_MODELS = {'ESM-MSR (p0) WT head'}
+# the CI band is drawn for ESM-MSR only (FINAL_p0 seeds 1-3, WT-view); bands under every model hide each other
+BAND_MODELS = {'ESM-MSR'}
 
 
 def _plot_best_ddg_ax(ax, D, models_to_draw, ks_ticks, ribbon_names, title=None):
@@ -668,7 +647,7 @@ def draw_best_ddg_figures(cols, D, ks_ticks, sfx='', pool_title='single mutants'
 
     # --- 3A: Two-panel figure separating Retrained on MegaScale vs Zero-shot & Supervised ---
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13.2, 5.2), sharey=True)
-    retrained = [c for c in drawn if c['cat'] == 'retrained']
+    retrained = [c for c in drawn if c['cat'] == 'transfer']
     others = [c for c in drawn if c['name'].startswith('ESM-MSR') or c['cat'] in ('zeroshot', 'supervised')]
     _plot_best_ddg_ax(
         ax1, D, retrained, ks_ticks,
@@ -685,7 +664,7 @@ def draw_best_ddg_figures(cols, D, ks_ticks, sfx='', pool_title='single mutants'
     ax2.legend(loc='lower right', ncol=2, fontsize=7.6, framealpha=0.92)
     pub.finish(
         fig,
-        f'{SPLIT} test, {pool_title}: best measured ddG recovered among top K per protein (K = 1 .. 96; 95% domain-bootstrap band for ESM-MSR (p0) WT head)',
+        f'{SPLIT} test, {pool_title}: best measured ddG recovered among top K per protein (K = 1 .. 96; 95% domain-bootstrap band for ESM-MSR WT-view)',
         [],
     )
     style.save(fig, OUT / f'fig_best_ddg_vs_k_panels{sfx}')

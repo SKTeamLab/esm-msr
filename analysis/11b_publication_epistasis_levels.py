@@ -4,9 +4,9 @@
 ``fig5a_epistasis_levels_bars_{test,val}``: five small square subplots (one per level: naive / raw rho, saturation-subtracted rho, pair rho, line rho, cell rank) for side-by-side
 comparison of bars across models, with vertical x-axis labels and 95% intervals from resampling domains.
 
-Models, in the three categories of the other publication figures: ESM-MSR (combined_AB - WT_AB, no linking) and ESM-MSR ctx ctrl (~WT - WT: the WT adapter read on the mutated sequence,
-asked about the reverse mutation: what the backbone and the single-mutant training already know about epistasis) | ME stage 2, ThermoMPNN-D, SPURS multi (retrained, three seeds) |
-ESM3-small-open (unmasked combined head - WT head), ProteinMPNN | GeoDDG-3D, Rosetta.  Outputs: ``results/06_epistasis``.
+Models, in the roster order and the three categories of the other publication figures: ProteinMPNN, ESM3-small-open (unmasked combined head - WT head) | ESM-MSR (combined_AB - WT_AB, no linking) and ESM-MSR ctx ctrl
+(~WT - WT: the WT adapter read on the mutated sequence, asked about the reverse mutation: what the backbone and the single-mutant training already know about epistasis), MutateEverything Stage 2,
+ThermoMPNN-D, SPURS-multi (retrained, three seeds) | GeoDDG-3D, Rosetta.  Outputs: ``results/06_epistasis``.
 """
 import importlib
 import sys
@@ -18,25 +18,31 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import matplotlib.pyplot as plt  # noqa: E402
 
+from msr_analysis import models as M  # noqa: E402
 from msr_analysis import style  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
 
 pub = importlib.import_module('11_publication_figures')
 OUT = out_dir('06_epistasis')
 
-# (model as named in the bootstrap csv, category, colour, axis label)
-MODELS = [
-    ('ESM-MSR (baseline) · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'retrained', '#7f8c8d', 'ESM-MSR (baseline)'),
-    ('ESM-MSR · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'retrained', '#000000', 'ESM-MSR'),
-    ('ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'retrained', '#6c3483', 'ESM-MSR (p0)'),
-    ('ESM-MSR · 1/2(~WT_AB+WT_AB) − WT_A − WT_B', 'retrained', '#b2babb', 'ESM-MSR ctx ctrl'),
-    ('ME stage 2', 'retrained', '#1b8a4b', 'ME stage 2'),
-    ('ThermoMPNN-D', 'retrained', '#1f5f8b', 'ThermoMPNN-D'),
-    ('SPURS multi', 'retrained', '#d35400', 'SPURS multi'),
-    ('ESM3-small-open', 'zeroshot', '#7f8c8d', 'ESM3-small-open'),
-    ('ProteinMPNN', 'zeroshot', '#34495e', 'ProteinMPNN'),
-    ('GeoDDG-3D', 'supervised', '#117a65', 'GeoDDG-3D'),
-    ('Rosetta', 'supervised', '#1abc9c', 'Rosetta'),
+def entry(csv_name, model, label=None, color=None):
+    """(model as named in the bootstrap csv, category, colour, axis label) of the roster model ``model``: its colour and group, the label of its doubles version."""
+    m = M.BY_NAME[model]
+    return (csv_name, m.group, color or m.color, label or (M.version_label(model, 1) if m.two_versions and model != 'ESM-MSR' else m.name))
+
+
+EPI = '1/2(MT_AB+WT_AB) − WT_A − WT_B'
+CTX = '1/2(~WT_AB+WT_AB) − WT_A − WT_B'
+MODELS = [        # the canonical order of the roster: zero-shot, retrained, supervised
+    entry('ProteinMPNN', 'ProteinMPNN'),
+    entry('ESM3-small-open', 'ESM3-small-open'),
+    entry(f'ESM-MSR · {EPI}', 'ESM-MSR'),
+    entry(f'ESM-MSR · {CTX}', 'ESM-MSR', 'ESM-MSR ctx ctrl', M.VARIANT_COLOR['ESM-MSR ctx ctrl']),
+    entry('ME stage 2', 'MutateEverything'),
+    entry('ThermoMPNN-D', 'ThermoMPNN'),
+    entry('SPURS multi', 'SPURS'),
+    entry('GeoDDG-3D', 'GeoDDG-3D'),
+    entry('Rosetta', 'Rosetta'),
 ]
 LEVELS = [
     ('naive_rho', 'naive / raw ρ'),
@@ -59,14 +65,14 @@ LEVELS_CELL_COMPARE = [
     ('cell_mag_gt0', 'cell ρ (dG_add > 0)\n(unsaturated cells)'),
 ]
 SHORT_CATS = {
-    'retrained': 'Retrained',
-    'zeroshot': 'ZS',
+    'zeroshot': 'Zero-shot',
+    'transfer': 'Retrained',
     'supervised': 'Supervised',
 }
 BAR_W = 0.68
 TITLE = {'test': 'Test', 'val': 'Validation'}
 FOOT = [
-    'Epistasis = double-mutant prediction minus additive singles: ESM-MSR = 1/2(MT_AB+WT_AB) − WT_A − WT_B (no linking), ESM-MSR ctx ctrl = 1/2(~WT_AB+WT_AB) − WT_A − WT_B; ME stage 2, ThermoMPNN-D, SPURS multi minus',
+    'Epistasis = double-mutant prediction minus additive singles: ESM-MSR = 1/2(MT_AB+WT_AB) − WT_A − WT_B (no linking), ESM-MSR ctx ctrl = 1/2(~WT_AB+WT_AB) − WT_A − WT_B; MutateEverything Stage 2, ThermoMPNN-D, SPURS-multi minus',
     'the same seed\'s singles (3-seed means); ESM3-small-open unmasked 1/2(MT_AB+WT_AB) − WT_A − WT_B; ProteinMPNN, GeoDDG-3D, Rosetta minus sum of singles. Intervals: 95% bootstrap over domains.',
     'Levels (residuals r = dddG − E[dddG | x] and r\' = dddG\' − E[dddG\' | x\'] via 25-quantile-bin smoothers on additive dG expectations x, x\'): (1) naive / raw ρ: single Spearman ρ pooled over all doubles on raw dddG;',
     '(2) saturation-subtracted ρ: single Spearman ρ pooled over all doubles on residuals r\', r; (3) pair ρ: single Spearman ρ across position-pair matrices (≥20 doubles) of each pair\'s mean residual;',
@@ -74,7 +80,7 @@ FOOT = [
     'across blocks — within each block, column ranks of ddG_AB are double-centred (row, column and block means removed) and correlated by Spearman ρ (averaged over both row/column orientations).',
 ]
 FOOT_CELL_MAG = [
-    'Epistasis = double-mutant prediction minus additive singles: ESM-MSR = 1/2(MT_AB+WT_AB) − WT_A − WT_B (no linking), ESM-MSR ctx ctrl = 1/2(~WT_AB+WT_AB) − WT_A − WT_B; ME stage 2, ThermoMPNN-D, SPURS multi minus',
+    'Epistasis = double-mutant prediction minus additive singles: ESM-MSR = 1/2(MT_AB+WT_AB) − WT_A − WT_B (no linking), ESM-MSR ctx ctrl = 1/2(~WT_AB+WT_AB) − WT_A − WT_B; MutateEverything Stage 2, ThermoMPNN-D, SPURS-multi minus',
     'the same seed\'s singles (3-seed means); ESM3-small-open unmasked 1/2(MT_AB+WT_AB) − WT_A − WT_B; ProteinMPNN, GeoDDG-3D, Rosetta minus sum of singles. Intervals: 95% bootstrap over domains.',
     'Horizontal line behind each bar = the same level metric restricted to doubles with additive expectation dG_additive = dG_wt + ddG_A + ddG_B > 0 kcal/mol (7,405 test, 5,500 val doubles).',
     'Sequential residual hierarchy (all 5 levels pooled; r = dddG − E[dddG | x] and r\' = dddG\' − E[dddG\' | x\'] via 25-quantile-bin smoothers): (1) naive / raw ρ: pooled over all doubles on raw dddG;',

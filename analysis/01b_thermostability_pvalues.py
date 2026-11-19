@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""p-values for ``01_summary.thermostability_sets``: does ESM-MSR p0 beat the other models on each set?
+"""p-values for ``01_summary.thermostability_sets``: does ESM-MSR beat the other models on each set?
 
 The figure's points are the seed means (seeds 1-3 of every retrained model) of the nine unified models (ESM-MSR WT head on the single-mutant sets, combined on PTMUL).  Here the same predictions are bootstrapped with many draws and every model is
 compared with ESM-MSR **on the same draws** (paired), so the p-value of ``rho(ESM-MSR) - rho(model)`` is the share of draws on the other side of zero:
@@ -88,7 +88,7 @@ def _head_job(a):
 
 
 def msr_heads(b_mut, b_prot, workers, datasets=HEAD_SETS):
-    """ESM-MSR p0 combined against its WT head on the multi-mutant sets, paired, on the mean of seeds 1-3 of FINAL_p0 (seeds resampled with the draws).
+    """ESM-MSR Dual-view against its WT head on the multi-mutant sets, paired, on the mean of seeds 1-3 of FINAL_p0 (seeds resampled with the draws).
     PTMUL-D is the doubles-only slice of PTMUL: its frame holds the PTMUL run's three seeds aligned on the variant id."""
     S = pd.read_csv(RESULTS / '02_thermostability' / 'thermostability_rho.csv')
     for ds in datasets:
@@ -165,12 +165,12 @@ def main():
     P.to_csv(OUT / 'thermostability_sets_pvalues.csv', index=False, float_format='%.6g')
     Bt.to_csv(OUT / 'thermostability_sets_best.csv', index=False, float_format='%.6g')
     fmt = lambda p: '<%.0e' % (1.0 / (a.b_mut + 1)) if p <= 1.0 / (a.b_mut + 1) + 1e-12 else f'{p:.4f}' if p >= 1e-4 else f'{p:.1e}'
-    lines = ['**ESM-MSR p0 against the best other model without training overlap** (paired bootstrap, seeds 1-3 averaged)', '',
+    lines = ['**ESM-MSR against the best other model without training overlap** (paired bootstrap, seeds 1-3 averaged)', '',
              '| set | ESM-MSR ρ | best other (ρ) | Δρ | p, mutation resampling | p, protein resampling | p vs best, Holm over sets (mutation / protein) |', '|---|---|---|---|---|---|---|']
     for ds in sets:
         m_, p_ = (Bt[(Bt.dataset == ds) & (Bt.unit == u)].iloc[0] for u in ('mutation', 'protein'))
         lines.append(f'| {LABEL.get(ds, ds)} | {m_.rho_msr:.3f} | {m_.best_model} ({m_.rho_best:.3f}) | {m_.delta_point:+.3f} | {fmt(m_.p_vs_best)} | {fmt(p_.p_vs_best)} | {fmt(m_.p_vs_best_holm_sets)} / {fmt(p_.p_vs_best_holm_sets)} |')
-    lines += ['', '**Pairwise: ESM-MSR p0 against every model** (Δρ = ESM-MSR − model; p two-sided; Holm over the models without overlap of the set; GeoDDG-3D has training overlap and is not corrected)', '',
+    lines += ['', '**Pairwise: ESM-MSR against every model** (Δρ = ESM-MSR − model; p two-sided; Holm over the models without overlap of the set; GeoDDG-3D has training overlap and is not corrected)', '',
               '| set | model | ρ model | Δρ | 95% interval (mutation) | p (mutation) | Holm | p (protein) | Holm |', '|---|---|---|---|---|---|---|---|---|']
     for ds in sets:
         for m in [m for m in EXT_ORDER if m != 'ESM-MSR']:

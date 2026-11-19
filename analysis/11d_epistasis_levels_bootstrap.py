@@ -4,7 +4,6 @@ domains: naive rho, saturation-subtracted ("beyond") rho, pair rho, line rho and
 
 Models and the predicted epistasis dddG' the suite reads (always the double prediction of one model against the additive reading of another or of another head):
   ESM-MSR, three seeds         epi      = 1/2(MT_AB + WT_AB) - WT_A - WT_B = comb(AB) - WT(A) - WT(B)
-                               ctx      = 1/2(~WT_AB + WT_AB) - WT_A - WT_B           the WT adapter read on the mutated sequence (``reference/ctx_wt_rev_devel.csv.gz``)
   ME stage 2, ThermoMPNN-D, SPURS multi (three seeds each)       direct double - the same seed's sum of singles
   ESM3-small-open (sigma = 0 control)   unmasked 1/2(MT_AB + WT_AB) - WT_A - WT_B
   ProteinMPNN, GeoDDG-3D, Rosetta      direct double - sum of the model's singles
@@ -35,15 +34,14 @@ from esm_msr import epi_metrics as E  # noqa: E402
 
 from msr_analysis.common import out_dir  # noqa: E402
 from msr_analysis.data import load_frame, sum_singles  # noqa: E402
-from msr_analysis.link import link_fn  # noqa: E402
 from msr_analysis.registry import REFERENCE  # noqa: E402
 from msr_analysis.registry import TSU, TSU_SPLIT  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 OUT = out_dir('06_epistasis')
 DS = {'test': TSU[1], 'val': TSU[0]}
-# mega_splits (MSR_TSU_SPLIT=mega): ESM-MSR is FINAL_p0_mega alone (key msrp0, three seeds); no baseline/devel/link/ctx tables
+# ESM-MSR is FINAL_p0 alone (FINAL_p0_mega on mega_splits; key msrp0, three seeds); no baseline / devel / linked tables, and no ctx control here (11n has the ctx control of FINAL_p0)
 MEGA = TSU_SPLIT == 'mega'
-REF = 'p0' if MEGA else 'devel'           # the table every other table must agree with on the doubles
+REF = 'p0'                                # the table every other table must agree with on the doubles
 CKPT = {1: 'epoch=04-val_rho_combined_avg=0.840.ckpt', 2: 'epoch=07-val_rho_combined_avg=0.839.ckpt', 3: 'epoch=05-val_rho_combined_avg=0.841.ckpt'}
 METRICS = {'naive_rho': None, 'beyond_rho': None, 'pair_rho': None, 'line_rho': None, 'cell_rank': None, 'cell_mag': None}      # head list filled per table
 # model -> (frame key of the direct double, frame key of the additive reading) for the models without heads of their own
@@ -107,27 +105,9 @@ def build(split, ctx_rev):
     TABLES.clear()
     models = []
     c_wt = sp['dG_wt'].to_numpy(float)
-    for seed in (1, 2, 3):                                  # ESM-MSR (baseline, devel, p0): 1/2(MT_AB+WT_AB) - WT_A - WT_B
-        if MEGA:
-            TABLES[('p0', seed)] = make_table(sp, p['msrp0:wt'][seed - 1], p['msrp0:comb'][seed - 1], ('epi', 'add'), link=None)
-            continue
-        c = ctx_rev[(ctx_rev.split == split) & (ctx_rev.seed == seed)]
-        rev = pd.DataFrame({'code': sp['code'].astype(str), 'mut_type': sp['mut']}).merge(c[['code', 'mut_type', 'wt_rev']], on=['code', 'mut_type'], how='left')['wt_rev'].to_numpy(float)
-        TABLES[('baseline', seed)] = make_table(sp, p['msr:wt'][seed - 1], p['msr:comb'][seed - 1], ('epi', 'add'), link=None)
-        TABLES[('devel', seed)] = make_table(sp, p['msrdev:wt'][seed - 1], p['msrdev:comb'][seed - 1], ('epi', 'ctx', 'add'), wt_rev=rev, link=None)
-        if seed <= p['msrp0:wt'].shape[0]:                 # every seed the frame holds (FINAL_p0: seeds 1-3 on both splits)
-            TABLES[('p0', seed)] = make_table(sp, p['msrp0:wt'][seed - 1], p['msrp0:comb'][seed - 1], ('epi', 'add'), link=None)
-        lfn = link_fn(seed)
-        wt_linked = lfn(c_wt + p['msrdev:wt'][seed - 1]) - c_wt
-        comb_linked = lfn(c_wt + p['msrdev:comb'][seed - 1]) - c_wt
-        TABLES[('devel_link', seed)] = make_table(sp, wt_linked, comb_linked, ('epi', 'add'), link=None)
-    models += [('ESM-MSR · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'p0', 'epi')] if MEGA else [
-        ('ESM-MSR (baseline) · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'baseline', 'epi'),
-        ('ESM-MSR · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'devel', 'epi'),
-        ('ESM-MSR (p0) · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'p0', 'epi'),
-        ('ESM-MSR · tobit link', 'devel_link', 'epi'),
-        ('ESM-MSR · 1/2(~WT_AB+WT_AB) − WT_A − WT_B', 'devel', 'ctx'),
-    ]
+    for seed in (1, 2, 3):                                  # ESM-MSR (FINAL_p0 seeds 1-3): 1/2(MT_AB+WT_AB) - WT_A - WT_B; no other ESM-MSR version is drawn
+        TABLES[('p0', seed)] = make_table(sp, p['msrp0:wt'][seed - 1], p['msrp0:comb'][seed - 1], ('epi', 'add'), link=None)
+    models += [('ESM-MSR · 1/2(MT_AB+WT_AB) − WT_A − WT_B', 'p0', 'epi')]
     for name, direct, add in PLAIN:
         if direct not in p or add not in p:
             print('skip', name)
@@ -290,7 +270,7 @@ def main():
     a = ap.parse_args()
     if a.ctx:
         extract_ctx(a.ctx)
-    ctx_rev = None if MEGA else pd.read_csv(REFERENCE / 'ctx_wt_rev_devel.csv.gz', dtype={'code': str, 'mut_type': str})
+    ctx_rev = None
     for split in ('test', 'val'):
         models = build(split, ctx_rev)
         t0 = TABLES[(REF, 1)]

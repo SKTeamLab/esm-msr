@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""MGnify: the Tsuboyama analyses (03_tsuboyama) repeated on a stability set ESM-MSR never saw.  ESM-MSR p0 only (FINAL_p0 seeds 1-3; the other models were not run on MGnify).
+"""MGnify: the Tsuboyama analyses (03_tsuboyama) repeated on a stability set ESM-MSR never saw.  ESM-MSR only (FINAL_p0 seeds 1-3; the other models were not run on MGnify).
 
 MGnify = 766,790 variants of 180,367 scaffolds (60-80 residues; 616,655 singles, 150,127 doubles, 8 triples) with Megascale-style ddG labels (``data/mgnify``).  Rows: the measured ones (cens == 0,
 dG of the wild type and of the variant inside the assay's range), 705,864 variants of 167,379 scaffolds.  Every statistic is given for the **latent** ddG of the model and for the **Tobit-linked** one
@@ -18,7 +18,7 @@ Units (as in 03_tsuboyama and 04_dms_domainome):
   per scaffold  the mean over scaffolds of the Spearman rho of that scaffold's variants, scaffolds with at least ``MIN_VARIANTS`` variants in the subset; the interval resamples scaffolds and seeds.  The link is monotone
                 and ``dG_wt`` is constant within a scaffold, so the per-scaffold rho of the latent and the linked reading are the same number; the link only moves pooled ranks (and the scale).
 
-Reference rows: ESM-MSR p0 on the Tsuboyama capped test libraries (33), the same statistics, per library and pooled.
+Reference rows: ESM-MSR on the Tsuboyama capped test libraries (33), the same statistics, per library and pooled.
 
   mgnify_summary.csv       every cell: stratum, subset, head, form (latent / linked), unit, rho, lo, hi, n rows, n scaffolds, per-seed rhos; ``delta_link`` rows: linked - latent with its paired interval and p
   mgnify_rmse.csv          pooled RMSE, MAE and Pearson r of the latent and the linked prediction against measured ddG (all measured rows and by subset)
@@ -110,7 +110,7 @@ def cell_stats(fr, mask, label, B, seed, heads=('wt', 'comb')):
 
 
 def tsuboyama_frame():
-    """ESM-MSR p0 on the capped Tsuboyama test libraries with the Tobit-linked reading (same link, per-library dG_wt)."""
+    """ESM-MSR on the capped Tsuboyama test libraries with the Tobit-linked reading (same link, per-library dG_wt)."""
     fr = load_final_frame('tsuboyama_capped_test', ['FINAL_p0'])
     sp = fr.spine.copy()
     t = pd.read_csv(TASKS / 'tsuboyama_capped_test.csv.gz', usecols=['id', 'dG_ML']).drop_duplicates('id').set_index('id')['dG_ML']
@@ -241,7 +241,7 @@ def fig_overview(S, B, ds_main='MGnify', subsets=MAIN_SUBSETS, stem='mgnify_over
          Line2D([0], [0], marker='o', color='#555555', mfc='#555555', ls='none', label='filled: combined'),
          Line2D([0], [0], marker='o', color='#555555', mfc='white', ls='none', label='open: WT head')]
     fig.legend(handles=h, loc='upper center', ncol=3, fontsize=8, handletextpad=0.3, columnspacing=1.6, bbox_to_anchor=(0.5, 1.0))
-    finish(fig, f'ESM-MSR p0, seed mean of FINAL_p0 s1-s3, measured variants (cens == 0). Pooled: one Spearman rho over all variants of the subset, 95% interval from resampling {unit_word} (libraries on Tsuboyama) and seeds, B = {B}. '
+    finish(fig, f'ESM-MSR, seed mean of FINAL_p0 s1-s3, measured variants (cens == 0). Pooled: one Spearman rho over all variants of the subset, 95% interval from resampling {unit_word} (libraries on Tsuboyama) and seeds, B = {B}. '
                 f'Per {unit_word[:-1]}: mean over {unit_word} of the Spearman rho of the {unit_word[:-1]}\'s variants; the Tobit link (h(dG_wt + latent) - dG_wt) is monotone within a {unit_word[:-1]}, so latent and linked are the same number there. '
                 'dG > 0: variants with measured dG_ML above 0; stabilizing / destabilizing: measured ddG above / below 0.', stem, top=0.9)
 
@@ -275,7 +275,7 @@ def fig_homology(S, B):
     h = [Line2D([0], [0], marker='o', color=cols[st], mfc=cols[st], ls='none', label=f'{lab[st]}, {n_sc[st]:,} scaffolds') for st in strata]
     h += [Line2D([0], [0], marker='o', color='#555555', mfc='#555555', ls='none', label='latent (filled)'), Line2D([0], [0], marker='D', color='#555555', mfc='white', ls='none', label='Tobit-linked (open, pooled)')]
     axes[0].legend(handles=h, loc='center', bbox_to_anchor=(0.5, 0.46), fontsize=7.6, handletextpad=0.3)
-    finish(fig, f'ESM-MSR p0 combined prediction on MGnify, strata by the scaffold\'s sequence homology to the capped training set (MMseqs2 -s 7.5 against the training libraries\' wild types; classes none / low / h / H / same protein '
+    finish(fig, f'ESM-MSR Dual-view prediction on MGnify, strata by the scaffold\'s sequence homology to the capped training set (MMseqs2 -s 7.5 against the training libraries\' wild types; classes none / low / h / H / same protein '
                 f'of leak_audit lib.classify_hits, coverage over the MGnify scaffold). Seed mean of s1-s3, 95% intervals from resampling scaffolds and seeds, B = {B}.', 'mgnify_homology')
 
 
@@ -309,7 +309,7 @@ def fig_per_scaffold(fr):
     ax.set_ylabel('scaffolds')
     ax.legend(fontsize=8)
     ax.set_title('B  Distribution over scaffolds', loc='left')
-    finish(fig, f'MGnify scaffolds with at least {MIN_VARIANTS} measured variants (n = {len(P):,}), ESM-MSR p0 predictions averaged over the three seeds, Spearman rho of the scaffold\'s variants against measured ddG. Latent and Tobit-linked '
+    finish(fig, f'MGnify scaffolds with at least {MIN_VARIANTS} measured variants (n = {len(P):,}), ESM-MSR predictions averaged over the three seeds, Spearman rho of the scaffold\'s variants against measured ddG. Latent and Tobit-linked '
                 'are identical per scaffold.', 'mgnify_per_scaffold')
     return P
 
@@ -327,7 +327,7 @@ def fig_scatter(fr, tf):
         ax.set_title(f'{HEAD_LABEL[h]}, {subset}\n{"Tobit-linked" if suf else "latent"}', fontsize=9, loc='left')
         ax.set_xlabel('predicted ddG (kcal/mol)')
     axes[0].set_ylabel('measured ddG (kcal/mol)')
-    finish(fig, 'MGnify measured variants, ESM-MSR p0 seed mean. The Tobit link h(dG_wt + latent) - dG_wt compresses predictions of very destabilized variants toward the unfolded floor (mu_f = -0.14).', 'mgnify_scatter')
+    finish(fig, 'MGnify measured variants, ESM-MSR seed mean. The Tobit link h(dG_wt + latent) - dG_wt compresses predictions of very destabilized variants toward the unfolded floor (mu_f = -0.14).', 'mgnify_scatter')
 
 
 def write_tables(S, R):

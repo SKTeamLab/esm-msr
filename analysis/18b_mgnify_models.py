@@ -1,4 +1,4 @@
-"""ESM-MSR p0 and the baselines on the MGnify scaffolds and the Rocklin designs: the per-scaffold mean rho and the pooled rho (the two inferred-ddG columns of ``01_summary``'s pg_categories figures).
+"""ESM-MSR and the baselines on the MGnify scaffolds and the Rocklin designs: the per-scaffold mean rho and the pooled rho (the two inferred-ddG columns of ``01_summary``'s pg_categories figures).
 
 Homologs are excluded with the four-part rule that built the Homology-Restricted MegaScale split (MMseqs2 E <= 1e-3, identity > 0.40, Foldseek E <= 1e-3, Foldseek TM > 0.70 against the training libraries; flags in
 ``reference/tsuboyama_rule_flags.csv`` from ``leak_audit/21_tsuboyama_rule.py``).  MGnify is every scaffold left after that (not the audit's low-identity stratum); the Rocklin designs likewise.
@@ -9,7 +9,7 @@ Homologs are excluded with the four-part rule that built the Homology-Restricted
                   observed scale, ``h(dG_wt + latent) - dG_wt`` (``esm_msr.val_stats.tobit_link``, the checkpoints' constants), and the baselines raw.
 95% intervals resample scaffolds (``--B`` draws, the same draws for every model of a set).
 
-ESM-MSR p0 is scored at LoRA scale sigma = 1 (deployed) and sigma = 0.5 (``ESM-MSR σ=0.5``, ``final_mgnify_sigma0.5/``, the same rows and seeds).  MutateEverything (stage 2, seeds 1-3, every variant; Rocklin designs only: it needs an MSA per scaffold) is read from ``final_mgnify/baselines/me_st2_s<k>/results_rocklin_denovo.csv``.  The harness models GeoDDG-3D, ESM3dG, ESMtherm and IFUM
+ESM-MSR is scored at LoRA scale sigma = 1 (deployed) and sigma = 0.5 (``ESM-MSR σ=0.5``, ``final_mgnify_sigma0.5/``, the same rows and seeds).  MutateEverything (stage 2, seeds 1-3, every variant; Rocklin designs only: it needs an MSA per scaffold) is read from ``final_mgnify/baselines/me_st2_s<k>/results_rocklin_denovo.csv``.  The harness models GeoDDG-3D, ESM3dG, ESMtherm and IFUM
 (``baselines/public/<model>/mgnify/``, one run each, the direct prediction of every variant) are scored too; ESM3dG was trained on MGnify stability data and carries ``overlap = True`` (its numbers on these sets are not
 held out), and ESMtherm / IFUM are for the supplement only (``01_summary`` leaves them out of the main figure).
 

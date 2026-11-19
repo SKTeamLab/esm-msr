@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 """Does each model's epistatic prediction beat its additive prediction on the Tsuboyama capped-test double mutants?  (figure 3 of ``11_publication_figures``)
 
-Additive = the model's singles summed (ESM-MSR WT_A + WT_B; ThermoMPNN, SPURS, MutateEverything st1 as the figure reads them; ProteinMPNN, GeoDDG-3D, Rosetta: the sum of the singles); epistatic = the model scoring the
-double itself (ESM-MSR combined head, MutateEverything st2, ThermoMPNN-D, SPURS multi, ESM3-small-open combined, ProteinMPNN / GeoDDG-3D / Rosetta direct).  ProSST has an additive version only.
+Additive = the model's singles summed (ESM-MSR WT-view WT_A + WT_B; ThermoMPNN, SPURS, MutateEverything Stage 1 as the figure reads them; ProteinMPNN, GeoDDG-3D, Rosetta: the sum of the singles); epistatic = the model scoring the
+double itself (ESM-MSR Dual-view, MutateEverything Stage 2, ThermoMPNN-D, SPURS-multi, ESM3-small-open Dual-view, ProteinMPNN / GeoDDG-3D / Rosetta direct).  ProSST has an additive version only.
 Statistic: the mean over test domains (at least ``MIN_N`` doubles) of the per-domain Spearman rho on the doubles, seeds averaged; delta = rho(epistatic) - rho(additive); paired bootstrap that resamples **domains**
 (``--B`` draws shared by all models).  One-sided p = P(delta <= 0) (the claim "epistatic beats additive"); two-sided p = max(2 min(P(delta <= 0), P(delta >= 0)), 1 / (B + 1)); Holm over the models.
-ESM-MSR is p0 (FINAL_p0 s1-s3), SPURS the retrain with the trained adapter.
+ESM-MSR is FINAL_p0 (s1-s3), SPURS the retrain with the trained adapter; the models in the order of ``msr_analysis.models``.
 
 ``--metric ndcg96`` replaces the Spearman rho by NDCG@96 with relevance ddG - (the lowest ddG among the doubles of the domain): every double has a non-negative relevance, so the measure does not depend on any
 double exceeding ddG = 0, and it is defined for every domain with at least ``MIN_N`` doubles.  ``--metric ndcg96_rectified`` is the older NDCG@96 of figure 1 of ``11_publication_figures`` (relevance
@@ -26,8 +26,6 @@ import pandas as pd
 from sklearn.metrics import ndcg_score
 
 from msr_analysis.common import out_dir
-from msr_analysis.data import _align_id
-from msr_analysis.final_runs import load_final_frame
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('m11i', HERE / '11i_doubles_vs_singles_pvalues.py')
@@ -36,8 +34,7 @@ spec.loader.exec_module(m11i)
 pub, holm, fmt_p = m11i.pub, m11i.holm, m11i.fmt_p
 
 OUT = out_dir('06_epistasis')
-KEEP = ['ESM-MSR (p0)', 'MutateEverything', 'ThermoMPNN', 'SPURS', 'ESM3-small-open', 'ProteinMPNN', 'best other ddG', 'Rosetta']
-NAME = {'ESM-MSR (p0)': 'ESM-MSR p0', 'SPURS': 'SPURS (trained adapter)'}
+KEEP = ['ProteinMPNN', 'ESM3-small-open', 'ESM-MSR', 'MutateEverything', 'ThermoMPNN', 'SPURS', 'best other ddG', 'Rosetta']        # the columns of figure 3 with an epistatic version, in the roster order
 HEAD0 = ['Model', 'Additive →\nepistatic', 'ρ\nadditive', 'ρ\nepistatic', 'Δρ [95% CI]', 'Domains\nepistatic higher', 'p\none-sided', 'p one-sided\n(Holm)', 'p\ntwo-sided']
 
 
@@ -61,15 +58,6 @@ def compute(B, metric='spearman'):
     best, _ = pub.best_other(fr)
     pub.NAMES['best other ddG'] = pub.BEST_LABEL[best]
     sp = fr.spine
-    ids = sp['id'].to_numpy(dtype=object)
-    p0 = load_final_frame(pub.DS, families=['FINAL_p0'])
-    fr.preds['p0:add'], fr.preds['p0:epi'] = p0.preds['FINAL_p0:wt+'], p0.preds['FINAL_p0:comb']
-    S, M = [], []
-    for sd in (1, 2, 3):
-        d = pd.read_csv(m11i.UNF / f'seed{sd}' / 'tsuboyama_test.csv', usecols=['uid', 'SPURS_single_additive', 'SPURS_multi'], low_memory=False)
-        S.append(_align_id(ids, d['uid'].astype(str).to_numpy(), d['SPURS_single_additive'].to_numpy()))
-        M.append(_align_id(ids, d['uid'].astype(str).to_numpy(), d['SPURS_multi'].to_numpy()))
-    fr.preds['spursun'], fr.preds['spursunm'] = np.vstack(S), np.vstack(M)
     use, n_mut = sp['use'].to_numpy(), sp['n_mut'].to_numpy()
     double = use & (n_mut == 2)
     libs = sorted(np.unique(sp['group'].to_numpy()[double]))
@@ -79,10 +67,6 @@ def compute(B, metric='spearman'):
         if c['name'] not in KEEP or c['double'] is None:
             continue
         ka, ke = c['single'], c['double']
-        if c['name'] == 'ESM-MSR (p0)':
-            ka, ke = 'p0:add', 'p0:epi'
-        if c['name'] == 'SPURS':
-            ka, ke = 'spursun', 'spursunm'
         _, fn, min_n = METRICS[metric]
         va, ve = pub.per_library(fr, ka, double, fn, min_n), pub.per_library(fr, ke, double, fn, min_n)
         both = va.index.intersection(ve.index)
@@ -92,7 +76,7 @@ def compute(B, metric='spearman'):
         dom = d.mean(axis=1)
         lo, hi = np.percentile(reps, [2.5, 97.5])
         label = pub.NAMES.get(c['name'], c['name'])
-        rows.append(dict(model=NAME.get(c['name'], label), additive=ka, epistatic=ke, n_domains=len(both), n_seeds=va.shape[1], rho_additive=float(va.loc[both].mean(axis=1).mean()),
+        rows.append(dict(model=label, additive=ka, epistatic=ke, n_domains=len(both), n_seeds=va.shape[1], rho_additive=float(va.loc[both].mean(axis=1).mean()),
                          rho_epistatic=float(ve.loc[both].mean(axis=1).mean()), delta=float(dom.mean()), lo=lo, hi=hi, domains_higher=int((dom > 0).sum()),
                          p_one=float(max((reps <= 0).mean(), 1.0 / (len(reps) + 1))), p_two=float(max(2 * min((reps <= 0).mean(), (reps >= 0).mean()), 1.0 / (len(reps) + 1))), B=B))
     res = pd.DataFrame(rows)
@@ -107,8 +91,8 @@ def table(res):
              fl(r.p_one, r.B), fl(r.p_one_holm, r.B), fl(r.p_two, r.B)] for r in res.itertuples()]
 
 
-LABELS = {'p0:add': 'WT_A + WT_B', 'p0:epi': 'combined head', 'me1': 'stage 1', 'me2': 'stage 2', 'tmpnn': 'ThermoMPNN', 'tmpnnd': 'ThermoMPNN-D', 'spursun': 'SPURS single', 'spursunm': 'SPURS multi',
-          'msrrel@0:wt+': 'WT_A + WT_B', 'msrrel@0:comb': 'combined head', 'pmpnn+': 'sum of singles', 'pmpnn': 'direct double', 'geoddg+': 'sum of singles', 'geoddg': 'direct double',
+LABELS = {'msrp0:wt+': 'WT_A + WT_B', 'msrp0:comb': 'Dual-view', 'me1': 'Stage 1', 'me2': 'Stage 2', 'tmpnn': 'ThermoMPNN', 'tmpnnd': 'ThermoMPNN-D', 'spurs': 'SPURS single', 'spursm': 'SPURS-multi',
+          'msrrel@0:wt+': 'WT_A + WT_B', 'msrrel@0:comb': 'Dual-view', 'pmpnn+': 'sum of singles', 'pmpnn': 'direct double', 'geoddg+': 'sum of singles', 'geoddg': 'direct double',
           'rosetta+': 'sum of singles', 'rosetta': 'direct double', 'ddgemb+': 'sum of singles', 'ddgemb': 'direct double'}
 
 

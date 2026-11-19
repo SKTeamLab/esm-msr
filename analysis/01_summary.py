@@ -3,13 +3,13 @@
 
 ``pg_categories``   two panels.  Left: the ProteinGym average (mean of the five category means, held-out assays only), the held-out Domainome domains, then MGnify and
                     Rocklin Designs Inferred DDGs (n WTs): mean Spearman rho per column.  Right: the ProteinGym assays by property, ESM-MSR only: delta rho versus sigma = 0 at sigma 0.5 and 1 (paired box / dot plot,
-                    ``proteingym/p0_sigma/03_fig_property_summary.py``).  Left of every cluster, side by side: ESM-MSR p0 at LoRA scale sigma = 1 (deployed readout: combined on multi-mutant assays, WT head elsewhere), sigma = 0.5 (combined on the multi-mutant assays that have it, WT head otherwise)
+                    ``proteingym/p0_sigma/03_fig_property_summary.py``).  Left of every cluster, side by side: ESM-MSR at LoRA scale sigma = 1 (deployed readout: combined on multi-mutant assays, WT head elsewhere), sigma = 0.5 (combined on the multi-mutant assays that have it, WT head otherwise)
                     and ESM3-small-open (sigma = 0, WT head); then the other models (the mean of seeds 1-3 for the retrained ones; each with its multi-mutant version on the multi-mutant assays).  ProteinGym and Domainome come from ``results/05_proteingym/pg_summary.csv`` and ``pg_sigma_summary.csv``
-                    (``05_proteingym.py``); the two inferred-ddG columns are the mean per-WT rho (WTs with at least 10 measured variants; ``results/18_mgnify/mgnify_models_per_scaffold.csv`` from ``18b_mgnify_models.py``) of ESM-MSR p0 at sigma = 1,
+                    (``05_proteingym.py``); the two inferred-ddG columns are the mean per-WT rho (WTs with at least 10 measured variants; ``results/18_mgnify/mgnify_models_per_scaffold.csv`` from ``18b_mgnify_models.py``) of ESM-MSR at sigma = 1,
                     SPURS (-multi), ThermoMPNN (-D), ProteinMPNN, ProSST and, on MGnify, ESM3-small-open (WT head), each on the scaffolds it has scored completely (models with under 80% of a set's scaffolds are left out).  Every set (ProteinGym, Domainome,
                     MGnify, Rocklin) is held-out under the same four-part filter against the capped training libraries (``msr_analysis.heldout``).
 ``thermostability_sets``   the external thermostability sets (S571 and PTMUL-D left out) for the nine unified models, seeds 1-3 averaged for the retrained ones (seeds resampled with the draws), 95% mutation-level bootstrap, as ``02_thermostability/thermo_external_rho``,
-                    with the sets ordered left to right by the performance of ESM-MSR p0 (seed mean of FINAL_p0 s1-s3 from ``results/98_ablation/cells_long.csv``, the value of
+                    with the sets ordered left to right by the performance of ESM-MSR (seed mean of FINAL_p0 s1-s3 from ``results/98_ablation/cells_long.csv``, the value of
                     ``results/02_thermostability/thermostability_rho.csv`` (also the seed mean) when that file is missing), highest first.  Hollow markers (thick edge): singles models (ESM-MSR WT head, MutateEverything st1, ThermoMPNN,
                     SPURS single); filled: models trained with doubles (ESM-MSR combined, MutateEverything st2, ThermoMPNN-D, SPURS multi) and the models with one version.  Writes ``thermostability_sets.csv``.
                     The p-values of the figure are in ``01b_thermostability_pvalues.py``.
@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 
+from msr_analysis import models as M  # noqa: E402
 from msr_analysis import style  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
 from msr_analysis.external import EXT_ORDER, register_ext_styles  # noqa: E402
@@ -36,8 +37,8 @@ from msr_analysis.registry import LABEL, MODELS, REFERENCE, RESULTS  # noqa: E40
 
 OUT = out_dir('01_summary')
 CATS = ['Activity', 'Binding', 'Expression', 'OrganismalFitness', 'Stability']
-LEFT_OUT = {'ESM3dG'}               # models kept out of the figures for now (still scored in results/18_mgnify/mgnify_models_*.csv): ESM3dG was trained on MGnify stability data, so its MGnify / Rocklin numbers are not held out
-SIGMA_ORDER = [m for m in ['ESM-MSR σ=1', 'ESM-MSR σ=0.5', 'ESM3-small-open', 'MutateEverything', 'ThermoMPNN', 'SPURS', 'ProteinMPNN', 'ProSST', 'GeoDDG-3D', 'ESM3dG', 'Rosetta'] if m not in LEFT_OUT]
+LEFT_OUT = set()                    # models kept out of the figures (none: ESM3ΔG is drawn everywhere; its MGnify / Rocklin cells carry the training-overlap ring)
+MODEL_ORDER = [m for m in M.ordered(M.UNIFIED + ['ESM-MSR σ=0.5']) if m not in LEFT_OUT]          # the canonical order (``msr_analysis.models``): zero-shot, ESM-MSR (σ = 1, σ = 0.5) and the other transfer models, supervised
 PG_LABEL = {
     'PG avg': 'ProteinGym\naverage* (5 categories)',
     'Activity': 'ProteinGym\nActivity (43)',
@@ -48,17 +49,17 @@ PG_LABEL = {
     'Domainome': 'Domainome*\n(held-out)',
 }
 PG_COLS = CATS + ['PG avg', 'DMS mean']
-HOLLOW_DOMAINOME = ['ESM-MSR σ=1', 'ESM-MSR σ=0.5', 'MutateEverything', 'ThermoMPNN', 'SPURS']      # models with a singles and a doubles version: Domainome is read with the singles one
+HOLLOW_DOMAINOME = [m for m in MODEL_ORDER if M.BY_NAME[m].two_versions]      # models with a singles and a doubles version: Domainome is read with the singles one
 
 
 INFERRED = {'MGnify': 'MGnify Inferred\nDDGs', 'Rocklin designs': 'Rocklin Designs\nInferred DDGs'}
-INFERRED_MODEL = {'ESM-MSR': 'ESM-MSR σ=1', 'ESM-MSR σ=0.5': 'ESM-MSR σ=0.5', 'SPURS': 'SPURS', 'ThermoMPNN': 'ThermoMPNN', 'ProteinMPNN': 'ProteinMPNN', 'ProSST': 'ProSST', 'ESM3-small-open': 'ESM3-small-open',
-                  'GeoDDG-3D': 'GeoDDG-3D', 'ESM3dG': 'ESM3dG', 'MutateEverything': 'MutateEverything'}       # ESMtherm and IFUM are in the csv for the supplement and not drawn here
+INFERRED_MODEL = {'ESM-MSR': 'ESM-MSR', 'ESM-MSR σ=0.5': 'ESM-MSR σ=0.5', 'SPURS': 'SPURS', 'ThermoMPNN': 'ThermoMPNN', 'ProteinMPNN': 'ProteinMPNN', 'ProSST': 'ProSST', 'ESM3-small-open': 'ESM3-small-open',
+                  'GeoDDG-3D': 'GeoDDG-3D', 'ESM3dG': 'ESM3ΔG', 'MutateEverything': 'MutateEverything'}       # ESMtherm and IFUM are in the csv for the supplement and not drawn here
 MIN_COVERAGE = 0.8                                  # a model enters an inferred-ddG set when it has scored at least this share of the set's scaffolds completely
 
 
 def inferred_models(pooled=False):
-    """{dataset: (n WTs, or n variants when pooled, {model key of SIGMA_ORDER: (rho, lo, hi, n scaffolds or variants, coverage)})} from ``18b_mgnify_models.py``'s table; {} when it was not run."""
+    """{dataset: (n WTs, or n variants when pooled, {model key of MODEL_ORDER: (rho, lo, hi, n scaffolds or variants, coverage)})} from ``18b_mgnify_models.py``'s table; {} when it was not run."""
     f = RESULTS / '18_mgnify' / ('mgnify_models_pooled.csv' if pooled else 'mgnify_models_per_scaffold.csv')
     if not f.exists():
         return {}
@@ -84,20 +85,20 @@ def pg_prepare(pooled=True):
     register_ext_styles()
     MODELS['Rosetta']['label'] = 'Rosetta (singles)'
     k05, n_mm = (int(x) for x in (RESULTS / '05_proteingym' / 'pg_sigma_note.txt').read_text().split()[::2][:2])      # "k of n": multi-mutant assays with a sigma-0.5 combined prediction
-    MODELS['ESM-MSR σ=1'] = dict(MODELS['ESM-MSR'], label='ESM-MSR σ = 1')
-    MODELS['ESM-MSR σ=0.5'] = dict(MODELS['ESM-MSR'], label='ESM-MSR σ = 0.5' + ('' if k05 == n_mm else f' (combined on {k05} of {n_mm})'), color='#4d4d4d')
+    MODELS['ESM-MSR'] = dict(MODELS['ESM-MSR'], label='ESM-MSR σ = 1')
+    MODELS['ESM-MSR σ=0.5'] = dict(MODELS['ESM-MSR σ=0.5'], label='ESM-MSR σ = 0.5' + ('' if k05 == n_mm else f' (combined on {k05} of {n_mm})'))
     MODELS['ESM3-small-open'] = dict(MODELS['ESM3-small-open'], label='ESM3-small-open (σ = 0)')
-    MODELS['ESM3dG'] = dict(MODELS['esm3dg'], label='ESM3ΔG')
     R = pd.concat([pd.read_csv(RESULTS / '05_proteingym' / 'pg_summary_tsu.csv'), pd.read_csv(RESULTS / '05_proteingym' / 'pg_sigma_summary_tsu.csv')], ignore_index=True)
+    R = R[R.model != 'ESM-MSR σ=1']                                       # the sigma table's sigma = 1 rows are the roster's ESM-MSR rows
     fl = pd.read_csv(REFERENCE / 'tsuboyama_rule_flags.csv')
     n_fl = {d: (int(g.homologous.sum()), len(g)) for d, g in fl.groupby('dataset')}
     tsu_pg = set(fl.loc[(fl['dataset'] == 'proteingym') & fl.homologous, 'item_id'])
-    n_pg = int(R[(R.model == 'ESM-MSR σ=1') & (R.column == 'PG avg')].n_dms.iloc[0])
-    n_dom = int(R[(R.model == 'ESM-MSR σ=1') & (R.column == 'Domainome')].n_dms.iloc[0])
+    n_pg = int(R[(R.model == 'ESM-MSR') & (R.column == 'PG avg')].n_dms.iloc[0])
+    n_dom = int(R[(R.model == 'ESM-MSR') & (R.column == 'Domainome')].n_dms.iloc[0])
     note = ('Held-out = not a homolog of the training set under the rule that built the Homology-Restricted MegaScale split (any of: MMseqs2 E-value ≤ 1e-3, identity > 0.40 over the shorter sequence, Foldseek E-value ≤ 1e-3, Foldseek TM-score > 0.70, against the capped training libraries; the same four-part filter for every set); left out: '
             + (RESULTS / '05_proteingym' / 'pg_tsu_note.txt').read_text().strip() + f' ({n_pg} ProteinGym assays and {n_dom} domains remain); MGnify {n_fl["mgnify"][0]:,} of {n_fl["mgnify"][1]:,} scaffolds and Rocklin designs {n_fl["rocklin_denovo"][0]} of {n_fl["rocklin_denovo"][1]:,} '
             '.\n'
-            'Seeds 1-3 averaged for the retrained models Singles models on singles assays / Domainome; multi on PGym multi-mutants (ME st1/st2; ThermoMPNN additive / -D on doubles; SPURS single/multi). Rosetta: PGym singles only (no Domainome).')
+            'Seeds 1-3 averaged for the retrained models. Singles versions on singles assays / Domainome; doubles versions on PGym multi-mutants (MutateEverything Stage 1 / Stage 2; ThermoMPNN additive / -D on doubles; SPURS single / SPURS-multi). Rosetta: PGym singles only (no Domainome).')
     table = {(r.column, r.model): r.value for r in R.itertuples()}
     cis = {(r.column, r.model): (r.lo, r.hi) for r in R.itertuples()}
     cols = ['PG avg', 'Domainome']
@@ -132,51 +133,25 @@ def pg_prepare(pooled=True):
                'the other models raw' if pooled else
                'mean over WTs of the per-WT rho of the WT\'s measured variants, WTs with at least 10 variants (a within-WT rank is unaffected by the Tobit link), seeds 1-3 averaged where a model has them, whiskers resample WTs')
         note += ('\nMGnify and Rocklin Designs Inferred DDGs: ' + how + '. Multi-mutant versions are read (ESM-MSR combined head, SPURS-multi, ThermoMPNN-D, MutateEverything stage 2; ProteinMPNN and ProSST score every variant directly); ESM3-small-open is the WT head '
-                 '(its combined prediction was not run on these sets); ESM-MSR σ = 0.5 is the combined head like σ = 1; GeoDDG-3D is one run, the direct prediction of every variant. '
+                 '(its combined prediction was not run on these sets); ESM-MSR σ = 0.5 is the combined head like σ = 1; GeoDDG-3D and ESM3ΔG are one run each, the direct prediction of every variant (ESM3ΔG was fine-tuned on MGnify stability data, not Megascale, so its MGnify and Rocklin points are not held out: red ring). '
                  + ('Models scored on part of a set only: ' + '; '.join(part) + '. ' if part else '') + 'IFUM, ESMtherm and DDGemb are left to the supplement (they do not beat the other transfer models and saw part of the test sets in training); MutateEverything is on the Rocklin designs only (it needs an MSA per scaffold; stage 2, seeds 1-3). Rosetta was run on the Rocklin designs only and is not in these two columns yet (not collected).')
     return dict(pooled=pooled, groups=groups, cols=cols, labels=labels, table=table, cis=cis, hollow=hollow, rings=rings, extra=extra, fps=fps, t=t, t_all=t_all, Rp=Rp, note=note)
 
 
-def style_kwargs(m, singles, size):
-    """Marker of model ``m``: hollow (thick edge, larger) for a singles model, filled otherwise: the same in the thermostability sets and the ProteinGym / Domainome / MGnify panel."""
-    kw = style.marker_kwargs(m, size=size)
-    if singles:
-        kw.update(mfc='none', mew=HOLLOW_MEW, ms=kw['ms'] * HOLLOW_SIZE)
-    else:
-        kw['mfc'] = kw['color']
-    return kw
-
-
-def version_handles():
-    grey = '#555555'
-    return [Line2D([0], [0], marker='o', ms=6.8, mfc=grey, mec=grey, ls='none', label='filled: trained with doubles'),
-            Line2D([0], [0], marker='o', ms=6.8 * HOLLOW_SIZE, mfc='none', mec=grey, mew=HOLLOW_MEW, ls='none', label='hollow: singles model')]
-
-
 def draw_pg_left(ax, pg, ylim=(0.04, 1.0)):
-    """Left panel: one cluster per column (ProteinGym average, Domainome, MGnify, Rocklin), one dot per model; the singles versions on Domainome are hollow."""
-    groups, hollow = pg['groups'], pg['hollow']
-    table = {k: v for k, v in pg['table'].items() if k not in hollow}
-    style.dot_panel(ax, groups, SIGMA_ORDER, table, {k: v for k, v in pg['cis'].items() if k not in hollow}, highlight=['ESM-MSR σ=1', 'ESM-MSR σ=0.5'],
+    """Left panel: one cluster per column (ProteinGym average, Domainome, MGnify, Rocklin), one dot per model in the canonical order; the singles versions on Domainome are hollow."""
+    groups = pg['groups']
+    style.dot_panel(ax, groups, MODEL_ORDER, pg['table'], pg['cis'], highlight=['ESM-MSR', 'ESM-MSR σ=0.5'], hollow=pg['hollow'],
                     ylabel=r'Spearman $\rho$' if pg['pooled'] else r'Spearman $\rho$ (mean over assays / domains / WTs)', xlabels=pg['labels'], rot=0, size=6.2, spread=0.84, ylim=ylim)
-    offs = np.linspace(-0.42, 0.42, len(SIGMA_ORDER))
-    for (g, m) in sorted(hollow, key=lambda k: SIGMA_ORDER.index(k[1])):
-        if (g, m) not in pg['table']:
-            continue
-        x, v, (lo, hi) = groups.index(g) + offs[SIGMA_ORDER.index(m)], pg['table'][(g, m)], pg['cis'][(g, m)]
-        hl = m in ('ESM-MSR σ=1', 'ESM-MSR σ=0.5')
-        kw = style_kwargs(m, True, 6.2 * (1.35 if hl else 1.0))
-        ax.errorbar([x], [v], yerr=[[v - lo], [hi - v]], fmt='none', ecolor=kw['color'], elinewidth=1.0, capsize=1.6, capthick=0.9, alpha=0.9, zorder=(5 if hl else 3) - 1)
-        ax.plot([x], [v], zorder=5 if hl else 3, **kw)
     if len(groups) > len(pg['cols']):                                    # one dashed rule, where the figure turns from the ProteinGym / Domainome assay averages to the stability sets (MGnify, Rocklin)
         ax.axvline(len(pg['cols']) - 0.5, color='#999999', lw=0.95, ls='--', zorder=2)
-    offs_all = np.linspace(-0.42, 0.42, len(SIGMA_ORDER))
-    for (g, m) in sorted(pg.get('rings', ()), key=lambda k: SIGMA_ORDER.index(k[1])):                 # training overlap: red ring round the dot, as in panel a
-        ax.plot(groups.index(g) + offs_all[SIGMA_ORDER.index(m)], pg['table'][(g, m)], marker='o', ms=11.5, mfc='none', mec='#c0392b', mew=1.1, ls='none', zorder=6)
-    hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8)) for m in SIGMA_ORDER]
+    offs_all = np.linspace(-0.42, 0.42, len(MODEL_ORDER))
+    for (g, m) in sorted(pg.get('rings', ()), key=lambda k: MODEL_ORDER.index(k[1])):                 # training overlap: red ring round the dot, as in panel a
+        ax.plot(groups.index(g) + offs_all[MODEL_ORDER.index(m)], pg['table'][(g, m)], marker='o', ms=11.5, mfc='none', mec=style.RING, mew=1.1, ls='none', zorder=6)
+    hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8)) for m in MODEL_ORDER]
     if pg.get('rings'):
-        hs.append(Line2D([0], [0], marker='o', ms=8.5, mfc='none', mec='#c0392b', mew=1.1, ls='none', label='training overlap (ESM3ΔG)'))
-    hs += version_handles()
+        hs.append(Line2D([0], [0], marker='o', ms=8.5, mfc='none', mec=style.RING, mew=1.1, ls='none', label='training overlap (ESM3ΔG)'))
+    hs += style.version_handles()
     ax.legend(handles=hs, loc='upper center', bbox_to_anchor=(0.5, 0.995), ncol=3, fontsize=7.6, frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.0, handletextpad=0.3, borderpad=0.4, labelspacing=0.35)
 
 
@@ -206,17 +181,13 @@ def pg_categories(pooled=True):
 
 
 EXCLUDE_THERMO = {'s571', 'ptmuld'}
-# (singles model, model trained with doubles) of the models that have both; the others (ESM3-small-open, ProteinMPNN, ProSST, GeoDDG-3D, Rosetta) have one version
-VERSIONS = {'ESM-MSR': ('msrp0:wt', 'msrp0:comb'), 'MutateEverything': ('me1', 'me2'), 'ThermoMPNN': ('tmpnn', 'tmpnnd'), 'SPURS': ('spurs', 'spursm')}
-HOLLOW_MEW = 2.0            # edge width of the hollow (singles) markers; the default is 1.2
-HOLLOW_SIZE = 1.2           # their size relative to a filled marker, so that the hole stays visible
 THERMO_NOTE = ('Seeds 1-3 averaged for the retrained models (seeds resampled with the draws); 95% mutation-level bootstrap. Singles models on the single-mutant sets, models trained with doubles on PTMUL (ThermoMPNN additive; Rosetta Cartesian ddG throughout). '
-               'Hollow markers: singles models (ESM-MSR WT head, MutateEverything st1, ThermoMPNN, SPURS single); filled: models trained with doubles (ESM-MSR combined, MutateEverything st2, SPURS multi) and the models '
-               'with one version. SPURS is the retrain with the trained adapter. Sets ordered by the performance of ESM-MSR p0 (mean of seeds 1-3), highest first. Red ring = GeoDDG-3D documented training overlap.')
+               'Hollow markers: singles models (ESM-MSR WT-view, MutateEverything Stage 1, ThermoMPNN, SPURS single); filled: models trained with doubles (ESM-MSR Dual-view, MutateEverything Stage 2, SPURS-multi) and the models '
+               'with one version. SPURS is the retrain with the trained adapter. Sets ordered by the performance of ESM-MSR (mean of seeds 1-3), highest first. Red ring = documented training overlap (GeoDDG-3D, ESM3ΔG; leak audit).')
 
 
 def msr_order(sets, S):
-    """``sets`` sorted by the ESM-MSR p0 rho, highest first: the seed mean of FINAL_p0 (``98_ablation/cells_long.csv``, deployed readout) or, without it, the value of ``S`` (also the seed mean)."""
+    """``sets`` sorted by the ESM-MSR rho, highest first: the seed mean of FINAL_p0 (``98_ablation/cells_long.csv``, deployed readout) or, without it, the value of ``S`` (also the seed mean)."""
     seed1 = S[S.model == 'ESM-MSR'].set_index('dataset')['rho']
     f = RESULTS / '98_ablation' / 'cells_long.csv'
     mean = {}
@@ -234,31 +205,30 @@ def thermo_data():
     S = pd.read_csv(RESULTS / '02_thermostability' / 'thermostability_rho.csv')
     S = S[~S.dataset.isin(EXCLUDE_THERMO)]
     sets, val = msr_order(sorted(S.dataset.unique()), S)
-    models = [m for m in EXT_ORDER if (S.model == m).any()]
-    kinds = {m: dict(zip(VERSIONS[m], ('singles', 'doubles'))) for m in VERSIONS}
-    S = S.assign(version=[kinds.get(r.model, {}).get(r.key, '') for r in S.itertuples()])
+    models = [m for m in EXT_ORDER if (S.model == m).any() and m not in LEFT_OUT]
+    S = S[S.model.isin(models)]
+    S = S.assign(version=['singles' if M.BY_NAME[r.model].two_versions and r.key == M.BY_NAME[r.model].single else ('doubles' if M.BY_NAME[r.model].two_versions else '') for r in S.itertuples()])
     return dict(S=S, sets=sets, val=val, models=models, ymin=min(0.10, float(np.floor((np.nanmin(S.lo) - 0.03) * 20) / 20)))
 
 
 def draw_thermo(ax, th, ylim=None):
-    """The thermostability sets (one cluster per set, ordered by ESM-MSR p0; one dot per model; hollow = singles model) on ``ax``; returns the legend handles."""
+    """The thermostability sets (one cluster per set, ordered by ESM-MSR; one dot per model in the canonical order; hollow = singles version) on ``ax``; returns the legend handles."""
     S, sets, models = th['S'], th['sets'], th['models']
+    table = {(r.dataset, r.model): r.rho for r in S.itertuples()}
+    cis = {(r.dataset, r.model): (r.lo, r.hi) for r in S.itertuples()}
+    hollow = {(r.dataset, r.model) for r in S.itertuples() if r.version == 'singles'}
     spread = 0.78
-    style.dot_panel(ax, sets, models, {}, None, ylabel=r'Spearman $\rho$ (pooled)', xlabels=[LABEL.get(d, d) for d in sets], rot=0, ylim=ylim or (th['ymin'], 0.98), spread=spread, size=6.0)
+    style.dot_panel(ax, sets, models, table, cis, highlight=['ESM-MSR'], hollow=hollow, ylabel=r'Spearman $\rho$ (pooled)', xlabels=[LABEL.get(d, d) for d in sets], rot=0, ylim=ylim or (th['ymin'], 0.98), spread=spread, size=6.0)
     offs = np.linspace(-spread / 2, spread / 2, len(models))
     for i, d in enumerate(sets):
         for j, m in enumerate(models):
-            x = i + offs[j]
-            hl = m == 'ESM-MSR'
-            r = S[(S.dataset == d) & (S.model == m)].iloc[0]
-            kw = style_kwargs(m, r.version == 'singles', 6.0 * (1.35 if hl else 1.0))
-            ax.errorbar([x], [r.rho], yerr=[[r.rho - r.lo], [r.hi - r.rho]], fmt='none', ecolor=kw['color'], elinewidth=1.0, capsize=1.6, capthick=0.9, alpha=0.9, zorder=(5 if hl else 3) - 1)
-            ax.plot(x, r.rho, zorder=5 if hl else 3, **kw)
-            if r.leak_flag:
-                ax.plot(x, r.rho, marker='o', ms=10.5, mfc='none', mec='#c0392b', mew=1.1, ls='none', zorder=6)
+            r = S[(S.dataset == d) & (S.model == m)]
+            if len(r) and r.iloc[0].leak_flag:
+                ax.plot(i + offs[j], r.iloc[0].rho, marker='o', ms=10.5, mfc='none', mec=style.RING, mew=1.1, ls='none', zorder=6)
     hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8)) for m in models]
-    hs.append(Line2D([0], [0], marker='o', ms=8.5, mfc='none', mec='#c0392b', mew=1.1, ls='none', label='training overlap (GeoDDG-3D)'))
-    return hs + version_handles()
+    flagged = [m for m in models if S[(S.model == m)].leak_flag.any()]
+    hs.append(Line2D([0], [0], marker='o', ms=8.5, mfc='none', mec=style.RING, mew=1.1, ls='none', label='training overlap (' + ', '.join(flagged) + ')'))
+    return hs + style.version_handles()
 
 
 def write_thermo_table(th):

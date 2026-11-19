@@ -13,8 +13,8 @@ Two families, both on the single mutants of the 33 test domains (measured rows, 
   (change in side-chain volume, cut points -1 and 1) and ``conservation`` (% conservation of the position in the MSA, 25 and 75; positions with more than 2 sequences), k = 96.
 
 Features are the notebooks' (``tsuboyama_all_subs_corrected_feats.csv``, joined on library + mutation; the labels of the joined rows equal the spine's exactly).  A multi-seed model is scored per seed and the
-per-domain value averaged over seeds, so every interval is the domain interval.  Columns: ESM-MSR (baseline) and ESM-MSR WT heads (``--heads wt comb`` adds the combined heads), the retrained baselines'
-singles models (ME stage 1, ThermoMPNN, SPURS), ESM3-small-open unmasked, ProteinMPNN, ProSST, the better of GeoDDG-3D / DDGemb and Rosetta.  Every distribution plot is made under two rules for what counts as gain: the notebook's (only picks the model predicts stabilizing, predicted ddG > 0; ProSST left out, ``--prosst`` keeps it) and every top-k pick
+per-domain value averaged over seeds, so every interval is the domain interval.  Columns (the order and colours of ``msr_analysis.models``; the selection is among single mutants, so every model is its singles version): ProSST, ProteinMPNN, ESM3-small-open WT-view, ESM-MSR WT-view,
+MutateEverything Stage 1, ThermoMPNN, SPURS, the better of GeoDDG-3D / DDGemb, Rosetta and ESM3ΔG.  Every distribution plot is made under two rules for what counts as gain: the notebook's (only picks the model predicts stabilizing, predicted ddG > 0; ProSST left out, ``--prosst`` keeps it) and every top-k pick
 (files with the suffix ``_allpicks``, every model including ProSST); ``gain_rule_comparison`` sets the two side by side.  The default bootstrap size is 1000 (``--B``).
 """
 import argparse
@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
 
+from msr_analysis import models as M  # noqa: E402
 from msr_analysis import style  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
@@ -83,38 +84,14 @@ def best_other(fr, single):
     return max(sc, key=sc.get)
 
 
-def columns(fr, single, msr='p0', heads=('wt', 'comb')):
-    """Model columns in the publication bar-chart order and styling, defaulting to only the p0 MSR model (WT head and combined)."""
+def columns(fr, single):
+    """Model columns in the order and colours of ``msr_analysis.models``; the selection is among single mutants, so every model is its singles version (ESM-MSR and ESM3-small-open: WT-view; MutateEverything Stage 1; ThermoMPNN; SPURS)."""
     best = best_other(fr, single)
-    msr_specs = [
-        ('msr', 'ESM-MSR (baseline)', 'ESM-MSR\n(baseline)', {'wt': '#7f8c8d', 'comb': '#95a5a6'}),
-        ('msrdev', 'ESM-MSR', 'ESM-MSR', {'wt': '#000000', 'comb': '#555555'}),
-        ('msrp0', 'ESM-MSR (p0)', 'ESM-MSR\n(p0)', {'wt': '#6c3483', 'comb': '#9b59b6'}),
-    ]
-    want_fams = {'p0': {'msrp0'}, 'devel': {'msrdev'}, 'baseline': {'msr'}, 'all': {'msr', 'msrdev', 'msrp0'}}[msr]
     cols = []
-    for fam, name_pref, lab_pref, h_colors in msr_specs:
-        if fam not in want_fams:
-            continue
-        for h in heads:
-            h_name = 'WT head' if h == 'wt' else 'combined'
-            cols.append(dict(
-                name=f'{name_pref} {h_name}',
-                cat='retrained',
-                color=h_colors[h],
-                label=f'{lab_pref}\n{h_name}',
-                key=f'{fam}:{h}',
-            ))
-    cols += [
-        dict(name='MutateEverything st1', cat='retrained', color='#1b8a4b', label='MutateEverything\nst1', key='me1'),
-        dict(name='ThermoMPNN', cat='retrained', color='#1f5f8b', label='ThermoMPNN', key='tmpnn'),
-        dict(name='SPURS', cat='retrained', color='#d35400', label='SPURS', key='spurs'),
-        dict(name='ESM3-small-open', cat='zeroshot', color='#7f8c8d', label='ESM3-small-open\nunmasked', key='msrrel@0:comb'),
-        dict(name='ProteinMPNN', cat='zeroshot', color='#34495e', label='ProteinMPNN', key='pmpnn'),
-        dict(name='ProSST', cat='zeroshot', color='#8e44ad', label='ProSST', key='prosst'),
-        dict(name=pub.BEST_LABEL[best], cat='supervised', color=pub.BEST_COLOR[best], label=pub.BEST_LABEL[best], key=best),
-        dict(name='Rosetta', cat='supervised', color='#1abc9c', label='Rosetta', key='rosetta'),
-    ]
+    for name in M.ZEROSHOT + M.TRANSFER + M.SUPERVISED:
+        name = pub.BEST_LABEL[best] if name == 'GeoDDG-3D' else name
+        m = M.BY_NAME[name]
+        cols.append(dict(name=name, cat='supervised' if m.group == 'megascale' else m.group, color=m.color, label=M.tick_label(name, 0) if m.two_versions else name, key=m.single))
     return [c for c in cols if c['key'] in fr.preds], best
 
 
@@ -484,8 +461,6 @@ def comparison_figure(path, d, dcols):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--B', type=int, default=1000, help='domain resamples')
-    ap.add_argument('--msr', choices=['p0', 'devel', 'baseline', 'all'], default='p0', help='which ESM-MSR model(s) to draw (default: p0 only)')
-    ap.add_argument('--heads', nargs='+', choices=['wt', 'comb'], default=['wt', 'comb'], help='ESM-MSR heads drawn (default: wt comb)')
     ap.add_argument('--no-prosst', action='store_true', help='omit ProSST from the notebook-rule distribution plots')
     a = ap.parse_args()
 
@@ -496,7 +471,7 @@ def main():
     feat = load_features(sp['id'].tolist())
     libs = sorted(np.unique(sp['group'].to_numpy()[single]))
     group = sp['group'].to_numpy()
-    cols, best = columns(fr, single, a.msr, a.heads)
+    cols, best = columns(fr, single)
     print(f'{len(libs)} test domains, {single.sum():,} singles; features present for {feat["rel_ASA"].notna()[single].mean():.1%}; columns: {[c["name"] for c in cols]} (best other ddG model: {best})')
     rng = np.random.default_rng(5)
     counts = rng.multinomial(len(libs), np.full(len(libs), 1.0 / len(libs)), size=a.B).astype(float)

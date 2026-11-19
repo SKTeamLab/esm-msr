@@ -54,16 +54,41 @@ def save(fig, path, close=True):
 
 
 def style_of(key):
-    m = MODELS.get(key, dict(color='#999999', marker='o', fill=True, label=key))
-    return m
+    """The registry entry (label, colour, marker, fill) of a model key or roster name.  There is no grey default: a model that is not in the roster (``msr_analysis.models``) has to be added there, not drawn in a one-off colour."""
+    if key not in MODELS:
+        raise KeyError(f'{key!r} has no style: add it to msr_analysis.models.ROSTER (and msr_analysis.registry) so that it keeps one colour, marker and position in every figure')
+    return MODELS[key]
 
 
-def marker_kwargs(key, size=6.5, alpha=1.0):
+HOLLOW_MEW = 2.0            # edge width of a hollow marker (the default is 1.2)
+HOLLOW_SIZE = 1.2           # its size relative to a filled one, so that the hole stays visible
+RING = '#c0392b'            # red ring round a dot: documented training overlap
+INK_NOTE = '#444444'        # colour of footnotes and annotations
+from .models import CATEGORY_COLOR  # noqa: E402,F401   the ProteinGym categories, one colour each in every figure
+
+
+def marker_kwargs(key, size=6.5, alpha=1.0, hollow=None):
+    """Marker of a model key or roster name: the model's colour and marker; filled for a doubles version and for a model with one version, hollow (thick edge, larger) for the singles version of a model that has two.
+    ``hollow`` forces either."""
     m = style_of(key)
-    kw = dict(marker=m['marker'], ms=size, color=m['color'], mec=m['color'], alpha=alpha, ls='none', mew=1.2)
-    if not m['fill'] and m['marker'] not in ('+', 'x'):
-        kw['mfc'] = 'white'
+    hollow = (not m['fill']) if hollow is None else hollow
+    kw = dict(marker=m['marker'], ms=size, color=m['color'], mec=m['color'], alpha=alpha, ls='none', mew=1.2, mfc=m['color'])
+    if hollow:
+        kw.update(mfc='none', mew=HOLLOW_MEW, ms=size * HOLLOW_SIZE)
     return kw
+
+
+def version_handles(size=6.8):
+    """Legend entries that say what a hollow and a filled marker are (the same in every figure that draws a model with two versions)."""
+    grey = '#555555'
+    return [Line2D([0], [0], marker='o', ms=size, mfc=grey, mec=grey, ls='none', label='filled: doubles version'),
+            Line2D([0], [0], marker='o', ms=size * HOLLOW_SIZE, mfc='none', mec=grey, mew=HOLLOW_MEW, ls='none', label='hollow: singles version')]
+
+
+def hollow_cells(keys_used, names=None):
+    """{(group, model name)} of the cells that were read with the singles version of a model that has two (``keys_used``: {(group, model name): raw prediction key}): drawn hollow."""
+    from .models import BY_NAME
+    return {(g, m) for (g, m), k in keys_used.items() if m in BY_NAME and BY_NAME[m].two_versions and k == BY_NAME[m].single and (names is None or m in names)}
 
 
 def band_axis(ax, n, width=1.0):
@@ -75,10 +100,10 @@ def band_axis(ax, n, width=1.0):
 
 
 def dot_panel(ax, groups, models, table, ci=None, spread=0.72, highlight=None, ylabel=None, ylim=None, size=6.5,
-              xlabels=None, rot=30, hline=None):
-    """Dot plot, one cluster per group, one dot per model.
+              xlabels=None, rot=30, hline=None, hollow=()):
+    """Dot plot, one cluster per group, one dot per model, models left to right in the order given (pass them in the roster order).
 
-    table[(group, model)] -> value; ci[(group, model)] -> (lo, hi).  ``highlight``: models drawn larger and on top.
+    table[(group, model)] -> value; ci[(group, model)] -> (lo, hi).  ``highlight``: models drawn larger and on top.  ``hollow``: {(group, model)} cells drawn hollow (the singles version of a model with two).
     """
     n = len(groups)
     band_axis(ax, n)
@@ -88,23 +113,24 @@ def dot_panel(ax, groups, models, table, ci=None, spread=0.72, highlight=None, y
     if hline is not None:
         ax.axhline(hline, color='#777777', lw=0.7, ls=':', zorder=1)
     for j, m in enumerate(models):
-        xs, ys, lo, hi = [], [], [], []
-        for i, g in enumerate(groups):
-            v = table.get((g, m), np.nan)
-            if not np.isfinite(v):
-                continue
-            xs.append(i + offs[j]); ys.append(v)
-            c = (ci or {}).get((g, m), (np.nan, np.nan))
-            lo.append(v - c[0]); hi.append(c[1] - v)
-        if not xs:
-            continue
         hl = highlight is not None and m in highlight
-        kw = marker_kwargs(m, size=size * (1.35 if hl else 1.0))
         z = 5 if hl else 3
-        if ci is not None:
-            ax.errorbar(xs, ys, yerr=[np.nan_to_num(lo), np.nan_to_num(hi)], fmt='none', ecolor=kw['color'], elinewidth=1.0,
-                        capsize=1.6, capthick=0.9, alpha=0.9, zorder=z - 1)
-        ax.plot(xs, ys, zorder=z, **kw)
+        for want_hollow in (False, True):
+            xs, ys, lo, hi = [], [], [], []
+            for i, g in enumerate(groups):
+                v = table.get((g, m), np.nan)
+                if not np.isfinite(v) or (((g, m) in hollow) != want_hollow):
+                    continue
+                xs.append(i + offs[j]); ys.append(v)
+                c = (ci or {}).get((g, m), (np.nan, np.nan))
+                lo.append(v - c[0]); hi.append(c[1] - v)
+            if not xs:
+                continue
+            kw = marker_kwargs(m, size=size * (1.35 if hl else 1.0), hollow=True if want_hollow else (False if hollow else None))
+            if ci is not None:
+                ax.errorbar(xs, ys, yerr=[np.nan_to_num(lo), np.nan_to_num(hi)], fmt='none', ecolor=kw['color'], elinewidth=1.0,
+                            capsize=1.6, capthick=0.9, alpha=0.9, zorder=z - 1)
+            ax.plot(xs, ys, zorder=z, **kw)
     ax.set_xticks(range(n))
     ax.set_xticklabels(xlabels or [LABEL.get(g, g) for g in groups], rotation=rot, ha='right' if rot else 'center')
     if ylabel:

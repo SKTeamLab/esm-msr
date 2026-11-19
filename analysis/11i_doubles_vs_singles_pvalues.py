@@ -7,10 +7,10 @@ averaged over the seeds the model has.  ``delta`` = rho(trained with doubles) - 
 doubles-trained version is worse.  Holm adjustment over the models of the table that have a test.  A model whose two versions give the same single-mutant
 predictions up to float noise (ThermoMPNN-D scores singles with the ThermoMPNN network: max difference under 0.5% of the prediction SD) is listed without a test.
 
-Versions (singles -> trained with doubles): ESM-MSR p0 WT head -> combined head (FINAL_p0 s1-s3); MutateEverything st1 -> st2; ThermoMPNN -> ThermoMPNN-D; SPURS single (retrain with the trained adapter) ->
-SPURS multi.  (ESM-MSR devel / baseline and the frozen-adapter SPURS are not included unless asked for.)
+Versions (singles -> trained with doubles, ``msr_analysis.models``): ESM-MSR WT-view -> Dual-view (the combined head; FINAL_p0 s1-s3); MutateEverything Stage 1 -> Stage 2; ThermoMPNN -> ThermoMPNN-D; SPURS single (retrain with the trained adapter) ->
+SPURS-multi.  (No other ESM-MSR version and no frozen-adapter SPURS.)
 
-Needs ``11_publication_figures.py``'s inputs (the Tsuboyama capped-test frame) and ``retrained/spurs_unfrozen``.  Output ``results/03_tsuboyama/doubles_vs_singles_on_singles.{csv,md,png,pdf}``.
+Needs ``11_publication_figures.py``'s inputs (the Tsuboyama capped-test frame).  Output ``results/03_tsuboyama/doubles_vs_singles_on_singles.{csv,md,png,pdf}``.
 
     python analysis/11i_doubles_vs_singles_pvalues.py [--B 100000]
 """
@@ -22,10 +22,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from msr_analysis import models as M
 from msr_analysis.common import out_dir
-from msr_analysis.data import _align_id
-from msr_analysis.final_runs import load_final_frame
-from msr_analysis.registry import BASE
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('pub', HERE / '11_publication_figures.py')
@@ -33,12 +31,8 @@ pub = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pub)
 
 OUT = out_dir('03_tsuboyama')
-UNF = BASE / 'retrained' / 'spurs_unfrozen' / 'predictions'
-# (label, singles key, key trained with doubles, headline)
-MODELS = [('ESM-MSR p0', 'p0:wt', 'p0:comb', True, 'WT head', 'combined head'),
-          ('MutateEverything', 'me1', 'me2', True, 'stage 1', 'stage 2'),
-          ('ThermoMPNN', 'tmpnn', 'tmpnnd', True, 'ThermoMPNN', 'ThermoMPNN-D'),
-          ('SPURS (trained adapter)', 'spursun', 'spursunm', True, 'SPURS single', 'SPURS multi')]
+# (label, singles key, key trained with doubles, headline, singles version, doubles version): the models that have both, in the roster order
+MODELS = [(n, M.BY_NAME[n].single, M.BY_NAME[n].multi, True, M.version_label(n, 0), M.version_label(n, 1)) for n in M.TRANSFER]
 
 
 def holm(p):
@@ -57,15 +51,6 @@ def stars(p):
 def compute(B):
     fr, _ = pub.load()
     sp = fr.spine
-    ids = sp['id'].to_numpy(dtype=object)
-    p0 = load_final_frame(pub.DS, families=['FINAL_p0'])                 # seeds 1-3 of p0
-    fr.preds['p0:wt'], fr.preds['p0:comb'] = p0.preds['FINAL_p0:wt'], p0.preds['FINAL_p0:comb']
-    S, M = [], []
-    for sd in (1, 2, 3):
-        d = pd.read_csv(UNF / f'seed{sd}' / 'tsuboyama_test.csv', usecols=['uid', 'SPURS_single_additive', 'SPURS_multi'], low_memory=False)
-        S.append(_align_id(ids, d['uid'].astype(str).to_numpy(), d['SPURS_single_additive'].to_numpy()))
-        M.append(_align_id(ids, d['uid'].astype(str).to_numpy(), d['SPURS_multi'].to_numpy()))
-    fr.preds['spursun'], fr.preds['spursunm'] = np.vstack(S), np.vstack(M)
     use = sp['use'].to_numpy()
     single = use & (sp['n_mut'].to_numpy() == 1)
     libs = sorted(np.unique(sp['group'].to_numpy()[single]))

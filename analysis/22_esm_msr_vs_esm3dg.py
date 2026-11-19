@@ -1,6 +1,6 @@
-"""ESM-MSR p0 against ESM3dG on every benchmark where both have predictions (a curiosity table, not a paper figure).
+"""ESM-MSR against ESM3dG on every benchmark where both have predictions (a curiosity table, not a paper figure).
 
-ESM-MSR p0 is read as deployed (WT head on singles-only sets, the combined head where multi-mutants are scored; seeds 1-3 averaged) and ESM3dG is its single run (the direct prediction of every variant).
+ESM-MSR is read as deployed (WT-view on singles-only sets, the Dual-view (combined head) where multi-mutants are scored; seeds 1-3 averaged) and ESM3dG is its single run (the direct prediction of every variant).
 Metrics are those of Figure 3 and its source scripts: pooled Spearman rho on the thermostability and DMS sets (mutation-level bootstrap), mean per-domain rho on Domainome (the held-out domains) and the
 Homology-Restricted MegaScale val / test sets (domain-level bootstrap), the mean per-assay rho of ProteinGym by category (held-out assays; assays resampled within category) and the pooled / per-scaffold rho of
 MGnify and Rocklin (``18b_mgnify_models.py``).  Both models are scored on the same rows, and delta = ESM-MSR - ESM3dG has a paired bootstrap interval (shared draws, seeds resampled) everywhere except MGnify and
@@ -162,7 +162,7 @@ def table_cells(T):
     return out
 
 
-HEAD = ['Benchmark', 'Metric', 'n', 'ESM-MSR p0\nρ [95% CI]', 'ESM3ΔG\nρ [95% CI]', 'Δρ = ESM-MSR − ESM3ΔG\n[95% CI, paired]', 'ESM3ΔG overlap\n(leak audit)']
+HEAD = ['Benchmark', 'Metric', 'n', 'ESM-MSR\nρ [95% CI]', 'ESM3ΔG\nρ [95% CI]', 'Δρ = ESM-MSR − ESM3ΔG\n[95% CI, paired]', 'ESM3ΔG overlap\n(leak audit)']
 
 
 def write_md(T):
@@ -177,7 +177,7 @@ def write_md(T):
     (OUT / 'esm_msr_vs_esm3dg.md').write_text('\n'.join(lines) + '\n\n' + NOTE + '\n')
 
 
-NOTE = ('ESM-MSR p0: deployed readout (WT head on singles, combined head where multi-mutants are scored), seeds 1-3 averaged; ESM3ΔG: one run, direct prediction. Both on the same rows. Δρ intervals: paired bootstrap '
+NOTE = ('ESM-MSR: deployed readout (WT-view on singles, Dual-view where multi-mutants are scored), seeds 1-3 averaged; ESM3ΔG: one run, direct prediction. Both on the same rows. Δρ intervals: paired bootstrap '
         '(draws shared by both models, seeds resampled; mutation level for the thermostability and DMS sets, domain level for Domainome and the MegaScale sets, assays within category for ProteinGym; MGnify and Rocklin: '
         'separate scaffold bootstraps). ESM3ΔG is fine-tuned on MGnify stability data (960,216 sequences, not Megascale): MGnify and Rocklin are not held out for it. Overlap = the leak audit\'s share of the set\'s rows '
         'whose protein has a homolog in that training data (P same protein, H strong homolog, h weak homolog), before the four-part held-out filter. Green / red: Δρ interval excludes 0 (ESM-MSR higher / lower).')

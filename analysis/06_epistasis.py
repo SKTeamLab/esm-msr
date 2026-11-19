@@ -28,7 +28,7 @@ from scipy.stats import spearmanr
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import matplotlib.pyplot as plt  # noqa: E402
 
-from msr_analysis import link, style  # noqa: E402
+from msr_analysis import style  # noqa: E402
 from msr_analysis.boot import SpearmanEngine, _Ranks, bootstrap_rho, ci  # noqa: E402
 from msr_analysis.common import epi_rows, out_dir, subframe  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
@@ -37,33 +37,15 @@ from msr_analysis.tables import clean_label, num, numeric, read_table  # noqa: E
 from msr_analysis.registry import TSU, TSU_SPLIT  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 OUT = out_dir('06_epistasis')
-EPI_KEYS = ['msr:epi', 'msrrel:epi', 'msrdev:epi', 'msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
-EPI_PLOT = ['msr:epi', 'msrrel:epi', 'msrdev:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
-MODELS['msrrel:epi'] = dict(label='ESM-MSR released (1/2(MT+WT)_AB − WT_A − WT_B)', color='#555555', marker='D', fill=True, group='msr')
-MODELS['msrdev:epi_obs'] = dict(label='ESM-MSR, post-link (obs(comb_AB) − obs(WT_A) − obs(WT_B))', color='#7f7f7f', marker='D', fill=True, group='msr')
-MODELS['msrdev:epi'] = dict(label='ESM-MSR (1/2(MT+WT)_AB − WT_A − WT_B)', color='#7f7f7f', marker='D', fill=False, group='msr')
-MODELS['msrp0:epi'] = dict(label='ESM-MSR (p0) (1/2(MT+WT)_AB − WT_A − WT_B)', color='#1f618d', marker='D', fill=False, group='msr')
-# mega_splits (MSR_TSU_SPLIT=mega): the only ESM-MSR is FINAL_p0_mega (key msrp0, three seeds) and only the Tsuboyama sets are
-# rescored; the document's tables (2.1, 2.2, 2.5) and the devel link belong to the capped split and are not drawn
+# ESM-MSR is FINAL_p0 (FINAL_p0_mega on mega_splits; key msrp0, three seeds), the only version of it that is drawn; mega_splits rescores only the Tsuboyama sets
 MEGA = TSU_SPLIT == 'mega'
-ESM = 'msrp0' if MEGA else 'msr'          # the ESM-MSR family the headline panels use
+ESM = 'msrp0'                             # the ESM-MSR family the headline panels use
+EPI_KEYS = EPI_PLOT = ['msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
 if MEGA:
-    EPI_KEYS = EPI_PLOT = ['msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi', 'spursum:epi', 'spurspubm:epi', 'tmpnndpub:epi']
-    for _k, _l in (('spursm:epi', 'SPURS multi, frozen adapter (vs singles)'),):
-        MODELS[_k] = dict(MODELS[_k], label=_l)
-    MODELS['msrp0:epi'] = dict(label='ESM-MSR (1/2(MT+WT)_AB − WT_A − WT_B)', color='#6c3483', marker='D', fill=True, group='msr')
+    EPI_KEYS = EPI_PLOT = EPI_KEYS + ['spursum:epi', 'spurspubm:epi', 'tmpnndpub:epi']
+    MODELS['spursm:epi'] = dict(MODELS['spursm:epi'], label='SPURS multi, frozen adapter (vs singles)')
 
 
-def add_linked(fr):
-    """Add observed-scale (post-link) predictions for ``msrdev`` using each seed's learned link parameters (``reference/devel_link_params.json``).
-    Latent ``:epi`` = 1/2(MT_AB + WT_AB) - WT_A - WT_B is already populated by ``data.py``."""
-    sp = fr.spine
-    dg = sp['dG_wt'].to_numpy()
-    wt, comb = fr.preds['msrdev:wt'], fr.preds['msrdev:comb']
-    fr.preds['msrdev:epi_obs'] = np.stack([link.observed_epistasis(sp, wt[i], comb[i], i + 1) for i in range(3)])
-    fr.preds['msrdev:comb_obs'] = np.stack([link.observed(comb[i], dg, i + 1) for i in range(3)])
-    fr.preds['msrdev:wt_obs'] = np.stack([link.observed(wt[i], dg, i + 1) for i in range(3)])
-    return fr
 DMS_D = ['GRB2_HUMAN_Faure_2021_binding_domain', 'DLG4_HUMAN_Faure_2021_binding_domain']
 
 
@@ -150,8 +132,6 @@ def naive_recomputed():
     rows = []
     for ds in TSU + ([] if MEGA else DMS_D):
         fr = load_frame(ds)
-        if ds in TSU and not MEGA:
-            add_linked(fr)
         m = epi_rows(fr)
         sub = subframe(fr, m, y=fr.spine['dddG_ML'].to_numpy(), keys=EPI_KEYS)
         kind = 'protein' if ds in TSU else 'mutation'
@@ -167,7 +147,7 @@ def naive_recomputed():
     R = pd.DataFrame(rows)
     # the document's values for the Tsuboyama rows
     doc = {}
-    for tid, ds in (() if MEGA else (('2.1.1', TSU[0]), ('2.2.1', TSU[1]))):
+    for tid, ds in ():                                           # the document's baseline / devel rows are not compared any more
         d = read_table(tid)
         for _, r in d.iterrows():
             lab = clean_label(r.iloc[0])
@@ -206,7 +186,7 @@ def naive_recomputed():
 # --------------------------------------------------------------------------------------------------
 def scatter_figures():
     sets = [(TSU[1], 'Tsuboyama test')] + ([] if MEGA else [('GRB2_HUMAN_Faure_2021_binding_domain', 'GRB2 bind.')])
-    keys = EPI_PLOT if MEGA else ['msr:epi', 'msrdev:epi', 'msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
+    keys = EPI_PLOT
     fig, axes = plt.subplots(len(sets), len(keys), figsize=(3.0 * len(keys), 3.0 * len(sets)), squeeze=False)
     for r, (ds, lab) in enumerate(sets):
         fr = load_frame(ds)
@@ -234,19 +214,14 @@ def doubles_ddg():
     """ddG of the test doubles: predicted against measured, for ESM-MSR as released (link intrinsic), as the baseline triplicate, and as the devel seeds before and
     after their link, beside the retrained baselines.  Two ways to rank: pooled over all libraries (what a scatter shows; library offsets and the assay's saturation
     count) and the mean of per-library rho (the benchmark's metric).  The link is monotone, so it cannot change the second and moves the first."""
-    fr = load_frame(TSU[1]) if MEGA else add_linked(load_frame(TSU[1]))
+    fr = load_frame(TSU[1])
     sp = fr.spine
     y = sp['y'].to_numpy()
     m = ((sp['n_mut'] == 2) & sp['use']).to_numpy()
     groups = sp['group'].to_numpy()
-    items = [('msrrel:comb', 'ESM-MSR released\n(link intrinsic), combined'), ('msr:comb', 'ESM-MSR baseline,\ncombined'), ('msrdev:comb', 'ESM-MSR,\nlatent (no link)'),
-             ('msrdev:comb_obs', 'ESM-MSR,\npost-link'), ('spursm', 'SPURS multi'), ('me1', 'MutateEverything st1'), ('me2', 'MutateEverything st2'), ('tmpnn', 'ThermoMPNN'),
-             ('tmpnnd', 'ThermoMPNN + D'), ('spurs', 'SPURS')]
-    extra = [('msr:wt', ''), ('msrrel:wt', ''), ('msrdev:wt', ''), ('msrdev:wt_obs', '')]
-    if MEGA:
-        items = [('msrp0:comb', 'ESM-MSR, combined'), ('msrp0:wt', 'ESM-MSR, WT head\n(additive)'), ('me1', 'MutateEverything st1'), ('me2', 'MutateEverything st2'),
-                 ('tmpnn', 'ThermoMPNN'), ('tmpnnd', 'ThermoMPNN + D'), ('spurs', 'SPURS'), ('spursm', 'SPURS multi')]
-        extra = []
+    items = [('msrp0:comb', 'ESM-MSR Dual-view'), ('msrp0:wt', 'ESM-MSR WT-view\n(additive)'), ('me1', 'MutateEverything Stage 1'), ('me2', 'MutateEverything Stage 2'),
+             ('tmpnn', 'ThermoMPNN'), ('tmpnnd', 'ThermoMPNN-D'), ('spurs', 'SPURS'), ('spursm', 'SPURS-multi')]
+    extra = []
     rows = []
 
     def both(k):
@@ -277,8 +252,7 @@ def doubles_ddg():
         ax.set_xlabel('predicted ddG of the double')
     for ax in axes[:, 0]:
         ax.set_ylabel('measured ddG (kcal/mol)')
-    note = ('mega_splits retrains.' if MEGA else 'The link raises pooled ρ, per-library ρ (the benchmark metric) is unchanged by it.\nLink rebuilt from each checkpoint\'s '
-            'learned link parameters (reference/devel_link_params.json).')
+    note = 'latent predictions (no link).'
     fig.suptitle(f'Tsuboyama test doubles (n = {int(m.sum()):,}; prediction averaged over seeds 1-3, rho is the seed mean).  Pooled ρ counts between-library offsets and saturation; {note}', y=1.01, fontsize=9)
     fig.tight_layout()
     style.save(fig, OUT / 'epistasis_scatter_ddG_doubles')
@@ -329,7 +303,7 @@ def ddg_ranking():
 LAMBDAS = np.round(np.arange(0, 1.0001, 0.05), 2)
 SCAN_SETS = [(TSU[1], 'Tsuboyama test'), ('ptmul', 'PTMUL'), ('ptmuld', 'PTMUL-D'), ('GRB2_HUMAN_Faure_2021_binding_domain', 'GRB2 bind.'),
              ('DLG4_HUMAN_Faure_2021_binding_domain', 'DLG4 bind.')]
-SCAN_FAMS = (('msrrel', 'released (1 checkpoint; the document)', '#888888', '--'), ('msr', 'baseline triplicate', 'k', '-'))
+SCAN_FAMS = (('msrp0', 'ESM-MSR (FINAL_p0, 3 seeds)', 'k', '-'),)
 if MEGA:
     SCAN_SETS = [(TSU[1], 'Tsuboyama test (mega_splits)')]
     SCAN_FAMS = (('msrp0', 'ESM-MSR (FINAL_p0_mega, 3 seeds)', 'k', '-'),)
@@ -406,11 +380,9 @@ def nobb():
 
 
 if __name__ == '__main__':
-    if not MEGA:
-        hierarchy_figures()           # the document's tables 2.0-2.2 (capped split); mega_splits: 11d recomputes the hierarchy
+    # hierarchy_figures() redraws the document's tables 2.0-2.2, which carry the ESM-MSR devel / baseline rows: no longer drawn (11d / 11n recompute the hierarchy for ESM-MSR)
     naive_recomputed()
     scatter_figures()
     ddg_ranking()
     lambda_scan()
-    if not MEGA:
-        nobb()
+    # nobb() drew the document's table 2.5 (mutant-background ablation, devel / baseline values): no longer drawn

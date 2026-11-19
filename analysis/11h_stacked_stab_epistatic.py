@@ -16,37 +16,16 @@ import numpy as np
 import pandas as pd
 
 from msr_analysis.common import out_dir
-from msr_analysis.data import _align_id
-from msr_analysis.final_runs import load_final_frame
-from msr_analysis.registry import BASE
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('pub', HERE / '11_publication_figures.py')
 pub = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pub)
 
-UNF = BASE / 'retrained' / 'spurs_unfrozen' / 'predictions'      # SPURS retrained with the trained (unfrozen) adapter on the capped split, seeds 1-3
-
-LAB_A = {'ESM-MSR (p0) combined': 'ESM-MSR\nWT-view (& Dual-view)', 'MutateEverything': 'MutateEverything\n(Stage 1 & Stage 2)', 'ThermoMPNN': 'ThermoMPNN\n(& ThermoMPNN-D)', 'SPURS': 'SPURS\n(& SPURS-multi)',
-         'ESM3-small-open': 'ESM3-small-open\nWT-view (& Dual-view)', 'best other ddG': 'GeoDDG-3D'}
-LAB_B = {'ESM-MSR (p0)': 'ESM-MSR\nWT-view → Dual-view', 'MutateEverything': 'MutateEverything\nStage 1 → Stage 2', 'ThermoMPNN': 'ThermoMPNN\n→ ThermoMPNN-D', 'SPURS': 'SPURS\n→ SPURS-multi',
-         'ESM3-small-open': 'ESM3-small-open\nWT-view → Dual-view', 'ProteinMPNN': 'ProteinMPNN\nOne-shot singles → AR doubles', 'ProSST': 'ProSST\n(additive only)',
-         'best other ddG': 'GeoDDG-3D\nAdd. singles → sim. double', 'Rosetta': 'Rosetta\nAdd. singles → sim. double'}
-
 OUT = out_dir('00_main_text_figs')
 EPI_P = out_dir('06_epistasis') / 'epistatic_vs_additive_pvalues.csv'    # 11l_epistatic_vs_additive_pvalues.py: one-sided p that the epistatic version beats the additive one
-P_NAME = {'ESM-MSR (p0)': 'ESM-MSR p0', 'MutateEverything': 'MutateEverything', 'ThermoMPNN': 'ThermoMPNN', 'SPURS': 'SPURS (trained adapter)', 'ESM3-small-open': 'ESM3-small-open',
-          'ProteinMPNN': 'ProteinMPNN', 'best other ddG': 'GeoDDG-3D', 'Rosetta': 'Rosetta'}
+P_NAME = {'best other ddG': 'GeoDDG-3D'}                         # a column's name in that table when it differs from the column name
 SIDE = 12.5                                                      # inches; the width of figure 1, so the bars keep its scale
-
-
-def p0_three_seeds(fr):
-    """ESM-MSR p0 as the mean of FINAL_p0 seeds 1-3 (the frames of ``msr_analysis.data`` hold seeds 1-3 of p0 since Nov 18, so this is a check that the final-run frame agrees): replaces ``msrp0:wt`` / ``msrp0:comb`` / ``msrp0:wt+`` in place, so every figure and table drawn from it
-    (this one, ``11k``, and the p-value tables of ``11i`` - ``11m``) reports the same ESM-MSR p0 numbers."""
-    f = load_final_frame(pub.DS, families=['FINAL_p0'])
-    assert (f.spine['id'].to_numpy() == fr.spine['id'].to_numpy()).all()
-    for h in ('wt', 'comb', 'wt+'):
-        fr.preds['msrp0:' + h] = f.preds['FINAL_p0:' + h]
 
 
 def fmt_p(p):
@@ -64,7 +43,7 @@ def pair_brackets(ax, cols, T, subsets=('additive', 'epistatic')):
     top = 0.0
     for c, x in zip(cols, xs):
         r = [T[(T.column == c['name']) & (T.subset == sub)] for sub in subsets]
-        name = P_NAME.get(c['name'])
+        name = P_NAME.get(c['name'], c['name'])
         if name not in P.index or not all(len(q) for q in r):
             continue
         hi = max(float(q.iloc[0].hi) for q in r)
@@ -81,48 +60,11 @@ def main():
     fr, _ = pub.load()
     best, _ = pub.best_other(fr)
     pub.NAMES['best other ddG'] = pub.BEST_LABEL[best]
-    sp = fr.spine
-    ids = sp['id'].to_numpy(dtype=object)
-    S, M = [], []
-    for sd in (1, 2, 3):
-        d = pd.read_csv(UNF / f'seed{sd}' / 'tsuboyama_test.csv', usecols=['uid', 'SPURS_single_additive', 'SPURS_multi'], low_memory=False)
-        S.append(_align_id(ids, d['uid'].astype(str).to_numpy(), d['SPURS_single_additive'].to_numpy()))
-        M.append(_align_id(ids, d['uid'].astype(str).to_numpy(), d['SPURS_multi'].to_numpy()))
-    fr.preds['spursun'], fr.preds['spursunm'] = np.vstack(S), np.vstack(M)
-    p0_three_seeds(fr)
-    use = sp['use'].to_numpy()
-    print(f'unfrozen SPURS: {np.isfinite(fr.preds["spursun"][:, use]).mean():.4f} of the scored rows covered (frozen: {np.isfinite(fr.preds["spurs"][:, use]).mean():.4f})')
-    # ESM-MSR is the p0 model only, drawn in black: the combined head on all variants (a), WT_A+B -> comb_AB on doubles (b); the other ESM-MSR versions stay in the tables
-    keep = {'ESM-MSR (p0) combined': 'ESM-MSR\nWT-view (& Dual-view)', 'ESM-MSR (p0)': 'ESM-MSR'}
-    pick = lambda cols: [dict(c, color='#000000', label=keep[c['name']] if c['name'] == 'ESM-MSR (p0) combined' else c['label'].replace('(p0)\n', '')) if c['name'] in keep else c
-                         for c in cols if not c['name'].startswith('ESM-MSR') or c['name'] in keep]
-    def relabel(cols, lab, top=False):
-        out = []
-        for c in pick(cols):
-            if c['name'] == 'SPURS':
-                c = dict(c, single='spursun', double='spursunm')                                  # the unfrozen retrain, not the frozen-adapter one
-            if top and c['name'] == 'ESM3-small-open':
-                c = dict(c, single='msrrel@0:wt')                                                 # sigma 0, unmasked: WT head on singles, combined head on doubles
-            if c['name'] == 'ESM-MSR (p0) combined':
-                c = dict(c, single='msrp0:wt', double='msrp0:comb')                               # WT head on singles, combined head on multi-mutants (deployed readout)
-            out.append(dict(c, label=lab.get(c['name'], c['name'])))
-        return out
-    cols2 = relabel(pub.main_columns(fr, best, 'unmasked'), LAB_A, top=True)
-    cols3 = relabel(pub.pair_columns(fr, best), LAB_B)
+    # the columns of figures 2 and 3 of 11_publication_figures (``msr_analysis.models``: ESM-MSR scored by its WT-view on singles and its Dual-view on multi-mutants, the same colours and order as every figure)
+    cols2 = pub.main_columns(fr, best, 'unmasked')
+    cols3 = pub.pair_columns(fr, best)
     t2 = pd.read_csv(pub.OUT_TSU / 'fig2_spearman_stab_destab.csv')
     t3 = pd.read_csv(pub.OUT_EPI / 'fig3_spearman_doubles_additive_vs_epistatic.csv')
-    # the stored tables hold the frozen-adapter SPURS: redraw its rows from the unfrozen retrain with the same bootstrap draws as 11_publication_figures
-    n_mut, y = sp['n_mut'].to_numpy(), sp['y'].to_numpy()
-    single, double = use & (n_mut == 1), use & (n_mut == 2)
-    libs = sorted(np.unique(sp['group'].to_numpy()[use]))
-    counts = np.random.default_rng(5).multinomial(len(libs), np.full(len(libs), 1.0 / len(libs)), size=pub.B).astype(float)
-    sc2 = [c for c in cols2 if c['name'] in ('SPURS', 'ESM-MSR (p0) combined', 'ESM3-small-open')]
-    sc3 = [c for c in cols3 if c['name'] in ('SPURS', 'ESM-MSR (p0)')]
-    new2 = pd.concat([pub.table_grouped(fr, sc2, {'stabilizing': (use & (y > 0), 'all'), 'destabilizing': (use & (y < 0), 'all')}, pub.rho, pub.MIN_N, counts, libs),
-                      pub.table_grouped(fr, sc2, {'overall': (use, 'all')}, pub.rho, 3, counts, libs)])
-    new3 = pub.table_grouped(fr, sc3, {'additive': (double, 'singles'), 'epistatic': (double, 'doubles')}, pub.rho, pub.MIN_N, counts, libs)
-    t2 = pd.concat([t2[~t2.column.isin([c['name'] for c in sc2])], new2])
-    t3 = pd.concat([t3[~t3.column.isin([c['name'] for c in sc3])], new3])
     T2, ov2 = t2[t2.subset != 'overall'], t2[t2.subset == 'overall']
 
     fig, (a, b) = plt.subplots(2, 1, figsize=(SIDE, SIDE))

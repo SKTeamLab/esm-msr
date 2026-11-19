@@ -17,33 +17,15 @@ from scipy.stats import spearmanr
 
 from .boot import bootstrap_rho, ci
 from .data import Frame, load_frame
+from . import models as R
 from .registry import CACHE, DMS3, EXT12, MODELS
 
-EXT_ORDER = [
-    'ESM-MSR',
-    'MutateEverything',
-    'ThermoMPNN',
-    'SPURS',
-    'ESM3-small-open',
-    'ProteinMPNN',
-    'ProSST',
-    'GeoDDG-3D',
-    'Rosetta',
-]
+EXT_ORDER = list(R.UNIFIED)             # the roster of the main figures, in the canonical order (``msr_analysis.models``): zero-shot, transfer models, supervised
+EXT_MODELS = {m.name: dict(label=m.label, color=m.color, marker=m.marker, fill=True, group='msr' if m.name == 'ESM-MSR' else {'zeroshot': 'zeroshot', 'transfer': 'retrain'}.get(m.group, 'public'), model=m.name, ls=m.ls)
+              for m in R.ROSTER}
 
-EXT_MODELS = {
-    'ESM-MSR':          dict(label='ESM-MSR',                  color='#000000', marker='D', fill=True, group='msr'),
-    'MutateEverything': dict(label='MutateEverything',         color='#1b8a4b', marker='h', fill=True, group='retrain'),
-    'ThermoMPNN':       dict(label='ThermoMPNN',               color='#1f5f8b', marker='p', fill=True, group='retrain'),
-    'SPURS':            dict(label='SPURS',                    color='#d35400', marker='s', fill=True, group='retrain'),
-    'ESM3-small-open':  dict(label='ESM3-small-open (σ = 0)',  color='#7f8c8d', marker='^', fill=True, group='zeroshot'),
-    'ProteinMPNN':      dict(label='ProteinMPNN',              color='#34495e', marker='d', fill=True, group='zeroshot'),
-    'ProSST':           dict(label='ProSST',                   color='#8e44ad', marker='X', fill=True, group='zeroshot'),
-    'GeoDDG-3D':        dict(label='GeoDDG-3D',                color='#117a65', marker='v', fill=True, group='public'),
-    'Rosetta':          dict(label='Rosetta',                  color='#8c564b', marker='P', fill=True, group='public'),
-}
 
-_CACHE_VERSION = 5                      # 3: the Domainome frame is held-out (msr_analysis.heldout); 4: all three seeds (was seed 1); 5: B = 1000 (was 100)
+_CACHE_VERSION = 6                      # 3: the Domainome frame is held-out (msr_analysis.heldout); 4: all three seeds (was seed 1); 5: B = 1000 (was 100); 6: ESM3ΔG in the roster
 
 
 def register_ext_styles():
@@ -57,26 +39,20 @@ def model_key_for_dataset(model_name, fr):
     sp = fr.spine[fr.spine['use']]
     is_multi = bool((sp['n_mut'] > 1).any())
     has_higher = bool((sp['n_mut'] > 2).any())
-    mapping = {
-        'ESM-MSR':         'msrp0:comb' if is_multi else 'msrp0:wt',
-        'MutateEverything': 'me2' if is_multi else 'me1',
-        'ThermoMPNN':      ('tmpnn' if has_higher else 'tmpnnd') if is_multi else 'tmpnn',
-        'SPURS':           'spursm' if is_multi else 'spurs',
-        'ESM3-small-open': 'msrrel@0:comb' if is_multi else 'msrrel@0:wt',
-        'ProteinMPNN':     'pmpnn',
-        'ProSST':          'prosst',
-        'GeoDDG-3D':       'geoddg',
-        'Rosetta':         'rosetta',
-    }
-    key = mapping[model_name]
+    m = R.BY_NAME[model_name]
+    if model_name == 'ThermoMPNN':
+        key = ('tmpnn' if has_higher else 'tmpnnd') if is_multi else 'tmpnn'        # ThermoMPNN-D scores doubles only: additive ThermoMPNN where a set has 3+ mutants
+    else:
+        key = m.multi if is_multi else m.single                                       # the doubles version on multi-mutants, the singles version on singles
     return key if key in fr.preds else None
 
 
-def seed_frame(ds, fr):
-    """Return (Frame with the arrays of every seed, keyed by unified model names, {model_name: raw_key}).  A model with one run (zero-shot models, the public checkpoints) has one row."""
+def seed_frame(ds, fr, models=None):
+    """Return (Frame with the arrays of every seed, keyed by roster model names, {model_name: raw_key}).  A model with one run (zero-shot models, the public checkpoints) has one row.
+    ``models``: the roster names to include (default: the unified roster of the main figures, ``EXT_ORDER``)."""
     preds = {}
     used = {}
-    for m in EXT_ORDER:
+    for m in (EXT_ORDER if models is None else models):
         k = model_key_for_dataset(m, fr)
         if k is not None:
             preds[m] = fr.preds[k]

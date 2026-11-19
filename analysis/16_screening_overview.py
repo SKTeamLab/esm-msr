@@ -40,7 +40,7 @@ IN08 = out_dir('08_screening')
 PGR = HERE / 'pg_activity' / 'results'
 OUT = out_dir('16_screening_overview')
 TSU, DOM = 'tsuboyama_capped_test', 'domainome'
-BAND = ('msr', 'msrp0')                                # ESM-MSR: the only model whose CI band is drawn
+BAND = ('msr',)                                         # ESM-MSR: the only model whose CI band is drawn
 VERSIONS = {'single': '_singles', 'multi': '_composite'}    # version -> suffix of the tables of 08_screening
 MODEL_SETS = {'': True, '_all_models': False}          # suffix -> drawn with markers (four families) or not (all models)
 TITLE_FS, NOTE_FS = 9.6, 7.2
@@ -69,7 +69,7 @@ def draw(ax, d, fams, flab, markers, metric, ref, orc, ylabel):
         if x.empty:
             continue
         if markers:
-            k_ = scr.FAM_STYLE[f] if f != 'msr' else 'msr'
+            k_ = scr.FAM_STYLE[f]
             col, mk = style.style_of(k_)['color'], style.style_of(k_)['marker']
             ax.plot(x.K, x.value, color=col, lw=2.2 if f in BAND else 1.3, marker=mk, ms=4.5, label=flab[f], zorder=4 if f in BAND else 3)
             alpha = .18
@@ -79,7 +79,7 @@ def draw(ax, d, fams, flab, markers, metric, ref, orc, ylabel):
             alpha = .15
         if f in BAND:
             ax.fill_between(x.K, x.lo, x.hi, color=col, alpha=alpha, lw=0, zorder=1)
-    ref_fam = 'msrp0' if 'msrp0' in d.family.values else 'msr'
+    ref_fam = 'msr'
     rr = d[(d.family == ref_fam) & (d.metric == ref)].sort_values('K')
     ax.plot(rr.K, rr.value, color='#c0392b', ls=(0, (3, 2)), lw=1.4, zorder=3)
     if orc:
@@ -96,7 +96,7 @@ def legend(fig, d, fams, flab, markers, oracle=True):
     for f in fams:
         if f in d.family.values:
             if markers:
-                k_ = scr.FAM_STYLE[f] if f != 'msr' else 'msr'
+                k_ = scr.FAM_STYLE[f]
                 handles.append(Line2D([0], [0], color=style.style_of(k_)['color'], marker=style.style_of(k_)['marker'], lw=2.0, ms=5, label=flab[f]))
             else:
                 col, ls, lw, _ = scr.FAM_COLOR_ALL[f]
@@ -172,7 +172,7 @@ def fig_gain(D, version, fams, markers, stem):
 def main():
     for version, mtag in VERSIONS.items():
         for vtag, markers in MODEL_SETS.items():
-            fams = scr.FAM if markers else [f for f in scr.FAM_ALL if f != 'geoddg']       # GeoDDG-3D is left out of the all-models version (close to Rosetta)
+            fams = scr.FAM if markers else list(scr.FAM_ALL)        # every model of the roster, in its order
             D = pd.read_csv(IN08 / f'screening_per_protein{mtag}{vtag}.csv')
             acts = []
             for nm in ('all', 'enzymes'):

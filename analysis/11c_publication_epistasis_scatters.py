@@ -34,7 +34,7 @@ OUT = out_dir('06_epistasis')
 DS = TSU[1]
 Y_LABEL = 'measured δΔΔG = dddG (kcal/mol)'
 TITLE = 'Homology-Restricted MegaScale test doubles with both singles measured'
-# mega_splits (MSR_TSU_SPLIT=mega): ESM-MSR = FINAL_p0_mega (msrp0); the side-by-side panel compares it with the retrained baselines
+# ESM-MSR = FINAL_p0 (msrp0; FINAL_p0_mega on mega_splits), the only version of it that is drawn; the side-by-side panel compares it with the retrained baselines
 MEGA = TSU_SPLIT == 'mega'
 if MEGA:
     TITLE = 'MegaScale mega_splits test doubles with both singles measured'
@@ -46,13 +46,8 @@ def main():
     m = epi_rows(fr)
     y = sp['dddG_ML'].to_numpy()
     dG_add = sp['dG_wt'].to_numpy(float) + sp['ddG_additive_ML'].to_numpy(float)          # dG_wt is the domain's wild-type stability
-    if MEGA:
-        pred_dev = fr.preds['msrp0:epi']          # the fig6b / fig6c ESM-MSR panels
-        pred_base = pred_p0 = None
-    else:
-        pred_base = fr.preds['msr:epi']
-        pred_dev = fr.preds['msrdev:epi']
-        pred_p0 = fr.preds['msrp0:epi']
+    pred_dev = fr.preds['msrp0:epi']              # the fig6b / fig6c ESM-MSR panels
+    pred_base = pred_p0 = None
     rows = []
     SCATTER_FONT = dict(
         label_fontsize=13.5,
@@ -65,11 +60,7 @@ def main():
     )
     jobs = [('fig6a_dG_additive_vs_dddG', dG_add, 'ΔG additive = ΔG_wt + ΔΔG_A + ΔΔG_B (kcal/mol)', dict(ref='neg', ref_label='y = −x: dG_AB = 0,\nwhere the unfolded doubles pile up')),
             ('fig6b_esm_msr_dddG_pred_vs_true', pred_dev, 'ESM-MSR predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True)),
-            ('fig6c_esm_msr_dddG_pred_vs_true_dG_additive_lt0', pred_dev, 'ESM-MSR predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True, highlight=dG_add < 0, highlight_label='ΔG additive < 0')),
-            ('fig6b_esm_msr_baseline_dddG_pred_vs_true', pred_base, 'ESM-MSR (baseline) predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True)),
-            ('fig6c_esm_msr_baseline_dddG_pred_vs_true_dG_additive_lt0', pred_base, 'ESM-MSR (baseline) predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True, highlight=dG_add < 0, highlight_label='ΔG additive < 0')),
-            ('fig6b_esm_msr_p0_dddG_pred_vs_true', pred_p0, 'ESM-MSR (p0) predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True)),
-            ('fig6c_esm_msr_p0_dddG_pred_vs_true_dG_additive_lt0', pred_p0, 'ESM-MSR (p0) predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True, highlight=dG_add < 0, highlight_label='ΔG additive < 0'))]
+            ('fig6c_esm_msr_dddG_pred_vs_true_dG_additive_lt0', pred_dev, 'ESM-MSR predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True, highlight=dG_add < 0, highlight_label='ΔG additive < 0'))]
     for name, x, xl, kw in jobs:
         if x is None:
             continue
@@ -103,13 +94,9 @@ def main():
         style.save(fig, OUT / name)
         rows.append(dict(figure=name, n=int(ok.sum()), n_seeds=n_seeds, spearman=rho_v, pearson=r_v, spearman_stacked=rho_pool, pearson_stacked=r_pool,
                          share_dG_additive_lt0=float(np.mean(dG_add[ok] < 0)), rmse_to_xy=rmse_v))
-    if MEGA:
-        compare_models_scatters(m, y, dG_add, [('ESM-MSR', pred_dev), ('ME stage 2', fr.preds['me2:epi']), ('ThermoMPNN-D', fr.preds['tmpnnd:epi']),
-                                               ('SPURS multi', fr.preds['spursm:epi'])], SCATTER_FONT, suffix='',
-                                formula='ESM-MSR 1/2(MT_AB+WT_AB) − WT_A − WT_B; baselines: direct double − the same seed\'s singles')
-    else:
-        compare_models_scatters(m, y, dG_add, [('ESM-MSR (baseline)', pred_base), ('ESM-MSR', pred_dev), ('ESM-MSR (p0)', pred_p0)], SCATTER_FONT,
-                                suffix='', formula='1/2(MT_AB+WT_AB) − WT_A − WT_B (no linking)')
+    compare_models_scatters(m, y, dG_add, [('ESM-MSR', pred_dev), ('MutateEverything Stage 2', fr.preds['me2:epi']), ('ThermoMPNN-D', fr.preds['tmpnnd:epi']),
+                                           ('SPURS-multi', fr.preds['spursm:epi'])], SCATTER_FONT, suffix='',
+                            formula='ESM-MSR 1/2(MT_AB+WT_AB) − WT_A − WT_B; baselines: direct double − the same seed\'s singles')
     T = pd.DataFrame(rows)
     T.to_csv(OUT / 'fig6_epistasis_scatters.csv', index=False, float_format='%.4f')
     print(T.to_string())
@@ -118,7 +105,7 @@ def main():
 
 
 def compare_models_scatters(m, y, dG_add, model_preds, scatter_font, suffix='', formula='1/2(MT_AB+WT_AB) − WT_A − WT_B (no linking)'):
-    """Side-by-side 1x3 density scatters comparing ESM-MSR (baseline), ESM-MSR, and ESM-MSR (p0) predicted dddG vs measured dddG across all triplicate seeds without ensemble averaging."""
+    """Side-by-side 1x3 density scatters comparing the predicted dddG of ESM-MSR and the retrained baselines against the measured dddG across all triplicate seeds without ensemble averaging."""
     from matplotlib.colors import Normalize
     from scipy.stats import gaussian_kde
     ok = m & np.isfinite(y)

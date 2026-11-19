@@ -28,6 +28,8 @@ from msr_analysis.common import out_dir, primary_key  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
 from msr_analysis.registry import EXT12, LABEL, MODELS  # noqa: E402
 
+MODELS['msr'] = dict(MODELS['msrp0:comb'], label='ESM-MSR', fill=True)          # 'msr' = ESM-MSR scored by the version the set calls for (``common.primary_key``), in the roster's colour
+
 OUT = out_dir('07_rmse')
 FAMILIES = ['msr', 'me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm']
 # S571's labels are not on a kcal/mol scale (sd 8.9, 5th percentile -20): every model's RMSE there is label-scale noise, so it is left out
@@ -166,7 +168,7 @@ def run(a):
     x = np.arange(len(SETS))
     err = lambda sd, ci: [[max(v - c[0], 0) for v, c in zip(sd, ci)], [max(c[1] - v, 0) for v, c in zip(sd, ci)]]
     axB.bar(x - .2, sd_y, .4, color='#999999', label='measured ddG', yerr=err(sd_y, ci_y), error_kw=dict(ecolor='#c0392b', elinewidth=1.1, capsize=2))
-    axB.bar(x + .2, sd_pred, .4, color=MODELS['msr:wt']['color'], label='ESM-MSR (raw)', yerr=err(sd_pred, ci_pred), error_kw=dict(ecolor='#c0392b', elinewidth=1.1, capsize=2))
+    axB.bar(x + .2, sd_pred, .4, color=MODELS['msrp0:wt']['color'], label='ESM-MSR (raw)', yerr=err(sd_pred, ci_pred), error_kw=dict(ecolor='#c0392b', elinewidth=1.1, capsize=2))
     axB.set_xticks(x); axB.set_xticklabels([LABEL[d] for d in SETS], rotation=40, ha='right')
     axB.set_ylabel('standard deviation (kcal/mol)\n(whiskers: 95% bootstrap over proteins)'); axB.legend(); axB.set_title('B  Spread of raw vs measured ddG')
     axC = fig.add_subplot(gs[0, 2])
@@ -183,7 +185,7 @@ def run(a):
     models = [f for f in FAMILIES if f in set(R.model)]
     table = {(r.dataset, r.model): r.rmse for r in R.itertuples()}
     cis = {(r.dataset, r.model): (r.lo, r.hi) for r in R.itertuples()}
-    reg = {f: ('msr:wt' if f == 'msr' else f) for f in models}
+    reg = {f: ('msrp0:wt' if f == 'msr' else f) for f in models}
     style.dot_panel(axD, SETS, models, table, cis, highlight=['msr'], ylabel='RMSE (kcal/mol), recalibrated',
                     xlabels=[LABEL[d] + ('*' if d in STAR else '') for d in SETS], ylim=(0.6, None))
     # raw ESM-MSR faded

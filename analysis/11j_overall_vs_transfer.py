@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""ESM-MSR p0 against each other transfer method on ranking all Tsuboyama capped-test variants: two tables.
+"""ESM-MSR against each other transfer method on ranking all Tsuboyama capped-test variants: two tables.
 
-Every model is read as deployed: its singles version on the singles and its version trained with doubles on the doubles (ESM-MSR p0 WT head / combined head, FINAL_p0 s1-s3; MutateEverything st1 / st2; ThermoMPNN /
-ThermoMPNN-D; SPURS single / multi, the retrain with the trained adapter).  delta = rho(ESM-MSR) - rho(other); p one-sided = P(delta <= 0) (the claim "ESM-MSR ranks better"), p two-sided =
+Every model is read as deployed: its singles version on the singles and its version trained with doubles on the doubles (ESM-MSR WT-view / Dual-view, FINAL_p0 s1-s3; MutateEverything Stage 1 / Stage 2; ThermoMPNN /
+ThermoMPNN-D; SPURS single / SPURS-multi, the retrain with the trained adapter).  delta = rho(ESM-MSR) - rho(other); p one-sided = P(delta <= 0) (the claim "ESM-MSR ranks better"), p two-sided =
 max(2 min(P(delta <= 0), P(delta >= 0)), 1 / (B + 1)); Holm over the three comparisons.
 
 ``domain mean``   the mean over the 33 test domains of the per-domain Spearman rho (the 'overall' dash of figure 2), seeds averaged; paired bootstrap that resamples **domains** (``--B-dom`` draws).
@@ -25,9 +25,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import rankdata
 
+from msr_analysis import models as M
 from msr_analysis.common import out_dir
-from msr_analysis.data import _align_id
-from msr_analysis.final_runs import load_final_frame
 from msr_analysis.tobit import linked
 
 HERE = Path(__file__).resolve().parent
@@ -37,7 +36,7 @@ spec.loader.exec_module(m11i)
 pub, holm, fmt_p = m11i.pub, m11i.holm, m11i.fmt_p
 
 OUT = out_dir('03_tsuboyama')
-OTHERS = [('MutateEverything', 'me1', 'me2'), ('ThermoMPNN(-D)', 'tmpnn', 'tmpnnd'), ('SPURS(-multi)', 'spursun', 'spursunm')]
+OTHERS = [(M.BY_NAME[n].label_all.replace('\n', ' '), M.BY_NAME[n].single, M.BY_NAME[n].multi) for n in ('MutateEverything', 'ThermoMPNN', 'SPURS')]      # the roster's transfer models, each scored by the version that fits the variant
 
 
 def p_tails(r):
@@ -50,17 +49,9 @@ def p_tails(r):
 def load():
     fr, _ = pub.load()
     sp = fr.spine
-    ids = sp['id'].to_numpy(dtype=object)
-    p0 = load_final_frame(pub.DS, families=['FINAL_p0'])
-    S, M = [], []
-    for sd in (1, 2, 3):
-        d = pd.read_csv(m11i.UNF / f'seed{sd}' / 'tsuboyama_test.csv', usecols=['uid', 'SPURS_single_additive', 'SPURS_multi'], low_memory=False)
-        S.append(_align_id(ids, d['uid'].astype(str).to_numpy(), d['SPURS_single_additive'].to_numpy()))
-        M.append(_align_id(ids, d['uid'].astype(str).to_numpy(), d['SPURS_multi'].to_numpy()))
-    fr.preds['spursun'], fr.preds['spursunm'] = np.vstack(S), np.vstack(M)
     n1 = (sp['n_mut'] == 1).to_numpy()[None, :]
-    dep = {'ESM-MSR p0 (Tobit-linked)': None, 'ESM-MSR p0 (raw)': np.where(n1, p0.preds['FINAL_p0:wt'], p0.preds['FINAL_p0:comb'])}
-    dep['ESM-MSR p0 (Tobit-linked)'] = linked(dep['ESM-MSR p0 (raw)'], sp['dG_wt'].to_numpy(float))
+    dep = {'ESM-MSR (Tobit-linked)': None, 'ESM-MSR (raw)': np.where(n1, fr.preds['msrp0:wt'], fr.preds['msrp0:comb'])}          # WT-view on singles, Dual-view on doubles, FINAL_p0 seeds 1-3
+    dep['ESM-MSR (Tobit-linked)'] = linked(dep['ESM-MSR (raw)'], sp['dG_wt'].to_numpy(float))
     for name, a, b in OTHERS:
         dep[name] = np.where(n1, fr.preds[a], fr.preds[b])
     return fr, dep
@@ -76,11 +67,11 @@ def domain_mean(fr, dep, B):
     V = {k: pub.per_library(fr, 'dep:' + k, use, pub.rho, 3) for k in dep}
     rows = []
     for name, _, _ in OTHERS:
-        both = V['ESM-MSR p0 (raw)'].index.intersection(V[name].index)
-        d = pub._diff_df(V['ESM-MSR p0 (raw)'], V[name], both)                       # the per-domain rho cannot change with the link: raw = linked
+        both = V['ESM-MSR (raw)'].index.intersection(V[name].index)
+        d = pub._diff_df(V['ESM-MSR (raw)'], V[name], both)                       # the per-domain rho cannot change with the link: raw = linked
         one, two, lo, hi = p_tails(pub.boot_reps(d, libs, counts))
         dom = d.mean(axis=1)
-        rows.append(dict(model=name, n_domains=len(both), rho_msr=V['ESM-MSR p0 (raw)'].loc[both].mean(axis=1).mean(), rho_other=V[name].loc[both].mean(axis=1).mean(), delta=float(dom.mean()),
+        rows.append(dict(model=name, n_domains=len(both), rho_msr=V['ESM-MSR (raw)'].loc[both].mean(axis=1).mean(), rho_other=V[name].loc[both].mean(axis=1).mean(), delta=float(dom.mean()),
                          lo=lo, hi=hi, domains_msr_better=int((dom > 0).sum()), p_one=one, p=two, B=B))
     res = pd.DataFrame(rows)
     res['p_one_holm'], res['p_holm'] = holm(res.p_one), holm(res.p)
@@ -114,7 +105,7 @@ def pooled(fr, dep, B):
         di = rng.integers(0, len(libs), len(libs))                                           # domain level: whole domains resampled
         reps['domain'].append(rho_of(np.concatenate([by[i] for i in di])))
     rows = []
-    for a in ('ESM-MSR p0 (Tobit-linked)', 'ESM-MSR p0 (raw)'):
+    for a in ('ESM-MSR (Tobit-linked)', 'ESM-MSR (raw)'):
         for name, _, _ in OTHERS:
             row = dict(esm=a, model=name, rho_msr=pt[a], rho_other=pt[name], delta=pt[a] - pt[name], B=B)
             for unit in ('mutation', 'domain'):
@@ -172,18 +163,18 @@ def main():
         print(pl.round(5).to_string(index=False))
 
     fl = lambda p, B: fmt_p(p, 1 / (B + 1))
-    head1 = ['ESM-MSR p0 against', 'ρ\nESM-MSR', 'ρ\nother', 'Δρ [95% CI]', 'Domains where\nESM-MSR is higher', 'p\none-sided', 'p one-sided\n(Holm)', 'p\ntwo-sided', 'p two-sided\n(Holm)']
+    head1 = ['ESM-MSR against', 'ρ\nESM-MSR', 'ρ\nother', 'Δρ [95% CI]', 'Domains where\nESM-MSR is higher', 'p\none-sided', 'p one-sided\n(Holm)', 'p\ntwo-sided', 'p two-sided\n(Holm)']
     rows1 = [[r.model, f'{r.rho_msr:.3f}', f'{r.rho_other:.3f}', f'{r.delta:+.3f}  [{r.lo:+.3f}, {r.hi:+.3f}]', f'{r.domains_msr_better} / {r.n_domains}', fl(r.p_one, r.B), fl(r.p_one_holm, r.B), fl(r.p, r.B), fl(r.p_holm, r.B)] for r in d.itertuples()]
     note1 = (f'Tsuboyama capped test set, all variants (singles and doubles), each model read as deployed (singles version on singles, doubles-trained version on doubles). ρ: mean over test domains of the per-domain Spearman ρ, seeds averaged;\n'
-             f'Δρ = ESM-MSR p0 − other. Paired bootstrap over domains ({int(d.B.iloc[0]):,} draws shared by all models). One-sided p = P(Δρ ≤ 0); two-sided p = twice the smaller tail. Holm over the three comparisons.')
+             f'Δρ = ESM-MSR − other. Paired bootstrap over domains ({int(d.B.iloc[0]):,} draws shared by all models). One-sided p = P(Δρ ≤ 0); two-sided p = twice the smaller tail. Holm over the three comparisons.')
     render(rows1, head1, [2.2, 0.9, 0.9, 2.6, 1.7, 1.0, 1.3, 1.0, 1.3], 'overall_vs_transfer_domain_mean', note1)
     md(rows1, head1, note1, 'overall_vs_transfer_domain_mean')
 
-    L = pl[pl.esm == 'ESM-MSR p0 (Tobit-linked)']
-    head2 = ['ESM-MSR p0\n(Tobit-linked) against', 'ρ\nESM-MSR', 'ρ\nother', 'Δρ [95% CI]\nmutation resampling', 'p one-sided\n(Holm)', 'p two-sided\n(Holm)', 'Δρ [95% CI]\ndomain resampling', 'p one-sided\n(Holm)', 'p two-sided\n(Holm)']
+    L = pl[pl.esm == 'ESM-MSR (Tobit-linked)']
+    head2 = ['ESM-MSR\n(Tobit-linked) against', 'ρ\nESM-MSR', 'ρ\nother', 'Δρ [95% CI]\nmutation resampling', 'p one-sided\n(Holm)', 'p two-sided\n(Holm)', 'Δρ [95% CI]\ndomain resampling', 'p one-sided\n(Holm)', 'p two-sided\n(Holm)']
     rows2 = [[r.model, f'{r.rho_msr:.3f}', f'{r.rho_other:.3f}', f'{r.delta:+.3f}  [{r.lo_mutation:+.3f}, {r.hi_mutation:+.3f}]', fl(r.p_one_holm_mutation, r.B), fl(r.p_holm_mutation, r.B),
               f'{r.delta:+.3f}  [{r.lo_domain:+.3f}, {r.hi_domain:+.3f}]', fl(r.p_one_holm_domain, r.B), fl(r.p_holm_domain, r.B)] for r in L.itertuples()]
-    note2 = (f'Tsuboyama capped test set, all variants, each model read as deployed. ρ: one Spearman ρ over all test variants, seeds averaged; ESM-MSR p0 with the post hoc Tobit link h(dG_wt + latent) − dG_wt, the other models raw. '
+    note2 = (f'Tsuboyama capped test set, all variants, each model read as deployed. ρ: one Spearman ρ over all test variants, seeds averaged; ESM-MSR with the post hoc Tobit link h(dG_wt + latent) − dG_wt, the other models raw. '
              f'Δρ = ESM-MSR − other.\nBootstrap of {int(L.B.iloc[0]):,} draws shared by the models: mutation resampling resamples the rows inside every domain (domain composition fixed); domain resampling resamples whole domains. '
              'One-sided p = P(Δρ ≤ 0); Holm over the three comparisons.')
     render(rows2, head2, [2.4, 0.9, 0.9, 2.5, 1.2, 1.2, 2.5, 1.2, 1.2], 'overall_vs_transfer_pooled', note2)

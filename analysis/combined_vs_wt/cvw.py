@@ -22,9 +22,9 @@ OUT = HERE / 'results'
 OUT.mkdir(exist_ok=True)
 
 FAMS = ['FINAL_p0', 'FINAL_p1', 'FINAL_p0_pw0']
-FAM_LABEL = {'FINAL_p0': 'ESM-MSR (p0, unmasked)', 'FINAL_p1': 'p1 (masked)', 'FINAL_p0_pw0': 'pw0 (no pair loss)'}
-FAM_SHORT = {'FINAL_p0': 'p0', 'FINAL_p1': 'p1', 'FINAL_p0_pw0': 'pw0'}
-FAM_COLOR = {'FINAL_p0': '#111111', 'FINAL_p1': '#c0392b', 'FINAL_p0_pw0': '#2f7fc1'}
+FAM_LABEL = {'FINAL_p0': 'ESM-MSR (unmasked)', 'FINAL_p1': 'independent masking', 'FINAL_p0_pw0': 'no pair loss'}
+FAM_SHORT = {'FINAL_p0': 'ESM-MSR', 'FINAL_p1': 'masked', 'FINAL_p0_pw0': 'no pair loss'}
+FAM_COLOR = {'FINAL_p0': '#000000', 'FINAL_p1': '#c0392b', 'FINAL_p0_pw0': '#2f7fc1'}
 FAM_MARKER = {'FINAL_p0': 'o', 'FINAL_p1': 'D', 'FINAL_p0_pw0': 's'}
 HEADS = ['wt', 'mt', 'comb']
 
@@ -41,7 +41,7 @@ LABEL = {'s571': 'S571', 's783': 'S783', 's2648': 'S2648', 's8754': 'S8754', 's6
 # ProteinGym categories (colours of the p0_sigma figures)
 CATS = ['Stability', 'Expression', 'Activity', 'Binding', 'OrganismalFitness']
 CAT_LABEL = {'Stability': 'Stability', 'Expression': 'Expression / abundance', 'Activity': 'Activity', 'Binding': 'Binding', 'OrganismalFitness': 'Organismal fitness'}
-CAT_COLOR = {'Stability': '#6250d6', 'Expression': '#2a78d6', 'Activity': '#eb6834', 'Binding': '#1baf7a', 'OrganismalFitness': '#e87ba4'}
+from msr_analysis.models import CATEGORY_COLOR as CAT_COLOR  # noqa: E402   one colour per ProteinGym category in every figure
 
 SURFACE, INK, INK2, MUTED, GRID = '#fcfcfb', '#0b0b0b', '#52514e', '#8a8982', '#e4e3de'
 RC = {'figure.facecolor': SURFACE, 'axes.facecolor': SURFACE, 'savefig.facecolor': SURFACE, 'axes.edgecolor': GRID, 'axes.labelcolor': INK2, 'xtick.color': INK2, 'ytick.color': INK2,

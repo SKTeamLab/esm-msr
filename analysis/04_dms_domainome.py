@@ -4,12 +4,9 @@
 Evaluates the unified model roster across the 7 external DMS datasets, their mean, and Domainome
 using the seed mean of the retrained models (seeds resampled with the draws) and 95% mutation-level bootstrap intervals (within-domain mutation resampling
 for Domainome):
-- Singles-only assays (Domainome): singles models (ESM-MSR p0 WT head, MutateEverything st1,
-  ThermoMPNN, SPURS, ESM3-small-open WT head) plus ProteinMPNN, ProSST, GeoDDG-3D.
-- Multi-mutant assays (DLG4 binding, GRB2 binding, MYO): multi models (ESM-MSR p0 combined,
-  MutateEverything st2, ThermoMPNN-D on the 2-mutant sets,
-  SPURS multi, ESM3-small-open combined) plus ProteinMPNN, ProSST, GeoDDG-3D.
-- Excludes sigma in {0.75, 0.5, 0.25} sweep points (not computed for p0).
+- Singles-only assays (Domainome): the singles version of every model (ESM-MSR WT-view, MutateEverything Stage 1, ThermoMPNN, SPURS, ESM3-small-open WT-view) plus the models with one version.
+- Multi-mutant assays (DLG4 binding, GRB2 binding, MYO): the doubles version (ESM-MSR Dual-view, MutateEverything Stage 2, ThermoMPNN-D on the 2-mutant sets, SPURS-multi, ESM3-small-open Dual-view) plus the models with one version.
+- Models in the order of ``msr_analysis.models``; excludes the sigma sweep points.
 """
 import argparse
 import sys
@@ -33,7 +30,7 @@ DS = DMS3 + ['domainome']
 COLS = DMS3 + ['mean of 3 DMS', 'domainome']
 NOTE = (
     'Seeds 1-3 averaged for the retrained models; 95% mutation-level bootstrap (within-domain mutations for Domainome). '
-    'Singles models on Domainome; multi models on DLG4 binding / GRB2 binding / MYO '
+    'Singles version of every model on Domainome (hollow markers for the models that have two); doubles version on DLG4 binding / GRB2 binding / MYO '
     '(ThermoMPNN-D on the 2-mutant sets).'
 )
 
@@ -61,7 +58,7 @@ def build_table(models, P, reps, keys_used):
 
 
 def _draw_top_legend(fig, models, bbox=(0.5, 0.94), ncol=4):
-    hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8)) for m in models]
+    hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8, hollow=False)) for m in models] + style.version_handles()
     return fig.legend(
         handles=hs, loc='upper center', bbox_to_anchor=bbox, ncol=ncol, fontsize=8.0,
         frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.2, handletextpad=0.35,
@@ -74,6 +71,7 @@ def main(refresh=False):
     P, reps, keys_used = boot['point'], boot['reps'], boot['keys']
 
     active_models = [m for m in EXT_ORDER if all((d, m) in P for d in DS)]
+    hollow = style.hollow_cells(keys_used)
 
     # ---- figure 1: unified all-model comparison across DMS3 + mean + Domainome -------------------------
     t_all, c_all, df_all = build_table(active_models, P, reps, keys_used)
@@ -86,19 +84,19 @@ def main(refresh=False):
             ax, COLS, active_models, t_all, c_all,
             highlight=['ESM-MSR'], ylabel='Spearman ρ',
             xlabels=[LABEL.get(x, x) for x in COLS],
-            size=6.2, spread=0.78, ylim=(0.0, 0.90),
+            size=6.2, spread=0.78, ylim=(0.0, 0.90), hollow=hollow,
         )
         _draw_top_legend(fig, active_models, bbox=(0.5, 0.942), ncol=4)
         fig.suptitle(
-            'External DMS & Domainome: Spearman ρ across all models (p0; seeds 1-3 averaged; 95% mutation-level bootstrap)',
+            'External DMS & Domainome: Spearman ρ across all models (seeds 1-3 averaged; 95% mutation-level bootstrap)',
             x=0.012, ha='left', y=0.985, fontsize=10.2, fontweight='bold',
         )
         fig.text(0.012, 0.01, NOTE, fontsize=8.0, va='bottom', ha='left', color='#444444')
         fig.tight_layout(rect=(0.0, 0.045, 1.0, 0.84))
         style.save(fig, OUT / stem)
 
-    # ---- figure 2: ESM-MSR (p0, sigma = 1) vs zero-shot models (no sigma in {0.75, 0.5, 0.25}) ----------
-    zs_models = ['ESM-MSR', 'ESM3-small-open', 'ProteinMPNN', 'ProSST']
+    # ---- figure 2: ESM-MSR (sigma = 1) vs zero-shot models (no sigma in {0.75, 0.5, 0.25}) ----------
+    zs_models = [m for m in EXT_ORDER if m in ('ESM-MSR', 'ESM3-small-open', 'ProteinMPNN', 'ProSST')]
     t_zs, c_zs, df_zs = build_table(zs_models, P, reps, keys_used)
     df_zs.to_csv(OUT / 'dms_sigma_vs_zero_shot.csv', index=False, float_format='%.4f')
 
@@ -107,11 +105,11 @@ def main(refresh=False):
         ax3, COLS, zs_models, t_zs, c_zs,
         highlight=['ESM-MSR'], ylabel='Spearman ρ',
         xlabels=[LABEL.get(x, x) for x in COLS],
-        size=6.4, spread=0.68, ylim=(0.0, 0.90),
+        size=6.4, spread=0.68, ylim=(0.0, 0.90), hollow=hollow,
     )
     _draw_top_legend(fig3, zs_models, bbox=(0.5, 0.942), ncol=4)
     fig3.suptitle(
-        'ESM-MSR (p0, seeds 1-3, σ = 1) vs zero-shot models (σ = 0 and baselines; 95% mutation-level bootstrap)',
+        'ESM-MSR (seeds 1-3, σ = 1) vs zero-shot models (σ = 0 and baselines; 95% mutation-level bootstrap)',
         x=0.012, ha='left', y=0.985, fontsize=10.0, fontweight='bold',
     )
     fig3.tight_layout(rect=(0.0, 0.0, 1.0, 0.88))
@@ -136,7 +134,7 @@ def main(refresh=False):
         ax.set_xlim(-0.25, 1.25)
         ax.grid(axis='y', color=style.GRID, lw=0.6)
     axes4[0].set_ylabel('Spearman ρ')
-    fig4.suptitle('ESM-MSR (p0, seeds 1-3) vs σ = 0 zero-shot control (95% mutation-level bootstrap)', fontsize=10, y=1.02)
+    fig4.suptitle('ESM-MSR (seeds 1-3) vs σ = 0 zero-shot control (95% mutation-level bootstrap)', fontsize=10, y=1.02)
     fig4.tight_layout()
     style.save(fig4, OUT / 'dms_sigma_sweep')
 

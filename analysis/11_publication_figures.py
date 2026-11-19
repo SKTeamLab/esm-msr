@@ -5,12 +5,12 @@ All figures are on the Homology-Restricted MegaScale **test** domains (33 protei
 **domains** (proteins) with replacement, the same draw for every model and subset (the notebooks' bars were the spread over three models/seeds).
 Multi-seed models are seed means of the per-library value.
 
-Columns are grouped in three labelled categories:
-  retrained   ESM-MSR (WT head and combined head, both always shown: the WT head is the cheap one and the focus of the paper) and the baselines retrained on
-              Homology-Restricted MegaScale.  A baseline gets one column, scored by the model that fits the subset: MutateEverything stage 1 for singles and stage 2 for doubles,
-              ThermoMPNN for singles and ThermoMPNN-D for doubles, SPURS for singles and SPURS multi for doubles ("X | Y" on the axis).
-  zero-shot   ESM3-small-open (the sigma = 0 control of the ESM-MSR checkpoint, read unmasked like ESM-MSR: the combined head for every variant; ``--esm3 average`` / ``marginal`` / ``independent`` for the masked scorings, drawn side by side in ``11e_esm3_scoring_variants.py``), ProteinMPNN and ProSST.
-  supervised  published ddG predictors that are not trained on Megascale: Rosetta and the better of GeoDDG-3D / DDGemb (mean per-library singles rho).
+Columns follow the roster of ``msr_analysis.models`` (the same colours and order in every figure) in three labelled categories, zero-shot first:
+  zero-shot   ProSST, ProteinMPNN and ESM3-small-open (the sigma = 0 control of the ESM-MSR checkpoint, read unmasked like ESM-MSR: WT-view on singles, Dual-view on doubles; ``--esm3 average`` / ``marginal`` / ``independent``
+              for the masked scorings, drawn side by side in ``11e_esm3_scoring_variants.py``).
+  retrained   ESM-MSR and the baselines retrained on Homology-Restricted MegaScale.  A model gets one column, scored by the version that fits the subset: ESM-MSR WT-view for singles and Dual-view (the combined head) for doubles,
+              MutateEverything Stage 1 for singles and Stage 2 for doubles, ThermoMPNN for singles and ThermoMPNN-D for doubles, SPURS for singles and SPURS-multi for doubles ("X | Y" on the axis).
+  supervised  published ddG predictors that are not trained on Megascale: GeoDDG-3D (or the better of GeoDDG-3D / DDGemb: mean per-library singles rho), Rosetta and ESM3ΔG.
 
 fig1  NDCG@96 (rectified relevance max(ddG, 0), sklearn ndcg_score as in the notebooks), per library then averaged, singles against doubles.
 fig2  Spearman rho over all variants (singles and doubles; a baseline's singles model on the singles, its doubles model on the doubles), stabilizing (measured ddG > 0) against
@@ -37,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
 
+from msr_analysis import models as M  # noqa: E402
 from msr_analysis import style  # noqa: E402
 from msr_analysis.boot import bootstrap_rho, ci  # noqa: E402
 from msr_analysis.common import epi_rows, out_dir, subframe  # noqa: E402
@@ -62,10 +63,9 @@ MIN_N = 10
 K = 96
 
 SPLIT = 'Homology-Restricted MegaScale'                            # the capped Tsuboyama split, under its paper name (dataset ids keep 'capped')
-CATS = {'retrained': f'Retrained on {SPLIT}', 'zeroshot': 'Zero-shot', 'supervised': 'Supervised, not trained\non Megascale'}
+CATS = {g: M.GROUP_TITLE[g] for g in M.GROUP_ORDER}                 # zeroshot, transfer, supervised (and the Megascale-trained models of the supplement)
 BEST_LABEL = {'geoddg': 'GeoDDG-3D', 'ddgemb': 'DDGemb'}        
-BEST_COLOR = {'geoddg': '#117a65', 'ddgemb': '#b7950b'}
-F_COMPOSITE = 'MutateEverything(1+2), ThermoMPNN(-D), SPURS(-multi): singles are scored by the first model, doubles by the second (stage 1 / stage 2, ThermoMPNN / ThermoMPNN-D, SPURS / SPURS multi).'
+F_COMPOSITE = 'Every variant is scored by the version of its model that fits it: singles by the first, multi-mutants by the second (ESM-MSR WT-view / Dual-view, MutateEverything Stage 1 / Stage 2, ThermoMPNN / ThermoMPNN-D, SPURS / SPURS-multi, ESM3-small-open WT-view / Dual-view).'
 # geometry shared by every bar figure (figures 1-5 sit beside or above each other): one x unit per column, the same bar width and gap, the same overall dash
 BAR_W = 0.30
 PAIR_OVERALL = (-0.27, 0.05)                                       # bar centres when the overall dash sticks out on the right
@@ -102,7 +102,7 @@ def load():
     added = add_esm3_masked(fr, DS)
     # Consistent 1x generalized epistasis (populated by data._load_msr via sum_singles):
     #   :epi = 1/2(MT_AB + WT_AB) - WT_A - WT_B = comb_AB - WT_A - WT_B
-    for _spec in ('msr', 'msrdev', 'msrp0', 'msrrel', 'msrrel@0'):
+    for _spec in ('msrp0', 'msrrel@0'):
         if f'{_spec}:comb' in p and f'{_spec}:wt' in p and f'{_spec}:epi' not in p:
             p[f'{_spec}:wt+'] = sum_singles(sp, p[f'{_spec}:wt'])
             p[f'{_spec}:epi'] = p[f'{_spec}:comb'] - p[f'{_spec}:wt+']
@@ -209,7 +209,8 @@ def col(name, cat, color, label, single, double=SAME, **kw):
 
 
 def esm3_choice(fr, want):
-    """(key, label, alternative) for the ESM3-small-open column; the alternative scoring stays in the tables only (drawn side by side in ``11e_esm3_scoring_variants.py``)."""
+    """(key, label, alternative) for the ESM3-small-open column; the alternative scoring stays in the tables only (drawn side by side in ``11e_esm3_scoring_variants.py``).
+    ``unmasked`` is read like ESM-MSR (WT-view on singles, Dual-view on doubles); the masked scorings are one prediction per variant."""
     p = fr.preds
     names = {'unmasked': ('msrrel@0:comb', 'ESM3-small-open\nunmasked'), 'average': ('esm3avg', 'ESM3-small-open\nindependent masking\n(WT, MT average)'),
              'marginal': ('esm3mm', 'ESM3-small-open\nmasked marginal'), 'independent': ('esm3ind', 'ESM3-small-open\nindependent masking\n(mutant pass)')}
@@ -217,24 +218,36 @@ def esm3_choice(fr, want):
     return names[have[0]][0], names[have[0]][1], (names[have[1]] if len(have) > 1 else None)
 
 
+def roster_columns(fr, which, best, esm3_want='unmasked'):
+    """The columns of a bar figure, in the canonical order of ``msr_analysis.models`` (zero-shot, retrained, supervised), each scored by the version that fits the subset.
+    ``which``: 'all' (singles with the singles version, multi-mutants with the doubles version), 'pair' (additive -> epistatic) or 'epi' (predicted epistasis).  The supervised column that was best on singles
+    (``best``: GeoDDG-3D or DDGemb) is named 'best other ddG'.  A column whose predictions are not in the frame is left out."""
+    p = fr.preds
+    cols = []
+    for name in M.ZEROSHOT + M.TRANSFER + M.SUPERVISED:
+        is_best = name == 'GeoDDG-3D'
+        if is_best and best is None:
+            continue                                                                        # no published supervised ddG predictor on this split (mega_splits)
+        c = M.column(BEST_LABEL[best] if is_best else name, which)
+        if c is None:
+            continue
+        if is_best:
+            c = dict(c, name='best other ddG', cat='supervised', single=(best + '+' if which == 'pair' else c['single']), double=best + (':epi' if which == 'epi' else ''))
+        if name == 'ESM3-small-open' and which == 'all':
+            ek, el, _ = esm3_choice(fr, esm3_want)
+            if ek != 'msrrel@0:comb':                                                    # a masked scoring is one prediction for every variant
+                c = dict(c, label=el, single=ek, double=ek)
+        if name == 'ESM3-small-open' and which == 'epi':
+            c = dict(c, label=c['label'] + '\n(unmasked)')
+        cols.append(c)
+    return [c for c in cols if all(c[k] is None or c[k] in p for k in ('single', 'double'))]
+
+
 def main_columns(fr, best, esm3_want):
-    ek, el, alt = esm3_choice(fr, esm3_want)
-    cols = [col('ESM-MSR (baseline) WT head', 'retrained', '#7f8c8d', 'ESM-MSR\n(baseline)\nWT head', 'msr:wt'),
-            col('ESM-MSR (baseline) combined', 'retrained', '#95a5a6', 'ESM-MSR\n(baseline)\ncombined', 'msr:comb'),
-            col('ESM-MSR WT head', 'retrained', '#000000', 'ESM-MSR\nWT head', 'msrdev:wt'),
-            col('ESM-MSR combined', 'retrained', '#555555', 'ESM-MSR\ncombined', 'msrdev:comb'),
-            col('ESM-MSR (p0) WT head', 'retrained', '#6c3483', 'ESM-MSR\n(p0)\nWT head', 'msrp0:wt'),
-            col('ESM-MSR (p0) combined', 'retrained', '#9b59b6', 'ESM-MSR\n(p0)\ncombined', 'msrp0:comb'),
-            col('MutateEverything', 'retrained', '#1b8a4b', 'MutateEverything\n(1+2)', 'me1', 'me2', label_s='ME\nst1', label_d='ME\nst2'),
-            col('ThermoMPNN', 'retrained', '#1f5f8b', 'ThermoMPNN\n(-D)', 'tmpnn', 'tmpnnd', label_s='ThermoMPNN', label_d='ThermoMPNN-D'),
-            col('SPURS', 'retrained', '#d35400', 'SPURS\n(-multi)', 'spurs', 'spursm', label_s='SPURS', label_d='SPURS multi'),
-            col('ESM3-small-open', 'zeroshot', '#7f8c8d', el, ek),
-            col('ProteinMPNN', 'zeroshot', '#34495e', 'ProteinMPNN', 'pmpnn'),
-            col('ProSST', 'zeroshot', '#8e44ad', 'ProSST', 'prosst'),
-            col('best other ddG', 'supervised', BEST_COLOR[best], BEST_LABEL[best], best),
-            col('Rosetta', 'supervised', '#1abc9c', 'Rosetta', 'rosetta')]
+    cols = roster_columns(fr, 'all', best, esm3_want)
+    _, _, alt = esm3_choice(fr, esm3_want)
     if alt:
-        cols.append(col('ESM3-small-open (alt)', 'zeroshot', '#7f8c8d', alt[1], alt[0], draw=False))
+        cols.append(dict(M.column('ESM3-small-open', 'all'), name='ESM3-small-open (alt)', label=alt[1], single=alt[0], double=alt[0], draw=False))
     n1 = (fr.spine['n_mut'] == 1).to_numpy()
     for c in cols:                         # the model that scores every variant of a library: its singles model on the singles and its doubles model on the doubles
         if c['single'] != c['double']:
@@ -245,38 +258,17 @@ def main_columns(fr, best, esm3_want):
 
 def pair_columns(fr, best):
     """Fig 3: single = the additive version's key (sum of singles), double = the epistatic version's key."""
-    es = col('ESM3-small-open', 'zeroshot', '#7f8c8d', 'ESM3-small-open\nunmasked\nWT_A+B → comb_AB', 'msrrel@0:wt+', 'msrrel@0:comb')
-    cols = [col('ESM-MSR (baseline)', 'retrained', '#7f8c8d', 'ESM-MSR\n(baseline)\nWT_A+B → comb_AB', 'msr:wt+', 'msr:comb'),
-            col('ESM-MSR', 'retrained', '#000000', 'ESM-MSR\nWT_A+B\n→ comb_AB', 'msrdev:wt+', 'msrdev:comb'),
-            col('ESM-MSR (p0)', 'retrained', '#6c3483', 'ESM-MSR\n(p0)\nWT_A+B → comb_AB', 'msrp0:wt+', 'msrp0:comb'),
-            col('MutateEverything', 'retrained', '#1b8a4b', 'ME\nst1\n→ st2', 'me1', 'me2'),
-            col('ThermoMPNN', 'retrained', '#1f5f8b', 'ThermoMPNN\n→ ThermoMPNN-D', 'tmpnn', 'tmpnnd'),
-            col('SPURS', 'retrained', '#d35400', 'SPURS\n→ SPURS multi', 'spurs', 'spursm'),
-            es,
-            col('ProteinMPNN', 'zeroshot', '#34495e', 'ProteinMPNN\nsum of singles\n→ direct double', 'pmpnn+', 'pmpnn'),
-            col('ProSST', 'zeroshot', '#8e44ad', 'ProSST\n(additive)', 'prosst', None),
-            col('best other ddG', 'supervised', BEST_COLOR[best], BEST_LABEL[best] + '\nsum of singles\n→ direct double', best + '+', best),
-            col('Rosetta', 'supervised', '#1abc9c', 'Rosetta\nsum of singles\n→ direct double', 'rosetta+', 'rosetta')]
-    return cols
+    return roster_columns(fr, 'pair', best)
 
 
 def epi_columns(fr, best):
     p = fr.preds
-    f_lbl = 'comb_AB −\nWT_A − WT_B'
-    es = col('ESM3-small-open', 'zeroshot', '#7f8c8d', f'ESM3-small-open\n{f_lbl}\n(unmasked)', None, 'msrrel@0:epi')
-    extra = [col('ESM3-small-open (independent masking)', 'zeroshot', '#7f8c8d', 'ESM3-small-open', None, 'esm3:epi', draw=False)] if 'esm3:epi' in p else []
+    cols = roster_columns(fr, 'epi', best)
+    es = M.column('ESM3-small-open', 'epi')
+    if 'esm3:epi' in p:
+        cols.append(dict(es, name='ESM3-small-open (independent masking)', label='ESM3-small-open', double='esm3:epi', draw=False))
     if 'esm3mm:epi' in p:
-        extra.append(col('ESM3-small-open (masked marginal)', 'zeroshot', '#7f8c8d', 'ESM3-small-open', None, 'esm3mm:epi', draw=False))
-    cols = [col('ESM-MSR (baseline)', 'retrained', '#7f8c8d', f'ESM-MSR\n(baseline)\n{f_lbl}', None, 'msr:epi'),
-            col('ESM-MSR', 'retrained', '#000000', f'ESM-MSR\n{f_lbl}', None, 'msrdev:epi'),
-            col('ESM-MSR (p0)', 'retrained', '#6c3483', f'ESM-MSR\n(p0)\n{f_lbl}', None, 'msrp0:epi'),
-            col('MutateEverything', 'retrained', '#1b8a4b', 'ME\nst2 − st1', None, 'me2:epi'),
-            col('ThermoMPNN', 'retrained', '#1f5f8b', 'ThermoMPNN\n-D − single', None, 'tmpnnd:epi'),
-            col('SPURS', 'retrained', '#d35400', 'SPURS\nmulti − single', None, 'spursm:epi'),
-            es,
-            col('ProteinMPNN', 'zeroshot', '#34495e', 'ProteinMPNN\ndirect −\nsum of singles', None, 'pmpnn:epi'),
-            col('best other ddG', 'supervised', BEST_COLOR[best], BEST_LABEL[best] + '\ndirect −\nsum of singles', None, best + ':epi'),
-            col('Rosetta', 'supervised', '#1abc9c', 'Rosetta\ndirect −\nsum of singles', None, 'rosetta:epi')] + extra
+        cols.append(dict(es, name='ESM3-small-open (masked marginal)', label='ESM3-small-open', double='esm3mm:epi', draw=False))
     return cols
 
 
@@ -475,7 +467,7 @@ def bars(ax, cols, T, subsets, sub_labels, ylabel, ylim, overall=None, overall_l
                     ax.text(x + x_err, max(o.hi, o.value, 0) + top, f'{o.value:.2f}', ha='center', va='bottom', fontsize=6.8, rotation=90, zorder=8, fontweight='bold',
                             bbox=dict(fc='white', ec='none', alpha=0.7, pad=0.6))
     ax.set_xticks(xs)
-    ax.set_xticklabels([c.get('label_' + tick[-1], c['label']) if tick in ('label_s', 'label_d') else c['label'] for c in cols], fontsize=tick_fs)
+    ax.set_xticklabels([c.get('label_' + tick[-1], c['label']) if tick in ('label_s', 'label_d') else c['label'] for c in cols], fontsize=tick_fs, rotation=30, ha='right', rotation_mode='anchor')      # angled so that neighbouring names never touch
     ax.set_ylabel(ylabel)
     ax.set_ylim(*ylim)
     ax.set_yticks([t for t in np.arange(np.ceil(ylim[0] * 5) / 5, 1.0001, 0.2)])

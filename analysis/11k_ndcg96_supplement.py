@@ -21,7 +21,6 @@ import numpy as np
 import pandas as pd
 
 from msr_analysis.common import out_dir
-from msr_analysis.data import _align_id
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('pub', HERE / '11_publication_figures.py')
@@ -43,32 +42,7 @@ def main():
     best, _ = pub.best_other(fr)
     pub.NAMES['best other ddG'] = pub.BEST_LABEL[best]
     sp = fr.spine
-    ids = sp['id'].to_numpy(dtype=object)
-    S, M = [], []
-    for sd in (1, 2, 3):
-        d = pd.read_csv(h11.UNF / f'seed{sd}' / 'tsuboyama_test.csv', usecols=['uid', 'SPURS_single_additive', 'SPURS_multi'], low_memory=False)
-        S.append(_align_id(ids, d['uid'].astype(str).to_numpy(), d['SPURS_single_additive'].to_numpy()))
-        M.append(_align_id(ids, d['uid'].astype(str).to_numpy(), d['SPURS_multi'].to_numpy()))
-    fr.preds['spursun'], fr.preds['spursunm'] = np.vstack(S), np.vstack(M)
-    h11.p0_three_seeds(fr)
-
-    keep = {'ESM-MSR (p0) combined': 'ESM-MSR\nWT-view (& Dual-view)'}
-    cols = []
-    for c in pub.main_columns(fr, best, 'unmasked'):
-        if c['name'].startswith('ESM-MSR') and c['name'] not in keep:
-            continue
-        if c['name'] in keep:
-            c = dict(c, color='#000000', single='msrp0:wt', double='msrp0:comb')
-        if c['name'] == 'SPURS':
-            c = dict(c, single='spursun', double='spursunm')
-        if c['name'] == 'ESM3-small-open':
-            c = dict(c, single='msrrel@0:wt')
-        cols.append(dict(c, label=h11.LAB_A.get(c['name'], c['name'])))
-    for c in cols:                                                      # the composite 'all' key of the models with two versions, from the keys set above
-        if c['single'] != c['double']:
-            n1 = (sp['n_mut'] == 1).to_numpy()
-            c['all'] = f"{c['single']}|{c['double']}"
-            fr.preds[c['all']] = np.where(n1[None, :], fr.preds[c['single']], fr.preds[c['double']])
+    cols = pub.main_columns(fr, best, 'unmasked')                      # the roster's columns: ESM-MSR WT-view (& Dual-view) in black, the SPURS retrain with the trained adapter, every model scored by the version that fits the subset
 
     use, n_mut = sp['use'].to_numpy(), sp['n_mut'].to_numpy()
     single, double = use & (n_mut == 1), use & (n_mut == 2)

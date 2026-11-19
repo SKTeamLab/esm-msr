@@ -28,6 +28,7 @@ from scipy.optimize import curve_fit
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+from msr_analysis import models as M  # noqa: E402
 from msr_analysis import screening as scr_core  # noqa: E402
 from msr_analysis import style  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
@@ -39,9 +40,9 @@ OUT = out_dir('17_gain_fit')
 DS = TSU[1]
 KS = [1, 3, 5, 10, 20, 50, 100]
 LK = np.log(KS)
-EXTRA = ['esm3', 'pmpnn', 'prosst', 'rosetta']
-VERSIONS = {'single': ('singles', ['msrp0', 'me', 'tm', 'spurs'] + EXTRA), 'multi': ('composite', ['msr', 'me', 'tm', 'spurs'] + EXTRA)}
-MAIN = {'single': ['msrp0', 'me', 'tm', 'spurs'], 'multi': ['msr', 'me', 'tm', 'spurs']}
+EXTRA = [f for f in scr.FAM_ALL if f in ('prosst', 'pmpnn', 'esm3', 'rosetta')]                 # in the order of ``msr_analysis.models``
+VERSIONS = {'single': ('singles', list(scr.FAM) + EXTRA), 'multi': ('composite', list(scr.FAM) + EXTRA)}      # every model scored by the version that fits (WT-view on singles; doubles version on multi-mutants)
+MAIN = {'single': list(scr.FAM), 'multi': list(scr.FAM)}
 SHAPES = {'a - b ln K': (lambda k, a, b: a - b * np.log(k), [0.8, 0.1]),
           'a K^-b': (lambda k, a, b: a * k ** -b, [0.8, 0.2]),
           'a K^-b + c': (lambda k, a, b, c: a * k ** -b + c, [0.8, 0.5, 0.0]),
@@ -160,8 +161,8 @@ def main():
         draw(ver, P[P.version == ver].set_index('model'), curves[ver])
 
 
-LABEL = {'msrp0': 'ESM-MSR', 'msr': 'ESM-MSR', 'me': 'MutateEverything', 'tm': 'ThermoMPNN', 'spurs': 'SPURS', 'oracle': 'oracle (K largest labels)', 'random': 'random picks'}
-COLOR = {'msrp0': '#000000', 'msr': '#000000', 'me': '#2ca02c', 'tm': '#1f77b4', 'spurs': '#ff7f0e', 'oracle': '#2c3e50', 'random': '#c0392b'}
+LABEL = {**{f: n for f, n in scr.FAM_NAME.items()}, 'oracle': 'oracle (K largest labels)', 'random': 'random picks'}
+COLOR = {**{f: M.color(n) for f, n in scr.FAM_NAME.items()}, 'oracle': '#2c3e50', 'random': '#c0392b'}
 
 
 def draw(ver, P, cur):

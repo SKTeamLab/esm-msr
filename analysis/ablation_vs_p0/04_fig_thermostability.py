@@ -74,7 +74,7 @@ def main():
                     ax.text(0, 1.02, what, transform=ax.transAxes, fontsize=7.8, color='#555555', va='bottom')
                 ax.xaxis.set_major_locator(MaxNLocator(5))
                 if i == 1:
-                    ax.set_xlabel('delta rho vs p0')
+                    ax.set_xlabel('delta rho vs ESM-MSR')
             pad = 0.15 * (hi_ - lo_)
             for i in range(2):
                 axes[i, j].set_xlim(lo_ - pad, hi_ + 0.5 * (hi_ - lo_) + 0.01)

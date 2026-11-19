@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import matplotlib.pyplot as plt  # noqa: E402
 
 from msr_analysis import data as D  # noqa: E402
+from msr_analysis import models as M
 from msr_analysis import style  # noqa: E402
 
 pub = importlib.import_module('11_publication_figures')
@@ -42,7 +43,7 @@ def main():
     counts = np.random.default_rng(5).multinomial(len(libs), np.full(len(libs), 1.0 / len(libs)), size=pub.B).astype(float)
     best, _ = pub.best_other(fr)
     cols = pub.pair_columns(fr, best)
-    grey = ['#aab7b8', '#7f8c8d', '#4d5656']
+    grey = [M.color('ESM3-small-open'), '#aab7b8', '#4d5656']                  # the roster's grey for the canonical (unmasked) scoring, lighter and darker shades for the masked ones
     three = [pub.col('ESM3 unmasked', 'zeroshot', grey[0], 'ESM3-small-open\nunmasked\nWT → combined', 'msrrel@0:wt', 'msrrel@0:comb'),
              pub.col('ESM3 independent masking', 'zeroshot', grey[1], 'ESM3-small-open\nind. masking\nWT → combined', 'esm3ind+', 'esm3avg'),
              pub.col('ESM3 masked marginal', 'zeroshot', grey[2], 'ESM3-small-open\nmasked marginal\nsingles → double', 'esm3mm+', 'esm3mm')]

@@ -480,7 +480,7 @@ def render(name, spec, summ, deltas, mega_own):
                     seeds.add(r['seeds'])
         sd = '/'.join(sorted(seeds)) if seeds else '—'
         lines.append(f"| {meta['short']} | {meta['change']} | {sd} | " + ' | '.join(cells) + ' |')
-    note = ('Cells: seed mean ± seed SD (Spearman ρ). In parentheses: paired bootstrap Δ vs p0, seeds 1-3 (bold: 95% CI excludes 0). '
+    note = ('Cells: seed mean ± seed SD (Spearman ρ). In parentheses: paired bootstrap Δ vs ESM-MSR, seeds 1-3 (bold: 95% CI excludes 0). '
             '† FINAL_p0_mega on its own mega_splits Tsuboyama split (not comparable). ΔΔΔG = ρ of comb(AB) − WT(A) − WT(B) vs measured ΔΔΔG.')
     text = f'### {name}\n\n' + '\n'.join(lines) + f'\n\n{note}\n'
     (OUT / f'layout_{name}.md').write_text(text)
@@ -563,14 +563,14 @@ TABLES = {
     'main': dict(head='primary', exclude={'FINAL_p0_mega'},
                  cols=['tsuboyama_capped_test', 'tsuboyama_capped_test|multi', 'tsuboyama_capped_test|beyond_rho',
                        'tsuboyama_capped_test|cell_mag', 'ext_singles_mean', 'ext_multi_mean', 'domainome|lowid', 'pg|avg'],
-                 note='p0 row: Spearman ρ (seed mean; seeds listed). Other rows: Δρ = family seed mean − p0, deployed readout '
+                 note='ESM-MSR row: Spearman ρ (seed mean; seeds listed). Other rows: Δρ = family seed mean − ESM-MSR, deployed readout '
                       '(WT head on singles-only sets, 1/2(MT + WT) where multi-mutants are scored). ' + NOISE_NOTE + EPI_NOTE),
     'wt': dict(head='wt', exclude={'FINAL_p0_mega'} | MT_ONLY,
                cols=['tsuboyama_capped_test', 'tsuboyama_capped_test|singles', 'tsuboyama_capped_test|multi',
                      'ext_singles_mean', 'ext_multi_mean', 'domainome|lowid', 'pg|avg'],
                note='WT head alone on every row (wt_lora_pred). p0 row: Spearman ρ (seed mean; seeds listed). Other rows: '
-                    'Δρ = family seed mean − p0 under the same readout. Left out: ablations that reach the MT head only '
-                    '(no pair loss, MT LoRA rank 2, p1 MT marginal), whose WT heads differ from p0 by less than p0\'s own '
+                    'Δρ = family seed mean − ESM-MSR under the same readout. Left out: ablations that reach the MT head only '
+                    '(no pair loss, MT LoRA rank 2, p1 MT marginal), whose WT heads differ from ESM-MSR by less than ESM-MSR\'s own '
                     'seeds do, and the epistasis columns (the WT head is additive by construction). ' + NOISE_NOTE),
 }
 COL_LABEL = {'tsuboyama_capped_test': 'Tsuboyama test', 'tsuboyama_capped_test|multi': 'Tsuboyama doubles',
@@ -638,13 +638,13 @@ def delta_table(summ, deltas, name, z=2.0):
         x = T.loc[T['family'] == fam, 'seeds'].dropna() if len(T) else []
         return x.iloc[0] if len(x) else '—'
 
-    hdr = ['Ablation', 'Change from p0', 'Seeds'] + [COL_LABEL[c] for c in cols]
+    hdr = ['Ablation', 'Change from ESM-MSR', 'Seeds'] + [COL_LABEL[c] for c in cols]
     md = ['| ' + ' | '.join(hdr) + ' |', '|' + '---|' * len(hdr)]
     tex = ['\\begin{tabular}{ll' + 'r' * len(cols) + '}', '\\toprule',
            'Ablation & Change & ' + ' & '.join(COL_LABEL[c] for c in cols) + ' \\\\', '\\midrule']
     md.append(f"| **{FAMILIES[REF]['short']}** | {FAMILIES[REF]['change']} | {seeds(REF)} | "
               + ' | '.join(cell(REF, c) for c in cols) + ' |')
-    tex.append('p0 (reference) & -- & ' + ' & '.join(cell(REF, c, True) for c in cols) + ' \\\\')
+    tex.append('ESM-MSR (reference) & -- & ' + ' & '.join(cell(REF, c, True) for c in cols) + ' \\\\')
     for grp, glabel in GROUP_LABEL.items():
         fams = [f for f, m in FAMILIES.items() if m['group'] == grp and f not in spec['exclude']]
         if not fams:

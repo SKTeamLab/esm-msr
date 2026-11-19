@@ -45,9 +45,11 @@ OUT.mkdir(exist_ok=True)
 
 PG_DIR = ROOT / 'final_pgym_wt' / 'FINAL_p0' / 's1'      # FINAL_p0 WT head, one file per assay (seed 1: the assay list and labels; the predictions of seeds 1-3 are read below)
 SEEDS = (1, 2, 3)
+ESM3_S0 = ROOT / 'msr_predictions' / 'released_capped_w2a4_m16a16' / 'sigma0' / 'proteingym_wt_only'          # ESM3-small-open: our sigma = 0 read of the ESM-MSR checkpoint
+ESM3_S0_FALLBACK = ROOT / 'pgym_results' / 'unmasked-esm-msr-small' / 'sigma0.0'                                       # the March run at sigma 0, for the assays the first folder lacks
 ROSETTA_PG = PUBLIC / 'rosetta' / 'raw_narval' / 'proteingym_cartesian_preds_09_11.csv'     # Rosetta Cartesian ddG, ProteinGym singles (keys 'P<row of DMS_substitutions.csv>_<position><residue>')
 PG_FAM = scr.FAM
-PG_FAM_ALL = [f for f in scr.FAM_ALL if f != 'geoddg']        # GeoDDG-3D is not drawn (it is close to Rosetta)
+PG_FAM_ALL = [f for f in scr.FAM_ALL if f not in ('geoddg', 'esm3dg')]        # no GeoDDG-3D or ESM3ΔG scores for the Activity assays
 TAU = 2.0              # hurts (var5, var10, ladder definitions): more than TAU noise sd below WT
 DROP_SD = 0.5          # hurts (the definition of the figures): more than this fraction of the assay's standard deviation below WT
 F_LOSS = 0.05          # hurts (floor definition): more than this share of the way from WT to the floor lost
@@ -132,8 +134,8 @@ def load_assays():
             'me1': (lambda k: RETRAINED / 'mutate_everything' / 'predictions' / 'stage1' / f'seed{k}' / 'proteingym', 'pred_combined'),
             'tmpnn': (lambda k: RETRAINED / 'thermompnn' / 'predictions' / 'single_additive' / f'seed{k}' / 'proteingym', 'pred_single_additive'),
             'spurs': (lambda k: RETRAINED / 'spurs' / 'predictions' / f'seed{k}' / 'proteingym', 'SPURS_single_additive')}
-    pub_cols = {'prosst': 'ProSST-2048', 'pmpnn': 'ProteinMPNN', 'msrrel@0:comb': 'ESM3'}   # the authors' published zero-shot scores (baselines/public/proteingym_published)
-    rows, preds, info = [], {**{k: {sd: [] for sd in SEEDS} for k in srcs}, **{k: [] for k in list(pub_cols) + ['rosetta']}}, []
+    pub_cols = {'prosst': 'ProSST-2048', 'pmpnn': 'ProteinMPNN', 'esm3_pub': 'ESM3'}   # the authors' published zero-shot scores (baselines/public/proteingym_published); 'esm3_pub' is ProteinGym's ESM3, kept only for the comparison with our sigma = 0 run (``pg_ours_vs_published.py``)
+    rows, preds, info = [], {**{k: {sd: [] for sd in SEEDS} for k in srcs}, **{k: [] for k in list(pub_cols) + ['rosetta', 'msrrel@0:wt']}}, []
     for dms, r in ref.iterrows():
         base = pd.read_csv(PG_DIR / f'{dms}.csv', usecols=['mutant', 'DMS_score'])
         base = base[~base['mutant'].str.contains(':')].reset_index(drop=True)
@@ -187,6 +189,9 @@ def load_assays():
                 s = pd.read_csv(dirs(sd) / f'{dms}.csv', usecols=['mutant', col]).drop_duplicates('mutant').set_index('mutant')[col]
                 preds[k][sd].append(s.reindex(base['mutant']).to_numpy(dtype=float))
         preds['rosetta'].append(ros.get(row_of[dms], pd.Series(dtype=float)).reindex(base['mutant'].str[1:]).to_numpy(dtype=float))   # Rosetta Cartesian ddG, already stabilizing-positive
+        f0 = ESM3_S0 / f'{dms}.csv' if (ESM3_S0 / f'{dms}.csv').exists() else ESM3_S0_FALLBACK / f'{dms}.csv'      # ESM3-small-open = our sigma = 0 read (adapter off, WT head, one deterministic run)
+        s0 = pd.read_csv(f0, usecols=['mutant', 'wt_lora_pred']).drop_duplicates('mutant').set_index('mutant')['wt_lora_pred']
+        preds['msrrel@0:wt'].append(s0.reindex(base['mutant']).to_numpy(dtype=float))
         pub = pd.read_csv(PUBLIC / 'proteingym_published' / f'{dms}.csv', usecols=['mutant'] + list(pub_cols.values())).drop_duplicates('mutant').set_index('mutant')
         for k, col in pub_cols.items():                                  # variants a model has no score for stay NaN: that model skips them
             preds[k].append(pub[col].reindex(base['mutant']).to_numpy(dtype=float))
@@ -246,17 +251,17 @@ def fig_curves(res, set_title, stem, fams, markers):
             if x.empty:
                 continue
             if markers:
-                k_ = scr.FAM_STYLE[f] if f != 'msr' else 'msr'
+                k_ = scr.FAM_STYLE[f]
                 col, mk = style.style_of(k_)['color'], style.style_of(k_)['marker']
-                ax.plot(x.K, x.value, color=col, lw=2.2 if f in ('msr', 'msrp0') else 1.3, marker=mk, ms=4.5, label=scr.FAM_LABEL_SINGLES[f], zorder=4 if f in ('msr', 'msrp0') else 3)
-                if f in ('msr', 'msrp0'):                          # the CI band is drawn for ESM-MSR only
+                ax.plot(x.K, x.value, color=col, lw=2.2 if f == 'msr' else 1.3, marker=mk, ms=4.5, label=scr.FAM_LABEL_SINGLES[f], zorder=4 if f == 'msr' else 3)
+                if f == 'msr':                          # the CI band is drawn for ESM-MSR only
                     ax.fill_between(x.K, x.lo, x.hi, color=col, alpha=.18, lw=0, zorder=1)
             else:
                 col, ls, lw, zo = scr.FAM_COLOR_ALL[f]
                 ax.plot(x.K, x.value, color=col, ls=ls, lw=lw, label=scr.FAM_LABEL_SINGLES[f], zorder=zo)
-                if f in ('msr', 'msrp0'):
+                if f == 'msr':
                     ax.fill_between(x.K, x.lo, x.hi, color=col, alpha=.15, lw=0, zorder=1)
-        ref_fam = 'msrp0' if 'msrp0' in d.family.values else 'msr'
+        ref_fam = 'msr'
         rr = d[(d.family == ref_fam) & (d.metric == 'rand_hit')].sort_values('K')
         ax.plot(rr.K, rr.value, color='#c0392b', ls=(0, (3, 2)), lw=1.4, zorder=3)
         ax.set_xscale('log'); ax.set_xlabel('variants screened per assay (K)'); ax.set_ylabel('fraction of the K picks that hurt (lower is better)' if ax is axes[0] else '')
@@ -267,7 +272,7 @@ def fig_curves(res, set_title, stem, fams, markers):
     for f in fams:
         if f in next(iter(res.values()))[0].family.values:
             if markers:
-                k_ = scr.FAM_STYLE[f] if f != 'msr' else 'msr'
+                k_ = scr.FAM_STYLE[f]
                 handles.append(Line2D([0], [0], color=style.style_of(k_)['color'], marker=style.style_of(k_)['marker'], lw=2.0, ms=5, label=scr.FAM_LABEL_SINGLES[f]))
             else:
                 col, ls, lw, _ = scr.FAM_COLOR_ALL[f]
@@ -406,9 +411,9 @@ def paired(fr, info, B=10000, ks=(10, 100)):
                     m = sp['use'].to_numpy() & np.isfinite(f.preds[k]).all(axis=0)
                     t = pd.concat([scr.scr.per_protein_table(sp['group'].to_numpy()[m], pr[m], sp['y'].to_numpy()[m], K, tau) for pr in f.preds[k]]).groupby('group').mean(numeric_only=True)       # the hit rate of every seed, averaged
                     tabs[fam] = t['hit']
-                ref = tabs['msrp0']
+                ref = tabs['msr']
                 for fam, t in tabs.items():
-                    if fam in ('msr', 'msrp0'):
+                    if fam == 'msr':
                         continue
                     d = (t - ref).dropna().to_numpy()
                     boot = d[np.random.default_rng(0).integers(0, len(d), (B, len(d)))].mean(axis=1)           # same resamples for every comparison

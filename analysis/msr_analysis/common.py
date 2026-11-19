@@ -11,9 +11,9 @@ def has_multi(fr):
     return bool(((sp['n_mut'] > 1) & sp['use']).any())
 
 
-def primary_key(fr, family='msr'):
+def primary_key(fr, family='msrp0'):
     """The ESM-MSR readout a dataset calls for: the WT head when only single mutants are scored, the combined
-    prediction when multi-mutants are (the WT head is additive and cannot represent an interaction)."""
+    prediction when multi-mutants are (the WT head is additive and cannot represent an interaction): ESM-MSR is FINAL_p0 (``msrp0``)."""
     return f'{family}:comb' if has_multi(fr) else f'{family}:wt'
 
 

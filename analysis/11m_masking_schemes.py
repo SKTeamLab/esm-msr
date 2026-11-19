@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.patches import Patch
 
+from msr_analysis import models as M
 from msr_analysis.common import out_dir
 from msr_analysis.final_runs import load_final_frame
 
@@ -38,7 +39,7 @@ pub, fmt_p = m11i.pub, m11i.fmt_p
 OUT = out_dir('00_supplementary_figs')
 SCHEMES = [('unm', 'Unmasked'), ('ind', 'One-at-a-time masking'), ('mar', 'Masked marginal')]
 SUBSETS = [('doubles', 'Doubles')]
-MODELS = {'ESM3-small-open': '#7f8c8d', 'ESM-MSR': '#000000'}
+MODELS = {n: M.color(n) for n in ('ESM3-small-open', 'ESM-MSR')}              # the roster's colours, in its order (zero-shot first)
 
 
 def build():

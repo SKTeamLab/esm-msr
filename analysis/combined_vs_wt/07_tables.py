@@ -32,7 +32,7 @@ def main():
     D = pd.read_csv(C.OUT / 'benchmark_delta.csv')
     PG = pd.read_csv(C.OUT / 'pg_delta_pvalues.csv')
     # per set
-    L = ['| set | variants | n | rho WT (p0) | rho combined (p0) | delta p0 | delta p1 | delta pw0 |', '|---|---|---|---|---|---|---|---|']
+    L = ['| set | variants | n | rho WT-view | rho Dual-view | delta ESM-MSR | delta p1 | delta pw0 |', '|---|---|---|---|---|---|---|---|']
     sets = C.EXT_SINGLE + C.EXT_MULTI + ['domainome'] + C.TSU + C.DMS
     for ds in sets:
         for cid in [c for c in ('all', 'singles', 'multi') if ((D.dataset == ds) & (D.cell == c)).any()]:

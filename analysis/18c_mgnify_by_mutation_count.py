@@ -22,6 +22,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from msr_analysis import style  # noqa: E402
 from msr_analysis.common import out_dir  # noqa: E402
+from msr_analysis import models as M  # noqa: E402
 from msr_analysis.external import register_ext_styles  # noqa: E402
 from msr_analysis.registry import MODELS, REFERENCE  # noqa: E402
 
@@ -32,9 +33,8 @@ spec.loader.exec_module(mm)
 OUT = out_dir('18_mgnify')
 MIN_STRATUM = 100
 STRATA = [(1, '1 mutation'), (2, '2 mutations'), (3, '3+ mutations')]
-ORDER = ['ESM-MSR', 'ESM3-small-open', 'SPURS', 'ThermoMPNN', 'ProteinMPNN', 'ProSST']
-STYLE_KEY = {'ESM-MSR': 'ESM-MSR σ=1', 'ESM3-small-open': 'ESM3-small-open', 'SPURS': 'SPURS', 'ThermoMPNN': 'ThermoMPNN', 'ProteinMPNN': 'ProteinMPNN', 'ProSST': 'ProSST'}
-LEGEND = {'ESM-MSR': 'ESM-MSR (combined head)', 'ESM3-small-open': 'ESM3-small-open (σ = 0, WT head)', 'SPURS': 'SPURS-multi', 'ThermoMPNN': 'ThermoMPNN-D', 'ProteinMPNN': 'ProteinMPNN', 'ProSST': 'ProSST'}
+ORDER = M.ordered(['ESM-MSR', 'ESM3-small-open', 'SPURS', 'ThermoMPNN', 'ProteinMPNN', 'ProSST'])          # the canonical order of the roster
+LEGEND = {'ESM-MSR': 'ESM-MSR Dual-view', 'ESM3-small-open': 'ESM3-small-open (σ = 0, WT-view)', 'SPURS': 'SPURS-multi', 'ThermoMPNN': 'ThermoMPNN-D', 'ProteinMPNN': 'ProteinMPNN', 'ProSST': 'ProSST'}      # the doubles version of every model; ESM3-small-open has no Dual-view run on these sets
 SETS = {'MGnify': 'MGnify', 'Rocklin designs': 'Rocklin designs'}
 
 
@@ -73,8 +73,6 @@ def compute(a):
 
 def figure(res):
     register_ext_styles()
-    MODELS['ESM-MSR σ=1'] = dict(MODELS['ESM-MSR'], label='ESM-MSR')
-    MODELS['ESM3-small-open'] = dict(MODELS['ESM3-small-open'], label='ESM3-small-open (σ = 0)')
     scored = res[res.metric == 'pooled']
     ks = {ds: [(k, lab) for k, lab in STRATA if ((scored.dataset == ds) & (scored.n_mut == k)).any()] for ds in SETS}      # a stratum that was not scored is not drawn
     fig, axes = plt.subplots(1, 2, figsize=(12.0, 4.9), sharey=True, gridspec_kw=dict(width_ratios=[len(ks[d]) + 0.25 for d in SETS]))
@@ -86,14 +84,14 @@ def figure(res):
             m = R[R.n_mut == k]
             labels.append(f'{lab}\n({int(m.n_variants.iloc[0]):,} variants)')
             for x in m.itertuples():
-                tab[(k, STYLE_KEY[x.model])] = x.rho
-                ci[(k, STYLE_KEY[x.model])] = (x.lo, x.hi)
-        style.dot_panel(ax, [k for k, _ in ks[ds]], [STYLE_KEY[m] for m in ORDER], tab, ci, highlight=['ESM-MSR σ=1'], ylabel=r'Spearman $\rho$ (pooled over variants)' if c == 0 else None,
+                tab[(k, x.model)] = x.rho
+                ci[(k, x.model)] = (x.lo, x.hi)
+        style.dot_panel(ax, [k for k, _ in ks[ds]], ORDER, tab, ci, highlight=['ESM-MSR'], hollow={(k, 'ESM3-small-open') for k, _ in ks[ds]}, ylabel=r'Spearman $\rho$ (pooled over variants)' if c == 0 else None,
                         xlabels=labels, rot=0, size=6.8, spread=0.78, ylim=(0.0, 0.85))
         ax.text(-0.02 if c else -0.12, 1.02, 'ab'[c], transform=ax.transAxes, fontsize=14, fontweight='bold', va='bottom', ha='left')
         ax.set_title(ds, fontsize=9.5, loc='right', color='#444444')
         if c == 0:
-            hs = [Line2D([0], [0], label=LEGEND[m], **style.marker_kwargs(STYLE_KEY[m], size=6.8)) for m in ORDER]
+            hs = [Line2D([0], [0], label=LEGEND[m], **style.marker_kwargs(m, size=6.8, hollow=m == 'ESM3-small-open')) for m in ORDER]
             ax.legend(handles=hs, loc='upper right', ncol=2, fontsize=7.6, frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.0, handletextpad=0.3, borderpad=0.4)
     fig.tight_layout(w_pad=1.0)
     style.save(fig, OUT / 'mgnify_by_mutation_count')

@@ -27,11 +27,13 @@ from msr_analysis.common import has_multi, out_dir, primary_key  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
 from msr_analysis.registry import ALL_DATASETS, EXT12, LABEL, MODELS, TSU  # noqa: E402
 
+MODELS['msr'] = dict(MODELS['msrp0:comb'], label='ESM-MSR', fill=True)          # 'msr' = ESM-MSR scored by the version the set calls for (``common.primary_key``), in the roster's colour
+
 OUT = out_dir('09_sequence_length')
 CALIB_SET = 's461'
 MODELS_LEN = ['msr', 'me1', 'tmpnn', 'spursm']       # ESM-MSR WT head and ME stage 1 (one model per category), plus ThermoMPNN and SPURS multi; ten single-mutant sets
 LEN_SETS = [d for d in EXT12 if d not in ('ptmul', 'ptmuld')]
-LEN_LABEL = {'msr': 'ESM-MSR WT head', 'me1': 'MutateEverything st1', 'tmpnn': 'ThermoMPNN', 'spursm': 'SPURS multi'}
+LEN_LABEL = {'msr': 'ESM-MSR WT-view', 'me1': 'MutateEverything Stage 1', 'tmpnn': 'ThermoMPNN', 'spursm': 'SPURS-multi'}
 MIN_N = 5
 
 
@@ -140,7 +142,7 @@ def fig_performance(sets):
     for key in MODELS_LEN:
         for ds in sets:
             fr = load_frame(ds)
-            k = 'msr:wt' if key == 'msr' else key
+            k = 'msrp0:wt' if key == 'msr' else key
             t = per_protein_metrics(ds, k, ab[key])
             if t is not None and len(t):
                 t['model'] = key
@@ -153,7 +155,7 @@ def fig_performance(sets):
     for r, key in enumerate(MODELS_LEN):
         d = D[D.model == key]
         lab = LEN_LABEL[key]
-        col = MODELS['msr:wt']['color'] if key == 'msr' else MODELS[key]['color']
+        col = MODELS['msrp0:wt']['color'] if key == 'msr' else MODELS[key]['color']
         for c, (metric, yl) in enumerate((('rho', 'per-protein Spearman ρ'), ('rmse', 'per-protein RMSE (kcal/mol), recalibrated'))):
             ax = axes[r, c]
             dd = d if metric == 'rho' else d[~d.dataset.isin(['s461', 's669', 's571'])]
@@ -182,7 +184,7 @@ def fig_performance(sets):
         ax = axes[c]
         s = S[S.metric == metric].reset_index(drop=True)
         for i, row in s.iterrows():
-            col = MODELS['msr:wt']['color'] if row.model == 'msr' else MODELS[row.model]['color']
+            col = MODELS['msrp0:wt']['color'] if row.model == 'msr' else MODELS[row.model]['color']
             ax.errorbar(row.spearman_length, i, xerr=[[row.spearman_length - row.lo], [row.hi - row.spearman_length]], fmt='o', color=col, capsize=2)
         ax.axvline(0, color='#888', lw=.8, ls=':')
         ax.set_xlabel(f'Spearman(length, per-protein {metric})')

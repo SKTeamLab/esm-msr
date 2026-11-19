@@ -33,7 +33,7 @@ DMS_SETS = ['DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_bindi
 
 # the look of the earlier sigma analysis (sigma_tradeoff/scripts/viz.py)
 SURFACE, INK, INK2, MUTED, GRID = '#fcfcfb', '#0b0b0b', '#52514e', '#8a8982', '#e4e3de'
-CAT_COLOR = {'Stability': '#6250d6', 'Expression': '#2a78d6', 'Activity': '#eb6834', 'Binding': '#1baf7a', 'OrganismalFitness': '#e87ba4'}
+from msr_analysis.models import CATEGORY_COLOR as CAT_COLOR  # noqa: E402   one colour per ProteinGym category in every figure
 CAT_LABEL = {'Stability': 'Stability', 'Expression': 'Expression / abundance', 'Activity': 'Activity', 'Binding': 'Binding', 'OrganismalFitness': 'Organismal fitness'}
 CATS = ['Stability', 'Expression', 'Activity', 'Binding', 'OrganismalFitness']
 AXIS_COLOR = {'ABUND': '#2a78d6', 'ACT': '#eb6834', 'SPEC': '#8a6f3b', 'FIT': '#e87ba4', 'BIND': '#1baf7a'}

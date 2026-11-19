@@ -26,55 +26,28 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import matplotlib.pyplot as plt  # noqa: E402
 
+from msr_analysis import models as M  # noqa: E402
 from msr_analysis import screening as scr, style  # noqa: E402
 from msr_analysis.common import has_multi, out_dir, primary_key  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
+from msr_analysis.external import register_ext_styles  # noqa: E402
 from msr_analysis.registry import HERE, LABEL, MODELS, REFERENCE  # noqa: E402
 from msr_analysis.registry import TSU, TSU_SPLIT  # noqa: E402  (MSR_TSU_SPLIT=mega -> the mega_splits pair)
 
 OUT = out_dir('08_screening')
 POOLED_SETS = ['s783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369', 'ptmul', 'ptmuld']   # S571's labels are not ddG
-FAM = ['msr', 'me', 'tm', 'spurs']
-FAM_ALL = ['msrp0', 'spurs', 'tm', 'me', 'esm3', 'pmpnn', 'prosst', 'geoddg', 'rosetta']
-FAM_LABEL = {
-    'msr': 'ESM-MSR',
-    'msrp0': 'ESM-MSR (WT head)',
-    'me': 'MutateEverything (st1 / st2)',
-    'tm': 'ThermoMPNN (/ -D)',
-    'spurs': 'SPURS (single / multi)',
-    'esm3': 'ESM3-small-open',
-    'pmpnn': 'ProteinMPNN',
-    'prosst': 'ProSST',
-    'geoddg': 'GeoDDG-3D',
-    'rosetta': 'Rosetta',
-}
+# a family is a model of the roster (``msr_analysis.models``): the same colour, line style, label and position in every figure
+FAM_NAME = {'prosst': 'ProSST', 'pmpnn': 'ProteinMPNN', 'esm3': 'ESM3-small-open', 'msr': 'ESM-MSR', 'me': 'MutateEverything', 'tm': 'ThermoMPNN', 'spurs': 'SPURS',
+            'geoddg': 'GeoDDG-3D', 'rosetta': 'Rosetta', 'esm3dg': 'ESM3ΔG'}
+FAM_ALL = sorted(FAM_NAME, key=lambda f: M.ORDER_INDEX[FAM_NAME[f]])                  # zero-shot, ESM-MSR and the other transfer models, supervised
+FAM = [f for f in FAM_ALL if M.BY_NAME[FAM_NAME[f]].group == 'transfer']              # the four transfer models, drawn with markers
+FAM_LABEL = {f: M.BY_NAME[n].label_all.replace('\n', ' ') for f, n in FAM_NAME.items()}                                # 'ESM-MSR WT-view (& Dual-view)', 'MutateEverything (Stage 1 & Stage 2)', ...
+FAM_LABEL_SINGLES = {f: (M.version_label(n, 0) if M.BY_NAME[n].two_versions else n) for f, n in FAM_NAME.items()}      # the singles version
+FAM_LABEL_COMPOSITE = dict(FAM_LABEL)                                                 # singles with the first version, multi-mutants with the second
 TAU_DS = {'domainome': 0.0}      # Domainome's label is a change in expression: a hit is any increase (> 0), not > 0.5 kcal/mol
-FAM_STYLE = {
-    'msr': 'msr',
-    'msrp0': 'msrp0:wt',
-    'me': 'me2',
-    'tm': 'tmpnn',
-    'spurs': 'spurs',
-    'esm3': 'msrrel@0:comb',
-    'pmpnn': 'pmpnn',
-    'prosst': 'prosst',
-    'geoddg': 'geoddg',
-    'rosetta': 'rosetta',
-}
-FAM_COLOR_ALL = {
-    'msrp0':  ('#000000', '-',  2.6, 8),
-    'spurs':  ('#ff7f0e', '-',  2.0, 6),
-    'tm':     ('#1f77b4', '-',  2.0, 6),
-    'me':     ('#2ca02c', '-',  2.0, 6),
-    'esm3':   ('#7f7f7f', '-',  2.0, 5),
-    'pmpnn':  ('#b8860b', '-.', 2.0, 5),
-    'prosst': ('#8e44ad', '-',  2.0, 5),
-    'geoddg': ('#008b8b', '--', 2.0, 4),
-    'rosetta': ('#17becf', '--', 2.0, 4),
-}
-for _f, _k in FAM_STYLE.items():          # the dot panels look families up in the registry
-    MODELS.setdefault(_f, dict(MODELS[_k]))
-MODELS['msr'] = dict(MODELS['msr'], label='ESM-MSR', color='#000000')     # family 'msr' is FINAL_p0, seeds 1-3 (SINGLE_KEY / MULTI_KEY), drawn in black
+FAM_STYLE = dict(FAM_NAME)       # family -> roster name (the registry key of its style)
+FAM_COLOR_ALL = {f: M.line_style(n)[:3] + (8 if n == 'ESM-MSR' else 6,) for f, n in FAM_NAME.items()}          # (colour, line style, line width, zorder) of the curves
+register_ext_styles()            # the dot panels look models up in the registry by roster name
 
 
 def domainome_overlap_domains():
@@ -84,32 +57,24 @@ def domainome_overlap_domains():
     return excluded('domainome')
 
 
-# ESM-MSR is FINAL_p0, seeds 1-3 (msr_analysis.data, key msrp0): WT head on singles, combined head on multi-mutants
-SINGLE_KEY = {'msr': 'msrp0:wt', 'msrp0': 'msrp0:wt', 'me': 'me1', 'tm': 'tmpnn', 'spurs': 'spurs'}
-MULTI_KEY = {'msr': 'msrp0:comb', 'msrp0': 'msrp0:wt', 'me': 'me2', 'tm': 'tmpnnd', 'spurs': 'spursm'}
-FIXED_KEY = {'esm3': 'msrrel@0:comb', 'pmpnn': 'pmpnn', 'prosst': 'prosst', 'geoddg': 'geoddg', 'rosetta': 'rosetta'}
+# the version that fits the variant: ESM-MSR and ESM3-small-open WT-view on singles and Dual-view on multi-mutants, Stage 1 / Stage 2, ThermoMPNN / ThermoMPNN-D, SPURS / SPURS-multi (the models with one version have one key)
+SINGLE_KEY = {f: M.BY_NAME[n].single for f, n in FAM_NAME.items()}
+MULTI_KEY = {f: M.BY_NAME[n].multi for f, n in FAM_NAME.items()}
 
 
 def fam_key(fam, fr, mode='default'):
-    if fam in FIXED_KEY:
-        k = FIXED_KEY[fam]
-        return k if k in fr.preds else None
-    if mode == 'singles':
-        k = SINGLE_KEY[fam]
-        return k if k in fr.preds else None
-    mm = has_multi(fr)
-    if mode == 'composite' and mm:
-        ks = SINGLE_KEY[fam]
-        kd = MULTI_KEY[fam]
-        if ks not in fr.preds or kd not in fr.preds:
-            return None
-        ck = f'{ks}|{kd}'
-        if ck not in fr.preds:
-            n1 = (fr.spine['n_mut'] == 1).to_numpy()
-            fr.preds[ck] = np.where(n1[None, :], fr.preds[ks], fr.preds[kd])
-        return ck
-    k = MULTI_KEY[fam] if mm else SINGLE_KEY[fam]
-    return k if k in fr.preds else None
+    """The prediction key of family ``fam`` on frame ``fr``: ``singles`` = the singles version of every variant (singles only); otherwise the singles version on the singles and the doubles version on the multi-mutants
+    (a set of singles only has no doubles: the singles version; a mixed set: a composite column built here)."""
+    ks, kd = SINGLE_KEY[fam], MULTI_KEY[fam]
+    if ks == kd or mode == 'singles' or not has_multi(fr):
+        return ks if ks in fr.preds else None
+    if ks not in fr.preds or kd not in fr.preds:
+        return None
+    ck = f'{ks}|{kd}'
+    if ck not in fr.preds:
+        n1 = (fr.spine['n_mut'] == 1).to_numpy()
+        fr.preds[ck] = np.where(n1[None, :], fr.preds[ks], fr.preds[kd])
+    return ck
 
 
 def pooled(tau, B, frac):
@@ -146,12 +111,9 @@ def fig_pooled(P, reps_store, tau, frac):
                            (axes[1], 'best', 'best ddG in selection (kcal/mol)'),
                            (axes[2], 'gain', 'mean ddG of selection (kcal/mol)')):
         d = P[P.metric == metric]
-        table = {(r.dataset, r.family): r.value for r in d.itertuples()}
-        ci = {(r.dataset, r.family): (r.lo, r.hi) for r in d.itertuples()}
-        for f in FAM:       # style lookup: draw each family with its registry marker
-            MODELS.setdefault(f'fam_{f}', dict(MODELS[FAM_STYLE[f]]))
-        style.dot_panel(ax, POOLED_SETS, FAM, {(g, m): v for (g, m), v in table.items()}, ci,
-                        highlight=['msr'], ylabel=yl, size=6.5)
+        table = {(r.dataset, FAM_NAME[r.family]): r.value for r in d.itertuples() if r.family in FAM_NAME}
+        ci = {(r.dataset, FAM_NAME[r.family]): (r.lo, r.hi) for r in d.itertuples() if r.family in FAM_NAME}
+        style.dot_panel(ax, POOLED_SETS, [FAM_NAME[f] for f in FAM], table, ci, highlight=['ESM-MSR'], ylabel=yl, size=6.5)
         if metric == 'hit_rate':
             br = P[P.metric == 'base_rate'].groupby('dataset').value.first()
             for i, ds in enumerate(POOLED_SETS):
@@ -168,7 +130,7 @@ def fig_pooled(P, reps_store, tau, frac):
             ax.legend(loc='upper right', ncol=2, fontsize=8)
     # family legend
     from matplotlib.lines import Line2D
-    hs = [Line2D([0], [0], label=FAM_LABEL[f], **style.marker_kwargs(FAM_STYLE[f] if f != 'msr' else 'msr', 7)) for f in FAM]
+    hs = [Line2D([0], [0], label=FAM_LABEL[f], **style.marker_kwargs(FAM_NAME[f], 7, hollow=False)) for f in FAM]
     axes[0].legend(handles=hs + axes[0].get_legend_handles_labels()[0][-1:], loc='upper left', ncol=3, fontsize=8)
     axes[0].set_title(f'Pooled screen: the top {int(frac * 100)}% of each set by predicted ddG; whiskers 95% protein-level bootstrap')
     axes[2].set_xticklabels([LABEL[d] for d in POOLED_SETS], rotation=30, ha='right')
@@ -176,40 +138,16 @@ def fig_pooled(P, reps_store, tau, frac):
     style.save(fig, OUT / 'screening_pooled_external')
 
 
-FAM_LABEL_SINGLES = {
-    'msr': 'ESM-MSR (WT head)',
-    'msrp0': 'ESM-MSR (WT head)',
-    'me': 'MutateEverything (st1)',
-    'tm': 'ThermoMPNN',
-    'spurs': 'SPURS (single)',
-    'esm3': 'ESM3-small-open',
-    'pmpnn': 'ProteinMPNN',
-    'prosst': 'ProSST',
-    'geoddg': 'GeoDDG-3D',
-    'rosetta': 'Rosetta',
-}
-FAM_LABEL_COMPOSITE = {
-    'msr': 'ESM-MSR (WT | comb)',
-    'msrp0': 'ESM-MSR (WT | comb)',
-    'me': 'MutateEverything (st1 | st2)',
-    'tm': 'ThermoMPNN (single | -D)',
-    'spurs': 'SPURS (single | multi)',
-    'esm3': 'ESM3-small-open',
-    'pmpnn': 'ProteinMPNN',
-    'prosst': 'ProSST',
-    'geoddg': 'GeoDDG-3D',
-    'rosetta': 'Rosetta',
-}
-
 if TSU_SPLIT == 'mega':      # mega_splits: SPURS with the adapter trained, the published SPURS, the published ThermoMPNN / -D (data._load_mega); drawn in the all-models panels
-    _X = {'spursu': ('SPURS, trained adapter', 'SPURS multi, trained adapter', 'spursu', 'spursum', 'spursu', ('#a04000', '-', 2.0, 6)),
-          'spurspub': ('SPURS, published', 'SPURS multi, published', 'spurspub', 'spurspubm', 'spurspub', ('#6e2c00', '--', 2.0, 6)),
-          'tmpub': ('ThermoMPNN, published', 'ThermoMPNN-D, published', 'tmpnnpub', 'tmpnndpub', 'tmpnnpub', ('#154360', '--', 2.0, 6))}
+    _X = {'spursu': ('SPURS, trained adapter', 'SPURS multi, trained adapter', 'spursu', 'spursum', 'spursu', (MODELS['spursu']['color'], '-', 2.0, 6)),
+          'spurspub': ('SPURS, published', 'SPURS multi, published', 'spurspub', 'spurspubm', 'spurspub', (MODELS['spurspub']['color'], '--', 2.0, 6)),
+          'tmpub': ('ThermoMPNN, published', 'ThermoMPNN-D, published', 'tmpnnpub', 'tmpnndpub', 'tmpnnpub', (MODELS['tmpnnpub']['color'], '--', 2.0, 6))}
     for _f, (_ls, _lc, _sk, _mk, _st, _col) in _X.items():
         FAM_LABEL[_f], FAM_LABEL_SINGLES[_f], FAM_LABEL_COMPOSITE[_f] = _ls, _ls, f'{_ls} | {_lc.split(",")[0]}'
         SINGLE_KEY[_f], MULTI_KEY[_f], FAM_STYLE[_f], FAM_COLOR_ALL[_f] = _sk, _mk, _st, _col
-        MODELS.setdefault(_f, dict(MODELS[_st]))
-    FAM_ALL = FAM_ALL[:3] + list(_X) + FAM_ALL[3:]
+        FAM_NAME[_f] = {'spursu': 'SPURS', 'spurspub': 'SPURS published*', 'tmpub': 'ThermoMPNN'}[_f]
+        MODELS[_f] = dict(MODELS[_st])
+    FAM_ALL = FAM_ALL[:7] + list(_X) + FAM_ALL[7:]
 
 
 def per_protein(ds, Ks, tau, B, exclude_groups=None, mode='default', exclude_cys=False, fams=FAM, fr=None):
@@ -244,7 +182,7 @@ def main():
     ap.add_argument('--B', type=int, default=1000)
     a = ap.parse_args()
     if TSU_SPLIT == 'mega':           # mega_splits: only the Tsuboyama test tables (the external sets and Domainome do not depend on the split)
-        for mode, stem in (('default', 'screening_per_protein'), ('singles', 'screening_per_protein_singles'), ('composite', 'screening_per_protein_composite')):
+        for mode, stem in (('singles', 'screening_per_protein_singles'), ('composite', 'screening_per_protein_composite')):
             for fams, sfx in ((FAM, ''), (FAM_ALL, '_all_models')):
                 D = per_protein(TSU[1], [1, 3, 5, 10, 20, 50, 100], a.tau, a.B, mode=mode, exclude_cys=True, fams=fams)
                 D.to_csv(OUT / f'{stem}{sfx}.csv', index=False, float_format='%.4f')
@@ -266,8 +204,7 @@ def main():
     dom_exclude = domainome_overlap_domains()
     dom_df = per_protein('domainome', ks, TAU_DS['domainome'], a.B, exclude_groups=dom_exclude, mode='default', fams=FAM)
     dom_df_all = per_protein('domainome', ks, TAU_DS['domainome'], a.B, exclude_groups=dom_exclude, mode='default', fams=FAM_ALL)
-    for mode, stem in (('default', 'screening_per_protein'),
-                       ('singles', 'screening_per_protein_singles'),
+    for mode, stem in (('singles', 'screening_per_protein_singles'),
                        ('composite', 'screening_per_protein_composite')):
         tsu_df = per_protein(TSU[1], ks, a.tau, a.B, mode=mode, exclude_cys=True, fams=FAM)
         D = pd.concat([tsu_df, dom_df], ignore_index=True)

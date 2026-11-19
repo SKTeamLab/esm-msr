@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-"""Supplementary epistasis-levels figure (figure 5a of ``11b_publication_epistasis_levels``) with ESM-MSR drawn as p0 and its own ctx control only, and SPURS as the retrain with the trained adapter.
+"""Supplementary epistasis-levels figure (figure 5a of ``11b_publication_epistasis_levels``) with ESM-MSR (FINAL_p0) and its own ctx control only, and SPURS as the retrain with the trained adapter.
 
 Same suite, levels, bootstrap (domains of the Tsuboyama capped test doubles, seeds resampled, ``--B`` draws) and models as ``11d_epistasis_levels_bootstrap.py`` / ``11b``, except:
 
-  ESM-MSR p0 (FINAL_p0 seeds 1-3)   epistasis = 1/2(MT_AB + WT_AB) - WT_A - WT_B = comb(AB) - WT(A) - WT(B)
-  ESM-MSR p0 ctx ctrl                1/2(~WT_AB + WT_AB) - WT_A - WT_B: the p0 WT adapter read on the mutated sequence (``final_ctx/predictions`` from the testing queue's ``ctx`` tier,
+  ESM-MSR (FINAL_p0 seeds 1-3)   epistasis = 1/2(MT_AB + WT_AB) - WT_A - WT_B = comb(AB) - WT(A) - WT(B)
+  ESM-MSR ctx ctrl                1/2(~WT_AB + WT_AB) - WT_A - WT_B: the p0 WT adapter read on the mutated sequence (``final_ctx/predictions`` from the testing queue's ``ctx`` tier,
                                      ``inference_scripts/esm_msr_ctx_testing.py``); left out, with a note, until those runs exist
   SPURS multi (trained adapter)      the retrain with the trained adapter (``retrained/spurs_unfrozen``), multi minus single, three seeds
 
@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from msr_analysis import models as M
 from msr_analysis.common import out_dir
 from msr_analysis.data import _align_id, load_frame
 from msr_analysis.final_runs import load_final_frame
@@ -95,7 +96,7 @@ def build():
 
 
 def build_masking():
-    """ESM-MSR p0 (unmasked), its ctx control, and the masking ablations: FINAL_p1 (independent single-site masking) and FINAL_p1_marg (independent-masked WT pass, mutant pass masked marginal), three seeds each."""
+    """ESM-MSR (unmasked), its ctx control, and the masking ablations: FINAL_p1 (independent single-site masking) and FINAL_p1_marg (independent-masked WT pass, mutant pass masked marginal), three seeds each."""
     fr = load_frame(d11.DS[SPLIT])
     sp = fr.spine
     f = load_final_frame(d11.DS[SPLIT], families=['FINAL_p0', 'FINAL_p1', 'FINAL_p1_marg'])
@@ -143,7 +144,7 @@ def bootstrap(B, procs, variant='p0'):
 
 
 def paired_tests(metrics=('cell_rank', 'cell_mag_pooled', 'line_rho', 'pair_rho', 'beyond_rho', 'naive_rho'), variant='p0'):
-    """One-sided paired domain-bootstrap test of ESM-MSR p0 against every other model, level by level: the draws of ``rho(p0) - rho(other)`` (the same domain and seed resamples for all models);
+    """One-sided paired domain-bootstrap test of ESM-MSR against every other model, level by level: the draws of ``rho(p0) - rho(other)`` (the same domain and seed resamples for all models);
     p = max(P(delta <= 0), 1 / (B + 1)) is the evidence that p0 is better; Holm over the comparisons of one level.  Needs ``reps`` from ``bootstrap``."""
     z = np.load(OUT / f'fig5_epistasis_levels_{STEMS[variant]}_reps_test.npz')
     reps, models, names, B = z['reps'], list(z['models']), list(z['metrics']), int(z['B'])
@@ -169,25 +170,31 @@ def paired_tests(metrics=('cell_rank', 'cell_mag_pooled', 'line_rho', 'pair_rho'
     return res
 
 
+def _models(masking=False):
+    """The bars of the figure: (csv name, category, colour, label), in the order of ``msr_analysis.models`` (zero-shot first)."""
+    e, c = b11.entry, M.VARIANT_COLOR
+    if masking:
+        return [e(P0_EPI, 'ESM-MSR', 'ESM-MSR\n(unmasked)'), e(P0_CTX, 'ESM-MSR', 'ESM-MSR\nctx ctrl', c['ESM-MSR ctx ctrl']),
+                e(P1_EPI, 'ESM-MSR', 'ESM-MSR\n(independent masking)', c['ESM-MSR independent masking']), e(P1M_EPI, 'ESM-MSR', 'ESM-MSR\n(masked marginal)', c['ESM-MSR masked marginal'])]
+    return [e('ProteinMPNN', 'ProteinMPNN'), e('ESM3-small-open', 'ESM3-small-open'), e(P0_EPI, 'ESM-MSR'), e(P0_CTX, 'ESM-MSR', 'ESM-MSR ctx ctrl', c['ESM-MSR ctx ctrl']),
+            e('ME stage 2', 'MutateEverything'), e('ThermoMPNN-D', 'ThermoMPNN'), e('SPURS multi', 'SPURS'), e('GeoDDG-3D', 'GeoDDG-3D'), e('Rosetta', 'Rosetta')]
+
+
 def draw(T):
-    models = [(P0_EPI, 'retrained', '#000000', 'ESM-MSR p0'), (P0_CTX, 'retrained', '#b2babb', 'ESM-MSR p0 ctx ctrl'),
-              ('ME stage 2', 'retrained', '#1b8a4b', 'ME stage 2'), ('ThermoMPNN-D', 'retrained', '#1f5f8b', 'ThermoMPNN-D'), ('SPURS multi', 'retrained', '#d35400', 'SPURS multi'),
-              ('ESM3-small-open', 'zeroshot', '#7f8c8d', 'ESM3-small-open'), ('ProteinMPNN', 'zeroshot', '#34495e', 'ProteinMPNN'),
-              ('GeoDDG-3D', 'supervised', '#117a65', 'GeoDDG-3D'), ('Rosetta', 'supervised', '#1abc9c', 'Rosetta')]
+    models = _models()
     b11.OUT = OUT
-    foot = [f.replace('ESM-MSR = 1/2', 'ESM-MSR p0 = 1/2').replace('ESM-MSR ctx ctrl = ', 'ESM-MSR p0 ctx ctrl = ').replace('SPURS multi,', 'SPURS multi (trained adapter),') for f in b11.FOOT]
+    foot = [f.replace('SPURS-multi,', 'SPURS-multi (trained adapter),') for f in b11.FOOT]
     b11.draw_version(T, SPLIT, levels=b11.LEVELS, foot=foot, suffix='_p0', models=models)
     print('wrote', OUT / 'fig5a_epistasis_levels_bars_test_p0.png')
 
 
 def draw_masking(T):
-    """Supplementary: ESM-MSR p0 against its independent-masked (FINAL_p1) and masked-marginal (FINAL_p1_marg) ablations, level by level."""
-    models = [(P0_EPI, 'retrained', '#000000', 'ESM-MSR p0\n(unmasked)'), (P0_CTX, 'retrained', '#b2babb', 'ESM-MSR p0\nctx ctrl'),
-              (P1_EPI, 'retrained', '#6c3483', 'ESM-MSR p1\n(independent masking)'), (P1M_EPI, 'retrained', '#b07cc6', 'ESM-MSR p1\n(masked marginal)')]
+    """Supplementary: ESM-MSR against its independent-masked (FINAL_p1) and masked-marginal (FINAL_p1_marg) ablations, level by level."""
+    models = _models(masking=True)
     b11.OUT = OUT
-    foot = [f.replace('ESM-MSR = 1/2', 'ESM-MSR p0 = 1/2').replace('ESM-MSR ctx ctrl = ', 'ESM-MSR p0 ctx ctrl = ') for f in b11.FOOT[:1]]
+    foot = [f for f in b11.FOOT[:1]]
     foot = [foot[0].split(';')[0] + '.',
-            'ESM-MSR p0: unmasked WT and MT passes; p1: trained and tested with independent single-site masking (block_mask_wt/mt = 1); p1 masked marginal: independent-masked WT pass, mutant pass with all mutated positions masked at once (block_marginal_mt).',
+            'ESM-MSR: unmasked WT and MT passes; independent masking: trained and tested with independent single-site masking (block_mask_wt/mt = 1); masked marginal: independent-masked WT pass, mutant pass with all mutated positions masked at once (block_mask_mt_marginal). '
             'Each model is read under the masking it was trained with; all three seeds (FINAL_p0, FINAL_p1, FINAL_p1_marg s1-s3). Intervals: 95% bootstrap over domains.'] + b11.FOOT[2:]
     b11.draw_version(T, SPLIT, levels=b11.LEVELS, foot=foot, suffix='_masking', models=models, title_desc='ESM-MSR masking ablations, epistasis level by level')
     print('wrote', OUT / 'fig5a_epistasis_levels_bars_test_masking.png')
@@ -195,10 +202,7 @@ def draw_masking(T):
 
 def draw_main(T):
     """The main-text version, panel e: black line per model = the same level on the doubles with additive dG > 0 (no interval), no title or footnote."""
-    models = [(P0_EPI, 'retrained', '#000000', 'ESM-MSR p0'), (P0_CTX, 'retrained', '#b2babb', 'ESM-MSR p0 ctx ctrl'),
-              ('ME stage 2', 'retrained', '#1b8a4b', 'ME stage 2'), ('ThermoMPNN-D', 'retrained', '#1f5f8b', 'ThermoMPNN-D'), ('SPURS multi', 'retrained', '#d35400', 'SPURS multi'),
-              ('ESM3-small-open', 'zeroshot', '#7f8c8d', 'ESM3-small-open'), ('ProteinMPNN', 'zeroshot', '#34495e', 'ProteinMPNN'),
-              ('GeoDDG-3D', 'supervised', '#117a65', 'GeoDDG-3D'), ('Rosetta', 'supervised', '#1abc9c', 'Rosetta')]
+    models = _models()
     b11.OUT = out_dir('00_main_text_figs')
     b11.draw_version(T, SPLIT, levels=b11.LEVELS, suffix='', models=models, overlay_sub0=True, label='e', stem='epistasis_levels_e')
     print('wrote', b11.OUT / 'epistasis_levels_e.png')
