@@ -1,0 +1,5 @@
+run,group,seed,epochs_validated,num_epochs_planned,best_epoch,best_val_rho_combined_avg,last_val_rho_combined_avg,best_val_rho_wt_avg,last_val_rho_wt_avg,checkpoints,dumps,has_last_ckpt,status,size_gb,changes_vs_control_s1,best_val_rho_combined_external,last_val_rho_combined_external,best_val_rmse_combined_external,last_val_rmse_combined_external
+bl_w2a4_m16a16_capped_s1,0 control,1,8,8,4,0.8554,0.8554,,,6,9,True,complete,1.36,,0.699,0.7041,1.3649,1.3467
+bl_w2a4_m16a16_capped_s2,0 control,2,8,8,5,0.8569,0.8539,,,6,9,True,complete,1.36,,0.7066,0.7028,1.3397,1.3591
+bl_w2a4_m16a16_capped_s3,0 control,3,8,8,4,0.8585,0.8573,,,6,9,True,complete,1.36,,0.7017,0.7019,1.3503,1.3448
+_aborted_bl_w2a4_m16a16_capped_s2_poweroutage_2026-10-21,9 other,2,3,8,2,0.8358,0.8358,0.8194,0.8194,4,4,True,"aborted (3 epochs, power outage)",0.9,"external_val_sets: None (control ptmuld,s461,ssym); val_dump: None (control True)",,,,

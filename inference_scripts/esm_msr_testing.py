@@ -370,37 +370,39 @@ def run_mgnify(args, model, tracker=None, plan=None, out_str=None, analysis_root
                 for (code, _pdb, _chain, bb_mut), grp in tqdm(
                     chunk_groups, desc=f"MGnify shard {shard_idx}", leave=False
                 ):
-                    bb_arg = bb_mut if bb_mut else None
-                    has_pre_cols = (
-                        'mut_type_renumbered' in grp.columns
-                        and 'mut_type_pdb' in grp.columns
-                        and grp['mut_type_renumbered'].notna().all()
-                        and grp['mut_type_pdb'].notna().all()
-                    )
-                    input_data = grp if has_pre_cols else inference.standardize_input_df(
-                        grp, backbone_mutation=bb_arg, quiet=True
-                    )
-                    pred_df = inference.infer_mutants(
-                        model=model,
-                        df=input_data,
-                        batch_size=mgn_bs,
-                        backbone_mutation=bb_arg,
-                        quiet=True,
-                        optimize_wt_pass=True,
-                        skip_additive=args.skip_additive,
-                        skip_reverse=args.skip_reverse,
-                        mask_strategy=args.mask_strategy,
-                        auto_batch=sizer,
-                    )
-                    assert len(pred_df) == len(grp), f"Length mismatch on {code}: {len(pred_df)} != {len(grp)}"
-                    assert (pred_df['mut_type_renumbered'].values == input_data['mut_type_renumbered'].values).all(), (
-                        f"Row alignment mismatch on {code}"
-                    )
-                    extra_cols = [c for c in pred_df.columns if c not in grp.columns]
-                    merged = pd.concat(
-                        [grp.reset_index(drop=True), pred_df[extra_cols].reset_index(drop=True)], axis=1
-                    )
-                    shard_results.append(merged)
+                    _L = int(len(str(grp['wt_seq'].iloc[0]))) if 'wt_seq' in grp.columns else None
+                    with tracker.scope('protein', code if not bb_mut else f'{code}_{bb_mut}', n_rows=len(grp), seq_len=_L):   # per-scaffold cost for the resource report
+                        bb_arg = bb_mut if bb_mut else None
+                        has_pre_cols = (
+                            'mut_type_renumbered' in grp.columns
+                            and 'mut_type_pdb' in grp.columns
+                            and grp['mut_type_renumbered'].notna().all()
+                            and grp['mut_type_pdb'].notna().all()
+                        )
+                        input_data = grp if has_pre_cols else inference.standardize_input_df(
+                            grp, backbone_mutation=bb_arg, quiet=True
+                        )
+                        pred_df = inference.infer_mutants(
+                            model=model,
+                            df=input_data,
+                            batch_size=mgn_bs,
+                            backbone_mutation=bb_arg,
+                            quiet=True,
+                            optimize_wt_pass=True,
+                            skip_additive=args.skip_additive,
+                            skip_reverse=args.skip_reverse,
+                            mask_strategy=args.mask_strategy,
+                            auto_batch=sizer,
+                        )
+                        assert len(pred_df) == len(grp), f"Length mismatch on {code}: {len(pred_df)} != {len(grp)}"
+                        assert (pred_df['mut_type_renumbered'].values == input_data['mut_type_renumbered'].values).all(), (
+                            f"Row alignment mismatch on {code}"
+                        )
+                        extra_cols = [c for c in pred_df.columns if c not in grp.columns]
+                        merged = pd.concat(
+                            [grp.reset_index(drop=True), pred_df[extra_cols].reset_index(drop=True)], axis=1
+                        )
+                        shard_results.append(merged)
                 sc.note(**_batch_note(sizer, n_rep_before, mgn_bs, plan.label))
 
             if torch.cuda.is_available():

@@ -174,7 +174,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         self.tobit_params = dict(sigma_y=float(hp.get('tobit_sigma_y', TOBIT_SIGMA_Y)), mu_f=float(hp.get('tobit_mu_f', TOBIT_MU_F)),
                                  sigma_f=float(hp.get('tobit_sigma_f', TOBIT_SIGMA_F)))
         self.tf_post = dict(s=float(hp.get('tf_prior_sd', TF_PRIOR_SD)), **self.tobit_params)
-        logging.info(f"Regression: noisy-floor Tobit NLL {self.tobit_params} on latent dG"
+        self.reg_nll = str(hp.get('reg_nll', 'tobit'))
+        self.reg_exclude_range = bool(hp.get('reg_exclude_range', False))
+        assert self.reg_nll in ('tobit', 'none'), f"--reg_nll must be tobit or none, got {self.reg_nll!r}"
+        logging.info(f"Regression: {'plain MSE on ddG' if self.reg_nll == 'none' else 'noisy-floor Tobit NLL'} {self.tobit_params}{'; range-tagged cells excluded' if (self.reg_exclude_range or self.reg_nll == 'none') else ''}"
                      + (f"; teacher-forcing prior width {self.tf_post['s']}" if hp.get('tf_label', 'measured') == 'posterior' else ''))
         # The one link: the Tobit expected reading, applied when validation scores the observed scale (RMSE, naive_rho_comb). Reporting only.
         self.obs_link = observed_scale_link(hp)
@@ -364,7 +367,15 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             raise AssertionError(f"regression mask must be bool, got {mask.dtype}: an integer mask indexes rows "
                                  f"instead of selecting them, which fails silently.")
         off = dgwt[mask]
-        L = tobit_regression_loss(off + pred[mask], off + target[mask], off + bound[mask], cens[mask], **self.tobit_params)
+        if self.reg_nll == 'none':
+            # Plain squared error on ddG against the matched label: (off + z) - (off + y) = z - y exactly, so the library offset cancels and is not added. It is the same item set
+            # as the Tobit term; a range-tagged item has no reading to regress on and is taken out of the set upstream (_block_ctx), so none may arrive here.
+            assert not bool((cens[mask] != 0).any()), "--reg_nll none got a range-tagged item: _block_ctx must have excluded it"
+            y = target[mask]
+            ok = torch.isfinite(y)
+            L = torch.where(ok, (pred[mask].float() - torch.where(ok, y, torch.zeros_like(y)).float()) ** 2, torch.zeros_like(y, dtype=torch.float))
+        else:
+            L = tobit_regression_loss(off + pred[mask], off + target[mask], off + bound[mask], cens[mask], **self.tobit_params)
         return L.sum() / denom, float(L.sum().item()), float(L.numel())
 
 
@@ -445,6 +456,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         obs_reg = obs_rank & dg_ok
         if reg_exclude is not None:
             obs_reg = obs_reg & ~reg_exclude
+        # --reg_exclude_range (and --reg_nll none, which has no survival term to score them with): the assay's '<-1' / '>5' range-tagged cells leave the regression and its denominator
+        if self.reg_exclude_range or self.reg_nll == 'none':
+            obs_reg = obs_reg & ~((lab['cens_src'] == censoring.SRC_RANGE) & (lab['cens'] != 0))
         # An unobserved cell has no dG_wt: its input is 0 so nothing is NaN, and dg_ok / obs_* say which cells count.
         dG_wt = torch.where(dg_ok, lab['dG_wt'], torch.zeros_like(lab['dG_wt']))
         # The Tobit likelihood is on the latent absolute dG and takes the tag's own bound; only the assay's '<-1' / '>5' range tags are censored for the regression, a

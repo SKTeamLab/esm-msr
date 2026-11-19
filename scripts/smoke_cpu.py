@@ -32,6 +32,13 @@ MODES = {
     'blocks_domain_rank': ['--block_positions', '4', '--block_domain_steps', '--block_pair_weight', '0.38', '--block_list_rows', '4', '--tf_label', 'posterior',
                            '--lambda_rank_wt', '0.5', '--lambda_rank_mt', '0.5', '--lambda_reg_wt', '15', '--lambda_reg_mt', '15', '--rank_censor_threshold', '-1.0',
                            '--tobit_mu_f', '-0.14', '--tobit_sigma_f', '0.5'],
+    # the regression ablations: plain MSE on ddG (range-tagged cells out of the regression), and the Tobit loss with the range-tagged cells out
+    'blocks_mse': ['--block_positions', '4', '--block_domain_steps', '--block_pair_weight', '0.38', '--block_list_rows', '4', '--tf_label', 'posterior', '--lambda_rank_wt', '0.5',
+                   '--lambda_rank_mt', '0.5', '--lambda_reg_wt', '15', '--lambda_reg_mt', '15', '--rank_censor_threshold', '-1.0', '--tobit_mu_f', '-0.14', '--tobit_sigma_f', '0.5',
+                   '--reg_nll', 'none'],
+    'blocks_norange': ['--block_positions', '4', '--block_domain_steps', '--block_pair_weight', '0.38', '--block_list_rows', '4', '--tf_label', 'posterior', '--lambda_rank_wt', '0.5',
+                       '--lambda_rank_mt', '0.5', '--lambda_reg_wt', '15', '--lambda_reg_mt', '15', '--rank_censor_threshold', '-1.0', '--tobit_mu_f', '-0.14', '--tobit_sigma_f', '0.5',
+                       '--reg_exclude_range'],
     'blocks_cond_chunked': ['--block_positions', '4', '--block_row_chunk', '10', '--lambda_cond_mt', '7.5'],
     'exclude_mutbg': ['--block_positions', '4', '--exclude_mutbg'],
     'last4': ['--block_positions', '4', '--last_n_layers_wt', '4', '--last_n_layers_mt', '4'],      # LoRA in the last 4 blocks only
