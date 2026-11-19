@@ -19,6 +19,7 @@
 # $OUT/batch_sizes_$MODEL.json (calibration.py merge builds the table); do it on the GPU the table is for.
 # MGNIFY_DIR=<dir> (ThermoMPNN, SPURS, ProteinMPNN; MODEL=prosst and MODEL=esm3 always): score only the MGnify scaffolds and Rocklin designs of <dir> (codes.csv.gz, rows.csv.gz, structures/,
 # structures_af2_denovo/; mgnify_rows.py) into $OUT/mgnify/<source>/chunk_NNNN.csv.gz, resumable (resubmit the same line); SPLIT is then unused but still required.
+# PGYM_ONLY=1 (ThermoMPNN): score only ProteinGym (per-DMS csv + summary.csv straight into $OUT, resumable; PGYM_DMS=id,id for a subset); submit_pgym_thermompnn.sh queues seeds of it.
 # TSUBOYAMA_ONLY=1 (ThermoMPNN and SPURS): score only the Tsuboyama val and test sets of SPURS / SPLIT (no external sets, DMS, Domainome or ProteinGym).
 # Optional, any model:
 # MUTANTS=single|multi|both (which rows; default both), PGYM_DMS=id,id (ProteinGym subset; default all), EXTRA="..." (appended to the model's command line;
@@ -115,6 +116,10 @@ case $MODEL in
     if [ -n "${MGNIFY_DIR:-}" ]; then
       "$PY" -u "$B/thermompnn_inference.py" mgnify ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
           --mgnify_dir "$MGNIFY_DIR" --out "$OUT" --mutants "$MUTANTS" "${BATCH[@]}" $EXTRA
+    elif [ -n "${PGYM_ONLY:-}" ]; then
+      # ProteinGym only (per-DMS csv + summary.csv, resumable): the single network's additive prediction on every row, the epistatic network on the doubles (pred_combined)
+      "$PY" -u "$B/thermompnn_inference.py" pgym ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
+          --out "$OUT" --mutants "$MUTANTS" --pgym_dir "$PGYM" --pgym_dms "${PGYM_DMS:-all}" "${BATCH[@]}" $EXTRA
     elif [ -n "${TSUBOYAMA_ONLY:-}" ]; then
       for _sp in val test; do
         "$PY" -u "$B/thermompnn_inference.py" test --split "$_sp" ${SINGLE:+--single_ckpt "$SINGLE"} ${EPISTATIC:+--epistatic_ckpt "$EPISTATIC"} \
