@@ -10,6 +10,8 @@ A model has the same colour, marker, line style and position in every figure, ba
     trained on Megascale (supplement only, drawn last and marked with an asterisk)
                          ESMtherm, IFUM, SPURS (published checkpoint), DDGemb, DDMut
 
+ESM3ΔG is never drawn on Megascale (Tsuboyama) data, because its training data overlap it: ``data.load_frame`` gives it no predictions on the Tsuboyama sets and ``05_proteingym`` no Stability category (so no average).
+
 ESM-MSR is the final model (FINAL_p0, seeds 1-3) and is never labelled p0; no other version of it (devel, baseline, released) is drawn.  Every figure scores a variant with the model that fits it: the singles
 version on singles (ESM-MSR and ESM3-small-open: the WT-view; MutateEverything stage 1, ThermoMPNN, SPURS single) and the doubles version on multi-mutants (ESM-MSR and ESM3-small-open: the Dual-view, i.e. the
 combined head; MutateEverything stage 2, ThermoMPNN-D, SPURS multi).  A hue is a model, a version is a fill: singles versions are hollow markers, doubles versions and models with one version are filled

@@ -2,13 +2,12 @@
 """Our runs against ProteinGym's published scores of the same zero-shot models, on every ProteinGym-related figure.
 
 ESM3-small-open is our sigma = 0 read of the ESM-MSR checkpoint (adapters off, unmasked: WT-view on singles assays, Dual-view on the assays with multi-mutants); the published ESM3 is the score ProteinGym ships
-(``baselines/pgym_per_dms/pgym_public_per_dms.csv``, column ``ESM3 rho_full``).  ProteinMPNN is our run (``proteinmpnn_020_unmasked_fast_ensemble3_per_dms.csv``) against ProteinGym's own.  ProSST is the published
-score in both (no run of ours).  All on the held-out assays (the four-part filter of ``msr_analysis.heldout``), 173 of the 213 assays.
+(``baselines/pgym_per_dms/pgym_public_per_dms.csv``, column ``ESM3 rho_full``).  ProteinMPNN is our three runs (``proteinmpnn_020_unmasked_fast_ensemble3_per_dms.csv``; per variant in ``baselines/public/proteinmpnn/proteingym``) against ProteinGym's own.  ProSST is the published
+ProSST is the published score in both until our run (harness job on the cluster) is collected.  All on the held-out assays (the four-part filter of ``msr_analysis.heldout``), 173 of the 213 assays.
 
   a  the columns of Figure 3b / ``pg_categories``: mean per-assay Spearman rho per ProteinGym category and the average of the five (ours solid, published hatched), 95% bootstrap over assays (paired draws)
   b  the per-assay scatter of ``pg_per_dms_scatter``: ours against published, one dot per assay coloured by category
-  c  the Activity screening curves of ``pg_activity`` (hurt rate of the K picks, single mutants, lower is better): ESM3-small-open ours against published (a per-variant run of our ProteinMPNN on ProteinGym
-     does not exist, so ProteinMPNN is not drawn here)
+  c  the Activity screening curves of ``pg_activity`` (hurt rate of the K picks, single mutants, lower is better): ESM3-small-open and ProteinMPNN, ours against published (our ProteinMPNN: three per-variant runs)
 
     python analysis/23_pg_ours_vs_published.py [--B 1000]
 Writes ``results/23_pg_ours_vs_published/pg_ours_vs_published.{png,pdf,csv}``.
@@ -39,6 +38,9 @@ OUT = out_dir('23_pg_ours_vs_published')
 CATS = ['Stability', 'Expression', 'Activity', 'Binding', 'OrganismalFitness']
 CAT_LABEL = {'Stability': 'Stability', 'Expression': 'Expression', 'Activity': 'Activity', 'Binding': 'Binding', 'OrganismalFitness': 'Org. fitness', 'PG avg': 'ProteinGym\naverage'}
 MODELS = [('ESM3-small-open', 'ESM3 rho_full'), ('ProteinMPNN', 'ProteinMPNN rho_full')]            # (our column of pg_per_dms.csv, the published column)
+_src = (RESULTS / '05_proteingym' / 'pg_zero_shot_sources.txt')
+if _src.exists() and _src.read_text().startswith('ProSST: ours'):                                       # our ProSST run on every assay (harness job; ``05_proteingym`` uses it once it is there)
+    MODELS.append(('ProSST', 'ProSST-2048 rho_full'))
 
 
 def per_assay():
@@ -77,18 +79,18 @@ def category_table(D, B):
 
 
 def activity_curves(B):
-    """Hurt-rate curves (K picks per assay, 0.5 assay SD definition, all held-out Activity assays) of ESM3-small-open ours and published: {version: table}."""
+    """Hurt-rate curves (K picks per assay, 0.5 assay SD definition, all held-out Activity assays) of ESM3-small-open and ProteinMPNN, ours and published: {(model, version): (table, n assays)}."""
     spec = importlib.util.spec_from_file_location('pg_act', HERE / 'pg_activity' / '02_activity_screening.py')
     mod = importlib.util.module_from_spec(spec)
     sys.modules['pg_act'] = mod
     spec.loader.exec_module(mod)
     fr, info = mod.load_assays()
     out = {}
-    for ver, key in (('ours', 'msrrel@0:wt'), ('published', 'esm3_pub')):
-        f = Frame(fr.name, fr.spine, {**fr.preds, 'msrrel@0:wt': fr.preds[key]})                  # the family 'esm3' reads this key
-        res = mod.curves(f, info, set(info.index), ['esm3'], B)
-        t, n = res['sd']
-        out[ver] = (t[(t.family == 'esm3') & (t.metric == 'hit_rate')].sort_values('K'), n)
+    for ver, (e3, pm) in (('ours', ('msrrel@0:wt', 'pmpnn')), ('published', ('esm3_pub', 'pmpnn_pub'))):
+        f = Frame(fr.name, fr.spine, {**fr.preds, 'msrrel@0:wt': fr.preds[e3], 'pmpnn': fr.preds[pm]})           # the families 'esm3' and 'pmpnn' read these keys
+        t, n = mod.curves(f, info, set(info.index), ['esm3', 'pmpnn'], B)['sd']
+        for model, fam in (('ESM3-small-open', 'esm3'), ('ProteinMPNN', 'pmpnn')):
+            out[(model, ver)] = (t[(t.family == fam) & (t.metric == 'hit_rate')].sort_values('K'), n)
     return out
 
 
@@ -101,8 +103,8 @@ def main():
     C.to_csv(OUT / 'pg_ours_vs_published.csv', index=False, float_format='%.4f')
     act = activity_curves(a.B)
 
-    fig = plt.figure(figsize=(15.0, 9.6))
-    gs = fig.add_gridspec(2, 3, height_ratios=[1, 1], width_ratios=[1.5, 1, 1], hspace=0.38, wspace=0.28)
+    fig = plt.figure(figsize=(15.0 + 3.6 * (len(MODELS) - 2), 9.6))
+    gs = fig.add_gridspec(2, 1 + len(MODELS), height_ratios=[1, 1], width_ratios=[1.5] + [1] * len(MODELS), hspace=0.38, wspace=0.28)
     axa = fig.add_subplot(gs[0, :])
     cols = CATS + ['PG avg']
     w = 0.19
@@ -142,16 +144,17 @@ def main():
             ax.legend(fontsize=7.6, loc='lower right')
 
     axc = fig.add_subplot(gs[1, 0])
-    for ver, (t, n) in act.items():
-        col = M.color('ESM3-small-open')
-        axc.plot(t.K, t.value, color=col if ver == 'ours' else M.tint(col, 0.35), ls='-' if ver == 'ours' else '--', lw=2.2, marker='o', ms=4, label=f'ESM3-small-open, {ver}')
-        axc.fill_between(t.K, t.lo, t.hi, color=col, alpha=0.12 if ver == 'ours' else 0.06, lw=0)
+    for (name, ver), (t, n) in act.items():
+        col = M.color(name)
+        axc.plot(t.K, t.value, color=col if ver == 'ours' else M.tint(col, 0.35), ls='-' if ver == 'ours' else '--', lw=2.2, marker='o', ms=4, label=f'{name}, {ver}')
+        axc.fill_between(t.K, t.lo, t.hi, color=col, alpha=0.10 if ver == 'ours' else 0.05, lw=0)
     axc.set_xscale('log'); axc.set_xlabel('variants screened per assay (K)'); axc.set_ylabel('fraction of the K picks that hurt (lower is better)')
-    axc.set_xticks(sorted(act['ours'][0].K.unique())); axc.set_xticklabels(sorted(act['ours'][0].K.unique()))
-    axc.legend(fontsize=8.5)
-    axc.set_title(f'b   Activity screening ({act["ours"][1]} held-out assays, single mutants)', loc='left', fontsize=10, fontweight='bold')
-    fig.text(0.01, 0.005, 'Ours: ESM3-small-open = sigma-0 read of the ESM-MSR checkpoint (WT-view on singles assays, Dual-view on assays with multi-mutants); ProteinMPNN = our run. Published: the per-assay scores ProteinGym ships. '
-             'ProSST is published in both. Held-out = homology-filtered assays (173 of 213).', fontsize=7.8, color=style.INK_NOTE)
+    ks = sorted(next(iter(act.values()))[0].K.unique())
+    axc.set_xticks(ks); axc.set_xticklabels(ks)
+    axc.legend(fontsize=8)
+    axc.set_title(f'b   Activity screening ({next(iter(act.values()))[1]} held-out assays, single mutants)', loc='left', fontsize=10, fontweight='bold')
+    fig.text(0.01, 0.005, 'Ours: ESM3-small-open = sigma-0 read of the ESM-MSR checkpoint (WT-view on singles assays, Dual-view on assays with multi-mutants); ProteinMPNN = our three runs. Published: the per-assay scores ProteinGym ships. '
+             'ProSST is published in both until our run (harness job) is collected. Held-out = homology-filtered assays (173 of 213).', fontsize=7.8, color=style.INK_NOTE)
     style.save(fig, OUT / 'pg_ours_vs_published')
     print(C[C.column.isin(['PG avg', 'Activity'])].round(3).to_string(index=False))
     print('wrote', OUT / 'pg_ours_vs_published.png')

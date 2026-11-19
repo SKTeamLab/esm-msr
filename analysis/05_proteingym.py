@@ -151,6 +151,31 @@ def tsuboyama_rule_assays():
     return excluded('proteingym')
 
 
+PROSST_OURS = PUBLIC / 'prosst' / 'proteingym'            # our ProSST runs on the ProteinGym tasks (harness: ``run_model.py --model prosst --datasets @tasks/pgym_all.txt``; one csv per assay, id / row_id / pred)
+PMPNN_RUNS = ('mpnn_score_s0', 'mpnn_score_s1', 'mpnn_score_s2')  # the three ProteinMPNN runs of ``proteinmpnn_020_unmasked_fast_ensemble3_per_dms.csv`` (per-variant files: baselines/public/proteinmpnn/proteingym/{fast,fast_seed1,fast_seed2})
+
+
+def _zero_shot_columns(df, dms_ids):
+    """The zero-shot models of the full table, in place: ProteinMPNN = the mean over its three runs of the per-assay rho (the three-seed rule); ProSST = our run when every assay has one, else the score ProteinGym
+    ships (``ProSST published`` is always the shipped one); returns the source of the ProSST column."""
+    pm = pd.read_csv(PGYM / 'proteinmpnn_020_unmasked_fast_ensemble3_per_dms.csv').set_index('DMS_id')
+    pub = pd.read_csv(PGYM / 'pgym_public_per_dms.csv').set_index('DMS_id')
+    df['ProteinMPNN'] = pm.loc[df.index, list(PMPNN_RUNS)].mean(axis=1)
+    df['ProSST published'] = pub.loc[df.index, 'ProSST-2048 rho_full']
+    src = 'published'
+    if all((PROSST_OURS / f'{d}.csv').exists() for d in dms_ids):
+        ours = {}
+        for dms in dms_ids:
+            y_full = pd.read_csv(RETRAINED / 'thermompnn' / 'predictions' / 'single_additive' / 'seed1' / 'proteingym' / f'{dms}.csv', usecols=['DMS_score'])['DMS_score'].to_numpy(dtype=float)
+            dp = pd.read_csv(PROSST_OURS / f'{dms}.csv', usecols=['row_id', 'pred'])
+            ours[dms] = float(spearmanr(dp['pred'], y_full[dp['row_id'].to_numpy(dtype=int)], nan_policy='omit')[0])
+        df['ProSST'] = pd.Series(ours).reindex(df.index)
+        src = 'ours'
+    else:
+        df['ProSST'] = df['ProSST published']
+    return src
+
+
 def _score_all_pgym_models(dms_ids, refresh=False):
     """Compute (or load cached) per-DMS Spearman rhos across all 213 assays: the mean over seeds 1-3 of the per-assay rho for every retrained model."""
     cache = CACHE / 'pg_all_models.csv'
@@ -171,6 +196,7 @@ def _score_all_pgym_models(dms_ids, refresh=False):
                 for dms in mm_ids
             )
             if comb_match:
+                _zero_shot_columns(sub, dms_ids)
                 return sub
 
     a = pd.read_csv(PGYM / 'pgym_all_models_per_dms.csv').set_index('DMS_id')
@@ -316,6 +342,7 @@ def _score_all_pgym_models(dms_ids, refresh=False):
         }
 
     df = pd.DataFrame.from_dict(rows, orient='index')
+    _zero_shot_columns(df, dms_ids)
     CACHE.mkdir(parents=True, exist_ok=True)
     df.to_csv(cache)
     return df
@@ -377,6 +404,9 @@ def summarize_cols(T, models, idx_by_cat):
         reps['PG avg'] = np.mean([reps[c] for c in CATS], axis=0)
         tot = sum(counts_cat.values())
         reps['DMS mean'] = sum(reps[c] * counts_cat[c] for c in CATS) / tot
+        if m == 'ESM3ΔG':                                    # no Stability category (Megascale overlap): neither the average nor the mean over the assays is comparable
+            point['DMS mean'] = np.nan
+            reps['DMS mean'] = np.full_like(reps['DMS mean'], np.nan)
         res[m] = (point, reps)
     return res
 
@@ -406,6 +436,9 @@ def main(refresh=False):
     dms_ids = list(a.index)
 
     scores = _score_all_pgym_models(dms_ids, refresh=refresh)
+    prosst_src = 'ours' if all((PROSST_OURS / f'{d}.csv').exists() for d in dms_ids) else 'published'
+    (OUT / 'pg_zero_shot_sources.txt').write_text(f'ProSST: {prosst_src} (a run of ours on every assay: baselines/public/prosst/proteingym; otherwise the scores ProteinGym ships)\nProteinMPNN: our runs, the mean of three (baselines/public/proteinmpnn/proteingym)\nESM3-small-open: our sigma-0 read\nESM3ΔG: not scored on the Stability category (64 of its 66 assays are Megascale / Tsuboyama libraries, which its training data overlap), so it has no ProteinGym average\n')
+    scores.loc[(a.loc[scores.index, 'category'] == 'Stability').to_numpy(), 'ESM3ΔG'] = np.nan          # Megascale overlap: no Stability column, no average, for ESM3ΔG
 
     n_mm = int(scores['has_multi'].sum())
     n_p0_comb = int((scores['has_multi'] & (scores['msr_p0_head'] == 'combined')).sum())
@@ -414,7 +447,7 @@ def main(refresh=False):
           f'(WT fallback on {n_mm - n_p0_comb}); ThermoMPNN-D on {n_tmp_dbl}/{n_mm} double-containing assays.')
 
     # the full ProteinGym roster: every model of the unified roster that has scores on (almost) every assay, plus the supplement models
-    full_models = [m for m in ALL_PG_MODELS if int(scores[m].isna().sum()) <= 1]
+    full_models = [m for m in ALL_PG_MODELS if int(scores[m].isna().sum()) <= 1 or m == 'ESM3ΔG']          # ESM3ΔG has no Stability column (Megascale overlap)
 
     # Save unified + full-model per-DMS tables
     T = pd.DataFrame(index=dms_ids)
@@ -429,7 +462,7 @@ def main(refresh=False):
         T_all[m] = scores[m]
     T_all.to_csv(OUT / 'pg_all_models_per_dms.csv', float_format='%.4f')
 
-    non_ros = [m for m in EXT_ORDER if m != 'Rosetta']
+    non_ros = [m for m in EXT_ORDER if m not in ('Rosetta', 'ESM3ΔG')]
     assert int(T[non_ros].isna().sum().sum()) == 0, f'Unexpected NaNs: {T[non_ros].isna().sum().to_dict()}'
 
     stab_hom = tsuboyama_rule_assays() & set(T.index)                    # every assay homologous to the training set (all categories), left out of every table below
@@ -545,7 +578,7 @@ def main(refresh=False):
 
     fig, axes = plt.subplots(1, len(CATS), figsize=(17.2, 0.31 * len(ov_keys) + 1.8), sharey=True)
     for ax, cat in zip(axes, CATS):
-        panel_vals = [P_full[(cat, k)] for k in ov_keys if (cat, k) in P_full]
+        panel_vals = [P_full[(cat, k)] for k in ov_keys if (cat, k) in P_full and np.isfinite(P_full[(cat, k)][0])]
         min_lo = min(lo for _v, lo, _hi in panel_vals)
         max_hi = max(hi for _v, _lo, hi in panel_vals)
         x_lo = float(np.floor((min_lo - 0.03) * 20) / 20)
@@ -554,6 +587,8 @@ def main(refresh=False):
 
         for i, k in enumerate(ov_keys):
             v, lo, hi = P_full[(cat, k)]
+            if not np.isfinite(v):
+                continue                                                                      # ESM3ΔG on Stability
             kw = style.marker_kwargs(k, size=6.0)
             ax.plot([lo, hi], [i, i], color=kw['color'], lw=2.4, alpha=0.45, solid_capstyle='butt')
             ax.plot(v, i, **kw)

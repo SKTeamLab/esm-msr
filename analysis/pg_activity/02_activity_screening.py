@@ -133,8 +133,9 @@ def load_assays():
     srcs = {'msrp0:wt': (lambda k: ROOT / 'final_pgym_wt' / 'FINAL_p0' / f's{k}', 'wt_lora_pred'),            # the retrained models: one directory per seed
             'me1': (lambda k: RETRAINED / 'mutate_everything' / 'predictions' / 'stage1' / f'seed{k}' / 'proteingym', 'pred_combined'),
             'tmpnn': (lambda k: RETRAINED / 'thermompnn' / 'predictions' / 'single_additive' / f'seed{k}' / 'proteingym', 'pred_single_additive'),
-            'spurs': (lambda k: RETRAINED / 'spurs' / 'predictions' / f'seed{k}' / 'proteingym', 'SPURS_single_additive')}
-    pub_cols = {'prosst': 'ProSST-2048', 'pmpnn': 'ProteinMPNN', 'esm3_pub': 'ESM3'}   # the authors' published zero-shot scores (baselines/public/proteingym_published); 'esm3_pub' is ProteinGym's ESM3, kept only for the comparison with our sigma = 0 run (``pg_ours_vs_published.py``)
+            'spurs': (lambda k: RETRAINED / 'spurs' / 'predictions' / f'seed{k}' / 'proteingym', 'SPURS_single_additive'),
+            'pmpnn': (lambda k: PUBLIC / 'proteinmpnn' / 'proteingym' / {1: 'fast', 2: 'fast_seed1', 3: 'fast_seed2'}[k], 'mpnn_score')}      # our ProteinMPNN: three runs, one per-variant file per assay
+    pub_cols = {'prosst': 'ProSST-2048', 'pmpnn_pub': 'ProteinMPNN', 'esm3_pub': 'ESM3'}   # the scores ProteinGym ships (baselines/public/proteingym_published): ProSST (no run of ours on ProteinGym yet: harness job queued), and ProteinMPNN / ESM3 kept only for the comparison with ours (``23_pg_ours_vs_published.py``)
     rows, preds, info = [], {**{k: {sd: [] for sd in SEEDS} for k in srcs}, **{k: [] for k in list(pub_cols) + ['rosetta', 'msrrel@0:wt']}}, []
     for dms, r in ref.iterrows():
         base = pd.read_csv(PG_DIR / f'{dms}.csv', usecols=['mutant', 'DMS_score'])

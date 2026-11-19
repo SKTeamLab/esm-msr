@@ -31,7 +31,10 @@ def load_rho(kind='protein'):
 
 
 def load_rho_df():
-    return pd.read_csv(RESULTS / '00_core' / 'rho_bootstrap.csv')
+    """The core bootstrap table (``01_core_rho``) without ESM3ΔG on the Megascale (Tsuboyama) sets: its training data overlap them."""
+    from .registry import TSU_CAPPED, TSU_MEGA
+    d = pd.read_csv(RESULTS / '00_core' / 'rho_bootstrap.csv')
+    return d[~(d.model.str.startswith('esm3dg') & d.dataset.isin(TSU_CAPPED + TSU_MEGA))].reset_index(drop=True)
 
 
 def best_ci(dataset, model, tables):

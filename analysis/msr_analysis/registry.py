@@ -120,7 +120,7 @@ _reg('ddmut', 'DDMut', 'DDMut', fill=False)
 
 # sets of keys used by the figure scripts -----------------------------------------------------------
 # Models whose training data include Megascale (Tsuboyama) libraries: not held out on the Tsuboyama sets, and drawn last, greyed, with an asterisk
-# (ESM3ΔG is not in the list: it is trained on the MGnify stability set and Megascale is its held-out test, BENCHMARKS section 6.3)
+# (ESM3ΔG is not in the list: it is trained on the MGnify stability set; its training data overlap the Megascale libraries, so ``data.load_frame`` does not give it predictions on the Tsuboyama sets at all)
 MEGASCALE_TRAINED = ['esmtherm', 'ifum_wt', 'ifum_esmfold']
 MEGASCALE_NOTE = '* trained on Megascale (Tsuboyama) data: not held out'
 

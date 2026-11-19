@@ -555,9 +555,14 @@ def _tidy(out):
     return fixed
 
 
+NO_ESM3DG = set(TSU_CAPPED) | set(TSU_MEGA)
+
+
 def load_frame(ds, refresh=False, heldout=True):
     """The frame of dataset ``ds``.  Domainome comes without the domains that are homologous to the training set under the split's four-part rule (``msr_analysis.heldout``; ``heldout=False`` keeps all 522)."""
     fr = _load_frame(ds, refresh)
+    if ds in NO_ESM3DG:                                    # ESM3ΔG's training data overlap the Megascale (Tsuboyama) libraries: it is not scored on them
+        fr = Frame(fr.name, fr.spine, {k: v for k, v in fr.preds.items() if not k.startswith('esm3dg')}, notes=fr.notes)
     if heldout and ds == 'domainome':
         from .heldout import excluded
         keep = ~fr.spine['group'].astype(str).isin(excluded('domainome')).to_numpy()

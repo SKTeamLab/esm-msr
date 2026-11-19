@@ -66,3 +66,12 @@ def test_bar_columns():
     assert M.column('ESM3ΔG', 'pair')['single'] == 'esm3dg+' and M.column('ESM3ΔG', 'epi')['double'] == 'esm3dg:epi'
     assert M.column('ProSST', 'epi') is None                                 # ProSST has no epistatic version
     assert M.ordered(['SPURS', 'ProSST', 'ESM3ΔG', 'ESM-MSR']) == ['ProSST', 'ESM-MSR', 'SPURS', 'ESM3ΔG']
+
+
+def test_esm3dg_is_never_scored_on_megascale_data():
+    """ESM3ΔG's training data overlap the Megascale (Tsuboyama) libraries: no predictions on those sets, no rows in the core table."""
+    from msr_analysis import common, data
+    assert set(data.NO_ESM3DG) == set(registry.TSU_CAPPED) | set(registry.TSU_MEGA)
+    d = common.load_rho_df()
+    assert not d[d.model.str.startswith('esm3dg') & d.dataset.isin(data.NO_ESM3DG)].shape[0]
+    assert d[d.model.str.startswith('esm3dg')].shape[0] > 0                  # still there on the other sets
