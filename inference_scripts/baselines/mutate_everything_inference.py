@@ -15,6 +15,8 @@ way to benchmark a singles model; `multi` requests only rows with two or more mu
   everything: python mutate_everything_inference.py --resume CKPT --output_dir OUT --sets all
               (Tsuboyama val/test/testcomp, the 12 external sets, the 3 DMS, Domainome, ProteinGym)
   some:       --sets tsuboyama | external | dms | domainome | pgym | s669,ssym,val,test,DLG4_HUMAN_Faure_2021_binding_domain,...
+  MGnify:     --sets rocklin (the 1,000 designs, single-sequence MSAs) | mgnify (the scaffolds with a ColabFold MSA), data/mgnify_me
+              (prepare/build_mgnify_me_data.py); no --split_name needed
 
 The prepared inputs live under $MUTATE_EVERYTHING_DIR/data/ (prepare/build_*_me_data.py write them; the MSAs are data).
 Per-protein wall time, CPU, RAM, VRAM and I/O of the forward pass (and, separately, of the batch featurization, which
@@ -62,11 +64,14 @@ def resolve_sets(sets, split_name):
            **{n: tsu(n) for n in ('val', 'valfull', 'test', 'testcomp')},
            **{n: root / 'dms_oct06' / 'mutations' / f'{n}.csv' for n in DMS},
            'domainome': root / 'domainome_oct06' / 'mutations' / 'domainome.csv',
-           **{p.stem: p for p in (root / 'pgym_oct06' / 'mutations').glob('*.csv')}}      # a single ProteinGym DMS by id
+           **{p.stem: p for p in (root / 'pgym_oct06' / 'mutations').glob('*.csv')},
+           **{p.stem: p for p in (root / 'mgnify_me' / 'mutations').glob('*.csv')}}      # a ProteinGym DMS by id; rocklin_denovo, mgnify_NNN
     groups = {'tsuboyama': [tsu(n) for n in ('val', 'test', 'testcomp')],
               'external': [one[n] for n in EXTERNAL_E + EXTERNAL_A + ['s461']],
               'dms': [one[n] for n in DMS], 'domainome': [one['domainome']],
-              'pgym': sorted((root / 'pgym_oct06' / 'mutations').glob('*.csv'))}
+              'pgym': sorted((root / 'pgym_oct06' / 'mutations').glob('*.csv')),
+              'rocklin': [root / 'mgnify_me' / 'mutations' / 'rocklin_denovo.csv'],
+              'mgnify': sorted((root / 'mgnify_me' / 'mutations').glob('mgnify_*.csv'))}      # prepare/build_mgnify_me_data.py
     groups['all'] = groups['tsuboyama'] + groups['external'] + groups['dms'] + groups['domainome'] + groups['pgym']
     out = []
     for s in [x.strip() for x in sets.split(',') if x.strip()]:
@@ -263,7 +268,7 @@ if __name__ == '__main__':
     p = get_args_parser()
     # the recipe the corrected baselines were evaluated with
     p.set_defaults(backbone='af', finetune_backbone='models/finetuning_ptm_2.pt', batch_size=1, eval=True, disable_wandb=True)
-    p.add_argument('--sets', default='all', help='all | tsuboyama | external | dms | domainome | pgym | comma-separated set names')
+    p.add_argument('--sets', default='all', help='all | tsuboyama | external | dms | domainome | pgym | rocklin | mgnify | comma-separated set names')
     p.add_argument('--split_name', default=None, help='the Tsuboyama tables directory under data/ (build_mutate_everything_data.py --name); '
                    'needed for --sets all, tsuboyama, val, valfull, test, testcomp')
     p.add_argument('--tsuboyama_split', default=None, help='the split data/<split_name> must have been built from (checked against its variant.json)')

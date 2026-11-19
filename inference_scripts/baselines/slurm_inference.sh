@@ -17,7 +17,7 @@
 # size per model and dataset from the calibrated batch-size table (ProteinGym dynamic); BATCH_SIZE overrides the table (fixed: items per
 # call; auto: a cap). CALIBRATE=1 instead of benchmarking runs the sizer on each dataset's worst-case proteins and writes
 # $OUT/batch_sizes_$MODEL.json (calibration.py merge builds the table); do it on the GPU the table is for.
-# MGNIFY_DIR=<dir> (ThermoMPNN, SPURS, ProteinMPNN; MODEL=prosst and MODEL=esm3 always): score only the MGnify scaffolds and Rocklin designs of <dir> (codes.csv.gz, rows.csv.gz, structures/,
+# MGNIFY_DIR=<dir> (ESM-MSR, MutateEverything (SETS=rocklin|mgnify, any non-empty value), ThermoMPNN, SPURS, ProteinMPNN; MODEL=prosst and MODEL=esm3 always; ESM-MSR writes $OUT/mgnify_<source>/ instead, SIGMA=0.5 sets --sigma): score only the MGnify scaffolds and Rocklin designs of <dir> (codes.csv.gz, rows.csv.gz, structures/,
 # structures_af2_denovo/; mgnify_rows.py) into $OUT/mgnify/<source>/chunk_NNNN.csv.gz, resumable (resubmit the same line); SPLIT is then unused but still required.
 # TSUBOYAMA_ONLY=1 (ThermoMPNN and SPURS): score only the Tsuboyama val and test sets of SPURS / SPLIT (no external sets, DMS, Domainome or ProteinGym).
 # Optional, any model:
@@ -90,6 +90,19 @@ case $MODEL in
     CKPT=${CKPT:?set CKPT (a checkpoint under LoRA_models/)}
     activate "${MSR_ENV:-msr_venv}"
     cd "$REPO/inference_scripts"
+    if [ -n "${MGNIFY_DIR:-}" ]; then
+      # MGNIFY_DIR=<dir with mgnify_mapped.csv[.gz] and structures/>: the MGnify Stability scaffolds and the Rocklin designs instead of the
+      # gamut. One tracked run per source (MGNIFY_SOURCES, default "rocklin_denovo mgnify", the short one first) into $OUT/mgnify_<source>/
+      # {shards,predictions.csv.gz,stats.csv,summary.json}; shards of 2,000 scaffolds are skipped when present (resubmit the same line).
+      # SIGMA=0.5 scales both adapters' LoRA alpha (the --sigma flag); a protein-level tracker scope per scaffold gives the per-protein cost.
+      MG_TABLE=$MGNIFY_DIR/mgnify_mapped.csv; [ -f "$MG_TABLE" ] || MG_TABLE=$MGNIFY_DIR/mgnify_mapped.csv.gz
+      for _src in ${MGNIFY_SOURCES:-rocklin_denovo mgnify}; do
+        python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
+            --mgnify --mgnify_dir "$MGNIFY_DIR" --mgnify_table "$MG_TABLE" --mgnify_sources "$_src" --mgnify_out "$OUT/mgnify_$_src" \
+            ${SIGMA:+--sigma "$SIGMA"} --analysis_root "$OUT/analysis" --resource_dir "$OUT/resources" "${BATCH[@]}" $EXTRA
+      done
+      exit 0
+    fi
     python -u esm_msr_testing.py --checkpoint "$CKPT" --split "$SPLIT" --local_cluster --local_path_to_structures "$STRUCT" \
         --analysis_root "$OUT/analysis" --resource_dir "$OUT/resources" "${BATCH[@]}" ${CAL[@]+"${CAL[@]}"} $EXTRA
     [ -z "${CALIBRATE:-}" ] || { echo "calibration done: $OUT/batch_sizes_$MODEL.json"; exit 0; }
@@ -133,8 +146,15 @@ case $MODEL in
       if conda_has_env mutate_everything_cu128; then ME_ENV=mutate_everything_cu128; else ME_ENV=mutate_everything; fi
     fi
     activate "$ME_ENV"
+    if [ -n "${MGNIFY_DIR:-}" ]; then
+      # MGNIFY_DIR (any non-empty value, the tables live in $MUTATE_EVERYTHING_DIR/data/mgnify_me, prepare/build_mgnify_me_data.py): the Rocklin
+      # designs (single-sequence MSAs) or, with SETS=mgnify, the MGnify scaffolds that have a ColabFold MSA. No split is involved.
+      python -u "$B/mutate_everything_inference.py" --resume "$CKPT" --output_dir "$OUT" --sets "${SETS:-rocklin}" --mutants "$MUTANTS" \
+          --skip_existing --continue_on_error $EXTRA
+    else
     python -u "$B/mutate_everything_inference.py" --resume "$CKPT" --output_dir "$OUT" --split_name "${SPLIT_NAME:?set SPLIT_NAME (the ME data/ directory of the split)}" --tsuboyama_split "$SPLIT" --sets "${SETS:-all}" --mutants "$MUTANTS" \
-        --skip_existing --continue_on_error $EXTRA;;
+        --skip_existing --continue_on_error $EXTRA
+    fi;;
   spurs)
     export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
     if [ -z "${SPURS_ENV:-}" ]; then
