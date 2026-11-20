@@ -45,8 +45,14 @@ def validation_regimes(hp) -> list:
 
 
 def observed_scale_link(hp):
-    """The only link there is: the expected reading under the noisy-floor Tobit observation model (``val_stats.tobit_link``), applied to the predictions when validation scores them on
-    the assay's observed scale (RMSE and the observed-scale epistasis). Reporting only; it takes no part in training."""
+    """The one link there is, or None: the expected reading under the noisy-floor Tobit observation model (``val_stats.tobit_link``), applied to the predictions when validation scores
+    the IN-DISTRIBUTION libraries on the assay's observed scale (RMSE and the observed-scale epistasis). Reporting only; it takes no part in training.
+
+    It is the link the run was trained with: the Tobit likelihood's own constants (--tobit_sigma_y / _mu_f / _sigma_f). A run trained with plain MSE (``--reg_nll none``) regressed
+    the observed ddG directly, so its predictions are already on the observed scale and are read as they are (None). The external benchmark sets never go through it (see
+    ``validation_step``)."""
+    if str(hp.get('reg_nll', 'tobit')) != 'tobit':
+        return None
     return val_stats.tobit_link(float(hp.get('tobit_sigma_y', TOBIT_SIGMA_Y)), float(hp.get('tobit_mu_f', TOBIT_MU_F)), float(hp.get('tobit_sigma_f', TOBIT_SIGMA_F)))
 
 
@@ -181,6 +187,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                      + (f"; teacher-forcing prior width {self.tf_post['s']}" if hp.get('tf_label', 'measured') == 'posterior' else ''))
         # The one link: the Tobit expected reading, applied when validation scores the observed scale (RMSE, naive_rho_comb). Reporting only.
         self.obs_link = observed_scale_link(hp)
+        logging.info('Validation observed scale: ' + ('Tobit expected-reading link on the in-distribution libraries (constants of the likelihood), none on the external sets'
+                                                      if self.obs_link is not None else 'no link (the run regressed the observed ddG); latent predictions are read as they are'))
 
         # Validation reads the passes in the regimes of validation_regimes(): the main one masks every mutated site on its own for both adapters, and a run that trained either head
         # on visible sites also scores the unmasked regime under val_unmasked_*.
@@ -367,7 +375,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             raise AssertionError(f"regression mask must be bool, got {mask.dtype}: an integer mask indexes rows "
                                  f"instead of selecting them, which fails silently.")
         off = dgwt[mask]
-        if self.reg_nll == 'none':
+        if getattr(self, 'reg_nll', 'tobit') == 'none':
             # Plain squared error on ddG against the matched label: (off + z) - (off + y) = z - y exactly, so the library offset cancels and is not added. It is the same item set
             # as the Tobit term; a range-tagged item has no reading to regress on and is taken out of the set upstream (_block_ctx), so none may arrive here.
             assert not bool((cens[mask] != 0).any()), "--reg_nll none got a range-tagged item: _block_ctx must have excluded it"
@@ -457,7 +465,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         if reg_exclude is not None:
             obs_reg = obs_reg & ~reg_exclude
         # --reg_exclude_range (and --reg_nll none, which has no survival term to score them with): the assay's '<-1' / '>5' range-tagged cells leave the regression and its denominator
-        if self.reg_exclude_range or self.reg_nll == 'none':
+        if getattr(self, 'reg_exclude_range', False) or getattr(self, 'reg_nll', 'tobit') == 'none':
             obs_reg = obs_reg & ~((lab['cens_src'] == censoring.SRC_RANGE) & (lab['cens'] != 0))
         # An unobserved cell has no dG_wt: its input is 0 so nothing is NaN, and dg_ok / obs_* say which cells count.
         dG_wt = torch.where(dg_ok, lab['dG_wt'], torch.zeros_like(lab['dG_wt']))
@@ -842,10 +850,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         get = lambda k: batch[k].detach().cpu().float().numpy() if torch.is_tensor(batch.get(k)) else nan_col()
 
         # The rank metrics read the latent scores (a monotone link leaves them alone). The observed scale is carried separately, for the rmse metrics:
-        # observed ddG = h(dG_wt + latent) - dG_wt with h the Tobit expected reading.
+        # observed ddG = h(dG_wt + latent) - dG_wt with h the Tobit expected reading. Only for a run trained with the Tobit likelihood (obs_link is None otherwise) and never for the
+        # external benchmark sets, which are read as they are whatever their batches carry.
+        loader_name = self.val_dataloader_names[dataloader_idx] if dataloader_idx < len(self.val_dataloader_names) else f"unknown_dl_{dataloader_idx}"
+        link_on = self.obs_link is not None and loader_name not in self.external_val_sets
+
         def observed_scale(out):
             res = {}
-            if torch.is_tensor(batch.get('dG_wt')):
+            if link_on and torch.is_tensor(batch.get('dG_wt')):
                 dgw = batch['dG_wt'].detach().cpu().double().numpy()
                 ok = np.isfinite(dgw)
                 z = np.where(ok, dgw, 0.0)
@@ -1125,7 +1137,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             if dump and log_dir:
                 tag = 'zs' if self.trainer.sanity_checking or self.global_step == 0 else f'e{self.current_epoch}'
                 os.makedirs(log_dir, exist_ok=True)
-                extra = {'link_summary': np.array(json.dumps(val_stats.tobit_link_summary(**self.tobit_params)))}
+                extra = {'link_summary': np.array(json.dumps(val_stats.tobit_link_summary(**self.tobit_params) if self.obs_link is not None else {'kind': 'none'}))}
                 for p in [p for p, _ in self.val_regimes[1:]]:
                     if len(pooled.get(f'comb_scores@{p}', [])) == len(keys):
                         extra.update({f'{h}_{p.rstrip("_")}': f(f'{h}_scores@{p}') for h in ('wt', 'mt', 'comb')})
