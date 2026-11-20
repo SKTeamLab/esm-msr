@@ -125,7 +125,8 @@ def test_the_main_regime_is_masked_and_the_unmasked_copy_comes_only_when_a_head_
 
 
 def _stub(model, regimes):
-    s = types.SimpleNamespace(model=model, validation_step_outputs=defaultdict(list), obs_link=lambda v: v, val_regimes=regimes)
+    s = types.SimpleNamespace(model=model, validation_step_outputs=defaultdict(list), obs_link=lambda v: v, val_regimes=regimes,
+                              val_dataloader_names=['val'], external_val_sets=set())
     s.val_mask_strategy = regimes[0][1]
     return s
 
