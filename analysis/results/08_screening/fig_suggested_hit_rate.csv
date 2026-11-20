@@ -1,85 +1,55 @@
 column,key,subset,value,lo,hi,n_libraries,n_suggested_total,n_hits_total
-ESM-MSR (baseline) WT head,msr:wt,precision_ddG_gt_0.5,0.3115,0.2469,0.3584,33,1267.6667,481.3333
-ESM-MSR (baseline) WT head,msr:wt,precision_ddG_gt_0,0.8309,0.7715,0.8724,33,1267.6667,481.3333
-ESM-MSR (baseline) WT head,msr:wt,recall_ddG_gt_0.5,0.3611,0.2861,0.4233,32,1267.6667,481.3333
-ESM-MSR (baseline) WT head,msr:wt,recall_ddG_gt_0,0.1636,0.1332,0.2014,33,1267.6667,481.3333
-ESM-MSR (baseline) WT head,msr:wt,n_suggested_per_domain,38.4141,26.4952,54.1758,33,1267.6667,481.3333
-ESM-MSR (baseline) WT head,msr:wt,n_hits_recovered_per_domain,14.5859,9.2172,21.8018,33,1267.6667,481.3333
-ESM-MSR (baseline) combined,msr:comb,precision_ddG_gt_0.5,0.3630,0.2908,0.4310,33,957.6667,433.6667
-ESM-MSR (baseline) combined,msr:comb,precision_ddG_gt_0,0.8656,0.8076,0.9050,33,957.6667,433.6667
-ESM-MSR (baseline) combined,msr:comb,recall_ddG_gt_0.5,0.3202,0.2473,0.3786,32,957.6667,433.6667
-ESM-MSR (baseline) combined,msr:comb,recall_ddG_gt_0,0.1293,0.1006,0.1633,33,957.6667,433.6667
-ESM-MSR (baseline) combined,msr:comb,n_suggested_per_domain,29.0202,18.9003,42.2280,33,957.6667,433.6667
-ESM-MSR (baseline) combined,msr:comb,n_hits_recovered_per_domain,13.1414,7.9091,20.0096,33,957.6667,433.6667
-ESM-MSR WT head,msrdev:wt,precision_ddG_gt_0.5,0.3150,0.2519,0.3647,33,1291.3333,493.6667
-ESM-MSR WT head,msrdev:wt,precision_ddG_gt_0,0.8324,0.7679,0.8722,33,1291.3333,493.6667
-ESM-MSR WT head,msrdev:wt,recall_ddG_gt_0.5,0.3520,0.2802,0.4338,32,1291.3333,493.6667
-ESM-MSR WT head,msrdev:wt,recall_ddG_gt_0,0.1599,0.1294,0.2017,33,1291.3333,493.6667
-ESM-MSR WT head,msrdev:wt,n_suggested_per_domain,39.1313,27.7152,56.6684,33,1291.3333,493.6667
-ESM-MSR WT head,msrdev:wt,n_hits_recovered_per_domain,14.9596,9.5348,22.6530,33,1291.3333,493.6667
-ESM-MSR combined,msrdev:comb,precision_ddG_gt_0.5,0.3666,0.2972,0.4286,33,1018.6667,458.3333
-ESM-MSR combined,msrdev:comb,precision_ddG_gt_0,0.8676,0.7994,0.9119,33,1018.6667,458.3333
-ESM-MSR combined,msrdev:comb,recall_ddG_gt_0.5,0.3457,0.2829,0.4025,32,1018.6667,458.3333
-ESM-MSR combined,msrdev:comb,recall_ddG_gt_0,0.1358,0.1075,0.1688,33,1018.6667,458.3333
-ESM-MSR combined,msrdev:comb,n_suggested_per_domain,30.8687,19.9896,45.5937,33,1018.6667,458.3333
-ESM-MSR combined,msrdev:comb,n_hits_recovered_per_domain,13.8889,8.3914,20.6679,33,1018.6667,458.3333
-ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0.5,0.4072,0.3143,0.4836,32,827.0000,389.0000
-ESM-MSR (p0) WT head,msrp0:wt,precision_ddG_gt_0,0.8870,0.8429,0.9278,32,827.0000,389.0000
-ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0.5,0.2528,0.1931,0.3133,32,827.0000,389.0000
-ESM-MSR (p0) WT head,msrp0:wt,recall_ddG_gt_0,0.1014,0.0775,0.1355,33,827.0000,389.0000
-ESM-MSR (p0) WT head,msrp0:wt,n_suggested_per_domain,25.0606,16.3909,38.1955,33,827.0000,389.0000
-ESM-MSR (p0) WT head,msrp0:wt,n_hits_recovered_per_domain,11.7879,6.8811,18.2735,33,827.0000,389.0000
-ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0.5,0.3553,0.2806,0.4072,33,1370.0000,557.0000
-ESM-MSR (p0) combined,msrp0:comb,precision_ddG_gt_0,0.8574,0.8041,0.8993,33,1370.0000,557.0000
-ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0.5,0.4175,0.3426,0.4983,32,1370.0000,557.0000
-ESM-MSR (p0) combined,msrp0:comb,recall_ddG_gt_0,0.1766,0.1445,0.2137,33,1370.0000,557.0000
-ESM-MSR (p0) combined,msrp0:comb,n_suggested_per_domain,41.5152,29.5455,57.8068,33,1370.0000,557.0000
-ESM-MSR (p0) combined,msrp0:comb,n_hits_recovered_per_domain,16.8788,10.7682,24.7712,33,1370.0000,557.0000
-MutateEverything st1,me1,precision_ddG_gt_0.5,0.2783,0.1730,0.3709,32,512.6667,185.3333
-MutateEverything st1,me1,precision_ddG_gt_0,0.7353,0.6002,0.8065,32,512.6667,185.3333
-MutateEverything st1,me1,recall_ddG_gt_0.5,0.0942,0.0600,0.1275,32,512.6667,185.3333
-MutateEverything st1,me1,recall_ddG_gt_0,0.0434,0.0306,0.0564,33,512.6667,185.3333
-MutateEverything st1,me1,n_suggested_per_domain,15.5354,9.3841,24.9341,33,512.6667,185.3333
-MutateEverything st1,me1,n_hits_recovered_per_domain,5.6162,2.6914,9.2152,33,512.6667,185.3333
-ThermoMPNN,tmpnn,precision_ddG_gt_0.5,0.4047,0.2588,0.4895,29,274.0000,135.0000
-ThermoMPNN,tmpnn,precision_ddG_gt_0,0.7573,0.6551,0.8421,29,274.0000,135.0000
-ThermoMPNN,tmpnn,recall_ddG_gt_0.5,0.0834,0.0483,0.1325,32,274.0000,135.0000
-ThermoMPNN,tmpnn,recall_ddG_gt_0,0.0369,0.0195,0.0651,33,274.0000,135.0000
-ThermoMPNN,tmpnn,n_suggested_per_domain,8.3030,5.6854,11.5889,33,274.0000,135.0000
-ThermoMPNN,tmpnn,n_hits_recovered_per_domain,4.0909,2.2722,6.7250,33,274.0000,135.0000
-SPURS,spurs,precision_ddG_gt_0.5,0.3638,0.2727,0.4317,32,705.3333,305.6667
-SPURS,spurs,precision_ddG_gt_0,0.7761,0.7190,0.8213,32,705.3333,305.6667
-SPURS,spurs,recall_ddG_gt_0.5,0.2072,0.1448,0.2982,32,705.3333,305.6667
-SPURS,spurs,recall_ddG_gt_0,0.0896,0.0557,0.1353,33,705.3333,305.6667
-SPURS,spurs,n_suggested_per_domain,21.3737,14.8093,31.8381,33,705.3333,305.6667
-SPURS,spurs,n_hits_recovered_per_domain,9.2626,5.3422,14.6740,33,705.3333,305.6667
-ESM3-small-open,msrrel@0:comb,precision_ddG_gt_0.5,0.2312,0.1586,0.3185,32,221.0000,53.0000
-ESM3-small-open,msrrel@0:comb,precision_ddG_gt_0,0.6039,0.5180,0.6960,32,221.0000,53.0000
-ESM3-small-open,msrrel@0:comb,recall_ddG_gt_0.5,0.0466,0.0322,0.0640,32,221.0000,53.0000
-ESM3-small-open,msrrel@0:comb,recall_ddG_gt_0,0.0240,0.0184,0.0329,33,221.0000,53.0000
-ESM3-small-open,msrrel@0:comb,n_suggested_per_domain,6.6970,5.3780,8.2280,33,221.0000,53.0000
-ESM3-small-open,msrrel@0:comb,n_hits_recovered_per_domain,1.6061,1.0144,2.4462,33,221.0000,53.0000
-ProteinMPNN,pmpnn,precision_ddG_gt_0.5,0.1198,0.0880,0.1508,33,2043.0000,305.0000
-ProteinMPNN,pmpnn,precision_ddG_gt_0,0.5270,0.4583,0.5871,33,2043.0000,305.0000
-ProteinMPNN,pmpnn,recall_ddG_gt_0.5,0.2383,0.1991,0.2937,32,2043.0000,305.0000
-ProteinMPNN,pmpnn,recall_ddG_gt_0,0.1613,0.1364,0.1850,33,2043.0000,305.0000
-ProteinMPNN,pmpnn,n_suggested_per_domain,61.9091,48.2644,77.9000,33,2043.0000,305.0000
-ProteinMPNN,pmpnn,n_hits_recovered_per_domain,9.2424,5.7545,14.1826,33,2043.0000,305.0000
-ProSST,prosst,precision_ddG_gt_0.5,0.2078,0.1144,0.2964,27,142.0000,44.0000
-ProSST,prosst,precision_ddG_gt_0,0.5876,0.4623,0.7161,27,142.0000,44.0000
-ProSST,prosst,recall_ddG_gt_0.5,0.0322,0.0131,0.0490,32,142.0000,44.0000
-ProSST,prosst,recall_ddG_gt_0,0.0129,0.0078,0.0198,33,142.0000,44.0000
-ProSST,prosst,n_suggested_per_domain,4.3030,2.6045,6.9568,33,142.0000,44.0000
-ProSST,prosst,n_hits_recovered_per_domain,1.3333,0.4992,2.3205,33,142.0000,44.0000
-GeoDDG-3D,geoddg,precision_ddG_gt_0.5,0.1457,0.1013,0.1861,33,2712.0000,392.0000
-GeoDDG-3D,geoddg,precision_ddG_gt_0,0.4596,0.3765,0.5096,33,2712.0000,392.0000
-GeoDDG-3D,geoddg,recall_ddG_gt_0.5,0.3078,0.2398,0.4039,32,2712.0000,392.0000
-GeoDDG-3D,geoddg,recall_ddG_gt_0,0.1809,0.1525,0.2147,33,2712.0000,392.0000
-GeoDDG-3D,geoddg,n_suggested_per_domain,82.1818,66.1182,98.2159,33,2712.0000,392.0000
-GeoDDG-3D,geoddg,n_hits_recovered_per_domain,11.8788,7.9379,17.1515,33,2712.0000,392.0000
-Rosetta,rosetta,precision_ddG_gt_0.5,0.1397,0.0993,0.1761,33,3070.0000,444.0000
-Rosetta,rosetta,precision_ddG_gt_0,0.5206,0.4678,0.5679,33,3070.0000,444.0000
-Rosetta,rosetta,recall_ddG_gt_0.5,0.3216,0.2656,0.3765,32,3070.0000,444.0000
-Rosetta,rosetta,recall_ddG_gt_0,0.2209,0.1918,0.2557,33,3070.0000,444.0000
-Rosetta,rosetta,n_suggested_per_domain,93.0303,69.3432,120.8205,33,3070.0000,444.0000
-Rosetta,rosetta,n_hits_recovered_per_domain,13.4545,8.9205,19.5621,33,3070.0000,444.0000
+ProSST,prosst,precision_ddG_gt_0.5,0.2078,0.1196,0.3062,27,142.0000,44.0000
+ProSST,prosst,precision_ddG_gt_0,0.5876,0.4524,0.7187,27,142.0000,44.0000
+ProSST,prosst,recall_ddG_gt_0.5,0.0322,0.0130,0.0539,32,142.0000,44.0000
+ProSST,prosst,recall_ddG_gt_0,0.0129,0.0070,0.0203,33,142.0000,44.0000
+ProSST,prosst,n_suggested_per_domain,4.3030,2.4235,6.8485,33,142.0000,44.0000
+ProSST,prosst,n_hits_recovered_per_domain,1.3333,0.4848,2.3636,33,142.0000,44.0000
+ProteinMPNN,pmpnn,precision_ddG_gt_0.5,0.1198,0.0884,0.1523,33,2043.0000,305.0000
+ProteinMPNN,pmpnn,precision_ddG_gt_0,0.5270,0.4608,0.5922,33,2043.0000,305.0000
+ProteinMPNN,pmpnn,recall_ddG_gt_0.5,0.2383,0.1860,0.2941,32,2043.0000,305.0000
+ProteinMPNN,pmpnn,recall_ddG_gt_0,0.1613,0.1357,0.1877,33,2043.0000,305.0000
+ProteinMPNN,pmpnn,n_suggested_per_domain,61.9091,47.7242,78.3667,33,2043.0000,305.0000
+ProteinMPNN,pmpnn,n_hits_recovered_per_domain,9.2424,5.4227,14.1220,33,2043.0000,305.0000
+ESM3-small-open,msrrel@0:wt,precision_ddG_gt_0.5,0.1963,0.1225,0.2738,33,367.0000,77.0000
+ESM3-small-open,msrrel@0:wt,precision_ddG_gt_0,0.5858,0.4924,0.6749,33,367.0000,77.0000
+ESM3-small-open,msrrel@0:wt,recall_ddG_gt_0.5,0.0694,0.0397,0.1081,32,367.0000,77.0000
+ESM3-small-open,msrrel@0:wt,recall_ddG_gt_0,0.0360,0.0264,0.0479,33,367.0000,77.0000
+ESM3-small-open,msrrel@0:wt,n_suggested_per_domain,11.1212,8.7871,13.5485,33,367.0000,77.0000
+ESM3-small-open,msrrel@0:wt,n_hits_recovered_per_domain,2.3333,1.4242,3.2735,33,367.0000,77.0000
+ESM-MSR,msrp0:wt,precision_ddG_gt_0.5,0.3823,0.3121,0.4718,33,970.3333,429.3333
+ESM-MSR,msrp0:wt,precision_ddG_gt_0,0.8730,0.8153,0.9273,33,970.3333,429.3333
+ESM-MSR,msrp0:wt,recall_ddG_gt_0.5,0.2984,0.2294,0.3756,32,970.3333,429.3333
+ESM-MSR,msrp0:wt,recall_ddG_gt_0,0.1202,0.0875,0.1548,33,970.3333,429.3333
+ESM-MSR,msrp0:wt,n_suggested_per_domain,29.4040,18.0957,44.9808,33,970.3333,429.3333
+ESM-MSR,msrp0:wt,n_hits_recovered_per_domain,13.0101,7.2414,20.4949,33,970.3333,429.3333
+MutateEverything,me1,precision_ddG_gt_0.5,0.2783,0.1789,0.3800,32,512.6667,185.3333
+MutateEverything,me1,precision_ddG_gt_0,0.7353,0.6140,0.8134,32,512.6667,185.3333
+MutateEverything,me1,recall_ddG_gt_0.5,0.0942,0.0602,0.1345,32,512.6667,185.3333
+MutateEverything,me1,recall_ddG_gt_0,0.0434,0.0298,0.0592,33,512.6667,185.3333
+MutateEverything,me1,n_suggested_per_domain,15.5354,8.1505,26.3419,33,512.6667,185.3333
+MutateEverything,me1,n_hits_recovered_per_domain,5.6162,2.5455,9.9702,33,512.6667,185.3333
+ThermoMPNN,tmpnn,precision_ddG_gt_0.5,0.4047,0.2584,0.5136,29,274.0000,135.0000
+ThermoMPNN,tmpnn,precision_ddG_gt_0,0.7573,0.6470,0.8417,29,274.0000,135.0000
+ThermoMPNN,tmpnn,recall_ddG_gt_0.5,0.0834,0.0483,0.1252,32,274.0000,135.0000
+ThermoMPNN,tmpnn,recall_ddG_gt_0,0.0369,0.0190,0.0630,33,274.0000,135.0000
+ThermoMPNN,tmpnn,n_suggested_per_domain,8.3030,5.2313,12.2326,33,274.0000,135.0000
+ThermoMPNN,tmpnn,n_hits_recovered_per_domain,4.0909,2.0192,6.6268,33,274.0000,135.0000
+SPURS,spurs,precision_ddG_gt_0.5,0.3638,0.2732,0.4586,32,705.3333,305.6667
+SPURS,spurs,precision_ddG_gt_0,0.7761,0.7113,0.8350,32,705.3333,305.6667
+SPURS,spurs,recall_ddG_gt_0.5,0.2072,0.1500,0.2763,32,705.3333,305.6667
+SPURS,spurs,recall_ddG_gt_0,0.0896,0.0581,0.1366,33,705.3333,305.6667
+SPURS,spurs,n_suggested_per_domain,21.3737,13.9785,31.3871,33,705.3333,305.6667
+SPURS,spurs,n_hits_recovered_per_domain,9.2626,5.2220,14.6374,33,705.3333,305.6667
+GeoDDG-3D,geoddg,precision_ddG_gt_0.5,0.1457,0.1056,0.1891,33,2712.0000,392.0000
+GeoDDG-3D,geoddg,precision_ddG_gt_0,0.4596,0.3853,0.5284,33,2712.0000,392.0000
+GeoDDG-3D,geoddg,recall_ddG_gt_0.5,0.3078,0.2359,0.3856,32,2712.0000,392.0000
+GeoDDG-3D,geoddg,recall_ddG_gt_0,0.1809,0.1486,0.2142,33,2712.0000,392.0000
+GeoDDG-3D,geoddg,n_suggested_per_domain,82.1818,65.1212,102.1598,33,2712.0000,392.0000
+GeoDDG-3D,geoddg,n_hits_recovered_per_domain,11.8788,7.4242,17.1523,33,2712.0000,392.0000
+Rosetta,rosetta,precision_ddG_gt_0.5,0.1397,0.1020,0.1815,33,3070.0000,444.0000
+Rosetta,rosetta,precision_ddG_gt_0,0.5206,0.4662,0.5764,33,3070.0000,444.0000
+Rosetta,rosetta,recall_ddG_gt_0.5,0.3216,0.2611,0.3812,32,3070.0000,444.0000
+Rosetta,rosetta,recall_ddG_gt_0,0.2209,0.1905,0.2553,33,3070.0000,444.0000
+Rosetta,rosetta,n_suggested_per_domain,93.0303,66.5144,122.0811,33,3070.0000,444.0000
+Rosetta,rosetta,n_hits_recovered_per_domain,13.4545,8.3629,20.0311,33,3070.0000,444.0000

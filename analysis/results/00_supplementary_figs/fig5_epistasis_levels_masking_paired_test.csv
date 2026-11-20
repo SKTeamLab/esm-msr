@@ -1,0 +1,19 @@
+metric,other,delta,lo,hi,p_one,p_two,B,p_one_holm
+cell_rank,ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,0.03073,0.01450,0.06499,0.00100,0.00100,1000,0.00300
+cell_rank,ESM-MSR p1 (independent masking) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,-0.01201,-0.04856,0.01613,0.81900,0.36200,1000,0.81900
+cell_rank,ESM-MSR p1 (masked marginal MT) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,0.16387,0.10297,0.28685,0.00100,0.00100,1000,0.00300
+cell_mag_pooled,ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,0.03556,0.01268,0.08113,0.00400,0.00800,1000,0.00800
+cell_mag_pooled,ESM-MSR p1 (independent masking) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,-0.00353,-0.05324,0.02414,0.69100,0.61800,1000,0.69100
+cell_mag_pooled,ESM-MSR p1 (masked marginal MT) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,0.23558,0.10832,0.39242,0.00100,0.00100,1000,0.00300
+line_rho,ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,0.02514,-0.02442,0.09876,0.15100,0.30200,1000,0.19600
+line_rho,ESM-MSR p1 (independent masking) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,0.04110,-0.02017,0.09816,0.09800,0.19600,1000,0.19600
+line_rho,ESM-MSR p1 (masked marginal MT) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,0.14192,0.05221,0.23453,0.00100,0.00200,1000,0.00300
+pair_rho,ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,-0.03337,-0.16713,0.22264,0.60300,0.79600,1000,1.00000
+pair_rho,ESM-MSR p1 (independent masking) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,-0.06801,-0.20368,0.14828,0.69100,0.62000,1000,1.00000
+pair_rho,ESM-MSR p1 (masked marginal MT) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,-0.00705,-0.18161,0.24292,0.51300,0.97400,1000,1.00000
+beyond_rho,ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,0.00560,-0.03622,0.06812,0.35100,0.70200,1000,0.70200
+beyond_rho,ESM-MSR p1 (independent masking) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,-0.01518,-0.08498,0.07481,0.59700,0.80600,1000,0.70200
+beyond_rho,ESM-MSR p1 (masked marginal MT) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,0.05595,-0.03591,0.18697,0.12500,0.25000,1000,0.37500
+naive_rho,ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,0.00414,-0.03713,0.04781,0.42100,0.84200,1000,0.43600
+naive_rho,ESM-MSR p1 (independent masking) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,0.03259,-0.04160,0.08249,0.21800,0.43600,1000,0.43600
+naive_rho,ESM-MSR p1 (masked marginal MT) · 1/2(MT_AB+WT_AB) − WT_A − WT_B,0.04991,-0.00111,0.12649,0.03200,0.06400,1000,0.09600

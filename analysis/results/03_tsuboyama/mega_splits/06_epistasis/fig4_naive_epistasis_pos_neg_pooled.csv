@@ -1,0 +1,13 @@
+column,key,subset,value,lo,hi,n_variants,n_libraries
+ESM-MSR,msrp0:epi,positive,0.4491,0.3634,0.5930,14618,20
+MutateEverything,me2:epi,positive,0.4771,0.4142,0.5714,14618,20
+ThermoMPNN,tmpnnd:epi,positive,0.3280,0.1611,0.4968,14618,20
+SPURS,spursm:epi,positive,0.4100,0.2758,0.5516,14618,20
+ESM-MSR,msrp0:epi,negative,0.0140,-0.1398,0.1570,2305,19
+MutateEverything,me2:epi,negative,-0.0066,-0.1153,0.1074,2305,19
+ThermoMPNN,tmpnnd:epi,negative,0.0052,-0.1564,0.1840,2305,19
+SPURS,spursm:epi,negative,0.0142,-0.1515,0.1991,2305,19
+ESM-MSR,msrp0:epi,overall,0.5071,0.4140,0.6422,16923,20
+MutateEverything,me2:epi,overall,0.4802,0.4124,0.5716,16923,20
+ThermoMPNN,tmpnnd:epi,overall,0.3542,0.1967,0.5250,16923,20
+SPURS,spursm:epi,overall,0.3972,0.2914,0.5386,16923,20

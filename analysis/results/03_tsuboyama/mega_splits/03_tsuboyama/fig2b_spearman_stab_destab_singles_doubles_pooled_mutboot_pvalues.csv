@@ -1,0 +1,19 @@
+comparison,model_a,model_b,value_a,value_b,delta,lo,hi,p,n_libraries,bootstrap,statistic,panel,p_holm
+stabilizing,ESM-MSR,MutateEverything,0.2782,0.2166,0.06155,0.03624,0.08311,0.004975,28,mutations,pooled over domains,singles,0.01493
+stabilizing,ESM-MSR,ThermoMPNN,0.2782,0.2241,0.05403,0.03151,0.07398,0.004975,28,mutations,pooled over domains,singles,0.01493
+stabilizing,ESM-MSR,SPURS,0.2782,0.2821,-0.003941,-0.02046,0.01631,0.59,28,mutations,pooled over domains,singles,0.59
+destabilizing,ESM-MSR,MutateEverything,0.731,0.7274,0.003589,-0.002895,0.009983,0.23,28,mutations,pooled over domains,singles,0.23
+destabilizing,ESM-MSR,ThermoMPNN,0.731,0.7009,0.03013,0.02202,0.03767,0.004975,28,mutations,pooled over domains,singles,0.01493
+destabilizing,ESM-MSR,SPURS,0.731,0.7198,0.01124,-0.001709,0.0221,0.08,28,mutations,pooled over domains,singles,0.16
+overall,ESM-MSR,MutateEverything,0.7726,0.7527,0.01994,0.0137,0.02588,0.004975,28,mutations,pooled over domains,singles,0.01493
+overall,ESM-MSR,ThermoMPNN,0.7726,0.7335,0.03912,0.03388,0.04443,0.004975,28,mutations,pooled over domains,singles,0.01493
+overall,ESM-MSR,SPURS,0.7726,0.7542,0.01849,0.01058,0.02534,0.004975,28,mutations,pooled over domains,singles,0.01493
+stabilizing,ESM-MSR,MutateEverything,-0.1422,0.03239,-0.1746,-0.2473,-0.1123,0.004975,15,mutations,pooled over domains,doubles,0.01493
+stabilizing,ESM-MSR,ThermoMPNN,-0.1422,-0.1571,0.01485,-0.03754,0.06315,0.51,15,mutations,pooled over domains,doubles,0.51
+stabilizing,ESM-MSR,SPURS,-0.1422,-0.08335,-0.05885,-0.09516,-0.01556,0.004975,15,mutations,pooled over domains,doubles,0.01493
+destabilizing,ESM-MSR,MutateEverything,0.4134,0.5119,-0.09852,-0.1153,-0.07859,0.004975,20,mutations,pooled over domains,doubles,0.01493
+destabilizing,ESM-MSR,ThermoMPNN,0.4134,0.5038,-0.09046,-0.09977,-0.07915,0.004975,20,mutations,pooled over domains,doubles,0.01493
+destabilizing,ESM-MSR,SPURS,0.4134,0.5074,-0.09406,-0.1241,-0.06982,0.004975,20,mutations,pooled over domains,doubles,0.01493
+overall,ESM-MSR,MutateEverything,0.4218,0.5447,-0.1229,-0.1412,-0.106,0.004975,20,mutations,pooled over domains,doubles,0.01493
+overall,ESM-MSR,ThermoMPNN,0.4218,0.5286,-0.1068,-0.1199,-0.0934,0.004975,20,mutations,pooled over domains,doubles,0.01493
+overall,ESM-MSR,SPURS,0.4218,0.5243,-0.1025,-0.1321,-0.07719,0.004975,20,mutations,pooled over domains,doubles,0.01493

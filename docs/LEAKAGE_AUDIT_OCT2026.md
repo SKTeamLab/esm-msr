@@ -7,7 +7,7 @@ split (`data/splits_oct06_capped.pkl`). This document gives:
 - which overlaps are verified and which are inferred;
 - the split-tooling validation;
 - the findings for each model, the assumptions behind them, and how to rerun the audit
-  (`python analysis/leak_audit/run_all.py`).
+  (`PYTHONPATH=src:analysis python -m audits.homology_and_splits.oct2026_leak_audit.run_all`).
 
 It is the companion to §6 of [`BENCHMARKS_OCT2026.md`](BENCHMARKS_OCT2026.md) and to
 [`SPLITTING_AND_HOMOLOGY_AUDIT.md`](SPLITTING_AND_HOMOLOGY_AUDIT.md). It was revised on 2026-11-12; the changes are
@@ -52,8 +52,8 @@ of ESM-MSR's capped-train rows: the 172 scaffolds, or 134 of them for ThermoMPNN
 
 ## 1. Method
 
-The audit runs end to end via `analysis/leak_audit/run_all.py`. The 19 numbered steps `01`–`19` run in file-name
-order; the number is the dependency order (§10).
+The audit runs end to end via `analysis/audits/homology_and_splits/oct2026_leak_audit/run_all.py`. Steps `01`–`18` and `20` run in file-name
+order, followed by `audits.homology_and_splits.active_builders.export_reference --sync`; the number is the dependency order (§10).
 
 1. **Normalise the test side (`04_testsets.py`).**
    - Every reported row is reduced to `(protein sequence, set of (WT, position, mutant))`, with positions validated in
@@ -539,14 +539,18 @@ leading.
 **Run:**
 
 ```bash
-python analysis/leak_audit/run_all.py
+# Run full literature leakage audit (steps 01..20 + export_reference --sync; optional start step integer)
+PYTHONPATH=src:analysis python -m audits.homology_and_splits.oct2026_leak_audit.run_all [start_step_num]
+
+# Or verify all committed reference & benchmark export CSVs without external raw search dirs
+PYTHONPATH=src:analysis python -m audits.homology_and_splits.active_builders.export_reference --verify
 ```
 
-`--from-step NN` resumes from a step. `THREADS` caps MMseqs2 and Foldseek. The full run takes about 4 minutes on
+Passing an optional integer `start_step_num` resumes from that step. `THREADS` caps MMseqs2 and Foldseek. The full run takes about 4 minutes on
 8 cores.
 
 **Inputs:**
-- **Tracked in `analysis/leak_audit/data/`:**
+- **Tracked in `analysis/audits/homology_and_splits/data/`:**
   - `S2450.*`, `S9028.csv`, `DD_SM1218.csv`, `DD_SM444.csv`;
   - `ifum_train_proteins.csv`, `esmtherm_split.csv`, `esmtherm_train_proteins.csv`, `kellogg2011_1210.csv`.
 - **In `$LEAK_DATA_DIR/raw`, all public:**
@@ -582,7 +586,8 @@ error if any Domainome or ProteinGym structure is missing.
 | 16 | `16_rosetta.py` | rows in Rosetta's `beta_nov16` tuning data (Kellogg 2011, Rocklin 2017) |
 | 17 | `17_proteingym.py` | per-DMS ProteinGym overlap and the ESM-MSR clean aggregates |
 | 18 | `18_matrix.py` | compose the `(model, dataset)` leak codes |
-| 19 | `19_export.py` | write `docs/benchmarks/` CSVs, the SQLite database and `analysis/reference/` mirrors |
+| 20 | `20_mgnify_vs_capped_train.py` | sequence-level MGnify scaffold homology classes (`mgnify_homology_classes.csv.gz`) |
+| export | `active_builders/export_reference.py --sync` | write `docs/benchmarks/` CSVs, the SQLite database and `analysis/reference/` mirrors (replaces legacy `19_export.py`); canonical four-part holdout flags and cross-set overlap matrices live alongside in `active_builders/tsuboyama_rule_flags.py` and `active_builders/set_overlap_matrix.py` |
 
 **Tools:** MMseqs2 13-45111, Foldseek 463739e, Biopython 1.85, pandas 2.3.0, networkx 3.3, SQLite 3.
 

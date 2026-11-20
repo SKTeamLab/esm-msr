@@ -1,0 +1,10 @@
+comparison,model_a,model_b,value_a,value_b,delta,lo,hi,p,n_libraries,bootstrap,statistic,p_holm
+positive,ESM-MSR,MutateEverything,0.4491,0.4771,-0.02794,-0.1332,0.08279,0.62,20,domains,pooled over domains,0.92
+positive,ESM-MSR,ThermoMPNN,0.4491,0.328,0.1211,0.006903,0.2865,0.04,20,domains,pooled over domains,0.12
+positive,ESM-MSR,SPURS,0.4491,0.41,0.03912,-0.0839,0.212,0.46,20,domains,pooled over domains,0.92
+negative,ESM-MSR,MutateEverything,0.01396,-0.00655,0.02051,-0.1564,0.2197,0.99,19,domains,pooled over domains,1
+negative,ESM-MSR,ThermoMPNN,0.01396,0.005217,0.008741,-0.1466,0.1895,0.93,19,domains,pooled over domains,1
+negative,ESM-MSR,SPURS,0.01396,0.01423,-0.0002766,-0.2349,0.2692,0.92,19,domains,pooled over domains,1
+overall,ESM-MSR,MutateEverything,0.5071,0.4802,0.02692,-0.09367,0.1519,0.67,20,domains,pooled over domains,0.67
+overall,ESM-MSR,ThermoMPNN,0.5071,0.3542,0.1529,0.03167,0.3288,0.02,20,domains,pooled over domains,0.06
+overall,ESM-MSR,SPURS,0.5071,0.3972,0.11,-0.02444,0.269,0.08,20,domains,pooled over domains,0.16

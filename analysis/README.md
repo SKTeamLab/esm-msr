@@ -1,99 +1,172 @@
-# `analysis/`: Benchmark Scoring, Figures, and Leak Audit
+# `analysis/`: Modular Benchmark Evaluation, Figure Pipelines, Mechanistic Studies, and Homology Audits
 
-Benchmark scoring, figure generation, and homology leak auditing for the repository. All figures and CSV tables in `results/` are computed by the top-level numbered scripts (`00_*.py`–`19_*.py`, `98_*.py`, `99_*.py`; the DMS benchmark is DLG4 binding, GRB2 binding and MYO: the abundance, ESTA and GB1 sets of the earlier benchmark duplicate ProteinGym assays and were removed) from `msr_predictions/`, `baselines/{retrained,public}/` and, for the FINAL_* ablations (`98_final_ablation_table.py`), the testing queue's `final_bench/` and `final_pgym_*/`.
+CPU-only post-inference evaluation, statistical bootstrapping, figure/table generation, and training-set homology auditing for ESM-MSR (`FINAL_p0`) and all retrained, supervised, and zero-shot baselines.
 
-Run all scripts (CPU only, using `msr_venv`):
+All 45 legacy top-level numbered scripts (`00_*.py`–`99_*.py`) and 7 legacy sub-study directories (`ablation_vs_p0/`, `combined_vs_wt/`, `faure_epistasis/`, `leak_audit/`, `pg_activity/`, `proteingym/`, `tsuboyama/mega_splits/`) have been consolidated into:
+- **`msr_analysis/`**: 19-module shared library (paths, immutable model roster, holdout filtering, prediction frames, joint domain/seed bootstrap engine, epistasis hierarchy, Tobit link, calibration, screening, structures, plotting primitives, and table formatters).
+- **`pipelines/`**: 12 self-contained, ordered figure & table pipelines (`p01`–`p12`) with zero cross-script `importlib` or `sys.path` hacks.
+- **`studies/`**: 2 standalone mechanistic studies (`faure_epistasis`, `sigma_mechanisms`).
+- **`audits/`**: Offline homology, split-provenance, and literature leakage builders (`homology_and_splits`, `baseline_bridge`).
+- **`scoring/`**: Cluster prediction collection, baseline run scoring, and fixed-slot hardware resource summaries.
+
+Detailed methodological and audit notes live in [`docs/`](docs/):
+- [`docs/ARCHITECTURE_AND_FINDINGS.md`](docs/ARCHITECTURE_AND_FINDINGS.md) — Data-flow architecture, methodological/statistical fixes, scientific findings, and composite figure suite.
+- [`docs/SEED_AUDIT.md`](docs/SEED_AUDIT.md) — Triplicate seed averaging and joint `[cluster × seed]` bootstrap resampling across every pipeline and study.
+- [`docs/HOMOLOGY_FILTER_AUDIT.md`](docs/HOMOLOGY_FILTER_AUDIT.md) — Canonical four-part sequence + 3D structure holdout filter (`msr_analysis/heldout.py`) vs historical coverage-gated literature leak codes.
+
+---
+
+## Quick Start & Unified CLI
+
+Run from the repository root using the `msr_venv` Python 3.11 environment (`numpy`, `scipy`, `pandas`, `matplotlib`, `seaborn`, `biopython`, `pytest`). Every pipeline runs on CPU from precomputed prediction CSVs under `MSR_ROOT` (default `~/playground/esm-msr-devel`).
+
 ```bash
-./run_all.sh
+# List all 12 pipeline stages and 2 optional mechanistic studies
+PYTHONPATH=.:src:analysis python -m analysis.run --list
+
+# Run the complete main + supplementary pipeline suite (B = 1000 bootstrap draws)
+./analysis/run_all.sh
+
+# Fast smoke-test pass across all stages (sets B = 100)
+./analysis/run_all.sh --fast
+
+# Run specific pipeline stages by code or stage name
+PYTHONPATH=.:src:analysis python -m analysis.run --only p01,p03,p05,p12
+PYTHONPATH=.:src:analysis python -m analysis.run --only tsuboyama --split mega
+
+# Include standalone mechanistic studies (faure_epistasis, sigma_mechanisms)
+PYTHONPATH=.:src:analysis python -m analysis.run --studies --B 1000
+
+# Run unit tests (485 passing tests across tests/ and analysis/tests/)
+pytest
 ```
 
----
+### CLI Options (`python -m analysis.run`)
 
-## Subfolders
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--list` | `False` | Print all registered `p01`–`p12` stages and `study:*` targets in execution order and exit. |
+| `--only STAGE [...]` | all `p01`–`p12` | Comma- or space-separated stage codes (`p01`), stage names (`tsuboyama`), or study targets (`study:sigma_mechanisms`). |
+| `--skip STAGE [...]` | none | Comma- or space-separated stages to skip. |
+| `--studies` | `False` | Also execute `studies/faure_epistasis` and `studies/sigma_mechanisms` after the selected pipelines. |
+| `--split {capped,mega}` | `capped` | MegaScale split passed explicitly to split-aware pipelines (`p02`, `p06`, `p07`, `p09`); `--split mega` writes to `results/03_tsuboyama/mega_splits/` without mutating environment variables. |
+| `--B INT` | `1000` | Number of bootstrap replicates forwarded to every stage. |
+| `--fast` | `False` | Smoke-test preset (`--B 100`). |
 
-| Subfolder | Contents |
-|---|---|
-| `msr_analysis/` | Shared Python package: `registry.py` (datasets, model metadata, colors), `data.py` (spine & prediction loaders, `sum_singles`, generalized epistasis computation, frame cache), `boot.py` (exact multiplicity Spearman bootstrap: protein, site, mutation), `calib.py` (one-donor OLS recalibration for RMSE), `link.py` (softplus floor link & post-link epistasis from `devel_link_params.json`), `screening.py` (hit-rate, top-`K` recovery, best-`ΔΔG` and rectified-gain-@-`K` curves), `style.py` (matplotlib formatting), `tables.py` (CSV summary exporters), `common.py` (shared helpers). |
-| `scoring/` | Prediction collection and benchmark table assembly (`collect_predictions.py`, `benchmark_matrix.py`, `score_baseline_runs.py`, `score_me_proteingym.py`, `pgym_public_scores.py`, `pgym_rosetta_singles.py`, `resource_report.py`, `resource_summary.py`: inference cost per model and benchmark group from the fixed-slot resource-tracker runs that `collect_predictions.py run --groups resources` mirrors into `<MSR_ROOT>/resources_tracked/`; writes `results/inference_resources/`). |
-| `proteingym/` | ProteinGym sigma analyses: `sigma_tradeoff/` (the Oct 27 baseline-model analysis: report, scripts, tables, figures) and `p0_sigma/` (FINAL_p0 at sigma 1 / 0.5 and the sigma = 0 reference: per-protein rho vs sigma and per-property delta-rho summaries). |
-| `combined_vs_wt/` | When the combined prediction (1/2 (MT + WT)) beats the WT head: delta rho per benchmark set, variant class, number of mutations and ProteinGym category for FINAL_p0 (unmasked), FINAL_p1 (masked) and FINAL_p0_pw0 (no pair loss), and a fit of the gain against the MT head's deficit (`01_*.py`-`07_*.py`, `results/`, `README.md`). |
-| `faure_epistasis/` | Epistasis in the DLG4 (PDZ3) and GRB2 (SH3) abundance and binding datasets of Faure et al.: how close the two residues of the doubles are, signal-to-noise of the epistasis, and the noise ceiling of `cell_mag` (`01_*.py`-`04_*.py`, `results/`, `README.md`). |
-| `ablation_vs_p0/` | Every FINAL_* ablation against FINAL_p0, paired, on every benchmark set and ProteinGym category (WT head and combined prediction): heatmap, per-set forests and the thermostability test (does anything beat p0?) (`01_*.py`-`06_*.py`, `results/`, `README.md`). |
-| `tsuboyama/` | `mega_splits/`: every Tsuboyama analysis rerun on the models retrained on the full MegaScale split (`mega_splits`: FINAL_p0_mega and the MutateEverything, ThermoMPNN and SPURS retrains, three seeds each). `run_all.sh` sets `MSR_TSU_SPLIT=mega`, which points `TSU`, the loaders and `RESULTS` at the mega sets, and writes `results/03_tsuboyama/mega_splits/`; see `tsuboyama/mega_splits/README.md`. |
-| `pg_activity/` | ProteinGym Activity assays: measured wild-type scores (`01_wt_reference.py`, `data/`), screening curves (hurts = more than half an assay SD below WT; the variance, floor and ladder rules are in the sensitivity tables), a floor audit and landscape figures (`02_activity_screening.py`, `results/`), and `README.md` with the definitions, per-enzyme evidence and results. |
-| `leak_audit/` | Sequence (MMseqs2) and structure (Foldseek TM-align) homology and training-data overlap audit (`run_all.py`, steps `01_*.py`–`19_*.py`; see `leak_audit/README.md`). |
-| `reference/` | Committed reference inputs: `benchmark_tables/*.csv` (parsed from `docs/BENCHMARKS_OCT2026.md`), `all_by_all_long.csv`, `devel_link_params.json` (checkpoint link parameters), `ctx_wt_rev_devel.csv.gz` (mutant-context WT-adapter reverse pass `~WT`), `leak_*.csv`, and `spurs_public_checkpoint.csv`. |
-| `results/` | Generated figures (`.png` + `.pdf`) and backing tables (`.csv`), organized into per-script subdirectories (`00_core/` through `12_pair_heatmaps/`). |
-| `cache/` | Pickled `Frame` objects (`frame_<dataset>.pkl`) and bootstrap replicate arrays (`boot_<unit>.pkl`); git-ignored and rebuilt automatically. |
-| `tests/` | Unit tests verifying `msr_analysis.boot` against `scipy.stats.spearmanr`. |
+Every individual stage or study module also runs directly via `python -m analysis.pipelines.<module> [--B 1000] [--fast]`.
 
 ---
 
-## Generalized Epistasis Definition
-
-Earlier scripts wrote ESM-MSR's predicted epistasis as `MT_AB - WT_AB` (or `comb_AB - WT_AB`). That shorthand has two issues:
-
-1. **Masking generality**: `WT_A + WT_B = WT_AB` holds **only** when the wild-type pass is unmasked so single-site log-odds sum exactly on the double row. Under independent single-position masking (where only position `A` or position `B` is masked at a time on the wild-type sequence), `WT_AB` is either undefined or not equal to `WT_A + WT_B`. Every additive baseline and epistasis calculation in `analysis/` therefore looks up the component single-mutant rows explicitly via `msr_analysis.data.sum_singles`.
-2. **2× magnitude**: Because the deployed ESM-MSR predictor on a double is the 50/50 ensemble `comb_AB = 1/2(MT_AB + WT_AB)`, the raw head difference `MT_AB - WT_AB = 2(comb_AB - WT_AB)` has twice the magnitude of the model's actual deviation from WT-single additivity.
-
-All scripts and cached frames (`msr_analysis/data.py`) compute and expose the consistent 1× generalization for every MSR/ESM3 model family (`msr`, `msrdev`, `msrp0`, `msrrel`, `msrrel@0`, `esm3avg`):
+## Directory Layout
 
 ```text
-dddG_pred = 1/2(MT_AB + WT_AB) - WT_A - WT_B = comb_AB - WT_A - WT_B
+analysis/
+├── README.md                     # Architecture, CLI reference, module guide, and legacy-to-pipeline map
+├── run.py                        # Unified Python CLI orchestrator (`python -m analysis.run`)
+├── run_all.sh                    # Thin shell wrapper setting PYTHONPATH and invoking `analysis.run "$@"`
+├── msr_analysis/                 # Core shared Python library (19 modules; zero script cross-imports)
+├── pipelines/                    # 12 ordered benchmark & figure pipelines (`p01` .. `p12`)
+├── studies/                      # Self-contained mechanistic deep-dives
+│   ├── faure_epistasis/          #   BindingPCA/AbundancePCA block geometry, SNR & noise ceilings
+│   └── sigma_mechanisms/         #   FINAL_p0 LoRA scale (σ ∈ {0, 0.5, 1}) mechanistic decomposition
+├── audits/                       # Offline homology searches, split provenance & cluster inventory
+│   ├── homology_and_splits/      #   `active_builders/` (4-part flags, overlap matrices, mega provenance)
+│   │                             #   + `oct2026_leak_audit/` (steps 01..20) + `data/` + `provenance/`
+│   └── baseline_bridge/          #   Local vs cluster training/checkpoint inventory (`inventory.py`)
+├── scoring/                      # Cluster rsync/manifest collector, baseline scorers & GPU slot profiler
+├── reference/                    # Committed reference tables (`tsuboyama_rule_flags.csv`, `leak_audit_*.csv`,
+│                                 #   `benchmark_tables/T*.csv`, `pg_activity/*.csv`, `dG_wt.json`, ...)
+├── cache/                        # Git-ignored Frame & bootstrap caches (written atomically via temp + os.replace)
+├── results/                      # Generated figures (.png + .pdf), CSVs, Markdown/LaTeX tables & manifests
+├── docs/                         # Audit & architecture documentation
+│   ├── ARCHITECTURE_AND_FINDINGS.md
+│   ├── SEED_AUDIT.md
+│   └── HOMOLOGY_FILTER_AUDIT.md
+└── tests/                        # Unit tests for bootstrap, roster, frames, holdout, links, epistasis & screening
 ```
 
-stored as `:epi`, with corresponding additive expectation `:wt+ = WT_A + WT_B`. (For the mutant-context control `ctx ctrl`, `MT_AB` is replaced by the reverse pass `~WT_AB`: `1/2(~WT_AB + WT_AB) - WT_A - WT_B`.)
+---
 
-## Screening curves: rectified gain @ K (`08_screening.py`)
+## Core Library Guide (`analysis/msr_analysis/`)
 
-`screening_per_protein*` (variants screened per protein, K = 1 to 100): hit rate, P(at least one hit in the top K) and, as the third panel, **rectified gain @ K** = the sum of max(y, 0) over the K selected variants (labels clipped at zero, predictions never), averaged over proteins; dotted = oracle (K largest max(y, 0)), dashed = K random picks (K x mean max(y, 0)). It replaces "best measured value in top K" (still computed as `best` in the CSVs). In every per-protein screening curve figure (`16_screening_overview.py`, `15_tsuboyama_single_screening.py` and `pg_activity/`) the shaded 95% bootstrap band is drawn for ESM-MSR only, so that it is not hidden under the other models' bands; the csv files hold every model's interval. ESM-MSR in these figures is **FINAL_p0, seed 1** (`msr_analysis.registry.P0 = final_bench/predictions`; the WT head on singles, the combined head on multi-mutants; `msrp0` in `data.py`).
+| Module | Responsibility & Key Exports |
+| :--- | :--- |
+| `paths.py` | Repo-relative (`REPO_ROOT`, `ANALYSIS_ROOT`, `DATA_DIR`, `CACHE`, `REFERENCE`, `RESULTS`) and external `MSR_ROOT` paths (`MSR`, `FINAL_BENCH`, `FINAL_CTX`, `FINAL_PGYM_*`, `FINAL_MGNIFY*`, `BASE`, `TASKS`, `PGYM_INPUTS`, `TSUBOYAMA_PDB_DIR`, `TSUBOYAMA_FEATS_CSV`, `SALVAGED_HOMOLOGY_CSV`), canonical dataset-to-folder maps, `results_dir(name, split)`, `source_signature()`, and symlink-safe atomic writers (`atomic_pickle_dump`, `atomic_to_csv`, `atomic_write_text`). |
+| `models.py` | Single immutable visual & key roster: `Model`, `StyleSpec` (frozen mapping with `.with_overrides()`), `ROSTER`, `BY_NAME`, `ORDER`, `UNIFIED`, `ABLATION_STYLES` (all 11 `FINAL_*` families + 2 cross-mask arms), `CATEGORY_COLOR`, `VARIANT_COLOR`, `column()`. |
+| `registry.py` | Dataset cohorts (`EXT12`, `DMS3`, `DMS_AUX`, `TSU_CAPPED`, `TSU_MEGA`, `PER_PROTEIN`, `LABEL`), `tsu_datasets(split)`, `all_datasets(split)`, and read-only `MODELS` (`MappingProxyType`) registering every `.single`, `.multi`, `.add`, `.epi`, and display-name style. |
+| `heldout.py` | Canonical four-part sequence + structure holdout filter backed by `reference/tsuboyama_rule_flags.csv`: `flags()`, `excluded(dataset)` (`proteingym=41`, `domainome=86`, `mgnify=27,687`, `rocklin_denovo=258`), and `keep_ids(dataset)`. |
+| `data.py` | `Frame(name, spine, preds, notes)`, `build_spine()`, `load_frame(ds, refresh=False, heldout=True, check_sources=False)`, `sum_singles()`, `singles_of_doubles()`, `synthesize_missing_epi()` (derives `:epi` on the fly from `pred - pred+` across cached pickles), and `add_esm3_masked()`. |
+| `final_runs.py` | Loader for all 11 `FINAL_*` ablation families (`FINAL_p0` reference, `p1`, `p1_marg`, `pw0`, `norank`, `rcthr0`, `norange`, `mse`, `noseqhwm`, `r2a4`, `mega`) plus cross-masking arms (`FINAL_p0@independent`, `FINAL_p1@unmasked`): `load_final_frame()`, `pgym_per_dms()`, `pgym_per_dms_seeds()`. |
+| `mgnify.py` | Loader for the 766,790-variant MGnify stability benchmark and 1,000 Rocklin *de novo* designs (`load_mgnify`), joining v2 `mgnify_mapped.csv` labels, applying 4-part holdout masking (`heldout=True`), and computing both `latent` and post-hoc Tobit-linked (`<head>~`) predictions. |
+| `proteingym.py` | Authoritative ProteinGym loader & scorer over the **173 canonical held-out assays** (`PG_DROP` + `heldout.keep_ids`: `Activity=38, Binding=13, Expression=18, OrganismalFitness=67, Stability=37`): `pgym_reference()`, `load_final_pgym_seeds()`, `load_sigma_pgym()`, `load_all_models_pgym()`, `boot_pgym_categories()` (joint `[category-stratified assay × 3-seed]` bootstrap), `sigma_delta_pvalues()`, and `draw_property_sigma_panel()`. |
+| `external.py` | Unified external benchmark helpers: `model_key_for_dataset()`, `seed_frame()`, `load_mutation_boot()` (`cache/boot_ext_mutation.pkl` with triplicate seed resampling), and `fresh_frames()`. |
+| `common.py` | Dataset/frame utilities: `has_multi()`, `primary_key()`, `out_dir(name, split)`, `load_rho_df()`, `primary_ci()`, `epi_rows()` (8,494 val / 12,455 test doubles with both constituent singles measured), `subframe()`, and `leak_table()`. |
+| `boot.py` | Exact $O(n)$ count-weighted `SpearmanEngine` and `DatasetBoot` supporting protein-, site-, and mutation-level resampling (`bootstrap_rho`) with exact per-seed-count multinomial draws for arbitrary `n_seeds` ($1, 2, 3, \dots$) and true site-level resampling on `PER_PROTEIN` datasets. |
+| `stats.py` | Unified statistical testing: `holm()`, `boot_pvalue()` ($1/(B+1)$ finite-sample floor), `fmt_p()`, `seed_sd()` (`ddof=1`), `paired_boot_test()`, `make_domain_seed_draws()`, `boot_domain_seeds()`, and `ndcg_at_k(mode='rectified'|'shifted')`. |
+| `epistasis.py` | Adapter over `esm_msr.epi_metrics.Table`: `make_epi_table()`, `compute_epi_metrics()` (6 core + 16 extended metrics), `boot_epistasis_models()` (parallelized domain-cloning + 3-seed bootstrap), and `smooth_on()`. |
+| `tobit.py` | `FINAL_p0` post-hoc Tobit observation link `linked(latent, dg_wt)` ($\sigma_y=0.28, \mu_f=-0.14, \sigma_f=0.5$) via `esm_msr.val_stats.tobit_link`, plus analytical `softplus_link` and `leaky_link` curves for floor-saturation diagnostics. |
+| `calib.py` | Single-donor OLS linear scale-and-bias calibration (`fit_scale_bias`, `rmse`, `mae`, `calibration_key`, `fit_frame_scale_bias`, `calibrated_preds`), automatically selecting `:comb` on multi-mutant sets (`ptmul`, `ptmuld`) and `:wt` on singles sets. |
+| `screening.py` | Experimental virtual-screening metrics (`protein_screen`, `eligible_proteins`, `per_protein_table`, `per_protein_curve`, `pooled_screen`) with fixed protein cohorts across $K$-sweeps, deterministic tie-breaking, and explicit separation of `rectified_gain` ($\sum \max(y,0)$) from unrectified `mean_y`. |
+| `structures.py` | PDB/AF2 coordinate loader (`load_pdb_residues` with virtual Glycine $C_\beta$ reconstruction), construct sequence alignment (`align_domain_residues`), and $C_\beta$ / heavy-atom inter-residue distance matrices (`cb_distance_matrix`, `heavy_atom_distance_matrix`). |
+| `style.py` | Publication figure styling: immutable `style_of(key, overrides=None)`, `dot_panel`, `bar_panel`, `forest_overview`, `raincloud` (with `[lo, hi]` 95% CI whiskers), `density_scatter`, `multi_seed_kde_grid`, and `finish_figure`. |
+| `tables.py` | Benchmark table parser (`read_table`, `numeric`) and unified `.csv` + `.md` + `.tex` statistical table exporter (`write_stat_table`, `format_stat_table_md`, `format_stat_table_tex`). |
 
-**Overview figures (`16_screening_overview.py`, `results/16_screening_overview/`).** `08_screening.py` writes the per-protein curve tables (`results/08_screening/screening_per_protein*.csv`: default, `_singles` and `_composite` Tsuboyama / Domainome tables, four model families or `_all_models`); `16_screening_overview.py` draws the singles and composite ones. `screening_overview_{single,multi}*` is a 2 x 3 grid with one column per category and two vertically stacked panels each: Tsuboyama test set (hit rate; P(at least one hit in the top K)), Domainome (the same two), and ProteinGym Activity (single mutants; the hurt rate under the 5%-of-variance noise rule, top for all 43 assays, bottom for the 18 enzymes; lower is better). `single` = single mutants only, scored by the single-mutant models; `multi` = Tsuboyama singles + doubles, the singles scored by the single-mutant model and the doubles by the multi-mutant model of each family (Domainome is single-mutant only and identical in both; the Activity column is always single mutants). `screening_gain_per_variant_{single,multi}*` shows the rectified gain per variant (the rectified gain @ K divided by K) of Tsuboyama and Domainome on its own (the Domainome panel has no oracle line, which would hide the models). Each exists with markers (four families) or without (`_all_models`). All text is wrapped to its panel or the figure width and checked to lie inside the figure box (`msr_analysis.style.wrap_to_px`, `text_outside`).
+---
 
-**Gain-per-variant fit (`17_gain_per_variant_fit.py`, `results/17_gain_fit/`).** The rectified gain per variant of the Homology-Restricted MegaScale test set is a straight line in ln K: g(K) = a − b ln K (ESM-MSR: 0.84 − 0.120 ln K, rmse 0.004 kcal/mol over K = 1 to 100; `gain_fit_params.csv` has every model, the oracle, 95% protein-bootstrap intervals and the other shapes tried in `gain_fit_shapes.csv`); `gain_fit_{single,multi}` draw the fits and residuals.
+## Key Methodological Conventions
 
-**MGnify (`18_mgnify.py`, `results/18_mgnify/`).** The Tsuboyama analyses (03) on the MGnify stability set (766,790 variants of 180,367 scaffolds, `data/mgnify`), which ESM-MSR never trained on, for ESM-MSR p0 (FINAL_p0 seeds 1-3; the other models were not run on it). Overall, singles, doubles, dG > 0 (measured dG_ML above 0), stabilizing / destabilizing, and by the scaffold's homology to the capped training set (`reference/mgnify_homology_classes.csv.gz`, from `leak_audit/20_mgnify_vs_capped_train.py`); every cell for the latent ddG and the Tobit-linked one (`esm_msr.val_stats.tobit_link`, the checkpoints' constants), pooled (scaffold bootstrap) and as the mean per-scaffold rho (scaffolds with at least 10 variants; the link cannot change it), with the Tsuboyama capped-test p0 rows as reference (`mgnify_summary.csv`, `mgnify_rmse.csv`, `mgnify_overview`, `mgnify_homology`, `mgnify_per_scaffold`, `mgnify_scatter`). The loader is `msr_analysis/mgnify.py`. `18b_mgnify_models.py` adds the baselines (SPURS-multi, ThermoMPNN-D, ProteinMPNN, ProSST, ESM3-small-open WT head) as the mean per-scaffold rho on the same scaffolds, each on the scaffolds it has scored completely (`mgnify_models_per_scaffold.csv`; it feeds the two inferred-ddG columns of `pg_categories`). The same script scores the Rocklin de novo designs of the table (1,000 design scaffolds; `final_mgnify/FINAL_p0/s<seed>/rdenovo`) into the same folder (`Rocklin designs` rows of `mgnify_summary.csv`, `table_rocklin*.md`, `rocklin_overview`; the designs' own within-design stats and epistasis are in `rocklin_designs/` and `new_data_epistasis/`).
+1. **One Immutable Look per Model (`msr_analysis/models.py`, `registry.py`)**:
+   - Models appear in a single canonical order across figures: zero-shot (`ProSST`, `ProteinMPNN`, `ESM3-small-open`), models retrained on `splits_oct06_capped` (`ESM-MSR`, `MutateEverything`, `ThermoMPNN`, `SPURS`), supervised models not trained on MegaScale (`GeoDDG-3D`, `Rosetta`, `ESM3ΔG`), and—in supplementary comparisons only—MegaScale-trained models (`ESMtherm*`, `IFUM*`, `SPURS published*`, `DDGemb`, `DDMut`).
+   - **ESM-MSR** is always the final deployed checkpoint (`FINAL_p0`, key `msrp0`, seeds 1–3) and `ESM3-small-open` is its $\sigma = 0$ readout (`msrrel@0`). Legacy development keys (`msr`, `msrdev`, `msrrel`) are retired from `registry.MODELS` and exist in raw `Frame` dicts solely for historical `BENCHMARKS_OCT2026.md` cell verification (`p12_manifest`, `p10_splits_and_leakage`).
+   - **Hollow markers (dashed lines)** denote the single-mutant version (`msrp0:wt`, `msrrel@0:wt`, `me1`, `tmpnn`, `spurs`, `+` additive sums); **filled markers (solid lines)** denote the multi-mutant version (`msrp0:comb`, `msrrel@0:comb`, `me2`, `tmpnnd`, `spursm`) or single-version models. Each benchmark scores the deployed version matching its composition (`wt` on singles-only sets, `comb` when multi-mutants are present).
+   - **ESM3ΔG placement**: `ESM3ΔG` is omitted from Tsuboyama val/test (`NO_ESM3DG`, since its MGnify Stability training data overlap MegaScale homologs) and marked non-held-out on MGnify/Rocklin, while **included** in Figure 3b (`p05_summary_main`, `LEFT_OUT = set()`) on ProteinGym and Domainome with a red training-overlap ring on its ProteinGym average and Stability category.
 
-**Rosetta multi vs additive (`19_rosetta_multi_vs_additive.py`, `results/19_rosetta_multi_vs_additive/`).** Rosetta Cartesian ddG of the multi-mutant itself (`rosetta`) against the single-mutant predictions summed (`rosetta+`) on PTMUL (all, doubles, 3+), PTMUL-D and the Tsuboyama capped test / validation doubles: both rhos, the paired difference with a bootstrap interval and p-value (mutation, protein / library resampling; `rosetta_multi_vs_additive.{csv,md}`, figure `rosetta_multi_vs_additive`).
+2. **Consistent $1\times$ Generalized Epistasis (`:epi`)**:
+   - Because the deployed multi-mutant readout is `comb_AB = 0.5 * (MT_AB + WT_AB)` and `WT_AB = WT_A + WT_B` holds only under unmasked wild-type scoring, every epistasis readout subtracts explicit constituent singles (`msr_analysis.data.sum_singles`):
+     $$\Delta\Delta\Delta G_{\text{pred}} = \tfrac{1}{2}(\text{MT}_{AB} + \text{WT}_{AB}) - \text{WT}_A - \text{WT}_B = \text{comb}_{AB} - \text{WT}_A - \text{WT}_B$$
+   - Public and zero-shot models carrying `pred` and `pred_additive` (`+`) expose `pred - pred+` as `<key>:epi` automatically via `synthesize_missing_epi()`.
 
-**Homology exclusion in the summary figures.** `pg_categories` (MGnify and Rocklin pooled; the default) and `pg_categories_per_scaffold` leave out every protein that is homologous to the capped-train set under the rule that built the split (MMseqs2 / Foldseek E <= 1e-3, local identity > 0.40, TM-score > 0.70; `leak_audit/21_tsuboyama_rule.py` -> `reference/tsuboyama_rule_flags.csv`): ProteinGym assays and Domainome domains from the structure-homology table (`pg_summary_tsu.csv`, `pg_sigma_summary_tsu.csv`), MGnify scaffolds and Rocklin designs from MMseqs2 hits (sequence only; identity alone flags most of them). `pg_categories` draws MGnify and Rocklin as one pooled rho (`mgnify_models_pooled.csv`, ESM-MSR Tobit-linked), `pg_categories_per_scaffold` as the mean per-scaffold rho.
+3. **Canonical Four-Part Holdout Filter (`msr_analysis/heldout.py`)**:
+   - ProteinGym, Domainome, MGnify, and Rocklin *de novo* designs are filtered identically against the **172 capped training libraries** (`audits/homology_and_splits/active_builders/tsuboyama_rule_flags.py` $\rightarrow$ `reference/tsuboyama_rule_flags.csv`): any protein meeting `MMseqs2 E <= 1e-3`, `BLOSUM62 shorter-sequence identity > 0.40`, `Foldseek E <= 1e-3`, or `Foldseek TM-score > 0.70` is excluded (`41/217` ProteinGym assays, leaving **173 held-out assays** after dropping the 4 `PG_DROP` $>1{,}800$-aa assays: `Activity=38` [including **16 enzymes**], `Binding=13`, `Expression=18`, `OrganismalFitness=67`, `Stability=37`; **436/522** Domainome domains; **152,680/180,367** MGnify scaffolds; **742/1,000** Rocklin designs).
 
-**Summary figure (`01_summary.py`, `results/01_summary/`).** `pg_categories` has two panels. Left: the ProteinGym average (mean of the five category means), Domainome, then MGnify and Rocklin Designs Inferred DDGs (n WTs; ESM-MSR p0 at sigma = 1 only). In the ProteinGym and Domainome clusters, ESM-MSR p0 at sigma = 1, ESM-MSR p0 at sigma = 0.5 (dark grey) and ESM3-small-open (sigma = 0) come first, then the other models. Every model is read as deployed: the multi-mutant version on the multi-mutant assays (ESM-MSR and ESM3-small-open: the combined prediction on the 69 ProteinGym assays with multi-mutants), the singles version (WT head) on the others; Domainome has no multi-mutants. Right: the per-property paired box / dot plot of ESM-MSR rho against sigma (`proteingym/p0_sigma/03_fig_property_summary.py`, `draw_paired`), the same deployed readout per assay (`per_assay_rho.csv`: `rho_dep_<sigma>`, `dep_head_<sigma>`; `rho_<sigma>` is the WT head). The sigma = 0 combined read is `pgym_results/unmasked-esm-msr-small/sigma0.0` (the March checkpoint with its adapters off, unmasked: the zero-shot read with that checkpoint's calibration heads; combined minus WT head is -0.006 on average over the 69 assays). The sigma = 0.5 combined predictions (`final_pgym_comb_sigma0.5/FINAL_p0/s{1,2,3}`, the 69 multi-mutant assays only) come from the queue tier `pgym_comb_s05`; until they exist those assays read the WT head and the legend says so. To refresh after they finish: `proteingym/p0_sigma/01_per_assay_rho.py`, `05_proteingym.py`, `proteingym/p0_sigma/03_fig_property_summary.py`, `01_summary.py` (all in `run_all.sh` order). The figure reads `results/05_proteingym/pg_summary.csv`, `pg_sigma_summary.csv` (`05_proteingym.py`) and `results/18_mgnify/mgnify_summary.csv`. `thermostability_sets`: the external thermostability sets (S571 and PTMUL-D left out) for the nine unified models, ordered left to right by the performance of ESM-MSR p0 (seed mean of FINAL_p0 s1-s3, highest first); it reads `results/02_thermostability/thermostability_rho.csv` and `results/98_ablation/cells_long.csv` and writes `thermostability_sets.csv`; hollow markers are singles models, filled ones models trained with doubles. `01b_thermostability_pvalues.py` adds the p-values of that figure (`thermostability_sets_pvalues.{csv,md}`, `thermostability_sets_best.csv`, and `thermostability_sets_msr_heads.csv`: ESM-MSR combined against its WT head on PTMUL and PTMUL-D): ESM-MSR p0 against every other model and against the best model without training overlap, paired bootstrap resampling mutations (200,000 draws) and proteins (100,000), Holm-adjusted; it rebuilds the frame cache once if it does not reproduce the figure's values.
+4. **Triplicate Seeds & Joint Resampling Everywhere (`docs/SEED_AUDIT.md`)**:
+   - Every retrained model (`FINAL_p0`, all `FINAL_*` ablations, `MutateEverything`, `ThermoMPNN`, `SPURS`, and our 3 `ProteinMPNN` runs on ProteinGym / Activity screening) uses **seeds 1–3** (point estimate = mean of per-seed statistics; sample SD uses `ddof=1`; bootstrap resamples seeds jointly with proteins, domains, sites, or assays). The sole data-completeness exception is `FINAL_p1` combined on ProteinGym (seeds 1 and 3; seed 2 covers 126/219 assays).
+   - In ProteinGym Activity screening (`p09_screening`), `ProteinMPNN` uses **our 3 per-variant runs** and `ESM3-small-open` uses **our unmasked $\sigma = 0$ readout**, whereas `ProSST` uses ProteinGym's shipped zero-shot per-variant scores (`p03_proteingym` audits our runs against ProteinGym's shipped scores across all categories and Activity curves).
 
-**ProteinGym Activity** has its own folder, [`pg_activity/`](pg_activity/README.md): the wild-type score of each of the 43 Activity assays (read from the raw DMS files and the original papers), the screening curves against that measured WT (three definitions of "hurts", with a floor audit) for the 18 enzymes and for all assays, and the scripts, data and write-up behind them. It is not produced by `08_screening.py`.
+---
 
-## FINAL_* ablation table (`98_final_ablation_table.py`)
+## Pipeline Stages, Studies, Audits & Legacy Mapping
 
-Scores the nine FINAL_* families (FINAL_p0 reference; masking: p1, p1_marg; losses: pw0, norank, rcthr0; architecture: noseqhwm, r2a4; data: mega). Each family differs from FINAL_p0 in one hparam group, listed in `msr_analysis/final_runs.py::FAMILIES`. Every family x seed x readout (wt, comb, mt, wt+ = sum of WT singles, epi = comb − WT_A − WT_B) is scored on every benchmark. Each checkpoint is tested under its own masking strategy, as the testing queue ran it.
+### 1. Active Pipelines (`analysis/pipelines/`)
 
-**Inputs** (no GPU): `<MSR_ROOT>/final_bench/predictions/<folder>/final_checkpoints/<FAMILY>/s<seed>/best.ckpt_sigma1.0_*predictions.csv` and `<MSR_ROOT>/final_pgym_wt|final_pgym_comb/<FAMILY>/s<seed>/<DMS_id>.csv`. If you downloaded the predictions elsewhere, point `MSR_FINAL_BENCH`, `MSR_FINAL_PGYM_WT`, `MSR_FINAL_PGYM_COMB` and `MSR_FINAL_PGYM_XMASK` at those folders. Rows `FINAL_p0@independent` and `FINAL_p1@unmasked` are cross-masking runs, each checkpoint evaluated under the other family's masking. They fill in once the queue's lowest-priority `gamut_xmask` / `pgym_wt_xmask` tiers have run. Labels come from `baselines/public/_tasks` and ProteinGym categories from `baselines/pgym_per_dms/pgym_all_models_per_dms.csv`. A family or seed whose files are missing is left out, and `coverage.csv` lists what was found. A ProteinGym run counts only if it covers at least 212 of the 213 assays.
+| Stage | Module | Legacy Scripts & Sub-Studies Replaced | Key `analysis/results/` Outputs |
+| :--- | :--- | :--- | :--- |
+| **`p01`** | `p01_benchmarks_external.py` (`benchmarks_external`) | `01_core_rho.py`, `02_thermostability.py`, `04_dms_domainome.py` | `00_core/rho_bootstrap.csv`, `02_thermostability/{thermostability_rho.csv, thermo_external_rho.*, thermo_overview.*, thermo_interval_types.*}`, `04_dms_domainome/{dms_vs_retrains.*, dms_sigma_vs_zero_shot.*, dms_sigma_sweep.*}` |
+| **`p02`** | `p02_tsuboyama.py` (`tsuboyama`, `--split capped\|mega`) | `03_tsuboyama.py`, `11_publication_figures.py` (figs 1–2), `11e` (fig 2), `11i_doubles_vs_singles_pvalues.py`, `11j_overall_vs_transfer.py`, `11k_ndcg96_supplement.py`, `tsuboyama/mega_splits/{01_rho_overview, 03_version_comparison}.py` | `03_tsuboyama/{tsuboyama_overview.*, tsuboyama_per_library.*, tsuboyama_singles_doubles.*, tsuboyama_scatter.*, fig1_*, fig2_*, fig2b_*, doubles_vs_singles_on_singles.*, overall_vs_transfer_*.*}`, `00_supplementary_figs/ndcg96_singles_doubles.*`, `03_tsuboyama/mega_splits/03_tsuboyama/*` |
+| **`p03`** | `p03_proteingym.py` (`proteingym`) | `05_proteingym.py`, `23_pg_ours_vs_published.py`, `proteingym/p0_sigma/{01..05}` | `05_proteingym/{pg_per_dms.csv, pg_all_models_per_dms.csv, pg_summary.csv, pg_sigma_summary.csv, property_delta_pvalues.csv, pg_table_heatmap.*, pg_overview.*, pg_per_dms_scatter.*, pg_property_sigma_summary.*, pg_multi_property_trajectories.*}`, `23_pg_ours_vs_published/*` |
+| **`p04`** | `p04_mgnify_rocklin.py` (`mgnify_rocklin`) | `18_mgnify.py`, `18b_mgnify_models.py`, `18c_mgnify_by_mutation_count.py`, `scoring/mgnify_{rdenovo_stats, epistasis_beyond, by_homology, baselines_compare, labels, link}.py` | `18_mgnify/{mgnify_summary.csv, mgnify_rmse.csv, mgnify_per_scaffold_rho.csv, mgnify_models_per_scaffold.csv, mgnify_models_pooled.csv, mgnify_by_mutation_count.*, mgnify_overview.*, rocklin_overview.*, mgnify_homology.*, mgnify_per_scaffold.*, mgnify_scatter.*, rocklin_designs/*, new_data_epistasis/*}` |
+| **`p05`** | `p05_summary_main.py` (`summary_main`) | `01_summary.py`, `01b_thermostability_pvalues.py`, `22_esm_msr_vs_esm3dg.py` | `00_main_text_figs/figure3.{png,pdf}`, `01_summary/{pg_categories.*, pg_categories_per_scaffold.*, thermostability_sets.*, thermostability_sets_pvalues.{csv,md}, thermostability_sets_best.csv, thermostability_sets_msr_heads.csv}`, `22_esm_msr_vs_esm3dg/esm_msr_vs_esm3dg.*` |
+| **`p06`** | `p06_epistasis_hierarchy.py` (`epistasis_hierarchy`, `--split`) | `06_epistasis.py`, `11_publication_figures.py` (figs 3–4), `11e` (fig 3), `11b_publication_epistasis_levels.py`, `11d_epistasis_levels_bootstrap.py`, `11h_stacked_stab_epistatic.py`, `11l_epistatic_vs_additive_pvalues.py`, `11m_masking_schemes.py`, `11n_epistasis_levels_p0.py`, `scoring/spurs_epi_table_cells.py` | `00_main_text_figs/{fig2_fig3_stacked.*, epistasis_levels_e.*, epistasis_main_composite.*}`, `06_epistasis/{epistasis_naive_recomputed.*, epistasis_scatter_*, ddg_ranking.*, lambda_scan.*, fig3_*, fig4_*, fig5_*, fig5a_*, epistatic_vs_additive*.*}`, `00_supplementary_figs/{fig5a_epistasis_levels_bars_test_{p0,masking}.*, masking_schemes.*}` |
+| **`p07`** | `p07_epistasis_mechanisms.py` (`epistasis_mechanisms`, `--split`) | `11c_publication_epistasis_scatters.py`, `11f_epistasis_types.py`, `11g_link_figure.py`, `12_pair_epistasis_heatmaps.py`, `13_dddG_correlation_scatters.py`, `19_rosetta_multi_vs_additive.py` | `00_supplementary_figs/floor_saturation_mechanism.{png,pdf}`, `06_epistasis/{fig6a..fig6e.*, fig7_*, fig8_link_binned.csv, dddG_scatters/*, dG_additive_vs_pred_dddG/*}`, `12_pair_heatmaps/{pairs.csv, agreement.csv}`, `19_rosetta_multi_vs_additive/rosetta_multi_vs_additive.*` |
+| **`p08`** | `p08_calibration_length.py` (`calibration_length`) | `07_rmse_calibration.py`, `09_sequence_length.py` | `07_rmse/{calibration_candidates*.csv, rmse_by_dataset*.csv, calibration_transfer*.csv, rmse_recalibrated*.*}`, `09_sequence_length/{length_summary.csv, sequence_length_distribution.*, per_protein_metrics.csv, length_vs_performance.*, length_correlation_summary.*}` |
+| **`p09`** | `p09_screening.py` (`screening`, `--split`) | `08_screening.py`, `14_property_category_gain.py`, `15_tsuboyama_single_screening.py`, `16_screening_overview.py`, `17_gain_per_variant_fit.py`, `pg_activity/{01_wt_reference, 02_activity_screening}.py` | `00_supplementary_figs/screening_gain_law_composite.{png,pdf}`, `08_screening/{screening_pooled_external.*, screening_per_protein_*.csv, fig_*, property_gain/*, pg_activity/*}`, `16_screening_overview/*`, `17_gain_fit/*` |
+| **`p10`** | `p10_splits_and_leakage.py` (`splits_and_leakage`) | `10_leakage_and_reference.py`, `20_split_best_partner.py`, `20b_split_overlap_heatmaps.py`, `21b_holdout_filter_figure.py`, `tsuboyama/mega_splits/02_split_provenance.py` | `10_leakage_and_reference/*`, `00_supplementary_figs/holdout_filter.*`, `00_supplementary_figs/split_construction/{split_best_partner_capped.*, split_max_{identity,tm}_heatmap.*, mega_clean_vs_homologous_test.*}`, `for_reviewers/{split_best_partner_hyperopt.*, baseline_nobb_ablation.*}` |
+| **`p11`** | `p11_ablations_and_heads.py` (`ablations_and_heads`) | `98_final_ablation_table.py`, `ablation_vs_p0/{01..06}`, `combined_vs_wt/{01..08}` | `98_ablation/{cells_long.csv, summary.csv, delta_paired.csv, table_main_delta.{csv,md,tex}, table_wt_delta.{csv,md,tex}, head_choice.csv, informativeness.csv}`, `studies/ablations/{ablation_architecture_suite.*, ...}`, `studies/dual_view/{dual_view_summary.*, ...}` |
+| **`p12`** | `p12_manifest.py` (`manifest`) | `00_parse_benchmark_tables.py` (`--reparse`), `00_validate_against_tables.py`, `99_table_coverage.py` | `00_core/validation_vs_benchmarks.csv` (records both 436-domain held-out `rho` and 522-domain legacy `rho_unfiltered`), `table_figure_map.csv` (verifies 27/27 benchmark tables mapped), `manifest_outputs.csv` |
 
-**Scoring** follows `01_core_rho` / `05_proteingym` / `06_epistasis`: measured rows; Tsuboyama = mean per-library ρ, Domainome = mean per-domain ρ; low-id drops the P/H MegaScale-homologous domains and assays; ΔΔΔG = pooled ρ over doubles with both singles measured, wild-type backbone. `primary` is the deployed readout: wt on singles-only columns and comb where multi-mutants are scored. FINAL_p0_mega trains on `mega_splits`, so its Tsuboyama cells are on its own split (marked †, `cells_long_mega_own_split.csv`).
+### 2. Mechanistic Studies (`analysis/studies/`)
 
-**Outputs** in `results/98_ablation/`: `cells_long.csv`, `summary.csv` (seed mean / SD), `delta_s1.csv` (paired bootstrap of family − FINAL_p0 at seed 1; protein level, site level for the DMS, assays within category for ProteinGym), `table_main_delta.{md,csv,tex}` and `table_wt_delta.{md,csv,tex}` (the two ablation tables, below), `informativeness.csv` (family spread vs seed noise per column), `head_choice.csv` (comb − wt and whether the two readouts rank the families alike) and `layout_*.md` (candidate tables). `--render-only` redraws the layouts from the CSVs. `--B` sets the number of bootstrap draws (default 100 while drafting).
+| Study Target | Directory | Legacy Sub-Study Replaced | Key Outputs (`analysis/results/studies/`) |
+| :--- | :--- | :--- | :--- |
+| `study:faure_epistasis` | [`studies/faure_epistasis/`](studies/faure_epistasis/README.md) | `analysis/faure_epistasis/{01..05, faure.py}` | `studies/faure_epistasis/{faure_vs_megascale_epistasis_snr.*, proximity_distribution.*, epistasis_snr.*, cell_mag_ceiling.*, *.csv}` |
+| `study:sigma_mechanisms` | [`studies/sigma_mechanisms/`](studies/sigma_mechanisms/README.md) | `analysis/proteingym/sigma_tradeoff/` (upgraded from Oct-27 1-seed baseline to 3-seed `FINAL_p0` on 173 held-out assays) | `studies/sigma_mechanisms/{sigma_mechanisms_composite.*, aa_category_heatmaps.*, site_vs_sub_decomposition.csv, aa_rank_shifts.csv, tail_selection_vs_filtering.csv, pareto_multi_property.csv}` |
 
-### The two ablation tables
+### 3. Offline Audits & Scoring Utilities (`analysis/audits/`, `analysis/scoring/`)
 
-Both tables list FINAL_p0 in absolute Spearman ρ (seed mean) and every other family as Δρ against it, grouped by the axis it changes. FINAL_p0_mega is left out of both: it belongs in the retrained-methods comparison. The single-protein DMS sets are left out too, since ProteinGym and Domainome cover out-of-distribution fitness. Both remain in `summary.csv` and `layout_D`.
-
-- **Uncertainty:** a cell is bold when |Δ| > 2 SE. The SE combines seed noise and sampling noise.
-  - Seed noise is each family's own seed SD. For a single-seed run it is the column's pooled SD.
-  - Sampling noise comes from the paired seed-1 bootstrap in `delta_s1.csv`, over proteins, sites, assays or the 13 test domains.
-- **‡:** the cell rests on fewer seeds than the rest of its row. Each cell's seeds are listed in the table's CSV.
-
-**`table_main_delta`: deployed readout.** Each dataset is scored the way the model is used: the WT head on singles-only sets, and ½(MT + WT) where multi-mutants are scored.
-- Columns: Tsuboyama test, Tsuboyama doubles, epistasis beyond ρ, epistasis cell magnitude, external singles (mean of 10), PTMUL / PTMUL-D, Domainome low-id and ProteinGym avg.
-- The epistasis columns score comb(AB) − WT(A) − WT(B) against measured ΔΔΔG on the 12,455 Tsuboyama test doubles that have both singles measured, using `esm_msr.epi_metrics`, the code training validation uses.
-  - *Beyond ρ* is the Spearman ρ above the global saturation curve.
-  - *Cell magnitude* is computed on double-centred residuals within complete blocks of each position pair. Of the two it separates the families more cleanly; beyond ρ is noisy.
-- Rows: every capped-split ablation, plus the two cross-masking rows once the queue's xmask tiers have run.
-
-**`table_wt_delta`: WT head alone.** Every row is read from `wt_lora_pred`, which is what a WT-only deployment (`--skip_reverse`) outputs. On a multi-mutant row it is the WT head's own prediction of that row.
-- Columns: Tsuboyama test, Tsuboyama singles, Tsuboyama doubles, external singles, PTMUL / PTMUL-D, Domainome low-id and ProteinGym avg.
-- **Rows left out:** ablations that reach the MT head only: no pair loss (pair blocks backpropagate into the MT head only, per the `--block_pair_weight` help), MT LoRA rank 2, and p1 MT marginal (which differs from p1 only in the MT pass's masking).
-  - Their WT heads still differ from FINAL_p0's, because training is joint. At matched seed the WT predictions on the Tsuboyama test singles correlate at r = 0.995–0.999, closer than FINAL_p0's own seeds (r ≈ 0.992).
-  - So those rows would show seed noise, not an ablation effect. `MT_ONLY` in the script lists them.
-- **Columns left out:** the two epistasis columns. The WT head is additive by construction, so a WT-only model has no epistasis to score.
-- **Rows kept:** the ones whose change reaches the WT head: p1 masked, no rank loss, rank censor 0 and no sequence head. The cross-masking rows are kept too, since they change how the WT head is read at test time.
-
-Both tables come from one function, `delta_table`, configured by `TABLES` in `98_final_ablation_table.py`. `--render-only` redraws them from the CSVs.
+| Package / Tool | Legacy Counterparts | Purpose |
+| :--- | :--- | :--- |
+| [`audits/homology_and_splits/`](audits/homology_and_splits/README.md) | `leak_audit/{01..22, lib.py, run_all.py, data/}`, `tsuboyama/mega_splits/{00_build_tasks, 02_split_provenance}.py` | `active_builders/` (`tsuboyama_rule_flags.py`, `set_overlap_matrix.py`, `build_mega_tasks.py`, `mega_split_provenance.py`, `export_reference.py`) and `oct2026_leak_audit/` (`01`..`20` + `run_all.py`). |
+| [`audits/baseline_bridge/`](audits/baseline_bridge/README.md) | `analysis/baseline_bridge/inventory.py` | Audits local and cluster baseline training/evaluation directories via `msr_analysis.paths.TRAINING_LOGS`. |
+| `scoring/collect_predictions.py` | `scoring/collect_predictions.py` | Mirrors `msr_predictions/`, `final_*`, `baselines/`, `mega_splits/`, and `resources_tracked/` from cluster runs with atomic `MANIFEST.tsv` verification. |
+| `scoring/score_runs.py` (+ `score_baseline_runs.py`, `score_me_proteingym.py` wrappers) | `score_baseline_runs.py`, `score_me_proteingym.py`, `summarize_spurs_runs.py`, `pgym_public_scores.py`, `pgym_rosetta_singles.py` | Unified baseline & ProteinGym run scorer importing `esm_msr.stats` and `msr_analysis.heldout` directly (`ddof=1`). |
+| `scoring/resources.py` (+ `resource_report.py`, `resource_summary.py` wrappers) | `resource_report.py`, `resource_summary.py` | Summarizes fixed-slot RTX A4500 resource-tracker scopes into `results/inference_resources/` and updates `docs/INFERENCE_RESOURCES.md` (`--docs`). |

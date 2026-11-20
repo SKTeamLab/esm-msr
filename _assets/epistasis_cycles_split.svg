@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 536 510" width="536" height="510">
+  <title>Thermodynamic Epistasis Cycles — 5 Main Types (Draft 3: 6-Plane Balanced Split around B &amp; E)</title>
+
+  <defs>
+    <marker id="mid-arrow" markerWidth="16" markerHeight="13" refX="11.5" refY="6.5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0,0.5 L 16,6.5 L 0,12.5 L 4,6.5 Z" fill="#1A1A1A"/>
+    </marker>
+    <marker id="wt-start" markerWidth="7" markerHeight="6" refX="0.8" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 6.5,0.5 L 0.5,3 L 6.5,5.5 L 4.8,3 Z" fill="#CCCCCC"/>
+    </marker>
+    <marker id="wt-end" markerWidth="7" markerHeight="6" refX="6.2" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0.5,0.5 L 6.5,3 L 0.5,5.5 L 2.2,3 Z" fill="#CCCCCC"/>
+    </marker>
+    <marker id="arr-comp" markerWidth="7.5" markerHeight="7.5" refX="6.5" refY="3.75" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0,0.3 L 7.2,3.75 L 0,7.2 L 1.9,3.75 Z" fill="#2166AC"/>
+    </marker>
+    <marker id="arr-wpos" markerWidth="7.5" markerHeight="7.5" refX="6.5" refY="3.75" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0,0.3 L 7.2,3.75 L 0,7.2 L 1.9,3.75 Z" fill="#3682B8"/>
+    </marker>
+    <marker id="arr-wneg" markerWidth="7.5" markerHeight="7.5" refX="6.5" refY="3.75" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0,0.3 L 7.2,3.75 L 0,7.2 L 1.9,3.75 Z" fill="#D4633B"/>
+    </marker>
+    <marker id="arr-clash" markerWidth="7.5" markerHeight="7.5" refX="6.5" refY="3.75" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0,0.3 L 7.2,3.75 L 0,7.2 L 1.9,3.75 Z" fill="#B2182B"/>
+    </marker>
+    <marker id="arr-dark" markerWidth="7.5" markerHeight="7.5" refX="6.5" refY="3.75" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0,0.3 L 7.2,3.75 L 0,7.2 L 1.9,3.75 Z" fill="#333333"/>
+    </marker>
+  </defs>
+
+  <!-- TOP PANEL: A=weak positive (+1u), B=near-neutral (0), C=clash/negative sign (−2u) -->
+  <g id="panel-top" font-family="'Liberation Sans', Arial, Helvetica, 'DejaVu Sans', sans-serif" font-size="14">
+    <polygon points="40,265.5 204,240 420,240 256,265.5" fill="#333333" fill-opacity="0.5"/>
+
+    <g>
+      <line x1="47.5" y1="82" x2="412.5" y2="82" stroke="#CCCCCC" stroke-width="1.1" marker-start="url(#wt-start)" marker-end="url(#wt-end)"/>
+      <line x1="420" y1="56" x2="520" y2="56" stroke="#333333" stroke-width="1.1"/>
+      <line x1="420" y1="82" x2="520" y2="82" stroke="#333333" stroke-width="1.1"/>
+      <line x1="420" y1="108" x2="520" y2="108" stroke="#333333" stroke-width="1.1"/>
+      <line x1="420" y1="212" x2="520" y2="212" stroke="#333333" stroke-width="1.1"/>
+    </g>
+
+    <g id="top-wedge-C">
+      <polygon points="204,56 256,134 420,212" fill="#B2182B" fill-opacity="0.62"/>
+      <path d="M 204,56 L 350.88,162.08 L 420,212" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+      <path d="M 256,134 L 329.8,169.1 L 420,212" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+    </g>
+
+    <g id="top-wedge-B">
+      <polygon points="204,56 256,134 420,108" fill="#D9D9D9" fill-opacity="0.58"/>
+      <path d="M 204,56 L 312,82 L 420,108" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+      <path d="M 256,134 L 362.6,117.1 L 420,108" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+    </g>
+
+    <g id="top-wedge-A">
+      <polygon points="204,56 256,134 420,56" fill="#92C5DE" fill-opacity="0.72"/>
+      <path d="M 204,56 L 312,56 L 420,56" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+      <path d="M 256,134 L 362.6,83.3 L 420,56" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+    </g>
+
+    <g stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-dasharray="0.1 7">
+      <line x1="40" y1="82" x2="40" y2="265.5"/>
+      <line x1="204" y1="56" x2="204" y2="240"/>
+      <line x1="256" y1="134" x2="256" y2="265.5"/>
+      <line x1="420" y1="56" x2="420" y2="240"/>
+    </g>
+
+    <g>
+      <path d="M 40,82 L 122,69 L 204,56" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+      <path d="M 40,82 L 148,108 L 256,134" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+    </g>
+
+    <g>
+      <circle cx="40" cy="82" r="6.5" fill="#FFFFFF" stroke="#333333" stroke-width="1.3"/>
+      <circle cx="420" cy="82" r="6.5" fill="#FFFFFF" stroke="#333333" stroke-width="1.3"/>
+      <circle cx="204" cy="56" r="10" fill="#2166AC" stroke="#333333" stroke-width="1.5"/>
+      <circle cx="256" cy="134" r="10" fill="#D62828" stroke="#333333" stroke-width="1.5"/>
+
+      <circle cx="420" cy="56" r="10" fill="#92C5DE" stroke="#333333" stroke-width="1.5"/>
+      <text x="420" y="60.5" fill="#1A1A1A" font-size="13" font-weight="700" text-anchor="middle">A</text>
+
+      <circle cx="420" cy="108" r="10" fill="#D9D9D9" stroke="#333333" stroke-width="1.5"/>
+      <text x="420" y="112.5" fill="#1A1A1A" font-size="13" font-weight="700" text-anchor="middle">B</text>
+
+      <circle cx="420" cy="212" r="10" fill="#B2182B" stroke="#333333" stroke-width="1.5"/>
+      <text x="420" y="216.5" fill="#FFFFFF" font-size="13" font-weight="700" text-anchor="middle">C</text>
+    </g>
+
+    <g stroke-width="1.4">
+      <line x1="434" y1="104.5" x2="434" y2="60.5" stroke="#3682B8" marker-end="url(#arr-wpos)"/>
+      <line x1="443" y1="85.5" x2="443" y2="103.5" stroke="#333333" marker-end="url(#arr-dark)"/>
+      <line x1="434" y1="111.5" x2="434" y2="207.5" stroke="#B2182B" marker-end="url(#arr-clash)"/>
+    </g>
+
+    <g>
+      <text x="40" y="54" fill="#333333" text-anchor="middle">ΔG ab</text>
+      <text x="40" y="70" fill="#333333" text-anchor="middle">(wild-type)</text>
+
+      <text x="204" y="40" fill="#333333" text-anchor="middle">ΔG Ab</text>
+      <text x="230" y="159" fill="#333333" text-anchor="middle">ΔG aB</text>
+
+      <text transform="translate(131.84,67.44) rotate(-9.01)" x="0" y="-9.5" fill="#333333" text-anchor="middle">ΔΔG(A|wt)</text>
+      <text transform="translate(312,56) rotate(0.00)" x="0" y="-9.5" fill="#333333" text-anchor="middle">ΔΔG(B|A)</text>
+      <text transform="translate(137.2,105.4) rotate(13.54)" x="0" y="20.5" fill="#333333" text-anchor="middle">ΔΔG(B|wt)</text>
+      <text transform="translate(341.28,174.56) rotate(25.44)" x="0" y="20.5" fill="#333333" text-anchor="middle">ΔΔG(A|B)</text>
+
+      <text x="440" y="74" fill="#3682B8" text-anchor="start">δΔΔG</text>
+      <text x="483" y="94" font-size="12.5" fill="#333333" text-anchor="middle">ΔΔG</text>
+      <text x="483" y="106" font-size="12.5" fill="#333333" text-anchor="middle">additive</text>
+      <text x="440" y="165" fill="#B2182B" text-anchor="start">δΔΔG</text>
+    </g>
+  </g>
+
+  <!-- BOTTOM PANEL: D=compensation (+2u), E=near-neutral (0), F=weak negative (−1u) -->
+  <g id="panel-bottom" font-family="'Liberation Sans', Arial, Helvetica, 'DejaVu Sans', sans-serif" font-size="14">
+    <polygon points="40,485.5 204,460 420,460 256,485.5" fill="#333333" fill-opacity="0.5"/>
+
+    <g>
+      <line x1="47.5" y1="308" x2="412.5" y2="308" stroke="#CCCCCC" stroke-width="1.1" marker-start="url(#wt-start)" marker-end="url(#wt-end)"/>
+      <line x1="420" y1="278" x2="520" y2="278" stroke="#333333" stroke-width="1.1"/>
+      <line x1="420" y1="308" x2="520" y2="308" stroke="#333333" stroke-width="1.1"/>
+      <line x1="420" y1="382" x2="520" y2="382" stroke="#333333" stroke-width="1.1"/>
+      <line x1="420" y1="434" x2="520" y2="434" stroke="#333333" stroke-width="1.1"/>
+    </g>
+
+    <g id="bottom-wedge-F">
+      <polygon points="204,319 256,371 420,434" fill="#F4A582" fill-opacity="0.72"/>
+      <path d="M 204,319 L 363.84,404.1 L 420,434" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+      <path d="M 256,371 L 328.16,398.72 L 420,434" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+    </g>
+
+    <g id="bottom-wedge-E">
+      <polygon points="204,319 256,371 420,382" fill="#D9D9D9" fill-opacity="0.58"/>
+      <path d="M 204,319 L 346.56,360.58 L 420,382" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+      <path d="M 256,371 L 370.8,378.7 L 420,382" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+    </g>
+
+    <g id="bottom-wedge-D">
+      <polygon points="204,319 256,371 420,278" fill="#2166AC" fill-opacity="0.62"/>
+      <path d="M 204,319 L 303.36,300.14 L 420,278" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+      <path d="M 256,371 L 357.68,313.34 L 420,278" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+    </g>
+
+    <g stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-dasharray="0.1 7">
+      <line x1="40" y1="308" x2="40" y2="485.5"/>
+      <line x1="204" y1="319" x2="204" y2="460"/>
+      <line x1="256" y1="371" x2="256" y2="485.5"/>
+      <line x1="420" y1="278" x2="420" y2="460"/>
+    </g>
+
+    <g>
+      <path d="M 40,308 L 113.8,312.95 L 204,319" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+      <path d="M 40,308 L 165.28,344.54 L 256,371" fill="none" stroke="#1A1A1A" stroke-width="2.9" marker-mid="url(#mid-arrow)"/>
+    </g>
+
+    <g>
+      <circle cx="40" cy="308" r="6.5" fill="#FFFFFF" stroke="#333333" stroke-width="1.3"/>
+      <circle cx="420" cy="308" r="6.5" fill="#FFFFFF" stroke="#333333" stroke-width="1.3"/>
+      <circle cx="204" cy="319" r="10" fill="#D62828" stroke="#333333" stroke-width="1.5"/>
+      <circle cx="256" cy="371" r="10" fill="#D62828" stroke="#333333" stroke-width="1.5"/>
+
+      <circle cx="420" cy="278" r="10" fill="#2166AC" stroke="#333333" stroke-width="1.5"/>
+      <text x="420" y="282.5" fill="#FFFFFF" font-size="13" font-weight="700" text-anchor="middle">D</text>
+
+      <circle cx="420" cy="382" r="10" fill="#D9D9D9" stroke="#333333" stroke-width="1.5"/>
+      <text x="420" y="386.5" fill="#1A1A1A" font-size="13" font-weight="700" text-anchor="middle">E</text>
+
+      <circle cx="420" cy="434" r="10" fill="#F4A582" stroke="#333333" stroke-width="1.5"/>
+      <text x="420" y="438.5" fill="#1A1A1A" font-size="13" font-weight="700" text-anchor="middle">F</text>
+    </g>
+
+    <g stroke-width="1.4">
+      <line x1="434" y1="378.5" x2="434" y2="282.5" stroke="#2166AC" marker-end="url(#arr-comp)"/>
+      <line x1="443" y1="311.5" x2="443" y2="377.5" stroke="#333333" marker-end="url(#arr-dark)"/>
+      <line x1="434" y1="385.5" x2="434" y2="429.5" stroke="#D4633B" marker-end="url(#arr-wneg)"/>
+    </g>
+
+    <g>
+      <text x="440" y="298" fill="#2166AC" text-anchor="start">δΔΔG</text>
+      <text x="483" y="341" fill="#333333" text-anchor="middle">ΔΔG</text>
+      <text x="483" y="357" fill="#333333" text-anchor="middle">additive</text>
+      <text x="440" y="413" fill="#D4633B" text-anchor="start">δΔΔG</text>
+    </g>
+  </g>
+</svg>

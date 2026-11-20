@@ -1,33 +1,33 @@
 split,subset,a,b,mean_diff,lo,hi,libs_a_higher,libs_b_higher,n_libraries,rho_a,rho_b
-val,all variants,spursu,spurs,-0.0006,-0.0039,0.0024,13,18,31,0.8122,0.8128
-val,all variants,spurspub,spurs,-0.0001,-0.0079,0.0078,16,15,31,0.8126,0.8128
-val,all variants,spurspub,spursu,0.0005,-0.0076,0.0091,16,15,31,0.8126,0.8122
-val,all variants,spursum,spursm,-0.0129,-0.0211,-0.0045,7,24,31,0.7552,0.7681
-val,all variants,spurspubm,spursm,-0.0035,-0.0152,0.0070,17,14,31,0.7646,0.7681
-val,all variants,spurspubm,spursum,0.0094,0.0017,0.0168,23,8,31,0.7646,0.7552
-val,all variants,tmpnnpub,tmpnn,0.0052,0.0024,0.0080,24,7,31,0.7867,0.7816
-val,all variants,tmpnndpub,tmpnnd,0.0040,-0.0023,0.0102,21,10,31,0.7921,0.7881
-val,doubles,spursu,spurs,0.0043,-0.0045,0.0166,9,8,17,0.6840,0.6797
-val,doubles,spurspub,spurs,0.0048,-0.0091,0.0208,10,7,17,0.6845,0.6797
-val,doubles,spurspub,spursu,0.0004,-0.0138,0.0142,8,9,17,0.6845,0.6840
-val,doubles,spursum,spursm,0.0404,0.0165,0.0676,14,3,17,0.7360,0.6956
-val,doubles,spurspubm,spursm,0.0126,-0.0187,0.0468,9,8,17,0.7082,0.6956
-val,doubles,spurspubm,spursum,-0.0278,-0.0664,0.0035,7,10,17,0.7082,0.7360
-val,doubles,tmpnnpub,tmpnn,0.0174,-0.0019,0.0401,10,7,17,0.6560,0.6386
-val,doubles,tmpnndpub,tmpnnd,-0.0041,-0.0321,0.0190,11,6,17,0.6787,0.6829
-test,all variants,spursu,spurs,0.0006,-0.0013,0.0028,11,17,28,0.7996,0.7990
-test,all variants,spurspub,spurs,-0.0047,-0.0152,0.0052,11,17,28,0.7943,0.7990
-test,all variants,spurspub,spursu,-0.0053,-0.0152,0.0038,13,15,28,0.7943,0.7996
-test,all variants,spursum,spursm,-0.0103,-0.0155,-0.0054,6,22,28,0.7611,0.7714
-test,all variants,spurspubm,spursm,-0.0098,-0.0215,0.0006,10,18,28,0.7616,0.7714
-test,all variants,spurspubm,spursum,0.0005,-0.0078,0.0083,16,12,28,0.7616,0.7611
-test,all variants,tmpnnpub,tmpnn,-0.0004,-0.0078,0.0064,14,14,28,0.7769,0.7773
-test,all variants,tmpnndpub,tmpnnd,-0.0034,-0.0114,0.0034,12,16,28,0.7752,0.7786
-test,doubles,spursu,spurs,0.0023,-0.0024,0.0071,12,8,20,0.5697,0.5674
-test,doubles,spurspub,spurs,-0.0246,-0.0554,0.0030,10,10,20,0.5428,0.5674
-test,doubles,spurspub,spursu,-0.0269,-0.0562,-0.0017,10,10,20,0.5428,0.5697
-test,doubles,spursum,spursm,0.0136,-0.0053,0.0346,14,6,20,0.6118,0.5981
-test,doubles,spurspubm,spursm,0.0192,-0.0015,0.0406,13,7,20,0.6174,0.5981
-test,doubles,spurspubm,spursum,0.0056,-0.0090,0.0190,13,7,20,0.6174,0.6118
-test,doubles,tmpnnpub,tmpnn,0.0071,-0.0133,0.0266,11,9,20,0.5642,0.5571
-test,doubles,tmpnndpub,tmpnnd,-0.0043,-0.0226,0.0141,9,11,20,0.6112,0.6155
+val,all variants,spursu,spurs,-0.0006,-0.0039,0.0025,13,18,31,0.8122,0.8128
+val,all variants,spurspub,spurs,-0.0001,-0.0077,0.0071,16,15,31,0.8126,0.8128
+val,all variants,spurspub,spursu,0.0005,-0.0085,0.0093,16,15,31,0.8126,0.8122
+val,all variants,spursum,spursm,-0.0129,-0.0218,-0.0042,7,24,31,0.7552,0.7681
+val,all variants,spurspubm,spursm,-0.0035,-0.0162,0.0079,17,14,31,0.7646,0.7681
+val,all variants,spurspubm,spursum,0.0094,0.0020,0.0170,23,8,31,0.7646,0.7552
+val,all variants,tmpnnpub,tmpnn,0.0052,0.0024,0.0078,24,7,31,0.7867,0.7816
+val,all variants,tmpnndpub,tmpnnd,0.0040,-0.0025,0.0101,21,10,31,0.7921,0.7881
+val,doubles,spursu,spurs,0.0043,-0.0049,0.0177,9,8,17,0.6840,0.6797
+val,doubles,spurspub,spurs,0.0048,-0.0096,0.0195,10,7,17,0.6845,0.6797
+val,doubles,spurspub,spursu,0.0004,-0.0133,0.0147,8,9,17,0.6845,0.6840
+val,doubles,spursum,spursm,0.0404,0.0171,0.0665,14,3,17,0.7360,0.6956
+val,doubles,spurspubm,spursm,0.0126,-0.0201,0.0435,9,8,17,0.7082,0.6956
+val,doubles,spurspubm,spursum,-0.0278,-0.0674,0.0028,7,10,17,0.7082,0.7360
+val,doubles,tmpnnpub,tmpnn,0.0174,-0.0018,0.0387,10,7,17,0.6560,0.6386
+val,doubles,tmpnndpub,tmpnnd,-0.0041,-0.0288,0.0198,11,6,17,0.6787,0.6829
+test,all variants,spursu,spurs,0.0006,-0.0013,0.0027,11,17,28,0.7996,0.7990
+test,all variants,spurspub,spurs,-0.0047,-0.0154,0.0051,11,17,28,0.7943,0.7990
+test,all variants,spurspub,spursu,-0.0053,-0.0150,0.0039,13,15,28,0.7943,0.7996
+test,all variants,spursum,spursm,-0.0103,-0.0155,-0.0056,6,22,28,0.7611,0.7714
+test,all variants,spurspubm,spursm,-0.0098,-0.0209,0.0005,10,18,28,0.7616,0.7714
+test,all variants,spurspubm,spursum,0.0005,-0.0077,0.0087,16,12,28,0.7616,0.7611
+test,all variants,tmpnnpub,tmpnn,-0.0004,-0.0079,0.0064,14,14,28,0.7769,0.7773
+test,all variants,tmpnndpub,tmpnnd,-0.0034,-0.0119,0.0032,12,16,28,0.7752,0.7786
+test,doubles,spursu,spurs,0.0023,-0.0026,0.0071,12,8,20,0.5697,0.5674
+test,doubles,spurspub,spurs,-0.0246,-0.0548,0.0033,10,10,20,0.5428,0.5674
+test,doubles,spurspub,spursu,-0.0269,-0.0548,-0.0008,10,10,20,0.5428,0.5697
+test,doubles,spursum,spursm,0.0136,-0.0035,0.0317,14,6,20,0.6118,0.5981
+test,doubles,spurspubm,spursm,0.0192,-0.0021,0.0406,13,7,20,0.6174,0.5981
+test,doubles,spurspubm,spursum,0.0056,-0.0097,0.0193,13,7,20,0.6174,0.6118
+test,doubles,tmpnnpub,tmpnn,0.0071,-0.0121,0.0260,11,9,20,0.5642,0.5571
+test,doubles,tmpnndpub,tmpnnd,-0.0043,-0.0224,0.0140,9,11,20,0.6112,0.6155

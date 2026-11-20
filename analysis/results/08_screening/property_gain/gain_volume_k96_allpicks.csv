@@ -1,73 +1,67 @@
 statistic,model,category,mean,lo,hi,median,n_domains
-gain,Total,Δ volume ≤ −1,13.6037,10.1413,18.3186,11.9154,33
-gain,Total,−1 < Δ volume ≤ 1,19.4093,15.1627,25.8440,14.1048,33
-gain,Total,Δ volume > 1,31.1966,23.2300,41.7742,21.6464,33
-gain,Top 96 per Domain,Δ volume ≤ −1,8.6725,6.6891,10.9802,7.4229,33
-gain,Top 96 per Domain,−1 < Δ volume ≤ 1,13.2508,10.2678,16.0317,10.6734,33
-gain,Top 96 per Domain,Δ volume > 1,22.4663,17.6090,27.3416,17.8507,33
-gain,ESM-MSR (p0) WT head,Δ volume ≤ −1,4.3923,3.3417,5.7691,4.0082,33
-gain,ESM-MSR (p0) WT head,−1 < Δ volume ≤ 1,9.2284,7.1359,10.8272,7.8955,33
-gain,ESM-MSR (p0) WT head,Δ volume > 1,14.3003,11.0851,17.6003,11.5387,33
-gain,ESM-MSR (p0) combined,Δ volume ≤ −1,4.7864,3.6481,6.3153,4.0967,33
-gain,ESM-MSR (p0) combined,−1 < Δ volume ≤ 1,9.2547,7.2554,10.9140,8.2234,33
-gain,ESM-MSR (p0) combined,Δ volume > 1,15.5740,11.9035,19.1000,12.2626,33
-gain,MutateEverything st1,Δ volume ≤ −1,3.6376,2.7397,4.8474,3.0785,33
-gain,MutateEverything st1,−1 < Δ volume ≤ 1,6.9414,5.2944,8.5361,5.7924,33
-gain,MutateEverything st1,Δ volume > 1,10.5418,7.9757,12.7096,8.5812,33
-gain,ThermoMPNN,Δ volume ≤ −1,3.8143,2.8933,4.9437,3.3045,33
-gain,ThermoMPNN,−1 < Δ volume ≤ 1,8.4645,6.5123,10.0916,6.7712,33
-gain,ThermoMPNN,Δ volume > 1,12.9016,10.0362,15.8969,10.3547,33
-gain,SPURS,Δ volume ≤ −1,4.1958,3.2460,5.3133,4.0549,33
-gain,SPURS,−1 < Δ volume ≤ 1,8.3288,6.2287,10.1998,6.2467,33
-gain,SPURS,Δ volume > 1,13.6557,10.6735,16.9040,10.8892,33
-gain,ESM3-small-open,Δ volume ≤ −1,4.2485,3.3389,5.2872,3.4870,33
-gain,ESM3-small-open,−1 < Δ volume ≤ 1,4.8768,3.8651,5.8074,4.3676,33
-gain,ESM3-small-open,Δ volume > 1,6.0060,4.6195,7.7723,3.7708,33
-gain,ProteinMPNN,Δ volume ≤ −1,4.2295,3.2125,5.6106,3.3240,33
-gain,ProteinMPNN,−1 < Δ volume ≤ 1,5.4647,4.2089,6.7183,5.1570,33
-gain,ProteinMPNN,Δ volume > 1,6.9100,5.0516,9.0117,4.7063,33
-gain,ProSST,Δ volume ≤ −1,4.0851,3.0815,5.3233,3.6605,33
-gain,ProSST,−1 < Δ volume ≤ 1,5.7660,4.4218,7.0712,5.2852,33
-gain,ProSST,Δ volume > 1,6.4204,4.8252,8.2597,5.2515,33
-gain,GeoDDG-3D,Δ volume ≤ −1,1.9417,1.2186,2.7894,0.9831,33
-gain,GeoDDG-3D,−1 < Δ volume ≤ 1,5.0488,3.8653,6.1952,4.5554,33
-gain,GeoDDG-3D,Δ volume > 1,10.5123,7.9135,13.1747,7.8153,33
-gain,Rosetta,Δ volume ≤ −1,1.5701,0.9728,2.3095,0.9348,33
-gain,Rosetta,−1 < Δ volume ≤ 1,4.9793,3.7082,5.8549,4.2694,33
-gain,Rosetta,Δ volume > 1,11.9348,9.2623,14.6513,10.3491,33
-picks,Total,Δ volume ≤ −1,370.0606,322.2402,429.4674,338.0000,33
-picks,Total,−1 < Δ volume ≤ 1,284.1212,241.7197,342.1591,232.0000,33
-picks,Total,Δ volume > 1,419.1818,352.5038,506.3280,327.0000,33
-picks,Top 96 per Domain,Δ volume ≤ −1,21.5758,19.0909,24.8659,20.0000,33
-picks,Top 96 per Domain,−1 < Δ volume ≤ 1,30.2424,28.2697,31.8977,31.0000,33
-picks,Top 96 per Domain,Δ volume > 1,44.1818,41.1409,46.7735,43.0000,33
-picks,ESM-MSR (p0) WT head,Δ volume ≤ −1,18.9394,17.0833,21.0606,17.0000,33
-picks,ESM-MSR (p0) WT head,−1 < Δ volume ≤ 1,34.3333,31.9841,36.1879,32.0000,33
-picks,ESM-MSR (p0) WT head,Δ volume > 1,42.7273,39.9076,46.5788,41.0000,33
-picks,ESM-MSR (p0) combined,Δ volume ≤ −1,18.3333,16.3174,20.1530,18.0000,33
-picks,ESM-MSR (p0) combined,−1 < Δ volume ≤ 1,31.9394,30.0864,33.7553,32.0000,33
-picks,ESM-MSR (p0) combined,Δ volume > 1,45.7273,42.5939,48.5629,46.0000,33
-picks,MutateEverything st1,Δ volume ≤ −1,19.9293,17.9396,22.0354,19.0000,33
-picks,MutateEverything st1,−1 < Δ volume ≤ 1,32.5354,31.0035,34.0414,32.0000,33
-picks,MutateEverything st1,Δ volume > 1,43.5354,40.6492,46.1662,42.6667,33
-picks,ThermoMPNN,Δ volume ≤ −1,17.3737,15.1240,19.5530,17.0000,33
-picks,ThermoMPNN,−1 < Δ volume ≤ 1,33.7071,31.0841,35.3030,33.6667,33
-picks,ThermoMPNN,Δ volume > 1,44.9192,42.1462,48.8389,44.6667,33
-picks,SPURS,Δ volume ≤ −1,19.1717,17.2058,21.1992,19.0000,33
-picks,SPURS,−1 < Δ volume ≤ 1,31.4141,29.3371,33.2982,32.3333,33
-picks,SPURS,Δ volume > 1,45.4141,42.1053,48.8806,45.3333,33
-picks,ESM3-small-open,Δ volume ≤ −1,38.6364,37.0417,40.7333,40.0000,33
-picks,ESM3-small-open,−1 < Δ volume ≤ 1,31.2121,29.3477,32.6682,30.0000,33
-picks,ESM3-small-open,Δ volume > 1,26.1515,24.5280,27.8356,26.0000,33
-picks,ProteinMPNN,Δ volume ≤ −1,38.4242,36.1742,41.1114,37.0000,33
-picks,ProteinMPNN,−1 < Δ volume ≤ 1,30.0606,27.7098,31.5614,30.0000,33
-picks,ProteinMPNN,Δ volume > 1,27.5152,25.3144,30.0924,29.0000,33
-picks,ProSST,Δ volume ≤ −1,34.9394,32.2955,38.5629,33.0000,33
-picks,ProSST,−1 < Δ volume ≤ 1,32.0606,29.5598,33.9106,33.0000,33
-picks,ProSST,Δ volume > 1,29.0000,26.5826,30.8788,30.0000,33
-picks,GeoDDG-3D,Δ volume ≤ −1,12.9091,10.8932,15.2462,12.0000,33
-picks,GeoDDG-3D,−1 < Δ volume ≤ 1,24.4848,22.7674,25.8485,25.0000,33
-picks,GeoDDG-3D,Δ volume > 1,58.6061,55.8439,61.9652,61.0000,33
-picks,Rosetta,Δ volume ≤ −1,9.2424,7.6015,11.3364,7.0000,33
-picks,Rosetta,−1 < Δ volume ≤ 1,27.2424,24.4197,29.8182,28.0000,33
-picks,Rosetta,Δ volume > 1,59.5152,55.6500,63.6841,61.0000,33
+gain,Total,Δ volume ≤ −1,13.6037,9.9623,18.1167,11.9154,33
+gain,Total,−1 < Δ volume ≤ 1,19.4093,14.2431,26.0503,14.1048,33
+gain,Total,Δ volume > 1,31.1966,22.3811,41.9664,21.6464,33
+gain,Top 96 per Domain,Δ volume ≤ −1,8.6725,6.9160,10.8802,7.4229,33
+gain,Top 96 per Domain,−1 < Δ volume ≤ 1,13.2508,10.6229,16.4738,10.6734,33
+gain,Top 96 per Domain,Δ volume > 1,22.4663,17.1732,27.8913,17.8507,33
+gain,ProSST,Δ volume ≤ −1,4.0851,3.0675,5.3396,3.6605,33
+gain,ProSST,−1 < Δ volume ≤ 1,5.7660,4.4578,7.2325,5.2852,33
+gain,ProSST,Δ volume > 1,6.4204,4.6975,8.3385,5.2515,33
+gain,ProteinMPNN,Δ volume ≤ −1,4.2295,3.1334,5.5514,3.3240,33
+gain,ProteinMPNN,−1 < Δ volume ≤ 1,5.4647,4.2645,6.8206,5.1570,33
+gain,ProteinMPNN,Δ volume > 1,6.9100,4.8317,9.1111,4.7063,33
+gain,ESM3-small-open,Δ volume ≤ −1,4.2487,3.2226,5.4601,3.6830,33
+gain,ESM3-small-open,−1 < Δ volume ≤ 1,5.0664,4.0862,6.2369,4.7930,33
+gain,ESM3-small-open,Δ volume > 1,5.5011,3.7910,7.2337,3.5679,33
+gain,ESM-MSR,Δ volume ≤ −1,4.3730,3.4100,5.7123,3.9548,33
+gain,ESM-MSR,−1 < Δ volume ≤ 1,9.1403,7.3007,11.1403,7.8181,33
+gain,ESM-MSR,Δ volume > 1,14.4175,10.9276,18.1812,12.0868,33
+gain,MutateEverything,Δ volume ≤ −1,3.6376,2.7814,4.8171,3.0785,33
+gain,MutateEverything,−1 < Δ volume ≤ 1,6.9414,5.4737,8.6952,5.7924,33
+gain,MutateEverything,Δ volume > 1,10.5418,7.8242,13.3469,8.5812,33
+gain,ThermoMPNN,Δ volume ≤ −1,3.8143,2.9402,4.9114,3.3045,33
+gain,ThermoMPNN,−1 < Δ volume ≤ 1,8.4645,6.6401,10.5722,6.7712,33
+gain,ThermoMPNN,Δ volume > 1,12.9016,9.4858,16.8819,10.3547,33
+gain,SPURS,Δ volume ≤ −1,4.1958,3.2929,5.4297,4.0549,33
+gain,SPURS,−1 < Δ volume ≤ 1,8.3288,6.4704,10.4993,6.2467,33
+gain,SPURS,Δ volume > 1,13.6557,10.1563,17.5429,10.8892,33
+gain,GeoDDG-3D,Δ volume ≤ −1,1.9417,1.2351,2.8094,0.9831,33
+gain,GeoDDG-3D,−1 < Δ volume ≤ 1,5.0488,3.8773,6.3986,4.5554,33
+gain,GeoDDG-3D,Δ volume > 1,10.5123,7.8536,13.3819,7.8153,33
+gain,Rosetta,Δ volume ≤ −1,1.5701,1.0077,2.2886,0.9348,33
+gain,Rosetta,−1 < Δ volume ≤ 1,4.9793,3.8532,6.1978,4.2694,33
+gain,Rosetta,Δ volume > 1,11.9348,8.9313,15.1516,10.3491,33
+picks,Total,Δ volume ≤ −1,370.0606,318.0758,431.7288,338.0000,33
+picks,Total,−1 < Δ volume ≤ 1,284.1212,238.3030,341.8909,232.0000,33
+picks,Total,Δ volume > 1,419.1818,338.4538,512.7720,327.0000,33
+picks,Top 96 per Domain,Δ volume ≤ −1,21.5758,18.7561,24.4561,20.0000,33
+picks,Top 96 per Domain,−1 < Δ volume ≤ 1,30.2424,28.3932,32.1523,31.0000,33
+picks,Top 96 per Domain,Δ volume > 1,44.1818,41.2121,47.3333,43.0000,33
+picks,ProSST,Δ volume ≤ −1,34.9394,32.4530,37.9697,33.0000,33
+picks,ProSST,−1 < Δ volume ≤ 1,32.0606,29.6970,34.4242,33.0000,33
+picks,ProSST,Δ volume > 1,29.0000,26.6364,30.9697,30.0000,33
+picks,ProteinMPNN,Δ volume ≤ −1,38.4242,36.0303,40.7886,37.0000,33
+picks,ProteinMPNN,−1 < Δ volume ≤ 1,30.0606,28.0606,32.1523,30.0000,33
+picks,ProteinMPNN,Δ volume > 1,27.5152,25.0295,30.0909,29.0000,33
+picks,ESM3-small-open,Δ volume ≤ −1,37.9091,36.1811,39.5758,38.0000,33
+picks,ESM3-small-open,−1 < Δ volume ≤ 1,33.5152,32.0000,35.1818,32.0000,33
+picks,ESM3-small-open,Δ volume > 1,24.5758,22.9992,26.0303,25.0000,33
+picks,ESM-MSR,Δ volume ≤ −1,19.0202,17.1000,21.2942,17.3333,33
+picks,ESM-MSR,−1 < Δ volume ≤ 1,33.6465,31.1611,36.2245,33.3333,33
+picks,ESM-MSR,Δ volume > 1,43.3333,39.6253,46.9394,42.6667,33
+picks,MutateEverything,Δ volume ≤ −1,19.9293,17.7775,22.0816,19.0000,33
+picks,MutateEverything,−1 < Δ volume ≤ 1,32.5354,30.9394,34.2225,32.0000,33
+picks,MutateEverything,Δ volume > 1,43.5354,40.7573,46.3636,42.6667,33
+picks,ThermoMPNN,Δ volume ≤ −1,17.3737,15.0606,19.5475,17.0000,33
+picks,ThermoMPNN,−1 < Δ volume ≤ 1,33.7071,31.4631,36.0212,33.6667,33
+picks,ThermoMPNN,Δ volume > 1,44.9192,41.4439,48.6369,44.6667,33
+picks,SPURS,Δ volume ≤ −1,19.1717,16.9086,21.6263,19.0000,33
+picks,SPURS,−1 < Δ volume ≤ 1,31.4141,29.4341,33.5563,32.3333,33
+picks,SPURS,Δ volume > 1,45.4141,42.0604,49.1621,45.3333,33
+picks,GeoDDG-3D,Δ volume ≤ −1,12.9091,10.7871,15.0621,12.0000,33
+picks,GeoDDG-3D,−1 < Δ volume ≤ 1,24.4848,22.7265,26.2424,25.0000,33
+picks,GeoDDG-3D,Δ volume > 1,58.6061,55.7576,61.7886,61.0000,33
+picks,Rosetta,Δ volume ≤ −1,9.2424,7.3939,11.2136,7.0000,33
+picks,Rosetta,−1 < Δ volume ≤ 1,27.2424,24.6652,29.7886,28.0000,33
+picks,Rosetta,Δ volume > 1,59.5152,55.6045,63.5765,61.0000,33

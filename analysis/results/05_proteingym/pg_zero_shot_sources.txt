@@ -1,0 +1,4 @@
+ProSST: published (baselines/public/prosst/proteingym when complete; else ProteinGym published)
+ProteinMPNN: our 3 per-variant runs (baselines/public/proteinmpnn/proteingym, seeds resampled)
+ESM3-small-open: our sigma-0 read (WT-view on singles, Dual-view on multi-mutant assays)
+ESM3ΔG: scored on all assays; Stability training-overlap assays marked with red ring

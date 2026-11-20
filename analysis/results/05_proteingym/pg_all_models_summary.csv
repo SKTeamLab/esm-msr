@@ -1,176 +1,92 @@
-model,column,value,lo,hi,n_dms
-pg:msrp0:comb,Activity,0.4209,0.3767,0.4641,43
-pg:msrp0:comb,Binding,0.3473,0.2444,0.4492,13
-pg:msrp0:comb,Expression,0.5115,0.4466,0.5768,18
-pg:msrp0:comb,OrganismalFitness,0.3859,0.3446,0.4159,73
-pg:msrp0:comb,Stability,0.8273,0.7856,0.8629,40
-pg:msrp0:comb,PG avg,0.4986,0.4666,0.5269,187
-pg:msrp0:comb,DMS mean,0.4978,0.4733,0.5201,187
-pg:msrp0:wt,Activity,0.4371,0.3925,0.4808,43
-pg:msrp0:wt,Binding,0.3588,0.2420,0.4623,13
-pg:msrp0:wt,Expression,0.5185,0.4490,0.5855,18
-pg:msrp0:wt,OrganismalFitness,0.4105,0.3690,0.4404,73
-pg:msrp0:wt,Stability,0.8105,0.7702,0.8484,40
-pg:msrp0:wt,PG avg,0.5070,0.4733,0.5378,187
-pg:msrp0:wt,DMS mean,0.5089,0.4857,0.5299,187
-pg:msrdev:comb,Activity,0.4264,0.3873,0.4673,43
-pg:msrdev:comb,Binding,0.3474,0.2234,0.4529,13
-pg:msrdev:comb,Expression,0.5156,0.4553,0.5770,18
-pg:msrdev:comb,OrganismalFitness,0.3956,0.3566,0.4262,73
-pg:msrdev:comb,Stability,0.8307,0.7942,0.8622,40
-pg:msrdev:comb,PG avg,0.5032,0.4708,0.5328,187
-pg:msrdev:comb,DMS mean,0.5040,0.4808,0.5256,187
-pg:msrdev:wt,Activity,0.4383,0.3991,0.4795,43
-pg:msrdev:wt,Binding,0.3553,0.2364,0.4594,13
-pg:msrdev:wt,Expression,0.5196,0.4529,0.5819,18
-pg:msrdev:wt,OrganismalFitness,0.4128,0.3724,0.4436,73
-pg:msrdev:wt,Stability,0.8103,0.7728,0.8455,40
-pg:msrdev:wt,PG avg,0.5073,0.4749,0.5386,187
-pg:msrdev:wt,DMS mean,0.5100,0.4868,0.5312,187
-pg:msr:comb,Activity,0.4280,0.3880,0.4683,43
-pg:msr:comb,Binding,0.3481,0.2250,0.4536,13
-pg:msr:comb,Expression,0.5157,0.4536,0.5777,18
-pg:msr:comb,OrganismalFitness,0.3952,0.3554,0.4259,73
-pg:msr:comb,Stability,0.8284,0.7881,0.8605,40
-pg:msr:comb,PG avg,0.5031,0.4710,0.5325,187
-pg:msr:comb,DMS mean,0.5037,0.4808,0.5262,187
-pg:msr:wt,Activity,0.4353,0.3953,0.4764,43
-pg:msr:wt,Binding,0.3526,0.2342,0.4560,13
-pg:msr:wt,Expression,0.5155,0.4482,0.5776,18
-pg:msr:wt,OrganismalFitness,0.4093,0.3684,0.4400,73
-pg:msr:wt,Stability,0.8071,0.7691,0.8425,40
-pg:msr:wt,PG avg,0.5040,0.4721,0.5347,187
-pg:msr:wt,DMS mean,0.5067,0.4843,0.5281,187
-pg:msrrel:comb,Activity,0.4247,0.3856,0.4654,43
-pg:msrrel:comb,Binding,0.3449,0.2186,0.4518,13
-pg:msrrel:comb,Expression,0.5155,0.4524,0.5766,18
-pg:msrrel:comb,OrganismalFitness,0.3943,0.3547,0.4238,73
-pg:msrrel:comb,Stability,0.8279,0.7867,0.8617,40
-pg:msrrel:comb,PG avg,0.5015,0.4682,0.5310,187
-pg:msrrel:comb,DMS mean,0.5023,0.4796,0.5254,187
-pg:msrrel:wt,Activity,0.4341,0.3954,0.4748,43
-pg:msrrel:wt,Binding,0.3486,0.2247,0.4501,13
-pg:msrrel:wt,Expression,0.5152,0.4489,0.5778,18
-pg:msrrel:wt,OrganismalFitness,0.4107,0.3704,0.4397,73
-pg:msrrel:wt,Stability,0.8077,0.7707,0.8426,40
-pg:msrrel:wt,PG avg,0.5033,0.4711,0.5338,187
-pg:msrrel:wt,DMS mean,0.5067,0.4847,0.5286,187
-pg:me1,Activity,0.3777,0.3237,0.4225,43
-pg:me1,Binding,0.3386,0.2852,0.4226,13
-pg:me1,Expression,0.4686,0.4087,0.5226,18
-pg:me1,OrganismalFitness,0.3543,0.3204,0.3826,73
-pg:me1,Stability,0.7760,0.7325,0.8090,40
-pg:me1,PG avg,0.4631,0.4403,0.4837,187
-pg:me1,DMS mean,0.4598,0.4380,0.4798,187
-pg:me2,Activity,0.3530,0.2974,0.3918,43
-pg:me2,Binding,0.2997,0.2493,0.3834,13
-pg:me2,Expression,0.4398,0.3789,0.4867,18
-pg:me2,OrganismalFitness,0.3387,0.3058,0.3667,73
-pg:me2,Stability,0.7386,0.6929,0.7754,40
-pg:me2,PG avg,0.4340,0.4109,0.4538,187
-pg:me2,DMS mean,0.4345,0.4135,0.4530,187
-pg:tmpnnd,Activity,0.3527,0.3145,0.3884,43
-pg:tmpnnd,Binding,0.3011,0.2178,0.3881,13
-pg:tmpnnd,Expression,0.4421,0.3902,0.4905,18
-pg:tmpnnd,OrganismalFitness,0.3394,0.3015,0.3676,73
-pg:tmpnnd,Stability,0.7594,0.7176,0.7952,40
-pg:tmpnnd,PG avg,0.4389,0.4176,0.4658,187
-pg:tmpnnd,DMS mean,0.4395,0.4172,0.4576,187
-pg:tmpnn,Activity,0.3547,0.3160,0.3894,43
-pg:tmpnn,Binding,0.2978,0.2161,0.3865,13
-pg:tmpnn,Expression,0.4426,0.3905,0.4906,18
-pg:tmpnn,OrganismalFitness,0.3422,0.3036,0.3694,73
-pg:tmpnn,Stability,0.7728,0.7380,0.8097,40
-pg:tmpnn,PG avg,0.4420,0.4209,0.4683,187
-pg:tmpnn,DMS mean,0.4437,0.4238,0.4623,187
-pg:spurs,Activity,0.3773,0.3407,0.4143,43
-pg:spurs,Binding,0.3203,0.2240,0.4088,13
-pg:spurs,Expression,0.4751,0.4059,0.5344,18
-pg:spurs,OrganismalFitness,0.3430,0.3000,0.3750,73
-pg:spurs,Stability,0.7811,0.7452,0.8184,40
-pg:spurs,PG avg,0.4594,0.4321,0.4862,187
-pg:spurs,DMS mean,0.4557,0.4333,0.4757,187
-pg:spursm,Activity,0.3340,0.3001,0.3686,43
-pg:spursm,Binding,0.2689,0.1686,0.3631,13
-pg:spursm,Expression,0.4170,0.3525,0.4728,18
-pg:spursm,OrganismalFitness,0.3040,0.2638,0.3342,73
-pg:spursm,Stability,0.7416,0.6917,0.7750,40
-pg:spursm,PG avg,0.4131,0.3832,0.4409,187
-pg:spursm,DMS mean,0.4129,0.3899,0.4302,187
-pg:esm3dg,Activity,0.3019,0.2593,0.3501,43
-pg:esm3dg,Binding,0.2094,0.0431,0.3614,13
-pg:esm3dg,Expression,0.3201,0.2344,0.3986,18
-pg:esm3dg,OrganismalFitness,0.2799,0.2330,0.3207,73
-pg:esm3dg,Stability,0.7885,0.7446,0.8312,40
-pg:esm3dg,PG avg,0.3800,0.3436,0.4149,187
-pg:esm3dg,DMS mean,0.3927,0.3637,0.4163,187
-pg:geoddg,Activity,0.3412,0.2955,0.3845,43
-pg:geoddg,Binding,0.2489,0.1384,0.3462,13
-pg:geoddg,Expression,0.3711,0.3119,0.4291,18
-pg:geoddg,OrganismalFitness,0.3185,0.2690,0.3544,73
-pg:geoddg,Stability,0.6402,0.5837,0.6862,40
-pg:geoddg,PG avg,0.3840,0.3525,0.4164,187
-pg:geoddg,DMS mean,0.3927,0.3621,0.4171,187
-pg:rosetta,Activity,0.3113,0.2739,0.3463,43
-pg:rosetta,Binding,0.2914,0.1867,0.4157,13
-pg:rosetta,Expression,0.3359,0.2664,0.4031,18
-pg:rosetta,OrganismalFitness,0.2963,0.2655,0.3250,72
-pg:rosetta,Stability,0.6357,0.5897,0.6733,40
-pg:rosetta,PG avg,0.3741,0.3433,0.4068,186
-pg:rosetta,DMS mean,0.3762,0.3583,0.3981,186
-pg:prosst,Activity,0.4862,0.4472,0.5214,43
-pg:prosst,Binding,0.4487,0.3495,0.5706,13
-pg:prosst,Expression,0.5302,0.4818,0.5843,18
-pg:prosst,OrganismalFitness,0.4526,0.4186,0.4777,73
-pg:prosst,Stability,0.6562,0.6077,0.6976,40
-pg:prosst,PG avg,0.5148,0.4892,0.5437,187
-pg:prosst,DMS mean,0.5111,0.4889,0.5289,187
-pg:esm3_pub,Activity,0.4294,0.3890,0.4676,43
-pg:esm3_pub,Binding,0.3904,0.3206,0.4816,13
-pg:esm3_pub,Expression,0.4703,0.4140,0.5255,18
-pg:esm3_pub,OrganismalFitness,0.4013,0.3629,0.4404,73
-pg:esm3_pub,Stability,0.6507,0.6058,0.6857,40
-pg:esm3_pub,PG avg,0.4684,0.4431,0.4912,187
-pg:esm3_pub,DMS mean,0.4670,0.4457,0.4837,187
-pg:msrrel@0:wt,Activity,0.4157,0.3757,0.4537,43
-pg:msrrel@0:wt,Binding,0.3740,0.3027,0.4602,13
-pg:msrrel@0:wt,Expression,0.4392,0.3843,0.4882,18
-pg:msrrel@0:wt,OrganismalFitness,0.3906,0.3537,0.4286,73
-pg:msrrel@0:wt,Stability,0.6311,0.5860,0.6648,40
-pg:msrrel@0:wt,PG avg,0.4501,0.4266,0.4739,187
-pg:msrrel@0:wt,DMS mean,0.4513,0.4314,0.4692,187
-pg:pmpnn,Activity,0.3426,0.3019,0.3804,43
-pg:pmpnn,Binding,0.3234,0.2447,0.4001,13
-pg:pmpnn,Expression,0.4364,0.3770,0.4927,18
-pg:pmpnn,OrganismalFitness,0.3092,0.2700,0.3414,73
-pg:pmpnn,Stability,0.6278,0.5824,0.6639,40
-pg:pmpnn,PG avg,0.4079,0.3838,0.4298,187
-pg:pmpnn,DMS mean,0.3983,0.3741,0.4135,187
-pg:pmpnn_pub,Activity,0.1943,0.1631,0.2238,43
-pg:pmpnn_pub,Binding,0.1600,0.1134,0.1952,13
-pg:pmpnn_pub,Expression,0.1976,0.1631,0.2303,18
-pg:pmpnn_pub,OrganismalFitness,0.1685,0.1422,0.1907,73
-pg:pmpnn_pub,Stability,0.5680,0.5209,0.6059,40
-pg:pmpnn_pub,PG avg,0.2577,0.2416,0.2726,187
-pg:pmpnn_pub,DMS mean,0.2621,0.2432,0.2757,187
-pg:spurs_pub,Activity,0.3839,0.3473,0.4217,43
-pg:spurs_pub,Binding,0.3336,0.2208,0.4349,13
-pg:spurs_pub,Expression,0.4905,0.4268,0.5447,18
-pg:spurs_pub,OrganismalFitness,0.3677,0.3266,0.3976,73
-pg:spurs_pub,Stability,0.8409,0.8029,0.8718,40
-pg:spurs_pub,PG avg,0.4833,0.4573,0.5129,187
-pg:spurs_pub,DMS mean,0.4821,0.4608,0.5006,187
-pg:spursm_pub,Activity,0.3259,0.2924,0.3615,43
-pg:spursm_pub,Binding,0.2669,0.1765,0.3688,13
-pg:spursm_pub,Expression,0.4097,0.3470,0.4641,18
-pg:spursm_pub,OrganismalFitness,0.3202,0.2872,0.3490,73
-pg:spursm_pub,Stability,0.8022,0.7600,0.8328,40
-pg:spursm_pub,PG avg,0.4250,0.3992,0.4545,187
-pg:spursm_pub,DMS mean,0.4295,0.4088,0.4462,187
-pg:esmtherm,Activity,0.0920,0.0621,0.1270,43
-pg:esmtherm,Binding,0.0752,0.0178,0.1515,13
-pg:esmtherm,Expression,0.0920,0.0499,0.1352,18
-pg:esmtherm,OrganismalFitness,0.0833,0.0577,0.1100,73
-pg:esmtherm,Stability,0.7506,0.6678,0.8207,40
-pg:esmtherm,PG avg,0.2186,0.1908,0.2449,187
-pg:esmtherm,DMS mean,0.2283,0.2026,0.2500,187
+model,column,value,lo,hi,n_dms,n_seeds,seed_sd_pg_avg
+ProSST,Activity,0.4713,0.4215,0.5199,38,1,
+ProSST,Binding,0.4487,0.3520,0.5416,13,1,
+ProSST,Expression,0.5302,0.4758,0.5787,18,1,
+ProSST,OrganismalFitness,0.4612,0.4245,0.4981,67,1,
+ProSST,Stability,0.6536,0.6012,0.7030,37,1,
+ProSST,PG avg,0.5130,0.4866,0.5421,173,1,
+ProSST,DMS mean,0.5108,0.4883,0.5348,173,1,
+ProteinMPNN,Activity,0.3370,0.2865,0.3824,38,3,
+ProteinMPNN,Binding,0.3232,0.2537,0.3947,13,3,
+ProteinMPNN,Expression,0.4373,0.3774,0.4960,18,3,
+ProteinMPNN,OrganismalFitness,0.3232,0.2838,0.3627,67,3,
+ProteinMPNN,Stability,0.6243,0.5825,0.6678,37,3,
+ProteinMPNN,PG avg,0.4090,0.3855,0.4321,173,3,0.0003
+ProteinMPNN,DMS mean,0.4025,0.3812,0.4230,173,3,
+ESM3-small-open,Activity,0.4110,0.3602,0.4607,38,1,
+ESM3-small-open,Binding,0.3706,0.2936,0.4532,13,1,
+ESM3-small-open,Expression,0.4367,0.3801,0.4945,18,1,
+ESM3-small-open,OrganismalFitness,0.3898,0.3511,0.4292,67,1,
+ESM3-small-open,Stability,0.6274,0.5839,0.6703,37,1,
+ESM3-small-open,PG avg,0.4471,0.4232,0.4712,173,1,
+ESM3-small-open,DMS mean,0.4487,0.4278,0.4718,173,1,
+ESM-MSR,Activity,0.4344,0.3798,0.4863,38,3,
+ESM-MSR,Binding,0.3493,0.2405,0.4533,13,3,
+ESM-MSR,Expression,0.5192,0.4394,0.5836,18,3,
+ESM-MSR,OrganismalFitness,0.4149,0.3701,0.4577,67,3,
+ESM-MSR,Stability,0.8269,0.7810,0.8648,37,3,
+ESM-MSR,PG avg,0.5089,0.4781,0.5396,173,3,0.0026
+ESM-MSR,DMS mean,0.5132,0.4881,0.5373,173,3,
+MutateEverything,Activity,0.3699,0.3145,0.4192,38,3,
+MutateEverything,Binding,0.3215,0.2458,0.3952,13,3,
+MutateEverything,Expression,0.4683,0.4011,0.5273,18,3,
+MutateEverything,OrganismalFitness,0.3596,0.3249,0.3944,67,3,
+MutateEverything,Stability,0.7549,0.7086,0.7941,37,3,
+MutateEverything,PG avg,0.4548,0.4288,0.4800,173,3,0.0016
+MutateEverything,DMS mean,0.4548,0.4326,0.4752,173,3,
+ThermoMPNN,Activity,0.3551,0.3045,0.3989,38,3,
+ThermoMPNN,Binding,0.2986,0.2144,0.3764,13,3,
+ThermoMPNN,Expression,0.4382,0.3769,0.4917,18,3,
+ThermoMPNN,OrganismalFitness,0.3462,0.3077,0.3797,67,3,
+ThermoMPNN,Stability,0.7558,0.7070,0.7988,37,3,
+ThermoMPNN,PG avg,0.4388,0.4116,0.4633,173,3,0.0019
+ThermoMPNN,DMS mean,0.4418,0.4200,0.4624,173,3,
+SPURS,Activity,0.3749,0.3229,0.4188,38,3,
+SPURS,Binding,0.3266,0.2320,0.4195,13,3,
+SPURS,Expression,0.4746,0.3971,0.5384,18,3,
+SPURS,OrganismalFitness,0.3528,0.3080,0.3913,67,3,
+SPURS,Stability,0.7584,0.7140,0.7968,37,3,
+SPURS,PG avg,0.4575,0.4273,0.4840,173,3,0.0029
+SPURS,DMS mean,0.4551,0.4314,0.4759,173,3,
+GeoDDG-3D,Activity,0.3433,0.2966,0.3908,38,1,
+GeoDDG-3D,Binding,0.2489,0.1316,0.3629,13,1,
+GeoDDG-3D,Expression,0.3711,0.3055,0.4382,18,1,
+GeoDDG-3D,OrganismalFitness,0.3245,0.2763,0.3710,67,1,
+GeoDDG-3D,Stability,0.6326,0.5661,0.6891,37,1,
+GeoDDG-3D,PG avg,0.3841,0.3515,0.4177,173,1,
+GeoDDG-3D,DMS mean,0.3937,0.3677,0.4209,173,1,
+Rosetta,Activity,0.3185,0.2721,0.3632,38,1,
+Rosetta,Binding,0.2914,0.1479,0.4438,13,1,
+Rosetta,Expression,0.3359,0.2720,0.3895,18,1,
+Rosetta,OrganismalFitness,0.3043,0.2651,0.3424,66,1,
+Rosetta,Stability,0.6391,0.5887,0.6795,37,1,
+Rosetta,PG avg,0.3778,0.3413,0.4126,172,1,
+Rosetta,DMS mean,0.3818,0.3571,0.4051,172,1,
+ESM3ΔG,Activity,0.3045,0.2506,0.3570,38,1,
+ESM3ΔG,Binding,0.2094,0.0664,0.3497,13,1,
+ESM3ΔG,Expression,0.3201,0.2237,0.4049,18,1,
+ESM3ΔG,OrganismalFitness,0.2847,0.2299,0.3369,67,1,
+ESM3ΔG,Stability,0.7884,0.7301,0.8360,37,1,
+ESM3ΔG,PG avg,0.3814,0.3419,0.4213,173,1,
+ESM3ΔG,DMS mean,0.3948,0.3645,0.4242,173,1,
+ESMtherm,Activity,0.1096,0.0794,0.1421,38,1,
+ESMtherm,Binding,0.0752,0.0018,0.1480,13,1,
+ESMtherm,Expression,0.0920,0.0465,0.1325,18,1,
+ESMtherm,OrganismalFitness,0.0849,0.0538,0.1127,67,1,
+ESMtherm,Stability,0.7397,0.6496,0.8150,37,1,
+ESMtherm,PG avg,0.2203,0.1951,0.2439,173,1,
+ESMtherm,DMS mean,0.2304,0.2068,0.2515,173,1,
+SPURS published*,Activity,0.3775,0.3275,0.4241,38,1,
+SPURS published*,Binding,0.3177,0.2118,0.4139,13,1,
+SPURS published*,Expression,0.4844,0.4132,0.5439,18,1,
+SPURS published*,OrganismalFitness,0.3727,0.3283,0.4106,67,1,
+SPURS published*,Stability,0.8214,0.7788,0.8549,37,1,
+SPURS published*,PG avg,0.4747,0.4454,0.5026,173,1,
+SPURS published*,DMS mean,0.4772,0.4545,0.4973,173,1,
+ESM-MSR σ=0.5,Activity,0.4475,0.3960,0.4981,38,3,
+ESM-MSR σ=0.5,Binding,0.3843,0.2952,0.4785,13,3,
+ESM-MSR σ=0.5,Expression,0.4919,0.4206,0.5588,18,3,
+ESM-MSR σ=0.5,OrganismalFitness,0.4283,0.3880,0.4713,67,3,
+ESM-MSR σ=0.5,Stability,0.7912,0.7483,0.8283,37,3,
+ESM-MSR σ=0.5,PG avg,0.5086,0.4804,0.5361,173,3,0.0010
+ESM-MSR σ=0.5,DMS mean,0.5134,0.4898,0.5361,173,3,

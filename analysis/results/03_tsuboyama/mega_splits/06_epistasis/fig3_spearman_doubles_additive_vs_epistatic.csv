@@ -1,0 +1,9 @@
+column,key,subset,value,lo,hi,n_libraries,n_variants
+ESM-MSR,msrp0:wt+,additive,0.5637,0.4281,0.6851,20,18574
+ESM-MSR,msrp0:comb,epistatic,0.6620,0.5543,0.7621,20,18574
+MutateEverything,me1,additive,0.5088,0.3835,0.6328,20,18574
+MutateEverything,me2,epistatic,0.5945,0.4997,0.6889,20,18574
+ThermoMPNN,tmpnn,additive,0.5571,0.4257,0.6739,20,18574
+ThermoMPNN,tmpnnd,epistatic,0.6155,0.5053,0.7153,20,18574
+SPURS,spurs,additive,0.5674,0.4281,0.6988,20,18574
+SPURS,spursm,epistatic,0.5981,0.4648,0.7152,20,18574

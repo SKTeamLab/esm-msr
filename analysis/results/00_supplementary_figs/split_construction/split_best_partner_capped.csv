@@ -1,0 +1,252 @@
+comparison,lib,seq_evalue,identity,struct_evalue,tm
+val → train,1F0M,,0.225,4.984,0.5358
+val → train,1I2T,,0.25862,1.342,0.4113
+val → train,1QKH,,0.29545,2.572,0.4012
+val → train,1WCL,0.03591,0.29787,2.383,0.4494
+val → train,2K9D,,0.29545,1.507,0.5358
+val → train,2KT8,,0.2766,0.2032,0.5192
+val → train,2KYB,,0.21739,0.5291,0.4156
+val → train,2M2J,,0.28571,0.003062,0.6334
+val → train,2QFF,,0.27907,4.954,0.4064
+val → train,5JRT,2.206,0.34043,5.318,0.4313
+val → train,5LXJ,,0.29787,1.965,0.4949
+val → train,6M3N,,0.25581,1.895,0.3698
+val → train,6NS8,,0.34615,1.08,0.6065
+val → train,HEEH_KT_rd6_0280,0.04974,0.39535,0.07582,0.5114
+val → train,HEEH_KT_rd6_0746,0.00113,0.39535,0.5828,0.4763
+val → train,HEEH_KT_rd6_1415,0.7735,0.32558,0.3255,0.4349
+val → train,HEEH_rd4_0094,0.4005,0.32558,0.6726,0.5481
+val → train,HHH_rd1_0335,0.7735,0.39535,0.6363,0.5881
+val → train,HHH_rd4_0816,0.1837,0.39535,0.3113,0.5762
+val → train,r6_560_TrROS_Hall,0.258,0.34694,0.2696,0.4583
+val → train,r7_587_TrROS_Hall,6.846,0.35417,0.008771,0.6019
+val → train,v2K43S_2KVV,,0.25581,1.488,0.4288
+val → train,v2R31S_R32S_2N5D,,0.23256,2.233,0.633
+test → train,1GYZ,,0.29787,3.248,0.4578
+test → train,1IFY,,0.29545,1.345,0.571
+test → train,1K1V,,0.29268,1.74,0.5522
+test → train,1YEZ,,0.35,0.3146,0.4651
+test → train,1ZHC,,0.25581,0.4474,0.6731
+test → train,2D1U,,0.21739,0.1339,0.5028
+test → train,2K52,,0.27907,0.08874,0.6549
+test → train,2K5H,,0.31373,0.2065,0.68
+test → train,2KRU,,0.25532,3.235,0.4424
+test → train,2KVS,,0.25581,1.996,0.5
+test → train,2L09,,0.35897,2.908,0.4499
+test → train,2L2D,,0.2619,0.2132,0.5968
+test → train,2LC2,,0.3,1.252,0.5661
+test → train,2MKX,,0.31915,2.743,0.4693
+test → train,2RRU,,0.25,1.376,0.4873
+test → train,2WNM,,0.275,0.01004,0.6658
+test → train,3DKM,,0.275,0.01315,0.6961
+test → train,3ZGK,,0.26415,1.359,0.5591
+test → train,5UYO,0.0189,0.39024,0.1627,0.6618
+test → train,HEEH_KT_rd6_0007,,0.39535,0.6926,0.5932
+test → train,HEEH_KT_rd6_0790,,0.39535,1.214,0.4031
+test → train,HEEH_KT_rd6_0793,,0.32558,0.5343,0.4871
+test → train,HEEH_KT_rd6_3546,,0.32558,0.2597,0.4904
+test → train,HEEH_KT_rd6_3632,0.4005,0.34884,1.059,0.4822
+test → train,HEEH_rd3_0055,0.07773,0.32558,0.6294,0.5472
+test → train,HEEH_rd3_0223,0.1496,0.34884,2.939,0.5912
+test → train,HEEH_rd4_0097,0.02918,0.37209,0.39,0.6474
+test → train,HEEH_rd4_0349,0.1078,0.32558,0.4936,0.6357
+test → train,HHH_rd1_0244,0.7735,0.39535,0.03454,0.5965
+test → train,HHH_rd1_0578,5.638,0.37209,0.364,0.5621
+test → train,HHH_rd1_0949,0.02106,0.39535,0.3387,0.5777
+test → train,r6_831_TrROS_Hall,0.5405,0.34694,0.01696,0.4417
+test → train,v2_2LC2,,0.3,1.922,0.5756
+train / val → external,1A32,,0.33333,2.115,0.6397
+train / val → external,1AOY,,0.26087,0.1224,0.6392
+train / val → external,1ENH,,0.35417,0.9296,0.622
+train / val → external,1F0M,,0.24242,4.262,0.4076
+train / val → external,1I2T,,0.25862,2.45,0.4778
+train / val → external,1PSE,7.853,0.26471,0.1866,0.554
+train / val → external,1PV0,,0.36364,3.059,0.5789
+train / val → external,1QKH,7.853,0.33824,0.866,0.3419
+train / val → external,1QP2,,0.28571,0.06194,0.5564
+train / val → external,1UFM,,0.26531,0.0337,0.5061
+train / val → external,1WCL,,0.28986,1.151,0.5529
+train / val → external,2JN4,,0.31579,0.9755,0.4424
+train / val → external,2JT1,0.5913,0.28571,0.03787,0.6759
+train / val → external,2JTV,2.556,0.25397,0.4852,0.3949
+train / val → external,2JVD,,0.35897,3.42,0.5014
+train / val → external,2JVG,0.5338,0.28571,1.893,0.5708
+train / val → external,2JWT,,0.34,0.5499,0.6136
+train / val → external,2JZ2,9.978,0.30357,0.9711,0.6184
+train / val → external,2K1B,3.877,0.28571,0.7818,0.4678
+train / val → external,2K28,4.055,0.32,0.7669,0.4507
+train / val → external,2K5P,,0.34375,0.0182,0.6499
+train / val → external,2K9D,,0.25,3.579,0.4941
+train / val → external,2KFV,8.454,0.28986,2.182,0.4121
+train / val → external,2KT8,,0.28358,0.01417,0.6263
+train / val → external,2KVT,,0.28846,0.8398,0.4146
+train / val → external,2KYB,,0.32759,0.05264,0.5679
+train / val → external,2L33,,0.26761,0.2468,0.3588
+train / val → external,2L6Q,,0.32727,0.9163,0.3759
+train / val → external,2L7F,,0.31373,1.132,0.6397
+train / val → external,2L7M,,0.30769,0.396,0.6313
+train / val → external,2L9R,1.247,0.2459,1.149,0.6197
+train / val → external,2LCL,,0.30909,0.135,0.6956
+train / val → external,2LGW,,0.28947,1.664,0.4646
+train / val → external,2LHR,,0.38182,1.637,0.5105
+train / val → external,2LO1,,0.29231,1.332,0.3961
+train / val → external,2LQK,0.03726,0.32258,0.8995,0.3677
+train / val → external,2M0C,1.917,0.29167,0.8152,0.6582
+train / val → external,2M2J,,0.23944,0.2403,0.4033
+train / val → external,2M2L,,0.32692,1.248,0.4235
+train / val → external,2M6Y,,0.32203,1.472,0.4428
+train / val → external,2M7O,6.042,0.25,0.3981,0.4024
+train / val → external,2M8E,0.4232,0.34211,0.5272,0.684
+train / val → external,2MA4,,0.31429,0.5225,0.4124
+train / val → external,2MC5,,0.28986,0.1678,0.5136
+train / val → external,2MCH,,0.28125,1.64,0.3861
+train / val → external,2MCK,,0.29508,2.779,0.4074
+train / val → external,2MI6,,0.32727,0.08084,0.6422
+train / val → external,2MKY,,0.34545,0.1633,0.5768
+train / val → external,2MXD,,0.32075,5.012,0.3942
+train / val → external,2MYX,,0.34615,2.149,0.6647
+train / val → external,2N88,3.704,0.27083,0.6974,0.4865
+train / val → external,2OCH,,0.33871,1.664,0.4422
+train / val → external,2QFF,,0.28571,0.4171,0.6172
+train / val → external,2RU9,6.26,0.31373,0.2069,0.4453
+train / val → external,3L1X,,0.30435,2.009,0.425
+train / val → external,4C26,1.294,0.32258,0.4049,0.3834
+train / val → external,5GU9,,0.34286,0.2398,0.3229
+train / val → external,5JRT,,0.30508,3.614,0.3418
+train / val → external,5KPH,,0.26087,0.05112,0.5725
+train / val → external,5LXJ,,0.3617,1.103,0.5419
+train / val → external,5OAO,,0.2807,0.8938,0.5247
+train / val → external,5UP5,,0.33333,0.7914,0.5983
+train / val → external,5Z2S,,0.34043,3.235,0.6609
+train / val → external,6EWS,,0.375,1.57,0.3938
+train / val → external,6EWT,,0.35088,1.634,0.3969
+train / val → external,6EWU,3.759,0.28571,0.8909,0.4006
+train / val → external,6FVC,,0.36364,1.965,0.6113
+train / val → external,6IWS,,0.30769,1.662,0.4263
+train / val → external,6M3N,,0.34375,2.607,0.3838
+train / val → external,6NS8,,0.32857,2.453,0.4611
+train / val → external,6OBK,,0.3,3.434,0.5924
+train / val → external,7BPM,,0.28986,0.2323,0.5151
+train / val → external,EA_run2_0290_0001,,0.31915,2,0.4702
+train / val → external,EA_run2_0325_0005,,0.31915,1.26,0.4291
+train / val → external,EA_run3_0321_0005,,0.31915,1.437,0.4642
+train / val → external,EA_run3_0525_0006,9.534,0.31915,2.719,0.4253
+train / val → external,EA_run3_1140_0005,0.3536,0.34043,2.604,0.529
+train / val → external,EA_run5_0050_0004,6.846,0.3617,2.019,0.538
+train / val → external,EA_run6_0680_0006,,0.31915,3.049,0.4905
+train / val → external,EA_run6_1429_0006,0.4908,0.31915,2.823,0.4364
+train / val → external,EA_run7_1025_0001,,0.31915,2.889,0.4444
+train / val → external,EA_run7_1572_0002,,0.31915,2.586,0.4753
+train / val → external,EEHEE_rd3_0019,,0.37209,0.01715,0.6145
+train / val → external,EEHEE_rd3_0094,,0.39535,0.06295,0.5532
+train / val → external,EEHEE_rd3_0130,,0.37209,0.1792,0.6097
+train / val → external,EEHEE_rd3_0146,,0.34884,0.2145,0.6506
+train / val → external,EEHEE_rd3_0602,,0.39535,0.07893,0.5945
+train / val → external,EEHEE_rd3_0657,,0.32558,0.091,0.5265
+train / val → external,EEHEE_rd3_0809,,0.34884,0.03281,0.5989
+train / val → external,EEHEE_rd3_1367,,0.30233,0.04275,0.5546
+train / val → external,EEHEE_rd3_1498,4.041,0.32558,0.1154,0.6392
+train / val → external,EEHEE_rd3_1587,,0.32558,0.03659,0.5926
+train / val → external,EEHEE_rd3_1615,,0.37209,0.1978,0.6218
+train / val → external,EEHEE_rd3_1702,,0.37209,0.07331,0.6276
+train / val → external,EEHEE_rd3_1716,,0.32558,0.1945,0.6249
+train / val → external,EEHEE_rd3_1810,,0.34884,0.1904,0.6064
+train / val → external,EEHEE_rd3_1818,,0.32558,0.1158,0.6286
+train / val → external,EEHEE_rd4_0005,2.083,0.30233,0.02834,0.575
+train / val → external,EEHEE_rd4_0256,,0.30233,0.5264,0.6401
+train / val → external,EEHEE_rd4_0308,2.083,0.32558,0.02173,0.5432
+train / val → external,EEHEE_rd4_0363,,0.32558,0.009963,0.535
+train / val → external,EEHEE_rd4_0371,0.05606,0.32558,0.04447,0.577
+train / val → external,EEHEE_rd4_0469,,0.30233,0.1833,0.5823
+train / val → external,EEHEE_rd4_0470,,0.39535,0.1197,0.5809
+train / val → external,EEHEE_rd4_0481,,0.30233,0.03006,0.5728
+train / val → external,EEHEE_rd4_0763,,0.30233,0.06926,0.5747
+train / val → external,EEHEE_rd4_0784,,0.34884,0.08276,0.5351
+train / val → external,EHEE_rd1_0101,,0.35,1.148,0.6266
+train / val → external,EHEE_rd1_0407,,0.325,0.9954,0.6123
+train / val → external,EHEE_rd1_0459,,0.325,0.5359,0.5663
+train / val → external,EHEE_rd2_0152,,0.3,0.5787,0.5775
+train / val → external,EHEE_rd2_0191,,0.325,0.638,0.6088
+train / val → external,EHEE_rd2_0196,,0.375,0.585,0.6184
+train / val → external,EHEE_rd2_0372,,0.375,0.5787,0.5598
+train / val → external,EHEE_rd2_0601,,0.325,0.5152,0.6344
+train / val → external,EHEE_rd2_0751,,0.325,0.6718,0.6077
+train / val → external,EHEE_rd2_1106,,0.3,1.639,0.5985
+train / val → external,EHEE_rd4_0044,0.916,0.325,0.8885,0.5648
+train / val → external,EHEE_rd4_0086,,0.325,0.5202,0.5454
+train / val → external,EHEE_rd4_0098,0.01789,0.35,0.6102,0.5578
+train / val → external,EHEE_rd4_0172,,0.3,0.5445,0.5798
+train / val → external,EHEE_rd4_0195,,0.325,0.6615,0.5859
+train / val → external,EHEE_rd4_0325,,0.35,1.007,0.5928
+train / val → external,EHEE_rd4_0394,,0.3,1.052,0.6193
+train / val → external,EHEE_rd4_0463,9.401,0.3,1.207,0.6
+train / val → external,EHEE_rd4_0502,3.451,0.35,0.3634,0.5718
+train / val → external,EHEE_rd4_0625,,0.35,0.6224,0.5136
+train / val → external,EHEE_rd4_0726,0.916,0.35,0.8733,0.5642
+train / val → external,EHEE_rd4_0840,9.401,0.325,0.7176,0.6278
+train / val → external,EHEE_rd4_0864,,0.275,0.8323,0.5405
+train / val → external,EHEE_rd4_0877,3.854,0.3,0.7717,0.59
+train / val → external,GG_run1_1390_0006,,0.3617,1.66,0.4959
+train / val → external,GG_run2_0085_0001,,0.31915,1.798,0.4946
+train / val → external,GG_run3_1315_0003,4.918,0.34043,1.872,0.5351
+train / val → external,GG_run3_1365_0003,3.049,0.3617,0.6588,0.5745
+train / val → external,GG_run4_0284_0002,,0.29787,2.797,0.4196
+train / val → external,GG_run4_0467_0002,,0.34043,2.395,0.505
+train / val → external,GG_run4_1050_0002,1.828,0.38298,1.981,0.4539
+train / val → external,GG_run5_0637_0006,,0.31915,1.752,0.4776
+train / val → external,GG_run5_1147_0004,,0.34043,2.589,0.3944
+train / val → external,GG_run5_1309_0004,2.541,0.29787,0.8476,0.5355
+train / val → external,GG_run6_0775_0006,,0.3617,,
+train / val → external,GG_run6_0851_0003,,0.38298,1.6,0.4166
+train / val → external,GG_run6_1310_0004,,0.34043,1.179,0.5448
+train / val → external,HEEH_KT_rd6_0280,,0.30233,1.577,0.452
+train / val → external,HEEH_KT_rd6_0746,,0.30233,3.004,0.4711
+train / val → external,HEEH_KT_rd6_1415,,0.32558,0.7459,0.5057
+train / val → external,HEEH_rd4_0094,,0.32558,1.581,0.492
+train / val → external,HHH_rd1_0335,,0.34884,1.132,0.5765
+train / val → external,HHH_rd1_0473,4.576,0.39535,3.856,0.5305
+train / val → external,HHH_rd1_0516,1.497,0.32558,1.341,0.6077
+train / val → external,HHH_rd1_0598,1.076,0.32558,1.254,0.5592
+train / val → external,HHH_rd1_0606,,0.32558,2.438,0.5649
+train / val → external,HHH_rd2_0155,1.475,0.34884,0.7307,0.4793
+train / val → external,HHH_rd2_0181,,0.39535,2.115,0.5338
+train / val → external,HHH_rd4_0395,,0.32558,1.184,0.516
+train / val → external,HHH_rd4_0557,,0.37209,1.411,0.5867
+train / val → external,HHH_rd4_0613,,0.39535,2.062,0.5512
+train / val → external,HHH_rd4_0676,,0.33333,2.662,0.5523
+train / val → external,HHH_rd4_0816,,0.34884,1.847,0.5445
+train / val → external,HHH_rd4_0870,,0.30233,2.043,0.5036
+train / val → external,XX_run10_1081_0004,,0.34211,2.479,0.4072
+train / val → external,XX_run1_0254_0003,,0.31915,1.752,0.539
+train / val → external,XX_run1_0367_0004,0.9464,0.31915,1.743,0.4217
+train / val → external,XX_run1_0455_0002,,0.31915,1.872,0.4131
+train / val → external,XX_run1_0461_0006,,0.2766,1.378,0.4577
+train / val → external,XX_run3_1384_0005,,0.34043,1.213,0.4632
+train / val → external,XX_run5_0690_0002,6.846,0.31915,1.005,0.55
+train / val → external,XX_run6_1020_0004,,0.2766,0.8365,0.4203
+train / val → external,XX_run6_1081_0004,,0.34043,2.742,0.531
+train / val → external,XX_run7_0974_0003,,0.3617,2.562,0.5069
+train / val → external,XX_run8_0733_0006,,0.31915,1.122,0.4362
+train / val → external,XX_run8_1063_0003,,0.2766,1.868,0.5054
+train / val → external,XX_run8_1098_0003,,0.31915,1.097,0.4015
+train / val → external,r10_437_TrROS_Hall,,0.31915,0.5216,0.5836
+train / val → external,r10_490_TrROS_Hall,9.534,0.31915,1.151,0.4996
+train / val → external,r10_572_TrROS_Hall,8.329,0.34043,0.3782,0.534
+train / val → external,r11_1081_TrROS_Hall,0.02864,0.34694,0.6508,0.4212
+train / val → external,r11_233_TrROS_Hall,,0.36735,0.6148,0.6168
+train / val → external,r11_569_TrROS_Hall,,0.32653,0.7008,0.5472
+train / val → external,r11_829_TrROS_Hall,2.79,0.32653,1.118,0.5117
+train / val → external,r12_757_TrROS_Hall,,0.37037,0.7862,0.6998
+train / val → external,r15_550_TrROS_Hall,,0.33333,0.7678,0.4992
+train / val → external,r18_3_TrROS_Hall,,0.34615,0.2645,0.5799
+train / val → external,r3_162_TrROS_Hall,,0.31373,0.3635,0.5237
+train / val → external,r4_412_TrROS_Hall,8.304,0.32609,0.1793,0.5237
+train / val → external,r4_43_TrROS_Hall,,0.3913,0.4948,0.5946
+train / val → external,r6_560_TrROS_Hall,0.3857,0.2973,0.4762,0.4383
+train / val → external,r7_587_TrROS_Hall,,0.39583,0.2493,0.466
+train / val → external,v2K43S_2KVV,3.284,0.35,2.237,0.3995
+train / val → external,v2R31S_R32S_2N5D,,0.29787,1.57,0.4537
+train / val → external,v2_2LDM,2.198,0.27451,0.06144,0.6407
+train / val → external,v2_2LXE,,0.28302,3.688,0.4113
+train / val → external,v2_4UZX,,0.31034,0.952,0.5153
+train / val → external,v2_6IVS,9.975,0.33333,0.06476,0.6786

@@ -1,0 +1,19 @@
+comparison,model_a,model_b,value_a,value_b,delta,lo,hi,p,n_libraries,bootstrap,statistic,panel,p_holm
+stabilizing,ESM-MSR,MutateEverything,0.2782,0.2166,0.06155,0.01483,0.1204,0.01,28,domains,pooled over domains,singles,0.02
+stabilizing,ESM-MSR,ThermoMPNN,0.2782,0.2241,0.05403,0.01816,0.09998,0.004975,28,domains,pooled over domains,singles,0.01493
+stabilizing,ESM-MSR,SPURS,0.2782,0.2821,-0.003941,-0.03831,0.0303,0.87,28,domains,pooled over domains,singles,0.87
+destabilizing,ESM-MSR,MutateEverything,0.731,0.7274,0.003589,-0.03356,0.03246,0.81,28,domains,pooled over domains,singles,1
+destabilizing,ESM-MSR,ThermoMPNN,0.731,0.7009,0.03013,0.006568,0.05652,0.02,28,domains,pooled over domains,singles,0.06
+destabilizing,ESM-MSR,SPURS,0.731,0.7198,0.01124,-0.02059,0.04419,0.55,28,domains,pooled over domains,singles,1
+overall,ESM-MSR,MutateEverything,0.7726,0.7527,0.01994,-0.01028,0.04232,0.17,28,domains,pooled over domains,singles,0.2
+overall,ESM-MSR,ThermoMPNN,0.7726,0.7335,0.03912,0.01867,0.06031,0.004975,28,domains,pooled over domains,singles,0.01493
+overall,ESM-MSR,SPURS,0.7726,0.7542,0.01849,-0.002423,0.04176,0.1,28,domains,pooled over domains,singles,0.2
+stabilizing,ESM-MSR,MutateEverything,-0.1422,0.03239,-0.1746,-0.2638,0.1595,0.58,15,domains,pooled over domains,doubles,1
+stabilizing,ESM-MSR,ThermoMPNN,-0.1422,-0.1571,0.01485,-0.138,0.1514,0.52,15,domains,pooled over domains,doubles,1
+stabilizing,ESM-MSR,SPURS,-0.1422,-0.08335,-0.05885,-0.2047,0.1536,0.42,15,domains,pooled over domains,doubles,1
+destabilizing,ESM-MSR,MutateEverything,0.4134,0.5119,-0.09852,-0.1962,0.04391,0.29,20,domains,pooled over domains,doubles,0.87
+destabilizing,ESM-MSR,ThermoMPNN,0.4134,0.5038,-0.09046,-0.2071,0.1002,0.37,20,domains,pooled over domains,doubles,0.87
+destabilizing,ESM-MSR,SPURS,0.4134,0.5074,-0.09406,-0.1872,0.0755,0.35,20,domains,pooled over domains,doubles,0.87
+overall,ESM-MSR,MutateEverything,0.4218,0.5447,-0.1229,-0.2351,0.03272,0.22,20,domains,pooled over domains,doubles,0.66
+overall,ESM-MSR,ThermoMPNN,0.4218,0.5286,-0.1068,-0.2181,0.08056,0.3,20,domains,pooled over domains,doubles,0.66
+overall,ESM-MSR,SPURS,0.4218,0.5243,-0.1025,-0.1928,0.0688,0.32,20,domains,pooled over domains,doubles,0.66

@@ -1,29 +1,26 @@
-"""
-Collect the predictions behind docs/BENCHMARKS_OCT2026.md into one local layout, from a remote cluster and
-from earlier local pulls.
+"""Collect benchmark predictions into one local layout from a remote cluster and earlier local pulls.
 
   <root>/msr_predictions/<spec>[/seed<k>]/sigma<s>/<dataset>.csv         ESM-MSR (also .../proteingym[_wt_only]/<DMS>.csv, stats/)
-  <root>/baselines/retrained/<model>/predictions/<variant>/seed<k>/...    models retrained on the capped split
-  <root>/baselines/public/<model>[/<variant>]/<dataset>.csv               every other model in the tables
-  <root>/resources_tracked/<label>/<run>/resources_*                      every fixed-slot resource-tracker run (group `resources`)
+  <root>/final_bench/, final_ctx/, final_pgym_*, final_mgnify*           FINAL_p0 / FINAL_p1 / ablation evaluation outputs (group `final`)
+  <root>/baselines/retrained/<model>/predictions/<variant>/seed<k>/...   models retrained on the capped split
+  <root>/baselines/retrained/mega_splits/tracked/<run>/...               models retrained/evaluated on standard MegaScale split (group `mega`)
+  <root>/baselines/public/<model>[/<variant>]/<dataset>.csv              published / zero-shot baselines
+  <root>/resources_tracked/<label>/<run>/resources_*                     fixed-slot resource-tracker runs (group `resources`)
 
-Files are copied byte for byte; only their path changes. Dataset names are the ones benchmark_matrix.py uses (s571 ...
-k2369, ptmul, ptmuld, the seven DMS ids, domainome, tsuboyama_capped_{val,test}). Each model directory gets a
-MANIFEST.tsv (path, bytes, md5, origin on the cluster, origin mtime), so every rename can be undone.
+Files are copied byte for byte; only their path changes. Each model directory gets a MANIFEST.tsv
+(path, bytes, md5, origin on the cluster, origin mtime) written atomically.
 
   python analysis/scoring/collect_predictions.py plan                 # list what would move or be fetched, nothing is touched
   python analysis/scoring/collect_predictions.py run                  # do it (rsync from the cluster, mv from earlier pulls)
   python analysis/scoring/collect_predictions.py manifest             # (re)write the MANIFEST.tsv files
   python analysis/scoring/collect_predictions.py pgpublished          # ProteinGym's published ProSST / ProteinMPNN / ESM3 scores, per DMS
-
-Selection rules (what counts as "behind the tables") are in the SPECS / RETRAINED / PUBLIC tables below. Left out on
-purpose: files a later fix superseded (`_pre_pmb/`, `.pre_gb1_fix`, `.old`, `.partial`, `.pre_bbpatch`), the withdrawn
-item-filtered ME stage 2 / ThermoMPNN-D runs, the published SPURS checkpoint, smoke tests, and arms the tables do not cite.
-Re-running is safe: a destination that already exists with the same size is skipped.
 """
+from __future__ import annotations
+
 import argparse
 import csv
 import hashlib
+import io
 import os
 import re
 import shutil
@@ -33,37 +30,52 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+_ANALYSIS_DIR = Path(__file__).resolve().parent.parent
+if str(_ANALYSIS_DIR) not in sys.path:
+    sys.path.insert(0, str(_ANALYSIS_DIR))
+
+from msr_analysis.paths import MSR_ROOT, atomic_write_text  # noqa: E402
+
 HOST = os.environ.get('MSR_CLUSTER', '')
 RHOME = os.environ.get('MSR_CLUSTER_HOME', os.path.expanduser('~'))
-ROOT = Path(os.environ.get('MSR_ROOT', '~/playground/esm-msr-devel')).expanduser()
+ROOT = Path(os.environ.get('MSR_ROOT', str(MSR_ROOT))).expanduser()
 DEV, SB = f'{RHOME}/esm-msr-devel', f'{RHOME}/stability-baselines'
 NB_OUT = os.environ.get('MSR_NOTEBOOK_OUT_DIR', f'{DEV}/analysis/notebooks')
-SNAP = ROOT / 'results_cluster'                       # the 2026-10-27 pull of ESM-MSR predictions
+FINAL_REMOTE = os.environ.get('MSR_FINAL_REMOTE_ROOT', f'{DEV}/outputs')
+SNAP = ROOT / 'results_cluster'
 STAGE = ROOT / '.collect_staging'
 
-TSU = {'splits_oct06_capped-val': 'tsuboyama_capped_val', 'splits_oct06_capped-test': 'tsuboyama_capped_test',
-       'hyperopt_splits-val': 'tsuboyama_hyperopt_val', 'hyperopt_splits-validation': 'tsuboyama_hyperopt_val',
-       'hyperopt_splits-test': 'tsuboyama_hyperopt_test'}
+TSU = {
+    'splits_oct06_capped-val': 'tsuboyama_capped_val',
+    'splits_oct06_capped-test': 'tsuboyama_capped_test',
+    'splits_mega-val': 'tsuboyama_mega_val',
+    'splits_mega-test': 'tsuboyama_mega_test',
+    'hyperopt_splits-val': 'tsuboyama_hyperopt_val',
+    'hyperopt_splits-validation': 'tsuboyama_hyperopt_val',
+    'hyperopt_splits-test': 'tsuboyama_hyperopt_test',
+}
 
 
-def ds_name(raw):
+def ds_name(raw: str) -> str:
     raw = TSU.get(raw, raw)
     return 'ptmul' if raw == 'PTMUL' else raw
 
 
-def sigma_dir(tok):
-    return f'sigma{float(tok):g}'                       # 1.0 / 1 -> sigma1, 0.0 -> sigma0, 0.25 -> sigma0.25
+def sigma_dir(tok: str | float) -> str:
+    return f'sigma{float(tok):g}'
 
 
 # ------------------------------------------------------------------------------------------------ cluster access
-_find_cache = {}
+_find_cache: dict[str, list[tuple[int, float, str]]] = {}
 
 
-def remote_find(root):
+def remote_find(root: str) -> list[tuple[int, float, str]]:
     """[(size, mtime, path)] for every regular file under a cluster directory (one ssh, read only)."""
     if root not in _find_cache:
-        out = subprocess.run(['ssh', '-o', 'BatchMode=yes', HOST, f"find {root} -type f -printf '%s\\t%T@\\t%p\\n'"],
-                             capture_output=True, text=True, check=True).stdout
+        out = subprocess.run(
+            ['ssh', '-o', 'BatchMode=yes', HOST, f"find {root} -type f -printf '%s\\t%T@\\t%p\\n'"],
+            capture_output=True, text=True, check=True,
+        ).stdout
         rows = []
         for ln in out.splitlines():
             s, m, p = ln.split('\t', 2)
@@ -78,7 +90,7 @@ class Plan(list):
         self.append(dict(dst=str(dst), src=src, size=size, mtime=mtime, local=local, group=group))
 
 
-def same_file(path, size, mtime):
+def same_file(path, size, mtime) -> bool:
     try:
         st = os.stat(path)
     except OSError:
@@ -91,8 +103,7 @@ def local_twin(rel, size, mtime):
     return str(p) if same_file(p, size, mtime) else None
 
 
-# ------------------------------------------------------------------------------------------------ ESM-MSR
-# (spec directory, cluster checkpoint dir template, seeds); ProteinGym dirs sit under outputs/pgym/<ckpt>/<sigma dir>.
+# ------------------------------------------------------------------------------------------------ ESM-MSR (Oct 2026)
 SPECS = [
     ('baseline_w2a4_m16a16', 'release-baseline/s{k}', (1, 2, 3), {'sigma1.0': 'sigma1/proteingym'}),
     ('devel_dc8_floorlink_w2a4_m16a16', 'esm-msr-dc8-floorlink-canon-w2a4-m16a16-s{k}', (1, 2, 3), {'sigma1.0': 'sigma1/proteingym'}),
@@ -101,16 +112,11 @@ SPECS = [
 ]
 GAMUT_RX = re.compile(r'^.+\.ckpt_sigma(?P<sig>[0-9.]+)_unmasked_predictions\.csv$')
 
-# Fixed-slot reruns of two checkpoints (outputs/tracked/<run>, made for runtime and memory): the same checkpoint and configuration as
-# seed <k> of the spec, run again, so they sit beside that seed as seed<k>_tracked and no table reads them. The released checkpoint's
-# rerun (esm_msr_released) is left out on purpose: its configuration is the baseline recipe's. ProteinGym and the resource run that
-# belongs to it are taken only once the job has finished (a run in flight is a moving target); the Slurm logs are never taken.
 TRACKED_MSR = [('baseline_w2a4_m16a16', 'esm_msr_baseline_s1', 1), ('devel_dc8_floorlink_w2a4_m16a16', 'esm_msr_devel_s1', 1)]
 
 
 def tracked_msr_dst(spec, k, rel, finished_runs, all_done):
-    """Destination (relative to ROOT) of one file of a tracked ESM-MSR rerun, or None to leave it. ``rel`` is relative to
-    outputs/tracked/<run>; ``finished_runs`` the resource run directories that hold a resources_scopes.csv (written at the end of a run)."""
+    """Destination (relative to ROOT) of one file of a tracked ESM-MSR rerun, or None to leave it."""
     base = f'msr_predictions/{spec}/seed{k}_tracked'
     parts = rel.split('/')
     if parts[0] == 'analysis' and len(parts) >= 4:
@@ -130,18 +136,18 @@ def tracked_msr_dst(spec, k, rel, finished_runs, all_done):
 
 
 def plan_msr_tracked(plan):
-    for spec, run, k in TRACKED_MSR:
-        d = f'{DEV}/outputs/tracked/{run}'
+    for spec, run_name, k in TRACKED_MSR:
+        d = f'{DEV}/outputs/tracked/{run_name}'
         files = remote_find(d)
         runs = {p[len(d) + 1:].split('/')[1] for _, _, p in files if p[len(d) + 1:].startswith('resources/')}
         finished = {p[len(d) + 1:].split('/')[1] for _, _, p in files if p.endswith('/resources_scopes.csv')}
-        all_done = len(runs) >= 2 and runs == finished         # the gamut phase and the ProteinGym phase each leave one resource run
+        all_done = len(runs) >= 2 and runs == finished
         for size, mt, path in files:
             dst = tracked_msr_dst(spec, k, path[len(d) + 1:], finished, all_done)
             if dst:
                 plan.add(dst, path, size, mt, None, f'msr:{spec}')
         if not all_done:
-            print(f'{run}: still running; its ProteinGym files and ProteinGym resource run are not collected yet', file=sys.stderr)
+            print(f'{run_name}: still running; its ProteinGym files and ProteinGym resource run are not collected yet', file=sys.stderr)
 
 
 def plan_msr(plan):
@@ -153,7 +159,6 @@ def plan_msr(plan):
         for k in seeds:
             ck = tmpl.format(k=k)
             base = f'{spec}/seed{k}' if k else spec
-            # gamut predictions: the files directly in <block>/<ckpt>/ (the _pre_pmb/ subdirectory holds the superseded convention)
             for size, mt, path in pred:
                 rel = path[len(P) + 1:]
                 parts = rel.split('/')
@@ -165,7 +170,6 @@ def plan_msr(plan):
                     continue
                 plan.add(f'msr_predictions/{base}/{sigma_dir(m["sig"])}/{ds_name(block)}.csv', path, size, mt,
                          local_twin(f'predictions/{rel}', size, mt), f'msr:{spec}')
-            # ProteinGym runs
             for pgdir, sub in pgdirs.items():
                 pre = f'{DEV}/outputs/pgym/{ck}/{pgdir}/'
                 for size, mt, path in pg_all:
@@ -173,14 +177,12 @@ def plan_msr(plan):
                         rel = f'{ck}/{pgdir}/{path[len(pre):]}'
                         plan.add(f'msr_predictions/{base}/{sub}/{path[len(pre):]}', path, size, mt,
                                  local_twin(f'pgym/{rel}', size, mt), f'msr:{spec}')
-            # the per-dataset summaries esm_msr_testing.py wrote next to the predictions
             sp = f'{NB_OUT}/stats/'
             for size, mt, path in stats:
                 rel = path[len(sp):]
                 top, rest = rel.split('/', 1)
                 if rest.startswith(ck + '/') and '/' not in rest[len(ck) + 1:] and not top.startswith(('hyperopt', 'esm3_forge')) and '_valprobe' not in top:
                     plan.add(f'msr_predictions/{base}/stats/{ds_name(top)}/{rest[len(ck) + 1:]}', path, size, mt, None, f'msr:{spec}')
-    # the March ESM-MSR-small reference run in the third-party harness (crystal structures)
     R = f'{SB}/results/esm-msr-small_crystal'
     for size, mt, path in remote_find(R):
         rel = path[len(R) + 1:]
@@ -191,34 +193,101 @@ def plan_msr(plan):
     plan_msr_tracked(plan)
 
 
-# ------------------------------------------------------------------------------------------------ retrained baselines
-# The fixed-slot ME runs (outputs/tracked/me_st2_s<k>, me_st1_s1; 2026-10-29/30: the corrected stage-2 checkpoints and stage-1 seed 1, every
-# set of the gamut and ProteinGym, resources recorded). Upstream result files (results_<set>.csv, no labels), like every other ME file here.
-# Stage 2's ProteinGym files are the corrected stage 2's ProteinGym run, so they go where the tables read them
-# (predictions/stage2/seed<k>/proteingym); everything else of the reruns, which no table reads (the gamut cells come from the 2026-10-26/27
-# evaluations), is kept apart under tracked/. ME's own S461 run keeps going to _not_in_benchmarks (see below); Slurm logs are never taken.
+# ------------------------------------------------------------------------------------------------ FINAL_p0 / FINAL_p1 / ablations & MGnify
+FINAL_DIRS = (
+    'final_bench',
+    'final_ctx',
+    'final_pgym_wt',
+    'final_pgym_wt_sigma0',
+    'final_pgym_wt_sigma0.5',
+    'final_pgym_wt_xmask',
+    'final_pgym_comb',
+    'final_pgym_comb_sigma0.5',
+    'final_mgnify',
+    'final_mgnify_sigma0.5',
+)
+
+
+def final_file_dst(tree: str, rel: str) -> str | None:
+    """Destination (relative to ROOT) of one file inside a ``final_*`` tree, or None for transient/log files."""
+    name = rel.rsplit('/', 1)[-1]
+    if name.startswith('slurm-') and name.endswith('.out'):
+        return None
+    if name.endswith(('.partial', '.tmp', '.old', '.bak')):
+        return None
+    return f'{tree}/{rel}'
+
+
+def plan_final(plan):
+    """Collect ``final_bench/``, ``final_ctx/``, ``final_pgym_*/``, and ``final_mgnify*/`` trees."""
+    for tree in FINAL_DIRS:
+        remote_dir = f'{FINAL_REMOTE}/{tree}'
+        for size, mt, path in remote_find(remote_dir):
+            rel = path[len(remote_dir) + 1:]
+            dst = final_file_dst(tree, rel)
+            if dst:
+                plan.add(dst, path, size, mt, None, f'final:{tree}')
+
+
+# ------------------------------------------------------------------------------------------------ MegaScale-split retrained baselines
+MEGA_TRACKED_RUNS = (
+    'me_mega_st1_s1', 'me_mega_st1_s2', 'me_mega_st1_s3',
+    'me_mega_st2_s1', 'me_mega_st2_s2', 'me_mega_st2_s3',
+    'spurs_mega_s1', 'spurs_mega_s2', 'spurs_mega_s3',
+    'spurs_mega_ta_s1', 'spurs_mega_ta_s2', 'spurs_mega_ta_s3',
+    'spurs_mega_public',
+    'thermompnn_mega_s1', 'thermompnn_mega_s2', 'thermompnn_mega_s3',
+    'thermompnn_mega_public_ens1', 'thermompnn_mega_public_ens2', 'thermompnn_mega_public_ens3',
+)
+
+
+def mega_tracked_dst(run_name: str, rel: str) -> str | None:
+    """Destination (relative to ROOT) for a file under ``outputs/tracked/<mega_run>``."""
+    name = rel.rsplit('/', 1)[-1]
+    if name.startswith('slurm-') and name.endswith('.out'):
+        return None
+    if name.endswith(('.partial', '.tmp', '.old', '.bak')) or rel.startswith('inputs/'):
+        return None
+    return f'baselines/retrained/mega_splits/tracked/{run_name}/{rel}'
+
+
+def plan_mega(plan):
+    """Collect standard-MegaScale-split retrained & public-checkpoint evaluation runs."""
+    for run_name in MEGA_TRACKED_RUNS:
+        remote_dir = f'{DEV}/outputs/tracked/{run_name}'
+        for size, mt, path in remote_find(remote_dir):
+            rel = path[len(remote_dir) + 1:]
+            dst = mega_tracked_dst(run_name, rel)
+            if dst:
+                plan.add(dst, path, size, mt, None, f'mega:{run_name}')
+
+
+# ------------------------------------------------------------------------------------------------ retrained baselines (capped split)
 TRACKED_ME = [('stage2', 'me_st2_s{k}', (1, 2, 3)), ('stage1', 'me_st1_s{k}', (1,))]
-ME_TRACKED_SETS = {'oct06_capped_allbl_val': 'tsuboyama_capped_val', 'oct06_capped_allbl_test': 'tsuboyama_capped_test',
-                   'oct06_capped_allbl_testcomp': 'tsuboyama_capped_testcomp',
-                   's571': 's571', 's783': 's783', 's2648': 's2648', 's8754': 's8754', 's669': 's669', 's461': 's461', 'ssym': 'ssym',
-                   'q3421': 'q3421', 'k3822': 'k3822', 'k2369': 'k2369', 'ptmul': 'ptmul', 'ptmuld': 'ptmuld', 'domainome': 'domainome',
-                   'DLG4_HUMAN_Faure_2021_binding_domain': 'DLG4_HUMAN_Faure_2021_binding_domain',
-                   'GRB2_HUMAN_Faure_2021_binding_domain': 'GRB2_HUMAN_Faure_2021_binding_domain',
-                   'MYO_HUMAN_Kung_2025_display': 'MYO_HUMAN_Kung_2025_display'}
+ME_TRACKED_SETS = {
+    'oct06_capped_allbl_val': 'tsuboyama_capped_val',
+    'oct06_capped_allbl_test': 'tsuboyama_capped_test',
+    'oct06_capped_allbl_testcomp': 'tsuboyama_capped_testcomp',
+    's571': 's571', 's783': 's783', 's2648': 's2648', 's8754': 's8754', 's669': 's669', 's461': 's461', 'ssym': 'ssym',
+    'q3421': 'q3421', 'k3822': 'k3822', 'k2369': 'k2369', 'ptmul': 'ptmul', 'ptmuld': 'ptmuld', 'domainome': 'domainome',
+    'DLG4_HUMAN_Faure_2021_binding_domain': 'DLG4_HUMAN_Faure_2021_binding_domain',
+    'GRB2_HUMAN_Faure_2021_binding_domain': 'GRB2_HUMAN_Faure_2021_binding_domain',
+    'MYO_HUMAN_Kung_2025_display': 'MYO_HUMAN_Kung_2025_display',
+}
 
 
 def tracked_me_dst(stage, k, rel):
-    """Destination (relative to ROOT) of one file of a tracked ME run, or None to leave it; ``rel`` is relative to outputs/tracked/<run>."""
+    """Destination (relative to ROOT) of one file of a tracked ME run, or None to leave it."""
     RT = 'baselines/retrained/mutate_everything'
     parts = rel.split('/')
     m = re.match(r'^results_(.+)\.csv$', rel)
     if m:
         name = m.group(1)
-        if name == 's461':                      # ME's own S461 table (see plan_retrained): no table cell reads it
+        if name == 's461':
             return f'msr_predictions/_not_in_benchmarks/me_upstream_s461/predictions_tracked/{stage}/seed{k}.csv'
         if name in ME_TRACKED_SETS:
             return f'{RT}/tracked/{stage}/seed{k}/{ME_TRACKED_SETS[name]}.csv'
-        if stage == 'stage2':                   # a ProteinGym assay: the corrected stage 2's ProteinGym run
+        if stage == 'stage2':
             return f'{RT}/predictions/stage2/seed{k}/proteingym/{name}.csv'
         return f'{RT}/tracked/{stage}/seed{k}/proteingym/{name}.csv'
     if parts[0] == 'resources' and len(parts) == 3:
@@ -233,7 +302,7 @@ def plan_me_tracked(plan):
         for k in seeds:
             d = f'{DEV}/outputs/tracked/{tmpl.format(k=k)}'
             files = remote_find(d)
-            if not any(p.endswith('/resources_scopes.csv') for _, _, p in files):      # written at the end of a run
+            if not any(p.endswith('/resources_scopes.csv') for _, _, p in files):
                 print(f'{tmpl.format(k=k)}: not finished, skipped', file=sys.stderr)
                 continue
             for size, mt, path in files:
@@ -244,11 +313,10 @@ def plan_me_tracked(plan):
 
 def plan_retrained(plan):
     RT = 'baselines/retrained'
-    # SPURS (single + multi in one file per dataset): the tracked fixed-slot runs the BENCHMARKS rows are scored from
     for k in (1, 2, 3):
-        run = f'{DEV}/outputs/tracked/spurs_retrain_s{k}'
-        for size, mt, path in remote_find(run):
-            rel = path[len(run) + 1:]
+        run_dir = f'{DEV}/outputs/tracked/spurs_retrain_s{k}'
+        for size, mt, path in remote_find(run_dir):
+            rel = path[len(run_dir) + 1:]
             if rel.startswith('proteingym/'):
                 dst = f'{RT}/spurs/predictions/seed{k}/{rel}'
             elif rel.startswith('resources/'):
@@ -263,9 +331,14 @@ def plan_retrained(plan):
             else:
                 continue
             plan.add(dst, path, size, mt, None, 'retrained:spurs')
-    plan.add(f'{RT}/spurs/docs/HANDOFF_SPURS_BENCHMARK.md', f'{RHOME}/spurs_retrain/HANDOFF_SPURS_BENCHMARK.md', *stat_remote(f'{RHOME}/spurs_retrain/HANDOFF_SPURS_BENCHMARK.md'), None, 'retrained:spurs')
+    plan.add(
+        f'{RT}/spurs/docs/HANDOFF_SPURS_BENCHMARK.md',
+        f'{RHOME}/spurs_retrain/HANDOFF_SPURS_BENCHMARK.md',
+        *stat_remote(f'{RHOME}/spurs_retrain/HANDOFF_SPURS_BENCHMARK.md'),
+        None,
+        'retrained:spurs',
+    )
 
-    # ThermoMPNN: the single (additive) rows come from the capped-split evaluation, ThermoMPNN-D from the corrected one
     def tm(src_dir, variant, names):
         for k in (1, 2, 3):
             d = src_dir.format(k=k)
@@ -281,6 +354,7 @@ def plan_retrained(plan):
                 else:
                     continue
                 plan.add(dst, path, size, mt, None, 'retrained:thermompnn')
+
     tm(f'{DEV}/outputs/baselines_capped/thermompnn/eval_seed{{k}}', 'single_additive',
        {'predictions_test': 'tsuboyama_capped_test', 'predictions_val': 'tsuboyama_capped_val_itemfiltered', 'predictions_valfull': 'tsuboyama_capped_val'})
     tm(f'{DEV}/outputs/baselines_corrected/thermompnn/eval_seed{{k}}', 'epistatic_corrected',
@@ -290,38 +364,45 @@ def plan_retrained(plan):
         for size, mt, path in remote_find(d):
             plan.add(f'{RT}/thermompnn/predictions/single_additive/seed{k}/proteingym/{path[len(d) + 1:]}', path, size, mt, None, 'retrained:thermompnn')
 
-    # MutateEverything: stage 1 (singles) and the corrected stage 2 (all measured doubles); raw upstream result files
-    me_tsu = {'stage1': {'oct06_capped_val': 'tsuboyama_capped_val_itemfiltered', 'oct06_capped_valfull': 'tsuboyama_capped_val',
-                         'oct06_capped_test': 'tsuboyama_capped_test', 'oct06_capped_testcomp': 'tsuboyama_capped_testcomp'},
-              'stage2': {'oct06_capped_allbl_val': 'tsuboyama_capped_val', 'oct06_capped_allbl_test': 'tsuboyama_capped_test',
-                         'oct06_capped_allbl_testcomp': 'tsuboyama_capped_testcomp'}}
+    me_tsu = {
+        'stage1': {
+            'oct06_capped_val': 'tsuboyama_capped_val_itemfiltered',
+            'oct06_capped_valfull': 'tsuboyama_capped_val',
+            'oct06_capped_test': 'tsuboyama_capped_test',
+            'oct06_capped_testcomp': 'tsuboyama_capped_testcomp',
+        },
+        'stage2': {
+            'oct06_capped_allbl_val': 'tsuboyama_capped_val',
+            'oct06_capped_allbl_test': 'tsuboyama_capped_test',
+            'oct06_capped_allbl_testcomp': 'tsuboyama_capped_testcomp',
+        },
+    }
     MEB = f'{RHOME}/software/MutateEverything-oct06'
-    # stage 1's DMS and Domainome evaluations ran in their own folders (the stage-2 ones are in the capped_allbl run)
-    runs = {'stage1': ['logs_eval/af_single_oct06_capped_seed{k}', 'logs_eval_dms/af_single_seed{k}', 'logs_eval_dom/af_single_seed{k}'],
-            'stage2': ['logs_eval/af_double_oct06_capped_allbl_seed{k}']}
+    runs = {
+        'stage1': ['logs_eval/af_single_oct06_capped_seed{k}', 'logs_eval_dms/af_single_seed{k}', 'logs_eval_dom/af_single_seed{k}'],
+        'stage2': ['logs_eval/af_double_oct06_capped_allbl_seed{k}'],
+    }
     for stage, run_dirs in runs.items():
         for k in (1, 2, 3):
-            for run in run_dirs:
-                d = f'{MEB}/{run.format(k=k)}'
+            for run_sub in run_dirs:
+                d = f'{MEB}/{run_sub.format(k=k)}'
                 for size, mt, path in remote_find(d):
                     rel = path[len(d) + 1:]
                     m = re.match(r'^(results|metrics)_(.+)\.csv$', rel)
                     if m:
                         name = me_tsu[stage].get(m.group(2), m.group(2))
                         sub = 'predictions' if m.group(1) == 'results' else 'metrics'
-                        if name == 's461':      # ME's run on the S461 table ME ships (another construct and MSA per protein than its S669
-                                                # inputs); the S461 column scores the s669 predictions, so no table cell reads this file
+                        if name == 's461':
                             plan.add(f'msr_predictions/_not_in_benchmarks/me_upstream_s461/{sub}/{stage}/seed{k}.csv', path, size, mt, None, 'retrained:me')
                         else:
                             plan.add(f'{RT}/mutate_everything/{sub}/{stage}/seed{k}/{name}.csv', path, size, mt, None, 'retrained:me')
                     elif rel == 'timing.csv':
                         plan.add(f'{RT}/mutate_everything/resources/{stage}/seed{k}/timing.csv', path, size, mt, None, 'retrained:me')
-    for k in (1, 2, 3):                        # stage 1 ProteinGym (the withdrawn item-filtered stage 2's `mutateeverything_double_seed*` is not collected)
+    for k in (1, 2, 3):
         d = f'{DEV}/outputs/pgym/mutateeverything_single_seed{k}'
         for size, mt, path in remote_find(d):
             plan.add(f'{RT}/mutate_everything/predictions/stage1/seed{k}/proteingym/{path[len(d) + 1:]}', path, size, mt, None, 'retrained:me')
     plan_me_tracked(plan)
-    # scored per-variant tables (labels attached) behind the corrected rows
     sc = f'{RHOME}/me_audit/out/scores'
     for size, mt, path in remote_find(sc):
         top, _, name = path[len(sc) + 1:].partition('/')
@@ -347,14 +428,17 @@ def stat_remote(path):
 
 
 # ------------------------------------------------------------------------------------------------ public baselines
-# (destination under baselines/public, cluster directory under stability-baselines/results)
-PUBLIC = [('esmtherm', 'esmtherm/predictions'), ('esm3dg', 'esm3dg/predictions'), ('ddgemb', 'ddgemb/predictions'),
-          ('ddmut', 'ddmut/predictions'), ('prosst', 'prosst/predictions'), ('proteinmpnn', 'proteinmpnn/predictions'),
-          ('rosetta', 'rosetta/predictions'), ('geoddg/faspr', 'geoddg/predictions_faspr'),
-          ('ifum/wt_backbone', 'ifum/predictions'), ('ifum/native_esmfold', 'ifum/predictions_esmfold'),
-          ('ifum/native_esmfold_full', 'ifum/predictions_esmfold_full')]
-PUBLIC_STATS = [('esmtherm', 'esmtherm/stats'), ('esm3dg', 'esm3dg/stats'), ('prosst', 'prosst/stats'), ('geoddg/faspr', 'geoddg/stats_faspr'),
-                ('ifum/wt_backbone', 'ifum/stats'), ('ifum/native_esmfold', 'ifum/stats_esmfold'), ('ifum/native_esmfold_full', 'ifum/stats_esmfold_full')]
+PUBLIC = [
+    ('esmtherm', 'esmtherm/predictions'), ('esm3dg', 'esm3dg/predictions'), ('ddgemb', 'ddgemb/predictions'),
+    ('ddmut', 'ddmut/predictions'), ('prosst', 'prosst/predictions'), ('proteinmpnn', 'proteinmpnn/predictions'),
+    ('rosetta', 'rosetta/predictions'), ('geoddg/faspr', 'geoddg/predictions_faspr'),
+    ('ifum/wt_backbone', 'ifum/predictions'), ('ifum/native_esmfold', 'ifum/predictions_esmfold'),
+    ('ifum/native_esmfold_full', 'ifum/predictions_esmfold_full'),
+]
+PUBLIC_STATS = [
+    ('esmtherm', 'esmtherm/stats'), ('esm3dg', 'esm3dg/stats'), ('prosst', 'prosst/stats'), ('geoddg/faspr', 'geoddg/stats_faspr'),
+    ('ifum/wt_backbone', 'ifum/stats'), ('ifum/native_esmfold', 'ifum/stats_esmfold'), ('ifum/native_esmfold_full', 'ifum/stats_esmfold_full'),
+]
 
 
 def plan_public(plan):
@@ -365,7 +449,7 @@ def plan_public(plan):
         for size, mt, path in remote_find(d):
             rel = path[len(d) + 1:]
             if '/' in rel or not rel.endswith('.csv') or rel.count('.') > 1:
-                continue                                     # .old / .partial / .pre_bbpatch side files stay behind
+                continue
             stem = rel[:-4]
             if stem == 'timing':
                 dst = f'{PB}/{model}/timing.csv'
@@ -378,22 +462,18 @@ def plan_public(plan):
         d = f'{R}/{rdir}'
         for size, mt, path in remote_find(d):
             plan.add(f'{PB}/{model}/stats/{path[len(d) + 1:]}', path, size, mt, None, f'public:{model}')
-    # ProteinMPNN's ProteinGym runs (three, averaged in the tables)
-    for tag, run in (('fast', 'proteinmpnn_020_unmasked_fast'), ('fast_seed1', 'proteinmpnn_020_unmasked_fast_seed1'), ('fast_seed2', 'proteinmpnn_020_unmasked_fast_seed2')):
-        d = f'{DEV}/outputs/pgym/{run}'
+    for tag, run_name in (('fast', 'proteinmpnn_020_unmasked_fast'), ('fast_seed1', 'proteinmpnn_020_unmasked_fast_seed1'), ('fast_seed2', 'proteinmpnn_020_unmasked_fast_seed2')):
+        d = f'{DEV}/outputs/pgym/{run_name}'
         for size, mt, path in remote_find(d):
             plan.add(f'{PB}/proteinmpnn/proteingym/{tag}/{path[len(d) + 1:]}', path, size, mt, None, 'public:proteinmpnn')
-    # ESM3 zero-shot through the Forge API
     P = f'{NB_OUT}/predictions'
     for size, mt, path in remote_find(P):
         m = re.match(rf'^{re.escape(P)}/([^/]+)/esm3_forge/zero_shot/(esm3-[a-z]+-\d{{4}}-\d\d)/predictions\.csv$', path)
         if m:
             plan.add(f'{PB}/esm3_forge_zero_shot/{m.group(2)}/{ds_name(m.group(1))}.csv', path, size, mt, None, 'public:esm3')
-    # the per-DMS ProteinGym tables every model's PG rows are summarised from (derived results, a few hundred KB)
     for name in ('pgym_all_models_per_dms.csv', 'pgym_dc8_per_dms.csv', 'pgym_public_per_dms.csv', 'pgym_rosetta_singles_per_dms.csv',
                  'proteinmpnn_020_unmasked_fast_ensemble3_per_dms.csv'):
         plan.add(f'baselines/pgym_per_dms/{name}', f'{DEV}/outputs/pgym/{name}', *stat_remote(f'{DEV}/outputs/pgym/{name}'), None, 'public:pgym_tables')
-    # label tables the harness predictions are keyed to (row_id), and the harness's own documentation and timings
     for size, mt, path in remote_find(f'{SB}/tasks'):
         plan.add(f'{PB}/_tasks/{ds_name(Path(path).name[:-7])}.csv.gz' if path.endswith('.csv.gz') else f'{PB}/_tasks/{Path(path).name}', path, size, mt, None, 'public:docs')
     for rel in ('AUDIT.md', 'PROGRESS.md', 'DDGemb.md', 'DDMut.md', 'ESM3dG.md', 'ESMtherm.md', 'GeoDDG.md', 'IFUM.md', 'ProSST.md', 'UniMutStab.md',
@@ -403,8 +483,6 @@ def plan_public(plan):
         plan.add(f'{PB}/docs/{rel.replace("results/", "").replace("/", "_")}', f'{SB}/{rel}', *stat_remote(f'{SB}/{rel}'), None, 'public:docs')
 
 
-# ProteinGym ships every benchmarked model's published predictions (one CSV per DMS, ~99 model columns, 1.9 GB zipped).
-# The tables use three of them (ProSST-2048, ProteinMPNN, ESM3); this keeps those columns and the labels, per DMS.
 PG_PUBLISHED_COLS = ['mutant', 'DMS_score', 'ProSST-2048', 'ProteinMPNN', 'ESM3']
 _PG_REMOTE = r'''
 import csv, io, sys, tarfile, time, zipfile
@@ -432,11 +510,12 @@ tar.close()
 
 
 def pg_published():
-    """Extract the three published-score columns per DMS into baselines/public/proteingym_published/ (streams a tar over ssh)."""
+    """Extract the three published-score columns per DMS into baselines/public/proteingym_published/."""
     dest = ROOT / 'baselines/public/proteingym_published'
     dest.mkdir(parents=True, exist_ok=True)
     code = _PG_REMOTE % (PG_PUBLISHED_COLS, f'{SB}/pgym_public/zero_shot_substitutions_scores.zip')
     ssh = subprocess.Popen(['ssh', '-o', 'BatchMode=yes', HOST, 'python3 -'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    assert ssh.stdin is not None and ssh.stdout is not None
     ssh.stdin.write(code.encode())
     ssh.stdin.close()
     tar = subprocess.run(['tar', '-x', '-C', str(dest)], stdin=ssh.stdout)
@@ -446,12 +525,6 @@ def pg_published():
 
 
 # ------------------------------------------------------------------------------------------------ resource tracking
-# Every resource-tracker run of the fixed-slot benchmark jobs (outputs/tracked/<label>/resources/<model>-<job>-<time>/), mirrored
-# as is: resources_run.json (slot, GPU, neighbours), resources_scopes.jsonl / .csv (one row per protein, load and stage scope).
-# An ESM-MSR job writes two runs (the benchmark gamut, then ProteinGym). Failed and cancelled attempts (label suffix _failed_* /
-# _cancelled_*) are kept too: resource_report.py flags each run, and analysis/scoring/resource_summary.py reads only the final one
-# per label. Some of these runs also sit in the model folders (seed<k>_tracked/resources, .../resources/...); this copy is the one
-# place that holds all of them.
 def plan_resources(plan):
     base = f'{DEV}/outputs/tracked'
     for size, mt, path in remote_find(base):
@@ -461,10 +534,28 @@ def plan_resources(plan):
 
 
 # ------------------------------------------------------------------------------------------------ execution
+PLAN_BUILDERS = {
+    'msr': plan_msr,
+    'final': plan_final,
+    'mega': plan_mega,
+    'retrained': plan_retrained,
+    'public': plan_public,
+    'resources': plan_resources,
+}
+
+
 def build_plan(groups):
     plan = Plan()
+    handlers = {
+        'msr': lambda p: plan_msr(p),
+        'final': lambda p: plan_final(p),
+        'mega': lambda p: plan_mega(p),
+        'retrained': lambda p: plan_retrained(p),
+        'public': lambda p: plan_public(p),
+        'resources': lambda p: plan_resources(p),
+    }
     for g in groups:
-        {'msr': plan_msr, 'retrained': plan_retrained, 'public': plan_public, 'resources': plan_resources}[g](plan)
+        handlers[g](plan)
     dsts = [p['dst'] for p in plan]
     dup = {d for d in dsts if dsts.count(d) > 1}
     if dup:
@@ -494,7 +585,7 @@ def run(plan):
             continue
         dst.parent.mkdir(parents=True, exist_ok=True)
         if p['local']:
-            os.replace(p['local'], dst)                          # same filesystem: a rename, mtime kept
+            os.replace(p['local'], dst)
         else:
             fetch.append(p)
     print(f'moved local files; {len(fetch)} to fetch ({sum(p["size"] for p in fetch) / 1e9:.2f} GB)', flush=True)
@@ -502,7 +593,10 @@ def run(plan):
         STAGE.mkdir(exist_ok=True)
         lst = STAGE / 'files.txt'
         lst.write_text('\n'.join(p['src'][len(RHOME) + 1:] for p in fetch) + '\n')
-        subprocess.run(['rsync', '-a', '--partial', '-e', 'ssh -o BatchMode=yes', f'--files-from={lst}', f'{HOST}:{RHOME}/', str(STAGE) + '/'], check=True)
+        subprocess.run(
+            ['rsync', '-a', '--partial', '-e', 'ssh -o BatchMode=yes', f'--files-from={lst}', f'{HOST}:{RHOME}/', str(STAGE) + '/'],
+            check=True,
+        )
         grew = []
         for p in fetch:
             staged = STAGE / p['src'][len(RHOME) + 1:]
@@ -511,8 +605,6 @@ def run(plan):
                 sys.exit(f'fetch incomplete: {p["src"]}')
             st = staged.stat()
             if st.st_size != p['size']:
-                # written to while we copied (a run still in flight on the cluster, usually a run.log); rsync's copy is a
-                # consistent snapshot, so keep it, record what we really hold, and say so
                 grew.append(f'{p["dst"]}: {p["size"]} -> {st.st_size} bytes')
                 p['size'], p['mtime'] = st.st_size, st.st_mtime
             dst.parent.mkdir(parents=True, exist_ok=True)
@@ -528,8 +620,7 @@ def write_manifests(plan):
     by_dir = {}
     for p in plan:
         parts = Path(p['dst']).parts
-        # one manifest per model folder: baselines/<retrained|public>/<model>, msr_predictions/<spec>, baselines/<table folder>
-        n = 3 if parts[0] == 'baselines' or parts[1:2] == ('_not_in_benchmarks',) else 2     # _not_in_benchmarks/<what> is its own folder
+        n = 3 if parts[0] == 'baselines' or parts[1:2] == ('_not_in_benchmarks',) else 2
         top = parts[:n] if len(parts) > n else parts[:-1]
         by_dir.setdefault(Path(*top), []).append(p)
     for d, items in by_dir.items():
@@ -539,26 +630,34 @@ def write_manifests(plan):
                 for b in iter(lambda: f.read(1 << 22), b''):
                     h.update(b)
             return h.hexdigest()
+
         with ThreadPoolExecutor(4) as ex:
             sums = list(ex.map(md5, items))
-        with open(ROOT / d / 'MANIFEST.tsv', 'w', newline='') as f:
-            w = csv.writer(f, delimiter='\t')
-            w.writerow(['path', 'bytes', 'md5', 'origin_on_cluster', 'origin_mtime'])
-            for p, s in sorted(zip(items, sums), key=lambda x: x[0]['dst']):
-                w.writerow([str(Path(p['dst']).relative_to(d)), (ROOT / p['dst']).stat().st_size, s, p['src'].replace(RHOME, '~'),
-                            time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(p['mtime']))])
+        buf = io.StringIO(newline='')
+        w = csv.writer(buf, delimiter='\t', lineterminator='\n')
+        w.writerow(['path', 'bytes', 'md5', 'origin_on_cluster', 'origin_mtime'])
+        for p, s in sorted(zip(items, sums), key=lambda x: x[0]['dst']):
+            w.writerow([
+                str(Path(p['dst']).relative_to(d)),
+                (ROOT / p['dst']).stat().st_size,
+                s,
+                p['src'].replace(RHOME, '~'),
+                time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(p['mtime'])),
+            ])
+        atomic_write_text(ROOT / d / 'MANIFEST.tsv', buf.getvalue())
         print(f'manifest {d}: {len(items)} files')
 
 
-if __name__ == '__main__':
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('cmd', choices=['plan', 'run', 'manifest', 'pgpublished'])
-    ap.add_argument('--groups', default='msr,retrained,public', help='comma list of msr, retrained, public, resources')
-    a = ap.parse_args()
+    ap.add_argument('--groups', default='msr,final,mega,retrained,public',
+                    help='comma list of msr, final, mega, retrained, public, resources')
+    a = ap.parse_args(argv)
     if a.cmd == 'pgpublished':
         pg_published()
-        sys.exit()
-    plan = build_plan(a.groups.split(','))
+        return
+    plan = build_plan([g.strip() for g in a.groups.split(',') if g.strip()])
     if a.cmd == 'plan':
         summarise(plan)
     elif a.cmd == 'run':
@@ -566,3 +665,7 @@ if __name__ == '__main__':
         write_manifests(plan)
     else:
         write_manifests(plan)
+
+
+if __name__ == '__main__':
+    main()

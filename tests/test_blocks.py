@@ -219,6 +219,8 @@ def _module(**hp):
     s.model = _Net()
     s.tf_post = {}                                    # the posterior label's constants: losses.py's defaults
     s.tobit_params = dict(sigma_y=0.28, mu_f=0.05, sigma_f=0.38)
+    s.reg_nll = str(s.hparams.get('reg_nll', 'tobit'))                      # read in __init__, which this fake module skips: --reg_nll and --reg_exclude_range (Nov 19)
+    s.reg_exclude_range = bool(s.hparams.get('reg_exclude_range', False))
     s.crit_rank_wt = s.crit_rank_mt = ListMLELoss()
     s.manual_backward = lambda loss, retain_graph=False: loss.backward()
     for name in ('_reg_loss', '_compute_rank_loss', '_block_cal', '_block_cal_sg', '_block_s_wt', '_block_llr', '_block_ctx', '_block_reg_rank',

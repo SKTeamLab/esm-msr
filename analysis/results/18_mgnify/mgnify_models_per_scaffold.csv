@@ -1,13 +1,24 @@
-dataset,model,readout,rho,lo,hi,n_scaffolds,n_set,coverage
-MGnify,ESM-MSR,combined (latent),0.6808,0.6742,0.6870,5546,5546,1.0000
-MGnify,SPURS,SPURS-multi,0.6177,0.6119,0.6231,5546,5546,1.0000
-MGnify,ThermoMPNN,ThermoMPNN-D,0.6024,0.5965,0.6082,5546,5546,1.0000
-MGnify,ProteinMPNN,direct,0.3962,0.3895,0.4032,5546,5546,1.0000
-MGnify,ProSST,direct,0.4119,0.4054,0.4186,5546,5546,1.0000
-MGnify,ESM3-small-open,WT head (sigma 0),0.3864,0.3797,0.3929,5546,5546,1.0000
-Rocklin designs,ESM-MSR,combined (latent),0.2833,0.2646,0.3024,701,701,1.0000
-Rocklin designs,SPURS,SPURS-multi,0.2537,0.2349,0.2718,701,701,1.0000
-Rocklin designs,ThermoMPNN,ThermoMPNN-D,0.2167,0.2001,0.2340,701,701,1.0000
-Rocklin designs,ProteinMPNN,direct,0.0982,0.0828,0.1145,701,701,1.0000
-Rocklin designs,ProSST,direct,0.1098,0.0931,0.1255,701,701,1.0000
-Rocklin designs,ESM3-small-open,WT head (sigma 0),0.1024,0.0868,0.1193,701,701,1.0000
+dataset,model,readout,rho,lo,hi,n_scaffolds,n_set,coverage,overlap
+MGnify,ESM-MSR,combined (latent),0.6770,0.6697,0.6841,5505,5505,1.0000,False
+MGnify,ESM-MSR σ=0.5,combined (latent),0.5885,0.5801,0.5972,5505,5505,1.0000,False
+MGnify,SPURS,SPURS-multi,0.6148,0.6002,0.6271,5505,5505,1.0000,False
+MGnify,ThermoMPNN,ThermoMPNN-D,0.5989,0.5906,0.6070,5505,5505,1.0000,False
+MGnify,ProteinMPNN,direct,0.3901,0.3823,0.3980,5505,5505,1.0000,False
+MGnify,ProSST,direct,0.4057,0.3983,0.4133,5505,5505,1.0000,False
+MGnify,GeoDDG-3D,direct,0.4830,0.4768,0.4894,5505,5505,1.0000,False
+MGnify,ESM3dG,direct,0.7312,0.7251,0.7373,5505,5505,1.0000,True
+MGnify,ESMtherm,direct,0.4909,0.4847,0.4971,5505,5505,1.0000,False
+MGnify,IFUM,direct,0.5473,0.5394,0.5550,5505,5505,1.0000,False
+MGnify,ESM3-small-open,WT head (sigma 0),0.3802,0.3727,0.3879,5505,5505,1.0000,False
+Rocklin designs,ESM-MSR,combined (latent),0.2732,0.2529,0.2941,618,618,1.0000,False
+Rocklin designs,ESM-MSR σ=0.5,combined (latent),0.2058,0.1876,0.2251,618,618,1.0000,False
+Rocklin designs,SPURS,SPURS-multi,0.2448,0.2189,0.2706,618,618,1.0000,False
+Rocklin designs,ThermoMPNN,ThermoMPNN-D,0.2036,0.1868,0.2218,618,618,1.0000,False
+Rocklin designs,ProteinMPNN,direct,0.0863,0.0695,0.1025,618,618,1.0000,False
+Rocklin designs,ProSST,direct,0.0965,0.0806,0.1130,618,618,1.0000,False
+Rocklin designs,MutateEverything,"stage 2, every variant",0.2382,0.2205,0.2569,618,618,1.0000,False
+Rocklin designs,GeoDDG-3D,direct,0.2008,0.1853,0.2176,618,618,1.0000,False
+Rocklin designs,ESM3dG,direct,0.3622,0.3417,0.3841,618,618,1.0000,True
+Rocklin designs,ESMtherm,direct,0.3350,0.3153,0.3558,618,618,1.0000,False
+Rocklin designs,IFUM,direct,0.2529,0.2341,0.2708,618,618,1.0000,False
+Rocklin designs,ESM3-small-open,WT head (sigma 0),0.0902,0.0739,0.1069,618,618,1.0000,False

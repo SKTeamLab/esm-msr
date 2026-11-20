@@ -1,0 +1,11 @@
+column,doubles,overall,singles
+ESM-MSR,0.911,0.907,0.921
+ESM3-small-open,0.769,0.819,0.833
+ESM3-small-open (alt),0.78,0.823,0.837
+MutateEverything,0.882,0.867,0.878
+ProSST,0.776,0.828,0.83
+ProteinMPNN,0.795,0.828,0.834
+Rosetta,0.782,0.837,0.854
+SPURS,0.862,0.903,0.908
+ThermoMPNN,0.852,0.885,0.9
+best other ddG,0.782,0.806,0.82

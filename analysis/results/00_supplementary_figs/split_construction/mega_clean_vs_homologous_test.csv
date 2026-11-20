@@ -1,0 +1,43 @@
+task,stratum,model,key,rho,lo,hi,n_domains,p_vs_esm_msr
+all_variants,all_28,ESM-MSR,msrp0:wt|msrp0:comb,0.8201,0.7683,0.8618,28,
+all_variants,all_28,MutateEverything,me1|me2,0.7750,0.7326,0.8124,28,0.0010
+all_variants,all_28,ThermoMPNN (retrain),tmpnn|tmpnnd,0.7786,0.7388,0.8142,28,0.0010
+all_variants,all_28,ThermoMPNN (published),tmpnnpub|tmpnndpub,0.7752,0.7337,0.8132,28,0.0010
+all_variants,all_28,SPURS (frozen adapter),spurs|spursm,0.8009,0.7591,0.8371,28,0.0600
+all_variants,all_28,SPURS (trained adapter),spursu|spursum,0.8024,0.7622,0.8374,28,0.1080
+all_variants,all_28,SPURS (published),spurspub|spurspubm,0.8032,0.7660,0.8363,28,0.1700
+all_variants,homologous_16,ESM-MSR,msrp0:wt|msrp0:comb,0.8347,0.7847,0.8793,16,
+all_variants,homologous_16,MutateEverything,me1|me2,0.7850,0.7433,0.8274,16,0.0020
+all_variants,homologous_16,ThermoMPNN (retrain),tmpnn|tmpnnd,0.7799,0.7380,0.8214,16,0.0010
+all_variants,homologous_16,ThermoMPNN (published),tmpnnpub|tmpnndpub,0.7725,0.7332,0.8094,16,0.0010
+all_variants,homologous_16,SPURS (frozen adapter),spurs|spursm,0.8069,0.7567,0.8526,16,0.0010
+all_variants,homologous_16,SPURS (trained adapter),spursu|spursum,0.8066,0.7573,0.8517,16,0.0010
+all_variants,homologous_16,SPURS (published),spurspub|spurspubm,0.8069,0.7605,0.8487,16,0.0020
+all_variants,clean_12,ESM-MSR,msrp0:wt|msrp0:comb,0.8006,0.7114,0.8696,12,
+all_variants,clean_12,MutateEverything,me1|me2,0.7616,0.6857,0.8226,12,0.0380
+all_variants,clean_12,ThermoMPNN (retrain),tmpnn|tmpnnd,0.7769,0.7097,0.8322,12,0.2200
+all_variants,clean_12,ThermoMPNN (published),tmpnnpub|tmpnndpub,0.7789,0.7034,0.8422,12,0.2080
+all_variants,clean_12,SPURS (frozen adapter),spurs|spursm,0.7929,0.7278,0.8464,12,0.6840
+all_variants,clean_12,SPURS (trained adapter),spursu|spursum,0.7967,0.7350,0.8479,12,0.8360
+all_variants,clean_12,SPURS (published),spurspub|spurspubm,0.7983,0.7409,0.8473,12,0.8820
+doubles_epistasis,all_28,ESM-MSR,msrp0:epi,0.4735,0.3741,0.5525,20,
+doubles_epistasis,all_28,MutateEverything,me2:epi,0.5056,0.4405,0.5674,20,0.4840
+doubles_epistasis,all_28,ThermoMPNN (retrain),tmpnnd:epi,0.3787,0.2702,0.4714,20,0.0920
+doubles_epistasis,all_28,ThermoMPNN (published),tmpnndpub:epi,0.3729,0.2716,0.4630,20,0.0800
+doubles_epistasis,all_28,SPURS (frozen adapter),spursm:epi,0.5053,0.4271,0.5784,20,0.4800
+doubles_epistasis,all_28,SPURS (trained adapter),spursum:epi,0.5144,0.4459,0.5825,20,0.3020
+doubles_epistasis,all_28,SPURS (published),spurspubm:epi,0.5200,0.4490,0.5828,20,0.2780
+doubles_epistasis,homologous_16,ESM-MSR,msrp0:epi,0.5012,0.3953,0.6017,10,
+doubles_epistasis,homologous_16,MutateEverything,me2:epi,0.5216,0.4228,0.6086,10,0.6200
+doubles_epistasis,homologous_16,ThermoMPNN (retrain),tmpnnd:epi,0.3873,0.2430,0.5290,10,0.1060
+doubles_epistasis,homologous_16,ThermoMPNN (published),tmpnndpub:epi,0.3939,0.2597,0.5247,10,0.1120
+doubles_epistasis,homologous_16,SPURS (frozen adapter),spursm:epi,0.5608,0.4565,0.6664,10,0.2140
+doubles_epistasis,homologous_16,SPURS (trained adapter),spursum:epi,0.5662,0.4718,0.6719,10,0.1680
+doubles_epistasis,homologous_16,SPURS (published),spurspubm:epi,0.5806,0.4810,0.6804,10,0.1100
+doubles_epistasis,clean_12,ESM-MSR,msrp0:epi,0.4458,0.3025,0.5796,10,
+doubles_epistasis,clean_12,MutateEverything,me2:epi,0.4895,0.4104,0.5761,10,0.5740
+doubles_epistasis,clean_12,ThermoMPNN (retrain),tmpnnd:epi,0.3701,0.2244,0.5033,10,0.3820
+doubles_epistasis,clean_12,ThermoMPNN (published),tmpnndpub:epi,0.3518,0.2270,0.4736,10,0.2380
+doubles_epistasis,clean_12,SPURS (frozen adapter),spursm:epi,0.4499,0.3520,0.5374,10,0.9740
+doubles_epistasis,clean_12,SPURS (trained adapter),spursum:epi,0.4626,0.3751,0.5513,10,0.8080
+doubles_epistasis,clean_12,SPURS (published),spurspubm:epi,0.4593,0.3788,0.5348,10,0.9380

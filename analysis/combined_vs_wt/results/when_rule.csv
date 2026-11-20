@@ -1,4 +1,0 @@
-family,n_units,intercept,slope,r2,breakeven_d_mt,intercept2,slope_d_mt,slope_one_minus_r,r2_two_predictors
-FINAL_p0,772,0.0074,0.3086,0.5551,-0.0239,-0.0056,0.4217,0.1799,0.8386
-FINAL_p1,772,0.0041,0.2976,0.4917,-0.0139,-0.0000,0.4101,0.1276,0.7675
-FINAL_p0_pw0,56,0.0192,0.3384,0.4787,-0.0567,-0.0025,0.5068,0.2292,0.9502

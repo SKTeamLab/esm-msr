@@ -1,0 +1,19 @@
+comparison,model_a,model_b,value_a,value_b,delta,lo,hi,p,n_libraries,bootstrap,statistic,panel,p_holm
+stabilizing,ESM-MSR,MutateEverything,0.3013,0.2313,0.06998,0.02815,0.1171,0.002,28,domains,mean over domains,singles,0.006
+stabilizing,ESM-MSR,ThermoMPNN,0.3013,0.251,0.05028,0.01167,0.09111,0.008,28,domains,mean over domains,singles,0.016
+stabilizing,ESM-MSR,SPURS,0.3013,0.3136,-0.01229,-0.04616,0.02439,0.5,28,domains,mean over domains,singles,0.5
+destabilizing,ESM-MSR,MutateEverything,0.8116,0.7724,0.03918,0.01132,0.06765,0.01,28,domains,mean over domains,singles,0.01
+destabilizing,ESM-MSR,ThermoMPNN,0.8116,0.7482,0.06341,0.04974,0.07961,0.000999,28,domains,mean over domains,singles,0.002997
+destabilizing,ESM-MSR,SPURS,0.8116,0.7801,0.03156,0.01794,0.045,0.000999,28,domains,mean over domains,singles,0.002997
+overall,ESM-MSR,MutateEverything,0.8215,0.7745,0.04693,0.02289,0.07197,0.000999,28,domains,mean over domains,singles,0.002997
+overall,ESM-MSR,ThermoMPNN,0.8215,0.769,0.05243,0.03986,0.06624,0.000999,28,domains,mean over domains,singles,0.002997
+overall,ESM-MSR,SPURS,0.8215,0.796,0.0255,0.0152,0.0355,0.000999,28,domains,mean over domains,singles,0.002997
+stabilizing,ESM-MSR,MutateEverything,0.1236,0.1474,-0.02371,-0.1875,0.1517,0.754,7,domains,mean over domains,doubles,1
+stabilizing,ESM-MSR,ThermoMPNN,0.1236,0.04938,0.07426,-0.1549,0.3244,0.518,7,domains,mean over domains,doubles,1
+stabilizing,ESM-MSR,SPURS,0.1236,0.1412,-0.01755,-0.1415,0.2078,0.75,7,domains,mean over domains,doubles,1
+destabilizing,ESM-MSR,MutateEverything,0.6667,0.5946,0.07215,0.02254,0.1205,0.01,20,domains,mean over domains,doubles,0.03
+destabilizing,ESM-MSR,ThermoMPNN,0.6667,0.6146,0.05209,-0.008805,0.1112,0.088,20,domains,mean over domains,doubles,0.088
+destabilizing,ESM-MSR,SPURS,0.6667,0.6003,0.0664,0.002882,0.1346,0.034,20,domains,mean over domains,doubles,0.068
+overall,ESM-MSR,MutateEverything,0.662,0.5945,0.06752,0.01656,0.1172,0.016,20,domains,mean over domains,doubles,0.048
+overall,ESM-MSR,ThermoMPNN,0.662,0.6155,0.04653,-0.01558,0.1092,0.138,20,domains,mean over domains,doubles,0.138
+overall,ESM-MSR,SPURS,0.662,0.5981,0.06387,0.0002185,0.1338,0.048,20,domains,mean over domains,doubles,0.096

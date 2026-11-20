@@ -1,0 +1,5 @@
+column,delta,lo,hi,n_libraries
+ESM-MSR,0.0983,0.0439,0.1673,20
+MutateEverything,0.0857,0.0320,0.1465,20
+ThermoMPNN,0.0584,0.0175,0.0989,20
+SPURS,0.0307,-0.0139,0.0761,20

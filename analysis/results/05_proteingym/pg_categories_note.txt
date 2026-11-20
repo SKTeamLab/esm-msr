@@ -1,2 +1,2 @@
-* Homologous proteins excluded for PGym Stability (23 same-protein P + 3 strong homolog H = 26/66 removed) and Domainome (4 P + 60 H = 64/522 removed) via leak_audit_structure_homology.csv; other PGym categories unfiltered.
-Seed 1 only. Singles models on singles assays / Domainome; multi on PGym multi-mutants (ME st1/st2; ThermoMPNN additive / -D on doubles; SPURS single/multi). Rosetta: PGym singles only (no Domainome).
+* Four-part training-homology filter leaves 173 of 213 ProteinGym assays and 436 of 522 Domainome domains (4 large BRCA1/BRCA2/POLG/SCN5A assays omitted uniformly).
+Joint [assay × triplicate-seed] bootstrap (B = 1,000).
