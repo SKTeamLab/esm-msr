@@ -454,6 +454,8 @@ def run_publication_bars(B: int, split: str = 'capped') -> None:
     fig_s.tight_layout(pad=0.5)
     fig_s.savefig(out_supp / 'ndcg96_singles_doubles.png', dpi=300, bbox_inches=None)
     fig_s.savefig(out_supp / 'ndcg96_singles_doubles.pdf', bbox_inches=None)
+    fig_s.savefig(out_supp / 'supp_figure2.png', dpi=300, bbox_inches=None)
+    fig_s.savefig(out_supp / 'supp_figure2.pdf', bbox_inches=None)
     plt.close(fig_s)
     vals_piv = pd.concat([Ts, ovs]).pivot(index='column', columns='subset', values='value').round(3).reset_index()
     atomic_to_csv(vals_piv, out_supp / 'ndcg96_singles_doubles_values.csv', index=False)
@@ -541,7 +543,186 @@ def run_doubles_vs_singles_on_singles(B: int) -> pd.DataFrame:
         t_rows, headers, [2.4, 4.5, 0.9, 1.2, 2.8, 1.1, 0.95, 0.95, 3.1],
         out / 'doubles_vs_singles_on_singles', note, cell_style_fn=_style_cell,
     )
+    build_supp_figure3(B=B, res=res, fr=fr)
     return res
+
+
+def build_supp_figure3(B: int = 1000, res: pd.DataFrame | None = None, fr=None) -> Path:
+    """Build Supplementary Figure 3 (`00_supplementary_figs/supp_figure3.{png,pdf}`).
+
+    Ranking performance of all doubles-trained models (Dual-view for ESM-MSR) on Homology-Restricted
+    MegaScale test-set single mutants, paired against their singles-only counterparts:
+      a. Mean per-domain Spearman's rho (singles-only hatched vs doubles-trained solid, 95% CI, Holm p).
+      b. Per-domain paired difference Delta-rho = rho(doubles-trained) - rho(singles-only) across all 33 domains.
+    """
+    from matplotlib.patches import Patch
+
+    out_supp = results_dir('supplementary_figs')
+    if fr is None:
+        fr, _ = load_tsu_test_frame('capped')
+    sp = fr.spine
+    single = sp['use'].to_numpy() & (sp['n_mut'].to_numpy() == 1)
+    n_singles = int(single.sum())
+    libs = sorted(np.unique(sp['group'].to_numpy()[single]))
+    b_dom = B if B <= 200 else max(B, 10000)
+    counts = make_domain_counts(libs, B=b_dom, seed=5)
+
+    if res is None:
+        csv_path = results_dir('megascale', split='capped', create=False) / 'doubles_vs_singles_on_singles.csv'
+        res = pd.read_csv(csv_path) if csv_path.exists() else run_doubles_vs_singles_on_singles(B=B)
+
+    res_by_name = res.set_index('model')
+    models_order = list(M.TRANSFER)
+
+    stats_a = []
+    dom_deltas = {}
+    for name in models_order:
+        ks, kd = M.BY_NAME[name].single, M.BY_NAME[name].multi
+        vs = per_library(fr, ks, single, rho_fn, MIN_N)
+        vd = per_library(fr, kd, single, rho_fn, MIN_N)
+        both = vs.index.intersection(vd.index)
+        rs = boot_reps(vs.loc[both], libs, counts)
+        rd = boot_reps(vd.loc[both], libs, counts)
+        rs, rd = rs[np.isfinite(rs)], rd[np.isfinite(rd)]
+        d_dom = diff_df(vd, vs, both).mean(axis=1).to_numpy(float)
+        dom_deltas[name] = d_dom
+        r_row = res_by_name.loc[name]
+        stats_a.append(dict(
+            name=name,
+            col=M.color(name),
+            ls=M.version_label(name, 0),
+            ld=M.version_label(name, 1),
+            rho_s=float(r_row['rho_singles']),
+            lo_s=float(np.percentile(rs, 2.5)),
+            hi_s=float(np.percentile(rs, 97.5)),
+            rho_d=float(r_row['rho_doubles']),
+            lo_d=float(np.percentile(rd, 2.5)),
+            hi_d=float(np.percentile(rd, 97.5)),
+            delta=float(r_row['delta']),
+            d_lo=float(r_row['lo']),
+            d_hi=float(r_row['hi']),
+            same=bool(r_row['same_predictions']),
+            p_holm=float(r_row['p_holm']) if np.isfinite(r_row['p_holm']) else np.nan,
+            n_dom=int(r_row['n_domains']),
+            n_higher=int((d_dom > 0).sum()),
+            n_lower=int((d_dom < 0).sum()),
+            B_p=int(r_row['B']) if 'B' in r_row.index and np.isfinite(r_row['B']) else b_dom,
+        ))
+
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(13.6, 5.8), gridspec_kw=dict(width_ratios=[1.18, 1.0]), facecolor='white')
+
+    # --- Panel a: Paired Spearman rho bars (singles-only hatched vs doubles-trained solid) ---
+    xs = np.arange(len(stats_a), dtype=float)
+    w = 0.34
+    for i, st in enumerate(stats_a):
+        c = st['col']
+        ax_a.bar(
+            xs[i] - w / 2, st['rho_s'], width=w,
+            facecolor=c, alpha=0.52, edgecolor=c, lw=1.0, hatch='///', zorder=3,
+        )
+        ax_a.errorbar(
+            xs[i] - w / 2, st['rho_s'],
+            yerr=[[max(st['rho_s'] - st['lo_s'], 0)], [max(st['hi_s'] - st['rho_s'], 0)]],
+            fmt='none', ecolor='#b22222', elinewidth=1.2, capsize=3.0, zorder=5,
+        )
+        ax_a.text(xs[i] - w / 2, st['hi_s'] + 0.012, f'{st["rho_s"]:.3f}',
+                  ha='center', va='bottom', fontsize=8.4, color='#333333', zorder=6)
+
+        ax_a.bar(
+            xs[i] + w / 2, st['rho_d'], width=w,
+            facecolor=c, alpha=0.95, edgecolor='#1a1a1a', lw=0.9, zorder=3,
+        )
+        ax_a.errorbar(
+            xs[i] + w / 2, st['rho_d'],
+            yerr=[[max(st['rho_d'] - st['lo_d'], 0)], [max(st['hi_d'] - st['rho_d'], 0)]],
+            fmt='none', ecolor='#b22222', elinewidth=1.2, capsize=3.0, zorder=5,
+        )
+        ax_a.text(xs[i] + w / 2, st['hi_d'] + 0.012, f'{st["rho_d"]:.3f}',
+                  ha='center', va='bottom', fontsize=8.4, fontweight='bold', color='#111111', zorder=6)
+
+        y_br = max(st['hi_s'], st['hi_d']) + 0.055
+        h_br = 0.010
+        x0, x1 = xs[i] - w / 2, xs[i] + w / 2
+        ax_a.plot([x0, x0, x1, x1], [y_br - h_br, y_br, y_br, y_br - h_br], color='#333333', lw=1.0, zorder=7)
+        if st['same']:
+            p_lbl = 'identical\nnetwork'
+        else:
+            p_lbl = f'p_Holm {fmt_p(st["p_holm"], B=st["B_p"], prefix="= ")}'.replace('= <', '<')
+        ax_a.text(xs[i], y_br + 0.008, p_lbl, ha='center', va='bottom', fontsize=7.8,
+                  color='#1e6b34' if (not st['same'] and st['delta'] > 0) else ('#a61c1c' if not st['same'] else '#555555'),
+                  fontweight='bold' if not st['same'] else 'normal', zorder=7)
+
+    ax_a.set_ylim(0.50, 1.03)
+    ax_a.set_xticks(xs)
+    ax_a.set_xticklabels([f'{st["ls"]}\n→ {st["ld"]}' for st in stats_a], fontsize=8.5, rotation=14, ha='right')
+    ax_a.set_ylabel("Spearman's ρ on test single mutants\n(mean over 33 domains)", fontsize=10.0)
+    ax_a.set_title(f'Test-set single-mutant ranking (n = {n_singles:,} singles)', fontsize=10.4, fontweight='bold', loc='left', pad=8)
+    ax_a.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+    ax_a.spines['top'].set_visible(False)
+    ax_a.spines['right'].set_visible(False)
+    ax_a.legend(
+        handles=[
+            Patch(fc='#888888', alpha=0.52, ec='#555555', hatch='///', label='Singles-only model'),
+            Patch(fc='#444444', alpha=0.95, ec='#1a1a1a', label='Doubles-trained model (Dual-view for ESM-MSR)'),
+        ],
+        loc='lower left', fontsize=8.4, frameon=True, facecolor='white', framealpha=0.92, edgecolor='#cccccc',
+    )
+
+    # --- Panel b: Per-domain paired Delta-rho = doubles-trained - singles-only ---
+    rng = np.random.default_rng(7)
+    ax_b.axhline(0.0, color='#333333', lw=1.1, ls='--', zorder=2)
+    for i, st in enumerate(stats_a):
+        c = st['col']
+        vals = dom_deltas[st['name']]
+        jit = rng.uniform(-0.14, 0.14, size=len(vals))
+        ax_b.scatter(xs[i] + jit, vals, s=18, color=c, alpha=0.50, edgecolors='white', lw=0.4, zorder=3)
+        if st['same']:
+            ax_b.plot([xs[i] - 0.18, xs[i] + 0.18], [0.0, 0.0], color='#222222', lw=2.2, zorder=5)
+            ax_b.text(xs[i], 0.018, '0.000\n(identical)', ha='center', va='bottom', fontsize=8.0, color='#555555', zorder=6)
+        else:
+            ax_b.errorbar(
+                xs[i], st['delta'],
+                yerr=[[max(st['delta'] - st['d_lo'], 0)], [max(st['d_hi'] - st['delta'], 0)]],
+                fmt='D', ms=6.2, color='#111111', mfc=c, mec='#111111', mew=1.1,
+                ecolor='#111111', elinewidth=1.5, capsize=4.0, zorder=6,
+            )
+            frac_txt = f'{st["n_higher"]}/{st["n_dom"]} higher' if st['delta'] > 0 else f'{st["n_lower"]}/{st["n_dom"]} lower'
+            txt_col = '#1e6b34' if st['delta'] > 0 else '#a61c1c'
+            y_txt = st['d_hi'] + 0.014 if st['delta'] > 0 else st['d_lo'] - 0.014
+            va_txt = 'bottom' if st['delta'] > 0 else 'top'
+            ax_b.text(xs[i], y_txt, f'{st["delta"]:+.3f}\n({frac_txt})',
+                      ha='center', va=va_txt, fontsize=8.2, fontweight='bold', color=txt_col, zorder=7)
+
+    ax_b.set_xticks(xs)
+    ax_b.set_xticklabels([st['ld'] for st in stats_a], fontsize=8.6, rotation=14, ha='right')
+    ax_b.set_ylabel('Paired Δρ = ρ(doubles-trained) − ρ(singles-only)', fontsize=10.0)
+    ax_b.set_title('Per-domain shift on single mutants (33 domains)', fontsize=10.4, fontweight='bold', loc='left', pad=8)
+    ax_b.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+    ax_b.spines['top'].set_visible(False)
+    ax_b.spines['right'].set_visible(False)
+    ymin_b = min(min(v.min() for v in dom_deltas.values()), -0.14)
+    ymax_b = max(max(v.max() for v in dom_deltas.values()), 0.09)
+    ax_b.set_ylim(ymin_b - 0.035, ymax_b + 0.035)
+
+    fig.subplots_adjust(left=0.068, right=0.985, top=0.905, bottom=0.255, wspace=0.22)
+    fig.canvas.draw()
+    pb = ax_b.get_position()
+    fig.text(0.010, 0.975, 'a', ha='left', va='top', fontsize=14, fontweight='bold')
+    fig.text(pb.x0 - 0.056, 0.975, 'b', ha='left', va='top', fontsize=14, fontweight='bold')
+
+    note_f = (
+        f'Homology-Restricted MegaScale test set, single mutants only (n = {n_singles:,} across 33 domains; 3 seeds averaged per model).  '
+        f'a. Mean per-domain Spearman ρ comparing each family\'s singles-only model (hatched) against its doubles-trained version (solid; Dual-view for ESM-MSR); '
+        f'whiskers show 95% joint domain × seed bootstrap CIs (B = {b_dom:,}); brackets show Holm-adjusted two-sided paired p-values.  '
+        f'b. Per-domain paired difference Δρ = ρ(doubles-trained) − ρ(singles-only) (dots: individual domains; diamonds & whiskers: mean & 95% CI). '
+        f'ESM-MSR Dual-view is the only doubles-trained model that significantly improves single-mutant ranking (+0.014, 30/33 domains higher), whereas MutateEverything Stage 2 (−0.015) and SPURS-multi (−0.043) degrade relative to their singles-only versions (ThermoMPNN-D reuses the ThermoMPNN network on singles).'
+    )
+    kw = dict(fontsize=7.8, color='#333333', linespacing=1.25)
+    fig.text(0.014, 0.012, style.wrap_to_px(fig, note_f, 0.972 * fig.bbox.width, **kw), ha='left', va='bottom', **kw)
+
+    out_path = out_supp / 'supp_figure3'
+    style.save(fig, out_path)
+    return out_path
 
 
 def run_overall_vs_transfer(B: int) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -1058,8 +1239,14 @@ def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION, with_split=True)
     ap.add_argument('--compare-splits', action='store_true', default=True, help='Also generate mega_splits overview & capped-vs-mega comparison (default: True)')
     ap.add_argument('--no-compare-splits', dest='compare_splits', action='store_false', help='Skip mega_splits comparison when running --split capped')
+    ap.add_argument('--only', choices=('all', 'supp_figure3'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
+
+    if args.only == 'supp_figure3':
+        out = build_supp_figure3(B=B)
+        print(f'[p02:tsuboyama] Saved {out}.{{png,pdf}}')
+        return 0
 
     if args.split == 'capped':
         run_capped_core(B=B)

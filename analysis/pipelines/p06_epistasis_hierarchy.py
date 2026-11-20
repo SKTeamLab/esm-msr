@@ -727,6 +727,13 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
     fig_st.tight_layout(pad=0.5, h_pad=1.2)
     style.save(fig_st, out_main / 'fig2_fig3_stacked')
 
+    # Main-text Figure 1 (vertical architecture schematic 'a' + stacked b/c panels)
+    try:
+        from analysis.main_figures.figure1 import build_figure1
+        build_figure1(split=split, t2=t2, t3=T3, p_spearman_ser=p_spearman_ser, B_p=b_11l)
+    except Exception as exc:
+        print(f'[p06] Skipping figure1 composite: {exc}')
+
     # 11m: Masking schemes supplement (ESM3-small-open & ESM-MSR across unmasked, independent, marginal)
     out_supp = out_dir('supplementary_figs')
     f_mask = load_final_frame('tsuboyama_capped_test', families=['FINAL_p0', 'FINAL_p1', 'FINAL_p1_marg'])
@@ -804,8 +811,111 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
         ax_ms.legend(handles=h_ms, ncol=1, loc='upper left', fontsize=8.5, frameon=True, facecolor='white', edgecolor='#cccccc')
         fig_ms.tight_layout()
         style.save(fig_ms, out_supp / 'masking_schemes')
+        build_supp_figure4(df_bars_m=df_bars_m, df_pairs_m=df_pairs_m)
 
     return T3, p_spearman_ser
+
+
+def build_supp_figure4(
+    df_bars_m: pd.DataFrame | None = None,
+    df_pairs_m: pd.DataFrame | None = None,
+) -> Path:
+    """Build Supplementary Figure 4 (`00_supplementary_figs/supp_figure4.{png,pdf}`).
+
+    Comparison of masking strategies (Unmasked, One-at-a-time masking, Masked marginal)
+    on Homology-Restricted MegaScale test double mutants for:
+      a. ESM3-small-open (zero-shot)
+      b. ESM-MSR (fine-tuned)
+    """
+    out_supp = out_dir('supplementary_figs')
+    if df_bars_m is None:
+        df_bars_m = pd.read_csv(out_supp / 'masking_schemes_values.csv')
+    if df_pairs_m is None:
+        df_pairs_m = pd.read_csv(out_supp / 'masking_schemes_pvalues.csv')
+
+    n_dom = int(df_bars_m['n_domains'].max())
+    B_val = int(df_pairs_m['B'].iloc[0]) if 'B' in df_pairs_m.columns and len(df_pairs_m) else 10000
+
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(10.4, 5.4), sharey=True, facecolor='white')
+    schemes = [
+        ('unm', 'Unmasked'),
+        ('ind', 'One-at-a-time\nmasking'),
+        ('mar', 'Masked\nmarginal'),
+    ]
+    xs = np.arange(len(schemes), dtype=float)
+
+    for ax, model_nm, title_lbl in (
+        (ax_a, 'ESM3-small-open', 'ESM3-small-open (zero-shot)'),
+        (ax_b, 'ESM-MSR', 'ESM-MSR (fine-tuned)'),
+    ):
+        color = M.color(model_nm)
+        ax.set_axisbelow(True)
+        ax.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+        top_h = {}
+        for idx_s, (sch, _lbl) in enumerate(schemes):
+            r = df_bars_m[(df_bars_m['model'] == model_nm) & (df_bars_m['scheme'] == sch)].iloc[0]
+            kw_b = (
+                dict(color=color, alpha=1.0, edgecolor='black', lw=0.9) if sch == 'unm' else
+                dict(color=color, alpha=0.62, edgecolor='black', lw=0.9) if sch == 'ind' else
+                dict(color=color, alpha=0.30, edgecolor=color, hatch='////', lw=0.9)
+            )
+            ax.bar(xs[idx_s], r.rho, width=0.56, zorder=3, **kw_b)
+            ax.errorbar(
+                xs[idx_s], r.rho,
+                yerr=[[max(r.rho - r.lo, 0)], [max(r.hi - r.rho, 0)]],
+                fmt='none', ecolor=style.RING, elinewidth=1.4, capsize=3.2, zorder=5,
+            )
+            ax.text(
+                xs[idx_s], r.hi + 0.014, f'{r.rho:.2f}',
+                ha='center', va='bottom', fontsize=9.0, fontweight='bold' if sch == 'unm' else 'normal',
+                color='#111111', zorder=8,
+            )
+            top_h[sch] = float(r.hi)
+
+        idx_map = {'unm': 0.0, 'ind': 1.0, 'mar': 2.0}
+        def _q(sa, sb):
+            return df_pairs_m[(df_pairs_m['model'] == model_nm) & (df_pairs_m['scheme_a'] == sa) & (df_pairs_m['scheme_b'] == sb)].iloc[0]
+
+        y1 = max(top_h['ind'], top_h['mar']) + 0.085
+        y2 = max(y1 + 0.095, top_h['unm'] + 0.085)
+        for sa, sb, y_br in (('ind', 'mar', y1), ('unm', 'mar', y2)):
+            x0, x1 = idx_map[sa], idx_map[sb]
+            ax.plot([x0, x0, x1, x1], [y_br - 0.014, y_br, y_br, y_br - 0.014],
+                    color='#333333', lw=1.0, solid_capstyle='butt', clip_on=False, zorder=9)
+            p_txt = fmt_p(float(_q(sa, sb).p_two), B=B_val, prefix='p = ').replace('= <', '<')
+            ax.text((x0 + x1) / 2, y_br + 0.008, p_txt, ha='center', va='bottom', fontsize=8.4,
+                    fontweight='bold' if float(_q(sa, sb).p_two) < 0.05 else 'normal', color='#222222', zorder=9)
+
+        ax.set_xticks(xs)
+        ax.set_xticklabels([lbl for _, lbl in schemes], fontsize=9.4)
+        ax.set_xlim(-0.55, 2.55)
+        ax.set_title(title_lbl, fontsize=10.6, fontweight='bold', loc='left', pad=8)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+    ax_a.set_ylim(0.0, 1.12)
+    ax_a.set_yticks(np.arange(0, 1.01, 0.2))
+    ax_a.set_ylabel(f"Spearman's ρ on double mutants\n(mean over {n_dom} test domains)", fontsize=10.2)
+    ax_b.tick_params(axis='y', labelleft=False)
+
+    fig.subplots_adjust(left=0.095, right=0.980, top=0.895, bottom=0.220, wspace=0.14)
+    fig.canvas.draw()
+    pb = ax_b.get_position()
+    fig.text(0.014, 0.975, 'a', ha='left', va='top', fontsize=14, fontweight='bold')
+    fig.text(pb.x0 - 0.042, 0.975, 'b', ha='left', va='top', fontsize=14, fontweight='bold')
+
+    note = (
+        f'Homology-Restricted MegaScale test double mutants (mean per-domain Spearman ρ across {n_dom} test domains; 3 seeds averaged for ESM-MSR).  '
+        f'Whiskers show 95% joint domain × seed bootstrap CIs (B = {B_val:,}); brackets show two-sided paired bootstrap p-values.  '
+        f'a. Zero-shot ESM3-small-open shows little difference across masking strategies (unmasked 0.41, one-at-a-time masking 0.41, masked marginal 0.40; all p > 0.2).  '
+        f'b. Fine-tuned ESM-MSR benefits significantly from unmasked scoring (0.78) over masked marginal (0.72, p < 0.001), with one-at-a-time masking intermediate (0.75).'
+    )
+    kw = dict(fontsize=7.8, color='#333333', linespacing=1.25)
+    fig.text(0.016, 0.012, style.wrap_to_px(fig, note, 0.968 * fig.bbox.width, **kw), ha='left', va='bottom', **kw)
+
+    out_path = out_supp / 'supp_figure4'
+    style.save(fig, out_path)
+    return out_path
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1563,6 +1673,7 @@ def run_hierarchy_and_composite(B: int, split: str = 'capped', procs: int = 6, T
             _hier_entry(P1M_EPI_NAME, 'ESM-MSR', 'ESM-MSR\n(masked marginal)', M.VARIANT_COLOR['ESM-MSR masked marginal']),
         ]
         _draw_hierarchy_figure(T_mk, 'test', out_supp / 'fig5a_epistasis_levels_bars_test_masking', mk_entries, LEVELS_MAIN, FOOT_HIER, title_desc='ESM-MSR masking ablations, epistasis level by level')
+        build_supp_figure5(T_mk=T_mk)
 
         # NEW High-Impact Composite Figure #1: results/00_main_text_figs/epistasis_main_composite.{png,pdf}
         _build_epistasis_main_composite(out_main, fr, T3_df, p_spearman_ser, T_p0, p0_entries, tables_map, have_unf, B)
@@ -1644,12 +1755,65 @@ def _build_epistasis_main_composite(out_main, fr_test, T3_df, p_spearman_ser, T_
     style.save(fig, out_main / 'epistasis_main_composite')
 
 
+def build_supp_figure5(T_mk: pd.DataFrame | None = None) -> Path:
+    """Build Supplementary Figure 5 (`00_supplementary_figs/supp_figure5.{png,pdf}`).
+
+    ESM-MSR masking ablations across all five pooled epistasis levels (`LEVELS_CELL_MAG`,
+    with `dG_add > 0` overlays and the `-dG_add` floor ceiling).
+    """
+    out_supp = out_dir('supplementary_figs')
+    if T_mk is None:
+        T_mk = pd.read_csv(out_supp / 'fig5_epistasis_levels_masking_bootstrap_test.csv')
+
+    mk_entries = [
+        _hier_entry(P0_EPI_NAME, 'ESM-MSR', 'ESM-MSR\n(unmasked)'),
+        _hier_entry(P0_CTX_NAME, 'ESM-MSR', 'ESM-MSR\nctx ctrl', M.VARIANT_COLOR['ESM-MSR ctx ctrl']),
+        _hier_entry(P1_EPI_NAME, 'ESM-MSR', 'ESM-MSR\n(one-at-a-time\nmasking)', M.VARIANT_COLOR['ESM-MSR independent masking']),
+        _hier_entry(P1M_EPI_NAME, 'ESM-MSR', 'ESM-MSR\n(masked\nmarginal)', M.VARIANT_COLOR['ESM-MSR masked marginal']),
+    ]
+
+    nd = int(T_mk['n_domains'].iloc[0])
+    nn = int(T_mk['n_doubles'].iloc[0])
+    B_val = int(T_mk['B'].iloc[0])
+
+    fig, axes = plt.subplots(1, len(LEVELS_CELL_MAG), figsize=(16.0, 6.2), sharey=True, facecolor='white')
+    _draw_hierarchy_axes(axes, T_mk, mk_entries, LEVELS_CELL_MAG, overlay_sub0=True)
+    fig.suptitle(
+        f'ESM-MSR masking ablations across the five pooled epistasis levels ({nn:,} test doubles across {nd} domains; B = {B_val:,})',
+        x=0.015, ha='left', y=0.985, fontsize=11.6, fontweight='bold',
+    )
+
+    note = (
+        'Homology-Restricted MegaScale test doubles with both singles measured (3 seeds averaged per model; whiskers: 95% joint domain × seed bootstrap; '
+        'black horizontal dashes: unsaturated subset ΔG_add > 0 kcal/mol; red dotted line: −ΔG_add floor-saturation ceiling).  '
+        'All five levels are evaluated in pooled form: (1) naive / raw ρ on raw δΔΔG; (2) saturation-subtracted ρ on residuals r = δΔΔG − E[δΔΔG | ΔG_add]; '
+        '(3) pair ρ across position-pair matrices (≥ 20 doubles); (4) line ρ across pair-centred row/column lines (≥ 3 cells); '
+        '(5) cell ρ pooled across all double-centred residual cells. Masked marginal scoring collapses cell-level epistasis to zero because its additive factorization cannot represent pairwise interactions.'
+    )
+    kw = dict(fontsize=7.8, color='#333333', linespacing=1.25)
+    fig.subplots_adjust(left=0.055, right=0.990, top=0.835, bottom=0.295, wspace=0.14)
+    fig.text(0.015, 0.012, style.wrap_to_px(fig, note, 0.970 * fig.bbox.width, **kw), ha='left', va='bottom', **kw)
+
+    out_path = out_supp / 'supp_figure5'
+    style.save(fig, out_path)
+    return out_path
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION, with_split=True)
     ap.add_argument('--jobs', '--procs', dest='procs', type=int, default=8, help='Worker processes for epistasis hierarchy bootstrap')
-    ap.add_argument('--only', choices=('all', 'core', 'bars', 'hierarchy'), default='all', help='Optional substage selector')
+    ap.add_argument('--only', choices=('all', 'core', 'bars', 'hierarchy', 'supp_figure4', 'supp_figure5'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
+
+    if args.only == 'supp_figure4':
+        out = build_supp_figure4()
+        print(f'[p06:epistasis_hierarchy] Saved {out}.{{png,pdf}}')
+        return 0
+    if args.only == 'supp_figure5':
+        out = build_supp_figure5()
+        print(f'[p06:epistasis_hierarchy] Saved {out}.{{png,pdf}}')
+        return 0
 
     import time
     if args.only in ('all', 'core'):

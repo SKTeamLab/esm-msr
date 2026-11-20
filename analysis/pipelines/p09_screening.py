@@ -2027,6 +2027,389 @@ def build_screening_gain_law_composite(
 
 
 # ----------------------------------------------------------------------------------------------
+# Part 8: Main-text Figure 4 — Per-property gain (a) stacked above 6-panel screening overview (b, c)
+# ----------------------------------------------------------------------------------------------
+ASA_HYDRO_LABELS = [
+    'Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5',
+    'Δ hydrophobicity ≤ 0 & relative ASA > 0.5',
+    'Δ hydrophobicity > 0 & relative ASA ≤ 0.5',
+    'Δ hydrophobicity > 0 & relative ASA > 0.5',
+]
+
+
+def _compute_asa_k96_allpicks_bundle(split: str, B: int) -> dict | None:
+    if split != 'capped' or not TSUBOYAMA_FEATS_CSV.exists():
+        return None
+    fr, _ = load_tsu_test_frame(split)
+    sp = fr.spine
+    single = (sp['use'] & (sp['n_mut'] == 1)).to_numpy()
+    y = sp['y'].to_numpy()
+    feat = _load_tsu_features(sp['id'].tolist())
+    libs = sorted(np.unique(sp['group'].to_numpy()[single]))
+    group = sp['group'].to_numpy()
+    best, _ = best_other(fr)
+    cols = _single_columns(fr, best)
+    asa = feat['rel_ASA'].to_numpy()
+    dh = feat['d_hydrophobicity'].to_numpy()
+    pool = single & np.isfinite(asa) & np.isfinite(dh)
+    cat = np.nan_to_num(np.asarray(2 * (dh > 0) + (asa > 0.5), float)).astype(int)
+    dom = [d for d in (np.flatnonzero(pool & (group == lib)) for lib in libs) if len(d)]
+    cnt = np.random.default_rng(5).multinomial(len(dom), np.full(len(dom), 1.0 / len(dom)), size=B).astype(float)
+    st = _model_cat_stats(fr, cols, y, cat, len(ASA_HYDRO_LABELS), dom, 96, positive_only=False)
+    return dict(
+        dcols=cols,
+        stats_k=st,
+        counts=cnt,
+        cat_labels=list(ASA_HYDRO_LABELS),
+        k=96,
+        n_domains=len(dom),
+        n_muts=int(pool.sum()),
+        s_title=split_title(split),
+    )
+
+
+def build_figure4(
+    tables_08: dict[str, pd.DataFrame],
+    act_tables: dict[str, pd.DataFrame],
+    specs: dict,
+    B: int,
+    prop_bundle: dict | None = None,
+) -> None:
+    """Build main-text Figure 4 (00_main_text_figs/figure4.{png,pdf}).
+
+    Panel a: Per-property rectified gain @ k=96 (all picks, ASA x hydrophobicity) box plots + Picks (%) strip.
+    Panel b: Homology-Restricted MegaScale test set [excl. Cys] single-mutant all-models screening curves (hit rate & P(at least one hit)).
+    Panel c: Domainome (held-out) single-mutant all-models screening curves (hit rate & P(at least one hit)).
+    Panel d: ProteinGym Activity single-mutant all-models screening curves (all held-out assays & held-out enzymes).
+    """
+    if prop_bundle is None:
+        prop_bundle = _compute_asa_k96_allpicks_bundle(split='capped', B=B)
+    if prop_bundle is None:
+        print('[p09] Skipping figure4: Tsuboyama feature CSV not available for panel a')
+        return
+
+    out_main = results_dir('main_text_figs')
+    dcols = prop_bundle['dcols']
+    stats_k = prop_bundle['stats_k']
+    counts = prop_bundle['counts']
+    cat_labels = prop_bundle['cat_labels']
+    k = prop_bundle['k']
+    ncat = len(cat_labels)
+
+    mcols = _with_oracle_col(dcols, k)
+    cat_gap = 0.28
+    xpad_dist = (0.58, 0.58)
+    xs, spans = style.layout_grouped_columns(mcols, gap=cat_gap)
+    rng = np.random.default_rng(3)
+    colors = PALETTE_CAT[:ncat]
+    slot = 0.85
+    cw = slot / ncat
+    cats_hdr = {'oracle': 'Oracle', **style.GROUP_TITLE}
+
+    fig = plt.figure(figsize=(16.0, 14.8))
+
+    # --- Top section: Panel a (per-property gain box plots + Picks % strip) ---
+    gs_a = fig.add_gridspec(
+        2, 1, height_ratios=[1.0, 0.105], hspace=0.025,
+        left=0.055, right=0.988, top=0.945, bottom=0.675,
+    )
+    ax_gain = fig.add_subplot(gs_a[0, 0])
+    ax_pref = fig.add_subplot(gs_a[1, 0])
+
+    omean, _, _ = _boot_mean_ci(stats_k[mcols[0]['name']][0], counts)
+    top_val = 0.0
+    fs_txt = 8.0
+    for mc, x_col in zip(mcols, xs):
+        m = mc['name']
+        V_m = stats_k[m][0]
+        mean, lo, hi = _boot_mean_ci(V_m, counts)
+        for c_idx in range(ncat):
+            x0 = x_col + (c_idx - (ncat - 1) / 2) * cw
+            style.raincloud(
+                ax_gain, x0, V_m[:, :, c_idx], colors[c_idx],
+                mean=float(mean[c_idx]), lo=float(lo[c_idx]), hi=float(hi[c_idx]),
+                width=cw * 0.96, rng=rng, transform=_symlog_tr, annotate=True, fs=fs_txt,
+            )
+            top_val = max(top_val, float(_symlog_tr(hi[c_idx])), float(_symlog_tr(V_m[:, :, c_idx]).max()))
+    _draw_cat_spans(ax_gain, xs, spans, headers=True, cats=cats_hdr, xpad=xpad_dist, gap=cat_gap, header_fs=11.8)
+
+    tk, tl = _symlog_ticks(10 ** (top_val - 1) if top_val > 1 else 1)
+    ax_gain.set_yticks(tk)
+    ax_gain.set_yticklabels(tl, fontsize=10.8)
+    ax_gain.set_ylim(-0.18, top_val + 0.16)
+    ax_gain.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+    y_orc = [float(_symlog_tr(omean[c_idx])) for c_idx in range(ncat)]
+    for c_idx in range(ncat):
+        near_prev = any(abs(y_orc[c_idx] - y_orc[j]) < 0.025 for j in range(c_idx))
+        ls = (4.0, (4.0, 4.0)) if near_prev else (0.0, (4.0, 4.0))
+        ax_gain.axhline(y_orc[c_idx], color=colors[c_idx], ls=ls, lw=1.15, alpha=0.92, zorder=2)
+    ax_gain.set_ylabel(f'Rectified gain @ k={k} (kcal/mol)', fontsize=11.2)
+    ax_gain.set_xticks([])
+
+    _draw_cat_spans(ax_pref, xs, spans, headers=False, cats=cats_hdr, xpad=xpad_dist, gap=cat_gap)
+    ax_pref.set_ylim(0, 1)
+    ax_pref.set_yticks([0.5])
+    ax_pref.set_yticklabels(['Picks (%)'], fontsize=10.2, fontweight='semibold')
+    ax_pref.tick_params(axis='y', length=0, pad=6)
+    for sp_name in ('top', 'right', 'left', 'bottom'):
+        ax_pref.spines[sp_name].set_visible(False)
+    for mc, x_col in zip(mcols, xs):
+        m = mc['name']
+        p_mean, _, _ = _boot_mean_ci(stats_k[m][1], counts)
+        p_sum = float(p_mean.sum())
+        pcts = (100.0 * p_mean / p_sum) if p_sum > 0 else np.zeros(ncat)
+        x_cur = x_col - slot / 2.0
+        for c_idx in range(ncat):
+            w_seg = slot * (pcts[c_idx] / 100.0)
+            if w_seg <= 0:
+                continue
+            ax_pref.add_patch(plt.Rectangle((x_cur, 0.08), w_seg, 0.84, fc=colors[c_idx], alpha=0.55, ec='white', lw=1.0, zorder=3))
+            if pcts[c_idx] >= 5.0:
+                ax_pref.text(
+                    x_cur + w_seg / 2.0, 0.50, f'{pcts[c_idx]:.0f}', ha='center', va='center',
+                    fontsize=8.2 if pcts[c_idx] >= 12.0 else 7.2, fontweight='bold', color='#1a1a1a', zorder=5,
+                )
+            x_cur += w_seg
+        ax_pref.add_patch(plt.Rectangle((x_col - slot / 2.0, 0.08), slot, 0.84, fc='none', ec='#555555', lw=0.8, zorder=4))
+    ax_pref.set_xticks(xs)
+    ax_pref.set_xticklabels([mc['label'] for mc in mcols], fontsize=10.2)
+
+    # Panel a category legend (centered directly beneath panel a x-tick labels)
+    leg_a = fig.legend(
+        handles=[Patch(fc=colors[c_idx], alpha=0.8, label=cat_labels[c_idx]) for c_idx in range(ncat)],
+        loc='upper center', ncol=2, bbox_to_anchor=(0.52, 0.632),
+        fontsize=10.4, frameon=False, columnspacing=2.2,
+    )
+    fig.add_artist(leg_a)
+
+    # --- Bottom section: Panels b & c (6-panel single-mutant all-models screening overview) ---
+    fams = list(specs['fam_all'])
+    flab = specs['fam_label_singles']
+    D = tables_08['screening_per_protein_singles_all_models']
+    A_all = act_tables['screening_all_all_models']
+    A_enz = act_tables['screening_enzymes_all_models']
+
+    # Shared model legend for panels b & c
+    handles_bc = []
+    for f in fams:
+        if f in D.family.values:
+            col, ls, lw, _ = specs['fam_color_all'][f]
+            handles_bc.append(Line2D([0], [0], color=col, ls=ls, lw=lw + 0.4, label=flab[f]))
+    handles_bc.append(Line2D([0], [0], color='#2c3e50', ls=':', lw=2.0, label='oracle'))
+    handles_bc.append(Line2D([0], [0], color='#c0392b', ls=(0, (3, 2)), lw=1.8, label='random picks'))
+    fig.legend(
+        handles=handles_bc, loc='upper center', bbox_to_anchor=(0.52, 0.568),
+        ncol=6, fontsize=8.8, handlelength=3.2,
+        frameon=True, facecolor='white', edgecolor='#cccccc',
+    )
+
+    gs_bc = fig.add_gridspec(
+        2, 3, left=0.055, right=0.988, top=0.486, bottom=0.082,
+        hspace=0.34, wspace=0.20,
+    )
+    axes_bc = np.array([[fig.add_subplot(gs_bc[r, c]) for c in range(3)] for r in range(2)])
+    ax_titles: list[tuple[plt.Axes, str]] = []
+
+    for c, ds in enumerate(('tsuboyama_capped_test', 'domainome')):
+        d = D[D.dataset == ds]
+        _draw_curve_panel(
+            axes_bc[0, c], d, fams, flab, specs, False, 'hit_rate', 'rand_hit', 'oracle_hit',
+            'hit rate (abundance > wild type)' if ds == 'domainome' else 'hit rate (> 0.5 kcal/mol)',
+        )
+        _draw_curve_panel(
+            axes_bc[1, c], d, fams, flab, specs, False, 'p_recover', 'rand_rec', 'oracle_rec',
+            'P(at least one hit in top K)',
+        )
+        n_prot = int(d.n_proteins.iloc[0])
+        if ds == 'domainome':
+            ttl = f'Domainome (held-out), single mutants only ({n_prot} proteins)'
+        else:
+            ttl = f'Homology-Restricted MegaScale test set, single mutants only [excl. Cys] ({n_prot} proteins)'
+        ax_titles.append((axes_bc[0, c], ttl))
+        axes_bc[1, c].set_xlabel('variants screened per protein (K)')
+
+    for r_i, (A_cur, nm) in enumerate(((A_all, 'all held-out assays'), (A_enz, 'held-out enzymes'))):
+        _draw_curve_panel(
+            axes_bc[r_i, 2], A_cur, fams, flab, specs, False, 'hit_rate', 'rand_hit', None,
+            'fraction of the K picks\nthat hurt (lower is better)',
+        )
+        ax_titles.append((axes_bc[r_i, 2], f'ProteinGym Activity, {nm}, single mutants ({int(A_cur.n_assays.iloc[0])} assays)'))
+        axes_bc[r_i, 2].set_ylim(0, None)
+    axes_bc[1, 2].set_xlabel('variants screened per assay (K)')
+
+    # Wrap panel titles to column width
+    fig.canvas.draw()
+    r_rend = fig.canvas.get_renderer()
+    for ax_t, raw_t in ax_titles:
+        ax_t.set_title(
+            style.wrap_to_px(fig, raw_t, 0.97 * ax_t.get_window_extent(r_rend).width, fontsize=9.8, fontweight='bold'),
+            loc='left', fontsize=9.8, pad=6,
+        )
+
+    # Nature-style sub-figure annotations: lowercase bold sans-serif 'a' (top) and 'b', 'c', 'd' (per column)
+    fig.canvas.draw()
+    y_bcd = axes_bc[0, 0].get_position().y1 + 0.036
+    fig.text(0.008, 0.992, 'a', ha='left', va='top', fontsize=15, fontweight='bold')
+    for col_i, letter in enumerate(('b', 'c', 'd')):
+        pos_c = axes_bc[0, col_i].get_position()
+        x_lbl = 0.008 if col_i == 0 else pos_c.x0 - 0.047
+        fig.text(x_lbl, y_bcd, letter, ha='left', va='top', fontsize=15, fontweight='bold')
+
+    # Combined footnote
+    note4 = (
+        f'a. Top {k} per {prop_bundle["s_title"]} test domain ({prop_bundle["n_domains"]} domains with the feature, {prop_bundle["n_muts"]:,} single mutants); '
+        f'gain = sum of max(ddG, 0) over every pick, whatever its predicted sign; boxes: interquartile range with darker colored median line; '
+        f'dots: domains; dark bars with vertical 95% CI whiskers (B = {B}) & annotations: mean over domains; dashed lines: oracle mean.\n'
+        f'b–d. Single mutants only, scored by the single-mutant models; MegaScale excludes mutations to Cys. '
+        f'ProteinGym Activity column: a variant hurts when its activity is more than half an assay standard deviation below the measured wild type; lower is better. '
+        f'Shaded band: 95% bootstrap interval (B = {B}) of ESM-MSR only.'
+    )
+    kw_n = dict(fontsize=7.6, color='#444444')
+    fig.text(0.012, 0.006, style.wrap_to_px(fig, note4, 0.975 * fig.bbox.width, **kw_n), ha='left', va='bottom', **kw_n)
+
+    style.save(fig, out_main / 'figure4')
+
+
+def build_supp_figure7(
+    D_all: pd.DataFrame | None = None,
+    specs: dict | None = None,
+    B: int = 1000,
+) -> Path:
+    """Build Supplementary Figure 7 (`00_supplementary_figs/supp_figure7.{png,pdf}`).
+
+    Rectified gain per variant g(K) = a - b ln K across ALL models on Homology-Restricted
+    MegaScale test single mutants (Cys excluded, 33 proteins):
+      a. Empirical rectified gain per variant vs K (log scale) with least-squares fits g(K) = a - b ln K
+         and each model's fitted equation in the legend.
+      b. Fit residuals (data - fit) across K for all models and the oracle.
+    """
+    out_supp = results_dir('supplementary_figs')
+    if specs is None:
+        specs = build_family_specs('capped')
+    if D_all is None:
+        mega_csv = results_dir('megascale_screening', 'capped', create=False) / 'screening_per_protein_singles_all_models.csv'
+        D_all = pd.read_csv(mega_csv)
+    d = D_all[D_all['dataset'] == 'tsuboyama_capped_test'].copy()
+
+    fams = [f for f in specs['fam_all'] if f in d['family'].values]
+    flab = specs['fam_label_singles']
+    ks = np.array(sorted(d['K'].unique()), dtype=float)
+    lk = np.log(ks)
+    n_prots = int(d['n_proteins'].iloc[0])
+
+    # Extract curves & fit g(K) = a - b ln K for every model, oracle, and random
+    curves: dict[str, np.ndarray] = {}
+    fits: dict[str, tuple[float, float, float, float]] = {}  # (a, b, rmse, r2)
+    msr_ci = None
+
+    for f in fams:
+        sub = d[(d['family'] == f) & (d['metric'] == 'gain')].sort_values('K')
+        if len(sub) != len(ks):
+            continue
+        gv = (sub['value'].to_numpy(float)) / ks
+        curves[f] = gv
+        a_v, b_v = _fit_line(lk, gv)
+        pred = a_v - b_v * lk
+        rmse_v = float(np.sqrt(np.mean((gv - pred) ** 2)))
+        ss_tot = float(np.sum((gv - gv.mean()) ** 2))
+        r2_v = float(1.0 - np.sum((gv - pred) ** 2) / ss_tot) if ss_tot > 0 else np.nan
+        fits[f] = (a_v, b_v, rmse_v, r2_v)
+        if f == 'msr':
+            msr_ci = (sub['lo'].to_numpy(float) / ks, sub['hi'].to_numpy(float) / ks)
+
+    sub_orc = d[(d['family'] == 'msr') & (d['metric'] == 'oracle_gain')].sort_values('K')
+    g_orc = sub_orc['value'].to_numpy(float) / ks
+    a_o, b_o = _fit_line(lk, g_orc)
+    pred_o = a_o - b_o * lk
+    rmse_o = float(np.sqrt(np.mean((g_orc - pred_o) ** 2)))
+    r2_o = float(1.0 - np.sum((g_orc - pred_o) ** 2) / np.sum((g_orc - g_orc.mean()) ** 2))
+
+    sub_rnd = d[(d['family'] == 'msr') & (d['metric'] == 'rand_gain')].sort_values('K')
+    g_rnd = sub_rnd['value'].to_numpy(float) / ks
+    a_r = float(g_rnd.mean())
+
+    # Order models by fitted intercept a (highest first) so legend reads cleanly top-to-bottom
+    fams_ordered = sorted(curves.keys(), key=lambda f: -fits[f][0])
+
+    fig, (ax, rx) = plt.subplots(1, 2, figsize=(14.6, 6.2), gridspec_kw=dict(width_ratios=[1.38, 1.0]), facecolor='white')
+    xx = np.geomspace(1, 100, 120)
+
+    # Oracle
+    ax.plot(ks, g_orc, 'o', color='#2c3e50', ms=4.8, mec='white', mew=0.6, zorder=4)
+    ax.plot(xx, a_o - b_o * np.log(xx), color='#2c3e50', ls=':', lw=1.6, zorder=3,
+            label=f'Oracle (top K labels):  {a_o:.2f} − {b_o:.3f} ln K  (R²={r2_o:.3f})')
+    rx.plot(ks, g_orc - (a_o - b_o * lk), marker='o', color='#2c3e50', ls=':', ms=4.0, lw=1.1, label='Oracle')
+
+    # ESM-MSR 95% CI band
+    if msr_ci is not None:
+        ax.fill_between(ks, msr_ci[0], msr_ci[1], color='#000000', alpha=0.11, lw=0, zorder=2)
+
+    # All models
+    for f in fams_ordered:
+        col, ls, lw, _ = specs['fam_color_all'][f]
+        a_v, b_v, rmse_v, r2_v = fits[f]
+        gv = curves[f]
+        is_msr = (f == 'msr')
+        ax.plot(ks, gv, 'o', color=col, ms=5.4 if is_msr else 4.2, mec='white', mew=0.6, zorder=6 if is_msr else 4)
+        ax.plot(
+            xx, a_v - b_v * np.log(xx), color=col, ls=ls, lw=2.3 if is_msr else max(lw, 1.3),
+            zorder=5 if is_msr else 3,
+            label=f'{flab[f]}:  {a_v:.2f} − {b_v:.3f} ln K  (R²={r2_v:.3f})',
+        )
+        rx.plot(
+            ks, gv - (a_v - b_v * lk), marker='o', color=col, ls=ls,
+            ms=4.4 if is_msr else 3.5, lw=1.8 if is_msr else 1.1,
+            zorder=5 if is_msr else 3, label=flab[f],
+        )
+
+    # Random picks
+    ax.plot(ks, g_rnd, 's', color='#c0392b', ms=3.8, zorder=4)
+    ax.axhline(a_r, color='#c0392b', ls=(0, (3, 2)), lw=1.4, zorder=3, label=f'Random picks:  {a_r:.3f}')
+
+    for ax_i in (ax, rx):
+        ax_i.set_xscale('log')
+        ax_i.set_xticks(ks)
+        ax_i.set_xticklabels([str(int(k)) for k in ks])
+        ax_i.set_xlabel('variants screened per protein (K)', fontsize=10.2)
+        ax_i.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+        ax_i.spines['top'].set_visible(False)
+        ax_i.spines['right'].set_visible(False)
+
+    ax.set_ylabel('rectified gain per variant (kcal/mol)', fontsize=10.2)
+    ax.set_ylim(0.0, 1.62)
+    ax.set_title('Rectified gain per variant: g(K) = a − b ln K (all models)', fontsize=10.4, fontweight='bold', loc='left', pad=6)
+    ax.legend(fontsize=7.3, loc='upper right', framealpha=0.94, edgecolor='#cccccc', handlelength=2.4, labelspacing=0.28)
+
+    rx.axhline(0.0, color='#888888', lw=0.9)
+    rx.set_ylabel('data − fit (kcal/mol)', fontsize=10.2)
+    rx.set_ylim(-0.08, 0.08)
+    rx.set_title('Log-linear fit residuals across K', fontsize=10.4, fontweight='bold', loc='left', pad=6)
+    rx.legend(fontsize=7.3, loc='upper right', ncol=2, framealpha=0.94, edgecolor='#cccccc', handlelength=2.0, columnspacing=0.9, labelspacing=0.25)
+
+    fig.subplots_adjust(left=0.058, right=0.988, top=0.900, bottom=0.215, wspace=0.18)
+    fig.canvas.draw()
+    pr = rx.get_position()
+    fig.text(0.010, 0.975, 'a', ha='left', va='top', fontsize=14, fontweight='bold')
+    fig.text(pr.x0 - 0.052, 0.975, 'b', ha='left', va='top', fontsize=14, fontweight='bold')
+
+    a_m, b_m, _, _ = fits['msr']
+    k0_msr = float(np.exp((a_m - a_r) / b_m)) if b_m > 0 else np.nan
+    note = (
+        f'Homology-Restricted MegaScale test set ({n_prots} proteins; single mutants, Cys excluded; single-mutant models; 3 seeds averaged for retrained models).  '
+        f'a. Points show mean rectified gain per variant = (1/K) Σ max(ΔΔG, 0) over the K highest-scored variants per protein; lines show least-squares fits '
+        f'g(K) = a − b ln K across K ∈ {{1, 3, 5, 10, 20, 50, 100}} (shaded band: 95% joint domain × seed bootstrap CI for ESM-MSR, B = {B:,}; '
+        f'ESM-MSR reaches the random baseline {a_r:.3f} kcal/mol at K ≈ {k0_msr:.0f}).  '
+        f'b. Residuals (empirical − linear fit) across K for all models and the oracle.'
+    )
+    kw = dict(fontsize=7.8, color='#333333', linespacing=1.25)
+    fig.text(0.014, 0.012, style.wrap_to_px(fig, note, 0.972 * fig.bbox.width, **kw), ha='left', va='bottom', **kw)
+
+    out_path = out_supp / 'supp_figure7'
+    style.save(fig, out_path)
+    return out_path
+
+
+# ----------------------------------------------------------------------------------------------
 # Entry point
 # ----------------------------------------------------------------------------------------------
 def add_args(ap) -> None:
@@ -2036,9 +2419,9 @@ def add_args(ap) -> None:
     ap.add_argument('--budgets', nargs='+', type=int, default=[6, 24, 96], help='Fixed screening budgets K (default: 6 24 96).')
     ap.add_argument(
         '--only',
-        choices=('all', 'domainome_and_overview'),
+        choices=('all', 'domainome_and_overview', 'figure4', 'supp_figure7'),
         default='all',
-        help='Optional substage selector (domainome_and_overview refreshes Domainome screening + overview/composite reads).',
+        help='Optional substage selector (domainome_and_overview, figure4, or supp_figure7).',
     )
 
 
@@ -2058,6 +2441,31 @@ def run(args=None) -> int:
     register_ext_styles()
     print(f'[p09:{STAGE}] Running split={split}, B={B}, only={only} ...')
 
+    if only == 'supp_figure7':
+        out = build_supp_figure7(B=B)
+        print(f'[p09:screening] Saved {out}.{{png,pdf}}')
+        return 0
+
+    if only == 'figure4':
+        specs = build_family_specs('capped')
+        out_mega = results_dir('megascale_screening', 'capped', create=False)
+        out_dom = results_dir('domainome_screening', create=False)
+        pg_scr = results_dir('proteingym_screening', create=False)
+        tables_08 = {
+            'screening_per_protein_singles_all_models': pd.concat([
+                pd.read_csv(out_mega / 'screening_per_protein_singles_all_models.csv'),
+                pd.read_csv(out_dom / 'screening_per_protein_all_models.csv'),
+            ], ignore_index=True),
+        }
+        act_tables = {
+            nm: pd.read_csv(pg_scr / f'{nm}.csv')
+            for nm in ('screening_all_all_models', 'screening_enzymes_all_models')
+        }
+        build_figure4(tables_08=tables_08, act_tables=act_tables, specs=specs, B=B)
+        build_supp_figure7(D_all=tables_08['screening_per_protein_singles_all_models'], specs=specs, B=B)
+        print('[p09:screening] Completed figure4.')
+        return 0
+
     if only == 'domainome_and_overview':
         tables_08, specs = run_08_screening(split='capped', tau=tau, frac=frac, B=B, only_domainome=True)
         pg_scr = results_dir('proteingym_screening', create=False)
@@ -2074,6 +2482,8 @@ def run(args=None) -> int:
             fit_params=fit_params, fit_curves=fit_curves,
             asa_k96_df=asa_k96_df, specs=specs, B=B,
         )
+        build_figure4(tables_08=tables_08, act_tables=act_tables, specs=specs, B=B)
+        build_supp_figure7(D_all=tables_08['screening_per_protein_singles_all_models'], specs=specs, B=B)
         print('[p09:screening] Completed domainome_and_overview.')
         return 0
 
@@ -2090,6 +2500,8 @@ def run(args=None) -> int:
             fit_params=fit_params, fit_curves=fit_curves,
             asa_k96_df=asa_k96_df, specs=specs, B=B,
         )
+        build_figure4(tables_08=tables_08, act_tables=act_tables, specs=specs, B=B)
+        build_supp_figure7(D_all=tables_08['screening_per_protein_singles_all_models'], specs=specs, B=B)
     print(f'[p09:{STAGE}] Completed split={split}.')
     return 0
 

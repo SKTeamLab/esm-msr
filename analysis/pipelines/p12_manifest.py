@@ -115,7 +115,7 @@ TABLE_FIGURES = {
 FOLDER_OWNER = {
     '(root)': 'p12_manifest',
     '00_for_reviewers': 'p02_tsuboyama / p10_splits_and_leakage / p12_manifest',
-    '00_main_text_figs': 'p05_summary_main / p06_epistasis_hierarchy',
+    '00_main_text_figs': 'p05_summary_main / p06_epistasis_hierarchy / p09_screening',
     '00_supplementary_figs': 'p02 / p03 / p06 / p07 / p09 / p10',
     '01_megascale': 'p02_tsuboyama / p06_epistasis_hierarchy / p07_epistasis_mechanisms / p09_screening / p10_splits_and_leakage',
     '02_thermostability': 'p01_benchmarks_external / p08_calibration_length / p09_screening',

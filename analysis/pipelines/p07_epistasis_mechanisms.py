@@ -41,7 +41,8 @@ from msr_analysis.paths import TSUBOYAMA_PDB_DIR, atomic_to_csv, atomic_write_te
 from msr_analysis.registry import tsu_datasets
 from msr_analysis.stats import boot_pvalue, fmt_p
 from msr_analysis.structures import load_pdb_residues, pair_cb_distance, parse_mutations
-from msr_analysis.tobit import inv_leaky_link, inv_softplus_link, leaky_link, softplus_link
+from msr_analysis.tobit import TOBIT, inv_leaky_link, inv_softplus_link, leaky_link, softplus_link
+from esm_msr.val_stats import tobit_link
 
 from . import base_parser, resolve_b
 
@@ -578,6 +579,13 @@ def run_link_and_floor_composite(split: str, latent_types: tuple, exploratory: b
     fig.tight_layout(rect=(0, 0, 1, 0.965))
     style.save(fig, out_supp / 'floor_saturation_mechanism')
 
+    # Standalone 2-panel Tobit floor-link figure (a/b split out with default ESM-MSR Tobit mapping + explanatory caption)
+    build_tobit_floor_link_figure(
+        x=x, Y=Y, x_plot=x_plot, y_plot=y_plot,
+        b_all=b_all, b_plot=b_plot, far_lbl=far_lbl,
+        out_path=out_supp / 'tobit_floor_link',
+    )
+
     if exploratory:
         fig_oa, axes_oa = plt.subplots(1, 2, figsize=(13.0, 5.8), sharex=True, sharey=True)
         for ax_o, (xx, yy, ttl_o, b_o) in zip(axes_oa, ((x_plot, y_plot, far_lbl, b_plot), (x, Y, f'all doubles (n = {len(Y):,})', b_all))):
@@ -996,15 +1004,162 @@ def run_rosetta_multi_vs_additive(B: int, workers: int = 4) -> None:
     style.save(fig, out / 'rosetta_multi_vs_additive')
 
 
+def build_tobit_floor_link_figure(
+    x: np.ndarray,
+    Y: np.ndarray,
+    x_plot: np.ndarray,
+    y_plot: np.ndarray,
+    b_all: pd.DataFrame,
+    b_plot: pd.DataFrame,
+    far_lbl: str,
+    out_path: Path,
+) -> Path:
+    """Standalone supplementary 2-panel figure splitting floor_saturation_mechanism (a/b)
+    and highlighting ESM-MSR's default chosen Tobit observation link (sigma_y=0.28, mu_f=-0.14, sigma_f=0.50).
+    """
+    sigma_y = float(TOBIT['sigma_y'])
+    mu_f = float(TOBIT['mu_f'])
+    sigma_f = float(TOBIT['sigma_f'])
+    theta = float(np.hypot(sigma_y, sigma_f))
+    h_tobit = tobit_link(sigma_y=sigma_y, mu_f=mu_f, sigma_f=sigma_f)
+
+    xs_curve = np.linspace(-4.8, 4.8, 400)
+    y_tobit = h_tobit(xs_curve)
+    y_soft = softplus_link(xs_curve)
+    y_leaky = leaky_link(xs_curve)
+
+    xlim, ylim_a, ylim_b = (-4.8, 4.8), (-1.25, 5.0), (-1.6, 4.9)
+    c_tobit, c_soft, c_leaky, c_emp = '#000000', '#1f77b4', '#e07b00', '#9b1c1c'
+
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(13.8, 6.4), facecolor='white')
+
+    # --- Panel a: Distant pairs (Cbeta-Cbeta > 8 A) ---
+    ax_a.hexbin(x_plot, y_plot, gridsize=40, extent=(*xlim, *ylim_a), mincnt=1, bins='log', cmap='Blues', linewidths=0.1, edgecolors='none')
+    ax_a.plot(xlim, xlim, color='#888888', ls=':', lw=1.1, zorder=3)
+    ax_a.axhline(mu_f, color='#666666', ls=(0, (2, 3)), lw=0.9, zorder=3)
+    if len(b_plot):
+        ax_a.fill_between(b_plot['x'], b_plot['q25'], b_plot['q75'], color=c_emp, alpha=0.18, lw=0, zorder=4)
+        ax_a.plot(b_plot['x'], b_plot['median'], color=c_emp, lw=1.4, marker='o', ms=2.8, zorder=5)
+    ax_a.plot(xs_curve, y_soft, color=c_soft, lw=1.4, ls='-.', zorder=6)
+    ax_a.plot(xs_curve, y_leaky, color=c_leaky, lw=1.5, ls='--', zorder=6)
+    ax_a.plot(xs_curve, y_tobit, color=c_tobit, lw=2.3, zorder=7)
+    ax_a.set_xlim(*xlim)
+    ax_a.set_ylim(*ylim_a)
+    ax_a.set_xlabel('additive ΔG_add = ΔG_wt + ΔΔG_A + ΔΔG_B (kcal/mol)', fontsize=10.2)
+    ax_a.set_ylabel('observed ΔG_AB of double (kcal/mol)', fontsize=10.2)
+    ax_a.set_title(f'Observed ΔG_AB vs additive ΔG on {far_lbl}', fontsize=10.4, fontweight='bold', loc='left', pad=6)
+    ax_a.legend(
+        handles=[
+            Line2D([0], [0], color=c_tobit, lw=2.3, label=f'default Tobit link h(z) (σ_y={sigma_y:.2f}, μ_f={mu_f:.2f}, σ_f={sigma_f:.2f})'),
+            Line2D([0], [0], color=c_soft, lw=1.4, ls='-.', label='softplus floor link (f = 0, τ = 0.59)'),
+            Line2D([0], [0], color=c_leaky, lw=1.5, ls='--', label='leaky floor link (α = 0.10, clamp −1)'),
+            Line2D([0], [0], color=c_emp, marker='o', ms=3.2, lw=1.4, label='empirical median & IQR'),
+            Line2D([0], [0], color='#888888', ls=':', lw=1.1, label='y = x (unsaturated)'),
+            Line2D([0], [0], color='#666666', ls=(0, (2, 3)), lw=0.9, label=f'floor mean μ_f = {mu_f:.2f} kcal/mol'),
+        ],
+        loc='upper left', fontsize=8.0, framealpha=0.94, edgecolor='#cccccc',
+    )
+    ax_a.spines['top'].set_visible(False)
+    ax_a.spines['right'].set_visible(False)
+
+    # --- Panel b: Induced apparent saturation epistasis across all doubles ---
+    ax_b.hexbin(x, Y - x, gridsize=40, extent=(*xlim, *ylim_b), mincnt=1, bins='log', cmap='Blues', linewidths=0.1, edgecolors='none')
+    ax_b.axhline(0, color='#888888', ls=':', lw=1.1, zorder=3)
+    if len(b_all):
+        ax_b.fill_between(b_all['x'], b_all['q25'] - b_all['x'], b_all['q75'] - b_all['x'], color=c_emp, alpha=0.18, lw=0, zorder=4)
+        ax_b.plot(b_all['x'], b_all['median'] - b_all['x'], color=c_emp, lw=1.4, marker='o', ms=2.8, zorder=5)
+    ax_b.plot(xs_curve, y_soft - xs_curve, color=c_soft, lw=1.4, ls='-.', zorder=6)
+    ax_b.plot(xs_curve, y_leaky - xs_curve, color=c_leaky, lw=1.5, ls='--', zorder=6)
+    ax_b.plot(xs_curve, y_tobit - xs_curve, color=c_tobit, lw=2.3, zorder=7)
+    ax_b.set_xlim(*xlim)
+    ax_b.set_ylim(*ylim_b)
+    ax_b.set_xlabel('additive ΔG_add = ΔG_wt + ΔΔG_A + ΔΔG_B (kcal/mol)', fontsize=10.2)
+    ax_b.set_ylabel('measured epistasis δΔΔG = ΔG_AB − ΔG_add (kcal/mol)', fontsize=10.2)
+    ax_b.set_title(f'Apparent saturation epistasis across all doubles (n = {len(Y):,})', fontsize=10.4, fontweight='bold', loc='left', pad=6)
+    ax_b.legend(
+        handles=[
+            Line2D([0], [0], color=c_tobit, lw=2.3, label='default Tobit: h_Tobit(x) − x'),
+            Line2D([0], [0], color=c_soft, lw=1.4, ls='-.', label='softplus: h(x) − x'),
+            Line2D([0], [0], color=c_leaky, lw=1.5, ls='--', label='leaky: h(x) − x'),
+            Line2D([0], [0], color=c_emp, marker='o', ms=3.2, lw=1.4, label='empirical median & IQR'),
+            Line2D([0], [0], color='#888888', ls=':', lw=1.1, label='δΔΔG = 0 (additive)'),
+        ],
+        loc='upper right', fontsize=8.0, framealpha=0.94, edgecolor='#cccccc',
+    )
+    ax_b.spines['top'].set_visible(False)
+    ax_b.spines['right'].set_visible(False)
+
+    # Nature-style sub-figure annotations 'a' and 'b'
+    fig.subplots_adjust(left=0.062, right=0.985, top=0.915, bottom=0.255, wspace=0.19)
+    fig.canvas.draw()
+    pa, pb = ax_a.get_position(), ax_b.get_position()
+    fig.text(0.010, 0.975, 'a', ha='left', va='top', fontsize=14, fontweight='bold')
+    fig.text(pb.x0 - 0.052, 0.975, 'b', ha='left', va='top', fontsize=14, fontweight='bold')
+
+    # Self-contained explanatory figure text
+    far_desc = far_lbl.replace('distant doubles ', '')
+    note = (
+        f'Unfolded-state floor saturation in MegaScale cDNA proteolysis and the default ESM-MSR Tobit observation link.  '
+        f'a. Structurally distant double mutants {far_desc}, where direct residue–residue physical coupling is minimal, isolate the assay measurement floor: '
+        f'observed ΔG_AB follows y = x for folded variants (ΔG_add > 1 kcal/mol) but flattens onto a noisy unfolded floor as ΔG_add drops below 0. '
+        f'Under ESM-MSR\'s default noisy-floor Tobit likelihood Y = max(X, F) with X ~ N(z, σ_y²), F ~ N(μ_f, σ_f²) and chosen parameters '
+        f'σ_y = {sigma_y:.2f}, μ_f = {mu_f:.2f}, σ_f = {sigma_f:.2f} kcal/mol (θ = √(σ_y² + σ_f²) = {theta:.3f}), the closed-form expected-reading map '
+        f'h_Tobit(z) = z Φ(a) + μ_f Φ(−a) + θ φ(a) [a = (z − μ_f) / θ] (solid black) reproduces the empirical median (dark red) across the entire transition with no extra fitted parameters '
+        f'(analytical softplus and leaky-clamp references shown for comparison).  '
+        f'b. Across all {len(Y):,} Homology-Restricted MegaScale test doubles, subtracting ΔG_add converts this measurement floor into large apparent positive epistasis '
+        f'(δΔΔG ≈ −ΔG_add for ΔG_add < 0), closely tracked by h_Tobit(x) − x. Supervising ESM-MSR with the Tobit NLL trains the model in unsaturated latent space without conflating floor saturation with true biophysical coupling.'
+    )
+    kw = dict(fontsize=8.0, color='#333333', linespacing=1.28)
+    fig.text(0.014, 0.014, style.wrap_to_px(fig, note, 0.972 * fig.bbox.width, **kw), ha='left', va='bottom', **kw)
+
+    style.save(fig, out_path)
+    return out_path
+
+
+def run_tobit_floor_link_only(split: str = 'capped') -> Path:
+    """Fast standalone runner to rebuild only 00_supplementary_figs/tobit_floor_link.{png,pdf}."""
+    fr = load_frame(tsu_datasets(split)[1])
+    sp = fr.spine
+    ddg = sp['y'].to_numpy(float)
+    c_all = sp['dG_wt'].to_numpy(float)
+    ia, ib = singles_of_doubles(sp)
+    ok = epi_rows(fr) & (ia >= 0) & (ib >= 0)
+    idx = np.flatnonzero(ok)
+    W = c_all[ok]
+    A, B_s = W + ddg[ia[ok]], W + ddg[ib[ok]]
+    Y = W + ddg[ok]
+    x = A + B_s - W
+    dist = _cb_distances_for_doubles(sp['mut'].to_numpy(dtype=object)[idx], sp['code'].astype(str).to_numpy()[idx])
+    far = np.isfinite(dist) & (dist > DISTANT_A)
+    edges = np.arange(-4.5, 4.51, 0.5)
+    b_all = _binned_quantiles(x, Y, edges, nmin=15)
+    b_far = _binned_quantiles(x[far], Y[far], edges, nmin=10) if far.any() else pd.DataFrame(columns=['x', 'n', 'median', 'q25', 'q75'])
+    x_plot = x[far] if far.sum() >= 50 else x
+    y_plot = Y[far] if far.sum() >= 50 else Y
+    b_plot = b_far if far.sum() >= 50 else b_all
+    far_lbl = f'distant doubles (Cβ–Cβ > {DISTANT_A:g} Å, n = {len(y_plot):,})' if far.sum() >= 50 else f'all doubles (n = {len(y_plot):,})'
+    out_supp = out_dir('supplementary_figs')
+    return build_tobit_floor_link_figure(
+        x=x, Y=Y, x_plot=x_plot, y_plot=y_plot,
+        b_all=b_all, b_plot=b_plot, far_lbl=far_lbl,
+        out_path=out_supp / 'tobit_floor_link',
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION, with_split=True)
     ap.add_argument('--exploratory', action='store_true', help='Also render exploratory multi-option drafts (option_*, link_option_*)')
     ap.add_argument('--pair-pngs', action='store_true', help='Also render all 30 individual 20x20 pair-epistasis PNG grids')
     ap.add_argument('--per-model-pngs', action='store_true', help='Also render all 36 individual per-model dddG scatter PNGs')
     ap.add_argument('--workers', type=int, default=4, help='Worker processes for Rosetta bootstrap')
-    ap.add_argument('--only', choices=('all', 'fig6', 'fig7', 'link', 'heatmaps', 'rosetta'), default='all', help='Optional substage selector')
+    ap.add_argument('--only', choices=('all', 'fig6', 'fig7', 'link', 'tobit_floor_link', 'heatmaps', 'rosetta'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
+
+    if args.only == 'tobit_floor_link':
+        out = run_tobit_floor_link_only(split=args.split)
+        print(f'[p07:epistasis_mechanisms] Saved {out}.{{png,pdf}}')
+        return 0
 
     if args.only in ('all', 'fig6'):
         run_fig6_scatters(split=args.split, exploratory=args.exploratory)

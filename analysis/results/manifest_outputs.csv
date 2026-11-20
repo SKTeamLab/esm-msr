@@ -10,14 +10,20 @@ rel_path,top_folder,kind,size_bytes,owner
 00_for_reviewers/split_best_partner_hyperopt.csv,00_for_reviewers,csv,11557,p02_tsuboyama / p10_splits_and_leakage / p12_manifest
 00_for_reviewers/split_best_partner_hyperopt.pdf,00_for_reviewers,pdf,32668,p02_tsuboyama / p10_splits_and_leakage / p12_manifest
 00_for_reviewers/split_best_partner_hyperopt.png,00_for_reviewers,png,207589,p02_tsuboyama / p10_splits_and_leakage / p12_manifest
-00_main_text_figs/epistasis_levels_e.pdf,00_main_text_figs,pdf,33048,p05_summary_main / p06_epistasis_hierarchy
-00_main_text_figs/epistasis_levels_e.png,00_main_text_figs,png,259815,p05_summary_main / p06_epistasis_hierarchy
-00_main_text_figs/epistasis_main_composite.pdf,00_main_text_figs,pdf,525802,p05_summary_main / p06_epistasis_hierarchy
-00_main_text_figs/epistasis_main_composite.png,00_main_text_figs,png,1427665,p05_summary_main / p06_epistasis_hierarchy
-00_main_text_figs/fig2_fig3_stacked.pdf,00_main_text_figs,pdf,40222,p05_summary_main / p06_epistasis_hierarchy
-00_main_text_figs/fig2_fig3_stacked.png,00_main_text_figs,png,571807,p05_summary_main / p06_epistasis_hierarchy
-00_main_text_figs/figure3.pdf,00_main_text_figs,pdf,82362,p05_summary_main / p06_epistasis_hierarchy
-00_main_text_figs/figure3.png,00_main_text_figs,png,997885,p05_summary_main / p06_epistasis_hierarchy
+00_main_text_figs/epistasis_levels_e.pdf,00_main_text_figs,pdf,33048,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/epistasis_levels_e.png,00_main_text_figs,png,259815,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/epistasis_main_composite.pdf,00_main_text_figs,pdf,525802,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/epistasis_main_composite.png,00_main_text_figs,png,1427665,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/fig2_fig3_stacked.pdf,00_main_text_figs,pdf,40222,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/fig2_fig3_stacked.png,00_main_text_figs,png,571807,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/figure1.pdf,00_main_text_figs,pdf,1183720,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/figure1.png,00_main_text_figs,png,1929711,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/figure2.pdf,00_main_text_figs,pdf,1424493,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/figure2.png,00_main_text_figs,png,2306638,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/figure3.pdf,00_main_text_figs,pdf,84407,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/figure3.png,00_main_text_figs,png,1033169,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/figure4.pdf,00_main_text_figs,pdf,84683,p05_summary_main / p06_epistasis_hierarchy / p09_screening
+00_main_text_figs/figure4.png,00_main_text_figs,png,1165589,p05_summary_main / p06_epistasis_hierarchy / p09_screening
 00_supplementary_figs/fig5_epistasis_levels_masking_bootstrap_test.csv,00_supplementary_figs,csv,14608,p02 / p03 / p06 / p07 / p09 / p10
 00_supplementary_figs/fig5_epistasis_levels_masking_paired_test.csv,00_supplementary_figs,csv,2364,p02 / p03 / p06 / p07 / p09 / p10
 00_supplementary_figs/fig5_epistasis_levels_p0_bootstrap_test.csv,00_supplementary_figs,csv,22985,p02 / p03 / p06 / p07 / p09 / p10
@@ -54,6 +60,27 @@ rel_path,top_folder,kind,size_bytes,owner
 00_supplementary_figs/split_construction/split_max_identity_heatmap.png,00_supplementary_figs,png,248909,p02 / p03 / p06 / p07 / p09 / p10
 00_supplementary_figs/split_construction/split_max_tm_heatmap.pdf,00_supplementary_figs,pdf,43861,p02 / p03 / p06 / p07 / p09 / p10
 00_supplementary_figs/split_construction/split_max_tm_heatmap.png,00_supplementary_figs,png,269279,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure1.pdf,00_supplementary_figs,pdf,73021,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure1.png,00_supplementary_figs,png,734510,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure2.pdf,00_supplementary_figs,pdf,35259,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure2.png,00_supplementary_figs,png,479578,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure3.pdf,00_supplementary_figs,pdf,37317,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure3.png,00_supplementary_figs,png,483926,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure4.pdf,00_supplementary_figs,pdf,28214,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure4.png,00_supplementary_figs,png,200615,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure5.pdf,00_supplementary_figs,pdf,33234,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure5.png,00_supplementary_figs,png,311264,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure6.pdf,00_supplementary_figs,pdf,123566,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure6.png,00_supplementary_figs,png,458317,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure7.pdf,00_supplementary_figs,pdf,50116,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_figure7.png,00_supplementary_figs,png,657731,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_table2.md,00_supplementary_figs,md,5518,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_table2a_inventories.pdf,00_supplementary_figs,pdf,36000,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_table2a_inventories.png,00_supplementary_figs,png,510127,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_table2b_overlap_matrix.pdf,00_supplementary_figs,pdf,37900,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/supp_table2b_overlap_matrix.png,00_supplementary_figs,png,408407,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/tobit_floor_link.pdf,00_supplementary_figs,pdf,43721,p02 / p03 / p06 / p07 / p09 / p10
+00_supplementary_figs/tobit_floor_link.png,00_supplementary_figs,png,673316,p02 / p03 / p06 / p07 / p09 / p10
 01_megascale/best_other_ddg_model.csv,01_megascale,csv,63,p02_tsuboyama / p06_epistasis_hierarchy / p07_epistasis_mechanisms / p09_screening / p10_splits_and_leakage
 01_megascale/doubles_vs_singles_on_singles.csv,01_megascale,csv,696,p02_tsuboyama / p06_epistasis_hierarchy / p07_epistasis_mechanisms / p09_screening / p10_splits_and_leakage
 01_megascale/doubles_vs_singles_on_singles.md,01_megascale,md,1220,p02_tsuboyama / p06_epistasis_hierarchy / p07_epistasis_mechanisms / p09_screening / p10_splits_and_leakage
@@ -800,13 +827,13 @@ rel_path,top_folder,kind,size_bytes,owner
 05_mgnify/table_mgnify_ci.md,05_mgnify,md,4092,p04_mgnify_rocklin
 05_mgnify/table_rocklin.md,05_mgnify,md,2177,p04_mgnify_rocklin
 05_mgnify/table_rocklin_ci.md,05_mgnify,md,2852,p04_mgnify_rocklin
-06_summary/pg_categories.pdf,06_summary,pdf,65918,p05_summary_main
-06_summary/pg_categories.png,06_summary,png,723617,p05_summary_main
-06_summary/pg_categories_per_scaffold.pdf,06_summary,pdf,65929,p05_summary_main
-06_summary/pg_categories_per_scaffold.png,06_summary,png,735582,p05_summary_main
+06_summary/pg_categories.pdf,06_summary,pdf,66551,p05_summary_main
+06_summary/pg_categories.png,06_summary,png,727641,p05_summary_main
+06_summary/pg_categories_per_scaffold.pdf,06_summary,pdf,66549,p05_summary_main
+06_summary/pg_categories_per_scaffold.png,06_summary,png,740075,p05_summary_main
 06_summary/thermostability_sets.csv,06_summary,csv,5152,p05_summary_main
-06_summary/thermostability_sets.pdf,06_summary,pdf,44849,p05_summary_main
-06_summary/thermostability_sets.png,06_summary,png,297750,p05_summary_main
+06_summary/thermostability_sets.pdf,06_summary,pdf,47712,p05_summary_main
+06_summary/thermostability_sets.png,06_summary,png,338061,p05_summary_main
 06_summary/thermostability_sets_best.csv,06_summary,csv,1974,p05_summary_main
 06_summary/thermostability_sets_msr_heads.csv,06_summary,csv,471,p05_summary_main
 06_summary/thermostability_sets_pvalues.csv,06_summary,csv,14968,p05_summary_main
@@ -836,6 +863,7 @@ rel_path,top_folder,kind,size_bytes,owner
 08_sequence_length/per_protein_metrics.csv,08_sequence_length,csv,128966,p08_calibration_length
 08_sequence_length/sequence_length_distribution.pdf,08_sequence_length,pdf,105018,p08_calibration_length
 08_sequence_length/sequence_length_distribution.png,08_sequence_length,png,269307,p08_calibration_length
+08_sequence_length/structure_length_summary.csv,08_sequence_length,csv,1045,p08_calibration_length
 09_ablation/ablation_architecture_suite.pdf,09_ablation,pdf,58199,p11_ablations_and_heads
 09_ablation/ablation_architecture_suite.png,09_ablation,png,792116,p11_ablations_and_heads
 09_ablation/cells_long.csv,09_ablation,csv,303227,p11_ablations_and_heads
@@ -939,5 +967,5 @@ rel_path,top_folder,kind,size_bytes,owner
 99_misc/sigma_mechanisms/sigma_mechanisms_composite.png,99_misc,png,678253,p01 / p03 / p05 / p06 / p07 / p08 / p11 / studies/*
 99_misc/sigma_mechanisms/site_vs_sub_decomposition.csv,99_misc,csv,1743,p01 / p03 / p05 / p06 / p07 / p08 / p11 / studies/*
 99_misc/sigma_mechanisms/tail_selection_vs_filtering.csv,99_misc,csv,1048,p01 / p03 / p05 / p06 / p07 / p08 / p11 / studies/*
-manifest_outputs.csv,(root),csv,112242,p12_manifest
+manifest_outputs.csv,(root),csv,160524,p12_manifest
 table_figure_map.csv,(root),csv,4206,p12_manifest

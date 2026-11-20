@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1660 836" width="1660" height="836">
-  <title>ESM-MSR Architecture (Horizontal Unified Schematic, Subplot a)</title>
+  <title>ESM-MSR Architecture (Horizontal Unified Schematic)</title>
   <defs>
   <marker id="arr" markerWidth="9.5" markerHeight="8.5" refX="8.0" refY="4.25" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.6 L8.6,4.25 L0,7.9 L1.7,4.25 Z" fill="#44403C"/></marker>
   <marker id="arr-dark" markerWidth="9.5" markerHeight="8.5" refX="8.0" refY="4.25" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.6 L8.6,4.25 L0,7.9 L1.7,4.25 Z" fill="#1C1917"/></marker>
@@ -31,7 +31,6 @@
   <text x="843.0" y="81.0" font-family="'Liberation Sans', 'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="14.5" fill="#FAFAF9" text-anchor="middle" font-weight="700">3. LOGITS &amp; CALIBRATION</text>
   <line x1="1070.0" y1="58.0" x2="1070.0" y2="92.0" stroke="#0F172A" stroke-width="1.8"/>
   <text x="1356.0" y="81.0" font-family="'Liberation Sans', 'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="14.5" fill="#FAFAF9" text-anchor="middle" font-weight="700">4. OUTPUTS &amp; SUPERVISION</text>
-  <text x="18.0" y="36.0" font-family="'Liberation Sans', 'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="24.0" font-weight="700" fill="#000000" text-anchor="middle">a</text>
   <rect x="52.0" y="110.0" width="168.0" height="24.0" rx="12.0" fill="#DCFCE7" stroke="#15803D" stroke-width="1.30"/>
   <text x="136.0" y="126.5" font-family="'Liberation Sans', 'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="12.0" fill="#14532D" text-anchor="middle" font-weight="700">1 pass / protein</text>
   <rect x="42.0" y="198.0" width="34.0" height="28.0" rx="5.0" fill="#FFFFFF" stroke="#15803D" stroke-width="1.50"/>

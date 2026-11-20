@@ -1,0 +1,17 @@
+panel,dataset,label,n_structures,median,q25,q75,min,max
+a_thermostability,ssym,Ssym,357,164.0,130.0,164.0,58,396
+a_thermostability,ptmul,PTMUL,90,122.5,87.0,173.8,33,453
+a_thermostability,s461,S461,48,125.0,90.0,189.0,33,550
+a_thermostability,k2369,K2369,181,123.0,87.0,169.0,20,550
+a_thermostability,q3421,Q3421,149,123.0,87.0,189.0,21,724
+a_thermostability,s571,S571,39,140.0,83.0,252.0,30,437
+a_thermostability,s783,S783,55,108.0,86.5,154.0,21,394
+a_thermostability,s2648,S2648,132,123.0,87.0,210.8,30,554
+a_thermostability,s8754,S8754,305,132.0,92.0,219.0,20,677
+b_splits_and_benchmarks,train,Train,172,47.0,43.0,53.2,38,72
+b_splits_and_benchmarks,val,Validation,23,58.0,43.5,67.5,43,71
+b_splits_and_benchmarks,test,Test,33,44.0,43.0,59.0,40,72
+b_splits_and_benchmarks,ProteinGym,ProteinGym*,173,281.0,101.0,504.0,37,1390
+b_splits_and_benchmarks,Domainome,Domainome*,436,59.0,45.0,74.0,19,97
+b_splits_and_benchmarks,MGnify,MGnify*,152680,70.0,65.0,75.0,60,80
+b_splits_and_benchmarks,Rocklin designs,Rocklin designs*,742,67.0,63.0,73.0,49,80
