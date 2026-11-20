@@ -1,0 +1,10 @@
+dataset,label,sigma,key,rho,lo,hi
+DLG4_HUMAN_Faure_2021_binding_domain,DLG4 bind.,0.0000,msrrel@0:comb,0.7432,0.7339,0.7532
+DLG4_HUMAN_Faure_2021_binding_domain,DLG4 bind.,0.5000,msrp0@0.5:comb,0.7947,0.7872,0.8020
+DLG4_HUMAN_Faure_2021_binding_domain,DLG4 bind.,1.0000,msrp0:comb,0.7342,0.7220,0.7461
+GRB2_HUMAN_Faure_2021_binding_domain,GRB2 bind.,0.0000,msrrel@0:comb,0.7232,0.7175,0.7289
+GRB2_HUMAN_Faure_2021_binding_domain,GRB2 bind.,0.5000,msrp0@0.5:comb,0.7052,0.6987,0.7112
+GRB2_HUMAN_Faure_2021_binding_domain,GRB2 bind.,1.0000,msrp0:comb,0.6314,0.6240,0.6391
+MYO_HUMAN_Kung_2025_display,MYO,0.0000,msrrel@0:comb,0.5358,0.5168,0.5546
+MYO_HUMAN_Kung_2025_display,MYO,0.5000,msrp0@0.5:comb,0.6249,0.6070,0.6427
+MYO_HUMAN_Kung_2025_display,MYO,1.0000,msrp0:comb,0.6381,0.6192,0.6556

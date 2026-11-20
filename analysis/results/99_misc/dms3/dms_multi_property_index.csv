@@ -1,0 +1,5 @@
+protein,assay,source,axis,note,label,rho_0.0,rho_0.5,rho_1.0,n
+DLG4_HUMAN,DLG4_HUMAN_Faure_2021,ProteinGym,ABUND,abundance PCA,abund: Faure 2021,0.6840,0.7273,0.7232,6976
+DLG4_HUMAN,DLG4_HUMAN_Faure_2021_binding_domain,DMS benchmark,BIND,binding PCA,bind: Faure 2021 (DMS),0.7558,0.8068,0.7628,8251
+GRB2_HUMAN,GRB2_HUMAN_Faure_2021,ProteinGym,ABUND,abundance PCA,abund: Faure 2021,0.6140,0.6818,0.6820,63366
+GRB2_HUMAN,GRB2_HUMAN_Faure_2021_binding_domain,DMS benchmark,BIND,binding PCA,bind: Faure 2021 (DMS),0.7401,0.7249,0.6605,33441

@@ -2,11 +2,12 @@
 """Pipeline p08: Affine RMSE calibration transfer and sequence-length performance analysis.
 
 Consolidates:
-  - 07_rmse_calibration.py -> results/07_rmse/{calibration_candidates{,_ssym}.csv, rmse_by_dataset{,_ssym}.csv,
+  - 07_rmse_calibration.py -> results/02_thermostability/rmse/{calibration_candidates{,_ssym}.csv, rmse_by_dataset{,_ssym}.csv,
                               calibration_transfer{,_ssym}.csv, rmse_recalibrated{,_ssym}.{png,pdf}}
-  - 09_sequence_length.py  -> results/09_sequence_length/{length_summary.csv, sequence_length_distribution,
+  - 09_sequence_length.py  -> results/08_sequence_length/{length_summary.csv, sequence_length_distribution,
                               per_protein_metrics.csv, length_vs_performance, length_vs_performance_stats.csv,
                               length_correlation_summary}
+                           + results/99_misc/dms3/{length_summary.csv, length_per_protein_metrics.csv}
 
 Key methodological fixes vs legacy scripts:
   - Uses msr_analysis.calib.{calibration_key, fit_frame_scale_bias, calibrated_preds} so PTMUL and PTMUL-D fit and evaluate
@@ -26,10 +27,9 @@ from scipy.stats import spearmanr
 
 from msr_analysis import calib, style
 from msr_analysis.boot import ci, global_cluster_index
-from msr_analysis.common import out_dir
 from msr_analysis.data import Frame, load_frame
-from msr_analysis.paths import atomic_to_csv
-from msr_analysis.registry import ALL_DATASETS, EXT12, LABEL, MODELS, TSU_CAPPED
+from msr_analysis.paths import atomic_to_csv, results_dir
+from msr_analysis.registry import DMS3, EXT12, LABEL, MAIN_BENCHMARK_DATASETS, MODELS, TSU_CAPPED
 
 from . import base_parser, resolve_b
 
@@ -63,7 +63,7 @@ def _boot_sd(v: np.ndarray, cluster: np.ndarray, B: int = 1000, seed: int = 0) -
 
 
 def run_rmse_calibration_for_donor(donor: str, star_sets: set[str], B: int) -> None:
-    out = out_dir('07_rmse')
+    out = results_dir('rmse')
     sfx = '' if donor == 's461' else f'_{donor}'
     all_frames = {d: load_frame(d) for d in EXT12}
 
@@ -241,32 +241,32 @@ def _boot_len_corr(df: pd.DataFrame, col: str, B: int = 1000, seed: int = 0) -> 
 
 
 def run_sequence_length(B: int) -> None:
-    out = out_dir('09_sequence_length')
-    rows_s, per_prot = [], {}
-    for ds in ALL_DATASETS:
-        fr = load_frame(ds)
-        sp = fr.spine[fr.spine['use']]
-        L = sp.groupby('cluster')['seq_len'].mean()
-        per_prot[ds] = L
-        rows_s.append(dict(
-            dataset=ds, label=LABEL[ds], n_proteins=len(L), n_variants=int(len(sp)),
-            median_len=float(L.median()), min_len=float(L.min()), max_len=float(L.max()),
-            q25=float(L.quantile(0.25)), q75=float(L.quantile(0.75)),
-            variant_weighted_median_len=float(sp['seq_len'].median()),
-            n_multi=int((sp['n_mut'] > 1).sum()),
-        ))
-    atomic_to_csv(pd.DataFrame(rows_s), out / 'length_summary.csv', index=False, float_format='%.1f')
+    out = results_dir('sequence_length')
+    out_dms = results_dir('dms3')
 
-    # Sequence-length distribution figure
+    def _summarize_lengths(datasets: list[str]) -> tuple[list[dict], dict[str, pd.Series]]:
+        rows_out, prot_map = [], {}
+        for ds in datasets:
+            fr = load_frame(ds)
+            sp = fr.spine[fr.spine['use']]
+            L = sp.groupby('cluster')['seq_len'].mean()
+            prot_map[ds] = L
+            rows_out.append(dict(
+                dataset=ds, label=LABEL[ds], n_proteins=len(L), n_variants=int(len(sp)),
+                median_len=float(L.median()), min_len=float(L.min()), max_len=float(L.max()),
+                q25=float(L.quantile(0.25)), q75=float(L.quantile(0.75)),
+                variant_weighted_median_len=float(sp['seq_len'].median()),
+                n_multi=int((sp['n_mut'] > 1).sum()),
+            ))
+        return rows_out, prot_map
+
+    rows_main, per_prot = _summarize_lengths(MAIN_BENCHMARK_DATASETS)
+    atomic_to_csv(pd.DataFrame(rows_main), out / 'length_summary.csv', index=False, float_format='%.1f')
+    rows_dms, _ = _summarize_lengths(DMS3)
+    atomic_to_csv(pd.DataFrame(rows_dms), out_dms / 'length_summary.csv', index=False, float_format='%.1f')
+
+    # Sequence-length distribution figure (main non-DMS3 benchmarks only)
     order = EXT12 + ['domainome', TSU_CAPPED[1]]
-    dms_txt = ', '.join(
-        f'{n} {int(per_prot[d].iloc[0])}'
-        for n, d in (
-            ('DLG4', 'DLG4_HUMAN_Faure_2021_binding_domain'),
-            ('GRB2', 'GRB2_HUMAN_Faure_2021_binding_domain'),
-            ('MYO', 'MYO_HUMAN_Kung_2025_display'),
-        )
-    )
     fig_d, ax_d = plt.subplots(figsize=(10, 4.1))
     style.band_axis(ax_d, len(order))
     rng = np.random.default_rng(0)
@@ -284,7 +284,7 @@ def run_sequence_length(B: int) -> None:
     ax_d.set_xticklabels([LABEL[o] for o in order], rotation=30, ha='right')
     ax_d.set_ylabel('wild-type sequence length (residues)')
     ax_d.set_title('Protein sizes in the test sets (median and range above each column; black bar = median, line = IQR)', fontsize=10)
-    fig_d.text(0.01, -0.02, f'Single-protein DMS: {dms_txt} residues.  Grey: small domains (Domainome, Tsuboyama).', fontsize=8)
+    fig_d.text(0.01, -0.02, 'Blue: external thermostability sets; grey: small-domain benchmarks (Domainome, MegaScale test).', fontsize=8, color='#444444')
     style.save(fig_d, out / 'sequence_length_distribution')
 
     # Per-protein Spearman & recalibrated RMSE vs sequence length
@@ -321,6 +321,32 @@ def run_sequence_length(B: int) -> None:
                 ))
     D = pd.DataFrame(allrows)
     atomic_to_csv(D, out / 'per_protein_metrics.csv', index=False, float_format='%.4f')
+
+    # 3-DMS sequence-length metrics saved separately under 99_misc/dms3/
+    dms_metric_rows = []
+    dms_models = [('msr', 'ESM-MSR'), ('me2', 'MutateEverything'), ('tmpnnd', 'ThermoMPNN'), ('spursm', 'SPURS')]
+    for fam_tag, roster_name in dms_models:
+        for ds in DMS3:
+            fr = load_frame(ds)
+            k = calib.calibration_key(roster_name, fr)
+            if k is None or k not in fr.preds:
+                continue
+            sp = fr.spine
+            ok = _valid(fr, k)
+            y = sp['y'].to_numpy()
+            idx = np.flatnonzero(ok)
+            cl = sp['cluster'].to_numpy()[idx]
+            for c_nm in pd.unique(cl):
+                m_idx = idx[cl == c_nm]
+                if len(m_idx) < MIN_PROT_N:
+                    continue
+                rhos = [spearmanr(p[m_idx], y[m_idx])[0] for p in fr.preds[k]]
+                dms_metric_rows.append(dict(
+                    dataset=ds, cluster=c_nm, length=float(sp['seq_len'].to_numpy()[m_idx].mean()),
+                    n=len(m_idx), rho=float(np.mean(rhos)), rmse_raw=np.nan, rmse=np.nan,
+                    model=fam_tag,
+                ))
+    atomic_to_csv(pd.DataFrame(dms_metric_rows), out_dms / 'length_per_protein_metrics.csv', index=False, float_format='%.4f')
 
     fig_p, axes_p = plt.subplots(len(LEN_MODELS), 2, figsize=(9.2, 2.3 * len(LEN_MODELS)), sharex=True)
     stats = []

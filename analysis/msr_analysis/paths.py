@@ -337,13 +337,14 @@ def source_signature(paths: Iterable[str | Path]) -> tuple[tuple[str, int, int],
 
 
 def atomic_write_bytes(path: str | Path, data: bytes) -> Path:
-    """Write ``data`` to ``path`` via temp-file + ``os.replace`` so symlinks are never written through."""
+    """Write ``data`` to ``path`` via temp-file + ``os.chmod(0o644)`` + ``os.replace`` so symlinks are never written through."""
     dst = Path(path)
     dst.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=dst.parent, prefix=f'.{dst.name}.', suffix='.tmp')
     try:
         with os.fdopen(fd, 'wb') as fh:
             fh.write(data)
+        os.chmod(tmp_name, 0o644)
         os.replace(tmp_name, dst)
     except BaseException:
         if os.path.exists(tmp_name):
@@ -353,18 +354,19 @@ def atomic_write_bytes(path: str | Path, data: bytes) -> Path:
 
 
 def atomic_write_text(path: str | Path, text: str, encoding: str = 'utf-8') -> Path:
-    """Atomically write UTF-8 text to ``path`` without mutating symlink targets."""
+    """Atomically write UTF-8 text to ``path`` (mode ``0644``) without mutating symlink targets."""
     return atomic_write_bytes(path, text.encode(encoding))
 
 
 def atomic_pickle_dump(obj, path: str | Path, protocol: int = 4) -> Path:
-    """Atomically serialize ``obj`` to ``path`` via temp-file + ``os.replace``."""
+    """Atomically serialize ``obj`` to ``path`` via temp-file + ``os.chmod(0o644)`` + ``os.replace``."""
     dst = Path(path)
     dst.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=dst.parent, prefix=f'.{dst.name}.', suffix='.tmp')
     try:
         with os.fdopen(fd, 'wb') as fh:
             pickle.dump(obj, fh, protocol=protocol)
+        os.chmod(tmp_name, 0o644)
         os.replace(tmp_name, dst)
     except BaseException:
         if os.path.exists(tmp_name):
@@ -374,13 +376,14 @@ def atomic_pickle_dump(obj, path: str | Path, protocol: int = 4) -> Path:
 
 
 def atomic_to_csv(df, path: str | Path, **kwargs) -> Path:
-    """Atomically write a pandas DataFrame to CSV via temp-file + ``os.replace``."""
+    """Atomically write a pandas DataFrame to CSV via temp-file + ``os.chmod(0o644)`` + ``os.replace``."""
     dst = Path(path)
     dst.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=dst.parent, prefix=f'.{dst.name}.', suffix='.tmp')
     os.close(fd)
     try:
         df.to_csv(tmp_name, **kwargs)
+        os.chmod(tmp_name, 0o644)
         os.replace(tmp_name, dst)
     except BaseException:
         if os.path.exists(tmp_name):

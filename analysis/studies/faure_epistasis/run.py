@@ -25,7 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     B = 100 if args.fast else int(args.B)
     nperm = 50 if args.fast else 200
 
-    out = results_dir('studies/faure_epistasis')
+    out = results_dir('faure_epistasis')
     run_proximity(out, refresh=args.refresh)
     run_snr(out, refresh=False)
     _c_df, sig_df, cmp_df = run_ceiling_and_significance(out, B=B, nperm=nperm)

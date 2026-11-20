@@ -43,6 +43,13 @@ FINAL_p0_rcthr0,tsuboyama_capped_test|cell_mag,primary,0.21923,3,"1,2,3",0.00744
 FINAL_p0_rcthr0,ext_singles_mean,primary,0.65299,3,"1,2,3",-0.00138,0.00379,0.00146,0.00146,False
 FINAL_p0_rcthr0,ext_multi_mean,primary,0.60044,3,"1,2,3",0.00639,0.00408,0.00670,0.00670,False
 FINAL_p0_rcthr0,domainome|lowid,primary,0.54091,3,"1,2,3",0.00137,0.00320,0.00045,0.00045,True
+FINAL_p0_mse,tsuboyama_capped_test,primary,0.84255,1,3,-0.00255,0.00252,0.00149,0.00149,False
+FINAL_p0_mse,tsuboyama_capped_test|multi,primary,0.77403,1,3,-0.00317,0.00632,0.00577,0.00577,False
+FINAL_p0_mse,tsuboyama_capped_test|beyond_rho,primary,0.47202,1,3,-0.01529,0.02945,0.01916,0.01916,False
+FINAL_p0_mse,tsuboyama_capped_test|cell_mag,primary,0.22224,1,3,0.01045,0.01171,0.01469,0.01469,False
+FINAL_p0_mse,ext_singles_mean,primary,0.65399,1,3,-0.00038,0.00470,0.00262,0.00262,False
+FINAL_p0_mse,ext_multi_mean,primary,0.59118,1,3,-0.00288,0.00845,0.00485,0.00485,False
+FINAL_p0_mse,domainome|lowid,primary,0.53671,1,3,-0.00283,0.00523,0.00186,0.00186,False
 FINAL_p0_noseqhwm,tsuboyama_capped_test,primary,0.84199,3,"1,2,3",-0.00311,0.00081,0.00253,0.00253,False
 FINAL_p0_noseqhwm,tsuboyama_capped_test|multi,primary,0.76255,3,"1,2,3",-0.01466,0.00370,0.01243,0.01243,False
 FINAL_p0_noseqhwm,tsuboyama_capped_test|beyond_rho,primary,0.46629,3,"1,2,3",-0.02101,0.01903,0.03248,0.03248,False

@@ -17,7 +17,7 @@ for _p in (str(_REPO_ROOT), str(_REPO_ROOT / 'src'), str(_ANALYSIS_DIR)):
         sys.path.insert(0, _p)
 
 from analysis import run as cli_run  # noqa: E402
-from msr_analysis.paths import REFERENCE  # noqa: E402
+from msr_analysis.paths import CANONICAL_RESULT_TOPS, REFERENCE, RESULTS, VALIDATION_VS_BENCHMARKS_CSV  # noqa: E402
 
 PIPELINE_MODULES = (
     'p01_benchmarks_external',
@@ -136,4 +136,114 @@ def test_p12_manifest_table_coverage_without_disk_mutation(monkeypatch):
     assert len(map_df) == 27
     assert (map_df['status'] == 'drawn').all()
     assert len(inv_df) > 100
+    assert (inv_df['owner'] != 'other').all()
+    assert set(inv_df['top_folder']) <= set(CANONICAL_RESULT_TOPS) | {'(root)'}
     assert {'table_figure_map.csv', 'manifest_outputs.csv'} == set(written)
+    assert VALIDATION_VS_BENCHMARKS_CSV.exists()
+
+
+def test_results_directory_reorganization_invariants():
+    import re
+    import stat
+
+    # 1. 00_core retired completely; top-level folders strictly match CANONICAL_RESULT_TOPS
+    assert not (RESULTS / '00_core').exists()
+    assert list(RESULTS.rglob('*00_core*')) == []
+    actual_tops = tuple(sorted(p.name for p in RESULTS.iterdir() if p.is_dir()))
+    assert actual_tops == CANONICAL_RESULT_TOPS
+
+    # 2. Zero legacy numbered folders inside 01_megascale/mega_splits
+    mega_dirs = [p.name for p in (RESULTS / '01_megascale' / 'mega_splits').iterdir() if p.is_dir()]
+    assert sorted(mega_dirs) == ['epistasis', 'gain_fit', 'provenance', 'screening']
+
+    # 3. Zero ^fig(?:\d+[a-z]*)?_ prefixes outside 00_main_text_figs and 00_supplementary_figs
+    fig_re = re.compile(r'^fig(?:\d+[a-z]*)?_')
+    bad_fig_names = [
+        str(p.relative_to(RESULTS))
+        for p in RESULTS.rglob('*')
+        if p.relative_to(RESULTS).parts[0] not in ('00_main_text_figs', '00_supplementary_figs')
+        and fig_re.match(p.name)
+    ]
+    assert bad_fig_names == [], f'Unexpected fig-prefixed paths: {bad_fig_names}'
+
+    # 4. 00_for_reviewers/reference contains ONLY reference items (zero leak_* or clean_means*)
+    ref_files = sorted(p.name for p in (RESULTS / '00_for_reviewers' / 'reference').iterdir())
+    assert ref_files == [
+        'published_reference.pdf',
+        'published_reference.png',
+        'spurs_published_vs_retrained.csv',
+        'spurs_published_vs_retrained.pdf',
+        'spurs_published_vs_retrained.png',
+        'validation_vs_benchmarks.csv',
+    ]
+
+    # 5. Required canonical subfolders & absorbed files exist
+    for rel_dir in (
+        '01_megascale/epistasis',
+        '01_megascale/epistasis/pair_heatmaps',
+        '01_megascale/gain_fit',
+        '01_megascale/screening',
+        '01_megascale/screening/property_gain',
+        '02_thermostability/rmse',
+        '02_thermostability/screening',
+        '03_proteingym/screening',
+        '04_domainome/screening',
+        '07_screening_overview',
+        '09_ablation',
+        '10_inference_resources',
+        '99_misc/dms3',
+        '99_misc/dual_view',
+        '99_misc/esm_msr_vs_esm3dg',
+        '99_misc/faure_epistasis',
+        '99_misc/rosetta_multi_vs_additive',
+        '99_misc/sigma_mechanisms',
+    ):
+        assert (RESULTS / rel_dir).is_dir(), f'Missing canonical subfolder: {rel_dir}'
+    for rel_file in (
+        '00_supplementary_figs/pg_ours_vs_published.csv',
+        '00_supplementary_figs/pg_ours_vs_published.pdf',
+        '00_supplementary_figs/pg_ours_vs_published.png',
+        '04_domainome/screening/domainome_screening_curves.pdf',
+        '04_domainome/screening/domainome_screening_curves.png',
+        '09_ablation/ablation_architecture_suite.pdf',
+        '09_ablation/ablation_architecture_suite.png',
+        '09_ablation/paired_vs_p0.csv',
+    ):
+        assert (RESULTS / rel_file).is_file(), f'Missing canonical file: {rel_file}'
+
+    # 6. Zero 3-DMS leaks outside 99_misc/ and 00_for_reviewers/reference/
+    dms_leak_re = re.compile(
+        r'(GB1_Wu_2016|GRB2_HUMAN_Faure_2021_binding_domain|DLG4_HUMAN_Faure_2021_binding_domain|'
+        r'GRB2_HUMAN_Faure_2021_abundance_domain|DLG4_HUMAN_Faure_2021_abundance_domain|'
+        r'MYO_HUMAN_Kung_2025|ESTA_BACSU_Nutschel_2020_dTm|\bdms3\b|(?<!pg\|)\bdms_mean\b|'
+        r'\bdms_multi_mean\b|DMS \(3\)|DLG4 bind\.|GRB2 bind\.)'
+    )
+    leaks = []
+    for p in sorted(RESULTS.rglob('*')):
+        rel = p.relative_to(RESULTS)
+        if (
+            rel.parts[0] == '99_misc'
+            or str(rel).startswith('00_for_reviewers/reference/')
+            or str(rel) in ('manifest_outputs.csv', 'table_figure_map.csv')
+        ):
+            continue
+        if dms_leak_re.search(str(rel)):
+            leaks.append(f'filename:{rel}')
+        if p.is_file() and p.suffix.lower() in ('.csv', '.md', '.tex', '.txt'):
+            m = dms_leak_re.search(p.read_text(encoding='utf-8', errors='ignore'))
+            if m:
+                leaks.append(f'{rel}:{m.group(0)}')
+    assert leaks == [], f'3-DMS leaks found outside 99_misc / 00_for_reviewers/reference: {leaks}'
+
+    mp_pg = pd.read_csv(RESULTS / '03_proteingym' / 'multi_property_index.csv')
+    assert not mp_pg['protein'].isin(['DLG4_HUMAN', 'GRB2_HUMAN']).any()
+    mp_dms = pd.read_csv(RESULTS / '99_misc' / 'dms3' / 'dms_multi_property_index.csv')
+    assert set(mp_dms['protein']) == {'DLG4_HUMAN', 'GRB2_HUMAN'}
+
+    # 7. All regular files in analysis/results/ have 0644 permissions
+    bad_modes = [
+        (str(p.relative_to(RESULTS)), oct(stat.S_IMODE(p.stat().st_mode)))
+        for p in RESULTS.rglob('*')
+        if p.is_file() and not p.is_symlink() and stat.S_IMODE(p.stat().st_mode) != 0o644
+    ]
+    assert bad_modes == [], f'Non-0644 files under results/: {bad_modes[:10]}'

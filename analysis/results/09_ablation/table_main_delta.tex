@@ -13,7 +13,8 @@ no pair loss & block\_pair\_weight 0.38 $\to$ 0 & $-$0.002 & $-$0.009 & $-$0.071
 no rank loss & lambda\_rank\_wt/mt 0.5 $\to$ 0 & $-$0.005 & $-$0.012 & $-$0.045 & $-$0.016 & +0.003 & 0.000 & +0.002 & -- \\
 rank censor 0 & rank\_censor\_threshold -1 $\to$ 0 & $-$0.001 & $-$0.005 & $-$0.051 & +0.007 & $-$0.001 & +0.006 & \textbf{+0.001} & -- \\
 no range-tagged cells & Tobit regression without the assay's range-tagged ($<$-1 / $>$5) cells & -- & -- & -- & -- & -- & -- & -- & -- \\
-MSE (no range-tagged) & Tobit NLL $\to$ plain MSE on ddG, range-tagged cells excluded & -- & -- & -- & -- & -- & -- & -- & -- \\
+MSE (no range-tagged) & Tobit NLL $\to$ plain MSE on ddG, range-tagged cells excluded & $-$0.003 & $-$0.003 & $-$0.015 & +0.010 & 0.000 & $-$0.003 & $-$0.003 & -- \\
+deep floor (-1, 1) & Tobit floor mu\_f/sigma\_f -0.14/0.5 $\to$ -1.0/1.0 (also the posterior teacher-forcing label); sigma\_y unchanged & -- & -- & -- & -- & -- & -- & -- & -- \\
 \midrule
 \multicolumn{10}{l}{\textit{Architecture}} \\
 no seq. head & incl\_sequence\_head\_wt/mt True $\to$ False & $-$0.003 & $-$0.015 & $-$0.021 & $-$0.003 & +0.001 & $-$0.007 & \textbf{+0.005} & -- \\

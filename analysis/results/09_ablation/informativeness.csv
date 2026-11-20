@@ -1,119 +1,119 @@
 column,head,n_families,spread,noise,snr,best,range
-s8754,comb,7,0.01130,0.00260,7.66740,no rank loss,0.02860
-q3421,comb,7,0.01250,0.00380,5.74990,no rank loss,0.02910
-k3822,comb,7,0.00800,0.00250,5.50090,no pair loss,0.01950
-tsuboyama_capped_test|multi,comb,7,0.01730,0.00560,5.33610,rank censor 0,0.05050
-k2369,comb,7,0.00680,0.00230,5.16610,no pair loss,0.01810
-s2648,comb,7,0.01330,0.00450,5.12040,no rank loss,0.03120
-ext_singles_mean,comb,7,0.00670,0.00250,4.67500,no pair loss,0.01640
-ptmuld,comb,7,0.01400,0.00740,3.30550,no pair loss,0.03830
-ext_multi_mean,comb,7,0.01530,0.00830,3.21990,rank censor 0,0.04010
-ptmul,comb,7,0.01700,0.00950,3.08850,rank censor 0,0.04330
-s669,comb,7,0.00650,0.00380,2.95200,MT LoRA r2,0.01720
-tsuboyama_capped_val|singles,comb,7,0.00270,0.00160,2.85710,p1 masked,0.00740
-tsuboyama_capped_val,comb,7,0.00290,0.00180,2.77360,p1 masked,0.00850
-s461,comb,7,0.00500,0.00360,2.44090,no pair loss,0.01280
-tsuboyama_capped_test,comb,7,0.00350,0.00250,2.42540,rank censor 0,0.00860
-ssym,comb,7,0.00630,0.00550,1.97580,MT LoRA r2,0.01560
-s571,comb,7,0.00470,0.00460,1.76620,p1 masked,0.01530
-tsuboyama_capped_test|singles,comb,7,0.00230,0.00220,1.76350,rank censor 0,0.00580
-tsuboyama_capped_val|multi,comb,7,0.00730,0.00880,1.43650,p1 masked,0.02150
-s783,comb,7,0.00340,0.00550,1.05480,no pair loss,0.00950
-tsuboyama_capped_val|cell_rank,epi,7,0.05700,0.00400,24.54250,p1 masked,0.17300
-tsuboyama_capped_test|cell_rank,epi,7,0.06130,0.00700,15.09080,p1 masked,0.17590
-tsuboyama_capped_test|cell_mag,epi,7,0.08610,0.01140,13.04950,p1 masked,0.24480
-tsuboyama_capped_val|cell_mag,epi,7,0.10630,0.01550,11.85260,p1 masked,0.32010
-tsuboyama_capped_val|dddG,epi,7,0.05330,0.03660,2.51730,no rank loss,0.14250
-tsuboyama_capped_val|naive_rho,epi,7,0.05330,0.03660,2.51730,no rank loss,0.14250
-tsuboyama_capped_test|beyond_rho,epi,7,0.02960,0.02650,1.93720,p1 masked,0.08600
-tsuboyama_capped_val|beyond_rho,epi,7,0.01780,0.02350,1.31170,MT LoRA r2,0.04910
-tsuboyama_capped_test|dddG,epi,7,0.01120,0.01910,1.01620,no seq. head,0.03410
-tsuboyama_capped_test|naive_rho,epi,7,0.01120,0.01910,1.01620,no seq. head,0.03410
-tsuboyama_capped_test|multi,mt,7,0.03880,0.01210,5.54720,no pair loss,0.11650
-tsuboyama_capped_val|singles,mt,7,0.00600,0.00200,5.26390,p1 MT marginal,0.01710
-q3421,mt,7,0.01190,0.00470,4.35750,no pair loss,0.02960
-s8754,mt,7,0.01080,0.00440,4.24860,no pair loss,0.02590
-tsuboyama_capped_val,mt,7,0.00800,0.00350,4.00640,p1 MT marginal,0.02300
-s669,mt,7,0.00990,0.00430,4.00630,MT LoRA r2,0.02520
-s2648,mt,7,0.01190,0.00520,3.92050,no pair loss,0.03140
-s571,mt,7,0.01320,0.00740,3.10340,p1 masked,0.04160
-tsuboyama_capped_test,mt,7,0.00780,0.00440,3.07250,no pair loss,0.01940
-ext_singles_mean,mt,7,0.00410,0.00270,2.63910,no pair loss,0.00970
-ptmul,mt,7,0.01750,0.01370,2.22250,no pair loss,0.04940
-k2369,mt,7,0.00520,0.00400,2.22230,no pair loss,0.01540
-tsuboyama_capped_test|singles,mt,7,0.00400,0.00320,2.21090,p1 MT marginal,0.01290
-ext_multi_mean,mt,7,0.01310,0.01180,1.92120,no pair loss,0.03880
-tsuboyama_capped_val|multi,mt,7,0.01320,0.01300,1.75890,p1 MT marginal,0.03860
-k3822,mt,7,0.00530,0.00530,1.74800,no pair loss,0.01610
-ssym,mt,7,0.00840,0.00870,1.66520,MT LoRA r2,0.02460
-s461,mt,7,0.00710,0.00750,1.65710,p1 masked,0.01680
-s783,mt,7,0.00480,0.00510,1.63340,no pair loss,0.01390
-ptmuld,mt,7,0.00970,0.01050,1.59220,no pair loss,0.02820
-tsuboyama_capped_val|cell_rank,primary,7,0.05700,0.00400,24.54250,p1 masked,0.17300
-tsuboyama_capped_test|cell_rank,primary,7,0.06130,0.00700,15.09080,p1 masked,0.17590
-tsuboyama_capped_test|cell_mag,primary,7,0.08610,0.01140,13.04950,p1 masked,0.24480
-tsuboyama_capped_val|cell_mag,primary,7,0.10630,0.01550,11.85260,p1 masked,0.32010
-tsuboyama_capped_test|multi,primary,7,0.01730,0.00560,5.33610,rank censor 0,0.05050
-ptmuld,primary,7,0.01400,0.00740,3.30550,no pair loss,0.03830
-s8754,primary,7,0.00780,0.00420,3.24970,no rank loss,0.02370
-ext_multi_mean,primary,7,0.01530,0.00830,3.21990,rank censor 0,0.04010
-ptmul,primary,7,0.01700,0.00950,3.08850,rank censor 0,0.04330
-s461,primary,7,0.00860,0.00530,2.80610,no pair loss,0.02010
-tsuboyama_capped_val|singles,primary,7,0.00360,0.00220,2.77980,p1 masked,0.01020
-tsuboyama_capped_val,primary,7,0.00290,0.00180,2.77360,p1 masked,0.00850
-q3421,primary,7,0.00820,0.00510,2.76570,no rank loss,0.02280
-k3822,primary,7,0.00700,0.00440,2.76190,no rank loss,0.01730
-s2648,primary,7,0.00920,0.00630,2.54440,no rank loss,0.02630
-tsuboyama_capped_val|dddG,primary,7,0.05330,0.03660,2.51730,no rank loss,0.14250
-tsuboyama_capped_val|naive_rho,primary,7,0.05330,0.03660,2.51730,no rank loss,0.14250
-k2369,primary,7,0.00580,0.00400,2.49330,no pair loss,0.01500
-tsuboyama_capped_test,primary,7,0.00350,0.00250,2.42540,rank censor 0,0.00860
-ext_singles_mean,primary,7,0.00500,0.00410,2.07780,no rank loss,0.01360
-tsuboyama_capped_test|beyond_rho,primary,7,0.02960,0.02650,1.93720,p1 masked,0.08600
-s571,primary,7,0.00460,0.00440,1.81500,no seq. head,0.01260
-tsuboyama_capped_val|multi,primary,7,0.00730,0.00880,1.43650,p1 masked,0.02150
-tsuboyama_capped_test|singles,primary,7,0.00200,0.00250,1.37860,rank censor 0,0.00530
-tsuboyama_capped_val|beyond_rho,primary,7,0.01780,0.02350,1.31170,MT LoRA r2,0.04910
-ssym,primary,7,0.00450,0.00750,1.04430,no rank loss,0.01330
-tsuboyama_capped_test|dddG,primary,7,0.01120,0.01910,1.01620,no seq. head,0.03410
-tsuboyama_capped_test|naive_rho,primary,7,0.01120,0.01910,1.01620,no seq. head,0.03410
-s669,primary,7,0.00310,0.00580,0.91830,no seq. head,0.00880
-domainome,primary,7,0.00170,0.00470,0.62140,no seq. head,0.00540
-domainome|lowid,primary,7,0.00170,0.00470,0.62140,no seq. head,0.00540
-s783,primary,7,0.00210,0.00710,0.51910,no rank loss,0.00550
-pg|OrganismalFitness,wt,7,0.00540,0.00280,3.33410,rank censor 0,0.01340
-s8754,wt,7,0.00780,0.00420,3.24970,no rank loss,0.02370
-s461,wt,7,0.00860,0.00530,2.80610,no pair loss,0.02010
-tsuboyama_capped_val|singles,wt,7,0.00360,0.00220,2.77980,p1 masked,0.01020
-q3421,wt,7,0.00820,0.00510,2.76570,no rank loss,0.02280
-k3822,wt,7,0.00700,0.00440,2.76190,no rank loss,0.01730
-pg|Expression,wt,7,0.00180,0.00110,2.65980,no seq. head,0.00550
-s2648,wt,7,0.00920,0.00630,2.54440,no rank loss,0.02630
-k2369,wt,7,0.00580,0.00400,2.49330,no pair loss,0.01500
-ptmuld,wt,7,0.01000,0.00690,2.48640,no rank loss,0.03000
-tsuboyama_capped_val,wt,7,0.00350,0.00260,2.31920,p1 masked,0.00950
-ext_multi_mean,wt,7,0.01190,0.00930,2.20950,no rank loss,0.03110
-pg|avg,wt,7,0.00240,0.00190,2.16930,rank censor 0,0.00620
-pg|avg_lowid,wt,7,0.00240,0.00190,2.16930,rank censor 0,0.00620
-ext_singles_mean,wt,7,0.00500,0.00410,2.07780,no rank loss,0.01360
-ptmul,wt,7,0.01440,0.01220,2.04090,rank censor 0,0.03580
-pg|Activity,wt,7,0.00360,0.00310,2.01400,rank censor 0,0.00930
-s571,wt,7,0.00460,0.00440,1.81500,no seq. head,0.01260
-tsuboyama_capped_val|multi,wt,7,0.00860,0.00870,1.71490,p1 masked,0.02170
-tsuboyama_capped_test|multi,wt,7,0.00610,0.00630,1.68390,rank censor 0,0.01490
-tsuboyama_capped_test|singles,wt,7,0.00200,0.00250,1.37860,rank censor 0,0.00530
-pg|Stability,wt,7,0.00150,0.00190,1.32130,rank censor 0,0.00410
-pg|Stability_lowid,wt,7,0.00150,0.00190,1.32130,rank censor 0,0.00410
-pg|Binding,wt,7,0.00190,0.00310,1.08060,no seq. head,0.00480
-ssym,wt,7,0.00450,0.00750,1.04430,no rank loss,0.01330
-tsuboyama_capped_test,wt,7,0.00170,0.00320,0.92530,rank censor 0,0.00480
-s669,wt,7,0.00310,0.00580,0.91830,no seq. head,0.00880
-domainome,wt,7,0.00170,0.00470,0.62140,no seq. head,0.00540
-domainome|lowid,wt,7,0.00170,0.00470,0.62140,no seq. head,0.00540
-s783,wt,7,0.00210,0.00710,0.51910,no rank loss,0.00550
-tsuboyama_capped_val|singles,wt+,7,0.00360,0.00220,2.77980,p1 masked,0.01020
-tsuboyama_capped_val,wt+,7,0.00350,0.00260,2.32630,p1 masked,0.00950
-tsuboyama_capped_val|multi,wt+,7,0.00820,0.00870,1.63520,p1 masked,0.02070
-tsuboyama_capped_test|multi,wt+,7,0.00570,0.00630,1.57750,rank censor 0,0.01410
-tsuboyama_capped_test|singles,wt+,7,0.00200,0.00250,1.37860,rank censor 0,0.00530
-tsuboyama_capped_test,wt+,7,0.00170,0.00310,0.94770,rank censor 0,0.00480
+s8754,comb,7,0.0113,0.0026,7.6674,no rank loss,0.0286
+q3421,comb,7,0.0125,0.0038,5.7499,no rank loss,0.0291
+k3822,comb,7,0.0080,0.0025,5.5009,no pair loss,0.0195
+tsuboyama_capped_test|multi,comb,7,0.0173,0.0056,5.3361,rank censor 0,0.0505
+k2369,comb,7,0.0068,0.0023,5.1661,no pair loss,0.0181
+s2648,comb,7,0.0133,0.0045,5.1204,no rank loss,0.0312
+ext_singles_mean,comb,7,0.0067,0.0025,4.6750,no pair loss,0.0164
+ptmuld,comb,7,0.0140,0.0074,3.3055,no pair loss,0.0383
+ext_multi_mean,comb,7,0.0153,0.0083,3.2199,rank censor 0,0.0401
+ptmul,comb,7,0.0170,0.0095,3.0885,rank censor 0,0.0433
+s669,comb,7,0.0065,0.0038,2.9520,MT LoRA r2,0.0172
+tsuboyama_capped_val|singles,comb,7,0.0027,0.0016,2.8571,p1 masked,0.0074
+tsuboyama_capped_val,comb,7,0.0029,0.0018,2.7736,p1 masked,0.0085
+s461,comb,7,0.0050,0.0036,2.4409,no pair loss,0.0128
+tsuboyama_capped_test,comb,7,0.0035,0.0025,2.4254,rank censor 0,0.0086
+ssym,comb,7,0.0063,0.0055,1.9758,MT LoRA r2,0.0156
+s571,comb,7,0.0047,0.0046,1.7662,p1 masked,0.0153
+tsuboyama_capped_test|singles,comb,7,0.0023,0.0022,1.7635,rank censor 0,0.0058
+tsuboyama_capped_val|multi,comb,7,0.0073,0.0088,1.4365,p1 masked,0.0215
+s783,comb,7,0.0034,0.0055,1.0548,no pair loss,0.0095
+tsuboyama_capped_val|cell_rank,epi,7,0.0570,0.0040,24.5425,p1 masked,0.1730
+tsuboyama_capped_test|cell_rank,epi,7,0.0613,0.0070,15.0908,p1 masked,0.1759
+tsuboyama_capped_test|cell_mag,epi,7,0.0861,0.0114,13.0495,p1 masked,0.2448
+tsuboyama_capped_val|cell_mag,epi,7,0.1063,0.0155,11.8526,p1 masked,0.3201
+tsuboyama_capped_val|dddG,epi,7,0.0533,0.0366,2.5173,no rank loss,0.1425
+tsuboyama_capped_val|naive_rho,epi,7,0.0533,0.0366,2.5173,no rank loss,0.1425
+tsuboyama_capped_test|beyond_rho,epi,7,0.0296,0.0265,1.9372,p1 masked,0.0860
+tsuboyama_capped_val|beyond_rho,epi,7,0.0178,0.0235,1.3117,MT LoRA r2,0.0491
+tsuboyama_capped_test|dddG,epi,7,0.0112,0.0191,1.0162,no seq. head,0.0341
+tsuboyama_capped_test|naive_rho,epi,7,0.0112,0.0191,1.0162,no seq. head,0.0341
+tsuboyama_capped_test|multi,mt,7,0.0388,0.0121,5.5472,no pair loss,0.1165
+tsuboyama_capped_val|singles,mt,7,0.0060,0.0020,5.2639,p1 MT marginal,0.0171
+q3421,mt,7,0.0119,0.0047,4.3575,no pair loss,0.0296
+s8754,mt,7,0.0108,0.0044,4.2486,no pair loss,0.0259
+tsuboyama_capped_val,mt,7,0.0080,0.0035,4.0064,p1 MT marginal,0.0230
+s669,mt,7,0.0099,0.0043,4.0063,MT LoRA r2,0.0252
+s2648,mt,7,0.0119,0.0052,3.9205,no pair loss,0.0314
+s571,mt,7,0.0132,0.0074,3.1034,p1 masked,0.0416
+tsuboyama_capped_test,mt,7,0.0078,0.0044,3.0725,no pair loss,0.0194
+ext_singles_mean,mt,7,0.0041,0.0027,2.6391,no pair loss,0.0097
+ptmul,mt,7,0.0175,0.0137,2.2225,no pair loss,0.0494
+k2369,mt,7,0.0052,0.0040,2.2223,no pair loss,0.0154
+tsuboyama_capped_test|singles,mt,7,0.0040,0.0032,2.2109,p1 MT marginal,0.0129
+ext_multi_mean,mt,7,0.0131,0.0118,1.9212,no pair loss,0.0388
+tsuboyama_capped_val|multi,mt,7,0.0132,0.0130,1.7589,p1 MT marginal,0.0386
+k3822,mt,7,0.0053,0.0053,1.7480,no pair loss,0.0161
+ssym,mt,7,0.0084,0.0087,1.6652,MT LoRA r2,0.0246
+s461,mt,7,0.0071,0.0075,1.6571,p1 masked,0.0168
+s783,mt,7,0.0048,0.0051,1.6334,no pair loss,0.0139
+ptmuld,mt,7,0.0097,0.0105,1.5922,no pair loss,0.0282
+tsuboyama_capped_val|cell_rank,primary,7,0.0570,0.0040,24.5425,p1 masked,0.1730
+tsuboyama_capped_test|cell_rank,primary,7,0.0613,0.0070,15.0908,p1 masked,0.1759
+tsuboyama_capped_test|cell_mag,primary,7,0.0861,0.0114,13.0495,p1 masked,0.2448
+tsuboyama_capped_val|cell_mag,primary,7,0.1063,0.0155,11.8526,p1 masked,0.3201
+tsuboyama_capped_test|multi,primary,7,0.0173,0.0056,5.3361,rank censor 0,0.0505
+ptmuld,primary,7,0.0140,0.0074,3.3055,no pair loss,0.0383
+s8754,primary,7,0.0078,0.0042,3.2497,no rank loss,0.0237
+ext_multi_mean,primary,7,0.0153,0.0083,3.2199,rank censor 0,0.0401
+ptmul,primary,7,0.0170,0.0095,3.0885,rank censor 0,0.0433
+s461,primary,7,0.0086,0.0053,2.8061,no pair loss,0.0201
+tsuboyama_capped_val|singles,primary,7,0.0036,0.0022,2.7798,p1 masked,0.0102
+tsuboyama_capped_val,primary,7,0.0029,0.0018,2.7736,p1 masked,0.0085
+q3421,primary,7,0.0082,0.0051,2.7657,no rank loss,0.0228
+k3822,primary,7,0.0070,0.0044,2.7619,no rank loss,0.0173
+s2648,primary,7,0.0092,0.0063,2.5444,no rank loss,0.0263
+tsuboyama_capped_val|dddG,primary,7,0.0533,0.0366,2.5173,no rank loss,0.1425
+tsuboyama_capped_val|naive_rho,primary,7,0.0533,0.0366,2.5173,no rank loss,0.1425
+k2369,primary,7,0.0058,0.0040,2.4933,no pair loss,0.0150
+tsuboyama_capped_test,primary,7,0.0035,0.0025,2.4254,rank censor 0,0.0086
+ext_singles_mean,primary,7,0.0050,0.0041,2.0778,no rank loss,0.0136
+tsuboyama_capped_test|beyond_rho,primary,7,0.0296,0.0265,1.9372,p1 masked,0.0860
+s571,primary,7,0.0046,0.0044,1.8150,no seq. head,0.0126
+tsuboyama_capped_val|multi,primary,7,0.0073,0.0088,1.4365,p1 masked,0.0215
+tsuboyama_capped_test|singles,primary,7,0.0020,0.0025,1.3786,rank censor 0,0.0053
+tsuboyama_capped_val|beyond_rho,primary,7,0.0178,0.0235,1.3117,MT LoRA r2,0.0491
+ssym,primary,7,0.0045,0.0075,1.0443,no rank loss,0.0133
+tsuboyama_capped_test|dddG,primary,7,0.0112,0.0191,1.0162,no seq. head,0.0341
+tsuboyama_capped_test|naive_rho,primary,7,0.0112,0.0191,1.0162,no seq. head,0.0341
+s669,primary,7,0.0031,0.0058,0.9183,no seq. head,0.0088
+domainome,primary,7,0.0017,0.0047,0.6214,no seq. head,0.0054
+domainome|lowid,primary,7,0.0017,0.0047,0.6214,no seq. head,0.0054
+s783,primary,7,0.0021,0.0071,0.5191,no rank loss,0.0055
+pg|OrganismalFitness,wt,7,0.0054,0.0028,3.3341,rank censor 0,0.0134
+s8754,wt,7,0.0078,0.0042,3.2497,no rank loss,0.0237
+s461,wt,7,0.0086,0.0053,2.8061,no pair loss,0.0201
+tsuboyama_capped_val|singles,wt,7,0.0036,0.0022,2.7798,p1 masked,0.0102
+q3421,wt,7,0.0082,0.0051,2.7657,no rank loss,0.0228
+k3822,wt,7,0.0070,0.0044,2.7619,no rank loss,0.0173
+pg|Expression,wt,7,0.0018,0.0011,2.6598,no seq. head,0.0055
+s2648,wt,7,0.0092,0.0063,2.5444,no rank loss,0.0263
+k2369,wt,7,0.0058,0.0040,2.4933,no pair loss,0.0150
+ptmuld,wt,7,0.0100,0.0069,2.4864,no rank loss,0.0300
+tsuboyama_capped_val,wt,7,0.0035,0.0026,2.3192,p1 masked,0.0095
+ext_multi_mean,wt,7,0.0119,0.0093,2.2095,no rank loss,0.0311
+pg|avg,wt,7,0.0024,0.0019,2.1693,rank censor 0,0.0062
+pg|avg_lowid,wt,7,0.0024,0.0019,2.1693,rank censor 0,0.0062
+ext_singles_mean,wt,7,0.0050,0.0041,2.0778,no rank loss,0.0136
+ptmul,wt,7,0.0144,0.0122,2.0409,rank censor 0,0.0358
+pg|Activity,wt,7,0.0036,0.0031,2.0140,rank censor 0,0.0093
+s571,wt,7,0.0046,0.0044,1.8150,no seq. head,0.0126
+tsuboyama_capped_val|multi,wt,7,0.0086,0.0087,1.7149,p1 masked,0.0217
+tsuboyama_capped_test|multi,wt,7,0.0061,0.0063,1.6839,rank censor 0,0.0149
+tsuboyama_capped_test|singles,wt,7,0.0020,0.0025,1.3786,rank censor 0,0.0053
+pg|Stability,wt,7,0.0015,0.0019,1.3213,rank censor 0,0.0041
+pg|Stability_lowid,wt,7,0.0015,0.0019,1.3213,rank censor 0,0.0041
+pg|Binding,wt,7,0.0019,0.0031,1.0806,no seq. head,0.0048
+ssym,wt,7,0.0045,0.0075,1.0443,no rank loss,0.0133
+tsuboyama_capped_test,wt,7,0.0017,0.0032,0.9253,rank censor 0,0.0048
+s669,wt,7,0.0031,0.0058,0.9183,no seq. head,0.0088
+domainome,wt,7,0.0017,0.0047,0.6214,no seq. head,0.0054
+domainome|lowid,wt,7,0.0017,0.0047,0.6214,no seq. head,0.0054
+s783,wt,7,0.0021,0.0071,0.5191,no rank loss,0.0055
+tsuboyama_capped_val|singles,wt+,7,0.0036,0.0022,2.7798,p1 masked,0.0102
+tsuboyama_capped_val,wt+,7,0.0035,0.0026,2.3263,p1 masked,0.0095
+tsuboyama_capped_val|multi,wt+,7,0.0082,0.0087,1.6352,p1 masked,0.0207
+tsuboyama_capped_test|multi,wt+,7,0.0057,0.0063,1.5775,rank censor 0,0.0141
+tsuboyama_capped_test|singles,wt+,7,0.0020,0.0025,1.3786,rank censor 0,0.0053
+tsuboyama_capped_test,wt+,7,0.0017,0.0031,0.9477,rank censor 0,0.0048

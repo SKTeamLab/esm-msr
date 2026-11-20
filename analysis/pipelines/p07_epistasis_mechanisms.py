@@ -2,19 +2,20 @@
 """Pipeline p07: Assay floor saturation, Tobit link, 3D proximity mechanisms, pair heatmaps, and Rosetta multi-vs-additive.
 
 Consolidates:
-  - 11c_publication_epistasis_scatters.py -> results/06_epistasis/{fig6a..fig6e, fig6_epistasis_scatters.csv, fig6de_ddG_additive_kinds.csv}
-  - 11f_epistasis_types.py                -> results/06_epistasis/{fig7_epistasis_types_by_additive_dG, fig7_alt_observed_additive_dG}.{csv,png,pdf}
-  - 11g_link_figure.py                    -> results/06_epistasis/fig8_link_binned.csv (+ fig8_link_option_* under --exploratory)
-  - 12_pair_epistasis_heatmaps.py         -> results/12_pair_heatmaps/{pairs.csv, agreement.csv} (+ 30 per-pair PNGs under --pair-pngs)
-  - 13_dddG_correlation_scatters.py       -> results/06_epistasis/dddG_scatters/{stats.csv, rosetta_unit_check.csv} and
-                                             results/06_epistasis/dG_additive_vs_pred_dddG/{stats.csv, esm_msr_models_dG_additive_vs_pred_dddG}
-  - 19_rosetta_multi_vs_additive.py       -> results/19_rosetta_multi_vs_additive/rosetta_multi_vs_additive.{csv,md,png,pdf}
+  - 11c_publication_epistasis_scatters.py -> results/01_megascale/epistasis/{dG_additive_vs_dddG, esm_msr_dddG_pred_vs_true*,
+                                             esm_msr_models_dddG_pred_vs_true*, ddG_additive_vs_dddG_*, epistasis_scatters.csv, ddG_additive_kinds.csv}
+  - 11f_epistasis_types.py                -> results/01_megascale/epistasis/{epistasis_types_by_additive_dG, alt_observed_additive_dG}.{csv,png,pdf}
+  - 11g_link_figure.py                    -> results/01_megascale/epistasis/link_binned.csv (+ link_option_* under --exploratory)
+  - 12_pair_epistasis_heatmaps.py         -> results/01_megascale/epistasis/pair_heatmaps/{pairs.csv, agreement.csv} (+ 30 per-pair PNGs under --pair-pngs)
+  - 13_dddG_correlation_scatters.py       -> results/01_megascale/epistasis/dddG_scatters/{stats.csv, rosetta_unit_check.csv} and
+                                             results/01_megascale/epistasis/dG_additive_vs_pred_dddG/{stats.csv, esm_msr_models_dG_additive_vs_pred_dddG}
+  - 19_rosetta_multi_vs_additive.py       -> results/99_misc/rosetta_multi_vs_additive/rosetta_multi_vs_additive.{csv,md,png,pdf}
   - NEW mechanistic composite             -> results/00_supplementary_figs/floor_saturation_mechanism.{png,pdf}
 
 Key methodological fixes vs legacy scripts:
   - Uses msr_analysis.paths.TSUBOYAMA_PDB_DIR + msr_analysis.structures + msr_analysis.tobit + msr_analysis.epistasis.smooth_on.
   - Fixes 19_rosetta_multi_vs_additive footnote to interpolate the actual B used in the run (removing hardcoded 200,000 / 100,000).
-  - Replaces 8 redundant fig6f_option_* / fig8_link_option_* drafts with the 4-panel floor_saturation_mechanism composite (gating drafts behind --exploratory).
+  - Replaces 8 redundant option_* / link_option_* drafts with the 4-panel floor_saturation_mechanism composite (gating drafts behind --exploratory).
 """
 from __future__ import annotations
 
@@ -104,8 +105,8 @@ def _compare_models_scatters(out_path, title_str: str, m: np.ndarray, y: np.ndar
     formula = "ESM-MSR 1/2(MT_AB+WT_AB) − WT_A − WT_B; baselines: direct double − the same seed's singles"
 
     for fname, use_hl in (
-        ('fig6b_esm_msr_models_dddG_pred_vs_true', False),
-        ('fig6c_esm_msr_models_dddG_pred_vs_true_dG_additive_lt0', True),
+        ('esm_msr_models_dddG_pred_vs_true', False),
+        ('esm_msr_models_dddG_pred_vs_true_dG_additive_lt0', True),
     ):
         fig, axes = plt.subplots(1, len(model_preds), figsize=(6.0 * len(model_preds), 5.8), sharex=True, sharey=True)
         for idx, (ax, (m_label, p)) in enumerate(zip(axes, model_preds)):
@@ -154,7 +155,7 @@ def _compare_models_scatters(out_path, title_str: str, m: np.ndarray, y: np.ndar
 
 
 def run_fig6_scatters(split: str = 'capped', exploratory: bool = False) -> None:
-    out = out_dir('06_epistasis', split=split)
+    out = out_dir('epistasis', split=split)
     ds = tsu_datasets(split)[1]
     title_str = 'MegaScale mega_splits test doubles with both singles measured' if split == 'mega' else 'Homology-Restricted MegaScale test doubles with both singles measured'
     fr = load_frame(ds)
@@ -166,9 +167,9 @@ def run_fig6_scatters(split: str = 'capped', exploratory: bool = False) -> None:
 
     rows = []
     jobs = [
-        ('fig6a_dG_additive_vs_dddG', dG_add, X_DG_ADD_LABEL, dict(ref='neg', ref_label='y = −x: dG_AB = 0,\nwhere the unfolded doubles pile up')),
-        ('fig6b_esm_msr_dddG_pred_vs_true', pred_msr, 'ESM-MSR predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True)),
-        ('fig6c_esm_msr_dddG_pred_vs_true_dG_additive_lt0', pred_msr, 'ESM-MSR predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True, highlight=dG_add < 0, highlight_label='ΔG additive < 0')),
+        ('dG_additive_vs_dddG', dG_add, X_DG_ADD_LABEL, dict(ref='neg', ref_label='y = −x: dG_AB = 0,\nwhere the unfolded doubles pile up')),
+        ('esm_msr_dddG_pred_vs_true', pred_msr, 'ESM-MSR predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True)),
+        ('esm_msr_dddG_pred_vs_true_dG_additive_lt0', pred_msr, 'ESM-MSR predicted δΔΔG = dddG (kcal/mol)', dict(ref='xy', rmse=True, highlight=dG_add < 0, highlight_label='ΔG additive < 0')),
     ]
     for name, x, xl, kw in jobs:
         if x.ndim == 2:
@@ -189,7 +190,7 @@ def run_fig6_scatters(split: str = 'capped', exploratory: bool = False) -> None:
             rmse_v = float(np.sqrt(np.mean((xs_in - y[ok]) ** 2))) if kw.get('ref') == 'xy' else np.nan
         kw_use = {**kw, 'highlight': kw['highlight'][ok]} if 'highlight' in kw else kw
         fig = style.density_scatter_plain(xs_in, y[ok], xl, Y_DDD_LABEL, title=None, foot=f'{title_str} (n = {int(ok.sum()):,})', **SCATTER_FONT, **kw_use)
-        if name.startswith('fig6a'):
+        if name == 'dG_additive_vs_dddG':
             ax = fig.axes[0]
             xl_, yl_ = ax.get_xlim(), ax.get_ylim()
             ax.plot(xl_, [-v - 1.0 for v in xl_], color='#c0392b', ls=':', lw=1.6, zorder=4)
@@ -205,14 +206,14 @@ def run_fig6_scatters(split: str = 'capped', exploratory: bool = False) -> None:
             spearman=rho_v, pearson=r_v, spearman_stacked=rho_pool, pearson_stacked=r_pool,
             share_dG_additive_lt0=float(np.mean(dG_add[ok] < 0)), rmse_to_xy=rmse_v,
         ))
-    atomic_to_csv(pd.DataFrame(rows), out / 'fig6_epistasis_scatters.csv', index=False, float_format='%.4f')
+    atomic_to_csv(pd.DataFrame(rows), out / 'epistasis_scatters.csv', index=False, float_format='%.4f')
 
     _compare_models_scatters(
         out, title_str, m, y, dG_add,
         [('ESM-MSR', pred_msr), ('MutateEverything Stage 2', fr.preds['me2:epi']), ('ThermoMPNN-D', fr.preds['tmpnnd:epi']), ('SPURS-multi', fr.preds['spursm:epi'])],
     )
 
-    # fig6d & fig6e: unsaturated doubles (dG_add > 0)
+    # Unsaturated doubles (dG_add > 0)
     ddg = sp['y'].to_numpy(float)
     x_add = sp['ddG_additive_ML'].to_numpy(float)
     ia, ib = singles_of_doubles(sp)
@@ -225,7 +226,7 @@ def run_fig6_scatters(split: str = 'capped', exploratory: bool = False) -> None:
     ax_d = fig_d.axes[0]
     ax_d.axhline(0, color='#555555', lw=1.2, ls=':', zorder=4)
     ax_d.legend(handles=ax_d.get_legend().legend_handles + [Line2D([0], [0], color='#555555', lw=1.2, ls=':', label='y = 0: no epistasis')], loc='lower left', fontsize=10.5, frameon=False)
-    style.save(fig_d, out / 'fig6d_ddG_additive_vs_dddG_dG_additive_gt0')
+    style.save(fig_d, out / 'ddG_additive_vs_dddG_dG_additive_gt0')
 
     kind = np.where((sa > 0) & (sb > 0), 'both stabilizing', np.where((sa > 0) | (sb > 0), 'one stabilizing', 'both destabilizing'))
     colours = {'both destabilizing': '#2c3e50', 'one stabilizing': '#e67e22', 'both stabilizing': '#1a9850'}
@@ -256,8 +257,8 @@ def run_fig6_scatters(split: str = 'capped', exploratory: bool = False) -> None:
     ax_e.legend(handles=handles_e, loc='upper right', fontsize=10.0, framealpha=0.92)
     fig_e.tight_layout()
     fig_e.text(0.015, -0.01, ttl_d, fontsize=9.5, va='top', ha='left', color='#444444')
-    style.save(fig_e, out / 'fig6e_ddG_additive_vs_dddG_by_singles')
-    atomic_to_csv(pd.DataFrame(k_rows), out / 'fig6de_ddG_additive_kinds.csv', index=False, float_format='%.4f')
+    style.save(fig_e, out / 'ddG_additive_vs_dddG_by_singles')
+    atomic_to_csv(pd.DataFrame(k_rows), out / 'ddG_additive_kinds.csv', index=False, float_format='%.4f')
 
     if exploratory:
         _draw_exploratory_fig6f(out, title_str, sp, m, y, dG_add, ia, ib)
@@ -294,7 +295,7 @@ def _draw_exploratory_fig6f(out, title_str: str, sp: pd.DataFrame, m: np.ndarray
     fig.tight_layout(rect=(0, 0, 0.93, 0.95))
     cax = fig.add_axes([0.945, 0.12, 0.014, 0.74])
     fig.colorbar(sc, cax=cax).set_label('measured dddG (kcal/mol); blue positive, red negative')
-    style.save(fig, out / 'fig6f_option_A_scatter_black_added')
+    style.save(fig, out / 'option_A_scatter_black_added')
 
 
 def _compute_epistasis_types(fr: Frame, x_kind: str, B: int) -> tuple[dict, list[str], np.ndarray, np.ndarray]:
@@ -353,7 +354,7 @@ def _compute_epistasis_types(fr: Frame, x_kind: str, B: int) -> tuple[dict, list
 
 
 def run_fig7_epistasis_types(B: int, split: str = 'capped') -> tuple[dict, list[str], np.ndarray, np.ndarray]:
-    out = out_dir('06_epistasis', split=split)
+    out = out_dir('epistasis', split=split)
     fr = load_frame(tsu_datasets(split)[1])
     latent_result = None
     for x_kind in ('latent', 'observed'):
@@ -370,7 +371,7 @@ def run_fig7_epistasis_types(B: int, split: str = 'capped') -> tuple[dict, list[
                     lo=r['ci'][0][b, t], hi=r['ci'][1][b, t],
                     share_floor_decides=r['floor'][b, t], lo_floor=r['ci_floor'][0][b, t], hi_floor=r['ci_floor'][1][b, t],
                 ))
-        stem = 'fig7_epistasis_types_by_additive_dG' if x_kind == 'latent' else 'fig7_alt_observed_additive_dG'
+        stem = 'epistasis_types_by_additive_dG' if x_kind == 'latent' else 'alt_observed_additive_dG'
         atomic_to_csv(pd.DataFrame(rows), out / f'{stem}.csv', index=False, float_format='%.4f')
 
         fig, (ax, an) = plt.subplots(2, 1, figsize=(8.2, 8.24), gridspec_kw={'height_ratios': [4, 1]}, sharex=True)
@@ -440,7 +441,7 @@ def _binned_quantiles(x: np.ndarray, y: np.ndarray, edges: np.ndarray, nmin: int
 
 
 def run_link_and_floor_composite(split: str, latent_types: tuple, exploratory: bool = False) -> None:
-    out_epi = out_dir('06_epistasis', split=split)
+    out_epi = out_dir('epistasis', split=split)
     fr = load_frame(tsu_datasets(split)[1])
     sp = fr.spine
     ddg = sp['y'].to_numpy(float)
@@ -458,13 +459,13 @@ def run_link_and_floor_composite(split: str, latent_types: tuple, exploratory: b
     b_all = _binned_quantiles(x, Y, edges, nmin=15)
     b_far = _binned_quantiles(x[far], Y[far], edges, nmin=10) if far.any() else pd.DataFrame(columns=['x', 'n', 'median', 'q25', 'q75'])
     binned_out = pd.concat({'all': b_all, 'distant': b_far}, names=['set']).reset_index(level=0)
-    atomic_to_csv(binned_out, out_epi / 'fig8_link_binned.csv', index=False, float_format='%.4f')
+    atomic_to_csv(binned_out, out_epi / 'link_binned.csv', index=False, float_format='%.4f')
 
     if split != 'capped':
         return
 
     # NEW High-Impact Composite Figure #2: results/00_supplementary_figs/floor_saturation_mechanism.{png,pdf}
-    out_supp = out_dir('00_supplementary_figs')
+    out_supp = out_dir('supplementary_figs')
     fig, axes = plt.subplots(2, 2, figsize=(14.4, 11.8))
     ax_a, ax_b, ax_c, ax_d = axes.ravel()
     xs_curve = np.linspace(-4.8, 4.8, 400)
@@ -590,7 +591,7 @@ def run_link_and_floor_composite(split: str, latent_types: tuple, exploratory: b
             ax_o.set_ylim(*ylim_a)
             ax_o.set_title(ttl_o, loc='left', fontsize=9)
         fig_oa.tight_layout()
-        style.save(fig_oa, out_epi / 'fig8_link_option_A_observed_additive')
+        style.save(fig_oa, out_epi / 'link_option_A_observed_additive')
 
 
 # ----------------------------------------------------------------------------------------------
@@ -710,8 +711,8 @@ def _draw_one_pair_png(out_dir_hm, split: str, mode: str, pair: tuple, sub: pd.D
 
 
 def run_pair_heatmaps_and_dddg_tables(split: str = 'capped', pair_pngs: bool = False, per_model_pngs: bool = False) -> None:
-    out_hm = out_dir('12_pair_heatmaps', split=split)
-    out_epi = out_dir('06_epistasis', split=split)
+    out_hm = out_dir('pair_heatmaps', split=split)
+    out_epi = out_dir('epistasis', split=split)
     fr = load_frame(tsu_datasets(split)[1])
     sp = fr.spine
     d, fit, meas, model, singles = _build_pair_models(fr)
@@ -876,7 +877,7 @@ def _ros_worker(job):
 
 
 def run_rosetta_multi_vs_additive(B: int, workers: int = 4) -> None:
-    out = out_dir('19_rosetta_multi_vs_additive')
+    out = out_dir('rosetta_multi_vs_additive')
     specs = [
         ('ptmul', 'all', lambda n: n >= 2, ('mutation', 'protein')),
         ('ptmul', 'doubles', lambda n: n == 2, ('mutation', 'protein')),
@@ -997,18 +998,23 @@ def run_rosetta_multi_vs_additive(B: int, workers: int = 4) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION, with_split=True)
-    ap.add_argument('--exploratory', action='store_true', help='Also render exploratory multi-option drafts (fig6f_option_*, fig8_link_option_*)')
+    ap.add_argument('--exploratory', action='store_true', help='Also render exploratory multi-option drafts (option_*, link_option_*)')
     ap.add_argument('--pair-pngs', action='store_true', help='Also render all 30 individual 20x20 pair-epistasis PNG grids')
     ap.add_argument('--per-model-pngs', action='store_true', help='Also render all 36 individual per-model dddG scatter PNGs')
     ap.add_argument('--workers', type=int, default=4, help='Worker processes for Rosetta bootstrap')
+    ap.add_argument('--only', choices=('all', 'fig6', 'fig7', 'link', 'heatmaps', 'rosetta'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
 
-    run_fig6_scatters(split=args.split, exploratory=args.exploratory)
-    latent_types = run_fig7_epistasis_types(B=B, split=args.split)
-    run_link_and_floor_composite(split=args.split, latent_types=latent_types, exploratory=args.exploratory)
-    run_pair_heatmaps_and_dddg_tables(split=args.split, pair_pngs=args.pair_pngs, per_model_pngs=args.per_model_pngs)
-    if args.split == 'capped':
+    if args.only in ('all', 'fig6'):
+        run_fig6_scatters(split=args.split, exploratory=args.exploratory)
+    if args.only in ('all', 'fig7', 'link'):
+        latent_types = run_fig7_epistasis_types(B=B, split=args.split)
+        if args.only in ('all', 'link'):
+            run_link_and_floor_composite(split=args.split, latent_types=latent_types, exploratory=args.exploratory)
+    if args.only in ('all', 'heatmaps'):
+        run_pair_heatmaps_and_dddg_tables(split=args.split, pair_pngs=args.pair_pngs, per_model_pngs=args.per_model_pngs)
+    if args.only in ('all', 'rosetta') and args.split == 'capped':
         run_rosetta_multi_vs_additive(B=B, workers=args.workers)
     return 0
 

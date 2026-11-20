@@ -2,6 +2,7 @@ family,column,dataset,cell,unit,n_rows,n_units,rho_wt,rho_mt,rho_comb,rho_wt_plu
 FINAL_p0,domainome,domainome,all,protein,451569,436,0.5395,0.4853,0.5280,,-0.0542,-0.0115,-0.0171,-0.0077,0.0026,0.0010,1000,ESM-MSR (reference)
 FINAL_p1,domainome,domainome,all,protein,451569,436,0.5398,0.5282,0.5376,,-0.0116,-0.0022,-0.0043,0.0006,0.0012,0.0860,1000,Independent single-site masking
 FINAL_p0,tsuboyama_capped_test|singles,tsuboyama_capped_test,singles,protein,35421,33,0.8327,0.8292,0.8463,0.8327,-0.0035,0.0137,0.0085,0.0194,0.0027,0.0010,1000,ESM-MSR (reference)
+FINAL_p0_mse,tsuboyama_capped_test|singles,tsuboyama_capped_test,singles,protein,35421,33,0.8288,0.8271,0.8437,0.8288,-0.0017,0.0150,0.0104,0.0201,0.0024,0.0010,1000,Plain MSE (no Tobit NLL)
 FINAL_p0_norank,tsuboyama_capped_test|singles,tsuboyama_capped_test,singles,protein,35421,33,0.8296,0.8280,0.8419,0.8296,-0.0016,0.0123,0.0083,0.0163,0.0020,0.0010,1000,No rank loss
 FINAL_p0_noseqhwm,tsuboyama_capped_test|singles,tsuboyama_capped_test,singles,protein,35421,33,0.8337,0.8289,0.8446,0.8337,-0.0048,0.0109,0.0064,0.0153,0.0023,0.0010,1000,No sequence head
 FINAL_p0_pw0,tsuboyama_capped_test|singles,tsuboyama_capped_test,singles,protein,35421,33,0.8347,0.8314,0.8450,0.8347,-0.0033,0.0103,0.0064,0.0144,0.0021,0.0010,1000,No pair loss
@@ -10,6 +11,7 @@ FINAL_p0_rcthr0,tsuboyama_capped_test|singles,tsuboyama_capped_test,singles,prot
 FINAL_p1,tsuboyama_capped_test|singles,tsuboyama_capped_test,singles,protein,35421,33,0.8340,0.8310,0.8408,0.8340,-0.0030,0.0069,0.0037,0.0103,0.0017,0.0010,1000,Independent single-site masking
 FINAL_p1_marg,tsuboyama_capped_test|singles,tsuboyama_capped_test,singles,protein,35421,33,0.8347,0.8344,0.8415,0.8347,-0.0002,0.0068,0.0033,0.0107,0.0018,0.0010,1000,WT independent + MT marginal
 FINAL_p0,tsuboyama_capped_test|multi,tsuboyama_capped_test,multi,protein,13319,13,0.7234,0.6917,0.7772,0.7231,-0.0316,0.0538,0.0312,0.0776,0.0118,0.0010,1000,ESM-MSR (reference)
+FINAL_p0_mse,tsuboyama_capped_test|multi,tsuboyama_capped_test,multi,protein,13319,13,0.7191,0.6740,0.7740,0.7193,-0.0451,0.0550,0.0286,0.0841,0.0147,0.0010,1000,Plain MSE (no Tobit NLL)
 FINAL_p0_norank,tsuboyama_capped_test|multi,tsuboyama_capped_test,multi,protein,13319,13,0.7226,0.6913,0.7652,0.7215,-0.0313,0.0426,0.0061,0.0709,0.0169,0.0220,1000,No rank loss
 FINAL_p0_noseqhwm,tsuboyama_capped_test|multi,tsuboyama_capped_test,multi,protein,13319,13,0.7238,0.6894,0.7625,0.7240,-0.0345,0.0387,0.0023,0.0677,0.0174,0.0320,1000,No sequence head
 FINAL_p0_pw0,tsuboyama_capped_test|multi,tsuboyama_capped_test,multi,protein,13319,13,0.7261,0.7142,0.7678,0.7256,-0.0120,0.0417,0.0109,0.0693,0.0152,0.0100,1000,No pair loss
@@ -19,6 +21,7 @@ FINAL_p1,tsuboyama_capped_test|multi,tsuboyama_capped_test,multi,protein,13319,1
 FINAL_p1_marg,tsuboyama_capped_test|multi,tsuboyama_capped_test,multi,protein,13319,13,0.7126,0.6926,0.7214,0.7131,-0.0199,0.0089,-0.0316,0.0405,0.0190,0.6160,1000,WT independent + MT marginal
 FINAL_p0,ptmul,ptmul,all,protein,914,90,0.5888,0.5276,0.5918,,-0.0611,0.0030,-0.0388,0.0286,0.0180,0.9600,1000,ESM-MSR (reference)
 FINAL_p0_mega,ptmul,ptmul,all,protein,914,90,0.5533,0.4999,0.5643,,-0.0534,0.0110,-0.0406,0.0390,0.0224,0.8100,1000,Full MegaScale split
+FINAL_p0_mse,ptmul,ptmul,all,protein,914,90,0.5718,0.5360,0.5924,,-0.0359,0.0206,-0.0375,0.0483,0.0245,0.6300,1000,Plain MSE (no Tobit NLL)
 FINAL_p0_norank,ptmul,ptmul,all,protein,914,90,0.5837,0.5269,0.5911,,-0.0568,0.0074,-0.0459,0.0350,0.0217,0.8520,1000,No rank loss
 FINAL_p0_noseqhwm,ptmul,ptmul,all,protein,914,90,0.5678,0.5361,0.5845,,-0.0318,0.0167,-0.0422,0.0495,0.0257,0.6840,1000,No sequence head
 FINAL_p0_pw0,ptmul,ptmul,all,protein,914,90,0.5807,0.5490,0.5944,,-0.0317,0.0138,-0.0380,0.0460,0.0229,0.6680,1000,No pair loss
@@ -28,6 +31,7 @@ FINAL_p1,ptmul,ptmul,all,protein,914,90,0.5583,0.4995,0.5601,,-0.0588,0.0018,-0.
 FINAL_p1_marg,ptmul,ptmul,all,protein,914,90,0.5515,0.5468,0.5577,,-0.0047,0.0062,-0.0279,0.0311,0.0154,0.8620,1000,WT independent + MT marginal
 FINAL_p0,ptmuld,ptmuld,all,protein,536,83,0.5845,0.5349,0.5963,,-0.0496,0.0119,-0.0279,0.0389,0.0166,0.5180,1000,ESM-MSR (reference)
 FINAL_p0_mega,ptmuld,ptmuld,all,protein,536,83,0.5801,0.5337,0.6027,,-0.0465,0.0225,-0.0248,0.0509,0.0191,0.3580,1000,Full MegaScale split
+FINAL_p0_mse,ptmuld,ptmuld,all,protein,536,83,0.5736,0.5213,0.5899,,-0.0523,0.0163,-0.0301,0.0433,0.0188,0.4880,1000,Plain MSE (no Tobit NLL)
 FINAL_p0_norank,ptmuld,ptmuld,all,protein,536,83,0.5898,0.5361,0.5972,,-0.0536,0.0074,-0.0381,0.0331,0.0179,0.7480,1000,No rank loss
 FINAL_p0_noseqhwm,ptmuld,ptmuld,all,protein,536,83,0.5696,0.5377,0.5886,,-0.0319,0.0191,-0.0291,0.0490,0.0202,0.4260,1000,No sequence head
 FINAL_p0_pw0,ptmuld,ptmuld,all,protein,536,83,0.5796,0.5589,0.6014,,-0.0207,0.0218,-0.0235,0.0521,0.0193,0.3380,1000,No pair loss
@@ -37,6 +41,7 @@ FINAL_p1,ptmuld,ptmuld,all,protein,536,83,0.5721,0.5308,0.5772,,-0.0413,0.0051,-
 FINAL_p1_marg,ptmuld,ptmuld,all,protein,536,83,0.5597,0.5498,0.5631,,-0.0099,0.0034,-0.0311,0.0285,0.0147,0.7760,1000,WT independent + MT marginal
 FINAL_p0,ext_singles_mean,ext_singles_mean,all,composite,0,10,0.6544,0.6432,0.6617,,-0.0111,0.0074,0.0011,0.0127,0.0031,0.0320,1000,ESM-MSR (reference)
 FINAL_p0_mega,ext_singles_mean,ext_singles_mean,all,composite,0,10,0.6489,0.6525,0.6620,,0.0037,0.0132,0.0052,0.0209,0.0042,0.0040,1000,Full MegaScale split
+FINAL_p0_mse,ext_singles_mean,ext_singles_mean,all,composite,0,10,0.6540,0.6389,0.6591,,-0.0151,0.0051,-0.0021,0.0109,0.0034,0.1580,1000,Plain MSE (no Tobit NLL)
 FINAL_p0_norank,ext_singles_mean,ext_singles_mean,all,composite,0,10,0.6576,0.6371,0.6595,,-0.0205,0.0019,-0.0039,0.0074,0.0029,0.4760,1000,No rank loss
 FINAL_p0_noseqhwm,ext_singles_mean,ext_singles_mean,all,composite,0,10,0.6557,0.6422,0.6601,,-0.0135,0.0043,-0.0016,0.0110,0.0032,0.1700,1000,No sequence head
 FINAL_p0_pw0,ext_singles_mean,ext_singles_mean,all,composite,0,10,0.6556,0.6466,0.6619,,-0.0090,0.0063,-0.0004,0.0124,0.0033,0.0660,1000,No pair loss
@@ -46,6 +51,7 @@ FINAL_p1,ext_singles_mean,ext_singles_mean,all,composite,0,10,0.6470,0.6386,0.64
 FINAL_p1_marg,ext_singles_mean,ext_singles_mean,all,composite,0,10,0.6440,0.6369,0.6456,,-0.0071,0.0016,-0.0044,0.0072,0.0029,0.5240,1000,WT independent + MT marginal
 FINAL_p0,dms_multi_mean,dms_multi_mean,all,composite,0,3,0.6752,0.5913,0.6531,0.6755,-0.0839,-0.0221,-0.0310,-0.0151,0.0042,0.0010,1000,ESM-MSR (reference)
 FINAL_p0_mega,dms_multi_mean,dms_multi_mean,all,composite,0,3,0.6768,0.6303,0.6671,0.6769,-0.0465,-0.0097,-0.0162,-0.0044,0.0031,0.0010,1000,Full MegaScale split
+FINAL_p0_mse,dms_multi_mean,dms_multi_mean,all,composite,0,3,0.6626,0.5928,0.6443,0.6626,-0.0698,-0.0183,-0.0248,-0.0122,0.0033,0.0010,1000,Plain MSE (no Tobit NLL)
 FINAL_p0_norank,dms_multi_mean,dms_multi_mean,all,composite,0,3,0.6852,0.6310,0.6731,0.6857,-0.0542,-0.0121,-0.0169,-0.0080,0.0023,0.0010,1000,No rank loss
 FINAL_p0_noseqhwm,dms_multi_mean,dms_multi_mean,all,composite,0,3,0.6761,0.6049,0.6561,0.6764,-0.0712,-0.0200,-0.0279,-0.0139,0.0036,0.0010,1000,No sequence head
 FINAL_p0_pw0,dms_multi_mean,dms_multi_mean,all,composite,0,3,0.6761,0.6187,0.6589,0.6764,-0.0574,-0.0172,-0.0237,-0.0118,0.0030,0.0010,1000,No pair loss

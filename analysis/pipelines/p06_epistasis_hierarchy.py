@@ -2,14 +2,15 @@
 """Pipeline p06: Epistasis hierarchy (val/test), multi-vs-additive ranking, masking ablations, and main composite.
 
 Consolidates:
-  - 06_epistasis.py                          -> results/06_epistasis/{epistasis_naive_recomputed, epistasis_scatter_dddG,
+  - 06_epistasis.py                          -> results/01_megascale/epistasis/{epistasis_naive_recomputed, epistasis_scatter_dddG,
                                                 doubles_pooled_vs_per_library.csv, epistasis_scatter_ddG_doubles, ddg_ranking, lambda_scan}
-  - 11_publication_figures.py (fig3, fig4)   -> results/06_epistasis/{fig3_spearman_doubles_additive_vs_epistatic*, fig4_naive_epistasis_pos_neg_*}
-  - 11e_esm3_scoring_variants.py (fig3 part) -> results/06_epistasis/fig3_esm3_scoring_variants
-  - 11l_epistatic_vs_additive_pvalues.py     -> results/06_epistasis/epistatic_vs_additive{,_ndcg96,_ndcg96_rectified}_pvalues.{csv,md,png,pdf}
+                                                + results/99_misc/dms3/epistasis_{naive_recomputed,scatter_dddG,lambda_scan}.{csv,pdf,png}
+  - 11_publication_figures.py (fig3, fig4)   -> results/01_megascale/epistasis/{spearman_doubles_additive_vs_epistatic*, naive_epistasis_pos_neg_*}
+  - 11e_esm3_scoring_variants.py (fig3 part) -> results/01_megascale/epistasis/esm3_scoring_variants
+  - 11l_epistatic_vs_additive_pvalues.py     -> results/01_megascale/epistasis/epistatic_vs_additive{,_ndcg96,_ndcg96_rectified}_pvalues.{csv,md,png,pdf}
   - 11h_stacked_stab_epistatic.py            -> results/00_main_text_figs/fig2_fig3_stacked.{png,pdf}
-  - 11d + 11b + 11n                          -> results/06_epistasis/fig5_epistasis_levels_bootstrap_{test,val}.csv,
-                                                results/06_epistasis/fig5a_epistasis_levels_bars_{test,val}{,_cell_mag,_cell_compare}.{png,pdf},
+  - 11d + 11b + 11n                          -> results/01_megascale/epistasis/epistasis_levels_bootstrap_{test,val}.csv,
+                                                results/01_megascale/epistasis/epistasis_levels_bars_{test,val}{,_cell_mag,_cell_compare}.{png,pdf},
                                                 results/00_supplementary_figs/fig5_epistasis_levels_{p0,masking}_{bootstrap,paired}_test.csv,
                                                 results/00_supplementary_figs/fig5_epistasis_levels_{p0,masking}_reps_test.npz,
                                                 results/00_supplementary_figs/fig5a_epistasis_levels_bars_test_{p0,masking}.{png,pdf},
@@ -156,18 +157,9 @@ def _rmse_boot(fr, mask: np.ndarray, key: str, B: int = 1000, seed: int = 0) -> 
     return pt, ci(reps), bias
 
 
-def run_core_epistasis(B: int, split: str = 'capped') -> None:
-    out = out_dir('06_epistasis', split=split)
-    mega = (split == 'mega')
-    tsu_pair = tsu_datasets(split)
-    epi_keys = ['msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
-    style_ov = {}
-    if mega:
-        epi_keys += ['spursum:epi', 'spurspubm:epi', 'tmpnndpub:epi']
-        style_ov['spursm:epi'] = {'label': 'SPURS multi, frozen adapter (vs singles)'}
+def _eval_naive_epistasis_sets(eval_sets: list[str], tsu_pair: list[str], epi_keys: list[str], B: int) -> pd.DataFrame:
+    from .p01_benchmarks_external import _fast_bootstrap_rho
 
-    # 1a. Naive rho and RMSE recomputed
-    eval_sets = list(tsu_pair) + ([] if mega else DMS_DOUBLES)
     rows = []
     for ds in eval_sets:
         fr = load_frame(ds)
@@ -175,7 +167,6 @@ def run_core_epistasis(B: int, split: str = 'capped') -> None:
         keys_ds = [k for k in epi_keys if k in fr.preds]
         sub = subframe(fr, m, y=fr.spine['dddG_ML'].to_numpy(), keys=keys_ds)
         kind = 'protein' if ds in tsu_pair else 'mutation'
-        from .p01_benchmarks_external import _fast_bootstrap_rho
         point, reps = _fast_bootstrap_rho({ds: sub}, keys_ds, kind=kind, B=B, seed=3, per_protein=False)
         for k, (r_val, per_seed, n, ng) in point[ds].items():
             lo, hi = ci(reps[ds][k])
@@ -184,40 +175,20 @@ def run_core_epistasis(B: int, split: str = 'capped') -> None:
                 n_doubles=n, n_libraries=ng,
                 seed_sd=float(np.std(per_seed, ddof=1)) if len(per_seed) > 1 else np.nan,
                 doc_naive_rho=np.nan, doc_global_err=np.nan,
+                global_err=np.nan, global_err_lo=np.nan, global_err_hi=np.nan, global_bias=np.nan,
             )
             if ds in tsu_pair:
                 rm, (rlo, rhi), bias = _rmse_boot(fr, m, k, B=B)
                 r.update(global_err=rm, global_err_lo=rlo, global_err_hi=rhi, global_bias=bias)
             rows.append(r)
-    R = pd.DataFrame(rows)
-    atomic_to_csv(R, out / 'epistasis_naive_recomputed.csv', index=False, float_format='%.4f')
+    return pd.DataFrame(rows)
 
-    fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.6), gridspec_kw=dict(width_ratios=[1.5, 1.0]))
-    glabels = ['Tsuboyama val', 'Tsuboyama test'] + ([] if mega else ['GRB2 bind.', 'DLG4 bind.'])
-    style.dot_panel(
-        axes[0], eval_sets, epi_keys,
-        {(r.dataset, r.key): r.naive_rho for r in R.itertuples()},
-        {(r.dataset, r.key): (r.lo, r.hi) for r in R.itertuples()},
-        highlight=['msrp0:epi'], ylabel='naive ρ: predicted vs measured dddG (all doubles)',
-        xlabels=glabels, size=6.5, style_overrides=style_ov,
-    )
-    style.model_legend(axes[0], epi_keys, loc='upper right', fontsize=7.2, style_overrides=style_ov)
-    axes[0].set_title(f'A  naive ρ; whiskers: library-level (Tsuboyama) / mutation-level (DMS) bootstrap (B = {B:,})', loc='left', fontsize=9)
-    T_tsu = R[R['dataset'].isin(tsu_pair)]
-    style.dot_panel(
-        axes[1], tsu_pair, epi_keys,
-        {(r.dataset, r.key): r.global_err for r in T_tsu.itertuples()},
-        {(r.dataset, r.key): (r.global_err_lo, r.global_err_hi) for r in T_tsu.itertuples()},
-        highlight=['msrp0:epi'], ylabel='RMSE of predicted epistasis (kcal/mol)',
-        xlabels=['Tsuboyama val', 'Tsuboyama test'], size=6.5, style_overrides=style_ov,
-    )
-    axes[1].set_title('B  global error (lower is better)', loc='left', fontsize=9)
-    fig.tight_layout()
-    style.save(fig, out / 'epistasis_naive_recomputed')
 
-    # 1b. Raw dddG and doubles ddG scatters
-    sc_sets = [(tsu_pair[1], 'Tsuboyama test')] + ([] if mega else [('GRB2_HUMAN_Faure_2021_binding_domain', 'GRB2 bind.')])
-    fig_sc, axes_sc = plt.subplots(len(sc_sets), len(epi_keys), figsize=(3.0 * len(epi_keys), 3.0 * len(sc_sets)), squeeze=False)
+def _render_dddg_scatter_grid(sc_sets: list[tuple[str, str]], epi_keys: list[str], style_ov: dict, out_stem, suptitle: str, unit_lbl: str = 'kcal/mol') -> None:
+    from scipy.stats import pearsonr
+
+    fig_sc, axes_sc = plt.subplots(len(sc_sets), len(epi_keys), figsize=(3.0 * len(epi_keys), 3.1 * len(sc_sets)), squeeze=False)
+    stat_rows = []
     for r_i, (ds, lab) in enumerate(sc_sets):
         fr = load_frame(ds)
         m = epi_rows(fr)
@@ -228,19 +199,153 @@ def run_core_epistasis(B: int, split: str = 'capped') -> None:
                 ax.axis('off')
                 continue
             p = fr.preds[k].mean(axis=0)
-            ok = m & np.isfinite(p)
-            style.density_scatter(ax, p[ok], y_dd[ok], s=4, cmap='viridis', line=True, max_points=40000)
+            ok = m & np.isfinite(p) & np.isfinite(y_dd)
+            style.density_scatter(ax, p[ok], y_dd[ok], s=4, cmap='viridis', line=(unit_lbl == 'kcal/mol'), max_points=40000)
             ax.axhline(0, color='#bbb', lw=0.6)
             ax.axvline(0, color='#bbb', lw=0.6)
             if r_i == 0:
                 ax.set_title(style.style_of(k, overrides=style_ov.get(k)).label, fontsize=8.5)
             if c_i == 0:
-                ax.set_ylabel(f'{lab}\nmeasured dddG (kcal/mol)')
+                ax.set_ylabel(f'{lab}\nmeasured dddG ({unit_lbl})' if unit_lbl else f'{lab}\nmeasured epistasis ε')
             if r_i == len(sc_sets) - 1:
-                ax.set_xlabel('predicted epistasis (kcal/mol)')
-    fig_sc.suptitle('Predicted vs measured epistasis of double mutants (prediction averaged over seeds 1-3; dashed = y = x)', y=1.0, fontsize=10)
+                ax.set_xlabel(f'predicted epistasis ({unit_lbl})' if unit_lbl else 'predicted epistasis (kcal/mol)')
+            stat_rows.append(dict(
+                dataset=ds, key=k, n_doubles=int(ok.sum()),
+                spearman_rho=float(spearmanr(p[ok], y_dd[ok])[0]),
+                pearson_r=float(pearsonr(p[ok], y_dd[ok])[0]),
+            ))
+    fig_sc.suptitle(suptitle, y=1.0, fontsize=10)
     fig_sc.tight_layout()
-    style.save(fig_sc, out / 'epistasis_scatter_dddG')
+    style.save(fig_sc, out_stem)
+    atomic_to_csv(pd.DataFrame(stat_rows), out_stem.parent / f'{out_stem.name}.csv', index=False, float_format='%.4f')
+
+
+def _run_lambda_scan_sets(scan_sets: list[tuple[str, str]], tag_lam: str, B: int, out_stem) -> None:
+    lam_rows, curves = [], {}
+    for ds, _lab in scan_sets:
+        fr = load_frame(ds)
+        sp_l = fr.spine
+        m_l = (sp_l['n_mut'] >= 2).to_numpy() & sp_l['use'].to_numpy()
+        A_p, M_p = fr.preds['msrp0:wt'][:, m_l], fr.preds['msrp0:mt'][:, m_l]
+        ok = np.isfinite(A_p).all(0) & np.isfinite(M_p).all(0)
+        A_p, M_p, y_l = A_p[:, ok], M_p[:, ok], sp_l['y'].to_numpy()[m_l][ok]
+        n_l = len(y_l)
+        g_l = pd.factorize(sp_l['group'].to_numpy()[m_l][ok])[0] if ds in PER_PROTEIN else np.zeros(n_l, np.int64)
+        G_l = int(g_l.max()) + 1
+        red = (lambda r: np.nanmean(r)) if G_l > 1 else (lambda r: r[0])
+        eng = SpearmanEngine(y_l, g_l, G_l)
+        ranks = [[eng.prepare((1 - l_v) * a + l_v * mm) for l_v in LAMBDAS] for a, mm in zip(A_p, M_p)]
+        w1 = np.ones(n_l)
+        pt = np.array([np.mean([red(eng.rho(ranks[s][i], w1)) for s in range(len(A_p))]) for i in range(len(LAMBDAS))])
+        b_lam = min(B, 200 if n_l < 20000 else 80)
+        rng = np.random.default_rng(1)
+        reps_l = np.empty((b_lam, len(LAMBDAS)))
+        for b_i in range(b_lam):
+            w = rng.multinomial(n_l, np.full(n_l, 1.0 / n_l)).astype(float)
+            sw = rng.multinomial(3, np.full(3, 1.0 / 3.0)).astype(float) / 3.0
+            ry = eng.ry.ranks(w)
+            reps_l[b_i] = [float(np.dot(sw, [red(eng.rho(ranks[s][i], w, ry)) for s in range(len(A_p))])) for i in range(len(LAMBDAS))]
+        curves[ds] = (pt, reps_l)
+        i0, i5, i1, ib = 0, int(np.where(LAMBDAS == 0.5)[0][0]), len(LAMBDAS) - 1, int(pt.argmax())
+        lam_rows.append(dict(
+            checkpoint=tag_lam, dataset=ds, n=n_l,
+            rho_lam0=pt[i0], rho_lam05=pt[i5], rho_lam1=pt[i1],
+            best_lambda=LAMBDAS[ib], rho_best=pt[ib],
+            gap_05_to_best=pt[ib] - pt[i5],
+            gap_lo=float(np.quantile(reps_l[:, ib] - reps_l[:, i5], 0.025)),
+            gap_hi=float(np.quantile(reps_l[:, ib] - reps_l[:, i5], 0.975)),
+        ))
+    atomic_to_csv(pd.DataFrame(lam_rows), out_stem.parent / f'{out_stem.name}.csv', index=False, float_format='%.4f')
+    fig_l, axes_l = plt.subplots(1, len(scan_sets), figsize=(max(3.3 * len(scan_sets), 4.4), 3.3), sharey=False, squeeze=False)
+    for ax, (ds, lab) in zip(axes_l[0], scan_sets):
+        pt, reps_l = curves[ds]
+        lo, hi = np.quantile(reps_l, [0.025, 0.975], axis=0)
+        ax.fill_between(LAMBDAS, lo, hi, color='k', alpha=0.15, lw=0)
+        ax.plot(LAMBDAS, pt, color='k', lw=1.6, label=tag_lam)
+        ax.plot(LAMBDAS[pt.argmax()], pt.max(), 'o', color='k', ms=4)
+        ax.axvline(0.5, color='#c0392b', lw=0.8, ls=':')
+        ax.set_title(lab, fontsize=9)
+        ax.set_xlabel('λ  (fraction of MT epistasis kept)')
+    axes_l[0, 0].set_ylabel('ρ on multi-mutants')
+    axes_l[0, 0].legend(fontsize=7.5)
+    fig_l.tight_layout()
+    style.save(fig_l, out_stem)
+
+
+def run_core_epistasis(B: int, split: str = 'capped') -> None:
+    out = out_dir('epistasis', split=split)
+    mega = (split == 'mega')
+    tsu_pair = tsu_datasets(split)
+    epi_keys = ['msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
+    style_ov = {}
+    if mega:
+        epi_keys += ['spursum:epi', 'spurspubm:epi', 'tmpnndpub:epi']
+        style_ov['spursm:epi'] = {'label': 'SPURS multi, frozen adapter (vs singles)'}
+
+    # 1a. Naive rho and RMSE recomputed — MegaScale only in 01_megascale/epistasis/, 3-DMS in 99_misc/dms3/
+    R_tsu = _eval_naive_epistasis_sets(list(tsu_pair), tsu_pair, epi_keys, B=B)
+    atomic_to_csv(R_tsu, out / 'epistasis_naive_recomputed.csv', index=False, float_format='%.4f')
+
+    tsu_xlabels = ['MegaScale val (mega_splits)', 'MegaScale test (mega_splits)'] if mega else ['MegaScale val', 'MegaScale test']
+    fig, axes = plt.subplots(1, 2, figsize=(11.8, 5.0 if mega else 4.8), gridspec_kw=dict(width_ratios=[1.05, 1.0]))
+    style.dot_panel(
+        axes[0], list(tsu_pair), epi_keys,
+        {(r.dataset, r.key): r.naive_rho for r in R_tsu.itertuples()},
+        {(r.dataset, r.key): (r.lo, r.hi) for r in R_tsu.itertuples()},
+        highlight=['msrp0:epi'], ylabel='naive ρ: predicted vs measured dddG (all doubles)',
+        xlabels=tsu_xlabels, size=6.5, style_overrides=style_ov,
+    )
+    axes[0].set_title(f'A  naive ρ; whiskers: 95% library-level bootstrap (B = {B:,})', loc='left', fontsize=9)
+    style.dot_panel(
+        axes[1], list(tsu_pair), epi_keys,
+        {(r.dataset, r.key): r.global_err for r in R_tsu.itertuples()},
+        {(r.dataset, r.key): (r.global_err_lo, r.global_err_hi) for r in R_tsu.itertuples()},
+        highlight=['msrp0:epi'], ylabel='RMSE of predicted epistasis (kcal/mol)',
+        xlabels=tsu_xlabels, size=6.5, style_overrides=style_ov,
+    )
+    axes[1].set_title('B  global error (lower is better)', loc='left', fontsize=9)
+    hs_naive = [
+        Line2D([0], [0], label=style.style_of(k, overrides=style_ov.get(k)).label, **style.marker_kwargs(k, size=6.5, overrides=style_ov.get(k)))
+        for k in epi_keys
+    ]
+    fig.legend(
+        handles=hs_naive, loc='upper center', bbox_to_anchor=(0.5, 0.995),
+        ncol=4, fontsize=7.6, frameon=True, facecolor='white', edgecolor='#cccccc',
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.86 if mega else 0.90))
+    style.save(fig, out / 'epistasis_naive_recomputed')
+
+    if not mega:
+        out_dms = out_dir('dms3')
+        R_dms = _eval_naive_epistasis_sets(list(DMS_DOUBLES), tsu_pair, epi_keys, B=B)
+        atomic_to_csv(R_dms, out_dms / 'epistasis_naive_recomputed.csv', index=False, float_format='%.4f')
+        fig_d, ax_d = plt.subplots(figsize=(7.2, 4.6))
+        style.dot_panel(
+            ax_d, list(DMS_DOUBLES), epi_keys,
+            {(r.dataset, r.key): r.naive_rho for r in R_dms.itertuples()},
+            {(r.dataset, r.key): (r.lo, r.hi) for r in R_dms.itertuples()},
+            highlight=['msrp0:epi'], ylabel='naive ρ: predicted vs measured epistasis (all doubles)',
+            xlabels=['GRB2 bind.', 'DLG4 bind.'], size=6.8, style_overrides=style_ov,
+        )
+        style.model_legend(ax_d, epi_keys, loc='upper left', fontsize=7.6, frameon=True, facecolor='white', edgecolor='#cccccc', style_overrides=style_ov)
+        ax_d.set_title(f'3-DMS combinatorial binding sets: naive epistasis ρ (95% mutation-level bootstrap, B = {B:,})', loc='left', fontsize=9.2)
+        fig_d.tight_layout()
+        style.save(fig_d, out_dms / 'epistasis_naive_recomputed')
+
+    # 1b. Raw dddG scatters (MegaScale only in 01_megascale/epistasis/; GRB2 & DLG4 in 99_misc/dms3/)
+    _render_dddg_scatter_grid(
+        [(tsu_pair[1], 'MegaScale test (mega_splits)' if mega else 'MegaScale test')],
+        epi_keys, style_ov, out / 'epistasis_scatter_dddG',
+        suptitle='MegaScale test doubles: predicted vs measured epistasis (seed mean 1–3; dashed = y = x)',
+        unit_lbl='kcal/mol',
+    )
+    if not mega:
+        _render_dddg_scatter_grid(
+            [('GRB2_HUMAN_Faure_2021_binding_domain', 'GRB2 bind.'), ('DLG4_HUMAN_Faure_2021_binding_domain', 'DLG4 bind.')],
+            epi_keys, style_ov, out_dir('dms3') / 'epistasis_scatter_dddG',
+            suptitle='3-DMS combinatorial binding doubles (Faure et al.): predicted vs measured epistasis (seed mean 1–3)',
+            unit_lbl='',
+        )
 
     fr_test = load_frame(tsu_pair[1])
     sp_t = fr_test.spine
@@ -282,7 +387,7 @@ def run_core_epistasis(B: int, split: str = 'capped') -> None:
         ax.set_xlabel('predicted ddG of the double')
     for ax in axes_ddg[:, 0]:
         ax.set_ylabel('measured ddG (kcal/mol)')
-    fig_ddg.suptitle(f'Tsuboyama test doubles (n = {int(m_dbl.sum()):,}; prediction averaged over seeds 1-3, latent predictions)', y=1.01, fontsize=9)
+    fig_ddg.suptitle(f'MegaScale test doubles (n = {int(m_dbl.sum()):,}; prediction averaged over seeds 1-3, latent predictions)', y=1.01, fontsize=9)
     fig_ddg.tight_layout()
     style.save(fig_ddg, out / 'epistasis_scatter_ddG_doubles')
 
@@ -332,62 +437,19 @@ def run_core_epistasis(B: int, split: str = 'capped') -> None:
     fig_rk.tight_layout()
     style.save(fig_rk, out / 'ddg_ranking')
 
-    # 1d. Table 2.6: lambda scan on multi-mutants
-    scan_sets = (
-        [(tsu_pair[1], 'Tsuboyama test (mega_splits)')] if mega else
-        [(tsu_pair[1], 'Tsuboyama test'), ('ptmul', 'PTMUL'), ('ptmuld', 'PTMUL-D'),
-         ('GRB2_HUMAN_Faure_2021_binding_domain', 'GRB2 bind.'), ('DLG4_HUMAN_Faure_2021_binding_domain', 'DLG4 bind.')]
+    # 1d. Table 2.6: lambda scan — MegaScale in 01_megascale/epistasis/lambda_scan, 3-DMS in 99_misc/dms3/epistasis_lambda_scan
+    scan_sets_main = (
+        [(tsu_pair[1], 'MegaScale test (mega_splits)')] if mega else
+        [(tsu_pair[1], 'MegaScale test'), ('ptmul', 'PTMUL'), ('ptmuld', 'PTMUL-D')]
     )
     tag_lam = 'ESM-MSR (FINAL_p0_mega, 3 seeds)' if mega else 'ESM-MSR (FINAL_p0, 3 seeds)'
-    lam_rows, curves = [], {}
-    for ds, _lab in scan_sets:
-        fr = load_frame(ds)
-        sp_l = fr.spine
-        m_l = (sp_l['n_mut'] >= 2).to_numpy() & sp_l['use'].to_numpy()
-        A_p, M_p = fr.preds['msrp0:wt'][:, m_l], fr.preds['msrp0:mt'][:, m_l]
-        ok = np.isfinite(A_p).all(0) & np.isfinite(M_p).all(0)
-        A_p, M_p, y_l = A_p[:, ok], M_p[:, ok], sp_l['y'].to_numpy()[m_l][ok]
-        n_l = len(y_l)
-        g_l = pd.factorize(sp_l['group'].to_numpy()[m_l][ok])[0] if ds in PER_PROTEIN else np.zeros(n_l, np.int64)
-        G_l = int(g_l.max()) + 1
-        red = (lambda r: np.nanmean(r)) if G_l > 1 else (lambda r: r[0])
-        eng = SpearmanEngine(y_l, g_l, G_l)
-        ranks = [[eng.prepare((1 - l_v) * a + l_v * mm) for l_v in LAMBDAS] for a, mm in zip(A_p, M_p)]
-        w1 = np.ones(n_l)
-        pt = np.array([np.mean([red(eng.rho(ranks[s][i], w1)) for s in range(len(A_p))]) for i in range(len(LAMBDAS))])
-        b_lam = min(B, 200 if n_l < 20000 else 80)
-        rng = np.random.default_rng(1)
-        reps_l = np.empty((b_lam, len(LAMBDAS)))
-        for b_i in range(b_lam):
-            w = rng.multinomial(n_l, np.full(n_l, 1.0 / n_l)).astype(float)
-            sw = rng.multinomial(3, np.full(3, 1.0 / 3.0)).astype(float) / 3.0
-            ry = eng.ry.ranks(w)
-            reps_l[b_i] = [float(np.dot(sw, [red(eng.rho(ranks[s][i], w, ry)) for s in range(len(A_p))])) for i in range(len(LAMBDAS))]
-        curves[ds] = (pt, reps_l)
-        i0, i5, i1, ib = 0, int(np.where(LAMBDAS == 0.5)[0][0]), len(LAMBDAS) - 1, int(pt.argmax())
-        lam_rows.append(dict(
-            checkpoint=tag_lam, dataset=ds, n=n_l,
-            rho_lam0=pt[i0], rho_lam05=pt[i5], rho_lam1=pt[i1],
-            best_lambda=LAMBDAS[ib], rho_best=pt[ib],
-            gap_05_to_best=pt[ib] - pt[i5],
-            gap_lo=float(np.quantile(reps_l[:, ib] - reps_l[:, i5], 0.025)),
-            gap_hi=float(np.quantile(reps_l[:, ib] - reps_l[:, i5], 0.975)),
-        ))
-    atomic_to_csv(pd.DataFrame(lam_rows), out / 'lambda_scan.csv', index=False, float_format='%.4f')
-    fig_l, axes_l = plt.subplots(1, len(scan_sets), figsize=(max(3.0 * len(scan_sets), 4.2), 3.2), sharey=False, squeeze=False)
-    for ax, (ds, lab) in zip(axes_l[0], scan_sets):
-        pt, reps_l = curves[ds]
-        lo, hi = np.quantile(reps_l, [0.025, 0.975], axis=0)
-        ax.fill_between(LAMBDAS, lo, hi, color='k', alpha=0.15, lw=0)
-        ax.plot(LAMBDAS, pt, color='k', lw=1.6, label=tag_lam)
-        ax.plot(LAMBDAS[pt.argmax()], pt.max(), 'o', color='k', ms=4)
-        ax.axvline(0.5, color='#c0392b', lw=0.8, ls=':')
-        ax.set_title(lab, fontsize=9)
-        ax.set_xlabel('λ  (fraction of MT epistasis kept)')
-    axes_l[0, 0].set_ylabel('ρ on multi-mutants')
-    axes_l[0, 0].legend(fontsize=7.5)
-    fig_l.tight_layout()
-    style.save(fig_l, out / 'lambda_scan')
+    _run_lambda_scan_sets(scan_sets_main, tag_lam, B=B, out_stem=out / 'lambda_scan')
+    if not mega:
+        scan_sets_dms = [
+            ('GRB2_HUMAN_Faure_2021_binding_domain', 'GRB2 bind.'),
+            ('DLG4_HUMAN_Faure_2021_binding_domain', 'DLG4 bind.'),
+        ]
+        _run_lambda_scan_sets(scan_sets_dms, tag_lam, B=B, out_stem=out_dir('dms3') / 'epistasis_lambda_scan')
 
 
 # ----------------------------------------------------------------------------------------------
@@ -479,7 +541,7 @@ def _draw_pair_brackets(ax, cols: list[dict], T: pd.DataFrame, p_series: pd.Seri
 
 
 def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.DataFrame, pd.Series | None]:
-    out = out_dir('06_epistasis', split=split)
+    out = out_dir('epistasis', split=split)
     fr, _ = load_tsu_test_frame(split=split)
     add_esm3_marginal_additive(fr, split=split)
     sp = fr.spine
@@ -494,11 +556,11 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
     name_map = {'best other ddG': BEST_LABEL[best]} if best else {}
     s_title = f'{split_title(split)} test'
 
-    # Fig 3: doubles additive vs epistatic
+    # Doubles additive vs epistatic
     cols3 = pair_columns(fr, best)
     v3: dict = {}
     T3 = table_grouped(fr, cols3, {'additive': (double, 'singles'), 'epistatic': (double, 'doubles')}, rho_fn, MIN_N, counts, libs, vals=v3)
-    atomic_to_csv(T3, out / 'fig3_spearman_doubles_additive_vs_epistatic.csv', index=False, float_format='%.4f')
+    atomic_to_csv(T3, out / 'spearman_doubles_additive_vs_epistatic.csv', index=False, float_format='%.4f')
     d_rows = []
     for c in cols3:
         if c['double'] is None or c['single'] not in fr.preds or c['double'] not in fr.preds:
@@ -507,7 +569,7 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
         both = va.index.intersection(ve.index)
         pt, lo, hi, n = boot_mean(diff_df(ve, va, both), libs, counts)
         d_rows.append(dict(column=c['name'], delta=pt, lo=lo, hi=hi, n_libraries=n))
-    atomic_to_csv(pd.DataFrame(d_rows), out / 'fig3_spearman_doubles_additive_vs_epistatic_paired_difference.csv', index=False, float_format='%.4f')
+    atomic_to_csv(pd.DataFrame(d_rows), out / 'spearman_doubles_additive_vs_epistatic_paired_difference.csv', index=False, float_format='%.4f')
 
     gain = 'gain (epistatic - additive)'
     p3 = []
@@ -520,7 +582,7 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
             v3[(c['name'], gain)] = (None, d, None, None)
             p3.append(row_of('own gain', f"{name_map.get(c['name'], c['name'])} (epistatic)", f"{name_map.get(c['name'], c['name'])} (additive)", mean_val(ve.loc[both]), mean_val(va.loc[both]), mean_val(d), boot_reps(d, libs, counts), len(both), 'domains', 'mean over domains', name_map))
     p3_all = compare_grouped(fr, v3, ['additive', 'epistatic', gain], counts, libs, name_map=name_map) + p3
-    atomic_to_csv(add_holm_by_group(pd.DataFrame(p3_all)), out / 'fig3_spearman_doubles_additive_vs_epistatic_pvalues.csv', index=False, float_format='%.4g')
+    atomic_to_csv(add_holm_by_group(pd.DataFrame(p3_all)), out / 'spearman_doubles_additive_vs_epistatic_pvalues.csv', index=False, float_format='%.4g')
 
     fig3, ax3 = plt.subplots(figsize=(fig_width(cols3), 4.9))
     style.bar_panel(
@@ -529,26 +591,26 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
         "Spearman's ρ, double mutants", (0.0, 1.12),
     )
     finish_bar_fig(fig3, f'{s_title} doubles, additive version against epistatic version; 95% intervals from resampling domains (B = {B:,})', [])
-    style.save(fig3, out / 'fig3_spearman_doubles_additive_vs_epistatic')
+    style.save(fig3, out / 'spearman_doubles_additive_vs_epistatic')
 
-    # Fig 4: naive epistasis positive vs negative (grouped and pooled)
+    # Naive epistasis positive vs negative (grouped and pooled)
     erows = epi_rows(fr)
     cells4 = {'positive': (erows & (dd > 0), 'doubles'), 'negative': (erows & (dd < 0), 'doubles')}
     cols4 = epi_columns(fr, best)
     v4: dict = {}
     Tg = table_grouped(fr, cols4, cells4, rho_fn, MIN_N, counts, libs, y=dd, vals=v4)
     Og = table_grouped(fr, cols4, {'overall': (erows, 'doubles')}, rho_fn, MIN_N, counts, libs, y=dd, vals=v4)
-    atomic_to_csv(pd.concat([Tg, Og]), out / 'fig4_naive_epistasis_pos_neg_grouped.csv', index=False, float_format='%.4f')
-    atomic_to_csv(add_holm_by_group(pd.DataFrame(compare_grouped(fr, v4, ['positive', 'negative', 'overall'], counts, libs, name_map=name_map))), out / 'fig4_naive_epistasis_pos_neg_grouped_pvalues.csv', index=False, float_format='%.4g')
+    atomic_to_csv(pd.concat([Tg, Og]), out / 'naive_epistasis_pos_neg_grouped.csv', index=False, float_format='%.4f')
+    atomic_to_csv(add_holm_by_group(pd.DataFrame(compare_grouped(fr, v4, ['positive', 'negative', 'overall'], counts, libs, name_map=name_map))), out / 'naive_epistasis_pos_neg_grouped_pvalues.csv', index=False, float_format='%.4g')
 
     rp4: dict = {}
     Tp = table_pooled(fr, cols4, {**cells4, 'overall': (erows, 'doubles')}, dd, B_=b_pool, reps_out=rp4)
-    atomic_to_csv(Tp, out / 'fig4_naive_epistasis_pos_neg_pooled.csv', index=False, float_format='%.4f')
-    atomic_to_csv(add_holm_by_group(pd.DataFrame(compare_pooled(Tp, rp4, ['positive', 'negative', 'overall'], name_map=name_map))), out / 'fig4_naive_epistasis_pos_neg_pooled_pvalues.csv', index=False, float_format='%.4g')
+    atomic_to_csv(Tp, out / 'naive_epistasis_pos_neg_pooled.csv', index=False, float_format='%.4f')
+    atomic_to_csv(add_holm_by_group(pd.DataFrame(compare_pooled(Tp, rp4, ['positive', 'negative', 'overall'], name_map=name_map))), out / 'naive_epistasis_pos_neg_pooled_pvalues.csv', index=False, float_format='%.4g')
 
     for tab, ov, stem, yl in (
-        (Tg, Og, 'fig4_naive_epistasis_pos_neg_grouped', 'naive epistasis ρ (mean over domains)'),
-        (Tp[Tp['subset'] != 'overall'], Tp[Tp['subset'] == 'overall'], 'fig4_naive_epistasis_pos_neg_pooled', 'naive epistasis ρ, pooled over domains'),
+        (Tg, Og, 'naive_epistasis_pos_neg_grouped', 'naive epistasis ρ (mean over domains)'),
+        (Tp[Tp['subset'] != 'overall'], Tp[Tp['subset'] == 'overall'], 'naive_epistasis_pos_neg_pooled', 'naive epistasis ρ, pooled over domains'),
     ):
         drawn = [c['name'] for c in cols4 if c.get('draw', True)]
         lo_min = min(tab[tab['column'].isin(drawn)]['lo'].min(), ov[ov['column'].isin(drawn)]['lo'].min())
@@ -566,7 +628,7 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
     if split != 'capped':
         return T3, None
 
-    # Fig 3 ESM3 scoring variants (11e, epistasis part)
+    # ESM3 scoring variants (11e, epistasis part)
     if 'esm3avg' in fr.preds and 'esm3mm+' in fr.preds:
         cols3_e = pair_columns(fr, best)
         grey = [M.color('ESM3-small-open'), '#aab7b8', '#4d5656']
@@ -578,7 +640,7 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
         idx_e = next(i for i, c in enumerate(cols3_e) if c['name'] == 'ESM3-small-open')
         cols3_e = cols3_e[:idx_e] + three3 + cols3_e[idx_e + 1:]
         T3e = table_grouped(fr, cols3_e, {'additive': (double, 'singles'), 'epistatic': (double, 'doubles')}, rho_fn, MIN_N, counts, libs)
-        atomic_to_csv(T3e, out / 'fig3_esm3_scoring_variants.csv', index=False, float_format='%.4f')
+        atomic_to_csv(T3e, out / 'esm3_scoring_variants.csv', index=False, float_format='%.4f')
         fig3e, ax3e = plt.subplots(figsize=(1.2 * fig_width(cols3_e), 4.9))
         style.bar_panel(
             ax3e, cols3_e, T3e, ('additive', 'epistatic'),
@@ -586,7 +648,7 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
             "Spearman's ρ, double mutants", (0.0, 1.12), tick_fs=7.8,
         )
         finish_bar_fig(fig3e, f'{s_title} doubles, additive vs epistatic version, ESM3-small-open scored three ways (B = {B:,})', [])
-        style.save(fig3e, out / 'fig3_esm3_scoring_variants')
+        style.save(fig3e, out / 'esm3_scoring_variants')
 
     # 11l: Epistatic vs additive p-values across all 3 metrics (spearman, ndcg96, ndcg96_rectified)
     keep_11l = ['ProteinMPNN', 'ESM3-small-open', 'ESM-MSR', 'MutateEverything', 'ThermoMPNN', 'SPURS', 'best other ddG', 'Rosetta', 'ESM3ΔG']
@@ -630,8 +692,8 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
             p_spearman_ser = df_11l.set_index('model')['p_one']
 
     # 11h: Main-text stacked figure (fig2 + fig3 with p-value brackets -> results/00_main_text_figs/fig2_fig3_stacked)
-    out_main = out_dir('00_main_text_figs')
-    f2_csv = results_dir('03_tsuboyama', create=False) / 'fig2_spearman_stab_destab.csv'
+    out_main = out_dir('main_text_figs')
+    f2_csv = results_dir('megascale', split=split, create=False) / 'spearman_stab_destab.csv'
     cols2 = main_columns(fr, best, 'unmasked')
     if f2_csv.exists():
         t2 = pd.read_csv(f2_csv)
@@ -666,7 +728,7 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
     style.save(fig_st, out_main / 'fig2_fig3_stacked')
 
     # 11m: Masking schemes supplement (ESM3-small-open & ESM-MSR across unmasked, independent, marginal)
-    out_supp = out_dir('00_supplementary_figs')
+    out_supp = out_dir('supplementary_figs')
     f_mask = load_final_frame('tsuboyama_capped_test', families=['FINAL_p0', 'FINAL_p1', 'FINAL_p1_marg'])
     if f_mask is not None and 'esm3avg' in fr.preds and 'esm3mm' in fr.preds:
         fr.preds['ESM3-small-open:unm'] = fr.preds['msrrel@0:comb']
@@ -1344,7 +1406,7 @@ def _fast_boot_epistasis_models(
 
 
 def run_hierarchy_and_composite(B: int, split: str = 'capped', procs: int = 6, T3_df: pd.DataFrame | None = None, p_spearman_ser: pd.Series | None = None) -> None:
-    out_epi = out_dir('06_epistasis', split=split)
+    out_epi = out_dir('epistasis', split=split)
     mega = (split == 'mega')
     tsu_pair = tsu_datasets(split)
     ds_map = {'val': tsu_pair[0], 'test': tsu_pair[1]}
@@ -1438,17 +1500,17 @@ def run_hierarchy_and_composite(B: int, split: str = 'capped', procs: int = 6, T
         # Slice 1: 11d / 11b standard table & figures
         std_keep = {m[0] for m in std_entries} | {'−dG_add', 'SPURS multi (trained adapter)', 'SPURS multi (published)', 'ThermoMPNN-D (published)'}
         T_11d = T_all[T_all['model'].isin(std_keep)].copy()
-        atomic_to_csv(T_11d, out_epi / f'fig5_epistasis_levels_bootstrap_{sp_key}.csv', index=False, float_format='%.5f')
-        _draw_hierarchy_figure(T_11d, sp_key, out_epi / f'fig5a_epistasis_levels_bars_{sp_key}', std_entries, LEVELS_MAIN, FOOT_HIER)
-        _draw_hierarchy_figure(T_11d, sp_key, out_epi / f'fig5a_epistasis_levels_bars_{sp_key}_cell_mag', std_entries, LEVELS_CELL_MAG, FOOT_HIER, overlay_sub0=True)
-        _draw_hierarchy_figure(T_11d, sp_key, out_epi / f'fig5a_epistasis_levels_bars_{sp_key}_cell_compare', std_entries, LEVELS_CELL_COMPARE, FOOT_HIER, title_desc='cell-level epistasis formulations compared')
+        atomic_to_csv(T_11d, out_epi / f'epistasis_levels_bootstrap_{sp_key}.csv', index=False, float_format='%.5f')
+        _draw_hierarchy_figure(T_11d, sp_key, out_epi / f'epistasis_levels_bars_{sp_key}', std_entries, LEVELS_MAIN, FOOT_HIER)
+        _draw_hierarchy_figure(T_11d, sp_key, out_epi / f'epistasis_levels_bars_{sp_key}_cell_mag', std_entries, LEVELS_CELL_MAG, FOOT_HIER, overlay_sub0=True)
+        _draw_hierarchy_figure(T_11d, sp_key, out_epi / f'epistasis_levels_bars_{sp_key}_cell_compare', std_entries, LEVELS_CELL_COMPARE, FOOT_HIER, title_desc='cell-level epistasis formulations compared')
 
         if mega or sp_key != 'test':
             continue
 
         # Slice 2 & 3 (capped test only): 11n p0 + masking supplementary figures, paired tests, main-text panel e, and NEW main composite!
-        out_supp = out_dir('00_supplementary_figs')
-        out_main = out_dir('00_main_text_figs')
+        out_supp = out_dir('supplementary_figs')
+        out_main = out_dir('main_text_figs')
         all_names = [m[0] for m in models_spec]
 
         # Build p0 slice (renaming STD_EPI_NAME -> P0_EPI_NAME and SPURS multi (unfrozen) -> SPURS multi to match 11n schema)
@@ -1585,19 +1647,24 @@ def _build_epistasis_main_composite(out_main, fr_test, T3_df, p_spearman_ser, T_
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION, with_split=True)
     ap.add_argument('--jobs', '--procs', dest='procs', type=int, default=8, help='Worker processes for epistasis hierarchy bootstrap')
+    ap.add_argument('--only', choices=('all', 'core', 'bars', 'hierarchy'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
 
     import time
-    t0 = time.perf_counter()
-    run_core_epistasis(B=B, split=args.split)
-    print(f'  [p06:{args.split}] core_epistasis             B={B:4d}  {time.perf_counter() - t0:5.1f}s', flush=True)
-    t1 = time.perf_counter()
-    T3_df, p_ser = run_publication_epistasis_bars(B=B, split=args.split)
-    print(f'  [p06:{args.split}] publication_epistasis_bars B={B:4d}  {time.perf_counter() - t1:5.1f}s', flush=True)
-    t2 = time.perf_counter()
-    run_hierarchy_and_composite(B=B, split=args.split, procs=args.procs, T3_df=T3_df, p_spearman_ser=p_ser)
-    print(f'  [p06:{args.split}] hierarchy_and_composite    B={B:4d}  {time.perf_counter() - t2:5.1f}s', flush=True)
+    if args.only in ('all', 'core'):
+        t0 = time.perf_counter()
+        run_core_epistasis(B=B, split=args.split)
+        print(f'  [p06:{args.split}] core_epistasis             B={B:4d}  {time.perf_counter() - t0:5.1f}s', flush=True)
+    T3_df, p_ser = None, None
+    if args.only in ('all', 'bars'):
+        t1 = time.perf_counter()
+        T3_df, p_ser = run_publication_epistasis_bars(B=B, split=args.split)
+        print(f'  [p06:{args.split}] publication_epistasis_bars B={B:4d}  {time.perf_counter() - t1:5.1f}s', flush=True)
+    if args.only in ('all', 'hierarchy'):
+        t2 = time.perf_counter()
+        run_hierarchy_and_composite(B=B, split=args.split, procs=args.procs, T3_df=T3_df, p_spearman_ser=p_ser)
+        print(f'  [p06:{args.split}] hierarchy_and_composite    B={B:4d}  {time.perf_counter() - t2:5.1f}s', flush=True)
     return 0
 
 

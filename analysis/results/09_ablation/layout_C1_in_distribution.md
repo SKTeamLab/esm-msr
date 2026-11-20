@@ -9,7 +9,8 @@
 | no rank loss | lambda_rank_wt/mt 0.5 -> 0 | 1,2,3 | 0.840 ± 0.005 (-0.005) | 0.830 ± 0.003 (-0.003) | 0.765 ± 0.008 (-0.012) | 0.448 ± 0.007 (-0.031) |
 | rank censor 0 | rank_censor_threshold -1 -> 0 | 1,2,3 | 0.844 ± 0.001 (-0.001) | 0.835 ± 0.002 (**+0.002**) | 0.772 ± 0.005 (-0.005) | 0.458 ± 0.012 (-0.021) |
 | no range-tagged cells | Tobit regression without the assay's range-tagged (<-1 / >5) cells (--reg_exclude_range) | — | — | — | — | — |
-| MSE (no range-tagged) | Tobit NLL -> plain MSE on ddG, range-tagged cells excluded (--reg_nll none) | — | — | — | — | — |
+| MSE (no range-tagged) | Tobit NLL -> plain MSE on ddG, range-tagged cells excluded (--reg_nll none) | 3 | 0.843 (-0.003) | 0.829 (**-0.004**) | 0.774 (-0.003) | 0.445 (-0.034) |
+| deep floor (-1, 1) | Tobit floor mu_f/sigma_f -0.14/0.5 -> -1.0/1.0 (also the posterior teacher-forcing label); sigma_y unchanged | — | — | — | — | — |
 | no seq. head | incl_sequence_head_wt/mt True -> False | 1,2,3 | 0.842 ± 0.001 (-0.003) | 0.834 ± 0.001 (+0.001) | 0.763 ± 0.004 (-0.015) | 0.463 ± 0.013 (-0.016) |
 | MT LoRA r2 | lora_rank/alpha_mt 16/16 -> 2/4 | 1,2,3 | 0.837 ± 0.004 (**-0.008**) | 0.832 ± 0.003 (-0.001) | 0.752 ± 0.008 (**-0.025**) | 0.452 ± 0.020 (-0.027) |
 | full MegaScale | train split splits_oct06_capped -> mega_splits (evaluated on its own test split) | 1,2,3 | 0.827 ± 0.002† | 0.821 ± 0.000† | 0.662 ± 0.014† | 0.507 ± 0.014† |

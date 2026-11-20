@@ -7,7 +7,8 @@
 | no rank loss | lambda_rank_wt/mt 0.5 -> 0 | 1,2,3 | −0.002 | −0.003 | −0.001 | +0.003 | 0.000 | +0.002 | −0.003 |
 | rank censor 0 | rank_censor_threshold -1 -> 0 | 1,2,3 | **+0.003** | **+0.002** | +0.004 | −0.001 | −0.002 | **+0.001** | +0.001 |
 | no range-tagged cells | Tobit regression without the assay's range-tagged (<-1 / >5) cells | — | — | — | — | — | — | — | — |
-| MSE (no range-tagged) | Tobit NLL -> plain MSE on ddG, range-tagged cells excluded | — | — | — | — | — | — | — | — |
+| MSE (no range-tagged) | Tobit NLL -> plain MSE on ddG, range-tagged cells excluded | 3 | **−0.005** | **−0.004** | −0.004 | 0.000 | −0.014 | −0.003 | — |
+| deep floor (-1, 1) | Tobit floor mu_f/sigma_f -0.14/0.5 -> -1.0/1.0 (also the posterior teacher-forcing label); sigma_y unchanged | — | — | — | — | — | — | — | — |
 | *Architecture* | | | | | | | | | |
 | no seq. head | incl_sequence_head_wt/mt True -> False | 1,2,3 | +0.001 | +0.001 | 0.000 | +0.001 | −0.018 | **+0.005** | 0.000 |
 | *Cross-masking (evaluation only)* | | | | | | | | | |

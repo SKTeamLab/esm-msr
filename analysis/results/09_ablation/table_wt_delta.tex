@@ -11,7 +11,8 @@ p1 masked & block\_mask\_wt/mt 0 $\to$ 1 & 0.000 & +0.001 & $-$0.011 & $-$0.007 
 no rank loss & lambda\_rank\_wt/mt 0.5 $\to$ 0 & $-$0.002 & $-$0.003 & $-$0.001 & +0.003 & 0.000 & +0.002 & $-$0.003 \\
 rank censor 0 & rank\_censor\_threshold -1 $\to$ 0 & \textbf{+0.003} & \textbf{+0.002} & +0.004 & $-$0.001 & $-$0.002 & \textbf{+0.001} & +0.001 \\
 no range-tagged cells & Tobit regression without the assay's range-tagged ($<$-1 / $>$5) cells & -- & -- & -- & -- & -- & -- & -- \\
-MSE (no range-tagged) & Tobit NLL $\to$ plain MSE on ddG, range-tagged cells excluded & -- & -- & -- & -- & -- & -- & -- \\
+MSE (no range-tagged) & Tobit NLL $\to$ plain MSE on ddG, range-tagged cells excluded & \textbf{$-$0.005} & \textbf{$-$0.004} & $-$0.004 & 0.000 & $-$0.014 & $-$0.003 & -- \\
+deep floor (-1, 1) & Tobit floor mu\_f/sigma\_f -0.14/0.5 $\to$ -1.0/1.0 (also the posterior teacher-forcing label); sigma\_y unchanged & -- & -- & -- & -- & -- & -- & -- \\
 \midrule
 \multicolumn{9}{l}{\textit{Architecture}} \\
 no seq. head & incl\_sequence\_head\_wt/mt True $\to$ False & +0.001 & +0.001 & 0.000 & +0.001 & $-$0.018 & \textbf{+0.005} & 0.000 \\

@@ -1,0 +1,9 @@
+dataset,key,n_doubles,spearman_rho,pearson_r
+GRB2_HUMAN_Faure_2021_binding_domain,msrp0:epi,32258,0.2418,0.3539
+GRB2_HUMAN_Faure_2021_binding_domain,me2:epi,32258,0.1259,0.2319
+GRB2_HUMAN_Faure_2021_binding_domain,tmpnnd:epi,32258,0.0355,0.1062
+GRB2_HUMAN_Faure_2021_binding_domain,spursm:epi,32258,0.1966,0.2935
+DLG4_HUMAN_Faure_2021_binding_domain,msrp0:epi,6459,0.6383,0.7129
+DLG4_HUMAN_Faure_2021_binding_domain,me2:epi,6459,0.4919,0.6295
+DLG4_HUMAN_Faure_2021_binding_domain,tmpnnd:epi,6459,0.2134,0.2985
+DLG4_HUMAN_Faure_2021_binding_domain,spursm:epi,6459,0.5635,0.6572

@@ -1,10 +1,6 @@
 protein,assay,source,axis,note,label,rho_0.0,rho_0.5,rho_1.0,n
 CP2C9_HUMAN,CP2C9_HUMAN_Amorosi_2021_abundance,ProteinGym,ABUND,VAMP-seq abundance,abund: Amorosi 2021,0.6158,0.6901,0.7115,6370
 CP2C9_HUMAN,CP2C9_HUMAN_Amorosi_2021_activity,ProteinGym,ACT,probe-binding activity,act: Amorosi 2021,0.6645,0.7132,0.7019,6142
-DLG4_HUMAN,DLG4_HUMAN_Faure_2021,ProteinGym,ABUND,abundance PCA,abund: Faure 2021,0.6840,0.7273,0.7232,6976
-DLG4_HUMAN,DLG4_HUMAN_Faure_2021_binding_domain,DMS benchmark,BIND,binding PCA,bind: Faure 2021 (DMS),0.7558,0.8068,0.7628,8251
-GRB2_HUMAN,GRB2_HUMAN_Faure_2021,ProteinGym,ABUND,abundance PCA,abund: Faure 2021,0.6140,0.6818,0.6820,63366
-GRB2_HUMAN,GRB2_HUMAN_Faure_2021_binding_domain,DMS benchmark,BIND,binding PCA,bind: Faure 2021 (DMS),0.7401,0.7249,0.6605,33441
 HXK4_HUMAN,HXK4_HUMAN_Gersing_2023_abundance,ProteinGym,ABUND,DHFR-PCA abundance,abund: Gersing 2023,0.3991,0.4355,0.4471,8396
 HXK4_HUMAN,HXK4_HUMAN_Gersing_2022_activity,ProteinGym,ACT,complementation activity,act: Gersing 2022,0.4570,0.4979,0.4723,8570
 KCNE1_HUMAN,KCNE1_HUMAN_Muhammad_2023_expression,ProteinGym,ABUND,surface expression,abund: Muhammad 2023,0.1786,0.0752,0.0019,2339

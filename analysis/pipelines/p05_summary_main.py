@@ -2,10 +2,10 @@
 """Pipeline p05: Main-text Figure 3 composite, thermostability & ProteinGym summaries, and ESM-MSR vs ESM3dG.
 
 Consolidates:
-  - 01_summary.py                  -> results/01_summary/{pg_categories, pg_categories_per_scaffold, thermostability_sets, thermostability_sets.csv}
+  - 01_summary.py                  -> results/06_summary/{pg_categories, pg_categories_per_scaffold, thermostability_sets, thermostability_sets.csv}
                                       and results/00_main_text_figs/figure3.{png,pdf}
-  - 01b_thermostability_pvalues.py -> results/01_summary/{thermostability_sets_pvalues.{csv,md}, thermostability_sets_best.csv, thermostability_sets_msr_heads.csv}
-  - 22_esm_msr_vs_esm3dg.py        -> results/22_esm_msr_vs_esm3dg/esm_msr_vs_esm3dg.{csv,md,png,pdf}
+  - 01b_thermostability_pvalues.py -> results/06_summary/{thermostability_sets_pvalues.{csv,md}, thermostability_sets_best.csv, thermostability_sets_msr_heads.csv}
+  - 22_esm_msr_vs_esm3dg.py        -> results/99_misc/esm_msr_vs_esm3dg/esm_msr_vs_esm3dg.{csv,md,png,pdf}
 
 Key methodological fixes vs legacy scripts:
   - Calls msr_analysis.proteingym.{load_sigma_pgym, sigma_delta_pvalues, draw_property_sigma_panel} directly (zero importlib).
@@ -29,7 +29,7 @@ from msr_analysis.common import out_dir
 from msr_analysis.data import Frame, load_frame
 from msr_analysis.external import EXT_ORDER, fresh_frames, model_key_for_dataset, seed_frame
 from msr_analysis.heldout import flags as heldout_flags
-from msr_analysis.paths import REFERENCE, RESULTS, atomic_to_csv, atomic_write_text
+from msr_analysis.paths import REFERENCE, atomic_to_csv, atomic_write_text, results_dir
 from msr_analysis.proteingym import (
     PG_CATEGORIES,
     boot_pgym_categories,
@@ -71,7 +71,7 @@ THERMO_NOTE = (
 # 1. Summary figures & Figure 3 (01_summary.py)
 # ----------------------------------------------------------------------------------------------
 def _inferred_models(pooled: bool = False) -> dict:
-    f = RESULTS / '18_mgnify' / ('mgnify_models_pooled.csv' if pooled else 'mgnify_models_per_scaffold.csv')
+    f = results_dir('mgnify', create=False) / ('mgnify_models_pooled.csv' if pooled else 'mgnify_models_per_scaffold.csv')
     if not f.exists():
         return {}
     out: dict = {}
@@ -86,7 +86,7 @@ def _inferred_models(pooled: bool = False) -> dict:
 
 
 def _read_pg_summary_df(B: int) -> tuple[pd.DataFrame, int, int, str]:
-    pg_dir = RESULTS / '05_proteingym'
+    pg_dir = results_dir('proteingym', create=False)
     sum_p = pg_dir / 'pg_summary.csv' if (pg_dir / 'pg_summary.csv').exists() else pg_dir / 'pg_summary_tsu.csv'
     sig_p = pg_dir / 'pg_sigma_summary.csv' if (pg_dir / 'pg_sigma_summary.csv').exists() else pg_dir / 'pg_sigma_summary_tsu.csv'
     if sum_p.exists() and sig_p.exists():
@@ -226,11 +226,11 @@ def _draw_pg_left(ax, pg: dict, ylim=(0.04, 1.0)) -> None:
 
 
 def _thermo_data() -> dict:
-    S = pd.read_csv(RESULTS / '02_thermostability' / 'thermostability_rho.csv')
+    S = pd.read_csv(results_dir('thermostability', create=False) / 'thermostability_rho.csv')
     S = S[~S['dataset'].isin(EXCLUDE_THERMO)].copy()
     sets_all = sorted(S['dataset'].unique())
     seed1 = S[S['model'] == 'ESM-MSR'].set_index('dataset')['rho']
-    f_ab = RESULTS / '98_ablation' / 'cells_long.csv'
+    f_ab = results_dir('ablation', create=False) / 'cells_long.csv'
     mean_ab = {}
     if f_ab.exists():
         c = pd.read_csv(f_ab)
@@ -277,8 +277,8 @@ def _draw_thermo(ax, th: dict, ylim=None) -> list:
 
 
 def run_summary_and_figure3(B: int) -> pd.DataFrame:
-    out_sum = out_dir('01_summary')
-    out_main = out_dir('00_main_text_figs')
+    out_sum = out_dir('summary')
+    out_main = out_dir('main_text_figs')
 
     t_held, per_seed_held = load_sigma_pgym(heldout=True, drop_large=True, include_fallback_small=False)
     b_sig = max(B, 10000) if B > 100 else B
@@ -370,7 +370,7 @@ def _head_worker(job):
 
 
 def run_thermostability_pvalues(D_th: pd.DataFrame, B: int, workers: int = 4) -> None:
-    out = out_dir('01_summary')
+    out = out_dir('summary')
     sets = list(D_th.sort_values('order').drop_duplicates('dataset')['dataset'])
     leak = {(r.dataset, r.model): bool(r.leak_flag) for r in D_th.itertuples()}
 
@@ -471,7 +471,7 @@ def run_thermostability_pvalues(D_th: pd.DataFrame, B: int, workers: int = 4) ->
     atomic_write_text(out / 'thermostability_sets_pvalues.md', '\n'.join(lines) + '\n')
 
     # PTMUL / PTMUL-D Dual-view vs WT head paired test
-    S_all = pd.read_csv(RESULTS / '02_thermostability' / 'thermostability_rho.csv')
+    S_all = pd.read_csv(results_dir('thermostability', create=False) / 'thermostability_rho.csv')
     _HEAD_FR.clear()
     for ds in ('ptmul', 'ptmuld'):
         fr = fresh_frames(S_all[S_all['dataset'] == ds])[ds]
@@ -510,7 +510,7 @@ def run_thermostability_pvalues(D_th: pd.DataFrame, B: int, workers: int = 4) ->
 # 3. ESM-MSR vs ESM3ΔG cross-benchmark table & figure (22_esm_msr_vs_esm3dg.py, bug-fixed)
 # ----------------------------------------------------------------------------------------------
 def run_esm_msr_vs_esm3dg(B: int) -> pd.DataFrame:
-    out = out_dir('22_esm_msr_vs_esm3dg')
+    out = out_dir('esm_msr_vs_esm3dg')
     thermo_sets = ['ssym', 's461', 'k2369', 's783', 's2648', 'q3421', 's8754', 's571', 'ptmul', 'ptmuld']
     leak_df = pd.read_csv(REFERENCE / 'leak_audit_matrix.csv')
     leak = dict(zip(leak_df.loc[leak_df['model'] == 'ESM3dG', 'dataset'], leak_df.loc[leak_df['model'] == 'ESM3dG', 'code'].fillna('')))
@@ -571,9 +571,9 @@ def run_esm_msr_vs_esm3dg(B: int) -> pd.DataFrame:
             leak=leak.get({'PG avg': 'PG avg', 'Stability': 'PG Stability'}.get(c, ''), ''),
         ))
 
-    # MGnify & Rocklin rows from 18b tables
+    # MGnify & Rocklin rows from 05_mgnify tables
     for fname, metric in (('mgnify_models_pooled.csv', 'pooled rho'), ('mgnify_models_per_scaffold.csv', 'mean per-scaffold rho')):
-        fp = RESULTS / '18_mgnify' / fname
+        fp = results_dir('mgnify', create=False) / fname
         if not fp.exists():
             continue
         d_mg = pd.read_csv(fp)

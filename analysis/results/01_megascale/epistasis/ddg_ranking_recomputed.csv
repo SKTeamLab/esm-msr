@@ -36,6 +36,6 @@ test,doubles,tmpnnd,0.6678,0.6030,0.7345,0.0114,13319,13
 test,doubles,spurs,0.6937,0.6148,0.7591,0.0088,13319,13
 test,doubles,spursm,0.7031,0.6306,0.7675,0.0098,13319,13
 test,dddG of doubles,msrp0:comb,0.5662,0.4789,0.6461,0.0213,13225,13
-test,dddG of doubles,me2,0.3479,0.2279,0.4628,0.0181,12455,13
+test,dddG of doubles,me2,0.3707,0.2579,0.4766,0.0133,13225,13
 test,dddG of doubles,tmpnnd,0.2049,0.0877,0.3066,0.0339,13225,13
 test,dddG of doubles,spursm,0.4210,0.2992,0.5323,0.0277,13225,13

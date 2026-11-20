@@ -71,6 +71,10 @@ FINAL_p0_rcthr0,3,mt,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_
 FINAL_p0_rcthr0,1,wt+,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.76377,7900.00000,1.00000
 FINAL_p0_rcthr0,2,wt+,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.76190,7900.00000,1.00000
 FINAL_p0_rcthr0,3,wt+,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.77169,7900.00000,1.00000
+FINAL_p0_mse,3,wt,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.75124,8251.00000,1.00000
+FINAL_p0_mse,3,comb,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.73316,8251.00000,1.00000
+FINAL_p0_mse,3,mt,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.68460,8251.00000,1.00000
+FINAL_p0_mse,3,wt+,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.75021,7900.00000,1.00000
 FINAL_p0_noseqhwm,1,wt,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.76485,8251.00000,1.00000
 FINAL_p0_noseqhwm,2,wt,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.76582,8251.00000,1.00000
 FINAL_p0_noseqhwm,3,wt,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.75863,8251.00000,1.00000
@@ -203,6 +207,10 @@ FINAL_p0_rcthr0,3,mt,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Fau
 FINAL_p0_rcthr0,1,wt+,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.67144,1441.00000,1.00000
 FINAL_p0_rcthr0,2,wt+,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.67598,1441.00000,1.00000
 FINAL_p0_rcthr0,3,wt+,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.68609,1441.00000,1.00000
+FINAL_p0_mse,3,wt,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.65998,1441.00000,1.00000
+FINAL_p0_mse,3,comb,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.64256,1441.00000,1.00000
+FINAL_p0_mse,3,mt,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.59811,1441.00000,1.00000
+FINAL_p0_mse,3,wt+,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.65998,1441.00000,1.00000
 FINAL_p0_noseqhwm,1,wt,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.67654,1441.00000,1.00000
 FINAL_p0_noseqhwm,2,wt,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.67943,1441.00000,1.00000
 FINAL_p0_noseqhwm,3,wt,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.66683,1441.00000,1.00000
@@ -335,6 +343,10 @@ FINAL_p0_rcthr0,3,mt,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure
 FINAL_p0_rcthr0,1,wt+,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.75148,6459.00000,1.00000
 FINAL_p0_rcthr0,2,wt+,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.74856,6459.00000,1.00000
 FINAL_p0_rcthr0,3,wt+,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.75768,6459.00000,1.00000
+FINAL_p0_mse,3,wt,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.73933,6810.00000,1.00000
+FINAL_p0_mse,3,comb,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.71858,6810.00000,1.00000
+FINAL_p0_mse,3,mt,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.66374,6810.00000,1.00000
+FINAL_p0_mse,3,wt+,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.73639,6459.00000,1.00000
 FINAL_p0_noseqhwm,1,wt,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.75383,6810.00000,1.00000
 FINAL_p0_noseqhwm,2,wt,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.75450,6810.00000,1.00000
 FINAL_p0_noseqhwm,3,wt,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.74741,6810.00000,1.00000
@@ -467,6 +479,10 @@ FINAL_p0_rcthr0,3,mt,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_
 FINAL_p0_rcthr0,1,wt+,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.67223,32913.00000,1.00000
 FINAL_p0_rcthr0,2,wt+,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.66712,32913.00000,1.00000
 FINAL_p0_rcthr0,3,wt+,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.67347,32913.00000,1.00000
+FINAL_p0_mse,3,wt,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.63538,33441.00000,1.00000
+FINAL_p0_mse,3,comb,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.60762,33441.00000,1.00000
+FINAL_p0_mse,3,mt,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.54416,33441.00000,1.00000
+FINAL_p0_mse,3,wt+,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.63751,32913.00000,1.00000
 FINAL_p0_noseqhwm,1,wt,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.66386,33441.00000,1.00000
 FINAL_p0_noseqhwm,2,wt,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.66963,33441.00000,1.00000
 FINAL_p0_noseqhwm,3,wt,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.65505,33441.00000,1.00000
@@ -599,6 +615,10 @@ FINAL_p0_rcthr0,3,mt,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Fau
 FINAL_p0_rcthr0,1,wt+,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.63651,655.00000,1.00000
 FINAL_p0_rcthr0,2,wt+,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.63662,655.00000,1.00000
 FINAL_p0_rcthr0,3,wt+,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.63346,655.00000,1.00000
+FINAL_p0_mse,3,wt,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.61834,655.00000,1.00000
+FINAL_p0_mse,3,comb,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.59620,655.00000,1.00000
+FINAL_p0_mse,3,mt,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.54537,655.00000,1.00000
+FINAL_p0_mse,3,wt+,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.61834,655.00000,1.00000
 FINAL_p0_noseqhwm,1,wt,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.63755,655.00000,1.00000
 FINAL_p0_noseqhwm,2,wt,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.64921,655.00000,1.00000
 FINAL_p0_noseqhwm,3,wt,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.62631,655.00000,1.00000
@@ -731,6 +751,10 @@ FINAL_p0_rcthr0,3,mt,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure
 FINAL_p0_rcthr0,1,wt+,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.67096,32258.00000,1.00000
 FINAL_p0_rcthr0,2,wt+,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.66575,32258.00000,1.00000
 FINAL_p0_rcthr0,3,wt+,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.67224,32258.00000,1.00000
+FINAL_p0_mse,3,wt,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.63370,32786.00000,1.00000
+FINAL_p0_mse,3,comb,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.60589,32786.00000,1.00000
+FINAL_p0_mse,3,mt,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.54223,32786.00000,1.00000
+FINAL_p0_mse,3,wt+,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.63585,32258.00000,1.00000
 FINAL_p0_noseqhwm,1,wt,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.66244,32786.00000,1.00000
 FINAL_p0_noseqhwm,2,wt,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.66808,32786.00000,1.00000
 FINAL_p0_noseqhwm,3,wt,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.65362,32786.00000,1.00000
@@ -863,6 +887,10 @@ FINAL_p0_rcthr0,3,mt,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.6
 FINAL_p0_rcthr0,1,wt+,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.64009,5686.00000,1.00000
 FINAL_p0_rcthr0,2,wt+,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.64226,5686.00000,1.00000
 FINAL_p0_rcthr0,3,wt+,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.64075,5686.00000,1.00000
+FINAL_p0_mse,3,wt,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.64013,5905.00000,1.00000
+FINAL_p0_mse,3,comb,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.63764,5905.00000,1.00000
+FINAL_p0_mse,3,mt,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.61021,5905.00000,1.00000
+FINAL_p0_mse,3,wt+,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.64153,5686.00000,1.00000
 FINAL_p0_noseqhwm,1,wt,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.64111,5905.00000,1.00000
 FINAL_p0_noseqhwm,2,wt,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.64004,5905.00000,1.00000
 FINAL_p0_noseqhwm,3,wt,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.64150,5905.00000,1.00000
@@ -995,6 +1023,10 @@ FINAL_p0_rcthr0,3,mt,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_dis
 FINAL_p0_rcthr0,1,wt+,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58598,2534.00000,1.00000
 FINAL_p0_rcthr0,2,wt+,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58752,2534.00000,1.00000
 FINAL_p0_rcthr0,3,wt+,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58617,2534.00000,1.00000
+FINAL_p0_mse,3,wt,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58547,2534.00000,1.00000
+FINAL_p0_mse,3,comb,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58753,2534.00000,1.00000
+FINAL_p0_mse,3,mt,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.56870,2534.00000,1.00000
+FINAL_p0_mse,3,wt+,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58547,2534.00000,1.00000
 FINAL_p0_noseqhwm,1,wt,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58729,2534.00000,1.00000
 FINAL_p0_noseqhwm,2,wt,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58698,2534.00000,1.00000
 FINAL_p0_noseqhwm,3,wt,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58798,2534.00000,1.00000
@@ -1127,6 +1159,10 @@ FINAL_p0_rcthr0,3,mt,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_displ
 FINAL_p0_rcthr0,1,wt+,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.61473,3152.00000,1.00000
 FINAL_p0_rcthr0,2,wt+,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.61810,3152.00000,1.00000
 FINAL_p0_rcthr0,3,wt+,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.61494,3152.00000,1.00000
+FINAL_p0_mse,3,wt,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.61478,3371.00000,1.00000
+FINAL_p0_mse,3,comb,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.60840,3371.00000,1.00000
+FINAL_p0_mse,3,mt,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.57246,3371.00000,1.00000
+FINAL_p0_mse,3,wt+,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.61555,3152.00000,1.00000
 FINAL_p0_noseqhwm,1,wt,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.61559,3371.00000,1.00000
 FINAL_p0_noseqhwm,2,wt,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.61416,3371.00000,1.00000
 FINAL_p0_noseqhwm,3,wt,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.61547,3371.00000,1.00000
@@ -1205,6 +1241,7 @@ FINAL_p0_norank,3,primary,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_
 FINAL_p0_rcthr0,1,primary,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.73715,8251.00000,1.00000
 FINAL_p0_rcthr0,2,primary,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.73937,8251.00000,1.00000
 FINAL_p0_rcthr0,3,primary,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.74453,8251.00000,1.00000
+FINAL_p0_mse,3,primary,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.73316,8251.00000,1.00000
 FINAL_p0_noseqhwm,1,primary,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.74203,8251.00000,1.00000
 FINAL_p0_noseqhwm,2,primary,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.73177,8251.00000,1.00000
 FINAL_p0_noseqhwm,3,primary,DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN_Faure_2021_binding_domain,0.73891,8251.00000,1.00000
@@ -1238,6 +1275,7 @@ FINAL_p0_norank,3,primary,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMA
 FINAL_p0_rcthr0,1,primary,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.67144,1441.00000,1.00000
 FINAL_p0_rcthr0,2,primary,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.67598,1441.00000,1.00000
 FINAL_p0_rcthr0,3,primary,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.68609,1441.00000,1.00000
+FINAL_p0_mse,3,primary,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.65998,1441.00000,1.00000
 FINAL_p0_noseqhwm,1,primary,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.67654,1441.00000,1.00000
 FINAL_p0_noseqhwm,2,primary,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.67943,1441.00000,1.00000
 FINAL_p0_noseqhwm,3,primary,DLG4_HUMAN_Faure_2021_binding_domain|singles,DLG4_HUMAN_Faure_2021_binding_domain,0.66683,1441.00000,1.00000
@@ -1271,6 +1309,7 @@ FINAL_p0_norank,3,primary,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_
 FINAL_p0_rcthr0,1,primary,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.72355,6810.00000,1.00000
 FINAL_p0_rcthr0,2,primary,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.72635,6810.00000,1.00000
 FINAL_p0_rcthr0,3,primary,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.73077,6810.00000,1.00000
+FINAL_p0_mse,3,primary,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.71858,6810.00000,1.00000
 FINAL_p0_noseqhwm,1,primary,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.72887,6810.00000,1.00000
 FINAL_p0_noseqhwm,2,primary,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.71794,6810.00000,1.00000
 FINAL_p0_noseqhwm,3,primary,DLG4_HUMAN_Faure_2021_binding_domain|multi,DLG4_HUMAN_Faure_2021_binding_domain,0.72577,6810.00000,1.00000
@@ -1304,6 +1343,7 @@ FINAL_p0_norank,3,primary,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_
 FINAL_p0_rcthr0,1,primary,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.64424,33441.00000,1.00000
 FINAL_p0_rcthr0,2,primary,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.64045,33441.00000,1.00000
 FINAL_p0_rcthr0,3,primary,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.64568,33441.00000,1.00000
+FINAL_p0_mse,3,primary,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.60762,33441.00000,1.00000
 FINAL_p0_noseqhwm,1,primary,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.64129,33441.00000,1.00000
 FINAL_p0_noseqhwm,2,primary,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.63902,33441.00000,1.00000
 FINAL_p0_noseqhwm,3,primary,GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN_Faure_2021_binding_domain,0.62681,33441.00000,1.00000
@@ -1337,6 +1377,7 @@ FINAL_p0_norank,3,primary,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMA
 FINAL_p0_rcthr0,1,primary,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.63651,655.00000,1.00000
 FINAL_p0_rcthr0,2,primary,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.63662,655.00000,1.00000
 FINAL_p0_rcthr0,3,primary,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.63346,655.00000,1.00000
+FINAL_p0_mse,3,primary,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.61834,655.00000,1.00000
 FINAL_p0_noseqhwm,1,primary,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.63755,655.00000,1.00000
 FINAL_p0_noseqhwm,2,primary,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.64921,655.00000,1.00000
 FINAL_p0_noseqhwm,3,primary,GRB2_HUMAN_Faure_2021_binding_domain|singles,GRB2_HUMAN_Faure_2021_binding_domain,0.62631,655.00000,1.00000
@@ -1370,6 +1411,7 @@ FINAL_p0_norank,3,primary,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_
 FINAL_p0_rcthr0,1,primary,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.64276,32786.00000,1.00000
 FINAL_p0_rcthr0,2,primary,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.63892,32786.00000,1.00000
 FINAL_p0_rcthr0,3,primary,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.64422,32786.00000,1.00000
+FINAL_p0_mse,3,primary,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.60589,32786.00000,1.00000
 FINAL_p0_noseqhwm,1,primary,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.63974,32786.00000,1.00000
 FINAL_p0_noseqhwm,2,primary,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.63736,32786.00000,1.00000
 FINAL_p0_noseqhwm,3,primary,GRB2_HUMAN_Faure_2021_binding_domain|multi,GRB2_HUMAN_Faure_2021_binding_domain,0.62522,32786.00000,1.00000
@@ -1403,6 +1445,7 @@ FINAL_p0_norank,3,primary,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_displa
 FINAL_p0_rcthr0,1,primary,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.63533,5905.00000,1.00000
 FINAL_p0_rcthr0,2,primary,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.63859,5905.00000,1.00000
 FINAL_p0_rcthr0,3,primary,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.63979,5905.00000,1.00000
+FINAL_p0_mse,3,primary,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.63764,5905.00000,1.00000
 FINAL_p0_noseqhwm,1,primary,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.63784,5905.00000,1.00000
 FINAL_p0_noseqhwm,2,primary,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.63806,5905.00000,1.00000
 FINAL_p0_noseqhwm,3,primary,MYO_HUMAN_Kung_2025_display,MYO_HUMAN_Kung_2025_display,0.64137,5905.00000,1.00000
@@ -1436,6 +1479,7 @@ FINAL_p0_norank,3,primary,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_202
 FINAL_p0_rcthr0,1,primary,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58598,2534.00000,1.00000
 FINAL_p0_rcthr0,2,primary,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58752,2534.00000,1.00000
 FINAL_p0_rcthr0,3,primary,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58617,2534.00000,1.00000
+FINAL_p0_mse,3,primary,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58547,2534.00000,1.00000
 FINAL_p0_noseqhwm,1,primary,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58729,2534.00000,1.00000
 FINAL_p0_noseqhwm,2,primary,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58698,2534.00000,1.00000
 FINAL_p0_noseqhwm,3,primary,MYO_HUMAN_Kung_2025_display|singles,MYO_HUMAN_Kung_2025_display,0.58798,2534.00000,1.00000
@@ -1469,6 +1513,7 @@ FINAL_p0_norank,3,primary,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_
 FINAL_p0_rcthr0,1,primary,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.60652,3371.00000,1.00000
 FINAL_p0_rcthr0,2,primary,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.61129,3371.00000,1.00000
 FINAL_p0_rcthr0,3,primary,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.61176,3371.00000,1.00000
+FINAL_p0_mse,3,primary,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.60840,3371.00000,1.00000
 FINAL_p0_noseqhwm,1,primary,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.60896,3371.00000,1.00000
 FINAL_p0_noseqhwm,2,primary,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.60942,3371.00000,1.00000
 FINAL_p0_noseqhwm,3,primary,MYO_HUMAN_Kung_2025_display|multi,MYO_HUMAN_Kung_2025_display,0.61183,3371.00000,1.00000
@@ -1529,6 +1574,11 @@ FINAL_p0_mega,3,mt,dms_mean,composite,0.64448,,
 FINAL_p0_mega,3,primary,dms_mean,composite,0.67905,,
 FINAL_p0_mega,3,wt,dms_mean,composite,0.68782,,
 FINAL_p0_mega,3,wt+,dms_mean,composite,0.68865,,
+FINAL_p0_mse,3,comb,dms_mean,composite,0.65947,,
+FINAL_p0_mse,3,mt,dms_mean,composite,0.61299,,
+FINAL_p0_mse,3,primary,dms_mean,composite,0.65947,,
+FINAL_p0_mse,3,wt,dms_mean,composite,0.67559,,
+FINAL_p0_mse,3,wt+,dms_mean,composite,0.67642,,
 FINAL_p0_norank,1,comb,dms_mean,composite,0.68597,,
 FINAL_p0_norank,1,mt,dms_mean,composite,0.64379,,
 FINAL_p0_norank,1,primary,dms_mean,composite,0.68597,,
@@ -1694,6 +1744,11 @@ FINAL_p0_mega,3,mt,dms_multi_mean,composite,0.62800,,
 FINAL_p0_mega,3,primary,dms_multi_mean,composite,0.66554,,
 FINAL_p0_mega,3,wt,dms_multi_mean,composite,0.67554,,
 FINAL_p0_mega,3,wt+,dms_multi_mean,composite,0.67546,,
+FINAL_p0_mse,3,comb,dms_multi_mean,composite,0.64429,,
+FINAL_p0_mse,3,mt,dms_multi_mean,composite,0.59281,,
+FINAL_p0_mse,3,primary,dms_multi_mean,composite,0.64429,,
+FINAL_p0_mse,3,wt,dms_multi_mean,composite,0.66260,,
+FINAL_p0_mse,3,wt+,dms_multi_mean,composite,0.66260,,
 FINAL_p0_norank,1,comb,dms_multi_mean,composite,0.67213,,
 FINAL_p0_norank,1,mt,dms_multi_mean,composite,0.62654,,
 FINAL_p0_norank,1,primary,dms_multi_mean,composite,0.67213,,
