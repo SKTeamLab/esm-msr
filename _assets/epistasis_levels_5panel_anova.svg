@@ -1,0 +1,731 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1560 630" width="100%" height="100%" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .panel-card { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; rx: 10; }
+      .panel-header-1 { fill: #f1f5f9; stroke: #cbd5e1; stroke-width: 1.5; }
+      .panel-header-2 { fill: #eff6ff; stroke: #93c5fd; stroke-width: 1.5; }
+      .panel-header-3 { fill: #fff7ed; stroke: #fdba74; stroke-width: 1.5; }
+      .panel-header-4 { fill: #ecfdf5; stroke: #6ee7b7; stroke-width: 1.5; }
+      .panel-header-5 { fill: #f5f3ff; stroke: #c4b5fd; stroke-width: 1.5; }
+      .title-text { font-size: 15px; font-weight: 700; fill: #0f172a; }
+      .desc-text { font-size: 11px; font-weight: 500; fill: #475569; }
+      .step-box { rx: 6; stroke-width: 1.3; }
+      .step-title { font-size: 11px; font-weight: 700; }
+      .axis-label { font-size: 10.5px; font-weight: 600; fill: #334155; }
+      .small-label { font-size: 10px; font-weight: 500; fill: #475569; }
+      .rho-box { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.3; rx: 6; }
+      .rho-top { font-size: 10.5px; font-weight: 600; fill: #475569; }
+      .rho-bot { font-size: 11px; font-weight: 700; fill: #0f172a; }
+      .anova-label { font-size: 10.5px; font-weight: 600; fill: #334155; }
+      .anova-pct { font-size: 11px; font-weight: 700; fill: #ffffff; }
+      .anova-pct-above { font-size: 10.5px; font-weight: 700; fill: #5b21b6; }
+      .anova-pct-above-2 { font-size: 10.5px; font-weight: 700; fill: #1e3a8a; }
+    </style>
+
+    <!-- Cell-level bar fill (total 10.1% of Var(dDDG) on test split):
+         Outside noise (true signal, 0..1.3% of total = 0..12.9% of cell bar): purple (#7c3aed)
+         Between combined-protease noise (5.7%) and mutant-replicate noise (8.8%) (1.3%..4.4% of total = 12.9%..43.6% of cell bar): gradient purple (#7c3aed) to black (#0f172a)
+         Noise by either definition (4.4%..10.1% of total = 43.6%..100% of cell bar): black (#0f172a)
+    -->
+    <linearGradient id="cellNoiseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="13%" stop-color="#7c3aed"/>
+      <stop offset="44%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1560" height="630" class="bg"/>
+
+  <!-- ===================================================================== -->
+  <!-- PANEL 1: NAIVE (x=15, w=280)                                          -->
+  <!-- ===================================================================== -->
+  <g transform="translate(15, 14)">
+    <rect x="0" y="0" width="280" height="602" class="panel-card"/>
+    <rect x="0" y="0" width="280" height="56" rx="10" class="panel-header-1"/>
+    <text x="140" y="23" text-anchor="middle" class="title-text">1. Naive</text>
+    <text x="140" y="43" text-anchor="middle" class="desc-text">Raw correlation across double mutants</text>
+
+    <!-- Square scatter plot of raw dDDG_obs vs dDDG_pred -->
+    <g transform="translate(52, 92)">
+      <rect x="0" y="0" width="192" height="192" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" rx="4"/>
+      <!-- Diagonal y=x reference -->
+      <line x1="16" y1="176" x2="176" y2="16" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="5,4"/>
+
+      <!-- Axes -->
+      <line x1="0" y1="192" x2="192" y2="192" stroke="#475569" stroke-width="1.5"/>
+      <line x1="0" y1="0" x2="0" y2="192" stroke="#475569" stroke-width="1.5"/>
+
+      <!-- Noisy scatter points forming a stretched oval along x=y, mixed across protein domains -->
+      <!-- Domain 1 (blue) -->
+      <circle cx="26" cy="148" r="3.4" fill="#3b82f6" opacity="0.85"/>
+      <circle cx="42" cy="172" r="3.4" fill="#3b82f6" opacity="0.85"/>
+      <circle cx="54" cy="118" r="3.4" fill="#3b82f6" opacity="0.85"/>
+      <circle cx="68" cy="146" r="3.4" fill="#3b82f6" opacity="0.85"/>
+      <circle cx="78" cy="94" r="3.4" fill="#3b82f6" opacity="0.85"/>
+      <circle cx="92" cy="128" r="3.4" fill="#3b82f6" opacity="0.85"/>
+      <circle cx="104" cy="68" r="3.4" fill="#3b82f6" opacity="0.85"/>
+      <circle cx="118" cy="102" r="3.4" fill="#3b82f6" opacity="0.85"/>
+      <circle cx="132" cy="48" r="3.4" fill="#3b82f6" opacity="0.85"/>
+      <circle cx="148" cy="76" r="3.4" fill="#3b82f6" opacity="0.85"/>
+      <circle cx="164" cy="34" r="3.4" fill="#3b82f6" opacity="0.85"/>
+
+      <!-- Domain 2 (amber) -->
+      <circle cx="34" cy="164" r="3.4" fill="#f59e0b" opacity="0.85"/>
+      <circle cx="48" cy="136" r="3.4" fill="#f59e0b" opacity="0.85"/>
+      <circle cx="62" cy="158" r="3.4" fill="#f59e0b" opacity="0.85"/>
+      <circle cx="72" cy="108" r="3.4" fill="#f59e0b" opacity="0.85"/>
+      <circle cx="86" cy="138" r="3.4" fill="#f59e0b" opacity="0.85"/>
+      <circle cx="98" cy="82" r="3.4" fill="#f59e0b" opacity="0.85"/>
+      <circle cx="112" cy="114" r="3.4" fill="#f59e0b" opacity="0.85"/>
+      <circle cx="124" cy="62" r="3.4" fill="#f59e0b" opacity="0.85"/>
+      <circle cx="140" cy="88" r="3.4" fill="#f59e0b" opacity="0.85"/>
+      <circle cx="154" cy="40" r="3.4" fill="#f59e0b" opacity="0.85"/>
+      <circle cx="172" cy="52" r="3.4" fill="#f59e0b" opacity="0.85"/>
+
+      <!-- Domain M (teal) -->
+      <circle cx="38" cy="128" r="3.4" fill="#10b981" opacity="0.85"/>
+      <circle cx="56" cy="150" r="3.4" fill="#10b981" opacity="0.85"/>
+      <circle cx="64" cy="100" r="3.4" fill="#10b981" opacity="0.85"/>
+      <circle cx="82" cy="122" r="3.4" fill="#10b981" opacity="0.85"/>
+      <circle cx="90" cy="74" r="3.4" fill="#10b981" opacity="0.85"/>
+      <circle cx="106" cy="96" r="3.4" fill="#10b981" opacity="0.85"/>
+      <circle cx="116" cy="54" r="3.4" fill="#10b981" opacity="0.85"/>
+      <circle cx="130" cy="78" r="3.4" fill="#10b981" opacity="0.85"/>
+      <circle cx="144" cy="34" r="3.4" fill="#10b981" opacity="0.85"/>
+      <circle cx="160" cy="60" r="3.4" fill="#10b981" opacity="0.85"/>
+      <circle cx="176" cy="24" r="3.4" fill="#10b981" opacity="0.85"/>
+
+      <!-- Legend for domains inside plot -->
+      <g transform="translate(10, 10)">
+        <rect x="0" y="0" width="82" height="48" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" rx="4"/>
+        <circle cx="11" cy="12" r="3.5" fill="#3b82f6"/>
+        <text x="20" y="15" class="small-label">Domain 1</text>
+        <circle cx="11" cy="25" r="3.5" fill="#f59e0b"/>
+        <text x="20" y="28" class="small-label">Domain 2</text>
+        <circle cx="11" cy="38" r="3.5" fill="#10b981"/>
+        <text x="20" y="41" class="small-label">Domain M</text>
+      </g>
+
+      <!-- Axis labels -->
+      <text x="96" y="214" text-anchor="middle" class="axis-label">Predicted δΔΔG</text>
+      <text x="-96" y="-14" transform="rotate(-90)" text-anchor="middle" class="axis-label">Observed δΔΔG</text>
+    </g>
+
+    <text x="140" y="352" text-anchor="middle" class="axis-label">Raw departure from additivity</text>
+    <text x="140" y="372" text-anchor="middle" class="small-label" font-weight="600">δΔΔG = ΔΔG(AB) − (ΔΔG(A) + ΔΔG(B))</text>
+
+    <!-- Spearman Box -->
+    <g transform="translate(20, 460)">
+      <rect x="0" y="0" width="240" height="54" class="rho-box"/>
+      <text x="120" y="21" text-anchor="middle" class="rho-top">Pool all data, then:</text>
+      <text x="120" y="40" text-anchor="middle" class="rho-bot">Spearman ρ (prediction versus label)</text>
+    </g>
+
+    <!-- Bottom ANOVA Bar: Panel 1 shows ALL bars at full opacity (100% variance explained), keeping 53.5% in the blue bar -->
+    <g transform="translate(20, 554)">
+      <text x="0" y="-8" class="anova-label">Variance explained by level:</text>
+      <rect x="0" y="0" width="128.4" height="26" fill="#2563eb" stroke="#1d4ed8" stroke-width="1.2" rx="2"/>
+      <text x="64.2" y="17" text-anchor="middle" class="anova-pct">53.5%</text>
+      <rect x="128.4" y="0" width="51.8" height="26" fill="#ea580c" stroke="#c2410c" stroke-width="1.2" rx="2"/>
+      <rect x="180.2" y="0" width="35.5" height="26" fill="#059669" stroke="#047857" stroke-width="1.2" rx="2"/>
+      <rect x="215.7" y="0" width="24.3" height="26" fill="url(#cellNoiseGrad)" stroke="#5b21b6" stroke-width="1.2" rx="2"/>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- PANEL 2: SATURATION-SUBTRACTED (x=325, w=280)                         -->
+  <!-- ===================================================================== -->
+  <g transform="translate(325, 14)">
+    <rect x="0" y="0" width="280" height="602" class="panel-card"/>
+    <rect x="0" y="0" width="280" height="56" rx="10" class="panel-header-2"/>
+    <text x="140" y="23" text-anchor="middle" class="title-text" fill="#1d4ed8">2. Saturation-subtracted</text>
+    <text x="140" y="43" text-anchor="middle" class="desc-text">Correction for assay floor distortion</text>
+
+    <!-- TOP: Flattened residual plot (after subtracting global curve) -->
+    <g transform="translate(54, 72)">
+      <rect x="0" y="0" width="184" height="106" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.3" rx="4"/>
+      <text x="92" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="#1e3a8a">Flattened residuals (r)</text>
+
+      <!-- Axes -->
+      <line x1="0" y1="106" x2="184" y2="106" stroke="#475569" stroke-width="1.3"/>
+      <line x1="0" y1="0" x2="0" y2="106" stroke="#475569" stroke-width="1.3"/>
+      <text x="-53" y="-12" transform="rotate(-90)" text-anchor="middle" class="axis-label">Residual r</text>
+
+      <!-- Flattened zero curve at y=58 -->
+      <line x1="12" y1="58" x2="172" y2="58" stroke="#1e293b" stroke-width="2" stroke-dasharray="4,3"/>
+      <text x="8" y="61" text-anchor="end" font-size="9.5" font-weight="600" fill="#475569">0</text>
+
+      <!-- 10 points with exact vertical segments to y=58 -->
+      <line x1="24" y1="58" x2="24" y2="40" stroke="#dc2626" stroke-width="1.8"/>
+      <circle cx="24" cy="40" r="3.1" fill="#dc2626"/>
+
+      <line x1="42" y1="58" x2="42" y2="74" stroke="#2563eb" stroke-width="1.8"/>
+      <circle cx="42" cy="74" r="3.1" fill="#2563eb"/>
+
+      <line x1="52" y1="58" x2="52" y2="65" stroke="#2563eb" stroke-width="1.8"/>
+      <circle cx="52" cy="65" r="3.1" fill="#2563eb"/>
+
+      <line x1="62" y1="58" x2="62" y2="36" stroke="#dc2626" stroke-width="1.8"/>
+      <circle cx="62" cy="36" r="3.1" fill="#dc2626"/>
+
+      <line x1="82" y1="58" x2="82" y2="76" stroke="#2563eb" stroke-width="1.8"/>
+      <circle cx="82" cy="76" r="3.1" fill="#2563eb"/>
+
+      <line x1="92" y1="58" x2="92" y2="51" stroke="#dc2626" stroke-width="1.8"/>
+      <circle cx="92" cy="51" r="3.1" fill="#dc2626"/>
+
+      <line x1="102" y1="58" x2="102" y2="42" stroke="#dc2626" stroke-width="1.8"/>
+      <circle cx="102" cy="42" r="3.1" fill="#dc2626"/>
+
+      <line x1="122" y1="58" x2="122" y2="78" stroke="#2563eb" stroke-width="1.8"/>
+      <circle cx="122" cy="78" r="3.1" fill="#2563eb"/>
+
+      <line x1="142" y1="58" x2="142" y2="44" stroke="#dc2626" stroke-width="1.8"/>
+      <circle cx="142" cy="44" r="3.1" fill="#dc2626"/>
+
+      <line x1="160" y1="58" x2="160" y2="72" stroke="#2563eb" stroke-width="1.8"/>
+      <circle cx="160" cy="72" r="3.1" fill="#2563eb"/>
+    </g>
+
+    <!-- Unlabelled double-sided vertical arrow between flattened plot (top) and global curve plot (bottom) -->
+    <line x1="146" y1="188" x2="146" y2="216" stroke="#1d4ed8" stroke-width="2.2"/>
+    <polygon points="141.5,190 146,181 150.5,190" fill="#1d4ed8"/>
+    <polygon points="141.5,214 146,223 150.5,214" fill="#1d4ed8"/>
+
+    <!-- BOTTOM: Square global curve box (184 x 184) -->
+    <g transform="translate(54, 228)">
+      <rect x="0" y="0" width="184" height="184" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" rx="4"/>
+      <line x1="0" y1="156" x2="184" y2="156" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="0" y1="184" x2="184" y2="184" stroke="#475569" stroke-width="1.5"/>
+      <line x1="0" y1="0" x2="0" y2="184" stroke="#475569" stroke-width="1.5"/>
+
+      <text x="92" y="16" text-anchor="middle" font-size="9.5" font-weight="700" fill="#1e293b">Global curve E[δΔΔG | ΔG(add)]</text>
+
+      <!-- All 10 points with vertical lines anchored at the exact curve vertex y_curve(x) -->
+      <line x1="24" y1="47.00" x2="24" y2="29.00" stroke="#dc2626" stroke-width="1.8"/>
+      <circle cx="24" cy="29.00" r="3.1" fill="#dc2626"/>
+
+      <line x1="42" y1="66.16" x2="42" y2="82.16" stroke="#2563eb" stroke-width="1.8"/>
+      <circle cx="42" cy="82.16" r="3.1" fill="#2563eb"/>
+
+      <line x1="52" y1="76.09" x2="52" y2="83.09" stroke="#2563eb" stroke-width="1.8"/>
+      <circle cx="52" cy="83.09" r="3.1" fill="#2563eb"/>
+
+      <line x1="62" y1="85.59" x2="62" y2="63.59" stroke="#dc2626" stroke-width="1.8"/>
+      <circle cx="62" cy="63.59" r="3.1" fill="#dc2626"/>
+
+      <line x1="82" y1="103.02" x2="82" y2="121.02" stroke="#2563eb" stroke-width="1.8"/>
+      <circle cx="82" cy="121.02" r="3.1" fill="#2563eb"/>
+
+      <line x1="92" y1="110.97" x2="92" y2="103.97" stroke="#dc2626" stroke-width="1.8"/>
+      <circle cx="92" cy="103.97" r="3.1" fill="#dc2626"/>
+
+      <line x1="102" y1="118.32" x2="102" y2="102.32" stroke="#dc2626" stroke-width="1.8"/>
+      <circle cx="102" cy="102.32" r="3.1" fill="#dc2626"/>
+
+      <line x1="122" y1="131.33" x2="122" y2="151.33" stroke="#2563eb" stroke-width="1.8"/>
+      <circle cx="122" cy="151.33" r="3.1" fill="#2563eb"/>
+
+      <line x1="142" y1="141.82" x2="142" y2="127.82" stroke="#dc2626" stroke-width="1.8"/>
+      <circle cx="142" cy="127.82" r="3.1" fill="#dc2626"/>
+
+      <line x1="160" y1="149.02" x2="160" y2="163.02" stroke="#2563eb" stroke-width="1.8"/>
+      <circle cx="160" cy="163.02" r="3.1" fill="#2563eb"/>
+
+      <!-- Global curve polyline -->
+      <polyline points="16,38.00 20,42.53 24,47.00 28,51.40 32,55.72 36,59.96 42,66.16 48,72.16 52,76.09 56,79.94 62,85.59 70,92.81 76,97.99 82,103.02 88,107.88 92,110.97 96,114.12 102,118.32 108,122.48 116,127.67 122,131.33 128,134.81 136,139.09 142,141.82 148,144.36 154,146.78 160,149.02 164,150.33 168,151.42" fill="none" stroke="#1e293b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+      <!-- Axis labels -->
+      <text x="92" y="204" text-anchor="middle" class="axis-label">Additive stability ΔG(add)</text>
+      <text x="-92" y="-14" transform="rotate(-90)" text-anchor="middle" class="axis-label">δΔΔG</text>
+    </g>
+
+    <!-- Spearman Box -->
+    <g transform="translate(20, 460)">
+      <rect x="0" y="0" width="240" height="54" class="rho-box"/>
+      <text x="120" y="21" text-anchor="middle" class="rho-top">Pool all data, then:</text>
+      <text x="120" y="40" text-anchor="middle" class="rho-bot">Spearman ρ (prediction versus label)</text>
+    </g>
+
+    <!-- Bottom ANOVA Bar: Panel 2 highlights orange + green + purple/black together (46.5%), with blue at ~35% opacity -->
+    <g transform="translate(20, 554)">
+      <text x="0" y="-8" class="anova-label">Variance explained by level:</text>
+      <rect x="0" y="0" width="128.4" height="26" fill="#2563eb" opacity="0.35" stroke="#cbd5e1" stroke-width="0.8" rx="2"/>
+      <rect x="128.4" y="0" width="51.8" height="26" fill="#ea580c" stroke="#c2410c" stroke-width="1.2" rx="2"/>
+      <rect x="180.2" y="0" width="35.5" height="26" fill="#059669" stroke="#047857" stroke-width="1.2" rx="2"/>
+      <rect x="215.7" y="0" width="24.3" height="26" fill="url(#cellNoiseGrad)" stroke="#5b21b6" stroke-width="1.2" rx="2"/>
+      <text x="196.0" y="-8" text-anchor="middle" class="anova-pct-above-2">46.5%</text>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- PANEL 3: PAIR LEVEL (x=635, w=280)                                    -->
+  <!-- ===================================================================== -->
+  <g transform="translate(635, 14)">
+    <rect x="0" y="0" width="280" height="602" class="panel-card"/>
+    <rect x="0" y="0" width="280" height="56" rx="10" class="panel-header-3"/>
+    <text x="140" y="23" text-anchor="middle" class="title-text" fill="#c2410c">3. Pair level</text>
+    <text x="140" y="43" text-anchor="middle" class="desc-text">Average magnitude and sign position pair</text>
+
+    <!-- Starting point box (one text line) receiving arrow from Panel 2 -->
+    <g transform="translate(28, 72)">
+      <rect x="0" y="0" width="224" height="30" class="step-box" fill="#eff6ff" stroke="#93c5fd"/>
+      <text x="112" y="19" text-anchor="middle" class="step-title" fill="#1e3a8a">Saturation-corrected data</text>
+    </g>
+
+    <!-- Arrow down to Step 1 -->
+    <line x1="140" y1="104" x2="140" y2="120" stroke="#475569" stroke-width="1.8"/>
+    <polygon points="136,118 144,118 140,125" fill="#475569"/>
+
+    <!-- Step 1: Stacked red-white-blue pair matrices -->
+    <g transform="translate(24, 128)">
+      <rect x="0" y="0" width="232" height="134" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" rx="6"/>
+
+      <g transform="translate(76, 32)">
+        <text x="40" y="-10" text-anchor="middle" class="small-label" font-weight="600">site j</text>
+        <text x="-10" y="44" text-anchor="end" class="small-label" font-weight="600">site i</text>
+
+        <!-- Back matrices in stack -->
+        <rect x="10" y="-6" width="80" height="80" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+        <rect x="5" y="-3" width="80" height="80" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+        <!-- Front matrix -->
+        <rect x="0" y="0" width="80" height="80" fill="#ffffff" stroke="#334155" stroke-width="1.4"/>
+
+        <!-- 4x4 non-symmetric red-white-blue cells -->
+        <g transform="translate(3, 3)">
+          <!-- Row 1 -->
+          <rect x="0" y="0" width="17" height="17" fill="#dc2626"/>
+          <rect x="19" y="0" width="17" height="17" fill="#fca5a5"/>
+          <rect x="38" y="0" width="17" height="17" fill="#f87171"/>
+          <rect x="57" y="0" width="17" height="17" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.5"/>
+
+          <!-- Row 2 -->
+          <rect x="0" y="19" width="17" height="17" fill="#ef4444"/>
+          <rect x="19" y="19" width="17" height="17" fill="#1d4ed8"/>
+          <rect x="38" y="19" width="17" height="17" fill="#fca5a5"/>
+          <rect x="57" y="19" width="17" height="17" fill="#bfdbfe"/>
+
+          <!-- Row 3 -->
+          <rect x="0" y="38" width="17" height="17" fill="#f87171"/>
+          <rect x="19" y="38" width="17" height="17" fill="#1e40af"/>
+          <rect x="38" y="38" width="17" height="17" fill="#ef4444"/>
+          <rect x="57" y="38" width="17" height="17" fill="#3b82f6"/>
+
+          <!-- Row 4 -->
+          <rect x="0" y="57" width="17" height="17" fill="#fca5a5"/>
+          <rect x="19" y="57" width="17" height="17" fill="#f87171"/>
+          <rect x="38" y="57" width="17" height="17" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.5"/>
+          <rect x="57" y="57" width="17" height="17" fill="#93c5fd"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- Arrow down to Step 2 -->
+    <line x1="140" y1="264" x2="140" y2="280" stroke="#475569" stroke-width="1.8"/>
+    <polygon points="136,278 144,278 140,285" fill="#475569"/>
+
+    <!-- Step 2: Mean of each corrected pair matrix -->
+    <g transform="translate(24, 288)">
+      <rect x="0" y="0" width="232" height="152" fill="#fff7ed" stroke="#fed7aa" stroke-width="1.2" rx="6"/>
+      <text x="116" y="18" text-anchor="middle" font-size="10.5" font-weight="700" fill="#9a3412">Mean of each corrected pair matrix</text>
+
+      <!-- Pair 1 (net positive -> red mean) -->
+      <g transform="translate(30, 32)">
+        <rect x="0" y="0" width="26" height="26" fill="#ffffff" stroke="#475569" stroke-width="1"/>
+        <rect x="2" y="2" width="10" height="10" fill="#dc2626"/>
+        <rect x="14" y="2" width="10" height="10" fill="#fca5a5"/>
+        <rect x="2" y="14" width="10" height="10" fill="#ef4444"/>
+        <rect x="14" y="14" width="10" height="10" fill="#1d4ed8"/>
+
+        <line x1="34" y1="13" x2="68" y2="13" stroke="#64748b" stroke-width="1.5"/>
+        <polygon points="66,9.5 73,13 66,16.5" fill="#64748b"/>
+
+        <rect x="80" y="2" width="32" height="22" rx="4" fill="#ef4444" stroke="#b91c1c" stroke-width="1.2"/>
+        <text x="96" y="17" text-anchor="middle" font-size="10.5" font-weight="700" fill="#ffffff">m₁</text>
+        <text x="124" y="17" class="small-label">pair 1</text>
+      </g>
+
+      <!-- Pair 2 (net negative -> blue mean) -->
+      <g transform="translate(30, 68)">
+        <rect x="0" y="0" width="26" height="26" fill="#ffffff" stroke="#475569" stroke-width="1"/>
+        <rect x="2" y="2" width="10" height="10" fill="#3b82f6"/>
+        <rect x="14" y="2" width="10" height="10" fill="#fca5a5"/>
+        <rect x="2" y="14" width="10" height="10" fill="#1d4ed8"/>
+        <rect x="14" y="14" width="10" height="10" fill="#60a5fa"/>
+
+        <line x1="34" y1="13" x2="68" y2="13" stroke="#64748b" stroke-width="1.5"/>
+        <polygon points="66,9.5 73,13 66,16.5" fill="#64748b"/>
+
+        <rect x="80" y="2" width="32" height="22" rx="4" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1.2"/>
+        <text x="96" y="17" text-anchor="middle" font-size="10.5" font-weight="700" fill="#ffffff">m₂</text>
+        <text x="124" y="17" class="small-label">pair 2</text>
+      </g>
+
+      <!-- Vertical ellipsis -->
+      <text x="126" y="110" text-anchor="middle" font-size="12" font-weight="700" fill="#64748b">⋮</text>
+
+      <!-- Pair N (mild positive -> light red mean) -->
+      <g transform="translate(30, 116)">
+        <rect x="0" y="0" width="26" height="26" fill="#ffffff" stroke="#475569" stroke-width="1"/>
+        <rect x="2" y="2" width="10" height="10" fill="#fca5a5"/>
+        <rect x="14" y="2" width="10" height="10" fill="#f8fafc"/>
+        <rect x="2" y="14" width="10" height="10" fill="#93c5fd"/>
+        <rect x="14" y="14" width="10" height="10" fill="#ef4444"/>
+
+        <line x1="34" y1="13" x2="68" y2="13" stroke="#64748b" stroke-width="1.5"/>
+        <polygon points="66,9.5 73,13 66,16.5" fill="#64748b"/>
+
+        <rect x="80" y="2" width="32" height="22" rx="4" fill="#fca5a5" stroke="#dc2626" stroke-width="1.2"/>
+        <text x="92" y="17" text-anchor="middle" font-size="10.5" font-weight="700" fill="#7f1d1d">m</text>
+        <text x="101" y="19" text-anchor="middle" font-size="7.5" font-weight="700" fill="#7f1d1d">N</text>
+        <text x="124" y="17" class="small-label">pair N</text>
+      </g>
+    </g>
+
+    <!-- Spearman Box -->
+    <g transform="translate(20, 460)">
+      <rect x="0" y="0" width="240" height="54" class="rho-box"/>
+      <text x="120" y="21" text-anchor="middle" class="rho-top">Pool all pairs, then:</text>
+      <text x="120" y="40" text-anchor="middle" class="rho-bot">Spearman ρ (prediction versus label)</text>
+    </g>
+
+    <!-- Bottom ANOVA Bar: Panel 3 highlights 21.6% in orange, others at ~35% opacity -->
+    <g transform="translate(20, 554)">
+      <text x="0" y="-8" class="anova-label">Variance explained by level:</text>
+      <rect x="0" y="0" width="128.4" height="26" fill="#2563eb" opacity="0.35" stroke="#cbd5e1" stroke-width="0.8" rx="2"/>
+      <rect x="128.4" y="0" width="51.8" height="26" fill="#ea580c" stroke="#c2410c" stroke-width="1.2" rx="2"/>
+      <text x="154.3" y="17" text-anchor="middle" class="anova-pct">21.6%</text>
+      <rect x="180.2" y="0" width="35.5" height="26" fill="#059669" opacity="0.35" stroke="#cbd5e1" stroke-width="0.8" rx="2"/>
+      <rect x="215.7" y="0" width="24.3" height="26" fill="url(#cellNoiseGrad)" opacity="0.35" stroke="#cbd5e1" stroke-width="0.8" rx="2"/>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- PANEL 4: LINE LEVEL (x=945, w=280)                                    -->
+  <!-- ===================================================================== -->
+  <g transform="translate(945, 14)">
+    <rect x="0" y="0" width="280" height="602" class="panel-card"/>
+    <rect x="0" y="0" width="280" height="56" rx="10" class="panel-header-4"/>
+    <text x="140" y="23" text-anchor="middle" class="title-text" fill="#047857">4. Line level</text>
+    <text x="140" y="43" text-anchor="middle" class="desc-text">Average offset caused by partner identity</text>
+
+    <!-- Top annotation receiving merged arrows from Panel 3 -->
+    <g transform="translate(24, 72)">
+      <rect x="0" y="0" width="232" height="30" class="step-box" fill="#ecfdf5" stroke="#6ee7b7"/>
+      <text x="116" y="19" text-anchor="middle" class="step-title" fill="#065f46">Saturation- and pair-corrected data</text>
+    </g>
+
+    <!-- Arrow down to Top diagram -->
+    <line x1="140" y1="104" x2="140" y2="120" stroke="#475569" stroke-width="1.8"/>
+    <polygon points="136,118 144,118 140,125" fill="#475569"/>
+
+    <!-- TOP SUBPLOT: Same 4x4 matrix as Panel 3 (outside graph axes), columns lined up with bottom plot -->
+    <g transform="translate(24, 128)">
+      <rect x="0" y="0" width="232" height="136" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" rx="6"/>
+      <text x="42" y="48" text-anchor="end" class="small-label" font-weight="600">site i</text>
+
+      <!-- Col 1 (b1, x_center=66): strongly red -->
+      <g transform="translate(57, 12)">
+        <rect x="0" y="0" width="18" height="16" fill="#dc2626" stroke="#334155" stroke-width="0.9"/>
+        <rect x="0" y="17" width="18" height="16" fill="#ef4444" stroke="#334155" stroke-width="0.9"/>
+        <rect x="0" y="34" width="18" height="16" fill="#f87171" stroke="#334155" stroke-width="0.9"/>
+        <rect x="0" y="51" width="18" height="16" fill="#fca5a5" stroke="#334155" stroke-width="0.9"/>
+        <line x1="9" y1="71" x2="9" y2="87" stroke="#475569" stroke-width="1.5"/>
+        <polygon points="6,85 12,85 9,91" fill="#475569"/>
+        <rect x="0" y="94" width="18" height="18" rx="2" fill="#ef4444" stroke="#991b1c" stroke-width="1.2"/>
+      </g>
+
+      <!-- Col 2 (b2, x_center=108): 2 red cells & 2 blue cells -> pale blue / nearly white mean -->
+      <g transform="translate(99, 12)">
+        <rect x="0" y="0" width="18" height="16" fill="#fca5a5" stroke="#334155" stroke-width="0.9"/>
+        <rect x="0" y="17" width="18" height="16" fill="#1d4ed8" stroke="#334155" stroke-width="0.9"/>
+        <rect x="0" y="34" width="18" height="16" fill="#1e40af" stroke="#334155" stroke-width="0.9"/>
+        <rect x="0" y="51" width="18" height="16" fill="#f87171" stroke="#334155" stroke-width="0.9"/>
+        <line x1="9" y1="71" x2="9" y2="87" stroke="#475569" stroke-width="1.5"/>
+        <polygon points="6,85 12,85 9,91" fill="#475569"/>
+        <rect x="0" y="94" width="18" height="18" rx="2" fill="#e0f2fe" stroke="#60a5fa" stroke-width="1.2"/>
+      </g>
+
+      <!-- Col 3 (b3, x_center=150): mildly red -->
+      <g transform="translate(141, 12)">
+        <rect x="0" y="0" width="18" height="16" fill="#f87171" stroke="#334155" stroke-width="0.9"/>
+        <rect x="0" y="17" width="18" height="16" fill="#fca5a5" stroke="#334155" stroke-width="0.9"/>
+        <rect x="0" y="34" width="18" height="16" fill="#ef4444" stroke="#334155" stroke-width="0.9"/>
+        <rect x="0" y="51" width="18" height="16" fill="#f8fafc" stroke="#334155" stroke-width="0.9"/>
+        <line x1="9" y1="71" x2="9" y2="87" stroke="#475569" stroke-width="1.5"/>
+        <polygon points="6,85 12,85 9,91" fill="#475569"/>
+        <rect x="0" y="94" width="18" height="18" rx="2" fill="#fca5a5" stroke="#b91c1c" stroke-width="1.2"/>
+      </g>
+
+      <!-- Col 4 (b4, x_center=192): mildly blue -->
+      <g transform="translate(183, 12)">
+        <rect x="0" y="0" width="18" height="16" fill="#f8fafc" stroke="#334155" stroke-width="0.9"/>
+        <rect x="0" y="17" width="18" height="16" fill="#bfdbfe" stroke="#334155" stroke-width="0.9"/>
+        <rect x="0" y="34" width="18" height="16" fill="#3b82f6" stroke="#334155" stroke-width="0.9"/>
+        <rect x="0" y="51" width="18" height="16" fill="#93c5fd" stroke="#334155" stroke-width="0.9"/>
+        <line x1="9" y1="71" x2="9" y2="87" stroke="#475569" stroke-width="1.5"/>
+        <polygon points="6,85 12,85 9,91" fill="#475569"/>
+        <rect x="0" y="94" width="18" height="18" rx="2" fill="#93c5fd" stroke="#1d4ed8" stroke-width="1.2"/>
+      </g>
+    </g>
+
+    <!-- Arrow down to Bottom plot -->
+    <line x1="140" y1="266" x2="140" y2="282" stroke="#475569" stroke-width="1.8"/>
+    <polygon points="136,280 144,280 140,287" fill="#475569"/>
+
+    <!-- BOTTOM SUBPLOT: Plot those means on axes with arrows from 0 line to plotted colored squares -->
+    <g transform="translate(24, 290)">
+      <rect x="0" y="0" width="232" height="154" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" rx="6"/>
+
+      <!-- Zero baseline at y=68 -->
+      <line x1="42" y1="68" x2="216" y2="68" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="4,3"/>
+      <text x="36" y="72" text-anchor="end" font-size="9.5" font-weight="600" fill="#64748b">0</text>
+
+      <!-- Y-axis -->
+      <line x1="42" y1="14" x2="42" y2="122" stroke="#475569" stroke-width="1.5"/>
+      <text x="-68" y="16" transform="rotate(-90)" text-anchor="middle" font-size="8.8" font-weight="600" fill="#334155">Offset over site i mutants</text>
+
+      <!-- Partner b1 (x=66) -->
+      <g transform="translate(66, 0)">
+        <line x1="0" y1="68" x2="0" y2="43" stroke="#dc2626" stroke-width="1.8"/>
+        <polygon points="-3.5,45 3.5,45 0,38" fill="#dc2626"/>
+        <rect x="-9" y="19" width="18" height="18" rx="2" fill="#ef4444" stroke="#991b1b" stroke-width="1.2"/>
+        <text x="0" y="135" text-anchor="middle" class="small-label" font-weight="700">b₁</text>
+      </g>
+
+      <!-- Partner b2 (x=108): pale blue / nearly white square just below 0 -->
+      <g transform="translate(108, 0)">
+        <rect x="-9" y="65" width="18" height="18" rx="2" fill="#e0f2fe" stroke="#60a5fa" stroke-width="1.2"/>
+        <text x="0" y="135" text-anchor="middle" class="small-label" font-weight="700">b₂</text>
+      </g>
+
+      <!-- Partner b3 (x=150) -->
+      <g transform="translate(150, 0)">
+        <line x1="0" y1="68" x2="0" y2="58" stroke="#dc2626" stroke-width="1.8"/>
+        <polygon points="-3.5,60 3.5,60 0,54" fill="#dc2626"/>
+        <rect x="-9" y="35" width="18" height="18" rx="2" fill="#fca5a5" stroke="#b91c1c" stroke-width="1.2"/>
+        <text x="0" y="135" text-anchor="middle" class="small-label" font-weight="700">b₃</text>
+      </g>
+
+      <!-- Partner b4 (x=192) -->
+      <g transform="translate(192, 0)">
+        <line x1="0" y1="68" x2="0" y2="78" stroke="#2563eb" stroke-width="1.8"/>
+        <polygon points="-3.5,76 3.5,76 0,82" fill="#2563eb"/>
+        <rect x="-9" y="83" width="18" height="18" rx="2" fill="#93c5fd" stroke="#1d4ed8" stroke-width="1.2"/>
+        <text x="0" y="135" text-anchor="middle" class="small-label" font-weight="700">b₄</text>
+      </g>
+
+      <text x="129" y="148" text-anchor="middle" font-size="9.5" font-weight="600" fill="#475569">Partner identity at site j</text>
+    </g>
+
+    <!-- Spearman Box -->
+    <g transform="translate(20, 460)">
+      <rect x="0" y="0" width="240" height="54" class="rho-box"/>
+      <text x="120" y="21" text-anchor="middle" class="rho-top">Pool all lines (rows and cols), then:</text>
+      <text x="120" y="40" text-anchor="middle" class="rho-bot">Spearman ρ (prediction versus label)</text>
+    </g>
+
+    <!-- Bottom ANOVA Bar: Panel 4 highlights 14.8% in green, others at ~35% opacity -->
+    <g transform="translate(20, 554)">
+      <text x="0" y="-8" class="anova-label">Variance explained by level:</text>
+      <rect x="0" y="0" width="128.4" height="26" fill="#2563eb" opacity="0.35" stroke="#cbd5e1" stroke-width="0.8" rx="2"/>
+      <rect x="128.4" y="0" width="51.8" height="26" fill="#ea580c" opacity="0.35" stroke="#cbd5e1" stroke-width="0.8" rx="2"/>
+      <rect x="180.2" y="0" width="35.5" height="26" fill="#059669" stroke="#047857" stroke-width="1.2" rx="2"/>
+      <text x="198.0" y="17" text-anchor="middle" font-size="10" font-weight="700" fill="#ffffff">14.8%</text>
+      <rect x="215.7" y="0" width="24.3" height="26" fill="url(#cellNoiseGrad)" opacity="0.35" stroke="#cbd5e1" stroke-width="0.8" rx="2"/>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- PANEL 5: CELL LEVEL (x=1255, w=290)                                   -->
+  <!-- ===================================================================== -->
+  <g transform="translate(1255, 14)">
+    <rect x="0" y="0" width="290" height="602" class="panel-card"/>
+    <rect x="0" y="0" width="290" height="56" rx="10" class="panel-header-5"/>
+    <text x="145" y="23" text-anchor="middle" class="title-text" fill="#6d28d9">5. Cell level</text>
+    <text x="145" y="43" text-anchor="middle" class="desc-text">Isolate pair-identity-dependent effects</text>
+
+    <!-- Top annotation receiving merged arrows from Panel 4 -->
+    <g transform="translate(18, 72)">
+      <rect x="0" y="0" width="254" height="30" class="step-box" fill="#f5f3ff" stroke="#c4b5fd"/>
+      <text x="127" y="19" text-anchor="middle" class="step-title" fill="#5b21b6">Saturation-, pair- and line-corrected data</text>
+    </g>
+
+    <!-- Arrow down to Subplot 1 -->
+    <line x1="145" y1="104" x2="145" y2="120" stroke="#475569" stroke-width="1.8"/>
+    <polygon points="141,118 149,118 145,125" fill="#475569"/>
+
+    <!-- SUBPLOT 1: Full double-centered matrix with arrows to white row & col mean vectors (= 0) -->
+    <g transform="translate(22, 128)">
+      <rect x="0" y="0" width="246" height="142" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" rx="6"/>
+      <text x="123" y="16" text-anchor="middle" font-size="10.5" font-weight="700" fill="#334155">Centered matrix (row &amp; col means = 0)</text>
+
+      <g transform="translate(56, 24)">
+        <rect x="0" y="0" width="76" height="76" fill="#ffffff" stroke="#334155" stroke-width="1.3"/>
+
+        <g transform="translate(3, 3)">
+          <!-- Row 1 -->
+          <rect x="0" y="0" width="16" height="16" fill="#ef4444"/>
+          <rect x="18" y="0" width="16" height="16" fill="#fca5a5"/>
+          <rect x="36" y="0" width="16" height="16" fill="#93c5fd"/>
+          <rect x="54" y="0" width="16" height="16" fill="#3b82f6"/>
+          <!-- Row 2 -->
+          <rect x="0" y="18" width="16" height="16" fill="#fca5a5"/>
+          <rect x="18" y="18" width="16" height="16" fill="#3b82f6"/>
+          <rect x="36" y="18" width="16" height="16" fill="#ef4444"/>
+          <rect x="54" y="18" width="16" height="16" fill="#93c5fd"/>
+          <!-- Row 3 -->
+          <rect x="0" y="36" width="16" height="16" fill="#93c5fd"/>
+          <rect x="18" y="36" width="16" height="16" fill="#3b82f6"/>
+          <rect x="36" y="36" width="16" height="16" fill="#fca5a5"/>
+          <rect x="54" y="36" width="16" height="16" fill="#ef4444"/>
+          <!-- Row 4 -->
+          <rect x="0" y="54" width="16" height="16" fill="#3b82f6"/>
+          <rect x="18" y="54" width="16" height="16" fill="#ef4444"/>
+          <rect x="36" y="54" width="16" height="16" fill="#3b82f6"/>
+          <rect x="54" y="54" width="16" height="16" fill="#fca5a5"/>
+        </g>
+
+        <!-- Arrows to the right -> White 4x1 column vector (row means = 0) -->
+        <g transform="translate(80, 3)">
+          <line x1="0" y1="8" x2="14" y2="8" stroke="#64748b" stroke-width="1.3"/>
+          <polygon points="12,5.5 17,8 12,10.5" fill="#64748b"/>
+          <line x1="0" y1="26" x2="14" y2="26" stroke="#64748b" stroke-width="1.3"/>
+          <polygon points="12,23.5 17,26 12,28.5" fill="#64748b"/>
+          <line x1="0" y1="44" x2="14" y2="44" stroke="#64748b" stroke-width="1.3"/>
+          <polygon points="12,41.5 17,44 12,46.5" fill="#64748b"/>
+          <line x1="0" y1="62" x2="14" y2="62" stroke="#64748b" stroke-width="1.3"/>
+          <polygon points="12,59.5 17,62 12,64.5" fill="#64748b"/>
+
+          <rect x="20" y="0" width="16" height="16" fill="#ffffff" stroke="#475569" stroke-width="1"/>
+          <rect x="20" y="18" width="16" height="16" fill="#ffffff" stroke="#475569" stroke-width="1"/>
+          <rect x="20" y="36" width="16" height="16" fill="#ffffff" stroke="#475569" stroke-width="1"/>
+          <rect x="20" y="54" width="16" height="16" fill="#ffffff" stroke="#475569" stroke-width="1"/>
+          <text x="42" y="39" font-size="9.5" font-weight="600" fill="#475569">= 0</text>
+        </g>
+
+        <!-- Arrows down -> White 1x4 row vector (col means = 0) -->
+        <g transform="translate(3, 80)">
+          <line x1="8" y1="0" x2="8" y2="12" stroke="#64748b" stroke-width="1.3"/>
+          <polygon points="5.5,10 10.5,10 8,15" fill="#64748b"/>
+          <line x1="26" y1="0" x2="26" y2="12" stroke="#64748b" stroke-width="1.3"/>
+          <polygon points="23.5,10 28.5,10 26,15" fill="#64748b"/>
+          <line x1="44" y1="0" x2="44" y2="12" stroke="#64748b" stroke-width="1.3"/>
+          <polygon points="41.5,10 46.5,10 44,15" fill="#64748b"/>
+          <line x1="62" y1="0" x2="62" y2="12" stroke="#64748b" stroke-width="1.3"/>
+          <polygon points="59.5,10 64.5,10 62,15" fill="#64748b"/>
+
+          <rect x="0" y="17" width="16" height="16" fill="#ffffff" stroke="#475569" stroke-width="1"/>
+          <rect x="18" y="17" width="16" height="16" fill="#ffffff" stroke="#475569" stroke-width="1"/>
+          <rect x="36" y="17" width="16" height="16" fill="#ffffff" stroke="#475569" stroke-width="1"/>
+          <rect x="54" y="17" width="16" height="16" fill="#ffffff" stroke="#475569" stroke-width="1"/>
+          <text x="76" y="29" font-size="9.5" font-weight="600" fill="#475569">= 0</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- Arrow down to Subplot 2 -->
+    <line x1="145" y1="272" x2="145" y2="288" stroke="#475569" stroke-width="1.8"/>
+    <polygon points="141,286 149,286 145,293" fill="#475569"/>
+
+    <!-- SUBPLOT 2: Pool all interactions -->
+    <g transform="translate(22, 296)">
+      <rect x="0" y="0" width="246" height="148" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1.2" rx="6"/>
+      <text x="123" y="18" text-anchor="middle" font-size="10.5" font-weight="700" fill="#5b21b6">Pool all interactions</text>
+
+      <!-- Left: Stack of corrected pair matrices -->
+      <g transform="translate(22, 42)">
+        <rect x="10" y="-8" width="64" height="64" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+        <rect x="5" y="-4" width="64" height="64" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+        <rect x="0" y="0" width="64" height="64" fill="#ffffff" stroke="#334155" stroke-width="1.3"/>
+
+        <g transform="translate(3, 3)">
+          <!-- Row 1 -->
+          <rect x="0" y="0" width="13" height="13" fill="#ef4444"/>
+          <rect x="15" y="0" width="13" height="13" fill="#fca5a5"/>
+          <rect x="30" y="0" width="13" height="13" fill="#93c5fd"/>
+          <rect x="45" y="0" width="13" height="13" fill="#3b82f6"/>
+          <!-- Row 2 -->
+          <rect x="0" y="15" width="13" height="13" fill="#fca5a5"/>
+          <rect x="15" y="15" width="13" height="13" fill="#3b82f6"/>
+          <rect x="30" y="15" width="13" height="13" fill="#ef4444"/>
+          <rect x="45" y="15" width="13" height="13" fill="#93c5fd"/>
+          <!-- Row 3 -->
+          <rect x="0" y="30" width="13" height="13" fill="#93c5fd"/>
+          <rect x="15" y="30" width="13" height="13" fill="#3b82f6"/>
+          <rect x="30" y="30" width="13" height="13" fill="#fca5a5"/>
+          <rect x="45" y="30" width="13" height="13" fill="#ef4444"/>
+          <!-- Row 4 -->
+          <rect x="0" y="45" width="13" height="13" fill="#3b82f6"/>
+          <rect x="15" y="45" width="13" height="13" fill="#ef4444"/>
+          <rect x="30" y="45" width="13" height="13" fill="#3b82f6"/>
+          <rect x="45" y="45" width="13" height="13" fill="#fca5a5"/>
+        </g>
+      </g>
+
+      <!-- Arrow from stack to random pile of cells -->
+      <line x1="104" y1="74" x2="132" y2="74" stroke="#5b21b6" stroke-width="1.8"/>
+      <polygon points="130,70 138,74 130,78" fill="#5b21b6"/>
+
+      <!-- Right: Random pile of different colored cells -->
+      <g transform="translate(148, 34)">
+        <rect x="8" y="4" width="13" height="13" fill="#ef4444" stroke="#334155" stroke-width="0.9" transform="rotate(-14 14 10)"/>
+        <rect x="28" y="2" width="13" height="13" fill="#3b82f6" stroke="#334155" stroke-width="0.9" transform="rotate(18 34 8)"/>
+        <rect x="50" y="8" width="13" height="13" fill="#fca5a5" stroke="#334155" stroke-width="0.9" transform="rotate(-8 56 14)"/>
+
+        <rect x="2" y="24" width="13" height="13" fill="#93c5fd" stroke="#334155" stroke-width="0.9" transform="rotate(22 8 30)"/>
+        <rect x="22" y="20" width="13" height="13" fill="#ffffff" stroke="#334155" stroke-width="0.9" transform="rotate(-12 28 26)"/>
+        <rect x="42" y="24" width="13" height="13" fill="#dc2626" stroke="#334155" stroke-width="0.9" transform="rotate(15 48 30)"/>
+        <rect x="60" y="22" width="13" height="13" fill="#2563eb" stroke="#334155" stroke-width="0.9" transform="rotate(-19 66 28)"/>
+
+        <rect x="10" y="42" width="13" height="13" fill="#f87171" stroke="#334155" stroke-width="0.9" transform="rotate(-9 16 48)"/>
+        <rect x="30" y="38" width="13" height="13" fill="#60a5fa" stroke="#334155" stroke-width="0.9" transform="rotate(25 36 44)"/>
+        <rect x="52" y="42" width="13" height="13" fill="#bfdbfe" stroke="#334155" stroke-width="0.9" transform="rotate(-16 58 48)"/>
+
+        <rect x="4" y="60" width="13" height="13" fill="#1d4ed8" stroke="#334155" stroke-width="0.9" transform="rotate(11 10 66)"/>
+        <rect x="24" y="58" width="13" height="13" fill="#fecaca" stroke="#334155" stroke-width="0.9" transform="rotate(-21 30 64)"/>
+        <rect x="44" y="62" width="13" height="13" fill="#ef4444" stroke="#334155" stroke-width="0.9" transform="rotate(9 50 68)"/>
+        <rect x="62" y="56" width="13" height="13" fill="#93c5fd" stroke="#334155" stroke-width="0.9" transform="rotate(-12 68 62)"/>
+      </g>
+    </g>
+
+    <!-- Spearman Box -->
+    <g transform="translate(25, 460)">
+      <rect x="0" y="0" width="240" height="54" class="rho-box"/>
+      <text x="120" y="21" text-anchor="middle" class="rho-top">Pool all cells, then:</text>
+      <text x="120" y="40" text-anchor="middle" class="rho-bot">Spearman ρ (prediction versus label)</text>
+    </g>
+
+    <!-- Bottom ANOVA Bar: Panel 5 highlights 10.1% with purple -> gradient -> black noise split, others at ~35% opacity -->
+    <g transform="translate(25, 554)">
+      <text x="0" y="-8" class="anova-label">Variance explained by level:</text>
+      <rect x="0" y="0" width="128.4" height="26" fill="#2563eb" opacity="0.35" stroke="#cbd5e1" stroke-width="0.8" rx="2"/>
+      <rect x="128.4" y="0" width="51.8" height="26" fill="#ea580c" opacity="0.35" stroke="#cbd5e1" stroke-width="0.8" rx="2"/>
+      <rect x="180.2" y="0" width="35.5" height="26" fill="#059669" opacity="0.35" stroke="#cbd5e1" stroke-width="0.8" rx="2"/>
+      <rect x="215.7" y="0" width="24.3" height="26" fill="url(#cellNoiseGrad)" stroke="#5b21b6" stroke-width="1.2" rx="2"/>
+      <text x="227.8" y="-8" text-anchor="middle" class="anova-pct-above">10.1%</text>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- UNLABELLED INTER-PANEL ARROWS (DRAWN ON TOP OF CARDS)                 -->
+  <!-- ===================================================================== -->
+
+  <!-- Panel 2 (top flattened plot) -> Panel 3 (top starting box) -->
+  <line x1="563" y1="101" x2="656" y2="101" stroke="#2563eb" stroke-width="2.2"/>
+  <polygon points="654,96.5 663,101 654,105.5" fill="#2563eb"/>
+
+  <!-- Panel 3 -> Panel 4: Two arrows (from pair matrices and from pair means) merging into top box of Panel 4 -->
+  <path d="M 891 206 L 930 206 L 930 101 L 962 101" fill="none" stroke="#ea580c" stroke-width="2.2"/>
+  <path d="M 891 376 L 930 376 L 930 101" fill="none" stroke="#ea580c" stroke-width="2.2"/>
+  <circle cx="930" cy="206" r="3" fill="#ea580c"/>
+  <polygon points="960,96.5 969,101 960,105.5" fill="#ea580c"/>
+
+  <!-- Panel 4 -> Panel 5: Two arrows (from top box of Panel 4 and from line-offset plot in Panel 4) merging into top box of Panel 5 -->
+  <path d="M 1201 101 L 1266 101" fill="none" stroke="#059669" stroke-width="2.2"/>
+  <path d="M 1201 380 L 1240 380 L 1240 101" fill="none" stroke="#059669" stroke-width="2.2"/>
+  <circle cx="1240" cy="101" r="3" fill="#059669"/>
+  <polygon points="1264,96.5 1273,101 1264,105.5" fill="#059669"/>
+</svg>
