@@ -26,12 +26,28 @@ from pathlib import Path
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 import paths  # noqa: E402
-from build_pgym_me_data import canon, me_row  # noqa: E402
 
 COLS = ['uid', 'source', 'code', 'mut_type_renumbered', 'n_mut', 'wt_seq', 'ddG_ML']
+
+
+def canon(s):
+    """Mutations sorted by position (upstream asserts pos1 < pos2); the same helper as build_pgym_me_data.py, copied because a script must not import a script."""
+    return ':'.join(sorted(s.split(':'), key=lambda m: int(m[1:-1])))
+
+
+def me_row(pdb_id, seq, mi, ddg, component=False):
+    """One row of upstream MutateEverything's mutations table (as build_pgym_me_data.me_row)."""
+    ms = mi.split(':')
+    row = {'pdb_id': pdb_id, 'mut_info': mi, 'ddg': ddg, 'wt_seq': seq, 'uid': f'{pdb_id}_{mi}', 'component': component}
+    for i, m in enumerate(ms, 1):
+        row.update({f'fr{i}': m[0], f'pos{i}': int(m[1:-1]), f'to{i}': m[-1]})
+    if len(ms) > 2:   # upstream's arbitrary-order path reads these three with eval()
+        row['mut_fr_list'] = str([m[0] for m in ms])
+        row['mut_pos_list'] = str([int(m[1:-1]) for m in ms])
+        row['mut_to_list'] = str([m[-1] for m in ms])
+    return row
 
 
 def load(table, source):
