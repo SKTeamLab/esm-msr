@@ -136,7 +136,7 @@ PYTHONPATH=src:preprocessing python preprocessing/split_overlap_report.py \
 
 ## 6. Biophysical & MSA Feature Extraction (Optional)
 
-For downstream biophysical property-category analysis (`analysis/14_property_category_gain.py`), `preprocessing/compute_features.py` annotates mapped ΔΔG tables (`q3421`, `fireprot`, `s669`, `ssym`, `k3822`) with DSSP solvent accessibility (`rel_ASA`) and secondary structure (`SS`), QuantiProt AAIndex deltas (`kdh_*`, `vol_*`, `chg_*`), inter-chain interface proximity, and MSA conservation metrics:
+For downstream biophysical property-category analysis (`analysis/pipelines/p09_screening.py`), `preprocessing/compute_features.py` annotates mapped ΔΔG tables (`q3421`, `fireprot`, `s669`, `ssym`, `k3822`) with DSSP solvent accessibility (`rel_ASA`) and secondary structure (`SS`), QuantiProt AAIndex deltas (`kdh_*`, `vol_*`, `chg_*`), inter-chain interface proximity, and MSA conservation metrics:
 
 ```bash
 python preprocessing/compute_features.py \

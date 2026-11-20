@@ -64,8 +64,9 @@ One tracked run per model type, each scoring every benchmark set: Tsuboyama vali
 MSR_CLUSTER=<user>@<gpu4 host> MSR_CLUSTER_HOME=<cluster home> MSR_NOTEBOOK_OUT_DIR=<cluster home>/esm-msr-devel/analysis_notebooks \
   python analysis/scoring/collect_predictions.py run --groups resources
 # summarise every run, and refresh the table above and docs/benchmarks/inference_resources_a4500.csv
-python analysis/scoring/resource_summary.py --docs
+python analysis/scoring/resources.py summary --docs
+# (compatibility wrapper `python analysis/scoring/resource_summary.py --docs` also works)
 ```
 
-A new tracked run needs a label in `LABELS` of `analysis/scoring/resource_summary.py`. To make it the run a table row
+A new tracked run needs a label in `LABELS` of `analysis/scoring/resources.py` (re-exported by `resource_summary.py`). To make it the run a table row
 uses, put it first in that row's candidate list in `DOC_ROWS`.
