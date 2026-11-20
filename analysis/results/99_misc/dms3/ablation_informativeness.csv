@@ -1,0 +1,56 @@
+column,head,n_families,spread,noise,snr,best,range
+GRB2_HUMAN_Faure_2021_binding_domain|multi,comb,7,0.01450,0.00690,3.63800,p1 MT marginal,0.02980
+GRB2_HUMAN_Faure_2021_binding_domain,comb,7,0.01450,0.00690,3.62210,p1 MT marginal,0.02960
+DLG4_HUMAN_Faure_2021_binding_domain|singles,comb,7,0.01490,0.00860,3.00710,p1 masked,0.04040
+dms_mean,comb,7,0.00680,0.00420,2.83030,no rank loss,0.01840
+dms_multi_mean,comb,7,0.00700,0.00430,2.82790,no rank loss,0.01950
+GRB2_HUMAN_Faure_2021_binding_domain|singles,comb,7,0.01200,0.00840,2.48120,p1 masked,0.03070
+DLG4_HUMAN_Faure_2021_binding_domain|multi,comb,7,0.00940,0.00770,2.11630,no rank loss,0.03090
+DLG4_HUMAN_Faure_2021_binding_domain,comb,7,0.00860,0.00720,2.06400,no rank loss,0.02810
+MYO_HUMAN_Kung_2025_display,comb,7,0.00180,0.00190,1.63260,no rank loss,0.00500
+MYO_HUMAN_Kung_2025_display|singles,comb,7,0.00180,0.00200,1.55510,no seq. head,0.00520
+MYO_HUMAN_Kung_2025_display|multi,comb,7,0.00160,0.00220,1.23570,no rank loss,0.00450
+DLG4_HUMAN_Faure_2021_binding_domain|singles,mt,7,0.03160,0.01430,3.82280,p1 masked,0.09280
+GRB2_HUMAN_Faure_2021_binding_domain|multi,mt,7,0.02120,0.01030,3.55930,p1 MT marginal,0.05300
+GRB2_HUMAN_Faure_2021_binding_domain,mt,7,0.02110,0.01030,3.54700,p1 MT marginal,0.05230
+dms_mean,mt,7,0.01570,0.00840,3.22730,p1 MT marginal,0.04150
+dms_multi_mean,mt,7,0.01720,0.00950,3.12400,p1 MT marginal,0.04730
+GRB2_HUMAN_Faure_2021_binding_domain|singles,mt,7,0.01910,0.01200,2.74630,p1 masked,0.05870
+DLG4_HUMAN_Faure_2021_binding_domain,mt,7,0.02580,0.01680,2.66520,no rank loss,0.07220
+DLG4_HUMAN_Faure_2021_binding_domain|multi,mt,7,0.02990,0.02010,2.58540,no rank loss,0.08490
+MYO_HUMAN_Kung_2025_display|multi,mt,7,0.00470,0.00470,1.71570,p1 MT marginal,0.01230
+MYO_HUMAN_Kung_2025_display,mt,7,0.00300,0.00410,1.26030,p1 masked,0.00930
+MYO_HUMAN_Kung_2025_display|singles,mt,7,0.00270,0.00390,1.19590,p1 masked,0.00780
+GRB2_HUMAN_Faure_2021_binding_domain|multi,primary,7,0.01450,0.00690,3.63800,p1 MT marginal,0.02980
+GRB2_HUMAN_Faure_2021_binding_domain,primary,7,0.01450,0.00690,3.62210,p1 MT marginal,0.02960
+MYO_HUMAN_Kung_2025_display|singles,primary,7,0.00200,0.00110,3.30900,p1 masked,0.00530
+dms_mean,primary,7,0.00680,0.00420,2.83030,no rank loss,0.01840
+dms_multi_mean,primary,7,0.00700,0.00430,2.82790,no rank loss,0.01950
+DLG4_HUMAN_Faure_2021_binding_domain|multi,primary,7,0.00940,0.00770,2.11630,no rank loss,0.03090
+DLG4_HUMAN_Faure_2021_binding_domain,primary,7,0.00860,0.00720,2.06400,no rank loss,0.02810
+GRB2_HUMAN_Faure_2021_binding_domain|singles,primary,7,0.01170,0.01000,2.01810,p1 MT marginal,0.03000
+MYO_HUMAN_Kung_2025_display,primary,7,0.00180,0.00190,1.63260,no rank loss,0.00500
+MYO_HUMAN_Kung_2025_display|multi,primary,7,0.00160,0.00220,1.23570,no rank loss,0.00450
+DLG4_HUMAN_Faure_2021_binding_domain|singles,primary,7,0.00580,0.00830,1.21180,p1 MT marginal,0.01740
+MYO_HUMAN_Kung_2025_display|singles,wt,7,0.00200,0.00110,3.30900,p1 masked,0.00530
+GRB2_HUMAN_Faure_2021_binding_domain|multi,wt,7,0.01180,0.00700,2.92650,p1 MT marginal,0.02950
+GRB2_HUMAN_Faure_2021_binding_domain,wt,7,0.01180,0.00700,2.91280,p1 MT marginal,0.02940
+dms_mean,wt,7,0.00380,0.00310,2.11060,p1 MT marginal,0.00860
+dms_multi_mean,wt,7,0.00370,0.00310,2.07840,no rank loss,0.00910
+GRB2_HUMAN_Faure_2021_binding_domain|singles,wt,7,0.01170,0.01000,2.01810,p1 MT marginal,0.03000
+DLG4_HUMAN_Faure_2021_binding_domain|multi,wt,7,0.00460,0.00520,1.53780,no rank loss,0.01440
+MYO_HUMAN_Kung_2025_display|multi,wt,7,0.00150,0.00200,1.32610,no rank loss,0.00410
+DLG4_HUMAN_Faure_2021_binding_domain,wt,7,0.00400,0.00540,1.29000,no rank loss,0.01280
+DLG4_HUMAN_Faure_2021_binding_domain|singles,wt,7,0.00580,0.00830,1.21180,p1 MT marginal,0.01740
+MYO_HUMAN_Kung_2025_display,wt,7,0.00080,0.00140,0.97440,no seq. head,0.00220
+MYO_HUMAN_Kung_2025_display|singles,wt+,7,0.00200,0.00110,3.30900,p1 masked,0.00530
+GRB2_HUMAN_Faure_2021_binding_domain|multi,wt+,7,0.01190,0.00700,2.94650,p1 MT marginal,0.02960
+GRB2_HUMAN_Faure_2021_binding_domain,wt+,7,0.01190,0.00700,2.93150,p1 MT marginal,0.02960
+dms_mean,wt+,7,0.00390,0.00320,2.11200,no rank loss,0.00860
+dms_multi_mean,wt+,7,0.00370,0.00310,2.07740,no rank loss,0.00930
+GRB2_HUMAN_Faure_2021_binding_domain|singles,wt+,7,0.01170,0.01000,2.01810,p1 MT marginal,0.03000
+DLG4_HUMAN_Faure_2021_binding_domain|multi,wt+,7,0.00480,0.00530,1.59010,no rank loss,0.01490
+MYO_HUMAN_Kung_2025_display|multi,wt+,7,0.00170,0.00200,1.44530,no rank loss,0.00460
+DLG4_HUMAN_Faure_2021_binding_domain,wt+,7,0.00410,0.00540,1.32120,no rank loss,0.01310
+DLG4_HUMAN_Faure_2021_binding_domain|singles,wt+,7,0.00580,0.00830,1.21180,p1 MT marginal,0.01740
+MYO_HUMAN_Kung_2025_display,wt+,7,0.00080,0.00140,1.04600,no seq. head,0.00240

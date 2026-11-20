@@ -1,0 +1,9 @@
+dataset,key,kind,naive_rho,lo,hi,n_doubles,n_libraries,seed_sd,doc_naive_rho,doc_global_err,global_err,global_err_lo,global_err_hi,global_bias
+GRB2_HUMAN_Faure_2021_binding_domain,msrp0:epi,mutation,0.2366,0.2203,0.2536,32258,1,0.0135,,,,,,
+GRB2_HUMAN_Faure_2021_binding_domain,me2:epi,mutation,0.1157,0.0898,0.1427,32258,1,0.0272,,,,,,
+GRB2_HUMAN_Faure_2021_binding_domain,tmpnnd:epi,mutation,0.0345,0.0003,0.0700,32258,1,0.0366,,,,,,
+GRB2_HUMAN_Faure_2021_binding_domain,spursm:epi,mutation,0.1874,0.1753,0.1999,32258,1,0.0055,,,,,,
+DLG4_HUMAN_Faure_2021_binding_domain,msrp0:epi,mutation,0.6231,0.6033,0.6455,6459,1,0.0154,,,,,,
+DLG4_HUMAN_Faure_2021_binding_domain,me2:epi,mutation,0.4623,0.4238,0.5000,6459,1,0.0378,,,,,,
+DLG4_HUMAN_Faure_2021_binding_domain,tmpnnd:epi,mutation,0.1924,0.1651,0.2155,6459,1,0.0096,,,,,,
+DLG4_HUMAN_Faure_2021_binding_domain,spursm:epi,mutation,0.5491,0.5273,0.5723,6459,1,0.0144,,,,,,

@@ -1,0 +1,4 @@
+dataset,label,n_proteins,n_variants,median_len,min_len,max_len,q25,q75,variant_weighted_median_len,n_multi
+DLG4_HUMAN_Faure_2021_binding_domain,DLG4 bind.,1,8251,84.0,84.0,84.0,84.0,84.0,84.0,6810
+GRB2_HUMAN_Faure_2021_binding_domain,GRB2 bind.,1,33441,56.0,56.0,56.0,56.0,56.0,56.0,32786
+MYO_HUMAN_Kung_2025_display,MYO,1,5905,154.0,154.0,154.0,154.0,154.0,154.0,3371

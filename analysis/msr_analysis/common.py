@@ -1,14 +1,18 @@
 """Shared frame-selection, output-directory, epistasis-row, and leak-flag helpers."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
 from .data import Frame, singles_of_doubles
-from .paths import REFERENCE, results_dir
+from .paths import CORE_RHO_BOOTSTRAP_CSV, REFERENCE, VALIDATION_VS_BENCHMARKS_CSV, results_dir
 from .registry import TSU_CAPPED, TSU_MEGA
 
 __all__ = [
+    'CORE_RHO_BOOTSTRAP_CSV',
+    'VALIDATION_VS_BENCHMARKS_CSV',
     'epi_rows',
     'has_multi',
     'leak_table',
@@ -32,14 +36,14 @@ def primary_key(fr: Frame, family: str = 'msrp0') -> str:
     return f'{family}:comb' if has_multi(fr) else f'{family}:wt'
 
 
-def out_dir(name: str, split: str = 'capped'):
-    """Return ``results[/03_tsuboyama/mega_splits]/<name>`` (created if needed)."""
+def out_dir(name: str | Path | None = None, split: str = 'capped') -> Path:
+    """Return canonical output directory under ``analysis/results/`` for ``name`` and ``split`` (created if needed)."""
     return results_dir(name, split=split, create=True)
 
 
-def load_rho_df(path=None) -> pd.DataFrame:
-    """Load ``results/00_core/rho_bootstrap.csv`` with ``esm3dg*`` stripped from Megascale/Tsuboyama sets."""
-    p = path or (results_dir('00_core', create=False) / 'rho_bootstrap.csv')
+def load_rho_df(path: str | Path | None = None) -> pd.DataFrame:
+    """Load ``analysis/cache/core_rho_bootstrap.csv`` with ``esm3dg*`` stripped from Megascale/Tsuboyama sets."""
+    p = Path(path) if path is not None else CORE_RHO_BOOTSTRAP_CSV
     d = pd.read_csv(p)
     return d[~(d['model'].str.startswith('esm3dg') & d['dataset'].isin(TSU_CAPPED + TSU_MEGA))].reset_index(drop=True)
 
