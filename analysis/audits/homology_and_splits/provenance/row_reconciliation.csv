@@ -1,0 +1,4 @@
+split,upstream_rows,upstream_singles,upstream_doubles
+train,341242,215731,125511
+val,38787,27328,11459
+test,50253,28172,22081

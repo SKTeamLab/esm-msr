@@ -1,4 +1,0 @@
-part,libraries,on_spurs_removal_list,singles,singles_removed,doubles,doubles_removed
-train,239,40,219269.0,36962.0,109280.0,14879.0
-val,31,6,27328.0,3518.0,10282.0,773.0
-test,28,3,,,,
