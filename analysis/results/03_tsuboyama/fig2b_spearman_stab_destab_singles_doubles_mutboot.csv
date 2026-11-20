@@ -1,61 +1,61 @@
 column,key,subset,value,lo,hi,n_libraries,n_variants,panel
-ProSST,prosst,stabilizing,0.0649,0.0290,0.0973,33,7102,singles
-ProSST,prosst,destabilizing,0.5969,0.5897,0.6053,33,28319,singles
-ProteinMPNN,pmpnn,stabilizing,0.0744,0.0379,0.1097,33,7102,singles
-ProteinMPNN,pmpnn,destabilizing,0.5132,0.5040,0.5222,33,28319,singles
-ESM3-small-open,msrrel@0:wt,stabilizing,0.0185,-0.0146,0.0500,33,7102,singles
-ESM3-small-open,msrrel@0:wt,destabilizing,0.5727,0.5629,0.5799,33,28319,singles
-ESM-MSR,msrp0:wt,stabilizing,0.3003,0.2676,0.3300,33,7102,singles
-ESM-MSR,msrp0:wt,destabilizing,0.8163,0.8080,0.8216,33,28319,singles
-MutateEverything,me1,stabilizing,0.1471,0.1224,0.1706,33,7102,singles
-MutateEverything,me1,destabilizing,0.7683,0.7615,0.7740,33,28319,singles
-ThermoMPNN,tmpnn,stabilizing,0.2276,0.2005,0.2596,33,7102,singles
-ThermoMPNN,tmpnn,destabilizing,0.7688,0.7623,0.7747,33,28319,singles
-SPURS,spurs,stabilizing,0.2802,0.2532,0.3082,33,7102,singles
-SPURS,spurs,destabilizing,0.7864,0.7791,0.7918,33,28319,singles
-best other ddG,geoddg,stabilizing,0.1984,0.1672,0.2346,33,7102,singles
-best other ddG,geoddg,destabilizing,0.5605,0.5526,0.5706,33,28319,singles
-Rosetta,rosetta,stabilizing,0.0954,0.0655,0.1281,33,7102,singles
-Rosetta,rosetta,destabilizing,0.6572,0.6482,0.6650,33,28319,singles
-ESM3-small-open (alt),esm3avg,stabilizing,0.0309,-0.0052,0.0646,33,7102,singles
-ESM3-small-open (alt),esm3avg,destabilizing,0.5810,0.5712,0.5880,33,28319,singles
-ProSST,prosst,overall,0.5843,0.5776,0.5941,33,35421,singles
-ProteinMPNN,pmpnn,overall,0.5423,0.5347,0.5504,33,35421,singles
-ESM3-small-open,msrrel@0:wt,overall,0.5670,0.5598,0.5748,33,35421,singles
-ESM-MSR,msrp0:wt,overall,0.8327,0.8259,0.8371,33,35421,singles
-MutateEverything,me1,overall,0.7706,0.7652,0.7763,33,35421,singles
-ThermoMPNN,tmpnn,overall,0.7859,0.7809,0.7897,33,35421,singles
-SPURS,spurs,overall,0.8041,0.7994,0.8102,33,35421,singles
-best other ddG,geoddg,overall,0.5915,0.5818,0.5989,33,35421,singles
-Rosetta,rosetta,overall,0.6594,0.6527,0.6655,33,35421,singles
-ESM3-small-open (alt),esm3avg,overall,0.5737,0.5670,0.5804,33,35421,singles
-ProSST,prosst,stabilizing,0.0806,-0.0746,0.2230,7,310,doubles
-ProSST,prosst,destabilizing,0.4081,0.3824,0.4267,13,13004,doubles
-ProteinMPNN,pmpnn,stabilizing,0.1358,0.0123,0.2491,7,310,doubles
-ProteinMPNN,pmpnn,destabilizing,0.3124,0.2872,0.3367,13,13004,doubles
-ESM3-small-open,msrrel@0:comb,stabilizing,0.2599,0.1419,0.3450,7,310,doubles
-ESM3-small-open,msrrel@0:comb,destabilizing,0.3947,0.3752,0.4132,13,13004,doubles
-ESM-MSR,msrp0:comb,stabilizing,0.4375,0.3316,0.5270,7,310,doubles
-ESM-MSR,msrp0:comb,destabilizing,0.7569,0.7443,0.7690,13,13004,doubles
-MutateEverything,me2,stabilizing,0.3997,0.2305,0.5062,7,310,doubles
-MutateEverything,me2,destabilizing,0.6256,0.6056,0.6421,13,13004,doubles
-ThermoMPNN,tmpnnd,stabilizing,0.4163,0.2698,0.5402,7,310,doubles
-ThermoMPNN,tmpnnd,destabilizing,0.6473,0.6295,0.6651,13,13004,doubles
-SPURS,spursm,stabilizing,0.3583,0.2208,0.4770,7,310,doubles
-SPURS,spursm,destabilizing,0.6821,0.6603,0.6981,13,13004,doubles
-best other ddG,geoddg,stabilizing,0.1928,0.0545,0.3410,7,310,doubles
-best other ddG,geoddg,destabilizing,0.4316,0.4130,0.4512,13,13004,doubles
-Rosetta,rosetta,stabilizing,-0.0719,-0.2144,0.0808,7,310,doubles
-Rosetta,rosetta,destabilizing,0.4841,0.4628,0.4997,13,13004,doubles
-ESM3-small-open (alt),esm3avg,stabilizing,0.2006,0.0531,0.3108,7,310,doubles
-ESM3-small-open (alt),esm3avg,destabilizing,0.3939,0.3742,0.4132,13,13004,doubles
-ProSST,prosst,overall,0.4204,0.4011,0.4359,13,13319,doubles
-ProteinMPNN,pmpnn,overall,0.3301,0.3048,0.3476,13,13319,doubles
-ESM3-small-open,msrrel@0:comb,overall,0.4137,0.3917,0.4302,13,13319,doubles
-ESM-MSR,msrp0:comb,overall,0.7772,0.7639,0.7876,13,13319,doubles
-MutateEverything,me2,overall,0.6521,0.6320,0.6679,13,13319,doubles
-ThermoMPNN,tmpnnd,overall,0.6678,0.6439,0.6840,13,13319,doubles
-SPURS,spursm,overall,0.7031,0.6871,0.7155,13,13319,doubles
-best other ddG,geoddg,overall,0.4560,0.4321,0.4740,13,13319,doubles
-Rosetta,rosetta,overall,0.4990,0.4761,0.5172,13,13319,doubles
-ESM3-small-open (alt),esm3avg,overall,0.4110,0.3888,0.4270,13,13319,doubles
+ProSST,prosst,stabilizing,0.0649,0.0297,0.1051,33,7102,singles
+ProSST,prosst,destabilizing,0.5969,0.5891,0.6053,33,28319,singles
+ProteinMPNN,pmpnn,stabilizing,0.0744,0.0399,0.1111,33,7102,singles
+ProteinMPNN,pmpnn,destabilizing,0.5132,0.5037,0.5226,33,28319,singles
+ESM3-small-open,msrrel@0:wt,stabilizing,0.0185,-0.0162,0.0518,33,7102,singles
+ESM3-small-open,msrrel@0:wt,destabilizing,0.5727,0.5628,0.5806,33,28319,singles
+ESM-MSR,msrp0:wt,stabilizing,0.3003,0.2669,0.3285,33,7102,singles
+ESM-MSR,msrp0:wt,destabilizing,0.8163,0.8074,0.8213,33,28319,singles
+MutateEverything,me1,stabilizing,0.1471,0.1196,0.1693,33,7102,singles
+MutateEverything,me1,destabilizing,0.7683,0.7616,0.7743,33,28319,singles
+ThermoMPNN,tmpnn,stabilizing,0.2276,0.1963,0.2576,33,7102,singles
+ThermoMPNN,tmpnn,destabilizing,0.7688,0.7616,0.7737,33,28319,singles
+SPURS,spurs,stabilizing,0.2802,0.2496,0.3101,33,7102,singles
+SPURS,spurs,destabilizing,0.7864,0.7794,0.7914,33,28319,singles
+best other ddG,geoddg,stabilizing,0.1984,0.1676,0.2303,33,7102,singles
+best other ddG,geoddg,destabilizing,0.5605,0.5526,0.5689,33,28319,singles
+Rosetta,rosetta,stabilizing,0.0954,0.0632,0.1285,33,7102,singles
+Rosetta,rosetta,destabilizing,0.6572,0.6482,0.6639,33,28319,singles
+ESM3-small-open (alt),esm3avg,stabilizing,0.0309,-0.0031,0.0625,33,7102,singles
+ESM3-small-open (alt),esm3avg,destabilizing,0.5810,0.5720,0.5883,33,28319,singles
+ProSST,prosst,overall,0.5843,0.5773,0.5914,33,35421,singles
+ProteinMPNN,pmpnn,overall,0.5423,0.5339,0.5506,33,35421,singles
+ESM3-small-open,msrrel@0:wt,overall,0.5670,0.5591,0.5740,33,35421,singles
+ESM-MSR,msrp0:wt,overall,0.8327,0.8263,0.8375,33,35421,singles
+MutateEverything,me1,overall,0.7706,0.7643,0.7768,33,35421,singles
+ThermoMPNN,tmpnn,overall,0.7859,0.7802,0.7912,33,35421,singles
+SPURS,spurs,overall,0.8041,0.7988,0.8096,33,35421,singles
+best other ddG,geoddg,overall,0.5915,0.5832,0.5992,33,35421,singles
+Rosetta,rosetta,overall,0.6594,0.6521,0.6655,33,35421,singles
+ESM3-small-open (alt),esm3avg,overall,0.5737,0.5672,0.5798,33,35421,singles
+ProSST,prosst,stabilizing,0.0806,-0.0475,0.2150,7,310,doubles
+ProSST,prosst,destabilizing,0.4081,0.3810,0.4258,13,13004,doubles
+ProteinMPNN,pmpnn,stabilizing,0.1358,0.0159,0.2546,7,310,doubles
+ProteinMPNN,pmpnn,destabilizing,0.3124,0.2893,0.3362,13,13004,doubles
+ESM3-small-open,msrrel@0:comb,stabilizing,0.2599,0.1385,0.3437,7,310,doubles
+ESM3-small-open,msrrel@0:comb,destabilizing,0.3947,0.3741,0.4140,13,13004,doubles
+ESM-MSR,msrp0:comb,stabilizing,0.4375,0.3187,0.5270,7,310,doubles
+ESM-MSR,msrp0:comb,destabilizing,0.7569,0.7434,0.7687,13,13004,doubles
+MutateEverything,me2,stabilizing,0.3997,0.2239,0.5208,7,310,doubles
+MutateEverything,me2,destabilizing,0.6256,0.6042,0.6426,13,13004,doubles
+ThermoMPNN,tmpnnd,stabilizing,0.4163,0.2605,0.5406,7,310,doubles
+ThermoMPNN,tmpnnd,destabilizing,0.6473,0.6298,0.6635,13,13004,doubles
+SPURS,spursm,stabilizing,0.3583,0.2120,0.4706,7,310,doubles
+SPURS,spursm,destabilizing,0.6821,0.6607,0.7008,13,13004,doubles
+best other ddG,geoddg,stabilizing,0.1928,0.0431,0.3392,7,310,doubles
+best other ddG,geoddg,destabilizing,0.4316,0.4129,0.4516,13,13004,doubles
+Rosetta,rosetta,stabilizing,-0.0719,-0.2179,0.0712,7,310,doubles
+Rosetta,rosetta,destabilizing,0.4841,0.4621,0.4996,13,13004,doubles
+ESM3-small-open (alt),esm3avg,stabilizing,0.2006,0.0531,0.3071,7,310,doubles
+ESM3-small-open (alt),esm3avg,destabilizing,0.3939,0.3723,0.4126,13,13004,doubles
+ProSST,prosst,overall,0.4204,0.4019,0.4386,13,13319,doubles
+ProteinMPNN,pmpnn,overall,0.3301,0.3082,0.3486,13,13319,doubles
+ESM3-small-open,msrrel@0:comb,overall,0.4137,0.3935,0.4293,13,13319,doubles
+ESM-MSR,msrp0:comb,overall,0.7772,0.7643,0.7871,13,13319,doubles
+MutateEverything,me2,overall,0.6521,0.6324,0.6662,13,13319,doubles
+ThermoMPNN,tmpnnd,overall,0.6678,0.6469,0.6835,13,13319,doubles
+SPURS,spursm,overall,0.7031,0.6875,0.7148,13,13319,doubles
+best other ddG,geoddg,overall,0.4560,0.4352,0.4740,13,13319,doubles
+Rosetta,rosetta,overall,0.4990,0.4772,0.5201,13,13319,doubles
+ESM3-small-open (alt),esm3avg,overall,0.4110,0.3892,0.4261,13,13319,doubles

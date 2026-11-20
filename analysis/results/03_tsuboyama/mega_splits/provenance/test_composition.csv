@@ -1,0 +1,3 @@
+split,train_libs,val_libs,test_libs,test_backbones,rows,measured,singles,doubles,test_natural,test_de novo (Rocklin design),test_de novo (trRosetta hallucination),test_other (redesign of a natural domain)
+mega_splits,239,31,28,30,53981,49048,31614,22367,21,4,3,
+capped,172,23,33,37,52071,48740,36526,15545,19,12,1,1.0

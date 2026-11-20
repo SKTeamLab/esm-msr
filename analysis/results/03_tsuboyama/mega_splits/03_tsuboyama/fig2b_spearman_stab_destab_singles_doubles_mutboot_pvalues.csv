@@ -1,0 +1,19 @@
+comparison,model_a,model_b,value_a,value_b,delta,lo,hi,p,n_libraries,bootstrap,statistic,panel,p_holm
+stabilizing,ESM-MSR,MutateEverything,0.3013,0.2313,0.06998,0.03523,0.108,0.004975,28,mutations,mean over domains,singles,0.01493
+stabilizing,ESM-MSR,ThermoMPNN,0.3013,0.251,0.05028,0.02142,0.08008,0.004975,28,mutations,mean over domains,singles,0.01493
+stabilizing,ESM-MSR,SPURS,0.3013,0.3136,-0.01229,-0.03847,0.0155,0.43,28,mutations,mean over domains,singles,0.43
+destabilizing,ESM-MSR,MutateEverything,0.8116,0.7724,0.03918,0.03369,0.04547,0.004975,28,mutations,mean over domains,singles,0.01493
+destabilizing,ESM-MSR,ThermoMPNN,0.8116,0.7482,0.06341,0.05825,0.06907,0.004975,28,mutations,mean over domains,singles,0.01493
+destabilizing,ESM-MSR,SPURS,0.8116,0.7801,0.03156,0.02663,0.03672,0.004975,28,mutations,mean over domains,singles,0.01493
+overall,ESM-MSR,MutateEverything,0.8215,0.7745,0.04693,0.04051,0.05199,0.004975,28,mutations,mean over domains,singles,0.01493
+overall,ESM-MSR,ThermoMPNN,0.8215,0.769,0.05243,0.04868,0.05699,0.004975,28,mutations,mean over domains,singles,0.01493
+overall,ESM-MSR,SPURS,0.8215,0.796,0.0255,0.02221,0.02893,0.004975,28,mutations,mean over domains,singles,0.01493
+stabilizing,ESM-MSR,MutateEverything,0.1236,0.1474,-0.02371,-0.1899,0.1626,0.83,7,mutations,mean over domains,doubles,1
+stabilizing,ESM-MSR,ThermoMPNN,0.1236,0.04938,0.07426,-0.1059,0.2189,0.39,7,mutations,mean over domains,doubles,1
+stabilizing,ESM-MSR,SPURS,0.1236,0.1412,-0.01755,-0.1971,0.1542,0.83,7,mutations,mean over domains,doubles,1
+destabilizing,ESM-MSR,MutateEverything,0.6667,0.5946,0.07215,0.05525,0.08952,0.004975,20,mutations,mean over domains,doubles,0.01493
+destabilizing,ESM-MSR,ThermoMPNN,0.6667,0.6146,0.05209,0.03246,0.0767,0.004975,20,mutations,mean over domains,doubles,0.01493
+destabilizing,ESM-MSR,SPURS,0.6667,0.6003,0.0664,0.03186,0.09996,0.004975,20,mutations,mean over domains,doubles,0.01493
+overall,ESM-MSR,MutateEverything,0.662,0.5945,0.06752,0.05144,0.08296,0.004975,20,mutations,mean over domains,doubles,0.01493
+overall,ESM-MSR,ThermoMPNN,0.662,0.6155,0.04653,0.02779,0.06946,0.004975,20,mutations,mean over domains,doubles,0.01493
+overall,ESM-MSR,SPURS,0.662,0.5981,0.06387,0.02241,0.09512,0.004975,20,mutations,mean over domains,doubles,0.01493

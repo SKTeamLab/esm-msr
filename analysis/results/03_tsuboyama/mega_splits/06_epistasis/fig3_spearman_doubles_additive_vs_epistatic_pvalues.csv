@@ -1,0 +1,14 @@
+comparison,model_a,model_b,value_a,value_b,delta,lo,hi,p,n_libraries,bootstrap,statistic,p_holm
+additive,ESM-MSR,MutateEverything,0.5637,0.5088,0.05497,0.006286,0.1094,0.028,20,domains,mean over domains,0.084
+additive,ESM-MSR,ThermoMPNN,0.5637,0.5571,0.006631,-0.03102,0.04604,0.72,20,domains,mean over domains,1
+additive,ESM-MSR,SPURS,0.5637,0.5674,-0.003677,-0.0403,0.03309,0.786,20,domains,mean over domains,1
+epistatic,ESM-MSR,MutateEverything,0.662,0.5945,0.06752,0.01656,0.1172,0.016,20,domains,mean over domains,0.048
+epistatic,ESM-MSR,ThermoMPNN,0.662,0.6155,0.04653,-0.01558,0.1092,0.138,20,domains,mean over domains,0.138
+epistatic,ESM-MSR,SPURS,0.662,0.5981,0.06387,0.0002185,0.1338,0.048,20,domains,mean over domains,0.096
+gain (epistatic - additive),ESM-MSR,MutateEverything,0.09829,0.08573,0.01255,-0.06114,0.07691,0.66,20,domains,mean over domains,0.66
+gain (epistatic - additive),ESM-MSR,ThermoMPNN,0.09829,0.05839,0.0399,-0.02006,0.09972,0.19,20,domains,mean over domains,0.38
+gain (epistatic - additive),ESM-MSR,SPURS,0.09829,0.03073,0.06755,0.02063,0.1234,0.004,20,domains,mean over domains,0.012
+own gain,ESM-MSR (epistatic),ESM-MSR (additive),0.662,0.5637,0.09829,0.04393,0.1673,0.000999,20,domains,mean over domains,0.000999
+own gain,MutateEverything (epistatic),MutateEverything (additive),0.5945,0.5088,0.08573,0.03203,0.1465,0.002,20,domains,mean over domains,0.002
+own gain,ThermoMPNN (epistatic),ThermoMPNN (additive),0.6155,0.5571,0.05839,0.01751,0.09891,0.002,20,domains,mean over domains,0.002
+own gain,SPURS (epistatic),SPURS (additive),0.5981,0.5674,0.03073,-0.01389,0.07607,0.176,20,domains,mean over domains,0.176

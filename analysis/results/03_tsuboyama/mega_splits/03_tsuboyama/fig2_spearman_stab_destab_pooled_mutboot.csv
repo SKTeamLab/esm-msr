@@ -1,0 +1,13 @@
+column,key,subset,value,lo,hi,n_variants,n_libraries
+ESM-MSR,msrp0:wt|msrp0:comb,stabilizing,0.2183,0.1980,0.2426,8791,28
+MutateEverything,me1|me2,stabilizing,0.1878,0.1666,0.2084,8791,28
+ThermoMPNN,tmpnn|tmpnnd,stabilizing,0.1721,0.1501,0.1968,8791,28
+SPURS,spurs|spursm,stabilizing,0.2215,0.2025,0.2426,8791,28
+ESM-MSR,msrp0:wt|msrp0:comb,destabilizing,0.6605,0.6490,0.6685,40257,28
+MutateEverything,me1|me2,destabilizing,0.7010,0.6874,0.7124,40257,28
+ThermoMPNN,tmpnn|tmpnnd,destabilizing,0.6896,0.6783,0.6988,40257,28
+SPURS,spurs|spursm,destabilizing,0.7293,0.7186,0.7407,40257,28
+ESM-MSR,msrp0:wt|msrp0:comb,overall,0.7284,0.7206,0.7363,49048,28
+MutateEverything,me1|me2,overall,0.7637,0.7556,0.7720,49048,28
+ThermoMPNN,tmpnn|tmpnnd,overall,0.7465,0.7391,0.7536,49048,28
+SPURS,spurs|spursm,overall,0.7838,0.7733,0.7950,49048,28

@@ -1,0 +1,5 @@
+set,stratum,blocks,cells,cell_mag,seed_values,block_boot_lo,block_boot_hi,block_boot_p,pos_boot_lo,pos_boot_hi,pos_boot_p,null_mean,null_sd,perm_p,share_blocks_positive,B
+GRB2_HUMAN_Faure_2021_abundance_domain,all blocks,415,15940,0.03432,0.045/0.032/0.026,0.007338,0.06154,0.01,-0.01424,0.0806,0.132,-0.0002132,0.01266,0.01493,0.559,1000
+GRB2_HUMAN_Faure_2021_abundance_domain,blocks above floor,129,5897,0.07343,0.080/0.073/0.067,0.03006,0.1169,0.002,0.00117,0.1548,0.042,0.0003369,0.02351,0.004975,0.6822,1000
+GRB2_HUMAN_Faure_2021_binding_domain,all blocks,895,15516,0.03645,0.040/0.038/0.031,0.01573,0.05656,0.000999,-0.003502,0.07368,0.082,0.001024,0.01017,0.004975,0.5441,1000
+GRB2_HUMAN_Faure_2021_binding_domain,blocks above floor,558,9826,0.06131,0.063/0.073/0.049,0.0344,0.0897,0.000999,0.01114,0.1136,0.018,-0.00133,0.01191,0.004975,0.5896,1000

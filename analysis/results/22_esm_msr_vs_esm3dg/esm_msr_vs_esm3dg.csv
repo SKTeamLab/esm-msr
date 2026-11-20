@@ -13,13 +13,13 @@ DMS sets,DLG4 bind.,pooled rho,8251,0.7342,0.7220,0.7468,0.7658,0.7577,0.7736,-0
 DMS sets,GRB2 bind.,pooled rho,33441,0.6314,0.6240,0.6387,0.6457,0.6386,0.6521,-0.0143,-0.0192,-0.0093,0.0010,True,–
 DMS sets,MYO,pooled rho,5905,0.6381,0.6198,0.6560,0.5940,0.5748,0.6121,0.0442,0.0342,0.0536,0.0010,True,h1
 Domainome,Domainome (held-out domains),mean per-domain rho,436,0.5395,0.5263,0.5530,0.5014,0.4840,0.5185,0.0381,0.0262,0.0507,0.0010,True,P.005 H.22 h.51
-ProteinGym (held-out assays),PG average,mean per-assay rho,173,0.5089,0.4770,0.5395,0.3814,0.3427,0.4210,0.1275,0.1022,0.1513,0.0010,True,P.003 H.02 h.33
-ProteinGym (held-out assays),Stability,mean per-assay rho,37,0.8269,0.7809,0.8623,0.7884,0.7335,0.8355,0.0386,0.0189,0.0625,0.0010,True,P.003 H.02 h.33
-ProteinGym (held-out assays),Expression,mean per-assay rho,18,0.5192,0.4373,0.5823,0.3201,0.2258,0.4011,0.1991,0.1374,0.2610,0.0010,True,
-ProteinGym (held-out assays),Activity,mean per-assay rho,38,0.4344,0.3863,0.4850,0.3045,0.2547,0.3588,0.1299,0.0943,0.1662,0.0010,True,
-ProteinGym (held-out assays),Binding,mean per-assay rho,13,0.3493,0.2306,0.4539,0.2094,0.0639,0.3557,0.1399,0.0445,0.2344,0.0020,True,
-ProteinGym (held-out assays),OrganismalFitness,mean per-assay rho,67,0.4149,0.3711,0.4575,0.2847,0.2253,0.3354,0.1302,0.0971,0.1638,0.0010,True,
-MGnify / Rocklin (not held out),MGnify,pooled rho,612406,0.6438,0.6402,0.6474,0.6861,0.6829,0.6902,-0.0423,,,,False,same source
-MGnify / Rocklin (not held out),Rocklin designs,pooled rho,109581,0.4539,0.4162,0.4813,0.3843,0.3469,0.4161,0.0696,,,,False,same source
-MGnify / Rocklin (not held out),MGnify,mean per-scaffold rho,5505,0.6770,0.6699,0.6843,0.7312,0.7252,0.7373,-0.0542,,,,False,same source
-MGnify / Rocklin (not held out),Rocklin designs,mean per-scaffold rho,618,0.2732,0.2546,0.2927,0.3622,0.3411,0.3832,-0.0890,,,,False,same source
+ProteinGym (held-out assays),PG average,mean per-assay rho,173,0.5089,0.4762,0.5394,0.3814,0.3403,0.4205,0.1275,0.1034,0.1536,0.0010,True,P.003 H.02 h.33
+ProteinGym (held-out assays),Stability,mean per-assay rho,37,0.8269,0.7828,0.8661,0.7884,0.7273,0.8341,0.0386,0.0166,0.0667,0.0010,True,P.003 H.02 h.33
+ProteinGym (held-out assays),Expression,mean per-assay rho,18,0.5192,0.4304,0.5844,0.3201,0.2188,0.4001,0.1991,0.1355,0.2633,0.0010,True,
+ProteinGym (held-out assays),Activity,mean per-assay rho,38,0.4344,0.3839,0.4831,0.3045,0.2535,0.3550,0.1299,0.0941,0.1646,0.0010,True,
+ProteinGym (held-out assays),Binding,mean per-assay rho,13,0.3493,0.2332,0.4504,0.2094,0.0515,0.3511,0.1399,0.0475,0.2260,0.0040,True,
+ProteinGym (held-out assays),OrganismalFitness,mean per-assay rho,67,0.4149,0.3746,0.4551,0.2847,0.2303,0.3362,0.1302,0.0965,0.1672,0.0010,True,
+MGnify / Rocklin (not held out for ESM3ΔG),MGnify,pooled rho,612406,0.6438,0.6400,0.6473,0.6861,0.6824,0.6895,-0.0423,,,,False,same source
+MGnify / Rocklin (not held out for ESM3ΔG),Rocklin designs,pooled rho,109581,0.4539,0.4266,0.4822,0.3843,0.3547,0.4217,0.0696,,,,False,same source
+MGnify / Rocklin (not held out for ESM3ΔG),MGnify,mean per-scaffold rho,5505,0.6770,0.6697,0.6841,0.7312,0.7251,0.7373,-0.0542,,,,False,same source
+MGnify / Rocklin (not held out for ESM3ΔG),Rocklin designs,mean per-scaffold rho,618,0.2732,0.2529,0.2941,0.3622,0.3417,0.3841,-0.0890,,,,False,same source

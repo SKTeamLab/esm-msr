@@ -18,16 +18,16 @@
 | **Domainome** | | | | | | |
 | Domainome (held-out domains) | mean per-domain rho | 436 | 0.540  [0.526, 0.553] | 0.501  [0.484, 0.519] | +0.038  [+0.026, +0.051] | P.005 H.22 h.51 |
 | **ProteinGym (held-out assays)** | | | | | | |
-| PG average | mean per-assay rho | 173 | 0.509  [0.477, 0.539] | 0.381  [0.343, 0.421] | +0.128  [+0.102, +0.151] | P.003 H.02 h.33 |
-| Stability | mean per-assay rho | 37 | 0.827  [0.781, 0.862] | 0.788  [0.734, 0.835] | +0.039  [+0.019, +0.062] | P.003 H.02 h.33 |
-| Expression | mean per-assay rho | 18 | 0.519  [0.437, 0.582] | 0.320  [0.226, 0.401] | +0.199  [+0.137, +0.261] | – |
-| Activity | mean per-assay rho | 38 | 0.434  [0.386, 0.485] | 0.304  [0.255, 0.359] | +0.130  [+0.094, +0.166] | – |
-| Binding | mean per-assay rho | 13 | 0.349  [0.231, 0.454] | 0.209  [0.064, 0.356] | +0.140  [+0.045, +0.234] | – |
-| OrganismalFitness | mean per-assay rho | 67 | 0.415  [0.371, 0.458] | 0.285  [0.225, 0.335] | +0.130  [+0.097, +0.164] | – |
-| **MGnify / Rocklin (not held out)** | | | | | | |
-| MGnify | pooled rho | 612,406 | 0.644  [0.640, 0.647] | 0.686  [0.683, 0.690] | -0.042  (separate intervals) | same source |
-| Rocklin designs | pooled rho | 109,581 | 0.454  [0.416, 0.481] | 0.384  [0.347, 0.416] | +0.070  (separate intervals) | same source |
+| PG average | mean per-assay rho | 173 | 0.509  [0.476, 0.539] | 0.381  [0.340, 0.421] | +0.128  [+0.103, +0.154] | P.003 H.02 h.33 |
+| Stability | mean per-assay rho | 37 | 0.827  [0.783, 0.866] | 0.788  [0.727, 0.834] | +0.039  [+0.017, +0.067] | P.003 H.02 h.33 |
+| Expression | mean per-assay rho | 18 | 0.519  [0.430, 0.584] | 0.320  [0.219, 0.400] | +0.199  [+0.135, +0.263] | – |
+| Activity | mean per-assay rho | 38 | 0.434  [0.384, 0.483] | 0.304  [0.254, 0.355] | +0.130  [+0.094, +0.165] | – |
+| Binding | mean per-assay rho | 13 | 0.349  [0.233, 0.450] | 0.209  [0.052, 0.351] | +0.140  [+0.047, +0.226] | – |
+| OrganismalFitness | mean per-assay rho | 67 | 0.415  [0.375, 0.455] | 0.285  [0.230, 0.336] | +0.130  [+0.096, +0.167] | – |
+| **MGnify / Rocklin (not held out for ESM3ΔG)** | | | | | | |
+| MGnify | pooled rho | 612,406 | 0.644  [0.640, 0.647] | 0.686  [0.682, 0.690] | -0.042  (separate intervals) | same source |
+| Rocklin designs | pooled rho | 109,581 | 0.454  [0.427, 0.482] | 0.384  [0.355, 0.422] | +0.070  (separate intervals) | same source |
 | MGnify | mean per-scaffold rho | 5,505 | 0.677  [0.670, 0.684] | 0.731  [0.725, 0.737] | -0.054  (separate intervals) | same source |
-| Rocklin designs | mean per-scaffold rho | 618 | 0.273  [0.255, 0.293] | 0.362  [0.341, 0.383] | -0.089  (separate intervals) | same source |
+| Rocklin designs | mean per-scaffold rho | 618 | 0.273  [0.253, 0.294] | 0.362  [0.342, 0.384] | -0.089  (separate intervals) | same source |
 
-ESM-MSR: deployed readout (WT-view on singles, Dual-view where multi-mutants are scored), seeds 1-3 averaged; ESM3ΔG: one run, direct prediction. Both on the same rows. Δρ intervals: paired bootstrap (draws shared by both models, seeds resampled; mutation level for the thermostability and DMS sets, domain level for Domainome, assays within category for ProteinGym; MGnify and Rocklin: separate scaffold bootstraps). ESM3ΔG is not scored on the MegaScale val / test sets, which its training data overlap (the Tsuboyama Stability assays of ProteinGym stay in, labelled). It is fine-tuned on MGnify stability data (960,216 sequences): MGnify and Rocklin are not held out for it. Overlap = the leak audit's share of the set's rows whose protein has a homolog in that training data (P same protein, H strong homolog, h weak homolog), before the four-part held-out filter. Green / red: Δρ interval excludes 0 (ESM-MSR higher / lower).
+ESM-MSR: deployed readout (WT-view on singles, Dual-view where multi-mutants are scored), seeds 1-3 averaged; ESM3ΔG: one run, direct prediction. Δρ intervals: paired bootstrap (B = 1,000, seeds resampled; mutation level for thermostability & DMS, domain level for Domainome, category-stratified assays × seeds for ProteinGym; MGnify & Rocklin: separate scaffold bootstraps). ESM3ΔG is fine-tuned on MGnify stability data (960,216 sequences), so MGnify & Rocklin are not held out for it. Green / red: Δρ interval excludes 0 (ESM-MSR higher / lower).

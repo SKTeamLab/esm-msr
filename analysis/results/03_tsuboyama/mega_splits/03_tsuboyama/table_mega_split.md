@@ -15,5 +15,4 @@
 | SPURS-multi, published checkpoint* | 0.765 [0.727, 0.795] | 0.762 [0.726, 0.796] | 0.726 | 0.617 | 0.788 | 0.740 | – | 1.00 |
 | SPURS-multi, trained adapter (retrain) | 0.755 [0.718, 0.786] | 0.761 [0.723, 0.796] | 0.721 | 0.612 | 0.793 | 0.736 | – | 1.00 |
 
-Medians: median over the test libraries of the per-library ρ (per seed, then the mean over seeds; the seed range is in `tsuboyama_mega_test_medians.csv`). The paper statistic is the SPURS paper's: median per protein over the wild-type-backbone singles (SPURS 0.83, ThermoMPNN 0.77 as reported there).
-Mean per-library Spearman ρ, seed mean of three seeds per model; [95% interval] from resampling libraries and seeds (B = 1000). mega_splits test: 28 libraries, 49,048 measured variants.
+Mean per-library Spearman ρ, seed mean of three seeds per model; [95% interval] from resampling libraries and seeds (B = 1,000). mega_splits test: 28 libraries, 49,048 measured variants.

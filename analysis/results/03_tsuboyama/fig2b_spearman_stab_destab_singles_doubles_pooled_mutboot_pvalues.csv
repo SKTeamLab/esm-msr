@@ -1,55 +1,55 @@
 comparison,model_a,model_b,value_a,value_b,delta,lo,hi,p,n_libraries,bootstrap,statistic,panel,p_holm
-stabilizing,ESM-MSR,ProSST,0.3193,0.04674,0.2726,0.2489,0.2974,0.009901,33,mutations,pooled over domains,singles,0.08911
-stabilizing,ESM-MSR,ProteinMPNN,0.3193,0.08308,0.2362,0.2112,0.2643,0.009901,33,mutations,pooled over domains,singles,0.08911
-stabilizing,ESM-MSR,ESM3-small-open,0.3193,0.0186,0.3007,0.2773,0.3274,0.009901,33,mutations,pooled over domains,singles,0.08911
-stabilizing,ESM-MSR,MutateEverything,0.3193,0.1744,0.145,0.1189,0.1726,0.009901,33,mutations,pooled over domains,singles,0.08911
-stabilizing,ESM-MSR,ThermoMPNN,0.3193,0.2352,0.08415,0.06801,0.1072,0.009901,33,mutations,pooled over domains,singles,0.08911
-stabilizing,ESM-MSR,SPURS,0.3193,0.2842,0.03515,0.01927,0.05285,0.009901,33,mutations,pooled over domains,singles,0.08911
-stabilizing,ESM-MSR,GeoDDG-3D,0.3193,0.2053,0.114,0.08881,0.1415,0.009901,33,mutations,pooled over domains,singles,0.08911
-stabilizing,ESM-MSR,Rosetta,0.3193,0.1235,0.1958,0.1745,0.219,0.009901,33,mutations,pooled over domains,singles,0.08911
-stabilizing,ESM-MSR,"ESM3-small-open independent masking (WT, MT average)",0.3193,0.0253,0.294,0.27,0.3233,0.009901,33,mutations,pooled over domains,singles,0.08911
-destabilizing,ESM-MSR,ProSST,0.7704,0.5854,0.185,0.1783,0.1942,0.009901,33,mutations,pooled over domains,singles,0.08911
-destabilizing,ESM-MSR,ProteinMPNN,0.7704,0.5243,0.2461,0.2375,0.2542,0.009901,33,mutations,pooled over domains,singles,0.08911
-destabilizing,ESM-MSR,ESM3-small-open,0.7704,0.5614,0.209,0.201,0.2175,0.009901,33,mutations,pooled over domains,singles,0.08911
-destabilizing,ESM-MSR,MutateEverything,0.7704,0.749,0.02146,0.01664,0.02619,0.009901,33,mutations,pooled over domains,singles,0.08911
-destabilizing,ESM-MSR,ThermoMPNN,0.7704,0.7229,0.04757,0.0419,0.0524,0.009901,33,mutations,pooled over domains,singles,0.08911
-destabilizing,ESM-MSR,SPURS,0.7704,0.7416,0.02885,0.02103,0.034,0.009901,33,mutations,pooled over domains,singles,0.08911
-destabilizing,ESM-MSR,GeoDDG-3D,0.7704,0.5324,0.2381,0.2283,0.2472,0.009901,33,mutations,pooled over domains,singles,0.08911
-destabilizing,ESM-MSR,Rosetta,0.7704,0.6233,0.1472,0.1395,0.1549,0.009901,33,mutations,pooled over domains,singles,0.08911
-destabilizing,ESM-MSR,"ESM3-small-open independent masking (WT, MT average)",0.7704,0.5657,0.2047,0.1967,0.2126,0.009901,33,mutations,pooled over domains,singles,0.08911
-overall,ESM-MSR,ProSST,0.8072,0.592,0.2152,0.2069,0.2225,0.009901,33,mutations,pooled over domains,singles,0.08911
-overall,ESM-MSR,ProteinMPNN,0.8072,0.5686,0.2386,0.2317,0.2464,0.009901,33,mutations,pooled over domains,singles,0.08911
-overall,ESM-MSR,ESM3-small-open,0.8072,0.5642,0.243,0.2361,0.2507,0.009901,33,mutations,pooled over domains,singles,0.08911
-overall,ESM-MSR,MutateEverything,0.8072,0.7658,0.04139,0.03739,0.04568,0.009901,33,mutations,pooled over domains,singles,0.08911
-overall,ESM-MSR,ThermoMPNN,0.8072,0.7578,0.04943,0.04596,0.05405,0.009901,33,mutations,pooled over domains,singles,0.08911
-overall,ESM-MSR,SPURS,0.8072,0.7821,0.02509,0.02015,0.02994,0.009901,33,mutations,pooled over domains,singles,0.08911
-overall,ESM-MSR,GeoDDG-3D,0.8072,0.575,0.2322,0.2249,0.2404,0.009901,33,mutations,pooled over domains,singles,0.08911
-overall,ESM-MSR,Rosetta,0.8072,0.6427,0.1645,0.1594,0.1708,0.009901,33,mutations,pooled over domains,singles,0.08911
-overall,ESM-MSR,"ESM3-small-open independent masking (WT, MT average)",0.8072,0.57,0.2372,0.2304,0.2438,0.009901,33,mutations,pooled over domains,singles,0.08911
-stabilizing,ESM-MSR,ProSST,0.1946,-0.08779,0.2824,0.1667,0.4188,0.009901,8,mutations,pooled over domains,doubles,0.08911
-stabilizing,ESM-MSR,ProteinMPNN,0.1946,-0.1326,0.3273,0.2148,0.4381,0.009901,8,mutations,pooled over domains,doubles,0.08911
-stabilizing,ESM-MSR,ESM3-small-open,0.1946,0.02811,0.1665,0.08743,0.2673,0.009901,8,mutations,pooled over domains,doubles,0.08911
-stabilizing,ESM-MSR,MutateEverything,0.1946,0.4415,-0.2469,-0.3781,-0.1391,0.009901,8,mutations,pooled over domains,doubles,0.08911
-stabilizing,ESM-MSR,ThermoMPNN,0.1946,0.3512,-0.1566,-0.2807,-0.01668,0.02,8,mutations,pooled over domains,doubles,0.08911
-stabilizing,ESM-MSR,SPURS,0.1946,0.3089,-0.1143,-0.2131,-0.006711,0.04,8,mutations,pooled over domains,doubles,0.08911
-stabilizing,ESM-MSR,GeoDDG-3D,0.1946,0.1715,0.02313,-0.1151,0.1805,0.66,8,mutations,pooled over domains,doubles,0.66
-stabilizing,ESM-MSR,Rosetta,0.1946,-0.1568,0.3514,0.2267,0.5114,0.009901,8,mutations,pooled over domains,doubles,0.08911
-stabilizing,ESM-MSR,"ESM3-small-open independent masking (WT, MT average)",0.1946,0.04258,0.152,0.06561,0.2324,0.009901,8,mutations,pooled over domains,doubles,0.08911
-destabilizing,ESM-MSR,ProSST,0.4912,0.2103,0.2809,0.2648,0.3028,0.009901,13,mutations,pooled over domains,doubles,0.08911
-destabilizing,ESM-MSR,ProteinMPNN,0.4912,0.2589,0.2323,0.2114,0.2546,0.009901,13,mutations,pooled over domains,doubles,0.08911
-destabilizing,ESM-MSR,ESM3-small-open,0.4912,0.2255,0.2657,0.2526,0.2834,0.009901,13,mutations,pooled over domains,doubles,0.08911
-destabilizing,ESM-MSR,MutateEverything,0.4912,0.5543,-0.06308,-0.07631,-0.04981,0.009901,13,mutations,pooled over domains,doubles,0.08911
-destabilizing,ESM-MSR,ThermoMPNN,0.4912,0.5218,-0.03062,-0.0501,-0.01408,0.009901,13,mutations,pooled over domains,doubles,0.08911
-destabilizing,ESM-MSR,SPURS,0.4912,0.5245,-0.03332,-0.05339,-0.01003,0.009901,13,mutations,pooled over domains,doubles,0.08911
-destabilizing,ESM-MSR,GeoDDG-3D,0.4912,0.4003,0.09093,0.06808,0.1129,0.009901,13,mutations,pooled over domains,doubles,0.08911
-destabilizing,ESM-MSR,Rosetta,0.4912,0.5398,-0.04859,-0.06737,-0.02866,0.009901,13,mutations,pooled over domains,doubles,0.08911
-destabilizing,ESM-MSR,"ESM3-small-open independent masking (WT, MT average)",0.4912,0.2072,0.284,0.2712,0.3013,0.009901,13,mutations,pooled over domains,doubles,0.08911
-overall,ESM-MSR,ProSST,0.5185,0.2334,0.2851,0.2695,0.3053,0.009901,13,mutations,pooled over domains,doubles,0.08911
-overall,ESM-MSR,ProteinMPNN,0.5185,0.2834,0.2351,0.2182,0.2557,0.009901,13,mutations,pooled over domains,doubles,0.08911
-overall,ESM-MSR,ESM3-small-open,0.5185,0.2456,0.2728,0.2601,0.2904,0.009901,13,mutations,pooled over domains,doubles,0.08911
-overall,ESM-MSR,MutateEverything,0.5185,0.58,-0.0615,-0.07427,-0.04884,0.009901,13,mutations,pooled over domains,doubles,0.08911
-overall,ESM-MSR,ThermoMPNN,0.5185,0.5412,-0.02269,-0.04205,0.0007857,0.1,13,mutations,pooled over domains,doubles,0.1
-overall,ESM-MSR,SPURS,0.5185,0.5478,-0.02932,-0.04687,-0.007694,0.009901,13,mutations,pooled over domains,doubles,0.08911
-overall,ESM-MSR,GeoDDG-3D,0.5185,0.422,0.09653,0.07778,0.1179,0.009901,13,mutations,pooled over domains,doubles,0.08911
-overall,ESM-MSR,Rosetta,0.5185,0.5538,-0.03527,-0.05007,-0.01628,0.009901,13,mutations,pooled over domains,doubles,0.08911
-overall,ESM-MSR,"ESM3-small-open independent masking (WT, MT average)",0.5185,0.2264,0.2921,0.2812,0.3091,0.009901,13,mutations,pooled over domains,doubles,0.08911
+stabilizing,ESM-MSR,ProSST,0.3193,0.04674,0.2726,0.2503,0.2975,0.004975,33,mutations,pooled over domains,singles,0.04478
+stabilizing,ESM-MSR,ProteinMPNN,0.3193,0.08308,0.2362,0.2123,0.2628,0.004975,33,mutations,pooled over domains,singles,0.04478
+stabilizing,ESM-MSR,ESM3-small-open,0.3193,0.0186,0.3007,0.279,0.3221,0.004975,33,mutations,pooled over domains,singles,0.04478
+stabilizing,ESM-MSR,MutateEverything,0.3193,0.1744,0.145,0.1192,0.1734,0.004975,33,mutations,pooled over domains,singles,0.04478
+stabilizing,ESM-MSR,ThermoMPNN,0.3193,0.2352,0.08415,0.06648,0.1061,0.004975,33,mutations,pooled over domains,singles,0.04478
+stabilizing,ESM-MSR,SPURS,0.3193,0.2842,0.03515,0.01921,0.05489,0.004975,33,mutations,pooled over domains,singles,0.04478
+stabilizing,ESM-MSR,GeoDDG-3D,0.3193,0.2053,0.114,0.08754,0.1425,0.004975,33,mutations,pooled over domains,singles,0.04478
+stabilizing,ESM-MSR,Rosetta,0.3193,0.1235,0.1958,0.1751,0.2213,0.004975,33,mutations,pooled over domains,singles,0.04478
+stabilizing,ESM-MSR,"ESM3-small-open independent masking (WT, MT average)",0.3193,0.0253,0.294,0.2707,0.3229,0.004975,33,mutations,pooled over domains,singles,0.04478
+destabilizing,ESM-MSR,ProSST,0.7704,0.5854,0.185,0.1782,0.1928,0.004975,33,mutations,pooled over domains,singles,0.04478
+destabilizing,ESM-MSR,ProteinMPNN,0.7704,0.5243,0.2461,0.2368,0.2541,0.004975,33,mutations,pooled over domains,singles,0.04478
+destabilizing,ESM-MSR,ESM3-small-open,0.7704,0.5614,0.209,0.2008,0.2172,0.004975,33,mutations,pooled over domains,singles,0.04478
+destabilizing,ESM-MSR,MutateEverything,0.7704,0.749,0.02146,0.01646,0.02604,0.004975,33,mutations,pooled over domains,singles,0.04478
+destabilizing,ESM-MSR,ThermoMPNN,0.7704,0.7229,0.04757,0.04154,0.05241,0.004975,33,mutations,pooled over domains,singles,0.04478
+destabilizing,ESM-MSR,SPURS,0.7704,0.7416,0.02885,0.0217,0.03392,0.004975,33,mutations,pooled over domains,singles,0.04478
+destabilizing,ESM-MSR,GeoDDG-3D,0.7704,0.5324,0.2381,0.2287,0.2465,0.004975,33,mutations,pooled over domains,singles,0.04478
+destabilizing,ESM-MSR,Rosetta,0.7704,0.6233,0.1472,0.1382,0.1546,0.004975,33,mutations,pooled over domains,singles,0.04478
+destabilizing,ESM-MSR,"ESM3-small-open independent masking (WT, MT average)",0.7704,0.5657,0.2047,0.1964,0.2123,0.004975,33,mutations,pooled over domains,singles,0.04478
+overall,ESM-MSR,ProSST,0.8072,0.592,0.2152,0.2069,0.2224,0.004975,33,mutations,pooled over domains,singles,0.04478
+overall,ESM-MSR,ProteinMPNN,0.8072,0.5686,0.2386,0.2317,0.2464,0.004975,33,mutations,pooled over domains,singles,0.04478
+overall,ESM-MSR,ESM3-small-open,0.8072,0.5642,0.243,0.2354,0.2509,0.004975,33,mutations,pooled over domains,singles,0.04478
+overall,ESM-MSR,MutateEverything,0.8072,0.7658,0.04139,0.03705,0.04635,0.004975,33,mutations,pooled over domains,singles,0.04478
+overall,ESM-MSR,ThermoMPNN,0.8072,0.7578,0.04943,0.0458,0.05399,0.004975,33,mutations,pooled over domains,singles,0.04478
+overall,ESM-MSR,SPURS,0.8072,0.7821,0.02509,0.01931,0.03052,0.004975,33,mutations,pooled over domains,singles,0.04478
+overall,ESM-MSR,GeoDDG-3D,0.8072,0.575,0.2322,0.2244,0.24,0.004975,33,mutations,pooled over domains,singles,0.04478
+overall,ESM-MSR,Rosetta,0.8072,0.6427,0.1645,0.1587,0.1711,0.004975,33,mutations,pooled over domains,singles,0.04478
+overall,ESM-MSR,"ESM3-small-open independent masking (WT, MT average)",0.8072,0.57,0.2372,0.23,0.2455,0.004975,33,mutations,pooled over domains,singles,0.04478
+stabilizing,ESM-MSR,ProSST,0.1946,-0.08779,0.2824,0.1679,0.4158,0.004975,8,mutations,pooled over domains,doubles,0.04478
+stabilizing,ESM-MSR,ProteinMPNN,0.1946,-0.1326,0.3273,0.2181,0.4367,0.004975,8,mutations,pooled over domains,doubles,0.04478
+stabilizing,ESM-MSR,ESM3-small-open,0.1946,0.02811,0.1665,0.08788,0.2412,0.004975,8,mutations,pooled over domains,doubles,0.04478
+stabilizing,ESM-MSR,MutateEverything,0.1946,0.4415,-0.2469,-0.3661,-0.1406,0.004975,8,mutations,pooled over domains,doubles,0.04478
+stabilizing,ESM-MSR,ThermoMPNN,0.1946,0.3512,-0.1566,-0.2924,-0.006134,0.04,8,mutations,pooled over domains,doubles,0.09
+stabilizing,ESM-MSR,SPURS,0.1946,0.3089,-0.1143,-0.2177,-0.01335,0.03,8,mutations,pooled over domains,doubles,0.09
+stabilizing,ESM-MSR,GeoDDG-3D,0.1946,0.1715,0.02313,-0.1258,0.1801,0.67,8,mutations,pooled over domains,doubles,0.67
+stabilizing,ESM-MSR,Rosetta,0.1946,-0.1568,0.3514,0.213,0.5049,0.004975,8,mutations,pooled over domains,doubles,0.04478
+stabilizing,ESM-MSR,"ESM3-small-open independent masking (WT, MT average)",0.1946,0.04258,0.152,0.06648,0.2307,0.004975,8,mutations,pooled over domains,doubles,0.04478
+destabilizing,ESM-MSR,ProSST,0.4912,0.2103,0.2809,0.2618,0.3017,0.004975,13,mutations,pooled over domains,doubles,0.04478
+destabilizing,ESM-MSR,ProteinMPNN,0.4912,0.2589,0.2323,0.2115,0.2526,0.004975,13,mutations,pooled over domains,doubles,0.04478
+destabilizing,ESM-MSR,ESM3-small-open,0.4912,0.2255,0.2657,0.2486,0.2807,0.004975,13,mutations,pooled over domains,doubles,0.04478
+destabilizing,ESM-MSR,MutateEverything,0.4912,0.5543,-0.06308,-0.07907,-0.04763,0.004975,13,mutations,pooled over domains,doubles,0.04478
+destabilizing,ESM-MSR,ThermoMPNN,0.4912,0.5218,-0.03062,-0.0526,-0.01182,0.01,13,mutations,pooled over domains,doubles,0.04478
+destabilizing,ESM-MSR,SPURS,0.4912,0.5245,-0.03332,-0.05404,-0.008659,0.004975,13,mutations,pooled over domains,doubles,0.04478
+destabilizing,ESM-MSR,GeoDDG-3D,0.4912,0.4003,0.09093,0.06392,0.1167,0.004975,13,mutations,pooled over domains,doubles,0.04478
+destabilizing,ESM-MSR,Rosetta,0.4912,0.5398,-0.04859,-0.07217,-0.02856,0.004975,13,mutations,pooled over domains,doubles,0.04478
+destabilizing,ESM-MSR,"ESM3-small-open independent masking (WT, MT average)",0.4912,0.2072,0.284,0.268,0.3003,0.004975,13,mutations,pooled over domains,doubles,0.04478
+overall,ESM-MSR,ProSST,0.5185,0.2334,0.2851,0.2691,0.3044,0.004975,13,mutations,pooled over domains,doubles,0.04478
+overall,ESM-MSR,ProteinMPNN,0.5185,0.2834,0.2351,0.2171,0.2528,0.004975,13,mutations,pooled over domains,doubles,0.04478
+overall,ESM-MSR,ESM3-small-open,0.5185,0.2456,0.2728,0.2597,0.2886,0.004975,13,mutations,pooled over domains,doubles,0.04478
+overall,ESM-MSR,MutateEverything,0.5185,0.58,-0.0615,-0.07654,-0.04685,0.004975,13,mutations,pooled over domains,doubles,0.04478
+overall,ESM-MSR,ThermoMPNN,0.5185,0.5412,-0.02269,-0.04313,0.0009021,0.08,13,mutations,pooled over domains,doubles,0.08
+overall,ESM-MSR,SPURS,0.5185,0.5478,-0.02932,-0.04796,-0.007089,0.004975,13,mutations,pooled over domains,doubles,0.04478
+overall,ESM-MSR,GeoDDG-3D,0.5185,0.422,0.09653,0.07757,0.1177,0.004975,13,mutations,pooled over domains,doubles,0.04478
+overall,ESM-MSR,Rosetta,0.5185,0.5538,-0.03527,-0.05317,-0.01516,0.004975,13,mutations,pooled over domains,doubles,0.04478
+overall,ESM-MSR,"ESM3-small-open independent masking (WT, MT average)",0.5185,0.2264,0.2921,0.2785,0.3077,0.004975,13,mutations,pooled over domains,doubles,0.04478

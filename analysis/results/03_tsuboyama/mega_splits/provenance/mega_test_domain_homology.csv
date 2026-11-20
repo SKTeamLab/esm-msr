@@ -1,0 +1,29 @@
+library,stratum,kind,in_capped_train,best_train_identity,best_train_tm,min_seq_evalue,min_struct_evalue
+1GYZ,clean,natural,False,0.26667,0.5152,,0.9939
+1PSE,homologous,natural,True,0.2093,0.7779,,0.0002622
+1QKH,clean,natural,False,0.29545,0.4012,,2.75
+1QP2,homologous,natural,True,0.27027,0.8176,,0.0004192
+1TUC,homologous,natural,False,0.75,0.7812,3.154e-27,2.124e-05
+1W4H,homologous,natural,False,0.31818,0.8207,6.789e-06,0.001402
+2BTH,homologous,natural,False,0.34146,0.8032,1.039e-07,0.001164
+2K1B,homologous,natural,True,0.4375,0.9063,2.566e-07,8.373e-05
+2K28,homologous,natural,True,0.41667,0.8454,7.932e-09,5.658e-05
+2K5H,homologous,natural,False,0.36585,0.8891,1.372e-05,3.628e-07
+2KVS,clean,natural,False,0.25581,0.5254,,1.996
+2KWH,clean,natural,False,0.34884,0.6745,,0.3527
+2KXD,homologous,natural,False,0.73214,0.7426,2.91e-26,0.0001512
+2L33,clean,natural,True,0.30233,0.5591,,0.04189
+2LQK,clean,natural,True,0.24194,0.5105,0.258,0.1714
+2WXC,homologous,natural,False,0.31818,0.79,9.369e-06,0.001775
+3DKM,clean,natural,False,0.275,0.6943,,0.02383
+4C26,clean,natural,True,0.23256,0.4431,,1.21
+6EWS,clean,natural,True,0.30233,0.4356,,1.059
+6EWT,clean,natural,True,0.27907,0.4424,7.485,1.304
+6EWU,clean,natural,True,0.35135,0.4313,1.023,1.214
+HEEH_KT_rd6_0746,clean,de novo (Rocklin design),False,0.39535,0.5043,,0.085
+HEEH_KT_rd6_0793,homologous,de novo (Rocklin design),False,0.34884,0.7261,0.0005912,0.01049
+HHH_rd1_0142,homologous,de novo (Rocklin design),False,0.39535,0.8114,0.00113,0.177
+HHH_rd1_0244,homologous,de novo (Rocklin design),False,0.39535,0.8286,0.7735,0.03454
+r11_1081_TrROS_Hall,homologous,de novo (trRosetta hallucination),True,0.40816,0.5661,0.5405,0.0681
+r12_757_TrROS_Hall,homologous,de novo (trRosetta hallucination),True,0.55102,0.8415,0.1332,0.002103
+r18_3_TrROS_Hall,homologous,de novo (trRosetta hallucination),True,0.57143,0.7192,0.01872,0.001048
