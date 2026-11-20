@@ -17,6 +17,7 @@ from lightning.pytorch.loggers import CometLogger, CSVLogger
 
 from esm_msr.models import MSRModel, combine_predictions
 from esm_msr import blocks, censoring, config, epi_metrics, stats, utils, val_stats
+from esm_msr import pooled_stats
 from esm_msr.losses import ListMLELoss, tobit_posterior_mean, tobit_regression_loss, TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F, TF_PRIOR_SD
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.config import parse_arguments, monitor_metric, convergence_metric, head_patience
@@ -1099,6 +1100,12 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         # OOD benchmarks, as their own section: mean over the external loaders, never inside an aggregate.
         for _k, _v in summarise_external_benchmarks(ext_per_loader, self.external_val_sets, prefix).items():
             self.log(_k, _v, on_epoch=True, sync_dist=True)
+
+        # The pooled correlations (one Spearman over every in-distribution item at once, esm_msr.pooled_stats), in the regime this pass reads.
+        if pooled['ground_truths']:
+            for _k, _v in pooled_stats.pooled_rho(pooled['wt_scores'], pooled['comb_scores'], pooled['ground_truths'], pooled['subset_type'], pooled['cens_src']).items():
+                if np.isfinite(_v):
+                    self.log(f'val_{prefix}{_k}', float(_v), on_epoch=True, sync_dist=True)
 
         # The epistasis scalars are pooled over every library at once, so they are not per-library values and never entered avg_metrics. Merge them in as single-element
         # lists AFTER the val_<key>_avg logging above, so nothing is logged twice.

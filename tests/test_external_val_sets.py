@@ -149,3 +149,18 @@ def test_an_extra_regime_logs_a_copy_of_the_main_statistics_under_its_prefix():
     copy = {k for k in got if k.startswith('val_unmasked_')}
     assert copy and {'val_unmasked_' + k[len('val_'):] for k in main} == copy, sorted({'val_unmasked_' + k[len('val_'):] for k in main} ^ copy)
     assert got['val_unmasked_rho_combined_avg'] != got['val_rho_combined_avg']                  # the copy is the other regime's numbers, not the main ones twice
+
+
+def test_the_pooled_correlations_are_logged_per_regime_and_leave_the_external_set_out():
+    got = _logged()
+    assert got['val_rho_combined_pooled'] == pytest.approx(got['val_rho_combined/LIB1'])          # one in-distribution library: pooled == per-library; ptmuld is not in it
+    assert got['val_rho_singles_wt_pooled'] == pytest.approx(got['val_rho_singles_wt/LIB1'])
+    from esm_msr.training import ESM3EpistasisLightningModule
+    obj = _bare_module()
+    obj.val_dataloader_names = ['LIB1', 'LIB2']
+    obj.validation_step_outputs = {0: [_loader_output('LIB1', seed=0)], 1: [_loader_output('LIB2', shift=1.5, seed=3)]}
+    ESM3EpistasisLightningModule.on_validation_epoch_end(obj)
+    two = obj.logged
+    assert two['val_rho_combined_pooled'] != pytest.approx(two['val_rho_combined_avg'], abs=1e-6)    # pooled over both libraries, not their mean
+    reg = _logged([('', {'wt': 'independent', 'mt': 'independent'}), ('unmasked_', {'wt': None, 'mt': None})])
+    assert 'val_unmasked_rho_combined_pooled' in reg and reg['val_unmasked_rho_combined_pooled'] != reg['val_rho_combined_pooled']
