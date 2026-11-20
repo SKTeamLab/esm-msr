@@ -1,6 +1,6 @@
 rel_path,top_folder,kind,size_bytes,owner
 00_core/rho_bootstrap.csv,00_core,csv,59835,p01_benchmarks_external / p12_manifest
-00_core/validation_vs_benchmarks.csv,00_core,csv,32220,p01_benchmarks_external / p12_manifest
+00_core/validation_vs_benchmarks.csv,00_core,csv,32446,p01_benchmarks_external / p12_manifest
 00_main_text_figs/epistasis_levels_e.pdf,00_main_text_figs,pdf,33048,p05_summary_main / p06_epistasis_hierarchy
 00_main_text_figs/epistasis_levels_e.png,00_main_text_figs,png,259815,p05_summary_main / p06_epistasis_hierarchy
 00_main_text_figs/epistasis_main_composite.pdf,00_main_text_figs,pdf,525802,p05_summary_main / p06_epistasis_hierarchy
