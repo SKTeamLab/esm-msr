@@ -1,23 +1,15 @@
-"""Stage 10 — Split construction, homology holdout filters, leak-code audits, and mega_splits provenance.
+"""Stage 10 — Split construction, homology holdout filters, reviewer reference tables, and mega_splits provenance.
 
 Consolidates:
-  - ``10_leakage_and_reference.py``: leak-code matrices (tables 1.1–1.4, 6.2, 6.3, 6.5), clean external-set means,
-    SPURS public vs retrained inflation, published-paper hyperopt reference (table 1.5), and third-party ``nobb`` baseline
-    ablation reference (table 2.5)
+  - ``10_leakage_and_reference.py`` (reference items): SPURS public vs retrained inflation, published-paper hyperopt
+    reference (table 1.5), and third-party ``nobb`` baseline ablation reference (table 2.5)
+    -> ``00_for_reviewers/reference/{published_reference.*, spurs_published_vs_retrained.*}`` & ``00_for_reviewers/baseline_nobb_ablation.*``
   - ``20_split_best_partner.py``: best cross-set sequence & structural partner scatter for ``capped`` and ``hyperopt`` splits
+    -> ``00_supplementary_figs/split_construction/split_best_partner_capped.*`` & ``00_for_reviewers/split_best_partner_hyperopt.*``
   - ``20b_split_overlap_heatmaps.py``: lower-triangular max identity & max TM-score heatmaps across all 16 benchmark sets
   - ``21b_holdout_filter_figure.py``: 4-criterion homology filter breakdown across ProteinGym, Domainome, MGnify, Rocklin
   - ``tsuboyama/mega_splits/02_split_provenance.py``: ``mega_splits`` provenance & homology audit against ``splits_oct06_capped``
-
-Bug fixes & scientific improvements:
-  1. Eliminates ``importlib.util.spec_from_file_location`` into ``preprocessing/split_overlap_report.py`` and eliminates
-     in-place ``MODELS`` registry mutation in ``published_reference`` (passing ``style_overrides`` to ``style.dot_panel``).
-  2. Resolves ``SALVAGED_HOMOLOGY_CSV`` cleanly with fallback to ``.../data/tsuboyama/homology/homology_pairs.csv``.
-  3. Builds **New High-Impact Composite Figure #4**:
-     ``results/00_supplementary_figs/split_construction/mega_clean_vs_homologous_test.{png,pdf}`` (+ companion CSV),
-     stratifying the 28 ``mega_splits`` test domains into the **16 train-homologous** vs **12 homology-clean** domains under
-     the 4-part homology rule and comparing ``ESM-MSR`` against retrained and published ``SPURS``, ``ThermoMPNN``, and
-     ``MutateEverything``.
+    -> ``01_megascale/mega_splits/provenance/*`` & ``00_supplementary_figs/split_construction/mega_clean_vs_homologous_test.*``
 """
 from __future__ import annotations
 
@@ -25,13 +17,11 @@ import hashlib
 import pickle
 import re
 import sys
-import textwrap
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.colors import ListedColormap
 from matplotlib.patches import Patch
 from scipy.stats import spearmanr
 
@@ -42,7 +32,6 @@ from msr_analysis.heldout import flags
 from msr_analysis.paths import (
     DATA_DIR,
     REFERENCE,
-    RESULTS,
     SALVAGED_HOMOLOGY_CSV,
     TASKS,
     atomic_to_csv,
@@ -50,30 +39,16 @@ from msr_analysis.paths import (
 )
 from msr_analysis.registry import EXT12, LABEL, MODELS
 from msr_analysis.stats import boot_domain_seeds, boot_pvalue, make_domain_seed_draws
-from msr_analysis.tables import clean_label, numeric, num, read_table
+from msr_analysis.tables import numeric, num, read_table
 from . import base_parser, resolve_b
 
 STAGE = 'splits_and_leakage'
-DESCRIPTION = 'Split construction, 4-part homology holdout filter, leak-code matrices, and mega_splits clean-vs-homologous audit.'
+DESCRIPTION = 'Split construction, 4-part homology holdout filter, reviewer reference comparisons, and mega_splits clean-vs-homologous audit.'
 
 INTERNAL = ('train', 'val', 'test')
 FUNCTIONAL = {'GRB2', 'DLG4', 'EstA', 'Myo', 'GB1'}
 E_CUT, ID_CUT, TM_CUT = 1e-3, 0.40, 0.70
 NO_HIT = -1.0
-
-SEV = {'#': 7, 'M': 6, 'm': 5, 'D': 5, 'U': 5, 'P': 4, 'H': 3, 'h': 2, 'C': 1}
-LEAK_COLORS = ['#ffffff', '#cfe3f1', '#e8e8e8', '#ffe699', '#f4b183', '#ee7a4d', '#d62728', '#7a0019']
-LEAK_NAMES = [
-    'none ≥ 0.5% of rows',
-    'C  pretraining only',
-    'h  weak similarity',
-    'P  same protein',
-    'H  strong homolog',
-    'm / D / U  constituent or documented',
-    'M  identical mutation',
-    '#  training-set score',
-]
-_LEAK_TOK = re.compile(r'([#MmPHhDCU])\??\s*(<?\.?\d*\.?\d*)')
 
 
 def resolve_homology_pairs_csv() -> Path | None:
@@ -110,162 +85,13 @@ def membership_from_split(split_path: Path, pair_ids: set[str]) -> dict[str, str
 
 
 # ----------------------------------------------------------------------------------------------
-# Part 1: 10_leakage_and_reference (zero MODELS mutation!)
+# Part 1: Reviewer reference comparisons (00_for_reviewers/reference & 00_for_reviewers; zero MODELS mutation!)
 # ----------------------------------------------------------------------------------------------
-def _worst_leak(code) -> int:
-    s = str(code)
-    if s.strip() in ('', '–', '-', 'n.a.'):
-        return 0
-    best = 0
-    for cls, frac in _LEAK_TOK.findall(s):
-        f = frac.replace('<', '')
-        try:
-            v = float(f) if f else 1.0
-        except ValueError:
-            v = 1.0
-        if cls in ('C', '#') or v >= 0.005:
-            best = max(best, SEV.get(cls, 0))
-    return best
+def run_reviewer_reference(B: int) -> None:
+    out = results_dir('reviewer_reference')
+    rev_out = results_dir('for_reviewers')
 
-
-def _draw_leak_map(tid: str, ax: plt.Axes, short: bool) -> None:
-    d = read_table(tid)
-    rows = [clean_label(x) for x in d.iloc[:, 0]]
-    keep = [c for c in d.columns[1:] if (d[c].str.strip() != '–').any()]
-    d = d[[d.columns[0]] + keep]
-    cols = [c.replace(' (leak code)', '') for c in keep]
-    Z = np.array([[_worst_leak(x) for x in d[c]] for c in keep]).T
-    ax.imshow(Z, cmap=ListedColormap(LEAK_COLORS), vmin=0, vmax=7, aspect='auto')
-    for i in range(Z.shape[0]):
-        for j in range(Z.shape[1]):
-            t = str(d.iloc[i, j + 1]).replace(' V', '').replace('V', '')
-            if t.strip() not in ('', '–'):
-                ax.text(j, i, textwrap.fill(t, 9), ha='center', va='center',
-                        fontsize=4.8 if short else 5.4, color='white' if Z[i, j] >= 6 else 'black')
-    ax.set_xticks(range(len(cols)))
-    ax.set_xticklabels(cols, rotation=40, ha='right', fontsize=8)
-    ax.set_yticks(range(len(rows)))
-    ax.set_yticklabels(rows, fontsize=7.5)
-    ax.set_xticks(np.arange(-0.5, len(cols)), minor=True)
-    ax.set_yticks(np.arange(-0.5, len(rows)), minor=True)
-    ax.grid(which='minor', color='white', lw=1.2)
-    ax.tick_params(which='minor', length=0)
-    for sp_v in ax.spines.values():
-        sp_v.set_visible(False)
-
-
-def _draw_text_table(ax: plt.Axes, d: pd.DataFrame, widths: list[int], fs: float = 7.2, title: str = '') -> float:
-    ax.axis('off')
-    ax.set_xlim(0, 1)
-    xs = np.r_[0, np.cumsum(widths) / np.sum(widths)][:-1] + 0.004
-    lines_all = [[textwrap.wrap(str(x).replace('`', '').replace('**', ''), max(int(w * 1.05), 6)) or [''] for x, w in zip(r, widths)] for r in d.values.tolist()]
-    head = [textwrap.wrap(c, max(int(w * 1.05), 6)) for c, w in zip(d.columns, widths)]
-    lh = fs * 1.55
-    heights = [max(len(c) for c in head)] + [max(len(c) for c in r) for r in lines_all]
-    total = sum(h * lh + 5 for h in heights)
-    ax.set_ylim(total, 0)
-    y = 0.0
-    for j, (r, h) in enumerate(zip([head] + lines_all, heights)):
-        if j == 0:
-            ax.add_patch(plt.Rectangle((0, y), 1, h * lh + 5, color='#eeeeee', lw=0))
-        for x, cell in zip(xs, r):
-            for i, ln in enumerate(cell):
-                ax.text(x, y + 3 + i * lh, ln, fontsize=fs, va='top', ha='left', fontweight='bold' if j == 0 else 'normal')
-        y += h * lh + 5
-        ax.plot([0, 1], [y, y], color='#dddddd', lw=0.5)
-    ax.set_title(title, loc='left', fontsize=10)
-    return total
-
-
-def run_10_leakage_and_reference(B: int) -> None:
-    out = results_dir('10_leakage_and_reference')
-
-    # 1. Leak-code matrices
-    fig, ax = plt.subplots(figsize=(13, 8.6))
-    _draw_leak_map('1.1.2', ax, True)
-    ax.set_title('Training overlap of each model with the 12 external sets (table 1.1, leak codes; fraction of rows in the cell)', loc='left')
-    ax.legend(handles=[Patch(fc=c, ec='#999999', label=n) for c, n in zip(LEAK_COLORS, LEAK_NAMES)],
-              loc='upper center', bbox_to_anchor=(0.5, -0.17), ncol=4, fontsize=8)
-    fig.tight_layout()
-    style.save(fig, out / 'leak_matrix_external')
-
-    fig, axes = plt.subplots(1, 3, figsize=(17, 8.2), gridspec_kw=dict(width_ratios=[2.2, 8, 3.2]))
-    for ax_i, tid, ttl in zip(axes, ('1.2.2', '1.3.2', '1.4.2'), ('Tsuboyama (1.2)', 'DMS and Domainome (1.3)', 'ProteinGym (1.4)')):
-        _draw_leak_map(tid, ax_i, tid != '1.2.2')
-        ax_i.set_title(ttl, loc='left')
-    for ax_i in axes[1:]:
-        ax_i.set_yticklabels([])
-    fig.tight_layout()
-    style.save(fig, out / 'leak_matrix_other')
-
-    # 2. Overlap bars on Homology-Restricted MegaScale test
-    d_ov = pd.concat([
-        pd.read_csv(REFERENCE / 'leak_audit_matrix.csv'),
-        pd.read_csv(REFERENCE / 'leak_public_spurs.csv').assign(model=lambda x: x.model + ' (public checkpoint)'),
-    ], ignore_index=True)
-    t_ov = d_ov[d_ov.dataset == 'tsu_capped_test'].copy()
-    for c in ('exact', 'constituent', 'P', 'H', 'h'):
-        t_ov[c] = t_ov[c].fillna(0) / t_ov['n']
-    keep_m = [
-        'SPURS (public checkpoint)', 'SPURS multi (public checkpoint)', 'ESMtherm', 'IFUM (WT backbone)',
-        'ESM3dG', 'DDGemb', 'GeoDDG-3D', 'ESM-MSR (released)', 'ProSST', 'ProteinMPNN',
-    ]
-    t_ov = t_ov[t_ov.model.isin(keep_m)].drop_duplicates('model').set_index('model').reindex(keep_m)
-    fig, ax = plt.subplots(figsize=(8.2, 4.4))
-    yv = np.arange(len(t_ov))
-    left = np.zeros(len(t_ov))
-    for c, col, lab in (
-        ('exact', '#d62728', 'identical mutation (M)'),
-        ('constituent', '#ee7a4d', 'constituent mutations (m)'),
-        ('P', '#ffc000', 'same protein, other mutations (P)'),
-        ('H', '#9ecae1', 'strong homolog (H)'),
-        ('h', '#d9d9d9', 'weak similarity (h)'),
-    ):
-        v = t_ov[c].fillna(0).to_numpy()
-        ax.barh(yv, v, left=left, color=col, label=lab, height=0.7)
-        left += v
-    ax.set_yticks(yv)
-    ax.set_yticklabels([
-        m.replace(' (retrained)', '').replace('ESM3dG', 'ESM3ΔG').replace('ESMtherm', 'ESMtherm*').replace('IFUM (WT backbone)', 'IFUM, WT backbone*')
-        for m in t_ov.index
-    ])
-    ax.invert_yaxis()
-    ax.set_xlabel('fraction of the Homology-Restricted MegaScale test rows')
-    ax.set_xlim(0, 1.2)
-    ax.legend(fontsize=7.5, loc='lower right')
-    ax.set_title('What each model has seen of the Homology-Restricted MegaScale test libraries (leak audit); * trained on Megascale data', loc='left', fontsize=9)
-    fig.tight_layout()
-    style.save(fig, out / 'leak_overlap_tsuboyama_test')
-
-    # 3. Clean-cell means (table 6.5.2)
-    d_cm = read_table('6.5.2')
-    cm_rows = []
-    for _, r in d_cm.iterrows():
-        m = re.match(r'\s*\**\s*([\d.]+)\s*\**\s*\((\d+)\)', str(r['clean mean (n of 12)']))
-        if m is None:
-            continue
-        cm_rows.append(dict(model=clean_label(r['model']), clean=float(m.group(1)), n_clean=int(m.group(2)),
-                            all12=num(r['all-12 mean'])[0], excluded=r['cells excluded']))
-    R_cm = pd.DataFrame(cm_rows).sort_values('clean')
-    atomic_to_csv(R_cm, out / 'clean_means.csv', index=False, float_format='%.3f')
-    fig, ax = plt.subplots(figsize=(7.6, 4.8))
-    yv = np.arange(len(R_cm))
-    ax.hlines(yv, R_cm.all12, R_cm.clean, color='#bbbbbb', lw=2)
-    ax.scatter(R_cm.all12, yv, s=40, facecolor='white', edgecolor='k', zorder=3, label='mean over all 12 sets')
-    ax.scatter(R_cm.clean, yv, s=40, color=['#000000' if 'ESM-MSR' in m else '#d35400' for m in R_cm.model], zorder=4,
-               label='mean over the cells without overlap')
-    for i, r in enumerate(R_cm.itertuples()):
-        ax.text(max(r.clean, r.all12) + 0.008, i, f'{r.clean:.3f}  ({r.n_clean} of 12 sets)', va='center', fontsize=7.5)
-    ax.set_yticks(yv)
-    ax.set_yticklabels(R_cm.model)
-    ax.set_xlim(0.3, 0.95)
-    ax.set_xlabel('mean Spearman ρ over the 12 external sets')
-    ax.legend(loc='lower right', fontsize=8)
-    ax.set_title('Clean-cell means (table 6.5): models with overlap lose cells, not necessarily score', loc='left', fontsize=9)
-    fig.tight_layout()
-    style.save(fig, out / 'clean_means')
-
-    # 4. SPURS public vs retrained
+    # 1. SPURS public vs retrained -> 00_for_reviewers/reference/spurs_published_vs_retrained.{csv,pdf,png}
     ref_sp = pd.read_csv(REFERENCE / 'spurs_public_checkpoint.csv')
     pub_sp = ref_sp[ref_sp.model == 'SPURS (public checkpoint)'].set_index('dataset').rho
     rho_df = load_rho_df()
@@ -299,7 +125,7 @@ def run_10_leakage_and_reference(B: int) -> None:
     style.save(fig, out / 'spurs_published_vs_retrained')
     atomic_to_csv(pd.DataFrame(sp_rows), out / 'spurs_published_vs_retrained.csv', index=False, float_format='%.4f')
 
-    # 5. Published-paper reference (table 1.5.1) — zero MODELS mutation!
+    # 2. Published-paper reference (table 1.5.1) -> 00_for_reviewers/reference/published_reference.{pdf,png}
     d_pr = read_table('1.5.1')
     ref_models = list(d_pr.columns[1:])
     groups = [r for r in d_pr.iloc[:, 0]]
@@ -339,25 +165,7 @@ def run_10_leakage_and_reference(B: int) -> None:
     fig.tight_layout()
     style.save(fig, out / 'published_reference')
 
-    # 6. Leak audit text tables (6.2.1, 6.3.1, 6.5.1)
-    specs_tt = [
-        ('6.2.1', 'Table 6.2: notation of the leak codes', [6, 46, 60, 8]),
-        ('6.3.1', 'Table 6.3: training inventories', [20, 56, 38, 22]),
-        ('6.5.1', 'Table 6.5: what the audit finds', [55, 40, 40]),
-    ]
-    heights = []
-    for tid, _, w in specs_tt:
-        d_t = read_table(tid)
-        heights.append(sum(max(len(textwrap.wrap(str(x), max(int(ww * 1.05), 6))) or 1 for x, ww in zip(r, w)) for r in d_t.values.tolist()) + 3)
-    fig, axes = plt.subplots(3, 1, figsize=(13, 0.19 * sum(heights) + 1.5), gridspec_kw=dict(height_ratios=heights))
-    for ax_i, (tid, title, w) in zip(axes, specs_tt):
-        _draw_text_table(ax_i, read_table(tid), w, title=title)
-    fig.tight_layout()
-    style.save(fig, out / 'leak_audit_text_tables')
-
-    # 7. Third-party mutant-background ablation reference (table 2.5.1) -> for_reviewers/baseline_nobb_ablation
-    rev_out = RESULTS / 'for_reviewers'
-    rev_out.mkdir(parents=True, exist_ok=True)
+    # 3. Third-party mutant-background ablation reference (table 2.5.1) -> 00_for_reviewers/baseline_nobb_ablation.{pdf,png}
     d_nb = read_table('2.5.1')
     V_nb, _ = numeric(d_nb)
     fig, ax = plt.subplots(figsize=(7.6, 3.4))
@@ -449,16 +257,14 @@ def _draw_best_partner(groups: dict[str, pd.DataFrame]) -> plt.Figure:
 
 
 def run_20_split_construction() -> None:
-    out_sc = results_dir('00_supplementary_figs') / 'split_construction'
-    out_sc.mkdir(parents=True, exist_ok=True)
-    out_rev = RESULTS / 'for_reviewers'
-    out_rev.mkdir(parents=True, exist_ok=True)
+    out_sc = results_dir('split_construction')
+    out_rev = results_dir('for_reviewers')
 
     # 20b: Set-overlap heatmaps
     set_lbl = {
         'train': 'Train', 'val': 'Validation', 'test': 'Test', 'ssym': 'Ssym', 'ptmul': 'PTMUL', 's461': 'S461',
         'k2369': 'K2369', 'q3421': 'Q3421', 's571': 'S571', 's783': 'S783', 's2648': 'S2648', 's8754': 'S8754',
-        'ProteinGym': 'ProteinGym', 'Domainome': 'Domainome', 'MGnify': 'MGnify', 'Rocklin designs': 'Rocklin designs',
+        'ProteinGym': 'ProteinGym*', 'Domainome': 'Domainome*', 'MGnify': 'MGnify*', 'Rocklin designs': 'Rocklin designs*',
     }
     cuts = {'identity': 0.40, 'tm': 0.70}
     stems = {'identity': 'split_max_identity_heatmap', 'tm': 'split_max_tm_heatmap'}
@@ -506,7 +312,7 @@ def run_20_split_construction() -> None:
         style.save(fig, out_sc / stems[kind])
 
     # 21b: Holdout filter figure
-    out_supp = results_dir('00_supplementary_figs')
+    out_supp = results_dir('supplementary_figs')
     f_flags = flags()
     sets_hf = [
         ('proteingym', 'ProteinGym\nassays'),
@@ -593,6 +399,168 @@ def run_20_split_construction() -> None:
         style.save(fig, out_dir / stem)
         rows = pd.concat({k: v.reset_index() for k, v in groups.items()}, names=['comparison']).reset_index(level=0)
         atomic_to_csv(rows, out_dir / f'{stem}.csv', index=False, float_format='%.5g')
+        if sp_name == 'capped':
+            build_supp_figure1(groups=groups)
+
+
+def build_supp_figure1(groups: dict[str, pd.DataFrame] | None = None) -> Path:
+    """Build Supplementary Figure 1 (`00_supplementary_figs/supp_figure1.{png,pdf}`).
+
+    a: Max sequence identity heatmap across datasets (MMseqs2, rule 0.40).
+    b: Max structural homology heatmap across datasets (Foldseek TM-score, rule 0.70).
+    c: MMseqs2 E-value vs sequence identity for best cross-set partners (criteria 1 & 2).
+    d: Foldseek E-value vs TM-score for best cross-set partners (criteria 3 & 4).
+    """
+    out_supp = results_dir('supplementary_figs')
+    out_sc = results_dir('split_construction', create=False)
+
+    if groups is None:
+        csv_bp = out_sc / 'split_best_partner_capped.csv'
+        if csv_bp.exists():
+            df_bp = pd.read_csv(csv_bp)
+            groups = {
+                lbl: g.set_index('lib') if 'lib' in g.columns else g
+                for lbl, g in df_bp.groupby('comparison', sort=False)
+            }
+        else:
+            pairs_csv = resolve_homology_pairs_csv()
+            if pairs_csv is None:
+                raise FileNotFoundError('Neither split_best_partner_capped.csv nor homology_pairs.csv found')
+            pairs = pd.read_csv(pairs_csv)
+            pair_ids = set(pairs['a']) | set(pairs['b'])
+            mem = membership_from_split(DATA_DIR / 'splits_oct06_capped.pkl', pair_ids)
+            groups = _groups_of_split(pairs, mem)
+
+    set_lbl = {
+        'train': 'Train', 'val': 'Validation', 'test': 'Test', 'ssym': 'Ssym', 'ptmul': 'PTMUL', 's461': 'S461',
+        'k2369': 'K2369', 'q3421': 'Q3421', 's571': 'S571', 's783': 'S783', 's2648': 'S2648', 's8754': 'S8754',
+        'ProteinGym': 'ProteinGym*', 'Domainome': 'Domainome*', 'MGnify': 'MGnify*', 'Rocklin designs': 'Rocklin designs*',
+    }
+    cuts = {'identity': 0.40, 'tm': 0.70}
+    cb_labels = {
+        'identity': 'Max sequence identity (MMseqs2, shorter chain)',
+        'tm': 'Max TM-score (Foldseek, shorter-chain normalised)',
+    }
+    hm_titles = {
+        'identity': 'Pairwise maximum sequence identity',
+        'tm': 'Pairwise maximum structural homology (TM-score)',
+    }
+
+    fig = plt.figure(figsize=(16.0, 12.6), facecolor='white')
+
+    # --- Top row: Heatmaps a (sequence identity) & b (TM-score) ---
+    gs_top = fig.add_gridspec(1, 2, left=0.075, right=0.955, top=0.945, bottom=0.495, wspace=0.30)
+    ax_a = fig.add_subplot(gs_top[0, 0])
+    ax_b = fig.add_subplot(gs_top[0, 1])
+
+    for ax_hm, kind in ((ax_a, 'identity'), (ax_b, 'tm')):
+        m = pd.read_csv(REFERENCE / f'split_set_overlap_{kind}.csv', index_col=0)
+        sets = list(m.index)
+        n = len(sets)
+        v = m.to_numpy(float).copy()
+        v[np.triu_indices(n)] = np.nan
+        v_mask = np.ma.masked_invalid(v)
+        cmap = plt.get_cmap('Reds').copy()
+        im = ax_hm.imshow(v_mask, cmap=cmap, vmin=0, vmax=1, aspect='equal')
+        for i in range(n):
+            for j in range(i):
+                x_val = m.iloc[i, j]
+                if np.isfinite(x_val):
+                    ax_hm.text(j, i, f'{x_val:.2f}', ha='center', va='center', fontsize=6.5,
+                               color='white' if x_val > 0.55 else '#222222')
+                else:
+                    ax_hm.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1, fc='#e4e4e4', ec='none'))
+                    ax_hm.text(j, i, '–', ha='center', va='center', fontsize=6.4, color='#777777')
+        for e in np.cumsum([3, 9, 4])[:-1] - 0.5:
+            ax_hm.plot([-0.5, e], [e, e], color='black', lw=1.0)
+            ax_hm.plot([e, e], [e, n - 0.5], color='black', lw=1.0)
+        ax_hm.set_xlim(-0.5, n - 1.5)
+        ax_hm.set_ylim(n - 0.5, 0.5)
+        ax_hm.set_xticks(range(n - 1))
+        ax_hm.set_yticks(range(1, n))
+        ax_hm.set_xticklabels([set_lbl[s] for s in sets[:-1]], rotation=45, ha='right', rotation_mode='anchor', fontsize=8.0)
+        ax_hm.set_yticklabels([set_lbl[s] for s in sets[1:]], fontsize=8.0)
+        for sp_v in ax_hm.spines.values():
+            sp_v.set_visible(False)
+        ax_hm.tick_params(length=0)
+        ax_hm.set_title(hm_titles[kind], fontsize=10.2, fontweight='bold', loc='left', pad=8)
+        cb = fig.colorbar(im, ax=ax_hm, fraction=0.046, pad=0.02)
+        cb.set_label(cb_labels[kind], fontsize=8.6)
+        cb.ax.tick_params(labelsize=8.0)
+        cb.ax.axhline(cuts[kind], color='black', lw=1.2)
+        tks = sorted(set(np.round(np.arange(0, 1.01, 0.2), 2)) | {cuts[kind]})
+        cb.set_ticks(tks)
+        cb.set_ticklabels([f'{t:.2f}'.rstrip('0').rstrip('.') if t != cuts[kind] else f'{t:.2f} (rule)' for t in tks])
+
+    # --- Bottom row: Best cross-set partner scatters c (MMseqs2) & d (Foldseek) ---
+    gs_bot = fig.add_gridspec(1, 2, left=0.075, right=0.980, top=0.382, bottom=0.105, wspace=0.14)
+    ax_c = fig.add_subplot(gs_bot[0, 0])
+    ax_d = fig.add_subplot(gs_bot[0, 1], sharey=ax_c)
+    ax_d.tick_params(axis='y', labelleft=False)
+
+    colors = {'val → train': '#2a78d6', 'test → train': '#eb6834', 'train / val → external': '#1baf7a'}
+    for label in ('val → train', 'test → train', 'train / val → external'):
+        if label not in groups:
+            continue
+        g = groups[label]
+        c = colors[label]
+        ys = (-np.log10(g['seq_evalue'].clip(lower=1e-12))).fillna(NO_HIT)
+        ax_c.scatter(g['identity'], ys, s=26, c=c, alpha=0.78, edgecolors='white', linewidths=0.6, label=f'{label} (n = {len(g)})')
+        h = g.dropna(subset=['struct_evalue'])
+        ax_d.scatter(h['tm'], -np.log10(h['struct_evalue'].clip(lower=1e-12)), s=26, c=c, alpha=0.78, edgecolors='white', linewidths=0.6)
+
+    for ax_s in (ax_c, ax_d):
+        ax_s.axhline(-np.log10(E_CUT), color='#52514e', lw=1.1, ls='--')
+        ax_s.grid(alpha=0.22)
+        ax_s.axhline(NO_HIT, color='#bbbbbb', lw=0.6, zorder=0)
+        ax_s.spines['top'].set_visible(False)
+        ax_s.spines['right'].set_visible(False)
+    ax_c.axvline(ID_CUT, color='#52514e', lw=1.1, ls='--')
+    ax_d.axvline(TM_CUT, color='#52514e', lw=1.1, ls='--')
+    ax_c.text(0.015, -np.log10(E_CUT) + 0.14, 'E-value ≤ 10⁻³', fontsize=8.4, color='#52514e', ha='left', transform=ax_c.get_yaxis_transform())
+    ax_d.text(0.015, -np.log10(E_CUT) + 0.14, 'E-value ≤ 10⁻³', fontsize=8.4, color='#52514e', ha='left', transform=ax_d.get_yaxis_transform())
+    ax_c.text(ID_CUT + 0.003, 0.98, 'identity > 0.40', fontsize=8.4, color='#52514e', rotation=90, va='top', transform=ax_c.get_xaxis_transform())
+    ax_d.text(TM_CUT + 0.003, 0.98, 'TM-score > 0.70', fontsize=8.4, color='#52514e', rotation=90, va='top', transform=ax_d.get_xaxis_transform())
+    ax_c.set_xlabel('Sequence identity of best partner (BLOSUM62 local, shorter chain)', fontsize=9.8)
+    ax_d.set_xlabel('TM-score of best partner (shorter-chain normalised)', fontsize=9.8)
+    ax_c.set_ylabel('−log10 E-value of best partner', fontsize=9.8)
+    ax_c.set_title('MMseqs2 E-value and identity (criteria 1 and 2)', fontsize=10.2, fontweight='bold', loc='left', pad=6)
+    ax_d.set_title('Foldseek E-value and TM-score (criteria 3 and 4)', fontsize=10.2, fontweight='bold', loc='left', pad=6)
+
+    top = int(np.ceil(max(ax_c.get_ylim()[1], ax_d.get_ylim()[1], 4.4) - 0.3))
+    ax_c.set_ylim(NO_HIT - 0.3, top + 0.3)
+    ticks = list(range(0, top + 1))
+    ax_c.set_yticks([-1] + ticks)
+    ax_c.set_yticklabels(['no hit'] + [str(t) for t in ticks], fontsize=8.8)
+    ax_c.set_xlim(ax_c.get_xlim()[0], max(ax_c.get_xlim()[1], ID_CUT + 0.02))
+    ax_d.set_xlim(ax_d.get_xlim()[0], max(ax_d.get_xlim()[1], TM_CUT + 0.02))
+    ax_c.legend(frameon=False, fontsize=8.8, loc='upper left')
+
+    # --- Nature-style sub-figure annotations: a, b, c, d ---
+    fig.canvas.draw()
+    pa, pb = ax_a.get_position(), ax_b.get_position()
+    pc, pd_pos = ax_c.get_position(), ax_d.get_position()
+    fig.text(0.012, 0.982, 'a', ha='left', va='top', fontsize=15, fontweight='bold')
+    fig.text(pb.x0 - 0.068, 0.982, 'b', ha='left', va='top', fontsize=15, fontweight='bold')
+    fig.text(0.012, pc.y1 + 0.036, 'c', ha='left', va='top', fontsize=15, fontweight='bold')
+    fig.text(pd_pos.x0 - 0.032, pc.y1 + 0.036, 'd', ha='left', va='top', fontsize=15, fontweight='bold')
+
+    note = (
+        'Homology-Restricted MegaScale split construction and four-criterion global homology bounds.  '
+        'a, b. Pairwise maximum sequence identity (MMseqs2, shorter-chain normalised; rule ≤ 0.40) and structural similarity (Foldseek TM-score, shorter-chain normalised; rule ≤ 0.70) across the Train/Validation/Test splits, external thermostability sets, and held-out benchmarks.\n'
+        '* Reduced, held-out benchmark sets after removing homologs to Train under the four-part rule: '
+        'ProteinGym* (173/213 scored assays; 2,351,488/2,447,730 variants), '
+        'Domainome* (436/522 domains; 451,569/540,265 variants), '
+        'MGnify* (152,680/180,367 scaffolds; 612,406/705,864 scored variants), and '
+        'Rocklin designs* (742/1,000 designs; 109,581/149,119 scored variants).\n'
+        'c, d. Best cross-set partner for every domain in the Homology-Restricted split (val → train, test → train, and train/val → external); every domain lies strictly inside all four global homology thresholds (MMseqs2 E-value > 10⁻³, identity ≤ 0.40, Foldseek E-value > 10⁻³, and TM-score ≤ 0.70).'
+    )
+    kw = dict(fontsize=7.8, color='#444444', linespacing=1.25)
+    fig.text(0.014, 0.008, style.wrap_to_px(fig, note, 0.972 * fig.bbox.width, **kw), ha='left', va='bottom', **kw)
+
+    out_path = out_supp / 'supp_figure1'
+    style.save(fig, out_path)
+    return out_path
 
 
 # ----------------------------------------------------------------------------------------------
@@ -609,10 +577,8 @@ def _domain_kind(c: str) -> str:
 
 
 def run_mega_clean_vs_homologous(B: int) -> None:
-    out_sc = results_dir('00_supplementary_figs') / 'split_construction'
-    out_sc.mkdir(parents=True, exist_ok=True)
-    out_prov = RESULTS / '03_tsuboyama' / 'mega_splits' / 'provenance'
-    out_prov.mkdir(parents=True, exist_ok=True)
+    out_sc = results_dir('split_construction')
+    out_prov = results_dir('mega_provenance')
 
     mega_pkl = DATA_DIR / 'mega_splits.pkl'
     cap_pkl = DATA_DIR / 'splits_oct06_capped.pkl'
@@ -878,24 +844,266 @@ def run_mega_clean_vs_homologous(B: int) -> None:
     style.save(fig, out_sc / 'mega_clean_vs_homologous_test')
 
 
+def build_supp_table2() -> tuple[Path, Path, Path]:
+    """Build Supplementary Table 2 (`00_supplementary_figs/supp_table2.md`,
+    `supp_table2a_inventories.{png,pdf}`, and `supp_table2b_overlap_matrix.{png,pdf}`).
+    """
+    import textwrap
+    from msr_analysis.paths import atomic_write_text
+
+    out_supp = results_dir('supplementary_figs')
+    inv_df = pd.read_csv(REFERENCE / 'leak_audit_inventories.csv').fillna('')
+    mat_df = pd.read_csv(REFERENCE / 'leak_audit_matrix.csv').fillna('')
+
+    # --- Table 2a: Training-set provenance & audit inventories ---
+    inv_keep = [
+        'esm_msr_capped', 'corpus', 'rosetta_beta_nov16', 'geoddg_s8754',
+        'geofitness_dms', 'esm3dg_mgnify', 'esmtherm', 'ifum', 'ddgemb_s2450', 'ddmut',
+    ]
+    inv_sub = inv_df[inv_df['inventory'].isin(inv_keep)].copy()
+    inv_sub['_ord'] = inv_sub['inventory'].map({k: i for i, k in enumerate(inv_keep)})
+    inv_sub = inv_sub.sort_values('_ord').drop(columns=['_ord'])
+
+    # --- Table 2b: Model x Benchmark leakage audit matrix (one canonical row per training inventory) ---
+    model_rows = [
+        ('ESM-MSR & capped retrains*', 'ESM-MSR (devel)'),
+        ('Zero-shot (ESM3 / ProteinMPNN / ProSST)', 'ProteinMPNN'),
+        ('Rosetta (beta_nov16_cart)', 'Rosetta'),
+        ('GeoDDG-3D', 'GeoDDG-3D'),
+        ('ESM3ΔG', 'ESM3dG'),
+        ('ESMtherm', 'ESMtherm'),
+        ('IFUM', 'IFUM (WT backbone)'),
+        ('DDGemb', 'DDGemb'),
+        ('DDMut', 'DDMut'),
+    ]
+    ds_cols = [
+        ('ssym', 'Ssym'),
+        ('s461', 'S461'),
+        ('s669', 'S669'),
+        ('k2369', 'K2369'),
+        ('s783', 'S783'),
+        ('s2648', 'S2648'),
+        ('q3421', 'Q3421'),
+        ('s8754', 'S8754'),
+        ('s571', 'S571'),
+        ('ptmul', 'PTMUL'),
+        ('tsu_capped_val', 'Mega\nVal'),
+        ('tsu_capped_test', 'Mega\nTest'),
+        ('domainome', 'Domainome\n(unfilt.)'),
+        ('PG avg', 'ProteinGym\n(unfilt.)'),
+    ]
+
+    # Build lookup (model, dataset) -> (code, sup)
+    lu: dict[tuple[str, str], tuple[str, str]] = {}
+    for r in mat_df.itertuples():
+        key = (str(r.model), str(r.dataset))
+        if key not in lu:
+            lu[key] = (str(r.code).strip() or '–', str(r.sup).strip())
+        # Also handle DDMut [partial] fallback for s461 / s669
+        if str(r.model) == 'DDMut [partial]':
+            lu.setdefault(('DDMut', str(r.dataset)), (str(r.code).strip() or '–', str(r.sup).strip()))
+
+    mat_cells = []
+    mat_sups = []
+    for disp_m, raw_m in model_rows:
+        row_c = [disp_m]
+        row_s = ['']
+        for ds_k, _ds_lbl in ds_cols:
+            c_txt, s_txt = lu.get((raw_m, ds_k), ('–', ''))
+            row_c.append(c_txt)
+            row_s.append(s_txt)
+        mat_cells.append(row_c)
+        mat_sups.append(row_s)
+
+    # --- Write Markdown (supp_table2.md) ---
+    md_lines = [
+        '# Supplementary Table 2 — Training-Set Provenance and Leakage Audit',
+        '',
+        '## Supplementary Table 2a: Model Training-Set Inventories and Provenance',
+        '',
+        '| Inventory | Description | Provenance | Evidence |',
+        '|---|---|---|---|',
+    ]
+    for r in inv_sub.itertuples():
+        desc = str(r.description).replace('|', '\\|')
+        prov = str(r.provenance).replace('|', '\\|')
+        ev = str(r.evidence).replace('|', '\\|')
+        md_lines.append(f'| `{r.inventory}` | {desc} | {prov} | {ev} |')
+
+    md_lines += [
+        '',
+        '## Supplementary Table 2b: Model × Benchmark Training-Overlap Matrix',
+        '',
+        '| Model / Training Inventory | ' + ' | '.join(lbl.replace('\n', ' ') for _, lbl in ds_cols) + ' |',
+        '|---|' + '|'.join(['---'] * len(ds_cols)) + '|',
+    ]
+    for row_c in mat_cells:
+        md_lines.append('| ' + ' | '.join(row_c) + ' |')
+
+    legend_text = (
+        '* `ESM-MSR & capped retrains` covers ESM-MSR, MutateEverything, ThermoMPNN, and SPURS retrained on the Homology-Restricted MegaScale split (`splits_oct06_capped.pkl`). '
+        'Note that all held-out evaluations of Domainome (436/522 domains) and ProteinGym (173/213 scored assays) in the main text remove homologs to Train under the four-part rule; '
+        'this table audits the full unfiltered benchmarks for completeness.\n'
+        '**Overlap tier codes** (fraction of benchmark rows affected, e.g. `M.91` = 91%, `M1` = 100%): '
+        '`M` = exact mutation in training set (`#` = test set equals training set); '
+        '`m` = constituent single mutation of a multi-mutant in training set; '
+        '`P` = same protein (≥95% identity over ≥90% coverage); '
+        '`H` = close homolog (MMseqs2 E ≤ 1e-3 or Foldseek qTM > 0.70 over ≥50% coverage); '
+        '`h` = distant homolog (E ≤ 1e-2 or identity ≥ 30% over ≥30% coverage); '
+        '`V` = validation/calibration overlap; `–` = no detected overlap.'
+    )
+    md_lines += ['', legend_text, '']
+    md_path = out_supp / 'supp_table2.md'
+    atomic_write_text(md_path, '\n'.join(md_lines))
+
+    # --- Render Image 2a: Inventories table ---
+    headers_a = ['Inventory', 'Description', 'Provenance', 'Evidence']
+    col_w_a = [0.16, 0.44, 0.27, 0.13]
+    wrap_a = [20, 62, 36, 18]
+    rows_a_wrapped = []
+    row_lines_a = []
+    for r in inv_sub.itertuples():
+        vals = [str(r.inventory), str(r.description), str(r.provenance), str(r.evidence)]
+        wvals = ['\n'.join(textwrap.wrap(v, width=w)) if v else '' for v, w in zip(vals, wrap_a)]
+        rows_a_wrapped.append(wvals)
+        row_lines_a.append(max(v.count('\n') + 1 for v in wvals))
+
+    total_h_a = 1.1 + 0.28 * sum(max(1.3, n_l * 0.90) for n_l in row_lines_a)
+    fig_a, ax_a = plt.subplots(figsize=(15.6, total_h_a), facecolor='white')
+    ax_a.axis('off')
+    tbl_a = ax_a.table(
+        cellText=rows_a_wrapped, colLabels=headers_a, colWidths=col_w_a,
+        loc='center', cellLoc='left', bbox=[0.0, 0.02, 1.0, 0.92],
+    )
+    tbl_a.auto_set_font_size(False)
+    tbl_a.set_fontsize(8.0)
+    h_weights = [1.2] + [max(1.3, n_l * 0.90) for n_l in row_lines_a]
+    h_sum = sum(h_weights)
+    for (ri, cj), cell in tbl_a.get_celld().items():
+        cell.set_edgecolor('#cccccc')
+        cell.set_linewidth(0.6)
+        cell.set_height(0.92 * h_weights[ri] / h_sum)
+        cell.PAD = 0.025
+        if ri == 0:
+            cell.set_facecolor('#1e293b')
+            cell.set_text_props(color='white', fontweight='bold', ha='left')
+        else:
+            cell.set_facecolor('#f8f9fa' if ri % 2 == 0 else '#ffffff')
+            if cj == 0:
+                cell.set_text_props(fontfamily='monospace', fontweight='bold', fontsize=7.6)
+    fig_a.suptitle('Supplementary Table 2a — Model Training-Set Provenance and Audit Inventories',
+                   x=0.012, y=0.985, ha='left', fontsize=11.4, fontweight='bold')
+    fig_a.subplots_adjust(left=0.012, right=0.988, top=0.94, bottom=0.02)
+    path_2a = out_supp / 'supp_table2a_inventories'
+    style.save(fig_a, path_2a)
+
+    # --- Render Image 2b: Color-coded Model x Benchmark overlap matrix ---
+    headers_b = ['Model / Training Inventory'] + [lbl for _, lbl in ds_cols]
+    col_w_b = [0.175] + [(1.0 - 0.175) / len(ds_cols)] * len(ds_cols)
+    # Wrap multi-token cell codes cleanly (2 tokens per line max) so no cell ever clips
+    cells_b_wrapped = []
+    for row_c in mat_cells:
+        wrow = [row_c[0]]
+        for c_txt in row_c[1:]:
+            toks = c_txt.split()
+            if len(toks) >= 5:
+                wrow.append(' '.join(toks[:2]) + '\n' + ' '.join(toks[2:4]) + '\n' + ' '.join(toks[4:]))
+            elif len(toks) >= 3:
+                wrow.append(' '.join(toks[:2]) + '\n' + ' '.join(toks[2:]))
+            else:
+                wrow.append(c_txt)
+        cells_b_wrapped.append(wrow)
+
+    tier_bg = {
+        '#': '#f4a9a8',   # test == train (deepest red tint)
+        'ᴹ': '#f8c6c5',   # exact mutation M
+        'ᵐ': '#f8d2c6',   # constituent single m
+        'ᴾ': '#fde0b6',   # same protein P
+        'ᴴ': '#fef0c3',   # close homolog H
+        'ʰ': '#f7f7d4',   # distant homolog h
+        'ⱽ': '#e3ecfa',   # calibration / val V
+    }
+    fig_b, ax_b = plt.subplots(figsize=(17.2, 6.6), facecolor='white')
+    ax_b.axis('off')
+    tbl_b = ax_b.table(
+        cellText=cells_b_wrapped, colLabels=headers_b, colWidths=col_w_b,
+        loc='center', cellLoc='center', bbox=[0.0, 0.19, 1.0, 0.74],
+    )
+    tbl_b.auto_set_font_size(False)
+    tbl_b.set_fontsize(7.1)
+    for (ri, cj), cell in tbl_b.get_celld().items():
+        cell.set_edgecolor('#cccccc')
+        cell.set_linewidth(0.6)
+        cell.PAD = 0.02
+        if ri == 0:
+            cell.set_facecolor('#1e293b')
+            cell.set_text_props(color='white', fontweight='bold', fontsize=8.0, ha='left' if cj == 0 else 'center')
+        else:
+            if cj == 0:
+                cell.set_facecolor('#f8f9fa' if ri % 2 == 0 else '#ffffff')
+                cell.set_text_props(ha='left', fontweight='bold', fontsize=7.9)
+            else:
+                sup = mat_sups[ri - 1][cj]
+                c_txt = mat_cells[ri - 1][cj]
+                if sup in tier_bg:
+                    cell.set_facecolor(tier_bg[sup])
+                    if sup in ('#', 'ᴹ', 'ᵐ'):
+                        cell.set_text_props(fontweight='bold', color='#5c0a0a')
+                elif c_txt == '–':
+                    cell.set_facecolor('#eef7f0')
+                    cell.set_text_props(color='#2d6a4f')
+                else:
+                    cell.set_facecolor('#ffffff')
+
+    fig_b.suptitle('Supplementary Table 2b — Model × Benchmark Training-Overlap Audit Matrix',
+                   x=0.012, y=0.975, ha='left', fontsize=11.6, fontweight='bold')
+    foot_b = (
+        '* ESM-MSR & capped retrains covers ESM-MSR, MutateEverything, ThermoMPNN, and SPURS retrained on splits_oct06_capped.pkl.  '
+        'Domainome and ProteinGym columns audit the full unfiltered sets (main-text evaluations filter out Train homologs under the four-part rule).  '
+        'Cell codes report fraction of benchmark rows affected (e.g. M.91 = 91%, M1 = 100%): '
+        'M = exact mutation in train (# = test equals train; red); m = constituent single in train (coral); '
+        'P = same protein ≥95% id / ≥90% cov (orange); H = close homolog E ≤ 1e-3 or qTM > 0.70 (amber); '
+        'h = distant homolog (pale yellow); V = calibration/validation overlap (blue); – = no detected overlap (green).'
+    )
+    kw_fb = dict(fontsize=7.7, color='#333333', linespacing=1.25)
+    fig_b.subplots_adjust(left=0.012, right=0.988, top=0.93, bottom=0.02)
+    fig_b.text(0.012, 0.016, style.wrap_to_px(fig_b, foot_b, 0.975 * fig_b.bbox.width, **kw_fb), ha='left', va='bottom', **kw_fb)
+
+    path_2b = out_supp / 'supp_table2b_overlap_matrix'
+    style.save(fig_b, path_2b)
+    return md_path, path_2a, path_2b
+
+
 # ----------------------------------------------------------------------------------------------
 # Entry point
 # ----------------------------------------------------------------------------------------------
 def run(args=None) -> int:
     if args is None:
         ap = base_parser(STAGE, DESCRIPTION)
+        ap.add_argument('--only', choices=('all', 'supp_figure1', 'supp_table2'), default='all')
         args = ap.parse_args()
     B = resolve_b(args)
-    print(f'[p10:{STAGE}] Running B={B} ...', flush=True)
-    run_10_leakage_and_reference(B=B)
+    only = getattr(args, 'only', 'all')
+    print(f'[p10:{STAGE}] Running B={B}, only={only} ...', flush=True)
+    if only == 'supp_figure1':
+        out = build_supp_figure1()
+        print(f'[p10:{STAGE}] Saved {out}.{{png,pdf}}', flush=True)
+        return 0
+    if only == 'supp_table2':
+        md_p, p2a, p2b = build_supp_table2()
+        print(f'[p10:{STAGE}] Saved {md_p}, {p2a}.{{png,pdf}}, {p2b}.{{png,pdf}}', flush=True)
+        return 0
+    run_reviewer_reference(B=B)
     run_20_split_construction()
     run_mega_clean_vs_homologous(B=B)
+    build_supp_table2()
     print(f'[p10:{STAGE}] Completed.', flush=True)
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION)
+    ap.add_argument('--only', choices=('all', 'supp_figure1', 'supp_table2'), default='all')
     return run(ap.parse_args(argv))
 
 

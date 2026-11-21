@@ -11,23 +11,48 @@ from types import MappingProxyType
 from . import models as _R
 from .models import StyleSpec
 from .paths import (
+    ABLATION_RESULTS_DIR,
     ANALYSIS_ROOT as HERE,
     BASE,
     CACHE,
+    CANONICAL_RESULT_TOPS,
+    CORE_RHO_BOOTSTRAP_CSV,
     DATA_DIR,
+    DMS3_RESULTS_DIR,
+    DOMAINOME_RESULTS_DIR,
     FINAL_BENCH,
+    FOR_REVIEWERS_DIR,
+    INFERENCE_RESOURCES_DIR,
+    MAIN_TEXT_FIGS_DIR,
+    MANIFEST_OUTPUTS_CSV,
     MEGA_RAW,
+    MEGA_SPLITS_DIR,
+    MEGASCALE_DIR,
+    MGNIFY_RESULTS_DIR,
+    MISC_RESULTS_DIR,
     MSR,
     MSR_ROOT as ROOT,
     P0,
     PGYM,
+    PROTEINGYM_RESULTS_DIR,
     PUBLIC,
     REFERENCE,
     REPO_ROOT,
+    RESULT_DIRS,
     RESULTS,
     RETRAINED,
+    REVIEWER_REFERENCE_DIR,
+    SCREENING_OVERVIEW_DIR,
+    SEQUENCE_LENGTH_DIR,
+    SPLIT_CONSTRUCTION_DIR,
+    SUMMARY_RESULTS_DIR,
+    SUPPLEMENTARY_FIGS_DIR,
+    TABLE_FIGURE_MAP_CSV,
     TASKS,
+    THERMOSTABILITY_DIR,
+    VALIDATION_VS_BENCHMARKS_CSV,
     results_dir,
+    strip_fig_prefix,
 )
 
 # ----------------------------------------------------------------------------------------------
@@ -45,6 +70,7 @@ TSU_CAPPED = ['tsuboyama_capped_val', 'tsuboyama_capped_test']
 TSU_MEGA = ['tsuboyama_mega_val', 'tsuboyama_mega_test']
 TSU_SPLIT = 'capped'
 TSU = list(TSU_CAPPED)
+MAIN_BENCHMARK_DATASETS = EXT12 + ['domainome'] + TSU_CAPPED
 ALL_DATASETS = EXT12 + DMS3 + ['domainome'] + TSU_CAPPED
 
 
@@ -57,8 +83,13 @@ def tsu_datasets(split: str = 'capped') -> list[str]:
     raise ValueError(f"split must be 'capped' or 'mega', not {split!r}")
 
 
+def main_benchmark_datasets(split: str = 'capped') -> list[str]:
+    """Return the main non-DMS3 benchmark dataset list (``EXT12 + ['domainome'] + tsu_datasets(split)``)."""
+    return EXT12 + ['domainome'] + tsu_datasets(split)
+
+
 def all_datasets(split: str = 'capped') -> list[str]:
-    """Return the full benchmark dataset list for ``split`` ('capped' or 'mega')."""
+    """Return the full benchmark dataset list (including ``DMS3``) for ``split`` ('capped' or 'mega')."""
     return EXT12 + DMS3 + ['domainome'] + tsu_datasets(split)
 
 

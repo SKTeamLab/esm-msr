@@ -4,14 +4,14 @@ Consolidates:
   - ``00_parse_benchmark_tables.py``: optional ``--reparse`` extraction of ``docs/BENCHMARKS_OCT2026.md`` into
     ``reference/benchmark_tables/T*.csv`` and ``tables_index.csv``
   - ``00_validate_against_tables.py``: cell-by-cell validation of ``msr_analysis.data`` + ``DatasetBoot`` against
-    ``reference/all_by_all_long.csv`` -> ``results/00_core/validation_vs_benchmarks.csv``
+    ``reference/all_by_all_long.csv`` -> ``results/00_for_reviewers/reference/validation_vs_benchmarks.csv``
   - ``99_table_coverage.py``: verifies every benchmark table in ``tables_index.csv`` is represented by active,
     existing figures on disk (both ``.png`` and ``.pdf``) -> ``results/table_figure_map.csv`` + ``results/manifest_outputs.csv``
 
 Bug fixes & scientific improvements:
-  1. Updates ``TABLE_FIGURES`` for ``2.0.1``, ``2.0.2``, ``2.1.1``, ``2.2.1``, and ``2.5.1`` to map to active figures
-     (``06_epistasis/fig5a_epistasis_levels_bars_{val,test}``, ``00_main_text_figs/epistasis_main_composite``, and
-     ``for_reviewers/baseline_nobb_ablation``) rather than the retired zombie files from ``06_epistasis.py``.
+  1. Updates ``TABLE_FIGURES`` across all 27 benchmark tables to map to active figures in the canonical dataset-first
+     ``results/`` hierarchy (``01_megascale/epistasis/*``, ``00_main_text_figs/*``, ``00_supplementary_figs/*``,
+     ``00_for_reviewers/*``, and ``99_misc/dms3/*``).
   2. Resolves the apparent ``+0.036`` discrepancy on ``domainome`` in ``validation_vs_benchmarks.csv`` by recording BOTH
      ``rho`` (the canonical 436-domain held-out Domainome used across all manuscript figures) and ``rho_unfiltered``
      (the pre-holdout 522-domain Domainome matching the legacy ``BENCHMARKS_OCT2026.md`` column to ``< 0.002``).
@@ -28,7 +28,15 @@ import pandas as pd
 
 from msr_analysis.boot import DatasetBoot
 from msr_analysis.data import load_frame
-from msr_analysis.paths import REFERENCE, REPO_ROOT, RESULTS, atomic_to_csv
+from msr_analysis.paths import (
+    MANIFEST_OUTPUTS_CSV,
+    REFERENCE,
+    REPO_ROOT,
+    RESULTS,
+    TABLE_FIGURE_MAP_CSV,
+    VALIDATION_VS_BENCHMARKS_CSV,
+    atomic_to_csv,
+)
 from msr_analysis.registry import ALL_DATASETS, PER_PROTEIN
 from pipelines import base_parser
 
@@ -48,8 +56,8 @@ REF_MODELS = {
     'me2': ('ME stage2', 3),
     'me1+': ('ME stage1+', 3),
     'me2+': ('ME stage2+', 3),
-    'tmpnn': ('TMPNN', 3),
-    'tmpnnd': ('TMPNN+D', 3),
+    'tmpnn': ('ThermoMPNN', 3),
+    'tmpnnd': ('ThermoMPNN+D', 3),
     'spurs': ('SPURS (retrained)', 3),
     'spursm': ('SPURS multi (retrained)', 3),
     'esmtherm': ('ESMtherm', 1),
@@ -75,61 +83,51 @@ DS_REF = {
 
 # Canonical active figure mapping for all 27 tables of BENCHMARKS_OCT2026.md
 TABLE_FIGURES = {
-    '1.1.1': ['02_thermostability/thermo_external_rho', '02_thermostability/thermo_overview', '01_summary/thermostability_sets', '00_main_text_figs/figure3'],
-    '1.1.2': ['10_leakage_and_reference/leak_matrix_external', '02_thermostability/thermo_external_rho', '02_thermostability/thermo_overview'],
-    '1.2.1': ['03_tsuboyama/tsuboyama_overview', '03_tsuboyama/tsuboyama_per_library', '03_tsuboyama/tsuboyama_singles_doubles', '00_main_text_figs/figure3'],
-    '1.2.2': ['10_leakage_and_reference/leak_matrix_other', '03_tsuboyama/tsuboyama_overview'],
-    '1.3.1': ['04_dms_domainome/dms_vs_retrains', '04_dms_domainome/dms_sigma_vs_zero_shot', '01_summary/pg_categories', '00_main_text_figs/figure3'],
-    '1.3.2': ['10_leakage_and_reference/leak_matrix_other'],
-    '1.3.3': ['04_dms_domainome/dms_sigma_sweep', '04_dms_domainome/dms_sigma_vs_zero_shot'],
-    '1.4.1': ['01_summary/pg_categories', '05_proteingym/pg_table_heatmap', '05_proteingym/pg_overview', '00_main_text_figs/figure3'],
-    '1.4.2': ['10_leakage_and_reference/leak_matrix_other'],
-    '1.5.1': ['10_leakage_and_reference/published_reference'],
-    '1.7.1': ['18_mgnify/mgnify_overview', '18_mgnify/mgnify_per_scaffold', '18_mgnify/mgnify_scatter', '01_summary/pg_categories', '00_main_text_figs/figure3'],
-    '1.7.2': ['18_mgnify/mgnify_homology'],
-    '1.7.3': ['18_mgnify/mgnify_homology'],
-    '1.7.4': ['18_mgnify/rocklin_overview', '01_summary/pg_categories', '00_main_text_figs/figure3'],
-    '2.0.1': ['06_epistasis/fig5a_epistasis_levels_bars_val', '06_epistasis/epistasis_naive_recomputed'],
-    '2.0.2': ['06_epistasis/fig5a_epistasis_levels_bars_test', '00_main_text_figs/epistasis_main_composite'],
-    '2.1.1': ['06_epistasis/fig5a_epistasis_levels_bars_val', '06_epistasis/epistasis_naive_recomputed'],
-    '2.2.1': ['06_epistasis/fig5a_epistasis_levels_bars_test', '00_main_text_figs/epistasis_main_composite', '06_epistasis/epistasis_scatter_dddG'],
-    '2.3.1': ['06_epistasis/ddg_ranking', '06_epistasis/epistasis_scatter_ddG_doubles'],
-    '2.5.1': ['for_reviewers/baseline_nobb_ablation'],
-    '2.6.1': ['06_epistasis/lambda_scan'],
-    '3.1': ['01_summary/pg_categories', '05_proteingym/pg_table_heatmap', '05_proteingym/pg_overview'],
-    '3.2': ['05_proteingym/pg_per_dms_scatter'],
-    '6.2.1': ['10_leakage_and_reference/leak_audit_text_tables', '10_leakage_and_reference/leak_matrix_external'],
-    '6.3.1': ['10_leakage_and_reference/leak_audit_text_tables'],
-    '6.5.1': ['10_leakage_and_reference/leak_overlap_tsuboyama_test', '10_leakage_and_reference/leak_audit_text_tables'],
-    '6.5.2': ['10_leakage_and_reference/clean_means'],
+    '1.1.1': ['02_thermostability/thermo_external_rho', '02_thermostability/thermo_overview', '06_summary/thermostability_sets', '00_main_text_figs/figure3'],
+    '1.1.2': ['00_supplementary_figs/split_construction/split_max_identity_heatmap', '00_supplementary_figs/split_construction/split_max_tm_heatmap', '02_thermostability/thermo_external_rho', '02_thermostability/thermo_overview'],
+    '1.2.1': ['01_megascale/megascale_overview', '01_megascale/megascale_per_library', '01_megascale/megascale_singles_doubles', '00_main_text_figs/figure3'],
+    '1.2.2': ['00_supplementary_figs/split_construction/split_best_partner_capped', '00_supplementary_figs/split_construction/mega_clean_vs_homologous_test', '01_megascale/megascale_overview'],
+    '1.3.1': ['04_domainome/domainome_vs_retrains', '04_domainome/domainome_sigma_vs_zero_shot', '99_misc/dms3/dms_vs_retrains', '99_misc/dms3/dms_sigma_vs_zero_shot', '06_summary/pg_categories', '00_main_text_figs/figure3'],
+    '1.3.2': ['00_supplementary_figs/holdout_filter', '00_for_reviewers/reference/spurs_published_vs_retrained', '99_misc/dms3/dms_vs_retrains'],
+    '1.3.3': ['04_domainome/domainome_sigma_sweep', '04_domainome/domainome_sigma_vs_zero_shot', '99_misc/dms3/dms_sigma_sweep', '99_misc/dms3/dms_sigma_vs_zero_shot'],
+    '1.4.1': ['06_summary/pg_categories', '03_proteingym/pg_table_heatmap', '03_proteingym/pg_overview', '00_main_text_figs/figure3'],
+    '1.4.2': ['00_supplementary_figs/holdout_filter', '03_proteingym/pg_overview'],
+    '1.5.1': ['00_for_reviewers/reference/published_reference'],
+    '1.7.1': ['05_mgnify/mgnify_overview', '05_mgnify/mgnify_per_scaffold', '05_mgnify/mgnify_scatter', '06_summary/pg_categories', '00_main_text_figs/figure3'],
+    '1.7.2': ['05_mgnify/mgnify_homology', '00_supplementary_figs/holdout_filter'],
+    '1.7.3': ['05_mgnify/mgnify_homology'],
+    '1.7.4': ['05_mgnify/rocklin_overview', '06_summary/pg_categories', '00_main_text_figs/figure3'],
+    '2.0.1': ['01_megascale/epistasis/epistasis_levels_bars_val', '01_megascale/epistasis/epistasis_naive_recomputed'],
+    '2.0.2': ['01_megascale/epistasis/epistasis_levels_bars_test', '00_main_text_figs/epistasis_main_composite'],
+    '2.1.1': ['01_megascale/epistasis/epistasis_levels_bars_val', '01_megascale/epistasis/epistasis_naive_recomputed'],
+    '2.2.1': ['01_megascale/epistasis/epistasis_levels_bars_test', '00_main_text_figs/epistasis_main_composite', '01_megascale/epistasis/epistasis_scatter_dddG'],
+    '2.3.1': ['01_megascale/epistasis/ddg_ranking', '01_megascale/epistasis/epistasis_scatter_ddG_doubles'],
+    '2.5.1': ['00_for_reviewers/baseline_nobb_ablation', '09_ablation/ablation_architecture_suite'],
+    '2.6.1': ['01_megascale/epistasis/lambda_scan', '99_misc/dms3/epistasis_lambda_scan'],
+    '3.1': ['06_summary/pg_categories', '03_proteingym/pg_table_heatmap', '03_proteingym/pg_overview'],
+    '3.2': ['03_proteingym/pg_per_dms_scatter', '03_proteingym/pg_property_sigma_summary'],
+    '6.2.1': ['00_supplementary_figs/holdout_filter', '00_supplementary_figs/split_construction/split_max_identity_heatmap', '00_supplementary_figs/split_construction/split_max_tm_heatmap'],
+    '6.3.1': ['00_supplementary_figs/holdout_filter', '00_supplementary_figs/split_construction/split_best_partner_capped'],
+    '6.5.1': ['00_supplementary_figs/holdout_filter', '00_supplementary_figs/split_construction/mega_clean_vs_homologous_test', '00_for_reviewers/reference/spurs_published_vs_retrained'],
+    '6.5.2': ['02_thermostability/thermo_external_rho', '02_thermostability/thermo_overview', '00_for_reviewers/reference/spurs_published_vs_retrained'],
 }
 
 FOLDER_OWNER = {
-    '00_core': 'p01_benchmarks_external / p12_manifest',
-    '00_main_text_figs': 'p05_summary_main / p06_epistasis_hierarchy',
-    '00_supplementary_figs': 'p02 / p06 / p07 / p09 / p10',
-    '01_summary': 'p05_summary_main',
-    '02_thermostability': 'p01_benchmarks_external / p05_summary_main',
-    '03_tsuboyama': 'p02_tsuboyama (and mega_splits across p02/p06/p07/p09/p10)',
-    '04_dms_domainome': 'p01_benchmarks_external',
-    '05_proteingym': 'p03_proteingym',
-    '06_epistasis': 'p06_epistasis_hierarchy / p07_epistasis_mechanisms',
-    '07_rmse': 'p08_calibration_length',
-    '08_screening': 'p09_screening',
-    '09_sequence_length': 'p08_calibration_length',
-    '10_leakage_and_reference': 'p10_splits_and_leakage',
-    '12_pair_heatmaps': 'p07_epistasis_mechanisms',
-    '16_screening_overview': 'p09_screening',
-    '17_gain_fit': 'p09_screening',
-    '18_mgnify': 'p04_mgnify_rocklin',
-    '19_rosetta_multi_vs_additive': 'p07_epistasis_mechanisms',
-    '22_esm_msr_vs_esm3dg': 'p05_summary_main',
-    '23_pg_ours_vs_published': 'p03_proteingym',
-    '98_ablation': 'p11_ablations_and_heads',
-    'audits': 'audits/*',
-    'for_reviewers': 'p02 / p03 / p10',
-    'inference_resources': 'audits/inference_resources',
-    'studies': 'p11_ablations_and_heads / studies/*',
+    '(root)': 'p12_manifest',
+    '00_for_reviewers': 'p02_tsuboyama / p10_splits_and_leakage / p12_manifest',
+    '00_main_text_figs': 'p05_summary_main / p06_epistasis_hierarchy / p09_screening',
+    '00_supplementary_figs': 'p02 / p03 / p06 / p07 / p09 / p10',
+    '01_megascale': 'p02_tsuboyama / p06_epistasis_hierarchy / p07_epistasis_mechanisms / p09_screening / p10_splits_and_leakage',
+    '02_thermostability': 'p01_benchmarks_external / p08_calibration_length / p09_screening',
+    '03_proteingym': 'p03_proteingym / p09_screening',
+    '04_domainome': 'p01_benchmarks_external / p09_screening',
+    '05_mgnify': 'p04_mgnify_rocklin',
+    '06_summary': 'p05_summary_main',
+    '07_screening_overview': 'p09_screening',
+    '08_sequence_length': 'p08_calibration_length',
+    '09_ablation': 'p11_ablations_and_heads',
+    '10_inference_resources': 'scoring/resources',
+    '99_misc': 'p01 / p03 / p05 / p06 / p07 / p08 / p11 / studies/*',
 }
 
 
@@ -170,8 +168,7 @@ def reparse_benchmark_tables(md_path: Path) -> None:
 
 
 def run_validation_vs_benchmarks() -> pd.DataFrame:
-    out = RESULTS / '00_core'
-    out.mkdir(parents=True, exist_ok=True)
+    VALIDATION_VS_BENCHMARKS_CSV.parent.mkdir(parents=True, exist_ok=True)
     ref = pd.read_csv(REFERENCE / 'all_by_all_long.csv')
 
     # Precompute unfiltered Domainome (522 domains) to compare directly against the pre-holdout BENCHMARKS table column
@@ -206,7 +203,7 @@ def run_validation_vs_benchmarks() -> pd.DataFrame:
             ))
 
     d = pd.DataFrame(rows)
-    atomic_to_csv(d, out / 'validation_vs_benchmarks.csv', index=False, float_format='%.5f')
+    atomic_to_csv(d, VALIDATION_VS_BENCHMARKS_CSV, index=False, float_format='%.5f')
     ok = d.dropna(subset=['doc'])
     n_gt = int((ok['diff_comparable'].abs() > 0.005).sum())
     print(
@@ -221,8 +218,7 @@ def run_table_coverage_and_manifest() -> tuple[pd.DataFrame, pd.DataFrame, list[
     idx = pd.read_csv(REFERENCE / 'benchmark_tables' / 'tables_index.csv', dtype=str)
     rows, bad = [], []
 
-    # Include studies/ablations/ablation_architecture_suite on 2.5.1 when p11 has run
-    abl_suite = 'studies/ablations/ablation_architecture_suite'
+    abl_suite = '09_ablation/ablation_architecture_suite'
     has_abl_suite = (RESULTS / f'{abl_suite}.png').exists()
 
     for r in idx.itertuples():
@@ -247,7 +243,7 @@ def run_table_coverage_and_manifest() -> tuple[pd.DataFrame, pd.DataFrame, list[
         ))
 
     map_df = pd.DataFrame(rows)
-    atomic_to_csv(map_df, RESULTS / 'table_figure_map.csv', index=False)
+    atomic_to_csv(map_df, TABLE_FIGURE_MAP_CSV, index=False)
 
     # Inventory all generated artifacts under results/
     inv_rows = []
@@ -266,7 +262,7 @@ def run_table_coverage_and_manifest() -> tuple[pd.DataFrame, pd.DataFrame, list[
             owner=FOLDER_OWNER.get(top_folder, 'other'),
         ))
     inv_df = pd.DataFrame(inv_rows)
-    atomic_to_csv(inv_df, RESULTS / 'manifest_outputs.csv', index=False)
+    atomic_to_csv(inv_df, MANIFEST_OUTPUTS_CSV, index=False)
 
     n_drawn = int((map_df['status'] == 'drawn').sum())
     print(f'[p12] Table coverage: {n_drawn}/{len(idx)} benchmark tables drawn; {len(inv_df)} output files cataloged in manifest_outputs.csv.')

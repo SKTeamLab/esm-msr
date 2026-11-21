@@ -1,0 +1,21 @@
+| Ablation | Change from ESM-MSR | Seeds | Tsuboyama test | Tsuboyama doubles | Epistasis beyond ρ | Epistasis cell mag. | External singles (10) | PTMUL / PTMUL-D | Domainome low-id | ProteinGym avg |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **p0 (reference)** | reference recipe: unmasked WT and MT passes | 1,2,3 | 0.845 | 0.777 | 0.487 | 0.212 | 0.654 | 0.594 | 0.540 | 0.509 |
+| *Masking* | | | | | | | | | | |
+| p1 masked | block_mask_wt/mt 0 -> 1 | 1,2,3 | **−0.010** | **−0.030** | +0.015 | +0.020 | −0.007 | −0.025 | 0.000 | **−0.004** |
+| p1 MT marginal | p1 + MT pass marginal | 1,2,3 | **−0.009** | **−0.056** | −0.056 | **−0.225** | **−0.010** | −0.034 | +0.001 | — |
+| *Loss* | | | | | | | | | | |
+| no pair loss | block_pair_weight 0.38 -> 0 | 1,2,3 | −0.002 | −0.009 | −0.071 | +0.003 | +0.001 | +0.004 | −0.001 | — |
+| no rank loss | lambda_rank_wt/mt 0.5 -> 0 | 1,2,3 | −0.005 | −0.012 | −0.045 | −0.016 | +0.003 | 0.000 | +0.002 | — |
+| rank censor 0 | rank_censor_threshold -1 -> 0 | 1,2,3 | −0.001 | −0.005 | −0.051 | +0.007 | −0.001 | +0.006 | **+0.001** | — |
+| no range-tagged cells | Tobit regression without the assay's range-tagged (<-1 / >5) cells | — | — | — | — | — | — | — | — | — |
+| MSE (no range-tagged) | Tobit NLL -> plain MSE on ddG, range-tagged cells excluded | 3 | −0.003 | −0.003 | −0.015 | +0.010 | 0.000 | −0.003 | −0.003 | — |
+| deep floor (-1, 1) | Tobit floor mu_f/sigma_f -0.14/0.5 -> -1.0/1.0 (also the posterior teacher-forcing label); sigma_y unchanged | — | — | — | — | — | — | — | — | — |
+| *Architecture* | | | | | | | | | | |
+| no seq. head | incl_sequence_head_wt/mt True -> False | 1,2,3 | −0.003 | −0.015 | −0.021 | −0.003 | +0.001 | −0.007 | **+0.005** | — |
+| MT LoRA r2 | lora_rank/alpha_mt 16/16 -> 2/4 | 1,2,3 | **−0.008** | −0.025 | −0.063 | −0.005 | −0.001 | −0.002 | **+0.002** | — |
+| *Cross-masking (evaluation only)* | | | | | | | | | | |
+| p0, tested masked | FINAL_p0 checkpoint evaluated with independent masking | 1,2,3 | **−0.025** | **−0.073** | −0.048 | +0.012 | −0.006 | −0.020 | **+0.012** | — |
+| p1, tested unmasked | FINAL_p1 checkpoint evaluated unmasked | 1,2,3 | **−0.026** | **−0.048** | −0.021 | −0.031 | **−0.013** | −0.016 | **−0.018** | — |
+
+ESM-MSR row: Spearman ρ (seed mean; seeds listed). Other rows: Δρ = family seed mean − ESM-MSR under the deployed readout (WT head on singles-only sets, ½(MT + WT) where multi-mutants are scored, including the 47 multi-mutant held-out ProteinGym assays of 173; — where a multi-mutant combined run was not executed). Bold: |Δ| > 2 SE, where SE is the paired bootstrap over proteins / sites / assays with triplicate seeds resampled jointly (B = 1,000; pooled column seed SD fallback where no bootstrap exists). Epistasis columns: comb(AB) − WT(A) − WT(B) vs measured ΔΔΔG on the 12,455 Homology-Restricted MegaScale test doubles with both singles measured (beyond ρ = Spearman above global saturation curve; cell mag. = double-centred complete-block residuals across the 13 test domains). ‡: fewer seeds than the rest of the row (exact seeds in table_main_delta.csv). —: not run.

@@ -2,13 +2,13 @@
 """Pipeline p02: Tsuboyama / MegaScale rankings, NDCG@96, ESM3 scoring variants, and mega_splits comparison.
 
 Consolidates:
-  - 03_tsuboyama.py                          -> results/03_tsuboyama/{tsuboyama_overview, tsuboyama_per_library, tsuboyama_singles_doubles, tsuboyama_scatter}
-  - 11_publication_figures.py (fig1, fig2*)  -> results/03_tsuboyama/{best_other_ddg_model.csv, fig1_*, fig2_*, fig2b_*}
-  - 11e_esm3_scoring_variants.py (fig2 part) -> results/03_tsuboyama/fig2_esm3_scoring_variants
-  - 11i_doubles_vs_singles_pvalues.py        -> results/03_tsuboyama/doubles_vs_singles_on_singles.{csv,md,png,pdf}
-  - 11j_overall_vs_transfer.py               -> results/03_tsuboyama/overall_vs_transfer_{domain_mean,pooled}.{csv,md,png,pdf}
+  - 03_tsuboyama.py                          -> results/01_megascale/{megascale_overview, megascale_per_library, megascale_singles_doubles, megascale_scatter}
+  - 11_publication_figures.py (fig1, fig2*)  -> results/01_megascale/{best_other_ddg_model.csv, ndcg96_singles_doubles*, spearman_stab_destab*}
+  - 11e_esm3_scoring_variants.py (fig2 part) -> results/01_megascale/esm3_scoring_variants
+  - 11i_doubles_vs_singles_pvalues.py        -> results/01_megascale/doubles_vs_singles_on_singles.{csv,md,png,pdf}
+  - 11j_overall_vs_transfer.py               -> results/01_megascale/overall_vs_transfer_{domain_mean,pooled}.{csv,md,png,pdf}
   - 11k_ndcg96_supplement.py                 -> results/00_supplementary_figs/ndcg96_singles_doubles.{png,pdf} + *_values.csv
-  - tsuboyama/mega_splits/{01,03}            -> results/03_tsuboyama/mega_splits/03_tsuboyama/*
+  - tsuboyama/mega_splits/{01,03}            -> results/01_megascale/mega_splits/*
 
 Key methodological fixes vs legacy scripts:
   - Parameterizes split selection explicitly (--split capped|mega and --compare-splits) with zero MSR_TSU_SPLIT env mutation.
@@ -29,10 +29,10 @@ from scipy.stats import spearmanr
 from msr_analysis import models as M
 from msr_analysis import style
 from msr_analysis.boot import SpearmanEngine, bootstrap_rho, ci
-from msr_analysis.common import leak_table, load_rho_df, out_dir, subframe
+from msr_analysis.common import leak_table, load_rho_df, subframe
 from msr_analysis.data import Frame, _align_id, load_frame
 from msr_analysis.final_runs import load_final_frame
-from msr_analysis.paths import atomic_to_csv, atomic_write_text, results_dir
+from msr_analysis.paths import CORE_RHO_BOOTSTRAP_CSV, atomic_to_csv, atomic_write_text, results_dir
 from msr_analysis.registry import MEGASCALE_NOTE, MEGASCALE_TRAINED, MODELS, TSU_CAPPED, TSU_MEGA
 from msr_analysis.stats import fmt_p, holm
 from msr_analysis.tobit import linked
@@ -134,10 +134,9 @@ def _write_md_table(rows: list[list[str]], headers: list[str], note: str, path) 
 # 1. Core Tsuboyama overview, per-library scatters, singles/doubles, and density scatters (capped)
 # ----------------------------------------------------------------------------------------------
 def run_capped_core(B: int) -> None:
-    out = out_dir('03_tsuboyama', split='capped')
-    rho_csv = results_dir('00_core', create=False) / 'rho_bootstrap.csv'
-    if rho_csv.exists():
-        df = load_rho_df(rho_csv)
+    out = results_dir('megascale', split='capped')
+    if CORE_RHO_BOOTSTRAP_CSV.exists():
+        df = load_rho_df(CORE_RHO_BOOTSTRAP_CSV)
         df = df[df['dataset'].isin(TSU_CAPPED)]
     else:
         frames = {d: load_frame(d) for d in TSU_CAPPED}
@@ -192,7 +191,7 @@ def run_capped_core(B: int) -> None:
         fontsize=8.5, y=1.02,
     )
     fig.tight_layout()
-    style.save(fig, out / 'tsuboyama_overview')
+    style.save(fig, out / 'megascale_overview')
 
     # Per-library scatter on capped test
     fr_test = load_frame(TSU_CAPPED[1])
@@ -220,7 +219,7 @@ def run_capped_core(B: int) -> None:
     axes_pl[0].set_ylabel('ρ of ESM-MSR Dual-view')
     fig_pl.suptitle('Each dot is one test library', fontsize=9, y=1.0)
     fig_pl.tight_layout()
-    style.save(fig_pl, out / 'tsuboyama_per_library')
+    style.save(fig_pl, out / 'megascale_per_library')
 
     # Singles & doubles separately
     sd_rows = []
@@ -234,7 +233,7 @@ def run_capped_core(B: int) -> None:
                 lo, hi = ci(reps[ds][k])
                 sd_rows.append(dict(dataset=ds, subset=nm, model=k, rho=r_val, lo=lo, hi=hi, n=n, n_libraries=ng))
     R_sd = pd.DataFrame(sd_rows)
-    atomic_to_csv(R_sd, out / 'tsuboyama_singles_doubles.csv', index=False, float_format='%.4f')
+    atomic_to_csv(R_sd, out / 'megascale_singles_doubles.csv', index=False, float_format='%.4f')
     groups = [f'{d}|{s}' for d in TSU_CAPPED for s in ('singles', 'doubles')]
     glabel = [f'{"val" if d == TSU_CAPPED[0] else "test"}\n{s}' for d in TSU_CAPPED for s in ('singles', 'doubles')]
     sd_models = ['msrp0:wt', 'msrp0:comb', 'me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm']
@@ -244,7 +243,7 @@ def run_capped_core(B: int) -> None:
     style.dot_panel(ax_sd, groups, sd_models, table_sd, cis_sd, highlight=['msrp0:wt', 'msrp0:comb'], ylabel='mean per-library ρ', xlabels=glabel, rot=0, size=6.5, ylim=(0.5, 0.95))
     style.model_legend(ax_sd, sd_models, loc='lower left', ncol=4, fontsize=7.5)
     fig_sd.tight_layout()
-    style.save(fig_sd, out / 'tsuboyama_singles_doubles')
+    style.save(fig_sd, out / 'megascale_singles_doubles')
 
     # Predicted vs measured ddG density scatters
     panels = [
@@ -264,14 +263,14 @@ def run_capped_core(B: int) -> None:
         ax.set_xlabel('predicted ddG (mean of seeds 1-3)')
     axes_sc[0].set_ylabel('measured ddG (kcal/mol)')
     fig_sc.tight_layout()
-    style.save(fig_sc, out / 'tsuboyama_scatter')
+    style.save(fig_sc, out / 'megascale_scatter')
 
 
 # ----------------------------------------------------------------------------------------------
-# 2. Publication bar charts on Tsuboyama test (fig1, fig2*, fig2b*, fig2_esm3, ndcg96 supplement)
+# 2. Publication bar charts on MegaScale test (ndcg96, spearman_stab_destab*, esm3_scoring_variants, ndcg96 supplement)
 # ----------------------------------------------------------------------------------------------
 def run_publication_bars(B: int, split: str = 'capped') -> None:
-    out = out_dir('03_tsuboyama', split=split)
+    out = results_dir('megascale', split=split)
     fr, _ = load_tsu_test_frame(split=split)
     add_esm3_marginal_additive(fr, split=split)
     sp = fr.spine
@@ -298,13 +297,13 @@ def run_publication_bars(B: int, split: str = 'capped') -> None:
         df_p = add_holm_by_group(pd.DataFrame(rows))
         atomic_to_csv(df_p, out / f'{stem}_pvalues.csv', index=False, float_format='%.4g')
 
-    # Fig 1: rectified NDCG@96, singles vs doubles
+    # Rectified NDCG@96, singles vs doubles
     cells1 = {'singles': (single, 'singles'), 'doubles': (double, 'doubles')}
     v1: dict = {}
     T1 = table_grouped(fr, cols, cells1, ndcg96_rectified, 1, counts, libs, vals=v1)
     ov1 = table_grouped(fr, cols, {'overall': (use, 'all')}, ndcg96_rectified, 1, counts, libs, vals=v1)
-    _save_tab(pd.concat([T1, ov1]), 'fig1_ndcg96_singles_doubles')
-    _save_p(compare_grouped(fr, v1, ['singles', 'doubles', 'overall'], counts, libs, name_map=name_map), 'fig1_ndcg96_singles_doubles')
+    _save_tab(pd.concat([T1, ov1]), 'ndcg96_singles_doubles')
+    _save_p(compare_grouped(fr, v1, ['singles', 'doubles', 'overall'], counts, libs, name_map=name_map), 'ndcg96_singles_doubles')
     d1 = (ov1.set_index('column')['value'] - T1[T1['subset'] == 'singles'].set_index('column')['value']).dropna()
     d1 = d1[[c['name'] for c in cols if c.get('draw', True) and c['name'] in d1.index]]
     draw_ov1 = int((d1.abs() <= 0.01).sum()) < 0.9 * len(d1)
@@ -319,9 +318,9 @@ def run_publication_bars(B: int, split: str = 'capped') -> None:
         overall_df=ov1 if draw_ov1 else None, overall_label=f'overall (n = {int(ov1.n_variants.max()):,})',
     )
     finish_bar_fig(fig1, f'{s_title}, NDCG@{K_NDCG} per library, 95% intervals from resampling domains (B = {B:,})', note1)
-    style.save(fig1, out / 'fig1_ndcg96_singles_doubles')
+    style.save(fig1, out / 'ndcg96_singles_doubles')
 
-    # Fig 2 & Fig 2b: stabilizing vs destabilizing (domain and mutation bootstrap; per-domain and pooled)
+    # Stabilizing vs destabilizing (domain and mutation bootstrap; per-domain and pooled)
     for kind in ('domain', 'mutation'):
         tag = '' if kind == 'domain' else '_mutboot'
         unit = 'resampling domains' if kind == 'domain' else 'resampling mutations within each domain'
@@ -332,8 +331,8 @@ def run_publication_bars(B: int, split: str = 'capped') -> None:
         v2: dict = {}
         T2 = table_grouped(fr, cols, cells2, rho_fn, MIN_N, counts, libs, kind=kind, B_mut=B_mut, vals=v2)
         ov2 = table_grouped(fr, cols, {'overall': (use, 'all')}, rho_fn, 3, counts, libs, kind=kind, B_mut=B_mut, vals=v2)
-        _save_tab(pd.concat([T2, ov2]), f'fig2_spearman_stab_destab{tag}')
-        _save_p(compare_grouped(fr, v2, ['stabilizing', 'destabilizing', 'overall'], counts, libs, kind=kind, B_mut=B_mut, name_map=name_map), f'fig2_spearman_stab_destab{tag}')
+        _save_tab(pd.concat([T2, ov2]), f'spearman_stab_destab{tag}')
+        _save_p(compare_grouped(fr, v2, ['stabilizing', 'destabilizing', 'overall'], counts, libs, kind=kind, B_mut=B_mut, name_map=name_map), f'spearman_stab_destab{tag}')
         fig2, ax2 = plt.subplots(figsize=(w_fig, 4.9))
         style.bar_panel(
             ax2, cols, T2, ('stabilizing', 'destabilizing'),
@@ -342,13 +341,13 @@ def run_publication_bars(B: int, split: str = 'capped') -> None:
             overall_df=ov2, overall_label=f'overall (n = {int(ov2.n_variants.max()):,})', zero_line=True,
         )
         finish_bar_fig(fig2, f'{s_title}, all variants: Spearman ρ of stabilizing vs destabilizing variants (≥ {MIN_N}/subset); 95% intervals from {unit} (B = {b_this:,})', [F_COMPOSITE])
-        style.save(fig2, out / f'fig2_spearman_stab_destab{tag}')
+        style.save(fig2, out / f'spearman_stab_destab{tag}')
 
         pc = {'stabilizing': (use & (y > 0), 'all'), 'destabilizing': (use & (y < 0), 'all'), 'overall': (use, 'all')}
         rp2: dict = {}
         Tp2 = table_pooled(fr, cols, pc, y, B_=B_pool, kind=kind, reps_out=rp2)
-        _save_tab(Tp2, f'fig2_spearman_stab_destab_pooled{tag}')
-        _save_p(compare_pooled(Tp2, rp2, ['stabilizing', 'destabilizing', 'overall'], kind=kind, name_map=name_map), f'fig2_spearman_stab_destab_pooled{tag}')
+        _save_tab(Tp2, f'spearman_stab_destab_pooled{tag}')
+        _save_p(compare_pooled(Tp2, rp2, ['stabilizing', 'destabilizing', 'overall'], kind=kind, name_map=name_map), f'spearman_stab_destab_pooled{tag}')
         pv2, po2 = Tp2[Tp2['subset'] != 'overall'], Tp2[Tp2['subset'] == 'overall']
         fig2p, ax2p = plt.subplots(figsize=(w_fig, 4.9))
         style.bar_panel(
@@ -358,9 +357,9 @@ def run_publication_bars(B: int, split: str = 'capped') -> None:
             overall_df=po2, overall_label=f'overall (n = {int(po2.n_variants.max()):,})', zero_line=True,
         )
         finish_bar_fig(fig2p, f'{s_title}, all variants: Spearman ρ pooled over domains, stabilizing vs destabilizing; 95% intervals from {unit_p} (B = {B_pool:,})', [F_COMPOSITE])
-        style.save(fig2p, out / f'fig2_spearman_stab_destab_pooled{tag}')
+        style.save(fig2p, out / f'spearman_stab_destab_pooled{tag}')
 
-        # Fig 2b: singles and doubles panels separately
+        # Singles and doubles panels separately
         tabs, tabs_p, ps, ps_p = [], [], [], []
         fig2b, axes2b = plt.subplots(2, 1, figsize=(w_fig, 8.6))
         fig2bp, axes2bp = plt.subplots(2, 1, figsize=(w_fig, 8.6))
@@ -396,19 +395,19 @@ def run_publication_bars(B: int, split: str = 'capped') -> None:
             )
             ax_bp.text(0.006, 0.985, which, transform=ax_bp.transAxes, va='top', ha='left', fontsize=9.5, fontweight='bold')
 
-        _save_tab(pd.concat(tabs), f'fig2b_spearman_stab_destab_singles_doubles{tag}')
-        _save_tab(pd.concat(tabs_p), f'fig2b_spearman_stab_destab_singles_doubles_pooled{tag}')
-        _save_p(pd.concat(ps).to_dict('records'), f'fig2b_spearman_stab_destab_singles_doubles{tag}')
-        _save_p(pd.concat(ps_p).to_dict('records'), f'fig2b_spearman_stab_destab_singles_doubles_pooled{tag}')
+        _save_tab(pd.concat(tabs), f'spearman_stab_destab_singles_doubles{tag}')
+        _save_tab(pd.concat(tabs_p), f'spearman_stab_destab_singles_doubles_pooled{tag}')
+        _save_p(pd.concat(ps).to_dict('records'), f'spearman_stab_destab_singles_doubles{tag}')
+        _save_p(pd.concat(ps_p).to_dict('records'), f'spearman_stab_destab_singles_doubles_pooled{tag}')
         finish_bar_fig(fig2b, f'{s_title}, Spearman ρ of stabilizing vs destabilizing variants by subset; 95% intervals from {unit} (B = {b_this:,})', [])
-        style.save(fig2b, out / f'fig2b_spearman_stab_destab_singles_doubles{tag}')
+        style.save(fig2b, out / f'spearman_stab_destab_singles_doubles{tag}')
         finish_bar_fig(fig2bp, f'{s_title}, Spearman ρ pooled over domains, stabilizing vs destabilizing variants; 95% intervals from {unit_p} (B = {B_pool:,})', [])
-        style.save(fig2bp, out / f'fig2b_spearman_stab_destab_singles_doubles_pooled{tag}')
+        style.save(fig2bp, out / f'spearman_stab_destab_singles_doubles_pooled{tag}')
 
     if split != 'capped':
         return
 
-    # Fig 2 ESM3 scoring variants (11e, Tsuboyama part)
+    # ESM3 scoring variants (11e, MegaScale part)
     if 'esm3avg' in fr.preds and 'esm3mm' in fr.preds:
         cols2_esm3 = main_columns(fr, best, 'average')
         grey = [M.color('ESM3-small-open'), '#aab7b8', '#4d5656']
@@ -421,7 +420,7 @@ def run_publication_bars(B: int, split: str = 'capped') -> None:
         cols2_esm3 = cols2_esm3[:idx_e] + three2 + cols2_esm3[idx_e + 1:]
         T2e = table_grouped(fr, cols2_esm3, {'stabilizing': (use & (y > 0), 'all'), 'destabilizing': (use & (y < 0), 'all')}, rho_fn, MIN_N, counts, libs)
         ov2e = table_grouped(fr, cols2_esm3, {'overall': (use, 'all')}, rho_fn, 3, counts, libs)
-        _save_tab(pd.concat([T2e, ov2e]), 'fig2_esm3_scoring_variants')
+        _save_tab(pd.concat([T2e, ov2e]), 'esm3_scoring_variants')
         fig_e, ax_e = plt.subplots(figsize=(1.2 * fig_width(cols2_esm3), 4.9))
         style.bar_panel(
             ax_e, cols2_esm3, T2e, ('stabilizing', 'destabilizing'),
@@ -431,10 +430,10 @@ def run_publication_bars(B: int, split: str = 'capped') -> None:
             zero_line=True, tick_fs=7.8,
         )
         finish_bar_fig(fig_e, f'{s_title}, all variants: Spearman ρ of stabilizing vs destabilizing variants, ESM3-small-open scored three ways (B = {B:,})', [F_COMPOSITE])
-        style.save(fig_e, out / 'fig2_esm3_scoring_variants')
+        style.save(fig_e, out / 'esm3_scoring_variants')
 
     # Shifted NDCG@96 supplement (11k): relevance = y - min(y) per domain & subset, defined for all 33 domains
-    out_supp = out_dir('00_supplementary_figs')
+    out_supp = results_dir('supplementary_figs')
     Ts = table_grouped(fr, cols, {'singles': (single, 'singles'), 'doubles': (double, 'doubles')}, ndcg96_shifted, MIN_N, counts, libs)
     ovs = table_grouped(fr, cols, {'overall': (use, 'all')}, ndcg96_shifted, MIN_N, counts, libs)
     ds_diff = (ovs.set_index('column')['value'] - Ts[Ts['subset'] == 'singles'].set_index('column')['value']).dropna()
@@ -455,17 +454,19 @@ def run_publication_bars(B: int, split: str = 'capped') -> None:
     fig_s.tight_layout(pad=0.5)
     fig_s.savefig(out_supp / 'ndcg96_singles_doubles.png', dpi=300, bbox_inches=None)
     fig_s.savefig(out_supp / 'ndcg96_singles_doubles.pdf', bbox_inches=None)
+    fig_s.savefig(out_supp / 'supp_figure2.png', dpi=300, bbox_inches=None)
+    fig_s.savefig(out_supp / 'supp_figure2.pdf', bbox_inches=None)
     plt.close(fig_s)
     vals_piv = pd.concat([Ts, ovs]).pivot(index='column', columns='subset', values='value').round(3).reset_index()
     atomic_to_csv(vals_piv, out_supp / 'ndcg96_singles_doubles_values.csv', index=False)
 
 
 # ----------------------------------------------------------------------------------------------
-# 3. Statistical hypothesis tables on Tsuboyama capped test (11i & 11j)
+# 3. Statistical hypothesis tables on MegaScale capped test (11i & 11j)
 # ----------------------------------------------------------------------------------------------
 def run_doubles_vs_singles_on_singles(B: int) -> pd.DataFrame:
     """11i: Do models trained with doubles lose accuracy on single mutants vs their singles-only versions?"""
-    out = out_dir('03_tsuboyama', split='capped')
+    out = results_dir('megascale', split='capped')
     fr, _ = load_tsu_test_frame('capped')
     sp = fr.spine
     single = sp['use'].to_numpy() & (sp['n_mut'].to_numpy() == 1)
@@ -542,12 +543,191 @@ def run_doubles_vs_singles_on_singles(B: int) -> pd.DataFrame:
         t_rows, headers, [2.4, 4.5, 0.9, 1.2, 2.8, 1.1, 0.95, 0.95, 3.1],
         out / 'doubles_vs_singles_on_singles', note, cell_style_fn=_style_cell,
     )
+    build_supp_figure3(B=B, res=res, fr=fr)
     return res
 
 
+def build_supp_figure3(B: int = 1000, res: pd.DataFrame | None = None, fr=None) -> Path:
+    """Build Supplementary Figure 3 (`00_supplementary_figs/supp_figure3.{png,pdf}`).
+
+    Ranking performance of all doubles-trained models (Dual-view for ESM-MSR) on Homology-Restricted
+    MegaScale test-set single mutants, paired against their singles-only counterparts:
+      a. Mean per-domain Spearman's rho (singles-only hatched vs doubles-trained solid, 95% CI, Holm p).
+      b. Per-domain paired difference Delta-rho = rho(doubles-trained) - rho(singles-only) across all 33 domains.
+    """
+    from matplotlib.patches import Patch
+
+    out_supp = results_dir('supplementary_figs')
+    if fr is None:
+        fr, _ = load_tsu_test_frame('capped')
+    sp = fr.spine
+    single = sp['use'].to_numpy() & (sp['n_mut'].to_numpy() == 1)
+    n_singles = int(single.sum())
+    libs = sorted(np.unique(sp['group'].to_numpy()[single]))
+    b_dom = B if B <= 200 else max(B, 10000)
+    counts = make_domain_counts(libs, B=b_dom, seed=5)
+
+    if res is None:
+        csv_path = results_dir('megascale', split='capped', create=False) / 'doubles_vs_singles_on_singles.csv'
+        res = pd.read_csv(csv_path) if csv_path.exists() else run_doubles_vs_singles_on_singles(B=B)
+
+    res_by_name = res.set_index('model')
+    models_order = list(M.TRANSFER)
+
+    stats_a = []
+    dom_deltas = {}
+    for name in models_order:
+        ks, kd = M.BY_NAME[name].single, M.BY_NAME[name].multi
+        vs = per_library(fr, ks, single, rho_fn, MIN_N)
+        vd = per_library(fr, kd, single, rho_fn, MIN_N)
+        both = vs.index.intersection(vd.index)
+        rs = boot_reps(vs.loc[both], libs, counts)
+        rd = boot_reps(vd.loc[both], libs, counts)
+        rs, rd = rs[np.isfinite(rs)], rd[np.isfinite(rd)]
+        d_dom = diff_df(vd, vs, both).mean(axis=1).to_numpy(float)
+        dom_deltas[name] = d_dom
+        r_row = res_by_name.loc[name]
+        stats_a.append(dict(
+            name=name,
+            col=M.color(name),
+            ls=M.version_label(name, 0),
+            ld=M.version_label(name, 1),
+            rho_s=float(r_row['rho_singles']),
+            lo_s=float(np.percentile(rs, 2.5)),
+            hi_s=float(np.percentile(rs, 97.5)),
+            rho_d=float(r_row['rho_doubles']),
+            lo_d=float(np.percentile(rd, 2.5)),
+            hi_d=float(np.percentile(rd, 97.5)),
+            delta=float(r_row['delta']),
+            d_lo=float(r_row['lo']),
+            d_hi=float(r_row['hi']),
+            same=bool(r_row['same_predictions']),
+            p_holm=float(r_row['p_holm']) if np.isfinite(r_row['p_holm']) else np.nan,
+            n_dom=int(r_row['n_domains']),
+            n_higher=int((d_dom > 0).sum()),
+            n_lower=int((d_dom < 0).sum()),
+            B_p=int(r_row['B']) if 'B' in r_row.index and np.isfinite(r_row['B']) else b_dom,
+        ))
+
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(13.6, 5.8), gridspec_kw=dict(width_ratios=[1.18, 1.0]), facecolor='white')
+
+    # --- Panel a: Paired Spearman rho bars (singles-only hatched vs doubles-trained solid) ---
+    xs = np.arange(len(stats_a), dtype=float)
+    w = 0.34
+    for i, st in enumerate(stats_a):
+        c = st['col']
+        ax_a.bar(
+            xs[i] - w / 2, st['rho_s'], width=w,
+            facecolor=c, alpha=0.52, edgecolor=c, lw=1.0, hatch='///', zorder=3,
+        )
+        ax_a.errorbar(
+            xs[i] - w / 2, st['rho_s'],
+            yerr=[[max(st['rho_s'] - st['lo_s'], 0)], [max(st['hi_s'] - st['rho_s'], 0)]],
+            fmt='none', ecolor='#b22222', elinewidth=1.2, capsize=3.0, zorder=5,
+        )
+        ax_a.text(xs[i] - w / 2, st['hi_s'] + 0.012, f'{st["rho_s"]:.3f}',
+                  ha='center', va='bottom', fontsize=8.4, color='#333333', zorder=6)
+
+        ax_a.bar(
+            xs[i] + w / 2, st['rho_d'], width=w,
+            facecolor=c, alpha=0.95, edgecolor='#1a1a1a', lw=0.9, zorder=3,
+        )
+        ax_a.errorbar(
+            xs[i] + w / 2, st['rho_d'],
+            yerr=[[max(st['rho_d'] - st['lo_d'], 0)], [max(st['hi_d'] - st['rho_d'], 0)]],
+            fmt='none', ecolor='#b22222', elinewidth=1.2, capsize=3.0, zorder=5,
+        )
+        ax_a.text(xs[i] + w / 2, st['hi_d'] + 0.012, f'{st["rho_d"]:.3f}',
+                  ha='center', va='bottom', fontsize=8.4, fontweight='bold', color='#111111', zorder=6)
+
+        y_br = max(st['hi_s'], st['hi_d']) + 0.055
+        h_br = 0.010
+        x0, x1 = xs[i] - w / 2, xs[i] + w / 2
+        ax_a.plot([x0, x0, x1, x1], [y_br - h_br, y_br, y_br, y_br - h_br], color='#333333', lw=1.0, zorder=7)
+        if st['same']:
+            p_lbl = 'identical\nnetwork'
+        else:
+            p_lbl = f'p_Holm {fmt_p(st["p_holm"], B=st["B_p"], prefix="= ")}'.replace('= <', '<')
+        ax_a.text(xs[i], y_br + 0.008, p_lbl, ha='center', va='bottom', fontsize=7.8,
+                  color='#1e6b34' if (not st['same'] and st['delta'] > 0) else ('#a61c1c' if not st['same'] else '#555555'),
+                  fontweight='bold' if not st['same'] else 'normal', zorder=7)
+
+    ax_a.set_ylim(0.50, 1.03)
+    ax_a.set_xticks(xs)
+    ax_a.set_xticklabels([f'{st["ls"]}\n→ {st["ld"]}' for st in stats_a], fontsize=8.5, rotation=14, ha='right')
+    ax_a.set_ylabel("Spearman's ρ on test single mutants\n(mean over 33 domains)", fontsize=10.0)
+    ax_a.set_title(f'Test-set single-mutant ranking (n = {n_singles:,} singles)', fontsize=10.4, fontweight='bold', loc='left', pad=8)
+    ax_a.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+    ax_a.spines['top'].set_visible(False)
+    ax_a.spines['right'].set_visible(False)
+    ax_a.legend(
+        handles=[
+            Patch(fc='#888888', alpha=0.52, ec='#555555', hatch='///', label='Singles-only model'),
+            Patch(fc='#444444', alpha=0.95, ec='#1a1a1a', label='Doubles-trained model (Dual-view for ESM-MSR)'),
+        ],
+        loc='lower left', fontsize=8.4, frameon=True, facecolor='white', framealpha=0.92, edgecolor='#cccccc',
+    )
+
+    # --- Panel b: Per-domain paired Delta-rho = doubles-trained - singles-only ---
+    rng = np.random.default_rng(7)
+    ax_b.axhline(0.0, color='#333333', lw=1.1, ls='--', zorder=2)
+    for i, st in enumerate(stats_a):
+        c = st['col']
+        vals = dom_deltas[st['name']]
+        jit = rng.uniform(-0.14, 0.14, size=len(vals))
+        ax_b.scatter(xs[i] + jit, vals, s=18, color=c, alpha=0.50, edgecolors='white', lw=0.4, zorder=3)
+        if st['same']:
+            ax_b.plot([xs[i] - 0.18, xs[i] + 0.18], [0.0, 0.0], color='#222222', lw=2.2, zorder=5)
+            ax_b.text(xs[i], 0.018, '0.000\n(identical)', ha='center', va='bottom', fontsize=8.0, color='#555555', zorder=6)
+        else:
+            ax_b.errorbar(
+                xs[i], st['delta'],
+                yerr=[[max(st['delta'] - st['d_lo'], 0)], [max(st['d_hi'] - st['delta'], 0)]],
+                fmt='D', ms=6.2, color='#111111', mfc=c, mec='#111111', mew=1.1,
+                ecolor='#111111', elinewidth=1.5, capsize=4.0, zorder=6,
+            )
+            frac_txt = f'{st["n_higher"]}/{st["n_dom"]} higher' if st['delta'] > 0 else f'{st["n_lower"]}/{st["n_dom"]} lower'
+            txt_col = '#1e6b34' if st['delta'] > 0 else '#a61c1c'
+            y_txt = st['d_hi'] + 0.014 if st['delta'] > 0 else st['d_lo'] - 0.014
+            va_txt = 'bottom' if st['delta'] > 0 else 'top'
+            ax_b.text(xs[i], y_txt, f'{st["delta"]:+.3f}\n({frac_txt})',
+                      ha='center', va=va_txt, fontsize=8.2, fontweight='bold', color=txt_col, zorder=7)
+
+    ax_b.set_xticks(xs)
+    ax_b.set_xticklabels([st['ld'] for st in stats_a], fontsize=8.6, rotation=14, ha='right')
+    ax_b.set_ylabel('Paired Δρ = ρ(doubles-trained) − ρ(singles-only)', fontsize=10.0)
+    ax_b.set_title('Per-domain shift on single mutants (33 domains)', fontsize=10.4, fontweight='bold', loc='left', pad=8)
+    ax_b.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+    ax_b.spines['top'].set_visible(False)
+    ax_b.spines['right'].set_visible(False)
+    ymin_b = min(min(v.min() for v in dom_deltas.values()), -0.14)
+    ymax_b = max(max(v.max() for v in dom_deltas.values()), 0.09)
+    ax_b.set_ylim(ymin_b - 0.035, ymax_b + 0.035)
+
+    fig.subplots_adjust(left=0.068, right=0.985, top=0.905, bottom=0.255, wspace=0.22)
+    fig.canvas.draw()
+    pb = ax_b.get_position()
+    fig.text(0.010, 0.975, 'a', ha='left', va='top', fontsize=14, fontweight='bold')
+    fig.text(pb.x0 - 0.056, 0.975, 'b', ha='left', va='top', fontsize=14, fontweight='bold')
+
+    note_f = (
+        f'Homology-Restricted MegaScale test set, single mutants only (n = {n_singles:,} across 33 domains; 3 seeds averaged per model).  '
+        f'a. Mean per-domain Spearman ρ comparing each family\'s singles-only model (hatched) against its doubles-trained version (solid; Dual-view for ESM-MSR); '
+        f'whiskers show 95% joint domain × seed bootstrap CIs (B = {b_dom:,}); brackets show Holm-adjusted two-sided paired p-values.  '
+        f'b. Per-domain paired difference Δρ = ρ(doubles-trained) − ρ(singles-only) (dots: individual domains; diamonds & whiskers: mean & 95% CI). '
+        f'ESM-MSR Dual-view is the only doubles-trained model that significantly improves single-mutant ranking (+0.014, 30/33 domains higher), whereas MutateEverything Stage 2 (−0.015) and SPURS-multi (−0.043) degrade relative to their singles-only versions (ThermoMPNN-D reuses the ThermoMPNN network on singles).'
+    )
+    kw = dict(fontsize=7.8, color='#333333', linespacing=1.25)
+    fig.text(0.014, 0.012, style.wrap_to_px(fig, note_f, 0.972 * fig.bbox.width, **kw), ha='left', va='bottom', **kw)
+
+    out_path = out_supp / 'supp_figure3'
+    style.save(fig, out_path)
+    return out_path
+
+
 def run_overall_vs_transfer(B: int) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """11j: ESM-MSR vs transfer baselines on Tsuboyama capped test (domain mean & pooled with joint seed resampling)."""
-    out = out_dir('03_tsuboyama', split='capped')
+    """11j: ESM-MSR vs transfer baselines on MegaScale capped test (domain mean & pooled with joint seed resampling)."""
+    out = results_dir('megascale', split='capped')
     fr, _ = load_tsu_test_frame('capped')
     sp = fr.spine
     use, g, y = sp['use'].to_numpy(), sp['group'].to_numpy(), sp['y'].to_numpy()
@@ -707,7 +887,7 @@ def run_overall_vs_transfer(B: int) -> tuple[pd.DataFrame, pd.DataFrame]:
 # ----------------------------------------------------------------------------------------------
 def run_mega_splits(B: int) -> None:
     """Consolidate tsuboyama/mega_splits/01_rho_overview.py and 03_version_comparison.py."""
-    out = out_dir('03_tsuboyama', split='mega')
+    out = results_dir('megascale', split='mega')
     ds_map = {'val': TSU_MEGA[0], 'test': TSU_MEGA[1]}
     fr = {s: load_frame(ds_map[s]) for s in ('val', 'test')}
     keys = [k for k in MEGA_KEYS if k in fr['test'].preds]
@@ -739,7 +919,7 @@ def run_mega_splits(B: int) -> None:
     P, reps = _score(fr, kind='protein')
     Mu, _ = _score(fr, kind='mutation')
     P['kind'], Mu['kind'] = 'library', 'mutation'
-    atomic_to_csv(pd.concat([P, Mu], ignore_index=True), out / 'tsuboyama_mega_overall.csv', index=False, float_format='%.4f')
+    atomic_to_csv(pd.concat([P, Mu], ignore_index=True), out / 'megascale_mega_overall.csv', index=False, float_format='%.4f')
 
     p_lk = {(r.dataset, r.model): r for r in P.itertuples()}
     m_lk = {(r.dataset, r.model): r for r in Mu.itertuples()}
@@ -767,7 +947,7 @@ def run_mega_splits(B: int) -> None:
             t.set_fontweight('bold')
     fig_ov.suptitle(f'Every model trained on mega_splits (three seeds each, B = {B:,}). Thick bar: resampling libraries; thin line: resampling mutations', fontsize=8.5, y=1.01)
     fig_ov.tight_layout()
-    style.save(fig_ov, out / 'tsuboyama_mega_overview')
+    style.save(fig_ov, out / 'megascale_mega_overview')
 
     # Per-library scatter on mega_splits test
     sp_t = fr['test'].spine
@@ -798,7 +978,7 @@ def run_mega_splits(B: int) -> None:
         ax.axis('off')
     fig_ml.suptitle('mega_splits test: each dot is one library', fontsize=9, y=1.0)
     fig_ml.tight_layout()
-    style.save(fig_ml, out / 'tsuboyama_mega_per_library')
+    style.save(fig_ml, out / 'megascale_mega_per_library')
 
     # Singles vs doubles on mega_splits
     sd_rows = []
@@ -811,7 +991,7 @@ def run_mega_splits(B: int) -> None:
                 lo, hi = ci(rp_sd[s][k])
                 sd_rows.append(dict(dataset=s, subset=nm, model=k, rho=r_v, lo=lo, hi=hi, n=n, n_libraries=ng))
     SD = pd.DataFrame(sd_rows)
-    atomic_to_csv(SD, out / 'tsuboyama_mega_singles_doubles.csv', index=False, float_format='%.4f')
+    atomic_to_csv(SD, out / 'megascale_mega_singles_doubles.csv', index=False, float_format='%.4f')
     groups = [f'{s}|{x}' for s in ('val', 'test') for x in ('singles', 'doubles')]
     glabel = [f'{s}\n{x}' for s in ('val', 'test') for x in ('singles', 'doubles')]
     fig_msd, ax_msd = plt.subplots(figsize=(8.5, 4))
@@ -829,7 +1009,7 @@ def run_mega_splits(B: int) -> None:
         hs.append(Line2D([], [], ls='none', label=label_map[k], **mk))
     ax_msd.legend(handles=hs, loc='lower left', ncol=4, fontsize=7.5)
     fig_msd.tight_layout()
-    style.save(fig_msd, out / 'tsuboyama_mega_singles_doubles')
+    style.save(fig_msd, out / 'megascale_mega_singles_doubles')
 
     # Density scatters on mega_splits test
     sc_panels = [
@@ -848,7 +1028,7 @@ def run_mega_splits(B: int) -> None:
         ax.set_xlabel('predicted ddG')
     axes_msc[0].set_ylabel('measured ddG (kcal/mol)')
     fig_msc.tight_layout()
-    style.save(fig_msc, out / 'tsuboyama_mega_scatter')
+    style.save(fig_msc, out / 'megascale_mega_scatter')
 
     # Capped vs mega_splits test comparison
     cap_raw = load_frame(TSU_CAPPED[1])
@@ -862,7 +1042,7 @@ def run_mega_splits(B: int) -> None:
     C_df, _ = _score({'capped': cap_fr}, use_keys=MEGA_BASE)
     M_df, _ = _score({'mega': fr['test']}, use_keys=MEGA_BASE)
     CM = pd.concat([C_df, M_df], ignore_index=True)
-    atomic_to_csv(CM, out / 'tsuboyama_capped_vs_mega.csv', index=False, float_format='%.4f')
+    atomic_to_csv(CM, out / 'megascale_capped_vs_mega.csv', index=False, float_format='%.4f')
 
     c_lk = {r.model: r for r in C_df.itertuples()}
     m2_lk = {r.model: r for r in M_df.itertuples()}
@@ -887,7 +1067,7 @@ def run_mega_splits(B: int) -> None:
         loc='left', fontsize=8.5, fontweight='normal',
     )
     fig_cm.tight_layout()
-    style.save(fig_cm, out / 'tsuboyama_capped_vs_mega')
+    style.save(fig_cm, out / 'megascale_capped_vs_mega')
 
     # Medians & summary markdown table
     sets_med = {'all': ok_t, 'singles_wt': ok_t & (sp_t['n_mut'] == 1).to_numpy() & sp_t['wt_backbone'].to_numpy().astype(bool)}
@@ -908,7 +1088,7 @@ def run_mega_splits(B: int) -> None:
             row_m[f'median_{nm}_max'] = float(np.max(per_seed))
         med_rows.append(row_m)
     MED = pd.DataFrame(med_rows).set_index('model')
-    atomic_to_csv(MED, out / 'tsuboyama_mega_test_medians.csv', float_format='%.4f')
+    atomic_to_csv(MED, out / 'megascale_mega_test_medians.csv', float_format='%.4f')
 
     sd_lk = {(r.dataset, r.subset, r.model): r for r in SD.itertuples()}
     cm_lk = {(r.dataset, r.model): r for r in CM.itertuples()}
@@ -1059,8 +1239,14 @@ def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION, with_split=True)
     ap.add_argument('--compare-splits', action='store_true', default=True, help='Also generate mega_splits overview & capped-vs-mega comparison (default: True)')
     ap.add_argument('--no-compare-splits', dest='compare_splits', action='store_false', help='Skip mega_splits comparison when running --split capped')
+    ap.add_argument('--only', choices=('all', 'supp_figure3'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
+
+    if args.only == 'supp_figure3':
+        out = build_supp_figure3(B=B)
+        print(f'[p02:tsuboyama] Saved {out}.{{png,pdf}}')
+        return 0
 
     if args.split == 'capped':
         run_capped_core(B=B)

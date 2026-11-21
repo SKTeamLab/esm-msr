@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1020 1246" width="1020" height="1246">
-  <title>ESM-MSR Architecture (Vertical Unified Schematic, Subplot a)</title>
+  <title>ESM-MSR Architecture (Vertical Unified Schematic)</title>
   <defs>
   <marker id="arr" markerWidth="9.5" markerHeight="8.5" refX="8.0" refY="4.25" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.6 L8.6,4.25 L0,7.9 L1.7,4.25 Z" fill="#44403C"/></marker>
   <marker id="arr-dark" markerWidth="9.5" markerHeight="8.5" refX="8.0" refY="4.25" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.6 L8.6,4.25 L0,7.9 L1.7,4.25 Z" fill="#1C1917"/></marker>
@@ -34,7 +34,6 @@
   <text x="510.0" y="419.0" font-family="'Liberation Sans', 'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="15.0" fill="#FAFAF9" text-anchor="middle" font-weight="700">3. SITE LOG-ODDS EXTRACTION &amp; PER-MUTATION CALIBRATION</text>
   <path d="M 60.0,754.0 L 60.0,730.0 Q 60.0,720.0 70.0,720.0 L 950.0,720.0 Q 960.0,720.0 960.0,730.0 L 960.0,754.0 Z" fill="#292524"/>
   <text x="510.0" y="743.0" font-family="'Liberation Sans', 'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="15.0" fill="#FAFAF9" text-anchor="middle" font-weight="700">4. UNIFIED OUTPUTS (INFERENCE) &amp; SUPERVISION (TRAINING)</text>
-  <text x="28.0" y="38.0" font-family="'Liberation Sans', 'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="24.0" font-weight="700" fill="#000000" text-anchor="middle">a</text>
   <rect x="138.0" y="60.0" width="172.0" height="24.0" rx="12.0" fill="#DCFCE7" stroke="#15803D" stroke-width="1.30"/>
   <text x="224.0" y="76.5" font-family="'Liberation Sans', 'DejaVu Sans', Helvetica, Arial, sans-serif" font-size="12.2" fill="#14532D" text-anchor="middle" font-weight="700">1 pass / protein</text>
   <rect x="710.0" y="60.0" width="172.0" height="24.0" rx="12.0" fill="#FEF3C7" stroke="#B45309" stroke-width="1.30"/>

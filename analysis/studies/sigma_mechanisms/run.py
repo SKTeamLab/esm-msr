@@ -25,7 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     B = 100 if args.fast else int(args.B)
 
-    out = results_dir('studies/sigma_mechanisms')
+    out = results_dir('sigma_mechanisms')
     payload = compute_sigma_mechanisms_cache(refresh=args.refresh)
     site_df, aa_df, tail_df, pareto_df = summarize_mechanisms(payload, B=B)
 

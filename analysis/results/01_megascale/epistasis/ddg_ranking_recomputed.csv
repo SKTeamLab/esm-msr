@@ -1,0 +1,41 @@
+split,metric,model,rho,lo,hi,seed_sd,n,n_proteins
+val,all variants,msrp0:wt,0.8354,0.8053,0.8630,0.0025,34957,23
+val,all variants,msrp0:comb,0.8534,0.8252,0.8793,0.0014,34957,23
+val,all variants,me1,0.7535,0.7163,0.7917,0.0034,34957,23
+val,all variants,me2,0.7298,0.6876,0.7742,0.0025,34957,23
+val,all variants,tmpnn,0.7872,0.7585,0.8162,0.0016,34957,23
+val,all variants,tmpnnd,0.7850,0.7523,0.8151,0.0024,34957,23
+val,all variants,spurs,0.8012,0.7668,0.8332,0.0032,34957,23
+val,all variants,spursm,0.7652,0.7313,0.7949,0.0064,34957,23
+val,doubles,msrp0:wt,0.6846,0.5855,0.7673,0.0113,8547,9
+val,doubles,msrp0:comb,0.7255,0.5943,0.8232,0.0012,8547,9
+val,doubles,me1,0.5709,0.4123,0.7102,0.0155,8547,9
+val,doubles,me2,0.6290,0.4820,0.7506,0.0084,8547,9
+val,doubles,tmpnn,0.6304,0.4906,0.7511,0.0111,8547,9
+val,doubles,tmpnnd,0.6882,0.5776,0.7891,0.0100,8547,9
+val,doubles,spurs,0.6902,0.5955,0.7759,0.0108,8547,9
+val,doubles,spursm,0.6917,0.5655,0.8157,0.0121,8547,9
+val,dddG of doubles,msrp0:comb,0.4762,0.3644,0.5890,0.0269,8494,9
+val,dddG of doubles,me2,0.3413,0.1459,0.5111,0.0502,8494,9
+val,dddG of doubles,tmpnnd,0.2252,0.0837,0.3705,0.0251,8494,9
+val,dddG of doubles,spursm,0.4212,0.2643,0.5793,0.0198,8494,9
+test,all variants,msrp0:wt,0.8271,0.7856,0.8584,0.0033,48740,33
+test,all variants,msrp0:comb,0.8451,0.8050,0.8732,0.0005,48740,33
+test,all variants,me1,0.7709,0.7402,0.7973,0.0023,48740,33
+test,all variants,me2,0.7604,0.7276,0.7881,0.0034,48740,33
+test,all variants,tmpnn,0.7942,0.7678,0.8165,0.0020,48740,33
+test,all variants,tmpnnd,0.7840,0.7504,0.8116,0.0003,48740,33
+test,all variants,spurs,0.7999,0.7623,0.8281,0.0049,48740,33
+test,all variants,spursm,0.7751,0.7476,0.7982,0.0107,48740,33
+test,doubles,msrp0:wt,0.7234,0.6409,0.7799,0.0036,13319,13
+test,doubles,msrp0:comb,0.7772,0.7006,0.8292,0.0050,13319,13
+test,doubles,me1,0.6171,0.5491,0.6831,0.0185,13319,13
+test,doubles,me2,0.6521,0.5698,0.7317,0.0133,13319,13
+test,doubles,tmpnn,0.6726,0.6103,0.7287,0.0090,13319,13
+test,doubles,tmpnnd,0.6678,0.6030,0.7345,0.0114,13319,13
+test,doubles,spurs,0.6937,0.6148,0.7591,0.0088,13319,13
+test,doubles,spursm,0.7031,0.6306,0.7675,0.0098,13319,13
+test,dddG of doubles,msrp0:comb,0.5662,0.4789,0.6461,0.0213,13225,13
+test,dddG of doubles,me2,0.3707,0.2579,0.4766,0.0133,13225,13
+test,dddG of doubles,tmpnnd,0.2049,0.0877,0.3066,0.0339,13225,13
+test,dddG of doubles,spursm,0.4210,0.2992,0.5323,0.0277,13225,13

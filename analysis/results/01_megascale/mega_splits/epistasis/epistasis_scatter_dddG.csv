@@ -1,0 +1,8 @@
+dataset,key,n_doubles,spearman_rho,pearson_r
+tsuboyama_mega_test,msrp0:epi,16923,0.5168,0.4913
+tsuboyama_mega_test,me2:epi,16923,0.5135,0.5296
+tsuboyama_mega_test,tmpnnd:epi,16923,0.3807,0.3755
+tsuboyama_mega_test,spursm:epi,16923,0.4204,0.4549
+tsuboyama_mega_test,spursum:epi,16923,0.4351,0.4642
+tsuboyama_mega_test,spurspubm:epi,16923,0.3845,0.4007
+tsuboyama_mega_test,tmpnndpub:epi,16923,0.3560,0.3573

@@ -12,6 +12,10 @@ Replaces the Oct-27 single-seed baseline exploration (`proteingym/sigma_tradeoff
 4. **Multi-Property Pareto Trajectories (`pareto_multi_property.csv`, Panel d)**:
    - Across 13 held-out proteins with paired abundance/expression and activity/binding assays (`KRAS`, `PTEN`, `KCNE1`, `Kir2.1`, `CYP2C9`, `GCK`, `OCT1`, `VKOR1`, `DAAO`, `HLA-A*02`, `Spike RBD`, `PSD95-PDZ3`, `GRB2-SH3`), intermediate scaling **`σ = 0.5` captures >80% of the `σ = 1.0` abundance gain with near-zero functional trade-off**.
 
+## Outputs (`analysis/results/99_misc/sigma_mechanisms/`)
+- `sigma_mechanisms_composite.{png,pdf}` & `aa_category_heatmaps.{png,pdf}`
+- `site_vs_sub_decomposition.csv`, `aa_rank_shifts.csv`, `tail_selection_vs_filtering.csv`, `pareto_multi_property.csv`
+
 ## Usage
 ```bash
 PYTHONPATH=src:analysis python -m studies.sigma_mechanisms.run --B 1000

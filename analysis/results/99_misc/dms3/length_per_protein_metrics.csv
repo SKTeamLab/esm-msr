@@ -1,0 +1,13 @@
+dataset,cluster,length,n,rho,rmse_raw,rmse,model
+DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN,84.0000,8251,0.7342,,,msr
+GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN,56.0000,33441,0.6314,,,msr
+MYO_HUMAN_Kung_2025_display,MYO_HUMAN,154.0000,5905,0.6381,,,msr
+DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN,84.0000,8251,0.6353,,,me2
+GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN,56.0000,33441,0.5980,,,me2
+MYO_HUMAN_Kung_2025_display,MYO_HUMAN,154.0000,5905,0.5601,,,me2
+DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN,84.0000,8251,0.5818,,,tmpnnd
+GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN,56.0000,33441,0.5493,,,tmpnnd
+MYO_HUMAN_Kung_2025_display,MYO_HUMAN,154.0000,5905,0.5348,,,tmpnnd
+DLG4_HUMAN_Faure_2021_binding_domain,DLG4_HUMAN,84.0000,8251,0.6173,,,spursm
+GRB2_HUMAN_Faure_2021_binding_domain,GRB2_HUMAN,56.0000,33441,0.5438,,,spursm
+MYO_HUMAN_Kung_2025_display,MYO_HUMAN,154.0000,5905,0.5321,,,spursm

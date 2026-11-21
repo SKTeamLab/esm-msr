@@ -2,10 +2,10 @@
 """Pipeline p05: Main-text Figure 3 composite, thermostability & ProteinGym summaries, and ESM-MSR vs ESM3dG.
 
 Consolidates:
-  - 01_summary.py                  -> results/01_summary/{pg_categories, pg_categories_per_scaffold, thermostability_sets, thermostability_sets.csv}
+  - 01_summary.py                  -> results/06_summary/{pg_categories, pg_categories_per_scaffold, thermostability_sets, thermostability_sets.csv}
                                       and results/00_main_text_figs/figure3.{png,pdf}
-  - 01b_thermostability_pvalues.py -> results/01_summary/{thermostability_sets_pvalues.{csv,md}, thermostability_sets_best.csv, thermostability_sets_msr_heads.csv}
-  - 22_esm_msr_vs_esm3dg.py        -> results/22_esm_msr_vs_esm3dg/esm_msr_vs_esm3dg.{csv,md,png,pdf}
+  - 01b_thermostability_pvalues.py -> results/06_summary/{thermostability_sets_pvalues.{csv,md}, thermostability_sets_best.csv, thermostability_sets_msr_heads.csv}
+  - 22_esm_msr_vs_esm3dg.py        -> results/99_misc/esm_msr_vs_esm3dg/esm_msr_vs_esm3dg.{csv,md,png,pdf}
 
 Key methodological fixes vs legacy scripts:
   - Calls msr_analysis.proteingym.{load_sigma_pgym, sigma_delta_pvalues, draw_property_sigma_panel} directly (zero importlib).
@@ -29,7 +29,7 @@ from msr_analysis.common import out_dir
 from msr_analysis.data import Frame, load_frame
 from msr_analysis.external import EXT_ORDER, fresh_frames, model_key_for_dataset, seed_frame
 from msr_analysis.heldout import flags as heldout_flags
-from msr_analysis.paths import REFERENCE, RESULTS, atomic_to_csv, atomic_write_text
+from msr_analysis.paths import REFERENCE, atomic_to_csv, atomic_write_text, results_dir
 from msr_analysis.proteingym import (
     PG_CATEGORIES,
     boot_pgym_categories,
@@ -63,7 +63,8 @@ THERMO_NOTE = (
     'Hollow markers: singles models (ESM-MSR WT-view, MutateEverything Stage 1, ThermoMPNN, SPURS single); '
     'filled: models trained with doubles (ESM-MSR Dual-view, MutateEverything Stage 2, SPURS-multi) and the models with one version. '
     'SPURS is the retrain with the trained adapter. Sets ordered by the performance of ESM-MSR (mean of seeds 1-3), highest first. '
-    'Red ring = documented training overlap (GeoDDG-3D, ESM3ΔG; leak audit).'
+    'Red ring = documented training overlap (GeoDDG-3D, ESM3ΔG; leak audit; '
+    'labels show most severe overlap tier & share: M = exact mutations, m = constituent singles, P = same protein, H = close homolog, train src = training data source).'
 )
 
 
@@ -71,7 +72,7 @@ THERMO_NOTE = (
 # 1. Summary figures & Figure 3 (01_summary.py)
 # ----------------------------------------------------------------------------------------------
 def _inferred_models(pooled: bool = False) -> dict:
-    f = RESULTS / '18_mgnify' / ('mgnify_models_pooled.csv' if pooled else 'mgnify_models_per_scaffold.csv')
+    f = results_dir('mgnify', create=False) / ('mgnify_models_pooled.csv' if pooled else 'mgnify_models_per_scaffold.csv')
     if not f.exists():
         return {}
     out: dict = {}
@@ -86,7 +87,7 @@ def _inferred_models(pooled: bool = False) -> dict:
 
 
 def _read_pg_summary_df(B: int) -> tuple[pd.DataFrame, int, int, str]:
-    pg_dir = RESULTS / '05_proteingym'
+    pg_dir = results_dir('proteingym', create=False)
     sum_p = pg_dir / 'pg_summary.csv' if (pg_dir / 'pg_summary.csv').exists() else pg_dir / 'pg_summary_tsu.csv'
     sig_p = pg_dir / 'pg_sigma_summary.csv' if (pg_dir / 'pg_sigma_summary.csv').exists() else pg_dir / 'pg_sigma_summary_tsu.csv'
     if sum_p.exists() and sig_p.exists():
@@ -198,6 +199,35 @@ def _pg_prepare(B: int, pooled: bool = True, sigma_cache: tuple[pd.DataFrame, pd
     )
 
 
+def _overlap_short_labels() -> dict[tuple[str, str], str]:
+    """Return ``(dataset, model_display) -> '<tier> <pct>'`` for the most severe overlap tier in leak_audit_matrix.csv."""
+    df = pd.read_csv(REFERENCE / 'leak_audit_matrix.csv')
+    model_map = {'GeoDDG-3D': 'GeoDDG-3D', 'ESM3dG': 'ESM3ΔG'}
+    sup_to_col = {
+        '#': ('M', 'exact'),
+        'ᴹ': ('M', 'exact'),
+        'ᵐ': ('m', 'constituent'),
+        'ᴾ': ('P', 'P'),
+        'ᴴ': ('H', 'H'),
+        'ʰ': ('h', 'h'),
+    }
+    out: dict[tuple[str, str], str] = {}
+    for raw_m, disp_m in model_map.items():
+        for r in df[df['model'] == raw_m].itertuples():
+            sup = str(getattr(r, 'sup', '') or '').strip()
+            n_val = float(r.n) if np.isfinite(r.n) and r.n > 0 else np.nan
+            if sup not in sup_to_col or not np.isfinite(n_val):
+                continue
+            code, col = sup_to_col[sup]
+            pct = 100.0 * float(getattr(r, col)) / n_val
+            pct_str = f'{pct:.0f}%' if pct >= 0.95 else f'{pct:.1f}%'
+            out[(str(r.dataset), disp_m)] = f'{code} {pct_str}'
+    # Map panel b group names for ESM3ΔG (x0 = MGnify Pooled, x1 = Rocklin Pooled)
+    out[('x0', 'ESM3ΔG')] = 'train src'
+    out[('x1', 'ESM3ΔG')] = 'train src'
+    return out
+
+
 def _draw_pg_left(ax, pg: dict, ylim=(0.04, 1.0)) -> None:
     groups = pg['groups']
     style_ov = {k: {'label': v} for k, v in pg['label_overrides'].items()}
@@ -210,8 +240,23 @@ def _draw_pg_left(ax, pg: dict, ylim=(0.04, 1.0)) -> None:
     if len(groups) > len(pg['cols']):
         ax.axvline(len(pg['cols']) - 0.5, color='#999999', lw=0.95, ls='--', zorder=2)
     offs_all = np.linspace(-0.42, 0.42, len(MODEL_ORDER))
+    ov_labels = _overlap_short_labels()
     for (g, m) in sorted(pg.get('rings', ()), key=lambda k: MODEL_ORDER.index(k[1])):
-        ax.plot(groups.index(g) + offs_all[MODEL_ORDER.index(m)], pg['table'][(g, m)], marker='o', ms=11.5, mfc='none', mec=style.RING, mew=1.1, ls='none', zorder=6)
+        x_pt = groups.index(g) + offs_all[MODEL_ORDER.index(m)]
+        y_pt = pg['table'][(g, m)]
+        ax.plot(x_pt, y_pt, marker='o', ms=11.5, mfc='none', mec=style.RING, mew=1.1, ls='none', zorder=6)
+        lbl = ov_labels.get((g, m))
+        if lbl:
+            lo_ci, hi_ci = pg['cis'].get((g, m), (y_pt, y_pt))
+            if g == 'x0':
+                y_txt, va_txt = (hi_ci if np.isfinite(hi_ci) else y_pt) + 0.030, 'bottom'
+            else:
+                y_txt, va_txt = (lo_ci if np.isfinite(lo_ci) else y_pt) - 0.030, 'top'
+            ax.text(
+                x_pt, y_txt, lbl, ha='center', va=va_txt,
+                fontsize=6.6, fontweight='semibold', color=style.RING, zorder=8,
+                bbox=dict(fc='white', ec='none', alpha=0.72, pad=0.4),
+            )
     hs = [
         Line2D([0], [0], label=pg['label_overrides'].get(m, MODELS[m]['label']), **style.marker_kwargs(m, size=6.8))
         for m in MODEL_ORDER
@@ -226,11 +271,11 @@ def _draw_pg_left(ax, pg: dict, ylim=(0.04, 1.0)) -> None:
 
 
 def _thermo_data() -> dict:
-    S = pd.read_csv(RESULTS / '02_thermostability' / 'thermostability_rho.csv')
+    S = pd.read_csv(results_dir('thermostability', create=False) / 'thermostability_rho.csv')
     S = S[~S['dataset'].isin(EXCLUDE_THERMO)].copy()
     sets_all = sorted(S['dataset'].unique())
     seed1 = S[S['model'] == 'ESM-MSR'].set_index('dataset')['rho']
-    f_ab = RESULTS / '98_ablation' / 'cells_long.csv'
+    f_ab = results_dir('ablation', create=False) / 'cells_long.csv'
     mean_ab = {}
     if f_ab.exists():
         c = pd.read_csv(f_ab)
@@ -265,11 +310,27 @@ def _draw_thermo(ax, th: dict, ylim=None) -> list:
         rot=0, ylim=ylim or (th['ymin'], 0.98), spread=spread, size=6.0,
     )
     offs = np.linspace(-spread / 2, spread / 2, len(models))
+    ov_labels = _overlap_short_labels()
     for i, d in enumerate(sets):
         for j, m in enumerate(models):
             r = S[(S['dataset'] == d) & (S['model'] == m)]
             if len(r) and r.iloc[0]['leak_flag']:
-                ax.plot(i + offs[j], r.iloc[0]['rho'], marker='o', ms=10.5, mfc='none', mec=style.RING, mew=1.1, ls='none', zorder=6)
+                x_pt = i + offs[j]
+                y_pt = float(r.iloc[0]['rho'])
+                ax.plot(x_pt, y_pt, marker='o', ms=10.5, mfc='none', mec=style.RING, mew=1.1, ls='none', zorder=6)
+                lbl = ov_labels.get((d, m))
+                if lbl:
+                    lo_ci, hi_ci = float(r.iloc[0]['lo']), float(r.iloc[0]['hi'])
+                    # Place GeoDDG-3D labels above (except S461 where it sits near neighbours -> below), ESM3ΔG labels below
+                    place_above = (m == 'GeoDDG-3D' and d != 's461')
+                    pad_y = 0.036 if (m == 'ESM3ΔG' and d == 's2648') else 0.026
+                    y_txt = (hi_ci + pad_y) if place_above else (lo_ci - pad_y)
+                    va_txt = 'bottom' if place_above else 'top'
+                    ax.text(
+                        x_pt, y_txt, lbl, ha='center', va=va_txt,
+                        fontsize=6.6, fontweight='semibold', color=style.RING, zorder=8,
+                        bbox=dict(fc='white', ec='none', alpha=0.72, pad=0.4),
+                    )
     hs = [Line2D([0], [0], label=label_ov.get(m, MODELS[m]['label']), **style.marker_kwargs(m, size=6.8)) for m in models]
     flagged = [m for m in models if S[S['model'] == m]['leak_flag'].any()]
     hs.append(Line2D([0], [0], marker='o', ms=8.5, mfc='none', mec=style.RING, mew=1.1, ls='none', label=f'training overlap ({", ".join(flagged)})'))
@@ -277,8 +338,8 @@ def _draw_thermo(ax, th: dict, ylim=None) -> list:
 
 
 def run_summary_and_figure3(B: int) -> pd.DataFrame:
-    out_sum = out_dir('01_summary')
-    out_main = out_dir('00_main_text_figs')
+    out_sum = out_dir('summary')
+    out_main = out_dir('main_text_figs')
 
     t_held, per_seed_held = load_sigma_pgym(heldout=True, drop_large=True, include_fallback_small=False)
     b_sig = max(B, 10000) if B > 100 else B
@@ -370,7 +431,7 @@ def _head_worker(job):
 
 
 def run_thermostability_pvalues(D_th: pd.DataFrame, B: int, workers: int = 4) -> None:
-    out = out_dir('01_summary')
+    out = out_dir('summary')
     sets = list(D_th.sort_values('order').drop_duplicates('dataset')['dataset'])
     leak = {(r.dataset, r.model): bool(r.leak_flag) for r in D_th.itertuples()}
 
@@ -471,7 +532,7 @@ def run_thermostability_pvalues(D_th: pd.DataFrame, B: int, workers: int = 4) ->
     atomic_write_text(out / 'thermostability_sets_pvalues.md', '\n'.join(lines) + '\n')
 
     # PTMUL / PTMUL-D Dual-view vs WT head paired test
-    S_all = pd.read_csv(RESULTS / '02_thermostability' / 'thermostability_rho.csv')
+    S_all = pd.read_csv(results_dir('thermostability', create=False) / 'thermostability_rho.csv')
     _HEAD_FR.clear()
     for ds in ('ptmul', 'ptmuld'):
         fr = fresh_frames(S_all[S_all['dataset'] == ds])[ds]
@@ -510,7 +571,7 @@ def run_thermostability_pvalues(D_th: pd.DataFrame, B: int, workers: int = 4) ->
 # 3. ESM-MSR vs ESM3ΔG cross-benchmark table & figure (22_esm_msr_vs_esm3dg.py, bug-fixed)
 # ----------------------------------------------------------------------------------------------
 def run_esm_msr_vs_esm3dg(B: int) -> pd.DataFrame:
-    out = out_dir('22_esm_msr_vs_esm3dg')
+    out = out_dir('esm_msr_vs_esm3dg')
     thermo_sets = ['ssym', 's461', 'k2369', 's783', 's2648', 'q3421', 's8754', 's571', 'ptmul', 'ptmuld']
     leak_df = pd.read_csv(REFERENCE / 'leak_audit_matrix.csv')
     leak = dict(zip(leak_df.loc[leak_df['model'] == 'ESM3dG', 'dataset'], leak_df.loc[leak_df['model'] == 'ESM3dG', 'code'].fillna('')))
@@ -571,9 +632,9 @@ def run_esm_msr_vs_esm3dg(B: int) -> pd.DataFrame:
             leak=leak.get({'PG avg': 'PG avg', 'Stability': 'PG Stability'}.get(c, ''), ''),
         ))
 
-    # MGnify & Rocklin rows from 18b tables
+    # MGnify & Rocklin rows from 05_mgnify tables
     for fname, metric in (('mgnify_models_pooled.csv', 'pooled rho'), ('mgnify_models_per_scaffold.csv', 'mean per-scaffold rho')):
-        fp = RESULTS / '18_mgnify' / fname
+        fp = results_dir('mgnify', create=False) / fname
         if not fp.exists():
             continue
         d_mg = pd.read_csv(fp)
@@ -670,10 +731,13 @@ def run_esm_msr_vs_esm3dg(B: int) -> pd.DataFrame:
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION)
     ap.add_argument('--workers', type=int, default=4, help='Worker processes for paired bootstrap p-values')
+    ap.add_argument('--only', choices=('all', 'figure3'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
 
     D_th = run_summary_and_figure3(B=B)
+    if args.only == 'figure3':
+        return 0
     run_thermostability_pvalues(D_th, B=B, workers=args.workers)
     run_esm_msr_vs_esm3dg(B=B)
     return 0

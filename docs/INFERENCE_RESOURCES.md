@@ -39,7 +39,7 @@ One tracked run per model type, each scoring every benchmark set: Tsuboyama vali
   0.10 h for the whole benchmark. Its peak GPU memory is again the batch fill, not the requirement.
 - **Rows differ between models.** Each model scores the rows its own scripts produce: ThermoMPNN counts extra DMS passes;
   MutateEverything stage 1 scores singles only and has no K2369 or PTMUL-D. Compare speed per dataset with
-  `rows_per_s` in `analysis/results/inference_resources/per_group.csv`, not the row totals.
+  `rows_per_s` in `analysis/results/10_inference_resources/per_group.csv`, not the row totals.
 - **Peak GPU memory is not each model's requirement** for ESM-MSR, ThermoMPNN and ProteinMPNN. Their batch sizes were
   calibrated to fill the card to 90 %, so the peak reflects the batching policy. The MutateEverything and SPURS peaks are
   close to what those models need.
@@ -52,7 +52,7 @@ One tracked run per model type, each scoring every benchmark set: Tsuboyama vali
     away", a MutateEverything input limit on every card), so it is not counted.
 - **Replicates agree.** Seeds and checkpoints of one architecture differ by about 1 % in inference time (ESM-MSR ×6,
   SPURS ×4, MutateEverything stage 2 ×2 on this card). That is why one run per type is listed. Every run is in
-  `analysis/results/inference_resources/per_run.csv`.
+  `analysis/results/10_inference_resources/per_run.csv`.
 - **Excluded.** Runs on other hardware are not in this table. That covers MutateEverything stage 1 seed 1 and stage-2 seed 3 on an
   RTX 6000 (24 GB), and the RTX 5090 runs in `inference_scripts/baselines/README.md`. A one-of-each RTX 5090 set with a
   32 GB batch table is queued locally.
@@ -63,7 +63,7 @@ One tracked run per model type, each scoring every benchmark set: Tsuboyama vali
 # mirror every tracked run from the cluster into <MSR_ROOT>/resources_tracked/<label>/<run>/
 MSR_CLUSTER=<user>@<gpu4 host> MSR_CLUSTER_HOME=<cluster home> MSR_NOTEBOOK_OUT_DIR=<cluster home>/esm-msr-devel/analysis_notebooks \
   python analysis/scoring/collect_predictions.py run --groups resources
-# summarise every run, and refresh the table above and docs/benchmarks/inference_resources_a4500.csv
+# summarise every run into analysis/results/10_inference_resources/, and refresh the table above and docs/benchmarks/inference_resources_a4500.csv
 python analysis/scoring/resources.py summary --docs
 # (compatibility wrapper `python analysis/scoring/resource_summary.py --docs` also works)
 ```

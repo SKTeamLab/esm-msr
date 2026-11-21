@@ -37,7 +37,7 @@ PYTHONPATH=.:src:analysis python -m analysis.run --only tsuboyama --split mega
 # Include standalone mechanistic studies (faure_epistasis, sigma_mechanisms)
 PYTHONPATH=.:src:analysis python -m analysis.run --studies --B 1000
 
-# Run unit tests (485 passing tests across tests/ and analysis/tests/)
+# Run unit tests across tests/ and analysis/tests/
 pytest
 ```
 
@@ -49,7 +49,7 @@ pytest
 | `--only STAGE [...]` | all `p01`–`p12` | Comma- or space-separated stage codes (`p01`), stage names (`tsuboyama`), or study targets (`study:sigma_mechanisms`). |
 | `--skip STAGE [...]` | none | Comma- or space-separated stages to skip. |
 | `--studies` | `False` | Also execute `studies/faure_epistasis` and `studies/sigma_mechanisms` after the selected pipelines. |
-| `--split {capped,mega}` | `capped` | MegaScale split passed explicitly to split-aware pipelines (`p02`, `p06`, `p07`, `p09`); `--split mega` writes to `results/03_tsuboyama/mega_splits/` without mutating environment variables. |
+| `--split {capped,mega}` | `capped` | MegaScale split passed explicitly to split-aware pipelines (`p02`, `p06`, `p07`, `p09`); `--split mega` writes to `results/01_megascale/mega_splits/` without mutating environment variables. |
 | `--B INT` | `1000` | Number of bootstrap replicates forwarded to every stage. |
 | `--fast` | `False` | Smoke-test preset (`--B 100`). |
 
@@ -61,7 +61,7 @@ Every individual stage or study module also runs directly via `python -m analysi
 
 ```text
 analysis/
-├── README.md                     # Architecture, CLI reference, module guide, and legacy-to-pipeline map
+├── README.md                     # Architecture, CLI reference, module guide, and results hierarchy
 ├── run.py                        # Unified Python CLI orchestrator (`python -m analysis.run`)
 ├── run_all.sh                    # Thin shell wrapper setting PYTHONPATH and invoking `analysis.run "$@"`
 ├── msr_analysis/                 # Core shared Python library (19 modules; zero script cross-imports)
@@ -76,13 +76,58 @@ analysis/
 ├── scoring/                      # Cluster rsync/manifest collector, baseline scorers & GPU slot profiler
 ├── reference/                    # Committed reference tables (`tsuboyama_rule_flags.csv`, `leak_audit_*.csv`,
 │                                 #   `benchmark_tables/T*.csv`, `pg_activity/*.csv`, `dG_wt.json`, ...)
-├── cache/                        # Git-ignored Frame & bootstrap caches (written atomically via temp + os.replace)
-├── results/                      # Generated figures (.png + .pdf), CSVs, Markdown/LaTeX tables & manifests
+├── cache/                        # Git-ignored Frame & bootstrap caches (`frame_*.pkl`, `boot_ext_mutation.pkl`,
+│                                 #   `core_rho_bootstrap.csv`, `pgym_ablation_matrices_v1.pkl`; atomic temp + os.replace)
+├── results/                      # Canonical output hierarchy (see tree below)
 ├── docs/                         # Audit & architecture documentation
 │   ├── ARCHITECTURE_AND_FINDINGS.md
 │   ├── SEED_AUDIT.md
 │   └── HOMOLOGY_FILTER_AUDIT.md
 └── tests/                        # Unit tests for bootstrap, roster, frames, holdout, links, epistasis & screening
+```
+
+### Canonical `analysis/results/` Hierarchy
+
+All generated figures (`.png` + `.pdf`), CSVs, Markdown/LaTeX tables, and manifests follow a strict dataset-first, cross-dataset-second layout. Numbered `figX_` / `fig_` prefixes are stripped everywhere outside `00_main_text_figs/` and `00_supplementary_figs/`, and all 3-DMS functional assay outputs (`DLG4`, `GRB2`, `MYO`) are isolated under `99_misc/dms3/`:
+
+```text
+analysis/results/
+├── 00_for_reviewers/                       # Reviewer-facing ablations & split comparisons
+│   ├── baseline_nobb_ablation.{pdf,png}
+│   ├── split_best_partner_hyperopt.{csv,pdf,png}
+│   └── reference/                          # Published reference & historical table cell verification
+│       ├── published_reference.{pdf,png}
+│       ├── spurs_published_vs_retrained.{csv,pdf,png}
+│       └── validation_vs_benchmarks.csv
+├── 00_main_text_figs/                      # Main-text figures (`figure3`, `fig2_fig3_stacked`, `epistasis_levels_e`, `epistasis_main_composite`)
+├── 00_supplementary_figs/                  # Supplementary composites, `pg_ours_vs_published`, `holdout_filter`, `masking_schemes`, `split_construction/`
+├── 01_megascale/                           # Homology-Restricted MegaScale (`splits_oct06_capped`; `megascale_*` stems)
+│   ├── epistasis/                          #   MegaScale-only epistasis hierarchy & mechanisms (`dG_additive_vs_pred_dddG/`, `dddG_scatters/`, `pair_heatmaps/`)
+│   ├── gain_fit/                           #   Logarithmic virtual-screening gain fits (`g(K) = a - b ln K`)
+│   ├── screening/                          #   MegaScale virtual-screening curves, per-protein CSVs & `property_gain/`
+│   └── mega_splits/                        #   Mirrored `--split mega` hierarchy (`epistasis/`, `epistasis/pair_heatmaps/`, `screening/`, `gain_fit/`, `provenance/`)
+├── 02_thermostability/                     # 12 external ΔΔG thermostability benchmarks (`EXT12`)
+│   ├── rmse/                               #   Single-donor linear scale-and-bias calibration & RMSE/MAE
+│   └── screening/                          #   Pooled external thermostability virtual screening
+├── 03_proteingym/                          # Held-out ProteinGym (173 canonical assays across 5 categories)
+│   └── screening/                          #   ProteinGym Activity & enzyme virtual-screening curves
+├── 04_domainome/                           # Held-out Domainome 1.0 (436 human domains; Domainome only)
+│   └── screening/                          #   Domainome per-protein virtual-screening CSVs & curves
+├── 05_mgnify/                              # Held-out MGnify stability & Rocklin de novo (`new_data_epistasis/`, `rocklin_designs/`)
+├── 06_summary/                             # Cross-dataset thermostability & functional benchmark summaries + paired p-values
+├── 07_screening_overview/                  # Cross-dataset single- & multi-mutant screening overviews
+├── 08_sequence_length/                     # Sequence-length distributions & performance scaling across main benchmarks
+├── 09_ablation/                            # Unified `FINAL_*` architecture/loss ablation tables & `ablation_architecture_suite`
+├── 10_inference_resources/                 # Fixed-slot RTX A4500 wall-clock & peak RAM/VRAM summaries
+├── 99_misc/                                # Auxiliary benchmarks & standalone mechanistic deep-dives
+│   ├── dms3/                               #   All 3-DMS (`DLG4`, `GRB2`, `MYO`) benchmark, epistasis, length & ablation outputs
+│   ├── dual_view/                          #   Dual-view (`comb`) vs WT-view (`wt`) regime analysis across `FINAL_*` families
+│   ├── esm_msr_vs_esm3dg/                  #   Direct ESM-MSR vs `ESM3ΔG` comparison across held-out sets
+│   ├── faure_epistasis/                    #   Faure et al. PCA vs MegaScale combinatorial block geometry & SNR ceilings
+│   ├── rosetta_multi_vs_additive/          #   Rosetta direct Cartesian multi-mutant vs additive single-mutant ΔΔG
+│   └── sigma_mechanisms/                   #   `FINAL_p0` LoRA scale (`σ ∈ {0, 0.5, 1}`) mechanistic decomposition
+├── manifest_outputs.csv
+└── table_figure_map.csv
 ```
 
 ---
@@ -91,16 +136,16 @@ analysis/
 
 | Module | Responsibility & Key Exports |
 | :--- | :--- |
-| `paths.py` | Repo-relative (`REPO_ROOT`, `ANALYSIS_ROOT`, `DATA_DIR`, `CACHE`, `REFERENCE`, `RESULTS`) and external `MSR_ROOT` paths (`MSR`, `FINAL_BENCH`, `FINAL_CTX`, `FINAL_PGYM_*`, `FINAL_MGNIFY*`, `BASE`, `TASKS`, `PGYM_INPUTS`, `TSUBOYAMA_PDB_DIR`, `TSUBOYAMA_FEATS_CSV`, `SALVAGED_HOMOLOGY_CSV`), canonical dataset-to-folder maps, `results_dir(name, split)`, `source_signature()`, and symlink-safe atomic writers (`atomic_pickle_dump`, `atomic_to_csv`, `atomic_write_text`). |
+| `paths.py` | Repo-relative (`REPO_ROOT`, `ANALYSIS_ROOT`, `DATA_DIR`, `CACHE`, `REFERENCE`, `RESULTS`, `CORE_RHO_BOOTSTRAP_CSV`, `VALIDATION_VS_BENCHMARKS_CSV`, `CANONICAL_RESULT_TOPS`) and external `MSR_ROOT` paths (`MSR`, `FINAL_BENCH`, `FINAL_CTX`, `FINAL_PGYM_*`, `FINAL_MGNIFY*`, `BASE`, `TASKS`, `PGYM_INPUTS`, `TSUBOYAMA_PDB_DIR`, `TSUBOYAMA_FEATS_CSV`, `SALVAGED_HOMOLOGY_CSV`), split-aware `results_dir(name, split)` (enforcing canonical result folders and rejecting retired paths), `strip_fig_prefix()`, `source_signature()`, and symlink-safe atomic writers (`atomic_pickle_dump`, `atomic_to_csv`, `atomic_write_text`). |
 | `models.py` | Single immutable visual & key roster: `Model`, `StyleSpec` (frozen mapping with `.with_overrides()`), `ROSTER`, `BY_NAME`, `ORDER`, `UNIFIED`, `ABLATION_STYLES` (all 11 `FINAL_*` families + 2 cross-mask arms), `CATEGORY_COLOR`, `VARIANT_COLOR`, `column()`. |
-| `registry.py` | Dataset cohorts (`EXT12`, `DMS3`, `DMS_AUX`, `TSU_CAPPED`, `TSU_MEGA`, `PER_PROTEIN`, `LABEL`), `tsu_datasets(split)`, `all_datasets(split)`, and read-only `MODELS` (`MappingProxyType`) registering every `.single`, `.multi`, `.add`, `.epi`, and display-name style. |
+| `registry.py` | Dataset cohorts (`EXT12`, `DMS3`, `DMS_AUX`, `TSU_CAPPED`, `TSU_MEGA`, `MAIN_BENCHMARK_DATASETS`, `ALL_DATASETS`, `PER_PROTEIN`, `LABEL`), `tsu_datasets(split)`, `main_benchmark_datasets(split)`, `all_datasets(split)`, canonical result path re-exports, and read-only `MODELS` (`MappingProxyType`) registering every `.single`, `.multi`, `.add`, `.epi`, and display-name style. |
 | `heldout.py` | Canonical four-part sequence + structure holdout filter backed by `reference/tsuboyama_rule_flags.csv`: `flags()`, `excluded(dataset)` (`proteingym=41`, `domainome=86`, `mgnify=27,687`, `rocklin_denovo=258`), and `keep_ids(dataset)`. |
 | `data.py` | `Frame(name, spine, preds, notes)`, `build_spine()`, `load_frame(ds, refresh=False, heldout=True, check_sources=False)`, `sum_singles()`, `singles_of_doubles()`, `synthesize_missing_epi()` (derives `:epi` on the fly from `pred - pred+` across cached pickles), and `add_esm3_masked()`. |
 | `final_runs.py` | Loader for all 11 `FINAL_*` ablation families (`FINAL_p0` reference, `p1`, `p1_marg`, `pw0`, `norank`, `rcthr0`, `norange`, `mse`, `noseqhwm`, `r2a4`, `mega`) plus cross-masking arms (`FINAL_p0@independent`, `FINAL_p1@unmasked`): `load_final_frame()`, `pgym_per_dms()`, `pgym_per_dms_seeds()`. |
 | `mgnify.py` | Loader for the 766,790-variant MGnify stability benchmark and 1,000 Rocklin *de novo* designs (`load_mgnify`), joining v2 `mgnify_mapped.csv` labels, applying 4-part holdout masking (`heldout=True`), and computing both `latent` and post-hoc Tobit-linked (`<head>~`) predictions. |
 | `proteingym.py` | Authoritative ProteinGym loader & scorer over the **173 canonical held-out assays** (`PG_DROP` + `heldout.keep_ids`: `Activity=38, Binding=13, Expression=18, OrganismalFitness=67, Stability=37`): `pgym_reference()`, `load_final_pgym_seeds()`, `load_sigma_pgym()`, `load_all_models_pgym()`, `boot_pgym_categories()` (joint `[category-stratified assay × 3-seed]` bootstrap), `sigma_delta_pvalues()`, and `draw_property_sigma_panel()`. |
 | `external.py` | Unified external benchmark helpers: `model_key_for_dataset()`, `seed_frame()`, `load_mutation_boot()` (`cache/boot_ext_mutation.pkl` with triplicate seed resampling), and `fresh_frames()`. |
-| `common.py` | Dataset/frame utilities: `has_multi()`, `primary_key()`, `out_dir(name, split)`, `load_rho_df()`, `primary_ci()`, `epi_rows()` (8,494 val / 12,455 test doubles with both constituent singles measured), `subframe()`, and `leak_table()`. |
+| `common.py` | Dataset/frame utilities: `has_multi()`, `primary_key()`, `out_dir(name, split)`, `load_rho_df()` (reads `cache/core_rho_bootstrap.csv`), `primary_ci()`, `epi_rows()` (8,494 val / 12,455 test doubles with both constituent singles measured), `subframe()`, and `leak_table()`. |
 | `boot.py` | Exact $O(n)$ count-weighted `SpearmanEngine` and `DatasetBoot` supporting protein-, site-, and mutation-level resampling (`bootstrap_rho`) with exact per-seed-count multinomial draws for arbitrary `n_seeds` ($1, 2, 3, \dots$) and true site-level resampling on `PER_PROTEIN` datasets. |
 | `stats.py` | Unified statistical testing: `holm()`, `boot_pvalue()` ($1/(B+1)$ finite-sample floor), `fmt_p()`, `seed_sd()` (`ddof=1`), `paired_boot_test()`, `make_domain_seed_draws()`, `boot_domain_seeds()`, and `ndcg_at_k(mode='rectified'|'shifted')`. |
 | `epistasis.py` | Adapter over `esm_msr.epi_metrics.Table`: `make_epi_table()`, `compute_epi_metrics()` (6 core + 16 extended metrics), `boot_epistasis_models()` (parallelized domain-cloning + 3-seed bootstrap), and `smooth_on()`. |
@@ -135,38 +180,38 @@ analysis/
 
 ---
 
-## Pipeline Stages, Studies, Audits & Legacy Mapping
+## Pipeline Stages, Studies, Audits & Output Mapping
 
 ### 1. Active Pipelines (`analysis/pipelines/`)
 
-| Stage | Module | Legacy Scripts & Sub-Studies Replaced | Key `analysis/results/` Outputs |
+| Stage | Module | Scope & Benchmarks Covered | Key Outputs (`analysis/results/` & `analysis/cache/`) |
 | :--- | :--- | :--- | :--- |
-| **`p01`** | `p01_benchmarks_external.py` (`benchmarks_external`) | `01_core_rho.py`, `02_thermostability.py`, `04_dms_domainome.py` | `00_core/rho_bootstrap.csv`, `02_thermostability/{thermostability_rho.csv, thermo_external_rho.*, thermo_overview.*, thermo_interval_types.*}`, `04_dms_domainome/{dms_vs_retrains.*, dms_sigma_vs_zero_shot.*, dms_sigma_sweep.*}` |
-| **`p02`** | `p02_tsuboyama.py` (`tsuboyama`, `--split capped\|mega`) | `03_tsuboyama.py`, `11_publication_figures.py` (figs 1–2), `11e` (fig 2), `11i_doubles_vs_singles_pvalues.py`, `11j_overall_vs_transfer.py`, `11k_ndcg96_supplement.py`, `tsuboyama/mega_splits/{01_rho_overview, 03_version_comparison}.py` | `03_tsuboyama/{tsuboyama_overview.*, tsuboyama_per_library.*, tsuboyama_singles_doubles.*, tsuboyama_scatter.*, fig1_*, fig2_*, fig2b_*, doubles_vs_singles_on_singles.*, overall_vs_transfer_*.*}`, `00_supplementary_figs/ndcg96_singles_doubles.*`, `03_tsuboyama/mega_splits/03_tsuboyama/*` |
-| **`p03`** | `p03_proteingym.py` (`proteingym`) | `05_proteingym.py`, `23_pg_ours_vs_published.py`, `proteingym/p0_sigma/{01..05}` | `05_proteingym/{pg_per_dms.csv, pg_all_models_per_dms.csv, pg_summary.csv, pg_sigma_summary.csv, property_delta_pvalues.csv, pg_table_heatmap.*, pg_overview.*, pg_per_dms_scatter.*, pg_property_sigma_summary.*, pg_multi_property_trajectories.*}`, `23_pg_ours_vs_published/*` |
-| **`p04`** | `p04_mgnify_rocklin.py` (`mgnify_rocklin`) | `18_mgnify.py`, `18b_mgnify_models.py`, `18c_mgnify_by_mutation_count.py`, `scoring/mgnify_{rdenovo_stats, epistasis_beyond, by_homology, baselines_compare, labels, link}.py` | `18_mgnify/{mgnify_summary.csv, mgnify_rmse.csv, mgnify_per_scaffold_rho.csv, mgnify_models_per_scaffold.csv, mgnify_models_pooled.csv, mgnify_by_mutation_count.*, mgnify_overview.*, rocklin_overview.*, mgnify_homology.*, mgnify_per_scaffold.*, mgnify_scatter.*, rocklin_designs/*, new_data_epistasis/*}` |
-| **`p05`** | `p05_summary_main.py` (`summary_main`) | `01_summary.py`, `01b_thermostability_pvalues.py`, `22_esm_msr_vs_esm3dg.py` | `00_main_text_figs/figure3.{png,pdf}`, `01_summary/{pg_categories.*, pg_categories_per_scaffold.*, thermostability_sets.*, thermostability_sets_pvalues.{csv,md}, thermostability_sets_best.csv, thermostability_sets_msr_heads.csv}`, `22_esm_msr_vs_esm3dg/esm_msr_vs_esm3dg.*` |
-| **`p06`** | `p06_epistasis_hierarchy.py` (`epistasis_hierarchy`, `--split`) | `06_epistasis.py`, `11_publication_figures.py` (figs 3–4), `11e` (fig 3), `11b_publication_epistasis_levels.py`, `11d_epistasis_levels_bootstrap.py`, `11h_stacked_stab_epistatic.py`, `11l_epistatic_vs_additive_pvalues.py`, `11m_masking_schemes.py`, `11n_epistasis_levels_p0.py`, `scoring/spurs_epi_table_cells.py` | `00_main_text_figs/{fig2_fig3_stacked.*, epistasis_levels_e.*, epistasis_main_composite.*}`, `06_epistasis/{epistasis_naive_recomputed.*, epistasis_scatter_*, ddg_ranking.*, lambda_scan.*, fig3_*, fig4_*, fig5_*, fig5a_*, epistatic_vs_additive*.*}`, `00_supplementary_figs/{fig5a_epistasis_levels_bars_test_{p0,masking}.*, masking_schemes.*}` |
-| **`p07`** | `p07_epistasis_mechanisms.py` (`epistasis_mechanisms`, `--split`) | `11c_publication_epistasis_scatters.py`, `11f_epistasis_types.py`, `11g_link_figure.py`, `12_pair_epistasis_heatmaps.py`, `13_dddG_correlation_scatters.py`, `19_rosetta_multi_vs_additive.py` | `00_supplementary_figs/floor_saturation_mechanism.{png,pdf}`, `06_epistasis/{fig6a..fig6e.*, fig7_*, fig8_link_binned.csv, dddG_scatters/*, dG_additive_vs_pred_dddG/*}`, `12_pair_heatmaps/{pairs.csv, agreement.csv}`, `19_rosetta_multi_vs_additive/rosetta_multi_vs_additive.*` |
-| **`p08`** | `p08_calibration_length.py` (`calibration_length`) | `07_rmse_calibration.py`, `09_sequence_length.py` | `07_rmse/{calibration_candidates*.csv, rmse_by_dataset*.csv, calibration_transfer*.csv, rmse_recalibrated*.*}`, `09_sequence_length/{length_summary.csv, sequence_length_distribution.*, per_protein_metrics.csv, length_vs_performance.*, length_correlation_summary.*}` |
-| **`p09`** | `p09_screening.py` (`screening`, `--split`) | `08_screening.py`, `14_property_category_gain.py`, `15_tsuboyama_single_screening.py`, `16_screening_overview.py`, `17_gain_per_variant_fit.py`, `pg_activity/{01_wt_reference, 02_activity_screening}.py` | `00_supplementary_figs/screening_gain_law_composite.{png,pdf}`, `08_screening/{screening_pooled_external.*, screening_per_protein_*.csv, fig_*, property_gain/*, pg_activity/*}`, `16_screening_overview/*`, `17_gain_fit/*` |
-| **`p10`** | `p10_splits_and_leakage.py` (`splits_and_leakage`) | `10_leakage_and_reference.py`, `20_split_best_partner.py`, `20b_split_overlap_heatmaps.py`, `21b_holdout_filter_figure.py`, `tsuboyama/mega_splits/02_split_provenance.py` | `10_leakage_and_reference/*`, `00_supplementary_figs/holdout_filter.*`, `00_supplementary_figs/split_construction/{split_best_partner_capped.*, split_max_{identity,tm}_heatmap.*, mega_clean_vs_homologous_test.*}`, `for_reviewers/{split_best_partner_hyperopt.*, baseline_nobb_ablation.*}` |
-| **`p11`** | `p11_ablations_and_heads.py` (`ablations_and_heads`) | `98_final_ablation_table.py`, `ablation_vs_p0/{01..06}`, `combined_vs_wt/{01..08}` | `98_ablation/{cells_long.csv, summary.csv, delta_paired.csv, table_main_delta.{csv,md,tex}, table_wt_delta.{csv,md,tex}, head_choice.csv, informativeness.csv}`, `studies/ablations/{ablation_architecture_suite.*, ...}`, `studies/dual_view/{dual_view_summary.*, ...}` |
-| **`p12`** | `p12_manifest.py` (`manifest`) | `00_parse_benchmark_tables.py` (`--reparse`), `00_validate_against_tables.py`, `99_table_coverage.py` | `00_core/validation_vs_benchmarks.csv` (records both 436-domain held-out `rho` and 522-domain legacy `rho_unfiltered`), `table_figure_map.csv` (verifies 27/27 benchmark tables mapped), `manifest_outputs.csv` |
+| **`p01`** | `p01_benchmarks_external.py` (`benchmarks_external`) | Core Spearman $\rho$ bootstrap cache, 12 external $\Delta\Delta G$ thermostability benchmarks (`EXT12`), held-out Domainome 1.0 (`436` domains), and 3 functional DMS assays (`DMS3`). | `cache/core_rho_bootstrap.csv`, `02_thermostability/{thermostability_rho.csv, thermo_external_rho.*, thermo_overview.*, thermo_interval_types.*}`, `04_domainome/{domainome_vs_retrains.*, domainome_sigma_vs_zero_shot.*, domainome_sigma_sweep.*}`, `99_misc/dms3/{dms_vs_retrains.*, dms_sigma_vs_zero_shot.*, dms_sigma_sweep.*}` |
+| **`p02`** | `p02_tsuboyama.py` (`tsuboyama`, `--split capped\|mega`) | Homology-Restricted MegaScale (`splits_oct06_capped`) and `mega_splits` $\Delta\Delta G$ ranking, stabilizing/destabilizing subsets, singles vs doubles, transfer vs overall, and backbone-feature ablation. | `01_megascale/{megascale_overview.*, megascale_per_library.*, megascale_singles_doubles.*, megascale_scatter.*, spearman_stab_destab*.*, ndcg96_singles_doubles*.*, doubles_vs_singles_on_singles.*, overall_vs_transfer_*.*, esm3_scoring_variants.*}` (mirrored in `01_megascale/mega_splits/`), `00_supplementary_figs/ndcg96_singles_doubles*.*`, `00_for_reviewers/baseline_nobb_ablation.*` |
+| **`p03`** | `p03_proteingym.py` (`proteingym`) | Held-out ProteinGym (`173` canonical assays across 5 categories), $\sigma \in \{0, 0.5, 1\}$ category sweeps, multi-property trajectories, and zero-shot verification against published ProteinGym scores. | `03_proteingym/{pg_per_dms.csv, pg_all_models_per_dms.csv, pg_summary*.csv, pg_sigma_summary.csv, property_delta_pvalues.csv, pg_table_heatmap.*, pg_overview.*, pg_per_dms_scatter.*, pg_property_sigma_summary*.*, pg_multi_property_trajectories.*}`, `00_supplementary_figs/pg_ours_vs_published.*`, `99_misc/dms3/{per_assay_sigma_rho.csv, dms_multi_property_index.csv, dms_multi_property_trajectories.*}` |
+| **`p04`** | `p04_mgnify_rocklin.py` (`mgnify_rocklin`) | Held-out MGnify stability (`152,680` scaffolds), Rocklin *de novo* (`742` designs), latent vs Tobit-linked $\Delta\Delta G$, homology strata, and mutation-count breakdowns. | `05_mgnify/{mgnify_summary.csv, mgnify_rmse.csv, mgnify_per_scaffold_rho.csv, mgnify_models_per_scaffold.csv, mgnify_models_pooled.csv, mgnify_by_mutation_count.*, mgnify_overview.*, rocklin_overview.*, mgnify_homology.*, mgnify_per_scaffold.*, mgnify_scatter.*, table_*.md, rocklin_designs/*, new_data_epistasis/*}` |
+| **`p05`** | `p05_summary_main.py` (`summary_main`) | Main-text Figure 3 composite, cross-dataset thermostability summaries & paired p-values, and direct ESM-MSR vs `ESM3ΔG` comparison. | `00_main_text_figs/figure3.{png,pdf}`, `06_summary/{pg_categories.*, pg_categories_per_scaffold.*, thermostability_sets.*, thermostability_sets_pvalues.{csv,md}, thermostability_sets_best.csv, thermostability_sets_msr_heads.csv}`, `99_misc/esm_msr_vs_esm3dg/esm_msr_vs_esm3dg.*` |
+| **`p06`** | `p06_epistasis_hierarchy.py` (`epistasis_hierarchy`, `--split`) | Four-level $\Delta\Delta\Delta G$ epistasis hierarchy (`naive_rho`, `beyond_rho`, `line`, `cell_mag`), epistatic vs additive double ranking, masking-scheme ablations, and $\lambda$-blend scan. | `00_main_text_figs/{fig2_fig3_stacked.*, epistasis_levels_e.*, epistasis_main_composite.*}`, `00_supplementary_figs/{fig5a_epistasis_levels_bars_test_{p0,masking}.*, fig5_epistasis_levels_*, masking_schemes*.*}`, `01_megascale/epistasis/{epistasis_levels_bars_{val,test}*.*, epistasis_naive_recomputed.*, epistasis_scatter_*, ddg_ranking*.*, lambda_scan.*, spearman_doubles_additive_vs_epistatic*.*, naive_epistasis_pos_neg_*.*, epistatic_vs_additive*.*}` (and `mega_splits/epistasis/`), `99_misc/dms3/epistasis_{naive_recomputed,scatter_dddG,lambda_scan}.*` |
+| **`p07`** | `p07_epistasis_mechanisms.py` (`epistasis_mechanisms`, `--split`) | Thermodynamic floor-saturation mechanism, Tobit link binned curves, $20\times 20$ residue-pair epistasis heatmaps, $\Delta\Delta\Delta G$ scatters, and Rosetta multi-mutant vs additive singles. | `00_supplementary_figs/floor_saturation_mechanism.{png,pdf}`, `01_megascale/epistasis/{dG_additive_vs_dddG.*, ddG_additive_vs_dddG_*.*, alt_observed_additive_dG.*, esm_msr_*dddG_pred_vs_true*.*, epistasis_scatters.*, epistasis_types_by_additive_dG.*, link_binned.csv, dddG_scatters/*, dG_additive_vs_pred_dddG/*, pair_heatmaps/*}`, `99_misc/rosetta_multi_vs_additive/rosetta_multi_vs_additive.*` |
+| **`p08`** | `p08_calibration_length.py` (`calibration_length`) | Single-donor OLS linear scale-and-bias $\Delta\Delta G$ calibration (RMSE/MAE) and protein sequence-length scaling analysis. | `02_thermostability/rmse/{calibration_candidates*.csv, rmse_by_dataset*.csv, calibration_transfer*.csv, rmse_recalibrated*.*}`, `08_sequence_length/{length_summary.csv, sequence_length_distribution.*, per_protein_metrics.csv, length_vs_performance.*, length_correlation_summary.*}`, `99_misc/dms3/{length_summary.csv, length_per_protein_metrics.csv}` |
+| **`p09`** | `p09_screening.py` (`screening`, `--split`) | Virtual-screening hit rates, best $\Delta\Delta G$ vs $K$, biophysical property-gain rainclouds, $g(K) = a - b\ln K$ gain fits, Domainome & ProteinGym Activity screening, and cross-dataset overviews. | `00_supplementary_figs/screening_gain_law_composite.{png,pdf}`, `01_megascale/screening/{best_ddg_vs_k*.*, suggested_hit_rate*.*, top6_recovery_*.*, screening_per_protein_*.csv, property_gain/*}`, `01_megascale/gain_fit/gain_fit_*.*`, `02_thermostability/screening/*`, `03_proteingym/screening/*`, `04_domainome/screening/{domainome_screening_curves.*, screening_per_protein*.csv}`, `07_screening_overview/*` |
+| **`p10`** | `p10_splits_and_leakage.py` (`splits_and_leakage`) | Four-part holdout filter breakdown, split best-partner homology distributions, cross-set identity/TM heatmaps, `mega_splits` clean-vs-homologous audit, and published reference comparisons. | `00_supplementary_figs/{holdout_filter.*, split_construction/{split_best_partner_capped.*, split_max_{identity,tm}_heatmap.*, mega_clean_vs_homologous_test.*}}`, `00_for_reviewers/split_best_partner_hyperopt.*`, `00_for_reviewers/reference/{published_reference.*, spurs_published_vs_retrained.*}`, `01_megascale/mega_splits/provenance/*` |
+| **`p11`** | `p11_ablations_and_heads.py` (`ablations_and_heads`) | Architecture/loss ablations across all 11 `FINAL_*` families + cross-masking arms, and Dual-View (`comb`) vs WT-View (`wt`) regime law across held-out units. | `09_ablation/{ablation_architecture_suite.*, cells_long*.csv, coverage.csv, summary.csv, delta_paired.csv, paired_vs_p0*.csv, head_choice.csv, informativeness.csv, table_main_delta.{csv,md,tex}, table_wt_delta.{csv,md,tex}, table_composites.{csv,md}, table_counts.{csv,md}, layout_*.md}`, `99_misc/dual_view/{dual_view_summary.*, *.csv, table_all_families.md}`, `99_misc/dms3/ablation_*.csv` |
+| **`p12`** | `p12_manifest.py` (`manifest`) | Optional `--reparse` of `docs/BENCHMARKS_OCT2026.md` reference tables, cell-by-cell validation against `reference/all_by_all_long.csv`, table-to-figure coverage verification, and output manifest. | `00_for_reviewers/reference/validation_vs_benchmarks.csv` (records both 436-domain held-out `rho` and 522-domain legacy `rho_unfiltered`), `table_figure_map.csv`, `manifest_outputs.csv` |
 
 ### 2. Mechanistic Studies (`analysis/studies/`)
 
-| Study Target | Directory | Legacy Sub-Study Replaced | Key Outputs (`analysis/results/studies/`) |
+| Study Target | Directory | Scope | Key Outputs (`analysis/results/99_misc/`) |
 | :--- | :--- | :--- | :--- |
-| `study:faure_epistasis` | [`studies/faure_epistasis/`](studies/faure_epistasis/README.md) | `analysis/faure_epistasis/{01..05, faure.py}` | `studies/faure_epistasis/{faure_vs_megascale_epistasis_snr.*, proximity_distribution.*, epistasis_snr.*, cell_mag_ceiling.*, *.csv}` |
-| `study:sigma_mechanisms` | [`studies/sigma_mechanisms/`](studies/sigma_mechanisms/README.md) | `analysis/proteingym/sigma_tradeoff/` (upgraded from Oct-27 1-seed baseline to 3-seed `FINAL_p0` on 173 held-out assays) | `studies/sigma_mechanisms/{sigma_mechanisms_composite.*, aa_category_heatmaps.*, site_vs_sub_decomposition.csv, aa_rank_shifts.csv, tail_selection_vs_filtering.csv, pareto_multi_property.csv}` |
+| `study:faure_epistasis` | [`studies/faure_epistasis/`](studies/faure_epistasis/README.md) | Combinatorial $3\times 3+$ block geometry, assay floor saturation, and DiMSum vs cDNA proteolysis SNR ceilings across Faure et al. PCA (`DLG4`, `GRB2`) and MegaScale. | `99_misc/faure_epistasis/{faure_vs_megascale_epistasis_snr.*, proximity_distribution.*, epistasis_snr.*, cell_mag_ceiling.*, *.csv}` |
+| `study:sigma_mechanisms` | [`studies/sigma_mechanisms/`](studies/sigma_mechanisms/README.md) | 3-seed `FINAL_p0` mechanistic decomposition of LoRA scaling ($\sigma \in \{0, 0.5, 1\}$) across the 173 canonical held-out ProteinGym assays. | `99_misc/sigma_mechanisms/{sigma_mechanisms_composite.*, aa_category_heatmaps.*, site_vs_sub_decomposition.csv, aa_rank_shifts.csv, tail_selection_vs_filtering.csv, pareto_multi_property.csv}` |
 
 ### 3. Offline Audits & Scoring Utilities (`analysis/audits/`, `analysis/scoring/`)
 
-| Package / Tool | Legacy Counterparts | Purpose |
-| :--- | :--- | :--- |
-| [`audits/homology_and_splits/`](audits/homology_and_splits/README.md) | `leak_audit/{01..22, lib.py, run_all.py, data/}`, `tsuboyama/mega_splits/{00_build_tasks, 02_split_provenance}.py` | `active_builders/` (`tsuboyama_rule_flags.py`, `set_overlap_matrix.py`, `build_mega_tasks.py`, `mega_split_provenance.py`, `export_reference.py`) and `oct2026_leak_audit/` (`01`..`20` + `run_all.py`). |
-| [`audits/baseline_bridge/`](audits/baseline_bridge/README.md) | `analysis/baseline_bridge/inventory.py` | Audits local and cluster baseline training/evaluation directories via `msr_analysis.paths.TRAINING_LOGS`. |
-| `scoring/collect_predictions.py` | `scoring/collect_predictions.py` | Mirrors `msr_predictions/`, `final_*`, `baselines/`, `mega_splits/`, and `resources_tracked/` from cluster runs with atomic `MANIFEST.tsv` verification. |
-| `scoring/score_runs.py` (+ `score_baseline_runs.py`, `score_me_proteingym.py` wrappers) | `score_baseline_runs.py`, `score_me_proteingym.py`, `summarize_spurs_runs.py`, `pgym_public_scores.py`, `pgym_rosetta_singles.py` | Unified baseline & ProteinGym run scorer importing `esm_msr.stats` and `msr_analysis.heldout` directly (`ddof=1`). |
-| `scoring/resources.py` (+ `resource_report.py`, `resource_summary.py` wrappers) | `resource_report.py`, `resource_summary.py` | Summarizes fixed-slot RTX A4500 resource-tracker scopes into `results/inference_resources/` and updates `docs/INFERENCE_RESOURCES.md` (`--docs`). |
+| Package / Tool | Purpose |
+| :--- | :--- |
+| [`audits/homology_and_splits/`](audits/homology_and_splits/README.md) | `active_builders/` (`tsuboyama_rule_flags.py`, `set_overlap_matrix.py`, `build_mega_tasks.py`, `mega_split_provenance.py`, `export_reference.py`) and `oct2026_leak_audit/` (`01`..`20` + `run_all.py`). |
+| [`audits/baseline_bridge/`](audits/baseline_bridge/README.md) | Audits local and cluster baseline training/evaluation directories via `msr_analysis.paths.TRAINING_LOGS`. |
+| `scoring/collect_predictions.py` | Mirrors `msr_predictions/`, `final_*`, `baselines/`, `mega_splits/`, and `resources_tracked/` from cluster runs with atomic `MANIFEST.tsv` verification. |
+| `scoring/score_runs.py` (+ `score_baseline_runs.py`, `score_me_proteingym.py` wrappers) | Unified baseline & ProteinGym run scorer importing `esm_msr.stats` and `msr_analysis.heldout` directly (`ddof=1`). |
+| `scoring/resources.py` (+ `resource_report.py`, `resource_summary.py` wrappers) | Summarizes fixed-slot RTX A4500 resource-tracker scopes into `results/10_inference_resources/` and updates `docs/INFERENCE_RESOURCES.md` (`--docs`). |

@@ -1,0 +1,56 @@
+column,head,n_families,spread,noise,snr,best,range
+GRB2_HUMAN_Faure_2021_binding_domain|multi,comb,7,0.0145,0.0069,3.6380,p1 MT marginal,0.0298
+GRB2_HUMAN_Faure_2021_binding_domain,comb,7,0.0145,0.0069,3.6221,p1 MT marginal,0.0296
+DLG4_HUMAN_Faure_2021_binding_domain|singles,comb,7,0.0149,0.0086,3.0071,p1 masked,0.0404
+dms_mean,comb,7,0.0068,0.0042,2.8303,no rank loss,0.0184
+dms_multi_mean,comb,7,0.0070,0.0043,2.8279,no rank loss,0.0195
+GRB2_HUMAN_Faure_2021_binding_domain|singles,comb,7,0.0120,0.0084,2.4812,p1 masked,0.0307
+DLG4_HUMAN_Faure_2021_binding_domain|multi,comb,7,0.0094,0.0077,2.1163,no rank loss,0.0309
+DLG4_HUMAN_Faure_2021_binding_domain,comb,7,0.0086,0.0072,2.0640,no rank loss,0.0281
+MYO_HUMAN_Kung_2025_display,comb,7,0.0018,0.0019,1.6326,no rank loss,0.0050
+MYO_HUMAN_Kung_2025_display|singles,comb,7,0.0018,0.0020,1.5551,no seq. head,0.0052
+MYO_HUMAN_Kung_2025_display|multi,comb,7,0.0016,0.0022,1.2357,no rank loss,0.0045
+DLG4_HUMAN_Faure_2021_binding_domain|singles,mt,7,0.0316,0.0143,3.8228,p1 masked,0.0928
+GRB2_HUMAN_Faure_2021_binding_domain|multi,mt,7,0.0212,0.0103,3.5593,p1 MT marginal,0.0530
+GRB2_HUMAN_Faure_2021_binding_domain,mt,7,0.0211,0.0103,3.5470,p1 MT marginal,0.0523
+dms_mean,mt,7,0.0157,0.0084,3.2273,p1 MT marginal,0.0415
+dms_multi_mean,mt,7,0.0172,0.0095,3.1240,p1 MT marginal,0.0473
+GRB2_HUMAN_Faure_2021_binding_domain|singles,mt,7,0.0191,0.0120,2.7463,p1 masked,0.0587
+DLG4_HUMAN_Faure_2021_binding_domain,mt,7,0.0258,0.0168,2.6652,no rank loss,0.0722
+DLG4_HUMAN_Faure_2021_binding_domain|multi,mt,7,0.0299,0.0201,2.5854,no rank loss,0.0849
+MYO_HUMAN_Kung_2025_display|multi,mt,7,0.0047,0.0047,1.7157,p1 MT marginal,0.0123
+MYO_HUMAN_Kung_2025_display,mt,7,0.0030,0.0041,1.2603,p1 masked,0.0093
+MYO_HUMAN_Kung_2025_display|singles,mt,7,0.0027,0.0039,1.1959,p1 masked,0.0078
+GRB2_HUMAN_Faure_2021_binding_domain|multi,primary,7,0.0145,0.0069,3.6380,p1 MT marginal,0.0298
+GRB2_HUMAN_Faure_2021_binding_domain,primary,7,0.0145,0.0069,3.6221,p1 MT marginal,0.0296
+MYO_HUMAN_Kung_2025_display|singles,primary,7,0.0020,0.0011,3.3090,p1 masked,0.0053
+dms_mean,primary,7,0.0068,0.0042,2.8303,no rank loss,0.0184
+dms_multi_mean,primary,7,0.0070,0.0043,2.8279,no rank loss,0.0195
+DLG4_HUMAN_Faure_2021_binding_domain|multi,primary,7,0.0094,0.0077,2.1163,no rank loss,0.0309
+DLG4_HUMAN_Faure_2021_binding_domain,primary,7,0.0086,0.0072,2.0640,no rank loss,0.0281
+GRB2_HUMAN_Faure_2021_binding_domain|singles,primary,7,0.0117,0.0100,2.0181,p1 MT marginal,0.0300
+MYO_HUMAN_Kung_2025_display,primary,7,0.0018,0.0019,1.6326,no rank loss,0.0050
+MYO_HUMAN_Kung_2025_display|multi,primary,7,0.0016,0.0022,1.2357,no rank loss,0.0045
+DLG4_HUMAN_Faure_2021_binding_domain|singles,primary,7,0.0058,0.0083,1.2118,p1 MT marginal,0.0174
+MYO_HUMAN_Kung_2025_display|singles,wt,7,0.0020,0.0011,3.3090,p1 masked,0.0053
+GRB2_HUMAN_Faure_2021_binding_domain|multi,wt,7,0.0118,0.0070,2.9265,p1 MT marginal,0.0295
+GRB2_HUMAN_Faure_2021_binding_domain,wt,7,0.0118,0.0070,2.9128,p1 MT marginal,0.0294
+dms_mean,wt,7,0.0038,0.0031,2.1106,p1 MT marginal,0.0086
+dms_multi_mean,wt,7,0.0037,0.0031,2.0784,no rank loss,0.0091
+GRB2_HUMAN_Faure_2021_binding_domain|singles,wt,7,0.0117,0.0100,2.0181,p1 MT marginal,0.0300
+DLG4_HUMAN_Faure_2021_binding_domain|multi,wt,7,0.0046,0.0052,1.5378,no rank loss,0.0144
+MYO_HUMAN_Kung_2025_display|multi,wt,7,0.0015,0.0020,1.3261,no rank loss,0.0041
+DLG4_HUMAN_Faure_2021_binding_domain,wt,7,0.0040,0.0054,1.2900,no rank loss,0.0128
+DLG4_HUMAN_Faure_2021_binding_domain|singles,wt,7,0.0058,0.0083,1.2118,p1 MT marginal,0.0174
+MYO_HUMAN_Kung_2025_display,wt,7,0.0008,0.0014,0.9744,no seq. head,0.0022
+MYO_HUMAN_Kung_2025_display|singles,wt+,7,0.0020,0.0011,3.3090,p1 masked,0.0053
+GRB2_HUMAN_Faure_2021_binding_domain|multi,wt+,7,0.0119,0.0070,2.9465,p1 MT marginal,0.0296
+GRB2_HUMAN_Faure_2021_binding_domain,wt+,7,0.0119,0.0070,2.9315,p1 MT marginal,0.0296
+dms_mean,wt+,7,0.0039,0.0032,2.1120,no rank loss,0.0086
+dms_multi_mean,wt+,7,0.0037,0.0031,2.0774,no rank loss,0.0093
+GRB2_HUMAN_Faure_2021_binding_domain|singles,wt+,7,0.0117,0.0100,2.0181,p1 MT marginal,0.0300
+DLG4_HUMAN_Faure_2021_binding_domain|multi,wt+,7,0.0048,0.0053,1.5901,no rank loss,0.0149
+MYO_HUMAN_Kung_2025_display|multi,wt+,7,0.0017,0.0020,1.4453,no rank loss,0.0046
+DLG4_HUMAN_Faure_2021_binding_domain,wt+,7,0.0041,0.0054,1.3212,no rank loss,0.0131
+DLG4_HUMAN_Faure_2021_binding_domain|singles,wt+,7,0.0058,0.0083,1.2118,p1 MT marginal,0.0174
+MYO_HUMAN_Kung_2025_display,wt+,7,0.0008,0.0014,1.0460,no seq. head,0.0024

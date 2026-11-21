@@ -966,13 +966,19 @@ class PublicationSVG:
 
 
 # ===========================================================================
-# 1. VERTICAL UNIFIED SCHEMATIC (1020 x 1246) — Subplot 'a'
+# 1. VERTICAL UNIFIED SCHEMATIC (1020 x 1246)
 # ===========================================================================
-def build_vertical_svg() -> str:
-    s = PublicationSVG(1020, 1246, "ESM-MSR Architecture (Vertical Unified Schematic, Subplot a)")
+def build_vertical_svg(include_label: bool = False) -> str:
+    title = (
+        "ESM-MSR Architecture (Vertical Unified Schematic, Subplot a)"
+        if include_label
+        else "ESM-MSR Architecture (Vertical Unified Schematic)"
+    )
+    s = PublicationSVG(1020, 1246, title)
 
-    # Nature-style bold lowercase subplot label 'a' in upper-left margin
-    s.nature_subplot_label(28.0, 38.0, "a")
+    if include_label:
+        # Nature-style bold lowercase subplot label 'a' in upper-left margin
+        s.nature_subplot_label(28.0, 38.0, "a")
 
     px, pw = 60.0, 900.0
     wx, cx, mx = 224.0, 510.0, 796.0
@@ -1230,12 +1236,18 @@ def build_vertical_svg() -> str:
 
 
 # ===========================================================================
-# 2. HORIZONTAL UNIFIED SCHEMATIC (1660 x 836) — Synced Companion (Subplot 'a')
+# 2. HORIZONTAL UNIFIED SCHEMATIC (1660 x 836) — Synced Companion
 # ===========================================================================
-def build_horizontal_svg() -> str:
-    s = PublicationSVG(1660, 836, "ESM-MSR Architecture (Horizontal Unified Schematic, Subplot a)")
+def build_horizontal_svg(include_label: bool = False) -> str:
+    title = (
+        "ESM-MSR Architecture (Horizontal Unified Schematic, Subplot a)"
+        if include_label
+        else "ESM-MSR Architecture (Horizontal Unified Schematic)"
+    )
+    s = PublicationSVG(1660, 836, title)
 
-    s.nature_subplot_label(18.0, 36.0, "a")
+    if include_label:
+        s.nature_subplot_label(18.0, 36.0, "a")
 
     x0, y0, ph = 36.0, 58.0, 668.0
     grad_top, grad_bot = 26.0, 758.0

@@ -14,8 +14,8 @@ Consolidates ``98_final_ablation_table.py``, ``ablation_vs_p0/{01..06}``, and ``
   2. **All 11 ``FINAL_*`` families** (including ``FINAL_p0_norange`` and ``FINAL_p0_mse``) + 2 cross-masking evaluation
      arms, styled with canonical ``msr_analysis.models.ABLATION_STYLES`` (never ``#c0392b`` red, ``'D'`` reserved for ``FINAL_p0``).
   3. **Two Consolidated Extended Data Figures**:
-     - ``results/studies/ablations/ablation_architecture_suite.{png,pdf}``
-     - ``results/studies/dual_view/dual_view_summary.{png,pdf}`` (featuring the ``R² ≈ 0.81`` ``when_rule`` law)
+     - ``results/09_ablation/ablation_architecture_suite.{png,pdf}``
+     - ``results/99_misc/dual_view/dual_view_summary.{png,pdf}`` (featuring the ``R² ≈ 0.81`` ``when_rule`` law)
 """
 from __future__ import annotations
 
@@ -64,6 +64,8 @@ DESCRIPTION = '11-family FINAL_* ablation tables, joint 3-seed paired bootstraps
 EXT_SINGLE = [d for d in EXT12 if d not in ('ptmul', 'ptmuld')]
 EXT_MULTI = ['ptmul', 'ptmuld']
 DMS_MULTI = list(DMS3)
+DMS3_SET = frozenset(DMS3)
+DMS3_COLS = DMS3_SET | {f'{d}|multi' for d in DMS3} | {f'{d}|singles' for d in DMS3} | {'dms_mean', 'dms_multi_mean'}
 PG_CATS = list(PG.PG_CATEGORIES_ALPHA)
 ABL_ARMS = [f for f in FAMILIES if f != REF and '@' not in f]  # all 10 trained ablation arms
 MAIN_11_FAMS = [REF] + ABL_ARMS
@@ -94,14 +96,14 @@ for _d in EXT12 + DMS3:
 
 HEADLINE = [
     'tsuboyama_capped_test', 'tsuboyama_capped_test|dddG', 'ext_singles_mean',
-    'ext_multi_mean', 'dms_mean', 'domainome|lowid', 'pg|avg',
+    'ext_multi_mean', 'domainome|lowid', 'pg|avg',
 ]
 LAYOUTS = {
     'A_compact_primary': dict(heads=['primary'], cols=HEADLINE),
     'B_compact_wt_vs_comb': dict(
         heads=['wt', 'comb'],
         cols=['tsuboyama_capped_test', 'tsuboyama_capped_test|singles', 'tsuboyama_capped_test|multi',
-              'ext_singles_mean', 'ext_multi_mean', 'dms_mean', 'dms_multi_mean', 'domainome|lowid', 'pg|avg'],
+              'ext_singles_mean', 'ext_multi_mean', 'domainome|lowid', 'pg|avg'],
     ),
     'C1_in_distribution': dict(
         heads=['primary'],
@@ -109,15 +111,15 @@ LAYOUTS = {
     ),
     'C2_out_of_distribution': dict(
         heads=['primary'],
-        cols=['ext_singles_mean', 'ext_multi_mean', 'dms_mean', 'domainome', 'domainome|lowid', 'pg|avg', 'pg|avg_lowid', 'pg|Stability_lowid'],
+        cols=['ext_singles_mean', 'ext_multi_mean', 'domainome', 'domainome|lowid', 'pg|avg', 'pg|avg_lowid', 'pg|Stability_lowid'],
     ),
     'D_full_primary': dict(
         heads=['primary'],
-        cols=['tsuboyama_capped_test', 'tsuboyama_capped_test|dddG'] + EXT12 + DMS3 + ['domainome', 'domainome|lowid', 'pg|avg'],
+        cols=['tsuboyama_capped_test', 'tsuboyama_capped_test|dddG'] + EXT12 + ['domainome', 'domainome|lowid', 'pg|avg'],
     ),
     'E_multi_readouts': dict(
         heads=['wt', 'wt+', 'comb'],
-        cols=['tsuboyama_capped_test|multi', 'ptmul', 'ptmuld'] + [f'{d}|multi' for d in DMS_MULTI],
+        cols=['tsuboyama_capped_test|multi', 'ptmul', 'ptmuld'],
     ),
 }
 COL_LABEL = {
@@ -139,6 +141,37 @@ GROUP_LABEL = {
     'data': 'Training data',
     'cross-mask': 'Cross-masking (evaluation only)',
 }
+
+_FALLBACK_ABL_STYLES = {
+    'FINAL_p0_deepfloor': M.StyleSpec(
+        label='Deep floor (−1, 1)',
+        color='#148f77',
+        marker='h',
+        fill=True,
+        group='loss',
+        model='FINAL_p0_deepfloor',
+        ls='-',
+        lw=2.0,
+    ),
+}
+
+
+def _abl_style(fam: str) -> M.StyleSpec:
+    if fam in M.ABLATION_STYLES:
+        return M.ABLATION_STYLES[fam]
+    if fam in _FALLBACK_ABL_STYLES:
+        return _FALLBACK_ABL_STYLES[fam]
+    meta = FAMILIES.get(fam, {})
+    return M.StyleSpec(
+        label=meta.get('short', fam),
+        color='#566573',
+        marker='o',
+        fill=True,
+        group=meta.get('group', 'loss'),
+        model=fam,
+        ls='-',
+        lw=2.0,
+    )
 
 
 def is_multi_col(c: str) -> bool:
@@ -363,7 +396,7 @@ def pg_paired_boot(cat: pd.Series, matrices: dict[tuple[str, str], pd.DataFrame]
         for fam in fam_models:
             if fam == REF:
                 continue
-            # Headline pg|avg row for 98_ablation/delta_paired.csv
+            # Headline pg|avg row for 09_ablation/delta_paired.csv
             t_avg = ST.paired_boot_test(reps_map[fam]['PG avg'], reps_map[REF]['PG avg'], point_a=pts.loc[(fam, 'PG avg')], point_b=pts.loc[(REF, 'PG avg')])
             rows_98.append(dict(
                 family=fam, head=head_out, column='pg|avg',
@@ -1031,7 +1064,7 @@ def boot_benchmark_deltas(frames: dict, B: int, procs: int = 8) -> tuple[pd.Data
 
 
 # ----------------------------------------------------------------------------------------------
-# 98_ablation markdown / LaTeX tables
+# 09_ablation markdown / LaTeX tables
 # ----------------------------------------------------------------------------------------------
 def pooled_seed_sd(summ: pd.DataFrame, col: str, head: str = 'primary') -> float:
     d = summ[
@@ -1213,7 +1246,7 @@ def render_candidate_layouts(out_98: Path, summ: pd.DataFrame, deltas: pd.DataFr
         atomic_write_text(out_98 / f'layout_{name}.md', f'### {name}\n\n' + '\n'.join(lines) + f'\n\n{note}\n')
 
 
-def write_informativeness(out_98: Path, summ: pd.DataFrame) -> None:
+def write_informativeness(out_abl: Path, out_dms: Path, summ: pd.DataFrame) -> None:
     fams = [f for f in ABL_ARMS if f != 'FINAL_p0_mega']
     d = summ[summ['family'].isin(fams) & (summ['n_seeds'] >= 2)]
     rows = []
@@ -1229,7 +1262,10 @@ def write_informativeness(out_98: Path, summ: pd.DataFrame) -> None:
             snr=(spread / (noise / np.sqrt(n))) if noise > 0 else np.nan,
             best=FAMILIES[best]['short'], range=float(g['mean'].max() - g['mean'].min()),
         ))
-    atomic_to_csv(pd.DataFrame(rows).sort_values(['head', 'snr'], ascending=[True, False]), out_98 / 'informativeness.csv', index=False, float_format='%.4f')
+    inf_df = pd.DataFrame(rows).sort_values(['head', 'snr'], ascending=[True, False])
+    is_dms_inf = inf_df['column'].isin(DMS3_COLS)
+    atomic_to_csv(inf_df[~is_dms_inf], out_abl / 'informativeness.csv', index=False, float_format='%.4f')
+    atomic_to_csv(inf_df[is_dms_inf], out_dms / 'ablation_informativeness.csv', index=False, float_format='%.4f')
 
     hv = []
     for col, g in summ[summ['family'].isin(MAIN_11_FAMS) & summ['head'].isin(['wt', 'comb'])].groupby('column'):
@@ -1243,7 +1279,10 @@ def write_informativeness(out_98: Path, summ: pd.DataFrame) -> None:
             column=col, n_families=len(common), comb_minus_wt=float((c[common] - w[common]).mean()),
             comb_minus_wt_ref=ref_diff, rank_agreement=float(spearmanr(w[common], c[common])[0]),
         ))
-    atomic_to_csv(pd.DataFrame(hv), out_98 / 'head_choice.csv', index=False, float_format='%.4f')
+    hv_df = pd.DataFrame(hv)
+    is_dms_hv = hv_df['column'].isin(DMS3_COLS)
+    atomic_to_csv(hv_df[~is_dms_hv], out_abl / 'head_choice.csv', index=False, float_format='%.4f')
+    atomic_to_csv(hv_df[is_dms_hv], out_dms / 'ablation_head_choice.csv', index=False, float_format='%.4f')
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1269,13 +1308,13 @@ def build_dual_view_study(
         ('domainome', 'Domainome held-out'),
     ]
     sub_all = cvw_df[cvw_df['family'].isin(MAIN_11_FAMS) & cvw_df['column'].isin([c for c, _ in key_cols])].copy()
-    sub_all['family_label'] = sub_all['family'].map(lambda f: M.ABLATION_STYLES[f].label)
+    sub_all['family_label'] = sub_all['family'].map(lambda f: _abl_style(f).label)
     atomic_to_csv(sub_all, out_dv / 'combined_minus_wt_all_families.csv', index=False, float_format='%.4f')
 
     piv_rows = []
     bold_rows = []
     for fam in MAIN_11_FAMS:
-        r_d = {'Family': M.ABLATION_STYLES[fam].label}
+        r_d = {'Family': _abl_style(fam).label}
         b_d = {'Family': fam == REF}
         for col_id, col_lbl in key_cols:
             hit = sub_all[(sub_all['family'] == fam) & (sub_all['column'] == col_id)]
@@ -1484,9 +1523,8 @@ def draw_ablation_architecture_suite(
             ('tsuboyama_capped_test|beyond_rho', 'Beyond ρ', 'epi'),
             ('tsuboyama_capped_test|cell_mag', 'Cell mag.', 'epi'),
         ]),
-        ('Domainome\n& DMS', [
+        ('Domainome\nheld-out', [
             ('domainome|lowid', 'Domainome', 'both'),
-            ('dms_mean', 'DMS (3)', 'both'),
         ]),
         ('ProteinGym\n(173 held-out)', [
             ('pg|avg', 'PG avg', 'both'),
@@ -1542,9 +1580,9 @@ def draw_ablation_architecture_suite(
         ax.set_xticks(ticks)
         ax.set_xticklabels(labs, rotation=45, ha='right', rotation_mode='anchor', fontsize=8.0)
         ax.set_yticks(np.arange(len(ABL_ARMS)) + 0.5)
-        ax.set_yticklabels([M.ABLATION_STYLES[f].label for f in ABL_ARMS], fontsize=8.4)
+        ax.set_yticklabels([_abl_style(f).label for f in ABL_ARMS], fontsize=8.4)
         for tick_lbl, fam in zip(ax.get_yticklabels(), ABL_ARMS):
-            tick_lbl.set_color(M.ABLATION_STYLES[fam].color)
+            tick_lbl.set_color(_abl_style(fam).color)
             tick_lbl.set_fontweight('semibold')
         ax.tick_params(length=0)
         for sp_ in ax.spines.values():
@@ -1577,7 +1615,7 @@ def draw_ablation_architecture_suite(
         ax_f.axvline(0, color='#777777', lw=0.9, ls='--', zorder=1)
         ax_f.grid(axis='x', color=style.GRID, lw=0.6, zorder=0)
         for yi, fam in enumerate(forest_fams):
-            spec = M.ABLATION_STYLES[fam]
+            spec = _abl_style(fam)
             tup = lookup.get((fam, h_use, col_id))
             if tup is None:
                 ax_f.axhline(yi, color='#eaeaea', lw=0.7, ls=':', zorder=1)
@@ -1596,9 +1634,9 @@ def draw_ablation_architecture_suite(
         ax_f.set_xlabel('Δρ vs ESM-MSR', fontsize=8.4)
         if j == 0:
             ax_f.set_yticks(range(len(forest_fams)))
-            ax_f.set_yticklabels([M.ABLATION_STYLES[f].label for f in forest_fams], fontsize=8.0)
+            ax_f.set_yticklabels([_abl_style(f).label for f in forest_fams], fontsize=8.0)
             for tl, fam in zip(ax_f.get_yticklabels(), forest_fams):
-                tl.set_color(M.ABLATION_STYLES[fam].color)
+                tl.set_color(_abl_style(fam).color)
         else:
             ax_f.set_yticks([])
     fig.add_subplot(gs[2, 1]).axis('off')
@@ -1652,7 +1690,7 @@ def draw_dual_view_summary(
         if yi % 2 == 0:
             axa.axhspan(yi - 0.5, yi + 0.5, color=style.BAND, lw=0, zorder=0)
     for fi, (fam, y_off) in enumerate([('FINAL_p0', -0.15), ('FINAL_p1', +0.15)]):
-        spec = M.ABLATION_STYLES[fam]
+        spec = _abl_style(fam)
         for yi, (col_id, _) in enumerate(bench_rows):
             hit = cvw_df[(cvw_df['family'] == fam) & (cvw_df['column'] == col_id)]
             if hit.empty:
@@ -1671,7 +1709,7 @@ def draw_dual_view_summary(
     axa.set_title('a   Dual-view vs WT-view across benchmarks', loc='left', fontsize=10.0, fontweight='bold')
     axa.legend(
         handles=[
-            Line2D([0], [0], marker=M.ABLATION_STYLES[f].marker, color=M.ABLATION_STYLES[f].color, lw=1.7, ms=6, label=M.ABLATION_STYLES[f].label)
+            Line2D([0], [0], marker=_abl_style(f).marker, color=_abl_style(f).color, lw=1.7, ms=6, label=_abl_style(f).label)
             for f in ('FINAL_p0', 'FINAL_p1')
         ],
         loc='lower right', fontsize=8.0, frameon=True, facecolor='white', edgecolor='#dddddd',
@@ -1753,7 +1791,7 @@ def draw_dual_view_summary(
             vals.append(float(hit['delta'].iloc[0]) if len(hit) else np.nan)
         axd.barh(y_fams + offs, vals, bar_h * 0.92, color=col_hex, alpha=0.88, label=col_lbl, zorder=3)
     axd.set_yticks(y_fams)
-    axd.set_yticklabels([M.ABLATION_STYLES[f].label for f in MAIN_11_FAMS], fontsize=8.0)
+    axd.set_yticklabels([_abl_style(f).label for f in MAIN_11_FAMS], fontsize=8.0)
     for tl, fam in zip(axd.get_yticklabels(), MAIN_11_FAMS):
         if fam == REF:
             tl.set_fontweight('bold')
@@ -1794,29 +1832,41 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     B = 100 if args.fast else int(args.B)
 
-    out_98 = results_dir('98_ablation')
-    out_abl = results_dir('studies/ablations')
-    out_dv = results_dir('studies/dual_view')
+    out_abl = results_dir('ablation')
+    out_dv = results_dir('dual_view')
+    out_dms = results_dir('dms3')
 
     datasets = EXT12 + DMS3 + ['domainome', 'tsuboyama_capped_val', 'tsuboyama_capped_test']
     frames = _load_all_final_frames(datasets, sigma=args.sigma, procs=args.procs)
-    cov = [
+    cov_df = pd.DataFrame([
         dict(dataset=ds, family=fam, seeds=','.join(map(str, ss)))
         for ds in datasets
         for fam, ss in frames[ds].notes['seeds'].items()
-    ]
-    atomic_to_csv(pd.DataFrame(cov), out_98 / 'coverage.csv', index=False)
+    ])
+    atomic_to_csv(cov_df[~cov_df['dataset'].isin(DMS3_SET)], out_abl / 'coverage.csv', index=False)
+    atomic_to_csv(cov_df[cov_df['dataset'].isin(DMS3_SET)], out_dms / 'ablation_coverage.csv', index=False)
 
     pg_cat, pg_matrices = load_pg_ablation_data(procs=args.procs)
     n_pg_held = len(pg_cat)
     n_pg_mm = int(sum(PG.assay_has_multi(d)[0] for d in pg_cat.index))
 
-    cells_path = out_98 / 'cells_long.csv'
-    mega_path = out_98 / 'cells_long_mega_own_split.csv'
-    if args.reuse_cells and cells_path.exists() and mega_path.exists():
-        cells = pd.read_csv(cells_path)
+    cells_path = out_abl / 'cells_long.csv'
+    dms_cells_path = out_dms / 'ablation_cells_long.csv'
+    mega_path = out_abl / 'cells_long_mega_own_split.csv'
+    expected_fams = {fam for ds in datasets for fam in frames[ds].notes['seeds']}
+    can_reuse = bool(args.reuse_cells and cells_path.exists() and mega_path.exists())
+    if can_reuse:
+        cells_main = pd.read_csv(cells_path)
+        if not expected_fams.issubset(set(cells_main['family'].unique())):
+            can_reuse = False
+
+    if can_reuse:
+        cells_parts = [cells_main]
+        if dms_cells_path.exists():
+            cells_parts.append(pd.read_csv(dms_cells_path))
+        cells = pd.concat(cells_parts, ignore_index=True).drop_duplicates(['family', 'seed', 'head', 'column'])
         mega_cells = pd.read_csv(mega_path)
-        _, epi_boot_df = epi_cells_and_boot(frames, B=B, procs=args.procs, reuse_cells=cells)
+        _, epi_boot_df = epi_cells_and_boot(frames, B=B, procs=args.procs, reuse_cells=cells_main)
     else:
         cells = score_columns(frames)
         epi_cell_df, epi_boot_df = epi_cells_and_boot(frames, B=B, procs=args.procs)
@@ -1832,41 +1882,58 @@ def main(argv: list[str] | None = None) -> int:
         cells = add_primary_non_pg(cells)
         cells = pd.concat([cells, pg_cells_from_matrices(pg_cat, pg_matrices)], ignore_index=True)
         cells = add_composites(cells)
-        atomic_to_csv(cells, cells_path, index=False, float_format='%.5f')
+        is_dms_cell = cells['dataset'].isin(DMS3_SET) | cells['column'].isin(DMS3_COLS)
+        atomic_to_csv(cells[~is_dms_cell], cells_path, index=False, float_format='%.5f')
+        atomic_to_csv(cells[is_dms_cell], dms_cells_path, index=False, float_format='%.5f')
 
     mega_own = summarize(mega_cells).set_index(['family', 'head', 'column']) if len(mega_cells) else None
     summ = summarize(cells)
-    atomic_to_csv(summ, out_98 / 'summary.csv', index=False, float_format='%.5f')
-    write_informativeness(out_98, summ)
+    summ_main = summ[~summ['column'].isin(DMS3_COLS)].copy()
+    summ_dms = summ[summ['column'].isin(DMS3_COLS)].copy()
+    atomic_to_csv(summ_main, out_abl / 'summary.csv', index=False, float_format='%.5f')
+    atomic_to_csv(summ_dms, out_dms / 'ablation_summary.csv', index=False, float_format='%.5f')
+    write_informativeness(out_abl, out_dms, summ)
 
     t_b0 = time.perf_counter()
     deltas_bench, cvw_df = boot_benchmark_deltas(frames, B=B, procs=args.procs)
     t_b1 = time.perf_counter()
     pg_98_boot, pg_detail = pg_paired_boot(pg_cat, pg_matrices, B=B)
     deltas = pd.concat([deltas_bench, epi_boot_df, pg_98_boot], ignore_index=True)
-    atomic_to_csv(deltas, out_98 / 'delta_paired.csv', index=False, float_format='%.5f')
+    deltas_main = deltas[~deltas['column'].isin(DMS3_COLS)].copy()
+    deltas_dms = deltas[deltas['column'].isin(DMS3_COLS)].copy()
+    atomic_to_csv(deltas_main, out_abl / 'delta_paired.csv', index=False, float_format='%.5f')
+    atomic_to_csv(deltas_dms, out_dms / 'ablation_delta_paired.csv', index=False, float_format='%.5f')
 
-    render_delta_tables(out_98, summ, deltas, B=B, n_pg_held=n_pg_held, n_pg_mm=n_pg_mm)
-    render_candidate_layouts(out_98, summ, deltas, mega_own, B=B)
+    render_delta_tables(out_abl, summ_main, deltas_main, B=B, n_pg_held=n_pg_held, n_pg_mm=n_pg_mm)
+    render_candidate_layouts(out_abl, summ_main, deltas_main, mega_own, B=B)
 
-    # Write studies/ablations/ tables & Extended Data Figure 1
-    atomic_to_csv(deltas_bench, out_abl / 'paired_vs_p0.csv', index=False, float_format='%.5f')
+    # Write merged 09_ablation/ tables & Extended Data Figure 1 (zero 3-DMS columns!)
+    is_dms_bench = deltas_bench['column'].isin(DMS3_COLS)
+    atomic_to_csv(deltas_bench[~is_dms_bench], out_abl / 'paired_vs_p0.csv', index=False, float_format='%.5f')
+    atomic_to_csv(deltas_bench[is_dms_bench], out_dms / 'ablation_paired_vs_p0.csv', index=False, float_format='%.5f')
     atomic_to_csv(pg_detail, out_abl / 'paired_vs_p0_proteingym.csv', index=False, float_format='%.5f')
-    comp_rows = deltas[deltas['column'].isin(['ext_singles_mean', 'ext_multi_mean', 'dms_mean', 'tsuboyama_capped_test', 'tsuboyama_capped_test|beyond_rho', 'domainome|lowid', 'pg|avg']) & (deltas['head'] == 'primary')].copy()
-    write_stat_table(comp_rows[['family', 'column', 'delta', 'lo', 'hi', 'p', 'B']], out_abl / 'table_composites', float_fmt='%.4f')
+
+    comp_main = deltas_main[
+        deltas_main['column'].isin(['ext_singles_mean', 'ext_multi_mean', 'tsuboyama_capped_test', 'tsuboyama_capped_test|beyond_rho', 'domainome|lowid', 'pg|avg'])
+        & (deltas_main['head'] == 'primary')
+    ].copy()
+    write_stat_table(comp_main[['family', 'column', 'delta', 'lo', 'hi', 'p', 'B']], out_abl / 'table_composites', float_fmt='%.4f')
+    comp_dms = deltas_dms[(deltas_dms['column'] == 'dms_mean') & (deltas_dms['head'] == 'primary')].copy()
+    atomic_to_csv(comp_dms[['family', 'column', 'delta', 'lo', 'hi', 'p', 'B']], out_dms / 'ablation_table_composites.csv', index=False, float_format='%.4f')
+
     cnt_rows = []
     for fam in ABL_ARMS:
-        sub_f = deltas[(deltas['family'] == fam) & (deltas['head'].isin(['wt', 'comb']))]
+        sub_f = deltas_main[(deltas_main['family'] == fam) & (deltas_main['head'].isin(['wt', 'comb']))]
         cnt_rows.append(dict(
-            family=fam, label=M.ABLATION_STYLES[fam].label,
+            family=fam, label=_abl_style(fam).label,
             n_cells=len(sub_f),
             sig_better=int((sub_f['lo'] > 0).sum()),
             sig_worse=int((sub_f['hi'] < 0).sum()),
         ))
     write_stat_table(pd.DataFrame(cnt_rows), out_abl / 'table_counts', float_fmt='%.4f')
-    draw_ablation_architecture_suite(out_abl, deltas, pg_detail, B=B)
+    draw_ablation_architecture_suite(out_abl, deltas_main, pg_detail, B=B)
 
-    # Write studies/dual_view/ tables & Extended Data Figure 2
+    # Write 99_misc/dual_view/ tables & Extended Data Figure 2
     pg_held, pv_df, units_df, when_df = build_dual_view_study(out_dv, frames, cvw_df, B=B)
     draw_dual_view_summary(out_dv, cvw_df, pg_held, pv_df, units_df, when_df, B=B)
 

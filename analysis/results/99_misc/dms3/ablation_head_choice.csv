@@ -1,0 +1,12 @@
+column,n_families,comb_minus_wt,comb_minus_wt_ref,rank_agreement
+DLG4_HUMAN_Faure_2021_binding_domain,10,-0.0219,-0.0286,0.6000
+DLG4_HUMAN_Faure_2021_binding_domain|multi,10,-0.0236,-0.0312,0.5758
+DLG4_HUMAN_Faure_2021_binding_domain|singles,10,-0.0240,-0.0306,0.8667
+GRB2_HUMAN_Faure_2021_binding_domain,10,-0.0227,-0.0290,0.9394
+GRB2_HUMAN_Faure_2021_binding_domain|multi,10,-0.0228,-0.0291,0.9394
+GRB2_HUMAN_Faure_2021_binding_domain|singles,10,-0.0194,-0.0242,0.9030
+MYO_HUMAN_Kung_2025_display,10,-0.0023,-0.0027,0.6242
+MYO_HUMAN_Kung_2025_display|multi,10,-0.0050,-0.0059,0.7576
+MYO_HUMAN_Kung_2025_display|singles,10,0.0016,0.0031,0.3091
+dms_mean,10,-0.0156,-0.0201,0.9152
+dms_multi_mean,10,-0.0171,-0.0221,0.8667

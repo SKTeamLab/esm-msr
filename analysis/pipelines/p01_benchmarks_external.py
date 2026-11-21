@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Pipeline p01: Core Spearman bootstrap, 10 external thermostability sets, and DMS & Domainome benchmarks.
+"""Pipeline p01: Core Spearman bootstrap, 10 external thermostability sets, Held-out Domainome, and 3-DMS benchmarks.
 
 Consolidates:
-  - 01_core_rho.py       -> results/00_core/rho_bootstrap.csv
+  - 01_core_rho.py        -> cache/core_rho_bootstrap.csv
   - 02_thermostability.py -> results/02_thermostability/{thermostability_rho.csv, thermo_external_rho, thermo_overview, thermo_interval_types}
-  - 04_dms_domainome.py  -> results/04_dms_domainome/{dms_vs_retrains, dms_sigma_vs_zero_shot, dms_sigma_sweep}
+  - 04_dms_domainome.py   -> results/04_domainome/{domainome_vs_retrains, domainome_sigma_vs_zero_shot, domainome_sigma_sweep}
+                           + results/99_misc/dms3/{dms_vs_retrains, dms_sigma_vs_zero_shot, dms_sigma_sweep}
 
 Key methodological fixes vs legacy scripts:
   - Uniform bootstrap count B across protein, site, and mutation resampling (removes silent B // 2 halving on mutation).
   - Never mutates registry.MODELS in place; uses local label overrides for training-overlap stars.
-  - Fixes dms_sigma_sweep from a half-empty 1x8 grid to a clean 1x4 grid over the 4 evaluated datasets.
+  - Separates held-out Domainome (04_domainome/) cleanly from the 3-DMS sets (99_misc/dms3/).
   - Drops byte-identical duplicate dms_external_rho.{csv,png,pdf} and dead cache/boot_{protein,site,mutation}.pkl dumps.
 """
 from __future__ import annotations
@@ -31,16 +32,16 @@ from matplotlib.lines import Line2D
 from msr_analysis import models as R
 from msr_analysis import style
 from msr_analysis.boot import DatasetBoot, _make_seed_sampler, bootstrap_rho, ci, global_cluster_index
-from msr_analysis.common import leak_table, out_dir
+from msr_analysis.common import leak_table
 from msr_analysis.data import Frame, load_frame
 from msr_analysis.external import EXT_ORDER, load_mutation_boot, model_key_for_dataset, seed_frame
-from msr_analysis.paths import CACHE, atomic_pickle_dump, atomic_to_csv
+from msr_analysis.paths import CACHE, CORE_RHO_BOOTSTRAP_CSV, atomic_pickle_dump, atomic_to_csv, results_dir
 from msr_analysis.registry import DMS3, EXT12, LABEL, MODELS, PER_PROTEIN, TSU_CAPPED
 
 from . import base_parser, resolve_b
 
 STAGE = 'benchmarks_external'
-DESCRIPTION = 'Task spines, core Spearman bootstrap, 12 external thermostability sets, DMS & Domainome'
+DESCRIPTION = 'Task spines, core Spearman bootstrap, 12 external thermostability sets, Domainome & 3-DMS'
 
 EXT10 = ['s571', 's783', 's2648', 's8754', 's461', 'ssym', 'q3421', 'k2369', 'ptmul', 'ptmuld']
 OVERVIEW_MODELS = [m.name for m in R.ROSTER if not m.sigma]
@@ -48,8 +49,7 @@ CORE_KEYS = tuple(dict.fromkeys(
     [k for m in R.ROSTER for k in (m.single, m.multi) if k] + ['ifum_esmfold']
 ))
 SAW_TEST_DATA = ('GeoDDG-3D', 'DDGemb', 'DDMut')
-DMS_DS = DMS3 + ['domainome']
-DMS_COLS = DMS3 + ['mean of 3 DMS', 'domainome']
+DMS_COLS = DMS3 + ['mean of 3 DMS']
 
 _PP_MUT_STATE: dict = {}
 
@@ -548,9 +548,20 @@ def _fast_bootstrap_rho(frames: dict[str, Frame], keys: list[str], kind: str, B:
     return point, reps
 
 
-def run_core_rho(B: int, ext_boot: dict | None = None) -> pd.DataFrame:
+def run_core_rho(B: int, ext_boot: dict | None = None, refresh: bool = False) -> pd.DataFrame:
     """Compute protein-, site-, and mutation-level Spearman bootstrap intervals across all benchmark datasets."""
-    out = out_dir('00_core')
+    expected_ds = set(EXT12) | set(DMS3) | {'domainome', *TSU_CAPPED}
+    if not refresh and CORE_RHO_BOOTSTRAP_CSV.exists():
+        cached = pd.read_csv(CORE_RHO_BOOTSTRAP_CSV)
+        if (
+            {'dataset', 'model', 'kind', 'rho', 'lo', 'hi', 'B'}.issubset(cached.columns)
+            and len(cached) > 0
+            and (cached['B'] == B).all()
+            and expected_ds.issubset(set(cached['dataset']))
+        ):
+            print(f'  [core_rho] reusing cached {CORE_RHO_BOOTSTRAP_CSV.name} (B={B}, {len(cached)} rows)', flush=True)
+            return cached
+
     rows: list[dict] = []
 
     cached_mut: dict[tuple[str, str], np.ndarray] = {}
@@ -631,7 +642,7 @@ def run_core_rho(B: int, ext_boot: dict | None = None) -> pd.DataFrame:
     })
 
     df = pd.DataFrame(rows)
-    atomic_to_csv(df, out / 'rho_bootstrap.csv', index=False, float_format='%.5f')
+    atomic_to_csv(df, CORE_RHO_BOOTSTRAP_CSV, index=False, float_format='%.5f')
     return df
 
 
@@ -715,7 +726,7 @@ def _load_thermo_overview_boot(B: int, refresh: bool = False) -> dict:
 
 def run_thermostability(boot_payload: dict, B: int, refresh: bool = False) -> pd.DataFrame:
     """Generate external thermostability CSV and three figures under results/02_thermostability/."""
-    out = out_dir('02_thermostability')
+    out = results_dir('thermostability')
     P, keys_used = boot_payload['point'], boot_payload['keys']
     leak = leak_table()
     active_models = [m for m in EXT_ORDER if any((d, m) in P for d in EXT10)]
@@ -865,10 +876,22 @@ def run_thermostability(boot_payload: dict, B: int, refresh: bool = False) -> pd
     return S
 
 
-def _build_dms_table(models: list[str], P: dict, reps: dict, keys_used: dict) -> tuple[dict, dict, pd.DataFrame]:
+def _build_domainome_table(models: list[str], P: dict, keys_used: dict) -> tuple[dict, dict, pd.DataFrame]:
     t, c, rows = {}, {}, []
     for m in models:
-        for d in DMS_DS:
+        if ('domainome', m) not in P:
+            continue
+        v = P[('domainome', m)]
+        t[('domainome', m)] = v[0]
+        c[('domainome', m)] = (v[1], v[2])
+        rows.append(dict(column='domainome', model=m, key=keys_used.get(('domainome', m), ''), rho=v[0], lo=v[1], hi=v[2]))
+    return t, c, pd.DataFrame(rows)
+
+
+def _build_dms3_table(models: list[str], P: dict, reps: dict, keys_used: dict) -> tuple[dict, dict, pd.DataFrame]:
+    t, c, rows = {}, {}, []
+    for m in models:
+        for d in DMS3:
             if (d, m) not in P:
                 continue
             v = P[(d, m)]
@@ -886,91 +909,208 @@ def _build_dms_table(models: list[str], P: dict, reps: dict, keys_used: dict) ->
     return t, c, pd.DataFrame(rows)
 
 
-def run_dms_domainome(boot_payload: dict, B: int) -> pd.DataFrame:
-    """Generate DMS & held-out Domainome CSVs and figures under results/04_dms_domainome/."""
-    out = out_dir('04_dms_domainome')
-    P, reps, keys_used = boot_payload['point'], boot_payload['reps'], boot_payload['keys']
-    active_models = [m for m in EXT_ORDER if all((d, m) in P for d in DMS_DS)]
-    hollow = style.hollow_cells(keys_used)
+def _sigma_points_for_dataset(ds: str, P: dict, keys_used: dict, mut_lookup: dict[tuple[str, str], tuple[float, float, float]]) -> list[dict]:
+    """Return sigma sweep points (0.0, 0.5, 1.0) for ``ds`` using its deployed readout head."""
+    head = 'wt' if ds == 'domainome' else 'comb'
+    v0 = P[(ds, 'ESM3-small-open')]
+    v1 = P[(ds, 'ESM-MSR')]
+    pts = [
+        dict(dataset=ds, label=LABEL[ds], sigma=0.0, key=keys_used.get((ds, 'ESM3-small-open'), f'msrrel@0:{head}'), rho=v0[0], lo=v0[1], hi=v0[2]),
+    ]
+    k05 = f'msrp0@0.5:{head}'
+    if (ds, k05) in mut_lookup:
+        v05 = mut_lookup[(ds, k05)]
+        pts.append(dict(dataset=ds, label=LABEL[ds], sigma=0.5, key=k05, rho=v05[0], lo=v05[1], hi=v05[2]))
+    pts.append(
+        dict(dataset=ds, label=LABEL[ds], sigma=1.0, key=keys_used.get((ds, 'ESM-MSR'), f'msrp0:{head}'), rho=v1[0], lo=v1[1], hi=v1[2])
+    )
+    return pts
 
-    def _draw_top_legend(fig, models, bbox=(0.5, 0.94), ncol=4):
-        hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8, hollow=False)) for m in models] + style.version_handles()
+
+def run_domainome(boot_payload: dict, core_rho_df: pd.DataFrame, B: int) -> pd.DataFrame:
+    """Generate Domainome-only CSVs and clean 1-dataset figures under results/04_domainome/."""
+    out = results_dir('domainome')
+    P, keys_used = boot_payload['point'], boot_payload['keys']
+    active_models = [m for m in EXT_ORDER if ('domainome', m) in P]
+    dom_keys = {(d, m): k for (d, m), k in keys_used.items() if d == 'domainome'}
+    hollow = style.hollow_cells(dom_keys)
+    mut_df = core_rho_df[core_rho_df['kind'] == 'mutation']
+    mut_lookup = {(r.dataset, r.model): (float(r.rho), float(r.lo), float(r.hi)) for r in mut_df.itertuples()}
+
+    def _draw_dom_legend(fig, models, bbox=(0.5, 0.935), ncol=3, include_versions=True):
+        hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8, hollow=False)) for m in models]
+        if include_versions:
+            hs.append(Line2D([0], [0], marker='o', ms=6.8 * style.HOLLOW_SIZE, mfc='none', mec='#555555', mew=style.HOLLOW_MEW, ls='none', label='hollow: singles version'))
+        return fig.legend(
+            handles=hs, loc='upper center', bbox_to_anchor=bbox, ncol=ncol, fontsize=8.0,
+            frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.1, handletextpad=0.35,
+        )
+
+    # 1. Domainome all-model comparison
+    t_dom, c_dom, df_dom = _build_domainome_table(active_models, P, keys_used)
+    atomic_to_csv(df_dom, out / 'domainome_vs_retrains.csv', index=False, float_format='%.4f')
+
+    fig, ax = plt.subplots(figsize=(8.2, 5.4))
+    style.dot_panel(
+        ax, ['domainome'], active_models, t_dom, c_dom,
+        highlight=['ESM-MSR'], ylabel='Spearman ρ (mean over held-out domains)',
+        xlabels=['Domainome (436 held-out domains)'], rot=0,
+        size=6.8, spread=0.72, ylim=(0.35, 0.60), hollow=hollow,
+    )
+    _draw_dom_legend(fig, active_models, bbox=(0.5, 0.94), ncol=3, include_versions=True)
+    fig.suptitle(
+        f'Held-out Domainome: Spearman ρ across all models (seeds 1-3 averaged; B = {B:,})',
+        x=0.015, ha='left', y=0.985, fontsize=10.2, fontweight='bold',
+    )
+    note = (
+        'Seeds 1-3 averaged for the retrained models; 95% within-domain mutation-level bootstrap across 436 4-part held-out domains.\n'
+        'Singles version of every model (hollow markers for models with both singles and doubles versions).'
+    )
+    fig.text(0.015, 0.01, note, fontsize=7.8, va='bottom', ha='left', color='#444444')
+    fig.tight_layout(rect=(0.0, 0.065, 1.0, 0.80))
+    style.save(fig, out / 'domainome_vs_retrains')
+
+    # 2. Domainome ESM-MSR (sigma = 1) vs zero-shot models
+    zs_models = [m for m in EXT_ORDER if m in ('ESM-MSR', 'ESM3-small-open', 'ProteinMPNN', 'ProSST') and ('domainome', m) in P]
+    t_zs, c_zs, df_zs = _build_domainome_table(zs_models, P, keys_used)
+    atomic_to_csv(df_zs, out / 'domainome_sigma_vs_zero_shot.csv', index=False, float_format='%.4f')
+
+    fig2, ax2 = plt.subplots(figsize=(7.2, 4.9))
+    style.dot_panel(
+        ax2, ['domainome'], zs_models, t_zs, c_zs,
+        highlight=['ESM-MSR'], ylabel='Spearman ρ (mean over held-out domains)',
+        xlabels=['Domainome (436 held-out domains)'], rot=0,
+        size=7.0, spread=0.52, ylim=(0.48, 0.58), hollow=hollow,
+    )
+    _draw_dom_legend(fig2, zs_models, bbox=(0.5, 0.935), ncol=3, include_versions=True)
+    fig2.suptitle(
+        f'Held-out Domainome: ESM-MSR (σ = 1) vs zero-shot models (95% mutation-level bootstrap, B = {B:,})',
+        x=0.015, ha='left', y=0.985, fontsize=9.8, fontweight='bold',
+    )
+    fig2.tight_layout(rect=(0.0, 0.01, 1.0, 0.83))
+    style.save(fig2, out / 'domainome_sigma_vs_zero_shot')
+
+    # 3. Domainome LoRA scale sigma sweep (sigma in {0, 0.5, 1})
+    sw_rows = _sigma_points_for_dataset('domainome', P, keys_used, mut_lookup)
+    df_sw = pd.DataFrame(sw_rows)
+    atomic_to_csv(df_sw, out / 'domainome_sigma_sweep.csv', index=False, float_format='%.4f')
+
+    fig3, ax3 = plt.subplots(figsize=(4.8, 3.6))
+    xs = df_sw['sigma'].to_numpy(float)
+    ys = df_sw['rho'].to_numpy(float)
+    los = df_sw['lo'].to_numpy(float)
+    his = df_sw['hi'].to_numpy(float)
+    ax3.plot(xs, ys, '-o', color='k', ms=5.6, lw=1.7)
+    ax3.errorbar(
+        xs, ys,
+        yerr=[ys - los, his - ys],
+        fmt='none', ecolor='k', elinewidth=1.2, capsize=3.0,
+    )
+    ax3.set_title('Domainome (436 held-out domains)', fontsize=9.8)
+    ax3.set_xlabel('LoRA scale σ')
+    ax3.set_ylabel('Spearman ρ')
+    ax3.set_xticks(xs)
+    ax3.set_xticklabels([f'{x:g}' for x in xs])
+    ax3.set_xlim(-0.15, 1.15)
+    ax3.grid(axis='y', color=style.GRID, lw=0.6)
+    fig3.suptitle(f'Held-out Domainome: ESM-MSR vs LoRA scale σ (B = {B:,})', fontsize=9.8, y=1.02)
+    fig3.tight_layout()
+    style.save(fig3, out / 'domainome_sigma_sweep')
+    return df_dom
+
+
+def run_dms3(boot_payload: dict, core_rho_df: pd.DataFrame, B: int) -> pd.DataFrame:
+    """Generate 3-DMS-only CSVs and clean 3-dataset figures under results/99_misc/dms3/."""
+    out = results_dir('dms3')
+    P, reps, keys_used = boot_payload['point'], boot_payload['reps'], boot_payload['keys']
+    active_models = [m for m in EXT_ORDER if all((d, m) in P for d in DMS3)]
+    dms_keys = {(d, m): k for (d, m), k in keys_used.items() if d in DMS3}
+    hollow = style.hollow_cells(dms_keys)
+    mut_df = core_rho_df[core_rho_df['kind'] == 'mutation']
+    mut_lookup = {(r.dataset, r.model): (float(r.rho), float(r.lo), float(r.hi)) for r in mut_df.itertuples()}
+
+    def _draw_dms_legend(fig, models, bbox=(0.5, 0.94), ncol=5):
+        hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8, hollow=False)) for m in models]
         return fig.legend(
             handles=hs, loc='upper center', bbox_to_anchor=bbox, ncol=ncol, fontsize=8.0,
             frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.2, handletextpad=0.35,
         )
 
-    # Figure 1: unified all-model comparison across DMS3 + mean + held-out Domainome
-    t_all, c_all, df_all = _build_dms_table(active_models, P, reps, keys_used)
-    atomic_to_csv(df_all, out / 'dms_vs_retrains.csv', index=False, float_format='%.4f')
+    # 1. 3-DMS all-model comparison
+    t_dms, c_dms, df_dms = _build_dms3_table(active_models, P, reps, keys_used)
+    atomic_to_csv(df_dms, out / 'dms_vs_retrains.csv', index=False, float_format='%.4f')
 
-    fig, ax = plt.subplots(figsize=(13.5, 5.8))
+    fig, ax = plt.subplots(figsize=(11.6, 5.6))
     style.dot_panel(
-        ax, DMS_COLS, active_models, t_all, c_all,
+        ax, DMS_COLS, active_models, t_dms, c_dms,
         highlight=['ESM-MSR'], ylabel='Spearman ρ',
         xlabels=[LABEL.get(x, x) for x in DMS_COLS],
-        size=6.2, spread=0.78, ylim=(0.0, 0.90), hollow=hollow,
+        size=6.4, spread=0.76, ylim=(0.30, 0.88), hollow=hollow,
     )
-    _draw_top_legend(fig, active_models, bbox=(0.5, 0.942), ncol=4)
+    _draw_dms_legend(fig, active_models, bbox=(0.5, 0.942), ncol=5)
     fig.suptitle(
-        f'External DMS & Domainome: Spearman ρ across all models (seeds 1-3 averaged; 95% mutation-level bootstrap, B = {B:,})',
+        f'External 3-DMS benchmarks: Spearman ρ across all models (seeds 1-3 averaged; 95% mutation-level bootstrap, B = {B:,})',
         x=0.012, ha='left', y=0.985, fontsize=10.2, fontweight='bold',
     )
     note = (
-        'Seeds 1-3 averaged for the retrained models; 95% mutation-level bootstrap (within-domain mutations for held-out Domainome). '
-        'Singles version of every model on Domainome (hollow markers for the models that have two); doubles version on DLG4 binding / GRB2 binding / MYO '
-        '(ThermoMPNN-D on the 2-mutant sets).'
+        'Seeds 1-3 averaged for the retrained models; 95% mutation-level bootstrap. '
+        'Doubles version of every two-version model on DLG4 binding, GRB2 binding, and MYO display (ThermoMPNN-D on the 2-mutant sets).'
     )
     fig.text(0.012, 0.01, note, fontsize=8.0, va='bottom', ha='left', color='#444444')
-    fig.tight_layout(rect=(0.0, 0.045, 1.0, 0.84))
+    fig.tight_layout(rect=(0.0, 0.045, 1.0, 0.85))
     style.save(fig, out / 'dms_vs_retrains')
 
-    # Figure 2: ESM-MSR (sigma = 1) vs zero-shot models
+    # 2. 3-DMS ESM-MSR (sigma = 1) vs zero-shot models
     zs_models = [m for m in EXT_ORDER if m in ('ESM-MSR', 'ESM3-small-open', 'ProteinMPNN', 'ProSST')]
-    t_zs, c_zs, df_zs = _build_dms_table(zs_models, P, reps, keys_used)
+    t_zs, c_zs, df_zs = _build_dms3_table(zs_models, P, reps, keys_used)
     atomic_to_csv(df_zs, out / 'dms_sigma_vs_zero_shot.csv', index=False, float_format='%.4f')
 
-    fig2, ax2 = plt.subplots(figsize=(12.5, 5.2))
+    fig2, ax2 = plt.subplots(figsize=(10.6, 5.0))
     style.dot_panel(
         ax2, DMS_COLS, zs_models, t_zs, c_zs,
         highlight=['ESM-MSR'], ylabel='Spearman ρ',
         xlabels=[LABEL.get(x, x) for x in DMS_COLS],
-        size=6.4, spread=0.68, ylim=(0.0, 0.90), hollow=hollow,
+        size=6.5, spread=0.66, ylim=(0.44, 0.86), hollow=hollow,
     )
-    _draw_top_legend(fig2, zs_models, bbox=(0.5, 0.942), ncol=4)
+    _draw_dms_legend(fig2, zs_models, bbox=(0.5, 0.942), ncol=4)
     fig2.suptitle(
-        f'ESM-MSR (seeds 1-3, σ = 1) vs zero-shot models (σ = 0 and baselines; 95% mutation-level bootstrap, B = {B:,})',
+        f'External 3-DMS benchmarks: ESM-MSR (seeds 1-3, σ = 1) vs zero-shot models (95% mutation-level bootstrap, B = {B:,})',
         x=0.012, ha='left', y=0.985, fontsize=10.0, fontweight='bold',
     )
     fig2.tight_layout(rect=(0.0, 0.0, 1.0, 0.88))
     style.save(fig2, out / 'dms_sigma_vs_zero_shot')
 
-    # Figure 3: sigma = 0 -> 1 comparison on the 4 datasets (fixed 1x4 grid, no empty axes)
-    fig3, axes3 = plt.subplots(1, len(DMS_DS), figsize=(11.2, 3.1), sharey=False)
-    for ax_i, col in zip(axes3, DMS_DS):
-        v0 = P[(col, 'ESM3-small-open')]
-        v1 = P[(col, 'ESM-MSR')]
-        xs = [0.0, 1.0]
-        ys = [v0[0], v1[0]]
-        los = [v0[1], v1[1]]
-        his = [v0[2], v1[2]]
-        ax_i.plot(xs, ys, '-o', color='k', ms=5.2, lw=1.6)
+    # 3. 3-DMS LoRA scale sigma sweep (1x3 grid over DMS3, zero Domainome)
+    sw_rows = []
+    for ds in DMS3:
+        sw_rows.extend(_sigma_points_for_dataset(ds, P, keys_used, mut_lookup))
+    df_sw = pd.DataFrame(sw_rows)
+    atomic_to_csv(df_sw, out / 'dms_sigma_sweep.csv', index=False, float_format='%.4f')
+
+    fig3, axes3 = plt.subplots(1, len(DMS3), figsize=(9.2, 3.3), sharey=False)
+    for ax_i, col in zip(axes3, DMS3):
+        sub = df_sw[df_sw['dataset'] == col]
+        xs = sub['sigma'].to_numpy(float)
+        ys = sub['rho'].to_numpy(float)
+        los = sub['lo'].to_numpy(float)
+        his = sub['hi'].to_numpy(float)
+        ax_i.plot(xs, ys, '-o', color='k', ms=5.4, lw=1.6)
         ax_i.errorbar(
             xs, ys,
-            yerr=[[ys[0] - los[0], ys[1] - los[1]], [his[0] - ys[0], his[1] - ys[1]]],
+            yerr=[ys - los, his - ys],
             fmt='none', ecolor='k', elinewidth=1.15, capsize=2.8,
         )
         ax_i.set_title(LABEL[col], fontsize=9.5)
         ax_i.set_xlabel('LoRA scale σ')
-        ax_i.set_xticks([0.0, 1.0])
-        ax_i.set_xticklabels(['0', '1'])
-        ax_i.set_xlim(-0.25, 1.25)
+        ax_i.set_xticks(xs)
+        ax_i.set_xticklabels([f'{x:g}' for x in xs])
+        ax_i.set_xlim(-0.15, 1.15)
         ax_i.grid(axis='y', color=style.GRID, lw=0.6)
     axes3[0].set_ylabel('Spearman ρ')
-    fig3.suptitle(f'ESM-MSR (seeds 1-3) vs σ = 0 zero-shot control (95% mutation-level bootstrap, B = {B:,})', fontsize=10, y=1.02)
+    fig3.suptitle(f'External 3-DMS benchmarks: ESM-MSR vs LoRA scale σ (95% mutation-level bootstrap, B = {B:,})', fontsize=10, y=1.02)
     fig3.tight_layout()
     style.save(fig3, out / 'dms_sigma_sweep')
-    return df_all
+    return df_dms
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -984,11 +1124,13 @@ def main(argv: list[str] | None = None) -> int:
             load_frame(d, refresh=True)
 
     boot_payload = _get_ext_mutation_boot(B=B, refresh=args.refresh)
-    run_core_rho(B=B, ext_boot=boot_payload)
+    core_rho_df = run_core_rho(B=B, ext_boot=boot_payload, refresh=args.refresh)
     run_thermostability(boot_payload, B=B, refresh=args.refresh)
-    df_dms = run_dms_domainome(boot_payload, B=B)
-    active = [m for m in EXT_ORDER if m in set(df_dms['model'])]
-    print(df_dms.pivot(index='model', columns='column', values='rho').reindex(active)[DMS_COLS].round(3).to_string())
+    df_dom = run_domainome(boot_payload, core_rho_df, B=B)
+    df_dms = run_dms3(boot_payload, core_rho_df, B=B)
+    df_comb = pd.concat([df_dms, df_dom], ignore_index=True)
+    active = [m for m in EXT_ORDER if m in set(df_comb['model'])]
+    print(df_comb.pivot(index='model', columns='column', values='rho').reindex(active)[DMS_COLS + ['domainome']].round(3).to_string())
     return 0
 
 

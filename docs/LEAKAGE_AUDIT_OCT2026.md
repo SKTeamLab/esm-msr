@@ -493,7 +493,7 @@ and `–` remain eligible.
 
 **`BENCHMARKS_OCT2026.md` follows this revision.** Its leak-code matrices, superscripts, §2 row labels and §6
 summary were regenerated from `leak_audit_matrix.csv` on 2026-11-12. The per-table CSVs in
-`analysis/reference/benchmark_tables/` and the figures in `analysis/results/10_leakage_and_reference/` were
+`analysis/reference/benchmark_tables/` and the reference comparison figures in `analysis/results/00_for_reviewers/reference/` were
 regenerated with them. No bolded number changed: every cell whose superscript changed was already excluded or not
 leading.
 

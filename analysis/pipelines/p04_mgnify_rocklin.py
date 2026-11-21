@@ -2,19 +2,19 @@
 """Pipeline p04: MGnify & Rocklin de novo benchmarks, homology strata, multi-model comparisons, and beyond-global epistasis.
 
 Consolidates:
-  - 18_mgnify.py                     -> results/18_mgnify/{mgnify_summary.csv, mgnify_rmse.csv, mgnify_per_scaffold_rho.csv,
+  - 18_mgnify.py                     -> results/05_mgnify/{mgnify_summary.csv, mgnify_rmse.csv, mgnify_per_scaffold_rho.csv,
                                         table_mgnify{,_ci}.md, table_rocklin{,_ci}.md, table_homology.md,
                                         mgnify_overview, rocklin_overview, mgnify_homology, mgnify_per_scaffold, mgnify_scatter}
-  - 18b_mgnify_models.py             -> results/18_mgnify/{mgnify_models_per_scaffold.csv, mgnify_models_pooled.csv}
-  - 18c_mgnify_by_mutation_count.py  -> results/18_mgnify/{mgnify_by_mutation_count.csv, mgnify_by_mutation_count}
-  - scoring/mgnify_rdenovo_stats.py  -> results/18_mgnify/rocklin_designs/{stats.csv, epistasis.csv}
-  - scoring/mgnify_epistasis_beyond.py -> results/18_mgnify/new_data_epistasis/{summary.csv, beyond_rho_epistasis}
+  - 18b_mgnify_models.py             -> results/05_mgnify/{mgnify_models_per_scaffold.csv, mgnify_models_pooled.csv}
+  - 18c_mgnify_by_mutation_count.py  -> results/05_mgnify/{mgnify_by_mutation_count.csv, mgnify_by_mutation_count}
+  - scoring/mgnify_rdenovo_stats.py  -> results/05_mgnify/rocklin_designs/{stats.csv, epistasis.csv}
+  - scoring/mgnify_epistasis_beyond.py -> results/05_mgnify/new_data_epistasis/{summary.csv, beyond_rho_epistasis}
 
 Key methodological fixes vs legacy scripts:
   - Enforces joint scaffold + 3-seed resampling across 18b, 18c, rocklin_designs, and new_data_epistasis.
   - Uses O(n) SpearmanEngine for 600k-variant pooled bootstraps (replacing O(n log n) scipy.stats.rankdata loops).
   - Applies consistent 4-part holdout filtering (msr_analysis.heldout) to Rocklin de novo designs and beyond-global epistasis,
-    while keeping explicit homology-strata comparisons ('all', 'heldout', 'clean', 'h', 'strong') clearly labelled in 18_mgnify.
+    while keeping explicit homology-strata comparisons ('all', 'heldout', 'clean', 'h', 'strong') clearly labelled in 05_mgnify.
   - Uses ddof=1 (msr_analysis.stats.seed_sd) and NaN-safe Spearman/Pearson throughout.
 """
 from __future__ import annotations
@@ -42,12 +42,11 @@ from esm_msr.val_stats import tobit_link
 from msr_analysis import models as M
 from msr_analysis import style
 from msr_analysis.boot import SpearmanEngine, bootstrap_rho, ci, paired_diff
-from msr_analysis.common import out_dir
 from msr_analysis.data import Frame
 from msr_analysis.final_runs import load_final_frame
 from msr_analysis.heldout import excluded
 from msr_analysis.mgnify import RUNS, STRATA, finished_seeds, legacy_cens, load_mgnify
-from msr_analysis.paths import FINAL_MGNIFY, MGNIFY_TABLE, PUBLIC, TASKS, atomic_to_csv, atomic_write_text
+from msr_analysis.paths import FINAL_MGNIFY, MGNIFY_TABLE, PUBLIC, TASKS, atomic_to_csv, atomic_write_text, results_dir
 from msr_analysis.stats import boot_domain_seeds, make_domain_seed_draws, seed_sd
 from msr_analysis.tobit import TOBIT
 
@@ -357,7 +356,7 @@ def _finish_foot(fig, text: str, out_stem, pad: float = 0.04, top: float = 1.0) 
 
 
 def run_esm_msr_strata(B: int, workers: int = 4) -> None:
-    out = out_dir('18_mgnify')
+    out = results_dir('mgnify')
     seeds = finished_seeds()
     fr = load_mgnify(seeds=seeds, heldout=False)
     tf = _tsuboyama_p0_frame()
@@ -748,7 +747,7 @@ def _prepare_heldout_models(cfg: dict) -> tuple[pd.DataFrame, dict]:
 
 def run_all_models_and_mutcount(B: int, workers: int = 8) -> None:
     """18b & 18c: Evaluate all models on 4-part held-out MGnify and Rocklin designs."""
-    out = out_dir('18_mgnify')
+    out = results_dir('mgnify')
     sets_cfg = {
         'MGnify': dict(run='all', src='mgnify'),
         'Rocklin designs': dict(run='rdenovo', src='rocklin_denovo'),
@@ -971,8 +970,7 @@ def _nan_pearson(x: np.ndarray, y: np.ndarray) -> float:
 
 def run_rocklin_rdenovo_stats(B: int, workers: int = 8) -> None:
     """Triplicate Rocklin de novo pooled, within-scaffold, and epistasis statistics (4-part held-out)."""
-    out = out_dir('18_mgnify') / 'rocklin_designs'
-    out.mkdir(parents=True, exist_ok=True)
+    out = results_dir('rocklin_designs')
     root = FINAL_MGNIFY / 'FINAL_p0'
     if not all((root / f's{s}' / 'rdenovo' / 'predictions.csv.gz').exists() for s in (1, 2, 3)):
         return
@@ -1204,8 +1202,7 @@ def _beyond_draw_worker(task) -> tuple:
 
 def run_beyond_epistasis(B: int, workers: int = 4) -> None:
     """Beyond-global saturation-subtracted epistasis on 4-part held-out MGnify + Rocklin designs."""
-    out = out_dir('18_mgnify') / 'new_data_epistasis'
-    out.mkdir(parents=True, exist_ok=True)
+    out = results_dir('mgnify_epistasis')
     root = FINAL_MGNIFY / 'FINAL_p0'
     if not all((root / f's{s}' / sub / 'predictions.csv.gz').exists() for s in (1, 2, 3) for sub in ('all', 'rdenovo')):
         return

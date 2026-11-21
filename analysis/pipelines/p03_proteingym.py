@@ -11,7 +11,8 @@ Replaces ``05_proteingym.py``, ``23_pg_ours_vs_published.py``, and ``proteingym/
   - Dynamic held-out and unfiltered assay counts on every axis, legend, title, and footnote (zero stale ``187/213`` or
     ``40/66`` strings).
   - Single canonical ``pg_summary.csv``, ``pg_sigma_summary.csv``, and ``property_delta_pvalues.csv`` in
-    ``results/05_proteingym/`` (eliminating byte-duplicate ``*_tsu.csv`` and ``*_nonleaked.csv`` tables).
+    ``results/03_proteingym/`` (eliminating byte-duplicate ``*_tsu.csv`` and ``*_nonleaked.csv`` tables), plus
+    ``pg_ours_vs_published.{csv,pdf,png}`` in ``results/00_supplementary_figs/``.
 """
 from __future__ import annotations
 
@@ -151,7 +152,7 @@ def _domainome_summary(B: int = 1000, refresh: bool = False) -> dict[str, tuple[
 
 
 # ----------------------------------------------------------------------------------------------
-# Main ProteinGym 5-category figures (05_proteingym) with dynamic 173/213 counts
+# Main ProteinGym 5-category figures (03_proteingym) with dynamic 173/213 counts
 # ----------------------------------------------------------------------------------------------
 def _draw_main_pgym_figures(
     out: Path,
@@ -293,12 +294,16 @@ def _draw_main_pgym_figures(
 # Sigma ∈ {0, 0.5, 1} property summaries, multi-property trajectories & worst-assay diagnostics
 # ----------------------------------------------------------------------------------------------
 def _run_sigma_property_outputs(out: Path, B: int, refresh: bool = False) -> tuple[pd.DataFrame, pd.DataFrame]:
-    # Full table (all 217 + DMS3) for reference CSV & with-homologs supplementary plot (restricted to 213 non-PG_DROP assays)
+    out_dms = results_dir('dms3')
     sig_all213, seeds_213 = PG.load_sigma_pgym(heldout=False, drop_large=True, include_fallback_small=False, include_dms3=False, refresh=refresh)
     sig_173, seeds_173 = PG.load_sigma_pgym(heldout=True, drop_large=True, include_fallback_small=False, include_dms3=False, refresh=False)
+    sig_pg217, _ = PG.load_sigma_pgym(heldout=False, drop_large=False, include_fallback_small=True, include_dms3=False, refresh=False)
     sig_with_dms, _ = PG.load_sigma_pgym(heldout=False, drop_large=False, include_fallback_small=True, include_dms3=True, refresh=False)
 
-    atomic_to_csv(sig_with_dms, out / 'per_assay_sigma_rho.csv', index=False, float_format='%.4f')
+    atomic_to_csv(sig_pg217, out / 'per_assay_sigma_rho.csv', index=False, float_format='%.4f')
+    sig_dms_only = sig_with_dms[sig_with_dms['source'] != 'ProteinGym'].reset_index(drop=True)
+    if len(sig_dms_only):
+        atomic_to_csv(sig_dms_only, out_dms / 'per_assay_sigma_rho.csv', index=False, float_format='%.4f')
     pvals_173 = PG.sigma_delta_pvalues(sig_173, per_seed_dep=seeds_173, B=max(B, 10000), seed=3)
     atomic_to_csv(pvals_173, out / 'property_delta_pvalues.csv', index=False, float_format='%.4g')
 
@@ -332,32 +337,11 @@ def _run_sigma_property_outputs(out: Path, B: int, refresh: bool = False) -> tup
         top=0.92,
     )
 
-    # Multi-property per-protein trajectories (p0_sigma/02)
-    mp_rows = [
-        dict(protein=prot, assay=dms, source='ProteinGym', axis=axis, note=note)
-        for dms, (prot, axis, note) in MULTI_PROP_ANNOT.items()
-    ]
-    for prot, pg_id, axis, note, ds_bind in MULTI_PROP_EXTRA:
-        mp_rows.append(dict(protein=prot, assay=pg_id, source='ProteinGym', axis=axis, note=note))
-        mp_rows.append(dict(protein=prot, assay=ds_bind, source='DMS benchmark', axis='BIND', note='binding PCA'))
-    mp = pd.DataFrame(mp_rows)
-    mp = mp[~mp['assay'].isin(excluded('proteingym'))].reset_index(drop=True)
-
     def _short_tag(dms_name: str, src: str) -> str:
         clean = dms_name.replace('_binding_domain', '_x') if src != 'ProteinGym' else dms_name
         parts = clean.split('_')
         i = next(k for k, p in enumerate(parts) if p.isdigit() and len(p) == 4)
         return f'{parts[i - 1]} {parts[i]}' + (' (DMS)' if src != 'ProteinGym' else '')
-
-    mp['label'] = [f"{r.axis.lower()[:5]}: {_short_tag(r.assay, r.source)}" for r in mp.itertuples()]
-    mp['order'] = mp['axis'].map(AXIS_ORDER)
-    mp = mp.sort_values(['protein', 'order', 'assay']).drop(columns='order').reset_index(drop=True)
-    rho_lookup = sig_with_dms.set_index('assay')
-    for s in PG.SIGMAS:
-        mp[f'rho_{s}'] = mp['assay'].map(rho_lookup[f'rho_{s}'])
-    mp['n'] = mp['assay'].map(rho_lookup['n'])
-    mp = mp[mp['rho_1.0'].notna()].reset_index(drop=True)
-    atomic_to_csv(mp, out / 'multi_property_index.csv', index=False, float_format='%.4f')
 
     def _load_wt_assay_seeds(name: str, src: str) -> list[pd.DataFrame]:
         out_dfs = []
@@ -390,65 +374,103 @@ def _run_sigma_property_outputs(out: Path, B: int, refresh: bool = False) -> tup
             out_dfs.append(joined.reset_index())
         return [d for d in out_dfs if len(d) == len(out_dfs[0])] if out_dfs else []
 
-    rng_mp = np.random.default_rng(1)
-    boots_mp = {}
-    for r in mp.itertuples():
-        ds_list = _load_wt_assay_seeds(r.assay, r.source)
-        y_v = ds_list[0]['y'].to_numpy(float)
-        Xs = [np.column_stack([d[f's{sg}'].to_numpy(float) for sg in PG.SIGMAS]) for d in ds_list]
-        n_v = len(y_v)
-        draws = np.empty((B, len(PG.SIGMAS)), dtype=float)
-        sw = rng_mp.multinomial(len(Xs), np.full(len(Xs), 1.0 / len(Xs)), size=B).astype(float) / len(Xs)
-        for b in range(B):
-            idx_v = rng_mp.integers(0, n_v, n_v)
-            ry = rankdata(y_v[idx_v])
-            seed_r = np.array([[np.corrcoef(rankdata(X[idx_v, k]), ry)[0, 1] for k in range(len(PG.SIGMAS))] for X in Xs])
-            draws[b] = (sw[b, :, None] * seed_r).sum(axis=0)
-        boots_mp[r.assay] = draws
+    def _render_multi_property(rows_in: list[dict], lookup_df: pd.DataFrame, csv_path: Path, fig_stem: Path, title_prefix: str, nc_max: int = 4) -> None:
+        mp = pd.DataFrame(rows_in)
+        mp = mp[~mp['assay'].isin(excluded('proteingym'))].reset_index(drop=True)
+        mp['label'] = [f"{r.axis.lower()[:5]}: {_short_tag(r.assay, r.source)}" for r in mp.itertuples()]
+        mp['order'] = mp['axis'].map(AXIS_ORDER)
+        mp = mp.sort_values(['protein', 'order', 'assay']).drop(columns='order').reset_index(drop=True)
+        rho_lookup = lookup_df.set_index('assay')
+        for s in PG.SIGMAS:
+            mp[f'rho_{s}'] = mp['assay'].map(rho_lookup[f'rho_{s}'])
+        mp['n'] = mp['assay'].map(rho_lookup['n'])
+        mp = mp[mp['rho_1.0'].notna()].reset_index(drop=True)
+        atomic_to_csv(mp, csv_path, index=False, float_format='%.4f')
+        if mp.empty:
+            return
 
-    prots = sorted(mp['protein'].unique())
-    nc = 4
-    nr = int(np.ceil(len(prots) / nc))
-    fig3, axs = plt.subplots(nr, nc, figsize=(4.4 * nc, 3.0 * nr), squeeze=False)
-    for ax, prot in zip(axs.ravel(), prots):
-        sub = mp[mp['protein'] == prot].reset_index(drop=True)
-        ys = sub['rho_1.0'].to_numpy(float)
-        span_y = max(0.08, float(np.ptp(sub[[f'rho_{s}' for s in PG.SIGMAS]].to_numpy())))
-        gap = 0.08 * span_y
-        ypos = {}
-        for i in np.argsort(ys):
-            y_cur = ys[i]
-            for j in sorted(ypos.values()):
-                if abs(y_cur - j) < gap:
-                    y_cur = j + gap
-            ypos[i] = y_cur
-        for k, r in sub.iterrows():
-            col = AXIS_COLOR[r.axis]
-            lo, hi = np.percentile(boots_mp[r.assay], [2.5, 97.5], axis=0)
-            ax.fill_between(PG.SIGMAS, lo, hi, color=col, alpha=0.14, lw=0)
-            ax.plot(PG.SIGMAS, [r[f'rho_{s}'] for s in PG.SIGMAS], marker='o', color=col, mec='white', mew=1.0, ms=5.5)
-            ax.text(1.03, ypos[k], r.label, fontsize=6.5, color='#333333', va='center')
-        ax.set_title(prot.replace('_', ' '), fontsize=9.5, loc='left')
-        ax.set_xticks(PG.SIGMAS)
-        ax.set_xticklabels(['0', '0.5', '1'])
-        ax.set_xlim(-0.05, 1.55)
-        ax.grid(axis='y', color=style.GRID, lw=0.6)
-    for ax in axs.ravel()[len(prots):]:
-        ax.axis('off')
-    for ax in axs[:, 0]:
-        if ax.axison:
-            ax.set_ylabel('Spearman ρ')
-    for ax in axs[-1, :]:
-        if ax.axison:
-            ax.set_xlabel('σ (LoRA scale)')
-    h_leg = [Line2D([], [], color=AXIS_COLOR[k], lw=2.0, marker='o', label=AXIS_NAME[k]) for k in ('ABUND', 'ACT', 'BIND', 'FIT', 'SPEC') if k in set(mp['axis'])]
-    fig3.legend(handles=h_leg, loc='upper right', ncol=len(h_leg), fontsize=8.2, bbox_to_anchor=(0.99, 0.995))
-    style.finish_figure(
-        fig3,
-        out / 'pg_multi_property_trajectories',
-        title=f'Multi-property proteins ({len(prots)} proteins, {len(mp)} held-out assays): ρ vs LoRA scale σ',
-        note=f'FINAL_p0 WT head across seeds 1–3 at σ = 0.5, 1.0 vs ESM3-small-open at σ = 0; shaded band = 95% joint [variant × seed] bootstrap (B = {B:,}).',
-        top=0.93,
+        rng_mp = np.random.default_rng(1)
+        boots_mp = {}
+        for r in mp.itertuples():
+            ds_list = _load_wt_assay_seeds(r.assay, r.source)
+            y_v = ds_list[0]['y'].to_numpy(float)
+            Xs = [np.column_stack([d[f's{sg}'].to_numpy(float) for sg in PG.SIGMAS]) for d in ds_list]
+            n_v = len(y_v)
+            draws = np.empty((B, len(PG.SIGMAS)), dtype=float)
+            sw = rng_mp.multinomial(len(Xs), np.full(len(Xs), 1.0 / len(Xs)), size=B).astype(float) / len(Xs)
+            for b in range(B):
+                idx_v = rng_mp.integers(0, n_v, n_v)
+                ry = rankdata(y_v[idx_v])
+                seed_r = np.array([[np.corrcoef(rankdata(X[idx_v, k]), ry)[0, 1] for k in range(len(PG.SIGMAS))] for X in Xs])
+                draws[b] = (sw[b, :, None] * seed_r).sum(axis=0)
+            boots_mp[r.assay] = draws
+
+        prots = sorted(mp['protein'].unique())
+        nc = min(nc_max, max(1, len(prots)))
+        nr = int(np.ceil(len(prots) / nc))
+        fig_w = (5.4 * nc) if nr == 1 else (4.4 * nc)
+        fig3, axs = plt.subplots(nr, nc, figsize=(fig_w, 3.0 * nr + (0.55 if nr == 1 else 0.0)), squeeze=False)
+        for ax, prot in zip(axs.ravel(), prots):
+            sub = mp[mp['protein'] == prot].reset_index(drop=True)
+            ys = sub['rho_1.0'].to_numpy(float)
+            span_y = max(0.08, float(np.ptp(sub[[f'rho_{s}' for s in PG.SIGMAS]].to_numpy())))
+            gap = 0.08 * span_y
+            ypos = {}
+            for i in np.argsort(ys):
+                y_cur = ys[i]
+                for j in sorted(ypos.values()):
+                    if abs(y_cur - j) < gap:
+                        y_cur = j + gap
+                ypos[i] = y_cur
+            for k, r in sub.iterrows():
+                col = AXIS_COLOR[r.axis]
+                lo, hi = np.percentile(boots_mp[r.assay], [2.5, 97.5], axis=0)
+                ax.fill_between(PG.SIGMAS, lo, hi, color=col, alpha=0.14, lw=0)
+                ax.plot(PG.SIGMAS, [r[f'rho_{s}'] for s in PG.SIGMAS], marker='o', color=col, mec='white', mew=1.0, ms=5.5)
+                ax.text(1.03, ypos[k], r.label, fontsize=6.5, color='#333333', va='center')
+            ax.set_title(prot.replace('_', ' '), fontsize=9.5, loc='left')
+            ax.set_xticks(PG.SIGMAS)
+            ax.set_xticklabels(['0', '0.5', '1'])
+            ax.set_xlim(-0.05, 1.55)
+            ax.grid(axis='y', color=style.GRID, lw=0.6)
+        for ax in axs.ravel()[len(prots):]:
+            ax.axis('off')
+        for ax in axs[:, 0]:
+            if ax.axison:
+                ax.set_ylabel('Spearman ρ')
+        for ax in axs[-1, :]:
+            if ax.axison:
+                ax.set_xlabel('σ (LoRA scale)')
+        h_leg = [Line2D([], [], color=AXIS_COLOR[k], lw=2.0, marker='o', label=AXIS_NAME[k]) for k in ('ABUND', 'ACT', 'BIND', 'FIT', 'SPEC') if k in set(mp['axis'])]
+        fig3.legend(handles=h_leg, loc='upper right', ncol=len(h_leg), fontsize=8.2, bbox_to_anchor=(0.99, 0.995))
+        style.finish_figure(
+            fig3,
+            fig_stem,
+            title=f'{title_prefix} ({len(prots)} proteins, {len(mp)} held-out assays): ρ vs LoRA scale σ',
+            note=f'FINAL_p0 WT head across seeds 1–3 at σ = 0.5, 1.0 vs ESM3-small-open at σ = 0; shaded band = 95% joint [variant × seed] bootstrap (B = {B:,}).',
+            top=0.90 if nr == 1 else 0.93,
+        )
+
+    # 1. Pure ProteinGym multi-property per-protein trajectories -> 03_proteingym/ (zero 3-DMS)
+    mp_pg_rows = [
+        dict(protein=prot, assay=dms, source='ProteinGym', axis=axis, note=note)
+        for dms, (prot, axis, note) in MULTI_PROP_ANNOT.items()
+    ]
+    _render_multi_property(
+        mp_pg_rows, sig_pg217,
+        out / 'multi_property_index.csv', out / 'pg_multi_property_trajectories',
+        title_prefix='ProteinGym multi-property proteins', nc_max=4,
+    )
+
+    # 2. 3-DMS DLG4/GRB2 binding vs abundance trajectories -> 99_misc/dms3/
+    mp_dms_rows = []
+    for prot, pg_id, axis, note, ds_bind in MULTI_PROP_EXTRA:
+        mp_dms_rows.append(dict(protein=prot, assay=pg_id, source='ProteinGym', axis=axis, note=note))
+        mp_dms_rows.append(dict(protein=prot, assay=ds_bind, source='DMS benchmark', axis='BIND', note='binding PCA'))
+    _render_multi_property(
+        mp_dms_rows, sig_with_dms,
+        out_dms / 'dms_multi_property_index.csv', out_dms / 'dms_multi_property_trajectories',
+        title_prefix='DLG4 & GRB2', nc_max=2,
     )
 
     # Worst-degraded held-out assays at sigma=1 (integrating p0_sigma/05_worst_assays.py, previously omitted from run_all.sh)
@@ -530,7 +552,7 @@ def _run_sigma_property_outputs(out: Path, B: int, refresh: bool = False) -> tup
 
 
 # ----------------------------------------------------------------------------------------------
-# Ours vs Published zero-shot comparison (23_pg_ours_vs_published) — zero importlib!
+# Ours vs Published zero-shot comparison (00_supplementary_figs/pg_ours_vs_published) — zero importlib!
 # ----------------------------------------------------------------------------------------------
 def _activity_ours_vs_published_curves(B: int) -> dict[tuple[str, str], tuple[pd.DataFrame, int]]:
     """Compute Activity hurt-rate screening curves (0.5 assay SD drop) for ESM3-small-open and ProteinMPNN (ours vs published)."""
@@ -743,8 +765,8 @@ def main(argv: list[str] | None = None) -> int:
     B = 100 if args.fast else int(args.B)
 
     register_ext_styles()
-    out_05 = results_dir('05_proteingym')
-    out_23 = results_dir('23_pg_ours_vs_published')
+    out_pg = results_dir('proteingym')
+    out_supp = results_dir('supplementary_figs')
 
     T_213, seeds_213 = PG.load_all_models_pgym(heldout=False, drop_large=True, refresh=args.refresh)
     Tf_173, seeds_173 = PG.load_all_models_pgym(heldout=True, drop_large=True, refresh=False)
@@ -752,7 +774,7 @@ def main(argv: list[str] | None = None) -> int:
     prosst_dir = PUBLIC / 'prosst' / 'proteingym'
     prosst_src = 'ours' if all((prosst_dir / f'{d}.csv').exists() for d in T_213.index) else 'published'
     atomic_write_text(
-        out_05 / 'pg_zero_shot_sources.txt',
+        out_pg / 'pg_zero_shot_sources.txt',
         f'ProSST: {prosst_src} (baselines/public/prosst/proteingym when complete; else ProteinGym published)\n'
         'ProteinMPNN: our 3 per-variant runs (baselines/public/proteinmpnn/proteingym, seeds resampled)\n'
         'ESM3-small-open: our sigma-0 read (WT-view on singles, Dual-view on multi-mutant assays)\n'
@@ -761,18 +783,18 @@ def main(argv: list[str] | None = None) -> int:
 
     full_models = list(EXT_ORDER) + list(PG.SUPPLEMENT_PG) + ['ESM-MSR σ=0.5']
     t_uni = T_213[['category'] + list(EXT_ORDER)].copy()
-    atomic_to_csv(t_uni, out_05 / 'pg_per_dms.csv', float_format='%.4f')
+    atomic_to_csv(t_uni, out_pg / 'pg_per_dms.csv', float_format='%.4f')
     t_full = T_213[['category'] + full_models].copy()
-    atomic_to_csv(t_full, out_05 / 'pg_all_models_per_dms.csv', float_format='%.4f')
+    atomic_to_csv(t_full, out_pg / 'pg_all_models_per_dms.csv', float_format='%.4f')
 
     pg_cols = (*PG.PG_CATEGORIES_ALPHA, 'PG avg', 'DMS mean')
     dom = _domainome_summary(B=B, refresh=args.refresh)
 
     # All 213 assays summaries
     R_uni_213, _ = PG.boot_pgym_categories({m: seeds_213[m] for m in EXT_ORDER}, T_213['category'], B=B, seed=2, columns=pg_cols)
-    atomic_to_csv(R_uni_213, out_05 / 'pg_summary_all213.csv', index=False, float_format='%.4f')
+    atomic_to_csv(R_uni_213, out_pg / 'pg_summary_all213.csv', index=False, float_format='%.4f')
     R_full_213, _ = PG.boot_pgym_categories({m: seeds_213[m] for m in full_models}, T_213['category'], B=B, seed=2, columns=pg_cols)
-    atomic_to_csv(R_full_213, out_05 / 'pg_all_models_summary_all213.csv', index=False, float_format='%.4f')
+    atomic_to_csv(R_full_213, out_pg / 'pg_all_models_summary_all213.csv', index=False, float_format='%.4f')
 
     # Canonical 173 held-out assays summaries (+ 436 held-out Domainome domains)
     R_uni_173, _ = PG.boot_pgym_categories({m: seeds_173[m] for m in EXT_ORDER}, Tf_173['category'], B=B, seed=2, columns=pg_cols)
@@ -781,7 +803,7 @@ def main(argv: list[str] | None = None) -> int:
         for m, v in dom.items() if m in EXT_ORDER
     ])
     R_uni = pd.concat([R_uni_173, dom_rows], ignore_index=True)
-    atomic_to_csv(R_uni, out_05 / 'pg_summary.csv', index=False, float_format='%.4f')
+    atomic_to_csv(R_uni, out_pg / 'pg_summary.csv', index=False, float_format='%.4f')
 
     R_sig_173, _ = PG.boot_pgym_categories(
         {'ESM-MSR σ=1': seeds_173['ESM-MSR'], 'ESM-MSR σ=0.5': seeds_173['ESM-MSR σ=0.5']},
@@ -791,18 +813,18 @@ def main(argv: list[str] | None = None) -> int:
         dict(model='ESM-MSR σ=1', column='Domainome', value=dom['ESM-MSR'][0], lo=dom['ESM-MSR'][1], hi=dom['ESM-MSR'][2], n_dms=dom['ESM-MSR'][3], n_seeds=3, seed_sd_pg_avg=np.nan),
         dict(model='ESM-MSR σ=0.5', column='Domainome', value=dom['ESM-MSR σ=0.5'][0], lo=dom['ESM-MSR σ=0.5'][1], hi=dom['ESM-MSR σ=0.5'][2], n_dms=dom['ESM-MSR σ=0.5'][3], n_seeds=3, seed_sd_pg_avg=np.nan),
     ])
-    atomic_to_csv(pd.concat([R_sig_173, dom_sig], ignore_index=True), out_05 / 'pg_sigma_summary.csv', index=False, float_format='%.4f')
+    atomic_to_csv(pd.concat([R_sig_173, dom_sig], ignore_index=True), out_pg / 'pg_sigma_summary.csv', index=False, float_format='%.4f')
 
     R_full_173, _ = PG.boot_pgym_categories({m: seeds_173[m] for m in full_models}, Tf_173['category'], B=B, seed=2, columns=pg_cols)
-    atomic_to_csv(R_full_173, out_05 / 'pg_all_models_summary.csv', index=False, float_format='%.4f')
+    atomic_to_csv(R_full_173, out_pg / 'pg_all_models_summary.csv', index=False, float_format='%.4f')
 
     # Sigma property tables & figures (standardized on 173 held-out assays)
-    sig_173, _pvals_173 = _run_sigma_property_outputs(out_05, B=B, refresh=args.refresh)
+    sig_173, _pvals_173 = _run_sigma_property_outputs(out_pg, B=B, refresh=args.refresh)
 
     # Notes consumed by p05_summary_main (Figure 3)
     mm_173 = sig_173[sig_173['has_multi'].astype(bool)]
     k05 = int((mm_173['dep_head_0.5'] == 'combined').sum())
-    atomic_write_text(out_05 / 'pg_sigma_note.txt', f'{k05} of {len(mm_173)}\n')
+    atomic_write_text(out_pg / 'pg_sigma_note.txt', f'{k05} of {len(mm_173)}\n')
 
     removed_ids = sorted(set(T_213.index) - set(Tf_173.index))
     cnt_removed = T_213.loc[removed_ids, 'category'].value_counts().to_dict()
@@ -811,16 +833,16 @@ def main(argv: list[str] | None = None) -> int:
         f'{len(removed_ids)} of {len(T_213)} ProteinGym assays '
         f'({", ".join(f"{k} {v}" for k, v in cnt_removed.items())}) and {n_dom_excl} of 522 Domainome domains\n'
     )
-    atomic_write_text(out_05 / 'pg_tsu_note.txt', tsu_note)
+    atomic_write_text(out_pg / 'pg_tsu_note.txt', tsu_note)
     atomic_write_text(
-        out_05 / 'pg_categories_note.txt',
+        out_pg / 'pg_categories_note.txt',
         f'* Four-part training-homology filter leaves {len(Tf_173)} of {len(T_213)} ProteinGym assays and '
         f'{dom["ESM-MSR"][3]} of 522 Domainome domains (4 large BRCA1/BRCA2/POLG/SCN5A assays omitted uniformly).\n'
         f'Joint [assay × triplicate-seed] bootstrap (B = {B:,}).\n',
     )
 
-    _draw_main_pgym_figures(out_05, T_213, Tf_173, R_full_173, full_models, B=B)
-    _run_ours_vs_published(out_23, Tf_173, seeds_173, prosst_src=prosst_src, B=B)
+    _draw_main_pgym_figures(out_pg, T_213, Tf_173, R_full_173, full_models, B=B)
+    _run_ours_vs_published(out_supp, Tf_173, seeds_173, prosst_src=prosst_src, B=B)
 
     piv = (
         R_uni[R_uni['column'].isin(['Stability', 'PG avg', 'DMS mean', 'Domainome'])]

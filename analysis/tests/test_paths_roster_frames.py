@@ -1,6 +1,7 @@
 """Tests for atomic symlink-safe writers, immutable StyleSpec/MODELS, epistasis synthesis, heldout, and scoring."""
 import dataclasses
 import pickle
+import stat
 import sys
 from pathlib import Path
 
@@ -50,7 +51,7 @@ def test_atomic_writers_replace_symlinks_without_modifying_targets(tmp_path):
     assert orig_csv.read_text() == 'a,b\n1,2\n'
     assert pd.read_csv(sym_csv).iloc[0].to_dict() == {'a': 9, 'b': 10}
 
-    # 3. Text symlink safety
+    # 3. Text & raw bytes symlink safety + 0644 mode enforcement
     orig_txt = target_dir / 'note.md'
     orig_txt.write_text('immutable target')
     sym_txt = work_dir / 'note.md'
@@ -59,6 +60,76 @@ def test_atomic_writers_replace_symlinks_without_modifying_targets(tmp_path):
     assert not sym_txt.is_symlink()
     assert orig_txt.read_text() == 'immutable target'
     assert sym_txt.read_text() == 'worktree local write'
+
+    raw_bin = work_dir / 'blob.bin'
+    paths.atomic_write_bytes(raw_bin, b'abc123')
+    for written_file in (sym_pkl, sym_csv, sym_txt, raw_bin):
+        assert stat.S_IMODE(written_file.stat().st_mode) == 0o644
+
+
+def test_canonical_results_routing_and_fig_prefix_stripping():
+    expected_tops = (
+        '00_for_reviewers',
+        '00_main_text_figs',
+        '00_supplementary_figs',
+        '01_megascale',
+        '02_thermostability',
+        '03_proteingym',
+        '04_domainome',
+        '05_mgnify',
+        '06_summary',
+        '07_screening_overview',
+        '08_sequence_length',
+        '09_ablation',
+        '10_inference_resources',
+        '99_misc',
+    )
+    assert paths.CANONICAL_RESULT_TOPS == expected_tops
+    assert list(paths.CANONICAL_RESULT_TOPS) == sorted(paths.CANONICAL_RESULT_TOPS)
+
+    assert paths.strip_fig_prefix('fig_best_ddg_vs_k.png') == 'best_ddg_vs_k.png'
+    assert paths.strip_fig_prefix('fig5a_epistasis_levels_bars_test.pdf') == 'epistasis_levels_bars_test.pdf'
+    assert paths.strip_fig_prefix('fig12bc_foo_bar') == 'foo_bar'
+    assert paths.strip_fig_prefix('figure3.png') == 'figure3.png'
+    assert paths.strip_fig_prefix('megascale_overview') == 'megascale_overview'
+
+    assert paths.results_dir('megascale', split='capped', create=False) == paths.RESULTS / '01_megascale'
+    assert paths.results_dir('megascale', split='mega', create=False) == paths.RESULTS / '01_megascale' / 'mega_splits'
+    assert paths.results_dir('epistasis', split='capped', create=False) == paths.RESULTS / '01_megascale' / 'epistasis'
+    assert paths.results_dir('epistasis', split='mega', create=False) == paths.RESULTS / '01_megascale' / 'mega_splits' / 'epistasis'
+    assert paths.results_dir('pair_heatmaps', split='capped', create=False) == paths.RESULTS / '01_megascale' / 'epistasis' / 'pair_heatmaps'
+    assert paths.results_dir('pair_heatmaps', split='mega', create=False) == paths.RESULTS / '01_megascale' / 'mega_splits' / 'epistasis' / 'pair_heatmaps'
+    assert paths.results_dir('property_gain', split='capped', create=False) == paths.RESULTS / '01_megascale' / 'screening' / 'property_gain'
+    assert paths.results_dir('property_gain', split='mega', create=False) == paths.RESULTS / '01_megascale' / 'mega_splits' / 'screening' / 'property_gain'
+    assert paths.results_dir('reviewer_reference', create=False) == paths.RESULTS / '00_for_reviewers' / 'reference'
+    assert paths.results_dir('domainome_screening', create=False) == paths.RESULTS / '04_domainome' / 'screening'
+    assert paths.results_dir('dms3', create=False) == paths.RESULTS / '99_misc' / 'dms3'
+    assert paths.VALIDATION_VS_BENCHMARKS_CSV == paths.RESULTS / '00_for_reviewers' / 'reference' / 'validation_vs_benchmarks.csv'
+    assert paths.CORE_RHO_BOOTSTRAP_CSV == paths.CACHE / 'core_rho_bootstrap.csv'
+
+    for retired in (
+        '00_core',
+        '01_summary',
+        '03_tsuboyama',
+        '04_dms_domainome',
+        '05_proteingym',
+        '06_epistasis',
+        '07_rmse',
+        '08_screening',
+        '09_sequence_length',
+        '10_leakage_and_reference',
+        '12_pair_heatmaps',
+        '16_screening_overview',
+        '17_gain_fit',
+        '18_mgnify',
+        '19_rosetta_multi_vs_additive',
+        '22_esm_msr_vs_esm3dg',
+        '23_pg_ours_vs_published',
+        '98_ablation',
+        'studies/ablations',
+    ):
+        with pytest.raises(ValueError):
+            paths.results_dir(retired, create=False)
 
 
 def test_stylespec_and_models_registry_are_immutable():

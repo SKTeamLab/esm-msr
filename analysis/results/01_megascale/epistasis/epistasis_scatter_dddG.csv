@@ -1,0 +1,5 @@
+dataset,key,n_doubles,spearman_rho,pearson_r
+tsuboyama_capped_test,msrp0:epi,12455,0.4891,0.4508
+tsuboyama_capped_test,me2:epi,12455,0.4372,0.4528
+tsuboyama_capped_test,tmpnnd:epi,12455,0.0990,0.0814
+tsuboyama_capped_test,spursm:epi,12455,0.3930,0.3891

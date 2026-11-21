@@ -2,11 +2,12 @@
 """Pipeline p08: Affine RMSE calibration transfer and sequence-length performance analysis.
 
 Consolidates:
-  - 07_rmse_calibration.py -> results/07_rmse/{calibration_candidates{,_ssym}.csv, rmse_by_dataset{,_ssym}.csv,
+  - 07_rmse_calibration.py -> results/02_thermostability/rmse/{calibration_candidates{,_ssym}.csv, rmse_by_dataset{,_ssym}.csv,
                               calibration_transfer{,_ssym}.csv, rmse_recalibrated{,_ssym}.{png,pdf}}
-  - 09_sequence_length.py  -> results/09_sequence_length/{length_summary.csv, sequence_length_distribution,
+  - 09_sequence_length.py  -> results/08_sequence_length/{length_summary.csv, sequence_length_distribution,
                               per_protein_metrics.csv, length_vs_performance, length_vs_performance_stats.csv,
                               length_correlation_summary}
+                           + results/99_misc/dms3/{length_summary.csv, length_per_protein_metrics.csv}
 
 Key methodological fixes vs legacy scripts:
   - Uses msr_analysis.calib.{calibration_key, fit_frame_scale_bias, calibrated_preds} so PTMUL and PTMUL-D fit and evaluate
@@ -26,10 +27,9 @@ from scipy.stats import spearmanr
 
 from msr_analysis import calib, style
 from msr_analysis.boot import ci, global_cluster_index
-from msr_analysis.common import out_dir
 from msr_analysis.data import Frame, load_frame
-from msr_analysis.paths import atomic_to_csv
-from msr_analysis.registry import ALL_DATASETS, EXT12, LABEL, MODELS, TSU_CAPPED
+from msr_analysis.paths import atomic_to_csv, results_dir
+from msr_analysis.registry import DMS3, EXT12, LABEL, MAIN_BENCHMARK_DATASETS, MODELS, TSU_CAPPED
 
 from . import base_parser, resolve_b
 
@@ -63,7 +63,7 @@ def _boot_sd(v: np.ndarray, cluster: np.ndarray, B: int = 1000, seed: int = 0) -
 
 
 def run_rmse_calibration_for_donor(donor: str, star_sets: set[str], B: int) -> None:
-    out = out_dir('07_rmse')
+    out = results_dir('rmse')
     sfx = '' if donor == 's461' else f'_{donor}'
     all_frames = {d: load_frame(d) for d in EXT12}
 
@@ -241,32 +241,32 @@ def _boot_len_corr(df: pd.DataFrame, col: str, B: int = 1000, seed: int = 0) -> 
 
 
 def run_sequence_length(B: int) -> None:
-    out = out_dir('09_sequence_length')
-    rows_s, per_prot = [], {}
-    for ds in ALL_DATASETS:
-        fr = load_frame(ds)
-        sp = fr.spine[fr.spine['use']]
-        L = sp.groupby('cluster')['seq_len'].mean()
-        per_prot[ds] = L
-        rows_s.append(dict(
-            dataset=ds, label=LABEL[ds], n_proteins=len(L), n_variants=int(len(sp)),
-            median_len=float(L.median()), min_len=float(L.min()), max_len=float(L.max()),
-            q25=float(L.quantile(0.25)), q75=float(L.quantile(0.75)),
-            variant_weighted_median_len=float(sp['seq_len'].median()),
-            n_multi=int((sp['n_mut'] > 1).sum()),
-        ))
-    atomic_to_csv(pd.DataFrame(rows_s), out / 'length_summary.csv', index=False, float_format='%.1f')
+    out = results_dir('sequence_length')
+    out_dms = results_dir('dms3')
 
-    # Sequence-length distribution figure
+    def _summarize_lengths(datasets: list[str]) -> tuple[list[dict], dict[str, pd.Series]]:
+        rows_out, prot_map = [], {}
+        for ds in datasets:
+            fr = load_frame(ds)
+            sp = fr.spine[fr.spine['use']]
+            L = sp.groupby('cluster')['seq_len'].mean()
+            prot_map[ds] = L
+            rows_out.append(dict(
+                dataset=ds, label=LABEL[ds], n_proteins=len(L), n_variants=int(len(sp)),
+                median_len=float(L.median()), min_len=float(L.min()), max_len=float(L.max()),
+                q25=float(L.quantile(0.25)), q75=float(L.quantile(0.75)),
+                variant_weighted_median_len=float(sp['seq_len'].median()),
+                n_multi=int((sp['n_mut'] > 1).sum()),
+            ))
+        return rows_out, prot_map
+
+    rows_main, per_prot = _summarize_lengths(MAIN_BENCHMARK_DATASETS)
+    atomic_to_csv(pd.DataFrame(rows_main), out / 'length_summary.csv', index=False, float_format='%.1f')
+    rows_dms, _ = _summarize_lengths(DMS3)
+    atomic_to_csv(pd.DataFrame(rows_dms), out_dms / 'length_summary.csv', index=False, float_format='%.1f')
+
+    # Sequence-length distribution figure (main non-DMS3 benchmarks only)
     order = EXT12 + ['domainome', TSU_CAPPED[1]]
-    dms_txt = ', '.join(
-        f'{n} {int(per_prot[d].iloc[0])}'
-        for n, d in (
-            ('DLG4', 'DLG4_HUMAN_Faure_2021_binding_domain'),
-            ('GRB2', 'GRB2_HUMAN_Faure_2021_binding_domain'),
-            ('MYO', 'MYO_HUMAN_Kung_2025_display'),
-        )
-    )
     fig_d, ax_d = plt.subplots(figsize=(10, 4.1))
     style.band_axis(ax_d, len(order))
     rng = np.random.default_rng(0)
@@ -284,7 +284,7 @@ def run_sequence_length(B: int) -> None:
     ax_d.set_xticklabels([LABEL[o] for o in order], rotation=30, ha='right')
     ax_d.set_ylabel('wild-type sequence length (residues)')
     ax_d.set_title('Protein sizes in the test sets (median and range above each column; black bar = median, line = IQR)', fontsize=10)
-    fig_d.text(0.01, -0.02, f'Single-protein DMS: {dms_txt} residues.  Grey: small domains (Domainome, Tsuboyama).', fontsize=8)
+    fig_d.text(0.01, -0.02, 'Blue: external thermostability sets; grey: small-domain benchmarks (Domainome, MegaScale test).', fontsize=8, color='#444444')
     style.save(fig_d, out / 'sequence_length_distribution')
 
     # Per-protein Spearman & recalibrated RMSE vs sequence length
@@ -321,6 +321,32 @@ def run_sequence_length(B: int) -> None:
                 ))
     D = pd.DataFrame(allrows)
     atomic_to_csv(D, out / 'per_protein_metrics.csv', index=False, float_format='%.4f')
+
+    # 3-DMS sequence-length metrics saved separately under 99_misc/dms3/
+    dms_metric_rows = []
+    dms_models = [('msr', 'ESM-MSR'), ('me2', 'MutateEverything'), ('tmpnnd', 'ThermoMPNN'), ('spursm', 'SPURS')]
+    for fam_tag, roster_name in dms_models:
+        for ds in DMS3:
+            fr = load_frame(ds)
+            k = calib.calibration_key(roster_name, fr)
+            if k is None or k not in fr.preds:
+                continue
+            sp = fr.spine
+            ok = _valid(fr, k)
+            y = sp['y'].to_numpy()
+            idx = np.flatnonzero(ok)
+            cl = sp['cluster'].to_numpy()[idx]
+            for c_nm in pd.unique(cl):
+                m_idx = idx[cl == c_nm]
+                if len(m_idx) < MIN_PROT_N:
+                    continue
+                rhos = [spearmanr(p[m_idx], y[m_idx])[0] for p in fr.preds[k]]
+                dms_metric_rows.append(dict(
+                    dataset=ds, cluster=c_nm, length=float(sp['seq_len'].to_numpy()[m_idx].mean()),
+                    n=len(m_idx), rho=float(np.mean(rhos)), rmse_raw=np.nan, rmse=np.nan,
+                    model=fam_tag,
+                ))
+    atomic_to_csv(pd.DataFrame(dms_metric_rows), out_dms / 'length_per_protein_metrics.csv', index=False, float_format='%.4f')
 
     fig_p, axes_p = plt.subplots(len(LEN_MODELS), 2, figsize=(9.2, 2.3 * len(LEN_MODELS)), sharex=True)
     stats = []
@@ -363,12 +389,144 @@ def run_sequence_length(B: int) -> None:
         ax.set_yticklabels([LEN_LABEL[m] for m in s_m['model']])
     fig_cs.tight_layout()
     style.save(fig_cs, out / 'length_correlation_summary')
+    build_supp_figure6()
+
+
+def build_supp_figure6() -> Path:
+    """Build Supplementary Figure 6 (`00_supplementary_figs/supp_figure6.{png,pdf}`).
+
+    Actual structure C-alpha sequence-length distributions across all 16 datasets from
+    Supplementary Figure 1:
+      a. Thermostability assays (9 sets: Ssym, PTMUL, S461, K2369, Q3421, S571, S783, S2648, S8754).
+      b. MegaScale splits (Train, Validation, Test) and held-out benchmarks
+         (ProteinGym*, Domainome*, MGnify*, Rocklin designs*).
+    """
+    from audits.homology_and_splits.active_builders import set_overlap_matrix as som
+    from msr_analysis.proteingym import PG_DROP
+
+    out_supp = results_dir('supplementary_figs')
+    out_len = results_dir('sequence_length')
+    sets, seqs, _pdbs = som.members()
+
+    # Keep canonical 173 scored held-out ProteinGym assays (excluding >1,800-aa PG_DROP)
+    sets['ProteinGym'] = [k for k in sets['ProteinGym'] if k.split('::', 1)[1] not in PG_DROP]
+
+    thermo_order = [
+        ('ssym', 'Ssym'),
+        ('ptmul', 'PTMUL'),
+        ('s461', 'S461'),
+        ('k2369', 'K2369'),
+        ('q3421', 'Q3421'),
+        ('s571', 'S571'),
+        ('s783', 'S783'),
+        ('s2648', 'S2648'),
+        ('s8754', 'S8754'),
+    ]
+    other_order = [
+        ('train', 'Train'),
+        ('val', 'Validation'),
+        ('test', 'Test'),
+        ('ProteinGym', 'ProteinGym*'),
+        ('Domainome', 'Domainome*'),
+        ('MGnify', 'MGnify*'),
+        ('Rocklin designs', 'Rocklin\ndesigns*'),
+    ]
+
+    lengths_by_key: dict[str, np.ndarray] = {}
+    summary_rows = []
+    for panel_tag, group_list in (('a_thermostability', thermo_order), ('b_splits_and_benchmarks', other_order)):
+        for ds_key, disp in group_list:
+            arr = np.array([len(seqs[k]) for k in sets[ds_key]], dtype=float)
+            lengths_by_key[ds_key] = arr
+            q25, med, q75 = np.percentile(arr, [25, 50, 75])
+            summary_rows.append(dict(
+                panel=panel_tag, dataset=ds_key, label=disp.replace('\n', ' '),
+                n_structures=int(len(arr)), median=float(med), q25=float(q25), q75=float(q75),
+                min=int(arr.min()), max=int(arr.max()),
+            ))
+    atomic_to_csv(pd.DataFrame(summary_rows), out_len / 'structure_length_summary.csv', index=False, float_format='%.1f')
+
+    fig, (ax_a, ax_b) = plt.subplots(
+        1, 2, figsize=(15.4, 6.2), sharey=True,
+        gridspec_kw=dict(width_ratios=[len(thermo_order), len(other_order)], wspace=0.06),
+        facecolor='white',
+    )
+    rng = np.random.default_rng(7)
+    y_min_all = min(float(v.min()) for v in lengths_by_key.values())
+    y_max_all = max(float(v.max()) for v in lengths_by_key.values())
+    ylo = 10 ** (np.log10(y_min_all) - 0.10)
+    yhi = 10 ** (np.log10(y_max_all) + 0.34)
+
+    def _plot_group(ax, items: list[tuple[str, str]], color_fn, title_txt: str) -> None:
+        style.band_axis(ax, len(items))
+        for i, (ds_key, _disp) in enumerate(items):
+            arr = lengths_by_key[ds_key]
+            col = color_fn(ds_key)
+            # Subsample only huge sets (e.g. MGnify 152k) for crisp rendering; exact stats use all points
+            pts = rng.choice(arr, 1800, replace=False) if len(arr) > 2500 else arr
+            jit = rng.uniform(-0.28, 0.28, size=len(pts))
+            ax.scatter(i + jit, pts, s=6.5 if len(pts) < 600 else 3.5, color=col,
+                       alpha=0.52 if len(pts) < 600 else 0.22, lw=0, zorder=3, rasterized=True)
+            q25, med, q75 = np.percentile(arr, [25, 50, 75])
+            ax.plot([i, i], [q25, q75], color='#111111', lw=1.6, zorder=5)
+            ax.plot([i - 0.32, i + 0.32], [med, med], color='#111111', lw=2.3, zorder=6)
+            n_str = f'{len(arr):,}' if len(arr) < 10000 else f'{len(arr) / 1000:.1f}k'
+            ax.text(
+                i, 0.982, f'{med:.0f}\n({int(arr.min())}–{int(arr.max())})\nn={n_str}',
+                transform=ax.get_xaxis_transform(), ha='center', va='top',
+                fontsize=7.3, color='#222222', linespacing=1.18, zorder=7,
+            )
+        ax.set_yscale('log')
+        ax.set_xlim(-0.55, len(items) - 0.45)
+        ax.set_ylim(ylo, yhi)
+        ax.set_xticks(range(len(items)))
+        ax.set_xticklabels([disp for _, disp in items], rotation=28, ha='right', fontsize=9.0)
+        ax.set_title(title_txt, fontsize=10.6, fontweight='bold', loc='left', pad=8)
+        ax.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+    _plot_group(ax_a, thermo_order, lambda _k: '#4c86b8', 'Thermostability benchmarks')
+    _plot_group(
+        ax_b, other_order,
+        lambda k: '#555555' if k in ('train', 'val', 'test') else '#1b8a6b',
+        'MegaScale splits & held-out benchmarks',
+    )
+    ax_a.set_ylabel('Structure sequence length (residues, log scale)', fontsize=10.4)
+    ax_b.tick_params(axis='y', labelleft=False)
+
+    fig.subplots_adjust(left=0.060, right=0.988, top=0.900, bottom=0.225)
+    fig.canvas.draw()
+    pb = ax_b.get_position()
+    fig.text(0.010, 0.975, 'a', ha='left', va='top', fontsize=14, fontweight='bold')
+    fig.text(pb.x0 - 0.022, 0.975, 'b', ha='left', va='top', fontsize=14, fontweight='bold')
+
+    note = (
+        'Actual PDB / AlphaFold structure Cα sequence lengths across all 16 datasets from Supplementary Figure 1.  '
+        'Each column shows individual structures (MGnify* displays a 1,800-structure random subsample for legibility; summary statistics use all 152,680 scaffolds), '
+        'horizontal black bar = median, vertical black line = interquartile range (IQR), and top annotations = median, (min–max), and structure count n.  '
+        'a. External thermostability benchmarks (Ssym includes both wild-type and reverse-mutation structures).  '
+        'b. Homology-Restricted MegaScale splits (grey: Train, Validation, Test) and reduced, held-out external benchmarks (teal): '
+        'ProteinGym* (173/213 scored assays), Domainome* (436/522 domains), MGnify* (152,680/180,367 scaffolds), and Rocklin designs* (742/1,000 designs).'
+    )
+    kw = dict(fontsize=7.8, color='#333333', linespacing=1.25)
+    fig.text(0.014, 0.010, style.wrap_to_px(fig, note, 0.972 * fig.bbox.width, **kw), ha='left', va='bottom', **kw)
+
+    out_path = out_supp / 'supp_figure6'
+    style.save(fig, out_path)
+    return out_path
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION)
+    ap.add_argument('--only', choices=('all', 'supp_figure6'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
+
+    if args.only == 'supp_figure6':
+        out = build_supp_figure6()
+        print(f'[p08:calibration_length] Saved {out}.{{png,pdf}}')
+        return 0
 
     run_rmse_calibration_for_donor('s461', {'s461', 's669'}, B=B)
     run_rmse_calibration_for_donor('ssym', {'ssym'}, B=B)

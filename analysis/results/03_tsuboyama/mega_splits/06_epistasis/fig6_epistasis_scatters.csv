@@ -1,4 +1,0 @@
-figure,n,n_seeds,spearman,pearson,spearman_stacked,pearson_stacked,share_dG_additive_lt0,rmse_to_xy
-fig6a_dG_additive_vs_dddG,16923,1,-0.6181,-0.6604,-0.6181,-0.6604,0.4596,
-fig6b_esm_msr_dddG_pred_vs_true,16923,3,0.5071,0.4828,0.5051,0.4810,0.4596,0.8622
-fig6c_esm_msr_dddG_pred_vs_true_dG_additive_lt0,16923,3,0.5071,0.4828,0.5051,0.4810,0.4596,0.8622

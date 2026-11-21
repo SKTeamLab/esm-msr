@@ -14,7 +14,7 @@ Bug fixes & scientific improvements:
   2. ``17_gain_per_variant_fit``: resamples the 3 training seeds jointly with proteins in ``boot_line`` (eliminating pre-bootstrap
      seed averaging) and fixes the ``multi`` figure footnote (``singles + doubles, Cys excluded`` instead of ``single mutants``).
   3. ``pg_activity``: reads curated reference CSVs from ``analysis/reference/pg_activity/``, writes outputs under
-     ``results/08_screening/pg_activity/``, and reports the dynamic held-out enzyme count (``16 held-out assays`` rather than
+     ``results/03_proteingym/screening/``, and reports the dynamic held-out enzyme count (``16 held-out assays`` rather than
      hardcoded ``18 assays``).
   4. Zero ``importlib`` cross-script imports, zero ``MSR_TSU_SPLIT`` environment mutation, zero ``MODELS`` registry mutation.
   5. Builds **New High-Impact Composite Figure #3**: ``results/00_supplementary_figs/screening_gain_law_composite.{png,pdf}``.
@@ -313,9 +313,51 @@ def per_protein_curves(
     return pd.DataFrame(rows)
 
 
-def run_08_screening(split: str, tau: float, frac: float, B: int) -> tuple[dict[str, pd.DataFrame], dict]:
+def render_domainome_screening_curves(dom_df_all: pd.DataFrame, specs: dict, B: int, out_dom: Path) -> None:
+    """Render standalone 3-panel Domainome virtual screening curves (`domainome_screening_curves.{pdf,png}`)."""
+    fams = [f for f in specs['fam_all'] if f in dom_df_all['family'].values]
+    flab = specs['fam_label_singles']
+    n_dom = int(dom_df_all['n_proteins'].iloc[0])
+
+    fig, axes = plt.subplots(1, 3, figsize=(15.2, 5.4))
+    _draw_curve_panel(
+        axes[0], dom_df_all, fams, flab, specs, False,
+        'hit_rate', 'rand_hit', 'oracle_hit', 'Hit rate (abundance > wild type)',
+    )
+    _draw_curve_panel(
+        axes[1], dom_df_all, fams, flab, specs, False,
+        'p_recover', 'rand_rec', 'oracle_rec', 'P(at least one hit in top K)',
+    )
+    g = dom_df_all[dom_df_all.metric.isin(['gain', 'rand_gain'])].copy()
+    for col_c in ('value', 'lo', 'hi'):
+        g[col_c] = g[col_c] / g['K']
+    _draw_curve_panel(
+        axes[2], g, fams, flab, specs, False,
+        'gain', 'rand_gain', None, 'Rectified gain per variant (abundance)',
+    )
+    axes[2].set_ylim(0, None)
+
+    titles = [
+        f'a   Stabilizing hit rate across {n_dom} held-out domains',
+        f'b   Probability of ≥ 1 hit in top K ({n_dom} domains)',
+        'c   Rectified abundance gain per screened variant',
+    ]
+    for ax, ttl in zip(axes, titles):
+        ax.set_xlabel('Variants screened per domain (K)')
+        ax.set_title(ttl, loc='left', fontsize=9.8, fontweight='bold')
+
+    _overview_legend(fig, dom_df_all, fams, flab, specs, markers=False, oracle=True)
+    note = (
+        f'Domainome 1.0 held-out single-mutant libraries ({n_dom} human protein domains after 4-part sequence/structure holdout filter). '
+        f'Single-mutant model readouts evaluated across top-K budgets K ∈ {{1, 3, 5, 10, 20, 50, 100}}; hit = abundance above wild type (> 0). '
+        f'Shaded band: 95% joint domain × triplicate-seed bootstrap interval (B = {B}) for ESM-MSR.'
+    )
+    _finish_overview(fig, [(ax, ttl) for ax, ttl in zip(axes, titles)], note, out_dom / 'domainome_screening_curves')
+
+
+def run_08_screening(split: str, tau: float, frac: float, B: int, only_domainome: bool = False) -> tuple[dict[str, pd.DataFrame], dict]:
     specs = build_family_specs(split)
-    out = results_dir('08_screening', split)
+    out_mega = results_dir('megascale_screening', split)
     tsu_test = tsu_datasets(split)[1]
     tables_out: dict[str, pd.DataFrame] = {}
 
@@ -323,25 +365,32 @@ def run_08_screening(split: str, tau: float, frac: float, B: int) -> tuple[dict[
         for mode, stem in (('singles', 'screening_per_protein_singles'), ('composite', 'screening_per_protein_composite')):
             for fams, sfx in ((specs['fam_transfer'], ''), (specs['fam_all'], '_all_models')):
                 D = per_protein_curves(tsu_test, KS_CURVE, tau, B, specs, mode=mode, exclude_cys=True, fams=fams)
-                atomic_to_csv(D, out / f'{stem}{sfx}.csv', index=False, float_format='%.4f')
+                atomic_to_csv(D, out_mega / f'{stem}{sfx}.csv', index=False, float_format='%.4f')
                 tables_out[f'{stem}{sfx}'] = D
         return tables_out, specs
 
-    run_pooled_external(specs, tau, B, frac, out)
+    if not only_domainome:
+        run_pooled_external(specs, tau, B, frac, results_dir('thermostability_screening'))
+
+    out_dom = results_dir('domainome_screening')
     dom_exclude = excluded('domainome')
     dom_df = per_protein_curves('domainome', KS_CURVE, TAU_DS['domainome'], B, specs, exclude_groups=dom_exclude, mode='default', fams=specs['fam_transfer'])
     dom_df_all = per_protein_curves('domainome', KS_CURVE, TAU_DS['domainome'], B, specs, exclude_groups=dom_exclude, mode='default', fams=specs['fam_all'])
+    atomic_to_csv(dom_df, out_dom / 'screening_per_protein.csv', index=False, float_format='%.4f')
+    atomic_to_csv(dom_df_all, out_dom / 'screening_per_protein_all_models.csv', index=False, float_format='%.4f')
+    render_domainome_screening_curves(dom_df_all, specs, B, out_dom)
 
     for mode, stem in (('singles', 'screening_per_protein_singles'), ('composite', 'screening_per_protein_composite')):
-        tsu_df = per_protein_curves(tsu_test, KS_CURVE, tau, B, specs, mode=mode, exclude_cys=True, fams=specs['fam_transfer'])
-        D = pd.concat([tsu_df, dom_df], ignore_index=True)
-        atomic_to_csv(D, out / f'{stem}.csv', index=False, float_format='%.4f')
-        tables_out[stem] = D
-
-        tsu_df_all = per_protein_curves(tsu_test, KS_CURVE, tau, B, specs, mode=mode, exclude_cys=True, fams=specs['fam_all'])
-        D_all = pd.concat([tsu_df_all, dom_df_all], ignore_index=True)
-        atomic_to_csv(D_all, out / f'{stem}_all_models.csv', index=False, float_format='%.4f')
-        tables_out[f'{stem}_all_models'] = D_all
+        if only_domainome and (out_mega / f'{stem}.csv').exists() and (out_mega / f'{stem}_all_models.csv').exists():
+            tsu_df = pd.read_csv(out_mega / f'{stem}.csv')
+            tsu_df_all = pd.read_csv(out_mega / f'{stem}_all_models.csv')
+        else:
+            tsu_df = per_protein_curves(tsu_test, KS_CURVE, tau, B, specs, mode=mode, exclude_cys=True, fams=specs['fam_transfer'])
+            tsu_df_all = per_protein_curves(tsu_test, KS_CURVE, tau, B, specs, mode=mode, exclude_cys=True, fams=specs['fam_all'])
+            atomic_to_csv(tsu_df, out_mega / f'{stem}.csv', index=False, float_format='%.4f')
+            atomic_to_csv(tsu_df_all, out_mega / f'{stem}_all_models.csv', index=False, float_format='%.4f')
+        tables_out[stem] = pd.concat([tsu_df, dom_df], ignore_index=True)
+        tables_out[f'{stem}_all_models'] = pd.concat([tsu_df_all, dom_df_all], ignore_index=True)
 
     return tables_out, specs
 
@@ -708,7 +757,7 @@ def _plot_best_ddg_ax(ax: plt.Axes, D: pd.DataFrame, models_to_draw: list[dict],
 
 
 def run_15_single_screening(split: str, tau: float, B: int, top_n: int = 6, budgets: tuple[int, ...] = (6, 24, 96)) -> None:
-    out = results_dir('08_screening', split)
+    out = results_dir('megascale_screening', split)
     fr, _ = load_tsu_test_frame(split)
     sp = fr.spine
     single = (sp['use'] & (sp['n_mut'] == 1)).to_numpy()
@@ -730,13 +779,13 @@ def run_15_single_screening(split: str, tau: float, B: int, top_n: int = 6, budg
         T_dom, T_pool, dom_vals, pool_reps, bh_dom, bs_dom, th_dom, ts_dom = _compute_suggested_threshold(
             fr, cols, pool_mask, libs, counts, tau_pred=tau, tau_hit=tau,
         )
-        atomic_to_csv(T_dom, out / f'fig_suggested_hit_rate{sfx}.csv', index=False, float_format='%.4f')
-        atomic_to_csv(T_pool, out / f'fig_suggested_hit_rate_pooled{sfx}.csv', index=False, float_format='%.4f')
+        atomic_to_csv(T_dom, out / f'suggested_hit_rate{sfx}.csv', index=False, float_format='%.4f')
+        atomic_to_csv(T_pool, out / f'suggested_hit_rate_pooled{sfx}.csv', index=False, float_format='%.4f')
         p_subs = [f'precision_ddG_gt_{tau:g}', 'precision_ddG_gt_0', f'recall_ddG_gt_{tau:g}', 'recall_ddG_gt_0']
         p_dom = compare_grouped(fr, dom_vals, p_subs + ['n_suggested_per_domain'], counts, libs, B_mut=B)
-        atomic_to_csv(add_holm_by_group(pd.DataFrame(p_dom)), out / f'fig_suggested_hit_rate{sfx}_pvalues.csv', index=False, float_format='%.4g')
+        atomic_to_csv(add_holm_by_group(pd.DataFrame(p_dom)), out / f'suggested_hit_rate{sfx}_pvalues.csv', index=False, float_format='%.4g')
         p_pool = compare_pooled(T_pool, pool_reps, p_subs)
-        atomic_to_csv(add_holm_by_group(pd.DataFrame(p_pool)), out / f'fig_suggested_hit_rate_pooled{sfx}_pvalues.csv', index=False, float_format='%.4g')
+        atomic_to_csv(add_holm_by_group(pd.DataFrame(p_pool)), out / f'suggested_hit_rate_pooled{sfx}_pvalues.csv', index=False, float_format='%.4g')
 
         # Draw suggested figures
         p_hit, p_stab = f'precision_ddG_gt_{tau:g}', 'precision_ddG_gt_0'
@@ -770,7 +819,7 @@ def run_15_single_screening(split: str, tau: float, B: int, top_n: int = 6, budg
                 f'{s_title} test, {pool_title}: fraction of suggested variants (predicted > {tau:g} kcal/mol) exceeding threshold ({desc}; B = {B})',
                 foot,
             )
-            style.save(fig, out / f'fig_suggested_hit_rate{tag}{sfx}')
+            style.save(fig, out / f'suggested_hit_rate{tag}{sfx}')
 
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(fig_width(drawn), 11.2), sharex=True)
         labs_p = ('precision @ ddG > 0 (stabilizing)', f'precision @ ddG > {tau:g} kcal/mol')
@@ -807,7 +856,7 @@ def run_15_single_screening(split: str, tau: float, B: int, top_n: int = 6, budg
             f'{s_title} test, {pool_title}: precision, recall, and count of variants suggested at predicted ddG > {tau:g} kcal/mol (B = {B})',
             foot,
         )
-        style.save(fig, out / f'fig_suggested_hit_rate_with_counts{sfx}')
+        style.save(fig, out / f'suggested_hit_rate_with_counts{sfx}')
 
         # Top-N recovery
         T_frac, T_any1, frac_vals, any1_vals, rand_frac, rand_any1, nth_vals = _compute_topn_recovery(
@@ -815,13 +864,13 @@ def run_15_single_screening(split: str, tau: float, B: int, top_n: int = 6, budg
         )
         b_subs = [f'K = {K}' for K in budgets]
         b_tag = '_'.join(f'k{K}' for K in budgets)
-        f_prefix = f'fig_top{top_n}_recovery_{b_tag}{sfx}'
+        f_prefix = f'top{top_n}_recovery_{b_tag}{sfx}'
         atomic_to_csv(T_frac, out / f'{f_prefix}.csv', index=False, float_format='%.4f')
-        atomic_to_csv(T_any1, out / f'fig_top{top_n}_recovery_atleast1_{b_tag}{sfx}.csv', index=False, float_format='%.4f')
+        atomic_to_csv(T_any1, out / f'top{top_n}_recovery_atleast1_{b_tag}{sfx}.csv', index=False, float_format='%.4f')
         atomic_to_csv(add_holm_by_group(pd.DataFrame(compare_grouped(fr, frac_vals, b_subs, counts, libs, B_mut=B))),
                       out / f'{f_prefix}_pvalues.csv', index=False, float_format='%.4g')
         atomic_to_csv(add_holm_by_group(pd.DataFrame(compare_grouped(fr, any1_vals, b_subs, counts, libs, B_mut=B))),
-                      out / f'fig_top{top_n}_recovery_atleast1_{b_tag}{sfx}_pvalues.csv', index=False, float_format='%.4g')
+                      out / f'top{top_n}_recovery_atleast1_{b_tag}{sfx}_pvalues.csv', index=False, float_format='%.4g')
 
         sub_labs = [f'budget K = {K}' for K in budgets]
         ref_styles = [('#777777', ':'), ('#2c3e50', '-.'), ('#c0392b', '--')]
@@ -833,8 +882,8 @@ def run_15_single_screening(split: str, tau: float, B: int, top_n: int = 6, budg
         ref_a = [Line2D([0], [0], color=ch, ls=lh, lw=1.1, label=f'random K = {K} ({rand_any1[b_s]:.3f})') for K, b_s, (ch, lh) in zip(budgets, b_subs, ref_styles)]
 
         for T_cur, ref_cur, rdict, yl, ylim, stem_cur in (
-            (T_frac, ref_f, rand_frac, f'P(top-{top_n} mutant recovered)\n= fraction of top-{top_n} found per domain', (0, 1.15), f'fig_top{top_n}_recovery_{b_tag}{sfx}'),
-            (T_any1, ref_a, rand_any1, f'P(recover ≥ 1 of top-{top_n} per domain)', (0, 1.24), f'fig_top{top_n}_recovery_atleast1_{b_tag}{sfx}'),
+            (T_frac, ref_f, rand_frac, f'P(top-{top_n} mutant recovered)\n= fraction of top-{top_n} found per domain', (0, 1.15), f'top{top_n}_recovery_{b_tag}{sfx}'),
+            (T_any1, ref_a, rand_any1, f'P(recover ≥ 1 of top-{top_n} per domain)', (0, 1.24), f'top{top_n}_recovery_atleast1_{b_tag}{sfx}'),
         ):
             fig, ax = plt.subplots(figsize=(fig_width(drawn), 5.0))
             _bars_triple(ax, drawn, T_cur, b_subs, sub_labs, yl, ylim, ref_lines=ref_cur, headers=True)
@@ -851,16 +900,16 @@ def run_15_single_screening(split: str, tau: float, B: int, top_n: int = 6, budg
         for b_s, (ch, lh) in zip(b_subs, ref_styles):
             ax2.axhline(rand_any1[b_s], color=ch, ls=lh, lw=1.1, zorder=2)
         finish_bar_fig(fig, f'{s_title} test, {pool_title}: top-{top_n} recovery per protein (B = {B})', foot_topn)
-        style.save(fig, out / f'fig_top{top_n}_recovery_both_{b_tag}{sfx}')
+        style.save(fig, out / f'top{top_n}_recovery_both_{b_tag}{sfx}')
 
         # Best ddG vs K (1..96)
         ks_all = list(range(1, max(KS_TICKS) + 1))
         D_all, best_vals = _compute_best_ddg_curve(fr, cols, pool_mask, libs, counts, ks=ks_all)
         D_mark = D_all[D_all.K.isin(KS_TICKS)].copy()
-        atomic_to_csv(D_mark, out / f'fig_best_ddg_vs_k{sfx}.csv', index=False, float_format='%.4f')
-        atomic_to_csv(D_all, out / f'fig_best_ddg_vs_k_full_1to96{sfx}.csv', index=False, float_format='%.4f')
+        atomic_to_csv(D_mark, out / f'best_ddg_vs_k{sfx}.csv', index=False, float_format='%.4f')
+        atomic_to_csv(D_all, out / f'best_ddg_vs_k_full_1to96{sfx}.csv', index=False, float_format='%.4f')
         atomic_to_csv(add_holm_by_group(pd.DataFrame(compare_grouped(fr, best_vals, [f'K = {K}' for K in KS_TICKS], counts, libs, B_mut=B))),
-                      out / f'fig_best_ddg_vs_k{sfx}_pvalues.csv', index=False, float_format='%.4g')
+                      out / f'best_ddg_vs_k{sfx}_pvalues.csv', index=False, float_format='%.4g')
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13.2, 5.2), sharey=True)
         retrained = [c for c in drawn if c['cat'] == 'transfer']
@@ -871,13 +920,13 @@ def run_15_single_screening(split: str, tau: float, B: int, top_n: int = 6, budg
         ax1.legend(loc='lower right', ncol=2, fontsize=7.6, framealpha=0.92)
         ax2.legend(loc='lower right', ncol=2, fontsize=7.6, framealpha=0.92)
         finish_bar_fig(fig, f'{s_title} test, {pool_title}: best measured ddG recovered among top K per protein (K = 1 .. 96; B = {B})', [])
-        style.save(fig, out / f'fig_best_ddg_vs_k_panels{sfx}')
+        style.save(fig, out / f'best_ddg_vs_k_panels{sfx}')
 
         fig, ax = plt.subplots(figsize=(8.8, 5.2))
         _plot_best_ddg_ax(ax, D_all, drawn, KS_TICKS)
         ax.legend(loc='lower right', ncol=2, fontsize=7.4, framealpha=0.92)
         finish_bar_fig(fig, f'{s_title} test, {pool_title}: best measured ddG recovered among top K per protein (K = 1 .. 96; B = {B})', [])
-        style.save(fig, out / f'fig_best_ddg_vs_k{sfx}')
+        style.save(fig, out / f'best_ddg_vs_k{sfx}')
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1130,8 +1179,7 @@ def run_14_property_gain(split: str, B: int) -> pd.DataFrame | None:
         print(f'[p09] Skipping property_gain: {TSUBOYAMA_FEATS_CSV} not found')
         return None
 
-    out = results_dir('08_screening', split) / 'property_gain'
-    out.mkdir(parents=True, exist_ok=True)
+    out = results_dir('property_gain', split)
     fr, _ = load_tsu_test_frame(split)
     sp = fr.spine
     single = (sp['use'] & (sp['n_mut'] == 1)).to_numpy()
@@ -1379,8 +1427,7 @@ def _label_frame(fr: Frame, groups: list[str], label: str, sign: int, use_col: s
 
 
 def run_pg_activity(specs: dict, B: int) -> dict[str, pd.DataFrame]:
-    out = results_dir('08_screening', 'capped') / 'pg_activity'
-    out.mkdir(parents=True, exist_ok=True)
+    out = results_dir('proteingym_screening')
     fr, info = load_pg_activity_assays()
     atomic_to_csv(info, out / 'assay_definitions.csv', float_format='%.4f')
 
@@ -1574,7 +1621,7 @@ def _finish_overview(fig, ax_titles: list[tuple[plt.Axes, str]], note: str, path
 
 
 def run_16_screening_overview(tables_08: dict[str, pd.DataFrame], act_tables: dict[str, pd.DataFrame], specs: dict, B: int) -> None:
-    out = results_dir('16_screening_overview', 'capped')
+    out = results_dir('screening_overview')
     act_note = (
         f'ProteinGym Activity column: single mutants only, scored by the single-mutant models; a variant hurts when its activity is '
         f'more than half an assay standard deviation below the measured wild type; lower is better.  Shaded band: 95% bootstrap interval (B = {B}) of ESM-MSR only.'
@@ -1690,7 +1737,7 @@ def _fit_shapes(ks: list[int], g: np.ndarray) -> dict:
 
 
 def run_17_gain_fit(split: str, specs: dict, B: int) -> tuple[pd.DataFrame, dict]:
-    out = results_dir('17_gain_fit', split)
+    out = results_dir('gain_fit', split)
     ds = tsu_datasets(split)[1]
     raw = load_frame(ds)
     fr = Frame(raw.name, raw.spine, dict(raw.preds), dict(raw.notes))
@@ -1852,7 +1899,7 @@ def build_screening_gain_law_composite(
     specs: dict,
     B: int,
 ) -> None:
-    out = results_dir('00_supplementary_figs', 'capped')
+    out = results_dir('supplementary_figs')
     fams = specs['fam_transfer']
     flab_m = specs['fam_label_composite']
     flab_s = specs['fam_label_singles']
@@ -1980,6 +2027,389 @@ def build_screening_gain_law_composite(
 
 
 # ----------------------------------------------------------------------------------------------
+# Part 8: Main-text Figure 4 — Per-property gain (a) stacked above 6-panel screening overview (b, c)
+# ----------------------------------------------------------------------------------------------
+ASA_HYDRO_LABELS = [
+    'Δ hydrophobicity ≤ 0 & relative ASA ≤ 0.5',
+    'Δ hydrophobicity ≤ 0 & relative ASA > 0.5',
+    'Δ hydrophobicity > 0 & relative ASA ≤ 0.5',
+    'Δ hydrophobicity > 0 & relative ASA > 0.5',
+]
+
+
+def _compute_asa_k96_allpicks_bundle(split: str, B: int) -> dict | None:
+    if split != 'capped' or not TSUBOYAMA_FEATS_CSV.exists():
+        return None
+    fr, _ = load_tsu_test_frame(split)
+    sp = fr.spine
+    single = (sp['use'] & (sp['n_mut'] == 1)).to_numpy()
+    y = sp['y'].to_numpy()
+    feat = _load_tsu_features(sp['id'].tolist())
+    libs = sorted(np.unique(sp['group'].to_numpy()[single]))
+    group = sp['group'].to_numpy()
+    best, _ = best_other(fr)
+    cols = _single_columns(fr, best)
+    asa = feat['rel_ASA'].to_numpy()
+    dh = feat['d_hydrophobicity'].to_numpy()
+    pool = single & np.isfinite(asa) & np.isfinite(dh)
+    cat = np.nan_to_num(np.asarray(2 * (dh > 0) + (asa > 0.5), float)).astype(int)
+    dom = [d for d in (np.flatnonzero(pool & (group == lib)) for lib in libs) if len(d)]
+    cnt = np.random.default_rng(5).multinomial(len(dom), np.full(len(dom), 1.0 / len(dom)), size=B).astype(float)
+    st = _model_cat_stats(fr, cols, y, cat, len(ASA_HYDRO_LABELS), dom, 96, positive_only=False)
+    return dict(
+        dcols=cols,
+        stats_k=st,
+        counts=cnt,
+        cat_labels=list(ASA_HYDRO_LABELS),
+        k=96,
+        n_domains=len(dom),
+        n_muts=int(pool.sum()),
+        s_title=split_title(split),
+    )
+
+
+def build_figure4(
+    tables_08: dict[str, pd.DataFrame],
+    act_tables: dict[str, pd.DataFrame],
+    specs: dict,
+    B: int,
+    prop_bundle: dict | None = None,
+) -> None:
+    """Build main-text Figure 4 (00_main_text_figs/figure4.{png,pdf}).
+
+    Panel a: Per-property rectified gain @ k=96 (all picks, ASA x hydrophobicity) box plots + Picks (%) strip.
+    Panel b: Homology-Restricted MegaScale test set [excl. Cys] single-mutant all-models screening curves (hit rate & P(at least one hit)).
+    Panel c: Domainome (held-out) single-mutant all-models screening curves (hit rate & P(at least one hit)).
+    Panel d: ProteinGym Activity single-mutant all-models screening curves (all held-out assays & held-out enzymes).
+    """
+    if prop_bundle is None:
+        prop_bundle = _compute_asa_k96_allpicks_bundle(split='capped', B=B)
+    if prop_bundle is None:
+        print('[p09] Skipping figure4: Tsuboyama feature CSV not available for panel a')
+        return
+
+    out_main = results_dir('main_text_figs')
+    dcols = prop_bundle['dcols']
+    stats_k = prop_bundle['stats_k']
+    counts = prop_bundle['counts']
+    cat_labels = prop_bundle['cat_labels']
+    k = prop_bundle['k']
+    ncat = len(cat_labels)
+
+    mcols = _with_oracle_col(dcols, k)
+    cat_gap = 0.28
+    xpad_dist = (0.58, 0.58)
+    xs, spans = style.layout_grouped_columns(mcols, gap=cat_gap)
+    rng = np.random.default_rng(3)
+    colors = PALETTE_CAT[:ncat]
+    slot = 0.85
+    cw = slot / ncat
+    cats_hdr = {'oracle': 'Oracle', **style.GROUP_TITLE}
+
+    fig = plt.figure(figsize=(16.0, 14.8))
+
+    # --- Top section: Panel a (per-property gain box plots + Picks % strip) ---
+    gs_a = fig.add_gridspec(
+        2, 1, height_ratios=[1.0, 0.105], hspace=0.025,
+        left=0.055, right=0.988, top=0.945, bottom=0.675,
+    )
+    ax_gain = fig.add_subplot(gs_a[0, 0])
+    ax_pref = fig.add_subplot(gs_a[1, 0])
+
+    omean, _, _ = _boot_mean_ci(stats_k[mcols[0]['name']][0], counts)
+    top_val = 0.0
+    fs_txt = 8.0
+    for mc, x_col in zip(mcols, xs):
+        m = mc['name']
+        V_m = stats_k[m][0]
+        mean, lo, hi = _boot_mean_ci(V_m, counts)
+        for c_idx in range(ncat):
+            x0 = x_col + (c_idx - (ncat - 1) / 2) * cw
+            style.raincloud(
+                ax_gain, x0, V_m[:, :, c_idx], colors[c_idx],
+                mean=float(mean[c_idx]), lo=float(lo[c_idx]), hi=float(hi[c_idx]),
+                width=cw * 0.96, rng=rng, transform=_symlog_tr, annotate=True, fs=fs_txt,
+            )
+            top_val = max(top_val, float(_symlog_tr(hi[c_idx])), float(_symlog_tr(V_m[:, :, c_idx]).max()))
+    _draw_cat_spans(ax_gain, xs, spans, headers=True, cats=cats_hdr, xpad=xpad_dist, gap=cat_gap, header_fs=11.8)
+
+    tk, tl = _symlog_ticks(10 ** (top_val - 1) if top_val > 1 else 1)
+    ax_gain.set_yticks(tk)
+    ax_gain.set_yticklabels(tl, fontsize=10.8)
+    ax_gain.set_ylim(-0.18, top_val + 0.16)
+    ax_gain.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+    y_orc = [float(_symlog_tr(omean[c_idx])) for c_idx in range(ncat)]
+    for c_idx in range(ncat):
+        near_prev = any(abs(y_orc[c_idx] - y_orc[j]) < 0.025 for j in range(c_idx))
+        ls = (4.0, (4.0, 4.0)) if near_prev else (0.0, (4.0, 4.0))
+        ax_gain.axhline(y_orc[c_idx], color=colors[c_idx], ls=ls, lw=1.15, alpha=0.92, zorder=2)
+    ax_gain.set_ylabel(f'Rectified gain @ k={k} (kcal/mol)', fontsize=11.2)
+    ax_gain.set_xticks([])
+
+    _draw_cat_spans(ax_pref, xs, spans, headers=False, cats=cats_hdr, xpad=xpad_dist, gap=cat_gap)
+    ax_pref.set_ylim(0, 1)
+    ax_pref.set_yticks([0.5])
+    ax_pref.set_yticklabels(['Picks (%)'], fontsize=10.2, fontweight='semibold')
+    ax_pref.tick_params(axis='y', length=0, pad=6)
+    for sp_name in ('top', 'right', 'left', 'bottom'):
+        ax_pref.spines[sp_name].set_visible(False)
+    for mc, x_col in zip(mcols, xs):
+        m = mc['name']
+        p_mean, _, _ = _boot_mean_ci(stats_k[m][1], counts)
+        p_sum = float(p_mean.sum())
+        pcts = (100.0 * p_mean / p_sum) if p_sum > 0 else np.zeros(ncat)
+        x_cur = x_col - slot / 2.0
+        for c_idx in range(ncat):
+            w_seg = slot * (pcts[c_idx] / 100.0)
+            if w_seg <= 0:
+                continue
+            ax_pref.add_patch(plt.Rectangle((x_cur, 0.08), w_seg, 0.84, fc=colors[c_idx], alpha=0.55, ec='white', lw=1.0, zorder=3))
+            if pcts[c_idx] >= 5.0:
+                ax_pref.text(
+                    x_cur + w_seg / 2.0, 0.50, f'{pcts[c_idx]:.0f}', ha='center', va='center',
+                    fontsize=8.2 if pcts[c_idx] >= 12.0 else 7.2, fontweight='bold', color='#1a1a1a', zorder=5,
+                )
+            x_cur += w_seg
+        ax_pref.add_patch(plt.Rectangle((x_col - slot / 2.0, 0.08), slot, 0.84, fc='none', ec='#555555', lw=0.8, zorder=4))
+    ax_pref.set_xticks(xs)
+    ax_pref.set_xticklabels([mc['label'] for mc in mcols], fontsize=10.2)
+
+    # Panel a category legend (centered directly beneath panel a x-tick labels)
+    leg_a = fig.legend(
+        handles=[Patch(fc=colors[c_idx], alpha=0.8, label=cat_labels[c_idx]) for c_idx in range(ncat)],
+        loc='upper center', ncol=2, bbox_to_anchor=(0.52, 0.632),
+        fontsize=10.4, frameon=False, columnspacing=2.2,
+    )
+    fig.add_artist(leg_a)
+
+    # --- Bottom section: Panels b & c (6-panel single-mutant all-models screening overview) ---
+    fams = list(specs['fam_all'])
+    flab = specs['fam_label_singles']
+    D = tables_08['screening_per_protein_singles_all_models']
+    A_all = act_tables['screening_all_all_models']
+    A_enz = act_tables['screening_enzymes_all_models']
+
+    # Shared model legend for panels b & c
+    handles_bc = []
+    for f in fams:
+        if f in D.family.values:
+            col, ls, lw, _ = specs['fam_color_all'][f]
+            handles_bc.append(Line2D([0], [0], color=col, ls=ls, lw=lw + 0.4, label=flab[f]))
+    handles_bc.append(Line2D([0], [0], color='#2c3e50', ls=':', lw=2.0, label='oracle'))
+    handles_bc.append(Line2D([0], [0], color='#c0392b', ls=(0, (3, 2)), lw=1.8, label='random picks'))
+    fig.legend(
+        handles=handles_bc, loc='upper center', bbox_to_anchor=(0.52, 0.568),
+        ncol=6, fontsize=8.8, handlelength=3.2,
+        frameon=True, facecolor='white', edgecolor='#cccccc',
+    )
+
+    gs_bc = fig.add_gridspec(
+        2, 3, left=0.055, right=0.988, top=0.486, bottom=0.082,
+        hspace=0.34, wspace=0.20,
+    )
+    axes_bc = np.array([[fig.add_subplot(gs_bc[r, c]) for c in range(3)] for r in range(2)])
+    ax_titles: list[tuple[plt.Axes, str]] = []
+
+    for c, ds in enumerate(('tsuboyama_capped_test', 'domainome')):
+        d = D[D.dataset == ds]
+        _draw_curve_panel(
+            axes_bc[0, c], d, fams, flab, specs, False, 'hit_rate', 'rand_hit', 'oracle_hit',
+            'hit rate (abundance > wild type)' if ds == 'domainome' else 'hit rate (> 0.5 kcal/mol)',
+        )
+        _draw_curve_panel(
+            axes_bc[1, c], d, fams, flab, specs, False, 'p_recover', 'rand_rec', 'oracle_rec',
+            'P(at least one hit in top K)',
+        )
+        n_prot = int(d.n_proteins.iloc[0])
+        if ds == 'domainome':
+            ttl = f'Domainome (held-out), single mutants only ({n_prot} proteins)'
+        else:
+            ttl = f'Homology-Restricted MegaScale test set, single mutants only [excl. Cys] ({n_prot} proteins)'
+        ax_titles.append((axes_bc[0, c], ttl))
+        axes_bc[1, c].set_xlabel('variants screened per protein (K)')
+
+    for r_i, (A_cur, nm) in enumerate(((A_all, 'all held-out assays'), (A_enz, 'held-out enzymes'))):
+        _draw_curve_panel(
+            axes_bc[r_i, 2], A_cur, fams, flab, specs, False, 'hit_rate', 'rand_hit', None,
+            'fraction of the K picks\nthat hurt (lower is better)',
+        )
+        ax_titles.append((axes_bc[r_i, 2], f'ProteinGym Activity, {nm}, single mutants ({int(A_cur.n_assays.iloc[0])} assays)'))
+        axes_bc[r_i, 2].set_ylim(0, None)
+    axes_bc[1, 2].set_xlabel('variants screened per assay (K)')
+
+    # Wrap panel titles to column width
+    fig.canvas.draw()
+    r_rend = fig.canvas.get_renderer()
+    for ax_t, raw_t in ax_titles:
+        ax_t.set_title(
+            style.wrap_to_px(fig, raw_t, 0.97 * ax_t.get_window_extent(r_rend).width, fontsize=9.8, fontweight='bold'),
+            loc='left', fontsize=9.8, pad=6,
+        )
+
+    # Nature-style sub-figure annotations: lowercase bold sans-serif 'a' (top) and 'b', 'c', 'd' (per column)
+    fig.canvas.draw()
+    y_bcd = axes_bc[0, 0].get_position().y1 + 0.036
+    fig.text(0.008, 0.992, 'a', ha='left', va='top', fontsize=15, fontweight='bold')
+    for col_i, letter in enumerate(('b', 'c', 'd')):
+        pos_c = axes_bc[0, col_i].get_position()
+        x_lbl = 0.008 if col_i == 0 else pos_c.x0 - 0.047
+        fig.text(x_lbl, y_bcd, letter, ha='left', va='top', fontsize=15, fontweight='bold')
+
+    # Combined footnote
+    note4 = (
+        f'a. Top {k} per {prop_bundle["s_title"]} test domain ({prop_bundle["n_domains"]} domains with the feature, {prop_bundle["n_muts"]:,} single mutants); '
+        f'gain = sum of max(ddG, 0) over every pick, whatever its predicted sign; boxes: interquartile range with darker colored median line; '
+        f'dots: domains; dark bars with vertical 95% CI whiskers (B = {B}) & annotations: mean over domains; dashed lines: oracle mean.\n'
+        f'b–d. Single mutants only, scored by the single-mutant models; MegaScale excludes mutations to Cys. '
+        f'ProteinGym Activity column: a variant hurts when its activity is more than half an assay standard deviation below the measured wild type; lower is better. '
+        f'Shaded band: 95% bootstrap interval (B = {B}) of ESM-MSR only.'
+    )
+    kw_n = dict(fontsize=7.6, color='#444444')
+    fig.text(0.012, 0.006, style.wrap_to_px(fig, note4, 0.975 * fig.bbox.width, **kw_n), ha='left', va='bottom', **kw_n)
+
+    style.save(fig, out_main / 'figure4')
+
+
+def build_supp_figure7(
+    D_all: pd.DataFrame | None = None,
+    specs: dict | None = None,
+    B: int = 1000,
+) -> Path:
+    """Build Supplementary Figure 7 (`00_supplementary_figs/supp_figure7.{png,pdf}`).
+
+    Rectified gain per variant g(K) = a - b ln K across ALL models on Homology-Restricted
+    MegaScale test single mutants (Cys excluded, 33 proteins):
+      a. Empirical rectified gain per variant vs K (log scale) with least-squares fits g(K) = a - b ln K
+         and each model's fitted equation in the legend.
+      b. Fit residuals (data - fit) across K for all models and the oracle.
+    """
+    out_supp = results_dir('supplementary_figs')
+    if specs is None:
+        specs = build_family_specs('capped')
+    if D_all is None:
+        mega_csv = results_dir('megascale_screening', 'capped', create=False) / 'screening_per_protein_singles_all_models.csv'
+        D_all = pd.read_csv(mega_csv)
+    d = D_all[D_all['dataset'] == 'tsuboyama_capped_test'].copy()
+
+    fams = [f for f in specs['fam_all'] if f in d['family'].values]
+    flab = specs['fam_label_singles']
+    ks = np.array(sorted(d['K'].unique()), dtype=float)
+    lk = np.log(ks)
+    n_prots = int(d['n_proteins'].iloc[0])
+
+    # Extract curves & fit g(K) = a - b ln K for every model, oracle, and random
+    curves: dict[str, np.ndarray] = {}
+    fits: dict[str, tuple[float, float, float, float]] = {}  # (a, b, rmse, r2)
+    msr_ci = None
+
+    for f in fams:
+        sub = d[(d['family'] == f) & (d['metric'] == 'gain')].sort_values('K')
+        if len(sub) != len(ks):
+            continue
+        gv = (sub['value'].to_numpy(float)) / ks
+        curves[f] = gv
+        a_v, b_v = _fit_line(lk, gv)
+        pred = a_v - b_v * lk
+        rmse_v = float(np.sqrt(np.mean((gv - pred) ** 2)))
+        ss_tot = float(np.sum((gv - gv.mean()) ** 2))
+        r2_v = float(1.0 - np.sum((gv - pred) ** 2) / ss_tot) if ss_tot > 0 else np.nan
+        fits[f] = (a_v, b_v, rmse_v, r2_v)
+        if f == 'msr':
+            msr_ci = (sub['lo'].to_numpy(float) / ks, sub['hi'].to_numpy(float) / ks)
+
+    sub_orc = d[(d['family'] == 'msr') & (d['metric'] == 'oracle_gain')].sort_values('K')
+    g_orc = sub_orc['value'].to_numpy(float) / ks
+    a_o, b_o = _fit_line(lk, g_orc)
+    pred_o = a_o - b_o * lk
+    rmse_o = float(np.sqrt(np.mean((g_orc - pred_o) ** 2)))
+    r2_o = float(1.0 - np.sum((g_orc - pred_o) ** 2) / np.sum((g_orc - g_orc.mean()) ** 2))
+
+    sub_rnd = d[(d['family'] == 'msr') & (d['metric'] == 'rand_gain')].sort_values('K')
+    g_rnd = sub_rnd['value'].to_numpy(float) / ks
+    a_r = float(g_rnd.mean())
+
+    # Order models by fitted intercept a (highest first) so legend reads cleanly top-to-bottom
+    fams_ordered = sorted(curves.keys(), key=lambda f: -fits[f][0])
+
+    fig, (ax, rx) = plt.subplots(1, 2, figsize=(14.6, 6.2), gridspec_kw=dict(width_ratios=[1.38, 1.0]), facecolor='white')
+    xx = np.geomspace(1, 100, 120)
+
+    # Oracle
+    ax.plot(ks, g_orc, 'o', color='#2c3e50', ms=4.8, mec='white', mew=0.6, zorder=4)
+    ax.plot(xx, a_o - b_o * np.log(xx), color='#2c3e50', ls=':', lw=1.6, zorder=3,
+            label=f'Oracle (top K labels):  {a_o:.2f} − {b_o:.3f} ln K  (R²={r2_o:.3f})')
+    rx.plot(ks, g_orc - (a_o - b_o * lk), marker='o', color='#2c3e50', ls=':', ms=4.0, lw=1.1, label='Oracle')
+
+    # ESM-MSR 95% CI band
+    if msr_ci is not None:
+        ax.fill_between(ks, msr_ci[0], msr_ci[1], color='#000000', alpha=0.11, lw=0, zorder=2)
+
+    # All models
+    for f in fams_ordered:
+        col, ls, lw, _ = specs['fam_color_all'][f]
+        a_v, b_v, rmse_v, r2_v = fits[f]
+        gv = curves[f]
+        is_msr = (f == 'msr')
+        ax.plot(ks, gv, 'o', color=col, ms=5.4 if is_msr else 4.2, mec='white', mew=0.6, zorder=6 if is_msr else 4)
+        ax.plot(
+            xx, a_v - b_v * np.log(xx), color=col, ls=ls, lw=2.3 if is_msr else max(lw, 1.3),
+            zorder=5 if is_msr else 3,
+            label=f'{flab[f]}:  {a_v:.2f} − {b_v:.3f} ln K  (R²={r2_v:.3f})',
+        )
+        rx.plot(
+            ks, gv - (a_v - b_v * lk), marker='o', color=col, ls=ls,
+            ms=4.4 if is_msr else 3.5, lw=1.8 if is_msr else 1.1,
+            zorder=5 if is_msr else 3, label=flab[f],
+        )
+
+    # Random picks
+    ax.plot(ks, g_rnd, 's', color='#c0392b', ms=3.8, zorder=4)
+    ax.axhline(a_r, color='#c0392b', ls=(0, (3, 2)), lw=1.4, zorder=3, label=f'Random picks:  {a_r:.3f}')
+
+    for ax_i in (ax, rx):
+        ax_i.set_xscale('log')
+        ax_i.set_xticks(ks)
+        ax_i.set_xticklabels([str(int(k)) for k in ks])
+        ax_i.set_xlabel('variants screened per protein (K)', fontsize=10.2)
+        ax_i.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+        ax_i.spines['top'].set_visible(False)
+        ax_i.spines['right'].set_visible(False)
+
+    ax.set_ylabel('rectified gain per variant (kcal/mol)', fontsize=10.2)
+    ax.set_ylim(0.0, 1.62)
+    ax.set_title('Rectified gain per variant: g(K) = a − b ln K (all models)', fontsize=10.4, fontweight='bold', loc='left', pad=6)
+    ax.legend(fontsize=7.3, loc='upper right', framealpha=0.94, edgecolor='#cccccc', handlelength=2.4, labelspacing=0.28)
+
+    rx.axhline(0.0, color='#888888', lw=0.9)
+    rx.set_ylabel('data − fit (kcal/mol)', fontsize=10.2)
+    rx.set_ylim(-0.08, 0.08)
+    rx.set_title('Log-linear fit residuals across K', fontsize=10.4, fontweight='bold', loc='left', pad=6)
+    rx.legend(fontsize=7.3, loc='upper right', ncol=2, framealpha=0.94, edgecolor='#cccccc', handlelength=2.0, columnspacing=0.9, labelspacing=0.25)
+
+    fig.subplots_adjust(left=0.058, right=0.988, top=0.900, bottom=0.215, wspace=0.18)
+    fig.canvas.draw()
+    pr = rx.get_position()
+    fig.text(0.010, 0.975, 'a', ha='left', va='top', fontsize=14, fontweight='bold')
+    fig.text(pr.x0 - 0.052, 0.975, 'b', ha='left', va='top', fontsize=14, fontweight='bold')
+
+    a_m, b_m, _, _ = fits['msr']
+    k0_msr = float(np.exp((a_m - a_r) / b_m)) if b_m > 0 else np.nan
+    note = (
+        f'Homology-Restricted MegaScale test set ({n_prots} proteins; single mutants, Cys excluded; single-mutant models; 3 seeds averaged for retrained models).  '
+        f'a. Points show mean rectified gain per variant = (1/K) Σ max(ΔΔG, 0) over the K highest-scored variants per protein; lines show least-squares fits '
+        f'g(K) = a − b ln K across K ∈ {{1, 3, 5, 10, 20, 50, 100}} (shaded band: 95% joint domain × seed bootstrap CI for ESM-MSR, B = {B:,}; '
+        f'ESM-MSR reaches the random baseline {a_r:.3f} kcal/mol at K ≈ {k0_msr:.0f}).  '
+        f'b. Residuals (empirical − linear fit) across K for all models and the oracle.'
+    )
+    kw = dict(fontsize=7.8, color='#333333', linespacing=1.25)
+    fig.text(0.014, 0.012, style.wrap_to_px(fig, note, 0.972 * fig.bbox.width, **kw), ha='left', va='bottom', **kw)
+
+    out_path = out_supp / 'supp_figure7'
+    style.save(fig, out_path)
+    return out_path
+
+
+# ----------------------------------------------------------------------------------------------
 # Entry point
 # ----------------------------------------------------------------------------------------------
 def add_args(ap) -> None:
@@ -1987,6 +2417,12 @@ def add_args(ap) -> None:
     ap.add_argument('--frac', type=float, default=0.10, help='Top fraction for pooled external screens (default: 0.10).')
     ap.add_argument('--top-n', type=int, default=6, help='Top-N most stabilizing single mutants per domain (default: 6).')
     ap.add_argument('--budgets', nargs='+', type=int, default=[6, 24, 96], help='Fixed screening budgets K (default: 6 24 96).')
+    ap.add_argument(
+        '--only',
+        choices=('all', 'domainome_and_overview', 'figure4', 'supp_figure7'),
+        default='all',
+        help='Optional substage selector (domainome_and_overview, figure4, or supp_figure7).',
+    )
 
 
 def run(args=None) -> int:
@@ -2000,9 +2436,56 @@ def run(args=None) -> int:
     frac = getattr(args, 'frac', 0.10)
     top_n = getattr(args, 'top_n', 6)
     budgets = tuple(getattr(args, 'budgets', [6, 24, 96]))
+    only = getattr(args, 'only', 'all')
 
     register_ext_styles()
-    print(f'[p09:{STAGE}] Running split={split}, B={B} ...')
+    print(f'[p09:{STAGE}] Running split={split}, B={B}, only={only} ...')
+
+    if only == 'supp_figure7':
+        out = build_supp_figure7(B=B)
+        print(f'[p09:screening] Saved {out}.{{png,pdf}}')
+        return 0
+
+    if only == 'figure4':
+        specs = build_family_specs('capped')
+        out_mega = results_dir('megascale_screening', 'capped', create=False)
+        out_dom = results_dir('domainome_screening', create=False)
+        pg_scr = results_dir('proteingym_screening', create=False)
+        tables_08 = {
+            'screening_per_protein_singles_all_models': pd.concat([
+                pd.read_csv(out_mega / 'screening_per_protein_singles_all_models.csv'),
+                pd.read_csv(out_dom / 'screening_per_protein_all_models.csv'),
+            ], ignore_index=True),
+        }
+        act_tables = {
+            nm: pd.read_csv(pg_scr / f'{nm}.csv')
+            for nm in ('screening_all_all_models', 'screening_enzymes_all_models')
+        }
+        build_figure4(tables_08=tables_08, act_tables=act_tables, specs=specs, B=B)
+        build_supp_figure7(D_all=tables_08['screening_per_protein_singles_all_models'], specs=specs, B=B)
+        print('[p09:screening] Completed figure4.')
+        return 0
+
+    if only == 'domainome_and_overview':
+        tables_08, specs = run_08_screening(split='capped', tau=tau, frac=frac, B=B, only_domainome=True)
+        pg_scr = results_dir('proteingym_screening', create=False)
+        act_tables = {
+            nm: pd.read_csv(pg_scr / f'{nm}.csv')
+            for nm in ('screening_all', 'screening_all_all_models', 'screening_enzymes', 'screening_enzymes_all_models')
+        }
+        run_16_screening_overview(tables_08=tables_08, act_tables=act_tables, specs=specs, B=B)
+        prop_csv = results_dir('property_gain', 'capped', create=False) / 'gain_asa_hydrophobicity_k96_allpicks.csv'
+        asa_k96_df = pd.read_csv(prop_csv) if prop_csv.exists() else None
+        fit_params, fit_curves = run_17_gain_fit(split='capped', specs=specs, B=B)
+        build_screening_gain_law_composite(
+            tables_08=tables_08, act_tables=act_tables,
+            fit_params=fit_params, fit_curves=fit_curves,
+            asa_k96_df=asa_k96_df, specs=specs, B=B,
+        )
+        build_figure4(tables_08=tables_08, act_tables=act_tables, specs=specs, B=B)
+        build_supp_figure7(D_all=tables_08['screening_per_protein_singles_all_models'], specs=specs, B=B)
+        print('[p09:screening] Completed domainome_and_overview.')
+        return 0
 
     tables_08, specs = run_08_screening(split=split, tau=tau, frac=frac, B=B)
     run_15_single_screening(split=split, tau=tau, B=B, top_n=top_n, budgets=budgets)
@@ -2017,6 +2500,8 @@ def run(args=None) -> int:
             fit_params=fit_params, fit_curves=fit_curves,
             asa_k96_df=asa_k96_df, specs=specs, B=B,
         )
+        build_figure4(tables_08=tables_08, act_tables=act_tables, specs=specs, B=B)
+        build_supp_figure7(D_all=tables_08['screening_per_protein_singles_all_models'], specs=specs, B=B)
     print(f'[p09:{STAGE}] Completed split={split}.')
     return 0
 

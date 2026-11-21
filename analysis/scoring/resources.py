@@ -21,11 +21,18 @@ for _p in (str(_REPO_ROOT / 'analysis'), str(_REPO_ROOT / 'inference_scripts')):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from msr_analysis.paths import MSR_ROOT, REPO_ROOT, RESULTS_DIR, atomic_to_csv, atomic_write_text  # noqa: E402
+from msr_analysis.paths import (  # noqa: E402
+    INFERENCE_RESOURCES_DIR,
+    MSR_ROOT,
+    REPO_ROOT,
+    RESULTS_DIR,
+    atomic_to_csv,
+    atomic_write_text,
+)
 from resource_tracker import load_scopes  # noqa: E402
 
 ROOT = MSR_ROOT
-OUT = RESULTS_DIR / 'inference_resources'
+OUT = INFERENCE_RESOURCES_DIR
 DOCS = REPO_ROOT / 'docs'
 
 # label -> (model, variant, seed, transfer-learned on Homology-Restricted MegaScale)
