@@ -1013,6 +1013,7 @@ def build_tobit_floor_link_figure(
     b_plot: pd.DataFrame,
     far_lbl: str,
     out_path: Path,
+    split_desc: str = 'Homology-Restricted MegaScale test',
 ) -> Path:
     """Standalone supplementary 2-panel figure splitting floor_saturation_mechanism (a/b)
     and highlighting ESM-MSR's default chosen Tobit observation link (sigma_y=0.28, mu_f=-0.14, sigma_f=0.50).
@@ -1022,14 +1023,17 @@ def build_tobit_floor_link_figure(
     sigma_f = float(TOBIT['sigma_f'])
     theta = float(np.hypot(sigma_y, sigma_f))
     h_tobit = tobit_link(sigma_y=sigma_y, mu_f=mu_f, sigma_f=sigma_f)
+    h_u0s1 = tobit_link(sigma_y=0.28, mu_f=0.0, sigma_f=1.0)
+    h_deep = tobit_link(sigma_y=0.28, mu_f=-1.0, sigma_f=1.0)
 
     xs_curve = np.linspace(-4.8, 4.8, 400)
     y_tobit = h_tobit(xs_curve)
+    y_u0s1 = h_u0s1(xs_curve)
+    y_deep = h_deep(xs_curve)
     y_soft = softplus_link(xs_curve)
-    y_leaky = leaky_link(xs_curve)
 
     xlim, ylim_a, ylim_b = (-4.8, 4.8), (-1.25, 5.0), (-1.6, 4.9)
-    c_tobit, c_soft, c_leaky, c_emp = '#000000', '#1f77b4', '#e07b00', '#9b1c1c'
+    c_tobit, c_u0s1, c_deep, c_soft, c_emp = '#000000', '#009e73', '#e07b00', '#1f77b4', '#9b1c1c'
 
     fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(13.8, 6.4), facecolor='white')
 
@@ -1041,7 +1045,8 @@ def build_tobit_floor_link_figure(
         ax_a.fill_between(b_plot['x'], b_plot['q25'], b_plot['q75'], color=c_emp, alpha=0.18, lw=0, zorder=4)
         ax_a.plot(b_plot['x'], b_plot['median'], color=c_emp, lw=1.4, marker='o', ms=2.8, zorder=5)
     ax_a.plot(xs_curve, y_soft, color=c_soft, lw=1.4, ls='-.', zorder=6)
-    ax_a.plot(xs_curve, y_leaky, color=c_leaky, lw=1.5, ls='--', zorder=6)
+    ax_a.plot(xs_curve, y_u0s1, color=c_u0s1, lw=1.8, ls=(0, (4, 1.5, 1.5, 1.5)), zorder=6)
+    ax_a.plot(xs_curve, y_deep, color=c_deep, lw=1.8, ls='--', zorder=6)
     ax_a.plot(xs_curve, y_tobit, color=c_tobit, lw=2.3, zorder=7)
     ax_a.set_xlim(*xlim)
     ax_a.set_ylim(*ylim_a)
@@ -1051,13 +1056,14 @@ def build_tobit_floor_link_figure(
     ax_a.legend(
         handles=[
             Line2D([0], [0], color=c_tobit, lw=2.3, label=f'default Tobit link h(z) (σ_y={sigma_y:.2f}, μ_f={mu_f:.2f}, σ_f={sigma_f:.2f})'),
+            Line2D([0], [0], color=c_u0s1, lw=1.8, ls=(0, (4, 1.5, 1.5, 1.5)), label='wide-floor Tobit link (σ_y=0.28, μ_f=0.00, σ_f=1.00)'),
+            Line2D([0], [0], color=c_deep, lw=1.8, ls='--', label='deep-floor Tobit link (σ_y=0.28, μ_f=−1.00, σ_f=1.00)'),
             Line2D([0], [0], color=c_soft, lw=1.4, ls='-.', label='softplus floor link (f = 0, τ = 0.59)'),
-            Line2D([0], [0], color=c_leaky, lw=1.5, ls='--', label='leaky floor link (α = 0.10, clamp −1)'),
             Line2D([0], [0], color=c_emp, marker='o', ms=3.2, lw=1.4, label='empirical median & IQR'),
             Line2D([0], [0], color='#888888', ls=':', lw=1.1, label='y = x (unsaturated)'),
-            Line2D([0], [0], color='#666666', ls=(0, (2, 3)), lw=0.9, label=f'floor mean μ_f = {mu_f:.2f} kcal/mol'),
+            Line2D([0], [0], color='#666666', ls=(0, (2, 3)), lw=0.9, label=f'default floor mean μ_f = {mu_f:.2f} kcal/mol'),
         ],
-        loc='upper left', fontsize=8.0, framealpha=0.94, edgecolor='#cccccc',
+        loc='upper left', fontsize=7.8, framealpha=0.94, edgecolor='#cccccc',
     )
     ax_a.spines['top'].set_visible(False)
     ax_a.spines['right'].set_visible(False)
@@ -1069,7 +1075,8 @@ def build_tobit_floor_link_figure(
         ax_b.fill_between(b_all['x'], b_all['q25'] - b_all['x'], b_all['q75'] - b_all['x'], color=c_emp, alpha=0.18, lw=0, zorder=4)
         ax_b.plot(b_all['x'], b_all['median'] - b_all['x'], color=c_emp, lw=1.4, marker='o', ms=2.8, zorder=5)
     ax_b.plot(xs_curve, y_soft - xs_curve, color=c_soft, lw=1.4, ls='-.', zorder=6)
-    ax_b.plot(xs_curve, y_leaky - xs_curve, color=c_leaky, lw=1.5, ls='--', zorder=6)
+    ax_b.plot(xs_curve, y_u0s1 - xs_curve, color=c_u0s1, lw=1.8, ls=(0, (4, 1.5, 1.5, 1.5)), zorder=6)
+    ax_b.plot(xs_curve, y_deep - xs_curve, color=c_deep, lw=1.8, ls='--', zorder=6)
     ax_b.plot(xs_curve, y_tobit - xs_curve, color=c_tobit, lw=2.3, zorder=7)
     ax_b.set_xlim(*xlim)
     ax_b.set_ylim(*ylim_b)
@@ -1079,12 +1086,13 @@ def build_tobit_floor_link_figure(
     ax_b.legend(
         handles=[
             Line2D([0], [0], color=c_tobit, lw=2.3, label='default Tobit: h_Tobit(x) − x'),
+            Line2D([0], [0], color=c_u0s1, lw=1.8, ls=(0, (4, 1.5, 1.5, 1.5)), label='wide-floor Tobit (μ_f=0, σ_f=1): h(x) − x'),
+            Line2D([0], [0], color=c_deep, lw=1.8, ls='--', label='deep-floor Tobit (μ_f=−1, σ_f=1): h(x) − x'),
             Line2D([0], [0], color=c_soft, lw=1.4, ls='-.', label='softplus: h(x) − x'),
-            Line2D([0], [0], color=c_leaky, lw=1.5, ls='--', label='leaky: h(x) − x'),
             Line2D([0], [0], color=c_emp, marker='o', ms=3.2, lw=1.4, label='empirical median & IQR'),
             Line2D([0], [0], color='#888888', ls=':', lw=1.1, label='δΔΔG = 0 (additive)'),
         ],
-        loc='upper right', fontsize=8.0, framealpha=0.94, edgecolor='#cccccc',
+        loc='upper right', fontsize=7.8, framealpha=0.94, edgecolor='#cccccc',
     )
     ax_b.spines['top'].set_visible(False)
     ax_b.spines['right'].set_visible(False)
@@ -1105,8 +1113,8 @@ def build_tobit_floor_link_figure(
         f'Under ESM-MSR\'s default noisy-floor Tobit likelihood Y = max(X, F) with X ~ N(z, σ_y²), F ~ N(μ_f, σ_f²) and chosen parameters '
         f'σ_y = {sigma_y:.2f}, μ_f = {mu_f:.2f}, σ_f = {sigma_f:.2f} kcal/mol (θ = √(σ_y² + σ_f²) = {theta:.3f}), the closed-form expected-reading map '
         f'h_Tobit(z) = z Φ(a) + μ_f Φ(−a) + θ φ(a) [a = (z − μ_f) / θ] (solid black) reproduces the empirical median (dark red) across the entire transition with no extra fitted parameters '
-        f'(analytical softplus and leaky-clamp references shown for comparison).  '
-        f'b. Across all {len(Y):,} Homology-Restricted MegaScale test doubles, subtracting ΔG_add converts this measurement floor into large apparent positive epistasis '
+        f'(alternative Tobit floors μ_f = 0, σ_f = 1 in teal and μ_f = −1, σ_f = 1 in orange, plus analytical softplus in blue shown for comparison).  '
+        f'b. Across all {len(Y):,} {split_desc} doubles, subtracting ΔG_add converts this measurement floor into large apparent positive epistasis '
         f'(δΔΔG ≈ −ΔG_add for ΔG_add < 0), closely tracked by h_Tobit(x) − x. Supervising ESM-MSR with the Tobit NLL trains the model in unsaturated latent space without conflating floor saturation with true biophysical coupling.'
     )
     kw = dict(fontsize=8.0, color='#333333', linespacing=1.28)
@@ -1116,20 +1124,15 @@ def build_tobit_floor_link_figure(
     return out_path
 
 
-def run_tobit_floor_link_only(split: str = 'capped') -> Path:
-    """Fast standalone runner to rebuild only 00_supplementary_figs/tobit_floor_link.{png,pdf}."""
-    fr = load_frame(tsu_datasets(split)[1])
-    sp = fr.spine
-    ddg = sp['y'].to_numpy(float)
-    c_all = sp['dG_wt'].to_numpy(float)
-    ia, ib = singles_of_doubles(sp)
-    ok = epi_rows(fr) & (ia >= 0) & (ib >= 0)
-    idx = np.flatnonzero(ok)
-    W = c_all[ok]
-    A, B_s = W + ddg[ia[ok]], W + ddg[ib[ok]]
-    Y = W + ddg[ok]
-    x = A + B_s - W
-    dist = _cb_distances_for_doubles(sp['mut'].to_numpy(dtype=object)[idx], sp['code'].astype(str).to_numpy()[idx])
+def _render_tobit_link_for_arrays(
+    x: np.ndarray,
+    Y: np.ndarray,
+    muts: np.ndarray,
+    codes: np.ndarray,
+    out_path: Path,
+    split_desc: str,
+) -> Path:
+    dist = _cb_distances_for_doubles(muts, codes)
     far = np.isfinite(dist) & (dist > DISTANT_A)
     edges = np.arange(-4.5, 4.51, 0.5)
     b_all = _binned_quantiles(x, Y, edges, nmin=15)
@@ -1138,12 +1141,121 @@ def run_tobit_floor_link_only(split: str = 'capped') -> Path:
     y_plot = Y[far] if far.sum() >= 50 else Y
     b_plot = b_far if far.sum() >= 50 else b_all
     far_lbl = f'distant doubles (Cβ–Cβ > {DISTANT_A:g} Å, n = {len(y_plot):,})' if far.sum() >= 50 else f'all doubles (n = {len(y_plot):,})'
-    out_supp = out_dir('supplementary_figs')
     return build_tobit_floor_link_figure(
         x=x, Y=Y, x_plot=x_plot, y_plot=y_plot,
         b_all=b_all, b_plot=b_plot, far_lbl=far_lbl,
-        out_path=out_supp / 'tobit_floor_link',
+        out_path=out_path, split_desc=split_desc,
     )
+
+
+def _extract_train_doubles_capped() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
+    """Extract (x=dG_add, Y=dG_AB, muts, codes) for Homology-Restricted MegaScale training doubles with both singles measured."""
+    import json
+    import pickle
+    from msr_analysis.paths import DATA_DIR, REFERENCE
+
+    raw_csv = TSUBOYAMA_PDB_DIR.parent / 'Tsuboyama2023_Dataset2_Dataset3_20230416.csv'
+    pkl_path = DATA_DIR / 'splits_oct06_capped.pkl'
+    if not raw_csv.exists() or not pkl_path.exists():
+        print(f'[p07] Skipping train tobit_floor_link: missing {raw_csv} or {pkl_path}')
+        return None
+
+    with open(pkl_path, 'rb') as fh:
+        sp_pkl = pickle.load(fh)
+    train_pdbs = set(sp_pkl['train'])
+    train_wt_names = {p.replace('.pdb', '') for p in train_pdbs}
+
+    dg_wt_map: dict[str, float] = {}
+    dg_json_path = REFERENCE / 'dG_wt.json'
+    if dg_json_path.exists():
+        dg_wt_map = json.loads(dg_json_path.read_text(encoding='utf-8'))
+
+    df = pd.read_csv(
+        raw_csv,
+        usecols=['WT_name', 'mut_type', 'dG_ML', 'ddG_ML'],
+        low_memory=False,
+    )
+    wt_clean = df['WT_name'].astype(str).str.replace('.pdb', '', regex=False).str.replace('|', '_', regex=False)
+    df = df[wt_clean.isin(train_wt_names)].copy()
+    df['code'] = wt_clean[wt_clean.isin(train_wt_names)].to_numpy()
+    df['ddG_ML'] = pd.to_numeric(df['ddG_ML'], errors='coerce')
+    df['dG_ML'] = pd.to_numeric(df['dG_ML'], errors='coerce')
+    df['mut_type'] = df['mut_type'].astype(str)
+    # Keep substitutions only (exclude wt, ins, del)
+    df = df[~df['mut_type'].str.contains('wt|ins|del', case=False, na=True)]
+    df = df[np.isfinite(df['ddG_ML']) & np.isfinite(df['dG_ML'])].copy()
+    # Deduplicate (code, mut_type) by mean
+    df = df.groupby(['code', 'mut_type'], as_index=False)[['dG_ML', 'ddG_ML']].mean()
+    # Wild-type dG per code
+    wt_dg = df['code'].map(dg_wt_map)
+    # Fallback: dG_ML - ddG_ML median per code
+    fb_dg = (df['dG_ML'] - df['ddG_ML']).groupby(df['code']).median()
+    df['dG_wt'] = np.where(np.isfinite(wt_dg), wt_dg, df['code'].map(fb_dg))
+
+    n_mut = df['mut_type'].str.count(':') + 1
+    singles = df[n_mut == 1]
+    single_ddg = dict(zip(zip(singles['code'], singles['mut_type']), singles['ddG_ML']))
+
+    doubles = df[n_mut == 2]
+    xs, ys, muts, codes = [], [], [], []
+    for r in doubles.itertuples(index=False):
+        parts = r.mut_type.split(':')
+        if len(parts) != 2:
+            continue
+        da = single_ddg.get((r.code, parts[0]))
+        db = single_ddg.get((r.code, parts[1]))
+        if da is None or db is None or not (np.isfinite(da) and np.isfinite(db) and np.isfinite(r.dG_wt)):
+            continue
+        xs.append(float(r.dG_wt + da + db))
+        ys.append(float(r.dG_wt + r.ddG_ML))
+        muts.append(r.mut_type)
+        codes.append(r.code)
+    return (
+        np.asarray(xs, dtype=float),
+        np.asarray(ys, dtype=float),
+        np.asarray(muts, dtype=object),
+        np.asarray(codes, dtype=object),
+    )
+
+
+def run_tobit_floor_link_only(split: str = 'capped') -> list[Path]:
+    """Standalone runner to build 00_supplementary_figs/tobit_floor_link{,_val,_train}.{png,pdf}."""
+    out_supp = out_dir('supplementary_figs')
+    saved: list[Path] = []
+
+    for ds_name, stem, desc in (
+        (tsu_datasets(split)[1], 'tobit_floor_link', 'Homology-Restricted MegaScale test'),
+        (tsu_datasets(split)[0], 'tobit_floor_link_val', 'Homology-Restricted MegaScale validation'),
+    ):
+        fr = load_frame(ds_name)
+        sp = fr.spine
+        ddg = sp['y'].to_numpy(float)
+        c_all = sp['dG_wt'].to_numpy(float)
+        ia, ib = singles_of_doubles(sp)
+        ok = epi_rows(fr) & (ia >= 0) & (ib >= 0)
+        idx = np.flatnonzero(ok)
+        W = c_all[ok]
+        A, B_s = W + ddg[ia[ok]], W + ddg[ib[ok]]
+        Y = W + ddg[ok]
+        x = A + B_s - W
+        saved.append(_render_tobit_link_for_arrays(
+            x=x, Y=Y,
+            muts=sp['mut'].to_numpy(dtype=object)[idx],
+            codes=sp['code'].astype(str).to_numpy()[idx],
+            out_path=out_supp / stem,
+            split_desc=desc,
+        ))
+
+    if split == 'capped':
+        tr = _extract_train_doubles_capped()
+        if tr is not None:
+            x_tr, Y_tr, m_tr, c_tr = tr
+            saved.append(_render_tobit_link_for_arrays(
+                x=x_tr, Y=Y_tr, muts=m_tr, codes=c_tr,
+                out_path=out_supp / 'tobit_floor_link_train',
+                split_desc='Homology-Restricted MegaScale training',
+            ))
+    return saved
 
 
 def main(argv: list[str] | None = None) -> int:
