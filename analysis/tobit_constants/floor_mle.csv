@@ -1,0 +1,11 @@
+dead_set,split,n,frac_tagged,naive_mean,naive_sd,mu_f,sigma_f,P_below_minus1,n_libs,mu_f_lo,mu_f_hi,sigma_f_lo,sigma_f_hi
+A: >=1 single tagged <-1,train,8768,0.605,-0.172,0.526,-1.257,1.084,0.594,40.0,-1.566,-0.977,0.935,1.253
+A: >=1 single tagged <-1,test,2253,0.61,-0.289,0.42,-1.222,0.916,0.596,,,,,
+B: both singles tagged or <= 0,train,4356,0.586,-0.274,0.408,-1.154,0.898,0.568,35.0,-1.721,-0.807,0.72,1.159
+B: both singles tagged or <= 0,test,772,0.491,-0.235,0.444,-0.934,0.856,0.469,,,,,
+C: both singles tagged <-1,train,1062,0.867,-0.448,0.367,-2.143,1.035,0.865,19.0,-3.092,-1.478,0.802,1.453
+D2: additive expectation <= -2,train,5205,0.308,-0.005,0.51,-0.471,0.851,0.267,47.0,-0.712,-0.29,0.719,1.002
+D2: additive expectation <= -2,val,272,0.052,0.15,0.273,0.084,0.388,0.003,,,,,
+D2: additive expectation <= -2,test,1014,0.247,0.003,0.472,-0.349,0.758,0.195,,,,,
+D3: additive expectation <= -3,train,1474,0.434,-0.12,0.523,-0.794,0.931,0.412,30.0,-1.178,-0.499,0.694,1.259
+D3: additive expectation <= -3,test,209,0.275,-0.084,0.439,-0.451,0.727,0.225,,,,,

@@ -1,0 +1,4 @@
+estimator,n,g0_hat,g0_lo,g0_hi,sigma0,k,sigma_at_floor,dnll_vs_constant_noise
+replicates,2191,2.0,1.9,2.0,0.223,0.033,0.322,18.751
+protease pairs,224032,1.1,1.1,1.1,0.284,0.084,0.461,2368.69
+"protease pairs, library bootstrap (60 draws)",224032,1.1,1.0,1.2,,,,

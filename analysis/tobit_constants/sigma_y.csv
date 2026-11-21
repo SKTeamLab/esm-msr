@@ -1,0 +1,19 @@
+estimator,bin,split,sigma,dof
+"replicate SD of dG_ML (same variant, different DNA)","(-1,0]",all,0.2647,215
+"replicate SD of dG_ML (same variant, different DNA)","(0,0.5]",all,0.2567,302
+"replicate SD of dG_ML (same variant, different DNA)","(0.5,1]",all,0.2848,390
+"replicate SD of dG_ML (same variant, different DNA)","(1,2]",all,0.255,1072
+"replicate SD of dG_ML (same variant, different DNA)","(2,3]",all,0.2174,541
+"replicate SD of dG_ML (same variant, different DNA)","(3,4]",all,0.1468,206
+"replicate SD of dG_ML (same variant, different DNA)","(4,5]",all,0.1682,67
+"replicate SD of dG_ML (same variant, different DNA)","(1,4]",all,0.2341,1819
+"replicate SD of dG_ML (same variant, different DNA)","(1,4]",train,0.2253,1057
+"replicate SD of dG_ML (same variant, different DNA)","(1,4]",val,0.1649,429
+"replicate SD of dG_ML (same variant, different DNA)","(1,4]",test,0.3212,333
+paired proteases SD(t - c)/sqrt2,"(0,0.5]",all,0.3687,25763
+paired proteases SD(t - c)/sqrt2,"(0.5,1]",all,0.3095,33132
+paired proteases SD(t - c)/sqrt2,"(1,2]",all,0.2761,73888
+paired proteases SD(t - c)/sqrt2,"(2,3]",all,0.2864,59652
+paired proteases SD(t - c)/sqrt2,"(3,4]",all,0.3045,33335
+paired proteases SD(t - c)/sqrt2,"(4,5]",all,0.3239,10436
+paired proteases SD(t - c)/sqrt2,"(1,4]",all,0.2864,166875
