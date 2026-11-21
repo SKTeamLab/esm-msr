@@ -189,7 +189,9 @@ TF_PRIOR_SD = 0.75                                              # kcal/mol: the 
 
 
 def tobit_regression_loss(z: torch.Tensor, y: torch.Tensor, bound: torch.Tensor, cens: torch.Tensor,
-                          sigma_y: float = TOBIT_SIGMA_Y, mu_f: float = TOBIT_MU_F, sigma_f: float = TOBIT_SIGMA_F) -> torch.Tensor:
+                          sigma_y: float = TOBIT_SIGMA_Y,
+                          mu_f: float | torch.Tensor = TOBIT_MU_F,
+                          sigma_f: float | torch.Tensor = TOBIT_SIGMA_F) -> torch.Tensor:
     """
     Noisy-floor Tobit negative log-likelihood, element-wise, on ABSOLUTE dG (``z`` the latent dG the model claims, ``y`` the reading).
 
@@ -211,13 +213,21 @@ def tobit_regression_loss(z: torch.Tensor, y: torch.Tensor, bound: torch.Tensor,
     Scaled by ``2 * sigma_y^2`` and shifted by the Gaussian constant so that, away from the floor, it equals ``(y - z)^2`` exactly: the same magnitude as the
     MSE it replaces, so the loss weights tuned for MSE carry over.
     """
-    z, y, bound = z.float(), y.float(), bound.float()
+    dtype = z.dtype if z.dtype in (torch.float32, torch.float64) else torch.float32
+    z, y, bound = z.to(dtype), y.to(dtype), bound.to(dtype)
     scale = 2.0 * sigma_y ** 2
     lo, hi = cens < 0, cens > 0
     num = (cens == 0) & torch.isfinite(y)
     y_s = torch.where(num, y, torch.zeros_like(y))
+    if torch.is_tensor(mu_f):
+        mu_f = mu_f.to(device=z.device, dtype=z.dtype)
+    if torch.is_tensor(sigma_f):
+        sigma_f = sigma_f.to(device=z.device, dtype=z.dtype)
+        log_sf = torch.log(sigma_f)
+    else:
+        log_sf = math.log(sigma_f)
     t1 = -0.5 * ((y_s - z) / sigma_y) ** 2 - math.log(sigma_y) - _LOG_SQRT_2PI + torch.special.log_ndtr((y_s - mu_f) / sigma_f)
-    t2 = -0.5 * ((y_s - mu_f) / sigma_f) ** 2 - math.log(sigma_f) - _LOG_SQRT_2PI + torch.special.log_ndtr((y_s - z) / sigma_y)
+    t2 = -0.5 * ((y_s - mu_f) / sigma_f) ** 2 - log_sf - _LOG_SQRT_2PI + torch.special.log_ndtr((y_s - z) / sigma_y)
     L_num = scale * (-torch.logaddexp(t1, t2) - (math.log(sigma_y) + _LOG_SQRT_2PI))
     b_ok = torch.isfinite(bound)
     b_s = torch.where(b_ok, bound, torch.zeros_like(bound))
