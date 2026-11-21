@@ -181,7 +181,11 @@ def desired_points(old_pts, r):
 
 
 def find_copy(api, project, name, key):
-    for n, k, _ in listing(api, project):
+    try:
+        existing = listing(api, project)
+    except Exception:                                             # a scratch project that does not exist yet
+        return None
+    for n, k, _ in existing:
         if n == name and k != key:
             x = api.get_experiment_by_key(k)
             if TAG in (x.get_tags() or []) and any(o.get('name') == 'orig_experiment_key' and o.get('valueCurrent') == key for o in x.get_others_summary()):
