@@ -1,0 +1,10 @@
+key,line,core_ok,all6_ok,core_h,mg_rock_h,total6_h,n_failed,ram_peak_gb,vram_device_peak_gb,model_load_s
+esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),True,False,0.09830979444444445,0.0,,4,7.1302,19.4855,35.399010000000004
+spurs_retrain_s1,SPURS (+multi),True,True,0.28198565833333333,5.208333333333333,5.490318991666666,0,9.6127,9.9738,100.48809
+prosst_a4500_full,ProSST-2048,False,False,,3.9033333333333333,,0,,,
+proteinmpnn,ProteinMPNN,True,True,1.7954650611111114,1.2633333333333334,3.0587983944444446,0,4.4656,17.714,0.07338
+thermompnn_s1,ThermoMPNN (+D),True,True,6.070344447222222,1.3833333333333333,7.453677780555556,0,15.2232,18.214,0.41023
+me_st2_s1,MutateEverything (St2),True,False,7.486588519444444,0.4944908861111111,,2,11.707,19.671,7.6402
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),False,False,,0.0,,0,,,
+esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),True,False,33.58120516666666,0.0,,4,11.1158,19.4972,31.75835
+esm_msr_final_p0_s1_full,ESM-MSR (Dual-view),True,True,34.4087647,12.293179588888892,46.701944288888896,4,7.1303,19.4972,23.8844

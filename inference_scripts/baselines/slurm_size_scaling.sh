@@ -48,7 +48,7 @@ activate() {
 }
 
 case "$MODEL" in
-  esm_msr_wt|esm_msr_dual|proteinmpnn)
+  esm_msr_wt|esm_msr_dual|esm_msr_indep|esm_msr_marg|proteinmpnn)
     activate msr_venv
     PY=$(which python)
     ;;

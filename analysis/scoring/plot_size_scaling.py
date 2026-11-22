@@ -32,6 +32,8 @@ style.setup()
 SPECS = [
     dict(key='esm_msr_wt', label='ESM-MSR (WT-view)', color=BY_NAME['ESM-MSR'].color, marker='D', hollow=True, ls='--', lw=2.3),
     dict(key='esm_msr_dual', label='ESM-MSR (Dual-view)', color=BY_NAME['ESM-MSR'].color, marker='D', hollow=False, ls='-', lw=2.6),
+    dict(key='esm_msr_indep', label='ESM-MSR (Indep. masking)', color='#2c5f8a', marker='s', hollow=False, ls='-', lw=2.0),
+    dict(key='esm_msr_marg', label='ESM-MSR (Masked marginal)', color='#5b8db8', marker='^', hollow=False, ls='-', lw=2.0),
     dict(key='spurs_single', label='SPURS (single)', color=BY_NAME['SPURS'].color, marker='s', hollow=True, ls='--', lw=1.9),
     dict(key='spurs_multi', label='SPURS-multi', color=BY_NAME['SPURS'].color, marker='s', hollow=False, ls='-', lw=2.0),
     dict(key='thermompnn_single', label='ThermoMPNN (SSM single)', color=BY_NAME['ThermoMPNN'].color, marker='p', hollow=True, ls='--', lw=1.9),

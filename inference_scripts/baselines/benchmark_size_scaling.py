@@ -261,7 +261,7 @@ def parse_muts_list(mut_strs: list[str]) -> list[list[tuple[str, int, str]]]:
 # Model runners
 # ==============================================================================================
 def bench_esm_msr(panel: list[dict], mode: str, args) -> list[dict]:
-    """mode in ('esm_msr_wt', 'esm_msr_dual')."""
+    """mode in ('esm_msr_wt', 'esm_msr_dual', 'esm_msr_indep', 'esm_msr_marg')."""
     from esm_msr.models import MSRModel
     from esm_msr.inference import (
         parse_hparams_to_lora_config,
@@ -271,7 +271,15 @@ def bench_esm_msr(panel: list[dict], mode: str, args) -> list[dict]:
         _dtype_autocast,
     )
 
-    ckpt = args.esm_msr_ckpt
+    if mode == 'esm_msr_indep':
+        ckpt = args.esm_msr_indep_ckpt
+        mask_strategy = 'independent'
+    elif mode == 'esm_msr_marg':
+        ckpt = args.esm_msr_marg_ckpt
+        mask_strategy = {'wt': 'independent', 'mt': 'marginal'}
+    else:
+        ckpt = args.esm_msr_ckpt
+        mask_strategy = None
     hparams_path = str(Path(ckpt).parent / 'hparams.yaml')
     parsed_hp = parse_hparams_to_lora_config(hparams_path, sigma=1.0)
     lora_cfg = {'wt_config': parsed_hp['wt_config'], 'mt_config': parsed_hp['mt_config']}
@@ -307,25 +315,27 @@ def bench_esm_msr(panel: list[dict], mode: str, args) -> list[dict]:
         pdb_path = item['pdb_path']
         row = _base_row(mode, item, load_s)
         try:
-            # Measure minimum B=1 VRAM across the full structure_encode + WT forward (+ 1 MT forward for dual)
+            # Measure minimum B=1 VRAM across preprocess_structure + forward pass(es) at batch_size=1
             def _b1():
                 seq_toks, coords, plddt, struct_toks, wt_seq = preprocess_structure(
                     model, pdb_path, 'A', dev, backbone_mutation=None
                 )
-                with torch.no_grad(), _dtype_autocast(model, dev):
-                    out = model._get_esm3_outputs(seq_toks, coords, struct_toks, plddt)
-                    cached_wt = {
-                        'seq': seq_toks,
-                        'logits': model._process_logits(out.sequence_logits.float()),
-                        'embeddings': getattr(out, 'embeddings', None),
-                    }
+                cached_wt = None
+                if mask_strategy is None:
+                    with torch.no_grad(), _dtype_autocast(model, dev):
+                        out = model._get_esm3_outputs(seq_toks, coords, struct_toks, plddt)
+                        cached_wt = {
+                            'seq': seq_toks,
+                            'logits': model._process_logits(out.sequence_logits.float()),
+                            'embeddings': getattr(out, 'embeddings', None),
+                        }
                 muts_1 = make_single_muts(wt_seq, limit=1)
                 sp1 = _prepare_sparse_batch(model, parse_muts_list(muts_1), dev)
                 with torch.no_grad(), _dtype_autocast(model, dev):
                     _ = model.score_screening_batch(
                         seq_toks, sp1['mut_pos'], sp1['wt_id'], sp1['mt_id'], sp1['mut_mask'],
                         coords=coords, structure_tokens=struct_toks, plddt=plddt,
-                        mask_strategy=None, batch_size=1,
+                        mask_strategy=mask_strategy, batch_size=1,
                         skip_reverse=(mode == 'esm_msr_wt'), cached_wt_esm3=cached_wt, quiet=True,
                     )
                 return seq_toks, coords, plddt, struct_toks, wt_seq, cached_wt
@@ -373,6 +383,72 @@ def bench_esm_msr(panel: list[dict], mode: str, args) -> list[dict]:
                     double_screen_s=np.nan,
                     double_screen_method='additive_only',
                 )
+            elif mode in ('esm_msr_indep', 'esm_msr_marg'):
+                # Masked state deduplication (Route 2 in models.py):
+                #   Full 1-mut (19L variants): L unique WT masked states + L unique MT masked states = 2L forward passes
+                #   Full 2-mut (361*L(L-1)/2):
+                #     esm_msr_indep: L WT states + 19*L*(L-1) unique MT states (partner mutated, target masked)
+                #     esm_msr_marg:  L WT states + L*(L-1)/2 unique MT states (both positions masked -> 361x dedup!)
+                _, m_prep = measure_stable(
+                    lambda: preprocess_structure(model, pdb_path, 'A', dev, backbone_mutation=None),
+                    max_repeats=2, fast_thresh_s=0.3,
+                )
+                cands = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
+                from esm.utils.constants import esm3 as C_ESM3
+                mask_tok = int(C_ESM3.SEQUENCE_MASK_TOKEN)
+
+                def _run_states(b, active_model):
+                    bt = seq_toks.expand(b, -1).clone()
+                    pos_idx = (torch.arange(b, device=dev) % L) + 1
+                    bt[torch.arange(b, device=dev), pos_idx] = mask_tok
+                    with torch.no_grad(), _dtype_autocast(model, dev):
+                        out = model._get_esm3_outputs(
+                            bt,
+                            coords.expand(b, -1, -1, -1) if coords is not None else None,
+                            struct_toks.expand(b, -1) if struct_toks is not None else None,
+                            plddt.expand(b, -1) if plddt is not None else None,
+                            active_model=active_model,
+                        )
+                        _ = model._process_logits(out.sequence_logits.float())
+
+                b_opt, _ = find_opt_batch(lambda b: _run_states(b, model.peft_mt), cands, vram_cap_frac=0.88, max_probe_s=5.0)
+                tp_wt = timed_throughput(lambda b: _run_states(b, model.peft_wt), min(b_opt, L), L, max_wall_s=8.0, min_batches=2)
+                tp_mt = timed_throughput(lambda b: _run_states(b, model.peft_mt), b_opt, max(L, b_opt * 2), max_wall_s=8.0, min_batches=2)
+                t_wt_L = tp_wt['elapsed_s'] if tp_wt['measured_full'] else (L / tp_wt['rate_vps'])
+                t_mt_L = L / tp_mt['rate_vps']
+                s_total = m_prep['wall_s'] + t_wt_L + t_mt_L
+
+                n_mt_states_2 = (19 * L * (L - 1)) if mode == 'esm_msr_indep' else (L * (L - 1) // 2)
+                row.update(
+                    single_capable=True,
+                    single_screen_s=round(s_total, 4),
+                    single_screen_method='timed_state_rate_opt_batch',
+                    single_batch_opt=b_opt,
+                    single_rate_vps=round(n_singles(L) / s_total, 4) if s_total > 0 else np.nan,
+                    single_vram_opt_alloc_gb=max(tp_wt['vram_alloc_peak_gb'], tp_mt['vram_alloc_peak_gb']),
+                    double_capable=True,
+                    wt_pass_s=round(t_wt_L, 4),
+                    extra_note=f'n_wt_states={L};n_mt_states_1={L};n_mt_states_2={n_mt_states_2};mt_state_rate={tp_mt["rate_vps"]}',
+                )
+                if double_impractical:
+                    row.update(
+                        double_screen_s=np.nan,
+                        double_screen_method='impractical_gt_24h',
+                        double_impractical=True,
+                    )
+                else:
+                    d_total = m_prep['wall_s'] + t_wt_L + (n_mt_states_2 / tp_mt['rate_vps'])
+                    hit_cap = bool(d_total >= args.double_cap_s)
+                    row.update(
+                        double_screen_s=round(d_total, 4),
+                        double_screen_method='timed_state_rate_cap_reached' if hit_cap else 'timed_state_rate_opt_batch',
+                        double_batch_opt=b_opt,
+                        double_rate_vps=round(n_doubles(L) / d_total, 4) if d_total > 0 else np.nan,
+                        double_vram_opt_alloc_gb=tp_mt['vram_alloc_peak_gb'],
+                        double_impractical=hit_cap,
+                    )
+                    if hit_cap:
+                        double_impractical = True
             else:
                 # Dual-view: measure WT pass time separately, then optimal MT batch size & throughput for singles and doubles
                 def _wt_pass_only():
@@ -1152,7 +1228,7 @@ def _flush_row(args, row: dict) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--model', required=True, choices=[
-        'esm_msr_wt', 'esm_msr_dual', 'me_st1', 'me_st2',
+        'esm_msr_wt', 'esm_msr_dual', 'esm_msr_indep', 'esm_msr_marg', 'me_st1', 'me_st2',
         'thermompnn_single', 'thermompnn_d', 'spurs_single', 'spurs_multi',
         'proteinmpnn', 'prosst',
     ])
@@ -1162,6 +1238,8 @@ def main() -> None:
     ap.add_argument('--double_cap_s', type=float, default=86400.0,
                     help='Practicality cap for full double-mutant screening (default 86400 s = 24 h); once reached, larger proteins are labelled impractical.')
     ap.add_argument('--esm_msr_ckpt', default='/home/sreeves/esm-msr-devel/runs_final_ablations/FINAL_p0_s1/0/epoch=06-val_unmasked_rho_combined_avg=0.8558.ckpt')
+    ap.add_argument('--esm_msr_indep_ckpt', default='/home/sreeves/esm-msr-devel/runs_final_ablations/FINAL_p1_s1/0/epoch=06-val_rho_combined_avg=0.8606.ckpt')
+    ap.add_argument('--esm_msr_marg_ckpt', default='/home/sreeves/esm-msr-devel/runs_final_ablations/FINAL_p1_marg_s1/0/epoch=07-val_rho_combined_avg=0.8575.ckpt')
     ap.add_argument('--me_st1_ckpt', default='/home/sreeves/software/MutateEverything-oct06/logs/af_single_oct06_capped_seed1/checkpoint-19.pth')
     ap.add_argument('--me_st2_ckpt', default='/home/sreeves/software/MutateEverything-oct06/logs/af_double_oct06_capped_allbl_seed1/checkpoint-99.pth')
     ap.add_argument('--thermompnn_single_ckpt', default='/home/sreeves/esm-msr-devel/outputs/baselines_capped/thermompnn/single_seed1/single_oct06_seed1_epoch=92_val_ddG_spearman=0.76.ckpt')
@@ -1199,7 +1277,7 @@ def main() -> None:
     )
     (out_dir / 'meta.json').write_text(json.dumps(meta, indent=2) + '\n')
 
-    if args.model in ('esm_msr_wt', 'esm_msr_dual'):
+    if args.model in ('esm_msr_wt', 'esm_msr_dual', 'esm_msr_indep', 'esm_msr_marg'):
         rows = bench_esm_msr(panel, args.model, args)
     elif args.model in ('me_st1', 'me_st2'):
         rows = bench_mutate_everything(panel, args.model, args)
