@@ -87,7 +87,7 @@ def load_all(in_dir: Path) -> pd.DataFrame:
 
 
 def plot_scaling(df: pd.DataFrame, out_dir: Path) -> Path:
-    fig, axes = plt.subplots(1, 3, figsize=(16.5, 5.4))
+    fig, axes = plt.subplots(1, 3, figsize=(16.8, 6.2))
     ax_vram, ax_1m, ax_2m = axes
 
     max_L = max(float(df['seq_len'].max()), 4096.0)
@@ -176,15 +176,16 @@ def plot_scaling(df: pd.DataFrame, out_dir: Path) -> Path:
     ax_2m.axvline(2048, color='#aaaaaa', ls=':', lw=0.9, zorder=1)
     # Prominent 24-hour practicality cap band
     ax_2m.axhline(CAP_24H, color=style.RING, ls='--', lw=1.3, zorder=7)
-    ax_2m.axhspan(CAP_24H, 1e11, color=style.RING, alpha=0.06, zorder=0)
-    ax_2m.text(30, CAP_24H * 1.25, '24 h cap (larger proteins impractical)', fontsize=7.5,
+    ax_2m.axhspan(CAP_24H, 5e6, color=style.RING, alpha=0.07, zorder=0)
+    ax_2m.text(28, CAP_24H * 1.35, '24 h cap (larger proteins impractical)', fontsize=7.6,
                color=style.RING, fontweight='bold', va='bottom', ha='left')
     for yref, txt in [(1.0, '1 s'), (60.0, '1 min'), (3600.0, '1 h'), (86400.0, '24 h'), (86400.0 * 30, '1 mo')]:
         if yref != CAP_24H:
             ax_2m.axhline(yref, color='#888888', ls=':', lw=0.75, zorder=1)
-        ax_2m.text(max_L * 1.15, yref * 1.15, txt, fontsize=7.2, color=style.RING if yref == CAP_24H else '#666666', ha='right')
+        ax_2m.text(max_L * 1.15, yref * 1.18, txt, fontsize=7.2, color=style.RING if yref == CAP_24H else '#666666', ha='right')
     ax_2m.set_xscale('log')
     ax_2m.set_yscale('log')
+    ax_2m.set_ylim(2e-2, 5e6)
     ax_2m.set_xlabel('Protein length $L$ (residues, log scale)')
     ax_2m.set_ylabel('Full double-mutant screen ($361\\binom{L}{2}$ variants) time (s)')
     ax_2m.set_title('C. Full double-mutant screening cost (24 h cap)', loc='left')
@@ -196,7 +197,7 @@ def plot_scaling(df: pd.DataFrame, out_dir: Path) -> Path:
         ax.set_xticklabels([f'{v // 1024}k' if v >= 8192 else str(v) for v in xt], fontsize=8.0, rotation=30, ha='right')
         ax.xaxis.set_minor_formatter(mticker.NullFormatter())
 
-    # Unified legend cleanly placed below the 3 panels
+    # Unified legend cleanly placed above the 3 panels (below title)
     handles, labels = [], []
     seen = set()
     for ax in axes:
@@ -205,11 +206,11 @@ def plot_scaling(df: pd.DataFrame, out_dir: Path) -> Path:
                 seen.add(l)
                 handles.append(h)
                 labels.append(l)
-    fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, 0.045), ncol=4, fontsize=8.2, frameon=False)
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.945), ncol=4, fontsize=8.2, frameon=False)
 
     stem = out_dir / '03_size_scaling_vram_and_screening_a4500'
     style.finish_figure(
-        fig, stem=stem, top=0.90,
+        fig, stem=stem, top=0.80,
         title='Controlled Protein-Length Scaling of Minimum VRAM and Full Mutational Screening Cost (1× RTX A4500 20 GB)',
         note=(
             'Measured on 1× NVIDIA RTX A4500 (20 GB, fixed slot). One protein per exact power-of-two size bin (L = 32, 64, 128, ..., 65,536): '
