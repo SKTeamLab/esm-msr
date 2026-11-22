@@ -301,6 +301,7 @@ def bench_esm_msr(panel: list[dict], mode: str, args) -> list[dict]:
     load_s = round(time.perf_counter() - t0, 3)
 
     rows = []
+    double_impractical = False
     for idx, item in enumerate(panel):
         L = item['seq_len']
         pdb_path = item['pdb_path']
@@ -404,9 +405,7 @@ def bench_esm_msr(panel: list[dict], mode: str, args) -> list[dict]:
 
                 b_opt, _ = find_opt_batch(_run_mt_single, cands, vram_cap_frac=0.88, max_probe_s=5.0)
                 tp_s = timed_throughput(_run_mt_single, b_opt, n_singles(L), max_wall_s=10.0, min_batches=2)
-                tp_d = timed_throughput(_run_mt_double, b_opt, n_doubles(L), max_wall_s=8.0, min_batches=2)
                 s_total = m_wt['wall_s'] + (tp_s['elapsed_s'] if tp_s['measured_full'] else n_singles(L) / tp_s['rate_vps'])
-                d_total = m_wt['wall_s'] + n_doubles(L) / tp_d['rate_vps']
                 row.update(
                     single_capable=True,
                     single_screen_s=round(s_total, 4),
@@ -415,13 +414,28 @@ def bench_esm_msr(panel: list[dict], mode: str, args) -> list[dict]:
                     single_rate_vps=tp_s['rate_vps'],
                     single_vram_opt_alloc_gb=tp_s['vram_alloc_peak_gb'],
                     double_capable=True,
-                    double_screen_s=round(d_total, 4),
-                    double_screen_method='timed_rate_opt_batch',
-                    double_batch_opt=b_opt,
-                    double_rate_vps=tp_d['rate_vps'],
-                    double_vram_opt_alloc_gb=tp_d['vram_alloc_peak_gb'],
                     wt_pass_s=m_wt['wall_s'],
                 )
+                if double_impractical:
+                    row.update(
+                        double_screen_s=np.nan,
+                        double_screen_method='impractical_gt_24h',
+                        double_impractical=True,
+                    )
+                else:
+                    tp_d = timed_throughput(_run_mt_double, b_opt, n_doubles(L), max_wall_s=8.0, min_batches=2)
+                    d_total = m_wt['wall_s'] + n_doubles(L) / tp_d['rate_vps']
+                    hit_cap = bool(d_total >= args.double_cap_s)
+                    row.update(
+                        double_screen_s=round(d_total, 4),
+                        double_screen_method='timed_rate_opt_batch_cap_reached' if hit_cap else 'timed_rate_opt_batch',
+                        double_batch_opt=b_opt,
+                        double_rate_vps=tp_d['rate_vps'],
+                        double_vram_opt_alloc_gb=tp_d['vram_alloc_peak_gb'],
+                        double_impractical=hit_cap,
+                    )
+                    if hit_cap:
+                        double_impractical = True
             # Clear local GPU refs
             del seq_toks, coords, plddt, struct_toks, cached_wt
             cleanup_cuda()
@@ -598,6 +612,7 @@ def bench_thermompnn(panel: list[dict], mode: str, args) -> list[dict]:
     load_s = round(time.perf_counter() - t0, 3)
 
     rows = []
+    double_impractical = False
     for idx, item in enumerate(panel):
         L = item['seq_len']
         row = _base_row(mode, item, load_s)
@@ -700,24 +715,6 @@ def bench_thermompnn(panel: list[dict], mode: str, args) -> list[dict]:
                 bb, m_b1 = measure_stable(_b1_full, max_repeats=3, fast_thresh_s=0.4, force_warmup=(idx == 0))
                 _, m_bb = measure_stable(_backbone, max_repeats=3, fast_thresh_s=0.4)
 
-                # Pre-allocate a pool of synthetic double indices on GPU for head throughput measurement
-                cands = [1, 4, 16, 64, 256, 1024, 4096, 16384, 65536]
-                max_b = max(cands)
-                rng = np.random.default_rng(42)
-                p1 = rng.integers(0, L - 1, size=max_b)
-                p2 = np.minimum(L - 1, p1 + rng.integers(1, max(2, L // 2), size=max_b))
-                pos_pool = torch.from_numpy(np.stack([p1, p2], axis=1)).long().cuda()
-                mut_pool = torch.from_numpy(rng.integers(0, 20, size=(max_b, 2))).long().cuda()
-
-                b_opt, _ = find_opt_batch(
-                    lambda b: _double_head_chunk(*bb, pos_pool[:b], mut_pool[:b]),
-                    cands, vram_cap_frac=0.85, max_probe_s=4.0,
-                )
-                tp_d = timed_throughput(
-                    lambda b: _double_head_chunk(*bb, pos_pool[:b], mut_pool[:b]),
-                    b_opt, n_doubles(L), max_wall_s=6.0, min_batches=3,
-                )
-                d_total = m_bb['wall_s'] + (tp_d['elapsed_s'] if tp_d['measured_full'] else n_doubles(L) / tp_d['rate_vps'])
                 row.update(
                     status='ok',
                     vram_weights_gb=m_b1['vram_weights_gb'],
@@ -730,13 +727,46 @@ def bench_thermompnn(panel: list[dict], mode: str, args) -> list[dict]:
                     single_screen_s=np.nan,
                     single_screen_method='use_thermompnn_single',
                     double_capable=True,
-                    double_screen_s=round(d_total, 4),
-                    double_screen_method='measured_full' if tp_d['measured_full'] else 'timed_rate_opt_batch',
-                    double_batch_opt=b_opt,
-                    double_rate_vps=tp_d['rate_vps'],
-                    double_vram_opt_alloc_gb=tp_d['vram_alloc_peak_gb'],
                 )
-                del bb, pos_pool, mut_pool
+                if double_impractical:
+                    row.update(
+                        double_screen_s=np.nan,
+                        double_screen_method='impractical_gt_24h',
+                        double_impractical=True,
+                    )
+                else:
+                    # Pre-allocate a pool of synthetic double indices on GPU for head throughput measurement
+                    cands = [1, 4, 16, 64, 256, 1024, 4096, 16384, 65536]
+                    max_b = max(cands)
+                    rng = np.random.default_rng(42)
+                    p1 = rng.integers(0, L - 1, size=max_b)
+                    p2 = np.minimum(L - 1, p1 + rng.integers(1, max(2, L // 2), size=max_b))
+                    pos_pool = torch.from_numpy(np.stack([p1, p2], axis=1)).long().cuda()
+                    mut_pool = torch.from_numpy(rng.integers(0, 20, size=(max_b, 2))).long().cuda()
+
+                    b_opt, _ = find_opt_batch(
+                        lambda b: _double_head_chunk(*bb, pos_pool[:b], mut_pool[:b]),
+                        cands, vram_cap_frac=0.85, max_probe_s=4.0,
+                    )
+                    tp_d = timed_throughput(
+                        lambda b: _double_head_chunk(*bb, pos_pool[:b], mut_pool[:b]),
+                        b_opt, n_doubles(L), max_wall_s=6.0, min_batches=3,
+                    )
+                    d_total = m_bb['wall_s'] + (tp_d['elapsed_s'] if tp_d['measured_full'] else n_doubles(L) / tp_d['rate_vps'])
+                    hit_cap = bool(d_total >= args.double_cap_s)
+                    base_m = 'measured_full' if tp_d['measured_full'] else 'timed_rate_opt_batch'
+                    row.update(
+                        double_screen_s=round(d_total, 4),
+                        double_screen_method=f'{base_m}_cap_reached' if hit_cap else base_m,
+                        double_batch_opt=b_opt,
+                        double_rate_vps=tp_d['rate_vps'],
+                        double_vram_opt_alloc_gb=tp_d['vram_alloc_peak_gb'],
+                        double_impractical=hit_cap,
+                    )
+                    if hit_cap:
+                        double_impractical = True
+                    del pos_pool, mut_pool
+                del bb
             del X, S, mask, chain_M, res_idx, chain_enc
             cleanup_cuda()
         except Exception as e:
@@ -769,6 +799,7 @@ def bench_spurs(panel: list[dict], mode: str, args) -> list[dict]:
     load_s = round(time.perf_counter() - t0, 3)
 
     rows = []
+    double_impractical = False
     for idx, item in enumerate(panel):
         L = item['seq_len']
         seq = load_seq(item['fasta_path'])
@@ -836,9 +867,7 @@ def bench_spurs(panel: list[dict], mode: str, args) -> list[dict]:
 
                 b_opt, _ = find_opt_batch(_run_chunk_d, cands, vram_cap_frac=0.85, max_probe_s=5.0)
                 tp_s = timed_throughput(_run_chunk_s, min(b_opt, len(s_all)), n_singles(L), max_wall_s=8.0, min_batches=2)
-                tp_d = timed_throughput(_run_chunk_d, b_opt, n_doubles(L), max_wall_s=8.0, min_batches=2)
                 s_total = tp_s['elapsed_s'] if tp_s['measured_full'] else n_singles(L) / tp_s['rate_vps']
-                d_total = tp_d['elapsed_s'] if tp_d['measured_full'] else n_doubles(L) / tp_d['rate_vps']
                 row.update(
                     status='ok',
                     vram_weights_gb=m_b1['vram_weights_gb'],
@@ -853,12 +882,28 @@ def bench_spurs(panel: list[dict], mode: str, args) -> list[dict]:
                     single_rate_vps=tp_s['rate_vps'],
                     single_vram_opt_alloc_gb=tp_s['vram_alloc_peak_gb'],
                     double_capable=True,
-                    double_screen_s=round(d_total, 4),
-                    double_screen_method='measured_full' if tp_d['measured_full'] else 'timed_rate_opt_batch',
-                    double_batch_opt=b_opt,
-                    double_rate_vps=tp_d['rate_vps'],
-                    double_vram_opt_alloc_gb=tp_d['vram_alloc_peak_gb'],
                 )
+                if double_impractical:
+                    row.update(
+                        double_screen_s=np.nan,
+                        double_screen_method='impractical_gt_24h',
+                        double_impractical=True,
+                    )
+                else:
+                    tp_d = timed_throughput(_run_chunk_d, b_opt, n_doubles(L), max_wall_s=8.0, min_batches=2)
+                    d_total = tp_d['elapsed_s'] if tp_d['measured_full'] else n_doubles(L) / tp_d['rate_vps']
+                    hit_cap = bool(d_total >= args.double_cap_s)
+                    base_m = 'measured_full' if tp_d['measured_full'] else 'timed_rate_opt_batch'
+                    row.update(
+                        double_screen_s=round(d_total, 4),
+                        double_screen_method=f'{base_m}_cap_reached' if hit_cap else base_m,
+                        double_batch_opt=b_opt,
+                        double_rate_vps=tp_d['rate_vps'],
+                        double_vram_opt_alloc_gb=tp_d['vram_alloc_peak_gb'],
+                        double_impractical=hit_cap,
+                    )
+                    if hit_cap:
+                        double_impractical = True
             del pdb_data
             cleanup_cuda()
         except Exception as e:
@@ -897,6 +942,7 @@ def bench_proteinmpnn(panel: list[dict], args) -> list[dict]:
     load_s = round(time.perf_counter() - t0, 3)
 
     rows = []
+    double_impractical = False
     for idx, item in enumerate(panel):
         L = item['seq_len']
         row = _base_row('proteinmpnn', item, load_s)
@@ -935,11 +981,6 @@ def bench_proteinmpnn(panel: list[dict], args) -> list[dict]:
             tp_1 = timed_throughput(lambda b: _decode_rows(enc, b, with_bg_mut=False), min(b_opt, L), L, max_wall_s=10.0, min_batches=1)
             s_total = m_enc['wall_s'] + (tp_1['elapsed_s'] if tp_1['measured_full'] else L / tp_1['rate_vps'])
 
-            # Full 2-mut screen = L + 19 * L * (L - 1) unique decoder rows (score_unmasked_fast deduplication)
-            n_dec_rows_2 = L + 19 * L * (L - 1)
-            tp_2 = timed_throughput(lambda b: _decode_rows(enc, b, with_bg_mut=True), b_opt, n_dec_rows_2, max_wall_s=8.0, min_batches=2)
-            d_total = m_enc['wall_s'] + (tp_2['elapsed_s'] if tp_2['measured_full'] else n_dec_rows_2 / tp_2['rate_vps'])
-
             row.update(
                 status='ok',
                 vram_weights_gb=m_b1['vram_weights_gb'],
@@ -955,13 +996,32 @@ def bench_proteinmpnn(panel: list[dict], args) -> list[dict]:
                 single_rate_vps=round(n_singles(L) / s_total, 4) if s_total > 0 else np.nan,
                 single_vram_opt_alloc_gb=tp_1['vram_alloc_peak_gb'],
                 double_capable=True,
-                double_screen_s=round(d_total, 4),
-                double_screen_method='measured_full' if tp_2['measured_full'] else 'timed_rate_opt_batch',
-                double_batch_opt=b_opt,
-                double_rate_vps=round(n_doubles(L) / d_total, 4) if d_total > 0 else np.nan,
-                double_vram_opt_alloc_gb=tp_2['vram_alloc_peak_gb'],
-                extra_note=f'n_dec_rows_1={L};n_dec_rows_2={n_dec_rows_2};dec_row_rate={tp_2["rate_vps"]}',
             )
+            # Full 2-mut screen = L + 19 * L * (L - 1) unique decoder rows (score_unmasked_fast deduplication)
+            n_dec_rows_2 = L + 19 * L * (L - 1)
+            if double_impractical:
+                row.update(
+                    double_screen_s=np.nan,
+                    double_screen_method='impractical_gt_24h',
+                    double_impractical=True,
+                    extra_note=f'n_dec_rows_1={L};n_dec_rows_2={n_dec_rows_2};impractical_gt_24h',
+                )
+            else:
+                tp_2 = timed_throughput(lambda b: _decode_rows(enc, b, with_bg_mut=True), b_opt, n_dec_rows_2, max_wall_s=8.0, min_batches=2)
+                d_total = m_enc['wall_s'] + (tp_2['elapsed_s'] if tp_2['measured_full'] else n_dec_rows_2 / tp_2['rate_vps'])
+                hit_cap = bool(d_total >= args.double_cap_s)
+                base_m = 'measured_full' if tp_2['measured_full'] else 'timed_rate_opt_batch'
+                row.update(
+                    double_screen_s=round(d_total, 4),
+                    double_screen_method=f'{base_m}_cap_reached' if hit_cap else base_m,
+                    double_batch_opt=b_opt,
+                    double_rate_vps=round(n_doubles(L) / d_total, 4) if d_total > 0 else np.nan,
+                    double_vram_opt_alloc_gb=tp_2['vram_alloc_peak_gb'],
+                    double_impractical=hit_cap,
+                    extra_note=f'n_dec_rows_1={L};n_dec_rows_2={n_dec_rows_2};dec_row_rate={tp_2["rate_vps"]}',
+                )
+                if hit_cap:
+                    double_impractical = True
             del X, S_wt, mask, chain_M, residue_idx, chain_encoding_all, enc, noise
             cleanup_cuda()
         except Exception as e:
@@ -1002,6 +1062,7 @@ def bench_prosst(panel: list[dict], args) -> list[dict]:
     load_s = round(time.perf_counter() - t0, 3)
 
     rows = []
+    double_impractical = False
     for idx, item in enumerate(panel):
         L = item['seq_len']
         row = _base_row('prosst', item, load_s)
@@ -1098,6 +1159,8 @@ def main() -> None:
     ap.add_argument('--panel', required=True, help='Path to panel.json from size_scaling_panel.py')
     ap.add_argument('--out', required=True, help='Root output directory (writes <out>/<model>/*)')
     ap.add_argument('--max_len', type=int, default=0, help='Optional upper length cap for smoke tests')
+    ap.add_argument('--double_cap_s', type=float, default=86400.0,
+                    help='Practicality cap for full double-mutant screening (default 86400 s = 24 h); once reached, larger proteins are labelled impractical.')
     ap.add_argument('--esm_msr_ckpt', default='/home/sreeves/esm-msr-devel/runs_final_ablations/FINAL_p0_s1/0/epoch=06-val_unmasked_rho_combined_avg=0.8558.ckpt')
     ap.add_argument('--me_st1_ckpt', default='/home/sreeves/software/MutateEverything-oct06/logs/af_single_oct06_capped_seed1/checkpoint-19.pth')
     ap.add_argument('--me_st2_ckpt', default='/home/sreeves/software/MutateEverything-oct06/logs/af_double_oct06_capped_allbl_seed1/checkpoint-99.pth')

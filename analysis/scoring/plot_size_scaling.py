@@ -142,6 +142,7 @@ def plot_scaling(df: pd.DataFrame, out_dir: Path) -> Path:
     ax_1m.grid(True, color=style.GRID, lw=0.6, zorder=0)
 
     # ---- Panel C: Full Double-Mutant Screen (361 * L(L-1)/2 variants) Cost vs L ----
+    CAP_24H = 86400.0
     for s in SPECS:
         sub = df[(df['model'] == s['key']) & (df['status'] == 'ok')].sort_values('seq_len')
         if sub.empty or 'double_screen_s' not in sub.columns:
@@ -150,7 +151,17 @@ def plot_scaling(df: pd.DataFrame, out_dir: Path) -> Path:
         if ok.empty:
             continue
         z = 6 if 'esm_msr' in s['key'] else 4
-        _plot_curve(ax_2m, ok['seq_len'], ok['double_screen_s'], s, zorder=z)
+        # Split at 24 h practicality cap: plot all points up through the first bin reaching >= 24 h
+        above = ok[ok['double_screen_s'] >= CAP_24H]
+        if len(above):
+            cutoff_L = float(above['seq_len'].iloc[0])
+            ok_plot = ok[ok['seq_len'] <= cutoff_L]
+            _plot_curve(ax_2m, ok_plot['seq_len'], ok_plot['double_screen_s'], s, zorder=z)
+            # Mark the cap-crossing point with an upward triangle / cap indicator
+            ax_2m.scatter([cutoff_L], [float(above['double_screen_s'].iloc[0])],
+                          marker='^', s=60, facecolors='none', edgecolors=style.RING, linewidths=1.5, zorder=z + 2)
+        else:
+            _plot_curve(ax_2m, ok['seq_len'], ok['double_screen_s'], s, zorder=z)
     # Reference dashed line for additive-only ESM-MSR WT-view (1 WT pass; no epistasis)
     wt_ok = df[(df['model'] == 'esm_msr_wt') & (df['status'] == 'ok')].sort_values('seq_len')
     if len(wt_ok):
@@ -161,14 +172,20 @@ def plot_scaling(df: pd.DataFrame, out_dir: Path) -> Path:
         )
     ax_2m.axvspan(2048, max_L * 1.25, color='#f2f2f2', zorder=0)
     ax_2m.axvline(2048, color='#aaaaaa', ls=':', lw=0.9, zorder=1)
-    for yref, txt in [(1.0, '1 s'), (60.0, '1 min'), (3600.0, '1 h'), (86400.0, '1 d'), (86400.0 * 30, '1 mo'), (86400.0 * 365, '1 yr')]:
-        ax_2m.axhline(yref, color='#888888', ls=':', lw=0.75, zorder=1)
-        ax_2m.text(max_L * 1.15, yref * 1.15, txt, fontsize=7.2, color='#666666', ha='right')
+    # Prominent 24-hour practicality cap band
+    ax_2m.axhline(CAP_24H, color=style.RING, ls='--', lw=1.3, zorder=7)
+    ax_2m.axhspan(CAP_24H, 1e11, color=style.RING, alpha=0.06, zorder=0)
+    ax_2m.text(30, CAP_24H * 1.25, '24 h cap (larger proteins impractical)', fontsize=7.5,
+               color=style.RING, fontweight='bold', va='bottom', ha='left')
+    for yref, txt in [(1.0, '1 s'), (60.0, '1 min'), (3600.0, '1 h'), (86400.0, '24 h'), (86400.0 * 30, '1 mo')]:
+        if yref != CAP_24H:
+            ax_2m.axhline(yref, color='#888888', ls=':', lw=0.75, zorder=1)
+        ax_2m.text(max_L * 1.15, yref * 1.15, txt, fontsize=7.2, color=style.RING if yref == CAP_24H else '#666666', ha='right')
     ax_2m.set_xscale('log')
     ax_2m.set_yscale('log')
     ax_2m.set_xlabel('Protein length $L$ (residues, log scale)')
     ax_2m.set_ylabel('Full double-mutant screen ($361\\binom{L}{2}$ variants) time (s)')
-    ax_2m.set_title('C. Full double-mutant screening cost (epistatic)', loc='left')
+    ax_2m.set_title('C. Full double-mutant screening cost (24 h cap)', loc='left')
     ax_2m.grid(True, color=style.GRID, lw=0.6, zorder=0)
 
     for ax in axes:
@@ -221,10 +238,19 @@ def write_summary_md(df: pd.DataFrame, out_dir: Path) -> None:
 
         def _at(target_bin, col, is_time=False):
             m = ok[ok['bin'] == target_bin]
-            if m.empty or col not in m.columns or pd.isna(m[col].iloc[0]):
+            if m.empty or col not in m.columns:
+                return '—'
+            if col == 'double_screen_s' and 'double_screen_method' in m.columns and str(m['double_screen_method'].iloc[0]) == 'impractical_gt_24h':
+                return 'impractical (>24 h)'
+            if pd.isna(m[col].iloc[0]):
                 return '—'
             v = float(m[col].iloc[0])
-            return _fmt_dur(v) if is_time else f'{v:.2f} GB'
+            if is_time:
+                tag = _fmt_dur(v)
+                if col == 'double_screen_s' and v >= 86400.0:
+                    tag += ' (cap)'
+                return tag
+            return f'{v:.2f} GB'
 
         lines.append(
             f"| {s['label']} | {max_ok:,} | {oom_l} | {w_gb} | "
