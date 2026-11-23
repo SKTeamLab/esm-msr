@@ -11,4 +11,4 @@
 | ProteinMPNN (zero-shot) | 16,384 | 32768 | 0.02 | 0.09 GB | 0.28 GB | 0.54 GB | 398 ms | 6.2 s | 31.3 m | 1.4 d (cap) |
 | MutateEverything (Stage 1) | 1,024 | 2048 | 0.37 | 0.90 GB | 5.80 GB | 12.41 GB | 12.8 s | 5.9 m | — | — |
 | MutateEverything (Stage 2) | 1,024 | 2048 | 0.37 | 2.81 GB | 5.80 GB | 12.41 GB | 12.8 s | 5.9 m | 12.8 s | 5.9 m |
-| ProSST-2048 (zero-shot) | 4,096 | >4096 | 0.47 | 0.68 GB | 1.34 GB | 1.65 GB | 519 ms | 4.9 s | — | — |
+| ProSST-2048 (zero-shot) | 4,096 | 8192 | 0.47 | 0.68 GB | 1.34 GB | 1.65 GB | 519 ms | 4.9 s | — | — |
