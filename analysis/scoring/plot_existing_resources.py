@@ -225,7 +225,7 @@ def collect_fig1_table(pgym_names: set[str]) -> tuple[pd.DataFrame, pd.DataFrame
             prot['group'] = prot['dataset'].map(lambda x: _group_of_dataset(x, pgym_names))
             prot = prot[prot['group'].notna()]
             ok = prot[prot['status'] == 'ok']
-            n_failed_core = int((prot['status'] != 'ok').sum())
+            n_failed_core = int(prot['status'].astype(str).str.contains('OutOfMemory|oom|RuntimeError', case=False, na=False).sum())
             if len(ok):
                 ram_peak = float(ok['ram_rss_peak_gb'].max())
                 vram_dev_peak = float(ok['vram_device_peak_gb'].max())
@@ -631,8 +631,8 @@ def plot_fig2_proteingym_scaling(pgym_seqlen: dict[str, float]) -> Path:
         title='Length Scaling Extracted From Existing ProteinGym Fixed-Slot Runs (RTX A4500 20 GB)',
         note=(
             'Per-protein scopes across the 217 ProteinGym assays (L = 37–2,832) on gpu4 (RTX A4500 20 GB). '
-            'MutateEverything St2 omitted (St1 shown); ESM-MSR Independent masking (FINAL_p1) included; '
-            'ProSST-2048 and ESM-MSR Masked marginal (FINAL_p1_marg) are queued on gpu4 and will populate automatically once synced.'
+            'MutateEverything St2 omitted (St1 shown); ProSST-2048 and ESM-MSR Independent masking (FINAL_p1) included; '
+            'ESM-MSR Masked marginal (FINAL_p1_marg) is currently running on gpu4 and will populate automatically once synced.'
         ),
     )
     return stem

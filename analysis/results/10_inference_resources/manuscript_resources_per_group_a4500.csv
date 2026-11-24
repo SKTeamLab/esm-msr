@@ -11,10 +11,10 @@ spurs_retrain_s1,SPURS (+multi),Domainome,measured,58.19136,572204.0,9833.143614
 spurs_retrain_s1,SPURS (+multi),ProteinGym,measured,722.59818,2465767.0,3412.3625941045134,tracked
 spurs_retrain_s1,SPURS (+multi),Rocklin,measured,174.0,209818.0,1205.8505747126437,gpu4_log:389871
 spurs_retrain_s1,SPURS (+multi),MGnify,measured,18576.0,766790.0,41.27853143841516,gpu4_log:389871
-prosst_a4500_full,ProSST-2048,Megascale Test,queued,,,,queued
-prosst_a4500_full,ProSST-2048,External,queued,,,,queued
-prosst_a4500_full,ProSST-2048,Domainome,queued,,,,queued
-prosst_a4500_full,ProSST-2048,ProteinGym,queued,,,,queued
+prosst_a4500_full,ProSST-2048,Megascale Test,measured,2.6872000000000003,7931.0,2951.399225960107,tracked
+prosst_a4500_full,ProSST-2048,External,measured,687.16709,25326.0,36.85566490094862,tracked
+prosst_a4500_full,ProSST-2048,Domainome,measured,126.3136,572204.0,4530.0268537987995,tracked
+prosst_a4500_full,ProSST-2048,ProteinGym,measured,472.86743000000007,2465767.0,5214.49954800228,tracked
 prosst_a4500_full,ProSST-2048,Rocklin,measured,138.0,209818.0,1520.4202898550725,gpu4_log:389890
 prosst_a4500_full,ProSST-2048,MGnify,measured,13914.0,766790.0,55.10924248957884,gpu4_log:389890
 proteinmpnn,ProteinMPNN,Megascale Test,measured,3.5387900000000005,52071.0,14714.351515631046,tracked

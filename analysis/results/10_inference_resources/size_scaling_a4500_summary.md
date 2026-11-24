@@ -4,6 +4,8 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | ESM-MSR (WT-view) | 1,024 | 2048 | 5.44 | 5.60 GB | 6.59 GB | 10.00 GB | 178 ms | 1.1 s | — | — |
 | ESM-MSR (Dual-view) | 1,024 | 2048 | 5.44 | 5.60 GB | 6.61 GB | 10.03 GB | 2.2 m | 1.1 h | 3.8 d (cap) | impractical (>24 h) |
+| ESM-MSR (Indep. masking) | 1,024 | 2048 | 5.44 | 5.60 GB | 6.60 GB | 10.01 GB | 14.2 s | 7.0 m | 9.4 h | impractical (>24 h) |
+| ESM-MSR (Masked marginal) | 1,024 | 2048 | 5.44 | 5.60 GB | 6.60 GB | 10.01 GB | 14.3 s | 7.0 m | 15.1 m | 1.2 d (cap) |
 | SPURS (single) | 8,192 | >8192 | 2.47 | 2.54 GB | 2.74 GB | 3.02 GB | 63 ms | 253 ms | — | — |
 | SPURS-multi | 8,192 | >8192 | 2.48 | 2.54 GB | 2.73 GB | 3.00 GB | 70 ms | 285 ms | 1.1 m | 27.2 m |
 | ThermoMPNN (SSM single) | 16,384 | 32768 | 0.02 | 0.08 GB | 0.27 GB | 0.53 GB | 14 ms | 30 ms | — | — |
