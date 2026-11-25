@@ -266,6 +266,25 @@ def organize_forge_models(stage_root: Path, catalog_root: Path) -> None:
         safe_copy(new_dir / "mgnify_all" / "predictions.csv.gz", dst / "mgnify" / "mgnify_predictions.csv.gz")
 
 
+def _has_valid_scores(csv_path: Path) -> bool:
+    """Return True iff a ProteinGym CSV has at least one finite prediction (filters out HTTP-413 empty files)."""
+    try:
+        hdr = list(pd.read_csv(csv_path, nrows=0).columns)
+        col = next((c for c in ("wt_lora_pred", "esm3_score", "combined_pred") if c in hdr), None)
+        if not col:
+            return False
+        s = pd.read_csv(csv_path, usecols=[col])[col]
+        return bool(s.notna().any())
+    except Exception:
+        return False
+
+
+def _count_valid_pgym(d: Path) -> int:
+    if not d.is_dir():
+        return 0
+    return sum(1 for f in d.glob("*.csv") if f.name not in ("summary.csv", "manifest.csv") and _has_valid_scores(f))
+
+
 def _summarize_csv(path: Path) -> Tuple[int, int, int, float]:
     """Return (n_rows, n_ok, n_nan, spearman) for a single prediction CSV."""
     try:
@@ -344,9 +363,9 @@ def build_manifest_and_report(catalog_root: Path) -> pd.DataFrame:
         dom_ok = int((root / "domainome" / "domainome.csv").is_file())
         ms_ok = sum(1 for s in MEGASCALE_SPLITS if (root / "megascale" / f"{s}.csv").is_file())
         pg_wt_dir = root / ("proteingym" if variant == "marginal" else "proteingym_wt")
-        pg_wt_n = len([f for f in pg_wt_dir.glob("*.csv") if f.name not in ("summary.csv", "manifest.csv")]) if pg_wt_dir.is_dir() else 0
+        pg_wt_n = _count_valid_pgym(pg_wt_dir)
         pg_mt_dir = root / ("proteingym_multi" if variant == "unmasked" else "proteingym_full_multi")
-        pg_mt_n = len([f for f in pg_mt_dir.glob("*.csv") if f.name not in ("summary.csv", "manifest.csv")]) if pg_mt_dir.is_dir() else 0
+        pg_mt_n = _count_valid_pgym(pg_mt_dir)
         mgn_files = list((root / "mgnify").glob("*.csv.gz")) if (root / "mgnify").is_dir() else []
 
         cov_rows.append({
