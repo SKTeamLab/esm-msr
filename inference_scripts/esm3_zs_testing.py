@@ -33,6 +33,7 @@ DATA_DIR = REPO_ROOT / "data" / "preprocessed"
 FORGE_DEFAULT_URL = "https://forge.evolutionaryscale.ai"
 
 _CAP_RE = re.compile(r"usage cap of\s+(\d+)\s+tokens", re.IGNORECASE)
+_REQ_CAP_RE = re.compile(r"usage cap of\s+(\d+)\s+requests", re.IGNORECASE)
 
 
 def resolve_forge_token(
@@ -115,11 +116,17 @@ def timed_call(func, *args, **kwargs):
 
 
 class AdaptiveTokenLimiter:
-    """Sliding-window token-bucket rate limiter that auto-tunes to Forge 429 caps."""
+    """Sliding-window token + request rate limiter that auto-tunes to Forge 429 caps."""
 
-    def __init__(self, tokens_per_min: Optional[int] = None, window_sec: float = 60.5):
+    def __init__(
+        self,
+        tokens_per_min: Optional[int] = None,
+        requests_per_min: Optional[int] = None,
+        window_sec: float = 60.5,
+    ):
         self.window_sec = float(window_sec)
         self.tokens_per_min: Optional[int] = int(tokens_per_min) if tokens_per_min and tokens_per_min > 0 else None
+        self.requests_per_min: Optional[int] = int(requests_per_min) if requests_per_min and requests_per_min > 0 else None
         self._events: deque = deque()  # (monotonic_ts, n_tokens)
         self._window_tokens: int = 0
         self._lock = asyncio.Lock()
@@ -141,27 +148,39 @@ class AdaptiveTokenLimiter:
                     sleep_for = self._cooldown_until - now
                 else:
                     self._prune(now)
-                    cap = self.tokens_per_min
-                    if cap is None or self._window_tokens + n_tokens <= cap or not self._events:
+                    t_cap = self.tokens_per_min
+                    r_cap = self.requests_per_min
+                    tok_ok = (t_cap is None or self._window_tokens + n_tokens <= t_cap or not self._events)
+                    req_ok = (r_cap is None or len(self._events) + 1 <= r_cap or not self._events)
+                    if tok_ok and req_ok:
                         self._events.append((now, n_tokens))
                         self._window_tokens += n_tokens
                         return
-                    # Wait until the oldest event drops out of the sliding window.
                     oldest_ts = self._events[0][0]
                     sleep_for = max(0.05, (oldest_ts + self.window_sec) - now)
             await asyncio.sleep(min(sleep_for, 2.0))
 
     async def note_rate_limit(self, err_text: str, retry_after: Optional[float] = None) -> None:
-        m = _CAP_RE.search(err_text or "")
+        mt = _CAP_RE.search(err_text or "")
+        mr = _REQ_CAP_RE.search(err_text or "")
         async with self._lock:
             now = time.monotonic()
-            if m:
-                detected_cap = int(m.group(1))
+            if mt:
+                detected_cap = int(mt.group(1))
                 target = max(1000, int(detected_cap * 0.94))
                 if self.tokens_per_min is None or target < self.tokens_per_min:
                     self.tokens_per_min = target
                     print(
                         f"[FORGE-LIMIT] Auto-detected server cap={detected_cap:,} tok/min -> pacing at {target:,} tok/min",
+                        flush=True,
+                    )
+            if mr:
+                detected_req = int(mr.group(1))
+                target_req = max(10, int(detected_req * 0.95))
+                if self.requests_per_min is None or target_req < self.requests_per_min:
+                    self.requests_per_min = target_req
+                    print(
+                        f"[FORGE-LIMIT] Auto-detected server cap={detected_req:,} req/min -> pacing at {target_req:,} req/min",
                         flush=True,
                     )
             wait = float(retry_after) if retry_after is not None else 1.5
@@ -676,7 +695,7 @@ class ESM3ForgePredictor:
         print(
             f"{prefix}[FORGE-STATS] elapsed={dt/60:.1f}m encodes={self.total_encode_calls:,} "
             f"logits={self.total_logits_calls:,} ({rpm:.0f} req/min, {tpm:,.0f} tok/min) "
-            f"429s={self.total_429s} pace_cap={self._limiter.tokens_per_min}",
+            f"429s={self.total_429s} tok_cap={self._limiter.tokens_per_min} req_cap={self._limiter.requests_per_min}",
             flush=True,
         )
 
@@ -697,6 +716,55 @@ def _load_reuse_domain_cache(reuse_paths: Sequence[str]) -> Dict[str, pd.DataFra
             if sub["esm3_score"].notna().all():
                 cache[str(c)] = sub
     return cache
+
+
+def run_dms(predictor: ESM3ForgePredictor, args, out_root: Path):
+    """Run independent-masked Forge inference on active DMS sets (DLG4_binding, GRB2_binding, MYO)."""
+    default_dms = [
+        "DLG4_HUMAN_Faure_2021_binding_domain",
+        "GRB2_HUMAN_Faure_2021_binding_domain",
+        "MYO_HUMAN_Kung_2025_display",
+    ]
+    prots = (
+        [s.strip() for s in args.dms_names.split(",") if s.strip()]
+        if getattr(args, "dms_names", "")
+        else default_dms
+    )
+    for prot in prots:
+        out_dir = out_root / "dms"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_csv = out_dir / f"{prot}.csv"
+        if out_csv.is_file() and not args.overwrite:
+            print(f"[DMS:{prot}] Already complete: {out_csv}", flush=True)
+            continue
+
+        df_true = pd.read_csv(DATA_DIR / f"{prot}.csv")
+        mcol = "mut_type" if "mut_type" in df_true.columns else "mut_info"
+        df_true["id"] = df_true["code"].astype(str) + "_" + df_true[mcol].astype(str)
+        df_true = df_true.set_index("id")
+        if df_true[mcol].astype(str).str.contains(":").any() and "ddG_ML" in df_true.columns:
+            df_true = utils.sum_individual_mutation_scores(df_true, "ddG_ML", new_score_column="ddG_additive_ML")
+            df_true["dddG_ML"] = df_true["ddG_ML"] - df_true["ddG_additive_ML"]
+
+        prot_name = "_".join(prot.split("_")[:2])
+        pdb_guess = str(REPO_ROOT / "data" / "structures" / f"{prot_name}.pdb")
+        if "pdb_file" in df_true.columns and pd.notna(df_true["pdb_file"].iloc[0]):
+            pdb_guess = str(df_true["pdb_file"].iloc[0])
+        pdb = resolve_pdb_path(pdb_guess, args.structures_dir)
+        chain = str(df_true["chain"].iloc[0]) if "chain" in df_true.columns and pd.notna(df_true["chain"].iloc[0]) else "A"
+
+        res = predictor.infer_mutants_independent(
+            pdb, df_true, chain=chain, mut_col=mcol, skip_reverse=args.skip_reverse
+        )
+        res.to_csv(out_csv)
+        true_col = "ddG_ML" if "ddG_ML" in res.columns else ("ddG" if "ddG" in res.columns else None)
+        rho_s = ""
+        if true_col:
+            v = res[[true_col, "esm3_score"]].dropna()
+            if len(v) > 1:
+                rho_s = f" rho={spearmanr(v[true_col], v['esm3_score']).statistic:.4f}"
+        print(f"[DMS:{prot}] DONE -> {out_csv} rows={len(res)} ok={res['esm3_score'].notna().sum()}{rho_s}", flush=True)
+        predictor.log_throughput(f"[DMS:{prot}] ")
 
 
 def run_ptmul(predictor: ESM3ForgePredictor, args, out_root: Path):
@@ -1080,6 +1148,8 @@ def main():
 
     # Dataset selectors
     parser.add_argument("--run_ptmul", action="store_true")
+    parser.add_argument("--run_dms", action="store_true")
+    parser.add_argument("--dms_names", type=str, default="", help="Comma-separated DMS dataset names (default: all 3 active DMS)")
     parser.add_argument("--run_domainome", action="store_true")
     parser.add_argument("--splits", type=str, default="", help="Comma-separated Tsuboyama splits (e.g. splits_oct06_capped,mega_splits)")
     parser.add_argument("--reuse_tsuboyama", nargs="*", default=[], help="Existing Tsuboyama CSVs whose scored domains can be reused")
@@ -1111,6 +1181,8 @@ def main():
 
     if args.run_ptmul:
         run_ptmul(predictor, args, out_root)
+    if args.run_dms:
+        run_dms(predictor, args, out_root)
     if args.run_domainome:
         run_domainome(predictor, args, out_root)
     if args.splits:
