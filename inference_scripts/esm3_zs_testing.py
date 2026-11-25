@@ -980,6 +980,11 @@ def run_protein_gym(predictor: ESM3ForgePredictor, args, out_root: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
 
     manifest = pd.read_csv(pgym_dir / "manifest.csv")
+    pg_dir_map = (
+        dict(zip(manifest["DMS_id"].astype(str), manifest["proteingym_dir"].astype(str)))
+        if "proteingym_dir" in manifest.columns
+        else {}
+    )
     dms_ids = list(manifest["DMS_id"])
     if args.pgym_dms and args.pgym_dms.lower() != "all":
         want = {x.strip() for x in args.pgym_dms.split(",") if x.strip()}
@@ -1041,7 +1046,13 @@ def run_protein_gym(predictor: ESM3ForgePredictor, args, out_root: Path):
     for idx, (est_calls, dms_id, in_csv, out_csv) in enumerate(tasks, 1):
         t0 = time.perf_counter()
         df = pd.read_csv(in_csv)
-        pdb = resolve_pdb_path(df["pdb_file"].iloc[0], args.structures_dir)
+        raw_pdb = str(df["pdb_file"].iloc[0])
+        pg_base = pg_dir_map.get(dms_id) or str(Path.home() / "ProteinGym")
+        pdb = resolve_pdb_path(raw_pdb, args.structures_dir, base_dir=Path(pg_base))
+        if not os.path.isfile(pdb):
+            pdb = resolve_pdb_path(raw_pdb, args.structures_dir, base_dir=Path.home() / "ProteinGym")
+        if not os.path.isfile(pdb):
+            pdb = resolve_pdb_path(raw_pdb, args.structures_dir, base_dir=pgym_dir.parent / "ProteinGym")
         chain = str(df["chain"].iloc[0]) if "chain" in df.columns else "A"
         res = predictor.infer_mutants_independent(
             pdb, df, chain=chain, mut_col="mut_type_renumbered",
