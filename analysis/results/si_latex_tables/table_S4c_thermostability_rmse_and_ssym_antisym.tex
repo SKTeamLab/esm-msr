@@ -1,6 +1,6 @@
 \begin{table}[H]
 \centering
-\caption{\textbf{Calibration RMSE Comparison Across MegaScale and 8 External Thermostability Benchmarks (Raw (Unrecalibrated))}. Raw (Unrecalibrated) RMSE (kcal/mol, lower is better) across Homology-Restricted MegaScale test (33 domains) and 8 external thermostability sets. One-sided $p$-values test $H_1\colon \text{RMSE}_{\text{ESM-MSR}} < \text{RMSE}_{\text{model}}$ via paired bootstrap (domain-cluster $\times$ seed on MegaScale; mutation $\times$ seed on external sets; $B=10{,}000$; uncorrected). Lowest clean (non-overlapping) RMSE per column is bolded. $^*$Documented training overlap.}
+\caption{\textbf{Raw Calibration RMSE Comparison Across MegaScale and 8 External Thermostability Benchmarks}. Raw (unrecalibrated) RMSE (kcal/mol, lower is better) across Homology-Restricted MegaScale test (33 domains) and 8 external thermostability sets. One-sided $p$-values test $H_1\colon \text{RMSE}_{\text{ESM-MSR}} < \text{RMSE}_{\text{model}}$ via paired bootstrap (domain-cluster $\times$ seed on MegaScale; mutation $\times$ seed on external sets; $B=10{,}000$; uncorrected). Lowest clean (non-overlapping) RMSE per column is bolded. $^*$Documented training overlap (see Table~\ref{tab:si_thermostability_all} for full overlap codes).}
 \label{tab:si_thermo_rmse_raw}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lcccccccccccccccccc}
@@ -14,7 +14,7 @@ SPURS & \textbf{0.717} & 0.837 & 1.274 & 0.0003 & 1.101 & $<10^{-4}$ & 1.217 & $
 Mutate Everything & 0.744 & 0.766 & 1.428 & $<10^{-4}$ & 0.942 & 0.0003 & 1.173 & $<10^{-4}$ & 1.530 & $<10^{-4}$ & \textbf{1.116} & 0.963 & 1.691 & 0.047 & 1.665 & $<10^{-4}$ & 2.062 & $<10^{-4}$ \\
 ThermoMPNN & 0.755 & 0.768 & 1.389 & $<10^{-4}$ & 1.126 & $<10^{-4}$ & 1.227 & $<10^{-4}$ & 1.636 & $<10^{-4}$ & 1.215 & 0.0006 & 1.752 & $<10^{-4}$ & 1.705 & $<10^{-4}$ & 2.130 & $<10^{-4}$ \\
 GeoDDG-3D & 1.007 & 0.072 & 0.908$^*$ & 1.000 & 1.015$^*$ & $<10^{-4}$ & 0.855$^*$ & 1.000 & 1.132$^*$ & 1.000 & 0.776$^*$ & 1.000 & 1.380$^*$ & 1.000 & 1.267$^*$ & 1.000 & 1.810$^*$ & 0.932 \\
-ESM3$\Delta G$ & --- & --- & 1.605 & $<10^{-4}$ & 1.348 & $<10^{-4}$ & 1.425$^*$ & $<10^{-4}$ & 2.010 & $<10^{-4}$ & 1.511$^*$ & $<10^{-4}$ & 2.003 & $<10^{-4}$ & 1.939$^*$ & $<10^{-4}$ & 2.264$^*$ & $<10^{-4}$ \\
+ESM3$\Delta G$ & --- & --- & 1.605 & $<10^{-4}$ & 1.348 & $<10^{-4}$ & 1.425$^*$ & $<10^{-4}$ & 2.010 & $<10^{-4}$ & 1.511$^*$ & $<10^{-4}$ & 2.003$^*$ & $<10^{-4}$ & 1.939$^*$ & $<10^{-4}$ & 2.264$^*$ & $<10^{-4}$ \\
 Rosetta & 2.098 & $<10^{-4}$ & 1.812 & $<10^{-4}$ & 1.301 & $<10^{-4}$ & 1.785 & $<10^{-4}$ & 1.730 & $<10^{-4}$ & 1.411 & $<10^{-4}$ & 1.917 & $<10^{-4}$ & 1.950 & $<10^{-4}$ & 2.356 & $<10^{-4}$ \\
 ESM3-small-open & 1.209 & $<10^{-4}$ & 1.546 & $<10^{-4}$ & 1.232 & $<10^{-4}$ & 1.553 & $<10^{-4}$ & 1.682 & $<10^{-4}$ & 1.492 & $<10^{-4}$ & 1.931 & $<10^{-4}$ & 1.926 & $<10^{-4}$ & 2.484 & $<10^{-4}$ \\
 \bottomrule
@@ -24,26 +24,26 @@ ESM3-small-open & 1.209 & $<10^{-4}$ & 1.546 & $<10^{-4}$ & 1.232 & $<10^{-4}$ &
 
 \begin{table}[H]
 \centering
-\caption{\textbf{Ssym Direct--Reverse Antisymmetry and Bias Across Models (342 Mutation Pairs)}. Direct--reverse Pearson correlation $r_{\mathrm{dir,rev}}$ (ideal $-1.000$), absolute mean antisymmetry bias $|\langle\delta\rangle|$ (kcal/mol, ideal $0.000$), pooled Ssym Pearson's $r$, and raw RMSE (kcal/mol) across the 342 direct/reverse mutation pairs ($n=684$). One-sided $p$-values test ESM-MSR (Dual-view) superiority (more negative $r_{\mathrm{dir,rev}}$ or smaller $|\langle\delta\rangle|$) via paired mutation-pair $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best clean (non-overlapping) values are bolded. $^*$Documented Ssym training overlap.}
+\caption{\textbf{Ssym Direct--Reverse Antisymmetry and Bias Across Models (342 Mutation Pairs)}. Direct--reverse Pearson correlation $r_{\mathrm{dir,rev}}$ (ideal $-1.000$), absolute mean antisymmetry bias $|\langle\delta\rangle|$ (kcal/mol, ideal $0.000$), pooled Ssym Pearson's $r$, and raw RMSE (kcal/mol) across 342 direct/reverse mutation pairs ($n=684$). One-sided $p$-values test ESM-MSR (Dual-view) superiority via paired mutation-pair $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Homology / overlap codes (fraction of benchmark rows affected, e.g.\ M.50 = 50\%, M1 = 100\%): M = exact mutation in training set (\#: test set equals training set; M?: protein-level ceiling); m = constituent single mutation of a multi-mutant in training set; P = same protein ($\ge 95\%$ identity); H = close homolog ($E\le 10^{-3}$ or TM $>0.70$); h = distant homolog ($E\le 10^{-2}$ or $\ge 30\%$ identity); V = validation/calibration set; D = training set includes reverse mutations; --- = no detected overlap. Models with M/m/P/H/\# training overlap (or trained on the unfiltered benchmark source) are marked $^*$ and excluded from clean bolding.}
 \label{tab:si_ssym_antisymmetry}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccccc}
+\begin{tabular}{lccccccl}
 \toprule
-{} & \multicolumn{2}{c}{Antisymmetry ($r_{\mathrm{dir,rev}}$)} & \multicolumn{2}{c}{Abs. Bias ($|\langle\delta\rangle|$)} & \multicolumn{2}{c}{Pooled Ssym} \\
+{} & \multicolumn{2}{c}{Antisymmetry ($r_{\mathrm{dir,rev}}$)} & \multicolumn{2}{c}{Abs. Bias ($|\langle\delta\rangle|$)} & \multicolumn{2}{c}{Pooled Ssym} & {} \\
 \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
-ID & $r_{\mathrm{dir,rev}}$ & $p$ & $|\langle\delta\rangle|$ & $p$ & $r$ & RMSE \\
+ID & $r_{\mathrm{dir,rev}}$ & $p$ & $|\langle\delta\rangle|$ & $p$ & $r$ & RMSE & Homology / Overlap \\
 \midrule
-ESM-MSR (Dual-view) & $-$0.901 & --- & 0.092 & --- & \textbf{0.796} & \textbf{1.145} \\
-ESM-MSR (WT-view) & $-$0.832 & $<10^{-4}$ & 0.221 & $<10^{-4}$ & 0.790 & 1.156 \\
-SPURS & $-$0.872 & 0.068 & 0.182 & $<10^{-4}$ & 0.746 & 1.274 \\
-Mutate Everything & $-$0.445 & $<10^{-4}$ & 0.203 & $<10^{-4}$ & 0.688 & 1.428 \\
-ThermoMPNN & $-$0.785 & $<10^{-4}$ & 0.302 & $<10^{-4}$ & 0.721 & 1.389 \\
-GeoDDG-3D$^*$ & $-$0.999 & 1.000 & 0.001 & 1.000 & 0.882 & 0.908 \\
-ESM3$\Delta G$ & \textbf{$-$0.963} & 1.000 & \textbf{0.012} & 1.000 & 0.763 & 1.605 \\
-Rosetta & $-$0.323 & $<10^{-4}$ & 0.656 & $<10^{-4}$ & 0.580 & 1.812 \\
-ESM3-small-open & $-$0.675 & $<10^{-4}$ & 0.171 & $<10^{-4}$ & 0.593 & 1.483 \\
-ProteinMPNN & $-$0.597 & $<10^{-4}$ & 0.662 & $<10^{-4}$ & 0.662 & 2.400 \\
-ProSST & $-$0.783 & $<10^{-4}$ & 3.134 & $<10^{-4}$ & 0.521 & 4.217 \\
+ESM-MSR (Dual-view) & $-$0.901 & --- & 0.092 & --- & \textbf{0.796} & \textbf{1.145} & --- \\
+ESM-MSR (WT-view) & $-$0.832 & $<10^{-4}$ & 0.221 & $<10^{-4}$ & 0.790 & 1.156 & --- \\
+SPURS & $-$0.872 & 0.068 & 0.182 & $<10^{-4}$ & 0.746 & 1.274 & --- \\
+Mutate Everything & $-$0.445 & $<10^{-4}$ & 0.203 & $<10^{-4}$ & 0.688 & 1.428 & --- \\
+ThermoMPNN & $-$0.785 & $<10^{-4}$ & 0.302 & $<10^{-4}$ & 0.721 & 1.389 & --- \\
+GeoDDG-3D$^*$ & $-$0.999 & 1.000 & 0.001 & 1.000 & 0.882 & 0.908 & M.50 P.50 \\
+ESM3$\Delta G$ & \textbf{$-$0.963} & 1.000 & \textbf{0.012} & 1.000 & 0.763 & 1.605 & h.72 \\
+Rosetta & $-$0.323 & $<10^{-4}$ & 0.656 & $<10^{-4}$ & 0.580 & 1.812 & --- \\
+ESM3-small-open & $-$0.675 & $<10^{-4}$ & 0.171 & $<10^{-4}$ & 0.593 & 1.483 & --- \\
+ProteinMPNN & $-$0.597 & $<10^{-4}$ & 0.662 & $<10^{-4}$ & 0.662 & 2.400 & --- \\
+ProSST & $-$0.783 & $<10^{-4}$ & 3.134 & $<10^{-4}$ & 0.521 & 4.217 & --- \\
 \bottomrule
 \end{tabular}
 }

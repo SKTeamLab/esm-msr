@@ -1,23 +1,23 @@
 \begin{table}[H]
 \centering
-\caption{\textbf{Main Model Comparison on MegaScale Test NDCG@96 (Shifted and Rectified Variants)}. Mean per-domain shifted and rectified NDCG@96 across the 33 Homology-Restricted MegaScale test domains (Overall, Singles, and Doubles; 13 domains for doubles). One-sided $p$-values test $H_1\colon \text{NDCG@96}_{\text{ESM-MSR}} > \text{NDCG@96}_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best values per column are indicated in bold.}
+\caption{\textbf{Main Model Comparison on MegaScale Test NDCG@96 (Shifted and Rectified Variants)}. Mean per-domain shifted and rectified NDCG@96 across the 33 Homology-Restricted MegaScale test domains (13 domains for doubles). One-sided $p$-values test $H_1\colon \text{NDCG@96}_{\text{ESM-MSR}} > \text{NDCG@96}_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Homology / overlap codes (fraction of benchmark rows affected, e.g.\ M.50 = 50\%, M1 = 100\%): M = exact mutation in training set (\#: test set equals training set; M?: protein-level ceiling); m = constituent single mutation of a multi-mutant in training set; P = same protein ($\ge 95\%$ identity); H = close homolog ($E\le 10^{-3}$ or TM $>0.70$); h = distant homolog ($E\le 10^{-2}$ or $\ge 30\%$ identity); V = validation/calibration set; D = training set includes reverse mutations; --- = no detected overlap. Models with M/m/P/H/\# training overlap (or trained on the unfiltered benchmark source) are marked $^*$ and excluded from clean bolding.}
 \label{tab:si_megascale_ndcg96}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccccccccccc}
+\begin{tabular}{lccccccccccccl}
 \toprule
-{} & \multicolumn{2}{c}{Shifted Overall} & \multicolumn{2}{c}{Shifted Singles} & \multicolumn{2}{c}{Shifted Doubles} & \multicolumn{2}{c}{Rectified Overall} & \multicolumn{2}{c}{Rectified Singles} & \multicolumn{2}{c}{Rectified Doubles} \\
+{} & \multicolumn{2}{c}{Shifted Overall} & \multicolumn{2}{c}{Shifted Singles} & \multicolumn{2}{c}{Shifted Doubles} & \multicolumn{2}{c}{Rectified Overall} & \multicolumn{2}{c}{Rectified Singles} & \multicolumn{2}{c}{Rectified Doubles} & {} \\
 \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
-ID & NDCG & $p$ & NDCG & $p$ & NDCG & $p$ & NDCG & $p$ & NDCG & $p$ & NDCG & $p$ \\
+ID & NDCG & $p$ & NDCG & $p$ & NDCG & $p$ & NDCG & $p$ & NDCG & $p$ & NDCG & $p$ & Homology / Overlap \\
 \midrule
-ESM-MSR & \textbf{0.907} & --- & \textbf{0.921} & --- & \textbf{0.911} & --- & \textbf{0.562} & --- & \textbf{0.589} & --- & \textbf{0.714} & --- \\
-SPURS & 0.903 & 0.310 & 0.908 & 0.002 & 0.862 & 0.017 & 0.525 & 0.059 & 0.540 & 0.004 & 0.433 & 0.012 \\
-Mutate Everything & 0.867 & 0.0010 & 0.878 & $<10^{-4}$ & 0.882 & 0.131 & 0.395 & $<10^{-4}$ & 0.406 & $<10^{-4}$ & 0.506 & 0.043 \\
-ThermoMPNN & 0.885 & $<10^{-4}$ & 0.900 & $<10^{-4}$ & 0.852 & 0.0008 & 0.475 & $<10^{-4}$ & 0.504 & $<10^{-4}$ & 0.431 & $<10^{-4}$ \\
-GeoDDG-3D & 0.806 & $<10^{-4}$ & 0.820 & $<10^{-4}$ & 0.782 & $<10^{-4}$ & 0.338 & $<10^{-4}$ & 0.355 & $<10^{-4}$ & 0.401 & 0.0003 \\
-Rosetta & 0.837 & $<10^{-4}$ & 0.854 & $<10^{-4}$ & 0.782 & $<10^{-4}$ & 0.344 & $<10^{-4}$ & 0.367 & $<10^{-4}$ & 0.290 & $<10^{-4}$ \\
-ESM3-small-open & 0.819 & $<10^{-4}$ & 0.833 & $<10^{-4}$ & 0.769 & $<10^{-4}$ & 0.304 & $<10^{-4}$ & 0.314 & $<10^{-4}$ & 0.395 & $<10^{-4}$ \\
-ProteinMPNN & 0.828 & $<10^{-4}$ & 0.834 & $<10^{-4}$ & 0.795 & $<10^{-4}$ & 0.329 & $<10^{-4}$ & 0.340 & $<10^{-4}$ & 0.504 & 0.016 \\
-ProSST & 0.828 & $<10^{-4}$ & 0.830 & $<10^{-4}$ & 0.776 & $<10^{-4}$ & 0.333 & $<10^{-4}$ & 0.341 & $<10^{-4}$ & 0.309 & $<10^{-4}$ \\
+ESM-MSR & \textbf{0.907} & --- & \textbf{0.921} & --- & \textbf{0.911} & --- & \textbf{0.562} & --- & \textbf{0.589} & --- & \textbf{0.714} & --- & h.16 \\
+SPURS & 0.903 & 0.310 & 0.908 & 0.002 & 0.862 & 0.017 & 0.525 & 0.059 & 0.540 & 0.004 & 0.433 & 0.012 & h.16 \\
+Mutate Everything & 0.867 & 0.0010 & 0.878 & $<10^{-4}$ & 0.882 & 0.131 & 0.395 & $<10^{-4}$ & 0.406 & $<10^{-4}$ & 0.506 & 0.043 & h.16 \\
+ThermoMPNN & 0.885 & $<10^{-4}$ & 0.900 & $<10^{-4}$ & 0.852 & 0.0008 & 0.475 & $<10^{-4}$ & 0.504 & $<10^{-4}$ & 0.431 & $<10^{-4}$ & h.16 \\
+GeoDDG-3D & 0.806 & $<10^{-4}$ & 0.820 & $<10^{-4}$ & 0.782 & $<10^{-4}$ & 0.338 & $<10^{-4}$ & 0.355 & $<10^{-4}$ & 0.401 & 0.0003 & h.07 \\
+Rosetta & 0.837 & $<10^{-4}$ & 0.854 & $<10^{-4}$ & 0.782 & $<10^{-4}$ & 0.344 & $<10^{-4}$ & 0.367 & $<10^{-4}$ & 0.290 & $<10^{-4}$ & V.12 (Rocklin cal.) \\
+ESM3-small-open & 0.819 & $<10^{-4}$ & 0.833 & $<10^{-4}$ & 0.769 & $<10^{-4}$ & 0.304 & $<10^{-4}$ & 0.314 & $<10^{-4}$ & 0.395 & $<10^{-4}$ & --- \\
+ProteinMPNN & 0.828 & $<10^{-4}$ & 0.834 & $<10^{-4}$ & 0.795 & $<10^{-4}$ & 0.329 & $<10^{-4}$ & 0.340 & $<10^{-4}$ & 0.504 & 0.016 & --- \\
+ProSST & 0.828 & $<10^{-4}$ & 0.830 & $<10^{-4}$ & 0.776 & $<10^{-4}$ & 0.333 & $<10^{-4}$ & 0.341 & $<10^{-4}$ & 0.309 & $<10^{-4}$ & --- \\
 \bottomrule
 \end{tabular}
 }
@@ -25,25 +25,25 @@ ProSST & 0.828 & $<10^{-4}$ & 0.830 & $<10^{-4}$ & 0.776 & $<10^{-4}$ & 0.333 & 
 
 \begin{table}[H]
 \centering
-\caption{\textbf{Rectified Stabilizing Gain Across Hydrophobicity $\times$ Solvent-Accessibility Quadrants ($k=96$ Picks per Domain)}. Mean per-domain total rectified stabilizing gain ($\sum \max(0, \Delta\Delta G)$, kcal/mol) among the top $k=96$ predicted single mutants across the 33 Homology-Restricted MegaScale test domains, decomposed by hydrophobicity change ($\Delta H$) and relative solvent accessibility (Buried: $\mathrm{rASA}\le 0.5$; Surface: $\mathrm{rASA}>0.5$). One-sided $p$-values test $H_1\colon \text{Gain}_{\text{ESM-MSR}} > \text{Gain}_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Oracle (top 96 per domain) is shown as an upper bound and excluded from bolding.}
+\caption{\textbf{Rectified Stabilizing Gain Across Hydrophobicity $\times$ Solvent-Accessibility Quadrants ($k=96$ Picks per Domain)}. Mean per-domain total rectified stabilizing gain ($\sum \max(0, \Delta\Delta G)$, kcal/mol) among the top $k=96$ predicted single mutants across 33 MegaScale test domains. One-sided $p$-values test $H_1\colon \text{Gain}_{\text{ESM-MSR}} > \text{Gain}_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Homology / overlap codes (fraction of benchmark rows affected, e.g.\ M.50 = 50\%, M1 = 100\%): M = exact mutation in training set (\#: test set equals training set; M?: protein-level ceiling); m = constituent single mutation of a multi-mutant in training set; P = same protein ($\ge 95\%$ identity); H = close homolog ($E\le 10^{-3}$ or TM $>0.70$); h = distant homolog ($E\le 10^{-2}$ or $\ge 30\%$ identity); V = validation/calibration set; D = training set includes reverse mutations; --- = no detected overlap. Models with M/m/P/H/\# training overlap (or trained on the unfiltered benchmark source) are marked $^*$ and excluded from clean bolding.}
 \label{tab:si_property_gain}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccccccccc}
+\begin{tabular}{lccccccccccl}
 \toprule
-{} & \multicolumn{2}{c}{Total Gain ($k$=96)} & \multicolumn{2}{c}{$\Delta H\le 0$, Buried} & \multicolumn{2}{c}{$\Delta H\le 0$, Surface} & \multicolumn{2}{c}{$\Delta H>0$, Buried} & \multicolumn{2}{c}{$\Delta H>0$, Surface} \\
+{} & \multicolumn{2}{c}{Total Gain ($k$=96)} & \multicolumn{2}{c}{$\Delta H\le 0$, Buried} & \multicolumn{2}{c}{$\Delta H\le 0$, Surface} & \multicolumn{2}{c}{$\Delta H>0$, Buried} & \multicolumn{2}{c}{$\Delta H>0$, Surface} & {} \\
 \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11}
-ID & Gain & $p$ & Gain & $p$ & Gain & $p$ & Gain & $p$ & Gain & $p$ \\
+ID & Gain & $p$ & Gain & $p$ & Gain & $p$ & Gain & $p$ & Gain & $p$ & Homology / Overlap \\
 \midrule
-ESM-MSR (WT-view) & 26.57 & --- & 3.47 & --- & 3.63 & --- & 9.36 & --- & 10.11 & --- \\
-SPURS & 24.75 & 0.002 & 3.07 & 0.179 & 3.36 & 0.151 & 8.91 & 0.081 & 9.41 & 0.096 \\
-Mutate Everything & 20.26 & $<10^{-4}$ & 2.08 & 0.0002 & 3.00 & 0.020 & 6.53 & $<10^{-4}$ & 8.65 & 0.002 \\
-ThermoMPNN & 23.77 & $<10^{-4}$ & 2.80 & 0.015 & 2.82 & $<10^{-4}$ & 8.58 & 0.093 & 9.57 & 0.160 \\
-GeoDDG-3D & 16.44 & $<10^{-4}$ & 2.60 & 0.011 & 1.66 & $<10^{-4}$ & 6.74 & $<10^{-4}$ & 5.45 & $<10^{-4}$ \\
-Rosetta & 17.33 & $<10^{-4}$ & 2.07 & 0.001 & 2.25 & $<10^{-4}$ & 6.42 & $<10^{-4}$ & 6.60 & $<10^{-4}$ \\
-ESM3-small-open & 13.46 & $<10^{-4}$ & 2.41 & $<10^{-4}$ & 3.52 & 0.310 & 3.33 & $<10^{-4}$ & 4.20 & $<10^{-4}$ \\
-ProteinMPNN & 15.67 & $<10^{-4}$ & 3.08 & 0.131 & 4.55 & 0.998 & 4.15 & $<10^{-4}$ & 3.89 & $<10^{-4}$ \\
-ProSST & 15.04 & $<10^{-4}$ & 2.87 & 0.001 & 3.41 & 0.238 & 4.69 & $<10^{-4}$ & 4.07 & $<10^{-4}$ \\
-Oracle (top 96 per domain) & \textbf{42.89} & 1.000 & \textbf{6.50} & 1.000 & \textbf{6.49} & 1.000 & \textbf{13.25} & 1.000 & \textbf{16.65} & 1.000 \\
+ESM-MSR (WT-view) & 26.57 & --- & 3.47 & --- & 3.63 & --- & 9.36 & --- & 10.11 & --- & h.16 \\
+SPURS & 24.75 & 0.002 & 3.07 & 0.179 & 3.36 & 0.151 & 8.91 & 0.081 & 9.41 & 0.096 & h.16 \\
+Mutate Everything & 20.26 & $<10^{-4}$ & 2.08 & 0.0002 & 3.00 & 0.020 & 6.53 & $<10^{-4}$ & 8.65 & 0.002 & h.16 \\
+ThermoMPNN & 23.77 & $<10^{-4}$ & 2.80 & 0.015 & 2.82 & $<10^{-4}$ & 8.58 & 0.093 & 9.57 & 0.160 & h.16 \\
+GeoDDG-3D & 16.44 & $<10^{-4}$ & 2.60 & 0.011 & 1.66 & $<10^{-4}$ & 6.74 & $<10^{-4}$ & 5.45 & $<10^{-4}$ & h.07 \\
+Rosetta & 17.33 & $<10^{-4}$ & 2.07 & 0.001 & 2.25 & $<10^{-4}$ & 6.42 & $<10^{-4}$ & 6.60 & $<10^{-4}$ & V.12 (Rocklin cal.) \\
+ESM3-small-open & 13.46 & $<10^{-4}$ & 2.41 & $<10^{-4}$ & 3.52 & 0.310 & 3.33 & $<10^{-4}$ & 4.20 & $<10^{-4}$ & --- \\
+ProteinMPNN & 15.67 & $<10^{-4}$ & 3.08 & 0.131 & 4.55 & 0.998 & 4.15 & $<10^{-4}$ & 3.89 & $<10^{-4}$ & --- \\
+ProSST & 15.04 & $<10^{-4}$ & 2.87 & 0.001 & 3.41 & 0.238 & 4.69 & $<10^{-4}$ & 4.07 & $<10^{-4}$ & --- \\
+Oracle (top 96 per domain) & \textbf{42.89} & 1.000 & \textbf{6.50} & 1.000 & \textbf{6.49} & 1.000 & \textbf{13.25} & 1.000 & \textbf{16.65} & 1.000 & --- \\
 \bottomrule
 \end{tabular}
 }
