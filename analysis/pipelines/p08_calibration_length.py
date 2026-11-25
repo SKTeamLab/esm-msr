@@ -517,6 +517,182 @@ def build_supp_figure6() -> Path:
     return out_path
 
 
+COMBINED_LEN_MODELS = [
+    ('msrp0:comb', 'ESM-MSR', '#000000', 'Retrained'),
+    ('me2', 'MutateEverything Stage 2', '#1b8a4b', 'Retrained'),
+    ('tmpnnd', 'ThermoMPNN-D', '#1f5f8b', 'Retrained'),
+    ('spursm', 'SPURS-multi', '#d35400', 'Retrained'),
+    ('pmpnn', 'ProteinMPNN', '#34495e', 'Zero-shot'),
+    ('msrrel@0:comb', 'ESM3-small-open', '#7f8c8d', 'Zero-shot'),
+    ('geoddg', 'GeoDDG-3D', '#117a65', 'Supervised'),
+    ('rosetta', 'Rosetta', '#8c564b', 'Supervised'),
+]
+
+
+def build_supp_sequence_length_combined():
+    """Build combined SI sequence-length figure (`00_supplementary_figs/_sequence_length.{png,pdf}`):
+    a: sequence length distribution across EXT12 + Domainome + Tsuboyama test.
+    b: 2x4 per-protein Spearman vs sequence length across all 8 main models (combined/multi-mutant heads,
+       including PTMUL/PTMUL-D multimutant proteins highlighted with a thin red outline).
+    """
+    out_supp = results_dir('supplementary_figs')
+    out_len = results_dir('sequence_length')
+
+    # --- Data for panel a ---
+    order_a = EXT12 + ['domainome', TSU_CAPPED[1]]
+    frames_ext = {ds: load_frame(ds) for ds in EXT12}
+    per_prot = {}
+    for ds in order_a:
+        fr = frames_ext[ds] if ds in frames_ext else load_frame(ds)
+        sp = fr.spine[fr.spine['use']]
+        per_prot[ds] = sp.groupby('cluster')['seq_len'].mean()
+
+    # --- Data for panel b (all EXT12 including PTMUL & PTMUL-D) ---
+    rows_b = []
+    for key, label, _col, _grp in COMBINED_LEN_MODELS:
+        for ds in EXT12:
+            fr = frames_ext[ds]
+            if key not in fr.preds:
+                continue
+            sp = fr.spine
+            ok = _valid(fr, key)
+            y = sp['y'].to_numpy(float)
+            n_mut = sp['n_mut'].to_numpy()
+            seq_len = sp['seq_len'].to_numpy(float)
+            idx = np.flatnonzero(ok)
+            cl = sp['cluster'].to_numpy()[idx]
+            for c_nm in pd.unique(cl):
+                m_idx = idx[cl == c_nm]
+                if len(m_idx) < MIN_PROT_N:
+                    continue
+                rhos = [spearmanr(p[m_idx], y[m_idx])[0] for p in fr.preds[key]]
+                rho_val = float(np.nanmean(rhos))
+                if not np.isfinite(rho_val):
+                    continue
+                rows_b.append(dict(
+                    model=label, key=key, dataset=ds, cluster=c_nm,
+                    length=float(seq_len[m_idx].mean()), n=len(m_idx),
+                    rho=rho_val, has_multi=bool((n_mut[m_idx] > 1).any()),
+                ))
+    D_b = pd.DataFrame(rows_b)
+    atomic_to_csv(D_b, out_len / 'per_protein_metrics_8models.csv', index=False, float_format='%.4f')
+
+    # --- Layout: panel a on top, panel b (2x4) below, no overall figure title ---
+    fig = plt.figure(figsize=(14.4, 9.8), facecolor='white')
+    outer = fig.add_gridspec(2, 1, height_ratios=[1.0, 1.85], hspace=0.34)
+    ax_a = fig.add_subplot(outer[0])
+    gs_b = outer[1].subgridspec(2, 4, hspace=0.30, wspace=0.14)
+
+    # Panel a: sequence length distribution
+    style.band_axis(ax_a, len(order_a))
+    rng = np.random.default_rng(0)
+    for i, ds in enumerate(order_a):
+        L = per_prot[ds].to_numpy()
+        col = '#2c7fb8' if ds in EXT12 else '#7f7f7f'
+        ax_a.scatter(i + rng.uniform(-0.28, 0.28, len(L)), L, s=7, color=col, alpha=0.55, lw=0, zorder=3, rasterized=True)
+        q = np.percentile(L, [25, 50, 75])
+        ax_a.plot([i - 0.36, i + 0.36], [q[1]] * 2, color='k', lw=1.8, zorder=4)
+        ax_a.plot([i, i], [q[0], q[2]], color='k', lw=0.9, zorder=4)
+        ax_a.text(i, 920, f'{int(np.median(L))}\n({int(L.min())}–{int(L.max())})', ha='center', va='top', fontsize=7.6)
+    ax_a.set_yscale('log')
+    ax_a.set_ylim(15, 1050)
+    ax_a.set_xlim(-0.55, len(order_a) - 0.45)
+    ax_a.set_xticks(range(len(order_a)))
+    ax_a.set_xticklabels([LABEL[o] for o in order_a], rotation=26, ha='right', fontsize=9.2)
+    ax_a.set_ylabel('wild-type sequence length\n(residues)', fontsize=10.2)
+    ax_a.tick_params(axis='y', labelsize=9.2)
+    ax_a.spines['top'].set_visible(False)
+    ax_a.spines['right'].set_visible(False)
+    ax_a.legend(
+        handles=[
+            Line2D([0], [0], marker='o', ls='', color='#2c7fb8', ms=5, alpha=0.75, label='External thermostability sets'),
+            Line2D([0], [0], marker='o', ls='', color='#7f7f7f', ms=5, alpha=0.75, label='Small-domain benchmarks (Domainome, MegaScale test)'),
+            Line2D([0], [0], color='k', lw=1.8, label='Median & IQR'),
+        ],
+        loc='lower left', ncol=3, fontsize=8.2, frameon=True, framealpha=0.9, edgecolor='#dddddd',
+    )
+
+    # Panel b: 2x4 per-protein Spearman vs sequence length
+    axes_b = np.empty((2, 4), dtype=object)
+    for idx, (key, label, col, grp) in enumerate(COMBINED_LEN_MODELS):
+        r_i, c_i = divmod(idx, 4)
+        ax = fig.add_subplot(
+            gs_b[r_i, c_i],
+            sharex=axes_b[0, 0] if idx > 0 else None,
+            sharey=axes_b[0, 0] if idx > 0 else None,
+        )
+        axes_b[r_i, c_i] = ax
+        dm = D_b[D_b['model'] == label]
+        d_s = dm[~dm['has_multi']]
+        d_m = dm[dm['has_multi']]
+
+        ax.axhline(0.0, color='#cccccc', lw=0.8, ls=':', zorder=1)
+        ax.scatter(d_s['length'], d_s['rho'], s=13, color=col, alpha=0.45, edgecolors='none', zorder=3, rasterized=True)
+        ax.scatter(
+            d_m['length'], d_m['rho'], s=24, color=col, alpha=0.82,
+            edgecolors='#e31a1c', linewidths=0.9, zorder=4, rasterized=True,
+        )
+        ax.set_xscale('log')
+        ax.set_ylim(-1.05, 1.08)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+        r0 = float(spearmanr(dm['length'], dm['rho'])[0])
+        ax.text(
+            0.04, 0.05, f'ρ = {r0:+.2f}',
+            transform=ax.transAxes, ha='left', va='bottom',
+            fontsize=12.0, fontweight='bold', color='#111111', zorder=10,
+            bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='#cccccc', alpha=0.92),
+        )
+        ax.text(
+            0.96, 0.05, grp,
+            transform=ax.transAxes, ha='right', va='bottom',
+            fontsize=8.5, color='#555555', zorder=10,
+            bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=0.75),
+        )
+        ax.set_title(label, fontsize=10.5, fontweight='bold', pad=5)
+        if c_i == 0:
+            ax.set_ylabel('per-protein Spearman ρ', fontsize=9.8)
+        else:
+            ax.tick_params(axis='y', labelleft=False)
+        if r_i == 1:
+            ax.set_xlabel('wild-type sequence length (residues)', fontsize=9.6)
+        else:
+            ax.tick_params(axis='x', labelbottom=False)
+        ax.tick_params(axis='both', labelsize=8.8)
+
+    # Legend for multimutant outline in Panel b (aligned right above the 2x4 grid)
+    fig.subplots_adjust(left=0.068, right=0.985, top=0.975, bottom=0.105)
+    fig.canvas.draw()
+    pa = ax_a.get_position()
+    pb0 = axes_b[0, 0].get_position()
+    fig.text(0.012, pa.y1 + 0.012, 'a', ha='left', va='top', fontsize=14, fontweight='bold')
+    fig.text(0.012, pb0.y1 + 0.032, 'b', ha='left', va='top', fontsize=14, fontweight='bold')
+
+    b_handles = [
+        Line2D([0], [0], marker='o', ls='', color='#444444', ms=4.5, alpha=0.55, label='Single-mutant protein (n = 664)'),
+        Line2D([0], [0], marker='o', ls='', color='#444444', markeredgecolor='#e31a1c', markeredgewidth=0.95, ms=5.8, alpha=0.85, label='Contains multi-mutants: PTMUL / PTMUL-D (n = 59)'),
+    ]
+    fig.legend(
+        handles=b_handles, loc='lower right',
+        bbox_to_anchor=(0.985, pb0.y1 + 0.018),
+        ncol=2, fontsize=8.4, frameon=True, framealpha=0.92, edgecolor='#dddddd',
+    )
+
+    n_tot = len(D_b[D_b['model'] == COMBINED_LEN_MODELS[0][1]])
+    note = (
+        f'a. Wild-type sequence length per protein cluster across external thermostability sets and small-domain benchmarks (top annotations: median and min–max).  '
+        f'b. Per-protein Spearman ρ vs wild-type sequence length across all 12 external thermostability sets (proteins with ≥ {MIN_PROT_N} mutations, n = {n_tot}); '
+        f'retrained models use their combined/multi-mutant head (3-seed mean ρ); red-outlined points contain multi-mutants.'
+    )
+    kw_note = dict(fontsize=8.0, color='#444444', linespacing=1.25)
+    fig.text(0.012, 0.010, style.wrap_to_px(fig, note, 0.970 * fig.bbox.width, **kw_note), ha='left', va='bottom', **kw_note)
+
+    out_path = out_supp / '_sequence_length'
+    style.save(fig, out_path)
+    return out_path
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION)
     ap.add_argument('--only', choices=('all', 'supp_figure6'), default='all', help='Optional substage selector')
