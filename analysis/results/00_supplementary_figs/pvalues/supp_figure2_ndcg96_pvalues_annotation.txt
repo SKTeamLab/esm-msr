@@ -1,0 +1,15 @@
+Statistical Annotation: supp_figure2_ndcg96_pvalues.csv
+=======================================================
+Figure: Supplementary Figure 2 (Shifted NDCG@96 on Homology-Restricted MegaScale test singles, doubles, and overall).
+
+Metric Tested:
+  Mean per-domain shifted NDCG@96 (relevance = ddG - min(ddG) per domain and subset) across all 33 domains
+  (singles and overall) and 13 doubles domains.
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric domain-cluster x training-seed bootstrap (B = 10,000), resampling domains and 3-seed
+  training replicates jointly with shared multinomial weights.
+
+Hypotheses & Multiple-Testing Correction:
+  H0: NDCG_ESM-MSR <= NDCG_X vs H1: NDCG_ESM-MSR > NDCG_X; p = (1 + #{b: delta^(b) <= 0}) / (B + 1).
+  Bonferroni correction over m = 8 clean comparators within each subset (singles, doubles, overall).
