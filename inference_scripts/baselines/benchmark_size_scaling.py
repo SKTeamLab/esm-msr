@@ -340,8 +340,10 @@ def bench_esm_msr(panel: list[dict], mode: str, args) -> list[dict]:
                     )
                 return seq_toks, coords, plddt, struct_toks, wt_seq, cached_wt
 
+            _vonly = bool(getattr(args, 'vram_only', False))
             (seq_toks, coords, plddt, struct_toks, wt_seq, cached_wt), m_b1 = measure_stable(
-                _b1, max_repeats=3, fast_thresh_s=0.4, force_warmup=(idx == 0)
+                _b1, max_repeats=1 if _vonly else 3, fast_thresh_s=0.4,
+                force_warmup=(False if _vonly else (idx == 0)),
             )
             row.update(
                 status='ok',
@@ -629,7 +631,11 @@ def bench_mutate_everything(panel: list[dict], mode: str, args) -> list[dict]:
                         _ = pred_dict['mut1_ddg'].shape
                         return pred_dict
 
-                _, m = measure_stable(_fwd, max_repeats=2, fast_thresh_s=1.0, force_warmup=(idx == 0))
+                _vonly = bool(getattr(args, 'vram_only', False))
+                _, m = measure_stable(
+                    _fwd, max_repeats=1 if _vonly else 2, fast_thresh_s=1.0,
+                    force_warmup=(False if _vonly else (idx == 0)),
+                )
                 row.update(
                     status='ok',
                     vram_weights_gb=m['vram_weights_gb'],
@@ -799,8 +805,15 @@ def bench_thermompnn(panel: list[dict], mode: str, args) -> list[dict]:
                     _ = _double_head_chunk(*bb, pos_1, mut_1)
                     return bb
 
-                bb, m_b1 = measure_stable(_b1_full, max_repeats=3, fast_thresh_s=0.4, force_warmup=(idx == 0))
-                _, m_bb = measure_stable(_backbone, max_repeats=3, fast_thresh_s=0.4)
+                _vonly = bool(getattr(args, 'vram_only', False))
+                bb, m_b1 = measure_stable(
+                    _b1_full, max_repeats=1 if _vonly else 3, fast_thresh_s=0.4,
+                    force_warmup=(False if _vonly else (idx == 0)),
+                )
+                if _vonly:
+                    m_bb = m_b1
+                else:
+                    _, m_bb = measure_stable(_backbone, max_repeats=3, fast_thresh_s=0.4)
 
                 row.update(
                     status='ok',
@@ -919,7 +932,11 @@ def bench_spurs(panel: list[dict], mode: str, args) -> list[dict]:
                     with torch.no_grad():
                         return m_single(pdb_data, return_logist=True).float().cpu()
 
-                _, m = measure_stable(_run_s, max_repeats=3, fast_thresh_s=0.5, force_warmup=(idx == 0))
+                _vonly = bool(getattr(args, 'vram_only', False))
+                _, m = measure_stable(
+                    _run_s, max_repeats=1 if _vonly else 3, fast_thresh_s=0.5,
+                    force_warmup=(False if _vonly else (idx == 0)),
+                )
                 row.update(
                     status='ok',
                     vram_weights_gb=m['vram_weights_gb'],
@@ -1081,7 +1098,11 @@ def bench_proteinmpnn(panel: list[dict], args) -> list[dict]:
                 _ = _decode_rows(enc, 1, with_bg_mut=True)
                 return enc
 
-            enc, m_b1 = measure_stable(_b1, max_repeats=3, fast_thresh_s=0.4, force_warmup=(idx == 0))
+            _vonly = bool(getattr(args, 'vram_only', False))
+            enc, m_b1 = measure_stable(
+                _b1, max_repeats=1 if _vonly else 3, fast_thresh_s=0.4,
+                force_warmup=(False if _vonly else (idx == 0)),
+            )
             if getattr(args, 'vram_only', False):
                 row.update(
                     status='ok',
@@ -1208,7 +1229,11 @@ def bench_prosst(panel: list[dict], args) -> list[dict]:
                     _ = torch.log_softmax(lg[:, 1:-1, :], dim=-1)[0].float().cpu()
                 return t_sst
 
-            t_sst, m = measure_stable(_full_pass, max_repeats=2, fast_thresh_s=0.8, force_warmup=(idx == 0))
+            _vonly = bool(getattr(args, 'vram_only', False))
+            t_sst, m = measure_stable(
+                _full_pass, max_repeats=1 if _vonly else 2, fast_thresh_s=0.8,
+                force_warmup=(False if _vonly else (idx == 0)),
+            )
             row.update(
                 status='ok',
                 vram_weights_gb=m['vram_weights_gb'],
@@ -1273,10 +1298,125 @@ def _flush_row(args, row: dict) -> None:
     )
 
 
+def bench_esm_msr_cpu(panel: list[dict], args) -> list[dict]:
+    """CPU-only ESM-MSR WT-view single-mutant screen across all sizes, tracked with resource_tracker (CPU hours & RAM)."""
+    from esm_msr.models import MSRModel
+    from esm_msr.inference import (
+        parse_hparams_to_lora_config,
+        resolve_calibration,
+        preprocess_structure,
+        _prepare_sparse_batch,
+    )
+
+    ckpt = args.esm_msr_ckpt
+    hparams_path = str(Path(ckpt).parent / 'hparams.yaml')
+    parsed_hp = parse_hparams_to_lora_config(hparams_path, sigma=1.0)
+    lora_cfg = {'wt_config': parsed_hp['wt_config'], 'mt_config': parsed_hp['mt_config']}
+    cal = resolve_calibration(parsed_hp['calibration'])
+    dev = torch.device('cpu')
+
+    out_dir = Path(args.out) / args.model
+    limits = resource_tracker.Limits.from_env()
+    tracker = resource_tracker.Tracker(
+        out_dir=out_dir / 'resources', label='esm_msr_wt_cpu', interval=0.25,
+        meta=dict(mode='esm_msr_wt_cpu', dtype='float32', ckpt=ckpt),
+        limits=limits,
+    )
+
+    with tracker.stage('model_load') as sc_load:
+        model = MSRModel(
+            lora_config=lora_cfg,
+            shared_scale_init=1,
+            shared_bias_init=0,
+            inference_mode=True,
+            log_likelihood=True,
+            use_plddt=True,
+            quaternary_mode=False,
+            model_dtype=torch.float32,
+            adapter_mode=parsed_hp['adapter_mode'],
+            lora_mode=parsed_hp['lora_mode'],
+            tie_mt_scale=cal['tie_mt_scale'],
+            per_mutation_bias=cal['per_mutation_bias'],
+            native_cond_mt_input=parsed_hp['native_cond_for_mt'],
+            mask_native_cond_struct=parsed_hp['mask_native_cond_struct'],
+            fused_antisymmetric=parsed_hp['fused_antisymmetric'],
+        )
+        model.load_lora_weights(checkpoint_path=ckpt, load_wt_only=True)
+        model.to(dev)
+        model.eval()
+    load_s = round(sc_load.row['wall_s'], 3)
+
+    rows = []
+    for item in panel:
+        L = item['seq_len']
+        pdb_path = item['pdb_path']
+        row = _base_row('esm_msr_wt_cpu', item, load_s)
+        try:
+            with tracker.scope('protein', item['name'], seq_len=L, n_rows=n_singles(L)) as sc:
+                with sc.phase('preprocess'):
+                    st, co, pl, stk, ws = preprocess_structure(model, pdb_path, 'A', dev, backbone_mutation=None)
+                with sc.phase('wt_forward'):
+                    with torch.no_grad():
+                        out = model._get_esm3_outputs(st, co, stk, pl)
+                        cwt = {
+                            'seq': st,
+                            'logits': model._process_logits(out.sequence_logits.float()),
+                            'embeddings': getattr(out, 'embeddings', None),
+                        }
+                with sc.phase('score_19L'):
+                    all_1 = make_single_muts(ws)
+                    sp = _prepare_sparse_batch(model, parse_muts_list(all_1), dev)
+                    with torch.no_grad():
+                        _ = model.score_screening_batch(
+                            st, sp['mut_pos'], sp['wt_id'], sp['mt_id'], sp['mut_mask'],
+                            coords=co, structure_tokens=stk, plddt=pl,
+                            mask_strategy=None, batch_size=max(1, len(all_1)),
+                            skip_reverse=True, cached_wt_esm3=cwt, quiet=True,
+                        )
+            sr = sc.row
+            row.update(
+                status='ok',
+                wall_b1_s=sr['wall_s'],
+                cpu_s=sr['cpu_s'],
+                cpu_hours=sr['cpu_hours'],
+                cpu_cores=sr['cpu_cores'],
+                ram_rss_start_gb=sr['ram_rss_start_gb'],
+                ram_rss_peak_gb=sr['ram_rss_peak_gb'],
+                ram_vmhwm_gb=resource_tracker._gb(resource_tracker._vmhwm_bytes()),
+                single_capable=True,
+                single_screen_s=sr['wall_s'],
+                single_screen_method='measured_full_cpu',
+                single_batch_opt=1,
+                double_capable=False,
+                double_screen_s=np.nan,
+                double_screen_method='additive_only',
+            )
+            del st, co, pl, stk, cwt, sp
+            gc.collect()
+        except (MemoryError, resource_tracker.ResourceLimitExceeded) as e:
+            row.update(status='oom', error_msg=str(e)[:240])
+            rows.append(row)
+            _flush_row(args, row)
+            gc.collect()
+            break
+        except Exception as e:
+            row.update(status=f'error:{type(e).__name__}', error_msg=str(e)[:240])
+            rows.append(row)
+            _flush_row(args, row)
+            gc.collect()
+            break
+        rows.append(row)
+        _flush_row(args, row)
+        if sr['wall_s'] >= args.double_cap_s:
+            break
+    tracker.close()
+    return rows
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--model', required=True, choices=[
-        'esm_msr_wt', 'esm_msr_dual', 'esm_msr_indep', 'esm_msr_marg', 'me_st1', 'me_st2',
+        'esm_msr_wt', 'esm_msr_wt_cpu', 'esm_msr_dual', 'esm_msr_indep', 'esm_msr_marg', 'me_st1', 'me_st2',
         'thermompnn_single', 'thermompnn_d', 'spurs_single', 'spurs_multi',
         'proteinmpnn', 'prosst',
     ])
@@ -1285,6 +1425,7 @@ def main() -> None:
     ap.add_argument('--min_len', type=int, default=0, help='Optional lower length filter (e.g. for 32 GB VRAM extensions)')
     ap.add_argument('--max_len', type=int, default=0, help='Optional upper length cap for smoke tests')
     ap.add_argument('--vram_only', action='store_true', help='Measure B=1 minimum VRAM (1 batch) only; skip optimal-batch screening loops')
+    ap.add_argument('--mem_frac', type=float, default=0.0, help='Optional torch.cuda.set_per_process_memory_fraction cap (e.g. 0.93) to prevent system-RAM overflow')
     ap.add_argument('--double_cap_s', type=float, default=86400.0,
                     help='Practicality cap for full double-mutant screening (default 86400 s = 24 h); once reached, larger proteins are labelled impractical.')
     ap.add_argument('--esm_msr_ckpt', default='/home/sreeves/esm-msr-devel/runs_final_ablations/FINAL_p0_s1/0/epoch=06-val_unmasked_rho_combined_avg=0.8558.ckpt')
@@ -1317,19 +1458,29 @@ def main() -> None:
     if jsonl_path.exists():
         jsonl_path.unlink()
 
-    props = torch.cuda.get_device_properties(torch.cuda.current_device())
+    if torch.cuda.is_available() and args.model != 'esm_msr_wt_cpu':
+        if getattr(args, 'mem_frac', 0.0) > 0:
+            torch.cuda.set_per_process_memory_fraction(float(args.mem_frac))
+        props = torch.cuda.get_device_properties(torch.cuda.current_device())
+        gpu_info = dict(name=props.name, total_gb=round(props.total_memory / GB, 2), capability=f'{props.major}.{props.minor}')
+    else:
+        gpu_info = None
     meta = dict(
         model=args.model,
         started=datetime.datetime.now().isoformat(timespec='seconds'),
         host=socket.gethostname(),
-        gpu=dict(name=props.name, total_gb=round(props.total_memory / GB, 2), capability=f'{props.major}.{props.minor}'),
+        gpu=gpu_info,
+        cpus_visible=resource_tracker.cpu_affinity(),
+        torch_threads=torch.get_num_threads(),
         slurm={k: os.environ.get(k) for k in ('SLURM_JOB_ID', 'SLURM_JOB_NAME', 'SLURM_JOB_NODELIST', 'SLURM_CPUS_PER_TASK', 'SLURM_MEM_PER_NODE')},
         limits_check=limit_check,
         n_panel=len(panel),
     )
     (out_dir / 'meta.json').write_text(json.dumps(meta, indent=2) + '\n')
 
-    if args.model in ('esm_msr_wt', 'esm_msr_dual', 'esm_msr_indep', 'esm_msr_marg'):
+    if args.model == 'esm_msr_wt_cpu':
+        rows = bench_esm_msr_cpu(panel, args)
+    elif args.model in ('esm_msr_wt', 'esm_msr_dual', 'esm_msr_indep', 'esm_msr_marg'):
         rows = bench_esm_msr(panel, args.model, args)
     elif args.model in ('me_st1', 'me_st2'):
         rows = bench_mutate_everything(panel, args.model, args)

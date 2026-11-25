@@ -1,7 +1,7 @@
-"""Plot controlled protein-size scaling benchmark results (RTX A4500 20 GB + 30/40 GB VRAM extrapolation).
+"""Plot controlled protein-size scaling benchmark results (RTX A4500 20 GB + RTX 5090 <=30 GB on-card VRAM + 40 GB extrapolation).
 
 Reads <in_dir>/<model>/results.csv produced by benchmark_size_scaling.py (RTX A4500 20 GB fixed slot)
-plus optional <vram_ext_dir>/<model>/results.csv (e.g. RTX 5090 32 GB B=1 VRAM measurements beyond 20 GB)
+plus <vram_ext_dir>/<model>/results.csv (strict on-card <=30 GB B=1 VRAM measurements on RTX 5090 32 GB)
 and generates:
   - analysis/results/10_inference_resources/03_size_scaling_vram_and_screening_a4500.{png,pdf}
   - analysis/results/10_inference_resources/size_scaling_a4500_all.csv
@@ -52,7 +52,6 @@ SPECS = [
     dict(key='me_st2', label='MutateEverything (Stage 2)', color=BY_NAME['MutateEverything'].color, marker='h', hollow=False, ls='-', lw=2.0),
     dict(key='prosst', label='ProSST-2048 (zero-shot)', color=BY_NAME['ProSST'].color, marker='X', hollow=False, ls=':', lw=2.0),
 ]
-SPEC_BY_KEY = {s['key']: s for s in SPECS}
 
 # Deduplicated model families for Panel A (models with identical B=1 VRAM merged into one curve)
 VRAM_FAMILIES = [
@@ -87,6 +86,8 @@ DOUBLE_SPECS = [
     dict(key='me_st2', label='MutateEverything (St2)', color=BY_NAME['MutateEverything'].color, marker='h', hollow=False, ls='-', lw=2.0, z=4),
     dict(key='thermompnn_d', label='ThermoMPNN-D (SSM double)', color=BY_NAME['ThermoMPNN'].color, marker='p', hollow=False, ls='-', lw=2.0, z=4),
 ]
+
+VRAM_TIERS = [16.0, 24.0, 32.0, 40.0]
 
 
 def _plot_curve(ax, x, y, s, zorder=4, alpha=0.95, label=None):
@@ -152,18 +153,17 @@ def load_vram_ext(ext_dir: Path | None) -> pd.DataFrame:
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
 
-def fit_vram_model(key: str, L_obs: np.ndarray, V_obs: np.ndarray, oom_row: pd.Series | None) -> tuple[float, float, float]:
-    """Fit physics-grounded non-negative quadratic V(L) = a + b*L + c*L^2 to measured B=1 PyTorch alloc VRAM."""
+def fit_vram_model(key: str, L_obs: np.ndarray, V_obs: np.ndarray) -> tuple[float, float, float]:
+    """Fit physics-grounded non-negative quadratic V(L) = a + b*L + c*L^2 to empirical B=1 PyTorch alloc VRAM."""
     if key == 'prosst':
-        # ProSST-2048 is O(L^2) in self-attention above L=4096: at L=4096 alloc=5.69 GB; at L=8192 A4500 OOM
-        # occurred with 17.65 GiB allocated + 3.00 GiB requested (= 20.65 GiB exact lower bound for 12*L^2*4B).
-        L_hi = np.array([4096.0, 8192.0])
-        V_hi = np.array([float(V_obs[-1]), 20.65])
-        c = (V_hi[1] - V_hi[0]) / (L_hi[1] ** 2 - L_hi[0] ** 2)
-        a = V_hi[0] - c * L_hi[0] ** 2
-        return float(max(0.47, a)), 0.0, float(c)
+        # Above L=4096, ProSST's O(L^2) self-attention dominates (measured at 4096, 8192, 9200 with <0.01 GB error)
+        m = L_obs >= 4096
+        if m.sum() >= 2:
+            Xm = np.column_stack([np.ones(m.sum()), L_obs[m] ** 2])
+            coef2, _ = nnls(Xm, V_obs[m])
+            return float(coef2[0]), 0.0, float(coef2[1])
     X = np.column_stack([np.ones_like(L_obs), L_obs, L_obs ** 2])
-    w = np.sqrt(L_obs / L_obs.max())
+    w = L_obs / L_obs.max()
     coef, _ = nnls(X * w[:, None], V_obs * w)
     return float(coef[0]), float(coef[1]), float(coef[2])
 
@@ -179,7 +179,7 @@ def solve_L_for_vram(a: float, b: float, c: float, target_gb: float) -> float:
 
 
 def compute_vram_fits(df: pd.DataFrame, df_ext: pd.DataFrame) -> list[dict]:
-    """Combine A4500 B=1 measurements with clean >20 GB 32GB-card B=1 measurements and fit 20/30/40 GB limits."""
+    """Combine A4500 B=1 measurements with strictly on-card <=30 GB RTX 5090 points and fit 16/24/32/40 GB limits."""
     out = []
     for fam in VRAM_FAMILIES:
         key = fam['key']
@@ -193,7 +193,6 @@ def compute_vram_fits(df: pd.DataFrame, df_ext: pd.DataFrame) -> list[dict]:
         L_a4500 = ok['seq_len'].to_numpy(dtype=float)
         V_a4500 = ok['vram_min_alloc_gb'].to_numpy(dtype=float)
 
-        # Append any clean >20 GB B=1 measurement from the 32 GB card (e.g. ESM-MSR L=2048 = 23.62 GB)
         L_ext, V_ext = np.array([]), np.array([])
         if not df_ext.empty:
             esub = df_ext[(df_ext['model'] == key) & (df_ext['status'] == 'ok')].sort_values('seq_len')
@@ -204,7 +203,8 @@ def compute_vram_fits(df: pd.DataFrame, df_ext: pd.DataFrame) -> list[dict]:
 
         L_all = np.concatenate([L_a4500, L_ext])
         V_all = np.concatenate([V_a4500, V_ext])
-        a, b, c = fit_vram_model(key, L_all, V_all, oom_row)
+        a, b, c = fit_vram_model(key, L_all, V_all)
+        tier_L = {int(t): solve_L_for_vram(a, b, c, t) for t in VRAM_TIERS}
 
         out.append(dict(
             fam=fam,
@@ -213,9 +213,7 @@ def compute_vram_fits(df: pd.DataFrame, df_ext: pd.DataFrame) -> list[dict]:
             L_all=L_all, V_all=V_all,
             oom_a4500=float(oom_row['seq_len']) if oom_row is not None else np.nan,
             a=a, b=b, c=c,
-            L_20=solve_L_for_vram(a, b, c, 20.0),
-            L_30=solve_L_for_vram(a, b, c, 30.0),
-            L_40=solve_L_for_vram(a, b, c, 40.0),
+            tier_L=tier_L,
         ))
     return out
 
@@ -226,13 +224,13 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
 
     fits = compute_vram_fits(df, df_ext)
 
-    # ---- Panel A: Minimum VRAM (B=1) vs Protein Length L (measured + extrapolated to >= 40 GB) ----
+    # ---- Panel A: Minimum VRAM (B=1) vs Protein Length L (on-card measured up to ~29 GB + extrapolated to 40 GB) ----
     max_L_vram = 65536.0
     xt_vram = [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536]
     for f in fits:
         fam = f['fam']
         z = fam['z']
-        # Measured solid curve (A4500 + clean 32 GB card points)
+        # Measured solid curve (A4500 <=20 GB + strict on-card RTX 5090 <=30 GB)
         ax_vram.plot(
             f['L_all'], f['V_all'],
             color=fam['color'], ls=fam['ls'], lw=fam['lw'], alpha=0.95,
@@ -240,11 +238,11 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
             mfc=fam['color'], mec=fam['color'], mew=0.8,
             label=fam['label'], zorder=z,
         )
-        # Highlight any >20 GB 32GB-card measured point with a crisp outer ring
+        # Highlight >20 GB RTX 5090 on-card measured points with a crisp outer ring
         if len(f['L_ext']):
             ax_vram.scatter(
                 f['L_ext'], f['V_ext'],
-                s=115, facecolors='none', edgecolors=fam['color'], linewidths=1.4, zorder=z + 2,
+                s=105, facecolors='none', edgecolors=fam['color'], linewidths=1.35, zorder=z + 2,
             )
         # Smooth physics-based extrapolation from last measured point up to 44 GB
         L_start = float(f['L_all'][-1])
@@ -253,42 +251,48 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
         if np.isfinite(L_end) and L_end > L_start:
             L_grid = np.geomspace(L_start, min(L_end, max_L_vram * 1.15), 80)
             V_grid = f['a'] + f['b'] * L_grid + f['c'] * (L_grid ** 2)
-            # Anchor start seamlessly to last observed point
             V_grid = V_grid + (V_start - V_grid[0]) * np.exp(-3.0 * (L_grid - L_start) / max(1.0, L_end - L_start))
-            ax_vram.plot(L_grid, V_grid, color=fam['color'], ls='--', lw=1.35, alpha=0.65, zorder=z - 1)
-        # Point markers at 30 GB (usable 32 GB card) and 40 GB (A100) crossings
-        for target_v, L_cross in [(30.0, f['L_30']), (40.0, f['L_40'])]:
-            if np.isfinite(L_cross) and L_cross <= max_L_vram * 1.15:
+            ax_vram.plot(L_grid, V_grid, color=fam['color'], ls='--', lw=1.35, alpha=0.68, zorder=z - 1)
+        # Point markers at 32 GB and 40 GB extrapolated crossings
+        for tv in (32, 40):
+            Lc = f['tier_L'][tv]
+            if np.isfinite(Lc) and Lc <= max_L_vram * 1.15:
                 ax_vram.scatter(
-                    [L_cross], [target_v], s=32, marker='o',
-                    facecolors='white', edgecolors=fam['color'], linewidths=1.4, zorder=z + 2,
+                    [Lc], [float(tv)], s=30, marker='o',
+                    facecolors='white', edgecolors=fam['color'], linewidths=1.35, zorder=z + 2,
                 )
 
-    # Horizontal GPU memory capacity tiers (clean white backing so curves never collide with text)
-    lbl_bg = dict(facecolor='white', edgecolor='none', alpha=0.84, pad=0.9)
-    ax_vram.axhline(20.0, color=style.RING, ls='--', lw=1.15, zorder=3)
-    ax_vram.text(28, 20.55, '20 GB (RTX A4500)', fontsize=7.2, color=style.RING, fontweight='bold', ha='left', va='bottom', bbox=lbl_bg, zorder=9)
-    ax_vram.axhline(30.0, color='#555555', ls='--', lw=1.05, zorder=3)
-    ax_vram.text(28, 29.45, '~30 GB (usable on 32 GB GPU)', fontsize=7.1, color='#444444', fontweight='bold', ha='left', va='top', bbox=lbl_bg, zorder=9)
-    ax_vram.axhline(40.0, color='#555555', ls=':', lw=1.05, zorder=3)
-    ax_vram.text(65536 * 1.18, 40.55, '40 GB (A100)', fontsize=7.2, color='#444444', fontweight='bold', ha='right', va='bottom', bbox=lbl_bg, zorder=9)
+    # Horizontal common GPU VRAM card-size reference lines: 16, 24, 32, 40 GB
+    lbl_bg = dict(facecolor='white', edgecolor='none', alpha=0.85, pad=0.8)
+    for tv, col, lstyle, x_pos, ha_s, dy, va_s in [
+        (16.0, '#777777', ':',  28,               'left',  0.45, 'bottom'),
+        (24.0, '#666666', '--', 28,               'left',  0.45, 'bottom'),
+        (32.0, '#444444', '--', 65536 * 1.18,     'right', 0.45, 'bottom'),
+        (40.0, '#222222', '-',  65536 * 1.18,     'right', 0.45, 'bottom'),
+    ]:
+        ax_vram.axhline(tv, color=col, ls=lstyle, lw=1.05, alpha=0.85, zorder=3)
+        ax_vram.text(
+            x_pos, tv + dy, f'{int(tv)} GB', fontsize=7.3, color=col,
+            fontweight='bold', ha=ha_s, va=va_s, bbox=lbl_bg, zorder=9,
+        )
 
     ax_vram.axvspan(2048, max_L_vram * 1.30, color='#f2f2f2', zorder=0)
     ax_vram.axvline(2048, color='#aaaaaa', ls=':', lw=0.9, zorder=1)
-    ax_vram.text(2048 * 1.15, 13.5, 'tiled\nextensions', fontsize=6.9, color='#777777', va='center', ha='left')
+    ax_vram.text(2048 * 1.15, 11.2, 'tiled\nextensions', fontsize=6.9, color='#777777', va='center', ha='left')
 
-    # Compact upper-left inset table of estimated L_max at 20 / ~30 / 40 GB
-    tbl_lines = ['Est. max L (B=1)  20G   30G   40G']
-    tbl_lines.append('─' * 33)
-    for f in sorted(fits, key=lambda x: x['L_30']):
+    # Compact upper-left inset table of estimated L_max at 16 / 24 / 32 / 40 GB
+    tbl_lines = ['Est. max L         16G   24G   32G   40G']
+    tbl_lines.append('─' * 40)
+    for f in sorted(fits, key=lambda x: x['tier_L'][32]):
+        tl = f['tier_L']
         tbl_lines.append(
-            f"{f['fam']['short']:<16s} {_fmt_L(f['L_20']):>5s} {_fmt_L(f['L_30']):>5s} {_fmt_L(f['L_40']):>5s}"
+            f"{f['fam']['short']:<17s}{_fmt_L(tl[16]):>5s} {_fmt_L(tl[24]):>5s} {_fmt_L(tl[32]):>5s} {_fmt_L(tl[40]):>5s}"
         )
     ax_vram.text(
-        0.025, 0.975, '\n'.join(tbl_lines),
+        0.022, 0.978, '\n'.join(tbl_lines),
         transform=ax_vram.transAxes, va='top', ha='left',
-        fontsize=6.5, family='monospace', color='#222222',
-        bbox=dict(boxstyle='round,pad=0.35', facecolor='white', edgecolor='#cccccc', alpha=0.93, lw=0.8),
+        fontsize=6.2, family='monospace', color='#222222',
+        bbox=dict(boxstyle='round,pad=0.32', facecolor='white', edgecolor='#cccccc', alpha=0.94, lw=0.8),
         zorder=10,
     )
 
@@ -300,7 +304,7 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
     ax_vram.xaxis.set_minor_formatter(mticker.NullFormatter())
     ax_vram.set_xlabel('Protein length $L$ (residues, log scale)')
     ax_vram.set_ylabel('Minimum peak allocated VRAM at $B=1$ (GB)')
-    ax_vram.set_title('A. Min VRAM ($B=1$) & 30–40 GB extrapolation', loc='left')
+    ax_vram.set_title('A. Min VRAM ($B=1$) up to 30 GB & 40 GB fit', loc='left')
     ax_vram.grid(True, color=style.GRID, lw=0.6, zorder=0)
 
     # ---- Panel B: Full single-mutant screen time (19L variants, RTX A4500 20 GB) ----
@@ -345,7 +349,6 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
                           marker='^', s=62, facecolors='none', edgecolors=style.RING, linewidths=1.5, zorder=s['z'] + 2)
         else:
             _plot_curve(ax_2m, ok['seq_len'], ok['double_screen_s'], s, zorder=s['z'])
-    # Reference dotted line for additive-only ESM-MSR WT-view (1 WT pass; no epistasis)
     wt_ok = df[(df['model'] == 'esm_msr_wt') & (df['status'] == 'ok')].sort_values('seq_len')
     if len(wt_ok):
         ax_2m.plot(
@@ -356,9 +359,15 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
     ax_2m.axvspan(2048, max_L_scr * 1.30, color='#f2f2f2', zorder=0)
     ax_2m.axvline(2048, color='#aaaaaa', ls=':', lw=0.9, zorder=1)
     ax_2m.axhline(CAP_24H, color=style.RING, ls='--', lw=1.3, zorder=7)
-    ax_2m.axhspan(CAP_24H, 5e6, color=style.RING, alpha=0.07, zorder=0)
-    ax_2m.text(28, CAP_24H * 1.35, '24 h cap (larger proteins impractical)', fontsize=7.5,
-               color=style.RING, fontweight='bold', va='bottom', ha='left')
+    ax_2m.axhspan(CAP_24H, 8e6, color=style.RING, alpha=0.07, zorder=0)
+    # Place red 24 h cap banner cleanly near top-left of the shaded region, completely clear of all curves
+    ax_2m.text(
+        0.03, 0.96, '24 h cap (larger proteins impractical)',
+        transform=ax_2m.transAxes, fontsize=7.6, color=style.RING, fontweight='bold',
+        va='top', ha='left',
+        bbox=dict(boxstyle='round,pad=0.22', facecolor='#fdf2f2', edgecolor=style.RING, alpha=0.92, lw=0.6),
+        zorder=10,
+    )
     for yref, txt in [(1.0, '1 s'), (60.0, '1 min'), (3600.0, '1 h'), (86400.0, '24 h'), (86400.0 * 30, '1 mo')]:
         if yref != CAP_24H:
             ax_2m.axhline(yref, color='#888888', ls=':', lw=0.75, zorder=1)
@@ -366,7 +375,7 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
     ax_2m.set_xscale('log')
     ax_2m.set_yscale('log')
     ax_2m.set_xlim(24, max_L_scr * 1.30)
-    ax_2m.set_ylim(2e-2, 5e6)
+    ax_2m.set_ylim(2e-2, 8e6)
     ax_2m.set_xticks(xt_scr)
     ax_2m.set_xticklabels([f'{v // 1024}k' if v >= 8192 else str(v) for v in xt_scr], fontsize=7.8, rotation=30, ha='right')
     ax_2m.xaxis.set_minor_formatter(mticker.NullFormatter())
@@ -375,9 +384,9 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
     ax_2m.set_title('C. Full double-mutant screen (RTX A4500, 24 h cap)', loc='left')
     ax_2m.grid(True, color=style.GRID, lw=0.6, zorder=0)
 
-    # Clean, unified top legend with non-redundant entries + visual key for extrapolation
+    # Clean, unified top legend
     legend_handles = [
-        Line2D([0], [0], color=C_ESM_BLACK, marker='D', ms=5.8, mfc=C_ESM_BLACK, mec=C_ESM_BLACK, ls='-', lw=2.5, label='ESM-MSR (Dual-view; Panel A: all variants)'),
+        Line2D([0], [0], color=C_ESM_BLACK, marker='D', ms=5.8, mfc=C_ESM_BLACK, mec=C_ESM_BLACK, ls='-', lw=2.5, label='ESM-MSR (Dual-view; A: all variants)'),
         Line2D([0], [0], color=C_ESM_DARK, marker='s', ms=5.6, mfc=C_ESM_DARK, mec=C_ESM_DARK, ls='-', lw=2.1, label='ESM-MSR (Indep. masking; B: +Marginal)'),
         Line2D([0], [0], color=C_ESM_LIGHT, marker='^', ms=5.6, mfc=C_ESM_LIGHT, mec=C_ESM_LIGHT, ls='-', lw=2.1, label='ESM-MSR (Masked marginal, C)'),
         Line2D([0], [0], color=C_ESM_BLACK, marker='D', ms=5.6, mfc='white', mec=C_ESM_BLACK, mew=1.5, ls='--', lw=2.2, label='ESM-MSR (WT-view; C: dotted additive)'),
@@ -386,19 +395,19 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
         Line2D([0], [0], color=BY_NAME['ProteinMPNN'].color, marker='d', ms=5.2, mfc=BY_NAME['ProteinMPNN'].color, mec=BY_NAME['ProteinMPNN'].color, ls='-.', lw=2.0, label='ProteinMPNN (zero-shot)'),
         Line2D([0], [0], color=BY_NAME['MutateEverything'].color, marker='h', ms=5.4, mfc=BY_NAME['MutateEverything'].color, mec=BY_NAME['MutateEverything'].color, ls='-', lw=2.0, label='MutateEverything (St2; A–B: St1/St2)'),
         Line2D([0], [0], color=BY_NAME['ProSST'].color, marker='X', ms=5.4, mfc=BY_NAME['ProSST'].color, mec=BY_NAME['ProSST'].color, ls=':', lw=2.0, label='ProSST-2048 (zero-shot)'),
-        Line2D([0], [0], color='#555555', ls='--', lw=1.35, marker='o', ms=4.8, mfc='white', mec='#555555', mew=1.3, label='Panel A: quadratic VRAM fit (30 / 40 GB)'),
+        Line2D([0], [0], color='#555555', ls='--', lw=1.35, marker='o', ms=4.8, mfc='white', mec='#555555', mew=1.3, label='Panel A: quadratic fit to 40 GB (ring: 32 GB GPU)'),
     ]
-    fig.legend(handles=legend_handles, loc='upper center', bbox_to_anchor=(0.5, 0.945), ncol=4, fontsize=7.9, frameon=False, columnspacing=1.2)
+    fig.legend(handles=legend_handles, loc='upper center', bbox_to_anchor=(0.5, 0.945), ncol=4, fontsize=7.8, frameon=False, columnspacing=1.1)
 
     stem = out_dir / '03_size_scaling_vram_and_screening_a4500'
     style.finish_figure(
         fig, stem=stem, top=0.825,
-        title='Protein-Length Scaling of Minimum VRAM (20–40 GB) and Full Mutational Screening Cost (1× RTX A4500 20 GB)',
+        title='Protein-Length Scaling of Minimum VRAM (16–40 GB) and Full Mutational Screening Cost (1× RTX A4500 20 GB)',
         note=(
             'Panel A shows process-allocated peak VRAM at B = 1 across exact power-of-two lengths (real ProteinGym AF2 structures & MSAs up to L = 2,048; '
-            'tiled extensions above 2,048). Points ≤ 20 GB were measured on RTX A4500 (20 GB); circled ESM-MSR L = 2,048 (23.6 GB) was measured at B = 1 on a 32 GB RTX 5090. '
-            'Dashed Panel A curves fit V(L) = a + bL + cL² to estimate max length at ~30 GB (usable on a 32 GB GPU leaving system headroom) and 40 GB (A100). '
-            'Panels B–C show strictly apples-to-apples RTX A4500 optimal-batch screening times; identical curves are merged per panel (ESM-MSR Indep./Marginal share 2L single-mutant passes).'
+            'tiled extensions above 2,048). Solid points ≤ 20 GB were measured on RTX A4500 (20 GB); circled points (20–29 GB) were measured strictly on-card '
+            'on a 32 GB RTX 5090 (29.9 GB PyTorch cap, zero RAM spill). Dashed curves fit V(L) = a + bL + cL² (max high-L residual ≤ 0.06 GB) to extrapolate '
+            'from ~29 GB to 40 GB across standard GPU tiers (16 / 24 / 32 / 40 GB). Panels B–C show apples-to-apples RTX A4500 optimal-batch screening times.'
         ),
     )
     return stem, fits
@@ -406,18 +415,18 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
 
 def write_summary_md(df: pd.DataFrame, fits: list[dict], out_dir: Path) -> None:
     lines = [
-        '# Controlled Size-Scaling Benchmark Summary (RTX A4500 20 GB + 30/40 GB VRAM Extrapolation)',
+        '# Controlled Size-Scaling Benchmark Summary (RTX A4500 20 GB + On-Card 30 GB Probes & 40 GB Extrapolation)',
         '',
         '## Estimated Maximum Protein Length ($B = 1$ PyTorch-Allocated VRAM)',
         '',
-        '| Model Family | Measured Max `L` | VRAM @ Max `L` | A4500 OOM `L` | Est. `L_max` @ 20 GB | Est. `L_max` @ ~30 GB (32 GB usable) | Est. `L_max` @ 40 GB |',
-        '|---|---|---|---|---|---|---|',
+        '| Model Family | Highest On-Card Measured `L` | Measured VRAM | Est. `L_max` @ 16 GB | Est. `L_max` @ 24 GB | Est. `L_max` @ 32 GB | Est. `L_max` @ 40 GB |',
+        '|---|---:|---:|---:|---:|---:|---:|',
     ]
-    for f in sorted(fits, key=lambda x: x['L_30']):
-        oom_s = f"{int(f['oom_a4500']):,}" if np.isfinite(f['oom_a4500']) else '—'
+    for f in sorted(fits, key=lambda x: x['tier_L'][32]):
+        tl = f['tier_L']
         lines.append(
-            f"| {f['fam']['label']} | {int(f['L_all'][-1]):,} | {f['V_all'][-1]:.2f} GB | {oom_s} | "
-            f"{int(round(f['L_20'])):,} | {int(round(f['L_30'])):,} | {int(round(f['L_40'])):,} |"
+            f"| {f['fam']['label']} | {int(f['L_all'][-1]):,} | {f['V_all'][-1]:.2f} GB | "
+            f"{int(round(tl[16])):,} | {int(round(tl[24])):,} | {int(round(tl[32])):,} | {int(round(tl[40])):,} |"
         )
     lines += [
         '',
@@ -464,7 +473,7 @@ def write_summary_md(df: pd.DataFrame, fits: list[dict], out_dir: Path) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--in_dir', default=str(MSR_ROOT / 'size_scaling_a4500'))
-    ap.add_argument('--vram_ext_dir', default=str(MSR_ROOT / 'size_scaling_5090_vram'))
+    ap.add_argument('--vram_ext_dir', default=str(MSR_ROOT / 'size_scaling_5090_oncard'))
     ap.add_argument('--out_dir', default=str(INFERENCE_RESOURCES_DIR))
     args = ap.parse_args()
 
