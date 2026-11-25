@@ -1,6 +1,6 @@
 \begin{table}[H]
 \centering
-\caption{\textbf{Summary of ESM-MSR Ablations and Variations: Out-of-Distribution Benchmarks}. Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds unless noted) on out-of-distribution benchmarks under the deployed readout (WT-view on single-mutant thermostability sets, Domainome, and ProteinGym; Dual-view on PTMUL). Models with an asterisk (ESM-MSR*) are retrained with modifications on the Homology-Restricted MegaScale split, while those without use the exact same weights as ESM-MSR (reference). Thermostability columns match the 8 main-text benchmarks: Singles (7) averages pooled $\rho$ across Ssym, S461, K2369, S783, S2648, Q3421, and S8754; PTMUL reports pooled $\rho$ on the multi-mutant thermostability set ($n=914$). Held-out DMS columns strictly use the 4-part homology-held-out sets: Domainome reports mean per-domain $\rho$ across 436 held-out domains ($n=451{,}569$) and ProteinGym reports equal-category-weighted macro-average $\rho$ across 173 held-out assays (WT-view; Dual-view for reference and p1 differs by $<0.001$). Highest performing models in each column are indicated in bold; ESM-MSR (reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. $^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}) and evaluated on the identical OOD sets. $^\ddagger$Single training seed (seed 1). --- indicates not applicable or not evaluated.}
+\caption{\textbf{Summary of ESM-MSR Ablations and Variations: Out-of-Distribution Benchmarks}. Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds) on out-of-distribution benchmarks under the deployed readout (WT-view on single-mutant thermostability sets, Domainome, and ProteinGym; Dual-view on PTMUL). Models with an asterisk (ESM-MSR*) are retrained with modifications on the Homology-Restricted MegaScale split, while those without use the exact same weights as ESM-MSR (reference). Thermostability columns match the 8 main-text benchmarks: Singles (7) averages pooled $\rho$ across Ssym, S461, K2369, S783, S2648, Q3421, and S8754; PTMUL reports pooled $\rho$ on the multi-mutant thermostability set ($n=914$). Held-out DMS columns strictly use the 4-part homology-held-out sets defined against Homology-Restricted MegaScale train: Domainome reports mean per-domain $\rho$ across 436 held-out domains ($n=451{,}569$) and ProteinGym reports equal-category-weighted macro-average $\rho$ across 173 held-out assays (WT-view; Dual-view for reference and p1 differs by $<0.001$). Highest performing Homology-Restricted models in each column are indicated in bold; ESM-MSR (reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. $^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}) and evaluated on the identical OOD sets; excluded from bolding in all columns. --- indicates not applicable or not evaluated.}
 \label{tab:si_ablations_ood}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lcccc}
@@ -9,7 +9,7 @@
 \cmidrule(lr){2-3} \cmidrule(lr){4-5}
 ID & Singles (7) & PTMUL & Domainome & ProteinGym \\
 \midrule
-ESM-MSR (reference) & 0.696 $\pm$ 0.004 & 0.592 $\pm$ 0.008 & 0.540 $\pm$ 0.004 & 0.509 $\pm$ 0.002 \\
+ESM-MSR (reference) & 0.696 $\pm$ 0.004 & 0.592 $\pm$ 0.008 & 0.540 $\pm$ 0.004 & \textbf{0.509 $\pm$ 0.002} \\
 ESM-MSR, WT-view only & 0.696 $\pm$ 0.004 & 0.589 $\pm$ 0.004 & 0.540 $\pm$ 0.004 & 0.509 $\pm$ 0.002 \\
 ESM-MSR, MT-view only & 0.680 $\pm$ 0.005 & 0.528 $\pm$ 0.012 & 0.485 $\pm$ 0.010 & --- \\
 ESM-MSR, $\sigma$=0.5 & 0.619 $\pm$ 0.003 & 0.502 $\pm$ 0.009 & \textbf{0.568 $\pm$ 0.001} & 0.506 $\pm$ 0.001 \\
@@ -19,15 +19,14 @@ ESM-MSR*, indep. masking (eval unmasked) & 0.683 $\pm$ 0.005 & 0.568 $\pm$ 0.011
 ESM-MSR*, masked marginal MT & 0.685 $\pm$ 0.004 & 0.558 $\pm$ 0.015 & 0.540 $\pm$ 0.006 & 0.505 $\pm$ 0.001 \\
 ESM-MSR*, no pair loss & 0.698 $\pm$ 0.003 & 0.594 $\pm$ 0.011 & 0.539 $\pm$ 0.004 & 0.509 $\pm$ 0.001 \\
 ESM-MSR*, no rank loss & \textbf{0.703 $\pm$ 0.002} & 0.591 $\pm$ 0.005 & 0.541 $\pm$ 0.003 & 0.507 $\pm$ 0.000 \\
-ESM-MSR*, rank censor $\tau$=0 & 0.696 $\pm$ 0.006 & \textbf{0.601 $\pm$ 0.006} & 0.541 $\pm$ 0.004 & 0.510 $\pm$ 0.003 \\
+ESM-MSR*, rank censor $\tau$=0 & 0.696 $\pm$ 0.006 & \textbf{0.601 $\pm$ 0.006} & 0.541 $\pm$ 0.004 & \textbf{0.510 $\pm$ 0.003} \\
 ESM-MSR*, no range-tagged cells & 0.693 $\pm$ 0.004 & 0.584 $\pm$ 0.008 & 0.543 $\pm$ 0.001 & 0.509 $\pm$ 0.000 \\
 ESM-MSR*, MSE loss (no range-tagged) & 0.694 $\pm$ 0.001 & 0.586 $\pm$ 0.007 & 0.538 $\pm$ 0.002 & 0.507 $\pm$ 0.002 \\
 ESM-MSR*, Tobit floor ($-1.0$, $1.0$) & 0.697 $\pm$ 0.003 & 0.597 $\pm$ 0.006 & 0.541 $\pm$ 0.002 & 0.508 $\pm$ 0.001 \\
 ESM-MSR*, Tobit floor ($0.0$, $0.5$) & 0.697 $\pm$ 0.003 & 0.599 $\pm$ 0.006 & 0.539 $\pm$ 0.005 & 0.509 $\pm$ 0.002 \\
-ESM-MSR*, learnable Tobit floor$^\ddagger$ & 0.698 & 0.592 & 0.543 & 0.510 \\
-ESM-MSR*, exclude seq. head & 0.697 $\pm$ 0.004 & 0.584 $\pm$ 0.010 & 0.544 $\pm$ 0.004 & 0.510 $\pm$ 0.001 \\
+ESM-MSR*, exclude seq. head & 0.697 $\pm$ 0.004 & 0.584 $\pm$ 0.010 & 0.544 $\pm$ 0.004 & \textbf{0.510 $\pm$ 0.001} \\
 ESM-MSR*, MT LoRA rank 2 & 0.695 $\pm$ 0.006 & 0.590 $\pm$ 0.003 & 0.541 $\pm$ 0.004 & 0.509 $\pm$ 0.003 \\
-ESM-MSR*, full MegaScale split$^\dagger$ & 0.688 $\pm$ 0.004 & 0.564 $\pm$ 0.011 & 0.553 $\pm$ 0.006 & \textbf{0.523 $\pm$ 0.003} \\
+ESM-MSR*, full MegaScale split$^\dagger$ & 0.688 $\pm$ 0.004 & 0.564 $\pm$ 0.011 & 0.553 $\pm$ 0.006 & 0.523 $\pm$ 0.003 \\
 \bottomrule
 \end{tabular}
 }
