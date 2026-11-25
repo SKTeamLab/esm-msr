@@ -1,0 +1,11 @@
+Statistical Annotation: _ndcg96_singles_doubles_pvalues.csv
+===========================================================
+Figure / Panel: Supplementary Figure (_ndcg96_singles_doubles) on Homology-Restricted MegaScale test (`tsuboyama_capped_test`).
+  - Panel a: Rectified NDCG@96 (relevance = max(ddG, 0); 33 singles domains, 8 doubles domains containing >=1 stabilizing double, 33 overall domains).
+  - Panel b: Shifted NDCG@96 (relevance = ddG - min(ddG) per domain & subset; all 33 singles domains, all 13 doubles domains, all 33 overall domains).
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric domain-cluster x seed bootstrap (B = 10,000, deterministic seed) over the common test domain set for each subset, with 3-seed retrained models resampled jointly across training seeds.
+  One-sided Phipson & Smyth (2010) p-value: p = (1 + #{b : delta^(b) <= 0}) / (B + 1).
+  Bonferroni correction adjusts within each (mode, subset) over all m = 8 clean comparator models.
+  `all_clean_IUT` gives Berger's (1982) Intersection-Union Test (p_IUT = max_j p_j).
