@@ -449,8 +449,8 @@ def _score_mgnify_task(args: tuple[str, str, str, str, tuple[str, ...], str]) ->
             by_head[h].append(float(spearmanr(linked, y_ok[ok]).statistic))
     out = {}
     for h, vals in by_head.items():
-        if vals:
-            out[h] = (float(np.mean(vals)), float(np.std(vals, ddof=1)) if len(vals) > 1 else np.nan)
+        if len(vals) == 3:
+            out[h] = (float(np.mean(vals)), float(np.std(vals, ddof=1)))
     tag = 'FINAL_p0_s05' if 'sigma0.5' in base_dir_s else ('FINAL_p1@unmasked' if fam == 'FINAL_p1_unmasked' else fam)
     return tag, colkey, out
 
@@ -604,24 +604,24 @@ def build_table_s1_ablations() -> list[Path]:
         return (float(np.mean(per_seed)), float(np.std(per_seed, ddof=1)) if len(per_seed) > 1 else np.nan)
 
     row_specs = [
-        ('FINAL_p0', 'ESM-MSR (reference)', 'cl_primary'),
-        ('FINAL_p0_WT', 'ESM-MSR, WT-view only', 'cl_wt'),
-        ('FINAL_p0_MT', 'ESM-MSR, MT-view only', 'cl_mt'),
-        ('FINAL_p0_s05', r'ESM-MSR, $\sigma$=0.5', 'extra_s05'),
-        ('FINAL_p0@independent', 'ESM-MSR, indep. masking (eval only)', 'cl_primary'),
-        ('FINAL_p1', 'ESM-MSR*, indep. masking', 'cl_primary'),
-        ('FINAL_p1@unmasked', 'ESM-MSR*, indep. masking (eval unmasked)', 'cl_primary'),
-        ('FINAL_p1_marg', 'ESM-MSR*, masked marginal MT', 'cl_primary'),
-        ('FINAL_p0_pw0', 'ESM-MSR*, no pair loss', 'cl_primary'),
-        ('FINAL_p0_norank', 'ESM-MSR*, no rank loss', 'cl_primary'),
-        ('FINAL_p0_rcthr0', r'ESM-MSR*, rank censor $\tau$=0', 'cl_primary'),
-        ('FINAL_p0_norange', 'ESM-MSR*, no range-tagged cells', 'cl_primary'),
-        ('FINAL_p0_mse', 'ESM-MSR*, MSE loss (no range-tagged)', 'cl_primary'),
-        ('FINAL_p0_deepfloor', r'ESM-MSR*, Tobit floor ($-1.0$, $1.0$)', 'cl_primary'),
-        ('FINAL_p0_floor0', r'ESM-MSR*, Tobit floor ($0.0$, $0.5$)', 'cl_primary'),
-        ('FINAL_p0_noseqhwm', 'ESM-MSR*, exclude seq. head', 'cl_primary'),
-        ('FINAL_p0_r2a4', 'ESM-MSR*, MT LoRA rank 2', 'cl_primary'),
-        ('FINAL_p0_mega', r'ESM-MSR*, full MegaScale split$^\dagger$', 'cl_mega'),
+        ('FINAL_p0', 'Dual-View (Reference)', 'cl_primary'),
+        ('FINAL_p0_WT', 'WT-View only', 'cl_wt'),
+        ('FINAL_p0_MT', 'MT-View only', 'cl_mt'),
+        ('FINAL_p0_s05', r'$\sigma=0.5$', 'extra_s05'),
+        ('FINAL_p0@independent', 'Indep. mask. (eval only)', 'cl_primary'),
+        ('FINAL_p1', 'Indep. mask. (Ret.)', 'cl_primary'),
+        ('FINAL_p1@unmasked', 'Indep. mask., eval unmask. (Ret.)', 'cl_primary'),
+        ('FINAL_p1_marg', 'Masked marg. MT (Ret.)', 'cl_primary'),
+        ('FINAL_p0_pw0', 'No pair loss (Ret.)', 'cl_primary'),
+        ('FINAL_p0_norank', 'No rank loss (Ret.)', 'cl_primary'),
+        ('FINAL_p0_rcthr0', r'Rank censor $\tau=0$ (Ret.)', 'cl_primary'),
+        ('FINAL_p0_norange', 'No range cells (Ret.)', 'cl_primary'),
+        ('FINAL_p0_mse', 'MSE, no range (Ret.)', 'cl_primary'),
+        ('FINAL_p0_deepfloor', r'Tobit floor ($-1, 1$) (Ret.)', 'cl_primary'),
+        ('FINAL_p0_floor0', r'Tobit floor ($0, 0.5$) (Ret.)', 'cl_primary'),
+        ('FINAL_p0_noseqhwm', 'No seq. head (Ret.)', 'cl_primary'),
+        ('FINAL_p0_r2a4', 'MT LoRA rank 2 (Ret.)', 'cl_primary'),
+        ('FINAL_p0_mega', r'Full MegaScale$^\dagger$ (Ret.)', 'cl_mega'),
     ]
 
     id_cols = ['tsu_overall', 'tsu_singles', 'tsu_doubles', 'tsu_beyond', 'tsu_cellmag', 'mgnify', 'rocklin']
@@ -711,13 +711,13 @@ def build_table_s1_ablations() -> list[Path]:
         caption_title='Summary of ESM-MSR Ablations and Variations: In-Distribution Proteolysis Stability Benchmarks',
         caption_body=(
             r"Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds) on proteolysis stability benchmarks "
-            r"under the Dual-view readout (except the WT-view-only and MT-view-only rows). Models with an asterisk (ESM-MSR*) are retrained with modifications on the Homology-Restricted "
-            r"MegaScale split, while those without use the exact same weights as ESM-MSR (reference). "
+            r"under the Dual-View readout (except WT-View only and MT-View only). Models marked (Ret.) are retrained with modifications on the Homology-Restricted "
+            r"MegaScale split, while those without use the exact same weights as Dual-View (Reference). "
             r"MegaScale test columns report per-domain mean $\rho$ (Overall and Singles: 33 domains; Doubles: 13 domains) and epistasis metrics "
             r"(Beyond $\rho$: Spearman above global saturation curve; Cell mag.: double-centred complete-block residual correlation). "
             r"MGnify and Rocklin columns report pooled Tobit-linked $\rho$ strictly on the 4-part homology-held-out sets defined against Homology-Restricted MegaScale train "
             r"(MGnify: 612,406 variants across 140,694 scaffolds; Rocklin de novo designs: 109,581 variants across 623 scaffolds). "
-            r"Highest performing Homology-Restricted models in each column are indicated in bold; ESM-MSR (reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. "
+            r"Highest performing Homology-Restricted models in each column are indicated in bold; Dual-View (Reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. "
             r"$^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}): evaluated on its own 28-domain test split (22,213 doubles) for MegaScale columns, "
             r"and on the exact same Homology-Restricted held-out slice for MGnify and Rocklin (where additional training domains may introduce homology overlap); excluded from bolding in all columns. "
             r"--- indicates not applicable or not evaluated."
@@ -745,14 +745,14 @@ def build_table_s1_ablations() -> list[Path]:
         caption_title='Summary of ESM-MSR Ablations and Variations: Out-of-Distribution Benchmarks',
         caption_body=(
             r"Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds) on out-of-distribution benchmarks "
-            r"under the deployed readout (WT-view on single-mutant thermostability sets, Domainome, and ProteinGym; Dual-view on PTMUL). "
-            r"Models with an asterisk (ESM-MSR*) are retrained with modifications on the Homology-Restricted MegaScale split, "
-            r"while those without use the exact same weights as ESM-MSR (reference). "
+            r"under the deployed readout (WT-View on single-mutant thermostability sets, Domainome, and ProteinGym; Dual-View on PTMUL). "
+            r"Models marked (Ret.) are retrained with modifications on the Homology-Restricted MegaScale split, "
+            r"while those without use the exact same weights as Dual-View (Reference). "
             r"Thermostability columns match the 8 main-text benchmarks: Singles (7) averages pooled $\rho$ across Ssym, S461, K2369, S783, S2648, Q3421, and S8754; "
             r"PTMUL reports pooled $\rho$ on the multi-mutant thermostability set ($n=914$). "
             r"Held-out DMS columns strictly use the 4-part homology-held-out sets defined against Homology-Restricted MegaScale train: Domainome reports mean per-domain $\rho$ across 436 held-out domains ($n=451{,}569$) "
-            r"and ProteinGym reports equal-category-weighted macro-average $\rho$ across 173 held-out assays (WT-view; Dual-view for reference and p1 differs by $<0.001$). "
-            r"Highest performing Homology-Restricted models in each column are indicated in bold; ESM-MSR (reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. "
+            r"and ProteinGym reports equal-category-weighted macro-average $\rho$ across 173 held-out assays (WT-View; Dual-View for reference and p1 differs by $<0.001$). "
+            r"Highest performing Homology-Restricted models in each column are indicated in bold; Dual-View (Reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. "
             r"$^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}) and evaluated on the identical OOD sets; excluded from bolding in all columns. "
             r"--- indicates not applicable or not evaluated."
         ),
