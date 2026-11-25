@@ -19,7 +19,7 @@ ESM-MSR, MT-view only & 0.808 $\pm$ 0.001 & 0.829 $\pm$ 0.001 & 0.692 $\pm$ 0.01
 ESM-MSR, $\sigma$=0.5 & 0.799 $\pm$ 0.001 & 0.799 $\pm$ 0.001 & 0.706 $\pm$ 0.005 & 0.419 $\pm$ 0.005 & 0.167 $\pm$ 0.002 & 0.576 $\pm$ 0.002 & 0.417 $\pm$ 0.000 \\
 ESM-MSR, indep. masking (eval only) & 0.820 $\pm$ 0.001 & 0.825 $\pm$ 0.002 & 0.704 $\pm$ 0.003 & 0.440 $\pm$ 0.031 & 0.224 $\pm$ 0.013 & --- & --- \\
 ESM-MSR*, indep. masking & 0.835 $\pm$ 0.001 & 0.841 $\pm$ 0.002 & 0.747 $\pm$ 0.004 & \textbf{0.502 $\pm$ 0.018} & \textbf{0.232 $\pm$ 0.015} & 0.638 $\pm$ 0.001 & \textbf{0.458 $\pm$ 0.002} \\
-ESM-MSR*, indep. masking (eval unmasked) & 0.819 $\pm$ 0.003 & 0.822 $\pm$ 0.001 & 0.729 $\pm$ 0.006 & 0.466 $\pm$ 0.012 & 0.181 $\pm$ 0.009 & --- & --- \\
+ESM-MSR*, indep. masking (eval unmasked) & 0.819 $\pm$ 0.003 & 0.822 $\pm$ 0.001 & 0.729 $\pm$ 0.006 & 0.466 $\pm$ 0.012 & 0.181 $\pm$ 0.009 & --- & 0.455 $\pm$ 0.006 \\
 ESM-MSR*, masked marginal MT & 0.836 $\pm$ 0.002 & 0.842 $\pm$ 0.001 & 0.721 $\pm$ 0.006 & 0.431 $\pm$ 0.021 & $-$0.013 $\pm$ 0.006 & 0.637 $\pm$ 0.001 & 0.454 $\pm$ 0.002 \\
 ESM-MSR*, no pair loss & 0.843 $\pm$ 0.002 & 0.845 $\pm$ 0.002 & 0.768 $\pm$ 0.002 & 0.416 $\pm$ 0.011 & 0.215 $\pm$ 0.008 & 0.641 $\pm$ 0.002 & 0.451 $\pm$ 0.001 \\
 ESM-MSR*, no rank loss & 0.840 $\pm$ 0.005 & 0.842 $\pm$ 0.003 & 0.765 $\pm$ 0.008 & 0.443 $\pm$ 0.042 & 0.196 $\pm$ 0.012 & 0.638 $\pm$ 0.002 & 0.455 $\pm$ 0.002 \\
@@ -80,7 +80,7 @@ ESM-MSR*, full MegaScale split$^\dagger$ & 0.688 $\pm$ 0.004 & 0.564 $\pm$ 0.011
 
 \begin{table}[H]
 \centering
-\caption{\textbf{All-Model Comparison on Homology-Restricted MegaScale Test Set (Overall, Stabilizing, and Destabilizing Variants)}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 33 held-out MegaScale test domains for all models with available predictions (3-seed mean for retrained models; SPURS published Overall $\rho$ is pooled from published checkpoint evaluation). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Homology / overlap codes (fraction of benchmark rows affected, e.g.\ M.50 = 50\%, M1 = 100\%): M = exact mutation in training set (\#: test set equals training set; M?: protein-level ceiling); m = constituent single mutation of a multi-mutant in training set; P = same protein ($\ge 95\%$ identity); H = close homolog ($E\le 10^{-3}$ or TM $>0.70$); h = distant homolog ($E\le 10^{-2}$ or $\ge 30\%$ identity); V = validation/calibration set; D = training set includes reverse mutations; --- = no detected overlap. Models with M/m/P/H/\# training overlap (or trained on the unfiltered benchmark source) are marked $^*$ and excluded from clean bolding.}
+\caption{\textbf{All-Model Comparison on Homology-Restricted MegaScale Test Set (Overall, Stabilizing, and Destabilizing Variants)}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 33 held-out MegaScale test domains for all models with available predictions (3-seed mean for retrained models). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Homology / overlap codes (fraction of benchmark rows affected, e.g.\ M.50 = 50\%, M1 = 100\%): M = exact mutation in training set (\#: test set equals training set; M?: protein-level ceiling); m = constituent single mutation of a multi-mutant in training set; P = same protein ($\ge 95\%$ identity); H = close homolog ($E\le 10^{-3}$ or TM $>0.70$); h = distant homolog ($E\le 10^{-2}$ or $\ge 30\%$ identity); V = validation/calibration set; D = training set includes reverse mutations; --- = no detected overlap. Models with M/m/P/H/\# training overlap (or trained on the unfiltered benchmark source) are marked $^*$ and excluded from clean bolding.}
 \label{tab:si_megascale_overall}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccccccccccl}
@@ -100,7 +100,6 @@ DDGemb & 0.508 & 0.495 & 1.075 & $<10^{-4}$ & 0.147 & 0.149 & 0.791 & $<10^{-4}$
 ESMtherm$^*$ & 0.774 & 0.806 & 0.695 & 0.073 & 0.203 & 0.166 & 0.411 & 0.067 & 0.772 & 0.807 & 0.725 & 0.185 & M.51 P.34 H.04 h.03 V.06 \\
 IFUM (WT backbone)$^*$ & 0.711 & 0.729 & 0.865 & $<10^{-4}$ & 0.253 & 0.259 & 0.365 & 0.216 & 0.686 & 0.709 & 0.909 & $<10^{-4}$ & M?.46 P.02 H.07 h.06 V?.47 \\
 IFUM (ESMFold)$^*$ & 0.752 & 0.763 & 0.756 & $<10^{-4}$ & 0.259 & 0.268 & 0.384 & 0.280 & 0.726 & 0.743 & 0.785 & $<10^{-4}$ & M?.46 P.02 H.07 h.06 V?.47 \\
-SPURS (published)$^*$ & 0.864 & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & M.41 m.13 P.35 \\
 ESM3-small-open & 0.566 & 0.577 & 1.163 & $<10^{-4}$ & 0.017 & 0.017 & 1.283 & $<10^{-4}$ & 0.557 & 0.566 & 1.128 & $<10^{-4}$ & --- \\
 ProteinMPNN & 0.542 & 0.527 & 3.082 & $<10^{-4}$ & 0.062 & 0.065 & 2.571 & $<10^{-4}$ & 0.503 & 0.482 & 3.148 & $<10^{-4}$ & --- \\
 ProSST & 0.596 & 0.623 & 6.693 & $<10^{-4}$ & 0.049 & 0.059 & 4.610 & $<10^{-4}$ & 0.593 & 0.616 & 7.006 & $<10^{-4}$ & --- \\
@@ -148,7 +147,7 @@ ProteinMPNN & 0.330 & 0.377 & 5.108 & $<10^{-4}$ & 0.348 & 0.392 & 5.646 & $<10^
 
 \begin{table}[H]
 \centering
-\caption{\textbf{All-Model Comparison on Full MegaScale Split Test Set: Overall, Stabilizing, and Destabilizing Variants}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Published SPURS and ThermoMPNN checkpoints were trained on different splits of MegaScale and are marked $^*$ and excluded from clean bolding.}
+\caption{\textbf{All-Model Comparison on Full MegaScale Split Test Set: Overall, Stabilizing, and Destabilizing Variants}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Published ThermoMPNN checkpoints were trained on a different split of MegaScale and are marked $^*$ and excluded from clean bolding.}
 \label{tab:si_megasplits_overall}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccccccccccl}
@@ -162,7 +161,6 @@ SPURS & 0.801 & 0.823 & \textbf{0.754} & 0.032 & \textbf{0.299} & \textbf{0.288}
 Mutate Everything & 0.775 & 0.805 & 0.779 & 0.0002 & 0.221 & 0.212 & \textbf{0.576} & 0.0008 & 0.757 & 0.776 & 0.808 & 0.0003 & --- \\
 ThermoMPNN & 0.779 & 0.795 & 0.760 & 0.0006 & 0.239 & 0.199 & 0.625 & 0.003 & 0.752 & 0.758 & \textbf{0.768} & $<10^{-4}$ & --- \\
 Rosetta & 0.675 & 0.645 & 2.182 & $<10^{-4}$ & 0.097 & 0.062 & 1.228 & $<10^{-4}$ & 0.657 & 0.612 & 2.384 & $<10^{-4}$ & V (Rocklin cal.) \\
-SPURS (published)$^*$ & 0.794 & 0.805 & 1.016 & 0.051 & 0.280 & 0.268 & 0.652 & 0.387 & 0.769 & 0.772 & 1.076 & 0.044 & Published MegaScale split overlap \\
 ThermoMPNN (published)$^*$ & 0.777 & 0.794 & 0.813 & 0.0005 & 0.235 & 0.197 & 0.645 & 0.004 & 0.751 & 0.759 & 0.830 & 0.0006 & Published MegaScale split overlap \\
 ESM3-small-open & 0.594 & 0.605 & 1.441 & $<10^{-4}$ & 0.000 & $-$0.028 & 1.532 & $<10^{-4}$ & 0.586 & 0.585 & 1.416 & $<10^{-4}$ & --- \\
 ProteinMPNN & 0.596 & 0.583 & 3.562 & $<10^{-4}$ & 0.078 & 0.064 & 2.784 & $<10^{-4}$ & 0.567 & 0.545 & 3.692 & $<10^{-4}$ & --- \\
@@ -188,7 +186,6 @@ SPURS & 0.598 & 0.612 & 1.040 & 0.019 & \textbf{0.567} & 0.579 & 1.555 & 0.589 &
 Mutate Everything & 0.595 & 0.625 & 1.041 & 0.008 & 0.509 & 0.527 & 1.714 & 0.012 & --- \\
 ThermoMPNN & 0.615 & 0.626 & \textbf{0.946} & 0.072 & 0.557 & 0.572 & \textbf{1.308} & 0.357 & --- \\
 Rosetta & 0.459 & 0.448 & 2.805 & $<10^{-4}$ & 0.421 & 0.418 & 3.258 & $<10^{-4}$ & V (Rocklin cal.) \\
-SPURS (published)$^*$ & 0.617 & 0.629 & 1.016 & 0.050 & --- & --- & --- & --- & Published MegaScale split overlap \\
 ThermoMPNN (published)$^*$ & 0.611 & 0.626 & 0.991 & 0.075 & --- & --- & --- & --- & Published MegaScale split overlap \\
 ESM3-small-open & 0.353 & 0.370 & 1.561 & $<10^{-4}$ & 0.347 & 0.366 & 2.778 & $<10^{-4}$ & --- \\
 ProteinMPNN & 0.287 & 0.317 & 5.399 & $<10^{-4}$ & 0.273 & 0.300 & 5.795 & $<10^{-4}$ & --- \\
@@ -308,7 +305,7 @@ ProteinMPNN & 0.992 & 0.279 & $<10^{-4}$ & 0.721 & 0.334 & $<10^{-4}$ & 0.148 & 
 \scriptsize
 \setlength{\tabcolsep}{4pt}
 \begin{longtable}{lcccccl}
-\caption{\textbf{Comprehensive All-Model Comparison Across All 12 External Thermostability Benchmarks}. Vertical breakdown stacking all 8 main-text external thermostability benchmarks (Ssym, S461, K2369, S783, S2648, Q3421, S8754, PTMUL) followed by 4 additional external thermostability benchmarks (S571, S669, K3822, PTMUL-D), showing every model with available predictions (singles-only heads on single-mutant datasets; multi-mutant heads on PTMUL and PTMUL-D; 3-seed mean for retrained models; SPURS published reports pooled $\rho$ from the published checkpoint evaluation). Columns report pooled Spearman's $\rho$, Pearson's $r$, raw (unrecalibrated) RMSE (kcal/mol, except S571 which measures $\Delta T_m$ in $^\circ$C), one-sided paired bootstrap $p$-values testing $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ under mutation $\times$ seed ($p_{\mathrm{mut}}$) and protein-cluster $\times$ seed ($p_{\mathrm{prot}}$) resampling ($B=10{,}000$; uncorrected), and per-(dataset, model) homology / training-set overlap notes. Homology / overlap codes (fraction of benchmark rows affected, e.g.\ M.50 = 50\%, M1 = 100\%): M = exact mutation in training set (\#: test set equals training set; M?: protein-level ceiling); m = constituent single mutation of a multi-mutant in training set; P = same protein ($\ge 95\%$ identity); H = close homolog ($E\le 10^{-3}$ or TM $>0.70$); h = distant homolog ($E\le 10^{-2}$ or $\ge 30\%$ identity); V = validation/calibration set; D = training set includes reverse mutations; --- = no detected overlap. Models with M/m/P/H/\# training overlap (or trained on the unfiltered benchmark source) are marked $^*$ and excluded from clean bolding.}\label{tab:si_thermostability_all} \\
+\caption{\textbf{Comprehensive All-Model Comparison Across All 12 External Thermostability Benchmarks}. Vertical breakdown stacking all 8 main-text external thermostability benchmarks (Ssym, S461, K2369, S783, S2648, Q3421, S8754, PTMUL) followed by 4 additional external thermostability benchmarks (S571, S669, K3822, PTMUL-D), showing every model with available predictions (singles-only heads on single-mutant datasets; multi-mutant heads on PTMUL and PTMUL-D; 3-seed mean for retrained models). Columns report pooled Spearman's $\rho$, Pearson's $r$, raw (unrecalibrated) RMSE (kcal/mol, except S571 which measures $\Delta T_m$ in $^\circ$C), one-sided paired bootstrap $p$-values testing $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ under mutation $\times$ seed ($p_{\mathrm{mut}}$) and protein-cluster $\times$ seed ($p_{\mathrm{prot}}$) resampling ($B=10{,}000$; uncorrected), and per-(dataset, model) homology / training-set overlap notes. Homology / overlap codes (fraction of benchmark rows affected, e.g.\ M.50 = 50\%, M1 = 100\%): M = exact mutation in training set (\#: test set equals training set; M?: protein-level ceiling); m = constituent single mutation of a multi-mutant in training set; P = same protein ($\ge 95\%$ identity); H = close homolog ($E\le 10^{-3}$ or TM $>0.70$); h = distant homolog ($E\le 10^{-2}$ or $\ge 30\%$ identity); V = validation/calibration set; D = training set includes reverse mutations; --- = no detected overlap. Models with M/m/P/H/\# training overlap (or trained on the unfiltered benchmark source) are marked $^*$ and excluded from clean bolding.}\label{tab:si_thermostability_all} \\
 \toprule
 Model & $\rho$ & $r$ & RMSE & $p_{\mathrm{mut}}$ & $p_{\mathrm{prot}}$ & Homology / Overlap \\
 \midrule
@@ -325,7 +322,7 @@ Model & $\rho$ & $r$ & RMSE & $p_{\mathrm{mut}}$ & $p_{\mathrm{prot}}$ & Homolog
 \endlastfoot
 \multicolumn{7}{l}{\textbf{Ssym} (Main-text, single-mutant; $n=684$ variants, 15 protein clusters)} \\*
 \midrule
-ESM-MSR & 0.778 & \textbf{0.790} & \textbf{1.156} & --- & --- & --- \\
+ESM-MSR & \textbf{0.778} & \textbf{0.790} & \textbf{1.156} & --- & --- & --- \\
 ESM-MSR ($\sigma$=0.5) & 0.716 & 0.727 & 1.304 & $<10^{-4}$ & 0.002 & --- \\
 SPURS & 0.747 & 0.746 & 1.274 & 0.050 & 0.076 & --- \\
 Mutate Everything & 0.674 & 0.688 & 1.428 & $<10^{-4}$ & 0.017 & --- \\
@@ -338,7 +335,6 @@ DDMut$^*$ & 0.363 & 0.431 & 1.779 & $<10^{-4}$ & 0.0008 & M.88 P.12 \\
 ESMtherm & 0.380 & 0.327 & 1.788 & $<10^{-4}$ & 0.001 & --- \\
 IFUM (WT backbone) & 0.574 & 0.625 & 1.555 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 IFUM (ESMFold) & 0.580 & 0.627 & 1.499 & $<10^{-4}$ & 0.0003 & --- \\
-SPURS (published) & \textbf{0.784} & --- & --- & --- & --- & --- \\
 ESM3-small-open & 0.578 & 0.591 & 1.546 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-small & 0.588 & 0.612 & 4.496 & $<10^{-4}$ & 0.0003 & --- \\
 ESM3-medium & 0.633 & 0.647 & 6.558 & $<10^{-4}$ & 0.0008 & --- \\
@@ -361,7 +357,6 @@ DDMut$^*$ & 0.534 & 0.500 & 1.241 & $<10^{-4}$ & $<10^{-4}$ & M.15 P.24 H.004 h.
 ESMtherm$^*$ & 0.474 & 0.313 & 1.554 & $<10^{-4}$ & $<10^{-4}$ & P.35 h.14 \\
 IFUM (WT backbone)$^*$ & 0.531 & 0.518 & 1.271 & $<10^{-4}$ & $<10^{-4}$ & P.21 h.14 \\
 IFUM (ESMFold)$^*$ & 0.542 & 0.525 & 1.259 & $<10^{-4}$ & $<10^{-4}$ & P.21 h.14 \\
-SPURS (published) & 0.654 & --- & --- & --- & --- & h.002 \\
 ESM3-small-open & 0.404 & 0.395 & 1.232 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-small & 0.457 & 0.449 & 4.028 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-medium & 0.445 & 0.437 & 5.024 & $<10^{-4}$ & $<10^{-4}$ & --- \\
@@ -384,7 +379,6 @@ DDMut$^*$ & 0.681 & 0.672 & 1.189 & 0.003 & 0.051 & M.74 P.14 H.03 \\
 ESMtherm$^*$ & 0.393 & 0.235 & 1.662 & $<10^{-4}$ & $<10^{-4}$ & M.03 P.36 H.03 h.02 V.003 \\
 IFUM (WT backbone)$^*$ & 0.547 & 0.520 & 1.407 & $<10^{-4}$ & $<10^{-4}$ & M?.21 P.17 H.02 h.01 V?.003 \\
 IFUM (ESMFold)$^*$ & 0.512 & 0.487 & 1.419 & $<10^{-4}$ & $<10^{-4}$ & M?.21 P.17 H.02 h.01 V?.003 \\
-SPURS (published)$^*$ & 0.698 & --- & --- & --- & --- & M.002 P.34 H.02 h.01 \\
 ESM3-small-open & 0.447 & 0.474 & 1.553 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-small & 0.500 & 0.524 & 5.466 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-medium & 0.503 & 0.530 & 6.476 & $<10^{-4}$ & $<10^{-4}$ & --- \\
@@ -407,7 +401,6 @@ DDMut$^*$ & 0.687 & 0.709 & 1.482 & 0.208 & 0.290 & M.61 P.35 H.005 \\
 ESMtherm$^*$ & 0.434 & 0.295 & 2.282 & $<10^{-4}$ & $<10^{-4}$ & M.004 P.19 h.04 \\
 IFUM (WT backbone)$^*$ & 0.498 & 0.438 & 1.977 & $<10^{-4}$ & 0.0002 & M?.03 P.006 H.03 h.11 \\
 IFUM (ESMFold)$^*$ & 0.471 & 0.415 & 1.952 & $<10^{-4}$ & $<10^{-4}$ & M?.03 P.006 H.03 h.11 \\
-SPURS (published)$^*$ & 0.712 & --- & --- & --- & --- & P.07 h.08 \\
 ESM3-small-open & 0.497 & 0.536 & 1.682 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-small & 0.548 & 0.594 & 5.329 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-medium & 0.552 & 0.594 & 6.965 & $<10^{-4}$ & $<10^{-4}$ & --- \\
@@ -430,7 +423,6 @@ DDMut$^*$ & 0.731 & 0.685 & 1.090 & 1.000 & 0.980 & M.98 P.01 H.007 D \\
 ESMtherm$^*$ & 0.371 & 0.276 & 1.728 & $<10^{-4}$ & $<10^{-4}$ & P.05 H.02 h.01 \\
 IFUM (WT backbone)$^*$ & 0.485 & 0.448 & 1.475 & $<10^{-4}$ & 0.0010 & M?.006 P.05 H.02 h.006 \\
 IFUM (ESMFold)$^*$ & 0.484 & 0.453 & 1.449 & $<10^{-4}$ & 0.0005 & M?.006 P.05 H.02 h.006 \\
-SPURS (published)$^*$ & 0.682 & --- & --- & --- & --- & M.001 P.02 H.02 h.01 \\
 ESM3-small-open & 0.386 & 0.350 & 1.492 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-small & 0.441 & 0.419 & 5.304 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-medium & 0.439 & 0.432 & 6.360 & $<10^{-4}$ & $<10^{-4}$ & --- \\
@@ -453,7 +445,6 @@ DDMut$^*$ & 0.653 & 0.550 & 1.669 & 0.996 & 0.870 & M.84 P.11 H.01 \\
 ESMtherm$^*$ & 0.348 & 0.231 & 2.218 & $<10^{-4}$ & $<10^{-4}$ & M$<$.001 P.06 H.03 h.02 \\
 IFUM (WT backbone)$^*$ & 0.431 & 0.349 & 1.995 & $<10^{-4}$ & 0.0003 & M?.01 P.05 H.02 h.01 \\
 IFUM (ESMFold)$^*$ & 0.433 & 0.350 & 1.966 & $<10^{-4}$ & $<10^{-4}$ & M?.01 P.05 H.02 h.01 \\
-SPURS (published)$^*$ & 0.614 & --- & --- & --- & --- & M.002 P.02 H.02 h.008 \\
 ESM3-small-open & 0.388 & 0.326 & 1.931 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-small & 0.441 & 0.385 & 5.480 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-medium & 0.450 & 0.402 & 6.739 & $<10^{-4}$ & $<10^{-4}$ & --- \\
@@ -476,7 +467,6 @@ DDMut$^*$ & 0.638 & 0.559 & 1.665 & 0.998 & 0.740 & M.69 P.21 H.03 h.002 D \\
 ESMtherm$^*$ & 0.347 & 0.165 & 2.181 & $<10^{-4}$ & $<10^{-4}$ & M.01 P.21 H.02 h.008 V.002 \\
 IFUM (WT backbone)$^*$ & 0.477 & 0.411 & 1.914 & $<10^{-4}$ & 0.0004 & M?.12 P.10 H.02 h.003 V?.001 \\
 IFUM (ESMFold)$^*$ & 0.451 & 0.375 & 1.917 & $<10^{-4}$ & $<10^{-4}$ & M?.12 P.10 H.02 h.003 V?.001 \\
-SPURS (published)$^*$ & 0.626 & --- & --- & --- & --- & M.002 P.20 H.02 h.006 \\
 ESM3-small-open & 0.372 & 0.357 & 1.926 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-small & 0.425 & 0.410 & 5.701 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-medium & 0.438 & 0.412 & 6.885 & $<10^{-4}$ & $<10^{-4}$ & --- \\
@@ -499,7 +489,6 @@ DDMut$^*$ & 0.725 & 0.721 & 1.696 & 1.000 & 0.991 & M.80 m.11 P.08 H.02 \\
 ESMtherm$^*$ & 0.235 & 0.222 & 2.419 & $<10^{-4}$ & $<10^{-4}$ & P.13 H.06 h.01 V.001 \\
 IFUM (WT backbone)$^*$ & 0.350 & 0.343 & 2.296 & $<10^{-4}$ & 0.0007 & M?.001 P.15 H.03 h.001 \\
 IFUM (ESMFold)$^*$ & 0.391 & 0.363 & 2.250 & $<10^{-4}$ & 0.004 & M?.001 P.15 H.03 h.001 \\
-SPURS (published)$^*$ & 0.359 & --- & --- & --- & --- & P.10 H.04 h.02 \\
 ESM3-small-open & 0.192 & 0.220 & 2.484 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-small & 0.304 & 0.326 & 8.471 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-medium & 0.264 & 0.242 & 12.656 & $<10^{-4}$ & 0.0002 & --- \\
@@ -522,7 +511,6 @@ DDMut$^*$ & 0.350 & 0.276 & 9.081 & 0.060 & 0.128 & M.21 P.26 H.05 \\
 ESMtherm$^*$ & 0.349 & 0.390 & 9.358 & 0.056 & 0.186 & M.02 P.10 H.03 V.009 \\
 IFUM (WT backbone)$^*$ & 0.376 & 0.378 & 9.244 & 0.104 & 0.268 & M?.04 P.01 H.08 \\
 IFUM (ESMFold)$^*$ & 0.385 & 0.376 & 9.201 & 0.170 & 0.274 & M?.04 P.01 H.08 \\
-SPURS (published)$^*$ & 0.468 & --- & --- & --- & --- & P.08 H.03 \\
 ESM3-small-open & 0.266 & 0.184 & 9.132 & $<10^{-4}$ & 0.0008 & --- \\
 ESM3-small & 0.236 & 0.167 & 9.071 & $<10^{-4}$ & 0.001 & --- \\
 ESM3-medium & 0.332 & 0.278 & 8.723 & 0.0009 & 0.038 & --- \\
@@ -545,7 +533,6 @@ DDMut$^*$ & 0.402 & 0.397 & 1.598 & 0.0005 & 0.046 & M.10 P.19 H.02 h.004 \\
 ESMtherm$^*$ & 0.414 & 0.261 & 1.797 & 0.0005 & 0.051 & P.24 H.003 h.09 \\
 IFUM (WT backbone)$^*$ & 0.434 & 0.396 & 1.610 & 0.0010 & 0.048 & P.14 H.003 h.09 \\
 IFUM (ESMFold)$^*$ & 0.409 & 0.380 & 1.616 & $<10^{-4}$ & 0.009 & P.14 H.003 h.09 \\
-SPURS (published)$^*$ & 0.502 & --- & --- & --- & --- & H.003 h.001 \\
 ESM3-small-open & 0.303 & 0.270 & 1.658 & $<10^{-4}$ & 0.0002 & --- \\
 ESM3-small & 0.336 & 0.321 & 4.567 & $<10^{-4}$ & 0.0007 & --- \\
 ESM3-medium & 0.342 & 0.326 & 5.428 & $<10^{-4}$ & 0.002 & --- \\
@@ -568,7 +555,6 @@ DDMut$^*$ & 0.709 & 0.677 & 1.172 & 0.107 & 0.278 & M.72 P.15 H.03 \\
 ESMtherm$^*$ & 0.366 & 0.220 & 1.765 & $<10^{-4}$ & $<10^{-4}$ & M.02 P.29 H.03 h.02 V.002 \\
 IFUM (WT backbone)$^*$ & 0.536 & 0.502 & 1.468 & $<10^{-4}$ & $<10^{-4}$ & M?.15 P.14 H.02 h.02 V?.002 \\
 IFUM (ESMFold)$^*$ & 0.508 & 0.467 & 1.465 & $<10^{-4}$ & $<10^{-4}$ & M?.15 P.14 H.02 h.02 V?.002 \\
-SPURS (published)$^*$ & 0.681 & --- & --- & --- & --- & M.001 P.23 H.02 h.01 \\
 ESM3-small-open & 0.426 & 0.452 & 1.457 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-small & 0.475 & 0.503 & 5.123 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-medium & 0.483 & 0.508 & 6.142 & $<10^{-4}$ & $<10^{-4}$ & --- \\
@@ -591,7 +577,6 @@ DDMut$^*$ & 0.718 & 0.677 & 1.798 & 1.000 & 0.998 & M.95 m.002 P.03 H.02 \\
 ESMtherm$^*$ & 0.270 & 0.204 & 2.504 & $<10^{-4}$ & 0.0003 & P.06 H.06 h.02 \\
 IFUM (WT backbone)$^*$ & 0.405 & 0.356 & 2.318 & $<10^{-4}$ & 0.0004 & P.07 H.04 h.002 \\
 IFUM (ESMFold)$^*$ & 0.443 & 0.372 & 2.265 & $<10^{-4}$ & 0.003 & P.07 H.04 h.002 \\
-SPURS (published)$^*$ & 0.466 & --- & --- & --- & --- & P.02 H.04 h.02 \\
 ESM3-small-open & 0.304 & 0.311 & 2.156 & $<10^{-4}$ & $<10^{-4}$ & --- \\
 ESM3-small & 0.406 & 0.413 & 7.255 & $<10^{-4}$ & 0.0003 & --- \\
 ESM3-medium & 0.353 & 0.332 & 9.990 & $<10^{-4}$ & 0.0002 & --- \\
@@ -690,7 +675,6 @@ GeoDDG-3D$^*$ & 0.384 & 0.384 & --- & $<10^{-4}$ & GeoFitness pretrain (74 DMS) 
 ESM3$\Delta G$$^*$ & 0.381 & 0.398 & --- & $<10^{-4}$ & P.003 H.02 h.33 \\
 Rosetta & 0.378 & 0.377 & --- & $<10^{-4}$ & V.002 \\
 ESMtherm$^*$ & 0.220 & --- & --- & $<10^{-4}$ & M.02 P.02 H.004 h$<$.001 V.003 \\
-SPURS (published)$^*$ & 0.475 & --- & --- & $<10^{-4}$ & M.02 m.02 P.008 h$<$.001 \\
 ESM3-small-open & 0.447 & 0.438 & --- & $<10^{-4}$ & --- \\
 ProteinMPNN & 0.409 & 0.392 & --- & $<10^{-4}$ & --- \\
 ProSST & \textbf{0.513} & \textbf{0.530} & --- & 0.623 & --- \\

@@ -6,9 +6,9 @@
   - Tables S2–S6: Comprehensive main-model comparison tables including ALL models with
                   predictions, Spearman rho, Pearson r, raw RMSE, one-sided paired bootstrap
                   p-values comparing ESM-MSR, and per-model/per-dataset homology overlap notes
-                  grounded in leak_audit_matrix.csv & leak_public_spurs.csv.
+                  grounded in leak_audit_matrix.csv.
   - Table S4: Single vertical multi-page longtable stacking all 12 external thermostability
-              datasets one on top of the other with all 20 models and per-(dataset, model)
+              datasets one on top of the other with all 19 models and per-(dataset, model)
               homology notes.
 
 Usage:
@@ -211,30 +211,19 @@ def write_tex(filename: str, content: str) -> Path:
 
 
 # --------------------------------------------------------------------------------------
-# Homology / overlap lookup (from leak_audit_matrix.csv + leak_public_spurs.csv)
+# Homology / overlap lookup (from leak_audit_matrix.csv)
 # --------------------------------------------------------------------------------------
 class HomologyLookup:
     def __init__(self) -> None:
         lam = pd.read_csv(REF_DIR / 'leak_audit_matrix.csv')
-        lps = pd.read_csv(REF_DIR / 'leak_public_spurs.csv')
         self.inv_map: dict[tuple[str, str], str] = {}
-        for df in (lam, lps):
-            for _, r in df.iterrows():
-                inv = str(r['inventory'])
-                ds = str(r['dataset'])
-                code = '' if pd.isna(r['code']) else str(r['code']).strip()
-                if code in ('–', '-', 'nan', ''):
-                    code = ''
-                self.inv_map[(inv, ds)] = code
-        # Public SPURS checkpoint rho table (for datasets without raw per-variant files)
-        sp_pub = pd.read_csv(REF_DIR / 'spurs_public_checkpoint.csv')
-        self.spurs_pub_rho: dict[tuple[str, str], float] = {}
-        for _, r in sp_pub.iterrows():
-            m_lbl = str(r['model'])
-            is_m = 'multi' in m_lbl.lower()
+        for _, r in lam.iterrows():
+            inv = str(r['inventory'])
             ds = str(r['dataset'])
-            if pd.notna(r['rho']):
-                self.spurs_pub_rho[(ds, 'multi' if is_m else 'single')] = float(r['rho'])
+            code = '' if pd.isna(r['code']) else str(r['code']).strip()
+            if code in ('–', '-', 'nan', ''):
+                code = ''
+            self.inv_map[(inv, ds)] = code
 
     def inventory_for(self, model: str, multi: bool = False) -> str:
         m = model.strip()
@@ -259,8 +248,6 @@ class HomologyLookup:
             return 'esmtherm'
         if m in ('IFUM', 'IFUM (WT backbone)', 'IFUM (ESMFold)'):
             return 'ifum'
-        if m in ('SPURS published*', 'SPURS (published)'):
-            return 'spurs_multi' if multi else 'spurs_single'
         if m in ('ThermoMPNN published*', 'ThermoMPNN (published)'):
             return 'thermompnn_pub'
         if m in (
@@ -290,8 +277,6 @@ class HomologyLookup:
                 return ('---', False)
             return ('---', False)
         if dataset_key == 'tsuboyama_mega_test':
-            if inv in ('spurs_single', 'spurs_multi'):
-                return ('Published MegaScale split overlap', True)
             if inv == 'thermompnn_pub':
                 return ('Published MegaScale split overlap', True)
             if inv == 'rosetta_beta_nov16':
@@ -371,7 +356,6 @@ CANONICAL_MODEL_ORDER = [
     'IFUM',
     'IFUM (WT backbone)',
     'IFUM (ESMFold)',
-    'SPURS published*',
     'ThermoMPNN published*',
     'ESM3-small-open',
     'ESM3-small-open WT-view',
@@ -406,7 +390,6 @@ def clean_model_display(name: str, overlap: bool = False) -> str:
         'MutateEverything Stage 2': 'Mutate Everything (Stage 2)',
         'MutateEverything Stage 1': 'Mutate Everything (Stage 1)',
         'ESM3-small-open WT-view': 'ESM3-small-open',
-        'SPURS published*': 'SPURS (published)',
         'ThermoMPNN published*': 'ThermoMPNN (published)',
         'ProSST published': 'ProSST (published)',
         '−dG_add (floor ceiling)': r'$-\Delta G_{\mathrm{add}}$ (floor ceiling)',
@@ -839,6 +822,8 @@ def _extract_model_panel(
     }
     for _, row in sub.iterrows():
         comp = str(row['comparator'])
+        if 'spurs' in comp.lower() and 'pub' in comp.lower():
+            continue
         note, ov_hom = HOM.note_and_overlap(comp, ds_key, multi=multi)
         ov_csv = bool(row['excluded_training_overlap']) if 'excluded_training_overlap' in sub.columns and pd.notna(row.get('excluded_training_overlap')) else False
         iv = bool(row['internal_control_or_variant']) if 'internal_control_or_variant' in sub.columns and pd.notna(row.get('internal_control_or_variant')) else _is_internal_model(comp)
@@ -864,6 +849,8 @@ def _extract_model_panel(
         esub = extra_df[(extra_df['section'] == extra_section) & (extra_df['benchmark'] == benchmark) & (extra_df['subset'] == metric)]
         for _, er in esub.iterrows():
             m = str(er['model'])
+            if 'spurs' in m.lower() and 'pub' in m.lower():
+                continue
             if m in out:
                 continue
             note, ov_hom = HOM.note_and_overlap(m, ds_key, multi=multi)
@@ -910,14 +897,6 @@ def build_table_s2a_megascale_overall(extra_df: pd.DataFrame) -> Path:
         pan, msr, _, _, B = _extract_model_panel(
             df, bm, met, dataset_key='tsu_capped_test', extra_df=extra_df, extra_section='megascale_s2a'
         )
-        # Attach SPURS (published) pooled rho on Overall if present
-        if met == 'per_domain_mean_spearman_overall' and ('tsu_capped_test', 'single') in HOM.spurs_pub_rho:
-            note_sp, ov_sp = HOM.note_and_overlap('SPURS published*', 'tsu_capped_test', multi=False)
-            pan['SPURS published*'] = {
-                'val': HOM.spurs_pub_rho[('tsu_capped_test', 'single')],
-                'pearson': np.nan, 'rmse': np.nan, 'p': np.nan, 'B': B,
-                'overlap': ov_sp, 'internal': False, 'hom_note': note_sp,
-            }
         msr_name = msr
         panels.append((title, pan, B))
         all_models.update(pan.keys())
@@ -952,7 +931,7 @@ def build_table_s2a_megascale_overall(extra_df: pd.DataFrame) -> Path:
         caption_title='All-Model Comparison on Homology-Restricted MegaScale Test Set (Overall, Stabilizing, and Destabilizing Variants)',
         caption_body=(
             r"Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 33 held-out MegaScale test domains "
-            r"for all models with available predictions (3-seed mean for retrained models; SPURS published Overall $\rho$ is pooled from published checkpoint evaluation). "
+            r"for all models with available predictions (3-seed mean for retrained models). "
             r"One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). "
             + HOMOLOGY_LEGEND
         ),
@@ -1060,7 +1039,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
         caption_body=(
             r"Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}). "
             r"One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). "
-            r"Published SPURS and ThermoMPNN checkpoints were trained on different splits of MegaScale and are marked $^*$ and excluded from clean bolding."
+            r"Published ThermoMPNN checkpoints were trained on a different split of MegaScale and are marked $^*$ and excluded from clean bolding."
         ),
         label='tab:si_megasplits_overall',
         col_spec='l' + 'c' * 12 + 'l',
@@ -1375,16 +1354,6 @@ def build_table_s4_thermostability_longtable(extra_df: pd.DataFrame) -> tuple[Pa
                     'hom_note': note,
                 }
 
-        # Attach SPURS (published) rho if available in spurs_public_checkpoint.csv
-        sp_mode = 'multi' if is_multi else 'single'
-        if (ds_key, sp_mode) in HOM.spurs_pub_rho and 'SPURS published*' not in pm:
-            note_sp, ov_sp = HOM.note_and_overlap('SPURS published*', ds_key, multi=is_multi)
-            pm['SPURS published*'] = {
-                'val': HOM.spurs_pub_rho[(ds_key, sp_mode)],
-                'pearson': np.nan, 'rmse': np.nan, 'p': np.nan, 'p_prot': np.nan, 'B': B,
-                'overlap': ov_sp, 'internal': False, 'hom_note': note_sp,
-            }
-
         models = sort_models(list(pm.keys()), msr_first=msr_name)
         b_rho = _best_clean_set(pm, 'val', True)
         b_r = _best_clean_set(pm, 'pearson', True)
@@ -1416,8 +1385,7 @@ def build_table_s4_thermostability_longtable(extra_df: pd.DataFrame) -> tuple[Pa
         caption_body=(
             r"Vertical breakdown stacking all 8 main-text external thermostability benchmarks (Ssym, S461, K2369, S783, S2648, Q3421, S8754, PTMUL) "
             r"followed by 4 additional external thermostability benchmarks (S571, S669, K3822, PTMUL-D), showing every model with available predictions "
-            r"(singles-only heads on single-mutant datasets; multi-mutant heads on PTMUL and PTMUL-D; 3-seed mean for retrained models; "
-            r"SPURS published reports pooled $\rho$ from the published checkpoint evaluation). "
+            r"(singles-only heads on single-mutant datasets; multi-mutant heads on PTMUL and PTMUL-D; 3-seed mean for retrained models). "
             r"Columns report pooled Spearman's $\rho$, Pearson's $r$, raw (unrecalibrated) RMSE (kcal/mol, except S571 which measures $\Delta T_m$ in $^\circ$C), one-sided paired bootstrap $p$-values testing "
             r"$H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ under mutation $\times$ seed ($p_{\mathrm{mut}}$) and protein-cluster $\times$ seed ($p_{\mathrm{prot}}$) "
             r"resampling ($B=10{,}000$; uncorrected), and per-(dataset, model) homology / training-set overlap notes. "
@@ -1846,7 +1814,7 @@ def main() -> None:
     print('[3/6] Building Tables S3a–S3b (Epistasis Hierarchy & Calibration All Models + Homology Notes)...')
     generated.extend(build_table_s3_epistasis(extra_df))
 
-    print('[4/6] Building Table S4 (Vertical Multi-Page Thermostability Longtable: All 12 Sets x All 20 Models) & S4c...')
+    print('[4/6] Building Table S4 (Vertical Multi-Page Thermostability Longtable: All 12 Sets x All 19 Models) & S4c...')
     generated.extend(build_table_s4_thermostability_longtable(extra_df))
 
     print('[5/6] Building Tables S5a–S5b (Held-Out OOD All Models Longtable & ProteinGym Sigma)...')

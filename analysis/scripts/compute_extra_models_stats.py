@@ -457,7 +457,6 @@ def compute_megascale_extras() -> list[dict]:
     y_ms = sp_ms['y'].to_numpy(float)
     n_mut_ms = sp_ms['n_mut'].to_numpy(int)
     extra_ms_s = [
-        ('SPURS published*', 'spurspub'),
         ('ThermoMPNN published*', 'tmpnnpub'),
     ]
     for sub_name, m_sub in [
@@ -470,7 +469,6 @@ def compute_megascale_extras() -> list[dict]:
             section='megascale_s2c', benchmark='MegaScale_mega_splits_test', subset=sub_name,
         ))
     extra_ms_dbl = [
-        ('SPURS published*', 'spurspubm'),
         ('ThermoMPNN published*', 'tmpnndpub'),
     ]
     rows.extend(_domain_mean_boot(
@@ -644,7 +642,7 @@ def compute_domainome_and_pgym_extras() -> list[dict]:
     reps_msr = np.einsum('ba,as,bs->b', cat_weights, M_msr, s_w3)
     pt_msr = macro_point(M_msr)
 
-    for mname in ('ESMtherm', 'SPURS published*', 'ProSST published'):
+    for mname in ('ESMtherm', 'ProSST published'):
         if mname not in pg_dict:
             continue
         arr = pg_dict[mname].to_numpy(float)
