@@ -56,10 +56,22 @@ class ESM3PredictorBase(nn.Module):
             return tensor
 
         target_model = active_model if active_model is not None else self.model
+        seq = _prepare_input(sequence_tokens, 2)
+        coords = _prepare_input(structure_coords, 4)
+        struct_tok = _prepare_input(structure_tokens, 2)
+        if getattr(self, 'use_plddt', False) and per_res_plddt is not None:
+            plddt = _prepare_input(per_res_plddt, 2)
+        elif coords is not None:
+            # Match ESM3.logits() default conditioning: 1.0 wherever coordinates are finite.
+            # Without this, ESM3.forward() defaults per_res_plddt to all zeros.
+            plddt = coords.isfinite().all(dim=-1).any(dim=-1).float()
+        else:
+            plddt = None
         return target_model.model(
-            sequence_tokens=_prepare_input(sequence_tokens, 2),
-            structure_coords=_prepare_input(structure_coords, 4),
-            structure_tokens=_prepare_input(structure_tokens, 2),
+            sequence_tokens=seq,
+            structure_coords=coords,
+            structure_tokens=struct_tok,
+            per_res_plddt=plddt,
         )
 
 

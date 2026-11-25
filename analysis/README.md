@@ -1,5 +1,7 @@
 # `analysis/`: Modular Benchmark Evaluation, Figure Pipelines, Mechanistic Studies, and Homology Audits
 
+> **Agents & contributors**: read [`AGENTS.md`](AGENTS.md) before modifying analysis code or reporting results (mandatory rules on singles/doubles views, ESM3 `σ=0` with `per_res_plddt=1.0`, Rosetta `1/2.94` scaling, four-part sequence+structure holdout filtering, canonical model ordering, and joint seed bootstrapping).
+
 CPU-only post-inference evaluation, statistical bootstrapping, figure/table generation, and training-set homology auditing for ESM-MSR (`FINAL_p0`) and all retrained, supervised, and zero-shot baselines.
 
 All 45 legacy top-level numbered scripts (`00_*.py`–`99_*.py`) and 7 legacy sub-study directories (`ablation_vs_p0/`, `combined_vs_wt/`, `faure_epistasis/`, `leak_audit/`, `pg_activity/`, `proteingym/`, `tsuboyama/mega_splits/`) have been consolidated into:
