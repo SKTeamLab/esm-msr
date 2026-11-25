@@ -1,0 +1,55 @@
+key,line,group,status,wall_s,n_rows,rows_per_s,source
+esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),Megascale Test,measured,3.7363500000000003,52033.0,13926.157881354797,tracked
+esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),External,measured,205.56157,23273.0,113.21668734092663,tracked
+esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),Domainome,measured,47.64369,572204.0,12010.068909440053,tracked
+esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),ProteinGym,measured,96.97365000000002,2447730.0,25241.186652250373,tracked
+esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),Rocklin,measured,98.42441,209818.0,2131.7679222054776,tracked
+esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),MGnify,measured,15971.156110000002,766790.0,48.01092636743377,tracked
+spurs_retrain_s1,SPURS (+multi),Megascale Test,measured,4.712850000000001,52071.0,11048.728476399629,tracked
+spurs_retrain_s1,SPURS (+multi),External,measured,229.64598,25632.0,111.61527843857749,tracked
+spurs_retrain_s1,SPURS (+multi),Domainome,measured,58.19136,572204.0,9833.14361444723,tracked
+spurs_retrain_s1,SPURS (+multi),ProteinGym,measured,722.59818,2465767.0,3412.3625941045134,tracked
+spurs_retrain_s1,SPURS (+multi),Rocklin,measured,174.0,209818.0,1205.8505747126437,gpu4_log:389871
+spurs_retrain_s1,SPURS (+multi),MGnify,measured,18576.0,766790.0,41.27853143841516,gpu4_log:389871
+prosst_a4500_full,ProSST-2048,Megascale Test,measured,2.6872000000000003,7931.0,2951.399225960107,tracked
+prosst_a4500_full,ProSST-2048,External,measured,687.16709,25326.0,36.85566490094862,tracked
+prosst_a4500_full,ProSST-2048,Domainome,measured,126.3136,572204.0,4530.0268537987995,tracked
+prosst_a4500_full,ProSST-2048,ProteinGym,measured,472.86743000000007,2465767.0,5214.49954800228,tracked
+prosst_a4500_full,ProSST-2048,Rocklin,measured,138.0,209818.0,1520.4202898550725,gpu4_log:389890
+prosst_a4500_full,ProSST-2048,MGnify,measured,13914.0,766790.0,55.10924248957884,gpu4_log:389890
+proteinmpnn,ProteinMPNN,Megascale Test,measured,3.5387900000000005,52071.0,14714.351515631046,tracked
+proteinmpnn,ProteinMPNN,External,measured,68.12031999999999,25632.0,376.2753903681017,tracked
+proteinmpnn,ProteinMPNN,Domainome,measured,34.13683,572204.0,16762.071932279592,tracked
+proteinmpnn,ProteinMPNN,ProteinGym,measured,6357.878280000001,2465767.0,387.8285949192471,tracked
+proteinmpnn,ProteinMPNN,Rocklin,measured,594.0,209818.0,353.22895622895624,gpu4_log:389885
+proteinmpnn,ProteinMPNN,MGnify,measured,3954.0000000000005,766790.0,193.92766818411732,gpu4_log:389885
+thermompnn_s1,ThermoMPNN (+D),Megascale Test,measured,190.82365,75378.0,395.01393040118455,tracked
+thermompnn_s1,ThermoMPNN (+D),External,measured,114.8774,28809.0,250.78039718865506,tracked
+thermompnn_s1,ThermoMPNN (+D),Domainome,measured,1062.06529,572204.0,538.7653710065226,tracked
+thermompnn_s1,ThermoMPNN (+D),ProteinGym,measured,20485.473670000003,1527965.0,74.58773102413696,tracked
+thermompnn_s1,ThermoMPNN (+D),Rocklin,measured,642.0,209818.0,326.81931464174454,gpu4_log:389874
+thermompnn_s1,ThermoMPNN (+D),MGnify,measured,4338.0,766790.0,176.76118026740434,gpu4_log:389874
+me_st2_s1,MutateEverything (St2),Megascale Test,measured,53.18075,48740.0,916.4970407525278,tracked
+me_st2_s1,MutateEverything (St2),External,measured,11665.14517,20366.0,1.7458848306814514,tracked
+me_st2_s1,MutateEverything (St2),Domainome,measured,828.71543,536145.0,646.9591135765386,tracked
+me_st2_s1,MutateEverything (St2),ProteinGym,measured,14404.677319999999,2453360.0,170.31690092728854,tracked
+me_st2_s1,MutateEverything (St2),Rocklin,measured,1780.16719,390510.0,219.36703596924514,tracked
+me_st2_s1,MutateEverything (St2),MGnify,MSAs,,,,MSAs
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),Megascale Test,measured,24.91494,52033.0,2088.4256594637595,tracked
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),External,measured,632.4111800000001,23273.0,36.800424685724245,tracked
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),Domainome,measured,401.82412,572204.0,1424.0160595635723,tracked
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),ProteinGym,measured,14653.24811,2447730.0,167.04351019140697,tracked
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),Rocklin,measured,2659.60453,209818.0,78.89067627659665,tracked
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),MGnify,measured,54172.47719000001,766790.0,14.154604695491862,tracked
+esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),Megascale Test,measured,34.41054,52033.0,1512.1239015720184,tracked
+esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),External,measured,659.5355400000001,23273.0,35.286953603743626,tracked
+esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),Domainome,measured,402.77164,572204.0,1420.666062784361,tracked
+esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),ProteinGym,measured,119795.62087999999,2447730.0,20.432549888045624,tracked
+esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),Rocklin,measured,5119.53314,209818.0,40.983815176553385,tracked
+esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),MGnify,measured,55110.716210000006,766790.0,13.91362792452448,tracked
+esm_msr_final_p0_s1_full,ESM-MSR (Dual-view),Megascale Test,measured,274.36733000000004,52033.0,189.64721492168908,tracked
+esm_msr_final_p0_s1_full,ESM-MSR (Dual-view),External,measured,626.3903600000001,23273.0,37.15414777456025,tracked
+esm_msr_final_p0_s1_full,ESM-MSR (Dual-view),Domainome,measured,3340.3642600000003,572204.0,171.29988092975225,tracked
+esm_msr_final_p0_s1_full,ESM-MSR (Dual-view),ProteinGym,measured,119630.43097,2447730.0,20.46076387214406,tracked
+esm_msr_final_p0_s1_full,ESM-MSR (Dual-view),Rocklin,measured,2987.6776200000004,209818.0,70.22779117647906,tracked
+esm_msr_final_p0_s1_full,ESM-MSR (Dual-view),MGnify,measured,41267.76890000001,766790.0,18.580844577715947,tracked

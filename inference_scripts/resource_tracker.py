@@ -81,6 +81,18 @@ def _rss_bytes():
         return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
 
 
+def _vmhwm_bytes():
+    """Kernel-tracked peak resident set size (VmHWM) from /proc/self/status, or ru_maxrss fallback."""
+    try:
+        with open('/proc/self/status') as f:
+            for line in f:
+                if line.startswith('VmHWM:'):
+                    return int(line.split()[1]) * 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+
+
 def _cpu_seconds():
     t = os.times()
     return t.user + t.system
@@ -298,7 +310,8 @@ class Scope:
         row = {
             'run_id': t.run_id, 'level': self.level, 'dataset': dataset if self.level != 'dataset' else self.name,
             'name': self.name, **self.extra,
-            'wall_s': round(wall, 5), 'cpu_s': round(cpu, 4), 'cpu_cores': round(cpu / wall, 3) if wall > 0 else None,
+            'wall_s': round(wall, 5), 'cpu_s': round(cpu, 4), 'cpu_hours': round(cpu / 3600.0, 6),
+            'cpu_cores': round(cpu / wall, 3) if wall > 0 else None,
             'ram_rss_start_gb': _gb(self.rss_start), 'ram_rss_end_gb': _gb(rss_end), 'ram_rss_peak_gb': _gb(rss_peak),
             'vram_weights_gb': _gb(self.vram_alloc_start), 'vram_alloc_peak_gb': _gb(alloc_peak),
             'vram_reserved_peak_gb': _gb(res_peak), 'vram_device_peak_gb': _gb(dev_peak) if dev_peak else None,
@@ -374,6 +387,7 @@ class Tracker:
         self.limits = limits or Limits()
         self._jsonl = open(self.dir / 'resources_scopes.jsonl', 'a')
         self._t_open = time.time()
+        self._cpu_open = _cpu_seconds()
         self.meta = {'run_id': self.run_id, 'label': label, 'started': datetime.datetime.now().isoformat(timespec='seconds'),
                      'host': socket.gethostname(), 'pid': os.getpid(),
                      'argv': self._redact(argv or sys.argv),
@@ -523,8 +537,15 @@ class Tracker:
         except ImportError:
             pass
         self.meta['finished'] = datetime.datetime.now().isoformat(timespec='seconds')
-        self.meta['total_wall_s'] = round(time.time() - self._t_open, 2)
+        total_wall = time.time() - self._t_open
+        total_cpu = _cpu_seconds() - self._cpu_open
+        self.meta['total_wall_s'] = round(total_wall, 2)
+        self.meta['total_wall_hours'] = round(total_wall / 3600.0, 6)
+        self.meta['total_cpu_s'] = round(total_cpu, 2)
+        self.meta['total_cpu_hours'] = round(total_cpu / 3600.0, 6)
+        self.meta['mean_cpu_cores'] = round(total_cpu / total_wall, 3) if total_wall > 0 else None
         self.meta['process_peak_rss_gb'] = _gb(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024)
+        self.meta['process_vmhwm_gb'] = _gb(_vmhwm_bytes())
         self.meta['cgroup_memory_at_exit'] = cgroup_memory()
         self.meta['neighbours_at_end'] = self._neighbours()
         if _cuda():
