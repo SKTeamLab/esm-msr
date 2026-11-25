@@ -1830,15 +1830,494 @@ Statistical Test & Resampling Procedure:
     return out_path
 
 
+def _kde_density_2d(xv: np.ndarray, yv: np.ndarray, max_fit: int = 12_000, grid_n: int = 180) -> np.ndarray:
+    """Fast, smooth 2D Gaussian KDE density via grid evaluation + bilinear interpolation."""
+    from scipy.interpolate import RegularGridInterpolator
+
+    n_pts = len(xv)
+    rng = np.random.default_rng(0)
+    sub = rng.choice(n_pts, min(n_pts, max_fit), replace=False)
+    kde = gaussian_kde(np.vstack([xv[sub], yv[sub]]))
+    if n_pts <= 20_000:
+        return kde(np.vstack([xv, yv]))
+    x_min, x_max = float(xv.min()), float(xv.max())
+    y_min, y_max = float(yv.min()), float(yv.max())
+    pad_x = 1e-6 * max(1.0, x_max - x_min)
+    pad_y = 1e-6 * max(1.0, y_max - y_min)
+    gx = np.linspace(x_min - pad_x, x_max + pad_x, grid_n)
+    gy = np.linspace(y_min - pad_y, y_max + pad_y, grid_n)
+    XX, YY = np.meshgrid(gx, gy, indexing='ij')
+    Z = kde(np.vstack([XX.ravel(), YY.ravel()])).reshape(grid_n, grid_n)
+    interp = RegularGridInterpolator((gx, gy), Z, bounds_error=False, fill_value=float(Z.min()))
+    return interp(np.column_stack([xv, yv]))
+
+
+_SCATTER_BOOT_STATE: dict = {}
+
+
+def _scatter_spearman_chunk(b_slice: tuple[int, int]) -> np.ndarray:
+    b0, b1 = b_slice
+    st = _SCATTER_BOOT_STATE
+    d_cnt, dom_idx, eng, xr_flat = st['d_cnt'], st['dom_idx'], st['eng'], st['xr_flat']
+    out_c = np.empty((b1 - b0, len(xr_flat)), dtype=float)
+    for bi, b in enumerate(range(b0, b1)):
+        wb = d_cnt[b, dom_idx].astype(float)
+        ry_b = eng.ry.ranks(wb)
+        sw_b = float(wb.sum())
+        my_b = float(np.dot(wb, ry_b) / sw_b)
+        vy_b = float(np.dot(wb, ry_b * ry_b) / sw_b - my_b * my_b)
+        for j, xr_j in enumerate(xr_flat):
+            rx_b = xr_j.ranks(wb)
+            mx_b = float(np.dot(wb, rx_b) / sw_b)
+            vx_b = float(np.dot(wb, rx_b * rx_b) / sw_b - mx_b * mx_b)
+            cxy_b = float(np.dot(wb, rx_b * ry_b) / sw_b - mx_b * my_b)
+            den_b = np.sqrt(max(vx_b * vy_b, 0.0))
+            out_c[bi, j] = (cxy_b / den_b) if den_b > 0.0 else np.nan
+    return out_c
+
+
+def _pooled_domain_boot_r_rmse(
+    p_seeds: np.ndarray,
+    y_1d: np.ndarray,
+    dom_idx: np.ndarray,
+    n_dom: int,
+    d_cnt: np.ndarray,
+    s_w: np.ndarray | None,
+) -> tuple[float, np.ndarray, float, np.ndarray]:
+    """Exact domain-cluster x seed bootstrap for pooled Pearson r and pooled RMSE."""
+    ns = p_seeds.shape[0]
+    B = d_cnt.shape[0]
+    nd = np.bincount(dom_idx, minlength=n_dom).astype(float)
+    sy = np.bincount(dom_idx, weights=y_1d, minlength=n_dom)
+    sy2 = np.bincount(dom_idx, weights=y_1d ** 2, minlength=n_dom)
+
+    r_seed_reps = np.empty((B, ns), dtype=float)
+    e_seed_reps = np.empty((B, ns), dtype=float)
+    r_pts, e_pts = [], []
+    W_n = d_cnt @ nd
+    W_sy = d_cnt @ sy
+    W_sy2 = d_cnt @ sy2
+    for s in range(ns):
+        ps = p_seeds[s]
+        r_pts.append(float(pearsonr(ps, y_1d)[0]))
+        e_pts.append(float(np.sqrt(np.mean((ps - y_1d) ** 2))))
+        sx = np.bincount(dom_idx, weights=ps, minlength=n_dom)
+        sx2 = np.bincount(dom_idx, weights=ps ** 2, minlength=n_dom)
+        sxy = np.bincount(dom_idx, weights=ps * y_1d, minlength=n_dom)
+        sse = np.bincount(dom_idx, weights=(ps - y_1d) ** 2, minlength=n_dom)
+        W_sx = d_cnt @ sx
+        W_sx2 = d_cnt @ sx2
+        W_sxy = d_cnt @ sxy
+        W_sse = d_cnt @ sse
+        cov = W_sxy - (W_sx * W_sy) / W_n
+        vx = np.maximum(W_sx2 - (W_sx ** 2) / W_n, 0.0)
+        vy = np.maximum(W_sy2 - (W_sy ** 2) / W_n, 0.0)
+        denom = np.sqrt(vx * vy)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            r_seed_reps[:, s] = np.where(denom > 0, cov / denom, np.nan)
+            e_seed_reps[:, s] = np.sqrt(W_sse / W_n)
+    if ns == 1 or s_w is None:
+        return float(r_pts[0]), r_seed_reps[:, 0], float(e_pts[0]), e_seed_reps[:, 0]
+    return (
+        float(np.mean(r_pts)),
+        np.sum(r_seed_reps * s_w, axis=1),
+        float(np.mean(e_pts)),
+        np.sum(e_seed_reps * s_w, axis=1),
+    )
+
+
+def build_supp_megascale_scatter_trio(split: str = 'capped', B: int = 10_000, compute_pvals: bool = True) -> list[Path]:
+    """Build 3 style-matched supplementary scatter figures on MegaScale test:
+      1. _megascale_singles_scatters.{png,pdf}   (9 main singles models, 3x3, shared y-axis)
+      2. _megascale_doubles_scatters.{png,pdf}   (9 main doubles models, 3x3, shared y-axis)
+      3. _megascale_epistasis_scatters.{png,pdf} (8 main epistasis models, 2x4, shared y-axis)
+    Matches _epi_rmse styling: plasma KDE density coloring, x=y line, 3-seed integration without
+    ensemble averaging, and seed-mean rho / r / RMSE / n summary boxes.
+    """
+    from msr_analysis.boot import SpearmanEngine, ci as boot_ci
+    from msr_analysis.stats import make_domain_seed_draws
+
+    fr = load_frame(tsu_datasets(split)[1])
+    sp = fr.spine
+    use = sp['use'].to_numpy()
+    y_ddg = sp['y'].to_numpy(float)
+    y_epi = sp['dddG_ML'].to_numpy(float)
+    n_mut = sp['n_mut'].to_numpy()
+    groups_all = sp['group'].astype(str).to_numpy()
+
+    configs = [
+        dict(
+            stem='_megascale_singles_scatters',
+            benchmark='MegaScale_capped_test_singles',
+            subset_desc='Homology-Restricted MegaScale test single mutants' if split == 'capped' else 'MegaScale mega_splits test single mutants',
+            mask=use & (n_mut == 1) & np.isfinite(y_ddg),
+            y_arr=y_ddg,
+            ylabel='measured ΔΔG (kcal/mol)',
+            default_xlabel='predicted ΔΔG (kcal/mol)',
+            ncols=3,
+            pt_size=5.0,
+            alpha_base=0.22,
+            leg_loc='lower right',
+            leg_bbox=(0.985, 0.13),
+            msr_name='ESM-MSR WT-view',
+            models=[
+                ('ProSST', 'prosst', 'Zero-shot', 'predicted score (log-likelihood)'),
+                ('ProteinMPNN', 'pmpnn', 'Zero-shot', 'predicted score (log-odds)'),
+                ('ESM3-small-open WT-view', 'msrrel@0:wt', 'Zero-shot', 'predicted ΔΔG (kcal/mol)'),
+                ('ESM-MSR WT-view', 'msrp0:wt', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('MutateEverything Stage 1', 'me1', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('ThermoMPNN', 'tmpnn', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('SPURS', 'spurs', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('GeoDDG-3D', 'geoddg', 'Supervised', 'predicted ΔΔG (kcal/mol)'),
+                ('Rosetta', 'rosetta', 'Supervised', 'predicted ΔΔG (kcal/mol)'),
+            ],
+            extra_note='ProSST and ProteinMPNN output uncalibrated log-likelihood/log-odds scores rather than kcal/mol; all panels share the measured y-axis while x-axes span each model\'s prediction range.',
+        ),
+        dict(
+            stem='_megascale_doubles_scatters',
+            benchmark='MegaScale_capped_test_doubles',
+            subset_desc='Homology-Restricted MegaScale test double mutants' if split == 'capped' else 'MegaScale mega_splits test double mutants',
+            mask=use & (n_mut == 2) & np.isfinite(y_ddg),
+            y_arr=y_ddg,
+            ylabel='measured ΔΔG (kcal/mol)',
+            default_xlabel='predicted ΔΔG (kcal/mol)',
+            ncols=3,
+            pt_size=6.5,
+            alpha_base=0.28,
+            leg_loc='lower right',
+            leg_bbox=(0.985, 0.13),
+            msr_name='ESM-MSR Dual-view',
+            models=[
+                ('ProSST (additive)', 'prosst', 'Zero-shot', 'predicted score (log-likelihood)'),
+                ('ProteinMPNN', 'pmpnn', 'Zero-shot', 'predicted score (log-odds)'),
+                ('ESM3-small-open Dual-view', 'msrrel@0:comb', 'Zero-shot', 'predicted ΔΔG (kcal/mol)'),
+                ('ESM-MSR Dual-view', 'msrp0:comb', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('MutateEverything Stage 2', 'me2', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('ThermoMPNN-D', 'tmpnnd', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('SPURS-multi', 'spursm', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('GeoDDG-3D', 'geoddg', 'Supervised', 'predicted ΔΔG (kcal/mol)'),
+                ('Rosetta', 'rosetta', 'Supervised', 'predicted ΔΔG (kcal/mol)'),
+            ],
+            extra_note='ProSST (additive sum of singles) and ProteinMPNN output uncalibrated log-likelihood/log-odds scores rather than kcal/mol; all panels share the measured y-axis while x-axes span each model\'s prediction range.',
+        ),
+        dict(
+            stem='_megascale_epistasis_scatters',
+            benchmark='MegaScale_capped_test_epistasis',
+            subset_desc='Homology-Restricted MegaScale test doubles with both singles measured (all epistasis)' if split == 'capped' else 'MegaScale mega_splits test doubles with both singles measured (all epistasis)',
+            mask=epi_rows(fr) & np.isfinite(y_epi),
+            y_arr=y_epi,
+            ylabel=Y_DDD_LABEL,
+            default_xlabel='predicted δΔΔG = dddG (kcal/mol)',
+            ncols=4,
+            pt_size=6.5,
+            alpha_base=0.30,
+            leg_loc='lower left',
+            leg_bbox=None,
+            msr_name='ESM-MSR',
+            models=[
+                ('ProteinMPNN', 'pmpnn:epi', 'Zero-shot', 'predicted δΔΔG (log-odds)'),
+                ('ESM3-small-open', 'msrrel@0:epi', 'Zero-shot', 'predicted δΔΔG = dddG (kcal/mol)'),
+                ('ESM-MSR', 'msrp0:epi', 'Retrained', 'predicted δΔΔG = dddG (kcal/mol)'),
+                ('MutateEverything Stage 2', 'me2:epi', 'Retrained', 'predicted δΔΔG = dddG (kcal/mol)'),
+                ('ThermoMPNN-D', 'tmpnnd:epi', 'Retrained', 'predicted δΔΔG = dddG (kcal/mol)'),
+                ('SPURS-multi', 'spursm:epi', 'Retrained', 'predicted δΔΔG = dddG (kcal/mol)'),
+                ('GeoDDG-3D', 'geoddg:epi', 'Supervised', 'predicted δΔΔG = dddG (kcal/mol)'),
+                ('Rosetta', 'rosetta:epi', 'Supervised', 'predicted δΔΔG = dddG (kcal/mol)'),
+            ],
+            extra_note='ProSST is omitted because it is strictly additive (predicted δΔΔG = 0 identically). All panels share the measured y-axis while x-axes span each model\'s prediction range.',
+        ),
+    ]
+
+    supp_dir = out_dir('supplementary_figs')
+    src_dir = supp_dir / 'source_data'
+    pval_dir = supp_dir / 'pvalues'
+    src_dir.mkdir(parents=True, exist_ok=True)
+    pval_dir.mkdir(parents=True, exist_ok=True)
+    cm = plt.get_cmap('plasma')
+    saved_paths: list[Path] = []
+
+    def _one_sided_p(diffs: np.ndarray) -> tuple[float, int, int]:
+        fin = diffs[np.isfinite(diffs)]
+        nf = int(np.sum(fin <= 0.0))
+        return float((nf + 1) / (len(fin) + 1)), nf, int(len(fin))
+
+    for cfg_i, cfg in enumerate(configs):
+        entries = [
+            (lbl, k, grp, xlab, fr.preds[k])
+            for lbl, k, grp, xlab in cfg['models']
+            if k in fr.preds
+        ]
+        ok = cfg['mask'].copy()
+        for _, _, _, _, p_arr in entries:
+            ok &= np.isfinite(p_arr).all(axis=0)
+        yv_1d = cfg['y_arr'][ok]
+        dom_arr = groups_all[ok]
+        uniq_doms, dom_idx = np.unique(dom_arr, return_inverse=True)
+        n_dom = len(uniq_doms)
+        n_var = len(yv_1d)
+
+        # Shared y-axis limits from measured y (0.2–99.8 pct + 5% padding)
+        y_lo, y_hi = np.percentile(yv_1d, [0.2, 99.8])
+        y_pad = 0.055 * (y_hi - y_lo)
+        ylim = (float(y_lo - y_pad), float(y_hi + y_pad))
+
+        ncols = cfg['ncols']
+        nrows = int(np.ceil(len(entries) / ncols))
+        fig_w = 19.2 if ncols == 4 else 14.8
+        fig_h = 11.4 if nrows == 2 else 15.8
+        fig, axes = plt.subplots(
+            nrows, ncols,
+            figsize=(fig_w, fig_h),
+            sharex=False, sharey=True, squeeze=False,
+            facecolor='white',
+        )
+        flat_axes = axes.ravel()
+
+        sum_rows = []
+        seed_rows = []
+        preds_ok_map: dict[str, np.ndarray] = {}
+
+        for idx, (ax, (m_label, k, grp, xlab, p_full)) in enumerate(zip(flat_axes, entries)):
+            p_ok = p_full[:, ok]
+            preds_ok_map[m_label] = p_ok
+            n_seeds = p_ok.shape[0]
+            xv = p_ok.ravel()
+            yv = np.tile(yv_1d, n_seeds)
+
+            # Per-panel x-limits covering at least [ylim[0], ylim[1]] and [0.3, 99.7] pct of predictions
+            x_q0, x_q1 = np.percentile(xv, [0.3, 99.7])
+            x_pad = 0.055 * max(x_q1 - x_q0, 1e-3)
+            xlim = (float(min(x_q0 - x_pad, ylim[0])), float(max(x_q1 + x_pad, ylim[1])))
+
+            z = _kde_density_2d(xv, yv)
+            o = np.argsort(z)
+            col = cm(Normalize(float(z.min()), float(z.max()))(z))
+            col[:, 3] = cfg['alpha_base'] / np.sqrt(n_seeds)
+
+            ax.axhline(0.0, color='#bbbbbb', lw=0.8, zorder=1)
+            ax.axvline(0.0, color='#bbbbbb', lw=0.8, zorder=1)
+            ax.scatter(xv[o], yv[o], c=col[o], s=cfg['pt_size'], edgecolors='none', rasterized=True, zorder=2)
+            diag_lo, diag_hi = min(xlim[0], ylim[0]), max(xlim[1], ylim[1])
+            ax.plot([diag_lo, diag_hi], [diag_lo, diag_hi], color='#c0392b', ls='--', lw=1.5, zorder=4, clip_on=True)
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+            ax.set_box_aspect(1)
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+
+            row_i, col_i = divmod(idx, ncols)
+            if col_i == 0:
+                ax.set_ylabel(cfg['ylabel'], fontsize=11.5)
+            ax.set_xlabel(xlab, fontsize=10.2)
+            ax.tick_params(axis='both', labelsize=9.8)
+
+            rhos = [float(spearmanr(p_ok[s], yv_1d)[0]) for s in range(n_seeds)]
+            rs = [float(pearsonr(p_ok[s], yv_1d)[0]) for s in range(n_seeds)]
+            rmses = [float(np.sqrt(np.mean((p_ok[s] - yv_1d) ** 2))) for s in range(n_seeds)]
+            rho_m = float(np.mean(rhos))
+            r_m = float(np.mean(rs))
+            rmse_m = float(np.mean(rmses))
+            rho_sd = float(np.std(rhos, ddof=1)) if n_seeds > 1 else np.nan
+            r_sd = float(np.std(rs, ddof=1)) if n_seeds > 1 else np.nan
+            rmse_sd = float(np.std(rmses, ddof=1)) if n_seeds > 1 else np.nan
+
+            sum_rows.append(dict(
+                model=m_label, group=grp, key=k, n_seeds=n_seeds, n_variants=n_var, n_domains=n_dom,
+                spearman_rho=rho_m, spearman_rho_sd=rho_sd,
+                pearson_r=r_m, pearson_r_sd=r_sd,
+                rmse=rmse_m, rmse_sd=rmse_sd,
+            ))
+            for s in range(n_seeds):
+                seed_rows.append(dict(
+                    model=m_label, group=grp, key=k, seed=s + 1, n_variants=n_var, n_domains=n_dom,
+                    spearman_rho=rhos[s], pearson_r=rs[s], rmse=rmses[s],
+                ))
+
+            n_str = f'n = {n_var:,} (×{n_seeds})' if n_seeds > 1 else f'n = {n_var:,}'
+            ax.text(
+                0.04, 0.96, f'ρ = {rho_m:.2f}\nr = {r_m:.2f}\nRMSE = {rmse_m:.2f}\n{n_str}',
+                transform=ax.transAxes, va='top', ha='left', fontsize=9.8, zorder=10,
+                bbox=dict(boxstyle='round,pad=0.28', fc='white', ec='#cccccc', alpha=0.92),
+            )
+            ax.text(
+                0.96, 0.04, grp,
+                transform=ax.transAxes, ha='right', va='bottom', fontsize=9.2, color='#555555', zorder=10,
+                bbox=dict(boxstyle='round,pad=0.22', fc='white', ec='none', alpha=0.78),
+            )
+            if idx == 0:
+                leg_kw = dict(handles=[Line2D([0], [0], color='#c0392b', ls='--', lw=1.5, label='x = y')],
+                              loc=cfg['leg_loc'], fontsize=9.2, framealpha=0.92, edgecolor='#cccccc')
+                if cfg['leg_bbox'] is not None:
+                    leg_kw['bbox_to_anchor'] = cfg['leg_bbox']
+                ax.legend(**leg_kw)
+            ax.set_title(m_label, fontsize=12.2, fontweight='bold', pad=7)
+
+        for ax in flat_axes[len(entries):]:
+            ax.set_visible(False)
+
+        if nrows == 2:
+            fig.subplots_adjust(left=0.048, right=0.992, top=0.962, bottom=0.108, hspace=0.28, wspace=0.11)
+        else:
+            fig.subplots_adjust(left=0.058, right=0.992, top=0.974, bottom=0.074, hspace=0.26, wspace=0.13)
+        foot_txt = (
+            f'{cfg["subset_desc"]} (n = {n_var:,}, {n_dom} domains). '
+            f'Retrained models show 3 triplicate seeds integrated without ensemble averaging; stats are seed means. '
+            f'{cfg["extra_note"]}'
+        )
+        kw_f = dict(fontsize=9.0, color='#444444')
+        fig.text(0.012, 0.008, style.wrap_to_px(fig, foot_txt, 0.975 * fig.bbox.width, **kw_f), va='bottom', ha='left', **kw_f)
+
+        out_path = supp_dir / cfg['stem']
+        style.save(fig, out_path)
+        saved_paths.append(out_path)
+
+        # Save source data (summary + per-seed)
+        atomic_to_csv(pd.DataFrame(sum_rows), src_dir / f'{cfg["stem"]}_summary_sourcedata.csv', index=False, float_format='%.6g')
+        atomic_to_csv(pd.DataFrame(seed_rows), src_dir / f'{cfg["stem"]}_per_seed_sourcedata.csv', index=False, float_format='%.6g')
+
+        if not compute_pvals:
+            continue
+
+        # Paired one-sided domain-cluster x seed bootstrap p-values (ESM-MSR vs all comparators for pooled rho, r, RMSE)
+        d_cnt, s_w = make_domain_seed_draws(n_dom, B=B, seed=701 + cfg_i, seed_counts=(3,))
+        # Exact count-weighted pooled Spearman bootstrap via SpearmanEngine (shared domain weights per draw)
+        g_zero = np.zeros(n_var, dtype=np.int64)
+        eng = SpearmanEngine(yv_1d, g_zero, 1)
+        m_list = list(preds_ok_map.keys())
+        xr_flat = []
+        m_seed_slices = {}
+        cur_idx = 0
+        for m_label in m_list:
+            p_ok = preds_ok_map[m_label]
+            ns = p_ok.shape[0]
+            m_seed_slices[m_label] = (cur_idx, cur_idx + ns)
+            for s in range(ns):
+                xr_flat.append(eng.prepare(p_ok[s]))
+            cur_idx += ns
+
+        n_workers = min(8, max(1, mp.cpu_count() or 1))
+        chunk_sz = max(1, (B + n_workers * 2 - 1) // (n_workers * 2))
+        chunks = [(i, min(B, i + chunk_sz)) for i in range(0, B, chunk_sz)]
+        _SCATTER_BOOT_STATE.clear()
+        _SCATTER_BOOT_STATE.update(d_cnt=d_cnt, dom_idx=dom_idx, eng=eng, xr_flat=xr_flat)
+        try:
+            if n_workers > 1 and B > 100:
+                with mp.get_context('fork').Pool(n_workers) as pool:
+                    rho_mat = np.vstack(pool.map(_scatter_spearman_chunk, chunks))
+            else:
+                rho_mat = np.vstack([_scatter_spearman_chunk(ch) for ch in chunks])
+        finally:
+            _SCATTER_BOOT_STATE.clear()
+
+        rho_pt_map, rho_rep_map = {}, {}
+        r_pt_map, r_rep_map = {}, {}
+        e_pt_map, e_rep_map = {}, {}
+        for m_label in m_list:
+            p_ok = preds_ok_map[m_label]
+            ns = p_ok.shape[0]
+            sw_ns = s_w[ns] if (isinstance(s_w, dict) and ns in s_w) else (s_w if not isinstance(s_w, dict) else None)
+            j0, j1 = m_seed_slices[m_label]
+            s_rhos = rho_mat[:, j0:j1]
+            s_pts = [float(spearmanr(p_ok[s], yv_1d)[0]) for s in range(ns)]
+            rho_pt_map[m_label] = float(np.mean(s_pts))
+            rho_rep_map[m_label] = s_rhos[:, 0] if (ns == 1 or sw_ns is None) else np.sum(s_rhos * sw_ns, axis=1)
+            r_pt, r_rp, e_pt, e_rp = _pooled_domain_boot_r_rmse(p_ok, yv_1d, dom_idx, n_dom, d_cnt, sw_ns if ns > 1 else None)
+            r_pt_map[m_label], r_rep_map[m_label] = r_pt, r_rp
+            e_pt_map[m_label], e_rep_map[m_label] = e_pt, e_rp
+
+        msr_nm = cfg['msr_name']
+        comps = [m for m in preds_ok_map if m != msr_nm]
+        m_clean = len(comps)
+        p_rows = []
+        for met_name, pt_m, rp_m, higher_better in (
+            ('pooled_spearman_rho', rho_pt_map, rho_rep_map, True),
+            ('pooled_pearson_r', r_pt_map, r_rep_map, True),
+            ('pooled_rmse', e_pt_map, e_rep_map, False),
+        ):
+            sign = 1.0 if higher_better else -1.0
+            dir_str = 'ESM-MSR > comparator' if higher_better else 'ESM-MSR < comparator (lower RMSE better)'
+            p_by_c = {}
+            for comp in comps:
+                d_arr = sign * (rp_m[msr_nm] - rp_m[comp])
+                p_one, nf, b_eff = _one_sided_p(d_arr)
+                p_by_c[comp] = p_one
+                lo_d, hi_d = boot_ci(d_arr)
+                p_rows.append(dict(
+                    benchmark=cfg['benchmark'], metric=met_name,
+                    resampling_unit='domain_cluster_x_seed', test_type='pairwise',
+                    msr_model=msr_nm, comparator=comp, direction=dir_str,
+                    value_msr=pt_m[msr_nm], value_comparator=pt_m[comp],
+                    delta_favoring_msr=sign * (pt_m[msr_nm] - pt_m[comp]),
+                    ci95_lo=lo_d, ci95_hi=hi_d,
+                    n_units=n_dom, n_variants=n_var, B=b_eff, n_boot_fail=nf,
+                    p_one_sided_uncorrected=p_one, bonferroni_m=m_clean,
+                    p_one_sided_bonferroni=min(1.0, m_clean * p_one),
+                ))
+            best_c = (max(comps, key=lambda c: pt_m[c]) if higher_better else min(comps, key=lambda c: pt_m[c]))
+            d_nb = sign * (rp_m[msr_nm] - rp_m[best_c])
+            p_nb, nf_nb, b_nb = _one_sided_p(d_nb)
+            lo_nb, hi_nb = boot_ci(d_nb)
+            p_rows.append(dict(
+                benchmark=cfg['benchmark'], metric=met_name,
+                resampling_unit='domain_cluster_x_seed', test_type='next_best_clean',
+                msr_model=msr_nm, comparator=best_c, direction=dir_str,
+                value_msr=pt_m[msr_nm], value_comparator=pt_m[best_c],
+                delta_favoring_msr=sign * (pt_m[msr_nm] - pt_m[best_c]),
+                ci95_lo=lo_nb, ci95_hi=hi_nb,
+                n_units=n_dom, n_variants=n_var, B=b_nb, n_boot_fail=nf_nb,
+                p_one_sided_uncorrected=p_nb, bonferroni_m=m_clean,
+                p_one_sided_bonferroni=min(1.0, m_clean * p_nb),
+            ))
+            worst_c = max(comps, key=lambda c: p_by_c[c])
+            d_w = sign * (rp_m[msr_nm] - rp_m[worst_c])
+            p_iut, nf_w, b_w = _one_sided_p(d_w)
+            lo_w, hi_w = boot_ci(d_w)
+            p_rows.append(dict(
+                benchmark=cfg['benchmark'], metric=met_name,
+                resampling_unit='domain_cluster_x_seed', test_type='all_clean_IUT',
+                msr_model=msr_nm, comparator=f'ALL_CLEAN_IUT (limiting: {worst_c})', direction=dir_str,
+                value_msr=pt_m[msr_nm], value_comparator=pt_m[worst_c],
+                delta_favoring_msr=sign * (pt_m[msr_nm] - pt_m[worst_c]),
+                ci95_lo=lo_w, ci95_hi=hi_w,
+                n_units=n_dom, n_variants=n_var, B=b_w, n_boot_fail=nf_w,
+                p_one_sided_uncorrected=p_iut, bonferroni_m=1, p_one_sided_bonferroni=p_iut,
+            ))
+
+        atomic_to_csv(pd.DataFrame(p_rows), pval_dir / f'{cfg["stem"]}_pvalues.csv', index=False, float_format='%.6g')
+        atomic_write_text(
+            pval_dir / f'{cfg["stem"]}_pvalues_annotation.txt',
+            f"""Statistical Annotation: {cfg['stem']}_pvalues.csv
+==================================================
+Figure: Supplementary Figure ({cfg['stem']}) — {cfg['subset_desc']} (n = {n_var:,}, {n_dom} domains).
+
+Metrics Tested:
+  Pooled Spearman's rho, pooled Pearson's r, and pooled RMSE (kcal/mol) across all {n_var:,} variants, matching the seed-mean summary statistics shown in each scatter panel.
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric domain-cluster x training-seed bootstrap (B = {B:,}, deterministic seed).
+  All {n_dom} test domains are resampled identically across models via shared Multinomial({n_dom}, 1/{n_dom}) cluster weights, jointly with Multinomial(3, 1/3) seed weights for 3-seed retrained models.
+  One-sided Phipson & Smyth (2010) p-value: p = (1 + #{{b : delta_favoring_msr^(b) <= 0}}) / (B + 1).
+  Bonferroni correction adjusts within each metric over all m = {m_clean} clean comparator models.
+  `all_clean_IUT` gives Berger's (1982) Intersection-Union Test (p_IUT = max_j p_j).
+""",
+        )
+    return saved_paths
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION, with_split=True)
     ap.add_argument('--exploratory', action='store_true', help='Also render exploratory multi-option drafts (option_*, link_option_*)')
     ap.add_argument('--pair-pngs', action='store_true', help='Also render all 30 individual 20x20 pair-epistasis PNG grids')
     ap.add_argument('--per-model-pngs', action='store_true', help='Also render all 36 individual per-model dddG scatter PNGs')
     ap.add_argument('--workers', type=int, default=4, help='Worker processes for Rosetta bootstrap')
-    ap.add_argument('--only', choices=('all', 'fig6', 'fig7', 'link', 'tobit_floor_link', 'heatmaps', 'rosetta', 'epi_mcc'), default='all', help='Optional substage selector')
+    ap.add_argument('--only', choices=('all', 'fig6', 'fig7', 'link', 'tobit_floor_link', 'heatmaps', 'rosetta', 'epi_mcc', 'scatter_trio'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
+
+    if args.only == 'scatter_trio':
+        outs = build_supp_megascale_scatter_trio(split=args.split, B=max(B, 10_000))
+        print('[p07:epistasis_mechanisms] Saved scatter trio:', ', '.join(str(o) for o in outs))
+        return 0
 
     if args.only == 'epi_mcc':
         out = build_supp_epistasis_mcc_figure(split=args.split, B=max(B, 10_000))
