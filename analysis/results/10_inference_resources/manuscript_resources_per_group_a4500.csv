@@ -3,8 +3,8 @@ esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),Megascale Test,measured,3.7363500000000
 esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),External,measured,205.56157,23273.0,113.21668734092663,tracked
 esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),Domainome,measured,47.64369,572204.0,12010.068909440053,tracked
 esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),ProteinGym,measured,96.97365000000002,2447730.0,25241.186652250373,tracked
-esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),Rocklin,queued,,,,queued
-esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),MGnify,queued,,,,queued
+esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),Rocklin,measured,98.42441,209818.0,2131.7679222054776,tracked
+esm_msr_final_p0_wt_s1,ESM-MSR (WT-view),MGnify,measured,15971.156110000002,766790.0,48.01092636743377,tracked
 spurs_retrain_s1,SPURS (+multi),Megascale Test,measured,4.712850000000001,52071.0,11048.728476399629,tracked
 spurs_retrain_s1,SPURS (+multi),External,measured,229.64598,25632.0,111.61527843857749,tracked
 spurs_retrain_s1,SPURS (+multi),Domainome,measured,58.19136,572204.0,9833.14361444723,tracked
