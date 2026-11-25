@@ -321,8 +321,6 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
             cutoff_L = float(above['seq_len'].iloc[0])
             ok_plot = ok[ok['seq_len'] <= cutoff_L]
             _plot_curve(ax_2m, ok_plot['seq_len'], ok_plot['double_screen_s'], s, zorder=s['z'])
-            ax_2m.scatter([cutoff_L], [float(above['double_screen_s'].iloc[0])],
-                          marker='^', s=62, facecolors='none', edgecolors=style.RING, linewidths=1.5, zorder=s['z'] + 2)
         else:
             _plot_curve(ax_2m, ok['seq_len'], ok['double_screen_s'], s, zorder=s['z'])
     wt_ok = df[(df['model'] == 'esm_msr_wt') & (df['status'] == 'ok')].sort_values('seq_len')
