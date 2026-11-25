@@ -35,10 +35,10 @@ me_st2_s1,MutateEverything (St2),Domainome,measured,828.71543,536145.0,646.95911
 me_st2_s1,MutateEverything (St2),ProteinGym,measured,14404.677319999999,2453360.0,170.31690092728854,tracked
 me_st2_s1,MutateEverything (St2),Rocklin,measured,1780.16719,390510.0,219.36703596924514,tracked
 me_st2_s1,MutateEverything (St2),MGnify,MSAs,,,,MSAs
-esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),Megascale Test,queued,,,,queued
-esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),External,queued,,,,queued
-esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),Domainome,queued,,,,queued
-esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),ProteinGym,queued,,,,queued
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),Megascale Test,measured,24.91494,52033.0,2088.4256594637595,tracked
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),External,measured,632.4111800000001,23273.0,36.800424685724245,tracked
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),Domainome,measured,401.82412,572204.0,1424.0160595635723,tracked
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),ProteinGym,measured,14653.24811,2447730.0,167.04351019140697,tracked
 esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),Rocklin,queued,,,,queued
 esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),MGnify,queued,,,,queued
 esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),Megascale Test,measured,34.41054,52033.0,1512.1239015720184,tracked

@@ -631,8 +631,7 @@ def plot_fig2_proteingym_scaling(pgym_seqlen: dict[str, float]) -> Path:
         title='Length Scaling Extracted From Existing ProteinGym Fixed-Slot Runs (RTX A4500 20 GB)',
         note=(
             'Per-protein scopes across the 217 ProteinGym assays (L = 37–2,832) on gpu4 (RTX A4500 20 GB). '
-            'MutateEverything St2 omitted (St1 shown); ProSST-2048 and ESM-MSR Independent masking (FINAL_p1) included; '
-            'ESM-MSR Masked marginal (FINAL_p1_marg) is currently running on gpu4 and will populate automatically once synced.'
+            'MutateEverything St2 omitted (St1 shown); ProSST-2048, ESM-MSR Independent masking (FINAL_p1), and ESM-MSR Masked marginal (FINAL_p1_marg) included.'
         ),
     )
     return stem
