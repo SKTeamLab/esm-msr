@@ -239,35 +239,47 @@ def build_figure2(*, split: str = 'capped', cycles_scale: float = 4.0, levels_sc
     img_a = _render_svg_to_rgb(REPO_ROOT / '_assets' / 'epistasis_cycles_split.svg', scale=cycles_scale)
     img_d = _render_svg_to_rgb(REPO_ROOT / '_assets' / 'epistasis_levels_5panel_anova.svg', scale=levels_scale)
 
-    fig = plt.figure(figsize=(17.6, 18.8), facecolor='white')
+    fig = plt.figure(figsize=(17.6, 19.6), facecolor='white')
 
-    # --- Top row (a, b, c): y in [0.735, 0.972] ---
-    gs_a = fig.add_gridspec(1, 1, left=0.020, right=0.320, top=0.972, bottom=0.725)
+    # --- Top row (a, b, c): y in [0.742, 0.974] ---
+    gs_a = fig.add_gridspec(1, 1, left=0.020, right=0.320, top=0.974, bottom=0.735)
     ax_a = fig.add_subplot(gs_a[0, 0])
     ax_a.imshow(img_a, interpolation='lanczos')
     ax_a.set_axis_off()
 
     gs_b = fig.add_gridspec(1, 2, width_ratios=[1.0, 0.055], wspace=0.06,
-                            left=0.376, right=0.635, top=0.966, bottom=0.738)
+                            left=0.376, right=0.635, top=0.968, bottom=0.748)
     ax_b = fig.add_subplot(gs_b[0, 0])
     cax_b = fig.add_subplot(gs_b[0, 1])
     n_epi = _draw_panel_b_scatter(ax_b, cax_b, split=split)
 
     gs_c = fig.add_gridspec(2, 1, height_ratios=[3.6, 1.0], hspace=0.08,
-                            left=0.728, right=0.986, top=0.966, bottom=0.738)
+                            left=0.728, right=0.986, top=0.968, bottom=0.748)
     ax_c_top = fig.add_subplot(gs_c[0, 0])
     ax_c_bot = fig.add_subplot(gs_c[1, 0], sharex=ax_c_top)
     floor_share = _draw_panel_c_types(ax_c_top, ax_c_bot, split=split)
 
-    # --- Middle row (d): epistasis_levels_5panel_anova.svg (1560x630), y in [0.365, 0.688] ---
-    gs_d = fig.add_gridspec(1, 1, left=0.044, right=0.990, top=0.688, bottom=0.365)
+    # --- Middle row (d): epistasis_levels_5panel_anova.svg (1560x630) ---
+    # Width-constrained box so the 5 SVG cards ([15,295], [325,605], [635,915], [945,1225], [1255,1545])
+    # span [0.052, 0.986] cleanly and Panel e axes lock 1:1 to their exact rendered horizontal bounds.
+    gs_d = fig.add_gridspec(1, 1, left=0.043, right=0.995, top=0.708, bottom=0.358)
     ax_d = fig.add_subplot(gs_d[0, 0])
     ax_d.imshow(img_d, interpolation='lanczos')
     ax_d.set_axis_off()
 
-    # --- Bottom row (e): 5 pooled epistasis levels, y in [0.140, 0.322] ---
-    gs_e = fig.add_gridspec(1, 5, left=0.052, right=0.988, top=0.322, bottom=0.140, wspace=0.14)
-    axes_e = np.array([fig.add_subplot(gs_e[0, i]) for i in range(5)])
+    # Draw once to resolve ax_d's exact aspect-preserved bounding box in figure coordinates
+    fig.canvas.draw()
+    pd_box = ax_d.get_position()
+
+    # --- Bottom row (e): 5 pooled epistasis levels locked 1:1 horizontally to Panel d's 5 SVG cards ---
+    svg_w = 1560.0
+    svg_cards = [(15.0, 280.0), (325.0, 280.0), (635.0, 280.0), (945.0, 280.0), (1255.0, 290.0)]
+    bottom_e, height_e = 0.136, 0.176
+    axes_e = np.empty(5, dtype=object)
+    for i, (cx, cw) in enumerate(svg_cards):
+        ax_x0 = pd_box.x0 + pd_box.width * (cx / svg_w)
+        ax_w = pd_box.width * (cw / svg_w)
+        axes_e[i] = fig.add_axes([ax_x0, bottom_e, ax_w, height_e])
     for i in range(1, 5):
         axes_e[i].sharey(axes_e[0])
         axes_e[i].tick_params(axis='y', labelleft=False)
@@ -277,10 +289,9 @@ def build_figure2(*, split: str = 'capped', cycles_scale: float = 4.0, levels_sc
     fig.canvas.draw()
     pb = ax_b.get_position()
     pc = ax_c_top.get_position()
-    pd_box = ax_d.get_position()
     pe = axes_e[0].get_position()
 
-    y_top = 0.990
+    y_top = 0.991
     fig.text(0.008, y_top, 'a', ha='left', va='top', fontsize=15, fontweight='bold')
     fig.text(pb.x0 - 0.044, y_top, 'b', ha='left', va='top', fontsize=15, fontweight='bold')
     fig.text(pc.x0 - 0.044, y_top, 'c', ha='left', va='top', fontsize=15, fontweight='bold')

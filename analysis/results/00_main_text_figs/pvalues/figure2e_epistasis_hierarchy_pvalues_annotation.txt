@@ -1,0 +1,40 @@
+Statistical Annotation: figure2e_epistasis_hierarchy_pvalues.csv
+==================================================================
+Figure / Panel: Main-Text Figure 2, Panel e (Five-level pooled epistasis residual hierarchy on Homology-Restricted MegaScale test doubles).
+
+Metrics Tested:
+  All 5 pooled epistasis levels in both regimes (all doubles, n = 12,455; unsaturated doubles dG_add > 0, n = 7,405):
+    1. naive_rho / naive_rho_gt0: raw Spearman rho between predicted and measured dddG.
+    2. beyond_rho / beyond_rho_gt0: saturation-subtracted residual rho (after removing global smooth E[dddG | dG_add]).
+    3. pair_rho / pair_rho_gt0: Spearman rho of mean epistasis across position-pair matrices (>= 20 doubles).
+    4. line_rho / line_rho_gt0: Spearman rho of row/column main effects within pair-centered matrices (>= 3 cells).
+    5. cell_mag_pooled / cell_mag_gt0: Spearman rho pooled over double-centered cell interaction residuals.
+
+Statistical Test & Resampling Procedure:
+  Exact paired domain-cloning x training-seed bootstrap replicates saved by pipeline p06
+  (`fig5_epistasis_levels_p0_reps_test.npz`, B = 1,000, N_domains = 13 test domains with doubles).
+  In each bootstrap draw b = 1, ..., B, domains are resampled with replacement (re-fitting the saturation
+  smooth and ANOVA decompositions inside each bootstrap replicate to propagate estimation uncertainty at every level),
+  and 3-seed retrained models jointly resample training seeds.
+
+Hypotheses & One-Sided P-Value Formula:
+  H0: rho_ESM-MSR <= rho_X  vs  H1: rho_ESM-MSR > rho_X.
+  Exact Monte Carlo one-sided p-value: p = (1 + #{b: delta^(b) <= 0}) / (B + 1),
+  with minimum resolution 1 / (1,001) = 0.000999.
+
+Multiple-Testing Correction (Bonferroni):
+  Within each (level, regime), Bonferroni correction multiplies p_one_sided_uncorrected by m = 7 clean external
+  comparator models (ProteinMPNN, ESM3-small-open, MutateEverything Stage 2, ThermoMPNN-D, SPURS-multi,
+  GeoDDG-3D, Rosetta). Internal controls (`ESM-MSR ctx ctrl` and `−dG_add (floor ceiling)`) are reported with
+  their uncorrected one-sided p-values and marked `internal_control_or_variant = True`.
+
+Key Assumptions & Limitations:
+  - Re-computing the saturation curve and ANOVA decomposition inside every domain-resampled draw avoids
+    underestimating variance from fixed-smooth conditioning.
+  - B = 1,000 matches the canonical p06 pipeline replicates (resolution ~1e-3); with N = 13 domains,
+    domain-cluster uncertainty dominates Monte Carlo variance.
+
+Companion Point Metrics (No Additional Significance Testing):
+Columns `pearson_r_msr`, `pearson_r_comparator`, `rmse_msr`, and `rmse_comparator` report the
+  seed-averaged Pearson r and RMSE (kcal/mol) computed on the exact same pooled residual vectors at each
+  hierarchy level; `n_variants` records the exact item count (doubles, pairs, lines, or double-centered cells).

@@ -1,0 +1,32 @@
+Statistical Annotation: figure3b_heldout_benchmarks_pvalues.csv
+=================================================================
+Figure / Panel: Main-Text Figure 3, Panel b (Held-out external benchmarks: ProteinGym avg., Domainome avg., MGnify Pooled, Rocklin Designs Pooled).
+
+Metrics & Resampling Units (matching Figure 3b exactly):
+  1. ProteinGym avg. (173 held-out assays): Equal-category-weighted mean of per-assay Spearman's rho
+     (macro average across the 5 functional categories: Stability, Expression, Activity, Binding, Org. fitness).
+     Resampling unit: paired category-stratified assay x training-seed bootstrap (B = 10,000).
+     ESM3dG is excluded from the clean family (H 2% training overlap); ESM-MSR sigma=0.5 is marked internal variant.
+  2. Domainome avg. (436 held-out domains): Mean per-domain Spearman's rho.
+     Resampling unit: paired domain-cluster x training-seed bootstrap (B = 10,000).
+     (Rosetta is not scored on Domainome; ESM-MSR sigma=0.5 is marked internal variant.)
+  3. MGnify Pooled (612,406 variants across 152,680 held-out scaffolds) and Rocklin Designs Pooled
+     (109,581 variants across 742 held-out scaffolds): One pooled Spearman's rho over all variants.
+     Resampling unit: paired scaffold-cluster x training-seed bootstrap (B = 1,000) using shared
+     scaffold multinomial weights and seed weights across all models (exact O(n) rank engine).
+     ESM3dG is excluded from the clean family (fine-tuned directly on MGnify stability data).
+
+Hypotheses & One-Sided P-Value Formula:
+  H0: rho_ESM-MSR <= rho_X  vs  H1: rho_ESM-MSR > rho_X.
+  Exact Monte Carlo one-sided p-value: p = (1 + #{b: delta^(b) <= 0}) / (B + 1).
+  Bonferroni correction is applied within each benchmark over the m_clean clean external comparators.
+
+Key Assumptions & Limitations:
+  - Assays (ProteinGym), domains (Domainome), and wild-type scaffolds (MGnify, Rocklin) are treated as
+    independent biological units; all mutations within a scaffold/domain/assay are resampled together as a block.
+  - All benchmarks strictly apply the 4-part homology holdout filter against Homology-Restricted MegaScale train.
+
+Companion Point Metrics (No Additional Significance Testing):
+Columns `pearson_r_msr`, `pearson_r_comparator`, `rmse_msr`, `rmse_comparator`, and `n_variants` report
+  companion point metrics without additional significance testing. ProteinGym RMSE is NaN because ProteinGym
+  DMS assay scores are on heterogeneous, non-kcal/mol scales (whereas Pearson r is scale-invariant).

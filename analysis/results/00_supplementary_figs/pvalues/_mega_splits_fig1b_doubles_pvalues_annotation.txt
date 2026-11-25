@@ -1,0 +1,12 @@
+Statistical Annotation: _mega_splits_fig1b_doubles_pvalues.csv
+==================================================================
+Figure / Panel: Supplementary Figure (_mega_splits_fig1), Panel b (Full MegaScale `mega_splits` test set double mutants: additive vs epistatic scoring).
+
+Metric Tested:
+  Mean per-domain Spearman's rho across double-mutant test domains (>= 10 doubles), comparing ESM-MSR against every comparator under both epistatic (direct double) and additive (summed singles) scoring (with mean per-domain Pearson's r and RMSE in kcal/mol also reported).
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric domain-cluster x seed bootstrap (B = 10,000, shared Multinomial domain weights across all models; 3-seed retrained transfer models resampled jointly over training seeds).
+  One-sided Phipson & Smyth (2010) p-value: p = (1 + #{b : delta^(b) <= 0}) / (B + 1).
+  Bonferroni correction adjusts within each subset over all m = 7 comparator models present.
+  `all_clean_IUT` gives Berger's (1982) Intersection-Union Test (p_IUT = max_j p_j) for beating all comparators simultaneously.
