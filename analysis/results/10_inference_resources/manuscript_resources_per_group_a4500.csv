@@ -39,14 +39,14 @@ esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),Megascale Test,measured,
 esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),External,measured,632.4111800000001,23273.0,36.800424685724245,tracked
 esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),Domainome,measured,401.82412,572204.0,1424.0160595635723,tracked
 esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),ProteinGym,measured,14653.24811,2447730.0,167.04351019140697,tracked
-esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),Rocklin,queued,,,,queued
-esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),MGnify,queued,,,,queued
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),Rocklin,measured,2659.60453,209818.0,78.89067627659665,tracked
+esm_msr_final_p1_marg_s1_full,ESM-MSR (Masked marginal),MGnify,measured,54172.47719000001,766790.0,14.154604695491862,tracked
 esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),Megascale Test,measured,34.41054,52033.0,1512.1239015720184,tracked
 esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),External,measured,659.5355400000001,23273.0,35.286953603743626,tracked
 esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),Domainome,measured,402.77164,572204.0,1420.666062784361,tracked
 esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),ProteinGym,measured,119795.62087999999,2447730.0,20.432549888045624,tracked
-esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),Rocklin,queued,,,,queued
-esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),MGnify,queued,,,,queued
+esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),Rocklin,measured,5119.53314,209818.0,40.983815176553385,tracked
+esm_msr_final_p1_s1_indep,ESM-MSR (Indep. masking),MGnify,measured,55110.716210000006,766790.0,13.91362792452448,tracked
 esm_msr_final_p0_s1_full,ESM-MSR (Dual-view),Megascale Test,measured,274.36733000000004,52033.0,189.64721492168908,tracked
 esm_msr_final_p0_s1_full,ESM-MSR (Dual-view),External,measured,626.3903600000001,23273.0,37.15414777456025,tracked
 esm_msr_final_p0_s1_full,ESM-MSR (Dual-view),Domainome,measured,3340.3642600000003,572204.0,171.29988092975225,tracked
