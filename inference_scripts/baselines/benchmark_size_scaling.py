@@ -352,6 +352,13 @@ def bench_esm_msr(panel: list[dict], mode: str, args) -> list[dict]:
                 wall_b1_s=m_b1['wall_s'],
             )
 
+            if getattr(args, 'vram_only', False):
+                del seq_toks, coords, plddt, struct_toks, cached_wt
+                cleanup_cuda()
+                rows.append(row)
+                _flush_row(args, row)
+                continue
+
             # Separate pure WT-pass + structure-encode time (needed for both WT-view and Dual-view)
             def _wt_only_full():
                 st, co, pl, stk, ws = preprocess_structure(model, pdb_path, 'A', dev, backbone_mutation=None)
@@ -430,7 +437,9 @@ def bench_esm_msr(panel: list[dict], mode: str, args) -> list[dict]:
                     wt_pass_s=round(t_wt_L, 4),
                     extra_note=f'n_wt_states={L};n_mt_states_1={L};n_mt_states_2={n_mt_states_2};mt_state_rate={tp_mt["rate_vps"]}',
                 )
-                if double_impractical:
+                if getattr(args, 'vram_only', False):
+                    pass
+                elif double_impractical:
                     row.update(
                         double_screen_s=np.nan,
                         double_screen_method='impractical_gt_24h',
@@ -492,7 +501,9 @@ def bench_esm_msr(panel: list[dict], mode: str, args) -> list[dict]:
                     double_capable=True,
                     wt_pass_s=m_wt['wall_s'],
                 )
-                if double_impractical:
+                if getattr(args, 'vram_only', False):
+                    pass
+                elif double_impractical:
                     row.update(
                         double_screen_s=np.nan,
                         double_screen_method='impractical_gt_24h',
@@ -804,7 +815,9 @@ def bench_thermompnn(panel: list[dict], mode: str, args) -> list[dict]:
                     single_screen_method='use_thermompnn_single',
                     double_capable=True,
                 )
-                if double_impractical:
+                if getattr(args, 'vram_only', False):
+                    pass
+                elif double_impractical:
                     row.update(
                         double_screen_s=np.nan,
                         double_screen_method='impractical_gt_24h',
@@ -881,7 +894,26 @@ def bench_spurs(panel: list[dict], mode: str, args) -> list[dict]:
         seq = load_seq(item['fasta_path'])
         row = _base_row(mode, item, load_s)
         try:
-            pdb_data = si.parse_pdb(item['pdb_path'], item['name'], 'A', cfg_single, 'cuda')
+            try:
+                pdb_data = si.parse_pdb(item['pdb_path'], item['name'], 'A', cfg_single, 'cuda')
+            except ValueError:
+                # SPURS parse_pdb has an unused `[int(i) for i in pdb[0]['resn_list']]` line that breaks on
+                # PDB insertion codes for L > 9999; call alt_parse_PDB + get_pdb + Alphabet directly.
+                from spurs.datamodules.datasets.data_utils import Alphabet as _SpursAlphabet
+                from spurs.datamodules.datasets.utils import alt_parse_PDB as _alt_parse, get_pdb as _get_pdb
+                _raw = _alt_parse(item['pdb_path'], 'A')
+                _p = _get_pdb(_raw[0], item['name'], item['name'], check_assert=False)
+                _p['mut_ids'] = torch.tensor([0])
+                _p['ddG'] = torch.tensor([[0]])
+                _p['append_tensors'] = torch.tensor([0])
+                _p['dataset'] = ['0']
+                _p = _SpursAlphabet(**cfg_single['datamodule']['alphabet']).featurize([_p])
+                def _mv(d):
+                    if isinstance(d, dict): return {k: _mv(v) for k, v in d.items()}
+                    if isinstance(d, list): return [_mv(v) for v in d]
+                    if isinstance(d, torch.Tensor): return d.to('cuda')
+                    return d
+                pdb_data = _mv(_p)
             if mode == 'spurs_single':
                 def _run_s():
                     with torch.no_grad():
@@ -959,7 +991,9 @@ def bench_spurs(panel: list[dict], mode: str, args) -> list[dict]:
                     single_vram_opt_alloc_gb=tp_s['vram_alloc_peak_gb'],
                     double_capable=True,
                 )
-                if double_impractical:
+                if getattr(args, 'vram_only', False):
+                    pass
+                elif double_impractical:
                     row.update(
                         double_screen_s=np.nan,
                         double_screen_method='impractical_gt_24h',
@@ -1048,6 +1082,20 @@ def bench_proteinmpnn(panel: list[dict], args) -> list[dict]:
                 return enc
 
             enc, m_b1 = measure_stable(_b1, max_repeats=3, fast_thresh_s=0.4, force_warmup=(idx == 0))
+            if getattr(args, 'vram_only', False):
+                row.update(
+                    status='ok',
+                    vram_weights_gb=m_b1['vram_weights_gb'],
+                    vram_min_alloc_gb=m_b1['vram_alloc_peak_gb'],
+                    vram_min_reserved_gb=m_b1['vram_reserved_peak_gb'],
+                    vram_min_device_gb=m_b1['vram_device_peak_gb'],
+                    wall_b1_s=m_b1['wall_s'],
+                )
+                del X, S_wt, mask, chain_M, residue_idx, chain_encoding_all, enc, noise
+                cleanup_cuda()
+                rows.append(row)
+                _flush_row(args, row)
+                continue
             _, m_enc = measure_stable(lambda: pmi.mpnn_encode(model, X, mask, residue_idx, chain_encoding_all), max_repeats=3, fast_thresh_s=0.3)
 
             cands = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
@@ -1234,7 +1282,9 @@ def main() -> None:
     ])
     ap.add_argument('--panel', required=True, help='Path to panel.json from size_scaling_panel.py')
     ap.add_argument('--out', required=True, help='Root output directory (writes <out>/<model>/*)')
+    ap.add_argument('--min_len', type=int, default=0, help='Optional lower length filter (e.g. for 32 GB VRAM extensions)')
     ap.add_argument('--max_len', type=int, default=0, help='Optional upper length cap for smoke tests')
+    ap.add_argument('--vram_only', action='store_true', help='Measure B=1 minimum VRAM (1 batch) only; skip optimal-batch screening loops')
     ap.add_argument('--double_cap_s', type=float, default=86400.0,
                     help='Practicality cap for full double-mutant screening (default 86400 s = 24 h); once reached, larger proteins are labelled impractical.')
     ap.add_argument('--esm_msr_ckpt', default='/home/sreeves/esm-msr-devel/runs_final_ablations/FINAL_p0_s1/0/epoch=06-val_unmasked_rho_combined_avg=0.8558.ckpt')
@@ -1256,6 +1306,8 @@ def main() -> None:
         raise RuntimeError('Fixed-slot check failed: ' + '; '.join(limit_check['problems']))
 
     panel = json.loads(Path(args.panel).read_text())
+    if args.min_len > 0:
+        panel = [p for p in panel if p['seq_len'] >= args.min_len]
     if args.max_len > 0:
         panel = [p for p in panel if p['seq_len'] <= args.max_len]
 

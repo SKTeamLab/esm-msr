@@ -1,6 +1,19 @@
-# Controlled Size-Scaling Benchmark Summary (RTX A4500 20 GB)
+# Controlled Size-Scaling Benchmark Summary (RTX A4500 20 GB + 30/40 GB VRAM Extrapolation)
 
-| Model | Max L ok | First OOM L | Weights GB | VRAM @ L=128 | VRAM @ L=512 | VRAM @ L=1024 | 1-mut @ L=256 | 1-mut @ L=1024 | 2-mut @ L=256 | 2-mut @ L=1024 |
+## Estimated Maximum Protein Length ($B = 1$ PyTorch-Allocated VRAM)
+
+| Model Family | Measured Max `L` | VRAM @ Max `L` | A4500 OOM `L` | Est. `L_max` @ 20 GB | Est. `L_max` @ ~30 GB (32 GB usable) | Est. `L_max` @ 40 GB |
+|---|---|---|---|---|---|---|
+| MutateEverything (St1 / St2) | 1,024 | 12.41 GB | 2,048 | 1,442 | 1,881 | 2,249 |
+| ESM-MSR (all variants) | 2,048 | 23.62 GB | 2,048 | 1,832 | 2,381 | 2,825 |
+| ProSST-2048 | 4,096 | 5.69 GB | 8,192 | 8,057 | 9,928 | 11,499 |
+| SPURS (single / multi) | 8,192 | 13.44 GB | — | 10,406 | 13,076 | 15,287 |
+| ThermoMPNN / -D | 16,384 | 10.97 GB | 32,768 | 25,818 | 34,416 | 41,848 |
+| ProteinMPNN | 16,384 | 9.02 GB | 32,768 | 28,292 | 36,581 | 43,613 |
+
+## Full Mutational Screening Cost (RTX A4500 20 GB Fixed Slot)
+
+| Model | Max `L` ok (A4500) | First OOM `L` | Weights GB | VRAM @ `L=128` | VRAM @ `L=512` | VRAM @ `L=1024` | 1-mut @ `L=256` | 1-mut @ `L=1024` | 2-mut @ `L=256` | 2-mut @ `L=1024` |
 |---|---|---|---|---|---|---|---|---|---|---|
 | ESM-MSR (WT-view) | 1,024 | 2048 | 5.44 | 5.60 GB | 6.59 GB | 10.00 GB | 178 ms | 1.1 s | — | — |
 | ESM-MSR (Dual-view) | 1,024 | 2048 | 5.44 | 5.60 GB | 6.61 GB | 10.03 GB | 2.2 m | 1.1 h | 3.8 d (cap) | impractical (>24 h) |

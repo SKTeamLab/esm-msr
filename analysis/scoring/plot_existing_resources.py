@@ -118,14 +118,14 @@ FIG1_MODELS = [
         key='esm_msr_final_p1_marg_s1_full',
         mgnify_dir='esm_msr_final_p1_marg_s1_mgnify',
         line='ESM-MSR (Masked marginal)',
-        color='#5b8db8', marker='^', hollow=False, ls='-', lw=2.0, batched=True,
+        color='#8c8c8c', marker='^', hollow=False, ls='-', lw=2.0, batched=True,
         pending_note='queued',
     ),
     dict(
         key='esm_msr_final_p1_s1_indep',
         mgnify_dir='esm_msr_final_p1_s1_indep_mgnify',
         line='ESM-MSR (Indep. masking)',
-        color='#2c5f8a', marker='s', hollow=False, ls='-', lw=2.1, batched=True,
+        color='#4d4d4d', marker='s', hollow=False, ls='-', lw=2.1, batched=True,
         pending_note='queued',
     ),
     dict(
@@ -145,8 +145,8 @@ FIG2_MODELS = [
     dict(key='proteinmpnn', line='ProteinMPNN', color=BY_NAME['ProteinMPNN'].color, marker='d', hollow=False, ls='-.', lw=2.0, batched=True, est_mode=None),
     dict(key='thermompnn_s1', line='ThermoMPNN (+D)', color=BY_NAME['ThermoMPNN'].color, marker='p', hollow=False, ls='-', lw=2.0, batched=True, est_mode='linear_single'),
     dict(key='me_st1_s1_a4500', line='MutateEverything (St1)', color=BY_NAME['MutateEverything'].color, marker='h', hollow=True, ls='--', lw=2.0, batched=False, est_mode='oneshot'),
-    dict(key='esm_msr_final_p1_marg_s1_full', line='ESM-MSR (Masked marginal)', color='#5b8db8', marker='^', hollow=False, ls='-', lw=2.0, batched=True, est_mode=None),
-    dict(key='esm_msr_final_p1_s1_indep', line='ESM-MSR (Indep. masking)', color='#2c5f8a', marker='s', hollow=False, ls='-', lw=2.1, batched=True, est_mode=None),
+    dict(key='esm_msr_final_p1_marg_s1_full', line='ESM-MSR (Masked marginal)', color='#8c8c8c', marker='^', hollow=False, ls='-', lw=2.0, batched=True, est_mode=None),
+    dict(key='esm_msr_final_p1_s1_indep', line='ESM-MSR (Indep. masking)', color='#4d4d4d', marker='s', hollow=False, ls='-', lw=2.1, batched=True, est_mode=None),
     dict(key='esm_msr_final_p0_s1_full', fallback_key='esm_msr_devel_s1', line='ESM-MSR (Dual-view)', color=BY_NAME['ESM-MSR'].color, marker='D', hollow=False, ls='-', lw=2.5, batched=True, est_mode='linear'),
 ]
 
