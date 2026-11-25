@@ -248,6 +248,8 @@ class HomologyLookup:
             return 'esmtherm'
         if m in ('IFUM', 'IFUM (WT backbone)', 'IFUM (ESMFold)'):
             return 'ifum'
+        if m in ('SPURS published', 'SPURS (published)'):
+            return 'spurs_pub_megasplits'
         if m in ('ThermoMPNN published*', 'ThermoMPNN (published)'):
             return 'thermompnn_pub'
         if m in (
@@ -277,6 +279,8 @@ class HomologyLookup:
                 return ('---', False)
             return ('---', False)
         if dataset_key == 'tsuboyama_mega_test':
+            if inv == 'spurs_pub_megasplits':
+                return (r'Same \texttt{mega\_splits} (pub.)', False)
             if inv == 'thermompnn_pub':
                 return (r'Same \texttt{mega\_splits} (pub.\ ens.)', False)
             if inv == 'rosetta_beta_nov16':
@@ -344,6 +348,7 @@ CANONICAL_MODEL_ORDER = [
     'ESM-MSR ctx ctrl',
     'SPURS',
     'SPURS-multi',
+    'SPURS published',
     'MutateEverything',
     'MutateEverything Stage 2',
     'MutateEverything Stage 1',
@@ -392,6 +397,7 @@ def clean_model_display(name: str, overlap: bool = False) -> str:
         'MutateEverything Stage 2': 'Mutate Everything (Stage 2)',
         'MutateEverything Stage 1': 'Mutate Everything (Stage 1)',
         'ESM3-small-open WT-view': 'ESM3-small-open',
+        'SPURS published': 'SPURS (published)',
         'ThermoMPNN published*': 'ThermoMPNN (published)',
         'ProSST published': 'ProSST (published)',
         '−dG_add (floor ceiling)': r'$-\Delta G_{\mathrm{add}}$ (floor ceiling)',
@@ -824,7 +830,7 @@ def _extract_model_panel(
     }
     for _, row in sub.iterrows():
         comp = str(row['comparator'])
-        if 'spurs' in comp.lower() and 'pub' in comp.lower():
+        if ds_key != 'tsuboyama_mega_test' and 'spurs' in comp.lower() and 'pub' in comp.lower():
             continue
         note, ov_hom = HOM.note_and_overlap(comp, ds_key, multi=multi)
         ov_csv = bool(row['excluded_training_overlap']) if 'excluded_training_overlap' in sub.columns and pd.notna(row.get('excluded_training_overlap')) else False
@@ -851,7 +857,7 @@ def _extract_model_panel(
         esub = extra_df[(extra_df['section'] == extra_section) & (extra_df['benchmark'] == benchmark) & (extra_df['subset'] == metric)]
         for _, er in esub.iterrows():
             m = str(er['model'])
-            if 'spurs' in m.lower() and 'pub' in m.lower():
+            if ds_key != 'tsuboyama_mega_test' and 'spurs' in m.lower() and 'pub' in m.lower():
                 continue
             if m in out:
                 continue
@@ -1042,7 +1048,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
             r"Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}; "
             r"16/28 test domains have sequence/structural homology to train/val). "
             r"One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). "
-            r"ThermoMPNN (retrained) and ThermoMPNN (published 3-member ensemble, trained on the identical \texttt{mega\_splits}) are shown consecutively."
+            r"Published SPURS and ThermoMPNN checkpoints (both trained on the identical \texttt{mega\_splits} split, verified by MD5) appear consecutively after their retrained counterparts."
         ),
         label='tab:si_megasplits_overall',
         col_spec='l' + 'c' * 12 + 'l',
