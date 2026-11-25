@@ -165,7 +165,7 @@ Four of the 217 are size extremes that need special handling on a 32 GB card: `B
 
 *Note: if using Windows Subsystem for Linux (WSL), it is recommended to install ChimeraX on Windows, not WSL. Everything should work even if you installed ESM-MSR into WSL.*
 
-The **ChimeraX-ESM-MSR** plugin (**v0.4.0**) supports UCSF ChimeraX `>= 1.3` (verified on ChimeraX `1.11.1` / Python 3.11 / PyQt6 / pandas 2.x & 3.x) and provides both live ESM-MSR inference and non-destructive 3D stability/epistasis visualization. For full installation options, complete UI reference, CSV schema, troubleshooting, and headless testing instructions, see **[`ChimeraX-ESM_MSR/README.md`](ChimeraX-ESM_MSR/README.md)**.
+The **ChimeraX-ESM-MSR** plugin (**v0.5.0**) supports UCSF ChimeraX `>= 1.3` (verified on ChimeraX `1.11.1` / Python 3.11 / PyQt6 / pandas 2.x & 3.x) and provides live ESM-MSR inference, two-stage fast double-mutant discovery, publication-grade 3D/2D visualization, and native ChimeraX CLI commands. For full installation options, complete UI & CLI reference, standalone `fast_doubles.py` usage, CSV schema, troubleshooting, and headless testing instructions, see **[`ChimeraX-ESM_MSR/README.md`](ChimeraX-ESM_MSR/README.md)**.
 
 1. Download, install, and open [ChimeraX](https://www.cgl.ucsf.edu/chimerax/download.html) (free for non-commercial use).
 2. Open the Command Line Interface (`Tools -> Command Line Interface` if not already visible).
@@ -174,42 +174,42 @@ The **ChimeraX-ESM-MSR** plugin (**v0.4.0**) supports UCSF ChimeraX `>= 1.3` (ve
    devel install /path/to/repo/ChimeraX-ESM_MSR
    ```
 
-## Using the ChimeraX GUI
+## Using the ChimeraX GUI & Native CLI
 
-Load a valid protein structure (PDB or mmCIF) into ChimeraX — for example, click and drag a structure file into the window or run `open 1ufm` for the demo. Launch the plugin from **`Tools -> Stability -> ESM_MSR`** (window title: **ESM-MSR Predictor & Visualizer**).
+Load a valid protein structure (PDB or mmCIF) into ChimeraX — for example, click and drag a structure file into the window or run `open 1ufm` for the demo. Launch the plugin from **`Tools -> Stability -> ESM_MSR`** (or run `esm_msr open`; window title: **ESM-MSR Predictor & Visualizer**).
 
 The interface is organized into two scrollable tabs — **`Execution / IO`** and **`Visualization`** — above a shared global action bar (**`Run Prediction Script`** / **`STOP`**, **`Load CSV`**, **`Load Last Output`**, **`Update Visualization`**, and **`Reset / Clear Viz`**) with a live progress bar and status footer. Your paths and configuration settings are remembered automatically between sessions.
 
 ### 1. Execution / IO (Environment, Models & Screening Config)
 
-* **Local Path Configuration:** Set **`Base Repo Dir:`** to your cloned `esm-msr` folder (this auto-populates **`Python Env:`**, **`Output CSV:`**, and the default **`Checkpoint:`** `LoRA_models/esm-msr-small/lora_seed1.safetensors` if blank). **`Python Env:`** accepts a conda environment name (e.g., `msr_venv`), a venv/conda environment directory, or a direct `python`/`python.exe` binary path. Optionally set **`ESM3 Weights:`** for locally cloned weights.
+* **Local Path Configuration & Auto-Detection:** Set **`Base Repo Dir:`** to your cloned `esm-msr` folder (auto-populating **`Output CSV:`** and the default **`Checkpoint:`** `LoRA_models/esm-msr-small/lora_seed1.safetensors` if blank). Click **`Auto-Detect`** next to **`Python Env:`** to scan local conda/mamba/venv environments on disk (~25 ms) and prioritize `[esm_msr, esm, torch]` installs via the **`Detected:`** dropdown, or enter an environment path/name manually. Optionally set **`ESM3 Weights:`** for locally cloned weights.
 * **Compute Environment & Model Configuration Files:** Select **`Compute Device:`** (`cuda`, `cuda:0`, `cuda:1`, `mps`, `cpu`), **`Model Precision (dtype):`** (`float32`, `bfloat16`, `float16`), and **`Batch Size:`** (default `16`). Choose a LoRA **`Checkpoint:`** (`.safetensors` or `.ckpt`) and optional **`LoRA Config:`** (`hparams.yaml` is auto-detected beside the checkpoint; set **`Sigma (σ):`** `= 0.0` for zero-shot ESM3 backbone control).
-* **Screening Config:** Pick your **`Target Model:`** (use **`Refresh`** if needed) and **`Chain:`**, then choose one of three mutually exclusive mutation scopes:
+* **Screening Config:** Pick your **`Target Model:`** (use **`Refresh`** if needed) and **`Chain:`**, then choose one of four mutually exclusive mutation scopes:
   1. **`1. Full Screen:`** (`singles` or `singles+doubles`), with optional **`Positions:`** (supports negative indices and insertion codes, or populate from ChimeraX via **`Grab Selection`**), **`Invert (Except)`**, and **`Filter doubles by WT heavy-atom distance (Å):`** (default `6.0` Å).
   2. **`2. Input CSV:`** score a predefined mutation list (`--input_csv`).
   3. **`3. Direct Mutations:`** enter comma-separated mutations directly (e.g., `A12C,A12C:D15E`).
-* **Screening Parameters:** Configure **`Mask Strategy:`** (`Checkpoint default`, `marginal`, `independent`), **`Sigma (σ):`** (default `1.0`), **`Replace non-canonical residues`**, and **`Skip MT LoRA Pass (Additive Approximation)`** (`--skip_reverse`, ~10× faster single-pass WT approximation).
-* Click **`Run Prediction Script`** to launch inference with live progress updates (or click red **`STOP`** to terminate safely). Once finished, click **`Load Last Output`** to jump straight to visualization.
+  4. **`4. Fast Top-N Doubles (2-Stage):`** runs a fast cached WT-pass singles scan, selects the exact Top-$N$ additive pairs (`1–1,000,000` in `< 1 s`), rescores them with the full dual-view WT+MT model, and writes a unified re-ranked CSV (`Top N`, `Visualize Top M`, `Filter Cys/Pro before Stage 2`, optional `Dist <=`). Also runnable standalone via `ChimeraX-ESM_MSR/src/fast_doubles.py`.
+* **Screening Parameters & Log Console:** Configure **`Mask Strategy:`** (`Checkpoint default`, `marginal`, `independent`), **`Sigma (σ):`** (default `1.0`), **`Replace non-canonical residues`**, and **`Skip MT LoRA Pass (Additive Approximation)`** (`--skip_reverse`, ~10× faster single-pass WT approximation). Expand **`▸ Show Log Console`** to inspect or copy live subprocess output. Click **`Run Prediction Script`** (or red **`STOP`** to terminate safely), then **`Load Last Output`** to jump straight to visualization.
 
-### 2. Visualization
+### 2. Visualization, Export & Native CLI Commands
 
-Load an existing prediction CSV with **`Load CSV`** (e.g., `data/example/1ufm_example.csv`) or **`Load Last Output`**. The top banner summarizes the loaded file, chain(s), mutation counts, and score range, and automatically falls back to `wt_lora_pred` if the CSV was generated with `--skip_reverse`. *Single-mutation data is required in all modes to color sidechains.*
+Load an existing prediction CSV with **`Load CSV`** (e.g., `data/example/1ufm_example.csv`) or **`Load Last Output`**. The top banner summarizes the loaded file, chain(s), mutation counts, and score range, and automatically handles `--skip_reverse` and unified two-stage CSVs.
 
-* **Target Configuration & Display Mode:** Confirm **`Target Model:`** and **`Chain:`** (synced with Tab 1) and pick **`Mode:`**:
+* **Display Modes (`Mode:`):**
   * **`Singles`:** Displays the top passing single mutant per position on a cloned mutant model.
   * **`WT epistasis`:** Maps Alanine/Glycine double-mutant epistasis directly onto native WT sidechains.
-  * **`MT epistasis`:** Displays double-mutant pairs across minimal non-conflicting structural clone layers with epistasis pseudobonds.
-  * In epistasis modes, configure **`Select Pairs By:`** (`Epistasis` or `Stability`), **`Display Priority:`** (`High score`, `Low score`, `Magnitude`), and **`Epistasis Metric:`** (`epi_pred (1× ensemble)` default when present, or `combined_dddg_pred`).
-* **Filters, Score Selection & Thresholds:** Exclude Cysteine/Proline mutations (**`No WT Cys`**, **`No WT Pro`**, **`No Mut Cys`**, **`No Mut Pro`**), choose the additive score base (**`Dual-view`**, **`WT LoRA`**, or **`MT LoRA`**), and set **`Pos Threshold:`** / **`Neg Threshold:`** (kcal/mol; positive = stabilizing), **`Non-Target Chain Transp %:`** / **`Hide Fully`**, **`Max Interactions / Pos:`**, **`Color Backbone by Highest Additive ΔΔG`**, and **`Nearby atoms within:`** contacts.
-* **Rendering and Styling:** Customize color (text or color-picker swatch; leave **`Mutant:`** blank to color by additive ΔΔG score), style (`stick`, `ball`, `sphere`, `wire`), transparency, and visibility for **`WT:`**, **`Mutant:`**, **`Near Atom:`**, and **`Near Res:`**. Click **`Update Visualization`** to apply changes or **`Reset / Clear Viz`** to cleanly remove ESM-MSR clones and the dedicated `"ESM-MSR Epistasis"` pseudobond group without affecting other models or user pseudobonds.
+  * **`MT epistasis`:** Displays double-mutant pairs across minimal non-conflicting clone layers with epistasis pseudobonds.
+  * **`Top-M Ranked Pairs`:** Highlights Top-$M$ double-mutant pairs (including distant/non-proximal hits) using **Okabe–Ito categorical pair coloring** on a neutral matte cartoon, with **`Disjoint residues`** deduplication, optional subtle dashed connectors, 3D labels, stacked 2D legend, and **`Pub Lighting`**.
+* **Color Scale & Export:** Choose from 5 verified zero-network palettes (**`Blue–White–Red (Classic)`** default, colorblind-safe **`Purple–White–Green (PRGn)`**, **`Brown–White–Teal (BrBG)`**, **`Cividis`**, and **`Viridis`**) with **`Auto Range`** or manual **`Min:`** / **`Max:`** bounds. Export publication-ready figures directly via **`Export 2D Heatmap...`** (20 × $L$ single-mutant landscape, PNG/PDF/SVG) and **`Export Pair Card...`** (Top-$M$ categorical legend card).
+* **Interactive Ranked Results Table:** Filter by mutation/residue (`Filter mutation / residue...`), switch **`View:`** (`Auto`, `Ranked Pairs`, `All Singles`, `All Doubles`), sort numerically, click any row to select and focus the camera on those residues, and use **`Isolate Pair`** / **`Show All`** to spotlight individual Top-$M$ pairs.
+* **Filters, Thresholds & Styling:** Exclude Cys/Pro (`No WT/Mut Cys/Pro`), select score base (`Dual-view`, `WT LoRA`, `MT LoRA`), set **`Pos Threshold:`** / **`Neg Threshold:`**, **`Non-Target Chain Transp %:`**, **`Color Backbone by Highest Additive ΔΔG`**, **`Nearby atoms within:`**, and per-element styling (**`WT:`**, **`Mutant:`**, **`Near Atom:`**, **`Near Res:`**). **`Reset / Clear Viz`** removes ESM-MSR clones, dedicated pseudobond groups (`"ESM-MSR Epistasis"`, `"ESM-MSR Ranked Pairs"`), and 2D legend labels without touching unrelated models or user pseudobonds.
+* **Native ChimeraX CLI Commands:** Script reproducible GUI or `--offscreen` `.cxc` figures using `esm_msr open`, `esm_msr load`, `esm_msr visualize`, `esm_msr pairs`, `esm_msr heatmap`, and `esm_msr reset`.
 
 #### Color Mapping Guide
-* 🟩 **Green (Atoms/Backbone):** Favorable additive single-mutant stability (ΔΔG > 0).
-* 🟥 **Pink (Atoms/Backbone):** Unfavorable additive single-mutant stability (ΔΔG < 0).
-* 🟦 **Blue (Pseudobonds):** Positive / synergistic epistasis (score > 0).
-* 🟧 **Orange (Pseudobonds):** Negative / antagonistic epistasis (score < 0).
+* **Continuous Stability / Epistasis Modes (`Singles`, `WT epistasis`, `MT epistasis`):** Colored by the selected **`Palette:`** (default `Blue–White–Red`: **Red** = stabilizing/synergistic `> 0`, **White** = neutral `0`, **Blue** = destabilizing/antagonistic `< 0`; colorblind-safe `PRGn`, `BrBG`, `Viridis`, and `Cividis` also included).
+* **Categorical Pair Mode (`Top-M Ranked Pairs`):** Each ranked pair (`#1`–`#12`) receives a distinct high-contrast **Okabe–Ito / Tol** hue matched across its mutated sidechains, backbone anchor segments, optional Cα–Cα connector, 3D labels, and on-canvas 2D legend.
 
-See **[`ChimeraX-ESM_MSR/README.md`](ChimeraX-ESM_MSR/README.md)** for the full UI reference, CSV schema details, and troubleshooting guide.
+See **[`ChimeraX-ESM_MSR/README.md`](ChimeraX-ESM_MSR/README.md)** for the full UI & CLI reference, reproducible `.cxc` script example, standalone `fast_doubles.py` documentation, CSV schema, and troubleshooting guide.
 
 ### Expected Output
 

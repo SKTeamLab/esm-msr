@@ -19,17 +19,45 @@ from Qt.QtWidgets import (
     QFileDialog, QLineEdit, QFrame, QGroupBox, QCheckBox, QSpinBox,
     QDoubleSpinBox, QComboBox, QTabWidget, QRadioButton, QButtonGroup,
     QScrollArea, QProgressBar, QColorDialog, QMessageBox, QSizePolicy,
+    QPlainTextEdit, QTableWidget, QTableWidgetItem, QAbstractItemView,
+    QHeaderView, QApplication,
 )
-from Qt.QtCore import QProcess, QSettings, QProcessEnvironment
-from Qt.QtGui import QColor
+from Qt.QtCore import Qt, QProcess, QSettings, QProcessEnvironment
+from Qt.QtGui import QColor, QIcon, QPixmap
 
+from .commands import (
+    EPISTASIS_PBG_NAME,
+    LEGEND_LABEL_PREFIX,
+    ONE_TO_THREE_LETTER_AA,
+    RANKED_PAIRS_PBG_NAME,
+    SCORE_ATTRIBUTE_NAME,
+    apply_swapaa,
+    build_key_command,
+    build_residue_lookup,
+    clear_esm_msr_legend_labels,
+    clear_esm_msr_pbonds,
+    compute_score_range,
+    create_mutated_clone,
+    get_spec,
+    interpolate_palette_rgba,
+    isolate_ranked_pair,
+    render_top_m_pairs,
+    set_residue_scores,
+    show_all_ranked_pairs,
+)
+from .heatmap import export_mutational_heatmap, export_pair_legend_card
 from .parsing import (
+    COLOR_PALETTES,
+    DEFAULT_PALETTE_KEY,
+    discover_python_environments,
     format_res_pos,
+    get_color_palette,
     normalize_icode,
     parse_esm_msr_csv,
     parse_tqdm_progress,
     resolve_python_command,
     resolve_user_path,
+    select_top_m_pairs,
 )
 
 
@@ -50,16 +78,20 @@ _PROC_NORMAL_EXIT = _qt_enum(QProcess, "ExitStatus", "NormalExit")
 _SIZE_EXPANDING = _qt_enum(QSizePolicy, "Policy", "Expanding")
 _SIZE_FIXED = _qt_enum(QSizePolicy, "Policy", "Fixed")
 _COMBO_ADJUST_MIN = _qt_enum(QComboBox, "SizeAdjustPolicy", "AdjustToMinimumContentsLengthWithIcon")
+_NO_EDIT_TRIGGERS = _qt_enum(QAbstractItemView, "EditTrigger", "NoEditTriggers")
+_SELECT_ROWS = _qt_enum(QAbstractItemView, "SelectionBehavior", "SelectRows")
+_SINGLE_SELECTION = _qt_enum(QAbstractItemView, "SelectionMode", "SingleSelection")
+_USER_ROLE = _qt_enum(Qt, "ItemDataRole", "UserRole")
+_ALIGN_RIGHT = _qt_enum(Qt, "AlignmentFlag", "AlignRight")
+_ALIGN_VCENTER = _qt_enum(Qt, "AlignmentFlag", "AlignVCenter")
+_ALIGN_CENTER = _qt_enum(Qt, "AlignmentFlag", "AlignCenter")
+_WRAP_WIDGET_WIDTH = _qt_enum(QPlainTextEdit, "LineWrapMode", "WidgetWidth")
+_RESIZE_TO_CONTENTS = _qt_enum(QHeaderView, "ResizeMode", "ResizeToContents")
+_RESIZE_INTERACTIVE = _qt_enum(QHeaderView, "ResizeMode", "Interactive")
+_SORT_ASCENDING = _qt_enum(Qt, "SortOrder", "AscendingOrder")
 
-SCORE_ATTRIBUTE_NAME = "residue_score_viz_score"
-EPISTASIS_PBG_NAME = "ESM-MSR Epistasis"
-
-ONE_TO_THREE_LETTER_AA = {
-    "A": "ALA", "R": "ARG", "N": "ASN", "D": "ASP", "C": "CYS", "Q": "GLN",
-    "E": "GLU", "G": "GLY", "H": "HIS", "I": "ILE", "L": "LEU", "K": "LYS",
-    "M": "MET", "F": "PHE", "P": "PRO", "S": "SER", "T": "THR", "W": "TRP",
-    "Y": "TYR", "V": "VAL",
-}
+_MAX_TABLE_ROWS = 200
+_MAX_LOG_LINES = 2000
 
 _STATUS_STYLES = {
     "info": "color: #222222;",
@@ -67,6 +99,33 @@ _STATUS_STYLES = {
     "warning": "color: #9a6700; font-weight: bold;",
     "error": "color: #c62828; font-weight: bold;",
 }
+
+
+class _NumericTableWidgetItem(QTableWidgetItem):
+    """QTableWidgetItem subclass that sorts numeric columns numerically (missing values last)."""
+
+    def __init__(self, text: str, sort_val=None):
+        super().__init__(text)
+        self._sort_val = sort_val
+
+    def __lt__(self, other):
+        if isinstance(other, _NumericTableWidgetItem):
+            a = self._sort_val
+            b = other._sort_val
+            a_ok = a is not None and (not isinstance(a, float) or np.isfinite(a))
+            b_ok = b is not None and (not isinstance(b, float) or np.isfinite(b))
+            if a_ok and b_ok:
+                return a < b
+            if a_ok != b_ok:
+                return a_ok
+        return super().__lt__(other)
+
+
+def _make_color_swatch_icon(hex_color: str, size: int = 10) -> QIcon:
+    pix = QPixmap(size, size)
+    c = QColor(hex_color)
+    pix.fill(c if c.isValid() else QColor("#0072B2"))
+    return QIcon(pix)
 
 
 class ESM_MSR_Tool(ToolInstance):
@@ -100,16 +159,23 @@ class ESM_MSR_Tool(ToolInstance):
         self.residue_scores_data = {}
         self.all_singles_scores = {}
         self.epistasis_df = None
+        self.last_parsed_csv = None
+        self.current_ranked_pairs = []
         self.loaded_csv_path = ""
         self.predicted_output_path = ""
         self.mutated_model_id_strings = []
         self.proc = None
 
-        # CSV capability tracking (used to enable/disable controls intelligently)
+        # CSV capability & two-stage run tracking
         self._available_score_cols = None
         self._available_epi_cols = None
         self._has_doubles = None
+        self._has_any_doubles = None
         self._active_run_output_csv = ""
+        self._last_run_was_fast_doubles = False
+        self._auto_select_top_m_on_load = False
+        self._current_stage_prefix = ""
+        self._discovered_envs = []
 
         # 3. BUILD THE UI
         self.tool_window = MainToolWindow(self)
@@ -123,6 +189,7 @@ class ESM_MSR_Tool(ToolInstance):
         # 5. INITIAL PATH VALIDATION & BUTTON STATE
         self._validate_file_paths()
         self._refresh_load_last_output_button()
+        self._refresh_export_buttons()
 
         # 6. REGISTER CHIMERAX EVENT HOOKS
         try:
@@ -154,6 +221,13 @@ class ESM_MSR_Tool(ToolInstance):
         except Exception as e:
             self.session.logger.warning(f"Error stopping prediction process during tool close: {e}")
 
+        # Clean up ESM-MSR dedicated pseudobond groups & 2D legend labels
+        try:
+            clear_esm_msr_pbonds(self.session)
+            clear_esm_msr_legend_labels(self.session)
+        except Exception as e:
+            self.session.logger.warning(f"Error cleaning up ESM-MSR visuals during tool close: {e}")
+
         # Clean up temporary directories
         self._cleanup_temp_dir()
 
@@ -169,13 +243,36 @@ class ESM_MSR_Tool(ToolInstance):
                 )
         self._temp_dir_to_cleanup = None
 
-    # ---------------- Status & Messaging Helpers -----------------
+    # ---------------- Status, Log Console & Messaging Helpers -----------------
     def _set_status(self, message, level="info"):
         if self._closing or not hasattr(self, "status_label"):
             return
         prefix = "Status: " if not message.startswith(("Status:", "Error:", "Warning:")) else ""
         self.status_label.setText(f"{prefix}{message}")
         self.status_label.setStyleSheet(_STATUS_STYLES.get(level, _STATUS_STYLES["info"]))
+
+    def _append_log(self, text):
+        if self._closing or not hasattr(self, "log_console"):
+            return
+        clean = (text or "").rstrip("\r\n")
+        if not clean:
+            return
+        self.log_console.appendPlainText(clean)
+        sb = self.log_console.verticalScrollBar()
+        if sb is not None:
+            sb.setValue(sb.maximum())
+
+    def _toggle_log_console(self, checked):
+        self.log_console.setVisible(checked)
+        self.clear_log_button.setVisible(checked)
+        self.copy_log_button.setVisible(checked)
+        self.toggle_log_button.setText("▾ Hide Log Console" if checked else "▸ Show Log Console")
+
+    def _copy_log_console(self):
+        cb = QApplication.clipboard()
+        if cb is not None:
+            cb.setText(self.log_console.toPlainText())
+            self._set_status("Copied log console text to clipboard.", level="info")
 
     def _show_warning_dialog(self, title, message):
         """Show a QMessageBox warning only in interactive GUI mode (never blocks headless/offscreen runs)."""
@@ -207,7 +304,7 @@ class ESM_MSR_Tool(ToolInstance):
             elif not txt:
                 btn.setStyleSheet(
                     "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
-                    "stop:0 #FF1493, stop:0.5 #FFFFFF, stop:1 #008000); "
+                    "stop:0 #0072B2, stop:0.5 #FFFFFF, stop:1 #D55E00); "
                     "border: 1px solid #666666; border-radius: 2px;"
                 )
             else:
@@ -257,6 +354,10 @@ class ESM_MSR_Tool(ToolInstance):
         self.tab_viz_scroll.setWidget(self.tab_viz)
         self.tabs.addTab(self.tab_viz_scroll, "Visualization")
 
+        # Sync Top-M spinboxes between Tab 1 (Fast Doubles) and Tab 2 (Top-M Ranked Pairs)
+        self.fast_top_m_spinbox.valueChanged.connect(self._sync_top_m_from_io)
+        self.top_m_pairs_spinbox.valueChanged.connect(self._sync_top_m_from_viz)
+
         separator = QFrame()
         separator.setFrameShape(_FRAME_HLINE)
         separator.setFrameShadow(_FRAME_SUNKEN)
@@ -267,7 +368,9 @@ class ESM_MSR_Tool(ToolInstance):
         exec_row1.setSpacing(6)
         self.run_prediction_button = QPushButton("Run Prediction Script")
         self.run_prediction_button.setStyleSheet("font-weight: bold; padding: 4px 8px;")
-        self.run_prediction_button.setToolTip("Export target structure (if needed) and launch src/esm_msr/inference.py.")
+        self.run_prediction_button.setToolTip(
+            "Export target structure (if needed) and launch inference.py or two-stage fast_doubles.py."
+        )
         self.run_prediction_button.clicked.connect(self._initiate_run_prediction_script)
         exec_row1.addWidget(self.run_prediction_button)
 
@@ -304,8 +407,8 @@ class ESM_MSR_Tool(ToolInstance):
 
         self.reset_viz_button = QPushButton("Reset / Clear Viz")
         self.reset_viz_button.setToolTip(
-            "Close ESM-MSR generated mutant clones, remove the 'ESM-MSR Epistasis' pseudobond group, "
-            "and restore the target model to clean white ribbon without touching other models or user pseudobonds."
+            "Close ESM-MSR generated mutant clones, remove ESM-MSR pseudobond groups & 2D legend labels, "
+            "and restore the target model without touching other models or user pseudobonds."
         )
         self.reset_viz_button.clicked.connect(self._reset_visualization)
         exec_row2.addWidget(self.reset_viz_button)
@@ -353,39 +456,63 @@ class ESM_MSR_Tool(ToolInstance):
 
         paths_grid.addWidget(QLabel("Python Env:"), 1, 0)
         self.python_env_edit = QLineEdit(self.python_env)
-        self.python_env_edit.setPlaceholderText("Venv/conda dir, python binary, or conda env name")
+        self.python_env_edit.setPlaceholderText("Venv/conda dir, python binary, or env name")
         self.python_env_edit.setToolTip(
             "Accepts: (1) direct path to a python/python.exe executable, "
             "(2) path to a venv or conda environment folder, "
             "(3) a conda environment name (via 'conda run'), or blank for system python."
         )
         paths_grid.addWidget(self.python_env_edit, 1, 1)
-        btn = QPushButton("Browse...")
-        btn.clicked.connect(self._browse_python_env)
-        paths_grid.addWidget(btn, 1, 2)
 
-        paths_grid.addWidget(QLabel("Output CSV:"), 2, 0)
+        env_btn_box = QHBoxLayout()
+        env_btn_box.setContentsMargins(0, 0, 0, 0)
+        env_btn_box.setSpacing(3)
+        self.auto_detect_env_button = QPushButton("Auto-Detect")
+        self.auto_detect_env_button.setToolTip(
+            "Scan local conda/mamba/venv environments on disk (~25 ms) and prioritize installs with esm_msr + torch."
+        )
+        self.auto_detect_env_button.clicked.connect(self._handle_auto_detect_python_env)
+        env_btn_box.addWidget(self.auto_detect_env_button)
+
+        env_browse_btn = QPushButton("Browse...")
+        env_browse_btn.clicked.connect(self._browse_python_env)
+        env_btn_box.addWidget(env_browse_btn)
+        paths_grid.addLayout(env_btn_box, 1, 2)
+
+        # Compact discovered-environments picker row (shown after Auto-Detect)
+        self.detected_env_label = QLabel("Detected:")
+        self.detected_env_label.setVisible(False)
+        paths_grid.addWidget(self.detected_env_label, 2, 0)
+        self.detected_env_combo = QComboBox()
+        self.detected_env_combo.setSizeAdjustPolicy(_COMBO_ADJUST_MIN)
+        self.detected_env_combo.setMinimumContentsLength(10)
+        self.detected_env_combo.setToolTip("Select a discovered local Python environment.")
+        self.detected_env_combo.currentIndexChanged.connect(self._on_detected_env_selected)
+        self.detected_env_combo.setVisible(False)
+        paths_grid.addWidget(self.detected_env_combo, 2, 1, 1, 2)
+
+        paths_grid.addWidget(QLabel("Output CSV:"), 3, 0)
         self.script_output_csv_path_edit = QLineEdit(self.script_output_csv_path)
         self.script_output_csv_path_edit.setPlaceholderText("Destination path for prediction CSV")
         self.script_output_csv_path_edit.setToolTip("Output CSV path for ESM-MSR predictions. Relative paths resolve against Base Repo Dir.")
         self.script_output_csv_path_edit.textChanged.connect(self._refresh_load_last_output_button)
-        paths_grid.addWidget(self.script_output_csv_path_edit, 2, 1)
+        paths_grid.addWidget(self.script_output_csv_path_edit, 3, 1)
         btn = QPushButton("Browse...")
         btn.clicked.connect(self._browse_script_output_csv)
-        paths_grid.addWidget(btn, 2, 2)
+        paths_grid.addWidget(btn, 3, 2)
 
-        paths_grid.addWidget(QLabel("ESM3 Weights:"), 3, 0)
+        paths_grid.addWidget(QLabel("ESM3 Weights:"), 4, 0)
         self.base_model_loc_edit = QLineEdit(self.base_model_loc)
         self.base_model_loc_edit.setPlaceholderText("Optional: local ESM3 weights folder")
         self.base_model_loc_edit.setToolTip(
             "Optional local directory containing data/weights/esm3_sm_open_v1.pth (leave blank to download via esm/HuggingFace)."
         )
-        paths_grid.addWidget(self.base_model_loc_edit, 3, 1)
+        paths_grid.addWidget(self.base_model_loc_edit, 4, 1)
         btn = QPushButton("Browse...")
         btn.clicked.connect(
             lambda: self._browse_generic_dir(self.base_model_loc_edit, "Select Model Directory", "base_model_loc")
         )
-        paths_grid.addWidget(btn, 3, 2)
+        paths_grid.addWidget(btn, 4, 2)
 
         layout.addWidget(paths_group)
 
@@ -535,7 +662,8 @@ class ESM_MSR_Tool(ToolInstance):
         self.selected_residues_edit = QLineEdit()
         self.selected_residues_edit.setPlaceholderText("e.g. 11,12,15A (blank = all)")
         self.selected_residues_edit.setToolTip(
-            "Comma-separated PDB residue positions (supports negative indices & insertion codes like -2,15A). Leave empty to screen all residues."
+            "Comma-separated PDB residue positions (supports negative indices & insertion codes like -2,15A). "
+            "Applies to Mode 1 and Mode 4 Stage-1 scan. Leave empty to screen all residues."
         )
         meth1_row2.addWidget(self.selected_residues_edit, stretch=1)
 
@@ -593,11 +721,76 @@ class ESM_MSR_Tool(ToolInstance):
         meth3_layout.addWidget(self.mutations_edit, stretch=1)
         scope_layout.addLayout(meth3_layout)
 
+        # Mode 4: Fast Top-N Doubles (2-Stage)
+        self.radio_fast_doubles = QRadioButton("4. Fast Top-N Doubles (2-Stage):")
+        self.radio_fast_doubles.setToolTip(
+            "Stage 1: fast cached WT-pass singles scan. Selection: exact O(N log S) top-N additive pairs. "
+            "Stage 2: dual-view (WT+MT) rescoring and re-ranking into a unified CSV."
+        )
+        self.scope_btn_group.addButton(self.radio_fast_doubles)
+        scope_layout.addWidget(self.radio_fast_doubles)
+
+        meth4_row1 = QHBoxLayout()
+        meth4_row1.addSpacing(20)
+        meth4_row1.addWidget(QLabel("Top N:"))
+        self.fast_top_n_spinbox = QSpinBox()
+        self.fast_top_n_spinbox.setRange(1, 1_000_000)
+        self.fast_top_n_spinbox.setSingleStep(100)
+        self.fast_top_n_spinbox.setValue(1000)
+        self.fast_top_n_spinbox.setMaximumWidth(98)
+        self.fast_top_n_spinbox.setToolTip(
+            "Number of top additive double mutants passed to Stage-2 dual-view rescoring (1 to 1,000,000)."
+        )
+        meth4_row1.addWidget(self.fast_top_n_spinbox)
+
+        meth4_row1.addSpacing(8)
+        meth4_row1.addWidget(QLabel("Visualize Top M:"))
+        self.fast_top_m_spinbox = QSpinBox()
+        self.fast_top_m_spinbox.setRange(1, 12)
+        self.fast_top_m_spinbox.setValue(5)
+        self.fast_top_m_spinbox.setMaximumWidth(54)
+        self.fast_top_m_spinbox.setToolTip(
+            "Synced with Tab 2's Top-M Ranked Pairs control; immediately visualized upon 'Load Last Output'."
+        )
+        meth4_row1.addWidget(self.fast_top_m_spinbox)
+        meth4_row1.addStretch()
+        scope_layout.addLayout(meth4_row1)
+
+        meth4_row2 = QHBoxLayout()
+        meth4_row2.addSpacing(20)
+        self.fast_filter_cys_pro_checkbox = QCheckBox("Filter Cys/Pro before Stage 2")
+        self.fast_filter_cys_pro_checkbox.setChecked(False)
+        self.fast_filter_cys_pro_checkbox.setToolTip(
+            "Exclude WT/Mut Cys and Pro residues before Stage-2 pairing "
+            "(individual Tab 2 No WT/Mut Cys/Pro checkboxes are also respected)."
+        )
+        meth4_row2.addWidget(self.fast_filter_cys_pro_checkbox)
+
+        self.fast_enable_dist_checkbox = QCheckBox("Dist <=")
+        self.fast_enable_dist_checkbox.setChecked(False)
+        self.fast_enable_dist_checkbox.setToolTip(
+            "Optional heavy-atom distance filter (off by default so distant stabilizing pairs are discovered)."
+        )
+        self.fast_enable_dist_checkbox.toggled.connect(self._toggle_fast_dist_spinbox)
+        meth4_row2.addWidget(self.fast_enable_dist_checkbox)
+
+        self.fast_dist_spinbox = QDoubleSpinBox()
+        self.fast_dist_spinbox.setRange(0.0, 100.0)
+        self.fast_dist_spinbox.setValue(10.0)
+        self.fast_dist_spinbox.setSuffix(" Å")
+        self.fast_dist_spinbox.setMaximumWidth(78)
+        self.fast_dist_spinbox.setEnabled(False)
+        self.fast_dist_spinbox.setToolTip("Max WT heavy-atom distance (Å) for Stage-2 double-mutant pairing.")
+        meth4_row2.addWidget(self.fast_dist_spinbox)
+        meth4_row2.addStretch()
+        scope_layout.addLayout(meth4_row2)
+
         screening_config_layout.addWidget(scope_group)
 
         self.radio_full.toggled.connect(self._update_scope_ui)
         self.radio_csv.toggled.connect(self._update_scope_ui)
         self.radio_explicit.toggled.connect(self._update_scope_ui)
+        self.radio_fast_doubles.toggled.connect(self._update_scope_ui)
         self.radio_full.setChecked(True)
 
         # Screening Parameters
@@ -645,6 +838,42 @@ class ESM_MSR_Tool(ToolInstance):
 
         screening_config_layout.addWidget(runtime_group)
         layout.addWidget(screening_config_group)
+
+        # 5. Collapsible In-Panel Log Console
+        log_header = QHBoxLayout()
+        log_header.setSpacing(5)
+        self.toggle_log_button = QPushButton("▸ Show Log Console")
+        self.toggle_log_button.setCheckable(True)
+        self.toggle_log_button.setChecked(False)
+        self.toggle_log_button.setStyleSheet("text-align: left; padding: 3px 8px;")
+        self.toggle_log_button.setToolTip("Show or hide live subprocess stdout/stderr output.")
+        self.toggle_log_button.toggled.connect(self._toggle_log_console)
+        log_header.addWidget(self.toggle_log_button)
+
+        self.clear_log_button = QPushButton("Clear")
+        self.clear_log_button.setVisible(False)
+        self.clear_log_button.clicked.connect(lambda: self.log_console.clear())
+        log_header.addWidget(self.clear_log_button)
+
+        self.copy_log_button = QPushButton("Copy")
+        self.copy_log_button.setVisible(False)
+        self.copy_log_button.clicked.connect(self._copy_log_console)
+        log_header.addWidget(self.copy_log_button)
+        log_header.addStretch()
+        layout.addLayout(log_header)
+
+        self.log_console = QPlainTextEdit()
+        self.log_console.setReadOnly(True)
+        self.log_console.setLineWrapMode(_WRAP_WIDGET_WIDTH)
+        self.log_console.setMaximumBlockCount(_MAX_LOG_LINES)
+        self.log_console.setMinimumHeight(95)
+        self.log_console.setMaximumHeight(140)
+        self.log_console.setStyleSheet(
+            "font-family: monospace; font-size: 11px; background-color: #1e1e1e; color: #e6e6e6;"
+        )
+        self.log_console.setVisible(False)
+        layout.addWidget(self.log_console)
+
         layout.addStretch()
 
     def _build_viz_tab(self, parent_widget):
@@ -698,11 +927,12 @@ class ESM_MSR_Tool(ToolInstance):
         self.display_mode_combo = QComboBox()
         self.display_mode_combo.setSizeAdjustPolicy(_COMBO_ADJUST_MIN)
         self.display_mode_combo.setMinimumContentsLength(7)
-        self.display_mode_combo.addItems(["Singles", "WT epistasis", "MT epistasis"])
+        self.display_mode_combo.addItems(["Singles", "WT epistasis", "MT epistasis", "Top-M Ranked Pairs"])
         self.display_mode_combo.setToolTip(
             "Singles: top single mutant per residue. "
             "WT epistasis: Ala/Gly double-mutant scan mapped on WT sidechains. "
-            "MT epistasis: mutated double-mutant sidechains with epistasis pseudobonds."
+            "MT epistasis: mutated double-mutant sidechains with epistasis pseudobonds. "
+            "Top-M Ranked Pairs: categorical Okabe-Ito color-coded Top-M double mutants with labels & legend."
         )
         self.display_mode_combo.currentTextChanged.connect(self._on_display_mode_changed)
         mode_grid.addWidget(self.display_mode_combo, 0, 1)
@@ -722,7 +952,7 @@ class ESM_MSR_Tool(ToolInstance):
         self.display_priority_combo.setSizeAdjustPolicy(_COMBO_ADJUST_MIN)
         self.display_priority_combo.setMinimumContentsLength(7)
         self.display_priority_combo.addItems(["High score", "Low score", "Magnitude"])
-        self.display_priority_combo.setToolTip("Ordering used when selecting up to Max Interactions per Position.")
+        self.display_priority_combo.setToolTip("Ordering used when selecting Top-M pairs or Max Interactions per Position.")
         mode_grid.addWidget(self.display_priority_combo, 1, 1)
 
         mode_grid.addWidget(QLabel("Epistasis Metric:"), 1, 2)
@@ -739,7 +969,190 @@ class ESM_MSR_Tool(ToolInstance):
 
         layout.addWidget(mode_group)
 
-        # 3. Global Filters
+        # 2b. Top-M Ranked Pairs Settings (shown ONLY when Mode == "Top-M Ranked Pairs")
+        self.top_m_group = QGroupBox("Top-M Ranked Pairs Settings")
+        top_m_grid = QGridLayout()
+        top_m_grid.setSpacing(5)
+        top_m_grid.setColumnStretch(3, 1)
+        self.top_m_group.setLayout(top_m_grid)
+
+        top_m_grid.addWidget(QLabel("Top M Pairs:"), 0, 0)
+        self.top_m_pairs_spinbox = QSpinBox()
+        self.top_m_pairs_spinbox.setRange(1, 12)
+        self.top_m_pairs_spinbox.setValue(5)
+        self.top_m_pairs_spinbox.setMaximumWidth(56)
+        self.top_m_pairs_spinbox.setToolTip("Number of Top-M ranked double-mutant pairs to display (1–12).")
+        top_m_grid.addWidget(self.top_m_pairs_spinbox, 0, 1)
+
+        top_m_grid.addWidget(QLabel("Rank By:"), 0, 2)
+        self.top_m_rank_by_combo = QComboBox()
+        self.top_m_rank_by_combo.setSizeAdjustPolicy(_COMBO_ADJUST_MIN)
+        self.top_m_rank_by_combo.setMinimumContentsLength(8)
+        self.top_m_rank_by_combo.addItem("Combined ΔΔG", "combined_pred")
+        self.top_m_rank_by_combo.addItem("Epistasis", "epi_score")
+        self.top_m_rank_by_combo.addItem("Stage-1 Additive", "stage1_additive_pred")
+        self.top_m_rank_by_combo.addItem("Rank Gain (ΔRank)", "rank_change")
+        self.top_m_rank_by_combo.setToolTip("Metric used to rank Top-M double-mutant pairs.")
+        top_m_grid.addWidget(self.top_m_rank_by_combo, 0, 3)
+
+        top_m_grid.addWidget(QLabel("Connectors:"), 1, 0)
+        self.top_m_connectors_combo = QComboBox()
+        self.top_m_connectors_combo.setSizeAdjustPolicy(_COMBO_ADJUST_MIN)
+        self.top_m_connectors_combo.setMinimumContentsLength(8)
+        self.top_m_connectors_combo.addItem("Dashed (Subtle)", "dashed")
+        self.top_m_connectors_combo.addItem("None (Labels Only)", "none")
+        self.top_m_connectors_combo.addItem("Solid", "solid")
+        self.top_m_connectors_combo.setToolTip("Style of Cα–Cα pair connectors drawn in 'ESM-MSR Ranked Pairs'.")
+        top_m_grid.addWidget(self.top_m_connectors_combo, 1, 1, 1, 3)
+
+        chk_grid = QGridLayout()
+        chk_grid.setSpacing(4)
+        self.top_m_disjoint_checkbox = QCheckBox("Disjoint residues")
+        self.top_m_disjoint_checkbox.setChecked(True)
+        self.top_m_disjoint_checkbox.setToolTip("Require each displayed pair to occupy distinct residue positions.")
+        chk_grid.addWidget(self.top_m_disjoint_checkbox, 0, 0)
+
+        self.top_m_labels_3d_checkbox = QCheckBox("3D Labels")
+        self.top_m_labels_3d_checkbox.setChecked(True)
+        self.top_m_labels_3d_checkbox.setToolTip("Draw concise color-matched 3D labels (#rank mut) at each mutated residue.")
+        chk_grid.addWidget(self.top_m_labels_3d_checkbox, 0, 1)
+
+        self.top_m_legend_2d_checkbox = QCheckBox("2D Legend")
+        self.top_m_legend_2d_checkbox.setChecked(True)
+        self.top_m_legend_2d_checkbox.setToolTip("Draw a stacked color-coded 2D legend in the top-left corner.")
+        chk_grid.addWidget(self.top_m_legend_2d_checkbox, 1, 0)
+
+        self.top_m_pub_lighting_checkbox = QCheckBox("Pub Lighting")
+        self.top_m_pub_lighting_checkbox.setChecked(True)
+        self.top_m_pub_lighting_checkbox.setToolTip("Apply white background, soft lighting, and crisp silhouettes.")
+        chk_grid.addWidget(self.top_m_pub_lighting_checkbox, 1, 1)
+
+        top_m_grid.addLayout(chk_grid, 2, 0, 1, 4)
+        self.top_m_group.setVisible(False)
+        layout.addWidget(self.top_m_group)
+
+        # 3. Color Scale & Export (UI #5)
+        scale_group = QGroupBox("Color Scale && Export")
+        scale_layout = QVBoxLayout()
+        scale_layout.setSpacing(5)
+        scale_group.setLayout(scale_layout)
+
+        pal_row = QHBoxLayout()
+        pal_row.addWidget(QLabel("Palette:"))
+        self.palette_combobox = QComboBox()
+        self.palette_combobox.setSizeAdjustPolicy(_COMBO_ADJUST_MIN)
+        self.palette_combobox.setMinimumContentsLength(10)
+        for key, spec in COLOR_PALETTES.items():
+            self.palette_combobox.addItem(spec["label"], key)
+        self.palette_combobox.setToolTip("Color scale used for 3D structure coloring, colorbar key, and 2D heatmap export.")
+        pal_row.addWidget(self.palette_combobox, stretch=1)
+        scale_layout.addLayout(pal_row)
+
+        range_row = QHBoxLayout()
+        self.auto_range_checkbox = QCheckBox("Auto Range")
+        self.auto_range_checkbox.setChecked(True)
+        self.auto_range_checkbox.setToolTip("Automatically compute colormap bounds from the loaded scores.")
+        self.auto_range_checkbox.toggled.connect(self._on_auto_range_toggled)
+        range_row.addWidget(self.auto_range_checkbox)
+
+        range_row.addSpacing(4)
+        range_row.addWidget(QLabel("Min:"))
+        self.range_min_spinbox = QDoubleSpinBox()
+        self.range_min_spinbox.setRange(-20.0, 20.0)
+        self.range_min_spinbox.setSingleStep(0.5)
+        self.range_min_spinbox.setValue(-3.0)
+        self.range_min_spinbox.setMaximumWidth(68)
+        self.range_min_spinbox.setEnabled(False)
+        range_row.addWidget(self.range_min_spinbox)
+
+        range_row.addSpacing(4)
+        range_row.addWidget(QLabel("Max:"))
+        self.range_max_spinbox = QDoubleSpinBox()
+        self.range_max_spinbox.setRange(-20.0, 20.0)
+        self.range_max_spinbox.setSingleStep(0.5)
+        self.range_max_spinbox.setValue(3.0)
+        self.range_max_spinbox.setMaximumWidth(68)
+        self.range_max_spinbox.setEnabled(False)
+        range_row.addWidget(self.range_max_spinbox)
+        range_row.addStretch()
+        scale_layout.addLayout(range_row)
+
+        export_row = QHBoxLayout()
+        self.export_heatmap_button = QPushButton("Export 2D Heatmap...")
+        self.export_heatmap_button.setEnabled(False)
+        self.export_heatmap_button.setToolTip("Export a publication-quality 20 × L single-mutant ΔΔG heatmap (PNG/PDF/SVG).")
+        self.export_heatmap_button.clicked.connect(self._handle_export_heatmap)
+        export_row.addWidget(self.export_heatmap_button)
+
+        self.export_pair_card_button = QPushButton("Export Pair Card...")
+        self.export_pair_card_button.setEnabled(False)
+        self.export_pair_card_button.setToolTip("Export a publication legend card for the Top-M categorically colored double mutants.")
+        self.export_pair_card_button.clicked.connect(self._handle_export_pair_card)
+        export_row.addWidget(self.export_pair_card_button)
+        export_row.addStretch()
+        scale_layout.addLayout(export_row)
+
+        layout.addWidget(scale_group)
+
+        # 4. Interactive Ranked Results Table (UI #1)
+        results_group = QGroupBox("Ranked Results")
+        results_layout = QVBoxLayout()
+        results_layout.setSpacing(4)
+        results_group.setLayout(results_layout)
+
+        res_top_row = QHBoxLayout()
+        res_top_row.setSpacing(4)
+        self.results_filter_edit = QLineEdit()
+        self.results_filter_edit.setPlaceholderText("Filter mutation / residue...")
+        self.results_filter_edit.setToolTip("Filter displayed rows by mutation name or residue number (e.g. A12V or 45).")
+        self.results_filter_edit.textChanged.connect(self._populate_results_table)
+        res_top_row.addWidget(self.results_filter_edit, stretch=1)
+
+        res_top_row.addWidget(QLabel("View:"))
+        self.results_view_combo = QComboBox()
+        self.results_view_combo.setSizeAdjustPolicy(_COMBO_ADJUST_MIN)
+        self.results_view_combo.setMinimumContentsLength(7)
+        self.results_view_combo.addItems(["Auto", "Ranked Pairs", "All Singles", "All Doubles"])
+        self.results_view_combo.currentTextChanged.connect(self._populate_results_table)
+        res_top_row.addWidget(self.results_view_combo)
+        results_layout.addLayout(res_top_row)
+
+        res_btn_row = QHBoxLayout()
+        res_btn_row.setSpacing(5)
+        self.isolate_pair_button = QPushButton("Isolate Pair")
+        self.isolate_pair_button.setEnabled(False)
+        self.isolate_pair_button.setToolTip("Spotlight only the selected Top-M pair in 3D and zoom camera to its residues.")
+        self.isolate_pair_button.clicked.connect(self._handle_isolate_selected_pair)
+        res_btn_row.addWidget(self.isolate_pair_button)
+
+        self.show_all_pairs_button = QPushButton("Show All")
+        self.show_all_pairs_button.setEnabled(False)
+        self.show_all_pairs_button.setToolTip("Restore all Top-M ranked pairs and reset camera view.")
+        self.show_all_pairs_button.clicked.connect(self.show_all_pairs)
+        res_btn_row.addWidget(self.show_all_pairs_button)
+
+        self.results_count_label = QLabel("")
+        self.results_count_label.setStyleSheet("color: #555555; font-size: 11px;")
+        res_btn_row.addWidget(self.results_count_label)
+        res_btn_row.addStretch()
+        results_layout.addLayout(res_btn_row)
+
+        self.results_table = QTableWidget(0, 6)
+        self.results_table.setMinimumHeight(110)
+        self.results_table.setMaximumHeight(210)
+        self.results_table.setEditTriggers(_NO_EDIT_TRIGGERS)
+        self.results_table.setSelectionBehavior(_SELECT_ROWS)
+        self.results_table.setSelectionMode(_SINGLE_SELECTION)
+        self.results_table.setAlternatingRowColors(True)
+        self.results_table.setSortingEnabled(True)
+        self.results_table.verticalHeader().setVisible(False)
+        self.results_table.horizontalHeader().setStretchLastSection(True)
+        self.results_table.cellClicked.connect(self._on_results_row_clicked)
+        results_layout.addWidget(self.results_table)
+
+        layout.addWidget(results_group)
+
+        # 5. Global Filters
         filters_group = QGroupBox("Global Filters")
         filters_layout = QHBoxLayout()
         filters_layout.setSpacing(8)
@@ -762,7 +1175,7 @@ class ESM_MSR_Tool(ToolInstance):
         filters_group.setLayout(filters_layout)
         layout.addWidget(filters_group)
 
-        # 4. Score Selection
+        # 6. Score Selection
         score_group = QGroupBox("Score Selection (Additive Base)")
         score_layout = QVBoxLayout()
         score_layout.setSpacing(3)
@@ -788,7 +1201,7 @@ class ESM_MSR_Tool(ToolInstance):
         self.radio_dual_view.setChecked(True)
         layout.addWidget(score_group)
 
-        # 5. Thresholds, Contacts, and Networks
+        # 7. Thresholds, Contacts, and Networks
         tcn_group = QGroupBox("Global Thresholds and Networks (kcal/mol, positive = stabilizing)")
         tcn_layout = QVBoxLayout()
         tcn_layout.setSpacing(5)
@@ -877,7 +1290,7 @@ class ESM_MSR_Tool(ToolInstance):
 
         self.show_nearby_checkbox.toggled.connect(self._on_show_nearby_toggled)
 
-        # 6. Consolidated Rendering and Styling (compact 6-column grid fits ~440px with zero clipping)
+        # 8. Consolidated Rendering and Styling (compact 6-column grid fits ~440px with zero clipping)
         styling_group = QGroupBox("Rendering and Styling")
         style_grid = QGridLayout()
         style_grid.setSpacing(4)
@@ -978,6 +1391,78 @@ class ESM_MSR_Tool(ToolInstance):
         self._on_display_mode_changed()
         self._on_show_nearby_toggled(self.show_nearby_checkbox.isChecked())
 
+    # ---------------- Sync Helpers -----------------
+    def _sync_top_m_from_io(self, val):
+        if self.top_m_pairs_spinbox.value() != val:
+            self.top_m_pairs_spinbox.blockSignals(True)
+            self.top_m_pairs_spinbox.setValue(val)
+            self.top_m_pairs_spinbox.blockSignals(False)
+
+    def _sync_top_m_from_viz(self, val):
+        if self.fast_top_m_spinbox.value() != val:
+            self.fast_top_m_spinbox.blockSignals(True)
+            self.fast_top_m_spinbox.setValue(val)
+            self.fast_top_m_spinbox.blockSignals(False)
+
+    def _on_auto_range_toggled(self, checked):
+        self.range_min_spinbox.setEnabled(not checked)
+        self.range_max_spinbox.setEnabled(not checked)
+
+    def _get_active_palette(self):
+        key = self.palette_combobox.currentData() if hasattr(self, "palette_combobox") else DEFAULT_PALETTE_KEY
+        return get_color_palette(key)
+
+    def _get_score_range_for_values(self, values, palette_spec):
+        auto = self.auto_range_checkbox.isChecked() if hasattr(self, "auto_range_checkbox") else True
+        m_min = self.range_min_spinbox.value() if not auto else None
+        m_max = self.range_max_spinbox.value() if not auto else None
+        return compute_score_range(values, palette_spec, auto_range=auto, manual_min=m_min, manual_max=m_max)
+
+    # ---------------- Conda / Venv Auto-Detection (UI #7) -----------------
+    def _handle_auto_detect_python_env(self):
+        base_repo = self.base_repo_path_edit.text().strip() if hasattr(self, "base_repo_path_edit") else self.base_repo_path
+        envs = discover_python_environments(base_repo_path=base_repo or None)
+        self._discovered_envs = envs
+
+        self.detected_env_combo.blockSignals(True)
+        self.detected_env_combo.clear()
+        for e in envs:
+            self.detected_env_combo.addItem(e.label, e.python_path)
+        self.detected_env_combo.blockSignals(False)
+
+        if not envs:
+            self.detected_env_label.setVisible(False)
+            self.detected_env_combo.setVisible(False)
+            self._set_status("No local conda or virtualenv Python environments detected on disk.", level="warning")
+            return
+
+        self.detected_env_label.setVisible(True)
+        self.detected_env_combo.setVisible(True)
+
+        top = envs[0]
+        self.detected_env_combo.blockSignals(True)
+        self.detected_env_combo.setCurrentIndex(0)
+        self.detected_env_combo.blockSignals(False)
+
+        self.python_env = top.python_path
+        self.python_env_edit.setText(top.python_path)
+        self.settings.setValue("python_env", top.python_path)
+        self._set_status(
+            f"Detected {len(envs)} Python env(s); selected {top.name} ({top.python_path}).",
+            level="success",
+        )
+        self._append_log(f"[Auto-Detect] Found {len(envs)} env(s); top pick: {top.label}")
+
+    def _on_detected_env_selected(self, index):
+        if index < 0:
+            return
+        py_path = self.detected_env_combo.itemData(index)
+        if py_path:
+            self.python_env = py_path
+            self.python_env_edit.setText(py_path)
+            self.settings.setValue("python_env", py_path)
+            self._set_status(f"Selected Python env: {self.detected_env_combo.currentText()}", level="info")
+
     # ---------------- Validation & UI State Sync -----------------
     def _on_checkpoint_text_edited(self, _text):
         """Clear LoRA config when the user edits the checkpoint path and sync QSettings."""
@@ -1017,6 +1502,18 @@ class ESM_MSR_Tool(ToolInstance):
         candidate = self._get_last_output_candidate()
         self.load_last_output_button.setEnabled(bool(candidate))
 
+    def _refresh_export_buttons(self):
+        if not hasattr(self, "export_heatmap_button"):
+            return
+        has_singles = bool(self.last_parsed_csv and self.last_parsed_csv.all_singles_scores)
+        has_doubles = bool(
+            self.current_ranked_pairs
+            or (self.last_parsed_csv and self.last_parsed_csv.double_records)
+        )
+        self.export_heatmap_button.setEnabled(has_singles)
+        self.export_pair_card_button.setEnabled(has_doubles)
+        self.show_all_pairs_button.setEnabled(bool(self.current_ranked_pairs))
+
     def _get_last_output_candidate(self):
         if self.predicted_output_path and os.path.isfile(self.predicted_output_path):
             return self.predicted_output_path
@@ -1031,10 +1528,11 @@ class ESM_MSR_Tool(ToolInstance):
 
     def _update_scope_ui(self):
         is_full = self.radio_full.isChecked()
+        is_fast = self.radio_fast_doubles.isChecked()
         self.mode_combobox.setEnabled(is_full)
-        self.selected_residues_edit.setEnabled(is_full)
-        self.grab_sel_button.setEnabled(is_full)
-        self.screen_except_checkbox.setEnabled(is_full)
+        self.selected_residues_edit.setEnabled(is_full or is_fast)
+        self.grab_sel_button.setEnabled(is_full or is_fast)
+        self.screen_except_checkbox.setEnabled(is_full or is_fast)
 
         current_mode = self.mode_combobox.currentText()
         is_doubles_mode = (current_mode == "singles+doubles")
@@ -1054,8 +1552,20 @@ class ESM_MSR_Tool(ToolInstance):
         is_explicit = self.radio_explicit.isChecked()
         self.mutations_edit.setEnabled(is_explicit)
 
+        self.fast_top_n_spinbox.setEnabled(is_fast)
+        self.fast_top_m_spinbox.setEnabled(is_fast)
+        self.fast_filter_cys_pro_checkbox.setEnabled(is_fast)
+        self.fast_enable_dist_checkbox.setEnabled(is_fast)
+        self.fast_dist_spinbox.setEnabled(is_fast and self.fast_enable_dist_checkbox.isChecked())
+
+        if hasattr(self, "skip_reverse_checkbox"):
+            self.skip_reverse_checkbox.setEnabled(not is_fast)
+
     def _toggle_distance_spinbox(self, checked):
         self.distance_threshold_spinbox.setEnabled(checked)
+
+    def _toggle_fast_dist_spinbox(self, checked):
+        self.fast_dist_spinbox.setEnabled(checked and self.radio_fast_doubles.isChecked())
 
     def _on_transp_changed(self, val):
         self.hide_non_target_chains_checkbox.blockSignals(True)
@@ -1395,6 +1905,331 @@ class ESM_MSR_Tool(ToolInstance):
             if settings_key:
                 self.settings.setValue(settings_key, norm_fp)
 
+    # ---------------- Export Helpers (UI #5) -----------------
+    def export_heatmap(self, output_path):
+        """Programmatically export the 2D mutational landscape heatmap for the loaded CSV."""
+        if not self.last_parsed_csv or not self.last_parsed_csv.all_singles_scores:
+            raise ValueError("No loaded single-mutant CSV data available to export.")
+        pal = self._get_active_palette()
+        auto = self.auto_range_checkbox.isChecked()
+        vmin = None if auto else self.range_min_spinbox.value()
+        vmax = None if auto else self.range_max_spinbox.value()
+        chain = self.viz_chain_id_combobox.currentText().strip() or self.last_parsed_csv.selected_chain
+        return export_mutational_heatmap(
+            parsed_csv=self.last_parsed_csv,
+            output_path=output_path,
+            palette_key=pal["key"],
+            vmin=vmin,
+            vmax=vmax,
+            chain=chain,
+        )
+
+    def export_pair_card(self, output_path):
+        """Programmatically export the Top-M categorical pair legend card."""
+        pairs = list(self.current_ranked_pairs)
+        if not pairs and self.last_parsed_csv and self.last_parsed_csv.double_records:
+            pairs = select_top_m_pairs(
+                self.last_parsed_csv,
+                top_m=self.top_m_pairs_spinbox.value(),
+                sort_by=self.top_m_rank_by_combo.currentData() or "combined_pred",
+                priority=self.display_priority_combo.currentText(),
+                diverse_positions=self.top_m_disjoint_checkbox.isChecked(),
+            )
+        if not pairs:
+            raise ValueError("No double-mutant pairs available to export.")
+        return export_pair_legend_card(ranked_pairs=pairs, output_path=output_path)
+
+    def _handle_export_heatmap(self):
+        if not self.last_parsed_csv:
+            self._report_error("No CSV Loaded", "Load an ESM-MSR CSV before exporting a heatmap.", popup=True)
+            return
+        w = getattr(self.session.ui, "main_window", None)
+        default_dir = os.path.dirname(self.loaded_csv_path) if self.loaded_csv_path else self.base_repo_path
+        stem = os.path.splitext(os.path.basename(self.loaded_csv_path))[0] if self.loaded_csv_path else "esm_msr"
+        default_path = os.path.join(default_dir, f"{stem}_heatmap.png") if default_dir else f"{stem}_heatmap.png"
+        fp, _ = QFileDialog.getSaveFileName(
+            w, "Export 2D Mutational Heatmap", default_path,
+            "PNG Image (*.png);;PDF Document (*.pdf);;SVG Vector (*.svg);;All Files (*)",
+        )
+        if not fp:
+            return
+        try:
+            out_abs = self.export_heatmap(fp)
+            self._set_status(f"Exported 2D heatmap to {os.path.basename(out_abs)}.", level="success")
+            self.session.logger.info(f"Exported ESM-MSR 2D heatmap to '{out_abs}'.")
+        except Exception as e:
+            self._report_error("Heatmap Export Failed", str(e), popup=True)
+
+    def _handle_export_pair_card(self):
+        w = getattr(self.session.ui, "main_window", None)
+        default_dir = os.path.dirname(self.loaded_csv_path) if self.loaded_csv_path else self.base_repo_path
+        stem = os.path.splitext(os.path.basename(self.loaded_csv_path))[0] if self.loaded_csv_path else "esm_msr"
+        default_path = os.path.join(default_dir, f"{stem}_top_pairs.png") if default_dir else f"{stem}_top_pairs.png"
+        fp, _ = QFileDialog.getSaveFileName(
+            w, "Export Top-M Pair Legend Card", default_path,
+            "PNG Image (*.png);;PDF Document (*.pdf);;SVG Vector (*.svg);;All Files (*)",
+        )
+        if not fp:
+            return
+        try:
+            out_abs = self.export_pair_card(fp)
+            self._set_status(f"Exported pair legend card to {os.path.basename(out_abs)}.", level="success")
+            self.session.logger.info(f"Exported ESM-MSR pair legend card to '{out_abs}'.")
+        except Exception as e:
+            self._report_error("Pair Card Export Failed", str(e), popup=True)
+
+    # ---------------- Interactive Ranked Results Table (UI #1) -----------------
+    def _populate_results_table(self):
+        if self._closing or not hasattr(self, "results_table"):
+            return
+
+        parsed = self.last_parsed_csv
+        self.results_table.setSortingEnabled(False)
+        self.results_table.clearContents()
+        self.results_table.setRowCount(0)
+        self.isolate_pair_button.setEnabled(False)
+
+        if parsed is None or not parsed.ok:
+            self.results_count_label.setText("")
+            self.results_table.setSortingEnabled(True)
+            return
+
+        view_choice = self.results_view_combo.currentText()
+        if view_choice == "Auto":
+            mode = self.display_mode_combo.currentText()
+            if mode == "Top-M Ranked Pairs" and (self.current_ranked_pairs or parsed.double_records):
+                view_mode = "Ranked Pairs"
+            elif "epistasis" in mode.lower() and parsed.double_records:
+                view_mode = "All Doubles"
+            else:
+                view_mode = "All Singles"
+        else:
+            view_mode = view_choice
+
+        flt = self.results_filter_edit.text().strip().lower()
+
+        if view_mode in ("Ranked Pairs", "All Doubles"):
+            headers = ["Rank", "Mutation", "ΔΔG", "Epistasis", "Stage-1", "ΔRank", "Dist (Å)"]
+            self.results_table.setColumnCount(len(headers))
+            self.results_table.setHorizontalHeaderLabels(headers)
+
+            if view_mode == "Ranked Pairs":
+                pairs = list(self.current_ranked_pairs)
+                if not pairs and parsed.double_records:
+                    pairs = select_top_m_pairs(
+                        parsed,
+                        top_m=self.top_m_pairs_spinbox.value(),
+                        sort_by=self.top_m_rank_by_combo.currentData() or "combined_pred",
+                        priority=self.display_priority_combo.currentText(),
+                        diverse_positions=self.top_m_disjoint_checkbox.isChecked(),
+                    )
+                rows_src = [
+                    {
+                        "kind": "pair",
+                        "rank": p.rank,
+                        "color_hex": p.color_hex,
+                        "chain": p.chain,
+                        "mut_str": f"{p.mut1_str} + {p.mut2_str}",
+                        "raw_mut": p.mut_str,
+                        "positions": [p.pos1, p.pos2],
+                        "score": p.combined_pred if p.combined_pred is not None else p.score,
+                        "epi": p.epi_score,
+                        "s1": p.stage1_additive_pred,
+                        "rc": p.rank_change,
+                        "dist": p.dist,
+                    }
+                    for p in pairs
+                ]
+            else:
+                rows_src = []
+                for idx, rec in enumerate(parsed.double_records, start=1):
+                    rows_src.append({
+                        "kind": "double",
+                        "rank": rec.get("full_rank") if rec.get("full_rank") is not None else idx,
+                        "color_hex": None,
+                        "chain": rec["chain"],
+                        "mut_str": f"{rec['mut1_str']} + {rec['mut2_str']}",
+                        "raw_mut": rec["mut_str"],
+                        "positions": [rec["pos1"], rec["pos2"]],
+                        "score": rec.get("combined_pred") if rec.get("combined_pred") is not None else rec.get("score"),
+                        "epi": rec.get("epi_score"),
+                        "s1": rec.get("stage1_additive_pred"),
+                        "rc": rec.get("rank_change"),
+                        "dist": rec.get("dist"),
+                    })
+
+            if flt:
+                rows_src = [
+                    r for r in rows_src
+                    if flt in r["mut_str"].lower() or flt in r["raw_mut"].lower()
+                ]
+
+            total_n = len(rows_src)
+            shown_rows = rows_src[:_MAX_TABLE_ROWS]
+            self.results_table.setRowCount(len(shown_rows))
+
+            for r_idx, r in enumerate(shown_rows):
+                rank_item = _NumericTableWidgetItem(f"#{r['rank']}", int(r["rank"]))
+                if r["color_hex"]:
+                    rank_item.setIcon(_make_color_swatch_icon(r["color_hex"]))
+                rank_item.setData(_USER_ROLE, {
+                    "kind": r["kind"],
+                    "rank": r["rank"],
+                    "chain": r["chain"],
+                    "positions": r["positions"],
+                    "mut_str": r["mut_str"],
+                })
+                rank_item.setTextAlignment(_ALIGN_CENTER)
+                self.results_table.setItem(r_idx, 0, rank_item)
+
+                mut_item = QTableWidgetItem(r["mut_str"])
+                self.results_table.setItem(r_idx, 1, mut_item)
+
+                sc = r["score"]
+                sc_item = _NumericTableWidgetItem(f"{sc:+.2f}" if sc is not None and np.isfinite(sc) else "—", sc)
+                sc_item.setTextAlignment(_ALIGN_RIGHT | _ALIGN_VCENTER)
+                self.results_table.setItem(r_idx, 2, sc_item)
+
+                epi = r["epi"]
+                epi_item = _NumericTableWidgetItem(f"{epi:+.2f}" if epi is not None and np.isfinite(epi) else "—", epi)
+                epi_item.setTextAlignment(_ALIGN_RIGHT | _ALIGN_VCENTER)
+                self.results_table.setItem(r_idx, 3, epi_item)
+
+                s1 = r["s1"]
+                s1_item = _NumericTableWidgetItem(f"{s1:+.2f}" if s1 is not None and np.isfinite(s1) else "—", s1)
+                s1_item.setTextAlignment(_ALIGN_RIGHT | _ALIGN_VCENTER)
+                self.results_table.setItem(r_idx, 4, s1_item)
+
+                rc = r["rc"]
+                rc_txt = f"{int(rc):+d}" if rc is not None and np.isfinite(rc) else "—"
+                rc_item = _NumericTableWidgetItem(rc_txt, int(rc) if rc is not None and np.isfinite(rc) else None)
+                rc_item.setTextAlignment(_ALIGN_RIGHT | _ALIGN_VCENTER)
+                self.results_table.setItem(r_idx, 5, rc_item)
+
+                dist = r["dist"]
+                dist_item = _NumericTableWidgetItem(f"{dist:.1f}" if dist is not None and np.isfinite(dist) else "—", dist)
+                dist_item.setTextAlignment(_ALIGN_RIGHT | _ALIGN_VCENTER)
+                self.results_table.setItem(r_idx, 6, dist_item)
+
+            self.results_count_label.setText(
+                f"Showing {len(shown_rows):,} of {total_n:,}" if total_n > len(shown_rows) else f"{total_n:,} row(s)"
+            )
+        else:
+            headers = ["Rank", "Mutation", "Pos", "ΔΔG", "WT", "MT"]
+            self.results_table.setColumnCount(len(headers))
+            self.results_table.setHorizontalHeaderLabels(headers)
+
+            rows_src = []
+            for idx, rec in enumerate(parsed.single_records, start=1):
+                if flt and flt not in rec["mut_str"].lower() and flt not in format_res_pos(rec["pos_key"]).lower():
+                    continue
+                rows_src.append((idx, rec))
+
+            total_n = len(rows_src)
+            shown_rows = rows_src[:_MAX_TABLE_ROWS]
+            self.results_table.setRowCount(len(shown_rows))
+
+            for r_idx, (rank_num, rec) in enumerate(shown_rows):
+                rank_item = _NumericTableWidgetItem(str(rank_num), rank_num)
+                rank_item.setData(_USER_ROLE, {
+                    "kind": "single",
+                    "rank": rank_num,
+                    "chain": rec["chain"],
+                    "positions": [rec["pos_key"]],
+                    "mut_str": rec["mut_str"],
+                })
+                rank_item.setTextAlignment(_ALIGN_CENTER)
+                self.results_table.setItem(r_idx, 0, rank_item)
+
+                self.results_table.setItem(r_idx, 1, QTableWidgetItem(rec["mut_str"]))
+
+                pos_item = _NumericTableWidgetItem(format_res_pos(rec["pos_key"]), rec["pos"])
+                pos_item.setTextAlignment(_ALIGN_RIGHT | _ALIGN_VCENTER)
+                self.results_table.setItem(r_idx, 2, pos_item)
+
+                sc = rec["score"]
+                sc_item = _NumericTableWidgetItem(f"{sc:+.2f}" if np.isfinite(sc) else "—", sc)
+                sc_item.setTextAlignment(_ALIGN_RIGHT | _ALIGN_VCENTER)
+                self.results_table.setItem(r_idx, 3, sc_item)
+
+                wt_item = QTableWidgetItem(rec["wt"])
+                wt_item.setTextAlignment(_ALIGN_CENTER)
+                self.results_table.setItem(r_idx, 4, wt_item)
+
+                mt_item = QTableWidgetItem(rec["mut"])
+                mt_item.setTextAlignment(_ALIGN_CENTER)
+                self.results_table.setItem(r_idx, 5, mt_item)
+
+            self.results_count_label.setText(
+                f"Showing {len(shown_rows):,} of {total_n:,}" if total_n > len(shown_rows) else f"{total_n:,} row(s)"
+            )
+
+        self.results_table.resizeColumnsToContents()
+        if self.results_table.columnCount() > 0:
+            self.results_table.setColumnWidth(0, max(self.results_table.columnWidth(0) + 18, 62))
+        self.results_table.setSortingEnabled(True)
+        self.results_table.sortItems(0, _SORT_ASCENDING)
+        self.results_table.horizontalHeader().setSortIndicator(0, _SORT_ASCENDING)
+
+    def _get_selected_row_meta(self):
+        row = self.results_table.currentRow()
+        if row < 0:
+            return None
+        item = self.results_table.item(row, 0)
+        if item is None:
+            return None
+        return item.data(_USER_ROLE)
+
+    def _on_results_row_clicked(self, row, _col):
+        item = self.results_table.item(row, 0)
+        if item is None:
+            return
+        meta = item.data(_USER_ROLE)
+        if not meta:
+            return
+
+        can_isolate = (meta.get("kind") == "pair" and bool(self.current_ranked_pairs))
+        self.isolate_pair_button.setEnabled(can_isolate)
+
+        model_id = self.viz_model_combobox.currentData()
+        if not model_id:
+            return
+        chain = meta.get("chain") or self.viz_chain_id_combobox.currentText().strip()
+        positions = meta.get("positions") or []
+        if not positions:
+            return
+
+        pos_spec = ",".join(format_res_pos(p) for p in positions)
+        res_spec = f"#{model_id}/{chain}:{pos_spec}" if chain else f"#{model_id}:{pos_spec}"
+        try:
+            run(self.session, f"select {res_spec}")
+            run(self.session, f"view {res_spec} pad 0.35")
+            self._set_status(f"Focused on {meta.get('mut_str', pos_spec)} ({res_spec}).", level="info")
+        except Exception as e:
+            self.session.logger.warning(f"Could not focus camera on {res_spec}: {e}")
+
+    def _handle_isolate_selected_pair(self):
+        meta = self._get_selected_row_meta()
+        if not meta or meta.get("kind") != "pair":
+            return
+        self.isolate_pair_rank(int(meta["rank"]))
+
+    def isolate_pair_rank(self, rank):
+        """Spotlight a single Top-M ranked pair cleanly."""
+        ok = isolate_ranked_pair(self.session, int(rank))
+        if ok:
+            self._set_status(f"Isolated Pair #{int(rank)}. Click 'Show All' to restore all pairs.", level="info")
+        else:
+            self._set_status(f"Pair #{int(rank)} is not currently rendered in Top-M mode.", level="warning")
+        return ok
+
+    def show_all_pairs(self):
+        """Restore all Top-M ranked pairs, connectors, and legend labels."""
+        ok = show_all_ranked_pairs(self.session)
+        if ok:
+            self._set_status(f"Showing all {len(self.current_ranked_pairs)} Top-M ranked pair(s).", level="info")
+        return ok
+
     # ---------------- Subprocess Management -----------------
     def _reset_run_controls(self):
         if self._closing:
@@ -1415,6 +2250,7 @@ class ESM_MSR_Tool(ToolInstance):
             if not silent:
                 self.session.logger.warning("Terminating prediction process tree...")
                 self._set_status("Terminating prediction process...", level="warning")
+                self._append_log("[STOP] Terminating prediction process tree...")
 
             try:
                 pid = self.proc.processId()
@@ -1459,6 +2295,8 @@ class ESM_MSR_Tool(ToolInstance):
         self.settings.setValue("checkpoint_path", raw_ckpt)
         self.settings.setValue("config_file", raw_cfg)
         self.settings.setValue("base_model_loc", raw_base_loc)
+
+        is_fast_doubles = self.radio_fast_doubles.isChecked()
 
         # ---- PRE-FLIGHT VALIDATION (all checks BEFORE creating temp dirs or exporting PDB) ----
         if not raw_repo or not os.path.isdir(os.path.expanduser(raw_repo)):
@@ -1514,6 +2352,14 @@ class ESM_MSR_Tool(ToolInstance):
             self._report_error("Missing Config File", f"LoRA config file does not exist: '{resolved_cfg}'.", popup=True)
             return
 
+        if is_fast_doubles and not resolved_ckpt:
+            self._report_error(
+                "Checkpoint Required",
+                "Mode 4 (Fast Top-N Doubles) requires a LoRA checkpoint (.safetensors or .ckpt).",
+                popup=True,
+            )
+            return
+
         if not resolved_ckpt:
             if not resolved_cfg:
                 self._report_error(
@@ -1549,7 +2395,7 @@ class ESM_MSR_Tool(ToolInstance):
             return
 
         # Scope-specific validation
-        needs_pdb_export = self.radio_full.isChecked() or self.radio_explicit.isChecked()
+        needs_pdb_export = self.radio_full.isChecked() or self.radio_explicit.isChecked() or is_fast_doubles
         current_model = None
         target_chain = self.pred_chain_id_combobox.currentText().strip()
         resolved_subset_df = ""
@@ -1608,67 +2454,119 @@ class ESM_MSR_Tool(ToolInstance):
             return
 
         # ---- BUILD CLI ARGUMENTS ----
-        script_args = [self.python_script_path, "--output_csv", resolved_out_csv]
-
-        # P0 #3: omit --checkpoint_path entirely when empty
-        if resolved_ckpt:
-            script_args += ["--checkpoint_path", resolved_ckpt]
-
-        if self.radio_full.isChecked():
-            script_args += [
+        if is_fast_doubles:
+            fast_doubles_py = os.path.normpath(os.path.join(os.path.dirname(__file__), "fast_doubles.py"))
+            code_val = os.path.splitext(current_model.name)[0] if (current_model and current_model.name) else "protein"
+            script_args = [
+                fast_doubles_py,
+                "--repo_dir", self.base_repo_path,
                 "--pdb_file", self.script_input_structure_path,
-                "--code", os.path.splitext(current_model.name)[0] if current_model.name else "protein",
+                "--code", code_val,
                 "--chain", target_chain,
-                "--mode", self.mode_combobox.currentText(),
+                "--output_csv", resolved_out_csv,
+                "--top_n", str(self.fast_top_n_spinbox.value()),
+                "--checkpoint_path", resolved_ckpt,
+                "--batch_size", str(self.batch_size_spinbox.value()),
+                "--device", self.device_combobox.currentText(),
+                "--model_dtype", self.model_dtype_combobox.currentText(),
+                "--sigma", str(self.sigma_spinbox.value()),
             ]
+
+            mask_strat = self.mask_strategy_combobox.currentText()
+            if mask_strat != "Checkpoint default":
+                script_args += ["--mask_strategy", mask_strat]
+
+            if not self.fix_noncanonical_checkbox.isChecked():
+                script_args += ["--skip_fix_noncanonical"]
+
             selected_res = self.selected_residues_edit.text().strip()
             if selected_res:
                 flag = "--screen_residues_except" if self.screen_except_checkbox.isChecked() else "--screen_residues"
                 script_args += [flag, selected_res]
-        elif self.radio_csv.isChecked():
-            script_args += ["--input_csv", resolved_subset_df]
-        elif self.radio_explicit.isChecked():
+
+            if self.fast_enable_dist_checkbox.isChecked():
+                script_args += ["--distance_threshold", str(self.fast_dist_spinbox.value())]
+
+            filter_all_cp = self.fast_filter_cys_pro_checkbox.isChecked()
+            if filter_all_cp or self.exclude_wt_cys_checkbox.isChecked():
+                script_args.append("--exclude_wt_cys")
+            if filter_all_cp or self.exclude_wt_pro_checkbox.isChecked():
+                script_args.append("--exclude_wt_pro")
+            if filter_all_cp or self.exclude_mut_cys_checkbox.isChecked():
+                script_args.append("--exclude_mut_cys")
+            if filter_all_cp or self.exclude_mut_pro_checkbox.isChecked():
+                script_args.append("--exclude_mut_pro")
+
+            if resolved_base_loc:
+                script_args += ["--base_model_loc", resolved_base_loc]
+
+            if resolved_cfg:
+                if resolved_cfg.lower().endswith(".json"):
+                    script_args += ["--lora_config", resolved_cfg]
+                else:
+                    script_args += ["--hparams_path", resolved_cfg]
+        else:
+            script_args = [self.python_script_path, "--output_csv", resolved_out_csv]
+
+            # P0 #3: omit --checkpoint_path entirely when empty
+            if resolved_ckpt:
+                script_args += ["--checkpoint_path", resolved_ckpt]
+
+            if self.radio_full.isChecked():
+                script_args += [
+                    "--pdb_file", self.script_input_structure_path,
+                    "--code", os.path.splitext(current_model.name)[0] if current_model.name else "protein",
+                    "--chain", target_chain,
+                    "--mode", self.mode_combobox.currentText(),
+                ]
+                selected_res = self.selected_residues_edit.text().strip()
+                if selected_res:
+                    flag = "--screen_residues_except" if self.screen_except_checkbox.isChecked() else "--screen_residues"
+                    script_args += [flag, selected_res]
+            elif self.radio_csv.isChecked():
+                script_args += ["--input_csv", resolved_subset_df]
+            elif self.radio_explicit.isChecked():
+                script_args += [
+                    "--pdb_file", self.script_input_structure_path,
+                    "--code", os.path.splitext(current_model.name)[0] if current_model.name else "protein",
+                    "--chain", target_chain,
+                    "--mutations", mutations_val,
+                ]
+
             script_args += [
-                "--pdb_file", self.script_input_structure_path,
-                "--code", os.path.splitext(current_model.name)[0] if current_model.name else "protein",
-                "--chain", target_chain,
-                "--mutations", mutations_val,
+                "--batch_size", str(self.batch_size_spinbox.value()),
+                "--device", self.device_combobox.currentText(),
+                "--model_dtype", self.model_dtype_combobox.currentText(),
+                "--sigma", str(self.sigma_spinbox.value()),
             ]
 
-        script_args += [
-            "--batch_size", str(self.batch_size_spinbox.value()),
-            "--device", self.device_combobox.currentText(),
-            "--model_dtype", self.model_dtype_combobox.currentText(),
-            "--sigma", str(self.sigma_spinbox.value()),
-        ]
+            mask_strat = self.mask_strategy_combobox.currentText()
+            if mask_strat != "Checkpoint default":
+                script_args += ["--mask_strategy", mask_strat]
 
-        mask_strat = self.mask_strategy_combobox.currentText()
-        if mask_strat != "Checkpoint default":
-            script_args += ["--mask_strategy", mask_strat]
+            if not self.fix_noncanonical_checkbox.isChecked():
+                script_args += ["--skip_fix_noncanonical"]
 
-        if not self.fix_noncanonical_checkbox.isChecked():
-            script_args += ["--skip_fix_noncanonical"]
-
-        if self.enable_distance_checkbox.isChecked():
-            script_args += ["--distance_threshold", str(self.distance_threshold_spinbox.value())]
-            script_args += ["--calculate_distances"]
-        else:
-            script_args += ["--distance_threshold", "-1"]
-
-        if resolved_base_loc:
-            script_args += ["--base_model_loc", resolved_base_loc]
-
-        if resolved_cfg:
-            if resolved_cfg.lower().endswith(".json"):
-                script_args += ["--lora_config", resolved_cfg]
-            elif resolved_cfg.lower().endswith((".yaml", ".yml")):
-                script_args += ["--hparams_path", resolved_cfg]
+            if self.enable_distance_checkbox.isChecked():
+                script_args += ["--distance_threshold", str(self.distance_threshold_spinbox.value())]
+                script_args += ["--calculate_distances"]
             else:
-                self.session.logger.warning(f"Unrecognized config extension for {resolved_cfg}; passing via --hparams_path.")
-                script_args += ["--hparams_path", resolved_cfg]
+                script_args += ["--distance_threshold", "-1"]
 
-        if self.skip_reverse_checkbox.isChecked():
-            script_args += ["--skip_reverse"]
+            if resolved_base_loc:
+                script_args += ["--base_model_loc", resolved_base_loc]
+
+            if resolved_cfg:
+                if resolved_cfg.lower().endswith(".json"):
+                    script_args += ["--lora_config", resolved_cfg]
+                elif resolved_cfg.lower().endswith((".yaml", ".yml")):
+                    script_args += ["--hparams_path", resolved_cfg]
+                else:
+                    self.session.logger.warning(f"Unrecognized config extension for {resolved_cfg}; passing via --hparams_path.")
+                    script_args += ["--hparams_path", resolved_cfg]
+
+            if self.skip_reverse_checkbox.isChecked():
+                script_args += ["--skip_reverse"]
 
         # P1 #9: ALWAYS preserve base_args (including '-u') regardless of program name!
         full_args = list(base_args) + script_args
@@ -1677,8 +2575,14 @@ class ESM_MSR_Tool(ToolInstance):
         cmd_str = " ".join(shlex.quote(x) for x in [program] + full_args)
         self.session.logger.info(f"Working directory: {run_workdir}")
         self.session.logger.info(f"Launching ESM-MSR command: {cmd_str}")
+        self._append_log(f"=== ESM-MSR Run ({'2-Stage Fast Doubles' if is_fast_doubles else 'Inference'}) ===")
+        self._append_log(f"CWD: {run_workdir}")
+        self._append_log(f"CMD: {cmd_str}")
 
         self._active_run_output_csv = resolved_out_csv
+        self._last_run_was_fast_doubles = is_fast_doubles
+        self._auto_select_top_m_on_load = False
+        self._current_stage_prefix = "[Stage 1/2] " if is_fast_doubles else ""
         self._user_stopped = False
 
         self.proc = QProcess()
@@ -1699,7 +2603,12 @@ class ESM_MSR_Tool(ToolInstance):
         self.proc.errorOccurred.connect(self._on_proc_error)
         self.proc.finished.connect(self._on_proc_finished)
 
-        self._set_status("Initializing ESM-MSR model and running inference...", level="info")
+        init_msg = (
+            "[Stage 1/2] Initializing ESM-MSR model for fast singles scan..."
+            if is_fast_doubles
+            else "Initializing ESM-MSR model and running inference..."
+        )
+        self._set_status(init_msg, level="info")
         self.run_prediction_button.setVisible(False)
         self.stop_prediction_button.setVisible(True)
         self.load_button.setEnabled(False)
@@ -1726,6 +2635,21 @@ class ESM_MSR_Tool(ToolInstance):
                 if not clean_chunk:
                     continue
 
+                self._append_log(clean_chunk)
+
+                # Track two-stage banners cleanly
+                if "[Stage 1/2]" in clean_chunk:
+                    self._current_stage_prefix = "[Stage 1/2] "
+                    self._set_status(clean_chunk, level="info")
+                elif "[Selection]" in clean_chunk:
+                    self._current_stage_prefix = "[Selection] "
+                    self._set_status(clean_chunk, level="info")
+                elif "[Stage 2/2]" in clean_chunk:
+                    self._current_stage_prefix = "[Stage 2/2] "
+                    self.progress_bar.setRange(0, 100)
+                    self.progress_bar.setValue(0)
+                    self._set_status(clean_chunk, level="info")
+
                 pct = parse_tqdm_progress(clean_chunk)
                 if pct is not None:
                     if self.progress_bar.maximum() == 0:
@@ -1733,7 +2657,7 @@ class ESM_MSR_Tool(ToolInstance):
                     self.progress_bar.setValue(pct)
 
                 if "|" in clean_chunk and ("it/s" in clean_chunk or "s/it" in clean_chunk or "%" in clean_chunk):
-                    self._set_status(clean_chunk, level="info")
+                    self._set_status(f"{self._current_stage_prefix}{clean_chunk}", level="info")
                 else:
                     self.session.logger.info(clean_chunk)
         except Exception as e:
@@ -1741,7 +2665,8 @@ class ESM_MSR_Tool(ToolInstance):
 
     def _on_proc_error(self, err):
         self.session.logger.error(f"Prediction process encountered QProcess error: {err}")
-        self._set_status(f"Process Error ({err}). Check ChimeraX Log.", level="error")
+        self._append_log(f"[ERROR] QProcess error: {err}")
+        self._set_status(f"Process Error ({err}). Check Log Console / ChimeraX Log.", level="error")
         self._reset_run_controls()
         self.prediction_output_label.setText("Predicted output file: Failed to start / error")
 
@@ -1763,12 +2688,20 @@ class ESM_MSR_Tool(ToolInstance):
                 self.script_output_csv_path_edit.text().strip(), self.base_repo_path
             )
             self.predicted_output_path = out_path
+            self._auto_select_top_m_on_load = bool(self._last_run_was_fast_doubles)
             self._reset_run_controls()
             self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(100)
             self.progress_bar.setVisible(True)
             self.prediction_output_label.setText(f"Predicted output: {os.path.basename(out_path)}")
-            self._set_status("Prediction completed. Click 'Load Last Output' or 'Load CSV' to visualize.", level="success")
+            if self._last_run_was_fast_doubles:
+                self._set_status(
+                    "Fast Top-N Doubles completed. Click 'Load Last Output' to visualize Top-M Ranked Pairs.",
+                    level="success",
+                )
+            else:
+                self._set_status("Prediction completed. Click 'Load Last Output' or 'Load CSV' to visualize.", level="success")
+            self._append_log(f"[Done] Exit code 0 -> {out_path}")
         elif self._user_stopped:
             self._reset_run_controls()
             self.prediction_output_label.setText("Predicted output file: Terminated")
@@ -1776,8 +2709,10 @@ class ESM_MSR_Tool(ToolInstance):
         else:
             self._reset_run_controls()
             self.prediction_output_label.setText("Predicted output file: Failed/Terminated")
-            self._set_status(f"Script error or stopped (exit={exitCode}). Check ChimeraX Log.", level="error")
+            self._set_status(f"Script error or stopped (exit={exitCode}). Check Log Console / ChimeraX Log.", level="error")
+            self._append_log(f"[Failed] Exit code {exitCode}")
         self._user_stopped = False
+        self._current_stage_prefix = ""
 
         if self.proc is not None:
             try:
@@ -1795,10 +2730,11 @@ class ESM_MSR_Tool(ToolInstance):
                 item.setEnabled(enabled)
 
     def _apply_csv_capabilities_to_ui(self, parsed):
-        """Enable/disable score radios, epistasis modes, and epistasis metric combo based on loaded CSV."""
+        """Enable/disable score radios, display modes, and epistasis metric combo based on loaded CSV."""
         self._available_score_cols = set(parsed.available_score_cols)
         self._available_epi_cols = list(parsed.available_epi_cols)
         self._has_doubles = bool(parsed.n_doubles_total > 0 and parsed.available_epi_cols)
+        self._has_any_doubles = bool(parsed.n_doubles_total > 0)
 
         # Update epistasis metric selector availability
         for i in range(self.epi_metric_combo.count()):
@@ -1812,11 +2748,17 @@ class ESM_MSR_Tool(ToolInstance):
                 self.epi_metric_combo.setCurrentIndex(idx)
                 self.epi_metric_combo.blockSignals(False)
 
-        # Enable/disable epistasis display modes when CSV lacks doubles or epistasis columns
+        # Enable/disable epistasis modes (1, 2) and Top-M Ranked Pairs (3)
         for mode_idx in (1, 2):  # "WT epistasis", "MT epistasis"
             self._set_combobox_item_enabled(self.display_mode_combo, mode_idx, self._has_doubles)
+        self._set_combobox_item_enabled(self.display_mode_combo, 3, self._has_any_doubles)
 
-        if (not self._has_doubles or parsed.auto_fallback_mode == "Singles") and self.display_mode_combo.currentIndex() in (1, 2):
+        cur_idx = self.display_mode_combo.currentIndex()
+        if (not self._has_doubles or parsed.auto_fallback_mode == "Singles") and cur_idx in (1, 2):
+            self.display_mode_combo.blockSignals(True)
+            self.display_mode_combo.setCurrentIndex(0)  # Singles
+            self.display_mode_combo.blockSignals(False)
+        elif not self._has_any_doubles and cur_idx == 3:
             self.display_mode_combo.blockSignals(True)
             self.display_mode_combo.setCurrentIndex(0)  # Singles
             self.display_mode_combo.blockSignals(False)
@@ -1835,12 +2777,16 @@ class ESM_MSR_Tool(ToolInstance):
         mode = self.display_mode_combo.currentText()
         is_wt_epi = (mode == "WT epistasis")
         is_epi = ("epistasis" in mode.lower())
+        is_top_m = (mode == "Top-M Ranked Pairs")
 
-        self.wt_color_edit.setEnabled(not is_wt_epi)
-        self.wt_color_btn.setEnabled(not is_wt_epi)
-        self.wt_style_combo.setEnabled(not is_wt_epi)
-        self.wt_stick_alpha_spinbox.setEnabled(not is_wt_epi)
-        self.wt_hide_checkbox.setEnabled(not is_wt_epi)
+        if hasattr(self, "top_m_group"):
+            self.top_m_group.setVisible(is_top_m)
+
+        self.wt_color_edit.setEnabled(not is_wt_epi and not is_top_m)
+        self.wt_color_btn.setEnabled(not is_wt_epi and not is_top_m)
+        self.wt_style_combo.setEnabled(not is_wt_epi and not is_top_m)
+        self.wt_stick_alpha_spinbox.setEnabled(not is_wt_epi and not is_top_m)
+        self.wt_hide_checkbox.setEnabled(not is_wt_epi and not is_top_m)
 
         avail_scores = self._available_score_cols
         has_dual = (avail_scores is None) or ("combined_pred" in avail_scores)
@@ -1868,6 +2814,15 @@ class ESM_MSR_Tool(ToolInstance):
             self.display_priority_combo.setEnabled(False)
             self.pair_selection_combo.setEnabled(False)
             self.epi_metric_combo.setEnabled(False)
+        elif is_top_m:
+            self.radio_dual_view.setEnabled(has_dual)
+            self.radio_wt_lora.setEnabled(has_wt)
+            self.radio_mt_lora.setEnabled(has_mt)
+            self.color_backbone_checkbox.setEnabled(False)
+            self.epi_max_edges.setEnabled(False)
+            self.display_priority_combo.setEnabled(True)
+            self.pair_selection_combo.setEnabled(False)
+            self.epi_metric_combo.setEnabled(bool(self._available_epi_cols is None or len(self._available_epi_cols) > 0))
         else:
             if has_dual:
                 self.radio_dual_view.setChecked(True)
@@ -1902,6 +2857,8 @@ class ESM_MSR_Tool(ToolInstance):
         ]
         if parsed.n_doubles > 0:
             parts.append(f"{parsed.n_doubles:,} doubles")
+        if parsed.is_two_stage_csv:
+            parts.append("2-stage")
         if parsed.score_min is not None and parsed.score_max is not None:
             parts.append(f"range [{parsed.score_min:+.2f}, {parsed.score_max:+.2f}] kcal/mol")
         summary = " | ".join(parts)
@@ -1923,7 +2880,6 @@ class ESM_MSR_Tool(ToolInstance):
         # Only update loaded_csv_path and csv_label AFTER parsing succeeds (or chain mismatch allows quick chain switch)
         if not parsed.ok:
             if not parsed.chain_matched and parsed.chains_in_csv:
-                # Keep filepath so user can simply switch Target Chain and click Update Visualization
                 self.loaded_csv_path = filepath
                 self.update_viz_button.setEnabled(True)
                 self._apply_csv_capabilities_to_ui(parsed)
@@ -1940,14 +2896,22 @@ class ESM_MSR_Tool(ToolInstance):
             return False
 
         self.loaded_csv_path = filepath
+        self.last_parsed_csv = parsed
         self.csv_label.setText(self._format_csv_summary(parsed))
         self.update_viz_button.setEnabled(True)
 
         mode = self.display_mode_combo.currentText()
-        if mode == "Singles":
+        if mode == "Top-M Ranked Pairs":
+            self._apply_top_m_pairs()
+        elif mode == "Singles":
+            self.current_ranked_pairs = []
             self._apply_singles()
         elif "epistasis" in mode.lower():
+            self.current_ranked_pairs = []
             self._apply_epistasis()
+
+        self._populate_results_table()
+        self._refresh_export_buttons()
         return True
 
     def _handle_load_and_visualize(self):
@@ -1980,6 +2944,10 @@ class ESM_MSR_Tool(ToolInstance):
             )
             return
         self.tabs.setCurrentIndex(1)
+        if self._auto_select_top_m_on_load:
+            self._auto_select_top_m_on_load = False
+            self._set_combobox_item_enabled(self.display_mode_combo, 3, True)
+            self.display_mode_combo.setCurrentText("Top-M Ranked Pairs")
         self._load_csv_file(candidate)
 
     def _update_visualization(self):
@@ -2035,49 +3003,18 @@ class ESM_MSR_Tool(ToolInstance):
 
     # ---------------- Non-Destructive ChimeraX Rendering Helpers -----------------
     def _get_spec(self, model_id_string, res_keys):
-        if not res_keys:
-            return "None"
-        by_chain = defaultdict(list)
-        for c, pos_key in res_keys:
-            by_chain[c].append(format_res_pos(pos_key))
-        specs = []
-        for c, positions in by_chain.items():
-            specs.append(f"#{model_id_string}/{c}:{','.join(positions)}")
-        return " | ".join(specs)
+        return get_spec(model_id_string, res_keys)
 
     def _build_residue_lookup(self, model):
-        return {
-            (r.chain_id, (r.number, normalize_icode(getattr(r, "insertion_code", "")))): r
-            for r in model.residues
-        }
+        return build_residue_lookup(model)
 
     def _set_residue_scores(self, model, score_map):
-        """Assign numeric SCORE_ATTRIBUTE_NAME on residues via ChimeraX Python API (no per-residue CLI spam)."""
-        if not score_map:
-            return
-        if not self._attr_registered:
-            try:
-                Residue.register_attr(self.session, SCORE_ATTRIBUTE_NAME, "ESM_MSR", attr_type=float)
-                self._attr_registered = True
-            except Exception as e:
-                self.session.logger.warning(f"Attribute registration note: {e}")
-
-        res_lookup = self._build_residue_lookup(model)
-        for key, val in score_map.items():
-            if not np.isfinite(val):
-                continue
-            res = res_lookup.get(key)
-            if res is not None:
-                setattr(res, SCORE_ATTRIBUTE_NAME, float(val))
+        set_residue_scores(self.session, model, score_map)
+        self._attr_registered = True
 
     def _clear_epistasis_pbonds(self):
-        """Delete ONLY our dedicated 'ESM-MSR Epistasis' pseudobond group (never user pbonds)."""
-        for group in list(self.session.models.list(type=PseudobondGroup)):
-            if group.name == EPISTASIS_PBG_NAME:
-                try:
-                    self.session.models.close([group])
-                except Exception as e:
-                    self.session.logger.warning(f"Failed closing pseudobond group '{EPISTASIS_PBG_NAME}': {e}")
+        clear_esm_msr_pbonds(self.session)
+        clear_esm_msr_legend_labels(self.session)
 
     def _get_or_create_epistasis_pbg(self):
         pbg = self.session.pb_manager.get_group(EPISTASIS_PBG_NAME)
@@ -2106,10 +3043,11 @@ class ESM_MSR_Tool(ToolInstance):
             run(self.session, f"hide ({' | '.join(specs)}) & H")
 
     def _reset_visualization(self):
-        """Close generated clones, delete our epistasis pbond group, and reset WT appearance."""
+        """Close generated clones, delete ESM-MSR pbond groups & 2D legend labels, and reset WT appearance."""
         try:
             self._clear_epistasis_pbonds()
             self._close_generated_clones()
+            self.current_ranked_pairs = []
 
             model_id = self.viz_model_combobox.currentData()
             wt_model = next(
@@ -2124,79 +3062,66 @@ class ESM_MSR_Tool(ToolInstance):
                 run(self.session, f"show #{wt_model.id_string} ribbons")
                 run(self.session, f"hide #{wt_model.id_string} atoms")
             self._refresh_models()
-            self._set_status("Cleared ESM-MSR clones and epistasis lines.", level="success")
+            self._refresh_export_buttons()
+            self._set_status("Cleared ESM-MSR clones, pseudobond groups, and 2D legend labels.", level="success")
         except Exception as e:
             self._report_error("Reset Visualization Failed", str(e), popup=False)
 
-    def _setup_base_wt_model(self):
-        self._close_generated_clones()
-
+    def _get_target_wt_model(self):
         wt_candidates = [
             m for m in self.session.models.list(type=Structure)
             if not self._is_generated_clone(m)
         ]
-
         model_id = self.viz_model_combobox.currentData()
         wt_model = next((m for m in wt_candidates if m.id_string == model_id), None)
         if not wt_model and wt_candidates:
             wt_model = wt_candidates[0]
+        return wt_model
+
+    def _setup_base_wt_model(self):
+        self._close_generated_clones()
+        wt_model = self._get_target_wt_model()
         if not wt_model:
             return None
 
         run(self.session, f"show #{wt_model.id_string} models")
         run(self.session, f"color #{wt_model.id_string} white")
+        run(self.session, f"transparency #{wt_model.id_string} 0 target ac")
         run(self.session, f"ribbon style #{wt_model.id_string}")
+        run(self.session, f"show #{wt_model.id_string} ribbons")
         run(self.session, f"hide #{wt_model.id_string} atoms")
         return wt_model
 
     def _create_mutated_model(self, wt_model, suffix="viz"):
-        safe_id = wt_model.id_string.replace(":", "_").replace("/", "_")
-        fd, temp_pdb = tempfile.mkstemp(prefix=f"chimerax_esm_msr_clone_{safe_id}_", suffix=".pdb")
-        os.close(fd)
-        # Suppress synchronous 'add models' refresh until mut_id is registered as a generated clone
-        self._suppress_model_refresh = True
-        try:
-            try:
-                run(self.session, f'save "{temp_pdb}" models #{wt_model.id_string} format pdb')
-                safe_name = (wt_model.name or "model").replace('"', "")
-                opened = run(self.session, f'open "{temp_pdb}" name "{safe_name}_{suffix}"')
-            finally:
-                if os.path.exists(temp_pdb):
-                    try:
-                        os.remove(temp_pdb)
-                    except OSError:
-                        pass
+        def _before():
+            self._suppress_model_refresh = True
 
-            mut_model = None
-            if isinstance(opened, (list, tuple)):
-                mut_model = next((m for m in opened if isinstance(m, Structure)), None)
-            elif isinstance(opened, Structure):
-                mut_model = opened
+        def _reg(mut_id):
+            if mut_id not in self.mutated_model_id_strings:
+                self.mutated_model_id_strings.append(mut_id)
 
-            if mut_model is None:
-                atomic_models = self.session.models.list(type=Structure)
-                mut_model = atomic_models[-1] if atomic_models else None
-            if mut_model is None:
-                return None
-
-            mut_id = mut_model.id_string.split(".")[0]
-            self.mutated_model_id_strings.append(mut_id)
-        finally:
+        def _after():
             self._suppress_model_refresh = False
 
+        mut_model = create_mutated_clone(
+            self.session,
+            wt_model,
+            suffix=suffix,
+            on_before_open=_before,
+            on_registered=_reg,
+            on_after_open=_after,
+        )
+        if mut_model is None:
+            return None
+
+        mut_id = mut_model.id_string.split(".")[0]
         run(self.session, f"color #{mut_id} white")
         run(self.session, f"transparency #{mut_id} 100 target a")
         run(self.session, f"hide #{mut_id} atoms")
         return mut_model
 
     def _apply_swapaa(self, mutated_model_id, mutated_model, mutation_plan):
-        res_lookup = self._build_residue_lookup(mutated_model)
-        for (chain_val, pos_key), tgt_aa in mutation_plan.items():
-            res_wt = res_lookup.get((chain_val, pos_key))
-            three_letter = ONE_TO_THREE_LETTER_AA.get(tgt_aa, "")
-            if res_wt is not None and three_letter and three_letter != res_wt.name:
-                spec = f"#{mutated_model_id}/{chain_val}:{format_res_pos(pos_key)}"
-                run(self.session, f"swapaa {spec} {three_letter.lower()} log false")
+        apply_swapaa(self.session, mutated_model_id, mutated_model, mutation_plan)
 
     def _apply_nearby(self, wt_model, target_keys, target_spec_bare):
         if not self.show_nearby_checkbox.isChecked() or not target_keys or target_spec_bare == "None":
@@ -2329,7 +3254,10 @@ class ESM_MSR_Tool(ToolInstance):
         mut_spec_bare = " | ".join(mut_specs) if mut_specs else "None"
         return all_mutant_keys, mut_spec_bare
 
-    def _draw_epistasis_line(self, pbg, c1, p1_key, c2, p2_key, score, max_abs_score, thresh_pos, thresh_neg, model_residues):
+    def _draw_epistasis_line(
+        self, pbg, c1, p1_key, c2, p2_key, score, max_abs_score, thresh_pos, thresh_neg, model_residues,
+        palette_spec=None, vmin=None, vmax=None,
+    ):
         if not np.isfinite(score):
             return False
 
@@ -2367,13 +3295,12 @@ class ESM_MSR_Tool(ToolInstance):
 
         radius_val = 0.05 + (0.35 * norm_score)
         alpha_255 = int(round(255.0 * (0.30 + 0.70 * norm_score)))
-        c_inv = int(round(255.0 * (1.0 - norm_score)))
 
-        if score > 0:
-            rgba = (c_inv, c_inv, 255, alpha_255)
-        else:
-            g_val = int(round(255.0 * (1.0 - 0.5 * norm_score)))
-            rgba = (255, g_val, c_inv, alpha_255)
+        pal = palette_spec or self._get_active_palette()
+        lo = float(vmin) if vmin is not None else -max_abs_score
+        hi = float(vmax) if vmax is not None else max_abs_score
+        t = (score - lo) / max(hi - lo, 1e-6)
+        rgba = interpolate_palette_rgba(pal, t, alpha=alpha_255)
 
         pb = pbg.new_pseudobond(a1, a2)
         pb.color = rgba
@@ -2416,6 +3343,69 @@ class ESM_MSR_Tool(ToolInstance):
             self.session.logger.error(f"ChimeraX command failed in _apply_transparency_isolation: {e}")
 
     # ---------------- Visualization Subroutines -----------------
+    def _apply_top_m_pairs(self):
+        try:
+            wt_model = self._get_target_wt_model()
+            if wt_model is None:
+                self._report_error("No Model Open", "Open a protein structure in ChimeraX before visualizing.", popup=True)
+                return
+
+            if not self.last_parsed_csv or not self.last_parsed_csv.double_records:
+                self._report_error(
+                    "No Double Mutants",
+                    "Top-M Ranked Pairs requires double-mutant rows in the loaded CSV.",
+                    popup=False,
+                )
+                return
+
+            prev_clones = list(self.mutated_model_id_strings)
+            self.mutated_model_id_strings = []
+
+            def _before():
+                self._suppress_model_refresh = True
+
+            def _reg(cid):
+                if cid not in self.mutated_model_id_strings:
+                    self.mutated_model_id_strings.append(cid)
+
+            def _after():
+                self._suppress_model_refresh = False
+
+            res = render_top_m_pairs(
+                session=self.session,
+                wt_model=wt_model,
+                parsed=self.last_parsed_csv,
+                top_m=self.top_m_pairs_spinbox.value(),
+                sort_by=self.top_m_rank_by_combo.currentData() or "combined_pred",
+                priority=self.display_priority_combo.currentText(),
+                diverse_positions=self.top_m_disjoint_checkbox.isChecked(),
+                connectors=self.top_m_connectors_combo.currentData() or "dashed",
+                show_labels_3d=self.top_m_labels_3d_checkbox.isChecked(),
+                show_legend_2d=self.top_m_legend_2d_checkbox.isChecked(),
+                pub_lighting=self.top_m_pub_lighting_checkbox.isChecked(),
+                target_chain=self.viz_chain_id_combobox.currentText().strip(),
+                non_target_alpha=self.non_target_alpha_spinbox.value(),
+                hide_non_target=self.hide_non_target_chains_checkbox.isChecked(),
+                existing_clone_ids=prev_clones,
+                on_before_open=_before,
+                on_registered=_reg,
+                on_after_open=_after,
+            )
+
+            if not res.get("ok"):
+                self.current_ranked_pairs = []
+                self._set_status(res.get("error", "No pairs rendered."), level="warning")
+                return
+
+            self.current_ranked_pairs = list(res["pairs"])
+            self._set_status(
+                f"Top-{len(self.current_ranked_pairs)} Ranked Pairs visualization complete "
+                f"(ranked by {self.top_m_rank_by_combo.currentText()}).",
+                level="success",
+            )
+        except Exception as e:
+            self._report_error("Top-M Pairs Visualization Error", str(e), popup=False)
+
     def _apply_singles(self):
         try:
             wt_model = self._setup_base_wt_model()
@@ -2440,17 +3430,10 @@ class ESM_MSR_Tool(ToolInstance):
 
             self._apply_swapaa(mut_id, mutated_model, mutation_plan)
 
+            pal = self._get_active_palette()
             scores = [s for s, _ in self.residue_scores_data.values() if np.isfinite(s)]
-            if scores:
-                scores_abs = [abs(s) for s in scores]
-                max_abs_add = float(np.percentile(scores_abs, 98))
-                if max_abs_add <= 0.05:
-                    max_abs_add = max(scores_abs)
-                if max_abs_add <= 0.0:
-                    max_abs_add = 0.01
-            else:
-                max_abs_add = 0.01
-            color_range = f"{-max_abs_add:.3f},{max_abs_add:.3f}"
+            vmin, vmax = self._get_score_range_for_values(scores, pal)
+            color_range = f"{vmin:.3f},{vmax:.3f}"
 
             wt_score_map = {k: score for k, (score, _) in self.residue_scores_data.items()}
             self._set_residue_scores(wt_model, wt_score_map)
@@ -2460,8 +3443,8 @@ class ESM_MSR_Tool(ToolInstance):
                 chain_spec = ",".join(chains_present)
                 run(
                     self.session,
-                    f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone "
-                    f"palette #FF1493:white:green range {color_range} key false",
+                    f"color byattribute r:{SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone "
+                    f"palette {pal['chimerax']} range {color_range} key false",
                 )
 
             all_mutant_keys, mut_spec_bare = self._resolve_and_apply_styles(wt_model, [mut_id], [mutation_plan])
@@ -2482,13 +3465,13 @@ class ESM_MSR_Tool(ToolInstance):
                 if mut_spec != "None":
                     run(
                         self.session,
-                        f"color byattribute {SCORE_ATTRIBUTE_NAME} ({mut_spec}) "
-                        f"palette #FF1493:white:green range {color_range} key false target a",
+                        f"color byattribute r:{SCORE_ATTRIBUTE_NAME} ({mut_spec}) "
+                        f"palette {pal['chimerax']} range {color_range} key false target a",
                     )
                     run(self.session, f"color ({mut_spec}) & ~C byelement target a")
 
             try:
-                run(self.session, f"key #FF1493:{-max_abs_add:.2f} white:0 green:{max_abs_add:.2f} pos 0.05,0.05")
+                run(self.session, build_key_command(pal, vmin, vmax))
             except Exception as e:
                 self.session.logger.warning(f"Failed to draw colorbar key: {e}")
 
@@ -2496,7 +3479,7 @@ class ESM_MSR_Tool(ToolInstance):
             self._apply_transparency_isolation(wt_model)
             self._hide_active_hydrogens(wt_model)
             self._set_status(
-                f"Singles visualization complete ({len(mutation_plan)} displayed mutation(s)).",
+                f"Singles visualization complete ({len(mutation_plan)} displayed mutation(s), {pal['label']}).",
                 level="success",
             )
         except Exception as e:
@@ -2558,18 +3541,14 @@ class ESM_MSR_Tool(ToolInstance):
                     by="abs_score_sort", ascending=False
                 )
 
-            max_abs_epi = float(sorted_df["dddg_pred"].abs().max())
-            if not np.isfinite(max_abs_epi) or max_abs_epi <= 0.0:
-                max_abs_epi = 1.0
+            pal = self._get_active_palette()
+            epi_vals = sorted_df["dddg_pred"].to_numpy(dtype=float)
+            epi_vmin, epi_vmax = self._get_score_range_for_values(epi_vals, pal)
+            max_abs_epi = max(abs(epi_vmin), abs(epi_vmax), 0.01)
 
             scores = [s for s, _ in self.residue_scores_data.values() if np.isfinite(s)]
-            if scores:
-                max_abs_add = float(max(abs(s) for s in scores))
-                if max_abs_add <= 0.0:
-                    max_abs_add = 0.01
-            else:
-                max_abs_add = 0.01
-            color_range = f"{-max_abs_add:.3f},{max_abs_add:.3f}"
+            add_vmin, add_vmax = self._get_score_range_for_values(scores, pal)
+            color_range = f"{add_vmin:.3f},{add_vmax:.3f}"
 
             wt_score_map = {k: score for k, (score, _) in self.residue_scores_data.items()}
             self._set_residue_scores(wt_model, wt_score_map)
@@ -2617,8 +3596,8 @@ class ESM_MSR_Tool(ToolInstance):
                     chain_spec = ",".join(chains_present)
                     run(
                         self.session,
-                        f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone "
-                        f"palette #FF1493:white:green range {color_range} key false",
+                        f"color byattribute r:{SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone "
+                        f"palette {pal['chimerax']} range {color_range} key false",
                     )
 
                 spec = self._get_spec(wt_model.id_string, participating_positions)
@@ -2635,7 +3614,6 @@ class ESM_MSR_Tool(ToolInstance):
                         epi_wt_scores[(chain, pos_key)] = exact_score
                     self._set_residue_scores(wt_model, epi_wt_scores)
 
-                    # P1 #14: Honor custom Mut Color and Hide Fully consistently in WT Epistasis mode
                     mut_color = self.mut_color_edit.text().strip()
                     mut_style = self.mut_style_combo.currentText()
                     mut_alpha = self.mut_stick_alpha_spinbox.value()
@@ -2653,8 +3631,8 @@ class ESM_MSR_Tool(ToolInstance):
                         else:
                             run(
                                 self.session,
-                                f"color byattribute {SCORE_ATTRIBUTE_NAME} ({spec}) "
-                                f"palette #FF1493:white:green range {color_range} key false target a",
+                                f"color byattribute r:{SCORE_ATTRIBUTE_NAME} ({spec}) "
+                                f"palette {pal['chimerax']} range {color_range} key false target a",
                             )
                         run(self.session, f"color ({spec}) & ~C byelement target a")
                         run(self.session, f"show ({spec}) atoms")
@@ -2668,7 +3646,8 @@ class ESM_MSR_Tool(ToolInstance):
                     wt_residues = self._build_residue_lookup(wt_model)
                     for c1, p1_key, _m1, c2, p2_key, _m2, score in pairs_to_draw:
                         if self._draw_epistasis_line(
-                            pbg, c1, p1_key, c2, p2_key, score, max_abs_epi, pos_thresh, neg_thresh, wt_residues
+                            pbg, c1, p1_key, c2, p2_key, score, max_abs_epi, pos_thresh, neg_thresh, wt_residues,
+                            palette_spec=pal, vmin=epi_vmin, vmax=epi_vmax,
                         ):
                             drawn_count += 1
                 num_layers = 1
@@ -2687,7 +3666,6 @@ class ESM_MSR_Tool(ToolInstance):
                     m2 = str(row.mut2).upper()
                     epi_score = float(row.dddg_pred)
 
-                    # P2 #19: deduplicate residue-pair edges cleanly
                     pair_key = tuple(sorted([(c1, p1_key), (c2, p2_key)]))
                     if pair_key in seen_pairs:
                         continue
@@ -2729,8 +3707,8 @@ class ESM_MSR_Tool(ToolInstance):
                     chain_spec = ",".join(chains_present)
                     run(
                         self.session,
-                        f"color byattribute {SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone "
-                        f"palette #FF1493:white:green range {color_range} key false",
+                        f"color byattribute r:{SCORE_ATTRIBUTE_NAME} #{wt_model.id_string}/{chain_spec} & backbone "
+                        f"palette {pal['chimerax']} range {color_range} key false",
                     )
 
                 all_mutant_keys, mut_spec_bare = self._resolve_and_apply_styles(
@@ -2757,8 +3735,8 @@ class ESM_MSR_Tool(ToolInstance):
                         if mut_spec != "None":
                             run(
                                 self.session,
-                                f"color byattribute {SCORE_ATTRIBUTE_NAME} ({mut_spec}) "
-                                f"palette #FF1493:white:green range {color_range} key false target a",
+                                f"color byattribute r:{SCORE_ATTRIBUTE_NAME} ({mut_spec}) "
+                                f"palette {pal['chimerax']} range {color_range} key false target a",
                             )
                             run(self.session, f"color ({mut_spec}) & ~C byelement target a")
 
@@ -2766,7 +3744,6 @@ class ESM_MSR_Tool(ToolInstance):
 
                 if pairs_to_draw:
                     pbg = self._get_or_create_epistasis_pbg()
-                    # Precompute residue lookup dict ONCE per layer model
                     layer_res_lookups = [self._build_residue_lookup(m) for m in mutated_models_objs]
                     for c1, p1_key, _m1, c2, p2_key, _m2, score, layer_idx in pairs_to_draw:
                         if layer_idx < len(layer_res_lookups):
@@ -2775,12 +3752,13 @@ class ESM_MSR_Tool(ToolInstance):
                                 c1, p1_key, c2, p2_key,
                                 score, max_abs_epi, pos_thresh, neg_thresh,
                                 layer_res_lookups[layer_idx],
+                                palette_spec=pal, vmin=epi_vmin, vmax=epi_vmax,
                             ):
                                 drawn_count += 1
                 num_layers = len(layers)
 
             try:
-                run(self.session, f"key orange:{-max_abs_epi:.2f} white:0 blue:{max_abs_epi:.2f} pos 0.05,0.05")
+                run(self.session, build_key_command(pal, epi_vmin, epi_vmax))
             except Exception as e:
                 self.session.logger.warning(f"Failed to draw epistasis colorbar key: {e}")
 

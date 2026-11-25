@@ -20,5 +20,10 @@ class _ESM_MSR_API(BundleAPI):
         session.logger.error(f"Failed to get class for tool: {tool_info_obj.name}")
         return None
 
+    @staticmethod
+    def register_command(bi, ci, logger):
+        from . import commands
+        commands.register_command(ci.name, logger)
+
 
 bundle_api = _ESM_MSR_API()
