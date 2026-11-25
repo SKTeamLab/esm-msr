@@ -1288,24 +1288,25 @@ def build_table_s4_thermostability_longtable(extra_df: pd.DataFrame) -> tuple[Pa
     """Build ONE massive vertical multi-page longtable stacking ALL 12 external thermostability sets."""
     df_3a = pd.read_csv(MAIN_PVAL / 'figure3a_thermostability_pvalues.csv')
 
-    # Order: 8 main-text benchmarks first, then 4 additional external benchmarks
+    # Natural alphabetical order across all 12 external thermostability benchmarks,
+    # with explicit subset/superset relation notes verified at sequence/variant level.
     dataset_specs = [
-        ('Ssym', 'ssym', False, True),
-        ('S461', 's461', False, True),
-        ('K2369', 'k2369', False, True),
-        ('S783', 's783', False, True),
-        ('S2648', 's2648', False, True),
-        ('Q3421', 'q3421', False, True),
-        ('S8754', 's8754', False, True),
-        ('PTMUL', 'ptmul', True, True),
-        ('S571', 's571', False, False),
-        ('S669', 's669', False, False),
-        ('K3822', 'k3822', False, False),
-        ('PTMUL-D', 'ptmuld', True, False),
+        ('K2369', 'k2369', False, True, r'$\subset$ K3822; 91\% in S8754'),
+        ('K3822', 'k3822', False, False, r'$\supset$ K2369; 89\% in S8754'),
+        ('PTMUL', 'ptmul', True, True, r'$\supset$ PTMUL-D'),
+        ('PTMUL-D', 'ptmuld', True, False, r'doubles $\subset$ PTMUL'),
+        ('Q3421', 'q3421', False, True, r'98\% in S8754'),
+        ('S461', 's461', False, True, r'$\subset$ S669'),
+        ('S571', 's571', False, False, ''),
+        ('S669', 's669', False, False, r'$\supset$ S461'),
+        ('S783', 's783', False, True, r'88\% in S8754'),
+        ('S2648', 's2648', False, True, r'$\subset$ S8754'),
+        ('S8754', 's8754', False, True, r'$\supset$ S2648, Ssym direct; 88--98\% of K2369, K3822, Q3421, S783'),
+        ('Ssym', 'ssym', False, True, r'342 direct/rev.\ pairs; direct $\subset$ S8754'),
     ]
 
     body_rows: list[str] = []
-    for idx_ds, (bm_label, ds_key, is_multi, in_3a) in enumerate(dataset_specs):
+    for idx_ds, (bm_label, ds_key, is_multi, in_3a, rel_note) in enumerate(dataset_specs):
         if in_3a:
             pm, msr_name, _, n_var, B = _extract_model_panel(
                 df_3a, bm_label, 'pooled_spearman_rho', 'mutation_x_seed',
@@ -1363,8 +1364,9 @@ def build_table_s4_thermostability_longtable(extra_df: pd.DataFrame) -> tuple[Pa
             body_rows.append(r'\midrule')
         tag_type = r'single-mutant $\Delta T_m$ ($^\circ$C)' if ds_key == 's571' else ('multi-mutant' if is_multi else 'single-mutant')
         sec_tag = 'Main-text' if in_3a else 'Additional'
+        rel_part = f'; {rel_note}' if rel_note else ''
         body_rows.append(
-            f'\\multicolumn{{7}}{{l}}{{\\textbf{{{bm_label}}} ({sec_tag}, {tag_type}; $n={n_var:,}$ variants, {n_prot} protein clusters)}} \\\\*'
+            f'\\multicolumn{{7}}{{l}}{{\\textbf{{{bm_label}}} ({sec_tag}, {tag_type}{rel_part}; $n={n_var:,}$ variants, {n_prot} protein clusters)}} \\\\*'
         )
         body_rows.append(r'\midrule')
         for m in models:
@@ -1383,8 +1385,11 @@ def build_table_s4_thermostability_longtable(extra_df: pd.DataFrame) -> tuple[Pa
     tex_s4 = render_longtable(
         caption_title='Comprehensive All-Model Comparison Across All 12 External Thermostability Benchmarks',
         caption_body=(
-            r"Vertical breakdown stacking all 8 main-text external thermostability benchmarks (Ssym, S461, K2369, S783, S2648, Q3421, S8754, PTMUL) "
-            r"followed by 4 additional external thermostability benchmarks (S571, S669, K3822, PTMUL-D), showing every model with available predictions "
+            r"Vertical breakdown stacking all 12 external thermostability benchmarks in alphabetical order "
+            r"(K2369, K3822, PTMUL, PTMUL-D, Q3421, S461, S571, S669, S783, S2648, S8754, Ssym; 8 main-text and 4 additional sets), "
+            r"with section headers indicating exact subset/superset relationships ($\subset$/$\supset$) and major compilation overlaps "
+            r"(strict curated pairs: K2369 $\subset$ K3822, PTMUL-D $\subset$ PTMUL, S461 $\subset$ S669, S2648 $\subset$ S8754, and Ssym direct $\subset$ S8754). "
+            r"Every model with available predictions is shown "
             r"(singles-only heads on single-mutant datasets; multi-mutant heads on PTMUL and PTMUL-D; 3-seed mean for retrained models). "
             r"Columns report pooled Spearman's $\rho$, Pearson's $r$, raw (unrecalibrated) RMSE (kcal/mol, except S571 which measures $\Delta T_m$ in $^\circ$C), one-sided paired bootstrap $p$-values testing "
             r"$H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ under mutation $\times$ seed ($p_{\mathrm{mut}}$) and protein-cluster $\times$ seed ($p_{\mathrm{prot}}$) "
