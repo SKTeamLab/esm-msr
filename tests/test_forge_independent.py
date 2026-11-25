@@ -38,6 +38,12 @@ def test_adaptive_token_limiter_parses_429_cap():
         )
     )
     assert lim.tokens_per_min == int(200000 * 0.94)
+    asyncio.run(
+        lim.note_rate_limit(
+            'Failure in logits: {"status":"error","message":"You have exceeded your usage cap of 1000 requests during the last minute"}'
+        )
+    )
+    assert lim.requests_per_min == int(1000 * 0.95)
 
 
 def test_independent_masking_matches_singles_doubles_and_multis(monkeypatch):
