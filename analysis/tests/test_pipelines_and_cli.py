@@ -171,9 +171,6 @@ def test_results_directory_reorganization_invariants():
     assert ref_files == [
         'published_reference.pdf',
         'published_reference.png',
-        'spurs_published_vs_retrained.csv',
-        'spurs_published_vs_retrained.pdf',
-        'spurs_published_vs_retrained.png',
         'validation_vs_benchmarks.csv',
     ]
 

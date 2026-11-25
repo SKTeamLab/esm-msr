@@ -144,7 +144,6 @@ def build_family_specs(split: str = 'capped') -> dict:
     if split == 'mega':
         extra = {
             'spursu': ('SPURS, trained adapter', 'SPURS multi, trained adapter', 'spursu', 'spursum', 'spursu', (MODELS['spursu']['color'], '-', 2.0, 6)),
-            'spurspub': ('SPURS, published', 'SPURS multi, published', 'spurspub', 'spurspubm', 'spurspub', (MODELS['spurspub']['color'], '--', 2.0, 6)),
             'tmpub': ('ThermoMPNN, published', 'ThermoMPNN-D, published', 'tmpnnpub', 'tmpnndpub', 'tmpnnpub', (MODELS['tmpnnpub']['color'], '--', 2.0, 6)),
         }
         for f, (ls, lc, sk, mk, st, col) in extra.items():
@@ -152,7 +151,7 @@ def build_family_specs(split: str = 'capped') -> dict:
             fam_label_singles[f] = ls
             fam_label_composite[f] = f"{ls} | {lc.split(',')[0]}"
             single_key[f], multi_key[f], fam_style[f], fam_color_all[f] = sk, mk, st, col
-            fam_name[f] = {'spursu': 'SPURS', 'spurspub': 'SPURS published*', 'tmpub': 'ThermoMPNN'}[f]
+            fam_name[f] = {'spursu': 'SPURS', 'tmpub': 'ThermoMPNN'}[f]
         fam_all = fam_all[:7] + list(extra) + fam_all[7:]
 
     return dict(
@@ -1745,7 +1744,7 @@ def run_17_gain_fit(split: str, specs: dict, B: int) -> tuple[pd.DataFrame, dict
     to_cys = np.array([any(part.endswith('C') for part in str(m).split(':')) for m in sp['mut']], dtype=bool)
     lk = np.log(KS_CURVE)
 
-    extra = [f for f in specs['fam_all'] if f in ('prosst', 'pmpnn', 'esm3', 'rosetta', 'spursu', 'spurspub', 'tmpub')]
+    extra = [f for f in specs['fam_all'] if f in ('prosst', 'pmpnn', 'esm3', 'rosetta', 'spursu', 'tmpub')]
     fams_fit = list(specs['fam_transfer']) + [f for f in extra if f not in specs['fam_transfer']]
     main_fams = list(specs['fam_transfer'])
     s_title = split_title(split)

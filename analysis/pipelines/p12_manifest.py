@@ -88,7 +88,7 @@ TABLE_FIGURES = {
     '1.2.1': ['01_megascale/megascale_overview', '01_megascale/megascale_per_library', '01_megascale/megascale_singles_doubles', '00_main_text_figs/figure3'],
     '1.2.2': ['00_supplementary_figs/split_construction/split_best_partner_capped', '00_supplementary_figs/split_construction/mega_clean_vs_homologous_test', '01_megascale/megascale_overview'],
     '1.3.1': ['04_domainome/domainome_vs_retrains', '04_domainome/domainome_sigma_vs_zero_shot', '99_misc/dms3/dms_vs_retrains', '99_misc/dms3/dms_sigma_vs_zero_shot', '06_summary/pg_categories', '00_main_text_figs/figure3'],
-    '1.3.2': ['00_supplementary_figs/holdout_filter', '00_for_reviewers/reference/spurs_published_vs_retrained', '99_misc/dms3/dms_vs_retrains'],
+    '1.3.2': ['00_supplementary_figs/holdout_filter', '99_misc/dms3/dms_vs_retrains'],
     '1.3.3': ['04_domainome/domainome_sigma_sweep', '04_domainome/domainome_sigma_vs_zero_shot', '99_misc/dms3/dms_sigma_sweep', '99_misc/dms3/dms_sigma_vs_zero_shot'],
     '1.4.1': ['06_summary/pg_categories', '03_proteingym/pg_table_heatmap', '03_proteingym/pg_overview', '00_main_text_figs/figure3'],
     '1.4.2': ['00_supplementary_figs/holdout_filter', '03_proteingym/pg_overview'],
@@ -108,8 +108,8 @@ TABLE_FIGURES = {
     '3.2': ['03_proteingym/pg_per_dms_scatter', '03_proteingym/pg_property_sigma_summary'],
     '6.2.1': ['00_supplementary_figs/holdout_filter', '00_supplementary_figs/split_construction/split_max_identity_heatmap', '00_supplementary_figs/split_construction/split_max_tm_heatmap'],
     '6.3.1': ['00_supplementary_figs/holdout_filter', '00_supplementary_figs/split_construction/split_best_partner_capped'],
-    '6.5.1': ['00_supplementary_figs/holdout_filter', '00_supplementary_figs/split_construction/mega_clean_vs_homologous_test', '00_for_reviewers/reference/spurs_published_vs_retrained'],
-    '6.5.2': ['02_thermostability/thermo_external_rho', '02_thermostability/thermo_overview', '00_for_reviewers/reference/spurs_published_vs_retrained'],
+    '6.5.1': ['00_supplementary_figs/holdout_filter', '00_supplementary_figs/split_construction/mega_clean_vs_homologous_test'],
+    '6.5.2': ['02_thermostability/thermo_external_rho', '02_thermostability/thermo_overview'],
 }
 
 FOLDER_OWNER = {

@@ -153,13 +153,10 @@ _reg('me2:epi', 'MutateEverything Stage 2 − Stage 1', 'MutateEverything', fill
 _reg('tmpnnd:epi', 'ThermoMPNN-D − ThermoMPNN', 'ThermoMPNN', fill=True)
 _reg('spursm:epi', 'SPURS-multi − SPURS', 'SPURS', fill=True)
 
-# --- mega_splits variants (SPURS trained adapter, published checkpoints) ---
+# --- mega_splits variants (SPURS trained adapter, published ThermoMPNN checkpoints) ---
 _reg('spursu', 'SPURS, trained adapter (retrain)', 'SPURS')
 _reg('spursum', 'SPURS-multi, trained adapter (retrain)', 'SPURS')
 _reg('spursum:epi', 'SPURS-multi, trained adapter (vs its singles)', 'SPURS', fill=True)
-_reg('spurspub', 'SPURS, published checkpoint*', 'SPURS published*')
-_reg('spurspubm', 'SPURS-multi, published checkpoint*', 'SPURS published*')
-_reg('spurspubm:epi', 'SPURS-multi, published (vs its singles)*', 'SPURS published*', fill=True)
 _reg('tmpnnpub', 'ThermoMPNN, published (3 ensemble members)', 'ThermoMPNN', color=_R.tint(_R.color('ThermoMPNN'), 0.4))
 _reg('tmpnndpub', 'ThermoMPNN-D, published (3 ensemble members)', 'ThermoMPNN', color=_R.tint(_R.color('ThermoMPNN'), 0.4))
 _reg('tmpnndpub:epi', 'ThermoMPNN-D, published (vs ThermoMPNN)', 'ThermoMPNN', fill=True, color=_R.tint(_R.color('ThermoMPNN'), 0.4))
