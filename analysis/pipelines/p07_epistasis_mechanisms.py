@@ -91,6 +91,175 @@ HEATMAP_MODELS = [
 # ----------------------------------------------------------------------------------------------
 # 1. Fig 6 scatters & Fig 7 epistasis types (11c + 11f)
 # ----------------------------------------------------------------------------------------------
+MAIN_DDD_GRID_MODELS = [
+    ('ESM-MSR', 'Retrained'),
+    ('MutateEverything Stage 2', 'Retrained'),
+    ('ThermoMPNN-D', 'Retrained'),
+    ('SPURS-multi', 'Retrained'),
+    ('ProteinMPNN', 'Zero-shot'),
+    ('ESM3-small-open', 'Zero-shot'),
+    ('GeoDDG-3D', 'Supervised'),
+    ('Rosetta', 'Supervised'),
+]
+
+
+def _main_models_dddg_grid(out_dddg, split: str, fit: np.ndarray, y_raw: np.ndarray, dG_add: np.ndarray, model: dict) -> None:
+    """2x4 subplots of predicted vs measured dddG across all 8 main epistasis models (all doubles and dG_add > 0)."""
+    entries = [(lbl, grp, model[lbl]['raw_seeds']) for lbl, grp in MAIN_DDD_GRID_MODELS if lbl in model]
+    if not entries:
+        return
+    sp_lbl = 'MegaScale mega_splits test doubles' if split == 'mega' else 'Homology-Restricted MegaScale test doubles'
+    cm = plt.get_cmap('plasma')
+    ncols = 4
+    nrows = int(np.ceil(len(entries) / ncols))
+
+    for fname, subset_title, cut in (
+        ('main_models_dddG_pred_vs_true_all', 'all doubles', None),
+        ('main_models_dddG_pred_vs_true_dG_gt0', 'ΔG_add > 0 (unsaturated doubles)', 0.0),
+    ):
+        ok = fit & np.isfinite(y_raw) & (True if cut is None else (np.isfinite(dG_add) & (dG_add > cut)))
+        for _, _, p in entries:
+            ok &= np.isfinite(p).all(axis=0)
+        yv_1d = y_raw[ok]
+        n_var = len(yv_1d)
+        # Compute shared square axis limits from measured y and pooled model predictions (0.3–99.7 pct)
+        pool_vals = np.concatenate([yv_1d] + [p[:, ok].ravel() for _, _, p in entries])
+        lo, hi = np.percentile(pool_vals, [0.3, 99.7])
+        pad = 0.05 * (hi - lo)
+        lim = (lo - pad, hi + pad)
+
+        fig, axes = plt.subplots(
+            nrows, ncols, figsize=(5.2 * ncols, 5.1 * nrows),
+            sharex=True, sharey=True, squeeze=False,
+        )
+        flat_axes = axes.ravel()
+        for idx, (ax, (m_label, grp, p)) in enumerate(zip(flat_axes, entries)):
+            p_ok = p[:, ok]
+            n_seeds = p_ok.shape[0]
+            xv = p_ok.ravel()
+            yv = np.tile(yv_1d, n_seeds)
+            n_pts = len(xv)
+            sub = np.random.default_rng(0).choice(n_pts, min(n_pts, 15000), replace=False)
+            z = gaussian_kde(np.vstack([xv[sub], yv[sub]]))(np.vstack([xv, yv]))
+            o = np.argsort(z)
+            col = cm(Normalize(z.min(), z.max())(z))
+            col[:, 3] = 0.3 / np.sqrt(n_seeds)
+
+            ax.axhline(0, color='#bbbbbb', lw=0.8, zorder=1)
+            ax.axvline(0, color='#bbbbbb', lw=0.8, zorder=1)
+            ax.scatter(xv[o], yv[o], c=col[o], s=7, edgecolors='none', rasterized=True, zorder=2)
+            ax.plot(lim, lim, color='#c0392b', ls='--', lw=1.5, zorder=4)
+            ax.set_xlim(lim)
+            ax.set_ylim(lim)
+            ax.set_aspect('equal', adjustable='box')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+
+            row, col_i = divmod(idx, ncols)
+            if col_i == 0:
+                ax.set_ylabel(Y_DDD_LABEL, fontsize=12.0)
+            if row == nrows - 1:
+                ax.set_xlabel('predicted δΔΔG = dddG (kcal/mol)', fontsize=12.0)
+            ax.tick_params(axis='both', labelsize=10.5)
+
+            rho_v = float(np.mean([spearmanr(p_ok[s], yv_1d)[0] for s in range(n_seeds)]))
+            r_v = float(np.mean([pearsonr(p_ok[s], yv_1d)[0] for s in range(n_seeds)]))
+            rmse_v = float(np.mean([np.sqrt(np.mean((p_ok[s] - yv_1d) ** 2)) for s in range(n_seeds)]))
+            n_str = f'n = {n_var:,} (×{n_seeds})' if n_seeds > 1 else f'n = {n_var:,}'
+            ax.text(
+                0.04, 0.96, f'ρ = {rho_v:.2f}\nr = {r_v:.2f}\nRMSE = {rmse_v:.2f}\n{n_str}',
+                transform=ax.transAxes, va='top', fontsize=10.2, zorder=10,
+                bbox=dict(boxstyle='round,pad=0.28', fc='white', ec='#cccccc', alpha=0.92),
+            )
+            ax.text(
+                0.96, 0.04, grp,
+                transform=ax.transAxes, ha='right', va='bottom', fontsize=9.5, color='#555555', zorder=10,
+                bbox=dict(boxstyle='round,pad=0.22', fc='white', ec='none', alpha=0.75),
+            )
+            if idx == 0:
+                ax.legend(handles=[Line2D([0], [0], color='#c0392b', ls='--', lw=1.5, label='x = y')], loc='lower left', fontsize=9.5, framealpha=0.9)
+            ax.set_title(m_label, fontsize=13.0, fontweight='bold', pad=7)
+
+        for ax in flat_axes[len(entries):]:
+            ax.set_visible(False)
+
+        fig.tight_layout(rect=[0.0, 0.025, 1.0, 0.995])
+        fig.text(
+            0.01, 0.005,
+            f'{sp_lbl} with both singles measured ({subset_title}, n = {n_var:,}). Retrained models show 3 triplicate seeds integrated without ensemble averaging; stats are seed means.',
+            fontsize=9.5, va='bottom', ha='left', color='#444444',
+        )
+        also_supp = (split == 'capped' and cut == 0.0)
+        style.save(fig, out_dddg / fname, close=not also_supp)
+        if also_supp:
+            style.save(fig, out_dir('supplementary_figs') / '_epi_rmse')
+
+
+def _main_models_dddg_rmse_bars(out_dddg, split: str, fr: Frame, fit: np.ndarray, dG_add: np.ndarray, B: int = 1000) -> None:
+    """Grouped bar chart of epistasis RMSE (all doubles vs dG_add > 0) across all main models in global bar_panel style."""
+    from msr_analysis.boot import ci as boot_ci
+    from ._tsu_common import best_other, epi_columns, fig_width
+
+    sp = fr.spine
+    y = sp['dddG_ML'].to_numpy(float)
+    cl = sp['cluster'].astype(str).to_numpy()
+    grp = sp['group'].astype(str).to_numpy()
+    best, _ = best_other(fr)
+    cols = epi_columns(fr, best)
+    subsets = (
+        ('all', fit & np.isfinite(y), 'all doubles'),
+        ('dG_gt0', fit & np.isfinite(y) & np.isfinite(dG_add) & (dG_add > 0.0), 'ΔG_add > 0 (unsaturated)'),
+    )
+
+    rows = []
+    for c in cols:
+        if not c.get('draw', True):
+            continue
+        k = c['double']
+        if k not in fr.preds:
+            continue
+        preds = fr.preds[k]
+        for sub_key, m_sub, _ in subsets:
+            ok = m_sub & np.isfinite(preds).all(axis=0)
+            u, inv = np.unique(cl[ok], return_inverse=True)
+            e = np.stack([p[ok] - y[ok] for p in preds])
+            pt = float(np.mean(np.sqrt((e ** 2).mean(axis=1))))
+            ns = e.shape[0]
+            rng = np.random.default_rng(0)
+            reps = np.empty(B, dtype=float)
+            for b in range(B):
+                w = rng.multinomial(len(u), np.full(len(u), 1.0 / len(u))).astype(float)[inv]
+                sw = rng.multinomial(ns, np.full(ns, 1.0 / ns)).astype(float) / ns if ns > 1 else np.ones(1)
+                per_seed_rm = np.sqrt(((e ** 2) * w).sum(axis=1) / w.sum())
+                reps[b] = float(np.dot(sw, per_seed_rm))
+            lo, hi = boot_ci(reps)
+            rows.append(dict(
+                column=c['name'], key=k, subset=sub_key, value=pt, lo=lo, hi=hi,
+                n_variants=int(ok.sum()), n_libraries=int(len(np.unique(grp[ok]))), n_clusters=int(len(u)), n_seeds=ns,
+            ))
+
+    df = pd.DataFrame(rows)
+    atomic_to_csv(df, out_dddg / 'main_models_dddG_rmse_bars.csv', index=False, float_format='%.4f')
+
+    sub_labels = tuple(
+        f"{desc} (n = {int(df.loc[df['subset'] == sk, 'n_variants'].max()):,}, {int(df.loc[df['subset'] == sk, 'n_libraries'].max())} domains)"
+        for sk, _, desc in subsets
+    )
+    ymax = float(np.ceil((df['hi'].max() + 0.34) / 0.2) * 0.2)
+    fig, ax = plt.subplots(figsize=(fig_width(cols), 4.8))
+    style.bar_panel(
+        ax, cols, df, ('all', 'dG_gt0'), sub_labels,
+        ylabel='epistasis RMSE (kcal/mol; lower is better)',
+        ylim=(0.0, ymax),
+        zero_line=False,
+    )
+    ax.set_xlabel('predicted epistasis (1/2(MT_AB+WT_AB) − WT_A − WT_B for ESM-MSR / ESM3; direct − sum of singles for others)', fontsize=8.3)
+    fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.94])
+    style.save(fig, out_dddg / 'main_models_dddG_rmse_bars', close=(split != 'capped'))
+    if split == 'capped':
+        style.save(fig, out_dir('supplementary_figs') / '_epi_rmse_bars')
+
+
 def _compare_models_scatters(out_path, title_str: str, m: np.ndarray, y: np.ndarray, dG_add: np.ndarray, model_preds: list) -> None:
     ok = m & np.isfinite(y)
     for _, p in model_preds:
@@ -825,6 +994,10 @@ def run_pair_heatmaps_and_dddg_tables(split: str = 'capped', pair_pngs: bool = F
         ))
     atomic_to_csv(pd.DataFrame(s_rows), out_dddg / 'stats.csv', index=False, float_format='%.4f')
     atomic_to_csv(pd.DataFrame(dg_rows), out_dgadd / 'stats.csv', index=False, float_format='%.4f')
+
+    # 2x4 subplots of all 8 main models (all doubles + dG_add > 0) and paired RMSE bar chart
+    _main_models_dddg_grid(out_dddg, split, fit, y_raw, dG_add, model)
+    _main_models_dddg_rmse_bars(out_dddg, split, fr, fit, dG_add)
 
     # 4-panel dG_additive vs predicted dddG side-by-side figure
     msr_names = [m for m in ('ESM-MSR', 'MutateEverything Stage 2', 'ThermoMPNN-D', 'SPURS-multi') if m in model]
