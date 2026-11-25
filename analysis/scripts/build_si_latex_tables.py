@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from concurrent.futures import ProcessPoolExecutor
 import math
+import pickle
 import sys
 from pathlib import Path
 
@@ -214,71 +215,49 @@ def clean_model_display(name: str, overlap: bool = False) -> str:
 
 
 # --------------------------------------------------------------------------------------
-# PART 1: TABLE S1 — CONCISE ABLATIONS SUMMARY (ALL ABLATIONS x ALL DATASETS)
+# PART 1: TABLES S1a & S1b — ABLATIONS SPLIT INTO IN-DISTRIBUTION AND OOD
 # --------------------------------------------------------------------------------------
-EXT_SINGLES_10 = ['s571', 's783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369']
-EXT_MULTI_2 = ['ptmul', 'ptmuld']
+# The 7 single-mutant sets matching the 8 main thermostability benchmarks (+ PTMUL = 8)
+EXT_MAIN_SINGLES_7 = ['ssym', 's461', 'k2369', 's783', 's2648', 'q3421', 's8754']
 
 
-def _load_dms_means() -> dict[tuple[str, str], tuple[float, float]]:
-    """Load mean Spearman across all 7 DMS assays in final_bench/stats/DMS/ per (row_key, head_file)."""
-    dms_root = ROOT / 'final_bench/stats/DMS/final_checkpoints'
-    out: dict[str, tuple[float, float]] = {}
-
-    def read_seeds(fam: str, fname: str, seeds=(1, 2, 3)):
-        vals = []
-        for s in seeds:
-            p = dms_root / fam / f's{s}' / fname
-            if p.exists():
-                df = pd.read_csv(p)
-                vals.append(float(df['spearman_all'].mean()))
-        if not vals:
-            return (np.nan, np.nan)
-        return (float(np.mean(vals)), float(np.std(vals, ddof=1)) if len(vals) > 1 else np.nan)
-
-    # Reference & eval-only variants
-    out['FINAL_p0'] = read_seeds('FINAL_p0', 'best.ckpt_sigma1.0_unmasked_Combined.csv')
-    out['FINAL_p0_WT'] = read_seeds('FINAL_p0', 'best.ckpt_sigma1.0_unmasked_WT_LoRA.csv')
-    out['FINAL_p0_MT'] = read_seeds('FINAL_p0', 'best.ckpt_sigma1.0_unmasked_MT_LoRA.csv')
-    out['FINAL_p0_s05'] = read_seeds('FINAL_p0', 'best.ckpt_sigma0.5_unmasked_Combined.csv')
-    out['FINAL_p0@independent'] = read_seeds('FINAL_p0', 'best.ckpt_sigma1.0_independent_Combined.csv')
-    out['FINAL_p1'] = read_seeds('FINAL_p1', 'best.ckpt_sigma1.0_independent_Combined.csv')
-    out['FINAL_p1@unmasked'] = read_seeds('FINAL_p1', 'best.ckpt_sigma1.0_unmasked_Combined.csv')
-    out['FINAL_p1_marg'] = read_seeds('FINAL_p1_marg', 'best.ckpt_sigma1.0_wt-independent_mt-marginal_Combined.csv')
-    for fam in [
-        'FINAL_p0_pw0', 'FINAL_p0_norank', 'FINAL_p0_rcthr0', 'FINAL_p0_norange',
-        'FINAL_p0_mse', 'FINAL_p0_deepfloor', 'FINAL_p0_floor0',
-        'FINAL_p0_noseqhwm', 'FINAL_p0_r2a4', 'FINAL_p0_mega',
-    ]:
-        out[fam] = read_seeds(fam, 'best.ckpt_sigma1.0_unmasked_Combined.csv')
-    out['FINAL_p0_learntobit_all'] = read_seeds('FINAL_p0_learntobit_all', 'best.ckpt_sigma1.0_unmasked_Combined.csv', seeds=(1,))
-    return out
+def _load_heldout_mgnify_spine(run: str, src_name: str) -> pd.DataFrame:
+    """Load exact held-out uid, dG_wt, ddG_ML spine matching Figure 3b (612,406 MGnify / 109,581 Rocklin)."""
+    excl = set(heldout_excluded(src_name))
+    pkl_path = ROOT / 'repo/analysis/cache' / f'frame_mgnify_FINAL_p0_{run}_s123.pkl'
+    with open(pkl_path, 'rb') as fh:
+        fr = pickle.load(fh)
+    sp = fr.spine
+    m = sp['use'].to_numpy() & (~sp['code_wt'].astype(str).isin(excl).to_numpy())
+    return pd.DataFrame({
+        'uid': sp.loc[m, 'id'].astype(str).to_numpy(),
+        'dG_wt': sp.loc[m, 'dG_wt'].to_numpy(float),
+        'y': sp.loc[m, 'y'].to_numpy(float),
+    }).set_index('uid')
 
 
-def _score_mgnify_task(args: tuple[str, str, str, str, tuple[str, ...], list[str]]) -> tuple[str, str, dict[str, tuple[float, float]]]:
-    base_dir_s, fam, run, colkey, heads, excl_list = args
+def _score_mgnify_task(args: tuple[str, str, str, str, tuple[str, ...], str]) -> tuple[str, str, dict[str, tuple[float, float]]]:
+    base_dir_s, fam, run, colkey, heads, src_name = args
     base_dir = Path(base_dir_s)
-    excl_set = set(excl_list)
+    spine = _load_heldout_mgnify_spine(run, src_name)
     h_link = tobit_link(**TOBIT)
-    usecols = ['code_wt', 'dG_wt', 'ddG_ML', 'cens', 'wt_lora_pred', 'mt_lora_pred', 'combined_pred']
-    cens_ok = {'default', '0', 0}
+    usecols = ['uid'] + list(heads)
     by_head: dict[str, list[float]] = {h: [] for h in heads}
+    dg_ok = spine['dG_wt'].to_numpy(float)
+    y_ok = spine['y'].to_numpy(float)
+    target_uids = spine.index
     for s in (1, 2, 3):
         p = base_dir / fam / f's{s}' / run / 'predictions.csv.gz'
         if not p.exists():
             continue
         df = pd.read_csv(p, usecols=usecols, low_memory=False)
-        y = df['ddG_ML'].to_numpy(float)
-        dg = df['dG_wt'].to_numpy(float)
-        cens = df['cens']
-        ok_c = (cens == 0).to_numpy() if np.issubdtype(cens.dtype, np.number) else cens.astype(str).isin(cens_ok).to_numpy()
-        ok = np.isfinite(y) & np.isfinite(dg) & ok_c & (~df['code_wt'].astype(str).isin(excl_set).to_numpy())
-        y_ok = y[ok]
-        dg_ok = dg[ok]
+        df['uid'] = df['uid'].astype(str)
+        df = df.set_index('uid').reindex(target_uids)
         for h in heads:
-            pred = df[h].to_numpy(float)[ok]
-            linked = h_link(dg_ok + pred) - dg_ok
-            by_head[h].append(float(spearmanr(linked, y_ok).statistic))
+            pred = df[h].to_numpy(float)
+            ok = np.isfinite(pred) & np.isfinite(y_ok) & np.isfinite(dg_ok)
+            linked = h_link(dg_ok[ok] + pred[ok]) - dg_ok[ok]
+            by_head[h].append(float(spearmanr(linked, y_ok[ok]).statistic))
     out = {}
     for h, vals in by_head.items():
         if vals:
@@ -288,7 +267,7 @@ def _score_mgnify_task(args: tuple[str, str, str, str, tuple[str, ...], list[str
 
 
 def _load_mgnify_rocklin_ablations() -> dict[str, dict[str, tuple[float, float]]]:
-    """Compute held-out MGnify & Rocklin pooled Spearman (comb~ matching Figure 3b) in parallel."""
+    """Compute held-out MGnify (612,406) & Rocklin (109,581) pooled Spearman (comb~ matching Figure 3b) in parallel."""
     fams = [
         'FINAL_p0', 'FINAL_p1', 'FINAL_p1_marg',
         'FINAL_p0_pw0', 'FINAL_p0_norank', 'FINAL_p0_rcthr0',
@@ -297,11 +276,10 @@ def _load_mgnify_rocklin_ablations() -> dict[str, dict[str, tuple[float, float]]
     ]
     tasks = []
     for run, src_name, colkey in (('all', 'mgnify', 'mgnify'), ('rdenovo', 'rocklin_denovo', 'rocklin')):
-        excl_list = list(heldout_excluded(src_name))
         for fam in fams:
             heads = ('combined_pred', 'wt_lora_pred', 'mt_lora_pred') if fam == 'FINAL_p0' else ('combined_pred',)
-            tasks.append((str(ROOT / 'final_mgnify'), fam, run, colkey, heads, excl_list))
-        tasks.append((str(ROOT / 'final_mgnify_sigma0.5'), 'FINAL_p0', run, colkey, ('combined_pred',), excl_list))
+            tasks.append((str(ROOT / 'final_mgnify'), fam, run, colkey, heads, src_name))
+        tasks.append((str(ROOT / 'final_mgnify_sigma0.5'), 'FINAL_p0', run, colkey, ('combined_pred',), src_name))
 
     res: dict[str, dict[str, tuple[float, float]]] = {}
     with ProcessPoolExecutor(max_workers=8) as ex:
@@ -378,15 +356,15 @@ def _compute_extra_ablation_row_stats(row_key: str) -> dict[str, tuple[float, fl
             bey_l.append(b_v)
         if math.isfinite(c_v):
             cmag_l.append(c_v)
-        # External singles (WT) & multi (Combined)
+        # External singles (7 main sets, WT) & PTMUL (Combined)
         p_ew = fb / 'external/final_checkpoints' / fam / f's{s}' / f'best.ckpt_{tag}_WT_LoRA.csv'
         p_ec = fb / 'external/final_checkpoints' / fam / f's{s}' / f'best.ckpt_{tag}_Combined.csv'
         if p_ew.exists():
             d = pd.read_csv(p_ew).set_index('Unnamed: 0')['spearman_all']
-            ext_s.append(float(d.loc[EXT_SINGLES_10].mean()))
+            ext_s.append(float(d.loc[EXT_MAIN_SINGLES_7].mean()))
         if p_ec.exists():
             d = pd.read_csv(p_ec).set_index('Unnamed: 0')['spearman_all']
-            ext_m.append(float(d.loc[EXT_MULTI_2].mean()))
+            ext_m.append(float(d.loc['ptmul']))
         # Domainome low-id (436 held-out domains)
         p_d = fb / 'domainome/final_checkpoints' / fam / f's{s}' / f'best.ckpt_{tag.replace("unmasked", "skip_reverse_unmasked")}_WT_LoRA.csv'
         if p_d.exists():
@@ -437,10 +415,9 @@ def _compute_extra_ablation_row_stats(row_key: str) -> dict[str, tuple[float, fl
     }
 
 
-def build_table_s1_ablations() -> tuple[Path, pd.DataFrame]:
+def build_table_s1_ablations() -> tuple[list[Path], pd.DataFrame]:
     cl = pd.read_csv(ABL_DIR / 'cells_long.csv')
     cl_mega = pd.read_csv(ABL_DIR / 'cells_long_mega_own_split.csv')
-    dms_map = _load_dms_means()
     mg_map = _load_mgnify_rocklin_ablations()
     extra_s05 = _compute_extra_ablation_row_stats('FINAL_p0_s05')
     extra_lt = _compute_extra_ablation_row_stats('FINAL_p0_learntobit_all')
@@ -451,6 +428,14 @@ def build_table_s1_ablations() -> tuple[Path, pd.DataFrame]:
             return (np.nan, np.nan)
         vals = sub['rho'].to_numpy(float)
         return (float(np.mean(vals)), float(np.std(vals, ddof=1)) if len(vals) > 1 else np.nan)
+
+    def get_cl_ext7(fam: str, head: str = 'primary') -> tuple[float, float]:
+        sub = cl[(cl['family'] == fam) & (cl['head'] == head) & (cl['column'].isin(EXT_MAIN_SINGLES_7))]
+        if len(sub) == 0:
+            return (np.nan, np.nan)
+        # Average across the 7 main single-mutant thermostability sets per seed, then mean +/- SD across seeds
+        per_seed = sub.groupby('seed')['rho'].mean().to_numpy(float)
+        return (float(np.mean(per_seed)), float(np.std(per_seed, ddof=1)) if len(per_seed) > 1 else np.nan)
 
     # Row specs: (key, display_label, source_mode)
     row_specs = [
@@ -475,11 +460,9 @@ def build_table_s1_ablations() -> tuple[Path, pd.DataFrame]:
         ('FINAL_p0_mega', r'ESM-MSR*, full MegaScale split$^\dagger$', 'cl_mega'),
     ]
 
-    col_keys = [
-        'tsu_overall', 'tsu_doubles', 'tsu_beyond', 'tsu_cellmag',
-        'ext_singles', 'ext_multi',
-        'domainome', 'pgym', 'dms', 'mgnify', 'rocklin',
-    ]
+    id_cols = ['tsu_overall', 'tsu_doubles', 'tsu_beyond', 'tsu_cellmag', 'mgnify', 'rocklin']
+    ood_cols = ['ext_singles', 'ext_multi', 'domainome', 'pgym']
+    all_cols = id_cols + ood_cols
 
     records = []
     for key, label, mode in row_specs:
@@ -489,28 +472,27 @@ def build_table_s1_ablations() -> tuple[Path, pd.DataFrame]:
             rec['tsu_doubles'] = get_cl(key, 'tsuboyama_capped_test|multi', 'primary')
             rec['tsu_beyond'] = get_cl(key, 'tsuboyama_capped_test|beyond_rho', 'primary')
             rec['tsu_cellmag'] = get_cl(key, 'tsuboyama_capped_test|cell_mag', 'primary')
-            rec['ext_singles'] = get_cl(key, 'ext_singles_mean', 'primary')
-            rec['ext_multi'] = get_cl(key, 'ext_multi_mean', 'primary')
+            rec['ext_singles'] = get_cl_ext7(key, 'primary')
+            rec['ext_multi'] = get_cl(key, 'ptmul', 'primary')
             rec['domainome'] = get_cl(key, 'domainome|lowid', 'primary')
-            # ProteinGym: use WT-view across all ablations so every row is apples-to-apples
-            # (note FINAL_p0 primary=0.5089 vs wt=0.5090; FINAL_p1 primary=0.5049 vs wt=0.5045)
-            rec['pgym'] = get_cl(key, 'pg|avg', 'wt')
+            # Strictly 173 held-out assays (pg|avg_lowid == pg|avg in cells_long)
+            rec['pgym'] = get_cl(key, 'pg|avg_lowid', 'wt')
         elif mode == 'cl_wt':
             rec['tsu_overall'] = get_cl('FINAL_p0', 'tsuboyama_capped_test', 'wt')
             rec['tsu_doubles'] = get_cl('FINAL_p0', 'tsuboyama_capped_test|multi', 'wt')
             rec['tsu_beyond'] = (np.nan, np.nan)
             rec['tsu_cellmag'] = (np.nan, np.nan)
-            rec['ext_singles'] = get_cl('FINAL_p0', 'ext_singles_mean', 'wt')
-            rec['ext_multi'] = get_cl('FINAL_p0', 'ext_multi_mean', 'wt')
+            rec['ext_singles'] = get_cl_ext7('FINAL_p0', 'wt')
+            rec['ext_multi'] = get_cl('FINAL_p0', 'ptmul', 'wt')
             rec['domainome'] = get_cl('FINAL_p0', 'domainome|lowid', 'wt')
-            rec['pgym'] = get_cl('FINAL_p0', 'pg|avg', 'wt')
+            rec['pgym'] = get_cl('FINAL_p0', 'pg|avg_lowid', 'wt')
         elif mode == 'cl_mt':
             rec['tsu_overall'] = get_cl('FINAL_p0', 'tsuboyama_capped_test', 'mt')
             rec['tsu_doubles'] = get_cl('FINAL_p0', 'tsuboyama_capped_test|multi', 'mt')
             rec['tsu_beyond'] = (np.nan, np.nan)
             rec['tsu_cellmag'] = (np.nan, np.nan)
-            rec['ext_singles'] = get_cl('FINAL_p0', 'ext_singles_mean', 'mt')
-            rec['ext_multi'] = get_cl('FINAL_p0', 'ext_multi_mean', 'mt')
+            rec['ext_singles'] = get_cl_ext7('FINAL_p0', 'mt')
+            rec['ext_multi'] = get_cl('FINAL_p0', 'ptmul', 'mt')
             rec['domainome'] = get_cl('FINAL_p0', 'domainome|lowid', 'mt')
             rec['pgym'] = (np.nan, np.nan)
         elif mode == 'extra_s05':
@@ -524,22 +506,19 @@ def build_table_s1_ablations() -> tuple[Path, pd.DataFrame]:
             rec['tsu_doubles'] = get_cl('FINAL_p0_mega', 'tsuboyama_capped_test|multi', 'comb', cl_mega)
             rec['tsu_beyond'] = get_cl('FINAL_p0_mega', 'tsuboyama_capped_test|beyond_rho', 'epi', cl_mega)
             rec['tsu_cellmag'] = get_cl('FINAL_p0_mega', 'tsuboyama_capped_test|cell_mag', 'epi', cl_mega)
-            rec['ext_singles'] = get_cl('FINAL_p0_mega', 'ext_singles_mean', 'primary')
-            rec['ext_multi'] = get_cl('FINAL_p0_mega', 'ext_multi_mean', 'primary')
+            rec['ext_singles'] = get_cl_ext7('FINAL_p0_mega', 'primary')
+            rec['ext_multi'] = get_cl('FINAL_p0_mega', 'ptmul', 'primary')
             rec['domainome'] = get_cl('FINAL_p0_mega', 'domainome|lowid', 'primary')
-            rec['pgym'] = get_cl('FINAL_p0_mega', 'pg|avg', 'wt')
+            rec['pgym'] = get_cl('FINAL_p0_mega', 'pg|avg_lowid', 'wt')
 
-        rec['dms'] = dms_map.get(key, (np.nan, np.nan))
         rec['mgnify'] = mg_map.get(key, {}).get('mgnify', (np.nan, np.nan))
         rec['rocklin'] = mg_map.get(key, {}).get('rocklin', (np.nan, np.nan))
         records.append(rec)
 
-    # Determine bolding per column (matching user SI table caption):
-    # Bold highest-performing model in each column (excluding FINAL_p0_mega on MegaScale cols since different split);
-    # also bold ESM-MSR (reference) if its mean +/- SD range overlaps the highest average performance.
+    # Determine bolding per column (matching user SI table caption)
     best_by_col: dict[str, tuple[float, set[str]]] = {}
     tsu_cols = {'tsu_overall', 'tsu_doubles', 'tsu_beyond', 'tsu_cellmag'}
-    for ck in col_keys:
+    for ck in all_cols:
         cands = []
         for rec in records:
             if ck in tsu_cols and rec['key'] == 'FINAL_p0_mega':
@@ -552,57 +531,85 @@ def build_table_s1_ablations() -> tuple[Path, pd.DataFrame]:
             continue
         max_v = max(v for v, _ in cands)
         winners = {k for v, k in cands if round(v, 3) >= round(max_v, 3)}
-        # Check if reference overlaps highest average performance
         ref_m, ref_sd = records[0][ck]
         if math.isfinite(ref_m) and math.isfinite(ref_sd) and (ref_m + ref_sd >= max_v - 1e-12):
             winners.add('FINAL_p0')
         best_by_col[ck] = (max_v, winners)
 
-    header_lines = [
-        r'{} & \multicolumn{4}{c}{MegaScale test} & \multicolumn{2}{c}{Thermostability} & \multicolumn{5}{c}{Held-out OOD Benchmarks} \\',
-        r'\cmidrule(lr){2-5} \cmidrule(lr){6-7} \cmidrule(lr){8-12}',
-        r'ID & Overall & Doubles & Beyond $\rho$ & Cell mag. & Singles (10) & Multi (2) & Domainome & ProteinGym & DMS (7) & MGnify & Rocklin \\',
-    ]
-
-    body_rows = []
+    # --- Table S1a: In-Distribution Proteolysis Stability (MegaScale Test + Held-Out MGnify & Rocklin) ---
+    rows_id = []
     for rec in records:
         cells = [rec['label']]
-        for ck in col_keys:
+        for ck in id_cols:
             m, sd = rec[ck]
             sfx = r'$^\dagger$' if (rec['key'] == 'FINAL_p0_mega' and ck in tsu_cols and math.isfinite(m)) else ''
             is_bold = rec['key'] in best_by_col[ck][1]
             cells.append(fmt_mean_sd(m, sd, decimals=3, bold=is_bold, suffix=sfx))
-        body_rows.append(' & '.join(cells) + r' \\')
+        rows_id.append(' & '.join(cells) + r' \\')
 
-    caption_body = (
-        r"Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds unless noted) across all evaluated benchmarks "
-        r"under the deployed readout (Dual-view on MegaScale overall/doubles, thermostability multi-mutants, DMS, MGnify, and Rocklin; "
-        r"WT-view on singles-only thermostability sets, Domainome, and ProteinGym). "
-        r"Models with an asterisk (ESM-MSR*) are retrained with modifications on the Homology-Restricted MegaScale split, "
-        r"while those without use the exact same weights as ESM-MSR (reference). "
-        r"MegaScale test columns report per-domain mean $\rho$ (Overall: 33 domains; Doubles: 13 domains) and epistasis metrics "
-        r"(Beyond $\rho$: Spearman above global saturation curve; Cell mag.: double-centred complete-block residual correlation). "
-        r"Thermostability columns average pooled $\rho$ across 10 single-mutant sets (S571, S783, S2648, S8754, S669, S461, Ssym, Q3421, K3822, K2369) "
-        r"and 2 multi-mutant sets (PTMUL, PTMUL-D). "
-        r"Held-out OOD columns report mean per-domain $\rho$ on Domainome (436 domains), category-weighted macro-average $\rho$ on ProteinGym "
-        r"(173 held-out assays, WT-view; Dual-view for reference and p1 differs by $<0.001$), mean $\rho$ across 7 DMS assays, "
-        r"and pooled Tobit-linked $\rho$ on held-out MGnify (612,406 variants) and Rocklin de novo designs (109,581 variants). "
-        r"Highest performing models in each column are indicated in bold; ESM-MSR (reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. "
-        r"$^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}) and evaluated on its own 28-domain test split for MegaScale columns (excluded from MegaScale bolding), "
-        r"and on the identical OOD test sets for all other columns. "
-        r"$^\ddagger$Single training seed (seed 1; MGnify/Rocklin not run). --- indicates not applicable or not evaluated."
+    tex_id = render_table(
+        caption_title='Summary of ESM-MSR Ablations and Variations: In-Distribution Proteolysis Stability Benchmarks',
+        caption_body=(
+            r"Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds unless noted) on proteolysis stability benchmarks "
+            r"under the deployed Dual-view readout. Models with an asterisk (ESM-MSR*) are retrained with modifications on the Homology-Restricted "
+            r"MegaScale split, while those without use the exact same weights as ESM-MSR (reference). "
+            r"MegaScale test columns report per-domain mean $\rho$ (Overall: 33 domains; Doubles: 13 domains) and epistasis metrics "
+            r"(Beyond $\rho$: Spearman above global saturation curve; Cell mag.: double-centred complete-block residual correlation). "
+            r"MGnify and Rocklin columns report pooled Tobit-linked $\rho$ strictly on the 4-part homology-held-out sets "
+            r"(MGnify: 612,406 variants across 140,694 scaffolds; Rocklin de novo designs: 109,581 variants across 623 scaffolds). "
+            r"Highest performing models in each column are indicated in bold; ESM-MSR (reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. "
+            r"$^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}) and evaluated on its own 28-domain test split for MegaScale columns (excluded from MegaScale bolding), "
+            r"and on the identical held-out MGnify and Rocklin sets. "
+            r"$^\ddagger$Single training seed (seed 1; MGnify/Rocklin not run). --- indicates not applicable or not evaluated."
+        ),
+        label='tab:si_ablations_in_distribution',
+        col_spec='l' + 'c' * len(id_cols),
+        header_lines=[
+            r'{} & \multicolumn{4}{c}{MegaScale test} & \multicolumn{2}{c}{Held-out Proteolysis} \\',
+            r'\cmidrule(lr){2-5} \cmidrule(lr){6-7}',
+            r'ID & Overall & Doubles & Beyond $\rho$ & Cell mag. & MGnify & Rocklin \\',
+        ],
+        body_rows=rows_id,
     )
+    p1a = write_tex('table_S1a_ablations_in_distribution.tex', tex_id)
 
-    tex = render_table(
-        caption_title='Summary of ESM-MSR Ablations and Variations Across All Benchmarks',
-        caption_body=caption_body,
-        label='tab:si_ablations_summary',
-        col_spec='l' + 'c' * len(col_keys),
-        header_lines=header_lines,
-        body_rows=body_rows,
+    # --- Table S1b: Out-of-Distribution Benchmarks (Thermostability 7+1, Held-Out Domainome, Held-Out ProteinGym) ---
+    rows_ood = []
+    for rec in records:
+        cells = [rec['label']]
+        for ck in ood_cols:
+            m, sd = rec[ck]
+            is_bold = rec['key'] in best_by_col[ck][1]
+            cells.append(fmt_mean_sd(m, sd, decimals=3, bold=is_bold))
+        rows_ood.append(' & '.join(cells) + r' \\')
+
+    tex_ood = render_table(
+        caption_title='Summary of ESM-MSR Ablations and Variations: Out-of-Distribution Benchmarks',
+        caption_body=(
+            r"Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds unless noted) on out-of-distribution benchmarks "
+            r"under the deployed readout (WT-view on single-mutant thermostability sets, Domainome, and ProteinGym; Dual-view on PTMUL). "
+            r"Models with an asterisk (ESM-MSR*) are retrained with modifications on the Homology-Restricted MegaScale split, "
+            r"while those without use the exact same weights as ESM-MSR (reference). "
+            r"Thermostability columns match the 8 main-text benchmarks: Singles (7) averages pooled $\rho$ across Ssym, S461, K2369, S783, S2648, Q3421, and S8754; "
+            r"PTMUL reports pooled $\rho$ on the multi-mutant thermostability set ($n=914$). "
+            r"Held-out DMS columns strictly use the 4-part homology-held-out sets: Domainome reports mean per-domain $\rho$ across 436 held-out domains ($n=451{,}569$) "
+            r"and ProteinGym reports equal-category-weighted macro-average $\rho$ across 173 held-out assays (WT-view; Dual-view for reference and p1 differs by $<0.001$). "
+            r"Highest performing models in each column are indicated in bold; ESM-MSR (reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. "
+            r"$^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}) and evaluated on the identical OOD sets. "
+            r"$^\ddagger$Single training seed (seed 1). --- indicates not applicable or not evaluated."
+        ),
+        label='tab:si_ablations_ood',
+        col_spec='l' + 'c' * len(ood_cols),
+        header_lines=[
+            r'{} & \multicolumn{2}{c}{Thermostability} & \multicolumn{2}{c}{Held-out DMS} \\',
+            r'\cmidrule(lr){2-3} \cmidrule(lr){4-5}',
+            r'ID & Singles (7) & PTMUL & Domainome & ProteinGym \\',
+        ],
+        body_rows=rows_ood,
     )
-    out_path = write_tex('table_S1_ablations_summary.tex', tex)
-    return out_path, pd.DataFrame([{**{'key': r['key'], 'label': r['label']}, **{ck: r[ck][0] for ck in col_keys}} for r in records])
+    p1b = write_tex('table_S1b_ablations_ood.tex', tex_ood)
+
+    return [p1a, p1b], pd.DataFrame([{**{'key': r['key'], 'label': r['label']}, **{ck: r[ck][0] for ck in all_cols}} for r in records])
 
 
 # --------------------------------------------------------------------------------------
@@ -1607,9 +1614,9 @@ def build_table_s6_screening_and_ndcg() -> tuple[Path, Path]:
 
 def main() -> None:
     generated: list[Path] = []
-    print('[1/6] Building Table S1 (All Ablations Summary across All Datasets)...')
-    p1, df_s1 = build_table_s1_ablations()
-    generated.append(p1)
+    print('[1/6] Building Tables S1a–S1b (Ablations: In-Distribution & OOD)...')
+    p1_list, df_s1 = build_table_s1_ablations()
+    generated.extend(p1_list)
     print(df_s1.to_string(index=False))
 
     print('\n[2/6] Building Tables S2a–S2d (MegaScale Main, Doubles, MegaSplits, Backbone/Origin)...')
