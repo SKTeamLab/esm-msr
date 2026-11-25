@@ -4,6 +4,7 @@ Reads <in_dir>/<model>/results.csv produced by benchmark_size_scaling.py (RTX A4
 plus <vram_ext_dir>/<model>/results.csv (95%-allowance single next-step / half-step B=1 VRAM point on RTX 5090 32 GB)
 and generates:
   - analysis/results/10_inference_resources/03_size_scaling_vram_and_screening_a4500.{png,pdf}
+  - analysis/results/00_main_text_figs/resource_scaling.{png,pdf}
   - analysis/results/10_inference_resources/size_scaling_a4500_all.csv
   - analysis/results/10_inference_resources/size_scaling_a4500_summary.md
 """
@@ -27,7 +28,7 @@ _REPO_ROOT = _HERE.parents[1]
 sys.path.insert(0, str(_REPO_ROOT / 'src'))
 sys.path.insert(0, str(_REPO_ROOT / 'analysis'))
 
-from msr_analysis.paths import INFERENCE_RESOURCES_DIR, MSR_ROOT  # noqa: E402
+from msr_analysis.paths import INFERENCE_RESOURCES_DIR, MAIN_TEXT_FIGS_DIR, MSR_ROOT  # noqa: E402
 from msr_analysis import style  # noqa: E402
 from msr_analysis.models import BY_NAME  # noqa: E402
 
@@ -209,8 +210,13 @@ def compute_vram_fits(df: pd.DataFrame, df_ext: pd.DataFrame) -> list[dict]:
     return out
 
 
-def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple[Path, list[dict]]:
-    fig, axes = plt.subplots(1, 3, figsize=(17.2, 6.5))
+def plot_scaling(
+    df: pd.DataFrame,
+    df_ext: pd.DataFrame,
+    out_dir: Path,
+    main_text_dir: Path | None = None,
+) -> tuple[Path, Path | None, list[dict]]:
+    fig, axes = plt.subplots(1, 3, figsize=(17.2, 5.7))
     ax_vram, ax_1m, ax_2m = axes
 
     fits = compute_vram_fits(df, df_ext)
@@ -280,7 +286,6 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
     ax_vram.xaxis.set_minor_formatter(mticker.NullFormatter())
     ax_vram.set_xlabel('Protein length $L$ (residues, log scale)')
     ax_vram.set_ylabel('Minimum peak allocated VRAM at $B=1$ (GB)')
-    ax_vram.set_title('A. Min VRAM ($B=1$) & quadratic fit to 40 GB', loc='left')
     ax_vram.grid(True, color=style.GRID, lw=0.6, zorder=0)
 
     # ---- Panel B: Full single-mutant screen time (19L variants: RTX A4500 20 GB + 6-core CPU ESM-MSR WT) ----
@@ -306,7 +311,6 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
     ax_1m.xaxis.set_minor_formatter(mticker.NullFormatter())
     ax_1m.set_xlabel('Protein length $L$ (residues, log scale)')
     ax_1m.set_ylabel('Full single-mutant screen ($19L$ variants) time (s)')
-    ax_1m.set_title('B. Full single-mutant screen (RTX A4500 & 6-CPU)', loc='left')
     ax_1m.grid(True, color=style.GRID, lw=0.6, zorder=0)
 
     # ---- Panel C: Full double-mutant screen time (361 * L*(L-1)/2, RTX A4500 20 GB, 24 h cap) ----
@@ -354,38 +358,44 @@ def plot_scaling(df: pd.DataFrame, df_ext: pd.DataFrame, out_dir: Path) -> tuple
     ax_2m.xaxis.set_minor_formatter(mticker.NullFormatter())
     ax_2m.set_xlabel('Protein length $L$ (residues, log scale)')
     ax_2m.set_ylabel('Full double-mutant screen ($361\\binom{L}{2}$ variants) time (s)')
-    ax_2m.set_title('C. Full double-mutant screen (RTX A4500, 24 h cap)', loc='left')
     ax_2m.grid(True, color=style.GRID, lw=0.6, zorder=0)
 
-    # Clean, unified top legend
+    # Reserve bottom band for unified legend and top margin for Nature-style bold a/b/c labels
+    fig.tight_layout(rect=(0.005, 0.145, 0.995, 0.945), w_pad=2.4)
+
+    # Nature-style lowercase bold panel labels aligned horizontally at top-left outside each panel
+    fig.canvas.draw()
+    y_lbl = max(ax.get_position().y1 for ax in axes) + 0.042
+    for ax_p, letter in zip(axes, ('a', 'b', 'c')):
+        pos = ax_p.get_position()
+        x_lbl = max(0.005, pos.x0 - 0.045)
+        fig.text(x_lbl, y_lbl, letter, ha='left', va='top', fontsize=15, fontweight='bold')
+
+    # Unified legend below the three panels
     legend_handles = [
-        Line2D([0], [0], color=C_ESM_BLACK, marker='D', ms=5.6, mfc=C_ESM_BLACK, mec=C_ESM_BLACK, ls='-', lw=2.4, label='ESM-MSR (Dual-view; A: all variants)'),
-        Line2D([0], [0], color=C_ESM_DARK, marker='s', ms=5.5, mfc=C_ESM_DARK, mec=C_ESM_DARK, ls='-', lw=2.1, label='ESM-MSR (Indep. masking; B: +Marginal)'),
-        Line2D([0], [0], color=C_ESM_LIGHT, marker='^', ms=5.5, mfc=C_ESM_LIGHT, mec=C_ESM_LIGHT, ls='-', lw=2.1, label='ESM-MSR (Masked marginal, C)'),
-        Line2D([0], [0], color=C_ESM_BLACK, marker='D', ms=5.5, mfc='white', mec=C_ESM_BLACK, mew=1.5, ls='--', lw=2.2, label='ESM-MSR (WT-view, GPU; C: dotted additive)'),
-        Line2D([0], [0], color=C_ESM_MID, marker='o', ms=5.5, mfc='white', mec=C_ESM_MID, mew=1.5, ls=':', lw=2.1, label='ESM-MSR (WT-view, 6-core CPU, B)'),
-        Line2D([0], [0], color=BY_NAME['SPURS'].color, marker='s', ms=5.2, mfc=BY_NAME['SPURS'].color, mec=BY_NAME['SPURS'].color, ls='-', lw=2.0, label='SPURS-multi (hollow: single, B)'),
+        Line2D([0], [0], color=C_ESM_BLACK, marker='D', ms=5.6, mfc=C_ESM_BLACK, mec=C_ESM_BLACK, ls='-', lw=2.4, label='ESM-MSR (Dual-view; a: all variants)'),
+        Line2D([0], [0], color=C_ESM_DARK, marker='s', ms=5.5, mfc=C_ESM_DARK, mec=C_ESM_DARK, ls='-', lw=2.1, label='ESM-MSR (Indep. masking; b: +Marginal)'),
+        Line2D([0], [0], color=C_ESM_LIGHT, marker='^', ms=5.5, mfc=C_ESM_LIGHT, mec=C_ESM_LIGHT, ls='-', lw=2.1, label='ESM-MSR (Masked marginal, c)'),
+        Line2D([0], [0], color=C_ESM_BLACK, marker='D', ms=5.5, mfc='white', mec=C_ESM_BLACK, mew=1.5, ls='--', lw=2.2, label='ESM-MSR (WT-view, GPU; c: dotted additive)'),
+        Line2D([0], [0], color=C_ESM_MID, marker='o', ms=5.5, mfc='white', mec=C_ESM_MID, mew=1.5, ls=':', lw=2.1, label='ESM-MSR (WT-view, 6-core CPU, b)'),
+        Line2D([0], [0], color=BY_NAME['SPURS'].color, marker='s', ms=5.2, mfc=BY_NAME['SPURS'].color, mec=BY_NAME['SPURS'].color, ls='-', lw=2.0, label='SPURS-multi (hollow: single, b)'),
         Line2D([0], [0], color=BY_NAME['ThermoMPNN'].color, marker='p', ms=5.4, mfc=BY_NAME['ThermoMPNN'].color, mec=BY_NAME['ThermoMPNN'].color, ls='-', lw=2.0, label='ThermoMPNN-D (hollow: single SSM)'),
         Line2D([0], [0], color=BY_NAME['ProteinMPNN'].color, marker='d', ms=5.2, mfc=BY_NAME['ProteinMPNN'].color, mec=BY_NAME['ProteinMPNN'].color, ls='-.', lw=2.0, label='ProteinMPNN (zero-shot)'),
-        Line2D([0], [0], color=BY_NAME['MutateEverything'].color, marker='h', ms=5.4, mfc=BY_NAME['MutateEverything'].color, mec=BY_NAME['MutateEverything'].color, ls='-', lw=2.0, label='MutateEverything (St2; A–B: St1/St2)'),
+        Line2D([0], [0], color=BY_NAME['MutateEverything'].color, marker='h', ms=5.4, mfc=BY_NAME['MutateEverything'].color, mec=BY_NAME['MutateEverything'].color, ls='-', lw=2.0, label='MutateEverything (St2; a–b: St1/St2)'),
         Line2D([0], [0], color=BY_NAME['ProSST'].color, marker='X', ms=5.4, mfc=BY_NAME['ProSST'].color, mec=BY_NAME['ProSST'].color, ls=':', lw=2.0, label='ProSST-2048 (zero-shot)'),
-        Line2D([0], [0], color='#555555', ls='--', lw=1.4, label='Panel A: final-3-point quadratic fit to 40 GB'),
+        Line2D([0], [0], color='#555555', ls='--', lw=1.4, label='Panel a: final-3-point quadratic fit to 40 GB'),
     ]
-    fig.legend(handles=legend_handles, loc='upper center', bbox_to_anchor=(0.5, 0.945), ncol=4, fontsize=7.7, frameon=False, columnspacing=1.1)
+    fig.legend(
+        handles=legend_handles, loc='upper center', bbox_to_anchor=(0.5, 0.135),
+        ncol=4, fontsize=8.0, frameon=False, columnspacing=1.2,
+    )
 
     stem = out_dir / '03_size_scaling_vram_and_screening_a4500'
-    style.finish_figure(
-        fig, stem=stem, top=0.82,
-        title='Protein-Length Scaling of Minimum VRAM (16–40 GB) and Full Mutational Screening Cost (1× RTX A4500 20 GB)',
-        note=(
-            'Panel A shows process-allocated peak VRAM at B = 1 across exact power-of-two lengths (real ProteinGym AF2 structures & MSAs up to L = 2,048; '
-            'tiled extensions above 2,048), extended by one 95%-card-cap (zero-overflow) step on a 32 GB GPU: 2×L_ok if it fits (ESM-MSR 2,048; ProSST 8,192) '
-            'or 1.5×L_ok (MutateEverything 1,536; SPURS 12,288; ProteinMPNN & ThermoMPNN/-D 24,576). Dashed curves fit V(L) = a + bL + cL² to each model’s final 3 '
-            'empirical points to estimate capacity at 16 / 24 / 32 / 40 GB. Panel B shows RTX A4500 optimal-batch single-mutant times plus 6-core CPU-only ESM-MSR WT-view '
-            '(60 GB RAM, reaching L = 2,048 in 54 s); Panel C shows RTX A4500 double-mutant times with a 24 h practicality cap.'
-        ),
-    )
-    return stem, fits
+    main_stem = (main_text_dir / 'resource_scaling') if main_text_dir is not None else None
+    style.save(fig, stem, close=(main_stem is None))
+    if main_stem is not None:
+        style.save(fig, main_stem, close=True)
+    return stem, main_stem, fits
 
 
 def write_summary_md(df: pd.DataFrame, fits: list[dict], out_dir: Path) -> None:
@@ -452,21 +462,27 @@ def main() -> None:
     ap.add_argument('--in_dir', default=str(MSR_ROOT / 'size_scaling_a4500'))
     ap.add_argument('--vram_ext_dir', default=str(MSR_ROOT / 'size_scaling_halfstep_95'))
     ap.add_argument('--out_dir', default=str(INFERENCE_RESOURCES_DIR))
+    ap.add_argument('--main_text_dir', default=str(MAIN_TEXT_FIGS_DIR))
     args = ap.parse_args()
 
     in_dir = Path(args.in_dir)
     ext_dir = Path(args.vram_ext_dir) if args.vram_ext_dir else None
     out_dir = Path(args.out_dir)
+    main_text_dir = Path(args.main_text_dir) if args.main_text_dir else None
     out_dir.mkdir(parents=True, exist_ok=True)
+    if main_text_dir is not None:
+        main_text_dir.mkdir(parents=True, exist_ok=True)
 
     df = load_all(in_dir)
     if df.empty:
         raise SystemExit(f'No size-scaling results found in {in_dir}')
     df_ext = load_vram_ext(ext_dir)
     df.to_csv(out_dir / 'size_scaling_a4500_all.csv', index=False)
-    stem, fits = plot_scaling(df, df_ext, out_dir)
+    stem, main_stem, fits = plot_scaling(df, df_ext, out_dir, main_text_dir=main_text_dir)
     write_summary_md(df, fits, out_dir)
     print(f'Wrote: {stem}.png')
+    if main_stem is not None:
+        print(f'Wrote: {main_stem}.png')
 
 
 if __name__ == '__main__':
