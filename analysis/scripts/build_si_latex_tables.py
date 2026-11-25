@@ -278,9 +278,11 @@ class HomologyLookup:
             return ('---', False)
         if dataset_key == 'tsuboyama_mega_test':
             if inv == 'thermompnn_pub':
-                return ('Published MegaScale split overlap', True)
+                return (r'Same \texttt{mega\_splits} (pub.\ ens.)', False)
             if inv == 'rosetta_beta_nov16':
                 return ('V (Rocklin cal.)', False)
+            if inv == 'esm_msr_capped':
+                return (r'Trained on \texttt{mega\_splits}', False)
             return ('---', False)
 
         # Map canonical benchmark keys to leak_audit_matrix dataset names
@@ -347,6 +349,7 @@ CANONICAL_MODEL_ORDER = [
     'MutateEverything Stage 1',
     'ThermoMPNN',
     'ThermoMPNN-D',
+    'ThermoMPNN published*',
     'GeoDDG-3D',
     'ESM3ΔG',
     'Rosetta',
@@ -356,7 +359,6 @@ CANONICAL_MODEL_ORDER = [
     'IFUM',
     'IFUM (WT backbone)',
     'IFUM (ESMFold)',
-    'ThermoMPNN published*',
     'ESM3-small-open',
     'ESM3-small-open WT-view',
     'ESM3-small',
@@ -1037,9 +1039,10 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
     tex_a = render_table(
         caption_title='All-Model Comparison on Full MegaScale Split Test Set: Overall, Stabilizing, and Destabilizing Variants',
         caption_body=(
-            r"Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}). "
+            r"Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}; "
+            r"16/28 test domains have sequence/structural homology to train/val). "
             r"One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). "
-            r"Published ThermoMPNN checkpoints were trained on a different split of MegaScale and are marked $^*$ and excluded from clean bolding."
+            r"ThermoMPNN (retrained) and ThermoMPNN (published 3-member ensemble, trained on the identical \texttt{mega\_splits}) are shown consecutively."
         ),
         label='tab:si_megasplits_overall',
         col_spec='l' + 'c' * 12 + 'l',

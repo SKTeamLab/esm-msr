@@ -147,7 +147,7 @@ ProteinMPNN & 0.330 & 0.377 & 5.108 & $<10^{-4}$ & 0.348 & 0.392 & 5.646 & $<10^
 
 \begin{table}[H]
 \centering
-\caption{\textbf{All-Model Comparison on Full MegaScale Split Test Set: Overall, Stabilizing, and Destabilizing Variants}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Published ThermoMPNN checkpoints were trained on a different split of MegaScale and are marked $^*$ and excluded from clean bolding.}
+\caption{\textbf{All-Model Comparison on Full MegaScale Split Test Set: Overall, Stabilizing, and Destabilizing Variants}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}; 16/28 test domains have sequence/structural homology to train/val). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). ThermoMPNN (retrained) and ThermoMPNN (published 3-member ensemble, trained on the identical \texttt{mega\_splits}) are shown consecutively.}
 \label{tab:si_megasplits_overall}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccccccccccl}
@@ -156,12 +156,12 @@ ProteinMPNN & 0.330 & 0.377 & 5.108 & $<10^{-4}$ & 0.348 & 0.392 & 5.646 & $<10^
 \cmidrule(lr){2-5} \cmidrule(lr){6-9} \cmidrule(lr){10-13}
 ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & Homology / Overlap \\
 \midrule
-ESM-MSR & \textbf{0.820} & \textbf{0.835} & 0.928 & --- & 0.289 & 0.268 & 0.625 & --- & \textbf{0.804} & \textbf{0.810} & 0.982 & --- & --- \\
-SPURS & 0.801 & 0.823 & \textbf{0.754} & 0.032 & \textbf{0.299} & \textbf{0.288} & 0.607 & 0.694 & 0.777 & 0.790 & 0.772 & 0.010 & --- \\
-Mutate Everything & 0.775 & 0.805 & 0.779 & 0.0002 & 0.221 & 0.212 & \textbf{0.576} & 0.0008 & 0.757 & 0.776 & 0.808 & 0.0003 & --- \\
-ThermoMPNN & 0.779 & 0.795 & 0.760 & 0.0006 & 0.239 & 0.199 & 0.625 & 0.003 & 0.752 & 0.758 & \textbf{0.768} & $<10^{-4}$ & --- \\
+ESM-MSR & \textbf{0.820} & \textbf{0.835} & 0.928 & --- & 0.289 & 0.268 & 0.625 & --- & \textbf{0.804} & \textbf{0.810} & 0.982 & --- & Trained on \texttt{mega\_splits} \\
+SPURS & 0.801 & 0.823 & \textbf{0.754} & 0.032 & \textbf{0.299} & \textbf{0.288} & 0.607 & 0.694 & 0.777 & 0.790 & 0.772 & 0.010 & Trained on \texttt{mega\_splits} \\
+Mutate Everything & 0.775 & 0.805 & 0.779 & 0.0002 & 0.221 & 0.212 & \textbf{0.576} & 0.0008 & 0.757 & 0.776 & 0.808 & 0.0003 & Trained on \texttt{mega\_splits} \\
+ThermoMPNN & 0.779 & 0.795 & 0.760 & 0.0006 & 0.239 & 0.199 & 0.625 & 0.003 & 0.752 & 0.758 & \textbf{0.768} & $<10^{-4}$ & Trained on \texttt{mega\_splits} \\
+ThermoMPNN (published) & 0.777 & 0.794 & 0.813 & 0.0005 & 0.235 & 0.197 & 0.645 & 0.004 & 0.751 & 0.759 & 0.830 & 0.0006 & Same \texttt{mega\_splits} (pub.\ ens.) \\
 Rosetta & 0.675 & 0.645 & 2.182 & $<10^{-4}$ & 0.097 & 0.062 & 1.228 & $<10^{-4}$ & 0.657 & 0.612 & 2.384 & $<10^{-4}$ & V (Rocklin cal.) \\
-ThermoMPNN (published)$^*$ & 0.777 & 0.794 & 0.813 & 0.0005 & 0.235 & 0.197 & 0.645 & 0.004 & 0.751 & 0.759 & 0.830 & 0.0006 & Published MegaScale split overlap \\
 ESM3-small-open & 0.594 & 0.605 & 1.441 & $<10^{-4}$ & 0.000 & $-$0.028 & 1.532 & $<10^{-4}$ & 0.586 & 0.585 & 1.416 & $<10^{-4}$ & --- \\
 ProteinMPNN & 0.596 & 0.583 & 3.562 & $<10^{-4}$ & 0.078 & 0.064 & 2.784 & $<10^{-4}$ & 0.567 & 0.545 & 3.692 & $<10^{-4}$ & --- \\
 ProSST & 0.642 & 0.674 & 7.835 & $<10^{-4}$ & 0.041 & 0.031 & 5.070 & $<10^{-4}$ & 0.645 & 0.658 & 8.375 & $<10^{-4}$ & --- \\
@@ -181,12 +181,12 @@ ProSST & 0.642 & 0.674 & 7.835 & $<10^{-4}$ & 0.041 & 0.031 & 5.070 & $<10^{-4}$
 \cmidrule(lr){2-5} \cmidrule(lr){6-9}
 ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & Homology / Overlap \\
 \midrule
-ESM-MSR & \textbf{0.662} & \textbf{0.674} & 1.434 & --- & 0.564 & \textbf{0.582} & 2.080 & --- & --- \\
-SPURS & 0.598 & 0.612 & 1.040 & 0.019 & \textbf{0.567} & 0.579 & 1.555 & 0.589 & --- \\
-Mutate Everything & 0.595 & 0.625 & 1.041 & 0.008 & 0.509 & 0.527 & 1.714 & 0.012 & --- \\
-ThermoMPNN & 0.615 & 0.626 & \textbf{0.946} & 0.072 & 0.557 & 0.572 & \textbf{1.308} & 0.357 & --- \\
+ESM-MSR & \textbf{0.662} & \textbf{0.674} & 1.434 & --- & 0.564 & \textbf{0.582} & 2.080 & --- & Trained on \texttt{mega\_splits} \\
+SPURS & 0.598 & 0.612 & 1.040 & 0.019 & \textbf{0.567} & 0.579 & 1.555 & 0.589 & Trained on \texttt{mega\_splits} \\
+Mutate Everything & 0.595 & 0.625 & 1.041 & 0.008 & 0.509 & 0.527 & 1.714 & 0.012 & Trained on \texttt{mega\_splits} \\
+ThermoMPNN & 0.615 & 0.626 & \textbf{0.946} & 0.072 & 0.557 & 0.572 & 1.308 & 0.357 & Trained on \texttt{mega\_splits} \\
+ThermoMPNN (published) & 0.611 & 0.626 & 0.991 & 0.075 & 0.564 & 0.576 & \textbf{1.158} & 0.397 & Same \texttt{mega\_splits} (pub.\ ens.) \\
 Rosetta & 0.459 & 0.448 & 2.805 & $<10^{-4}$ & 0.421 & 0.418 & 3.258 & $<10^{-4}$ & V (Rocklin cal.) \\
-ThermoMPNN (published)$^*$ & 0.611 & 0.626 & 0.991 & 0.075 & --- & --- & --- & --- & Published MegaScale split overlap \\
 ESM3-small-open & 0.353 & 0.370 & 1.561 & $<10^{-4}$ & 0.347 & 0.366 & 2.778 & $<10^{-4}$ & --- \\
 ProteinMPNN & 0.287 & 0.317 & 5.399 & $<10^{-4}$ & 0.273 & 0.300 & 5.795 & $<10^{-4}$ & --- \\
 ProSST & --- & --- & --- & --- & 0.370 & 0.390 & 12.221 & $<10^{-4}$ & --- \\

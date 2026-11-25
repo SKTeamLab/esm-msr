@@ -475,6 +475,10 @@ def compute_megascale_extras() -> list[dict]:
         fr_ms, 'msrp0:comb', extra_ms_dbl, use_ms & (n_mut_ms == 2), 'group',
         section='megascale_s2c', benchmark='MegaScale_mega_splits_test_doubles', subset='per_domain_mean_spearman_epistatic',
     ))
+    rows.extend(_domain_mean_boot(
+        fr_ms, 'msrp0:wt', [('ThermoMPNN published*', 'tmpnnpub')], use_ms & (n_mut_ms == 2), 'group',
+        section='megascale_s2c', benchmark='MegaScale_mega_splits_test_doubles', subset='per_domain_mean_spearman_additive',
+    ))
     return rows
 
 
